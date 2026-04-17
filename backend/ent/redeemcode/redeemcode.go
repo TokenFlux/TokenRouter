@@ -22,6 +22,12 @@ const (
 	FieldValue = "value"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldMaxUses holds the string denoting the max_uses field in the database.
+	FieldMaxUses = "max_uses"
+	// FieldUsedCount holds the string denoting the used_count field in the database.
+	FieldUsedCount = "used_count"
+	// FieldExpiresAt holds the string denoting the expires_at field in the database.
+	FieldExpiresAt = "expires_at"
 	// FieldUsedBy holds the string denoting the used_by field in the database.
 	FieldUsedBy = "used_by"
 	// FieldUsedAt holds the string denoting the used_at field in the database.
@@ -34,12 +40,21 @@ const (
 	FieldGroupID = "group_id"
 	// FieldValidityDays holds the string denoting the validity_days field in the database.
 	FieldValidityDays = "validity_days"
+	// EdgeUsageRecords holds the string denoting the usage_records edge name in mutations.
+	EdgeUsageRecords = "usage_records"
 	// EdgeUser holds the string denoting the user edge name in mutations.
 	EdgeUser = "user"
 	// EdgeGroup holds the string denoting the group edge name in mutations.
 	EdgeGroup = "group"
 	// Table holds the table name of the redeemcode in the database.
 	Table = "redeem_codes"
+	// UsageRecordsTable is the table that holds the usage_records relation/edge.
+	UsageRecordsTable = "redeem_code_usages"
+	// UsageRecordsInverseTable is the table name for the RedeemCodeUsage entity.
+	// It exists in this package in order to avoid circular dependency with the "redeemcodeusage" package.
+	UsageRecordsInverseTable = "redeem_code_usages"
+	// UsageRecordsColumn is the table column denoting the usage_records relation/edge.
+	UsageRecordsColumn = "redeem_code_id"
 	// UserTable is the table that holds the user relation/edge.
 	UserTable = "redeem_codes"
 	// UserInverseTable is the table name for the User entity.
@@ -63,6 +78,9 @@ var Columns = []string{
 	FieldType,
 	FieldValue,
 	FieldStatus,
+	FieldMaxUses,
+	FieldUsedCount,
+	FieldExpiresAt,
 	FieldUsedBy,
 	FieldUsedAt,
 	FieldNotes,
@@ -94,6 +112,10 @@ var (
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	StatusValidator func(string) error
+	// DefaultMaxUses holds the default value on creation for the "max_uses" field.
+	DefaultMaxUses int
+	// DefaultUsedCount holds the default value on creation for the "used_count" field.
+	DefaultUsedCount int
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 	// DefaultValidityDays holds the default value on creation for the "validity_days" field.
@@ -128,6 +150,21 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
 }
 
+// ByMaxUses orders the results by the max_uses field.
+func ByMaxUses(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldMaxUses, opts...).ToFunc()
+}
+
+// ByUsedCount orders the results by the used_count field.
+func ByUsedCount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUsedCount, opts...).ToFunc()
+}
+
+// ByExpiresAt orders the results by the expires_at field.
+func ByExpiresAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldExpiresAt, opts...).ToFunc()
+}
+
 // ByUsedBy orders the results by the used_by field.
 func ByUsedBy(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldUsedBy, opts...).ToFunc()
@@ -158,6 +195,20 @@ func ByValidityDays(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldValidityDays, opts...).ToFunc()
 }
 
+// ByUsageRecordsCount orders the results by usage_records count.
+func ByUsageRecordsCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newUsageRecordsStep(), opts...)
+	}
+}
+
+// ByUsageRecords orders the results by usage_records terms.
+func ByUsageRecords(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newUsageRecordsStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
 // ByUserField orders the results by user field.
 func ByUserField(field string, opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -170,6 +221,13 @@ func ByGroupField(field string, opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
 		sqlgraph.OrderByNeighborTerms(s, newGroupStep(), sql.OrderByField(field, opts...))
 	}
+}
+func newUsageRecordsStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(UsageRecordsInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, UsageRecordsTable, UsageRecordsColumn),
+	)
 }
 func newUserStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(

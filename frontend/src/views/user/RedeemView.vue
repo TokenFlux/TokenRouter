@@ -182,8 +182,9 @@
               >
                 <li>{{ t('redeem.codeRule1') }}</li>
                 <li>{{ t('redeem.codeRule2') }}</li>
+                <li>{{ t('redeem.codeRule3') }}</li>
                 <li>
-                  {{ t('redeem.codeRule3') }}
+                  {{ t('redeem.codeRule4') }}
                   <span
                     v-if="contactInfo"
                     class="ml-1.5 inline-flex items-center rounded-md bg-primary-200/50 px-2 py-0.5 text-xs font-medium text-primary-800 dark:bg-primary-800/40 dark:text-primary-200"
@@ -191,7 +192,6 @@
                     {{ contactInfo }}
                   </span>
                 </li>
-                <li>{{ t('redeem.codeRule4') }}</li>
               </ul>
             </div>
           </div>
@@ -348,6 +348,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { redeemAPI, authAPI, type RedeemHistoryItem } from '@/api'
+import { extractApiErrorMessage } from '@/utils/apiError'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTime } from '@/utils/format'
@@ -376,6 +377,12 @@ const errorMessage = ref('')
 const history = ref<RedeemHistoryItem[]>([])
 const loadingHistory = ref(false)
 const contactInfo = ref('')
+const redeemErrorMap = computed<Record<string, string>>(() => ({
+  REDEEM_CODE_EXPIRED: t('redeem.codeExpired'),
+  REDEEM_CODE_MAX_USED: t('redeem.codeMaxUsed'),
+  REDEEM_CODE_ALREADY_USED: t('redeem.codeAlreadyUsed'),
+  REDEEM_CODE_USED: t('redeem.codeMaxUsed')
+}))
 
 // Helper functions for history display
 const isBalanceType = (type: string) => {
@@ -468,9 +475,12 @@ const handleRedeem = async () => {
     // Show success toast
     appStore.showSuccess(t('redeem.codeRedeemSuccess'))
   } catch (error: any) {
-    errorMessage.value = error.response?.data?.detail || t('redeem.failedToRedeem')
-
-    appStore.showError(t('redeem.redeemFailed'))
+    errorMessage.value = extractApiErrorMessage(
+      error,
+      t('redeem.failedToRedeem'),
+      redeemErrorMap.value
+    )
+    appStore.showError(errorMessage.value)
   } finally {
     submitting.value = false
   }

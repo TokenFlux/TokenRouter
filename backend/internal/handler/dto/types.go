@@ -321,8 +321,11 @@ type RedeemCode struct {
 	Type      string     `json:"type"`
 	Value     float64    `json:"value"`
 	Status    string     `json:"status"`
-	UsedBy    *int64     `json:"used_by"`
-	UsedAt    *time.Time `json:"used_at"`
+	MaxUses   int        `json:"max_uses"`
+	UsedCount int        `json:"used_count"`
+	ExpiresAt *time.Time `json:"expires_at"`
+	UsedBy    *int64     `json:"used_by"` // 最后一次成功兑换的用户
+	UsedAt    *time.Time `json:"used_at"` // 最后一次成功兑换的时间
 	CreatedAt time.Time  `json:"created_at"`
 
 	GroupID      *int64 `json:"group_id"`

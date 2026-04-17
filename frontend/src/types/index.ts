@@ -1105,6 +1105,9 @@ export interface RedeemCode {
   type: RedeemCodeType
   value: number
   status: 'active' | 'used' | 'expired' | 'unused'
+  max_uses: number
+  used_count: number
+  expires_at: string | null
   used_by: number | null
   used_at: string | null
   created_at: string
@@ -1116,9 +1119,12 @@ export interface RedeemCode {
 }
 
 export interface GenerateRedeemCodesRequest {
+  code?: string
   count: number
   type: RedeemCodeType
   value: number
+  max_uses?: number
+  expires_at?: number | null
   group_id?: number | null // 订阅类型专用
   validity_days?: number // 订阅类型专用
 }

@@ -48,6 +48,14 @@ func (RedeemCode) Fields() []ent.Field {
 		field.String("status").
 			MaxLen(20).
 			Default(domain.StatusUnused),
+		field.Int("max_uses").
+			Default(1),
+		field.Int("used_count").
+			Default(0),
+		field.Time("expires_at").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
 		field.Int64("used_by").
 			Optional().
 			Nillable(),
@@ -73,6 +81,7 @@ func (RedeemCode) Fields() []ent.Field {
 
 func (RedeemCode) Edges() []ent.Edge {
 	return []ent.Edge{
+		edge.To("usage_records", RedeemCodeUsage.Type),
 		edge.From("user", User.Type).
 			Ref("redeem_codes").
 			Field("used_by").
@@ -88,6 +97,7 @@ func (RedeemCode) Indexes() []ent.Index {
 	return []ent.Index{
 		// code 字段已在 Fields() 中声明 Unique()，无需重复索引
 		index.Fields("status"),
+		index.Fields("expires_at"),
 		index.Fields("used_by"),
 		index.Fields("group_id"),
 	}

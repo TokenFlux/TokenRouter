@@ -15,11 +15,15 @@ import (
 )
 
 var (
-	ErrRedeemCodeNotFound  = infraerrors.NotFound("REDEEM_CODE_NOT_FOUND", "redeem code not found")
-	ErrRedeemCodeUsed      = infraerrors.Conflict("REDEEM_CODE_USED", "redeem code already used")
-	ErrInsufficientBalance = infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient balance")
-	ErrRedeemRateLimited   = infraerrors.TooManyRequests("REDEEM_RATE_LIMITED", "too many failed attempts, please try again later")
-	ErrRedeemCodeLocked    = infraerrors.Conflict("REDEEM_CODE_LOCKED", "redeem code is being processed, please try again")
+	ErrRedeemCodeNotFound    = infraerrors.NotFound("REDEEM_CODE_NOT_FOUND", "redeem code not found")
+	ErrRedeemCodeExists      = infraerrors.Conflict("REDEEM_CODE_EXISTS", "redeem code already exists")
+	ErrRedeemCodeUsed        = infraerrors.Conflict("REDEEM_CODE_USED", "redeem code already used")
+	ErrRedeemCodeExpired     = infraerrors.BadRequest("REDEEM_CODE_EXPIRED", "redeem code has expired")
+	ErrRedeemCodeMaxUsed     = infraerrors.Conflict("REDEEM_CODE_MAX_USED", "redeem code has reached maximum uses")
+	ErrRedeemCodeAlreadyUsed = infraerrors.Conflict("REDEEM_CODE_ALREADY_USED", "you have already used this redeem code")
+	ErrInsufficientBalance   = infraerrors.BadRequest("INSUFFICIENT_BALANCE", "insufficient balance")
+	ErrRedeemRateLimited     = infraerrors.TooManyRequests("REDEEM_RATE_LIMITED", "too many failed attempts, please try again later")
+	ErrRedeemCodeLocked      = infraerrors.Conflict("REDEEM_CODE_LOCKED", "redeem code is being processed, please try again")
 )
 
 const (
@@ -42,9 +46,12 @@ type RedeemCodeRepository interface {
 	CreateBatch(ctx context.Context, codes []RedeemCode) error
 	GetByID(ctx context.Context, id int64) (*RedeemCode, error)
 	GetByCode(ctx context.Context, code string) (*RedeemCode, error)
+	GetByCodeForUpdate(ctx context.Context, code string) (*RedeemCode, error)
 	Update(ctx context.Context, code *RedeemCode) error
 	Delete(ctx context.Context, id int64) error
 	Use(ctx context.Context, id, userID int64) error
+	CreateUsage(ctx context.Context, usage *RedeemCodeUsage) error
+	GetUsageByRedeemCodeAndUser(ctx context.Context, redeemCodeID, userID int64) (*RedeemCodeUsage, error)
 
 	List(ctx context.Context, params pagination.PaginationParams) ([]RedeemCode, *pagination.PaginationResult, error)
 	ListWithFilters(ctx context.Context, params pagination.PaginationParams, codeType, status, search string) ([]RedeemCode, *pagination.PaginationResult, error)
@@ -58,9 +65,12 @@ type RedeemCodeRepository interface {
 
 // GenerateCodesRequest 生成兑换码请求
 type GenerateCodesRequest struct {
-	Count int     `json:"count"`
-	Value float64 `json:"value"`
-	Type  string  `json:"type"`
+	Code      string     `json:"code"`
+	Count     int        `json:"count"`
+	Value     float64    `json:"value"`
+	Type      string     `json:"type"`
+	MaxUses   *int       `json:"max_uses"`
+	ExpiresAt *time.Time `json:"expires_at"`
 }
 
 // RedeemCodeResponse 兑换码响应
@@ -128,16 +138,16 @@ func (s *RedeemService) GenerateRandomCode() (string, error) {
 // GenerateCodes 批量生成兑换码
 func (s *RedeemService) GenerateCodes(ctx context.Context, req GenerateCodesRequest) ([]RedeemCode, error) {
 	if req.Count <= 0 {
-		return nil, errors.New("count must be greater than 0")
+		return nil, infraerrors.BadRequest("REDEEM_CODE_COUNT_INVALID", "count must be greater than 0")
 	}
 
 	// 邀请码类型不需要数值，其他类型需要非零值（支持负数用于退款）
 	if req.Type != RedeemTypeInvitation && req.Value == 0 {
-		return nil, errors.New("value must not be zero")
+		return nil, infraerrors.BadRequest("REDEEM_CODE_VALUE_INVALID", "value must not be zero")
 	}
 
 	if req.Count > 1000 {
-		return nil, errors.New("cannot generate more than 1000 codes at once")
+		return nil, infraerrors.BadRequest("REDEEM_CODE_COUNT_TOO_LARGE", "cannot generate more than 1000 codes at once")
 	}
 
 	codeType := req.Type
@@ -145,24 +155,50 @@ func (s *RedeemService) GenerateCodes(ctx context.Context, req GenerateCodesRequ
 		codeType = RedeemTypeBalance
 	}
 
+	maxUses := 1
+	if req.MaxUses != nil {
+		if *req.MaxUses < 0 {
+			return nil, infraerrors.BadRequest("REDEEM_CODE_MAX_USES_INVALID", "max_uses must be greater than or equal to 0")
+		}
+		maxUses = *req.MaxUses
+	}
+
+	customCode := strings.TrimSpace(req.Code)
+	if customCode != "" {
+		if req.Count != 1 {
+			return nil, infraerrors.BadRequest("REDEEM_CODE_CUSTOM_COUNT_INVALID", "count must be 1 when code is provided")
+		}
+		if len(customCode) > 32 {
+			return nil, infraerrors.BadRequest("REDEEM_CODE_TOO_LONG", "code must be at most 32 characters")
+		}
+	}
+
 	// 邀请码类型的 value 设为 0
 	value := req.Value
 	if codeType == RedeemTypeInvitation {
 		value = 0
+		maxUses = 1
+		req.ExpiresAt = nil
 	}
 
 	codes := make([]RedeemCode, 0, req.Count)
 	for i := 0; i < req.Count; i++ {
-		code, err := s.GenerateRandomCode()
-		if err != nil {
-			return nil, fmt.Errorf("generate code: %w", err)
+		codeValue := customCode
+		if codeValue == "" {
+			code, err := s.GenerateRandomCode()
+			if err != nil {
+				return nil, fmt.Errorf("generate code: %w", err)
+			}
+			codeValue = code
 		}
 
 		codes = append(codes, RedeemCode{
-			Code:   code,
-			Type:   codeType,
-			Value:  value,
-			Status: StatusUnused,
+			Code:      codeValue,
+			Type:      codeType,
+			Value:     value,
+			Status:    StatusUnused,
+			MaxUses:   maxUses,
+			ExpiresAt: req.ExpiresAt,
 		})
 	}
 
@@ -194,6 +230,17 @@ func (s *RedeemService) CreateCode(ctx context.Context, code *RedeemCode) error 
 	if code.Status == "" {
 		code.Status = StatusUnused
 	}
+	if code.MaxUses <= 0 {
+		code.MaxUses = 1
+	}
+	if code.UsedCount < 0 {
+		code.UsedCount = 0
+	}
+	if code.Type == RedeemTypeInvitation {
+		code.MaxUses = 1
+		code.ExpiresAt = nil
+	}
+	code.Status = code.PersistedStatus()
 
 	if err := s.redeemRepo.Create(ctx, code); err != nil {
 		return fmt.Errorf("create redeem code: %w", err)
@@ -255,6 +302,11 @@ func (s *RedeemService) releaseRedeemLock(ctx context.Context, code string) {
 
 // Redeem 使用兑换码
 func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (*RedeemCode, error) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return nil, ErrRedeemCodeNotFound
+	}
+
 	// 检查限流
 	if err := s.checkRedeemRateLimit(ctx, userID); err != nil {
 		return nil, err
@@ -266,33 +318,6 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	}
 	defer s.releaseRedeemLock(ctx, code)
 
-	// 查找兑换码
-	redeemCode, err := s.redeemRepo.GetByCode(ctx, code)
-	if err != nil {
-		if errors.Is(err, ErrRedeemCodeNotFound) {
-			s.incrementRedeemErrorCount(ctx, userID)
-			return nil, ErrRedeemCodeNotFound
-		}
-		return nil, fmt.Errorf("get redeem code: %w", err)
-	}
-
-	// 检查兑换码状态
-	if !redeemCode.CanUse() {
-		s.incrementRedeemErrorCount(ctx, userID)
-		return nil, ErrRedeemCodeUsed
-	}
-
-	// 验证兑换码类型的前置条件
-	if redeemCode.Type == RedeemTypeSubscription && redeemCode.GroupID == nil {
-		return nil, infraerrors.BadRequest("REDEEM_CODE_INVALID", "invalid subscription redeem code: missing group_id")
-	}
-
-	// 获取用户信息
-	user, err := s.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("get user: %w", err)
-	}
-
 	// 使用数据库事务保证兑换码标记与权益发放的原子性
 	tx, err := s.entClient.Tx(ctx)
 	if err != nil {
@@ -303,13 +328,27 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	// 将事务放入 context，使 repository 方法能够使用同一事务
 	txCtx := dbent.NewTxContext(ctx, tx)
 
-	// 【关键】先标记兑换码为已使用，确保并发安全
-	// 利用数据库乐观锁（WHERE status = 'unused'）保证原子性
-	if err := s.redeemRepo.Use(txCtx, redeemCode.ID, userID); err != nil {
-		if errors.Is(err, ErrRedeemCodeNotFound) || errors.Is(err, ErrRedeemCodeUsed) {
-			return nil, ErrRedeemCodeUsed
+	redeemCode, err := s.redeemRepo.GetByCodeForUpdate(txCtx, code)
+	if err != nil {
+		if errors.Is(err, ErrRedeemCodeNotFound) {
+			s.incrementRedeemErrorCount(ctx, userID)
+			return nil, ErrRedeemCodeNotFound
 		}
-		return nil, fmt.Errorf("mark code as used: %w", err)
+		return nil, fmt.Errorf("get redeem code: %w", err)
+	}
+
+	if err := s.validateRedeemCodeForUser(txCtx, redeemCode, userID); err != nil {
+		s.incrementRedeemErrorCount(ctx, userID)
+		return nil, err
+	}
+
+	if redeemCode.Type == RedeemTypeSubscription && redeemCode.GroupID == nil {
+		return nil, infraerrors.BadRequest("REDEEM_CODE_INVALID", "invalid subscription redeem code: missing group_id")
+	}
+
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get user: %w", err)
 	}
 
 	// 执行兑换逻辑（兑换码已被锁定，此时可安全操作）
@@ -359,6 +398,24 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 
 	default:
 		return nil, fmt.Errorf("unsupported redeem type: %s", redeemCode.Type)
+	}
+
+	usageTime := time.Now()
+	if err := s.redeemRepo.CreateUsage(txCtx, &RedeemCodeUsage{
+		RedeemCodeID: redeemCode.ID,
+		UserID:       userID,
+		UsedAt:       usageTime,
+	}); err != nil {
+		return nil, fmt.Errorf("create redeem usage: %w", err)
+	}
+
+	redeemCode.UsedCount++
+	redeemCode.UsedBy = &userID
+	redeemCode.UsedAt = &usageTime
+	redeemCode.Status = redeemCode.PersistedStatus()
+
+	if err := s.redeemRepo.Update(txCtx, redeemCode); err != nil {
+		return nil, fmt.Errorf("update redeem code usage snapshot: %w", err)
 	}
 
 	// 提交事务
@@ -453,15 +510,36 @@ func (s *RedeemService) Delete(ctx context.Context, id int64) error {
 		return fmt.Errorf("get redeem code: %w", err)
 	}
 
-	// 不允许删除已使用的兑换码
-	if code.IsUsed() {
-		return infraerrors.Conflict("REDEEM_CODE_DELETE_USED", "cannot delete used redeem code")
+	// 仅允许删除从未被兑换过的兑换码
+	if !code.CanDelete() {
+		return infraerrors.Conflict("REDEEM_CODE_DELETE_USED", "cannot delete redeem code that has usage records")
 	}
 
 	if err := s.redeemRepo.Delete(ctx, id); err != nil {
 		return fmt.Errorf("delete redeem code: %w", err)
 	}
 
+	return nil
+}
+
+func (s *RedeemService) validateRedeemCodeForUser(ctx context.Context, redeemCode *RedeemCode, userID int64) error {
+	if redeemCode == nil {
+		return ErrRedeemCodeNotFound
+	}
+	if redeemCode.IsExpired() {
+		return ErrRedeemCodeExpired
+	}
+
+	existingUsage, err := s.redeemRepo.GetUsageByRedeemCodeAndUser(ctx, redeemCode.ID, userID)
+	if err != nil {
+		return fmt.Errorf("check redeem usage: %w", err)
+	}
+	if existingUsage != nil {
+		return ErrRedeemCodeAlreadyUsed
+	}
+	if !redeemCode.HasRemainingUses() {
+		return ErrRedeemCodeMaxUsed
+	}
 	return nil
 }
 

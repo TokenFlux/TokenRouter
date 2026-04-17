@@ -268,6 +268,10 @@ func (s *redeemRepoStub) GetByCode(ctx context.Context, code string) (*RedeemCod
 	panic("unexpected GetByCode call")
 }
 
+func (s *redeemRepoStub) GetByCodeForUpdate(ctx context.Context, code string) (*RedeemCode, error) {
+	panic("unexpected GetByCodeForUpdate call")
+}
+
 func (s *redeemRepoStub) Update(ctx context.Context, code *RedeemCode) error {
 	panic("unexpected Update call")
 }
@@ -284,6 +288,14 @@ func (s *redeemRepoStub) Delete(ctx context.Context, id int64) error {
 
 func (s *redeemRepoStub) Use(ctx context.Context, id, userID int64) error {
 	panic("unexpected Use call")
+}
+
+func (s *redeemRepoStub) CreateUsage(ctx context.Context, usage *RedeemCodeUsage) error {
+	return nil
+}
+
+func (s *redeemRepoStub) GetUsageByRedeemCodeAndUser(ctx context.Context, redeemCodeID, userID int64) (*RedeemCodeUsage, error) {
+	return nil, nil
 }
 
 func (s *redeemRepoStub) List(ctx context.Context, params pagination.PaginationParams) ([]RedeemCode, *pagination.PaginationResult, error) {

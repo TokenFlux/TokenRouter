@@ -67,12 +67,27 @@ export async function generate(
   type: RedeemCodeType,
   value: number,
   groupId?: number | null,
-  validityDays?: number
+  validityDays?: number,
+  maxUses?: number,
+  expiresAt?: number | null,
+  code?: string
 ): Promise<RedeemCode[]> {
   const payload: GenerateRedeemCodesRequest = {
     count,
     type,
     value
+  }
+
+  if (maxUses !== undefined && maxUses >= 0) {
+    payload.max_uses = maxUses
+  }
+
+  if (expiresAt && expiresAt > 0) {
+    payload.expires_at = expiresAt
+  }
+
+  if (code && code.trim()) {
+    payload.code = code.trim()
   }
 
   // 订阅类型专用字段
@@ -153,7 +168,7 @@ export async function getStats(): Promise<{
  */
 export async function exportCodes(filters?: {
   type?: RedeemCodeType
-  status?: 'used' | 'expired' | 'unused'
+  status?: 'active' | 'used' | 'expired' | 'unused'
   search?: string
   sort_by?: string
   sort_order?: 'asc' | 'desc'

@@ -304,9 +304,12 @@ type UpdateProxyInput struct {
 }
 
 type GenerateRedeemCodesInput struct {
+	Code         string
 	Count        int
 	Type         string
 	Value        float64
+	MaxUses      *int
+	ExpiresAt    *time.Time
 	GroupID      *int64 // 订阅类型专用：关联的分组ID
 	ValidityDays int    // 订阅类型专用：有效天数
 }
@@ -647,21 +650,7 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 
 	concurrencyDiff := user.Concurrency - oldConcurrency
 	if concurrencyDiff != 0 {
-		code, err := GenerateRedeemCode()
-		if err != nil {
-			logger.LegacyPrintf("service.admin", "failed to generate adjustment redeem code: %v", err)
-			return user, nil
-		}
-		adjustmentRecord := &RedeemCode{
-			Code:   code,
-			Type:   AdjustmentTypeAdminConcurrency,
-			Value:  float64(concurrencyDiff),
-			Status: StatusUsed,
-			UsedBy: &user.ID,
-		}
-		now := time.Now()
-		adjustmentRecord.UsedAt = &now
-		if err := s.redeemCodeRepo.Create(ctx, adjustmentRecord); err != nil {
+		if err := s.createAppliedAdjustmentRedeemRecord(ctx, user.ID, AdjustmentTypeAdminConcurrency, float64(concurrencyDiff), ""); err != nil {
 			logger.LegacyPrintf("service.admin", "failed to create concurrency adjustment redeem code: %v", err)
 		}
 	}
@@ -728,29 +717,68 @@ func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, 
 	}
 
 	if balanceDiff != 0 {
-		code, err := GenerateRedeemCode()
-		if err != nil {
-			logger.LegacyPrintf("service.admin", "failed to generate adjustment redeem code: %v", err)
-			return user, nil
-		}
-
-		adjustmentRecord := &RedeemCode{
-			Code:   code,
-			Type:   AdjustmentTypeAdminBalance,
-			Value:  balanceDiff,
-			Status: StatusUsed,
-			UsedBy: &user.ID,
-			Notes:  notes,
-		}
-		now := time.Now()
-		adjustmentRecord.UsedAt = &now
-
-		if err := s.redeemCodeRepo.Create(ctx, adjustmentRecord); err != nil {
+		if err := s.createAppliedAdjustmentRedeemRecord(ctx, user.ID, AdjustmentTypeAdminBalance, balanceDiff, notes); err != nil {
 			logger.LegacyPrintf("service.admin", "failed to create balance adjustment redeem code: %v", err)
 		}
 	}
 
 	return user, nil
+}
+
+func (s *adminServiceImpl) createAppliedAdjustmentRedeemRecord(ctx context.Context, userID int64, codeType string, value float64, notes string) error {
+	code, err := GenerateRedeemCode()
+	if err != nil {
+		return fmt.Errorf("generate adjustment redeem code: %w", err)
+	}
+
+	usedAt := time.Now()
+	record := &RedeemCode{
+		Code:      code,
+		Type:      codeType,
+		Value:     value,
+		Status:    StatusUsed,
+		MaxUses:   1,
+		UsedCount: 1,
+		UsedBy:    &userID,
+		UsedAt:    &usedAt,
+		Notes:     notes,
+	}
+
+	if s.entClient == nil {
+		if err := s.redeemCodeRepo.Create(ctx, record); err != nil {
+			return fmt.Errorf("create adjustment redeem code: %w", err)
+		}
+		if err := s.redeemCodeRepo.CreateUsage(ctx, &RedeemCodeUsage{
+			RedeemCodeID: record.ID,
+			UserID:       userID,
+			UsedAt:       usedAt,
+		}); err != nil {
+			return fmt.Errorf("create adjustment redeem usage: %w", err)
+		}
+		return nil
+	}
+
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin adjustment redeem transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	txCtx := dbent.NewTxContext(ctx, tx)
+	if err := s.redeemCodeRepo.Create(txCtx, record); err != nil {
+		return fmt.Errorf("create adjustment redeem code: %w", err)
+	}
+	if err := s.redeemCodeRepo.CreateUsage(txCtx, &RedeemCodeUsage{
+		RedeemCodeID: record.ID,
+		UserID:       userID,
+		UsedAt:       usedAt,
+	}); err != nil {
+		return fmt.Errorf("create adjustment redeem usage: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit adjustment redeem transaction: %w", err)
+	}
+	return nil
 }
 
 func (s *adminServiceImpl) GetUserAPIKeys(ctx context.Context, userID int64, page, pageSize int, sortBy, sortOrder string) ([]APIKey, int64, error) {
@@ -2050,10 +2078,28 @@ func (s *adminServiceImpl) GetRedeemCode(ctx context.Context, id int64) (*Redeem
 }
 
 func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *GenerateRedeemCodesInput) ([]RedeemCode, error) {
+	maxUses := 1
+	if input.MaxUses != nil {
+		if *input.MaxUses < 0 {
+			return nil, infraerrors.BadRequest("REDEEM_CODE_MAX_USES_INVALID", "max_uses must be greater than or equal to 0")
+		}
+		maxUses = *input.MaxUses
+	}
+
+	customCode := strings.TrimSpace(input.Code)
+	if customCode != "" {
+		if input.Count != 1 {
+			return nil, infraerrors.BadRequest("REDEEM_CODE_CUSTOM_COUNT_INVALID", "count must be 1 when code is provided")
+		}
+		if len(customCode) > 32 {
+			return nil, infraerrors.BadRequest("REDEEM_CODE_TOO_LONG", "code must be at most 32 characters")
+		}
+	}
+
 	// 如果是订阅类型，验证必须有 GroupID
 	if input.Type == RedeemTypeSubscription {
 		if input.GroupID == nil {
-			return nil, errors.New("group_id is required for subscription type")
+			return nil, infraerrors.BadRequest("REDEEM_CODE_GROUP_REQUIRED", "group_id is required for subscription type")
 		}
 		// 验证分组存在且为订阅类型
 		group, err := s.groupRepo.GetByID(ctx, *input.GroupID)
@@ -2061,21 +2107,31 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 			return nil, fmt.Errorf("group not found: %w", err)
 		}
 		if !group.IsSubscriptionType() {
-			return nil, errors.New("group must be subscription type")
+			return nil, infraerrors.BadRequest("REDEEM_CODE_GROUP_INVALID", "group must be subscription type")
 		}
+	}
+	if input.Type == RedeemTypeInvitation {
+		maxUses = 1
+		input.ExpiresAt = nil
 	}
 
 	codes := make([]RedeemCode, 0, input.Count)
 	for i := 0; i < input.Count; i++ {
-		codeValue, err := GenerateRedeemCode()
-		if err != nil {
-			return nil, err
+		codeValue := customCode
+		if codeValue == "" {
+			generatedCode, err := GenerateRedeemCode()
+			if err != nil {
+				return nil, err
+			}
+			codeValue = generatedCode
 		}
 		code := RedeemCode{
-			Code:   codeValue,
-			Type:   input.Type,
-			Value:  input.Value,
-			Status: StatusUnused,
+			Code:      codeValue,
+			Type:      input.Type,
+			Value:     input.Value,
+			Status:    StatusUnused,
+			MaxUses:   maxUses,
+			ExpiresAt: input.ExpiresAt,
 		}
 		// 订阅类型专用字段
 		if input.Type == RedeemTypeSubscription {
@@ -2094,12 +2150,23 @@ func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *Gener
 }
 
 func (s *adminServiceImpl) DeleteRedeemCode(ctx context.Context, id int64) error {
+	code, err := s.redeemCodeRepo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if !code.CanDelete() {
+		return infraerrors.Conflict("REDEEM_CODE_DELETE_USED", "cannot delete redeem code that has usage records")
+	}
 	return s.redeemCodeRepo.Delete(ctx, id)
 }
 
 func (s *adminServiceImpl) BatchDeleteRedeemCodes(ctx context.Context, ids []int64) (int64, error) {
 	var deleted int64
 	for _, id := range ids {
+		code, err := s.redeemCodeRepo.GetByID(ctx, id)
+		if err != nil || !code.CanDelete() {
+			continue
+		}
 		if err := s.redeemCodeRepo.Delete(ctx, id); err == nil {
 			deleted++
 		}

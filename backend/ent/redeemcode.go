@@ -27,6 +27,12 @@ type RedeemCode struct {
 	Value float64 `json:"value,omitempty"`
 	// Status holds the value of the "status" field.
 	Status string `json:"status,omitempty"`
+	// MaxUses holds the value of the "max_uses" field.
+	MaxUses int `json:"max_uses,omitempty"`
+	// UsedCount holds the value of the "used_count" field.
+	UsedCount int `json:"used_count,omitempty"`
+	// ExpiresAt holds the value of the "expires_at" field.
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
 	// UsedBy holds the value of the "used_by" field.
 	UsedBy *int64 `json:"used_by,omitempty"`
 	// UsedAt holds the value of the "used_at" field.
@@ -47,13 +53,24 @@ type RedeemCode struct {
 
 // RedeemCodeEdges holds the relations/edges for other nodes in the graph.
 type RedeemCodeEdges struct {
+	// UsageRecords holds the value of the usage_records edge.
+	UsageRecords []*RedeemCodeUsage `json:"usage_records,omitempty"`
 	// User holds the value of the user edge.
 	User *User `json:"user,omitempty"`
 	// Group holds the value of the group edge.
 	Group *Group `json:"group,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [2]bool
+	loadedTypes [3]bool
+}
+
+// UsageRecordsOrErr returns the UsageRecords value or an error if the edge
+// was not loaded in eager-loading.
+func (e RedeemCodeEdges) UsageRecordsOrErr() ([]*RedeemCodeUsage, error) {
+	if e.loadedTypes[0] {
+		return e.UsageRecords, nil
+	}
+	return nil, &NotLoadedError{edge: "usage_records"}
 }
 
 // UserOrErr returns the User value or an error if the edge
@@ -61,7 +78,7 @@ type RedeemCodeEdges struct {
 func (e RedeemCodeEdges) UserOrErr() (*User, error) {
 	if e.User != nil {
 		return e.User, nil
-	} else if e.loadedTypes[0] {
+	} else if e.loadedTypes[1] {
 		return nil, &NotFoundError{label: user.Label}
 	}
 	return nil, &NotLoadedError{edge: "user"}
@@ -72,7 +89,7 @@ func (e RedeemCodeEdges) UserOrErr() (*User, error) {
 func (e RedeemCodeEdges) GroupOrErr() (*Group, error) {
 	if e.Group != nil {
 		return e.Group, nil
-	} else if e.loadedTypes[1] {
+	} else if e.loadedTypes[2] {
 		return nil, &NotFoundError{label: group.Label}
 	}
 	return nil, &NotLoadedError{edge: "group"}
@@ -85,11 +102,11 @@ func (*RedeemCode) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case redeemcode.FieldValue:
 			values[i] = new(sql.NullFloat64)
-		case redeemcode.FieldID, redeemcode.FieldUsedBy, redeemcode.FieldGroupID, redeemcode.FieldValidityDays:
+		case redeemcode.FieldID, redeemcode.FieldMaxUses, redeemcode.FieldUsedCount, redeemcode.FieldUsedBy, redeemcode.FieldGroupID, redeemcode.FieldValidityDays:
 			values[i] = new(sql.NullInt64)
 		case redeemcode.FieldCode, redeemcode.FieldType, redeemcode.FieldStatus, redeemcode.FieldNotes:
 			values[i] = new(sql.NullString)
-		case redeemcode.FieldUsedAt, redeemcode.FieldCreatedAt:
+		case redeemcode.FieldExpiresAt, redeemcode.FieldUsedAt, redeemcode.FieldCreatedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -135,6 +152,25 @@ func (_m *RedeemCode) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field status", values[i])
 			} else if value.Valid {
 				_m.Status = value.String
+			}
+		case redeemcode.FieldMaxUses:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field max_uses", values[i])
+			} else if value.Valid {
+				_m.MaxUses = int(value.Int64)
+			}
+		case redeemcode.FieldUsedCount:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field used_count", values[i])
+			} else if value.Valid {
+				_m.UsedCount = int(value.Int64)
+			}
+		case redeemcode.FieldExpiresAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field expires_at", values[i])
+			} else if value.Valid {
+				_m.ExpiresAt = new(time.Time)
+				*_m.ExpiresAt = value.Time
 			}
 		case redeemcode.FieldUsedBy:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -189,6 +225,11 @@ func (_m *RedeemCode) GetValue(name string) (ent.Value, error) {
 	return _m.selectValues.Get(name)
 }
 
+// QueryUsageRecords queries the "usage_records" edge of the RedeemCode entity.
+func (_m *RedeemCode) QueryUsageRecords() *RedeemCodeUsageQuery {
+	return NewRedeemCodeClient(_m.config).QueryUsageRecords(_m)
+}
+
 // QueryUser queries the "user" edge of the RedeemCode entity.
 func (_m *RedeemCode) QueryUser() *UserQuery {
 	return NewRedeemCodeClient(_m.config).QueryUser(_m)
@@ -233,6 +274,17 @@ func (_m *RedeemCode) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(_m.Status)
+	builder.WriteString(", ")
+	builder.WriteString("max_uses=")
+	builder.WriteString(fmt.Sprintf("%v", _m.MaxUses))
+	builder.WriteString(", ")
+	builder.WriteString("used_count=")
+	builder.WriteString(fmt.Sprintf("%v", _m.UsedCount))
+	builder.WriteString(", ")
+	if v := _m.ExpiresAt; v != nil {
+		builder.WriteString("expires_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteString(", ")
 	if v := _m.UsedBy; v != nil {
 		builder.WriteString("used_by=")

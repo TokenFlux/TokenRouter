@@ -20,6 +20,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/promocodeusage"
 	"github.com/TokenFlux/TokenRouter/ent/proxy"
 	"github.com/TokenFlux/TokenRouter/ent/redeemcode"
+	"github.com/TokenFlux/TokenRouter/ent/redeemcodeusage"
 	"github.com/TokenFlux/TokenRouter/ent/schema"
 	"github.com/TokenFlux/TokenRouter/ent/securitysecret"
 	"github.com/TokenFlux/TokenRouter/ent/setting"
@@ -859,14 +860,28 @@ func init() {
 	redeemcode.DefaultStatus = redeemcodeDescStatus.Default.(string)
 	// redeemcode.StatusValidator is a validator for the "status" field. It is called by the builders before save.
 	redeemcode.StatusValidator = redeemcodeDescStatus.Validators[0].(func(string) error)
+	// redeemcodeDescMaxUses is the schema descriptor for max_uses field.
+	redeemcodeDescMaxUses := redeemcodeFields[4].Descriptor()
+	// redeemcode.DefaultMaxUses holds the default value on creation for the max_uses field.
+	redeemcode.DefaultMaxUses = redeemcodeDescMaxUses.Default.(int)
+	// redeemcodeDescUsedCount is the schema descriptor for used_count field.
+	redeemcodeDescUsedCount := redeemcodeFields[5].Descriptor()
+	// redeemcode.DefaultUsedCount holds the default value on creation for the used_count field.
+	redeemcode.DefaultUsedCount = redeemcodeDescUsedCount.Default.(int)
 	// redeemcodeDescCreatedAt is the schema descriptor for created_at field.
-	redeemcodeDescCreatedAt := redeemcodeFields[7].Descriptor()
+	redeemcodeDescCreatedAt := redeemcodeFields[10].Descriptor()
 	// redeemcode.DefaultCreatedAt holds the default value on creation for the created_at field.
 	redeemcode.DefaultCreatedAt = redeemcodeDescCreatedAt.Default.(func() time.Time)
 	// redeemcodeDescValidityDays is the schema descriptor for validity_days field.
-	redeemcodeDescValidityDays := redeemcodeFields[9].Descriptor()
+	redeemcodeDescValidityDays := redeemcodeFields[12].Descriptor()
 	// redeemcode.DefaultValidityDays holds the default value on creation for the validity_days field.
 	redeemcode.DefaultValidityDays = redeemcodeDescValidityDays.Default.(int)
+	redeemcodeusageFields := schema.RedeemCodeUsage{}.Fields()
+	_ = redeemcodeusageFields
+	// redeemcodeusageDescUsedAt is the schema descriptor for used_at field.
+	redeemcodeusageDescUsedAt := redeemcodeusageFields[2].Descriptor()
+	// redeemcodeusage.DefaultUsedAt holds the default value on creation for the used_at field.
+	redeemcodeusage.DefaultUsedAt = redeemcodeusageDescUsedAt.Default.(func() time.Time)
 	securitysecretMixin := schema.SecuritySecret{}.Mixin()
 	securitysecretMixinFields0 := securitysecretMixin[0].Fields()
 	_ = securitysecretMixinFields0

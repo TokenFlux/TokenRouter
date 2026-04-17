@@ -110,18 +110,26 @@
             </span>
           </template>
 
+          <template #cell-usage_progress="{ row }">
+            <span class="text-sm text-gray-600 dark:text-gray-300">
+              {{ row.used_count }} / {{ row.max_uses === 0 ? '∞' : row.max_uses }}
+            </span>
+          </template>
+
           <template #cell-status="{ value }">
             <span
               :class="[
                 'badge',
-                value === 'unused'
-                  ? 'badge-success'
-                  : value === 'used'
-                    ? 'badge-gray'
-                    : 'badge-danger'
+                getStatusBadgeClass(value)
               ]"
             >
               {{ t('admin.redeem.status.' + value) }}
+            </span>
+          </template>
+
+          <template #cell-expires_at="{ value }">
+            <span class="text-sm text-gray-500 dark:text-dark-400">
+              {{ value ? formatDateTime(value) : t('admin.redeem.neverExpires') }}
             </span>
           </template>
 
@@ -215,9 +223,28 @@
           </h2>
           <form @submit.prevent="handleGenerateCodes" class="space-y-4">
             <div>
+              <label class="input-label">
+                {{ t('admin.redeem.customCode') }}
+                <span class="ml-1 text-xs font-normal text-gray-400">
+                  ({{ t('common.optional') }})
+                </span>
+              </label>
+              <input
+                v-model="generateForm.code"
+                type="text"
+                maxlength="32"
+                class="input"
+                :placeholder="t('admin.redeem.customCodePlaceholder')"
+              />
+              <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+                {{ t('admin.redeem.customCodeHint') }}
+              </p>
+            </div>
+            <div>
               <label class="input-label">{{ t('admin.redeem.codeType') }}</label>
               <Select v-model="generateForm.type" :options="typeOptions" />
             </div>
+
             <!-- 余额/并发类型：显示数值输入 -->
             <div v-if="generateForm.type !== 'subscription' && generateForm.type !== 'invitation'">
               <label class="input-label">
@@ -287,6 +314,34 @@
                 />
               </div>
             </template>
+            <template v-if="generateForm.type !== 'invitation'">
+              <div>
+                <label class="input-label">{{ t('admin.redeem.maxUses') }}</label>
+                <input
+                  v-model.number="generateForm.max_uses"
+                  type="number"
+                  min="0"
+                  required
+                  class="input"
+                />
+                <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+                  {{ t('admin.redeem.maxUsesHint') }}
+                </p>
+              </div>
+              <div>
+                <label class="input-label">
+                  {{ t('admin.redeem.expiresAt') }}
+                  <span class="ml-1 text-xs font-normal text-gray-400">
+                    ({{ t('common.optional') }})
+                  </span>
+                </label>
+                <input
+                  v-model="generateForm.expires_at_str"
+                  type="datetime-local"
+                  class="input"
+                />
+              </div>
+            </template>
             <div>
               <label class="input-label">{{ t('admin.redeem.count') }}</label>
               <input
@@ -296,7 +351,11 @@
                 max="100"
                 required
                 class="input"
+                :disabled="hasCustomCode"
               />
+              <p v-if="hasCustomCode" class="mt-1 text-xs text-gray-500 dark:text-dark-400">
+                {{ t('admin.redeem.customCodeCountHint') }}
+              </p>
             </div>
             <div class="flex justify-end gap-3 pt-2">
               <button type="button" @click="showGenerateDialog = false" class="btn btn-secondary">
@@ -405,7 +464,7 @@ import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
-import { formatDateTime } from '@/utils/format'
+import { formatDateTime, parseDateTimeLocalInput } from '@/utils/format'
 import type { RedeemCode, RedeemCodeType, Group, GroupPlatform, SubscriptionType } from '@/types'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -503,7 +562,9 @@ const columns = computed<Column[]>(() => [
   { key: 'code', label: t('admin.redeem.columns.code') },
   { key: 'type', label: t('admin.redeem.columns.type'), sortable: true },
   { key: 'value', label: t('admin.redeem.columns.value'), sortable: true },
+  { key: 'usage_progress', label: t('admin.redeem.columns.usageProgress') },
   { key: 'status', label: t('admin.redeem.columns.status'), sortable: true },
+  { key: 'expires_at', label: t('admin.redeem.columns.expiresAt'), sortable: true },
   { key: 'used_by', label: t('admin.redeem.columns.usedBy') },
   { key: 'used_at', label: t('admin.redeem.columns.usedAt'), sortable: true },
   { key: 'actions', label: t('admin.redeem.columns.actions') }
@@ -527,6 +588,7 @@ const filterTypeOptions = computed(() => [
 const filterStatusOptions = computed(() => [
   { value: '', label: t('admin.redeem.allStatus') },
   { value: 'unused', label: t('admin.redeem.unused') },
+  { value: 'active', label: t('admin.redeem.status.active') },
   { value: 'used', label: t('admin.redeem.used') },
   { value: 'expired', label: t('admin.redeem.status.expired') }
 ])
@@ -558,12 +620,16 @@ const deletingCode = ref<RedeemCode | null>(null)
 const copiedCode = ref<string | null>(null)
 
 const generateForm = reactive({
+  code: '',
   type: 'balance' as RedeemCodeType,
   value: 10,
   count: 1,
   group_id: null as number | null,
-  validity_days: 30
+  validity_days: 30,
+  max_uses: 1,
+  expires_at_str: ''
 })
+const hasCustomCode = computed(() => generateForm.code.trim().length > 0)
 
 // 监听类型变化，邀请码类型时自动设置 value 为 0
 watch(
@@ -571,19 +637,48 @@ watch(
   (newType) => {
     if (newType === 'invitation') {
       generateForm.value = 0
+      generateForm.max_uses = 1
+      generateForm.expires_at_str = ''
     } else if (generateForm.value === 0) {
       generateForm.value = 10
     }
   }
 )
 
+watch(
+  () => generateForm.code,
+  (newCode) => {
+    if (newCode.trim()) {
+      generateForm.count = 1
+    }
+  }
+)
+
 const buildRedeemQueryFilters = () => ({
   type: (filters.type || undefined) as RedeemCodeType | undefined,
-  status: (filters.status || undefined) as 'used' | 'expired' | 'unused' | undefined,
+  status: (filters.status || undefined) as 'active' | 'used' | 'expired' | 'unused' | undefined,
   search: searchQuery.value || undefined,
   sort_by: sortState.sort_by,
   sort_order: sortState.sort_order
 })
+
+const getStatusBadgeClass = (status: RedeemCode['status']) => {
+  if (status === 'unused') return 'badge-success'
+  if (status === 'active') return 'badge-warning'
+  if (status === 'used') return 'badge-gray'
+  return 'badge-danger'
+}
+
+const resetGenerateForm = () => {
+  generateForm.code = ''
+  generateForm.type = 'balance'
+  generateForm.value = 10
+  generateForm.count = 1
+  generateForm.group_id = null
+  generateForm.validity_days = 30
+  generateForm.max_uses = 1
+  generateForm.expires_at_str = ''
+}
 
 const loadCodes = async () => {
   if (abortController) {
@@ -658,22 +753,31 @@ const handleGenerateCodes = async () => {
     appStore.showError(t('admin.redeem.groupRequired'))
     return
   }
+  if (generateForm.type !== 'invitation' && (!Number.isInteger(generateForm.max_uses) || generateForm.max_uses < 0)) {
+    appStore.showError(t('admin.redeem.maxUsesRequired'))
+    return
+  }
+
+  const customCode = generateForm.code.trim()
+  const expiresAt =
+    generateForm.type === 'invitation' ? null : parseDateTimeLocalInput(generateForm.expires_at_str)
 
   generating.value = true
   try {
     const result = await adminAPI.redeem.generate(
-      generateForm.count,
+      customCode ? 1 : generateForm.count,
       generateForm.type,
       generateForm.value,
       generateForm.type === 'subscription' ? generateForm.group_id : undefined,
-      generateForm.type === 'subscription' ? generateForm.validity_days : undefined
+      generateForm.type === 'subscription' ? generateForm.validity_days : undefined,
+      generateForm.type === 'invitation' ? undefined : generateForm.max_uses,
+      expiresAt,
+      customCode || undefined
     )
     showGenerateDialog.value = false
     generatedCodes.value = result
     showResultDialog.value = true
-    // 重置表单
-    generateForm.group_id = null
-    generateForm.validity_days = 30
+    resetGenerateForm()
     loadCodes()
   } catch (error: any) {
     appStore.showError(error.response?.data?.detail || t('admin.redeem.failedToGenerate'))

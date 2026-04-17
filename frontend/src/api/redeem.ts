@@ -36,6 +36,8 @@ export async function redeem(code: string): Promise<{
   value: number
   new_balance?: number
   new_concurrency?: number
+  group_name?: string
+  validity_days?: number
 }> {
   const payload: RedeemCodeRequest = { code }
 
@@ -45,6 +47,8 @@ export async function redeem(code: string): Promise<{
     value: number
     new_balance?: number
     new_concurrency?: number
+    group_name?: string
+    validity_days?: number
   }>('/redeem', payload)
 
   return data

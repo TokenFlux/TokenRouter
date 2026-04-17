@@ -75,6 +75,21 @@ func Status(v string) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldStatus, v))
 }
 
+// MaxUses applies equality check predicate on the "max_uses" field. It's identical to MaxUsesEQ.
+func MaxUses(v int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldMaxUses, v))
+}
+
+// UsedCount applies equality check predicate on the "used_count" field. It's identical to UsedCountEQ.
+func UsedCount(v int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldUsedCount, v))
+}
+
+// ExpiresAt applies equality check predicate on the "expires_at" field. It's identical to ExpiresAtEQ.
+func ExpiresAt(v time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldExpiresAt, v))
+}
+
 // UsedBy applies equality check predicate on the "used_by" field. It's identical to UsedByEQ.
 func UsedBy(v int64) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldUsedBy, v))
@@ -340,6 +355,136 @@ func StatusContainsFold(v string) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldContainsFold(FieldStatus, v))
 }
 
+// MaxUsesEQ applies the EQ predicate on the "max_uses" field.
+func MaxUsesEQ(v int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldMaxUses, v))
+}
+
+// MaxUsesNEQ applies the NEQ predicate on the "max_uses" field.
+func MaxUsesNEQ(v int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNEQ(FieldMaxUses, v))
+}
+
+// MaxUsesIn applies the In predicate on the "max_uses" field.
+func MaxUsesIn(vs ...int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIn(FieldMaxUses, vs...))
+}
+
+// MaxUsesNotIn applies the NotIn predicate on the "max_uses" field.
+func MaxUsesNotIn(vs ...int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotIn(FieldMaxUses, vs...))
+}
+
+// MaxUsesGT applies the GT predicate on the "max_uses" field.
+func MaxUsesGT(v int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGT(FieldMaxUses, v))
+}
+
+// MaxUsesGTE applies the GTE predicate on the "max_uses" field.
+func MaxUsesGTE(v int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGTE(FieldMaxUses, v))
+}
+
+// MaxUsesLT applies the LT predicate on the "max_uses" field.
+func MaxUsesLT(v int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLT(FieldMaxUses, v))
+}
+
+// MaxUsesLTE applies the LTE predicate on the "max_uses" field.
+func MaxUsesLTE(v int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLTE(FieldMaxUses, v))
+}
+
+// UsedCountEQ applies the EQ predicate on the "used_count" field.
+func UsedCountEQ(v int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldUsedCount, v))
+}
+
+// UsedCountNEQ applies the NEQ predicate on the "used_count" field.
+func UsedCountNEQ(v int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNEQ(FieldUsedCount, v))
+}
+
+// UsedCountIn applies the In predicate on the "used_count" field.
+func UsedCountIn(vs ...int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIn(FieldUsedCount, vs...))
+}
+
+// UsedCountNotIn applies the NotIn predicate on the "used_count" field.
+func UsedCountNotIn(vs ...int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotIn(FieldUsedCount, vs...))
+}
+
+// UsedCountGT applies the GT predicate on the "used_count" field.
+func UsedCountGT(v int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGT(FieldUsedCount, v))
+}
+
+// UsedCountGTE applies the GTE predicate on the "used_count" field.
+func UsedCountGTE(v int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGTE(FieldUsedCount, v))
+}
+
+// UsedCountLT applies the LT predicate on the "used_count" field.
+func UsedCountLT(v int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLT(FieldUsedCount, v))
+}
+
+// UsedCountLTE applies the LTE predicate on the "used_count" field.
+func UsedCountLTE(v int) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLTE(FieldUsedCount, v))
+}
+
+// ExpiresAtEQ applies the EQ predicate on the "expires_at" field.
+func ExpiresAtEQ(v time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldExpiresAt, v))
+}
+
+// ExpiresAtNEQ applies the NEQ predicate on the "expires_at" field.
+func ExpiresAtNEQ(v time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNEQ(FieldExpiresAt, v))
+}
+
+// ExpiresAtIn applies the In predicate on the "expires_at" field.
+func ExpiresAtIn(vs ...time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIn(FieldExpiresAt, vs...))
+}
+
+// ExpiresAtNotIn applies the NotIn predicate on the "expires_at" field.
+func ExpiresAtNotIn(vs ...time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotIn(FieldExpiresAt, vs...))
+}
+
+// ExpiresAtGT applies the GT predicate on the "expires_at" field.
+func ExpiresAtGT(v time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGT(FieldExpiresAt, v))
+}
+
+// ExpiresAtGTE applies the GTE predicate on the "expires_at" field.
+func ExpiresAtGTE(v time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldGTE(FieldExpiresAt, v))
+}
+
+// ExpiresAtLT applies the LT predicate on the "expires_at" field.
+func ExpiresAtLT(v time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLT(FieldExpiresAt, v))
+}
+
+// ExpiresAtLTE applies the LTE predicate on the "expires_at" field.
+func ExpiresAtLTE(v time.Time) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldLTE(FieldExpiresAt, v))
+}
+
+// ExpiresAtIsNil applies the IsNil predicate on the "expires_at" field.
+func ExpiresAtIsNil() predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIsNull(FieldExpiresAt))
+}
+
+// ExpiresAtNotNil applies the NotNil predicate on the "expires_at" field.
+func ExpiresAtNotNil() predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotNull(FieldExpiresAt))
+}
+
 // UsedByEQ applies the EQ predicate on the "used_by" field.
 func UsedByEQ(v int64) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldUsedBy, v))
@@ -603,6 +748,29 @@ func ValidityDaysLT(v int) predicate.RedeemCode {
 // ValidityDaysLTE applies the LTE predicate on the "validity_days" field.
 func ValidityDaysLTE(v int) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldLTE(FieldValidityDays, v))
+}
+
+// HasUsageRecords applies the HasEdge predicate on the "usage_records" edge.
+func HasUsageRecords() predicate.RedeemCode {
+	return predicate.RedeemCode(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, UsageRecordsTable, UsageRecordsColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasUsageRecordsWith applies the HasEdge predicate on the "usage_records" edge with a given conditions (other predicates).
+func HasUsageRecordsWith(preds ...predicate.RedeemCodeUsage) predicate.RedeemCode {
+	return predicate.RedeemCode(func(s *sql.Selector) {
+		step := newUsageRecordsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
 }
 
 // HasUser applies the HasEdge predicate on the "user" edge.
