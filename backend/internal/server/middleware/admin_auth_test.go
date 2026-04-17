@@ -165,6 +165,10 @@ func (s *stubUserRepo) UpdateBalance(ctx context.Context, id int64, amount float
 	panic("unexpected UpdateBalance call")
 }
 
+func (s *stubUserRepo) AddBalance(ctx context.Context, id int64, amount float64) error {
+	panic("unexpected AddBalance call")
+}
+
 func (s *stubUserRepo) DeductBalance(ctx context.Context, id int64, amount float64) error {
 	panic("unexpected DeductBalance call")
 }
@@ -175,6 +179,22 @@ func (s *stubUserRepo) UpdateConcurrency(ctx context.Context, id int64, amount i
 
 func (s *stubUserRepo) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	panic("unexpected ExistsByEmail call")
+}
+
+func (s *stubUserRepo) GetByReferralCode(ctx context.Context, code string) (*service.User, error) {
+	panic("unexpected GetByReferralCode call")
+}
+
+func (s *stubUserRepo) EnsureReferralCode(ctx context.Context, userID int64) (string, error) {
+	panic("unexpected EnsureReferralCode call")
+}
+
+func (s *stubUserRepo) CountReferredUsers(ctx context.Context, userID int64) (int, error) {
+	panic("unexpected CountReferredUsers call")
+}
+
+func (s *stubUserRepo) SumReferralRewardsByInviter(ctx context.Context, userID int64) (float64, error) {
+	panic("unexpected SumReferralRewardsByInviter call")
 }
 
 func (s *stubUserRepo) RemoveGroupFromAllowedGroups(ctx context.Context, groupID int64) (int64, error) {

@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
@@ -74,6 +75,18 @@ func (s *userRepoStub) UpdateBalance(ctx context.Context, id int64, amount float
 	panic("unexpected UpdateBalance call")
 }
 
+func (s *userRepoStub) AddBalance(ctx context.Context, id int64, amount float64) error {
+	if s.user != nil && s.user.ID == id {
+		s.user.Balance += amount
+	}
+	for _, user := range s.created {
+		if user != nil && user.ID == id {
+			user.Balance += amount
+		}
+	}
+	return nil
+}
+
 func (s *userRepoStub) DeductBalance(ctx context.Context, id int64, amount float64) error {
 	panic("unexpected DeductBalance call")
 }
@@ -87,6 +100,45 @@ func (s *userRepoStub) ExistsByEmail(ctx context.Context, email string) (bool, e
 		return false, s.existsErr
 	}
 	return s.exists, nil
+}
+
+func (s *userRepoStub) GetByReferralCode(ctx context.Context, code string) (*User, error) {
+	if s.user != nil && s.user.ReferralCode == code {
+		return s.user, nil
+	}
+	for _, user := range s.created {
+		if user != nil && user.ReferralCode == code {
+			return user, nil
+		}
+	}
+	return nil, ErrUserNotFound
+}
+
+func (s *userRepoStub) EnsureReferralCode(ctx context.Context, userID int64) (string, error) {
+	referralCode := NormalizeReferralCode("ref-" + strconv.FormatInt(userID, 10))
+	if s.user != nil && s.user.ID == userID {
+		if s.user.ReferralCode == "" {
+			s.user.ReferralCode = referralCode
+		}
+		return s.user.ReferralCode, nil
+	}
+	for _, user := range s.created {
+		if user != nil && user.ID == userID {
+			if user.ReferralCode == "" {
+				user.ReferralCode = referralCode
+			}
+			return user.ReferralCode, nil
+		}
+	}
+	return referralCode, nil
+}
+
+func (s *userRepoStub) CountReferredUsers(ctx context.Context, userID int64) (int, error) {
+	return 0, nil
+}
+
+func (s *userRepoStub) SumReferralRewardsByInviter(ctx context.Context, userID int64) (float64, error) {
+	return 0, nil
 }
 
 func (s *userRepoStub) RemoveGroupFromAllowedGroups(ctx context.Context, groupID int64) (int64, error) {
@@ -248,6 +300,8 @@ func (s *proxyRepoStub) ListAccountSummariesByProxyID(ctx context.Context, proxy
 }
 
 type redeemRepoStub struct {
+	getErrByID    map[int64]error
+	codesByID     map[int64]*RedeemCode
 	deleteErrByID map[int64]error
 	deletedIDs    []int64
 }
@@ -261,7 +315,17 @@ func (s *redeemRepoStub) CreateBatch(ctx context.Context, codes []RedeemCode) er
 }
 
 func (s *redeemRepoStub) GetByID(ctx context.Context, id int64) (*RedeemCode, error) {
-	panic("unexpected GetByID call")
+	if s.getErrByID != nil {
+		if err, ok := s.getErrByID[id]; ok {
+			return nil, err
+		}
+	}
+	if s.codesByID != nil {
+		if code, ok := s.codesByID[id]; ok {
+			return code, nil
+		}
+	}
+	return &RedeemCode{ID: id}, nil
 }
 
 func (s *redeemRepoStub) GetByCode(ctx context.Context, code string) (*RedeemCode, error) {
@@ -515,12 +579,12 @@ func TestAdminService_DeleteRedeemCode_Success(t *testing.T) {
 }
 
 func TestAdminService_DeleteRedeemCode_Idempotent(t *testing.T) {
-	repo := &redeemRepoStub{}
+	repo := &redeemRepoStub{getErrByID: map[int64]error{999: ErrRedeemCodeNotFound}}
 	svc := &adminServiceImpl{redeemCodeRepo: repo}
 
 	err := svc.DeleteRedeemCode(context.Background(), 999)
-	require.NoError(t, err)
-	require.Equal(t, []int64{999}, repo.deletedIDs)
+	require.ErrorIs(t, err, ErrRedeemCodeNotFound)
+	require.Empty(t, repo.deletedIDs)
 }
 
 func TestAdminService_DeleteRedeemCode_Error(t *testing.T) {

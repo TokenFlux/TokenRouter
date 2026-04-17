@@ -53,6 +53,9 @@ func (s *userRepoStubForGroupUpdate) ListWithFilters(context.Context, pagination
 func (s *userRepoStubForGroupUpdate) UpdateBalance(context.Context, int64, float64) error {
 	panic("unexpected")
 }
+func (s *userRepoStubForGroupUpdate) AddBalance(context.Context, int64, float64) error {
+	panic("unexpected")
+}
 func (s *userRepoStubForGroupUpdate) DeductBalance(context.Context, int64, float64) error {
 	panic("unexpected")
 }
@@ -60,6 +63,18 @@ func (s *userRepoStubForGroupUpdate) UpdateConcurrency(context.Context, int64, i
 	panic("unexpected")
 }
 func (s *userRepoStubForGroupUpdate) ExistsByEmail(context.Context, string) (bool, error) {
+	panic("unexpected")
+}
+func (s *userRepoStubForGroupUpdate) GetByReferralCode(context.Context, string) (*User, error) {
+	panic("unexpected")
+}
+func (s *userRepoStubForGroupUpdate) EnsureReferralCode(context.Context, int64) (string, error) {
+	panic("unexpected")
+}
+func (s *userRepoStubForGroupUpdate) CountReferredUsers(context.Context, int64) (int, error) {
+	panic("unexpected")
+}
+func (s *userRepoStubForGroupUpdate) SumReferralRewardsByInviter(context.Context, int64) (float64, error) {
 	panic("unexpected")
 }
 func (s *userRepoStubForGroupUpdate) RemoveGroupFromAllowedGroups(context.Context, int64) (int64, error) {

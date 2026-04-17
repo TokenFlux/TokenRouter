@@ -302,10 +302,13 @@ func TestAPIContracts(t *testing.T) {
 						"code": "CODE-123",
 						"type": "balance",
 						"value": 1.25,
+						"max_uses": 0,
+						"used_count": 0,
 						"status": "used",
 						"used_by": 1,
 						"used_at": "2025-01-02T03:04:05Z",
 						"created_at": "2025-01-02T03:04:05Z",
+						"expires_at": null,
 						"group_id": null,
 						"validity_days": 0
 					}
@@ -582,6 +585,7 @@ func TestAPIContracts(t *testing.T) {
 					"hide_ccs_import_button": false,
 					"purchase_subscription_enabled": false,
 					"purchase_subscription_url": "",
+					"referral_reward_amount": 0,
 					"table_default_page_size": 20,
 						"table_page_size_options": [10, 20, 50, 100],
 					"min_claude_code_version": "",
@@ -870,6 +874,10 @@ func (r *stubUserRepo) UpdateBalance(ctx context.Context, id int64, amount float
 	return errors.New("not implemented")
 }
 
+func (r *stubUserRepo) AddBalance(ctx context.Context, id int64, amount float64) error {
+	return errors.New("not implemented")
+}
+
 func (r *stubUserRepo) DeductBalance(ctx context.Context, id int64, amount float64) error {
 	return errors.New("not implemented")
 }
@@ -880,6 +888,22 @@ func (r *stubUserRepo) UpdateConcurrency(ctx context.Context, id int64, amount i
 
 func (r *stubUserRepo) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	return false, errors.New("not implemented")
+}
+
+func (r *stubUserRepo) GetByReferralCode(ctx context.Context, code string) (*service.User, error) {
+	return nil, service.ErrUserNotFound
+}
+
+func (r *stubUserRepo) EnsureReferralCode(ctx context.Context, userID int64) (string, error) {
+	return "", errors.New("not implemented")
+}
+
+func (r *stubUserRepo) CountReferredUsers(ctx context.Context, userID int64) (int, error) {
+	return 0, errors.New("not implemented")
+}
+
+func (r *stubUserRepo) SumReferralRewardsByInviter(ctx context.Context, userID int64) (float64, error) {
+	return 0, errors.New("not implemented")
 }
 
 func (r *stubUserRepo) RemoveGroupFromAllowedGroups(ctx context.Context, groupID int64) (int64, error) {
@@ -1281,6 +1305,10 @@ func (stubRedeemCodeRepo) GetByCode(ctx context.Context, code string) (*service.
 	return nil, service.ErrRedeemCodeNotFound
 }
 
+func (stubRedeemCodeRepo) GetByCodeForUpdate(ctx context.Context, code string) (*service.RedeemCode, error) {
+	return nil, service.ErrRedeemCodeNotFound
+}
+
 func (stubRedeemCodeRepo) Update(ctx context.Context, code *service.RedeemCode) error {
 	return errors.New("not implemented")
 }
@@ -1291,6 +1319,14 @@ func (stubRedeemCodeRepo) Delete(ctx context.Context, id int64) error {
 
 func (stubRedeemCodeRepo) Use(ctx context.Context, id, userID int64) error {
 	return errors.New("not implemented")
+}
+
+func (stubRedeemCodeRepo) CreateUsage(ctx context.Context, usage *service.RedeemCodeUsage) error {
+	return errors.New("not implemented")
+}
+
+func (stubRedeemCodeRepo) GetUsageByRedeemCodeAndUser(ctx context.Context, redeemCodeID, userID int64) (*service.RedeemCodeUsage, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (stubRedeemCodeRepo) List(ctx context.Context, params pagination.PaginationParams) ([]service.RedeemCode, *pagination.PaginationResult, error) {
