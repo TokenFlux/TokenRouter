@@ -257,7 +257,13 @@ func (s *RedeemCodeRepoSuite) TestUpdate() {
 
 func (s *RedeemCodeRepoSuite) TestUse() {
 	user := s.createUser(uniqueTestValue(s.T(), "use") + "@example.com")
-	code := &service.RedeemCode{Code: "USE-ME", Type: service.RedeemTypeBalance, Value: 0, Status: service.StatusUnused}
+	code := &service.RedeemCode{
+		Code:    "USE-ME",
+		Type:    service.RedeemTypeBalance,
+		Value:   0,
+		Status:  service.StatusUnused,
+		MaxUses: 1,
+	}
 	s.Require().NoError(s.repo.Create(s.ctx, code))
 
 	err := s.repo.Use(s.ctx, code.ID, user.ID)
@@ -273,7 +279,13 @@ func (s *RedeemCodeRepoSuite) TestUse() {
 
 func (s *RedeemCodeRepoSuite) TestUse_Idempotency() {
 	user := s.createUser(uniqueTestValue(s.T(), "idem") + "@example.com")
-	code := &service.RedeemCode{Code: "IDEM-CODE", Type: service.RedeemTypeBalance, Value: 0, Status: service.StatusUnused}
+	code := &service.RedeemCode{
+		Code:    "IDEM-CODE",
+		Type:    service.RedeemTypeBalance,
+		Value:   0,
+		Status:  service.StatusUnused,
+		MaxUses: 1,
+	}
 	s.Require().NoError(s.repo.Create(s.ctx, code))
 
 	err := s.repo.Use(s.ctx, code.ID, user.ID)
