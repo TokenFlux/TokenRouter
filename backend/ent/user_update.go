@@ -334,6 +334,68 @@ func (_u *UserUpdate) AddTotalRecharged(v float64) *UserUpdate {
 	return _u
 }
 
+// SetReferralCode sets the "referral_code" field.
+func (_u *UserUpdate) SetReferralCode(v string) *UserUpdate {
+	_u.mutation.SetReferralCode(v)
+	return _u
+}
+
+// SetNillableReferralCode sets the "referral_code" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableReferralCode(v *string) *UserUpdate {
+	if v != nil {
+		_u.SetReferralCode(*v)
+	}
+	return _u
+}
+
+// SetReferredByUserID sets the "referred_by_user_id" field.
+func (_u *UserUpdate) SetReferredByUserID(v int64) *UserUpdate {
+	_u.mutation.ResetReferredByUserID()
+	_u.mutation.SetReferredByUserID(v)
+	return _u
+}
+
+// SetNillableReferredByUserID sets the "referred_by_user_id" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableReferredByUserID(v *int64) *UserUpdate {
+	if v != nil {
+		_u.SetReferredByUserID(*v)
+	}
+	return _u
+}
+
+// AddReferredByUserID adds value to the "referred_by_user_id" field.
+func (_u *UserUpdate) AddReferredByUserID(v int64) *UserUpdate {
+	_u.mutation.AddReferredByUserID(v)
+	return _u
+}
+
+// ClearReferredByUserID clears the value of the "referred_by_user_id" field.
+func (_u *UserUpdate) ClearReferredByUserID() *UserUpdate {
+	_u.mutation.ClearReferredByUserID()
+	return _u
+}
+
+// SetReferralRewardAmount sets the "referral_reward_amount" field.
+func (_u *UserUpdate) SetReferralRewardAmount(v float64) *UserUpdate {
+	_u.mutation.ResetReferralRewardAmount()
+	_u.mutation.SetReferralRewardAmount(v)
+	return _u
+}
+
+// SetNillableReferralRewardAmount sets the "referral_reward_amount" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableReferralRewardAmount(v *float64) *UserUpdate {
+	if v != nil {
+		_u.SetReferralRewardAmount(*v)
+	}
+	return _u
+}
+
+// AddReferralRewardAmount adds value to the "referral_reward_amount" field.
+func (_u *UserUpdate) AddReferralRewardAmount(v float64) *UserUpdate {
+	_u.mutation.AddReferralRewardAmount(v)
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *UserUpdate) AddAPIKeyIDs(ids ...int64) *UserUpdate {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -804,6 +866,11 @@ func (_u *UserUpdate) check() error {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ReferralCode(); ok {
+		if err := user.ReferralCodeValidator(v); err != nil {
+			return &ValidationError{Name: "referral_code", err: fmt.Errorf(`ent: validator failed for field "User.referral_code": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -896,6 +963,24 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedTotalRecharged(); ok {
 		_spec.AddField(user.FieldTotalRecharged, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.ReferralCode(); ok {
+		_spec.SetField(user.FieldReferralCode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ReferredByUserID(); ok {
+		_spec.SetField(user.FieldReferredByUserID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedReferredByUserID(); ok {
+		_spec.AddField(user.FieldReferredByUserID, field.TypeInt64, value)
+	}
+	if _u.mutation.ReferredByUserIDCleared() {
+		_spec.ClearField(user.FieldReferredByUserID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.ReferralRewardAmount(); ok {
+		_spec.SetField(user.FieldReferralRewardAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedReferralRewardAmount(); ok {
+		_spec.AddField(user.FieldReferralRewardAmount, field.TypeFloat64, value)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1720,6 +1805,68 @@ func (_u *UserUpdateOne) AddTotalRecharged(v float64) *UserUpdateOne {
 	return _u
 }
 
+// SetReferralCode sets the "referral_code" field.
+func (_u *UserUpdateOne) SetReferralCode(v string) *UserUpdateOne {
+	_u.mutation.SetReferralCode(v)
+	return _u
+}
+
+// SetNillableReferralCode sets the "referral_code" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableReferralCode(v *string) *UserUpdateOne {
+	if v != nil {
+		_u.SetReferralCode(*v)
+	}
+	return _u
+}
+
+// SetReferredByUserID sets the "referred_by_user_id" field.
+func (_u *UserUpdateOne) SetReferredByUserID(v int64) *UserUpdateOne {
+	_u.mutation.ResetReferredByUserID()
+	_u.mutation.SetReferredByUserID(v)
+	return _u
+}
+
+// SetNillableReferredByUserID sets the "referred_by_user_id" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableReferredByUserID(v *int64) *UserUpdateOne {
+	if v != nil {
+		_u.SetReferredByUserID(*v)
+	}
+	return _u
+}
+
+// AddReferredByUserID adds value to the "referred_by_user_id" field.
+func (_u *UserUpdateOne) AddReferredByUserID(v int64) *UserUpdateOne {
+	_u.mutation.AddReferredByUserID(v)
+	return _u
+}
+
+// ClearReferredByUserID clears the value of the "referred_by_user_id" field.
+func (_u *UserUpdateOne) ClearReferredByUserID() *UserUpdateOne {
+	_u.mutation.ClearReferredByUserID()
+	return _u
+}
+
+// SetReferralRewardAmount sets the "referral_reward_amount" field.
+func (_u *UserUpdateOne) SetReferralRewardAmount(v float64) *UserUpdateOne {
+	_u.mutation.ResetReferralRewardAmount()
+	_u.mutation.SetReferralRewardAmount(v)
+	return _u
+}
+
+// SetNillableReferralRewardAmount sets the "referral_reward_amount" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableReferralRewardAmount(v *float64) *UserUpdateOne {
+	if v != nil {
+		_u.SetReferralRewardAmount(*v)
+	}
+	return _u
+}
+
+// AddReferralRewardAmount adds value to the "referral_reward_amount" field.
+func (_u *UserUpdateOne) AddReferralRewardAmount(v float64) *UserUpdateOne {
+	_u.mutation.AddReferralRewardAmount(v)
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *UserUpdateOne) AddAPIKeyIDs(ids ...int64) *UserUpdateOne {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -2203,6 +2350,11 @@ func (_u *UserUpdateOne) check() error {
 			return &ValidationError{Name: "username", err: fmt.Errorf(`ent: validator failed for field "User.username": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.ReferralCode(); ok {
+		if err := user.ReferralCodeValidator(v); err != nil {
+			return &ValidationError{Name: "referral_code", err: fmt.Errorf(`ent: validator failed for field "User.referral_code": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -2312,6 +2464,24 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AddedTotalRecharged(); ok {
 		_spec.AddField(user.FieldTotalRecharged, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.ReferralCode(); ok {
+		_spec.SetField(user.FieldReferralCode, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.ReferredByUserID(); ok {
+		_spec.SetField(user.FieldReferredByUserID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedReferredByUserID(); ok {
+		_spec.AddField(user.FieldReferredByUserID, field.TypeInt64, value)
+	}
+	if _u.mutation.ReferredByUserIDCleared() {
+		_spec.ClearField(user.FieldReferredByUserID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.ReferralRewardAmount(); ok {
+		_spec.SetField(user.FieldReferralRewardAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedReferralRewardAmount(); ok {
+		_spec.AddField(user.FieldReferralRewardAmount, field.TypeFloat64, value)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{

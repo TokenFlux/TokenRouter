@@ -4,7 +4,7 @@
  */
 
 import { apiClient } from './client'
-import type { User, ChangePasswordRequest, NotifyEmailEntry } from '@/types'
+import type { User, ChangePasswordRequest, NotifyEmailEntry, UserReferralInfo } from '@/types'
 
 /**
  * Get current user profile
@@ -83,6 +83,11 @@ export async function toggleNotifyEmail(email: string, disabled: boolean): Promi
   return data
 }
 
+export async function getReferralInfo(): Promise<UserReferralInfo> {
+  const { data } = await apiClient.get<UserReferralInfo>('/user/referral')
+  return data
+}
+
 export const userAPI = {
   getProfile,
   updateProfile,
@@ -90,7 +95,8 @@ export const userAPI = {
   sendNotifyEmailCode,
   verifyNotifyEmail,
   removeNotifyEmail,
-  toggleNotifyEmail
+  toggleNotifyEmail,
+  getReferralInfo
 }
 
 export default userAPI

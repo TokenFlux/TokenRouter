@@ -833,6 +833,7 @@ export default {
     concurrencyReducedAdmin: 'Concurrency Reduced (Admin)',
     adminAdjustment: 'Admin Adjustment',
     subscriptionAssigned: 'Subscription Assigned',
+    referralReward: 'Referral Reward',
     subscriptionAssignedDesc: 'You have been granted access to {groupName}',
     subscriptionDays: '{days} days',
     days: ' days',
@@ -873,6 +874,20 @@ export default {
     passwordTooShort: 'Password must be at least 8 characters long',
     passwordChangeSuccess: 'Password changed successfully',
     passwordChangeFailed: 'Failed to change password',
+    referral: {
+      title: 'Referral Rewards',
+      description: 'Share your personal invitation link and earn balance rewards when new users register through it',
+      inviteLink: 'Personal Invite Link',
+      inviteLinkHint: 'Send this link to new users. Rewards are credited automatically after registration',
+      codeLabel: 'Referral Code',
+      totalInvited: 'Total Invited Users',
+      totalReward: 'Total Reward Earned',
+      copy: 'Copy Link',
+      copied: 'Copied',
+      copySuccess: 'Referral link copied',
+      copyFailed: 'Failed to copy referral link',
+      loadFailed: 'Failed to load referral information'
+    },
     // TOTP 2FA
     totp: {
       title: 'Two-Factor Authentication (2FA)',
@@ -1495,6 +1510,7 @@ export default {
       noBalanceHistory: 'No records found for this user',
       allTypes: 'All Types',
       typeBalance: 'Balance (Redeem)',
+      typeReferralReward: 'Balance (Referral Reward)',
       typeAdminBalance: 'Balance (Admin)',
       typeConcurrency: 'Concurrency (Redeem)',
       typeAdminConcurrency: 'Concurrency (Admin)',
@@ -3265,6 +3281,7 @@ export default {
         concurrency: 'Concurrency',
         subscription: 'Subscription',
         invitation: 'Invitation',
+        referral_reward: 'Referral Reward',
         // Admin adjustment types (created when admin modifies user balance/concurrency)
         admin_balance: 'Balance (Admin)',
         admin_concurrency: 'Concurrency (Admin)'
@@ -4411,6 +4428,13 @@ export default {
           'Duplicate subscription group: {groupId}. Each group can only appear once.',
         subscriptionGroup: 'Subscription Group',
         subscriptionValidityDays: 'Validity (days)'
+      },
+      referral: {
+        title: 'Referral Reward Settings',
+        description: 'Configure the balance reward granted when a user invites a new registration',
+        rewardAmount: 'Reward Amount Per Signup',
+        rewardAmountPlaceholder: '0.00',
+        rewardAmountHint: 'Both the inviter and the invited user receive this balance reward when registration completes through an invite link'
       },
       claudeCode: {
         title: 'Claude Code Settings',

@@ -37,10 +37,11 @@ const (
 
 // Redeem type constants
 const (
-	RedeemTypeBalance      = domain.RedeemTypeBalance
-	RedeemTypeConcurrency  = domain.RedeemTypeConcurrency
-	RedeemTypeSubscription = domain.RedeemTypeSubscription
-	RedeemTypeInvitation   = domain.RedeemTypeInvitation
+	RedeemTypeBalance        = domain.RedeemTypeBalance
+	RedeemTypeConcurrency    = domain.RedeemTypeConcurrency
+	RedeemTypeSubscription   = domain.RedeemTypeSubscription
+	RedeemTypeInvitation     = domain.RedeemTypeInvitation
+	RedeemTypeReferralReward = domain.RedeemTypeReferralReward
 )
 
 // PromoCode status constants
@@ -84,6 +85,7 @@ const (
 	SettingKeyPasswordResetEnabled             = "password_reset_enabled"              // 是否启用忘记密码功能（需要先开启邮件验证）
 	SettingKeyFrontendURL                      = "frontend_url"                        // 前端基础URL，用于生成邮件中的重置密码链接
 	SettingKeyInvitationCodeEnabled            = "invitation_code_enabled"             // 是否启用邀请码注册
+	SettingKeyReferralRewardAmount             = "referral_reward_amount"              // 邀请返利额度
 
 	// 邮件服务设置
 	SettingKeySMTPHost     = "smtp_host"      // SMTP服务器地址

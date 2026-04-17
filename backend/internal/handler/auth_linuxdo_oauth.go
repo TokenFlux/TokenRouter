@@ -29,6 +29,7 @@ const (
 	linuxDoOAuthStateCookieName   = "linuxdo_oauth_state"
 	linuxDoOAuthVerifierCookie    = "linuxdo_oauth_verifier"
 	linuxDoOAuthRedirectCookie    = "linuxdo_oauth_redirect"
+	linuxDoOAuthReferralCookie    = "linuxdo_oauth_ref"
 	linuxDoOAuthCookieMaxAgeSec   = 10 * 60 // 10 minutes
 	linuxDoOAuthDefaultRedirectTo = "/dashboard"
 	linuxDoOAuthDefaultFrontendCB = "/auth/linuxdo/callback"
@@ -86,10 +87,12 @@ func (h *AuthHandler) LinuxDoOAuthStart(c *gin.Context) {
 	if redirectTo == "" {
 		redirectTo = linuxDoOAuthDefaultRedirectTo
 	}
+	referralCode := service.NormalizeReferralCode(c.Query("ref"))
 
 	secureCookie := isRequestHTTPS(c)
 	setCookie(c, linuxDoOAuthStateCookieName, encodeCookieValue(state), linuxDoOAuthCookieMaxAgeSec, secureCookie)
 	setCookie(c, linuxDoOAuthRedirectCookie, encodeCookieValue(redirectTo), linuxDoOAuthCookieMaxAgeSec, secureCookie)
+	setCookie(c, linuxDoOAuthReferralCookie, encodeCookieValue(referralCode), linuxDoOAuthCookieMaxAgeSec, secureCookie)
 
 	codeChallenge := ""
 	if cfg.UsePKCE {
@@ -148,6 +151,7 @@ func (h *AuthHandler) LinuxDoOAuthCallback(c *gin.Context) {
 		clearCookie(c, linuxDoOAuthStateCookieName, secureCookie)
 		clearCookie(c, linuxDoOAuthVerifierCookie, secureCookie)
 		clearCookie(c, linuxDoOAuthRedirectCookie, secureCookie)
+		clearCookie(c, linuxDoOAuthReferralCookie, secureCookie)
 	}()
 
 	expectedState, err := readCookieDecoded(c, linuxDoOAuthStateCookieName)
@@ -161,6 +165,8 @@ func (h *AuthHandler) LinuxDoOAuthCallback(c *gin.Context) {
 	if redirectTo == "" {
 		redirectTo = linuxDoOAuthDefaultRedirectTo
 	}
+	referralCode, _ := readCookieDecoded(c, linuxDoOAuthReferralCookie)
+	referralCode = service.NormalizeReferralCode(referralCode)
 
 	codeVerifier := ""
 	if cfg.UsePKCE {
@@ -212,10 +218,10 @@ func (h *AuthHandler) LinuxDoOAuthCallback(c *gin.Context) {
 	}
 
 	// 传入空邀请码；如果需要邀请码，服务层返回 ErrOAuthInvitationRequired
-	tokenPair, _, err := h.authService.LoginOrRegisterOAuthWithTokenPair(c.Request.Context(), email, username, "")
+	tokenPair, _, err := h.authService.LoginOrRegisterOAuthWithTokenPairAndReferral(c.Request.Context(), email, username, "", referralCode)
 	if err != nil {
 		if errors.Is(err, service.ErrOAuthInvitationRequired) {
-			pendingToken, tokenErr := h.authService.CreatePendingOAuthToken(email, username)
+			pendingToken, tokenErr := h.authService.CreatePendingOAuthTokenWithReferral(email, username, referralCode)
 			if tokenErr != nil {
 				redirectOAuthError(c, frontendCallback, "login_failed", "service_error", "")
 				return
@@ -256,13 +262,13 @@ func (h *AuthHandler) CompleteLinuxDoOAuthRegistration(c *gin.Context) {
 		return
 	}
 
-	email, username, err := h.authService.VerifyPendingOAuthToken(req.PendingOAuthToken)
+	identity, err := h.authService.VerifyPendingOAuthTokenDetails(req.PendingOAuthToken)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "INVALID_TOKEN", "message": "invalid or expired registration token"})
 		return
 	}
 
-	tokenPair, _, err := h.authService.LoginOrRegisterOAuthWithTokenPair(c.Request.Context(), email, username, req.InvitationCode)
+	tokenPair, _, err := h.authService.LoginOrRegisterOAuthWithTokenPairAndReferral(c.Request.Context(), identity.Email, identity.Username, req.InvitationCode, identity.ReferralCode)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return

@@ -56,6 +56,24 @@ func (h *UserHandler) GetProfile(c *gin.Context) {
 	response.Success(c, dto.UserFromService(userData))
 }
 
+// GetReferralInfo handles getting the current user's referral information.
+// GET /api/v1/user/referral
+func (h *UserHandler) GetReferralInfo(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	info, err := h.userService.GetReferralInfo(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.UserReferralInfoFromService(info))
+}
+
 // ChangePassword handles changing user password
 // POST /api/v1/users/me/password
 func (h *UserHandler) ChangePassword(c *gin.Context) {

@@ -55,6 +55,12 @@ type User struct {
 	BalanceNotifyExtraEmails string `json:"balance_notify_extra_emails,omitempty"`
 	// TotalRecharged holds the value of the "total_recharged" field.
 	TotalRecharged float64 `json:"total_recharged,omitempty"`
+	// ReferralCode holds the value of the "referral_code" field.
+	ReferralCode string `json:"referral_code,omitempty"`
+	// ReferredByUserID holds the value of the "referred_by_user_id" field.
+	ReferredByUserID *int64 `json:"referred_by_user_id,omitempty"`
+	// ReferralRewardAmount holds the value of the "referral_reward_amount" field.
+	ReferralRewardAmount float64 `json:"referral_reward_amount,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the UserQuery when eager-loading is set.
 	Edges        UserEdges `json:"edges"`
@@ -207,11 +213,11 @@ func (*User) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case user.FieldTotpEnabled, user.FieldBalanceNotifyEnabled:
 			values[i] = new(sql.NullBool)
-		case user.FieldBalance, user.FieldBalanceNotifyThreshold, user.FieldTotalRecharged:
+		case user.FieldBalance, user.FieldBalanceNotifyThreshold, user.FieldTotalRecharged, user.FieldReferralRewardAmount:
 			values[i] = new(sql.NullFloat64)
-		case user.FieldID, user.FieldConcurrency:
+		case user.FieldID, user.FieldConcurrency, user.FieldReferredByUserID:
 			values[i] = new(sql.NullInt64)
-		case user.FieldEmail, user.FieldPasswordHash, user.FieldRole, user.FieldStatus, user.FieldUsername, user.FieldNotes, user.FieldTotpSecretEncrypted, user.FieldBalanceNotifyThresholdType, user.FieldBalanceNotifyExtraEmails:
+		case user.FieldEmail, user.FieldPasswordHash, user.FieldRole, user.FieldStatus, user.FieldUsername, user.FieldNotes, user.FieldTotpSecretEncrypted, user.FieldBalanceNotifyThresholdType, user.FieldBalanceNotifyExtraEmails, user.FieldReferralCode:
 			values[i] = new(sql.NullString)
 		case user.FieldCreatedAt, user.FieldUpdatedAt, user.FieldDeletedAt, user.FieldTotpEnabledAt:
 			values[i] = new(sql.NullTime)
@@ -353,6 +359,25 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field total_recharged", values[i])
 			} else if value.Valid {
 				_m.TotalRecharged = value.Float64
+			}
+		case user.FieldReferralCode:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field referral_code", values[i])
+			} else if value.Valid {
+				_m.ReferralCode = value.String
+			}
+		case user.FieldReferredByUserID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field referred_by_user_id", values[i])
+			} else if value.Valid {
+				_m.ReferredByUserID = new(int64)
+				*_m.ReferredByUserID = value.Int64
+			}
+		case user.FieldReferralRewardAmount:
+			if value, ok := values[i].(*sql.NullFloat64); !ok {
+				return fmt.Errorf("unexpected type %T for field referral_reward_amount", values[i])
+			} else if value.Valid {
+				_m.ReferralRewardAmount = value.Float64
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -514,6 +539,17 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("total_recharged=")
 	builder.WriteString(fmt.Sprintf("%v", _m.TotalRecharged))
+	builder.WriteString(", ")
+	builder.WriteString("referral_code=")
+	builder.WriteString(_m.ReferralCode)
+	builder.WriteString(", ")
+	if v := _m.ReferredByUserID; v != nil {
+		builder.WriteString("referred_by_user_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("referral_reward_amount=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ReferralRewardAmount))
 	builder.WriteByte(')')
 	return builder.String()
 }

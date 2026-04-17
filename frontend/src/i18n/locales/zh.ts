@@ -837,6 +837,7 @@ export default {
     concurrencyReducedAdmin: '并发减少（管理员）',
     adminAdjustment: '管理员调整',
     subscriptionAssigned: '订阅已分配',
+    referralReward: '邀请返利',
     subscriptionAssignedDesc: '您已获得 {groupName} 的访问权限',
     subscriptionDays: '{days} 天',
     days: '天',
@@ -877,6 +878,20 @@ export default {
     passwordTooShort: '密码至少需要 8 个字符',
     passwordChangeSuccess: '密码修改成功',
     passwordChangeFailed: '密码修改失败',
+    referral: {
+      title: '邀请返利',
+      description: '分享你的专属邀请链接，新用户通过该链接注册后你会自动获得余额返利',
+      inviteLink: '专属邀请链接',
+      inviteLinkHint: '将此链接发送给新用户，注册成功后系统会自动发放返利',
+      codeLabel: '返利码',
+      totalInvited: '累计邀请人数',
+      totalReward: '累计返利额度',
+      copy: '复制链接',
+      copied: '已复制',
+      copySuccess: '邀请链接已复制',
+      copyFailed: '复制邀请链接失败',
+      loadFailed: '加载邀请信息失败'
+    },
     // TOTP 2FA
     totp: {
       title: '双因素认证 (2FA)',
@@ -1554,6 +1569,7 @@ export default {
       noBalanceHistory: '暂无变动记录',
       allTypes: '全部类型',
       typeBalance: '余额（兑换码）',
+      typeReferralReward: '余额（邀请返利）',
       typeAdminBalance: '余额（管理员调整）',
       typeConcurrency: '并发（兑换码）',
       typeAdminConcurrency: '并发（管理员调整）',
@@ -3342,6 +3358,7 @@ export default {
         concurrency: '并发数',
         subscription: '订阅',
         invitation: '邀请码',
+        referral_reward: '邀请返利',
         // 管理员在用户管理页面调整余额/并发时产生的记录
         admin_balance: '余额（管理员）',
         admin_concurrency: '并发数（管理员）'
@@ -4575,6 +4592,13 @@ export default {
         defaultSubscriptionsDuplicate: '默认订阅存在重复分组：{groupId}。每个分组只能出现一次。',
         subscriptionGroup: '订阅分组',
         subscriptionValidityDays: '有效期（天）'
+      },
+      referral: {
+        title: '邀请返利设置',
+        description: '配置用户邀请新用户注册后的余额奖励',
+        rewardAmount: '单次返利额度',
+        rewardAmountPlaceholder: '0.00',
+        rewardAmountHint: '每当有新用户通过邀请链接完成注册时，邀请人和被邀请人都会获得这笔余额奖励'
       },
       claudeCode: {
         title: 'Claude Code 设置',

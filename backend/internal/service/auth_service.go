@@ -60,17 +60,19 @@ type JWTClaims struct {
 
 // AuthService 认证服务
 type AuthService struct {
-	entClient          *dbent.Client
-	userRepo           UserRepository
-	redeemRepo         RedeemCodeRepository
-	refreshTokenCache  RefreshTokenCache
-	cfg                *config.Config
-	settingService     *SettingService
-	emailService       *EmailService
-	turnstileService   *TurnstileService
-	emailQueueService  *EmailQueueService
-	promoService       *PromoService
-	defaultSubAssigner DefaultSubscriptionAssigner
+	entClient            *dbent.Client
+	userRepo             UserRepository
+	redeemRepo           RedeemCodeRepository
+	refreshTokenCache    RefreshTokenCache
+	cfg                  *config.Config
+	settingService       *SettingService
+	emailService         *EmailService
+	turnstileService     *TurnstileService
+	emailQueueService    *EmailQueueService
+	promoService         *PromoService
+	defaultSubAssigner   DefaultSubscriptionAssigner
+	authCacheInvalidator APIKeyAuthCacheInvalidator
+	billingCache         BillingCache
 }
 
 type DefaultSubscriptionAssigner interface {
@@ -106,6 +108,11 @@ func NewAuthService(
 	}
 }
 
+func (s *AuthService) SetRuntimeCaches(authCacheInvalidator APIKeyAuthCacheInvalidator, billingCache BillingCache) {
+	s.authCacheInvalidator = authCacheInvalidator
+	s.billingCache = billingCache
+}
+
 // Register 用户注册，返回token和用户
 func (s *AuthService) Register(ctx context.Context, email, password string) (string, *User, error) {
 	return s.RegisterWithVerification(ctx, email, password, "", "", "")
@@ -113,6 +120,10 @@ func (s *AuthService) Register(ctx context.Context, email, password string) (str
 
 // RegisterWithVerification 用户注册（支持邮件验证、优惠码和邀请码），返回token和用户
 func (s *AuthService) RegisterWithVerification(ctx context.Context, email, password, verifyCode, promoCode, invitationCode string) (string, *User, error) {
+	return s.RegisterWithReferral(ctx, email, password, verifyCode, promoCode, invitationCode, "")
+}
+
+func (s *AuthService) RegisterWithReferral(ctx context.Context, email, password, verifyCode, promoCode, invitationCode, referralCode string) (string, *User, error) {
 	// 检查是否开放注册（默认关闭：settingService 未配置时不允许注册）
 	if s.settingService == nil || !s.settingService.IsRegistrationEnabled(ctx) {
 		return "", nil, ErrRegDisabled
@@ -126,24 +137,9 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		return "", nil, err
 	}
 
-	// 检查是否需要邀请码
-	var invitationRedeemCode *RedeemCode
-	if s.settingService != nil && s.settingService.IsInvitationCodeEnabled(ctx) {
-		if invitationCode == "" {
-			return "", nil, ErrInvitationCodeRequired
-		}
-		// 验证邀请码
-		redeemCode, err := s.redeemRepo.GetByCode(ctx, invitationCode)
-		if err != nil {
-			logger.LegacyPrintf("service.auth", "[Auth] Invalid invitation code: %s, error: %v", invitationCode, err)
-			return "", nil, ErrInvitationCodeInvalid
-		}
-		// 检查类型和状态
-		if redeemCode.Type != RedeemTypeInvitation || redeemCode.Status != StatusUnused {
-			logger.LegacyPrintf("service.auth", "[Auth] Invitation code invalid: type=%s, status=%s", redeemCode.Type, redeemCode.Status)
-			return "", nil, ErrInvitationCodeInvalid
-		}
-		invitationRedeemCode = redeemCode
+	artifacts, err := s.resolveRegistrationArtifacts(ctx, invitationCode, referralCode, ErrInvitationCodeRequired)
+	if err != nil {
+		return "", nil, err
 	}
 
 	// 检查是否需要邮件验证
@@ -196,24 +192,24 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		Concurrency:  defaultConcurrency,
 		Status:       StatusActive,
 	}
+	if artifacts.inviter != nil {
+		user.ReferredByUserID = &artifacts.inviter.ID
+		user.ReferralRewardAmount = artifacts.rewardAmount
+	}
 
-	if err := s.userRepo.Create(ctx, user); err != nil {
+	if err := s.createRegisteredUser(ctx, user, artifacts); err != nil {
 		// 优先检查邮箱冲突错误（竞态条件下可能发生）
 		if errors.Is(err, ErrEmailExists) {
 			return "", nil, ErrEmailExists
+		}
+		if errors.Is(err, ErrInvitationCodeInvalid) {
+			return "", nil, ErrInvitationCodeInvalid
 		}
 		logger.LegacyPrintf("service.auth", "[Auth] Database error creating user: %v", err)
 		return "", nil, ErrServiceUnavailable
 	}
 	s.assignDefaultSubscriptions(ctx, user.ID)
 
-	// 标记邀请码为已使用（如果使用了邀请码）
-	if invitationRedeemCode != nil {
-		if err := s.redeemRepo.Use(ctx, invitationRedeemCode.ID, user.ID); err != nil {
-			// 邀请码标记失败不影响注册，只记录日志
-			logger.LegacyPrintf("service.auth", "[Auth] Failed to mark invitation code as used for user %d: %v", user.ID, err)
-		}
-	}
 	// 应用优惠码（如果提供且功能已启用）
 	if promoCode != "" && s.promoService != nil && s.settingService != nil && s.settingService.IsPromoCodeEnabled(ctx) {
 		if err := s.promoService.ApplyPromoCode(ctx, user.ID, promoCode); err != nil {
@@ -532,6 +528,10 @@ func (s *AuthService) LoginOrRegisterOAuth(ctx context.Context, email, username 
 // 与 LoginOrRegisterOAuth 功能相同，但返回 TokenPair 而非单个 token。
 // invitationCode 仅在邀请码注册模式下新用户注册时使用；已有账号登录时忽略。
 func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, email, username, invitationCode string) (*TokenPair, *User, error) {
+	return s.LoginOrRegisterOAuthWithTokenPairAndReferral(ctx, email, username, invitationCode, "")
+}
+
+func (s *AuthService) LoginOrRegisterOAuthWithTokenPairAndReferral(ctx context.Context, email, username, invitationCode, referralCode string) (*TokenPair, *User, error) {
 	// 检查 refreshTokenCache 是否可用
 	if s.refreshTokenCache == nil {
 		return nil, nil, errors.New("refresh token cache not configured")
@@ -558,20 +558,9 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 				return nil, nil, ErrRegDisabled
 			}
 
-			// 检查是否需要邀请码
-			var invitationRedeemCode *RedeemCode
-			if s.settingService != nil && s.settingService.IsInvitationCodeEnabled(ctx) {
-				if invitationCode == "" {
-					return nil, nil, ErrOAuthInvitationRequired
-				}
-				redeemCode, err := s.redeemRepo.GetByCode(ctx, invitationCode)
-				if err != nil {
-					return nil, nil, ErrInvitationCodeInvalid
-				}
-				if redeemCode.Type != RedeemTypeInvitation || redeemCode.Status != StatusUnused {
-					return nil, nil, ErrInvitationCodeInvalid
-				}
-				invitationRedeemCode = redeemCode
+			artifacts, err := s.resolveRegistrationArtifacts(ctx, invitationCode, referralCode, ErrOAuthInvitationRequired)
+			if err != nil {
+				return nil, nil, err
 			}
 
 			randomPassword, err := randomHexString(32)
@@ -600,59 +589,27 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPair(ctx context.Context, ema
 				Concurrency:  defaultConcurrency,
 				Status:       StatusActive,
 			}
+			if artifacts.inviter != nil {
+				newUser.ReferredByUserID = &artifacts.inviter.ID
+				newUser.ReferralRewardAmount = artifacts.rewardAmount
+			}
 
-			if s.entClient != nil && invitationRedeemCode != nil {
-				tx, err := s.entClient.Tx(ctx)
-				if err != nil {
-					logger.LegacyPrintf("service.auth", "[Auth] Failed to begin transaction for oauth registration: %v", err)
+			if err := s.createRegisteredUser(ctx, newUser, artifacts); err != nil {
+				if errors.Is(err, ErrEmailExists) {
+					user, err = s.userRepo.GetByEmail(ctx, email)
+					if err != nil {
+						logger.LegacyPrintf("service.auth", "[Auth] Database error getting user after conflict: %v", err)
+						return nil, nil, ErrServiceUnavailable
+					}
+				} else if errors.Is(err, ErrInvitationCodeInvalid) {
+					return nil, nil, ErrInvitationCodeInvalid
+				} else {
+					logger.LegacyPrintf("service.auth", "[Auth] Database error creating oauth user: %v", err)
 					return nil, nil, ErrServiceUnavailable
 				}
-				defer func() { _ = tx.Rollback() }()
-				txCtx := dbent.NewTxContext(ctx, tx)
-
-				if err := s.userRepo.Create(txCtx, newUser); err != nil {
-					if errors.Is(err, ErrEmailExists) {
-						user, err = s.userRepo.GetByEmail(ctx, email)
-						if err != nil {
-							logger.LegacyPrintf("service.auth", "[Auth] Database error getting user after conflict: %v", err)
-							return nil, nil, ErrServiceUnavailable
-						}
-					} else {
-						logger.LegacyPrintf("service.auth", "[Auth] Database error creating oauth user: %v", err)
-						return nil, nil, ErrServiceUnavailable
-					}
-				} else {
-					if err := s.redeemRepo.Use(txCtx, invitationRedeemCode.ID, newUser.ID); err != nil {
-						return nil, nil, ErrInvitationCodeInvalid
-					}
-					if err := tx.Commit(); err != nil {
-						logger.LegacyPrintf("service.auth", "[Auth] Failed to commit oauth registration transaction: %v", err)
-						return nil, nil, ErrServiceUnavailable
-					}
-					user = newUser
-					s.assignDefaultSubscriptions(ctx, user.ID)
-				}
 			} else {
-				if err := s.userRepo.Create(ctx, newUser); err != nil {
-					if errors.Is(err, ErrEmailExists) {
-						user, err = s.userRepo.GetByEmail(ctx, email)
-						if err != nil {
-							logger.LegacyPrintf("service.auth", "[Auth] Database error getting user after conflict: %v", err)
-							return nil, nil, ErrServiceUnavailable
-						}
-					} else {
-						logger.LegacyPrintf("service.auth", "[Auth] Database error creating oauth user: %v", err)
-						return nil, nil, ErrServiceUnavailable
-					}
-				} else {
-					user = newUser
-					s.assignDefaultSubscriptions(ctx, user.ID)
-					if invitationRedeemCode != nil {
-						if err := s.redeemRepo.Use(ctx, invitationRedeemCode.ID, user.ID); err != nil {
-							return nil, nil, ErrInvitationCodeInvalid
-						}
-					}
-				}
+				user = newUser
+				s.assignDefaultSubscriptions(ctx, user.ID)
 			}
 		} else {
 			logger.LegacyPrintf("service.auth", "[Auth] Database error during oauth login: %v", err)
@@ -685,20 +642,26 @@ const pendingOAuthTokenTTL = 10 * time.Minute
 const pendingOAuthPurpose = "pending_oauth_registration"
 
 type pendingOAuthClaims struct {
-	Email    string `json:"email"`
-	Username string `json:"username"`
-	Purpose  string `json:"purpose"`
+	Email        string `json:"email"`
+	Username     string `json:"username"`
+	ReferralCode string `json:"referral_code,omitempty"`
+	Purpose      string `json:"purpose"`
 	jwt.RegisteredClaims
 }
 
 // CreatePendingOAuthToken generates a short-lived JWT that carries the OAuth identity
 // while waiting for the user to supply an invitation code.
 func (s *AuthService) CreatePendingOAuthToken(email, username string) (string, error) {
+	return s.CreatePendingOAuthTokenWithReferral(email, username, "")
+}
+
+func (s *AuthService) CreatePendingOAuthTokenWithReferral(email, username, referralCode string) (string, error) {
 	now := time.Now()
 	claims := &pendingOAuthClaims{
-		Email:    email,
-		Username: username,
-		Purpose:  pendingOAuthPurpose,
+		Email:        email,
+		Username:     username,
+		ReferralCode: NormalizeReferralCode(referralCode),
+		Purpose:      pendingOAuthPurpose,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(pendingOAuthTokenTTL)),
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -709,11 +672,25 @@ func (s *AuthService) CreatePendingOAuthToken(email, username string) (string, e
 	return token.SignedString([]byte(s.cfg.JWT.Secret))
 }
 
+type PendingOAuthIdentity struct {
+	Email        string
+	Username     string
+	ReferralCode string
+}
+
 // VerifyPendingOAuthToken validates a pending OAuth token and returns the embedded identity.
 // Returns ErrInvalidToken when the token is invalid or expired.
 func (s *AuthService) VerifyPendingOAuthToken(tokenStr string) (email, username string, err error) {
+	identity, err := s.VerifyPendingOAuthTokenDetails(tokenStr)
+	if err != nil {
+		return "", "", err
+	}
+	return identity.Email, identity.Username, nil
+}
+
+func (s *AuthService) VerifyPendingOAuthTokenDetails(tokenStr string) (*PendingOAuthIdentity, error) {
 	if len(tokenStr) > maxTokenLength {
-		return "", "", ErrInvalidToken
+		return nil, ErrInvalidToken
 	}
 	parser := jwt.NewParser(jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Name}))
 	token, parseErr := parser.ParseWithClaims(tokenStr, &pendingOAuthClaims{}, func(t *jwt.Token) (any, error) {
@@ -723,16 +700,20 @@ func (s *AuthService) VerifyPendingOAuthToken(tokenStr string) (email, username 
 		return []byte(s.cfg.JWT.Secret), nil
 	})
 	if parseErr != nil {
-		return "", "", ErrInvalidToken
+		return nil, ErrInvalidToken
 	}
 	claims, ok := token.Claims.(*pendingOAuthClaims)
 	if !ok || !token.Valid {
-		return "", "", ErrInvalidToken
+		return nil, ErrInvalidToken
 	}
 	if claims.Purpose != pendingOAuthPurpose {
-		return "", "", ErrInvalidToken
+		return nil, ErrInvalidToken
 	}
-	return claims.Email, claims.Username, nil
+	return &PendingOAuthIdentity{
+		Email:        claims.Email,
+		Username:     claims.Username,
+		ReferralCode: NormalizeReferralCode(claims.ReferralCode),
+	}, nil
 }
 
 func (s *AuthService) assignDefaultSubscriptions(ctx context.Context, userID int64) {
@@ -749,6 +730,179 @@ func (s *AuthService) assignDefaultSubscriptions(ctx context.Context, userID int
 		}); err != nil {
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to assign default subscription: user_id=%d group_id=%d err=%v", userID, item.GroupID, err)
 		}
+	}
+}
+
+type registrationArtifacts struct {
+	invitationRedeemCode *RedeemCode
+	inviter              *User
+	rewardAmount         float64
+}
+
+func (s *AuthService) resolveRegistrationArtifacts(ctx context.Context, invitationCode, referralCode string, missingInvitationErr error) (*registrationArtifacts, error) {
+	artifacts := &registrationArtifacts{}
+
+	if s.settingService != nil && s.settingService.IsInvitationCodeEnabled(ctx) {
+		if invitationCode == "" {
+			return nil, missingInvitationErr
+		}
+		redeemCode, err := s.redeemRepo.GetByCode(ctx, invitationCode)
+		if err != nil {
+			logger.LegacyPrintf("service.auth", "[Auth] Invalid invitation code: %s, error: %v", invitationCode, err)
+			return nil, ErrInvitationCodeInvalid
+		}
+		if redeemCode.Type != RedeemTypeInvitation || redeemCode.Status != StatusUnused {
+			logger.LegacyPrintf("service.auth", "[Auth] Invitation code invalid: type=%s, status=%s", redeemCode.Type, redeemCode.Status)
+			return nil, ErrInvitationCodeInvalid
+		}
+		artifacts.invitationRedeemCode = redeemCode
+	}
+
+	normalizedReferralCode := NormalizeReferralCode(referralCode)
+	if normalizedReferralCode == "" || s.userRepo == nil {
+		return artifacts, nil
+	}
+
+	inviter, err := s.userRepo.GetByReferralCode(ctx, normalizedReferralCode)
+	if err != nil {
+		if errors.Is(err, ErrUserNotFound) {
+			return artifacts, nil
+		}
+		logger.LegacyPrintf("service.auth", "[Auth] Failed to resolve referral code %s: %v", normalizedReferralCode, err)
+		return nil, ErrServiceUnavailable
+	}
+
+	artifacts.inviter = inviter
+	if s.settingService != nil {
+		artifacts.rewardAmount = s.settingService.GetReferralRewardAmount(ctx)
+	}
+	if artifacts.rewardAmount < 0 {
+		artifacts.rewardAmount = 0
+	}
+
+	return artifacts, nil
+}
+
+func (s *AuthService) createRegisteredUser(ctx context.Context, user *User, artifacts *registrationArtifacts) error {
+	if user == nil {
+		return nil
+	}
+	if artifacts == nil {
+		artifacts = &registrationArtifacts{}
+	}
+
+	run := func(runCtx context.Context) error {
+		if err := s.userRepo.Create(runCtx, user); err != nil {
+			return err
+		}
+
+		referralCode, err := s.userRepo.EnsureReferralCode(runCtx, user.ID)
+		if err != nil {
+			return err
+		}
+		user.ReferralCode = referralCode
+
+		if artifacts.invitationRedeemCode != nil {
+			if err := s.redeemRepo.Use(runCtx, artifacts.invitationRedeemCode.ID, user.ID); err != nil {
+				return ErrInvitationCodeInvalid
+			}
+		}
+
+		if artifacts.inviter != nil && artifacts.rewardAmount > 0 {
+			if err := s.userRepo.AddBalance(runCtx, user.ID, artifacts.rewardAmount); err != nil {
+				return err
+			}
+			user.Balance += artifacts.rewardAmount
+			if err := s.createReferralRewardRedeemRecord(runCtx, user.ID, artifacts.rewardAmount); err != nil {
+				return err
+			}
+
+			if err := s.userRepo.AddBalance(runCtx, artifacts.inviter.ID, artifacts.rewardAmount); err != nil {
+				return err
+			}
+			if err := s.createReferralRewardRedeemRecord(runCtx, artifacts.inviter.ID, artifacts.rewardAmount); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	if s.entClient == nil {
+		if err := run(ctx); err != nil {
+			return err
+		}
+		if artifacts.inviter != nil && artifacts.rewardAmount > 0 {
+			s.invalidateUserBalanceCaches(ctx, user.ID)
+			s.invalidateUserBalanceCaches(ctx, artifacts.inviter.ID)
+		}
+		return nil
+	}
+
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	txCtx := dbent.NewTxContext(ctx, tx)
+	if err := run(txCtx); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	if artifacts.inviter != nil && artifacts.rewardAmount > 0 {
+		s.invalidateUserBalanceCaches(ctx, user.ID)
+		s.invalidateUserBalanceCaches(ctx, artifacts.inviter.ID)
+	}
+	return nil
+}
+
+func (s *AuthService) createReferralRewardRedeemRecord(ctx context.Context, userID int64, amount float64) error {
+	code, err := GenerateRedeemCode()
+	if err != nil {
+		return fmt.Errorf("generate referral reward redeem code: %w", err)
+	}
+
+	usedAt := time.Now()
+	record := &RedeemCode{
+		Code:      code,
+		Type:      RedeemTypeReferralReward,
+		Value:     amount,
+		Status:    StatusUsed,
+		MaxUses:   1,
+		UsedCount: 1,
+		UsedBy:    &userID,
+		UsedAt:    &usedAt,
+	}
+
+	if err := s.redeemRepo.Create(ctx, record); err != nil {
+		return fmt.Errorf("create referral reward redeem code: %w", err)
+	}
+	if err := s.redeemRepo.CreateUsage(ctx, &RedeemCodeUsage{
+		RedeemCodeID: record.ID,
+		UserID:       userID,
+		UsedAt:       usedAt,
+	}); err != nil {
+		return fmt.Errorf("create referral reward usage: %w", err)
+	}
+	return nil
+}
+
+func (s *AuthService) invalidateUserBalanceCaches(ctx context.Context, userID int64) {
+	if s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
+	}
+	if s.billingCache != nil {
+		go func() {
+			cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := s.billingCache.InvalidateUserBalance(cacheCtx, userID); err != nil {
+				logger.LegacyPrintf("service.auth", "[Auth] Failed to invalidate balance cache for user %d: %v", userID, err)
+			}
+		}()
 	}
 }
 

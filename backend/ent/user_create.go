@@ -282,6 +282,48 @@ func (_c *UserCreate) SetNillableTotalRecharged(v *float64) *UserCreate {
 	return _c
 }
 
+// SetReferralCode sets the "referral_code" field.
+func (_c *UserCreate) SetReferralCode(v string) *UserCreate {
+	_c.mutation.SetReferralCode(v)
+	return _c
+}
+
+// SetNillableReferralCode sets the "referral_code" field if the given value is not nil.
+func (_c *UserCreate) SetNillableReferralCode(v *string) *UserCreate {
+	if v != nil {
+		_c.SetReferralCode(*v)
+	}
+	return _c
+}
+
+// SetReferredByUserID sets the "referred_by_user_id" field.
+func (_c *UserCreate) SetReferredByUserID(v int64) *UserCreate {
+	_c.mutation.SetReferredByUserID(v)
+	return _c
+}
+
+// SetNillableReferredByUserID sets the "referred_by_user_id" field if the given value is not nil.
+func (_c *UserCreate) SetNillableReferredByUserID(v *int64) *UserCreate {
+	if v != nil {
+		_c.SetReferredByUserID(*v)
+	}
+	return _c
+}
+
+// SetReferralRewardAmount sets the "referral_reward_amount" field.
+func (_c *UserCreate) SetReferralRewardAmount(v float64) *UserCreate {
+	_c.mutation.SetReferralRewardAmount(v)
+	return _c
+}
+
+// SetNillableReferralRewardAmount sets the "referral_reward_amount" field if the given value is not nil.
+func (_c *UserCreate) SetNillableReferralRewardAmount(v *float64) *UserCreate {
+	if v != nil {
+		_c.SetReferralRewardAmount(*v)
+	}
+	return _c
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_c *UserCreate) AddAPIKeyIDs(ids ...int64) *UserCreate {
 	_c.mutation.AddAPIKeyIDs(ids...)
@@ -542,6 +584,14 @@ func (_c *UserCreate) defaults() error {
 		v := user.DefaultTotalRecharged
 		_c.mutation.SetTotalRecharged(v)
 	}
+	if _, ok := _c.mutation.ReferralCode(); !ok {
+		v := user.DefaultReferralCode
+		_c.mutation.SetReferralCode(v)
+	}
+	if _, ok := _c.mutation.ReferralRewardAmount(); !ok {
+		v := user.DefaultReferralRewardAmount
+		_c.mutation.SetReferralRewardAmount(v)
+	}
 	return nil
 }
 
@@ -616,6 +666,17 @@ func (_c *UserCreate) check() error {
 	}
 	if _, ok := _c.mutation.TotalRecharged(); !ok {
 		return &ValidationError{Name: "total_recharged", err: errors.New(`ent: missing required field "User.total_recharged"`)}
+	}
+	if _, ok := _c.mutation.ReferralCode(); !ok {
+		return &ValidationError{Name: "referral_code", err: errors.New(`ent: missing required field "User.referral_code"`)}
+	}
+	if v, ok := _c.mutation.ReferralCode(); ok {
+		if err := user.ReferralCodeValidator(v); err != nil {
+			return &ValidationError{Name: "referral_code", err: fmt.Errorf(`ent: validator failed for field "User.referral_code": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.ReferralRewardAmount(); !ok {
+		return &ValidationError{Name: "referral_reward_amount", err: errors.New(`ent: missing required field "User.referral_reward_amount"`)}
 	}
 	return nil
 }
@@ -719,6 +780,18 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.TotalRecharged(); ok {
 		_spec.SetField(user.FieldTotalRecharged, field.TypeFloat64, value)
 		_node.TotalRecharged = value
+	}
+	if value, ok := _c.mutation.ReferralCode(); ok {
+		_spec.SetField(user.FieldReferralCode, field.TypeString, value)
+		_node.ReferralCode = value
+	}
+	if value, ok := _c.mutation.ReferredByUserID(); ok {
+		_spec.SetField(user.FieldReferredByUserID, field.TypeInt64, value)
+		_node.ReferredByUserID = &value
+	}
+	if value, ok := _c.mutation.ReferralRewardAmount(); ok {
+		_spec.SetField(user.FieldReferralRewardAmount, field.TypeFloat64, value)
+		_node.ReferralRewardAmount = value
 	}
 	if nodes := _c.mutation.APIKeysIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -1216,6 +1289,60 @@ func (u *UserUpsert) AddTotalRecharged(v float64) *UserUpsert {
 	return u
 }
 
+// SetReferralCode sets the "referral_code" field.
+func (u *UserUpsert) SetReferralCode(v string) *UserUpsert {
+	u.Set(user.FieldReferralCode, v)
+	return u
+}
+
+// UpdateReferralCode sets the "referral_code" field to the value that was provided on create.
+func (u *UserUpsert) UpdateReferralCode() *UserUpsert {
+	u.SetExcluded(user.FieldReferralCode)
+	return u
+}
+
+// SetReferredByUserID sets the "referred_by_user_id" field.
+func (u *UserUpsert) SetReferredByUserID(v int64) *UserUpsert {
+	u.Set(user.FieldReferredByUserID, v)
+	return u
+}
+
+// UpdateReferredByUserID sets the "referred_by_user_id" field to the value that was provided on create.
+func (u *UserUpsert) UpdateReferredByUserID() *UserUpsert {
+	u.SetExcluded(user.FieldReferredByUserID)
+	return u
+}
+
+// AddReferredByUserID adds v to the "referred_by_user_id" field.
+func (u *UserUpsert) AddReferredByUserID(v int64) *UserUpsert {
+	u.Add(user.FieldReferredByUserID, v)
+	return u
+}
+
+// ClearReferredByUserID clears the value of the "referred_by_user_id" field.
+func (u *UserUpsert) ClearReferredByUserID() *UserUpsert {
+	u.SetNull(user.FieldReferredByUserID)
+	return u
+}
+
+// SetReferralRewardAmount sets the "referral_reward_amount" field.
+func (u *UserUpsert) SetReferralRewardAmount(v float64) *UserUpsert {
+	u.Set(user.FieldReferralRewardAmount, v)
+	return u
+}
+
+// UpdateReferralRewardAmount sets the "referral_reward_amount" field to the value that was provided on create.
+func (u *UserUpsert) UpdateReferralRewardAmount() *UserUpsert {
+	u.SetExcluded(user.FieldReferralRewardAmount)
+	return u
+}
+
+// AddReferralRewardAmount adds v to the "referral_reward_amount" field.
+func (u *UserUpsert) AddReferralRewardAmount(v float64) *UserUpsert {
+	u.Add(user.FieldReferralRewardAmount, v)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -1566,6 +1693,69 @@ func (u *UserUpsertOne) AddTotalRecharged(v float64) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateTotalRecharged() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateTotalRecharged()
+	})
+}
+
+// SetReferralCode sets the "referral_code" field.
+func (u *UserUpsertOne) SetReferralCode(v string) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetReferralCode(v)
+	})
+}
+
+// UpdateReferralCode sets the "referral_code" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateReferralCode() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateReferralCode()
+	})
+}
+
+// SetReferredByUserID sets the "referred_by_user_id" field.
+func (u *UserUpsertOne) SetReferredByUserID(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetReferredByUserID(v)
+	})
+}
+
+// AddReferredByUserID adds v to the "referred_by_user_id" field.
+func (u *UserUpsertOne) AddReferredByUserID(v int64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddReferredByUserID(v)
+	})
+}
+
+// UpdateReferredByUserID sets the "referred_by_user_id" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateReferredByUserID() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateReferredByUserID()
+	})
+}
+
+// ClearReferredByUserID clears the value of the "referred_by_user_id" field.
+func (u *UserUpsertOne) ClearReferredByUserID() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearReferredByUserID()
+	})
+}
+
+// SetReferralRewardAmount sets the "referral_reward_amount" field.
+func (u *UserUpsertOne) SetReferralRewardAmount(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetReferralRewardAmount(v)
+	})
+}
+
+// AddReferralRewardAmount adds v to the "referral_reward_amount" field.
+func (u *UserUpsertOne) AddReferralRewardAmount(v float64) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.AddReferralRewardAmount(v)
+	})
+}
+
+// UpdateReferralRewardAmount sets the "referral_reward_amount" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateReferralRewardAmount() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateReferralRewardAmount()
 	})
 }
 
@@ -2085,6 +2275,69 @@ func (u *UserUpsertBulk) AddTotalRecharged(v float64) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateTotalRecharged() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateTotalRecharged()
+	})
+}
+
+// SetReferralCode sets the "referral_code" field.
+func (u *UserUpsertBulk) SetReferralCode(v string) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetReferralCode(v)
+	})
+}
+
+// UpdateReferralCode sets the "referral_code" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateReferralCode() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateReferralCode()
+	})
+}
+
+// SetReferredByUserID sets the "referred_by_user_id" field.
+func (u *UserUpsertBulk) SetReferredByUserID(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetReferredByUserID(v)
+	})
+}
+
+// AddReferredByUserID adds v to the "referred_by_user_id" field.
+func (u *UserUpsertBulk) AddReferredByUserID(v int64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddReferredByUserID(v)
+	})
+}
+
+// UpdateReferredByUserID sets the "referred_by_user_id" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateReferredByUserID() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateReferredByUserID()
+	})
+}
+
+// ClearReferredByUserID clears the value of the "referred_by_user_id" field.
+func (u *UserUpsertBulk) ClearReferredByUserID() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearReferredByUserID()
+	})
+}
+
+// SetReferralRewardAmount sets the "referral_reward_amount" field.
+func (u *UserUpsertBulk) SetReferralRewardAmount(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetReferralRewardAmount(v)
+	})
+}
+
+// AddReferralRewardAmount adds v to the "referral_reward_amount" field.
+func (u *UserUpsertBulk) AddReferralRewardAmount(v float64) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.AddReferralRewardAmount(v)
+	})
+}
+
+// UpdateReferralRewardAmount sets the "referral_reward_amount" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateReferralRewardAmount() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateReferralRewardAmount()
 	})
 }
 

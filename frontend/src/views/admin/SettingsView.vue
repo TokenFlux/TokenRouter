@@ -1940,6 +1940,36 @@
 
         <!-- Tab: General -->
         <div v-show="activeTab === 'general'" class="space-y-6">
+        <!-- Referral Reward Settings -->
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.referral.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.referral.description') }}
+            </p>
+          </div>
+          <div class="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
+            <div>
+              <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                {{ t('admin.settings.referral.rewardAmount') }}
+              </label>
+              <input
+                v-model.number="form.referral_reward_amount"
+                type="number"
+                min="0"
+                step="0.01"
+                class="input"
+                :placeholder="t('admin.settings.referral.rewardAmountPlaceholder')"
+              />
+              <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.settings.referral.rewardAmountHint') }}
+              </p>
+            </div>
+          </div>
+        </div>
+
         <!-- Site Settings -->
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
@@ -2974,6 +3004,7 @@ const form = reactive<SettingsForm>({
   default_balance: 0,
   default_concurrency: 1,
   default_subscriptions: [],
+  referral_reward_amount: 0,
   site_name: 'Sub2API',
   site_logo: '',
   site_subtitle: 'Subscription to API Conversion Platform',
@@ -3571,6 +3602,7 @@ async function saveSettings() {
       default_balance: form.default_balance,
       default_concurrency: form.default_concurrency,
       default_subscriptions: normalizedDefaultSubscriptions,
+      referral_reward_amount: Math.max(0, Number(form.referral_reward_amount) || 0),
       site_name: form.site_name,
       site_logo: form.site_logo,
       site_subtitle: form.site_subtitle,

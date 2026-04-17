@@ -101,6 +101,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		PasswordResetEnabled:                 settings.PasswordResetEnabled,
 		FrontendURL:                          settings.FrontendURL,
 		InvitationCodeEnabled:                settings.InvitationCodeEnabled,
+		ReferralRewardAmount:                 settings.ReferralRewardAmount,
 		TotpEnabled:                          settings.TotpEnabled,
 		TotpEncryptionKeyConfigured:          h.settingService.IsTotpEncryptionKeyConfigured(),
 		SMTPHost:                             settings.SMTPHost,
@@ -213,6 +214,7 @@ type UpdateSettingsRequest struct {
 	PasswordResetEnabled             bool     `json:"password_reset_enabled"`
 	FrontendURL                      string   `json:"frontend_url"`
 	InvitationCodeEnabled            bool     `json:"invitation_code_enabled"`
+	ReferralRewardAmount             float64  `json:"referral_reward_amount"`
 	TotpEnabled                      bool     `json:"totp_enabled"` // TOTP 双因素认证
 
 	// 邮件服务设置
@@ -364,6 +366,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 	if req.DefaultBalance < 0 {
 		req.DefaultBalance = 0
+	}
+	if req.ReferralRewardAmount < 0 {
+		req.ReferralRewardAmount = 0
 	}
 	// 通用表格配置：兼容旧客户端未传字段时保留当前值。
 	if req.TableDefaultPageSize <= 0 {
@@ -790,6 +795,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PasswordResetEnabled:             req.PasswordResetEnabled,
 		FrontendURL:                      req.FrontendURL,
 		InvitationCodeEnabled:            req.InvitationCodeEnabled,
+		ReferralRewardAmount:             req.ReferralRewardAmount,
 		TotpEnabled:                      req.TotpEnabled,
 		SMTPHost:                         req.SMTPHost,
 		SMTPPort:                         req.SMTPPort,
@@ -1002,6 +1008,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		PasswordResetEnabled:                 updatedSettings.PasswordResetEnabled,
 		FrontendURL:                          updatedSettings.FrontendURL,
 		InvitationCodeEnabled:                updatedSettings.InvitationCodeEnabled,
+		ReferralRewardAmount:                 updatedSettings.ReferralRewardAmount,
 		TotpEnabled:                          updatedSettings.TotpEnabled,
 		TotpEncryptionKeyConfigured:          h.settingService.IsTotpEncryptionKeyConfigured(),
 		SMTPHost:                             updatedSettings.SMTPHost,
@@ -1300,6 +1307,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.DefaultBalance != after.DefaultBalance {
 		changed = append(changed, "default_balance")
+	}
+	if before.ReferralRewardAmount != after.ReferralRewardAmount {
+		changed = append(changed, "referral_reward_amount")
 	}
 	if !equalDefaultSubscriptions(before.DefaultSubscriptions, after.DefaultSubscriptions) {
 		changed = append(changed, "default_subscriptions")

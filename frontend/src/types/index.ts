@@ -73,6 +73,7 @@ export interface RegisterRequest {
   turnstile_token?: string
   promo_code?: string
   invitation_code?: string
+  referral_code?: string
 }
 
 export interface SendVerifyCodeRequest {
@@ -142,6 +143,12 @@ export interface AuthResponse {
 
 export interface CurrentUserResponse extends User {
   run_mode?: 'standard' | 'simple'
+}
+
+export interface UserReferralInfo {
+  referral_code: string
+  invited_count: number
+  reward_total: number
 }
 
 // ==================== Subscription Types ====================
@@ -985,7 +992,12 @@ export interface AdminDataImportResult {
 
 // ==================== Usage & Redeem Types ====================
 
-export type RedeemCodeType = 'balance' | 'concurrency' | 'subscription' | 'invitation'
+export type RedeemCodeType =
+  | 'balance'
+  | 'concurrency'
+  | 'subscription'
+  | 'invitation'
+  | 'referral_reward'
 export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2'
 
 export interface UsageLog {

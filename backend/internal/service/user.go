@@ -1,6 +1,8 @@
 package service
 
 import (
+	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -36,9 +38,18 @@ type User struct {
 	BalanceNotifyThreshold     *float64
 	BalanceNotifyExtraEmails   []NotifyEmailEntry
 	TotalRecharged             float64
+	ReferralCode               string
+	ReferredByUserID           *int64
+	ReferralRewardAmount       float64
 
 	APIKeys       []APIKey
 	Subscriptions []UserSubscription
+}
+
+type UserReferralInfo struct {
+	ReferralCode string
+	InvitedCount int
+	RewardTotal  float64
 }
 
 func (u *User) IsAdmin() bool {
@@ -78,4 +89,24 @@ func (u *User) SetPassword(password string) error {
 
 func (u *User) CheckPassword(password string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) == nil
+}
+
+func NormalizeReferralCode(code string) string {
+	code = strings.ToLower(strings.TrimSpace(code))
+	if code == "" || len(code) > 32 {
+		return ""
+	}
+	for _, ch := range code {
+		if (ch < 'a' || ch > 'z') && (ch < '0' || ch > '9') {
+			return ""
+		}
+	}
+	return code
+}
+
+func ReferralCodeForUserID(userID int64) string {
+	if userID <= 0 {
+		return ""
+	}
+	return "r" + strconv.FormatInt(userID, 36)
 }

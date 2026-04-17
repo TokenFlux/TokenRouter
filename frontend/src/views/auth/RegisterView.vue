@@ -374,7 +374,8 @@ const formData = reactive({
   email: '',
   password: '',
   promo_code: '',
-  invitation_code: ''
+  invitation_code: '',
+  referral_code: ''
 })
 
 const errors = reactive({
@@ -402,6 +403,10 @@ onMounted(async () => {
     registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
       settings.registration_email_suffix_whitelist || []
     )
+    const referralParam = typeof route.query.ref === 'string' ? route.query.ref.trim() : ''
+    if (referralParam) {
+      formData.referral_code = referralParam
+    }
 
     // Read promo code from URL parameter only if promo code is enabled
     if (promoCodeEnabled.value) {
@@ -713,7 +718,8 @@ async function handleRegister(): Promise<void> {
           password: formData.password,
           turnstile_token: turnstileToken.value,
           promo_code: formData.promo_code || undefined,
-          invitation_code: formData.invitation_code || undefined
+          invitation_code: formData.invitation_code || undefined,
+          referral_code: formData.referral_code || undefined
         })
       )
 
@@ -728,7 +734,8 @@ async function handleRegister(): Promise<void> {
       password: formData.password,
       turnstile_token: turnstileEnabled.value ? turnstileToken.value : undefined,
       promo_code: formData.promo_code || undefined,
-      invitation_code: formData.invitation_code || undefined
+      invitation_code: formData.invitation_code || undefined,
+      referral_code: formData.referral_code || undefined
     })
 
     // Show success toast

@@ -1328,6 +1328,16 @@ func init() {
 	userDescTotalRecharged := userFields[15].Descriptor()
 	// user.DefaultTotalRecharged holds the default value on creation for the total_recharged field.
 	user.DefaultTotalRecharged = userDescTotalRecharged.Default.(float64)
+	// userDescReferralCode is the schema descriptor for referral_code field.
+	userDescReferralCode := userFields[16].Descriptor()
+	// user.DefaultReferralCode holds the default value on creation for the referral_code field.
+	user.DefaultReferralCode = userDescReferralCode.Default.(string)
+	// user.ReferralCodeValidator is a validator for the "referral_code" field. It is called by the builders before save.
+	user.ReferralCodeValidator = userDescReferralCode.Validators[0].(func(string) error)
+	// userDescReferralRewardAmount is the schema descriptor for referral_reward_amount field.
+	userDescReferralRewardAmount := userFields[18].Descriptor()
+	// user.DefaultReferralRewardAmount holds the default value on creation for the referral_reward_amount field.
+	user.DefaultReferralRewardAmount = userDescReferralRewardAmount.Default.(float64)
 	userallowedgroupFields := schema.UserAllowedGroup{}.Fields()
 	_ = userallowedgroupFields
 	// userallowedgroupDescCreatedAt is the schema descriptor for created_at field.

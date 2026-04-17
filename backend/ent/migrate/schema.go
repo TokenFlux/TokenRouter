@@ -1136,6 +1136,9 @@ var (
 		{Name: "balance_notify_threshold", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "balance_notify_extra_emails", Type: field.TypeString, Default: "[]", SchemaType: map[string]string{"postgres": "text"}},
 		{Name: "total_recharged", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
+		{Name: "referral_code", Type: field.TypeString, Size: 32, Default: ""},
+		{Name: "referred_by_user_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "referral_reward_amount", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 	}
 	// UsersTable holds the schema information for the "users" table.
 	UsersTable = &schema.Table{
@@ -1152,6 +1155,16 @@ var (
 				Name:    "user_deleted_at",
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[3]},
+			},
+			{
+				Name:    "user_referral_code",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[20]},
+			},
+			{
+				Name:    "user_referred_by_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[21]},
 			},
 		},
 	}

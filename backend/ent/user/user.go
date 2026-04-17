@@ -53,6 +53,12 @@ const (
 	FieldBalanceNotifyExtraEmails = "balance_notify_extra_emails"
 	// FieldTotalRecharged holds the string denoting the total_recharged field in the database.
 	FieldTotalRecharged = "total_recharged"
+	// FieldReferralCode holds the string denoting the referral_code field in the database.
+	FieldReferralCode = "referral_code"
+	// FieldReferredByUserID holds the string denoting the referred_by_user_id field in the database.
+	FieldReferredByUserID = "referred_by_user_id"
+	// FieldReferralRewardAmount holds the string denoting the referral_reward_amount field in the database.
+	FieldReferralRewardAmount = "referral_reward_amount"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
 	// EdgeRedeemCodes holds the string denoting the redeem_codes edge name in mutations.
@@ -185,6 +191,9 @@ var Columns = []string{
 	FieldBalanceNotifyThreshold,
 	FieldBalanceNotifyExtraEmails,
 	FieldTotalRecharged,
+	FieldReferralCode,
+	FieldReferredByUserID,
+	FieldReferralRewardAmount,
 }
 
 var (
@@ -249,6 +258,12 @@ var (
 	DefaultBalanceNotifyExtraEmails string
 	// DefaultTotalRecharged holds the default value on creation for the "total_recharged" field.
 	DefaultTotalRecharged float64
+	// DefaultReferralCode holds the default value on creation for the "referral_code" field.
+	DefaultReferralCode string
+	// ReferralCodeValidator is a validator for the "referral_code" field. It is called by the builders before save.
+	ReferralCodeValidator func(string) error
+	// DefaultReferralRewardAmount holds the default value on creation for the "referral_reward_amount" field.
+	DefaultReferralRewardAmount float64
 )
 
 // OrderOption defines the ordering options for the User queries.
@@ -352,6 +367,21 @@ func ByBalanceNotifyExtraEmails(opts ...sql.OrderTermOption) OrderOption {
 // ByTotalRecharged orders the results by the total_recharged field.
 func ByTotalRecharged(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldTotalRecharged, opts...).ToFunc()
+}
+
+// ByReferralCode orders the results by the referral_code field.
+func ByReferralCode(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReferralCode, opts...).ToFunc()
+}
+
+// ByReferredByUserID orders the results by the referred_by_user_id field.
+func ByReferredByUserID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReferredByUserID, opts...).ToFunc()
+}
+
+// ByReferralRewardAmount orders the results by the referral_reward_amount field.
+func ByReferralRewardAmount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReferralRewardAmount, opts...).ToFunc()
 }
 
 // ByAPIKeysCount orders the results by api_keys count.

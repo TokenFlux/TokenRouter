@@ -64,6 +64,9 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		SetBalance(userIn.Balance).
 		SetConcurrency(userIn.Concurrency).
 		SetStatus(userIn.Status).
+		SetReferralCode(userIn.ReferralCode).
+		SetNillableReferredByUserID(userIn.ReferredByUserID).
+		SetReferralRewardAmount(userIn.ReferralRewardAmount).
 		Save(ctx)
 	if err != nil {
 		return translatePersistenceError(err, nil, service.ErrEmailExists)
@@ -102,6 +105,29 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*service.User, 
 
 func (r *userRepository) GetByEmail(ctx context.Context, email string) (*service.User, error) {
 	m, err := r.client.User.Query().Where(dbuser.EmailEQ(email)).Only(ctx)
+	if err != nil {
+		return nil, translatePersistenceError(err, service.ErrUserNotFound, nil)
+	}
+
+	out := userEntityToService(m)
+	groups, err := r.loadAllowedGroups(ctx, []int64{m.ID})
+	if err != nil {
+		return nil, err
+	}
+	if v, ok := groups[m.ID]; ok {
+		out.AllowedGroups = v
+	}
+	return out, nil
+}
+
+func (r *userRepository) GetByReferralCode(ctx context.Context, code string) (*service.User, error) {
+	code = service.NormalizeReferralCode(code)
+	if code == "" {
+		return nil, service.ErrUserNotFound
+	}
+
+	client := clientFromContext(ctx, r.client)
+	m, err := client.User.Query().Where(dbuser.ReferralCodeEQ(code)).Only(ctx)
 	if err != nil {
 		return nil, translatePersistenceError(err, service.ErrUserNotFound, nil)
 	}
@@ -405,6 +431,24 @@ func (r *userRepository) UpdateBalance(ctx context.Context, id int64, amount flo
 	return nil
 }
 
+func (r *userRepository) AddBalance(ctx context.Context, id int64, amount float64) error {
+	if amount == 0 {
+		return nil
+	}
+	client := clientFromContext(ctx, r.client)
+	n, err := client.User.Update().
+		Where(dbuser.IDEQ(id)).
+		AddBalance(amount).
+		Save(ctx)
+	if err != nil {
+		return translatePersistenceError(err, service.ErrUserNotFound, nil)
+	}
+	if n == 0 {
+		return service.ErrUserNotFound
+	}
+	return nil
+}
+
 // DeductBalance 扣除用户余额
 // 透支策略：允许余额变为负数，确保当前请求能够完成
 // 中间件会阻止余额 <= 0 的用户发起后续请求
@@ -437,6 +481,77 @@ func (r *userRepository) UpdateConcurrency(ctx context.Context, id int64, amount
 
 func (r *userRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	return r.client.User.Query().Where(dbuser.EmailEQ(email)).Exist(ctx)
+}
+
+func (r *userRepository) EnsureReferralCode(ctx context.Context, userID int64) (string, error) {
+	client := clientFromContext(ctx, r.client)
+
+	current, err := client.User.Query().
+		Where(dbuser.IDEQ(userID)).
+		Select(dbuser.FieldReferralCode).
+		Only(ctx)
+	if err != nil {
+		return "", translatePersistenceError(err, service.ErrUserNotFound, nil)
+	}
+
+	code := service.NormalizeReferralCode(current.ReferralCode)
+	if code != "" {
+		return code, nil
+	}
+
+	code = service.ReferralCodeForUserID(userID)
+	if code == "" {
+		return "", service.ErrUserNotFound
+	}
+
+	updated, err := client.User.Update().
+		Where(
+			dbuser.IDEQ(userID),
+			dbuser.ReferralCodeEQ(""),
+		).
+		SetReferralCode(code).
+		Save(ctx)
+	if err != nil {
+		return "", translatePersistenceError(err, service.ErrUserNotFound, nil)
+	}
+	if updated == 0 {
+		refreshed, refreshErr := client.User.Query().
+			Where(dbuser.IDEQ(userID)).
+			Select(dbuser.FieldReferralCode).
+			Only(ctx)
+		if refreshErr != nil {
+			return "", translatePersistenceError(refreshErr, service.ErrUserNotFound, nil)
+		}
+		return service.NormalizeReferralCode(refreshed.ReferralCode), nil
+	}
+
+	return code, nil
+}
+
+func (r *userRepository) CountReferredUsers(ctx context.Context, userID int64) (int, error) {
+	client := clientFromContext(ctx, r.client)
+	return client.User.Query().
+		Where(dbuser.ReferredByUserIDEQ(userID)).
+		Count(ctx)
+}
+
+func (r *userRepository) SumReferralRewardsByInviter(ctx context.Context, userID int64) (float64, error) {
+	client := clientFromContext(ctx, r.client)
+	var result []struct {
+		Sum float64 `json:"sum"`
+	}
+
+	err := client.User.Query().
+		Where(dbuser.ReferredByUserIDEQ(userID)).
+		Aggregate(dbent.As(dbent.Sum(dbuser.FieldReferralRewardAmount), "sum")).
+		Scan(ctx, &result)
+	if err != nil {
+		return 0, err
+	}
+	if len(result) == 0 {
+		return 0, nil
+	}
+	return result[0].Sum, nil
 }
 
 func (r *userRepository) AddGroupToAllowedGroups(ctx context.Context, userID int64, groupID int64) error {

@@ -386,7 +386,7 @@ const redeemErrorMap = computed<Record<string, string>>(() => ({
 
 // Helper functions for history display
 const isBalanceType = (type: string) => {
-  return type === 'balance' || type === 'admin_balance'
+  return type === 'balance' || type === 'admin_balance' || type === 'referral_reward'
 }
 
 const isSubscriptionType = (type: string) => {
@@ -408,6 +408,8 @@ const getHistoryItemTitle = (item: RedeemHistoryItem) => {
     return item.value >= 0 ? t('redeem.concurrencyAddedAdmin') : t('redeem.concurrencyReducedAdmin')
   } else if (item.type === 'subscription') {
     return t('redeem.subscriptionAssigned')
+  } else if (item.type === 'referral_reward') {
+    return t('redeem.referralReward')
   }
   return t('common.unknown')
 }

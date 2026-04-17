@@ -506,6 +506,7 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 	updates[SettingKeyPasswordResetEnabled] = strconv.FormatBool(settings.PasswordResetEnabled)
 	updates[SettingKeyFrontendURL] = settings.FrontendURL
 	updates[SettingKeyInvitationCodeEnabled] = strconv.FormatBool(settings.InvitationCodeEnabled)
+	updates[SettingKeyReferralRewardAmount] = strconv.FormatFloat(settings.ReferralRewardAmount, 'f', 8, 64)
 	updates[SettingKeyTotpEnabled] = strconv.FormatBool(settings.TotpEnabled)
 
 	// 邮件服务设置（只有非空才更新密码）
@@ -910,6 +911,18 @@ func (s *SettingService) GetDefaultBalance(ctx context.Context) float64 {
 	return s.cfg.Default.UserBalance
 }
 
+// GetReferralRewardAmount 获取邀请返利额度
+func (s *SettingService) GetReferralRewardAmount(ctx context.Context) float64 {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyReferralRewardAmount)
+	if err != nil {
+		return 0
+	}
+	if v, err := strconv.ParseFloat(value, 64); err == nil && v >= 0 {
+		return v
+	}
+	return 0
+}
+
 // GetDefaultSubscriptions 获取新用户默认订阅配置列表。
 func (s *SettingService) GetDefaultSubscriptions(ctx context.Context) []DefaultSubscriptionSetting {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyDefaultSubscriptions)
@@ -937,6 +950,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyEmailVerifyEnabled:               "false",
 		SettingKeyRegistrationEmailSuffixWhitelist: "[]",
 		SettingKeyPromoCodeEnabled:                 "true", // 默认启用优惠码功能
+		SettingKeyReferralRewardAmount:             "0",
 		SettingKeySiteName:                         "Sub2API",
 		SettingKeySiteLogo:                         "",
 		SettingKeyPurchaseSubscriptionEnabled:      "false",
@@ -1037,6 +1051,9 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		result.DefaultBalance = balance
 	} else {
 		result.DefaultBalance = s.cfg.Default.UserBalance
+	}
+	if reward, err := strconv.ParseFloat(settings[SettingKeyReferralRewardAmount], 64); err == nil && reward >= 0 {
+		result.ReferralRewardAmount = reward
 	}
 	result.DefaultSubscriptions = parseDefaultSubscriptions(settings[SettingKeyDefaultSubscriptions])
 

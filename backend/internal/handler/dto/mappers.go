@@ -53,6 +53,17 @@ func UserFromService(u *service.User) *User {
 	return out
 }
 
+func UserReferralInfoFromService(info *service.UserReferralInfo) *UserReferralInfo {
+	if info == nil {
+		return nil
+	}
+	return &UserReferralInfo{
+		ReferralCode: info.ReferralCode,
+		InvitedCount: info.InvitedCount,
+		RewardTotal:  info.RewardTotal,
+	}
+}
+
 // UserFromServiceAdmin converts a service User to DTO for admin users.
 // It includes notes - user-facing endpoints must not use this.
 func UserFromServiceAdmin(u *service.User) *AdminUser {

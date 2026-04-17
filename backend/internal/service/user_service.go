@@ -51,10 +51,15 @@ type UserRepository interface {
 	List(ctx context.Context, params pagination.PaginationParams) ([]User, *pagination.PaginationResult, error)
 	ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters UserListFilters) ([]User, *pagination.PaginationResult, error)
 
+	AddBalance(ctx context.Context, id int64, amount float64) error
 	UpdateBalance(ctx context.Context, id int64, amount float64) error
 	DeductBalance(ctx context.Context, id int64, amount float64) error
 	UpdateConcurrency(ctx context.Context, id int64, amount int) error
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
+	GetByReferralCode(ctx context.Context, code string) (*User, error)
+	EnsureReferralCode(ctx context.Context, userID int64) (string, error)
+	CountReferredUsers(ctx context.Context, userID int64) (int, error)
+	SumReferralRewardsByInviter(ctx context.Context, userID int64) (float64, error)
 	RemoveGroupFromAllowedGroups(ctx context.Context, groupID int64) (int64, error)
 	// AddGroupToAllowedGroups 将指定分组增量添加到用户的 allowed_groups（幂等，冲突忽略）
 	AddGroupToAllowedGroups(ctx context.Context, userID int64, groupID int64) error
@@ -116,6 +121,29 @@ func (s *UserService) GetProfile(ctx context.Context, userID int64) (*User, erro
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 	return user, nil
+}
+
+func (s *UserService) GetReferralInfo(ctx context.Context, userID int64) (*UserReferralInfo, error) {
+	referralCode, err := s.userRepo.EnsureReferralCode(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("ensure referral code: %w", err)
+	}
+
+	invitedCount, err := s.userRepo.CountReferredUsers(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("count referred users: %w", err)
+	}
+
+	rewardTotal, err := s.userRepo.SumReferralRewardsByInviter(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("sum referral rewards: %w", err)
+	}
+
+	return &UserReferralInfo{
+		ReferralCode: referralCode,
+		InvitedCount: invitedCount,
+		RewardTotal:  rewardTotal,
+	}, nil
 }
 
 // UpdateProfile 更新用户资料

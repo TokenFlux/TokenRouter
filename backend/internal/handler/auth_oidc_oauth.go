@@ -36,6 +36,7 @@ const (
 	oidcOAuthStateCookieName   = "oidc_oauth_state"
 	oidcOAuthVerifierCookie    = "oidc_oauth_verifier"
 	oidcOAuthRedirectCookie    = "oidc_oauth_redirect"
+	oidcOAuthReferralCookie    = "oidc_oauth_ref"
 	oidcOAuthNonceCookie       = "oidc_oauth_nonce"
 	oidcOAuthCookieMaxAgeSec   = 10 * 60 // 10 minutes
 	oidcOAuthDefaultRedirectTo = "/dashboard"
@@ -126,10 +127,12 @@ func (h *AuthHandler) OIDCOAuthStart(c *gin.Context) {
 	if redirectTo == "" {
 		redirectTo = oidcOAuthDefaultRedirectTo
 	}
+	referralCode := service.NormalizeReferralCode(c.Query("ref"))
 
 	secureCookie := isRequestHTTPS(c)
 	oidcSetCookie(c, oidcOAuthStateCookieName, encodeCookieValue(state), oidcOAuthCookieMaxAgeSec, secureCookie)
 	oidcSetCookie(c, oidcOAuthRedirectCookie, encodeCookieValue(redirectTo), oidcOAuthCookieMaxAgeSec, secureCookie)
+	oidcSetCookie(c, oidcOAuthReferralCookie, encodeCookieValue(referralCode), oidcOAuthCookieMaxAgeSec, secureCookie)
 
 	codeChallenge := ""
 	if cfg.UsePKCE {
@@ -198,6 +201,7 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
 		oidcClearCookie(c, oidcOAuthStateCookieName, secureCookie)
 		oidcClearCookie(c, oidcOAuthVerifierCookie, secureCookie)
 		oidcClearCookie(c, oidcOAuthRedirectCookie, secureCookie)
+		oidcClearCookie(c, oidcOAuthReferralCookie, secureCookie)
 		oidcClearCookie(c, oidcOAuthNonceCookie, secureCookie)
 	}()
 
@@ -212,6 +216,8 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
 	if redirectTo == "" {
 		redirectTo = oidcOAuthDefaultRedirectTo
 	}
+	referralCode, _ := readCookieDecoded(c, oidcOAuthReferralCookie)
+	referralCode = service.NormalizeReferralCode(referralCode)
 
 	codeVerifier := ""
 	if cfg.UsePKCE {
@@ -315,10 +321,10 @@ func (h *AuthHandler) OIDCOAuthCallback(c *gin.Context) {
 	)
 
 	// 传入空邀请码；如果需要邀请码，服务层返回 ErrOAuthInvitationRequired
-	tokenPair, _, err := h.authService.LoginOrRegisterOAuthWithTokenPair(c.Request.Context(), email, username, "")
+	tokenPair, _, err := h.authService.LoginOrRegisterOAuthWithTokenPairAndReferral(c.Request.Context(), email, username, "", referralCode)
 	if err != nil {
 		if errors.Is(err, service.ErrOAuthInvitationRequired) {
-			pendingToken, tokenErr := h.authService.CreatePendingOAuthToken(email, username)
+			pendingToken, tokenErr := h.authService.CreatePendingOAuthTokenWithReferral(email, username, referralCode)
 			if tokenErr != nil {
 				redirectOAuthError(c, frontendCallback, "login_failed", "service_error", "")
 				return
@@ -358,13 +364,13 @@ func (h *AuthHandler) CompleteOIDCOAuthRegistration(c *gin.Context) {
 		return
 	}
 
-	email, username, err := h.authService.VerifyPendingOAuthToken(req.PendingOAuthToken)
+	identity, err := h.authService.VerifyPendingOAuthTokenDetails(req.PendingOAuthToken)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "INVALID_TOKEN", "message": "invalid or expired registration token"})
 		return
 	}
 
-	tokenPair, _, err := h.authService.LoginOrRegisterOAuthWithTokenPair(c.Request.Context(), email, username, req.InvitationCode)
+	tokenPair, _, err := h.authService.LoginOrRegisterOAuthWithTokenPairAndReferral(c.Request.Context(), identity.Email, identity.Username, req.InvitationCode, identity.ReferralCode)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
