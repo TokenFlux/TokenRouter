@@ -8,7 +8,7 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
 
 const (

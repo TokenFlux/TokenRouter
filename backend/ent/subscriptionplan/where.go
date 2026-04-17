@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
-	"github.com/Wei-Shaw/sub2api/ent/predicate"
+	"github.com/TokenFlux/TokenRouter/ent/predicate"
 )
 
 // ID filters vertices based on their ID field.

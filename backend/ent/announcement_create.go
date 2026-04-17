@@ -11,9 +11,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Wei-Shaw/sub2api/ent/announcement"
-	"github.com/Wei-Shaw/sub2api/ent/announcementread"
-	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/TokenFlux/TokenRouter/ent/announcement"
+	"github.com/TokenFlux/TokenRouter/ent/announcementread"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
 
 // AnnouncementCreate is the builder for creating a Announcement entity.

@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/config"
 )
 
 type betaPolicySettingRepoStub struct {

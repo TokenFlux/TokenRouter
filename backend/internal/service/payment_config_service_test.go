@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/payment"
+	"github.com/TokenFlux/TokenRouter/internal/payment"
 )
 
 func TestPcParseFloat(t *testing.T) {

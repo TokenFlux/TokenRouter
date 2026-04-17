@@ -10,8 +10,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/Wei-Shaw/sub2api/ent/announcement"
-	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/TokenFlux/TokenRouter/ent/announcement"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
 
 // Announcement is the model entity for the Announcement schema.

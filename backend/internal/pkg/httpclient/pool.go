@@ -23,9 +23,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyurl"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/proxyutil"
-	"github.com/Wei-Shaw/sub2api/internal/util/urlvalidator"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/proxyurl"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/proxyutil"
+	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
 )
 
 // Transport 连接池默认配置

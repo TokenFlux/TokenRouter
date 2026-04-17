@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/stretchr/testify/require"
 )
 

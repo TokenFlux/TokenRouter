@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/Wei-Shaw/sub2api/ent/paymentauditlog"
-	"github.com/Wei-Shaw/sub2api/ent/predicate"
+	"github.com/TokenFlux/TokenRouter/ent/paymentauditlog"
+	"github.com/TokenFlux/TokenRouter/ent/predicate"
 )
 
 // PaymentAuditLogQuery is the builder for querying PaymentAuditLog entities.
