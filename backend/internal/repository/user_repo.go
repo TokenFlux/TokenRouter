@@ -498,23 +498,29 @@ func (r *userRepository) EnsureReferralCode(ctx context.Context, userID int64) (
 	if code != "" {
 		return code, nil
 	}
+	expectedCode := current.ReferralCode
 
-	code = service.ReferralCodeForUserID(userID)
-	if code == "" {
-		return "", service.ErrUserNotFound
-	}
+	const maxReferralCodeAttempts = 5
+	for attempt := 0; attempt < maxReferralCodeAttempts; attempt++ {
+		code, err = service.GenerateReferralCode()
+		if err != nil {
+			return "", fmt.Errorf("generate referral code: %w", err)
+		}
 
-	updated, err := client.User.Update().
-		Where(
-			dbuser.IDEQ(userID),
-			dbuser.ReferralCodeEQ(""),
-		).
-		SetReferralCode(code).
-		Save(ctx)
-	if err != nil {
-		return "", translatePersistenceError(err, service.ErrUserNotFound, nil)
-	}
-	if updated == 0 {
+		updated, err := client.User.Update().
+			Where(
+				dbuser.IDEQ(userID),
+				dbuser.ReferralCodeEQ(expectedCode),
+			).
+			SetReferralCode(code).
+			Save(ctx)
+		if err == nil && updated > 0 {
+			return code, nil
+		}
+		if err != nil && !isUniqueConstraintViolation(err) {
+			return "", translatePersistenceError(err, service.ErrUserNotFound, nil)
+		}
+
 		refreshed, refreshErr := client.User.Query().
 			Where(dbuser.IDEQ(userID)).
 			Select(dbuser.FieldReferralCode).
@@ -522,10 +528,14 @@ func (r *userRepository) EnsureReferralCode(ctx context.Context, userID int64) (
 		if refreshErr != nil {
 			return "", translatePersistenceError(refreshErr, service.ErrUserNotFound, nil)
 		}
-		return service.NormalizeReferralCode(refreshed.ReferralCode), nil
+		currentCode := service.NormalizeReferralCode(refreshed.ReferralCode)
+		if currentCode != "" {
+			return currentCode, nil
+		}
+		expectedCode = refreshed.ReferralCode
 	}
 
-	return code, nil
+	return "", fmt.Errorf("generate unique referral code: too many conflicts")
 }
 
 func (r *userRepository) CountReferredUsers(ctx context.Context, userID int64) (int, error) {

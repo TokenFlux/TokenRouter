@@ -1,7 +1,8 @@
 package service
 
 import (
-	"strconv"
+	"crypto/rand"
+	"encoding/hex"
 	"strings"
 	"time"
 
@@ -104,9 +105,10 @@ func NormalizeReferralCode(code string) string {
 	return code
 }
 
-func ReferralCodeForUserID(userID int64) string {
-	if userID <= 0 {
-		return ""
+func GenerateReferralCode() (string, error) {
+	buf := make([]byte, 10)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
 	}
-	return "r" + strconv.FormatInt(userID, 36)
+	return NormalizeReferralCode(hex.EncodeToString(buf)), nil
 }

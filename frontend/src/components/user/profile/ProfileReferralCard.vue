@@ -108,12 +108,14 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { userAPI } from '@/api'
 import { useAppStore } from '@/stores'
 import Icon from '@/components/icons/Icon.vue'
 import type { UserReferralInfo } from '@/types'
 
 const { t } = useI18n()
+const router = useRouter()
 const appStore = useAppStore()
 
 const loading = ref(true)
@@ -126,8 +128,11 @@ const inviteLink = computed(() => {
     return ''
   }
 
-  const url = new URL('/register', window.location.origin)
-  url.searchParams.set('ref', referralInfo.value.referral_code)
+  const target = router.resolve({
+    path: '/register',
+    query: { ref: referralInfo.value.referral_code }
+  })
+  const url = new URL(target.href, window.location.origin)
   return url.toString()
 })
 

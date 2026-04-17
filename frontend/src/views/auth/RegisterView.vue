@@ -388,6 +388,11 @@ const errors = reactive({
 // ==================== Lifecycle ====================
 
 onMounted(async () => {
+  const referralParam = typeof route.query.ref === 'string' ? route.query.ref.trim() : ''
+  if (referralParam) {
+    formData.referral_code = referralParam
+  }
+
   try {
     const settings = await getPublicSettings()
     registrationEnabled.value = settings.registration_enabled
@@ -403,10 +408,6 @@ onMounted(async () => {
     registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
       settings.registration_email_suffix_whitelist || []
     )
-    const referralParam = typeof route.query.ref === 'string' ? route.query.ref.trim() : ''
-    if (referralParam) {
-      formData.referral_code = referralParam
-    }
 
     // Read promo code from URL parameter only if promo code is enabled
     if (promoCodeEnabled.value) {
