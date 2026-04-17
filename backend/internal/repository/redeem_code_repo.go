@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -186,6 +187,9 @@ func (r *redeemCodeRepository) Use(ctx context.Context, id, userID int64) error 
 
 	tx, err := r.client.Tx(ctx)
 	if err != nil {
+		if errors.Is(err, dbent.ErrTxStarted) {
+			return r.useInTx(ctx, id, userID)
+		}
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()

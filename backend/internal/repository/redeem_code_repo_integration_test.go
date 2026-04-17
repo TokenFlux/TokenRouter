@@ -8,6 +8,7 @@ import (
 	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent/redeemcodeusage"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/suite"
@@ -46,6 +47,35 @@ func (s *RedeemCodeRepoSuite) createGroup(name string) *dbent.Group {
 		Save(s.ctx)
 	s.Require().NoError(err, "create group")
 	return g
+}
+
+func (s *RedeemCodeRepoSuite) createUsedCode(codeType, code string, userID int64, usedAt time.Time, groupID *int64) *dbent.RedeemCode {
+	create := s.client.RedeemCode.Create().
+		SetCode(code).
+		SetType(codeType).
+		SetStatus(service.StatusUsed).
+		SetValue(0).
+		SetNotes("").
+		SetValidityDays(30).
+		SetMaxUses(1).
+		SetUsedCount(1).
+		SetUsedBy(userID).
+		SetUsedAt(usedAt)
+	if groupID != nil {
+		create.SetGroupID(*groupID)
+	}
+
+	redeemCode, err := create.Save(s.ctx)
+	s.Require().NoError(err, "create used redeem code")
+
+	_, err = s.client.RedeemCodeUsage.Create().
+		SetRedeemCodeID(redeemCode.ID).
+		SetUserID(userID).
+		SetUsedAt(usedAt).
+		Save(s.ctx)
+	s.Require().NoError(err, "create redeem usage")
+
+	return redeemCode
 }
 
 // --- Create / CreateBatch / GetByID / GetByCode ---
@@ -158,7 +188,14 @@ func (s *RedeemCodeRepoSuite) TestListWithFilters_Type() {
 
 func (s *RedeemCodeRepoSuite) TestListWithFilters_Status() {
 	s.Require().NoError(s.repo.Create(s.ctx, &service.RedeemCode{Code: "STAT-UNUSED", Type: service.RedeemTypeBalance, Value: 0, Status: service.StatusUnused}))
-	s.Require().NoError(s.repo.Create(s.ctx, &service.RedeemCode{Code: "STAT-USED", Type: service.RedeemTypeBalance, Value: 0, Status: service.StatusUsed}))
+	s.Require().NoError(s.repo.Create(s.ctx, &service.RedeemCode{
+		Code:      "STAT-USED",
+		Type:      service.RedeemTypeBalance,
+		Value:     0,
+		Status:    service.StatusUsed,
+		MaxUses:   1,
+		UsedCount: 1,
+	}))
 
 	codes, _, err := s.repo.ListWithFilters(s.ctx, pagination.PaginationParams{Page: 1, PageSize: 10}, "", service.StatusUsed, "")
 	s.Require().NoError(err)
@@ -250,7 +287,14 @@ func (s *RedeemCodeRepoSuite) TestUse_Idempotency() {
 
 func (s *RedeemCodeRepoSuite) TestUse_AlreadyUsed() {
 	user := s.createUser(uniqueTestValue(s.T(), "already") + "@example.com")
-	code := &service.RedeemCode{Code: "ALREADY-USED", Type: service.RedeemTypeBalance, Value: 0, Status: service.StatusUsed}
+	code := &service.RedeemCode{
+		Code:      "ALREADY-USED",
+		Type:      service.RedeemTypeBalance,
+		Value:     0,
+		Status:    service.StatusUsed,
+		MaxUses:   1,
+		UsedCount: 1,
+	}
 	s.Require().NoError(s.repo.Create(s.ctx, code))
 
 	err := s.repo.Use(s.ctx, code.ID, user.ID)
@@ -264,31 +308,8 @@ func (s *RedeemCodeRepoSuite) TestListByUser() {
 	user := s.createUser(uniqueTestValue(s.T(), "listby") + "@example.com")
 	base := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 
-	usedAt1 := base
-	_, err := s.client.RedeemCode.Create().
-		SetCode("USER-1").
-		SetType(service.RedeemTypeBalance).
-		SetStatus(service.StatusUsed).
-		SetValue(0).
-		SetNotes("").
-		SetValidityDays(30).
-		SetUsedBy(user.ID).
-		SetUsedAt(usedAt1).
-		Save(s.ctx)
-	s.Require().NoError(err)
-
-	usedAt2 := base.Add(1 * time.Hour)
-	_, err = s.client.RedeemCode.Create().
-		SetCode("USER-2").
-		SetType(service.RedeemTypeBalance).
-		SetStatus(service.StatusUsed).
-		SetValue(0).
-		SetNotes("").
-		SetValidityDays(30).
-		SetUsedBy(user.ID).
-		SetUsedAt(usedAt2).
-		Save(s.ctx)
-	s.Require().NoError(err)
+	s.createUsedCode(service.RedeemTypeBalance, "USER-1", user.ID, base, nil)
+	s.createUsedCode(service.RedeemTypeBalance, "USER-2", user.ID, base.Add(1*time.Hour), nil)
 
 	codes, err := s.repo.ListByUser(s.ctx, user.ID, 10)
 	s.Require().NoError(err, "ListByUser")
@@ -301,19 +322,7 @@ func (s *RedeemCodeRepoSuite) TestListByUser() {
 func (s *RedeemCodeRepoSuite) TestListByUser_WithGroupPreload() {
 	user := s.createUser(uniqueTestValue(s.T(), "grp") + "@example.com")
 	group := s.createGroup(uniqueTestValue(s.T(), "g-listby"))
-
-	_, err := s.client.RedeemCode.Create().
-		SetCode("WITH-GRP").
-		SetType(service.RedeemTypeSubscription).
-		SetStatus(service.StatusUsed).
-		SetValue(0).
-		SetNotes("").
-		SetValidityDays(30).
-		SetUsedBy(user.ID).
-		SetUsedAt(time.Now()).
-		SetGroupID(group.ID).
-		Save(s.ctx)
-	s.Require().NoError(err)
+	s.createUsedCode(service.RedeemTypeSubscription, "WITH-GRP", user.ID, time.Now(), &group.ID)
 
 	codes, err := s.repo.ListByUser(s.ctx, user.ID, 10)
 	s.Require().NoError(err)
@@ -324,17 +333,7 @@ func (s *RedeemCodeRepoSuite) TestListByUser_WithGroupPreload() {
 
 func (s *RedeemCodeRepoSuite) TestListByUser_DefaultLimit() {
 	user := s.createUser(uniqueTestValue(s.T(), "deflimit") + "@example.com")
-	_, err := s.client.RedeemCode.Create().
-		SetCode("DEF-LIM").
-		SetType(service.RedeemTypeBalance).
-		SetStatus(service.StatusUsed).
-		SetValue(0).
-		SetNotes("").
-		SetValidityDays(30).
-		SetUsedBy(user.ID).
-		SetUsedAt(time.Now()).
-		Save(s.ctx)
-	s.Require().NoError(err)
+	s.createUsedCode(service.RedeemTypeBalance, "DEF-LIM", user.ID, time.Now(), nil)
 
 	// limit <= 0 should default to 10
 	codes, err := s.repo.ListByUser(s.ctx, user.ID, 0)
@@ -373,13 +372,31 @@ func (s *RedeemCodeRepoSuite) TestCreateBatch_Filters_Use_Idempotency_ListByUser
 	s.Require().NoError(err, "GetByCode")
 
 	// Use fixed time instead of time.Sleep for deterministic ordering.
+	codeBUsedAt := time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
 	_, err = s.client.RedeemCode.UpdateOneID(codeB.ID).
-		SetUsedAt(time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)).
+		SetUsedAt(codeBUsedAt).
+		Save(s.ctx)
+	s.Require().NoError(err)
+	_, err = s.client.RedeemCodeUsage.Update().
+		Where(
+			redeemcodeusage.RedeemCodeIDEQ(codeB.ID),
+			redeemcodeusage.UserIDEQ(user.ID),
+		).
+		SetUsedAt(codeBUsedAt).
 		Save(s.ctx)
 	s.Require().NoError(err)
 	s.Require().NoError(s.repo.Use(s.ctx, codeA.ID, user.ID), "Use codeA")
+	codeAUsedAt := time.Date(2025, 1, 1, 13, 0, 0, 0, time.UTC)
 	_, err = s.client.RedeemCode.UpdateOneID(codeA.ID).
-		SetUsedAt(time.Date(2025, 1, 1, 13, 0, 0, 0, time.UTC)).
+		SetUsedAt(codeAUsedAt).
+		Save(s.ctx)
+	s.Require().NoError(err)
+	_, err = s.client.RedeemCodeUsage.Update().
+		Where(
+			redeemcodeusage.RedeemCodeIDEQ(codeA.ID),
+			redeemcodeusage.UserIDEQ(user.ID),
+		).
+		SetUsedAt(codeAUsedAt).
 		Save(s.ctx)
 	s.Require().NoError(err)
 
