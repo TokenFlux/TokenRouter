@@ -60,6 +60,10 @@ func (s *emailNormalizationRepoStub) Create(_ context.Context, user *User) error
 	return nil
 }
 
+func (s *emailNormalizationRepoStub) CreateWithNormalizedEmailGuard(ctx context.Context, user *User, normalizedEmail string) error {
+	return s.Create(ctx, user)
+}
+
 func (s *emailNormalizationRepoStub) GetByID(context.Context, int64) (*User, error) {
 	if s.getByIDErr != nil {
 		return nil, s.getByIDErr

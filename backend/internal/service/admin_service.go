@@ -564,7 +564,16 @@ func (s *adminServiceImpl) CreateUser(ctx context.Context, input *CreateUserInpu
 	if err := user.SetPassword(input.Password); err != nil {
 		return nil, err
 	}
-	if err := s.userRepo.Create(ctx, user); err != nil {
+	createUser := s.userRepo.Create
+	if s.settingService != nil && s.settingService.IsRegistrationEmailNormalizationEnabled(ctx) {
+		normalizedEmail := NormalizeRegistrationEmailAddress(user.Email)
+		if normalizedEmail != "" {
+			createUser = func(createCtx context.Context, createUser *User) error {
+				return s.userRepo.CreateWithNormalizedEmailGuard(createCtx, createUser, normalizedEmail)
+			}
+		}
+	}
+	if err := createUser(ctx, user); err != nil {
 		return nil, err
 	}
 	s.assignDefaultSubscriptions(ctx, user.ID)

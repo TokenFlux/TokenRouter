@@ -21,7 +21,10 @@ type mockUserRepo struct {
 	updateBalanceFn  func(ctx context.Context, id int64, amount float64) error
 }
 
-func (m *mockUserRepo) Create(context.Context, *User) error               { return nil }
+func (m *mockUserRepo) Create(context.Context, *User) error { return nil }
+func (m *mockUserRepo) CreateWithNormalizedEmailGuard(context.Context, *User, string) error {
+	return nil
+}
 func (m *mockUserRepo) GetByID(context.Context, int64) (*User, error)     { return &User{}, nil }
 func (m *mockUserRepo) GetByEmail(context.Context, string) (*User, error) { return &User{}, nil }
 func (m *mockUserRepo) GetFirstAdmin(context.Context) (*User, error)      { return &User{}, nil }

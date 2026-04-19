@@ -39,6 +39,14 @@ func newUserRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor) *userRepos
 }
 
 func (r *userRepository) Create(ctx context.Context, userIn *service.User) error {
+	return r.createWithNormalizationGuard(ctx, userIn, "")
+}
+
+func (r *userRepository) CreateWithNormalizedEmailGuard(ctx context.Context, userIn *service.User, normalizedEmail string) error {
+	return r.createWithNormalizationGuard(ctx, userIn, normalizedEmail)
+}
+
+func (r *userRepository) createWithNormalizationGuard(ctx context.Context, userIn *service.User, normalizedEmail string) error {
 	if userIn == nil {
 		return nil
 	}
@@ -58,25 +66,30 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		// 已处于外部事务中（ErrTxStarted），复用当前 client 并由调用方负责提交/回滚。
 		txClient = r.client
 	}
+	txCtx := ctx
+	if tx != nil {
+		txCtx = dbent.NewTxContext(ctx, tx)
+	}
 
-	createOp := txClient.User.Create().
-		SetEmail(userIn.Email).
-		SetUsername(userIn.Username).
-		SetNotes(userIn.Notes).
-		SetPasswordHash(userIn.PasswordHash).
-		SetRole(userIn.Role).
-		SetBalance(userIn.Balance).
-		SetConcurrency(userIn.Concurrency).
-		SetStatus(userIn.Status).
-		SetReferralCode(userIn.ReferralCode).
-		SetNillableReferredByUserID(userIn.ReferredByUserID).
-		SetReferralRewardAmount(userIn.ReferralRewardAmount)
-	created, err := createOp.Save(ctx)
+	if normalizedEmail != "" {
+		if err := r.LockRegistrationEmail(txCtx, normalizedEmail); err != nil {
+			return err
+		}
+		exists, err := r.existsByNormalizedEmail(txCtx, normalizedEmail, 0)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return service.ErrEmailExists
+		}
+	}
+
+	created, err := r.createWithClient(txCtx, txClient, userIn)
 	if err != nil {
 		return translatePersistenceError(err, nil, service.ErrEmailExists)
 	}
 
-	if err := r.syncUserAllowedGroupsWithClient(ctx, txClient, created.ID, userIn.AllowedGroups); err != nil {
+	if err := r.syncUserAllowedGroupsWithClient(txCtx, txClient, created.ID, userIn.AllowedGroups); err != nil {
 		return err
 	}
 
@@ -770,6 +783,22 @@ func (r *userRepository) updateWithClient(ctx context.Context, client *dbent.Cli
 		updateOp = updateOp.ClearBalanceNotifyThreshold()
 	}
 	return updateOp.Save(ctx)
+}
+
+func (r *userRepository) createWithClient(ctx context.Context, client *dbent.Client, userIn *service.User) (*dbent.User, error) {
+	createOp := client.User.Create().
+		SetEmail(userIn.Email).
+		SetUsername(userIn.Username).
+		SetNotes(userIn.Notes).
+		SetPasswordHash(userIn.PasswordHash).
+		SetRole(userIn.Role).
+		SetBalance(userIn.Balance).
+		SetConcurrency(userIn.Concurrency).
+		SetStatus(userIn.Status).
+		SetReferralCode(userIn.ReferralCode).
+		SetNillableReferredByUserID(userIn.ReferredByUserID).
+		SetReferralRewardAmount(userIn.ReferralRewardAmount)
+	return createOp.Save(ctx)
 }
 
 // marshalExtraEmails serializes notify email entries to JSON for storage.

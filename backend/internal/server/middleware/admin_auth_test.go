@@ -130,6 +130,10 @@ func (s *stubUserRepo) Create(ctx context.Context, user *service.User) error {
 	panic("unexpected Create call")
 }
 
+func (s *stubUserRepo) CreateWithNormalizedEmailGuard(ctx context.Context, user *service.User, normalizedEmail string) error {
+	panic("unexpected CreateWithNormalizedEmailGuard call")
+}
+
 func (s *stubUserRepo) GetByID(ctx context.Context, id int64) (*service.User, error) {
 	if s.getByID == nil {
 		panic("GetByID not stubbed")

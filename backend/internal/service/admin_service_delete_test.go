@@ -36,6 +36,10 @@ func (s *userRepoStub) Create(ctx context.Context, user *User) error {
 	return nil
 }
 
+func (s *userRepoStub) CreateWithNormalizedEmailGuard(ctx context.Context, user *User, normalizedEmail string) error {
+	return s.Create(ctx, user)
+}
+
 func (s *userRepoStub) GetByID(ctx context.Context, id int64) (*User, error) {
 	if s.getErr != nil {
 		return nil, s.getErr

@@ -42,6 +42,7 @@ type UserListFilters struct {
 
 type UserRepository interface {
 	Create(ctx context.Context, user *User) error
+	CreateWithNormalizedEmailGuard(ctx context.Context, user *User, normalizedEmail string) error
 	GetByID(ctx context.Context, id int64) (*User, error)
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetFirstAdmin(ctx context.Context) (*User, error)
