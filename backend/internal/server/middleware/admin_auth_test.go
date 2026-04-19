@@ -149,6 +149,10 @@ func (s *stubUserRepo) Update(ctx context.Context, user *service.User) error {
 	panic("unexpected Update call")
 }
 
+func (s *stubUserRepo) UpdateWithNormalizedEmailGuard(ctx context.Context, user *service.User, normalizedEmail string) error {
+	panic("unexpected UpdateWithNormalizedEmailGuard call")
+}
+
 func (s *stubUserRepo) Delete(ctx context.Context, id int64) error {
 	panic("unexpected Delete call")
 }
@@ -179,6 +183,13 @@ func (s *stubUserRepo) UpdateConcurrency(ctx context.Context, id int64, amount i
 
 func (s *stubUserRepo) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	panic("unexpected ExistsByEmail call")
+}
+
+func (s *stubUserRepo) ExistsByNormalizedEmail(ctx context.Context, normalizedEmail string) (bool, error) {
+	panic("unexpected ExistsByNormalizedEmail call")
+}
+func (s *stubUserRepo) LockRegistrationEmail(ctx context.Context, normalizedEmail string) error {
+	panic("unexpected LockRegistrationEmail call")
 }
 
 func (s *stubUserRepo) GetByReferralCode(ctx context.Context, code string) (*service.User, error) {

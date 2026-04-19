@@ -611,8 +611,25 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 	oldConcurrency := user.Concurrency
 	oldStatus := user.Status
 	oldRole := user.Role
+	normalizedEmail := ""
+	emailChanged := false
 
 	if input.Email != "" {
+		emailChanged = input.Email != user.Email
+		if emailChanged {
+			if s.settingService != nil && s.settingService.IsRegistrationEmailNormalizationEnabled(ctx) {
+				normalizedEmail = NormalizeRegistrationEmailAddress(input.Email)
+			}
+			if normalizedEmail == "" {
+				exists, err := s.userRepo.ExistsByEmail(ctx, input.Email)
+				if err != nil {
+					return nil, err
+				}
+				if exists {
+					return nil, ErrEmailExists
+				}
+			}
+		}
 		user.Email = input.Email
 	}
 	if input.Password != "" {
@@ -640,7 +657,14 @@ func (s *adminServiceImpl) UpdateUser(ctx context.Context, id int64, input *Upda
 		user.AllowedGroups = *input.AllowedGroups
 	}
 
-	if err := s.userRepo.Update(ctx, user); err != nil {
+	updateUser := s.userRepo.Update
+	if emailChanged && normalizedEmail != "" {
+		updateUser = func(updateCtx context.Context, updateUser *User) error {
+			return s.userRepo.UpdateWithNormalizedEmailGuard(updateCtx, updateUser, normalizedEmail)
+		}
+	}
+
+	if err := updateUser(ctx, user); err != nil {
 		return nil, err
 	}
 

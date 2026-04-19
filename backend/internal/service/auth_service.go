@@ -136,6 +136,14 @@ func (s *AuthService) RegisterWithReferral(ctx context.Context, email, password,
 	if err := s.validateRegistrationEmailPolicy(ctx, email); err != nil {
 		return "", nil, err
 	}
+	existsEmail, err := s.registrationEmailExists(ctx, email)
+	if err != nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Database error checking email exists: %v", err)
+		return "", nil, ErrServiceUnavailable
+	}
+	if existsEmail {
+		return "", nil, ErrEmailExists
+	}
 
 	artifacts, err := s.resolveRegistrationArtifacts(ctx, invitationCode, referralCode, ErrInvitationCodeRequired)
 	if err != nil {
@@ -157,16 +165,6 @@ func (s *AuthService) RegisterWithReferral(ctx context.Context, email, password,
 		if err := s.emailService.VerifyCode(ctx, email, verifyCode); err != nil {
 			return "", nil, fmt.Errorf("verify code: %w", err)
 		}
-	}
-
-	// 检查邮箱是否已存在
-	existsEmail, err := s.userRepo.ExistsByEmail(ctx, email)
-	if err != nil {
-		logger.LegacyPrintf("service.auth", "[Auth] Database error checking email exists: %v", err)
-		return "", nil, ErrServiceUnavailable
-	}
-	if existsEmail {
-		return "", nil, ErrEmailExists
 	}
 
 	// 密码哈希
@@ -252,7 +250,7 @@ func (s *AuthService) SendVerifyCode(ctx context.Context, email string) error {
 	}
 
 	// 检查邮箱是否已存在
-	existsEmail, err := s.userRepo.ExistsByEmail(ctx, email)
+	existsEmail, err := s.registrationEmailExists(ctx, email)
 	if err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Database error checking email exists: %v", err)
 		return ErrServiceUnavailable
@@ -293,7 +291,7 @@ func (s *AuthService) SendVerifyCodeAsync(ctx context.Context, email string) (*S
 	}
 
 	// 检查邮箱是否已存在
-	existsEmail, err := s.userRepo.ExistsByEmail(ctx, email)
+	existsEmail, err := s.registrationEmailExists(ctx, email)
 	if err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Database error checking email exists: %v", err)
 		return nil, ErrServiceUnavailable
@@ -483,11 +481,14 @@ func (s *AuthService) LoginOrRegisterOAuth(ctx context.Context, email, username 
 				Status:       StatusActive,
 			}
 
-			if err := s.userRepo.Create(ctx, newUser); err != nil {
+			if err := s.createRegisteredUser(ctx, newUser, nil); err != nil {
 				if errors.Is(err, ErrEmailExists) {
 					// 并发场景：GetByEmail 与 Create 之间用户被创建。
 					user, err = s.userRepo.GetByEmail(ctx, email)
 					if err != nil {
+						if errors.Is(err, ErrUserNotFound) {
+							return "", nil, ErrEmailExists
+						}
 						logger.LegacyPrintf("service.auth", "[Auth] Database error getting user after conflict: %v", err)
 						return "", nil, ErrServiceUnavailable
 					}
@@ -598,6 +599,9 @@ func (s *AuthService) LoginOrRegisterOAuthWithTokenPairAndReferral(ctx context.C
 				if errors.Is(err, ErrEmailExists) {
 					user, err = s.userRepo.GetByEmail(ctx, email)
 					if err != nil {
+						if errors.Is(err, ErrUserNotFound) {
+							return nil, nil, ErrEmailExists
+						}
 						logger.LegacyPrintf("service.auth", "[Auth] Database error getting user after conflict: %v", err)
 						return nil, nil, ErrServiceUnavailable
 					}
@@ -790,8 +794,28 @@ func (s *AuthService) createRegisteredUser(ctx context.Context, user *User, arti
 	if artifacts == nil {
 		artifacts = &registrationArtifacts{}
 	}
+	normalizedEmail := ""
+	if s.settingService != nil && s.settingService.IsRegistrationEmailNormalizationEnabled(ctx) {
+		normalizedEmail = NormalizeRegistrationEmailAddress(user.Email)
+	}
 
 	run := func(runCtx context.Context) error {
+		if normalizedEmail != "" {
+			if dbent.TxFromContext(runCtx) != nil {
+				if err := s.userRepo.LockRegistrationEmail(runCtx, normalizedEmail); err != nil {
+					return err
+				}
+			}
+
+			existsEmail, err := s.registrationEmailExists(runCtx, user.Email)
+			if err != nil {
+				return err
+			}
+			if existsEmail {
+				return ErrEmailExists
+			}
+		}
+
 		if err := s.userRepo.Create(runCtx, user); err != nil {
 			return err
 		}
@@ -915,6 +939,20 @@ func (s *AuthService) validateRegistrationEmailPolicy(ctx context.Context, email
 		return buildEmailSuffixNotAllowedError(whitelist)
 	}
 	return nil
+}
+
+func (s *AuthService) registrationEmailExists(ctx context.Context, email string) (bool, error) {
+	exists, err := s.userRepo.ExistsByEmail(ctx, email)
+	if err != nil || exists {
+		return exists, err
+	}
+	if s.settingService != nil && s.settingService.IsRegistrationEmailNormalizationEnabled(ctx) {
+		normalizedEmail := NormalizeRegistrationEmailAddress(email)
+		if normalizedEmail != "" {
+			return s.userRepo.ExistsByNormalizedEmail(ctx, normalizedEmail)
+		}
+	}
+	return false, nil
 }
 
 func buildEmailSuffixNotAllowedError(whitelist []string) error {

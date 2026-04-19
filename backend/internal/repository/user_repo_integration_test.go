@@ -362,6 +362,49 @@ func (s *UserRepoSuite) TestExistsByEmail() {
 	s.Require().False(notExists)
 }
 
+func (s *UserRepoSuite) TestExistsByNormalizedEmail() {
+	s.mustCreateUser(&service.User{Email: "Y.o.u.r.N.a.m.e+promo@example.com"})
+
+	exists, err := s.repo.ExistsByNormalizedEmail(s.ctx, "yourname@example.com")
+	s.Require().NoError(err, "ExistsByNormalizedEmail")
+	s.Require().True(exists)
+
+	notExists, err := s.repo.ExistsByNormalizedEmail(s.ctx, "other@example.com")
+	s.Require().NoError(err)
+	s.Require().False(notExists)
+}
+
+func (s *UserRepoSuite) TestUpdateWithNormalizedEmailGuard_RejectsConflict() {
+	s.mustCreateUser(&service.User{Email: "your.name@example.com"})
+	other := s.mustCreateUser(&service.User{Email: "second@example.com"})
+
+	got, err := s.repo.GetByID(s.ctx, other.ID)
+	s.Require().NoError(err)
+	got.Email = "yourname+alias@example.com"
+
+	err = s.repo.UpdateWithNormalizedEmailGuard(s.ctx, got, service.NormalizeRegistrationEmailAddress(got.Email))
+	s.Require().ErrorIs(err, service.ErrEmailExists)
+
+	reloaded, err := s.repo.GetByID(s.ctx, other.ID)
+	s.Require().NoError(err)
+	s.Require().Equal("second@example.com", reloaded.Email)
+}
+
+func (s *UserRepoSuite) TestUpdateWithNormalizedEmailGuard_AllowsSameUser() {
+	user := s.mustCreateUser(&service.User{Email: "your.name+seed@example.com"})
+
+	got, err := s.repo.GetByID(s.ctx, user.ID)
+	s.Require().NoError(err)
+	got.Email = "yourname@example.com"
+
+	err = s.repo.UpdateWithNormalizedEmailGuard(s.ctx, got, service.NormalizeRegistrationEmailAddress(got.Email))
+	s.Require().NoError(err)
+
+	reloaded, err := s.repo.GetByID(s.ctx, user.ID)
+	s.Require().NoError(err)
+	s.Require().Equal("yourname@example.com", reloaded.Email)
+}
+
 // --- RemoveGroupFromAllowedGroups ---
 
 func (s *UserRepoSuite) TestRemoveGroupFromAllowedGroups() {

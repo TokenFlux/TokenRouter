@@ -21,6 +21,10 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 )
 
+const normalizedUserEmailSQL = `replace(regexp_replace(split_part(lower(email), '@', 1), '\+.*$', ''), '.', '') || '@' || split_part(lower(email), '@', 2)`
+
+const registrationEmailLockNamespace = 148623451
+
 type userRepository struct {
 	client *dbent.Client
 	sql    sqlExecutor
@@ -55,7 +59,7 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		txClient = r.client
 	}
 
-	created, err := txClient.User.Create().
+	createOp := txClient.User.Create().
 		SetEmail(userIn.Email).
 		SetUsername(userIn.Username).
 		SetNotes(userIn.Notes).
@@ -66,8 +70,8 @@ func (r *userRepository) Create(ctx context.Context, userIn *service.User) error
 		SetStatus(userIn.Status).
 		SetReferralCode(userIn.ReferralCode).
 		SetNillableReferredByUserID(userIn.ReferredByUserID).
-		SetReferralRewardAmount(userIn.ReferralRewardAmount).
-		Save(ctx)
+		SetReferralRewardAmount(userIn.ReferralRewardAmount)
+	created, err := createOp.Save(ctx)
 	if err != nil {
 		return translatePersistenceError(err, nil, service.ErrEmailExists)
 	}
@@ -144,6 +148,14 @@ func (r *userRepository) GetByReferralCode(ctx context.Context, code string) (*s
 }
 
 func (r *userRepository) Update(ctx context.Context, userIn *service.User) error {
+	return r.updateWithNormalizationGuard(ctx, userIn, "")
+}
+
+func (r *userRepository) UpdateWithNormalizedEmailGuard(ctx context.Context, userIn *service.User, normalizedEmail string) error {
+	return r.updateWithNormalizationGuard(ctx, userIn, normalizedEmail)
+}
+
+func (r *userRepository) updateWithNormalizationGuard(ctx context.Context, userIn *service.User, normalizedEmail string) error {
 	if userIn == nil {
 		return nil
 	}
@@ -162,30 +174,30 @@ func (r *userRepository) Update(ctx context.Context, userIn *service.User) error
 		// 已处于外部事务中（ErrTxStarted），复用当前 client 并由调用方负责提交/回滚。
 		txClient = r.client
 	}
-
-	updateOp := txClient.User.UpdateOneID(userIn.ID).
-		SetEmail(userIn.Email).
-		SetUsername(userIn.Username).
-		SetNotes(userIn.Notes).
-		SetPasswordHash(userIn.PasswordHash).
-		SetRole(userIn.Role).
-		SetBalance(userIn.Balance).
-		SetConcurrency(userIn.Concurrency).
-		SetStatus(userIn.Status).
-		SetBalanceNotifyEnabled(userIn.BalanceNotifyEnabled).
-		SetBalanceNotifyThresholdType(userIn.BalanceNotifyThresholdType).
-		SetNillableBalanceNotifyThreshold(userIn.BalanceNotifyThreshold).
-		SetBalanceNotifyExtraEmails(marshalExtraEmails(userIn.BalanceNotifyExtraEmails)).
-		SetTotalRecharged(userIn.TotalRecharged)
-	if userIn.BalanceNotifyThreshold == nil {
-		updateOp = updateOp.ClearBalanceNotifyThreshold()
+	txCtx := ctx
+	if tx != nil {
+		txCtx = dbent.NewTxContext(ctx, tx)
 	}
-	updated, err := updateOp.Save(ctx)
+
+	if normalizedEmail != "" {
+		if err := r.LockRegistrationEmail(txCtx, normalizedEmail); err != nil {
+			return err
+		}
+		exists, err := r.existsByNormalizedEmail(txCtx, normalizedEmail, userIn.ID)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return service.ErrEmailExists
+		}
+	}
+
+	updated, err := r.updateWithClient(txCtx, txClient, userIn)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrUserNotFound, service.ErrEmailExists)
 	}
 
-	if err := r.syncUserAllowedGroupsWithClient(ctx, txClient, updated.ID, userIn.AllowedGroups); err != nil {
+	if err := r.syncUserAllowedGroupsWithClient(txCtx, txClient, updated.ID, userIn.AllowedGroups); err != nil {
 		return err
 	}
 
@@ -480,7 +492,52 @@ func (r *userRepository) UpdateConcurrency(ctx context.Context, id int64, amount
 }
 
 func (r *userRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
-	return r.client.User.Query().Where(dbuser.EmailEQ(email)).Exist(ctx)
+	client := clientFromContext(ctx, r.client)
+	return client.User.Query().Where(dbuser.EmailEQ(email)).Exist(ctx)
+}
+
+func (r *userRepository) ExistsByNormalizedEmail(ctx context.Context, normalizedEmail string) (bool, error) {
+	return r.existsByNormalizedEmail(ctx, normalizedEmail, 0)
+}
+
+func (r *userRepository) existsByNormalizedEmail(ctx context.Context, normalizedEmail string, excludedUserID int64) (bool, error) {
+	sqlq := r.sqlExecutorFromContext(ctx)
+	if sqlq == nil {
+		return false, fmt.Errorf("sql executor is not configured")
+	}
+
+	var exists bool
+	query := fmt.Sprintf(`
+		SELECT EXISTS(
+			SELECT 1
+			FROM users
+			WHERE deleted_at IS NULL
+			  AND %s = $1
+			  AND ($2 = 0 OR id <> $2)
+		)
+	`, normalizedUserEmailSQL)
+	if err := scanSingleRow(ctx, sqlq, query, []any{normalizedEmail, excludedUserID}, &exists); err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+func (r *userRepository) LockRegistrationEmail(ctx context.Context, normalizedEmail string) error {
+	if normalizedEmail == "" {
+		return nil
+	}
+
+	sqlq := r.sqlExecutorFromContext(ctx)
+	if sqlq == nil {
+		return fmt.Errorf("sql executor is not configured")
+	}
+	_, err := sqlq.ExecContext(
+		ctx,
+		"SELECT pg_advisory_xact_lock($1, hashtext($2))",
+		registrationEmailLockNamespace,
+		normalizedEmail,
+	)
+	return err
 }
 
 func (r *userRepository) EnsureReferralCode(ctx context.Context, userID int64) (string, error) {
@@ -685,6 +742,34 @@ func applyUserEntityToService(dst *service.User, src *dbent.User) {
 	dst.ID = src.ID
 	dst.CreatedAt = src.CreatedAt
 	dst.UpdatedAt = src.UpdatedAt
+}
+
+func (r *userRepository) sqlExecutorFromContext(ctx context.Context) sqlExecutor {
+	if tx := dbent.TxFromContext(ctx); tx != nil {
+		return tx.Client()
+	}
+	return r.sql
+}
+
+func (r *userRepository) updateWithClient(ctx context.Context, client *dbent.Client, userIn *service.User) (*dbent.User, error) {
+	updateOp := client.User.UpdateOneID(userIn.ID).
+		SetEmail(userIn.Email).
+		SetUsername(userIn.Username).
+		SetNotes(userIn.Notes).
+		SetPasswordHash(userIn.PasswordHash).
+		SetRole(userIn.Role).
+		SetBalance(userIn.Balance).
+		SetConcurrency(userIn.Concurrency).
+		SetStatus(userIn.Status).
+		SetBalanceNotifyEnabled(userIn.BalanceNotifyEnabled).
+		SetBalanceNotifyThresholdType(userIn.BalanceNotifyThresholdType).
+		SetNillableBalanceNotifyThreshold(userIn.BalanceNotifyThreshold).
+		SetBalanceNotifyExtraEmails(marshalExtraEmails(userIn.BalanceNotifyExtraEmails)).
+		SetTotalRecharged(userIn.TotalRecharged)
+	if userIn.BalanceNotifyThreshold == nil {
+		updateOp = updateOp.ClearBalanceNotifyThreshold()
+	}
+	return updateOp.Save(ctx)
 }
 
 // marshalExtraEmails serializes notify email entries to JSON for storage.

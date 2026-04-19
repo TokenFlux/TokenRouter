@@ -46,6 +46,7 @@ type UserRepository interface {
 	GetByEmail(ctx context.Context, email string) (*User, error)
 	GetFirstAdmin(ctx context.Context) (*User, error)
 	Update(ctx context.Context, user *User) error
+	UpdateWithNormalizedEmailGuard(ctx context.Context, user *User, normalizedEmail string) error
 	Delete(ctx context.Context, id int64) error
 
 	List(ctx context.Context, params pagination.PaginationParams) ([]User, *pagination.PaginationResult, error)
@@ -56,6 +57,8 @@ type UserRepository interface {
 	DeductBalance(ctx context.Context, id int64, amount float64) error
 	UpdateConcurrency(ctx context.Context, id int64, amount int) error
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
+	ExistsByNormalizedEmail(ctx context.Context, normalizedEmail string) (bool, error)
+	LockRegistrationEmail(ctx context.Context, normalizedEmail string) error
 	GetByReferralCode(ctx context.Context, code string) (*User, error)
 	EnsureReferralCode(ctx context.Context, userID int64) (string, error)
 	CountReferredUsers(ctx context.Context, userID int64) (int, error)
@@ -153,16 +156,25 @@ func (s *UserService) UpdateProfile(ctx context.Context, userID int64, req Updat
 		return nil, fmt.Errorf("get user: %w", err)
 	}
 	oldConcurrency := user.Concurrency
+	normalizedEmail := ""
+	emailChanged := false
 
 	// 更新字段
 	if req.Email != nil {
-		// 检查新邮箱是否已被使用
-		exists, err := s.userRepo.ExistsByEmail(ctx, *req.Email)
-		if err != nil {
-			return nil, fmt.Errorf("check email exists: %w", err)
-		}
-		if exists && *req.Email != user.Email {
-			return nil, ErrEmailExists
+		emailChanged = *req.Email != user.Email
+		if emailChanged {
+			if s.isRegistrationEmailNormalizationEnabled(ctx) {
+				normalizedEmail = NormalizeRegistrationEmailAddress(*req.Email)
+			}
+			if normalizedEmail == "" {
+				exists, err := s.userRepo.ExistsByEmail(ctx, *req.Email)
+				if err != nil {
+					return nil, fmt.Errorf("check email exists: %w", err)
+				}
+				if exists {
+					return nil, ErrEmailExists
+				}
+			}
 		}
 		user.Email = *req.Email
 	}
@@ -186,7 +198,14 @@ func (s *UserService) UpdateProfile(ctx context.Context, userID int64, req Updat
 		}
 	}
 
-	if err := s.userRepo.Update(ctx, user); err != nil {
+	updateUser := s.userRepo.Update
+	if emailChanged && normalizedEmail != "" {
+		updateUser = func(updateCtx context.Context, updateUser *User) error {
+			return s.userRepo.UpdateWithNormalizedEmailGuard(updateCtx, updateUser, normalizedEmail)
+		}
+	}
+
+	if err := updateUser(ctx, user); err != nil {
 		return nil, fmt.Errorf("update user: %w", err)
 	}
 	if s.authCacheInvalidator != nil && user.Concurrency != oldConcurrency {
@@ -194,6 +213,17 @@ func (s *UserService) UpdateProfile(ctx context.Context, userID int64, req Updat
 	}
 
 	return user, nil
+}
+
+func (s *UserService) isRegistrationEmailNormalizationEnabled(ctx context.Context) bool {
+	if s.settingRepo == nil {
+		return false
+	}
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyRegistrationEmailNormalization)
+	if err != nil {
+		return false
+	}
+	return value == "true"
 }
 
 // ChangePassword 修改密码

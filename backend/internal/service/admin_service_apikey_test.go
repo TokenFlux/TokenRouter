@@ -43,6 +43,9 @@ func (s *userRepoStubForGroupUpdate) GetFirstAdmin(context.Context) (*User, erro
 	panic("unexpected")
 }
 func (s *userRepoStubForGroupUpdate) Update(context.Context, *User) error { panic("unexpected") }
+func (s *userRepoStubForGroupUpdate) UpdateWithNormalizedEmailGuard(context.Context, *User, string) error {
+	panic("unexpected")
+}
 func (s *userRepoStubForGroupUpdate) Delete(context.Context, int64) error { panic("unexpected") }
 func (s *userRepoStubForGroupUpdate) List(context.Context, pagination.PaginationParams) ([]User, *pagination.PaginationResult, error) {
 	panic("unexpected")
@@ -63,6 +66,12 @@ func (s *userRepoStubForGroupUpdate) UpdateConcurrency(context.Context, int64, i
 	panic("unexpected")
 }
 func (s *userRepoStubForGroupUpdate) ExistsByEmail(context.Context, string) (bool, error) {
+	panic("unexpected")
+}
+func (s *userRepoStubForGroupUpdate) ExistsByNormalizedEmail(context.Context, string) (bool, error) {
+	panic("unexpected")
+}
+func (s *userRepoStubForGroupUpdate) LockRegistrationEmail(context.Context, string) error {
 	panic("unexpected")
 }
 func (s *userRepoStubForGroupUpdate) GetByReferralCode(context.Context, string) (*User, error) {

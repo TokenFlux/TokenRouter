@@ -4482,6 +4482,9 @@ export default {
           "仅允许使用指定域名的邮箱注册账号（例如 {'@'}qq.com, {'@'}gmail.com）",
         emailSuffixWhitelistPlaceholder: 'example.com',
         emailSuffixWhitelistInputHint: '留空则不限制',
+        emailNormalization: '邮箱地址归一化',
+        emailNormalizationHint:
+          '启用后，注册或修改邮箱时会将 y.o.u.r.n.a.m.e@example.com 和 yourname+abc@example.com 视为 yourname@example.com，并基于归一化结果与所有已注册账号比较，防止使用邮箱别名重复注册。不会修改已存在账号的邮箱。',
         promoCode: '优惠码',
         promoCodeHint: '允许用户在注册时使用优惠码',
         invitationCode: '邀请码注册',

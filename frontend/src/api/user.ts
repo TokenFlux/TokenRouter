@@ -21,6 +21,7 @@ export async function getProfile(): Promise<User> {
  * @returns Updated user profile data
  */
 export async function updateProfile(profile: {
+  email?: string
   username?: string
   balance_notify_enabled?: boolean
   balance_notify_threshold?: number | null

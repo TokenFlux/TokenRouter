@@ -4317,6 +4317,9 @@ export default {
           "Only email addresses from the specified domains can register (for example, {'@'}qq.com, {'@'}gmail.com)",
         emailSuffixWhitelistPlaceholder: 'example.com',
         emailSuffixWhitelistInputHint: 'Leave empty for no restriction',
+        emailNormalization: 'Email Normalization',
+        emailNormalizationHint:
+          'When enabled, registration or email updates treat y.o.u.r.n.a.m.e@example.com and yourname+abc@example.com as yourname@example.com and compare against all registered accounts by the normalized address to block alias-based duplicate signups. It does not modify existing account emails.',
         promoCode: 'Promo Code',
         promoCodeHint: 'Allow users to use promo codes during registration',
         invitationCode: 'Invitation Code Registration',

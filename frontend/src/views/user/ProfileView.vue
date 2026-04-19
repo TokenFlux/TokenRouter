@@ -41,7 +41,7 @@
         </div>
       </div>
 
-      <ProfileEditForm :initial-username="user?.username || ''" />
+      <ProfileEditForm :initial-email="user?.email || ''" :initial-username="user?.username || ''" />
 
       <ProfileBalanceNotifyCard
         v-if="user && balanceLowNotifyEnabled"

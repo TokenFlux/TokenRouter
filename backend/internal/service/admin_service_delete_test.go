@@ -58,6 +58,10 @@ func (s *userRepoStub) Update(ctx context.Context, user *User) error {
 	panic("unexpected Update call")
 }
 
+func (s *userRepoStub) UpdateWithNormalizedEmailGuard(ctx context.Context, user *User, normalizedEmail string) error {
+	return s.Update(ctx, user)
+}
+
 func (s *userRepoStub) Delete(ctx context.Context, id int64) error {
 	s.deletedIDs = append(s.deletedIDs, id)
 	return s.deleteErr
@@ -100,6 +104,14 @@ func (s *userRepoStub) ExistsByEmail(ctx context.Context, email string) (bool, e
 		return false, s.existsErr
 	}
 	return s.exists, nil
+}
+
+func (s *userRepoStub) ExistsByNormalizedEmail(ctx context.Context, normalizedEmail string) (bool, error) {
+	return s.ExistsByEmail(ctx, normalizedEmail)
+}
+
+func (s *userRepoStub) LockRegistrationEmail(ctx context.Context, normalizedEmail string) error {
+	return nil
 }
 
 func (s *userRepoStub) GetByReferralCode(ctx context.Context, code string) (*User, error) {

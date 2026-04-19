@@ -26,7 +26,10 @@ func (m *mockUserRepo) GetByID(context.Context, int64) (*User, error)     { retu
 func (m *mockUserRepo) GetByEmail(context.Context, string) (*User, error) { return &User{}, nil }
 func (m *mockUserRepo) GetFirstAdmin(context.Context) (*User, error)      { return &User{}, nil }
 func (m *mockUserRepo) Update(context.Context, *User) error               { return nil }
-func (m *mockUserRepo) Delete(context.Context, int64) error               { return nil }
+func (m *mockUserRepo) UpdateWithNormalizedEmailGuard(context.Context, *User, string) error {
+	return nil
+}
+func (m *mockUserRepo) Delete(context.Context, int64) error { return nil }
 func (m *mockUserRepo) List(context.Context, pagination.PaginationParams) ([]User, *pagination.PaginationResult, error) {
 	return nil, nil, nil
 }
@@ -43,6 +46,10 @@ func (m *mockUserRepo) AddBalance(context.Context, int64, float64) error    { re
 func (m *mockUserRepo) DeductBalance(context.Context, int64, float64) error { return nil }
 func (m *mockUserRepo) UpdateConcurrency(context.Context, int64, int) error { return nil }
 func (m *mockUserRepo) ExistsByEmail(context.Context, string) (bool, error) { return false, nil }
+func (m *mockUserRepo) ExistsByNormalizedEmail(context.Context, string) (bool, error) {
+	return false, nil
+}
+func (m *mockUserRepo) LockRegistrationEmail(context.Context, string) error { return nil }
 func (m *mockUserRepo) GetByReferralCode(context.Context, string) (*User, error) {
 	return nil, ErrUserNotFound
 }

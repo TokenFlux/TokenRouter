@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"strings"
+
 	"github.com/TokenFlux/TokenRouter/internal/handler/dto"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
@@ -33,6 +35,7 @@ type ChangePasswordRequest struct {
 
 // UpdateProfileRequest represents the update profile request payload
 type UpdateProfileRequest struct {
+	Email                  *string  `json:"email" binding:"omitempty,email"`
 	Username               *string  `json:"username"`
 	BalanceNotifyEnabled   *bool    `json:"balance_notify_enabled"`
 	BalanceNotifyThreshold *float64 `json:"balance_notify_threshold"`
@@ -116,8 +119,17 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	if req.Email != nil {
+		email := strings.TrimSpace(*req.Email)
+		if email == "" {
+			response.BadRequest(c, "Invalid request: email cannot be empty")
+			return
+		}
+		req.Email = &email
+	}
 
 	svcReq := service.UpdateProfileRequest{
+		Email:                  req.Email,
 		Username:               req.Username,
 		BalanceNotifyEnabled:   req.BalanceNotifyEnabled,
 		BalanceNotifyThreshold: req.BalanceNotifyThreshold,

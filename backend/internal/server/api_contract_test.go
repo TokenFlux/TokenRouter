@@ -454,6 +454,7 @@ func TestAPIContracts(t *testing.T) {
 				deps.settingRepo.SetAll(map[string]string{
 					service.SettingKeyRegistrationEnabled:              "true",
 					service.SettingKeyEmailVerifyEnabled:               "false",
+					service.SettingKeyRegistrationEmailNormalization:   "false",
 					service.SettingKeyRegistrationEmailSuffixWhitelist: "[]",
 					service.SettingKeyPromoCodeEnabled:                 "true",
 
@@ -518,6 +519,7 @@ func TestAPIContracts(t *testing.T) {
 				"data": {
 					"registration_enabled": true,
 					"email_verify_enabled": false,
+					"registration_email_normalization": false,
 					"registration_email_suffix_whitelist": [],
 					"promo_code_enabled": true,
 					"password_reset_enabled": false,
@@ -858,6 +860,10 @@ func (r *stubUserRepo) Update(ctx context.Context, user *service.User) error {
 	return errors.New("not implemented")
 }
 
+func (r *stubUserRepo) UpdateWithNormalizedEmailGuard(ctx context.Context, user *service.User, normalizedEmail string) error {
+	return errors.New("not implemented")
+}
+
 func (r *stubUserRepo) Delete(ctx context.Context, id int64) error {
 	return errors.New("not implemented")
 }
@@ -888,6 +894,14 @@ func (r *stubUserRepo) UpdateConcurrency(ctx context.Context, id int64, amount i
 
 func (r *stubUserRepo) ExistsByEmail(ctx context.Context, email string) (bool, error) {
 	return false, errors.New("not implemented")
+}
+
+func (r *stubUserRepo) ExistsByNormalizedEmail(ctx context.Context, normalizedEmail string) (bool, error) {
+	return false, errors.New("not implemented")
+}
+
+func (r *stubUserRepo) LockRegistrationEmail(ctx context.Context, normalizedEmail string) error {
+	return errors.New("not implemented")
 }
 
 func (r *stubUserRepo) GetByReferralCode(ctx context.Context, code string) (*service.User, error) {

@@ -20,6 +20,21 @@ func RegistrationEmailSuffix(email string) string {
 	return "@" + domain
 }
 
+func NormalizeRegistrationEmailAddress(email string) string {
+	local, domain, ok := splitEmailForPolicy(email)
+	if !ok {
+		return ""
+	}
+	if plusIndex := strings.IndexByte(local, '+'); plusIndex >= 0 {
+		local = local[:plusIndex]
+	}
+	local = strings.ReplaceAll(local, ".", "")
+	if local == "" {
+		return ""
+	}
+	return local + "@" + domain
+}
+
 // IsRegistrationEmailSuffixAllowed checks whether an email is allowed by suffix whitelist.
 // Empty whitelist means allow all.
 func IsRegistrationEmailSuffixAllowed(email string, whitelist []string) bool {
