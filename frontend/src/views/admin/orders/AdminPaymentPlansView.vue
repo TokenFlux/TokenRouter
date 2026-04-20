@@ -112,7 +112,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
-import { extractApiErrorMessage } from '@/utils/apiError'
+import { extractI18nErrorMessage } from '@/utils/apiError'
 import type { SubscriptionPlan } from '@/types/payment'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
@@ -170,7 +170,7 @@ async function loadPlans() {
       parsePlanFeatures(plan as Omit<SubscriptionPlan, 'features'> & { features: string | string[] })
     )
   } catch (error: unknown) {
-    appStore.showError(extractApiErrorMessage(error, t('common.error')))
+    appStore.showError(extractI18nErrorMessage(error, t, 'payment.errors', t('common.error')))
   } finally {
     plansLoading.value = false
   }
@@ -186,7 +186,7 @@ async function toggleForSale(plan: SubscriptionPlan) {
     await adminPaymentAPI.updatePlan(plan.id, { for_sale: !plan.for_sale })
     plan.for_sale = !plan.for_sale
   } catch (error: unknown) {
-    appStore.showError(extractApiErrorMessage(error, t('common.error')))
+    appStore.showError(extractI18nErrorMessage(error, t, 'payment.errors', t('common.error')))
   }
 }
 
@@ -203,7 +203,7 @@ async function handleDeletePlan() {
     showDeletePlanDialog.value = false
     await loadPlans()
   } catch (error: unknown) {
-    appStore.showError(extractApiErrorMessage(error, t('common.error')))
+    appStore.showError(extractI18nErrorMessage(error, t, 'payment.errors', t('common.error')))
   }
 }
 

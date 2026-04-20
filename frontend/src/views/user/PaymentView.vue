@@ -374,7 +374,7 @@ import { usePaymentStore } from '@/stores/payment'
 import { useSubscriptionStore } from '@/stores/subscriptions'
 import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
-import { extractApiErrorMessage } from '@/utils/apiError'
+import { extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { CheckoutInfoResponse, OrderType, PaymentType, SubscriptionPlan } from '@/types/payment'
@@ -741,15 +741,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
     errorMessage.value = t('payment.result.failed')
     appStore.showError(errorMessage.value)
   } catch (error: unknown) {
-    const apiError = error as Record<string, unknown>
-    if (apiError.reason === 'TOO_MANY_PENDING') {
-      const metadata = apiError.metadata as Record<string, unknown> | undefined
-      errorMessage.value = t('payment.errors.tooManyPending', { max: metadata?.max || '' })
-    } else if (apiError.reason === 'CANCEL_RATE_LIMITED') {
-      errorMessage.value = t('payment.errors.cancelRateLimited')
-    } else {
-      errorMessage.value = extractApiErrorMessage(error, t('payment.result.failed'))
-    }
+    errorMessage.value = extractI18nErrorMessage(error, t, 'payment.errors', t('payment.result.failed'))
     appStore.showError(errorMessage.value)
   } finally {
     submitting.value = false
@@ -782,11 +774,10 @@ onMounted(async () => {
       }
     }
   } catch (error: unknown) {
-    appStore.showError(extractApiErrorMessage(error, t('common.error')))
+    appStore.showError(extractI18nErrorMessage(error, t, 'payment.errors', t('common.error')))
   } finally {
     loading.value = false
   }
-
   subscriptionStore.fetchActiveSubscriptions().catch(() => {})
 })
 </script>
