@@ -165,6 +165,11 @@ func ReferralRewardAmount(v float64) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldReferralRewardAmount, v))
 }
 
+// ReferralRewardGrantedAt applies equality check predicate on the "referral_reward_granted_at" field. It's identical to ReferralRewardGrantedAtEQ.
+func ReferralRewardGrantedAt(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldReferralRewardGrantedAt, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldCreatedAt, v))
@@ -1283,6 +1288,56 @@ func ReferralRewardAmountLT(v float64) predicate.User {
 // ReferralRewardAmountLTE applies the LTE predicate on the "referral_reward_amount" field.
 func ReferralRewardAmountLTE(v float64) predicate.User {
 	return predicate.User(sql.FieldLTE(FieldReferralRewardAmount, v))
+}
+
+// ReferralRewardGrantedAtEQ applies the EQ predicate on the "referral_reward_granted_at" field.
+func ReferralRewardGrantedAtEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldReferralRewardGrantedAt, v))
+}
+
+// ReferralRewardGrantedAtNEQ applies the NEQ predicate on the "referral_reward_granted_at" field.
+func ReferralRewardGrantedAtNEQ(v time.Time) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldReferralRewardGrantedAt, v))
+}
+
+// ReferralRewardGrantedAtIn applies the In predicate on the "referral_reward_granted_at" field.
+func ReferralRewardGrantedAtIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldIn(FieldReferralRewardGrantedAt, vs...))
+}
+
+// ReferralRewardGrantedAtNotIn applies the NotIn predicate on the "referral_reward_granted_at" field.
+func ReferralRewardGrantedAtNotIn(vs ...time.Time) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldReferralRewardGrantedAt, vs...))
+}
+
+// ReferralRewardGrantedAtGT applies the GT predicate on the "referral_reward_granted_at" field.
+func ReferralRewardGrantedAtGT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGT(FieldReferralRewardGrantedAt, v))
+}
+
+// ReferralRewardGrantedAtGTE applies the GTE predicate on the "referral_reward_granted_at" field.
+func ReferralRewardGrantedAtGTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldReferralRewardGrantedAt, v))
+}
+
+// ReferralRewardGrantedAtLT applies the LT predicate on the "referral_reward_granted_at" field.
+func ReferralRewardGrantedAtLT(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLT(FieldReferralRewardGrantedAt, v))
+}
+
+// ReferralRewardGrantedAtLTE applies the LTE predicate on the "referral_reward_granted_at" field.
+func ReferralRewardGrantedAtLTE(v time.Time) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldReferralRewardGrantedAt, v))
+}
+
+// ReferralRewardGrantedAtIsNil applies the IsNil predicate on the "referral_reward_granted_at" field.
+func ReferralRewardGrantedAtIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldReferralRewardGrantedAt))
+}
+
+// ReferralRewardGrantedAtNotNil applies the NotNil predicate on the "referral_reward_granted_at" field.
+func ReferralRewardGrantedAtNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldReferralRewardGrantedAt))
 }
 
 // HasAPIKeys applies the HasEdge predicate on the "api_keys" edge.

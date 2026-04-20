@@ -59,6 +59,8 @@ const (
 	FieldReferredByUserID = "referred_by_user_id"
 	// FieldReferralRewardAmount holds the string denoting the referral_reward_amount field in the database.
 	FieldReferralRewardAmount = "referral_reward_amount"
+	// FieldReferralRewardGrantedAt holds the string denoting the referral_reward_granted_at field in the database.
+	FieldReferralRewardGrantedAt = "referral_reward_granted_at"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
 	// EdgeRedeemCodes holds the string denoting the redeem_codes edge name in mutations.
@@ -194,6 +196,7 @@ var Columns = []string{
 	FieldReferralCode,
 	FieldReferredByUserID,
 	FieldReferralRewardAmount,
+	FieldReferralRewardGrantedAt,
 }
 
 var (
@@ -382,6 +385,11 @@ func ByReferredByUserID(opts ...sql.OrderTermOption) OrderOption {
 // ByReferralRewardAmount orders the results by the referral_reward_amount field.
 func ByReferralRewardAmount(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldReferralRewardAmount, opts...).ToFunc()
+}
+
+// ByReferralRewardGrantedAt orders the results by the referral_reward_granted_at field.
+func ByReferralRewardGrantedAt(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldReferralRewardGrantedAt, opts...).ToFunc()
 }
 
 // ByAPIKeysCount orders the results by api_keys count.

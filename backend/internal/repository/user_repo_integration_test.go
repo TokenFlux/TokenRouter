@@ -122,6 +122,32 @@ func (s *UserRepoSuite) TestGetByEmail() {
 	s.Require().Equal(user.ID, got.ID)
 }
 
+func (s *UserRepoSuite) TestSumReferralRewardsByInviter_OnlyCountsGrantedRewards() {
+	inviter := s.mustCreateUser(&service.User{Email: "inviter@test.com"})
+
+	inviterID := inviter.ID
+	grantedInvitee := s.mustCreateUser(&service.User{
+		Email:                "granted-invitee@test.com",
+		ReferredByUserID:     &inviterID,
+		ReferralRewardAmount: 8.5,
+	})
+	s.mustCreateUser(&service.User{
+		Email:                "pending-invitee@test.com",
+		ReferredByUserID:     &inviterID,
+		ReferralRewardAmount: 6.25,
+	})
+
+	grantedAt := time.Now().UTC().Truncate(time.Second)
+	err := s.client.User.UpdateOneID(grantedInvitee.ID).
+		SetReferralRewardGrantedAt(grantedAt).
+		Exec(s.ctx)
+	s.Require().NoError(err, "mark granted invitee")
+
+	sum, err := s.repo.SumReferralRewardsByInviter(s.ctx, inviter.ID)
+	s.Require().NoError(err, "SumReferralRewardsByInviter")
+	s.Require().Equal(8.5, sum)
+}
+
 func (s *UserRepoSuite) TestGetByEmail_NotFound() {
 	_, err := s.repo.GetByEmail(s.ctx, "nonexistent@test.com")
 	s.Require().Error(err, "expected error for non-existent email")

@@ -29147,6 +29147,7 @@ type UserMutation struct {
 	addreferred_by_user_id        *int64
 	referral_reward_amount        *float64
 	addreferral_reward_amount     *float64
+	referral_reward_granted_at    *time.Time
 	clearedFields                 map[string]struct{}
 	api_keys                      map[int64]struct{}
 	removedapi_keys               map[int64]struct{}
@@ -30263,6 +30264,55 @@ func (m *UserMutation) ResetReferralRewardAmount() {
 	m.addreferral_reward_amount = nil
 }
 
+// SetReferralRewardGrantedAt sets the "referral_reward_granted_at" field.
+func (m *UserMutation) SetReferralRewardGrantedAt(t time.Time) {
+	m.referral_reward_granted_at = &t
+}
+
+// ReferralRewardGrantedAt returns the value of the "referral_reward_granted_at" field in the mutation.
+func (m *UserMutation) ReferralRewardGrantedAt() (r time.Time, exists bool) {
+	v := m.referral_reward_granted_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldReferralRewardGrantedAt returns the old "referral_reward_granted_at" field's value of the User entity.
+// If the User object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UserMutation) OldReferralRewardGrantedAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldReferralRewardGrantedAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldReferralRewardGrantedAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldReferralRewardGrantedAt: %w", err)
+	}
+	return oldValue.ReferralRewardGrantedAt, nil
+}
+
+// ClearReferralRewardGrantedAt clears the value of the "referral_reward_granted_at" field.
+func (m *UserMutation) ClearReferralRewardGrantedAt() {
+	m.referral_reward_granted_at = nil
+	m.clearedFields[user.FieldReferralRewardGrantedAt] = struct{}{}
+}
+
+// ReferralRewardGrantedAtCleared returns if the "referral_reward_granted_at" field was cleared in this mutation.
+func (m *UserMutation) ReferralRewardGrantedAtCleared() bool {
+	_, ok := m.clearedFields[user.FieldReferralRewardGrantedAt]
+	return ok
+}
+
+// ResetReferralRewardGrantedAt resets all changes to the "referral_reward_granted_at" field.
+func (m *UserMutation) ResetReferralRewardGrantedAt() {
+	m.referral_reward_granted_at = nil
+	delete(m.clearedFields, user.FieldReferralRewardGrantedAt)
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by ids.
 func (m *UserMutation) AddAPIKeyIDs(ids ...int64) {
 	if m.api_keys == nil {
@@ -30891,7 +30941,7 @@ func (m *UserMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UserMutation) Fields() []string {
-	fields := make([]string, 0, 22)
+	fields := make([]string, 0, 23)
 	if m.created_at != nil {
 		fields = append(fields, user.FieldCreatedAt)
 	}
@@ -30958,6 +31008,9 @@ func (m *UserMutation) Fields() []string {
 	if m.referral_reward_amount != nil {
 		fields = append(fields, user.FieldReferralRewardAmount)
 	}
+	if m.referral_reward_granted_at != nil {
+		fields = append(fields, user.FieldReferralRewardGrantedAt)
+	}
 	return fields
 }
 
@@ -31010,6 +31063,8 @@ func (m *UserMutation) Field(name string) (ent.Value, bool) {
 		return m.ReferredByUserID()
 	case user.FieldReferralRewardAmount:
 		return m.ReferralRewardAmount()
+	case user.FieldReferralRewardGrantedAt:
+		return m.ReferralRewardGrantedAt()
 	}
 	return nil, false
 }
@@ -31063,6 +31118,8 @@ func (m *UserMutation) OldField(ctx context.Context, name string) (ent.Value, er
 		return m.OldReferredByUserID(ctx)
 	case user.FieldReferralRewardAmount:
 		return m.OldReferralRewardAmount(ctx)
+	case user.FieldReferralRewardGrantedAt:
+		return m.OldReferralRewardGrantedAt(ctx)
 	}
 	return nil, fmt.Errorf("unknown User field %s", name)
 }
@@ -31226,6 +31283,13 @@ func (m *UserMutation) SetField(name string, value ent.Value) error {
 		}
 		m.SetReferralRewardAmount(v)
 		return nil
+	case user.FieldReferralRewardGrantedAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetReferralRewardGrantedAt(v)
+		return nil
 	}
 	return fmt.Errorf("unknown User field %s", name)
 }
@@ -31346,6 +31410,9 @@ func (m *UserMutation) ClearedFields() []string {
 	if m.FieldCleared(user.FieldReferredByUserID) {
 		fields = append(fields, user.FieldReferredByUserID)
 	}
+	if m.FieldCleared(user.FieldReferralRewardGrantedAt) {
+		fields = append(fields, user.FieldReferralRewardGrantedAt)
+	}
 	return fields
 }
 
@@ -31374,6 +31441,9 @@ func (m *UserMutation) ClearField(name string) error {
 		return nil
 	case user.FieldReferredByUserID:
 		m.ClearReferredByUserID()
+		return nil
+	case user.FieldReferralRewardGrantedAt:
+		m.ClearReferralRewardGrantedAt()
 		return nil
 	}
 	return fmt.Errorf("unknown User nullable field %s", name)
@@ -31448,6 +31518,9 @@ func (m *UserMutation) ResetField(name string) error {
 		return nil
 	case user.FieldReferralRewardAmount:
 		m.ResetReferralRewardAmount()
+		return nil
+	case user.FieldReferralRewardGrantedAt:
+		m.ResetReferralRewardGrantedAt()
 		return nil
 	}
 	return fmt.Errorf("unknown User field %s", name)

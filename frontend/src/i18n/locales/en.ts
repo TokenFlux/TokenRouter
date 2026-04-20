@@ -881,9 +881,9 @@ export default {
     passwordChangeFailed: 'Failed to change password',
     referral: {
       title: 'Referral Rewards',
-      description: 'Share your personal invitation link and earn balance rewards when new users register through it',
+      description: 'Share your invitation link and both users receive balance rewards after the invitee completes their first successful paid order',
       inviteLink: 'Personal Invite Link',
-      inviteLinkHint: 'Send this link to new users. Rewards are credited automatically after registration',
+      inviteLinkHint: 'Send this link to new users. Rewards are credited automatically after the invitee completes their first successful paid order',
       codeLabel: 'Referral Code',
       totalInvited: 'Total Invited Users',
       totalReward: 'Total Reward Earned',
@@ -4443,10 +4443,10 @@ export default {
       },
       referral: {
         title: 'Referral Reward Settings',
-        description: 'Configure the balance reward granted when a user invites a new registration',
-        rewardAmount: 'Reward Amount Per Signup',
+        description: 'Configure the balance reward granted after an invitee completes their first successful paid order',
+        rewardAmount: 'Reward Amount Per Referral',
         rewardAmountPlaceholder: '0.00',
-        rewardAmountHint: 'Both the inviter and the invited user receive this balance reward when registration completes through an invite link'
+        rewardAmountHint: 'Both the inviter and the invited user receive this balance reward after the invitee registers through an invite link and completes their first successful paid order'
       },
       balanceDisplay: {
         title: 'Balance Display',

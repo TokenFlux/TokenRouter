@@ -666,6 +666,7 @@ func userEntityToService(u *dbent.User) *service.User {
 		ReferralCode:               u.ReferralCode,
 		ReferredByUserID:           u.ReferredByUserID,
 		ReferralRewardAmount:       u.ReferralRewardAmount,
+		ReferralRewardGrantedAt:    u.ReferralRewardGrantedAt,
 		CreatedAt:                  u.CreatedAt,
 		UpdatedAt:                  u.UpdatedAt,
 	}

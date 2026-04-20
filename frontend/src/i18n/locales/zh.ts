@@ -885,9 +885,9 @@ export default {
     passwordChangeFailed: '密码修改失败',
     referral: {
       title: '邀请返利',
-      description: '分享你的专属邀请链接，新用户通过该链接注册后你会自动获得余额返利',
+      description: '分享你的专属邀请链接，被邀请人首次成功付费后，双方会自动获得余额返利',
       inviteLink: '专属邀请链接',
-      inviteLinkHint: '将此链接发送给新用户，注册成功后系统会自动发放返利',
+      inviteLinkHint: '将此链接发送给新用户，被邀请人首次成功付费后系统会自动发放返利',
       codeLabel: '返利码',
       totalInvited: '累计邀请人数',
       totalReward: '累计返利额度',
@@ -4607,10 +4607,10 @@ export default {
       },
       referral: {
         title: '邀请返利设置',
-        description: '配置用户邀请新用户注册后的余额奖励',
+        description: '配置被邀请人首次成功付费后发放的余额奖励',
         rewardAmount: '单次返利额度',
         rewardAmountPlaceholder: '0.00',
-        rewardAmountHint: '每当有新用户通过邀请链接完成注册时，邀请人和被邀请人都会获得这笔余额奖励'
+        rewardAmountHint: '当被邀请人通过邀请链接注册，并完成首次成功付费后，邀请人和被邀请人都会获得这笔余额奖励'
       },
       balanceDisplay: {
         title: '余额展示设置',

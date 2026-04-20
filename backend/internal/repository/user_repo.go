@@ -622,7 +622,10 @@ func (r *userRepository) SumReferralRewardsByInviter(ctx context.Context, userID
 	}
 
 	err := client.User.Query().
-		Where(dbuser.ReferredByUserIDEQ(userID)).
+		Where(
+			dbuser.ReferredByUserIDEQ(userID),
+			dbuser.ReferralRewardGrantedAtNotNil(),
+		).
 		Aggregate(dbent.As(dbent.Sum(dbuser.FieldReferralRewardAmount), "sum")).
 		Scan(ctx, &result)
 	if err != nil {

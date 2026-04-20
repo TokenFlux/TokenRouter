@@ -339,6 +339,42 @@ func TestAuthService_Register_Success(t *testing.T) {
 	require.True(t, user.CheckPassword("password"))
 }
 
+func TestAuthService_RegisterWithReferral_DoesNotGrantImmediateReward(t *testing.T) {
+	repo := &userRepoStub{
+		nextID: 6,
+		user: &User{
+			ID:           99,
+			Email:        "inviter@test.com",
+			Balance:      100,
+			ReferralCode: "ref123",
+		},
+	}
+	service := newAuthService(repo, map[string]string{
+		SettingKeyRegistrationEnabled:  "true",
+		SettingKeyReferralRewardAmount: "8.5",
+	}, nil)
+
+	token, user, err := service.RegisterWithReferral(
+		context.Background(),
+		"invitee@test.com",
+		"password",
+		"",
+		"",
+		"",
+		"ref123",
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, token)
+	require.NotNil(t, user)
+	require.Equal(t, 3.5, user.Balance, "注册阶段不应立即发放邀请返利")
+	require.Equal(t, int64(99), *user.ReferredByUserID)
+	require.Equal(t, 8.5, user.ReferralRewardAmount)
+	require.Nil(t, user.ReferralRewardGrantedAt)
+	require.Equal(t, 100.0, repo.user.Balance, "邀请人在注册阶段不应立即获得返利")
+	require.Len(t, repo.created, 1)
+	require.Equal(t, 3.5, repo.created[0].Balance, "落库初始余额应保持默认值")
+}
+
 func TestAuthService_ValidateToken_ExpiredReturnsClaimsWithError(t *testing.T) {
 	repo := &userRepoStub{}
 	service := newAuthService(repo, nil, nil)

@@ -61,6 +61,8 @@ type User struct {
 	ReferredByUserID *int64 `json:"referred_by_user_id,omitempty"`
 	// ReferralRewardAmount holds the value of the "referral_reward_amount" field.
 	ReferralRewardAmount float64 `json:"referral_reward_amount,omitempty"`
+	// ReferralRewardGrantedAt holds the value of the "referral_reward_granted_at" field.
+	ReferralRewardGrantedAt *time.Time `json:"referral_reward_granted_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the UserQuery when eager-loading is set.
 	Edges        UserEdges `json:"edges"`
@@ -219,7 +221,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullInt64)
 		case user.FieldEmail, user.FieldPasswordHash, user.FieldRole, user.FieldStatus, user.FieldUsername, user.FieldNotes, user.FieldTotpSecretEncrypted, user.FieldBalanceNotifyThresholdType, user.FieldBalanceNotifyExtraEmails, user.FieldReferralCode:
 			values[i] = new(sql.NullString)
-		case user.FieldCreatedAt, user.FieldUpdatedAt, user.FieldDeletedAt, user.FieldTotpEnabledAt:
+		case user.FieldCreatedAt, user.FieldUpdatedAt, user.FieldDeletedAt, user.FieldTotpEnabledAt, user.FieldReferralRewardGrantedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -378,6 +380,13 @@ func (_m *User) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field referral_reward_amount", values[i])
 			} else if value.Valid {
 				_m.ReferralRewardAmount = value.Float64
+			}
+		case user.FieldReferralRewardGrantedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field referral_reward_granted_at", values[i])
+			} else if value.Valid {
+				_m.ReferralRewardGrantedAt = new(time.Time)
+				*_m.ReferralRewardGrantedAt = value.Time
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -550,6 +559,11 @@ func (_m *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("referral_reward_amount=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ReferralRewardAmount))
+	builder.WriteString(", ")
+	if v := _m.ReferralRewardGrantedAt; v != nil {
+		builder.WriteString("referral_reward_granted_at=")
+		builder.WriteString(v.Format(time.ANSIC))
+	}
 	builder.WriteByte(')')
 	return builder.String()
 }

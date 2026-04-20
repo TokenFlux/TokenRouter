@@ -42,6 +42,7 @@ type User struct {
 	ReferralCode               string
 	ReferredByUserID           *int64
 	ReferralRewardAmount       float64
+	ReferralRewardGrantedAt    *time.Time
 
 	APIKeys       []APIKey
 	Subscriptions []UserSubscription

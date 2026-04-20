@@ -324,6 +324,20 @@ func (_c *UserCreate) SetNillableReferralRewardAmount(v *float64) *UserCreate {
 	return _c
 }
 
+// SetReferralRewardGrantedAt sets the "referral_reward_granted_at" field.
+func (_c *UserCreate) SetReferralRewardGrantedAt(v time.Time) *UserCreate {
+	_c.mutation.SetReferralRewardGrantedAt(v)
+	return _c
+}
+
+// SetNillableReferralRewardGrantedAt sets the "referral_reward_granted_at" field if the given value is not nil.
+func (_c *UserCreate) SetNillableReferralRewardGrantedAt(v *time.Time) *UserCreate {
+	if v != nil {
+		_c.SetReferralRewardGrantedAt(*v)
+	}
+	return _c
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_c *UserCreate) AddAPIKeyIDs(ids ...int64) *UserCreate {
 	_c.mutation.AddAPIKeyIDs(ids...)
@@ -792,6 +806,10 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ReferralRewardAmount(); ok {
 		_spec.SetField(user.FieldReferralRewardAmount, field.TypeFloat64, value)
 		_node.ReferralRewardAmount = value
+	}
+	if value, ok := _c.mutation.ReferralRewardGrantedAt(); ok {
+		_spec.SetField(user.FieldReferralRewardGrantedAt, field.TypeTime, value)
+		_node.ReferralRewardGrantedAt = &value
 	}
 	if nodes := _c.mutation.APIKeysIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
@@ -1343,6 +1361,24 @@ func (u *UserUpsert) AddReferralRewardAmount(v float64) *UserUpsert {
 	return u
 }
 
+// SetReferralRewardGrantedAt sets the "referral_reward_granted_at" field.
+func (u *UserUpsert) SetReferralRewardGrantedAt(v time.Time) *UserUpsert {
+	u.Set(user.FieldReferralRewardGrantedAt, v)
+	return u
+}
+
+// UpdateReferralRewardGrantedAt sets the "referral_reward_granted_at" field to the value that was provided on create.
+func (u *UserUpsert) UpdateReferralRewardGrantedAt() *UserUpsert {
+	u.SetExcluded(user.FieldReferralRewardGrantedAt)
+	return u
+}
+
+// ClearReferralRewardGrantedAt clears the value of the "referral_reward_granted_at" field.
+func (u *UserUpsert) ClearReferralRewardGrantedAt() *UserUpsert {
+	u.SetNull(user.FieldReferralRewardGrantedAt)
+	return u
+}
+
 // UpdateNewValues updates the mutable fields using the new values that were set on create.
 // Using this option is equivalent to using:
 //
@@ -1756,6 +1792,27 @@ func (u *UserUpsertOne) AddReferralRewardAmount(v float64) *UserUpsertOne {
 func (u *UserUpsertOne) UpdateReferralRewardAmount() *UserUpsertOne {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateReferralRewardAmount()
+	})
+}
+
+// SetReferralRewardGrantedAt sets the "referral_reward_granted_at" field.
+func (u *UserUpsertOne) SetReferralRewardGrantedAt(v time.Time) *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.SetReferralRewardGrantedAt(v)
+	})
+}
+
+// UpdateReferralRewardGrantedAt sets the "referral_reward_granted_at" field to the value that was provided on create.
+func (u *UserUpsertOne) UpdateReferralRewardGrantedAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateReferralRewardGrantedAt()
+	})
+}
+
+// ClearReferralRewardGrantedAt clears the value of the "referral_reward_granted_at" field.
+func (u *UserUpsertOne) ClearReferralRewardGrantedAt() *UserUpsertOne {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearReferralRewardGrantedAt()
 	})
 }
 
@@ -2338,6 +2395,27 @@ func (u *UserUpsertBulk) AddReferralRewardAmount(v float64) *UserUpsertBulk {
 func (u *UserUpsertBulk) UpdateReferralRewardAmount() *UserUpsertBulk {
 	return u.Update(func(s *UserUpsert) {
 		s.UpdateReferralRewardAmount()
+	})
+}
+
+// SetReferralRewardGrantedAt sets the "referral_reward_granted_at" field.
+func (u *UserUpsertBulk) SetReferralRewardGrantedAt(v time.Time) *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.SetReferralRewardGrantedAt(v)
+	})
+}
+
+// UpdateReferralRewardGrantedAt sets the "referral_reward_granted_at" field to the value that was provided on create.
+func (u *UserUpsertBulk) UpdateReferralRewardGrantedAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.UpdateReferralRewardGrantedAt()
+	})
+}
+
+// ClearReferralRewardGrantedAt clears the value of the "referral_reward_granted_at" field.
+func (u *UserUpsertBulk) ClearReferralRewardGrantedAt() *UserUpsertBulk {
+	return u.Update(func(s *UserUpsert) {
+		s.ClearReferralRewardGrantedAt()
 	})
 }
 

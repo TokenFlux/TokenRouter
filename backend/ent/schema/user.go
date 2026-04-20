@@ -97,6 +97,10 @@ func (User) Fields() []ent.Field {
 		field.Float("referral_reward_amount").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}).
 			Default(0),
+		field.Time("referral_reward_granted_at").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
 	}
 }
 

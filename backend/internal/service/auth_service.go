@@ -832,35 +832,11 @@ func (s *AuthService) createRegisteredUser(ctx context.Context, user *User, arti
 			}
 		}
 
-		if artifacts.inviter != nil && artifacts.rewardAmount > 0 {
-			if err := s.userRepo.AddBalance(runCtx, user.ID, artifacts.rewardAmount); err != nil {
-				return err
-			}
-			user.Balance += artifacts.rewardAmount
-			if err := s.createReferralRewardRedeemRecord(runCtx, user.ID, artifacts.rewardAmount); err != nil {
-				return err
-			}
-
-			if err := s.userRepo.AddBalance(runCtx, artifacts.inviter.ID, artifacts.rewardAmount); err != nil {
-				return err
-			}
-			if err := s.createReferralRewardRedeemRecord(runCtx, artifacts.inviter.ID, artifacts.rewardAmount); err != nil {
-				return err
-			}
-		}
-
 		return nil
 	}
 
 	if s.entClient == nil {
-		if err := run(ctx); err != nil {
-			return err
-		}
-		if artifacts.inviter != nil && artifacts.rewardAmount > 0 {
-			s.invalidateUserBalanceCaches(ctx, user.ID)
-			s.invalidateUserBalanceCaches(ctx, artifacts.inviter.ID)
-		}
-		return nil
+		return run(ctx)
 	}
 
 	tx, err := s.entClient.Tx(ctx)
@@ -876,58 +852,7 @@ func (s *AuthService) createRegisteredUser(ctx context.Context, user *User, arti
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-
-	if artifacts.inviter != nil && artifacts.rewardAmount > 0 {
-		s.invalidateUserBalanceCaches(ctx, user.ID)
-		s.invalidateUserBalanceCaches(ctx, artifacts.inviter.ID)
-	}
 	return nil
-}
-
-func (s *AuthService) createReferralRewardRedeemRecord(ctx context.Context, userID int64, amount float64) error {
-	code, err := GenerateRedeemCode()
-	if err != nil {
-		return fmt.Errorf("generate referral reward redeem code: %w", err)
-	}
-
-	usedAt := time.Now()
-	record := &RedeemCode{
-		Code:      code,
-		Type:      RedeemTypeReferralReward,
-		Value:     amount,
-		Status:    StatusUsed,
-		MaxUses:   1,
-		UsedCount: 1,
-		UsedBy:    &userID,
-		UsedAt:    &usedAt,
-	}
-
-	if err := s.redeemRepo.Create(ctx, record); err != nil {
-		return fmt.Errorf("create referral reward redeem code: %w", err)
-	}
-	if err := s.redeemRepo.CreateUsage(ctx, &RedeemCodeUsage{
-		RedeemCodeID: record.ID,
-		UserID:       userID,
-		UsedAt:       usedAt,
-	}); err != nil {
-		return fmt.Errorf("create referral reward usage: %w", err)
-	}
-	return nil
-}
-
-func (s *AuthService) invalidateUserBalanceCaches(ctx context.Context, userID int64) {
-	if s.authCacheInvalidator != nil {
-		s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
-	}
-	if s.billingCache != nil {
-		go func() {
-			cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := s.billingCache.InvalidateUserBalance(cacheCtx, userID); err != nil {
-				logger.LegacyPrintf("service.auth", "[Auth] Failed to invalidate balance cache for user %d: %v", userID, err)
-			}
-		}()
-	}
 }
 
 func (s *AuthService) validateRegistrationEmailPolicy(ctx context.Context, email string) error {

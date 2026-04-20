@@ -396,6 +396,26 @@ func (_u *UserUpdate) AddReferralRewardAmount(v float64) *UserUpdate {
 	return _u
 }
 
+// SetReferralRewardGrantedAt sets the "referral_reward_granted_at" field.
+func (_u *UserUpdate) SetReferralRewardGrantedAt(v time.Time) *UserUpdate {
+	_u.mutation.SetReferralRewardGrantedAt(v)
+	return _u
+}
+
+// SetNillableReferralRewardGrantedAt sets the "referral_reward_granted_at" field if the given value is not nil.
+func (_u *UserUpdate) SetNillableReferralRewardGrantedAt(v *time.Time) *UserUpdate {
+	if v != nil {
+		_u.SetReferralRewardGrantedAt(*v)
+	}
+	return _u
+}
+
+// ClearReferralRewardGrantedAt clears the value of the "referral_reward_granted_at" field.
+func (_u *UserUpdate) ClearReferralRewardGrantedAt() *UserUpdate {
+	_u.mutation.ClearReferralRewardGrantedAt()
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *UserUpdate) AddAPIKeyIDs(ids ...int64) *UserUpdate {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -981,6 +1001,12 @@ func (_u *UserUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedReferralRewardAmount(); ok {
 		_spec.AddField(user.FieldReferralRewardAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.ReferralRewardGrantedAt(); ok {
+		_spec.SetField(user.FieldReferralRewardGrantedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ReferralRewardGrantedAtCleared() {
+		_spec.ClearField(user.FieldReferralRewardGrantedAt, field.TypeTime)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -1867,6 +1893,26 @@ func (_u *UserUpdateOne) AddReferralRewardAmount(v float64) *UserUpdateOne {
 	return _u
 }
 
+// SetReferralRewardGrantedAt sets the "referral_reward_granted_at" field.
+func (_u *UserUpdateOne) SetReferralRewardGrantedAt(v time.Time) *UserUpdateOne {
+	_u.mutation.SetReferralRewardGrantedAt(v)
+	return _u
+}
+
+// SetNillableReferralRewardGrantedAt sets the "referral_reward_granted_at" field if the given value is not nil.
+func (_u *UserUpdateOne) SetNillableReferralRewardGrantedAt(v *time.Time) *UserUpdateOne {
+	if v != nil {
+		_u.SetReferralRewardGrantedAt(*v)
+	}
+	return _u
+}
+
+// ClearReferralRewardGrantedAt clears the value of the "referral_reward_granted_at" field.
+func (_u *UserUpdateOne) ClearReferralRewardGrantedAt() *UserUpdateOne {
+	_u.mutation.ClearReferralRewardGrantedAt()
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *UserUpdateOne) AddAPIKeyIDs(ids ...int64) *UserUpdateOne {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -2482,6 +2528,12 @@ func (_u *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) {
 	}
 	if value, ok := _u.mutation.AddedReferralRewardAmount(); ok {
 		_spec.AddField(user.FieldReferralRewardAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.ReferralRewardGrantedAt(); ok {
+		_spec.SetField(user.FieldReferralRewardGrantedAt, field.TypeTime, value)
+	}
+	if _u.mutation.ReferralRewardGrantedAtCleared() {
+		_spec.ClearField(user.FieldReferralRewardGrantedAt, field.TypeTime)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{
