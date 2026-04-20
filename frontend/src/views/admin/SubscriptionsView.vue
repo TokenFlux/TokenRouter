@@ -227,9 +227,9 @@
                     ></div>
                   </div>
                   <span class="usage-amount">
-                    ${{ row.daily_usage_usd?.toFixed(2) || '0.00' }}
+                    {{ formatSubscriptionBalance(row.daily_usage_usd) }}
                     <span class="text-gray-400">/</span>
-                    ${{ row.group?.daily_limit_usd?.toFixed(2) }}
+                    {{ formatSubscriptionBalance(row.group?.daily_limit_usd) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.daily_window_start">
@@ -264,9 +264,9 @@
                     ></div>
                   </div>
                   <span class="usage-amount">
-                    ${{ row.weekly_usage_usd?.toFixed(2) || '0.00' }}
+                    {{ formatSubscriptionBalance(row.weekly_usage_usd) }}
                     <span class="text-gray-400">/</span>
-                    ${{ row.group?.weekly_limit_usd?.toFixed(2) }}
+                    {{ formatSubscriptionBalance(row.group?.weekly_limit_usd) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.weekly_window_start">
@@ -301,9 +301,9 @@
                     ></div>
                   </div>
                   <span class="usage-amount">
-                    ${{ row.monthly_usage_usd?.toFixed(2) || '0.00' }}
+                    {{ formatSubscriptionBalance(row.monthly_usage_usd) }}
                     <span class="text-gray-400">/</span>
-                    ${{ row.group?.monthly_limit_usd?.toFixed(2) }}
+                    {{ formatSubscriptionBalance(row.group?.monthly_limit_usd) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.monthly_window_start">
@@ -742,6 +742,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { UserSubscription, Group, GroupPlatform, SubscriptionType } from '@/types'
 import type { SimpleUser } from '@/api/admin/usage'
 import type { Column } from '@/components/common/types'
@@ -761,6 +762,7 @@ import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
 const appStore = useAppStore()
+const { formatBalanceAmount } = useBalanceDisplay()
 
 interface GroupOption {
   value: number
@@ -779,6 +781,9 @@ const guideActionRows = computed(() => [
   { action: t('admin.subscriptions.guide.actions.resetQuota'), desc: t('admin.subscriptions.guide.actions.resetQuotaDesc') },
   { action: t('admin.subscriptions.guide.actions.revoke'), desc: t('admin.subscriptions.guide.actions.revokeDesc') }
 ])
+
+const formatSubscriptionBalance = (value: number | null | undefined): string =>
+  formatBalanceAmount(value, { fractionDigits: 2 })
 
 // User column display mode: 'email' or 'username'
 const userColumnMode = ref<'email' | 'username'>('email')

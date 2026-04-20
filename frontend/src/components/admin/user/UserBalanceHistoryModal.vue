@@ -28,7 +28,7 @@
           <div class="flex-shrink-0 text-right">
             <p class="text-xs text-gray-500 dark:text-dark-400">{{ t('admin.users.currentBalance') }}</p>
             <p class="text-xl font-bold text-gray-900 dark:text-white">
-              ${{ user.balance?.toFixed(2) || '0.00' }}
+              {{ formatBalanceAmount(user.balance || 0) }}
             </p>
           </div>
         </div>
@@ -39,7 +39,7 @@
             <template v-else>&nbsp;</template>
           </p>
           <p class="ml-4 flex-shrink-0 text-xs text-gray-500 dark:text-dark-400">
-            {{ t('admin.users.totalRecharged') }}: <span class="font-semibold text-emerald-600 dark:text-emerald-400">${{ totalRecharged.toFixed(2) }}</span>
+            {{ t('admin.users.totalRecharged') }}: <span class="font-semibold text-emerald-600 dark:text-emerald-400">{{ formatBalanceAmount(totalRecharged) }}</span>
           </p>
         </div>
       </div>
@@ -103,7 +103,17 @@
                   getIconBg(item)
                 ]"
               >
-                <Icon :name="getIconName(item)" size="sm" :class="getIconColor(item)" />
+                <BalanceIcon
+                  v-if="isBalanceType(item.type)"
+                  size="sm"
+                  :class="getIconColor(item)"
+                />
+                <Icon
+                  v-else
+                  :name="getIconName(item)"
+                  size="sm"
+                  :class="getIconColor(item)"
+                />
               </div>
               <div>
                 <p class="text-sm font-medium text-gray-900 dark:text-white">
@@ -175,12 +185,15 @@ import { adminAPI, type BalanceHistoryItem } from '@/api/admin'
 import { formatDateTime } from '@/utils/format'
 import type { AdminUser } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import BalanceIcon from '@/components/common/BalanceIcon.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 
 const props = defineProps<{ show: boolean; user: AdminUser | null; hideActions?: boolean }>()
 const emit = defineEmits(['close', 'deposit', 'withdraw'])
 const { t } = useI18n()
+const { formatBalanceAmount } = useBalanceDisplay()
 
 const history = ref<BalanceHistoryItem[]>([])
 const loading = ref(false)
@@ -244,7 +257,6 @@ const isSubscriptionType = (type: string) => type === 'subscription'
 
 // Icon name based on type
 const getIconName = (item: BalanceHistoryItem) => {
-  if (isBalanceType(item.type)) return 'dollar'
   if (isSubscriptionType(item.type)) return 'badge'
   return 'bolt' // concurrency
 }
@@ -312,7 +324,7 @@ const getItemTitle = (item: BalanceHistoryItem) => {
 const formatValue = (item: BalanceHistoryItem) => {
   if (isBalanceType(item.type)) {
     const sign = item.value >= 0 ? '+' : ''
-    return `${sign}$${item.value.toFixed(2)}`
+    return `${sign}${formatBalanceAmount(Math.abs(item.value))}`
   }
   if (isSubscriptionType(item.type)) {
     const days = item.validity_days || Math.round(item.value)

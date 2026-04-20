@@ -144,7 +144,7 @@
                   "
                 >
                   <span v-if="row.daily_limit_usd"
-                    >${{ row.daily_limit_usd }}/{{
+                    >{{ formatGroupBalance(row.daily_limit_usd) }}/{{
                       t("admin.groups.limitDay")
                     }}</span
                   >
@@ -157,7 +157,7 @@
                     >·</span
                   >
                   <span v-if="row.weekly_limit_usd"
-                    >${{ row.weekly_limit_usd }}/{{
+                    >{{ formatGroupBalance(row.weekly_limit_usd) }}/{{
                       t("admin.groups.limitWeek")
                     }}</span
                   >
@@ -167,7 +167,7 @@
                     >·</span
                   >
                   <span v-if="row.monthly_limit_usd"
-                    >${{ row.monthly_limit_usd }}/{{
+                    >{{ formatGroupBalance(row.monthly_limit_usd) }}/{{
                       t("admin.groups.limitMonth")
                     }}</span
                   >
@@ -261,8 +261,8 @@
                   t("admin.groups.usageToday")
                 }}</span>
                 <span class="ml-1 font-medium text-gray-700 dark:text-gray-300"
-                  >${{
-                    formatCost(usageMap.get(row.id)?.today_cost ?? 0)
+                  >{{
+                    formatGroupBalance(usageMap.get(row.id)?.today_cost ?? 0)
                   }}</span
                 >
               </div>
@@ -271,8 +271,8 @@
                   t("admin.groups.usageTotal")
                 }}</span>
                 <span class="ml-1 font-medium text-gray-700 dark:text-gray-300"
-                  >${{
-                    formatCost(usageMap.get(row.id)?.total_cost ?? 0)
+                  >{{
+                    formatGroupBalance(usageMap.get(row.id)?.total_cost ?? 0)
                   }}</span
                 >
               </div>
@@ -646,7 +646,7 @@
           </p>
           <div class="grid grid-cols-3 gap-3">
             <div>
-              <label class="input-label">1K ($)</label>
+              <label class="input-label">{{ imagePriceLabel("1K") }}</label>
               <input
                 v-model.number="createForm.image_price_1k"
                 type="number"
@@ -657,7 +657,7 @@
               />
             </div>
             <div>
-              <label class="input-label">2K ($)</label>
+              <label class="input-label">{{ imagePriceLabel("2K") }}</label>
               <input
                 v-model.number="createForm.image_price_2k"
                 type="number"
@@ -668,7 +668,7 @@
               />
             </div>
             <div>
-              <label class="input-label">4K ($)</label>
+              <label class="input-label">{{ imagePriceLabel("4K") }}</label>
               <input
                 v-model.number="createForm.image_price_4k"
                 type="number"
@@ -1768,7 +1768,7 @@
           </p>
           <div class="grid grid-cols-3 gap-3">
             <div>
-              <label class="input-label">1K ($)</label>
+              <label class="input-label">{{ imagePriceLabel("1K") }}</label>
               <input
                 v-model.number="editForm.image_price_1k"
                 type="number"
@@ -1779,7 +1779,7 @@
               />
             </div>
             <div>
-              <label class="input-label">2K ($)</label>
+              <label class="input-label">{{ imagePriceLabel("2K") }}</label>
               <input
                 v-model.number="editForm.image_price_2k"
                 type="number"
@@ -1790,7 +1790,7 @@
               />
             </div>
             <div>
-              <label class="input-label">4K ($)</label>
+              <label class="input-label">{{ imagePriceLabel("4K") }}</label>
               <input
                 v-model.number="editForm.image_price_4k"
                 type="number"
@@ -2696,6 +2696,7 @@ import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/app";
 import { useOnboardingStore } from "@/stores/onboarding";
 import { adminAPI } from "@/api/admin";
+import { useBalanceDisplay } from "@/composables/useBalanceDisplay";
 import type { AdminGroup, GroupPlatform, SubscriptionType } from "@/types";
 import type { Column } from "@/components/common/types";
 import AppLayout from "@/components/layout/AppLayout.vue";
@@ -2725,6 +2726,7 @@ import {
 const { t } = useI18n();
 const appStore = useAppStore();
 const onboardingStore = useOnboardingStore();
+const { balanceUnitSymbol, formatBalanceAmount } = useBalanceDisplay();
 
 const columns = computed<Column[]>(() => [
   { key: "name", label: t("admin.groups.columns.name"), sortable: true },
@@ -3331,11 +3333,11 @@ const loadGroups = async () => {
   }
 };
 
-const formatCost = (cost: number): string => {
-  if (cost >= 1000) return cost.toFixed(0);
-  if (cost >= 100) return cost.toFixed(1);
-  return cost.toFixed(2);
-};
+const formatGroupBalance = (cost: number | null | undefined): string =>
+  formatBalanceAmount(cost, { fractionDigits: 2 });
+
+const imagePriceLabel = (size: string): string =>
+  `${size} (${balanceUnitSymbol.value})`;
 
 const loadUsageSummary = async () => {
   usageLoading.value = true;

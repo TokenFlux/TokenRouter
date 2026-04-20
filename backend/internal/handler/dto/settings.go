@@ -94,6 +94,9 @@ type SystemSettings struct {
 	DefaultConcurrency   int                          `json:"default_concurrency"`
 	DefaultBalance       float64                      `json:"default_balance"`
 	DefaultSubscriptions []DefaultSubscriptionSetting `json:"default_subscriptions"`
+	BalanceUnitName      string                       `json:"balance_unit_name"`
+	BalanceUnitSymbol    string                       `json:"balance_unit_symbol"`
+	BalanceIconSVG       string                       `json:"balance_icon_svg"`
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -197,6 +200,9 @@ type PublicSettings struct {
 	BackendModeEnabled               bool             `json:"backend_mode_enabled"`
 	PaymentEnabled                   bool             `json:"payment_enabled"`
 	Version                          string           `json:"version"`
+	BalanceUnitName                  string           `json:"balance_unit_name"`
+	BalanceUnitSymbol                string           `json:"balance_unit_symbol"`
+	BalanceIconSVG                   string           `json:"balance_icon_svg"`
 	BalanceLowNotifyEnabled          bool             `json:"balance_low_notify_enabled"`
 	AccountQuotaNotifyEnabled        bool             `json:"account_quota_notify_enabled"`
 	BalanceLowNotifyThreshold        float64          `json:"balance_low_notify_threshold"`

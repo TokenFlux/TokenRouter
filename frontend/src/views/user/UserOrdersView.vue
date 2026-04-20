@@ -62,7 +62,7 @@
           </div>
           <div class="mt-2 flex justify-between text-sm">
             <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-            <span class="text-gray-900 dark:text-white">${{ refundTarget.amount.toFixed(2) }}</span>
+            <span class="text-gray-900 dark:text-white">{{ formatOrderAmount(refundTarget.amount, refundTarget.order_type) }}</span>
           </div>
         </div>
         <div>
@@ -85,6 +85,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import type { PaymentOrder } from '@/types/payment'
@@ -98,6 +99,7 @@ import OrderTable from '@/components/payment/OrderTable.vue'
 const { t } = useI18n()
 const router = useRouter()
 const appStore = useAppStore()
+const { formatBalanceAmount } = useBalanceDisplay()
 
 const loading = ref(false)
 const actionLoading = ref(false)
@@ -155,6 +157,10 @@ async function confirmCancel() {
 }
 
 function openRefundDialog(order: PaymentOrder) { refundTarget.value = order; refundReason.value = '' }
+
+function formatOrderAmount(amount: number, orderType: string): string {
+  return orderType === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : `¥${amount.toFixed(2)}`
+}
 
 async function confirmRefund() {
   if (!refundTarget.value || !refundReason.value.trim()) return

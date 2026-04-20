@@ -128,9 +128,13 @@ export interface PublicSettings {
   oidc_oauth_provider_name: string
   backend_mode_enabled: boolean
   version: string
+  balance_unit_name: string
+  balance_unit_symbol: string
+  balance_icon_svg: string
   balance_low_notify_enabled: boolean
   account_quota_notify_enabled: boolean
   balance_low_notify_threshold: number
+  balance_low_notify_recharge_url?: string
 }
 
 export interface AuthResponse {

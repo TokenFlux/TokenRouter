@@ -7,11 +7,11 @@
           <div
             class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm"
           >
-            <Icon name="creditCard" size="xl" class="text-white" />
+            <BalanceIcon size="xl" class="text-white" />
           </div>
           <p class="text-sm font-medium text-primary-100">{{ t('redeem.currentBalance') }}</p>
           <p class="mt-2 text-4xl font-bold text-white">
-            ${{ user?.balance?.toFixed(2) || '0.00' }}
+            {{ formatBalanceAmount(user?.balance, { fractionDigits: 2 }) }}
           </p>
           <p class="mt-2 text-sm text-primary-100">
             {{ t('redeem.concurrency') }}: {{ user?.concurrency || 0 }} {{ t('redeem.requests') }}
@@ -99,7 +99,7 @@
                   <p>{{ redeemResult.message }}</p>
                   <div class="mt-3 space-y-1">
                     <p v-if="redeemResult.type === 'balance'" class="font-medium">
-                      {{ t('redeem.added') }}: ${{ redeemResult.value.toFixed(2) }}
+                      {{ t('redeem.added') }}: {{ formatSignedBalanceAmount(redeemResult.value, 2) }}
                     </p>
                     <p v-else-if="redeemResult.type === 'concurrency'" class="font-medium">
                       {{ t('redeem.added') }}: {{ redeemResult.value }}
@@ -116,7 +116,7 @@
                     </p>
                     <p v-if="redeemResult.new_balance !== undefined">
                       {{ t('redeem.newBalance') }}:
-                      <span class="font-semibold">${{ redeemResult.new_balance.toFixed(2) }}</span>
+                      <span class="font-semibold">{{ formatBalanceAmount(redeemResult.new_balance, { fractionDigits: 2 }) }}</span>
                     </p>
                     <p v-if="redeemResult.new_concurrency !== undefined">
                       {{ t('redeem.newConcurrency') }}:
@@ -248,9 +248,8 @@
                   ]"
                 >
                   <!-- 余额类型图标 -->
-                  <Icon
+                  <BalanceIcon
                     v-if="isBalanceType(item.type)"
-                    name="dollar"
                     size="md"
                     :class="
                       item.value >= 0
@@ -350,13 +349,16 @@ import { useSubscriptionStore } from '@/stores/subscriptions'
 import { redeemAPI, authAPI, type RedeemHistoryItem } from '@/api'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import BalanceIcon from '@/components/common/BalanceIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { formatDateTime } from '@/utils/format'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
 const appStore = useAppStore()
 const subscriptionStore = useSubscriptionStore()
+const { formatBalanceAmount } = useBalanceDisplay()
 
 const user = computed(() => authStore.user)
 
@@ -416,8 +418,7 @@ const getHistoryItemTitle = (item: RedeemHistoryItem) => {
 
 const formatHistoryValue = (item: RedeemHistoryItem) => {
   if (isBalanceType(item.type)) {
-    const sign = item.value >= 0 ? '+' : ''
-    return `${sign}$${item.value.toFixed(2)}`
+    return formatSignedBalanceAmount(item.value, 2)
   } else if (isSubscriptionType(item.type)) {
     // 订阅类型显示有效天数和分组名称
     const days = item.validity_days || Math.round(item.value)
@@ -427,6 +428,11 @@ const formatHistoryValue = (item: RedeemHistoryItem) => {
     const sign = item.value >= 0 ? '+' : ''
     return `${sign}${item.value} ${t('redeem.requests')}`
   }
+}
+
+const formatSignedBalanceAmount = (value: number, fractionDigits: number) => {
+  const sign = value >= 0 ? '+' : '-'
+  return `${sign}${formatBalanceAmount(Math.abs(value), { fractionDigits })}`
 }
 
 const fetchHistory = async () => {

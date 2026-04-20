@@ -31,6 +31,9 @@ export interface SystemSettings {
   default_concurrency: number
   default_subscriptions: DefaultSubscriptionSetting[]
   referral_reward_amount: number
+  balance_unit_name: string
+  balance_unit_symbol: string
+  balance_icon_svg: string
   // OEM settings
   site_name: string
   site_logo: string
@@ -162,6 +165,9 @@ export interface UpdateSettingsRequest {
   default_concurrency?: number
   default_subscriptions?: DefaultSubscriptionSetting[]
   referral_reward_amount?: number
+  balance_unit_name?: string
+  balance_unit_symbol?: string
+  balance_icon_svg?: string
   site_name?: string
   site_logo?: string
   site_subtitle?: string

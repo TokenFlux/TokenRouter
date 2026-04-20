@@ -100,7 +100,7 @@
           <template #cell-value="{ value, row }">
             <span class="text-sm font-medium text-gray-900 dark:text-white">
               <template v-if="row.type === 'balance' || row.type === 'referral_reward'">
-                ${{ value.toFixed(2) }}
+                {{ formatBalanceAmount(value, { fractionDigits: 2 }) }}
               </template>
               <template v-else-if="row.type === 'subscription'">
                 {{ row.validity_days || 30 }} {{ t('admin.redeem.days') }}
@@ -464,6 +464,7 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useClipboard } from '@/composables/useClipboard'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
 import { formatDateTime, parseDateTimeLocalInput } from '@/utils/format'
@@ -482,6 +483,7 @@ import Icon from '@/components/icons/Icon.vue'
 const { t } = useI18n()
 const appStore = useAppStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
+const { formatBalanceAmount } = useBalanceDisplay()
 
 interface GroupOption {
   value: number

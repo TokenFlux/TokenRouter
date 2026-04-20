@@ -54,14 +54,14 @@
       <template #cell-pay_amount="{ value, row }">
         <div class="text-sm">
           <span class="font-medium text-gray-900 dark:text-white">¥{{ value.toFixed(2) }}</span>
-          <span v-if="row.fee_rate > 0" class="ml-1 text-xs text-gray-400" :title="t('payment.orders.fee') + ': ' + row.fee_rate + '%'">
-            ({{ row.fee_rate }}%)
-          </span>
-          <div v-if="row.amount !== row.pay_amount" class="text-xs text-gray-500">
-            {{ t('payment.orders.creditedAmount') }}: {{ row.order_type === 'balance' ? '$' : '¥' }}{{ row.amount.toFixed(2) }}
-          </div>
+        <span v-if="row.fee_rate > 0" class="ml-1 text-xs text-gray-400" :title="t('payment.orders.fee') + ': ' + row.fee_rate + '%'">
+          ({{ row.fee_rate }}%)
+        </span>
+        <div v-if="row.amount !== row.pay_amount" class="text-xs text-gray-500">
+            {{ t('payment.orders.creditedAmount') }}: {{ formatOrderAmount(row.amount, row.order_type) }}
         </div>
-      </template>
+      </div>
+    </template>
 
       <template #cell-payment_type="{ value }">
         <span class="text-sm text-gray-700 dark:text-gray-300">
@@ -136,6 +136,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { PaymentOrder } from '@/types/payment'
 import type { Column } from '@/components/common/types'
 import DataTable from '@/components/common/DataTable.vue'
@@ -145,6 +146,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { statusBadgeClass, canRefund, formatOrderDateTime } from '@/components/payment/orderUtils'
 
 const { t } = useI18n()
+const { formatBalanceAmount } = useBalanceDisplay()
 
 defineProps<{
   orders: PaymentOrder[]
@@ -226,5 +228,9 @@ function canRefundRow(order: PaymentOrder): boolean {
 
 function formatDateTime(dateStr: string): string {
   return formatOrderDateTime(dateStr)
+}
+
+function formatOrderAmount(amount: number, orderType: string): string {
+  return orderType === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : `¥${amount.toFixed(2)}`
 }
 </script>

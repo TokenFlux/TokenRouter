@@ -182,6 +182,9 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingPaymentEnabled,
 		SettingKeyOIDCConnectEnabled,
 		SettingKeyOIDCConnectProviderName,
+		SettingKeyBalanceUnitName,
+		SettingKeyBalanceUnitSymbol,
+		SettingKeyBalanceIconSVG,
 		SettingKeyBalanceLowNotifyEnabled,
 		SettingKeyBalanceLowNotifyThreshold,
 		SettingKeyBalanceLowNotifyRechargeURL,
@@ -228,6 +231,14 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 	if v, err := strconv.ParseFloat(settings[SettingKeyBalanceLowNotifyThreshold], 64); err == nil && v >= 0 {
 		balanceLowNotifyThreshold = v
 	}
+	balanceUnitName := strings.TrimSpace(settings[SettingKeyBalanceUnitName])
+	if balanceUnitName == "" {
+		balanceUnitName = "USD"
+	}
+	balanceUnitSymbol := strings.TrimSpace(settings[SettingKeyBalanceUnitSymbol])
+	if balanceUnitSymbol == "" {
+		balanceUnitSymbol = "$"
+	}
 
 	return &PublicSettings{
 		RegistrationEnabled:              settings[SettingKeyRegistrationEnabled] == "true",
@@ -258,6 +269,9 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		PaymentEnabled:                   settings[SettingPaymentEnabled] == "true",
 		OIDCOAuthEnabled:                 oidcEnabled,
 		OIDCOAuthProviderName:            oidcProviderName,
+		BalanceUnitName:                  balanceUnitName,
+		BalanceUnitSymbol:                balanceUnitSymbol,
+		BalanceIconSVG:                   strings.TrimSpace(settings[SettingKeyBalanceIconSVG]),
 		BalanceLowNotifyEnabled:          settings[SettingKeyBalanceLowNotifyEnabled] == "true",
 		AccountQuotaNotifyEnabled:        settings[SettingKeyAccountQuotaNotifyEnabled] == "true",
 		BalanceLowNotifyThreshold:        balanceLowNotifyThreshold,
@@ -315,6 +329,9 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		OIDCOAuthEnabled                 bool            `json:"oidc_oauth_enabled"`
 		OIDCOAuthProviderName            string          `json:"oidc_oauth_provider_name"`
 		Version                          string          `json:"version,omitempty"`
+		BalanceUnitName                  string          `json:"balance_unit_name"`
+		BalanceUnitSymbol                string          `json:"balance_unit_symbol"`
+		BalanceIconSVG                   string          `json:"balance_icon_svg"`
 		BalanceLowNotifyEnabled          bool            `json:"balance_low_notify_enabled"`
 		AccountQuotaNotifyEnabled        bool            `json:"account_quota_notify_enabled"`
 		BalanceLowNotifyThreshold        float64         `json:"balance_low_notify_threshold"`
@@ -349,6 +366,9 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		OIDCOAuthEnabled:                 settings.OIDCOAuthEnabled,
 		OIDCOAuthProviderName:            settings.OIDCOAuthProviderName,
 		Version:                          s.version,
+		BalanceUnitName:                  settings.BalanceUnitName,
+		BalanceUnitSymbol:                settings.BalanceUnitSymbol,
+		BalanceIconSVG:                   settings.BalanceIconSVG,
 		BalanceLowNotifyEnabled:          settings.BalanceLowNotifyEnabled,
 		AccountQuotaNotifyEnabled:        settings.AccountQuotaNotifyEnabled,
 		BalanceLowNotifyThreshold:        settings.BalanceLowNotifyThreshold,
@@ -491,6 +511,15 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 		normalizedWhitelist = []string{}
 	}
 	settings.RegistrationEmailSuffixWhitelist = normalizedWhitelist
+	settings.BalanceUnitName = strings.TrimSpace(settings.BalanceUnitName)
+	settings.BalanceUnitSymbol = strings.TrimSpace(settings.BalanceUnitSymbol)
+	settings.BalanceIconSVG = strings.TrimSpace(settings.BalanceIconSVG)
+	if settings.BalanceUnitName == "" {
+		settings.BalanceUnitName = "USD"
+	}
+	if settings.BalanceUnitSymbol == "" {
+		settings.BalanceUnitSymbol = "$"
+	}
 
 	updates := make(map[string]string)
 
@@ -594,6 +623,9 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 		return fmt.Errorf("marshal default subscriptions: %w", err)
 	}
 	updates[SettingKeyDefaultSubscriptions] = string(defaultSubsJSON)
+	updates[SettingKeyBalanceUnitName] = settings.BalanceUnitName
+	updates[SettingKeyBalanceUnitSymbol] = settings.BalanceUnitSymbol
+	updates[SettingKeyBalanceIconSVG] = settings.BalanceIconSVG
 
 	// Model fallback configuration
 	updates[SettingKeyEnableModelFallback] = strconv.FormatBool(settings.EnableModelFallback)
@@ -920,6 +952,19 @@ func (s *SettingService) GetDefaultBalance(ctx context.Context) float64 {
 	return s.cfg.Default.UserBalance
 }
 
+// GetBalanceUnitName 获取内部余额展示单位名称
+func (s *SettingService) GetBalanceUnitName(ctx context.Context) string {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyBalanceUnitName)
+	if err != nil {
+		return "USD"
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "USD"
+	}
+	return value
+}
+
 // GetReferralRewardAmount 获取邀请返利额度
 func (s *SettingService) GetReferralRewardAmount(ctx context.Context) float64 {
 	value, err := s.settingRepo.GetValue(ctx, SettingKeyReferralRewardAmount)
@@ -974,6 +1019,9 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyDefaultConcurrency:               strconv.Itoa(s.cfg.Default.UserConcurrency),
 		SettingKeyDefaultBalance:                   strconv.FormatFloat(s.cfg.Default.UserBalance, 'f', 8, 64),
 		SettingKeyDefaultSubscriptions:             "[]",
+		SettingKeyBalanceUnitName:                  "USD",
+		SettingKeyBalanceUnitSymbol:                "$",
+		SettingKeyBalanceIconSVG:                   "",
 		SettingKeySMTPPort:                         "587",
 		SettingKeySMTPUseTLS:                       "false",
 		// Model fallback defaults
@@ -1006,6 +1054,14 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 // parseSettings 解析设置到结构体
 func (s *SettingService) parseSettings(settings map[string]string) *SystemSettings {
 	emailVerifyEnabled := settings[SettingKeyEmailVerifyEnabled] == "true"
+	balanceUnitName := strings.TrimSpace(settings[SettingKeyBalanceUnitName])
+	if balanceUnitName == "" {
+		balanceUnitName = "USD"
+	}
+	balanceUnitSymbol := strings.TrimSpace(settings[SettingKeyBalanceUnitSymbol])
+	if balanceUnitSymbol == "" {
+		balanceUnitSymbol = "$"
+	}
 	result := &SystemSettings{
 		RegistrationEnabled:              settings[SettingKeyRegistrationEnabled] == "true",
 		EmailVerifyEnabled:               emailVerifyEnabled,
@@ -1037,6 +1093,9 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
 		CustomMenuItems:                  settings[SettingKeyCustomMenuItems],
 		CustomEndpoints:                  settings[SettingKeyCustomEndpoints],
+		BalanceUnitName:                  balanceUnitName,
+		BalanceUnitSymbol:                balanceUnitSymbol,
+		BalanceIconSVG:                   strings.TrimSpace(settings[SettingKeyBalanceIconSVG]),
 		BackendModeEnabled:               settings[SettingKeyBackendModeEnabled] == "true",
 	}
 	result.TableDefaultPageSize, result.TablePageSizeOptions = parseTablePreferences(

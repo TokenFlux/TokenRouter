@@ -80,14 +80,14 @@
               <div
                 class="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
               >
-                <Icon name="dollar" size="md" />
+                <BalanceIcon size="md" />
               </div>
               <div>
                 <p class="text-sm text-gray-500 dark:text-gray-400">
                   {{ t('profile.referral.totalReward') }}
                 </p>
                 <p class="text-2xl font-semibold text-gray-900 dark:text-white">
-                  ${{ referralInfo.reward_total.toFixed(2) }}
+                  {{ formatBalanceAmount(referralInfo.reward_total, { fractionDigits: 2 }) }}
                 </p>
               </div>
             </div>
@@ -111,12 +111,15 @@ import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { userAPI } from '@/api'
 import { useAppStore } from '@/stores'
+import BalanceIcon from '@/components/common/BalanceIcon.vue'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import Icon from '@/components/icons/Icon.vue'
 import type { UserReferralInfo } from '@/types'
 
 const { t } = useI18n()
 const router = useRouter()
 const appStore = useAppStore()
+const { formatBalanceAmount } = useBalanceDisplay()
 
 const loading = ref(true)
 const copied = ref(false)

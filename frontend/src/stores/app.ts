@@ -340,9 +340,13 @@ export const useAppStore = defineStore('app', () => {
         oidc_oauth_provider_name: 'OIDC',
         backend_mode_enabled: false,
         version: siteVersion.value,
+        balance_unit_name: 'USD',
+        balance_unit_symbol: '$',
+        balance_icon_svg: '',
         balance_low_notify_enabled: false,
         account_quota_notify_enabled: false,
         balance_low_notify_threshold: 0,
+        balance_low_notify_recharge_url: '',
       }
     }
 

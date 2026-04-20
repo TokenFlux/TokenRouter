@@ -208,7 +208,7 @@
             <div v-if="promoValidation.valid" class="mt-2 flex items-center gap-2 rounded-lg bg-green-50 px-3 py-2 dark:bg-green-900/20">
               <Icon name="gift" size="sm" class="text-green-600 dark:text-green-400" />
               <span class="text-sm text-green-700 dark:text-green-400">
-                {{ t('auth.promoCodeValid', { amount: promoValidation.bonusAmount?.toFixed(2) }) }}
+                {{ t('auth.promoCodeValid', { amount: formatBalanceAmount(promoValidation.bonusAmount, { fractionDigits: 2 }) }) }}
               </span>
             </div>
             <p v-else-if="promoValidation.invalid" class="input-error-text">
@@ -310,6 +310,7 @@ import LinuxDoOAuthSection from '@/components/auth/LinuxDoOAuthSection.vue'
 import OidcOAuthSection from '@/components/auth/OidcOAuthSection.vue'
 import Icon from '@/components/icons/Icon.vue'
 import TurnstileWidget from '@/components/TurnstileWidget.vue'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useAuthStore, useAppStore } from '@/stores'
 import { getPublicSettings, validatePromoCode, validateInvitationCode } from '@/api/auth'
 import { buildAuthErrorMessage } from '@/utils/authError'
@@ -326,6 +327,7 @@ const router = useRouter()
 const route = useRoute()
 const authStore = useAuthStore()
 const appStore = useAppStore()
+const { formatBalanceAmount } = useBalanceDisplay()
 
 // ==================== State ====================
 

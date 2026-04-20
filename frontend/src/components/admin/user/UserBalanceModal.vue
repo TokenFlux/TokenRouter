@@ -3,17 +3,17 @@
     <form v-if="user" id="balance-form" @submit.prevent="handleBalanceSubmit" class="space-y-5">
       <div class="flex items-center gap-3 rounded-xl bg-gray-50 p-4 dark:bg-dark-700">
         <div class="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100"><span class="text-lg font-medium text-primary-700">{{ user.email.charAt(0).toUpperCase() }}</span></div>
-        <div class="flex-1"><p class="font-medium text-gray-900">{{ user.email }}</p><p class="text-sm text-gray-500">{{ t('admin.users.currentBalance') }}: ${{ formatBalance(user.balance) }}</p></div>
+        <div class="flex-1"><p class="font-medium text-gray-900">{{ user.email }}</p><p class="text-sm text-gray-500">{{ t('admin.users.currentBalance') }}: {{ formatBalance(user.balance) }}</p></div>
       </div>
       <div>
         <label class="input-label">{{ operation === 'add' ? t('admin.users.depositAmount') : t('admin.users.withdrawAmount') }}</label>
         <div class="relative flex gap-2">
-          <div class="relative flex-1"><div class="absolute left-3 top-1/2 -translate-y-1/2 font-medium text-gray-500">$</div><input v-model.number="form.amount" type="number" step="any" min="0" required class="input pl-8" /></div>
+          <div class="relative flex-1"><div class="absolute left-3 top-1/2 -translate-y-1/2 font-medium text-gray-500">{{ balanceUnitSymbol }}</div><input v-model.number="form.amount" type="number" step="any" min="0" required class="input pl-8" /></div>
           <button v-if="operation === 'subtract'" type="button" @click="fillAllBalance" class="btn btn-secondary whitespace-nowrap">{{ t('admin.users.withdrawAll') }}</button>
         </div>
       </div>
       <div><label class="input-label">{{ t('admin.users.notes') }}</label><textarea v-model="form.notes" rows="3" class="input"></textarea></div>
-      <div v-if="form.amount > 0" class="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950"><div class="flex items-center justify-between text-sm"><span class="text-gray-700 dark:text-gray-300">{{ t('admin.users.newBalance') }}:</span><span class="font-bold text-gray-900 dark:text-gray-100">${{ formatBalance(calculateNewBalance()) }}</span></div></div>
+      <div v-if="form.amount > 0" class="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-950"><div class="flex items-center justify-between text-sm"><span class="text-gray-700 dark:text-gray-300">{{ t('admin.users.newBalance') }}:</span><span class="font-bold text-gray-900 dark:text-gray-100">{{ formatBalance(calculateNewBalance()) }}</span></div></div>
     </form>
     <template #footer>
       <div class="flex justify-end gap-3">
@@ -31,23 +31,23 @@ import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
 import type { AdminUser } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 
 const props = defineProps<{ show: boolean, user: AdminUser | null, operation: 'add' | 'subtract' }>()
 const emit = defineEmits(['close', 'success']); const { t } = useI18n(); const appStore = useAppStore()
+const { balanceUnitSymbol, formatBalanceAmount } = useBalanceDisplay()
 
 const submitting = ref(false); const form = reactive({ amount: 0, notes: '' })
 watch(() => props.show, (v) => { if(v) { form.amount = 0; form.notes = '' } })
 
 // 格式化余额：显示完整精度，去除尾部多余的0
 const formatBalance = (value: number) => {
-  if (value === 0) return '0.00'
-  // 最多保留8位小数，去除尾部的0
-  const formatted = value.toFixed(8).replace(/\.?0+$/, '')
-  // 确保至少有2位小数
-  const parts = formatted.split('.')
-  if (parts.length === 1) return formatted + '.00'
-  if (parts[1].length === 1) return formatted + '0'
-  return formatted
+  const normalized = Number(value)
+  if (normalized === 0) return formatBalanceAmount(0)
+  const fixed = normalized.toFixed(8).replace(/\.?0+$/, '')
+  const parts = fixed.split('.')
+  const decimal = parts.length === 1 ? 2 : Math.max(2, parts[1].length)
+  return formatBalanceAmount(normalized, { fractionDigits: decimal })
 }
 
 // 填入全部余额

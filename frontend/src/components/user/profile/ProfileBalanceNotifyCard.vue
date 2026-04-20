@@ -26,14 +26,14 @@
             <span class="text-xs text-gray-400 ml-2">{{ t('profile.balanceNotify.thresholdHint') }}</span>
           </label>
           <div class="flex items-center gap-2">
-            <span class="text-gray-500">$</span>
+            <span class="text-gray-500">{{ balanceUnitSymbol }}</span>
             <input
               v-model.number="customThreshold"
               type="number"
               min="0"
               step="0.01"
               class="input flex-1"
-              :placeholder="systemDefaultThreshold > 0 ? `${t('profile.balanceNotify.systemDefault')} $${systemDefaultThreshold}` : t('profile.balanceNotify.thresholdPlaceholder')"
+              :placeholder="systemDefaultThreshold > 0 ? `${t('profile.balanceNotify.systemDefault')} ${formatBalanceAmount(systemDefaultThreshold, { fractionDigits: 2 })}` : t('profile.balanceNotify.thresholdPlaceholder')"
             />
             <button
               @click="handleThresholdUpdate"
@@ -162,6 +162,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { userAPI } from '@/api'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import type { NotifyEmailEntry } from '@/types'
 
@@ -188,6 +189,7 @@ const props = defineProps<{
 const { t } = useI18n()
 const authStore = useAuthStore()
 const appStore = useAppStore()
+const { balanceUnitSymbol, formatBalanceAmount } = useBalanceDisplay()
 
 const notifyEnabled = ref(props.enabled)
 const customThreshold = ref<number | null>(props.threshold)

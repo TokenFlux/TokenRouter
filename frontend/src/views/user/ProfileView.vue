@@ -4,8 +4,8 @@
       <div class="grid grid-cols-1 gap-6 sm:grid-cols-3">
         <StatCard
           :title="t('profile.accountBalance')"
-          :value="formatCurrency(user?.balance || 0)"
-          :icon="WalletIcon"
+          :value="formatBalanceAmount(user?.balance || 0, { fractionDigits: 2 })"
+          :icon="BalanceIcon"
           icon-variant="success"
         />
         <StatCard
@@ -64,6 +64,7 @@ import { computed, h, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { authAPI } from '@/api'
 import StatCard from '@/components/common/StatCard.vue'
+import BalanceIcon from '@/components/common/BalanceIcon.vue'
 import { Icon } from '@/components/icons'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import ProfileInfoCard from '@/components/user/profile/ProfileInfoCard.vue'
@@ -72,25 +73,19 @@ import ProfileTotpCard from '@/components/user/profile/ProfileTotpCard.vue'
 import ProfileEditForm from '@/components/user/profile/ProfileEditForm.vue'
 import ProfileBalanceNotifyCard from '@/components/user/profile/ProfileBalanceNotifyCard.vue'
 import ProfilePasswordForm from '@/components/user/profile/ProfilePasswordForm.vue'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useAuthStore } from '@/stores/auth'
 import { formatDate } from '@/utils/format'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
 const user = computed(() => authStore.user)
+const { formatBalanceAmount } = useBalanceDisplay()
 
 const contactInfo = ref('')
 const balanceLowNotifyEnabled = ref(false)
 const systemDefaultThreshold = ref(0)
 
-const WalletIcon = {
-  render: () =>
-    h(
-      'svg',
-      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
-      [h('path', { d: 'M21 12a2.25 2.25 0 00-2.25-2.25H15a3 3 0 11-6 0H5.25A2.25 2.25 0 003 12' })]
-    )
-}
 const BoltIcon = {
   render: () =>
     h(
@@ -118,6 +113,4 @@ onMounted(async () => {
     console.error('Failed to load settings:', error)
   }
 })
-
-const formatCurrency = (v: number) => `$${v.toFixed(2)}`
 </script>

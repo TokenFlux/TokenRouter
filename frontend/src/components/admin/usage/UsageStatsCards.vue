@@ -23,17 +23,17 @@
     </div>
     <div class="card p-4 flex items-center gap-3">
       <div class="rounded-lg bg-green-100 p-2 dark:bg-green-900/30 text-green-600">
-        <Icon name="dollar" size="md" />
+        <BalanceIcon size="md" />
       </div>
       <div class="min-w-0 flex-1">
         <p class="text-xs font-medium text-gray-500">{{ t('usage.totalCost') }}</p>
         <p class="text-xl font-bold text-green-600">
-          ${{ (stats?.total_actual_cost || 0).toFixed(4) }}
+          {{ formatBalanceAmount(stats?.total_actual_cost || 0, { fractionDigits: 4 }) }}
         </p>
         <p class="text-xs text-gray-400">
-          <span class="text-orange-500">{{ t('usage.accountCost') }} ${{ (stats?.total_account_cost || 0).toFixed(4) }}</span>
+          <span class="text-orange-500">{{ t('usage.accountCost') }} {{ formatUsdAmount(stats?.total_account_cost || 0, { fractionDigits: 4 }) }}</span>
           <span> · </span>
-          <span>{{ t('usage.standardCost') }} ${{ (stats?.total_cost || 0).toFixed(4) }}</span>
+          <span>{{ t('usage.standardCost') }} {{ formatUsdAmount(stats?.total_cost || 0, { fractionDigits: 4 }) }}</span>
         </p>
       </div>
     </div>
@@ -49,11 +49,14 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import type { AdminUsageStatsResponse } from '@/api/admin/usage'
+import BalanceIcon from '@/components/common/BalanceIcon.vue'
 import Icon from '@/components/icons/Icon.vue'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 
 defineProps<{ stats: AdminUsageStatsResponse | null }>()
 
 const { t } = useI18n()
+const { formatBalanceAmount, formatUsdAmount } = useBalanceDisplay()
 
 const formatDuration = (ms: number) =>
   ms < 1000 ? `${ms.toFixed(0)}ms` : `${(ms / 1000).toFixed(2)}s`

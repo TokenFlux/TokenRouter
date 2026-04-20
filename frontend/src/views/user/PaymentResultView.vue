@@ -50,7 +50,7 @@
             </div>
             <div v-if="order.amount !== order.pay_amount" class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</span>
-              <span class="font-medium text-gray-900 dark:text-white">{{ order.order_type === 'balance' ? '$' : '¥' }}{{ order.amount.toFixed(2) }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ formatOrderAmount(order.amount, order.order_type) }}</span>
             </div>
             <div class="flex justify-between">
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</span>
@@ -93,12 +93,14 @@
 import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 import { usePaymentStore } from '@/stores/payment'
 import { paymentAPI } from '@/api/payment'
 import type { PaymentOrder } from '@/types/payment'
 
 const { t } = useI18n()
+const { formatBalanceAmount } = useBalanceDisplay()
 const route = useRoute()
 const router = useRouter()
 const paymentStore = usePaymentStore()
@@ -143,6 +145,10 @@ const isSuccess = computed(() => {
 function parseOutTradeNo(outTradeNo: string): number {
   const match = outTradeNo.match(/_(\d+)$/)
   return match ? Number(match[1]) : 0
+}
+
+function formatOrderAmount(amount: number, orderType: string): string {
+  return orderType === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : `¥${amount.toFixed(2)}`
 }
 
 onMounted(async () => {

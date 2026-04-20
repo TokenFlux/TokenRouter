@@ -113,20 +113,20 @@
                 <p class="text-xs">
                   <span
                     class="text-green-600 dark:text-green-400"
-                    :title="t('admin.dashboard.actual')"
-                    >${{ formatCost(stats.today_actual_cost) }}</span
+                    :title="t('admin.dashboard.actualDescription')"
+                    >{{ formatBalanceAmount(stats.today_actual_cost, { withSymbol: true, fractionDigits: costDigits(stats.today_actual_cost) }) }}</span
                   >
                   <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-orange-500 dark:text-orange-400"
-                    :title="t('admin.dashboard.accountCost')"
-                    >${{ formatCost(stats.today_account_cost) }}</span
+                    :title="t('admin.dashboard.accountCostDescription')"
+                    >{{ formatUsdAmount(stats.today_account_cost, { withSymbol: true, fractionDigits: costDigits(stats.today_account_cost) }) }}</span
                   >
                   <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-gray-400 dark:text-gray-500"
-                    :title="t('admin.dashboard.standard')"
-                    >${{ formatCost(stats.today_cost) }}</span
+                    :title="t('admin.dashboard.standardDescription')"
+                    >{{ formatUsdAmount(stats.today_cost, { withSymbol: true, fractionDigits: costDigits(stats.today_cost) }) }}</span
                   >
                 </p>
               </div>
@@ -149,20 +149,20 @@
                 <p class="text-xs">
                   <span
                     class="text-green-600 dark:text-green-400"
-                    :title="t('admin.dashboard.actual')"
-                    >${{ formatCost(stats.total_actual_cost) }}</span
+                    :title="t('admin.dashboard.actualDescription')"
+                    >{{ formatBalanceAmount(stats.total_actual_cost, { withSymbol: true, fractionDigits: costDigits(stats.total_actual_cost) }) }}</span
                   >
                   <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-orange-500 dark:text-orange-400"
-                    :title="t('admin.dashboard.accountCost')"
-                    >${{ formatCost(stats.total_account_cost) }}</span
+                    :title="t('admin.dashboard.accountCostDescription')"
+                    >{{ formatUsdAmount(stats.total_account_cost, { withSymbol: true, fractionDigits: costDigits(stats.total_account_cost) }) }}</span
                   >
                   <span class="text-gray-400 dark:text-gray-500"> / </span>
                   <span
                     class="text-gray-400 dark:text-gray-500"
-                    :title="t('admin.dashboard.standard')"
-                    >${{ formatCost(stats.total_cost) }}</span
+                    :title="t('admin.dashboard.standardDescription')"
+                    >{{ formatUsdAmount(stats.total_cost, { withSymbol: true, fractionDigits: costDigits(stats.total_cost) }) }}</span
                   >
                 </p>
               </div>
@@ -297,6 +297,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 
 const { t } = useI18n()
 import { adminAPI } from '@/api/admin'
@@ -340,6 +341,7 @@ ChartJS.register(
 
 const appStore = useAppStore()
 const router = useRouter()
+const { formatBalanceAmount, formatUsdAmount } = useBalanceDisplay()
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(false)
 const chartsLoading = ref(false)
@@ -537,15 +539,11 @@ const formatNumber = (value: number): string => {
   return value.toLocaleString()
 }
 
-const formatCost = (value: number): string => {
-  if (value >= 1000) {
-    return (value / 1000).toFixed(2) + 'K'
-  } else if (value >= 1) {
-    return value.toFixed(2)
-  } else if (value >= 0.01) {
-    return value.toFixed(3)
-  }
-  return value.toFixed(4)
+const costDigits = (value: number): number => {
+  if (value >= 1000) return 2
+  if (value >= 1) return 2
+  if (value >= 0.01) return 3
+  return 4
 }
 
 const formatDuration = (ms: number): string => {

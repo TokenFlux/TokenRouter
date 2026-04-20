@@ -181,12 +181,14 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useSubscriptionStore } from '@/stores'
 import type { UserSubscription } from '@/types'
 
 const { t } = useI18n()
 
 const subscriptionStore = useSubscriptionStore()
+const { formatBalanceAmount } = useBalanceDisplay()
 
 const containerRef = ref<HTMLElement | null>(null)
 const tooltipOpen = ref(false)
@@ -252,9 +254,9 @@ function getProgressWidth(used: number | undefined, limit: number | null | undef
 }
 
 function formatUsage(used: number | undefined, limit: number | null | undefined): string {
-  const usedValue = (used || 0).toFixed(2)
-  const limitValue = limit?.toFixed(2) || '∞'
-  return `$${usedValue}/$${limitValue}`
+  const usedValue = formatBalanceAmount(used || 0, { fractionDigits: 2 })
+  const limitValue = limit == null ? '∞' : formatBalanceAmount(limit, { fractionDigits: 2 })
+  return `${usedValue}/${limitValue}`
 }
 
 function formatDaysRemaining(expiresAt: string): string {

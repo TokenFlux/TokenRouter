@@ -1984,6 +1984,90 @@
           </div>
         </div>
 
+        <!-- Balance Display Settings -->
+        <div class="card">
+          <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+              {{ t('admin.settings.balanceDisplay.title') }}
+            </h2>
+            <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {{ t('admin.settings.balanceDisplay.description') }}
+            </p>
+          </div>
+          <div class="grid grid-cols-1 gap-6 p-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+            <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.balanceDisplay.unitName') }}
+                </label>
+                <input
+                  v-model="form.balance_unit_name"
+                  type="text"
+                  class="input"
+                  :placeholder="t('admin.settings.balanceDisplay.unitNamePlaceholder')"
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.balanceDisplay.unitNameHint') }}
+                </p>
+              </div>
+              <div>
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.balanceDisplay.unitSymbol') }}
+                </label>
+                <input
+                  v-model="form.balance_unit_symbol"
+                  type="text"
+                  class="input"
+                  :placeholder="t('admin.settings.balanceDisplay.unitSymbolPlaceholder')"
+                />
+                <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.balanceDisplay.unitSymbolHint') }}
+                </p>
+              </div>
+              <div class="md:col-span-2">
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ t('admin.settings.balanceDisplay.iconSvg') }}
+                </label>
+                <ImageUpload
+                  v-model="form.balance_icon_svg"
+                  mode="svg"
+                  :upload-label="t('admin.settings.balanceDisplay.uploadSvg')"
+                  :remove-label="t('admin.settings.balanceDisplay.removeSvg')"
+                  :hint="t('admin.settings.balanceDisplay.iconHint')"
+                />
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-primary-100 bg-primary-50/60 p-5 dark:border-primary-900/40 dark:bg-primary-900/10">
+              <p class="text-xs font-medium uppercase tracking-[0.18em] text-primary-600 dark:text-primary-300">
+                {{ t('admin.settings.balanceDisplay.previewLabel') }}
+              </p>
+              <div class="mt-4 rounded-2xl bg-white p-4 shadow-sm dark:bg-dark-800">
+                <div class="flex items-center gap-3">
+                  <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300">
+                    <BalanceIcon
+                      :svg="form.balance_icon_svg"
+                      :use-global-fallback="false"
+                      class="h-5 w-5"
+                    />
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ t('admin.settings.balanceDisplay.previewUnit', { unitName: previewBalanceUnitName }) }}
+                    </p>
+                    <p class="text-xl font-semibold text-gray-900 dark:text-white">
+                      {{ previewBalanceAmount }}
+                    </p>
+                  </div>
+                </div>
+                <p class="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.settings.balanceDisplay.previewHint') }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- Site Settings -->
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
@@ -2422,8 +2506,8 @@
                 <div>
                   <label class="input-label">{{ t('admin.settings.payment.balanceRechargeMultiplier') }}</label>
                   <input :value="form.payment_balance_recharge_multiplier || ''" @input="form.payment_balance_recharge_multiplier = parseFloat(($event.target as HTMLInputElement).value) || 1" type="number" step="0.01" min="0.01" class="input" />
-                  <p class="mt-0.5 text-xs text-gray-400">{{ t('admin.settings.payment.balanceRechargeMultiplierHint') }}</p>
-                  <p class="mt-1 text-xs font-medium text-primary-600 dark:text-primary-400">{{ t('admin.settings.payment.balanceRechargePreview', { usd: (Number(form.payment_balance_recharge_multiplier) || 1).toFixed(2) }) }}</p>
+                  <p class="mt-0.5 text-xs text-gray-400">{{ t('admin.settings.payment.balanceRechargeMultiplierHint', { unitName: previewBalanceUnitName }) }}</p>
+                  <p class="mt-1 text-xs font-medium text-primary-600 dark:text-primary-400">{{ t('admin.settings.payment.balanceRechargePreview', { amount: (Number(form.payment_balance_recharge_multiplier) || 1).toFixed(2), unitName: previewBalanceUnitName }) }}</p>
                 </div>
                 <div>
                   <label class="input-label">{{ t('admin.settings.payment.rechargeFeeRate') }}</label>
@@ -2770,7 +2854,7 @@
             <div v-if="form.balance_low_notify_enabled">
               <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.settings.balanceNotify.threshold') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">$</span>
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{{ previewBalanceUnitSymbol }}</span>
                 <input v-model.number="form.balance_low_notify_threshold" type="number" min="0" step="0.01" class="input pl-7" />
               </div>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.settings.balanceNotify.thresholdHint') }}</p>
@@ -2892,7 +2976,9 @@ import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
 import ImageUpload from '@/components/common/ImageUpload.vue'
+import BalanceIcon from '@/components/common/BalanceIcon.vue'
 import BackupSettings from '@/views/admin/BackupView.vue'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useClipboard } from '@/composables/useClipboard'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { useAppStore } from '@/stores'
@@ -3020,6 +3106,9 @@ const form = reactive<SettingsForm>({
   default_concurrency: 1,
   default_subscriptions: [],
   referral_reward_amount: 0,
+  balance_unit_name: 'USD',
+  balance_unit_symbol: '$',
+  balance_icon_svg: '',
   site_name: 'Sub2API',
   site_logo: '',
   site_subtitle: 'Subscription to API Conversion Platform',
@@ -3108,6 +3197,16 @@ const form = reactive<SettingsForm>({
   account_quota_notify_enabled: false,
   account_quota_notify_emails: [] as NotifyEmailEntry[]
 })
+const {
+  balanceUnitName: previewBalanceUnitName,
+  balanceUnitSymbol: previewBalanceUnitSymbol,
+  formatBalanceAmount: formatPreviewBalanceAmount
+} =
+  useBalanceDisplay({
+    unitName: computed(() => form.balance_unit_name),
+    unitSymbol: computed(() => form.balance_unit_symbol),
+    iconSvg: computed(() => form.balance_icon_svg)
+  })
 
 // Proxies for web search emulation ProxySelector
 const webSearchProxies = ref<Proxy[]>([])
@@ -3126,6 +3225,7 @@ const wsTestQuery = ref('')
 const wsTestLoading = ref(false)
 const wsTestResult = ref<WebSearchTestResult | null>(null)
 const wsTestDialogOpen = ref(false)
+const previewBalanceAmount = computed(() => formatPreviewBalanceAmount(123.45))
 
 function openTestDialog() {
   wsTestResult.value = null
@@ -3565,6 +3665,9 @@ async function saveSettings() {
 
     form.table_default_page_size = normalizedTableDefaultPageSize
     form.table_page_size_options = normalizedTablePageSizeOptions
+    form.balance_unit_name = form.balance_unit_name.trim() || 'USD'
+    form.balance_unit_symbol = form.balance_unit_symbol.trim() || '$'
+    form.balance_icon_svg = form.balance_icon_svg.trim()
 
     const normalizedDefaultSubscriptions = form.default_subscriptions
       .filter((item) => item.group_id > 0 && item.validity_days > 0)
@@ -3619,6 +3722,9 @@ async function saveSettings() {
       default_concurrency: form.default_concurrency,
       default_subscriptions: normalizedDefaultSubscriptions,
       referral_reward_amount: Math.max(0, Number(form.referral_reward_amount) || 0),
+      balance_unit_name: form.balance_unit_name,
+      balance_unit_symbol: form.balance_unit_symbol,
+      balance_icon_svg: form.balance_icon_svg,
       site_name: form.site_name,
       site_logo: form.site_logo,
       site_subtitle: form.site_subtitle,

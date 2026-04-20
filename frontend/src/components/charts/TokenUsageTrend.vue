@@ -34,6 +34,7 @@ import {
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { TrendDataPoint } from '@/types'
 
 ChartJS.register(
@@ -48,6 +49,7 @@ ChartJS.register(
 )
 
 const { t } = useI18n()
+const { formatBalanceAmount, formatUsdAmount } = useBalanceDisplay()
 
 const props = defineProps<{
   trendData: TrendDataPoint[]
@@ -155,7 +157,7 @@ const lineOptions = computed(() => ({
           const dataIndex = tooltipItems[0]?.dataIndex
           if (dataIndex !== undefined && props.trendData[dataIndex]) {
             const data = props.trendData[dataIndex]
-            return `Actual: $${formatCost(data.actual_cost)} | Standard: $${formatCost(data.cost)}`
+            return `Actual: ${formatBalanceAmount(data.actual_cost, { fractionDigits: 4 })} | Standard: ${formatUsdAmount(data.cost, { fractionDigits: 4 })}`
           }
           return ''
         }
@@ -215,14 +217,4 @@ const formatTokens = (value: number): string => {
   return value.toLocaleString()
 }
 
-const formatCost = (value: number): string => {
-  if (value >= 1000) {
-    return (value / 1000).toFixed(2) + 'K'
-  } else if (value >= 1) {
-    return value.toFixed(2)
-  } else if (value >= 0.01) {
-    return value.toFixed(3)
-  }
-  return value.toFixed(4)
-}
 </script>

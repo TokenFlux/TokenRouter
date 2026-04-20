@@ -13,14 +13,14 @@
           {{ formatTokens }}
         </span>
         <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
-          A ${{ formatAccountCost }}
+          A {{ formatAccountCost }}
         </span>
         <span
           v-if="windowStats?.user_cost != null"
           class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
           :title="t('usage.userBilled')"
         >
-          U ${{ formatUserCost }}
+          U {{ formatUserCost }}
         </span>
       </div>
     </div>
@@ -59,6 +59,7 @@
 import { computed, ref, watch } from 'vue'
 import { useIntervalFn } from '@vueuse/core'
 import { useI18n } from 'vue-i18n'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { WindowStats } from '@/types'
 import { formatCompactNumber } from '@/utils/format'
 
@@ -72,6 +73,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+const { formatBalanceAmount, formatUsdAmount } = useBalanceDisplay()
 
 // Reactive clock for countdown — only runs when a reset time is shown,
 // to avoid creating many idle timers across large account lists.
@@ -184,13 +186,15 @@ const formatTokens = computed(() => {
 })
 
 const formatAccountCost = computed(() => {
-  if (!props.windowStats) return '0.00'
-  return props.windowStats.cost.toFixed(2)
+  if (!props.windowStats) return formatUsdAmount(0, { fractionDigits: 2 })
+  return formatUsdAmount(props.windowStats.cost, { fractionDigits: 2 })
 })
 
 const formatUserCost = computed(() => {
-  if (!props.windowStats || props.windowStats.user_cost == null) return '0.00'
-  return props.windowStats.user_cost.toFixed(2)
+  if (!props.windowStats || props.windowStats.user_cost == null) {
+    return formatBalanceAmount(0, { fractionDigits: 2 })
+  }
+  return formatBalanceAmount(props.windowStats.user_cost, { fractionDigits: 2 })
 })
 
 </script>

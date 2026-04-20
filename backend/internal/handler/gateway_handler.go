@@ -941,6 +941,10 @@ func (h *GatewayHandler) Usage(c *gin.Context) {
 	}
 
 	ctx := c.Request.Context()
+	balanceUnitName := "USD"
+	if h.settingService != nil {
+		balanceUnitName = h.settingService.GetBalanceUnitName(ctx)
+	}
 
 	// 解析可选的日期范围参数（用于 model_stats 查询）
 	startTime, endTime := h.parseUsageDateRange(c)
@@ -960,11 +964,11 @@ func (h *GatewayHandler) Usage(c *gin.Context) {
 	isQuotaLimited := apiKey.Quota > 0 || apiKey.HasRateLimits()
 
 	if isQuotaLimited {
-		h.usageQuotaLimited(c, ctx, apiKey, usageData, modelStats)
+		h.usageQuotaLimited(c, ctx, apiKey, usageData, modelStats, balanceUnitName)
 		return
 	}
 
-	h.usageUnrestricted(c, ctx, apiKey, subject, usageData, modelStats)
+	h.usageUnrestricted(c, ctx, apiKey, subject, usageData, modelStats, balanceUnitName)
 }
 
 // parseUsageDateRange 解析 start_date / end_date query params，默认返回近 30 天范围
@@ -1023,7 +1027,7 @@ func (h *GatewayHandler) buildUsageData(ctx context.Context, apiKeyID int64) gin
 }
 
 // usageQuotaLimited 处理 quota_limited 模式的响应
-func (h *GatewayHandler) usageQuotaLimited(c *gin.Context, ctx context.Context, apiKey *service.APIKey, usageData gin.H, modelStats any) {
+func (h *GatewayHandler) usageQuotaLimited(c *gin.Context, ctx context.Context, apiKey *service.APIKey, usageData gin.H, modelStats any, balanceUnitName string) {
 	resp := gin.H{
 		"mode":    "quota_limited",
 		"isValid": apiKey.Status == service.StatusAPIKeyActive || apiKey.Status == service.StatusAPIKeyQuotaExhausted || apiKey.Status == service.StatusAPIKeyExpired,
@@ -1037,10 +1041,10 @@ func (h *GatewayHandler) usageQuotaLimited(c *gin.Context, ctx context.Context, 
 			"limit":     apiKey.Quota,
 			"used":      apiKey.QuotaUsed,
 			"remaining": remaining,
-			"unit":      "USD",
+			"unit":      balanceUnitName,
 		}
 		resp["remaining"] = remaining
-		resp["unit"] = "USD"
+		resp["unit"] = balanceUnitName
 	}
 
 	// 速率限制信息（从 DB 获取实时用量）
@@ -1113,14 +1117,14 @@ func (h *GatewayHandler) usageQuotaLimited(c *gin.Context, ctx context.Context, 
 }
 
 // usageUnrestricted 处理 unrestricted 模式的响应（向后兼容）
-func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, apiKey *service.APIKey, subject middleware2.AuthSubject, usageData gin.H, modelStats any) {
+func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, apiKey *service.APIKey, subject middleware2.AuthSubject, usageData gin.H, modelStats any, balanceUnitName string) {
 	// 订阅模式
 	if apiKey.Group != nil && apiKey.Group.IsSubscriptionType() {
 		resp := gin.H{
 			"mode":     "unrestricted",
 			"isValid":  true,
 			"planName": apiKey.Group.Name,
-			"unit":     "USD",
+			"unit":     balanceUnitName,
 		}
 
 		// 订阅信息可能不在 context 中（/v1/usage 路径跳过了中间件的计费检查）
@@ -1161,7 +1165,7 @@ func (h *GatewayHandler) usageUnrestricted(c *gin.Context, ctx context.Context, 
 		"isValid":   true,
 		"planName":  "钱包余额",
 		"remaining": latestUser.Balance,
-		"unit":      "USD",
+		"unit":      balanceUnitName,
 		"balance":   latestUser.Balance,
 	}
 	if usageData != nil {

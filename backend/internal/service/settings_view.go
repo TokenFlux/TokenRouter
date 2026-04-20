@@ -76,6 +76,9 @@ type SystemSettings struct {
 	DefaultConcurrency   int
 	DefaultBalance       float64
 	DefaultSubscriptions []DefaultSubscriptionSetting
+	BalanceUnitName      string
+	BalanceUnitSymbol    string
+	BalanceIconSVG       string
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -159,6 +162,9 @@ type PublicSettings struct {
 	OIDCOAuthEnabled      bool
 	OIDCOAuthProviderName string
 	Version               string
+	BalanceUnitName       string
+	BalanceUnitSymbol     string
+	BalanceIconSVG        string
 
 	BalanceLowNotifyEnabled     bool
 	AccountQuotaNotifyEnabled   bool

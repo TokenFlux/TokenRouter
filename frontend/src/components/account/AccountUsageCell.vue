@@ -389,14 +389,14 @@
             {{ formatKeyTokens }}
           </span>
           <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800" :title="t('usage.accountBilled')">
-            A ${{ formatKeyCost }}
+            A {{ formatKeyCost }}
           </span>
           <span
             v-if="todayStats.user_cost != null"
             class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
             :title="t('usage.userBilled')"
           >
-            U ${{ formatKeyUserCost }}
+            U {{ formatKeyUserCost }}
           </span>
         </div>
       </div>
@@ -442,6 +442,7 @@
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api/admin'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { Account, AccountUsageInfo, GeminiCredentials, WindowStats } from '@/types'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
@@ -468,7 +469,12 @@ const props = withDefaults(
 )
 
 const { t } = useI18n()
+const { formatBalanceAmount, formatUsdAmount } = useBalanceDisplay()
 const desktopViewportQuery = '(min-width: 768px)'
+const canUseMatchMedia =
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+const getDesktopViewportMatches = () =>
+  canUseMatchMedia ? window.matchMedia(desktopViewportQuery).matches : true
 
 const unmounted = ref(false)
 onBeforeUnmount(() => { unmounted.value = true })
@@ -478,9 +484,7 @@ const activeQueryLoading = ref(false)
 const error = ref<string | null>(null)
 const usageInfo = ref<AccountUsageInfo | null>(null)
 const rootRef = ref<HTMLElement | null>(null)
-const isDesktopViewport = ref(
-  typeof window === 'undefined' ? true : window.matchMedia(desktopViewportQuery).matches
-)
+const isDesktopViewport = ref(getDesktopViewportMatches())
 const hasEnteredViewport = ref(false)
 const pendingAutoLoad = ref(false)
 const pendingAutoLoadSource = ref<'passive' | 'active' | undefined>(undefined)
@@ -966,7 +970,10 @@ const loadUsage = async (options?: { source?: 'passive' | 'active'; bypassCache?
   error.value = null
 
   try {
-    const fetchFn = () => adminAPI.accounts.getUsage(props.account.id, options?.source)
+    const fetchFn = () =>
+      options?.source
+        ? adminAPI.accounts.getUsage(props.account.id, options.source)
+        : adminAPI.accounts.getUsage(props.account.id)
     const result = await enqueueUsageRequest(props.account, fetchFn)
     if (!unmounted.value) {
       usageInfo.value = result
@@ -1121,17 +1128,19 @@ const formatKeyTokens = computed(() => {
 })
 
 const formatKeyCost = computed(() => {
-  if (!props.todayStats) return '0.00'
-  return props.todayStats.cost.toFixed(2)
+  if (!props.todayStats) return formatUsdAmount(0, { fractionDigits: 2 })
+  return formatUsdAmount(props.todayStats.cost, { fractionDigits: 2 })
 })
 
 const formatKeyUserCost = computed(() => {
-  if (!props.todayStats || props.todayStats.user_cost == null) return '0.00'
-  return props.todayStats.user_cost.toFixed(2)
+  if (!props.todayStats || props.todayStats.user_cost == null) {
+    return formatBalanceAmount(0, { fractionDigits: 2 })
+  }
+  return formatBalanceAmount(props.todayStats.user_cost, { fractionDigits: 2 })
 })
 
 onMounted(() => {
-  if (typeof window !== 'undefined') {
+  if (canUseMatchMedia) {
     desktopViewportMediaQuery = window.matchMedia(desktopViewportQuery)
     isDesktopViewport.value = desktopViewportMediaQuery.matches
     desktopViewportListener = (event: MediaQueryListEvent) => {
@@ -1153,6 +1162,7 @@ watch(openAIUsageRefreshKey, (nextKey, prevKey) => {
   if (!prevKey || nextKey === prevKey) return
   if (props.account.platform !== 'openai' || props.account.type !== 'oauth') return
 
+  _usageCache.delete(props.account.id)
   requestAutoLoad()
 })
 

@@ -158,6 +158,9 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		DefaultConcurrency:                   settings.DefaultConcurrency,
 		DefaultBalance:                       settings.DefaultBalance,
 		DefaultSubscriptions:                 defaultSubscriptions,
+		BalanceUnitName:                      settings.BalanceUnitName,
+		BalanceUnitSymbol:                    settings.BalanceUnitSymbol,
+		BalanceIconSVG:                       settings.BalanceIconSVG,
 		EnableModelFallback:                  settings.EnableModelFallback,
 		FallbackModelAnthropic:               settings.FallbackModelAnthropic,
 		FallbackModelOpenAI:                  settings.FallbackModelOpenAI,
@@ -283,6 +286,9 @@ type UpdateSettingsRequest struct {
 	DefaultConcurrency   int                              `json:"default_concurrency"`
 	DefaultBalance       float64                          `json:"default_balance"`
 	DefaultSubscriptions []dto.DefaultSubscriptionSetting `json:"default_subscriptions"`
+	BalanceUnitName      string                           `json:"balance_unit_name"`
+	BalanceUnitSymbol    string                           `json:"balance_unit_symbol"`
+	BalanceIconSVG       string                           `json:"balance_icon_svg"`
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -384,6 +390,15 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	req.SMTPPassword = strings.TrimSpace(req.SMTPPassword)
 	req.SMTPFrom = strings.TrimSpace(req.SMTPFrom)
 	req.SMTPFromName = strings.TrimSpace(req.SMTPFromName)
+	req.BalanceUnitName = strings.TrimSpace(req.BalanceUnitName)
+	req.BalanceUnitSymbol = strings.TrimSpace(req.BalanceUnitSymbol)
+	req.BalanceIconSVG = strings.TrimSpace(req.BalanceIconSVG)
+	if req.BalanceUnitName == "" {
+		req.BalanceUnitName = "USD"
+	}
+	if req.BalanceUnitSymbol == "" {
+		req.BalanceUnitSymbol = "$"
+	}
 	if req.SMTPPort <= 0 {
 		req.SMTPPort = 587
 	}
@@ -853,6 +868,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		DefaultConcurrency:               req.DefaultConcurrency,
 		DefaultBalance:                   req.DefaultBalance,
 		DefaultSubscriptions:             defaultSubscriptions,
+		BalanceUnitName:                  req.BalanceUnitName,
+		BalanceUnitSymbol:                req.BalanceUnitSymbol,
+		BalanceIconSVG:                   req.BalanceIconSVG,
 		EnableModelFallback:              req.EnableModelFallback,
 		FallbackModelAnthropic:           req.FallbackModelAnthropic,
 		FallbackModelOpenAI:              req.FallbackModelOpenAI,
@@ -1068,6 +1086,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		DefaultConcurrency:                   updatedSettings.DefaultConcurrency,
 		DefaultBalance:                       updatedSettings.DefaultBalance,
 		DefaultSubscriptions:                 updatedDefaultSubscriptions,
+		BalanceUnitName:                      updatedSettings.BalanceUnitName,
+		BalanceUnitSymbol:                    updatedSettings.BalanceUnitSymbol,
+		BalanceIconSVG:                       updatedSettings.BalanceIconSVG,
 		EnableModelFallback:                  updatedSettings.EnableModelFallback,
 		FallbackModelAnthropic:               updatedSettings.FallbackModelAnthropic,
 		FallbackModelOpenAI:                  updatedSettings.FallbackModelOpenAI,
@@ -1173,6 +1194,15 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.FrontendURL != after.FrontendURL {
 		changed = append(changed, "frontend_url")
+	}
+	if before.BalanceUnitName != after.BalanceUnitName {
+		changed = append(changed, "balance_unit_name")
+	}
+	if before.BalanceUnitSymbol != after.BalanceUnitSymbol {
+		changed = append(changed, "balance_unit_symbol")
+	}
+	if before.BalanceIconSVG != after.BalanceIconSVG {
+		changed = append(changed, "balance_icon_svg")
 	}
 	if before.TotpEnabled != after.TotpEnabled {
 		changed = append(changed, "totp_enabled")

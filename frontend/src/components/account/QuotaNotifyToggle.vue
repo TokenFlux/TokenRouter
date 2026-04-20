@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { QUOTA_THRESHOLD_TYPE_FIXED, QUOTA_THRESHOLD_TYPE_PERCENTAGE, type QuotaThresholdType } from '@/constants/account'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
+
+const { usdUnitSymbol } = useBalanceDisplay()
 
 defineProps<{
   enabled: boolean | null
@@ -46,7 +49,7 @@ const emit = defineEmits<{
         @change="emit('update:thresholdType', ($event.target as HTMLSelectElement).value as QuotaThresholdType)"
         class="input py-1 text-xs w-[4.5rem] flex-shrink-0 text-center"
       >
-        <option :value="QUOTA_THRESHOLD_TYPE_FIXED">$</option>
+        <option :value="QUOTA_THRESHOLD_TYPE_FIXED">{{ usdUnitSymbol }}</option>
         <option :value="QUOTA_THRESHOLD_TYPE_PERCENTAGE">%</option>
       </select>
     </template>

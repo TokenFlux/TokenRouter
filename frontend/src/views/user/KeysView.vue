@@ -139,13 +139,13 @@
               <div class="flex items-center gap-1.5">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
                 <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4) }}
+                  {{ formatBalanceAmount(usageStats[row.id]?.today_actual_cost ?? 0, { fractionDigits: 4 }) }}
                 </span>
               </div>
               <div class="mt-0.5 flex items-center gap-1.5">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
                 <span class="font-medium text-gray-900 dark:text-white">
-                  ${{ (usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4) }}
+                  {{ formatBalanceAmount(usageStats[row.id]?.total_actual_cost ?? 0, { fractionDigits: 4 }) }}
                 </span>
               </div>
               <!-- Quota progress (if quota is set) -->
@@ -158,7 +158,7 @@
                     row.quota_used >= row.quota * 0.8 ? 'text-yellow-500' :
                     'text-gray-900 dark:text-white'
                   ]">
-                    ${{ row.quota_used?.toFixed(2) || '0.00' }} / ${{ row.quota?.toFixed(2) }}
+                    {{ formatBalancePair(row.quota_used, row.quota, 2, 2) }}
                   </span>
                 </div>
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -188,7 +188,7 @@
                     row.usage_5h >= row.rate_limit_5h * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    ${{ row.usage_5h?.toFixed(2) || '0.00' }}/${{ row.rate_limit_5h?.toFixed(2) }}
+                    {{ formatBalancePair(row.usage_5h, row.rate_limit_5h, 2, 2, false) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -216,7 +216,7 @@
                     row.usage_1d >= row.rate_limit_1d * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    ${{ row.usage_1d?.toFixed(2) || '0.00' }}/${{ row.rate_limit_1d?.toFixed(2) }}
+                    {{ formatBalancePair(row.usage_1d, row.rate_limit_1d, 2, 2, false) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -244,7 +244,7 @@
                     row.usage_7d >= row.rate_limit_7d * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    ${{ row.usage_7d?.toFixed(2) || '0.00' }}/${{ row.rate_limit_7d?.toFixed(2) }}
+                    {{ formatBalancePair(row.usage_7d, row.rate_limit_7d, 2, 2, false) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -554,7 +554,7 @@
           <div class="space-y-4">
             <div>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ balanceUnitSymbol }}</span>
                 <input
                   v-model.number="formData.quota"
                   type="number"
@@ -573,11 +573,11 @@
               <div class="flex items-center gap-2">
                 <div class="flex-1 rounded-lg bg-gray-100 px-3 py-2 dark:bg-dark-700">
                   <span class="font-medium text-gray-900 dark:text-white">
-                    ${{ selectedKey.quota_used?.toFixed(4) || '0.0000' }}
+                    {{ formatBalanceAmount(selectedKey.quota_used, { fractionDigits: 4 }) }}
                   </span>
                   <span class="mx-2 text-gray-400">/</span>
                   <span class="text-gray-500 dark:text-gray-400">
-                    ${{ selectedKey.quota?.toFixed(2) || '0.00' }}
+                    {{ formatBalanceAmount(selectedKey.quota, { fractionDigits: 2 }) }}
                   </span>
                 </div>
                 <button
@@ -620,7 +620,7 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit5h') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ balanceUnitSymbol }}</span>
                 <input
                   v-model.number="formData.rate_limit_5h"
                   type="number"
@@ -640,11 +640,11 @@
                       selectedKey.usage_5h >= selectedKey.rate_limit_5h * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      ${{ selectedKey.usage_5h?.toFixed(4) || '0.0000' }}
+                      {{ formatBalanceAmount(selectedKey.usage_5h, { fractionDigits: 4 }) }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      ${{ selectedKey.rate_limit_5h?.toFixed(2) || '0.00' }}
+                      {{ formatBalanceAmount(selectedKey.rate_limit_5h, { fractionDigits: 2 }) }}
                     </span>
                   </div>
                 </div>
@@ -666,7 +666,7 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit1d') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ balanceUnitSymbol }}</span>
                 <input
                   v-model.number="formData.rate_limit_1d"
                   type="number"
@@ -686,11 +686,11 @@
                       selectedKey.usage_1d >= selectedKey.rate_limit_1d * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      ${{ selectedKey.usage_1d?.toFixed(4) || '0.0000' }}
+                      {{ formatBalanceAmount(selectedKey.usage_1d, { fractionDigits: 4 }) }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      ${{ selectedKey.rate_limit_1d?.toFixed(2) || '0.00' }}
+                      {{ formatBalanceAmount(selectedKey.rate_limit_1d, { fractionDigits: 2 }) }}
                     </span>
                   </div>
                 </div>
@@ -712,7 +712,7 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit7d') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">$</span>
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ balanceUnitSymbol }}</span>
                 <input
                   v-model.number="formData.rate_limit_7d"
                   type="number"
@@ -732,11 +732,11 @@
                       selectedKey.usage_7d >= selectedKey.rate_limit_7d * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      ${{ selectedKey.usage_7d?.toFixed(4) || '0.0000' }}
+                      {{ formatBalanceAmount(selectedKey.usage_7d, { fractionDigits: 4 }) }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      ${{ selectedKey.rate_limit_7d?.toFixed(2) || '0.00' }}
+                      {{ formatBalanceAmount(selectedKey.rate_limit_7d, { fractionDigits: 2 }) }}
                     </span>
                   </div>
                 </div>
@@ -1048,9 +1048,10 @@
 	import { ref, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
 	import { useAppStore } from '@/stores/app'
-	import { useOnboardingStore } from '@/stores/onboarding'
-	import { useClipboard } from '@/composables/useClipboard'
+import { useOnboardingStore } from '@/stores/onboarding'
+import { useClipboard } from '@/composables/useClipboard'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 
 const { t } = useI18n()
 import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
@@ -1093,6 +1094,18 @@ interface GroupOption {
 const appStore = useAppStore()
 const onboardingStore = useOnboardingStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
+const { balanceUnitName, balanceUnitSymbol, formatBalanceAmount } = useBalanceDisplay()
+
+const formatBalancePair = (
+  used: number | null | undefined,
+  limit: number | null | undefined,
+  usedDigits: number,
+  limitDigits: number,
+  spaced: boolean = true
+) => {
+  const separator = spaced ? ' / ' : '/'
+  return `${formatBalanceAmount(used, { fractionDigits: usedDigits })}${separator}${formatBalanceAmount(limit, { fractionDigits: limitDigits })}`
+}
 
 const columns = computed<Column[]>(() => [
   { key: 'name', label: t('common.name'), sortable: true },
@@ -1704,6 +1717,23 @@ const importToCcswitch = (row: ApiKey) => {
   executeCcsImport(row, platform === 'gemini' ? 'gemini' : 'claude')
 }
 
+const toJsStringLiteral = (value: string) =>
+  JSON.stringify(value || 'USD')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+
+const encodeBase64Utf8 = (value: string) => {
+  const bytes = new TextEncoder().encode(value)
+  let binary = ''
+  const chunkSize = 0x8000
+
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize))
+  }
+
+  return btoa(binary)
+}
+
 const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
   const baseUrl = publicSettings.value?.api_base_url || window.location.origin
   const platform = row.group?.platform || 'anthropic'
@@ -1732,6 +1762,7 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
     }
   }
 
+  const fallbackUnitLiteral = toJsStringLiteral(balanceUnitName.value)
   const usageScript = `({
     request: {
       url: "{{baseUrl}}/v1/usage",
@@ -1740,7 +1771,7 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
     },
     extractor: function(response) {
       const remaining = response?.remaining ?? response?.quota?.remaining ?? response?.balance;
-      const unit = response?.unit ?? response?.quota?.unit ?? "USD";
+      const unit = response?.unit ?? response?.quota?.unit ?? ${fallbackUnitLiteral};
       return {
         isValid: response?.is_active ?? response?.isValid ?? true,
         remaining,
@@ -1759,7 +1790,7 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
     apiKey: row.key,
     configFormat: 'json',
     usageEnabled: 'true',
-    usageScript: btoa(usageScript),
+    usageScript: encodeBase64Utf8(usageScript),
     usageAutoInterval: '30'
   })
   const deeplink = `ccswitch://v1/import?${params.toString()}`
