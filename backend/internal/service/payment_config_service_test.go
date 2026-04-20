@@ -1,6 +1,8 @@
 package service
 
 import (
+	"encoding/json"
+	"reflect"
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/payment"
@@ -202,5 +204,64 @@ func TestGetBasePaymentType(t *testing.T) {
 				t.Fatalf("GetBasePaymentType(%q) = %q, want %q", tt.input, got, tt.expected)
 			}
 		})
+	}
+}
+
+func TestSplitTypes(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input string
+		want  []string
+	}{
+		{
+			name:  "empty string returns non nil empty slice",
+			input: "",
+			want:  []string{},
+		},
+		{
+			name:  "whitespace and empty entries are removed",
+			input: " alipay , , wxpay , ",
+			want:  []string{"alipay", "wxpay"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := splitTypes(tt.input)
+			if got == nil {
+				t.Fatalf("splitTypes(%q) returned nil, want non-nil slice", tt.input)
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("splitTypes(%q) = %#v, want %#v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestProviderInstanceResponseJSON_EmptySupportedTypesIsArray(t *testing.T) {
+	t.Parallel()
+
+	payload, err := json.Marshal(ProviderInstanceResponse{
+		SupportedTypes: splitTypes(""),
+	})
+	if err != nil {
+		t.Fatalf("marshal ProviderInstanceResponse: %v", err)
+	}
+
+	var decoded map[string]any
+	if err := json.Unmarshal(payload, &decoded); err != nil {
+		t.Fatalf("unmarshal ProviderInstanceResponse JSON: %v", err)
+	}
+
+	types, ok := decoded["supported_types"].([]any)
+	if !ok {
+		t.Fatalf("supported_types marshaled as %T, want JSON array", decoded["supported_types"])
+	}
+	if len(types) != 0 {
+		t.Fatalf("supported_types len = %d, want 0", len(types))
 	}
 }

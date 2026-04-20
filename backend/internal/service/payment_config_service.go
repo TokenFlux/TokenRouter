@@ -347,7 +347,7 @@ func derefStr(v *string) string {
 
 func splitTypes(s string) []string {
 	if s == "" {
-		return nil
+		return []string{}
 	}
 	parts := strings.Split(s, ",")
 	result := make([]string, 0, len(parts))
