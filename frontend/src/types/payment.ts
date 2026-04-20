@@ -99,24 +99,22 @@ export interface PaymentOrder {
 
 export interface SubscriptionPlan {
   id: number
-  group_id: number
-  group_platform?: string
-  group_name?: string
-  rate_multiplier?: number
-  daily_limit_usd?: number | null
-  weekly_limit_usd?: number | null
-  monthly_limit_usd?: number | null
-  supported_model_scopes?: string[]
   name: string
   description: string
   price: number
-  original_price?: number
+  original_price?: number | null
   validity_days: number
   validity_unit: string
+  daily_limit_usd?: number | null
+  weekly_limit_usd?: number | null
+  monthly_limit_usd?: number | null
   /** Stored as JSON string in backend; API layer should parse before use */
   features: string[]
+  product_name?: string
   for_sale: boolean
   sort_order: number
+  created_at?: string
+  updated_at?: string
 }
 
 export interface PaymentChannel {

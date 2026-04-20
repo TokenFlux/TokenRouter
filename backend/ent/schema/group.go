@@ -51,27 +51,9 @@ func (Group) Fields() []ent.Field {
 			MaxLen(20).
 			Default(domain.StatusActive),
 
-		// Subscription-related fields (added by migration 003)
 		field.String("platform").
 			MaxLen(50).
 			Default(domain.PlatformAnthropic),
-		field.String("subscription_type").
-			MaxLen(20).
-			Default(domain.SubscriptionTypeStandard),
-		field.Float("daily_limit_usd").
-			Optional().
-			Nillable().
-			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
-		field.Float("weekly_limit_usd").
-			Optional().
-			Nillable().
-			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
-		field.Float("monthly_limit_usd").
-			Optional().
-			Nillable().
-			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
-		field.Int("default_validity_days").
-			Default(30),
 
 		// 图片生成计费配置（antigravity 和 gemini 平台使用）
 		field.Float("image_price_1k").
@@ -151,8 +133,6 @@ func (Group) Fields() []ent.Field {
 func (Group) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.To("api_keys", APIKey.Type),
-		edge.To("redeem_codes", RedeemCode.Type),
-		edge.To("subscriptions", UserSubscription.Type),
 		edge.To("usage_logs", UsageLog.Type),
 		edge.From("accounts", Account.Type).
 			Ref("groups").
@@ -170,7 +150,6 @@ func (Group) Indexes() []ent.Index {
 		// name 字段已在 Fields() 中声明 Unique()，无需重复索引
 		index.Fields("status"),
 		index.Fields("platform"),
-		index.Fields("subscription_type"),
 		index.Fields("is_exclusive"),
 		index.Fields("deleted_at"),
 		index.Fields("sort_order"),

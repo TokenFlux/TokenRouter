@@ -64,6 +64,12 @@ const (
 	FieldTotalCost = "total_cost"
 	// FieldActualCost holds the string denoting the actual_cost field in the database.
 	FieldActualCost = "actual_cost"
+	// FieldSubscriptionAmountUsd holds the string denoting the subscription_amount_usd field in the database.
+	FieldSubscriptionAmountUsd = "subscription_amount_usd"
+	// FieldBalanceAmountUsd holds the string denoting the balance_amount_usd field in the database.
+	FieldBalanceAmountUsd = "balance_amount_usd"
+	// FieldBillingAllocations holds the string denoting the billing_allocations field in the database.
+	FieldBillingAllocations = "billing_allocations"
 	// FieldRateMultiplier holds the string denoting the rate_multiplier field in the database.
 	FieldRateMultiplier = "rate_multiplier"
 	// FieldAccountRateMultiplier holds the string denoting the account_rate_multiplier field in the database.
@@ -165,6 +171,9 @@ var Columns = []string{
 	FieldCacheReadCost,
 	FieldTotalCost,
 	FieldActualCost,
+	FieldSubscriptionAmountUsd,
+	FieldBalanceAmountUsd,
+	FieldBillingAllocations,
 	FieldRateMultiplier,
 	FieldAccountRateMultiplier,
 	FieldBillingType,
@@ -228,6 +237,10 @@ var (
 	DefaultTotalCost float64
 	// DefaultActualCost holds the default value on creation for the "actual_cost" field.
 	DefaultActualCost float64
+	// DefaultSubscriptionAmountUsd holds the default value on creation for the "subscription_amount_usd" field.
+	DefaultSubscriptionAmountUsd float64
+	// DefaultBalanceAmountUsd holds the default value on creation for the "balance_amount_usd" field.
+	DefaultBalanceAmountUsd float64
 	// DefaultRateMultiplier holds the default value on creation for the "rate_multiplier" field.
 	DefaultRateMultiplier float64
 	// DefaultBillingType holds the default value on creation for the "billing_type" field.
@@ -379,6 +392,16 @@ func ByTotalCost(opts ...sql.OrderTermOption) OrderOption {
 // ByActualCost orders the results by the actual_cost field.
 func ByActualCost(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldActualCost, opts...).ToFunc()
+}
+
+// BySubscriptionAmountUsd orders the results by the subscription_amount_usd field.
+func BySubscriptionAmountUsd(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSubscriptionAmountUsd, opts...).ToFunc()
+}
+
+// ByBalanceAmountUsd orders the results by the balance_amount_usd field.
+func ByBalanceAmountUsd(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldBalanceAmountUsd, opts...).ToFunc()
 }
 
 // ByRateMultiplier orders the results by the rate_multiplier field.

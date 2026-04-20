@@ -17,6 +17,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
 
 // UsageLogCreate is the builder for creating a UsageLog entity.
@@ -337,6 +338,40 @@ func (_c *UsageLogCreate) SetNillableActualCost(v *float64) *UsageLogCreate {
 	return _c
 }
 
+// SetSubscriptionAmountUsd sets the "subscription_amount_usd" field.
+func (_c *UsageLogCreate) SetSubscriptionAmountUsd(v float64) *UsageLogCreate {
+	_c.mutation.SetSubscriptionAmountUsd(v)
+	return _c
+}
+
+// SetNillableSubscriptionAmountUsd sets the "subscription_amount_usd" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableSubscriptionAmountUsd(v *float64) *UsageLogCreate {
+	if v != nil {
+		_c.SetSubscriptionAmountUsd(*v)
+	}
+	return _c
+}
+
+// SetBalanceAmountUsd sets the "balance_amount_usd" field.
+func (_c *UsageLogCreate) SetBalanceAmountUsd(v float64) *UsageLogCreate {
+	_c.mutation.SetBalanceAmountUsd(v)
+	return _c
+}
+
+// SetNillableBalanceAmountUsd sets the "balance_amount_usd" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableBalanceAmountUsd(v *float64) *UsageLogCreate {
+	if v != nil {
+		_c.SetBalanceAmountUsd(*v)
+	}
+	return _c
+}
+
+// SetBillingAllocations sets the "billing_allocations" field.
+func (_c *UsageLogCreate) SetBillingAllocations(v []domain.BillingAllocation) *UsageLogCreate {
+	_c.mutation.SetBillingAllocations(v)
+	return _c
+}
+
 // SetRateMultiplier sets the "rate_multiplier" field.
 func (_c *UsageLogCreate) SetRateMultiplier(v float64) *UsageLogCreate {
 	_c.mutation.SetRateMultiplier(v)
@@ -613,6 +648,14 @@ func (_c *UsageLogCreate) defaults() {
 		v := usagelog.DefaultActualCost
 		_c.mutation.SetActualCost(v)
 	}
+	if _, ok := _c.mutation.SubscriptionAmountUsd(); !ok {
+		v := usagelog.DefaultSubscriptionAmountUsd
+		_c.mutation.SetSubscriptionAmountUsd(v)
+	}
+	if _, ok := _c.mutation.BalanceAmountUsd(); !ok {
+		v := usagelog.DefaultBalanceAmountUsd
+		_c.mutation.SetBalanceAmountUsd(v)
+	}
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		v := usagelog.DefaultRateMultiplier
 		_c.mutation.SetRateMultiplier(v)
@@ -726,6 +769,12 @@ func (_c *UsageLogCreate) check() error {
 	}
 	if _, ok := _c.mutation.ActualCost(); !ok {
 		return &ValidationError{Name: "actual_cost", err: errors.New(`ent: missing required field "UsageLog.actual_cost"`)}
+	}
+	if _, ok := _c.mutation.SubscriptionAmountUsd(); !ok {
+		return &ValidationError{Name: "subscription_amount_usd", err: errors.New(`ent: missing required field "UsageLog.subscription_amount_usd"`)}
+	}
+	if _, ok := _c.mutation.BalanceAmountUsd(); !ok {
+		return &ValidationError{Name: "balance_amount_usd", err: errors.New(`ent: missing required field "UsageLog.balance_amount_usd"`)}
 	}
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		return &ValidationError{Name: "rate_multiplier", err: errors.New(`ent: missing required field "UsageLog.rate_multiplier"`)}
@@ -875,6 +924,18 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.ActualCost(); ok {
 		_spec.SetField(usagelog.FieldActualCost, field.TypeFloat64, value)
 		_node.ActualCost = value
+	}
+	if value, ok := _c.mutation.SubscriptionAmountUsd(); ok {
+		_spec.SetField(usagelog.FieldSubscriptionAmountUsd, field.TypeFloat64, value)
+		_node.SubscriptionAmountUsd = value
+	}
+	if value, ok := _c.mutation.BalanceAmountUsd(); ok {
+		_spec.SetField(usagelog.FieldBalanceAmountUsd, field.TypeFloat64, value)
+		_node.BalanceAmountUsd = value
+	}
+	if value, ok := _c.mutation.BillingAllocations(); ok {
+		_spec.SetField(usagelog.FieldBillingAllocations, field.TypeJSON, value)
+		_node.BillingAllocations = value
 	}
 	if value, ok := _c.mutation.RateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldRateMultiplier, field.TypeFloat64, value)
@@ -1484,6 +1545,60 @@ func (u *UsageLogUpsert) UpdateActualCost() *UsageLogUpsert {
 // AddActualCost adds v to the "actual_cost" field.
 func (u *UsageLogUpsert) AddActualCost(v float64) *UsageLogUpsert {
 	u.Add(usagelog.FieldActualCost, v)
+	return u
+}
+
+// SetSubscriptionAmountUsd sets the "subscription_amount_usd" field.
+func (u *UsageLogUpsert) SetSubscriptionAmountUsd(v float64) *UsageLogUpsert {
+	u.Set(usagelog.FieldSubscriptionAmountUsd, v)
+	return u
+}
+
+// UpdateSubscriptionAmountUsd sets the "subscription_amount_usd" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateSubscriptionAmountUsd() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldSubscriptionAmountUsd)
+	return u
+}
+
+// AddSubscriptionAmountUsd adds v to the "subscription_amount_usd" field.
+func (u *UsageLogUpsert) AddSubscriptionAmountUsd(v float64) *UsageLogUpsert {
+	u.Add(usagelog.FieldSubscriptionAmountUsd, v)
+	return u
+}
+
+// SetBalanceAmountUsd sets the "balance_amount_usd" field.
+func (u *UsageLogUpsert) SetBalanceAmountUsd(v float64) *UsageLogUpsert {
+	u.Set(usagelog.FieldBalanceAmountUsd, v)
+	return u
+}
+
+// UpdateBalanceAmountUsd sets the "balance_amount_usd" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateBalanceAmountUsd() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldBalanceAmountUsd)
+	return u
+}
+
+// AddBalanceAmountUsd adds v to the "balance_amount_usd" field.
+func (u *UsageLogUpsert) AddBalanceAmountUsd(v float64) *UsageLogUpsert {
+	u.Add(usagelog.FieldBalanceAmountUsd, v)
+	return u
+}
+
+// SetBillingAllocations sets the "billing_allocations" field.
+func (u *UsageLogUpsert) SetBillingAllocations(v []domain.BillingAllocation) *UsageLogUpsert {
+	u.Set(usagelog.FieldBillingAllocations, v)
+	return u
+}
+
+// UpdateBillingAllocations sets the "billing_allocations" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateBillingAllocations() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldBillingAllocations)
+	return u
+}
+
+// ClearBillingAllocations clears the value of the "billing_allocations" field.
+func (u *UsageLogUpsert) ClearBillingAllocations() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldBillingAllocations)
 	return u
 }
 
@@ -2230,6 +2345,69 @@ func (u *UsageLogUpsertOne) AddActualCost(v float64) *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) UpdateActualCost() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateActualCost()
+	})
+}
+
+// SetSubscriptionAmountUsd sets the "subscription_amount_usd" field.
+func (u *UsageLogUpsertOne) SetSubscriptionAmountUsd(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetSubscriptionAmountUsd(v)
+	})
+}
+
+// AddSubscriptionAmountUsd adds v to the "subscription_amount_usd" field.
+func (u *UsageLogUpsertOne) AddSubscriptionAmountUsd(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddSubscriptionAmountUsd(v)
+	})
+}
+
+// UpdateSubscriptionAmountUsd sets the "subscription_amount_usd" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateSubscriptionAmountUsd() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateSubscriptionAmountUsd()
+	})
+}
+
+// SetBalanceAmountUsd sets the "balance_amount_usd" field.
+func (u *UsageLogUpsertOne) SetBalanceAmountUsd(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetBalanceAmountUsd(v)
+	})
+}
+
+// AddBalanceAmountUsd adds v to the "balance_amount_usd" field.
+func (u *UsageLogUpsertOne) AddBalanceAmountUsd(v float64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddBalanceAmountUsd(v)
+	})
+}
+
+// UpdateBalanceAmountUsd sets the "balance_amount_usd" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateBalanceAmountUsd() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateBalanceAmountUsd()
+	})
+}
+
+// SetBillingAllocations sets the "billing_allocations" field.
+func (u *UsageLogUpsertOne) SetBillingAllocations(v []domain.BillingAllocation) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetBillingAllocations(v)
+	})
+}
+
+// UpdateBillingAllocations sets the "billing_allocations" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateBillingAllocations() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateBillingAllocations()
+	})
+}
+
+// ClearBillingAllocations clears the value of the "billing_allocations" field.
+func (u *UsageLogUpsertOne) ClearBillingAllocations() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearBillingAllocations()
 	})
 }
 
@@ -3176,6 +3354,69 @@ func (u *UsageLogUpsertBulk) AddActualCost(v float64) *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) UpdateActualCost() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateActualCost()
+	})
+}
+
+// SetSubscriptionAmountUsd sets the "subscription_amount_usd" field.
+func (u *UsageLogUpsertBulk) SetSubscriptionAmountUsd(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetSubscriptionAmountUsd(v)
+	})
+}
+
+// AddSubscriptionAmountUsd adds v to the "subscription_amount_usd" field.
+func (u *UsageLogUpsertBulk) AddSubscriptionAmountUsd(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddSubscriptionAmountUsd(v)
+	})
+}
+
+// UpdateSubscriptionAmountUsd sets the "subscription_amount_usd" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateSubscriptionAmountUsd() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateSubscriptionAmountUsd()
+	})
+}
+
+// SetBalanceAmountUsd sets the "balance_amount_usd" field.
+func (u *UsageLogUpsertBulk) SetBalanceAmountUsd(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetBalanceAmountUsd(v)
+	})
+}
+
+// AddBalanceAmountUsd adds v to the "balance_amount_usd" field.
+func (u *UsageLogUpsertBulk) AddBalanceAmountUsd(v float64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddBalanceAmountUsd(v)
+	})
+}
+
+// UpdateBalanceAmountUsd sets the "balance_amount_usd" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateBalanceAmountUsd() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateBalanceAmountUsd()
+	})
+}
+
+// SetBillingAllocations sets the "billing_allocations" field.
+func (u *UsageLogUpsertBulk) SetBillingAllocations(v []domain.BillingAllocation) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetBillingAllocations(v)
+	})
+}
+
+// UpdateBillingAllocations sets the "billing_allocations" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateBillingAllocations() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateBillingAllocations()
+	})
+}
+
+// ClearBillingAllocations clears the value of the "billing_allocations" field.
+func (u *UsageLogUpsertBulk) ClearBillingAllocations() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearBillingAllocations()
 	})
 }
 

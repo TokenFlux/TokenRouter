@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/TokenFlux/TokenRouter/ent/paymentorder"
 	"github.com/TokenFlux/TokenRouter/ent/user"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
 
 // PaymentOrderCreate is the builder for creating a PaymentOrder entity.
@@ -183,30 +184,16 @@ func (_c *PaymentOrderCreate) SetNillablePlanID(v *int64) *PaymentOrderCreate {
 	return _c
 }
 
-// SetSubscriptionGroupID sets the "subscription_group_id" field.
-func (_c *PaymentOrderCreate) SetSubscriptionGroupID(v int64) *PaymentOrderCreate {
-	_c.mutation.SetSubscriptionGroupID(v)
+// SetPlanSnapshot sets the "plan_snapshot" field.
+func (_c *PaymentOrderCreate) SetPlanSnapshot(v domain.SubscriptionPlanSnapshot) *PaymentOrderCreate {
+	_c.mutation.SetPlanSnapshot(v)
 	return _c
 }
 
-// SetNillableSubscriptionGroupID sets the "subscription_group_id" field if the given value is not nil.
-func (_c *PaymentOrderCreate) SetNillableSubscriptionGroupID(v *int64) *PaymentOrderCreate {
+// SetNillablePlanSnapshot sets the "plan_snapshot" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillablePlanSnapshot(v *domain.SubscriptionPlanSnapshot) *PaymentOrderCreate {
 	if v != nil {
-		_c.SetSubscriptionGroupID(*v)
-	}
-	return _c
-}
-
-// SetSubscriptionDays sets the "subscription_days" field.
-func (_c *PaymentOrderCreate) SetSubscriptionDays(v int) *PaymentOrderCreate {
-	_c.mutation.SetSubscriptionDays(v)
-	return _c
-}
-
-// SetNillableSubscriptionDays sets the "subscription_days" field if the given value is not nil.
-func (_c *PaymentOrderCreate) SetNillableSubscriptionDays(v *int) *PaymentOrderCreate {
-	if v != nil {
-		_c.SetSubscriptionDays(*v)
+		_c.SetPlanSnapshot(*v)
 	}
 	return _c
 }
@@ -736,13 +723,9 @@ func (_c *PaymentOrderCreate) createSpec() (*PaymentOrder, *sqlgraph.CreateSpec)
 		_spec.SetField(paymentorder.FieldPlanID, field.TypeInt64, value)
 		_node.PlanID = &value
 	}
-	if value, ok := _c.mutation.SubscriptionGroupID(); ok {
-		_spec.SetField(paymentorder.FieldSubscriptionGroupID, field.TypeInt64, value)
-		_node.SubscriptionGroupID = &value
-	}
-	if value, ok := _c.mutation.SubscriptionDays(); ok {
-		_spec.SetField(paymentorder.FieldSubscriptionDays, field.TypeInt, value)
-		_node.SubscriptionDays = &value
+	if value, ok := _c.mutation.PlanSnapshot(); ok {
+		_spec.SetField(paymentorder.FieldPlanSnapshot, field.TypeJSON, value)
+		_node.PlanSnapshot = value
 	}
 	if value, ok := _c.mutation.ProviderInstanceID(); ok {
 		_spec.SetField(paymentorder.FieldProviderInstanceID, field.TypeString, value)
@@ -1135,51 +1118,21 @@ func (u *PaymentOrderUpsert) ClearPlanID() *PaymentOrderUpsert {
 	return u
 }
 
-// SetSubscriptionGroupID sets the "subscription_group_id" field.
-func (u *PaymentOrderUpsert) SetSubscriptionGroupID(v int64) *PaymentOrderUpsert {
-	u.Set(paymentorder.FieldSubscriptionGroupID, v)
+// SetPlanSnapshot sets the "plan_snapshot" field.
+func (u *PaymentOrderUpsert) SetPlanSnapshot(v domain.SubscriptionPlanSnapshot) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldPlanSnapshot, v)
 	return u
 }
 
-// UpdateSubscriptionGroupID sets the "subscription_group_id" field to the value that was provided on create.
-func (u *PaymentOrderUpsert) UpdateSubscriptionGroupID() *PaymentOrderUpsert {
-	u.SetExcluded(paymentorder.FieldSubscriptionGroupID)
+// UpdatePlanSnapshot sets the "plan_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdatePlanSnapshot() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldPlanSnapshot)
 	return u
 }
 
-// AddSubscriptionGroupID adds v to the "subscription_group_id" field.
-func (u *PaymentOrderUpsert) AddSubscriptionGroupID(v int64) *PaymentOrderUpsert {
-	u.Add(paymentorder.FieldSubscriptionGroupID, v)
-	return u
-}
-
-// ClearSubscriptionGroupID clears the value of the "subscription_group_id" field.
-func (u *PaymentOrderUpsert) ClearSubscriptionGroupID() *PaymentOrderUpsert {
-	u.SetNull(paymentorder.FieldSubscriptionGroupID)
-	return u
-}
-
-// SetSubscriptionDays sets the "subscription_days" field.
-func (u *PaymentOrderUpsert) SetSubscriptionDays(v int) *PaymentOrderUpsert {
-	u.Set(paymentorder.FieldSubscriptionDays, v)
-	return u
-}
-
-// UpdateSubscriptionDays sets the "subscription_days" field to the value that was provided on create.
-func (u *PaymentOrderUpsert) UpdateSubscriptionDays() *PaymentOrderUpsert {
-	u.SetExcluded(paymentorder.FieldSubscriptionDays)
-	return u
-}
-
-// AddSubscriptionDays adds v to the "subscription_days" field.
-func (u *PaymentOrderUpsert) AddSubscriptionDays(v int) *PaymentOrderUpsert {
-	u.Add(paymentorder.FieldSubscriptionDays, v)
-	return u
-}
-
-// ClearSubscriptionDays clears the value of the "subscription_days" field.
-func (u *PaymentOrderUpsert) ClearSubscriptionDays() *PaymentOrderUpsert {
-	u.SetNull(paymentorder.FieldSubscriptionDays)
+// ClearPlanSnapshot clears the value of the "plan_snapshot" field.
+func (u *PaymentOrderUpsert) ClearPlanSnapshot() *PaymentOrderUpsert {
+	u.SetNull(paymentorder.FieldPlanSnapshot)
 	return u
 }
 
@@ -1803,59 +1756,24 @@ func (u *PaymentOrderUpsertOne) ClearPlanID() *PaymentOrderUpsertOne {
 	})
 }
 
-// SetSubscriptionGroupID sets the "subscription_group_id" field.
-func (u *PaymentOrderUpsertOne) SetSubscriptionGroupID(v int64) *PaymentOrderUpsertOne {
+// SetPlanSnapshot sets the "plan_snapshot" field.
+func (u *PaymentOrderUpsertOne) SetPlanSnapshot(v domain.SubscriptionPlanSnapshot) *PaymentOrderUpsertOne {
 	return u.Update(func(s *PaymentOrderUpsert) {
-		s.SetSubscriptionGroupID(v)
+		s.SetPlanSnapshot(v)
 	})
 }
 
-// AddSubscriptionGroupID adds v to the "subscription_group_id" field.
-func (u *PaymentOrderUpsertOne) AddSubscriptionGroupID(v int64) *PaymentOrderUpsertOne {
+// UpdatePlanSnapshot sets the "plan_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdatePlanSnapshot() *PaymentOrderUpsertOne {
 	return u.Update(func(s *PaymentOrderUpsert) {
-		s.AddSubscriptionGroupID(v)
+		s.UpdatePlanSnapshot()
 	})
 }
 
-// UpdateSubscriptionGroupID sets the "subscription_group_id" field to the value that was provided on create.
-func (u *PaymentOrderUpsertOne) UpdateSubscriptionGroupID() *PaymentOrderUpsertOne {
+// ClearPlanSnapshot clears the value of the "plan_snapshot" field.
+func (u *PaymentOrderUpsertOne) ClearPlanSnapshot() *PaymentOrderUpsertOne {
 	return u.Update(func(s *PaymentOrderUpsert) {
-		s.UpdateSubscriptionGroupID()
-	})
-}
-
-// ClearSubscriptionGroupID clears the value of the "subscription_group_id" field.
-func (u *PaymentOrderUpsertOne) ClearSubscriptionGroupID() *PaymentOrderUpsertOne {
-	return u.Update(func(s *PaymentOrderUpsert) {
-		s.ClearSubscriptionGroupID()
-	})
-}
-
-// SetSubscriptionDays sets the "subscription_days" field.
-func (u *PaymentOrderUpsertOne) SetSubscriptionDays(v int) *PaymentOrderUpsertOne {
-	return u.Update(func(s *PaymentOrderUpsert) {
-		s.SetSubscriptionDays(v)
-	})
-}
-
-// AddSubscriptionDays adds v to the "subscription_days" field.
-func (u *PaymentOrderUpsertOne) AddSubscriptionDays(v int) *PaymentOrderUpsertOne {
-	return u.Update(func(s *PaymentOrderUpsert) {
-		s.AddSubscriptionDays(v)
-	})
-}
-
-// UpdateSubscriptionDays sets the "subscription_days" field to the value that was provided on create.
-func (u *PaymentOrderUpsertOne) UpdateSubscriptionDays() *PaymentOrderUpsertOne {
-	return u.Update(func(s *PaymentOrderUpsert) {
-		s.UpdateSubscriptionDays()
-	})
-}
-
-// ClearSubscriptionDays clears the value of the "subscription_days" field.
-func (u *PaymentOrderUpsertOne) ClearSubscriptionDays() *PaymentOrderUpsertOne {
-	return u.Update(func(s *PaymentOrderUpsert) {
-		s.ClearSubscriptionDays()
+		s.ClearPlanSnapshot()
 	})
 }
 
@@ -2693,59 +2611,24 @@ func (u *PaymentOrderUpsertBulk) ClearPlanID() *PaymentOrderUpsertBulk {
 	})
 }
 
-// SetSubscriptionGroupID sets the "subscription_group_id" field.
-func (u *PaymentOrderUpsertBulk) SetSubscriptionGroupID(v int64) *PaymentOrderUpsertBulk {
+// SetPlanSnapshot sets the "plan_snapshot" field.
+func (u *PaymentOrderUpsertBulk) SetPlanSnapshot(v domain.SubscriptionPlanSnapshot) *PaymentOrderUpsertBulk {
 	return u.Update(func(s *PaymentOrderUpsert) {
-		s.SetSubscriptionGroupID(v)
+		s.SetPlanSnapshot(v)
 	})
 }
 
-// AddSubscriptionGroupID adds v to the "subscription_group_id" field.
-func (u *PaymentOrderUpsertBulk) AddSubscriptionGroupID(v int64) *PaymentOrderUpsertBulk {
+// UpdatePlanSnapshot sets the "plan_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdatePlanSnapshot() *PaymentOrderUpsertBulk {
 	return u.Update(func(s *PaymentOrderUpsert) {
-		s.AddSubscriptionGroupID(v)
+		s.UpdatePlanSnapshot()
 	})
 }
 
-// UpdateSubscriptionGroupID sets the "subscription_group_id" field to the value that was provided on create.
-func (u *PaymentOrderUpsertBulk) UpdateSubscriptionGroupID() *PaymentOrderUpsertBulk {
+// ClearPlanSnapshot clears the value of the "plan_snapshot" field.
+func (u *PaymentOrderUpsertBulk) ClearPlanSnapshot() *PaymentOrderUpsertBulk {
 	return u.Update(func(s *PaymentOrderUpsert) {
-		s.UpdateSubscriptionGroupID()
-	})
-}
-
-// ClearSubscriptionGroupID clears the value of the "subscription_group_id" field.
-func (u *PaymentOrderUpsertBulk) ClearSubscriptionGroupID() *PaymentOrderUpsertBulk {
-	return u.Update(func(s *PaymentOrderUpsert) {
-		s.ClearSubscriptionGroupID()
-	})
-}
-
-// SetSubscriptionDays sets the "subscription_days" field.
-func (u *PaymentOrderUpsertBulk) SetSubscriptionDays(v int) *PaymentOrderUpsertBulk {
-	return u.Update(func(s *PaymentOrderUpsert) {
-		s.SetSubscriptionDays(v)
-	})
-}
-
-// AddSubscriptionDays adds v to the "subscription_days" field.
-func (u *PaymentOrderUpsertBulk) AddSubscriptionDays(v int) *PaymentOrderUpsertBulk {
-	return u.Update(func(s *PaymentOrderUpsert) {
-		s.AddSubscriptionDays(v)
-	})
-}
-
-// UpdateSubscriptionDays sets the "subscription_days" field to the value that was provided on create.
-func (u *PaymentOrderUpsertBulk) UpdateSubscriptionDays() *PaymentOrderUpsertBulk {
-	return u.Update(func(s *PaymentOrderUpsert) {
-		s.UpdateSubscriptionDays()
-	})
-}
-
-// ClearSubscriptionDays clears the value of the "subscription_days" field.
-func (u *PaymentOrderUpsertBulk) ClearSubscriptionDays() *PaymentOrderUpsertBulk {
-	return u.Update(func(s *PaymentOrderUpsert) {
-		s.ClearSubscriptionDays()
+		s.ClearPlanSnapshot()
 	})
 }
 

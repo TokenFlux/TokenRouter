@@ -7,7 +7,6 @@ import (
 	"errors"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"
@@ -398,80 +397,6 @@ func (s *redeemRepoStub) SumPositiveBalanceByUser(ctx context.Context, userID in
 	panic("unexpected SumPositiveBalanceByUser call")
 }
 
-type subscriptionInvalidateCall struct {
-	userID  int64
-	groupID int64
-}
-
-type billingCacheStub struct {
-	invalidations chan subscriptionInvalidateCall
-}
-
-func newBillingCacheStub(buffer int) *billingCacheStub {
-	return &billingCacheStub{invalidations: make(chan subscriptionInvalidateCall, buffer)}
-}
-
-func (s *billingCacheStub) GetUserBalance(ctx context.Context, userID int64) (float64, error) {
-	panic("unexpected GetUserBalance call")
-}
-
-func (s *billingCacheStub) SetUserBalance(ctx context.Context, userID int64, balance float64) error {
-	panic("unexpected SetUserBalance call")
-}
-
-func (s *billingCacheStub) DeductUserBalance(ctx context.Context, userID int64, amount float64) error {
-	panic("unexpected DeductUserBalance call")
-}
-
-func (s *billingCacheStub) InvalidateUserBalance(ctx context.Context, userID int64) error {
-	panic("unexpected InvalidateUserBalance call")
-}
-
-func (s *billingCacheStub) GetSubscriptionCache(ctx context.Context, userID, groupID int64) (*SubscriptionCacheData, error) {
-	panic("unexpected GetSubscriptionCache call")
-}
-
-func (s *billingCacheStub) SetSubscriptionCache(ctx context.Context, userID, groupID int64, data *SubscriptionCacheData) error {
-	panic("unexpected SetSubscriptionCache call")
-}
-
-func (s *billingCacheStub) UpdateSubscriptionUsage(ctx context.Context, userID, groupID int64, cost float64) error {
-	panic("unexpected UpdateSubscriptionUsage call")
-}
-
-func (s *billingCacheStub) InvalidateSubscriptionCache(ctx context.Context, userID, groupID int64) error {
-	s.invalidations <- subscriptionInvalidateCall{userID: userID, groupID: groupID}
-	return nil
-}
-
-func (s *billingCacheStub) GetAPIKeyRateLimit(ctx context.Context, keyID int64) (*APIKeyRateLimitCacheData, error) {
-	panic("unexpected GetAPIKeyRateLimit call")
-}
-func (s *billingCacheStub) SetAPIKeyRateLimit(ctx context.Context, keyID int64, data *APIKeyRateLimitCacheData) error {
-	panic("unexpected SetAPIKeyRateLimit call")
-}
-func (s *billingCacheStub) UpdateAPIKeyRateLimitUsage(ctx context.Context, keyID int64, cost float64) error {
-	panic("unexpected UpdateAPIKeyRateLimitUsage call")
-}
-func (s *billingCacheStub) InvalidateAPIKeyRateLimit(ctx context.Context, keyID int64) error {
-	panic("unexpected InvalidateAPIKeyRateLimit call")
-}
-
-func waitForInvalidations(t *testing.T, ch <-chan subscriptionInvalidateCall, expected int) []subscriptionInvalidateCall {
-	t.Helper()
-	calls := make([]subscriptionInvalidateCall, 0, expected)
-	timeout := time.After(2 * time.Second)
-	for len(calls) < expected {
-		select {
-		case call := <-ch:
-			calls = append(calls, call)
-		case <-timeout:
-			t.Fatalf("timeout waiting for %d invalidations, got %d", expected, len(calls))
-		}
-	}
-	return calls
-}
-
 func TestAdminService_DeleteUser_Success(t *testing.T) {
 	repo := &userRepoStub{user: &User{ID: 7, Role: RoleUser}}
 	svc := &adminServiceImpl{userRepo: repo}
@@ -513,23 +438,15 @@ func TestAdminService_DeleteUser_DeleteError(t *testing.T) {
 	require.Equal(t, []int64{9}, repo.deletedIDs)
 }
 
-func TestAdminService_DeleteGroup_Success_WithCacheInvalidation(t *testing.T) {
-	cache := newBillingCacheStub(2)
+func TestAdminService_DeleteGroup_Success(t *testing.T) {
 	repo := &groupRepoStub{affectedUserIDs: []int64{11, 12}}
 	svc := &adminServiceImpl{
-		groupRepo:           repo,
-		billingCacheService: &BillingCacheService{cache: cache},
+		groupRepo: repo,
 	}
 
 	err := svc.DeleteGroup(context.Background(), 5)
 	require.NoError(t, err)
 	require.Equal(t, []int64{5}, repo.deleteCalls)
-
-	calls := waitForInvalidations(t, cache.invalidations, 2)
-	require.ElementsMatch(t, []subscriptionInvalidateCall{
-		{userID: 11, groupID: 5},
-		{userID: 12, groupID: 5},
-	}, calls)
 }
 
 func TestAdminService_DeleteGroup_NotFound(t *testing.T) {

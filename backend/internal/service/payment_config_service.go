@@ -137,31 +137,35 @@ type UpdateProviderInstanceRequest struct {
 	AllowUserRefund *bool             `json:"allow_user_refund"`
 }
 type CreatePlanRequest struct {
-	GroupID       int64    `json:"group_id"`
-	Name          string   `json:"name"`
-	Description   string   `json:"description"`
-	Price         float64  `json:"price"`
-	OriginalPrice *float64 `json:"original_price"`
-	ValidityDays  int      `json:"validity_days"`
-	ValidityUnit  string   `json:"validity_unit"`
-	Features      string   `json:"features"`
-	ProductName   string   `json:"product_name"`
-	ForSale       bool     `json:"for_sale"`
-	SortOrder     int      `json:"sort_order"`
+	Name            string   `json:"name"`
+	Description     string   `json:"description"`
+	Price           float64  `json:"price"`
+	OriginalPrice   *float64 `json:"original_price"`
+	ValidityDays    int      `json:"validity_days"`
+	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
+	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
+	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
+	ValidityUnit    string   `json:"validity_unit"`
+	Features        string   `json:"features"`
+	ProductName     string   `json:"product_name"`
+	ForSale         bool     `json:"for_sale"`
+	SortOrder       int      `json:"sort_order"`
 }
 
 type UpdatePlanRequest struct {
-	GroupID       *int64   `json:"group_id"`
-	Name          *string  `json:"name"`
-	Description   *string  `json:"description"`
-	Price         *float64 `json:"price"`
-	OriginalPrice *float64 `json:"original_price"`
-	ValidityDays  *int     `json:"validity_days"`
-	ValidityUnit  *string  `json:"validity_unit"`
-	Features      *string  `json:"features"`
-	ProductName   *string  `json:"product_name"`
-	ForSale       *bool    `json:"for_sale"`
-	SortOrder     *int     `json:"sort_order"`
+	Name            *string  `json:"name"`
+	Description     *string  `json:"description"`
+	Price           *float64 `json:"price"`
+	OriginalPrice   *float64 `json:"original_price"`
+	ValidityDays    *int     `json:"validity_days"`
+	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
+	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
+	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
+	ValidityUnit    *string  `json:"validity_unit"`
+	Features        *string  `json:"features"`
+	ProductName     *string  `json:"product_name"`
+	ForSale         *bool    `json:"for_sale"`
+	SortOrder       *int     `json:"sort_order"`
 }
 
 // PaymentConfigService manages payment configuration and CRUD for
@@ -175,6 +179,31 @@ type PaymentConfigService struct {
 // NewPaymentConfigService creates a new PaymentConfigService.
 func NewPaymentConfigService(entClient *dbent.Client, settingRepo SettingRepository, encryptionKey []byte) *PaymentConfigService {
 	return &PaymentConfigService{entClient: entClient, settingRepo: settingRepo, encryptionKey: encryptionKey}
+}
+
+func (s *PaymentConfigService) GetByID(ctx context.Context, id int64) (*SubscriptionPlan, error) {
+	plan, err := s.entClient.SubscriptionPlan.Get(ctx, id)
+	if err != nil {
+		return nil, infraerrors.NotFound("PLAN_NOT_FOUND", "subscription plan not found")
+	}
+	return &SubscriptionPlan{
+		ID:              plan.ID,
+		Name:            plan.Name,
+		Description:     plan.Description,
+		Price:           plan.Price,
+		OriginalPrice:   plan.OriginalPrice,
+		ValidityDays:    plan.ValidityDays,
+		ValidityUnit:    plan.ValidityUnit,
+		DailyLimitUSD:   plan.DailyLimitUsd,
+		WeeklyLimitUSD:  plan.WeeklyLimitUsd,
+		MonthlyLimitUSD: plan.MonthlyLimitUsd,
+		Features:        plan.Features,
+		ProductName:     plan.ProductName,
+		ForSale:         plan.ForSale,
+		SortOrder:       plan.SortOrder,
+		CreatedAt:       plan.CreatedAt,
+		UpdatedAt:       plan.UpdatedAt,
+	}, nil
 }
 
 // IsPaymentEnabled returns whether the payment system is enabled.

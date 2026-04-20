@@ -110,14 +110,9 @@ func CreatedAt(v time.Time) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldEQ(FieldCreatedAt, v))
 }
 
-// GroupID applies equality check predicate on the "group_id" field. It's identical to GroupIDEQ.
-func GroupID(v int64) predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldEQ(FieldGroupID, v))
-}
-
-// ValidityDays applies equality check predicate on the "validity_days" field. It's identical to ValidityDaysEQ.
-func ValidityDays(v int) predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldEQ(FieldValidityDays, v))
+// PlanID applies equality check predicate on the "plan_id" field. It's identical to PlanIDEQ.
+func PlanID(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldPlanID, v))
 }
 
 // CodeEQ applies the EQ predicate on the "code" field.
@@ -680,74 +675,34 @@ func CreatedAtLTE(v time.Time) predicate.RedeemCode {
 	return predicate.RedeemCode(sql.FieldLTE(FieldCreatedAt, v))
 }
 
-// GroupIDEQ applies the EQ predicate on the "group_id" field.
-func GroupIDEQ(v int64) predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldEQ(FieldGroupID, v))
+// PlanIDEQ applies the EQ predicate on the "plan_id" field.
+func PlanIDEQ(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldEQ(FieldPlanID, v))
 }
 
-// GroupIDNEQ applies the NEQ predicate on the "group_id" field.
-func GroupIDNEQ(v int64) predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldNEQ(FieldGroupID, v))
+// PlanIDNEQ applies the NEQ predicate on the "plan_id" field.
+func PlanIDNEQ(v int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNEQ(FieldPlanID, v))
 }
 
-// GroupIDIn applies the In predicate on the "group_id" field.
-func GroupIDIn(vs ...int64) predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldIn(FieldGroupID, vs...))
+// PlanIDIn applies the In predicate on the "plan_id" field.
+func PlanIDIn(vs ...int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIn(FieldPlanID, vs...))
 }
 
-// GroupIDNotIn applies the NotIn predicate on the "group_id" field.
-func GroupIDNotIn(vs ...int64) predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldNotIn(FieldGroupID, vs...))
+// PlanIDNotIn applies the NotIn predicate on the "plan_id" field.
+func PlanIDNotIn(vs ...int64) predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotIn(FieldPlanID, vs...))
 }
 
-// GroupIDIsNil applies the IsNil predicate on the "group_id" field.
-func GroupIDIsNil() predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldIsNull(FieldGroupID))
+// PlanIDIsNil applies the IsNil predicate on the "plan_id" field.
+func PlanIDIsNil() predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldIsNull(FieldPlanID))
 }
 
-// GroupIDNotNil applies the NotNil predicate on the "group_id" field.
-func GroupIDNotNil() predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldNotNull(FieldGroupID))
-}
-
-// ValidityDaysEQ applies the EQ predicate on the "validity_days" field.
-func ValidityDaysEQ(v int) predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldEQ(FieldValidityDays, v))
-}
-
-// ValidityDaysNEQ applies the NEQ predicate on the "validity_days" field.
-func ValidityDaysNEQ(v int) predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldNEQ(FieldValidityDays, v))
-}
-
-// ValidityDaysIn applies the In predicate on the "validity_days" field.
-func ValidityDaysIn(vs ...int) predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldIn(FieldValidityDays, vs...))
-}
-
-// ValidityDaysNotIn applies the NotIn predicate on the "validity_days" field.
-func ValidityDaysNotIn(vs ...int) predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldNotIn(FieldValidityDays, vs...))
-}
-
-// ValidityDaysGT applies the GT predicate on the "validity_days" field.
-func ValidityDaysGT(v int) predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldGT(FieldValidityDays, v))
-}
-
-// ValidityDaysGTE applies the GTE predicate on the "validity_days" field.
-func ValidityDaysGTE(v int) predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldGTE(FieldValidityDays, v))
-}
-
-// ValidityDaysLT applies the LT predicate on the "validity_days" field.
-func ValidityDaysLT(v int) predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldLT(FieldValidityDays, v))
-}
-
-// ValidityDaysLTE applies the LTE predicate on the "validity_days" field.
-func ValidityDaysLTE(v int) predicate.RedeemCode {
-	return predicate.RedeemCode(sql.FieldLTE(FieldValidityDays, v))
+// PlanIDNotNil applies the NotNil predicate on the "plan_id" field.
+func PlanIDNotNil() predicate.RedeemCode {
+	return predicate.RedeemCode(sql.FieldNotNull(FieldPlanID))
 }
 
 // HasUsageRecords applies the HasEdge predicate on the "usage_records" edge.
@@ -796,21 +751,21 @@ func HasUserWith(preds ...predicate.User) predicate.RedeemCode {
 	})
 }
 
-// HasGroup applies the HasEdge predicate on the "group" edge.
-func HasGroup() predicate.RedeemCode {
+// HasPlan applies the HasEdge predicate on the "plan" edge.
+func HasPlan() predicate.RedeemCode {
 	return predicate.RedeemCode(func(s *sql.Selector) {
 		step := sqlgraph.NewStep(
 			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, GroupTable, GroupColumn),
+			sqlgraph.Edge(sqlgraph.M2O, true, PlanTable, PlanColumn),
 		)
 		sqlgraph.HasNeighbors(s, step)
 	})
 }
 
-// HasGroupWith applies the HasEdge predicate on the "group" edge with a given conditions (other predicates).
-func HasGroupWith(preds ...predicate.Group) predicate.RedeemCode {
+// HasPlanWith applies the HasEdge predicate on the "plan" edge with a given conditions (other predicates).
+func HasPlanWith(preds ...predicate.SubscriptionPlan) predicate.RedeemCode {
 	return predicate.RedeemCode(func(s *sql.Selector) {
-		step := newGroupStep()
+		step := newPlanStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

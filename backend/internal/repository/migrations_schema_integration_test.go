@@ -36,14 +36,50 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	// api_keys: key length should be 128
 	requireColumn(t, tx, "api_keys", "key", "character varying", 128, false)
 
+	// subscription plans / quota packs
+	requireColumn(t, tx, "subscription_plans", "daily_limit_usd", "numeric", 0, true)
+	requireColumn(t, tx, "subscription_plans", "weekly_limit_usd", "numeric", 0, true)
+	requireColumn(t, tx, "subscription_plans", "monthly_limit_usd", "numeric", 0, true)
+	requireNoColumn(t, tx, "subscription_plans", "group_id")
+
+	// user_subscriptions: plan-based quota pack instances
+	requireColumn(t, tx, "user_subscriptions", "plan_id", "bigint", 0, false)
+	requireColumn(t, tx, "user_subscriptions", "daily_limit_usd", "numeric", 0, true)
+	requireColumn(t, tx, "user_subscriptions", "weekly_limit_usd", "numeric", 0, true)
+	requireColumn(t, tx, "user_subscriptions", "monthly_limit_usd", "numeric", 0, true)
+	requireColumn(t, tx, "user_subscriptions", "source_order_id", "bigint", 0, true)
+	requireNoColumn(t, tx, "user_subscriptions", "group_id")
+	requireIndex(t, tx, "user_subscriptions", "idx_user_subscriptions_plan_id")
+	requireIndex(t, tx, "user_subscriptions", "idx_user_subscriptions_source_order_id")
+	requireIndex(t, tx, "user_subscriptions", "idx_user_subscriptions_user_status_starts_expires")
+	requireIndex(t, tx, "user_subscriptions", "idx_user_subscriptions_user_plan_starts")
+
+	// payment_orders: subscription order snapshot fields
+	requireColumn(t, tx, "payment_orders", "plan_id", "bigint", 0, true)
+	requireColumn(t, tx, "payment_orders", "plan_snapshot", "jsonb", 0, true)
+	requireNoColumn(t, tx, "payment_orders", "subscription_group_id")
+	requireNoColumn(t, tx, "payment_orders", "subscription_days")
+
 	// redeem_codes: subscription fields
-	requireColumn(t, tx, "redeem_codes", "group_id", "bigint", 0, true)
-	requireColumn(t, tx, "redeem_codes", "validity_days", "integer", 0, false)
+	requireColumn(t, tx, "redeem_codes", "plan_id", "bigint", 0, true)
+	requireNoColumn(t, tx, "redeem_codes", "group_id")
+	requireNoColumn(t, tx, "redeem_codes", "validity_days")
+	requireIndex(t, tx, "redeem_codes", "idx_redeem_codes_plan_id")
 
 	// usage_logs: billing_type used by filters/stats
 	requireColumn(t, tx, "usage_logs", "billing_type", "smallint", 0, false)
 	requireColumn(t, tx, "usage_logs", "request_type", "smallint", 0, false)
 	requireColumn(t, tx, "usage_logs", "openai_ws_mode", "boolean", 0, false)
+	requireColumn(t, tx, "usage_logs", "subscription_amount_usd", "numeric", 0, false)
+	requireColumn(t, tx, "usage_logs", "balance_amount_usd", "numeric", 0, false)
+	requireColumn(t, tx, "usage_logs", "billing_allocations", "jsonb", 0, true)
+
+	// groups no longer carry subscription semantics
+	requireNoColumn(t, tx, "groups", "subscription_type")
+	requireNoColumn(t, tx, "groups", "daily_limit_usd")
+	requireNoColumn(t, tx, "groups", "weekly_limit_usd")
+	requireNoColumn(t, tx, "groups", "monthly_limit_usd")
+	requireNoColumn(t, tx, "groups", "default_validity_days")
 
 	// usage_billing_dedup: billing idempotency narrow table
 	var usageBillingDedupRegclass sql.NullString
@@ -138,4 +174,21 @@ WHERE table_schema = 'public'
 	} else {
 		require.Equal(t, "NO", row.Nullable, "nullable mismatch for %s.%s", table, column)
 	}
+}
+
+func requireNoColumn(t *testing.T, tx *sql.Tx, table, column string) {
+	t.Helper()
+
+	var exists bool
+	err := tx.QueryRowContext(context.Background(), `
+SELECT EXISTS (
+	SELECT 1
+	FROM information_schema.columns
+	WHERE table_schema = 'public'
+	  AND table_name = $1
+	  AND column_name = $2
+)
+`, table, column).Scan(&exists)
+	require.NoError(t, err, "query information_schema.columns for %s.%s", table, column)
+	require.False(t, exists, "expected %s.%s to be absent", table, column)
 }

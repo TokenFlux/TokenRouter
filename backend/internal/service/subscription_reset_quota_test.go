@@ -59,7 +59,7 @@ func newResetQuotaSvc(stub *resetQuotaUserSubRepoStub) *SubscriptionService {
 
 func TestAdminResetQuota_ResetBoth(t *testing.T) {
 	stub := &resetQuotaUserSubRepoStub{
-		sub: &UserSubscription{ID: 1, UserID: 10, GroupID: 20},
+		sub: &UserSubscription{ID: 1, UserID: 10, PlanID: 20},
 	}
 	svc := newResetQuotaSvc(stub)
 
@@ -74,7 +74,7 @@ func TestAdminResetQuota_ResetBoth(t *testing.T) {
 
 func TestAdminResetQuota_ResetDailyOnly(t *testing.T) {
 	stub := &resetQuotaUserSubRepoStub{
-		sub: &UserSubscription{ID: 2, UserID: 10, GroupID: 20},
+		sub: &UserSubscription{ID: 2, UserID: 10, PlanID: 20},
 	}
 	svc := newResetQuotaSvc(stub)
 
@@ -89,7 +89,7 @@ func TestAdminResetQuota_ResetDailyOnly(t *testing.T) {
 
 func TestAdminResetQuota_ResetWeeklyOnly(t *testing.T) {
 	stub := &resetQuotaUserSubRepoStub{
-		sub: &UserSubscription{ID: 3, UserID: 10, GroupID: 20},
+		sub: &UserSubscription{ID: 3, UserID: 10, PlanID: 20},
 	}
 	svc := newResetQuotaSvc(stub)
 
@@ -104,7 +104,7 @@ func TestAdminResetQuota_ResetWeeklyOnly(t *testing.T) {
 
 func TestAdminResetQuota_BothFalseReturnsError(t *testing.T) {
 	stub := &resetQuotaUserSubRepoStub{
-		sub: &UserSubscription{ID: 7, UserID: 10, GroupID: 20},
+		sub: &UserSubscription{ID: 7, UserID: 10, PlanID: 20},
 	}
 	svc := newResetQuotaSvc(stub)
 
@@ -131,7 +131,7 @@ func TestAdminResetQuota_SubscriptionNotFound(t *testing.T) {
 func TestAdminResetQuota_ResetDailyUsageError(t *testing.T) {
 	dbErr := errors.New("db error")
 	stub := &resetQuotaUserSubRepoStub{
-		sub:           &UserSubscription{ID: 4, UserID: 10, GroupID: 20},
+		sub:           &UserSubscription{ID: 4, UserID: 10, PlanID: 20},
 		resetDailyErr: dbErr,
 	}
 	svc := newResetQuotaSvc(stub)
@@ -146,7 +146,7 @@ func TestAdminResetQuota_ResetDailyUsageError(t *testing.T) {
 func TestAdminResetQuota_ResetWeeklyUsageError(t *testing.T) {
 	dbErr := errors.New("db error")
 	stub := &resetQuotaUserSubRepoStub{
-		sub:            &UserSubscription{ID: 5, UserID: 10, GroupID: 20},
+		sub:            &UserSubscription{ID: 5, UserID: 10, PlanID: 20},
 		resetWeeklyErr: dbErr,
 	}
 	svc := newResetQuotaSvc(stub)
@@ -159,7 +159,7 @@ func TestAdminResetQuota_ResetWeeklyUsageError(t *testing.T) {
 
 func TestAdminResetQuota_ResetMonthlyOnly(t *testing.T) {
 	stub := &resetQuotaUserSubRepoStub{
-		sub: &UserSubscription{ID: 8, UserID: 10, GroupID: 20},
+		sub: &UserSubscription{ID: 8, UserID: 10, PlanID: 20},
 	}
 	svc := newResetQuotaSvc(stub)
 
@@ -175,7 +175,7 @@ func TestAdminResetQuota_ResetMonthlyOnly(t *testing.T) {
 func TestAdminResetQuota_ResetMonthlyUsageError(t *testing.T) {
 	dbErr := errors.New("db error")
 	stub := &resetQuotaUserSubRepoStub{
-		sub:             &UserSubscription{ID: 9, UserID: 10, GroupID: 20},
+		sub:             &UserSubscription{ID: 9, UserID: 10, PlanID: 20},
 		resetMonthlyErr: dbErr,
 	}
 	svc := newResetQuotaSvc(stub)
@@ -191,7 +191,7 @@ func TestAdminResetQuota_ReturnsRefreshedSub(t *testing.T) {
 		sub: &UserSubscription{
 			ID:            6,
 			UserID:        10,
-			GroupID:       20,
+			PlanID:        20,
 			DailyUsageUSD: 99.9,
 		},
 	}

@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -19,6 +20,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/redeemcode"
 	"github.com/TokenFlux/TokenRouter/ent/redeemcodeusage"
 	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/repository"
@@ -134,9 +136,10 @@ func paymentServiceOpenSQLWithRetry(ctx context.Context, dsn string, timeout tim
 }
 
 type paymentServiceIntegrationEnv struct {
-	ctx        context.Context
-	client     *dbent.Client
-	paymentSvc *svc.PaymentService
+	ctx             context.Context
+	client          *dbent.Client
+	paymentSvc      *svc.PaymentService
+	subscriptionSvc *svc.SubscriptionService
 }
 
 func newPaymentServiceIntegrationEnv(t *testing.T) *paymentServiceIntegrationEnv {
@@ -154,9 +157,10 @@ func newPaymentServiceIntegrationEnv(t *testing.T) *paymentServiceIntegrationEnv
 	paymentSvc := svc.NewPaymentService(paymentServiceIntegrationClient, nil, nil, redeemSvc, subscriptionSvc, nil, userRepo, groupRepo)
 
 	return &paymentServiceIntegrationEnv{
-		ctx:        context.Background(),
-		client:     paymentServiceIntegrationClient,
-		paymentSvc: paymentSvc,
+		ctx:             context.Background(),
+		client:          paymentServiceIntegrationClient,
+		paymentSvc:      paymentSvc,
+		subscriptionSvc: subscriptionSvc,
 	}
 }
 
@@ -202,8 +206,8 @@ func TestPaymentService_ExecuteSubscriptionFulfillment_GrantsReferralRewardOnFir
 		referredByUserID:     &inviter.ID,
 		referralRewardAmount: 8.5,
 	})
-	group := paymentServiceMustCreateSubscriptionGroup(t, env.ctx, env.client)
-	order := paymentServiceMustCreateSubscriptionOrder(t, env.ctx, env.client, invitee, group.ID, 30, 99)
+	plan := paymentServiceMustCreateSubscriptionPlan(t, env.ctx, env.client, 99, 30)
+	order := paymentServiceMustCreateSubscriptionOrder(t, env.ctx, env.client, invitee, plan)
 
 	err := env.paymentSvc.ExecuteSubscriptionFulfillment(env.ctx, order.ID)
 	require.NoError(t, err)
@@ -225,10 +229,11 @@ func TestPaymentService_ExecuteSubscriptionFulfillment_GrantsReferralRewardOnFir
 	sub, err := env.client.UserSubscription.Query().
 		Where(
 			usersubscription.UserIDEQ(invitee.ID),
-			usersubscription.GroupIDEQ(group.ID),
+			usersubscription.SourceOrderIDEQ(order.ID),
 		).
 		Only(env.ctx)
 	require.NoError(t, err)
+	require.Equal(t, plan.ID, sub.PlanID)
 	require.Equal(t, svc.SubscriptionStatusActive, sub.Status)
 	require.True(t, sub.ExpiresAt.After(sub.StartsAt))
 
@@ -290,6 +295,174 @@ func TestPaymentService_RetryFulfillment_DoesNotDuplicateReferralReward(t *testi
 	require.Equal(t, 1, paymentServiceCountAuditLogs(t, env.ctx, env.client, order.ID, "REFERRAL_REWARD_GRANTED"))
 }
 
+func TestSubscriptionService_AssignOrExtendSubscription_SerializesSamePlanGrants(t *testing.T) {
+	env := newPaymentServiceIntegrationEnv(t)
+
+	user := paymentServiceMustCreateUser(t, env.ctx, env.client, paymentServiceUserFixture{})
+	plan := paymentServiceMustCreateSubscriptionPlan(t, env.ctx, env.client, 49, 30)
+
+	start := make(chan struct{})
+	errCh := make(chan error, 2)
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			_, _, err := env.subscriptionSvc.AssignOrExtendSubscription(env.ctx, &svc.AssignSubscriptionInput{
+				UserID: user.ID,
+				PlanID: plan.ID,
+				Notes:  "concurrent grant",
+			})
+			errCh <- err
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errCh)
+	for err := range errCh {
+		require.NoError(t, err)
+	}
+
+	subs, err := env.client.UserSubscription.Query().
+		Where(
+			usersubscription.UserIDEQ(user.ID),
+			usersubscription.PlanIDEQ(plan.ID),
+		).
+		Order(
+			dbent.Asc(usersubscription.FieldStartsAt),
+			dbent.Asc(usersubscription.FieldCreatedAt),
+		).
+		All(env.ctx)
+	require.NoError(t, err)
+	require.Len(t, subs, 2)
+	require.Equal(t, svc.SubscriptionStatusActive, subs[0].Status)
+	require.Equal(t, svc.SubscriptionStatusPending, subs[1].Status)
+	require.Equal(t, subs[0].ExpiresAt, subs[1].StartsAt)
+}
+
+func TestPaymentService_RetryFulfillment_DoesNotDuplicateSubscriptionGrant(t *testing.T) {
+	env := newPaymentServiceIntegrationEnv(t)
+
+	user := paymentServiceMustCreateUser(t, env.ctx, env.client, paymentServiceUserFixture{})
+	plan := paymentServiceMustCreateSubscriptionPlan(t, env.ctx, env.client, 88, 30)
+	order := paymentServiceMustCreateSubscriptionOrder(t, env.ctx, env.client, user, plan)
+
+	err := env.paymentSvc.ExecuteSubscriptionFulfillment(env.ctx, order.ID)
+	require.NoError(t, err)
+
+	_, err = env.client.PaymentOrder.UpdateOneID(order.ID).
+		SetStatus(payment.OrderStatusFailed).
+		SetFailedAt(time.Now()).
+		SetFailedReason("force retry path").
+		Save(env.ctx)
+	require.NoError(t, err)
+
+	err = env.paymentSvc.RetryFulfillment(env.ctx, order.ID)
+	require.NoError(t, err)
+
+	count, err := env.client.UserSubscription.Query().
+		Where(usersubscription.SourceOrderIDEQ(order.ID)).
+		Count(env.ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+	require.Equal(t, 1, paymentServiceCountAuditLogs(t, env.ctx, env.client, order.ID, "SUBSCRIPTION_SUCCESS"))
+}
+
+func TestPaymentService_ExecuteSubscriptionFulfillment_UsesPlanSnapshot(t *testing.T) {
+	env := newPaymentServiceIntegrationEnv(t)
+
+	user := paymentServiceMustCreateUser(t, env.ctx, env.client, paymentServiceUserFixture{})
+	plan := paymentServiceMustCreateSubscriptionPlan(t, env.ctx, env.client, 66, 30)
+	snapshotDays := 10
+	snapshotLimit := 3.5
+	order := paymentServiceMustCreateSubscriptionOrder(t, env.ctx, env.client, user, plan)
+	_, err := env.client.PaymentOrder.UpdateOneID(order.ID).
+		SetPlanSnapshot(domain.SubscriptionPlanSnapshot{
+			Name:            plan.Name,
+			Price:           plan.Price,
+			ValidityDays:    snapshotDays,
+			DailyLimitUSD:   &snapshotLimit,
+			WeeklyLimitUSD:  nil,
+			MonthlyLimitUSD: nil,
+		}).
+		Save(env.ctx)
+	require.NoError(t, err)
+
+	err = env.paymentSvc.ExecuteSubscriptionFulfillment(env.ctx, order.ID)
+	require.NoError(t, err)
+
+	sub, err := env.client.UserSubscription.Query().
+		Where(usersubscription.SourceOrderIDEQ(order.ID)).
+		Only(env.ctx)
+	require.NoError(t, err)
+	require.InDelta(t, snapshotLimit, *sub.DailyLimitUsd, 1e-9)
+	require.Nil(t, sub.WeeklyLimitUsd)
+	require.Nil(t, sub.MonthlyLimitUsd)
+	require.Equal(t, snapshotDays, int(sub.ExpiresAt.Sub(sub.StartsAt).Hours()/24))
+}
+
+func TestSubscriptionService_ExtendAndRevoke_ShiftsLaterChain(t *testing.T) {
+	env := newPaymentServiceIntegrationEnv(t)
+
+	user := paymentServiceMustCreateUser(t, env.ctx, env.client, paymentServiceUserFixture{})
+	plan := paymentServiceMustCreateSubscriptionPlan(t, env.ctx, env.client, 77, 30)
+	now := time.Now().UTC().Truncate(time.Second)
+
+	first, err := env.client.UserSubscription.Create().
+		SetUserID(user.ID).
+		SetPlanID(plan.ID).
+		SetStartsAt(now).
+		SetExpiresAt(now.AddDate(0, 0, 7)).
+		SetStatus(svc.SubscriptionStatusActive).
+		SetAssignedAt(now).
+		SetNotes("first").
+		Save(env.ctx)
+	require.NoError(t, err)
+	second, err := env.client.UserSubscription.Create().
+		SetUserID(user.ID).
+		SetPlanID(plan.ID).
+		SetStartsAt(first.ExpiresAt).
+		SetExpiresAt(first.ExpiresAt.AddDate(0, 0, 7)).
+		SetStatus(svc.SubscriptionStatusPending).
+		SetAssignedAt(now).
+		SetNotes("second").
+		Save(env.ctx)
+	require.NoError(t, err)
+	third, err := env.client.UserSubscription.Create().
+		SetUserID(user.ID).
+		SetPlanID(plan.ID).
+		SetStartsAt(second.ExpiresAt).
+		SetExpiresAt(second.ExpiresAt.AddDate(0, 0, 7)).
+		SetStatus(svc.SubscriptionStatusPending).
+		SetAssignedAt(now).
+		SetNotes("third").
+		Save(env.ctx)
+	require.NoError(t, err)
+
+	extended, err := env.subscriptionSvc.ExtendSubscription(env.ctx, first.ID, 3)
+	require.NoError(t, err)
+	require.Equal(t, first.ExpiresAt.AddDate(0, 0, 3), extended.ExpiresAt)
+
+	secondAfterExtend, err := env.client.UserSubscription.Get(env.ctx, second.ID)
+	require.NoError(t, err)
+	thirdAfterExtend, err := env.client.UserSubscription.Get(env.ctx, third.ID)
+	require.NoError(t, err)
+	require.Equal(t, second.StartsAt.AddDate(0, 0, 3), secondAfterExtend.StartsAt)
+	require.Equal(t, third.StartsAt.AddDate(0, 0, 3), thirdAfterExtend.StartsAt)
+
+	err = env.subscriptionSvc.RevokeSubscription(env.ctx, second.ID)
+	require.NoError(t, err)
+
+	_, err = env.client.UserSubscription.Get(env.ctx, second.ID)
+	require.Error(t, err)
+
+	thirdAfterRevoke, err := env.client.UserSubscription.Get(env.ctx, third.ID)
+	require.NoError(t, err)
+	require.Equal(t, thirdAfterExtend.StartsAt.AddDate(0, 0, -7), thirdAfterRevoke.StartsAt)
+	require.Equal(t, thirdAfterExtend.ExpiresAt.AddDate(0, 0, -7), thirdAfterRevoke.ExpiresAt)
+}
+
 type paymentServiceUserFixture struct {
 	referredByUserID     *int64
 	referralRewardAmount float64
@@ -317,21 +490,22 @@ func paymentServiceMustCreateUser(t *testing.T, ctx context.Context, client *dbe
 	return user
 }
 
-func paymentServiceMustCreateSubscriptionGroup(t *testing.T, ctx context.Context, client *dbent.Client) *dbent.Group {
+func paymentServiceMustCreateSubscriptionPlan(t *testing.T, ctx context.Context, client *dbent.Client, price float64, validityDays int) *dbent.SubscriptionPlan {
 	t.Helper()
 
 	suffix := paymentServiceUniqueSuffix()
-	group, err := client.Group.Create().
-		SetName("sub-group-" + suffix).
-		SetDescription("integration test subscription group").
-		SetPlatform(svc.PlatformAnthropic).
-		SetRateMultiplier(1).
-		SetStatus(svc.StatusActive).
-		SetSubscriptionType(svc.SubscriptionTypeSubscription).
+	dailyLimit := 25.0
+	plan, err := client.SubscriptionPlan.Create().
+		SetName("sub-plan-" + suffix).
+		SetDescription("integration test subscription plan").
+		SetPrice(price).
+		SetValidityDays(validityDays).
+		SetDailyLimitUsd(dailyLimit).
+		SetForSale(true).
 		SetSortOrder(0).
 		Save(ctx)
 	require.NoError(t, err)
-	return group
+	return plan
 }
 
 func paymentServiceMustCreateBalanceOrder(t *testing.T, ctx context.Context, client *dbent.Client, user *dbent.User, amount float64) *dbent.PaymentOrder {
@@ -360,7 +534,7 @@ func paymentServiceMustCreateBalanceOrder(t *testing.T, ctx context.Context, cli
 	return order
 }
 
-func paymentServiceMustCreateSubscriptionOrder(t *testing.T, ctx context.Context, client *dbent.Client, user *dbent.User, groupID int64, days int, amount float64) *dbent.PaymentOrder {
+func paymentServiceMustCreateSubscriptionOrder(t *testing.T, ctx context.Context, client *dbent.Client, user *dbent.User, plan *dbent.SubscriptionPlan) *dbent.PaymentOrder {
 	t.Helper()
 
 	now := time.Now()
@@ -368,16 +542,23 @@ func paymentServiceMustCreateSubscriptionOrder(t *testing.T, ctx context.Context
 		SetUserID(user.ID).
 		SetUserEmail(user.Email).
 		SetUserName(user.Username).
-		SetAmount(amount).
-		SetPayAmount(amount).
+		SetAmount(plan.Price).
+		SetPayAmount(plan.Price).
 		SetFeeRate(0).
 		SetRechargeCode("SUB-" + paymentServiceUniqueSuffix()).
 		SetOutTradeNo("OUT-" + paymentServiceUniqueSuffix()).
 		SetPaymentType(payment.TypeAlipay).
 		SetPaymentTradeNo("").
 		SetOrderType(payment.OrderTypeSubscription).
-		SetSubscriptionGroupID(groupID).
-		SetSubscriptionDays(days).
+		SetPlanID(plan.ID).
+		SetPlanSnapshot(domain.SubscriptionPlanSnapshot{
+			Name:            plan.Name,
+			Price:           plan.Price,
+			ValidityDays:    plan.ValidityDays,
+			DailyLimitUSD:   plan.DailyLimitUsd,
+			WeeklyLimitUSD:  plan.WeeklyLimitUsd,
+			MonthlyLimitUSD: plan.MonthlyLimitUsd,
+		}).
 		SetStatus(payment.OrderStatusPaid).
 		SetExpiresAt(now.Add(time.Hour)).
 		SetPaidAt(now).

@@ -23,16 +23,16 @@ func TestCalculateProgress_BasicFields(t *testing.T) {
 
 	sub := &UserSubscription{
 		ID:        100,
+		PlanID:    8,
 		ExpiresAt: now.Add(30 * 24 * time.Hour),
-	}
-	group := &Group{
-		Name: "Premium",
+		Plan:      &SubscriptionPlan{Name: "Premium"},
 	}
 
-	progress := svc.calculateProgress(sub, group)
+	progress := svc.calculateProgress(sub)
 
 	assert.Equal(t, int64(100), progress.ID)
-	assert.Equal(t, "Premium", progress.GroupName)
+	assert.Equal(t, int64(8), progress.PlanID)
+	assert.Equal(t, "Premium", progress.PlanName)
 	assert.Equal(t, sub.ExpiresAt, progress.ExpiresAt)
 	assert.True(t, progress.ExpiresInDays == 29 || progress.ExpiresInDays == 30, "ExpiresInDays should be 29 or 30, got %d", progress.ExpiresInDays)
 	assert.Nil(t, progress.Daily, "无日限额时 Daily 应为 nil")
@@ -48,15 +48,12 @@ func TestCalculateProgress_DailyUsage(t *testing.T) {
 	sub := &UserSubscription{
 		ID:               1,
 		ExpiresAt:        now.Add(10 * 24 * time.Hour),
+		DailyLimitUSD:    ptrFloat64(10.0),
 		DailyUsageUSD:    3.0,
 		DailyWindowStart: ptrTime(dailyStart),
 	}
-	group := &Group{
-		Name:          "Pro",
-		DailyLimitUSD: ptrFloat64(10.0),
-	}
 
-	progress := svc.calculateProgress(sub, group)
+	progress := svc.calculateProgress(sub)
 
 	require.NotNil(t, progress.Daily, "有日限额和窗口时 Daily 不应为 nil")
 	assert.Equal(t, 10.0, progress.Daily.LimitUSD)
@@ -74,15 +71,12 @@ func TestCalculateProgress_WeeklyUsage(t *testing.T) {
 	sub := &UserSubscription{
 		ID:                1,
 		ExpiresAt:         now.Add(10 * 24 * time.Hour),
+		WeeklyLimitUSD:    ptrFloat64(50.0),
 		WeeklyUsageUSD:    25.0,
 		WeeklyWindowStart: ptrTime(weeklyStart),
 	}
-	group := &Group{
-		Name:           "Pro",
-		WeeklyLimitUSD: ptrFloat64(50.0),
-	}
 
-	progress := svc.calculateProgress(sub, group)
+	progress := svc.calculateProgress(sub)
 
 	require.NotNil(t, progress.Weekly, "有周限额和窗口时 Weekly 不应为 nil")
 	assert.Equal(t, 50.0, progress.Weekly.LimitUSD)
@@ -99,15 +93,12 @@ func TestCalculateProgress_MonthlyUsage(t *testing.T) {
 	sub := &UserSubscription{
 		ID:                 1,
 		ExpiresAt:          now.Add(10 * 24 * time.Hour),
+		MonthlyLimitUSD:    ptrFloat64(100.0),
 		MonthlyUsageUSD:    80.0,
 		MonthlyWindowStart: ptrTime(monthlyStart),
 	}
-	group := &Group{
-		Name:            "Enterprise",
-		MonthlyLimitUSD: ptrFloat64(100.0),
-	}
 
-	progress := svc.calculateProgress(sub, group)
+	progress := svc.calculateProgress(sub)
 
 	require.NotNil(t, progress.Monthly, "有月限额和窗口时 Monthly 不应为 nil")
 	assert.Equal(t, 100.0, progress.Monthly.LimitUSD)
@@ -123,15 +114,12 @@ func TestCalculateProgress_OverLimit_ClampedTo100Percent(t *testing.T) {
 	sub := &UserSubscription{
 		ID:               1,
 		ExpiresAt:        now.Add(10 * 24 * time.Hour),
+		DailyLimitUSD:    ptrFloat64(10.0),
 		DailyUsageUSD:    15.0, // 超过限额
 		DailyWindowStart: ptrTime(now.Add(-1 * time.Hour)),
 	}
-	group := &Group{
-		Name:          "Pro",
-		DailyLimitUSD: ptrFloat64(10.0),
-	}
 
-	progress := svc.calculateProgress(sub, group)
+	progress := svc.calculateProgress(sub)
 
 	require.NotNil(t, progress.Daily)
 	assert.Equal(t, 100.0, progress.Daily.Percentage, "超额使用应被截断为 100%")
@@ -146,16 +134,13 @@ func TestCalculateProgress_NoWindowStart_NoProgress(t *testing.T) {
 	sub := &UserSubscription{
 		ID:             1,
 		ExpiresAt:      now.Add(10 * 24 * time.Hour),
+		DailyLimitUSD:  ptrFloat64(10.0),
+		WeeklyLimitUSD: ptrFloat64(50.0),
 		DailyUsageUSD:  0,
 		WeeklyUsageUSD: 0,
 	}
-	group := &Group{
-		Name:           "Pro",
-		DailyLimitUSD:  ptrFloat64(10.0),
-		WeeklyLimitUSD: ptrFloat64(50.0),
-	}
 
-	progress := svc.calculateProgress(sub, group)
+	progress := svc.calculateProgress(sub)
 
 	assert.Nil(t, progress.Daily, "无 DailyWindowStart 时 Daily 应为 nil")
 	assert.Nil(t, progress.Weekly, "无 WeeklyWindowStart 时 Weekly 应为 nil")
@@ -168,6 +153,9 @@ func TestCalculateProgress_AllLimits(t *testing.T) {
 	sub := &UserSubscription{
 		ID:                 1,
 		ExpiresAt:          now.Add(10 * 24 * time.Hour),
+		DailyLimitUSD:      ptrFloat64(10.0),
+		WeeklyLimitUSD:     ptrFloat64(50.0),
+		MonthlyLimitUSD:    ptrFloat64(100.0),
 		DailyUsageUSD:      5.0,
 		WeeklyUsageUSD:     20.0,
 		MonthlyUsageUSD:    60.0,
@@ -175,14 +163,8 @@ func TestCalculateProgress_AllLimits(t *testing.T) {
 		WeeklyWindowStart:  ptrTime(now.Add(-3 * 24 * time.Hour)),
 		MonthlyWindowStart: ptrTime(now.Add(-15 * 24 * time.Hour)),
 	}
-	group := &Group{
-		Name:            "Full",
-		DailyLimitUSD:   ptrFloat64(10.0),
-		WeeklyLimitUSD:  ptrFloat64(50.0),
-		MonthlyLimitUSD: ptrFloat64(100.0),
-	}
 
-	progress := svc.calculateProgress(sub, group)
+	progress := svc.calculateProgress(sub)
 
 	require.NotNil(t, progress.Daily)
 	require.NotNil(t, progress.Weekly)
@@ -200,9 +182,8 @@ func TestCalculateProgress_ExpiredSubscription(t *testing.T) {
 		ID:        1,
 		ExpiresAt: time.Now().Add(-24 * time.Hour), // 已过期
 	}
-	group := &Group{Name: "Expired"}
 
-	progress := svc.calculateProgress(sub, group)
+	progress := svc.calculateProgress(sub)
 
 	assert.Equal(t, 0, progress.ExpiresInDays, "过期订阅的剩余天数应为 0")
 }
@@ -215,15 +196,12 @@ func TestCalculateProgress_ResetsInSeconds_NotNegative(t *testing.T) {
 	sub := &UserSubscription{
 		ID:               1,
 		ExpiresAt:        time.Now().Add(10 * 24 * time.Hour),
+		DailyLimitUSD:    ptrFloat64(10.0),
 		DailyUsageUSD:    1.0,
 		DailyWindowStart: ptrTime(pastStart),
 	}
-	group := &Group{
-		Name:          "Test",
-		DailyLimitUSD: ptrFloat64(10.0),
-	}
 
-	progress := svc.calculateProgress(sub, group)
+	progress := svc.calculateProgress(sub)
 
 	require.NotNil(t, progress.Daily)
 	assert.GreaterOrEqual(t, progress.Daily.ResetsInSeconds, int64(0),

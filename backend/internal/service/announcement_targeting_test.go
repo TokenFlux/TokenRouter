@@ -12,7 +12,7 @@ func TestAnnouncementTargeting_Matches_EmptyMatchesAll(t *testing.T) {
 	require.True(t, targeting.Matches(123.45, map[int64]struct{}{1: {}}))
 }
 
-func TestAnnouncementTargeting_NormalizeAndValidate_RejectsEmptyGroup(t *testing.T) {
+func TestAnnouncementTargeting_NormalizeAndValidate_RejectsEmptyConditionGroup(t *testing.T) {
 	targeting := AnnouncementTargeting{
 		AnyOf: []AnnouncementConditionGroup{
 			{AllOf: nil},
@@ -44,7 +44,7 @@ func TestAnnouncementTargeting_Matches_AndOrSemantics(t *testing.T) {
 			{
 				AllOf: []AnnouncementCondition{
 					{Type: AnnouncementConditionTypeBalance, Operator: AnnouncementOperatorGTE, Value: 100},
-					{Type: AnnouncementConditionTypeSubscription, Operator: AnnouncementOperatorIn, GroupIDs: []int64{10}},
+					{Type: AnnouncementConditionTypeSubscription, Operator: AnnouncementOperatorIn, PlanIDs: []int64{10}},
 				},
 			},
 			{

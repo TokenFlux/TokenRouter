@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"
 )
@@ -56,15 +55,6 @@ func (groupRepoNoop) UpdateSortOrders(context.Context, []GroupSortOrderUpdate) e
 	panic("unexpected UpdateSortOrders call")
 }
 
-type subscriptionGroupRepoStub struct {
-	groupRepoNoop
-	group *Group
-}
-
-func (s *subscriptionGroupRepoStub) GetByID(context.Context, int64) (*Group, error) {
-	return s.group, nil
-}
-
 type userSubRepoNoop struct{}
 
 func (userSubRepoNoop) Create(context.Context, *UserSubscription) error {
@@ -79,6 +69,9 @@ func (userSubRepoNoop) GetByUserIDAndGroupID(context.Context, int64, int64) (*Us
 func (userSubRepoNoop) GetActiveByUserIDAndGroupID(context.Context, int64, int64) (*UserSubscription, error) {
 	panic("unexpected GetActiveByUserIDAndGroupID call")
 }
+func (userSubRepoNoop) GetLatestByUserIDAndPlanID(context.Context, int64, int64) (*UserSubscription, error) {
+	panic("unexpected GetLatestByUserIDAndPlanID call")
+}
 func (userSubRepoNoop) Update(context.Context, *UserSubscription) error {
 	panic("unexpected Update call")
 }
@@ -86,14 +79,23 @@ func (userSubRepoNoop) Delete(context.Context, int64) error { panic("unexpected 
 func (userSubRepoNoop) ListByUserID(context.Context, int64) ([]UserSubscription, error) {
 	panic("unexpected ListByUserID call")
 }
+func (userSubRepoNoop) ListByUserIDAndPlanID(context.Context, int64, int64) ([]UserSubscription, error) {
+	panic("unexpected ListByUserIDAndPlanID call")
+}
 func (userSubRepoNoop) ListActiveByUserID(context.Context, int64) ([]UserSubscription, error) {
 	panic("unexpected ListActiveByUserID call")
 }
 func (userSubRepoNoop) ListByGroupID(context.Context, int64, pagination.PaginationParams) ([]UserSubscription, *pagination.PaginationResult, error) {
 	panic("unexpected ListByGroupID call")
 }
+func (userSubRepoNoop) ListByPlanID(context.Context, int64, pagination.PaginationParams) ([]UserSubscription, *pagination.PaginationResult, error) {
+	panic("unexpected ListByPlanID call")
+}
 func (userSubRepoNoop) List(context.Context, pagination.PaginationParams, *int64, *int64, string, string, string, string) ([]UserSubscription, *pagination.PaginationResult, error) {
 	panic("unexpected List call")
+}
+func (userSubRepoNoop) ListBySourceOrderID(context.Context, int64) ([]UserSubscription, error) {
+	panic("unexpected ListBySourceOrderID call")
 }
 func (userSubRepoNoop) ExistsByUserIDAndGroupID(context.Context, int64, int64) (bool, error) {
 	panic("unexpected ExistsByUserIDAndGroupID call")
@@ -131,20 +133,42 @@ type subscriptionUserSubRepoStub struct {
 
 	nextID      int64
 	byID        map[int64]*UserSubscription
-	byUserGroup map[string]*UserSubscription
+	byUserPlan  map[string][]int64
 	createCalls int
 }
 
 func newSubscriptionUserSubRepoStub() *subscriptionUserSubRepoStub {
 	return &subscriptionUserSubRepoStub{
-		nextID:      1,
-		byID:        make(map[int64]*UserSubscription),
-		byUserGroup: make(map[string]*UserSubscription),
+		nextID:     1,
+		byID:       make(map[int64]*UserSubscription),
+		byUserPlan: make(map[string][]int64),
 	}
 }
 
-func (s *subscriptionUserSubRepoStub) key(userID, groupID int64) string {
-	return strconvFormatInt(userID) + ":" + strconvFormatInt(groupID)
+func (s *subscriptionUserSubRepoStub) key(userID, planID int64) string {
+	return strconv.FormatInt(userID, 10) + ":" + strconv.FormatInt(planID, 10)
+}
+
+func (s *subscriptionUserSubRepoStub) rebuildIndex() {
+	s.byUserPlan = make(map[string][]int64)
+	for id, sub := range s.byID {
+		key := s.key(sub.UserID, sub.PlanID)
+		s.byUserPlan[key] = append(s.byUserPlan[key], id)
+	}
+	for key := range s.byUserPlan {
+		ids := s.byUserPlan[key]
+		for i := 0; i < len(ids); i++ {
+			for j := i + 1; j < len(ids); j++ {
+				left := s.byID[ids[i]]
+				right := s.byID[ids[j]]
+				if right.StartsAt.Before(left.StartsAt) ||
+					(right.StartsAt.Equal(left.StartsAt) && right.CreatedAt.Before(left.CreatedAt)) {
+					ids[i], ids[j] = ids[j], ids[i]
+				}
+			}
+		}
+		s.byUserPlan[key] = ids
+	}
 }
 
 func (s *subscriptionUserSubRepoStub) seed(sub *UserSubscription) {
@@ -157,21 +181,7 @@ func (s *subscriptionUserSubRepoStub) seed(sub *UserSubscription) {
 		s.nextID++
 	}
 	s.byID[cp.ID] = &cp
-	s.byUserGroup[s.key(cp.UserID, cp.GroupID)] = &cp
-}
-
-func (s *subscriptionUserSubRepoStub) ExistsByUserIDAndGroupID(_ context.Context, userID, groupID int64) (bool, error) {
-	_, ok := s.byUserGroup[s.key(userID, groupID)]
-	return ok, nil
-}
-
-func (s *subscriptionUserSubRepoStub) GetByUserIDAndGroupID(_ context.Context, userID, groupID int64) (*UserSubscription, error) {
-	sub := s.byUserGroup[s.key(userID, groupID)]
-	if sub == nil {
-		return nil, ErrSubscriptionNotFound
-	}
-	cp := *sub
-	return &cp, nil
+	s.rebuildIndex()
 }
 
 func (s *subscriptionUserSubRepoStub) Create(_ context.Context, sub *UserSubscription) error {
@@ -186,7 +196,7 @@ func (s *subscriptionUserSubRepoStub) Create(_ context.Context, sub *UserSubscri
 	}
 	sub.ID = cp.ID
 	s.byID[cp.ID] = &cp
-	s.byUserGroup[s.key(cp.UserID, cp.GroupID)] = &cp
+	s.rebuildIndex()
 	return nil
 }
 
@@ -199,124 +209,270 @@ func (s *subscriptionUserSubRepoStub) GetByID(_ context.Context, id int64) (*Use
 	return &cp, nil
 }
 
-func TestAssignSubscriptionReuseWhenSemanticsMatch(t *testing.T) {
-	start := time.Date(2026, 2, 20, 10, 0, 0, 0, time.UTC)
-	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
+func (s *subscriptionUserSubRepoStub) GetLatestByUserIDAndPlanID(_ context.Context, userID, planID int64) (*UserSubscription, error) {
+	ids := s.byUserPlan[s.key(userID, planID)]
+	if len(ids) == 0 {
+		return nil, ErrSubscriptionNotFound
 	}
+	latest := s.byID[ids[0]]
+	for _, id := range ids[1:] {
+		candidate := s.byID[id]
+		if candidate.ExpiresAt.After(latest.ExpiresAt) ||
+			(candidate.ExpiresAt.Equal(latest.ExpiresAt) && candidate.CreatedAt.After(latest.CreatedAt)) {
+			latest = candidate
+		}
+	}
+	cp := *latest
+	return &cp, nil
+}
+
+func (s *subscriptionUserSubRepoStub) Update(_ context.Context, sub *UserSubscription) error {
+	if sub == nil {
+		return nil
+	}
+	cp := *sub
+	s.byID[cp.ID] = &cp
+	s.rebuildIndex()
+	return nil
+}
+
+func (s *subscriptionUserSubRepoStub) ListByUserID(_ context.Context, userID int64) ([]UserSubscription, error) {
+	out := make([]UserSubscription, 0)
+	for _, sub := range s.byID {
+		if sub.UserID == userID {
+			out = append(out, *sub)
+		}
+	}
+	return out, nil
+}
+
+func (s *subscriptionUserSubRepoStub) ListByUserIDAndPlanID(_ context.Context, userID, planID int64) ([]UserSubscription, error) {
+	ids := s.byUserPlan[s.key(userID, planID)]
+	out := make([]UserSubscription, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, *s.byID[id])
+	}
+	return out, nil
+}
+
+func (s *subscriptionUserSubRepoStub) ListActiveByUserID(_ context.Context, userID int64) ([]UserSubscription, error) {
+	now := time.Now()
+	out := make([]UserSubscription, 0)
+	for _, sub := range s.byID {
+		if sub.UserID == userID && sub.EffectiveStatus(now) == SubscriptionStatusActive {
+			out = append(out, *sub)
+		}
+	}
+	return out, nil
+}
+
+func (s *subscriptionUserSubRepoStub) ListBySourceOrderID(_ context.Context, sourceOrderID int64) ([]UserSubscription, error) {
+	out := make([]UserSubscription, 0)
+	for _, sub := range s.byID {
+		if sub.SourceOrderID != nil && *sub.SourceOrderID == sourceOrderID {
+			out = append(out, *sub)
+		}
+	}
+	return out, nil
+}
+
+func TestAssignSubscription_SamePlanCreatesPendingChain(t *testing.T) {
 	subRepo := newSubscriptionUserSubRepoStub()
-	subRepo.seed(&UserSubscription{
+	now := time.Now().UTC()
+	limit := 10.0
+	existing := &UserSubscription{
 		ID:        10,
 		UserID:    1001,
-		GroupID:   1,
-		StartsAt:  start,
-		ExpiresAt: start.AddDate(0, 0, 30),
-		Notes:     "init",
-	})
+		PlanID:    1,
+		StartsAt:  now.Add(-24 * time.Hour),
+		ExpiresAt: now.Add(29 * 24 * time.Hour),
+		Status:    SubscriptionStatusActive,
+		CreatedAt: now.Add(-24 * time.Hour),
+	}
+	subRepo.seed(existing)
 
-	svc := NewSubscriptionService(groupRepo, subRepo, nil, nil, nil)
-	sub, err := svc.AssignSubscription(context.Background(), &AssignSubscriptionInput{
-		UserID:       1001,
-		GroupID:      1,
-		ValidityDays: 30,
-		Notes:        "init",
+	svc := NewSubscriptionService(groupRepoNoop{}, subRepo, nil, nil, nil)
+	created, queued, err := svc.AssignOrExtendSubscription(context.Background(), &AssignSubscriptionInput{
+		UserID:        1001,
+		PlanID:        1,
+		ValidityDays:  30,
+		DailyLimitUSD: &limit,
+		Notes:         "renew",
 	})
 	require.NoError(t, err)
-	require.Equal(t, int64(10), sub.ID)
-	require.Equal(t, 0, subRepo.createCalls, "reuse should not create new subscription")
-}
-
-func TestAssignSubscriptionConflictWhenSemanticsMismatch(t *testing.T) {
-	start := time.Date(2026, 2, 20, 10, 0, 0, 0, time.UTC)
-	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
-	}
-	subRepo := newSubscriptionUserSubRepoStub()
-	subRepo.seed(&UserSubscription{
-		ID:        11,
-		UserID:    2001,
-		GroupID:   1,
-		StartsAt:  start,
-		ExpiresAt: start.AddDate(0, 0, 30),
-		Notes:     "old-note",
-	})
-
-	svc := NewSubscriptionService(groupRepo, subRepo, nil, nil, nil)
-	_, err := svc.AssignSubscription(context.Background(), &AssignSubscriptionInput{
-		UserID:       2001,
-		GroupID:      1,
-		ValidityDays: 30,
-		Notes:        "new-note",
-	})
-	require.Error(t, err)
-	require.Equal(t, "SUBSCRIPTION_ASSIGN_CONFLICT", infraerrorsReason(err))
-	require.Equal(t, 0, subRepo.createCalls, "conflict should not create or mutate existing subscription")
-}
-
-func TestBulkAssignSubscriptionCreatedReusedAndConflict(t *testing.T) {
-	start := time.Date(2026, 2, 20, 10, 0, 0, 0, time.UTC)
-	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
-	}
-	subRepo := newSubscriptionUserSubRepoStub()
-	// user 1: 语义一致，可 reused
-	subRepo.seed(&UserSubscription{
-		ID:        21,
-		UserID:    1,
-		GroupID:   1,
-		StartsAt:  start,
-		ExpiresAt: start.AddDate(0, 0, 30),
-		Notes:     "same-note",
-	})
-	// user 3: 语义冲突（有效期不一致），应 failed
-	subRepo.seed(&UserSubscription{
-		ID:        23,
-		UserID:    3,
-		GroupID:   1,
-		StartsAt:  start,
-		ExpiresAt: start.AddDate(0, 0, 60),
-		Notes:     "same-note",
-	})
-
-	svc := NewSubscriptionService(groupRepo, subRepo, nil, nil, nil)
-	result, err := svc.BulkAssignSubscription(context.Background(), &BulkAssignSubscriptionInput{
-		UserIDs:      []int64{1, 2, 3},
-		GroupID:      1,
-		ValidityDays: 30,
-		AssignedBy:   9,
-		Notes:        "same-note",
-	})
-	require.NoError(t, err)
-	require.Equal(t, 2, result.SuccessCount)
-	require.Equal(t, 1, result.CreatedCount)
-	require.Equal(t, 1, result.ReusedCount)
-	require.Equal(t, 1, result.FailedCount)
-	require.Equal(t, "reused", result.Statuses[1])
-	require.Equal(t, "created", result.Statuses[2])
-	require.Equal(t, "failed", result.Statuses[3])
+	require.True(t, queued)
+	require.Equal(t, SubscriptionStatusPending, created.Status)
+	require.Equal(t, existing.ExpiresAt, created.StartsAt)
+	require.Equal(t, existing.ExpiresAt.AddDate(0, 0, 30), created.ExpiresAt)
 	require.Equal(t, 1, subRepo.createCalls)
 }
 
-func TestAssignSubscriptionKeepsWorkingWhenIdempotencyStoreUnavailable(t *testing.T) {
-	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeSubscription},
-	}
+func TestAssignSubscription_DifferentPlanStartsImmediately(t *testing.T) {
 	subRepo := newSubscriptionUserSubRepoStub()
-	SetDefaultIdempotencyCoordinator(NewIdempotencyCoordinator(failingIdempotencyRepo{}, DefaultIdempotencyConfig()))
-	t.Cleanup(func() {
-		SetDefaultIdempotencyCoordinator(nil)
+	now := time.Now().UTC()
+	limit := 10.0
+	subRepo.seed(&UserSubscription{
+		ID:        11,
+		UserID:    1001,
+		PlanID:    1,
+		StartsAt:  now.Add(-24 * time.Hour),
+		ExpiresAt: now.Add(29 * 24 * time.Hour),
+		Status:    SubscriptionStatusActive,
+		CreatedAt: now.Add(-24 * time.Hour),
 	})
 
-	svc := NewSubscriptionService(groupRepo, subRepo, nil, nil, nil)
-	sub, err := svc.AssignSubscription(context.Background(), &AssignSubscriptionInput{
-		UserID:       9001,
-		GroupID:      1,
-		ValidityDays: 30,
-		Notes:        "new",
+	svc := NewSubscriptionService(groupRepoNoop{}, subRepo, nil, nil, nil)
+	created, queued, err := svc.AssignOrExtendSubscription(context.Background(), &AssignSubscriptionInput{
+		UserID:        1001,
+		PlanID:        2,
+		ValidityDays:  7,
+		DailyLimitUSD: &limit,
 	})
 	require.NoError(t, err)
-	require.NotNil(t, sub)
-	require.Equal(t, 1, subRepo.createCalls, "semantic idempotent endpoint should not depend on idempotency store availability")
+	require.False(t, queued)
+	require.Equal(t, SubscriptionStatusActive, created.Status)
+	require.WithinDuration(t, time.Now(), created.StartsAt, 2*time.Second)
+	require.Equal(t, created.StartsAt.AddDate(0, 0, 7), created.ExpiresAt)
+}
+
+func TestAssignSubscription_ReusesExistingSourceOrderSubscription(t *testing.T) {
+	subRepo := newSubscriptionUserSubRepoStub()
+	now := time.Now().UTC()
+	sourceOrderID := int64(7788)
+	limit := 18.0
+	existing := &UserSubscription{
+		ID:            21,
+		UserID:        42,
+		PlanID:        7,
+		StartsAt:      now.Add(-2 * time.Hour),
+		ExpiresAt:     now.Add(7 * 24 * time.Hour),
+		Status:        SubscriptionStatusActive,
+		SourceOrderID: &sourceOrderID,
+		CreatedAt:     now.Add(-2 * time.Hour),
+	}
+	subRepo.seed(existing)
+
+	svc := NewSubscriptionService(groupRepoNoop{}, subRepo, nil, nil, nil)
+	created, queued, err := svc.AssignOrExtendSubscription(context.Background(), &AssignSubscriptionInput{
+		UserID:              42,
+		PlanID:              7,
+		ValidityDays:        30,
+		DailyLimitUSD:       &limit,
+		SourceOrderID:       &sourceOrderID,
+		UseProvidedTemplate: true,
+		Notes:               "retry same order",
+	})
+	require.NoError(t, err)
+	require.False(t, queued)
+	require.Equal(t, existing.ID, created.ID)
+	require.Equal(t, 0, subRepo.createCalls)
+}
+
+func TestBulkAssignSubscription_ReportsQueuedAndActive(t *testing.T) {
+	subRepo := newSubscriptionUserSubRepoStub()
+	now := time.Now().UTC()
+	limit := 10.0
+	subRepo.seed(&UserSubscription{
+		ID:        12,
+		UserID:    1,
+		PlanID:    9,
+		StartsAt:  now.Add(-24 * time.Hour),
+		ExpiresAt: now.Add(6 * 24 * time.Hour),
+		Status:    SubscriptionStatusActive,
+		CreatedAt: now.Add(-24 * time.Hour),
+	})
+
+	svc := NewSubscriptionService(groupRepoNoop{}, subRepo, nil, nil, nil)
+	result, err := svc.BulkAssignSubscription(context.Background(), &BulkAssignSubscriptionInput{
+		UserIDs:       []int64{1, 2},
+		PlanID:        9,
+		ValidityDays:  7,
+		DailyLimitUSD: &limit,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2, result.SuccessCount)
+	require.Equal(t, 2, result.CreatedCount)
+	require.Equal(t, 0, result.ReusedCount)
+	require.Equal(t, 0, result.FailedCount)
+	require.Equal(t, "queued", result.Statuses[1])
+	require.Equal(t, "active", result.Statuses[2])
+}
+
+func TestShiftLaterChain_ShiftsOnlyLaterSubscriptions(t *testing.T) {
+	subRepo := newSubscriptionUserSubRepoStub()
+	now := time.Now().UTC()
+	anchor := &UserSubscription{
+		ID:        31,
+		UserID:    5,
+		PlanID:    9,
+		StartsAt:  now,
+		ExpiresAt: now.Add(7 * 24 * time.Hour),
+		Status:    SubscriptionStatusActive,
+		CreatedAt: now,
+	}
+	overlap := &UserSubscription{
+		ID:        32,
+		UserID:    5,
+		PlanID:    9,
+		StartsAt:  now.Add(24 * time.Hour),
+		ExpiresAt: now.Add(8 * 24 * time.Hour),
+		Status:    SubscriptionStatusPending,
+		CreatedAt: now.Add(time.Minute),
+	}
+	later := &UserSubscription{
+		ID:        33,
+		UserID:    5,
+		PlanID:    9,
+		StartsAt:  anchor.ExpiresAt,
+		ExpiresAt: anchor.ExpiresAt.Add(7 * 24 * time.Hour),
+		Status:    SubscriptionStatusPending,
+		CreatedAt: now.Add(2 * time.Minute),
+	}
+	subRepo.seed(anchor)
+	subRepo.seed(overlap)
+	subRepo.seed(later)
+
+	svc := NewSubscriptionService(groupRepoNoop{}, subRepo, nil, nil, nil)
+	err := svc.shiftLaterChain(context.Background(), []UserSubscription{*anchor, *overlap, *later}, anchor, 48*time.Hour)
+	require.NoError(t, err)
+
+	unchangedOverlap, err := subRepo.GetByID(context.Background(), overlap.ID)
+	require.NoError(t, err)
+	require.Equal(t, overlap.StartsAt, unchangedOverlap.StartsAt)
+	require.Equal(t, overlap.ExpiresAt, unchangedOverlap.ExpiresAt)
+
+	shiftedLater, err := subRepo.GetByID(context.Background(), later.ID)
+	require.NoError(t, err)
+	require.Equal(t, later.StartsAt.Add(48*time.Hour), shiftedLater.StartsAt)
+	require.Equal(t, later.ExpiresAt.Add(48*time.Hour), shiftedLater.ExpiresAt)
+	require.Equal(t, SubscriptionStatusPending, shiftedLater.Status)
+}
+
+func TestGetActiveSubscription_FiltersByPlanID(t *testing.T) {
+	subRepo := newSubscriptionUserSubRepoStub()
+	now := time.Now().UTC()
+	subRepo.seed(&UserSubscription{
+		ID:        13,
+		UserID:    8,
+		PlanID:    100,
+		StartsAt:  now.Add(-time.Hour),
+		ExpiresAt: now.Add(24 * time.Hour),
+		Status:    SubscriptionStatusActive,
+	})
+	subRepo.seed(&UserSubscription{
+		ID:        14,
+		UserID:    8,
+		PlanID:    200,
+		StartsAt:  now.Add(-time.Hour),
+		ExpiresAt: now.Add(48 * time.Hour),
+		Status:    SubscriptionStatusActive,
+	})
+
+	svc := NewSubscriptionService(groupRepoNoop{}, subRepo, nil, nil, nil)
+	sub, err := svc.GetActiveSubscription(context.Background(), 8, 200)
+	require.NoError(t, err)
+	require.Equal(t, int64(14), sub.ID)
+	require.Equal(t, int64(200), sub.PlanID)
 }
 
 func TestNormalizeAssignValidityDays(t *testing.T) {
@@ -324,66 +480,4 @@ func TestNormalizeAssignValidityDays(t *testing.T) {
 	require.Equal(t, 30, normalizeAssignValidityDays(-5))
 	require.Equal(t, MaxValidityDays, normalizeAssignValidityDays(MaxValidityDays+100))
 	require.Equal(t, 7, normalizeAssignValidityDays(7))
-}
-
-func TestDetectAssignSemanticConflictCases(t *testing.T) {
-	start := time.Date(2026, 2, 20, 10, 0, 0, 0, time.UTC)
-	base := &UserSubscription{
-		UserID:    1,
-		GroupID:   1,
-		StartsAt:  start,
-		ExpiresAt: start.AddDate(0, 0, 30),
-		Notes:     "same",
-	}
-
-	reason, conflict := detectAssignSemanticConflict(base, &AssignSubscriptionInput{
-		UserID:       1,
-		GroupID:      1,
-		ValidityDays: 30,
-		Notes:        "same",
-	})
-	require.False(t, conflict)
-	require.Equal(t, "", reason)
-
-	reason, conflict = detectAssignSemanticConflict(base, &AssignSubscriptionInput{
-		UserID:       1,
-		GroupID:      1,
-		ValidityDays: 60,
-		Notes:        "same",
-	})
-	require.True(t, conflict)
-	require.Equal(t, "validity_days_mismatch", reason)
-
-	reason, conflict = detectAssignSemanticConflict(base, &AssignSubscriptionInput{
-		UserID:       1,
-		GroupID:      1,
-		ValidityDays: 30,
-		Notes:        "other",
-	})
-	require.True(t, conflict)
-	require.Equal(t, "notes_mismatch", reason)
-}
-
-func TestAssignSubscriptionGroupTypeValidation(t *testing.T) {
-	groupRepo := &subscriptionGroupRepoStub{
-		group: &Group{ID: 1, SubscriptionType: SubscriptionTypeStandard},
-	}
-	subRepo := newSubscriptionUserSubRepoStub()
-	svc := NewSubscriptionService(groupRepo, subRepo, nil, nil, nil)
-
-	_, err := svc.AssignSubscription(context.Background(), &AssignSubscriptionInput{
-		UserID:       1,
-		GroupID:      1,
-		ValidityDays: 30,
-	})
-	require.Error(t, err)
-	require.Equal(t, infraerrors.Code(ErrGroupNotSubscriptionType), infraerrors.Code(err))
-}
-
-func strconvFormatInt(v int64) string {
-	return strconv.FormatInt(v, 10)
-}
-
-func infraerrorsReason(err error) string {
-	return infraerrors.Reason(err)
 }

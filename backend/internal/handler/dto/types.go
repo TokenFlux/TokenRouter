@@ -89,11 +89,6 @@ type Group struct {
 	IsExclusive    bool    `json:"is_exclusive"`
 	Status         string  `json:"status"`
 
-	SubscriptionType string   `json:"subscription_type"`
-	DailyLimitUSD    *float64 `json:"daily_limit_usd"`
-	WeeklyLimitUSD   *float64 `json:"weekly_limit_usd"`
-	MonthlyLimitUSD  *float64 `json:"monthly_limit_usd"`
-
 	// 图片生成计费配置（仅 antigravity 平台使用）
 	ImagePrice1K *float64 `json:"image_price_1k"`
 	ImagePrice2K *float64 `json:"image_price_2k"`
@@ -114,6 +109,25 @@ type Group struct {
 
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type SubscriptionPlan struct {
+	ID              int64     `json:"id"`
+	Name            string    `json:"name"`
+	Description     string    `json:"description"`
+	Price           float64   `json:"price"`
+	OriginalPrice   *float64  `json:"original_price,omitempty"`
+	ValidityDays    int       `json:"validity_days"`
+	ValidityUnit    string    `json:"validity_unit"`
+	DailyLimitUSD   *float64  `json:"daily_limit_usd"`
+	WeeklyLimitUSD  *float64  `json:"weekly_limit_usd"`
+	MonthlyLimitUSD *float64  `json:"monthly_limit_usd"`
+	Features        string    `json:"features"`
+	ProductName     string    `json:"product_name"`
+	ForSale         bool      `json:"for_sale"`
+	SortOrder       int       `json:"sort_order"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 // AdminGroup 是管理员接口使用的 group DTO（包含敏感/内部字段）。
@@ -334,15 +348,13 @@ type RedeemCode struct {
 	UsedAt    *time.Time `json:"used_at"` // 最后一次成功兑换的时间
 	CreatedAt time.Time  `json:"created_at"`
 
-	GroupID      *int64 `json:"group_id"`
-	ValidityDays int    `json:"validity_days"`
+	PlanID *int64 `json:"plan_id"`
 
 	// Notes is only populated for admin_balance/admin_concurrency types
 	// so users can see why they were charged or credited
 	Notes *string `json:"notes,omitempty"`
 
-	User  *User  `json:"user,omitempty"`
-	Group *Group `json:"group,omitempty"`
+	User *User `json:"user,omitempty"`
 }
 
 // AdminRedeemCode 是管理员接口使用的 redeem code DTO（包含 notes 等字段）。
@@ -382,13 +394,16 @@ type UsageLog struct {
 	CacheCreation5mTokens int `json:"cache_creation_5m_tokens"`
 	CacheCreation1hTokens int `json:"cache_creation_1h_tokens"`
 
-	InputCost         float64 `json:"input_cost"`
-	OutputCost        float64 `json:"output_cost"`
-	CacheCreationCost float64 `json:"cache_creation_cost"`
-	CacheReadCost     float64 `json:"cache_read_cost"`
-	TotalCost         float64 `json:"total_cost"`
-	ActualCost        float64 `json:"actual_cost"`
-	RateMultiplier    float64 `json:"rate_multiplier"`
+	InputCost             float64                    `json:"input_cost"`
+	OutputCost            float64                    `json:"output_cost"`
+	CacheCreationCost     float64                    `json:"cache_creation_cost"`
+	CacheReadCost         float64                    `json:"cache_read_cost"`
+	TotalCost             float64                    `json:"total_cost"`
+	ActualCost            float64                    `json:"actual_cost"`
+	SubscriptionAmountUSD float64                    `json:"subscription_amount_usd"`
+	BalanceAmountUSD      float64                    `json:"balance_amount_usd"`
+	BillingAllocations    []domain.BillingAllocation `json:"billing_allocations,omitempty"`
+	RateMultiplier        float64                    `json:"rate_multiplier"`
 
 	BillingType  int8   `json:"billing_type"`
 	RequestType  string `json:"request_type"`
@@ -489,9 +504,9 @@ type Setting struct {
 }
 
 type UserSubscription struct {
-	ID      int64 `json:"id"`
-	UserID  int64 `json:"user_id"`
-	GroupID int64 `json:"group_id"`
+	ID     int64 `json:"id"`
+	UserID int64 `json:"user_id"`
+	PlanID int64 `json:"plan_id"`
 
 	StartsAt  time.Time `json:"starts_at"`
 	ExpiresAt time.Time `json:"expires_at"`
@@ -501,6 +516,10 @@ type UserSubscription struct {
 	WeeklyWindowStart  *time.Time `json:"weekly_window_start"`
 	MonthlyWindowStart *time.Time `json:"monthly_window_start"`
 
+	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
+	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
+	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
+
 	DailyUsageUSD   float64 `json:"daily_usage_usd"`
 	WeeklyUsageUSD  float64 `json:"weekly_usage_usd"`
 	MonthlyUsageUSD float64 `json:"monthly_usage_usd"`
@@ -508,8 +527,8 @@ type UserSubscription struct {
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
-	User  *User  `json:"user,omitempty"`
-	Group *Group `json:"group,omitempty"`
+	User *User             `json:"user,omitempty"`
+	Plan *SubscriptionPlan `json:"plan,omitempty"`
 }
 
 // AdminUserSubscription 是管理员接口使用的订阅 DTO（包含分配信息/备注等字段）。

@@ -15,6 +15,10 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
+func float64Ptr(v float64) *float64 {
+	return &v
+}
+
 func TestUsageBillingRepositoryApply_DeduplicatesBalanceBilling(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)
@@ -90,9 +94,19 @@ func TestUsageBillingRepositoryApply_DeduplicatesSubscriptionBilling(t *testing.
 		PasswordHash: "hash",
 	})
 	group := mustCreateGroup(t, client, &service.Group{
-		Name:             "usage-billing-group-" + uuid.NewString(),
-		Platform:         service.PlatformAnthropic,
-		SubscriptionType: service.SubscriptionTypeSubscription,
+		Name:     "usage-billing-group-" + uuid.NewString(),
+		Platform: service.PlatformAnthropic,
+	})
+	plan := mustCreatePlan(t, client, &service.SubscriptionPlan{
+		Name:            "usage-billing-plan-" + uuid.NewString(),
+		Description:     "usage billing test plan",
+		Price:           19.9,
+		ValidityDays:    30,
+		ValidityUnit:    "day",
+		ForSale:         true,
+		DailyLimitUSD:   float64Ptr(100),
+		WeeklyLimitUSD:  float64Ptr(200),
+		MonthlyLimitUSD: float64Ptr(300),
 	})
 	apiKey := mustCreateApiKey(t, client, &service.APIKey{
 		UserID:  user.ID,
@@ -101,8 +115,11 @@ func TestUsageBillingRepositoryApply_DeduplicatesSubscriptionBilling(t *testing.
 		Name:    "billing-sub",
 	})
 	subscription := mustCreateSubscription(t, client, &service.UserSubscription{
-		UserID:  user.ID,
-		GroupID: group.ID,
+		UserID:          user.ID,
+		PlanID:          plan.ID,
+		DailyLimitUSD:   float64Ptr(100),
+		WeeklyLimitUSD:  float64Ptr(200),
+		MonthlyLimitUSD: float64Ptr(300),
 	})
 
 	requestID := uuid.NewString()

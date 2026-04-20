@@ -48,7 +48,6 @@ func TestEnsureSimpleModeDefaultGroups_IgnoresSoftDeletedGroups(t *testing.T) {
 		SetName(service.PlatformAnthropic + "-default").
 		SetPlatform(service.PlatformAnthropic).
 		SetStatus(service.StatusActive).
-		SetSubscriptionType(service.SubscriptionTypeStandard).
 		SetRateMultiplier(1.0).
 		SetIsExclusive(false).
 		Save(seedCtx)

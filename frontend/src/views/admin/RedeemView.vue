@@ -103,10 +103,7 @@
                 {{ formatBalanceAmount(value, { fractionDigits: 2 }) }}
               </template>
               <template v-else-if="row.type === 'subscription'">
-                {{ row.validity_days || 30 }} {{ t('admin.redeem.days') }}
-                <span v-if="row.group" class="ml-1 text-xs text-gray-500 dark:text-gray-400"
-                  >({{ row.group.name }})</span
-                >
+                {{ row.plan?.name || (row.plan_id ? `Plan #${row.plan_id}` : '-') }}
               </template>
               <template v-else>{{ value }}</template>
             </span>
@@ -271,48 +268,14 @@
                 {{ t('admin.redeem.invitationHint') }}
               </p>
             </div>
-            <!-- 订阅类型：显示分组选择和有效天数 -->
+            <!-- 订阅类型：显示套餐选择 -->
             <template v-if="generateForm.type === 'subscription'">
               <div>
-                <label class="input-label">{{ t('admin.redeem.selectGroup') }}</label>
+                <label class="input-label">{{ t('payment.admin.planName') }}</label>
                 <Select
-                  v-model="generateForm.group_id"
-                  :options="subscriptionGroupOptions"
-                  :placeholder="t('admin.redeem.selectGroupPlaceholder')"
-                >
-                  <template #selected="{ option }">
-                    <GroupBadge
-                      v-if="option"
-                      :name="(option as unknown as GroupOption).label"
-                      :platform="(option as unknown as GroupOption).platform"
-                      :subscription-type="(option as unknown as GroupOption).subscriptionType"
-                      :rate-multiplier="(option as unknown as GroupOption).rate"
-                    />
-                    <span v-else class="text-gray-400">{{
-                      t('admin.redeem.selectGroupPlaceholder')
-                    }}</span>
-                  </template>
-                  <template #option="{ option, selected }">
-                    <GroupOptionItem
-                      :name="(option as unknown as GroupOption).label"
-                      :platform="(option as unknown as GroupOption).platform"
-                      :subscription-type="(option as unknown as GroupOption).subscriptionType"
-                      :rate-multiplier="(option as unknown as GroupOption).rate"
-                      :description="(option as unknown as GroupOption).description"
-                      :selected="selected"
-                    />
-                  </template>
-                </Select>
-              </div>
-              <div>
-                <label class="input-label">{{ t('admin.redeem.validityDays') }}</label>
-                <input
-                  v-model.number="generateForm.validity_days"
-                  type="number"
-                  min="1"
-                  max="365"
-                  required
-                  class="input"
+                  v-model="generateForm.plan_id"
+                  :options="subscriptionPlanOptions"
+                  :placeholder="t('admin.announcements.form.selectPackages')"
                 />
               </div>
             </template>
@@ -468,7 +431,8 @@ import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { adminAPI } from '@/api/admin'
 import { formatDateTime, parseDateTimeLocalInput } from '@/utils/format'
-import type { RedeemCode, RedeemCodeType, Group, GroupPlatform, SubscriptionType } from '@/types'
+import type { RedeemCode, RedeemCodeType } from '@/types'
+import type { SubscriptionPlan } from '@/types/payment'
 import type { Column } from '@/components/common/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
@@ -476,8 +440,6 @@ import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
-import GroupBadge from '@/components/common/GroupBadge.vue'
-import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 import Icon from '@/components/icons/Icon.vue'
 
 const { t } = useI18n()
@@ -485,33 +447,25 @@ const appStore = useAppStore()
 const { copyToClipboard: clipboardCopy } = useClipboard()
 const { formatBalanceAmount } = useBalanceDisplay()
 
-interface GroupOption {
+interface PlanOption {
   value: number
   label: string
   description: string | null
-  platform: GroupPlatform
-  subscriptionType: SubscriptionType
-  rate: number
+  [key: string]: unknown
 }
 
 const showGenerateDialog = ref(false)
 const showResultDialog = ref(false)
 const generatedCodes = ref<RedeemCode[]>([])
-const subscriptionGroups = ref<Group[]>([])
+const subscriptionPlans = ref<SubscriptionPlan[]>([])
 
-// 订阅类型分组选项
-const subscriptionGroupOptions = computed(() => {
-  return subscriptionGroups.value
-    .filter((g) => g.subscription_type === 'subscription')
-    .map((g) => ({
-      value: g.id,
-      label: g.name,
-      description: g.description,
-      platform: g.platform,
-      subscriptionType: g.subscription_type,
-      rate: g.rate_multiplier
-    }))
-})
+const subscriptionPlanOptions = computed<PlanOption[]>(() =>
+  subscriptionPlans.value.map((plan) => ({
+    value: plan.id,
+    label: plan.name,
+    description: plan.description
+  }))
+)
 
 const generatedCodesText = computed(() => {
   return generatedCodes.value.map((code) => code.code).join('\n')
@@ -629,8 +583,7 @@ const generateForm = reactive({
   type: 'balance' as RedeemCodeType,
   value: 10,
   count: 1,
-  group_id: null as number | null,
-  validity_days: 30,
+  plan_id: null as number | null,
   max_uses: 1,
   expires_at_str: ''
 })
@@ -644,6 +597,8 @@ watch(
       generateForm.value = 0
       generateForm.max_uses = 1
       generateForm.expires_at_str = ''
+    } else if (newType === 'subscription') {
+      generateForm.value = 0
     } else if (generateForm.value === 0) {
       generateForm.value = 10
     }
@@ -679,8 +634,7 @@ const resetGenerateForm = () => {
   generateForm.type = 'balance'
   generateForm.value = 10
   generateForm.count = 1
-  generateForm.group_id = null
-  generateForm.validity_days = 30
+  generateForm.plan_id = null
   generateForm.max_uses = 1
   generateForm.expires_at_str = ''
 }
@@ -753,9 +707,8 @@ const handleSort = (key: string, order: 'asc' | 'desc') => {
 }
 
 const handleGenerateCodes = async () => {
-  // 订阅类型必须选择分组
-  if (generateForm.type === 'subscription' && !generateForm.group_id) {
-    appStore.showError(t('admin.redeem.groupRequired'))
+  if (generateForm.type === 'subscription' && !generateForm.plan_id) {
+    appStore.showError(t('admin.announcements.form.selectPackages'))
     return
   }
   if (generateForm.type !== 'invitation' && (!Number.isInteger(generateForm.max_uses) || generateForm.max_uses < 0)) {
@@ -773,8 +726,7 @@ const handleGenerateCodes = async () => {
       customCode ? 1 : generateForm.count,
       generateForm.type,
       generateForm.value,
-      generateForm.type === 'subscription' ? generateForm.group_id : undefined,
-      generateForm.type === 'subscription' ? generateForm.validity_days : undefined,
+      generateForm.type === 'subscription' ? generateForm.plan_id : undefined,
       generateForm.type === 'invitation' ? undefined : generateForm.max_uses,
       expiresAt,
       customCode || undefined
@@ -865,19 +817,18 @@ const confirmDeleteUnused = async () => {
   }
 }
 
-// 加载订阅类型分组
-const loadSubscriptionGroups = async () => {
+const loadSubscriptionPlans = async () => {
   try {
-    const groups = await adminAPI.groups.getAll()
-    subscriptionGroups.value = groups
+    const response = await adminAPI.payment.getPlans()
+    subscriptionPlans.value = response.data || []
   } catch (error) {
-    console.error('Error loading subscription groups:', error)
+    console.error('Error loading subscription plans:', error)
   }
 }
 
 onMounted(() => {
   loadCodes()
-  loadSubscriptionGroups()
+  loadSubscriptionPlans()
 })
 
 onUnmounted(() => {

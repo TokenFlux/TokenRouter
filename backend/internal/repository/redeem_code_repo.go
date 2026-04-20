@@ -36,10 +36,9 @@ func (r *redeemCodeRepository) Create(ctx context.Context, code *service.RedeemC
 		SetMaxUses(code.MaxUses).
 		SetUsedCount(code.UsedCount).
 		SetNotes(code.Notes).
-		SetValidityDays(code.ValidityDays).
 		SetNillableUsedBy(code.UsedBy).
 		SetNillableUsedAt(code.UsedAt).
-		SetNillableGroupID(code.GroupID)
+		SetNillablePlanID(code.PlanID)
 
 	if code.ExpiresAt != nil {
 		builder.SetExpiresAt(*code.ExpiresAt)
@@ -70,10 +69,9 @@ func (r *redeemCodeRepository) CreateBatch(ctx context.Context, codes []service.
 			SetMaxUses(c.MaxUses).
 			SetUsedCount(c.UsedCount).
 			SetNotes(c.Notes).
-			SetValidityDays(c.ValidityDays).
 			SetNillableUsedBy(c.UsedBy).
 			SetNillableUsedAt(c.UsedAt).
-			SetNillableGroupID(c.GroupID)
+			SetNillablePlanID(c.PlanID)
 		if c.ExpiresAt != nil {
 			builder.SetExpiresAt(*c.ExpiresAt)
 		}
@@ -88,7 +86,7 @@ func (r *redeemCodeRepository) GetByID(ctx context.Context, id int64) (*service.
 	model, err := client.RedeemCode.Query().
 		Where(redeemcode.IDEQ(id)).
 		WithUser().
-		WithGroup().
+		WithPlan().
 		Only(ctx)
 	if err != nil {
 		if dbent.IsNotFound(err) {
@@ -104,7 +102,7 @@ func (r *redeemCodeRepository) GetByCode(ctx context.Context, code string) (*ser
 	model, err := client.RedeemCode.Query().
 		Where(redeemcode.CodeEQ(code)).
 		WithUser().
-		WithGroup().
+		WithPlan().
 		Only(ctx)
 	if err != nil {
 		if dbent.IsNotFound(err) {
@@ -139,8 +137,7 @@ func (r *redeemCodeRepository) Update(ctx context.Context, code *service.RedeemC
 		SetStatus(code.Status).
 		SetMaxUses(code.MaxUses).
 		SetUsedCount(code.UsedCount).
-		SetNotes(code.Notes).
-		SetValidityDays(code.ValidityDays)
+		SetNotes(code.Notes)
 
 	if code.UsedBy != nil {
 		update.SetUsedBy(*code.UsedBy)
@@ -152,10 +149,10 @@ func (r *redeemCodeRepository) Update(ctx context.Context, code *service.RedeemC
 	} else {
 		update.ClearUsedAt()
 	}
-	if code.GroupID != nil {
-		update.SetGroupID(*code.GroupID)
+	if code.PlanID != nil {
+		update.SetPlanID(*code.PlanID)
 	} else {
-		update.ClearGroupID()
+		update.ClearPlanID()
 	}
 	if code.ExpiresAt != nil {
 		update.SetExpiresAt(*code.ExpiresAt)
@@ -308,7 +305,7 @@ func (r *redeemCodeRepository) ListWithFilters(ctx context.Context, params pagin
 
 	codesQuery := query.
 		WithUser().
-		WithGroup().
+		WithPlan().
 		Offset(params.Offset()).
 		Limit(params.Limit())
 	for _, order := range redeemCodeListOrder(params) {
@@ -462,7 +459,7 @@ func (r *redeemCodeRepository) ListByUser(ctx context.Context, userID int64, lim
 	usages, err := client.RedeemCodeUsage.Query().
 		Where(redeemcodeusage.UserIDEQ(userID)).
 		WithRedeemCode(func(q *dbent.RedeemCodeQuery) {
-			q.WithGroup()
+			q.WithPlan()
 		}).
 		Order(dbent.Desc(redeemcodeusage.FieldUsedAt), dbent.Desc(redeemcodeusage.FieldID)).
 		Limit(limit).
@@ -493,7 +490,7 @@ func (r *redeemCodeRepository) ListByUserPaginated(ctx context.Context, userID i
 	usages, err := client.RedeemCodeUsage.Query().
 		Where(preds...).
 		WithRedeemCode(func(q *dbent.RedeemCodeQuery) {
-			q.WithGroup()
+			q.WithPlan()
 		}).
 		Offset(params.Offset()).
 		Limit(params.Limit()).
@@ -537,26 +534,25 @@ func redeemCodeEntityToService(model *dbent.RedeemCode) *service.RedeemCode {
 		return nil
 	}
 	out := &service.RedeemCode{
-		ID:           model.ID,
-		Code:         model.Code,
-		Type:         model.Type,
-		Value:        model.Value,
-		Status:       model.Status,
-		MaxUses:      model.MaxUses,
-		UsedCount:    model.UsedCount,
-		ExpiresAt:    model.ExpiresAt,
-		UsedBy:       model.UsedBy,
-		UsedAt:       model.UsedAt,
-		Notes:        derefString(model.Notes),
-		CreatedAt:    model.CreatedAt,
-		GroupID:      model.GroupID,
-		ValidityDays: model.ValidityDays,
+		ID:        model.ID,
+		Code:      model.Code,
+		Type:      model.Type,
+		Value:     model.Value,
+		Status:    model.Status,
+		MaxUses:   model.MaxUses,
+		UsedCount: model.UsedCount,
+		ExpiresAt: model.ExpiresAt,
+		UsedBy:    model.UsedBy,
+		UsedAt:    model.UsedAt,
+		Notes:     derefString(model.Notes),
+		CreatedAt: model.CreatedAt,
+		PlanID:    model.PlanID,
 	}
 	if model.Edges.User != nil {
 		out.User = userEntityToService(model.Edges.User)
 	}
-	if model.Edges.Group != nil {
-		out.Group = groupEntityToService(model.Edges.Group)
+	if model.Edges.Plan != nil {
+		out.Plan = subscriptionPlanEntityToService(model.Edges.Plan)
 	}
 	if len(model.Edges.UsageRecords) > 0 {
 		out.UsageRecords = redeemCodeUsageEntitiesToService(model.Edges.UsageRecords)

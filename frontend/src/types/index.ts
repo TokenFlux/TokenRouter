@@ -2,6 +2,8 @@
  * Core Type Definitions for Sub2API Frontend
  */
 
+import type { SubscriptionPlan } from './payment'
+
 // ==================== Common Types ====================
 
 export interface SelectOption {
@@ -198,7 +200,7 @@ export type AnnouncementOperator = 'in' | 'gt' | 'gte' | 'lt' | 'lte' | 'eq'
 export interface AnnouncementCondition {
   type: AnnouncementConditionType
   operator: AnnouncementOperator
-  group_ids?: number[]
+  plan_ids?: number[]
   value?: number
 }
 
@@ -394,8 +396,6 @@ export interface PaginationConfig {
 
 export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity'
 
-export type SubscriptionType = 'standard' | 'subscription'
-
 export interface OpenAIMessagesDispatchModelConfig {
   opus_mapped_model?: string
   sonnet_mapped_model?: string
@@ -411,10 +411,6 @@ export interface Group {
   rate_multiplier: number
   is_exclusive: boolean
   status: 'active' | 'inactive'
-  subscription_type: SubscriptionType
-  daily_limit_usd: number | null
-  weekly_limit_usd: number | null
-  monthly_limit_usd: number | null
   // 图片生成计费配置（仅 antigravity 平台使用）
   image_price_1k: number | null
   image_price_2k: number | null
@@ -521,10 +517,6 @@ export interface CreateGroupRequest {
   platform?: GroupPlatform
   rate_multiplier?: number
   is_exclusive?: boolean
-  subscription_type?: SubscriptionType
-  daily_limit_usd?: number | null
-  weekly_limit_usd?: number | null
-  monthly_limit_usd?: number | null
   image_price_1k?: number | null
   image_price_2k?: number | null
   image_price_4k?: number | null
@@ -546,10 +538,6 @@ export interface UpdateGroupRequest {
   rate_multiplier?: number
   is_exclusive?: boolean
   status?: 'active' | 'inactive'
-  subscription_type?: SubscriptionType
-  daily_limit_usd?: number | null
-  weekly_limit_usd?: number | null
-  monthly_limit_usd?: number | null
   image_price_1k?: number | null
   image_price_2k?: number | null
   image_price_4k?: number | null
@@ -998,7 +986,9 @@ export interface AdminDataImportResult {
 
 export type RedeemCodeType =
   | 'balance'
+  | 'admin_balance'
   | 'concurrency'
+  | 'admin_concurrency'
   | 'subscription'
   | 'invitation'
   | 'referral_reward'
@@ -1128,10 +1118,10 @@ export interface RedeemCode {
   used_at: string | null
   created_at: string
   updated_at?: string
-  group_id?: number | null // 订阅类型专用
-  validity_days?: number // 订阅类型专用
+  plan_id?: number | null
+  notes?: string | null
   user?: User
-  group?: Group // 关联的分组
+  plan?: SubscriptionPlan
 }
 
 export interface GenerateRedeemCodesRequest {
@@ -1141,8 +1131,7 @@ export interface GenerateRedeemCodesRequest {
   value: number
   max_uses?: number
   expires_at?: number | null
-  group_id?: number | null // 订阅类型专用
-  validity_days?: number // 订阅类型专用
+  plan_id?: number | null
 }
 
 export interface RedeemCodeRequest {
@@ -1333,8 +1322,13 @@ export interface ChangePasswordRequest {
 export interface UserSubscription {
   id: number
   user_id: number
-  group_id: number
-  status: 'active' | 'expired' | 'revoked'
+  plan_id: number
+  starts_at: string
+  expires_at: string
+  status: 'active' | 'pending' | 'expired' | 'suspended'
+  daily_limit_usd: number | null
+  weekly_limit_usd: number | null
+  monthly_limit_usd: number | null
   daily_usage_usd: number
   weekly_usage_usd: number
   monthly_usage_usd: number
@@ -1343,45 +1337,64 @@ export interface UserSubscription {
   monthly_window_start: string | null
   created_at: string
   updated_at: string
-  expires_at: string | null
   user?: User
-  group?: Group
+  plan?: SubscriptionPlan
 }
 
 export interface SubscriptionProgress {
-  subscription_id: number
+  id: number
+  plan_id: number
+  plan_name: string
+  starts_at: string
+  expires_at: string
+  status: 'active' | 'pending' | 'expired' | 'suspended'
+  expires_in_days: number
   daily: {
-    used: number
-    limit: number | null
+    limit_usd: number
+    used_usd: number
+    remaining_usd: number
     percentage: number
-    reset_in_seconds: number | null
+    window_start: string
+    resets_at: string
+    resets_in_seconds: number
   } | null
   weekly: {
-    used: number
-    limit: number | null
+    limit_usd: number
+    used_usd: number
+    remaining_usd: number
     percentage: number
-    reset_in_seconds: number | null
+    window_start: string
+    resets_at: string
+    resets_in_seconds: number
   } | null
   monthly: {
-    used: number
-    limit: number | null
+    limit_usd: number
+    used_usd: number
+    remaining_usd: number
     percentage: number
-    reset_in_seconds: number | null
+    window_start: string
+    resets_at: string
+    resets_in_seconds: number
   } | null
-  expires_at: string | null
-  days_remaining: number | null
+}
+
+export interface SubscriptionProgressInfo {
+  subscription: UserSubscription
+  progress: SubscriptionProgress
 }
 
 export interface AssignSubscriptionRequest {
   user_id: number
-  group_id: number
+  plan_id: number
   validity_days?: number
+  notes?: string
 }
 
 export interface BulkAssignSubscriptionRequest {
   user_ids: number[]
-  group_id: number
+  plan_id: number
   validity_days?: number
+  notes?: string
 }
 
 export interface ExtendSubscriptionRequest {

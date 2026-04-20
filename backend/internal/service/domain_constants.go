@@ -65,6 +65,7 @@ const (
 // Subscription status constants
 const (
 	SubscriptionStatusActive    = domain.SubscriptionStatusActive
+	SubscriptionStatusPending   = domain.SubscriptionStatusPending
 	SubscriptionStatusExpired   = domain.SubscriptionStatusExpired
 	SubscriptionStatusSuspended = domain.SubscriptionStatusSuspended
 )

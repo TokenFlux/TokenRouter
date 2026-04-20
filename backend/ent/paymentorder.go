@@ -3,6 +3,7 @@
 package ent
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/TokenFlux/TokenRouter/ent/paymentorder"
 	"github.com/TokenFlux/TokenRouter/ent/user"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
 
 // PaymentOrder is the model entity for the PaymentOrder schema.
@@ -50,10 +52,8 @@ type PaymentOrder struct {
 	OrderType string `json:"order_type,omitempty"`
 	// PlanID holds the value of the "plan_id" field.
 	PlanID *int64 `json:"plan_id,omitempty"`
-	// SubscriptionGroupID holds the value of the "subscription_group_id" field.
-	SubscriptionGroupID *int64 `json:"subscription_group_id,omitempty"`
-	// SubscriptionDays holds the value of the "subscription_days" field.
-	SubscriptionDays *int `json:"subscription_days,omitempty"`
+	// PlanSnapshot holds the value of the "plan_snapshot" field.
+	PlanSnapshot domain.SubscriptionPlanSnapshot `json:"plan_snapshot,omitempty"`
 	// ProviderInstanceID holds the value of the "provider_instance_id" field.
 	ProviderInstanceID *string `json:"provider_instance_id,omitempty"`
 	// Status holds the value of the "status" field.
@@ -123,11 +123,13 @@ func (*PaymentOrder) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case paymentorder.FieldPlanSnapshot:
+			values[i] = new([]byte)
 		case paymentorder.FieldForceRefund:
 			values[i] = new(sql.NullBool)
 		case paymentorder.FieldAmount, paymentorder.FieldPayAmount, paymentorder.FieldFeeRate, paymentorder.FieldRefundAmount:
 			values[i] = new(sql.NullFloat64)
-		case paymentorder.FieldID, paymentorder.FieldUserID, paymentorder.FieldPlanID, paymentorder.FieldSubscriptionGroupID, paymentorder.FieldSubscriptionDays:
+		case paymentorder.FieldID, paymentorder.FieldUserID, paymentorder.FieldPlanID:
 			values[i] = new(sql.NullInt64)
 		case paymentorder.FieldUserEmail, paymentorder.FieldUserName, paymentorder.FieldUserNotes, paymentorder.FieldRechargeCode, paymentorder.FieldOutTradeNo, paymentorder.FieldPaymentType, paymentorder.FieldPaymentTradeNo, paymentorder.FieldPayURL, paymentorder.FieldQrCode, paymentorder.FieldQrCodeImg, paymentorder.FieldOrderType, paymentorder.FieldProviderInstanceID, paymentorder.FieldStatus, paymentorder.FieldRefundReason, paymentorder.FieldRefundRequestReason, paymentorder.FieldRefundRequestedBy, paymentorder.FieldFailedReason, paymentorder.FieldClientIP, paymentorder.FieldSrcHost, paymentorder.FieldSrcURL:
 			values[i] = new(sql.NullString)
@@ -255,19 +257,13 @@ func (_m *PaymentOrder) assignValues(columns []string, values []any) error {
 				_m.PlanID = new(int64)
 				*_m.PlanID = value.Int64
 			}
-		case paymentorder.FieldSubscriptionGroupID:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field subscription_group_id", values[i])
-			} else if value.Valid {
-				_m.SubscriptionGroupID = new(int64)
-				*_m.SubscriptionGroupID = value.Int64
-			}
-		case paymentorder.FieldSubscriptionDays:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field subscription_days", values[i])
-			} else if value.Valid {
-				_m.SubscriptionDays = new(int)
-				*_m.SubscriptionDays = int(value.Int64)
+		case paymentorder.FieldPlanSnapshot:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field plan_snapshot", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.PlanSnapshot); err != nil {
+					return fmt.Errorf("unmarshal field plan_snapshot: %w", err)
+				}
 			}
 		case paymentorder.FieldProviderInstanceID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -493,15 +489,8 @@ func (_m *PaymentOrder) String() string {
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")
-	if v := _m.SubscriptionGroupID; v != nil {
-		builder.WriteString("subscription_group_id=")
-		builder.WriteString(fmt.Sprintf("%v", *v))
-	}
-	builder.WriteString(", ")
-	if v := _m.SubscriptionDays; v != nil {
-		builder.WriteString("subscription_days=")
-		builder.WriteString(fmt.Sprintf("%v", *v))
-	}
+	builder.WriteString("plan_snapshot=")
+	builder.WriteString(fmt.Sprintf("%v", _m.PlanSnapshot))
 	builder.WriteString(", ")
 	if v := _m.ProviderInstanceID; v != nil {
 		builder.WriteString("provider_instance_id=")

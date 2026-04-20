@@ -15,7 +15,6 @@ func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T)
 		Name:                  "openai-dispatch",
 		Platform:              service.PlatformOpenAI,
 		Status:                service.StatusActive,
-		SubscriptionType:      service.SubscriptionTypeStandard,
 		RateMultiplier:        1,
 		AllowMessagesDispatch: true,
 		DefaultMappedModel:    "gpt-5.4",
@@ -43,7 +42,6 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_S
 		SetName("g-auth-dispatch-unit").
 		SetPlatform(service.PlatformOpenAI).
 		SetStatus(service.StatusActive).
-		SetSubscriptionType(service.SubscriptionTypeStandard).
 		SetRateMultiplier(1).
 		SetAllowMessagesDispatch(true).
 		SetDefaultMappedModel("gpt-5.4").

@@ -69,7 +69,7 @@ func (s *defaultSubscriptionAssignerStub) AssignOrExtendSubscription(_ context.C
 	if s.err != nil {
 		return nil, false, s.err
 	}
-	return &UserSubscription{UserID: input.UserID, GroupID: input.GroupID}, false, nil
+	return &UserSubscription{UserID: input.UserID, PlanID: input.PlanID}, false, nil
 }
 
 func (s *emailCacheStub) GetVerificationCode(ctx context.Context, email string) (*VerificationCodeData, error) {
@@ -506,7 +506,7 @@ func TestAuthService_Register_AssignsDefaultSubscriptions(t *testing.T) {
 	assigner := &defaultSubscriptionAssignerStub{}
 	service := newAuthService(repo, map[string]string{
 		SettingKeyRegistrationEnabled:  "true",
-		SettingKeyDefaultSubscriptions: `[{"group_id":11,"validity_days":30},{"group_id":12,"validity_days":7}]`,
+		SettingKeyDefaultSubscriptions: `[{"plan_id":11},{"plan_id":12}]`,
 	}, nil)
 	service.defaultSubAssigner = assigner
 
@@ -515,8 +515,6 @@ func TestAuthService_Register_AssignsDefaultSubscriptions(t *testing.T) {
 	require.NotNil(t, user)
 	require.Len(t, assigner.calls, 2)
 	require.Equal(t, int64(42), assigner.calls[0].UserID)
-	require.Equal(t, int64(11), assigner.calls[0].GroupID)
-	require.Equal(t, 30, assigner.calls[0].ValidityDays)
-	require.Equal(t, int64(12), assigner.calls[1].GroupID)
-	require.Equal(t, 7, assigner.calls[1].ValidityDays)
+	require.Equal(t, int64(11), assigner.calls[0].PlanID)
+	require.Equal(t, int64(12), assigner.calls[1].PlanID)
 }

@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"math"
 	"strings"
+	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 )
@@ -106,18 +109,24 @@ func (r *usageBillingRepository) claimUsageBillingKey(ctx context.Context, tx *s
 }
 
 func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, tx *sql.Tx, cmd *service.UsageBillingCommand, result *service.UsageBillingApplyResult) error {
-	if cmd.SubscriptionCost > 0 && cmd.SubscriptionID != nil {
-		if err := incrementUsageBillingSubscription(ctx, tx, *cmd.SubscriptionID, cmd.SubscriptionCost); err != nil {
-			return err
-		}
+	remainingAmount, allocations, err := allocateUsageBillingSubscriptions(ctx, tx, cmd.UserID, cmd.BillableAmountUSD)
+	if err != nil {
+		return err
 	}
+	result.BillingAllocations = allocations
+	result.SubscriptionAmountUSD = cmd.BillableAmountUSD - remainingAmount
 
-	if cmd.BalanceCost > 0 {
-		newBalance, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, cmd.BalanceCost)
+	if remainingAmount > 0 {
+		newBalance, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, remainingAmount)
 		if err != nil {
 			return err
 		}
 		result.NewBalance = &newBalance
+		result.BalanceAmountUSD = remainingAmount
+		result.BillingAllocations = append(result.BillingAllocations, domain.BillingAllocation{
+			Type:      domain.BillingAllocationTypeBalance,
+			AmountUSD: remainingAmount,
+		})
 	}
 
 	if cmd.APIKeyQuotaCost > 0 {
@@ -145,21 +154,198 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 	return nil
 }
 
-func incrementUsageBillingSubscription(ctx context.Context, tx *sql.Tx, subscriptionID int64, costUSD float64) error {
-	const updateSQL = `
-		UPDATE user_subscriptions us
+type usageBillingSubscriptionRow struct {
+	ID                 int64
+	PlanID             int64
+	DailyWindowStart   sql.NullTime
+	WeeklyWindowStart  sql.NullTime
+	MonthlyWindowStart sql.NullTime
+	DailyLimitUSD      sql.NullFloat64
+	WeeklyLimitUSD     sql.NullFloat64
+	MonthlyLimitUSD    sql.NullFloat64
+	DailyUsageUSD      float64
+	WeeklyUsageUSD     float64
+	MonthlyUsageUSD    float64
+}
+
+func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, userID int64, amountUSD float64) (float64, []domain.BillingAllocation, error) {
+	if amountUSD <= 0 {
+		return 0, nil, nil
+	}
+
+	rows, err := tx.QueryContext(ctx, `
+		SELECT
+			id,
+			plan_id,
+			daily_window_start,
+			weekly_window_start,
+			monthly_window_start,
+			daily_limit_usd,
+			weekly_limit_usd,
+			monthly_limit_usd,
+			daily_usage_usd,
+			weekly_usage_usd,
+			monthly_usage_usd
+		FROM user_subscriptions
+		WHERE user_id = $1
+			AND deleted_at IS NULL
+			AND starts_at <= NOW()
+			AND expires_at > NOW()
+			AND status IN ($2, $3)
+		ORDER BY expires_at ASC, starts_at ASC, id ASC
+		FOR UPDATE
+	`, userID, service.SubscriptionStatusActive, service.SubscriptionStatusPending)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	now := time.Now()
+	windowStart := startOfDay(now)
+	remaining := amountUSD
+	allocations := make([]domain.BillingAllocation, 0)
+
+	for rows.Next() {
+		var row usageBillingSubscriptionRow
+		if err := rows.Scan(
+			&row.ID,
+			&row.PlanID,
+			&row.DailyWindowStart,
+			&row.WeeklyWindowStart,
+			&row.MonthlyWindowStart,
+			&row.DailyLimitUSD,
+			&row.WeeklyLimitUSD,
+			&row.MonthlyLimitUSD,
+			&row.DailyUsageUSD,
+			&row.WeeklyUsageUSD,
+			&row.MonthlyUsageUSD,
+		); err != nil {
+			return 0, nil, err
+		}
+		if remaining <= 0 {
+			continue
+		}
+
+		dailyStart, dailyUsage := normalizeUsageBillingWindow(row.DailyWindowStart, row.DailyLimitUSD, row.DailyUsageUSD, windowStart, 24*time.Hour, now)
+		weeklyStart, weeklyUsage := normalizeUsageBillingWindow(row.WeeklyWindowStart, row.WeeklyLimitUSD, row.WeeklyUsageUSD, windowStart, 7*24*time.Hour, now)
+		monthlyStart, monthlyUsage := normalizeUsageBillingWindow(row.MonthlyWindowStart, row.MonthlyLimitUSD, row.MonthlyUsageUSD, windowStart, 30*24*time.Hour, now)
+
+		available := minUsageBillingRemaining(
+			windowRemaining(row.DailyLimitUSD, dailyUsage),
+			windowRemaining(row.WeeklyLimitUSD, weeklyUsage),
+			windowRemaining(row.MonthlyLimitUSD, monthlyUsage),
+		)
+		if available <= 0 {
+			continue
+		}
+
+		allocated := math.Min(remaining, available)
+		if allocated <= 0 {
+			continue
+		}
+
+		if row.DailyLimitUSD.Valid && row.DailyLimitUSD.Float64 > 0 {
+			dailyUsage += allocated
+		}
+		if row.WeeklyLimitUSD.Valid && row.WeeklyLimitUSD.Float64 > 0 {
+			weeklyUsage += allocated
+		}
+		if row.MonthlyLimitUSD.Valid && row.MonthlyLimitUSD.Float64 > 0 {
+			monthlyUsage += allocated
+		}
+
+		if err := updateUsageBillingSubscription(ctx, tx, row.ID, dailyStart, weeklyStart, monthlyStart, dailyUsage, weeklyUsage, monthlyUsage); err != nil {
+			return 0, nil, err
+		}
+
+		subscriptionID := row.ID
+		planID := row.PlanID
+		allocations = append(allocations, domain.BillingAllocation{
+			Type:           domain.BillingAllocationTypeSubscription,
+			AmountUSD:      allocated,
+			SubscriptionID: &subscriptionID,
+			PlanID:         &planID,
+		})
+		remaining -= allocated
+	}
+	if err := rows.Err(); err != nil {
+		return 0, nil, err
+	}
+
+	return remaining, allocations, nil
+}
+
+func normalizeUsageBillingWindow(windowStart sql.NullTime, limit sql.NullFloat64, used float64, resetStart time.Time, duration time.Duration, now time.Time) (*time.Time, float64) {
+	if !limit.Valid || limit.Float64 <= 0 {
+		if !windowStart.Valid {
+			return nil, used
+		}
+		start := windowStart.Time
+		return &start, used
+	}
+	if !windowStart.Valid || windowStart.Time.IsZero() || !windowStart.Time.Add(duration).After(now) {
+		start := resetStart
+		return &start, 0
+	}
+	start := windowStart.Time
+	return &start, used
+}
+
+func windowRemaining(limit sql.NullFloat64, used float64) *float64 {
+	if !limit.Valid || limit.Float64 <= 0 {
+		return nil
+	}
+	remaining := limit.Float64 - used
+	if remaining < 0 {
+		remaining = 0
+	}
+	return &remaining
+}
+
+func minUsageBillingRemaining(values ...*float64) float64 {
+	var (
+		min   float64
+		found bool
+	)
+	for _, value := range values {
+		if value == nil {
+			continue
+		}
+		if !found || *value < min {
+			min = *value
+			found = true
+		}
+	}
+	if !found {
+		return 0
+	}
+	return min
+}
+
+func updateUsageBillingSubscription(
+	ctx context.Context,
+	tx *sql.Tx,
+	subscriptionID int64,
+	dailyWindowStart *time.Time,
+	weeklyWindowStart *time.Time,
+	monthlyWindowStart *time.Time,
+	dailyUsageUSD float64,
+	weeklyUsageUSD float64,
+	monthlyUsageUSD float64,
+) error {
+	res, err := tx.ExecContext(ctx, `
+		UPDATE user_subscriptions
 		SET
-			daily_usage_usd = us.daily_usage_usd + $1,
-			weekly_usage_usd = us.weekly_usage_usd + $1,
-			monthly_usage_usd = us.monthly_usage_usd + $1,
+			daily_window_start = $1,
+			weekly_window_start = $2,
+			monthly_window_start = $3,
+			daily_usage_usd = $4,
+			weekly_usage_usd = $5,
+			monthly_usage_usd = $6,
 			updated_at = NOW()
-		FROM groups g
-		WHERE us.id = $2
-			AND us.deleted_at IS NULL
-			AND us.group_id = g.id
-			AND g.deleted_at IS NULL
-	`
-	res, err := tx.ExecContext(ctx, updateSQL, costUSD, subscriptionID)
+		WHERE id = $7
+			AND deleted_at IS NULL
+	`, nullTimePtr(dailyWindowStart), nullTimePtr(weeklyWindowStart), nullTimePtr(monthlyWindowStart), dailyUsageUSD, weeklyUsageUSD, monthlyUsageUSD, subscriptionID)
 	if err != nil {
 		return err
 	}
@@ -167,10 +353,21 @@ func incrementUsageBillingSubscription(ctx context.Context, tx *sql.Tx, subscrip
 	if err != nil {
 		return err
 	}
-	if affected > 0 {
-		return nil
+	if affected == 0 {
+		return service.ErrSubscriptionNotFound
 	}
-	return service.ErrSubscriptionNotFound
+	return nil
+}
+
+func nullTimePtr(value *time.Time) sql.NullTime {
+	if value == nil {
+		return sql.NullTime{}
+	}
+	return sql.NullTime{Time: *value, Valid: true}
+}
+
+func startOfDay(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
 
 func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (float64, error) {

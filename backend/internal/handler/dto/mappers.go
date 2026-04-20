@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
@@ -142,6 +143,30 @@ func GroupFromService(g *service.Group) *Group {
 	return GroupFromServiceShallow(g)
 }
 
+func SubscriptionPlanFromServiceShallow(plan *service.SubscriptionPlan) *SubscriptionPlan {
+	if plan == nil {
+		return nil
+	}
+	return &SubscriptionPlan{
+		ID:              plan.ID,
+		Name:            plan.Name,
+		Description:     plan.Description,
+		Price:           plan.Price,
+		OriginalPrice:   plan.OriginalPrice,
+		ValidityDays:    plan.ValidityDays,
+		ValidityUnit:    plan.ValidityUnit,
+		DailyLimitUSD:   plan.DailyLimitUSD,
+		WeeklyLimitUSD:  plan.WeeklyLimitUSD,
+		MonthlyLimitUSD: plan.MonthlyLimitUSD,
+		Features:        plan.Features,
+		ProductName:     plan.ProductName,
+		ForSale:         plan.ForSale,
+		SortOrder:       plan.SortOrder,
+		CreatedAt:       plan.CreatedAt,
+		UpdatedAt:       plan.UpdatedAt,
+	}
+}
+
 // GroupFromServiceAdmin converts a service Group to DTO for admin users.
 // It includes internal fields like model_routing and account_count.
 func GroupFromServiceAdmin(g *service.Group) *AdminGroup {
@@ -180,10 +205,6 @@ func groupFromServiceBase(g *service.Group) Group {
 		RateMultiplier:                  g.RateMultiplier,
 		IsExclusive:                     g.IsExclusive,
 		Status:                          g.Status,
-		SubscriptionType:                g.SubscriptionType,
-		DailyLimitUSD:                   g.DailyLimitUSD,
-		WeeklyLimitUSD:                  g.WeeklyLimitUSD,
-		MonthlyLimitUSD:                 g.MonthlyLimitUSD,
 		ImagePrice1K:                    g.ImagePrice1K,
 		ImagePrice2K:                    g.ImagePrice2K,
 		ImagePrice4K:                    g.ImagePrice4K,
@@ -527,21 +548,19 @@ func RedeemCodeFromServiceAdmin(rc *service.RedeemCode) *AdminRedeemCode {
 
 func redeemCodeFromServiceBase(rc *service.RedeemCode) RedeemCode {
 	out := RedeemCode{
-		ID:           rc.ID,
-		Code:         rc.Code,
-		Type:         rc.Type,
-		Value:        rc.Value,
-		Status:       rc.Status,
-		MaxUses:      rc.MaxUses,
-		UsedCount:    rc.UsedCount,
-		ExpiresAt:    rc.ExpiresAt,
-		UsedBy:       rc.UsedBy,
-		UsedAt:       rc.UsedAt,
-		CreatedAt:    rc.CreatedAt,
-		GroupID:      rc.GroupID,
-		ValidityDays: rc.ValidityDays,
-		User:         UserFromServiceShallow(rc.User),
-		Group:        GroupFromServiceShallow(rc.Group),
+		ID:        rc.ID,
+		Code:      rc.Code,
+		Type:      rc.Type,
+		Value:     rc.Value,
+		Status:    rc.Status,
+		MaxUses:   rc.MaxUses,
+		UsedCount: rc.UsedCount,
+		ExpiresAt: rc.ExpiresAt,
+		UsedBy:    rc.UsedBy,
+		UsedAt:    rc.UsedAt,
+		CreatedAt: rc.CreatedAt,
+		PlanID:    rc.PlanID,
+		User:      UserFromServiceShallow(rc.User),
 	}
 
 	// For admin_balance/admin_concurrency types, include notes so users can see
@@ -598,6 +617,9 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		CacheReadCost:         l.CacheReadCost,
 		TotalCost:             l.TotalCost,
 		ActualCost:            l.ActualCost,
+		SubscriptionAmountUSD: l.SubscriptionAmountUSD,
+		BalanceAmountUSD:      l.BalanceAmountUSD,
+		BillingAllocations:    cloneBillingAllocationsDTO(l.BillingAllocations),
 		RateMultiplier:        l.RateMultiplier,
 		BillingType:           l.BillingType,
 		RequestType:           requestType.String(),
@@ -617,6 +639,26 @@ func usageLogFromServiceUser(l *service.UsageLog) UsageLog {
 		Group:                 GroupFromServiceShallow(l.Group),
 		Subscription:          UserSubscriptionFromService(l.Subscription),
 	}
+}
+
+func cloneBillingAllocationsDTO(allocations []domain.BillingAllocation) []domain.BillingAllocation {
+	if len(allocations) == 0 {
+		return nil
+	}
+	out := make([]domain.BillingAllocation, 0, len(allocations))
+	for i := range allocations {
+		allocation := allocations[i]
+		if allocation.SubscriptionID != nil {
+			subscriptionID := *allocation.SubscriptionID
+			allocation.SubscriptionID = &subscriptionID
+		}
+		if allocation.PlanID != nil {
+			planID := *allocation.PlanID
+			allocation.PlanID = &planID
+		}
+		out = append(out, allocation)
+	}
+	return out
 }
 
 // UsageLogFromService converts a service UsageLog to DTO for regular users.
@@ -726,20 +768,23 @@ func userSubscriptionFromServiceBase(sub *service.UserSubscription) UserSubscrip
 	return UserSubscription{
 		ID:                 sub.ID,
 		UserID:             sub.UserID,
-		GroupID:            sub.GroupID,
+		PlanID:             sub.PlanID,
 		StartsAt:           sub.StartsAt,
 		ExpiresAt:          sub.ExpiresAt,
 		Status:             sub.Status,
 		DailyWindowStart:   sub.DailyWindowStart,
 		WeeklyWindowStart:  sub.WeeklyWindowStart,
 		MonthlyWindowStart: sub.MonthlyWindowStart,
+		DailyLimitUSD:      sub.DailyLimitUSD,
+		WeeklyLimitUSD:     sub.WeeklyLimitUSD,
+		MonthlyLimitUSD:    sub.MonthlyLimitUSD,
 		DailyUsageUSD:      sub.DailyUsageUSD,
 		WeeklyUsageUSD:     sub.WeeklyUsageUSD,
 		MonthlyUsageUSD:    sub.MonthlyUsageUSD,
 		CreatedAt:          sub.CreatedAt,
 		UpdatedAt:          sub.UpdatedAt,
 		User:               UserFromServiceShallow(sub.User),
-		Group:              GroupFromServiceShallow(sub.Group),
+		Plan:               SubscriptionPlanFromServiceShallow(sub.Plan),
 	}
 }
 

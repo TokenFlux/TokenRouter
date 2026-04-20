@@ -22,15 +22,15 @@ import (
 )
 
 var (
-	ErrRegistrationDisabled   = infraerrors.Forbidden("REGISTRATION_DISABLED", "registration is currently disabled")
-	ErrSettingNotFound        = infraerrors.NotFound("SETTING_NOT_FOUND", "setting not found")
-	ErrDefaultSubGroupInvalid = infraerrors.BadRequest(
-		"DEFAULT_SUBSCRIPTION_GROUP_INVALID",
-		"default subscription group must exist and be subscription type",
+	ErrRegistrationDisabled  = infraerrors.Forbidden("REGISTRATION_DISABLED", "registration is currently disabled")
+	ErrSettingNotFound       = infraerrors.NotFound("SETTING_NOT_FOUND", "setting not found")
+	ErrDefaultSubPlanInvalid = infraerrors.BadRequest(
+		"DEFAULT_SUBSCRIPTION_PLAN_INVALID",
+		"default subscription plan must exist",
 	)
-	ErrDefaultSubGroupDuplicate = infraerrors.BadRequest(
-		"DEFAULT_SUBSCRIPTION_GROUP_DUPLICATE",
-		"default subscription group cannot be duplicated",
+	ErrDefaultSubPlanDuplicate = infraerrors.BadRequest(
+		"DEFAULT_SUBSCRIPTION_PLAN_DUPLICATE",
+		"default subscription plan cannot be duplicated",
 	)
 )
 
@@ -94,9 +94,9 @@ const gatewayForwardingCacheTTL = 60 * time.Second
 const gatewayForwardingErrorTTL = 5 * time.Second
 const gatewayForwardingDBTimeout = 5 * time.Second
 
-// DefaultSubscriptionGroupReader validates group references used by default subscriptions.
-type DefaultSubscriptionGroupReader interface {
-	GetByID(ctx context.Context, id int64) (*Group, error)
+// DefaultSubscriptionPlanReader validates plan references used by default subscriptions.
+type DefaultSubscriptionPlanReader interface {
+	GetByID(ctx context.Context, id int64) (*SubscriptionPlan, error)
 }
 
 // WebSearchManagerBuilder creates a websearch.Manager from config (injected by infra layer).
@@ -106,7 +106,7 @@ type WebSearchManagerBuilder func(cfg *WebSearchEmulationConfig, proxyURLs map[i
 // SettingService 系统设置服务
 type SettingService struct {
 	settingRepo             SettingRepository
-	defaultSubGroupReader   DefaultSubscriptionGroupReader
+	defaultSubPlanReader    DefaultSubscriptionPlanReader
 	proxyRepo               ProxyRepository // for resolving websearch provider proxy URLs
 	cfg                     *config.Config
 	onUpdate                func() // Callback when settings are updated (for cache invalidation)
@@ -122,9 +122,9 @@ func NewSettingService(settingRepo SettingRepository, cfg *config.Config) *Setti
 	}
 }
 
-// SetDefaultSubscriptionGroupReader injects an optional group reader for default subscription validation.
-func (s *SettingService) SetDefaultSubscriptionGroupReader(reader DefaultSubscriptionGroupReader) {
-	s.defaultSubGroupReader = reader
+// SetDefaultSubscriptionPlanReader injects an optional plan reader for default subscription validation.
+func (s *SettingService) SetDefaultSubscriptionPlanReader(reader DefaultSubscriptionPlanReader) {
+	s.defaultSubPlanReader = reader
 }
 
 // SetProxyRepository injects a proxy repo for resolving websearch provider proxy URLs.
@@ -500,7 +500,7 @@ func parseCustomMenuItemURLs(raw string) []string {
 
 // UpdateSettings 更新系统设置
 func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSettings) error {
-	if err := s.validateDefaultSubscriptionGroups(ctx, settings.DefaultSubscriptions); err != nil {
+	if err := s.validateDefaultSubscriptionPlans(ctx, settings.DefaultSubscriptions); err != nil {
 		return err
 	}
 	normalizedWhitelist, err := NormalizeRegistrationEmailSuffixWhitelist(settings.RegistrationEmailSuffixWhitelist)
@@ -696,38 +696,38 @@ func (s *SettingService) UpdateSettings(ctx context.Context, settings *SystemSet
 	return err
 }
 
-func (s *SettingService) validateDefaultSubscriptionGroups(ctx context.Context, items []DefaultSubscriptionSetting) error {
+func (s *SettingService) validateDefaultSubscriptionPlans(ctx context.Context, items []DefaultSubscriptionSetting) error {
 	if len(items) == 0 {
 		return nil
 	}
 
 	checked := make(map[int64]struct{}, len(items))
 	for _, item := range items {
-		if item.GroupID <= 0 {
+		if item.PlanID <= 0 {
 			continue
 		}
-		if _, ok := checked[item.GroupID]; ok {
-			return ErrDefaultSubGroupDuplicate.WithMetadata(map[string]string{
-				"group_id": strconv.FormatInt(item.GroupID, 10),
+		if _, ok := checked[item.PlanID]; ok {
+			return ErrDefaultSubPlanDuplicate.WithMetadata(map[string]string{
+				"plan_id": strconv.FormatInt(item.PlanID, 10),
 			})
 		}
-		checked[item.GroupID] = struct{}{}
-		if s.defaultSubGroupReader == nil {
+		checked[item.PlanID] = struct{}{}
+		if s.defaultSubPlanReader == nil {
 			continue
 		}
 
-		group, err := s.defaultSubGroupReader.GetByID(ctx, item.GroupID)
+		plan, err := s.defaultSubPlanReader.GetByID(ctx, item.PlanID)
 		if err != nil {
-			if errors.Is(err, ErrGroupNotFound) {
-				return ErrDefaultSubGroupInvalid.WithMetadata(map[string]string{
-					"group_id": strconv.FormatInt(item.GroupID, 10),
+			if infraerrors.IsNotFound(err) {
+				return ErrDefaultSubPlanInvalid.WithMetadata(map[string]string{
+					"plan_id": strconv.FormatInt(item.PlanID, 10),
 				})
 			}
-			return fmt.Errorf("get default subscription group %d: %w", item.GroupID, err)
+			return fmt.Errorf("get default subscription plan %d: %w", item.PlanID, err)
 		}
-		if !group.IsSubscriptionType() {
-			return ErrDefaultSubGroupInvalid.WithMetadata(map[string]string{
-				"group_id": strconv.FormatInt(item.GroupID, 10),
+		if plan == nil || plan.ID <= 0 {
+			return ErrDefaultSubPlanInvalid.WithMetadata(map[string]string{
+				"plan_id": strconv.FormatInt(item.PlanID, 10),
 			})
 		}
 	}
@@ -1392,11 +1392,8 @@ func parseDefaultSubscriptions(raw string) []DefaultSubscriptionSetting {
 
 	normalized := make([]DefaultSubscriptionSetting, 0, len(items))
 	for _, item := range items {
-		if item.GroupID <= 0 || item.ValidityDays <= 0 {
+		if item.PlanID <= 0 {
 			continue
-		}
-		if item.ValidityDays > MaxValidityDays {
-			item.ValidityDays = MaxValidityDays
 		}
 		normalized = append(normalized, item)
 	}

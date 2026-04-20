@@ -240,17 +240,21 @@ func (s *PaymentService) markCompleted(ctx context.Context, o *dbent.PaymentOrde
 		return fmt.Errorf("commit completion transaction: %w", err)
 	}
 
-	s.writeAuditLog(ctx, o.ID, auditAction, "system", map[string]any{
-		"rechargeCode":   o.RechargeCode,
-		"creditedAmount": o.Amount,
-		"payAmount":      o.PayAmount,
-	})
-	if grantResult != nil {
-		s.writeAuditLog(ctx, o.ID, "REFERRAL_REWARD_GRANTED", "system", map[string]any{
-			"invitee_user_id": grantResult.inviteeUserID,
-			"inviter_user_id": grantResult.inviterUserID,
-			"amount":          grantResult.amount,
+	if !s.hasAuditLog(ctx, o.ID, auditAction) {
+		s.writeAuditLog(ctx, o.ID, auditAction, "system", map[string]any{
+			"rechargeCode":   o.RechargeCode,
+			"creditedAmount": o.Amount,
+			"payAmount":      o.PayAmount,
 		})
+	}
+	if grantResult != nil {
+		if !s.hasAuditLog(ctx, o.ID, "REFERRAL_REWARD_GRANTED") {
+			s.writeAuditLog(ctx, o.ID, "REFERRAL_REWARD_GRANTED", "system", map[string]any{
+				"invitee_user_id": grantResult.inviteeUserID,
+				"inviter_user_id": grantResult.inviterUserID,
+				"amount":          grantResult.amount,
+			})
+		}
 		s.invalidateReferralRewardCaches(ctx, grantResult)
 	}
 	return nil
@@ -326,7 +330,7 @@ func (s *PaymentService) ExecuteSubscriptionFulfillment(ctx context.Context, oid
 	if o.Status != OrderStatusPaid && o.Status != OrderStatusFailed {
 		return infraerrors.BadRequest("INVALID_STATUS", "order cannot fulfill in status "+o.Status)
 	}
-	if o.SubscriptionGroupID == nil || o.SubscriptionDays == nil {
+	if o.PlanID == nil {
 		return infraerrors.BadRequest("INVALID_STATUS", "missing subscription info")
 	}
 	c, err := s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(oid), paymentorder.StatusIn(OrderStatusPaid, OrderStatusFailed)).SetStatus(OrderStatusRecharging).Save(ctx)
@@ -344,20 +348,26 @@ func (s *PaymentService) ExecuteSubscriptionFulfillment(ctx context.Context, oid
 }
 
 func (s *PaymentService) doSub(ctx context.Context, o *dbent.PaymentOrder) error {
-	gid := *o.SubscriptionGroupID
-	days := *o.SubscriptionDays
-	g, err := s.groupRepo.GetByID(ctx, gid)
-	if err != nil || g.Status != payment.EntityStatusActive {
-		return fmt.Errorf("group %d no longer exists or inactive", gid)
+	if o.PlanID == nil {
+		return fmt.Errorf("missing plan_id")
 	}
-	// Idempotency: check audit log to see if subscription was already assigned.
-	// Prevents double-extension on retry after markCompleted fails.
-	if s.hasAuditLog(ctx, o.ID, "SUBSCRIPTION_SUCCESS") {
-		slog.Info("subscription already assigned for order, skipping", "orderID", o.ID, "groupID", gid)
-		return s.markCompleted(ctx, o, "SUBSCRIPTION_SUCCESS")
+	snapshot := o.PlanSnapshot
+	if snapshot.ValidityDays <= 0 {
+		return fmt.Errorf("missing plan snapshot")
 	}
 	orderNote := fmt.Sprintf("payment order %d", o.ID)
-	_, _, err = s.subscriptionSvc.AssignOrExtendSubscription(ctx, &AssignSubscriptionInput{UserID: o.UserID, GroupID: gid, ValidityDays: days, AssignedBy: 0, Notes: orderNote})
+	_, _, err := s.subscriptionSvc.AssignOrExtendSubscription(ctx, &AssignSubscriptionInput{
+		UserID:              o.UserID,
+		PlanID:              *o.PlanID,
+		ValidityDays:        snapshot.ValidityDays,
+		DailyLimitUSD:       snapshot.DailyLimitUSD,
+		WeeklyLimitUSD:      snapshot.WeeklyLimitUSD,
+		MonthlyLimitUSD:     snapshot.MonthlyLimitUSD,
+		UseProvidedTemplate: true,
+		SourceOrderID:       &o.ID,
+		AssignedBy:          0,
+		Notes:               orderNote,
+	})
 	if err != nil {
 		return fmt.Errorf("assign subscription: %w", err)
 	}

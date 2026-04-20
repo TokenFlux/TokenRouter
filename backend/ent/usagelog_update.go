@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/TokenFlux/TokenRouter/ent/account"
 	"github.com/TokenFlux/TokenRouter/ent/apikey"
@@ -17,6 +18,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
 
 // UsageLogUpdate is the builder for updating UsageLog entities.
@@ -518,6 +520,66 @@ func (_u *UsageLogUpdate) SetNillableActualCost(v *float64) *UsageLogUpdate {
 // AddActualCost adds value to the "actual_cost" field.
 func (_u *UsageLogUpdate) AddActualCost(v float64) *UsageLogUpdate {
 	_u.mutation.AddActualCost(v)
+	return _u
+}
+
+// SetSubscriptionAmountUsd sets the "subscription_amount_usd" field.
+func (_u *UsageLogUpdate) SetSubscriptionAmountUsd(v float64) *UsageLogUpdate {
+	_u.mutation.ResetSubscriptionAmountUsd()
+	_u.mutation.SetSubscriptionAmountUsd(v)
+	return _u
+}
+
+// SetNillableSubscriptionAmountUsd sets the "subscription_amount_usd" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableSubscriptionAmountUsd(v *float64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetSubscriptionAmountUsd(*v)
+	}
+	return _u
+}
+
+// AddSubscriptionAmountUsd adds value to the "subscription_amount_usd" field.
+func (_u *UsageLogUpdate) AddSubscriptionAmountUsd(v float64) *UsageLogUpdate {
+	_u.mutation.AddSubscriptionAmountUsd(v)
+	return _u
+}
+
+// SetBalanceAmountUsd sets the "balance_amount_usd" field.
+func (_u *UsageLogUpdate) SetBalanceAmountUsd(v float64) *UsageLogUpdate {
+	_u.mutation.ResetBalanceAmountUsd()
+	_u.mutation.SetBalanceAmountUsd(v)
+	return _u
+}
+
+// SetNillableBalanceAmountUsd sets the "balance_amount_usd" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableBalanceAmountUsd(v *float64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetBalanceAmountUsd(*v)
+	}
+	return _u
+}
+
+// AddBalanceAmountUsd adds value to the "balance_amount_usd" field.
+func (_u *UsageLogUpdate) AddBalanceAmountUsd(v float64) *UsageLogUpdate {
+	_u.mutation.AddBalanceAmountUsd(v)
+	return _u
+}
+
+// SetBillingAllocations sets the "billing_allocations" field.
+func (_u *UsageLogUpdate) SetBillingAllocations(v []domain.BillingAllocation) *UsageLogUpdate {
+	_u.mutation.SetBillingAllocations(v)
+	return _u
+}
+
+// AppendBillingAllocations appends value to the "billing_allocations" field.
+func (_u *UsageLogUpdate) AppendBillingAllocations(v []domain.BillingAllocation) *UsageLogUpdate {
+	_u.mutation.AppendBillingAllocations(v)
+	return _u
+}
+
+// ClearBillingAllocations clears the value of the "billing_allocations" field.
+func (_u *UsageLogUpdate) ClearBillingAllocations() *UsageLogUpdate {
+	_u.mutation.ClearBillingAllocations()
 	return _u
 }
 
@@ -1032,6 +1094,29 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedActualCost(); ok {
 		_spec.AddField(usagelog.FieldActualCost, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.SubscriptionAmountUsd(); ok {
+		_spec.SetField(usagelog.FieldSubscriptionAmountUsd, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedSubscriptionAmountUsd(); ok {
+		_spec.AddField(usagelog.FieldSubscriptionAmountUsd, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.BalanceAmountUsd(); ok {
+		_spec.SetField(usagelog.FieldBalanceAmountUsd, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedBalanceAmountUsd(); ok {
+		_spec.AddField(usagelog.FieldBalanceAmountUsd, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.BillingAllocations(); ok {
+		_spec.SetField(usagelog.FieldBillingAllocations, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedBillingAllocations(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, usagelog.FieldBillingAllocations, value)
+		})
+	}
+	if _u.mutation.BillingAllocationsCleared() {
+		_spec.ClearField(usagelog.FieldBillingAllocations, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.RateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldRateMultiplier, field.TypeFloat64, value)
@@ -1756,6 +1841,66 @@ func (_u *UsageLogUpdateOne) AddActualCost(v float64) *UsageLogUpdateOne {
 	return _u
 }
 
+// SetSubscriptionAmountUsd sets the "subscription_amount_usd" field.
+func (_u *UsageLogUpdateOne) SetSubscriptionAmountUsd(v float64) *UsageLogUpdateOne {
+	_u.mutation.ResetSubscriptionAmountUsd()
+	_u.mutation.SetSubscriptionAmountUsd(v)
+	return _u
+}
+
+// SetNillableSubscriptionAmountUsd sets the "subscription_amount_usd" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableSubscriptionAmountUsd(v *float64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetSubscriptionAmountUsd(*v)
+	}
+	return _u
+}
+
+// AddSubscriptionAmountUsd adds value to the "subscription_amount_usd" field.
+func (_u *UsageLogUpdateOne) AddSubscriptionAmountUsd(v float64) *UsageLogUpdateOne {
+	_u.mutation.AddSubscriptionAmountUsd(v)
+	return _u
+}
+
+// SetBalanceAmountUsd sets the "balance_amount_usd" field.
+func (_u *UsageLogUpdateOne) SetBalanceAmountUsd(v float64) *UsageLogUpdateOne {
+	_u.mutation.ResetBalanceAmountUsd()
+	_u.mutation.SetBalanceAmountUsd(v)
+	return _u
+}
+
+// SetNillableBalanceAmountUsd sets the "balance_amount_usd" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableBalanceAmountUsd(v *float64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetBalanceAmountUsd(*v)
+	}
+	return _u
+}
+
+// AddBalanceAmountUsd adds value to the "balance_amount_usd" field.
+func (_u *UsageLogUpdateOne) AddBalanceAmountUsd(v float64) *UsageLogUpdateOne {
+	_u.mutation.AddBalanceAmountUsd(v)
+	return _u
+}
+
+// SetBillingAllocations sets the "billing_allocations" field.
+func (_u *UsageLogUpdateOne) SetBillingAllocations(v []domain.BillingAllocation) *UsageLogUpdateOne {
+	_u.mutation.SetBillingAllocations(v)
+	return _u
+}
+
+// AppendBillingAllocations appends value to the "billing_allocations" field.
+func (_u *UsageLogUpdateOne) AppendBillingAllocations(v []domain.BillingAllocation) *UsageLogUpdateOne {
+	_u.mutation.AppendBillingAllocations(v)
+	return _u
+}
+
+// ClearBillingAllocations clears the value of the "billing_allocations" field.
+func (_u *UsageLogUpdateOne) ClearBillingAllocations() *UsageLogUpdateOne {
+	_u.mutation.ClearBillingAllocations()
+	return _u
+}
+
 // SetRateMultiplier sets the "rate_multiplier" field.
 func (_u *UsageLogUpdateOne) SetRateMultiplier(v float64) *UsageLogUpdateOne {
 	_u.mutation.ResetRateMultiplier()
@@ -2297,6 +2442,29 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if value, ok := _u.mutation.AddedActualCost(); ok {
 		_spec.AddField(usagelog.FieldActualCost, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.SubscriptionAmountUsd(); ok {
+		_spec.SetField(usagelog.FieldSubscriptionAmountUsd, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedSubscriptionAmountUsd(); ok {
+		_spec.AddField(usagelog.FieldSubscriptionAmountUsd, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.BalanceAmountUsd(); ok {
+		_spec.SetField(usagelog.FieldBalanceAmountUsd, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedBalanceAmountUsd(); ok {
+		_spec.AddField(usagelog.FieldBalanceAmountUsd, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.BillingAllocations(); ok {
+		_spec.SetField(usagelog.FieldBillingAllocations, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedBillingAllocations(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, usagelog.FieldBillingAllocations, value)
+		})
+	}
+	if _u.mutation.BillingAllocationsCleared() {
+		_spec.ClearField(usagelog.FieldBillingAllocations, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.RateMultiplier(); ok {
 		_spec.SetField(usagelog.FieldRateMultiplier, field.TypeFloat64, value)

@@ -225,9 +225,9 @@ func (s *AnnouncementService) ListForUser(ctx context.Context, userID int64, unr
 	if err != nil {
 		return nil, fmt.Errorf("list active subscriptions: %w", err)
 	}
-	activeGroupIDs := make(map[int64]struct{}, len(activeSubs))
+	activePlanIDs := make(map[int64]struct{}, len(activeSubs))
 	for i := range activeSubs {
-		activeGroupIDs[activeSubs[i].GroupID] = struct{}{}
+		activePlanIDs[activeSubs[i].PlanID] = struct{}{}
 	}
 
 	now := time.Now()
@@ -243,7 +243,7 @@ func (s *AnnouncementService) ListForUser(ctx context.Context, userID int64, unr
 		if !a.IsActiveAt(now) {
 			continue
 		}
-		if !a.Targeting.Matches(user.Balance, activeGroupIDs) {
+		if !a.Targeting.Matches(user.Balance, activePlanIDs) {
 			continue
 		}
 		visible = append(visible, a)
@@ -310,12 +310,12 @@ func (s *AnnouncementService) MarkRead(ctx context.Context, userID, announcement
 	if err != nil {
 		return fmt.Errorf("list active subscriptions: %w", err)
 	}
-	activeGroupIDs := make(map[int64]struct{}, len(activeSubs))
+	activePlanIDs := make(map[int64]struct{}, len(activeSubs))
 	for i := range activeSubs {
-		activeGroupIDs[activeSubs[i].GroupID] = struct{}{}
+		activePlanIDs[activeSubs[i].PlanID] = struct{}{}
 	}
 
-	if !a.Targeting.Matches(user.Balance, activeGroupIDs) {
+	if !a.Targeting.Matches(user.Balance, activePlanIDs) {
 		return ErrAnnouncementNotFound
 	}
 
@@ -362,9 +362,9 @@ func (s *AnnouncementService) ListUserReadStatus(
 		if err != nil {
 			return nil, nil, fmt.Errorf("list active subscriptions: %w", err)
 		}
-		activeGroupIDs := make(map[int64]struct{}, len(subs))
+		activePlanIDs := make(map[int64]struct{}, len(subs))
 		for j := range subs {
-			activeGroupIDs[subs[j].GroupID] = struct{}{}
+			activePlanIDs[subs[j].PlanID] = struct{}{}
 		}
 
 		readAt, ok := readMap[u.ID]
@@ -379,7 +379,7 @@ func (s *AnnouncementService) ListUserReadStatus(
 			Email:    u.Email,
 			Username: u.Username,
 			Balance:  u.Balance,
-			Eligible: domain.AnnouncementTargeting(ann.Targeting).Matches(u.Balance, activeGroupIDs),
+			Eligible: domain.AnnouncementTargeting(ann.Targeting).Matches(u.Balance, activePlanIDs),
 			ReadAt:   ptr,
 		})
 	}

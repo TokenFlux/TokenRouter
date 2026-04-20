@@ -14,10 +14,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/account"
 	"github.com/TokenFlux/TokenRouter/ent/apikey"
 	"github.com/TokenFlux/TokenRouter/ent/group"
-	"github.com/TokenFlux/TokenRouter/ent/redeemcode"
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
-	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
 
@@ -143,76 +141,6 @@ func (_c *GroupCreate) SetPlatform(v string) *GroupCreate {
 func (_c *GroupCreate) SetNillablePlatform(v *string) *GroupCreate {
 	if v != nil {
 		_c.SetPlatform(*v)
-	}
-	return _c
-}
-
-// SetSubscriptionType sets the "subscription_type" field.
-func (_c *GroupCreate) SetSubscriptionType(v string) *GroupCreate {
-	_c.mutation.SetSubscriptionType(v)
-	return _c
-}
-
-// SetNillableSubscriptionType sets the "subscription_type" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableSubscriptionType(v *string) *GroupCreate {
-	if v != nil {
-		_c.SetSubscriptionType(*v)
-	}
-	return _c
-}
-
-// SetDailyLimitUsd sets the "daily_limit_usd" field.
-func (_c *GroupCreate) SetDailyLimitUsd(v float64) *GroupCreate {
-	_c.mutation.SetDailyLimitUsd(v)
-	return _c
-}
-
-// SetNillableDailyLimitUsd sets the "daily_limit_usd" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableDailyLimitUsd(v *float64) *GroupCreate {
-	if v != nil {
-		_c.SetDailyLimitUsd(*v)
-	}
-	return _c
-}
-
-// SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
-func (_c *GroupCreate) SetWeeklyLimitUsd(v float64) *GroupCreate {
-	_c.mutation.SetWeeklyLimitUsd(v)
-	return _c
-}
-
-// SetNillableWeeklyLimitUsd sets the "weekly_limit_usd" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableWeeklyLimitUsd(v *float64) *GroupCreate {
-	if v != nil {
-		_c.SetWeeklyLimitUsd(*v)
-	}
-	return _c
-}
-
-// SetMonthlyLimitUsd sets the "monthly_limit_usd" field.
-func (_c *GroupCreate) SetMonthlyLimitUsd(v float64) *GroupCreate {
-	_c.mutation.SetMonthlyLimitUsd(v)
-	return _c
-}
-
-// SetNillableMonthlyLimitUsd sets the "monthly_limit_usd" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableMonthlyLimitUsd(v *float64) *GroupCreate {
-	if v != nil {
-		_c.SetMonthlyLimitUsd(*v)
-	}
-	return _c
-}
-
-// SetDefaultValidityDays sets the "default_validity_days" field.
-func (_c *GroupCreate) SetDefaultValidityDays(v int) *GroupCreate {
-	_c.mutation.SetDefaultValidityDays(v)
-	return _c
-}
-
-// SetNillableDefaultValidityDays sets the "default_validity_days" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableDefaultValidityDays(v *int) *GroupCreate {
-	if v != nil {
-		_c.SetDefaultValidityDays(*v)
 	}
 	return _c
 }
@@ -440,36 +368,6 @@ func (_c *GroupCreate) AddAPIKeys(v ...*APIKey) *GroupCreate {
 	return _c.AddAPIKeyIDs(ids...)
 }
 
-// AddRedeemCodeIDs adds the "redeem_codes" edge to the RedeemCode entity by IDs.
-func (_c *GroupCreate) AddRedeemCodeIDs(ids ...int64) *GroupCreate {
-	_c.mutation.AddRedeemCodeIDs(ids...)
-	return _c
-}
-
-// AddRedeemCodes adds the "redeem_codes" edges to the RedeemCode entity.
-func (_c *GroupCreate) AddRedeemCodes(v ...*RedeemCode) *GroupCreate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _c.AddRedeemCodeIDs(ids...)
-}
-
-// AddSubscriptionIDs adds the "subscriptions" edge to the UserSubscription entity by IDs.
-func (_c *GroupCreate) AddSubscriptionIDs(ids ...int64) *GroupCreate {
-	_c.mutation.AddSubscriptionIDs(ids...)
-	return _c
-}
-
-// AddSubscriptions adds the "subscriptions" edges to the UserSubscription entity.
-func (_c *GroupCreate) AddSubscriptions(v ...*UserSubscription) *GroupCreate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _c.AddSubscriptionIDs(ids...)
-}
-
 // AddUsageLogIDs adds the "usage_logs" edge to the UsageLog entity by IDs.
 func (_c *GroupCreate) AddUsageLogIDs(ids ...int64) *GroupCreate {
 	_c.mutation.AddUsageLogIDs(ids...)
@@ -582,14 +480,6 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultPlatform
 		_c.mutation.SetPlatform(v)
 	}
-	if _, ok := _c.mutation.SubscriptionType(); !ok {
-		v := group.DefaultSubscriptionType
-		_c.mutation.SetSubscriptionType(v)
-	}
-	if _, ok := _c.mutation.DefaultValidityDays(); !ok {
-		v := group.DefaultDefaultValidityDays
-		_c.mutation.SetDefaultValidityDays(v)
-	}
 	if _, ok := _c.mutation.ClaudeCodeOnly(); !ok {
 		v := group.DefaultClaudeCodeOnly
 		_c.mutation.SetClaudeCodeOnly(v)
@@ -670,17 +560,6 @@ func (_c *GroupCreate) check() error {
 		if err := group.PlatformValidator(v); err != nil {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "Group.platform": %w`, err)}
 		}
-	}
-	if _, ok := _c.mutation.SubscriptionType(); !ok {
-		return &ValidationError{Name: "subscription_type", err: errors.New(`ent: missing required field "Group.subscription_type"`)}
-	}
-	if v, ok := _c.mutation.SubscriptionType(); ok {
-		if err := group.SubscriptionTypeValidator(v); err != nil {
-			return &ValidationError{Name: "subscription_type", err: fmt.Errorf(`ent: validator failed for field "Group.subscription_type": %w`, err)}
-		}
-	}
-	if _, ok := _c.mutation.DefaultValidityDays(); !ok {
-		return &ValidationError{Name: "default_validity_days", err: errors.New(`ent: missing required field "Group.default_validity_days"`)}
 	}
 	if _, ok := _c.mutation.ClaudeCodeOnly(); !ok {
 		return &ValidationError{Name: "claude_code_only", err: errors.New(`ent: missing required field "Group.claude_code_only"`)}
@@ -780,26 +659,6 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldPlatform, field.TypeString, value)
 		_node.Platform = value
 	}
-	if value, ok := _c.mutation.SubscriptionType(); ok {
-		_spec.SetField(group.FieldSubscriptionType, field.TypeString, value)
-		_node.SubscriptionType = value
-	}
-	if value, ok := _c.mutation.DailyLimitUsd(); ok {
-		_spec.SetField(group.FieldDailyLimitUsd, field.TypeFloat64, value)
-		_node.DailyLimitUsd = &value
-	}
-	if value, ok := _c.mutation.WeeklyLimitUsd(); ok {
-		_spec.SetField(group.FieldWeeklyLimitUsd, field.TypeFloat64, value)
-		_node.WeeklyLimitUsd = &value
-	}
-	if value, ok := _c.mutation.MonthlyLimitUsd(); ok {
-		_spec.SetField(group.FieldMonthlyLimitUsd, field.TypeFloat64, value)
-		_node.MonthlyLimitUsd = &value
-	}
-	if value, ok := _c.mutation.DefaultValidityDays(); ok {
-		_spec.SetField(group.FieldDefaultValidityDays, field.TypeInt, value)
-		_node.DefaultValidityDays = value
-	}
 	if value, ok := _c.mutation.ImagePrice1k(); ok {
 		_spec.SetField(group.FieldImagePrice1k, field.TypeFloat64, value)
 		_node.ImagePrice1k = &value
@@ -873,38 +732,6 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(apikey.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
-	}
-	if nodes := _c.mutation.RedeemCodesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   group.RedeemCodesTable,
-			Columns: []string{group.RedeemCodesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(redeemcode.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges = append(_spec.Edges, edge)
-	}
-	if nodes := _c.mutation.SubscriptionsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   group.SubscriptionsTable,
-			Columns: []string{group.SubscriptionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(usersubscription.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -1131,108 +958,6 @@ func (u *GroupUpsert) SetPlatform(v string) *GroupUpsert {
 // UpdatePlatform sets the "platform" field to the value that was provided on create.
 func (u *GroupUpsert) UpdatePlatform() *GroupUpsert {
 	u.SetExcluded(group.FieldPlatform)
-	return u
-}
-
-// SetSubscriptionType sets the "subscription_type" field.
-func (u *GroupUpsert) SetSubscriptionType(v string) *GroupUpsert {
-	u.Set(group.FieldSubscriptionType, v)
-	return u
-}
-
-// UpdateSubscriptionType sets the "subscription_type" field to the value that was provided on create.
-func (u *GroupUpsert) UpdateSubscriptionType() *GroupUpsert {
-	u.SetExcluded(group.FieldSubscriptionType)
-	return u
-}
-
-// SetDailyLimitUsd sets the "daily_limit_usd" field.
-func (u *GroupUpsert) SetDailyLimitUsd(v float64) *GroupUpsert {
-	u.Set(group.FieldDailyLimitUsd, v)
-	return u
-}
-
-// UpdateDailyLimitUsd sets the "daily_limit_usd" field to the value that was provided on create.
-func (u *GroupUpsert) UpdateDailyLimitUsd() *GroupUpsert {
-	u.SetExcluded(group.FieldDailyLimitUsd)
-	return u
-}
-
-// AddDailyLimitUsd adds v to the "daily_limit_usd" field.
-func (u *GroupUpsert) AddDailyLimitUsd(v float64) *GroupUpsert {
-	u.Add(group.FieldDailyLimitUsd, v)
-	return u
-}
-
-// ClearDailyLimitUsd clears the value of the "daily_limit_usd" field.
-func (u *GroupUpsert) ClearDailyLimitUsd() *GroupUpsert {
-	u.SetNull(group.FieldDailyLimitUsd)
-	return u
-}
-
-// SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
-func (u *GroupUpsert) SetWeeklyLimitUsd(v float64) *GroupUpsert {
-	u.Set(group.FieldWeeklyLimitUsd, v)
-	return u
-}
-
-// UpdateWeeklyLimitUsd sets the "weekly_limit_usd" field to the value that was provided on create.
-func (u *GroupUpsert) UpdateWeeklyLimitUsd() *GroupUpsert {
-	u.SetExcluded(group.FieldWeeklyLimitUsd)
-	return u
-}
-
-// AddWeeklyLimitUsd adds v to the "weekly_limit_usd" field.
-func (u *GroupUpsert) AddWeeklyLimitUsd(v float64) *GroupUpsert {
-	u.Add(group.FieldWeeklyLimitUsd, v)
-	return u
-}
-
-// ClearWeeklyLimitUsd clears the value of the "weekly_limit_usd" field.
-func (u *GroupUpsert) ClearWeeklyLimitUsd() *GroupUpsert {
-	u.SetNull(group.FieldWeeklyLimitUsd)
-	return u
-}
-
-// SetMonthlyLimitUsd sets the "monthly_limit_usd" field.
-func (u *GroupUpsert) SetMonthlyLimitUsd(v float64) *GroupUpsert {
-	u.Set(group.FieldMonthlyLimitUsd, v)
-	return u
-}
-
-// UpdateMonthlyLimitUsd sets the "monthly_limit_usd" field to the value that was provided on create.
-func (u *GroupUpsert) UpdateMonthlyLimitUsd() *GroupUpsert {
-	u.SetExcluded(group.FieldMonthlyLimitUsd)
-	return u
-}
-
-// AddMonthlyLimitUsd adds v to the "monthly_limit_usd" field.
-func (u *GroupUpsert) AddMonthlyLimitUsd(v float64) *GroupUpsert {
-	u.Add(group.FieldMonthlyLimitUsd, v)
-	return u
-}
-
-// ClearMonthlyLimitUsd clears the value of the "monthly_limit_usd" field.
-func (u *GroupUpsert) ClearMonthlyLimitUsd() *GroupUpsert {
-	u.SetNull(group.FieldMonthlyLimitUsd)
-	return u
-}
-
-// SetDefaultValidityDays sets the "default_validity_days" field.
-func (u *GroupUpsert) SetDefaultValidityDays(v int) *GroupUpsert {
-	u.Set(group.FieldDefaultValidityDays, v)
-	return u
-}
-
-// UpdateDefaultValidityDays sets the "default_validity_days" field to the value that was provided on create.
-func (u *GroupUpsert) UpdateDefaultValidityDays() *GroupUpsert {
-	u.SetExcluded(group.FieldDefaultValidityDays)
-	return u
-}
-
-// AddDefaultValidityDays adds v to the "default_validity_days" field.
-func (u *GroupUpsert) AddDefaultValidityDays(v int) *GroupUpsert {
-	u.Add(group.FieldDefaultValidityDays, v)
 	return u
 }
 
@@ -1675,125 +1400,6 @@ func (u *GroupUpsertOne) SetPlatform(v string) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdatePlatform() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdatePlatform()
-	})
-}
-
-// SetSubscriptionType sets the "subscription_type" field.
-func (u *GroupUpsertOne) SetSubscriptionType(v string) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetSubscriptionType(v)
-	})
-}
-
-// UpdateSubscriptionType sets the "subscription_type" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdateSubscriptionType() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateSubscriptionType()
-	})
-}
-
-// SetDailyLimitUsd sets the "daily_limit_usd" field.
-func (u *GroupUpsertOne) SetDailyLimitUsd(v float64) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetDailyLimitUsd(v)
-	})
-}
-
-// AddDailyLimitUsd adds v to the "daily_limit_usd" field.
-func (u *GroupUpsertOne) AddDailyLimitUsd(v float64) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.AddDailyLimitUsd(v)
-	})
-}
-
-// UpdateDailyLimitUsd sets the "daily_limit_usd" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdateDailyLimitUsd() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateDailyLimitUsd()
-	})
-}
-
-// ClearDailyLimitUsd clears the value of the "daily_limit_usd" field.
-func (u *GroupUpsertOne) ClearDailyLimitUsd() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.ClearDailyLimitUsd()
-	})
-}
-
-// SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
-func (u *GroupUpsertOne) SetWeeklyLimitUsd(v float64) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetWeeklyLimitUsd(v)
-	})
-}
-
-// AddWeeklyLimitUsd adds v to the "weekly_limit_usd" field.
-func (u *GroupUpsertOne) AddWeeklyLimitUsd(v float64) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.AddWeeklyLimitUsd(v)
-	})
-}
-
-// UpdateWeeklyLimitUsd sets the "weekly_limit_usd" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdateWeeklyLimitUsd() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateWeeklyLimitUsd()
-	})
-}
-
-// ClearWeeklyLimitUsd clears the value of the "weekly_limit_usd" field.
-func (u *GroupUpsertOne) ClearWeeklyLimitUsd() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.ClearWeeklyLimitUsd()
-	})
-}
-
-// SetMonthlyLimitUsd sets the "monthly_limit_usd" field.
-func (u *GroupUpsertOne) SetMonthlyLimitUsd(v float64) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetMonthlyLimitUsd(v)
-	})
-}
-
-// AddMonthlyLimitUsd adds v to the "monthly_limit_usd" field.
-func (u *GroupUpsertOne) AddMonthlyLimitUsd(v float64) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.AddMonthlyLimitUsd(v)
-	})
-}
-
-// UpdateMonthlyLimitUsd sets the "monthly_limit_usd" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdateMonthlyLimitUsd() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateMonthlyLimitUsd()
-	})
-}
-
-// ClearMonthlyLimitUsd clears the value of the "monthly_limit_usd" field.
-func (u *GroupUpsertOne) ClearMonthlyLimitUsd() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.ClearMonthlyLimitUsd()
-	})
-}
-
-// SetDefaultValidityDays sets the "default_validity_days" field.
-func (u *GroupUpsertOne) SetDefaultValidityDays(v int) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetDefaultValidityDays(v)
-	})
-}
-
-// AddDefaultValidityDays adds v to the "default_validity_days" field.
-func (u *GroupUpsertOne) AddDefaultValidityDays(v int) *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.AddDefaultValidityDays(v)
-	})
-}
-
-// UpdateDefaultValidityDays sets the "default_validity_days" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdateDefaultValidityDays() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateDefaultValidityDays()
 	})
 }
 
@@ -2446,125 +2052,6 @@ func (u *GroupUpsertBulk) SetPlatform(v string) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdatePlatform() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdatePlatform()
-	})
-}
-
-// SetSubscriptionType sets the "subscription_type" field.
-func (u *GroupUpsertBulk) SetSubscriptionType(v string) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetSubscriptionType(v)
-	})
-}
-
-// UpdateSubscriptionType sets the "subscription_type" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdateSubscriptionType() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateSubscriptionType()
-	})
-}
-
-// SetDailyLimitUsd sets the "daily_limit_usd" field.
-func (u *GroupUpsertBulk) SetDailyLimitUsd(v float64) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetDailyLimitUsd(v)
-	})
-}
-
-// AddDailyLimitUsd adds v to the "daily_limit_usd" field.
-func (u *GroupUpsertBulk) AddDailyLimitUsd(v float64) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.AddDailyLimitUsd(v)
-	})
-}
-
-// UpdateDailyLimitUsd sets the "daily_limit_usd" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdateDailyLimitUsd() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateDailyLimitUsd()
-	})
-}
-
-// ClearDailyLimitUsd clears the value of the "daily_limit_usd" field.
-func (u *GroupUpsertBulk) ClearDailyLimitUsd() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.ClearDailyLimitUsd()
-	})
-}
-
-// SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
-func (u *GroupUpsertBulk) SetWeeklyLimitUsd(v float64) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetWeeklyLimitUsd(v)
-	})
-}
-
-// AddWeeklyLimitUsd adds v to the "weekly_limit_usd" field.
-func (u *GroupUpsertBulk) AddWeeklyLimitUsd(v float64) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.AddWeeklyLimitUsd(v)
-	})
-}
-
-// UpdateWeeklyLimitUsd sets the "weekly_limit_usd" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdateWeeklyLimitUsd() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateWeeklyLimitUsd()
-	})
-}
-
-// ClearWeeklyLimitUsd clears the value of the "weekly_limit_usd" field.
-func (u *GroupUpsertBulk) ClearWeeklyLimitUsd() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.ClearWeeklyLimitUsd()
-	})
-}
-
-// SetMonthlyLimitUsd sets the "monthly_limit_usd" field.
-func (u *GroupUpsertBulk) SetMonthlyLimitUsd(v float64) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetMonthlyLimitUsd(v)
-	})
-}
-
-// AddMonthlyLimitUsd adds v to the "monthly_limit_usd" field.
-func (u *GroupUpsertBulk) AddMonthlyLimitUsd(v float64) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.AddMonthlyLimitUsd(v)
-	})
-}
-
-// UpdateMonthlyLimitUsd sets the "monthly_limit_usd" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdateMonthlyLimitUsd() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateMonthlyLimitUsd()
-	})
-}
-
-// ClearMonthlyLimitUsd clears the value of the "monthly_limit_usd" field.
-func (u *GroupUpsertBulk) ClearMonthlyLimitUsd() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.ClearMonthlyLimitUsd()
-	})
-}
-
-// SetDefaultValidityDays sets the "default_validity_days" field.
-func (u *GroupUpsertBulk) SetDefaultValidityDays(v int) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.SetDefaultValidityDays(v)
-	})
-}
-
-// AddDefaultValidityDays adds v to the "default_validity_days" field.
-func (u *GroupUpsertBulk) AddDefaultValidityDays(v int) *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.AddDefaultValidityDays(v)
-	})
-}
-
-// UpdateDefaultValidityDays sets the "default_validity_days" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdateDefaultValidityDays() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.UpdateDefaultValidityDays()
 	})
 }
 

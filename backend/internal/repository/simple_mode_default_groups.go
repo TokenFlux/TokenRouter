@@ -67,7 +67,6 @@ func createGroupIfNotExists(ctx context.Context, client *dbent.Client, name, pla
 		SetDescription("Auto-created default group").
 		SetPlatform(platform).
 		SetStatus(service.StatusActive).
-		SetSubscriptionType(service.SubscriptionTypeStandard).
 		SetRateMultiplier(1.0).
 		SetIsExclusive(false).
 		Save(ctx)

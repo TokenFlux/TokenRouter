@@ -3,6 +3,8 @@ package schema
 import (
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/domain"
+
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/entsql"
@@ -81,12 +83,9 @@ func (PaymentOrder) Fields() []ent.Field {
 		field.Int64("plan_id").
 			Optional().
 			Nillable(),
-		field.Int64("subscription_group_id").
+		field.JSON("plan_snapshot", domain.SubscriptionPlanSnapshot{}).
 			Optional().
-			Nillable(),
-		field.Int("subscription_days").
-			Optional().
-			Nillable(),
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}),
 		field.String("provider_instance_id").
 			Optional().
 			Nillable().

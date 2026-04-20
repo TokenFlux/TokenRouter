@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
@@ -7282,7 +7283,6 @@ type postUsageBillingParams struct {
 	Account               *Account
 	Subscription          *UserSubscription
 	RequestPayloadHash    string
-	IsSubscriptionBill    bool
 	AccountRateMultiplier float64
 	APIKeyService         APIKeyQuotaUpdater
 }
@@ -7302,24 +7302,78 @@ func (p *postUsageBillingParams) shouldUpdateAccountQuota() bool {
 // postUsageBilling is the legacy fallback billing path used when the unified
 // billing repo is unavailable (nil). Production uses applyUsageBilling → repo.Apply
 // for atomic billing. This path only runs in tests or degraded mode.
-func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *billingDeps) {
+func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *billingDeps) *UsageBillingApplyResult {
 	billingCtx, cancel := detachedBillingContext(ctx)
 	defer cancel()
 
+	result := &UsageBillingApplyResult{Applied: true}
 	cost := p.Cost
 
-	if p.IsSubscriptionBill {
-		// Subscription usage tracked by ActualCost so group rate multiplier
-		// consumes the quota at the expected speed.
-		if cost.ActualCost > 0 {
-			if err := deps.userSubRepo.IncrementUsage(billingCtx, p.Subscription.ID, cost.ActualCost); err != nil {
+	remaining := cost.ActualCost
+	if remaining > 0 {
+		if p.Subscription != nil {
+			if err := deps.userSubRepo.IncrementUsage(billingCtx, p.Subscription.ID, remaining); err != nil {
 				slog.Error("increment subscription usage failed", "subscription_id", p.Subscription.ID, "error", err)
+			} else {
+				result.SubscriptionAmountUSD = remaining
+				subscriptionID := p.Subscription.ID
+				var planID *int64
+				if p.Subscription.PlanID > 0 {
+					value := p.Subscription.PlanID
+					planID = &value
+				}
+				result.BillingAllocations = append(result.BillingAllocations, domain.BillingAllocation{
+					Type:           domain.BillingAllocationTypeSubscription,
+					AmountUSD:      remaining,
+					SubscriptionID: &subscriptionID,
+					PlanID:         planID,
+				})
+				remaining = 0
+			}
+		} else {
+			subscriptions := legacyUsageBillingSubscriptions(billingCtx, p, deps)
+			for i := range subscriptions {
+				sub := subscriptions[i]
+				if sub == nil {
+					continue
+				}
+				legacyUsageBillingWindowMaintenance(billingCtx, deps, sub)
+				available := sub.AvailableQuotaUSD()
+				if available <= 0 {
+					continue
+				}
+				allocated := minFloat64(remaining, available)
+				if allocated <= 0 {
+					continue
+				}
+				if err := deps.userSubRepo.IncrementUsage(billingCtx, sub.ID, allocated); err != nil {
+					slog.Error("increment subscription usage failed", "subscription_id", sub.ID, "error", err)
+					continue
+				}
+				result.SubscriptionAmountUSD += allocated
+				subscriptionID := sub.ID
+				planID := sub.PlanID
+				result.BillingAllocations = append(result.BillingAllocations, domain.BillingAllocation{
+					Type:           domain.BillingAllocationTypeSubscription,
+					AmountUSD:      allocated,
+					SubscriptionID: &subscriptionID,
+					PlanID:         &planID,
+				})
+				remaining -= allocated
+				if remaining <= 0 {
+					break
+				}
 			}
 		}
-	} else {
-		if cost.ActualCost > 0 {
-			if err := deps.userRepo.DeductBalance(billingCtx, p.User.ID, cost.ActualCost); err != nil {
+		if remaining > 0 {
+			if err := deps.userRepo.DeductBalance(billingCtx, p.User.ID, remaining); err != nil {
 				slog.Error("deduct balance failed", "user_id", p.User.ID, "error", err)
+			} else {
+				result.BalanceAmountUSD = remaining
+				result.BillingAllocations = append(result.BillingAllocations, domain.BillingAllocation{
+					Type:      domain.BillingAllocationTypeBalance,
+					AmountUSD: remaining,
+				})
 			}
 		}
 	}
@@ -7347,6 +7401,89 @@ func postUsageBilling(ctx context.Context, p *postUsageBillingParams, deps *bill
 	// cache updates. The legacy path does DB writes directly; the finalize path
 	// does cache queue + notifications. Notifications are dispatched separately
 	// by the caller after recording the usage log.
+	return result
+}
+
+func legacyUsageBillingSubscriptions(ctx context.Context, p *postUsageBillingParams, deps *billingDeps) []*UserSubscription {
+	if p == nil || deps == nil || deps.userSubRepo == nil {
+		return nil
+	}
+	if p.Subscription != nil {
+		return []*UserSubscription{p.Subscription}
+	}
+	if p.User == nil {
+		return nil
+	}
+	subscriptions, err := safeListActiveSubscriptions(ctx, deps.userSubRepo, p.User.ID)
+	if err != nil {
+		slog.Error("list active subscriptions for legacy billing failed", "user_id", p.User.ID, "error", err)
+		return nil
+	}
+	out := make([]*UserSubscription, 0, len(subscriptions))
+	for i := range subscriptions {
+		sub := subscriptions[i]
+		out = append(out, &sub)
+	}
+	return out
+}
+
+func safeListActiveSubscriptions(ctx context.Context, repo UserSubscriptionRepository, userID int64) (_ []UserSubscription, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("list active subscriptions panic: %v", recovered)
+		}
+	}()
+	return repo.ListActiveByUserID(ctx, userID)
+}
+
+func legacyUsageBillingWindowMaintenance(ctx context.Context, deps *billingDeps, sub *UserSubscription) {
+	if deps == nil || deps.userSubRepo == nil || sub == nil {
+		return
+	}
+	windowStart := startOfDay(time.Now())
+	if !sub.IsWindowActivated() {
+		if err := deps.userSubRepo.ActivateWindows(ctx, sub.ID, windowStart); err != nil {
+			slog.Error("activate subscription windows failed", "subscription_id", sub.ID, "error", err)
+		} else {
+			sub.DailyWindowStart = &windowStart
+			sub.WeeklyWindowStart = &windowStart
+			sub.MonthlyWindowStart = &windowStart
+			sub.DailyUsageUSD = 0
+			sub.WeeklyUsageUSD = 0
+			sub.MonthlyUsageUSD = 0
+		}
+	}
+	if sub.NeedsDailyReset() {
+		if err := deps.userSubRepo.ResetDailyUsage(ctx, sub.ID, windowStart); err != nil {
+			slog.Error("reset daily subscription usage failed", "subscription_id", sub.ID, "error", err)
+		} else {
+			sub.DailyWindowStart = &windowStart
+			sub.DailyUsageUSD = 0
+		}
+	}
+	if sub.NeedsWeeklyReset() {
+		if err := deps.userSubRepo.ResetWeeklyUsage(ctx, sub.ID, windowStart); err != nil {
+			slog.Error("reset weekly subscription usage failed", "subscription_id", sub.ID, "error", err)
+		} else {
+			sub.WeeklyWindowStart = &windowStart
+			sub.WeeklyUsageUSD = 0
+		}
+	}
+	if sub.NeedsMonthlyReset() {
+		if err := deps.userSubRepo.ResetMonthlyUsage(ctx, sub.ID, windowStart); err != nil {
+			slog.Error("reset monthly subscription usage failed", "subscription_id", sub.ID, "error", err)
+		} else {
+			sub.MonthlyWindowStart = &windowStart
+			sub.MonthlyUsageUSD = 0
+		}
+	}
+}
+
+func minFloat64(a, b float64) float64 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func resolveUsageBillingRequestID(ctx context.Context, upstreamRequestID string) string {
@@ -7406,20 +7543,10 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *postUsage
 		if usageLog.ReasoningEffort != nil {
 			cmd.ReasoningEffort = *usageLog.ReasoningEffort
 		}
-		if usageLog.SubscriptionID != nil {
-			cmd.SubscriptionID = usageLog.SubscriptionID
-		}
 	}
 
-	// Record subscription / balance cost using ActualCost so the group (and any
-	// user-specific) rate multiplier consumes subscription quota at the expected
-	// speed. TotalCost remains the raw (pre-multiplier) value; downstream guards
-	// on "> 0" still correctly skip free subscriptions (RateMultiplier == 0).
-	if p.IsSubscriptionBill && p.Subscription != nil && p.Cost.TotalCost > 0 {
-		cmd.SubscriptionID = &p.Subscription.ID
-		cmd.SubscriptionCost = p.Cost.ActualCost
-	} else if p.Cost.ActualCost > 0 {
-		cmd.BalanceCost = p.Cost.ActualCost
+	if p.Cost.ActualCost > 0 {
+		cmd.BillableAmountUSD = p.Cost.ActualCost
 	}
 
 	if p.shouldDeductAPIKeyQuota() {
@@ -7443,7 +7570,9 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 
 	cmd := buildUsageBillingCommand(requestID, usageLog, p)
 	if cmd == nil || cmd.RequestID == "" || repo == nil {
-		postUsageBilling(ctx, p, deps)
+		result := postUsageBilling(ctx, p, deps)
+		applyUsageBillingResultToUsageLog(usageLog, result)
+		finalizePostUsageBilling(p, deps, result)
 		return true, nil
 	}
 
@@ -7460,6 +7589,7 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 		return false, nil
 	}
 
+	applyUsageBillingResultToUsageLog(usageLog, result)
 	if result.APIKeyQuotaExhausted {
 		if invalidator, ok := p.APIKeyService.(apiKeyAuthCacheInvalidator); ok && p.APIKey != nil && p.APIKey.Key != "" {
 			invalidator.InvalidateAuthCacheByKey(billingCtx, p.APIKey.Key)
@@ -7470,17 +7600,61 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 	return true, nil
 }
 
+func applyUsageBillingResultToUsageLog(usageLog *UsageLog, result *UsageBillingApplyResult) {
+	if usageLog == nil || result == nil {
+		return
+	}
+
+	usageLog.SubscriptionAmountUSD = result.SubscriptionAmountUSD
+	usageLog.BalanceAmountUSD = result.BalanceAmountUSD
+	usageLog.BillingAllocations = cloneBillingAllocations(result.BillingAllocations)
+	usageLog.SubscriptionID = firstAllocatedSubscriptionID(result.BillingAllocations)
+	switch {
+	case result.SubscriptionAmountUSD > 0:
+		usageLog.BillingType = BillingTypeSubscription
+	default:
+		usageLog.BillingType = BillingTypeBalance
+	}
+}
+
+func cloneBillingAllocations(allocations []domain.BillingAllocation) []domain.BillingAllocation {
+	if len(allocations) == 0 {
+		return nil
+	}
+	cloned := make([]domain.BillingAllocation, 0, len(allocations))
+	for i := range allocations {
+		allocation := allocations[i]
+		if allocation.SubscriptionID != nil {
+			subscriptionID := *allocation.SubscriptionID
+			allocation.SubscriptionID = &subscriptionID
+		}
+		if allocation.PlanID != nil {
+			planID := *allocation.PlanID
+			allocation.PlanID = &planID
+		}
+		cloned = append(cloned, allocation)
+	}
+	return cloned
+}
+
+func firstAllocatedSubscriptionID(allocations []domain.BillingAllocation) *int64 {
+	for i := range allocations {
+		if allocations[i].Type != domain.BillingAllocationTypeSubscription || allocations[i].SubscriptionID == nil {
+			continue
+		}
+		subscriptionID := *allocations[i].SubscriptionID
+		return &subscriptionID
+	}
+	return nil
+}
+
 func finalizePostUsageBilling(p *postUsageBillingParams, deps *billingDeps, result *UsageBillingApplyResult) {
 	if p == nil || p.Cost == nil || deps == nil {
 		return
 	}
 
-	if p.IsSubscriptionBill {
-		if p.Cost.ActualCost > 0 && p.User != nil && p.APIKey != nil && p.APIKey.GroupID != nil {
-			deps.billingCacheService.QueueUpdateSubscriptionUsage(p.User.ID, *p.APIKey.GroupID, p.Cost.ActualCost)
-		}
-	} else if p.Cost.ActualCost > 0 && p.User != nil {
-		deps.billingCacheService.QueueDeductBalance(p.User.ID, p.Cost.ActualCost)
+	if result != nil && result.BalanceAmountUSD > 0 && p.User != nil {
+		deps.billingCacheService.QueueDeductBalance(p.User.ID, result.BalanceAmountUSD)
 	}
 
 	if p.Cost.ActualCost > 0 && p.APIKey != nil && p.APIKey.HasRateLimits() {
@@ -7504,10 +7678,13 @@ func notifyBalanceLow(p *postUsageBillingParams, deps *billingDeps, result *Usag
 			slog.Error("panic in notifyBalanceLow", "recover", r)
 		}
 	}()
-	if p.IsSubscriptionBill || p.Cost.ActualCost <= 0 || p.User == nil || deps.balanceNotifyService == nil {
+	balanceAmount := 0.0
+	if result != nil {
+		balanceAmount = result.BalanceAmountUSD
+	}
+	if balanceAmount <= 0 || p.User == nil || deps.balanceNotifyService == nil {
 		slog.Debug("notifyBalanceLow: skipped",
-			"is_subscription", p.IsSubscriptionBill,
-			"actual_cost", p.Cost.ActualCost,
+			"balance_amount", balanceAmount,
 			"user_nil", p.User == nil,
 			"service_nil", deps.balanceNotifyService == nil,
 		)
@@ -7518,19 +7695,19 @@ func notifyBalanceLow(p *postUsageBillingParams, deps *billingDeps, result *Usag
 	slog.Debug("notifyBalanceLow: calling CheckBalanceAfterDeduction",
 		"user_id", p.User.ID,
 		"old_balance", oldBalance,
-		"cost", p.Cost.ActualCost,
+		"cost", balanceAmount,
 		"notify_enabled", p.User.BalanceNotifyEnabled,
 		"threshold", p.User.BalanceNotifyThreshold,
 		"result_has_new_balance", result != nil && result.NewBalance != nil,
 	)
-	deps.balanceNotifyService.CheckBalanceAfterDeduction(context.Background(), p.User, oldBalance, p.Cost.ActualCost)
+	deps.balanceNotifyService.CheckBalanceAfterDeduction(context.Background(), p.User, oldBalance, balanceAmount)
 }
 
 // resolveOldBalance returns the pre-deduction balance.
 // Prefers the DB transaction result (newBalance + cost) over snapshot.
 func resolveOldBalance(p *postUsageBillingParams, result *UsageBillingApplyResult) float64 {
 	if result != nil && result.NewBalance != nil {
-		return *result.NewBalance + p.Cost.ActualCost
+		return *result.NewBalance + result.BalanceAmountUSD
 	}
 	// Legacy fallback: snapshot balance from request context
 	return p.User.Balance
@@ -7780,8 +7957,8 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	// 计算费用
 	cost := s.calculateRecordUsageCost(ctx, result, apiKey, billingModel, multiplier, opts)
 
-	// 判断计费方式：订阅模式 vs 余额模式
-	isSubscriptionBilling := subscription != nil && apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
+	// 预填 billing_type 仅用于 simple mode / 持久化前对象，真实扣费结果会在统一扣费后回填。
+	isSubscriptionBilling := subscription != nil
 	billingType := BillingTypeBalance
 	if isSubscriptionBilling {
 		billingType = BillingTypeSubscription
@@ -7824,7 +8001,6 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		Account:               account,
 		Subscription:          subscription,
 		RequestPayloadHash:    resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
-		IsSubscriptionBill:    isSubscriptionBilling,
 		AccountRateMultiplier: accountRateMultiplier,
 		APIKeyService:         input.APIKeyService,
 	}, s.billingDeps(), s.usageBillingRepo)

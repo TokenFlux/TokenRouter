@@ -20,11 +20,10 @@ type RedeemCode struct {
 	Notes     string
 	CreatedAt time.Time
 
-	GroupID      *int64
-	ValidityDays int
+	PlanID *int64
 
 	User         *User
-	Group        *Group
+	Plan         *SubscriptionPlan
 	UsageRecords []RedeemCodeUsage
 }
 

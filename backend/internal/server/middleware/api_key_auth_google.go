@@ -69,32 +69,22 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 			return
 		}
 
-		isSubscriptionType := apiKey.Group != nil && apiKey.Group.IsSubscriptionType()
-		if isSubscriptionType && subscriptionService != nil {
-			subscription, err := subscriptionService.GetActiveSubscription(
-				c.Request.Context(),
-				apiKey.User.ID,
-				apiKey.Group.ID,
-			)
-			if err != nil {
-				abortWithGoogleError(c, 403, "No active subscription found for this group")
+		var subscription *service.UserSubscription
+		needsMaintenance := false
+		if subscriptionService != nil {
+			sub, maintenance, err := subscriptionService.GetUsableSubscription(c.Request.Context(), apiKey.User.ID)
+			if err != nil && !errors.Is(err, service.ErrSubscriptionNotFound) {
+				abortWithGoogleError(c, 500, "Failed to validate subscription")
 				return
 			}
-
-			needsMaintenance, err := subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
-			if err != nil {
-				status := 403
-				if errors.Is(err, service.ErrDailyLimitExceeded) ||
-					errors.Is(err, service.ErrWeeklyLimitExceeded) ||
-					errors.Is(err, service.ErrMonthlyLimitExceeded) {
-					status = 429
-				}
-				abortWithGoogleError(c, status, err.Error())
-				return
+			if err == nil {
+				subscription = sub
+				needsMaintenance = maintenance
 			}
+		}
 
+		if subscription != nil {
 			c.Set(string(ContextKeySubscription), subscription)
-
 			if needsMaintenance {
 				maintenanceCopy := *subscription
 				subscriptionService.DoWindowMaintenance(&maintenanceCopy)

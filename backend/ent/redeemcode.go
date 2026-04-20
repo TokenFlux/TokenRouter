@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/group"
 	"github.com/TokenFlux/TokenRouter/ent/redeemcode"
+	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
 	"github.com/TokenFlux/TokenRouter/ent/user"
 )
 
@@ -41,10 +41,8 @@ type RedeemCode struct {
 	Notes *string `json:"notes,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
-	// GroupID holds the value of the "group_id" field.
-	GroupID *int64 `json:"group_id,omitempty"`
-	// ValidityDays holds the value of the "validity_days" field.
-	ValidityDays int `json:"validity_days,omitempty"`
+	// PlanID holds the value of the "plan_id" field.
+	PlanID *int64 `json:"plan_id,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the RedeemCodeQuery when eager-loading is set.
 	Edges        RedeemCodeEdges `json:"edges"`
@@ -57,8 +55,8 @@ type RedeemCodeEdges struct {
 	UsageRecords []*RedeemCodeUsage `json:"usage_records,omitempty"`
 	// User holds the value of the user edge.
 	User *User `json:"user,omitempty"`
-	// Group holds the value of the group edge.
-	Group *Group `json:"group,omitempty"`
+	// Plan holds the value of the plan edge.
+	Plan *SubscriptionPlan `json:"plan,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [3]bool
@@ -84,15 +82,15 @@ func (e RedeemCodeEdges) UserOrErr() (*User, error) {
 	return nil, &NotLoadedError{edge: "user"}
 }
 
-// GroupOrErr returns the Group value or an error if the edge
+// PlanOrErr returns the Plan value or an error if the edge
 // was not loaded in eager-loading, or loaded but was not found.
-func (e RedeemCodeEdges) GroupOrErr() (*Group, error) {
-	if e.Group != nil {
-		return e.Group, nil
+func (e RedeemCodeEdges) PlanOrErr() (*SubscriptionPlan, error) {
+	if e.Plan != nil {
+		return e.Plan, nil
 	} else if e.loadedTypes[2] {
-		return nil, &NotFoundError{label: group.Label}
+		return nil, &NotFoundError{label: subscriptionplan.Label}
 	}
-	return nil, &NotLoadedError{edge: "group"}
+	return nil, &NotLoadedError{edge: "plan"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -102,7 +100,7 @@ func (*RedeemCode) scanValues(columns []string) ([]any, error) {
 		switch columns[i] {
 		case redeemcode.FieldValue:
 			values[i] = new(sql.NullFloat64)
-		case redeemcode.FieldID, redeemcode.FieldMaxUses, redeemcode.FieldUsedCount, redeemcode.FieldUsedBy, redeemcode.FieldGroupID, redeemcode.FieldValidityDays:
+		case redeemcode.FieldID, redeemcode.FieldMaxUses, redeemcode.FieldUsedCount, redeemcode.FieldUsedBy, redeemcode.FieldPlanID:
 			values[i] = new(sql.NullInt64)
 		case redeemcode.FieldCode, redeemcode.FieldType, redeemcode.FieldStatus, redeemcode.FieldNotes:
 			values[i] = new(sql.NullString)
@@ -199,18 +197,12 @@ func (_m *RedeemCode) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.CreatedAt = value.Time
 			}
-		case redeemcode.FieldGroupID:
+		case redeemcode.FieldPlanID:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field group_id", values[i])
+				return fmt.Errorf("unexpected type %T for field plan_id", values[i])
 			} else if value.Valid {
-				_m.GroupID = new(int64)
-				*_m.GroupID = value.Int64
-			}
-		case redeemcode.FieldValidityDays:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field validity_days", values[i])
-			} else if value.Valid {
-				_m.ValidityDays = int(value.Int64)
+				_m.PlanID = new(int64)
+				*_m.PlanID = value.Int64
 			}
 		default:
 			_m.selectValues.Set(columns[i], values[i])
@@ -235,9 +227,9 @@ func (_m *RedeemCode) QueryUser() *UserQuery {
 	return NewRedeemCodeClient(_m.config).QueryUser(_m)
 }
 
-// QueryGroup queries the "group" edge of the RedeemCode entity.
-func (_m *RedeemCode) QueryGroup() *GroupQuery {
-	return NewRedeemCodeClient(_m.config).QueryGroup(_m)
+// QueryPlan queries the "plan" edge of the RedeemCode entity.
+func (_m *RedeemCode) QueryPlan() *SubscriptionPlanQuery {
+	return NewRedeemCodeClient(_m.config).QueryPlan(_m)
 }
 
 // Update returns a builder for updating this RedeemCode.
@@ -304,13 +296,10 @@ func (_m *RedeemCode) String() string {
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))
 	builder.WriteString(", ")
-	if v := _m.GroupID; v != nil {
-		builder.WriteString("group_id=")
+	if v := _m.PlanID; v != nil {
+		builder.WriteString("plan_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
-	builder.WriteString(", ")
-	builder.WriteString("validity_days=")
-	builder.WriteString(fmt.Sprintf("%v", _m.ValidityDays))
 	builder.WriteByte(')')
 	return builder.String()
 }

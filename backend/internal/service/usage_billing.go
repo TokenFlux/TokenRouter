@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
 
 var ErrUsageBillingRequestIDRequired = errors.New("usage billing request_id is required")
@@ -21,6 +23,7 @@ type UsageBillingCommand struct {
 
 	UserID              int64
 	AccountID           int64
+	BillableAmountUSD   float64
 	SubscriptionID      *int64
 	AccountType         string
 	Model               string
@@ -56,7 +59,7 @@ func buildUsageBillingFingerprint(c *UsageBillingCommand) string {
 		return ""
 	}
 	raw := fmt.Sprintf(
-		"%d|%d|%d|%s|%s|%s|%s|%d|%d|%d|%d|%d|%d|%s|%d|%0.10f|%0.10f|%0.10f|%0.10f|%0.10f",
+		"%d|%d|%d|%s|%s|%s|%s|%d|%d|%d|%d|%d|%d|%s|%0.10f|%d|%0.10f|%0.10f|%0.10f|%0.10f|%0.10f",
 		c.UserID,
 		c.AccountID,
 		c.APIKeyID,
@@ -71,6 +74,7 @@ func buildUsageBillingFingerprint(c *UsageBillingCommand) string {
 		c.CacheReadTokens,
 		c.ImageCount,
 		strings.TrimSpace(c.MediaType),
+		c.BillableAmountUSD,
 		valueOrZero(c.SubscriptionID),
 		c.BalanceCost,
 		c.SubscriptionCost,
@@ -112,10 +116,13 @@ type AccountQuotaState struct {
 }
 
 type UsageBillingApplyResult struct {
-	Applied              bool
-	APIKeyQuotaExhausted bool
-	NewBalance           *float64           // post-deduction balance (nil = no balance deduction)
-	QuotaState           *AccountQuotaState // post-increment quota state (nil = no quota increment)
+	Applied               bool
+	APIKeyQuotaExhausted  bool
+	NewBalance            *float64           // post-deduction balance (nil = no balance deduction)
+	QuotaState            *AccountQuotaState // post-increment quota state (nil = no quota increment)
+	SubscriptionAmountUSD float64
+	BalanceAmountUSD      float64
+	BillingAllocations    []domain.BillingAllocation
 }
 
 type UsageBillingRepository interface {

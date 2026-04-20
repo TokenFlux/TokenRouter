@@ -16,10 +16,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/apikey"
 	"github.com/TokenFlux/TokenRouter/ent/group"
 	"github.com/TokenFlux/TokenRouter/ent/predicate"
-	"github.com/TokenFlux/TokenRouter/ent/redeemcode"
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
-	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
 
@@ -156,122 +154,6 @@ func (_u *GroupUpdate) SetNillablePlatform(v *string) *GroupUpdate {
 	if v != nil {
 		_u.SetPlatform(*v)
 	}
-	return _u
-}
-
-// SetSubscriptionType sets the "subscription_type" field.
-func (_u *GroupUpdate) SetSubscriptionType(v string) *GroupUpdate {
-	_u.mutation.SetSubscriptionType(v)
-	return _u
-}
-
-// SetNillableSubscriptionType sets the "subscription_type" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableSubscriptionType(v *string) *GroupUpdate {
-	if v != nil {
-		_u.SetSubscriptionType(*v)
-	}
-	return _u
-}
-
-// SetDailyLimitUsd sets the "daily_limit_usd" field.
-func (_u *GroupUpdate) SetDailyLimitUsd(v float64) *GroupUpdate {
-	_u.mutation.ResetDailyLimitUsd()
-	_u.mutation.SetDailyLimitUsd(v)
-	return _u
-}
-
-// SetNillableDailyLimitUsd sets the "daily_limit_usd" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableDailyLimitUsd(v *float64) *GroupUpdate {
-	if v != nil {
-		_u.SetDailyLimitUsd(*v)
-	}
-	return _u
-}
-
-// AddDailyLimitUsd adds value to the "daily_limit_usd" field.
-func (_u *GroupUpdate) AddDailyLimitUsd(v float64) *GroupUpdate {
-	_u.mutation.AddDailyLimitUsd(v)
-	return _u
-}
-
-// ClearDailyLimitUsd clears the value of the "daily_limit_usd" field.
-func (_u *GroupUpdate) ClearDailyLimitUsd() *GroupUpdate {
-	_u.mutation.ClearDailyLimitUsd()
-	return _u
-}
-
-// SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
-func (_u *GroupUpdate) SetWeeklyLimitUsd(v float64) *GroupUpdate {
-	_u.mutation.ResetWeeklyLimitUsd()
-	_u.mutation.SetWeeklyLimitUsd(v)
-	return _u
-}
-
-// SetNillableWeeklyLimitUsd sets the "weekly_limit_usd" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableWeeklyLimitUsd(v *float64) *GroupUpdate {
-	if v != nil {
-		_u.SetWeeklyLimitUsd(*v)
-	}
-	return _u
-}
-
-// AddWeeklyLimitUsd adds value to the "weekly_limit_usd" field.
-func (_u *GroupUpdate) AddWeeklyLimitUsd(v float64) *GroupUpdate {
-	_u.mutation.AddWeeklyLimitUsd(v)
-	return _u
-}
-
-// ClearWeeklyLimitUsd clears the value of the "weekly_limit_usd" field.
-func (_u *GroupUpdate) ClearWeeklyLimitUsd() *GroupUpdate {
-	_u.mutation.ClearWeeklyLimitUsd()
-	return _u
-}
-
-// SetMonthlyLimitUsd sets the "monthly_limit_usd" field.
-func (_u *GroupUpdate) SetMonthlyLimitUsd(v float64) *GroupUpdate {
-	_u.mutation.ResetMonthlyLimitUsd()
-	_u.mutation.SetMonthlyLimitUsd(v)
-	return _u
-}
-
-// SetNillableMonthlyLimitUsd sets the "monthly_limit_usd" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableMonthlyLimitUsd(v *float64) *GroupUpdate {
-	if v != nil {
-		_u.SetMonthlyLimitUsd(*v)
-	}
-	return _u
-}
-
-// AddMonthlyLimitUsd adds value to the "monthly_limit_usd" field.
-func (_u *GroupUpdate) AddMonthlyLimitUsd(v float64) *GroupUpdate {
-	_u.mutation.AddMonthlyLimitUsd(v)
-	return _u
-}
-
-// ClearMonthlyLimitUsd clears the value of the "monthly_limit_usd" field.
-func (_u *GroupUpdate) ClearMonthlyLimitUsd() *GroupUpdate {
-	_u.mutation.ClearMonthlyLimitUsd()
-	return _u
-}
-
-// SetDefaultValidityDays sets the "default_validity_days" field.
-func (_u *GroupUpdate) SetDefaultValidityDays(v int) *GroupUpdate {
-	_u.mutation.ResetDefaultValidityDays()
-	_u.mutation.SetDefaultValidityDays(v)
-	return _u
-}
-
-// SetNillableDefaultValidityDays sets the "default_validity_days" field if the given value is not nil.
-func (_u *GroupUpdate) SetNillableDefaultValidityDays(v *int) *GroupUpdate {
-	if v != nil {
-		_u.SetDefaultValidityDays(*v)
-	}
-	return _u
-}
-
-// AddDefaultValidityDays adds value to the "default_validity_days" field.
-func (_u *GroupUpdate) AddDefaultValidityDays(v int) *GroupUpdate {
-	_u.mutation.AddDefaultValidityDays(v)
 	return _u
 }
 
@@ -582,36 +464,6 @@ func (_u *GroupUpdate) AddAPIKeys(v ...*APIKey) *GroupUpdate {
 	return _u.AddAPIKeyIDs(ids...)
 }
 
-// AddRedeemCodeIDs adds the "redeem_codes" edge to the RedeemCode entity by IDs.
-func (_u *GroupUpdate) AddRedeemCodeIDs(ids ...int64) *GroupUpdate {
-	_u.mutation.AddRedeemCodeIDs(ids...)
-	return _u
-}
-
-// AddRedeemCodes adds the "redeem_codes" edges to the RedeemCode entity.
-func (_u *GroupUpdate) AddRedeemCodes(v ...*RedeemCode) *GroupUpdate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.AddRedeemCodeIDs(ids...)
-}
-
-// AddSubscriptionIDs adds the "subscriptions" edge to the UserSubscription entity by IDs.
-func (_u *GroupUpdate) AddSubscriptionIDs(ids ...int64) *GroupUpdate {
-	_u.mutation.AddSubscriptionIDs(ids...)
-	return _u
-}
-
-// AddSubscriptions adds the "subscriptions" edges to the UserSubscription entity.
-func (_u *GroupUpdate) AddSubscriptions(v ...*UserSubscription) *GroupUpdate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.AddSubscriptionIDs(ids...)
-}
-
 // AddUsageLogIDs adds the "usage_logs" edge to the UsageLog entity by IDs.
 func (_u *GroupUpdate) AddUsageLogIDs(ids ...int64) *GroupUpdate {
 	_u.mutation.AddUsageLogIDs(ids...)
@@ -681,48 +533,6 @@ func (_u *GroupUpdate) RemoveAPIKeys(v ...*APIKey) *GroupUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAPIKeyIDs(ids...)
-}
-
-// ClearRedeemCodes clears all "redeem_codes" edges to the RedeemCode entity.
-func (_u *GroupUpdate) ClearRedeemCodes() *GroupUpdate {
-	_u.mutation.ClearRedeemCodes()
-	return _u
-}
-
-// RemoveRedeemCodeIDs removes the "redeem_codes" edge to RedeemCode entities by IDs.
-func (_u *GroupUpdate) RemoveRedeemCodeIDs(ids ...int64) *GroupUpdate {
-	_u.mutation.RemoveRedeemCodeIDs(ids...)
-	return _u
-}
-
-// RemoveRedeemCodes removes "redeem_codes" edges to RedeemCode entities.
-func (_u *GroupUpdate) RemoveRedeemCodes(v ...*RedeemCode) *GroupUpdate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.RemoveRedeemCodeIDs(ids...)
-}
-
-// ClearSubscriptions clears all "subscriptions" edges to the UserSubscription entity.
-func (_u *GroupUpdate) ClearSubscriptions() *GroupUpdate {
-	_u.mutation.ClearSubscriptions()
-	return _u
-}
-
-// RemoveSubscriptionIDs removes the "subscriptions" edge to UserSubscription entities by IDs.
-func (_u *GroupUpdate) RemoveSubscriptionIDs(ids ...int64) *GroupUpdate {
-	_u.mutation.RemoveSubscriptionIDs(ids...)
-	return _u
-}
-
-// RemoveSubscriptions removes "subscriptions" edges to UserSubscription entities.
-func (_u *GroupUpdate) RemoveSubscriptions(v ...*UserSubscription) *GroupUpdate {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.RemoveSubscriptionIDs(ids...)
 }
 
 // ClearUsageLogs clears all "usage_logs" edges to the UsageLog entity.
@@ -847,11 +657,6 @@ func (_u *GroupUpdate) check() error {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "Group.platform": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.SubscriptionType(); ok {
-		if err := group.SubscriptionTypeValidator(v); err != nil {
-			return &ValidationError{Name: "subscription_type", err: fmt.Errorf(`ent: validator failed for field "Group.subscription_type": %w`, err)}
-		}
-	}
 	if v, ok := _u.mutation.DefaultMappedModel(); ok {
 		if err := group.DefaultMappedModelValidator(v); err != nil {
 			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
@@ -904,42 +709,6 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(group.FieldPlatform, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.SubscriptionType(); ok {
-		_spec.SetField(group.FieldSubscriptionType, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.DailyLimitUsd(); ok {
-		_spec.SetField(group.FieldDailyLimitUsd, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedDailyLimitUsd(); ok {
-		_spec.AddField(group.FieldDailyLimitUsd, field.TypeFloat64, value)
-	}
-	if _u.mutation.DailyLimitUsdCleared() {
-		_spec.ClearField(group.FieldDailyLimitUsd, field.TypeFloat64)
-	}
-	if value, ok := _u.mutation.WeeklyLimitUsd(); ok {
-		_spec.SetField(group.FieldWeeklyLimitUsd, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedWeeklyLimitUsd(); ok {
-		_spec.AddField(group.FieldWeeklyLimitUsd, field.TypeFloat64, value)
-	}
-	if _u.mutation.WeeklyLimitUsdCleared() {
-		_spec.ClearField(group.FieldWeeklyLimitUsd, field.TypeFloat64)
-	}
-	if value, ok := _u.mutation.MonthlyLimitUsd(); ok {
-		_spec.SetField(group.FieldMonthlyLimitUsd, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedMonthlyLimitUsd(); ok {
-		_spec.AddField(group.FieldMonthlyLimitUsd, field.TypeFloat64, value)
-	}
-	if _u.mutation.MonthlyLimitUsdCleared() {
-		_spec.ClearField(group.FieldMonthlyLimitUsd, field.TypeFloat64)
-	}
-	if value, ok := _u.mutation.DefaultValidityDays(); ok {
-		_spec.SetField(group.FieldDefaultValidityDays, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedDefaultValidityDays(); ok {
-		_spec.AddField(group.FieldDefaultValidityDays, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.ImagePrice1k(); ok {
 		_spec.SetField(group.FieldImagePrice1k, field.TypeFloat64, value)
@@ -1068,96 +837,6 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(apikey.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.RedeemCodesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   group.RedeemCodesTable,
-			Columns: []string{group.RedeemCodesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(redeemcode.FieldID, field.TypeInt64),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RemovedRedeemCodesIDs(); len(nodes) > 0 && !_u.mutation.RedeemCodesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   group.RedeemCodesTable,
-			Columns: []string{group.RedeemCodesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(redeemcode.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RedeemCodesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   group.RedeemCodesTable,
-			Columns: []string{group.RedeemCodesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(redeemcode.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.SubscriptionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   group.SubscriptionsTable,
-			Columns: []string{group.SubscriptionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(usersubscription.FieldID, field.TypeInt64),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RemovedSubscriptionsIDs(); len(nodes) > 0 && !_u.mutation.SubscriptionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   group.SubscriptionsTable,
-			Columns: []string{group.SubscriptionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(usersubscription.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.SubscriptionsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   group.SubscriptionsTable,
-			Columns: []string{group.SubscriptionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(usersubscription.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -1464,122 +1143,6 @@ func (_u *GroupUpdateOne) SetNillablePlatform(v *string) *GroupUpdateOne {
 	if v != nil {
 		_u.SetPlatform(*v)
 	}
-	return _u
-}
-
-// SetSubscriptionType sets the "subscription_type" field.
-func (_u *GroupUpdateOne) SetSubscriptionType(v string) *GroupUpdateOne {
-	_u.mutation.SetSubscriptionType(v)
-	return _u
-}
-
-// SetNillableSubscriptionType sets the "subscription_type" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableSubscriptionType(v *string) *GroupUpdateOne {
-	if v != nil {
-		_u.SetSubscriptionType(*v)
-	}
-	return _u
-}
-
-// SetDailyLimitUsd sets the "daily_limit_usd" field.
-func (_u *GroupUpdateOne) SetDailyLimitUsd(v float64) *GroupUpdateOne {
-	_u.mutation.ResetDailyLimitUsd()
-	_u.mutation.SetDailyLimitUsd(v)
-	return _u
-}
-
-// SetNillableDailyLimitUsd sets the "daily_limit_usd" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableDailyLimitUsd(v *float64) *GroupUpdateOne {
-	if v != nil {
-		_u.SetDailyLimitUsd(*v)
-	}
-	return _u
-}
-
-// AddDailyLimitUsd adds value to the "daily_limit_usd" field.
-func (_u *GroupUpdateOne) AddDailyLimitUsd(v float64) *GroupUpdateOne {
-	_u.mutation.AddDailyLimitUsd(v)
-	return _u
-}
-
-// ClearDailyLimitUsd clears the value of the "daily_limit_usd" field.
-func (_u *GroupUpdateOne) ClearDailyLimitUsd() *GroupUpdateOne {
-	_u.mutation.ClearDailyLimitUsd()
-	return _u
-}
-
-// SetWeeklyLimitUsd sets the "weekly_limit_usd" field.
-func (_u *GroupUpdateOne) SetWeeklyLimitUsd(v float64) *GroupUpdateOne {
-	_u.mutation.ResetWeeklyLimitUsd()
-	_u.mutation.SetWeeklyLimitUsd(v)
-	return _u
-}
-
-// SetNillableWeeklyLimitUsd sets the "weekly_limit_usd" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableWeeklyLimitUsd(v *float64) *GroupUpdateOne {
-	if v != nil {
-		_u.SetWeeklyLimitUsd(*v)
-	}
-	return _u
-}
-
-// AddWeeklyLimitUsd adds value to the "weekly_limit_usd" field.
-func (_u *GroupUpdateOne) AddWeeklyLimitUsd(v float64) *GroupUpdateOne {
-	_u.mutation.AddWeeklyLimitUsd(v)
-	return _u
-}
-
-// ClearWeeklyLimitUsd clears the value of the "weekly_limit_usd" field.
-func (_u *GroupUpdateOne) ClearWeeklyLimitUsd() *GroupUpdateOne {
-	_u.mutation.ClearWeeklyLimitUsd()
-	return _u
-}
-
-// SetMonthlyLimitUsd sets the "monthly_limit_usd" field.
-func (_u *GroupUpdateOne) SetMonthlyLimitUsd(v float64) *GroupUpdateOne {
-	_u.mutation.ResetMonthlyLimitUsd()
-	_u.mutation.SetMonthlyLimitUsd(v)
-	return _u
-}
-
-// SetNillableMonthlyLimitUsd sets the "monthly_limit_usd" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableMonthlyLimitUsd(v *float64) *GroupUpdateOne {
-	if v != nil {
-		_u.SetMonthlyLimitUsd(*v)
-	}
-	return _u
-}
-
-// AddMonthlyLimitUsd adds value to the "monthly_limit_usd" field.
-func (_u *GroupUpdateOne) AddMonthlyLimitUsd(v float64) *GroupUpdateOne {
-	_u.mutation.AddMonthlyLimitUsd(v)
-	return _u
-}
-
-// ClearMonthlyLimitUsd clears the value of the "monthly_limit_usd" field.
-func (_u *GroupUpdateOne) ClearMonthlyLimitUsd() *GroupUpdateOne {
-	_u.mutation.ClearMonthlyLimitUsd()
-	return _u
-}
-
-// SetDefaultValidityDays sets the "default_validity_days" field.
-func (_u *GroupUpdateOne) SetDefaultValidityDays(v int) *GroupUpdateOne {
-	_u.mutation.ResetDefaultValidityDays()
-	_u.mutation.SetDefaultValidityDays(v)
-	return _u
-}
-
-// SetNillableDefaultValidityDays sets the "default_validity_days" field if the given value is not nil.
-func (_u *GroupUpdateOne) SetNillableDefaultValidityDays(v *int) *GroupUpdateOne {
-	if v != nil {
-		_u.SetDefaultValidityDays(*v)
-	}
-	return _u
-}
-
-// AddDefaultValidityDays adds value to the "default_validity_days" field.
-func (_u *GroupUpdateOne) AddDefaultValidityDays(v int) *GroupUpdateOne {
-	_u.mutation.AddDefaultValidityDays(v)
 	return _u
 }
 
@@ -1890,36 +1453,6 @@ func (_u *GroupUpdateOne) AddAPIKeys(v ...*APIKey) *GroupUpdateOne {
 	return _u.AddAPIKeyIDs(ids...)
 }
 
-// AddRedeemCodeIDs adds the "redeem_codes" edge to the RedeemCode entity by IDs.
-func (_u *GroupUpdateOne) AddRedeemCodeIDs(ids ...int64) *GroupUpdateOne {
-	_u.mutation.AddRedeemCodeIDs(ids...)
-	return _u
-}
-
-// AddRedeemCodes adds the "redeem_codes" edges to the RedeemCode entity.
-func (_u *GroupUpdateOne) AddRedeemCodes(v ...*RedeemCode) *GroupUpdateOne {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.AddRedeemCodeIDs(ids...)
-}
-
-// AddSubscriptionIDs adds the "subscriptions" edge to the UserSubscription entity by IDs.
-func (_u *GroupUpdateOne) AddSubscriptionIDs(ids ...int64) *GroupUpdateOne {
-	_u.mutation.AddSubscriptionIDs(ids...)
-	return _u
-}
-
-// AddSubscriptions adds the "subscriptions" edges to the UserSubscription entity.
-func (_u *GroupUpdateOne) AddSubscriptions(v ...*UserSubscription) *GroupUpdateOne {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.AddSubscriptionIDs(ids...)
-}
-
 // AddUsageLogIDs adds the "usage_logs" edge to the UsageLog entity by IDs.
 func (_u *GroupUpdateOne) AddUsageLogIDs(ids ...int64) *GroupUpdateOne {
 	_u.mutation.AddUsageLogIDs(ids...)
@@ -1989,48 +1522,6 @@ func (_u *GroupUpdateOne) RemoveAPIKeys(v ...*APIKey) *GroupUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAPIKeyIDs(ids...)
-}
-
-// ClearRedeemCodes clears all "redeem_codes" edges to the RedeemCode entity.
-func (_u *GroupUpdateOne) ClearRedeemCodes() *GroupUpdateOne {
-	_u.mutation.ClearRedeemCodes()
-	return _u
-}
-
-// RemoveRedeemCodeIDs removes the "redeem_codes" edge to RedeemCode entities by IDs.
-func (_u *GroupUpdateOne) RemoveRedeemCodeIDs(ids ...int64) *GroupUpdateOne {
-	_u.mutation.RemoveRedeemCodeIDs(ids...)
-	return _u
-}
-
-// RemoveRedeemCodes removes "redeem_codes" edges to RedeemCode entities.
-func (_u *GroupUpdateOne) RemoveRedeemCodes(v ...*RedeemCode) *GroupUpdateOne {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.RemoveRedeemCodeIDs(ids...)
-}
-
-// ClearSubscriptions clears all "subscriptions" edges to the UserSubscription entity.
-func (_u *GroupUpdateOne) ClearSubscriptions() *GroupUpdateOne {
-	_u.mutation.ClearSubscriptions()
-	return _u
-}
-
-// RemoveSubscriptionIDs removes the "subscriptions" edge to UserSubscription entities by IDs.
-func (_u *GroupUpdateOne) RemoveSubscriptionIDs(ids ...int64) *GroupUpdateOne {
-	_u.mutation.RemoveSubscriptionIDs(ids...)
-	return _u
-}
-
-// RemoveSubscriptions removes "subscriptions" edges to UserSubscription entities.
-func (_u *GroupUpdateOne) RemoveSubscriptions(v ...*UserSubscription) *GroupUpdateOne {
-	ids := make([]int64, len(v))
-	for i := range v {
-		ids[i] = v[i].ID
-	}
-	return _u.RemoveSubscriptionIDs(ids...)
 }
 
 // ClearUsageLogs clears all "usage_logs" edges to the UsageLog entity.
@@ -2168,11 +1659,6 @@ func (_u *GroupUpdateOne) check() error {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "Group.platform": %w`, err)}
 		}
 	}
-	if v, ok := _u.mutation.SubscriptionType(); ok {
-		if err := group.SubscriptionTypeValidator(v); err != nil {
-			return &ValidationError{Name: "subscription_type", err: fmt.Errorf(`ent: validator failed for field "Group.subscription_type": %w`, err)}
-		}
-	}
 	if v, ok := _u.mutation.DefaultMappedModel(); ok {
 		if err := group.DefaultMappedModelValidator(v); err != nil {
 			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
@@ -2242,42 +1728,6 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(group.FieldPlatform, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.SubscriptionType(); ok {
-		_spec.SetField(group.FieldSubscriptionType, field.TypeString, value)
-	}
-	if value, ok := _u.mutation.DailyLimitUsd(); ok {
-		_spec.SetField(group.FieldDailyLimitUsd, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedDailyLimitUsd(); ok {
-		_spec.AddField(group.FieldDailyLimitUsd, field.TypeFloat64, value)
-	}
-	if _u.mutation.DailyLimitUsdCleared() {
-		_spec.ClearField(group.FieldDailyLimitUsd, field.TypeFloat64)
-	}
-	if value, ok := _u.mutation.WeeklyLimitUsd(); ok {
-		_spec.SetField(group.FieldWeeklyLimitUsd, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedWeeklyLimitUsd(); ok {
-		_spec.AddField(group.FieldWeeklyLimitUsd, field.TypeFloat64, value)
-	}
-	if _u.mutation.WeeklyLimitUsdCleared() {
-		_spec.ClearField(group.FieldWeeklyLimitUsd, field.TypeFloat64)
-	}
-	if value, ok := _u.mutation.MonthlyLimitUsd(); ok {
-		_spec.SetField(group.FieldMonthlyLimitUsd, field.TypeFloat64, value)
-	}
-	if value, ok := _u.mutation.AddedMonthlyLimitUsd(); ok {
-		_spec.AddField(group.FieldMonthlyLimitUsd, field.TypeFloat64, value)
-	}
-	if _u.mutation.MonthlyLimitUsdCleared() {
-		_spec.ClearField(group.FieldMonthlyLimitUsd, field.TypeFloat64)
-	}
-	if value, ok := _u.mutation.DefaultValidityDays(); ok {
-		_spec.SetField(group.FieldDefaultValidityDays, field.TypeInt, value)
-	}
-	if value, ok := _u.mutation.AddedDefaultValidityDays(); ok {
-		_spec.AddField(group.FieldDefaultValidityDays, field.TypeInt, value)
 	}
 	if value, ok := _u.mutation.ImagePrice1k(); ok {
 		_spec.SetField(group.FieldImagePrice1k, field.TypeFloat64, value)
@@ -2406,96 +1856,6 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(apikey.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.RedeemCodesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   group.RedeemCodesTable,
-			Columns: []string{group.RedeemCodesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(redeemcode.FieldID, field.TypeInt64),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RemovedRedeemCodesIDs(); len(nodes) > 0 && !_u.mutation.RedeemCodesCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   group.RedeemCodesTable,
-			Columns: []string{group.RedeemCodesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(redeemcode.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RedeemCodesIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   group.RedeemCodesTable,
-			Columns: []string{group.RedeemCodesColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(redeemcode.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Add = append(_spec.Edges.Add, edge)
-	}
-	if _u.mutation.SubscriptionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   group.SubscriptionsTable,
-			Columns: []string{group.SubscriptionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(usersubscription.FieldID, field.TypeInt64),
-			},
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.RemovedSubscriptionsIDs(); len(nodes) > 0 && !_u.mutation.SubscriptionsCleared() {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   group.SubscriptionsTable,
-			Columns: []string{group.SubscriptionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(usersubscription.FieldID, field.TypeInt64),
-			},
-		}
-		for _, k := range nodes {
-			edge.Target.Nodes = append(edge.Target.Nodes, k)
-		}
-		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
-	}
-	if nodes := _u.mutation.SubscriptionsIDs(); len(nodes) > 0 {
-		edge := &sqlgraph.EdgeSpec{
-			Rel:     sqlgraph.O2M,
-			Inverse: false,
-			Table:   group.SubscriptionsTable,
-			Columns: []string{group.SubscriptionsColumn},
-			Bidi:    false,
-			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(usersubscription.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
 
 const (
@@ -137,13 +139,16 @@ type UsageLog struct {
 	ImageOutputTokens int
 	ImageOutputCost   float64
 
-	InputCost         float64
-	OutputCost        float64
-	CacheCreationCost float64
-	CacheReadCost     float64
-	TotalCost         float64
-	ActualCost        float64
-	RateMultiplier    float64
+	InputCost             float64
+	OutputCost            float64
+	CacheCreationCost     float64
+	CacheReadCost         float64
+	TotalCost             float64
+	ActualCost            float64
+	SubscriptionAmountUSD float64
+	BalanceAmountUSD      float64
+	BillingAllocations    []domain.BillingAllocation
+	RateMultiplier        float64
 	// AccountRateMultiplier 账号计费倍率快照（nil 表示历史数据，按 1.0 处理）
 	AccountRateMultiplier *float64
 	// AccountStatsCost 账号统计定价预计算费用（nil = 使用默认公式 total_cost × account_rate_multiplier）

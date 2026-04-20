@@ -11,6 +11,7 @@ import (
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/paymentorder"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	"github.com/TokenFlux/TokenRouter/internal/payment/provider"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
@@ -93,12 +94,8 @@ func (s *PaymentService) validateSubOrder(ctx context.Context, req CreateOrderRe
 	if err != nil || !plan.ForSale {
 		return nil, infraerrors.NotFound("PLAN_NOT_AVAILABLE", "plan not found or not for sale")
 	}
-	group, err := s.groupRepo.GetByID(ctx, plan.GroupID)
-	if err != nil || group.Status != payment.EntityStatusActive {
-		return nil, infraerrors.NotFound("GROUP_NOT_FOUND", "subscription group is no longer available")
-	}
-	if !group.IsSubscriptionType() {
-		return nil, infraerrors.BadRequest("GROUP_TYPE_MISMATCH", "group is not a subscription type")
+	if err := validatePlanQuotas(plan.DailyLimitUsd, plan.WeeklyLimitUsd, plan.MonthlyLimitUsd); err != nil {
+		return nil, err
 	}
 	return plan, nil
 }
@@ -141,7 +138,14 @@ func (s *PaymentService) createOrderInTx(ctx context.Context, req CreateOrderReq
 		b.SetSrcURL(req.SrcURL)
 	}
 	if plan != nil {
-		b.SetPlanID(plan.ID).SetSubscriptionGroupID(plan.GroupID).SetSubscriptionDays(psComputeValidityDays(plan.ValidityDays, plan.ValidityUnit))
+		b.SetPlanID(plan.ID).SetPlanSnapshot(domain.SubscriptionPlanSnapshot{
+			Name:            plan.Name,
+			Price:           plan.Price,
+			ValidityDays:    psComputeValidityDays(plan.ValidityDays, plan.ValidityUnit),
+			DailyLimitUSD:   plan.DailyLimitUsd,
+			WeeklyLimitUSD:  plan.WeeklyLimitUsd,
+			MonthlyLimitUSD: plan.MonthlyLimitUsd,
+		})
 	}
 	order, err := b.Save(ctx)
 	if err != nil {

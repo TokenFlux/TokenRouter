@@ -133,13 +133,13 @@ func (s *PaymentService) PrepareRefund(ctx context.Context, oid int64, amt float
 func (s *PaymentService) prepDeduct(ctx context.Context, o *dbent.PaymentOrder, p *RefundPlan, force bool) *RefundResult {
 	if o.OrderType == payment.OrderTypeSubscription {
 		p.DeductionType = payment.DeductionTypeSubscription
-		if o.SubscriptionGroupID != nil && o.SubscriptionDays != nil {
-			p.SubDaysToDeduct = *o.SubscriptionDays
-			sub, err := s.subscriptionSvc.GetActiveSubscription(ctx, o.UserID, *o.SubscriptionGroupID)
-			if err == nil && sub != nil {
-				p.SubscriptionID = sub.ID
+		if o.PlanID != nil && o.PlanSnapshot.ValidityDays > 0 {
+			p.SubDaysToDeduct = o.PlanSnapshot.ValidityDays
+			subs, err := s.subscriptionSvc.ListSubscriptionsBySourceOrderID(ctx, o.ID)
+			if err == nil && len(subs) > 0 {
+				p.SubscriptionID = subs[0].ID
 			} else if !force {
-				return &RefundResult{Success: false, Warning: "cannot find active subscription for deduction, use force", RequireForce: true}
+				return &RefundResult{Success: false, Warning: "cannot find fulfilled subscription for deduction, use force", RequireForce: true}
 			}
 		}
 		return nil

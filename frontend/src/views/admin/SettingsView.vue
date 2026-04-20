@@ -1521,7 +1521,7 @@
                   type="button"
                   class="btn btn-secondary btn-sm"
                   @click="addDefaultSubscription"
-                  :disabled="subscriptionGroups.length === 0"
+                  :disabled="subscriptionPlans.length === 0"
                 >
                   {{ t('admin.settings.defaults.addDefaultSubscription') }}
                 </button>
@@ -1538,52 +1538,17 @@
                 <div
                   v-for="(item, index) in form.default_subscriptions"
                   :key="`default-sub-${index}`"
-                  class="grid grid-cols-1 gap-3 rounded border border-gray-200 p-3 md:grid-cols-[1fr_160px_auto] dark:border-dark-600"
+                  class="grid grid-cols-1 gap-3 rounded border border-gray-200 p-3 md:grid-cols-[1fr_auto] dark:border-dark-600"
                 >
                   <div>
                     <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                      {{ t('admin.settings.defaults.subscriptionGroup') }}
+                      {{ t('payment.admin.planName') }}
                     </label>
                     <Select
-                      v-model="item.group_id"
+                      v-model="item.plan_id"
                       class="default-sub-group-select"
-                      :options="defaultSubscriptionGroupOptions"
-                      :placeholder="t('admin.settings.defaults.subscriptionGroup')"
-                    >
-                      <template #selected="{ option }">
-                        <GroupBadge
-                          v-if="option"
-                          :name="(option as unknown as DefaultSubscriptionGroupOption).label"
-                          :platform="(option as unknown as DefaultSubscriptionGroupOption).platform"
-                          :subscription-type="(option as unknown as DefaultSubscriptionGroupOption).subscriptionType"
-                          :rate-multiplier="(option as unknown as DefaultSubscriptionGroupOption).rate"
-                        />
-                        <span v-else class="text-gray-400">
-                          {{ t('admin.settings.defaults.subscriptionGroup') }}
-                        </span>
-                      </template>
-                      <template #option="{ option, selected }">
-                        <GroupOptionItem
-                          :name="(option as unknown as DefaultSubscriptionGroupOption).label"
-                          :platform="(option as unknown as DefaultSubscriptionGroupOption).platform"
-                          :subscription-type="(option as unknown as DefaultSubscriptionGroupOption).subscriptionType"
-                          :rate-multiplier="(option as unknown as DefaultSubscriptionGroupOption).rate"
-                          :description="(option as unknown as DefaultSubscriptionGroupOption).description"
-                          :selected="selected"
-                        />
-                      </template>
-                    </Select>
-                  </div>
-                  <div>
-                    <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400">
-                      {{ t('admin.settings.defaults.subscriptionValidityDays') }}
-                    </label>
-                    <input
-                      v-model.number="item.validity_days"
-                      type="number"
-                      min="1"
-                      max="36500"
-                      class="input h-[42px]"
+                      :options="defaultSubscriptionPlanOptions"
+                      :placeholder="t('admin.announcements.form.selectPackages')"
                     />
                   </div>
                   <div class="flex items-end">
@@ -2963,16 +2928,14 @@ import type {
   WebSearchProviderConfig,
   WebSearchTestResult,
 } from '@/api/admin/settings'
-import type { AdminGroup, Proxy, NotifyEmailEntry } from '@/types'
-import type { ProviderInstance } from '@/types/payment'
+import type { Proxy, NotifyEmailEntry } from '@/types'
+import type { ProviderInstance, SubscriptionPlan } from '@/types/payment'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import Select from '@/components/common/Select.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import PaymentProviderList from '@/components/payment/PaymentProviderList.vue'
 import PaymentProviderDialog from '@/components/payment/PaymentProviderDialog.vue'
-import GroupBadge from '@/components/common/GroupBadge.vue'
-import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import ProxySelector from '@/components/common/ProxySelector.vue'
 import ImageUpload from '@/components/common/ImageUpload.vue'
@@ -3024,7 +2987,7 @@ const adminApiKeyExists = ref(false)
 const adminApiKeyMasked = ref('')
 const adminApiKeyOperating = ref(false)
 const newAdminApiKey = ref('')
-const subscriptionGroups = ref<AdminGroup[]>([])
+const subscriptionPlans = ref<SubscriptionPlan[]>([])
 
 // Overload Cooldown (529) 状态
 const overloadCooldownLoading = ref(true)
@@ -3075,13 +3038,10 @@ const tablePageSizeMin = 5
 const tablePageSizeMax = 1000
 const tablePageSizeDefault = 20
 
-interface DefaultSubscriptionGroupOption {
+interface DefaultSubscriptionPlanOption {
   value: number
   label: string
   description: string | null
-  platform: AdminGroup['platform']
-  subscriptionType: AdminGroup['subscription_type']
-  rate: number
   [key: string]: unknown
 }
 
@@ -3371,14 +3331,11 @@ async function saveWebSearchConfig(): Promise<boolean> {
   }
 }
 
-const defaultSubscriptionGroupOptions = computed<DefaultSubscriptionGroupOption[]>(() =>
-  subscriptionGroups.value.map((group) => ({
-    value: group.id,
-    label: group.name,
-    description: group.description,
-    platform: group.platform,
-    subscriptionType: group.subscription_type,
-    rate: group.rate_multiplier
+const defaultSubscriptionPlanOptions = computed<DefaultSubscriptionPlanOption[]>(() =>
+  subscriptionPlans.value.map((plan) => ({
+    value: plan.id,
+    label: plan.name,
+    description: plan.description
   }))
 )
 
@@ -3577,10 +3534,9 @@ async function loadSettings() {
     form.backend_mode_enabled = settings.backend_mode_enabled
     form.default_subscriptions = Array.isArray(settings.default_subscriptions)
       ? settings.default_subscriptions
-          .filter((item) => item.group_id > 0 && item.validity_days > 0)
+          .filter((item) => item.plan_id > 0)
           .map((item) => ({
-            group_id: item.group_id,
-            validity_days: item.validity_days
+            plan_id: item.plan_id
           }))
       : []
     registrationEmailSuffixWhitelistTags.value = normalizeRegistrationEmailSuffixDomains(
@@ -3606,25 +3562,22 @@ async function loadSettings() {
   }
 }
 
-async function loadSubscriptionGroups() {
+async function loadSubscriptionPlans() {
   try {
-    const groups = await adminAPI.groups.getAll()
-    subscriptionGroups.value = groups.filter(
-      (group) => group.subscription_type === 'subscription' && group.status === 'active'
-    )
+    const response = await adminAPI.payment.getPlans()
+    subscriptionPlans.value = response.data || []
   } catch (_error: unknown) {
-    subscriptionGroups.value = []
+    subscriptionPlans.value = []
   }
 }
 
 function addDefaultSubscription() {
-  if (subscriptionGroups.value.length === 0) return
-  const existing = new Set(form.default_subscriptions.map((item) => item.group_id))
-  const candidate = subscriptionGroups.value.find((group) => !existing.has(group.id))
+  if (subscriptionPlans.value.length === 0) return
+  const existing = new Set(form.default_subscriptions.map((item) => item.plan_id))
+  const candidate = subscriptionPlans.value.find((plan) => !existing.has(plan.id))
   if (!candidate) return
   form.default_subscriptions.push({
-    group_id: candidate.id,
-    validity_days: 30
+    plan_id: candidate.id
   })
 }
 
@@ -3670,24 +3623,23 @@ async function saveSettings() {
     form.balance_icon_svg = form.balance_icon_svg.trim()
 
     const normalizedDefaultSubscriptions = form.default_subscriptions
-      .filter((item) => item.group_id > 0 && item.validity_days > 0)
+      .filter((item) => item.plan_id > 0)
       .map((item: DefaultSubscriptionSetting) => ({
-        group_id: item.group_id,
-        validity_days: Math.min(36500, Math.max(1, Math.floor(item.validity_days)))
+        plan_id: item.plan_id
       }))
 
-    const seenGroupIDs = new Set<number>()
+    const seenPlanIDs = new Set<number>()
     const duplicateDefaultSubscription = normalizedDefaultSubscriptions.find((item) => {
-      if (seenGroupIDs.has(item.group_id)) {
+      if (seenPlanIDs.has(item.plan_id)) {
         return true
       }
-      seenGroupIDs.add(item.group_id)
+      seenPlanIDs.add(item.plan_id)
       return false
     })
     if (duplicateDefaultSubscription) {
       appStore.showError(
         t('admin.settings.defaults.defaultSubscriptionsDuplicate', {
-          groupId: duplicateDefaultSubscription.group_id
+          groupId: duplicateDefaultSubscription.plan_id
         })
       )
       return
@@ -4348,7 +4300,7 @@ async function handleDeleteProvider() {
 
 onMounted(() => {
   loadSettings()
-  loadSubscriptionGroups()
+  loadSubscriptionPlans()
   loadAdminApiKey()
   loadOverloadCooldownSettings()
   loadStreamTimeoutSettings()

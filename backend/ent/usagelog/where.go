@@ -180,6 +180,16 @@ func ActualCost(v float64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldActualCost, v))
 }
 
+// SubscriptionAmountUsd applies equality check predicate on the "subscription_amount_usd" field. It's identical to SubscriptionAmountUsdEQ.
+func SubscriptionAmountUsd(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldSubscriptionAmountUsd, v))
+}
+
+// BalanceAmountUsd applies equality check predicate on the "balance_amount_usd" field. It's identical to BalanceAmountUsdEQ.
+func BalanceAmountUsd(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldBalanceAmountUsd, v))
+}
+
 // RateMultiplier applies equality check predicate on the "rate_multiplier" field. It's identical to RateMultiplierEQ.
 func RateMultiplier(v float64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldRateMultiplier, v))
@@ -1393,6 +1403,96 @@ func ActualCostLT(v float64) predicate.UsageLog {
 // ActualCostLTE applies the LTE predicate on the "actual_cost" field.
 func ActualCostLTE(v float64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldLTE(FieldActualCost, v))
+}
+
+// SubscriptionAmountUsdEQ applies the EQ predicate on the "subscription_amount_usd" field.
+func SubscriptionAmountUsdEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldSubscriptionAmountUsd, v))
+}
+
+// SubscriptionAmountUsdNEQ applies the NEQ predicate on the "subscription_amount_usd" field.
+func SubscriptionAmountUsdNEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldSubscriptionAmountUsd, v))
+}
+
+// SubscriptionAmountUsdIn applies the In predicate on the "subscription_amount_usd" field.
+func SubscriptionAmountUsdIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldSubscriptionAmountUsd, vs...))
+}
+
+// SubscriptionAmountUsdNotIn applies the NotIn predicate on the "subscription_amount_usd" field.
+func SubscriptionAmountUsdNotIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldSubscriptionAmountUsd, vs...))
+}
+
+// SubscriptionAmountUsdGT applies the GT predicate on the "subscription_amount_usd" field.
+func SubscriptionAmountUsdGT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldSubscriptionAmountUsd, v))
+}
+
+// SubscriptionAmountUsdGTE applies the GTE predicate on the "subscription_amount_usd" field.
+func SubscriptionAmountUsdGTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldSubscriptionAmountUsd, v))
+}
+
+// SubscriptionAmountUsdLT applies the LT predicate on the "subscription_amount_usd" field.
+func SubscriptionAmountUsdLT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldSubscriptionAmountUsd, v))
+}
+
+// SubscriptionAmountUsdLTE applies the LTE predicate on the "subscription_amount_usd" field.
+func SubscriptionAmountUsdLTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldSubscriptionAmountUsd, v))
+}
+
+// BalanceAmountUsdEQ applies the EQ predicate on the "balance_amount_usd" field.
+func BalanceAmountUsdEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldBalanceAmountUsd, v))
+}
+
+// BalanceAmountUsdNEQ applies the NEQ predicate on the "balance_amount_usd" field.
+func BalanceAmountUsdNEQ(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldBalanceAmountUsd, v))
+}
+
+// BalanceAmountUsdIn applies the In predicate on the "balance_amount_usd" field.
+func BalanceAmountUsdIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldBalanceAmountUsd, vs...))
+}
+
+// BalanceAmountUsdNotIn applies the NotIn predicate on the "balance_amount_usd" field.
+func BalanceAmountUsdNotIn(vs ...float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldBalanceAmountUsd, vs...))
+}
+
+// BalanceAmountUsdGT applies the GT predicate on the "balance_amount_usd" field.
+func BalanceAmountUsdGT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldBalanceAmountUsd, v))
+}
+
+// BalanceAmountUsdGTE applies the GTE predicate on the "balance_amount_usd" field.
+func BalanceAmountUsdGTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldBalanceAmountUsd, v))
+}
+
+// BalanceAmountUsdLT applies the LT predicate on the "balance_amount_usd" field.
+func BalanceAmountUsdLT(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldBalanceAmountUsd, v))
+}
+
+// BalanceAmountUsdLTE applies the LTE predicate on the "balance_amount_usd" field.
+func BalanceAmountUsdLTE(v float64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldBalanceAmountUsd, v))
+}
+
+// BillingAllocationsIsNil applies the IsNil predicate on the "billing_allocations" field.
+func BillingAllocationsIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldBillingAllocations))
+}
+
+// BillingAllocationsNotNil applies the NotNil predicate on the "billing_allocations" field.
+func BillingAllocationsNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldBillingAllocations))
 }
 
 // RateMultiplierEQ applies the EQ predicate on the "rate_multiplier" field.

@@ -8,99 +8,103 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func validDailyQuota() *float64 {
+	v := 10.0
+	return &v
+}
+
 func TestValidatePlanRequired_AllValid(t *testing.T) {
-	err := validatePlanRequired("Pro", 1, 9.99, 30, "days", nil)
+	err := validatePlanRequired("Pro", 9.99, 30, "days", nil, validDailyQuota(), nil, nil)
 	require.NoError(t, err)
 }
 
 func TestValidatePlanRequired_EmptyName(t *testing.T) {
-	err := validatePlanRequired("", 1, 9.99, 30, "days", nil)
+	err := validatePlanRequired("", 9.99, 30, "days", nil, validDailyQuota(), nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "plan name")
 }
 
 func TestValidatePlanRequired_WhitespaceName(t *testing.T) {
-	err := validatePlanRequired("   ", 1, 9.99, 30, "days", nil)
+	err := validatePlanRequired("   ", 9.99, 30, "days", nil, validDailyQuota(), nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "plan name")
 }
 
-func TestValidatePlanRequired_ZeroGroupID(t *testing.T) {
-	err := validatePlanRequired("Pro", 0, 9.99, 30, "days", nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "group")
-}
-
-func TestValidatePlanRequired_NegativeGroupID(t *testing.T) {
-	err := validatePlanRequired("Pro", -1, 9.99, 30, "days", nil)
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "group")
-}
-
 func TestValidatePlanRequired_ZeroPrice(t *testing.T) {
-	err := validatePlanRequired("Pro", 1, 0, 30, "days", nil)
+	err := validatePlanRequired("Pro", 0, 30, "days", nil, validDailyQuota(), nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "price")
 }
 
 func TestValidatePlanRequired_NegativePrice(t *testing.T) {
-	err := validatePlanRequired("Pro", 1, -5, 30, "days", nil)
+	err := validatePlanRequired("Pro", -5, 30, "days", nil, validDailyQuota(), nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "price")
 }
 
 func TestValidatePlanRequired_ZeroValidityDays(t *testing.T) {
-	err := validatePlanRequired("Pro", 1, 9.99, 0, "days", nil)
+	err := validatePlanRequired("Pro", 9.99, 0, "days", nil, validDailyQuota(), nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "validity days")
 }
 
 func TestValidatePlanRequired_NegativeValidityDays(t *testing.T) {
-	err := validatePlanRequired("Pro", 1, 9.99, -7, "days", nil)
+	err := validatePlanRequired("Pro", 9.99, -7, "days", nil, validDailyQuota(), nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "validity days")
 }
 
 func TestValidatePlanRequired_EmptyValidityUnit(t *testing.T) {
-	err := validatePlanRequired("Pro", 1, 9.99, 30, "", nil)
+	err := validatePlanRequired("Pro", 9.99, 30, "", nil, validDailyQuota(), nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "validity unit")
 }
 
 func TestValidatePlanRequired_WhitespaceValidityUnit(t *testing.T) {
-	err := validatePlanRequired("Pro", 1, 9.99, 30, "   ", nil)
+	err := validatePlanRequired("Pro", 9.99, 30, "   ", nil, validDailyQuota(), nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "validity unit")
 }
 
 func TestValidatePlanRequired_NameValidatedFirst(t *testing.T) {
-	err := validatePlanRequired("", 0, 0, 0, "", nil)
+	err := validatePlanRequired("", 0, 0, "", nil, validDailyQuota(), nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "plan name")
 }
 
 func TestValidatePlanRequired_TrimmedValidName(t *testing.T) {
-	err := validatePlanRequired("  Pro  ", 1, 9.99, 30, "days", nil)
+	err := validatePlanRequired("  Pro  ", 9.99, 30, "days", nil, validDailyQuota(), nil, nil)
 	require.NoError(t, err)
 }
 
 func TestValidatePlanRequired_NegativeOriginalPrice(t *testing.T) {
 	neg := -10.0
-	err := validatePlanRequired("Pro", 1, 9.99, 30, "days", &neg)
+	err := validatePlanRequired("Pro", 9.99, 30, "days", &neg, validDailyQuota(), nil, nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "original price")
 }
 
 func TestValidatePlanRequired_ZeroOriginalPrice(t *testing.T) {
 	zero := 0.0
-	err := validatePlanRequired("Pro", 1, 9.99, 30, "days", &zero)
+	err := validatePlanRequired("Pro", 9.99, 30, "days", &zero, validDailyQuota(), nil, nil)
 	require.NoError(t, err)
 }
 
 func TestValidatePlanRequired_ValidOriginalPrice(t *testing.T) {
 	op := 19.99
-	err := validatePlanRequired("Pro", 1, 9.99, 30, "days", &op)
+	err := validatePlanRequired("Pro", 9.99, 30, "days", &op, validDailyQuota(), nil, nil)
 	require.NoError(t, err)
+}
+
+func TestValidatePlanRequired_RejectsMissingQuota(t *testing.T) {
+	err := validatePlanRequired("Pro", 9.99, 30, "days", nil, nil, nil, nil)
+	require.ErrorIs(t, err, ErrPlanQuotaRequired)
+}
+
+func TestValidatePlanRequired_RejectsNonPositiveQuota(t *testing.T) {
+	zero := 0.0
+	err := validatePlanRequired("Pro", 9.99, 30, "days", nil, &zero, nil, nil)
+	require.ErrorIs(t, err, ErrPlanQuotaInvalid)
 }
 
 // --- validatePlanPatch tests ---
@@ -133,7 +137,6 @@ func TestValidatePlanPatch_NilOriginalPrice(t *testing.T) {
 
 func ptrStr(s string) *string     { return &s }
 func ptrInt(i int) *int           { return &i }
-func ptrInt64(i int64) *int64     { return &i }
 func ptrFloat(f float64) *float64 { return &f }
 
 func TestValidatePlanPatch_EmptyName(t *testing.T) {
@@ -145,12 +148,6 @@ func TestValidatePlanPatch_EmptyName(t *testing.T) {
 func TestValidatePlanPatch_ValidName(t *testing.T) {
 	err := validatePlanPatch(UpdatePlanRequest{Name: ptrStr("Basic")})
 	require.NoError(t, err)
-}
-
-func TestValidatePlanPatch_ZeroGroupID(t *testing.T) {
-	err := validatePlanPatch(UpdatePlanRequest{GroupID: ptrInt64(0)})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "group")
 }
 
 func TestValidatePlanPatch_NegativePrice(t *testing.T) {
@@ -190,4 +187,15 @@ func TestValidatePlanPatch_ValidValidityUnit(t *testing.T) {
 func TestValidatePlanPatch_AllNil(t *testing.T) {
 	err := validatePlanPatch(UpdatePlanRequest{})
 	require.NoError(t, err)
+}
+
+func TestValidatePlanQuotas_RequiresPositiveQuota(t *testing.T) {
+	err := validatePlanQuotas(nil, nil, nil)
+	require.ErrorIs(t, err, ErrPlanQuotaRequired)
+}
+
+func TestValidatePlanQuotas_RejectsExplicitZeroQuota(t *testing.T) {
+	zero := 0.0
+	err := validatePlanQuotas(&zero, nil, nil)
+	require.ErrorIs(t, err, ErrPlanQuotaInvalid)
 }

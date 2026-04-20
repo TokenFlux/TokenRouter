@@ -7,8 +7,7 @@ import { apiClient } from '../client'
 import type { CustomMenuItem, CustomEndpoint, NotifyEmailEntry } from '@/types'
 
 export interface DefaultSubscriptionSetting {
-  group_id: number
-  validity_days: number
+  plan_id: number
 }
 
 /**

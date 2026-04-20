@@ -96,33 +96,33 @@
                   {{ t('redeem.redeemSuccess') }}
                 </h3>
                 <div class="mt-2 text-sm text-emerald-700 dark:text-emerald-400">
-                  <p>{{ redeemResult.message }}</p>
                   <div class="mt-3 space-y-1">
-                    <p v-if="redeemResult.type === 'balance'" class="font-medium">
+                    <p v-if="redeemResult.type === 'balance' || redeemResult.type === 'referral_reward'" class="font-medium">
                       {{ t('redeem.added') }}: {{ formatSignedBalanceAmount(redeemResult.value, 2) }}
                     </p>
-                    <p v-else-if="redeemResult.type === 'concurrency'" class="font-medium">
+                    <p
+                      v-else-if="
+                        redeemResult.type === 'concurrency' ||
+                        redeemResult.type === 'admin_concurrency'
+                      "
+                      class="font-medium"
+                    >
                       {{ t('redeem.added') }}: {{ redeemResult.value }}
                       {{ t('redeem.concurrentRequests') }}
                     </p>
                     <p v-else-if="redeemResult.type === 'subscription'" class="font-medium">
                       {{ t('redeem.subscriptionAssigned') }}
-                      <span v-if="redeemResult.group_name"> - {{ redeemResult.group_name }}</span>
-                      <span v-if="redeemResult.validity_days">
-                        ({{
-                          t('redeem.subscriptionDays', { days: redeemResult.validity_days })
-                        }})</span
-                      >
+                      <span v-if="redeemResult.plan?.name || redeemResult.plan_id">
+                        - {{ redeemResult.plan?.name || `Plan #${redeemResult.plan_id}` }}
+                      </span>
                     </p>
-                    <p v-if="redeemResult.new_balance !== undefined">
+                    <p v-if="user">
                       {{ t('redeem.newBalance') }}:
-                      <span class="font-semibold">{{ formatBalanceAmount(redeemResult.new_balance, { fractionDigits: 2 }) }}</span>
+                      <span class="font-semibold">{{ formatBalanceAmount(user.balance, { fractionDigits: 2 }) }}</span>
                     </p>
-                    <p v-if="redeemResult.new_concurrency !== undefined">
+                    <p v-if="user">
                       {{ t('redeem.newConcurrency') }}:
-                      <span class="font-semibold"
-                        >{{ redeemResult.new_concurrency }} {{ t('redeem.requests') }}</span
-                      >
+                      <span class="font-semibold">{{ user.concurrency }} {{ t('redeem.requests') }}</span>
                     </p>
                   </div>
                 </div>
@@ -364,15 +364,7 @@ const user = computed(() => authStore.user)
 
 const redeemCode = ref('')
 const submitting = ref(false)
-const redeemResult = ref<{
-  message: string
-  type: string
-  value: number
-  new_balance?: number
-  new_concurrency?: number
-  group_name?: string
-  validity_days?: number
-} | null>(null)
+const redeemResult = ref<RedeemHistoryItem | null>(null)
 const errorMessage = ref('')
 
 // History data
@@ -420,10 +412,7 @@ const formatHistoryValue = (item: RedeemHistoryItem) => {
   if (isBalanceType(item.type)) {
     return formatSignedBalanceAmount(item.value, 2)
   } else if (isSubscriptionType(item.type)) {
-    // 订阅类型显示有效天数和分组名称
-    const days = item.validity_days || Math.round(item.value)
-    const groupName = item.group?.name || ''
-    return groupName ? `${days}${t('redeem.days')} - ${groupName}` : `${days}${t('redeem.days')}`
+    return item.plan?.name || (item.plan_id ? `Plan #${item.plan_id}` : t('redeem.subscriptionAssigned'))
   } else {
     const sign = item.value >= 0 ? '+' : ''
     return `${sign}${item.value} ${t('redeem.requests')}`

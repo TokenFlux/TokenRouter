@@ -63,6 +63,7 @@ const (
 // Subscription status constants
 const (
 	SubscriptionStatusActive    = "active"
+	SubscriptionStatusPending   = "pending"
 	SubscriptionStatusExpired   = "expired"
 	SubscriptionStatusSuspended = "suspended"
 )

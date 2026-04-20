@@ -36,7 +36,7 @@ func (UserSubscription) Mixin() []ent.Mixin {
 func (UserSubscription) Fields() []ent.Field {
 	return []ent.Field{
 		field.Int64("user_id"),
-		field.Int64("group_id"),
+		field.Int64("plan_id"),
 
 		field.Time("starts_at").
 			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
@@ -59,6 +59,19 @@ func (UserSubscription) Fields() []ent.Field {
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
 
+		field.Float("daily_limit_usd").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
+		field.Float("weekly_limit_usd").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
+		field.Float("monthly_limit_usd").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "decimal(20,8)"}),
+
 		field.Float("daily_usage_usd").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(20,10)"}).
 			Default(0),
@@ -75,6 +88,9 @@ func (UserSubscription) Fields() []ent.Field {
 		field.Time("assigned_at").
 			Default(time.Now).
 			SchemaType(map[string]string{dialect.Postgres: "timestamptz"}),
+		field.Int64("source_order_id").
+			Optional().
+			Nillable(),
 		field.String("notes").
 			Optional().
 			Nillable().
@@ -89,9 +105,9 @@ func (UserSubscription) Edges() []ent.Edge {
 			Field("user_id").
 			Unique().
 			Required(),
-		edge.From("group", Group.Type).
+		edge.From("plan", SubscriptionPlan.Type).
 			Ref("subscriptions").
-			Field("group_id").
+			Field("plan_id").
 			Unique().
 			Required(),
 		edge.From("assigned_by_user", User.Type).
@@ -105,15 +121,14 @@ func (UserSubscription) Edges() []ent.Edge {
 func (UserSubscription) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("user_id"),
-		index.Fields("group_id"),
+		index.Fields("plan_id"),
 		index.Fields("status"),
+		index.Fields("starts_at"),
 		index.Fields("expires_at"),
-		// 活跃订阅查询复合索引（线上由 SQL 迁移创建部分索引，schema 仅用于模型可读性对齐）
-		index.Fields("user_id", "status", "expires_at"),
+		index.Fields("source_order_id"),
+		index.Fields("user_id", "status", "starts_at", "expires_at"),
 		index.Fields("assigned_by"),
-		// 唯一约束通过部分索引实现（WHERE deleted_at IS NULL），支持软删除后重新订阅
-		// 见迁移文件 016_soft_delete_partial_unique_indexes.sql
-		index.Fields("user_id", "group_id"),
+		index.Fields("user_id", "plan_id", "starts_at"),
 		index.Fields("deleted_at"),
 	}
 }

@@ -3,9 +3,9 @@ package service
 import "time"
 
 type UserSubscription struct {
-	ID      int64
-	UserID  int64
-	GroupID int64
+	ID     int64
+	UserID int64
+	PlanID int64
 
 	StartsAt  time.Time
 	ExpiresAt time.Time
@@ -15,28 +15,67 @@ type UserSubscription struct {
 	WeeklyWindowStart  *time.Time
 	MonthlyWindowStart *time.Time
 
+	DailyLimitUSD   *float64
+	WeeklyLimitUSD  *float64
+	MonthlyLimitUSD *float64
+
 	DailyUsageUSD   float64
 	WeeklyUsageUSD  float64
 	MonthlyUsageUSD float64
 
-	AssignedBy *int64
-	AssignedAt time.Time
-	Notes      string
+	AssignedBy    *int64
+	AssignedAt    time.Time
+	SourceOrderID *int64
+	Notes         string
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
 	User           *User
-	Group          *Group
+	Plan           *SubscriptionPlan
 	AssignedByUser *User
 }
 
 func (s *UserSubscription) IsActive() bool {
-	return s.Status == SubscriptionStatusActive && time.Now().Before(s.ExpiresAt)
+	now := time.Now()
+	return s.Status == SubscriptionStatusActive && !now.Before(s.StartsAt) && now.Before(s.ExpiresAt)
+}
+
+func (s *UserSubscription) IsPending() bool {
+	if s == nil {
+		return false
+	}
+	return s.Status == SubscriptionStatusPending && time.Now().Before(s.StartsAt)
+}
+
+func (s *UserSubscription) IsEffective() bool {
+	if s == nil {
+		return false
+	}
+	now := time.Now()
+	return !now.Before(s.StartsAt) && now.Before(s.ExpiresAt) && s.EffectiveStatus(now) == SubscriptionStatusActive
+}
+
+func (s *UserSubscription) EffectiveStatus(now time.Time) string {
+	if s == nil {
+		return SubscriptionStatusExpired
+	}
+	if !s.ExpiresAt.After(now) {
+		return SubscriptionStatusExpired
+	}
+	if now.Before(s.StartsAt) {
+		return SubscriptionStatusPending
+	}
+	switch s.Status {
+	case SubscriptionStatusSuspended:
+		return SubscriptionStatusSuspended
+	default:
+		return SubscriptionStatusActive
+	}
 }
 
 func (s *UserSubscription) IsExpired() bool {
-	return time.Now().After(s.ExpiresAt)
+	return !s.ExpiresAt.After(time.Now())
 }
 
 func (s *UserSubscription) DaysRemaining() int {
@@ -95,30 +134,81 @@ func (s *UserSubscription) MonthlyResetTime() *time.Time {
 	return &t
 }
 
-func (s *UserSubscription) CheckDailyLimit(group *Group, additionalCost float64) bool {
-	if !group.HasDailyLimit() {
+func (s *UserSubscription) CheckDailyLimit(additionalCost float64) bool {
+	if s.DailyLimitUSD == nil || *s.DailyLimitUSD <= 0 {
 		return true
 	}
-	return s.DailyUsageUSD+additionalCost <= *group.DailyLimitUSD
+	return s.DailyUsageUSD+additionalCost <= *s.DailyLimitUSD
 }
 
-func (s *UserSubscription) CheckWeeklyLimit(group *Group, additionalCost float64) bool {
-	if !group.HasWeeklyLimit() {
+func (s *UserSubscription) CheckWeeklyLimit(additionalCost float64) bool {
+	if s.WeeklyLimitUSD == nil || *s.WeeklyLimitUSD <= 0 {
 		return true
 	}
-	return s.WeeklyUsageUSD+additionalCost <= *group.WeeklyLimitUSD
+	return s.WeeklyUsageUSD+additionalCost <= *s.WeeklyLimitUSD
 }
 
-func (s *UserSubscription) CheckMonthlyLimit(group *Group, additionalCost float64) bool {
-	if !group.HasMonthlyLimit() {
+func (s *UserSubscription) CheckMonthlyLimit(additionalCost float64) bool {
+	if s.MonthlyLimitUSD == nil || *s.MonthlyLimitUSD <= 0 {
 		return true
 	}
-	return s.MonthlyUsageUSD+additionalCost <= *group.MonthlyLimitUSD
+	return s.MonthlyUsageUSD+additionalCost <= *s.MonthlyLimitUSD
 }
 
-func (s *UserSubscription) CheckAllLimits(group *Group, additionalCost float64) (daily, weekly, monthly bool) {
-	daily = s.CheckDailyLimit(group, additionalCost)
-	weekly = s.CheckWeeklyLimit(group, additionalCost)
-	monthly = s.CheckMonthlyLimit(group, additionalCost)
+func (s *UserSubscription) CheckAllLimits(additionalCost float64) (daily, weekly, monthly bool) {
+	daily = s.CheckDailyLimit(additionalCost)
+	weekly = s.CheckWeeklyLimit(additionalCost)
+	monthly = s.CheckMonthlyLimit(additionalCost)
 	return
+}
+
+func (s *UserSubscription) RemainingDailyUSD() *float64 {
+	return remainingWindowAmount(s.DailyLimitUSD, s.DailyUsageUSD)
+}
+
+func (s *UserSubscription) RemainingWeeklyUSD() *float64 {
+	return remainingWindowAmount(s.WeeklyLimitUSD, s.WeeklyUsageUSD)
+}
+
+func (s *UserSubscription) RemainingMonthlyUSD() *float64 {
+	return remainingWindowAmount(s.MonthlyLimitUSD, s.MonthlyUsageUSD)
+}
+
+func (s *UserSubscription) AvailableQuotaUSD() float64 {
+	return minRemainingWindowAmount(
+		s.RemainingDailyUSD(),
+		s.RemainingWeeklyUSD(),
+		s.RemainingMonthlyUSD(),
+	)
+}
+
+func remainingWindowAmount(limit *float64, used float64) *float64 {
+	if limit == nil {
+		return nil
+	}
+	remaining := *limit - used
+	if remaining < 0 {
+		remaining = 0
+	}
+	return &remaining
+}
+
+func minRemainingWindowAmount(values ...*float64) float64 {
+	var (
+		min   float64
+		found bool
+	)
+	for _, value := range values {
+		if value == nil {
+			continue
+		}
+		if !found || *value < min {
+			min = *value
+			found = true
+		}
+	}
+	if !found {
+		return 0
+	}
+	return min
 }
