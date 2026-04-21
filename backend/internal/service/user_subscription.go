@@ -183,7 +183,7 @@ func (s *UserSubscription) AvailableQuotaUSD() float64 {
 }
 
 func remainingWindowAmount(limit *float64, used float64) *float64 {
-	if limit == nil {
+	if limit == nil || *limit <= 0 {
 		return nil
 	}
 	remaining := *limit - used

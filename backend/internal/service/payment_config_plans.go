@@ -17,7 +17,7 @@ var (
 	)
 	ErrPlanQuotaInvalid = infraerrors.BadRequest(
 		"PLAN_QUOTA_INVALID",
-		"subscription plan quota limit must be greater than 0",
+		"subscription plan quota limit cannot be negative",
 	)
 )
 
@@ -29,7 +29,7 @@ func hasPositivePlanQuota(daily, weekly, monthly *float64) bool {
 
 func validatePlanQuotas(daily, weekly, monthly *float64) error {
 	for _, limit := range []*float64{daily, weekly, monthly} {
-		if limit != nil && *limit <= 0 {
+		if limit != nil && *limit < 0 {
 			return ErrPlanQuotaInvalid
 		}
 	}

@@ -691,12 +691,22 @@ const detailRows = computed<DetailRow[]>(() => {
       }
     }
 
-    const remainColor = data.remaining != null
-      ? (data.remaining <= 0 ? 'text-rose-500' : data.remaining < 10 ? 'text-amber-500' : 'text-emerald-500')
-      : ''
+    const hasUnlimitedSubscriptionRemaining = !!data.subscription && data.remaining != null && data.remaining < 0
+    const remainColor = hasUnlimitedSubscriptionRemaining
+      ? 'text-emerald-500'
+      : data.remaining != null
+        ? (data.remaining <= 0 ? 'text-rose-500' : data.remaining < 10 ? 'text-amber-500' : 'text-emerald-500')
+        : ''
     rows.push({
       iconBg: 'bg-emerald-500/10', iconColor: 'text-emerald-500', iconSvg: ICON_SHIELD,
-      label: t('keyUsage.remainingQuota'), value: data.remaining != null ? formatUsageBalance(data.remaining) : '-', valueClass: remainColor, useBalanceIcon: true,
+      label: t('keyUsage.remainingQuota'),
+      value: hasUnlimitedSubscriptionRemaining
+        ? t('payment.planCard.unlimited')
+        : data.remaining != null
+          ? formatUsageBalance(data.remaining)
+          : '-',
+      valueClass: remainColor,
+      useBalanceIcon: true,
     })
   }
 

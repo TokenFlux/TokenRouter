@@ -251,7 +251,7 @@ function usageWindows(subscription: UserSubscription) {
       window_start: subscription.monthly_window_start,
       hours: 720
     }
-  ].filter((window) => window.limit != null)
+  ].filter((window) => window.limit != null && window.limit > 0)
 }
 
 function getProgressWidth(used: number, limit: number | null): string {

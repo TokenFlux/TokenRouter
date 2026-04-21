@@ -34,14 +34,14 @@
 
         <template #cell-quota="{ row }">
           <div class="space-y-1 text-xs text-gray-600 dark:text-gray-300">
-            <div v-if="row.daily_limit_usd != null">{{ t('payment.admin.dailyLimit') }}: {{ row.daily_limit_usd }}</div>
-            <div v-if="row.weekly_limit_usd != null">{{ t('payment.admin.weeklyLimit') }}: {{ row.weekly_limit_usd }}</div>
-            <div v-if="row.monthly_limit_usd != null">{{ t('payment.admin.monthlyLimit') }}: {{ row.monthly_limit_usd }}</div>
+            <div v-if="row.daily_limit_usd != null && row.daily_limit_usd > 0">{{ t('payment.admin.dailyLimit') }}: {{ row.daily_limit_usd }}</div>
+            <div v-if="row.weekly_limit_usd != null && row.weekly_limit_usd > 0">{{ t('payment.admin.weeklyLimit') }}: {{ row.weekly_limit_usd }}</div>
+            <div v-if="row.monthly_limit_usd != null && row.monthly_limit_usd > 0">{{ t('payment.admin.monthlyLimit') }}: {{ row.monthly_limit_usd }}</div>
             <div
               v-if="
-                row.daily_limit_usd == null &&
-                row.weekly_limit_usd == null &&
-                row.monthly_limit_usd == null
+                !(row.daily_limit_usd != null && row.daily_limit_usd > 0) &&
+                !(row.weekly_limit_usd != null && row.weekly_limit_usd > 0) &&
+                !(row.monthly_limit_usd != null && row.monthly_limit_usd > 0)
               "
             >
               {{ t('payment.admin.unlimited') }}

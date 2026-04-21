@@ -5806,6 +5806,7 @@ export default {
       days: '天',
       weeks: '周',
       months: '月',
+      years: '年',
       searchOrders: '搜索订单...',
       allStatuses: '全部状态',
       allPaymentTypes: '全部支付方式',

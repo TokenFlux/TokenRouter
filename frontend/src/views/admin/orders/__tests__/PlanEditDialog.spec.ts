@@ -143,4 +143,29 @@ describe('PlanEditDialog', () => {
       })
     )
   })
+
+  it('preserves zero to disable a quota on save', async () => {
+    mockCreatePlan.mockResolvedValue({})
+    const wrapper = mountDialog()
+
+    const inputs = wrapper.findAll('input')
+    await inputs[0].setValue('Starter')
+    await wrapper.find('textarea').setValue('Starter plan')
+    await inputs[2].setValue('9.99')
+    await inputs[4].setValue('30')
+    await inputs[5].setValue('10')
+    await inputs[6].setValue('0')
+    await inputs[7].setValue('100')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(mockCreatePlan).toHaveBeenCalledTimes(1)
+    expect(mockCreatePlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        daily_limit_usd: 10,
+        weekly_limit_usd: 0,
+        monthly_limit_usd: 100
+      })
+    )
+  })
 })

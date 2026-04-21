@@ -142,7 +142,7 @@ function usageWindows(subscription: UserSubscription) {
       used: subscription.monthly_usage_usd || 0,
       limit: subscription.monthly_limit_usd
     }
-  ].filter((window) => window.limit != null)
+  ].filter((window) => window.limit != null && window.limit > 0)
 }
 
 function getMaxUsagePercentage(subscription: UserSubscription): number {

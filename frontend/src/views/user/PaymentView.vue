@@ -178,7 +178,7 @@
 
                 <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div
-                    v-if="selectedPlan.daily_limit_usd != null"
+                    v-if="selectedPlan.daily_limit_usd != null && selectedPlan.daily_limit_usd > 0"
                     class="rounded-xl bg-gray-50 px-4 py-3 dark:bg-dark-700/50"
                   >
                     <div class="text-xs text-gray-400 dark:text-dark-500">
@@ -189,7 +189,7 @@
                     </div>
                   </div>
                   <div
-                    v-if="selectedPlan.weekly_limit_usd != null"
+                    v-if="selectedPlan.weekly_limit_usd != null && selectedPlan.weekly_limit_usd > 0"
                     class="rounded-xl bg-gray-50 px-4 py-3 dark:bg-dark-700/50"
                   >
                     <div class="text-xs text-gray-400 dark:text-dark-500">
@@ -200,7 +200,7 @@
                     </div>
                   </div>
                   <div
-                    v-if="selectedPlan.monthly_limit_usd != null"
+                    v-if="selectedPlan.monthly_limit_usd != null && selectedPlan.monthly_limit_usd > 0"
                     class="rounded-xl bg-gray-50 px-4 py-3 dark:bg-dark-700/50"
                   >
                     <div class="text-xs text-gray-400 dark:text-dark-500">
@@ -304,9 +304,9 @@
                         <div class="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-400 dark:text-gray-500">
                           <span>
                             {{
-                              subscription.daily_limit_usd == null &&
-                              subscription.weekly_limit_usd == null &&
-                              subscription.monthly_limit_usd == null
+                              (subscription.daily_limit_usd ?? 0) <= 0 &&
+                              (subscription.weekly_limit_usd ?? 0) <= 0 &&
+                              (subscription.monthly_limit_usd ?? 0) <= 0
                                 ? `${t('payment.planCard.quota')}: ${t('payment.planCard.unlimited')}`
                                 : t('payment.planCard.quota')
                             }}
@@ -612,9 +612,9 @@ const canSubmitSubscription = computed(
 
 const selectedPlanHasLimits = computed(
   () =>
-    selectedPlan.value?.daily_limit_usd != null ||
-    selectedPlan.value?.weekly_limit_usd != null ||
-    selectedPlan.value?.monthly_limit_usd != null
+    (selectedPlan.value?.daily_limit_usd ?? 0) > 0 ||
+    (selectedPlan.value?.weekly_limit_usd ?? 0) > 0 ||
+    (selectedPlan.value?.monthly_limit_usd ?? 0) > 0
 )
 
 watch(

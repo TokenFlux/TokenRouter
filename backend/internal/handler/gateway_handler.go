@@ -1181,13 +1181,12 @@ func (h *GatewayHandler) calculateSubscriptionRemaining(sub *service.UserSubscri
 	if sub == nil {
 		return 0
 	}
-	if remaining := sub.AvailableQuotaUSD(); remaining > 0 {
-		return remaining
-	}
-	if sub.DailyLimitUSD == nil && sub.WeeklyLimitUSD == nil && sub.MonthlyLimitUSD == nil {
+	if (sub.DailyLimitUSD == nil || *sub.DailyLimitUSD <= 0) &&
+		(sub.WeeklyLimitUSD == nil || *sub.WeeklyLimitUSD <= 0) &&
+		(sub.MonthlyLimitUSD == nil || *sub.MonthlyLimitUSD <= 0) {
 		return -1
 	}
-	return 0
+	return sub.AvailableQuotaUSD()
 }
 
 // handleConcurrencyError handles concurrency-related errors with proper 429 response

@@ -5618,6 +5618,7 @@ export default {
       days: 'days',
       weeks: 'weeks',
       months: 'months',
+      years: 'years',
       searchOrders: 'Search orders...',
       allStatuses: 'All Statuses',
       allPaymentTypes: 'All Payment Types',

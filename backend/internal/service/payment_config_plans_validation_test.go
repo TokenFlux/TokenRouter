@@ -101,9 +101,15 @@ func TestValidatePlanRequired_RejectsMissingQuota(t *testing.T) {
 	require.ErrorIs(t, err, ErrPlanQuotaRequired)
 }
 
-func TestValidatePlanRequired_RejectsNonPositiveQuota(t *testing.T) {
+func TestValidatePlanRequired_AllowsZeroQuotaWhenAnotherQuotaIsPositive(t *testing.T) {
 	zero := 0.0
-	err := validatePlanRequired("Pro", 9.99, 30, "days", nil, &zero, nil, nil)
+	err := validatePlanRequired("Pro", 9.99, 30, "days", nil, validDailyQuota(), &zero, nil)
+	require.NoError(t, err)
+}
+
+func TestValidatePlanRequired_RejectsNegativeQuota(t *testing.T) {
+	negative := -1.0
+	err := validatePlanRequired("Pro", 9.99, 30, "days", nil, &negative, nil, nil)
 	require.ErrorIs(t, err, ErrPlanQuotaInvalid)
 }
 
@@ -194,8 +200,14 @@ func TestValidatePlanQuotas_RequiresPositiveQuota(t *testing.T) {
 	require.ErrorIs(t, err, ErrPlanQuotaRequired)
 }
 
-func TestValidatePlanQuotas_RejectsExplicitZeroQuota(t *testing.T) {
+func TestValidatePlanQuotas_OnlyZeroQuotaStillRequiresPositiveQuota(t *testing.T) {
 	zero := 0.0
 	err := validatePlanQuotas(&zero, nil, nil)
-	require.ErrorIs(t, err, ErrPlanQuotaInvalid)
+	require.ErrorIs(t, err, ErrPlanQuotaRequired)
+}
+
+func TestValidatePlanQuotas_AllowsZeroQuotaAlongsidePositiveQuota(t *testing.T) {
+	zero := 0.0
+	err := validatePlanQuotas(validDailyQuota(), &zero, nil)
+	require.NoError(t, err)
 }

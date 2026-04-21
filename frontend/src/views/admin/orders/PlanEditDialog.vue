@@ -195,6 +195,11 @@ function normalizeNullableNumber(value: number | null): number | null {
   return value
 }
 
+function normalizeQuotaLimit(value: number | null): number | null {
+  if (typeof value !== 'number' || Number.isNaN(value)) return null
+  return value
+}
+
 function buildPlanPayload() {
   return {
     name: planForm.name.trim(),
@@ -203,9 +208,9 @@ function buildPlanPayload() {
     original_price: normalizeNullableNumber(planForm.original_price),
     validity_days: planForm.validity_days,
     validity_unit: planForm.validity_unit,
-    daily_limit_usd: normalizeNullableNumber(planForm.daily_limit_usd),
-    weekly_limit_usd: normalizeNullableNumber(planForm.weekly_limit_usd),
-    monthly_limit_usd: normalizeNullableNumber(planForm.monthly_limit_usd),
+    daily_limit_usd: normalizeQuotaLimit(planForm.daily_limit_usd),
+    weekly_limit_usd: normalizeQuotaLimit(planForm.weekly_limit_usd),
+    monthly_limit_usd: normalizeQuotaLimit(planForm.monthly_limit_usd),
     sort_order: planForm.sort_order,
     for_sale: planForm.for_sale,
     features: planFeaturesText.value
@@ -230,11 +235,7 @@ async function handleSavePlan() {
     return
   }
   const payload = buildPlanPayload()
-  if (
-    payload.daily_limit_usd == null &&
-    payload.weekly_limit_usd == null &&
-    payload.monthly_limit_usd == null
-  ) {
+  if (![payload.daily_limit_usd, payload.weekly_limit_usd, payload.monthly_limit_usd].some((limit) => typeof limit === 'number' && limit > 0)) {
     appStore.showError(t('payment.admin.quotaRequired'))
     return
   }

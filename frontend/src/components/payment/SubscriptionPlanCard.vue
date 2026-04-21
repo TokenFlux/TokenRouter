@@ -66,7 +66,7 @@
 
       <div class="mb-3 rounded-lg bg-gray-50 px-3 py-2 text-xs dark:bg-dark-700/50">
         <div
-          v-if="plan.daily_limit_usd != null"
+          v-if="plan.daily_limit_usd != null && plan.daily_limit_usd > 0"
           class="flex items-center justify-between"
         >
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.dailyLimit') }}</span>
@@ -75,7 +75,7 @@
           </span>
         </div>
         <div
-          v-if="plan.weekly_limit_usd != null"
+          v-if="plan.weekly_limit_usd != null && plan.weekly_limit_usd > 0"
           class="mt-1 flex items-center justify-between"
         >
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.weeklyLimit') }}</span>
@@ -84,7 +84,7 @@
           </span>
         </div>
         <div
-          v-if="plan.monthly_limit_usd != null"
+          v-if="plan.monthly_limit_usd != null && plan.monthly_limit_usd > 0"
           class="mt-1 flex items-center justify-between"
         >
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.monthlyLimit') }}</span>
@@ -161,9 +161,9 @@ const isRenewal = computed(
 
 const hasAnyLimit = computed(
   () =>
-    props.plan.daily_limit_usd != null ||
-    props.plan.weekly_limit_usd != null ||
-    props.plan.monthly_limit_usd != null
+    (props.plan.daily_limit_usd ?? 0) > 0 ||
+    (props.plan.weekly_limit_usd ?? 0) > 0 ||
+    (props.plan.monthly_limit_usd ?? 0) > 0
 )
 
 const discountText = computed(() => {
