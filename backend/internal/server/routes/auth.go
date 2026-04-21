@@ -86,6 +86,11 @@ func RegisterAuthRoutes(
 		settings.GET("/public", h.Setting.GetPublicSettings)
 	}
 
+	marketplace := v1.Group("/marketplace")
+	{
+		marketplace.GET("/models", h.ModelMarketplace.ListPublic)
+	}
+
 	// 需要认证的当前用户信息
 	authenticated := v1.Group("")
 	authenticated.Use(gin.HandlerFunc(jwtAuth))

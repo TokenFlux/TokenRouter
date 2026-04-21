@@ -779,6 +779,58 @@ type ImagePriceConfig struct {
 	Price4K *float64 // 4K 尺寸价格（nil 表示使用默认值）
 }
 
+// ModelDisplayPricing 是面向前端展示的模型价格快照。
+// 所有价格都已经应用了分组倍率，直接表示实际扣费单价。
+type ModelDisplayPricing struct {
+	PricingMode              string
+	PriceStatus              string
+	InputPricePerToken       float64
+	OutputPricePerToken      float64
+	CacheWritePricePerToken  float64
+	CacheReadPricePerToken   float64
+	ImageOutputPricePerToken float64
+	ImagePrice1K             float64
+	ImagePrice2K             float64
+	ImagePrice4K             float64
+}
+
+// GetDisplayPricing 返回用于模型广场展示的价格信息。
+// 它会优先识别图片模型并展示按图计费，否则展示按 token 计费。
+func (s *BillingService) GetDisplayPricing(model string, rateMultiplier float64, groupConfig *ImagePriceConfig) ModelDisplayPricing {
+	if rateMultiplier < 0 {
+		rateMultiplier = 0
+	}
+
+	rawPricing := s.getRawModelPricing(model)
+	if hasExplicitImagePricing(rawPricing) || looksLikeImageModel(model) {
+		return ModelDisplayPricing{
+			PricingMode:  "image",
+			PriceStatus:  "priced",
+			ImagePrice1K: s.getImageUnitPrice(model, "1K", groupConfig) * rateMultiplier,
+			ImagePrice2K: s.getImageUnitPrice(model, "2K", groupConfig) * rateMultiplier,
+			ImagePrice4K: s.getImageUnitPrice(model, "4K", groupConfig) * rateMultiplier,
+		}
+	}
+
+	pricing, err := s.GetModelPricing(model)
+	if err != nil || pricing == nil || !hasAnyDisplayTokenPricing(pricing) {
+		return ModelDisplayPricing{
+			PricingMode: "unknown",
+			PriceStatus: "unpriced",
+		}
+	}
+
+	return ModelDisplayPricing{
+		PricingMode:              "token",
+		PriceStatus:              "priced",
+		InputPricePerToken:       pricing.InputPricePerToken * rateMultiplier,
+		OutputPricePerToken:      pricing.OutputPricePerToken * rateMultiplier,
+		CacheWritePricePerToken:  pricing.CacheCreationPricePerToken * rateMultiplier,
+		CacheReadPricePerToken:   pricing.CacheReadPricePerToken * rateMultiplier,
+		ImageOutputPricePerToken: pricing.ImageOutputPricePerToken * rateMultiplier,
+	}
+}
+
 // CalculateImageCost 计算图片生成费用
 // model: 请求的模型名称（用于获取 LiteLLM 默认价格）
 // imageSize: 图片尺寸 "1K", "2K", "4K"
@@ -859,4 +911,40 @@ func (s *BillingService) getDefaultImagePrice(model string, imageSize string) fl
 	}
 
 	return basePrice
+}
+
+func (s *BillingService) getRawModelPricing(model string) *LiteLLMModelPricing {
+	if s == nil || s.pricingService == nil {
+		return nil
+	}
+	return s.pricingService.GetModelPricing(model)
+}
+
+func hasExplicitImagePricing(pricing *LiteLLMModelPricing) bool {
+	return pricing != nil && pricing.OutputCostPerImage > 0
+}
+
+func hasAnyDisplayTokenPricing(pricing *ModelPricing) bool {
+	if pricing == nil {
+		return false
+	}
+	return pricing.InputPricePerToken > 0 ||
+		pricing.OutputPricePerToken > 0 ||
+		pricing.CacheCreationPricePerToken > 0 ||
+		pricing.CacheReadPricePerToken > 0 ||
+		pricing.ImageOutputPricePerToken > 0
+}
+
+func looksLikeImageModel(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	if model == "" {
+		return false
+	}
+
+	return strings.Contains(model, "-image") ||
+		strings.Contains(model, "image-") ||
+		strings.Contains(model, "/image") ||
+		strings.HasPrefix(model, "imagen-") ||
+		strings.Contains(model, "gpt-image") ||
+		strings.Contains(model, "dall-e")
 }

@@ -28,23 +28,32 @@ function normalizeDisplayText(value: string | null | undefined, fallback: string
 
 export function useBalanceDisplay(overrides: BalanceDisplayOverrides = {}) {
   const appStore = getActivePinia() ? useAppStore() : null
+  const injectedConfig = typeof window !== 'undefined' ? window.__APP_CONFIG__ : undefined
 
   const balanceUnitName = computed(() =>
     normalizeDisplayText(
-      unref(overrides.unitName) ?? appStore?.cachedPublicSettings?.balance_unit_name,
+      unref(overrides.unitName) ??
+        appStore?.cachedPublicSettings?.balance_unit_name ??
+        injectedConfig?.balance_unit_name,
       USD_UNIT_NAME
     )
   )
 
   const balanceUnitSymbol = computed(() =>
     normalizeDisplayText(
-      unref(overrides.unitSymbol) ?? appStore?.cachedPublicSettings?.balance_unit_symbol,
+      unref(overrides.unitSymbol) ??
+        appStore?.cachedPublicSettings?.balance_unit_symbol ??
+        injectedConfig?.balance_unit_symbol,
       USD_UNIT_SYMBOL
     )
   )
 
   const balanceIconSvg = computed(() => {
-    const svg = unref(overrides.iconSvg) ?? appStore?.cachedPublicSettings?.balance_icon_svg ?? ''
+    const svg =
+      unref(overrides.iconSvg) ??
+      appStore?.cachedPublicSettings?.balance_icon_svg ??
+      injectedConfig?.balance_icon_svg ??
+      ''
     return svg.trim()
   })
 

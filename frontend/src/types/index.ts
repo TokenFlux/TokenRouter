@@ -395,6 +395,37 @@ export interface PaginationConfig {
 // ==================== API Key & Group Types ====================
 
 export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity'
+export type MarketplacePricingMode = 'token' | 'image' | 'unknown'
+export type MarketplacePriceStatus = 'priced' | 'unpriced'
+
+export interface MarketplaceModelPricing {
+  pricing_mode: MarketplacePricingMode
+  price_status: MarketplacePriceStatus
+  input_price_per_token?: number
+  output_price_per_token?: number
+  cache_write_price_per_token?: number
+  cache_read_price_per_token?: number
+  image_output_price_per_token?: number
+  image_price_1k?: number
+  image_price_2k?: number
+  image_price_4k?: number
+}
+
+export interface MarketplaceModel {
+  id: string
+  display_name: string
+  pricing: MarketplaceModelPricing
+}
+
+export interface MarketplaceGroup {
+  id: number
+  name: string
+  description: string
+  platform: GroupPlatform
+  rate_multiplier: number
+  model_count: number
+  models: MarketplaceModel[]
+}
 
 export interface OpenAIMessagesDispatchModelConfig {
   opus_mapped_model?: string

@@ -10,6 +10,7 @@ export default {
     login: 'Login',
     getStarted: 'Get Started',
     goToDashboard: 'Go to Dashboard',
+    exploreMarketplace: 'Browse Models',
     // User-focused value proposition
     heroSubtitle: 'One Key, All AI Models',
     heroDescription: 'No need to manage multiple subscriptions. Access Claude, GPT, Gemini and more with a single API key',
@@ -333,6 +334,7 @@ export default {
   // Navigation
   nav: {
     dashboard: 'Dashboard',
+    modelMarketplace: 'Models',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
     usage: 'Usage',
@@ -363,6 +365,41 @@ export default {
     paymentDashboard: 'Payment Dashboard',
     paymentConfig: 'Payment Config',
     paymentPlans: 'Plans'
+  },
+
+  marketplace: {
+    title: 'Model Marketplace',
+    subtitle: 'Browse currently available models by public group, with actual charged pricing after the group multiplier is applied.',
+    backHome: 'Back Home',
+    actualPricingNote: 'Prices are calculated from the pricing file base rates multiplied by the group multiplier, using {unitName}',
+    tokenPricing: 'Token Pricing',
+    imagePricing: 'Image Pricing',
+    perImage: '/ image',
+    searchPlaceholder: 'Search groups, model IDs, or display names',
+    allPlatforms: 'All Platforms',
+    allTypes: 'All Types',
+    allGroups: 'All Groups',
+    matchingGroups: 'Matching Groups',
+    matchingModels: 'Matching Models',
+    platformsStat: 'Platforms',
+    groupsStat: 'groups',
+    modelsStat: 'models',
+    rateMultiplier: 'Group Multiplier',
+    input: 'Input',
+    output: 'Output',
+    cacheWrite: 'Cache Write',
+    cacheRead: 'Cache Read',
+    imageOutput: 'Image Output',
+    unpriced: 'Unpriced',
+    pricingUnavailable: 'No display pricing is currently available for this model.',
+    emptyTitle: 'No matching models',
+    emptyDescription: 'Try a different keyword or switch the platform filter.',
+    platforms: {
+      openai: 'OpenAI',
+      anthropic: 'Claude',
+      gemini: 'Gemini',
+      antigravity: 'Antigravity'
+    }
   },
 
   // Auth

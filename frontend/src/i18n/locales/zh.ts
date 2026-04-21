@@ -10,6 +10,7 @@ export default {
     login: '登录',
     getStarted: '立即开始',
     goToDashboard: '进入控制台',
+    exploreMarketplace: '浏览模型广场',
     // 新增：面向用户的价值主张
     heroSubtitle: '一个密钥，畅用多个 AI 模型',
     heroDescription: '无需管理多个订阅账号，一站式接入 Claude、GPT、Gemini 等主流 AI 服务',
@@ -333,6 +334,7 @@ export default {
   // Navigation
   nav: {
     dashboard: '仪表盘',
+    modelMarketplace: '模型广场',
     announcements: '公告',
     apiKeys: 'API 密钥',
     usage: '使用记录',
@@ -363,6 +365,41 @@ export default {
     paymentDashboard: '支付概览',
     paymentConfig: '支付配置',
     paymentPlans: '订阅套餐'
+  },
+
+  marketplace: {
+    title: '模型广场',
+    subtitle: '按公开分组浏览当前可用模型，并直接查看已包含分组倍率的实际扣费价格。',
+    backHome: '返回首页',
+    actualPricingNote: '价格已按价格文件记录的基础价乘以分组倍率计算，单位为 {unitName}',
+    tokenPricing: 'Token 计费',
+    imagePricing: '图片计费',
+    perImage: '/ 张',
+    searchPlaceholder: '搜索分组名称、模型 ID 或显示名称',
+    allPlatforms: '全部平台',
+    allTypes: '全部类型',
+    allGroups: '全部分组',
+    matchingGroups: '匹配分组',
+    matchingModels: '匹配模型',
+    platformsStat: '个平台',
+    groupsStat: '个分组',
+    modelsStat: '个模型',
+    rateMultiplier: '分组倍率',
+    input: '输入',
+    output: '输出',
+    cacheWrite: '缓存写入',
+    cacheRead: '缓存读取',
+    imageOutput: '图片输出',
+    unpriced: '暂无定价',
+    pricingUnavailable: '暂未找到可展示的定价信息。',
+    emptyTitle: '没有匹配的模型',
+    emptyDescription: '可以尝试切换平台筛选，或者修改搜索关键词。',
+    platforms: {
+      openai: 'OpenAI',
+      anthropic: 'Claude',
+      gemini: 'Gemini',
+      antigravity: 'Antigravity'
+    }
   },
 
   // Auth
