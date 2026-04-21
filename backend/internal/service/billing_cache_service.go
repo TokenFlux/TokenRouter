@@ -31,6 +31,14 @@ const (
 	cacheWriteUpdateRateLimitUsage
 )
 
+type cacheWriteEnqueueResult int
+
+const (
+	cacheWriteEnqueued cacheWriteEnqueueResult = iota
+	cacheWriteQueueFull
+	cacheWriteQueueClosed
+)
+
 // 异步缓存写入工作池配置
 //
 // 性能优化说明：
@@ -135,29 +143,38 @@ func (s *BillingCacheService) startCacheWriteWorkers() {
 	}
 }
 
-// enqueueCacheWrite 尝试将任务入队，队列满时返回 false（并记录告警）。
-func (s *BillingCacheService) enqueueCacheWrite(task cacheWriteTask) (enqueued bool) {
+func (s *BillingCacheService) tryEnqueueCacheWrite(task cacheWriteTask) cacheWriteEnqueueResult {
 	if s.stopped.Load() {
-		s.logCacheWriteDrop(task, "closed")
-		return false
+		return cacheWriteQueueClosed
 	}
 
 	s.cacheWriteMu.RLock()
 	defer s.cacheWriteMu.RUnlock()
 
 	if s.cacheWriteChan == nil {
-		s.logCacheWriteDrop(task, "closed")
-		return false
+		return cacheWriteQueueClosed
 	}
 
 	select {
 	case s.cacheWriteChan <- task:
-		return true
+		return cacheWriteEnqueued
 	default:
 		// 队列满时不阻塞主流程，交由调用方决定是否同步回退。
-		s.logCacheWriteDrop(task, "full")
-		return false
+		return cacheWriteQueueFull
 	}
+}
+
+// enqueueCacheWrite 尝试将任务入队，队列满时返回 false（并记录实际丢弃告警）。
+func (s *BillingCacheService) enqueueCacheWrite(task cacheWriteTask) (enqueued bool) {
+	switch s.tryEnqueueCacheWrite(task) {
+	case cacheWriteEnqueued:
+		return true
+	case cacheWriteQueueFull:
+		s.logCacheWriteDrop(task, "full")
+	case cacheWriteQueueClosed:
+		s.logCacheWriteDrop(task, "closed")
+	}
+	return false
 }
 
 func (s *BillingCacheService) cacheWriteWorker(ch <-chan cacheWriteTask) {
@@ -314,14 +331,19 @@ func (s *BillingCacheService) QueueDeductBalance(userID int64, amount float64) {
 	if s.cache == nil {
 		return
 	}
-	// 队列满时同步回退，避免关键扣减被静默丢弃。
-	if s.enqueueCacheWrite(cacheWriteTask{
+	task := cacheWriteTask{
 		kind:   cacheWriteDeductBalance,
 		userID: userID,
 		amount: amount,
-	}) {
+	}
+	switch s.tryEnqueueCacheWrite(task) {
+	case cacheWriteEnqueued:
+		return
+	case cacheWriteQueueClosed:
+		s.logCacheWriteDrop(task, "closed")
 		return
 	}
+	// 队列满时同步回退，避免关键扣减被静默丢弃。
 	ctx, cancel := context.WithTimeout(context.Background(), cacheWriteTimeout)
 	defer cancel()
 	if err := s.DeductBalanceCache(ctx, userID, amount); err != nil {
@@ -469,11 +491,24 @@ func (s *BillingCacheService) QueueUpdateAPIKeyRateLimitUsage(apiKeyID int64, co
 	if s.cache == nil {
 		return
 	}
-	s.enqueueCacheWrite(cacheWriteTask{
+	task := cacheWriteTask{
 		kind:     cacheWriteUpdateRateLimitUsage,
 		apiKeyID: apiKeyID,
 		amount:   cost,
-	})
+	}
+	switch s.tryEnqueueCacheWrite(task) {
+	case cacheWriteEnqueued:
+		return
+	case cacheWriteQueueClosed:
+		s.logCacheWriteDrop(task, "closed")
+		return
+	}
+	// 队列满时同步回退，避免限速使用量统计被静默丢弃。
+	ctx, cancel := context.WithTimeout(context.Background(), cacheWriteTimeout)
+	defer cancel()
+	if err := s.cache.UpdateAPIKeyRateLimitUsage(ctx, apiKeyID, cost); err != nil {
+		logger.LegacyPrintf("service.billing_cache", "Warning: update rate limit usage cache fallback failed for api key %d: %v", apiKeyID, err)
+	}
 }
 
 // ============================================
