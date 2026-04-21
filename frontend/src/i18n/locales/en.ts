@@ -5233,12 +5233,16 @@ export default {
     failedToLoad: 'Failed to load subscriptions',
     status: {
       active: 'Active',
+      pending: 'Pending',
       expired: 'Expired',
       revoked: 'Revoked'
     },
     usage: 'Usage',
+    queuedPacks: '{count} queued',
+    startsAt: 'Starts at',
     expires: 'Expires',
     noExpiration: 'No expiration',
+    extendsThrough: 'Extends through {date}',
     unlimited: 'Unlimited',
     unlimitedDesc: 'No usage limits on this subscription',
     daily: 'Daily',
@@ -5248,6 +5252,7 @@ export default {
     expiresOn: 'Expires on {date}',
     resetIn: 'Resets in {time}',
     windowNotActive: 'Awaiting first use',
+    pendingOnly: 'This plan will take effect after the current subscription ends',
     usageOf: '{used} of {limit}'
   },
 

@@ -5394,12 +5394,16 @@ export default {
     failedToLoad: '加载订阅失败',
     status: {
       active: '有效',
+      pending: '待生效',
       expired: '已过期',
       revoked: '已撤销'
     },
     usage: '用量',
+    queuedPacks: '待生效 {count} 个',
+    startsAt: '开始时间',
     expires: '到期时间',
     noExpiration: '无到期时间',
+    extendsThrough: '当前订阅结束后延续至 {date}',
     unlimited: '无限制',
     unlimitedDesc: '该订阅无用量限制',
     daily: '每日',
@@ -5409,6 +5413,7 @@ export default {
     expiresOn: '{date} 到期',
     resetIn: '{time} 后重置',
     windowNotActive: '等待首次使用',
+    pendingOnly: '该订阅将在当前订阅结束后生效',
     usageOf: '已用 {used} / {limit}'
   },
 
