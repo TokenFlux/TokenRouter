@@ -47,7 +47,7 @@ func TestUsageBillingRepositoryApply_DeduplicatesBalanceBilling(t *testing.T) {
 		UserID:              user.ID,
 		AccountID:           account.ID,
 		AccountType:         service.AccountTypeAPIKey,
-		BalanceCost:         1.25,
+		BillableAmountUSD:   1.25,
 		APIKeyQuotaCost:     1.25,
 		APIKeyRateLimitCost: 1.25,
 	}
@@ -124,12 +124,11 @@ func TestUsageBillingRepositoryApply_DeduplicatesSubscriptionBilling(t *testing.
 
 	requestID := uuid.NewString()
 	cmd := &service.UsageBillingCommand{
-		RequestID:        requestID,
-		APIKeyID:         apiKey.ID,
-		UserID:           user.ID,
-		AccountID:        0,
-		SubscriptionID:   &subscription.ID,
-		SubscriptionCost: 2.5,
+		RequestID:         requestID,
+		APIKeyID:          apiKey.ID,
+		UserID:            user.ID,
+		AccountID:         0,
+		BillableAmountUSD: 2.5,
 	}
 
 	result1, err := repo.Apply(ctx, cmd)
@@ -163,18 +162,18 @@ func TestUsageBillingRepositoryApply_RequestFingerprintConflict(t *testing.T) {
 
 	requestID := uuid.NewString()
 	_, err := repo.Apply(ctx, &service.UsageBillingCommand{
-		RequestID:   requestID,
-		APIKeyID:    apiKey.ID,
-		UserID:      user.ID,
-		BalanceCost: 1.25,
+		RequestID:         requestID,
+		APIKeyID:          apiKey.ID,
+		UserID:            user.ID,
+		BillableAmountUSD: 1.25,
 	})
 	require.NoError(t, err)
 
 	_, err = repo.Apply(ctx, &service.UsageBillingCommand{
-		RequestID:   requestID,
-		APIKeyID:    apiKey.ID,
-		UserID:      user.ID,
-		BalanceCost: 2.50,
+		RequestID:         requestID,
+		APIKeyID:          apiKey.ID,
+		UserID:            user.ID,
+		BillableAmountUSD: 2.50,
 	})
 	require.ErrorIs(t, err, service.ErrUsageBillingRequestConflict)
 }
@@ -268,10 +267,10 @@ func TestUsageBillingRepositoryApply_DeduplicatesAgainstArchivedKey(t *testing.T
 
 	requestID := uuid.NewString()
 	cmd := &service.UsageBillingCommand{
-		RequestID:   requestID,
-		APIKeyID:    apiKey.ID,
-		UserID:      user.ID,
-		BalanceCost: 1.25,
+		RequestID:         requestID,
+		APIKeyID:          apiKey.ID,
+		UserID:            user.ID,
+		BillableAmountUSD: 1.25,
 	}
 
 	result1, err := repo.Apply(ctx, cmd)
