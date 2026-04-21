@@ -538,6 +538,9 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode == http.StatusTooManyRequests {
+			s.reconcileOpenAI429State(ctx, account, resp.Header, body)
+		}
 		// 401 Unauthorized: 标记账号为永久错误
 		if resp.StatusCode == http.StatusUnauthorized && s.accountRepo != nil {
 			errMsg := fmt.Sprintf("Authentication failed (401): %s", string(body))
@@ -548,6 +551,39 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 
 	// Process SSE stream
 	return s.processOpenAIStream(c, resp.Body)
+}
+
+func (s *AccountTestService) reconcileOpenAI429State(ctx context.Context, account *Account, headers http.Header, body []byte) {
+	if s == nil || s.accountRepo == nil || account == nil {
+		return
+	}
+
+	var resetAt *time.Time
+	if calculated := calculateOpenAI429ResetTime(headers); calculated != nil {
+		resetAt = calculated
+	} else if unixTs := parseOpenAIRateLimitResetTime(body); unixTs != nil {
+		t := time.Unix(*unixTs, 0)
+		resetAt = &t
+	}
+	if resetAt == nil {
+		return
+	}
+
+	if err := s.accountRepo.SetRateLimited(ctx, account.ID, *resetAt); err != nil {
+		return
+	}
+
+	now := time.Now()
+	account.RateLimitedAt = &now
+	account.RateLimitResetAt = resetAt
+
+	if account.Status == StatusError {
+		if err := s.accountRepo.ClearError(ctx, account.ID); err != nil {
+			return
+		}
+		account.Status = StatusActive
+		account.ErrorMessage = ""
+	}
 }
 
 // testGeminiAccountConnection tests a Gemini account's connection
