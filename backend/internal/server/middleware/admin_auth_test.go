@@ -177,7 +177,7 @@ func (s *stubUserRepo) AddBalance(ctx context.Context, id int64, amount float64)
 	panic("unexpected AddBalance call")
 }
 
-func (s *stubUserRepo) DeductBalance(ctx context.Context, id int64, amount float64) error {
+func (s *stubUserRepo) DeductBalance(ctx context.Context, id int64, amount float64) (float64, error) {
 	panic("unexpected DeductBalance call")
 }
 

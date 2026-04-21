@@ -2,11 +2,9 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
@@ -15,30 +13,6 @@ import (
 var (
 	ErrUsageLogNotFound = infraerrors.NotFound("USAGE_LOG_NOT_FOUND", "usage log not found")
 )
-
-// CreateUsageLogRequest 创建使用日志请求
-type CreateUsageLogRequest struct {
-	UserID                int64   `json:"user_id"`
-	APIKeyID              int64   `json:"api_key_id"`
-	AccountID             int64   `json:"account_id"`
-	RequestID             string  `json:"request_id"`
-	Model                 string  `json:"model"`
-	InputTokens           int     `json:"input_tokens"`
-	OutputTokens          int     `json:"output_tokens"`
-	CacheCreationTokens   int     `json:"cache_creation_tokens"`
-	CacheReadTokens       int     `json:"cache_read_tokens"`
-	CacheCreation5mTokens int     `json:"cache_creation_5m_tokens"`
-	CacheCreation1hTokens int     `json:"cache_creation_1h_tokens"`
-	InputCost             float64 `json:"input_cost"`
-	OutputCost            float64 `json:"output_cost"`
-	CacheCreationCost     float64 `json:"cache_creation_cost"`
-	CacheReadCost         float64 `json:"cache_read_cost"`
-	TotalCost             float64 `json:"total_cost"`
-	ActualCost            float64 `json:"actual_cost"`
-	RateMultiplier        float64 `json:"rate_multiplier"`
-	Stream                bool    `json:"stream"`
-	DurationMs            *int    `json:"duration_ms"`
-}
 
 // UsageStats 使用统计
 type UsageStats struct {
@@ -54,96 +28,14 @@ type UsageStats struct {
 
 // UsageService 使用统计服务
 type UsageService struct {
-	usageRepo            UsageLogRepository
-	userRepo             UserRepository
-	entClient            *dbent.Client
-	authCacheInvalidator APIKeyAuthCacheInvalidator
+	usageRepo UsageLogRepository
 }
 
 // NewUsageService 创建使用统计服务实例
-func NewUsageService(usageRepo UsageLogRepository, userRepo UserRepository, entClient *dbent.Client, authCacheInvalidator APIKeyAuthCacheInvalidator) *UsageService {
+func NewUsageService(usageRepo UsageLogRepository) *UsageService {
 	return &UsageService{
-		usageRepo:            usageRepo,
-		userRepo:             userRepo,
-		entClient:            entClient,
-		authCacheInvalidator: authCacheInvalidator,
+		usageRepo: usageRepo,
 	}
-}
-
-// Create 创建使用日志
-func (s *UsageService) Create(ctx context.Context, req CreateUsageLogRequest) (*UsageLog, error) {
-	// 使用数据库事务保证「使用日志插入」与「扣费」的原子性，避免重复扣费或漏扣风险。
-	tx, err := s.entClient.Tx(ctx)
-	if err != nil && !errors.Is(err, dbent.ErrTxStarted) {
-		return nil, fmt.Errorf("begin transaction: %w", err)
-	}
-
-	txCtx := ctx
-	if err == nil {
-		defer func() { _ = tx.Rollback() }()
-		txCtx = dbent.NewTxContext(ctx, tx)
-	}
-
-	// 验证用户存在
-	_, err = s.userRepo.GetByID(txCtx, req.UserID)
-	if err != nil {
-		return nil, fmt.Errorf("get user: %w", err)
-	}
-
-	// 创建使用日志
-	usageLog := &UsageLog{
-		UserID:                req.UserID,
-		APIKeyID:              req.APIKeyID,
-		AccountID:             req.AccountID,
-		RequestID:             req.RequestID,
-		Model:                 req.Model,
-		InputTokens:           req.InputTokens,
-		OutputTokens:          req.OutputTokens,
-		CacheCreationTokens:   req.CacheCreationTokens,
-		CacheReadTokens:       req.CacheReadTokens,
-		CacheCreation5mTokens: req.CacheCreation5mTokens,
-		CacheCreation1hTokens: req.CacheCreation1hTokens,
-		InputCost:             req.InputCost,
-		OutputCost:            req.OutputCost,
-		CacheCreationCost:     req.CacheCreationCost,
-		CacheReadCost:         req.CacheReadCost,
-		TotalCost:             req.TotalCost,
-		ActualCost:            req.ActualCost,
-		RateMultiplier:        req.RateMultiplier,
-		Stream:                req.Stream,
-		DurationMs:            req.DurationMs,
-	}
-
-	inserted, err := s.usageRepo.Create(txCtx, usageLog)
-	if err != nil {
-		return nil, fmt.Errorf("create usage log: %w", err)
-	}
-
-	// 扣除用户余额
-	balanceUpdated := false
-	if inserted && req.ActualCost > 0 {
-		if err := s.userRepo.UpdateBalance(txCtx, req.UserID, -req.ActualCost); err != nil {
-			return nil, fmt.Errorf("update user balance: %w", err)
-		}
-		balanceUpdated = true
-	}
-
-	if tx != nil {
-		if err := tx.Commit(); err != nil {
-			return nil, fmt.Errorf("commit transaction: %w", err)
-		}
-	}
-
-	s.invalidateUsageCaches(ctx, req.UserID, balanceUpdated)
-
-	return usageLog, nil
-}
-
-func (s *UsageService) invalidateUsageCaches(ctx context.Context, userID int64, balanceUpdated bool) {
-	if !balanceUpdated || s.authCacheInvalidator == nil {
-		return
-	}
-	s.authCacheInvalidator.InvalidateAuthCacheByUserID(ctx, userID)
 }
 
 // GetByID 根据ID获取使用日志

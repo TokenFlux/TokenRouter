@@ -120,7 +120,7 @@ func (s *emailNormalizationRepoStub) UpdateBalance(context.Context, int64, float
 	panic("unexpected UpdateBalance call")
 }
 
-func (s *emailNormalizationRepoStub) DeductBalance(context.Context, int64, float64) error {
+func (s *emailNormalizationRepoStub) DeductBalance(context.Context, int64, float64) (float64, error) {
 	panic("unexpected DeductBalance call")
 }
 

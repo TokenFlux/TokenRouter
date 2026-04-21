@@ -94,7 +94,7 @@ func (s *userRepoStub) AddBalance(ctx context.Context, id int64, amount float64)
 	return nil
 }
 
-func (s *userRepoStub) DeductBalance(ctx context.Context, id int64, amount float64) error {
+func (s *userRepoStub) DeductBalance(ctx context.Context, id int64, amount float64) (float64, error) {
 	panic("unexpected DeductBalance call")
 }
 

@@ -723,7 +723,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, userSubRepo, nil, apiKeyCache, cfg)
 
 	usageRepo := newStubUsageLogRepo()
-	usageService := service.NewUsageService(usageRepo, userRepo, nil, nil)
+	usageService := service.NewUsageService(usageRepo)
 
 	subscriptionService := service.NewSubscriptionService(groupRepo, userSubRepo, nil, nil, cfg)
 	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
@@ -890,8 +890,8 @@ func (r *stubUserRepo) AddBalance(ctx context.Context, id int64, amount float64)
 	return errors.New("not implemented")
 }
 
-func (r *stubUserRepo) DeductBalance(ctx context.Context, id int64, amount float64) error {
-	return errors.New("not implemented")
+func (r *stubUserRepo) DeductBalance(ctx context.Context, id int64, amount float64) (float64, error) {
+	return 0, errors.New("not implemented")
 }
 
 func (r *stubUserRepo) UpdateConcurrency(ctx context.Context, id int64, amount int) error {

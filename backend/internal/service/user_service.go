@@ -55,7 +55,7 @@ type UserRepository interface {
 
 	AddBalance(ctx context.Context, id int64, amount float64) error
 	UpdateBalance(ctx context.Context, id int64, amount float64) error
-	DeductBalance(ctx context.Context, id int64, amount float64) error
+	DeductBalance(ctx context.Context, id int64, amount float64) (float64, error)
 	UpdateConcurrency(ctx context.Context, id int64, amount int) error
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
 	ExistsByNormalizedEmail(ctx context.Context, normalizedEmail string) (bool, error)

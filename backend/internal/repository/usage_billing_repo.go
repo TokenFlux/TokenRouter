@@ -117,16 +117,18 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 	result.SubscriptionAmountUSD = cmd.BillableAmountUSD - remainingAmount
 
 	if remainingAmount > 0 {
-		newBalance, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, remainingAmount)
+		newBalance, deductedAmount, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, remainingAmount)
 		if err != nil {
 			return err
 		}
-		result.NewBalance = &newBalance
-		result.BalanceAmountUSD = remainingAmount
-		result.BillingAllocations = append(result.BillingAllocations, domain.BillingAllocation{
-			Type:      domain.BillingAllocationTypeBalance,
-			AmountUSD: remainingAmount,
-		})
+		result.BalanceAmountUSD = deductedAmount
+		if deductedAmount > 0 {
+			result.NewBalance = &newBalance
+			result.BillingAllocations = append(result.BillingAllocations, domain.BillingAllocation{
+				Type:      domain.BillingAllocationTypeBalance,
+				AmountUSD: deductedAmount,
+			})
+		}
 	}
 
 	if cmd.APIKeyQuotaCost > 0 {
@@ -378,22 +380,8 @@ func startOfDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
 
-func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (float64, error) {
-	var newBalance float64
-	err := tx.QueryRowContext(ctx, `
-		UPDATE users
-		SET balance = balance - $1,
-			updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL
-		RETURNING balance
-	`, amount, userID).Scan(&newBalance)
-	if errors.Is(err, sql.ErrNoRows) {
-		return 0, service.ErrUserNotFound
-	}
-	if err != nil {
-		return 0, err
-	}
-	return newBalance, nil
+func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (float64, float64, error) {
+	return deductUserBalance(ctx, tx, userID, amount)
 }
 
 func incrementUsageBillingAPIKeyQuota(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64) (bool, error) {

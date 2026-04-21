@@ -152,7 +152,7 @@ func (s *PaymentService) prepDeduct(ctx context.Context, o *dbent.PaymentOrder, 
 		return nil
 	}
 	p.DeductionType = payment.DeductionTypeBalance
-	p.BalanceToDeduct = math.Min(p.RefundAmount, u.Balance)
+	p.BalanceToDeduct = math.Max(0, math.Min(p.RefundAmount, u.Balance))
 	return nil
 }
 
@@ -168,9 +168,31 @@ func (s *PaymentService) ExecuteRefund(ctx context.Context, p *RefundPlan) (*Ref
 		// Skip balance deduction on retry if previous attempt already deducted
 		// but failed to roll back (REFUND_ROLLBACK_FAILED in audit log).
 		if !s.hasAuditLog(ctx, p.OrderID, "REFUND_ROLLBACK_FAILED") {
-			if err := s.userRepo.DeductBalance(ctx, p.Order.UserID, p.BalanceToDeduct); err != nil {
+			deductedAmount, err := s.userRepo.DeductBalance(ctx, p.Order.UserID, p.BalanceToDeduct)
+			if err != nil {
 				s.restoreStatus(ctx, p)
 				return nil, fmt.Errorf("deduction: %w", err)
+			}
+			if math.Abs(deductedAmount-p.BalanceToDeduct) > 1e-9 {
+				if deductedAmount > 0 {
+					if rollbackErr := s.userRepo.UpdateBalance(ctx, p.Order.UserID, deductedAmount); rollbackErr != nil {
+						now := time.Now()
+						_, _ = s.entClient.PaymentOrder.UpdateOneID(p.OrderID).
+							SetStatus(OrderStatusRefundFailed).
+							SetFailedAt(now).
+							SetFailedReason("balance changed during refund and rollback failed").
+							Save(ctx)
+						slog.Error("[CRITICAL] refund partial deduction rollback failed", "orderID", p.OrderID, "requested", p.BalanceToDeduct, "actual", deductedAmount, "error", rollbackErr)
+						s.writeAuditLog(ctx, p.OrderID, "REFUND_ROLLBACK_FAILED", "admin", map[string]any{
+							"rollbackError":   psErrMsg(rollbackErr),
+							"balanceDeducted": deductedAmount,
+							"requestedAmount": p.BalanceToDeduct,
+						})
+						return nil, infraerrors.InternalServer("REFUND_FAILED", "balance changed during refund and rollback failed")
+					}
+				}
+				s.restoreStatus(ctx, p)
+				return nil, infraerrors.Conflict("BALANCE_CHANGED", "user balance changed, please retry refund")
 			}
 		} else {
 			slog.Warn("skipping balance deduction on retry (previous rollback failed)", "orderID", p.OrderID)

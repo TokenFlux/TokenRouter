@@ -323,8 +323,9 @@ func (s *UserRepoSuite) TestUpdateBalance_Negative() {
 func (s *UserRepoSuite) TestDeductBalance() {
 	user := s.mustCreateUser(&service.User{Email: "deduct@test.com", Balance: 10})
 
-	err := s.repo.DeductBalance(s.ctx, user.ID, 5)
+	deducted, err := s.repo.DeductBalance(s.ctx, user.ID, 5)
 	s.Require().NoError(err, "DeductBalance")
+	s.Require().InDelta(5.0, deducted, 1e-6)
 
 	got, err := s.repo.GetByID(s.ctx, user.ID)
 	s.Require().NoError(err)
@@ -334,38 +335,37 @@ func (s *UserRepoSuite) TestDeductBalance() {
 func (s *UserRepoSuite) TestDeductBalance_InsufficientFunds() {
 	user := s.mustCreateUser(&service.User{Email: "insuf@test.com", Balance: 5})
 
-	// 透支策略：允许扣除超过余额的金额
-	err := s.repo.DeductBalance(s.ctx, user.ID, 999)
-	s.Require().NoError(err, "DeductBalance should allow overdraft")
+	deducted, err := s.repo.DeductBalance(s.ctx, user.ID, 999)
+	s.Require().NoError(err, "DeductBalance should clamp to available balance")
+	s.Require().InDelta(5.0, deducted, 1e-6)
 
-	// 验证余额变为负数
 	got, err := s.repo.GetByID(s.ctx, user.ID)
 	s.Require().NoError(err)
-	s.Require().InDelta(-994.0, got.Balance, 1e-6, "Balance should be negative after overdraft")
+	s.Require().InDelta(0.0, got.Balance, 1e-6, "Balance should clamp to zero")
 }
 
 func (s *UserRepoSuite) TestDeductBalance_ExactAmount() {
 	user := s.mustCreateUser(&service.User{Email: "exact@test.com", Balance: 10})
 
-	err := s.repo.DeductBalance(s.ctx, user.ID, 10)
+	deducted, err := s.repo.DeductBalance(s.ctx, user.ID, 10)
 	s.Require().NoError(err, "DeductBalance exact amount")
+	s.Require().InDelta(10.0, deducted, 1e-6)
 
 	got, err := s.repo.GetByID(s.ctx, user.ID)
 	s.Require().NoError(err)
 	s.Require().InDelta(0.0, got.Balance, 1e-6)
 }
 
-func (s *UserRepoSuite) TestDeductBalance_AllowsOverdraft() {
-	user := s.mustCreateUser(&service.User{Email: "overdraft@test.com", Balance: 5.0})
+func (s *UserRepoSuite) TestDeductBalance_LeavesLegacyNegativeBalanceUnchanged() {
+	user := s.mustCreateUser(&service.User{Email: "legacy-negative@test.com", Balance: -5.0})
 
-	// 扣除超过余额的金额 - 应该成功
-	err := s.repo.DeductBalance(s.ctx, user.ID, 10.0)
-	s.Require().NoError(err, "DeductBalance should allow overdraft")
+	deducted, err := s.repo.DeductBalance(s.ctx, user.ID, 10.0)
+	s.Require().NoError(err, "DeductBalance should ignore already non-positive balance")
+	s.Require().InDelta(0.0, deducted, 1e-6)
 
-	// 验证余额为负
 	got, err := s.repo.GetByID(s.ctx, user.ID)
 	s.Require().NoError(err)
-	s.Require().InDelta(-5.0, got.Balance, 1e-6, "Balance should be -5.0 after overdraft")
+	s.Require().InDelta(-5.0, got.Balance, 1e-6, "Existing negative balance should remain unchanged")
 }
 
 // --- Concurrency ---
@@ -577,17 +577,19 @@ func (s *UserRepoSuite) TestCRUD_And_Filters_And_AtomicUpdates() {
 	s.Require().NoError(err, "GetByID after UpdateBalance")
 	s.Require().InDelta(12.5, got3.Balance, 1e-6)
 
-	s.Require().NoError(s.repo.DeductBalance(s.ctx, user1.ID, 5), "DeductBalance")
+	deducted, err := s.repo.DeductBalance(s.ctx, user1.ID, 5)
+	s.Require().NoError(err, "DeductBalance")
+	s.Require().InDelta(5.0, deducted, 1e-6)
 	got4, err := s.repo.GetByID(s.ctx, user1.ID)
 	s.Require().NoError(err, "GetByID after DeductBalance")
 	s.Require().InDelta(7.5, got4.Balance, 1e-6)
 
-	// 透支策略：允许扣除超过余额的金额
-	err = s.repo.DeductBalance(s.ctx, user1.ID, 999)
-	s.Require().NoError(err, "DeductBalance should allow overdraft")
+	deducted, err = s.repo.DeductBalance(s.ctx, user1.ID, 999)
+	s.Require().NoError(err, "DeductBalance should clamp to remaining balance")
+	s.Require().InDelta(7.5, deducted, 1e-6)
 	gotOverdraft, err := s.repo.GetByID(s.ctx, user1.ID)
-	s.Require().NoError(err, "GetByID after overdraft")
-	s.Require().Less(gotOverdraft.Balance, 0.0, "Balance should be negative after overdraft")
+	s.Require().NoError(err, "GetByID after clamp")
+	s.Require().InDelta(0.0, gotOverdraft.Balance, 1e-6, "Balance should clamp to zero")
 
 	s.Require().NoError(s.repo.UpdateConcurrency(s.ctx, user1.ID, 3), "UpdateConcurrency")
 	got5, err := s.repo.GetByID(s.ctx, user1.ID)
@@ -617,8 +619,7 @@ func (s *UserRepoSuite) TestUpdateConcurrency_NotFound() {
 }
 
 func (s *UserRepoSuite) TestDeductBalance_NotFound() {
-	err := s.repo.DeductBalance(s.ctx, 999999, 5)
+	_, err := s.repo.DeductBalance(s.ctx, 999999, 5)
 	s.Require().Error(err, "expected error for non-existent user")
-	// DeductBalance 在用户不存在时返回 ErrUserNotFound
 	s.Require().ErrorIs(err, service.ErrUserNotFound)
 }

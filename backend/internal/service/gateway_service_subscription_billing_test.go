@@ -49,7 +49,7 @@ func TestBuildUsageBillingCommand_BillableAmountTracksActualCost(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			p := &postUsageBillingParams{
+			p := &usageBillingParams{
 				Cost:         &CostBreakdown{TotalCost: tt.totalCost, ActualCost: tt.actualCost},
 				User:         &User{ID: 1},
 				APIKey:       &APIKey{ID: 2, GroupID: &groupID},

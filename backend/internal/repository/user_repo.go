@@ -474,22 +474,18 @@ func (r *userRepository) AddBalance(ctx context.Context, id int64, amount float6
 	return nil
 }
 
-// DeductBalance 扣除用户余额
-// 透支策略：允许余额变为负数，确保当前请求能够完成
-// 中间件会阻止余额 <= 0 的用户发起后续请求
-func (r *userRepository) DeductBalance(ctx context.Context, id int64, amount float64) error {
-	client := clientFromContext(ctx, r.client)
-	n, err := client.User.Update().
-		Where(dbuser.IDEQ(id)).
-		AddBalance(-amount).
-		Save(ctx)
+// DeductBalance 扣除用户余额，最多扣到 0，不继续扩大历史负余额。
+func (r *userRepository) DeductBalance(ctx context.Context, id int64, amount float64) (float64, error) {
+	sqlq := r.sqlExecutorFromContext(ctx)
+	if sqlq == nil {
+		return 0, fmt.Errorf("sql executor is not configured")
+	}
+
+	_, deductedAmount, err := deductUserBalance(ctx, sqlq, id, amount)
 	if err != nil {
-		return err
+		return 0, err
 	}
-	if n == 0 {
-		return service.ErrUserNotFound
-	}
-	return nil
+	return deductedAmount, nil
 }
 
 func (r *userRepository) UpdateConcurrency(ctx context.Context, id int64, amount int) error {
@@ -765,6 +761,50 @@ func (r *userRepository) sqlExecutorFromContext(ctx context.Context) sqlExecutor
 		return tx.Client()
 	}
 	return r.sql
+}
+
+func deductUserBalance(ctx context.Context, q sqlQueryer, userID int64, amount float64) (float64, float64, error) {
+	const query = `
+		WITH locked_user AS (
+			SELECT id, balance
+			FROM users
+			WHERE id = $2
+				AND deleted_at IS NULL
+			FOR UPDATE
+		), updated AS (
+			UPDATE users
+			SET balance = CASE
+				WHEN locked_user.balance <= 0 THEN locked_user.balance
+				WHEN locked_user.balance <= $1 THEN 0
+				ELSE locked_user.balance - $1
+			END,
+				updated_at = NOW()
+			FROM locked_user
+			WHERE users.id = locked_user.id
+			RETURNING users.balance
+		)
+		SELECT
+			updated.balance,
+			CASE
+				WHEN locked_user.balance <= 0 THEN 0
+				WHEN locked_user.balance <= $1 THEN locked_user.balance
+				ELSE $1
+			END AS deducted_amount
+		FROM updated
+		CROSS JOIN locked_user
+	`
+
+	var (
+		newBalance     float64
+		deductedAmount float64
+	)
+	if err := scanSingleRow(ctx, q, query, []any{amount, userID}, &newBalance, &deductedAmount); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, 0, service.ErrUserNotFound
+		}
+		return 0, 0, err
+	}
+	return newBalance, deductedAmount, nil
 }
 
 func (r *userRepository) updateWithClient(ctx context.Context, client *dbent.Client, userIn *service.User) (*dbent.User, error) {

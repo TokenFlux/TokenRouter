@@ -45,8 +45,10 @@ func (m *mockUserRepo) UpdateBalance(ctx context.Context, id int64, amount float
 	}
 	return m.updateBalanceErr
 }
-func (m *mockUserRepo) AddBalance(context.Context, int64, float64) error    { return nil }
-func (m *mockUserRepo) DeductBalance(context.Context, int64, float64) error { return nil }
+func (m *mockUserRepo) AddBalance(context.Context, int64, float64) error { return nil }
+func (m *mockUserRepo) DeductBalance(context.Context, int64, float64) (float64, error) {
+	return 0, nil
+}
 func (m *mockUserRepo) UpdateConcurrency(context.Context, int64, int) error { return nil }
 func (m *mockUserRepo) ExistsByEmail(context.Context, string) (bool, error) { return false, nil }
 func (m *mockUserRepo) ExistsByNormalizedEmail(context.Context, string) (bool, error) {

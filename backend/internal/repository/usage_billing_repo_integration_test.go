@@ -27,7 +27,7 @@ func TestUsageBillingRepositoryApply_DeduplicatesBalanceBilling(t *testing.T) {
 	user := mustCreateUser(t, client, &service.User{
 		Email:        fmt.Sprintf("usage-billing-user-%d@example.com", time.Now().UnixNano()),
 		PasswordHash: "hash",
-		Balance:      100,
+		Balance:      1,
 	})
 	apiKey := mustCreateApiKey(t, client, &service.APIKey{
 		UserID: user.ID,
@@ -57,6 +57,9 @@ func TestUsageBillingRepositoryApply_DeduplicatesBalanceBilling(t *testing.T) {
 	require.NotNil(t, result1)
 	require.True(t, result1.Applied)
 	require.True(t, result1.APIKeyQuotaExhausted)
+	require.InDelta(t, 1.0, result1.BalanceAmountUSD, 0.000001)
+	require.NotNil(t, result1.NewBalance)
+	require.InDelta(t, 0.0, *result1.NewBalance, 0.000001)
 
 	result2, err := repo.Apply(ctx, cmd)
 	require.NoError(t, err)
@@ -65,7 +68,7 @@ func TestUsageBillingRepositoryApply_DeduplicatesBalanceBilling(t *testing.T) {
 
 	var balance float64
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT balance FROM users WHERE id = $1", user.ID).Scan(&balance))
-	require.InDelta(t, 98.75, balance, 0.000001)
+	require.InDelta(t, 0.0, balance, 0.000001)
 
 	var quotaUsed float64
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT quota_used FROM api_keys WHERE id = $1", apiKey.ID).Scan(&quotaUsed))
