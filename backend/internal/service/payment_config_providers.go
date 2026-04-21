@@ -12,8 +12,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/paymentorder"
 	"github.com/TokenFlux/TokenRouter/ent/paymentproviderinstance"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/payment/provider"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 )
 
 // validateProviderConfig runs the provider's constructor to surface config-level
