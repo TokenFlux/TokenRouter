@@ -803,23 +803,112 @@ func (s *BillingService) GetDisplayPricing(model string, rateMultiplier float64,
 
 	rawPricing := s.getRawModelPricing(model)
 	if hasExplicitImagePricing(rawPricing) || looksLikeImageModel(model) {
-		return ModelDisplayPricing{
-			PricingMode:  "image",
-			PriceStatus:  "priced",
-			ImagePrice1K: s.getImageUnitPrice(model, "1K", groupConfig) * rateMultiplier,
-			ImagePrice2K: s.getImageUnitPrice(model, "2K", groupConfig) * rateMultiplier,
-			ImagePrice4K: s.getImageUnitPrice(model, "4K", groupConfig) * rateMultiplier,
-		}
+		return buildImageDisplayPricing(
+			s.getImageUnitPrice(model, "1K", groupConfig)*rateMultiplier,
+			s.getImageUnitPrice(model, "2K", groupConfig)*rateMultiplier,
+			s.getImageUnitPrice(model, "4K", groupConfig)*rateMultiplier,
+		)
 	}
 
 	pricing, err := s.GetModelPricing(model)
 	if err != nil || pricing == nil || !hasAnyDisplayTokenPricing(pricing) {
-		return ModelDisplayPricing{
-			PricingMode: "unknown",
-			PriceStatus: "unpriced",
-		}
+		return unknownDisplayPricing()
 	}
 
+	return buildTokenDisplayPricing(pricing, rateMultiplier)
+}
+
+func (s *BillingService) getDisplayPricingWithResolved(model string, rateMultiplier float64, groupConfig *ImagePriceConfig, resolved *ResolvedPricing) ModelDisplayPricing {
+	if rateMultiplier < 0 {
+		rateMultiplier = 0
+	}
+	if pricing, ok := displayPricingFromResolved(model, rateMultiplier, resolved); ok {
+		return pricing
+	}
+	return s.GetDisplayPricing(model, rateMultiplier, groupConfig)
+}
+
+func displayPricingFromResolved(model string, rateMultiplier float64, resolved *ResolvedPricing) (ModelDisplayPricing, bool) {
+	if resolved == nil || resolved.Source != PricingSourceChannel {
+		return ModelDisplayPricing{}, false
+	}
+
+	switch resolved.Mode {
+	case BillingModeToken:
+		pricing := resolvedDisplayTokenPricing(resolved)
+		if !hasAnyDisplayTokenPricing(pricing) {
+			return ModelDisplayPricing{}, false
+		}
+		return buildTokenDisplayPricing(pricing, rateMultiplier), true
+	case BillingModeImage, BillingModePerRequest:
+		if resolved.Mode == BillingModePerRequest && !looksLikeImageModel(model) {
+			return ModelDisplayPricing{}, false
+		}
+		price1K, price2K, price4K := resolvedImageTierPrices(resolved)
+		if price1K <= 0 && price2K <= 0 && price4K <= 0 {
+			return ModelDisplayPricing{}, false
+		}
+		return buildImageDisplayPricing(
+			price1K*rateMultiplier,
+			price2K*rateMultiplier,
+			price4K*rateMultiplier,
+		), true
+	default:
+		return ModelDisplayPricing{}, false
+	}
+}
+
+func resolvedDisplayTokenPricing(resolved *ResolvedPricing) *ModelPricing {
+	if resolved == nil {
+		return nil
+	}
+	if len(resolved.Intervals) == 0 {
+		return resolved.BasePricing
+	}
+
+	pricing := intervalToModelPricing(&resolved.Intervals[0], resolved.SupportsCacheBreakdown)
+	for i := 1; i < len(resolved.Intervals); i++ {
+		next := intervalToModelPricing(&resolved.Intervals[i], resolved.SupportsCacheBreakdown)
+		if !sameDisplayTokenPricing(pricing, next) {
+			return nil
+		}
+	}
+	return pricing
+}
+
+func sameDisplayTokenPricing(a *ModelPricing, b *ModelPricing) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.InputPricePerToken == b.InputPricePerToken &&
+		a.OutputPricePerToken == b.OutputPricePerToken &&
+		a.CacheCreationPricePerToken == b.CacheCreationPricePerToken &&
+		a.CacheReadPricePerToken == b.CacheReadPricePerToken &&
+		a.ImageOutputPricePerToken == b.ImageOutputPricePerToken
+}
+
+func resolvedImageTierPrices(resolved *ResolvedPricing) (float64, float64, float64) {
+	if resolved == nil {
+		return 0, 0, 0
+	}
+
+	defaultPrice := resolved.DefaultPerRequestPrice
+	price1K := resolvedRequestTierPrice(resolved.RequestTiers, "1K", defaultPrice)
+	price2K := resolvedRequestTierPrice(resolved.RequestTiers, "2K", defaultPrice)
+	price4K := resolvedRequestTierPrice(resolved.RequestTiers, "4K", defaultPrice)
+	return price1K, price2K, price4K
+}
+
+func resolvedRequestTierPrice(tiers []PricingInterval, label string, defaultPrice float64) float64 {
+	for _, tier := range tiers {
+		if strings.EqualFold(tier.TierLabel, label) && tier.PerRequestPrice != nil {
+			return *tier.PerRequestPrice
+		}
+	}
+	return defaultPrice
+}
+
+func buildTokenDisplayPricing(pricing *ModelPricing, rateMultiplier float64) ModelDisplayPricing {
 	return ModelDisplayPricing{
 		PricingMode:              "token",
 		PriceStatus:              "priced",
@@ -828,6 +917,23 @@ func (s *BillingService) GetDisplayPricing(model string, rateMultiplier float64,
 		CacheWritePricePerToken:  pricing.CacheCreationPricePerToken * rateMultiplier,
 		CacheReadPricePerToken:   pricing.CacheReadPricePerToken * rateMultiplier,
 		ImageOutputPricePerToken: pricing.ImageOutputPricePerToken * rateMultiplier,
+	}
+}
+
+func buildImageDisplayPricing(price1K, price2K, price4K float64) ModelDisplayPricing {
+	return ModelDisplayPricing{
+		PricingMode:  "image",
+		PriceStatus:  "priced",
+		ImagePrice1K: price1K,
+		ImagePrice2K: price2K,
+		ImagePrice4K: price4K,
+	}
+}
+
+func unknownDisplayPricing() ModelDisplayPricing {
+	return ModelDisplayPricing{
+		PricingMode: "unknown",
+		PriceStatus: "unpriced",
 	}
 }
 

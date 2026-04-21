@@ -91,12 +91,9 @@ func (s *ModelMarketplaceService) listPublicModelsForGroup(ctx context.Context, 
 
 	models := make([]ModelMarketplaceModel, 0, len(modelDefs))
 	for _, modelDef := range modelDefs {
-		pricing := ModelDisplayPricing{
-			PricingMode: "unknown",
-			PriceStatus: "unpriced",
-		}
+		pricing := unknownDisplayPricing()
 		if s.billingService != nil {
-			pricing = s.billingService.GetDisplayPricing(modelDef.ID, group.RateMultiplier, imageConfig)
+			pricing = s.getPublicModelDisplayPricing(ctx, group, modelDef.ID, imageConfig)
 		}
 
 		models = append(models, ModelMarketplaceModel{
@@ -107,6 +104,21 @@ func (s *ModelMarketplaceService) listPublicModelsForGroup(ctx context.Context, 
 	}
 
 	return models
+}
+
+func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Context, group *Group, model string, imageConfig *ImagePriceConfig) ModelDisplayPricing {
+	if s.billingService == nil {
+		return unknownDisplayPricing()
+	}
+	if s.gatewayService != nil && s.gatewayService.resolver != nil {
+		groupID := group.ID
+		resolved := s.gatewayService.resolver.Resolve(ctx, PricingInput{
+			Model:   model,
+			GroupID: &groupID,
+		})
+		return s.billingService.getDisplayPricingWithResolved(model, group.RateMultiplier, imageConfig, resolved)
+	}
+	return s.billingService.GetDisplayPricing(model, group.RateMultiplier, imageConfig)
 }
 
 func (s *ModelMarketplaceService) resolveGroupModels(ctx context.Context, group *Group) []marketplaceModelDef {
