@@ -198,13 +198,7 @@ func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, userID i
 	if err != nil {
 		return 0, nil, err
 	}
-	defer func() { _ = rows.Close() }()
-
-	now := time.Now()
-	windowStart := startOfDay(now)
-	remaining := amountUSD
-	allocations := make([]domain.BillingAllocation, 0)
-
+	subscriptions := make([]usageBillingSubscriptionRow, 0)
 	for rows.Next() {
 		var row usageBillingSubscriptionRow
 		if err := rows.Scan(
@@ -220,10 +214,27 @@ func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, userID i
 			&row.WeeklyUsageUSD,
 			&row.MonthlyUsageUSD,
 		); err != nil {
+			_ = rows.Close()
 			return 0, nil, err
 		}
+		subscriptions = append(subscriptions, row)
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return 0, nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return 0, nil, err
+	}
+
+	now := time.Now()
+	windowStart := startOfDay(now)
+	remaining := amountUSD
+	allocations := make([]domain.BillingAllocation, 0, len(subscriptions))
+
+	for _, row := range subscriptions {
 		if remaining <= 0 {
-			continue
+			break
 		}
 
 		dailyStart, dailyUsage := normalizeUsageBillingWindow(row.DailyWindowStart, row.DailyLimitUSD, row.DailyUsageUSD, windowStart, 24*time.Hour, now)
@@ -267,9 +278,6 @@ func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, userID i
 			PlanID:         &planID,
 		})
 		remaining -= allocated
-	}
-	if err := rows.Err(); err != nil {
-		return 0, nil, err
 	}
 
 	return remaining, allocations, nil
