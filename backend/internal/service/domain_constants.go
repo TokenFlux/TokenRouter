@@ -212,6 +212,9 @@ const (
 	// SettingKeyOverloadCooldownSettings stores JSON config for 529 overload cooldown handling.
 	SettingKeyOverloadCooldownSettings = "overload_cooldown_settings"
 
+	// SettingKeyOpenAI403CooldownSettings stores JSON config for OpenAI OAuth 403 cooldown handling.
+	SettingKeyOpenAI403CooldownSettings = "openai_oauth_403_cooldown_settings"
+
 	// =========================
 	// Stream Timeout Handling
 	// =========================

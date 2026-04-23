@@ -398,6 +398,9 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// 529过载冷却配置
 		adminSettings.GET("/overload-cooldown", h.Admin.Setting.GetOverloadCooldownSettings)
 		adminSettings.PUT("/overload-cooldown", h.Admin.Setting.UpdateOverloadCooldownSettings)
+		// OpenAI OAuth 403冷却配置
+		adminSettings.GET("/openai-403-cooldown", h.Admin.Setting.GetOpenAI403CooldownSettings)
+		adminSettings.PUT("/openai-403-cooldown", h.Admin.Setting.UpdateOpenAI403CooldownSettings)
 		// 流超时处理配置
 		adminSettings.GET("/stream-timeout", h.Admin.Setting.GetStreamTimeoutSettings)
 		adminSettings.PUT("/stream-timeout", h.Admin.Setting.UpdateStreamTimeoutSettings)

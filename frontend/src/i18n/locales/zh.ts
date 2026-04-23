@@ -5129,6 +5129,16 @@ export default {
         saved: '过载冷却设置保存成功',
         saveFailed: '保存过载冷却设置失败'
       },
+      openAI403Cooldown: {
+        title: 'ChatGPT 403 冷却',
+        description: '配置 ChatGPT 账号收到上游 403 时的临时调度暂停策略',
+        enabled: '启用 403 冷却',
+        enabledHint: '收到 403 错误时短暂暂停该 ChatGPT 账号调度，冷却后自动恢复',
+        cooldownMinutes: '冷却时长（分钟）',
+        cooldownMinutesHint: 'ChatGPT 账号暂停调度的持续时间（1-120 分钟）',
+        saved: 'ChatGPT 403 冷却设置保存成功',
+        saveFailed: '保存 ChatGPT 403 冷却设置失败'
+      },
       streamTimeout: {
         title: '流超时处理',
         description: '配置上游响应超时时的账户处理策略，避免问题账户持续被选中',

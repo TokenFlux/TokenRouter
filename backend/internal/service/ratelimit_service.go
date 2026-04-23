@@ -657,10 +657,14 @@ func (s *RateLimitService) handleAuthError(ctx context.Context, account *Account
 
 // handle403 处理 403 Forbidden 错误
 // Antigravity 平台区分 validation/violation/generic 三种类型，均 SetError 永久禁用；
+// OpenAI OAuth（ChatGPT）账号的 403 视为临时错误，转为临时不可调度；
 // 其他平台保持原有 SetError 行为。
 func (s *RateLimitService) handle403(ctx context.Context, account *Account, upstreamMsg string, responseBody []byte) (shouldDisable bool) {
 	if account.Platform == PlatformAntigravity {
 		return s.handleAntigravity403(ctx, account, upstreamMsg, responseBody)
+	}
+	if account.IsOpenAIOAuth() {
+		return s.handleOpenAIOAuth403(ctx, account, upstreamMsg)
 	}
 	// 非 Antigravity 平台：保持原有行为
 	msg := "Access forbidden (403): account may be suspended or lack permissions"
@@ -668,6 +672,57 @@ func (s *RateLimitService) handle403(ctx context.Context, account *Account, upst
 		msg = "Access forbidden (403): " + upstreamMsg
 	}
 	s.handleAuthError(ctx, account, msg)
+	return true
+}
+
+// handleOpenAIOAuth403 将 ChatGPT 403 按短期上游拒绝处理，不直接标记账号 error。
+func (s *RateLimitService) handleOpenAIOAuth403(ctx context.Context, account *Account, upstreamMsg string) bool {
+	settings := DefaultOpenAI403CooldownSettings()
+	if s.settingService != nil {
+		loaded, err := s.settingService.GetOpenAI403CooldownSettings(ctx)
+		if err != nil {
+			slog.Warn("openai_oauth_403_settings_read_failed", "account_id", account.ID, "error", err)
+		} else {
+			settings = loaded
+		}
+	}
+	if !settings.Enabled {
+		slog.Info("openai_oauth_403_cooldown_disabled", "account_id", account.ID)
+		return true
+	}
+
+	msg := "Access forbidden (403): upstream temporarily rejected the request"
+	if upstreamMsg != "" {
+		msg = "Access forbidden (403): " + upstreamMsg
+	}
+
+	now := time.Now()
+	// 这里使用可配置的短冷却，避免连续命中同一账号的瞬时 403。
+	until := now.Add(time.Duration(settings.CooldownMinutes) * time.Minute)
+	state := &TempUnschedState{
+		UntilUnix:       until.Unix(),
+		TriggeredAtUnix: now.Unix(),
+		StatusCode:      http.StatusForbidden,
+		MatchedKeyword:  "openai_oauth_403",
+		RuleIndex:       -1,
+		ErrorMessage:    msg,
+	}
+
+	reason := msg
+	if raw, err := json.Marshal(state); err == nil {
+		reason = string(raw)
+	}
+
+	if err := s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, reason); err != nil {
+		slog.Warn("openai_oauth_403_set_temp_unschedulable_failed", "account_id", account.ID, "error", err)
+	}
+	if s.tempUnschedCache != nil {
+		if err := s.tempUnschedCache.SetTempUnsched(ctx, account.ID, state); err != nil {
+			slog.Warn("openai_oauth_403_set_temp_unsched_cache_failed", "account_id", account.ID, "error", err)
+		}
+	}
+
+	slog.Info("openai_oauth_403_temp_unschedulable", "account_id", account.ID, "until", until)
 	return true
 }
 

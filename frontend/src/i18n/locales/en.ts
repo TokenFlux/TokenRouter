@@ -4967,6 +4967,16 @@ export default {
         saved: 'Overload cooldown settings saved',
         saveFailed: 'Failed to save overload cooldown settings'
       },
+      openAI403Cooldown: {
+        title: 'ChatGPT 403 Cooldown',
+        description: 'Configure temporary scheduling pause when ChatGPT accounts receive upstream 403',
+        enabled: 'Enable 403 Cooldown',
+        enabledHint: 'Briefly pause ChatGPT account scheduling on 403 errors, auto-recover after cooldown',
+        cooldownMinutes: 'Cooldown Duration (minutes)',
+        cooldownMinutesHint: 'Duration to pause ChatGPT account scheduling (1-120 minutes)',
+        saved: 'ChatGPT 403 cooldown settings saved',
+        saveFailed: 'Failed to save ChatGPT 403 cooldown settings'
+      },
       streamTimeout: {
         title: 'Stream Timeout Handling',
         description: 'Configure account handling strategy when upstream response times out',

@@ -1732,6 +1732,56 @@ func (s *SettingService) SetOverloadCooldownSettings(ctx context.Context, settin
 	return s.settingRepo.Set(ctx, SettingKeyOverloadCooldownSettings, string(data))
 }
 
+// GetOpenAI403CooldownSettings 获取 OpenAI OAuth 403 冷却配置
+func (s *SettingService) GetOpenAI403CooldownSettings(ctx context.Context) (*OpenAI403CooldownSettings, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAI403CooldownSettings)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultOpenAI403CooldownSettings(), nil
+		}
+		return nil, fmt.Errorf("get openai 403 cooldown settings: %w", err)
+	}
+	if value == "" {
+		return DefaultOpenAI403CooldownSettings(), nil
+	}
+
+	var settings OpenAI403CooldownSettings
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		return DefaultOpenAI403CooldownSettings(), nil
+	}
+
+	if settings.CooldownMinutes < 1 {
+		settings.CooldownMinutes = 1
+	}
+	if settings.CooldownMinutes > 120 {
+		settings.CooldownMinutes = 120
+	}
+
+	return &settings, nil
+}
+
+// SetOpenAI403CooldownSettings 设置 OpenAI OAuth 403 冷却配置
+func (s *SettingService) SetOpenAI403CooldownSettings(ctx context.Context, settings *OpenAI403CooldownSettings) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+
+	// 禁用时修正为合法值即可，不拒绝请求
+	if settings.CooldownMinutes < 1 || settings.CooldownMinutes > 120 {
+		if settings.Enabled {
+			return fmt.Errorf("cooldown_minutes must be between 1-120")
+		}
+		settings.CooldownMinutes = 1
+	}
+
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("marshal openai 403 cooldown settings: %w", err)
+	}
+
+	return s.settingRepo.Set(ctx, SettingKeyOpenAI403CooldownSettings, string(data))
+}
+
 // GetOIDCConnectOAuthConfig 返回用于登录的“最终生效” OIDC 配置。
 //
 // 优先级：

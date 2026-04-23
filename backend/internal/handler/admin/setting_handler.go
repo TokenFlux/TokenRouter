@@ -1769,6 +1769,58 @@ func (h *SettingHandler) UpdateOverloadCooldownSettings(c *gin.Context) {
 	})
 }
 
+// GetOpenAI403CooldownSettings 获取 OpenAI OAuth 403 冷却配置
+// GET /api/v1/admin/settings/openai-403-cooldown
+func (h *SettingHandler) GetOpenAI403CooldownSettings(c *gin.Context) {
+	settings, err := h.settingService.GetOpenAI403CooldownSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.OpenAI403CooldownSettings{
+		Enabled:         settings.Enabled,
+		CooldownMinutes: settings.CooldownMinutes,
+	})
+}
+
+// UpdateOpenAI403CooldownSettingsRequest 更新 OpenAI OAuth 403 冷却配置请求
+type UpdateOpenAI403CooldownSettingsRequest struct {
+	Enabled         bool `json:"enabled"`
+	CooldownMinutes int  `json:"cooldown_minutes"`
+}
+
+// UpdateOpenAI403CooldownSettings 更新 OpenAI OAuth 403 冷却配置
+// PUT /api/v1/admin/settings/openai-403-cooldown
+func (h *SettingHandler) UpdateOpenAI403CooldownSettings(c *gin.Context) {
+	var req UpdateOpenAI403CooldownSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	settings := &service.OpenAI403CooldownSettings{
+		Enabled:         req.Enabled,
+		CooldownMinutes: req.CooldownMinutes,
+	}
+
+	if err := h.settingService.SetOpenAI403CooldownSettings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	updatedSettings, err := h.settingService.GetOpenAI403CooldownSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.OpenAI403CooldownSettings{
+		Enabled:         updatedSettings.Enabled,
+		CooldownMinutes: updatedSettings.CooldownMinutes,
+	})
+}
+
 // GetStreamTimeoutSettings 获取流超时处理配置
 // GET /api/v1/admin/settings/stream-timeout
 func (h *SettingHandler) GetStreamTimeoutSettings(c *gin.Context) {

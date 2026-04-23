@@ -265,6 +265,22 @@ func DefaultOverloadCooldownSettings() *OverloadCooldownSettings {
 	}
 }
 
+// OpenAI403CooldownSettings OpenAI OAuth 403 冷却配置
+type OpenAI403CooldownSettings struct {
+	// Enabled 是否在 ChatGPT 账号收到 403 时暂停调度
+	Enabled bool `json:"enabled"`
+	// CooldownMinutes 冷却时长（分钟）
+	CooldownMinutes int `json:"cooldown_minutes"`
+}
+
+// DefaultOpenAI403CooldownSettings 返回默认的 OpenAI OAuth 403 冷却配置（启用，1分钟）
+func DefaultOpenAI403CooldownSettings() *OpenAI403CooldownSettings {
+	return &OpenAI403CooldownSettings{
+		Enabled:         true,
+		CooldownMinutes: 1,
+	}
+}
+
 // DefaultBetaPolicySettings 返回默认的 Beta 策略配置
 func DefaultBetaPolicySettings() *BetaPolicySettings {
 	return &BetaPolicySettings{
