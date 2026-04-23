@@ -1765,6 +1765,13 @@ export default {
           '公开分组费率 0.8，您可以创建一个费率 0.7 的专属分组，手动分配给 VIP 用户，让他们享受更优惠的价格。'
       },
       rateMultiplierHint: '1.0 = 标准费率，0.5 = 半价，2.0 = 双倍',
+      defaultGroup: {
+        title: '默认分组',
+        badge: '默认',
+        enabled: '作为默认分组',
+        disabled: '不作为默认分组',
+        hint: '当 API Key 未绑定到任何有效分组时，会自动回退到该平台的默认分组；同一平台只会保留一个默认分组。'
+      },
       platforms: {
         all: '全部平台',
         anthropic: 'Anthropic',

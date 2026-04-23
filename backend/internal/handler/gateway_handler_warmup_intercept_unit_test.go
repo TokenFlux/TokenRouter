@@ -80,6 +80,9 @@ func (f *fakeGroupRepo) ListActive(context.Context) ([]service.Group, error) { r
 func (f *fakeGroupRepo) ListActiveByPlatform(context.Context, string) ([]service.Group, error) {
 	return nil, nil
 }
+func (f *fakeGroupRepo) ListActiveByPlatformLite(ctx context.Context, platform string) ([]service.Group, error) {
+	return f.ListActiveByPlatform(ctx, platform)
+}
 func (f *fakeGroupRepo) ExistsByName(context.Context, string) (bool, error) { return false, nil }
 func (f *fakeGroupRepo) GetAccountCount(context.Context, int64) (int64, int64, error) {
 	return 0, 0, nil

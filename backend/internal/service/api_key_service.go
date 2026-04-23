@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
@@ -460,6 +461,7 @@ func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, erro
 			if err != nil {
 				return nil, fmt.Errorf("get api key: %w", err)
 			}
+			apiKey = s.applyDefaultGroupFallback(ctx, apiKey)
 			s.compileAPIKeyIPRules(apiKey)
 			return apiKey, nil
 		}
@@ -477,6 +479,7 @@ func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, erro
 			if err != nil {
 				return nil, fmt.Errorf("get api key: %w", err)
 			}
+			apiKey = s.applyDefaultGroupFallback(ctx, apiKey)
 			s.compileAPIKeyIPRules(apiKey)
 			return apiKey, nil
 		}
@@ -489,6 +492,7 @@ func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, erro
 			if err != nil {
 				return nil, fmt.Errorf("get api key: %w", err)
 			}
+			apiKey = s.applyDefaultGroupFallback(ctx, apiKey)
 			s.compileAPIKeyIPRules(apiKey)
 			return apiKey, nil
 		}
@@ -499,8 +503,72 @@ func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, erro
 		return nil, fmt.Errorf("get api key: %w", err)
 	}
 	apiKey.Key = key
+	apiKey = s.applyDefaultGroupFallback(ctx, apiKey)
 	s.compileAPIKeyIPRules(apiKey)
 	return apiKey, nil
+}
+
+// applyDefaultGroupFallback 为未绑定有效分组的 API Key 计算请求级默认分组。
+// 这里只修正当前请求中的对象，不回写数据库，也不写入认证缓存，避免不同端点之间互相污染。
+func (s *APIKeyService) applyDefaultGroupFallback(ctx context.Context, apiKey *APIKey) *APIKey {
+	if apiKey == nil || s.groupRepo == nil {
+		return apiKey
+	}
+	if apiKey.Group != nil {
+		if apiKey.GroupID == nil {
+			gid := apiKey.Group.ID
+			apiKey.GroupID = &gid
+		}
+		if apiKey.GroupID != nil && apiKey.Group.ID == *apiKey.GroupID {
+			return apiKey
+		}
+	}
+
+	platform, ok := resolveAPIKeyFallbackPlatform(ctx)
+	if !ok {
+		return apiKey
+	}
+
+	group, err := findPlatformDefaultGroup(ctx, s.groupRepo, platform)
+	if err != nil || group == nil {
+		return apiKey
+	}
+
+	gid := group.ID
+	apiKey.GroupID = &gid
+	apiKey.Group = group
+	return apiKey
+}
+
+// resolveAPIKeyFallbackPlatform 根据当前请求上下文推断默认分组所属平台。
+// 仅在明确处于网关请求链路时返回 true，避免普通内部调用被意外改写为默认分组。
+func resolveAPIKeyFallbackPlatform(ctx context.Context) (string, bool) {
+	if ctx == nil {
+		return "", false
+	}
+
+	if forcePlatform, ok := ctx.Value(ctxkey.ForcePlatform).(string); ok {
+		forcePlatform = strings.TrimSpace(forcePlatform)
+		if forcePlatform != "" {
+			return forcePlatform, true
+		}
+	}
+
+	inboundEndpoint, ok := ctx.Value(ctxkey.InboundEndpoint).(string)
+	if !ok {
+		return "", false
+	}
+	switch strings.TrimSpace(inboundEndpoint) {
+	case "/v1beta/models":
+		return PlatformGemini, true
+	case "/v1/images/generations", "/v1/images/edits":
+		return PlatformOpenAI, true
+	case "/v1/messages", "/v1/chat/completions", "/v1/responses":
+		// 通用 /v1 入口保持现有语义：未指定平台时默认走 anthropic。
+		return PlatformAnthropic, true
+	default:
+		return "", false
+	}
 }
 
 // Update 更新API Key

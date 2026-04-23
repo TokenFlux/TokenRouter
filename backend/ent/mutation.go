@@ -8223,6 +8223,7 @@ type GroupMutation struct {
 	rate_multiplier                         *float64
 	addrate_multiplier                      *float64
 	is_exclusive                            *bool
+	is_default                              *bool
 	status                                  *string
 	platform                                *string
 	image_price_1k                          *float64
@@ -8660,6 +8661,42 @@ func (m *GroupMutation) OldIsExclusive(ctx context.Context) (v bool, err error) 
 // ResetIsExclusive resets all changes to the "is_exclusive" field.
 func (m *GroupMutation) ResetIsExclusive() {
 	m.is_exclusive = nil
+}
+
+// SetIsDefault sets the "is_default" field.
+func (m *GroupMutation) SetIsDefault(b bool) {
+	m.is_default = &b
+}
+
+// IsDefault returns the value of the "is_default" field in the mutation.
+func (m *GroupMutation) IsDefault() (r bool, exists bool) {
+	v := m.is_default
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldIsDefault returns the old "is_default" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldIsDefault(ctx context.Context) (v bool, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldIsDefault is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldIsDefault requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldIsDefault: %w", err)
+	}
+	return oldValue.IsDefault, nil
+}
+
+// ResetIsDefault resets all changes to the "is_default" field.
+func (m *GroupMutation) ResetIsDefault() {
+	m.is_default = nil
 }
 
 // SetStatus sets the "status" field.
@@ -9778,7 +9815,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 25)
+	fields := make([]string, 0, 26)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -9799,6 +9836,9 @@ func (m *GroupMutation) Fields() []string {
 	}
 	if m.is_exclusive != nil {
 		fields = append(fields, group.FieldIsExclusive)
+	}
+	if m.is_default != nil {
+		fields = append(fields, group.FieldIsDefault)
 	}
 	if m.status != nil {
 		fields = append(fields, group.FieldStatus)
@@ -9876,6 +9916,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.RateMultiplier()
 	case group.FieldIsExclusive:
 		return m.IsExclusive()
+	case group.FieldIsDefault:
+		return m.IsDefault()
 	case group.FieldStatus:
 		return m.Status()
 	case group.FieldPlatform:
@@ -9935,6 +9977,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldRateMultiplier(ctx)
 	case group.FieldIsExclusive:
 		return m.OldIsExclusive(ctx)
+	case group.FieldIsDefault:
+		return m.OldIsDefault(ctx)
 	case group.FieldStatus:
 		return m.OldStatus(ctx)
 	case group.FieldPlatform:
@@ -10028,6 +10072,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetIsExclusive(v)
+		return nil
+	case group.FieldIsDefault:
+		v, ok := value.(bool)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetIsDefault(v)
 		return nil
 	case group.FieldStatus:
 		v, ok := value.(string)
@@ -10362,6 +10413,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldIsExclusive:
 		m.ResetIsExclusive()
+		return nil
+	case group.FieldIsDefault:
+		m.ResetIsDefault()
 		return nil
 	case group.FieldStatus:
 		m.ResetStatus()

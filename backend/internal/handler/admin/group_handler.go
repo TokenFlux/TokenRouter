@@ -35,6 +35,7 @@ type CreateGroupRequest struct {
 	Platform       string  `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity"`
 	RateMultiplier float64 `json:"rate_multiplier"`
 	IsExclusive    bool    `json:"is_exclusive"`
+	IsDefault      bool    `json:"is_default"`
 	// 图片生成计费配置（antigravity 和 gemini 平台使用，负数表示清除配置）
 	ImagePrice1K                    *float64 `json:"image_price_1k"`
 	ImagePrice2K                    *float64 `json:"image_price_2k"`
@@ -65,6 +66,7 @@ type UpdateGroupRequest struct {
 	Platform       string   `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity"`
 	RateMultiplier *float64 `json:"rate_multiplier"`
 	IsExclusive    *bool    `json:"is_exclusive"`
+	IsDefault      *bool    `json:"is_default"`
 	Status         string   `json:"status" binding:"omitempty,oneof=active inactive"`
 	// 图片生成计费配置（antigravity 和 gemini 平台使用，负数表示清除配置）
 	ImagePrice1K                    *float64 `json:"image_price_1k"`
@@ -183,6 +185,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		Platform:                        req.Platform,
 		RateMultiplier:                  req.RateMultiplier,
 		IsExclusive:                     req.IsExclusive,
+		IsDefault:                       req.IsDefault,
 		ImagePrice1K:                    req.ImagePrice1K,
 		ImagePrice2K:                    req.ImagePrice2K,
 		ImagePrice4K:                    req.ImagePrice4K,
@@ -229,6 +232,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		Platform:                        req.Platform,
 		RateMultiplier:                  req.RateMultiplier,
 		IsExclusive:                     req.IsExclusive,
+		IsDefault:                       req.IsDefault,
 		Status:                          req.Status,
 		ImagePrice1K:                    req.ImagePrice1K,
 		ImagePrice2K:                    req.ImagePrice2K,

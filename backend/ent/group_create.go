@@ -117,6 +117,20 @@ func (_c *GroupCreate) SetNillableIsExclusive(v *bool) *GroupCreate {
 	return _c
 }
 
+// SetIsDefault sets the "is_default" field.
+func (_c *GroupCreate) SetIsDefault(v bool) *GroupCreate {
+	_c.mutation.SetIsDefault(v)
+	return _c
+}
+
+// SetNillableIsDefault sets the "is_default" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableIsDefault(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetIsDefault(*v)
+	}
+	return _c
+}
+
 // SetStatus sets the "status" field.
 func (_c *GroupCreate) SetStatus(v string) *GroupCreate {
 	_c.mutation.SetStatus(v)
@@ -472,6 +486,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultIsExclusive
 		_c.mutation.SetIsExclusive(v)
 	}
+	if _, ok := _c.mutation.IsDefault(); !ok {
+		v := group.DefaultIsDefault
+		_c.mutation.SetIsDefault(v)
+	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := group.DefaultStatus
 		_c.mutation.SetStatus(v)
@@ -544,6 +562,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.IsExclusive(); !ok {
 		return &ValidationError{Name: "is_exclusive", err: errors.New(`ent: missing required field "Group.is_exclusive"`)}
+	}
+	if _, ok := _c.mutation.IsDefault(); !ok {
+		return &ValidationError{Name: "is_default", err: errors.New(`ent: missing required field "Group.is_default"`)}
 	}
 	if _, ok := _c.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "Group.status"`)}
@@ -650,6 +671,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.IsExclusive(); ok {
 		_spec.SetField(group.FieldIsExclusive, field.TypeBool, value)
 		_node.IsExclusive = value
+	}
+	if value, ok := _c.mutation.IsDefault(); ok {
+		_spec.SetField(group.FieldIsDefault, field.TypeBool, value)
+		_node.IsDefault = value
 	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(group.FieldStatus, field.TypeString, value)
@@ -934,6 +959,18 @@ func (u *GroupUpsert) SetIsExclusive(v bool) *GroupUpsert {
 // UpdateIsExclusive sets the "is_exclusive" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateIsExclusive() *GroupUpsert {
 	u.SetExcluded(group.FieldIsExclusive)
+	return u
+}
+
+// SetIsDefault sets the "is_default" field.
+func (u *GroupUpsert) SetIsDefault(v bool) *GroupUpsert {
+	u.Set(group.FieldIsDefault, v)
+	return u
+}
+
+// UpdateIsDefault sets the "is_default" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateIsDefault() *GroupUpsert {
+	u.SetExcluded(group.FieldIsDefault)
 	return u
 }
 
@@ -1372,6 +1409,20 @@ func (u *GroupUpsertOne) SetIsExclusive(v bool) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateIsExclusive() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateIsExclusive()
+	})
+}
+
+// SetIsDefault sets the "is_default" field.
+func (u *GroupUpsertOne) SetIsDefault(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetIsDefault(v)
+	})
+}
+
+// UpdateIsDefault sets the "is_default" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateIsDefault() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateIsDefault()
 	})
 }
 
@@ -2024,6 +2075,20 @@ func (u *GroupUpsertBulk) SetIsExclusive(v bool) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateIsExclusive() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateIsExclusive()
+	})
+}
+
+// SetIsDefault sets the "is_default" field.
+func (u *GroupUpsertBulk) SetIsDefault(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetIsDefault(v)
+	})
+}
+
+// UpdateIsDefault sets the "is_default" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateIsDefault() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateIsDefault()
 	})
 }
 

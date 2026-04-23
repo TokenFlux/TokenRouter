@@ -441,6 +441,7 @@ export interface Group {
   platform: GroupPlatform
   rate_multiplier: number
   is_exclusive: boolean
+  is_default?: boolean
   status: 'active' | 'inactive'
   // 图片生成计费配置（仅 antigravity 平台使用）
   image_price_1k: number | null
@@ -548,6 +549,7 @@ export interface CreateGroupRequest {
   platform?: GroupPlatform
   rate_multiplier?: number
   is_exclusive?: boolean
+  is_default?: boolean
   image_price_1k?: number | null
   image_price_2k?: number | null
   image_price_4k?: number | null
@@ -568,6 +570,7 @@ export interface UpdateGroupRequest {
   platform?: GroupPlatform
   rate_multiplier?: number
   is_exclusive?: boolean
+  is_default?: boolean
   status?: 'active' | 'inactive'
   image_price_1k?: number | null
   image_price_2k?: number | null

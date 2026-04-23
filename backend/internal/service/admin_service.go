@@ -133,6 +133,7 @@ type CreateGroupInput struct {
 	Platform       string
 	RateMultiplier float64
 	IsExclusive    bool
+	IsDefault      bool
 	// 图片生成计费配置（仅 antigravity 平台使用）
 	ImagePrice1K    *float64
 	ImagePrice2K    *float64
@@ -163,6 +164,7 @@ type UpdateGroupInput struct {
 	Platform       string
 	RateMultiplier *float64 // 使用指针以支持设置为0
 	IsExclusive    *bool
+	IsDefault      *bool
 	Status         string
 	// 图片生成计费配置（仅 antigravity 平台使用）
 	ImagePrice1K    *float64
@@ -946,6 +948,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		Platform:                        platform,
 		RateMultiplier:                  input.RateMultiplier,
 		IsExclusive:                     input.IsExclusive,
+		IsDefault:                       input.IsDefault,
 		Status:                          StatusActive,
 		ImagePrice1K:                    imagePrice1K,
 		ImagePrice2K:                    imagePrice2K,
@@ -963,11 +966,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		MessagesDispatchModelConfig:     normalizeOpenAIMessagesDispatchModelConfig(input.MessagesDispatchModelConfig),
 	}
 	sanitizeGroupMessagesDispatchFields(group)
-	if err := s.groupRepo.Create(ctx, group); err != nil {
-		return nil, err
-	}
-
-	// require_oauth_only: 过滤掉 apikey 类型账号
+	normalizeGroupDefaultState(group)
 	if group.RequireOAuthOnly && (group.Platform == PlatformOpenAI || group.Platform == PlatformAntigravity || group.Platform == PlatformAnthropic || group.Platform == PlatformGemini) && len(accountIDsToCopy) > 0 {
 		accounts, err := s.accountRepo.GetByIDs(ctx, accountIDsToCopy)
 		if err != nil {
@@ -988,11 +987,25 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		accountIDsToCopy = filtered
 	}
 
-	// 如果有需要复制的账号，绑定到新分组
-	if len(accountIDsToCopy) > 0 {
-		if err := s.groupRepo.BindAccountsToGroup(ctx, group.ID, accountIDsToCopy); err != nil {
-			return nil, fmt.Errorf("failed to bind accounts to new group: %w", err)
+	if err := s.runGroupMutationTx(ctx, func(opCtx context.Context) error {
+		if err := s.clearOtherPlatformDefaultGroups(opCtx, group.Platform, 0, group.IsDefault); err != nil {
+			return err
 		}
+		if err := s.groupRepo.Create(opCtx, group); err != nil {
+			return translateGroupDefaultConflict(err)
+		}
+		// 账号复制与默认组切换放在同一事务中，避免出现部分提交。
+		if len(accountIDsToCopy) > 0 {
+			if err := s.groupRepo.BindAccountsToGroup(opCtx, group.ID, accountIDsToCopy); err != nil {
+				return fmt.Errorf("failed to bind accounts to new group: %w", err)
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if len(accountIDsToCopy) > 0 {
 		group.AccountCount = int64(len(accountIDsToCopy))
 	}
 
@@ -1005,6 +1018,73 @@ func normalizePrice(price *float64) *float64 {
 		return nil
 	}
 	return price
+}
+
+// normalizeGroupDefaultState 统一处理默认分组的最终状态。
+// 非 active 分组不保留默认标记，避免出现“默认但不可用”的歧义。
+func normalizeGroupDefaultState(group *Group) {
+	if group == nil {
+		return
+	}
+	if group.Status != StatusActive {
+		group.IsDefault = false
+	}
+}
+
+// runGroupMutationTx 在可用时为分组变更开启事务，保证“切换默认组”过程原子化。
+func (s *adminServiceImpl) runGroupMutationTx(ctx context.Context, fn func(context.Context) error) error {
+	if dbent.TxFromContext(ctx) != nil || s.entClient == nil {
+		return fn(ctx)
+	}
+
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin group mutation transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	txCtx := dbent.NewTxContext(ctx, tx)
+	if err := fn(txCtx); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit group mutation transaction: %w", err)
+	}
+	return nil
+}
+
+// clearOtherPlatformDefaultGroups 清理同平台的其他默认分组。
+// 只有当当前分组准备成为默认分组时才会执行，避免无意义的额外更新。
+func (s *adminServiceImpl) clearOtherPlatformDefaultGroups(ctx context.Context, platform string, excludeID int64, enableDefault bool) error {
+	if !enableDefault {
+		return nil
+	}
+
+	groups, err := s.groupRepo.ListActiveByPlatformLite(ctx, platform)
+	if err != nil {
+		return fmt.Errorf("list active groups by platform: %w", err)
+	}
+	for i := range groups {
+		group := groups[i]
+		if group.ID == excludeID || !group.IsDefault {
+			continue
+		}
+		group.IsDefault = false
+		if err := s.groupRepo.Update(ctx, &group); err != nil {
+			return translateGroupDefaultConflict(err)
+		}
+	}
+	return nil
+}
+
+func translateGroupDefaultConflict(err error) error {
+	if err == nil {
+		return nil
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "groups_platform_default_active_unique") {
+		return infraerrors.Conflict("GROUP_DEFAULT_CONFLICT", "default group already exists for this platform").WithCause(err)
+	}
+	return err
 }
 
 // validateFallbackGroup 校验降级分组的有效性
@@ -1094,6 +1174,9 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.IsExclusive != nil {
 		group.IsExclusive = *input.IsExclusive
 	}
+	if input.IsDefault != nil {
+		group.IsDefault = *input.IsDefault
+	}
 	if input.Status != "" {
 		group.Status = input.Status
 	}
@@ -1173,12 +1256,10 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		group.MessagesDispatchModelConfig = normalizeOpenAIMessagesDispatchModelConfig(*input.MessagesDispatchModelConfig)
 	}
 	sanitizeGroupMessagesDispatchFields(group)
-
-	if err := s.groupRepo.Update(ctx, group); err != nil {
-		return nil, err
-	}
+	normalizeGroupDefaultState(group)
 
 	// 如果指定了复制账号的源分组，同步绑定（替换当前分组的账号）
+	var accountIDsToCopy []int64
 	if len(input.CopyAccountsFromGroupIDs) > 0 {
 		// 去重源分组 IDs
 		seen := make(map[int64]struct{})
@@ -1207,14 +1288,9 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		}
 
 		// 获取所有源分组的账号（去重）
-		accountIDsToCopy, err := s.groupRepo.GetAccountIDsByGroupIDs(ctx, uniqueSourceGroupIDs)
+		accountIDsToCopy, err = s.groupRepo.GetAccountIDsByGroupIDs(ctx, uniqueSourceGroupIDs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get accounts from source groups: %w", err)
-		}
-
-		// 先清空当前分组的所有账号绑定
-		if _, err := s.groupRepo.DeleteAccountGroupsByGroupID(ctx, id); err != nil {
-			return nil, fmt.Errorf("failed to clear existing account bindings: %w", err)
 		}
 
 		// require_oauth_only: 过滤掉 apikey 类型账号
@@ -1237,13 +1313,29 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 			}
 			accountIDsToCopy = filtered
 		}
+	}
 
-		// 再绑定源分组的账号
-		if len(accountIDsToCopy) > 0 {
-			if err := s.groupRepo.BindAccountsToGroup(ctx, id, accountIDsToCopy); err != nil {
-				return nil, fmt.Errorf("failed to bind accounts to group: %w", err)
+	if err := s.runGroupMutationTx(ctx, func(opCtx context.Context) error {
+		if err := s.clearOtherPlatformDefaultGroups(opCtx, group.Platform, group.ID, group.IsDefault); err != nil {
+			return err
+		}
+		if err := s.groupRepo.Update(opCtx, group); err != nil {
+			return translateGroupDefaultConflict(err)
+		}
+		// 分组属性更新和账号替换必须同事务提交，避免删绑成功一半。
+		if len(input.CopyAccountsFromGroupIDs) > 0 {
+			if _, err := s.groupRepo.DeleteAccountGroupsByGroupID(opCtx, id); err != nil {
+				return fmt.Errorf("failed to clear existing account bindings: %w", err)
+			}
+			if len(accountIDsToCopy) > 0 {
+				if err := s.groupRepo.BindAccountsToGroup(opCtx, id, accountIDsToCopy); err != nil {
+					return fmt.Errorf("failed to bind accounts to group: %w", err)
+				}
 			}
 		}
+		return nil
+	}); err != nil {
+		return nil, err
 	}
 
 	if s.authCacheInvalidator != nil {
@@ -1500,15 +1592,9 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 	groupIDs := input.GroupIDs
 	// 如果没有指定分组,自动绑定对应平台的默认分组
 	if len(groupIDs) == 0 && !input.SkipDefaultGroupBind {
-		defaultGroupName := input.Platform + "-default"
-		groups, err := s.groupRepo.ListActiveByPlatform(ctx, input.Platform)
-		if err == nil {
-			for _, g := range groups {
-				if g.Name == defaultGroupName {
-					groupIDs = []int64{g.ID}
-					break
-				}
-			}
+		defaultGroup, err := findPlatformDefaultGroup(ctx, s.groupRepo, input.Platform)
+		if err == nil && defaultGroup != nil {
+			groupIDs = []int64{defaultGroup.ID}
 		}
 	}
 

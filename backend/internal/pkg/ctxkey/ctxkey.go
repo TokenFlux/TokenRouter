@@ -8,6 +8,10 @@ const (
 	// ForcePlatform 强制平台（用于 /antigravity 路由），由 middleware.ForcePlatform 设置
 	ForcePlatform Key = "ctx_force_platform"
 
+	// InboundEndpoint 规范化后的入站端点（如 /v1/messages、/v1beta/models）。
+	// 由网关入口中间件写入，供认证阶段做默认分组回退判断。
+	InboundEndpoint Key = "ctx_inbound_endpoint"
+
 	// RequestID 为服务端生成/透传的请求 ID。
 	RequestID Key = "ctx_request_id"
 

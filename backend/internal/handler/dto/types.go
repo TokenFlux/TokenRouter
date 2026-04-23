@@ -87,6 +87,7 @@ type Group struct {
 	Platform       string  `json:"platform"`
 	RateMultiplier float64 `json:"rate_multiplier"`
 	IsExclusive    bool    `json:"is_exclusive"`
+	IsDefault      bool    `json:"is_default"`
 	Status         string  `json:"status"`
 
 	// 图片生成计费配置（仅 antigravity 平台使用）

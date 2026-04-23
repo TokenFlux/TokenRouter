@@ -129,6 +129,20 @@ func (_u *GroupUpdate) SetNillableIsExclusive(v *bool) *GroupUpdate {
 	return _u
 }
 
+// SetIsDefault sets the "is_default" field.
+func (_u *GroupUpdate) SetIsDefault(v bool) *GroupUpdate {
+	_u.mutation.SetIsDefault(v)
+	return _u
+}
+
+// SetNillableIsDefault sets the "is_default" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableIsDefault(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetIsDefault(*v)
+	}
+	return _u
+}
+
 // SetStatus sets the "status" field.
 func (_u *GroupUpdate) SetStatus(v string) *GroupUpdate {
 	_u.mutation.SetStatus(v)
@@ -704,6 +718,9 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.IsExclusive(); ok {
 		_spec.SetField(group.FieldIsExclusive, field.TypeBool, value)
 	}
+	if value, ok := _u.mutation.IsDefault(); ok {
+		_spec.SetField(group.FieldIsDefault, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(group.FieldStatus, field.TypeString, value)
 	}
@@ -1114,6 +1131,20 @@ func (_u *GroupUpdateOne) SetIsExclusive(v bool) *GroupUpdateOne {
 func (_u *GroupUpdateOne) SetNillableIsExclusive(v *bool) *GroupUpdateOne {
 	if v != nil {
 		_u.SetIsExclusive(*v)
+	}
+	return _u
+}
+
+// SetIsDefault sets the "is_default" field.
+func (_u *GroupUpdateOne) SetIsDefault(v bool) *GroupUpdateOne {
+	_u.mutation.SetIsDefault(v)
+	return _u
+}
+
+// SetNillableIsDefault sets the "is_default" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableIsDefault(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetIsDefault(*v)
 	}
 	return _u
 }
@@ -1722,6 +1753,9 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.IsExclusive(); ok {
 		_spec.SetField(group.FieldIsExclusive, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.IsDefault(); ok {
+		_spec.SetField(group.FieldIsDefault, field.TypeBool, value)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(group.FieldStatus, field.TypeString, value)

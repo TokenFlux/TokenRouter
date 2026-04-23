@@ -1687,6 +1687,13 @@ export default {
       platformHint: 'Select the platform this group is associated with',
       platformNotEditable: 'Platform cannot be changed after creation',
       rateMultiplierHint: 'Cost multiplier for this group (e.g., 1.5 = 150% of base cost)',
+      defaultGroup: {
+        title: 'Default Group',
+        badge: 'Default',
+        enabled: 'Use as default group',
+        disabled: 'Do not use as default group',
+        hint: 'When an API key has no valid group binding, requests fall back to the default group for that platform. Only one default group is kept per platform.'
+      },
       exclusiveHint: 'Exclusive group, manually assign to specific users',
       exclusiveTooltip: {
         title: 'What is an exclusive group?',

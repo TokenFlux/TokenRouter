@@ -204,6 +204,7 @@ func groupFromServiceBase(g *service.Group) Group {
 		Platform:                        g.Platform,
 		RateMultiplier:                  g.RateMultiplier,
 		IsExclusive:                     g.IsExclusive,
+		IsDefault:                       g.IsDefault,
 		Status:                          g.Status,
 		ImagePrice1K:                    g.ImagePrice1K,
 		ImagePrice2K:                    g.ImagePrice2K,

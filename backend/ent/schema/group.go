@@ -47,6 +47,9 @@ func (Group) Fields() []ent.Field {
 			Default(1.0),
 		field.Bool("is_exclusive").
 			Default(false),
+		field.Bool("is_default").
+			Default(false).
+			Comment("是否为当前平台的默认分组"),
 		field.String("status").
 			MaxLen(20).
 			Default(domain.StatusActive),
@@ -151,6 +154,7 @@ func (Group) Indexes() []ent.Index {
 		index.Fields("status"),
 		index.Fields("platform"),
 		index.Fields("is_exclusive"),
+		index.Fields("is_default"),
 		index.Fields("deleted_at"),
 		index.Fields("sort_order"),
 	}

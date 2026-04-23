@@ -90,10 +90,18 @@
           default-sort-order="asc"
           @sort="handleSort"
         >
-          <template #cell-name="{ value }">
-            <span class="font-medium text-gray-900 dark:text-white">{{
-              value
-            }}</span>
+          <template #cell-name="{ value, row }">
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-gray-900 dark:text-white">{{
+                value
+              }}</span>
+              <span
+                v-if="row.is_default"
+                class="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+              >
+                {{ t("admin.groups.defaultGroup.badge") }}
+              </span>
+            </div>
           </template>
 
           <template #cell-platform="{ value }">
@@ -496,6 +504,40 @@
               }}
             </span>
           </div>
+        </div>
+        <div>
+          <div class="mb-1.5 flex items-center gap-1">
+            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {{ t("admin.groups.defaultGroup.title") }}
+            </label>
+          </div>
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              @click="createForm.is_default = !createForm.is_default"
+              :class="[
+                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                createForm.is_default
+                  ? 'bg-emerald-500'
+                  : 'bg-gray-300 dark:bg-dark-600',
+              ]"
+            >
+              <span
+                :class="[
+                  'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                  createForm.is_default ? 'translate-x-6' : 'translate-x-1',
+                ]"
+              />
+            </button>
+            <span class="text-sm text-gray-500 dark:text-gray-400">
+              {{
+                createForm.is_default
+                  ? t("admin.groups.defaultGroup.enabled")
+                  : t("admin.groups.defaultGroup.disabled")
+              }}
+            </span>
+          </div>
+          <p class="input-hint">{{ t("admin.groups.defaultGroup.hint") }}</p>
         </div>
 
         <!-- 图片生成计费配置（antigravity 和 gemini 平台） -->
@@ -1554,6 +1596,42 @@
         <div>
           <label class="input-label">{{ t("admin.groups.form.status") }}</label>
           <Select v-model="editForm.status" :options="editStatusOptions" />
+        </div>
+        <div>
+          <div class="mb-1.5 flex items-center gap-1">
+            <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {{ t("admin.groups.defaultGroup.title") }}
+            </label>
+          </div>
+          <div class="flex items-center gap-3">
+            <button
+              type="button"
+              :disabled="editForm.status !== 'active'"
+              @click="editForm.is_default = !editForm.is_default"
+              :class="[
+                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors',
+                editForm.is_default
+                  ? 'bg-emerald-500'
+                  : 'bg-gray-300 dark:bg-dark-600',
+                editForm.status !== 'active' ? 'cursor-not-allowed opacity-60' : '',
+              ]"
+            >
+              <span
+                :class="[
+                  'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                  editForm.is_default ? 'translate-x-6' : 'translate-x-1',
+                ]"
+              />
+            </button>
+            <span class="text-sm text-gray-500 dark:text-gray-400">
+              {{
+                editForm.is_default
+                  ? t("admin.groups.defaultGroup.enabled")
+                  : t("admin.groups.defaultGroup.disabled")
+              }}
+            </span>
+          </div>
+          <p class="input-hint">{{ t("admin.groups.defaultGroup.hint") }}</p>
         </div>
 
         <!-- 图片生成计费配置（antigravity 和 gemini 平台） -->
@@ -2754,6 +2832,7 @@ const createForm = reactive({
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
   is_exclusive: false,
+  is_default: false,
   // 图片生成计费配置（仅 antigravity 平台使用）
   image_price_1k: null as number | null,
   image_price_2k: null as number | null,
@@ -3029,6 +3108,7 @@ const editForm = reactive({
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
   is_exclusive: false,
+  is_default: false,
   status: "active" as "active" | "inactive",
   // 图片生成计费配置（仅 antigravity 平台使用）
   image_price_1k: null as number | null,
@@ -3206,6 +3286,7 @@ const closeCreateModal = () => {
   createForm.platform = "anthropic";
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
+  createForm.is_default = false;
   createForm.image_price_1k = null;
   createForm.image_price_2k = null;
   createForm.image_price_4k = null;
@@ -3271,6 +3352,7 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.platform = group.platform;
   editForm.rate_multiplier = group.rate_multiplier;
   editForm.is_exclusive = group.is_exclusive;
+  editForm.is_default = group.is_default ?? false;
   editForm.status = group.status;
   editForm.image_price_1k = group.image_price_1k;
   editForm.image_price_2k = group.image_price_2k;
@@ -3315,6 +3397,7 @@ const closeEditModal = () => {
   showEditModal.value = false;
   editingGroup.value = null;
   editModelRoutingRules.value = [];
+  editForm.is_default = false;
   editForm.copy_accounts_from_group_ids = [];
   resetMessagesDispatchFormState(editForm);
 };
@@ -3415,6 +3498,15 @@ const confirmDelete = async () => {
     console.error("Error deleting group:", error);
   }
 };
+
+watch(
+  () => editForm.status,
+  (newVal) => {
+    if (newVal !== "active") {
+      editForm.is_default = false;
+    }
+  },
+);
 
 watch(
   () => createForm.platform,

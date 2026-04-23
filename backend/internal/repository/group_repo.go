@@ -37,14 +37,25 @@ func newGroupRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor) *groupRep
 	return &groupRepository{client: client, sql: sqlq}
 }
 
+func (r *groupRepository) sqlExecutorFromContext(ctx context.Context) sqlExecutor {
+	if tx := dbent.TxFromContext(ctx); tx != nil {
+		return tx.Client()
+	}
+	return r.sql
+}
+
 func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) error {
-	builder := r.client.Group.Create().
+	client := clientFromContext(ctx, r.client)
+	sqlq := r.sqlExecutorFromContext(ctx)
+
+	builder := client.Group.Create().
 		SetName(groupIn.Name).
 		SetDescription(groupIn.Description).
 		SetPlatform(groupIn.Platform).
 		SetRateMultiplier(groupIn.RateMultiplier).
 		SetSortOrder(groupIn.SortOrder).
 		SetIsExclusive(groupIn.IsExclusive).
+		SetIsDefault(groupIn.IsDefault).
 		SetStatus(groupIn.Status).
 		SetNillableImagePrice1k(groupIn.ImagePrice1K).
 		SetNillableImagePrice2k(groupIn.ImagePrice2K).
@@ -73,7 +84,7 @@ func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) er
 		groupIn.ID = created.ID
 		groupIn.CreatedAt = created.CreatedAt
 		groupIn.UpdatedAt = created.UpdatedAt
-		if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &groupIn.ID, nil); err != nil {
+		if err := enqueueSchedulerOutbox(ctx, sqlq, service.SchedulerOutboxEventGroupChanged, nil, &groupIn.ID, nil); err != nil {
 			logger.LegacyPrintf("repository.group", "[SchedulerOutbox] enqueue group create failed: group=%d err=%v", groupIn.ID, err)
 		}
 	}
@@ -92,8 +103,10 @@ func (r *groupRepository) GetByID(ctx context.Context, id int64) (*service.Group
 }
 
 func (r *groupRepository) GetByIDLite(ctx context.Context, id int64) (*service.Group, error) {
+	client := clientFromContext(ctx, r.client)
+
 	// AccountCount is intentionally not loaded here; use GetByID when needed.
-	m, err := r.client.Group.Query().
+	m, err := client.Group.Query().
 		Where(group.IDEQ(id)).
 		Only(ctx)
 	if err != nil {
@@ -103,12 +116,16 @@ func (r *groupRepository) GetByIDLite(ctx context.Context, id int64) (*service.G
 }
 
 func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) error {
-	builder := r.client.Group.UpdateOneID(groupIn.ID).
+	client := clientFromContext(ctx, r.client)
+	sqlq := r.sqlExecutorFromContext(ctx)
+
+	builder := client.Group.UpdateOneID(groupIn.ID).
 		SetName(groupIn.Name).
 		SetDescription(groupIn.Description).
 		SetPlatform(groupIn.Platform).
 		SetRateMultiplier(groupIn.RateMultiplier).
 		SetIsExclusive(groupIn.IsExclusive).
+		SetIsDefault(groupIn.IsDefault).
 		SetStatus(groupIn.Status).
 		SetNillableImagePrice1k(groupIn.ImagePrice1K).
 		SetNillableImagePrice2k(groupIn.ImagePrice2K).
@@ -166,18 +183,21 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		return translatePersistenceError(err, service.ErrGroupNotFound, service.ErrGroupExists)
 	}
 	groupIn.UpdatedAt = updated.UpdatedAt
-	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &groupIn.ID, nil); err != nil {
+	if err := enqueueSchedulerOutbox(ctx, sqlq, service.SchedulerOutboxEventGroupChanged, nil, &groupIn.ID, nil); err != nil {
 		logger.LegacyPrintf("repository.group", "[SchedulerOutbox] enqueue group update failed: group=%d err=%v", groupIn.ID, err)
 	}
 	return nil
 }
 
 func (r *groupRepository) Delete(ctx context.Context, id int64) error {
-	_, err := r.client.Group.Delete().Where(group.IDEQ(id)).Exec(ctx)
+	client := clientFromContext(ctx, r.client)
+	sqlq := r.sqlExecutorFromContext(ctx)
+
+	_, err := client.Group.Delete().Where(group.IDEQ(id)).Exec(ctx)
 	if err != nil {
 		return translatePersistenceError(err, service.ErrGroupNotFound, nil)
 	}
-	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &id, nil); err != nil {
+	if err := enqueueSchedulerOutbox(ctx, sqlq, service.SchedulerOutboxEventGroupChanged, nil, &id, nil); err != nil {
 		logger.LegacyPrintf("repository.group", "[SchedulerOutbox] enqueue group delete failed: group=%d err=%v", id, err)
 	}
 	return nil
@@ -188,7 +208,8 @@ func (r *groupRepository) List(ctx context.Context, params pagination.Pagination
 }
 
 func (r *groupRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, platform, status, search string, isExclusive *bool) ([]service.Group, *pagination.PaginationResult, error) {
-	q := r.client.Group.Query()
+	client := clientFromContext(ctx, r.client)
+	q := client.Group.Query()
 
 	if platform != "" {
 		q = q.Where(group.PlatformEQ(platform))
@@ -344,7 +365,9 @@ func groupListOrder(params pagination.PaginationParams) []func(*entsql.Selector)
 }
 
 func (r *groupRepository) ListActive(ctx context.Context) ([]service.Group, error) {
-	groups, err := r.client.Group.Query().
+	client := clientFromContext(ctx, r.client)
+
+	groups, err := client.Group.Query().
 		Where(group.StatusEQ(service.StatusActive)).
 		Order(dbent.Asc(group.FieldSortOrder), dbent.Asc(group.FieldID)).
 		All(ctx)
@@ -374,20 +397,14 @@ func (r *groupRepository) ListActive(ctx context.Context) ([]service.Group, erro
 }
 
 func (r *groupRepository) ListActiveByPlatform(ctx context.Context, platform string) ([]service.Group, error) {
-	groups, err := r.client.Group.Query().
-		Where(group.StatusEQ(service.StatusActive), group.PlatformEQ(platform)).
-		Order(dbent.Asc(group.FieldSortOrder), dbent.Asc(group.FieldID)).
-		All(ctx)
+	outGroups, err := r.ListActiveByPlatformLite(ctx, platform)
 	if err != nil {
 		return nil, err
 	}
 
-	groupIDs := make([]int64, 0, len(groups))
-	outGroups := make([]service.Group, 0, len(groups))
-	for i := range groups {
-		g := groupEntityToService(groups[i])
-		outGroups = append(outGroups, *g)
-		groupIDs = append(groupIDs, g.ID)
+	groupIDs := make([]int64, 0, len(outGroups))
+	for i := range outGroups {
+		groupIDs = append(groupIDs, outGroups[i].ID)
 	}
 
 	counts, err := r.loadAccountCounts(ctx, groupIDs)
@@ -403,13 +420,36 @@ func (r *groupRepository) ListActiveByPlatform(ctx context.Context, platform str
 	return outGroups, nil
 }
 
+// ListActiveByPlatformLite 返回指定平台的活跃分组，但不加载账号统计。
+func (r *groupRepository) ListActiveByPlatformLite(ctx context.Context, platform string) ([]service.Group, error) {
+	client := clientFromContext(ctx, r.client)
+
+	groups, err := client.Group.Query().
+		Where(group.StatusEQ(service.StatusActive), group.PlatformEQ(platform)).
+		Order(dbent.Asc(group.FieldSortOrder), dbent.Asc(group.FieldID)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	outGroups := make([]service.Group, 0, len(groups))
+	for i := range groups {
+		g := groupEntityToService(groups[i])
+		outGroups = append(outGroups, *g)
+	}
+
+	return outGroups, nil
+}
+
 func (r *groupRepository) ExistsByName(ctx context.Context, name string) (bool, error) {
-	return r.client.Group.Query().Where(group.NameEQ(name)).Exist(ctx)
+	client := clientFromContext(ctx, r.client)
+	return client.Group.Query().Where(group.NameEQ(name)).Exist(ctx)
 }
 
 // ExistsByIDs 批量检查分组是否存在（仅检查未软删除记录）。
 // 返回结构：map[groupID]exists。
 func (r *groupRepository) ExistsByIDs(ctx context.Context, ids []int64) (map[int64]bool, error) {
+	sqlq := r.sqlExecutorFromContext(ctx)
 	result := make(map[int64]bool, len(ids))
 	if len(ids) == 0 {
 		return result, nil
@@ -432,7 +472,7 @@ func (r *groupRepository) ExistsByIDs(ctx context.Context, ids []int64) (map[int
 		return result, nil
 	}
 
-	rows, err := r.sql.QueryContext(ctx, `
+	rows, err := sqlq.QueryContext(ctx, `
 		SELECT id
 		FROM groups
 		WHERE id = ANY($1) AND deleted_at IS NULL
@@ -456,8 +496,9 @@ func (r *groupRepository) ExistsByIDs(ctx context.Context, ids []int64) (map[int
 }
 
 func (r *groupRepository) GetAccountCount(ctx context.Context, groupID int64) (total int64, active int64, err error) {
+	sqlq := r.sqlExecutorFromContext(ctx)
 	var rateLimited int64
-	err = scanSingleRow(ctx, r.sql,
+	err = scanSingleRow(ctx, sqlq,
 		`SELECT COUNT(*),
 			COUNT(*) FILTER (WHERE a.status = 'active' AND a.schedulable = true),
 			COUNT(*) FILTER (WHERE a.status = 'active' AND (
@@ -472,12 +513,14 @@ func (r *groupRepository) GetAccountCount(ctx context.Context, groupID int64) (t
 }
 
 func (r *groupRepository) DeleteAccountGroupsByGroupID(ctx context.Context, groupID int64) (int64, error) {
-	res, err := r.sql.ExecContext(ctx, "DELETE FROM account_groups WHERE group_id = $1", groupID)
+	sqlq := r.sqlExecutorFromContext(ctx)
+
+	res, err := sqlq.ExecContext(ctx, "DELETE FROM account_groups WHERE group_id = $1", groupID)
 	if err != nil {
 		return 0, err
 	}
 	affected, _ := res.RowsAffected()
-	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &groupID, nil); err != nil {
+	if err := enqueueSchedulerOutbox(ctx, sqlq, service.SchedulerOutboxEventGroupChanged, nil, &groupID, nil); err != nil {
 		logger.LegacyPrintf("repository.group", "[SchedulerOutbox] enqueue group account clear failed: group=%d err=%v", groupID, err)
 	}
 	return affected, nil
@@ -575,12 +618,13 @@ type groupAccountCounts struct {
 }
 
 func (r *groupRepository) loadAccountCounts(ctx context.Context, groupIDs []int64) (counts map[int64]groupAccountCounts, err error) {
+	sqlq := r.sqlExecutorFromContext(ctx)
 	counts = make(map[int64]groupAccountCounts, len(groupIDs))
 	if len(groupIDs) == 0 {
 		return counts, nil
 	}
 
-	rows, err := r.sql.QueryContext(
+	rows, err := sqlq.QueryContext(
 		ctx,
 		`SELECT ag.group_id,
 			COUNT(*) AS total,
@@ -623,11 +667,12 @@ func (r *groupRepository) loadAccountCounts(ctx context.Context, groupIDs []int6
 
 // GetAccountIDsByGroupIDs 获取多个分组的所有账号 ID（去重）
 func (r *groupRepository) GetAccountIDsByGroupIDs(ctx context.Context, groupIDs []int64) ([]int64, error) {
+	sqlq := r.sqlExecutorFromContext(ctx)
 	if len(groupIDs) == 0 {
 		return nil, nil
 	}
 
-	rows, err := r.sql.QueryContext(
+	rows, err := sqlq.QueryContext(
 		ctx,
 		"SELECT DISTINCT account_id FROM account_groups WHERE group_id = ANY($1) ORDER BY account_id",
 		pq.Array(groupIDs),
@@ -654,12 +699,13 @@ func (r *groupRepository) GetAccountIDsByGroupIDs(ctx context.Context, groupIDs 
 
 // BindAccountsToGroup 将多个账号绑定到指定分组（批量插入，忽略已存在的绑定）
 func (r *groupRepository) BindAccountsToGroup(ctx context.Context, groupID int64, accountIDs []int64) error {
+	sqlq := r.sqlExecutorFromContext(ctx)
 	if len(accountIDs) == 0 {
 		return nil
 	}
 
 	// 使用 INSERT ... ON CONFLICT DO NOTHING 忽略已存在的绑定
-	_, err := r.sql.ExecContext(
+	_, err := sqlq.ExecContext(
 		ctx,
 		`INSERT INTO account_groups (account_id, group_id, priority, created_at)
 		 SELECT unnest($1::bigint[]), $2, 50, NOW()
@@ -672,7 +718,7 @@ func (r *groupRepository) BindAccountsToGroup(ctx context.Context, groupID int64
 	}
 
 	// 发送调度器事件
-	if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &groupID, nil); err != nil {
+	if err := enqueueSchedulerOutbox(ctx, sqlq, service.SchedulerOutboxEventGroupChanged, nil, &groupID, nil); err != nil {
 		logger.LegacyPrintf("repository.group", "[SchedulerOutbox] enqueue bind accounts to group failed: group=%d err=%v", groupID, err)
 	}
 
@@ -681,6 +727,7 @@ func (r *groupRepository) BindAccountsToGroup(ctx context.Context, groupID int64
 
 // UpdateSortOrders 批量更新分组排序
 func (r *groupRepository) UpdateSortOrders(ctx context.Context, updates []service.GroupSortOrderUpdate) error {
+	sqlq := r.sqlExecutorFromContext(ctx)
 	if len(updates) == 0 {
 		return nil
 	}
@@ -705,7 +752,7 @@ func (r *groupRepository) UpdateSortOrders(ctx context.Context, updates []servic
 	var existingCount int
 	if err := scanSingleRow(
 		ctx,
-		r.sql,
+		sqlq,
 		`SELECT COUNT(*) FROM groups WHERE deleted_at IS NULL AND id = ANY($1)`,
 		[]any{pq.Array(groupIDs)},
 		&existingCount,
@@ -735,7 +782,7 @@ func (r *groupRepository) UpdateSortOrders(ctx context.Context, updates []servic
 		WHERE deleted_at IS NULL AND id = ANY($%d)
 	`, strings.Join(caseClauses, "\n\t\t\t"), placeholder)
 
-	result, err := r.sql.ExecContext(ctx, query, args...)
+	result, err := sqlq.ExecContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -748,7 +795,7 @@ func (r *groupRepository) UpdateSortOrders(ctx context.Context, updates []servic
 	}
 
 	for _, id := range groupIDs {
-		if err := enqueueSchedulerOutbox(ctx, r.sql, service.SchedulerOutboxEventGroupChanged, nil, &id, nil); err != nil {
+		if err := enqueueSchedulerOutbox(ctx, sqlq, service.SchedulerOutboxEventGroupChanged, nil, &id, nil); err != nil {
 			logger.LegacyPrintf("repository.group", "[SchedulerOutbox] enqueue group sort update failed: group=%d err=%v", id, err)
 		}
 	}

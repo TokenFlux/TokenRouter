@@ -100,6 +100,9 @@ func (s *groupRepoStubForAdmin) ListActive(_ context.Context) ([]Group, error) {
 func (s *groupRepoStubForAdmin) ListActiveByPlatform(_ context.Context, _ string) ([]Group, error) {
 	panic("unexpected ListActiveByPlatform call")
 }
+func (s *groupRepoStubForAdmin) ListActiveByPlatformLite(_ context.Context, _ string) ([]Group, error) {
+	panic("unexpected ListActiveByPlatformLite call")
+}
 
 func (s *groupRepoStubForAdmin) ExistsByName(_ context.Context, _ string) (bool, error) {
 	panic("unexpected ExistsByName call")
@@ -509,6 +512,9 @@ func (s *groupRepoStubForFallbackCycle) ListActive(_ context.Context) ([]Group, 
 func (s *groupRepoStubForFallbackCycle) ListActiveByPlatform(_ context.Context, _ string) ([]Group, error) {
 	panic("unexpected ListActiveByPlatform call")
 }
+func (s *groupRepoStubForFallbackCycle) ListActiveByPlatformLite(_ context.Context, _ string) ([]Group, error) {
+	panic("unexpected ListActiveByPlatformLite call")
+}
 
 func (s *groupRepoStubForFallbackCycle) ExistsByName(_ context.Context, _ string) (bool, error) {
 	panic("unexpected ExistsByName call")
@@ -583,6 +589,9 @@ func (s *groupRepoStubForInvalidRequestFallback) ListActive(_ context.Context) (
 
 func (s *groupRepoStubForInvalidRequestFallback) ListActiveByPlatform(_ context.Context, _ string) ([]Group, error) {
 	panic("unexpected ListActiveByPlatform call")
+}
+func (s *groupRepoStubForInvalidRequestFallback) ListActiveByPlatformLite(_ context.Context, _ string) ([]Group, error) {
+	panic("unexpected ListActiveByPlatformLite call")
 }
 
 func (s *groupRepoStubForInvalidRequestFallback) ExistsByName(_ context.Context, _ string) (bool, error) {

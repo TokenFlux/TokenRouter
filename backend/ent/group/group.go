@@ -30,6 +30,8 @@ const (
 	FieldRateMultiplier = "rate_multiplier"
 	// FieldIsExclusive holds the string denoting the is_exclusive field in the database.
 	FieldIsExclusive = "is_exclusive"
+	// FieldIsDefault holds the string denoting the is_default field in the database.
+	FieldIsDefault = "is_default"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldPlatform holds the string denoting the platform field in the database.
@@ -130,6 +132,7 @@ var Columns = []string{
 	FieldDescription,
 	FieldRateMultiplier,
 	FieldIsExclusive,
+	FieldIsDefault,
 	FieldStatus,
 	FieldPlatform,
 	FieldImagePrice1k,
@@ -189,6 +192,8 @@ var (
 	DefaultRateMultiplier float64
 	// DefaultIsExclusive holds the default value on creation for the "is_exclusive" field.
 	DefaultIsExclusive bool
+	// DefaultIsDefault holds the default value on creation for the "is_default" field.
+	DefaultIsDefault bool
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
@@ -262,6 +267,11 @@ func ByRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
 // ByIsExclusive orders the results by the is_exclusive field.
 func ByIsExclusive(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldIsExclusive, opts...).ToFunc()
+}
+
+// ByIsDefault orders the results by the is_default field.
+func ByIsDefault(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldIsDefault, opts...).ToFunc()
 }
 
 // ByStatus orders the results by the status field.

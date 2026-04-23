@@ -1,8 +1,10 @@
 package handler
 
 import (
+	"context"
 	"strings"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -137,7 +139,13 @@ func InboundEndpointMiddleware() gin.HandlerFunc {
 		if path == "" && c.Request != nil && c.Request.URL != nil {
 			path = c.Request.URL.Path
 		}
-		c.Set(ctxKeyInboundEndpoint, NormalizeInboundEndpoint(path))
+		normalized := NormalizeInboundEndpoint(path)
+		c.Set(ctxKeyInboundEndpoint, normalized)
+		if c.Request != nil {
+			// 同时写入 request.Context，方便认证阶段在进入 Handler 前完成默认分组回退。
+			ctx := context.WithValue(c.Request.Context(), ctxkey.InboundEndpoint, normalized)
+			c.Request = c.Request.WithContext(ctx)
+		}
 		c.Next()
 	}
 }
