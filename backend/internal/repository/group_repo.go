@@ -69,7 +69,8 @@ func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) er
 		SetRequireOauthOnly(groupIn.RequireOAuthOnly).
 		SetRequirePrivacySet(groupIn.RequirePrivacySet).
 		SetDefaultMappedModel(groupIn.DefaultMappedModel).
-		SetMessagesDispatchModelConfig(groupIn.MessagesDispatchModelConfig)
+		SetMessagesDispatchModelConfig(groupIn.MessagesDispatchModelConfig).
+		SetRpmLimit(groupIn.RPMLimit)
 
 	// 设置模型路由配置
 	if groupIn.ModelRouting != nil {
@@ -137,7 +138,8 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetRequireOauthOnly(groupIn.RequireOAuthOnly).
 		SetRequirePrivacySet(groupIn.RequirePrivacySet).
 		SetDefaultMappedModel(groupIn.DefaultMappedModel).
-		SetMessagesDispatchModelConfig(groupIn.MessagesDispatchModelConfig)
+		SetMessagesDispatchModelConfig(groupIn.MessagesDispatchModelConfig).
+		SetRpmLimit(groupIn.RPMLimit)
 
 	if groupIn.ImagePrice1K != nil {
 		builder = builder.SetImagePrice1k(*groupIn.ImagePrice1K)

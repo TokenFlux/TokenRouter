@@ -13,14 +13,6 @@ import type {
 } from '@/types/payment'
 import type { BasePaginationResponse } from '@/types'
 
-function normalizeProviderInstance(provider: ProviderInstance): ProviderInstance {
-  return {
-    ...provider,
-    config: provider.config ?? {},
-    supported_types: Array.isArray(provider.supported_types) ? provider.supported_types : [],
-  }
-}
-
 /** Admin-facing payment config returned by GET /admin/payment/config */
 export interface AdminPaymentConfig {
   enabled: boolean
@@ -163,12 +155,8 @@ export const adminPaymentAPI = {
   // ==================== Provider Instances ====================
 
   /** Get all provider instances */
-  async getProviders() {
-    const response = await apiClient.get<ProviderInstance[]>('/admin/payment/providers')
-    response.data = Array.isArray(response.data)
-      ? response.data.map(normalizeProviderInstance)
-      : []
-    return response
+  getProviders() {
+    return apiClient.get<ProviderInstance[]>('/admin/payment/providers')
   },
 
   /** Create a provider instance */

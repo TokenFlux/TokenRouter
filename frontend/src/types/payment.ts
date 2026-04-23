@@ -89,32 +89,36 @@ export interface PaymentOrder {
   refund_amount: number
   refund_reason?: string
   refund_requested_at?: string
-  refund_requested_by?: number
+  refund_requested_by?: string
   refund_request_reason?: string
   plan_id?: number
   provider_instance_id?: string
 }
 
+export type PublicPaymentOrder = PaymentOrder
+
 // ==================== Plans & Channels ====================
 
 export interface SubscriptionPlan {
   id: number
-  name: string
-  description: string
-  price: number
-  original_price?: number | null
-  validity_days: number
-  validity_unit: string
+  group_id?: number
+  group_platform?: string
+  group_name?: string
+  rate_multiplier?: number
   daily_limit_usd?: number | null
   weekly_limit_usd?: number | null
   monthly_limit_usd?: number | null
+  supported_model_scopes?: string[]
+  name: string
+  description: string
+  price: number
+  original_price?: number
+  validity_days: number
+  validity_unit: string
   /** Stored as JSON string in backend; API layer should parse before use */
   features: string[]
-  product_name?: string
   for_sale: boolean
   sort_order: number
-  created_at?: string
-  updated_at?: string
 }
 
 export interface PaymentChannel {
@@ -152,7 +156,31 @@ export interface CreateOrderRequest {
   payment_type: string
   order_type: string
   plan_id?: number
+  return_url?: string
+  payment_source?: string
+  openid?: string
+  wechat_resume_token?: string
   is_mobile?: boolean
+}
+
+export type CreateOrderResultType = 'order_created' | 'oauth_required' | 'jsapi_ready'
+
+export interface WechatOAuthInfo {
+  authorize_url?: string
+  appid?: string
+  openid?: string
+  scope?: string
+  state?: string
+  redirect_url?: string
+}
+
+export interface WechatJSAPIPayload {
+  appId?: string
+  timeStamp?: string
+  nonceStr?: string
+  package?: string
+  signType?: string
+  paySign?: string
 }
 
 export interface CreateOrderResult {
@@ -164,7 +192,14 @@ export interface CreateOrderResult {
   pay_amount: number
   fee_rate: number
   expires_at: string
+  result_type?: CreateOrderResultType
+  payment_type?: string
+  out_trade_no?: string
   payment_mode?: string
+  resume_token?: string
+  oauth?: WechatOAuthInfo
+  jsapi?: WechatJSAPIPayload
+  jsapi_payload?: WechatJSAPIPayload
 }
 
 export interface DashboardStats {

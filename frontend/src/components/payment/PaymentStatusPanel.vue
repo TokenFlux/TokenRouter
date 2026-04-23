@@ -22,7 +22,7 @@
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ formatOrderAmount(paidOrder.amount, paidOrder.order_type) }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ paidOrder.order_type === 'balance' ? '$' : '¥' }}{{ paidOrder.amount.toFixed(2) }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
@@ -84,6 +84,9 @@
             </div>
           </div>
           <p v-if="scanHint" class="text-center text-sm text-gray-500 dark:text-gray-400">{{ scanHint }}</p>
+          <button v-if="payUrl" class="btn btn-secondary text-sm" @click="reopenPopup">
+            {{ t('payment.qr.openPayWindow') }}
+          </button>
         </div>
       </div>
       <div class="card p-4 text-center">
@@ -126,7 +129,6 @@ import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { getPaymentPopupFeatures } from '@/components/payment/providerConfig'
-import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { PaymentOrder } from '@/types/payment'
 import Icon from '@/components/icons/Icon.vue'
 import QRCode from 'qrcode'
@@ -142,12 +144,13 @@ const props = defineProps<{
   orderType?: string
 }>()
 
-const emit = defineEmits<{ done: []; success: [] }>()
+type PaymentOutcome = 'success' | 'cancelled' | 'expired'
+
+const emit = defineEmits<{ done: []; success: []; settled: [outcome: PaymentOutcome] }>()
 
 const { t } = useI18n()
 const paymentStore = usePaymentStore()
 const appStore = useAppStore()
-const { formatBalanceAmount } = useBalanceDisplay()
 
 const qrCanvas = ref<HTMLCanvasElement | null>(null)
 const qrUrl = ref('')
@@ -156,14 +159,10 @@ const cancelling = ref(false)
 const paidOrder = ref<PaymentOrder | null>(null)
 
 // Terminal outcome: null = still active, 'success' | 'cancelled' | 'expired'
-const outcome = ref<'success' | 'cancelled' | 'expired' | null>(null)
+const outcome = ref<PaymentOutcome | null>(null)
 
 let pollTimer: ReturnType<typeof setInterval> | null = null
 let countdownTimer: ReturnType<typeof setInterval> | null = null
-
-function formatOrderAmount(amount: number, orderType: string): string {
-  return orderType === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : `¥${amount.toFixed(2)}`
-}
 
 const isAlipay = computed(() => props.paymentType.includes('alipay'))
 const isWxpay = computed(() => props.paymentType.includes('wxpay'))
@@ -198,10 +197,23 @@ const countdownDisplay = computed(() => {
   return m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0')
 })
 
+function isSuccessStatus(status: string | null | undefined): boolean {
+  return status === 'COMPLETED' || status === 'PAID' || status === 'RECHARGING'
+}
+
 function reopenPopup() {
   if (props.payUrl) {
-    window.open(props.payUrl, 'paymentPopup', getPaymentPopupFeatures())
+    const win = window.open(props.payUrl, 'paymentPopup', getPaymentPopupFeatures())
+    if (!win || win.closed) {
+      window.location.href = props.payUrl
+    }
   }
+}
+
+function setOutcome(next: PaymentOutcome) {
+  if (outcome.value === next) return
+  outcome.value = next
+  emit('settled', next)
 }
 
 async function renderQR() {
@@ -217,26 +229,26 @@ async function pollStatus() {
   if (!props.orderId || outcome.value) return
   const order = await paymentStore.pollOrderStatus(props.orderId)
   if (!order) return
-  if (order.status === 'COMPLETED' || order.status === 'PAID') {
+  if (isSuccessStatus(order.status)) {
     cleanup()
     paidOrder.value = order
-    outcome.value = 'success'
+    setOutcome('success')
     emit('success')
   } else if (order.status === 'CANCELLED') {
     cleanup()
-    outcome.value = 'cancelled'
+    setOutcome('cancelled')
   } else if (order.status === 'EXPIRED' || order.status === 'FAILED') {
     cleanup()
-    outcome.value = 'expired'
+    setOutcome('expired')
   }
 }
 
 function startCountdown(seconds: number) {
   remainingSeconds.value = Math.max(0, seconds)
-  if (remainingSeconds.value <= 0) { outcome.value = 'expired'; return }
+  if (remainingSeconds.value <= 0) { setOutcome('expired'); return }
   countdownTimer = setInterval(() => {
     remainingSeconds.value--
-    if (remainingSeconds.value <= 0) { outcome.value = 'expired'; cleanup() }
+    if (remainingSeconds.value <= 0) { setOutcome('expired'); cleanup() }
   }, 1000)
 }
 
@@ -246,7 +258,7 @@ async function handleCancel() {
   try {
     await paymentAPI.cancelOrder(props.orderId)
     cleanup()
-    outcome.value = 'cancelled'
+    setOutcome('cancelled')
   } catch (err: unknown) {
     appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
   } finally {

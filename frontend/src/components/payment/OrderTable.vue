@@ -19,7 +19,7 @@
           ({{ t('payment.orders.fee') }} {{ row.fee_rate }}%)
         </span>
         <div v-if="row.amount !== row.pay_amount" class="text-xs text-gray-500">
-          {{ t('payment.orders.creditedAmount') }}: {{ formatOrderAmount(row.amount, row.order_type) }}
+          {{ t('payment.orders.creditedAmount') }}: {{ row.order_type === 'balance' ? '$' : '¥' }}{{ row.amount.toFixed(2) }}
         </div>
       </div>
     </template>
@@ -41,14 +41,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { PaymentOrder } from '@/types/payment'
 import type { Column } from '@/components/common/types'
 import DataTable from '@/components/common/DataTable.vue'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 
 const { t } = useI18n()
-const { formatBalanceAmount } = useBalanceDisplay()
 
 const props = defineProps<{
   orders: PaymentOrder[]
@@ -57,10 +55,6 @@ const props = defineProps<{
 }>()
 
 function formatDate(dateStr: string) { return new Date(dateStr).toLocaleString() }
-
-function formatOrderAmount(amount: number, orderType: string) {
-  return orderType === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : `¥${amount.toFixed(2)}`
-}
 
 const columns = computed((): Column[] => {
   const cols: Column[] = [

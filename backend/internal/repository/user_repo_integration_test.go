@@ -8,6 +8,8 @@ import (
 	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent/authidentity"
+	"github.com/TokenFlux/TokenRouter/ent/authidentitychannel"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/suite"
@@ -26,6 +28,8 @@ func (s *UserRepoSuite) SetupTest() {
 	s.repo = newUserRepositoryWithSQL(s.client, integrationDB)
 
 	// 清理测试数据，确保每个测试从干净状态开始
+	_, _ = integrationDB.ExecContext(s.ctx, "DELETE FROM auth_identity_channels")
+	_, _ = integrationDB.ExecContext(s.ctx, "DELETE FROM auth_identities")
 	_, _ = integrationDB.ExecContext(s.ctx, "DELETE FROM user_subscriptions")
 	_, _ = integrationDB.ExecContext(s.ctx, "DELETE FROM user_allowed_groups")
 	_, _ = integrationDB.ExecContext(s.ctx, "DELETE FROM users")
@@ -171,6 +175,14 @@ func (s *UserRepoSuite) TestGetByEmail_NotFound() {
 	s.Require().Error(err, "expected error for non-existent email")
 }
 
+func (s *UserRepoSuite) TestExistsByEmail_NormalizesSpacingAndCaseOnPostgres() {
+	s.mustCreateUser(&service.User{Email: " Legacy@Example.com "})
+
+	exists, err := s.repo.ExistsByEmail(s.ctx, "  LEGACY@example.com  ")
+	s.Require().NoError(err, "ExistsByEmail normalized lookup")
+	s.Require().True(exists)
+}
+
 func (s *UserRepoSuite) TestUpdate() {
 	user := s.mustCreateUser(&service.User{Email: "update@test.com", Username: "original"})
 
@@ -184,6 +196,30 @@ func (s *UserRepoSuite) TestUpdate() {
 	s.Require().Equal("updated", updated.Username)
 }
 
+func (s *UserRepoSuite) TestUpdateIgnoresNoRowsFromConflictingEmailIdentityUpsert() {
+	user := s.mustCreateUser(&service.User{Email: "update-existing-identity@test.com", Username: "original"})
+
+	identityCount, err := s.client.AuthIdentity.Query().
+		Where(
+			authidentity.UserIDEQ(user.ID),
+			authidentity.ProviderTypeEQ("email"),
+			authidentity.ProviderKeyEQ("email"),
+			authidentity.ProviderSubjectEQ("update-existing-identity@test.com"),
+		).
+		Count(s.ctx)
+	s.Require().NoError(err)
+	s.Require().Equal(1, identityCount)
+
+	got, err := s.repo.GetByID(s.ctx, user.ID)
+	s.Require().NoError(err)
+	got.Username = "updated"
+	s.Require().NoError(s.repo.Update(s.ctx, got), "Update should tolerate ON CONFLICT DO NOTHING returning no rows")
+
+	updated, err := s.repo.GetByID(s.ctx, user.ID)
+	s.Require().NoError(err)
+	s.Require().Equal("updated", updated.Username)
+}
+
 func (s *UserRepoSuite) TestDelete() {
 	user := s.mustCreateUser(&service.User{Email: "delete@test.com"})
 
@@ -192,6 +228,39 @@ func (s *UserRepoSuite) TestDelete() {
 
 	_, err = s.repo.GetByID(s.ctx, user.ID)
 	s.Require().Error(err, "expected error after delete")
+}
+
+func (s *UserRepoSuite) TestDeleteRemovesAuthIdentitiesAndChannels() {
+	user := s.mustCreateUser(&service.User{Email: "delete-oauth@test.com"})
+
+	identity, err := s.client.AuthIdentity.Create().
+		SetUserID(user.ID).
+		SetProviderType("linuxdo").
+		SetProviderKey("linuxdo").
+		SetProviderSubject("delete-oauth-subject").
+		Save(s.ctx)
+	s.Require().NoError(err)
+
+	_, err = s.client.AuthIdentityChannel.Create().
+		SetIdentityID(identity.ID).
+		SetProviderType("wechat").
+		SetProviderKey("wechat").
+		SetChannel("open").
+		SetChannelAppID("app-id").
+		SetChannelSubject("openid-123").
+		Save(s.ctx)
+	s.Require().NoError(err)
+
+	err = s.repo.Delete(s.ctx, user.ID)
+	s.Require().NoError(err)
+
+	identityCount, err := s.client.AuthIdentity.Query().Where(authidentity.UserIDEQ(user.ID)).Count(s.ctx)
+	s.Require().NoError(err)
+	s.Require().Zero(identityCount)
+
+	channelCount, err := s.client.AuthIdentityChannel.Query().Where(authidentitychannel.IdentityIDEQ(identity.ID)).Count(s.ctx)
+	s.Require().NoError(err)
+	s.Require().Zero(channelCount)
 }
 
 // --- List / ListWithFilters ---

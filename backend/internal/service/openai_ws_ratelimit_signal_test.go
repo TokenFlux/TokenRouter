@@ -22,6 +22,7 @@ type openAIWSRateLimitSignalRepo struct {
 	stubOpenAIAccountRepo
 	rateLimitCalls []time.Time
 	tempCalls      []time.Time
+	errorCalls     []string
 	updateExtra    []map[string]any
 }
 
@@ -36,6 +37,23 @@ type openAICodexExtraListRepo struct {
 	rateLimitCh chan time.Time
 }
 
+type openAIWS403CounterCacheStub struct {
+	counts []int64
+}
+
+func (s *openAIWS403CounterCacheStub) IncrementOpenAI403Count(_ context.Context, _ int64, _ int) (int64, error) {
+	if len(s.counts) == 0 {
+		return 1, nil
+	}
+	count := s.counts[0]
+	s.counts = s.counts[1:]
+	return count, nil
+}
+
+func (s *openAIWS403CounterCacheStub) ResetOpenAI403Count(_ context.Context, _ int64) error {
+	return nil
+}
+
 func (r *openAIWSRateLimitSignalRepo) SetRateLimited(_ context.Context, _ int64, resetAt time.Time) error {
 	r.rateLimitCalls = append(r.rateLimitCalls, resetAt)
 	return nil
@@ -43,6 +61,11 @@ func (r *openAIWSRateLimitSignalRepo) SetRateLimited(_ context.Context, _ int64,
 
 func (r *openAIWSRateLimitSignalRepo) SetTempUnschedulable(_ context.Context, _ int64, until time.Time, _ string) error {
 	r.tempCalls = append(r.tempCalls, until)
+	return nil
+}
+
+func (r *openAIWSRateLimitSignalRepo) SetError(_ context.Context, _ int64, errorMsg string) error {
+	r.errorCalls = append(r.errorCalls, errorMsg)
 	return nil
 }
 
@@ -169,6 +192,7 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventUsageLimitPersistsRateLimit(
 	}
 	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
 	rateSvc := &RateLimitService{accountRepo: repo}
+	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
 	svc := &OpenAIGatewayService{
 		accountRepo:      repo,
 		rateLimitService: rateSvc,
@@ -234,6 +258,7 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventForbiddenPersistsTempUnsched
 	}
 	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
 	rateSvc := &RateLimitService{accountRepo: repo}
+	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
 	svc := &OpenAIGatewayService{
 		accountRepo:      repo,
 		rateLimitService: rateSvc,
@@ -254,7 +279,7 @@ func TestOpenAIGatewayService_Forward_WSv2ErrorEventForbiddenPersistsTempUnsched
 	require.Nil(t, upstream.lastReq, "WS 运行中 403 error event 不应回退到同账号 HTTP")
 	require.Len(t, repo.tempCalls, 1)
 	require.Len(t, repo.rateLimitCalls, 0)
-	require.WithinDuration(t, before.Add(time.Minute), repo.tempCalls[0], 2*time.Second)
+	require.WithinDuration(t, before.Add(10*time.Minute), repo.tempCalls[0], 2*time.Second)
 }
 
 func TestOpenAIGatewayService_Forward_WSv2Handshake429PersistsRateLimit(t *testing.T) {
@@ -307,6 +332,7 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake429PersistsRateLimit(t *testi
 	}
 	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
 	rateSvc := &RateLimitService{accountRepo: repo}
+	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
 	svc := &OpenAIGatewayService{
 		accountRepo:      repo,
 		rateLimitService: rateSvc,
@@ -370,6 +396,7 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake403PersistsTempUnschedulable(
 	}
 	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
 	rateSvc := &RateLimitService{accountRepo: repo}
+	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
 	svc := &OpenAIGatewayService{
 		accountRepo:      repo,
 		rateLimitService: rateSvc,
@@ -389,7 +416,7 @@ func TestOpenAIGatewayService_Forward_WSv2Handshake403PersistsTempUnschedulable(
 	require.Equal(t, http.StatusForbidden, rec.Code)
 	require.Nil(t, upstream.lastReq, "WS 握手 403 不应回退到同账号 HTTP")
 	require.Len(t, repo.tempCalls, 1)
-	require.WithinDuration(t, before.Add(time.Minute), repo.tempCalls[0], 2*time.Second)
+	require.WithinDuration(t, before.Add(10*time.Minute), repo.tempCalls[0], 2*time.Second)
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventUsageLimitPersistsRateLimit(t *testing.T) {
@@ -434,6 +461,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventUsageL
 	}
 	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
 	rateSvc := &RateLimitService{accountRepo: repo}
+	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
 	svc := &OpenAIGatewayService{
 		accountRepo:      repo,
 		rateLimitService: rateSvc,
@@ -534,6 +562,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_Handshake403Pers
 	}
 	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
 	rateSvc := &RateLimitService{accountRepo: repo}
+	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
 	svc := &OpenAIGatewayService{
 		accountRepo:      repo,
 		rateLimitService: rateSvc,
@@ -593,7 +622,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_Handshake403Pers
 	case serverErr := <-serverErrCh:
 		require.Error(t, serverErr)
 		require.Len(t, repo.tempCalls, 1)
-		require.WithinDuration(t, before.Add(time.Minute), repo.tempCalls[0], 2*time.Second)
+		require.WithinDuration(t, before.Add(10*time.Minute), repo.tempCalls[0], 2*time.Second)
 	case <-time.After(5 * time.Second):
 		t.Fatal("等待 ingress websocket 结束超时")
 	}
@@ -638,6 +667,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventForbid
 	}
 	repo := &openAIWSRateLimitSignalRepo{stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}}
 	rateSvc := &RateLimitService{accountRepo: repo}
+	rateSvc.SetOpenAI403CounterCache(&openAIWS403CounterCacheStub{counts: []int64{1}})
 	svc := &OpenAIGatewayService{
 		accountRepo:      repo,
 		rateLimitService: rateSvc,
@@ -698,7 +728,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ErrorEventForbid
 		require.Error(t, serverErr)
 		require.Len(t, repo.tempCalls, 1)
 		require.Len(t, repo.rateLimitCalls, 0)
-		require.WithinDuration(t, before.Add(time.Minute), repo.tempCalls[0], 2*time.Second)
+		require.WithinDuration(t, before.Add(10*time.Minute), repo.tempCalls[0], 2*time.Second)
 	case <-time.After(5 * time.Second):
 		t.Fatal("等待 ingress websocket 结束超时")
 	}

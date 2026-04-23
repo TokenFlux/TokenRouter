@@ -23,7 +23,7 @@
               </div>
               <div v-if="amount > 0" class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ formatOrderAmount(amount, orderType) }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ orderType === 'balance' ? '$' : '¥' }}{{ amount.toFixed(2) }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
@@ -71,7 +71,6 @@ import { extractI18nErrorMessage } from '@/utils/apiError'
 import { paymentAPI } from '@/api/payment'
 import { useAppStore } from '@/stores'
 import { getPaymentPopupFeatures } from '@/components/payment/providerConfig'
-import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { Stripe, StripeElements } from '@stripe/stripe-js'
 import Icon from '@/components/icons/Icon.vue'
 
@@ -92,7 +91,6 @@ const emit = defineEmits<{ success: []; done: []; back: []; redirect: [orderId: 
 const { t } = useI18n()
 const router = useRouter()
 const appStore = useAppStore()
-const { formatBalanceAmount } = useBalanceDisplay()
 
 const stripeMount = ref<HTMLElement | null>(null)
 const loading = ref(true)
@@ -106,10 +104,6 @@ const selectedType = ref('')
 
 let stripeInstance: Stripe | null = null
 let elementsInstance: StripeElements | null = null
-
-function formatOrderAmount(amount: number, orderType?: 'balance' | 'subscription'): string {
-  return orderType === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : `¥${amount.toFixed(2)}`
-}
 
 onMounted(async () => {
   try {

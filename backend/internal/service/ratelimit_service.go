@@ -1,8 +1,10 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -23,6 +25,7 @@ type RateLimitService struct {
 	geminiQuotaService    *GeminiQuotaService
 	tempUnschedCache      TempUnschedCache
 	timeoutCounterCache   TimeoutCounterCache
+	openAI403CounterCache OpenAI403CounterCache
 	settingService        *SettingService
 	tokenCacheInvalidator TokenCacheInvalidator
 	usageCacheMu          sync.RWMutex
@@ -52,6 +55,12 @@ type geminiUsageTotalsBatchProvider interface {
 
 const geminiPrecheckCacheTTL = time.Minute
 
+const (
+	openAI403CooldownMinutesDefault = 10
+	openAI403DisableThreshold       = 3
+	openAI403CounterWindowMinutes   = 180
+)
+
 // NewRateLimitService 创建RateLimitService实例
 func NewRateLimitService(accountRepo AccountRepository, usageRepo UsageLogRepository, cfg *config.Config, geminiQuotaService *GeminiQuotaService, tempUnschedCache TempUnschedCache) *RateLimitService {
 	return &RateLimitService{
@@ -67,6 +76,11 @@ func NewRateLimitService(accountRepo AccountRepository, usageRepo UsageLogReposi
 // SetTimeoutCounterCache 设置超时计数器缓存（可选依赖）
 func (s *RateLimitService) SetTimeoutCounterCache(cache TimeoutCounterCache) {
 	s.timeoutCounterCache = cache
+}
+
+// SetOpenAI403CounterCache 设置 OpenAI 403 连续失败计数器（可选依赖）
+func (s *RateLimitService) SetOpenAI403CounterCache(cache OpenAI403CounterCache) {
+	s.openAI403CounterCache = cache
 }
 
 // SetSettingService 设置系统设置服务（可选依赖）
@@ -655,6 +669,30 @@ func (s *RateLimitService) handleAuthError(ctx context.Context, account *Account
 	slog.Warn("account_disabled_auth_error", "account_id", account.ID, "error", errorMsg)
 }
 
+func buildForbiddenErrorMessage(prefix string, upstreamMsg string, responseBody []byte, fallback string) string {
+	prefix = strings.TrimSpace(prefix)
+	if prefix != "" && !strings.HasSuffix(prefix, " ") {
+		prefix += " "
+	}
+
+	if msg := strings.TrimSpace(upstreamMsg); msg != "" {
+		return prefix + msg
+	}
+
+	rawBody := bytes.TrimSpace(responseBody)
+	if len(rawBody) > 0 {
+		if json.Valid(rawBody) {
+			var compact bytes.Buffer
+			if err := json.Compact(&compact, rawBody); err == nil {
+				return prefix + truncateForLog(compact.Bytes(), 512)
+			}
+		}
+		return prefix + truncateForLog(rawBody, 512)
+	}
+
+	return prefix + fallback
+}
+
 // handle403 处理 403 Forbidden 错误
 // Antigravity 平台区分 validation/violation/generic 三种类型，均 SetError 永久禁用；
 // OpenAI OAuth（ChatGPT）账号的 403 视为临时错误，转为临时不可调度；
@@ -663,67 +701,95 @@ func (s *RateLimitService) handle403(ctx context.Context, account *Account, upst
 	if account.Platform == PlatformAntigravity {
 		return s.handleAntigravity403(ctx, account, upstreamMsg, responseBody)
 	}
-	if account.IsOpenAIOAuth() {
-		return s.handleOpenAIOAuth403(ctx, account, upstreamMsg)
+	if account.Platform == PlatformOpenAI {
+		return s.handleOpenAI403(ctx, account, upstreamMsg, responseBody)
 	}
 	// 非 Antigravity 平台：保持原有行为
-	msg := "Access forbidden (403): account may be suspended or lack permissions"
-	if upstreamMsg != "" {
-		msg = "Access forbidden (403): " + upstreamMsg
-	}
+	msg := buildForbiddenErrorMessage(
+		"Access forbidden (403):",
+		upstreamMsg,
+		responseBody,
+		"account may be suspended or lack permissions",
+	)
 	s.handleAuthError(ctx, account, msg)
 	return true
 }
 
-// handleOpenAIOAuth403 将 ChatGPT 403 按短期上游拒绝处理，不直接标记账号 error。
-func (s *RateLimitService) handleOpenAIOAuth403(ctx context.Context, account *Account, upstreamMsg string) bool {
-	settings := DefaultOpenAI403CooldownSettings()
-	if s.settingService != nil {
-		loaded, err := s.settingService.GetOpenAI403CooldownSettings(ctx)
-		if err != nil {
-			slog.Warn("openai_oauth_403_settings_read_failed", "account_id", account.ID, "error", err)
-		} else {
-			settings = loaded
-		}
-	}
+func (s *RateLimitService) handleOpenAI403(ctx context.Context, account *Account, upstreamMsg string, responseBody []byte) (shouldDisable bool) {
+	msg := buildForbiddenErrorMessage(
+		"Access forbidden (403):",
+		upstreamMsg,
+		responseBody,
+		"account may be suspended or lack permissions",
+	)
+	settings := s.getOpenAI403CooldownSettings(ctx, account.ID)
 	if !settings.Enabled {
-		slog.Info("openai_oauth_403_cooldown_disabled", "account_id", account.ID)
+		s.handleAuthError(ctx, account, msg)
 		return true
 	}
 
-	msg := "Access forbidden (403): upstream temporarily rejected the request"
-	if upstreamMsg != "" {
-		msg = "Access forbidden (403): " + upstreamMsg
+	if s.openAI403CounterCache == nil {
+		s.handleAuthError(ctx, account, msg)
+		return true
 	}
 
-	now := time.Now()
-	// 这里使用可配置的短冷却，避免连续命中同一账号的瞬时 403。
-	until := now.Add(time.Duration(settings.CooldownMinutes) * time.Minute)
-	state := &TempUnschedState{
-		UntilUnix:       until.Unix(),
-		TriggeredAtUnix: now.Unix(),
-		StatusCode:      http.StatusForbidden,
-		MatchedKeyword:  "openai_oauth_403",
-		RuleIndex:       -1,
-		ErrorMessage:    msg,
+	count, err := s.openAI403CounterCache.IncrementOpenAI403Count(ctx, account.ID, openAI403CounterWindowMinutes)
+	if err != nil {
+		slog.Warn("openai_403_increment_failed", "account_id", account.ID, "error", err)
+		s.handleAuthError(ctx, account, msg)
+		return true
 	}
 
-	reason := msg
-	if raw, err := json.Marshal(state); err == nil {
-		reason = string(raw)
+	if count >= openAI403DisableThreshold {
+		msg = fmt.Sprintf("%s | consecutive_403=%d/%d", msg, count, openAI403DisableThreshold)
+		s.handleAuthError(ctx, account, msg)
+		return true
 	}
 
+	cooldownMinutes := settings.CooldownMinutes
+	if cooldownMinutes <= 0 {
+		cooldownMinutes = openAI403CooldownMinutesDefault
+	}
+
+	until := time.Now().Add(time.Duration(cooldownMinutes) * time.Minute)
+	reason := fmt.Sprintf("OpenAI 403 temporary cooldown (%d/%d): %s", count, openAI403DisableThreshold, msg)
 	if err := s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, reason); err != nil {
-		slog.Warn("openai_oauth_403_set_temp_unschedulable_failed", "account_id", account.ID, "error", err)
-	}
-	if s.tempUnschedCache != nil {
-		if err := s.tempUnschedCache.SetTempUnsched(ctx, account.ID, state); err != nil {
-			slog.Warn("openai_oauth_403_set_temp_unsched_cache_failed", "account_id", account.ID, "error", err)
-		}
+		slog.Warn("openai_403_set_temp_unschedulable_failed", "account_id", account.ID, "error", err)
+		s.handleAuthError(ctx, account, msg)
+		return true
 	}
 
-	slog.Info("openai_oauth_403_temp_unschedulable", "account_id", account.ID, "until", until)
+	slog.Warn(
+		"openai_403_temp_unschedulable",
+		"account_id", account.ID,
+		"until", until,
+		"count", count,
+		"threshold", openAI403DisableThreshold,
+	)
 	return true
+}
+
+func (s *RateLimitService) getOpenAI403CooldownSettings(ctx context.Context, accountID int64) *OpenAI403CooldownSettings {
+	settings := DefaultOpenAI403CooldownSettings()
+	if settings.CooldownMinutes <= 0 {
+		settings.CooldownMinutes = openAI403CooldownMinutesDefault
+	}
+	if s == nil || s.settingService == nil {
+		return settings
+	}
+
+	loaded, err := s.settingService.GetOpenAI403CooldownSettings(ctx)
+	if err != nil {
+		slog.Warn("openai_403_settings_read_failed", "account_id", accountID, "error", err)
+		return settings
+	}
+	if loaded == nil {
+		return settings
+	}
+	if loaded.CooldownMinutes <= 0 {
+		loaded.CooldownMinutes = settings.CooldownMinutes
+	}
+	return loaded
 }
 
 // handleAntigravity403 处理 Antigravity 平台的 403 错误
@@ -736,10 +802,12 @@ func (s *RateLimitService) handleAntigravity403(ctx context.Context, account *Ac
 	switch fbType {
 	case forbiddenTypeValidation:
 		// VALIDATION_REQUIRED: 永久禁用，需人工去 Google 验证后手动恢复
-		msg := "Validation required (403): account needs Google verification"
-		if upstreamMsg != "" {
-			msg = "Validation required (403): " + upstreamMsg
-		}
+		msg := buildForbiddenErrorMessage(
+			"Validation required (403):",
+			upstreamMsg,
+			responseBody,
+			"account needs Google verification",
+		)
 		if validationURL := extractValidationURL(string(responseBody)); validationURL != "" {
 			msg += " | validation_url: " + validationURL
 		}
@@ -748,19 +816,23 @@ func (s *RateLimitService) handleAntigravity403(ctx context.Context, account *Ac
 
 	case forbiddenTypeViolation:
 		// 违规封号: 永久禁用，需人工处理
-		msg := "Account violation (403): terms of service violation"
-		if upstreamMsg != "" {
-			msg = "Account violation (403): " + upstreamMsg
-		}
+		msg := buildForbiddenErrorMessage(
+			"Account violation (403):",
+			upstreamMsg,
+			responseBody,
+			"terms of service violation",
+		)
 		s.handleAuthError(ctx, account, msg)
 		return true
 
 	default:
 		// 通用 403: 保持原有行为
-		msg := "Access forbidden (403): account may be suspended or lack permissions"
-		if upstreamMsg != "" {
-			msg = "Access forbidden (403): " + upstreamMsg
-		}
+		msg := buildForbiddenErrorMessage(
+			"Access forbidden (403):",
+			upstreamMsg,
+			responseBody,
+			"account may be suspended or lack permissions",
+		)
 		s.handleAuthError(ctx, account, msg)
 		return true
 	}
@@ -1276,7 +1348,17 @@ func (s *RateLimitService) ClearRateLimit(ctx context.Context, accountID int64) 
 			slog.Warn("temp_unsched_cache_delete_failed", "account_id", accountID, "error", err)
 		}
 	}
+	s.ResetOpenAI403Counter(ctx, accountID)
 	return nil
+}
+
+func (s *RateLimitService) ResetOpenAI403Counter(ctx context.Context, accountID int64) {
+	if s == nil || s.openAI403CounterCache == nil || accountID <= 0 {
+		return
+	}
+	if err := s.openAI403CounterCache.ResetOpenAI403Count(ctx, accountID); err != nil {
+		slog.Warn("openai_403_reset_failed", "account_id", accountID, "error", err)
+	}
 }
 
 // RecoverAccountState 按需恢复账号的可恢复运行时状态。
@@ -1304,6 +1386,9 @@ func (s *RateLimitService) RecoverAccountState(ctx context.Context, accountID in
 			return nil, err
 		}
 		result.ClearedRateLimit = true
+	}
+	if result.ClearedError || result.ClearedRateLimit {
+		s.ResetOpenAI403Counter(ctx, accountID)
 	}
 
 	return result, nil

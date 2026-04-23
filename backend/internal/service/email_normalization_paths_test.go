@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
@@ -104,12 +105,36 @@ func (s *emailNormalizationRepoStub) Delete(context.Context, int64) error {
 	panic("unexpected Delete call")
 }
 
+func (s *emailNormalizationRepoStub) GetUserAvatar(context.Context, int64) (*UserAvatar, error) {
+	panic("unexpected GetUserAvatar call")
+}
+
+func (s *emailNormalizationRepoStub) UpsertUserAvatar(context.Context, int64, UpsertUserAvatarInput) (*UserAvatar, error) {
+	panic("unexpected UpsertUserAvatar call")
+}
+
+func (s *emailNormalizationRepoStub) DeleteUserAvatar(context.Context, int64) error {
+	panic("unexpected DeleteUserAvatar call")
+}
+
 func (s *emailNormalizationRepoStub) List(context.Context, pagination.PaginationParams) ([]User, *pagination.PaginationResult, error) {
 	panic("unexpected List call")
 }
 
 func (s *emailNormalizationRepoStub) ListWithFilters(context.Context, pagination.PaginationParams, UserListFilters) ([]User, *pagination.PaginationResult, error) {
 	panic("unexpected ListWithFilters call")
+}
+
+func (s *emailNormalizationRepoStub) GetLatestUsedAtByUserIDs(context.Context, []int64) (map[int64]*time.Time, error) {
+	return map[int64]*time.Time{}, nil
+}
+
+func (s *emailNormalizationRepoStub) GetLatestUsedAtByUserID(context.Context, int64) (*time.Time, error) {
+	return nil, nil
+}
+
+func (s *emailNormalizationRepoStub) UpdateUserLastActiveAt(context.Context, int64, time.Time) error {
+	return nil
 }
 
 func (s *emailNormalizationRepoStub) AddBalance(context.Context, int64, float64) error {
@@ -174,6 +199,14 @@ func (s *emailNormalizationRepoStub) AddGroupToAllowedGroups(context.Context, in
 
 func (s *emailNormalizationRepoStub) RemoveGroupFromUserAllowedGroups(context.Context, int64, int64) error {
 	panic("unexpected RemoveGroupFromUserAllowedGroups call")
+}
+
+func (s *emailNormalizationRepoStub) ListUserAuthIdentities(context.Context, int64) ([]UserAuthIdentityRecord, error) {
+	return nil, nil
+}
+
+func (s *emailNormalizationRepoStub) UnbindUserAuthProvider(context.Context, int64, string) error {
+	panic("unexpected UnbindUserAuthProvider call")
 }
 
 func (s *emailNormalizationRepoStub) UpdateTotpSecret(context.Context, int64, *string) error {

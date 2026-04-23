@@ -7,21 +7,25 @@ import (
 	"errors"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"
 )
 
 type userRepoStub struct {
-	user       *User
-	getErr     error
-	createErr  error
-	deleteErr  error
-	exists     bool
-	existsErr  error
-	nextID     int64
-	created    []*User
-	deletedIDs []int64
+	user          *User
+	getErr        error
+	createErr     error
+	deleteErr     error
+	exists        bool
+	existsErr     error
+	nextID        int64
+	created       []*User
+	updated       []*User
+	deletedIDs    []int64
+	usersByEmail  map[string]*User
+	getByEmailErr error
 }
 
 func (s *userRepoStub) Create(ctx context.Context, user *User) error {
@@ -32,6 +36,11 @@ func (s *userRepoStub) Create(ctx context.Context, user *User) error {
 		user.ID = s.nextID
 	}
 	s.created = append(s.created, user)
+	if s.usersByEmail == nil {
+		s.usersByEmail = make(map[string]*User)
+	}
+	s.usersByEmail[user.Email] = user
+	s.user = user
 	return nil
 }
 
@@ -50,7 +59,18 @@ func (s *userRepoStub) GetByID(ctx context.Context, id int64) (*User, error) {
 }
 
 func (s *userRepoStub) GetByEmail(ctx context.Context, email string) (*User, error) {
-	panic("unexpected GetByEmail call")
+	if s.getByEmailErr != nil {
+		return nil, s.getByEmailErr
+	}
+	if s.usersByEmail != nil {
+		if user, ok := s.usersByEmail[email]; ok {
+			return user, nil
+		}
+	}
+	if s.user != nil && s.user.Email == email {
+		return s.user, nil
+	}
+	return nil, ErrUserNotFound
 }
 
 func (s *userRepoStub) GetFirstAdmin(ctx context.Context) (*User, error) {
@@ -58,7 +78,13 @@ func (s *userRepoStub) GetFirstAdmin(ctx context.Context) (*User, error) {
 }
 
 func (s *userRepoStub) Update(ctx context.Context, user *User) error {
-	panic("unexpected Update call")
+	s.updated = append(s.updated, user)
+	if s.usersByEmail == nil {
+		s.usersByEmail = make(map[string]*User)
+	}
+	s.usersByEmail[user.Email] = user
+	s.user = user
+	return nil
 }
 
 func (s *userRepoStub) UpdateWithNormalizedEmailGuard(ctx context.Context, user *User, normalizedEmail string) error {
@@ -70,12 +96,36 @@ func (s *userRepoStub) Delete(ctx context.Context, id int64) error {
 	return s.deleteErr
 }
 
+func (s *userRepoStub) GetUserAvatar(ctx context.Context, userID int64) (*UserAvatar, error) {
+	panic("unexpected GetUserAvatar call")
+}
+
+func (s *userRepoStub) UpsertUserAvatar(ctx context.Context, userID int64, input UpsertUserAvatarInput) (*UserAvatar, error) {
+	panic("unexpected UpsertUserAvatar call")
+}
+
+func (s *userRepoStub) DeleteUserAvatar(ctx context.Context, userID int64) error {
+	panic("unexpected DeleteUserAvatar call")
+}
+
 func (s *userRepoStub) List(ctx context.Context, params pagination.PaginationParams) ([]User, *pagination.PaginationResult, error) {
 	panic("unexpected List call")
 }
 
 func (s *userRepoStub) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters UserListFilters) ([]User, *pagination.PaginationResult, error) {
 	panic("unexpected ListWithFilters call")
+}
+
+func (s *userRepoStub) GetLatestUsedAtByUserIDs(ctx context.Context, userIDs []int64) (map[int64]*time.Time, error) {
+	panic("unexpected GetLatestUsedAtByUserIDs call")
+}
+
+func (s *userRepoStub) GetLatestUsedAtByUserID(ctx context.Context, userID int64) (*time.Time, error) {
+	panic("unexpected GetLatestUsedAtByUserID call")
+}
+
+func (s *userRepoStub) UpdateUserLastActiveAt(ctx context.Context, userID int64, activeAt time.Time) error {
+	panic("unexpected UpdateUserLastActiveAt call")
 }
 
 func (s *userRepoStub) UpdateBalance(ctx context.Context, id int64, amount float64) error {
@@ -166,6 +216,14 @@ func (s *userRepoStub) RemoveGroupFromUserAllowedGroups(ctx context.Context, use
 
 func (s *userRepoStub) AddGroupToAllowedGroups(ctx context.Context, userID int64, groupID int64) error {
 	panic("unexpected AddGroupToAllowedGroups call")
+}
+
+func (s *userRepoStub) ListUserAuthIdentities(ctx context.Context, userID int64) ([]UserAuthIdentityRecord, error) {
+	panic("unexpected ListUserAuthIdentities call")
+}
+
+func (s *userRepoStub) UnbindUserAuthProvider(context.Context, int64, string) error {
+	panic("unexpected UnbindUserAuthProvider call")
 }
 
 func (s *userRepoStub) UpdateTotpSecret(ctx context.Context, userID int64, encryptedSecret *string) error {

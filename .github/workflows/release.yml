@@ -196,6 +196,80 @@ jobs:
           short-description: "TokenRouter - AI API Gateway Platform"
           readme-filepath: ./deploy/DOCKER.md
 
+      # Send Telegram notification
+      - name: Send Telegram Notification
+        if: ${{ env.SIMPLE_RELEASE != 'true' }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        continue-on-error: true
+        run: |
+          # 检查必要的环境变量
+          if [ -z "$TELEGRAM_BOT_TOKEN" ] || [ -z "$TELEGRAM_CHAT_ID" ]; then
+            echo "Telegram credentials not configured, skipping notification"
+            exit 0
+          fi
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_NAME=${{ github.event.inputs.tag }}
+          else
+            TAG_NAME=${GITHUB_REF#refs/tags/}
+          fi
+          VERSION=${TAG_NAME#v}
+          REPO="${{ github.repository }}"
+          GHCR_IMAGE="ghcr.io/${REPO,,}"  # ${,,} converts to lowercase
+
+          # 获取 tag message 内容并转义 Markdown 特殊字符
+          TAG_MESSAGE='${{ steps.tag_message.outputs.message }}'
+          TAG_MESSAGE=$(echo "$TAG_MESSAGE" | sed 's/\([_*`\[]\)/\\\1/g')
+
+          # 限制消息长度（Telegram 消息限制 4096 字符，预留空间给头尾固定内容）
+          if [ ${#TAG_MESSAGE} -gt 3500 ]; then
+            TAG_MESSAGE="${TAG_MESSAGE:0:3500}..."
+          fi
+
+          # 构建消息内容
+          MESSAGE="🚀 *TokenRouter 新版本发布！*"$'\n'$'\n'
+          MESSAGE+="📦 版本号: \`${VERSION}\`"$'\n'$'\n'
+
+          # 添加更新内容
+          if [ -n "$TAG_MESSAGE" ]; then
+            MESSAGE+="${TAG_MESSAGE}"$'\n'$'\n'
+          fi
+
+          MESSAGE+="🐳 *Docker 部署:*"$'\n'
+          MESSAGE+="\`\`\`bash"$'\n'
+          # 根据是否配置 DockerHub 动态生成
+          if [ -n "$DOCKERHUB_USERNAME" ]; then
+            DOCKER_IMAGE="${DOCKERHUB_USERNAME}/tokenrouter"
+            MESSAGE+="# Docker Hub"$'\n'
+            MESSAGE+="docker pull ${DOCKER_IMAGE}:${VERSION}"$'\n'
+            MESSAGE+="# GitHub Container Registry"$'\n'
+          fi
+          MESSAGE+="docker pull ${GHCR_IMAGE}:${VERSION}"$'\n'
+          MESSAGE+="\`\`\`"$'\n'$'\n'
+          MESSAGE+="🔗 *相关链接:*"$'\n'
+          MESSAGE+="• [GitHub Release](https://github.com/${REPO}/releases/tag/${TAG_NAME})"$'\n'
+          if [ -n "$DOCKERHUB_USERNAME" ]; then
+            MESSAGE+="• [Docker Hub](https://hub.docker.com/r/${DOCKER_IMAGE})"$'\n'
+          fi
+          MESSAGE+="• [GitHub Packages](https://github.com/${REPO}/pkgs/container/tokenrouter)"$'\n'$'\n'
+          MESSAGE+="#TokenRouter #Release #${TAG_NAME//./_}"
+
+          # 发送消息
+          curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg chat_id "${TELEGRAM_CHAT_ID}" \
+              --arg text "${MESSAGE}" \
+              '{
+                chat_id: $chat_id,
+                text: $text,
+                parse_mode: "Markdown",
+                disable_web_page_preview: true
+              }')"
+
   sync-version-file:
     needs: [release]
     if: ${{ needs.release.result == 'success' }}

@@ -12,7 +12,6 @@ import (
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/paymentauditlog"
 	"github.com/TokenFlux/TokenRouter/ent/paymentorder"
-	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 )
@@ -26,35 +25,97 @@ func (s *PaymentService) HandlePaymentNotification(ctx context.Context, n *payme
 	// Look up order by out_trade_no (the external order ID we sent to the provider)
 	order, err := s.entClient.PaymentOrder.Query().Where(paymentorder.OutTradeNo(n.OrderID)).Only(ctx)
 	if err != nil {
-		// Fallback: try legacy format (sub2_N where N is DB ID)
-		trimmed := strings.TrimPrefix(n.OrderID, orderIDPrefix)
-		if oid, parseErr := strconv.ParseInt(trimmed, 10, 64); parseErr == nil {
-			return s.confirmPayment(ctx, oid, n.TradeNo, n.Amount, pk)
+		// Fallback only for true legacy "sub2_N" DB-ID payloads when the
+		// current out_trade_no lookup genuinely did not find an order.
+		if oid, ok := parseLegacyPaymentOrderID(n.OrderID, err); ok {
+			return s.confirmPayment(ctx, oid, n.TradeNo, n.Amount, pk, n.Metadata)
 		}
 		return fmt.Errorf("order not found for out_trade_no: %s", n.OrderID)
 	}
-	return s.confirmPayment(ctx, order.ID, n.TradeNo, n.Amount, pk)
+	return s.confirmPayment(ctx, order.ID, n.TradeNo, n.Amount, pk, n.Metadata)
 }
 
-func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo string, paid float64, pk string) error {
+func parseLegacyPaymentOrderID(orderID string, lookupErr error) (int64, bool) {
+	if !dbent.IsNotFound(lookupErr) {
+		return 0, false
+	}
+	orderID = strings.TrimSpace(orderID)
+	if !strings.HasPrefix(orderID, orderIDPrefix) {
+		return 0, false
+	}
+	trimmed := strings.TrimPrefix(orderID, orderIDPrefix)
+	if trimmed == "" || trimmed == orderID {
+		return 0, false
+	}
+	oid, err := strconv.ParseInt(trimmed, 10, 64)
+	if err != nil || oid <= 0 {
+		return 0, false
+	}
+	return oid, true
+}
+
+func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo string, paid float64, pk string, metadata map[string]string) error {
 	o, err := s.entClient.PaymentOrder.Get(ctx, oid)
 	if err != nil {
 		slog.Error("order not found", "orderID", oid)
 		return nil
 	}
-	// Skip amount check when paid=0 (e.g. QueryOrder doesn't return amount).
-	// Also skip if paid is NaN/Inf (malformed provider data).
-	if paid > 0 && !math.IsNaN(paid) && !math.IsInf(paid, 0) {
-		if math.Abs(paid-o.PayAmount) > amountToleranceCNY {
-			s.writeAuditLog(ctx, o.ID, "PAYMENT_AMOUNT_MISMATCH", pk, map[string]any{"expected": o.PayAmount, "paid": paid, "tradeNo": tradeNo})
-			return fmt.Errorf("amount mismatch: expected %.2f, got %.2f", o.PayAmount, paid)
-		}
+	instanceProviderKey := ""
+	if inst, instErr := s.getOrderProviderInstance(ctx, o); instErr == nil && inst != nil {
+		instanceProviderKey = inst.ProviderKey
 	}
-	// Use order's expected amount when provider didn't report one
-	if paid <= 0 || math.IsNaN(paid) || math.IsInf(paid, 0) {
-		paid = o.PayAmount
+	expectedProviderKey := expectedNotificationProviderKeyForOrder(s.registry, o, instanceProviderKey)
+	if expectedProviderKey != "" && strings.TrimSpace(pk) != "" && !strings.EqualFold(expectedProviderKey, strings.TrimSpace(pk)) {
+		s.writeAuditLog(ctx, o.ID, "PAYMENT_PROVIDER_MISMATCH", pk, map[string]any{
+			"expectedProvider": expectedProviderKey,
+			"actualProvider":   pk,
+			"tradeNo":          tradeNo,
+		})
+		return fmt.Errorf("provider mismatch: expected %s, got %s", expectedProviderKey, pk)
+	}
+	if err := validateProviderNotificationMetadata(o, pk, metadata); err != nil {
+		s.writeAuditLog(ctx, o.ID, "PAYMENT_PROVIDER_METADATA_MISMATCH", pk, map[string]any{
+			"detail":  err.Error(),
+			"tradeNo": tradeNo,
+		})
+		return err
+	}
+	if !isValidProviderAmount(paid) {
+		s.writeAuditLog(ctx, o.ID, "PAYMENT_INVALID_AMOUNT", pk, map[string]any{
+			"expected": o.PayAmount,
+			"paid":     paid,
+			"tradeNo":  tradeNo,
+		})
+		return fmt.Errorf("invalid paid amount from provider: %v", paid)
+	}
+	if math.Abs(paid-o.PayAmount) > amountToleranceCNY {
+		s.writeAuditLog(ctx, o.ID, "PAYMENT_AMOUNT_MISMATCH", pk, map[string]any{"expected": o.PayAmount, "paid": paid, "tradeNo": tradeNo})
+		return fmt.Errorf("amount mismatch: expected %.2f, got %.2f", o.PayAmount, paid)
 	}
 	return s.toPaid(ctx, o, tradeNo, paid, pk)
+}
+
+func isValidProviderAmount(amount float64) bool {
+	return amount > 0 && !math.IsNaN(amount) && !math.IsInf(amount, 0)
+}
+
+func validateProviderNotificationMetadata(order *dbent.PaymentOrder, providerKey string, metadata map[string]string) error {
+	return validateProviderSnapshotMetadata(order, providerKey, metadata)
+}
+
+func expectedNotificationProviderKey(registry *payment.Registry, orderPaymentType string, orderProviderKey string, instanceProviderKey string) string {
+	if key := strings.TrimSpace(instanceProviderKey); key != "" {
+		return key
+	}
+	if key := strings.TrimSpace(orderProviderKey); key != "" {
+		return key
+	}
+	if registry != nil {
+		if key := strings.TrimSpace(registry.GetProviderKey(payment.PaymentType(orderPaymentType))); key != "" {
+			return key
+		}
+	}
+	return strings.TrimSpace(orderPaymentType)
 }
 
 func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, tradeNo string, paid float64, pk string) error {
@@ -213,107 +274,16 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder) e
 
 func (s *PaymentService) markCompleted(ctx context.Context, o *dbent.PaymentOrder, auditAction string) error {
 	now := time.Now()
-	tx, err := s.entClient.Tx(ctx)
-	if err != nil {
-		return fmt.Errorf("begin completion transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	txCtx := dbent.NewTxContext(ctx, tx)
-	grantResult, err := s.grantReferralRewardIfEligible(txCtx, o.UserID, now)
-	if err != nil {
-		return err
-	}
-
-	updated, err := tx.PaymentOrder.Update().
-		Where(paymentorder.IDEQ(o.ID), paymentorder.StatusEQ(OrderStatusRecharging)).
-		SetStatus(OrderStatusCompleted).
-		SetCompletedAt(now).
-		Save(txCtx)
+	_, err := s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(o.ID), paymentorder.StatusEQ(OrderStatusRecharging)).SetStatus(OrderStatusCompleted).SetCompletedAt(now).Save(ctx)
 	if err != nil {
 		return fmt.Errorf("mark completed: %w", err)
 	}
-	if updated == 0 {
-		return fmt.Errorf("mark completed: order %d is not in recharging status", o.ID)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit completion transaction: %w", err)
-	}
-
-	if !s.hasAuditLog(ctx, o.ID, auditAction) {
-		s.writeAuditLog(ctx, o.ID, auditAction, "system", map[string]any{
-			"rechargeCode":   o.RechargeCode,
-			"creditedAmount": o.Amount,
-			"payAmount":      o.PayAmount,
-		})
-	}
-	if grantResult != nil {
-		if !s.hasAuditLog(ctx, o.ID, "REFERRAL_REWARD_GRANTED") {
-			s.writeAuditLog(ctx, o.ID, "REFERRAL_REWARD_GRANTED", "system", map[string]any{
-				"invitee_user_id": grantResult.inviteeUserID,
-				"inviter_user_id": grantResult.inviterUserID,
-				"amount":          grantResult.amount,
-			})
-		}
-		s.invalidateReferralRewardCaches(ctx, grantResult)
-	}
+	s.writeAuditLog(ctx, o.ID, auditAction, "system", map[string]any{
+		"rechargeCode":   o.RechargeCode,
+		"creditedAmount": o.Amount,
+		"payAmount":      o.PayAmount,
+	})
 	return nil
-}
-
-func (s *PaymentService) grantReferralRewardIfEligible(ctx context.Context, userID int64, grantedAt time.Time) (*referralRewardGrantResult, error) {
-	invitee, err := dbent.TxFromContext(ctx).User.Query().
-		Where(dbuser.IDEQ(userID)).
-		Only(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("load referral reward invitee: %w", err)
-	}
-	if invitee.ReferredByUserID == nil || invitee.ReferralRewardAmount <= 0 || invitee.ReferralRewardGrantedAt != nil {
-		return nil, nil
-	}
-
-	updated, err := dbent.TxFromContext(ctx).User.Update().
-		Where(
-			dbuser.IDEQ(invitee.ID),
-			dbuser.ReferralRewardGrantedAtIsNil(),
-		).
-		SetReferralRewardGrantedAt(grantedAt).
-		Save(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("mark referral reward granted: %w", err)
-	}
-	if updated == 0 {
-		return nil, nil
-	}
-
-	inviterUserID := *invitee.ReferredByUserID
-	amount := invitee.ReferralRewardAmount
-	if err := s.userRepo.AddBalance(ctx, invitee.ID, amount); err != nil {
-		return nil, fmt.Errorf("grant referral reward to invitee: %w", err)
-	}
-	if err := createReferralRewardRedeemRecord(ctx, s.redeemService.redeemRepo, invitee.ID, amount); err != nil {
-		return nil, err
-	}
-	if err := s.userRepo.AddBalance(ctx, inviterUserID, amount); err != nil {
-		return nil, fmt.Errorf("grant referral reward to inviter: %w", err)
-	}
-	if err := createReferralRewardRedeemRecord(ctx, s.redeemService.redeemRepo, inviterUserID, amount); err != nil {
-		return nil, err
-	}
-
-	return &referralRewardGrantResult{
-		inviteeUserID: invitee.ID,
-		inviterUserID: inviterUserID,
-		amount:        amount,
-	}, nil
-}
-
-func (s *PaymentService) invalidateReferralRewardCaches(ctx context.Context, grantResult *referralRewardGrantResult) {
-	if grantResult == nil || s.redeemService == nil {
-		return
-	}
-	balanceReward := &RedeemCode{Type: RedeemTypeBalance}
-	s.redeemService.invalidateRedeemCaches(ctx, grantResult.inviteeUserID, balanceReward)
-	s.redeemService.invalidateRedeemCaches(ctx, grantResult.inviterUserID, balanceReward)
 }
 
 func (s *PaymentService) ExecuteSubscriptionFulfillment(ctx context.Context, oid int64) error {
@@ -330,7 +300,7 @@ func (s *PaymentService) ExecuteSubscriptionFulfillment(ctx context.Context, oid
 	if o.Status != OrderStatusPaid && o.Status != OrderStatusFailed {
 		return infraerrors.BadRequest("INVALID_STATUS", "order cannot fulfill in status "+o.Status)
 	}
-	if o.PlanID == nil {
+	if o.PlanID == nil || *o.PlanID <= 0 {
 		return infraerrors.BadRequest("INVALID_STATUS", "missing subscription info")
 	}
 	c, err := s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(oid), paymentorder.StatusIn(OrderStatusPaid, OrderStatusFailed)).SetStatus(OrderStatusRecharging).Save(ctx)
@@ -348,26 +318,31 @@ func (s *PaymentService) ExecuteSubscriptionFulfillment(ctx context.Context, oid
 }
 
 func (s *PaymentService) doSub(ctx context.Context, o *dbent.PaymentOrder) error {
-	if o.PlanID == nil {
-		return fmt.Errorf("missing plan_id")
+	if o.PlanID == nil || *o.PlanID <= 0 {
+		return fmt.Errorf("order %d missing plan id", o.ID)
 	}
-	snapshot := o.PlanSnapshot
-	if snapshot.ValidityDays <= 0 {
-		return fmt.Errorf("missing plan snapshot")
+	// Idempotency: check audit log to see if subscription was already assigned.
+	// Prevents double-extension on retry after markCompleted fails.
+	if s.hasAuditLog(ctx, o.ID, "SUBSCRIPTION_SUCCESS") {
+		slog.Info("subscription already assigned for order, skipping", "orderID", o.ID, "planID", *o.PlanID)
+		return s.markCompleted(ctx, o, "SUBSCRIPTION_SUCCESS")
 	}
 	orderNote := fmt.Sprintf("payment order %d", o.ID)
-	_, _, err := s.subscriptionSvc.AssignOrExtendSubscription(ctx, &AssignSubscriptionInput{
-		UserID:              o.UserID,
-		PlanID:              *o.PlanID,
-		ValidityDays:        snapshot.ValidityDays,
-		DailyLimitUSD:       snapshot.DailyLimitUSD,
-		WeeklyLimitUSD:      snapshot.WeeklyLimitUSD,
-		MonthlyLimitUSD:     snapshot.MonthlyLimitUSD,
-		UseProvidedTemplate: true,
-		SourceOrderID:       &o.ID,
-		AssignedBy:          0,
-		Notes:               orderNote,
-	})
+	input := &AssignSubscriptionInput{
+		UserID:        o.UserID,
+		PlanID:        *o.PlanID,
+		AssignedBy:    0,
+		Notes:         orderNote,
+		SourceOrderID: &o.ID,
+	}
+	if snapshot := o.PlanSnapshot; snapshot.ValidityDays > 0 || snapshot.DailyLimitUSD != nil || snapshot.WeeklyLimitUSD != nil || snapshot.MonthlyLimitUSD != nil {
+		input.ValidityDays = snapshot.ValidityDays
+		input.DailyLimitUSD = snapshot.DailyLimitUSD
+		input.WeeklyLimitUSD = snapshot.WeeklyLimitUSD
+		input.MonthlyLimitUSD = snapshot.MonthlyLimitUSD
+		input.UseProvidedTemplate = true
+	}
+	_, _, err := s.subscriptionSvc.AssignOrExtendSubscription(ctx, input)
 	if err != nil {
 		return fmt.Errorf("assign subscription: %w", err)
 	}

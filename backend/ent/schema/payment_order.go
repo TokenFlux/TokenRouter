@@ -3,8 +3,6 @@ package schema
 import (
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/entsql"
@@ -12,6 +10,7 @@ import (
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
 	"entgo.io/ent/schema/index"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
 
 // PaymentOrder holds the schema definition for the PaymentOrder entity.
@@ -90,6 +89,13 @@ func (PaymentOrder) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			MaxLen(64),
+		field.String("provider_key").
+			Optional().
+			Nillable().
+			MaxLen(30),
+		field.JSON("provider_snapshot", map[string]any{}).
+			Optional().
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}),
 
 		// 状态
 		field.String("status").
@@ -177,7 +183,9 @@ func (PaymentOrder) Edges() []ent.Edge {
 
 func (PaymentOrder) Indexes() []ent.Index {
 	return []ent.Index{
-		index.Fields("out_trade_no"),
+		index.Fields("out_trade_no").
+			Unique().
+			Annotations(entsql.IndexWhere("out_trade_no <> ''")),
 		index.Fields("user_id"),
 		index.Fields("status"),
 		index.Fields("expires_at"),
