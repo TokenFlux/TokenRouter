@@ -64,10 +64,12 @@ func TestResolveRedeemAction_LookupErrorWithNonNilCode(t *testing.T) {
 func TestResolveRedeemAction_CodeExistsAndUsed(t *testing.T) {
 	t.Parallel()
 	code := &RedeemCode{
-		Code:   "test-code-123",
-		Status: StatusUsed,
-		Type:   RedeemTypeBalance,
-		Value:  10.0,
+		Code:      "test-code-123",
+		Status:    StatusUsed,
+		Type:      RedeemTypeBalance,
+		Value:     10.0,
+		MaxUses:   1,
+		UsedCount: 1,
 	}
 	action := resolveRedeemAction(code, nil)
 	assert.Equal(t, redeemActionSkipCompleted, action, "used code should skip to completed")
@@ -130,7 +132,7 @@ func TestResolveRedeemAction_Table(t *testing.T) {
 		},
 		{
 			name:     "code exists, used — previous run completed redeem",
-			code:     &RedeemCode{Status: StatusUsed},
+			code:     &RedeemCode{Status: StatusUsed, MaxUses: 1, UsedCount: 1},
 			err:      nil,
 			expected: redeemActionSkipCompleted,
 		},
@@ -142,7 +144,7 @@ func TestResolveRedeemAction_Table(t *testing.T) {
 		},
 		{
 			name:     "code exists but error also set — error takes precedence",
-			code:     &RedeemCode{Status: StatusUsed},
+			code:     &RedeemCode{Status: StatusUsed, MaxUses: 1, UsedCount: 1},
 			err:      errors.New("unexpected"),
 			expected: redeemActionCreate,
 		},
@@ -176,8 +178,8 @@ func TestRedeemAction_DistinctValues(t *testing.T) {
 func TestResolveRedeemAction_IsUsedCanUseConsistency(t *testing.T) {
 	t.Parallel()
 
-	usedCode := &RedeemCode{Status: StatusUsed}
-	unusedCode := &RedeemCode{Status: StatusUnused}
+	usedCode := &RedeemCode{Status: StatusUsed, MaxUses: 1, UsedCount: 1}
+	unusedCode := &RedeemCode{Status: StatusUnused, MaxUses: 1}
 
 	// Verify our decision function is consistent with the domain model methods
 	assert.True(t, usedCode.IsUsed())

@@ -28,6 +28,8 @@ type paymentOrderLifecycleQueryProvider struct {
 
 type paymentOrderLifecycleRedeemRepo struct {
 	codesByCode map[string]*RedeemCode
+	// 按兑换码和用户记录使用轨迹，模拟新仓储接口的去重查询。
+	usageByRedeemCodeID map[int64]map[int64]*RedeemCodeUsage
 	useCalls    []struct {
 		id     int64
 		userID int64
@@ -97,8 +99,20 @@ func (r *paymentOrderLifecycleRedeemRepo) GetByCode(_ context.Context, code stri
 	return &cloned, nil
 }
 
-func (r *paymentOrderLifecycleRedeemRepo) Update(context.Context, *RedeemCode) error {
-	panic("unexpected call")
+func (r *paymentOrderLifecycleRedeemRepo) GetByCodeForUpdate(ctx context.Context, code string) (*RedeemCode, error) {
+	return r.GetByCode(ctx, code)
+}
+
+func (r *paymentOrderLifecycleRedeemRepo) Update(_ context.Context, code *RedeemCode) error {
+	if code == nil {
+		return nil
+	}
+	cloned := *code
+	if r.codesByCode == nil {
+		r.codesByCode = make(map[string]*RedeemCode)
+	}
+	r.codesByCode[cloned.Code] = &cloned
+	return nil
 }
 
 func (r *paymentOrderLifecycleRedeemRepo) Delete(context.Context, int64) error {
@@ -122,6 +136,44 @@ func (r *paymentOrderLifecycleRedeemRepo) Use(_ context.Context, id, userID int6
 		return nil
 	}
 	return ErrRedeemCodeNotFound
+}
+
+func (r *paymentOrderLifecycleRedeemRepo) CreateUsage(_ context.Context, usage *RedeemCodeUsage) error {
+	if usage == nil {
+		return nil
+	}
+	cloned := *usage
+	if r.usageByRedeemCodeID == nil {
+		r.usageByRedeemCodeID = make(map[int64]map[int64]*RedeemCodeUsage)
+	}
+	if r.usageByRedeemCodeID[cloned.RedeemCodeID] == nil {
+		r.usageByRedeemCodeID[cloned.RedeemCodeID] = make(map[int64]*RedeemCodeUsage)
+	}
+	r.usageByRedeemCodeID[cloned.RedeemCodeID][cloned.UserID] = &cloned
+	r.useCalls = append(r.useCalls, struct {
+		id     int64
+		userID int64
+	}{
+		id:     cloned.RedeemCodeID,
+		userID: cloned.UserID,
+	})
+	return nil
+}
+
+func (r *paymentOrderLifecycleRedeemRepo) GetUsageByRedeemCodeAndUser(_ context.Context, redeemCodeID, userID int64) (*RedeemCodeUsage, error) {
+	if r.usageByRedeemCodeID == nil {
+		return nil, nil
+	}
+	usagesByUser, ok := r.usageByRedeemCodeID[redeemCodeID]
+	if !ok {
+		return nil, nil
+	}
+	usage, ok := usagesByUser[userID]
+	if !ok {
+		return nil, nil
+	}
+	cloned := *usage
+	return &cloned, nil
 }
 
 func (r *paymentOrderLifecycleRedeemRepo) List(context.Context, pagination.PaginationParams) ([]RedeemCode, *pagination.PaginationResult, error) {
