@@ -36,6 +36,17 @@ const routes: RouteRecordRaw[] = [
       title: 'Home'
     }
   },
+  // 模型广场需要保持公开访问，首页和侧边栏都直接链接到这里。
+  {
+    path: '/models',
+    name: 'ModelMarketplace',
+    component: () => import('@/views/ModelMarketplaceView.vue'),
+    meta: {
+      requiresAuth: false,
+      title: 'Model Marketplace',
+      titleKey: 'marketplace.title'
+    }
+  },
   {
     path: '/login',
     name: 'Login',
@@ -542,7 +553,8 @@ let authInitialized = false
 const navigationLoading = useNavigationLoadingState()
 // 延迟初始化预加载，传入 router 实例
 let routePrefetch: ReturnType<typeof useRoutePrefetch> | null = null
-const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/payment/result']
+// 后端模式下这些公开页面仍需直达访问，模型广场属于公开入口。
+const BACKEND_MODE_ALLOWED_PATHS = ['/login', '/key-usage', '/setup', '/models', '/payment/result']
 const BACKEND_MODE_CALLBACK_PATHS = [
   '/auth/callback',
   '/auth/linuxdo/callback',
