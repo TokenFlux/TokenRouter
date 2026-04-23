@@ -911,7 +911,7 @@ import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import type { Proxy as ProxyConfig, AdminGroup, AccountPlatform, AccountType } from '@/types'
+import type { Proxy as ProxyConfig, AdminGroup, AccountPlatform, AccountType, Account } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -922,7 +922,10 @@ import Icon from '@/components/icons/Icon.vue'
 import {
   buildModelMappingObject,
   buildPersistedModelRestriction,
-  getPresetMappingsByPlatform
+  getPresetMappingsByPlatform,
+  normalizeModelWhitelist,
+  splitModelMappingObject,
+  splitPersistedModelRestriction
 } from '@/composables/useModelWhitelist'
 import {
   OPENAI_WS_MODE_CTX_POOL,
@@ -1003,6 +1006,12 @@ interface ModelMapping {
   to: string
 }
 
+interface ParsedModelRestrictionState {
+  mode: 'whitelist' | 'mapping'
+  allowedModels: string[]
+  modelMappings: ModelMapping[]
+}
+
 // State - field enable flags
 const enableBaseUrl = ref(false)
 const enableModelRestriction = ref(false)
@@ -1045,6 +1054,7 @@ const bulkBaseRpm = ref<number | null>(null)
 const bulkRpmStrategy = ref<'tiered' | 'sticky_exempt'>('tiered')
 const bulkRpmStickyBuffer = ref<number | null>(null)
 const userMsgQueueMode = ref<string | null>(null)
+const modelRestrictionPrefillSeq = ref(0)
 const umqModeOptions = computed(() => [
   { value: '', label: t('admin.accounts.quotaControl.rpmLimit.umqModeOff') },
   { value: 'throttle', label: t('admin.accounts.quotaControl.rpmLimit.umqModeThrottle') },
@@ -1081,6 +1091,135 @@ const openAIWSModeOptions = computed(() => [
 const openAIWSModeConcurrencyHintKey = computed(() =>
   resolveOpenAIWSModeConcurrencyHintKey(openaiOAuthResponsesWebSocketV2Mode.value)
 )
+
+const cloneModelMappings = (mappings: ModelMapping[]) =>
+  mappings.map(({ from, to }) => ({ from, to }))
+
+const normalizeModelMappings = (mappings: ModelMapping[]) => {
+  return cloneModelMappings(mappings)
+    .map(({ from, to }) => ({
+      from: from.trim(),
+      to: to.trim()
+    }))
+    .filter(({ from, to }) => from.length > 0 && to.length > 0)
+    .sort((a, b) => {
+      const fromCmp = a.from.localeCompare(b.from)
+      if (fromCmp !== 0) {
+        return fromCmp
+      }
+      return a.to.localeCompare(b.to)
+    })
+}
+
+const resetModelRestrictionDraft = () => {
+  modelRestrictionMode.value = 'whitelist'
+  allowedModels.value = []
+  modelMappings.value = []
+}
+
+const isModelRestrictionDraftPristine = () =>
+  modelRestrictionMode.value === 'whitelist' &&
+  allowedModels.value.length === 0 &&
+  modelMappings.value.length === 0
+
+const getModelRestrictionSignature = (state: ParsedModelRestrictionState) => {
+  return JSON.stringify({
+    mode: state.mode,
+    allowedModels: state.allowedModels,
+    modelMappings: state.modelMappings
+  })
+}
+
+const parseAccountModelRestriction = (account: Account): ParsedModelRestrictionState => {
+  const credentials = (account.credentials as Record<string, unknown>) || {}
+
+  let allowedModels: string[] = []
+  let modelMappings: ModelMapping[] = []
+
+  if (account.platform === 'antigravity') {
+    const rawMapping = credentials.model_mapping as Record<string, string> | undefined
+    if (rawMapping && typeof rawMapping === 'object') {
+      const parsed = splitModelMappingObject(rawMapping)
+      allowedModels = parsed.allowedModels
+      modelMappings = parsed.modelMappings
+    } else {
+      allowedModels = normalizeModelWhitelist(credentials.model_whitelist)
+    }
+  } else {
+    const parsed = splitPersistedModelRestriction(
+      credentials.model_mapping as Record<string, string> | undefined,
+      credentials.model_whitelist
+    )
+    allowedModels = parsed.allowedModels
+    modelMappings = parsed.modelMappings
+  }
+
+  const normalizedAllowedModels = Array.from(
+    new Set(
+      allowedModels
+        .map((model) => model.trim())
+        .filter((model) => model.length > 0)
+    )
+  ).sort((a, b) => a.localeCompare(b))
+  const normalizedModelMappings = normalizeModelMappings(modelMappings)
+
+  return {
+    mode: normalizedModelMappings.length > 0 ? 'mapping' : 'whitelist',
+    allowedModels: normalizedAllowedModels,
+    modelMappings: normalizedModelMappings
+  }
+}
+
+const hydrateModelRestrictionDraftFromAccounts = (accounts: Account[]) => {
+  if (props.selectedPlatforms.length !== 1 || accounts.length === 0) {
+    resetModelRestrictionDraft()
+    return
+  }
+
+  const parsedStates = accounts.map(parseAccountModelRestriction)
+  const firstState = parsedStates[0]
+  const firstSignature = getModelRestrictionSignature(firstState)
+
+  if (!parsedStates.every((state) => getModelRestrictionSignature(state) === firstSignature)) {
+    resetModelRestrictionDraft()
+    return
+  }
+
+  modelRestrictionMode.value = firstState.mode
+  allowedModels.value = [...firstState.allowedModels]
+  modelMappings.value = cloneModelMappings(firstState.modelMappings)
+}
+
+const loadSelectedAccountDefaults = async () => {
+  const requestSeq = ++modelRestrictionPrefillSeq.value
+  if (!props.show || props.accountIds.length === 0) {
+    return
+  }
+  if (props.selectedPlatforms.length !== 1) {
+    resetModelRestrictionDraft()
+    return
+  }
+
+  try {
+    const accounts = await Promise.all(props.accountIds.map((id) => adminAPI.accounts.getById(id)))
+    if (requestSeq !== modelRestrictionPrefillSeq.value || !props.show) {
+      return
+    }
+    if (!isModelRestrictionDraftPristine()) {
+      return
+    }
+    hydrateModelRestrictionDraftFromAccounts(accounts)
+  } catch (error) {
+    if (requestSeq !== modelRestrictionPrefillSeq.value) {
+      return
+    }
+    if (!isModelRestrictionDraftPristine()) {
+      return
+    }
+    resetModelRestrictionDraft()
+    console.error('Failed to load bulk edit account defaults:', error)
+  }
+}
 
 // Model mapping helpers
 const addModelMapping = () => {
@@ -1221,7 +1360,7 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
       // 普通账号批量编辑需要显式发送空对象/空数组，才能覆盖账号上已有的限制配置。
       const persisted = buildPersistedModelRestriction(allowedModels.value, modelMappings.value)
       credentials.model_mapping = persisted.modelMapping ?? {}
-      credentials.model_whitelist = persisted.modelWhitelist ?? []
+      credentials.model_whitelist = persisted.modelWhitelist
     }
     credentialsChanged = true
   }
@@ -1419,56 +1558,64 @@ const handleMixedChannelCancel = () => {
   pendingUpdatesForConfirm.value = null
 }
 
-// Reset form when modal closes
+const resetBulkEditFormState = () => {
+  enableBaseUrl.value = false
+  enableModelRestriction.value = false
+  enableCustomErrorCodes.value = false
+  enableInterceptWarmup.value = false
+  enableProxy.value = false
+  enableConcurrency.value = false
+  enableLoadFactor.value = false
+  enablePriority.value = false
+  enableRateMultiplier.value = false
+  enableStatus.value = false
+  enableGroups.value = false
+  enableOpenAIPassthrough.value = false
+  enableOpenAIWSMode.value = false
+  enableRpmLimit.value = false
+
+  baseUrl.value = ''
+  openaiPassthroughEnabled.value = false
+  resetModelRestrictionDraft()
+  selectedErrorCodes.value = []
+  customErrorCodeInput.value = null
+  interceptWarmupRequests.value = false
+  proxyId.value = null
+  concurrency.value = 1
+  loadFactor.value = null
+  priority.value = 1
+  rateMultiplier.value = 1
+  status.value = 'active'
+  groupIds.value = []
+  openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
+  rpmLimitEnabled.value = false
+  bulkBaseRpm.value = null
+  bulkRpmStrategy.value = 'tiered'
+  bulkRpmStickyBuffer.value = null
+  userMsgQueueMode.value = null
+
+  showMixedChannelWarning.value = false
+  mixedChannelWarningMessage.value = ''
+  pendingUpdatesForConfirm.value = null
+  mixedChannelConfirmed.value = false
+}
+
 watch(
-  () => props.show,
-  (newShow) => {
-    if (!newShow) {
-      // Reset all enable flags
-      enableBaseUrl.value = false
-      enableModelRestriction.value = false
-      enableCustomErrorCodes.value = false
-      enableInterceptWarmup.value = false
-      enableProxy.value = false
-      enableConcurrency.value = false
-      enableLoadFactor.value = false
-      enablePriority.value = false
-      enableRateMultiplier.value = false
-      enableStatus.value = false
-      enableGroups.value = false
-      enableOpenAIPassthrough.value = false
-      enableOpenAIWSMode.value = false
-      enableRpmLimit.value = false
-
-      // Reset all values
-      baseUrl.value = ''
-      openaiPassthroughEnabled.value = false
-      modelRestrictionMode.value = 'whitelist'
-      allowedModels.value = []
-      modelMappings.value = []
-      selectedErrorCodes.value = []
-      customErrorCodeInput.value = null
-      interceptWarmupRequests.value = false
-      proxyId.value = null
-      concurrency.value = 1
-      loadFactor.value = null
-      priority.value = 1
-      rateMultiplier.value = 1
-      status.value = 'active'
-      groupIds.value = []
-      openaiOAuthResponsesWebSocketV2Mode.value = OPENAI_WS_MODE_OFF
-      rpmLimitEnabled.value = false
-      bulkBaseRpm.value = null
-      bulkRpmStrategy.value = 'tiered'
-      bulkRpmStickyBuffer.value = null
-      userMsgQueueMode.value = null
-
-      // Reset mixed channel warning state
-      showMixedChannelWarning.value = false
-      mixedChannelWarningMessage.value = ''
-      pendingUpdatesForConfirm.value = null
-      mixedChannelConfirmed.value = false
+  [
+    () => props.show,
+    () => props.accountIds.join(','),
+    () => props.selectedPlatforms.join(','),
+    () => props.selectedTypes.join(',')
+  ],
+  ([newShow]) => {
+    if (newShow) {
+      void loadSelectedAccountDefaults()
+      return
     }
-  }
+
+    modelRestrictionPrefillSeq.value++
+    resetBulkEditFormState()
+  },
+  { immediate: true }
 )
 </script>

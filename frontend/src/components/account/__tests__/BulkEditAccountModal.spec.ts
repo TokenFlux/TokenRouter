@@ -15,6 +15,7 @@ vi.mock('@/stores/app', () => ({
 vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
+      getById: vi.fn(),
       bulkUpdate: vi.fn(),
       checkMixedChannelRisk: vi.fn()
     }
@@ -73,11 +74,45 @@ function mountModal(extraProps: Record<string, unknown> = {}) {
   })
 }
 
+function createAccount(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 1,
+    name: 'test-account',
+    platform: 'anthropic',
+    type: 'apikey',
+    credentials: {},
+    proxy_id: null,
+    concurrency: 1,
+    priority: 1,
+    status: 'active',
+    error_message: null,
+    last_used_at: null,
+    expires_at: null,
+    auto_pause_on_expired: false,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    schedulable: true,
+    rate_limited_at: null,
+    rate_limit_reset_at: null,
+    overload_until: null,
+    temp_unschedulable_until: null,
+    temp_unschedulable_reason: null,
+    session_window_start: null,
+    session_window_end: null,
+    session_window_status: null,
+    ...overrides
+  } as any
+}
+
 describe('BulkEditAccountModal', () => {
   beforeEach(() => {
+    vi.mocked(adminAPI.accounts.getById).mockReset()
     vi.mocked(adminAPI.accounts.bulkUpdate).mockReset()
     vi.mocked(adminAPI.accounts.checkMixedChannelRisk).mockReset()
 
+    vi.mocked(adminAPI.accounts.getById).mockImplementation(async (id: number) =>
+      createAccount({ id })
+    )
     vi.mocked(adminAPI.accounts.bulkUpdate).mockResolvedValue({
       success: 2,
       failed: 0,
@@ -86,6 +121,65 @@ describe('BulkEditAccountModal', () => {
     vi.mocked(adminAPI.accounts.checkMixedChannelRisk).mockResolvedValue({
       has_risk: false
     } as any)
+  })
+
+  it('批量编辑打开时，相同模型白名单会回填到选择器', async () => {
+    vi.mocked(adminAPI.accounts.getById)
+      .mockResolvedValueOnce(createAccount({
+        id: 1,
+        credentials: {
+          model_whitelist: ['claude-sonnet-4-5', 'claude-opus-4-1']
+        }
+      }))
+      .mockResolvedValueOnce(createAccount({
+        id: 2,
+        credentials: {
+          model_whitelist: ['claude-opus-4-1', 'claude-sonnet-4-5']
+        }
+      }))
+
+    const wrapper = mountModal({
+      show: false,
+      selectedPlatforms: ['anthropic'],
+      selectedTypes: ['apikey']
+    })
+
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    const selector = wrapper.findComponent(ModelWhitelistSelector)
+    expect(selector.exists()).toBe(true)
+    expect(selector.props('modelValue')).toEqual(['claude-opus-4-1', 'claude-sonnet-4-5'])
+    expect((wrapper.get('#bulk-edit-model-restriction-enabled').element as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('批量编辑打开时，不同模型限制配置不会误回填', async () => {
+    vi.mocked(adminAPI.accounts.getById)
+      .mockResolvedValueOnce(createAccount({
+        id: 1,
+        credentials: {
+          model_whitelist: ['claude-sonnet-4-5']
+        }
+      }))
+      .mockResolvedValueOnce(createAccount({
+        id: 2,
+        credentials: {
+          model_whitelist: ['claude-opus-4-1']
+        }
+      }))
+
+    const wrapper = mountModal({
+      show: false,
+      selectedPlatforms: ['anthropic'],
+      selectedTypes: ['apikey']
+    })
+
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    const selector = wrapper.findComponent(ModelWhitelistSelector)
+    expect(selector.exists()).toBe(true)
+    expect(selector.props('modelValue')).toEqual([])
   })
 
   it('antigravity 白名单包含 Gemini 图片模型且过滤掉普通 GPT 模型', async () => {
