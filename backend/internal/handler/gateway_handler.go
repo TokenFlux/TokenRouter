@@ -847,8 +847,8 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 // Models handles listing available models
 // GET /v1/models
-// Returns models based on account configurations (model_mapping whitelist)
-// Falls back to default models if no whitelist is configured
+// Returns models based on account configurations (request-side mappings / explicit whitelist)
+// Falls back to default models if no explicit model scope is configured
 func (h *GatewayHandler) Models(c *gin.Context) {
 	apiKey, _ := middleware2.GetAPIKeyFromContext(c)
 
@@ -867,7 +867,7 @@ func (h *GatewayHandler) Models(c *gin.Context) {
 	availableModels := h.gatewayService.GetAvailableModels(c.Request.Context(), groupID, "")
 
 	if len(availableModels) > 0 {
-		// Build model list from whitelist
+		// Build model list from configured request models
 		models := make([]claude.Model, 0, len(availableModels))
 		for _, modelID := range availableModels {
 			models = append(models, claude.Model{

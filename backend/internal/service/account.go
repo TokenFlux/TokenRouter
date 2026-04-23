@@ -4,6 +4,7 @@ package service
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"hash/fnv"
 	"log/slog"
 	"reflect"
@@ -533,21 +534,6 @@ func normalizeRequestedModelForLookup(platform, requestedModel string) string {
 	return trimmed
 }
 
-func mappingSupportsRequestedModel(mapping map[string]string, requestedModel string) bool {
-	if requestedModel == "" {
-		return false
-	}
-	if _, exists := mapping[requestedModel]; exists {
-		return true
-	}
-	for pattern := range mapping {
-		if matchWildcard(pattern, requestedModel) {
-			return true
-		}
-	}
-	return false
-}
-
 func resolveRequestedModelInMapping(mapping map[string]string, requestedModel string) (mappedModel string, matched bool) {
 	if requestedModel == "" {
 		return "", false
@@ -558,18 +544,149 @@ func resolveRequestedModelInMapping(mapping map[string]string, requestedModel st
 	return matchWildcardMappingResult(mapping, requestedModel)
 }
 
-// IsModelSupported 检查模型是否在 model_mapping 中（支持通配符）
-// 如果未配置 mapping，返回 true（允许所有模型）
-func (a *Account) IsModelSupported(requestedModel string) bool {
-	mapping := a.GetModelMapping()
+// extractFinalModelWhitelist 从 model_mapping 中提取“最终模型白名单”。
+// 约定：只有精确自映射（from == to，且不含通配符）的条目才算白名单。
+// 这样既能兼容历史上把白名单持久化为 key=value 的做法，又不会把普通映射规则误判成白名单。
+func extractFinalModelWhitelist(platform string, mapping map[string]string) map[string]struct{} {
 	if len(mapping) == 0 {
-		return true // 无映射 = 允许所有
+		return nil
 	}
-	if mappingSupportsRequestedModel(mapping, requestedModel) {
+	whitelist := make(map[string]struct{})
+	for rawFrom, rawTo := range mapping {
+		if strings.Contains(rawFrom, "*") {
+			continue
+		}
+		from := normalizeRequestedModelForLookup(platform, rawFrom)
+		to := normalizeRequestedModelForLookup(platform, strings.TrimSpace(rawTo))
+		if from == "" || to == "" || from != to {
+			continue
+		}
+		whitelist[to] = struct{}{}
+	}
+	if len(whitelist) == 0 {
+		return nil
+	}
+	return whitelist
+}
+
+// extractExplicitFinalModelWhitelist 从独立的 model_whitelist 字段提取最终模型白名单。
+// 该字段是新的主持久化方式；仍忽略通配符，保持与前端 whitelist 视图一致。
+func extractExplicitFinalModelWhitelist(platform string, rawWhitelist any) map[string]struct{} {
+	if rawWhitelist == nil {
+		return nil
+	}
+	values := make([]string, 0)
+	switch typed := rawWhitelist.(type) {
+	case []string:
+		values = append(values, typed...)
+	case []any:
+		for _, raw := range typed {
+			if raw == nil {
+				continue
+			}
+			values = append(values, strings.TrimSpace(fmt.Sprint(raw)))
+		}
+	default:
+		return nil
+	}
+	whitelist := make(map[string]struct{})
+	for _, rawModel := range values {
+		model := normalizeRequestedModelForLookup(platform, rawModel)
+		if model == "" || strings.Contains(model, "*") {
+			continue
+		}
+		whitelist[model] = struct{}{}
+	}
+	if len(whitelist) == 0 {
+		return nil
+	}
+	return whitelist
+}
+
+// resolveFinalModelWhitelist 优先读取独立的 model_whitelist 字段；
+// 若该字段不存在，则回退到旧版“自映射即白名单”的兼容解析。
+func resolveFinalModelWhitelist(platform string, credentials map[string]any, mapping map[string]string) (map[string]struct{}, bool) {
+	if credentials != nil {
+		if rawWhitelist, exists := credentials["model_whitelist"]; exists {
+			return extractExplicitFinalModelWhitelist(platform, rawWhitelist), true
+		}
+	}
+	return extractFinalModelWhitelist(platform, mapping), false
+}
+
+// isModelInFinalWhitelist 检查最终上游模型是否命中白名单。
+// Gemini / Antigravity 仍复用既有归一化逻辑，避免 customtools 这类别名导致误判。
+func isModelInFinalWhitelist(platform, model string, whitelist map[string]struct{}) bool {
+	if len(whitelist) == 0 {
 		return true
 	}
-	normalized := normalizeRequestedModelForLookup(a.Platform, requestedModel)
-	return normalized != requestedModel && mappingSupportsRequestedModel(mapping, normalized)
+	if _, ok := whitelist[model]; ok {
+		return true
+	}
+	normalized := normalizeRequestedModelForLookup(platform, model)
+	if normalized == model {
+		return false
+	}
+	_, ok := whitelist[normalized]
+	return ok
+}
+
+// IsModelSupported 检查账号是否支持该请求模型。
+// 规则：
+// 1. 未配置 model_mapping 时，直接按最终白名单（model_whitelist）判断；未配置白名单则允许所有模型；
+// 2. 已配置时，若请求模型命中映射/透传规则，则先映射，再对映射后的最终模型做白名单校验；
+// 3. 若请求模型未命中映射，则把它当作隐式透传模型，直接按最终模型做白名单校验；
+// 4. 当不存在任何白名单时，mapping 仅作为可选改写规则，不限制请求模型。
+// 5. 为兼容旧数据，若未配置独立 model_whitelist，会继续把精确自映射条目视作最终白名单。
+func (a *Account) IsModelSupported(requestedModel string) bool {
+	mapping := a.GetModelMapping()
+	// Antigravity 仍保持“请求模型命中映射即可支持”的既有语义。
+	// 该平台的最终模型（含 thinking 后缀）校验由网关层专门处理，不能在这里提前套用通用白名单规则。
+	if a.Platform == PlatformAntigravity {
+		if len(mapping) == 0 {
+			return true
+		}
+		_, matched := a.ResolveMappedModel(requestedModel)
+		return matched
+	}
+	whitelist, _ := resolveFinalModelWhitelist(a.Platform, a.Credentials, mapping)
+	if len(mapping) == 0 {
+		return isModelInFinalWhitelist(a.Platform, requestedModel, whitelist)
+	}
+	mappedModel, matched := a.ResolveMappedModel(requestedModel)
+	if matched {
+		return isModelInFinalWhitelist(a.Platform, mappedModel, whitelist)
+	}
+	return isModelInFinalWhitelist(a.Platform, requestedModel, whitelist)
+}
+
+// GetConfiguredRequestModels 返回账号显式配置的“可请求模型”列表。
+// 只有存在最终白名单时，才返回有限的“可请求模型”集合：
+// - 白名单中的模型可直接请求（隐式透传）；
+// - mapping 的 key 也可请求（显式改写）。
+// 若不存在白名单，则请求模型空间不受限制，返回 nil 表示调用方应回退到默认模型列表。
+func (a *Account) GetConfiguredRequestModels() []string {
+	mapping := a.GetModelMapping()
+	whitelist, _ := resolveFinalModelWhitelist(a.Platform, a.Credentials, mapping)
+	if len(whitelist) == 0 {
+		return nil
+	}
+	modelSet := make(map[string]struct{})
+	if len(mapping) > 0 {
+		for model := range mapping {
+			modelSet[model] = struct{}{}
+		}
+	}
+	// 无论白名单来自显式字段还是 legacy 自映射，白名单模型本身都可直接请求。
+	for model := range whitelist {
+		modelSet[model] = struct{}{}
+	}
+	models := make([]string, 0, len(modelSet))
+	for model := range modelSet {
+		models = append(models, model)
+	}
+	sort.Strings(models)
+	return models
 }
 
 // GetMappedModel 获取映射后的模型名（支持通配符，最长优先匹配）

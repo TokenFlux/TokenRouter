@@ -164,14 +164,14 @@ func TestAccountIsModelSupported(t *testing.T) {
 			expected:       true,
 		},
 		{
-			name: "exact match not supported",
+			name: "exact mapping miss is allowed as passthrough without whitelist",
 			credentials: map[string]any{
 				"model_mapping": map[string]any{
 					"claude-sonnet-4-5": "target-model",
 				},
 			},
 			requestedModel: "claude-opus-4-5",
-			expected:       false,
+			expected:       true,
 		},
 
 		// 通配符匹配
@@ -197,14 +197,78 @@ func TestAccountIsModelSupported(t *testing.T) {
 			expected:       true,
 		},
 		{
-			name: "wildcard match not supported",
+			name: "wildcard mapping miss is allowed as passthrough without whitelist",
 			credentials: map[string]any{
 				"model_mapping": map[string]any{
 					"claude-*": "claude-sonnet-4-5",
 				},
 			},
 			requestedModel: "gemini-3-flash",
+			expected:       true,
+		},
+		{
+			name: "mapping is checked before final whitelist",
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"model-a": "model-b",
+				},
+				"model_whitelist": []any{"model-b", "model-c"},
+			},
+			requestedModel: "model-a",
+			expected:       true,
+		},
+		{
+			name: "mapped final model must also be in whitelist when whitelist exists",
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"model-a": "model-b",
+				},
+				"model_whitelist": []any{"model-c"},
+			},
+			requestedModel: "model-a",
 			expected:       false,
+		},
+		{
+			name: "final whitelist model is also directly requestable as implicit passthrough",
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"model-a": "model-b",
+				},
+				"model_whitelist": []any{"model-b", "model-c"},
+			},
+			requestedModel: "model-c",
+			expected:       true,
+		},
+		{
+			name: "mapping without explicit whitelist still allows mapped request",
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"model-a": "model-b",
+				},
+			},
+			requestedModel: "model-a",
+			expected:       true,
+		},
+		{
+			name: "mapping without explicit whitelist allows unmatched request as passthrough",
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"model-a": "model-b",
+				},
+			},
+			requestedModel: "model-b",
+			expected:       true,
+		},
+		{
+			name: "explicit empty whitelist disables legacy self-mapping fallback",
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"model-b": "model-b",
+				},
+				"model_whitelist": []any{},
+			},
+			requestedModel: "model-c",
+			expected:       true,
 		},
 	}
 

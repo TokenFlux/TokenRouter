@@ -136,6 +136,9 @@
                 {{ t('admin.accounts.modelMapping') }}
               </button>
             </div>
+            <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.modelRestrictionCombinedHint') }}
+            </p>
 
             <!-- Whitelist Mode -->
             <div v-if="modelRestrictionMode === 'whitelist'">
@@ -451,6 +454,9 @@
               {{ t('admin.accounts.modelMapping') }}
             </button>
           </div>
+          <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.modelRestrictionCombinedHint') }}
+          </p>
 
           <!-- Whitelist Mode -->
           <div v-if="modelRestrictionMode === 'whitelist'">
@@ -670,6 +676,9 @@
               {{ t('admin.accounts.modelMapping') }}
             </button>
           </div>
+          <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.modelRestrictionCombinedHint') }}
+          </p>
 
           <!-- Whitelist Mode -->
           <div v-if="modelRestrictionMode === 'whitelist'">
@@ -1874,6 +1883,8 @@ import {
   getPresetMappingsByPlatform,
   commonErrorCodes,
   buildModelMappingObject,
+  buildPersistedModelRestriction,
+  splitPersistedModelRestriction,
   isValidWildcardPattern
 } from '@/composables/useModelWhitelist'
 
@@ -2141,6 +2152,28 @@ const normalizePoolModeRetryCount = (value: number) => {
   return normalized
 }
 
+const hydrateModelRestrictionFromMapping = (
+  existingMappings?: Record<string, string>,
+  rawWhitelist?: unknown
+) => {
+  const parsed = splitPersistedModelRestriction(existingMappings, rawWhitelist)
+  allowedModels.value = parsed.allowedModels
+  modelMappings.value = parsed.modelMappings
+  modelRestrictionMode.value = parsed.modelMappings.length > 0 ? 'mapping' : 'whitelist'
+}
+
+const applyPersistedModelRestriction = (credentials: Record<string, unknown>) => {
+  // 普通账号将请求侧映射与最终白名单分开持久化。
+  // 这里即使白名单为空，也要显式写入 []，避免后端回退到 legacy 的自映射白名单解析。
+  const persisted = buildPersistedModelRestriction(allowedModels.value, modelMappings.value)
+  if (persisted.modelMapping) {
+    credentials.model_mapping = persisted.modelMapping
+  } else {
+    delete credentials.model_mapping
+  }
+  credentials.model_whitelist = persisted.modelWhitelist
+}
+
 const syncFormFromAccount = (newAccount: Account | null) => {
   if (!newAccount) {
     return
@@ -2291,31 +2324,9 @@ const syncFormFromAccount = (newAccount: Account | null) => {
           : 'https://api.anthropic.com'
     editBaseUrl.value = (credentials.base_url as string) || platformDefaultUrl
 
-    // Load model mappings and detect mode
+    // 统一从 model_mapping 恢复白名单与映射两个视图，避免配置映射后把白名单误判为空。
     const existingMappings = credentials.model_mapping as Record<string, string> | undefined
-    if (existingMappings && typeof existingMappings === 'object') {
-      const entries = Object.entries(existingMappings)
-
-      // Detect if this is whitelist mode (all from === to) or mapping mode
-      const isWhitelistMode = entries.length > 0 && entries.every(([from, to]) => from === to)
-
-      if (isWhitelistMode) {
-        // Whitelist mode: populate allowedModels
-        modelRestrictionMode.value = 'whitelist'
-        allowedModels.value = entries.map(([from]) => from)
-        modelMappings.value = []
-      } else {
-        // Mapping mode: populate modelMappings
-        modelRestrictionMode.value = 'mapping'
-        modelMappings.value = entries.map(([from, to]) => ({ from, to }))
-        allowedModels.value = []
-      }
-    } else {
-      // No mappings: default to whitelist mode with empty selection (allow all)
-      modelRestrictionMode.value = 'whitelist'
-      modelMappings.value = []
-      allowedModels.value = []
-    }
+    hydrateModelRestrictionFromMapping(existingMappings, credentials.model_whitelist)
 
     // Load pool mode
     poolModeEnabled.value = credentials.pool_mode === true
@@ -2360,23 +2371,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
 
     // Load model mappings for bedrock
     const existingMappings = bedrockCreds.model_mapping as Record<string, string> | undefined
-    if (existingMappings && typeof existingMappings === 'object') {
-      const entries = Object.entries(existingMappings)
-      const isWhitelistMode = entries.length > 0 && entries.every(([from, to]) => from === to)
-      if (isWhitelistMode) {
-        modelRestrictionMode.value = 'whitelist'
-        allowedModels.value = entries.map(([from]) => from)
-        modelMappings.value = []
-      } else {
-        modelRestrictionMode.value = 'mapping'
-        modelMappings.value = entries.map(([from, to]) => ({ from, to }))
-        allowedModels.value = []
-      }
-    } else {
-      modelRestrictionMode.value = 'whitelist'
-      modelMappings.value = []
-      allowedModels.value = []
-    }
+    hydrateModelRestrictionFromMapping(existingMappings, bedrockCreds.model_whitelist)
   } else if (newAccount.type === 'upstream' && newAccount.credentials) {
     const credentials = newAccount.credentials as Record<string, unknown>
     editBaseUrl.value = (credentials.base_url as string) || ''
@@ -2393,27 +2388,9 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     if (newAccount.platform === 'openai' && newAccount.credentials) {
       const oauthCredentials = newAccount.credentials as Record<string, unknown>
       const existingMappings = oauthCredentials.model_mapping as Record<string, string> | undefined
-      if (existingMappings && typeof existingMappings === 'object') {
-        const entries = Object.entries(existingMappings)
-        const isWhitelistMode = entries.length > 0 && entries.every(([from, to]) => from === to)
-        if (isWhitelistMode) {
-          modelRestrictionMode.value = 'whitelist'
-          allowedModels.value = entries.map(([from]) => from)
-          modelMappings.value = []
-        } else {
-          modelRestrictionMode.value = 'mapping'
-          modelMappings.value = entries.map(([from, to]) => ({ from, to }))
-          allowedModels.value = []
-        }
-      } else {
-        modelRestrictionMode.value = 'whitelist'
-        modelMappings.value = []
-        allowedModels.value = []
-      }
+      hydrateModelRestrictionFromMapping(existingMappings, oauthCredentials.model_whitelist)
     } else {
-      modelRestrictionMode.value = 'whitelist'
-      modelMappings.value = []
-      allowedModels.value = []
+      hydrateModelRestrictionFromMapping()
     }
     poolModeEnabled.value = false
     poolModeRetryCount.value = DEFAULT_POOL_MODE_RETRY_COUNT
@@ -2902,14 +2879,14 @@ const handleSubmit = async () => {
 
       // Add model mapping if configured（OpenAI 开启自动透传时保留现有映射，不再编辑）
       if (shouldApplyModelMapping) {
-        const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
-        if (modelMapping) {
-          newCredentials.model_mapping = modelMapping
-        } else {
-          delete newCredentials.model_mapping
-        }
+        applyPersistedModelRestriction(newCredentials)
       } else if (currentCredentials.model_mapping) {
         newCredentials.model_mapping = currentCredentials.model_mapping
+        if ('model_whitelist' in currentCredentials) {
+          newCredentials.model_whitelist = currentCredentials.model_whitelist
+        }
+      } else if ('model_whitelist' in currentCredentials) {
+        newCredentials.model_whitelist = currentCredentials.model_whitelist
       }
 
       // Add pool mode if enabled
@@ -2992,12 +2969,7 @@ const handleSubmit = async () => {
       }
 
       // Model mapping
-      const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
-      if (modelMapping) {
-        newCredentials.model_mapping = modelMapping
-      } else {
-        delete newCredentials.model_mapping
-      }
+      applyPersistedModelRestriction(newCredentials)
 
       applyInterceptWarmup(newCredentials, interceptWarmupRequests.value, 'edit')
       if (!applyTempUnschedConfig(newCredentials)) {
@@ -3026,15 +2998,15 @@ const handleSubmit = async () => {
       const shouldApplyModelMapping = !openaiPassthroughEnabled.value
 
       if (shouldApplyModelMapping) {
-        const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
-        if (modelMapping) {
-          newCredentials.model_mapping = modelMapping
-        } else {
-          delete newCredentials.model_mapping
-        }
+        applyPersistedModelRestriction(newCredentials)
       } else if (currentCredentials.model_mapping) {
         // 透传模式保留现有映射
         newCredentials.model_mapping = currentCredentials.model_mapping
+        if ('model_whitelist' in currentCredentials) {
+          newCredentials.model_whitelist = currentCredentials.model_whitelist
+        }
+      } else if ('model_whitelist' in currentCredentials) {
+        newCredentials.model_whitelist = currentCredentials.model_whitelist
       }
 
       updatePayload.credentials = newCredentials

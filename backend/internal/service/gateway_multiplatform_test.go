@@ -1116,13 +1116,13 @@ func TestGatewayService_isModelSupportedByAccount(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "Anthropic平台-有映射配置-只支持配置的模型",
+			name: "Anthropic平台-有映射配置-未命中映射时按透传支持模型",
 			account: &Account{
 				Platform:    PlatformAnthropic,
 				Credentials: map[string]any{"model_mapping": map[string]any{"claude-opus-4": "x"}},
 			},
 			model:    "claude-3-5-sonnet-20241022",
-			expected: false,
+			expected: true,
 		},
 		{
 			name: "Anthropic平台-有映射配置-支持配置的模型",
@@ -1140,16 +1140,16 @@ func TestGatewayService_isModelSupportedByAccount(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "Gemini平台-有映射配置-只支持配置的模型",
+			name: "Gemini平台-有映射配置-未命中映射时按透传支持模型",
 			account: &Account{
 				Platform: PlatformGemini,
 				Type:     AccountTypeAPIKey,
 				Credentials: map[string]any{
-					"model_mapping": map[string]any{"gemini-2.5-pro": "gemini-2.5-pro"},
+					"model_mapping": map[string]any{"gemini-2.5-pro": "upstream-model"},
 				},
 			},
 			model:    "gemini-2.5-flash",
-			expected: false,
+			expected: true,
 		},
 		{
 			name: "Gemini平台-有映射配置-支持配置的模型",

@@ -203,6 +203,9 @@
                 {{ t('admin.accounts.modelMapping') }}
               </button>
             </div>
+            <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.modelRestrictionCombinedHint') }}
+            </p>
 
             <!-- Whitelist Mode -->
             <div v-if="modelRestrictionMode === 'whitelist'">
@@ -917,7 +920,8 @@ import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import Icon from '@/components/icons/Icon.vue'
 import {
-  buildModelMappingObject as buildModelMappingPayload,
+  buildModelMappingObject,
+  buildPersistedModelRestriction,
   getPresetMappingsByPlatform
 } from '@/composables/useModelWhitelist'
 import {
@@ -948,6 +952,7 @@ const appStore = useAppStore()
 
 // Platform awareness
 const isMixedPlatform = computed(() => props.selectedPlatforms.length > 1)
+const includesAntigravity = computed(() => props.selectedPlatforms.includes('antigravity'))
 
 const allOpenAIPassthroughCapable = computed(() => {
   return (
@@ -1146,14 +1151,6 @@ const removeErrorCode = (code: number) => {
   }
 }
 
-const buildModelMappingObject = (): Record<string, string> | null => {
-  return buildModelMappingPayload(
-    modelRestrictionMode.value,
-    allowedModels.value,
-    modelMappings.value
-  )
-}
-
 const buildUpdatePayload = (): Record<string, unknown> | null => {
   const updates: Record<string, unknown> = {}
   const credentials: Record<string, unknown> = {}
@@ -1213,22 +1210,20 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
   }
 
   if (enableModelRestriction.value && !isOpenAIModelRestrictionDisabled.value) {
-    // 统一使用 model_mapping 字段
-    if (modelRestrictionMode.value === 'whitelist') {
-      // 白名单模式：将模型转换为 model_mapping 格式（key=value）
-      // 空白名单表示“支持所有模型”，需显式发送空对象以覆盖已有限制。
-      const mapping: Record<string, string> = {}
-      for (const m of allowedModels.value) {
-        mapping[m] = m
-      }
-      credentials.model_mapping = mapping
-      credentialsChanged = true
+    // Antigravity 账号仍使用 mapping-only 语义，批量修改不能给它写入普通账号的独立白名单字段。
+    if (props.selectedPlatforms.length === 1 && props.selectedPlatforms[0] === 'antigravity') {
+      credentials.model_mapping = buildModelMappingObject(
+        modelRestrictionMode.value,
+        allowedModels.value,
+        modelMappings.value
+      ) ?? {}
     } else {
-      // 映射模式下空配置同样表示“支持所有模型”。
-      const modelMapping = buildModelMappingObject()
-      credentials.model_mapping = modelMapping ?? {}
-      credentialsChanged = true
+      // 普通账号批量编辑需要显式发送空对象/空数组，才能覆盖账号上已有的限制配置。
+      const persisted = buildPersistedModelRestriction(allowedModels.value, modelMappings.value)
+      credentials.model_mapping = persisted.modelMapping ?? {}
+      credentials.model_whitelist = persisted.modelWhitelist ?? []
     }
+    credentialsChanged = true
   }
 
   if (enableCustomErrorCodes.value) {
@@ -1349,6 +1344,12 @@ const handleSubmit = async () => {
 
   if (!hasAnyFieldEnabled) {
     appStore.showError(t('admin.accounts.bulkEdit.noFieldsSelected'))
+    return
+  }
+
+  // Antigravity 和普通账号的模型限制持久化语义不同，混选时无法用同一份 credentials 正确表达。
+  if (enableModelRestriction.value && isMixedPlatform.value && includesAntigravity.value) {
+    appStore.showError(t('admin.accounts.bulkEdit.modelRestrictionMixedAntigravityNotSupported'))
     return
   }
 

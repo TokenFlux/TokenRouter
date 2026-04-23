@@ -98,9 +98,7 @@ function buildAccount() {
     credentials: {
       api_key: 'sk-test',
       base_url: 'https://api.openai.com',
-      model_mapping: {
-        'gpt-5.2': 'gpt-5.2'
-      }
+      model_whitelist: ['gpt-5.2']
     },
     extra: {},
     proxy_id: null,
@@ -162,8 +160,7 @@ describe('EditAccountModal', () => {
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
-    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual({
-      'gpt-5.2': 'gpt-5.2'
-    })
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_whitelist).toEqual(['gpt-5.2'])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toBeUndefined()
   })
 })

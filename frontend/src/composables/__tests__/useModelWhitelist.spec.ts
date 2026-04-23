@@ -4,7 +4,13 @@ vi.mock('@/api/admin/accounts', () => ({
   getAntigravityDefaultModelMapping: vi.fn()
 }))
 
-import { buildModelMappingObject, getModelsByPlatform } from '../useModelWhitelist'
+import {
+  buildCombinedModelMappingObject,
+  buildModelMappingObject,
+  buildPersistedModelRestriction,
+  getModelsByPlatform,
+  splitModelMappingObject
+} from '../useModelWhitelist'
 
 describe('useModelWhitelist', () => {
   it('openai 模型列表包含 GPT-5.4 官方快照', () => {
@@ -70,6 +76,47 @@ describe('useModelWhitelist', () => {
 
     expect(mapping).toEqual({
       'gpt-5.4-mini': 'gpt-5.4-mini'
+    })
+  })
+
+  it('splitModelMappingObject 只把精确自映射当作最终白名单', () => {
+    const parsed = splitModelMappingObject({
+      'gpt-5.3-codex': 'gpt-5.3-codex-spark',
+      'gpt-5.3-codex-spark': 'gpt-5.3-codex-spark',
+      'gpt-5.4': 'gpt-5.4',
+      'claude-*': 'claude-sonnet-4-5'
+    })
+
+    expect(parsed.allowedModels).toEqual(['gpt-5.3-codex-spark', 'gpt-5.4'])
+    expect(parsed.modelMappings).toEqual([
+      { from: 'gpt-5.3-codex', to: 'gpt-5.3-codex-spark' },
+      { from: 'claude-*', to: 'claude-sonnet-4-5' }
+    ])
+  })
+
+  it('buildCombinedModelMappingObject 会同时保存最终白名单和显式映射', () => {
+    const mapping = buildCombinedModelMappingObject(
+      ['gpt-5.3-codex-spark', 'gpt-5.4'],
+      [{ from: 'gpt-5.3-codex', to: 'gpt-5.3-codex-spark' }]
+    )
+
+    expect(mapping).toEqual({
+      'gpt-5.3-codex-spark': 'gpt-5.3-codex-spark',
+      'gpt-5.4': 'gpt-5.4',
+      'gpt-5.3-codex': 'gpt-5.3-codex-spark'
+    })
+  })
+
+  it('buildPersistedModelRestriction 在空白名单时仍显式返回空数组', () => {
+    const persisted = buildPersistedModelRestriction([], [
+      { from: 'gpt-5.4', to: 'gpt-5.4' }
+    ])
+
+    expect(persisted).toEqual({
+      modelMapping: {
+        'gpt-5.4': 'gpt-5.4'
+      },
+      modelWhitelist: []
     })
   })
 })

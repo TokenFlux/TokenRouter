@@ -960,6 +960,9 @@
                 {{ t('admin.accounts.modelMapping') }}
               </button>
             </div>
+            <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.modelRestrictionCombinedHint') }}
+            </p>
 
             <!-- Whitelist Mode -->
             <div v-if="modelRestrictionMode === 'whitelist'">
@@ -1386,6 +1389,9 @@
               {{ t('admin.accounts.modelMapping') }}
             </button>
           </div>
+          <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.modelRestrictionCombinedHint') }}
+          </p>
 
           <!-- Whitelist Mode -->
           <div v-if="modelRestrictionMode === 'whitelist'">
@@ -1625,6 +1631,9 @@
               {{ t('admin.accounts.modelMapping') }}
             </button>
           </div>
+          <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.modelRestrictionCombinedHint') }}
+          </p>
 
           <!-- Whitelist Mode -->
           <div v-if="modelRestrictionMode === 'whitelist'">
@@ -2898,6 +2907,7 @@ import {
   getModelsByPlatform,
   commonErrorCodes,
   buildModelMappingObject,
+  buildPersistedModelRestriction,
   fetchAntigravityDefaultMappings,
   isValidWildcardPattern
 } from '@/composables/useModelWhitelist'
@@ -3493,6 +3503,18 @@ const removeModelMapping = (index: number) => {
   modelMappings.value.splice(index, 1)
 }
 
+const applyPersistedModelRestriction = (credentials: Record<string, unknown>) => {
+  // 普通账号将请求侧映射与最终白名单拆开持久化。
+  // 这里即使白名单为空，也要显式写入 []，避免后端回退到 legacy 的自映射白名单解析。
+  const persisted = buildPersistedModelRestriction(allowedModels.value, modelMappings.value)
+  if (persisted.modelMapping) {
+    credentials.model_mapping = persisted.modelMapping
+  } else {
+    delete credentials.model_mapping
+  }
+  credentials.model_whitelist = persisted.modelWhitelist
+}
+
 const addPresetMapping = (from: string, to: string) => {
   if (modelMappings.value.some((m) => m.from === from)) {
     appStore.showInfo(t('admin.accounts.mappingExists', { model: from }))
@@ -3998,13 +4020,8 @@ const handleSubmit = async () => {
       credentials.aws_force_global = 'true'
     }
 
-    // Model mapping
-    const modelMapping = buildModelMappingObject(
-      modelRestrictionMode.value, allowedModels.value, modelMappings.value
-    )
-    if (modelMapping) {
-      credentials.model_mapping = modelMapping
-    }
+    // Model restriction
+    applyPersistedModelRestriction(credentials)
 
     // Pool mode
     if (poolModeEnabled.value) {
@@ -4081,10 +4098,7 @@ const handleSubmit = async () => {
 
   // Add model mapping if configured（OpenAI 开启自动透传时不应用）
   if (!isOpenAIModelRestrictionDisabled.value) {
-    const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
-    if (modelMapping) {
-      credentials.model_mapping = modelMapping
-    }
+    applyPersistedModelRestriction(credentials)
   }
 
   // Add pool mode if enabled
@@ -4247,10 +4261,7 @@ const handleOpenAIExchange = async (authCode: string) => {
 
     // Add model mapping for OpenAI OAuth accounts（透传模式下不应用）
     if (shouldCreateOpenAI && !isOpenAIModelRestrictionDisabled.value) {
-      const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
-      if (modelMapping) {
-        credentials.model_mapping = modelMapping
-      }
+      applyPersistedModelRestriction(credentials)
     }
 
     // 应用临时不可调度配置
@@ -4339,10 +4350,7 @@ const handleOpenAIBatchRT = async (refreshTokenInput: string, clientId?: string)
 
         // Add model mapping for OpenAI OAuth accounts（透传模式下不应用）
         if (shouldCreateOpenAI && !isOpenAIModelRestrictionDisabled.value) {
-          const modelMapping = buildModelMappingObject(modelRestrictionMode.value, allowedModels.value, modelMappings.value)
-          if (modelMapping) {
-            credentials.model_mapping = modelMapping
-          }
+          applyPersistedModelRestriction(credentials)
         }
 
         // Generate account name; fallback to email if name is empty (ent schema requires NotEmpty)

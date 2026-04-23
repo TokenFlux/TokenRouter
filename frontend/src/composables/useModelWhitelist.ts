@@ -439,3 +439,113 @@ export function buildModelMappingObject(
 
   return Object.keys(mapping).length > 0 ? mapping : null
 }
+
+// splitModelMappingObject 将持久化的 model_mapping 拆成：
+// 1. 最终模型白名单：仅精确自映射（from == to）；
+// 2. 显式映射规则：通配符映射或 from != to 的精确映射。
+export function splitModelMappingObject(
+  existingMappings?: Record<string, string>
+): { allowedModels: string[]; modelMappings: { from: string; to: string }[] } {
+  const nextAllowedModels: string[] = []
+  const nextModelMappings: { from: string; to: string }[] = []
+
+  if (existingMappings && typeof existingMappings === 'object') {
+    for (const [rawFrom, rawTo] of Object.entries(existingMappings)) {
+      const from = rawFrom.trim()
+      const to = String(rawTo).trim()
+      if (!from || !to) {
+        continue
+      }
+
+      if (!from.includes('*') && from === to) {
+        nextAllowedModels.push(from)
+        continue
+      }
+
+      nextModelMappings.push({ from, to })
+    }
+  }
+
+  return {
+    allowedModels: Array.from(new Set(nextAllowedModels)),
+    modelMappings: nextModelMappings
+  }
+}
+
+export interface PersistedModelRestriction {
+  modelMapping: Record<string, string> | null
+  modelWhitelist: string[]
+}
+
+// normalizeModelWhitelist 将白名单规范成“精确模型列表”。
+// 这里继续忽略通配符，避免把 whitelist 的输入误当成 request-side mapping 规则。
+export function normalizeModelWhitelist(rawWhitelist?: unknown): string[] {
+  if (!Array.isArray(rawWhitelist)) {
+    return []
+  }
+
+  const normalized: string[] = []
+  for (const rawModel of rawWhitelist) {
+    const model = String(rawModel).trim()
+    if (!model || model.includes('*')) {
+      continue
+    }
+    normalized.push(model)
+  }
+
+  return Array.from(new Set(normalized))
+}
+
+// splitPersistedModelRestriction 优先读取新的独立 model_whitelist 字段；
+// 如果旧数据还把白名单编码在 model_mapping 的自映射里，则继续兼容解析。
+export function splitPersistedModelRestriction(
+  existingMappings?: Record<string, string>,
+  rawWhitelist?: unknown
+): { allowedModels: string[]; modelMappings: { from: string; to: string }[] } {
+  const parsedMapping = splitModelMappingObject(existingMappings)
+
+  if (Array.isArray(rawWhitelist)) {
+    return {
+      allowedModels: normalizeModelWhitelist(rawWhitelist),
+      modelMappings: parsedMapping.modelMappings
+    }
+  }
+
+  return parsedMapping
+}
+
+// buildPersistedModelRestriction 将白名单与映射分别持久化。
+// 普通账号使用 model_mapping 表示请求侧映射，model_whitelist 表示映射后的最终白名单。
+// 注意：即使白名单为空，也要显式返回空数组，作为“无白名单限制”的新格式信号，
+// 避免后端回退到 legacy 的“自映射即白名单”兼容分支。
+export function buildPersistedModelRestriction(
+  allowedModels: string[],
+  modelMappings: { from: string; to: string }[]
+): PersistedModelRestriction {
+  const modelMapping = buildModelMappingObject('mapping', [], modelMappings)
+  const modelWhitelist = normalizeModelWhitelist(allowedModels)
+
+  return {
+    modelMapping,
+    modelWhitelist
+  }
+}
+
+// buildCombinedModelMappingObject 同时持久化“最终模型白名单”和“显式映射规则”。
+// 其中白名单以精确自映射表示，映射规则则直接覆盖同来源模型。
+export function buildCombinedModelMappingObject(
+  allowedModels: string[],
+  modelMappings: { from: string; to: string }[]
+): Record<string, string> | null {
+  const whitelistMapping = buildModelMappingObject('whitelist', allowedModels, [])
+  const explicitMapping = buildModelMappingObject('mapping', [], modelMappings)
+
+  if (!whitelistMapping && !explicitMapping) {
+    return null
+  }
+
+  return {
+    ...(whitelistMapping || {}),
+    ...(explicitMapping || {})
+  }
+}

@@ -1808,15 +1808,15 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 			return
 		}
 
-		mapping := account.GetModelMapping()
-		if len(mapping) == 0 {
+		requestModels := account.GetConfiguredRequestModels()
+		if len(requestModels) == 0 {
 			response.Success(c, openai.DefaultModels)
 			return
 		}
 
-		// Return mapped models
+		// 返回当前账号显式允许请求的模型列表
 		var models []openai.Model
-		for requestedModel := range mapping {
+		for _, requestedModel := range requestModels {
 			var found bool
 			for _, dm := range openai.DefaultModels {
 				if dm.ID == requestedModel {
@@ -1846,15 +1846,15 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 			return
 		}
 
-		// For API Key accounts: return models based on model_mapping
-		mapping := account.GetModelMapping()
-		if len(mapping) == 0 {
+		// For API Key accounts: return models based on configured request models
+		requestModels := account.GetConfiguredRequestModels()
+		if len(requestModels) == 0 {
 			response.Success(c, geminicli.DefaultModels)
 			return
 		}
 
 		var models []geminicli.Model
-		for requestedModel := range mapping {
+		for _, requestedModel := range requestModels {
 			var found bool
 			for _, dm := range geminicli.DefaultModels {
 				if dm.ID == requestedModel {
@@ -1890,17 +1890,17 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 		return
 	}
 
-	// For API Key accounts: return models based on model_mapping
-	mapping := account.GetModelMapping()
-	if len(mapping) == 0 {
+	// For API Key accounts: return models based on configured request models
+	requestModels := account.GetConfiguredRequestModels()
+	if len(requestModels) == 0 {
 		// No mapping configured, return default models
 		response.Success(c, claude.DefaultModels)
 		return
 	}
 
-	// Return mapped models (keys of the mapping are the available model IDs)
+	// Return request models
 	var models []claude.Model
-	for requestedModel := range mapping {
+	for _, requestedModel := range requestModels {
 		// Try to find display info from default models
 		var found bool
 		for _, dm := range claude.DefaultModels {

@@ -112,7 +112,7 @@ describe('BulkEditAccountModal', () => {
     expect(wrapper.text()).not.toContain('GPT-5.3 Codex Spark')
   })
 
-  it('仅勾选模型限制且白名单留空时，应提交空 model_mapping 以支持所有模型', async () => {
+  it('仅勾选模型限制且白名单留空时，应清空 model_mapping 和 model_whitelist 以支持所有模型', async () => {
     const wrapper = mountModal({
       selectedPlatforms: ['anthropic'],
       selectedTypes: ['apikey']
@@ -125,9 +125,45 @@ describe('BulkEditAccountModal', () => {
     expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
     expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
       credentials: {
-        model_mapping: {}
+        model_mapping: {},
+        model_whitelist: []
       }
     })
+  })
+
+  it('Antigravity 批量修改白名单模式仍应写入 mapping-only 结构', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['antigravity'],
+      selectedTypes: ['apikey']
+    })
+
+    await wrapper.get('#bulk-edit-model-restriction-enabled').setValue(true)
+    const selector = wrapper.findComponent(ModelWhitelistSelector)
+    await selector.vm.$emit('update:modelValue', ['claude-sonnet-4-5'])
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      credentials: {
+        model_mapping: {
+          'claude-sonnet-4-5': 'claude-sonnet-4-5'
+        }
+      }
+    })
+  })
+
+  it('包含 Antigravity 的跨平台批量修改不允许提交模型限制', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['antigravity', 'openai'],
+      selectedTypes: ['apikey']
+    })
+
+    await wrapper.get('#bulk-edit-model-restriction-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).not.toHaveBeenCalled()
   })
 
   it('OpenAI 账号批量编辑可开启自动透传', async () => {
