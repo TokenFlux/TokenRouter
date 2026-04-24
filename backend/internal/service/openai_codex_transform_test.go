@@ -261,6 +261,17 @@ func TestEnsureOpenAIResponsesImageGenerationTool_NoTools(t *testing.T) {
 	require.Equal(t, "png", tool["output_format"])
 }
 
+func TestEnsureOpenAIResponsesImageGenerationTool_SkipsSpark(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "gpt-5.3-codex-spark",
+		"input": "draw a cat",
+	}
+
+	modified := ensureOpenAIResponsesImageGenerationTool(reqBody)
+	require.False(t, modified)
+	require.NotContains(t, reqBody, "tools")
+}
+
 func TestEnsureOpenAIResponsesImageGenerationTool_AppendsToExistingTools(t *testing.T) {
 	reqBody := map[string]any{
 		"model": "gpt-5.4",
@@ -306,6 +317,7 @@ func TestEnsureOpenAIResponsesImageGenerationTool_PreservesExistingImageTool(t *
 
 func TestApplyCodexImageGenerationBridgeInstructions_AppendsBridgeOnce(t *testing.T) {
 	reqBody := map[string]any{
+		"model":        "gpt-5.4",
 		"instructions": "existing instructions",
 		"tools": []any{
 			map[string]any{"type": "image_generation", "output_format": "png"},
@@ -325,6 +337,20 @@ func TestApplyCodexImageGenerationBridgeInstructions_AppendsBridgeOnce(t *testin
 	require.False(t, modified)
 }
 
+func TestApplyCodexImageGenerationBridgeInstructions_SkipsSpark(t *testing.T) {
+	reqBody := map[string]any{
+		"model":        "gpt-5.3-codex-spark",
+		"instructions": "existing instructions",
+		"tools": []any{
+			map[string]any{"type": "image_generation", "output_format": "png"},
+		},
+	}
+
+	modified := applyCodexImageGenerationBridgeInstructions(reqBody)
+	require.False(t, modified)
+	require.Equal(t, "existing instructions", reqBody["instructions"])
+}
+
 func TestApplyCodexImageGenerationBridgeInstructions_SkipsWithoutImageTool(t *testing.T) {
 	reqBody := map[string]any{
 		"instructions": "existing instructions",
@@ -336,6 +362,91 @@ func TestApplyCodexImageGenerationBridgeInstructions_SkipsWithoutImageTool(t *te
 	modified := applyCodexImageGenerationBridgeInstructions(reqBody)
 	require.False(t, modified)
 	require.Equal(t, "existing instructions", reqBody["instructions"])
+}
+
+func TestValidateCodexSparkInputRejectsInputImage(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "gpt-5.3-codex-spark",
+		"input": []any{
+			map[string]any{
+				"role": "user",
+				"content": []any{
+					map[string]any{"type": "input_text", "text": "describe"},
+					map[string]any{"type": "input_image", "image_url": "data:image/png;base64,aGVsbG8="},
+				},
+			},
+		},
+	}
+
+	err := validateCodexSparkInput(reqBody, "gpt-5.3-codex-spark")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "does not support image input")
+}
+
+func TestValidateCodexSparkInputRejectsChatImageURL(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "gpt-5.3-codex-spark",
+		"messages": []any{
+			map[string]any{
+				"role": "user",
+				"content": []any{
+					map[string]any{"type": "text", "text": "describe"},
+					map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:image/png;base64,aGVsbG8="}},
+				},
+			},
+		},
+	}
+
+	err := validateCodexSparkInput(reqBody, "gpt-5.3-codex-spark")
+	require.Error(t, err)
+}
+
+func TestValidateCodexSparkInputAllowsTextOnly(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "gpt-5.3-codex-spark",
+		"input": []any{
+			map[string]any{
+				"role": "user",
+				"content": []any{
+					map[string]any{"type": "input_text", "text": "hello"},
+				},
+			},
+		},
+	}
+
+	require.NoError(t, validateCodexSparkInput(reqBody, "gpt-5.3-codex-spark"))
+}
+
+func TestApplyCodexOAuthTransform_AddsSparkImageUnsupportedInstructions(t *testing.T) {
+	reqBody := map[string]any{
+		"model":        "gpt-5.3-codex-spark",
+		"instructions": "existing instructions",
+		"input":        "hello",
+	}
+
+	result := applyCodexOAuthTransform(reqBody, true, false)
+	require.True(t, result.Modified)
+
+	instructions, ok := reqBody["instructions"].(string)
+	require.True(t, ok)
+	require.Contains(t, instructions, "existing instructions")
+	require.Contains(t, instructions, codexSparkImageUnsupportedMarker)
+	require.Contains(t, instructions, "does not support image generation")
+	require.Contains(t, instructions, "switch to a non-Spark Codex model")
+	require.NotContains(t, instructions, codexImageGenerationBridgeMarker)
+}
+
+func TestApplyCodexOAuthTransform_DoesNotAddSparkImageUnsupportedForNonSpark(t *testing.T) {
+	reqBody := map[string]any{
+		"model":        "gpt-5.4",
+		"instructions": "existing instructions",
+		"input":        "hello",
+	}
+
+	applyCodexOAuthTransform(reqBody, true, false)
+	instructions, ok := reqBody["instructions"].(string)
+	require.True(t, ok)
+	require.NotContains(t, instructions, codexSparkImageUnsupportedMarker)
 }
 
 func TestNormalizeOpenAIResponsesImageOnlyModel_BuildsImageToolRequest(t *testing.T) {
