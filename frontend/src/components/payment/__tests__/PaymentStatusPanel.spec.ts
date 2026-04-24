@@ -5,6 +5,7 @@ const pollOrderStatus = vi.hoisted(() => vi.fn())
 const cancelOrder = vi.hoisted(() => vi.fn())
 const showError = vi.hoisted(() => vi.fn())
 const toCanvas = vi.hoisted(() => vi.fn())
+const formatBalanceAmountMock = vi.hoisted(() => vi.fn())
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
@@ -32,6 +33,12 @@ vi.mock('@/api/payment', () => ({
   paymentAPI: {
     cancelOrder,
   },
+}))
+
+vi.mock('@/composables/useBalanceDisplay', () => ({
+  useBalanceDisplay: () => ({
+    formatBalanceAmount: (...args: any[]) => formatBalanceAmountMock(...args),
+  }),
 }))
 
 vi.mock('qrcode', () => ({
@@ -64,6 +71,7 @@ describe('PaymentStatusPanel', () => {
     cancelOrder.mockReset()
     showError.mockReset()
     toCanvas.mockReset().mockResolvedValue(undefined)
+    formatBalanceAmountMock.mockReset().mockImplementation((amount: number) => `Balance ${amount.toFixed(2)}`)
   })
 
   afterEach(() => {
@@ -95,6 +103,35 @@ describe('PaymentStatusPanel', () => {
     expect(pollOrderStatus).toHaveBeenCalledWith(42)
     expect(wrapper.text()).toContain('payment.result.success')
     expect(wrapper.emitted('success')).toHaveLength(1)
+  })
+
+  it('uses the shared balance formatter instead of a hard-coded currency symbol', async () => {
+    pollOrderStatus.mockResolvedValue(orderFactory('RECHARGING'))
+    // 用自定义格式验证成功态金额展示走的是统一余额格式化逻辑。
+    formatBalanceAmountMock.mockReturnValue('Credits 88.00')
+
+    const wrapper = mount(PaymentStatusPanel, {
+      props: {
+        orderId: 42,
+        qrCode: 'https://pay.example.com/qr/42',
+        expiresAt: '2099-01-01T12:30:00Z',
+        paymentType: 'alipay',
+        orderType: 'balance',
+      },
+      global: {
+        stubs: {
+          Icon: true,
+        },
+      },
+    })
+
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(3000)
+    await flushPromises()
+
+    expect(formatBalanceAmountMock).toHaveBeenCalledWith(88, { fractionDigits: 2 })
+    expect(wrapper.text()).toContain('Credits 88.00')
+    expect(wrapper.text()).not.toContain('$88.00')
   })
 
   it('shows reopen button in QR mode when payUrl is also available', async () => {

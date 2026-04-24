@@ -81,6 +81,7 @@ describe('ProfileView', () => {
           StatCard: { template: '<div class="stat-card" />' },
           ProfileInfoCard: { template: '<div data-testid="profile-info-card" />' },
           ProfileBalanceNotifyCard: { template: '<div data-testid="profile-balance-notify-card" />' },
+          ProfileReferralCard: { template: '<div data-testid="profile-referral-card" />' },
           ProfilePasswordForm: { template: '<div data-testid="profile-password-form" />' },
           ProfileTotpCard: { template: '<div data-testid="profile-totp-card" />' },
           Icon: true
@@ -93,6 +94,7 @@ describe('ProfileView', () => {
     expect(wrapper.findAll('.stat-card')).toHaveLength(0)
     expect(wrapper.get('[data-testid="profile-shell"]').exists()).toBe(true)
     expect(wrapper.get('[data-testid="profile-shell"]').html()).toContain('profile-info-card')
+    expect(wrapper.get('[data-testid="profile-shell"]').html()).toContain('profile-referral-card')
     expect(wrapper.get('[data-testid="profile-shell"]').html()).toContain('profile-password-form')
     expect(wrapper.get('[data-testid="profile-shell"]').html()).toContain('profile-totp-card')
   })

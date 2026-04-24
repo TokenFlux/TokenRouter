@@ -339,6 +339,8 @@ const promoValidation = reactive({
   message: ''
 })
 let promoValidateTimeout: ReturnType<typeof setTimeout> | null = null
+let promoValidationPromise: Promise<void> | null = null
+let promoValidationToken: symbol | null = null
 
 // Invitation code validation
 const invitationValidating = ref<boolean>(false)
@@ -348,6 +350,8 @@ const invitationValidation = reactive({
   message: ''
 })
 let invitationValidateTimeout: ReturnType<typeof setTimeout> | null = null
+let invitationValidationPromise: Promise<void> | null = null
+let invitationValidationToken: symbol | null = null
 
 const formData = reactive({
   email: '',
@@ -457,33 +461,51 @@ function handlePromoCodeInput(): void {
 }
 
 async function validatePromoCodeDebounced(code: string): Promise<void> {
-  if (!code.trim()) return
+  code = code.trim()
+  if (!code) return
 
-  promoValidating.value = true
+  const currentToken = Symbol('promo-validation')
+  const task = (async () => {
+    promoValidating.value = true
+    promoValidationToken = currentToken
 
-  try {
-    const result = await validatePromoCode(code)
+    try {
+      const result = await validatePromoCode(code)
+      if (formData.promo_code.trim() !== code) {
+        return
+      }
 
-    if (result.valid) {
-      promoValidation.valid = true
-      promoValidation.invalid = false
-      promoValidation.bonusAmount = result.bonus_amount || 0
-      promoValidation.message = ''
-    } else {
+      if (result.valid) {
+        promoValidation.valid = true
+        promoValidation.invalid = false
+        promoValidation.bonusAmount = result.bonus_amount || 0
+        promoValidation.message = ''
+      } else {
+        promoValidation.valid = false
+        promoValidation.invalid = true
+        promoValidation.bonusAmount = null
+        // 根据错误码显示对应的翻译
+        promoValidation.message = getPromoErrorMessage(result.error_code)
+      }
+    } catch (error) {
+      console.error('Failed to validate promo code:', error)
+      if (formData.promo_code.trim() !== code) {
+        return
+      }
       promoValidation.valid = false
       promoValidation.invalid = true
-      promoValidation.bonusAmount = null
-      // 根据错误码显示对应的翻译
-      promoValidation.message = getPromoErrorMessage(result.error_code)
+      promoValidation.message = t('auth.promoCodeInvalid')
+    } finally {
+      promoValidating.value = false
+      if (promoValidationToken === currentToken) {
+        promoValidationToken = null
+        promoValidationPromise = null
+      }
     }
-  } catch (error) {
-    console.error('Failed to validate promo code:', error)
-    promoValidation.valid = false
-    promoValidation.invalid = true
-    promoValidation.message = t('auth.promoCodeInvalid')
-  } finally {
-    promoValidating.value = false
-  }
+  })()
+
+  promoValidationPromise = task
+  await task
 }
 
 function getPromoErrorMessage(errorCode?: string): string {
@@ -529,27 +551,47 @@ function handleInvitationCodeInput(): void {
 }
 
 async function validateInvitationCodeDebounced(code: string): Promise<void> {
-  invitationValidating.value = true
+  code = code.trim()
+  if (!code) return
 
-  try {
-    const result = await validateInvitationCode(code)
+  const currentToken = Symbol('invitation-validation')
+  const task = (async () => {
+    invitationValidating.value = true
+    invitationValidationToken = currentToken
 
-    if (result.valid) {
-      invitationValidation.valid = true
-      invitationValidation.invalid = false
-      invitationValidation.message = ''
-    } else {
+    try {
+      const result = await validateInvitationCode(code)
+      if (formData.invitation_code.trim() !== code) {
+        return
+      }
+
+      if (result.valid) {
+        invitationValidation.valid = true
+        invitationValidation.invalid = false
+        invitationValidation.message = ''
+      } else {
+        invitationValidation.valid = false
+        invitationValidation.invalid = true
+        invitationValidation.message = getInvitationErrorMessage(result.error_code)
+      }
+    } catch {
+      if (formData.invitation_code.trim() !== code) {
+        return
+      }
       invitationValidation.valid = false
       invitationValidation.invalid = true
-      invitationValidation.message = getInvitationErrorMessage(result.error_code)
+      invitationValidation.message = t('auth.invitationCodeInvalid')
+    } finally {
+      invitationValidating.value = false
+      if (invitationValidationToken === currentToken) {
+        invitationValidationToken = null
+        invitationValidationPromise = null
+      }
     }
-  } catch {
-    invitationValidation.valid = false
-    invitationValidation.invalid = true
-    invitationValidation.message = t('auth.invitationCodeInvalid')
-  } finally {
-    invitationValidating.value = false
-  }
+  })()
+
+  invitationValidationPromise = task
+  await task
 }
 
 function getInvitationErrorMessage(errorCode?: string): string {
@@ -664,45 +706,55 @@ async function handleRegister(): Promise<void> {
     return
   }
 
+  isLoading.value = true
+
   // Check promo code validation status
-  if (formData.promo_code.trim()) {
-    // If promo code is being validated, wait
-    if (promoValidating.value) {
-      errorMessage.value = t('auth.promoCodeValidating')
-      return
+  const promoCode = formData.promo_code.trim()
+  let promoValidationHandledByWatcher = false
+  if (promoCode) {
+    if (promoValidating.value && promoValidationPromise) {
+      promoValidationHandledByWatcher = true
+      await promoValidationPromise
     }
-    // If promo code is invalid, block submission
+
+    if (!promoValidation.valid && !promoValidation.invalid) {
+      promoValidationHandledByWatcher = true
+      await validatePromoCodeDebounced(promoCode)
+    }
+
     if (promoValidation.invalid) {
       errorMessage.value = t('auth.promoCodeInvalidCannotRegister')
+      if (!promoValidationHandledByWatcher) {
+        appStore.showError(errorMessage.value)
+      }
+      isLoading.value = false
       return
     }
   }
 
   // Check invitation code validation status (if enabled and code provided)
   if (invitationCodeEnabled.value) {
-    // If still validating, wait
-    if (invitationValidating.value) {
-      errorMessage.value = t('auth.invitationCodeValidating')
-      return
+    const invitationCode = formData.invitation_code.trim()
+    let invitationValidationHandledByWatcher = false
+    if (invitationValidating.value && invitationValidationPromise) {
+      invitationValidationHandledByWatcher = true
+      await invitationValidationPromise
     }
-    // If invitation code is invalid, block submission
-    if (invitationValidation.invalid) {
+
+    if (invitationCode && !invitationValidation.valid) {
+      invitationValidationHandledByWatcher = true
+      await validateInvitationCodeDebounced(invitationCode)
+    }
+
+    if (!invitationValidation.valid) {
       errorMessage.value = t('auth.invitationCodeInvalidCannotRegister')
-      return
-    }
-    // If invitation code is required but not validated yet
-    if (formData.invitation_code.trim() && !invitationValidation.valid) {
-      errorMessage.value = t('auth.invitationCodeValidating')
-      // Trigger validation
-      await validateInvitationCodeDebounced(formData.invitation_code.trim())
-      if (!invitationValidation.valid) {
-        errorMessage.value = t('auth.invitationCodeInvalidCannotRegister')
-        return
+      if (!invitationValidationHandledByWatcher) {
+        appStore.showError(errorMessage.value)
       }
+      isLoading.value = false
+      return
     }
   }
-
-  isLoading.value = true
 
   try {
     // If email verification is enabled, redirect to verification page

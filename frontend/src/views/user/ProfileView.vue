@@ -40,6 +40,8 @@
         :user-email="user.email"
       />
 
+      <!-- 资料页需要保留邀请返利入口，避免新版布局遗漏该模块 -->
+      <ProfileReferralCard />
       <ProfilePasswordForm />
       <ProfileTotpCard />
     </div>
@@ -54,6 +56,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import ProfileBalanceNotifyCard from '@/components/user/profile/ProfileBalanceNotifyCard.vue'
 import ProfileInfoCard from '@/components/user/profile/ProfileInfoCard.vue'
 import ProfilePasswordForm from '@/components/user/profile/ProfilePasswordForm.vue'
+import ProfileReferralCard from '@/components/user/profile/ProfileReferralCard.vue'
 import ProfileTotpCard from '@/components/user/profile/ProfileTotpCard.vue'
 import { isWeChatWebOAuthEnabled } from '@/api/auth'
 import { useAppStore } from '@/stores/app'

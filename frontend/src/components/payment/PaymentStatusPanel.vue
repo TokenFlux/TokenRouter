@@ -22,7 +22,7 @@
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ paidOrder.order_type === 'balance' ? '$' : '¥' }}{{ paidOrder.amount.toFixed(2) }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ formatOrderAmount(paidOrder.amount, paidOrder.order_type) }}</span>
               </div>
               <div class="flex justify-between">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
@@ -129,6 +129,7 @@ import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { getPaymentPopupFeatures } from '@/components/payment/providerConfig'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { PaymentOrder } from '@/types/payment'
 import Icon from '@/components/icons/Icon.vue'
 import QRCode from 'qrcode'
@@ -151,6 +152,7 @@ const emit = defineEmits<{ done: []; success: []; settled: [outcome: PaymentOutc
 const { t } = useI18n()
 const paymentStore = usePaymentStore()
 const appStore = useAppStore()
+const { formatBalanceAmount } = useBalanceDisplay()
 
 const qrCanvas = ref<HTMLCanvasElement | null>(null)
 const qrUrl = ref('')
@@ -196,6 +198,10 @@ const countdownDisplay = computed(() => {
   const s = remainingSeconds.value % 60
   return m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0')
 })
+
+function formatOrderAmount(amount: number, orderType: string): string {
+  return orderType === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : `¥${amount.toFixed(2)}`
+}
 
 function isSuccessStatus(status: string | null | undefined): boolean {
   return status === 'COMPLETED' || status === 'PAID' || status === 'RECHARGING'
