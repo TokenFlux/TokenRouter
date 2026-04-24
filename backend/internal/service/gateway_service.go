@@ -5738,7 +5738,7 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 			// Haiku models are exempt from third-party detection and don't need it.
 			requiredBetas := []string{claude.BetaOAuth, claude.BetaInterleavedThinking}
 			if !strings.Contains(strings.ToLower(modelID), "haiku") {
-				requiredBetas = []string{claude.BetaClaudeCode, claude.BetaOAuth, claude.BetaInterleavedThinking}
+				requiredBetas = claude.FullClaudeCodeMimicryBetas()
 			}
 			setHeaderRaw(req.Header, "anthropic-beta", mergeAnthropicBetaDropping(requiredBetas, incomingBeta, effectiveDropSet))
 		} else {
@@ -8728,7 +8728,7 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 			applyClaudeCodeMimicHeaders(req, false)
 
 			incomingBeta := getHeaderRaw(req.Header, "anthropic-beta")
-			requiredBetas := []string{claude.BetaClaudeCode, claude.BetaOAuth, claude.BetaInterleavedThinking, claude.BetaTokenCounting}
+			requiredBetas := append(claude.FullClaudeCodeMimicryBetas(), claude.BetaTokenCounting)
 			setHeaderRaw(req.Header, "anthropic-beta", mergeAnthropicBetaDropping(requiredBetas, incomingBeta, ctEffectiveDropSet))
 		} else {
 			clientBetaHeader := getHeaderRaw(req.Header, "anthropic-beta")
