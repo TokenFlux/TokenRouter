@@ -23,6 +23,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/lib/pq"
 
+	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 )
 
@@ -787,6 +788,10 @@ func (r *userRepository) ExistsByNormalizedEmail(ctx context.Context, normalized
 	return r.existsByNormalizedEmail(ctx, normalizedEmail, 0)
 }
 
+func (r *userRepository) ExistsByNormalizedEmailExcluding(ctx context.Context, normalizedEmail string, excludedUserID int64) (bool, error) {
+	return r.existsByNormalizedEmail(ctx, normalizedEmail, excludedUserID)
+}
+
 func (r *userRepository) existsByNormalizedEmail(ctx context.Context, normalizedEmail string, excludedUserID int64) (bool, error) {
 	sqlq := r.sqlExecutorFromContext(ctx)
 	if sqlq == nil {
@@ -811,6 +816,9 @@ func (r *userRepository) existsByNormalizedEmail(ctx context.Context, normalized
 
 func (r *userRepository) LockRegistrationEmail(ctx context.Context, normalizedEmail string) error {
 	if normalizedEmail == "" {
+		return nil
+	}
+	if r.client != nil && r.client.Driver().Dialect() != dialect.Postgres {
 		return nil
 	}
 

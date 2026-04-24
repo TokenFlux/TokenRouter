@@ -1155,6 +1155,23 @@
                 </p>
               </div>
 
+              <!-- 邮箱地址归一化 -->
+              <div
+                class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
+              >
+                <div>
+                  <label class="font-medium text-gray-900 dark:text-white">{{
+                    t("admin.settings.registration.emailNormalization")
+                  }}</label>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{
+                      t("admin.settings.registration.emailNormalizationHint")
+                    }}
+                  </p>
+                </div>
+                <Toggle v-model="form.registration_email_normalization" />
+              </div>
+
               <!-- Promo Code -->
               <div
                 class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
@@ -5846,6 +5863,8 @@ async function saveSettings() {
         registrationEmailSuffixWhitelistTags.value.map(
           (suffix) => `@${suffix}`,
         ),
+      registration_email_normalization:
+        form.registration_email_normalization,
       promo_code_enabled: form.promo_code_enabled,
       invitation_code_enabled: form.invitation_code_enabled,
       password_reset_enabled: form.password_reset_enabled,

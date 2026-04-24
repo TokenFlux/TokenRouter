@@ -105,6 +105,9 @@ vi.mock("@/utils/apiError", () => ({
 vi.mock("vue-i18n", async () => {
   const actual = await vi.importActual<typeof import("vue-i18n")>("vue-i18n");
   const translations: Record<string, string> = {
+    "admin.settings.registration.emailNormalization": "邮箱地址归一化",
+    "admin.settings.registration.emailNormalizationHint":
+      "启用后，注册或修改邮箱时会按归一化后的邮箱地址检查重复注册。",
     "admin.settings.wechatConnect.title": "微信登录",
     "admin.settings.wechatConnect.description": "用于微信开放平台或公众号/小程序的第三方登录配置。",
     "admin.settings.wechatConnect.enabledLabel": "启用微信登录",
@@ -277,6 +280,7 @@ const baseSettingsResponse = {
   registration_enabled: true,
   email_verify_enabled: false,
   registration_email_suffix_whitelist: [],
+  registration_email_normalization: false,
   promo_code_enabled: true,
   invitation_code_enabled: false,
   password_reset_enabled: false,
@@ -661,7 +665,7 @@ describe("admin SettingsView payment visible method controls", () => {
   });
 });
 
-describe("admin SettingsView wechat connect controls", () => {
+describe("admin SettingsView security tab controls", () => {
   beforeEach(() => {
     getSettings.mockReset();
     updateSettings.mockReset();
@@ -734,6 +738,40 @@ describe("admin SettingsView wechat connect controls", () => {
     });
     fetchPublicSettings.mockResolvedValue(undefined);
     adminSettingsFetch.mockResolvedValue(undefined);
+  });
+
+  it("renders and submits registration email normalization settings", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      registration_email_normalization: true,
+    });
+
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openSecurityTab(wrapper);
+
+    // 覆盖回归：该开关曾在合并上游后从模板和保存载荷中同时丢失。
+    const normalizationSetting = wrapper
+      .findAll("div")
+      .find((node) => node.text().includes("邮箱地址归一化"));
+
+    expect(normalizationSetting).toBeDefined();
+    const normalizationToggle = normalizationSetting?.find("input.toggle-stub");
+    expect(normalizationToggle?.exists()).toBe(true);
+    expect(
+      (normalizationToggle?.element as HTMLInputElement | undefined)?.checked,
+    ).toBe(true);
+
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        registration_email_normalization: true,
+      }),
+    );
   });
 
   it("loads and echoes WeChat Connect fields from the backend payload", async () => {

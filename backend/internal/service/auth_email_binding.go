@@ -14,6 +14,10 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 )
 
+type normalizedEmailBindingConflictChecker interface {
+	ExistsByNormalizedEmailExcluding(ctx context.Context, normalizedEmail string, excludedUserID int64) (bool, error)
+}
+
 // BindEmailIdentity verifies and binds a local email/password identity to the
 // current user, or replaces the existing bound primary email.
 func (s *AuthService) BindEmailIdentity(
@@ -53,12 +57,9 @@ func (s *AuthService) BindEmailIdentity(
 		return nil, ErrPasswordIncorrect
 	}
 
-	existingUser, err := s.userRepo.GetByEmail(ctx, normalizedEmail)
-	switch {
-	case err == nil && existingUser != nil && existingUser.ID != userID:
-		return nil, ErrEmailExists
-	case err != nil && !errors.Is(err, ErrUserNotFound):
-		return nil, ErrServiceUnavailable
+	registrationNormalizedEmail := s.normalizeRegistrationEmailForBinding(ctx, normalizedEmail)
+	if err := s.ensureEmailBindingTargetAvailable(ctx, currentUser, normalizedEmail, registrationNormalizedEmail); err != nil {
+		return nil, err
 	}
 
 	hashedPassword, err := s.HashPassword(password)
@@ -67,7 +68,7 @@ func (s *AuthService) BindEmailIdentity(
 	}
 
 	if s.entClient != nil {
-		if err := s.updateBoundEmailIdentityTx(ctx, currentUser, normalizedEmail, hashedPassword, firstRealEmailBind); err != nil {
+		if err := s.updateBoundEmailIdentityTx(ctx, currentUser, normalizedEmail, registrationNormalizedEmail, hashedPassword, firstRealEmailBind); err != nil {
 			return nil, err
 		}
 		s.revokeEmailIdentitySessions(ctx, userID)
@@ -76,7 +77,14 @@ func (s *AuthService) BindEmailIdentity(
 
 	currentUser.Email = normalizedEmail
 	currentUser.PasswordHash = hashedPassword
-	if err := s.userRepo.Update(ctx, currentUser); err != nil {
+	updateUser := s.userRepo.Update
+	if registrationNormalizedEmail != "" {
+		// 开启邮箱归一化后，绑定/换绑主邮箱也要复用同一套唯一性保护。
+		updateUser = func(updateCtx context.Context, updateUser *User) error {
+			return s.userRepo.UpdateWithNormalizedEmailGuard(updateCtx, updateUser, registrationNormalizedEmail)
+		}
+	}
+	if err := updateUser(ctx, currentUser); err != nil {
 		if errors.Is(err, ErrEmailExists) {
 			return nil, ErrEmailExists
 		}
@@ -109,19 +117,16 @@ func (s *AuthService) SendEmailIdentityBindCode(ctx context.Context, userID int6
 	if s.emailService == nil {
 		return ErrServiceUnavailable
 	}
-	if _, err := s.userRepo.GetByID(ctx, userID); err != nil {
+	currentUser, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
 		if errors.Is(err, ErrUserNotFound) {
 			return ErrUserNotFound
 		}
 		return ErrServiceUnavailable
 	}
-
-	existingUser, err := s.userRepo.GetByEmail(ctx, normalizedEmail)
-	switch {
-	case err == nil && existingUser != nil && existingUser.ID != userID:
-		return ErrEmailExists
-	case err != nil && !errors.Is(err, ErrUserNotFound):
-		return ErrServiceUnavailable
+	registrationNormalizedEmail := s.normalizeRegistrationEmailForBinding(ctx, normalizedEmail)
+	if err := s.ensureEmailBindingTargetAvailable(ctx, currentUser, normalizedEmail, registrationNormalizedEmail); err != nil {
+		return err
 	}
 
 	siteName := "Sub2API"
@@ -147,15 +152,77 @@ func hasBindableEmailIdentitySubject(email string) bool {
 	return normalized != "" && !isReservedEmail(normalized)
 }
 
+func (s *AuthService) normalizeRegistrationEmailForBinding(ctx context.Context, email string) string {
+	if s == nil || s.settingService == nil || !s.settingService.IsRegistrationEmailNormalizationEnabled(ctx) {
+		return ""
+	}
+	return NormalizeRegistrationEmailAddress(email)
+}
+
+func (s *AuthService) ensureEmailBindingTargetAvailable(
+	ctx context.Context,
+	currentUser *User,
+	email string,
+	registrationNormalizedEmail string,
+) error {
+	existingUser, err := s.userRepo.GetByEmail(ctx, email)
+	switch {
+	case err == nil && existingUser != nil && currentUser != nil && existingUser.ID != currentUser.ID:
+		return ErrEmailExists
+	case err != nil && !errors.Is(err, ErrUserNotFound):
+		return ErrServiceUnavailable
+	}
+
+	if registrationNormalizedEmail == "" {
+		return nil
+	}
+
+	exists, err := s.hasNormalizedEmailBindingConflict(ctx, currentUser, registrationNormalizedEmail)
+	if err != nil {
+		return ErrServiceUnavailable
+	}
+	if exists {
+		return ErrEmailExists
+	}
+	return nil
+}
+
+func (s *AuthService) hasNormalizedEmailBindingConflict(
+	ctx context.Context,
+	currentUser *User,
+	registrationNormalizedEmail string,
+) (bool, error) {
+	if registrationNormalizedEmail == "" {
+		return false, nil
+	}
+
+	currentUserID := int64(0)
+	currentNormalizedEmail := ""
+	if currentUser != nil {
+		currentUserID = currentUser.ID
+		currentNormalizedEmail = NormalizeRegistrationEmailAddress(currentUser.Email)
+	}
+	if currentUserID > 0 && currentNormalizedEmail == registrationNormalizedEmail {
+		if checker, ok := s.userRepo.(normalizedEmailBindingConflictChecker); ok {
+			return checker.ExistsByNormalizedEmailExcluding(ctx, registrationNormalizedEmail, currentUserID)
+		}
+		// 降级路径无法排除当前用户自身，保留原有宽松行为，避免把自己误判为冲突。
+		return false, nil
+	}
+
+	return s.userRepo.ExistsByNormalizedEmail(ctx, registrationNormalizedEmail)
+}
+
 func (s *AuthService) updateBoundEmailIdentityTx(
 	ctx context.Context,
 	currentUser *User,
 	email string,
+	registrationNormalizedEmail string,
 	hashedPassword string,
 	applyFirstBindDefaults bool,
 ) error {
 	if tx := dbent.TxFromContext(ctx); tx != nil {
-		return s.updateBoundEmailIdentityWithClient(ctx, tx.Client(), currentUser, email, hashedPassword, applyFirstBindDefaults)
+		return s.updateBoundEmailIdentityWithClient(ctx, tx.Client(), currentUser, email, registrationNormalizedEmail, hashedPassword, applyFirstBindDefaults)
 	}
 
 	tx, err := s.entClient.Tx(ctx)
@@ -165,7 +232,7 @@ func (s *AuthService) updateBoundEmailIdentityTx(
 	defer func() { _ = tx.Rollback() }()
 
 	txCtx := dbent.NewTxContext(ctx, tx)
-	if err := s.updateBoundEmailIdentityWithClient(txCtx, tx.Client(), currentUser, email, hashedPassword, applyFirstBindDefaults); err != nil {
+	if err := s.updateBoundEmailIdentityWithClient(txCtx, tx.Client(), currentUser, email, registrationNormalizedEmail, hashedPassword, applyFirstBindDefaults); err != nil {
 		return err
 	}
 	if err := tx.Commit(); err != nil {
@@ -179,6 +246,7 @@ func (s *AuthService) updateBoundEmailIdentityWithClient(
 	client *dbent.Client,
 	currentUser *User,
 	email string,
+	registrationNormalizedEmail string,
 	hashedPassword string,
 	applyFirstBindDefaults bool,
 ) error {
@@ -187,11 +255,32 @@ func (s *AuthService) updateBoundEmailIdentityWithClient(
 	}
 
 	oldEmail := currentUser.Email
+	updatedUser := *currentUser
+	updatedUser.Email = email
+	updatedUser.PasswordHash = hashedPassword
+
+	if registrationNormalizedEmail != "" {
+		// 绑定邮箱入口也要与注册/资料修改共用归一化唯一性约束。
+		if err := s.userRepo.LockRegistrationEmail(ctx, registrationNormalizedEmail); err != nil {
+			return ErrServiceUnavailable
+		}
+		exists, err := s.hasNormalizedEmailBindingConflict(ctx, currentUser, registrationNormalizedEmail)
+		if err != nil {
+			return ErrServiceUnavailable
+		}
+		if exists {
+			return ErrEmailExists
+		}
+	}
+
 	if _, err := client.User.UpdateOneID(currentUser.ID).
-		SetEmail(email).
-		SetPasswordHash(hashedPassword).
+		SetEmail(updatedUser.Email).
+		SetPasswordHash(updatedUser.PasswordHash).
 		Save(ctx); err != nil {
 		if dbent.IsConstraintError(err) {
+			return ErrEmailExists
+		}
+		if errors.Is(err, ErrEmailExists) {
 			return ErrEmailExists
 		}
 		return ErrServiceUnavailable
@@ -210,15 +299,15 @@ func (s *AuthService) updateBoundEmailIdentityWithClient(
 		}
 	}
 
-	updatedUser, err := client.User.Get(ctx, currentUser.ID)
+	refreshedUser, err := client.User.Get(ctx, currentUser.ID)
 	if err != nil {
 		return ErrServiceUnavailable
 	}
-	currentUser.Email = updatedUser.Email
-	currentUser.PasswordHash = updatedUser.PasswordHash
-	currentUser.Balance = updatedUser.Balance
-	currentUser.Concurrency = updatedUser.Concurrency
-	currentUser.UpdatedAt = updatedUser.UpdatedAt
+	currentUser.Email = refreshedUser.Email
+	currentUser.PasswordHash = refreshedUser.PasswordHash
+	currentUser.Balance = refreshedUser.Balance
+	currentUser.Concurrency = refreshedUser.Concurrency
+	currentUser.UpdatedAt = refreshedUser.UpdatedAt
 	return nil
 }
 
