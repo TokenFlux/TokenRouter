@@ -851,6 +851,7 @@ func (s *GatewayService) hashContent(content string) string {
 
 type anthropicCacheControlPayload struct {
 	Type string `json:"type"`
+	TTL  string `json:"ttl,omitempty"`
 }
 
 type anthropicSystemTextBlockPayload struct {
@@ -899,7 +900,10 @@ func marshalAnthropicSystemTextBlock(text string, includeCacheControl bool) ([]b
 		Text: text,
 	}
 	if includeCacheControl {
-		block.CacheControl = &anthropicCacheControlPayload{Type: "ephemeral"}
+		block.CacheControl = &anthropicCacheControlPayload{
+			Type: "ephemeral",
+			TTL:  claude.DefaultCacheControlTTL,
+		}
 	}
 	return json.Marshal(block)
 }
@@ -3856,7 +3860,7 @@ func rewriteSystemForNonClaudeCode(body []byte, system any) []byte {
 		{
 			"type":          "text",
 			"text":          claudeCodeSystemPrompt,
-			"cache_control": map[string]string{"type": "ephemeral"},
+			"cache_control": map[string]string{"type": "ephemeral", "ttl": claude.DefaultCacheControlTTL},
 		},
 	}
 	out, ok := setJSONValueBytes(body, "system", claudeCodeSystemBlock)
