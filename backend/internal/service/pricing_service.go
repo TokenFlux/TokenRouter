@@ -794,10 +794,10 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 // matchOpenAIModel OpenAI 模型回退匹配策略
 // 回退顺序：
 // 1. gpt-5.3-codex-spark* -> gpt-5.1-codex（按业务要求固定计费）
-// 2. gpt-5.2-codex -> gpt-5.2（去掉后缀如 -codex, -mini, -max 等）
-// 3. gpt-5.2-20251222 -> gpt-5.2（去掉日期版本号）
+// 2. gpt-5.5-pro* -> 独立静态兜底价（避免被错误降级到 gpt-5.5）
+// 3. 通用变体回退（去掉日期、去掉通用后缀）
 // 4. gpt-5.3-codex -> gpt-5.2-codex
-// 5. gpt-5.4* -> 业务静态兜底价
+// 5. gpt-5.5 / gpt-5.4* -> 业务静态兜底价
 // 6. 最终回退到 DefaultTestModel (gpt-5.1-codex)
 func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 	if strings.HasPrefix(model, "gpt-5.3-codex-spark") {
@@ -807,6 +807,16 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 				Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.1-codex"))
 			return pricing
 		}
+	}
+
+	// GPT-5.5 Pro 不能先参与通用变体回退，否则会被基础版本提取逻辑
+	// 误降级成 gpt-5.5，进而错误命中普通版价格。
+	// 走到这里前，精确匹配和基础名模糊匹配已经有机会命中显式的 Pro 动态价格；
+	// 因此这里应直接进入 Pro 的静态兜底价。
+	if strings.HasPrefix(model, "gpt-5.5-pro") {
+		logger.With(zap.String("component", "service.pricing")).
+			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.5-pro(static)"))
+		return openAIGPT55ProFallbackPricing
 	}
 
 	// 尝试的回退变体
@@ -826,13 +836,6 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 				Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.2-codex"))
 			return pricing
 		}
-	}
-
-	// GPT-5.5 Pro 使用独立静态兜底价
-	if strings.HasPrefix(model, "gpt-5.5-pro") {
-		logger.With(zap.String("component", "service.pricing")).
-			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.5-pro(static)"))
-		return openAIGPT55ProFallbackPricing
 	}
 
 	// GPT-5.5 使用独立静态兜底价
