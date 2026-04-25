@@ -39,3 +39,22 @@ func isExplicitCodexModel(model string) bool {
 	}
 	return false
 }
+
+// resolveOpenAICompactForwardModel determines the compact-only upstream model
+// for /responses/compact requests. It never affects normal /responses traffic.
+// When no compact-specific mapping matches, the input model is returned as-is.
+func resolveOpenAICompactForwardModel(account *Account, model string) string {
+	trimmedModel := strings.TrimSpace(model)
+	if trimmedModel == "" || account == nil {
+		return trimmedModel
+	}
+
+	mappedModel, matched := account.ResolveCompactMappedModel(trimmedModel)
+	if !matched {
+		return trimmedModel
+	}
+	if trimmedMapped := strings.TrimSpace(mappedModel); trimmedMapped != "" {
+		return trimmedMapped
+	}
+	return trimmedModel
+}
