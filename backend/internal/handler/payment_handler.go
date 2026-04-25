@@ -127,7 +127,6 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	for _, p := range plans {
 		planList = append(planList, checkoutPlan{
 			ID:              int64(p.ID),
-			RateMultiplier:  1,
 			DailyLimitUSD:   p.DailyLimitUsd,
 			WeeklyLimitUSD:  p.WeeklyLimitUsd,
 			MonthlyLimitUSD: p.MonthlyLimitUsd,
@@ -174,7 +173,6 @@ type checkoutPlan struct {
 	GroupID         *int64   `json:"group_id,omitempty"`
 	GroupPlatform   string   `json:"group_platform,omitempty"`
 	GroupName       string   `json:"group_name,omitempty"`
-	RateMultiplier  float64  `json:"rate_multiplier"`
 	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
 	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
 	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
