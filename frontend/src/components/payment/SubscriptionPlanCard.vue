@@ -38,15 +38,15 @@
       <div class="mb-3 grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg bg-gray-50 px-3 py-2 text-xs dark:bg-dark-700/50">
         <div v-if="plan.daily_limit_usd != null" class="flex items-center justify-between">
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.dailyLimit') }}</span>
-          <span class="font-medium text-gray-700 dark:text-gray-300">${{ plan.daily_limit_usd }}</span>
+          <span class="font-medium text-gray-700 dark:text-gray-300">{{ formatPlanQuota(plan.daily_limit_usd) }}</span>
         </div>
         <div v-if="plan.weekly_limit_usd != null" class="flex items-center justify-between">
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.weeklyLimit') }}</span>
-          <span class="font-medium text-gray-700 dark:text-gray-300">${{ plan.weekly_limit_usd }}</span>
+          <span class="font-medium text-gray-700 dark:text-gray-300">{{ formatPlanQuota(plan.weekly_limit_usd) }}</span>
         </div>
         <div v-if="plan.monthly_limit_usd != null" class="flex items-center justify-between">
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.monthlyLimit') }}</span>
-          <span class="font-medium text-gray-700 dark:text-gray-300">${{ plan.monthly_limit_usd }}</span>
+          <span class="font-medium text-gray-700 dark:text-gray-300">{{ formatPlanQuota(plan.monthly_limit_usd) }}</span>
         </div>
         <div v-if="plan.daily_limit_usd == null && plan.weekly_limit_usd == null && plan.monthly_limit_usd == null" class="flex items-center justify-between">
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.quota') }}</span>
@@ -100,10 +100,12 @@ import {
   platformButtonClass,
   platformDiscountClass,
 } from '@/utils/platformColors'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 
 const props = defineProps<{ plan: SubscriptionPlan; activeSubscriptions?: UserSubscription[] }>()
 const emit = defineEmits<{ select: [plan: SubscriptionPlan] }>()
 const { t } = useI18n()
+const { formatBalanceAmount } = useBalanceDisplay()
 
 const platform = computed(() => props.plan.group_platform || '')
 const isRenewal = computed(() =>
@@ -123,6 +125,11 @@ const discountText = computed(() => {
   const pct = Math.round((1 - props.plan.price / props.plan.original_price) * 100)
   return pct > 0 ? `-${pct}%` : ''
 })
+
+function formatPlanQuota(value: number | null | undefined): string {
+  const amount = Number(value)
+  return formatBalanceAmount(value, { fractionDigits: Number.isInteger(amount) ? 0 : 2 })
+}
 
 const MODEL_SCOPE_LABELS: Record<string, string> = {
   claude: 'Claude',
