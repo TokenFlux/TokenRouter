@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -15,6 +16,10 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 )
+
+// ErrOrderNotFound 表示支付回调引用的 out_trade_no 在本地订单表中不存在。
+// Webhook 处理器会把它当成终态错误处理，返回 2xx 避免支付平台持续重试。
+var ErrOrderNotFound = errors.New("payment order not found")
 
 // --- Payment Notification & Fulfillment ---
 
@@ -30,7 +35,10 @@ func (s *PaymentService) HandlePaymentNotification(ctx context.Context, n *payme
 		if oid, ok := parseLegacyPaymentOrderID(n.OrderID, err); ok {
 			return s.confirmPayment(ctx, oid, n.TradeNo, n.Amount, pk, n.Metadata)
 		}
-		return fmt.Errorf("order not found for out_trade_no: %s", n.OrderID)
+		if dbent.IsNotFound(err) {
+			return fmt.Errorf("%w: out_trade_no=%s", ErrOrderNotFound, n.OrderID)
+		}
+		return fmt.Errorf("lookup order failed for out_trade_no %s: %w", n.OrderID, err)
 	}
 	return s.confirmPayment(ctx, order.ID, n.TradeNo, n.Amount, pk, n.Metadata)
 }

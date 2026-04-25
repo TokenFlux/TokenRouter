@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -114,6 +115,16 @@ func (h *PaymentWebhookHandler) handleNotify(c *gin.Context, providerKey string)
 	}
 
 	if err := h.paymentService.HandlePaymentNotification(c.Request.Context(), notification, resolvedProviderKey); err != nil {
+		// 未知订单通常来自误配置回调或已清空的订单表，返回成功可阻止支付平台反复重试。
+		if errors.Is(err, service.ErrOrderNotFound) {
+			slog.Warn("[Payment Webhook] unknown order, acking to stop retries",
+				"provider", resolvedProviderKey,
+				"outTradeNo", notification.OrderID,
+				"tradeNo", notification.TradeNo,
+			)
+			writeSuccessResponse(c, resolvedProviderKey)
+			return
+		}
 		slog.Error("[Payment Webhook] handle notification failed", "provider", resolvedProviderKey, "error", err)
 		c.String(http.StatusInternalServerError, "handle failed")
 		return
