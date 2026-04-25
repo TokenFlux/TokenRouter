@@ -1250,7 +1250,7 @@
                   <p class="text-sm text-gray-500 dark:text-gray-400">
                     {{ t("admin.settings.registration.totpHint") }}
                   </p>
-                  <!-- Warning when encryption key not configured -->
+                  <!-- 未配置密钥时只阻止启用，保留关闭已有开关的能力 -->
                   <p
                     v-if="!form.totp_encryption_key_configured"
                     class="mt-2 text-sm text-amber-600 dark:text-amber-400"
@@ -1260,7 +1260,9 @@
                 </div>
                 <Toggle
                   v-model="form.totp_enabled"
-                  :disabled="!form.totp_encryption_key_configured"
+                  :disabled="
+                    !form.totp_encryption_key_configured && !form.totp_enabled
+                  "
                 />
               </div>
             </div>
