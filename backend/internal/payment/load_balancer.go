@@ -419,11 +419,18 @@ func resolveWxpayJSAPIAppID(config map[string]string) string {
 	return strings.TrimSpace(config["appId"])
 }
 
-// GetInstanceConfig decrypts and returns the configuration for a provider instance by ID.
+// GetInstanceConfig 解密并返回 provider 实例配置；不可读配置会返回可写的空配置。
 func (lb *DefaultLoadBalancer) GetInstanceConfig(ctx context.Context, instanceID int64) (map[string]string, error) {
 	inst, err := lb.db.PaymentProviderInstance.Get(ctx, instanceID)
 	if err != nil {
 		return nil, fmt.Errorf("get instance %d: %w", instanceID, err)
 	}
-	return lb.decryptConfig(inst.Config)
+	config, err := lb.decryptConfig(inst.Config)
+	if err != nil {
+		return nil, err
+	}
+	if config == nil {
+		config = map[string]string{}
+	}
+	return config, nil
 }
