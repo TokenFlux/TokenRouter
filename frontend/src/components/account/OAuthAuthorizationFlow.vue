@@ -386,7 +386,8 @@
                     <button
                       type="button"
                       class="btn btn-secondary p-2"
-                      title="Copy URL"
+                      :title="t('admin.accounts.oauth.copyAuthUrl')"
+                      :aria-label="t('admin.accounts.oauth.copyAuthUrl')"
                       @click="handleCopyUrl"
                     >
                       <svg
@@ -411,6 +412,16 @@
                         :stroke-width="2"
                       />
                     </button>
+                    <a
+                      :href="authUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="btn btn-primary p-2"
+                      :title="t('admin.accounts.oauth.openAuthUrl')"
+                      :aria-label="t('admin.accounts.oauth.openAuthUrl')"
+                    >
+                      <Icon name="externalLink" size="sm" />
+                    </a>
                   </div>
                   <button
                     type="button"

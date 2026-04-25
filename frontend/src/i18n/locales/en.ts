@@ -2844,6 +2844,8 @@ export default {
         generateAuthUrl: 'Generate Auth URL',
         generating: 'Generating...',
         regenerate: 'Regenerate',
+        copyAuthUrl: 'Copy authorization URL',
+        openAuthUrl: 'Open authorization URL in a new tab',
         step2OpenUrl: 'Open the URL in your browser and complete authorization',
         openUrlDesc:
           'Open the authorization URL in a new tab, log in to your Claude account and authorize.',
