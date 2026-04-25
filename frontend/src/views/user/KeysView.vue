@@ -1759,7 +1759,7 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
   const fallbackUnitLiteral = toJsStringLiteral(balanceUnitName.value)
   const usageScript = `({
     request: {
-      url: "{{baseUrl}}/v1/usage",
+      url: "{{baseUrl}}/usage",
       method: "GET",
       headers: { "Authorization": "Bearer {{apiKey}}" }
     },
