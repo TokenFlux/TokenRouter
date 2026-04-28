@@ -109,10 +109,11 @@ const chartData = computed(() => {
         tension: 0.3
       },
       {
-        label: 'Cache Hit Rate',
+        label: 'Cached Input %',
         data: props.trendData.map((d) => {
-          const total = d.cache_read_tokens + d.cache_creation_tokens
-          return total > 0 ? (d.cache_read_tokens / total) * 100 : 0
+          // 后端的 input_tokens 已扣除 cache_read，这里用输入侧总 token 作为命中率分母。
+          const inputSideTokens = d.input_tokens + d.cache_creation_tokens + d.cache_read_tokens
+          return inputSideTokens > 0 ? (d.cache_read_tokens / inputSideTokens) * 100 : 0
         }),
         borderColor: chartColors.value.cacheHitRate,
         backgroundColor: `${chartColors.value.cacheHitRate}20`,
@@ -149,7 +150,7 @@ const lineOptions = computed(() => ({
       callbacks: {
         label: (context: any) => {
           if (context.dataset.yAxisID === 'yPercent') {
-            return `${context.dataset.label}: ${context.raw.toFixed(1)}%`
+            return `${context.dataset.label}: ${formatPercent(context.raw)}`
           }
           return `${context.dataset.label}: ${formatTokens(context.raw)}`
         },
@@ -215,6 +216,11 @@ const formatTokens = (value: number): string => {
     return `${(value / 1_000).toFixed(2)}K`
   }
   return value.toLocaleString()
+}
+
+const formatPercent = (value: number): string => {
+  const displayValue = value < 100 ? Math.floor(value * 100) / 100 : value
+  return `${displayValue.toFixed(2)}%`
 }
 
 </script>
