@@ -657,16 +657,31 @@ func (s *SubscriptionService) CheckAndResetWindows(ctx context.Context, sub *Use
 }
 
 func (s *SubscriptionService) CheckUsageLimits(_ context.Context, sub *UserSubscription, _ *Group, additionalCost float64) error {
-	if !sub.CheckDailyLimit(additionalCost) {
+	return checkSubscriptionUsageLimits(sub, additionalCost)
+}
+
+func checkSubscriptionUsageLimits(sub *UserSubscription, additionalCost float64) error {
+	if subscriptionWindowLimitExceeded(sub.DailyLimitUSD, sub.DailyUsageUSD, additionalCost) {
 		return ErrDailyLimitExceeded
 	}
-	if !sub.CheckWeeklyLimit(additionalCost) {
+	if subscriptionWindowLimitExceeded(sub.WeeklyLimitUSD, sub.WeeklyUsageUSD, additionalCost) {
 		return ErrWeeklyLimitExceeded
 	}
-	if !sub.CheckMonthlyLimit(additionalCost) {
+	if subscriptionWindowLimitExceeded(sub.MonthlyLimitUSD, sub.MonthlyUsageUSD, additionalCost) {
 		return ErrMonthlyLimitExceeded
 	}
 	return nil
+}
+
+func subscriptionWindowLimitExceeded(limit *float64, used float64, additionalCost float64) bool {
+	if limit == nil || *limit <= 0 {
+		return false
+	}
+	// 请求前无法预知实际费用，追加费用为 0 时要求窗口仍有正数余额。
+	if additionalCost == 0 {
+		return used >= *limit
+	}
+	return used+additionalCost > *limit
 }
 
 func (s *SubscriptionService) ValidateAndCheckLimits(sub *UserSubscription, _ *Group) (needsMaintenance bool, err error) {

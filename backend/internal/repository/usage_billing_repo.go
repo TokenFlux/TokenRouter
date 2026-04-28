@@ -243,7 +243,8 @@ func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, userID i
 		weeklyStart, weeklyUsage := normalizeUsageBillingWindow(row.WeeklyWindowStart, row.WeeklyLimitUSD, row.WeeklyUsageUSD, windowStart, 7*24*time.Hour, now)
 		monthlyStart, monthlyUsage := normalizeUsageBillingWindow(row.MonthlyWindowStart, row.MonthlyLimitUSD, row.MonthlyUsageUSD, windowStart, 30*24*time.Hour, now)
 
-		available := minUsageBillingRemaining(
+		available := usageBillingSubscriptionAvailable(
+			remaining,
 			windowRemaining(row.DailyLimitUSD, dailyUsage),
 			windowRemaining(row.WeeklyLimitUSD, weeklyUsage),
 			windowRemaining(row.MonthlyLimitUSD, monthlyUsage),
@@ -312,7 +313,7 @@ func windowRemaining(limit sql.NullFloat64, used float64) *float64 {
 	return &remaining
 }
 
-func minUsageBillingRemaining(values ...*float64) float64 {
+func usageBillingSubscriptionAvailable(unlimitedAmount float64, values ...*float64) float64 {
 	var (
 		min   float64
 		found bool
@@ -327,7 +328,8 @@ func minUsageBillingRemaining(values ...*float64) float64 {
 		}
 	}
 	if !found {
-		return 0
+		// nil 表示该窗口无限额；所有窗口都无限时，本次剩余费用都由订阅覆盖。
+		return unlimitedAmount
 	}
 	return min
 }
@@ -380,8 +382,38 @@ func startOfDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 }
 
+// usage billing 必须完整记录本次请求成本，余额不足时扣成负数作为欠费。
 func deductUsageBillingBalance(ctx context.Context, tx *sql.Tx, userID int64, amount float64) (float64, float64, error) {
-	return deductUserBalance(ctx, tx, userID, amount)
+	const query = `
+		WITH locked_user AS (
+			SELECT id, balance
+			FROM users
+			WHERE id = $2
+				AND deleted_at IS NULL
+			FOR UPDATE
+		), updated AS (
+			UPDATE users
+			SET balance = locked_user.balance - $1,
+				updated_at = NOW()
+			FROM locked_user
+			WHERE users.id = locked_user.id
+			RETURNING users.balance
+		)
+		SELECT updated.balance, $1::numeric AS deducted_amount
+		FROM updated
+	`
+
+	var (
+		newBalance     float64
+		deductedAmount float64
+	)
+	if err := scanSingleRow(ctx, tx, query, []any{amount, userID}, &newBalance, &deductedAmount); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return 0, 0, service.ErrUserNotFound
+		}
+		return 0, 0, err
+	}
+	return newBalance, deductedAmount, nil
 }
 
 func incrementUsageBillingAPIKeyQuota(ctx context.Context, tx *sql.Tx, apiKeyID int64, amount float64) (bool, error) {

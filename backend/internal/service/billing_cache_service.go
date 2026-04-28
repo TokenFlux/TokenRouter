@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"sync"
@@ -542,7 +543,12 @@ func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user 
 
 	if subscription != nil {
 		if err := checkEffectiveSubscriptionEligibility(subscription); err != nil {
-			return err
+			if !isSubscriptionQuotaExceeded(err) {
+				return err
+			}
+			if err := s.checkBalanceEligibility(ctx, user.ID); err != nil {
+				return err
+			}
 		}
 	} else {
 		if err := s.checkBalanceEligibility(ctx, user.ID); err != nil {
@@ -673,16 +679,13 @@ func checkEffectiveSubscriptionEligibility(subscription *UserSubscription) error
 		effective.MonthlyUsageUSD = 0
 	}
 
-	if !effective.CheckDailyLimit(0) {
-		return ErrDailyLimitExceeded
-	}
-	if !effective.CheckWeeklyLimit(0) {
-		return ErrWeeklyLimitExceeded
-	}
-	if !effective.CheckMonthlyLimit(0) {
-		return ErrMonthlyLimitExceeded
-	}
-	return nil
+	return checkSubscriptionUsageLimits(&effective, 0)
+}
+
+func isSubscriptionQuotaExceeded(err error) bool {
+	return errors.Is(err, ErrDailyLimitExceeded) ||
+		errors.Is(err, ErrWeeklyLimitExceeded) ||
+		errors.Is(err, ErrMonthlyLimitExceeded)
 }
 
 // checkBalanceEligibility 检查余额模式资格

@@ -57,9 +57,9 @@ func TestUsageBillingRepositoryApply_DeduplicatesBalanceBilling(t *testing.T) {
 	require.NotNil(t, result1)
 	require.True(t, result1.Applied)
 	require.True(t, result1.APIKeyQuotaExhausted)
-	require.InDelta(t, 1.0, result1.BalanceAmountUSD, 0.000001)
+	require.InDelta(t, 1.25, result1.BalanceAmountUSD, 0.000001)
 	require.NotNil(t, result1.NewBalance)
-	require.InDelta(t, 0.0, *result1.NewBalance, 0.000001)
+	require.InDelta(t, -0.25, *result1.NewBalance, 0.000001)
 
 	result2, err := repo.Apply(ctx, cmd)
 	require.NoError(t, err)
@@ -68,7 +68,7 @@ func TestUsageBillingRepositoryApply_DeduplicatesBalanceBilling(t *testing.T) {
 
 	var balance float64
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT balance FROM users WHERE id = $1", user.ID).Scan(&balance))
-	require.InDelta(t, 0.0, balance, 0.000001)
+	require.InDelta(t, -0.25, balance, 0.000001)
 
 	var quotaUsed float64
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT quota_used FROM api_keys WHERE id = $1", apiKey.ID).Scan(&quotaUsed))
@@ -145,6 +145,120 @@ func TestUsageBillingRepositoryApply_DeduplicatesSubscriptionBilling(t *testing.
 	var dailyUsage float64
 	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT daily_usage_usd FROM user_subscriptions WHERE id = $1", subscription.ID).Scan(&dailyUsage))
 	require.InDelta(t, 2.5, dailyUsage, 0.000001)
+}
+
+func TestUsageBillingRepositoryApply_DeductsBalanceDeficitAfterPartialSubscription(t *testing.T) {
+	ctx := context.Background()
+	client := testEntClient(t)
+	repo := NewUsageBillingRepository(client, integrationDB)
+
+	user := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("usage-billing-sub-deficit-user-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Balance:      0,
+	})
+	plan := mustCreatePlan(t, client, &service.SubscriptionPlan{
+		Name:            "usage-billing-deficit-plan-" + uuid.NewString(),
+		Description:     "usage billing deficit test plan",
+		Price:           19.9,
+		ValidityDays:    30,
+		ValidityUnit:    "day",
+		ForSale:         true,
+		DailyLimitUSD:   float64Ptr(10),
+		WeeklyLimitUSD:  float64Ptr(10),
+		MonthlyLimitUSD: float64Ptr(10),
+	})
+	apiKey := mustCreateApiKey(t, client, &service.APIKey{
+		UserID: user.ID,
+		Key:    "sk-usage-billing-sub-deficit-" + uuid.NewString(),
+		Name:   "billing-sub-deficit",
+	})
+	windowStart := time.Now().Add(-time.Hour)
+	subscription := mustCreateSubscription(t, client, &service.UserSubscription{
+		UserID:             user.ID,
+		PlanID:             plan.ID,
+		DailyWindowStart:   &windowStart,
+		WeeklyWindowStart:  &windowStart,
+		MonthlyWindowStart: &windowStart,
+		DailyLimitUSD:      float64Ptr(10),
+		WeeklyLimitUSD:     float64Ptr(10),
+		MonthlyLimitUSD:    float64Ptr(10),
+		DailyUsageUSD:      9.99,
+		WeeklyUsageUSD:     9.99,
+		MonthlyUsageUSD:    9.99,
+	})
+
+	result, err := repo.Apply(ctx, &service.UsageBillingCommand{
+		RequestID:         uuid.NewString(),
+		APIKeyID:          apiKey.ID,
+		UserID:            user.ID,
+		BillableAmountUSD: 1.25,
+	})
+
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.InDelta(t, 0.01, result.SubscriptionAmountUSD, 0.000001)
+	require.InDelta(t, 1.24, result.BalanceAmountUSD, 0.000001)
+	require.NotNil(t, result.NewBalance)
+	require.InDelta(t, -1.24, *result.NewBalance, 0.000001)
+
+	var balance float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT balance FROM users WHERE id = $1", user.ID).Scan(&balance))
+	require.InDelta(t, -1.24, balance, 0.000001)
+
+	var dailyUsage float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT daily_usage_usd FROM user_subscriptions WHERE id = $1", subscription.ID).Scan(&dailyUsage))
+	require.InDelta(t, 10.0, dailyUsage, 0.000001)
+}
+
+func TestUsageBillingRepositoryApply_UnlimitedSubscriptionDoesNotDeductBalance(t *testing.T) {
+	ctx := context.Background()
+	client := testEntClient(t)
+	repo := NewUsageBillingRepository(client, integrationDB)
+
+	user := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("usage-billing-unlimited-sub-user-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Balance:      0,
+	})
+	plan := mustCreatePlan(t, client, &service.SubscriptionPlan{
+		Name:         "usage-billing-unlimited-plan-" + uuid.NewString(),
+		Description:  "usage billing unlimited subscription test plan",
+		Price:        19.9,
+		ValidityDays: 30,
+		ValidityUnit: "day",
+		ForSale:      true,
+	})
+	apiKey := mustCreateApiKey(t, client, &service.APIKey{
+		UserID: user.ID,
+		Key:    "sk-usage-billing-unlimited-sub-" + uuid.NewString(),
+		Name:   "billing-unlimited-sub",
+	})
+	subscription := mustCreateSubscription(t, client, &service.UserSubscription{
+		UserID: user.ID,
+		PlanID: plan.ID,
+	})
+
+	result, err := repo.Apply(ctx, &service.UsageBillingCommand{
+		RequestID:         uuid.NewString(),
+		APIKeyID:          apiKey.ID,
+		UserID:            user.ID,
+		BillableAmountUSD: 1.25,
+	})
+
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.InDelta(t, 1.25, result.SubscriptionAmountUSD, 0.000001)
+	require.InDelta(t, 0.0, result.BalanceAmountUSD, 0.000001)
+	require.Nil(t, result.NewBalance)
+
+	var balance float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT balance FROM users WHERE id = $1", user.ID).Scan(&balance))
+	require.InDelta(t, 0.0, balance, 0.000001)
+
+	var dailyUsage float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT daily_usage_usd FROM user_subscriptions WHERE id = $1", subscription.ID).Scan(&dailyUsage))
+	require.InDelta(t, 0.0, dailyUsage, 0.000001)
 }
 
 func TestUsageBillingRepositoryApply_RequestFingerprintConflict(t *testing.T) {
