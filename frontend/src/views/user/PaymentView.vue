@@ -111,19 +111,19 @@
                 </p>
                 <!-- 套餐额度信息 -->
                 <div class="mt-3 grid grid-cols-2 gap-3">
-                  <div v-if="selectedPlan.daily_limit_usd != null">
+                  <div v-if="hasPlanQuota(selectedPlan.daily_limit_usd)">
                     <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.dailyLimit') }}</span>
                     <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">{{ formatPlanQuota(selectedPlan.daily_limit_usd) }}</div>
                   </div>
-                  <div v-if="selectedPlan.weekly_limit_usd != null">
+                  <div v-if="hasPlanQuota(selectedPlan.weekly_limit_usd)">
                     <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.weeklyLimit') }}</span>
                     <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">{{ formatPlanQuota(selectedPlan.weekly_limit_usd) }}</div>
                   </div>
-                  <div v-if="selectedPlan.monthly_limit_usd != null">
+                  <div v-if="hasPlanQuota(selectedPlan.monthly_limit_usd)">
                     <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.monthlyLimit') }}</span>
                     <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">{{ formatPlanQuota(selectedPlan.monthly_limit_usd) }}</div>
                   </div>
-                  <div v-if="selectedPlan.daily_limit_usd == null && selectedPlan.weekly_limit_usd == null && selectedPlan.monthly_limit_usd == null">
+                  <div v-if="!hasPlanQuota(selectedPlan.daily_limit_usd) && !hasPlanQuota(selectedPlan.weekly_limit_usd) && !hasPlanQuota(selectedPlan.monthly_limit_usd)">
                     <span class="text-xs text-gray-400 dark:text-gray-500">{{ t('payment.planCard.quota') }}</span>
                     <div class="text-lg font-semibold text-gray-800 dark:text-gray-200">{{ t('payment.planCard.unlimited') }}</div>
                   </div>
@@ -654,7 +654,11 @@ function subscriptionName(sub: UserSubscription): string {
 }
 
 function subscriptionUnlimited(sub: UserSubscription): boolean {
-  return sub.daily_limit_usd == null && sub.weekly_limit_usd == null && sub.monthly_limit_usd == null
+  return !hasPlanQuota(sub.daily_limit_usd) && !hasPlanQuota(sub.weekly_limit_usd) && !hasPlanQuota(sub.monthly_limit_usd)
+}
+
+function hasPlanQuota(value: number | null | undefined): boolean {
+  return value != null && value > 0
 }
 
 function selectPlanFromModal(plan: SubscriptionPlan) {

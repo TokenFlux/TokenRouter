@@ -36,19 +36,19 @@
 
       <!-- 套餐额度信息 -->
       <div class="mb-3 grid grid-cols-2 gap-x-3 gap-y-1 rounded-lg bg-gray-50 px-3 py-2 text-xs dark:bg-dark-700/50">
-        <div v-if="plan.daily_limit_usd != null" class="flex items-center justify-between">
+        <div v-if="hasPlanQuota(plan.daily_limit_usd)" class="flex items-center justify-between">
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.dailyLimit') }}</span>
           <span class="font-medium text-gray-700 dark:text-gray-300">{{ formatPlanQuota(plan.daily_limit_usd) }}</span>
         </div>
-        <div v-if="plan.weekly_limit_usd != null" class="flex items-center justify-between">
+        <div v-if="hasPlanQuota(plan.weekly_limit_usd)" class="flex items-center justify-between">
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.weeklyLimit') }}</span>
           <span class="font-medium text-gray-700 dark:text-gray-300">{{ formatPlanQuota(plan.weekly_limit_usd) }}</span>
         </div>
-        <div v-if="plan.monthly_limit_usd != null" class="flex items-center justify-between">
+        <div v-if="hasPlanQuota(plan.monthly_limit_usd)" class="flex items-center justify-between">
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.monthlyLimit') }}</span>
           <span class="font-medium text-gray-700 dark:text-gray-300">{{ formatPlanQuota(plan.monthly_limit_usd) }}</span>
         </div>
-        <div v-if="plan.daily_limit_usd == null && plan.weekly_limit_usd == null && plan.monthly_limit_usd == null" class="flex items-center justify-between">
+        <div v-if="!hasPlanQuota(plan.daily_limit_usd) && !hasPlanQuota(plan.weekly_limit_usd) && !hasPlanQuota(plan.monthly_limit_usd)" class="flex items-center justify-between">
           <span class="text-gray-400 dark:text-dark-500">{{ t('payment.planCard.quota') }}</span>
           <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.planCard.unlimited') }}</span>
         </div>
@@ -129,6 +129,10 @@ const discountText = computed(() => {
 function formatPlanQuota(value: number | null | undefined): string {
   const amount = Number(value)
   return formatBalanceAmount(value, { fractionDigits: Number.isInteger(amount) ? 0 : 2 })
+}
+
+function hasPlanQuota(value: number | null | undefined): boolean {
+  return value != null && value > 0
 }
 
 const MODEL_SCOPE_LABELS: Record<string, string> = {

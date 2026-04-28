@@ -45,8 +45,7 @@ function createTestI18n() {
             forSale: 'For Sale',
             planNameRequired: 'Plan name is required',
             priceRequired: 'Price must be greater than 0',
-            validityDaysRequired: 'Validity days must be greater than 0',
-            quotaRequired: 'At least one quota limit must be greater than 0'
+            validityDaysRequired: 'Validity days must be greater than 0'
           }
         },
         common: {
@@ -97,7 +96,8 @@ describe('PlanEditDialog', () => {
     mockUpdatePlan.mockReset()
   })
 
-  it('blocks submit when all quota limits are empty', async () => {
+  it('submits unlimited plan when all quota limits are empty', async () => {
+    mockCreatePlan.mockResolvedValue({})
     const wrapper = mountDialog()
     const appStore = useAppStore()
     const showErrorSpy = vi.spyOn(appStore, 'showError')
@@ -110,11 +110,19 @@ describe('PlanEditDialog', () => {
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
-    expect(mockCreatePlan).not.toHaveBeenCalled()
-    expect(showErrorSpy).toHaveBeenCalledTimes(1)
-    expect(String(showErrorSpy.mock.calls[0]?.[0] ?? '')).toMatch(
-      /payment\.admin\.quotaRequired|At least one quota limit must be greater than 0/
+    expect(mockCreatePlan).toHaveBeenCalledTimes(1)
+    expect(mockCreatePlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Starter',
+        description: 'Starter plan',
+        price: 9.99,
+        validity_days: 30,
+        daily_limit_usd: null,
+        weekly_limit_usd: null,
+        monthly_limit_usd: null
+      })
     )
+    expect(showErrorSpy).not.toHaveBeenCalled()
   })
 
   it('submits when at least one quota limit is set', async () => {

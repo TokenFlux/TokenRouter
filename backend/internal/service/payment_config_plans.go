@@ -59,14 +59,27 @@ func validatePlanPatch(req UpdatePlanRequest) error {
 	if req.ValidityUnit != nil && strings.TrimSpace(*req.ValidityUnit) == "" {
 		return infraerrors.BadRequest("PLAN_VALIDITY_UNIT_REQUIRED", "validity unit is required")
 	}
-	if req.OriginalPrice != nil && *req.OriginalPrice < 0 {
+	if req.OriginalPrice.present && req.OriginalPrice.value != nil && *req.OriginalPrice.value < 0 {
 		return infraerrors.BadRequest("PLAN_ORIGINAL_PRICE_INVALID", "original price must be >= 0")
 	}
 	return validatePlanQuotaPatch(req)
 }
 
 func validatePlanQuotaPatch(req UpdatePlanRequest) error {
-	return validatePlanQuotas(req.DailyLimitUSD, req.WeeklyLimitUSD, req.MonthlyLimitUSD)
+	for _, item := range []struct {
+		field nullableFloat64Patch
+		code  string
+		label string
+	}{
+		{field: req.DailyLimitUSD, code: "PLAN_DAILY_LIMIT_INVALID", label: "daily limit"},
+		{field: req.WeeklyLimitUSD, code: "PLAN_WEEKLY_LIMIT_INVALID", label: "weekly limit"},
+		{field: req.MonthlyLimitUSD, code: "PLAN_MONTHLY_LIMIT_INVALID", label: "monthly limit"},
+	} {
+		if item.field.present && item.field.value != nil && *item.field.value < 0 {
+			return infraerrors.BadRequest(item.code, item.label+" must be >= 0")
+		}
+	}
+	return nil
 }
 
 func (s *PaymentConfigService) ListPlans(ctx context.Context) ([]*dbent.SubscriptionPlan, error) {
@@ -81,11 +94,7 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 	if err := validatePlanRequired(req.Name, req.GroupID, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
 		return nil, err
 	}
-	if err := validatePlanQuotaPatch(UpdatePlanRequest{
-		DailyLimitUSD:   req.DailyLimitUSD,
-		WeeklyLimitUSD:  req.WeeklyLimitUSD,
-		MonthlyLimitUSD: req.MonthlyLimitUSD,
-	}); err != nil {
+	if err := validatePlanQuotas(req.DailyLimitUSD, req.WeeklyLimitUSD, req.MonthlyLimitUSD); err != nil {
 		return nil, err
 	}
 
@@ -129,8 +138,12 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	if req.Price != nil {
 		update.SetPrice(*req.Price)
 	}
-	if req.OriginalPrice != nil {
-		update.SetOriginalPrice(*req.OriginalPrice)
+	if req.OriginalPrice.present {
+		if req.OriginalPrice.value == nil {
+			update.ClearOriginalPrice()
+		} else {
+			update.SetOriginalPrice(*req.OriginalPrice.value)
+		}
 	}
 	if req.ValidityDays != nil {
 		update.SetValidityDays(*req.ValidityDays)
@@ -138,14 +151,26 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	if req.ValidityUnit != nil {
 		update.SetValidityUnit(strings.TrimSpace(*req.ValidityUnit))
 	}
-	if req.DailyLimitUSD != nil {
-		update.SetDailyLimitUsd(*req.DailyLimitUSD)
+	if req.DailyLimitUSD.present {
+		if req.DailyLimitUSD.value == nil {
+			update.ClearDailyLimitUsd()
+		} else {
+			update.SetDailyLimitUsd(*req.DailyLimitUSD.value)
+		}
 	}
-	if req.WeeklyLimitUSD != nil {
-		update.SetWeeklyLimitUsd(*req.WeeklyLimitUSD)
+	if req.WeeklyLimitUSD.present {
+		if req.WeeklyLimitUSD.value == nil {
+			update.ClearWeeklyLimitUsd()
+		} else {
+			update.SetWeeklyLimitUsd(*req.WeeklyLimitUSD.value)
+		}
 	}
-	if req.MonthlyLimitUSD != nil {
-		update.SetMonthlyLimitUsd(*req.MonthlyLimitUSD)
+	if req.MonthlyLimitUSD.present {
+		if req.MonthlyLimitUSD.value == nil {
+			update.ClearMonthlyLimitUsd()
+		} else {
+			update.SetMonthlyLimitUsd(*req.MonthlyLimitUSD.value)
+		}
 	}
 	if req.Features != nil {
 		update.SetFeatures(*req.Features)

@@ -163,9 +163,9 @@ watch(
         original_price: props.plan.original_price ?? null,
         validity_days: props.plan.validity_days,
         validity_unit: props.plan.validity_unit || 'day',
-        daily_limit_usd: props.plan.daily_limit_usd ?? null,
-        weekly_limit_usd: props.plan.weekly_limit_usd ?? null,
-        monthly_limit_usd: props.plan.monthly_limit_usd ?? null,
+        daily_limit_usd: normalizeQuotaFormValue(props.plan.daily_limit_usd),
+        weekly_limit_usd: normalizeQuotaFormValue(props.plan.weekly_limit_usd),
+        monthly_limit_usd: normalizeQuotaFormValue(props.plan.monthly_limit_usd),
         sort_order: props.plan.sort_order || 0,
         for_sale: props.plan.for_sale
       })
@@ -191,6 +191,11 @@ watch(
 )
 
 function normalizeNullableNumber(value: number | null): number | null {
+  if (value == null || Number.isNaN(value) || value <= 0) return null
+  return value
+}
+
+function normalizeQuotaFormValue(value: number | null | undefined): number | null {
   if (value == null || Number.isNaN(value) || value <= 0) return null
   return value
 }
@@ -235,10 +240,6 @@ async function handleSavePlan() {
     return
   }
   const payload = buildPlanPayload()
-  if (![payload.daily_limit_usd, payload.weekly_limit_usd, payload.monthly_limit_usd].some((limit) => typeof limit === 'number' && limit > 0)) {
-    appStore.showError(t('payment.admin.quotaRequired'))
-    return
-  }
 
   saving.value = true
   try {

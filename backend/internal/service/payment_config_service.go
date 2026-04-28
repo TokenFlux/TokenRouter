@@ -1,7 +1,9 @@
 package service
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -141,6 +143,27 @@ type UpdateProviderInstanceRequest struct {
 	RefundEnabled   *bool             `json:"refund_enabled"`
 	AllowUserRefund *bool             `json:"allow_user_refund"`
 }
+
+type nullableFloat64Patch struct {
+	present bool
+	value   *float64
+}
+
+func (p *nullableFloat64Patch) UnmarshalJSON(data []byte) error {
+	p.present = true
+	p.value = nil
+	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
+		return nil
+	}
+
+	var value float64
+	if err := json.Unmarshal(data, &value); err != nil {
+		return err
+	}
+	p.value = &value
+	return nil
+}
+
 type CreatePlanRequest struct {
 	GroupID         int64    `json:"group_id"`
 	Name            string   `json:"name"`
@@ -159,20 +182,20 @@ type CreatePlanRequest struct {
 }
 
 type UpdatePlanRequest struct {
-	GroupID         *int64   `json:"group_id"`
-	Name            *string  `json:"name"`
-	Description     *string  `json:"description"`
-	Price           *float64 `json:"price"`
-	OriginalPrice   *float64 `json:"original_price"`
-	ValidityDays    *int     `json:"validity_days"`
-	ValidityUnit    *string  `json:"validity_unit"`
-	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
-	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
-	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
-	Features        *string  `json:"features"`
-	ProductName     *string  `json:"product_name"`
-	ForSale         *bool    `json:"for_sale"`
-	SortOrder       *int     `json:"sort_order"`
+	GroupID         *int64               `json:"group_id"`
+	Name            *string              `json:"name"`
+	Description     *string              `json:"description"`
+	Price           *float64             `json:"price"`
+	OriginalPrice   nullableFloat64Patch `json:"original_price"`
+	ValidityDays    *int                 `json:"validity_days"`
+	ValidityUnit    *string              `json:"validity_unit"`
+	DailyLimitUSD   nullableFloat64Patch `json:"daily_limit_usd"`
+	WeeklyLimitUSD  nullableFloat64Patch `json:"weekly_limit_usd"`
+	MonthlyLimitUSD nullableFloat64Patch `json:"monthly_limit_usd"`
+	Features        *string              `json:"features"`
+	ProductName     *string              `json:"product_name"`
+	ForSale         *bool                `json:"for_sale"`
+	SortOrder       *int                 `json:"sort_order"`
 }
 
 // PaymentConfigService manages payment configuration and CRUD for
