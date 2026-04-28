@@ -3567,6 +3567,38 @@
                     {{ t('admin.settings.balanceDisplay.unitSymbolHint') }}
                   </p>
                 </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.balanceDisplay.reasoningPointRmbUnitPrice') }}
+                  </label>
+                  <input
+                    v-model.number="form.reasoning_point_rmb_unit_price"
+                    type="number"
+                    min="0"
+                    step="0.0001"
+                    class="input"
+                    :placeholder="t('admin.settings.balanceDisplay.reasoningPointRmbUnitPricePlaceholder')"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('admin.settings.balanceDisplay.reasoningPointRmbUnitPriceHint') }}
+                  </p>
+                </div>
+                <div>
+                  <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {{ t('admin.settings.balanceDisplay.usdExchangeRate') }}
+                  </label>
+                  <input
+                    v-model.number="form.usd_exchange_rate"
+                    type="number"
+                    min="0"
+                    step="0.0001"
+                    class="input"
+                    :placeholder="t('admin.settings.balanceDisplay.usdExchangeRatePlaceholder')"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t('admin.settings.balanceDisplay.usdExchangeRateHint') }}
+                  </p>
+                </div>
                 <div class="md:col-span-2">
                   <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
                     {{ t('admin.settings.balanceDisplay.iconSvg') }}
@@ -5289,6 +5321,8 @@ const form = reactive<SettingsForm>({
   balance_unit_name: "USD",
   balance_unit_symbol: "$",
   balance_icon_svg: "",
+  reasoning_point_rmb_unit_price: 0,
+  usd_exchange_rate: 0,
   force_email_on_third_party_signup: false,
   default_user_rpm_limit: 0,
   site_name: "Sub2API",
@@ -6148,6 +6182,11 @@ async function saveSettings() {
     form.balance_unit_name = form.balance_unit_name.trim() || "USD";
     form.balance_unit_symbol = form.balance_unit_symbol.trim() || "$";
     form.balance_icon_svg = form.balance_icon_svg.trim();
+    form.reasoning_point_rmb_unit_price = Math.max(
+      0,
+      Number(form.reasoning_point_rmb_unit_price) || 0,
+    );
+    form.usd_exchange_rate = Math.max(0, Number(form.usd_exchange_rate) || 0);
 
     const normalizedDefaultSubscriptions = normalizeDefaultSubscriptionSettings(
       form.default_subscriptions,
@@ -6238,6 +6277,8 @@ async function saveSettings() {
       balance_unit_name: form.balance_unit_name,
       balance_unit_symbol: form.balance_unit_symbol,
       balance_icon_svg: form.balance_icon_svg,
+      reasoning_point_rmb_unit_price: form.reasoning_point_rmb_unit_price,
+      usd_exchange_rate: form.usd_exchange_rate,
       force_email_on_third_party_signup: form.force_email_on_third_party_signup,
       default_user_rpm_limit: form.default_user_rpm_limit,
       site_name: form.site_name,

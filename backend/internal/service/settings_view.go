@@ -106,13 +106,15 @@ type SystemSettings struct {
 	CustomMenuItems             string // JSON array of custom menu items
 	CustomEndpoints             string // JSON array of custom endpoints
 
-	DefaultConcurrency   int
-	DefaultBalance       float64
-	DefaultUserRPMLimit  int
-	DefaultSubscriptions []DefaultSubscriptionSetting
-	BalanceUnitName      string
-	BalanceUnitSymbol    string
-	BalanceIconSVG       string
+	DefaultConcurrency         int
+	DefaultBalance             float64
+	DefaultUserRPMLimit        int
+	DefaultSubscriptions       []DefaultSubscriptionSetting
+	BalanceUnitName            string
+	BalanceUnitSymbol          string
+	BalanceIconSVG             string
+	ReasoningPointRMBUnitPrice float64
+	USDExchangeRate            float64
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`

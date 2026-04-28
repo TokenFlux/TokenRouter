@@ -479,6 +479,7 @@ export interface MarketplaceGroup {
   description: string
   platform: GroupPlatform
   rate_multiplier: number
+  official_price_ratio?: number
   model_count: number
   models: MarketplaceModel[]
 }

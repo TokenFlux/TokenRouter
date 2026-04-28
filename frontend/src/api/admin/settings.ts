@@ -316,6 +316,8 @@ export interface SystemSettings {
   balance_unit_name: string;
   balance_unit_symbol: string;
   balance_icon_svg: string;
+  reasoning_point_rmb_unit_price: number;
+  usd_exchange_rate: number;
   auth_source_default_email_balance?: number;
   auth_source_default_email_concurrency?: number;
   auth_source_default_email_subscriptions?: DefaultSubscriptionSetting[];
@@ -497,6 +499,8 @@ export interface UpdateSettingsRequest {
   balance_unit_name?: string;
   balance_unit_symbol?: string;
   balance_icon_svg?: string;
+  reasoning_point_rmb_unit_price?: number;
+  usd_exchange_rate?: number;
   auth_source_default_email_balance?: number;
   auth_source_default_email_concurrency?: number;
   auth_source_default_email_subscriptions?: DefaultSubscriptionSetting[];

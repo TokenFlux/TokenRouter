@@ -57,7 +57,7 @@
         : 'relative z-10 px-4 pb-12 pt-6 sm:px-6 lg:px-8'"
     >
       <div :class="isAuthenticated ? 'space-y-4' : 'relative mx-auto max-w-[1400px] space-y-5'">
-        <section v-if="!isAuthenticated" class="card overflow-hidden p-4 md:p-5">
+        <section class="card overflow-hidden p-4 md:p-5">
           <div class="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_repeat(3,minmax(0,210px))]">
             <div class="min-w-0 space-y-3">
               <div>
@@ -175,6 +175,12 @@
                   </span>
                   <span class="rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200">
                     {{ group.model_count }} {{ t('marketplace.modelsStat') }}
+                  </span>
+                  <span
+                    v-if="hasOfficialPriceRatio(group.official_price_ratio)"
+                    class="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200"
+                  >
+                    {{ formatOfficialPriceRatio(group.official_price_ratio) }}
                   </span>
                 </div>
 
@@ -450,6 +456,10 @@ function hasPositiveValue(value?: number | null): value is number {
   return typeof value === 'number' && value > 0
 }
 
+function hasOfficialPriceRatio(value?: number | null): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+}
+
 function hasTokenPricing(pricing: MarketplaceModelPricing): boolean {
   return [
     pricing.input_price_per_token,
@@ -490,6 +500,15 @@ function resetFilters() {
 
 function formatMultiplier(multiplier: number): string {
   return `x${multiplier.toFixed(multiplier % 1 === 0 ? 0 : 2)}`
+}
+
+function formatOfficialPriceRatio(ratio: number): string {
+  const discount = new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(ratio * 10)
+
+  return t('marketplace.officialPriceDiscount', { discount })
 }
 
 function overviewIconWrapClass(key: string): string {

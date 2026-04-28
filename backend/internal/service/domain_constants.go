@@ -174,13 +174,15 @@ const (
 	SettingKeyCustomEndpoints             = "custom_endpoints"              // 自定义端点列表（JSON 数组）
 
 	// 默认配置
-	SettingKeyDefaultConcurrency   = "default_concurrency"    // 新用户默认并发量
-	SettingKeyDefaultBalance       = "default_balance"        // 新用户默认余额
-	SettingKeyDefaultSubscriptions = "default_subscriptions"  // 新用户默认订阅列表（JSON）
-	SettingKeyDefaultUserRPMLimit  = "default_user_rpm_limit" // 新用户默认 RPM 限制（0 = 不限制）
-	SettingKeyBalanceUnitName      = "balance_unit_name"      // 内部余额展示名称
-	SettingKeyBalanceUnitSymbol    = "balance_unit_symbol"    // 内部余额展示符号
-	SettingKeyBalanceIconSVG       = "balance_icon_svg"       // 内部余额展示 SVG 图标
+	SettingKeyDefaultConcurrency         = "default_concurrency"            // 新用户默认并发量
+	SettingKeyDefaultBalance             = "default_balance"                // 新用户默认余额
+	SettingKeyDefaultSubscriptions       = "default_subscriptions"          // 新用户默认订阅列表（JSON）
+	SettingKeyDefaultUserRPMLimit        = "default_user_rpm_limit"         // 新用户默认 RPM 限制（0 = 不限制）
+	SettingKeyBalanceUnitName            = "balance_unit_name"              // 内部余额展示名称
+	SettingKeyBalanceUnitSymbol          = "balance_unit_symbol"            // 内部余额展示符号
+	SettingKeyBalanceIconSVG             = "balance_icon_svg"               // 内部余额展示 SVG 图标
+	SettingKeyReasoningPointRMBUnitPrice = "reasoning_point_rmb_unit_price" // 推理积分人民币单价
+	SettingKeyUSDExchangeRate            = "usd_exchange_rate"              // 美元兑人民币汇率（1 USD = N CNY）
 
 	// 第三方认证来源默认授予配置
 	SettingKeyAuthSourceDefaultEmailBalance            = "auth_source_default_email_balance"

@@ -108,13 +108,15 @@ type SystemSettings struct {
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
 
-	DefaultConcurrency   int                          `json:"default_concurrency"`
-	DefaultBalance       float64                      `json:"default_balance"`
-	DefaultUserRPMLimit  int                          `json:"default_user_rpm_limit"`
-	DefaultSubscriptions []DefaultSubscriptionSetting `json:"default_subscriptions"`
-	BalanceUnitName      string                       `json:"balance_unit_name"`
-	BalanceUnitSymbol    string                       `json:"balance_unit_symbol"`
-	BalanceIconSVG       string                       `json:"balance_icon_svg"`
+	DefaultConcurrency         int                          `json:"default_concurrency"`
+	DefaultBalance             float64                      `json:"default_balance"`
+	DefaultUserRPMLimit        int                          `json:"default_user_rpm_limit"`
+	DefaultSubscriptions       []DefaultSubscriptionSetting `json:"default_subscriptions"`
+	BalanceUnitName            string                       `json:"balance_unit_name"`
+	BalanceUnitSymbol          string                       `json:"balance_unit_symbol"`
+	BalanceIconSVG             string                       `json:"balance_icon_svg"`
+	ReasoningPointRMBUnitPrice float64                      `json:"reasoning_point_rmb_unit_price"`
+	USDExchangeRate            float64                      `json:"usd_exchange_rate"`
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`

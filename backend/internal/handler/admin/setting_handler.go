@@ -191,6 +191,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		BalanceUnitName:                        settings.BalanceUnitName,
 		BalanceUnitSymbol:                      settings.BalanceUnitSymbol,
 		BalanceIconSVG:                         settings.BalanceIconSVG,
+		ReasoningPointRMBUnitPrice:             settings.ReasoningPointRMBUnitPrice,
+		USDExchangeRate:                        settings.USDExchangeRate,
 		EnableModelFallback:                    settings.EnableModelFallback,
 		FallbackModelAnthropic:                 settings.FallbackModelAnthropic,
 		FallbackModelOpenAI:                    settings.FallbackModelOpenAI,
@@ -386,6 +388,8 @@ type UpdateSettingsRequest struct {
 	BalanceUnitName                          string                            `json:"balance_unit_name"`
 	BalanceUnitSymbol                        string                            `json:"balance_unit_symbol"`
 	BalanceIconSVG                           string                            `json:"balance_icon_svg"`
+	ReasoningPointRMBUnitPrice               *float64                          `json:"reasoning_point_rmb_unit_price"`
+	USDExchangeRate                          *float64                          `json:"usd_exchange_rate"`
 	AuthSourceDefaultEmailBalance            *float64                          `json:"auth_source_default_email_balance"`
 	AuthSourceDefaultEmailConcurrency        *int                              `json:"auth_source_default_email_concurrency"`
 	AuthSourceDefaultEmailSubscriptions      *[]dto.DefaultSubscriptionSetting `json:"auth_source_default_email_subscriptions"`
@@ -511,6 +515,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	}
 	if req.ReferralRewardAmount < 0 {
 		req.ReferralRewardAmount = 0
+	}
+	if req.ReasoningPointRMBUnitPrice != nil && *req.ReasoningPointRMBUnitPrice < 0 {
+		*req.ReasoningPointRMBUnitPrice = 0
+	}
+	if req.USDExchangeRate != nil && *req.USDExchangeRate < 0 {
+		*req.USDExchangeRate = 0
 	}
 	// 通用表格配置：兼容旧客户端未传字段时保留当前值。
 	if req.TableDefaultPageSize <= 0 {
@@ -1178,6 +1188,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		BalanceUnitName:                  req.BalanceUnitName,
 		BalanceUnitSymbol:                req.BalanceUnitSymbol,
 		BalanceIconSVG:                   req.BalanceIconSVG,
+		ReasoningPointRMBUnitPrice:       float64ValueOrDefault(req.ReasoningPointRMBUnitPrice, previousSettings.ReasoningPointRMBUnitPrice),
+		USDExchangeRate:                  float64ValueOrDefault(req.USDExchangeRate, previousSettings.USDExchangeRate),
 		EnableModelFallback:              req.EnableModelFallback,
 		FallbackModelAnthropic:           req.FallbackModelAnthropic,
 		FallbackModelOpenAI:              req.FallbackModelOpenAI,
@@ -1486,6 +1498,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		BalanceUnitName:                        updatedSettings.BalanceUnitName,
 		BalanceUnitSymbol:                      updatedSettings.BalanceUnitSymbol,
 		BalanceIconSVG:                         updatedSettings.BalanceIconSVG,
+		ReasoningPointRMBUnitPrice:             updatedSettings.ReasoningPointRMBUnitPrice,
+		USDExchangeRate:                        updatedSettings.USDExchangeRate,
 		EnableModelFallback:                    updatedSettings.EnableModelFallback,
 		FallbackModelAnthropic:                 updatedSettings.FallbackModelAnthropic,
 		FallbackModelOpenAI:                    updatedSettings.FallbackModelOpenAI,
@@ -1612,6 +1626,12 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.BalanceIconSVG != after.BalanceIconSVG {
 		changed = append(changed, "balance_icon_svg")
+	}
+	if before.ReasoningPointRMBUnitPrice != after.ReasoningPointRMBUnitPrice {
+		changed = append(changed, "reasoning_point_rmb_unit_price")
+	}
+	if before.USDExchangeRate != after.USDExchangeRate {
+		changed = append(changed, "usd_exchange_rate")
 	}
 	if before.TotpEnabled != after.TotpEnabled {
 		changed = append(changed, "totp_enabled")

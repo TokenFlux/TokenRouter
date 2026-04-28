@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
@@ -12,13 +14,14 @@ import (
 )
 
 type ModelMarketplaceGroup struct {
-	ID             int64
-	Name           string
-	Description    string
-	Platform       string
-	RateMultiplier float64
-	ModelCount     int
-	Models         []ModelMarketplaceModel
+	ID                 int64
+	Name               string
+	Description        string
+	Platform           string
+	RateMultiplier     float64
+	OfficialPriceRatio *float64
+	ModelCount         int
+	Models             []ModelMarketplaceModel
 }
 
 type ModelMarketplaceModel struct {
@@ -29,17 +32,20 @@ type ModelMarketplaceModel struct {
 
 type ModelMarketplaceService struct {
 	groupRepo      GroupRepository
+	settingRepo    SettingRepository
 	gatewayService *GatewayService
 	billingService *BillingService
 }
 
 func NewModelMarketplaceService(
 	groupRepo GroupRepository,
+	settingRepo SettingRepository,
 	gatewayService *GatewayService,
 	billingService *BillingService,
 ) *ModelMarketplaceService {
 	return &ModelMarketplaceService{
 		groupRepo:      groupRepo,
+		settingRepo:    settingRepo,
 		gatewayService: gatewayService,
 		billingService: billingService,
 	}
@@ -51,6 +57,7 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 		return nil, fmt.Errorf("list active groups: %w", err)
 	}
 
+	discountConfig, showDiscount := s.getOfficialPriceRatioConfig(ctx)
 	out := make([]ModelMarketplaceGroup, 0, len(groups))
 	for i := range groups {
 		group := &groups[i]
@@ -63,18 +70,70 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 			continue
 		}
 
+		var officialPriceRatio *float64
+		if showDiscount {
+			officialPriceRatio = discountConfig.officialPriceRatio(group.RateMultiplier)
+		}
 		out = append(out, ModelMarketplaceGroup{
-			ID:             group.ID,
-			Name:           group.Name,
-			Description:    group.Description,
-			Platform:       group.Platform,
-			RateMultiplier: group.RateMultiplier,
-			ModelCount:     len(models),
-			Models:         models,
+			ID:                 group.ID,
+			Name:               group.Name,
+			Description:        group.Description,
+			Platform:           group.Platform,
+			RateMultiplier:     group.RateMultiplier,
+			OfficialPriceRatio: officialPriceRatio,
+			ModelCount:         len(models),
+			Models:             models,
 		})
 	}
 
 	return out, nil
+}
+
+type marketplaceDiscountConfig struct {
+	reasoningPointRMBUnitPrice float64
+	usdExchangeRate            float64
+}
+
+func (c marketplaceDiscountConfig) officialPriceRatio(rateMultiplier float64) *float64 {
+	ratio := rateMultiplier * c.reasoningPointRMBUnitPrice / c.usdExchangeRate
+	if ratio <= 0 || math.IsNaN(ratio) || math.IsInf(ratio, 0) {
+		return nil
+	}
+	return &ratio
+}
+
+func (s *ModelMarketplaceService) getOfficialPriceRatioConfig(ctx context.Context) (marketplaceDiscountConfig, bool) {
+	if s.settingRepo == nil {
+		return marketplaceDiscountConfig{}, false
+	}
+
+	settings, err := s.settingRepo.GetMultiple(ctx, []string{
+		SettingKeyReasoningPointRMBUnitPrice,
+		SettingKeyUSDExchangeRate,
+	})
+	if err != nil {
+		return marketplaceDiscountConfig{}, false
+	}
+
+	// 官方价折扣依赖管理员配置，任一配置无效则不展示。
+	price, priceOK := parsePositiveMarketplaceSettingFloat(settings[SettingKeyReasoningPointRMBUnitPrice])
+	exchangeRate, exchangeRateOK := parsePositiveMarketplaceSettingFloat(settings[SettingKeyUSDExchangeRate])
+	if !priceOK || !exchangeRateOK {
+		return marketplaceDiscountConfig{}, false
+	}
+
+	return marketplaceDiscountConfig{
+		reasoningPointRMBUnitPrice: price,
+		usdExchangeRate:            exchangeRate,
+	}, true
+}
+
+func parsePositiveMarketplaceSettingFloat(raw string) (float64, bool) {
+	value, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil || value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0, false
+	}
+	return value, true
 }
 
 func (s *ModelMarketplaceService) listPublicModelsForGroup(ctx context.Context, group *Group) []ModelMarketplaceModel {

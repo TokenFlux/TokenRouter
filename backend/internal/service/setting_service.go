@@ -937,6 +937,12 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	if settings.BalanceUnitSymbol == "" {
 		settings.BalanceUnitSymbol = "$"
 	}
+	if settings.ReasoningPointRMBUnitPrice < 0 {
+		settings.ReasoningPointRMBUnitPrice = 0
+	}
+	if settings.USDExchangeRate < 0 {
+		settings.USDExchangeRate = 0
+	}
 	alipaySource, err := normalizeVisibleMethodSettingSource("alipay", settings.PaymentVisibleMethodAlipaySource, settings.PaymentVisibleMethodAlipayEnabled)
 	if err != nil {
 		return nil, err
@@ -1100,6 +1106,8 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyBalanceUnitName] = settings.BalanceUnitName
 	updates[SettingKeyBalanceUnitSymbol] = settings.BalanceUnitSymbol
 	updates[SettingKeyBalanceIconSVG] = settings.BalanceIconSVG
+	updates[SettingKeyReasoningPointRMBUnitPrice] = strconv.FormatFloat(settings.ReasoningPointRMBUnitPrice, 'f', 8, 64)
+	updates[SettingKeyUSDExchangeRate] = strconv.FormatFloat(settings.USDExchangeRate, 'f', 8, 64)
 
 	// Model fallback configuration
 	updates[SettingKeyEnableModelFallback] = strconv.FormatBool(settings.EnableModelFallback)
@@ -1677,6 +1685,8 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyBalanceUnitName:                          "USD",
 		SettingKeyBalanceUnitSymbol:                        "$",
 		SettingKeyBalanceIconSVG:                           "",
+		SettingKeyReasoningPointRMBUnitPrice:               "0",
+		SettingKeyUSDExchangeRate:                          "0",
 		SettingKeyAuthSourceDefaultEmailBalance:            "0",
 		SettingKeyAuthSourceDefaultEmailConcurrency:        "5",
 		SettingKeyAuthSourceDefaultEmailSubscriptions:      "[]",
@@ -1809,6 +1819,12 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 	}
 	if reward, err := strconv.ParseFloat(settings[SettingKeyReferralRewardAmount], 64); err == nil && reward >= 0 {
 		result.ReferralRewardAmount = reward
+	}
+	if price, err := strconv.ParseFloat(settings[SettingKeyReasoningPointRMBUnitPrice], 64); err == nil && price >= 0 {
+		result.ReasoningPointRMBUnitPrice = price
+	}
+	if rate, err := strconv.ParseFloat(settings[SettingKeyUSDExchangeRate], 64); err == nil && rate >= 0 {
+		result.USDExchangeRate = rate
 	}
 	result.DefaultSubscriptions = parseDefaultSubscriptions(settings[SettingKeyDefaultSubscriptions])
 
