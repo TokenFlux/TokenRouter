@@ -1728,6 +1728,8 @@ const encodeBase64Utf8 = (value: string) => {
   return btoa(binary)
 }
 
+const stripTrailingV1 = (value: string) => value.replace(/\/+$/, '').replace(/\/v1$/, '')
+
 const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
   const baseUrl = publicSettings.value?.api_base_url || window.location.origin
   const platform = row.group?.platform || 'anthropic'
@@ -1752,14 +1754,16 @@ const executeCcsImport = (row: ApiKey, clientType: 'claude' | 'gemini') => {
         break
       default: // anthropic
         app = 'claude'
-        endpoint = baseUrl
+        endpoint = stripTrailingV1(baseUrl)
     }
   }
 
   const fallbackUnitLiteral = toJsStringLiteral(balanceUnitName.value)
+  // Anthropic 导入的是根地址，客户端请求时会自行拼接 /v1，用量查询仍要走网关路由。
+  const usagePath = platform === 'anthropic' ? '/v1/usage' : '/usage'
   const usageScript = `({
     request: {
-      url: "{{baseUrl}}/usage",
+      url: "{{baseUrl}}${usagePath}",
       method: "GET",
       headers: { "Authorization": "Bearer {{apiKey}}" }
     },
