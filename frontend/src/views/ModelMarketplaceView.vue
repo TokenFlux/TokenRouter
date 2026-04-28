@@ -258,6 +258,7 @@ import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import Select from '@/components/common/Select.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
+import { initTheme } from '@/composables/useTheme'
 import { getMarketplaceModels } from '@/api/marketplace'
 import type { GroupPlatform, MarketplaceGroup, MarketplaceModelPricing } from '@/types'
 import { useAppStore, useAuthStore } from '@/stores'
@@ -431,16 +432,6 @@ const overviewCards = computed<OverviewCard[]>(() => [
     icon: 'globe',
   },
 ])
-
-function initTheme() {
-  const savedTheme = localStorage.getItem('theme')
-  if (
-    savedTheme === 'dark' ||
-    (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  ) {
-    document.documentElement.classList.add('dark')
-  }
-}
 
 function platformRank(platform: GroupPlatform): number {
   const index = platformOrder.indexOf(platform)

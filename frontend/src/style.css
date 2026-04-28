@@ -44,6 +44,34 @@
     background-attachment: fixed;
   }
 
+  /* 主题切换使用 View Transition API，关闭默认淡入淡出后交给圆形水波裁剪动画。 */
+  ::view-transition-group(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+
+  ::view-transition-group(root) {
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    width: 100vw;
+    height: 100vh;
+    mix-blend-mode: normal;
+  }
+
+  ::view-transition-old(root) {
+    z-index: 1;
+  }
+
+  ::view-transition-new(root) {
+    z-index: 2147483646;
+  }
+
   /* 自定义滚动条 - 仅针对 Firefox，避免 Chrome 取消 webkit 的全局定制 */
   @supports (-moz-appearance:none) {
     :where(
