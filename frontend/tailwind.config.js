@@ -11,12 +11,12 @@ export default {
           100: '#DDF4FC',
           200: '#BFEAFF',
           300: '#8BDDF8',
-          400: '#25C9F4',
-          500: '#176F9E',
-          600: '#145F8C',
-          700: '#2D4F68',
-          800: '#17374C',
-          900: '#0D283D',
+          400: '#4DD4F6',
+          500: '#00D2FF',
+          600: '#12A7E8',
+          700: '#0B8FD8',
+          800: '#176F9E',
+          900: '#2D4F68',
           950: '#071A2A'
         },
         // 辅助色 - 冰白到品牌深蓝
@@ -44,8 +44,8 @@ export default {
           600: '#35406C',
           700: '#293059',
           800: '#202B52',
-          900: '#1A2643',
-          950: '#10182C'
+          900: '#10182C',
+          950: '#1A2643'
         }
       },
       fontFamily: {
@@ -75,7 +75,7 @@ export default {
       },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-primary': 'linear-gradient(135deg, #176F9E 0%, #2D4F68 100%)',
+        'gradient-primary': 'linear-gradient(135deg, #00D2FF 0%, #0B8FD8 100%)',
         'gradient-dark': 'linear-gradient(135deg, #293059 0%, #10182C 100%)',
         'gradient-glass':
           'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
