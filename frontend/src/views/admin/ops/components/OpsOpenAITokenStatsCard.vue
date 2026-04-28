@@ -212,7 +212,7 @@ function onNextPage() {
       <div class="overflow-hidden rounded-xl border border-gray-200 dark:border-dark-700">
         <div class="max-h-[420px] overflow-auto">
           <table class="min-w-full text-left text-xs md:text-sm">
-            <thead class="sticky top-0 z-10 bg-white dark:bg-dark-800">
+            <thead class="sticky top-0 z-10 bg-white dark:bg-dark-900">
               <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700 dark:text-gray-400">
                 <th class="px-2 py-2 font-semibold">{{ t('admin.ops.openaiTokenStats.table.model') }}</th>
                 <th class="px-2 py-2 font-semibold">{{ t('admin.ops.openaiTokenStats.table.requestCount') }}</th>

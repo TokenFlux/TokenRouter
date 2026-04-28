@@ -70,7 +70,7 @@
     }"
   >
     <table class="w-full min-w-max divide-y divide-gray-200 dark:divide-dark-700">
-      <thead class="table-header bg-gray-50 dark:bg-dark-800">
+      <thead class="table-header bg-gray-50 dark:bg-dark-950">
         <tr>
           <th
             v-for="(column, index) in columns"
@@ -847,17 +847,11 @@ tbody tr:hover .sticky-col {
 </style>
 
 <style>
-/* ==========================================================================
-   终极悬浮滚动条防丢器 (Sledgehammer Override)
-   绕过 style.css 中 `* { scrollbar-color: transparent }` 的全局悬停隐身诅咒！
-   ========================================================================== */
-
-/* 1. 废除全局针对所有元素的 scrollbar-width 设定，拿回 Chrome/Safari 下 Webkit 滚动条规则的控制权！ */
+/* 表格滚动条常驻显示，避免横向滚动区域不可发现 */
 .table-wrapper {
-  scrollbar-width: auto !important; /* 阻止 Chrome 121 退化到原生 Mac 闪隐滚动条 */
+  scrollbar-width: auto !important;
 }
 
-/* 2. 重写 Webkit 滚动层，全部加上 !important 强制覆盖透明悬停陷阱 */
 .table-wrapper::-webkit-scrollbar {
   height: 12px !important;
   width: 12px !important;
@@ -874,7 +868,6 @@ tbody tr:hover .sticky-col {
   background-color: rgba(255, 255, 255, 0.05) !important;
 }
 
-/* 常驻、不透明的滑块，无视鼠标是否 hover 都在那！ */
 .table-wrapper::-webkit-scrollbar-thumb {
   background-color: rgba(107, 114, 128, 0.75) !important; 
   border-radius: 6px !important;
@@ -893,7 +886,6 @@ tbody tr:hover .sticky-col {
   background-color: rgba(209, 213, 219, 0.9) !important;
 }
 
-/* 3. 仅给真正的 Firefox 留的后路 */
 @supports (-moz-appearance:none) {
   .table-wrapper {
     scrollbar-width: thin !important;

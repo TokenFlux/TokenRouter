@@ -395,8 +395,8 @@ const isDarkMode = computed(() => {
 
 // Chart colors
 const chartColors = computed(() => ({
-  text: isDarkMode.value ? '#e5e7eb' : '#374151',
-  grid: isDarkMode.value ? '#374151' : '#e5e7eb'
+  text: isDarkMode.value ? '#D5E5FB' : '#2D4F68',
+  grid: isDarkMode.value ? '#35406C' : '#DDF4FC'
 }))
 
 // Line chart options (for user trend chart)
@@ -499,7 +499,7 @@ const userTrendChartData = computed(() => {
     '#ef4444',
     '#8b5cf6',
     '#ec4899',
-    '#14b8a6',
+    '#00D2FF',
     '#f97316',
     '#6366f1',
     '#84cc16',

@@ -237,14 +237,14 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700">
+  <div class="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-900 dark:ring-dark-700">
     <div class="mb-4 flex items-start justify-between gap-4">
       <div>
         <h3 class="text-sm font-bold text-gray-900 dark:text-white">{{ t('admin.ops.runtime.title') }}</h3>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.runtime.description') }}</p>
       </div>
       <button
-        class="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
+        class="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-dark-950 dark:text-gray-300 dark:hover:bg-dark-800"
         :disabled="loading"
         @click="loadSettings"
       >
@@ -261,7 +261,7 @@ onMounted(() => {
     </div>
 
     <div v-else class="space-y-6">
-      <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-700/50">
+      <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-950">
         <div class="mb-3 flex items-center justify-between">
           <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.ops.runtime.alertTitle') }}</h4>
           <button class="btn btn-sm btn-secondary" @click="openAlertEditor">{{ t('common.edit') }}</button>
@@ -283,7 +283,7 @@ onMounted(() => {
             <summary class="cursor-pointer text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400">
               {{ t('admin.ops.runtime.showAdvancedDeveloperSettings') }}
             </summary>
-            <div class="mt-2 grid grid-cols-1 gap-3 rounded-lg bg-gray-100 p-3 dark:bg-dark-800 md:grid-cols-2">
+            <div class="mt-2 grid grid-cols-1 gap-3 rounded-lg bg-gray-100 p-3 dark:bg-dark-900 md:grid-cols-2">
               <div class="text-xs text-gray-500 dark:text-gray-400">
                 {{ t('admin.ops.runtime.lockEnabled') }}:
                 <span class="ml-1 font-mono text-gray-700 dark:text-gray-300">{{ alertSettings.distributed_lock.enabled }}</span>
@@ -328,7 +328,7 @@ onMounted(() => {
         <p class="mt-1 text-xs text-gray-500">{{ t('admin.ops.runtime.evalIntervalHint') }}</p>
       </div>
 
-      <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-700/50">
+      <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-950">
         <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.ops.runtime.metricThresholds') }}</div>
         <p class="mb-4 text-xs text-gray-500 dark:text-gray-400">{{ t('admin.ops.runtime.metricThresholdsHint') }}</p>
 
@@ -392,7 +392,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-700/50">
+      <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-950">
         <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.ops.runtime.silencing.title') }}</div>
 
         <label class="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
@@ -422,7 +422,7 @@ onMounted(() => {
             />
           </div>
 
-          <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-800">
+          <div class="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
             <div class="flex items-start justify-between gap-4">
               <div>
                 <div class="text-xs font-bold text-gray-900 dark:text-white">{{ t('admin.ops.runtime.silencing.entries.title') }}</div>
@@ -433,7 +433,7 @@ onMounted(() => {
               </button>
             </div>
 
-            <div v-if="!draftAlert.silencing.entries?.length" class="mt-3 rounded-lg bg-gray-50 p-3 text-xs text-gray-500 dark:bg-dark-900 dark:text-gray-400">
+            <div v-if="!draftAlert.silencing.entries?.length" class="mt-3 rounded-lg bg-gray-50 p-3 text-xs text-gray-500 dark:bg-dark-950 dark:text-gray-400">
               {{ t('admin.ops.runtime.silencing.entries.empty') }}
             </div>
 
@@ -441,7 +441,7 @@ onMounted(() => {
               <div
                 v-for="(entry, idx) in draftAlert.silencing.entries"
                 :key="idx"
-                class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-900"
+                class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-950"
               >
                 <div class="mb-3 flex items-center justify-between">
                   <div class="text-xs font-bold text-gray-900 dark:text-white">
@@ -499,7 +499,7 @@ onMounted(() => {
         </div>
       </div>
 
-      <details class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-dark-600 dark:bg-dark-800">
+      <details class="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-dark-600 dark:bg-dark-900">
         <summary class="cursor-pointer text-xs font-medium text-gray-600 dark:text-gray-400">{{ t('admin.ops.runtime.advancedSettingsSummary') }}</summary>
         <div class="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2">
           <div>
@@ -533,4 +533,3 @@ onMounted(() => {
     </template>
   </BaseDialog>
 </template>
-

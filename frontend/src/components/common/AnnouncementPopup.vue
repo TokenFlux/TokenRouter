@@ -155,11 +155,11 @@ watch(
 }
 
 .overflow-y-auto::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #cbd5e1, #94a3b8);
+  background: linear-gradient(to bottom, #BFEAFF, #8BDDF8);
   border-radius: 4px;
 }
 
 .dark .overflow-y-auto::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #4b5563, #374151);
+  background: linear-gradient(to bottom, #35406C, #293059);
 }
 </style>

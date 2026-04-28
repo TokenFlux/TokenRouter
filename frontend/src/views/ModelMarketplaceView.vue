@@ -1,20 +1,15 @@
 <template>
   <component
     :is="isAuthenticated ? AppLayout : 'div'"
-    :class="isAuthenticated ? '' : 'relative min-h-screen overflow-hidden bg-gradient-to-br from-gray-50 via-primary-50/30 to-gray-100 dark:from-dark-950 dark:via-dark-900 dark:to-dark-950'"
+    :class="isAuthenticated ? '' : 'ba-theme-shell relative min-h-screen overflow-hidden'"
   >
     <template v-if="!isAuthenticated">
-      <div class="pointer-events-none absolute inset-0 overflow-hidden">
-        <div class="absolute -right-40 -top-40 h-96 w-96 rounded-full bg-primary-400/20 blur-3xl"></div>
-        <div class="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-primary-500/15 blur-3xl"></div>
-        <div class="absolute left-1/3 top-1/4 h-72 w-72 rounded-full bg-primary-300/10 blur-3xl"></div>
-        <div class="absolute inset-0 bg-[linear-gradient(rgba(20,184,166,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(20,184,166,0.03)_1px,transparent_1px)] bg-[size:64px_64px]"></div>
-      </div>
+      <div class="ba-theme-backdrop pointer-events-none fixed inset-0"></div>
 
-      <header class="relative z-20 border-b border-gray-200/60 bg-white/70 backdrop-blur-xl dark:border-dark-800/60 dark:bg-dark-900/70">
+      <header class="relative z-20 border-b border-primary-200/70 bg-white/75 backdrop-blur-xl dark:border-dark-600/70 dark:bg-dark-700/95">
         <nav class="mx-auto flex max-w-[1400px] items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8">
           <RouterLink to="/home" class="flex min-w-0 items-center gap-3">
-            <div class="h-11 w-11 overflow-hidden rounded-2xl border border-gray-200/70 bg-white shadow-md dark:border-dark-700 dark:bg-dark-900">
+            <div class="h-11 w-11 overflow-hidden rounded-2xl border border-primary-200/70 bg-white shadow-md dark:border-dark-600 dark:bg-dark-900">
               <img :src="siteLogo || '/logo.png'" alt="Logo" class="h-full w-full object-contain" />
             </div>
             <div class="min-w-0">
@@ -30,19 +25,19 @@
               :href="docUrl"
               target="_blank"
               rel="noopener noreferrer"
-              class="rounded-full border border-gray-200/80 bg-white/80 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm backdrop-blur transition hover:border-primary-300 hover:text-primary-600 dark:border-dark-700 dark:bg-dark-900/80 dark:text-dark-200 dark:hover:border-primary-500"
+              class="rounded-full border border-primary-200/80 bg-white/80 px-4 py-2 text-sm font-medium text-primary-900 shadow-sm backdrop-blur transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-600 dark:bg-dark-900/80 dark:text-dark-100 dark:hover:border-primary-500"
             >
               {{ t('home.docs') }}
             </a>
             <RouterLink
               to="/home"
-              class="rounded-full border border-gray-200/80 bg-white/80 px-4 py-2 text-sm font-medium text-gray-700 shadow-sm backdrop-blur transition hover:border-primary-300 hover:text-primary-600 dark:border-dark-700 dark:bg-dark-900/80 dark:text-dark-200 dark:hover:border-primary-500"
+              class="rounded-full border border-primary-200/80 bg-white/80 px-4 py-2 text-sm font-medium text-primary-900 shadow-sm backdrop-blur transition hover:border-primary-300 hover:text-primary-700 dark:border-dark-600 dark:bg-dark-900/80 dark:text-dark-100 dark:hover:border-primary-500"
             >
               {{ t('marketplace.backHome') }}
             </RouterLink>
             <RouterLink
               :to="dashboardPath"
-              class="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-gray-800 dark:bg-gray-100 dark:text-dark-950 dark:hover:bg-white"
+              class="rounded-full bg-primary-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-primary-800 dark:bg-primary-100 dark:text-dark-950 dark:hover:bg-white"
             >
               {{ isAuthenticated ? t('home.dashboard') : t('home.login') }}
             </RouterLink>
@@ -70,13 +65,13 @@
               </div>
 
               <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-dark-400">
-                <span class="rounded-full bg-gray-100 px-3 py-1.5 dark:bg-dark-800">
+                <span class="rounded-full bg-gray-100 px-3 py-1.5 dark:bg-dark-950">
                   {{ t('marketplace.actualPricingNote', { unitName: balanceUnitName }) }}
                 </span>
-                <span class="rounded-full bg-gray-100 px-3 py-1.5 dark:bg-dark-800">
+                <span class="rounded-full bg-gray-100 px-3 py-1.5 dark:bg-dark-950">
                   {{ totalGroupCount }} {{ t('marketplace.groupsStat') }}
                 </span>
-                <span class="rounded-full bg-gray-100 px-3 py-1.5 dark:bg-dark-800">
+                <span class="rounded-full bg-gray-100 px-3 py-1.5 dark:bg-dark-950">
                   {{ totalModelCount }} {{ t('marketplace.modelsStat') }}
                 </span>
               </div>
@@ -85,7 +80,7 @@
             <div
               v-for="card in overviewCards"
               :key="card.key"
-              class="rounded-xl border border-gray-100 bg-gray-50/80 p-4 dark:border-dark-700 dark:bg-dark-900/90"
+              class="rounded-xl border border-gray-100 bg-gray-50/80 p-4 dark:border-dark-700 dark:bg-dark-950/80"
             >
               <div class="flex items-start gap-3">
                 <div class="rounded-lg p-2" :class="overviewIconWrapClass(card.key)">
@@ -200,7 +195,7 @@
               <article
                 v-for="model in group.models"
                 :key="`${group.id}-${model.id}`"
-                class="group rounded-xl border border-gray-100 bg-gray-50/80 p-4 transition hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-card dark:border-dark-700 dark:bg-dark-900/70 dark:hover:border-primary-500/50"
+                class="group rounded-xl border border-gray-100 bg-gray-50/80 p-4 transition hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-card dark:border-dark-700 dark:bg-dark-950/80 dark:hover:border-primary-500/50"
               >
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">

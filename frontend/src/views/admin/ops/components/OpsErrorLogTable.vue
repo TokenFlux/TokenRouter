@@ -1,5 +1,5 @@
 <template>
-  <div class="flex h-full min-h-0 flex-col bg-white dark:bg-dark-900">
+  <div class="flex h-full min-h-0 flex-col bg-white dark:bg-dark-950">
     <!-- Loading State -->
     <div v-if="loading" class="flex flex-1 items-center justify-center py-10">
       <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
@@ -9,7 +9,7 @@
     <div v-else class="flex min-h-0 flex-1 flex-col">
       <div class="min-h-0 flex-1 overflow-auto border-b border-gray-200 dark:border-dark-700">
         <table class="w-full border-separate border-spacing-0">
-          <thead class="sticky top-0 z-10 bg-gray-50 dark:bg-dark-800">
+          <thead class="sticky top-0 z-10 bg-gray-50 dark:bg-dark-900">
             <tr>
               <th class="border-b border-gray-200 px-4 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:border-dark-700 dark:text-dark-400">
                 {{ t('admin.ops.errorLog.time') }}
@@ -91,7 +91,7 @@
 
               <!-- Platform -->
               <td class="whitespace-nowrap px-4 py-2">
-                <span class="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gray-600 dark:bg-dark-700 dark:text-gray-300">
+                <span class="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-gray-600 dark:bg-dark-950 dark:text-gray-300">
                   {{ log.platform || '-' }}
                 </span>
               </td>
@@ -166,7 +166,7 @@
                   </span>
                   <span
                     v-if="log.request_type != null && log.request_type > 0"
-                    class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                    class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold text-gray-600 dark:bg-dark-950 dark:text-gray-300"
                   >
                     {{ formatRequestType(log.request_type) }}
                   </span>
@@ -196,7 +196,7 @@
       </div>
 
       <!-- Pagination -->
-      <div class="bg-gray-50/50 dark:bg-dark-800/50">
+      <div class="bg-gray-50/50 dark:bg-dark-900/50">
         <Pagination
           v-if="total > 0"
           :total="total"
@@ -279,11 +279,11 @@ function getTypeBadge(log: OpsErrorLog): { label: string; className: string } {
     return { label: t('admin.ops.errorLog.typeRouting'), className: 'bg-purple-50 text-purple-700 ring-purple-600/20 dark:bg-purple-900/30 dark:text-purple-400 dark:ring-purple-500/30' }
   }
   if (phase === 'internal' && owner === 'platform') {
-    return { label: t('admin.ops.errorLog.typeInternal'), className: 'bg-gray-100 text-gray-800 ring-gray-600/20 dark:bg-dark-700 dark:text-gray-200 dark:ring-dark-500/40' }
+    return { label: t('admin.ops.errorLog.typeInternal'), className: 'bg-gray-100 text-gray-800 ring-gray-600/20 dark:bg-dark-950 dark:text-gray-200 dark:ring-dark-500/40' }
   }
 
     const fallback = phase || owner || t('common.unknown')
-    return { label: fallback, className: 'bg-gray-50 text-gray-700 ring-gray-600/10 dark:bg-dark-900 dark:text-gray-300 dark:ring-dark-700' }
+    return { label: fallback, className: 'bg-gray-50 text-gray-700 ring-gray-600/10 dark:bg-dark-950 dark:text-gray-300 dark:ring-dark-700' }
 }
 
 interface Props {

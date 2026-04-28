@@ -190,7 +190,7 @@ const kindBadgeClass = (kind: string) => {
           <div v-else class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-gray-200 dark:border-dark-700">
             <div class="min-h-0 flex-1 overflow-auto">
               <table class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
-                <thead class="sticky top-0 z-10 bg-gray-50 dark:bg-dark-900">
+                <thead class="sticky top-0 z-10 bg-gray-50 dark:bg-dark-950">
                 <tr>
                   <th class="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
                     {{ t('admin.ops.requestDetails.table.time') }}
@@ -218,7 +218,7 @@ const kindBadgeClass = (kind: string) => {
                   </th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-800">
+              <tbody class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
                 <tr v-for="(row, idx) in items" :key="idx" class="hover:bg-gray-50 dark:hover:bg-dark-700/50">
                   <td class="whitespace-nowrap px-4 py-3 text-xs text-gray-600 dark:text-gray-300">
                     {{ formatDateTime(row.created_at) }}
@@ -246,7 +246,7 @@ const kindBadgeClass = (kind: string) => {
                         {{ row.request_id }}
                       </span>
                       <button
-                        class="rounded-md bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
+                        class="rounded-md bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600 hover:bg-gray-200 dark:bg-dark-950 dark:text-gray-300 dark:hover:bg-dark-800"
                         @click="handleCopyRequestId(row.request_id)"
                       >
                         {{ t('admin.ops.requestDetails.copy') }}

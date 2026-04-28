@@ -1,5 +1,7 @@
 <template>
-  <div class="relative flex min-h-screen flex-col bg-gray-50 dark:bg-dark-950">
+  <div class="ba-theme-shell relative flex min-h-screen flex-col">
+    <div class="ba-theme-backdrop pointer-events-none fixed inset-0"></div>
+
     <!-- Header (same pattern as HomeView) -->
     <header class="relative z-20 px-6 py-4">
       <nav class="mx-auto flex max-w-6xl items-center justify-between">
@@ -34,7 +36,7 @@
     </header>
 
     <!-- Main Content -->
-    <main class="flex-1 w-full max-w-5xl mx-auto px-6 py-12">
+    <main class="relative z-10 flex-1 w-full max-w-5xl mx-auto px-6 py-12">
       <!-- Hero -->
       <div class="text-center mb-12">
         <h1 class="text-3xl sm:text-4xl font-bold tracking-tight mb-3 text-gray-900 dark:text-white">
@@ -280,7 +282,7 @@
             <div class="px-8 py-5 border-b border-gray-200 dark:border-dark-700">
               <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.tokenStats') }}</h3>
             </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-100 dark:bg-dark-800">
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-100 dark:bg-dark-950">
               <div
                 v-for="(cell, i) in usageStatCells"
                 :key="i"
@@ -455,7 +457,7 @@ function getDateParams(): string {
 
 const CIRCUMFERENCE = 2 * Math.PI * 68
 const RING_GRADIENTS = [
-  { from: '#14b8a6', to: '#5eead4' },
+  { from: '#00D2FF', to: '#8BDDF8' },
   { from: '#6366F1', to: '#A5B4FC' },
   { from: '#10B981', to: '#6EE7B7' },
   { from: '#F59E0B', to: '#FCD34D' },
@@ -858,8 +860,8 @@ onUnmounted(() => {
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
 }
 .input-ring:focus {
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.2);
-  border-color: #14b8a6;
+  box-shadow: 0 0 0 3px rgba(0, 210, 255, 0.22);
+  border-color: #00D2FF;
   outline: none;
 }
 
@@ -876,13 +878,13 @@ onUnmounted(() => {
   100% { background-position: 200% 0; }
 }
 .skeleton {
-  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
+  background: linear-gradient(90deg, #DDF4FC 25%, #F6FCFF 50%, #DDF4FC 75%);
   background-size: 200% 100%;
   animation: shimmer-kv 1.8s ease-in-out infinite;
   border-radius: 8px;
 }
 :global(.dark) .skeleton {
-  background: linear-gradient(90deg, #334155 25%, #1e293b 50%, #334155 75%);
+  background: linear-gradient(90deg, #293059 25%, #10182C 50%, #293059 75%);
   background-size: 200% 100%;
 }
 
