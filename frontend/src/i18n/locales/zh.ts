@@ -2207,7 +2207,9 @@ export default {
       noExpiration: '无过期时间',
       status: {
         active: '生效中',
+        pending: '待生效',
         expired: '已过期',
+        suspended: '已暂停',
         revoked: '已撤销'
       },
       columns: {
@@ -2237,6 +2239,8 @@ export default {
       adjust: '调整',
       adjusting: '调整中...',
       revoke: '撤销',
+      cancelPending: '取消',
+      cancelPendingSubscription: '取消待生效订阅',
       resetQuota: '重置配额',
       resetQuotaTitle: '重置用量配额',
       resetQuotaConfirm: "确定要重置 '{user}' 的每日、每周和每月用量配额吗？用量将归零并从今天开始重新计算。",
@@ -2247,6 +2251,7 @@ export default {
       subscriptionAssigned: '订阅分配成功',
       subscriptionAdjusted: '订阅调整成功',
       subscriptionRevoked: '订阅撤销成功',
+      pendingSubscriptionCancelled: '待生效订阅已取消',
       failedToLoad: '加载订阅列表失败',
       failedToAssign: '分配订阅失败',
       failedToAdjust: '调整订阅失败',
@@ -2257,6 +2262,7 @@ export default {
       pleaseSelectGroup: '请选择分组',
       validityDaysRequired: '请输入有效的天数（至少1天）',
       revokeConfirm: "确定要撤销 '{user}' 的订阅吗？此操作无法撤销。",
+      cancelPendingConfirm: "确定要取消 '{user}' 的待生效订阅吗？后续待生效订阅会自动向前衔接，此操作无法撤销。",
       guide: {
         title: '订阅管理教程',
         subtitle: '订阅模式允许你按时间周期为用户分配使用额度，支持日/周/月配额限制。按照以下步骤即可完成配置。',
@@ -2283,7 +2289,7 @@ export default {
           resetQuota: '重置配额',
           resetQuotaDesc: '将日/周/月用量归零，重新开始计算',
           revoke: '撤销',
-          revokeDesc: '立即终止该用户的订阅，不可恢复'
+          revokeDesc: '终止生效中订阅，或取消待生效订阅，不可恢复'
         },
         tip: '提示：订阅分组下拉列表中只会显示计费类型为「订阅」且状态为「正常」的分组。如果没有可选项，请先到分组管理中创建。'
       }

@@ -366,9 +366,13 @@
                 'badge',
                 value === 'active'
                   ? 'badge-success'
+                  : value === 'pending'
+                    ? 'badge-primary'
                   : value === 'expired'
                     ? 'badge-warning'
-                    : 'badge-danger'
+                    : value === 'suspended'
+                      ? 'badge-danger'
+                      : 'badge-gray'
               ]"
             >
               {{ t(`admin.subscriptions.status.${value}`) }}
@@ -395,12 +399,12 @@
                 <span class="text-xs">{{ t('admin.subscriptions.resetQuota') }}</span>
               </button>
               <button
-                v-if="row.status === 'active'"
+                v-if="row.status === 'active' || row.status === 'pending'"
                 @click="handleRevoke(row)"
                 class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               >
                 <Icon name="ban" size="sm" />
-                <span class="text-xs">{{ t('admin.subscriptions.revoke') }}</span>
+                <span class="text-xs">{{ revokeActionText(row) }}</span>
               </button>
             </div>
           </template>
@@ -613,9 +617,9 @@
     <!-- Revoke Confirmation Dialog -->
     <ConfirmDialog
       :show="showRevokeDialog"
-      :title="t('admin.subscriptions.revokeSubscription')"
-      :message="t('admin.subscriptions.revokeConfirm', { user: revokingSubscription?.user?.email })"
-      :confirm-text="t('admin.subscriptions.revoke')"
+      :title="revokeDialogTitle"
+      :message="revokeDialogMessage"
+      :confirm-text="revokeDialogConfirmText"
       :cancel-text="t('common.cancel')"
       :danger="true"
       @confirm="confirmRevoke"
@@ -758,6 +762,33 @@ const guideActionRows = computed(() => [
 
 const formatSubscriptionBalance = (value: number | null | undefined): string =>
   formatBalanceAmount(value, { fractionDigits: 2 })
+
+const isPendingSubscription = (subscription: UserSubscription | null): boolean =>
+  subscription?.status === 'pending'
+
+const revokeActionText = (subscription: UserSubscription): string =>
+  isPendingSubscription(subscription)
+    ? t('admin.subscriptions.cancelPending')
+    : t('admin.subscriptions.revoke')
+
+const revokeDialogTitle = computed(() =>
+  isPendingSubscription(revokingSubscription.value)
+    ? t('admin.subscriptions.cancelPendingSubscription')
+    : t('admin.subscriptions.revokeSubscription')
+)
+
+const revokeDialogMessage = computed(() => {
+  const key = isPendingSubscription(revokingSubscription.value)
+    ? 'admin.subscriptions.cancelPendingConfirm'
+    : 'admin.subscriptions.revokeConfirm'
+  return t(key, { user: revokingSubscription.value?.user?.email })
+})
+
+const revokeDialogConfirmText = computed(() =>
+  isPendingSubscription(revokingSubscription.value)
+    ? t('admin.subscriptions.cancelPending')
+    : t('admin.subscriptions.revoke')
+)
 
 // User column display mode: 'email' or 'username'
 const userColumnMode = ref<'email' | 'username'>('email')
@@ -1222,9 +1253,14 @@ const handleRevoke = (subscription: UserSubscription) => {
 const confirmRevoke = async () => {
   if (!revokingSubscription.value) return
 
+  const pending = isPendingSubscription(revokingSubscription.value)
   try {
     await adminAPI.subscriptions.revoke(revokingSubscription.value.id)
-    appStore.showSuccess(t('admin.subscriptions.subscriptionRevoked'))
+    appStore.showSuccess(
+      pending
+        ? t('admin.subscriptions.pendingSubscriptionCancelled')
+        : t('admin.subscriptions.subscriptionRevoked')
+    )
     showRevokeDialog.value = false
     revokingSubscription.value = null
     loadSubscriptions()

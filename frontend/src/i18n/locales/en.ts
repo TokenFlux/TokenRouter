@@ -2130,7 +2130,9 @@ export default {
       noExpiration: 'No expiration',
       status: {
         active: 'Active',
+        pending: 'Pending',
         expired: 'Expired',
+        suspended: 'Suspended',
         revoked: 'Revoked'
       },
       columns: {
@@ -2160,6 +2162,8 @@ export default {
       adjust: 'Adjust',
       adjusting: 'Adjusting...',
       revoke: 'Revoke',
+      cancelPending: 'Cancel',
+      cancelPendingSubscription: 'Cancel Pending Subscription',
       resetQuota: 'Reset Quota',
       resetQuotaTitle: 'Reset Usage Quota',
       resetQuotaConfirm: "Reset the daily, weekly, and monthly usage quota for '{user}'? Usage will be zeroed and windows restarted from today.",
@@ -2170,6 +2174,7 @@ export default {
       subscriptionAssigned: 'Subscription assigned successfully',
       subscriptionAdjusted: 'Subscription adjusted successfully',
       subscriptionRevoked: 'Subscription revoked successfully',
+      pendingSubscriptionCancelled: 'Pending subscription cancelled successfully',
       failedToLoad: 'Failed to load subscriptions',
       failedToAssign: 'Failed to assign subscription',
       failedToAdjust: 'Failed to adjust subscription',
@@ -2181,6 +2186,8 @@ export default {
       validityDaysRequired: 'Please enter a valid number of days (at least 1)',
       revokeConfirm:
         "Are you sure you want to revoke the subscription for '{user}'? This action cannot be undone.",
+      cancelPendingConfirm:
+        "Cancel the pending subscription for '{user}'? Later pending subscriptions will move forward automatically. This action cannot be undone.",
       guide: {
         title: 'Subscription Management Guide',
         subtitle: 'Subscription mode lets you assign time-based usage quotas to users, with daily/weekly/monthly limits. Follow these steps to get started.',
@@ -2207,7 +2214,7 @@ export default {
           resetQuota: 'Reset Quota',
           resetQuotaDesc: 'Reset daily/weekly/monthly usage to zero',
           revoke: 'Revoke',
-          revokeDesc: 'Immediately terminate the subscription (irreversible)'
+          revokeDesc: 'Terminate an active subscription or cancel a pending one (irreversible)'
         },
         tip: 'Tip: Only groups with billing type "Subscription" and status "Active" appear in the group dropdown. If no options are available, create one in Group Management first.'
       }
