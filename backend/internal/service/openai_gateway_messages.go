@@ -155,6 +155,11 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		return nil, policyErr
 	}
 	responsesBody = updatedBody
+	if serviceTier := extractOpenAIServiceTierFromBody(responsesBody); serviceTier != nil {
+		responsesReq.ServiceTier = *serviceTier
+	} else {
+		responsesReq.ServiceTier = ""
+	}
 
 	// 5. Get access token
 	token, _, err := s.GetAccessToken(ctx, account)

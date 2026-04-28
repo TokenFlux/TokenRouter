@@ -5883,7 +5883,16 @@ func (s *OpenAIGatewayService) applyOpenAIFastPolicyToWSResponseCreate(
 		}
 		return trimmed, nil, nil
 	default:
-		return frame, nil, nil
+		// pass 路径也要把客户端别名 fast 归一化为上游接受的 priority，
+		// 保持 WS 与 HTTP body 入口的 service_tier 语义一致。
+		if normTier == rawTier {
+			return frame, nil, nil
+		}
+		updated, err := sjson.SetBytes(frame, "service_tier", normTier)
+		if err != nil {
+			return frame, nil, fmt.Errorf("normalize service_tier in ws frame: %w", err)
+		}
+		return updated, nil, nil
 	}
 }
 
