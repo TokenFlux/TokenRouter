@@ -2569,16 +2569,28 @@ func (s *SettingService) GetOpenAI403CooldownSettings(ctx context.Context) (*Ope
 		return DefaultOpenAI403CooldownSettings(), nil
 	}
 
-	var settings OpenAI403CooldownSettings
+	settings := *DefaultOpenAI403CooldownSettings()
 	if err := json.Unmarshal([]byte(value), &settings); err != nil {
 		return DefaultOpenAI403CooldownSettings(), nil
 	}
 
 	if settings.CooldownMinutes < 1 {
-		settings.CooldownMinutes = 1
+		settings.CooldownMinutes = openAI403CooldownMinutesDefault
 	}
 	if settings.CooldownMinutes > 120 {
 		settings.CooldownMinutes = 120
+	}
+	if settings.ThresholdCount < 1 {
+		settings.ThresholdCount = openAI403DisableThresholdDefault
+	}
+	if settings.ThresholdCount > 20 {
+		settings.ThresholdCount = 20
+	}
+	if settings.ThresholdWindowMinutes < 1 {
+		settings.ThresholdWindowMinutes = openAI403CounterWindowMinutesDefault
+	}
+	if settings.ThresholdWindowMinutes > 1440 {
+		settings.ThresholdWindowMinutes = 1440
 	}
 
 	return &settings, nil
@@ -2595,7 +2607,19 @@ func (s *SettingService) SetOpenAI403CooldownSettings(ctx context.Context, setti
 		if settings.Enabled {
 			return fmt.Errorf("cooldown_minutes must be between 1-120")
 		}
-		settings.CooldownMinutes = 1
+		settings.CooldownMinutes = openAI403CooldownMinutesDefault
+	}
+	if settings.ThresholdCount < 1 || settings.ThresholdCount > 20 {
+		if settings.Enabled && settings.ErrorOnThresholdEnabled {
+			return fmt.Errorf("threshold_count must be between 1-20")
+		}
+		settings.ThresholdCount = openAI403DisableThresholdDefault
+	}
+	if settings.ThresholdWindowMinutes < 1 || settings.ThresholdWindowMinutes > 1440 {
+		if settings.Enabled && settings.ErrorOnThresholdEnabled {
+			return fmt.Errorf("threshold_window_minutes must be between 1-1440")
+		}
+		settings.ThresholdWindowMinutes = openAI403CounterWindowMinutesDefault
 	}
 
 	data, err := json.Marshal(settings)

@@ -56,9 +56,9 @@ type geminiUsageTotalsBatchProvider interface {
 const geminiPrecheckCacheTTL = time.Minute
 
 const (
-	openAI403CooldownMinutesDefault = 10
-	openAI403DisableThreshold       = 3
-	openAI403CounterWindowMinutes   = 180
+	openAI403CooldownMinutesDefault      = 10
+	openAI403DisableThresholdDefault     = 3
+	openAI403CounterWindowMinutesDefault = 180
 )
 
 // NewRateLimitService 创建RateLimitService实例
@@ -728,22 +728,37 @@ func (s *RateLimitService) handleOpenAI403(ctx context.Context, account *Account
 		return true
 	}
 
-	if s.openAI403CounterCache == nil {
-		s.handleAuthError(ctx, account, msg)
-		return true
+	thresholdCount := settings.ThresholdCount
+	if thresholdCount <= 0 {
+		thresholdCount = openAI403DisableThresholdDefault
+	}
+	thresholdWindowMinutes := settings.ThresholdWindowMinutes
+	if thresholdWindowMinutes <= 0 {
+		thresholdWindowMinutes = openAI403CounterWindowMinutesDefault
 	}
 
-	count, err := s.openAI403CounterCache.IncrementOpenAI403Count(ctx, account.ID, openAI403CounterWindowMinutes)
-	if err != nil {
-		slog.Warn("openai_403_increment_failed", "account_id", account.ID, "error", err)
-		s.handleAuthError(ctx, account, msg)
-		return true
-	}
+	var count int64
+	if settings.ErrorOnThresholdEnabled {
+		if s.openAI403CounterCache == nil {
+			s.handleAuthError(ctx, account, msg)
+			return true
+		}
 
-	if count >= openAI403DisableThreshold {
-		msg = fmt.Sprintf("%s | consecutive_403=%d/%d", msg, count, openAI403DisableThreshold)
-		s.handleAuthError(ctx, account, msg)
-		return true
+		var err error
+		count, err = s.openAI403CounterCache.IncrementOpenAI403Count(ctx, account.ID, thresholdWindowMinutes)
+		if err != nil {
+			slog.Warn("openai_403_increment_failed", "account_id", account.ID, "error", err)
+			s.handleAuthError(ctx, account, msg)
+			return true
+		}
+
+		if count >= int64(thresholdCount) {
+			msg = fmt.Sprintf("%s | consecutive_403=%d/%d", msg, count, thresholdCount)
+			s.handleAuthError(ctx, account, msg)
+			return true
+		}
+	} else {
+		s.ResetOpenAI403Counter(ctx, account.ID)
 	}
 
 	cooldownMinutes := settings.CooldownMinutes
@@ -752,7 +767,10 @@ func (s *RateLimitService) handleOpenAI403(ctx context.Context, account *Account
 	}
 
 	until := time.Now().Add(time.Duration(cooldownMinutes) * time.Minute)
-	reason := fmt.Sprintf("OpenAI 403 temporary cooldown (%d/%d): %s", count, openAI403DisableThreshold, msg)
+	reason := fmt.Sprintf("OpenAI 403 temporary cooldown: %s", msg)
+	if settings.ErrorOnThresholdEnabled {
+		reason = fmt.Sprintf("OpenAI 403 temporary cooldown (%d/%d): %s", count, thresholdCount, msg)
+	}
 	if err := s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, reason); err != nil {
 		slog.Warn("openai_403_set_temp_unschedulable_failed", "account_id", account.ID, "error", err)
 		s.handleAuthError(ctx, account, msg)
@@ -764,7 +782,9 @@ func (s *RateLimitService) handleOpenAI403(ctx context.Context, account *Account
 		"account_id", account.ID,
 		"until", until,
 		"count", count,
-		"threshold", openAI403DisableThreshold,
+		"threshold", thresholdCount,
+		"threshold_window_minutes", thresholdWindowMinutes,
+		"error_on_threshold_enabled", settings.ErrorOnThresholdEnabled,
 	)
 	return true
 }

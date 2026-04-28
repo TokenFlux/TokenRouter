@@ -339,6 +339,55 @@
                     {{ t('admin.settings.openAI403Cooldown.cooldownMinutesHint') }}
                   </p>
                 </div>
+
+                <div class="flex items-center justify-between">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">
+                      {{ t('admin.settings.openAI403Cooldown.errorOnThresholdEnabled') }}
+                    </label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ t('admin.settings.openAI403Cooldown.errorOnThresholdEnabledHint') }}
+                    </p>
+                  </div>
+                  <Toggle v-model="openAI403CooldownForm.error_on_threshold_enabled" />
+                </div>
+
+                <div
+                  v-if="openAI403CooldownForm.error_on_threshold_enabled"
+                  class="grid gap-4 sm:grid-cols-2"
+                >
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {{ t('admin.settings.openAI403Cooldown.thresholdCount') }}
+                    </label>
+                    <input
+                      v-model.number="openAI403CooldownForm.threshold_count"
+                      type="number"
+                      min="1"
+                      max="20"
+                      class="input w-32"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t('admin.settings.openAI403Cooldown.thresholdCountHint') }}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {{ t('admin.settings.openAI403Cooldown.thresholdWindowMinutes') }}
+                    </label>
+                    <input
+                      v-model.number="openAI403CooldownForm.threshold_window_minutes"
+                      type="number"
+                      min="1"
+                      max="1440"
+                      class="input w-32"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t('admin.settings.openAI403Cooldown.thresholdWindowMinutesHint') }}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div class="flex justify-end border-t border-gray-100 pt-4 dark:border-dark-700">
@@ -5141,6 +5190,9 @@ const openAI403CooldownSaving = ref(false);
 const openAI403CooldownForm = reactive({
   enabled: true,
   cooldown_minutes: 10,
+  error_on_threshold_enabled: true,
+  threshold_count: 3,
+  threshold_window_minutes: 180,
 });
 
 // Stream Timeout 状态
@@ -6598,6 +6650,9 @@ async function saveOpenAI403CooldownSettings() {
     const updated = await adminAPI.settings.updateOpenAI403CooldownSettings({
       enabled: openAI403CooldownForm.enabled,
       cooldown_minutes: openAI403CooldownForm.cooldown_minutes,
+      error_on_threshold_enabled: openAI403CooldownForm.error_on_threshold_enabled,
+      threshold_count: openAI403CooldownForm.threshold_count,
+      threshold_window_minutes: openAI403CooldownForm.threshold_window_minutes,
     });
     Object.assign(openAI403CooldownForm, updated);
     appStore.showSuccess(t("admin.settings.openAI403Cooldown.saved"));

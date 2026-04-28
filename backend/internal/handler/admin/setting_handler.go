@@ -2375,15 +2375,21 @@ func (h *SettingHandler) GetOpenAI403CooldownSettings(c *gin.Context) {
 	}
 
 	response.Success(c, dto.OpenAI403CooldownSettings{
-		Enabled:         settings.Enabled,
-		CooldownMinutes: settings.CooldownMinutes,
+		Enabled:                 settings.Enabled,
+		CooldownMinutes:         settings.CooldownMinutes,
+		ErrorOnThresholdEnabled: settings.ErrorOnThresholdEnabled,
+		ThresholdCount:          settings.ThresholdCount,
+		ThresholdWindowMinutes:  settings.ThresholdWindowMinutes,
 	})
 }
 
 // UpdateOpenAI403CooldownSettingsRequest 更新 OpenAI OAuth 403 冷却配置请求
 type UpdateOpenAI403CooldownSettingsRequest struct {
-	Enabled         bool `json:"enabled"`
-	CooldownMinutes int  `json:"cooldown_minutes"`
+	Enabled                 bool  `json:"enabled"`
+	CooldownMinutes         int   `json:"cooldown_minutes"`
+	ErrorOnThresholdEnabled *bool `json:"error_on_threshold_enabled"`
+	ThresholdCount          *int  `json:"threshold_count"`
+	ThresholdWindowMinutes  *int  `json:"threshold_window_minutes"`
 }
 
 // UpdateOpenAI403CooldownSettings 更新 OpenAI OAuth 403 冷却配置
@@ -2395,9 +2401,26 @@ func (h *SettingHandler) UpdateOpenAI403CooldownSettings(c *gin.Context) {
 		return
 	}
 
+	defaults := service.DefaultOpenAI403CooldownSettings()
+	errorOnThresholdEnabled := defaults.ErrorOnThresholdEnabled
+	if req.ErrorOnThresholdEnabled != nil {
+		errorOnThresholdEnabled = *req.ErrorOnThresholdEnabled
+	}
+	thresholdCount := defaults.ThresholdCount
+	if req.ThresholdCount != nil {
+		thresholdCount = *req.ThresholdCount
+	}
+	thresholdWindowMinutes := defaults.ThresholdWindowMinutes
+	if req.ThresholdWindowMinutes != nil {
+		thresholdWindowMinutes = *req.ThresholdWindowMinutes
+	}
+
 	settings := &service.OpenAI403CooldownSettings{
-		Enabled:         req.Enabled,
-		CooldownMinutes: req.CooldownMinutes,
+		Enabled:                 req.Enabled,
+		CooldownMinutes:         req.CooldownMinutes,
+		ErrorOnThresholdEnabled: errorOnThresholdEnabled,
+		ThresholdCount:          thresholdCount,
+		ThresholdWindowMinutes:  thresholdWindowMinutes,
 	}
 
 	if err := h.settingService.SetOpenAI403CooldownSettings(c.Request.Context(), settings); err != nil {
@@ -2412,8 +2435,11 @@ func (h *SettingHandler) UpdateOpenAI403CooldownSettings(c *gin.Context) {
 	}
 
 	response.Success(c, dto.OpenAI403CooldownSettings{
-		Enabled:         updatedSettings.Enabled,
-		CooldownMinutes: updatedSettings.CooldownMinutes,
+		Enabled:                 updatedSettings.Enabled,
+		CooldownMinutes:         updatedSettings.CooldownMinutes,
+		ErrorOnThresholdEnabled: updatedSettings.ErrorOnThresholdEnabled,
+		ThresholdCount:          updatedSettings.ThresholdCount,
+		ThresholdWindowMinutes:  updatedSettings.ThresholdWindowMinutes,
 	})
 }
 

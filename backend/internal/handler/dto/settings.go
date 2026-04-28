@@ -250,8 +250,11 @@ type OverloadCooldownSettings struct {
 
 // OpenAI403CooldownSettings OpenAI OAuth 403 冷却配置 DTO
 type OpenAI403CooldownSettings struct {
-	Enabled         bool `json:"enabled"`
-	CooldownMinutes int  `json:"cooldown_minutes"`
+	Enabled                 bool `json:"enabled"`
+	CooldownMinutes         int  `json:"cooldown_minutes"`
+	ErrorOnThresholdEnabled bool `json:"error_on_threshold_enabled"`
+	ThresholdCount          int  `json:"threshold_count"`
+	ThresholdWindowMinutes  int  `json:"threshold_window_minutes"`
 }
 
 // StreamTimeoutSettings 流超时处理配置 DTO

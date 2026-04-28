@@ -193,7 +193,13 @@ func TestRateLimitService_HandleUpstreamError_OpenAIOAuth403UsesTempUnschedulabl
 	repo := &rateLimitAccountRepoStub{}
 	counter := &openAI403CounterCacheStub{counts: []int64{1}}
 	settingRepo := newMockSettingRepo()
-	data, err := json.Marshal(OpenAI403CooldownSettings{Enabled: true, CooldownMinutes: 7})
+	data, err := json.Marshal(OpenAI403CooldownSettings{
+		Enabled:                 true,
+		CooldownMinutes:         7,
+		ErrorOnThresholdEnabled: true,
+		ThresholdCount:          openAI403DisableThresholdDefault,
+		ThresholdWindowMinutes:  openAI403CounterWindowMinutesDefault,
+	})
 	require.NoError(t, err)
 	settingRepo.data[SettingKeyOpenAI403CooldownSettings] = string(data)
 	service := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)

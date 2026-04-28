@@ -791,6 +791,9 @@ export async function updateOverloadCooldownSettings(
 export interface OpenAI403CooldownSettings {
   enabled: boolean
   cooldown_minutes: number
+  error_on_threshold_enabled: boolean
+  threshold_count: number
+  threshold_window_minutes: number
 }
 
 export async function getOpenAI403CooldownSettings(): Promise<OpenAI403CooldownSettings> {

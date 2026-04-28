@@ -5338,6 +5338,12 @@ export default {
         enabledHint: '收到 403 错误时短暂暂停该 ChatGPT 账号调度，冷却后自动恢复',
         cooldownMinutes: '冷却时长（分钟）',
         cooldownMinutesHint: 'ChatGPT 账号暂停调度的持续时间（1-120 分钟）',
+        errorOnThresholdEnabled: '达到阈值后标记错误',
+        errorOnThresholdEnabledHint: '在统计窗口内累计 403 达到阈值时，将账号状态设置为错误',
+        thresholdCount: '403 次数阈值',
+        thresholdCountHint: '统计窗口内达到该次数后标记错误（1-20 次）',
+        thresholdWindowMinutes: '统计窗口（分钟）',
+        thresholdWindowMinutesHint: '累计 403 次数的时间范围（1-1440 分钟）',
         saved: 'ChatGPT 403 冷却设置保存成功',
         saveFailed: '保存 ChatGPT 403 冷却设置失败'
       },

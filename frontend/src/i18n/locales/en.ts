@@ -5179,6 +5179,12 @@ export default {
         enabledHint: 'Briefly pause ChatGPT account scheduling on 403 errors, auto-recover after cooldown',
         cooldownMinutes: 'Cooldown Duration (minutes)',
         cooldownMinutesHint: 'Duration to pause ChatGPT account scheduling (1-120 minutes)',
+        errorOnThresholdEnabled: 'Mark error after threshold',
+        errorOnThresholdEnabledHint: 'Set account status to error when 403 responses reach the threshold within the window',
+        thresholdCount: '403 Threshold',
+        thresholdCountHint: 'Mark error after this many 403 responses in the window (1-20)',
+        thresholdWindowMinutes: 'Threshold Window (minutes)',
+        thresholdWindowMinutesHint: 'Time window for counting 403 responses (1-1440 minutes)',
         saved: 'ChatGPT 403 cooldown settings saved',
         saveFailed: 'Failed to save ChatGPT 403 cooldown settings'
       },

@@ -379,13 +379,22 @@ type OpenAI403CooldownSettings struct {
 	Enabled bool `json:"enabled"`
 	// CooldownMinutes 冷却时长（分钟）
 	CooldownMinutes int `json:"cooldown_minutes"`
+	// ErrorOnThresholdEnabled 是否在统计窗口内达到 403 阈值后标记账号错误
+	ErrorOnThresholdEnabled bool `json:"error_on_threshold_enabled"`
+	// ThresholdCount 统计窗口内触发错误状态的 403 次数阈值
+	ThresholdCount int `json:"threshold_count"`
+	// ThresholdWindowMinutes 403 次数统计窗口（分钟）
+	ThresholdWindowMinutes int `json:"threshold_window_minutes"`
 }
 
-// DefaultOpenAI403CooldownSettings 返回默认的 OpenAI OAuth 403 冷却配置（启用，10分钟）
+// DefaultOpenAI403CooldownSettings 返回默认的 OpenAI OAuth 403 冷却配置（启用，10分钟，3次/180分钟转错误）
 func DefaultOpenAI403CooldownSettings() *OpenAI403CooldownSettings {
 	return &OpenAI403CooldownSettings{
-		Enabled:         true,
-		CooldownMinutes: openAI403CooldownMinutesDefault,
+		Enabled:                 true,
+		CooldownMinutes:         openAI403CooldownMinutesDefault,
+		ErrorOnThresholdEnabled: true,
+		ThresholdCount:          openAI403DisableThresholdDefault,
+		ThresholdWindowMinutes:  openAI403CounterWindowMinutesDefault,
 	}
 }
 
