@@ -319,14 +319,11 @@ const normalizedSearch = computed(() => search.value.trim().toLowerCase())
 
 const sortedGroups = computed(() =>
   [...groups.value].sort((left, right) => {
-    const brandDiff = groupBrandLabel(left).localeCompare(groupBrandLabel(right), undefined, {
-      numeric: true,
-      sensitivity: 'base',
-    })
-    if (brandDiff !== 0) {
-      return brandDiff
+    const sortDiff = (left.sort_order ?? 0) - (right.sort_order ?? 0)
+    if (sortDiff !== 0) {
+      return sortDiff
     }
-    return left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' })
+    return left.id - right.id
   })
 )
 

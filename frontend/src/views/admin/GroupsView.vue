@@ -313,16 +313,31 @@
         @submit.prevent="handleCreateGroup"
         class="space-y-5"
       >
-        <div>
-          <label class="input-label">{{ t("admin.groups.form.name") }}</label>
-          <input
-            v-model="createForm.name"
-            type="text"
-            required
-            class="input"
-            :placeholder="t('admin.groups.enterGroupName')"
-            data-tour="group-form-name"
-          />
+        <div class="grid gap-4 md:grid-cols-2">
+          <div>
+            <label class="input-label">{{ t("admin.groups.form.name") }}</label>
+            <input
+              v-model="createForm.name"
+              type="text"
+              required
+              class="input"
+              :placeholder="t('admin.groups.enterGroupName')"
+              data-tour="group-form-name"
+            />
+          </div>
+          <div>
+            <label class="input-label">{{
+              t("admin.groups.form.sortOrder")
+            }}</label>
+            <input
+              v-model.number="createForm.sort_order"
+              type="number"
+              step="1"
+              required
+              class="input"
+            />
+            <p class="input-hint">{{ t("admin.groups.form.sortOrderHint") }}</p>
+          </div>
         </div>
         <div>
           <label class="input-label">{{
@@ -1418,15 +1433,30 @@
         @submit.prevent="handleUpdateGroup"
         class="space-y-5"
       >
-        <div>
-          <label class="input-label">{{ t("admin.groups.form.name") }}</label>
-          <input
-            v-model="editForm.name"
-            type="text"
-            required
-            class="input"
-            data-tour="edit-group-form-name"
-          />
+        <div class="grid gap-4 md:grid-cols-2">
+          <div>
+            <label class="input-label">{{ t("admin.groups.form.name") }}</label>
+            <input
+              v-model="editForm.name"
+              type="text"
+              required
+              class="input"
+              data-tour="edit-group-form-name"
+            />
+          </div>
+          <div>
+            <label class="input-label">{{
+              t("admin.groups.form.sortOrder")
+            }}</label>
+            <input
+              v-model.number="editForm.sort_order"
+              type="number"
+              step="1"
+              required
+              class="input"
+            />
+            <p class="input-hint">{{ t("admin.groups.form.sortOrderHint") }}</p>
+          </div>
         </div>
         <div>
           <label class="input-label">{{
@@ -2679,6 +2709,11 @@ const providerBrandOptions = defaultProviderBrandOptions;
 const columns = computed<Column[]>(() => [
   { key: "name", label: t("admin.groups.columns.name"), sortable: true },
   {
+    key: "sort_order",
+    label: t("admin.groups.columns.sortOrder"),
+    sortable: true,
+  },
+  {
     key: "platform",
     label: t("admin.groups.columns.platform"),
     sortable: true,
@@ -2902,6 +2937,7 @@ const createForm = reactive({
   name: "",
   description: "",
   display_brand: "",
+  sort_order: 0,
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
   is_exclusive: false,
@@ -3181,6 +3217,7 @@ const editForm = reactive({
   name: "",
   description: "",
   display_brand: "",
+  sort_order: 0,
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
   is_exclusive: false,
@@ -3373,6 +3410,7 @@ const closeCreateModal = () => {
   createForm.name = "";
   createForm.description = "";
   createForm.display_brand = "";
+  createForm.sort_order = 0;
   createForm.platform = "anthropic";
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
@@ -3441,6 +3479,7 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.name = group.name;
   editForm.description = group.description || "";
   editForm.display_brand = group.display_brand || "";
+  editForm.sort_order = group.sort_order ?? 0;
   editForm.platform = group.platform;
   editForm.rate_multiplier = group.rate_multiplier;
   editForm.is_exclusive = group.is_exclusive;

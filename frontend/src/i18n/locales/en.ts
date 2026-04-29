@@ -1780,6 +1780,7 @@ export default {
       public: 'Public',
       columns: {
         name: 'Name',
+        sortOrder: 'Sort',
         platform: 'API Format',
         displayBrand: 'Brand Type',
         rateMultiplier: 'Rate Multiplier',
@@ -1812,6 +1813,8 @@ export default {
         description: 'Description',
         platform: 'API Format',
         displayBrand: 'Brand Type',
+        sortOrder: 'Sort',
+        sortOrderHint: 'Lower numbers appear earlier in the model marketplace',
         rateMultiplier: 'Rate Multiplier',
         status: 'Status',
         exclusive: 'Exclusive Group',

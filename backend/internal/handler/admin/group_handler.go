@@ -34,6 +34,7 @@ type CreateGroupRequest struct {
 	Description    string  `json:"description"`
 	Platform       string  `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity"`
 	DisplayBrand   string  `json:"display_brand"`
+	SortOrder      int     `json:"sort_order"`
 	RateMultiplier float64 `json:"rate_multiplier"`
 	IsExclusive    bool    `json:"is_exclusive"`
 	IsDefault      bool    `json:"is_default"`
@@ -68,6 +69,7 @@ type UpdateGroupRequest struct {
 	Description    string   `json:"description"`
 	Platform       string   `json:"platform" binding:"omitempty,oneof=anthropic openai gemini antigravity"`
 	DisplayBrand   *string  `json:"display_brand"`
+	SortOrder      *int     `json:"sort_order"`
 	RateMultiplier *float64 `json:"rate_multiplier"`
 	IsExclusive    *bool    `json:"is_exclusive"`
 	IsDefault      *bool    `json:"is_default"`
@@ -190,6 +192,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		Description:                     req.Description,
 		Platform:                        req.Platform,
 		DisplayBrand:                    req.DisplayBrand,
+		SortOrder:                       req.SortOrder,
 		RateMultiplier:                  req.RateMultiplier,
 		IsExclusive:                     req.IsExclusive,
 		IsDefault:                       req.IsDefault,
@@ -239,6 +242,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		Description:                     req.Description,
 		Platform:                        req.Platform,
 		DisplayBrand:                    req.DisplayBrand,
+		SortOrder:                       req.SortOrder,
 		RateMultiplier:                  req.RateMultiplier,
 		IsExclusive:                     req.IsExclusive,
 		IsDefault:                       req.IsDefault,

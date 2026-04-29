@@ -479,6 +479,7 @@ export interface MarketplaceGroup {
   description: string
   platform: GroupPlatform
   display_brand: string
+  sort_order: number
   rate_multiplier: number
   official_price_ratio?: number
   model_count: number
@@ -608,6 +609,7 @@ export interface CreateGroupRequest {
   description?: string | null
   platform?: GroupPlatform
   display_brand?: string
+  sort_order?: number
   rate_multiplier?: number
   is_exclusive?: boolean
   is_default?: boolean
@@ -630,6 +632,7 @@ export interface UpdateGroupRequest {
   description?: string | null
   platform?: GroupPlatform
   display_brand?: string
+  sort_order?: number
   rate_multiplier?: number
   is_exclusive?: boolean
   is_default?: boolean

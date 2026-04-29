@@ -19,6 +19,7 @@ type ModelMarketplaceGroup struct {
 	Description        string
 	Platform           string
 	DisplayBrand       string
+	SortOrder          int
 	RateMultiplier     float64
 	OfficialPriceRatio *float64
 	ModelCount         int
@@ -81,6 +82,7 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 			Description:        group.Description,
 			Platform:           group.Platform,
 			DisplayBrand:       marketplaceGroupDisplayBrand(group),
+			SortOrder:          group.SortOrder,
 			RateMultiplier:     group.RateMultiplier,
 			OfficialPriceRatio: officialPriceRatio,
 			ModelCount:         len(models),

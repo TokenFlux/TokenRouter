@@ -27,6 +27,7 @@ type ModelMarketplaceGroup struct {
 	Description        string                  `json:"description"`
 	Platform           string                  `json:"platform"`
 	DisplayBrand       string                  `json:"display_brand"`
+	SortOrder          int                     `json:"sort_order"`
 	RateMultiplier     float64                 `json:"rate_multiplier"`
 	OfficialPriceRatio *float64                `json:"official_price_ratio,omitempty"`
 	ModelCount         int                     `json:"model_count"`
@@ -62,6 +63,7 @@ func ModelMarketplaceGroupsFromService(groups []service.ModelMarketplaceGroup) [
 			Description:        group.Description,
 			Platform:           group.Platform,
 			DisplayBrand:       group.DisplayBrand,
+			SortOrder:          group.SortOrder,
 			RateMultiplier:     group.RateMultiplier,
 			OfficialPriceRatio: group.OfficialPriceRatio,
 			ModelCount:         group.ModelCount,
