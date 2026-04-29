@@ -11,13 +11,17 @@ export default {
     getStarted: 'Get Started',
     goToDashboard: 'Go to Dashboard',
     exploreMarketplace: 'Browse Models',
+    heroBadge: 'An open, transparent, semi-public-benefit model gateway',
     // User-focused value proposition
     heroSubtitle: 'One Key, All AI Models',
-    heroDescription: 'No need to manage multiple subscriptions. Access Claude, GPT, Gemini and more with a single API key',
+    heroDescription: 'TokenFlux is designed for both Agent and ChatBot workflows. Create one API key, then use Codex, Claude Code, Cherry Studio, and other clients with marketplace groups such as ChatGPT Plus / Pro, Grok, and DeepSeek.',
     tags: {
       subscriptionToApi: 'Subscription to API',
       stickySession: 'Session Persistence',
-      realtimeBilling: 'Pay As You Go'
+      realtimeBilling: 'Pay As You Go',
+      agentAndChatBot: 'Agent and ChatBot ready',
+      transparentPricing: 'Transparent rates and billing',
+      modelMarketplace: 'Live model marketplace'
     },
     // Pain points section
     painPoints: {
@@ -47,12 +51,12 @@ export default {
       subtitle: 'Three simple steps to stress-free AI access'
     },
     features: {
-      unifiedGateway: 'One-Click Access',
-      unifiedGatewayDesc: 'Get a single API key to call all connected AI models. No separate applications needed.',
-      multiAccount: 'Always Reliable',
-      multiAccountDesc: 'Smart routing across multiple upstream accounts with automatic failover. Say goodbye to errors.',
-      balanceQuota: 'Pay What You Use',
-      balanceQuotaDesc: 'Usage-based billing with quota limits. Full visibility into team consumption.'
+      unifiedGateway: 'Dual-protocol access',
+      unifiedGatewayDesc: 'Use the OpenAI-compatible /v1 API and the Anthropic endpoint for Claude Code, Codex, and common chat clients.',
+      multiAccount: 'Unified API key',
+      multiAccountDesc: 'Create a key in the docs, then reuse the same access pattern across the Agent and ChatBot setup guides.',
+      balanceQuota: 'Transparent usage and rates',
+      balanceQuotaDesc: 'The marketplace shows model groups, model counts, and rate multipliers so you can compare pools and cost before using them.'
     },
     // Comparison section
     comparison: {
@@ -91,10 +95,12 @@ export default {
       }
     },
     providers: {
-      title: 'Supported AI Models',
-      description: 'One API, Multiple Choices',
+      title: 'Model Marketplace Coverage',
+      description: 'Current marketplace groups include ChatGPT Plus, ChatGPT Pro, Grok, and DeepSeek across OpenAI-compatible and Anthropic platforms.',
       supported: 'Supported',
       soon: 'Soon',
+      models: 'models',
+      examples: 'examples',
       claude: 'Claude',
       gemini: 'Gemini',
       antigravity: 'Antigravity',

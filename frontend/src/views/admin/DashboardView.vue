@@ -382,6 +382,78 @@ const defaultRange = getLast24HoursRangeDates()
 const startDate = ref(defaultRange.start)
 const endDate = ref(defaultRange.end)
 
+function isDashboardPreview(): boolean {
+  return import.meta.env.DEV
+    && typeof window !== 'undefined'
+    && localStorage.getItem('auth_token') === 'preview-auth-token'
+}
+
+function createPreviewStats(): DashboardStats {
+  return {
+    total_users: 128,
+    today_new_users: 7,
+    active_users: 42,
+    hourly_active_users: 18,
+    stats_updated_at: new Date().toISOString(),
+    stats_stale: false,
+    total_api_keys: 36,
+    active_api_keys: 29,
+    total_accounts: 18,
+    normal_accounts: 15,
+    error_accounts: 2,
+    ratelimit_accounts: 1,
+    overload_accounts: 0,
+    total_requests: 284932,
+    total_input_tokens: 18500000,
+    total_output_tokens: 8200000,
+    total_cache_creation_tokens: 1240000,
+    total_cache_read_tokens: 3960000,
+    total_tokens: 31900000,
+    total_cost: 426.82,
+    total_actual_cost: 317.45,
+    total_account_cost: 233.18,
+    today_requests: 6218,
+    today_input_tokens: 820000,
+    today_output_tokens: 342000,
+    today_cache_creation_tokens: 56000,
+    today_cache_read_tokens: 210000,
+    today_tokens: 1428000,
+    today_cost: 18.92,
+    today_actual_cost: 13.74,
+    today_account_cost: 9.56,
+    average_duration_ms: 842,
+    uptime: 864000,
+    rpm: 86,
+    tpm: 21400
+  }
+}
+
+function createPreviewTrend(): TrendDataPoint[] {
+  return Array.from({ length: 12 }, (_, index) => {
+    const date = new Date(Date.now() - (11 - index) * 60 * 60 * 1000)
+    const requests = 260 + index * 34
+    return {
+      date: date.toISOString(),
+      requests,
+      input_tokens: requests * 120,
+      output_tokens: requests * 52,
+      cache_creation_tokens: requests * 8,
+      cache_read_tokens: requests * 18,
+      total_tokens: requests * 198,
+      cost: Number((requests * 0.0028).toFixed(3)),
+      actual_cost: Number((requests * 0.0021).toFixed(3))
+    }
+  })
+}
+
+function createPreviewModels(): ModelStat[] {
+  return [
+    { model: 'claude-sonnet-4.5', requests: 2840, input_tokens: 820000, output_tokens: 312000, cache_creation_tokens: 42000, cache_read_tokens: 126000, total_tokens: 1300000, cost: 12.84, actual_cost: 9.42, account_cost: 6.31 },
+    { model: 'gpt-5.1', requests: 1930, input_tokens: 540000, output_tokens: 218000, cache_creation_tokens: 18000, cache_read_tokens: 74000, total_tokens: 850000, cost: 8.16, actual_cost: 5.98, account_cost: 4.22 },
+    { model: 'gemini-2.5-pro', requests: 980, input_tokens: 310000, output_tokens: 116000, cache_creation_tokens: 9000, cache_read_tokens: 28000, total_tokens: 463000, cost: 3.52, actual_cost: 2.44, account_cost: 1.76 }
+  ]
+}
+
 // Granularity options for Select component
 const granularityOptions = computed(() => [
   { value: 'day', label: t('admin.dashboard.day') },
@@ -611,6 +683,14 @@ const loadDashboardSnapshot = async (includeStats: boolean) => {
     modelStats.value = response.models || []
   } catch (error) {
     if (currentSeq !== chartLoadSeq) return
+    if (isDashboardPreview()) {
+      if (includeStats) {
+        stats.value = createPreviewStats()
+      }
+      trendData.value = createPreviewTrend()
+      modelStats.value = createPreviewModels()
+      return
+    }
     appStore.showError(t('admin.dashboard.failedToLoad'))
     console.error('Error loading dashboard snapshot:', error)
   } finally {

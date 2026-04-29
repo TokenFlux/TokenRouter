@@ -11,13 +11,17 @@ export default {
     getStarted: '立即开始',
     goToDashboard: '进入控制台',
     exploreMarketplace: '浏览模型广场',
+    heroBadge: '公开透明、半公益的大模型中转站',
     // 新增：面向用户的价值主张
     heroSubtitle: '一个密钥，畅用多个 AI 模型',
-    heroDescription: '无需管理多个订阅账号，一站式接入 Claude、GPT、Gemini 等主流 AI 服务',
+    heroDescription: 'TokenFlux 面向 Agent 与 ChatBot 使用场景：创建一个 API Key，即可在 Codex、Claude Code、Cherry Studio 等工具里接入模型广场中的 ChatGPT Plus / Pro、Grok、DeepSeek 等模型。',
     tags: {
       subscriptionToApi: '订阅转 API',
       stickySession: '会话保持',
-      realtimeBilling: '按量计费'
+      realtimeBilling: '按量计费',
+      agentAndChatBot: 'Agent 与 ChatBot 同时适用',
+      transparentPricing: '公开透明的倍率与计费',
+      modelMarketplace: '模型广场持续更新'
     },
     // 用户痛点区块
     painPoints: {
@@ -47,12 +51,12 @@ export default {
       subtitle: '简单三步，开始省心使用 AI'
     },
     features: {
-      unifiedGateway: '一键接入',
-      unifiedGatewayDesc: '获取一个 API 密钥，即可调用所有已接入的 AI 模型，无需分别申请。',
-      multiAccount: '稳定可靠',
-      multiAccountDesc: '智能调度多个上游账号，自动切换和负载均衡，告别频繁报错。',
-      balanceQuota: '用多少付多少',
-      balanceQuotaDesc: '按实际使用量计费，支持设置配额上限，团队用量一目了然。'
+      unifiedGateway: '双协议入口',
+      unifiedGatewayDesc: '同时提供 OpenAI 兼容的 /v1 入口与 Anthropic 端点，Claude Code、Codex 和常见聊天客户端都能接入。',
+      multiAccount: '统一 API Key',
+      multiAccountDesc: '跟随文档创建密钥后，就能在 Agent 使用教程和 ChatBot 使用教程覆盖的工具中复用同一套接入方式。',
+      balanceQuota: '透明用量与倍率',
+      balanceQuotaDesc: '模型广场展示分组、模型数量与倍率信息，适合在使用前比较模型池、成本和用途。'
     },
     // 优势对比
     comparison: {
@@ -91,10 +95,12 @@ export default {
       }
     },
     providers: {
-      title: '已支持的 AI 模型',
-      description: '一个 API，多种选择',
+      title: '模型广场覆盖',
+      description: '当前模型广场包含 ChatGPT Plus、ChatGPT Pro、Grok、DeepSeek 等分组，覆盖 OpenAI 兼容与 Anthropic 平台。',
       supported: '已支持',
       soon: '即将推出',
+      models: '模型',
+      examples: '示例',
       claude: 'Claude',
       gemini: 'Gemini',
       antigravity: 'Antigravity',
