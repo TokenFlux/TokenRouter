@@ -57,10 +57,30 @@ export interface InstallResponse {
   restart: boolean
 }
 
+const SETUP_PREVIEW_BYPASS_KEY = 'setup_preview_bypass'
+
+function shouldBypassSetupForPreview(): boolean {
+  if (!import.meta.env.DEV || typeof window === 'undefined') {
+    return false
+  }
+
+  const params = new URLSearchParams(window.location.search)
+  if (params.get('preview') === '1') {
+    localStorage.setItem(SETUP_PREVIEW_BYPASS_KEY, '1')
+    return true
+  }
+
+  return localStorage.getItem(SETUP_PREVIEW_BYPASS_KEY) === '1'
+}
+
 /**
  * Get setup status
  */
 export async function getSetupStatus(): Promise<SetupStatus> {
+  if (shouldBypassSetupForPreview()) {
+    return { needs_setup: false, step: 'preview' }
+  }
+
   const response = await setupClient.get('/setup/status')
   return response.data.data
 }

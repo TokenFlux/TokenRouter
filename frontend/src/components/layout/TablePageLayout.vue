@@ -60,23 +60,60 @@ onUnmounted(() => {
 
 /* 表格滚动容器 - 增强版表体滚动方案 */
 .table-scroll-container {
-  @apply flex flex-col overflow-hidden h-full bg-white dark:bg-dark-900 rounded-2xl border border-gray-200 dark:border-dark-600 shadow-sm;
+  @apply flex flex-col overflow-hidden h-full border;
+  border-radius: var(--apple-radius-2xl);
+  border-color: var(--ba-glass-edge);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(236, 250, 255, 0.42)),
+    linear-gradient(82deg, rgba(255, 255, 255, 0.36), transparent 48%);
+  box-shadow: var(--ba-glass-shadow), var(--ba-glass-inset);
+  backdrop-filter: blur(22px) saturate(150%);
+  padding: 0.75rem;
+}
+
+.dark .table-scroll-container {
+  border-color: rgba(139, 221, 248, 0.18);
+  background:
+    linear-gradient(145deg, rgba(25, 43, 76, 0.78), rgba(9, 18, 36, 0.58)),
+    linear-gradient(82deg, rgba(139, 221, 248, 0.08), transparent 48%);
 }
 
 .table-scroll-container :deep(.table-wrapper) {
   @apply flex-1 overflow-x-auto overflow-y-auto;
   /* 确保横向滚动条显示在最底部 */
   scrollbar-gutter: stable;
+  border: 1px solid rgba(72, 190, 235, 0.12);
+  border-radius: calc(var(--apple-radius-2xl) - 0.45rem);
+  background: var(--ba-solid-surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+  clip-path: inset(0 round calc(var(--apple-radius-2xl) - 0.45rem));
+}
+
+.dark .table-scroll-container :deep(.table-wrapper) {
+  border-color: rgba(139, 221, 248, 0.13);
+  background: var(--ba-solid-surface);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .table-scroll-container :deep(table) {
   @apply w-full;
   min-width: max-content; /* 关键：确保表格宽度根据内容撑开，从而触发横向滚动 */
   display: table; /* 使用标准 table 布局以支持 sticky 列 */
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .table-scroll-container :deep(thead) {
-  @apply bg-gray-50/80 dark:bg-dark-950 backdrop-blur-sm;
+  background: var(--ba-solid-surface-muted);
+  backdrop-filter: blur(10px);
+}
+
+.table-scroll-container :deep(thead tr:first-child th:first-child) {
+  border-top-left-radius: calc(var(--apple-radius-2xl) - 0.45rem);
+}
+
+.table-scroll-container :deep(thead tr:first-child th:last-child) {
+  border-top-right-radius: calc(var(--apple-radius-2xl) - 0.45rem);
 }
 
 .table-scroll-container :deep(tbody) {
@@ -84,16 +121,23 @@ onUnmounted(() => {
 }
 
 .table-scroll-container :deep(th) {
-  @apply px-5 py-4 text-left text-sm font-medium text-gray-600 dark:text-dark-300 border-b border-gray-200 dark:border-dark-700;
+  @apply px-5 py-4 text-left text-sm font-medium text-gray-600 dark:text-dark-300;
+  border-bottom: 1px solid var(--ba-glass-hairline);
 }
 
 .table-scroll-container :deep(td) {
-  @apply px-5 py-4 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-dark-800;
+  @apply px-5 py-4 text-sm text-gray-700 dark:text-gray-300;
+  border-bottom: 1px solid rgba(72, 190, 235, 0.1);
+}
+
+.dark .table-scroll-container :deep(td) {
+  border-bottom-color: rgba(139, 221, 248, 0.1);
 }
 
 /* 移动端：恢复正常滚动 */
 .table-page-layout.mobile-mode .table-scroll-container {
-  @apply h-auto overflow-visible border-none shadow-none bg-transparent;
+  @apply h-auto overflow-visible;
+  padding: 0.5rem;
 }
 
 .table-page-layout.mobile-mode .layout-section-scrollable {

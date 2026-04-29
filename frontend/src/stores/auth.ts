@@ -8,6 +8,10 @@ import { ref, computed, readonly } from 'vue'
 import { authAPI, isTotp2FARequired, type LoginResponse } from '@/api'
 import type { User, LoginRequest, RegisterRequest, AuthResponse } from '@/types'
 
+const SETUP_PREVIEW_BYPASS_KEY = 'setup_preview_bypass'
+const AUTH_PREVIEW_ROLE_KEY = 'auth_preview_role'
+const AUTH_PREVIEW_TOKEN = 'preview-auth-token'
+
 const AUTH_TOKEN_KEY = 'auth_token'
 const AUTH_USER_KEY = 'auth_user'
 const REFRESH_TOKEN_KEY = 'refresh_token'
@@ -68,6 +72,64 @@ function clearPendingAuthSessionStorage(): void {
   localStorage.removeItem(PENDING_AUTH_SESSION_KEY)
 }
 
+function getPreviewRole(): 'admin' | 'user' | null {
+  if (!import.meta.env.DEV || typeof window === 'undefined') {
+    return null
+  }
+
+  const params = new URLSearchParams(window.location.search)
+  const requestedRole = params.get('authPreview')
+  if (requestedRole === 'admin' || requestedRole === 'user') {
+    localStorage.setItem(AUTH_PREVIEW_ROLE_KEY, requestedRole)
+    return requestedRole
+  }
+
+  const savedRole = localStorage.getItem(AUTH_PREVIEW_ROLE_KEY)
+  return savedRole === 'admin' || savedRole === 'user' ? savedRole : null
+}
+
+function isPreviewAuthEnabled(): boolean {
+  return import.meta.env.DEV
+    && typeof window !== 'undefined'
+    && localStorage.getItem(SETUP_PREVIEW_BYPASS_KEY) === '1'
+    && getPreviewRole() !== null
+}
+
+function createPreviewUser(role: 'admin' | 'user'): User {
+  const now = new Date().toISOString()
+  return {
+    id: role === 'admin' ? 1 : 2,
+    username: role === 'admin' ? 'Preview Admin' : 'Preview User',
+    email: role === 'admin' ? 'admin.preview@localhost' : 'user.preview@localhost',
+    avatar_url: null,
+    role,
+    balance: 128.5,
+    concurrency: 8,
+    rpm_limit: 0,
+    status: 'active',
+    allowed_groups: null,
+    balance_notify_enabled: false,
+    balance_notify_threshold: null,
+    balance_notify_extra_emails: [],
+    created_at: now,
+    updated_at: now
+  }
+}
+
+function clearPreviewAuthStorage(): void {
+  if (!import.meta.env.DEV || typeof window === 'undefined') {
+    return
+  }
+
+  localStorage.removeItem(AUTH_PREVIEW_ROLE_KEY)
+  if (localStorage.getItem(AUTH_TOKEN_KEY) === AUTH_PREVIEW_TOKEN) {
+    localStorage.removeItem(AUTH_TOKEN_KEY)
+    localStorage.removeItem(AUTH_USER_KEY)
+    localStorage.removeItem(REFRESH_TOKEN_KEY)
+    localStorage.removeItem(TOKEN_EXPIRES_AT_KEY)
+  }
+}
+
 export const useAuthStore = defineStore('auth', () => {
   // ==================== State ====================
 
@@ -101,6 +163,31 @@ export const useAuthStore = defineStore('auth', () => {
    * Also starts auto-refresh and immediately fetches latest user data
    */
   function checkAuth(): void {
+    if (
+      import.meta.env.DEV
+      && typeof window !== 'undefined'
+      && new URLSearchParams(window.location.search).get('authPreview') === 'off'
+    ) {
+      clearPreviewAuthStorage()
+    }
+
+    if (isPreviewAuthEnabled()) {
+      const role = getPreviewRole() || 'admin'
+      const previewUser = createPreviewUser(role)
+      token.value = AUTH_PREVIEW_TOKEN
+      user.value = previewUser
+      refreshTokenValue.value = null
+      tokenExpiresAt.value = null
+      runMode.value = 'standard'
+      pendingAuthSession.value = null
+      localStorage.setItem(AUTH_TOKEN_KEY, AUTH_PREVIEW_TOKEN)
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(previewUser))
+      localStorage.removeItem(REFRESH_TOKEN_KEY)
+      localStorage.removeItem(TOKEN_EXPIRES_AT_KEY)
+      clearPendingAuthSessionStorage()
+      return
+    }
+
     const savedToken = localStorage.getItem(AUTH_TOKEN_KEY)
     const savedUser = localStorage.getItem(AUTH_USER_KEY)
     const savedRefreshToken = localStorage.getItem(REFRESH_TOKEN_KEY)
@@ -411,6 +498,10 @@ export const useAuthStore = defineStore('auth', () => {
    * @throws Error if not authenticated or request fails
    */
   async function refreshUser(): Promise<User> {
+    if (isPreviewAuthEnabled() && token.value === AUTH_PREVIEW_TOKEN && user.value) {
+      return user.value
+    }
+
     if (!token.value) {
       throw new Error('Not authenticated')
     }

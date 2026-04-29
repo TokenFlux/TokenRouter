@@ -10,6 +10,15 @@ import { getLocale } from '@/i18n'
 // ==================== Axios Instance Configuration ====================
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1'
+const SETUP_PREVIEW_BYPASS_KEY = 'setup_preview_bypass'
+const AUTH_PREVIEW_TOKEN = 'preview-auth-token'
+
+function isPreviewAuthEnabled(): boolean {
+  return import.meta.env.DEV
+    && typeof window !== 'undefined'
+    && localStorage.getItem(SETUP_PREVIEW_BYPASS_KEY) === '1'
+    && localStorage.getItem('auth_token') === AUTH_PREVIEW_TOKEN
+}
 
 export const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
@@ -151,6 +160,15 @@ apiClient.interceptors.response.use(
       // 401: Try to refresh the token if we have a refresh token
       // This handles TOKEN_EXPIRED, INVALID_TOKEN, TOKEN_REVOKED, etc.
       if (status === 401 && !originalRequest._retry) {
+        if (isPreviewAuthEnabled()) {
+          return Promise.reject({
+            status,
+            code: apiData.code || 'PREVIEW_AUTH',
+            message: apiData.message || apiData.detail || error.message,
+            metadata: apiData.metadata,
+          })
+        }
+
         const refreshToken = localStorage.getItem('refresh_token')
         const isAuthEndpoint =
           url.includes('/auth/login') || url.includes('/auth/register') || url.includes('/auth/refresh')

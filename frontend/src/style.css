@@ -3,8 +3,42 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --ba-sky-0: #8fe5ff;
+    --ba-sky-1: #bff4ff;
+    --ba-sky-2: #e9fbff;
+    --ba-sky-3: #f8fdff;
+    --apple-radius-sm: 0.75rem;
+    --apple-radius-md: 0.95rem;
+    --apple-radius-lg: 1.15rem;
+    --apple-radius-xl: 1.35rem;
+    --apple-radius-2xl: 1.6rem;
+    --apple-radius-shell: 1.75rem;
+    --ba-glass-bg: rgba(255, 255, 255, 0.62);
+    --ba-glass-bg-strong: rgba(255, 255, 255, 0.82);
+    --ba-glass-bg-readable: rgba(255, 255, 255, 0.92);
+    --ba-glass-edge: rgba(255, 255, 255, 0.92);
+    --ba-glass-hairline: rgba(72, 190, 235, 0.2);
+    --ba-glass-shadow: 0 24px 68px rgba(50, 157, 208, 0.2), 0 7px 20px rgba(33, 112, 160, 0.1), 0 1px 0 rgba(255, 255, 255, 0.7);
+    --ba-glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -1px 0 rgba(255, 255, 255, 0.38), inset 1px 0 0 rgba(255, 255, 255, 0.36);
+    --ba-solid-surface: rgba(255, 255, 255, 0.96);
+    --ba-solid-surface-muted: rgba(247, 253, 255, 0.94);
+  }
+
+  html.dark {
+    --ba-glass-bg: rgba(15, 27, 52, 0.58);
+    --ba-glass-bg-strong: rgba(20, 35, 64, 0.84);
+    --ba-glass-bg-readable: rgba(20, 31, 55, 0.94);
+    --ba-glass-edge: rgba(175, 222, 255, 0.22);
+    --ba-glass-hairline: rgba(139, 221, 248, 0.18);
+    --ba-glass-shadow: 0 24px 72px rgba(0, 10, 30, 0.48), 0 8px 26px rgba(0, 210, 255, 0.1), 0 1px 0 rgba(139, 221, 248, 0.1);
+    --ba-glass-inset: inset 0 1px 0 rgba(255, 255, 255, 0.16), inset 0 -1px 0 rgba(139, 221, 248, 0.1), inset 1px 0 0 rgba(255, 255, 255, 0.07);
+    --ba-solid-surface: rgba(18, 27, 48, 0.96);
+    --ba-solid-surface-muted: rgba(12, 20, 38, 0.94);
+  }
+
   * {
-    @apply border-primary-200/80 dark:border-dark-600/70;
+    border-color: var(--ba-glass-hairline);
   }
 
   html {
@@ -12,9 +46,11 @@
     scrollbar-color: rgba(18, 167, 232, 0.26) transparent;
     scrollbar-width: thin;
     background:
-      radial-gradient(ellipse at 9% 88%, rgba(255, 244, 248, 0.86) 0%, rgba(255, 250, 252, 0.6) 26%, transparent 54%),
-      radial-gradient(ellipse at 82% 8%, rgba(224, 248, 255, 0.78) 0%, transparent 50%),
-      linear-gradient(180deg, #BEEAFF 0%, #D6F5FF 34%, #F1FBFF 66%, #FFFFFF 100%);
+      linear-gradient(164deg, rgba(255, 255, 255, 0.34) 8%, transparent 28%),
+      linear-gradient(18deg, rgba(39, 183, 244, 0.42) 0%, transparent 36%),
+      radial-gradient(ellipse at 14% 92%, rgba(255, 255, 255, 0.88) 0%, rgba(233, 251, 255, 0.58) 28%, transparent 58%),
+      radial-gradient(ellipse at 82% 6%, rgba(47, 190, 246, 0.54) 0%, rgba(191, 244, 255, 0.18) 34%, transparent 58%),
+      linear-gradient(180deg, #55cdf6 0%, var(--ba-sky-0) 18%, var(--ba-sky-1) 46%, var(--ba-sky-2) 78%, var(--ba-sky-3) 100%);
     background-attachment: fixed;
   }
 
@@ -30,17 +66,21 @@
     @apply text-dark-950 dark:text-white;
     @apply min-h-screen;
     background:
-      radial-gradient(ellipse at 9% 88%, rgba(255, 244, 248, 0.86) 0%, rgba(255, 250, 252, 0.6) 26%, transparent 54%),
-      radial-gradient(ellipse at 82% 8%, rgba(224, 248, 255, 0.78) 0%, transparent 50%),
-      linear-gradient(180deg, #BEEAFF 0%, #D6F5FF 34%, #F1FBFF 66%, #FFFFFF 100%);
+      linear-gradient(164deg, rgba(255, 255, 255, 0.34) 8%, transparent 28%),
+      linear-gradient(18deg, rgba(39, 183, 244, 0.42) 0%, transparent 36%),
+      radial-gradient(ellipse at 14% 92%, rgba(255, 255, 255, 0.88) 0%, rgba(233, 251, 255, 0.58) 28%, transparent 58%),
+      radial-gradient(ellipse at 82% 6%, rgba(47, 190, 246, 0.54) 0%, rgba(191, 244, 255, 0.18) 34%, transparent 58%),
+      linear-gradient(180deg, #55cdf6 0%, var(--ba-sky-0) 18%, var(--ba-sky-1) 46%, var(--ba-sky-2) 78%, var(--ba-sky-3) 100%);
     background-attachment: fixed;
   }
 
   .dark body {
     scrollbar-color: rgba(213, 229, 251, 0.62) #10182c;
     background:
-      radial-gradient(circle at 72% 12%, rgba(0, 210, 255, 0.12), transparent 34%),
-      linear-gradient(180deg, #10182c 0%, #1a2643 54%, #10182c 100%);
+      linear-gradient(155deg, rgba(81, 199, 255, 0.16) 0 18%, transparent 18% 46%, rgba(53, 100, 177, 0.11) 46% 58%, transparent 58%),
+      radial-gradient(ellipse at 78% 8%, rgba(0, 210, 255, 0.2), transparent 36%),
+      radial-gradient(ellipse at 16% 88%, rgba(78, 111, 255, 0.16), transparent 42%),
+      linear-gradient(180deg, #061329 0%, #10254a 38%, #182b51 68%, #071327 100%);
     background-attachment: fixed;
   }
 
@@ -303,6 +343,7 @@
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2;
     @apply disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50;
     @apply active:scale-[0.98];
+    border-radius: var(--apple-radius-md);
   }
 
   .btn-primary {
@@ -310,14 +351,28 @@
     @apply text-white shadow-md shadow-primary-500/25;
     @apply hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/30;
     @apply dark:shadow-primary-500/20;
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.34),
+      0 0 0 1px rgba(0, 210, 255, 0.2),
+      0 12px 28px rgba(0, 132, 255, 0.22);
+  }
+
+  .dark .btn-primary {
+    border-color: rgba(139, 221, 248, 0.34);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      0 0 0 1px rgba(139, 221, 248, 0.18),
+      0 12px 30px rgba(0, 210, 255, 0.14);
   }
 
   .btn-secondary {
-    @apply bg-white dark:bg-dark-950;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.76), rgba(239, 251, 255, 0.48));
     @apply text-primary-900 dark:text-dark-50;
-    @apply border border-primary-200 dark:border-dark-600;
-    @apply shadow-sm hover:bg-primary-50 dark:hover:bg-dark-800;
-    @apply hover:border-primary-300 dark:hover:border-primary-500;
+    @apply border shadow-sm;
+    border-color: var(--ba-glass-edge);
+    box-shadow: var(--ba-glass-inset), 0 8px 22px rgba(18, 167, 232, 0.1);
+    @apply hover:bg-primary-50/80 dark:hover:bg-dark-800/80;
   }
 
   .btn-ghost {
@@ -367,31 +422,39 @@
   }
 
   .btn-sm {
-    @apply rounded-lg px-3 py-1.5 text-xs;
+    border-radius: var(--apple-radius-sm);
+    @apply px-3 py-1.5 text-xs;
   }
 
   .btn-md {
-    @apply rounded-xl px-4 py-2 text-sm;
+    border-radius: var(--apple-radius-md);
+    @apply px-4 py-2 text-sm;
   }
 
   .btn-lg {
-    @apply rounded-2xl px-6 py-3 text-base;
+    border-radius: var(--apple-radius-xl);
+    @apply px-6 py-3 text-base;
   }
 
   .btn-icon {
-    @apply rounded-xl p-2.5;
+    border-radius: var(--apple-radius-md);
+    @apply p-2.5;
   }
 
   /* ============ 输入框样式 ============ */
   .input {
-    @apply w-full rounded-xl px-4 py-2.5 text-sm;
-    @apply bg-white dark:bg-dark-950;
-    @apply border border-primary-200 dark:border-dark-600;
+    @apply w-full px-4 py-2.5 text-sm;
+    border-radius: var(--apple-radius-md);
+    background: rgba(255, 255, 255, 0.6);
+    @apply border;
+    border-color: var(--ba-glass-edge);
     @apply text-dark-950 dark:text-dark-50;
     @apply placeholder:text-primary-900/45 dark:placeholder:text-dark-200/70;
     @apply transition-all duration-200;
     @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/35;
     @apply disabled:cursor-not-allowed disabled:bg-primary-100 dark:disabled:bg-dark-950;
+    box-shadow: var(--ba-glass-inset);
+    backdrop-filter: blur(18px) saturate(150%);
   }
 
   .input-error {
@@ -423,29 +486,129 @@
 
   /* ============ 玻璃效果 ============ */
   .glass {
-    @apply bg-white/80 backdrop-blur-xl dark:bg-dark-900/95;
+    background:
+      radial-gradient(ellipse at 18% 0%, rgba(255, 255, 255, 0.92), transparent 42%),
+      radial-gradient(ellipse at 86% 100%, rgba(139, 221, 248, 0.28), transparent 46%),
+      linear-gradient(135deg, var(--ba-glass-bg-strong), var(--ba-glass-bg));
+    backdrop-filter: blur(26px) saturate(185%) contrast(1.03);
+    -webkit-backdrop-filter: blur(26px) saturate(185%) contrast(1.03);
+    border: 1px solid var(--ba-glass-edge);
+    box-shadow: var(--ba-glass-shadow), var(--ba-glass-inset);
+  }
+
+  .dark .glass {
+    background:
+      radial-gradient(ellipse at 18% 0%, rgba(139, 221, 248, 0.18), transparent 42%),
+      radial-gradient(ellipse at 86% 100%, rgba(65, 104, 191, 0.16), transparent 46%),
+      linear-gradient(145deg, rgba(30, 53, 91, 0.7), rgba(11, 21, 42, 0.52)),
+      linear-gradient(72deg, rgba(139, 221, 248, 0.08), transparent 44%);
+  }
+
+  .app-header-glass {
+    border-radius: var(--apple-radius-shell);
+    overflow: visible;
+  }
+
+  .app-header-glass::before {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    z-index: -1;
+    border-radius: inherit;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0.12));
+    pointer-events: none;
+  }
+
+  .dark .app-header-glass {
+    background:
+      linear-gradient(145deg, rgba(22, 39, 72, 0.86), rgba(8, 18, 38, 0.7)),
+      linear-gradient(92deg, rgba(139, 221, 248, 0.11), transparent 48%);
+    border-color: rgba(139, 221, 248, 0.22);
+  }
+
+  .dark .app-header-glass::before {
+    background: linear-gradient(180deg, rgba(139, 221, 248, 0.12), rgba(255, 255, 255, 0.03));
+  }
+
+  .ops-dashboard-toolbar {
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.7), rgba(232, 248, 255, 0.46)),
+      linear-gradient(120deg, rgba(255, 255, 255, 0.36), transparent 42%);
+  }
+
+  .dark .ops-dashboard-toolbar {
+    background:
+      linear-gradient(145deg, rgba(16, 24, 44, 0.76), rgba(26, 38, 67, 0.5)),
+      linear-gradient(120deg, rgba(139, 221, 248, 0.08), transparent 46%);
+  }
+
+  .ops-toolbar-row {
+    border-bottom: 1px solid var(--ba-glass-hairline);
+  }
+
+  .ops-soft-divider {
+    background: linear-gradient(180deg, transparent, var(--ba-glass-hairline), transparent);
+  }
+
+  .ops-glass-button,
+  .ops-glass-button-primary {
+    border-radius: var(--apple-radius-md);
+    border: 1px solid var(--ba-glass-edge);
+    background: rgba(255, 255, 255, 0.42);
+    box-shadow: var(--ba-glass-inset);
+    backdrop-filter: blur(16px) saturate(150%);
+  }
+
+  .ops-glass-button:hover,
+  .ops-glass-button-primary:hover {
+    background: rgba(255, 255, 255, 0.58);
+  }
+
+  .ops-glass-button-primary {
+    background: rgba(205, 239, 253, 0.56);
+    border-color: rgba(139, 221, 248, 0.68);
   }
 
   .glass-card {
-    @apply bg-white/75 dark:bg-dark-900;
-    @apply backdrop-blur-xl;
-    @apply rounded-2xl;
-    @apply border border-white/80 dark:border-dark-600/80;
-    @apply shadow-glass;
+    background: linear-gradient(135deg, var(--ba-glass-bg-strong), var(--ba-glass-bg));
+    @apply backdrop-blur-2xl;
+    border-radius: var(--apple-radius-2xl);
+    @apply border;
+    border-color: var(--ba-glass-edge);
+    box-shadow: var(--ba-glass-shadow), var(--ba-glass-inset);
     @apply transition-all duration-300;
   }
 
   /* ============ 卡片样式 ============ */
   .card {
-    @apply bg-white dark:bg-dark-900/95;
-    @apply rounded-2xl;
-    @apply border border-primary-100 dark:border-dark-600/80;
-    @apply shadow-card;
+    background:
+      radial-gradient(ellipse at 16% 0%, rgba(255, 255, 255, 0.88), transparent 42%),
+      radial-gradient(ellipse at 96% 100%, rgba(139, 221, 248, 0.22), transparent 44%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.76), rgba(245, 252, 255, 0.48));
+    border-radius: var(--apple-radius-2xl);
+    @apply border backdrop-blur-2xl;
+    border-color: var(--ba-glass-edge);
+    box-shadow: var(--ba-glass-shadow), var(--ba-glass-inset), inset 0 0 32px rgba(255, 255, 255, 0.16);
     @apply transition-all duration-300;
   }
 
   .dark .card {
-    box-shadow: none;
+    background:
+      radial-gradient(ellipse at 16% 0%, rgba(139, 221, 248, 0.12), transparent 42%),
+      radial-gradient(ellipse at 96% 100%, rgba(65, 104, 191, 0.16), transparent 44%),
+      linear-gradient(145deg, rgba(27, 45, 78, 0.78), rgba(10, 20, 40, 0.56)),
+      linear-gradient(78deg, rgba(139, 221, 248, 0.06), transparent 50%);
+    box-shadow: var(--ba-glass-shadow), var(--ba-glass-inset);
+  }
+
+  .dark .input,
+  .dark .dropdown,
+  .dark .modal-content,
+  .dark .dialog-container,
+  .dark .toast {
+    background:
+      linear-gradient(145deg, rgba(22, 38, 68, 0.94), rgba(10, 20, 39, 0.88)),
+      linear-gradient(82deg, rgba(139, 221, 248, 0.08), transparent 48%);
   }
 
   .card-hover {
@@ -454,14 +617,14 @@
   }
 
   .card-glass {
-    @apply bg-white/75 dark:bg-dark-900;
-    @apply backdrop-blur-xl;
-    @apply border border-white/80 dark:border-dark-600/80;
-    @apply shadow-glass;
+    background: linear-gradient(135deg, var(--ba-glass-bg-strong), var(--ba-glass-bg));
+    @apply backdrop-blur-2xl border;
+    border-color: var(--ba-glass-edge);
+    box-shadow: var(--ba-glass-shadow), var(--ba-glass-inset);
   }
 
   .card-header {
-    @apply border-b border-primary-100 dark:border-dark-600/80;
+    border-bottom: 1px solid var(--ba-glass-hairline);
     @apply px-6 py-4;
   }
 
@@ -470,7 +633,7 @@
   }
 
   .card-footer {
-    @apply border-t border-primary-100 dark:border-dark-600/80;
+    border-top: 1px solid var(--ba-glass-hairline);
     @apply px-6 py-4;
   }
 
@@ -524,7 +687,11 @@
 
   /* ============ 表格样式 ============ */
   .table-container {
-    @apply overflow-x-auto rounded-xl border border-primary-200 dark:border-dark-600;
+    @apply overflow-x-auto border backdrop-blur-2xl;
+    border-radius: var(--apple-radius-xl);
+    background: rgba(255, 255, 255, 0.42);
+    border-color: var(--ba-glass-edge);
+    box-shadow: var(--ba-glass-inset);
   }
 
   .table {
@@ -534,14 +701,14 @@
   .table th {
     @apply px-4 py-3 text-left font-medium;
     @apply text-primary-900 dark:text-dark-100;
-    @apply bg-primary-100/70 dark:bg-dark-950;
-    @apply border-b border-primary-200 dark:border-dark-600;
+    @apply bg-white/45 dark:bg-dark-950/45;
+    border-bottom: 1px solid var(--ba-glass-hairline);
   }
 
   .table td {
     @apply px-4 py-3;
     @apply text-dark-900 dark:text-dark-100;
-    @apply border-b border-primary-100 dark:border-dark-800;
+    border-bottom: 1px solid var(--ba-glass-hairline);
   }
 
   .table tr:last-child td {
@@ -551,6 +718,45 @@
   .table tbody tr {
     @apply transition-colors duration-150;
     @apply hover:bg-primary-50 dark:hover:bg-dark-800/70;
+  }
+
+  .table-page-layout > .layout-section-fixed {
+    padding: 0.875rem;
+    border: 1px solid var(--ba-glass-edge);
+    border-radius: var(--apple-radius-2xl);
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(239, 251, 255, 0.44)),
+      linear-gradient(82deg, rgba(255, 255, 255, 0.32), transparent 48%);
+    box-shadow: var(--ba-glass-shadow), var(--ba-glass-inset);
+    backdrop-filter: blur(22px) saturate(150%);
+  }
+
+  .dark .table-page-layout > .layout-section-fixed {
+    background:
+      linear-gradient(145deg, rgba(25, 43, 76, 0.78), rgba(9, 18, 36, 0.58)),
+      linear-gradient(82deg, rgba(139, 221, 248, 0.08), transparent 48%);
+    border-color: rgba(139, 221, 248, 0.18);
+  }
+
+  .table-scroll-container {
+    background:
+      radial-gradient(ellipse at 15% 0%, rgba(255, 255, 255, 0.86), transparent 42%),
+      radial-gradient(ellipse at 94% 100%, rgba(139, 221, 248, 0.24), transparent 46%),
+      linear-gradient(145deg, rgba(255, 255, 255, 0.68), rgba(236, 250, 255, 0.42)),
+      linear-gradient(82deg, rgba(255, 255, 255, 0.36), transparent 48%);
+    border-color: var(--ba-glass-edge);
+    border-radius: var(--apple-radius-2xl);
+    box-shadow: var(--ba-glass-shadow), var(--ba-glass-inset);
+    backdrop-filter: blur(22px) saturate(150%);
+  }
+
+  .dark .table-scroll-container {
+    background:
+      radial-gradient(ellipse at 15% 0%, rgba(139, 221, 248, 0.12), transparent 42%),
+      radial-gradient(ellipse at 94% 100%, rgba(65, 104, 191, 0.16), transparent 46%),
+      linear-gradient(145deg, rgba(25, 43, 76, 0.78), rgba(9, 18, 36, 0.58)),
+      linear-gradient(82deg, rgba(139, 221, 248, 0.08), transparent 48%);
+    border-color: rgba(139, 221, 248, 0.18);
   }
 
   /* ============ 徽章样式 ============ */
@@ -586,10 +792,11 @@
   /* ============ 下拉菜单 ============ */
   .dropdown {
     @apply absolute z-50;
-    @apply bg-white dark:bg-dark-900;
-    @apply rounded-xl;
-    @apply border border-primary-200 dark:border-dark-600;
-    @apply shadow-lg;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(246, 253, 255, 0.88));
+    border-radius: var(--apple-radius-xl);
+    @apply border backdrop-blur-2xl;
+    border-color: var(--ba-glass-edge);
+    box-shadow: var(--ba-glass-shadow), var(--ba-glass-inset);
     @apply py-1;
     @apply origin-top-right animate-scale-in;
   }
@@ -597,9 +804,17 @@
   .dropdown-item {
     @apply px-4 py-2 text-sm;
     @apply text-primary-900 dark:text-dark-100;
-    @apply hover:bg-primary-100 dark:hover:bg-dark-800;
+    @apply hover:bg-primary-100 dark:hover:bg-white/10;
     @apply cursor-pointer transition-colors;
     @apply flex items-center gap-2;
+  }
+
+  .dropdown-section {
+    border-bottom: 1px solid var(--ba-glass-hairline);
+  }
+
+  .dropdown-section-top {
+    border-top: 1px solid var(--ba-glass-hairline);
   }
 
   /* ============ 模态框 ============ */
@@ -612,14 +827,17 @@
   .modal-content {
     @apply w-full;
     @apply max-h-[95vh] sm:max-h-[90vh];
-    @apply bg-white dark:bg-dark-900;
-    @apply rounded-2xl shadow-2xl;
-    @apply border border-primary-200 dark:border-dark-600;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(245, 252, 255, 0.86));
+    border-radius: var(--apple-radius-shell);
+    @apply border backdrop-blur-2xl;
+    border-color: var(--ba-glass-edge);
+    box-shadow: var(--ba-glass-shadow), var(--ba-glass-inset);
     @apply flex flex-col;
   }
 
   .modal-header {
-    @apply border-b border-primary-200 px-4 py-3 dark:border-dark-600;
+    border-bottom: 1px solid var(--ba-glass-hairline);
+    @apply px-4 py-3;
     @apply sm:px-6 sm:py-4;
     @apply flex items-center justify-between;
     @apply flex-shrink-0;
@@ -636,7 +854,8 @@
   }
 
   .modal-footer {
-    @apply border-t border-primary-200 px-4 py-3 dark:border-dark-600;
+    border-top: 1px solid var(--ba-glass-hairline);
+    @apply px-4 py-3;
     @apply sm:px-6 sm:py-4;
     @apply flex items-center justify-end gap-3;
     @apply flex-shrink-0;
@@ -705,13 +924,16 @@
   .dialog-container {
     @apply flex w-full flex-col;
     @apply max-h-[90vh];
-    @apply rounded-2xl bg-white dark:bg-dark-900;
-    @apply border border-primary-200 dark:border-dark-600;
-    @apply shadow-xl;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(245, 252, 255, 0.86));
+    @apply border backdrop-blur-2xl;
+    border-radius: var(--apple-radius-shell);
+    border-color: var(--ba-glass-edge);
+    box-shadow: var(--ba-glass-shadow), var(--ba-glass-inset);
   }
 
   .dialog-header {
-    @apply border-b border-primary-100 px-6 py-4 dark:border-dark-600;
+    border-bottom: 1px solid var(--ba-glass-hairline);
+    @apply px-6 py-4;
     @apply flex items-center justify-between;
   }
 
@@ -720,8 +942,9 @@
   }
 
   .dialog-footer {
-    @apply border-t border-primary-100 px-6 py-4 dark:border-dark-600;
-    @apply bg-primary-50/70 dark:bg-dark-950/70;
+    border-top: 1px solid var(--ba-glass-hairline);
+    @apply px-6 py-4;
+    background: rgba(255, 255, 255, 0.34);
     @apply flex items-center justify-end gap-3;
   }
 
@@ -729,10 +952,12 @@
   .toast {
     @apply fixed right-4 top-4 z-[100];
     @apply min-w-[320px] max-w-md;
-    @apply bg-white dark:bg-dark-900;
-    @apply dark:border dark:border-dark-600;
-    @apply rounded-xl shadow-lg;
-    @apply border-l-4;
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.95), rgba(245, 252, 255, 0.88));
+    @apply border backdrop-blur-2xl;
+    border-radius: var(--apple-radius-xl);
+    border-color: var(--ba-glass-edge);
+    box-shadow: var(--ba-glass-shadow), var(--ba-glass-inset);
+    border-left-width: 4px;
     @apply p-4;
     @apply animate-slide-in-right;
   }
@@ -756,17 +981,53 @@
   /* ============ 侧边栏 ============ */
   .sidebar {
     @apply fixed inset-y-0 left-0 z-40;
-    @apply w-64 bg-white dark:bg-dark-900/95;
-    @apply border-r border-primary-200 dark:border-dark-600;
+    @apply w-64;
+    top: 0.75rem;
+    bottom: 0.75rem;
+    left: 0.75rem;
+    background: linear-gradient(165deg, rgba(255, 255, 255, 0.7), rgba(241, 251, 255, 0.48));
+    @apply border backdrop-blur-2xl;
+    border-color: var(--ba-glass-edge);
+    border-radius: var(--apple-radius-shell);
+    box-shadow: var(--ba-glass-shadow), var(--ba-glass-inset);
     @apply flex flex-col;
     @apply transition-transform duration-300;
     transition-property: width, transform;
+    overflow: hidden;
+  }
+
+  @media (max-width: 1023px) {
+    .sidebar:not(.sidebar-mobile-closed) {
+      top: max(0.625rem, env(safe-area-inset-top));
+      bottom: max(0.625rem, env(safe-area-inset-bottom));
+      left: max(0.625rem, env(safe-area-inset-left));
+      width: min(16rem, calc(100vw - 1.25rem));
+      max-width: calc(100vw - 1.25rem);
+      transform: translateX(0);
+      box-shadow:
+        var(--ba-glass-inset),
+        0 10px 24px rgba(33, 112, 160, 0.14);
+    }
+
+    .sidebar.sidebar-mobile-closed {
+      transform: translateX(calc(-100% - 1.5rem));
+      visibility: hidden;
+      pointer-events: none;
+      box-shadow: none;
+    }
+  }
+
+  .dark .sidebar {
+    background:
+      linear-gradient(165deg, rgba(22, 39, 72, 0.84), rgba(8, 18, 38, 0.66)),
+      linear-gradient(90deg, rgba(139, 221, 248, 0.1), transparent 46%);
+    border-color: rgba(139, 221, 248, 0.2);
   }
 
   .sidebar-header {
     @apply h-16 px-6;
     @apply flex items-center gap-3;
-    @apply border-b border-primary-100 dark:border-dark-600;
+    border-bottom: 1px solid var(--ba-glass-hairline);
     transition:
       padding 0.2s ease,
       gap 0.2s ease;
@@ -777,22 +1038,53 @@
   }
 
   .sidebar-link {
-    @apply flex items-center gap-3 rounded-xl py-2.5;
+    @apply flex items-center gap-3 py-2.5;
+    border-radius: var(--apple-radius-lg);
     @apply overflow-hidden;
     @apply text-sm font-medium;
     @apply text-primary-900/75 dark:text-dark-100;
     @apply transition-all duration-200;
-    @apply hover:bg-primary-100 dark:hover:bg-dark-950;
+    border: 1px solid transparent;
+    @apply hover:bg-white/50 dark:hover:bg-dark-950/50;
     @apply hover:text-primary-900 dark:hover:text-white;
     padding-left: 1.0625rem;
     padding-right: 0.875rem;
   }
 
   .sidebar-link-active {
-    @apply bg-primary-100 dark:bg-dark-950;
+    position: relative;
+    background:
+      radial-gradient(ellipse at 18% 0%, rgba(255, 255, 255, 0.95), transparent 48%),
+      linear-gradient(135deg, rgba(232, 249, 255, 0.9), rgba(255, 255, 255, 0.58));
     @apply text-primary-700 dark:text-white;
-    @apply ring-1 ring-primary-300/40 dark:ring-primary-500/90;
-    @apply hover:bg-primary-200 dark:hover:bg-dark-950;
+    border-color: rgba(255, 255, 255, 0.88);
+    @apply ring-1 ring-primary-300/45 dark:ring-primary-500/50;
+    box-shadow:
+      var(--ba-glass-inset),
+      0 16px 34px rgba(18, 167, 232, 0.2),
+      0 4px 10px rgba(33, 112, 160, 0.12);
+    transform: translateX(2px);
+    @apply hover:bg-white/60 dark:hover:bg-dark-950/60;
+  }
+
+  .sidebar-link-active::after {
+    content: '';
+    position: absolute;
+    inset: 1px;
+    border-radius: inherit;
+    background: linear-gradient(110deg, rgba(255, 255, 255, 0.46), transparent 38%);
+    pointer-events: none;
+  }
+
+  .dark .sidebar-link-active {
+    background:
+      radial-gradient(ellipse at 18% 0%, rgba(139, 221, 248, 0.2), transparent 48%),
+      linear-gradient(135deg, rgba(35, 55, 91, 0.84), rgba(16, 24, 44, 0.58));
+    border-color: rgba(139, 221, 248, 0.24);
+    box-shadow:
+      var(--ba-glass-inset),
+      0 16px 34px rgba(0, 10, 30, 0.3),
+      0 4px 16px rgba(0, 210, 255, 0.1);
   }
 
   .sidebar-section {
@@ -849,13 +1141,17 @@
 
   /* ============ 分隔线 ============ */
   .divider {
-    @apply my-4 h-px bg-primary-200 dark:bg-dark-600;
+    @apply my-4 h-px;
+    background: linear-gradient(90deg, transparent, var(--ba-glass-hairline), transparent);
   }
 
   /* ============ 标签页 ============ */
   .tabs {
     @apply flex gap-1 p-1;
-    @apply rounded-xl bg-primary-100/80 dark:bg-dark-950;
+    @apply border backdrop-blur-2xl;
+    border-radius: var(--apple-radius-lg);
+    background: rgba(255, 255, 255, 0.42);
+    border-color: var(--ba-glass-edge);
   }
 
   .tab {
@@ -866,9 +1162,9 @@
   }
 
   .tab-active {
-    @apply bg-white dark:bg-dark-700;
+    background: rgba(255, 255, 255, 0.68);
     @apply text-primary-900 dark:text-white;
-    @apply shadow-sm dark:ring-1 dark:ring-primary-500/90;
+    @apply shadow-sm dark:ring-1 dark:ring-primary-500/50;
   }
 
   .dark .tab-active {
@@ -961,6 +1257,28 @@
   /* 表格容器 - 默认仅支持水平滚动 */
   .table-wrapper {
     overflow-x: auto;
+    border-radius: calc(var(--apple-radius-2xl) - 0.45rem);
+    background: var(--ba-solid-surface);
+    clip-path: inset(0 round calc(var(--apple-radius-2xl) - 0.45rem));
+  }
+
+  .table-wrapper > table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .table-wrapper thead,
+  .table-wrapper .table-header,
+  .table-wrapper thead.bg-gray-50 {
+    background: var(--ba-solid-surface-muted) !important;
+  }
+
+  .table-wrapper thead tr:first-child th:first-child {
+    border-top-left-radius: calc(var(--apple-radius-2xl) - 0.45rem);
+  }
+
+  .table-wrapper thead tr:first-child th:last-child {
+    border-top-right-radius: calc(var(--apple-radius-2xl) - 0.45rem);
   }
 
   /* 表头固定时添加底部阴影，增强视觉层次 */
@@ -974,47 +1292,60 @@
 }
 
 @layer utilities {
-  .dark [class*="shadow-"] {
-    --tw-shadow: 0 0 #0000 !important;
-    --tw-shadow-colored: 0 0 #0000 !important;
-    box-shadow: var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000), var(--tw-shadow) !important;
-  }
-
   .dark .card,
   .dark .glass-card,
   .dark .card-glass,
   .dark .dropdown,
   .dark .modal-content,
   .dark .dialog-container,
-  .dark .toast {
-    box-shadow: none;
+  .dark .toast,
+  .dark .sidebar,
+  .dark .glass {
+    box-shadow: var(--ba-glass-shadow), var(--ba-glass-inset);
+  }
+
+  @media (max-width: 1023px) {
+    .dark .sidebar:not(.sidebar-mobile-closed) {
+      box-shadow:
+        var(--ba-glass-inset),
+        0 10px 24px rgba(0, 10, 30, 0.28),
+        0 0 0 1px rgba(139, 221, 248, 0.12);
+    }
   }
 
   /* 全局工程蓝图背景，网格线参考 Blue Archive 主视觉 */
   .ba-theme-shell {
     background:
-      radial-gradient(ellipse at 9% 88%, rgba(255, 244, 248, 0.86) 0%, rgba(255, 250, 252, 0.6) 26%, transparent 54%),
-      radial-gradient(ellipse at 82% 8%, rgba(224, 248, 255, 0.78) 0%, transparent 50%),
-      linear-gradient(180deg, #BEEAFF 0%, #D6F5FF 34%, #F1FBFF 66%, #FFFFFF 100%);
+      linear-gradient(148deg, transparent 4%, rgba(255, 255, 255, 0.16) 24%, rgba(255, 255, 255, 0.52) 42%, rgba(215, 249, 255, 0.28) 58%, transparent 78%),
+      radial-gradient(ellipse at -12% -10%, rgba(0, 118, 200, 0.54) 0%, rgba(0, 174, 235, 0.34) 28%, rgba(143, 229, 255, 0.1) 52%, transparent 72%),
+      radial-gradient(ellipse at 104% 106%, rgba(0, 142, 210, 0.18) 0%, rgba(143, 229, 255, 0.08) 24%, transparent 46%),
+      radial-gradient(ellipse at 54% 54%, rgba(244, 254, 255, 0.96) 0%, rgba(207, 247, 255, 0.66) 36%, rgba(132, 224, 250, 0.22) 68%, transparent 86%),
+      linear-gradient(180deg, #2bbfec 0%, #65d7f8 24%, #bff2ff 58%, #effcff 100%);
   }
 
   .dark .ba-theme-shell {
     background:
-      radial-gradient(circle at 78% 12%, rgba(0, 210, 255, 0.13), transparent 34%),
-      linear-gradient(180deg, #10182c 0%, #1a2643 56%, #10182c 100%);
+      linear-gradient(155deg, rgba(81, 199, 255, 0.16) 0 18%, transparent 18% 46%, rgba(53, 100, 177, 0.11) 46% 58%, transparent 58%),
+      radial-gradient(ellipse at 78% 8%, rgba(0, 210, 255, 0.2), transparent 36%),
+      radial-gradient(ellipse at 16% 88%, rgba(78, 111, 255, 0.16), transparent 42%),
+      linear-gradient(180deg, #061329 0%, #10254a 38%, #182b51 68%, #071327 100%);
   }
 
   .ba-theme-backdrop {
     overflow: hidden;
     background:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Cg fill='none'%3E%3Cpath d='M0 0H150M0 0V150' stroke='%23ffffff' stroke-width='1' opacity='.58'/%3E%3Cpath d='M75 0V150M0 75H150' stroke='%238BDDF8' stroke-width='1' opacity='.26'/%3E%3Cpath d='M66 0H84M75 -9V9M66 75H84M75 66V84M-9 75H9M141 75H159M150 66V84M66 150H84M75 141V159' stroke='%23ffffff' stroke-width='3' opacity='.58' stroke-linecap='square'/%3E%3Cpath d='M70 0H80M75 -5V5M70 75H80M75 70V80M-5 75H5M145 75H155M150 70V80M70 150H80M75 145V155' stroke='%238BDDF8' stroke-width='2' opacity='.42' stroke-linecap='square'/%3E%3C/g%3E%3C/svg%3E"),
-      radial-gradient(circle, rgba(139, 221, 248, 0.38) 1px, transparent 1.6px),
-      radial-gradient(ellipse at 9% 88%, rgba(255, 244, 248, 0.88) 0%, rgba(255, 250, 252, 0.62) 26%, transparent 54%),
-      radial-gradient(ellipse at 82% 8%, rgba(224, 248, 255, 0.78) 0%, transparent 50%),
-      linear-gradient(180deg, #BEEAFF 0%, #D6F5FF 34%, #F1FBFF 66%, #FFFFFF 100%);
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Cg fill='none'%3E%3Cpath d='M0 0H150M0 0V150' stroke='%23ffffff' stroke-width='1' opacity='.38'/%3E%3Cpath d='M75 0V150M0 75H150' stroke='%238BDDF8' stroke-width='1' opacity='.18'/%3E%3Cpath d='M66 0H84M75 -9V9M66 75H84M75 66V84M-9 75H9M141 75H159M150 66V84M66 150H84M75 141V159' stroke='%23ffffff' stroke-width='3' opacity='.38' stroke-linecap='square'/%3E%3Cpath d='M70 0H80M75 -5V5M70 75H80M75 70V80M-5 75H5M145 75H155M150 70V80M70 150H80M75 145V155' stroke='%238BDDF8' stroke-width='2' opacity='.3' stroke-linecap='square'/%3E%3C/g%3E%3C/svg%3E"),
+      radial-gradient(circle, rgba(139, 221, 248, 0.28) 1px, transparent 1.6px),
+      linear-gradient(148deg, transparent 4%, rgba(255, 255, 255, 0.16) 24%, rgba(255, 255, 255, 0.52) 42%, rgba(215, 249, 255, 0.28) 58%, transparent 78%),
+      radial-gradient(ellipse at -12% -10%, rgba(0, 118, 200, 0.56) 0%, rgba(0, 174, 235, 0.34) 28%, rgba(143, 229, 255, 0.1) 52%, transparent 72%),
+      radial-gradient(ellipse at 104% 106%, rgba(0, 142, 210, 0.18) 0%, rgba(143, 229, 255, 0.08) 24%, transparent 46%),
+      radial-gradient(ellipse at 54% 54%, rgba(244, 254, 255, 0.96) 0%, rgba(207, 247, 255, 0.66) 36%, rgba(132, 224, 250, 0.22) 68%, transparent 86%),
+      linear-gradient(180deg, #2bbfec 0%, #65d7f8 24%, #bff2ff 58%, #effcff 100%);
     background-position:
       center top,
       center top,
+      0 0,
+      0 0,
       0 0,
       0 0,
       center top;
@@ -1023,27 +1354,58 @@
       18px 18px,
       100% 100%,
       100% 100%,
+      100% 100%,
+      100% 100%,
       100% 100%;
   }
 
   .ba-theme-backdrop::before {
-    content: none;
+    content: '';
+    position: absolute;
+    inset: -18% -14% auto -14%;
+    height: 66%;
+    opacity: 0.42;
+    pointer-events: none;
+    background:
+      linear-gradient(172deg, transparent 4%, rgba(255, 255, 255, 0.42) 28%, rgba(255, 255, 255, 0.18) 44%, transparent 70%),
+      linear-gradient(160deg, transparent 10%, rgba(0, 143, 230, 0.14) 38%, transparent 66%);
+    filter: blur(28px);
+    transform: rotate(-2deg);
   }
 
   .dark .ba-theme-backdrop {
     background:
       url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Cg fill='none'%3E%3Cpath d='M0 0H150M0 0V150' stroke='%23D5E5FB' stroke-width='1' opacity='.07'/%3E%3Cpath d='M75 0V150M0 75H150' stroke='%2300D2FF' stroke-width='1' opacity='.045'/%3E%3C/g%3E%3C/svg%3E"),
-      linear-gradient(180deg, rgba(16, 24, 44, 0.92) 0%, rgba(26, 38, 67, 0.86) 52%, rgba(16, 24, 44, 0.96) 100%);
+      linear-gradient(155deg, rgba(81, 199, 255, 0.16) 0 18%, transparent 18% 46%, rgba(53, 100, 177, 0.11) 46% 58%, transparent 58%),
+      radial-gradient(ellipse at 78% 8%, rgba(0, 210, 255, 0.2), transparent 36%),
+      radial-gradient(ellipse at 16% 88%, rgba(78, 111, 255, 0.16), transparent 42%),
+      linear-gradient(180deg, #061329 0%, #10254a 38%, #182b51 68%, #071327 100%);
     background-position:
       center top,
+      0 0,
+      0 0,
+      0 0,
       0 0;
     background-size:
       150px 150px,
+      100% 100%,
+      100% 100%,
+      100% 100%,
       100% 100%;
   }
 
   .dark .ba-theme-backdrop::before {
-    content: none;
+    content: '';
+    position: absolute;
+    inset: -12% -8% auto -8%;
+    height: 52%;
+    opacity: 0.34;
+    pointer-events: none;
+    background:
+      linear-gradient(172deg, transparent 0 18%, rgba(139, 221, 248, 0.18) 18% 25%, transparent 25% 100%),
+      linear-gradient(160deg, transparent 0 39%, rgba(255, 255, 255, 0.08) 39% 45%, transparent 45% 100%);
+    filter: blur(12px);
+    transform: rotate(-2deg);
   }
 
   /* 文字渐变 */
@@ -1053,7 +1415,8 @@
 
   /* 玻璃效果 */
   .glass {
-    @apply bg-white/80 backdrop-blur-xl dark:bg-dark-900/95;
+    background: linear-gradient(135deg, var(--ba-glass-bg-strong), var(--ba-glass-bg));
+    @apply backdrop-blur-2xl;
   }
 
   /* 隐藏滚动条 */
