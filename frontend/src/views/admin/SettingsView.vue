@@ -3671,40 +3671,105 @@
                 <Toggle v-model="form.backend_mode_enabled" />
               </div>
 
-              <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <div>
-                  <label
-                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >
-                    {{ t("admin.settings.site.siteName") }}
-                  </label>
-                  <input
-                    v-model="form.site_name"
-                    type="text"
-                    class="input"
-                    :placeholder="t('admin.settings.site.siteNamePlaceholder')"
-                  />
-                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.site.siteNameHint") }}
-                  </p>
-                </div>
-                <div>
-                  <label
-                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >
-                    {{ t("admin.settings.site.siteSubtitle") }}
-                  </label>
-                  <input
-                    v-model="form.site_subtitle"
-                    type="text"
-                    class="input"
-                    :placeholder="
-                      t('admin.settings.site.siteSubtitlePlaceholder')
-                    "
-                  />
-                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.site.siteSubtitleHint") }}
-                  </p>
+              <!-- 站点文案 -->
+              <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                <h3 class="text-sm font-medium text-gray-900 dark:text-white">
+                  {{ t("admin.settings.site.siteCopyTitle") }}
+                </h3>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.site.siteCopyDescription") }}
+                </p>
+                <div class="mt-4 space-y-6">
+                  <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <div>
+                      <label
+                        class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >
+                        {{ t("admin.settings.site.siteNameZh") }}
+                      </label>
+                      <input
+                        v-model="form.site_name_zh"
+                        type="text"
+                        class="input"
+                        :placeholder="t('admin.settings.site.siteNameZhPlaceholder')"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >
+                        {{ t("admin.settings.site.siteNameEn") }}
+                      </label>
+                      <input
+                        v-model="form.site_name_en"
+                        type="text"
+                        class="input"
+                        :placeholder="t('admin.settings.site.siteNameEnPlaceholder')"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.site.siteNameHint") }}
+                    </p>
+                  </div>
+
+                  <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <div>
+                      <label
+                        class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >
+                        {{ t("admin.settings.site.siteTitleZh") }}
+                      </label>
+                      <input
+                        v-model="form.site_title_zh"
+                        type="text"
+                        class="input"
+                        :placeholder="t('admin.settings.site.siteTitleZhPlaceholder')"
+                      />
+                    </div>
+                    <div>
+                      <label
+                        class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >
+                        {{ t("admin.settings.site.siteTitleEn") }}
+                      </label>
+                      <input
+                        v-model="form.site_title_en"
+                        type="text"
+                        class="input"
+                        :placeholder="t('admin.settings.site.siteTitleEnPlaceholder')"
+                      />
+                    </div>
+                  </div>
+                  <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                    <div>
+                      <label
+                        class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >
+                        {{ t("admin.settings.site.siteSubtitleZh") }}
+                      </label>
+                      <textarea
+                        v-model="form.site_subtitle_zh"
+                        rows="2"
+                        class="input min-h-[72px] resize-y"
+                        :placeholder="t('admin.settings.site.siteSubtitleZhPlaceholder')"
+                      ></textarea>
+                    </div>
+                    <div>
+                      <label
+                        class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      >
+                        {{ t("admin.settings.site.siteSubtitleEn") }}
+                      </label>
+                      <textarea
+                        v-model="form.site_subtitle_en"
+                        rows="2"
+                        class="input min-h-[72px] resize-y"
+                        :placeholder="t('admin.settings.site.siteSubtitleEnPlaceholder')"
+                      ></textarea>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -5328,6 +5393,12 @@ const form = reactive<SettingsForm>({
   site_name: "Sub2API",
   site_logo: "",
   site_subtitle: "Subscription to API Conversion Platform",
+  site_name_zh: "",
+  site_name_en: "",
+  site_title_zh: "",
+  site_title_en: "",
+  site_subtitle_zh: "",
+  site_subtitle_en: "",
   api_base_url: "",
   contact_info: "",
   doc_url: "",
@@ -5976,6 +6047,11 @@ async function loadSettings() {
         (form as Record<string, unknown>)[key] = value;
       }
     }
+    form.site_name_zh = form.site_name_zh || settings.site_name || "Sub2API";
+    form.site_name_en = form.site_name_en || "";
+    form.site_subtitle_zh =
+      form.site_subtitle_zh || settings.site_subtitle || "";
+    form.site_subtitle_en = form.site_subtitle_en || "";
     Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(settings));
     form.backend_mode_enabled = settings.backend_mode_enabled;
     form.default_subscriptions = normalizeDefaultSubscriptionSettings(
@@ -6281,9 +6357,16 @@ async function saveSettings() {
       usd_exchange_rate: form.usd_exchange_rate,
       force_email_on_third_party_signup: form.force_email_on_third_party_signup,
       default_user_rpm_limit: form.default_user_rpm_limit,
-      site_name: form.site_name,
+      site_name: form.site_name_zh || form.site_name_en || form.site_name,
       site_logo: form.site_logo,
-      site_subtitle: form.site_subtitle,
+      site_subtitle:
+        form.site_subtitle_zh || form.site_subtitle_en || form.site_subtitle,
+      site_name_zh: form.site_name_zh,
+      site_name_en: form.site_name_en,
+      site_title_zh: form.site_title_zh,
+      site_title_en: form.site_title_en,
+      site_subtitle_zh: form.site_subtitle_zh,
+      site_subtitle_en: form.site_subtitle_en,
       api_base_url: form.api_base_url,
       contact_info: form.contact_info,
       doc_url: form.doc_url,

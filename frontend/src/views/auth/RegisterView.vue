@@ -294,6 +294,7 @@ import {
   isRegistrationEmailSuffixAllowed,
   normalizeRegistrationEmailSuffixWhitelist
 } from '@/utils/registrationEmailPolicy'
+import type { PublicSettings } from '@/types'
 
 const { t, locale } = useI18n()
 
@@ -319,7 +320,8 @@ const promoCodeEnabled = ref<boolean>(true)
 const invitationCodeEnabled = ref<boolean>(false)
 const turnstileEnabled = ref<boolean>(false)
 const turnstileSiteKey = ref<string>('')
-const siteName = ref<string>('Sub2API')
+const publicSettings = ref<PublicSettings | null>(null)
+const siteName = computed(() => resolveLocalizedSiteName(publicSettings.value))
 const linuxdoOAuthEnabled = ref<boolean>(false)
 const wechatOAuthEnabled = ref<boolean>(false)
 const oidcOAuthEnabled = ref<boolean>(false)
@@ -400,7 +402,7 @@ onMounted(async () => {
     invitationCodeEnabled.value = settings.invitation_code_enabled
     turnstileEnabled.value = settings.turnstile_enabled
     turnstileSiteKey.value = settings.turnstile_site_key || ''
-    siteName.value = settings.site_name || 'Sub2API'
+    publicSettings.value = settings
     linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled
     wechatOAuthEnabled.value = isWeChatWebOAuthEnabled(settings)
     oidcOAuthEnabled.value = settings.oidc_oauth_enabled
@@ -433,6 +435,23 @@ onUnmounted(() => {
     clearTimeout(invitationValidateTimeout)
   }
 })
+
+function resolveLocalizedSiteName(settings: PublicSettings | null): string {
+  const isZh = String(locale.value).toLowerCase().startsWith('zh')
+  const primary = isZh ? settings?.site_name_zh : settings?.site_name_en
+  const secondary = isZh ? settings?.site_name_en : settings?.site_name_zh
+  return firstConfiguredText(primary, secondary, settings?.site_name, 'Sub2API')
+}
+
+function firstConfiguredText(...values: Array<string | undefined>): string {
+  for (const value of values) {
+    const normalized = value?.trim()
+    if (normalized) {
+      return normalized
+    }
+  }
+  return ''
+}
 
 // ==================== Promo Code Validation ====================
 

@@ -11,7 +11,14 @@ export default {
     getStarted: 'Get Started',
     goToDashboard: 'Go to Dashboard',
     exploreMarketplace: 'Browse Models',
+    viewAll: 'View all',
+    nav: {
+      searchModels: 'Search models, providers, and capabilities',
+      models: 'Models'
+    },
     // User-focused value proposition
+    heroBadge: 'Unified access, smart routing, usage-based billing',
+    heroTitle: 'The unified interface for AI models',
     heroSubtitle: 'One Key, All AI Models',
     heroDescription: 'No need to manage multiple subscriptions. Access Claude, GPT, Gemini and more with a single API key',
     tags: {
@@ -52,7 +59,13 @@ export default {
       multiAccount: 'Always Reliable',
       multiAccountDesc: 'Smart routing across multiple upstream accounts with automatic failover. Say goodbye to errors.',
       balanceQuota: 'Pay What You Use',
-      balanceQuotaDesc: 'Usage-based billing with quota limits. Full visibility into team consumption.'
+      balanceQuotaDesc: 'Usage-based billing with quota limits. Full visibility into team consumption.',
+      dataPolicies: 'Custom Data Policies',
+      dataPoliciesDesc: 'Manage models, quotas, and access scope in one place so team requests only use trusted services.',
+      browseAll: 'Browse all',
+      learnMore: 'Learn more',
+      viewUsage: 'View usage',
+      usageChart: 'Usage trend'
     },
     // Comparison section
     comparison: {
@@ -96,9 +109,36 @@ export default {
       supported: 'Supported',
       soon: 'Soon',
       claude: 'Claude',
+      gpt: 'GPT',
       gemini: 'Gemini',
       antigravity: 'Antigravity',
-      more: 'More'
+      more: 'More',
+      empty: 'No models to display yet',
+      unavailable: 'Model data is temporarily unavailable',
+      groups: 'service groups',
+      modelCount: 'Models'
+    },
+    stats: {
+      todayTokens: 'Today Total Tokens',
+      totalTokens: 'Historical Total Tokens',
+      totalUsers: 'Registered Users',
+      supportedModels: 'Supported Models',
+      providerTypes: 'model types',
+      unavailable: 'Stats are temporarily unavailable'
+    },
+    steps: {
+      signup: {
+        title: 'Sign up',
+        description: 'Create an account and add API keys. Team space and quotas can be configured later.'
+      },
+      browse: {
+        title: 'Choose models',
+        description: 'Use the model marketplace to compare supported models, provider types, and relative pricing.'
+      },
+      apiKey: {
+        title: 'Get your API key',
+        description: 'Send OpenAI-compatible, OpenAI Responses, or Anthropic-format requests and settle by actual token usage.'
+      }
     },
     // CTA section
     cta: {
@@ -4775,6 +4815,20 @@ export default {
         siteSubtitle: 'Site Subtitle',
         siteSubtitlePlaceholder: 'Subscription to API Conversion Platform',
         siteSubtitleHint: 'Displayed on login and register pages',
+        siteCopyTitle: 'Site Copy',
+        siteCopyDescription: 'Configure localized site name, site title, and site subtitle.',
+        siteNameZh: 'Site Name (Chinese)',
+        siteNameZhPlaceholder: 'Sub2API',
+        siteNameEn: 'Site Name (English)',
+        siteNameEnPlaceholder: 'Sub2API',
+        siteTitleZh: 'Site Title (Chinese)',
+        siteTitleZhPlaceholder: '统一的大模型接口',
+        siteTitleEn: 'Site Title (English)',
+        siteTitleEnPlaceholder: 'The unified interface for AI models',
+        siteSubtitleZh: 'Site Subtitle (Chinese)',
+        siteSubtitleZhPlaceholder: '无需管理多个订阅账号，一站式接入 Claude、GPT、Gemini 等主流 AI 服务',
+        siteSubtitleEn: 'Site Subtitle (English)',
+        siteSubtitleEnPlaceholder: 'No need to manage multiple subscriptions. Access Claude, GPT, Gemini and more with a single API key',
         apiBaseUrl: 'API Base URL',
         apiBaseUrlPlaceholder: 'https://api.example.com',
         apiBaseUrlHint:

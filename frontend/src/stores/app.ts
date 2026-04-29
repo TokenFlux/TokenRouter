@@ -25,7 +25,7 @@ export const useAppStore = defineStore('app', () => {
   // Public settings cache state
   const publicSettingsLoaded = ref<boolean>(false)
   const publicSettingsLoading = ref<boolean>(false)
-  const siteName = ref<string>('Sub2API')
+  const defaultSiteName = ref<string>('Sub2API')
   const siteLogo = ref<string>('')
   const siteVersion = ref<string>('')
   const contactInfo = ref<string>('')
@@ -49,6 +49,13 @@ export const useAppStore = defineStore('app', () => {
 
   const hasActiveToasts = computed(() => toasts.value.length > 0)
   const backendModeEnabled = computed(() => cachedPublicSettings.value?.backend_mode_enabled ?? false)
+  const siteName = computed(() =>
+    resolveLocalizedText(
+      cachedPublicSettings.value?.site_name_zh,
+      cachedPublicSettings.value?.site_name_en,
+      cachedPublicSettings.value?.site_name || defaultSiteName.value || 'Sub2API'
+    )
+  )
 
   const loadingCount = ref<number>(0)
 
@@ -284,6 +291,23 @@ export const useAppStore = defineStore('app', () => {
 
   // ==================== Public Settings Management ====================
 
+  function resolveLocalizedText(zhText: string | undefined, enText: string | undefined, fallback: string): string {
+    const isZh = String(i18n.global.locale.value).toLowerCase().startsWith('zh')
+    const primary = isZh ? zhText : enText
+    const secondary = isZh ? enText : zhText
+    return firstConfiguredText(primary, secondary, fallback) || 'Sub2API'
+  }
+
+  function firstConfiguredText(...values: Array<string | undefined>): string {
+    for (const value of values) {
+      const normalized = value?.trim()
+      if (normalized) {
+        return normalized
+      }
+    }
+    return ''
+  }
+
   /**
    * Apply settings to store state (internal helper to avoid code duplication)
    */
@@ -292,7 +316,7 @@ export const useAppStore = defineStore('app', () => {
       window.__APP_CONFIG__ = { ...config }
     }
     cachedPublicSettings.value = config
-    siteName.value = config.site_name || 'Sub2API'
+    defaultSiteName.value = config.site_name || 'Sub2API'
     siteLogo.value = config.site_logo || ''
     siteVersion.value = config.version || ''
     contactInfo.value = config.contact_info || ''
@@ -330,6 +354,12 @@ export const useAppStore = defineStore('app', () => {
         site_name: siteName.value,
         site_logo: siteLogo.value,
         site_subtitle: '',
+        site_name_zh: '',
+        site_name_en: '',
+        site_title_zh: '',
+        site_title_en: '',
+        site_subtitle_zh: '',
+        site_subtitle_en: '',
         api_base_url: apiBaseUrl.value,
         contact_info: contactInfo.value,
         doc_url: docUrl.value,

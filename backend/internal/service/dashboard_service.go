@@ -33,9 +33,20 @@ type dashboardStatsRangeFetcher interface {
 	GetDashboardStatsWithRange(ctx context.Context, start, end time.Time) (*usagestats.DashboardStats, error)
 }
 
+type dashboardPublicStatsFetcher interface {
+	GetDashboardPublicStats(ctx context.Context, start, end time.Time, useAggregates bool) (*DashboardPublicStats, error)
+}
+
 type dashboardStatsCacheEntry struct {
 	Stats     *usagestats.DashboardStats `json:"stats"`
 	UpdatedAt int64                      `json:"updated_at"`
+}
+
+// DashboardPublicStats 是首页公开展示所需的轻量统计。
+type DashboardPublicStats struct {
+	TodayTokens int64
+	TotalTokens int64
+	TotalUsers  int64
 }
 
 // DashboardService 提供管理员仪表盘统计服务。
@@ -122,6 +133,29 @@ func (s *DashboardService) GetDashboardStats(ctx context.Context) (*usagestats.D
 		return nil, fmt.Errorf("get dashboard stats: %w", err)
 	}
 	return stats, nil
+}
+
+// GetPublicDashboardStats 返回首页公开统计，避免触发完整管理员仪表盘查询。
+func (s *DashboardService) GetPublicDashboardStats(ctx context.Context) (*DashboardPublicStats, error) {
+	if fetcher, ok := s.usageRepo.(dashboardPublicStatsFetcher); ok {
+		now := time.Now().UTC()
+		start := truncateToDayUTC(now.AddDate(0, 0, -s.aggUsageDays))
+		stats, err := fetcher.GetDashboardPublicStats(ctx, start, now, s.aggEnabled)
+		if err != nil {
+			return nil, fmt.Errorf("get public dashboard stats: %w", err)
+		}
+		return stats, nil
+	}
+
+	stats, err := s.GetDashboardStats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &DashboardPublicStats{
+		TodayTokens: stats.TodayTokens,
+		TotalTokens: stats.TotalTokens,
+		TotalUsers:  stats.TotalUsers,
+	}, nil
 }
 
 func (s *DashboardService) GetUsageTrendWithFilters(ctx context.Context, startTime, endTime time.Time, granularity string, userID, apiKeyID, accountID, groupID int64, model string, requestType *int16, stream *bool, billingType *int8) ([]usagestats.TrendDataPoint, error) {

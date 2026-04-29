@@ -1,6 +1,14 @@
 package dto
 
-import "github.com/TokenFlux/TokenRouter/internal/service"
+import (
+	"github.com/TokenFlux/TokenRouter/internal/service"
+)
+
+type ModelMarketplaceStats struct {
+	TodayTokens int64 `json:"today_tokens"`
+	TotalTokens int64 `json:"total_tokens"`
+	TotalUsers  int64 `json:"total_users"`
+}
 
 type ModelMarketplacePricing struct {
 	PricingMode              string  `json:"pricing_mode"`
@@ -72,4 +80,12 @@ func ModelMarketplaceGroupsFromService(groups []service.ModelMarketplaceGroup) [
 	}
 
 	return out
+}
+
+func ModelMarketplaceStatsFromService(stats *service.DashboardPublicStats) ModelMarketplaceStats {
+	return ModelMarketplaceStats{
+		TodayTokens: stats.TodayTokens,
+		TotalTokens: stats.TotalTokens,
+		TotalUsers:  stats.TotalUsers,
+	}
 }

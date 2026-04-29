@@ -94,6 +94,12 @@ type SystemSettings struct {
 	SiteName                    string
 	SiteLogo                    string
 	SiteSubtitle                string
+	SiteNameZh                  string
+	SiteNameEn                  string
+	SiteTitleZh                 string
+	SiteTitleEn                 string
+	SiteSubtitleZh              string
+	SiteSubtitleEn              string
 	APIBaseURL                  string
 	ContactInfo                 string
 	DocURL                      string
@@ -188,6 +194,12 @@ type PublicSettings struct {
 	SiteName                         string
 	SiteLogo                         string
 	SiteSubtitle                     string
+	SiteNameZh                       string
+	SiteNameEn                       string
+	SiteTitleZh                      string
+	SiteTitleEn                      string
+	SiteSubtitleZh                   string
+	SiteSubtitleEn                   string
 	APIBaseURL                       string
 	ContactInfo                      string
 	DocURL                           string

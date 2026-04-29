@@ -43,17 +43,35 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
 import { sanitizeUrl } from '@/utils/url'
 
 const appStore = useAppStore()
+const { locale } = useI18n()
 
 const siteName = computed(() => appStore.siteName || 'Sub2API')
 const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
-const siteSubtitle = computed(() => appStore.cachedPublicSettings?.site_subtitle || 'Subscription to API Conversion Platform')
+const siteSubtitle = computed(() => {
+  const settings = appStore.cachedPublicSettings
+  const isZh = String(locale.value).toLowerCase().startsWith('zh')
+  const primary = isZh ? settings?.site_subtitle_zh : settings?.site_subtitle_en
+  const secondary = isZh ? settings?.site_subtitle_en : settings?.site_subtitle_zh
+  return firstConfiguredText(primary, secondary, settings?.site_subtitle, 'Subscription to API Conversion Platform')
+})
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 
 const currentYear = computed(() => new Date().getFullYear())
+
+function firstConfiguredText(...values: Array<string | undefined>): string {
+  for (const value of values) {
+    const normalized = value?.trim()
+    if (normalized) {
+      return normalized
+    }
+  }
+  return ''
+}
 
 onMounted(() => {
   appStore.fetchPublicSettings()

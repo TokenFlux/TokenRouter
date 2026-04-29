@@ -343,6 +343,12 @@ export interface SystemSettings {
   site_name: string;
   site_logo: string;
   site_subtitle: string;
+  site_name_zh: string;
+  site_name_en: string;
+  site_title_zh: string;
+  site_title_en: string;
+  site_subtitle_zh: string;
+  site_subtitle_en: string;
   api_base_url: string;
   contact_info: string;
   doc_url: string;
@@ -525,6 +531,12 @@ export interface UpdateSettingsRequest {
   site_name?: string;
   site_logo?: string;
   site_subtitle?: string;
+  site_name_zh?: string;
+  site_name_en?: string;
+  site_title_zh?: string;
+  site_title_en?: string;
+  site_subtitle_zh?: string;
+  site_subtitle_en?: string;
   api_base_url?: string;
   contact_info?: string;
   doc_url?: string;

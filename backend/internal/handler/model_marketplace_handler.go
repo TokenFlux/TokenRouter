@@ -10,11 +10,13 @@ import (
 
 type ModelMarketplaceHandler struct {
 	modelMarketplaceService *service.ModelMarketplaceService
+	dashboardService        *service.DashboardService
 }
 
-func NewModelMarketplaceHandler(modelMarketplaceService *service.ModelMarketplaceService) *ModelMarketplaceHandler {
+func NewModelMarketplaceHandler(modelMarketplaceService *service.ModelMarketplaceService, dashboardService *service.DashboardService) *ModelMarketplaceHandler {
 	return &ModelMarketplaceHandler{
 		modelMarketplaceService: modelMarketplaceService,
+		dashboardService:        dashboardService,
 	}
 }
 
@@ -28,4 +30,16 @@ func (h *ModelMarketplaceHandler) ListPublic(c *gin.Context) {
 	}
 
 	response.Success(c, dto.ModelMarketplaceGroupsFromService(groups))
+}
+
+// StatsPublic 返回首页公开统计，只暴露总 Token 和注册用户数。
+// GET /api/v1/marketplace/stats
+func (h *ModelMarketplaceHandler) StatsPublic(c *gin.Context) {
+	stats, err := h.dashboardService.GetPublicDashboardStats(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.ModelMarketplaceStatsFromService(stats))
 }

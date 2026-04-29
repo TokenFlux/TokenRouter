@@ -11,7 +11,14 @@ export default {
     getStarted: '立即开始',
     goToDashboard: '进入控制台',
     exploreMarketplace: '浏览模型广场',
+    viewAll: '查看全部',
+    nav: {
+      searchModels: '搜索模型、服务商和能力',
+      models: '模型'
+    },
     // 新增：面向用户的价值主张
+    heroBadge: '统一接入、智能路由、按量计费',
+    heroTitle: '统一的大模型接口',
     heroSubtitle: '一个密钥，畅用多个 AI 模型',
     heroDescription: '无需管理多个订阅账号，一站式接入 Claude、GPT、Gemini 等主流 AI 服务',
     tags: {
@@ -52,7 +59,13 @@ export default {
       multiAccount: '稳定可靠',
       multiAccountDesc: '智能调度多个上游账号，自动切换和负载均衡，告别频繁报错。',
       balanceQuota: '用多少付多少',
-      balanceQuotaDesc: '按实际使用量计费，支持设置配额上限，团队用量一目了然。'
+      balanceQuotaDesc: '按实际使用量计费，支持设置配额上限，团队用量一目了然。',
+      dataPolicies: '数据策略可控',
+      dataPoliciesDesc: '在统一入口管理模型、额度和访问范围，让团队请求走向可信的服务。',
+      browseAll: '浏览全部',
+      learnMore: '了解更多',
+      viewUsage: '查看用量',
+      usageChart: '用量趋势'
     },
     // 优势对比
     comparison: {
@@ -96,9 +109,36 @@ export default {
       supported: '已支持',
       soon: '即将推出',
       claude: 'Claude',
+      gpt: 'GPT',
       gemini: 'Gemini',
       antigravity: 'Antigravity',
-      more: '更多'
+      more: '更多',
+      empty: '暂无可展示的模型',
+      unavailable: '模型数据暂不可用',
+      groups: '个服务组',
+      modelCount: '模型'
+    },
+    stats: {
+      todayTokens: '今日总 Token 量',
+      totalTokens: '历史总 Token 量',
+      totalUsers: '总注册用户量',
+      supportedModels: '已接入模型',
+      providerTypes: '类模型',
+      unavailable: '统计数据暂不可用'
+    },
+    steps: {
+      signup: {
+        title: '注册账号',
+        description: '登录后即可创建密钥，团队空间和额度配置可以后续再完善。'
+      },
+      browse: {
+        title: '选择模型',
+        description: '在模型广场查看已支持模型、服务类型和相对官方价格。'
+      },
+      apiKey: {
+        title: '获取 API Key',
+        description: '支持 OpenAI 兼容、OpenAI Responses 和 Anthropic 格式请求，按实际 Token 用量结算。'
+      }
     },
     // CTA 区块
     cta: {
@@ -4933,6 +4973,20 @@ export default {
         siteSubtitle: '站点副标题',
         siteSubtitleHint: '显示在登录和注册页面',
         siteSubtitlePlaceholder: '订阅转 API 转换平台',
+        siteCopyTitle: '站点文案',
+        siteCopyDescription: '配置站点名称、站点标题和站点副标题的中英文内容',
+        siteNameZh: '站点名称（中文）',
+        siteNameZhPlaceholder: 'Sub2API',
+        siteNameEn: '站点名称（英文）',
+        siteNameEnPlaceholder: 'Sub2API',
+        siteTitleZh: '站点标题（中文）',
+        siteTitleZhPlaceholder: '统一的大模型接口',
+        siteTitleEn: '站点标题（英文）',
+        siteTitleEnPlaceholder: 'The unified interface for AI models',
+        siteSubtitleZh: '站点副标题（中文）',
+        siteSubtitleZhPlaceholder: '无需管理多个订阅账号，一站式接入 Claude、GPT、Gemini 等主流 AI 服务',
+        siteSubtitleEn: '站点副标题（英文）',
+        siteSubtitleEnPlaceholder: 'No need to manage multiple subscriptions. Access Claude, GPT, Gemini and more with a single API key',
         apiBaseUrl: 'API 端点地址',
         apiBaseUrlHint: '用于"使用密钥"和"导入到 CC Switch"功能，留空则使用当前站点地址',
         apiBaseUrlPlaceholder: 'https://api.example.com',

@@ -414,6 +414,12 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeySiteName,
 		SettingKeySiteLogo,
 		SettingKeySiteSubtitle,
+		SettingKeySiteNameZh,
+		SettingKeySiteNameEn,
+		SettingKeySiteTitleZh,
+		SettingKeySiteTitleEn,
+		SettingKeySiteSubtitleZh,
+		SettingKeySiteSubtitleEn,
 		SettingKeyAPIBaseURL,
 		SettingKeyContactInfo,
 		SettingKeyDocURL,
@@ -519,6 +525,12 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SiteName:                         s.getStringOrDefault(settings, SettingKeySiteName, "Sub2API"),
 		SiteLogo:                         settings[SettingKeySiteLogo],
 		SiteSubtitle:                     s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
+		SiteNameZh:                       settings[SettingKeySiteNameZh],
+		SiteNameEn:                       settings[SettingKeySiteNameEn],
+		SiteTitleZh:                      settings[SettingKeySiteTitleZh],
+		SiteTitleEn:                      settings[SettingKeySiteTitleEn],
+		SiteSubtitleZh:                   settings[SettingKeySiteSubtitleZh],
+		SiteSubtitleEn:                   settings[SettingKeySiteSubtitleEn],
 		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
 		ContactInfo:                      settings[SettingKeyContactInfo],
 		DocURL:                           settings[SettingKeyDocURL],
@@ -582,6 +594,12 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		SiteName                         string          `json:"site_name"`
 		SiteLogo                         string          `json:"site_logo,omitempty"`
 		SiteSubtitle                     string          `json:"site_subtitle,omitempty"`
+		SiteNameZh                       string          `json:"site_name_zh,omitempty"`
+		SiteNameEn                       string          `json:"site_name_en,omitempty"`
+		SiteTitleZh                      string          `json:"site_title_zh,omitempty"`
+		SiteTitleEn                      string          `json:"site_title_en,omitempty"`
+		SiteSubtitleZh                   string          `json:"site_subtitle_zh,omitempty"`
+		SiteSubtitleEn                   string          `json:"site_subtitle_en,omitempty"`
 		APIBaseURL                       string          `json:"api_base_url,omitempty"`
 		ContactInfo                      string          `json:"contact_info,omitempty"`
 		DocURL                           string          `json:"doc_url,omitempty"`
@@ -623,6 +641,12 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		SiteName:                         settings.SiteName,
 		SiteLogo:                         settings.SiteLogo,
 		SiteSubtitle:                     settings.SiteSubtitle,
+		SiteNameZh:                       settings.SiteNameZh,
+		SiteNameEn:                       settings.SiteNameEn,
+		SiteTitleZh:                      settings.SiteTitleZh,
+		SiteTitleEn:                      settings.SiteTitleEn,
+		SiteSubtitleZh:                   settings.SiteSubtitleZh,
+		SiteSubtitleEn:                   settings.SiteSubtitleEn,
 		APIBaseURL:                       settings.APIBaseURL,
 		ContactInfo:                      settings.ContactInfo,
 		DocURL:                           settings.DocURL,
@@ -1074,6 +1098,12 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeySiteName] = settings.SiteName
 	updates[SettingKeySiteLogo] = settings.SiteLogo
 	updates[SettingKeySiteSubtitle] = settings.SiteSubtitle
+	updates[SettingKeySiteNameZh] = settings.SiteNameZh
+	updates[SettingKeySiteNameEn] = settings.SiteNameEn
+	updates[SettingKeySiteTitleZh] = settings.SiteTitleZh
+	updates[SettingKeySiteTitleEn] = settings.SiteTitleEn
+	updates[SettingKeySiteSubtitleZh] = settings.SiteSubtitleZh
+	updates[SettingKeySiteSubtitleEn] = settings.SiteSubtitleEn
 	updates[SettingKeyAPIBaseURL] = settings.APIBaseURL
 	updates[SettingKeyContactInfo] = settings.ContactInfo
 	updates[SettingKeyDocURL] = settings.DocURL
@@ -1634,6 +1664,12 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyReferralRewardAmount:                     "0",
 		SettingKeySiteName:                                 "Sub2API",
 		SettingKeySiteLogo:                                 "",
+		SettingKeySiteNameZh:                               "",
+		SettingKeySiteNameEn:                               "",
+		SettingKeySiteTitleZh:                              "",
+		SettingKeySiteTitleEn:                              "",
+		SettingKeySiteSubtitleZh:                           "",
+		SettingKeySiteSubtitleEn:                           "",
 		SettingKeyPurchaseSubscriptionEnabled:              "false",
 		SettingKeyPurchaseSubscriptionURL:                  "",
 		SettingKeyTableDefaultPageSize:                     "20",
@@ -1775,6 +1811,12 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		SiteName:                         s.getStringOrDefault(settings, SettingKeySiteName, "Sub2API"),
 		SiteLogo:                         settings[SettingKeySiteLogo],
 		SiteSubtitle:                     s.getStringOrDefault(settings, SettingKeySiteSubtitle, "Subscription to API Conversion Platform"),
+		SiteNameZh:                       settings[SettingKeySiteNameZh],
+		SiteNameEn:                       settings[SettingKeySiteNameEn],
+		SiteTitleZh:                      settings[SettingKeySiteTitleZh],
+		SiteTitleEn:                      settings[SettingKeySiteTitleEn],
+		SiteSubtitleZh:                   settings[SettingKeySiteSubtitleZh],
+		SiteSubtitleEn:                   settings[SettingKeySiteSubtitleEn],
 		APIBaseURL:                       settings[SettingKeyAPIBaseURL],
 		ContactInfo:                      settings[SettingKeyContactInfo],
 		DocURL:                           settings[SettingKeyDocURL],

@@ -177,6 +177,7 @@ func RegisterAuthRoutes(
 	marketplace := v1.Group("/marketplace")
 	{
 		marketplace.GET("/models", h.ModelMarketplace.ListPublic)
+		marketplace.GET("/stats", h.ModelMarketplace.StatsPublic)
 	}
 
 	// 需要认证的当前用户信息

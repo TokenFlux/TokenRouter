@@ -173,6 +173,12 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		SiteName:                               settings.SiteName,
 		SiteLogo:                               settings.SiteLogo,
 		SiteSubtitle:                           settings.SiteSubtitle,
+		SiteNameZh:                             settings.SiteNameZh,
+		SiteNameEn:                             settings.SiteNameEn,
+		SiteTitleZh:                            settings.SiteTitleZh,
+		SiteTitleEn:                            settings.SiteTitleEn,
+		SiteSubtitleZh:                         settings.SiteSubtitleZh,
+		SiteSubtitleEn:                         settings.SiteSubtitleEn,
 		APIBaseURL:                             settings.APIBaseURL,
 		ContactInfo:                            settings.ContactInfo,
 		DocURL:                                 settings.DocURL,
@@ -368,6 +374,12 @@ type UpdateSettingsRequest struct {
 	SiteName                    string                `json:"site_name"`
 	SiteLogo                    string                `json:"site_logo"`
 	SiteSubtitle                string                `json:"site_subtitle"`
+	SiteNameZh                  string                `json:"site_name_zh"`
+	SiteNameEn                  string                `json:"site_name_en"`
+	SiteTitleZh                 string                `json:"site_title_zh"`
+	SiteTitleEn                 string                `json:"site_title_en"`
+	SiteSubtitleZh              string                `json:"site_subtitle_zh"`
+	SiteSubtitleEn              string                `json:"site_subtitle_en"`
 	APIBaseURL                  string                `json:"api_base_url"`
 	ContactInfo                 string                `json:"contact_info"`
 	DocURL                      string                `json:"doc_url"`
@@ -1170,6 +1182,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		SiteName:                         req.SiteName,
 		SiteLogo:                         req.SiteLogo,
 		SiteSubtitle:                     req.SiteSubtitle,
+		SiteNameZh:                       req.SiteNameZh,
+		SiteNameEn:                       req.SiteNameEn,
+		SiteTitleZh:                      req.SiteTitleZh,
+		SiteTitleEn:                      req.SiteTitleEn,
+		SiteSubtitleZh:                   req.SiteSubtitleZh,
+		SiteSubtitleEn:                   req.SiteSubtitleEn,
 		APIBaseURL:                       req.APIBaseURL,
 		ContactInfo:                      req.ContactInfo,
 		DocURL:                           req.DocURL,
@@ -1480,6 +1498,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		SiteName:                               updatedSettings.SiteName,
 		SiteLogo:                               updatedSettings.SiteLogo,
 		SiteSubtitle:                           updatedSettings.SiteSubtitle,
+		SiteNameZh:                             updatedSettings.SiteNameZh,
+		SiteNameEn:                             updatedSettings.SiteNameEn,
+		SiteTitleZh:                            updatedSettings.SiteTitleZh,
+		SiteTitleEn:                            updatedSettings.SiteTitleEn,
+		SiteSubtitleZh:                         updatedSettings.SiteSubtitleZh,
+		SiteSubtitleEn:                         updatedSettings.SiteSubtitleEn,
 		APIBaseURL:                             updatedSettings.APIBaseURL,
 		ContactInfo:                            updatedSettings.ContactInfo,
 		DocURL:                                 updatedSettings.DocURL,
@@ -1800,6 +1824,24 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.SiteSubtitle != after.SiteSubtitle {
 		changed = append(changed, "site_subtitle")
+	}
+	if before.SiteNameZh != after.SiteNameZh {
+		changed = append(changed, "site_name_zh")
+	}
+	if before.SiteNameEn != after.SiteNameEn {
+		changed = append(changed, "site_name_en")
+	}
+	if before.SiteTitleZh != after.SiteTitleZh {
+		changed = append(changed, "site_title_zh")
+	}
+	if before.SiteTitleEn != after.SiteTitleEn {
+		changed = append(changed, "site_title_en")
+	}
+	if before.SiteSubtitleZh != after.SiteSubtitleZh {
+		changed = append(changed, "site_subtitle_zh")
+	}
+	if before.SiteSubtitleEn != after.SiteSubtitleEn {
+		changed = append(changed, "site_subtitle_en")
 	}
 	if before.APIBaseURL != after.APIBaseURL {
 		changed = append(changed, "api_base_url")
