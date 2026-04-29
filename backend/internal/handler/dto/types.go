@@ -90,6 +90,7 @@ type Group struct {
 	Name           string  `json:"name"`
 	Description    string  `json:"description"`
 	Platform       string  `json:"platform"`
+	DisplayBrand   string  `json:"display_brand"`
 	RateMultiplier float64 `json:"rate_multiplier"`
 	IsExclusive    bool    `json:"is_exclusive"`
 	IsDefault      bool    `json:"is_default"`

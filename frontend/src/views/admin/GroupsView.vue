@@ -122,6 +122,14 @@
             </span>
           </template>
 
+          <template #cell-display_brand="{ value }">
+            <span v-if="value" :class="displayBrandBadgeClass(value)">
+              <ProviderIcon :brand="String(value)" size="14px" />
+              {{ displayBrandLabel(value) }}
+            </span>
+            <span v-else class="text-sm text-gray-700 dark:text-gray-300">-</span>
+          </template>
+
           <template #cell-rate_multiplier="{ value }">
             <span class="text-sm text-gray-700 dark:text-gray-300"
               >{{ value }}x</span
@@ -326,6 +334,21 @@
             class="input"
             :placeholder="t('admin.groups.optionalDescription')"
           ></textarea>
+        </div>
+        <div>
+          <label class="input-label">{{
+            t("admin.groups.form.displayBrand")
+          }}</label>
+          <Select
+            v-model="createForm.display_brand"
+            :options="providerBrandOptions"
+            :placeholder="t('admin.groups.displayBrandPlaceholder')"
+            :search-placeholder="t('admin.groups.displayBrandPlaceholder')"
+            :creatable-prefix="t('admin.groups.displayBrandCreatablePrefix')"
+            searchable
+            creatable
+          />
+          <p class="input-hint">{{ t("admin.groups.displayBrandHint") }}</p>
         </div>
         <div>
           <label class="input-label">{{
@@ -1414,6 +1437,21 @@
             rows="3"
             class="input"
           ></textarea>
+        </div>
+        <div>
+          <label class="input-label">{{
+            t("admin.groups.form.displayBrand")
+          }}</label>
+          <Select
+            v-model="editForm.display_brand"
+            :options="providerBrandOptions"
+            :placeholder="t('admin.groups.displayBrandPlaceholder')"
+            :search-placeholder="t('admin.groups.displayBrandPlaceholder')"
+            :creatable-prefix="t('admin.groups.displayBrandCreatablePrefix')"
+            searchable
+            creatable
+          />
+          <p class="input-hint">{{ t("admin.groups.displayBrandHint") }}</p>
         </div>
         <div>
           <label class="input-label">{{
@@ -2610,12 +2648,18 @@ import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import Select from "@/components/common/Select.vue";
 import PlatformIcon from "@/components/common/PlatformIcon.vue";
+import ProviderIcon from "@/components/common/ProviderIcon.vue";
 import Icon from "@/components/icons/Icon.vue";
 import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipliersModal.vue";
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
+import {
+  defaultProviderBrandOptions,
+  providerBrandDisplayName,
+  resolveProviderBrand,
+} from "@/utils/providerBrand";
 import { useKeyedDebouncedSearch } from "@/composables/useKeyedDebouncedSearch";
 import { getPersistedPageSize } from "@/composables/usePersistedPageSize";
 import {
@@ -2630,12 +2674,18 @@ const { t } = useI18n();
 const appStore = useAppStore();
 const onboardingStore = useOnboardingStore();
 const { balanceUnitSymbol, formatBalanceAmount } = useBalanceDisplay();
+const providerBrandOptions = defaultProviderBrandOptions;
 
 const columns = computed<Column[]>(() => [
   { key: "name", label: t("admin.groups.columns.name"), sortable: true },
   {
     key: "platform",
     label: t("admin.groups.columns.platform"),
+    sortable: true,
+  },
+  {
+    key: "display_brand",
+    label: t("admin.groups.columns.displayBrand"),
     sortable: true,
   },
   {
@@ -2851,6 +2901,7 @@ const editMessagesDispatchDefaults = createDefaultMessagesDispatchFormState();
 const createForm = reactive({
   name: "",
   description: "",
+  display_brand: "",
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
   is_exclusive: false,
@@ -3129,6 +3180,7 @@ const convertApiFormatToRoutingRules = async (
 const editForm = reactive({
   name: "",
   description: "",
+  display_brand: "",
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
   is_exclusive: false,
@@ -3224,6 +3276,17 @@ const formatGroupBalance = (cost: number | null | undefined): string =>
 const imagePriceLabel = (size: string): string =>
   `${size} (${balanceUnitSymbol.value})`;
 
+const normalizeDisplayBrand = (value: string): string => value.trim().slice(0, 50);
+
+const displayBrandLabel = (value: unknown): string =>
+  providerBrandDisplayName(String(value || ""));
+
+const displayBrandBadgeClass = (value: unknown): string => {
+  const base =
+    "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium";
+  return `${base} ${resolveProviderBrand(String(value || "")).badgeClass}`;
+};
+
 const loadUsageSummary = async () => {
   usageLoading.value = true;
   try {
@@ -3309,6 +3372,7 @@ const closeCreateModal = () => {
   clearAllAccountSearchState();
   createForm.name = "";
   createForm.description = "";
+  createForm.display_brand = "";
   createForm.platform = "anthropic";
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
@@ -3338,6 +3402,7 @@ const handleCreateGroup = async () => {
     // 构建请求数据，包含模型路由配置
     const requestData = {
       ...createForm,
+      display_brand: normalizeDisplayBrand(createForm.display_brand),
       model_routing: convertRoutingRulesToApiFormat(
         createModelRoutingRules.value,
       ),
@@ -3375,6 +3440,7 @@ const handleEdit = async (group: AdminGroup) => {
   editingGroup.value = group;
   editForm.name = group.name;
   editForm.description = group.description || "";
+  editForm.display_brand = group.display_brand || "";
   editForm.platform = group.platform;
   editForm.rate_multiplier = group.rate_multiplier;
   editForm.is_exclusive = group.is_exclusive;
@@ -3441,6 +3507,7 @@ const handleUpdateGroup = async () => {
     // 转换 fallback_group_id: null -> 0 (后端使用 0 表示清除)
     const payload = {
       ...editForm,
+      display_brand: normalizeDisplayBrand(editForm.display_brand),
       fallback_group_id:
         editForm.fallback_group_id === null ? 0 : editForm.fallback_group_id,
       fallback_group_id_on_invalid_request:

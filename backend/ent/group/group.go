@@ -36,6 +36,8 @@ const (
 	FieldStatus = "status"
 	// FieldPlatform holds the string denoting the platform field in the database.
 	FieldPlatform = "platform"
+	// FieldDisplayBrand holds the string denoting the display_brand field in the database.
+	FieldDisplayBrand = "display_brand"
 	// FieldImagePrice1k holds the string denoting the image_price_1k field in the database.
 	FieldImagePrice1k = "image_price_1k"
 	// FieldImagePrice2k holds the string denoting the image_price_2k field in the database.
@@ -137,6 +139,7 @@ var Columns = []string{
 	FieldIsDefault,
 	FieldStatus,
 	FieldPlatform,
+	FieldDisplayBrand,
 	FieldImagePrice1k,
 	FieldImagePrice2k,
 	FieldImagePrice4k,
@@ -205,6 +208,10 @@ var (
 	DefaultPlatform string
 	// PlatformValidator is a validator for the "platform" field. It is called by the builders before save.
 	PlatformValidator func(string) error
+	// DefaultDisplayBrand holds the default value on creation for the "display_brand" field.
+	DefaultDisplayBrand string
+	// DisplayBrandValidator is a validator for the "display_brand" field. It is called by the builders before save.
+	DisplayBrandValidator func(string) error
 	// DefaultClaudeCodeOnly holds the default value on creation for the "claude_code_only" field.
 	DefaultClaudeCodeOnly bool
 	// DefaultModelRoutingEnabled holds the default value on creation for the "model_routing_enabled" field.
@@ -287,6 +294,11 @@ func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 // ByPlatform orders the results by the platform field.
 func ByPlatform(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPlatform, opts...).ToFunc()
+}
+
+// ByDisplayBrand orders the results by the display_brand field.
+func ByDisplayBrand(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDisplayBrand, opts...).ToFunc()
 }
 
 // ByImagePrice1k orders the results by the image_price_1k field.

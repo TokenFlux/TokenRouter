@@ -18,6 +18,7 @@ type ModelMarketplaceGroup struct {
 	Name               string
 	Description        string
 	Platform           string
+	DisplayBrand       string
 	RateMultiplier     float64
 	OfficialPriceRatio *float64
 	ModelCount         int
@@ -79,6 +80,7 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 			Name:               group.Name,
 			Description:        group.Description,
 			Platform:           group.Platform,
+			DisplayBrand:       marketplaceGroupDisplayBrand(group),
 			RateMultiplier:     group.RateMultiplier,
 			OfficialPriceRatio: officialPriceRatio,
 			ModelCount:         len(models),
@@ -87,6 +89,13 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 	}
 
 	return out, nil
+}
+
+func marketplaceGroupDisplayBrand(group *Group) string {
+	if brand := strings.TrimSpace(group.DisplayBrand); brand != "" {
+		return brand
+	}
+	return group.Name
 }
 
 type marketplaceDiscountConfig struct {

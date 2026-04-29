@@ -57,6 +57,10 @@ func (Group) Fields() []ent.Field {
 		field.String("platform").
 			MaxLen(50).
 			Default(domain.PlatformAnthropic),
+		field.String("display_brand").
+			MaxLen(50).
+			Default("").
+			Comment("模型广场展示品牌"),
 
 		// 图片生成计费配置（antigravity 和 gemini 平台使用）
 		field.Float("image_price_1k").

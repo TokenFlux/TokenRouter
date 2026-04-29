@@ -10073,6 +10073,7 @@ type GroupMutation struct {
 	is_default                              *bool
 	status                                  *string
 	platform                                *string
+	display_brand                           *string
 	image_price_1k                          *float64
 	addimage_price_1k                       *float64
 	image_price_2k                          *float64
@@ -10618,6 +10619,42 @@ func (m *GroupMutation) OldPlatform(ctx context.Context) (v string, err error) {
 // ResetPlatform resets all changes to the "platform" field.
 func (m *GroupMutation) ResetPlatform() {
 	m.platform = nil
+}
+
+// SetDisplayBrand sets the "display_brand" field.
+func (m *GroupMutation) SetDisplayBrand(s string) {
+	m.display_brand = &s
+}
+
+// DisplayBrand returns the value of the "display_brand" field in the mutation.
+func (m *GroupMutation) DisplayBrand() (r string, exists bool) {
+	v := m.display_brand
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldDisplayBrand returns the old "display_brand" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldDisplayBrand(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldDisplayBrand is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldDisplayBrand requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldDisplayBrand: %w", err)
+	}
+	return oldValue.DisplayBrand, nil
+}
+
+// ResetDisplayBrand resets all changes to the "display_brand" field.
+func (m *GroupMutation) ResetDisplayBrand() {
+	m.display_brand = nil
 }
 
 // SetImagePrice1k sets the "image_price_1k" field.
@@ -11720,7 +11757,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 27)
+	fields := make([]string, 0, 28)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -11750,6 +11787,9 @@ func (m *GroupMutation) Fields() []string {
 	}
 	if m.platform != nil {
 		fields = append(fields, group.FieldPlatform)
+	}
+	if m.display_brand != nil {
+		fields = append(fields, group.FieldDisplayBrand)
 	}
 	if m.image_price_1k != nil {
 		fields = append(fields, group.FieldImagePrice1k)
@@ -11830,6 +11870,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.Status()
 	case group.FieldPlatform:
 		return m.Platform()
+	case group.FieldDisplayBrand:
+		return m.DisplayBrand()
 	case group.FieldImagePrice1k:
 		return m.ImagePrice1k()
 	case group.FieldImagePrice2k:
@@ -11893,6 +11935,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldStatus(ctx)
 	case group.FieldPlatform:
 		return m.OldPlatform(ctx)
+	case group.FieldDisplayBrand:
+		return m.OldDisplayBrand(ctx)
 	case group.FieldImagePrice1k:
 		return m.OldImagePrice1k(ctx)
 	case group.FieldImagePrice2k:
@@ -12005,6 +12049,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetPlatform(v)
+		return nil
+	case group.FieldDisplayBrand:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetDisplayBrand(v)
 		return nil
 	case group.FieldImagePrice1k:
 		v, ok := value.(float64)
@@ -12353,6 +12404,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldPlatform:
 		m.ResetPlatform()
+		return nil
+	case group.FieldDisplayBrand:
+		m.ResetDisplayBrand()
 		return nil
 	case group.FieldImagePrice1k:
 		m.ResetImagePrice1k()

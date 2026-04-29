@@ -159,6 +159,20 @@ func (_c *GroupCreate) SetNillablePlatform(v *string) *GroupCreate {
 	return _c
 }
 
+// SetDisplayBrand sets the "display_brand" field.
+func (_c *GroupCreate) SetDisplayBrand(v string) *GroupCreate {
+	_c.mutation.SetDisplayBrand(v)
+	return _c
+}
+
+// SetNillableDisplayBrand sets the "display_brand" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableDisplayBrand(v *string) *GroupCreate {
+	if v != nil {
+		_c.SetDisplayBrand(*v)
+	}
+	return _c
+}
+
 // SetImagePrice1k sets the "image_price_1k" field.
 func (_c *GroupCreate) SetImagePrice1k(v float64) *GroupCreate {
 	_c.mutation.SetImagePrice1k(v)
@@ -512,6 +526,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultPlatform
 		_c.mutation.SetPlatform(v)
 	}
+	if _, ok := _c.mutation.DisplayBrand(); !ok {
+		v := group.DefaultDisplayBrand
+		_c.mutation.SetDisplayBrand(v)
+	}
 	if _, ok := _c.mutation.ClaudeCodeOnly(); !ok {
 		v := group.DefaultClaudeCodeOnly
 		_c.mutation.SetClaudeCodeOnly(v)
@@ -598,6 +616,14 @@ func (_c *GroupCreate) check() error {
 	if v, ok := _c.mutation.Platform(); ok {
 		if err := group.PlatformValidator(v); err != nil {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "Group.platform": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.DisplayBrand(); !ok {
+		return &ValidationError{Name: "display_brand", err: errors.New(`ent: missing required field "Group.display_brand"`)}
+	}
+	if v, ok := _c.mutation.DisplayBrand(); ok {
+		if err := group.DisplayBrandValidator(v); err != nil {
+			return &ValidationError{Name: "display_brand", err: fmt.Errorf(`ent: validator failed for field "Group.display_brand": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.ClaudeCodeOnly(); !ok {
@@ -704,6 +730,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Platform(); ok {
 		_spec.SetField(group.FieldPlatform, field.TypeString, value)
 		_node.Platform = value
+	}
+	if value, ok := _c.mutation.DisplayBrand(); ok {
+		_spec.SetField(group.FieldDisplayBrand, field.TypeString, value)
+		_node.DisplayBrand = value
 	}
 	if value, ok := _c.mutation.ImagePrice1k(); ok {
 		_spec.SetField(group.FieldImagePrice1k, field.TypeFloat64, value)
@@ -1020,6 +1050,18 @@ func (u *GroupUpsert) SetPlatform(v string) *GroupUpsert {
 // UpdatePlatform sets the "platform" field to the value that was provided on create.
 func (u *GroupUpsert) UpdatePlatform() *GroupUpsert {
 	u.SetExcluded(group.FieldPlatform)
+	return u
+}
+
+// SetDisplayBrand sets the "display_brand" field.
+func (u *GroupUpsert) SetDisplayBrand(v string) *GroupUpsert {
+	u.Set(group.FieldDisplayBrand, v)
+	return u
+}
+
+// UpdateDisplayBrand sets the "display_brand" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateDisplayBrand() *GroupUpsert {
+	u.SetExcluded(group.FieldDisplayBrand)
 	return u
 }
 
@@ -1494,6 +1536,20 @@ func (u *GroupUpsertOne) SetPlatform(v string) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdatePlatform() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdatePlatform()
+	})
+}
+
+// SetDisplayBrand sets the "display_brand" field.
+func (u *GroupUpsertOne) SetDisplayBrand(v string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetDisplayBrand(v)
+	})
+}
+
+// UpdateDisplayBrand sets the "display_brand" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateDisplayBrand() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateDisplayBrand()
 	})
 }
 
@@ -2181,6 +2237,20 @@ func (u *GroupUpsertBulk) SetPlatform(v string) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdatePlatform() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdatePlatform()
+	})
+}
+
+// SetDisplayBrand sets the "display_brand" field.
+func (u *GroupUpsertBulk) SetDisplayBrand(v string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetDisplayBrand(v)
+	})
+}
+
+// UpdateDisplayBrand sets the "display_brand" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateDisplayBrand() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateDisplayBrand()
 	})
 }
 

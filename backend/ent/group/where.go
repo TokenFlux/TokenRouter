@@ -105,6 +105,11 @@ func Platform(v string) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldPlatform, v))
 }
 
+// DisplayBrand applies equality check predicate on the "display_brand" field. It's identical to DisplayBrandEQ.
+func DisplayBrand(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldDisplayBrand, v))
+}
+
 // ImagePrice1k applies equality check predicate on the "image_price_1k" field. It's identical to ImagePrice1kEQ.
 func ImagePrice1k(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldImagePrice1k, v))
@@ -633,6 +638,71 @@ func PlatformEqualFold(v string) predicate.Group {
 // PlatformContainsFold applies the ContainsFold predicate on the "platform" field.
 func PlatformContainsFold(v string) predicate.Group {
 	return predicate.Group(sql.FieldContainsFold(FieldPlatform, v))
+}
+
+// DisplayBrandEQ applies the EQ predicate on the "display_brand" field.
+func DisplayBrandEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldDisplayBrand, v))
+}
+
+// DisplayBrandNEQ applies the NEQ predicate on the "display_brand" field.
+func DisplayBrandNEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldDisplayBrand, v))
+}
+
+// DisplayBrandIn applies the In predicate on the "display_brand" field.
+func DisplayBrandIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldDisplayBrand, vs...))
+}
+
+// DisplayBrandNotIn applies the NotIn predicate on the "display_brand" field.
+func DisplayBrandNotIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldDisplayBrand, vs...))
+}
+
+// DisplayBrandGT applies the GT predicate on the "display_brand" field.
+func DisplayBrandGT(v string) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldDisplayBrand, v))
+}
+
+// DisplayBrandGTE applies the GTE predicate on the "display_brand" field.
+func DisplayBrandGTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldDisplayBrand, v))
+}
+
+// DisplayBrandLT applies the LT predicate on the "display_brand" field.
+func DisplayBrandLT(v string) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldDisplayBrand, v))
+}
+
+// DisplayBrandLTE applies the LTE predicate on the "display_brand" field.
+func DisplayBrandLTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldDisplayBrand, v))
+}
+
+// DisplayBrandContains applies the Contains predicate on the "display_brand" field.
+func DisplayBrandContains(v string) predicate.Group {
+	return predicate.Group(sql.FieldContains(FieldDisplayBrand, v))
+}
+
+// DisplayBrandHasPrefix applies the HasPrefix predicate on the "display_brand" field.
+func DisplayBrandHasPrefix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasPrefix(FieldDisplayBrand, v))
+}
+
+// DisplayBrandHasSuffix applies the HasSuffix predicate on the "display_brand" field.
+func DisplayBrandHasSuffix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasSuffix(FieldDisplayBrand, v))
+}
+
+// DisplayBrandEqualFold applies the EqualFold predicate on the "display_brand" field.
+func DisplayBrandEqualFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldEqualFold(FieldDisplayBrand, v))
+}
+
+// DisplayBrandContainsFold applies the ContainsFold predicate on the "display_brand" field.
+func DisplayBrandContainsFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldContainsFold(FieldDisplayBrand, v))
 }
 
 // ImagePrice1kEQ applies the EQ predicate on the "image_price_1k" field.

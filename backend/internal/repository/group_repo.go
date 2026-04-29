@@ -52,6 +52,7 @@ func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) er
 		SetName(groupIn.Name).
 		SetDescription(groupIn.Description).
 		SetPlatform(groupIn.Platform).
+		SetDisplayBrand(groupIn.DisplayBrand).
 		SetRateMultiplier(groupIn.RateMultiplier).
 		SetSortOrder(groupIn.SortOrder).
 		SetIsExclusive(groupIn.IsExclusive).
@@ -124,6 +125,7 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetName(groupIn.Name).
 		SetDescription(groupIn.Description).
 		SetPlatform(groupIn.Platform).
+		SetDisplayBrand(groupIn.DisplayBrand).
 		SetRateMultiplier(groupIn.RateMultiplier).
 		SetIsExclusive(groupIn.IsExclusive).
 		SetIsDefault(groupIn.IsDefault).
@@ -223,6 +225,7 @@ func (r *groupRepository) ListWithFilters(ctx context.Context, params pagination
 		q = q.Where(group.Or(
 			group.NameContainsFold(search),
 			group.DescriptionContainsFold(search),
+			group.DisplayBrandContainsFold(search),
 		))
 	}
 	if isExclusive != nil {
@@ -330,6 +333,9 @@ func groupListOrder(params pagination.PaginationParams) []func(*entsql.Selector)
 		defaultOrder = false
 	case "platform":
 		field = group.FieldPlatform
+		defaultOrder = false
+	case "display_brand":
+		field = group.FieldDisplayBrand
 		defaultOrder = false
 	case "rate_multiplier":
 		field = group.FieldRateMultiplier

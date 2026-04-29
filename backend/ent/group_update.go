@@ -171,6 +171,20 @@ func (_u *GroupUpdate) SetNillablePlatform(v *string) *GroupUpdate {
 	return _u
 }
 
+// SetDisplayBrand sets the "display_brand" field.
+func (_u *GroupUpdate) SetDisplayBrand(v string) *GroupUpdate {
+	_u.mutation.SetDisplayBrand(v)
+	return _u
+}
+
+// SetNillableDisplayBrand sets the "display_brand" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableDisplayBrand(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetDisplayBrand(*v)
+	}
+	return _u
+}
+
 // SetImagePrice1k sets the "image_price_1k" field.
 func (_u *GroupUpdate) SetImagePrice1k(v float64) *GroupUpdate {
 	_u.mutation.ResetImagePrice1k()
@@ -692,6 +706,11 @@ func (_u *GroupUpdate) check() error {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "Group.platform": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.DisplayBrand(); ok {
+		if err := group.DisplayBrandValidator(v); err != nil {
+			return &ValidationError{Name: "display_brand", err: fmt.Errorf(`ent: validator failed for field "Group.display_brand": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.DefaultMappedModel(); ok {
 		if err := group.DefaultMappedModelValidator(v); err != nil {
 			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
@@ -747,6 +766,9 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(group.FieldPlatform, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DisplayBrand(); ok {
+		_spec.SetField(group.FieldDisplayBrand, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.ImagePrice1k(); ok {
 		_spec.SetField(group.FieldImagePrice1k, field.TypeFloat64, value)
@@ -1200,6 +1222,20 @@ func (_u *GroupUpdateOne) SetPlatform(v string) *GroupUpdateOne {
 func (_u *GroupUpdateOne) SetNillablePlatform(v *string) *GroupUpdateOne {
 	if v != nil {
 		_u.SetPlatform(*v)
+	}
+	return _u
+}
+
+// SetDisplayBrand sets the "display_brand" field.
+func (_u *GroupUpdateOne) SetDisplayBrand(v string) *GroupUpdateOne {
+	_u.mutation.SetDisplayBrand(v)
+	return _u
+}
+
+// SetNillableDisplayBrand sets the "display_brand" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableDisplayBrand(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetDisplayBrand(*v)
 	}
 	return _u
 }
@@ -1738,6 +1774,11 @@ func (_u *GroupUpdateOne) check() error {
 			return &ValidationError{Name: "platform", err: fmt.Errorf(`ent: validator failed for field "Group.platform": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.DisplayBrand(); ok {
+		if err := group.DisplayBrandValidator(v); err != nil {
+			return &ValidationError{Name: "display_brand", err: fmt.Errorf(`ent: validator failed for field "Group.display_brand": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.DefaultMappedModel(); ok {
 		if err := group.DefaultMappedModelValidator(v); err != nil {
 			return &ValidationError{Name: "default_mapped_model", err: fmt.Errorf(`ent: validator failed for field "Group.default_mapped_model": %w`, err)}
@@ -1810,6 +1851,9 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.Platform(); ok {
 		_spec.SetField(group.FieldPlatform, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.DisplayBrand(); ok {
+		_spec.SetField(group.FieldDisplayBrand, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.ImagePrice1k(); ok {
 		_spec.SetField(group.FieldImagePrice1k, field.TypeFloat64, value)

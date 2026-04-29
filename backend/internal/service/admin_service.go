@@ -179,6 +179,7 @@ type CreateGroupInput struct {
 	Name           string
 	Description    string
 	Platform       string
+	DisplayBrand   string
 	RateMultiplier float64
 	IsExclusive    bool
 	IsDefault      bool
@@ -212,6 +213,7 @@ type UpdateGroupInput struct {
 	Name           string
 	Description    string
 	Platform       string
+	DisplayBrand   *string
 	RateMultiplier *float64 // 使用指针以支持设置为0
 	IsExclusive    *bool
 	IsDefault      *bool
@@ -1450,6 +1452,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		Name:                            input.Name,
 		Description:                     input.Description,
 		Platform:                        platform,
+		DisplayBrand:                    strings.TrimSpace(input.DisplayBrand),
 		RateMultiplier:                  input.RateMultiplier,
 		IsExclusive:                     input.IsExclusive,
 		IsDefault:                       input.IsDefault,
@@ -1669,6 +1672,9 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if input.Platform != "" {
 		group.Platform = input.Platform
+	}
+	if input.DisplayBrand != nil {
+		group.DisplayBrand = strings.TrimSpace(*input.DisplayBrand)
 	}
 	if input.RateMultiplier != nil {
 		if *input.RateMultiplier <= 0 {

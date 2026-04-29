@@ -478,6 +478,7 @@ export interface MarketplaceGroup {
   name: string
   description: string
   platform: GroupPlatform
+  display_brand: string
   rate_multiplier: number
   official_price_ratio?: number
   model_count: number
@@ -496,6 +497,7 @@ export interface Group {
   name: string
   description: string | null
   platform: GroupPlatform
+  display_brand?: string
   rate_multiplier: number
   rpm_limit?: number // Group-level RPM cap (0 = unlimited); overrides user-level rpm_limit when set
   is_exclusive: boolean
@@ -605,6 +607,7 @@ export interface CreateGroupRequest {
   name: string
   description?: string | null
   platform?: GroupPlatform
+  display_brand?: string
   rate_multiplier?: number
   is_exclusive?: boolean
   is_default?: boolean
@@ -626,6 +629,7 @@ export interface UpdateGroupRequest {
   name?: string
   description?: string | null
   platform?: GroupPlatform
+  display_brand?: string
   rate_multiplier?: number
   is_exclusive?: boolean
   is_default?: boolean

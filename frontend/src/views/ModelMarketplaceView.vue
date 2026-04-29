@@ -109,7 +109,7 @@
           </div>
 
           <div class="w-full sm:w-[200px] xl:w-[180px]">
-            <Select v-model="selectedPlatform" :options="platformSelectOptions" />
+            <Select v-model="selectedBrand" :options="brandSelectOptions" />
           </div>
 
           <div class="w-full sm:w-[200px] xl:w-[180px]">
@@ -162,8 +162,9 @@
             <div class="card-header px-4 py-4 md:px-5">
               <div class="min-w-0 space-y-3">
                 <div class="flex flex-wrap items-center gap-2">
-                  <span :class="platformBadgeClass(group.platform)">
-                    {{ platformLabel(group.platform) }}
+                  <span :class="brandBadgeClass(group)">
+                    <ProviderIcon :brand="groupBrandSource(group)" size="14px" />
+                    {{ groupBrandLabel(group) }}
                   </span>
                   <span class="rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200">
                     {{ t('marketplace.rateMultiplier') }} {{ formatMultiplier(group.rate_multiplier) }}
@@ -180,7 +181,12 @@
                 </div>
 
                 <div class="flex items-start gap-3">
-                  <span class="mt-0.5 h-10 w-1 shrink-0 rounded-full" :class="groupAccentClass(group.platform)"></span>
+                  <span
+                    class="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ring-1 ring-inset"
+                    :class="groupBrandIconWrapClass(group)"
+                  >
+                    <ProviderIcon :brand="groupBrandSource(group)" size="22px" />
+                  </span>
                   <div class="min-w-0">
                     <h2 class="text-lg font-semibold text-gray-950 dark:text-white">{{ group.name }}</h2>
                     <p v-if="group.description" class="mt-1 text-sm leading-6 text-gray-600 dark:text-dark-300">
@@ -255,12 +261,14 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
+import ProviderIcon from '@/components/common/ProviderIcon.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import Select from '@/components/common/Select.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { initTheme } from '@/composables/useTheme'
 import { getMarketplaceModels } from '@/api/marketplace'
-import type { GroupPlatform, MarketplaceGroup, MarketplaceModelPricing } from '@/types'
+import { providerBrandDisplayName, providerBrandFilterKey, resolveProviderBrand } from '@/utils/providerBrand'
+import type { MarketplaceGroup, MarketplaceModelPricing } from '@/types'
 import { useAppStore, useAuthStore } from '@/stores'
 
 type VisibleMarketplaceGroup = MarketplaceGroup
@@ -290,11 +298,9 @@ const groups = ref<MarketplaceGroup[]>([])
 const loading = ref(true)
 const errorMessage = ref('')
 const search = ref('')
-const selectedPlatform = ref<GroupPlatform | 'all'>('all')
+const selectedBrand = ref<string | 'all'>('all')
 const selectedPricingMode = ref<PricingFilter>('all')
 const selectedGroupId = ref<number | 'all'>('all')
-
-const platformOrder: GroupPlatform[] = ['openai', 'anthropic', 'gemini', 'antigravity']
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isAdmin = computed(() => authStore.isAdmin)
@@ -313,9 +319,12 @@ const normalizedSearch = computed(() => search.value.trim().toLowerCase())
 
 const sortedGroups = computed(() =>
   [...groups.value].sort((left, right) => {
-    const platformDiff = platformRank(left.platform) - platformRank(right.platform)
-    if (platformDiff !== 0) {
-      return platformDiff
+    const brandDiff = groupBrandLabel(left).localeCompare(groupBrandLabel(right), undefined, {
+      numeric: true,
+      sensitivity: 'base',
+    })
+    if (brandDiff !== 0) {
+      return brandDiff
     }
     return left.name.localeCompare(right.name, undefined, { numeric: true, sensitivity: 'base' })
   })
@@ -324,32 +333,27 @@ const sortedGroups = computed(() =>
 const totalGroupCount = computed(() => groups.value.length)
 const totalModelCount = computed(() => groups.value.reduce((sum, group) => sum + group.models.length, 0))
 
-const platformCounts = computed<Record<GroupPlatform, number>>(() => {
-  const counts: Record<GroupPlatform, number> = {
-    openai: 0,
-    anthropic: 0,
-    gemini: 0,
-    antigravity: 0,
+const availableBrands = computed(() => {
+  const seen = new Set<string>()
+  const brands: string[] = []
+  for (const group of sortedGroups.value) {
+    const brand = groupBrandLabel(group)
+    const key = brandKey(brand)
+    if (seen.has(key)) {
+      continue
+    }
+    seen.add(key)
+    brands.push(brand)
   }
-
-  for (const group of groups.value) {
-    counts[group.platform] += group.models.length
-  }
-
-  return counts
+  return brands
 })
 
-const availablePlatforms = computed(() =>
-  platformOrder.filter((platform) => platformCounts.value[platform] > 0)
-)
-
-const platformSelectOptions = computed(() => [
-  { value: 'all', label: t('marketplace.allPlatforms') },
-  ...availablePlatforms.value
-    .map((platform) => ({
-      value: platform,
-      label: platformLabel(platform),
-    })),
+const brandSelectOptions = computed(() => [
+  { value: 'all', label: t('marketplace.allBrands') },
+  ...availableBrands.value.map((brand) => ({
+    value: brand,
+    label: brand,
+  })),
 ])
 
 const pricingSelectOptions = computed(() => [
@@ -371,7 +375,7 @@ const filteredGroups = computed<VisibleMarketplaceGroup[]>(() => {
   const keyword = normalizedSearch.value
 
   return sortedGroups.value.flatMap((group) => {
-    if (selectedPlatform.value !== 'all' && group.platform !== selectedPlatform.value) {
+    if (selectedBrand.value !== 'all' && brandKey(groupBrandLabel(group)) !== brandKey(selectedBrand.value)) {
       return []
     }
 
@@ -379,7 +383,7 @@ const filteredGroups = computed<VisibleMarketplaceGroup[]>(() => {
       return []
     }
 
-    const groupMatchesKeyword = !keyword || [group.name, group.description, platformLabel(group.platform)]
+    const groupMatchesKeyword = !keyword || [group.name, group.description, groupBrandSource(group), groupBrandLabel(group)]
       .filter(Boolean)
       .some((value) => value.toLowerCase().includes(keyword))
 
@@ -426,17 +430,12 @@ const overviewCards = computed<OverviewCard[]>(() => [
     icon: 'sparkles',
   },
   {
-    key: 'platforms',
-    label: t('marketplace.platformsStat'),
-    value: availablePlatforms.value.length,
+    key: 'brands',
+    label: t('marketplace.brandsStat'),
+    value: availableBrands.value.length,
     icon: 'globe',
   },
 ])
-
-function platformRank(platform: GroupPlatform): number {
-  const index = platformOrder.indexOf(platform)
-  return index === -1 ? platformOrder.length : index
-}
 
 function hasPositiveValue(value?: number | null): value is number {
   return typeof value === 'number' && value > 0
@@ -479,7 +478,7 @@ function pricingKind(pricing: MarketplaceModelPricing): Exclude<PricingFilter, '
 
 function resetFilters() {
   search.value = ''
-  selectedPlatform.value = 'all'
+  selectedBrand.value = 'all'
   selectedPricingMode.value = 'all'
   selectedGroupId.value = 'all'
 }
@@ -501,7 +500,7 @@ function overviewIconWrapClass(key: string): string {
   const variants: Record<string, string> = {
     'visible-groups': 'bg-blue-100 dark:bg-blue-900/30',
     'visible-models': 'bg-emerald-100 dark:bg-emerald-900/30',
-    platforms: 'bg-violet-100 dark:bg-violet-900/30',
+    brands: 'bg-violet-100 dark:bg-violet-900/30',
   }
 
   return variants[key] ?? 'bg-gray-100 dark:bg-dark-700'
@@ -511,7 +510,7 @@ function overviewIconClass(key: string): string {
   const variants: Record<string, string> = {
     'visible-groups': 'text-blue-600 dark:text-blue-400',
     'visible-models': 'text-emerald-600 dark:text-emerald-400',
-    platforms: 'text-violet-600 dark:text-violet-400',
+    brands: 'text-violet-600 dark:text-violet-400',
   }
 
   return variants[key] ?? 'text-gray-600 dark:text-dark-300'
@@ -538,10 +537,6 @@ function formatPerImage(value: number): string {
   return `${formatPrice(value)} ${t('marketplace.perImage')}`
 }
 
-function platformLabel(platform: GroupPlatform): string {
-  return t(`marketplace.platforms.${platform}`)
-}
-
 function pricingFilterLabel(mode: Exclude<PricingFilter, 'all'>): string {
   switch (mode) {
     case 'token':
@@ -557,25 +552,25 @@ function pricingLabel(pricing: MarketplaceModelPricing): string {
   return pricingFilterLabel(pricingKind(pricing))
 }
 
-function platformBadgeClass(platform: GroupPlatform): string {
-  const base = 'inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset'
-  const variants: Record<GroupPlatform, string> = {
-    openai: 'bg-emerald-100 text-emerald-900 ring-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-50 dark:ring-emerald-400/30',
-    anthropic: 'bg-orange-100 text-orange-900 ring-orange-200 dark:bg-orange-500/20 dark:text-orange-50 dark:ring-orange-400/30',
-    gemini: 'bg-blue-100 text-blue-900 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-50 dark:ring-blue-400/30',
-    antigravity: 'bg-rose-100 text-rose-900 ring-rose-200 dark:bg-rose-500/20 dark:text-rose-50 dark:ring-rose-400/30',
-  }
-  return `${base} ${variants[platform]}`
+function groupBrandSource(group: Pick<MarketplaceGroup, 'display_brand' | 'name'>): string {
+  return group.display_brand?.trim() || group.name
 }
 
-function groupAccentClass(platform: GroupPlatform): string {
-  const variants: Record<GroupPlatform, string> = {
-    openai: 'bg-emerald-500',
-    anthropic: 'bg-orange-500',
-    gemini: 'bg-blue-500',
-    antigravity: 'bg-rose-500',
-  }
-  return variants[platform]
+function groupBrandLabel(group: Pick<MarketplaceGroup, 'display_brand' | 'name'>): string {
+  return providerBrandDisplayName(groupBrandSource(group))
+}
+
+function brandKey(label: string): string {
+  return providerBrandFilterKey(label)
+}
+
+function brandBadgeClass(group: MarketplaceGroup): string {
+  const base = 'inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset'
+  return `${base} ${resolveProviderBrand(groupBrandSource(group)).badgeClass}`
+}
+
+function groupBrandIconWrapClass(group: MarketplaceGroup): string {
+  return resolveProviderBrand(groupBrandSource(group)).iconWrapClass
 }
 
 function pricingBadgeClass(pricing: MarketplaceModelPricing): string {
