@@ -4,7 +4,7 @@
       <div v-if="loading" class="flex items-center justify-center py-12"><LoadingSpinner /></div>
       <template v-else-if="stats">
         <UserDashboardStats :stats="stats" :balance="user?.balance || 0" :is-simple="authStore.isSimpleMode" />
-        <UserDashboardCharts v-model:startDate="startDate" v-model:endDate="endDate" v-model:granularity="granularity" :loading="loadingCharts" :trend="trendData" :models="modelStats" @dateRangeChange="loadCharts" @granularityChange="loadCharts" @refresh="refreshAll" />
+        <UserDashboardCharts v-model:startDate="startDate" v-model:endDate="endDate" v-model:granularity="granularity" :loading="loadingCharts" :trend="trendData" :models="modelStats" @dateRangeChange="onDateRangeChange" @granularityChange="loadCharts" @refresh="refreshAll" />
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div class="lg:col-span-2"><UserDashboardRecentUsage :data="recentUsage" :loading="loadingUsage" /></div>
           <div class="lg:col-span-1"><UserDashboardQuickActions /></div>
@@ -28,6 +28,19 @@ const trendData = ref<TrendDataPoint[]>([]); const modelStats = ref<ModelStat[]>
 const formatLD = (d: Date) => d.toISOString().split('T')[0]
 const startDate = ref(formatLD(new Date(Date.now() - 6 * 86400000))); const endDate = ref(formatLD(new Date())); const granularity = ref('day')
 
+const getGranularityForRange = (start: string, end: string): 'day' | 'hour' => {
+  const parsePoint = (value: string) => new Date(value.length === 10 ? `${value}T00:00:00` : value).getTime()
+  const startTime = parsePoint(start)
+  const endTime = parsePoint(end)
+  if (!Number.isFinite(startTime) || !Number.isFinite(endTime)) return 'day'
+  return Math.ceil((endTime - startTime) / 86400000) <= 1 ? 'hour' : 'day'
+}
+const onDateRangeChange = (range: { startDate: string; endDate: string }) => {
+  startDate.value = range.startDate
+  endDate.value = range.endDate
+  granularity.value = getGranularityForRange(range.startDate, range.endDate)
+  loadCharts()
+}
 const loadStats = async () => { loading.value = true; try { await authStore.refreshUser(); stats.value = await usageAPI.getDashboardStats() } catch (error) { console.error('Failed to load dashboard stats:', error) } finally { loading.value = false } }
 const loadCharts = async () => { loadingCharts.value = true; try { const res = await Promise.all([usageAPI.getDashboardTrend({ start_date: startDate.value, end_date: endDate.value, granularity: granularity.value as any }), usageAPI.getDashboardModels({ start_date: startDate.value, end_date: endDate.value })]); trendData.value = res[0].trend || []; modelStats.value = res[1].models || [] } catch (error) { console.error('Failed to load charts:', error) } finally { loadingCharts.value = false } }
 const loadRecent = async () => { loadingUsage.value = true; try { const res = await usageAPI.getByDateRange(startDate.value, endDate.value); recentUsage.value = res.items.slice(0, 5) } catch (error) { console.error('Failed to load recent usage:', error) } finally { loadingUsage.value = false } }

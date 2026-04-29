@@ -42,10 +42,10 @@
             <label class="date-picker-label">{{ t('dates.startDate') }}</label>
             <input
               type="date"
-              v-model="localStartDate"
-              :max="localEndDate || tomorrow"
+              :value="dateInputValue(localStartDate)"
+              :max="dateInputValue(localEndDate) || tomorrow"
               class="date-picker-input"
-              @change="onDateChange"
+              @change="onStartDateInputChange"
             />
           </div>
           <div class="date-picker-separator">
@@ -55,11 +55,11 @@
             <label class="date-picker-label">{{ t('dates.endDate') }}</label>
             <input
               type="date"
-              v-model="localEndDate"
-              :min="localStartDate"
+              :value="dateInputValue(localEndDate)"
+              :min="dateInputValue(localStartDate)"
               :max="tomorrow"
               class="date-picker-input"
-              @change="onDateChange"
+              @change="onEndDateInputChange"
             />
           </div>
         </div>
@@ -83,6 +83,7 @@ import Icon from '@/components/icons/Icon.vue'
 interface DatePreset {
   labelKey: string
   value: string
+  durationMs?: number
   getRange: () => { start: string; end: string }
 }
 
@@ -133,7 +134,44 @@ const formatDateToString = (date: Date): string => {
   return `${year}-${month}-${day}`
 }
 
+const formatDateTimeToString = (date: Date): string => {
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  const seconds = String(date.getSeconds()).padStart(2, '0')
+  return `${formatDateToString(date)}T${hours}:${minutes}:${seconds}`
+}
+
+const dateInputValue = (value: string): string => {
+  return value.slice(0, 10)
+}
+
 const presets: DatePreset[] = [
+  {
+    labelKey: 'dates.last15Minutes',
+    value: 'last15Minutes',
+    durationMs: 15 * 60 * 1000,
+    getRange: () => {
+      const end = new Date()
+      const start = new Date(end.getTime() - 15 * 60 * 1000)
+      return {
+        start: formatDateTimeToString(start),
+        end: formatDateTimeToString(end)
+      }
+    }
+  },
+  {
+    labelKey: 'dates.last30Minutes',
+    value: 'last30Minutes',
+    durationMs: 30 * 60 * 1000,
+    getRange: () => {
+      const end = new Date()
+      const start = new Date(end.getTime() - 30 * 60 * 1000)
+      return {
+        start: formatDateTimeToString(start),
+        end: formatDateTimeToString(end)
+      }
+    }
+  },
   {
     labelKey: 'dates.today',
     value: 'today',
@@ -235,13 +273,19 @@ const displayValue = computed(() => {
 })
 
 const formatDate = (dateStr: string): string => {
-  const date = new Date(dateStr + 'T00:00:00')
+  const date = new Date(`${dateInputValue(dateStr)}T00:00:00`)
   const dateLocale = locale.value === 'zh' ? 'zh-CN' : 'en-US'
   return date.toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' })
 }
 
 const isPresetActive = (preset: DatePreset): boolean => {
   return activePreset.value === preset.value
+}
+
+const parseRangeTime = (value: string): number | null => {
+  if (!value) return null
+  const timestamp = new Date(value.length === 10 ? `${value}T00:00:00` : value).getTime()
+  return Number.isFinite(timestamp) ? timestamp : null
 }
 
 const selectPreset = (preset: DatePreset) => {
@@ -251,16 +295,40 @@ const selectPreset = (preset: DatePreset) => {
   activePreset.value = preset.value
 }
 
+const presetMatchesRange = (preset: DatePreset): boolean => {
+  const range = preset.getRange()
+  if (!preset.durationMs) {
+    return range.start === localStartDate.value && range.end === localEndDate.value
+  }
+
+  const startMs = parseRangeTime(localStartDate.value)
+  const endMs = parseRangeTime(localEndDate.value)
+  if (startMs === null || endMs === null) return false
+
+  const durationDrift = Math.abs(endMs - startMs - preset.durationMs)
+  const endDrift = Math.abs(Date.now() - endMs)
+  return durationDrift <= 1000 && endDrift <= 90 * 1000
+}
+
 const onDateChange = () => {
   // Check if current dates match any preset
   activePreset.value = null
   for (const preset of presets) {
-    const range = preset.getRange()
-    if (range.start === localStartDate.value && range.end === localEndDate.value) {
+    if (presetMatchesRange(preset)) {
       activePreset.value = preset.value
       break
     }
   }
+}
+
+const onStartDateInputChange = (event: Event) => {
+  localStartDate.value = (event.target as HTMLInputElement).value
+  onDateChange()
+}
+
+const onEndDateInputChange = (event: Event) => {
+  localEndDate.value = (event.target as HTMLInputElement).value
+  onDateChange()
 }
 
 const toggle = () => {

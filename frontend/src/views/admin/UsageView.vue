@@ -219,8 +219,13 @@ const getLast24HoursRangeDates = (): { start: string; end: string } => {
   }
 }
 const getGranularityForRange = (start: string, end: string): 'day' | 'hour' => {
-  const startTime = new Date(`${start}T00:00:00`).getTime()
-  const endTime = new Date(`${end}T00:00:00`).getTime()
+  const parseRangePoint = (value: string) => {
+    const timestamp = new Date(value.length === 10 ? `${value}T00:00:00` : value).getTime()
+    return Number.isFinite(timestamp) ? timestamp : null
+  }
+  const startTime = parseRangePoint(start)
+  const endTime = parseRangePoint(end)
+  if (startTime === null || endTime === null) return 'day'
   const daysDiff = Math.ceil((endTime - startTime) / (1000 * 60 * 60 * 24))
   return daysDiff <= 1 ? 'hour' : 'day'
 }

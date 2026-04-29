@@ -998,20 +998,24 @@ func (h *GatewayHandler) Usage(c *gin.Context) {
 	h.usageUnrestricted(c, ctx, apiKey, subject, usageData, modelStats, balanceUnitName)
 }
 
-// parseUsageDateRange 解析 start_date / end_date query params，默认返回近 30 天范围
+// parseUsageDateRange 解析 start_date / end_date query params，默认返回近 30 天范围。
 func (h *GatewayHandler) parseUsageDateRange(c *gin.Context) (time.Time, time.Time) {
 	now := timezone.Now()
 	endTime := now
 	startTime := now.AddDate(0, 0, -30)
+	userTZ := c.Query("timezone")
 
 	if s := c.Query("start_date"); s != "" {
-		if t, err := timezone.ParseInLocation("2006-01-02", s); err == nil {
+		if t, _, err := timezone.ParseDateTimeInUserLocation(s, userTZ); err == nil {
 			startTime = t
 		}
 	}
 	if s := c.Query("end_date"); s != "" {
-		if t, err := timezone.ParseInLocation("2006-01-02", s); err == nil {
-			endTime = t.AddDate(0, 0, 1) // half-open range upper bound
+		if t, dateOnly, err := timezone.ParseDateTimeInUserLocation(s, userTZ); err == nil {
+			if dateOnly {
+				t = t.AddDate(0, 0, 1)
+			}
+			endTime = t
 		}
 	}
 	return startTime, endTime

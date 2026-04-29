@@ -6,6 +6,7 @@ package timezone
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -133,6 +134,44 @@ func ParseInUserLocation(layout, value, userTZ string) (time.Time, error) {
 		}
 	}
 	return time.ParseInLocation(layout, value, loc)
+}
+
+// ParseDateTimeInUserLocation 解析用户时区下的日期或日期时间。
+// 返回值 dateOnly 表示输入是否为 YYYY-MM-DD，调用方可据此决定结束边界是否需要顺延一天。
+func ParseDateTimeInUserLocation(value, userTZ string) (parsed time.Time, dateOnly bool, err error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, false, fmt.Errorf("empty datetime")
+	}
+
+	if t, parseErr := time.Parse(time.RFC3339Nano, value); parseErr == nil {
+		return t, false, nil
+	}
+
+	loc := Location()
+	if userTZ != "" {
+		if userLoc, loadErr := time.LoadLocation(userTZ); loadErr == nil {
+			loc = userLoc
+		}
+	}
+
+	layouts := []struct {
+		layout   string
+		dateOnly bool
+	}{
+		{layout: "2006-01-02", dateOnly: true},
+		{layout: "2006-01-02T15:04:05", dateOnly: false},
+		{layout: "2006-01-02T15:04", dateOnly: false},
+		{layout: "2006-01-02 15:04:05", dateOnly: false},
+		{layout: "2006-01-02 15:04", dateOnly: false},
+	}
+	for _, candidate := range layouts {
+		if t, parseErr := time.ParseInLocation(candidate.layout, value, loc); parseErr == nil {
+			return t, candidate.dateOnly, nil
+		}
+	}
+
+	return time.Time{}, false, fmt.Errorf("invalid datetime %q", value)
 }
 
 // NowInUserLocation returns the current time in the user's timezone.

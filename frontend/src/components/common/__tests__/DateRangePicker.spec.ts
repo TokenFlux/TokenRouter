@@ -7,6 +7,8 @@ import DateRangePicker from '../DateRangePicker.vue'
 const messages: Record<string, string> = {
   'dates.today': 'Today',
   'dates.yesterday': 'Yesterday',
+  'dates.last15Minutes': 'Last 15 Minutes',
+  'dates.last30Minutes': 'Last 30 Minutes',
   'dates.last24Hours': 'Last 24 Hours',
   'dates.last7Days': 'Last 7 Days',
   'dates.last14Days': 'Last 14 Days',

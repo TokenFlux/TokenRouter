@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 
 	entsql "entgo.io/ent/dialect/sql"
+	"github.com/lib/pq"
 )
 
 type apiKeyRepository struct {
@@ -321,6 +323,10 @@ func (r *apiKeyRepository) ListByUserID(ctx context.Context, userID int64, param
 		return nil, nil, err
 	}
 
+	if strings.EqualFold(strings.TrimSpace(params.SortBy), "usage") {
+		return r.listByUserIDWithUsageSort(ctx, q, params, total)
+	}
+
 	keysQuery := q.
 		WithGroup().
 		Offset(params.Offset()).
@@ -340,6 +346,88 @@ func (r *apiKeyRepository) ListByUserID(ctx context.Context, userID int64, param
 	}
 
 	return outKeys, paginationResultFromTotal(int64(total), params), nil
+}
+
+func (r *apiKeyRepository) listByUserIDWithUsageSort(ctx context.Context, q *dbent.APIKeyQuery, params pagination.PaginationParams, total int) ([]service.APIKey, *pagination.PaginationResult, error) {
+	keys, err := q.
+		WithGroup().
+		Order(dbent.Desc(apikey.FieldID)).
+		All(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	keyIDs := make([]int64, 0, len(keys))
+	outKeys := make([]service.APIKey, 0, len(keys))
+	for i := range keys {
+		key := apiKeyEntityToService(keys[i])
+		outKeys = append(outKeys, *key)
+		keyIDs = append(keyIDs, key.ID)
+	}
+
+	usageTotals, err := r.loadAPIKeyUsageTotals(ctx, keyIDs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sortOrder := params.NormalizedSortOrder(pagination.SortOrderDesc)
+	sort.SliceStable(outKeys, func(i, j int) bool {
+		left := usageTotals[outKeys[i].ID]
+		right := usageTotals[outKeys[j].ID]
+		if left == right {
+			if sortOrder == pagination.SortOrderAsc {
+				return outKeys[i].ID < outKeys[j].ID
+			}
+			return outKeys[i].ID > outKeys[j].ID
+		}
+		if sortOrder == pagination.SortOrderAsc {
+			return left < right
+		}
+		return left > right
+	})
+
+	return paginateSlice(outKeys, params), paginationResultFromTotal(int64(total), params), nil
+}
+
+func (r *apiKeyRepository) loadAPIKeyUsageTotals(ctx context.Context, keyIDs []int64) (map[int64]float64, error) {
+	result := make(map[int64]float64, len(keyIDs))
+	if len(keyIDs) == 0 {
+		return result, nil
+	}
+	for _, id := range keyIDs {
+		result[id] = 0
+	}
+
+	query := `
+		SELECT api_key_id, COALESCE(SUM(actual_cost), 0)
+		FROM usage_logs
+		WHERE api_key_id = ANY($1)
+		  AND created_at >= $2
+		  AND created_at < $3
+		GROUP BY api_key_id
+	`
+	now := time.Now()
+	rows, err := r.sql.QueryContext(ctx, query, pq.Array(keyIDs), now.AddDate(0, 0, -30), now)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var keyID int64
+		var total float64
+		if err := rows.Scan(&keyID, &total); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		result[keyID] = total
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }
 
 func (r *apiKeyRepository) VerifyOwnership(ctx context.Context, userID int64, apiKeyIDs []int64) ([]int64, error) {

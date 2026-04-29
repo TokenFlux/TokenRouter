@@ -407,12 +407,14 @@ let resetTimer: ReturnType<typeof setInterval> | null = null
 
 // ==================== Date Range State ====================
 
-type DateRangeKey = 'today' | '7d' | '30d' | 'custom'
+type DateRangeKey = '15m' | '30m' | 'today' | '7d' | '30d' | 'custom'
 const currentRange = ref<DateRangeKey>('today')
 const customStartDate = ref('')
 const customEndDate = ref('')
 
 const dateRanges = computed(() => [
+  { key: '15m' as const, label: t('keyUsage.dateRange15m') },
+  { key: '30m' as const, label: t('keyUsage.dateRange30m') },
   { key: 'today' as const, label: t('keyUsage.dateRangeToday') },
   { key: '7d' as const, label: t('keyUsage.dateRange7d') },
   { key: '30d' as const, label: t('keyUsage.dateRange30d') },
@@ -429,6 +431,7 @@ function setDateRange(key: DateRangeKey) {
 function getDateParams(): string {
   const now = new Date()
   const fmt = (d: Date) => d.toISOString().split('T')[0]
+  const fmtDateTime = (d: Date) => d.toISOString()
 
   if (currentRange.value === 'custom') {
     if (customStartDate.value && customEndDate.value) {
@@ -439,13 +442,22 @@ function getDateParams(): string {
 
   const end = fmt(now)
   let start: string
+  let exactEnd = end
   switch (currentRange.value) {
+    case '15m':
+      start = fmtDateTime(new Date(now.getTime() - 15 * 60000))
+      exactEnd = fmtDateTime(now)
+      break
+    case '30m':
+      start = fmtDateTime(new Date(now.getTime() - 30 * 60000))
+      exactEnd = fmtDateTime(now)
+      break
     case 'today': start = end; break
     case '7d': start = fmt(new Date(now.getTime() - 7 * 86400000)); break
     case '30d': start = fmt(new Date(now.getTime() - 30 * 86400000)); break
     default: start = fmt(new Date(now.getTime() - 30 * 86400000))
   }
-  return `start_date=${start}&end_date=${end}`
+  return `start_date=${encodeURIComponent(start)}&end_date=${encodeURIComponent(exactEnd)}`
 }
 
 // ==================== Ring Animation ====================
