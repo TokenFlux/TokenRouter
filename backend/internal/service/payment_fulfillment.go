@@ -13,6 +13,7 @@ import (
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/paymentauditlog"
 	"github.com/TokenFlux/TokenRouter/ent/paymentorder"
+	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 )
@@ -282,16 +283,103 @@ func (s *PaymentService) doBalance(ctx context.Context, o *dbent.PaymentOrder) e
 
 func (s *PaymentService) markCompleted(ctx context.Context, o *dbent.PaymentOrder, auditAction string) error {
 	now := time.Now()
-	_, err := s.entClient.PaymentOrder.Update().Where(paymentorder.IDEQ(o.ID), paymentorder.StatusEQ(OrderStatusRecharging)).SetStatus(OrderStatusCompleted).SetCompletedAt(now).Save(ctx)
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return fmt.Errorf("begin completion transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	txCtx := dbent.NewTxContext(ctx, tx)
+	grantResult, err := s.grantReferralRewardIfEligible(txCtx, o.UserID, now)
+	if err != nil {
+		return err
+	}
+
+	updated, err := tx.PaymentOrder.Update().
+		Where(paymentorder.IDEQ(o.ID), paymentorder.StatusEQ(OrderStatusRecharging)).
+		SetStatus(OrderStatusCompleted).
+		SetCompletedAt(now).
+		Save(txCtx)
 	if err != nil {
 		return fmt.Errorf("mark completed: %w", err)
 	}
+	if updated == 0 {
+		return fmt.Errorf("mark completed: order %d is not in recharging status", o.ID)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit completion transaction: %w", err)
+	}
+
 	s.writeAuditLog(ctx, o.ID, auditAction, "system", map[string]any{
 		"rechargeCode":   o.RechargeCode,
 		"creditedAmount": o.Amount,
 		"payAmount":      o.PayAmount,
 	})
+	if grantResult != nil {
+		s.writeAuditLog(ctx, o.ID, "REFERRAL_REWARD_GRANTED", "system", map[string]any{
+			"invitee_user_id": grantResult.inviteeUserID,
+			"inviter_user_id": grantResult.inviterUserID,
+			"amount":          grantResult.amount,
+		})
+		s.invalidateReferralRewardCaches(ctx, grantResult)
+	}
 	return nil
+}
+
+func (s *PaymentService) grantReferralRewardIfEligible(ctx context.Context, userID int64, grantedAt time.Time) (*referralRewardGrantResult, error) {
+	invitee, err := dbent.TxFromContext(ctx).User.Query().
+		Where(dbuser.IDEQ(userID)).
+		Only(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load referral reward invitee: %w", err)
+	}
+	if invitee.ReferredByUserID == nil || invitee.ReferralRewardAmount <= 0 || invitee.ReferralRewardGrantedAt != nil {
+		return nil, nil
+	}
+
+	updated, err := dbent.TxFromContext(ctx).User.Update().
+		Where(
+			dbuser.IDEQ(invitee.ID),
+			dbuser.ReferralRewardGrantedAtIsNil(),
+		).
+		SetReferralRewardGrantedAt(grantedAt).
+		Save(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("mark referral reward granted: %w", err)
+	}
+	if updated == 0 {
+		return nil, nil
+	}
+
+	inviterUserID := *invitee.ReferredByUserID
+	amount := invitee.ReferralRewardAmount
+	if err := s.userRepo.AddBalance(ctx, invitee.ID, amount); err != nil {
+		return nil, fmt.Errorf("grant referral reward to invitee: %w", err)
+	}
+	if err := createReferralRewardRedeemRecord(ctx, s.redeemService.redeemRepo, invitee.ID, amount); err != nil {
+		return nil, err
+	}
+	if err := s.userRepo.AddBalance(ctx, inviterUserID, amount); err != nil {
+		return nil, fmt.Errorf("grant referral reward to inviter: %w", err)
+	}
+	if err := createReferralRewardRedeemRecord(ctx, s.redeemService.redeemRepo, inviterUserID, amount); err != nil {
+		return nil, err
+	}
+
+	return &referralRewardGrantResult{
+		inviteeUserID: invitee.ID,
+		inviterUserID: inviterUserID,
+		amount:        amount,
+	}, nil
+}
+
+func (s *PaymentService) invalidateReferralRewardCaches(ctx context.Context, grantResult *referralRewardGrantResult) {
+	if grantResult == nil || s.redeemService == nil {
+		return
+	}
+	balanceReward := &RedeemCode{Type: RedeemTypeBalance}
+	s.redeemService.invalidateRedeemCaches(ctx, grantResult.inviteeUserID, balanceReward)
+	s.redeemService.invalidateRedeemCaches(ctx, grantResult.inviterUserID, balanceReward)
 }
 
 func (s *PaymentService) ExecuteSubscriptionFulfillment(ctx context.Context, oid int64) error {
