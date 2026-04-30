@@ -20,6 +20,7 @@ export type ProviderBrandKey =
   | 'ai360'
   | 'zeroone'
   | 'doubao'
+  | 'xiaomi'
   | 'minimax'
   | 'suno'
   | 'dify'
@@ -212,6 +213,14 @@ const providerBrands: Record<ProviderBrandKey, ProviderBrand> = {
     badgeClass: 'bg-blue-100 text-blue-900 ring-blue-200 dark:bg-blue-500/20 dark:text-blue-50 dark:ring-blue-400/30',
     iconWrapClass: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-500/15 dark:text-blue-200 dark:ring-blue-400/30',
   },
+  xiaomi: {
+    key: 'xiaomi',
+    label: '小米',
+    iconKey: 'xiaomimimo',
+    iconColor: '#FF6900',
+    badgeClass: 'bg-orange-100 text-orange-900 ring-orange-200 dark:bg-orange-500/20 dark:text-orange-50 dark:ring-orange-400/30',
+    iconWrapClass: 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-200 dark:ring-orange-400/30',
+  },
   minimax: {
     key: 'minimax',
     label: 'MiniMax',
@@ -292,6 +301,7 @@ const defaultProviderBrandKeys: ProviderBrandKey[] = [
   'ai360',
   'zeroone',
   'doubao',
+  'xiaomi',
   'minimax',
   'suno',
   'dify',
@@ -323,6 +333,7 @@ const providerBrandAliases: Record<ProviderBrandKey, string[]> = {
   ai360: ['360', 'ai360'],
   zeroone: ['零一万物', '01', 'zeroone', '01ai', 'yi'],
   doubao: ['豆包', 'doubao', '字节', 'bytedance', 'volcengine', '火山引擎'],
+  xiaomi: ['小米', 'xiaomi', 'mi', 'mimo', 'mi mo', 'xiaomimimo'],
   minimax: ['minimax', 'abab'],
   suno: ['suno'],
   dify: ['dify'],
