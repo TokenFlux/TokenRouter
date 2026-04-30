@@ -674,20 +674,26 @@ function overviewIconClass(key: string): string {
 }
 
 function formatPrice(value: number): string {
+  return `${formatPriceNumber(value)} ${balanceUnitName.value}`
+}
+
+function formatPriceNumber(value: number): string {
   const abs = Math.abs(value)
   const maximumFractionDigits = abs >= 1 ? 2 : abs >= 0.01 ? 4 : 6
   const minimumFractionDigits = abs >= 1 ? 2 : 4
 
-  const formatted = new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(undefined, {
     minimumFractionDigits,
     maximumFractionDigits,
   }).format(value)
-
-  return `${formatted} ${balanceUnitName.value}`
 }
 
 function formatPerMillion(value: number): string {
   return `${formatPrice(value * 1_000_000)} ${t('usage.perMillionTokens')}`
+}
+
+function formatCompactPerMillion(value: number): string {
+  return formatPriceNumber(value * 1_000_000)
 }
 
 function formatPerImage(value: number): string {
@@ -842,7 +848,7 @@ function compactTokenPricingRows(pricing: MarketplaceModelPricing | MarketplaceP
 
 function compactContextIntervalRows(pricing: MarketplaceModelPricing): PricingRow[] {
   return pricing.context_intervals?.flatMap((interval, index) => {
-    const rows = compactTokenPricingRows(interval)
+    const rows = compactIntervalTokenPricingRows(interval)
     if (rows.length === 0) {
       return []
     }
@@ -852,6 +858,23 @@ function compactContextIntervalRows(pricing: MarketplaceModelPricing): PricingRo
       value: rows.map((row) => `${row.label} ${row.value}`).join(' / '),
     }]
   }) ?? []
+}
+
+function compactIntervalTokenPricingRows(pricing: MarketplacePricingInterval): PricingRow[] {
+  const rows: PricingRow[] = []
+  if (hasPositiveValue(pricing.input_price_per_token)) {
+    rows.push({ key: 'input', label: t('marketplace.input'), value: formatCompactPerMillion(pricing.input_price_per_token) })
+  }
+  if (hasPositiveValue(pricing.output_price_per_token)) {
+    rows.push({ key: 'output', label: t('marketplace.output'), value: formatCompactPerMillion(pricing.output_price_per_token) })
+  }
+  if (rows.length > 0) {
+    return rows
+  }
+
+  return tokenPricingRowsFromValues(pricing)
+    .filter((row) => !row.key.startsWith('fast_'))
+    .slice(0, 2)
 }
 
 function compactPricingRows(pricing: MarketplaceModelPricing): PricingRow[] {
