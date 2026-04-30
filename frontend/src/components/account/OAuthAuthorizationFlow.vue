@@ -376,7 +376,7 @@
                     {{
                       loading
                         ? t('admin.accounts.oauth.generating')
-                        : openAIAuthSessions.length > 0
+                        : isOpenAIBatchAuth
                           ? t('admin.accounts.oauth.openai.appendAuthUrl')
                           : oauthGenerateAuthUrl
                     }}
@@ -416,6 +416,7 @@
                         <Icon name="externalLink" size="sm" />
                       </a>
                       <button
+                        v-if="isOpenAIBatchAuth"
                         type="button"
                         class="btn btn-secondary p-2 text-red-600 hover:text-red-700 dark:text-red-400"
                         :title="t('common.delete')"
@@ -425,7 +426,7 @@
                         <Icon name="trash" size="sm" />
                       </button>
                     </div>
-                    <p class="text-xs text-blue-700 dark:text-blue-300">
+                    <p v-if="isOpenAIBatchAuth" class="text-xs text-blue-700 dark:text-blue-300">
                       {{ t('admin.accounts.oauth.openai.multiAuthUrlHint', { count: openAIAuthSessions.length }) }}
                     </p>
                   </div>
@@ -712,7 +713,20 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const isOpenAI = computed(() => props.platform === 'openai')
-const openAIAuthSessions = computed(() => props.authSessions)
+const isOpenAIBatchAuth = computed(() => props.authSessions.length > 0)
+const openAIAuthSessions = computed(() => {
+  if (props.authSessions.length > 0) {
+    return props.authSessions
+  }
+  if (!props.authUrl || !props.sessionId) {
+    return []
+  }
+  return [{
+    authUrl: props.authUrl,
+    sessionId: props.sessionId,
+    state: ''
+  }]
+})
 
 // Get translation key based on platform
 const getOAuthKey = (key: string) => {
