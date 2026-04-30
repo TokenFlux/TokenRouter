@@ -30,6 +30,7 @@
                   v-if="key.group_id && key.group"
                   :name="key.group.name"
                   :platform="key.group.platform"
+                  :display-brand="key.group.display_brand"
                   :rate-multiplier="key.group.rate_multiplier"
                 />
                 <span v-else class="text-gray-400 italic">{{ t('admin.users.none') }}</span>
@@ -85,6 +86,7 @@
           <GroupOptionItem
             :name="group.name"
             :platform="group.platform"
+            :display-brand="group.display_brand"
             :rate-multiplier="group.rate_multiplier"
             :description="group.description"
             :selected="selectedKeyForGroup?.group_id === group.id"

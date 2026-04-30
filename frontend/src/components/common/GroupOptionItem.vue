@@ -9,6 +9,7 @@
       <GroupBadge
         :name="name"
         :platform="platform"
+        :display-brand="displayBrand"
         :show-rate="false"
         class="groupOptionItemBadge"
       />
@@ -52,10 +53,12 @@
 import { computed } from 'vue'
 import GroupBadge from './GroupBadge.vue'
 import type { GroupPlatform } from '@/types'
+import { resolveProviderBrand } from '@/utils/providerBrand'
 
 interface Props {
   name: string
   platform: GroupPlatform
+  displayBrand?: string | null
   rateMultiplier?: number
   userRateMultiplier?: number | null
   description?: string | null
@@ -69,6 +72,8 @@ const props = withDefaults(defineProps<Props>(), {
   userRateMultiplier: null
 })
 
+const brandName = computed(() => props.displayBrand?.trim() || '')
+
 // Whether user has a custom rate different from default
 const hasCustomRate = computed(() => {
   return (
@@ -79,8 +84,11 @@ const hasCustomRate = computed(() => {
   )
 })
 
-// Rate pill color matches platform badge color
+// 倍率标签跟随展示品牌；没有品牌时回退到接入格式配色。
 const ratePillClass = computed(() => {
+  if (brandName.value) {
+    return `ring-1 ring-inset ${resolveProviderBrand(brandName.value).badgeClass}`
+  }
   switch (props.platform) {
     case 'anthropic':
       return 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'

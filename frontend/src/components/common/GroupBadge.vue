@@ -5,8 +5,9 @@
       badgeClass
     ]"
   >
-    <!-- Platform logo -->
-    <PlatformIcon v-if="platform" :platform="platform" size="sm" />
+    <!-- 分组 platform 是接入格式；有展示品牌时优先按品牌渲染图标和配色。 -->
+    <ProviderIcon v-if="brandName" :brand="brandName" size="14px" />
+    <PlatformIcon v-else-if="platform" :platform="platform" size="sm" />
     <!-- Group name -->
     <span class="truncate">{{ name }}</span>
     <!-- Right side label -->
@@ -28,10 +29,13 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { GroupPlatform } from '@/types'
 import PlatformIcon from './PlatformIcon.vue'
+import ProviderIcon from './ProviderIcon.vue'
+import { resolveProviderBrand } from '@/utils/providerBrand'
 
 interface Props {
   name: string
   platform?: GroupPlatform
+  displayBrand?: string | null
   rateMultiplier?: number
   userRateMultiplier?: number | null // 用户专属倍率
   showRate?: boolean
@@ -45,6 +49,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const { t } = useI18n()
+
+const brandName = computed(() => props.displayBrand?.trim() || '')
 
 // 是否有专属倍率（且与默认倍率不同）
 const hasCustomRate = computed(() => {
@@ -102,6 +108,9 @@ const labelClass = computed(() => {
 })
 
 const badgeClass = computed(() => {
+  if (brandName.value) {
+    return `ring-1 ring-inset ${resolveProviderBrand(brandName.value).badgeClass}`
+  }
   if (props.platform === 'anthropic') {
     return 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
   }

@@ -243,6 +243,8 @@ const filteredOptions = computed(() => {
       if (getOptionLabel(opt).toLowerCase().includes(query)) return true
       // Also match description if present
       if (opt.description && String(opt.description).toLowerCase().includes(query)) return true
+      // 分组选项会附带 displayBrand，搜索时也应按品牌命中。
+      if (opt.displayBrand && String(opt.displayBrand).toLowerCase().includes(query)) return true
       return false
     })
     // In creatable mode, always prepend a fuzzy search option

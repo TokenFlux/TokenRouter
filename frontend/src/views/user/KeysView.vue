@@ -109,6 +109,7 @@
                   v-if="row.group"
                   :name="row.group.name"
                   :platform="row.group.platform"
+                  :display-brand="row.group.display_brand"
                   :rate-multiplier="row.group.rate_multiplier"
                   :user-rate-multiplier="userGroupRates[row.group.id]"
                 />
@@ -418,6 +419,7 @@
                 v-if="option"
                 :name="(option as unknown as GroupOption).label"
                 :platform="(option as unknown as GroupOption).platform"
+                :display-brand="(option as unknown as GroupOption).displayBrand"
                 :rate-multiplier="(option as unknown as GroupOption).rate"
                 :user-rate-multiplier="(option as unknown as GroupOption).userRate"
               />
@@ -427,6 +429,7 @@
               <GroupOptionItem
                 :name="(option as unknown as GroupOption).label"
                 :platform="(option as unknown as GroupOption).platform"
+                :display-brand="(option as unknown as GroupOption).displayBrand"
                 :rate-multiplier="(option as unknown as GroupOption).rate"
                 :user-rate-multiplier="(option as unknown as GroupOption).userRate"
                 :description="(option as unknown as GroupOption).description"
@@ -1021,6 +1024,7 @@
             <GroupOptionItem
               :name="option.label"
               :platform="option.platform"
+              :display-brand="option.displayBrand"
               :rate-multiplier="option.rate"
               :user-rate-multiplier="option.userRate"
               :description="option.description"
@@ -1081,6 +1085,7 @@ interface GroupOption {
   value: number
   label: string
   description: string | null
+  displayBrand: string | null
   rate: number
   userRate: number | null
   platform: GroupPlatform
@@ -1250,6 +1255,7 @@ const groupOptions = computed(() =>
     value: group.id,
     label: group.name,
     description: group.description,
+    displayBrand: group.display_brand?.trim() || null,
     rate: group.rate_multiplier,
     userRate: userGroupRates.value[group.id] ?? null,
     platform: group.platform
@@ -1263,6 +1269,7 @@ const filteredGroupOptions = computed(() => {
   if (!query) return groupOptions.value
   return groupOptions.value.filter((opt) => {
     return opt.label.toLowerCase().includes(query) ||
+      (opt.displayBrand && opt.displayBrand.toLowerCase().includes(query)) ||
       (opt.description && opt.description.toLowerCase().includes(query))
   })
 })

@@ -23,6 +23,7 @@
         <GroupBadge
           :name="group.name"
           :platform="group.platform"
+          :display-brand="group.display_brand"
           :rate-multiplier="group.rate_multiplier"
           class="min-w-0 flex-1"
         />
