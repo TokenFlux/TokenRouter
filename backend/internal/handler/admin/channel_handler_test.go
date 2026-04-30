@@ -15,7 +15,7 @@ import (
 // ---------------------------------------------------------------------------
 
 func float64Ptr(v float64) *float64 { return &v }
-func intPtr(v int) *int             { return &v }
+func channelIntPtr(v int) *int      { return &v }
 
 // ---------------------------------------------------------------------------
 // 1. channelToResponse
@@ -152,7 +152,7 @@ func TestChannelToResponse_WithIntervals(t *testing.T) {
 					{
 						ID:              100,
 						MinTokens:       0,
-						MaxTokens:       intPtr(1000),
+						MaxTokens:       channelIntPtr(1000),
 						TierLabel:       "1K",
 						InputPrice:      float64Ptr(0.01),
 						OutputPrice:     float64Ptr(0.02),
@@ -181,7 +181,7 @@ func TestChannelToResponse_WithIntervals(t *testing.T) {
 	iv0 := intervals[0]
 	require.Equal(t, int64(100), iv0.ID)
 	require.Equal(t, 0, iv0.MinTokens)
-	require.Equal(t, intPtr(1000), iv0.MaxTokens)
+	require.Equal(t, channelIntPtr(1000), iv0.MaxTokens)
 	require.Equal(t, "1K", iv0.TierLabel)
 	require.Equal(t, float64Ptr(0.01), iv0.InputPrice)
 	require.Equal(t, float64Ptr(0.02), iv0.OutputPrice)
@@ -334,7 +334,7 @@ func TestPricingRequestToService_WithIntervals(t *testing.T) {
 			Intervals: []pricingIntervalRequest{
 				{
 					MinTokens:       0,
-					MaxTokens:       intPtr(2000),
+					MaxTokens:       channelIntPtr(2000),
 					TierLabel:       "small",
 					InputPrice:      float64Ptr(0.01),
 					OutputPrice:     float64Ptr(0.02),
@@ -359,7 +359,7 @@ func TestPricingRequestToService_WithIntervals(t *testing.T) {
 
 	iv0 := result[0].Intervals[0]
 	require.Equal(t, 0, iv0.MinTokens)
-	require.Equal(t, intPtr(2000), iv0.MaxTokens)
+	require.Equal(t, channelIntPtr(2000), iv0.MaxTokens)
 	require.Equal(t, "small", iv0.TierLabel)
 	require.Equal(t, float64Ptr(0.01), iv0.InputPrice)
 	require.Equal(t, float64Ptr(0.02), iv0.OutputPrice)

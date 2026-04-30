@@ -2615,7 +2615,9 @@
         :show-access-token-option="false"
         :platform="form.platform"
         :show-project-id="geminiOAuthType === 'code_assist'"
+        :auth-sessions="currentOpenAIAuthSessions"
         @generate-url="handleGenerateUrl"
+        @remove-auth-session="handleRemoveOpenAIAuthSession"
         @cookie-auth="handleCookieAuth"
         @validate-refresh-token="handleValidateRefreshToken"
         @validate-mobile-refresh-token="handleOpenAIValidateMobileRT"
@@ -2959,7 +2961,11 @@ import {
   type AddMethod,
   type AuthInputMethod
 } from '@/composables/useAccountOAuth'
-import { useOpenAIOAuth } from '@/composables/useOpenAIOAuth'
+import {
+  useOpenAIOAuth,
+  type OpenAIOAuthSession,
+  type OpenAITokenInfo
+} from '@/composables/useOpenAIOAuth'
 import { useGeminiOAuth } from '@/composables/useGeminiOAuth'
 import { useAntigravityOAuth } from '@/composables/useAntigravityOAuth'
 import type {
@@ -3078,6 +3084,10 @@ const currentOAuthError = computed(() => {
   if (form.platform === 'antigravity') return antigravityOAuth.error.value
   return oauth.error.value
 })
+
+const currentOpenAIAuthSessions = computed(() =>
+  form.platform === 'openai' ? openaiOAuth.authSessions.value : []
+)
 
 // Refs
 const oauthFlowRef = ref<OAuthFlowExposed | null>(null)
@@ -3508,7 +3518,7 @@ const expiresAtInput = computed({
 const canExchangeCode = computed(() => {
   const authCode = oauthFlowRef.value?.authCode || ''
   if (form.platform === 'openai') {
-    return authCode.trim() && openaiOAuth.sessionId.value && !openaiOAuth.loading.value
+    return authCode.trim() && openaiOAuth.authSessions.value.length > 0 && !openaiOAuth.loading.value
   }
   if (form.platform === 'gemini') {
     return authCode.trim() && geminiOAuth.sessionId.value && !geminiOAuth.loading.value
@@ -4366,7 +4376,7 @@ const goBackToBasicInfo = () => {
 
 const handleGenerateUrl = async () => {
   if (form.platform === 'openai') {
-    await openaiOAuth.generateAuthUrl(form.proxy_id)
+    await openaiOAuth.appendAuthUrl(form.proxy_id)
   } else if (form.platform === 'gemini') {
     await geminiOAuth.generateAuthUrl(
       form.proxy_id,
@@ -4379,6 +4389,10 @@ const handleGenerateUrl = async () => {
   } else {
     await oauth.generateAuthUrl(addMethod.value, form.proxy_id)
   }
+}
+
+const handleRemoveOpenAIAuthSession = (sessionId: string) => {
+  openaiOAuth.removeAuthSession(sessionId)
 }
 
 const handleValidateRefreshToken = (rt: string) => {
@@ -4464,81 +4478,259 @@ const createAccountAndFinish = async (
   })
 }
 
-// OpenAI OAuth 授权码兑换
-const handleOpenAIExchange = async (authCode: string) => {
+interface OpenAIAuthCodeEntry {
+  lineNumber: number
+  code: string
+  state: string
+}
+
+const extractOpenAIAuthParam = (value: string, param: 'code' | 'state') => {
+  try {
+    const parsed = new URL(value)
+    return (parsed.searchParams.get(param) || '').trim()
+  } catch {
+    const match = value.match(new RegExp(`(?:^|[?&])${param}=([^&#\\s]+)`))
+    if (!match?.[1]) {
+      return ''
+    }
+    try {
+      return decodeURIComponent(match[1].replace(/\+/g, ' ')).trim()
+    } catch {
+      return match[1].trim()
+    }
+  }
+}
+
+const parseOpenAIAuthCodeEntries = (input: string): OpenAIAuthCodeEntry[] => {
+  return input
+    .split(/\r?\n/)
+    .map((line, index) => {
+      const trimmed = line.trim()
+      const code = extractOpenAIAuthParam(trimmed, 'code')
+      const state = extractOpenAIAuthParam(trimmed, 'state')
+      const hasOAuthParam = /(?:^|[?&])(?:code|state)=/.test(trimmed)
+      const looksLikeURL = /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed)
+      const plainCode = !hasOAuthParam && !looksLikeURL ? trimmed : ''
+      return {
+        lineNumber: index + 1,
+        code: code || plainCode,
+        state
+      }
+    })
+    .filter((entry) => entry.code || entry.state)
+}
+
+const getOpenAIAuthSessions = (): OpenAIOAuthSession[] => {
+  if (openaiOAuth.authSessions.value.length > 0) {
+    return [...openaiOAuth.authSessions.value]
+  }
+  if (!openaiOAuth.sessionId.value) {
+    return []
+  }
+  return [{
+    authUrl: openaiOAuth.authUrl.value,
+    sessionId: openaiOAuth.sessionId.value,
+    state: openaiOAuth.oauthState.value
+  }]
+}
+
+const findOpenAIAuthSession = (
+  entry: OpenAIAuthCodeEntry,
+  sessions: OpenAIOAuthSession[],
+  usedSessionIds: Set<string>
+) => {
+  if (entry.state) {
+    return sessions.find((session) =>
+      session.state === entry.state && !usedSessionIds.has(session.sessionId)
+    ) || null
+  }
+  return sessions.find((session) => !usedSessionIds.has(session.sessionId)) || null
+}
+
+const ensureOpenAITempUnschedConfigReady = () => {
+  if (!tempUnschedEnabled.value) {
+    return true
+  }
+  if (buildTempUnschedRules(tempUnschedRules.value).length > 0) {
+    return true
+  }
+  const message = t('admin.accounts.tempUnschedulable.rulesInvalid')
+  openaiOAuth.error.value = message
+  appStore.showError(message)
+  return false
+}
+
+const buildOpenAIOAuthAccountRequest = (
+  tokenInfo: OpenAITokenInfo,
+  accountName: string,
+  clientId?: string
+): CreateAccountRequest | null => {
+  const credentials = openaiOAuth.buildCredentials(tokenInfo)
+  if (clientId) {
+    credentials.client_id = clientId
+  }
+  const oauthExtra = openaiOAuth.buildExtraInfo(tokenInfo) as Record<string, unknown> | undefined
+  const extra = buildOpenAIExtra(oauthExtra)
+
+  applyOpenAIOAuthCredentialDefaults(credentials)
+  // OpenAI OAuth 透传模式下不应用模型限制。
+  if (!isOpenAIModelRestrictionDisabled.value) {
+    applyPersistedModelRestriction(credentials)
+  }
+  const compactModelMapping = buildOpenAICompactModelMapping()
+  if (compactModelMapping) {
+    credentials.compact_model_mapping = compactModelMapping
+  }
+  if (!applyTempUnschedConfig(credentials)) {
+    openaiOAuth.error.value = t('admin.accounts.tempUnschedulable.rulesInvalid')
+    return null
+  }
+
+  return {
+    name: accountName,
+    notes: form.notes,
+    platform: 'openai',
+    type: 'oauth',
+    credentials,
+    extra,
+    proxy_id: form.proxy_id,
+    concurrency: form.concurrency,
+    load_factor: form.load_factor ?? undefined,
+    priority: form.priority,
+    rate_multiplier: form.rate_multiplier,
+    group_ids: form.group_ids,
+    expires_at: form.expires_at,
+    auto_pause_on_expired: autoPauseOnExpired.value
+  }
+}
+
+const createOpenAIOAuthAccountFromToken = async (
+  tokenInfo: OpenAITokenInfo,
+  accountName: string,
+  clientId?: string
+) => {
+  const payload = buildOpenAIOAuthAccountRequest(tokenInfo, accountName, clientId)
+  if (!payload) {
+    return false
+  }
+  await adminAPI.accounts.create(payload)
+  return true
+}
+
+const buildOpenAIOAuthAccountName = (
+  tokenInfo: OpenAITokenInfo,
+  index: number,
+  total: number
+) => {
+  const baseName = form.name || tokenInfo.email || 'OpenAI OAuth Account'
+  return total > 1 ? `${baseName} #${index + 1}` : baseName
+}
+
+// OpenAI OAuth 授权码批量兑换和创建
+const handleOpenAIExchange = async (authCodeInput: string) => {
   const oauthClient = openaiOAuth
-  if (!authCode.trim() || !oauthClient.sessionId.value) return
+  if (!authCodeInput.trim()) return
+
+  const entries = parseOpenAIAuthCodeEntries(authCodeInput)
+  if (entries.length === 0) {
+    oauthClient.error.value = t('admin.accounts.oauth.openai.pleaseEnterAuthCode')
+    return
+  }
+
+  const sessions = getOpenAIAuthSessions()
+  if (sessions.length === 0) {
+    oauthClient.error.value = t('admin.accounts.oauth.openai.pleaseGenerateAuthUrl')
+    appStore.showError(oauthClient.error.value)
+    return
+  }
+  if (!ensureOpenAITempUnschedConfigReady()) {
+    return
+  }
 
   oauthClient.loading.value = true
   oauthClient.error.value = ''
 
+  let successCount = 0
+  let failedCount = 0
+  const errors: string[] = []
+  const usedSessionIds = new Set<string>()
+
   try {
-    const stateToUse = (oauthFlowRef.value?.oauthState || oauthClient.oauthState.value || '').trim()
-    if (!stateToUse) {
-      oauthClient.error.value = t('admin.accounts.oauth.authFailed')
-      appStore.showError(oauthClient.error.value)
-      return
-    }
-
-    const tokenInfo = await oauthClient.exchangeAuthCode(
-      authCode.trim(),
-      oauthClient.sessionId.value,
-      stateToUse,
-      form.proxy_id
-    )
-    if (!tokenInfo) return
-
     await loadOpenAIOAuthImportDefaults()
 
-    const credentials = oauthClient.buildCredentials(tokenInfo)
-    const oauthExtra = oauthClient.buildExtraInfo(tokenInfo) as Record<string, unknown> | undefined
-    const extra = buildOpenAIExtra(oauthExtra)
-    const shouldCreateOpenAI = form.platform === 'openai'
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i]
+      const session = findOpenAIAuthSession(entry, sessions, usedSessionIds)
+      if (!entry.code) {
+        failedCount++
+        errors.push(`#${entry.lineNumber}: ${t('admin.accounts.oauth.openai.pleaseEnterAuthCode')}`)
+        continue
+      }
+      if (!session) {
+        failedCount++
+        errors.push(`#${entry.lineNumber}: ${t('admin.accounts.oauth.openai.noMatchingAuthUrl')}`)
+        continue
+      }
 
-    if (shouldCreateOpenAI) {
-      applyOpenAIOAuthCredentialDefaults(credentials)
-    }
-    // Add model mapping for OpenAI OAuth accounts（透传模式下不应用）
-    if (shouldCreateOpenAI && !isOpenAIModelRestrictionDisabled.value) {
-      applyPersistedModelRestriction(credentials)
-    }
-    if (shouldCreateOpenAI) {
-      const compactModelMapping = buildOpenAICompactModelMapping()
-      if (compactModelMapping) {
-        credentials.compact_model_mapping = compactModelMapping
+      usedSessionIds.add(session.sessionId)
+      const stateToUse = entry.state || session.state
+      if (!stateToUse) {
+        failedCount++
+        errors.push(`#${entry.lineNumber}: ${t('admin.accounts.oauth.openai.missingState')}`)
+        continue
+      }
+
+      try {
+        const tokenInfo = await oauthClient.exchangeAuthCode(
+          entry.code,
+          session.sessionId,
+          stateToUse,
+          form.proxy_id
+        )
+        oauthClient.loading.value = true
+        if (!tokenInfo) {
+          failedCount++
+          errors.push(`#${entry.lineNumber}: ${oauthClient.error.value || t('admin.accounts.oauth.openai.failedToExchangeCode')}`)
+          oauthClient.error.value = ''
+          continue
+        }
+
+        oauthClient.removeAuthSession(session.sessionId)
+        const accountName = buildOpenAIOAuthAccountName(tokenInfo, i, entries.length)
+        const created = await createOpenAIOAuthAccountFromToken(tokenInfo, accountName)
+        if (!created) {
+          failedCount++
+          errors.push(`#${entry.lineNumber}: ${oauthClient.error.value || t('admin.accounts.failedToCreate')}`)
+          oauthClient.error.value = ''
+          continue
+        }
+
+        successCount++
+      } catch (error: any) {
+        failedCount++
+        const errMsg = error.response?.data?.detail || error.message || t('admin.accounts.oauth.authFailed')
+        errors.push(`#${entry.lineNumber}: ${errMsg}`)
       }
     }
 
-    // 应用临时不可调度配置
-    if (!applyTempUnschedConfig(credentials)) {
-      return
+    if (successCount > 0 && failedCount === 0) {
+      appStore.showSuccess(
+        entries.length > 1
+          ? t('admin.accounts.oauth.batchSuccess', { count: successCount })
+          : t('admin.accounts.accountCreated')
+      )
+      emit('created')
+      handleClose()
+    } else if (successCount > 0 && failedCount > 0) {
+      appStore.showWarning(
+        t('admin.accounts.oauth.batchPartialSuccess', { success: successCount, failed: failedCount })
+      )
+      oauthClient.error.value = errors.join('\n')
+      emit('created')
+    } else {
+      oauthClient.error.value = errors.join('\n')
+      appStore.showError(t('admin.accounts.oauth.batchFailed'))
     }
-
-    if (shouldCreateOpenAI) {
-      await adminAPI.accounts.create({
-        name: form.name,
-        notes: form.notes,
-        platform: 'openai',
-        type: 'oauth',
-        credentials,
-        extra,
-        proxy_id: form.proxy_id,
-        concurrency: form.concurrency,
-        load_factor: form.load_factor ?? undefined,
-        priority: form.priority,
-        rate_multiplier: form.rate_multiplier,
-        group_ids: form.group_ids,
-        expires_at: form.expires_at,
-        auto_pause_on_expired: autoPauseOnExpired.value
-      })
-      appStore.showSuccess(t('admin.accounts.accountCreated'))
-    }
-
-    emit('created')
-    handleClose()
-  } catch (error: any) {
-    oauthClient.error.value = error.response?.data?.detail || t('admin.accounts.oauth.authFailed')
-    appStore.showError(oauthClient.error.value)
   } finally {
     oauthClient.loading.value = false
   }
@@ -4562,6 +4754,9 @@ const handleOpenAIBatchRT = async (refreshTokenInput: string, clientId?: string)
     oauthClient.error.value = t('admin.accounts.oauth.openai.pleaseEnterRefreshToken')
     return
   }
+  if (!ensureOpenAITempUnschedConfigReady()) {
+    return
+  }
 
   oauthClient.loading.value = true
   oauthClient.error.value = ''
@@ -4569,12 +4764,9 @@ const handleOpenAIBatchRT = async (refreshTokenInput: string, clientId?: string)
   let successCount = 0
   let failedCount = 0
   const errors: string[] = []
-  const shouldCreateOpenAI = form.platform === 'openai'
 
   try {
-    if (shouldCreateOpenAI) {
-      await loadOpenAIOAuthImportDefaults()
-    }
+    await loadOpenAIOAuthImportDefaults()
 
     for (let i = 0; i < refreshTokens.length; i++) {
       try {
@@ -4583,6 +4775,7 @@ const handleOpenAIBatchRT = async (refreshTokenInput: string, clientId?: string)
           form.proxy_id,
           clientId
         )
+        oauthClient.loading.value = true
         if (!tokenInfo) {
           failedCount++
           errors.push(`#${i + 1}: ${oauthClient.error.value || 'Validation failed'}`)
@@ -4590,48 +4783,13 @@ const handleOpenAIBatchRT = async (refreshTokenInput: string, clientId?: string)
           continue
         }
 
-        const credentials = oauthClient.buildCredentials(tokenInfo)
-        if (clientId) {
-          credentials.client_id = clientId
-        }
-        const oauthExtra = oauthClient.buildExtraInfo(tokenInfo) as Record<string, unknown> | undefined
-        const extra = buildOpenAIExtra(oauthExtra)
-
-        if (shouldCreateOpenAI) {
-          applyOpenAIOAuthCredentialDefaults(credentials)
-        }
-        // Add model mapping for OpenAI OAuth accounts（透传模式下不应用）
-        if (shouldCreateOpenAI && !isOpenAIModelRestrictionDisabled.value) {
-          applyPersistedModelRestriction(credentials)
-        }
-        if (shouldCreateOpenAI) {
-          const compactModelMapping = buildOpenAICompactModelMapping()
-          if (compactModelMapping) {
-            credentials.compact_model_mapping = compactModelMapping
-          }
-        }
-
-        // Generate account name; fallback to email if name is empty (ent schema requires NotEmpty)
-        const baseName = form.name || tokenInfo.email || 'OpenAI OAuth Account'
-        const accountName = refreshTokens.length > 1 ? `${baseName} #${i + 1}` : baseName
-
-        if (shouldCreateOpenAI) {
-          await adminAPI.accounts.create({
-            name: accountName,
-            notes: form.notes,
-            platform: 'openai',
-            type: 'oauth',
-            credentials,
-            extra,
-            proxy_id: form.proxy_id,
-            concurrency: form.concurrency,
-            load_factor: form.load_factor ?? undefined,
-            priority: form.priority,
-            rate_multiplier: form.rate_multiplier,
-            group_ids: form.group_ids,
-            expires_at: form.expires_at,
-            auto_pause_on_expired: autoPauseOnExpired.value
-          })
+        const accountName = buildOpenAIOAuthAccountName(tokenInfo, i, refreshTokens.length)
+        const created = await createOpenAIOAuthAccountFromToken(tokenInfo, accountName, clientId)
+        if (!created) {
+          failedCount++
+          errors.push(`#${i + 1}: ${oauthClient.error.value || t('admin.accounts.failedToCreate')}`)
+          oauthClient.error.value = ''
+          continue
         }
 
         successCount++

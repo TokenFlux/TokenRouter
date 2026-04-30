@@ -3083,6 +3083,8 @@ export default {
           followSteps: '请按照以下步骤完成 OpenAI 账户的授权：',
           step1GenerateUrl: '点击下方按钮生成授权链接',
           generateAuthUrl: '生成授权链接',
+          appendAuthUrl: '追加授权链接',
+          multiAuthUrlHint: '已生成 {count} 条授权链接。每个账号使用一条链接授权，回填时一行一个回调链接或 Code。',
           step2OpenUrl: '在浏览器中打开链接并完成授权',
           openUrlDesc: '请在新标签页中打开授权链接，登录您的 OpenAI 账户并授权。',
           importantNotice:
@@ -3092,11 +3094,15 @@ export default {
             '授权完成后，当页面地址变为 http://localhost:xxx/auth/callback?code=... 时：',
           authCode: '授权链接或 Code',
           authCodePlaceholder:
-            '方式1：复制完整的链接\n(http://localhost:xxx/auth/callback?code=...)\n方式2：仅复制 code 参数的值',
-          authCodeHint: '您可以直接复制整个链接或仅复制 code 参数值，系统会自动识别',
+            '方式1：复制完整的链接，一行一个\n(http://localhost:xxx/auth/callback?code=...&state=...)\n方式2：仅复制 code 参数的值，一行一个',
+          authCodeHint: '支持一行一个。推荐复制完整回调链接，系统会用 state 匹配对应授权链接；纯 Code 会按生成顺序匹配。',
           failedToGenerateUrl: '生成 OpenAI 授权链接失败',
           failedToExchangeCode: 'OpenAI 授权码兑换失败',
           failedToValidateRT: '验证 Refresh Token 失败',
+          pleaseEnterAuthCode: '请输入授权回调链接或 Code',
+          pleaseGenerateAuthUrl: '请先生成至少一条授权链接',
+          noMatchingAuthUrl: '找不到匹配的授权链接。请粘贴包含 state 的完整回调链接，或按授权链接生成顺序逐行输入 Code。',
+          missingState: '缺少 state，请重新生成授权链接后再授权',
           errors: {
             OPENAI_OAUTH_PROXY_REQUIRED:
               '未设置代理，当前服务器无法直连 OpenAI，导致 OpenAI OAuth 请求失败。请先选择可访问 OpenAI 的代理后重试；如果授权码已失效，请重新生成授权链接。'

@@ -26,6 +26,12 @@ export interface OpenAITokenInfo {
 
 export type OpenAIOAuthPlatform = 'openai'
 
+export interface OpenAIOAuthSession {
+  authUrl: string
+  sessionId: string
+  state: string
+}
+
 export function useOpenAIOAuth() {
   const appStore = useAppStore()
   const { t } = useI18n()
@@ -35,14 +41,54 @@ export function useOpenAIOAuth() {
   const authUrl = ref('')
   const sessionId = ref('')
   const oauthState = ref('')
+  const authSessions = ref<OpenAIOAuthSession[]>([])
   const loading = ref(false)
   const error = ref('')
+
+  const extractStateFromAuthUrl = (urlValue: string): string => {
+    try {
+      const parsed = new URL(urlValue)
+      return parsed.searchParams.get('state') || ''
+    } catch {
+      return ''
+    }
+  }
+
+  const setCurrentAuthSession = (session: OpenAIOAuthSession | null) => {
+    authUrl.value = session?.authUrl || ''
+    sessionId.value = session?.sessionId || ''
+    oauthState.value = session?.state || ''
+  }
+
+  const requestAuthSession = async (
+    proxyId?: number | null,
+    redirectUri?: string
+  ): Promise<OpenAIOAuthSession | null> => {
+    const payload: Record<string, unknown> = {}
+    if (proxyId) {
+      payload.proxy_id = proxyId
+    }
+    if (redirectUri) {
+      payload.redirect_uri = redirectUri
+    }
+
+    const response = await adminAPI.accounts.generateAuthUrl(
+      `${endpointPrefix}/generate-auth-url`,
+      payload
+    )
+    return {
+      authUrl: response.auth_url,
+      sessionId: response.session_id,
+      state: extractStateFromAuthUrl(response.auth_url)
+    }
+  }
 
   // Reset state
   const resetState = () => {
     authUrl.value = ''
     sessionId.value = ''
     oauthState.value = ''
+    authSessions.value = []
     loading.value = false
     error.value = ''
   }
@@ -56,29 +102,14 @@ export function useOpenAIOAuth() {
     authUrl.value = ''
     sessionId.value = ''
     oauthState.value = ''
+    authSessions.value = []
     error.value = ''
 
     try {
-      const payload: Record<string, unknown> = {}
-      if (proxyId) {
-        payload.proxy_id = proxyId
-      }
-      if (redirectUri) {
-        payload.redirect_uri = redirectUri
-      }
-
-      const response = await adminAPI.accounts.generateAuthUrl(
-        `${endpointPrefix}/generate-auth-url`,
-        payload
-      )
-      authUrl.value = response.auth_url
-      sessionId.value = response.session_id
-      try {
-        const parsed = new URL(response.auth_url)
-        oauthState.value = parsed.searchParams.get('state') || ''
-      } catch {
-        oauthState.value = ''
-      }
+      const session = await requestAuthSession(proxyId, redirectUri)
+      if (!session) return false
+      authSessions.value = [session]
+      setCurrentAuthSession(session)
       return true
     } catch (err: any) {
       error.value = extractApiErrorMessage(err, t('admin.accounts.oauth.openai.failedToGenerateUrl'))
@@ -86,6 +117,36 @@ export function useOpenAIOAuth() {
       return false
     } finally {
       loading.value = false
+    }
+  }
+
+  // 追加生成一条授权链接，用于 OpenAI OAuth 批量导入时保持多组 session/state。
+  const appendAuthUrl = async (
+    proxyId?: number | null,
+    redirectUri?: string
+  ): Promise<OpenAIOAuthSession | null> => {
+    loading.value = true
+    error.value = ''
+
+    try {
+      const session = await requestAuthSession(proxyId, redirectUri)
+      if (!session) return null
+      authSessions.value = [...authSessions.value, session]
+      setCurrentAuthSession(session)
+      return session
+    } catch (err: any) {
+      error.value = extractApiErrorMessage(err, t('admin.accounts.oauth.openai.failedToGenerateUrl'))
+      appStore.showError(error.value)
+      return null
+    } finally {
+      loading.value = false
+    }
+  }
+
+  const removeAuthSession = (targetSessionId: string) => {
+    authSessions.value = authSessions.value.filter((session) => session.sessionId !== targetSessionId)
+    if (sessionId.value === targetSessionId) {
+      setCurrentAuthSession(authSessions.value[authSessions.value.length - 1] || null)
     }
   }
 
@@ -224,11 +285,14 @@ export function useOpenAIOAuth() {
     authUrl,
     sessionId,
     oauthState,
+    authSessions,
     loading,
     error,
     // Methods
     resetState,
     generateAuthUrl,
+    appendAuthUrl,
+    removeAuthSession,
     exchangeAuthCode,
     validateRefreshToken,
     buildCredentials,

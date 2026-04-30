@@ -345,8 +345,93 @@
                     {{ t('admin.accounts.oauth.gemini.projectIdHint') }}
                   </p>
                 </div>
+                <div v-if="isOpenAI" class="space-y-3">
+                  <button
+                    type="button"
+                    :disabled="loading"
+                    class="btn btn-primary text-sm"
+                    @click="handleGenerateUrl"
+                  >
+                    <svg
+                      v-if="loading"
+                      class="-ml-1 mr-2 h-4 w-4 animate-spin"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                    >
+                      <circle
+                        class="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        stroke-width="4"
+                      ></circle>
+                      <path
+                        class="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                      ></path>
+                    </svg>
+                    <Icon v-else name="plus" size="sm" class="mr-2" />
+                    {{
+                      loading
+                        ? t('admin.accounts.oauth.generating')
+                        : openAIAuthSessions.length > 0
+                          ? t('admin.accounts.oauth.openai.appendAuthUrl')
+                          : oauthGenerateAuthUrl
+                    }}
+                  </button>
+                  <div v-if="openAIAuthSessions.length > 0" class="space-y-2">
+                    <div
+                      v-for="(session, index) in openAIAuthSessions"
+                      :key="session.sessionId"
+                      class="flex items-center gap-2 rounded-lg border border-blue-100 bg-gray-50 p-2 dark:border-blue-900/50 dark:bg-gray-700"
+                    >
+                      <span class="w-10 shrink-0 text-center text-xs font-semibold text-blue-700 dark:text-blue-300">
+                        #{{ index + 1 }}
+                      </span>
+                      <input
+                        :value="session.authUrl"
+                        readonly
+                        type="text"
+                        class="input min-w-0 flex-1 bg-white font-mono text-xs dark:bg-gray-800"
+                      />
+                      <button
+                        type="button"
+                        class="btn btn-secondary p-2"
+                        :title="t('admin.accounts.oauth.copyAuthUrl')"
+                        :aria-label="t('admin.accounts.oauth.copyAuthUrl')"
+                        @click="handleCopySessionUrl(session.authUrl)"
+                      >
+                        <Icon name="copy" size="sm" />
+                      </button>
+                      <a
+                        :href="session.authUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="btn btn-primary p-2"
+                        :title="t('admin.accounts.oauth.openAuthUrl')"
+                        :aria-label="t('admin.accounts.oauth.openAuthUrl')"
+                      >
+                        <Icon name="externalLink" size="sm" />
+                      </a>
+                      <button
+                        type="button"
+                        class="btn btn-secondary p-2 text-red-600 hover:text-red-700 dark:text-red-400"
+                        :title="t('common.delete')"
+                        :aria-label="t('common.delete')"
+                        @click="handleRemoveAuthSession(session.sessionId)"
+                      >
+                        <Icon name="trash" size="sm" />
+                      </button>
+                    </div>
+                    <p class="text-xs text-blue-700 dark:text-blue-300">
+                      {{ t('admin.accounts.oauth.openai.multiAuthUrlHint', { count: openAIAuthSessions.length }) }}
+                    </p>
+                  </div>
+                </div>
                 <button
-                  v-if="!authUrl"
+                  v-else-if="!authUrl"
                   type="button"
                   :disabled="loading"
                   class="btn btn-primary text-sm"
@@ -499,13 +584,28 @@
                   <label class="input-label">
                     <Icon name="key" size="sm" class="mr-1 inline text-blue-500" />
                     {{ oauthAuthCode }}
+                    <span
+                      v-if="isOpenAI && parsedAuthCodeLineCount > 1"
+                      class="ml-2 rounded-full bg-blue-500 px-2 py-0.5 text-xs text-white"
+                    >
+                      {{ t('admin.accounts.oauth.keysCount', { count: parsedAuthCodeLineCount }) }}
+                    </span>
                   </label>
                   <textarea
                     v-model="authCodeInput"
-                    rows="3"
-                    class="input w-full resize-none font-mono text-sm"
+                    :rows="isOpenAI ? 5 : 3"
+                    :class="[
+                      'input w-full font-mono text-sm',
+                      isOpenAI ? 'resize-y' : 'resize-none'
+                    ]"
                     :placeholder="oauthAuthCodePlaceholder"
                   ></textarea>
+                  <p
+                    v-if="isOpenAI && parsedAuthCodeLineCount > 1"
+                    class="mt-2 text-xs text-blue-600 dark:text-blue-400"
+                  >
+                    {{ t('admin.accounts.oauth.batchCreateAccounts', { count: parsedAuthCodeLineCount }) }}
+                  </p>
                   <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                     <Icon name="infoCircle" size="xs" class="mr-1 inline" />
                     {{ oauthAuthCodeHint }}
@@ -555,6 +655,7 @@ import { useI18n } from 'vue-i18n'
 import { useClipboard } from '@/composables/useClipboard'
 import Icon from '@/components/icons/Icon.vue'
 import type { AddMethod, AuthInputMethod } from '@/composables/useAccountOAuth'
+import type { OpenAIOAuthSession } from '@/composables/useOpenAIOAuth'
 import type { AccountPlatform } from '@/types'
 
 interface Props {
@@ -574,6 +675,7 @@ interface Props {
   showAccessTokenOption?: boolean
   platform?: AccountPlatform // Platform type for different UI/text
   showProjectId?: boolean // New prop to control project ID visibility
+  authSessions?: OpenAIOAuthSession[]
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -591,11 +693,13 @@ const props = withDefaults(defineProps<Props>(), {
   showSessionTokenOption: false,
   showAccessTokenOption: false,
   platform: 'anthropic',
-  showProjectId: true
+  showProjectId: true,
+  authSessions: () => []
 })
 
 const emit = defineEmits<{
   'generate-url': []
+  'remove-auth-session': [sessionId: string]
   'exchange-code': [code: string]
   'cookie-auth': [sessionKey: string]
   'validate-refresh-token': [refreshToken: string]
@@ -608,6 +712,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const isOpenAI = computed(() => props.platform === 'openai')
+const openAIAuthSessions = computed(() => props.authSessions)
 
 // Get translation key based on platform
 const getOAuthKey = (key: string) => {
@@ -667,15 +772,23 @@ const parsedRefreshTokenCount = computed(() => {
     .filter((rt) => rt).length
 })
 
+const parsedAuthCodeLineCount = computed(() => {
+  return authCodeInput.value
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line).length
+})
+
 // Watchers
 watch(inputMethod, (newVal) => {
   emit('update:inputMethod', newVal)
 })
 
-// Auto-extract code from callback URL (OpenAI/Gemini/Antigravity)
-// e.g., http://localhost:8085/callback?code=xxx...&state=...
+// 从回调链接自动提取授权码（Gemini/Antigravity）。
+// 例如：http://localhost:8085/callback?code=xxx...&state=...
 watch(authCodeInput, (newVal) => {
-  if (props.platform !== 'openai' && props.platform !== 'gemini' && props.platform !== 'antigravity') return
+  if (props.platform === 'openai') return
+  if (props.platform !== 'gemini' && props.platform !== 'antigravity') return
 
   const trimmed = newVal.trim()
   // Check if it looks like a URL with code parameter
@@ -685,7 +798,7 @@ watch(authCodeInput, (newVal) => {
       const url = new URL(trimmed)
       const code = url.searchParams.get('code')
       const stateParam = url.searchParams.get('state')
-      if ((props.platform === 'openai' || props.platform === 'gemini' || props.platform === 'antigravity') && stateParam) {
+      if (stateParam) {
         oauthState.value = stateParam
       }
       if (code && code !== trimmed) {
@@ -696,7 +809,7 @@ watch(authCodeInput, (newVal) => {
       // If URL parsing fails, try regex extraction
       const match = trimmed.match(/[?&]code=([^&]+)/)
       const stateMatch = trimmed.match(/[?&]state=([^&]+)/)
-      if ((props.platform === 'openai' || props.platform === 'gemini' || props.platform === 'antigravity') && stateMatch && stateMatch[1]) {
+      if (stateMatch && stateMatch[1]) {
         oauthState.value = stateMatch[1]
       }
       if (match && match[1] && match[1] !== trimmed) {
@@ -715,6 +828,14 @@ const handleCopyUrl = () => {
   if (props.authUrl) {
     copyToClipboard(props.authUrl, 'URL copied to clipboard')
   }
+}
+
+const handleCopySessionUrl = (urlValue: string) => {
+  copyToClipboard(urlValue, 'URL copied to clipboard')
+}
+
+const handleRemoveAuthSession = (targetSessionId: string) => {
+  emit('remove-auth-session', targetSessionId)
 }
 
 const handleRegenerate = () => {

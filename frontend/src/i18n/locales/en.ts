@@ -2948,6 +2948,8 @@ export default {
           followSteps: 'Follow these steps to complete OpenAI account authorization:',
           step1GenerateUrl: 'Click the button below to generate the authorization URL',
           generateAuthUrl: 'Generate Auth URL',
+          appendAuthUrl: 'Add Auth URL',
+          multiAuthUrlHint: '{count} authorization URL(s) generated. Authorize one account per URL, then paste one callback URL or code per line.',
           step2OpenUrl: 'Open the URL in your browser and complete authorization',
           openUrlDesc:
             'Open the authorization URL in a new tab, log in to your OpenAI account and authorize.',
@@ -2958,12 +2960,16 @@ export default {
             'After authorization is complete, when the page URL becomes http://localhost:xxx/auth/callback?code=...:',
           authCode: 'Authorization URL or Code',
           authCodePlaceholder:
-            'Option 1: Copy the complete URL\n(http://localhost:xxx/auth/callback?code=...)\nOption 2: Copy only the code parameter value',
+            'Option 1: Copy complete callback URLs, one per line\n(http://localhost:xxx/auth/callback?code=...&state=...)\nOption 2: Copy only code parameter values, one per line',
           authCodeHint:
-            'You can copy the entire URL or just the code parameter value, the system will auto-detect',
+            'Supports one per line. Complete callback URLs are recommended because state maps them to the matching authorization URL; code-only lines use generation order.',
           failedToGenerateUrl: 'Failed to generate OpenAI auth URL',
           failedToExchangeCode: 'Failed to exchange OpenAI auth code',
           failedToValidateRT: 'Failed to validate refresh token',
+          pleaseEnterAuthCode: 'Please enter callback URL or code',
+          pleaseGenerateAuthUrl: 'Please generate at least one authorization URL first',
+          noMatchingAuthUrl: 'No matching authorization URL was found. Paste the full callback URL with state, or enter code-only lines in authorization URL generation order.',
+          missingState: 'Missing state. Regenerate the authorization URL and authorize again.',
           errors: {
             OPENAI_OAUTH_PROXY_REQUIRED:
               'No proxy is configured and this server could not reach OpenAI directly, so the OpenAI OAuth request failed. Select a proxy that can access OpenAI and retry; if the authorization code has expired, regenerate the authorization URL.'
