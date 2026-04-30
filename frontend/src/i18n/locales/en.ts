@@ -2941,8 +2941,8 @@ export default {
         authCodeDesc:
           'After authorization is complete, the page will display an Authorization Code. Copy and paste it below:',
         authCode: 'Authorization Code',
-        authCodePlaceholder: 'Paste the Authorization Code from Claude page...',
-        authCodeHint: 'Paste the Authorization Code copied from the Claude page',
+        authCodePlaceholder: 'Paste the full callback URL or the Authorization Code from Claude page...',
+        authCodeHint: 'Full callback URLs are supported; the system will extract code automatically',
         completeAuth: 'Complete Authorization',
         verifying: 'Verifying...',
         pleaseEnterSessionKey: 'Please enter at least one valid sessionKey',

@@ -793,43 +793,50 @@ const parsedAuthCodeLineCount = computed(() => {
     .filter((line) => line).length
 })
 
+const extractCallbackParam = (value: string, param: 'code' | 'state') => {
+  try {
+    const url = new URL(value)
+    const fromSearch = url.searchParams.get(param)
+    if (fromSearch) return fromSearch.trim()
+    if (url.hash) {
+      return new URLSearchParams(url.hash.replace(/^#/, '')).get(param)?.trim() || ''
+    }
+  } catch {
+    const match = value.match(new RegExp(`(?:^|[?#&])${param}=([^&#\\s]+)`))
+    if (!match?.[1]) return ''
+    try {
+      return decodeURIComponent(match[1].replace(/\+/g, ' ')).trim()
+    } catch {
+      return match[1].trim()
+    }
+  }
+  return ''
+}
+
+const shouldNormalizeSingleCallbackInput = computed(() => {
+  return props.platform !== 'openai' || !isOpenAIBatchAuth.value
+})
+
 // Watchers
 watch(inputMethod, (newVal) => {
   emit('update:inputMethod', newVal)
 })
 
-// 从回调链接自动提取授权码（Gemini/Antigravity）。
+// 从单条回调链接自动提取授权码，OpenAI 批量导入保留多行原始输入给父组件匹配 state。
 // 例如：http://localhost:8085/callback?code=xxx...&state=...
 watch(authCodeInput, (newVal) => {
-  if (props.platform === 'openai') return
-  if (props.platform !== 'gemini' && props.platform !== 'antigravity') return
+  if (!shouldNormalizeSingleCallbackInput.value) return
 
   const trimmed = newVal.trim()
-  // Check if it looks like a URL with code parameter
-  if (trimmed.includes('?') && trimmed.includes('code=')) {
-    try {
-      // Try to parse as URL
-      const url = new URL(trimmed)
-      const code = url.searchParams.get('code')
-      const stateParam = url.searchParams.get('state')
-      if (stateParam) {
-        oauthState.value = stateParam
-      }
-      if (code && code !== trimmed) {
-        // Replace the input with just the code
-        authCodeInput.value = code
-      }
-    } catch {
-      // If URL parsing fails, try regex extraction
-      const match = trimmed.match(/[?&]code=([^&]+)/)
-      const stateMatch = trimmed.match(/[?&]state=([^&]+)/)
-      if (stateMatch && stateMatch[1]) {
-        oauthState.value = stateMatch[1]
-      }
-      if (match && match[1] && match[1] !== trimmed) {
-        authCodeInput.value = match[1]
-      }
-    }
+  if (!trimmed || !/(?:^|[?#&])(?:code|state)=/.test(trimmed)) return
+
+  const stateParam = extractCallbackParam(trimmed, 'state')
+  if (stateParam) {
+    oauthState.value = stateParam
+  }
+  const code = extractCallbackParam(trimmed, 'code')
+  if (code && code !== trimmed) {
+    authCodeInput.value = code
   }
 })
 
@@ -854,6 +861,7 @@ const handleRemoveAuthSession = (targetSessionId: string) => {
 
 const handleRegenerate = () => {
   authCodeInput.value = ''
+  oauthState.value = ''
   emit('generate-url')
 }
 
