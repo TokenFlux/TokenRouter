@@ -3439,8 +3439,8 @@ watch(
         : newPlatform === 'gemini'
           ? 'https://generativelanguage.googleapis.com'
           : 'https://api.anthropic.com'
-    // Clear model-related settings
-    allowedModels.value = []
+    // 切换平台时旧平台模型不再适用，重置为新平台默认白名单。
+    allowedModels.value = [...getModelsByPlatform(newPlatform)]
     modelMappings.value = []
     // Antigravity: 默认使用映射模式并填充默认映射
     if (newPlatform === 'antigravity') {
@@ -3525,16 +3525,6 @@ const handleSelectGeminiOAuthType = (oauthType: 'code_assist' | 'google_one' | '
   }
   geminiOAuthType.value = oauthType
 }
-
-// Auto-fill related models when switching to whitelist mode or changing platform
-watch(
-  [modelRestrictionMode, () => form.platform],
-  ([newMode]) => {
-    if (newMode === 'whitelist') {
-      allowedModels.value = [...getModelsByPlatform(form.platform)]
-    }
-  }
-)
 
 watch(
   [antigravityModelRestrictionMode, () => form.platform],
