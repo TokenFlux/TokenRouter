@@ -214,36 +214,32 @@
                 </div>
 
                 <div class="mt-4 grid gap-2">
-                  <template
-                    v-if="pricingKind(model.pricing) === 'token' && tokenPricingRows(model.pricing).length > 0"
-                  >
+                  <template v-if="compactPricingRows(model.pricing).length > 0">
                     <div
-                      v-for="row in tokenPricingRows(model.pricing)"
+                      v-for="row in compactPricingRows(model.pricing)"
                       :key="row.key"
                       class="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white/90 px-3 py-2.5 text-sm dark:border-dark-700 dark:bg-dark-950/90"
                     >
                       <span class="text-gray-500 dark:text-dark-400">{{ row.label }}</span>
-                      <span class="font-medium text-gray-900 dark:text-white">{{ row.value }}</span>
+                      <span class="min-w-0 text-right font-medium text-gray-900 dark:text-white">{{ row.value }}</span>
                     </div>
                   </template>
-
-                  <template v-else-if="pricingKind(model.pricing) === 'image' && imagePricingRows(model.pricing).length > 0">
-                    <div
-                      v-for="row in imagePricingRows(model.pricing)"
-                      :key="row.key"
-                      class="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white/90 px-3 py-2.5 text-sm dark:border-dark-700 dark:bg-dark-950/90"
-                    >
-                      <span class="text-gray-500 dark:text-dark-400">{{ row.label }}</span>
-                      <span class="font-medium text-gray-900 dark:text-white">{{ row.value }}</span>
-                    </div>
-                  </template>
-
                   <div
                     v-else
-                    class="rounded-xl border border-dashed border-gray-200 bg-white/80 px-3 py-4 text-sm leading-6 text-gray-500 dark:border-dark-700 dark:bg-dark-950/90 dark:text-dark-400"
+                    class="rounded-xl border border-dashed border-gray-200 bg-white/80 px-3 py-3 text-sm text-gray-500 dark:border-dark-700 dark:bg-dark-950/90 dark:text-dark-400"
                   >
                     {{ t('marketplace.pricingUnavailable') }}
                   </div>
+
+                  <button
+                    v-if="hasDisplayPricing(model.pricing)"
+                    type="button"
+                    class="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary-50 px-3 py-2 text-sm font-medium text-primary-700 transition hover:bg-primary-100 dark:bg-primary-500/15 dark:text-primary-300 dark:hover:bg-primary-500/25"
+                    @click="openPricingDialog(group, model)"
+                  >
+                    <Icon name="eye" size="sm" />
+                    {{ t('marketplace.viewPricing') }}
+                  </button>
                 </div>
               </article>
             </div>
@@ -251,6 +247,91 @@
         </div>
       </div>
     </section>
+
+    <BaseDialog
+      :show="selectedPricing !== null"
+      :title="selectedPricingTitle"
+      width="wide"
+      :close-on-click-outside="true"
+      @close="closePricingDialog"
+    >
+      <div v-if="selectedPricing" class="space-y-4">
+        <div class="rounded-xl border border-gray-100 bg-gray-50/80 p-4 dark:border-dark-700 dark:bg-dark-950/80">
+          <div class="flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-base font-semibold text-gray-950 dark:text-white">{{ selectedPricing.model.display_name }}</div>
+              <div class="mt-1 break-all font-mono text-xs text-gray-500 dark:text-dark-400">{{ selectedPricing.model.id }}</div>
+              <div class="mt-2 text-sm text-gray-500 dark:text-dark-400">{{ selectedPricing.group.name }}</div>
+            </div>
+            <span :class="pricingBadgeClass(selectedPricing.model.pricing)">
+              {{ pricingLabel(selectedPricing.model.pricing) }}
+            </span>
+          </div>
+        </div>
+
+        <template
+          v-if="pricingKind(selectedPricing.model.pricing) === 'token' && contextIntervalPricingRows(selectedPricing.model.pricing).length > 0"
+        >
+          <div class="grid gap-3 md:grid-cols-2">
+            <div
+              v-for="interval in contextIntervalPricingRows(selectedPricing.model.pricing)"
+              :key="interval.key"
+              class="rounded-xl border border-gray-100 bg-white/90 px-3 py-3 text-sm dark:border-dark-700 dark:bg-dark-950/90"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-gray-500 dark:text-dark-400">{{ t('marketplace.contextTokens') }}</span>
+                <span class="font-medium text-gray-900 dark:text-white">{{ interval.range }}</span>
+              </div>
+              <div class="mt-2 grid gap-1.5 border-t border-gray-100 pt-2 dark:border-dark-700">
+                <div
+                  v-for="row in interval.rows"
+                  :key="row.key"
+                  class="flex items-center justify-between gap-3"
+                >
+                  <span class="text-gray-500 dark:text-dark-400">{{ row.label }}</span>
+                  <span class="min-w-0 text-right font-medium text-gray-900 dark:text-white">{{ row.value }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <template
+          v-else-if="pricingKind(selectedPricing.model.pricing) === 'token' && tokenPricingRows(selectedPricing.model.pricing).length > 0"
+        >
+          <div class="grid gap-2 md:grid-cols-2">
+            <div
+              v-for="row in tokenPricingRows(selectedPricing.model.pricing)"
+              :key="row.key"
+              class="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white/90 px-3 py-2.5 text-sm dark:border-dark-700 dark:bg-dark-950/90"
+            >
+              <span class="text-gray-500 dark:text-dark-400">{{ row.label }}</span>
+              <span class="min-w-0 text-right font-medium text-gray-900 dark:text-white">{{ row.value }}</span>
+            </div>
+          </div>
+        </template>
+
+        <template v-else-if="pricingKind(selectedPricing.model.pricing) === 'image' && imagePricingRows(selectedPricing.model.pricing).length > 0">
+          <div class="grid gap-2 md:grid-cols-2">
+            <div
+              v-for="row in imagePricingRows(selectedPricing.model.pricing)"
+              :key="row.key"
+              class="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white/90 px-3 py-2.5 text-sm dark:border-dark-700 dark:bg-dark-950/90"
+            >
+              <span class="text-gray-500 dark:text-dark-400">{{ row.label }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">{{ row.value }}</span>
+            </div>
+          </div>
+        </template>
+
+        <div
+          v-else
+          class="rounded-xl border border-dashed border-gray-200 bg-white/80 px-3 py-4 text-sm leading-6 text-gray-500 dark:border-dark-700 dark:bg-dark-950/90 dark:text-dark-400"
+        >
+          {{ t('marketplace.pricingUnavailable') }}
+        </div>
+      </div>
+    </BaseDialog>
   </component>
 </template>
 
@@ -262,13 +343,14 @@ import Icon from '@/components/icons/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import ProviderIcon from '@/components/common/ProviderIcon.vue'
+import BaseDialog from '@/components/common/BaseDialog.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import Select from '@/components/common/Select.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { initTheme } from '@/composables/useTheme'
 import { getMarketplaceModels } from '@/api/marketplace'
 import { providerBrandDisplayName, providerBrandFilterKey, resolveProviderBrand } from '@/utils/providerBrand'
-import type { MarketplaceGroup, MarketplaceModelPricing } from '@/types'
+import type { MarketplaceGroup, MarketplaceModel, MarketplaceModelPricing, MarketplacePricingInterval } from '@/types'
 import { useAppStore, useAuthStore } from '@/stores'
 
 type VisibleMarketplaceGroup = MarketplaceGroup
@@ -279,6 +361,17 @@ interface PricingRow {
   key: string
   label: string
   value: string
+}
+
+interface ContextIntervalPricingRow {
+  key: string
+  range: string
+  rows: PricingRow[]
+}
+
+interface SelectedPricingModel {
+  group: MarketplaceGroup
+  model: MarketplaceModel
 }
 
 interface OverviewCard {
@@ -301,6 +394,7 @@ const search = ref('')
 const selectedBrand = ref<string | 'all'>('all')
 const selectedPricingMode = ref<PricingFilter>('all')
 const selectedGroupId = ref<number | 'all'>('all')
+const selectedPricing = ref<SelectedPricingModel | null>(null)
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isAdmin = computed(() => authStore.isAdmin)
@@ -314,6 +408,12 @@ const dashboardPath = computed(() => {
 const siteName = computed(() => appStore.siteName || 'Sub2API')
 const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '')
 const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
+const selectedPricingTitle = computed(() => {
+  if (!selectedPricing.value) {
+    return t('marketplace.pricingDetail')
+  }
+  return `${selectedPricing.value.model.display_name} · ${t('marketplace.pricingDetail')}`
+})
 
 const normalizedSearch = computed(() => search.value.trim().toLowerCase())
 
@@ -442,14 +542,39 @@ function hasOfficialPriceRatio(value?: number | null): value is number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0
 }
 
-function hasTokenPricing(pricing: MarketplaceModelPricing): boolean {
+function hasFlatTokenPricing(pricing: MarketplaceModelPricing): boolean {
   return [
     pricing.input_price_per_token,
     pricing.output_price_per_token,
     pricing.cache_write_price_per_token,
     pricing.cache_read_price_per_token,
     pricing.image_output_price_per_token,
+    pricing.fast_input_price_per_token,
+    pricing.fast_output_price_per_token,
+    pricing.fast_cache_write_price_per_token,
+    pricing.fast_cache_read_price_per_token,
+    pricing.fast_image_output_price_per_token,
   ].some(hasPositiveValue)
+}
+
+// 区间定价没有顶层 flat 价格，需要单独参与“已定价”判断。
+function hasContextIntervalPricing(pricing: MarketplaceModelPricing): boolean {
+  return pricing.context_intervals?.some((interval) => [
+    interval.input_price_per_token,
+    interval.output_price_per_token,
+    interval.cache_write_price_per_token,
+    interval.cache_read_price_per_token,
+    interval.image_output_price_per_token,
+    interval.fast_input_price_per_token,
+    interval.fast_output_price_per_token,
+    interval.fast_cache_write_price_per_token,
+    interval.fast_cache_read_price_per_token,
+    interval.fast_image_output_price_per_token,
+  ].some(hasPositiveValue)) ?? false
+}
+
+function hasTokenPricing(pricing: MarketplaceModelPricing): boolean {
+  return hasFlatTokenPricing(pricing) || hasContextIntervalPricing(pricing)
 }
 
 function hasImagePricing(pricing: MarketplaceModelPricing): boolean {
@@ -471,6 +596,21 @@ function pricingKind(pricing: MarketplaceModelPricing): Exclude<PricingFilter, '
     return 'token'
   }
   return 'unpriced'
+}
+
+function hasDisplayPricing(pricing: MarketplaceModelPricing): boolean {
+  return pricingKind(pricing) !== 'unpriced'
+}
+
+function openPricingDialog(group: MarketplaceGroup, model: MarketplaceModel) {
+  if (!hasDisplayPricing(model.pricing)) {
+    return
+  }
+  selectedPricing.value = { group, model }
+}
+
+function closePricingDialog() {
+  selectedPricing.value = null
 }
 
 function resetFilters() {
@@ -534,6 +674,18 @@ function formatPerImage(value: number): string {
   return `${formatPrice(value)} ${t('marketplace.perImage')}`
 }
 
+function formatTokenCount(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 0,
+  }).format(value)
+}
+
+// 最大 token 为空表示无上限，用 ∞ 和渠道配置页保持一致。
+function formatTokenRange(minTokens: number, maxTokens?: number | null): string {
+  const maxLabel = typeof maxTokens === 'number' ? formatTokenCount(maxTokens) : '∞'
+  return `${formatTokenCount(minTokens)} - ${maxLabel}`
+}
+
 function pricingFilterLabel(mode: Exclude<PricingFilter, 'all'>): string {
   switch (mode) {
     case 'token':
@@ -546,6 +698,9 @@ function pricingFilterLabel(mode: Exclude<PricingFilter, 'all'>): string {
 }
 
 function pricingLabel(pricing: MarketplaceModelPricing): string {
+  if (pricingKind(pricing) === 'token' && hasContextIntervalPricing(pricing)) {
+    return t('marketplace.contextIntervalPricing')
+  }
   return pricingFilterLabel(pricingKind(pricing))
 }
 
@@ -583,7 +738,7 @@ function pricingBadgeClass(pricing: MarketplaceModelPricing): string {
   return `${base} bg-gray-100 text-gray-600 dark:bg-dark-800 dark:text-dark-300`
 }
 
-function tokenPricingRows(pricing: MarketplaceModelPricing): PricingRow[] {
+function tokenPricingRowsFromValues(pricing: MarketplaceModelPricing | MarketplacePricingInterval): PricingRow[] {
   const rows: PricingRow[] = []
 
   if (hasPositiveValue(pricing.input_price_per_token)) {
@@ -601,8 +756,88 @@ function tokenPricingRows(pricing: MarketplaceModelPricing): PricingRow[] {
   if (hasPositiveValue(pricing.image_output_price_per_token)) {
     rows.push({ key: 'image_output', label: t('marketplace.imageOutput'), value: formatPerMillion(pricing.image_output_price_per_token) })
   }
+  if (hasPositiveValue(pricing.fast_input_price_per_token)) {
+    rows.push({ key: 'fast_input', label: t('marketplace.fastInput'), value: formatPerMillion(pricing.fast_input_price_per_token) })
+  }
+  if (hasPositiveValue(pricing.fast_output_price_per_token)) {
+    rows.push({ key: 'fast_output', label: t('marketplace.fastOutput'), value: formatPerMillion(pricing.fast_output_price_per_token) })
+  }
+  if (hasPositiveValue(pricing.fast_cache_write_price_per_token)) {
+    rows.push({ key: 'fast_cache_write', label: t('marketplace.fastCacheWrite'), value: formatPerMillion(pricing.fast_cache_write_price_per_token) })
+  }
+  if (hasPositiveValue(pricing.fast_cache_read_price_per_token)) {
+    rows.push({ key: 'fast_cache_read', label: t('marketplace.fastCacheRead'), value: formatPerMillion(pricing.fast_cache_read_price_per_token) })
+  }
+  if (hasPositiveValue(pricing.fast_image_output_price_per_token)) {
+    rows.push({ key: 'fast_image_output', label: t('marketplace.fastImageOutput'), value: formatPerMillion(pricing.fast_image_output_price_per_token) })
+  }
 
   return rows
+}
+
+function tokenPricingRows(pricing: MarketplaceModelPricing): PricingRow[] {
+  return tokenPricingRowsFromValues(pricing)
+}
+
+function compactTokenPricingRows(pricing: MarketplaceModelPricing | MarketplacePricingInterval): PricingRow[] {
+  const primaryRows: PricingRow[] = []
+  if (hasPositiveValue(pricing.input_price_per_token)) {
+    primaryRows.push({ key: 'input', label: t('marketplace.input'), value: formatPerMillion(pricing.input_price_per_token) })
+  }
+  if (hasPositiveValue(pricing.output_price_per_token)) {
+    primaryRows.push({ key: 'output', label: t('marketplace.output'), value: formatPerMillion(pricing.output_price_per_token) })
+  }
+  if (primaryRows.length > 0) {
+    return primaryRows
+  }
+
+  return tokenPricingRowsFromValues(pricing)
+    .filter((row) => !row.key.startsWith('fast_'))
+    .slice(0, 2)
+}
+
+function compactContextIntervalRows(pricing: MarketplaceModelPricing): PricingRow[] {
+  return pricing.context_intervals?.flatMap((interval, index) => {
+    const rows = compactTokenPricingRows(interval)
+    if (rows.length === 0) {
+      return []
+    }
+    return [{
+      key: `compact-${interval.min_tokens}-${interval.max_tokens ?? 'up'}-${index}`,
+      label: formatTokenRange(interval.min_tokens, interval.max_tokens),
+      value: rows.map((row) => `${row.label} ${row.value}`).join(' / '),
+    }]
+  }) ?? []
+}
+
+function compactPricingRows(pricing: MarketplaceModelPricing): PricingRow[] {
+  const kind = pricingKind(pricing)
+  if (kind === 'token' && hasContextIntervalPricing(pricing)) {
+    return compactContextIntervalRows(pricing)
+  }
+  if (kind === 'token') {
+    return compactTokenPricingRows(pricing)
+  }
+  if (kind === 'image') {
+    return imagePricingRows(pricing)
+  }
+  return []
+}
+
+// 上下文区间价格直接复用 token 价格行，只额外展示区间范围。
+function contextIntervalPricingRows(pricing: MarketplaceModelPricing): ContextIntervalPricingRow[] {
+  return pricing.context_intervals?.flatMap((interval, index) => {
+    const rows = tokenPricingRowsFromValues(interval)
+    if (rows.length === 0) {
+      return []
+    }
+
+    return [{
+      key: `${interval.min_tokens}-${interval.max_tokens ?? 'up'}-${index}`,
+      range: formatTokenRange(interval.min_tokens, interval.max_tokens),
+      rows,
+    }]
+  }) ?? []
 }
 
 function imagePricingRows(pricing: MarketplaceModelPricing): PricingRow[] {

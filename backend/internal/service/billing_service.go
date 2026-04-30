@@ -47,6 +47,7 @@ type ModelPricing struct {
 	CacheCreation5mPrice           float64 // 5分钟缓存创建每token价格 (USD)
 	CacheCreation1hPrice           float64 // 1小时缓存创建每token价格 (USD)
 	SupportsCacheBreakdown         bool    // 是否支持详细的缓存分类
+	SupportsServiceTier            bool    // 是否支持 service_tier（Fast/Flex）
 	LongContextInputThreshold      int     // 超过阈值后按整次会话提升输入价格
 	LongContextInputMultiplier     float64 // 长上下文整次会话输入倍率
 	LongContextOutputMultiplier    float64 // 长上下文整次会话输出倍率
@@ -357,6 +358,7 @@ func (s *BillingService) GetModelPricing(model string) (*ModelPricing, error) {
 				CacheCreation5mPrice:           price5m,
 				CacheCreation1hPrice:           price1h,
 				SupportsCacheBreakdown:         enableBreakdown,
+				SupportsServiceTier:            litellmPricing.SupportsServiceTier,
 				LongContextInputThreshold:      litellmPricing.LongContextInputTokenThreshold,
 				LongContextInputMultiplier:     litellmPricing.LongContextInputCostMultiplier,
 				LongContextOutputMultiplier:    litellmPricing.LongContextOutputCostMultiplier,
@@ -818,16 +820,38 @@ type ImagePriceConfig struct {
 // ModelDisplayPricing 是面向前端展示的模型价格快照。
 // 所有价格都已经应用了分组倍率，直接表示实际扣费单价。
 type ModelDisplayPricing struct {
-	PricingMode              string
-	PriceStatus              string
-	InputPricePerToken       float64
-	OutputPricePerToken      float64
-	CacheWritePricePerToken  float64
-	CacheReadPricePerToken   float64
-	ImageOutputPricePerToken float64
-	ImagePrice1K             float64
-	ImagePrice2K             float64
-	ImagePrice4K             float64
+	PricingMode                  string
+	PriceStatus                  string
+	InputPricePerToken           float64
+	OutputPricePerToken          float64
+	CacheWritePricePerToken      float64
+	CacheReadPricePerToken       float64
+	ImageOutputPricePerToken     float64
+	FastInputPricePerToken       float64
+	FastOutputPricePerToken      float64
+	FastCacheWritePricePerToken  float64
+	FastCacheReadPricePerToken   float64
+	FastImageOutputPricePerToken float64
+	ContextIntervals             []ModelDisplayPricingInterval
+	ImagePrice1K                 float64
+	ImagePrice2K                 float64
+	ImagePrice4K                 float64
+}
+
+// ModelDisplayPricingInterval 是按上下文 token 区间展示的模型价格。
+type ModelDisplayPricingInterval struct {
+	MinTokens                    int
+	MaxTokens                    *int
+	InputPricePerToken           float64
+	OutputPricePerToken          float64
+	CacheWritePricePerToken      float64
+	CacheReadPricePerToken       float64
+	ImageOutputPricePerToken     float64
+	FastInputPricePerToken       float64
+	FastOutputPricePerToken      float64
+	FastCacheWritePricePerToken  float64
+	FastCacheReadPricePerToken   float64
+	FastImageOutputPricePerToken float64
 }
 
 // GetDisplayPricing 返回用于模型广场展示的价格信息。
@@ -872,10 +896,14 @@ func displayPricingFromResolved(model string, rateMultiplier float64, resolved *
 	switch resolved.Mode {
 	case BillingModeToken:
 		pricing := resolvedDisplayTokenPricing(resolved)
-		if !hasAnyDisplayTokenPricing(pricing) {
-			return ModelDisplayPricing{}, false
+		if hasAnyDisplayTokenPricing(pricing) {
+			return buildTokenDisplayPricing(pricing, rateMultiplier), true
 		}
-		return buildTokenDisplayPricing(pricing, rateMultiplier), true
+		intervals := resolvedDisplayPricingIntervals(resolved, rateMultiplier)
+		if len(intervals) > 0 {
+			return buildTokenIntervalDisplayPricing(intervals), true
+		}
+		return ModelDisplayPricing{}, false
 	case BillingModeImage, BillingModePerRequest:
 		if resolved.Mode == BillingModePerRequest && !looksLikeImageModel(model) {
 			return ModelDisplayPricing{}, false
@@ -903,13 +931,34 @@ func resolvedDisplayTokenPricing(resolved *ResolvedPricing) *ModelPricing {
 	}
 
 	pricing := intervalToModelPricing(&resolved.Intervals[0], resolved.SupportsCacheBreakdown)
+	pricing.SupportsServiceTier = resolved.SupportsServiceTier
 	for i := 1; i < len(resolved.Intervals); i++ {
 		next := intervalToModelPricing(&resolved.Intervals[i], resolved.SupportsCacheBreakdown)
+		next.SupportsServiceTier = resolved.SupportsServiceTier
 		if !sameDisplayTokenPricing(pricing, next) {
 			return nil
 		}
 	}
 	return pricing
+}
+
+// resolvedDisplayPricingIntervals 保留无法压平成单价的上下文区间价格。
+func resolvedDisplayPricingIntervals(resolved *ResolvedPricing, rateMultiplier float64) []ModelDisplayPricingInterval {
+	if resolved == nil || len(resolved.Intervals) == 0 {
+		return nil
+	}
+
+	intervals := make([]ModelDisplayPricingInterval, 0, len(resolved.Intervals))
+	for i := range resolved.Intervals {
+		interval := resolved.Intervals[i]
+		pricing := intervalToModelPricing(&interval, resolved.SupportsCacheBreakdown)
+		pricing.SupportsServiceTier = resolved.SupportsServiceTier
+		if !hasAnyDisplayTokenPricing(pricing) {
+			continue
+		}
+		intervals = append(intervals, modelPricingDisplayInterval(interval.MinTokens, interval.MaxTokens, pricing, rateMultiplier))
+	}
+	return intervals
 }
 
 func sameDisplayTokenPricing(a *ModelPricing, b *ModelPricing) bool {
@@ -945,7 +994,11 @@ func resolvedRequestTierPrice(tiers []PricingInterval, label string, defaultPric
 }
 
 func buildTokenDisplayPricing(pricing *ModelPricing, rateMultiplier float64) ModelDisplayPricing {
-	return ModelDisplayPricing{
+	if intervals := longContextDisplayPricingIntervals(pricing, rateMultiplier); len(intervals) > 0 {
+		return buildTokenIntervalDisplayPricing(intervals)
+	}
+
+	displayPricing := ModelDisplayPricing{
 		PricingMode:              "token",
 		PriceStatus:              "priced",
 		InputPricePerToken:       pricing.InputPricePerToken * rateMultiplier,
@@ -953,6 +1006,108 @@ func buildTokenDisplayPricing(pricing *ModelPricing, rateMultiplier float64) Mod
 		CacheWritePricePerToken:  pricing.CacheCreationPricePerToken * rateMultiplier,
 		CacheReadPricePerToken:   pricing.CacheReadPricePerToken * rateMultiplier,
 		ImageOutputPricePerToken: pricing.ImageOutputPricePerToken * rateMultiplier,
+	}
+	if fastPricing, ok := fastModeDisplayPricing(pricing); ok {
+		displayPricing.FastInputPricePerToken = fastPricing.InputPricePerToken * rateMultiplier
+		displayPricing.FastOutputPricePerToken = fastPricing.OutputPricePerToken * rateMultiplier
+		displayPricing.FastCacheWritePricePerToken = fastPricing.CacheCreationPricePerToken * rateMultiplier
+		displayPricing.FastCacheReadPricePerToken = fastPricing.CacheReadPricePerToken * rateMultiplier
+		displayPricing.FastImageOutputPricePerToken = fastPricing.ImageOutputPricePerToken * rateMultiplier
+	}
+	return displayPricing
+}
+
+// longContextDisplayPricingIntervals 将内置长上下文倍率转换成模型广场可展示的两段价格。
+func longContextDisplayPricingIntervals(pricing *ModelPricing, rateMultiplier float64) []ModelDisplayPricingInterval {
+	if !hasLongContextDisplayPricing(pricing) {
+		return nil
+	}
+
+	maxTokens := pricing.LongContextInputThreshold
+	baseInterval := modelPricingDisplayInterval(0, &maxTokens, pricing, rateMultiplier)
+
+	longContextPricing := *pricing
+	longContextPricing.InputPricePerToken *= pricing.LongContextInputMultiplier
+	longContextPricing.OutputPricePerToken *= pricing.LongContextOutputMultiplier
+	if longContextPricing.InputPricePerTokenPriority > 0 {
+		longContextPricing.InputPricePerTokenPriority *= pricing.LongContextInputMultiplier
+	}
+	if longContextPricing.OutputPricePerTokenPriority > 0 {
+		longContextPricing.OutputPricePerTokenPriority *= pricing.LongContextOutputMultiplier
+	}
+	longContextInterval := modelPricingDisplayInterval(pricing.LongContextInputThreshold, nil, &longContextPricing, rateMultiplier)
+
+	return []ModelDisplayPricingInterval{baseInterval, longContextInterval}
+}
+
+func hasLongContextDisplayPricing(pricing *ModelPricing) bool {
+	return hasAnyDisplayTokenPricing(pricing) &&
+		pricing.LongContextInputThreshold > 0 &&
+		(pricing.LongContextInputMultiplier > 1 || pricing.LongContextOutputMultiplier > 1)
+}
+
+func modelPricingDisplayInterval(minTokens int, maxTokens *int, pricing *ModelPricing, rateMultiplier float64) ModelDisplayPricingInterval {
+	interval := ModelDisplayPricingInterval{
+		MinTokens:                minTokens,
+		MaxTokens:                maxTokens,
+		InputPricePerToken:       pricing.InputPricePerToken * rateMultiplier,
+		OutputPricePerToken:      pricing.OutputPricePerToken * rateMultiplier,
+		CacheWritePricePerToken:  pricing.CacheCreationPricePerToken * rateMultiplier,
+		CacheReadPricePerToken:   pricing.CacheReadPricePerToken * rateMultiplier,
+		ImageOutputPricePerToken: pricing.ImageOutputPricePerToken * rateMultiplier,
+	}
+	if fastPricing, ok := fastModeDisplayPricing(pricing); ok {
+		interval.FastInputPricePerToken = fastPricing.InputPricePerToken * rateMultiplier
+		interval.FastOutputPricePerToken = fastPricing.OutputPricePerToken * rateMultiplier
+		interval.FastCacheWritePricePerToken = fastPricing.CacheCreationPricePerToken * rateMultiplier
+		interval.FastCacheReadPricePerToken = fastPricing.CacheReadPricePerToken * rateMultiplier
+		interval.FastImageOutputPricePerToken = fastPricing.ImageOutputPricePerToken * rateMultiplier
+	}
+	return interval
+}
+
+func fastModeDisplayPricing(pricing *ModelPricing) (*ModelPricing, bool) {
+	if !hasFastModeDisplayPricing(pricing) {
+		return nil, false
+	}
+
+	fastPricing := *pricing
+	if usePriorityServiceTierPricing(OpenAIFastTierPriority, pricing) {
+		if pricing.InputPricePerTokenPriority > 0 {
+			fastPricing.InputPricePerToken = pricing.InputPricePerTokenPriority
+		}
+		if pricing.OutputPricePerTokenPriority > 0 {
+			fastPricing.OutputPricePerToken = pricing.OutputPricePerTokenPriority
+		}
+		if pricing.CacheReadPricePerTokenPriority > 0 {
+			fastPricing.CacheReadPricePerToken = pricing.CacheReadPricePerTokenPriority
+		}
+		return &fastPricing, true
+	}
+
+	multiplier := serviceTierCostMultiplier(OpenAIFastTierPriority)
+	fastPricing.InputPricePerToken *= multiplier
+	fastPricing.OutputPricePerToken *= multiplier
+	fastPricing.CacheCreationPricePerToken *= multiplier
+	fastPricing.CacheReadPricePerToken *= multiplier
+	fastPricing.ImageOutputPricePerToken *= multiplier
+	return &fastPricing, true
+}
+
+func hasFastModeDisplayPricing(pricing *ModelPricing) bool {
+	return hasAnyDisplayTokenPricing(pricing) &&
+		(pricing.SupportsServiceTier ||
+			pricing.InputPricePerTokenPriority > 0 ||
+			pricing.OutputPricePerTokenPriority > 0 ||
+			pricing.CacheReadPricePerTokenPriority > 0)
+}
+
+// buildTokenIntervalDisplayPricing 标记此模型需要按上下文区间展示价格。
+func buildTokenIntervalDisplayPricing(intervals []ModelDisplayPricingInterval) ModelDisplayPricing {
+	return ModelDisplayPricing{
+		PricingMode:      "token",
+		PriceStatus:      "priced",
+		ContextIntervals: intervals,
 	}
 }
 

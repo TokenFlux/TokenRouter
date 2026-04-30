@@ -34,6 +34,9 @@ type ResolvedPricing struct {
 
 	// 是否支持缓存细分
 	SupportsCacheBreakdown bool
+
+	// 是否支持 service_tier（Fast/Flex）
+	SupportsServiceTier bool
 }
 
 // ModelPricingResolver 统一模型定价解析器。
@@ -90,6 +93,7 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 		BasePricing:            basePricing,
 		Source:                 source,
 		SupportsCacheBreakdown: basePricing != nil && basePricing.SupportsCacheBreakdown,
+		SupportsServiceTier:    basePricing != nil && basePricing.SupportsServiceTier,
 	}
 
 	// 2. 如果有 GroupID，尝试渠道覆盖

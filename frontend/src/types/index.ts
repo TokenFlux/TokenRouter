@@ -460,6 +460,21 @@ export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity'
 export type MarketplacePricingMode = 'token' | 'image' | 'unknown'
 export type MarketplacePriceStatus = 'priced' | 'unpriced'
 
+export interface MarketplacePricingInterval {
+  min_tokens: number
+  max_tokens?: number | null
+  input_price_per_token?: number
+  output_price_per_token?: number
+  cache_write_price_per_token?: number
+  cache_read_price_per_token?: number
+  image_output_price_per_token?: number
+  fast_input_price_per_token?: number
+  fast_output_price_per_token?: number
+  fast_cache_write_price_per_token?: number
+  fast_cache_read_price_per_token?: number
+  fast_image_output_price_per_token?: number
+}
+
 export interface MarketplaceModelPricing {
   pricing_mode: MarketplacePricingMode
   price_status: MarketplacePriceStatus
@@ -468,6 +483,12 @@ export interface MarketplaceModelPricing {
   cache_write_price_per_token?: number
   cache_read_price_per_token?: number
   image_output_price_per_token?: number
+  fast_input_price_per_token?: number
+  fast_output_price_per_token?: number
+  fast_cache_write_price_per_token?: number
+  fast_cache_read_price_per_token?: number
+  fast_image_output_price_per_token?: number
+  context_intervals?: MarketplacePricingInterval[]
   image_price_1k?: number
   image_price_2k?: number
   image_price_4k?: number
