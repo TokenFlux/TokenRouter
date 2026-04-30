@@ -16,8 +16,16 @@ vi.mock('@/api/admin', () => ({
   adminAPI: {
     accounts: {
       importData: vi.fn()
+    },
+    settings: {
+      getOpenAIOAuthImportDefaults: vi.fn(),
+      updateOpenAIOAuthImportDefaults: vi.fn()
     }
   }
+}))
+
+vi.mock('@/api/admin/accounts', () => ({
+  getAntigravityDefaultModelMapping: vi.fn()
 }))
 
 vi.mock('vue-i18n', () => ({

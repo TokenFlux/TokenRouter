@@ -294,6 +294,42 @@ func openaiFastPolicySettingsFromDTO(s *dto.OpenAIFastPolicySettings) *service.O
 	return &service.OpenAIFastPolicySettings{Rules: rules}
 }
 
+func openAIOAuthImportDefaultsToDTO(s *service.OpenAIOAuthImportDefaults) dto.OpenAIOAuthImportDefaults {
+	if s == nil {
+		return dto.OpenAIOAuthImportDefaults{}
+	}
+	return dto.OpenAIOAuthImportDefaults{
+		Account: dto.OpenAIOAuthImportAccountDefaults{
+			Notes:              s.Account.Notes,
+			Concurrency:        s.Account.Concurrency,
+			Priority:           s.Account.Priority,
+			RateMultiplier:     s.Account.RateMultiplier,
+			ExpiresAt:          s.Account.ExpiresAt,
+			AutoPauseOnExpired: s.Account.AutoPauseOnExpired,
+		},
+		Credentials: s.Credentials,
+		Extra:       s.Extra,
+	}
+}
+
+func openAIOAuthImportDefaultsFromDTO(s *dto.OpenAIOAuthImportDefaults) *service.OpenAIOAuthImportDefaults {
+	if s == nil {
+		return nil
+	}
+	return &service.OpenAIOAuthImportDefaults{
+		Account: service.OpenAIOAuthImportAccountDefaults{
+			Notes:              s.Account.Notes,
+			Concurrency:        s.Account.Concurrency,
+			Priority:           s.Account.Priority,
+			RateMultiplier:     s.Account.RateMultiplier,
+			ExpiresAt:          s.Account.ExpiresAt,
+			AutoPauseOnExpired: s.Account.AutoPauseOnExpired,
+		},
+		Credentials: s.Credentials,
+		Extra:       s.Extra,
+	}
+}
+
 // UpdateSettingsRequest 更新设置请求
 type UpdateSettingsRequest struct {
 	// 注册设置
@@ -2503,6 +2539,152 @@ func (h *SettingHandler) UpdateOpenAI403CooldownSettings(c *gin.Context) {
 		ThresholdCount:          updatedSettings.ThresholdCount,
 		ThresholdWindowMinutes:  updatedSettings.ThresholdWindowMinutes,
 	})
+}
+
+// GetOpenAIOAuthImportDefaults 获取 OpenAI OAuth 账号导入缺省模板
+// GET /api/v1/admin/settings/openai-oauth-import-defaults
+func (h *SettingHandler) GetOpenAIOAuthImportDefaults(c *gin.Context) {
+	settings, err := h.settingService.GetOpenAIOAuthImportDefaults(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, openAIOAuthImportDefaultsToDTO(settings))
+}
+
+// UpdateOpenAIOAuthImportDefaults 更新 OpenAI OAuth 账号导入缺省模板
+// PUT /api/v1/admin/settings/openai-oauth-import-defaults
+func (h *SettingHandler) UpdateOpenAIOAuthImportDefaults(c *gin.Context) {
+	var raw map[string]json.RawMessage
+	if err := c.ShouldBindJSON(&raw); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if len(raw) == 0 && raw == nil {
+		response.BadRequest(c, "request body must be an object")
+		return
+	}
+	if err := validateOpenAIOAuthImportDefaultsRequest(raw); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	data, err := json.Marshal(raw)
+	if err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	var req dto.OpenAIOAuthImportDefaults
+	if err := json.Unmarshal(data, &req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	if err := h.settingService.SetOpenAIOAuthImportDefaults(c.Request.Context(), openAIOAuthImportDefaultsFromDTO(&req)); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	updatedSettings, err := h.settingService.GetOpenAIOAuthImportDefaults(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, openAIOAuthImportDefaultsToDTO(updatedSettings))
+}
+
+func validateOpenAIOAuthImportDefaultsRequest(raw map[string]json.RawMessage) error {
+	allowedRoot := map[string]struct{}{
+		"account":     {},
+		"credentials": {},
+		"extra":       {},
+	}
+	for key := range raw {
+		normalized := strings.ToLower(strings.TrimSpace(key))
+		if normalized != key {
+			return fmt.Errorf("%s is not allowed in import defaults", key)
+		}
+		if _, ok := allowedRoot[normalized]; !ok {
+			return fmt.Errorf("%s is not allowed in import defaults", key)
+		}
+	}
+
+	if err := validateOpenAIOAuthImportObject(raw, "account", map[string]struct{}{
+		"notes":                 {},
+		"concurrency":           {},
+		"priority":              {},
+		"rate_multiplier":       {},
+		"expires_at":            {},
+		"auto_pause_on_expired": {},
+	}); err != nil {
+		return err
+	}
+	if err := rejectOpenAIOAuthImportFields(raw, "credentials", map[string]struct{}{
+		"access_token":            {},
+		"refresh_token":           {},
+		"id_token":                {},
+		"expires_at":              {},
+		"email":                   {},
+		"client_id":               {},
+		"chatgpt_account_id":      {},
+		"chatgpt_user_id":         {},
+		"organization_id":         {},
+		"plan_type":               {},
+		"subscription_expires_at": {},
+	}); err != nil {
+		return err
+	}
+	return rejectOpenAIOAuthImportFields(raw, "extra", map[string]struct{}{
+		"email": {},
+		"name":  {},
+	})
+}
+
+func validateOpenAIOAuthImportObject(raw map[string]json.RawMessage, section string, allowed map[string]struct{}) error {
+	fields, ok, err := openAIOAuthImportRawObject(raw, section)
+	if err != nil || !ok {
+		return err
+	}
+	for key := range fields {
+		normalized := strings.ToLower(strings.TrimSpace(key))
+		if _, ok := allowed[normalized]; !ok {
+			return fmt.Errorf("%s.%s is not allowed in import defaults", section, key)
+		}
+	}
+	return nil
+}
+
+func rejectOpenAIOAuthImportFields(raw map[string]json.RawMessage, section string, forbidden map[string]struct{}) error {
+	fields, ok, err := openAIOAuthImportRawObject(raw, section)
+	if err != nil || !ok {
+		return err
+	}
+	for key := range fields {
+		normalized := strings.ToLower(strings.TrimSpace(key))
+		if _, ok := forbidden[normalized]; ok {
+			return fmt.Errorf("%s.%s is not allowed in import defaults", section, key)
+		}
+	}
+	return nil
+}
+
+func openAIOAuthImportRawObject(raw map[string]json.RawMessage, section string) (map[string]json.RawMessage, bool, error) {
+	value, ok := raw[section]
+	if !ok || string(value) == "null" {
+		return nil, false, nil
+	}
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(value, &fields); err != nil || fields == nil {
+		if err == nil {
+			err = fmt.Errorf("%s must be an object", section)
+		}
+		return nil, false, err
+	}
+	return fields, true, nil
 }
 
 // GetStreamTimeoutSettings 获取流超时处理配置

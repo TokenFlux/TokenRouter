@@ -829,6 +829,40 @@ export async function updateOpenAI403CooldownSettings(
   return data
 }
 
+// ==================== OpenAI OAuth Import Defaults ====================
+
+export interface OpenAIOAuthImportAccountDefaults {
+  notes?: string | null
+  concurrency?: number | null
+  priority?: number | null
+  rate_multiplier?: number | null
+  expires_at?: number | null
+  auto_pause_on_expired?: boolean | null
+}
+
+export interface OpenAIOAuthImportDefaults {
+  account?: OpenAIOAuthImportAccountDefaults
+  credentials?: Record<string, unknown>
+  extra?: Record<string, unknown>
+}
+
+export async function getOpenAIOAuthImportDefaults(): Promise<OpenAIOAuthImportDefaults> {
+  const { data } = await apiClient.get<OpenAIOAuthImportDefaults>(
+    '/admin/settings/openai-oauth-import-defaults'
+  )
+  return data
+}
+
+export async function updateOpenAIOAuthImportDefaults(
+  defaults: OpenAIOAuthImportDefaults
+): Promise<OpenAIOAuthImportDefaults> {
+  const { data } = await apiClient.put<OpenAIOAuthImportDefaults>(
+    '/admin/settings/openai-oauth-import-defaults',
+    defaults
+  )
+  return data
+}
+
 // ==================== Stream Timeout Settings ====================
 
 /**
@@ -1050,6 +1084,8 @@ export const settingsAPI = {
   updateOverloadCooldownSettings,
   getOpenAI403CooldownSettings,
   updateOpenAI403CooldownSettings,
+  getOpenAIOAuthImportDefaults,
+  updateOpenAIOAuthImportDefaults,
   getStreamTimeoutSettings,
   updateStreamTimeoutSettings,
   getRectifierSettings,

@@ -3277,6 +3277,99 @@ func (s *SettingService) SetOpenAIFastPolicySettings(ctx context.Context, settin
 	return s.settingRepo.Set(ctx, SettingKeyOpenAIFastPolicySettings, string(data))
 }
 
+// GetOpenAIOAuthImportDefaults 获取 OpenAI OAuth 账号导入缺省模板。
+func (s *SettingService) GetOpenAIOAuthImportDefaults(ctx context.Context) (*OpenAIOAuthImportDefaults, error) {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyOpenAIOAuthImportDefaults)
+	if err != nil {
+		if errors.Is(err, ErrSettingNotFound) {
+			return DefaultOpenAIOAuthImportDefaults(), nil
+		}
+		return nil, fmt.Errorf("get openai oauth import defaults: %w", err)
+	}
+	if value == "" {
+		return DefaultOpenAIOAuthImportDefaults(), nil
+	}
+
+	var settings OpenAIOAuthImportDefaults
+	if err := json.Unmarshal([]byte(value), &settings); err != nil {
+		slog.Warn("failed to unmarshal openai oauth import defaults, falling back to defaults",
+			"error", err,
+			"key", SettingKeyOpenAIOAuthImportDefaults)
+		return DefaultOpenAIOAuthImportDefaults(), nil
+	}
+
+	return &settings, nil
+}
+
+// SetOpenAIOAuthImportDefaults 保存 OpenAI OAuth 账号导入缺省模板。
+func (s *SettingService) SetOpenAIOAuthImportDefaults(ctx context.Context, settings *OpenAIOAuthImportDefaults) error {
+	if settings == nil {
+		return fmt.Errorf("settings cannot be nil")
+	}
+	if err := validateOpenAIOAuthImportDefaults(settings); err != nil {
+		return err
+	}
+
+	data, err := json.Marshal(settings)
+	if err != nil {
+		return fmt.Errorf("marshal openai oauth import defaults: %w", err)
+	}
+
+	return s.settingRepo.Set(ctx, SettingKeyOpenAIOAuthImportDefaults, string(data))
+}
+
+func validateOpenAIOAuthImportDefaults(settings *OpenAIOAuthImportDefaults) error {
+	if settings.Account.Concurrency != nil && *settings.Account.Concurrency < 0 {
+		return fmt.Errorf("account.concurrency must be >= 0")
+	}
+	if settings.Account.Priority != nil && *settings.Account.Priority < 0 {
+		return fmt.Errorf("account.priority must be >= 0")
+	}
+	if settings.Account.RateMultiplier != nil && *settings.Account.RateMultiplier < 0 {
+		return fmt.Errorf("account.rate_multiplier must be >= 0")
+	}
+	if settings.Account.ExpiresAt != nil && *settings.Account.ExpiresAt < 0 {
+		return fmt.Errorf("account.expires_at must be >= 0")
+	}
+
+	forbiddenCredentials := map[string]struct{}{
+		"access_token":            {},
+		"refresh_token":           {},
+		"id_token":                {},
+		"expires_at":              {},
+		"email":                   {},
+		"client_id":               {},
+		"chatgpt_account_id":      {},
+		"chatgpt_user_id":         {},
+		"organization_id":         {},
+		"plan_type":               {},
+		"subscription_expires_at": {},
+	}
+	if field, ok := findForbiddenImportField(settings.Credentials, forbiddenCredentials); ok {
+		return fmt.Errorf("credentials.%s is not allowed in import defaults", field)
+	}
+
+	forbiddenExtra := map[string]struct{}{
+		"email": {},
+		"name":  {},
+	}
+	if field, ok := findForbiddenImportField(settings.Extra, forbiddenExtra); ok {
+		return fmt.Errorf("extra.%s is not allowed in import defaults", field)
+	}
+
+	return nil
+}
+
+func findForbiddenImportField(fields map[string]any, forbidden map[string]struct{}) (string, bool) {
+	for key := range fields {
+		normalized := strings.ToLower(strings.TrimSpace(key))
+		if _, ok := forbidden[normalized]; ok {
+			return key, true
+		}
+	}
+	return "", false
+}
+
 // SetStreamTimeoutSettings 设置流超时处理配置
 func (s *SettingService) SetStreamTimeoutSettings(ctx context.Context, settings *StreamTimeoutSettings) error {
 	if settings == nil {

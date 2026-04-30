@@ -46,6 +46,7 @@ func NewOAuthHandler(oauthService *service.OAuthService) *OAuthHandler {
 // AccountHandler handles admin account management
 type AccountHandler struct {
 	adminService            service.AdminService
+	settingService          *service.SettingService
 	oauthService            *service.OAuthService
 	openaiOAuthService      *service.OpenAIOAuthService
 	geminiOAuthService      *service.GeminiOAuthService
@@ -63,6 +64,7 @@ type AccountHandler struct {
 // NewAccountHandler creates a new admin account handler
 func NewAccountHandler(
 	adminService service.AdminService,
+	settingService *service.SettingService,
 	oauthService *service.OAuthService,
 	openaiOAuthService *service.OpenAIOAuthService,
 	geminiOAuthService *service.GeminiOAuthService,
@@ -78,6 +80,7 @@ func NewAccountHandler(
 ) *AccountHandler {
 	return &AccountHandler{
 		adminService:            adminService,
+		settingService:          settingService,
 		oauthService:            oauthService,
 		openaiOAuthService:      openaiOAuthService,
 		geminiOAuthService:      geminiOAuthService,

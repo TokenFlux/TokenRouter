@@ -460,6 +460,39 @@ type OpenAIFastPolicySettings struct {
 	Rules []OpenAIFastPolicyRule `json:"rules"`
 }
 
+// OpenAIOAuthImportAccountDefaults 是 OpenAI OAuth 导入模板允许填充的账号字段。
+type OpenAIOAuthImportAccountDefaults struct {
+	Notes              *string  `json:"notes,omitempty"`
+	Concurrency        *int     `json:"concurrency,omitempty"`
+	Priority           *int     `json:"priority,omitempty"`
+	RateMultiplier     *float64 `json:"rate_multiplier,omitempty"`
+	ExpiresAt          *int64   `json:"expires_at,omitempty"`
+	AutoPauseOnExpired *bool    `json:"auto_pause_on_expired,omitempty"`
+}
+
+// OpenAIOAuthImportDefaults 是 OpenAI OAuth 账号导入时的缺省模板。
+type OpenAIOAuthImportDefaults struct {
+	Account     OpenAIOAuthImportAccountDefaults `json:"account,omitempty"`
+	Credentials map[string]any                   `json:"credentials,omitempty"`
+	Extra       map[string]any                   `json:"extra,omitempty"`
+}
+
+// DefaultOpenAIOAuthImportDefaults 返回 OpenAI OAuth 导入模板的内置默认值。
+func DefaultOpenAIOAuthImportDefaults() *OpenAIOAuthImportDefaults {
+	return &OpenAIOAuthImportDefaults{
+		Credentials: map[string]any{
+			"model_whitelist": []string{
+				"gpt-5.2",
+				"gpt-5.3",
+				"gpt-5.3-spark",
+				"gpt-5.4",
+				"gpt-5.4-mini",
+				"gpt-5.5",
+			},
+		},
+	}
+}
+
 // DefaultOpenAIFastPolicySettings 返回默认的 OpenAI fast 策略配置。
 // 默认对所有模型的 priority（fast）请求执行 filter，即剔除 service_tier 字段，
 // 让上游按 normal 优先级处理。

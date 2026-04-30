@@ -4,18 +4,12 @@
 
 // OpenAI
 const openaiModels = [
-  // GPT-5.2 系列
-  'gpt-5.2', 'gpt-5.2-2025-12-11', 'gpt-5.2-chat-latest',
-  'gpt-5.2-pro', 'gpt-5.2-pro-2025-12-11',
-  // GPT-5.5 系列
-  'gpt-5.5', 'gpt-5.5-pro',
-  // GPT-5.4 系列
-  'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.4-2026-03-05',
-  // GPT-5.3 系列
-  'gpt-5.3-codex', 'gpt-5.3-codex-spark',
-  'gpt-4o-audio-preview', 'gpt-4o-realtime-preview',
-  // GPT Image 系列
-  'gpt-image-1', 'gpt-image-1.5', 'gpt-image-2'
+  'gpt-5.2',
+  'gpt-5.3',
+  'gpt-5.3-spark',
+  'gpt-5.4',
+  'gpt-5.4-mini',
+  'gpt-5.5'
 ]
 
 // Anthropic Claude

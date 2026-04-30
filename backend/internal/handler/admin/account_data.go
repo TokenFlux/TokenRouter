@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -51,11 +52,41 @@ type DataAccount struct {
 	Credentials        map[string]any `json:"credentials"`
 	Extra              map[string]any `json:"extra,omitempty"`
 	ProxyKey           *string        `json:"proxy_key,omitempty"`
-	Concurrency        int            `json:"concurrency"`
-	Priority           int            `json:"priority"`
+	Concurrency        *int           `json:"concurrency,omitempty"`
+	Priority           *int           `json:"priority,omitempty"`
 	RateMultiplier     *float64       `json:"rate_multiplier,omitempty"`
 	ExpiresAt          *int64         `json:"expires_at,omitempty"`
 	AutoPauseOnExpired *bool          `json:"auto_pause_on_expired,omitempty"`
+
+	notesSet              bool
+	concurrencySet        bool
+	prioritySet           bool
+	rateMultiplierSet     bool
+	expiresAtSet          bool
+	autoPauseOnExpiredSet bool
+}
+
+func (a *DataAccount) UnmarshalJSON(data []byte) error {
+	type dataAccountAlias DataAccount
+
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	var decoded dataAccountAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+
+	*a = DataAccount(decoded)
+	_, a.notesSet = raw["notes"]
+	_, a.concurrencySet = raw["concurrency"]
+	_, a.prioritySet = raw["priority"]
+	_, a.rateMultiplierSet = raw["rate_multiplier"]
+	_, a.expiresAtSet = raw["expires_at"]
+	_, a.autoPauseOnExpiredSet = raw["auto_pause_on_expired"]
+	return nil
 }
 
 type DataImportRequest struct {
@@ -81,6 +112,17 @@ type DataImportError struct {
 
 func buildProxyKey(protocol, host string, port int, username, password string) string {
 	return fmt.Sprintf("%s|%s|%d|%s|%s", strings.TrimSpace(protocol), strings.TrimSpace(host), port, strings.TrimSpace(username), strings.TrimSpace(password))
+}
+
+func intPtr(value int) *int {
+	return &value
+}
+
+func intValue(value *int) int {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 func (h *AccountHandler) ExportData(c *gin.Context) {
@@ -155,8 +197,8 @@ func (h *AccountHandler) ExportData(c *gin.Context) {
 			Credentials:        acc.Credentials,
 			Extra:              acc.Extra,
 			ProxyKey:           proxyKey,
-			Concurrency:        acc.Concurrency,
-			Priority:           acc.Priority,
+			Concurrency:        intPtr(acc.Concurrency),
+			Priority:           intPtr(acc.Priority),
 			RateMultiplier:     acc.RateMultiplier,
 			ExpiresAt:          expiresAt,
 			AutoPauseOnExpired: &acc.AutoPauseOnExpired,
@@ -270,6 +312,13 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 
 	// 收集需要异步设置隐私的 Antigravity OAuth 账号
 	var privacyAccounts []*service.Account
+	var openAIOAuthImportDefaults *service.OpenAIOAuthImportDefaults
+	if h.settingService != nil {
+		openAIOAuthImportDefaults, err = h.settingService.GetOpenAIOAuthImportDefaults(ctx)
+		if err != nil {
+			return result, err
+		}
+	}
 
 	for i := range dataPayload.Accounts {
 		item := dataPayload.Accounts[i]
@@ -299,6 +348,7 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 			}
 		}
 
+		applyOpenAIOAuthImportDefaults(&item, openAIOAuthImportDefaults)
 		enrichCredentialsFromIDToken(&item)
 
 		accountInput := &service.CreateAccountInput{
@@ -309,8 +359,8 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 			Credentials:          item.Credentials,
 			Extra:                item.Extra,
 			ProxyID:              proxyID,
-			Concurrency:          item.Concurrency,
-			Priority:             item.Priority,
+			Concurrency:          intValue(item.Concurrency),
+			Priority:             intValue(item.Priority),
 			RateMultiplier:       item.RateMultiplier,
 			GroupIDs:             nil,
 			ExpiresAt:            item.ExpiresAt,
@@ -462,6 +512,55 @@ func (h *AccountHandler) resolveExportProxies(ctx context.Context, accounts []se
 	return h.adminService.GetProxiesByIDs(ctx, ids)
 }
 
+func applyOpenAIOAuthImportDefaults(item *DataAccount, defaults *service.OpenAIOAuthImportDefaults) {
+	if defaults == nil {
+		return
+	}
+	if !strings.EqualFold(strings.TrimSpace(item.Platform), service.PlatformOpenAI) {
+		return
+	}
+	if !strings.EqualFold(strings.TrimSpace(item.Type), service.AccountTypeOAuth) {
+		return
+	}
+
+	if !item.notesSet && defaults.Account.Notes != nil {
+		item.Notes = defaults.Account.Notes
+	}
+	if !item.concurrencySet && defaults.Account.Concurrency != nil {
+		item.Concurrency = defaults.Account.Concurrency
+	}
+	if !item.prioritySet && defaults.Account.Priority != nil {
+		item.Priority = defaults.Account.Priority
+	}
+	if !item.rateMultiplierSet && defaults.Account.RateMultiplier != nil {
+		item.RateMultiplier = defaults.Account.RateMultiplier
+	}
+	if !item.expiresAtSet && defaults.Account.ExpiresAt != nil {
+		item.ExpiresAt = defaults.Account.ExpiresAt
+	}
+	if !item.autoPauseOnExpiredSet && defaults.Account.AutoPauseOnExpired != nil {
+		item.AutoPauseOnExpired = defaults.Account.AutoPauseOnExpired
+	}
+
+	mergeMissingImportMap(&item.Credentials, defaults.Credentials)
+	mergeMissingImportMap(&item.Extra, defaults.Extra)
+}
+
+func mergeMissingImportMap(target *map[string]any, defaults map[string]any) {
+	if len(defaults) == 0 {
+		return
+	}
+	if *target == nil {
+		*target = map[string]any{}
+	}
+	for key, value := range defaults {
+		// 只按顶层键做缺失合并；null、false、0、空数组都算已提供。
+		if _, exists := (*target)[key]; !exists {
+			(*target)[key] = value
+		}
+	}
+}
+
 func parseAccountIDs(c *gin.Context) ([]int64, error) {
 	values := c.QueryArray("ids")
 	if len(values) == 0 {
@@ -567,10 +666,10 @@ func validateDataAccount(item DataAccount) error {
 	if item.RateMultiplier != nil && *item.RateMultiplier < 0 {
 		return errors.New("rate_multiplier must be >= 0")
 	}
-	if item.Concurrency < 0 {
+	if item.Concurrency != nil && *item.Concurrency < 0 {
 		return errors.New("concurrency must be >= 0")
 	}
-	if item.Priority < 0 {
+	if item.Priority != nil && *item.Priority < 0 {
 		return errors.New("priority must be >= 0")
 	}
 	return nil

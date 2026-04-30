@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -47,12 +48,17 @@ type dataAccount struct {
 }
 
 func setupAccountDataRouter() (*gin.Engine, *stubAdminService) {
+	return setupAccountDataRouterWithSettings(nil)
+}
+
+func setupAccountDataRouterWithSettings(settingService *service.SettingService) (*gin.Engine, *stubAdminService) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	adminSvc := newStubAdminService()
 
 	h := NewAccountHandler(
 		adminSvc,
+		settingService,
 		nil,
 		nil,
 		nil,
@@ -274,4 +280,100 @@ func TestImportDataReusesProxyAndSkipsDefaultGroup(t *testing.T) {
 	require.Len(t, adminSvc.createdProxies, 0)
 	require.Len(t, adminSvc.createdAccounts, 1)
 	require.True(t, adminSvc.createdAccounts[0].SkipDefaultGroupBind)
+}
+
+func TestImportDataAppliesOpenAIOAuthDefaultModelWhitelistWhenMissing(t *testing.T) {
+	settingSvc := service.NewSettingService(&settingHandlerRepoStub{}, &config.Config{})
+	router, adminSvc := setupAccountDataRouterWithSettings(settingSvc)
+
+	postImportAccount(t, router, map[string]any{
+		"name":        "openai-oauth",
+		"platform":    service.PlatformOpenAI,
+		"type":        service.AccountTypeOAuth,
+		"credentials": map[string]any{"access_token": "token"},
+	})
+
+	require.Len(t, adminSvc.createdAccounts, 1)
+	require.Equal(t, []string{
+		"gpt-5.2",
+		"gpt-5.3",
+		"gpt-5.3-spark",
+		"gpt-5.4",
+		"gpt-5.4-mini",
+		"gpt-5.5",
+	}, adminSvc.createdAccounts[0].Credentials["model_whitelist"])
+}
+
+func TestImportDataKeepsExistingOpenAIOAuthModelWhitelist(t *testing.T) {
+	settingSvc := service.NewSettingService(&settingHandlerRepoStub{}, &config.Config{})
+	router, adminSvc := setupAccountDataRouterWithSettings(settingSvc)
+
+	postImportAccount(t, router, map[string]any{
+		"name":     "openai-oauth",
+		"platform": service.PlatformOpenAI,
+		"type":     service.AccountTypeOAuth,
+		"credentials": map[string]any{
+			"access_token":    "token",
+			"model_whitelist": []any{},
+		},
+	})
+
+	require.Len(t, adminSvc.createdAccounts, 1)
+	require.Equal(t, []any{}, adminSvc.createdAccounts[0].Credentials["model_whitelist"])
+}
+
+func TestImportDataTreatsOpenAIOAuthNullAccountFieldAsPresent(t *testing.T) {
+	repo := &settingHandlerRepoStub{values: map[string]string{
+		service.SettingKeyOpenAIOAuthImportDefaults: `{"account":{"concurrency":7}}`,
+	}}
+	settingSvc := service.NewSettingService(repo, &config.Config{})
+	router, adminSvc := setupAccountDataRouterWithSettings(settingSvc)
+
+	postImportAccount(t, router, map[string]any{
+		"name":        "openai-oauth",
+		"platform":    service.PlatformOpenAI,
+		"type":        service.AccountTypeOAuth,
+		"credentials": map[string]any{"access_token": "token"},
+		"concurrency": nil,
+	})
+
+	require.Len(t, adminSvc.createdAccounts, 1)
+	require.Equal(t, 0, adminSvc.createdAccounts[0].Concurrency)
+}
+
+func TestImportDataDoesNotApplyOpenAIOAuthDefaultsToOtherPlatforms(t *testing.T) {
+	settingSvc := service.NewSettingService(&settingHandlerRepoStub{}, &config.Config{})
+	router, adminSvc := setupAccountDataRouterWithSettings(settingSvc)
+
+	postImportAccount(t, router, map[string]any{
+		"name":        "anthropic-oauth",
+		"platform":    service.PlatformAnthropic,
+		"type":        service.AccountTypeOAuth,
+		"credentials": map[string]any{"access_token": "token"},
+	})
+
+	require.Len(t, adminSvc.createdAccounts, 1)
+	_, exists := adminSvc.createdAccounts[0].Credentials["model_whitelist"]
+	require.False(t, exists)
+}
+
+func postImportAccount(t *testing.T, router *gin.Engine, account map[string]any) {
+	t.Helper()
+
+	dataPayload := map[string]any{
+		"data": map[string]any{
+			"type":     dataType,
+			"version":  dataVersion,
+			"proxies":  []map[string]any{},
+			"accounts": []map[string]any{account},
+		},
+		"skip_default_group_bind": true,
+	}
+
+	body, _ := json.Marshal(dataPayload)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/data", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code)
 }

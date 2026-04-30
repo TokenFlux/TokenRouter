@@ -295,6 +295,9 @@ const (
 	// anthropic-beta header.
 	SettingKeyOpenAIFastPolicySettings = "openai_fast_policy_settings"
 
+	// SettingKeyOpenAIOAuthImportDefaults 保存 OpenAI OAuth 账号导入时的缺省模板。
+	SettingKeyOpenAIOAuthImportDefaults = "openai_oauth_import_defaults"
+
 	// =========================
 	// Claude Code Version Check
 	// =========================
