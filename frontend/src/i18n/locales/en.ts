@@ -434,6 +434,7 @@ export default {
     modelsStat: 'models',
     rateMultiplier: 'Group Multiplier',
     officialPriceDiscount: 'As low as {discount}/10 of official price',
+    usdRmbEquivalent: 'As low as {amount} CNY equals 1 USD',
     contextTokens: 'Context Tokens',
     input: 'Input',
     output: 'Output',

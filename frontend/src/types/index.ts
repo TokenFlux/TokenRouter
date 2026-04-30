@@ -509,6 +509,7 @@ export interface MarketplaceGroup {
   sort_order: number
   rate_multiplier: number
   official_price_ratio?: number
+  official_price_rmb_equivalent?: number
   model_count: number
   models: MarketplaceModel[]
 }

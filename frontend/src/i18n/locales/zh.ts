@@ -434,6 +434,7 @@ export default {
     modelsStat: '个模型',
     rateMultiplier: '分组倍率',
     officialPriceDiscount: '最低至官方价格的{discount}折',
+    usdRmbEquivalent: '最低 {amount} 元相当于 1 美元',
     contextTokens: '上下文 Token',
     input: '输入',
     output: '输出',

@@ -14,16 +14,17 @@ import (
 )
 
 type ModelMarketplaceGroup struct {
-	ID                 int64
-	Name               string
-	Description        string
-	Platform           string
-	DisplayBrand       string
-	SortOrder          int
-	RateMultiplier     float64
-	OfficialPriceRatio *float64
-	ModelCount         int
-	Models             []ModelMarketplaceModel
+	ID                         int64
+	Name                       string
+	Description                string
+	Platform                   string
+	DisplayBrand               string
+	SortOrder                  int
+	RateMultiplier             float64
+	OfficialPriceRatio         *float64
+	OfficialPriceRMBEquivalent *float64
+	ModelCount                 int
+	Models                     []ModelMarketplaceModel
 }
 
 type ModelMarketplaceModel struct {
@@ -73,20 +74,23 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 		}
 
 		var officialPriceRatio *float64
+		var officialPriceRMBEquivalent *float64
 		if showDiscount {
 			officialPriceRatio = discountConfig.officialPriceRatio(group.RateMultiplier)
+			officialPriceRMBEquivalent = discountConfig.officialPriceRMBEquivalent(group.RateMultiplier)
 		}
 		out = append(out, ModelMarketplaceGroup{
-			ID:                 group.ID,
-			Name:               group.Name,
-			Description:        group.Description,
-			Platform:           group.Platform,
-			DisplayBrand:       marketplaceGroupDisplayBrand(group),
-			SortOrder:          group.SortOrder,
-			RateMultiplier:     group.RateMultiplier,
-			OfficialPriceRatio: officialPriceRatio,
-			ModelCount:         len(models),
-			Models:             models,
+			ID:                         group.ID,
+			Name:                       group.Name,
+			Description:                group.Description,
+			Platform:                   group.Platform,
+			DisplayBrand:               marketplaceGroupDisplayBrand(group),
+			SortOrder:                  group.SortOrder,
+			RateMultiplier:             group.RateMultiplier,
+			OfficialPriceRatio:         officialPriceRatio,
+			OfficialPriceRMBEquivalent: officialPriceRMBEquivalent,
+			ModelCount:                 len(models),
+			Models:                     models,
 		})
 	}
 
@@ -111,6 +115,14 @@ func (c marketplaceDiscountConfig) officialPriceRatio(rateMultiplier float64) *f
 		return nil
 	}
 	return &ratio
+}
+
+func (c marketplaceDiscountConfig) officialPriceRMBEquivalent(rateMultiplier float64) *float64 {
+	amount := rateMultiplier * c.reasoningPointRMBUnitPrice
+	if amount <= 0 || math.IsNaN(amount) || math.IsInf(amount, 0) {
+		return nil
+	}
+	return &amount
 }
 
 func (s *ModelMarketplaceService) getOfficialPriceRatioConfig(ctx context.Context) (marketplaceDiscountConfig, bool) {

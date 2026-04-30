@@ -178,6 +178,12 @@
                   >
                     {{ formatOfficialPriceRatio(group.official_price_ratio) }}
                   </span>
+                  <span
+                    v-if="hasPositiveValue(group.official_price_rmb_equivalent)"
+                    class="rounded-full border border-cyan-200 bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-800 dark:border-cyan-500/30 dark:bg-cyan-500/10 dark:text-cyan-200"
+                  >
+                    {{ t('marketplace.usdRmbEquivalent', { amount: formatRMBEquivalentAmount(group.official_price_rmb_equivalent) }) }}
+                  </span>
                 </div>
 
                 <div class="flex items-start gap-3">
@@ -651,6 +657,13 @@ function formatOfficialPriceRatio(ratio: number): string {
   }).format(ratio * 10)
 
   return t('marketplace.officialPriceDiscount', { discount })
+}
+
+function formatRMBEquivalentAmount(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(value)
 }
 
 function overviewIconWrapClass(key: string): string {

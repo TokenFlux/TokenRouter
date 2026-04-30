@@ -52,16 +52,17 @@ type ModelMarketplaceModel struct {
 }
 
 type ModelMarketplaceGroup struct {
-	ID                 int64                   `json:"id"`
-	Name               string                  `json:"name"`
-	Description        string                  `json:"description"`
-	Platform           string                  `json:"platform"`
-	DisplayBrand       string                  `json:"display_brand"`
-	SortOrder          int                     `json:"sort_order"`
-	RateMultiplier     float64                 `json:"rate_multiplier"`
-	OfficialPriceRatio *float64                `json:"official_price_ratio,omitempty"`
-	ModelCount         int                     `json:"model_count"`
-	Models             []ModelMarketplaceModel `json:"models"`
+	ID                         int64                   `json:"id"`
+	Name                       string                  `json:"name"`
+	Description                string                  `json:"description"`
+	Platform                   string                  `json:"platform"`
+	DisplayBrand               string                  `json:"display_brand"`
+	SortOrder                  int                     `json:"sort_order"`
+	RateMultiplier             float64                 `json:"rate_multiplier"`
+	OfficialPriceRatio         *float64                `json:"official_price_ratio,omitempty"`
+	OfficialPriceRMBEquivalent *float64                `json:"official_price_rmb_equivalent,omitempty"`
+	ModelCount                 int                     `json:"model_count"`
+	Models                     []ModelMarketplaceModel `json:"models"`
 }
 
 func ModelMarketplaceGroupsFromService(groups []service.ModelMarketplaceGroup) []ModelMarketplaceGroup {
@@ -77,16 +78,17 @@ func ModelMarketplaceGroupsFromService(groups []service.ModelMarketplaceGroup) [
 		}
 
 		out = append(out, ModelMarketplaceGroup{
-			ID:                 group.ID,
-			Name:               group.Name,
-			Description:        group.Description,
-			Platform:           group.Platform,
-			DisplayBrand:       group.DisplayBrand,
-			SortOrder:          group.SortOrder,
-			RateMultiplier:     group.RateMultiplier,
-			OfficialPriceRatio: group.OfficialPriceRatio,
-			ModelCount:         group.ModelCount,
-			Models:             models,
+			ID:                         group.ID,
+			Name:                       group.Name,
+			Description:                group.Description,
+			Platform:                   group.Platform,
+			DisplayBrand:               group.DisplayBrand,
+			SortOrder:                  group.SortOrder,
+			RateMultiplier:             group.RateMultiplier,
+			OfficialPriceRatio:         group.OfficialPriceRatio,
+			OfficialPriceRMBEquivalent: group.OfficialPriceRMBEquivalent,
+			ModelCount:                 group.ModelCount,
+			Models:                     models,
 		})
 	}
 
