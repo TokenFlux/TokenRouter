@@ -2946,10 +2946,10 @@ import {
   claudeModels,
   getPresetMappingsByPlatform,
   getModelsByPlatform,
-  normalizeModelWhitelist,
   commonErrorCodes,
   buildModelMappingObject,
   buildPersistedModelRestriction,
+  splitPersistedModelRestriction,
   fetchAntigravityDefaultMappings,
   isValidWildcardPattern
 } from '@/composables/useModelWhitelist'
@@ -3355,13 +3355,26 @@ const applyOpenAIOAuthImportDefaultsToForm = () => {
 
   const credentials = defaults.credentials || {}
   const openAIModels = getModelsByPlatform('openai')
+  const defaultModelRestriction = splitPersistedModelRestriction(
+    credentials.model_mapping && typeof credentials.model_mapping === 'object' && !Array.isArray(credentials.model_mapping)
+      ? credentials.model_mapping as Record<string, string>
+      : undefined,
+    credentials.model_whitelist
+  )
+  const hasDefaultModelWhitelist =
+    Object.prototype.hasOwnProperty.call(credentials, 'model_whitelist') ||
+    defaultModelRestriction.allowedModels.length > 0
   if (
-    Object.prototype.hasOwnProperty.call(credentials, 'model_whitelist') &&
+    hasDefaultModelWhitelist &&
     modelRestrictionMode.value === 'whitelist' &&
     modelMappings.value.length === 0 &&
     isSameStringList(allowedModels.value, openAIModels)
   ) {
-    allowedModels.value = normalizeModelWhitelist(credentials.model_whitelist)
+    allowedModels.value = defaultModelRestriction.allowedModels
+  }
+  if (defaultModelRestriction.modelMappings.length > 0 && modelMappings.value.length === 0) {
+    modelMappings.value = defaultModelRestriction.modelMappings
+    modelRestrictionMode.value = 'mapping'
   }
   const defaultCompactMappings = splitDefaultMappingObject(credentials.compact_model_mapping)
   if (defaultCompactMappings.length > 0 && openAICompactModelMappings.value.length === 0) {
@@ -3413,7 +3426,7 @@ const applyOpenAIOAuthCredentialDefaults = (credentials: Record<string, unknown>
 
   const defaults = openAIOAuthImportDefaults.value?.credentials || {}
   for (const [key, value] of Object.entries(defaults)) {
-    if (key === 'model_whitelist' || key === 'compact_model_mapping') {
+    if (key === 'model_whitelist' || key === 'model_mapping' || key === 'compact_model_mapping') {
       continue
     }
     if (!Object.prototype.hasOwnProperty.call(credentials, key)) {

@@ -111,6 +111,88 @@
           <ModelWhitelistSelector v-model="defaultAllowedModels" platform="openai" />
         </section>
 
+        <section class="space-y-3 border-t border-gray-100 pt-5 dark:border-dark-700">
+          <div class="text-sm font-medium text-gray-900 dark:text-white">
+            {{ t('admin.accounts.modelMapping') }}
+          </div>
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.mapRequestModels') }}
+          </p>
+          <div v-if="defaultModelMappings.length > 0" class="space-y-2">
+            <div
+              v-for="(mapping, index) in defaultModelMappings"
+              :key="getDefaultModelMappingKey(mapping)"
+              class="flex items-center gap-2"
+            >
+              <input
+                v-model="mapping.from"
+                type="text"
+                class="input flex-1"
+                :placeholder="t('admin.accounts.requestModel')"
+              />
+              <svg
+                class="h-4 w-4 flex-shrink-0 text-gray-400"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M14 5l7 7m0 0l-7 7m7-7H3"
+                />
+              </svg>
+              <input
+                v-model="mapping.to"
+                type="text"
+                class="input flex-1"
+                :placeholder="t('admin.accounts.actualModel')"
+              />
+              <button
+                type="button"
+                class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                @click="removeDefaultModelMapping(index)"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300"
+            @click="addDefaultModelMapping"
+          >
+            <svg
+              class="mr-1 inline h-4 w-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            {{ t('admin.accounts.addMapping') }}
+          </button>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="preset in presetMappings"
+              :key="preset.label"
+              type="button"
+              :class="['rounded-lg px-3 py-1 text-xs transition-colors', preset.color]"
+              @click="addDefaultPresetMapping(preset.from, preset.to)"
+            >
+              + {{ preset.label }}
+            </button>
+          </div>
+        </section>
+
         <section class="grid grid-cols-1 gap-4 border-t border-gray-100 pt-5 dark:border-dark-700 md:grid-cols-2">
           <div>
             <label class="input-label">{{ t('admin.accounts.openAIOAuthImportDefaultsCredentialsJson') }}</label>
@@ -143,14 +225,19 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api'
 import type { OpenAIOAuthImportDefaults } from '@/api/admin/settings'
-import { normalizeModelWhitelist } from '@/composables/useModelWhitelist'
+import {
+  buildModelMappingObject,
+  getPresetMappingsByPlatform,
+  splitPersistedModelRestriction
+} from '@/composables/useModelWhitelist'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import { useAppStore } from '@/stores'
+import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import {
   OPENAI_WS_MODE_OFF,
   isOpenAIWSModeEnabled,
@@ -160,6 +247,11 @@ import {
 import type { OpenAICompactMode } from '@/types'
 
 type AutoPauseDefault = 'unset' | 'true' | 'false'
+type NumberInputValue = string | number
+interface ModelMapping {
+  from: string
+  to: string
+}
 
 const { t } = useI18n()
 const appStore = useAppStore()
@@ -167,6 +259,7 @@ const appStore = useAppStore()
 const loading = ref(true)
 const saving = ref(false)
 const defaultAllowedModels = ref<string[]>([])
+const defaultModelMappings = ref<ModelMapping[]>([])
 const credentialsJson = ref('{}')
 const extraJson = ref('{}')
 const openaiPassthrough = ref(false)
@@ -175,10 +268,10 @@ const wsMode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
 const compactMode = ref<OpenAICompactMode>('auto')
 const form = reactive({
   notes: '',
-  concurrency: '',
-  priority: '',
-  rateMultiplier: '',
-  expiresAt: '',
+  concurrency: '' as NumberInputValue,
+  priority: '' as NumberInputValue,
+  rateMultiplier: '' as NumberInputValue,
+  expiresAt: '' as NumberInputValue,
   autoPauseOnExpired: 'unset' as AutoPauseDefault
 })
 
@@ -197,6 +290,8 @@ const forbiddenCredentialFields = new Set([
 ])
 
 const forbiddenExtraFields = new Set(['email', 'name'])
+const presetMappings = computed(() => getPresetMappingsByPlatform('openai'))
+const getDefaultModelMappingKey = createStableObjectKeyResolver<ModelMapping>('openai-oauth-default-mapping')
 const structuredExtraKeys = [
   'openai_passthrough',
   'openai_oauth_passthrough',
@@ -229,8 +324,9 @@ const parseJsonObject = (text: string, label: string): Record<string, unknown> =
   return parsed as Record<string, unknown>
 }
 
-const parseOptionalNumber = (value: string, label: string, integer: boolean): number | undefined => {
-  const trimmed = value.trim()
+const parseOptionalNumber = (value: NumberInputValue, label: string, integer: boolean): number | undefined => {
+  // number 输入框在运行时可能回传 number，这里统一转成文本后复用原有校验。
+  const trimmed = String(value).trim()
   if (!trimmed) {
     return undefined
   }
@@ -256,6 +352,28 @@ const rejectForbiddenFields = (
   return true
 }
 
+const normalizeModelMappingObject = (value: unknown): Record<string, string> | undefined => {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, string>
+    : undefined
+}
+
+const addDefaultModelMapping = () => {
+  defaultModelMappings.value.push({ from: '', to: '' })
+}
+
+const removeDefaultModelMapping = (index: number) => {
+  defaultModelMappings.value.splice(index, 1)
+}
+
+const addDefaultPresetMapping = (from: string, to: string) => {
+  if (defaultModelMappings.value.some((mapping) => mapping.from === from)) {
+    appStore.showInfo(t('admin.accounts.mappingExists', { model: from }))
+    return
+  }
+  defaultModelMappings.value.push({ from, to })
+}
+
 const isCompactMode = (value: unknown): value is OpenAICompactMode => {
   return value === 'auto' || value === 'force_on' || value === 'force_off'
 }
@@ -273,8 +391,14 @@ const hydrate = (defaults: OpenAIOAuthImportDefaults) => {
       : 'unset'
 
   const credentials = { ...(defaults.credentials || {}) }
-  defaultAllowedModels.value = normalizeModelWhitelist(credentials.model_whitelist)
+  const modelRestriction = splitPersistedModelRestriction(
+    normalizeModelMappingObject(credentials.model_mapping),
+    credentials.model_whitelist
+  )
+  defaultAllowedModels.value = modelRestriction.allowedModels
+  defaultModelMappings.value = modelRestriction.modelMappings
   delete credentials.model_whitelist
+  delete credentials.model_mapping
   credentialsJson.value = stringifyJsonObject(credentials)
 
   const extra = { ...(defaults.extra || {}) }
@@ -340,6 +464,7 @@ const save = async () => {
     const extra = parseJsonObject(extraJson.value, t('admin.accounts.openAIOAuthImportDefaultsExtraJson'))
 
     delete credentials.model_whitelist
+    delete credentials.model_mapping
     for (const key of structuredExtraKeys) {
       delete extra[key]
     }
@@ -361,12 +486,18 @@ const save = async () => {
       extra.openai_compact_mode = compactMode.value
     }
 
+    const modelMapping = buildModelMappingObject('mapping', [], defaultModelMappings.value)
+    const updatedCredentials: Record<string, unknown> = {
+      ...credentials,
+      model_whitelist: [...defaultAllowedModels.value]
+    }
+    if (modelMapping) {
+      updatedCredentials.model_mapping = modelMapping
+    }
+
     const updated = await adminAPI.settings.updateOpenAIOAuthImportDefaults({
       account: buildAccountDefaults(),
-      credentials: {
-        ...credentials,
-        model_whitelist: [...defaultAllowedModels.value]
-      },
+      credentials: updatedCredentials,
       extra: Object.keys(extra).length > 0 ? extra : undefined
     })
     hydrate(updated)
