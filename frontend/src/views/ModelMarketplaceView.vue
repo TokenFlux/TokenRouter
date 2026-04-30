@@ -198,11 +198,16 @@
             </div>
 
             <div class="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:p-5">
-              <article
-                v-for="model in group.models"
-                :key="`${group.id}-${model.id}`"
-                class="group rounded-xl border border-gray-100 bg-gray-50/80 p-4 transition hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-card dark:border-dark-700 dark:bg-dark-950/80 dark:hover:border-primary-500/50"
+              <div
+                v-for="(column, columnIndex) in modelCardColumns(group.models)"
+                :key="`${group.id}-column-${columnIndex}`"
+                class="grid content-start gap-3"
               >
+                <article
+                  v-for="model in column"
+                  :key="`${group.id}-${model.id}`"
+                  class="group rounded-xl border border-gray-100 bg-gray-50/80 p-4 transition hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-card dark:border-dark-700 dark:bg-dark-950/80 dark:hover:border-primary-500/50"
+                >
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
                     <h3 class="truncate text-base font-semibold text-gray-950 dark:text-white">{{ model.display_name }}</h3>
@@ -220,7 +225,7 @@
                       :key="row.key"
                       class="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white/90 px-3 py-2.5 text-sm dark:border-dark-700 dark:bg-dark-950/90"
                     >
-                      <span class="text-gray-500 dark:text-dark-400">{{ row.label }}</span>
+                      <span class="shrink-0 whitespace-nowrap text-gray-500 dark:text-dark-400">{{ row.label }}</span>
                       <span class="min-w-0 text-right font-medium text-gray-900 dark:text-white">{{ row.value }}</span>
                     </div>
                   </template>
@@ -241,7 +246,8 @@
                     {{ t('marketplace.viewPricing') }}
                   </button>
                 </div>
-              </article>
+                </article>
+              </div>
             </div>
           </section>
         </div>
@@ -336,7 +342,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -395,6 +401,7 @@ const selectedBrand = ref<string | 'all'>('all')
 const selectedPricingMode = ref<PricingFilter>('all')
 const selectedGroupId = ref<number | 'all'>('all')
 const selectedPricing = ref<SelectedPricingModel | null>(null)
+const marketplaceColumnCount = ref(1)
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isAdmin = computed(() => authStore.isAdmin)
@@ -613,6 +620,19 @@ function closePricingDialog() {
   selectedPricing.value = null
 }
 
+function updateMarketplaceColumnCount() {
+  const width = window.innerWidth
+  if (width >= 1536) {
+    marketplaceColumnCount.value = 4
+    return
+  }
+  if (width >= 1280) {
+    marketplaceColumnCount.value = 3
+    return
+  }
+  marketplaceColumnCount.value = width >= 768 ? 2 : 1
+}
+
 function resetFilters() {
   search.value = ''
   selectedBrand.value = 'all'
@@ -680,10 +700,34 @@ function formatTokenCount(value: number): string {
   }).format(value)
 }
 
+function formatCompactNumber(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: value >= 100 ? 0 : 1,
+  }).format(value)
+}
+
+function formatCompactTokenCount(value: number): string {
+  if (value >= 1_000_000) {
+    return `${formatCompactNumber(value / 1_000_000)}m`
+  }
+  if (value >= 1_000) {
+    return `${formatCompactNumber(value / 1_000)}k`
+  }
+  return formatTokenCount(value)
+}
+
 // 最大 token 为空表示无上限，用 ∞ 和渠道配置页保持一致。
 function formatTokenRange(minTokens: number, maxTokens?: number | null): string {
   const maxLabel = typeof maxTokens === 'number' ? formatTokenCount(maxTokens) : '∞'
   return `${formatTokenCount(minTokens)} - ${maxLabel}`
+}
+
+// 卡片预览空间有限，用紧凑区间避免上下文数字换行。
+function formatCompactTokenRange(minTokens: number, maxTokens?: number | null): string {
+  if (typeof maxTokens !== 'number') {
+    return `${formatCompactTokenCount(minTokens)}+`
+  }
+  return `${formatCompactTokenCount(minTokens)}-${formatCompactTokenCount(maxTokens)}`
 }
 
 function pricingFilterLabel(mode: Exclude<PricingFilter, 'all'>): string {
@@ -804,7 +848,7 @@ function compactContextIntervalRows(pricing: MarketplaceModelPricing): PricingRo
     }
     return [{
       key: `compact-${interval.min_tokens}-${interval.max_tokens ?? 'up'}-${index}`,
-      label: formatTokenRange(interval.min_tokens, interval.max_tokens),
+      label: formatCompactTokenRange(interval.min_tokens, interval.max_tokens),
       value: rows.map((row) => `${row.label} ${row.value}`).join(' / '),
     }]
   }) ?? []
@@ -822,6 +866,33 @@ function compactPricingRows(pricing: MarketplaceModelPricing): PricingRow[] {
     return imagePricingRows(pricing)
   }
   return []
+}
+
+function estimateModelCardHeight(model: MarketplaceModel): number {
+  const rowCount = compactPricingRows(model.pricing).length
+  const rowHeight = hasContextIntervalPricing(model.pricing) ? 78 : 58
+  const actionHeight = hasDisplayPricing(model.pricing) ? 52 : 0
+  return 132 + rowCount * rowHeight + actionHeight
+}
+
+// 模型卡片高度不一致，手动分列避免 CSS grid 被最高卡片撑出整行空白。
+function modelCardColumns(models: MarketplaceModel[]): MarketplaceModel[][] {
+  const columnCount = Math.min(marketplaceColumnCount.value, models.length)
+  const columns = Array.from({ length: columnCount }, () => [] as MarketplaceModel[])
+  const heights = Array.from({ length: columnCount }, () => 0)
+
+  for (const model of models) {
+    let targetColumn = 0
+    for (let i = 1; i < heights.length; i++) {
+      if (heights[i] < heights[targetColumn]) {
+        targetColumn = i
+      }
+    }
+    columns[targetColumn].push(model)
+    heights[targetColumn] += estimateModelCardHeight(model)
+  }
+
+  return columns
 }
 
 // 上下文区间价格直接复用 token 价格行，只额外展示区间范围。
@@ -879,10 +950,16 @@ async function fetchMarketplace() {
 
 onMounted(async () => {
   initTheme()
+  updateMarketplaceColumnCount()
+  window.addEventListener('resize', updateMarketplaceColumnCount)
   authStore.checkAuth()
   if (!appStore.publicSettingsLoaded) {
     await appStore.fetchPublicSettings()
   }
   await fetchMarketplace()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateMarketplaceColumnCount)
 })
 </script>

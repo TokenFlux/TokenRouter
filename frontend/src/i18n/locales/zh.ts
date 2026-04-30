@@ -418,7 +418,7 @@ export default {
     tokenPricing: 'Token 计费',
     contextIntervalPricing: '按上下文区间定价',
     pricingDetail: '完整定价信息',
-    viewPricing: '查看定价',
+    viewPricing: '查看详细定价',
     imagePricing: '图片计费',
     perImage: '/ 张',
     searchPlaceholder: '搜索品牌、分组名称、模型 ID 或显示名称',

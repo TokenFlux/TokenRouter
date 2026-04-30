@@ -418,7 +418,7 @@ export default {
     tokenPricing: 'Token Pricing',
     contextIntervalPricing: 'Context Interval Pricing',
     pricingDetail: 'Full Pricing Details',
-    viewPricing: 'View Pricing',
+    viewPricing: 'View detailed pricing',
     imagePricing: 'Image Pricing',
     perImage: '/ image',
     searchPlaceholder: 'Search brands, groups, model IDs, or display names',
