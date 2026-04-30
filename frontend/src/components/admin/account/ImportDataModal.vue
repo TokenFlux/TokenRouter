@@ -4,7 +4,6 @@
     :title="t('admin.accounts.dataImportTitle')"
     width="normal"
     close-on-click-outside
-    :close-on-escape="!defaultsDialogOpen"
     @close="handleClose"
   >
     <form id="import-data-form" class="space-y-4" @submit.prevent="handleImport">
@@ -29,15 +28,6 @@
             <div class="text-xs text-gray-500 dark:text-dark-400">JSON (.json)</div>
           </div>
           <div class="flex shrink-0 flex-wrap gap-2">
-            <button
-              type="button"
-              class="btn btn-secondary inline-flex items-center gap-1.5"
-              :disabled="importing"
-              @click="openDefaultsDialog"
-            >
-              <Icon name="cog" size="sm" />
-              {{ t('admin.accounts.openAIOAuthImportDefaults') }}
-            </button>
             <button
               type="button"
               class="btn btn-secondary inline-flex items-center gap-1.5"
@@ -99,118 +89,15 @@
       </div>
     </template>
   </BaseDialog>
-
-  <BaseDialog
-    :show="defaultsDialogOpen"
-    :title="t('admin.accounts.openAIOAuthImportDefaultsTitle')"
-    width="wide"
-    :z-index="60"
-    @close="closeDefaultsDialog"
-  >
-    <form id="openai-oauth-import-defaults-form" class="space-y-5" @submit.prevent="saveDefaults">
-      <div v-if="defaultsLoading" class="py-8 text-center text-sm text-gray-500 dark:text-dark-400">
-        {{ t('common.loading') }}
-      </div>
-      <template v-else>
-        <section class="space-y-3">
-          <div class="text-sm font-medium text-gray-900 dark:text-white">
-            {{ t('admin.accounts.openAIOAuthImportDefaultsAccount') }}
-          </div>
-          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div class="md:col-span-2">
-              <label class="input-label">{{ t('admin.accounts.notes') }}</label>
-              <textarea v-model="defaultsForm.notes" rows="2" class="input"></textarea>
-            </div>
-            <div>
-              <label class="input-label">{{ t('admin.accounts.concurrency') }}</label>
-              <input v-model="defaultsForm.concurrency" type="number" min="0" step="1" class="input" />
-            </div>
-            <div>
-              <label class="input-label">{{ t('admin.accounts.priority') }}</label>
-              <input v-model="defaultsForm.priority" type="number" min="0" step="1" class="input" />
-            </div>
-            <div>
-              <label class="input-label">{{ t('admin.accounts.billingRateMultiplier') }}</label>
-              <input v-model="defaultsForm.rateMultiplier" type="number" min="0" step="0.01" class="input" />
-            </div>
-            <div>
-              <label class="input-label">{{ t('admin.accounts.expiresAt') }}</label>
-              <input v-model="defaultsForm.expiresAt" type="number" min="0" step="1" class="input" />
-            </div>
-            <div>
-              <label class="input-label">{{ t('admin.accounts.autoPauseOnExpired') }}</label>
-              <select v-model="defaultsForm.autoPauseOnExpired" class="input">
-                <option value="unset">{{ t('admin.accounts.openAIOAuthImportDefaultsUnset') }}</option>
-                <option value="true">{{ t('common.yes') }}</option>
-                <option value="false">{{ t('common.no') }}</option>
-              </select>
-            </div>
-          </div>
-        </section>
-
-        <section class="space-y-3">
-          <div class="text-sm font-medium text-gray-900 dark:text-white">
-            {{ t('admin.accounts.modelWhitelist') }}
-          </div>
-          <ModelWhitelistSelector v-model="defaultAllowedModels" platform="openai" />
-        </section>
-
-        <section class="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div>
-            <label class="input-label">{{ t('admin.accounts.openAIOAuthImportDefaultsCredentialsJson') }}</label>
-            <textarea
-              v-model="defaultsCredentialsJson"
-              rows="8"
-              class="input font-mono text-xs"
-              spellcheck="false"
-            ></textarea>
-          </div>
-          <div>
-            <label class="input-label">{{ t('admin.accounts.openAIOAuthImportDefaultsExtraJson') }}</label>
-            <textarea
-              v-model="defaultsExtraJson"
-              rows="8"
-              class="input font-mono text-xs"
-              spellcheck="false"
-            ></textarea>
-          </div>
-        </section>
-      </template>
-    </form>
-
-    <template #footer>
-      <div class="flex justify-end gap-3">
-        <button
-          class="btn btn-secondary"
-          type="button"
-          :disabled="defaultsSaving"
-          @click="closeDefaultsDialog"
-        >
-          {{ t('common.cancel') }}
-        </button>
-        <button
-          class="btn btn-primary"
-          type="submit"
-          form="openai-oauth-import-defaults-form"
-          :disabled="defaultsLoading || defaultsSaving"
-        >
-          {{ defaultsSaving ? t('common.saving') : t('common.save') }}
-        </button>
-      </div>
-    </template>
-  </BaseDialog>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
-import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import { normalizeModelWhitelist } from '@/composables/useModelWhitelist'
-import type { OpenAIOAuthImportDefaults } from '@/api/admin/settings'
 import type { AdminDataImportResult } from '@/types'
 
 interface Props {
@@ -221,8 +108,6 @@ interface Emits {
   (e: 'close'): void
   (e: 'imported'): void
 }
-
-type AutoPauseDefault = 'unset' | 'true' | 'false'
 
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
@@ -239,44 +124,12 @@ const fileName = computed(() => file.value?.name || '')
 
 const errorItems = computed(() => result.value?.errors || [])
 
-const defaultsDialogOpen = ref(false)
-const defaultsLoading = ref(false)
-const defaultsSaving = ref(false)
-const defaultAllowedModels = ref<string[]>([])
-const defaultsCredentialsJson = ref('{}')
-const defaultsExtraJson = ref('{}')
-const defaultsForm = reactive({
-  notes: '',
-  concurrency: '',
-  priority: '',
-  rateMultiplier: '',
-  expiresAt: '',
-  autoPauseOnExpired: 'unset' as AutoPauseDefault
-})
-
-const forbiddenCredentialDefaultFields = new Set([
-  'access_token',
-  'refresh_token',
-  'id_token',
-  'expires_at',
-  'email',
-  'client_id',
-  'chatgpt_account_id',
-  'chatgpt_user_id',
-  'organization_id',
-  'plan_type',
-  'subscription_expires_at'
-])
-
-const forbiddenExtraDefaultFields = new Set(['email', 'name'])
-
 watch(
   () => props.show,
   (open) => {
     if (open) {
       file.value = null
       result.value = null
-      defaultsDialogOpen.value = false
       if (fileInput.value) {
         fileInput.value.value = ''
       }
@@ -298,55 +151,6 @@ const handleClose = () => {
   emit('close')
 }
 
-const closeDefaultsDialog = () => {
-  if (defaultsSaving.value) return
-  defaultsDialogOpen.value = false
-}
-
-const openDefaultsDialog = async () => {
-  defaultsDialogOpen.value = true
-  await loadDefaults()
-}
-
-const loadDefaults = async () => {
-  defaultsLoading.value = true
-  try {
-    const defaults = await adminAPI.settings.getOpenAIOAuthImportDefaults()
-    hydrateDefaults(defaults)
-  } catch (error: any) {
-    appStore.showError(error?.message || t('admin.accounts.openAIOAuthImportDefaultsLoadFailed'))
-  } finally {
-    defaultsLoading.value = false
-  }
-}
-
-const hydrateDefaults = (defaults: OpenAIOAuthImportDefaults) => {
-  const account = defaults.account || {}
-  defaultsForm.notes = typeof account.notes === 'string' ? account.notes : ''
-  defaultsForm.concurrency = numberToInput(account.concurrency)
-  defaultsForm.priority = numberToInput(account.priority)
-  defaultsForm.rateMultiplier = numberToInput(account.rate_multiplier)
-  defaultsForm.expiresAt = numberToInput(account.expires_at)
-  defaultsForm.autoPauseOnExpired =
-    typeof account.auto_pause_on_expired === 'boolean'
-      ? (account.auto_pause_on_expired ? 'true' : 'false')
-      : 'unset'
-
-  const credentials = { ...(defaults.credentials || {}) }
-  defaultAllowedModels.value = normalizeModelWhitelist(credentials.model_whitelist)
-  delete credentials.model_whitelist
-  defaultsCredentialsJson.value = stringifyJsonObject(credentials)
-  defaultsExtraJson.value = stringifyJsonObject(defaults.extra || {})
-}
-
-const numberToInput = (value: unknown): string => {
-  return typeof value === 'number' && Number.isFinite(value) ? String(value) : ''
-}
-
-const stringifyJsonObject = (value: Record<string, unknown>): string => {
-  return JSON.stringify(value, null, 2)
-}
-
 const readFileAsText = async (sourceFile: File): Promise<string> => {
   if (typeof sourceFile.text === 'function') {
     return sourceFile.text()
@@ -363,109 +167,6 @@ const readFileAsText = async (sourceFile: File): Promise<string> => {
     reader.onerror = () => reject(reader.error || new Error('Failed to read file'))
     reader.readAsText(sourceFile)
   })
-}
-
-const parseJsonObject = (text: string, label: string): Record<string, unknown> => {
-  const trimmed = text.trim()
-  if (!trimmed) {
-    return {}
-  }
-
-  const parsed = JSON.parse(trimmed)
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error(t('admin.accounts.openAIOAuthImportDefaultsJsonObjectRequired', { label }))
-  }
-  return parsed as Record<string, unknown>
-}
-
-const parseOptionalNumber = (value: string, label: string, integer: boolean): number | undefined => {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return undefined
-  }
-
-  const parsed = Number(trimmed)
-  if (!Number.isFinite(parsed) || parsed < 0 || (integer && !Number.isInteger(parsed))) {
-    throw new Error(t('admin.accounts.openAIOAuthImportDefaultsInvalidNumber', { label }))
-  }
-  return parsed
-}
-
-const rejectForbiddenFields = (
-  fields: Record<string, unknown>,
-  section: string,
-  forbidden: Set<string>
-): boolean => {
-  for (const key of Object.keys(fields)) {
-    if (forbidden.has(key.trim().toLowerCase())) {
-      appStore.showError(t('admin.accounts.openAIOAuthImportDefaultsForbiddenField', { section, field: key }))
-      return false
-    }
-  }
-  return true
-}
-
-const buildAccountDefaults = (): OpenAIOAuthImportDefaults['account'] => {
-  const account: NonNullable<OpenAIOAuthImportDefaults['account']> = {}
-  if (defaultsForm.notes.trim() !== '') {
-    account.notes = defaultsForm.notes
-  }
-
-  const concurrency = parseOptionalNumber(defaultsForm.concurrency, t('admin.accounts.concurrency'), true)
-  if (concurrency !== undefined) account.concurrency = concurrency
-
-  const priority = parseOptionalNumber(defaultsForm.priority, t('admin.accounts.priority'), true)
-  if (priority !== undefined) account.priority = priority
-
-  const rateMultiplier = parseOptionalNumber(defaultsForm.rateMultiplier, t('admin.accounts.billingRateMultiplier'), false)
-  if (rateMultiplier !== undefined) account.rate_multiplier = rateMultiplier
-
-  const expiresAt = parseOptionalNumber(defaultsForm.expiresAt, t('admin.accounts.expiresAt'), true)
-  if (expiresAt !== undefined) account.expires_at = expiresAt
-
-  if (defaultsForm.autoPauseOnExpired !== 'unset') {
-    account.auto_pause_on_expired = defaultsForm.autoPauseOnExpired === 'true'
-  }
-
-  return Object.keys(account).length > 0 ? account : undefined
-}
-
-const saveDefaults = async () => {
-  defaultsSaving.value = true
-  try {
-    const credentials = parseJsonObject(
-      defaultsCredentialsJson.value,
-      t('admin.accounts.openAIOAuthImportDefaultsCredentialsJson')
-    )
-    const extra = parseJsonObject(
-      defaultsExtraJson.value,
-      t('admin.accounts.openAIOAuthImportDefaultsExtraJson')
-    )
-
-    delete credentials.model_whitelist
-    if (!rejectForbiddenFields(credentials, 'credentials', forbiddenCredentialDefaultFields)) return
-    if (!rejectForbiddenFields(extra, 'extra', forbiddenExtraDefaultFields)) return
-
-    const payload: OpenAIOAuthImportDefaults = {
-      account: buildAccountDefaults(),
-      credentials: {
-        ...credentials,
-        model_whitelist: [...defaultAllowedModels.value]
-      }
-    }
-    if (Object.keys(extra).length > 0) {
-      payload.extra = extra
-    }
-
-    const updated = await adminAPI.settings.updateOpenAIOAuthImportDefaults(payload)
-    hydrateDefaults(updated)
-    appStore.showSuccess(t('admin.accounts.openAIOAuthImportDefaultsSaved'))
-    defaultsDialogOpen.value = false
-  } catch (error: any) {
-    appStore.showError(error?.message || t('admin.accounts.openAIOAuthImportDefaultsSaveFailed'))
-  } finally {
-    defaultsSaving.value = false
-  }
 }
 
 const handleImport = async () => {

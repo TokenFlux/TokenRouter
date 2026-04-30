@@ -2944,6 +2944,7 @@ import {
   claudeModels,
   getPresetMappingsByPlatform,
   getModelsByPlatform,
+  normalizeModelWhitelist,
   commonErrorCodes,
   buildModelMappingObject,
   buildPersistedModelRestriction,
@@ -2970,6 +2971,7 @@ import type {
   CreateAccountRequest,
   OpenAICompactMode
 } from '@/types'
+import type { OpenAIOAuthImportDefaults } from '@/api/admin/settings'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Select from '@/components/common/Select.vue'
@@ -2986,6 +2988,7 @@ import {
   OPENAI_WS_MODE_OFF,
   OPENAI_WS_MODE_PASSTHROUGH,
   isOpenAIWSModeEnabled,
+  resolveOpenAIWSModeFromExtra,
   resolveOpenAIWSModeConcurrencyHintKey,
   type OpenAIWSMode
 } from '@/utils/openaiWsMode'
@@ -3269,6 +3272,146 @@ const isOpenAIModelRestrictionDisabled = computed(() =>
   form.platform === 'openai' && openaiPassthroughEnabled.value
 )
 
+const openAIOAuthImportDefaults = ref<OpenAIOAuthImportDefaults | null>(null)
+const openAIOAuthImportDefaultsLoaded = ref(false)
+const openAIOAuthImportDefaultsApplied = ref(false)
+const isOpenAIOAuthImportDefaultsTarget = computed(
+  () => form.platform === 'openai' && accountCategory.value === 'oauth-based'
+)
+
+const isOpenAICompactMode = (value: unknown): value is OpenAICompactMode => {
+  return value === 'auto' || value === 'force_on' || value === 'force_off'
+}
+
+const splitDefaultMappingObject = (raw: unknown): ModelMapping[] => {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return []
+  }
+
+  return Object.entries(raw as Record<string, unknown>)
+    .map(([from, to]) => ({ from: from.trim(), to: String(to).trim() }))
+    .filter((mapping) => mapping.from && mapping.to)
+}
+
+const isSameStringList = (left: string[], right: string[]) => {
+  return left.length === right.length && left.every((item, index) => item === right[index])
+}
+
+const applyOpenAIOAuthImportDefaultsToForm = () => {
+  const defaults = openAIOAuthImportDefaults.value
+  if (!defaults || !isOpenAIOAuthImportDefaultsTarget.value || openAIOAuthImportDefaultsApplied.value) {
+    return
+  }
+
+  const account = defaults.account || {}
+  if (typeof account.notes === 'string' && form.notes.trim() === '') {
+    form.notes = account.notes
+  }
+  if (
+    typeof account.concurrency === 'number' &&
+    Number.isFinite(account.concurrency) &&
+    account.concurrency > 0 &&
+    form.concurrency === 10
+  ) {
+    form.concurrency = account.concurrency
+  }
+  if (
+    typeof account.priority === 'number' &&
+    Number.isFinite(account.priority) &&
+    account.priority > 0 &&
+    form.priority === 1
+  ) {
+    form.priority = account.priority
+  }
+  if (
+    typeof account.rate_multiplier === 'number' &&
+    Number.isFinite(account.rate_multiplier) &&
+    account.rate_multiplier >= 0 &&
+    form.rate_multiplier === 1
+  ) {
+    form.rate_multiplier = account.rate_multiplier
+  }
+  if (
+    typeof account.expires_at === 'number' &&
+    Number.isFinite(account.expires_at) &&
+    account.expires_at >= 0 &&
+    form.expires_at === null
+  ) {
+    form.expires_at = account.expires_at
+  }
+  if (typeof account.auto_pause_on_expired === 'boolean' && autoPauseOnExpired.value === true) {
+    autoPauseOnExpired.value = account.auto_pause_on_expired
+  }
+
+  const credentials = defaults.credentials || {}
+  const openAIModels = getModelsByPlatform('openai')
+  if (
+    Object.prototype.hasOwnProperty.call(credentials, 'model_whitelist') &&
+    modelRestrictionMode.value === 'whitelist' &&
+    modelMappings.value.length === 0 &&
+    isSameStringList(allowedModels.value, openAIModels)
+  ) {
+    allowedModels.value = normalizeModelWhitelist(credentials.model_whitelist)
+  }
+  const defaultCompactMappings = splitDefaultMappingObject(credentials.compact_model_mapping)
+  if (defaultCompactMappings.length > 0 && openAICompactModelMappings.value.length === 0) {
+    openAICompactModelMappings.value = defaultCompactMappings
+  }
+
+  const extra = defaults.extra || {}
+  if (extra.openai_passthrough === true || extra.openai_oauth_passthrough === true) {
+    openaiPassthroughEnabled.value = true
+  }
+  if (extra.codex_cli_only === true) {
+    codexCLIOnlyEnabled.value = true
+  }
+  const defaultWSMode = resolveOpenAIWSModeFromExtra(extra, {
+    modeKey: 'openai_oauth_responses_websockets_v2_mode',
+    enabledKey: 'openai_oauth_responses_websockets_v2_enabled',
+    fallbackEnabledKeys: ['responses_websockets_v2_enabled', 'openai_ws_enabled'],
+    defaultMode: OPENAI_WS_MODE_OFF
+  })
+  if (openaiOAuthResponsesWebSocketV2Mode.value === OPENAI_WS_MODE_OFF) {
+    openaiOAuthResponsesWebSocketV2Mode.value = defaultWSMode
+  }
+  if (isOpenAICompactMode(extra.openai_compact_mode) && openAICompactMode.value === 'auto') {
+    openAICompactMode.value = extra.openai_compact_mode
+  }
+
+  openAIOAuthImportDefaultsApplied.value = true
+}
+
+const loadOpenAIOAuthImportDefaults = async () => {
+  if (openAIOAuthImportDefaultsLoaded.value) {
+    applyOpenAIOAuthImportDefaultsToForm()
+    return
+  }
+
+  try {
+    openAIOAuthImportDefaults.value = await adminAPI.settings.getOpenAIOAuthImportDefaults()
+    openAIOAuthImportDefaultsLoaded.value = true
+    applyOpenAIOAuthImportDefaultsToForm()
+  } catch (error: any) {
+    appStore.showError(error?.message || t('admin.accounts.openAIOAuthImportDefaultsLoadFailed'))
+  }
+}
+
+const applyOpenAIOAuthCredentialDefaults = (credentials: Record<string, unknown>) => {
+  if (!isOpenAIOAuthImportDefaultsTarget.value) {
+    return
+  }
+
+  const defaults = openAIOAuthImportDefaults.value?.credentials || {}
+  for (const [key, value] of Object.entries(defaults)) {
+    if (key === 'model_whitelist' || key === 'compact_model_mapping') {
+      continue
+    }
+    if (!Object.prototype.hasOwnProperty.call(credentials, key)) {
+      credentials[key] = value
+    }
+  }
+}
+
 const mixedChannelWarningMessageText = computed(() => {
   if (mixedChannelWarningDetails.value) {
     return t('admin.accounts.mixedChannelWarning', mixedChannelWarningDetails.value)
@@ -3387,6 +3530,9 @@ watch(
         .catch(() => { tlsFingerprintProfiles.value = [] })
       // Modal opened - fill related models
       allowedModels.value = [...getModelsByPlatform(form.platform)]
+      if (isOpenAIOAuthImportDefaultsTarget.value) {
+        void loadOpenAIOAuthImportDefaults()
+      }
       // Antigravity: 默认使用映射模式并填充默认映射
       if (form.platform === 'antigravity') {
         antigravityModelRestrictionMode.value = 'mapping'
@@ -3426,6 +3572,17 @@ watch(
     }
   },
   { immediate: true }
+)
+
+watch(
+  isOpenAIOAuthImportDefaultsTarget,
+  (enabled) => {
+    if (!enabled) {
+      openAIOAuthImportDefaultsApplied.value = false
+      return
+    }
+    void loadOpenAIOAuthImportDefaults()
+  }
 )
 
 // Reset platform-specific settings when platform changes
@@ -3910,6 +4067,9 @@ const resetForm = () => {
   antigravityOAuth.resetState()
   oauthFlowRef.value?.reset()
   antigravityMixedChannelConfirmed.value = false
+  openAIOAuthImportDefaults.value = null
+  openAIOAuthImportDefaultsLoaded.value = false
+  openAIOAuthImportDefaultsApplied.value = false
   clearMixedChannelDialog()
 }
 
@@ -3924,7 +4084,11 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
     return base
   }
 
-  const extra: Record<string, unknown> = { ...(base || {}) }
+  const defaultsExtra =
+    accountCategory.value === 'oauth-based'
+      ? openAIOAuthImportDefaults.value?.extra
+      : undefined
+  const extra: Record<string, unknown> = { ...(defaultsExtra || {}), ...(base || {}) }
   if (accountCategory.value === 'oauth-based') {
     extra.openai_oauth_responses_websockets_v2_mode = openaiOAuthResponsesWebSocketV2Mode.value
     extra.openai_oauth_responses_websockets_v2_enabled = isOpenAIWSModeEnabled(openaiOAuthResponsesWebSocketV2Mode.value)
@@ -4324,11 +4488,16 @@ const handleOpenAIExchange = async (authCode: string) => {
     )
     if (!tokenInfo) return
 
+    await loadOpenAIOAuthImportDefaults()
+
     const credentials = oauthClient.buildCredentials(tokenInfo)
     const oauthExtra = oauthClient.buildExtraInfo(tokenInfo) as Record<string, unknown> | undefined
     const extra = buildOpenAIExtra(oauthExtra)
     const shouldCreateOpenAI = form.platform === 'openai'
 
+    if (shouldCreateOpenAI) {
+      applyOpenAIOAuthCredentialDefaults(credentials)
+    }
     // Add model mapping for OpenAI OAuth accounts（透传模式下不应用）
     if (shouldCreateOpenAI && !isOpenAIModelRestrictionDisabled.value) {
       applyPersistedModelRestriction(credentials)
@@ -4403,6 +4572,10 @@ const handleOpenAIBatchRT = async (refreshTokenInput: string, clientId?: string)
   const shouldCreateOpenAI = form.platform === 'openai'
 
   try {
+    if (shouldCreateOpenAI) {
+      await loadOpenAIOAuthImportDefaults()
+    }
+
     for (let i = 0; i < refreshTokens.length; i++) {
       try {
         const tokenInfo = await oauthClient.validateRefreshToken(
@@ -4424,6 +4597,9 @@ const handleOpenAIBatchRT = async (refreshTokenInput: string, clientId?: string)
         const oauthExtra = oauthClient.buildExtraInfo(tokenInfo) as Record<string, unknown> | undefined
         const extra = buildOpenAIExtra(oauthExtra)
 
+        if (shouldCreateOpenAI) {
+          applyOpenAIOAuthCredentialDefaults(credentials)
+        }
         // Add model mapping for OpenAI OAuth accounts（透传模式下不应用）
         if (shouldCreateOpenAI && !isOpenAIModelRestrictionDisabled.value) {
           applyPersistedModelRestriction(credentials)

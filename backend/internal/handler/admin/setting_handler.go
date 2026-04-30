@@ -2561,7 +2561,7 @@ func (h *SettingHandler) UpdateOpenAIOAuthImportDefaults(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
-	if len(raw) == 0 && raw == nil {
+	if raw == nil {
 		response.BadRequest(c, "request body must be an object")
 		return
 	}
@@ -2650,6 +2650,9 @@ func validateOpenAIOAuthImportObject(raw map[string]json.RawMessage, section str
 	}
 	for key := range fields {
 		normalized := strings.ToLower(strings.TrimSpace(key))
+		if normalized != key {
+			return fmt.Errorf("%s.%s is not allowed in import defaults", section, key)
+		}
 		if _, ok := allowed[normalized]; !ok {
 			return fmt.Errorf("%s.%s is not allowed in import defaults", section, key)
 		}

@@ -11,6 +11,10 @@ const {
   updateWebSearchEmulationConfig,
   getAdminApiKey,
   getOverloadCooldownSettings,
+  getOpenAI403CooldownSettings,
+  updateOpenAI403CooldownSettings,
+  getOpenAIOAuthImportDefaults,
+  updateOpenAIOAuthImportDefaults,
   getStreamTimeoutSettings,
   getRectifierSettings,
   getBetaPolicySettings,
@@ -31,6 +35,10 @@ const {
   updateWebSearchEmulationConfig: vi.fn(),
   getAdminApiKey: vi.fn(),
   getOverloadCooldownSettings: vi.fn(),
+  getOpenAI403CooldownSettings: vi.fn(),
+  updateOpenAI403CooldownSettings: vi.fn(),
+  getOpenAIOAuthImportDefaults: vi.fn(),
+  updateOpenAIOAuthImportDefaults: vi.fn(),
   getStreamTimeoutSettings: vi.fn(),
   getRectifierSettings: vi.fn(),
   getBetaPolicySettings: vi.fn(),
@@ -57,6 +65,10 @@ vi.mock("@/api", () => ({
       updateWebSearchEmulationConfig,
       getAdminApiKey,
       getOverloadCooldownSettings,
+      getOpenAI403CooldownSettings,
+      updateOpenAI403CooldownSettings,
+      getOpenAIOAuthImportDefaults,
+      updateOpenAIOAuthImportDefaults,
       getStreamTimeoutSettings,
       getRectifierSettings,
       getBetaPolicySettings,
@@ -100,6 +112,23 @@ vi.mock("@/composables/useClipboard", () => ({
 
 vi.mock("@/utils/apiError", () => ({
   extractApiErrorMessage: () => "error",
+}));
+
+vi.mock("@/composables/useBalanceDisplay", () => ({
+  useBalanceDisplay: () => ({
+    balanceUnitName: { value: "USD" },
+    balanceUnitSymbol: { value: "$" },
+    usdUnitName: "USD",
+    usdUnitSymbol: "$",
+    balanceIconSvg: { value: "" },
+    hasCustomBalanceIcon: { value: false },
+    formatBalanceAmount: (value: number | null | undefined) => `$${Number(value ?? 0).toFixed(2)}`,
+    formatUsdAmount: (value: number | null | undefined) => `$${Number(value ?? 0).toFixed(2)}`,
+  }),
+}));
+
+vi.mock("vue-router", () => ({
+  useRoute: () => ({ query: {}, hash: "" }),
 }));
 
 vi.mock("vue-i18n", async () => {
@@ -418,6 +447,7 @@ function mountView() {
         GroupBadge: true,
         GroupOptionItem: true,
         ProxySelector: true,
+        ModelWhitelistSelector: true,
         ImageUpload: ImageUploadStub,
         BackupSettings: true,
       },
@@ -463,6 +493,10 @@ describe("admin SettingsView payment visible method controls", () => {
     updateWebSearchEmulationConfig.mockReset();
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
+    getOpenAI403CooldownSettings.mockReset();
+    updateOpenAI403CooldownSettings.mockReset();
+    getOpenAIOAuthImportDefaults.mockReset();
+    updateOpenAIOAuthImportDefaults.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
@@ -499,6 +533,24 @@ describe("admin SettingsView payment visible method controls", () => {
       enabled: true,
       cooldown_minutes: 10,
     });
+    getOpenAI403CooldownSettings.mockResolvedValue({
+      enabled: true,
+      cooldown_minutes: 10,
+      error_on_threshold_enabled: true,
+      threshold_count: 3,
+      threshold_window_minutes: 180,
+    });
+    updateOpenAI403CooldownSettings.mockResolvedValue({
+      enabled: true,
+      cooldown_minutes: 10,
+      error_on_threshold_enabled: true,
+      threshold_count: 3,
+      threshold_window_minutes: 180,
+    });
+    getOpenAIOAuthImportDefaults.mockResolvedValue({
+      credentials: { model_whitelist: [] },
+    });
+    updateOpenAIOAuthImportDefaults.mockImplementation(async (payload) => payload);
     getStreamTimeoutSettings.mockResolvedValue({
       enabled: true,
       action: "temp_unsched",
@@ -625,6 +677,7 @@ describe("admin SettingsView payment visible method controls", () => {
           GroupBadge: true,
           GroupOptionItem: true,
           ProxySelector: true,
+          ModelWhitelistSelector: true,
           ImageUpload: ImageUploadStub,
           BackupSettings: true,
         },
@@ -679,6 +732,10 @@ describe("admin SettingsView security tab controls", () => {
     updateWebSearchEmulationConfig.mockReset();
     getAdminApiKey.mockReset();
     getOverloadCooldownSettings.mockReset();
+    getOpenAI403CooldownSettings.mockReset();
+    updateOpenAI403CooldownSettings.mockReset();
+    getOpenAIOAuthImportDefaults.mockReset();
+    updateOpenAIOAuthImportDefaults.mockReset();
     getStreamTimeoutSettings.mockReset();
     getRectifierSettings.mockReset();
     getBetaPolicySettings.mockReset();
@@ -718,6 +775,24 @@ describe("admin SettingsView security tab controls", () => {
       enabled: true,
       cooldown_minutes: 10,
     });
+    getOpenAI403CooldownSettings.mockResolvedValue({
+      enabled: true,
+      cooldown_minutes: 10,
+      error_on_threshold_enabled: true,
+      threshold_count: 3,
+      threshold_window_minutes: 180,
+    });
+    updateOpenAI403CooldownSettings.mockResolvedValue({
+      enabled: true,
+      cooldown_minutes: 10,
+      error_on_threshold_enabled: true,
+      threshold_count: 3,
+      threshold_window_minutes: 180,
+    });
+    getOpenAIOAuthImportDefaults.mockResolvedValue({
+      credentials: { model_whitelist: [] },
+    });
+    updateOpenAIOAuthImportDefaults.mockImplementation(async (payload) => payload);
     getStreamTimeoutSettings.mockResolvedValue({
       enabled: true,
       action: "temp_unsched",

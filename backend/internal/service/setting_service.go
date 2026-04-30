@@ -3298,7 +3298,7 @@ func (s *SettingService) GetOpenAIOAuthImportDefaults(ctx context.Context) (*Ope
 		return DefaultOpenAIOAuthImportDefaults(), nil
 	}
 
-	return &settings, nil
+	return fillOpenAIOAuthImportDefaults(&settings), nil
 }
 
 // SetOpenAIOAuthImportDefaults 保存 OpenAI OAuth 账号导入缺省模板。
@@ -3358,6 +3358,26 @@ func validateOpenAIOAuthImportDefaults(settings *OpenAIOAuthImportDefaults) erro
 	}
 
 	return nil
+}
+
+func fillOpenAIOAuthImportDefaults(settings *OpenAIOAuthImportDefaults) *OpenAIOAuthImportDefaults {
+	if settings == nil {
+		return DefaultOpenAIOAuthImportDefaults()
+	}
+
+	defaults := DefaultOpenAIOAuthImportDefaults()
+	if len(defaults.Credentials) > 0 {
+		if settings.Credentials == nil {
+			settings.Credentials = map[string]any{}
+		}
+		for key, value := range defaults.Credentials {
+			// 已显式保存的键保持原样；空数组可用于表达“不限制模型”。
+			if _, exists := settings.Credentials[key]; !exists {
+				settings.Credentials[key] = value
+			}
+		}
+	}
+	return settings
 }
 
 func findForbiddenImportField(fields map[string]any, forbidden map[string]struct{}) (string, bool) {

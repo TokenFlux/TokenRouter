@@ -424,6 +424,8 @@
           </div>
         </div>
 
+        <OpenAIOAuthImportDefaultsSettings />
+
         <!-- Stream Timeout Settings -->
           <div class="card">
             <div
@@ -5167,6 +5169,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
+import { useRoute } from "vue-router";
 import { adminAPI } from "@/api";
 import {
   appendAuthSourceDefaultsToUpdateRequest,
@@ -5200,6 +5203,7 @@ import Toggle from "@/components/common/Toggle.vue";
 import ProxySelector from "@/components/common/ProxySelector.vue";
 import ImageUpload from "@/components/common/ImageUpload.vue";
 import BalanceIcon from "@/components/common/BalanceIcon.vue";
+import OpenAIOAuthImportDefaultsSettings from "@/components/admin/account/OpenAIOAuthImportDefaultsSettings.vue";
 import BackupSettings from "@/views/admin/BackupView.vue";
 import { useBalanceDisplay } from "@/composables/useBalanceDisplay";
 import { useClipboard } from "@/composables/useClipboard";
@@ -5215,6 +5219,7 @@ import {
 } from "@/utils/registrationEmailPolicy";
 
 const { t, locale } = useI18n();
+const route = useRoute();
 const appStore = useAppStore();
 const adminSettingsStore = useAdminSettingsStore();
 
@@ -5242,7 +5247,6 @@ type SettingsTab =
   | "payment"
   | "email"
   | "backup";
-const activeTab = ref<SettingsTab>("general");
 const settingsTabs = [
   { key: "general" as SettingsTab, icon: "home" as const },
   { key: "security" as SettingsTab, icon: "shield" as const },
@@ -5252,6 +5256,11 @@ const settingsTabs = [
   { key: "email" as SettingsTab, icon: "mail" as const },
   { key: "backup" as SettingsTab, icon: "database" as const },
 ];
+const settingsTabKeys = new Set<SettingsTab>(settingsTabs.map((tab) => tab.key));
+const initialSettingsTab = settingsTabKeys.has(route.query.tab as SettingsTab)
+  ? (route.query.tab as SettingsTab)
+  : "general";
+const activeTab = ref<SettingsTab>(initialSettingsTab);
 const { copyToClipboard } = useClipboard();
 
 const loading = ref(true);
