@@ -9,6 +9,7 @@ import { useAppStore } from '@/stores/app'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
 import { useNavigationLoadingState } from '@/composables/useNavigationLoading'
 import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
+import { getSetupStatus } from '@/api/setup'
 import { resolveDocumentTitle } from './title'
 
 /**
@@ -548,6 +549,31 @@ const router = createRouter({
  * Navigation guard: Authentication check
  */
 let authInitialized = false
+let setupStatusCheckedAt = 0
+let cachedNeedsSetup = false
+const SETUP_STATUS_TTL_MS = 2000
+
+async function shouldRedirectToSetup(path: string): Promise<boolean> {
+  if (path === '/setup') {
+    return false
+  }
+
+  const now = Date.now()
+  if (setupStatusCheckedAt > 0 && now - setupStatusCheckedAt < SETUP_STATUS_TTL_MS) {
+    return cachedNeedsSetup
+  }
+
+  try {
+    const status = await getSetupStatus()
+    cachedNeedsSetup = status.needs_setup
+    setupStatusCheckedAt = now
+    return cachedNeedsSetup
+  } catch {
+    cachedNeedsSetup = false
+    setupStatusCheckedAt = now
+    return false
+  }
+}
 
 // 初始化导航加载状态和预加载
 const navigationLoading = useNavigationLoadingState()
@@ -580,9 +606,14 @@ function isBackendModePublicRouteAllowed(path: string, hasPendingAuthSession: bo
   return false
 }
 
-router.beforeEach((to, _from, next) => {
+router.beforeEach(async (to, _from, next) => {
   // 开始导航加载状态
   navigationLoading.startNavigation()
+
+  if (await shouldRedirectToSetup(to.path)) {
+    next('/setup')
+    return
+  }
 
   const authStore = useAuthStore()
 

@@ -54,7 +54,7 @@
                 </span>
               </button>
               <!-- Children -->
-              <div v-if="!sidebarCollapsed && isGroupExpanded(item)" class="mb-1 ml-4 border-l border-primary-200 pl-2 dark:border-dark-600">
+              <div v-if="!sidebarCollapsed && isGroupExpanded(item)" class="sidebar-child-group mb-1 ml-4 pl-2">
                 <router-link
                   v-for="child in item.children"
                   :key="child.path"
@@ -140,7 +140,7 @@
     </nav>
 
     <!-- Bottom Section -->
-    <div class="mt-auto border-t border-primary-100 p-3 dark:border-dark-600">
+    <div class="sidebar-bottom-panel mt-auto p-3">
       <!-- Theme Toggle -->
       <button
         @click="toggleTheme"
@@ -864,14 +864,32 @@ onMounted(() => {
   right: 0.75rem;
   top: 50%;
   height: 1px;
-  background: rgb(229 231 235);
+  background: linear-gradient(90deg, transparent, rgba(72, 190, 235, 0.28), transparent);
   opacity: 0;
   transform: translateY(-50%);
   transition: opacity 0.18s ease;
 }
 
 .dark .sidebar-section-title::after {
-  background: rgb(53 64 108);
+  background: linear-gradient(90deg, transparent, rgba(139, 221, 248, 0.18), transparent);
+}
+
+.sidebar-child-group {
+  border-left: 1px solid rgba(72, 190, 235, 0.22);
+}
+
+.dark .sidebar-child-group {
+  border-left-color: rgba(139, 221, 248, 0.16);
+}
+
+.sidebar-bottom-panel {
+  border-top: 1px solid rgba(72, 190, 235, 0.14);
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.28));
+}
+
+.dark .sidebar-bottom-panel {
+  border-top-color: rgba(139, 221, 248, 0.12);
+  background: linear-gradient(180deg, transparent, rgba(16, 24, 44, 0.26));
 }
 
 .sidebar-section-title-text-collapsed {
