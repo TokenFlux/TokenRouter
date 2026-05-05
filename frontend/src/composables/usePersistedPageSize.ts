@@ -7,3 +7,7 @@ import { getConfiguredTableDefaultPageSize, normalizeTablePageSize } from '@/uti
 export function getPersistedPageSize(fallback = getConfiguredTableDefaultPageSize()): number {
   return normalizeTablePageSize(getConfiguredTableDefaultPageSize() || fallback)
 }
+
+export function setPersistedPageSize(_size: number): void {
+  // Page size is controlled by the runtime table configuration, not localStorage.
+}

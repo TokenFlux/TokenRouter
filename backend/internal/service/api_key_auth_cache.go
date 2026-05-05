@@ -59,6 +59,9 @@ type APIKeyAuthGroupSnapshot struct {
 	Platform                        string   `json:"platform"`
 	Status                          string   `json:"status"`
 	RateMultiplier                  float64  `json:"rate_multiplier"`
+	AllowImageGeneration            bool     `json:"allow_image_generation"`
+	ImageRateIndependent            bool     `json:"image_rate_independent"`
+	ImageRateMultiplier             float64  `json:"image_rate_multiplier"`
 	ImagePrice1K                    *float64 `json:"image_price_1k,omitempty"`
 	ImagePrice2K                    *float64 `json:"image_price_2k,omitempty"`
 	ImagePrice4K                    *float64 `json:"image_price_4k,omitempty"`

@@ -58,6 +58,9 @@ func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) er
 		SetIsExclusive(groupIn.IsExclusive).
 		SetIsDefault(groupIn.IsDefault).
 		SetStatus(groupIn.Status).
+		SetAllowImageGeneration(groupIn.AllowImageGeneration).
+		SetImageRateIndependent(groupIn.ImageRateIndependent).
+		SetImageRateMultiplier(groupIn.ImageRateMultiplier).
 		SetNillableImagePrice1k(groupIn.ImagePrice1K).
 		SetNillableImagePrice2k(groupIn.ImagePrice2K).
 		SetNillableImagePrice4k(groupIn.ImagePrice4K).
@@ -131,6 +134,9 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetIsExclusive(groupIn.IsExclusive).
 		SetIsDefault(groupIn.IsDefault).
 		SetStatus(groupIn.Status).
+		SetAllowImageGeneration(groupIn.AllowImageGeneration).
+		SetImageRateIndependent(groupIn.ImageRateIndependent).
+		SetImageRateMultiplier(groupIn.ImageRateMultiplier).
 		SetNillableImagePrice1k(groupIn.ImagePrice1K).
 		SetNillableImagePrice2k(groupIn.ImagePrice2K).
 		SetNillableImagePrice4k(groupIn.ImagePrice4K).

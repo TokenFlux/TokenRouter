@@ -127,3 +127,14 @@ func TestMigration124BackfillsLegacyOIDCSecurityFlagsSafely(t *testing.T) {
 	require.Contains(t, sql, "oidc_connect_enabled")
 	require.Contains(t, sql, "'false'")
 }
+
+func TestMigration134AddsImageGenerationGroupControls(t *testing.T) {
+	content, err := FS.ReadFile("134_image_generation_group_controls.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "ADD COLUMN IF NOT EXISTS allow_image_generation BOOLEAN NOT NULL DEFAULT false")
+	require.Contains(t, sql, "ADD COLUMN IF NOT EXISTS image_rate_independent BOOLEAN NOT NULL DEFAULT false")
+	require.Contains(t, sql, "ADD COLUMN IF NOT EXISTS image_rate_multiplier DECIMAL(10,4) NOT NULL DEFAULT 1.0")
+	require.Contains(t, sql, "WHERE platform IN ('openai', 'gemini', 'antigravity')")
+}

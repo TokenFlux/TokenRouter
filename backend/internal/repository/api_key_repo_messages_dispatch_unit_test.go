@@ -33,6 +33,25 @@ func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T)
 	require.Equal(t, group.MessagesDispatchModelConfig, got.MessagesDispatchModelConfig)
 }
 
+func TestGroupEntityToService_PreservesImageGenerationControls(t *testing.T) {
+	group := &dbent.Group{
+		ID:                   1,
+		Name:                 "openai-images",
+		Platform:             service.PlatformOpenAI,
+		Status:               service.StatusActive,
+		RateMultiplier:       1,
+		AllowImageGeneration: true,
+		ImageRateIndependent: true,
+		ImageRateMultiplier:  0.5,
+	}
+
+	got := groupEntityToService(group)
+	require.NotNil(t, got)
+	require.True(t, got.AllowImageGeneration)
+	require.True(t, got.ImageRateIndependent)
+	require.InDelta(t, 0.5, got.ImageRateMultiplier, 1e-12)
+}
+
 func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_SQLite(t *testing.T) {
 	repo, client := newAPIKeyRepoSQLite(t)
 	ctx := context.Background()
@@ -69,4 +88,37 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_S
 	require.NoError(t, err)
 	require.NotNil(t, got.Group)
 	require.Equal(t, group.MessagesDispatchModelConfig, got.Group.MessagesDispatchModelConfig)
+}
+
+func TestAPIKeyRepository_GetByKeyForAuth_PreservesImageGenerationControls_SQLite(t *testing.T) {
+	repo, client := newAPIKeyRepoSQLite(t)
+	ctx := context.Background()
+	user := mustCreateAPIKeyRepoUser(t, ctx, client, "getbykey-auth-images-unit@test.com")
+
+	group, err := client.Group.Create().
+		SetName("g-auth-images-unit").
+		SetPlatform(service.PlatformOpenAI).
+		SetStatus(service.StatusActive).
+		SetRateMultiplier(1).
+		SetAllowImageGeneration(true).
+		SetImageRateIndependent(true).
+		SetImageRateMultiplier(0.5).
+		Save(ctx)
+	require.NoError(t, err)
+
+	key := &service.APIKey{
+		UserID:  user.ID,
+		Key:     "sk-getbykey-auth-images-unit",
+		Name:    "Images Key Unit",
+		GroupID: &group.ID,
+		Status:  service.StatusActive,
+	}
+	require.NoError(t, repo.Create(ctx, key))
+
+	got, err := repo.GetByKeyForAuth(ctx, key.Key)
+	require.NoError(t, err)
+	require.NotNil(t, got.Group)
+	require.True(t, got.Group.AllowImageGeneration)
+	require.True(t, got.Group.ImageRateIndependent)
+	require.InDelta(t, 0.5, got.Group.ImageRateMultiplier, 1e-12)
 }

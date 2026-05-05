@@ -547,6 +547,22 @@ func (s *stubAdminService) UpdateGroupSortOrders(ctx context.Context, updates []
 	return nil
 }
 
+func (s *stubAdminService) AdminResetAPIKeyRateLimitUsage(ctx context.Context, keyID int64) (*service.APIKey, error) {
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID == keyID {
+			s.apiKeys[i].Usage5h = 0
+			s.apiKeys[i].Usage1d = 0
+			s.apiKeys[i].Usage7d = 0
+			s.apiKeys[i].Window5hStart = nil
+			s.apiKeys[i].Window1dStart = nil
+			s.apiKeys[i].Window7dStart = nil
+			k := s.apiKeys[i]
+			return &k, nil
+		}
+	}
+	return nil, service.ErrAPIKeyNotFound
+}
+
 func (s *stubAdminService) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID int64, groupID *int64) (*service.AdminUpdateAPIKeyGroupIDResult, error) {
 	for i := range s.apiKeys {
 		if s.apiKeys[i].ID == keyID {
