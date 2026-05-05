@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,6 +58,7 @@ type AdminService interface {
 	UpdateGroupSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error
 
 	// API Key management (admin)
+	AdminResetAPIKeyRateLimitUsage(ctx context.Context, keyID int64) (*APIKey, error)
 	AdminUpdateAPIKeyGroupID(ctx context.Context, keyID int64, groupID *int64) (*AdminUpdateAPIKeyGroupIDResult, error)
 
 	// ReplaceUserGroup 替换用户的专属分组：授予新分组权限、迁移 Key、移除旧分组权限
@@ -185,11 +187,14 @@ type CreateGroupInput struct {
 	IsExclusive    bool
 	IsDefault      bool
 	// 图片生成计费配置（仅 antigravity 平台使用）
-	ImagePrice1K    *float64
-	ImagePrice2K    *float64
-	ImagePrice4K    *float64
-	ClaudeCodeOnly  bool   // 仅允许 Claude Code 客户端
-	FallbackGroupID *int64 // 降级分组 ID
+	AllowImageGeneration bool
+	ImageRateIndependent bool
+	ImageRateMultiplier  *float64
+	ImagePrice1K         *float64
+	ImagePrice2K         *float64
+	ImagePrice4K         *float64
+	ClaudeCodeOnly       bool   // 仅允许 Claude Code 客户端
+	FallbackGroupID      *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
 	// 模型路由配置（仅 anthropic 平台使用）
@@ -221,11 +226,14 @@ type UpdateGroupInput struct {
 	IsDefault      *bool
 	Status         string
 	// 图片生成计费配置（仅 antigravity 平台使用）
-	ImagePrice1K    *float64
-	ImagePrice2K    *float64
-	ImagePrice4K    *float64
-	ClaudeCodeOnly  *bool  // 仅允许 Claude Code 客户端
-	FallbackGroupID *int64 // 降级分组 ID
+	AllowImageGeneration *bool
+	ImageRateIndependent *bool
+	ImageRateMultiplier  *float64
+	ImagePrice1K         *float64
+	ImagePrice2K         *float64
+	ImagePrice4K         *float64
+	ClaudeCodeOnly       *bool  // 仅允许 Claude Code 客户端
+	FallbackGroupID      *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
 	// 模型路由配置（仅 anthropic 平台使用）
@@ -289,6 +297,7 @@ type UpdateAccountInput struct {
 // BulkUpdateAccountsInput describes the payload for bulk updating accounts.
 type BulkUpdateAccountsInput struct {
 	AccountIDs     []int64
+	Filters        *BulkUpdateAccountFilters
 	Name           string
 	ProxyID        *int64
 	Concurrency    *int
@@ -303,6 +312,15 @@ type BulkUpdateAccountsInput struct {
 	// SkipMixedChannelCheck skips the mixed channel risk check when binding groups.
 	// This should only be set when the caller has explicitly confirmed the risk.
 	SkipMixedChannelCheck bool
+}
+
+type BulkUpdateAccountFilters struct {
+	Platform    string
+	Type        string
+	Status      string
+	Group       string
+	Search      string
+	PrivacyMode string
 }
 
 // BulkUpdateAccountResult captures the result for a single account update.
@@ -1394,6 +1412,13 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	imagePrice1K := normalizePrice(input.ImagePrice1K)
 	imagePrice2K := normalizePrice(input.ImagePrice2K)
 	imagePrice4K := normalizePrice(input.ImagePrice4K)
+	imageRateMultiplier := 1.0
+	if input.ImageRateMultiplier != nil {
+		if *input.ImageRateMultiplier < 0 {
+			return nil, errors.New("image_rate_multiplier must be >= 0")
+		}
+		imageRateMultiplier = *input.ImageRateMultiplier
+	}
 
 	// 校验降级分组
 	if input.FallbackGroupID != nil {
@@ -1460,6 +1485,9 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		IsExclusive:                     input.IsExclusive,
 		IsDefault:                       input.IsDefault,
 		Status:                          StatusActive,
+		AllowImageGeneration:            input.AllowImageGeneration,
+		ImageRateIndependent:            input.ImageRateIndependent,
+		ImageRateMultiplier:             imageRateMultiplier,
 		ImagePrice1K:                    imagePrice1K,
 		ImagePrice2K:                    imagePrice2K,
 		ImagePrice4K:                    imagePrice4K,
@@ -1699,6 +1727,18 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 
 	// 图片生成计费配置：负数表示清除（使用默认价格）
+	if input.AllowImageGeneration != nil {
+		group.AllowImageGeneration = *input.AllowImageGeneration
+	}
+	if input.ImageRateIndependent != nil {
+		group.ImageRateIndependent = *input.ImageRateIndependent
+	}
+	if input.ImageRateMultiplier != nil {
+		if *input.ImageRateMultiplier < 0 {
+			return nil, errors.New("image_rate_multiplier must be >= 0")
+		}
+		group.ImageRateMultiplier = *input.ImageRateMultiplier
+	}
 	if input.ImagePrice1K != nil {
 		group.ImagePrice1K = normalizePrice(input.ImagePrice1K)
 	}
@@ -1958,6 +1998,34 @@ func (s *adminServiceImpl) BatchSetGroupRPMOverrides(ctx context.Context, groupI
 
 func (s *adminServiceImpl) UpdateGroupSortOrders(ctx context.Context, updates []GroupSortOrderUpdate) error {
 	return s.groupRepo.UpdateSortOrders(ctx, updates)
+}
+
+// AdminResetAPIKeyRateLimitUsage resets an API key's rolling rate-limit usage windows.
+func (s *adminServiceImpl) AdminResetAPIKeyRateLimitUsage(ctx context.Context, keyID int64) (*APIKey, error) {
+	apiKey, err := s.apiKeyRepo.GetByID(ctx, keyID)
+	if err != nil {
+		return nil, err
+	}
+
+	apiKey.Usage5h = 0
+	apiKey.Usage1d = 0
+	apiKey.Usage7d = 0
+	apiKey.Window5hStart = nil
+	apiKey.Window1dStart = nil
+	apiKey.Window7dStart = nil
+
+	if err := s.apiKeyRepo.Update(ctx, apiKey); err != nil {
+		return nil, fmt.Errorf("update api key: %w", err)
+	}
+
+	if s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByKey(ctx, apiKey.Key)
+	}
+	if s.billingCacheService != nil && s.billingCacheService.cache != nil {
+		_ = s.billingCacheService.cache.InvalidateAPIKeyRateLimit(ctx, apiKey.ID)
+	}
+
+	return apiKey, nil
 }
 
 // AdminUpdateAPIKeyGroupID 管理员修改 API Key 分组绑定
@@ -2368,6 +2436,14 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 // BulkUpdateAccounts updates multiple accounts in one request.
 // It merges credentials/extra keys instead of overwriting the whole object.
 func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUpdateAccountsInput) (*BulkUpdateAccountsResult, error) {
+	if len(input.AccountIDs) == 0 && input.Filters != nil {
+		accountIDs, err := s.resolveBulkUpdateTargetIDs(ctx, input.Filters)
+		if err != nil {
+			return nil, err
+		}
+		input.AccountIDs = accountIDs
+	}
+
 	result := &BulkUpdateAccountsResult{
 		SuccessIDs: make([]int64, 0, len(input.AccountIDs)),
 		FailedIDs:  make([]int64, 0, len(input.AccountIDs)),
@@ -2481,6 +2557,55 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	}
 
 	return result, nil
+}
+
+func (s *adminServiceImpl) resolveBulkUpdateTargetIDs(ctx context.Context, filters *BulkUpdateAccountFilters) ([]int64, error) {
+	if filters == nil {
+		return nil, nil
+	}
+
+	groupID := int64(0)
+	switch strings.TrimSpace(filters.Group) {
+	case "":
+	case "ungrouped":
+		groupID = AccountListGroupUngrouped
+	default:
+		parsedGroupID, err := strconv.ParseInt(strings.TrimSpace(filters.Group), 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid group filter: %w", err)
+		}
+		groupID = parsedGroupID
+	}
+
+	const pageSize = 500
+	page := 1
+	accountIDs := make([]int64, 0, pageSize)
+
+	for {
+		accounts, total, err := s.ListAccounts(
+			ctx,
+			page,
+			pageSize,
+			filters.Platform,
+			filters.Type,
+			filters.Status,
+			filters.Search,
+			groupID,
+			filters.PrivacyMode,
+			"",
+			"",
+		)
+		if err != nil {
+			return nil, err
+		}
+		for _, account := range accounts {
+			accountIDs = append(accountIDs, account.ID)
+		}
+		if int64(len(accountIDs)) >= total || len(accounts) == 0 {
+			return accountIDs, nil
+		}
+		page++
+	}
 }
 
 func (s *adminServiceImpl) DeleteAccount(ctx context.Context, id int64) error {

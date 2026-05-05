@@ -217,6 +217,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		EnableFingerprintUnification:           settings.EnableFingerprintUnification,
 		EnableMetadataPassthrough:              settings.EnableMetadataPassthrough,
 		EnableCCHSigning:                       settings.EnableCCHSigning,
+		EnableAnthropicCacheTTL1hInjection:     settings.EnableAnthropicCacheTTL1hInjection,
 		WebSearchEmulationEnabled:              settings.WebSearchEmulationEnabled,
 		PaymentVisibleMethodAlipaySource:       settings.PaymentVisibleMethodAlipaySource,
 		PaymentVisibleMethodWxpaySource:        settings.PaymentVisibleMethodWxpaySource,
@@ -487,9 +488,10 @@ type UpdateSettingsRequest struct {
 	BackendModeEnabled bool `json:"backend_mode_enabled"`
 
 	// Gateway forwarding behavior
-	EnableFingerprintUnification *bool `json:"enable_fingerprint_unification"`
-	EnableMetadataPassthrough    *bool `json:"enable_metadata_passthrough"`
-	EnableCCHSigning             *bool `json:"enable_cch_signing"`
+	EnableFingerprintUnification       *bool `json:"enable_fingerprint_unification"`
+	EnableMetadataPassthrough          *bool `json:"enable_metadata_passthrough"`
+	EnableCCHSigning                   *bool `json:"enable_cch_signing"`
+	EnableAnthropicCacheTTL1hInjection *bool `json:"enable_anthropic_cache_ttl_1h_injection"`
 
 	// Payment visible method routing
 	PaymentVisibleMethodAlipaySource  *string `json:"payment_visible_method_alipay_source"`
@@ -1297,6 +1299,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.EnableCCHSigning
 		}(),
+		EnableAnthropicCacheTTL1hInjection: func() bool {
+			if req.EnableAnthropicCacheTTL1hInjection != nil {
+				return *req.EnableAnthropicCacheTTL1hInjection
+			}
+			return previousSettings.EnableAnthropicCacheTTL1hInjection
+		}(),
 		PaymentVisibleMethodAlipaySource: func() string {
 			if req.PaymentVisibleMethodAlipaySource != nil {
 				return strings.TrimSpace(*req.PaymentVisibleMethodAlipaySource)
@@ -1578,6 +1586,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		EnableFingerprintUnification:           updatedSettings.EnableFingerprintUnification,
 		EnableMetadataPassthrough:              updatedSettings.EnableMetadataPassthrough,
 		EnableCCHSigning:                       updatedSettings.EnableCCHSigning,
+		EnableAnthropicCacheTTL1hInjection:     updatedSettings.EnableAnthropicCacheTTL1hInjection,
 		WebSearchEmulationEnabled:              updatedSettings.WebSearchEmulationEnabled,
 		PaymentVisibleMethodAlipaySource:       updatedSettings.PaymentVisibleMethodAlipaySource,
 		PaymentVisibleMethodWxpaySource:        updatedSettings.PaymentVisibleMethodWxpaySource,
@@ -1977,6 +1986,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.EnableCCHSigning != after.EnableCCHSigning {
 		changed = append(changed, "enable_cch_signing")
+	}
+	if before.EnableAnthropicCacheTTL1hInjection != after.EnableAnthropicCacheTTL1hInjection {
+		changed = append(changed, "enable_anthropic_cache_ttl_1h_injection")
 	}
 	if before.PaymentVisibleMethodAlipaySource != after.PaymentVisibleMethodAlipaySource {
 		changed = append(changed, "payment_visible_method_alipay_source")
@@ -2538,6 +2550,58 @@ func (h *SettingHandler) UpdateOpenAI403CooldownSettings(c *gin.Context) {
 		ErrorOnThresholdEnabled: updatedSettings.ErrorOnThresholdEnabled,
 		ThresholdCount:          updatedSettings.ThresholdCount,
 		ThresholdWindowMinutes:  updatedSettings.ThresholdWindowMinutes,
+	})
+}
+
+// GetRateLimit429CooldownSettings 获取429默认回避配置
+// GET /api/v1/admin/settings/rate-limit-429-cooldown
+func (h *SettingHandler) GetRateLimit429CooldownSettings(c *gin.Context) {
+	settings, err := h.settingService.GetRateLimit429CooldownSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.RateLimit429CooldownSettings{
+		Enabled:         settings.Enabled,
+		CooldownSeconds: settings.CooldownSeconds,
+	})
+}
+
+// UpdateRateLimit429CooldownSettingsRequest 更新429默认回避配置请求
+type UpdateRateLimit429CooldownSettingsRequest struct {
+	Enabled         bool `json:"enabled"`
+	CooldownSeconds int  `json:"cooldown_seconds"`
+}
+
+// UpdateRateLimit429CooldownSettings 更新429默认回避配置
+// PUT /api/v1/admin/settings/rate-limit-429-cooldown
+func (h *SettingHandler) UpdateRateLimit429CooldownSettings(c *gin.Context) {
+	var req UpdateRateLimit429CooldownSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	settings := &service.RateLimit429CooldownSettings{
+		Enabled:         req.Enabled,
+		CooldownSeconds: req.CooldownSeconds,
+	}
+
+	if err := h.settingService.SetRateLimit429CooldownSettings(c.Request.Context(), settings); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	updatedSettings, err := h.settingService.GetRateLimit429CooldownSettings(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.RateLimit429CooldownSettings{
+		Enabled:         updatedSettings.Enabled,
+		CooldownSeconds: updatedSettings.CooldownSeconds,
 	})
 }
 

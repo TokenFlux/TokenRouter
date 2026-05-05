@@ -538,7 +538,10 @@ export interface Group {
   is_exclusive: boolean
   is_default?: boolean
   status: 'active' | 'inactive'
-  // 图片生成计费配置（仅 antigravity 平台使用）
+  // 图片生成计费配置
+  allow_image_generation: boolean
+  image_rate_independent: boolean
+  image_rate_multiplier: number
   image_price_1k: number | null
   image_price_2k: number | null
   image_price_4k: number | null
@@ -647,6 +650,9 @@ export interface CreateGroupRequest {
   rate_multiplier?: number
   is_exclusive?: boolean
   is_default?: boolean
+  allow_image_generation?: boolean
+  image_rate_independent?: boolean
+  image_rate_multiplier?: number
   image_price_1k?: number | null
   image_price_2k?: number | null
   image_price_4k?: number | null
@@ -671,6 +677,9 @@ export interface UpdateGroupRequest {
   is_exclusive?: boolean
   is_default?: boolean
   status?: 'active' | 'inactive'
+  allow_image_generation?: boolean
+  image_rate_independent?: boolean
+  image_rate_multiplier?: number
   image_price_1k?: number | null
   image_price_2k?: number | null
   image_price_4k?: number | null
@@ -687,7 +696,7 @@ export interface UpdateGroupRequest {
 // ==================== Account & Proxy Types ====================
 
 export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity'
-export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock'
+export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock' | 'service_account'
 export type OAuthAddMethod = 'oauth' | 'setup-token'
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h'
 

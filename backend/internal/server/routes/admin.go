@@ -405,6 +405,9 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		// OpenAI OAuth 403冷却配置
 		adminSettings.GET("/openai-403-cooldown", h.Admin.Setting.GetOpenAI403CooldownSettings)
 		adminSettings.PUT("/openai-403-cooldown", h.Admin.Setting.UpdateOpenAI403CooldownSettings)
+		// 429默认回避配置
+		adminSettings.GET("/rate-limit-429-cooldown", h.Admin.Setting.GetRateLimit429CooldownSettings)
+		adminSettings.PUT("/rate-limit-429-cooldown", h.Admin.Setting.UpdateRateLimit429CooldownSettings)
 		// OpenAI OAuth 导入缺省模板
 		adminSettings.GET("/openai-oauth-import-defaults", h.Admin.Setting.GetOpenAIOAuthImportDefaults)
 		adminSettings.PUT("/openai-oauth-import-defaults", h.Admin.Setting.UpdateOpenAIOAuthImportDefaults)

@@ -2,11 +2,19 @@ package admin
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
+	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -195,4 +203,156 @@ func TestAccountHandlerBulkUpdateMixedChannelConfirmSkips(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, float64(2), data["success"])
 	require.Equal(t, float64(0), data["failed"])
+}
+
+func TestBulkUpdateAcceptsFilterTargetRequest(t *testing.T) {
+	adminSvc := newStubAdminService()
+	router := setupAccountMixedChannelRouter(adminSvc)
+
+	body, _ := json.Marshal(map[string]any{
+		"filters": map[string]any{
+			"platform":     "openai",
+			"type":         "oauth",
+			"status":       "active",
+			"group":        "12",
+			"privacy_mode": "blocked",
+			"search":       "bulk-target",
+		},
+		"schedulable": true,
+	})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/bulk-update", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.Equal(t, float64(0), resp["code"])
+}
+
+func TestAccountHandlerBulkUpdateOpenAIAPIKeyCredentialsSchedulesResponsesProbe(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	account := service.Account{
+		ID:          11,
+		Name:        "openai-apikey",
+		Platform:    service.PlatformOpenAI,
+		Type:        service.AccountTypeAPIKey,
+		Status:      service.StatusActive,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key":  "sk-new",
+			"base_url": "http://upstream.example",
+		},
+	}
+	adminSvc := newStubAdminService()
+	adminSvc.accounts = []service.Account{account}
+
+	repo := &bulkUpdateProbeAccountRepo{
+		accounts: map[int64]*service.Account{account.ID: &account},
+		done:     make(chan int64, 1),
+	}
+	upstream := &bulkUpdateProbeHTTPUpstream{}
+	accountTestSvc := service.NewAccountTestService(
+		repo,
+		nil,
+		nil,
+		nil,
+		upstream,
+		&config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{AllowInsecureHTTP: true}}},
+		nil,
+	)
+
+	router := gin.New()
+	accountHandler := NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, accountTestSvc, nil, nil, nil, nil, nil)
+	router.POST("/api/v1/admin/accounts/bulk-update", accountHandler.BulkUpdate)
+
+	body, _ := json.Marshal(map[string]any{
+		"account_ids": []int64{account.ID},
+		"credentials": map[string]any{
+			"api_key": "sk-new",
+		},
+	})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/bulk-update", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	select {
+	case probedID := <-repo.done:
+		require.Equal(t, account.ID, probedID)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for OpenAI APIKey responses probe")
+	}
+
+	upstream.mu.Lock()
+	require.Len(t, upstream.urls, 1)
+	require.True(t, strings.HasSuffix(upstream.urls[0], "/v1/responses"))
+	upstream.mu.Unlock()
+
+	repo.mu.Lock()
+	require.Equal(t, false, repo.accounts[account.ID].Extra[openai_compat.ExtraKeyResponsesSupported])
+	repo.mu.Unlock()
+}
+
+type bulkUpdateProbeAccountRepo struct {
+	service.AccountRepository
+	mu       sync.Mutex
+	accounts map[int64]*service.Account
+	done     chan int64
+}
+
+func (r *bulkUpdateProbeAccountRepo) GetByID(ctx context.Context, id int64) (*service.Account, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	account := r.accounts[id]
+	if account == nil {
+		return nil, service.ErrAccountNotFound
+	}
+	copy := *account
+	return &copy, nil
+}
+
+func (r *bulkUpdateProbeAccountRepo) UpdateExtra(ctx context.Context, id int64, updates map[string]any) error {
+	r.mu.Lock()
+	account := r.accounts[id]
+	if account != nil {
+		if account.Extra == nil {
+			account.Extra = map[string]any{}
+		}
+		for key, value := range updates {
+			account.Extra[key] = value
+		}
+	}
+	r.mu.Unlock()
+
+	if _, ok := updates[openai_compat.ExtraKeyResponsesSupported]; ok && r.done != nil {
+		select {
+		case r.done <- id:
+		default:
+		}
+	}
+	return nil
+}
+
+type bulkUpdateProbeHTTPUpstream struct {
+	mu   sync.Mutex
+	urls []string
+}
+
+func (u *bulkUpdateProbeHTTPUpstream) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
+	return u.DoWithTLS(req, proxyURL, accountID, accountConcurrency, nil)
+}
+
+func (u *bulkUpdateProbeHTTPUpstream) DoWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
+	u.mu.Lock()
+	u.urls = append(u.urls, req.URL.String())
+	u.mu.Unlock()
+	return &http.Response{
+		StatusCode: http.StatusNotFound,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(`{"error":"not found"}`)),
+	}, nil
 }

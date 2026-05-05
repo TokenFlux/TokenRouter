@@ -1,11 +1,11 @@
 /**
- * Usage request scheduler — throttles Anthropic API calls by proxy exit.
+ * Usage request scheduler - throttles Anthropic API calls by proxy exit.
  *
  * Anthropic OAuth/setup-token accounts sharing the same proxy exit are placed
- * into a serial queue with a random 1–2s delay between requests, preventing
+ * into a serial queue with a random 1-2s delay between requests, preventing
  * upstream 429 rate-limit errors.
  *
- * Proxy identity = host:port:username — two proxy records pointing to the
+ * Proxy identity = host:port:username - two proxy records pointing to the
  * same exit share a single queue. Accounts without a proxy go into a
  * "direct" queue.
  *
@@ -74,7 +74,6 @@ export function enqueueUsageRequest<T>(
   account: Account,
   fn: () => Promise<T>
 ): Promise<T> {
-  // Non-Anthropic → fire immediately, no queuing
   if (!needsThrottle(account)) {
     return fn()
   }
