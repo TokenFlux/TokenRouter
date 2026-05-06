@@ -147,9 +147,6 @@ func (s *Stripe) CreatePayment(ctx context.Context, req payment.CreatePaymentReq
 			return nil, err
 		}
 	}
-	if tradeNo == "" {
-		tradeNo = finalized.ID
-	}
 
 	clientSecret := ""
 	if finalized.ConfirmationSecret != nil {
@@ -159,10 +156,7 @@ func (s *Stripe) CreatePayment(ctx context.Context, req payment.CreatePaymentReq
 		return nil, fmt.Errorf("stripe finalize invoice: confirmation secret is empty")
 	}
 	if tradeNo == "" {
-		tradeNo = stripePaymentIntentIDFromClientSecret(clientSecret)
-	}
-	if tradeNo == "" {
-		tradeNo = finalized.ID
+		tradeNo = stripeInvoiceTradeNo(finalized, clientSecret)
 	}
 
 	return &payment.CreatePaymentResponse{
@@ -596,6 +590,20 @@ func stripePaymentIntentIDFromClientSecret(clientSecret string) string {
 		return clientSecret[:idx]
 	}
 	return ""
+}
+
+// stripeInvoiceTradeNo 按支付意图、确认密钥、账单 ID 的顺序选择可持久化的交易号。
+func stripeInvoiceTradeNo(inv *stripe.Invoice, clientSecret string) string {
+	if tradeNo := stripeInvoicePaymentIntentID(inv); tradeNo != "" {
+		return tradeNo
+	}
+	if tradeNo := stripePaymentIntentIDFromClientSecret(clientSecret); tradeNo != "" {
+		return tradeNo
+	}
+	if inv == nil {
+		return ""
+	}
+	return strings.TrimSpace(inv.ID)
 }
 
 func (s *Stripe) findInvoicePaymentIntentID(ctx context.Context, invoiceID string) (string, error) {

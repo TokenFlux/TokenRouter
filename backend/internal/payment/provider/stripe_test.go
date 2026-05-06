@@ -103,6 +103,33 @@ func TestStripePaymentIntentIDFromClientSecret(t *testing.T) {
 	}
 }
 
+func TestStripeInvoiceTradeNo(t *testing.T) {
+	t.Parallel()
+
+	invoiceWithPayment := &stripe.Invoice{
+		ID: "in_with_payment",
+		Payments: &stripe.InvoicePaymentList{Data: []*stripe.InvoicePayment{
+			{
+				Payment: &stripe.InvoicePaymentPayment{
+					PaymentIntent: &stripe.PaymentIntent{ID: "pi_from_payment"},
+				},
+			},
+		}},
+	}
+	if got := stripeInvoiceTradeNo(invoiceWithPayment, "pi_123_secret_abc"); got != "pi_from_payment" {
+		t.Fatalf("trade no = %q, want expanded payment intent", got)
+	}
+
+	invoiceWithoutPayment := &stripe.Invoice{ID: "in_without_payment"}
+	if got := stripeInvoiceTradeNo(invoiceWithoutPayment, "pi_123_secret_abc"); got != "pi_123" {
+		t.Fatalf("trade no = %q, want client secret payment intent", got)
+	}
+
+	if got := stripeInvoiceTradeNo(invoiceWithoutPayment, ""); got != "in_without_payment" {
+		t.Fatalf("trade no = %q, want invoice id fallback", got)
+	}
+}
+
 func TestParseStripeInvoiceUsesInvoicePaymentIntent(t *testing.T) {
 	t.Parallel()
 
