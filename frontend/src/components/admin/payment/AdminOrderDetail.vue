@@ -21,8 +21,16 @@
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.baseAmount') }}</p>
           <p class="text-sm font-medium text-gray-900 dark:text-white">¥{{ baseAmount.toFixed(2) }}</p>
         </div>
-        <div v-if="order.fee_rate > 0">
-          <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.fee') }} ({{ order.fee_rate }}%)</p>
+        <div v-if="order.fee_fixed > 0">
+          <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.fixedFee') }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">¥{{ order.fee_fixed.toFixed(2) }}</p>
+        </div>
+        <div v-if="order.fee_rate_amount > 0">
+          <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.rateFee') }} ({{ order.fee_rate }}%)</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">¥{{ order.fee_rate_amount.toFixed(2) }}</p>
+        </div>
+        <div v-if="feeAmount > 0">
+          <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.feeTotal') }}</p>
           <p class="text-sm font-medium text-gray-900 dark:text-white">¥{{ feeAmount.toFixed(2) }}</p>
         </div>
         <div>
@@ -129,16 +137,19 @@ const props = defineProps<{
   order: PaymentOrder | null
 }>()
 
-/** 充值金额 (base amount before fee) = pay_amount - fee = pay_amount / (1 + fee_rate/100) */
+/** 基础金额优先使用订单拆分字段；旧订单按历史费率倒推。 */
 const baseAmount = computed(() => {
   if (!props.order) return 0
+  if ((props.order.fee_amount || 0) > 0) return props.order.pay_amount - props.order.fee_amount
   if (props.order.fee_rate <= 0) return props.order.pay_amount
   return props.order.pay_amount / (1 + props.order.fee_rate / 100)
 })
 
-/** 手续费 = pay_amount - baseAmount */
+/** 手续费优先使用新字段，老订单按差值兜底。 */
 const feeAmount = computed(() => {
-  if (!props.order || props.order.fee_rate <= 0) return 0
+  if (!props.order) return 0
+  if ((props.order.fee_amount || 0) > 0) return props.order.fee_amount
+  if (props.order.fee_rate <= 0) return 0
   return props.order.pay_amount - baseAmount.value
 })
 

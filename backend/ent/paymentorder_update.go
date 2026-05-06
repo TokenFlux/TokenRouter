@@ -155,6 +155,69 @@ func (_u *PaymentOrderUpdate) AddFeeRate(v float64) *PaymentOrderUpdate {
 	return _u
 }
 
+// SetFeeFixed sets the "fee_fixed" field.
+func (_u *PaymentOrderUpdate) SetFeeFixed(v float64) *PaymentOrderUpdate {
+	_u.mutation.ResetFeeFixed()
+	_u.mutation.SetFeeFixed(v)
+	return _u
+}
+
+// SetNillableFeeFixed sets the "fee_fixed" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableFeeFixed(v *float64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetFeeFixed(*v)
+	}
+	return _u
+}
+
+// AddFeeFixed adds value to the "fee_fixed" field.
+func (_u *PaymentOrderUpdate) AddFeeFixed(v float64) *PaymentOrderUpdate {
+	_u.mutation.AddFeeFixed(v)
+	return _u
+}
+
+// SetFeeRateAmount sets the "fee_rate_amount" field.
+func (_u *PaymentOrderUpdate) SetFeeRateAmount(v float64) *PaymentOrderUpdate {
+	_u.mutation.ResetFeeRateAmount()
+	_u.mutation.SetFeeRateAmount(v)
+	return _u
+}
+
+// SetNillableFeeRateAmount sets the "fee_rate_amount" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableFeeRateAmount(v *float64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetFeeRateAmount(*v)
+	}
+	return _u
+}
+
+// AddFeeRateAmount adds value to the "fee_rate_amount" field.
+func (_u *PaymentOrderUpdate) AddFeeRateAmount(v float64) *PaymentOrderUpdate {
+	_u.mutation.AddFeeRateAmount(v)
+	return _u
+}
+
+// SetFeeAmount sets the "fee_amount" field.
+func (_u *PaymentOrderUpdate) SetFeeAmount(v float64) *PaymentOrderUpdate {
+	_u.mutation.ResetFeeAmount()
+	_u.mutation.SetFeeAmount(v)
+	return _u
+}
+
+// SetNillableFeeAmount sets the "fee_amount" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableFeeAmount(v *float64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetFeeAmount(*v)
+	}
+	return _u
+}
+
+// AddFeeAmount adds value to the "fee_amount" field.
+func (_u *PaymentOrderUpdate) AddFeeAmount(v float64) *PaymentOrderUpdate {
+	_u.mutation.AddFeeAmount(v)
+	return _u
+}
+
 // SetRechargeCode sets the "recharge_code" field.
 func (_u *PaymentOrderUpdate) SetRechargeCode(v string) *PaymentOrderUpdate {
 	_u.mutation.SetRechargeCode(v)
@@ -268,6 +331,118 @@ func (_u *PaymentOrderUpdate) SetNillableQrCodeImg(v *string) *PaymentOrderUpdat
 // ClearQrCodeImg clears the value of the "qr_code_img" field.
 func (_u *PaymentOrderUpdate) ClearQrCodeImg() *PaymentOrderUpdate {
 	_u.mutation.ClearQrCodeImg()
+	return _u
+}
+
+// SetPaymentCustomerID sets the "payment_customer_id" field.
+func (_u *PaymentOrderUpdate) SetPaymentCustomerID(v string) *PaymentOrderUpdate {
+	_u.mutation.SetPaymentCustomerID(v)
+	return _u
+}
+
+// SetNillablePaymentCustomerID sets the "payment_customer_id" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillablePaymentCustomerID(v *string) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetPaymentCustomerID(*v)
+	}
+	return _u
+}
+
+// ClearPaymentCustomerID clears the value of the "payment_customer_id" field.
+func (_u *PaymentOrderUpdate) ClearPaymentCustomerID() *PaymentOrderUpdate {
+	_u.mutation.ClearPaymentCustomerID()
+	return _u
+}
+
+// SetPaymentInvoiceID sets the "payment_invoice_id" field.
+func (_u *PaymentOrderUpdate) SetPaymentInvoiceID(v string) *PaymentOrderUpdate {
+	_u.mutation.SetPaymentInvoiceID(v)
+	return _u
+}
+
+// SetNillablePaymentInvoiceID sets the "payment_invoice_id" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillablePaymentInvoiceID(v *string) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetPaymentInvoiceID(*v)
+	}
+	return _u
+}
+
+// ClearPaymentInvoiceID clears the value of the "payment_invoice_id" field.
+func (_u *PaymentOrderUpdate) ClearPaymentInvoiceID() *PaymentOrderUpdate {
+	_u.mutation.ClearPaymentInvoiceID()
+	return _u
+}
+
+// SetPaymentInvoiceURL sets the "payment_invoice_url" field.
+func (_u *PaymentOrderUpdate) SetPaymentInvoiceURL(v string) *PaymentOrderUpdate {
+	_u.mutation.SetPaymentInvoiceURL(v)
+	return _u
+}
+
+// SetNillablePaymentInvoiceURL sets the "payment_invoice_url" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillablePaymentInvoiceURL(v *string) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetPaymentInvoiceURL(*v)
+	}
+	return _u
+}
+
+// ClearPaymentInvoiceURL clears the value of the "payment_invoice_url" field.
+func (_u *PaymentOrderUpdate) ClearPaymentInvoiceURL() *PaymentOrderUpdate {
+	_u.mutation.ClearPaymentInvoiceURL()
+	return _u
+}
+
+// SetPaymentInvoicePdfURL sets the "payment_invoice_pdf_url" field.
+func (_u *PaymentOrderUpdate) SetPaymentInvoicePdfURL(v string) *PaymentOrderUpdate {
+	_u.mutation.SetPaymentInvoicePdfURL(v)
+	return _u
+}
+
+// SetNillablePaymentInvoicePdfURL sets the "payment_invoice_pdf_url" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillablePaymentInvoicePdfURL(v *string) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetPaymentInvoicePdfURL(*v)
+	}
+	return _u
+}
+
+// ClearPaymentInvoicePdfURL clears the value of the "payment_invoice_pdf_url" field.
+func (_u *PaymentOrderUpdate) ClearPaymentInvoicePdfURL() *PaymentOrderUpdate {
+	_u.mutation.ClearPaymentInvoicePdfURL()
+	return _u
+}
+
+// SetPaymentInvoiceStatus sets the "payment_invoice_status" field.
+func (_u *PaymentOrderUpdate) SetPaymentInvoiceStatus(v string) *PaymentOrderUpdate {
+	_u.mutation.SetPaymentInvoiceStatus(v)
+	return _u
+}
+
+// SetNillablePaymentInvoiceStatus sets the "payment_invoice_status" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillablePaymentInvoiceStatus(v *string) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetPaymentInvoiceStatus(*v)
+	}
+	return _u
+}
+
+// ClearPaymentInvoiceStatus clears the value of the "payment_invoice_status" field.
+func (_u *PaymentOrderUpdate) ClearPaymentInvoiceStatus() *PaymentOrderUpdate {
+	_u.mutation.ClearPaymentInvoiceStatus()
+	return _u
+}
+
+// SetBillingSnapshot sets the "billing_snapshot" field.
+func (_u *PaymentOrderUpdate) SetBillingSnapshot(v map[string]interface{}) *PaymentOrderUpdate {
+	_u.mutation.SetBillingSnapshot(v)
+	return _u
+}
+
+// ClearBillingSnapshot clears the value of the "billing_snapshot" field.
+func (_u *PaymentOrderUpdate) ClearBillingSnapshot() *PaymentOrderUpdate {
+	_u.mutation.ClearBillingSnapshot()
 	return _u
 }
 
@@ -765,6 +940,21 @@ func (_u *PaymentOrderUpdate) check() error {
 			return &ValidationError{Name: "payment_trade_no", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_trade_no": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.PaymentCustomerID(); ok {
+		if err := paymentorder.PaymentCustomerIDValidator(v); err != nil {
+			return &ValidationError{Name: "payment_customer_id", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_customer_id": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.PaymentInvoiceID(); ok {
+		if err := paymentorder.PaymentInvoiceIDValidator(v); err != nil {
+			return &ValidationError{Name: "payment_invoice_id", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_invoice_id": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.PaymentInvoiceStatus(); ok {
+		if err := paymentorder.PaymentInvoiceStatusValidator(v); err != nil {
+			return &ValidationError{Name: "payment_invoice_status", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_invoice_status": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.OrderType(); ok {
 		if err := paymentorder.OrderTypeValidator(v); err != nil {
 			return &ValidationError{Name: "order_type", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.order_type": %w`, err)}
@@ -848,6 +1038,24 @@ func (_u *PaymentOrderUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if value, ok := _u.mutation.AddedFeeRate(); ok {
 		_spec.AddField(paymentorder.FieldFeeRate, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.FeeFixed(); ok {
+		_spec.SetField(paymentorder.FieldFeeFixed, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedFeeFixed(); ok {
+		_spec.AddField(paymentorder.FieldFeeFixed, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.FeeRateAmount(); ok {
+		_spec.SetField(paymentorder.FieldFeeRateAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedFeeRateAmount(); ok {
+		_spec.AddField(paymentorder.FieldFeeRateAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.FeeAmount(); ok {
+		_spec.SetField(paymentorder.FieldFeeAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedFeeAmount(); ok {
+		_spec.AddField(paymentorder.FieldFeeAmount, field.TypeFloat64, value)
+	}
 	if value, ok := _u.mutation.RechargeCode(); ok {
 		_spec.SetField(paymentorder.FieldRechargeCode, field.TypeString, value)
 	}
@@ -877,6 +1085,42 @@ func (_u *PaymentOrderUpdate) sqlSave(ctx context.Context) (_node int, err error
 	}
 	if _u.mutation.QrCodeImgCleared() {
 		_spec.ClearField(paymentorder.FieldQrCodeImg, field.TypeString)
+	}
+	if value, ok := _u.mutation.PaymentCustomerID(); ok {
+		_spec.SetField(paymentorder.FieldPaymentCustomerID, field.TypeString, value)
+	}
+	if _u.mutation.PaymentCustomerIDCleared() {
+		_spec.ClearField(paymentorder.FieldPaymentCustomerID, field.TypeString)
+	}
+	if value, ok := _u.mutation.PaymentInvoiceID(); ok {
+		_spec.SetField(paymentorder.FieldPaymentInvoiceID, field.TypeString, value)
+	}
+	if _u.mutation.PaymentInvoiceIDCleared() {
+		_spec.ClearField(paymentorder.FieldPaymentInvoiceID, field.TypeString)
+	}
+	if value, ok := _u.mutation.PaymentInvoiceURL(); ok {
+		_spec.SetField(paymentorder.FieldPaymentInvoiceURL, field.TypeString, value)
+	}
+	if _u.mutation.PaymentInvoiceURLCleared() {
+		_spec.ClearField(paymentorder.FieldPaymentInvoiceURL, field.TypeString)
+	}
+	if value, ok := _u.mutation.PaymentInvoicePdfURL(); ok {
+		_spec.SetField(paymentorder.FieldPaymentInvoicePdfURL, field.TypeString, value)
+	}
+	if _u.mutation.PaymentInvoicePdfURLCleared() {
+		_spec.ClearField(paymentorder.FieldPaymentInvoicePdfURL, field.TypeString)
+	}
+	if value, ok := _u.mutation.PaymentInvoiceStatus(); ok {
+		_spec.SetField(paymentorder.FieldPaymentInvoiceStatus, field.TypeString, value)
+	}
+	if _u.mutation.PaymentInvoiceStatusCleared() {
+		_spec.ClearField(paymentorder.FieldPaymentInvoiceStatus, field.TypeString)
+	}
+	if value, ok := _u.mutation.BillingSnapshot(); ok {
+		_spec.SetField(paymentorder.FieldBillingSnapshot, field.TypeJSON, value)
+	}
+	if _u.mutation.BillingSnapshotCleared() {
+		_spec.ClearField(paymentorder.FieldBillingSnapshot, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.OrderType(); ok {
 		_spec.SetField(paymentorder.FieldOrderType, field.TypeString, value)
@@ -1172,6 +1416,69 @@ func (_u *PaymentOrderUpdateOne) AddFeeRate(v float64) *PaymentOrderUpdateOne {
 	return _u
 }
 
+// SetFeeFixed sets the "fee_fixed" field.
+func (_u *PaymentOrderUpdateOne) SetFeeFixed(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetFeeFixed()
+	_u.mutation.SetFeeFixed(v)
+	return _u
+}
+
+// SetNillableFeeFixed sets the "fee_fixed" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableFeeFixed(v *float64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetFeeFixed(*v)
+	}
+	return _u
+}
+
+// AddFeeFixed adds value to the "fee_fixed" field.
+func (_u *PaymentOrderUpdateOne) AddFeeFixed(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.AddFeeFixed(v)
+	return _u
+}
+
+// SetFeeRateAmount sets the "fee_rate_amount" field.
+func (_u *PaymentOrderUpdateOne) SetFeeRateAmount(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetFeeRateAmount()
+	_u.mutation.SetFeeRateAmount(v)
+	return _u
+}
+
+// SetNillableFeeRateAmount sets the "fee_rate_amount" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableFeeRateAmount(v *float64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetFeeRateAmount(*v)
+	}
+	return _u
+}
+
+// AddFeeRateAmount adds value to the "fee_rate_amount" field.
+func (_u *PaymentOrderUpdateOne) AddFeeRateAmount(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.AddFeeRateAmount(v)
+	return _u
+}
+
+// SetFeeAmount sets the "fee_amount" field.
+func (_u *PaymentOrderUpdateOne) SetFeeAmount(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetFeeAmount()
+	_u.mutation.SetFeeAmount(v)
+	return _u
+}
+
+// SetNillableFeeAmount sets the "fee_amount" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableFeeAmount(v *float64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetFeeAmount(*v)
+	}
+	return _u
+}
+
+// AddFeeAmount adds value to the "fee_amount" field.
+func (_u *PaymentOrderUpdateOne) AddFeeAmount(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.AddFeeAmount(v)
+	return _u
+}
+
 // SetRechargeCode sets the "recharge_code" field.
 func (_u *PaymentOrderUpdateOne) SetRechargeCode(v string) *PaymentOrderUpdateOne {
 	_u.mutation.SetRechargeCode(v)
@@ -1285,6 +1592,118 @@ func (_u *PaymentOrderUpdateOne) SetNillableQrCodeImg(v *string) *PaymentOrderUp
 // ClearQrCodeImg clears the value of the "qr_code_img" field.
 func (_u *PaymentOrderUpdateOne) ClearQrCodeImg() *PaymentOrderUpdateOne {
 	_u.mutation.ClearQrCodeImg()
+	return _u
+}
+
+// SetPaymentCustomerID sets the "payment_customer_id" field.
+func (_u *PaymentOrderUpdateOne) SetPaymentCustomerID(v string) *PaymentOrderUpdateOne {
+	_u.mutation.SetPaymentCustomerID(v)
+	return _u
+}
+
+// SetNillablePaymentCustomerID sets the "payment_customer_id" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillablePaymentCustomerID(v *string) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetPaymentCustomerID(*v)
+	}
+	return _u
+}
+
+// ClearPaymentCustomerID clears the value of the "payment_customer_id" field.
+func (_u *PaymentOrderUpdateOne) ClearPaymentCustomerID() *PaymentOrderUpdateOne {
+	_u.mutation.ClearPaymentCustomerID()
+	return _u
+}
+
+// SetPaymentInvoiceID sets the "payment_invoice_id" field.
+func (_u *PaymentOrderUpdateOne) SetPaymentInvoiceID(v string) *PaymentOrderUpdateOne {
+	_u.mutation.SetPaymentInvoiceID(v)
+	return _u
+}
+
+// SetNillablePaymentInvoiceID sets the "payment_invoice_id" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillablePaymentInvoiceID(v *string) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetPaymentInvoiceID(*v)
+	}
+	return _u
+}
+
+// ClearPaymentInvoiceID clears the value of the "payment_invoice_id" field.
+func (_u *PaymentOrderUpdateOne) ClearPaymentInvoiceID() *PaymentOrderUpdateOne {
+	_u.mutation.ClearPaymentInvoiceID()
+	return _u
+}
+
+// SetPaymentInvoiceURL sets the "payment_invoice_url" field.
+func (_u *PaymentOrderUpdateOne) SetPaymentInvoiceURL(v string) *PaymentOrderUpdateOne {
+	_u.mutation.SetPaymentInvoiceURL(v)
+	return _u
+}
+
+// SetNillablePaymentInvoiceURL sets the "payment_invoice_url" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillablePaymentInvoiceURL(v *string) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetPaymentInvoiceURL(*v)
+	}
+	return _u
+}
+
+// ClearPaymentInvoiceURL clears the value of the "payment_invoice_url" field.
+func (_u *PaymentOrderUpdateOne) ClearPaymentInvoiceURL() *PaymentOrderUpdateOne {
+	_u.mutation.ClearPaymentInvoiceURL()
+	return _u
+}
+
+// SetPaymentInvoicePdfURL sets the "payment_invoice_pdf_url" field.
+func (_u *PaymentOrderUpdateOne) SetPaymentInvoicePdfURL(v string) *PaymentOrderUpdateOne {
+	_u.mutation.SetPaymentInvoicePdfURL(v)
+	return _u
+}
+
+// SetNillablePaymentInvoicePdfURL sets the "payment_invoice_pdf_url" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillablePaymentInvoicePdfURL(v *string) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetPaymentInvoicePdfURL(*v)
+	}
+	return _u
+}
+
+// ClearPaymentInvoicePdfURL clears the value of the "payment_invoice_pdf_url" field.
+func (_u *PaymentOrderUpdateOne) ClearPaymentInvoicePdfURL() *PaymentOrderUpdateOne {
+	_u.mutation.ClearPaymentInvoicePdfURL()
+	return _u
+}
+
+// SetPaymentInvoiceStatus sets the "payment_invoice_status" field.
+func (_u *PaymentOrderUpdateOne) SetPaymentInvoiceStatus(v string) *PaymentOrderUpdateOne {
+	_u.mutation.SetPaymentInvoiceStatus(v)
+	return _u
+}
+
+// SetNillablePaymentInvoiceStatus sets the "payment_invoice_status" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillablePaymentInvoiceStatus(v *string) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetPaymentInvoiceStatus(*v)
+	}
+	return _u
+}
+
+// ClearPaymentInvoiceStatus clears the value of the "payment_invoice_status" field.
+func (_u *PaymentOrderUpdateOne) ClearPaymentInvoiceStatus() *PaymentOrderUpdateOne {
+	_u.mutation.ClearPaymentInvoiceStatus()
+	return _u
+}
+
+// SetBillingSnapshot sets the "billing_snapshot" field.
+func (_u *PaymentOrderUpdateOne) SetBillingSnapshot(v map[string]interface{}) *PaymentOrderUpdateOne {
+	_u.mutation.SetBillingSnapshot(v)
+	return _u
+}
+
+// ClearBillingSnapshot clears the value of the "billing_snapshot" field.
+func (_u *PaymentOrderUpdateOne) ClearBillingSnapshot() *PaymentOrderUpdateOne {
+	_u.mutation.ClearBillingSnapshot()
 	return _u
 }
 
@@ -1795,6 +2214,21 @@ func (_u *PaymentOrderUpdateOne) check() error {
 			return &ValidationError{Name: "payment_trade_no", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_trade_no": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.PaymentCustomerID(); ok {
+		if err := paymentorder.PaymentCustomerIDValidator(v); err != nil {
+			return &ValidationError{Name: "payment_customer_id", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_customer_id": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.PaymentInvoiceID(); ok {
+		if err := paymentorder.PaymentInvoiceIDValidator(v); err != nil {
+			return &ValidationError{Name: "payment_invoice_id", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_invoice_id": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.PaymentInvoiceStatus(); ok {
+		if err := paymentorder.PaymentInvoiceStatusValidator(v); err != nil {
+			return &ValidationError{Name: "payment_invoice_status", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_invoice_status": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.OrderType(); ok {
 		if err := paymentorder.OrderTypeValidator(v); err != nil {
 			return &ValidationError{Name: "order_type", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.order_type": %w`, err)}
@@ -1895,6 +2329,24 @@ func (_u *PaymentOrderUpdateOne) sqlSave(ctx context.Context) (_node *PaymentOrd
 	if value, ok := _u.mutation.AddedFeeRate(); ok {
 		_spec.AddField(paymentorder.FieldFeeRate, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.FeeFixed(); ok {
+		_spec.SetField(paymentorder.FieldFeeFixed, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedFeeFixed(); ok {
+		_spec.AddField(paymentorder.FieldFeeFixed, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.FeeRateAmount(); ok {
+		_spec.SetField(paymentorder.FieldFeeRateAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedFeeRateAmount(); ok {
+		_spec.AddField(paymentorder.FieldFeeRateAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.FeeAmount(); ok {
+		_spec.SetField(paymentorder.FieldFeeAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedFeeAmount(); ok {
+		_spec.AddField(paymentorder.FieldFeeAmount, field.TypeFloat64, value)
+	}
 	if value, ok := _u.mutation.RechargeCode(); ok {
 		_spec.SetField(paymentorder.FieldRechargeCode, field.TypeString, value)
 	}
@@ -1924,6 +2376,42 @@ func (_u *PaymentOrderUpdateOne) sqlSave(ctx context.Context) (_node *PaymentOrd
 	}
 	if _u.mutation.QrCodeImgCleared() {
 		_spec.ClearField(paymentorder.FieldQrCodeImg, field.TypeString)
+	}
+	if value, ok := _u.mutation.PaymentCustomerID(); ok {
+		_spec.SetField(paymentorder.FieldPaymentCustomerID, field.TypeString, value)
+	}
+	if _u.mutation.PaymentCustomerIDCleared() {
+		_spec.ClearField(paymentorder.FieldPaymentCustomerID, field.TypeString)
+	}
+	if value, ok := _u.mutation.PaymentInvoiceID(); ok {
+		_spec.SetField(paymentorder.FieldPaymentInvoiceID, field.TypeString, value)
+	}
+	if _u.mutation.PaymentInvoiceIDCleared() {
+		_spec.ClearField(paymentorder.FieldPaymentInvoiceID, field.TypeString)
+	}
+	if value, ok := _u.mutation.PaymentInvoiceURL(); ok {
+		_spec.SetField(paymentorder.FieldPaymentInvoiceURL, field.TypeString, value)
+	}
+	if _u.mutation.PaymentInvoiceURLCleared() {
+		_spec.ClearField(paymentorder.FieldPaymentInvoiceURL, field.TypeString)
+	}
+	if value, ok := _u.mutation.PaymentInvoicePdfURL(); ok {
+		_spec.SetField(paymentorder.FieldPaymentInvoicePdfURL, field.TypeString, value)
+	}
+	if _u.mutation.PaymentInvoicePdfURLCleared() {
+		_spec.ClearField(paymentorder.FieldPaymentInvoicePdfURL, field.TypeString)
+	}
+	if value, ok := _u.mutation.PaymentInvoiceStatus(); ok {
+		_spec.SetField(paymentorder.FieldPaymentInvoiceStatus, field.TypeString, value)
+	}
+	if _u.mutation.PaymentInvoiceStatusCleared() {
+		_spec.ClearField(paymentorder.FieldPaymentInvoiceStatus, field.TypeString)
+	}
+	if value, ok := _u.mutation.BillingSnapshot(); ok {
+		_spec.SetField(paymentorder.FieldBillingSnapshot, field.TypeJSON, value)
+	}
+	if _u.mutation.BillingSnapshotCleared() {
+		_spec.ClearField(paymentorder.FieldBillingSnapshot, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.OrderType(); ok {
 		_spec.SetField(paymentorder.FieldOrderType, field.TypeString, value)

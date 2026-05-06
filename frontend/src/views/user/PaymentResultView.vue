@@ -47,8 +47,16 @@
               <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.baseAmount') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">&#165;{{ baseAmount.toFixed(2) }}</span>
             </div>
-            <div v-if="order.fee_rate > 0" class="flex justify-between">
-              <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.fee') }} ({{ order.fee_rate }}%)</span>
+            <div v-if="order.fee_fixed > 0" class="flex justify-between">
+              <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fixedFee') }}</span>
+              <span class="font-medium text-gray-900 dark:text-white">&#165;{{ order.fee_fixed.toFixed(2) }}</span>
+            </div>
+            <div v-if="order.fee_rate_amount > 0" class="flex justify-between">
+              <span class="text-gray-500 dark:text-gray-400">{{ t('payment.rateFee') }} ({{ order.fee_rate }}%)</span>
+              <span class="font-medium text-gray-900 dark:text-white">&#165;{{ order.fee_rate_amount.toFixed(2) }}</span>
+            </div>
+            <div v-if="feeAmount > 0" class="flex justify-between">
+              <span class="text-gray-500 dark:text-gray-400">{{ t('payment.feeTotal') }}</span>
               <span class="font-medium text-gray-900 dark:text-white">&#165;{{ feeAmount.toFixed(2) }}</span>
             </div>
             <div class="flex justify-between">
@@ -139,15 +147,19 @@ const STATUS_REFRESH_MAX_ATTEMPTS = 15
 let statusRefreshTimer: ReturnType<typeof setTimeout> | null = null
 const refreshAttempts = ref(0)
 
-/** 充值金额 = pay_amount / (1 + fee_rate/100)，fee_rate=0 时等于 pay_amount */
+/** 基础金额优先使用订单原始金额；旧订单缺少拆分字段时按历史费率兜底。 */
 const baseAmount = computed(() => {
-  if (!order.value || order.value.fee_rate <= 0) return order.value?.pay_amount ?? 0
+  if (!order.value) return 0
+  if ((order.value.fee_amount || 0) > 0) return Math.round((order.value.pay_amount - order.value.fee_amount) * 100) / 100
+  if (order.value.fee_rate <= 0) return order.value.pay_amount
   return Math.round((order.value.pay_amount / (1 + order.value.fee_rate / 100)) * 100) / 100
 })
 
-/** 手续费 = pay_amount - baseAmount */
+/** 手续费优先使用新字段，老订单按实付与基础金额差值兜底。 */
 const feeAmount = computed(() => {
-  if (!order.value || order.value.fee_rate <= 0) return 0
+  if (!order.value) return 0
+  if ((order.value.fee_amount || 0) > 0) return order.value.fee_amount
+  if (order.value.fee_rate <= 0) return 0
   return Math.round((order.value.pay_amount - baseAmount.value) * 100) / 100
 })
 

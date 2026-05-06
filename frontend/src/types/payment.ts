@@ -18,7 +18,7 @@ export type OrderStatus =
   | 'REFUNDED'
   | 'REFUND_FAILED'
 
-export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay'
+export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay' | 'card' | 'link'
 
 export type OrderType = 'balance' | 'subscription'
 
@@ -33,10 +33,18 @@ export interface PaymentConfig {
   order_timeout_minutes: number
   balance_disabled: boolean
   balance_recharge_multiplier: number
+  recharge_fee_rate: number
+  method_fees: Record<string, MethodFeeConfig>
   enabled_payment_types: PaymentType[]
   help_image_url: string
   help_text: string
   stripe_publishable_key: string
+}
+
+export interface MethodFeeConfig {
+  enabled: boolean
+  fixed_fee: number
+  fee_rate: number
 }
 
 export interface MethodLimit {
@@ -45,6 +53,7 @@ export interface MethodLimit {
   daily_remaining: number
   single_min: number
   single_max: number
+  fee_fixed: number
   fee_rate: number
   available: boolean
 }
@@ -65,6 +74,7 @@ export interface CheckoutInfoResponse {
   balance_disabled: boolean
   balance_recharge_multiplier: number
   recharge_fee_rate: number
+  method_fees: Record<string, MethodFeeConfig>
   help_text: string
   help_image_url: string
   stripe_publishable_key: string
@@ -78,6 +88,9 @@ export interface PaymentOrder {
   amount: number
   pay_amount: number
   fee_rate: number
+  fee_fixed: number
+  fee_rate_amount: number
+  fee_amount: number
   payment_type: string
   out_trade_no: string
   status: OrderStatus
@@ -93,6 +106,12 @@ export interface PaymentOrder {
   refund_request_reason?: string
   plan_id?: number
   provider_instance_id?: string
+  payment_customer_id?: string
+  payment_invoice_id?: string
+  payment_invoice_url?: string
+  payment_invoice_pdf_url?: string
+  payment_invoice_status?: string
+  billing_snapshot?: Record<string, unknown>
 }
 
 export type PublicPaymentOrder = PaymentOrder
@@ -160,6 +179,24 @@ export interface CreateOrderRequest {
   openid?: string
   wechat_resume_token?: string
   is_mobile?: boolean
+  billing_info?: BillingInfo
+}
+
+export interface BillingAddress {
+  country?: string
+  line1?: string
+  line2?: string
+  city?: string
+  state?: string
+  postal_code?: string
+}
+
+export interface BillingInfo {
+  name?: string
+  email?: string
+  address?: BillingAddress
+  tax_id_type?: string
+  tax_id?: string
 }
 
 export type CreateOrderResultType = 'order_created' | 'oauth_required' | 'jsapi_ready'
@@ -188,8 +225,16 @@ export interface CreateOrderResult {
   pay_url?: string
   qr_code?: string
   client_secret?: string
+  customer_id?: string
+  invoice_id?: string
+  invoice_url?: string
+  invoice_pdf?: string
+  invoice_status?: string
   pay_amount: number
   fee_rate: number
+  fee_fixed: number
+  fee_rate_amount: number
+  fee_amount: number
   expires_at: string
   result_type?: CreateOrderResultType
   payment_type?: string
@@ -199,6 +244,16 @@ export interface CreateOrderResult {
   oauth?: WechatOAuthInfo
   jsapi?: WechatJSAPIPayload
   jsapi_payload?: WechatJSAPIPayload
+}
+
+export interface PaymentDocument {
+  type: 'invoice' | 'receipt' | string
+  url?: string
+  hosted_invoice_url?: string
+  invoice_pdf?: string
+  receipt_url?: string
+  invoice_id?: string
+  invoice_status?: string
 }
 
 export interface DashboardStats {

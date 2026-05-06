@@ -197,6 +197,75 @@ func TestParsePaymentConfig(t *testing.T) {
 			t.Fatalf("expected empty EnabledTypes for empty string, got %v", cfg.EnabledTypes)
 		}
 	})
+
+	t.Run("method fees override global default", func(t *testing.T) {
+		t.Parallel()
+		vals := map[string]string{
+			SettingRechargeFeeRate:   "3.00",
+			SettingPaymentMethodFees: `{"stripe":{"enabled":true,"fixed_fee":2.5,"fee_rate":2.2},"alipay":{"enabled":true,"fixed_fee":0,"fee_rate":0}}`,
+		}
+		cfg := svc.parsePaymentConfig(vals)
+		stripeFee := cfg.EffectiveMethodFee(payment.TypeStripe)
+		if stripeFee.FixedFee != 2.5 || stripeFee.FeeRate != 2.2 {
+			t.Fatalf("stripe fee = %+v, want fixed=2.5 rate=2.2", stripeFee)
+		}
+		alipayFee := cfg.EffectiveMethodFee(payment.TypeAlipay)
+		if alipayFee.FixedFee != 0 || alipayFee.FeeRate != 0 {
+			t.Fatalf("alipay fee = %+v, want zero override", alipayFee)
+		}
+		wxpayFee := cfg.EffectiveMethodFee(payment.TypeWxpay)
+		if wxpayFee.FixedFee != 0 || wxpayFee.FeeRate != 3 {
+			t.Fatalf("wxpay fee = %+v, want global rate fallback", wxpayFee)
+		}
+	})
+}
+
+func TestValidateMethodFeeSettings(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		fees    MethodFeeSettings
+		wantErr bool
+	}{
+		{
+			name: "valid method fees",
+			fees: MethodFeeSettings{"stripe": {Enabled: true, FixedFee: 2.5, FeeRate: 2.2}},
+		},
+		{
+			name:    "negative fixed fee",
+			fees:    MethodFeeSettings{"stripe": {Enabled: true, FixedFee: -0.01}},
+			wantErr: true,
+		},
+		{
+			name:    "fee rate over max",
+			fees:    MethodFeeSettings{"stripe": {Enabled: true, FeeRate: 100.01}},
+			wantErr: true,
+		},
+		{
+			name:    "too many decimals",
+			fees:    MethodFeeSettings{"stripe": {Enabled: true, FixedFee: 1.001}},
+			wantErr: true,
+		},
+		{
+			name:    "unsupported method",
+			fees:    MethodFeeSettings{"bitcoin": {Enabled: true}},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateMethodFeeSettings(tt.fees)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("expected nil error, got %v", err)
+			}
+		})
+	}
 }
 
 func TestGetBasePaymentType(t *testing.T) {

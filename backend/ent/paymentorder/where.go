@@ -90,6 +90,21 @@ func FeeRate(v float64) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeRate, v))
 }
 
+// FeeFixed applies equality check predicate on the "fee_fixed" field. It's identical to FeeFixedEQ.
+func FeeFixed(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeFixed, v))
+}
+
+// FeeRateAmount applies equality check predicate on the "fee_rate_amount" field. It's identical to FeeRateAmountEQ.
+func FeeRateAmount(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeRateAmount, v))
+}
+
+// FeeAmount applies equality check predicate on the "fee_amount" field. It's identical to FeeAmountEQ.
+func FeeAmount(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeAmount, v))
+}
+
 // RechargeCode applies equality check predicate on the "recharge_code" field. It's identical to RechargeCodeEQ.
 func RechargeCode(v string) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldEQ(FieldRechargeCode, v))
@@ -123,6 +138,31 @@ func QrCode(v string) predicate.PaymentOrder {
 // QrCodeImg applies equality check predicate on the "qr_code_img" field. It's identical to QrCodeImgEQ.
 func QrCodeImg(v string) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldEQ(FieldQrCodeImg, v))
+}
+
+// PaymentCustomerID applies equality check predicate on the "payment_customer_id" field. It's identical to PaymentCustomerIDEQ.
+func PaymentCustomerID(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldPaymentCustomerID, v))
+}
+
+// PaymentInvoiceID applies equality check predicate on the "payment_invoice_id" field. It's identical to PaymentInvoiceIDEQ.
+func PaymentInvoiceID(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldPaymentInvoiceID, v))
+}
+
+// PaymentInvoiceURL applies equality check predicate on the "payment_invoice_url" field. It's identical to PaymentInvoiceURLEQ.
+func PaymentInvoiceURL(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldPaymentInvoiceURL, v))
+}
+
+// PaymentInvoicePdfURL applies equality check predicate on the "payment_invoice_pdf_url" field. It's identical to PaymentInvoicePdfURLEQ.
+func PaymentInvoicePdfURL(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldPaymentInvoicePdfURL, v))
+}
+
+// PaymentInvoiceStatus applies equality check predicate on the "payment_invoice_status" field. It's identical to PaymentInvoiceStatusEQ.
+func PaymentInvoiceStatus(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldPaymentInvoiceStatus, v))
 }
 
 // OrderType applies equality check predicate on the "order_type" field. It's identical to OrderTypeEQ.
@@ -578,6 +618,126 @@ func FeeRateLT(v float64) predicate.PaymentOrder {
 // FeeRateLTE applies the LTE predicate on the "fee_rate" field.
 func FeeRateLTE(v float64) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldLTE(FieldFeeRate, v))
+}
+
+// FeeFixedEQ applies the EQ predicate on the "fee_fixed" field.
+func FeeFixedEQ(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeFixed, v))
+}
+
+// FeeFixedNEQ applies the NEQ predicate on the "fee_fixed" field.
+func FeeFixedNEQ(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldFeeFixed, v))
+}
+
+// FeeFixedIn applies the In predicate on the "fee_fixed" field.
+func FeeFixedIn(vs ...float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldFeeFixed, vs...))
+}
+
+// FeeFixedNotIn applies the NotIn predicate on the "fee_fixed" field.
+func FeeFixedNotIn(vs ...float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldFeeFixed, vs...))
+}
+
+// FeeFixedGT applies the GT predicate on the "fee_fixed" field.
+func FeeFixedGT(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldFeeFixed, v))
+}
+
+// FeeFixedGTE applies the GTE predicate on the "fee_fixed" field.
+func FeeFixedGTE(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldFeeFixed, v))
+}
+
+// FeeFixedLT applies the LT predicate on the "fee_fixed" field.
+func FeeFixedLT(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldFeeFixed, v))
+}
+
+// FeeFixedLTE applies the LTE predicate on the "fee_fixed" field.
+func FeeFixedLTE(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldFeeFixed, v))
+}
+
+// FeeRateAmountEQ applies the EQ predicate on the "fee_rate_amount" field.
+func FeeRateAmountEQ(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeRateAmount, v))
+}
+
+// FeeRateAmountNEQ applies the NEQ predicate on the "fee_rate_amount" field.
+func FeeRateAmountNEQ(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldFeeRateAmount, v))
+}
+
+// FeeRateAmountIn applies the In predicate on the "fee_rate_amount" field.
+func FeeRateAmountIn(vs ...float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldFeeRateAmount, vs...))
+}
+
+// FeeRateAmountNotIn applies the NotIn predicate on the "fee_rate_amount" field.
+func FeeRateAmountNotIn(vs ...float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldFeeRateAmount, vs...))
+}
+
+// FeeRateAmountGT applies the GT predicate on the "fee_rate_amount" field.
+func FeeRateAmountGT(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldFeeRateAmount, v))
+}
+
+// FeeRateAmountGTE applies the GTE predicate on the "fee_rate_amount" field.
+func FeeRateAmountGTE(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldFeeRateAmount, v))
+}
+
+// FeeRateAmountLT applies the LT predicate on the "fee_rate_amount" field.
+func FeeRateAmountLT(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldFeeRateAmount, v))
+}
+
+// FeeRateAmountLTE applies the LTE predicate on the "fee_rate_amount" field.
+func FeeRateAmountLTE(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldFeeRateAmount, v))
+}
+
+// FeeAmountEQ applies the EQ predicate on the "fee_amount" field.
+func FeeAmountEQ(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeAmount, v))
+}
+
+// FeeAmountNEQ applies the NEQ predicate on the "fee_amount" field.
+func FeeAmountNEQ(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldFeeAmount, v))
+}
+
+// FeeAmountIn applies the In predicate on the "fee_amount" field.
+func FeeAmountIn(vs ...float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldFeeAmount, vs...))
+}
+
+// FeeAmountNotIn applies the NotIn predicate on the "fee_amount" field.
+func FeeAmountNotIn(vs ...float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldFeeAmount, vs...))
+}
+
+// FeeAmountGT applies the GT predicate on the "fee_amount" field.
+func FeeAmountGT(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldFeeAmount, v))
+}
+
+// FeeAmountGTE applies the GTE predicate on the "fee_amount" field.
+func FeeAmountGTE(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldFeeAmount, v))
+}
+
+// FeeAmountLT applies the LT predicate on the "fee_amount" field.
+func FeeAmountLT(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldFeeAmount, v))
+}
+
+// FeeAmountLTE applies the LTE predicate on the "fee_amount" field.
+func FeeAmountLTE(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldFeeAmount, v))
 }
 
 // RechargeCodeEQ applies the EQ predicate on the "recharge_code" field.
@@ -1063,6 +1223,391 @@ func QrCodeImgEqualFold(v string) predicate.PaymentOrder {
 // QrCodeImgContainsFold applies the ContainsFold predicate on the "qr_code_img" field.
 func QrCodeImgContainsFold(v string) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldContainsFold(FieldQrCodeImg, v))
+}
+
+// PaymentCustomerIDEQ applies the EQ predicate on the "payment_customer_id" field.
+func PaymentCustomerIDEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldPaymentCustomerID, v))
+}
+
+// PaymentCustomerIDNEQ applies the NEQ predicate on the "payment_customer_id" field.
+func PaymentCustomerIDNEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldPaymentCustomerID, v))
+}
+
+// PaymentCustomerIDIn applies the In predicate on the "payment_customer_id" field.
+func PaymentCustomerIDIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldPaymentCustomerID, vs...))
+}
+
+// PaymentCustomerIDNotIn applies the NotIn predicate on the "payment_customer_id" field.
+func PaymentCustomerIDNotIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldPaymentCustomerID, vs...))
+}
+
+// PaymentCustomerIDGT applies the GT predicate on the "payment_customer_id" field.
+func PaymentCustomerIDGT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldPaymentCustomerID, v))
+}
+
+// PaymentCustomerIDGTE applies the GTE predicate on the "payment_customer_id" field.
+func PaymentCustomerIDGTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldPaymentCustomerID, v))
+}
+
+// PaymentCustomerIDLT applies the LT predicate on the "payment_customer_id" field.
+func PaymentCustomerIDLT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldPaymentCustomerID, v))
+}
+
+// PaymentCustomerIDLTE applies the LTE predicate on the "payment_customer_id" field.
+func PaymentCustomerIDLTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldPaymentCustomerID, v))
+}
+
+// PaymentCustomerIDContains applies the Contains predicate on the "payment_customer_id" field.
+func PaymentCustomerIDContains(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContains(FieldPaymentCustomerID, v))
+}
+
+// PaymentCustomerIDHasPrefix applies the HasPrefix predicate on the "payment_customer_id" field.
+func PaymentCustomerIDHasPrefix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasPrefix(FieldPaymentCustomerID, v))
+}
+
+// PaymentCustomerIDHasSuffix applies the HasSuffix predicate on the "payment_customer_id" field.
+func PaymentCustomerIDHasSuffix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasSuffix(FieldPaymentCustomerID, v))
+}
+
+// PaymentCustomerIDIsNil applies the IsNil predicate on the "payment_customer_id" field.
+func PaymentCustomerIDIsNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIsNull(FieldPaymentCustomerID))
+}
+
+// PaymentCustomerIDNotNil applies the NotNil predicate on the "payment_customer_id" field.
+func PaymentCustomerIDNotNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotNull(FieldPaymentCustomerID))
+}
+
+// PaymentCustomerIDEqualFold applies the EqualFold predicate on the "payment_customer_id" field.
+func PaymentCustomerIDEqualFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEqualFold(FieldPaymentCustomerID, v))
+}
+
+// PaymentCustomerIDContainsFold applies the ContainsFold predicate on the "payment_customer_id" field.
+func PaymentCustomerIDContainsFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContainsFold(FieldPaymentCustomerID, v))
+}
+
+// PaymentInvoiceIDEQ applies the EQ predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldPaymentInvoiceID, v))
+}
+
+// PaymentInvoiceIDNEQ applies the NEQ predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDNEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldPaymentInvoiceID, v))
+}
+
+// PaymentInvoiceIDIn applies the In predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldPaymentInvoiceID, vs...))
+}
+
+// PaymentInvoiceIDNotIn applies the NotIn predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDNotIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldPaymentInvoiceID, vs...))
+}
+
+// PaymentInvoiceIDGT applies the GT predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDGT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldPaymentInvoiceID, v))
+}
+
+// PaymentInvoiceIDGTE applies the GTE predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDGTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldPaymentInvoiceID, v))
+}
+
+// PaymentInvoiceIDLT applies the LT predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDLT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldPaymentInvoiceID, v))
+}
+
+// PaymentInvoiceIDLTE applies the LTE predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDLTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldPaymentInvoiceID, v))
+}
+
+// PaymentInvoiceIDContains applies the Contains predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDContains(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContains(FieldPaymentInvoiceID, v))
+}
+
+// PaymentInvoiceIDHasPrefix applies the HasPrefix predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDHasPrefix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasPrefix(FieldPaymentInvoiceID, v))
+}
+
+// PaymentInvoiceIDHasSuffix applies the HasSuffix predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDHasSuffix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasSuffix(FieldPaymentInvoiceID, v))
+}
+
+// PaymentInvoiceIDIsNil applies the IsNil predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDIsNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIsNull(FieldPaymentInvoiceID))
+}
+
+// PaymentInvoiceIDNotNil applies the NotNil predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDNotNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotNull(FieldPaymentInvoiceID))
+}
+
+// PaymentInvoiceIDEqualFold applies the EqualFold predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDEqualFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEqualFold(FieldPaymentInvoiceID, v))
+}
+
+// PaymentInvoiceIDContainsFold applies the ContainsFold predicate on the "payment_invoice_id" field.
+func PaymentInvoiceIDContainsFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContainsFold(FieldPaymentInvoiceID, v))
+}
+
+// PaymentInvoiceURLEQ applies the EQ predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldPaymentInvoiceURL, v))
+}
+
+// PaymentInvoiceURLNEQ applies the NEQ predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLNEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldPaymentInvoiceURL, v))
+}
+
+// PaymentInvoiceURLIn applies the In predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldPaymentInvoiceURL, vs...))
+}
+
+// PaymentInvoiceURLNotIn applies the NotIn predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLNotIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldPaymentInvoiceURL, vs...))
+}
+
+// PaymentInvoiceURLGT applies the GT predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLGT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldPaymentInvoiceURL, v))
+}
+
+// PaymentInvoiceURLGTE applies the GTE predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLGTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldPaymentInvoiceURL, v))
+}
+
+// PaymentInvoiceURLLT applies the LT predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLLT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldPaymentInvoiceURL, v))
+}
+
+// PaymentInvoiceURLLTE applies the LTE predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLLTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldPaymentInvoiceURL, v))
+}
+
+// PaymentInvoiceURLContains applies the Contains predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLContains(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContains(FieldPaymentInvoiceURL, v))
+}
+
+// PaymentInvoiceURLHasPrefix applies the HasPrefix predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLHasPrefix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasPrefix(FieldPaymentInvoiceURL, v))
+}
+
+// PaymentInvoiceURLHasSuffix applies the HasSuffix predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLHasSuffix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasSuffix(FieldPaymentInvoiceURL, v))
+}
+
+// PaymentInvoiceURLIsNil applies the IsNil predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLIsNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIsNull(FieldPaymentInvoiceURL))
+}
+
+// PaymentInvoiceURLNotNil applies the NotNil predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLNotNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotNull(FieldPaymentInvoiceURL))
+}
+
+// PaymentInvoiceURLEqualFold applies the EqualFold predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLEqualFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEqualFold(FieldPaymentInvoiceURL, v))
+}
+
+// PaymentInvoiceURLContainsFold applies the ContainsFold predicate on the "payment_invoice_url" field.
+func PaymentInvoiceURLContainsFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContainsFold(FieldPaymentInvoiceURL, v))
+}
+
+// PaymentInvoicePdfURLEQ applies the EQ predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldPaymentInvoicePdfURL, v))
+}
+
+// PaymentInvoicePdfURLNEQ applies the NEQ predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLNEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldPaymentInvoicePdfURL, v))
+}
+
+// PaymentInvoicePdfURLIn applies the In predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldPaymentInvoicePdfURL, vs...))
+}
+
+// PaymentInvoicePdfURLNotIn applies the NotIn predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLNotIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldPaymentInvoicePdfURL, vs...))
+}
+
+// PaymentInvoicePdfURLGT applies the GT predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLGT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldPaymentInvoicePdfURL, v))
+}
+
+// PaymentInvoicePdfURLGTE applies the GTE predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLGTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldPaymentInvoicePdfURL, v))
+}
+
+// PaymentInvoicePdfURLLT applies the LT predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLLT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldPaymentInvoicePdfURL, v))
+}
+
+// PaymentInvoicePdfURLLTE applies the LTE predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLLTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldPaymentInvoicePdfURL, v))
+}
+
+// PaymentInvoicePdfURLContains applies the Contains predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLContains(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContains(FieldPaymentInvoicePdfURL, v))
+}
+
+// PaymentInvoicePdfURLHasPrefix applies the HasPrefix predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLHasPrefix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasPrefix(FieldPaymentInvoicePdfURL, v))
+}
+
+// PaymentInvoicePdfURLHasSuffix applies the HasSuffix predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLHasSuffix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasSuffix(FieldPaymentInvoicePdfURL, v))
+}
+
+// PaymentInvoicePdfURLIsNil applies the IsNil predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLIsNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIsNull(FieldPaymentInvoicePdfURL))
+}
+
+// PaymentInvoicePdfURLNotNil applies the NotNil predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLNotNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotNull(FieldPaymentInvoicePdfURL))
+}
+
+// PaymentInvoicePdfURLEqualFold applies the EqualFold predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLEqualFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEqualFold(FieldPaymentInvoicePdfURL, v))
+}
+
+// PaymentInvoicePdfURLContainsFold applies the ContainsFold predicate on the "payment_invoice_pdf_url" field.
+func PaymentInvoicePdfURLContainsFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContainsFold(FieldPaymentInvoicePdfURL, v))
+}
+
+// PaymentInvoiceStatusEQ applies the EQ predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldPaymentInvoiceStatus, v))
+}
+
+// PaymentInvoiceStatusNEQ applies the NEQ predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusNEQ(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldPaymentInvoiceStatus, v))
+}
+
+// PaymentInvoiceStatusIn applies the In predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldPaymentInvoiceStatus, vs...))
+}
+
+// PaymentInvoiceStatusNotIn applies the NotIn predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusNotIn(vs ...string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldPaymentInvoiceStatus, vs...))
+}
+
+// PaymentInvoiceStatusGT applies the GT predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusGT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldPaymentInvoiceStatus, v))
+}
+
+// PaymentInvoiceStatusGTE applies the GTE predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusGTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldPaymentInvoiceStatus, v))
+}
+
+// PaymentInvoiceStatusLT applies the LT predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusLT(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldPaymentInvoiceStatus, v))
+}
+
+// PaymentInvoiceStatusLTE applies the LTE predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusLTE(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldPaymentInvoiceStatus, v))
+}
+
+// PaymentInvoiceStatusContains applies the Contains predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusContains(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContains(FieldPaymentInvoiceStatus, v))
+}
+
+// PaymentInvoiceStatusHasPrefix applies the HasPrefix predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusHasPrefix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasPrefix(FieldPaymentInvoiceStatus, v))
+}
+
+// PaymentInvoiceStatusHasSuffix applies the HasSuffix predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusHasSuffix(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldHasSuffix(FieldPaymentInvoiceStatus, v))
+}
+
+// PaymentInvoiceStatusIsNil applies the IsNil predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusIsNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIsNull(FieldPaymentInvoiceStatus))
+}
+
+// PaymentInvoiceStatusNotNil applies the NotNil predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusNotNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotNull(FieldPaymentInvoiceStatus))
+}
+
+// PaymentInvoiceStatusEqualFold applies the EqualFold predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusEqualFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEqualFold(FieldPaymentInvoiceStatus, v))
+}
+
+// PaymentInvoiceStatusContainsFold applies the ContainsFold predicate on the "payment_invoice_status" field.
+func PaymentInvoiceStatusContainsFold(v string) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldContainsFold(FieldPaymentInvoiceStatus, v))
+}
+
+// BillingSnapshotIsNil applies the IsNil predicate on the "billing_snapshot" field.
+func BillingSnapshotIsNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIsNull(FieldBillingSnapshot))
+}
+
+// BillingSnapshotNotNil applies the NotNil predicate on the "billing_snapshot" field.
+func BillingSnapshotNotNil() predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotNull(FieldBillingSnapshot))
 }
 
 // OrderTypeEQ applies the EQ predicate on the "order_type" field.

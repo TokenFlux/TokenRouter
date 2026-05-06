@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -142,10 +143,25 @@ func extractOutTradeNo(rawBody, providerKey string) string {
 		if err == nil {
 			return values.Get("out_trade_no")
 		}
+	case payment.TypeStripe:
+		return extractStripeOutTradeNo(rawBody)
 	}
-	// For other providers (Stripe, Alipay direct, WxPay direct), the registry
-	// typically has only one instance, so no instance lookup is needed.
+	// 其他直连渠道无法在验签前稳定解析订单号，继续走候选实例兜底。
 	return ""
+}
+
+func extractStripeOutTradeNo(rawBody string) string {
+	var payload struct {
+		Data struct {
+			Object struct {
+				Metadata map[string]string `json:"metadata"`
+			} `json:"object"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal([]byte(rawBody), &payload); err != nil {
+		return ""
+	}
+	return strings.TrimSpace(payload.Data.Object.Metadata["orderId"])
 }
 
 func verifyNotificationWithProviders(ctx context.Context, providers []payment.Provider, rawBody string, headers map[string]string) (string, *payment.PaymentNotification, error) {

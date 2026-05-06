@@ -28,6 +28,12 @@ const (
 	FieldPayAmount = "pay_amount"
 	// FieldFeeRate holds the string denoting the fee_rate field in the database.
 	FieldFeeRate = "fee_rate"
+	// FieldFeeFixed holds the string denoting the fee_fixed field in the database.
+	FieldFeeFixed = "fee_fixed"
+	// FieldFeeRateAmount holds the string denoting the fee_rate_amount field in the database.
+	FieldFeeRateAmount = "fee_rate_amount"
+	// FieldFeeAmount holds the string denoting the fee_amount field in the database.
+	FieldFeeAmount = "fee_amount"
 	// FieldRechargeCode holds the string denoting the recharge_code field in the database.
 	FieldRechargeCode = "recharge_code"
 	// FieldOutTradeNo holds the string denoting the out_trade_no field in the database.
@@ -42,6 +48,18 @@ const (
 	FieldQrCode = "qr_code"
 	// FieldQrCodeImg holds the string denoting the qr_code_img field in the database.
 	FieldQrCodeImg = "qr_code_img"
+	// FieldPaymentCustomerID holds the string denoting the payment_customer_id field in the database.
+	FieldPaymentCustomerID = "payment_customer_id"
+	// FieldPaymentInvoiceID holds the string denoting the payment_invoice_id field in the database.
+	FieldPaymentInvoiceID = "payment_invoice_id"
+	// FieldPaymentInvoiceURL holds the string denoting the payment_invoice_url field in the database.
+	FieldPaymentInvoiceURL = "payment_invoice_url"
+	// FieldPaymentInvoicePdfURL holds the string denoting the payment_invoice_pdf_url field in the database.
+	FieldPaymentInvoicePdfURL = "payment_invoice_pdf_url"
+	// FieldPaymentInvoiceStatus holds the string denoting the payment_invoice_status field in the database.
+	FieldPaymentInvoiceStatus = "payment_invoice_status"
+	// FieldBillingSnapshot holds the string denoting the billing_snapshot field in the database.
+	FieldBillingSnapshot = "billing_snapshot"
 	// FieldOrderType holds the string denoting the order_type field in the database.
 	FieldOrderType = "order_type"
 	// FieldPlanID holds the string denoting the plan_id field in the database.
@@ -113,6 +131,9 @@ var Columns = []string{
 	FieldAmount,
 	FieldPayAmount,
 	FieldFeeRate,
+	FieldFeeFixed,
+	FieldFeeRateAmount,
+	FieldFeeAmount,
 	FieldRechargeCode,
 	FieldOutTradeNo,
 	FieldPaymentType,
@@ -120,6 +141,12 @@ var Columns = []string{
 	FieldPayURL,
 	FieldQrCode,
 	FieldQrCodeImg,
+	FieldPaymentCustomerID,
+	FieldPaymentInvoiceID,
+	FieldPaymentInvoiceURL,
+	FieldPaymentInvoicePdfURL,
+	FieldPaymentInvoiceStatus,
+	FieldBillingSnapshot,
 	FieldOrderType,
 	FieldPlanID,
 	FieldPlanSnapshot,
@@ -163,6 +190,12 @@ var (
 	UserNameValidator func(string) error
 	// DefaultFeeRate holds the default value on creation for the "fee_rate" field.
 	DefaultFeeRate float64
+	// DefaultFeeFixed holds the default value on creation for the "fee_fixed" field.
+	DefaultFeeFixed float64
+	// DefaultFeeRateAmount holds the default value on creation for the "fee_rate_amount" field.
+	DefaultFeeRateAmount float64
+	// DefaultFeeAmount holds the default value on creation for the "fee_amount" field.
+	DefaultFeeAmount float64
 	// RechargeCodeValidator is a validator for the "recharge_code" field. It is called by the builders before save.
 	RechargeCodeValidator func(string) error
 	// DefaultOutTradeNo holds the default value on creation for the "out_trade_no" field.
@@ -173,6 +206,12 @@ var (
 	PaymentTypeValidator func(string) error
 	// PaymentTradeNoValidator is a validator for the "payment_trade_no" field. It is called by the builders before save.
 	PaymentTradeNoValidator func(string) error
+	// PaymentCustomerIDValidator is a validator for the "payment_customer_id" field. It is called by the builders before save.
+	PaymentCustomerIDValidator func(string) error
+	// PaymentInvoiceIDValidator is a validator for the "payment_invoice_id" field. It is called by the builders before save.
+	PaymentInvoiceIDValidator func(string) error
+	// PaymentInvoiceStatusValidator is a validator for the "payment_invoice_status" field. It is called by the builders before save.
+	PaymentInvoiceStatusValidator func(string) error
 	// DefaultOrderType holds the default value on creation for the "order_type" field.
 	DefaultOrderType string
 	// OrderTypeValidator is a validator for the "order_type" field. It is called by the builders before save.
@@ -246,6 +285,21 @@ func ByFeeRate(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldFeeRate, opts...).ToFunc()
 }
 
+// ByFeeFixed orders the results by the fee_fixed field.
+func ByFeeFixed(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFeeFixed, opts...).ToFunc()
+}
+
+// ByFeeRateAmount orders the results by the fee_rate_amount field.
+func ByFeeRateAmount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFeeRateAmount, opts...).ToFunc()
+}
+
+// ByFeeAmount orders the results by the fee_amount field.
+func ByFeeAmount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFeeAmount, opts...).ToFunc()
+}
+
 // ByRechargeCode orders the results by the recharge_code field.
 func ByRechargeCode(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldRechargeCode, opts...).ToFunc()
@@ -279,6 +333,31 @@ func ByQrCode(opts ...sql.OrderTermOption) OrderOption {
 // ByQrCodeImg orders the results by the qr_code_img field.
 func ByQrCodeImg(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldQrCodeImg, opts...).ToFunc()
+}
+
+// ByPaymentCustomerID orders the results by the payment_customer_id field.
+func ByPaymentCustomerID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPaymentCustomerID, opts...).ToFunc()
+}
+
+// ByPaymentInvoiceID orders the results by the payment_invoice_id field.
+func ByPaymentInvoiceID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPaymentInvoiceID, opts...).ToFunc()
+}
+
+// ByPaymentInvoiceURL orders the results by the payment_invoice_url field.
+func ByPaymentInvoiceURL(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPaymentInvoiceURL, opts...).ToFunc()
+}
+
+// ByPaymentInvoicePdfURL orders the results by the payment_invoice_pdf_url field.
+func ByPaymentInvoicePdfURL(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPaymentInvoicePdfURL, opts...).ToFunc()
+}
+
+// ByPaymentInvoiceStatus orders the results by the payment_invoice_status field.
+func ByPaymentInvoiceStatus(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPaymentInvoiceStatus, opts...).ToFunc()
 }
 
 // ByOrderType orders the results by the order_type field.

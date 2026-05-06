@@ -27,6 +27,7 @@ const (
 	SettingBalancePayDisabled  = "BALANCE_PAYMENT_DISABLED"
 	SettingBalanceRechargeMult = "BALANCE_RECHARGE_MULTIPLIER"
 	SettingRechargeFeeRate     = "RECHARGE_FEE_RATE"
+	SettingPaymentMethodFees   = "PAYMENT_METHOD_FEES"
 	SettingProductNamePrefix   = "PRODUCT_NAME_PREFIX"
 	SettingProductNameSuffix   = "PRODUCT_NAME_SUFFIX"
 	SettingHelpImageURL        = "PAYMENT_HELP_IMAGE_URL"
@@ -46,22 +47,23 @@ const (
 
 // PaymentConfig holds the payment system configuration.
 type PaymentConfig struct {
-	Enabled                   bool     `json:"enabled"`
-	MinAmount                 float64  `json:"min_amount"`
-	MaxAmount                 float64  `json:"max_amount"`
-	DailyLimit                float64  `json:"daily_limit"`
-	OrderTimeoutMin           int      `json:"order_timeout_minutes"`
-	MaxPendingOrders          int      `json:"max_pending_orders"`
-	EnabledTypes              []string `json:"enabled_payment_types"`
-	BalanceDisabled           bool     `json:"balance_disabled"`
-	BalanceRechargeMultiplier float64  `json:"balance_recharge_multiplier"`
-	RechargeFeeRate           float64  `json:"recharge_fee_rate"`
-	LoadBalanceStrategy       string   `json:"load_balance_strategy"`
-	ProductNamePrefix         string   `json:"product_name_prefix"`
-	ProductNameSuffix         string   `json:"product_name_suffix"`
-	HelpImageURL              string   `json:"help_image_url"`
-	HelpText                  string   `json:"help_text"`
-	StripePublishableKey      string   `json:"stripe_publishable_key,omitempty"`
+	Enabled                   bool              `json:"enabled"`
+	MinAmount                 float64           `json:"min_amount"`
+	MaxAmount                 float64           `json:"max_amount"`
+	DailyLimit                float64           `json:"daily_limit"`
+	OrderTimeoutMin           int               `json:"order_timeout_minutes"`
+	MaxPendingOrders          int               `json:"max_pending_orders"`
+	EnabledTypes              []string          `json:"enabled_payment_types"`
+	BalanceDisabled           bool              `json:"balance_disabled"`
+	BalanceRechargeMultiplier float64           `json:"balance_recharge_multiplier"`
+	RechargeFeeRate           float64           `json:"recharge_fee_rate"`
+	MethodFees                MethodFeeSettings `json:"method_fees"`
+	LoadBalanceStrategy       string            `json:"load_balance_strategy"`
+	ProductNamePrefix         string            `json:"product_name_prefix"`
+	ProductNameSuffix         string            `json:"product_name_suffix"`
+	HelpImageURL              string            `json:"help_image_url"`
+	HelpText                  string            `json:"help_text"`
+	StripePublishableKey      string            `json:"stripe_publishable_key,omitempty"`
 
 	// Cancel rate limit settings
 	CancelRateLimitEnabled bool   `json:"cancel_rate_limit_enabled"`
@@ -73,21 +75,22 @@ type PaymentConfig struct {
 
 // UpdatePaymentConfigRequest contains fields to update payment configuration.
 type UpdatePaymentConfigRequest struct {
-	Enabled                   *bool    `json:"enabled"`
-	MinAmount                 *float64 `json:"min_amount"`
-	MaxAmount                 *float64 `json:"max_amount"`
-	DailyLimit                *float64 `json:"daily_limit"`
-	OrderTimeoutMin           *int     `json:"order_timeout_minutes"`
-	MaxPendingOrders          *int     `json:"max_pending_orders"`
-	EnabledTypes              []string `json:"enabled_payment_types"`
-	BalanceDisabled           *bool    `json:"balance_disabled"`
-	BalanceRechargeMultiplier *float64 `json:"balance_recharge_multiplier"`
-	RechargeFeeRate           *float64 `json:"recharge_fee_rate"`
-	LoadBalanceStrategy       *string  `json:"load_balance_strategy"`
-	ProductNamePrefix         *string  `json:"product_name_prefix"`
-	ProductNameSuffix         *string  `json:"product_name_suffix"`
-	HelpImageURL              *string  `json:"help_image_url"`
-	HelpText                  *string  `json:"help_text"`
+	Enabled                   *bool             `json:"enabled"`
+	MinAmount                 *float64          `json:"min_amount"`
+	MaxAmount                 *float64          `json:"max_amount"`
+	DailyLimit                *float64          `json:"daily_limit"`
+	OrderTimeoutMin           *int              `json:"order_timeout_minutes"`
+	MaxPendingOrders          *int              `json:"max_pending_orders"`
+	EnabledTypes              []string          `json:"enabled_payment_types"`
+	BalanceDisabled           *bool             `json:"balance_disabled"`
+	BalanceRechargeMultiplier *float64          `json:"balance_recharge_multiplier"`
+	RechargeFeeRate           *float64          `json:"recharge_fee_rate"`
+	MethodFees                MethodFeeSettings `json:"method_fees"`
+	LoadBalanceStrategy       *string           `json:"load_balance_strategy"`
+	ProductNamePrefix         *string           `json:"product_name_prefix"`
+	ProductNameSuffix         *string           `json:"product_name_suffix"`
+	HelpImageURL              *string           `json:"help_image_url"`
+	HelpText                  *string           `json:"help_text"`
 
 	// Cancel rate limit settings
 	CancelRateLimitEnabled *bool   `json:"cancel_rate_limit_enabled"`
@@ -106,10 +109,21 @@ type UpdatePaymentConfigRequest struct {
 type MethodLimits struct {
 	PaymentType string  `json:"payment_type"`
 	FeeRate     float64 `json:"fee_rate"`
+	FixedFee    float64 `json:"fee_fixed"`
 	DailyLimit  float64 `json:"daily_limit"`
 	SingleMin   float64 `json:"single_min"`
 	SingleMax   float64 `json:"single_max"`
 }
+
+// MethodFeeConfig 表示单个可见支付渠道的手续费覆盖配置。
+type MethodFeeConfig struct {
+	Enabled  bool    `json:"enabled"`
+	FixedFee float64 `json:"fixed_fee"`
+	FeeRate  float64 `json:"fee_rate"`
+}
+
+// MethodFeeSettings 按可见支付渠道保存手续费覆盖配置。
+type MethodFeeSettings map[string]MethodFeeConfig
 
 // MethodLimitsResponse is the full response for the user-facing /limits API.
 // It includes per-method limits and the global widest range (union of all methods).
@@ -250,7 +264,7 @@ func (s *PaymentConfigService) GetPaymentConfig(ctx context.Context) (*PaymentCo
 	keys := []string{
 		SettingPaymentEnabled, SettingMinRechargeAmount, SettingMaxRechargeAmount,
 		SettingDailyRechargeLimit, SettingOrderTimeoutMinutes, SettingMaxPendingOrders,
-		SettingEnabledPaymentTypes, SettingBalancePayDisabled, SettingBalanceRechargeMult, SettingRechargeFeeRate, SettingLoadBalanceStrategy,
+		SettingEnabledPaymentTypes, SettingBalancePayDisabled, SettingBalanceRechargeMult, SettingRechargeFeeRate, SettingPaymentMethodFees, SettingLoadBalanceStrategy,
 		SettingProductNamePrefix, SettingProductNameSuffix,
 		SettingHelpImageURL, SettingHelpText,
 		SettingCancelRateLimitOn, SettingCancelRateLimitMax,
@@ -279,6 +293,7 @@ func (s *PaymentConfigService) parsePaymentConfig(vals map[string]string) *Payme
 		BalanceDisabled:           vals[SettingBalancePayDisabled] == "true",
 		BalanceRechargeMultiplier: normalizeBalanceRechargeMultiplier(pcParseFloat(vals[SettingBalanceRechargeMult], defaultBalanceRechargeMultiplier)),
 		RechargeFeeRate:           pcParseFloat(vals[SettingRechargeFeeRate], 0),
+		MethodFees:                parseMethodFeeSettings(vals[SettingPaymentMethodFees]),
 		LoadBalanceStrategy:       vals[SettingLoadBalanceStrategy],
 		ProductNamePrefix:         vals[SettingProductNamePrefix],
 		ProductNameSuffix:         vals[SettingProductNameSuffix],
@@ -327,6 +342,112 @@ func (s *PaymentConfigService) getStripePublishableKey(ctx context.Context) stri
 	return cfg[payment.ConfigKeyPublishableKey]
 }
 
+func parseMethodFeeSettings(raw string) MethodFeeSettings {
+	if strings.TrimSpace(raw) == "" {
+		return MethodFeeSettings{}
+	}
+	var settings MethodFeeSettings
+	if err := json.Unmarshal([]byte(raw), &settings); err != nil {
+		return MethodFeeSettings{}
+	}
+	out := MethodFeeSettings{}
+	for method, cfg := range settings {
+		method = NormalizeVisibleMethod(method)
+		if method == "" {
+			continue
+		}
+		if cfg.FixedFee < 0 || cfg.FeeRate < 0 {
+			continue
+		}
+		out[method] = MethodFeeConfig{
+			Enabled:  cfg.Enabled,
+			FixedFee: pcRound2(cfg.FixedFee),
+			FeeRate:  pcRound2(cfg.FeeRate),
+		}
+	}
+	return out
+}
+
+func formatMethodFeeSettings(settings MethodFeeSettings) string {
+	if settings == nil {
+		return ""
+	}
+	normalized := MethodFeeSettings{}
+	for method, cfg := range settings {
+		method = NormalizeVisibleMethod(method)
+		if method == "" {
+			continue
+		}
+		normalized[method] = MethodFeeConfig{
+			Enabled:  cfg.Enabled,
+			FixedFee: pcRound2(cfg.FixedFee),
+			FeeRate:  pcRound2(cfg.FeeRate),
+		}
+	}
+	if len(normalized) == 0 {
+		return "{}"
+	}
+	data, err := json.Marshal(normalized)
+	if err != nil {
+		return "{}"
+	}
+	return string(data)
+}
+
+func validateMethodFeeSettings(settings MethodFeeSettings) error {
+	for method, cfg := range settings {
+		if !isSupportedMethodFeeMethod(method) {
+			return infraerrors.BadRequest("INVALID_PAYMENT_METHOD_FEE", "payment method fee contains unsupported method")
+		}
+		if !pcValidMoney2(cfg.FixedFee) {
+			return infraerrors.BadRequest("INVALID_PAYMENT_METHOD_FEE", "fixed fee must be non-negative and allow at most 2 decimal places")
+		}
+		if !pcValidRate2(cfg.FeeRate) {
+			return infraerrors.BadRequest("INVALID_PAYMENT_METHOD_FEE", "fee rate must be between 0 and 100 and allow at most 2 decimal places")
+		}
+	}
+	return nil
+}
+
+func isSupportedMethodFeeMethod(method string) bool {
+	// 手续费配置只开放给用户可见的支付渠道，避免 easypay 等内部来源被误配。
+	switch NormalizeVisibleMethod(method) {
+	case payment.TypeStripe, payment.TypeAlipay, payment.TypeWxpay:
+		return true
+	default:
+		return false
+	}
+}
+
+func pcValidMoney2(v float64) bool {
+	if math.IsNaN(v) || math.IsInf(v, 0) || v < 0 {
+		return false
+	}
+	return math.Abs(math.Round(v*100)-v*100) < 1e-9
+}
+
+func pcValidRate2(v float64) bool {
+	return pcValidMoney2(v) && v <= 100
+}
+
+func pcRound2(v float64) float64 {
+	return math.Round(v*100) / 100
+}
+
+// EffectiveMethodFee 返回指定可见渠道最终生效的手续费配置。
+func (cfg *PaymentConfig) EffectiveMethodFee(method string) payment.FeeConfig {
+	method = NormalizeVisibleMethod(method)
+	if cfg == nil {
+		return payment.FeeConfig{}
+	}
+	if method != "" {
+		if methodFee, ok := cfg.MethodFees[method]; ok && methodFee.Enabled {
+			return payment.FeeConfig{FixedFee: methodFee.FixedFee, FeeRate: methodFee.FeeRate}
+		}
+	}
+	return payment.FeeConfig{FeeRate: cfg.RechargeFeeRate}
+}
+
 // UpdatePaymentConfig updates the payment configuration settings.
 // NOTE: This function exceeds 30 lines because each field requires an independent
 // nil-check before serialisation — this is inherent to patch-style update patterns
@@ -347,6 +468,11 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 			return infraerrors.BadRequest("INVALID_RECHARGE_FEE_RATE", "recharge fee rate allows at most 2 decimal places")
 		}
 	}
+	if req.MethodFees != nil {
+		if err := validateMethodFeeSettings(req.MethodFees); err != nil {
+			return err
+		}
+	}
 	m := map[string]string{
 		SettingPaymentEnabled:                    formatBoolOrEmpty(req.Enabled),
 		SettingMinRechargeAmount:                 formatPositiveFloat(req.MinAmount),
@@ -357,6 +483,7 @@ func (s *PaymentConfigService) UpdatePaymentConfig(ctx context.Context, req Upda
 		SettingBalancePayDisabled:                formatBoolOrEmpty(req.BalanceDisabled),
 		SettingBalanceRechargeMult:               formatPositiveFloat(req.BalanceRechargeMultiplier),
 		SettingRechargeFeeRate:                   formatNonNegativeFloat(req.RechargeFeeRate),
+		SettingPaymentMethodFees:                 formatMethodFeeSettings(req.MethodFees),
 		SettingLoadBalanceStrategy:               derefStr(req.LoadBalanceStrategy),
 		SettingProductNamePrefix:                 derefStr(req.ProductNamePrefix),
 		SettingProductNameSuffix:                 derefStr(req.ProductNameSuffix),

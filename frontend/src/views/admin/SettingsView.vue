@@ -4633,6 +4633,112 @@
                       }}
                     </p>
                   </div>
+                  <div class="col-span-2 sm:col-span-5">
+                    <div class="rounded-lg border border-gray-200 dark:border-dark-700">
+                      <div class="border-b border-gray-100 px-4 py-3 dark:border-dark-700">
+                        <p
+                          class="text-sm font-semibold text-gray-900 dark:text-white"
+                        >
+                          {{ t("admin.settings.payment.methodFeesTitle") }}
+                        </p>
+                        <p class="mt-0.5 text-xs text-gray-400">
+                          {{ t("admin.settings.payment.methodFeesHint") }}
+                        </p>
+                      </div>
+                      <div
+                        class="hidden grid-cols-[minmax(120px,1fr)_minmax(140px,180px)_minmax(140px,180px)_minmax(180px,1.2fr)] gap-4 bg-gray-50 px-4 py-2 text-xs font-medium text-gray-500 dark:bg-dark-800 dark:text-gray-400 md:grid"
+                      >
+                        <span>{{
+                          t("admin.settings.payment.paymentMethod")
+                        }}</span>
+                        <span>{{ t("admin.settings.payment.fixedFee") }}</span>
+                        <span>{{ t("admin.settings.payment.feeRate") }}</span>
+                        <span>{{
+                          t("admin.settings.payment.methodFeeResult")
+                        }}</span>
+                      </div>
+                      <div class="divide-y divide-gray-100 dark:divide-dark-700">
+                        <div
+                          v-for="method in paymentMethodFeeOptions"
+                          :key="method.value"
+                          class="grid gap-3 px-4 py-3 md:grid-cols-[minmax(120px,1fr)_minmax(140px,180px)_minmax(140px,180px)_minmax(180px,1.2fr)] md:items-center md:gap-4"
+                        >
+                          <label
+                            class="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+                          >
+                            <input
+                              type="checkbox"
+                              class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                              :checked="methodFeeEnabled(method.value)"
+                              @change="setMethodFeeEnabled(method.value, ($event.target as HTMLInputElement).checked)"
+                            />
+                            {{ method.label }}
+                          </label>
+                          <div class="min-w-0">
+                            <label
+                              class="mb-1 block text-xs text-gray-500 dark:text-gray-400 md:hidden"
+                              >{{ t("admin.settings.payment.fixedFee") }}</label
+                            >
+                            <div class="relative">
+                              <span
+                                class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"
+                                >¥</span
+                              >
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                class="input h-10 w-full pl-8"
+                                :disabled="!methodFeeEnabled(method.value)"
+                                :value="methodFeeValue(method.value, 'fixed_fee')"
+                                @input="setMethodFeeValue(method.value, 'fixed_fee', ($event.target as HTMLInputElement).value)"
+                              />
+                            </div>
+                          </div>
+                          <div class="min-w-0">
+                            <label
+                              class="mb-1 block text-xs text-gray-500 dark:text-gray-400 md:hidden"
+                              >{{ t("admin.settings.payment.feeRate") }}</label
+                            >
+                            <div class="relative">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                max="100"
+                                class="input h-10 w-full pr-8"
+                                :disabled="!methodFeeEnabled(method.value)"
+                                :value="methodFeeValue(method.value, 'fee_rate')"
+                                @input="setMethodFeeValue(method.value, 'fee_rate', ($event.target as HTMLInputElement).value)"
+                              />
+                              <span
+                                class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400"
+                                >%</span
+                              >
+                            </div>
+                          </div>
+                          <div class="min-w-0 text-xs">
+                            <p
+                              class="mb-1 text-gray-500 dark:text-gray-400 md:hidden"
+                            >
+                              {{ t("admin.settings.payment.methodFeeResult") }}
+                            </p>
+                            <p
+                              :class="methodFeeEnabled(method.value)
+                                ? 'font-medium text-primary-600 dark:text-primary-400'
+                                : 'text-gray-400 dark:text-gray-500'"
+                            >
+                              {{
+                                methodFeeEnabled(method.value)
+                                  ? methodFeePreview(method.value)
+                                  : t("admin.settings.payment.methodFeeFallback")
+                              }}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <div>
                     <label class="input-label"
                       >{{ t("admin.settings.payment.orderTimeout") }}
@@ -4828,6 +4934,9 @@
                     <label class="input-label">{{
                       t("admin.settings.payment.helpText")
                     }}</label>
+                    <p class="mb-1 text-xs text-gray-400">
+                      {{ t("admin.settings.payment.helpTextHint") }}
+                    </p>
                     <textarea
                       v-model="form.payment_help_text"
                       rows="3"
@@ -5340,6 +5449,7 @@ import type {
   WebSearchEmulationConfig,
   WebSearchProviderConfig,
   WebSearchTestResult,
+  PaymentMethodFeeConfig,
 } from "@/api/admin/settings";
 import type { Proxy, NotifyEmailEntry } from "@/types";
 import type { ProviderInstance, SubscriptionPlan } from "@/types/payment";
@@ -5423,6 +5533,11 @@ const testEmailAddress = ref("");
 const registrationEmailSuffixWhitelistTags = ref<string[]>([]);
 const registrationEmailSuffixWhitelistDraft = ref("");
 const tablePageSizeOptionsInput = ref("10, 20, 50, 100");
+const paymentMethodFeeOptions = [
+  { value: "stripe", label: "Stripe" },
+  { value: "alipay", label: "支付宝" },
+  { value: "wxpay", label: "微信支付" },
+] as const;
 
 // Admin API Key 状态
 const adminApiKeyLoading = ref(true);
@@ -5584,6 +5699,7 @@ const form = reactive<SettingsForm>({
   payment_balance_disabled: false,
   payment_balance_recharge_multiplier: 1,
   payment_recharge_fee_rate: 0,
+  payment_method_fees: {},
   payment_enabled_types: [],
   payment_help_image_url: "",
   payment_help_text: "",
@@ -5718,6 +5834,51 @@ const {
   iconSvg: computed(() => form.balance_icon_svg),
 });
 const previewBalanceAmount = computed(() => formatPreviewBalanceAmount(123.45));
+
+function defaultPaymentMethodFee(enabled = false): PaymentMethodFeeConfig {
+  return { enabled, fixed_fee: 0, fee_rate: 0 };
+}
+
+function ensurePaymentMethodFee(method: string): PaymentMethodFeeConfig {
+  if (!form.payment_method_fees) form.payment_method_fees = {};
+  if (!form.payment_method_fees[method]) {
+    form.payment_method_fees[method] = defaultPaymentMethodFee(false);
+  }
+  return form.payment_method_fees[method];
+}
+
+function methodFeeEnabled(method: string): boolean {
+  return ensurePaymentMethodFee(method).enabled;
+}
+
+function setMethodFeeEnabled(method: string, enabled: boolean) {
+  ensurePaymentMethodFee(method).enabled = enabled;
+}
+
+function normalizeFeeInput(value: string, max = Number.POSITIVE_INFINITY): number {
+  const parsed = Number.parseFloat(value || "0");
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.min(max, Math.max(0, Math.round(parsed * 100) / 100));
+}
+
+function methodFeeValue(method: string, field: "fixed_fee" | "fee_rate"): number {
+  return ensurePaymentMethodFee(method)[field] || 0;
+}
+
+function setMethodFeeValue(method: string, field: "fixed_fee" | "fee_rate", value: string) {
+  ensurePaymentMethodFee(method)[field] = normalizeFeeInput(value, field === "fee_rate" ? 100 : Number.POSITIVE_INFINITY);
+}
+
+function methodFeePreview(method: string): string {
+  const cfg = ensurePaymentMethodFee(method);
+  const base = 100;
+  const rateFee = Math.ceil(((base * (Number(cfg.fee_rate) || 0)) / 100) * 100 - 1e-9) / 100;
+  const totalFee = Math.round(((Number(cfg.fixed_fee) || 0) + rateFee + Number.EPSILON) * 100) / 100;
+  return t("admin.settings.payment.methodFeePreview", {
+    fee: totalFee.toFixed(2),
+    amount: (base + totalFee).toFixed(2),
+  });
+}
 
 const authSourceDefaults = reactive<AuthSourceDefaultsState>(
   buildAuthSourceDefaultsState({}),
@@ -6661,6 +6822,7 @@ async function saveSettings() {
       payment_balance_recharge_multiplier:
         Number(form.payment_balance_recharge_multiplier) || 1,
       payment_recharge_fee_rate: Number(form.payment_recharge_fee_rate) || 0,
+      payment_method_fees: form.payment_method_fees,
       payment_enabled_types: form.payment_enabled_types,
       payment_load_balance_strategy: form.payment_load_balance_strategy,
       payment_product_name_prefix: form.payment_product_name_prefix,

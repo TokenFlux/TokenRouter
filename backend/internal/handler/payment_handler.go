@@ -149,6 +149,7 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 		BalanceDisabled:           cfg.BalanceDisabled,
 		BalanceRechargeMultiplier: cfg.BalanceRechargeMultiplier,
 		RechargeFeeRate:           cfg.RechargeFeeRate,
+		MethodFees:                cfg.MethodFees,
 		HelpText:                  cfg.HelpText,
 		HelpImageURL:              cfg.HelpImageURL,
 		StripePublishableKey:      cfg.StripePublishableKey,
@@ -163,6 +164,7 @@ type checkoutInfoResponse struct {
 	BalanceDisabled           bool                            `json:"balance_disabled"`
 	BalanceRechargeMultiplier float64                         `json:"balance_recharge_multiplier"`
 	RechargeFeeRate           float64                         `json:"recharge_fee_rate"`
+	MethodFees                service.MethodFeeSettings       `json:"method_fees"`
 	HelpText                  string                          `json:"help_text"`
 	HelpImageURL              string                          `json:"help_image_url"`
 	StripePublishableKey      string                          `json:"stripe_publishable_key"`
@@ -217,14 +219,15 @@ func (h *PaymentHandler) GetLimits(c *gin.Context) {
 
 // CreateOrderRequest is the request body for creating a payment order.
 type CreateOrderRequest struct {
-	Amount            float64 `json:"amount"`
-	PaymentType       string  `json:"payment_type" binding:"required"`
-	OpenID            string  `json:"openid"`
-	WechatResumeToken string  `json:"wechat_resume_token"`
-	ReturnURL         string  `json:"return_url"`
-	PaymentSource     string  `json:"payment_source"`
-	OrderType         string  `json:"order_type"`
-	PlanID            int64   `json:"plan_id"`
+	Amount            float64              `json:"amount"`
+	PaymentType       string               `json:"payment_type" binding:"required"`
+	OpenID            string               `json:"openid"`
+	WechatResumeToken string               `json:"wechat_resume_token"`
+	ReturnURL         string               `json:"return_url"`
+	PaymentSource     string               `json:"payment_source"`
+	OrderType         string               `json:"order_type"`
+	PlanID            int64                `json:"plan_id"`
+	BillingInfo       *payment.BillingInfo `json:"billing_info"`
 	// IsMobile lets the frontend declare its mobile status directly. When
 	// nil we fall back to User-Agent heuristics (which miss iPadOS / some
 	// embedded browsers that strip the "Mobile" keyword).
@@ -274,6 +277,7 @@ func (h *PaymentHandler) CreateOrder(c *gin.Context) {
 		PaymentSource:   req.PaymentSource,
 		OrderType:       req.OrderType,
 		PlanID:          req.PlanID,
+		BillingInfo:     req.BillingInfo,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -363,6 +367,28 @@ func (h *PaymentHandler) GetOrder(c *gin.Context) {
 		return
 	}
 	response.Success(c, sanitizePaymentOrderForResponse(order))
+}
+
+// GetOrderInvoice 返回当前用户订单的 invoice 或历史 receipt 链接。
+// GET /api/v1/payment/orders/:id/invoice
+func (h *PaymentHandler) GetOrderInvoice(c *gin.Context) {
+	subject, ok := requireAuth(c)
+	if !ok {
+		return
+	}
+
+	orderID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid order ID")
+		return
+	}
+
+	doc, err := h.paymentService.GetOrderPaymentDocument(c.Request.Context(), orderID, subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, doc)
 }
 
 // CancelOrder cancels a pending order for the authenticated user.
@@ -469,6 +495,9 @@ type PublicOrderResult struct {
 	Amount              float64    `json:"amount"`
 	PayAmount           float64    `json:"pay_amount"`
 	FeeRate             float64    `json:"fee_rate"`
+	FeeFixed            float64    `json:"fee_fixed"`
+	FeeRateAmount       float64    `json:"fee_rate_amount"`
+	FeeAmount           float64    `json:"fee_amount"`
 	PaymentType         string     `json:"payment_type"`
 	OrderType           string     `json:"order_type"`
 	Status              string     `json:"status"`
@@ -491,6 +520,9 @@ func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
 		Amount:              order.Amount,
 		PayAmount:           order.PayAmount,
 		FeeRate:             order.FeeRate,
+		FeeFixed:            order.FeeFixed,
+		FeeRateAmount:       order.FeeRateAmount,
+		FeeAmount:           order.FeeAmount,
 		PaymentType:         order.PaymentType,
 		OrderType:           order.OrderType,
 		Status:              order.Status,

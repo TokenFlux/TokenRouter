@@ -86,6 +86,21 @@ func (h *PaymentHandler) GetOrderDetail(c *gin.Context) {
 	response.Success(c, gin.H{"order": sanitizeAdminPaymentOrderForResponse(order), "auditLogs": auditLogs})
 }
 
+// GetOrderInvoice 返回管理员查看订单时使用的 invoice 或 receipt 链接。
+// GET /api/v1/admin/payment/orders/:id/invoice
+func (h *PaymentHandler) GetOrderInvoice(c *gin.Context) {
+	orderID, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	doc, err := h.paymentService.AdminGetOrderPaymentDocument(c.Request.Context(), orderID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, doc)
+}
+
 // CancelOrder cancels a pending order (admin).
 // POST /api/v1/admin/payment/orders/:id/cancel
 func (h *PaymentHandler) CancelOrder(c *gin.Context) {

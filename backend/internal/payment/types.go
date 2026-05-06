@@ -105,6 +105,27 @@ type CreatePaymentRequest struct {
 	ClientIP           string // Payer's IP address
 	IsMobile           bool   // Whether the request comes from a mobile device
 	InstanceSubMethods string // Comma-separated sub-methods from instance supported_types (for Stripe)
+	UserEmail          string // 从本地用户资料复制的付款人邮箱
+	BillingInfo        *BillingInfo
+}
+
+// BillingAddress 保存付款人填写的可选账单地址。
+type BillingAddress struct {
+	Country    string `json:"country,omitempty"`
+	Line1      string `json:"line1,omitempty"`
+	Line2      string `json:"line2,omitempty"`
+	City       string `json:"city,omitempty"`
+	State      string `json:"state,omitempty"`
+	PostalCode string `json:"postal_code,omitempty"`
+}
+
+// BillingInfo 是传给支付渠道的开票抬头和联系方式快照。
+type BillingInfo struct {
+	Name      string          `json:"name,omitempty"`
+	Email     string          `json:"email,omitempty"`
+	Address   *BillingAddress `json:"address,omitempty"`
+	TaxIDType string          `json:"tax_id_type,omitempty"`
+	TaxID     string          `json:"tax_id,omitempty"`
 }
 
 // CreatePaymentResultType describes the shape of the create-payment result.
@@ -138,13 +159,18 @@ type WechatJSAPIPayload struct {
 
 // CreatePaymentResponse is returned after successfully initiating a payment.
 type CreatePaymentResponse struct {
-	TradeNo      string                  // Third-party transaction ID
-	PayURL       string                  // H5 payment URL (alipay/wxpay)
-	QRCode       string                  // QR code content for scanning
-	ClientSecret string                  // Stripe PaymentIntent client secret
-	ResultType   CreatePaymentResultType // Typed result contract for frontend flows
-	OAuth        *WechatOAuthInfo        // WeChat OAuth bootstrap payload when required
-	JSAPI        *WechatJSAPIPayload     // WeChat JSAPI invocation payload when ready
+	TradeNo       string                  // Third-party transaction ID
+	PayURL        string                  // H5 payment URL (alipay/wxpay)
+	QRCode        string                  // QR code content for scanning
+	ClientSecret  string                  // Stripe PaymentIntent client secret
+	CustomerID    string                  // 账单型支付渠道的客户 ID
+	InvoiceID     string                  // 支付渠道账单 ID
+	InvoiceURL    string                  // 托管账单页面 URL
+	InvoicePDF    string                  // 账单 PDF URL
+	InvoiceStatus string                  // 支付渠道账单状态
+	ResultType    CreatePaymentResultType // Typed result contract for frontend flows
+	OAuth         *WechatOAuthInfo        // WeChat OAuth bootstrap payload when required
+	JSAPI         *WechatJSAPIPayload     // WeChat JSAPI invocation payload when ready
 }
 
 // QueryOrderResponse describes the payment status from the upstream provider.
@@ -164,6 +190,17 @@ type PaymentNotification struct {
 	Status   string // "success" or "failed"
 	RawData  string // Raw notification body for audit
 	Metadata map[string]string
+}
+
+// PaymentDocumentResponse 描述用户可打开的账单或收据链接。
+type PaymentDocumentResponse struct {
+	Type             string `json:"type"`
+	URL              string `json:"url,omitempty"`
+	HostedInvoiceURL string `json:"hosted_invoice_url,omitempty"`
+	InvoicePDF       string `json:"invoice_pdf,omitempty"`
+	ReceiptURL       string `json:"receipt_url,omitempty"`
+	InvoiceID        string `json:"invoice_id,omitempty"`
+	InvoiceStatus    string `json:"invoice_status,omitempty"`
 }
 
 // RefundRequest contains the parameters for requesting a refund.
@@ -213,6 +250,13 @@ type CancelableProvider interface {
 	Provider
 	// CancelPayment cancels/expires a pending payment on the upstream platform.
 	CancelPayment(ctx context.Context, tradeNo string) error
+}
+
+// DocumentProvider 暴露已完成或历史订单的账单/收据链接。
+type DocumentProvider interface {
+	Provider
+	// GetPaymentDocument 优先返回 invoice，不存在时返回渠道收据。
+	GetPaymentDocument(ctx context.Context, invoiceID string, tradeNo string) (*PaymentDocumentResponse, error)
 }
 
 // MerchantIdentityProvider exposes the current non-sensitive merchant identity

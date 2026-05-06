@@ -101,7 +101,7 @@ func (s *PaymentService) confirmPayment(ctx context.Context, oid int64, tradeNo 
 		s.writeAuditLog(ctx, o.ID, "PAYMENT_AMOUNT_MISMATCH", pk, map[string]any{"expected": o.PayAmount, "paid": paid, "tradeNo": tradeNo})
 		return fmt.Errorf("amount mismatch: expected %.2f, got %.2f", o.PayAmount, paid)
 	}
-	return s.toPaid(ctx, o, tradeNo, paid, pk)
+	return s.toPaid(ctx, o, tradeNo, paid, pk, metadata)
 }
 
 func isValidProviderAmount(amount float64) bool {
@@ -127,11 +127,16 @@ func expectedNotificationProviderKey(registry *payment.Registry, orderPaymentTyp
 	return strings.TrimSpace(orderPaymentType)
 }
 
-func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, tradeNo string, paid float64, pk string) error {
+func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, tradeNo string, paid float64, pk string, metadata map[string]string) error {
 	previousStatus := o.Status
 	now := time.Now()
 	grace := now.Add(-paymentGraceMinutes * time.Minute)
-	c, err := s.entClient.PaymentOrder.Update().Where(
+	if payment.GetBasePaymentType(pk) == payment.TypeStripe &&
+		strings.HasPrefix(strings.TrimSpace(tradeNo), "in_") &&
+		strings.HasPrefix(strings.TrimSpace(o.PaymentTradeNo), "pi_") {
+		tradeNo = o.PaymentTradeNo
+	}
+	update := s.entClient.PaymentOrder.Update().Where(
 		paymentorder.IDEQ(o.ID),
 		paymentorder.Or(
 			paymentorder.StatusEQ(OrderStatusPending),
@@ -141,7 +146,22 @@ func (s *PaymentService) toPaid(ctx context.Context, o *dbent.PaymentOrder, trad
 				paymentorder.UpdatedAtGTE(grace),
 			),
 		),
-	).SetStatus(OrderStatusPaid).SetPayAmount(paid).SetPaymentTradeNo(tradeNo).SetPaidAt(now).ClearFailedAt().ClearFailedReason().Save(ctx)
+	).SetStatus(OrderStatusPaid).SetPayAmount(paid).SetPaymentTradeNo(tradeNo).SetPaidAt(now).ClearFailedAt().ClearFailedReason()
+	if metadata != nil {
+		if strings.TrimSpace(metadata["invoice_id"]) != "" {
+			update = update.SetPaymentInvoiceID(metadata["invoice_id"])
+		}
+		if strings.TrimSpace(metadata["invoice_url"]) != "" {
+			update = update.SetPaymentInvoiceURL(metadata["invoice_url"])
+		}
+		if strings.TrimSpace(metadata["invoice_pdf"]) != "" {
+			update = update.SetPaymentInvoicePdfURL(metadata["invoice_pdf"])
+		}
+		if strings.TrimSpace(metadata["invoice_status"]) != "" {
+			update = update.SetPaymentInvoiceStatus(metadata["invoice_status"])
+		}
+	}
+	c, err := update.Save(ctx)
 	if err != nil {
 		return fmt.Errorf("update to PAID: %w", err)
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand/v2"
+	"net/mail"
 	"os"
 	"strings"
 	"sync"
@@ -16,6 +17,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/paymentproviderinstance"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	"github.com/TokenFlux/TokenRouter/internal/payment/provider"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 )
 
 // --- Order Status Constants ---
@@ -83,26 +85,35 @@ type CreateOrderRequest struct {
 	PaymentSource   string
 	OrderType       string
 	PlanID          int64
+	BillingInfo     *payment.BillingInfo
 }
 
 type CreateOrderResponse struct {
-	OrderID      int64                           `json:"order_id"`
-	Amount       float64                         `json:"amount"`
-	PayAmount    float64                         `json:"pay_amount"`
-	FeeRate      float64                         `json:"fee_rate"`
-	Status       string                          `json:"status"`
-	ResultType   payment.CreatePaymentResultType `json:"result_type,omitempty"`
-	PaymentType  string                          `json:"payment_type"`
-	OutTradeNo   string                          `json:"out_trade_no,omitempty"`
-	PayURL       string                          `json:"pay_url,omitempty"`
-	QRCode       string                          `json:"qr_code,omitempty"`
-	ClientSecret string                          `json:"client_secret,omitempty"`
-	OAuth        *payment.WechatOAuthInfo        `json:"oauth,omitempty"`
-	JSAPI        *payment.WechatJSAPIPayload     `json:"jsapi,omitempty"`
-	JSAPIPayload *payment.WechatJSAPIPayload     `json:"jsapi_payload,omitempty"`
-	ExpiresAt    time.Time                       `json:"expires_at"`
-	PaymentMode  string                          `json:"payment_mode,omitempty"`
-	ResumeToken  string                          `json:"resume_token,omitempty"`
+	OrderID       int64                           `json:"order_id"`
+	Amount        float64                         `json:"amount"`
+	PayAmount     float64                         `json:"pay_amount"`
+	FeeRate       float64                         `json:"fee_rate"`
+	FeeFixed      float64                         `json:"fee_fixed"`
+	FeeRateAmount float64                         `json:"fee_rate_amount"`
+	FeeAmount     float64                         `json:"fee_amount"`
+	Status        string                          `json:"status"`
+	ResultType    payment.CreatePaymentResultType `json:"result_type,omitempty"`
+	PaymentType   string                          `json:"payment_type"`
+	OutTradeNo    string                          `json:"out_trade_no,omitempty"`
+	PayURL        string                          `json:"pay_url,omitempty"`
+	QRCode        string                          `json:"qr_code,omitempty"`
+	ClientSecret  string                          `json:"client_secret,omitempty"`
+	CustomerID    string                          `json:"customer_id,omitempty"`
+	InvoiceID     string                          `json:"invoice_id,omitempty"`
+	InvoiceURL    string                          `json:"invoice_url,omitempty"`
+	InvoicePDF    string                          `json:"invoice_pdf,omitempty"`
+	InvoiceStatus string                          `json:"invoice_status,omitempty"`
+	OAuth         *payment.WechatOAuthInfo        `json:"oauth,omitempty"`
+	JSAPI         *payment.WechatJSAPIPayload     `json:"jsapi,omitempty"`
+	JSAPIPayload  *payment.WechatJSAPIPayload     `json:"jsapi_payload,omitempty"`
+	ExpiresAt     time.Time                       `json:"expires_at"`
+	PaymentMode   string                          `json:"payment_mode,omitempty"`
+	ResumeToken   string                          `json:"resume_token,omitempty"`
 }
 
 type OrderListParams struct {
@@ -259,6 +270,104 @@ func psNilIfEmpty(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+func psTrimBillingInfo(info *payment.BillingInfo) *payment.BillingInfo {
+	if info == nil {
+		return nil
+	}
+	trimmed := &payment.BillingInfo{
+		Name:      strings.TrimSpace(info.Name),
+		Email:     strings.TrimSpace(info.Email),
+		TaxIDType: strings.TrimSpace(info.TaxIDType),
+		TaxID:     strings.TrimSpace(info.TaxID),
+	}
+	if info.Address != nil {
+		addr := &payment.BillingAddress{
+			Country:    strings.ToUpper(strings.TrimSpace(info.Address.Country)),
+			Line1:      strings.TrimSpace(info.Address.Line1),
+			Line2:      strings.TrimSpace(info.Address.Line2),
+			City:       strings.TrimSpace(info.Address.City),
+			State:      strings.TrimSpace(info.Address.State),
+			PostalCode: strings.TrimSpace(info.Address.PostalCode),
+		}
+		if addr.Country != "" || addr.Line1 != "" || addr.Line2 != "" || addr.City != "" || addr.State != "" || addr.PostalCode != "" {
+			trimmed.Address = addr
+		}
+	}
+	if trimmed.Name == "" && trimmed.Email == "" && trimmed.Address == nil && trimmed.TaxIDType == "" && trimmed.TaxID == "" {
+		return nil
+	}
+	return trimmed
+}
+
+func psBillingInfoSnapshot(info *payment.BillingInfo) map[string]any {
+	info = psTrimBillingInfo(info)
+	if info == nil {
+		return nil
+	}
+	snapshot := map[string]any{}
+	if info.Name != "" {
+		snapshot["name"] = info.Name
+	}
+	if info.Email != "" {
+		snapshot["email"] = info.Email
+	}
+	if info.TaxIDType != "" {
+		snapshot["tax_id_type"] = info.TaxIDType
+	}
+	if info.TaxID != "" {
+		snapshot["tax_id"] = info.TaxID
+	}
+	if info.Address != nil {
+		address := map[string]any{}
+		if info.Address.Country != "" {
+			address["country"] = info.Address.Country
+		}
+		if info.Address.Line1 != "" {
+			address["line1"] = info.Address.Line1
+		}
+		if info.Address.Line2 != "" {
+			address["line2"] = info.Address.Line2
+		}
+		if info.Address.City != "" {
+			address["city"] = info.Address.City
+		}
+		if info.Address.State != "" {
+			address["state"] = info.Address.State
+		}
+		if info.Address.PostalCode != "" {
+			address["postal_code"] = info.Address.PostalCode
+		}
+		if len(address) > 0 {
+			snapshot["address"] = address
+		}
+	}
+	return snapshot
+}
+
+func psValidateBillingInfo(info *payment.BillingInfo, fallbackEmail string) error {
+	info = psTrimBillingInfo(info)
+	if info == nil {
+		return infraerrors.BadRequest("BILLING_INFO_REQUIRED", "billing info is required for Stripe invoice")
+	}
+	if strings.TrimSpace(info.Name) == "" {
+		return infraerrors.BadRequest("BILLING_NAME_REQUIRED", "billing name is required")
+	}
+	email := strings.TrimSpace(info.Email)
+	if email == "" {
+		email = strings.TrimSpace(fallbackEmail)
+	}
+	if email == "" {
+		return infraerrors.BadRequest("BILLING_EMAIL_REQUIRED", "billing email is required")
+	}
+	if _, err := mail.ParseAddress(email); err != nil {
+		return infraerrors.BadRequest("BILLING_EMAIL_INVALID", "billing email is invalid")
+	}
+	if (strings.TrimSpace(info.TaxIDType) == "") != (strings.TrimSpace(info.TaxID) == "") {
+		return infraerrors.BadRequest("BILLING_TAX_ID_INVALID", "billing tax id type and value must be provided together")
+	}
+	return nil
 }
 
 func (s *PaymentService) paymentResume() *PaymentResumeService {

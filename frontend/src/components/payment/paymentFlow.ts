@@ -1,6 +1,7 @@
 import type {
   CreateOrderRequest,
   CreateOrderResult,
+  BillingInfo,
   MethodLimit,
   OrderType,
   WechatJSAPIPayload,
@@ -71,6 +72,7 @@ export interface BuildCreateOrderPayloadInput {
   origin?: string
   isMobile: boolean
   isWechatBrowser: boolean
+  billingInfo?: BillingInfo
 }
 
 type CreateOrderFlowResult = CreateOrderResult & {
@@ -119,6 +121,9 @@ export function buildCreateOrderPayload(input: BuildCreateOrderPayloadInput): Cr
   }
   if (normalizedOrigin) {
     payload.return_url = `${normalizedOrigin}/payment/result`
+  }
+  if (input.billingInfo) {
+    payload.billing_info = input.billingInfo
   }
 
   return payload

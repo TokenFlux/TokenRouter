@@ -54,8 +54,8 @@
       <template #cell-pay_amount="{ value, row }">
         <div class="text-sm">
           <span class="font-medium text-gray-900 dark:text-white">¥{{ value.toFixed(2) }}</span>
-        <span v-if="row.fee_rate > 0" class="ml-1 text-xs text-gray-400" :title="t('payment.orders.fee') + ': ' + row.fee_rate + '%'">
-          ({{ row.fee_rate }}%)
+        <span v-if="row.fee_amount > 0 || row.fee_rate > 0" class="ml-1 text-xs text-gray-400" :title="feeTitle(row)">
+          (+¥{{ feeAmount(row).toFixed(2) }})
         </span>
         <div v-if="row.amount !== row.pay_amount" class="text-xs text-gray-500">
             {{ t('payment.orders.creditedAmount') }}: {{ formatOrderAmount(row.amount, row.order_type) }}
@@ -232,5 +232,19 @@ function formatDateTime(dateStr: string): string {
 
 function formatOrderAmount(amount: number, orderType: string): string {
   return orderType === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : `¥${amount.toFixed(2)}`
+}
+
+function feeAmount(row: PaymentOrder): number {
+  if ((row.fee_amount || 0) > 0) return row.fee_amount
+  if ((row.fee_rate || 0) <= 0) return 0
+  return row.pay_amount - row.pay_amount / (1 + row.fee_rate / 100)
+}
+
+function feeTitle(row: PaymentOrder): string {
+  const parts: string[] = []
+  if ((row.fee_fixed || 0) > 0) parts.push(`${t('payment.fixedFee')}: ¥${row.fee_fixed.toFixed(2)}`)
+  if ((row.fee_rate_amount || 0) > 0) parts.push(`${t('payment.rateFee')}: ¥${row.fee_rate_amount.toFixed(2)} (${row.fee_rate}%)`)
+  if (parts.length === 0 && row.fee_rate > 0) parts.push(`${t('payment.orders.fee')}: ${row.fee_rate}%`)
+  return parts.join(' / ')
 }
 </script>

@@ -86,8 +86,7 @@ func TestCreateOrderInTx_WritesProviderSnapshot(t *testing.T) {
 		},
 		88,
 		88,
-		0,
-		88,
+		payment.FeeBreakdown{BaseAmount: 88, PayAmount: 88},
 		&payment.InstanceSelection{
 			InstanceID:     strconv.FormatInt(instance.ID, 10),
 			ProviderKey:    payment.TypeAlipay,
@@ -109,6 +108,48 @@ func TestCreateOrderInTx_WritesProviderSnapshot(t *testing.T) {
 	require.NotContains(t, order.ProviderSnapshot, "secretKey")
 	require.NotContains(t, order.ProviderSnapshot, "supported_types")
 	require.NotContains(t, order.ProviderSnapshot, "instance_name")
+}
+
+func TestCreateOrderInTx_WritesFeeBreakdown(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+
+	user, err := client.User.Create().
+		SetEmail("fee@example.com").
+		SetPasswordHash("hash").
+		SetUsername("fee-user").
+		Save(ctx)
+	require.NoError(t, err)
+
+	instance, err := client.PaymentProviderInstance.Create().
+		SetProviderKey(payment.TypeStripe).
+		SetName("Stripe").
+		SetConfig("{}").
+		SetSupportedTypes("card,link").
+		SetPaymentMode("stripe").
+		SetEnabled(true).
+		Save(ctx)
+	require.NoError(t, err)
+
+	breakdown := payment.CalculatePayAmountWithFee(100, payment.FeeConfig{FixedFee: 2.5, FeeRate: 2.2})
+	svc := &PaymentService{entClient: client}
+	order, err := svc.createOrderInTx(
+		ctx,
+		CreateOrderRequest{UserID: user.ID, PaymentType: payment.TypeStripe, OrderType: payment.OrderTypeBalance},
+		&User{ID: user.ID, Email: user.Email, Username: user.Username},
+		nil,
+		&PaymentConfig{MaxPendingOrders: 3, OrderTimeoutMin: 30},
+		100,
+		100,
+		breakdown,
+		&payment.InstanceSelection{InstanceID: strconv.FormatInt(instance.ID, 10), ProviderKey: payment.TypeStripe, SupportedTypes: "card,link", PaymentMode: "stripe"},
+	)
+	require.NoError(t, err)
+	require.Equal(t, 104.7, order.PayAmount)
+	require.Equal(t, 2.2, order.FeeRate)
+	require.Equal(t, 2.5, order.FeeFixed)
+	require.Equal(t, 2.2, order.FeeRateAmount)
+	require.Equal(t, 4.7, order.FeeAmount)
 }
 
 func TestBuildPaymentOrderProviderSnapshot_UsesWxpayJSAPIAppIDForOpenIDOrders(t *testing.T) {

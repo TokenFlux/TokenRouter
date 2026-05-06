@@ -56,21 +56,61 @@
                 @select="selectedMethod = $event"
               />
             </div>
+            <div v-if="isStripeSelected" class="card p-6">
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label class="input-label">{{ t('payment.billing.name') }}</label>
+                  <input v-model="billingInfo.name" class="input mt-1 w-full" autocomplete="name" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('payment.billing.email') }}</label>
+                  <input v-model="billingInfo.email" class="input mt-1 w-full" autocomplete="email" type="email" />
+                </div>
+                <div>
+                  <label class="input-label">{{ optionalBillingLabel('country') }}</label>
+                  <input v-model="billingInfo.country" class="input mt-1 w-full" autocomplete="country" maxlength="2" />
+                </div>
+                <div>
+                  <label class="input-label">{{ optionalBillingLabel('postalCode') }}</label>
+                  <input v-model="billingInfo.postal_code" class="input mt-1 w-full" autocomplete="postal-code" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="input-label">{{ optionalBillingLabel('line1') }}</label>
+                  <input v-model="billingInfo.line1" class="input mt-1 w-full" autocomplete="address-line1" />
+                </div>
+                <div>
+                  <label class="input-label">{{ optionalBillingLabel('city') }}</label>
+                  <input v-model="billingInfo.city" class="input mt-1 w-full" autocomplete="address-level2" />
+                </div>
+                <div>
+                  <label class="input-label">{{ optionalBillingLabel('state') }}</label>
+                  <input v-model="billingInfo.state" class="input mt-1 w-full" autocomplete="address-level1" />
+                </div>
+              </div>
+            </div>
             <div v-if="validAmount > 0" class="card p-6">
               <div class="space-y-2 text-sm">
                 <div class="flex justify-between">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.paymentAmount') }}</span>
                   <span class="text-gray-900 dark:text-white">¥{{ validAmount.toFixed(2) }}</span>
                 </div>
-                <div v-if="feeRate > 0" class="flex justify-between">
-                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
-                  <span class="text-gray-900 dark:text-white">¥{{ feeAmount.toFixed(2) }}</span>
+                <div v-if="rechargeFeeBreakdown.fixedFee > 0" class="flex justify-between">
+                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fixedFee') }}</span>
+                  <span class="text-gray-900 dark:text-white">¥{{ rechargeFeeBreakdown.fixedFee.toFixed(2) }}</span>
                 </div>
-                <div v-if="feeRate > 0" class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600">
+                <div v-if="rechargeFeeBreakdown.rateFee > 0" class="flex justify-between">
+                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.rateFee') }} ({{ rechargeFeeBreakdown.feeRate }}%)</span>
+                  <span class="text-gray-900 dark:text-white">¥{{ rechargeFeeBreakdown.rateFee.toFixed(2) }}</span>
+                </div>
+                <div v-if="rechargeFeeBreakdown.totalFee > 0" class="flex justify-between">
+                  <span class="text-gray-500 dark:text-gray-400">{{ t('payment.feeTotal') }}</span>
+                  <span class="text-gray-900 dark:text-white">¥{{ rechargeFeeBreakdown.totalFee.toFixed(2) }}</span>
+                </div>
+                <div v-if="rechargeFeeBreakdown.totalFee > 0" class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600">
                   <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
                   <span class="text-lg font-bold text-primary-600 dark:text-primary-400">¥{{ totalAmount.toFixed(2) }}</span>
                 </div>
-                <div v-if="balanceRechargeMultiplier !== 1" class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': feeRate <= 0 }">
+                <div v-if="balanceRechargeMultiplier !== 1" class="flex justify-between" :class="{ 'border-t border-gray-200 pt-2 dark:border-dark-600': rechargeFeeBreakdown.totalFee <= 0 }">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('payment.creditedBalance') }}</span>
                   <span class="text-gray-900 dark:text-white">{{ formatBalanceAmount(creditedAmount, { fractionDigits: 2 }) }}</span>
                 </div>
@@ -136,15 +176,55 @@
                   @select="selectedMethod = $event"
                 />
               </div>
-              <div v-if="feeRate > 0 && selectedPlan.price > 0" class="card p-6">
+              <div v-if="isStripeSelected" class="card p-6">
+                <div class="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label class="input-label">{{ t('payment.billing.name') }}</label>
+                    <input v-model="billingInfo.name" class="input mt-1 w-full" autocomplete="name" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t('payment.billing.email') }}</label>
+                    <input v-model="billingInfo.email" class="input mt-1 w-full" autocomplete="email" type="email" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ optionalBillingLabel('country') }}</label>
+                    <input v-model="billingInfo.country" class="input mt-1 w-full" autocomplete="country" maxlength="2" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ optionalBillingLabel('postalCode') }}</label>
+                    <input v-model="billingInfo.postal_code" class="input mt-1 w-full" autocomplete="postal-code" />
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="input-label">{{ optionalBillingLabel('line1') }}</label>
+                    <input v-model="billingInfo.line1" class="input mt-1 w-full" autocomplete="address-line1" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ optionalBillingLabel('city') }}</label>
+                    <input v-model="billingInfo.city" class="input mt-1 w-full" autocomplete="address-level2" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ optionalBillingLabel('state') }}</label>
+                    <input v-model="billingInfo.state" class="input mt-1 w-full" autocomplete="address-level1" />
+                  </div>
+                </div>
+              </div>
+              <div v-if="selectedPlan.price > 0" class="card p-6">
                 <div class="space-y-2 text-sm">
                   <div class="flex justify-between">
                     <span class="text-gray-500 dark:text-gray-400">{{ t('payment.amountLabel') }}</span>
                     <span class="text-gray-900 dark:text-white">¥{{ selectedPlan.price.toFixed(2) }}</span>
                   </div>
-                  <div class="flex justify-between">
-                    <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fee') }} ({{ feeRate }}%)</span>
-                    <span class="text-gray-900 dark:text-white">¥{{ subFeeAmount.toFixed(2) }}</span>
+                  <div v-if="subscriptionFeeBreakdown.fixedFee > 0" class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fixedFee') }}</span>
+                    <span class="text-gray-900 dark:text-white">¥{{ subscriptionFeeBreakdown.fixedFee.toFixed(2) }}</span>
+                  </div>
+                  <div v-if="subscriptionFeeBreakdown.rateFee > 0" class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">{{ t('payment.rateFee') }} ({{ subscriptionFeeBreakdown.feeRate }}%)</span>
+                    <span class="text-gray-900 dark:text-white">¥{{ subscriptionFeeBreakdown.rateFee.toFixed(2) }}</span>
+                  </div>
+                  <div v-if="subscriptionFeeBreakdown.totalFee > 0" class="flex justify-between">
+                    <span class="text-gray-500 dark:text-gray-400">{{ t('payment.feeTotal') }}</span>
+                    <span class="text-gray-900 dark:text-white">¥{{ subscriptionFeeBreakdown.totalFee.toFixed(2) }}</span>
                   </div>
                   <div class="flex justify-between border-t border-gray-200 pt-2 dark:border-dark-600">
                     <span class="font-medium text-gray-700 dark:text-gray-300">{{ t('payment.actualPay') }}</span>
@@ -157,7 +237,7 @@
                   <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
                   {{ t('common.processing') }}
                 </span>
-                <span v-else>{{ t('payment.createOrder') }} ¥{{ (feeRate > 0 ? subTotalAmount : selectedPlan.price).toFixed(2) }}</span>
+                <span v-else>{{ t('payment.createOrder') }} ¥{{ subTotalAmount.toFixed(2) }}</span>
               </button>
               <button class="btn btn-secondary w-full" @click="selectedPlan = null">{{ t('common.cancel') }}</button>
             </template>
@@ -199,7 +279,11 @@
             <img v-if="checkout.help_image_url" :src="checkout.help_image_url" alt=""
               class="h-40 max-w-full cursor-pointer rounded-lg object-contain transition-opacity hover:opacity-80"
               @click="previewImage = checkout.help_image_url" />
-            <p v-if="checkout.help_text" class="text-center text-sm text-gray-500 dark:text-gray-400">{{ checkout.help_text }}</p>
+            <div
+              v-if="renderedHelpText"
+              class="payment-help-markdown max-w-full text-sm text-gray-500 dark:text-gray-400"
+              v-html="renderedHelpText"
+            ></div>
           </div>
         </div>
       </template>
@@ -233,9 +317,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import { useAuthStore } from '@/stores/auth'
 import { usePaymentStore } from '@/stores/payment'
 import { useSubscriptionStore } from '@/stores/subscriptions'
@@ -243,7 +329,7 @@ import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
-import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
+import type { BillingInfo, SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
 import type { UserSubscription } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AmountInput from '@/components/payment/AmountInput.vue'
@@ -278,6 +364,11 @@ const subscriptionStore = useSubscriptionStore()
 const appStore = useAppStore()
 const { balanceUnitName, formatBalanceAmount } = useBalanceDisplay()
 
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+})
+
 const user = computed(() => authStore.user)
 const activeSubscriptions = computed(() => subscriptionStore.activeSubscriptions)
 
@@ -295,6 +386,15 @@ const amount = ref<number | null>(null)
 const selectedMethod = ref('')
 const selectedPlan = ref<SubscriptionPlan | null>(null)
 const previewImage = ref('')
+const billingInfo = reactive({
+  name: '',
+  email: '',
+  country: '',
+  line1: '',
+  city: '',
+  state: '',
+  postal_code: '',
+})
 
 const paymentPhase = ref<'select' | 'paying'>('select')
 
@@ -463,7 +563,7 @@ function onPaymentSettled() {
 // All checkout data from single API call
 const checkout = ref<CheckoutInfoResponse>({
   methods: {}, global_min: 0, global_max: 0,
-  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, recharge_fee_rate: 0, help_text: '', help_image_url: '', stripe_publishable_key: '',
+  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, recharge_fee_rate: 0, method_fees: {}, help_text: '', help_image_url: '', stripe_publishable_key: '',
 })
 
 const tabs = computed(() => {
@@ -481,6 +581,12 @@ const balanceRechargeMultiplier = computed(() => {
   return multiplier > 0 ? multiplier : 1
 })
 const creditedAmount = computed(() => Math.round((validAmount.value * balanceRechargeMultiplier.value) * 100) / 100)
+const renderedHelpText = computed(() => {
+  const content = checkout.value.help_text.trim()
+  if (!content) return ''
+  const html = marked.parse(content) as string
+  return DOMPurify.sanitize(html)
+})
 
 function formatPlanQuota(value: number | null | undefined): string {
   const amount = Number(value)
@@ -520,29 +626,100 @@ const globalMaxAmount = computed(() => {
 
 // Selected method's limits (for validation and error messages)
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
+const isStripeSelected = computed(() => (normalizeVisibleMethod(selectedMethod.value) || selectedMethod.value) === 'stripe')
+const registeredEmail = computed(() => (user.value?.email || '').trim())
+
+function optionalBillingLabel(key: 'country' | 'postalCode' | 'line1' | 'city' | 'state'): string {
+  return `${t(`payment.billing.${key}`)}${t('payment.billing.optionalMark')}`
+}
+
+// 默认使用注册邮箱，但不覆盖用户已经填写过的账单邮箱。
+function fillBillingEmailFromUser() {
+  if (billingInfo.email.trim() !== '') return
+  billingInfo.email = registeredEmail.value
+}
+
+function buildStripeBillingInfo(): BillingInfo | undefined {
+  if (!isStripeSelected.value) return undefined
+  const address = {
+    country: billingInfo.country.trim().toUpperCase(),
+    line1: billingInfo.line1.trim(),
+    city: billingInfo.city.trim(),
+    state: billingInfo.state.trim(),
+    postal_code: billingInfo.postal_code.trim(),
+  }
+  const hasAddress = Object.values(address).some(Boolean)
+  return {
+    name: billingInfo.name.trim(),
+    email: billingInfo.email.trim(),
+    address: hasAddress ? address : undefined,
+  }
+}
+
+function validateStripeBillingInfo(): boolean {
+  if (!isStripeSelected.value) return true
+  const name = billingInfo.name.trim()
+  const email = billingInfo.email.trim()
+  if (!name || !email) {
+    errorMessage.value = t('payment.errors.billingRequired')
+    errorHintMessage.value = ''
+    appStore.showError(errorMessage.value)
+    return false
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errorMessage.value = t('payment.errors.billingEmailInvalid')
+    errorHintMessage.value = ''
+    appStore.showError(errorMessage.value)
+    return false
+  }
+  return true
+}
 
 const methodOptions = computed<PaymentMethodOption[]>(() =>
   enabledMethods.value.map((type) => {
     const ml = visibleMethods.value[type]
     return {
       type,
+      fee_fixed: ml?.fee_fixed ?? 0,
       fee_rate: ml?.fee_rate ?? 0,
       available: ml?.available !== false && amountFitsMethod(validAmount.value, type),
     }
   })
 )
 
-const feeRate = computed(() => checkout.value?.recharge_fee_rate ?? 0)
-const feeAmount = computed(() =>
-  feeRate.value > 0 && validAmount.value > 0
-    ? Math.ceil(((validAmount.value * feeRate.value) / 100) * 100) / 100
-    : 0
-)
-const totalAmount = computed(() =>
-  feeRate.value > 0 && validAmount.value > 0
-    ? Math.round((validAmount.value + feeAmount.value) * 100) / 100
-    : validAmount.value
-)
+interface FeeBreakdown {
+  fixedFee: number
+  feeRate: number
+  rateFee: number
+  totalFee: number
+  payAmount: number
+}
+
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
+function ceilMoney(value: number): number {
+  return Math.ceil(value * 100 - 1e-9) / 100
+}
+
+function calculateFeeBreakdown(baseAmount: number, methodType: string): FeeBreakdown {
+  const methodLimit = visibleMethods.value[methodType]
+  const fixedFee = Math.max(0, Number(methodLimit?.fee_fixed) || 0)
+  const feeRate = Math.max(0, Number(methodLimit?.fee_rate) || 0)
+  const rateFee = baseAmount > 0 && feeRate > 0 ? ceilMoney((baseAmount * feeRate) / 100) : 0
+  const totalFee = roundMoney(fixedFee + rateFee)
+  return {
+    fixedFee,
+    feeRate,
+    rateFee,
+    totalFee,
+    payAmount: roundMoney(baseAmount + totalFee),
+  }
+}
+
+const rechargeFeeBreakdown = computed(() => calculateFeeBreakdown(validAmount.value, selectedMethod.value))
+const totalAmount = computed(() => rechargeFeeBreakdown.value.payAmount)
 
 const amountError = computed(() => {
   if (validAmount.value <= 0) return ''
@@ -563,6 +740,7 @@ const canSubmit = computed(() =>
   validAmount.value > 0
     && amountFitsMethod(validAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
+    && (!isStripeSelected.value || (billingInfo.name.trim() !== '' && billingInfo.email.trim() !== ''))
 )
 
 // Subscription-specific: method options based on plan price
@@ -572,28 +750,21 @@ const subMethodOptions = computed<PaymentMethodOption[]>(() => {
     const ml = visibleMethods.value[type]
     return {
       type,
+      fee_fixed: ml?.fee_fixed ?? 0,
       fee_rate: ml?.fee_rate ?? 0,
       available: ml?.available !== false && amountFitsMethod(planPrice, type),
     }
   })
 })
 
-const subFeeAmount = computed(() => {
-  const price = selectedPlan.value?.price ?? 0
-  if (feeRate.value <= 0 || price <= 0) return 0
-  return Math.ceil(((price * feeRate.value) / 100) * 100) / 100
-})
-
-const subTotalAmount = computed(() => {
-  const price = selectedPlan.value?.price ?? 0
-  if (feeRate.value <= 0 || price <= 0) return price
-  return Math.round((price + subFeeAmount.value) * 100) / 100
-})
+const subscriptionFeeBreakdown = computed(() => calculateFeeBreakdown(selectedPlan.value?.price ?? 0, selectedMethod.value))
+const subTotalAmount = computed(() => subscriptionFeeBreakdown.value.payAmount)
 
 const canSubmitSubscription = computed(() =>
   selectedPlan.value !== null
     && amountFitsMethod(selectedPlan.value.price, selectedMethod.value)
     && selectedLimit.value?.available !== false
+    && (!isStripeSelected.value || (billingInfo.name.trim() !== '' && billingInfo.email.trim() !== ''))
 )
 
 // Auto-switch to first available method when current selection can't handle the amount
@@ -602,6 +773,8 @@ watch(() => [validAmount.value, selectedMethod.value] as const, ([amt, method]) 
   const available = enabledMethods.value.find((m) => amountFitsMethod(amt, m))
   if (available) selectedMethod.value = available
 })
+
+watch(registeredEmail, fillBillingEmailFromUser, { immediate: true })
 
 // Payment button class: follows selected payment method color
 const paymentButtonClass = computed(() => {
@@ -675,11 +848,13 @@ function closeRenewalModal() {
 
 async function handleSubmitRecharge() {
   if (!canSubmit.value || submitting.value) return
+  if (!validateStripeBillingInfo()) return
   await createOrder(validAmount.value, 'balance')
 }
 
 async function confirmSubscribe() {
   if (!selectedPlan.value || submitting.value) return
+  if (!validateStripeBillingInfo()) return
   await createOrder(selectedPlan.value.price, 'subscription', selectedPlan.value.id)
 }
 
@@ -697,6 +872,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: isMobileDevice(),
       isWechatBrowser: typeof window !== 'undefined' && /MicroMessenger/i.test(window.navigator.userAgent),
+      billingInfo: buildStripeBillingInfo(),
     })
     if (options.openid) {
       payload.openid = options.openid
@@ -906,6 +1082,7 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
       origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: false,
       isWechatBrowser: false,
+      billingInfo: buildStripeBillingInfo(),
     })
     const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
     const stripeMethod = visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'
@@ -1062,3 +1239,37 @@ onMounted(async () => {
   subscriptionStore.fetchActiveSubscriptions().catch(() => {})
 })
 </script>
+
+<style scoped>
+.payment-help-markdown {
+  text-align: center;
+}
+
+.payment-help-markdown :deep(p) {
+  margin: 0.25rem 0;
+}
+
+.payment-help-markdown :deep(a) {
+  color: rgb(18 167 232);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.payment-help-markdown :deep(ul),
+.payment-help-markdown :deep(ol) {
+  display: inline-block;
+  margin: 0.25rem auto;
+  padding-left: 1.25rem;
+  text-align: left;
+}
+
+.payment-help-markdown :deep(strong) {
+  color: rgb(17 24 39);
+  font-weight: 600;
+}
+
+.dark .payment-help-markdown :deep(strong) {
+  color: rgb(255 255 255);
+}
+</style>
