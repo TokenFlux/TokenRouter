@@ -62,14 +62,6 @@ func (s *Stripe) SupportedTypes() []payment.PaymentType {
 	return []payment.PaymentType{payment.TypeStripe}
 }
 
-// stripePaymentMethodTypes maps our PaymentType to Stripe payment_method_types.
-var stripePaymentMethodTypes = map[string][]string{
-	payment.TypeCard:   {"card"},
-	payment.TypeAlipay: {"alipay"},
-	payment.TypeWxpay:  {"wechat_pay"},
-	payment.TypeLink:   {"link"},
-}
-
 var stripeInvoicePaymentMethodTypes = map[string][]string{
 	payment.TypeCard:   {"card"},
 	payment.TypeStripe: {"card", "link", "wechat_pay"},
@@ -346,25 +338,6 @@ func (s *Stripe) Refund(ctx context.Context, req payment.RefundRequest) (*paymen
 	}, nil
 }
 
-// resolveStripeMethodTypes converts instance supported_types (comma-separated)
-// into Stripe API payment_method_types. Falls back to ["card"] if empty.
-func resolveStripeMethodTypes(instanceSubMethods string) []string {
-	if instanceSubMethods == "" {
-		return []string{"card"}
-	}
-	var methods []string
-	for _, t := range strings.Split(instanceSubMethods, ",") {
-		t = strings.TrimSpace(t)
-		if mapped, ok := stripePaymentMethodTypes[t]; ok {
-			methods = append(methods, mapped...)
-		}
-	}
-	if len(methods) == 0 {
-		return []string{"card"}
-	}
-	return methods
-}
-
 // resolveStripeInvoiceMethodTypes 只返回 Invoice 支持且当前前端可安全确认的方法。
 func resolveStripeInvoiceMethodTypes(instanceSubMethods string) []string {
 	if strings.TrimSpace(instanceSubMethods) == "" {
@@ -388,16 +361,6 @@ func resolveStripeInvoiceMethodTypes(instanceSubMethods string) []string {
 		return []string{"card"}
 	}
 	return methods
-}
-
-// hasStripeMethod checks if the given Stripe method list contains the target method.
-func hasStripeMethod(methods []string, target string) bool {
-	for _, m := range methods {
-		if m == target {
-			return true
-		}
-	}
-	return false
 }
 
 // CancelPayment 对新 Invoice 订单执行 void，对旧 PaymentIntent 订单执行 cancel。
