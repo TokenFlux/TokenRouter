@@ -111,6 +111,7 @@ type SystemSettings struct {
 	PurchaseSubscriptionURL     string           `json:"purchase_subscription_url"`
 	TableDefaultPageSize        int              `json:"table_default_page_size"`
 	TablePageSizeOptions        []int            `json:"table_page_size_options"`
+	UsageRankingLimit           int              `json:"usage_ranking_limit"`
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
 
@@ -235,6 +236,7 @@ type PublicSettings struct {
 	PurchaseSubscriptionURL          string           `json:"purchase_subscription_url"`
 	TableDefaultPageSize             int              `json:"table_default_page_size"`
 	TablePageSizeOptions             []int            `json:"table_page_size_options"`
+	UsageRankingLimit                int              `json:"usage_ranking_limit"`
 	CustomMenuItems                  []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints                  []CustomEndpoint `json:"custom_endpoints"`
 	LinuxDoOAuthEnabled              bool             `json:"linuxdo_oauth_enabled"`

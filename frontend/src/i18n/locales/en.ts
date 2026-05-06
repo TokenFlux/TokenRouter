@@ -378,6 +378,7 @@ export default {
   nav: {
     dashboard: 'Dashboard',
     modelMarketplace: 'Models',
+    usageRanking: 'Usage Ranking',
     announcements: 'Announcements',
     apiKeys: 'API Keys',
     usage: 'Usage',
@@ -943,6 +944,28 @@ export default {
     exportExcelFailed: 'Failed to export usage data',
     imageUnit: ' images',
     userAgent: 'User-Agent'
+  },
+
+  // 用量排行
+  usageRanking: {
+    title: 'Usage Ranking',
+    description: 'See who has been using the most tokens lately',
+    subtitle: 'Defaults to today',
+    timeRange: 'Time Range',
+    listTitle: 'Ranking List',
+    limitHint: 'Showing top {limit}',
+    totalTokens: 'Total Tokens',
+    ioTokens: 'Input/Output',
+    requests: 'Requests',
+    tokens: 'Tokens',
+    actualCost: 'Actual Cost',
+    reasoningCost: '{unit} Used',
+    input: 'Input',
+    output: 'Output',
+    cache: 'Cache',
+    emptyTitle: 'No ranking data in this range',
+    emptyDescription: 'Token usage ranking will appear after requests are recorded in the selected time range.',
+    loadError: 'Failed to load usage ranking'
   },
 
   // Redeem
@@ -4901,8 +4924,11 @@ export default {
         tablePageSizeOptions: 'Rows Per Page Options',
         tablePageSizeOptionsPlaceholder: '10, 20, 50, 100',
         tablePageSizeOptionsHint: 'Use commas to separate integers between 5 and 1000; values are deduplicated and sorted on save',
+        usageRankingLimit: 'Usage Ranking Count',
+        usageRankingLimitHint: 'Controls how many users appear on the Usage Ranking page for the selected time range, from 1 to 100',
         tableDefaultPageSizeRangeError: 'Default rows per page must be between {min} and {max}',
         tablePageSizeOptionsFormatError: 'Invalid options format. Enter comma-separated integers between {min} and {max}',
+        usageRankingLimitRangeError: 'Usage ranking count must be between {min} and {max}',
         customEndpoints: {
           title: 'Custom Endpoints',
           description: 'Add additional API endpoint URLs for users to quickly copy on the API Keys page',

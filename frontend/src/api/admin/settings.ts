@@ -356,6 +356,7 @@ export interface SystemSettings {
   hide_ccs_import_button: boolean;
   table_default_page_size: number;
   table_page_size_options: number[];
+  usage_ranking_limit: number;
   backend_mode_enabled: boolean;
   custom_menu_items: CustomMenuItem[];
   custom_endpoints: CustomEndpoint[];
@@ -545,6 +546,7 @@ export interface UpdateSettingsRequest {
   hide_ccs_import_button?: boolean;
   table_default_page_size?: number;
   table_page_size_options?: number[];
+  usage_ranking_limit?: number;
   backend_mode_enabled?: boolean;
   custom_menu_items?: CustomMenuItem[];
   custom_endpoints?: CustomEndpoint[];

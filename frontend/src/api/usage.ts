@@ -58,6 +58,35 @@ export interface ModelStatsResponse {
   end_date: string
 }
 
+export interface UsageRankingItem {
+  rank: number
+  user_id: number
+  display_name: string
+  avatar_url: string
+  requests: number
+  input_tokens: number
+  output_tokens: number
+  cache_creation_tokens: number
+  cache_read_tokens: number
+  total_tokens: number
+  actual_cost: number
+}
+
+export interface UsageRankingResponse {
+  ranking: UsageRankingItem[]
+  total_requests: number
+  total_tokens: number
+  total_actual_cost: number
+  start_date: string
+  end_date: string
+  limit: number
+}
+
+export interface UsageRankingParams {
+  start_date?: string
+  end_date?: string
+}
+
 /**
  * List usage logs with optional filters
  * @param page - Page number (default: 1)
@@ -189,6 +218,16 @@ export async function getById(id: number): Promise<UsageLog> {
   return data
 }
 
+/**
+ * 获取指定时间范围内的用户用量排行。
+ * @param params - 可选时间范围，未传时后端默认使用今天
+ * @returns 按 Token 总量排序的排行
+ */
+export async function getRanking(params: UsageRankingParams = {}): Promise<UsageRankingResponse> {
+  const { data } = await apiClient.get<UsageRankingResponse>('/usage/ranking', { params })
+  return data
+}
+
 // ==================== Dashboard API ====================
 
 /**
@@ -264,6 +303,7 @@ export const usageAPI = {
   getStatsByDateRange,
   getByDateRange,
   getById,
+  getRanking,
   // Dashboard
   getDashboardStats,
   getDashboardTrend,

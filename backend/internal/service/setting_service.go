@@ -21,6 +21,13 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
+const (
+	// DefaultUsageRankingLimit 是用量排行默认展示名次。
+	DefaultUsageRankingLimit = 20
+	// MaxUsageRankingLimit 是用量排行允许展示的最大名次。
+	MaxUsageRankingLimit = 100
+)
+
 var (
 	ErrRegistrationDisabled  = infraerrors.Forbidden("REGISTRATION_DISABLED", "registration is currently disabled")
 	ErrSettingNotFound       = infraerrors.NotFound("SETTING_NOT_FOUND", "setting not found")
@@ -430,6 +437,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyPurchaseSubscriptionURL,
 		SettingKeyTableDefaultPageSize,
 		SettingKeyTablePageSizeOptions,
+		SettingKeyUsageRankingLimit,
 		SettingKeyCustomMenuItems,
 		SettingKeyCustomEndpoints,
 		SettingKeyLinuxDoConnectEnabled,
@@ -498,6 +506,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		settings[SettingKeyTableDefaultPageSize],
 		settings[SettingKeyTablePageSizeOptions],
 	)
+	usageRankingLimit := normalizeUsageRankingLimitString(settings[SettingKeyUsageRankingLimit])
 
 	var balanceLowNotifyThreshold float64
 	if v, err := strconv.ParseFloat(settings[SettingKeyBalanceLowNotifyThreshold], 64); err == nil && v >= 0 {
@@ -541,6 +550,7 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
 		TableDefaultPageSize:             tableDefaultPageSize,
 		TablePageSizeOptions:             tablePageSizeOptions,
+		UsageRankingLimit:                usageRankingLimit,
 		CustomMenuItems:                  settings[SettingKeyCustomMenuItems],
 		CustomEndpoints:                  settings[SettingKeyCustomEndpoints],
 		LinuxDoOAuthEnabled:              linuxDoEnabled,
@@ -610,6 +620,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		PurchaseSubscriptionURL          string          `json:"purchase_subscription_url,omitempty"`
 		TableDefaultPageSize             int             `json:"table_default_page_size"`
 		TablePageSizeOptions             []int           `json:"table_page_size_options"`
+		UsageRankingLimit                int             `json:"usage_ranking_limit"`
 		CustomMenuItems                  json.RawMessage `json:"custom_menu_items"`
 		CustomEndpoints                  json.RawMessage `json:"custom_endpoints"`
 		LinuxDoOAuthEnabled              bool            `json:"linuxdo_oauth_enabled"`
@@ -657,6 +668,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		PurchaseSubscriptionURL:          settings.PurchaseSubscriptionURL,
 		TableDefaultPageSize:             settings.TableDefaultPageSize,
 		TablePageSizeOptions:             settings.TablePageSizeOptions,
+		UsageRankingLimit:                settings.UsageRankingLimit,
 		CustomMenuItems:                  filterUserVisibleMenuItems(settings.CustomMenuItems),
 		CustomEndpoints:                  safeRawJSONArray(settings.CustomEndpoints),
 		LinuxDoOAuthEnabled:              settings.LinuxDoOAuthEnabled,
@@ -1122,6 +1134,7 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 		return nil, fmt.Errorf("marshal table page size options: %w", err)
 	}
 	updates[SettingKeyTablePageSizeOptions] = string(tablePageSizeOptionsJSON)
+	updates[SettingKeyUsageRankingLimit] = strconv.Itoa(normalizeUsageRankingLimit(settings.UsageRankingLimit))
 	updates[SettingKeyCustomMenuItems] = settings.CustomMenuItems
 	updates[SettingKeyCustomEndpoints] = settings.CustomEndpoints
 
@@ -1577,6 +1590,15 @@ func (s *SettingService) GetDefaultSubscriptions(ctx context.Context) []DefaultS
 	return parseDefaultSubscriptions(value)
 }
 
+// GetUsageRankingLimit 获取用户侧用量排行展示数量。
+func (s *SettingService) GetUsageRankingLimit(ctx context.Context) int {
+	value, err := s.settingRepo.GetValue(ctx, SettingKeyUsageRankingLimit)
+	if err != nil {
+		return DefaultUsageRankingLimit
+	}
+	return normalizeUsageRankingLimitString(value)
+}
+
 func (s *SettingService) GetAuthSourceDefaultSettings(ctx context.Context) (*AuthSourceDefaultSettings, error) {
 	keys := []string{
 		SettingKeyAuthSourceDefaultEmailBalance,
@@ -1702,6 +1724,7 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyPurchaseSubscriptionURL:                  "",
 		SettingKeyTableDefaultPageSize:                     "20",
 		SettingKeyTablePageSizeOptions:                     "[10,20,50,100]",
+		SettingKeyUsageRankingLimit:                        strconv.Itoa(DefaultUsageRankingLimit),
 		SettingKeyCustomMenuItems:                          "[]",
 		SettingKeyCustomEndpoints:                          "[]",
 		SettingKeyWeChatConnectEnabled:                     "false",
@@ -1864,6 +1887,7 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		settings[SettingKeyTableDefaultPageSize],
 		settings[SettingKeyTablePageSizeOptions],
 	)
+	result.UsageRankingLimit = normalizeUsageRankingLimitString(settings[SettingKeyUsageRankingLimit])
 
 	// 解析整数类型
 	if port, err := strconv.Atoi(settings[SettingKeySMTPPort]); err == nil {
@@ -2330,6 +2354,24 @@ func normalizeTablePreferences(defaultPageSize int, options []int) (int, []int) 
 	}
 
 	return defaultPageSize, normalizedOptions
+}
+
+func normalizeUsageRankingLimitString(raw string) int {
+	value, err := strconv.Atoi(strings.TrimSpace(raw))
+	if err != nil {
+		return DefaultUsageRankingLimit
+	}
+	return normalizeUsageRankingLimit(value)
+}
+
+func normalizeUsageRankingLimit(value int) int {
+	if value <= 0 {
+		return DefaultUsageRankingLimit
+	}
+	if value > MaxUsageRankingLimit {
+		return MaxUsageRankingLimit
+	}
+	return value
 }
 
 // getStringOrDefault 获取字符串值或默认值

@@ -2251,6 +2251,8 @@ type UserUsageTrendPoint = usagestats.UserUsageTrendPoint
 // UserSpendingRankingItem represents a user spending ranking row.
 type UserSpendingRankingItem = usagestats.UserSpendingRankingItem
 type UserSpendingRankingResponse = usagestats.UserSpendingRankingResponse
+type UsageRankingItem = usagestats.UsageRankingItem
+type UsageRankingResponse = usagestats.UsageRankingResponse
 
 // APIKeyUsageTrendPoint represents API key usage trend data point
 type APIKeyUsageTrendPoint = usagestats.APIKeyUsageTrendPoint
@@ -2446,6 +2448,138 @@ func (r *usageLogRepository) GetUserSpendingRanking(ctx context.Context, startTi
 		TotalRequests:   totalRequests,
 		TotalTokens:     totalTokens,
 	}, nil
+}
+
+// GetUsageRanking 返回用户侧按 Token 总量排序的用量排行。
+func (r *usageLogRepository) GetUsageRanking(ctx context.Context, startTime, endTime time.Time, limit int) (result *UsageRankingResponse, err error) {
+	if limit <= 0 {
+		limit = service.DefaultUsageRankingLimit
+	}
+
+	query := `
+		WITH user_usage AS (
+			SELECT
+				u.user_id,
+				COALESCE(us.email, '') as email,
+				COALESCE(us.username, '') as username,
+				COALESCE(ua.url, '') as avatar_url,
+				COUNT(*) as requests,
+				COALESCE(SUM(u.input_tokens), 0) as input_tokens,
+				COALESCE(SUM(u.output_tokens), 0) as output_tokens,
+				COALESCE(SUM(u.cache_creation_tokens), 0) as cache_creation_tokens,
+				COALESCE(SUM(u.cache_read_tokens), 0) as cache_read_tokens,
+				COALESCE(SUM(u.input_tokens + u.output_tokens + u.cache_creation_tokens + u.cache_read_tokens), 0) as total_tokens,
+				COALESCE(SUM(u.actual_cost), 0) as actual_cost
+			FROM usage_logs u
+			LEFT JOIN users us ON u.user_id = us.id
+			LEFT JOIN user_avatars ua ON ua.user_id = u.user_id
+			WHERE u.created_at >= $1 AND u.created_at < $2
+			GROUP BY u.user_id, us.email, us.username, ua.url
+			HAVING COALESCE(SUM(u.input_tokens + u.output_tokens + u.cache_creation_tokens + u.cache_read_tokens), 0) > 0
+		),
+		ranked AS (
+			SELECT
+				ROW_NUMBER() OVER (ORDER BY total_tokens DESC, requests DESC, user_id ASC) as rank,
+				user_id,
+				email,
+				username,
+				avatar_url,
+				requests,
+				input_tokens,
+				output_tokens,
+				cache_creation_tokens,
+				cache_read_tokens,
+				total_tokens,
+				actual_cost,
+				COALESCE(SUM(requests) OVER (), 0) as total_requests,
+				COALESCE(SUM(total_tokens) OVER (), 0) as ranking_total_tokens,
+				COALESCE(SUM(actual_cost) OVER (), 0) as total_actual_cost
+			FROM user_usage
+			ORDER BY total_tokens DESC, requests DESC, user_id ASC
+			LIMIT $3
+		)
+		SELECT
+			rank,
+			user_id,
+			email,
+			username,
+			avatar_url,
+			requests,
+			input_tokens,
+			output_tokens,
+			cache_creation_tokens,
+			cache_read_tokens,
+			total_tokens,
+			actual_cost,
+			total_requests,
+			ranking_total_tokens,
+			total_actual_cost
+		FROM ranked
+		ORDER BY rank ASC
+	`
+
+	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil && err == nil {
+			err = closeErr
+			result = nil
+		}
+	}()
+
+	ranking := make([]UsageRankingItem, 0)
+	totalRequests := int64(0)
+	totalTokens := int64(0)
+	totalActualCost := 0.0
+	for rows.Next() {
+		var row UsageRankingItem
+		var email string
+		var username string
+		if err = rows.Scan(
+			&row.Rank,
+			&row.UserID,
+			&email,
+			&username,
+			&row.AvatarURL,
+			&row.Requests,
+			&row.InputTokens,
+			&row.OutputTokens,
+			&row.CacheCreationTokens,
+			&row.CacheReadTokens,
+			&row.TotalTokens,
+			&row.ActualCost,
+			&totalRequests,
+			&totalTokens,
+			&totalActualCost,
+		); err != nil {
+			return nil, err
+		}
+		row.DisplayName = rankingDisplayName(username, email, row.UserID)
+		ranking = append(ranking, row)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return &UsageRankingResponse{
+		Ranking:         ranking,
+		TotalRequests:   totalRequests,
+		TotalTokens:     totalTokens,
+		TotalActualCost: totalActualCost,
+	}, nil
+}
+
+// rankingDisplayName 只返回用户名或脱敏邮箱，避免排行接口泄露完整邮箱。
+func rankingDisplayName(username, email string, userID int64) string {
+	if name := strings.TrimSpace(username); name != "" {
+		return name
+	}
+	if email = strings.TrimSpace(email); email != "" {
+		return service.MaskEmail(email)
+	}
+	return fmt.Sprintf("User #%d", userID)
 }
 
 // UserDashboardStats 用户仪表盘统计

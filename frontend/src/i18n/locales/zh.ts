@@ -378,6 +378,7 @@ export default {
   nav: {
     dashboard: '仪表盘',
     modelMarketplace: '模型广场',
+    usageRanking: '用量排行',
     announcements: '公告',
     apiKeys: 'API 密钥',
     usage: '使用记录',
@@ -947,6 +948,28 @@ export default {
     exportExcelFailed: '使用数据导出失败',
     imageUnit: '张',
     userAgent: 'User-Agent'
+  },
+
+  // 用量排行
+  usageRanking: {
+    title: '用量排行',
+    description: '看看这段时间谁用得最猛',
+    subtitle: '默认显示今天',
+    timeRange: '时间范围',
+    listTitle: '排行榜',
+    limitHint: '当前显示前 {limit} 名',
+    totalTokens: '总 Token',
+    ioTokens: '输入/输出',
+    requests: '请求',
+    tokens: 'Token',
+    actualCost: '实际消耗',
+    reasoningCost: '{unit}消耗',
+    input: '输入',
+    output: '输出',
+    cache: '缓存',
+    emptyTitle: '当前范围暂无排行数据',
+    emptyDescription: '所选时间范围产生用量后，这里会展示 Token 用量排行。',
+    loadError: '加载用量排行失败'
   },
 
   // Redeem
@@ -5058,8 +5081,11 @@ export default {
         tablePageSizeOptions: '可选每页条数列表',
         tablePageSizeOptionsPlaceholder: '10, 20, 50, 100',
         tablePageSizeOptionsHint: '使用英文逗号分隔，取值范围 5-1000，保存时会自动去重并排序',
+        usageRankingLimit: '用量排行显示数量',
+        usageRankingLimitHint: '控制“用量排行”页面展示所选时间范围内 Token 用量前多少名，范围 1-100',
         tableDefaultPageSizeRangeError: '默认每页条数必须在 {min}-{max} 之间',
         tablePageSizeOptionsFormatError: '可选每页条数格式无效，请输入 {min}-{max} 之间的整数并用英文逗号分隔',
+        usageRankingLimitRangeError: '用量排行显示数量必须在 {min}-{max} 之间',
         customEndpoints: {
           title: '自定义端点',
           description: '添加额外的 API 端点地址，用户可在「API Keys」页面快速复制',

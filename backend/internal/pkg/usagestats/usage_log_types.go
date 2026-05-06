@@ -162,6 +162,29 @@ type UserSpendingRankingResponse struct {
 	TotalTokens     int64                     `json:"total_tokens"`
 }
 
+// UsageRankingItem 表示用户侧用量排行中的一行。
+type UsageRankingItem struct {
+	Rank                int     `json:"rank"`
+	UserID              int64   `json:"user_id"`
+	DisplayName         string  `json:"display_name"`
+	AvatarURL           string  `json:"avatar_url"`
+	Requests            int64   `json:"requests"`
+	InputTokens         int64   `json:"input_tokens"`
+	OutputTokens        int64   `json:"output_tokens"`
+	CacheCreationTokens int64   `json:"cache_creation_tokens"`
+	CacheReadTokens     int64   `json:"cache_read_tokens"`
+	TotalTokens         int64   `json:"total_tokens"`
+	ActualCost          float64 `json:"actual_cost"` // 实际扣除
+}
+
+// UsageRankingResponse 表示用户侧用量排行及统计汇总。
+type UsageRankingResponse struct {
+	Ranking         []UsageRankingItem `json:"ranking"`
+	TotalRequests   int64              `json:"total_requests"`
+	TotalTokens     int64              `json:"total_tokens"`
+	TotalActualCost float64            `json:"total_actual_cost"`
+}
+
 // UserBreakdownItem represents per-user usage breakdown within a dimension (group, model, endpoint).
 type UserBreakdownItem struct {
 	UserID      int64   `json:"user_id"`

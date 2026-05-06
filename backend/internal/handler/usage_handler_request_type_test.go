@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
@@ -34,7 +35,7 @@ func (s *userUsageRepoCapture) ListWithFilters(ctx context.Context, params pagin
 func newUserUsageRequestTypeTestRouter(repo *userUsageRepoCapture) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	usageSvc := service.NewUsageService(repo)
-	handler := NewUsageHandler(usageSvc, nil)
+	handler := NewUsageHandler(usageSvc, nil, nil)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 42})
@@ -79,4 +80,42 @@ func TestUserUsageListInvalidStream(t *testing.T) {
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestParseUsageRankingTimeRangeDefaultsToToday(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/usage/ranking?timezone=Asia/Shanghai", nil)
+	now := time.Date(2026, 5, 6, 15, 30, 0, 0, time.FixedZone("CST", 8*3600))
+
+	start, end, err := parseUsageRankingTimeRange(c, now, "Asia/Shanghai")
+
+	require.NoError(t, err)
+	require.Equal(t, "2026-05-06 00:00:00 +0800 CST", start.String())
+	require.Equal(t, "2026-05-07 00:00:00 +0800 CST", end.String())
+}
+
+func TestParseUsageRankingTimeRangeDateOnlyEndIsInclusive(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/usage/ranking?start_date=2026-05-01&end_date=2026-05-03&timezone=Asia/Shanghai", nil)
+	now := time.Date(2026, 5, 6, 15, 30, 0, 0, time.UTC)
+
+	start, end, err := parseUsageRankingTimeRange(c, now, "Asia/Shanghai")
+
+	require.NoError(t, err)
+	require.Equal(t, "2026-05-01 00:00:00 +0800 CST", start.String())
+	require.Equal(t, "2026-05-04 00:00:00 +0800 CST", end.String())
+	require.Equal(t, "2026-05-03", usageRankingDisplayEndDate(end))
+}
+
+func TestParseUsageRankingTimeRangeRejectsInvalidRange(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/usage/ranking?start_date=2026-05-03&end_date=2026-05-01&timezone=Asia/Shanghai", nil)
+	now := time.Date(2026, 5, 6, 15, 30, 0, 0, time.UTC)
+
+	_, _, err := parseUsageRankingTimeRange(c, now, "Asia/Shanghai")
+
+	require.ErrorContains(t, err, "end_date must be later than start_date")
 }

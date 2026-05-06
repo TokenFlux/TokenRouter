@@ -73,13 +73,14 @@ func RegisterUserRoutes(
 		usage := authenticated.Group("/usage")
 		{
 			usage.GET("", h.Usage.List)
-			usage.GET("/:id", h.Usage.GetByID)
+			usage.GET("/ranking", h.Usage.Ranking)
 			usage.GET("/stats", h.Usage.Stats)
 			// User dashboard endpoints
 			usage.GET("/dashboard/stats", h.Usage.DashboardStats)
 			usage.GET("/dashboard/trend", h.Usage.DashboardTrend)
 			usage.GET("/dashboard/models", h.Usage.DashboardModels)
 			usage.POST("/dashboard/api-keys-usage", h.Usage.DashboardAPIKeysUsage)
+			usage.GET("/:id", h.Usage.GetByID)
 		}
 
 		// 公告（用户可见）

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -16,17 +17,19 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// UsageHandler handles usage-related requests
+// UsageHandler 处理用户侧用量相关请求。
 type UsageHandler struct {
-	usageService  *service.UsageService
-	apiKeyService *service.APIKeyService
+	usageService   *service.UsageService
+	apiKeyService  *service.APIKeyService
+	settingService *service.SettingService
 }
 
-// NewUsageHandler creates a new UsageHandler
-func NewUsageHandler(usageService *service.UsageService, apiKeyService *service.APIKeyService) *UsageHandler {
+// NewUsageHandler 创建用户侧用量处理器。
+func NewUsageHandler(usageService *service.UsageService, apiKeyService *service.APIKeyService, settingService *service.SettingService) *UsageHandler {
 	return &UsageHandler{
-		usageService:  usageService,
-		apiKeyService: apiKeyService,
+		usageService:   usageService,
+		apiKeyService:  apiKeyService,
+		settingService: settingService,
 	}
 }
 
@@ -179,6 +182,85 @@ func (h *UsageHandler) GetByID(c *gin.Context) {
 	}
 
 	response.Success(c, dto.UsageLogFromService(record))
+}
+
+// Ranking 获取指定时间范围内的用量排行。
+// GET /api/v1/usage/ranking
+func (h *UsageHandler) Ranking(c *gin.Context) {
+	if _, ok := middleware2.GetAuthSubjectFromContext(c); !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	userTZ := c.Query("timezone")
+	now := timezone.NowInUserLocation(userTZ)
+	startTime, endTime, err := parseUsageRankingTimeRange(c, now, userTZ)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	limit := service.DefaultUsageRankingLimit
+	if h.settingService != nil {
+		limit = h.settingService.GetUsageRankingLimit(c.Request.Context())
+	}
+
+	ranking, err := h.usageService.GetUsageRanking(c.Request.Context(), startTime, endTime, limit)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	// 返回本次排行使用的时间范围，日期按用户时区格式化，便于前端展示。
+	response.Success(c, gin.H{
+		"ranking":           ranking.Ranking,
+		"total_requests":    ranking.TotalRequests,
+		"total_tokens":      ranking.TotalTokens,
+		"total_actual_cost": ranking.TotalActualCost,
+		"start_date":        startTime.Format("2006-01-02"),
+		"end_date":          usageRankingDisplayEndDate(endTime),
+		"limit":             limit,
+	})
+}
+
+// parseUsageRankingTimeRange 解析排行时间范围，未传参数时默认使用用户时区的今天。
+func parseUsageRankingTimeRange(c *gin.Context, now time.Time, userTZ string) (time.Time, time.Time, error) {
+	startDateStr := c.Query("start_date")
+	endDateStr := c.Query("end_date")
+	defaultStart := timezone.StartOfDayInUserLocation(now, userTZ)
+	defaultEnd := defaultStart.AddDate(0, 0, 1)
+	if startDateStr == "" && endDateStr == "" {
+		return defaultStart, defaultEnd, nil
+	}
+
+	startTime := defaultStart
+	endTime := defaultEnd
+	if startDateStr != "" {
+		parsed, _, err := timezone.ParseDateTimeInUserLocation(startDateStr, userTZ)
+		if err != nil {
+			return time.Time{}, time.Time{}, errors.New("Invalid start_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
+		}
+		startTime = parsed
+	}
+	if endDateStr != "" {
+		parsed, dateOnly, err := timezone.ParseDateTimeInUserLocation(endDateStr, userTZ)
+		if err != nil {
+			return time.Time{}, time.Time{}, errors.New("Invalid end_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
+		}
+		if dateOnly {
+			// 日期输入按整天包含处理，SQL 使用 created_at < endTime。
+			parsed = parsed.AddDate(0, 0, 1)
+		}
+		endTime = parsed
+	}
+	if !endTime.After(startTime) {
+		return time.Time{}, time.Time{}, errors.New("end_date must be later than start_date")
+	}
+	return startTime, endTime, nil
+}
+
+// usageRankingDisplayEndDate 将排他结束边界还原成用户选择的日期展示。
+func usageRankingDisplayEndDate(endTime time.Time) string {
+	return endTime.Add(-time.Nanosecond).Format("2006-01-02")
 }
 
 // Stats handles getting usage statistics

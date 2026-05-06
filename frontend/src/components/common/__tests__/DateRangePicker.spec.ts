@@ -95,4 +95,35 @@ describe('DateRangePicker', () => {
       }
     ])
   })
+
+  it('can apply a preset immediately when applyOnPreset is enabled', async () => {
+    const now = new Date()
+    const today = formatLocalDate(now)
+
+    const wrapper = mount(DateRangePicker, {
+      props: {
+        startDate: today,
+        endDate: today,
+        applyOnPreset: true
+      },
+      global: {
+        stubs: {
+          Icon: true
+        }
+      }
+    })
+
+    await wrapper.find('.date-picker-trigger').trigger('click')
+    const presetButton = wrapper.findAll('.date-picker-preset').find((node) =>
+      node.text().includes('Last Month')
+    )
+    expect(presetButton).toBeDefined()
+
+    await presetButton!.trigger('click')
+
+    expect(wrapper.emitted('change')?.[0]?.[0]).toMatchObject({
+      preset: 'lastMonth'
+    })
+    expect(wrapper.find('.date-picker-dropdown').exists()).toBe(false)
+  })
 })
