@@ -9,7 +9,8 @@ import type {
   PaymentOrder,
   PaymentChannel,
   SubscriptionPlan,
-  ProviderInstance
+  ProviderInstance,
+  PaymentDocument
 } from '@/types/payment'
 import type { BasePaginationResponse } from '@/types'
 
@@ -91,6 +92,11 @@ export const adminPaymentAPI = {
   /** Get a specific order by ID */
   getOrder(id: number) {
     return apiClient.get<PaymentOrder>(`/admin/payment/orders/${id}`)
+  },
+
+  /** 获取订单的 Stripe 账单或历史收据链接 */
+  getOrderInvoice(id: number) {
+    return apiClient.get<PaymentDocument>(`/admin/payment/orders/${id}/invoice`)
   },
 
   /** Cancel an order (admin) */

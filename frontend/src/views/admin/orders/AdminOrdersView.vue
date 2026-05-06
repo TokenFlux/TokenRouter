@@ -26,6 +26,10 @@
               <Icon name="eye" size="sm" />
               {{ t('common.view') }}
             </button>
+            <button v-if="canOpenInvoice(row)" @click="openInvoice(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20">
+              <Icon name="document" size="sm" />
+              {{ t('payment.orders.invoice') }}
+            </button>
             <button v-if="row.status === 'PENDING'" @click="handleCancelOrder(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-yellow-600 hover:bg-yellow-50 dark:text-yellow-400 dark:hover:bg-yellow-900/20">
               <Icon name="x" size="sm" />
               {{ t('payment.orders.cancel') }}
@@ -71,6 +75,7 @@
           <div v-if="selectedOrder.paid_at"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.paidAt') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(selectedOrder.paid_at) }}</p></div>
           <div v-if="selectedOrder.refund_amount"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.refundAmount') }}</p><p class="text-sm font-medium text-red-600 dark:text-red-400">{{ formatOrderAmount(selectedOrder.refund_amount, selectedOrder.order_type) }}</p></div>
           <div v-if="selectedOrder.refund_reason" class="col-span-2"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.refundReason') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ selectedOrder.refund_reason }}</p></div>
+          <div v-if="selectedOrder.payment_invoice_id" class="col-span-2"><p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.invoice') }}</p><p class="text-sm text-gray-700 dark:text-gray-300">{{ selectedOrder.payment_invoice_id }}</p></div>
           <!-- Refund request info -->
           <div v-if="selectedOrder.refund_requested_at" class="col-span-2 border-t border-gray-200 pt-3 dark:border-dark-600">
             <p class="mb-2 text-xs font-medium text-purple-600 dark:text-purple-400">{{ t('payment.admin.refundRequestInfo') }}</p>
@@ -89,6 +94,12 @@
               </div>
             </div>
           </div>
+        </div>
+        <div class="flex justify-end border-t border-gray-200 pt-4 dark:border-dark-600">
+          <button v-if="canOpenInvoice(selectedOrder)" class="btn btn-secondary" @click="openInvoice(selectedOrder)">
+            <Icon name="document" size="sm" />
+            {{ t('payment.orders.invoice') }}
+          </button>
         </div>
         <!-- Audit Logs -->
         <div v-if="orderAuditLogs.length > 0" class="border-t border-gray-200 pt-4 dark:border-dark-600">
@@ -226,6 +237,26 @@ async function handleCancelOrder(order: PaymentOrder) {
 async function handleRetryOrder(order: PaymentOrder) {
   try { await adminPaymentAPI.retryRecharge(order.id); appStore.showSuccess(t('payment.admin.retrySuccess')); loadOrders() }
   catch (err: unknown) { appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error'))) }
+}
+
+function canOpenInvoice(order: PaymentOrder | null): boolean {
+  if (!order || (order.payment_type || '').trim() !== 'stripe') return false
+  return ['PAID', 'RECHARGING', 'COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(order.status)
+}
+
+async function openInvoice(order: PaymentOrder) {
+  try {
+    const res = await adminPaymentAPI.getOrderInvoice(order.id)
+    const doc = res.data
+    const url = doc.url || doc.hosted_invoice_url || doc.invoice_pdf || doc.receipt_url
+    if (!url) {
+      appStore.showError(t('payment.errors.PAYMENT_DOCUMENT_NOT_FOUND'))
+      return
+    }
+    window.open(url, '_blank', 'noopener,noreferrer')
+  } catch (err: unknown) {
+    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
+  }
 }
 
 function openRefundDialog(order: PaymentOrder) { selectedOrder.value = order; showRefundDialog.value = true }

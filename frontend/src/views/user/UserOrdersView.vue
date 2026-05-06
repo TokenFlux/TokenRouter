@@ -26,6 +26,10 @@
               <Icon name="dollar" size="sm" />
               <span>{{ t('payment.orders.requestRefund') }}</span>
             </button>
+            <button v-if="canOpenInvoice(row)" @click="openInvoice(row)" class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/20">
+              <Icon name="document" size="sm" />
+              <span>{{ t('payment.orders.invoice') }}</span>
+            </button>
           </div>
         </template>
       </OrderTable>
@@ -182,6 +186,29 @@ function canRequestRefund(order: PaymentOrder): boolean {
   if (order.status !== 'COMPLETED') return false
   if (!order.provider_instance_id) return false
   return refundEligibleProviders.value.has(order.provider_instance_id)
+}
+
+function canOpenInvoice(order: PaymentOrder): boolean {
+  if ((order.payment_type || '').trim() !== 'stripe') return false
+  return ['PAID', 'RECHARGING', 'COMPLETED', 'PARTIALLY_REFUNDED', 'REFUNDED'].includes(order.status)
+}
+
+async function openInvoice(order: PaymentOrder) {
+  actionLoading.value = true
+  try {
+    const res = await paymentAPI.getOrderInvoice(order.id)
+    const doc = res.data
+    const url = doc.url || doc.hosted_invoice_url || doc.invoice_pdf || doc.receipt_url
+    if (!url) {
+      appStore.showError(t('payment.errors.PAYMENT_DOCUMENT_NOT_FOUND'))
+      return
+    }
+    window.open(url, '_blank', 'noopener,noreferrer')
+  } catch (err: unknown) {
+    appStore.showError(extractI18nErrorMessage(err, t, 'payment.errors', t('common.error')))
+  } finally {
+    actionLoading.value = false
+  }
 }
 
 async function loadRefundEligibility() {

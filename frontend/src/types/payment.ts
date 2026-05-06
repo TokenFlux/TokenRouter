@@ -18,7 +18,7 @@ export type OrderStatus =
   | 'REFUNDED'
   | 'REFUND_FAILED'
 
-export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay'
+export type PaymentType = 'alipay' | 'wxpay' | 'alipay_direct' | 'wxpay_direct' | 'stripe' | 'easypay' | 'card' | 'link'
 
 export type OrderType = 'balance' | 'subscription'
 
@@ -93,6 +93,12 @@ export interface PaymentOrder {
   refund_request_reason?: string
   plan_id?: number
   provider_instance_id?: string
+  payment_customer_id?: string
+  payment_invoice_id?: string
+  payment_invoice_url?: string
+  payment_invoice_pdf_url?: string
+  payment_invoice_status?: string
+  billing_snapshot?: Record<string, unknown>
 }
 
 export type PublicPaymentOrder = PaymentOrder
@@ -160,6 +166,24 @@ export interface CreateOrderRequest {
   openid?: string
   wechat_resume_token?: string
   is_mobile?: boolean
+  billing_info?: BillingInfo
+}
+
+export interface BillingAddress {
+  country?: string
+  line1?: string
+  line2?: string
+  city?: string
+  state?: string
+  postal_code?: string
+}
+
+export interface BillingInfo {
+  name?: string
+  email?: string
+  address?: BillingAddress
+  tax_id_type?: string
+  tax_id?: string
 }
 
 export type CreateOrderResultType = 'order_created' | 'oauth_required' | 'jsapi_ready'
@@ -188,6 +212,11 @@ export interface CreateOrderResult {
   pay_url?: string
   qr_code?: string
   client_secret?: string
+  customer_id?: string
+  invoice_id?: string
+  invoice_url?: string
+  invoice_pdf?: string
+  invoice_status?: string
   pay_amount: number
   fee_rate: number
   expires_at: string
@@ -199,6 +228,16 @@ export interface CreateOrderResult {
   oauth?: WechatOAuthInfo
   jsapi?: WechatJSAPIPayload
   jsapi_payload?: WechatJSAPIPayload
+}
+
+export interface PaymentDocument {
+  type: 'invoice' | 'receipt' | string
+  url?: string
+  hosted_invoice_url?: string
+  invoice_pdf?: string
+  receipt_url?: string
+  invoice_id?: string
+  invoice_status?: string
 }
 
 export interface DashboardStats {

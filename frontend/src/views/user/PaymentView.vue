@@ -56,6 +56,38 @@
                 @select="selectedMethod = $event"
               />
             </div>
+            <div v-if="isStripeSelected" class="card p-6">
+              <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label class="input-label">{{ t('payment.billing.name') }}</label>
+                  <input v-model="billingInfo.name" class="input mt-1 w-full" autocomplete="name" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('payment.billing.email') }}</label>
+                  <input v-model="billingInfo.email" class="input mt-1 w-full" autocomplete="email" type="email" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('payment.billing.country') }}</label>
+                  <input v-model="billingInfo.country" class="input mt-1 w-full" autocomplete="country" maxlength="2" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('payment.billing.postalCode') }}</label>
+                  <input v-model="billingInfo.postal_code" class="input mt-1 w-full" autocomplete="postal-code" />
+                </div>
+                <div class="sm:col-span-2">
+                  <label class="input-label">{{ t('payment.billing.line1') }}</label>
+                  <input v-model="billingInfo.line1" class="input mt-1 w-full" autocomplete="address-line1" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('payment.billing.city') }}</label>
+                  <input v-model="billingInfo.city" class="input mt-1 w-full" autocomplete="address-level2" />
+                </div>
+                <div>
+                  <label class="input-label">{{ t('payment.billing.state') }}</label>
+                  <input v-model="billingInfo.state" class="input mt-1 w-full" autocomplete="address-level1" />
+                </div>
+              </div>
+            </div>
             <div v-if="validAmount > 0" class="card p-6">
               <div class="space-y-2 text-sm">
                 <div class="flex justify-between">
@@ -135,6 +167,38 @@
                   :selected="selectedMethod"
                   @select="selectedMethod = $event"
                 />
+              </div>
+              <div v-if="isStripeSelected" class="card p-6">
+                <div class="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label class="input-label">{{ t('payment.billing.name') }}</label>
+                    <input v-model="billingInfo.name" class="input mt-1 w-full" autocomplete="name" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t('payment.billing.email') }}</label>
+                    <input v-model="billingInfo.email" class="input mt-1 w-full" autocomplete="email" type="email" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t('payment.billing.country') }}</label>
+                    <input v-model="billingInfo.country" class="input mt-1 w-full" autocomplete="country" maxlength="2" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t('payment.billing.postalCode') }}</label>
+                    <input v-model="billingInfo.postal_code" class="input mt-1 w-full" autocomplete="postal-code" />
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="input-label">{{ t('payment.billing.line1') }}</label>
+                    <input v-model="billingInfo.line1" class="input mt-1 w-full" autocomplete="address-line1" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t('payment.billing.city') }}</label>
+                    <input v-model="billingInfo.city" class="input mt-1 w-full" autocomplete="address-level2" />
+                  </div>
+                  <div>
+                    <label class="input-label">{{ t('payment.billing.state') }}</label>
+                    <input v-model="billingInfo.state" class="input mt-1 w-full" autocomplete="address-level1" />
+                  </div>
+                </div>
               </div>
               <div v-if="feeRate > 0 && selectedPlan.price > 0" class="card p-6">
                 <div class="space-y-2 text-sm">
@@ -233,7 +297,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -243,7 +307,7 @@ import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractApiErrorMessage, extractI18nErrorMessage } from '@/utils/apiError'
 import { isMobileDevice } from '@/utils/device'
-import type { SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
+import type { BillingInfo, SubscriptionPlan, CheckoutInfoResponse, CreateOrderResult, OrderType } from '@/types/payment'
 import type { UserSubscription } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AmountInput from '@/components/payment/AmountInput.vue'
@@ -295,6 +359,15 @@ const amount = ref<number | null>(null)
 const selectedMethod = ref('')
 const selectedPlan = ref<SubscriptionPlan | null>(null)
 const previewImage = ref('')
+const billingInfo = reactive({
+  name: '',
+  email: '',
+  country: '',
+  line1: '',
+  city: '',
+  state: '',
+  postal_code: '',
+})
 
 const paymentPhase = ref<'select' | 'paying'>('select')
 
@@ -520,6 +593,43 @@ const globalMaxAmount = computed(() => {
 
 // Selected method's limits (for validation and error messages)
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
+const isStripeSelected = computed(() => (normalizeVisibleMethod(selectedMethod.value) || selectedMethod.value) === 'stripe')
+
+function buildStripeBillingInfo(): BillingInfo | undefined {
+  if (!isStripeSelected.value) return undefined
+  const address = {
+    country: billingInfo.country.trim().toUpperCase(),
+    line1: billingInfo.line1.trim(),
+    city: billingInfo.city.trim(),
+    state: billingInfo.state.trim(),
+    postal_code: billingInfo.postal_code.trim(),
+  }
+  const hasAddress = Object.values(address).some(Boolean)
+  return {
+    name: billingInfo.name.trim(),
+    email: billingInfo.email.trim(),
+    address: hasAddress ? address : undefined,
+  }
+}
+
+function validateStripeBillingInfo(): boolean {
+  if (!isStripeSelected.value) return true
+  const name = billingInfo.name.trim()
+  const email = billingInfo.email.trim()
+  if (!name || !email) {
+    errorMessage.value = t('payment.errors.billingRequired')
+    errorHintMessage.value = ''
+    appStore.showError(errorMessage.value)
+    return false
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    errorMessage.value = t('payment.errors.billingEmailInvalid')
+    errorHintMessage.value = ''
+    appStore.showError(errorMessage.value)
+    return false
+  }
+  return true
+}
 
 const methodOptions = computed<PaymentMethodOption[]>(() =>
   enabledMethods.value.map((type) => {
@@ -563,6 +673,7 @@ const canSubmit = computed(() =>
   validAmount.value > 0
     && amountFitsMethod(validAmount.value, selectedMethod.value)
     && selectedLimit.value?.available !== false
+    && (!isStripeSelected.value || (billingInfo.name.trim() !== '' && billingInfo.email.trim() !== ''))
 )
 
 // Subscription-specific: method options based on plan price
@@ -594,6 +705,7 @@ const canSubmitSubscription = computed(() =>
   selectedPlan.value !== null
     && amountFitsMethod(selectedPlan.value.price, selectedMethod.value)
     && selectedLimit.value?.available !== false
+    && (!isStripeSelected.value || (billingInfo.name.trim() !== '' && billingInfo.email.trim() !== ''))
 )
 
 // Auto-switch to first available method when current selection can't handle the amount
@@ -675,11 +787,13 @@ function closeRenewalModal() {
 
 async function handleSubmitRecharge() {
   if (!canSubmit.value || submitting.value) return
+  if (!validateStripeBillingInfo()) return
   await createOrder(validAmount.value, 'balance')
 }
 
 async function confirmSubscribe() {
   if (!selectedPlan.value || submitting.value) return
+  if (!validateStripeBillingInfo()) return
   await createOrder(selectedPlan.value.price, 'subscription', selectedPlan.value.id)
 }
 
@@ -697,6 +811,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
       origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: isMobileDevice(),
       isWechatBrowser: typeof window !== 'undefined' && /MicroMessenger/i.test(window.navigator.userAgent),
+      billingInfo: buildStripeBillingInfo(),
     })
     if (options.openid) {
       payload.openid = options.openid
@@ -906,6 +1021,7 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
       origin: typeof window !== 'undefined' ? window.location.origin : '',
       isMobile: false,
       isWechatBrowser: false,
+      billingInfo: buildStripeBillingInfo(),
     })
     const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
     const stripeMethod = visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'

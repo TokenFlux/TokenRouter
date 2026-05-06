@@ -12,6 +12,7 @@ import type {
   CheckoutInfoResponse,
   CreateOrderRequest,
   CreateOrderResult,
+  PaymentDocument,
   PaymentOrder
 } from '@/types/payment'
 import type { BasePaginationResponse } from '@/types'
@@ -55,6 +56,11 @@ export const paymentAPI = {
   /** Get a specific order by ID */
   getOrder(id: number) {
     return apiClient.get<PaymentOrder>(`/payment/orders/${id}`)
+  },
+
+  /** 获取订单的 Stripe 账单或历史收据链接 */
+  getOrderInvoice(id: number) {
+    return apiClient.get<PaymentDocument>(`/payment/orders/${id}/invoice`)
   },
 
   /** Cancel a pending order */

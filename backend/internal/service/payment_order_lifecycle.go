@@ -227,6 +227,14 @@ func paymentOrderQueryReference(order *dbent.PaymentOrder, prov payment.Provider
 	switch payment.GetBasePaymentType(providerKey) {
 	case payment.TypeAlipay, payment.TypeEasyPay, payment.TypeWxpay:
 		return strings.TrimSpace(order.OutTradeNo)
+	case payment.TypeStripe:
+		if invoiceID := strings.TrimSpace(psStringValue(order.PaymentInvoiceID)); invoiceID != "" {
+			return invoiceID
+		}
+		if tradeNo := strings.TrimSpace(order.PaymentTradeNo); tradeNo != "" {
+			return tradeNo
+		}
+		return strings.TrimSpace(order.OutTradeNo)
 	default:
 		if tradeNo := strings.TrimSpace(order.PaymentTradeNo); tradeNo != "" {
 			return tradeNo

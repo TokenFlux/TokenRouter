@@ -30,7 +30,7 @@ type paymentOrderLifecycleRedeemRepo struct {
 	codesByCode map[string]*RedeemCode
 	// 按兑换码和用户记录使用轨迹，模拟新仓储接口的去重查询。
 	usageByRedeemCodeID map[int64]map[int64]*RedeemCodeUsage
-	useCalls    []struct {
+	useCalls            []struct {
 		id     int64
 		userID int64
 	}
@@ -607,6 +607,39 @@ func TestPaymentOrderQueryReferenceUsesOutTradeNoForOfficialProviders(t *testing
 	require.Equal(t, "sub2_out_trade_no", paymentOrderQueryReference(order, &paymentOrderLifecycleQueryProvider{}))
 	require.Equal(t, "sub2_out_trade_no", paymentOrderQueryReference(order, paymentFulfillmentTestProvider{
 		key: payment.TypeWxpay,
+	}))
+}
+
+func TestPaymentOrderQueryReferenceUsesInvoiceIDForStripeOrders(t *testing.T) {
+	t.Parallel()
+
+	invoiceID := "in_123"
+	providerKey := payment.TypeStripe
+	order := &dbent.PaymentOrder{
+		PaymentType:      payment.TypeStripe,
+		OutTradeNo:       "sub2_out_trade_no",
+		PaymentTradeNo:   "pi_123",
+		PaymentInvoiceID: &invoiceID,
+		ProviderKey:      &providerKey,
+	}
+
+	require.Equal(t, "in_123", paymentOrderQueryReference(order, paymentFulfillmentTestProvider{
+		key: payment.TypeStripe,
+	}))
+	require.Equal(t, "in_123", paymentOrderQueryReference(order, nil))
+}
+
+func TestPaymentOrderQueryReferenceFallsBackToTradeNoForLegacyStripeOrders(t *testing.T) {
+	t.Parallel()
+
+	order := &dbent.PaymentOrder{
+		PaymentType:    payment.TypeStripe,
+		OutTradeNo:     "sub2_out_trade_no",
+		PaymentTradeNo: "pi_legacy",
+	}
+
+	require.Equal(t, "pi_legacy", paymentOrderQueryReference(order, paymentFulfillmentTestProvider{
+		key: payment.TypeStripe,
 	}))
 }
 

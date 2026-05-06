@@ -156,6 +156,82 @@ func (_c *PaymentOrderCreate) SetNillableQrCodeImg(v *string) *PaymentOrderCreat
 	return _c
 }
 
+// SetPaymentCustomerID sets the "payment_customer_id" field.
+func (_c *PaymentOrderCreate) SetPaymentCustomerID(v string) *PaymentOrderCreate {
+	_c.mutation.SetPaymentCustomerID(v)
+	return _c
+}
+
+// SetNillablePaymentCustomerID sets the "payment_customer_id" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillablePaymentCustomerID(v *string) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetPaymentCustomerID(*v)
+	}
+	return _c
+}
+
+// SetPaymentInvoiceID sets the "payment_invoice_id" field.
+func (_c *PaymentOrderCreate) SetPaymentInvoiceID(v string) *PaymentOrderCreate {
+	_c.mutation.SetPaymentInvoiceID(v)
+	return _c
+}
+
+// SetNillablePaymentInvoiceID sets the "payment_invoice_id" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillablePaymentInvoiceID(v *string) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetPaymentInvoiceID(*v)
+	}
+	return _c
+}
+
+// SetPaymentInvoiceURL sets the "payment_invoice_url" field.
+func (_c *PaymentOrderCreate) SetPaymentInvoiceURL(v string) *PaymentOrderCreate {
+	_c.mutation.SetPaymentInvoiceURL(v)
+	return _c
+}
+
+// SetNillablePaymentInvoiceURL sets the "payment_invoice_url" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillablePaymentInvoiceURL(v *string) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetPaymentInvoiceURL(*v)
+	}
+	return _c
+}
+
+// SetPaymentInvoicePdfURL sets the "payment_invoice_pdf_url" field.
+func (_c *PaymentOrderCreate) SetPaymentInvoicePdfURL(v string) *PaymentOrderCreate {
+	_c.mutation.SetPaymentInvoicePdfURL(v)
+	return _c
+}
+
+// SetNillablePaymentInvoicePdfURL sets the "payment_invoice_pdf_url" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillablePaymentInvoicePdfURL(v *string) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetPaymentInvoicePdfURL(*v)
+	}
+	return _c
+}
+
+// SetPaymentInvoiceStatus sets the "payment_invoice_status" field.
+func (_c *PaymentOrderCreate) SetPaymentInvoiceStatus(v string) *PaymentOrderCreate {
+	_c.mutation.SetPaymentInvoiceStatus(v)
+	return _c
+}
+
+// SetNillablePaymentInvoiceStatus sets the "payment_invoice_status" field if the given value is not nil.
+func (_c *PaymentOrderCreate) SetNillablePaymentInvoiceStatus(v *string) *PaymentOrderCreate {
+	if v != nil {
+		_c.SetPaymentInvoiceStatus(*v)
+	}
+	return _c
+}
+
+// SetBillingSnapshot sets the "billing_snapshot" field.
+func (_c *PaymentOrderCreate) SetBillingSnapshot(v map[string]interface{}) *PaymentOrderCreate {
+	_c.mutation.SetBillingSnapshot(v)
+	return _c
+}
+
 // SetOrderType sets the "order_type" field.
 func (_c *PaymentOrderCreate) SetOrderType(v string) *PaymentOrderCreate {
 	_c.mutation.SetOrderType(v)
@@ -596,6 +672,21 @@ func (_c *PaymentOrderCreate) check() error {
 			return &ValidationError{Name: "payment_trade_no", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_trade_no": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.PaymentCustomerID(); ok {
+		if err := paymentorder.PaymentCustomerIDValidator(v); err != nil {
+			return &ValidationError{Name: "payment_customer_id", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_customer_id": %w`, err)}
+		}
+	}
+	if v, ok := _c.mutation.PaymentInvoiceID(); ok {
+		if err := paymentorder.PaymentInvoiceIDValidator(v); err != nil {
+			return &ValidationError{Name: "payment_invoice_id", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_invoice_id": %w`, err)}
+		}
+	}
+	if v, ok := _c.mutation.PaymentInvoiceStatus(); ok {
+		if err := paymentorder.PaymentInvoiceStatusValidator(v); err != nil {
+			return &ValidationError{Name: "payment_invoice_status", err: fmt.Errorf(`ent: validator failed for field "PaymentOrder.payment_invoice_status": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.OrderType(); !ok {
 		return &ValidationError{Name: "order_type", err: errors.New(`ent: missing required field "PaymentOrder.order_type"`)}
 	}
@@ -739,6 +830,30 @@ func (_c *PaymentOrderCreate) createSpec() (*PaymentOrder, *sqlgraph.CreateSpec)
 	if value, ok := _c.mutation.QrCodeImg(); ok {
 		_spec.SetField(paymentorder.FieldQrCodeImg, field.TypeString, value)
 		_node.QrCodeImg = &value
+	}
+	if value, ok := _c.mutation.PaymentCustomerID(); ok {
+		_spec.SetField(paymentorder.FieldPaymentCustomerID, field.TypeString, value)
+		_node.PaymentCustomerID = &value
+	}
+	if value, ok := _c.mutation.PaymentInvoiceID(); ok {
+		_spec.SetField(paymentorder.FieldPaymentInvoiceID, field.TypeString, value)
+		_node.PaymentInvoiceID = &value
+	}
+	if value, ok := _c.mutation.PaymentInvoiceURL(); ok {
+		_spec.SetField(paymentorder.FieldPaymentInvoiceURL, field.TypeString, value)
+		_node.PaymentInvoiceURL = &value
+	}
+	if value, ok := _c.mutation.PaymentInvoicePdfURL(); ok {
+		_spec.SetField(paymentorder.FieldPaymentInvoicePdfURL, field.TypeString, value)
+		_node.PaymentInvoicePdfURL = &value
+	}
+	if value, ok := _c.mutation.PaymentInvoiceStatus(); ok {
+		_spec.SetField(paymentorder.FieldPaymentInvoiceStatus, field.TypeString, value)
+		_node.PaymentInvoiceStatus = &value
+	}
+	if value, ok := _c.mutation.BillingSnapshot(); ok {
+		_spec.SetField(paymentorder.FieldBillingSnapshot, field.TypeJSON, value)
+		_node.BillingSnapshot = value
 	}
 	if value, ok := _c.mutation.OrderType(); ok {
 		_spec.SetField(paymentorder.FieldOrderType, field.TypeString, value)
@@ -1112,6 +1227,114 @@ func (u *PaymentOrderUpsert) UpdateQrCodeImg() *PaymentOrderUpsert {
 // ClearQrCodeImg clears the value of the "qr_code_img" field.
 func (u *PaymentOrderUpsert) ClearQrCodeImg() *PaymentOrderUpsert {
 	u.SetNull(paymentorder.FieldQrCodeImg)
+	return u
+}
+
+// SetPaymentCustomerID sets the "payment_customer_id" field.
+func (u *PaymentOrderUpsert) SetPaymentCustomerID(v string) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldPaymentCustomerID, v)
+	return u
+}
+
+// UpdatePaymentCustomerID sets the "payment_customer_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdatePaymentCustomerID() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldPaymentCustomerID)
+	return u
+}
+
+// ClearPaymentCustomerID clears the value of the "payment_customer_id" field.
+func (u *PaymentOrderUpsert) ClearPaymentCustomerID() *PaymentOrderUpsert {
+	u.SetNull(paymentorder.FieldPaymentCustomerID)
+	return u
+}
+
+// SetPaymentInvoiceID sets the "payment_invoice_id" field.
+func (u *PaymentOrderUpsert) SetPaymentInvoiceID(v string) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldPaymentInvoiceID, v)
+	return u
+}
+
+// UpdatePaymentInvoiceID sets the "payment_invoice_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdatePaymentInvoiceID() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldPaymentInvoiceID)
+	return u
+}
+
+// ClearPaymentInvoiceID clears the value of the "payment_invoice_id" field.
+func (u *PaymentOrderUpsert) ClearPaymentInvoiceID() *PaymentOrderUpsert {
+	u.SetNull(paymentorder.FieldPaymentInvoiceID)
+	return u
+}
+
+// SetPaymentInvoiceURL sets the "payment_invoice_url" field.
+func (u *PaymentOrderUpsert) SetPaymentInvoiceURL(v string) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldPaymentInvoiceURL, v)
+	return u
+}
+
+// UpdatePaymentInvoiceURL sets the "payment_invoice_url" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdatePaymentInvoiceURL() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldPaymentInvoiceURL)
+	return u
+}
+
+// ClearPaymentInvoiceURL clears the value of the "payment_invoice_url" field.
+func (u *PaymentOrderUpsert) ClearPaymentInvoiceURL() *PaymentOrderUpsert {
+	u.SetNull(paymentorder.FieldPaymentInvoiceURL)
+	return u
+}
+
+// SetPaymentInvoicePdfURL sets the "payment_invoice_pdf_url" field.
+func (u *PaymentOrderUpsert) SetPaymentInvoicePdfURL(v string) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldPaymentInvoicePdfURL, v)
+	return u
+}
+
+// UpdatePaymentInvoicePdfURL sets the "payment_invoice_pdf_url" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdatePaymentInvoicePdfURL() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldPaymentInvoicePdfURL)
+	return u
+}
+
+// ClearPaymentInvoicePdfURL clears the value of the "payment_invoice_pdf_url" field.
+func (u *PaymentOrderUpsert) ClearPaymentInvoicePdfURL() *PaymentOrderUpsert {
+	u.SetNull(paymentorder.FieldPaymentInvoicePdfURL)
+	return u
+}
+
+// SetPaymentInvoiceStatus sets the "payment_invoice_status" field.
+func (u *PaymentOrderUpsert) SetPaymentInvoiceStatus(v string) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldPaymentInvoiceStatus, v)
+	return u
+}
+
+// UpdatePaymentInvoiceStatus sets the "payment_invoice_status" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdatePaymentInvoiceStatus() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldPaymentInvoiceStatus)
+	return u
+}
+
+// ClearPaymentInvoiceStatus clears the value of the "payment_invoice_status" field.
+func (u *PaymentOrderUpsert) ClearPaymentInvoiceStatus() *PaymentOrderUpsert {
+	u.SetNull(paymentorder.FieldPaymentInvoiceStatus)
+	return u
+}
+
+// SetBillingSnapshot sets the "billing_snapshot" field.
+func (u *PaymentOrderUpsert) SetBillingSnapshot(v map[string]interface{}) *PaymentOrderUpsert {
+	u.Set(paymentorder.FieldBillingSnapshot, v)
+	return u
+}
+
+// UpdateBillingSnapshot sets the "billing_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsert) UpdateBillingSnapshot() *PaymentOrderUpsert {
+	u.SetExcluded(paymentorder.FieldBillingSnapshot)
+	return u
+}
+
+// ClearBillingSnapshot clears the value of the "billing_snapshot" field.
+func (u *PaymentOrderUpsert) ClearBillingSnapshot() *PaymentOrderUpsert {
+	u.SetNull(paymentorder.FieldBillingSnapshot)
 	return u
 }
 
@@ -1780,6 +2003,132 @@ func (u *PaymentOrderUpsertOne) UpdateQrCodeImg() *PaymentOrderUpsertOne {
 func (u *PaymentOrderUpsertOne) ClearQrCodeImg() *PaymentOrderUpsertOne {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.ClearQrCodeImg()
+	})
+}
+
+// SetPaymentCustomerID sets the "payment_customer_id" field.
+func (u *PaymentOrderUpsertOne) SetPaymentCustomerID(v string) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetPaymentCustomerID(v)
+	})
+}
+
+// UpdatePaymentCustomerID sets the "payment_customer_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdatePaymentCustomerID() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdatePaymentCustomerID()
+	})
+}
+
+// ClearPaymentCustomerID clears the value of the "payment_customer_id" field.
+func (u *PaymentOrderUpsertOne) ClearPaymentCustomerID() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearPaymentCustomerID()
+	})
+}
+
+// SetPaymentInvoiceID sets the "payment_invoice_id" field.
+func (u *PaymentOrderUpsertOne) SetPaymentInvoiceID(v string) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetPaymentInvoiceID(v)
+	})
+}
+
+// UpdatePaymentInvoiceID sets the "payment_invoice_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdatePaymentInvoiceID() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdatePaymentInvoiceID()
+	})
+}
+
+// ClearPaymentInvoiceID clears the value of the "payment_invoice_id" field.
+func (u *PaymentOrderUpsertOne) ClearPaymentInvoiceID() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearPaymentInvoiceID()
+	})
+}
+
+// SetPaymentInvoiceURL sets the "payment_invoice_url" field.
+func (u *PaymentOrderUpsertOne) SetPaymentInvoiceURL(v string) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetPaymentInvoiceURL(v)
+	})
+}
+
+// UpdatePaymentInvoiceURL sets the "payment_invoice_url" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdatePaymentInvoiceURL() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdatePaymentInvoiceURL()
+	})
+}
+
+// ClearPaymentInvoiceURL clears the value of the "payment_invoice_url" field.
+func (u *PaymentOrderUpsertOne) ClearPaymentInvoiceURL() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearPaymentInvoiceURL()
+	})
+}
+
+// SetPaymentInvoicePdfURL sets the "payment_invoice_pdf_url" field.
+func (u *PaymentOrderUpsertOne) SetPaymentInvoicePdfURL(v string) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetPaymentInvoicePdfURL(v)
+	})
+}
+
+// UpdatePaymentInvoicePdfURL sets the "payment_invoice_pdf_url" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdatePaymentInvoicePdfURL() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdatePaymentInvoicePdfURL()
+	})
+}
+
+// ClearPaymentInvoicePdfURL clears the value of the "payment_invoice_pdf_url" field.
+func (u *PaymentOrderUpsertOne) ClearPaymentInvoicePdfURL() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearPaymentInvoicePdfURL()
+	})
+}
+
+// SetPaymentInvoiceStatus sets the "payment_invoice_status" field.
+func (u *PaymentOrderUpsertOne) SetPaymentInvoiceStatus(v string) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetPaymentInvoiceStatus(v)
+	})
+}
+
+// UpdatePaymentInvoiceStatus sets the "payment_invoice_status" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdatePaymentInvoiceStatus() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdatePaymentInvoiceStatus()
+	})
+}
+
+// ClearPaymentInvoiceStatus clears the value of the "payment_invoice_status" field.
+func (u *PaymentOrderUpsertOne) ClearPaymentInvoiceStatus() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearPaymentInvoiceStatus()
+	})
+}
+
+// SetBillingSnapshot sets the "billing_snapshot" field.
+func (u *PaymentOrderUpsertOne) SetBillingSnapshot(v map[string]interface{}) *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetBillingSnapshot(v)
+	})
+}
+
+// UpdateBillingSnapshot sets the "billing_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsertOne) UpdateBillingSnapshot() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateBillingSnapshot()
+	})
+}
+
+// ClearBillingSnapshot clears the value of the "billing_snapshot" field.
+func (u *PaymentOrderUpsertOne) ClearBillingSnapshot() *PaymentOrderUpsertOne {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearBillingSnapshot()
 	})
 }
 
@@ -2677,6 +3026,132 @@ func (u *PaymentOrderUpsertBulk) UpdateQrCodeImg() *PaymentOrderUpsertBulk {
 func (u *PaymentOrderUpsertBulk) ClearQrCodeImg() *PaymentOrderUpsertBulk {
 	return u.Update(func(s *PaymentOrderUpsert) {
 		s.ClearQrCodeImg()
+	})
+}
+
+// SetPaymentCustomerID sets the "payment_customer_id" field.
+func (u *PaymentOrderUpsertBulk) SetPaymentCustomerID(v string) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetPaymentCustomerID(v)
+	})
+}
+
+// UpdatePaymentCustomerID sets the "payment_customer_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdatePaymentCustomerID() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdatePaymentCustomerID()
+	})
+}
+
+// ClearPaymentCustomerID clears the value of the "payment_customer_id" field.
+func (u *PaymentOrderUpsertBulk) ClearPaymentCustomerID() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearPaymentCustomerID()
+	})
+}
+
+// SetPaymentInvoiceID sets the "payment_invoice_id" field.
+func (u *PaymentOrderUpsertBulk) SetPaymentInvoiceID(v string) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetPaymentInvoiceID(v)
+	})
+}
+
+// UpdatePaymentInvoiceID sets the "payment_invoice_id" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdatePaymentInvoiceID() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdatePaymentInvoiceID()
+	})
+}
+
+// ClearPaymentInvoiceID clears the value of the "payment_invoice_id" field.
+func (u *PaymentOrderUpsertBulk) ClearPaymentInvoiceID() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearPaymentInvoiceID()
+	})
+}
+
+// SetPaymentInvoiceURL sets the "payment_invoice_url" field.
+func (u *PaymentOrderUpsertBulk) SetPaymentInvoiceURL(v string) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetPaymentInvoiceURL(v)
+	})
+}
+
+// UpdatePaymentInvoiceURL sets the "payment_invoice_url" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdatePaymentInvoiceURL() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdatePaymentInvoiceURL()
+	})
+}
+
+// ClearPaymentInvoiceURL clears the value of the "payment_invoice_url" field.
+func (u *PaymentOrderUpsertBulk) ClearPaymentInvoiceURL() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearPaymentInvoiceURL()
+	})
+}
+
+// SetPaymentInvoicePdfURL sets the "payment_invoice_pdf_url" field.
+func (u *PaymentOrderUpsertBulk) SetPaymentInvoicePdfURL(v string) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetPaymentInvoicePdfURL(v)
+	})
+}
+
+// UpdatePaymentInvoicePdfURL sets the "payment_invoice_pdf_url" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdatePaymentInvoicePdfURL() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdatePaymentInvoicePdfURL()
+	})
+}
+
+// ClearPaymentInvoicePdfURL clears the value of the "payment_invoice_pdf_url" field.
+func (u *PaymentOrderUpsertBulk) ClearPaymentInvoicePdfURL() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearPaymentInvoicePdfURL()
+	})
+}
+
+// SetPaymentInvoiceStatus sets the "payment_invoice_status" field.
+func (u *PaymentOrderUpsertBulk) SetPaymentInvoiceStatus(v string) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetPaymentInvoiceStatus(v)
+	})
+}
+
+// UpdatePaymentInvoiceStatus sets the "payment_invoice_status" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdatePaymentInvoiceStatus() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdatePaymentInvoiceStatus()
+	})
+}
+
+// ClearPaymentInvoiceStatus clears the value of the "payment_invoice_status" field.
+func (u *PaymentOrderUpsertBulk) ClearPaymentInvoiceStatus() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearPaymentInvoiceStatus()
+	})
+}
+
+// SetBillingSnapshot sets the "billing_snapshot" field.
+func (u *PaymentOrderUpsertBulk) SetBillingSnapshot(v map[string]interface{}) *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.SetBillingSnapshot(v)
+	})
+}
+
+// UpdateBillingSnapshot sets the "billing_snapshot" field to the value that was provided on create.
+func (u *PaymentOrderUpsertBulk) UpdateBillingSnapshot() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.UpdateBillingSnapshot()
+	})
+}
+
+// ClearBillingSnapshot clears the value of the "billing_snapshot" field.
+func (u *PaymentOrderUpsertBulk) ClearBillingSnapshot() *PaymentOrderUpsertBulk {
+	return u.Update(func(s *PaymentOrderUpsert) {
+		s.ClearBillingSnapshot()
 	})
 }
 

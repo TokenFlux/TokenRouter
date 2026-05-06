@@ -121,6 +121,12 @@ func TestExtractOutTradeNo(t *testing.T) {
 			want:        "sub2_456",
 		},
 		{
+			name:        "stripe invoice payload metadata",
+			providerKey: "stripe",
+			rawBody:     `{"data":{"object":{"metadata":{"orderId":" sub2_stripe_invoice "}}}}`,
+			want:        "sub2_stripe_invoice",
+		},
+		{
 			name:        "unknown provider",
 			providerKey: "wxpay",
 			rawBody:     "{}",
@@ -131,6 +137,40 @@ func TestExtractOutTradeNo(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, extractOutTradeNo(tt.rawBody, tt.providerKey))
+		})
+	}
+}
+
+func TestExtractStripeOutTradeNo(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		rawBody string
+		want    string
+	}{
+		{
+			name:    "extracts order id from metadata",
+			rawBody: `{"data":{"object":{"metadata":{"orderId":" sub2_123 "}}}}`,
+			want:    "sub2_123",
+		},
+		{
+			name:    "invalid json returns empty",
+			rawBody: `{`,
+			want:    "",
+		},
+		{
+			name:    "missing metadata returns empty",
+			rawBody: `{"data":{"object":{}}}`,
+			want:    "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, tt.want, extractStripeOutTradeNo(tt.rawBody))
 		})
 	}
 }

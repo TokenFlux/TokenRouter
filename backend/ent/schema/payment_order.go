@@ -74,6 +74,30 @@ func (PaymentOrder) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "text"}),
+		// Stripe Invoice 账单信息；旧 PaymentIntent 订单这些字段为空，文档接口会回退到 receipt。
+		field.String("payment_customer_id").
+			Optional().
+			Nillable().
+			MaxLen(128),
+		field.String("payment_invoice_id").
+			Optional().
+			Nillable().
+			MaxLen(128),
+		field.String("payment_invoice_url").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "text"}),
+		field.String("payment_invoice_pdf_url").
+			Optional().
+			Nillable().
+			SchemaType(map[string]string{dialect.Postgres: "text"}),
+		field.String("payment_invoice_status").
+			Optional().
+			Nillable().
+			MaxLen(30),
+		field.JSON("billing_snapshot", map[string]any{}).
+			Optional().
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}),
 
 		// 订单类型 & 订阅关联
 		field.String("order_type").

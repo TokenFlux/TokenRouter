@@ -235,6 +235,48 @@ describe('buildCreateOrderPayload', () => {
       payment_source: 'wechat_in_app_resume',
     })
   })
+
+  it('includes billing info for Stripe invoice orders', () => {
+    expect(buildCreateOrderPayload({
+      amount: 66,
+      paymentType: 'stripe',
+      orderType: 'balance',
+      origin: 'https://app.example.com',
+      isMobile: false,
+      isWechatBrowser: false,
+      billingInfo: {
+        name: 'Buyer Inc',
+        email: 'billing@example.com',
+        tax_id_type: 'eu_vat',
+        tax_id: 'DE123456789',
+        address: {
+          country: 'DE',
+          line1: 'Main Street 1',
+          city: 'Berlin',
+          postal_code: '10115',
+        },
+      },
+    })).toEqual({
+      amount: 66,
+      payment_type: 'stripe',
+      order_type: 'balance',
+      return_url: 'https://app.example.com/payment/result',
+      is_mobile: false,
+      payment_source: 'hosted_redirect',
+      billing_info: {
+        name: 'Buyer Inc',
+        email: 'billing@example.com',
+        tax_id_type: 'eu_vat',
+        tax_id: 'DE123456789',
+        address: {
+          country: 'DE',
+          line1: 'Main Street 1',
+          city: 'Berlin',
+          postal_code: '10115',
+        },
+      },
+    })
+  })
 })
 
 describe('readPaymentRecoverySnapshot', () => {

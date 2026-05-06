@@ -91,6 +91,52 @@ func TestBuildCreateOrderResponseCopiesJSAPIPayload(t *testing.T) {
 	}
 }
 
+func TestBuildCreateOrderResponseCopiesStripeInvoiceFields(t *testing.T) {
+	t.Parallel()
+
+	resp := buildCreateOrderResponse(
+		&dbent.PaymentOrder{
+			ID:         99,
+			Amount:     99.99,
+			FeeRate:    0,
+			ExpiresAt:  time.Date(2026, 4, 16, 14, 0, 0, 0, time.UTC),
+			OutTradeNo: "sub2_99",
+		},
+		CreateOrderRequest{PaymentType: payment.TypeStripe},
+		99.99,
+		&payment.InstanceSelection{PaymentMode: "stripe"},
+		&payment.CreatePaymentResponse{
+			TradeNo:       "pi_99",
+			ClientSecret:  "pi_99_secret_abc",
+			CustomerID:    "cus_99",
+			InvoiceID:     "in_99",
+			InvoiceURL:    "https://stripe.example/invoice/in_99",
+			InvoicePDF:    "https://stripe.example/invoice/in_99.pdf",
+			InvoiceStatus: "open",
+		},
+		payment.CreatePaymentResultOrderCreated,
+	)
+
+	if resp.ClientSecret != "pi_99_secret_abc" {
+		t.Fatalf("client_secret = %q", resp.ClientSecret)
+	}
+	if resp.CustomerID != "cus_99" {
+		t.Fatalf("customer_id = %q", resp.CustomerID)
+	}
+	if resp.InvoiceID != "in_99" {
+		t.Fatalf("invoice_id = %q", resp.InvoiceID)
+	}
+	if resp.InvoiceURL != "https://stripe.example/invoice/in_99" {
+		t.Fatalf("invoice_url = %q", resp.InvoiceURL)
+	}
+	if resp.InvoicePDF != "https://stripe.example/invoice/in_99.pdf" {
+		t.Fatalf("invoice_pdf = %q", resp.InvoicePDF)
+	}
+	if resp.InvoiceStatus != "open" {
+		t.Fatalf("invoice_status = %q", resp.InvoiceStatus)
+	}
+}
+
 func TestMaybeBuildWeChatOAuthRequiredResponse(t *testing.T) {
 	t.Setenv("PAYMENT_RESUME_SIGNING_KEY", "0123456789abcdef0123456789abcdef")
 

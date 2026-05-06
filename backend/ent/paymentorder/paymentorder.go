@@ -42,6 +42,18 @@ const (
 	FieldQrCode = "qr_code"
 	// FieldQrCodeImg holds the string denoting the qr_code_img field in the database.
 	FieldQrCodeImg = "qr_code_img"
+	// FieldPaymentCustomerID holds the string denoting the payment_customer_id field in the database.
+	FieldPaymentCustomerID = "payment_customer_id"
+	// FieldPaymentInvoiceID holds the string denoting the payment_invoice_id field in the database.
+	FieldPaymentInvoiceID = "payment_invoice_id"
+	// FieldPaymentInvoiceURL holds the string denoting the payment_invoice_url field in the database.
+	FieldPaymentInvoiceURL = "payment_invoice_url"
+	// FieldPaymentInvoicePdfURL holds the string denoting the payment_invoice_pdf_url field in the database.
+	FieldPaymentInvoicePdfURL = "payment_invoice_pdf_url"
+	// FieldPaymentInvoiceStatus holds the string denoting the payment_invoice_status field in the database.
+	FieldPaymentInvoiceStatus = "payment_invoice_status"
+	// FieldBillingSnapshot holds the string denoting the billing_snapshot field in the database.
+	FieldBillingSnapshot = "billing_snapshot"
 	// FieldOrderType holds the string denoting the order_type field in the database.
 	FieldOrderType = "order_type"
 	// FieldPlanID holds the string denoting the plan_id field in the database.
@@ -120,6 +132,12 @@ var Columns = []string{
 	FieldPayURL,
 	FieldQrCode,
 	FieldQrCodeImg,
+	FieldPaymentCustomerID,
+	FieldPaymentInvoiceID,
+	FieldPaymentInvoiceURL,
+	FieldPaymentInvoicePdfURL,
+	FieldPaymentInvoiceStatus,
+	FieldBillingSnapshot,
 	FieldOrderType,
 	FieldPlanID,
 	FieldPlanSnapshot,
@@ -173,6 +191,12 @@ var (
 	PaymentTypeValidator func(string) error
 	// PaymentTradeNoValidator is a validator for the "payment_trade_no" field. It is called by the builders before save.
 	PaymentTradeNoValidator func(string) error
+	// PaymentCustomerIDValidator is a validator for the "payment_customer_id" field. It is called by the builders before save.
+	PaymentCustomerIDValidator func(string) error
+	// PaymentInvoiceIDValidator is a validator for the "payment_invoice_id" field. It is called by the builders before save.
+	PaymentInvoiceIDValidator func(string) error
+	// PaymentInvoiceStatusValidator is a validator for the "payment_invoice_status" field. It is called by the builders before save.
+	PaymentInvoiceStatusValidator func(string) error
 	// DefaultOrderType holds the default value on creation for the "order_type" field.
 	DefaultOrderType string
 	// OrderTypeValidator is a validator for the "order_type" field. It is called by the builders before save.
@@ -279,6 +303,31 @@ func ByQrCode(opts ...sql.OrderTermOption) OrderOption {
 // ByQrCodeImg orders the results by the qr_code_img field.
 func ByQrCodeImg(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldQrCodeImg, opts...).ToFunc()
+}
+
+// ByPaymentCustomerID orders the results by the payment_customer_id field.
+func ByPaymentCustomerID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPaymentCustomerID, opts...).ToFunc()
+}
+
+// ByPaymentInvoiceID orders the results by the payment_invoice_id field.
+func ByPaymentInvoiceID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPaymentInvoiceID, opts...).ToFunc()
+}
+
+// ByPaymentInvoiceURL orders the results by the payment_invoice_url field.
+func ByPaymentInvoiceURL(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPaymentInvoiceURL, opts...).ToFunc()
+}
+
+// ByPaymentInvoicePdfURL orders the results by the payment_invoice_pdf_url field.
+func ByPaymentInvoicePdfURL(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPaymentInvoicePdfURL, opts...).ToFunc()
+}
+
+// ByPaymentInvoiceStatus orders the results by the payment_invoice_status field.
+func ByPaymentInvoiceStatus(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPaymentInvoiceStatus, opts...).ToFunc()
 }
 
 // ByOrderType orders the results by the order_type field.
