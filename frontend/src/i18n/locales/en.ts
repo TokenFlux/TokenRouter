@@ -6022,6 +6022,7 @@ export default {
       line1: 'Address',
       city: 'City',
       state: 'State',
+      optionalMark: ' (optional)',
     },
     result: {
       success: 'Payment Successful',

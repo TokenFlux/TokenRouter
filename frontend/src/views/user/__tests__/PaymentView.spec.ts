@@ -47,6 +47,7 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
     user: {
       username: 'demo-user',
+      email: 'buyer@example.com',
       balance: 0,
     },
     refreshUser,
@@ -136,6 +137,26 @@ function checkoutInfoWithPlansFixture() {
           group_name: 'OpenAI',
         },
       ],
+    },
+  }
+}
+
+function stripeCheckoutInfoFixture() {
+  return {
+    data: {
+      ...checkoutInfoFixture().data,
+      methods: {
+        stripe: {
+          daily_limit: 0,
+          daily_used: 0,
+          daily_remaining: 0,
+          single_min: 0,
+          single_max: 0,
+          fee_rate: 0,
+          available: true,
+        },
+      },
+      stripe_publishable_key: 'pk_test_123',
     },
   }
 }
@@ -410,5 +431,48 @@ describe('PaymentView WeChat JSAPI flow', () => {
     expect(showWarning).toHaveBeenCalledWith('payment.errors.mobilePaymentFallbackToQr')
     expect(showError).not.toHaveBeenCalled()
     expect(window.localStorage.getItem(PAYMENT_RECOVERY_STORAGE_KEY)).toContain('weixin://wxpay/bizpayurl?pr=fallback-native')
+  })
+})
+
+describe('PaymentView Stripe billing form', () => {
+  beforeEach(() => {
+    routeState.path = '/purchase'
+    routeState.query = {}
+    routerReplace.mockReset().mockResolvedValue(undefined)
+    routerPush.mockReset().mockResolvedValue(undefined)
+    routerResolve.mockClear()
+    createOrder.mockReset()
+    refreshUser.mockReset()
+    fetchActiveSubscriptions.mockReset().mockResolvedValue(undefined)
+    showError.mockReset()
+    showInfo.mockReset()
+    showWarning.mockReset()
+    getCheckoutInfo.mockReset().mockResolvedValue(stripeCheckoutInfoFixture())
+    bridgeInvoke.mockReset()
+    window.localStorage.clear()
+  })
+
+  it('uses the registered email as the Stripe billing email default and marks optional fields', async () => {
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<main><slot /></main>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    const emailInput = wrapper.get('input[autocomplete="email"]')
+    expect((emailInput.element as HTMLInputElement).value).toBe('buyer@example.com')
+    const labels = wrapper.findAll('label').map(label => label.text())
+    expect(labels).toContain('payment.billing.name')
+    expect(labels).toContain('payment.billing.email')
+    expect(labels).toContain('payment.billing.countrypayment.billing.optionalMark')
+    expect(labels).toContain('payment.billing.postalCodepayment.billing.optionalMark')
+    expect(labels).toContain('payment.billing.line1payment.billing.optionalMark')
+    expect(labels).toContain('payment.billing.citypayment.billing.optionalMark')
+    expect(labels).toContain('payment.billing.statepayment.billing.optionalMark')
   })
 })

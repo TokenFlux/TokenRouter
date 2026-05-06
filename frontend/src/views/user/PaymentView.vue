@@ -67,23 +67,23 @@
                   <input v-model="billingInfo.email" class="input mt-1 w-full" autocomplete="email" type="email" />
                 </div>
                 <div>
-                  <label class="input-label">{{ t('payment.billing.country') }}</label>
+                  <label class="input-label">{{ optionalBillingLabel('country') }}</label>
                   <input v-model="billingInfo.country" class="input mt-1 w-full" autocomplete="country" maxlength="2" />
                 </div>
                 <div>
-                  <label class="input-label">{{ t('payment.billing.postalCode') }}</label>
+                  <label class="input-label">{{ optionalBillingLabel('postalCode') }}</label>
                   <input v-model="billingInfo.postal_code" class="input mt-1 w-full" autocomplete="postal-code" />
                 </div>
                 <div class="sm:col-span-2">
-                  <label class="input-label">{{ t('payment.billing.line1') }}</label>
+                  <label class="input-label">{{ optionalBillingLabel('line1') }}</label>
                   <input v-model="billingInfo.line1" class="input mt-1 w-full" autocomplete="address-line1" />
                 </div>
                 <div>
-                  <label class="input-label">{{ t('payment.billing.city') }}</label>
+                  <label class="input-label">{{ optionalBillingLabel('city') }}</label>
                   <input v-model="billingInfo.city" class="input mt-1 w-full" autocomplete="address-level2" />
                 </div>
                 <div>
-                  <label class="input-label">{{ t('payment.billing.state') }}</label>
+                  <label class="input-label">{{ optionalBillingLabel('state') }}</label>
                   <input v-model="billingInfo.state" class="input mt-1 w-full" autocomplete="address-level1" />
                 </div>
               </div>
@@ -179,23 +179,23 @@
                     <input v-model="billingInfo.email" class="input mt-1 w-full" autocomplete="email" type="email" />
                   </div>
                   <div>
-                    <label class="input-label">{{ t('payment.billing.country') }}</label>
+                    <label class="input-label">{{ optionalBillingLabel('country') }}</label>
                     <input v-model="billingInfo.country" class="input mt-1 w-full" autocomplete="country" maxlength="2" />
                   </div>
                   <div>
-                    <label class="input-label">{{ t('payment.billing.postalCode') }}</label>
+                    <label class="input-label">{{ optionalBillingLabel('postalCode') }}</label>
                     <input v-model="billingInfo.postal_code" class="input mt-1 w-full" autocomplete="postal-code" />
                   </div>
                   <div class="sm:col-span-2">
-                    <label class="input-label">{{ t('payment.billing.line1') }}</label>
+                    <label class="input-label">{{ optionalBillingLabel('line1') }}</label>
                     <input v-model="billingInfo.line1" class="input mt-1 w-full" autocomplete="address-line1" />
                   </div>
                   <div>
-                    <label class="input-label">{{ t('payment.billing.city') }}</label>
+                    <label class="input-label">{{ optionalBillingLabel('city') }}</label>
                     <input v-model="billingInfo.city" class="input mt-1 w-full" autocomplete="address-level2" />
                   </div>
                   <div>
-                    <label class="input-label">{{ t('payment.billing.state') }}</label>
+                    <label class="input-label">{{ optionalBillingLabel('state') }}</label>
                     <input v-model="billingInfo.state" class="input mt-1 w-full" autocomplete="address-level1" />
                   </div>
                 </div>
@@ -594,6 +594,17 @@ const globalMaxAmount = computed(() => {
 // Selected method's limits (for validation and error messages)
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
 const isStripeSelected = computed(() => (normalizeVisibleMethod(selectedMethod.value) || selectedMethod.value) === 'stripe')
+const registeredEmail = computed(() => (user.value?.email || '').trim())
+
+function optionalBillingLabel(key: 'country' | 'postalCode' | 'line1' | 'city' | 'state'): string {
+  return `${t(`payment.billing.${key}`)}${t('payment.billing.optionalMark')}`
+}
+
+// 默认使用注册邮箱，但不覆盖用户已经填写过的账单邮箱。
+function fillBillingEmailFromUser() {
+  if (billingInfo.email.trim() !== '') return
+  billingInfo.email = registeredEmail.value
+}
 
 function buildStripeBillingInfo(): BillingInfo | undefined {
   if (!isStripeSelected.value) return undefined
@@ -714,6 +725,8 @@ watch(() => [validAmount.value, selectedMethod.value] as const, ([amt, method]) 
   const available = enabledMethods.value.find((m) => amountFitsMethod(amt, m))
   if (available) selectedMethod.value = available
 })
+
+watch(registeredEmail, fillBillingEmailFromUser, { immediate: true })
 
 // Payment button class: follows selected payment method color
 const paymentButtonClass = computed(() => {

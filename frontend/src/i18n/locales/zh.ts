@@ -6206,6 +6206,7 @@ export default {
       line1: '地址',
       city: '城市',
       state: '省/州',
+      optionalMark: '（可选）',
     },
     result: {
       success: '支付成功',
