@@ -109,3 +109,55 @@ func TestCalculatePayAmount(t *testing.T) {
 		})
 	}
 }
+
+func TestCalculatePayAmountWithFee(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		base float64
+		fee  FeeConfig
+		want FeeBreakdown
+	}{
+		{
+			name: "fixed fee only",
+			base: 100,
+			fee:  FeeConfig{FixedFee: 2.5},
+			want: FeeBreakdown{BaseAmount: 100, FixedFee: 2.5, FeeAmount: 2.5, PayAmount: 102.5},
+		},
+		{
+			name: "rate fee only",
+			base: 100,
+			fee:  FeeConfig{FeeRate: 2.2},
+			want: FeeBreakdown{BaseAmount: 100, FeeRate: 2.2, FeeRateAmount: 2.2, FeeAmount: 2.2, PayAmount: 102.2},
+		},
+		{
+			name: "fixed and rate fee",
+			base: 100,
+			fee:  FeeConfig{FixedFee: 2.5, FeeRate: 2.2},
+			want: FeeBreakdown{BaseAmount: 100, FixedFee: 2.5, FeeRate: 2.2, FeeRateAmount: 2.2, FeeAmount: 4.7, PayAmount: 104.7},
+		},
+		{
+			name: "rate fee rounds up",
+			base: 10,
+			fee:  FeeConfig{FeeRate: 3.33},
+			want: FeeBreakdown{BaseAmount: 10, FeeRate: 3.33, FeeRateAmount: 0.34, FeeAmount: 0.34, PayAmount: 10.34},
+		},
+		{
+			name: "zero fee",
+			base: 88,
+			fee:  FeeConfig{},
+			want: FeeBreakdown{BaseAmount: 88, PayAmount: 88},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := CalculatePayAmountWithFee(tt.base, tt.fee)
+			if got != tt.want {
+				t.Fatalf("CalculatePayAmountWithFee() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+}

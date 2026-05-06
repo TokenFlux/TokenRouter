@@ -51,6 +51,9 @@ const orderFactory = (status: string) => ({
   amount: 88,
   pay_amount: 88,
   fee_rate: 0,
+  fee_fixed: 0,
+  fee_rate_amount: 0,
+  fee_amount: 0,
   payment_type: 'alipay',
   out_trade_no: 'sub2_20260420abcd1234',
   status,
@@ -84,6 +87,39 @@ describe('PaymentResultView', () => {
     verifyOrderPublic.mockReset()
     resolveOrderPublicByResumeToken.mockReset()
     window.localStorage.clear()
+  })
+
+  it('shows fixed and rate fee breakdown when present', async () => {
+    routeState.query = { out_trade_no: 'sub2_20260420abcd1234', trade_status: 'TRADE_SUCCESS' }
+    verifyOrderPublic.mockResolvedValue({
+      data: {
+        ...orderFactory('PAID'),
+        amount: 100,
+        pay_amount: 104.7,
+        fee_rate: 2.2,
+        fee_fixed: 2.5,
+        fee_rate_amount: 2.2,
+        fee_amount: 4.7,
+      },
+    })
+
+    const wrapper = mount(PaymentResultView, {
+      global: {
+        stubs: {
+          OrderStatusBadge: true,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('payment.fixedFee')
+    expect(wrapper.text()).toContain('¥2.50')
+    expect(wrapper.text()).toContain('payment.rateFee')
+    expect(wrapper.text()).toContain('¥2.20')
+    expect(wrapper.text()).toContain('payment.feeTotal')
+    expect(wrapper.text()).toContain('¥4.70')
+    expect(wrapper.text()).toContain('¥104.70')
   })
 
   afterEach(() => {

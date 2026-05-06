@@ -28,6 +28,12 @@ const (
 	FieldPayAmount = "pay_amount"
 	// FieldFeeRate holds the string denoting the fee_rate field in the database.
 	FieldFeeRate = "fee_rate"
+	// FieldFeeFixed holds the string denoting the fee_fixed field in the database.
+	FieldFeeFixed = "fee_fixed"
+	// FieldFeeRateAmount holds the string denoting the fee_rate_amount field in the database.
+	FieldFeeRateAmount = "fee_rate_amount"
+	// FieldFeeAmount holds the string denoting the fee_amount field in the database.
+	FieldFeeAmount = "fee_amount"
 	// FieldRechargeCode holds the string denoting the recharge_code field in the database.
 	FieldRechargeCode = "recharge_code"
 	// FieldOutTradeNo holds the string denoting the out_trade_no field in the database.
@@ -125,6 +131,9 @@ var Columns = []string{
 	FieldAmount,
 	FieldPayAmount,
 	FieldFeeRate,
+	FieldFeeFixed,
+	FieldFeeRateAmount,
+	FieldFeeAmount,
 	FieldRechargeCode,
 	FieldOutTradeNo,
 	FieldPaymentType,
@@ -181,6 +190,12 @@ var (
 	UserNameValidator func(string) error
 	// DefaultFeeRate holds the default value on creation for the "fee_rate" field.
 	DefaultFeeRate float64
+	// DefaultFeeFixed holds the default value on creation for the "fee_fixed" field.
+	DefaultFeeFixed float64
+	// DefaultFeeRateAmount holds the default value on creation for the "fee_rate_amount" field.
+	DefaultFeeRateAmount float64
+	// DefaultFeeAmount holds the default value on creation for the "fee_amount" field.
+	DefaultFeeAmount float64
 	// RechargeCodeValidator is a validator for the "recharge_code" field. It is called by the builders before save.
 	RechargeCodeValidator func(string) error
 	// DefaultOutTradeNo holds the default value on creation for the "out_trade_no" field.
@@ -268,6 +283,21 @@ func ByPayAmount(opts ...sql.OrderTermOption) OrderOption {
 // ByFeeRate orders the results by the fee_rate field.
 func ByFeeRate(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldFeeRate, opts...).ToFunc()
+}
+
+// ByFeeFixed orders the results by the fee_fixed field.
+func ByFeeFixed(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFeeFixed, opts...).ToFunc()
+}
+
+// ByFeeRateAmount orders the results by the fee_rate_amount field.
+func ByFeeRateAmount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFeeRateAmount, opts...).ToFunc()
+}
+
+// ByFeeAmount orders the results by the fee_amount field.
+func ByFeeAmount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFeeAmount, opts...).ToFunc()
 }
 
 // ByRechargeCode orders the results by the recharge_code field.

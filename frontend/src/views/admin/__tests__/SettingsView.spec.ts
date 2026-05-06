@@ -418,6 +418,7 @@ const baseSettingsResponse = {
   payment_balance_disabled: false,
   payment_balance_recharge_multiplier: 1,
   payment_recharge_fee_rate: 0,
+  payment_method_fees: {},
   payment_load_balance_strategy: "round-robin",
   payment_product_name_prefix: "",
   payment_product_name_suffix: "",
@@ -641,6 +642,48 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_source");
     expect(payload).not.toHaveProperty("payment_visible_method_alipay_enabled");
     expect(payload).not.toHaveProperty("payment_visible_method_wxpay_enabled");
+  });
+
+  it("submits per-method payment fee settings", async () => {
+    const wrapper = mountView();
+
+    await flushPromises();
+    await openPaymentTab(wrapper);
+
+    const stripeCheckbox = wrapper.findAll('input[type="checkbox"]').find((node) => {
+      const label = node.element.closest('label')
+      return label?.textContent?.includes('Stripe')
+    })
+    expect(stripeCheckbox).toBeDefined()
+    await stripeCheckbox?.setValue(true)
+
+    const stripeRow = stripeCheckbox?.element.closest('.grid')
+    const fixedFeeInput = wrapper.findAll('input[type="number"]').find((node) => {
+      return stripeRow?.contains(node.element) && node.attributes('max') !== '100'
+    })
+    expect(fixedFeeInput).toBeDefined()
+    await fixedFeeInput?.setValue('2.5')
+
+    const feeRateInput = wrapper.findAll('input[type="number"]').find((node) => {
+      return stripeRow?.contains(node.element) && node.attributes('max') === '100'
+    })
+    expect(feeRateInput).toBeDefined()
+    await feeRateInput?.setValue('2.2')
+
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payment_method_fees: expect.objectContaining({
+          stripe: {
+            enabled: true,
+            fixed_fee: 2.5,
+            fee_rate: 2.2,
+          },
+        }),
+      }),
+    );
   });
 
   it("submits Anthropic cache TTL injection gateway setting", async () => {

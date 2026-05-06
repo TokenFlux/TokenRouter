@@ -155,6 +155,69 @@ func (_u *PaymentOrderUpdate) AddFeeRate(v float64) *PaymentOrderUpdate {
 	return _u
 }
 
+// SetFeeFixed sets the "fee_fixed" field.
+func (_u *PaymentOrderUpdate) SetFeeFixed(v float64) *PaymentOrderUpdate {
+	_u.mutation.ResetFeeFixed()
+	_u.mutation.SetFeeFixed(v)
+	return _u
+}
+
+// SetNillableFeeFixed sets the "fee_fixed" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableFeeFixed(v *float64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetFeeFixed(*v)
+	}
+	return _u
+}
+
+// AddFeeFixed adds value to the "fee_fixed" field.
+func (_u *PaymentOrderUpdate) AddFeeFixed(v float64) *PaymentOrderUpdate {
+	_u.mutation.AddFeeFixed(v)
+	return _u
+}
+
+// SetFeeRateAmount sets the "fee_rate_amount" field.
+func (_u *PaymentOrderUpdate) SetFeeRateAmount(v float64) *PaymentOrderUpdate {
+	_u.mutation.ResetFeeRateAmount()
+	_u.mutation.SetFeeRateAmount(v)
+	return _u
+}
+
+// SetNillableFeeRateAmount sets the "fee_rate_amount" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableFeeRateAmount(v *float64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetFeeRateAmount(*v)
+	}
+	return _u
+}
+
+// AddFeeRateAmount adds value to the "fee_rate_amount" field.
+func (_u *PaymentOrderUpdate) AddFeeRateAmount(v float64) *PaymentOrderUpdate {
+	_u.mutation.AddFeeRateAmount(v)
+	return _u
+}
+
+// SetFeeAmount sets the "fee_amount" field.
+func (_u *PaymentOrderUpdate) SetFeeAmount(v float64) *PaymentOrderUpdate {
+	_u.mutation.ResetFeeAmount()
+	_u.mutation.SetFeeAmount(v)
+	return _u
+}
+
+// SetNillableFeeAmount sets the "fee_amount" field if the given value is not nil.
+func (_u *PaymentOrderUpdate) SetNillableFeeAmount(v *float64) *PaymentOrderUpdate {
+	if v != nil {
+		_u.SetFeeAmount(*v)
+	}
+	return _u
+}
+
+// AddFeeAmount adds value to the "fee_amount" field.
+func (_u *PaymentOrderUpdate) AddFeeAmount(v float64) *PaymentOrderUpdate {
+	_u.mutation.AddFeeAmount(v)
+	return _u
+}
+
 // SetRechargeCode sets the "recharge_code" field.
 func (_u *PaymentOrderUpdate) SetRechargeCode(v string) *PaymentOrderUpdate {
 	_u.mutation.SetRechargeCode(v)
@@ -975,6 +1038,24 @@ func (_u *PaymentOrderUpdate) sqlSave(ctx context.Context) (_node int, err error
 	if value, ok := _u.mutation.AddedFeeRate(); ok {
 		_spec.AddField(paymentorder.FieldFeeRate, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.FeeFixed(); ok {
+		_spec.SetField(paymentorder.FieldFeeFixed, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedFeeFixed(); ok {
+		_spec.AddField(paymentorder.FieldFeeFixed, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.FeeRateAmount(); ok {
+		_spec.SetField(paymentorder.FieldFeeRateAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedFeeRateAmount(); ok {
+		_spec.AddField(paymentorder.FieldFeeRateAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.FeeAmount(); ok {
+		_spec.SetField(paymentorder.FieldFeeAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedFeeAmount(); ok {
+		_spec.AddField(paymentorder.FieldFeeAmount, field.TypeFloat64, value)
+	}
 	if value, ok := _u.mutation.RechargeCode(); ok {
 		_spec.SetField(paymentorder.FieldRechargeCode, field.TypeString, value)
 	}
@@ -1332,6 +1413,69 @@ func (_u *PaymentOrderUpdateOne) SetNillableFeeRate(v *float64) *PaymentOrderUpd
 // AddFeeRate adds value to the "fee_rate" field.
 func (_u *PaymentOrderUpdateOne) AddFeeRate(v float64) *PaymentOrderUpdateOne {
 	_u.mutation.AddFeeRate(v)
+	return _u
+}
+
+// SetFeeFixed sets the "fee_fixed" field.
+func (_u *PaymentOrderUpdateOne) SetFeeFixed(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetFeeFixed()
+	_u.mutation.SetFeeFixed(v)
+	return _u
+}
+
+// SetNillableFeeFixed sets the "fee_fixed" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableFeeFixed(v *float64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetFeeFixed(*v)
+	}
+	return _u
+}
+
+// AddFeeFixed adds value to the "fee_fixed" field.
+func (_u *PaymentOrderUpdateOne) AddFeeFixed(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.AddFeeFixed(v)
+	return _u
+}
+
+// SetFeeRateAmount sets the "fee_rate_amount" field.
+func (_u *PaymentOrderUpdateOne) SetFeeRateAmount(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetFeeRateAmount()
+	_u.mutation.SetFeeRateAmount(v)
+	return _u
+}
+
+// SetNillableFeeRateAmount sets the "fee_rate_amount" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableFeeRateAmount(v *float64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetFeeRateAmount(*v)
+	}
+	return _u
+}
+
+// AddFeeRateAmount adds value to the "fee_rate_amount" field.
+func (_u *PaymentOrderUpdateOne) AddFeeRateAmount(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.AddFeeRateAmount(v)
+	return _u
+}
+
+// SetFeeAmount sets the "fee_amount" field.
+func (_u *PaymentOrderUpdateOne) SetFeeAmount(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.ResetFeeAmount()
+	_u.mutation.SetFeeAmount(v)
+	return _u
+}
+
+// SetNillableFeeAmount sets the "fee_amount" field if the given value is not nil.
+func (_u *PaymentOrderUpdateOne) SetNillableFeeAmount(v *float64) *PaymentOrderUpdateOne {
+	if v != nil {
+		_u.SetFeeAmount(*v)
+	}
+	return _u
+}
+
+// AddFeeAmount adds value to the "fee_amount" field.
+func (_u *PaymentOrderUpdateOne) AddFeeAmount(v float64) *PaymentOrderUpdateOne {
+	_u.mutation.AddFeeAmount(v)
 	return _u
 }
 
@@ -2184,6 +2328,24 @@ func (_u *PaymentOrderUpdateOne) sqlSave(ctx context.Context) (_node *PaymentOrd
 	}
 	if value, ok := _u.mutation.AddedFeeRate(); ok {
 		_spec.AddField(paymentorder.FieldFeeRate, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.FeeFixed(); ok {
+		_spec.SetField(paymentorder.FieldFeeFixed, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedFeeFixed(); ok {
+		_spec.AddField(paymentorder.FieldFeeFixed, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.FeeRateAmount(); ok {
+		_spec.SetField(paymentorder.FieldFeeRateAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedFeeRateAmount(); ok {
+		_spec.AddField(paymentorder.FieldFeeRateAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.FeeAmount(); ok {
+		_spec.SetField(paymentorder.FieldFeeAmount, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.AddedFeeAmount(); ok {
+		_spec.AddField(paymentorder.FieldFeeAmount, field.TypeFloat64, value)
 	}
 	if value, ok := _u.mutation.RechargeCode(); ok {
 		_spec.SetField(paymentorder.FieldRechargeCode, field.TypeString, value)

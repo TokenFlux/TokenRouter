@@ -24,10 +24,10 @@
           <span class="flex flex-col items-start leading-none">
             <span class="text-base font-semibold">{{ t(`payment.methods.${method.type}`) }}</span>
             <span
-              v-if="method.fee_rate > 0"
+              v-if="methodFeeLabel(method)"
               class="text-[10px] tracking-wide text-gray-500 dark:text-dark-400"
             >
-              {{ t('payment.fee') }} {{ method.fee_rate }}%
+              {{ methodFeeLabel(method) }}
             </span>
           </span>
         </span>
@@ -46,6 +46,7 @@ import stripeIcon from '@/assets/icons/stripe.svg'
 
 export interface PaymentMethodOption {
   type: string
+  fee_fixed: number
   fee_rate: number
   available: boolean
 }
@@ -87,5 +88,13 @@ function methodSelectedClass(type: string): string {
   if (type.includes('wxpay')) return 'border-[#09BB07] bg-green-50 text-gray-900 shadow-sm dark:bg-green-950 dark:text-gray-100'
   if (type === 'stripe') return 'border-[#676BE5] bg-indigo-50 text-gray-900 shadow-sm dark:bg-indigo-950 dark:text-gray-100'
   return 'border-primary-500 bg-primary-50 text-gray-900 shadow-sm dark:bg-primary-950 dark:text-gray-100'
+}
+
+function methodFeeLabel(method: PaymentMethodOption): string {
+  const parts: string[] = []
+  if ((method.fee_fixed || 0) > 0) parts.push(`¥${method.fee_fixed.toFixed(2)}`)
+  if ((method.fee_rate || 0) > 0) parts.push(`${method.fee_rate}%`)
+  if (parts.length === 0) return ''
+  return `${t('payment.fee')} ${parts.join(' + ')}`
 }
 </script>

@@ -90,6 +90,21 @@ func FeeRate(v float64) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeRate, v))
 }
 
+// FeeFixed applies equality check predicate on the "fee_fixed" field. It's identical to FeeFixedEQ.
+func FeeFixed(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeFixed, v))
+}
+
+// FeeRateAmount applies equality check predicate on the "fee_rate_amount" field. It's identical to FeeRateAmountEQ.
+func FeeRateAmount(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeRateAmount, v))
+}
+
+// FeeAmount applies equality check predicate on the "fee_amount" field. It's identical to FeeAmountEQ.
+func FeeAmount(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeAmount, v))
+}
+
 // RechargeCode applies equality check predicate on the "recharge_code" field. It's identical to RechargeCodeEQ.
 func RechargeCode(v string) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldEQ(FieldRechargeCode, v))
@@ -603,6 +618,126 @@ func FeeRateLT(v float64) predicate.PaymentOrder {
 // FeeRateLTE applies the LTE predicate on the "fee_rate" field.
 func FeeRateLTE(v float64) predicate.PaymentOrder {
 	return predicate.PaymentOrder(sql.FieldLTE(FieldFeeRate, v))
+}
+
+// FeeFixedEQ applies the EQ predicate on the "fee_fixed" field.
+func FeeFixedEQ(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeFixed, v))
+}
+
+// FeeFixedNEQ applies the NEQ predicate on the "fee_fixed" field.
+func FeeFixedNEQ(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldFeeFixed, v))
+}
+
+// FeeFixedIn applies the In predicate on the "fee_fixed" field.
+func FeeFixedIn(vs ...float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldFeeFixed, vs...))
+}
+
+// FeeFixedNotIn applies the NotIn predicate on the "fee_fixed" field.
+func FeeFixedNotIn(vs ...float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldFeeFixed, vs...))
+}
+
+// FeeFixedGT applies the GT predicate on the "fee_fixed" field.
+func FeeFixedGT(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldFeeFixed, v))
+}
+
+// FeeFixedGTE applies the GTE predicate on the "fee_fixed" field.
+func FeeFixedGTE(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldFeeFixed, v))
+}
+
+// FeeFixedLT applies the LT predicate on the "fee_fixed" field.
+func FeeFixedLT(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldFeeFixed, v))
+}
+
+// FeeFixedLTE applies the LTE predicate on the "fee_fixed" field.
+func FeeFixedLTE(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldFeeFixed, v))
+}
+
+// FeeRateAmountEQ applies the EQ predicate on the "fee_rate_amount" field.
+func FeeRateAmountEQ(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeRateAmount, v))
+}
+
+// FeeRateAmountNEQ applies the NEQ predicate on the "fee_rate_amount" field.
+func FeeRateAmountNEQ(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldFeeRateAmount, v))
+}
+
+// FeeRateAmountIn applies the In predicate on the "fee_rate_amount" field.
+func FeeRateAmountIn(vs ...float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldFeeRateAmount, vs...))
+}
+
+// FeeRateAmountNotIn applies the NotIn predicate on the "fee_rate_amount" field.
+func FeeRateAmountNotIn(vs ...float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldFeeRateAmount, vs...))
+}
+
+// FeeRateAmountGT applies the GT predicate on the "fee_rate_amount" field.
+func FeeRateAmountGT(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldFeeRateAmount, v))
+}
+
+// FeeRateAmountGTE applies the GTE predicate on the "fee_rate_amount" field.
+func FeeRateAmountGTE(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldFeeRateAmount, v))
+}
+
+// FeeRateAmountLT applies the LT predicate on the "fee_rate_amount" field.
+func FeeRateAmountLT(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldFeeRateAmount, v))
+}
+
+// FeeRateAmountLTE applies the LTE predicate on the "fee_rate_amount" field.
+func FeeRateAmountLTE(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldFeeRateAmount, v))
+}
+
+// FeeAmountEQ applies the EQ predicate on the "fee_amount" field.
+func FeeAmountEQ(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldEQ(FieldFeeAmount, v))
+}
+
+// FeeAmountNEQ applies the NEQ predicate on the "fee_amount" field.
+func FeeAmountNEQ(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNEQ(FieldFeeAmount, v))
+}
+
+// FeeAmountIn applies the In predicate on the "fee_amount" field.
+func FeeAmountIn(vs ...float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldIn(FieldFeeAmount, vs...))
+}
+
+// FeeAmountNotIn applies the NotIn predicate on the "fee_amount" field.
+func FeeAmountNotIn(vs ...float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldNotIn(FieldFeeAmount, vs...))
+}
+
+// FeeAmountGT applies the GT predicate on the "fee_amount" field.
+func FeeAmountGT(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGT(FieldFeeAmount, v))
+}
+
+// FeeAmountGTE applies the GTE predicate on the "fee_amount" field.
+func FeeAmountGTE(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldGTE(FieldFeeAmount, v))
+}
+
+// FeeAmountLT applies the LT predicate on the "fee_amount" field.
+func FeeAmountLT(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLT(FieldFeeAmount, v))
+}
+
+// FeeAmountLTE applies the LTE predicate on the "fee_amount" field.
+func FeeAmountLTE(v float64) predicate.PaymentOrder {
+	return predicate.PaymentOrder(sql.FieldLTE(FieldFeeAmount, v))
 }
 
 // RechargeCodeEQ applies the EQ predicate on the "recharge_code" field.

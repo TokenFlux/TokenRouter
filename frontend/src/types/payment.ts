@@ -33,10 +33,18 @@ export interface PaymentConfig {
   order_timeout_minutes: number
   balance_disabled: boolean
   balance_recharge_multiplier: number
+  recharge_fee_rate: number
+  method_fees: Record<string, MethodFeeConfig>
   enabled_payment_types: PaymentType[]
   help_image_url: string
   help_text: string
   stripe_publishable_key: string
+}
+
+export interface MethodFeeConfig {
+  enabled: boolean
+  fixed_fee: number
+  fee_rate: number
 }
 
 export interface MethodLimit {
@@ -45,6 +53,7 @@ export interface MethodLimit {
   daily_remaining: number
   single_min: number
   single_max: number
+  fee_fixed: number
   fee_rate: number
   available: boolean
 }
@@ -65,6 +74,7 @@ export interface CheckoutInfoResponse {
   balance_disabled: boolean
   balance_recharge_multiplier: number
   recharge_fee_rate: number
+  method_fees: Record<string, MethodFeeConfig>
   help_text: string
   help_image_url: string
   stripe_publishable_key: string
@@ -78,6 +88,9 @@ export interface PaymentOrder {
   amount: number
   pay_amount: number
   fee_rate: number
+  fee_fixed: number
+  fee_rate_amount: number
+  fee_amount: number
   payment_type: string
   out_trade_no: string
   status: OrderStatus
@@ -219,6 +232,9 @@ export interface CreateOrderResult {
   invoice_status?: string
   pay_amount: number
   fee_rate: number
+  fee_fixed: number
+  fee_rate_amount: number
+  fee_amount: number
   expires_at: string
   result_type?: CreateOrderResultType
   payment_type?: string

@@ -95,6 +95,7 @@ function checkoutInfoFixture() {
           daily_remaining: 0,
           single_min: 0,
           single_max: 0,
+          fee_fixed: 0,
           fee_rate: 0,
           available: true,
         },
@@ -105,6 +106,7 @@ function checkoutInfoFixture() {
       balance_disabled: false,
       balance_recharge_multiplier: 1,
       recharge_fee_rate: 0,
+      method_fees: {},
       help_text: '',
       help_image_url: '',
       stripe_publishable_key: '',
@@ -152,11 +154,32 @@ function stripeCheckoutInfoFixture() {
           daily_remaining: 0,
           single_min: 0,
           single_max: 0,
+          fee_fixed: 0,
           fee_rate: 0,
           available: true,
         },
       },
       stripe_publishable_key: 'pk_test_123',
+    },
+  }
+}
+
+function stripeCheckoutInfoWithFeeFixture() {
+  return {
+    data: {
+      ...stripeCheckoutInfoFixture().data,
+      methods: {
+        stripe: {
+          daily_limit: 0,
+          daily_used: 0,
+          daily_remaining: 0,
+          single_min: 0,
+          single_max: 0,
+          fee_fixed: 2.5,
+          fee_rate: 2.2,
+          available: true,
+        },
+      },
     },
   }
 }
@@ -474,5 +497,73 @@ describe('PaymentView Stripe billing form', () => {
     expect(labels).toContain('payment.billing.line1payment.billing.optionalMark')
     expect(labels).toContain('payment.billing.citypayment.billing.optionalMark')
     expect(labels).toContain('payment.billing.statepayment.billing.optionalMark')
+  })
+
+  it('shows Stripe fixed and rate fee breakdown on checkout', async () => {
+    getCheckoutInfo.mockReset().mockResolvedValue(stripeCheckoutInfoWithFeeFixture())
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<main><slot /></main>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    await wrapper.getComponent({ name: 'AmountInput' }).vm.$emit('update:modelValue', 100)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('payment.fixedFee')
+    expect(wrapper.text()).toContain('¥2.50')
+    expect(wrapper.text()).toContain('payment.rateFee')
+    expect(wrapper.text()).toContain('2.2%')
+    expect(wrapper.text()).toContain('¥2.20')
+    expect(wrapper.text()).toContain('payment.feeTotal')
+    expect(wrapper.text()).toContain('¥4.70')
+    expect(wrapper.text()).toContain('¥104.70')
+  })
+})
+
+describe('PaymentView payment help text', () => {
+  beforeEach(() => {
+    routeState.path = '/purchase'
+    routeState.query = {}
+    routerReplace.mockReset().mockResolvedValue(undefined)
+    routerPush.mockReset().mockResolvedValue(undefined)
+    routerResolve.mockClear()
+    createOrder.mockReset()
+    refreshUser.mockReset()
+    fetchActiveSubscriptions.mockReset().mockResolvedValue(undefined)
+    showError.mockReset()
+    showInfo.mockReset()
+    showWarning.mockReset()
+    getCheckoutInfo.mockReset().mockResolvedValue({
+      data: {
+        ...checkoutInfoFixture().data,
+        help_text: '**发票说明**\\n\\n[联系站长](https://example.com/invoice)<script>alert(1)</script>',
+      },
+    })
+    bridgeInvoke.mockReset()
+    window.localStorage.clear()
+  })
+
+  it('renders help text as sanitized Markdown', async () => {
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<main><slot /></main>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    const help = wrapper.get('.payment-help-markdown')
+    expect(help.find('strong').text()).toBe('发票说明')
+    expect(help.find('a').attributes('href')).toBe('https://example.com/invoice')
+    expect(help.html()).not.toContain('<script>')
   })
 })
