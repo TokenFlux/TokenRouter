@@ -237,14 +237,14 @@ func parseUsageRankingTimeRange(c *gin.Context, now time.Time, userTZ string) (t
 	if startDateStr != "" {
 		parsed, _, err := timezone.ParseDateTimeInUserLocation(startDateStr, userTZ)
 		if err != nil {
-			return time.Time{}, time.Time{}, errors.New("Invalid start_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
+			return time.Time{}, time.Time{}, errors.New("invalid start_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
 		}
 		startTime = parsed
 	}
 	if endDateStr != "" {
 		parsed, dateOnly, err := timezone.ParseDateTimeInUserLocation(endDateStr, userTZ)
 		if err != nil {
-			return time.Time{}, time.Time{}, errors.New("Invalid end_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
+			return time.Time{}, time.Time{}, errors.New("invalid end_date format, use YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss")
 		}
 		if dateOnly {
 			// 日期输入按整天包含处理，SQL 使用 created_at < endTime。
