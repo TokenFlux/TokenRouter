@@ -2460,9 +2460,6 @@ func (r *usageLogRepository) GetUsageRanking(ctx context.Context, startTime, end
 		WITH user_usage AS (
 			SELECT
 				u.user_id,
-				COALESCE(us.email, '') as email,
-				COALESCE(us.username, '') as username,
-				COALESCE(ua.url, '') as avatar_url,
 				COUNT(*) as requests,
 				COALESCE(SUM(u.input_tokens), 0) as input_tokens,
 				COALESCE(SUM(u.output_tokens), 0) as output_tokens,
@@ -2471,19 +2468,14 @@ func (r *usageLogRepository) GetUsageRanking(ctx context.Context, startTime, end
 				COALESCE(SUM(u.input_tokens + u.output_tokens + u.cache_creation_tokens + u.cache_read_tokens), 0) as total_tokens,
 				COALESCE(SUM(u.actual_cost), 0) as actual_cost
 			FROM usage_logs u
-			LEFT JOIN users us ON u.user_id = us.id
-			LEFT JOIN user_avatars ua ON ua.user_id = u.user_id
 			WHERE u.created_at >= $1 AND u.created_at < $2
-			GROUP BY u.user_id, us.email, us.username, ua.url
+			GROUP BY u.user_id
 			HAVING COALESCE(SUM(u.input_tokens + u.output_tokens + u.cache_creation_tokens + u.cache_read_tokens), 0) > 0
 		),
 		ranked AS (
 			SELECT
 				ROW_NUMBER() OVER (ORDER BY total_tokens DESC, requests DESC, user_id ASC) as rank,
 				user_id,
-				email,
-				username,
-				avatar_url,
 				requests,
 				input_tokens,
 				output_tokens,
@@ -2499,23 +2491,25 @@ func (r *usageLogRepository) GetUsageRanking(ctx context.Context, startTime, end
 			LIMIT $3
 		)
 		SELECT
-			rank,
-			user_id,
-			email,
-			username,
-			avatar_url,
-			requests,
-			input_tokens,
-			output_tokens,
-			cache_creation_tokens,
-			cache_read_tokens,
-			total_tokens,
-			actual_cost,
-			total_requests,
-			ranking_total_tokens,
-			total_actual_cost
-		FROM ranked
-		ORDER BY rank ASC
+			r.rank,
+			r.user_id,
+			COALESCE(us.email, '') as email,
+			COALESCE(us.username, '') as username,
+			COALESCE(ua.url, '') as avatar_url,
+			r.requests,
+			r.input_tokens,
+			r.output_tokens,
+			r.cache_creation_tokens,
+			r.cache_read_tokens,
+			r.total_tokens,
+			r.actual_cost,
+			r.total_requests,
+			r.ranking_total_tokens,
+			r.total_actual_cost
+		FROM ranked r
+		LEFT JOIN users us ON r.user_id = us.id
+		LEFT JOIN user_avatars ua ON ua.user_id = r.user_id
+		ORDER BY r.rank ASC
 	`
 
 	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, limit)

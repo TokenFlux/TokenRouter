@@ -500,7 +500,7 @@ func TestUsageLogRepositoryGetUsageRankingMasksEmail(t *testing.T) {
 		AddRow(1, int64(2), "beta@example.com", "beta", "https://cdn.example/beta.png", int64(9), int64(400), int64(300), int64(100), int64(100), int64(900), 1.25, int64(17), int64(1700), 2.0).
 		AddRow(2, int64(1), "alpha@example.com", "", "", int64(8), int64(300), int64(300), int64(100), int64(100), int64(800), 0.75, int64(17), int64(1700), 2.0)
 
-	mock.ExpectQuery("WITH user_usage AS \\(").
+	mock.ExpectQuery("LEFT JOIN users us ON r\\.user_id = us\\.id").
 		WithArgs(start, end, 20).
 		WillReturnRows(rows)
 
