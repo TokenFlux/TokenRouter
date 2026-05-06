@@ -128,8 +128,8 @@ func TestMigration124BackfillsLegacyOIDCSecurityFlagsSafely(t *testing.T) {
 	require.Contains(t, sql, "'false'")
 }
 
-func TestMigration134AddsImageGenerationGroupControls(t *testing.T) {
-	content, err := FS.ReadFile("134_image_generation_group_controls.sql")
+func TestMigration129AddsImageGenerationGroupControls(t *testing.T) {
+	content, err := FS.ReadFile("129_image_generation_group_controls.sql")
 	require.NoError(t, err)
 
 	sql := string(content)
