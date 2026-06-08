@@ -170,13 +170,26 @@
                   <span
                     v-for="row in modelCardPricingRows(model)"
                     :key="row.key"
+                    class="card-stat-item"
                   >
-                    {{ row.label }} <strong>{{ row.value }}</strong>
+                    <span class="card-stat-label">{{ row.label }}</span>
+                    <span class="card-stat-value">
+                      <span
+                        v-for="(part, partIndex) in cardStatValueParts(row.value)"
+                        :key="`${row.key}-${partIndex}`"
+                        class="card-stat-value-part"
+                      >
+                        {{ part }}
+                      </span>
+                    </span>
                   </span>
                 </div>
 
                 <div class="card-footer-row">
-                  <span>{{ availableAvailabilityCount(model) }}/{{ model.availabilities.length }} {{ t('marketplace.groupsStat') }} | {{ formatMultiplier(lowestRateMultiplier(model)) }}</span>
+                  <span class="card-footer-meta">
+                    <span>{{ availableAvailabilityCount(model) }}/{{ model.availabilities.length }} {{ t('marketplace.groupsStat') }}</span>
+                    <span>{{ t('marketplace.lowestGroupPricing') }} {{ formatMultiplier(lowestRateMultiplier(model)) }}</span>
+                  </span>
                   <span class="card-health-summary" :title="modelRecentHealthTitle(model)" :aria-label="modelRecentHealthTitle(model)">
                     <span><span :class="modelStatusDotClass(model)"></span>{{ modelStateLabel(model) }}</span>
                     <span class="card-recent-health-dots" aria-hidden="true">
@@ -1027,7 +1040,7 @@ function modelCardPricingRows(model: MarketplaceModelView): PricingRow[] {
   if (!availability || !hasDisplayPricing(availability.model.pricing)) {
     return [
       { key: 'groups', label: t('marketplace.availableAndTotalGroups'), value: `${availableAvailabilityCount(model)}/${model.availabilities.length}` },
-      { key: 'rate', label: t('marketplace.lowestMultiplier'), value: formatMultiplier(lowestRateMultiplier(model)) },
+      { key: 'rate', label: t('marketplace.lowestGroupPricing'), value: formatMultiplier(lowestRateMultiplier(model)) },
     ]
   }
 
@@ -1042,8 +1055,12 @@ function modelCardPricingRows(model: MarketplaceModelView): PricingRow[] {
 
   return [
     { key: 'pricing', label: t('marketplace.pricingRule'), value: pricingLabel(availability.model.pricing) },
-    { key: 'rate', label: t('marketplace.lowestMultiplier'), value: formatMultiplier(lowestRateMultiplier(model)) },
+    { key: 'rate', label: t('marketplace.lowestGroupPricing'), value: formatMultiplier(lowestRateMultiplier(model)) },
   ]
+}
+
+function cardStatValueParts(value: string): string[] {
+  return value.split(/\s+\/\s+/).filter(Boolean)
 }
 
 function groupCardClass(availability: MarketplaceModelAvailability): string {
@@ -1854,14 +1871,13 @@ onUnmounted(() => {
 }
 
 .card-stats {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
   margin-bottom: 12px;
   border-bottom: 1px dashed rgb(229, 231, 235);
   padding-bottom: 12px;
   color: rgb(107, 114, 128);
-  font-size: 13px;
 }
 
 .dark .card-stats {
@@ -1869,20 +1885,50 @@ onUnmounted(() => {
   color: rgb(148, 163, 184);
 }
 
-.card-stats span {
+.card-stat-item {
+  display: flex;
   min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.card-stat-label {
+  min-width: 0;
+  overflow: hidden;
+  color: rgb(107, 114, 128);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .01em;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dark .card-stat-label {
+  color: rgb(148, 163, 184);
+}
+
+.card-stat-value {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 8px;
+  color: rgb(17, 24, 39);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.card-stat-value-part {
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.card-stats strong {
-  color: rgb(17, 24, 39);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-weight: 650;
-}
-
-.dark .card-stats strong {
+.dark .card-stat-value {
   color: rgb(226, 232, 240);
 }
 
@@ -1893,6 +1939,7 @@ onUnmounted(() => {
   gap: 12px;
   color: rgb(107, 114, 128);
   font-size: 12px;
+  font-weight: 500;
 }
 
 .card-footer-row > span {
@@ -1902,6 +1949,41 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.card-footer-meta {
+  gap: 8px;
+}
+
+.card-footer-meta > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.card-footer-meta > span:last-child {
+  color: rgb(75, 85, 99);
+}
+
+.card-footer-meta > span + span {
+  position: relative;
+  padding-left: 8px;
+}
+
+.card-footer-meta > span + span::before {
+  position: absolute;
+  left: 0;
+  color: rgb(203, 213, 225);
+  content: '·';
+}
+
+.dark .card-footer-meta > span + span::before {
+  color: rgb(71, 85, 105);
+}
+
+.dark .card-footer-meta > span:last-child {
+  color: rgb(203, 213, 225);
 }
 
 .dark .card-footer-row {

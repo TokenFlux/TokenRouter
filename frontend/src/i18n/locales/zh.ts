@@ -425,7 +425,7 @@ export default {
 
   marketplace: {
     title: '模型广场',
-    subtitle: '卡片展示官方费率与最低倍率；展开模型后查看各分组健康状况、并发与最终计价。',
+    subtitle: '卡片展示官方费率与最低分组定价；展开模型后查看各分组健康状况、并发与最终计价。',
     backHome: '返回首页',
     actualPricingNote: '价格已按价格文件记录的基础价乘以分组倍率计算，单位为 {unitName}',
     tokenPricing: 'Token 计费',
@@ -472,6 +472,7 @@ export default {
     copyModelId: '复制模型 ID',
     modelIdCopied: '模型 ID 已复制',
     lowestMultiplier: '最低倍率',
+    lowestGroupPricing: '最低分组定价',
     group: '分组',
     description: '描述',
     noDescription: '暂无描述',

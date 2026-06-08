@@ -425,7 +425,7 @@ export default {
 
   marketplace: {
     title: 'Model Marketplace',
-    subtitle: 'Cards show official rates and the lowest multiplier; expand a model to inspect group health, concurrency, and final billed pricing.',
+    subtitle: 'Cards show official rates and the lowest group pricing; expand a model to inspect group health, concurrency, and final billed pricing.',
     backHome: 'Back Home',
     actualPricingNote: 'Prices are calculated from the pricing file base rates multiplied by the group multiplier, using {unitName}',
     tokenPricing: 'Token Pricing',
@@ -472,6 +472,7 @@ export default {
     copyModelId: 'Copy model ID',
     modelIdCopied: 'Model ID copied',
     lowestMultiplier: 'Lowest multiplier',
+    lowestGroupPricing: 'Lowest group pricing',
     group: 'Group',
     description: 'Description',
     noDescription: 'No description',
