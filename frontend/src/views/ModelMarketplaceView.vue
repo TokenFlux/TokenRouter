@@ -1662,7 +1662,7 @@ onUnmounted(() => {
 }
 
 .marketplace-page-eyebrow {
-  color: rgb(79, 70, 229);
+  color: rgb(2, 132, 199);
   font-size: 12px;
   font-weight: 720;
 }
@@ -1756,8 +1756,8 @@ onUnmounted(() => {
 }
 
 .brand-refresh-badge {
-  color: rgb(79, 70, 229);
-  background: rgb(238, 242, 255);
+  color: rgb(2, 132, 199);
+  background: rgb(240, 249, 255);
 }
 
 .dark .brand-refresh-badge {
@@ -1785,8 +1785,8 @@ onUnmounted(() => {
 .model-card:hover,
 .model-card:focus-visible {
   transform: translateY(-2px);
-  border-color: rgb(79, 70, 229);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, .10);
+  border-color: rgb(186, 230, 253);
+  box-shadow: 0 12px 18px -6px rgba(14, 165, 233, .18);
   outline: none;
 }
 
@@ -1817,8 +1817,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: rgb(238, 242, 255);
-  color: rgb(79, 70, 229);
+  background: rgb(240, 249, 255);
+  color: rgb(2, 132, 199);
   font-size: 18px;
   font-weight: 700;
 }
@@ -2293,13 +2293,13 @@ onUnmounted(() => {
 }
 
 .group-card:hover {
-  border-color: rgb(199, 210, 254);
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, .05);
+  border-color: rgb(186, 230, 253);
+  box-shadow: 0 6px 12px -6px rgba(14, 165, 233, .16);
 }
 
 .group-card.active {
-  border-color: rgb(79, 70, 229);
-  box-shadow: 0 0 0 1px rgb(79, 70, 229);
+  border-color: rgb(14, 165, 233);
+  box-shadow: 0 0 0 1px rgb(14, 165, 233);
 }
 
 .group-card::before {
@@ -2312,7 +2312,7 @@ onUnmounted(() => {
 }
 
 .group-card.active::before {
-  background: rgb(79, 70, 229);
+  background: rgb(14, 165, 233);
 }
 
 .dark .group-card {
@@ -2475,8 +2475,8 @@ onUnmounted(() => {
 }
 
 .metric-badge.highlight {
-  color: rgb(79, 70, 229);
-  background: rgb(238, 242, 255);
+  color: rgb(2, 132, 199);
+  background: rgb(240, 249, 255);
 }
 
 .dark .metric-badge {
@@ -2527,9 +2527,9 @@ onUnmounted(() => {
 .sharing-badge {
   flex-shrink: 0;
   border-radius: 4px;
-  background: rgb(238, 242, 255);
+  background: rgb(240, 249, 255);
   padding: 2px 8px;
-  color: rgb(79, 70, 229);
+  color: rgb(2, 132, 199);
   font-size: 12px;
   font-weight: 560;
 }
@@ -2581,7 +2581,7 @@ onUnmounted(() => {
 }
 
 .price-table td.final-price {
-  color: rgb(79, 70, 229);
+  color: rgb(2, 132, 199);
   font-weight: 650;
 }
 
