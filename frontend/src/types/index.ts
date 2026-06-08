@@ -540,6 +540,7 @@ export interface MarketplaceModel {
   id: string
   display_name: string
   pricing: MarketplaceModelPricing
+  recent_requests?: MarketplaceRecentRequest[]
 }
 
 // 模型广场公开展示的分组容量快照，仅包含聚合后的负载数字。
@@ -550,6 +551,11 @@ export interface MarketplaceGroupCapacity {
   sessions_max: number
   rpm_used: number
   rpm_max: number
+}
+
+export interface MarketplaceRecentRequest {
+  success: boolean
+  created_at: string
 }
 
 export interface MarketplaceGroup {

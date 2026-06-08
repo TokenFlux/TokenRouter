@@ -1,5 +1,5 @@
 import { defineComponent, nextTick } from 'vue'
-import { flushPromises, mount } from '@vue/test-utils'
+import { flushPromises, mount, DOMWrapper } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ModelMarketplaceView from '../ModelMarketplaceView.vue'
 import type { MarketplaceGroup, MarketplaceModelPricing } from '@/types'
@@ -7,6 +7,7 @@ import type { MarketplaceGroup, MarketplaceModelPricing } from '@/types'
 const getMarketplaceModels = vi.hoisted(() => vi.fn())
 const checkAuth = vi.hoisted(() => vi.fn())
 const fetchPublicSettings = vi.hoisted(() => vi.fn())
+const copyToClipboard = vi.hoisted(() => vi.fn())
 
 vi.mock('@/api/marketplace', () => ({
   getMarketplaceModels,
@@ -25,6 +26,8 @@ vi.mock('@/stores', () => ({
     cachedPublicSettings: null,
     publicSettingsLoaded: true,
     fetchPublicSettings,
+    showSuccess: vi.fn(),
+    showError: vi.fn(),
   }),
 }))
 
@@ -35,6 +38,13 @@ vi.mock('@/composables/useTheme', () => ({
 vi.mock('@/composables/useBalanceDisplay', () => ({
   useBalanceDisplay: () => ({
     balanceUnitName: { value: '点' },
+    balanceUnitSymbol: { value: '点' },
+  }),
+}))
+
+vi.mock('@/composables/useClipboard', () => ({
+  useClipboard: () => ({
+    copyToClipboard,
   }),
 }))
 
@@ -43,11 +53,10 @@ vi.mock('vue-i18n', async () => {
   return {
     ...actual,
     useI18n: () => ({
-      t: (key: string, params?: Record<string, string>) => {
-        if (key === 'marketplace.rateMultiplierValue') {
-          return `marketplace.rateMultiplierValue ${params?.multiplier || ''}`
+      t: (key: string, params?: Record<string, string | number>) => {
+        if (key === 'marketplace.recentRequestSummary') {
+          return `${params?.success}/${params?.total} succeeded`
         }
-
         return key
       },
     }),
@@ -134,29 +143,40 @@ const unpricedPricing: MarketplaceModelPricing = {
 
 function marketplaceFixture(): MarketplaceGroup[] {
   return [
-    marketplaceGroup(1, 'Plus', false, [
-      marketplaceModel('gpt-5.5', 'GPT 5.5', tokenPricing),
+    marketplaceGroup(1, 'Plus', 'OpenAI', false, [
+      marketplaceModel('gpt-5.5', 'GPT 5.5', tokenPricing, [
+        { success: true, created_at: '2026-01-01T00:00:00Z' },
+        { success: false, created_at: '2026-01-01T00:01:00Z' },
+      ]),
       marketplaceModel('legacy-unpriced', 'Legacy Unpriced', unpricedPricing),
     ]),
-    marketplaceGroup(2, 'Pro', false, [
+    marketplaceGroup(2, 'Pro', 'OpenAI', false, [
+      marketplaceModel('gpt-5.5', 'GPT 5.5', tokenPricing, [
+        { success: true, created_at: '2026-01-01T00:02:00Z' },
+      ]),
+    ]),
+    marketplaceGroup(3, 'Plus Data Sharing', 'OpenAI', true, [
       marketplaceModel('gpt-5.5', 'GPT 5.5', tokenPricing),
     ]),
-    marketplaceGroup(3, 'Plus Data Sharing', true, [
-      marketplaceModel('gpt-5.5', 'GPT 5.5', tokenPricing),
-    ]),
-    marketplaceGroup(4, 'Pro Data Sharing', true, [
-      marketplaceModel('gpt-5.5', 'GPT 5.5', tokenPricing),
+    marketplaceGroup(4, 'Claude', 'Anthropic', false, [
+      marketplaceModel('claude-sonnet-4.5', 'Claude Sonnet 4.5', tokenPricing),
     ]),
   ]
 }
 
-function marketplaceGroup(id: number, name: string, dataSharingEnabled: boolean, models: MarketplaceGroup['models']): MarketplaceGroup {
+function marketplaceGroup(
+  id: number,
+  name: string,
+  displayBrand: string,
+  dataSharingEnabled: boolean,
+  models: MarketplaceGroup['models']
+): MarketplaceGroup {
   return {
     id,
     name,
     description: `${name} group`,
-    platform: 'openai',
-    display_brand: 'OpenAI',
+    platform: displayBrand === 'Anthropic' ? 'anthropic' : 'openai',
+    display_brand: displayBrand,
     sort_order: id,
     rate_multiplier: id,
     official_price_ratio: id / 10,
@@ -175,16 +195,23 @@ function marketplaceGroup(id: number, name: string, dataSharingEnabled: boolean,
   }
 }
 
-function marketplaceModel(id: string, displayName: string, pricing: MarketplaceModelPricing): MarketplaceGroup['models'][number] {
+function marketplaceModel(
+  id: string,
+  displayName: string,
+  pricing: MarketplaceModelPricing,
+  recentRequests: MarketplaceGroup['models'][number]['recent_requests'] = []
+): MarketplaceGroup['models'][number] {
   return {
     id,
     display_name: displayName,
     pricing,
+    recent_requests: recentRequests,
   }
 }
 
 async function mountMarketplace() {
   const wrapper = mount(ModelMarketplaceView, {
+    attachTo: document.body,
     global: {
       stubs: {
         AppLayout: { template: '<div><slot /></div>' },
@@ -194,6 +221,7 @@ async function mountMarketplace() {
         LocaleSwitcher: { template: '<span />' },
         ProviderIcon: { template: '<span />' },
         GroupCapacityBadge: { template: '<span />' },
+        Transition: { template: '<div><slot /></div>' },
         BaseDialog: BaseDialogStub,
         SearchInput: SearchInputStub,
         Select: SelectStub,
@@ -201,6 +229,7 @@ async function mountMarketplace() {
     },
   })
   await flushPromises()
+  await nextTick()
   return wrapper
 }
 
@@ -208,107 +237,120 @@ function modelCards(wrapper: ReturnType<typeof mount>) {
   return wrapper.findAll('[data-testid="marketplace-model-card"]')
 }
 
-function groupEntries(wrapper: ReturnType<typeof mount>) {
-  return wrapper.findAll('[data-testid="marketplace-model-group-entry"]')
+function brandSections(wrapper: ReturnType<typeof mount>) {
+  return wrapper.findAll('[data-testid="marketplace-brand-section"]')
+}
+
+function teleportedDetailOverlay(): HTMLElement {
+  const overlay = document.body.querySelector<HTMLElement>('[data-testid="marketplace-detail-overlay"]')
+  expect(overlay).not.toBeNull()
+  return overlay!
+}
+
+function availabilityCards(): DOMWrapper<HTMLElement>[] {
+  return Array.from(document.body.querySelectorAll<HTMLElement>('[data-testid="marketplace-availability-card"]'))
+    .map((element) => new DOMWrapper(element))
 }
 
 describe('ModelMarketplaceView', () => {
   beforeEach(() => {
-    localStorage.clear()
+    document.body.innerHTML = ''
     getMarketplaceModels.mockResolvedValue(marketplaceFixture())
+    copyToClipboard.mockResolvedValue(true)
     checkAuth.mockClear()
     fetchPublicSettings.mockClear()
+    copyToClipboard.mockClear()
   })
 
-  it('默认按模型-分组展示，并按模型 ID 去重', async () => {
+  it('按品牌分区展示，并在同一品牌下按模型 ID 聚合可用分组', async () => {
     const wrapper = await mountMarketplace()
 
-    const gptCards = modelCards(wrapper).filter((card) => card.text().includes('gpt-5.5'))
+    expect(brandSections(wrapper)).toHaveLength(2)
+    expect(brandSections(wrapper)[0].text()).toContain('OpenAI')
+    expect(brandSections(wrapper)[0].text()).toContain(`3 marketplace.groupsStat`)
+    expect(brandSections(wrapper)[0].text()).toContain(`2 marketplace.modelsStat`)
+    expect(modelCards(wrapper)).toHaveLength(3)
 
+    const gptCards = modelCards(wrapper).filter((card) => card.text().includes('GPT 5.5'))
     expect(gptCards).toHaveLength(1)
-    expect(gptCards[0].findAll('[data-testid="marketplace-model-group-entry"]')).toHaveLength(4)
-    expect(gptCards[0].text()).toContain('Plus')
+    expect(gptCards[0].text()).toContain('OpenAI')
+    expect(gptCards[0].text()).toContain(`3 marketplace.groupsStat`)
     expect(gptCards[0].text()).toContain('x1')
-    expect(gptCards[0].text()).not.toContain('marketplace.rateMultiplierValue')
-    expect(gptCards[0].text()).toContain('Pro')
-    expect(gptCards[0].text()).toContain('Plus Data Sharing')
-    expect(gptCards[0].text()).toContain('Pro Data Sharing')
+    expect(gptCards[0].findAll('.card-recent-health-dot.is-success')).toHaveLength(2)
+    expect(gptCards[0].findAll('.card-recent-health-dot.is-failed')).toHaveLength(1)
   })
 
-  it('可以切换到分组-模型模式并保存本地偏好', async () => {
+  it('按品牌、分组、搜索和计费类型过滤品牌分区卡片', async () => {
     const wrapper = await mountMarketplace()
 
-    await wrapper.get('[data-testid="select-option-group-model"]').trigger('click')
+    await wrapper.get('[data-testid="select-option-Anthropic"]').trigger('click')
     await nextTick()
+    expect(brandSections(wrapper)).toHaveLength(1)
+    expect(brandSections(wrapper)[0].text()).toContain('Anthropic')
+    expect(modelCards(wrapper).map((card) => card.text()).join('\n')).not.toContain('GPT 5.5')
 
-    expect(localStorage.getItem('tokenrouter:model-marketplace:view-mode')).toBe('group-model')
-    expect(wrapper.findAll('[data-testid="marketplace-group-section"]')).toHaveLength(4)
-    expect(wrapper.findAll('[data-testid="marketplace-model-card"]')).toHaveLength(0)
-
-    wrapper.unmount()
-
-    const restored = await mountMarketplace()
-    expect(restored.findAll('[data-testid="marketplace-group-section"]')).toHaveLength(4)
-  })
-
-  it('模型-分组模式下按分组、搜索和计费类型裁剪分组条目', async () => {
-    const wrapper = await mountMarketplace()
-
+    await wrapper.get('[data-testid="select-option-all"]').trigger('click')
     await wrapper.get('[data-testid="select-option-2"]').trigger('click')
     await nextTick()
-    expect(modelCards(wrapper).filter((card) => card.text().includes('gpt-5.5'))).toHaveLength(1)
-    expect(groupEntries(wrapper)).toHaveLength(1)
-    expect(groupEntries(wrapper)[0].text()).toContain('Pro')
-    expect(modelCards(wrapper).map((card) => card.text()).join('\n')).not.toContain('Plus Data Sharing')
+    expect(modelCards(wrapper)).toHaveLength(1)
+    expect(modelCards(wrapper)[0].text()).toContain('GPT 5.5')
+    expect(modelCards(wrapper)[0].text()).toContain(`1 marketplace.groupsStat`)
 
     await wrapper.findAll('[data-testid="select-option-all"]').at(-1)!.trigger('click')
     await wrapper.get('[data-testid="marketplace-search"]').setValue('Plus Data Sharing')
     await nextTick()
-    expect(groupEntries(wrapper)).toHaveLength(1)
-    const entryText = groupEntries(wrapper).map((entry) => entry.text()).join('\n')
-    expect(entryText).toContain('Plus Data Sharing')
-    expect(entryText).not.toContain('Pro Data Sharing')
+    expect(modelCards(wrapper)).toHaveLength(1)
+    expect(brandSections(wrapper)[0].text()).toContain('GPT 5.5')
+    expect(brandSections(wrapper)[0].text()).not.toContain('Claude Sonnet 4.5')
 
     await wrapper.get('[data-testid="marketplace-search"]').setValue('')
     await wrapper.get('[data-testid="select-option-token"]').trigger('click')
     await nextTick()
-    expect(modelCards(wrapper).filter((card) => card.text().includes('gpt-5.5'))).toHaveLength(1)
-    expect(modelCards(wrapper).some((card) => card.text().includes('legacy-unpriced'))).toBe(false)
+    expect(modelCards(wrapper).map((card) => card.text()).join('\n')).toContain('GPT 5.5')
+    expect(modelCards(wrapper).map((card) => card.text()).join('\n')).not.toContain('Legacy Unpriced')
   })
 
-  it('点击分组条目会打开对应分组定价弹窗', async () => {
+  it('点击模型卡片打开覆盖式详情，并可在分组间切换右侧定价面板', async () => {
     const wrapper = await mountMarketplace()
-    const groupEntry = groupEntries(wrapper)[0]
+    const gptCard = modelCards(wrapper).find((card) => card.text().includes('GPT 5.5'))!
 
-    expect(groupEntry.exists()).toBe(true)
-    await groupEntry.trigger('click')
+    await gptCard.trigger('click')
     await nextTick()
 
-    const dialog = wrapper.get('[data-testid="pricing-dialog"]')
-    expect(dialog.get('h2').text()).toBe('Plus · marketplace.groupDetail')
-    expect(dialog.text()).toContain('GPT 5.5')
-    expect(dialog.text()).toContain('gpt-5.5')
-    expect(dialog.text().match(/Plus/g)).toHaveLength(1)
+    const overlay = teleportedDetailOverlay()
+    expect(overlay.classList.contains('active')).toBe(true)
+    expect(overlay.textContent).toContain('GPT 5.5')
+    expect(overlay.textContent).toContain('gpt-5.5')
+    expect(availabilityCards()).toHaveLength(3)
+    expect(availabilityCards()[0].text()).toContain('Plus')
+    expect(overlay.textContent).toContain('Plus marketplace.groupPricingDetail')
+
+    await availabilityCards()[1].trigger('click')
+    await nextTick()
+    expect(overlay.textContent).toContain('Pro marketplace.groupPricingDetail')
   })
 
-  it('分组-模型模式下定价弹窗不重复显示分组名称', async () => {
+  it('详情面板支持复制模型 ID，并从当前分组打开定价弹窗', async () => {
     const wrapper = await mountMarketplace()
+    const gptCard = modelCards(wrapper).find((card) => card.text().includes('GPT 5.5'))!
 
-    await wrapper.get('[data-testid="select-option-group-model"]').trigger('click')
+    await gptCard.trigger('click')
     await nextTick()
 
-    const pricingButton = wrapper
-      .findAll('button')
-      .find((button) => button.text().includes('marketplace.viewPricing'))
+    const copyButton = document.body.querySelector<HTMLButtonElement>('.header-model-id-copy-btn')
+    expect(copyButton).not.toBeNull()
+    copyButton!.click()
+    expect(copyToClipboard).toHaveBeenCalledWith('gpt-5.5', 'marketplace.modelIdCopied')
 
-    expect(pricingButton?.exists()).toBe(true)
-    await pricingButton!.trigger('click')
+    const pricingButton = document.body.querySelector<HTMLButtonElement>('[data-testid="marketplace-view-pricing-button"]')
+    expect(pricingButton).not.toBeNull()
+    pricingButton!.click()
     await nextTick()
 
     const dialog = wrapper.get('[data-testid="pricing-dialog"]')
     expect(dialog.get('h2').text()).toBe('GPT 5.5 · marketplace.pricingDetail')
-    expect(dialog.text()).toContain('GPT 5.5')
     expect(dialog.text()).toContain('gpt-5.5')
-    expect(dialog.text()).not.toContain('Plus')
+    expect(dialog.text()).toContain('Plus')
+    expect(dialog.text()).toContain('marketplace.input')
   })
 })

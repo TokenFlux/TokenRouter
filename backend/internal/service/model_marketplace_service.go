@@ -6,12 +6,19 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 )
+
+type ModelMarketplaceRecentRequest struct {
+	ModelID   string
+	Success   bool
+	CreatedAt time.Time
+}
 
 type ModelMarketplaceGroup struct {
 	ID                         int64
@@ -31,17 +38,23 @@ type ModelMarketplaceGroup struct {
 }
 
 type ModelMarketplaceModel struct {
-	ID          string
-	DisplayName string
-	Pricing     ModelDisplayPricing
+	ID             string
+	DisplayName    string
+	Pricing        ModelDisplayPricing
+	RecentRequests []ModelMarketplaceRecentRequest
+}
+
+type ModelMarketplaceRecentRequestRepository interface {
+	ListRecentRequestStatusesByGroupModels(ctx context.Context, groupIDs []int64, limitPerModel int) (map[int64]map[string][]ModelMarketplaceRecentRequest, error)
 }
 
 type ModelMarketplaceService struct {
-	groupRepo       GroupRepository
-	settingRepo     SettingRepository
-	gatewayService  *GatewayService
-	billingService  *BillingService
-	capacityService *GroupCapacityService
+	groupRepo         GroupRepository
+	settingRepo       SettingRepository
+	gatewayService    *GatewayService
+	billingService    *BillingService
+	capacityService   *GroupCapacityService
+	recentRequestRepo ModelMarketplaceRecentRequestRepository
 }
 
 func NewModelMarketplaceService(
@@ -50,13 +63,15 @@ func NewModelMarketplaceService(
 	gatewayService *GatewayService,
 	billingService *BillingService,
 	capacityService *GroupCapacityService,
+	recentRequestRepo ModelMarketplaceRecentRequestRepository,
 ) *ModelMarketplaceService {
 	return &ModelMarketplaceService{
-		groupRepo:       groupRepo,
-		settingRepo:     settingRepo,
-		gatewayService:  gatewayService,
-		billingService:  billingService,
-		capacityService: capacityService,
+		groupRepo:         groupRepo,
+		settingRepo:       settingRepo,
+		gatewayService:    gatewayService,
+		billingService:    billingService,
+		capacityService:   capacityService,
+		recentRequestRepo: recentRequestRepo,
 	}
 }
 
@@ -68,6 +83,7 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 
 	discountConfig, showDiscount := s.getOfficialPriceRatioConfig(ctx)
 	capacityMap := s.getPublicCapacityMap(ctx, groups)
+	recentRequestMap := s.getPublicRecentRequestMap(ctx, groups)
 	out := make([]ModelMarketplaceGroup, 0, len(groups))
 	for i := range groups {
 		group := &groups[i]
@@ -75,7 +91,7 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 			continue
 		}
 
-		models := s.listPublicModelsForGroup(ctx, group)
+		models := s.listPublicModelsForGroup(ctx, group, recentRequestMap)
 		if len(models) == 0 {
 			continue
 		}
@@ -142,6 +158,42 @@ func marketplaceGroupCapacity(capacityMap map[int64]GroupCapacitySummary, groupI
 	return &capacity
 }
 
+func (s *ModelMarketplaceService) getPublicRecentRequestMap(ctx context.Context, groups []Group) map[int64]map[string][]ModelMarketplaceRecentRequest {
+	if s.recentRequestRepo == nil || len(groups) == 0 {
+		return nil
+	}
+
+	groupIDs := make([]int64, 0, len(groups))
+	for i := range groups {
+		group := &groups[i]
+		if group.IsExclusive || group.ActiveAccountCount <= 0 {
+			continue
+		}
+		groupIDs = append(groupIDs, group.ID)
+	}
+	if len(groupIDs) == 0 {
+		return nil
+	}
+
+	// 最近请求状态是模型广场的辅助公开信号；读取失败时不影响模型和价格展示。
+	recent, err := s.recentRequestRepo.ListRecentRequestStatusesByGroupModels(ctx, groupIDs, 96)
+	if err != nil {
+		return nil
+	}
+	return recent
+}
+
+func marketplaceModelRecentRequests(recentMap map[int64]map[string][]ModelMarketplaceRecentRequest, groupID int64, modelID string) []ModelMarketplaceRecentRequest {
+	if len(recentMap) == 0 || strings.TrimSpace(modelID) == "" {
+		return nil
+	}
+	requests := recentMap[groupID][modelID]
+	if len(requests) == 0 {
+		return nil
+	}
+	return requests
+}
+
 func marketplaceGroupDisplayBrand(group *Group) string {
 	if brand := strings.TrimSpace(group.DisplayBrand); brand != "" {
 		return brand
@@ -204,7 +256,7 @@ func parsePositiveMarketplaceSettingFloat(raw string) (float64, bool) {
 	return value, true
 }
 
-func (s *ModelMarketplaceService) listPublicModelsForGroup(ctx context.Context, group *Group) []ModelMarketplaceModel {
+func (s *ModelMarketplaceService) listPublicModelsForGroup(ctx context.Context, group *Group, recentRequestMap map[int64]map[string][]ModelMarketplaceRecentRequest) []ModelMarketplaceModel {
 	modelDefs := s.resolveGroupModels(ctx, group)
 	if len(modelDefs) == 0 {
 		return nil
@@ -224,9 +276,10 @@ func (s *ModelMarketplaceService) listPublicModelsForGroup(ctx context.Context, 
 		}
 
 		models = append(models, ModelMarketplaceModel{
-			ID:          modelDef.ID,
-			DisplayName: modelDef.DisplayName,
-			Pricing:     pricing,
+			ID:             modelDef.ID,
+			DisplayName:    modelDef.DisplayName,
+			Pricing:        pricing,
+			RecentRequests: marketplaceModelRecentRequests(recentRequestMap, group.ID, modelDef.ID),
 		})
 	}
 

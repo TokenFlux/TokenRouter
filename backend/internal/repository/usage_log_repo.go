@@ -249,7 +249,7 @@ const (
 	usageLogCreateStateCanceled
 )
 
-func NewUsageLogRepository(client *dbent.Client, sqlDB *sql.DB) service.UsageLogRepository {
+func NewUsageLogRepository(client *dbent.Client, sqlDB *sql.DB) *usageLogRepository {
 	return newUsageLogRepositoryWithSQL(client, sqlDB)
 }
 
@@ -1487,6 +1487,89 @@ func (r *usageLogRepository) ListByUser(ctx context.Context, userID int64, param
 
 func (r *usageLogRepository) ListByAPIKey(ctx context.Context, apiKeyID int64, params pagination.PaginationParams) ([]service.UsageLog, *pagination.PaginationResult, error) {
 	return r.listUsageLogsWithPagination(ctx, "WHERE api_key_id = $1", []any{apiKeyID}, params)
+}
+
+func (r *usageLogRepository) ListRecentRequestStatusesByGroupModels(ctx context.Context, groupIDs []int64, limitPerModel int) (map[int64]map[string][]service.ModelMarketplaceRecentRequest, error) {
+	result := make(map[int64]map[string][]service.ModelMarketplaceRecentRequest, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return result, nil
+	}
+	if limitPerModel <= 0 {
+		limitPerModel = 96
+	}
+	if limitPerModel > 200 {
+		limitPerModel = 200
+	}
+
+	// usage_logs only contains completed requests, so they are success events.
+	// ops_error_logs records failed HTTP responses; merging both tables keeps the
+	// marketplace status stream grounded in real request records without treating
+	// zero-cost successful requests as failures.
+	query := `
+		WITH events AS (
+			SELECT
+				ul.group_id,
+				COALESCE(NULLIF(ul.requested_model, ''), NULLIF(ul.model, ''), NULLIF(ul.upstream_model, '')) AS model_id,
+				TRUE AS success,
+				ul.created_at
+			FROM usage_logs ul
+			WHERE ul.group_id = ANY($1)
+				AND ` + usageLogSuccessFilterUL + `
+			UNION ALL
+			SELECT
+				oel.group_id,
+				COALESCE(NULLIF(oel.requested_model, ''), NULLIF(oel.model, ''), NULLIF(oel.upstream_model, '')) AS model_id,
+				FALSE AS success,
+				oel.created_at
+			FROM ops_error_logs oel
+			WHERE oel.group_id = ANY($1)
+				AND COALESCE(oel.status_code, 0) >= 400
+				AND oel.is_count_tokens = FALSE
+		), ranked AS (
+			SELECT
+				group_id,
+				model_id,
+				success,
+				created_at,
+				ROW_NUMBER() OVER (PARTITION BY group_id, model_id ORDER BY created_at DESC) AS rn
+			FROM events
+			WHERE group_id IS NOT NULL
+				AND model_id IS NOT NULL
+				AND model_id <> ''
+		)
+		SELECT group_id, model_id, success, created_at
+		FROM ranked
+		WHERE rn <= $2
+		ORDER BY group_id ASC, model_id ASC, created_at ASC
+	`
+
+	rows, err := r.sql.QueryContext(ctx, query, pq.Array(groupIDs), limitPerModel)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var groupID int64
+		var modelID string
+		var success bool
+		var createdAt time.Time
+		if err := rows.Scan(&groupID, &modelID, &success, &createdAt); err != nil {
+			return nil, err
+		}
+		if result[groupID] == nil {
+			result[groupID] = make(map[string][]service.ModelMarketplaceRecentRequest)
+		}
+		result[groupID][modelID] = append(result[groupID][modelID], service.ModelMarketplaceRecentRequest{
+			ModelID:   modelID,
+			Success:   success,
+			CreatedAt: createdAt,
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // UserStats 用户使用统计

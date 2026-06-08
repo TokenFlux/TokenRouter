@@ -174,7 +174,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	announcementReadRepository := repository.NewAnnouncementReadRepository(client)
 	announcementService := service.NewAnnouncementService(announcementRepository, announcementReadRepository, userRepository, userSubscriptionRepository)
 	announcementHandler := handler.NewAnnouncementHandler(announcementService)
-	modelMarketplaceService := service.NewModelMarketplaceService(groupRepository, settingRepository, gatewayService, billingService, groupCapacityService)
+	modelMarketplaceService := service.NewModelMarketplaceService(groupRepository, settingRepository, gatewayService, billingService, groupCapacityService, usageLogRepository)
 	dashboardAggregationRepository := repository.NewDashboardAggregationRepository(db)
 	dashboardStatsCache := repository.NewDashboardCache(redisClient, configConfig)
 	dashboardService := service.NewDashboardService(usageLogRepository, dashboardAggregationRepository, dashboardStatsCache, configConfig)
