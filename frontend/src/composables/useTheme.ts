@@ -2,6 +2,7 @@ import { ref } from 'vue'
 
 type ViewTransition = {
   ready: Promise<void>
+  finished: Promise<void>
 }
 
 type ViewTransitionDocument = {
@@ -9,8 +10,11 @@ type ViewTransitionDocument = {
 }
 
 const themeStorageKey = 'theme'
-const themeRippleDuration = 640
 const isDark = ref(document.documentElement.classList.contains('dark'))
+const themeTransitionClass = 'theme-transitioning'
+const themeRippleXVariable = '--theme-ripple-x'
+const themeRippleYVariable = '--theme-ripple-y'
+const themeRippleRadiusVariable = '--theme-ripple-radius'
 
 function prefersDarkMode(): boolean {
   const savedTheme = localStorage.getItem(themeStorageKey)
@@ -47,28 +51,20 @@ function getRippleRadius(x: number, y: number): number {
   )
 }
 
-function animateThemeRipple(transition: ViewTransition, x: number, y: number) {
-  void transition.ready
-    .then(() => {
-      const endRadius = getRippleRadius(x, y)
-      const options: KeyframeAnimationOptions & { pseudoElement: string } = {
-        duration: themeRippleDuration,
-        easing: 'cubic-bezier(0.65, 0, 0.35, 1)',
-        pseudoElement: '::view-transition-new(root)',
-      }
+function prepareThemeRipple(x: number, y: number) {
+  const root = document.documentElement
+  root.style.setProperty(themeRippleXVariable, `${x}px`)
+  root.style.setProperty(themeRippleYVariable, `${y}px`)
+  root.style.setProperty(themeRippleRadiusVariable, `${getRippleRadius(x, y)}px`)
+  root.classList.add(themeTransitionClass)
+}
 
-      // 用新主题截图做圆形裁剪，让颜色从点击位置像水波一样扩散。
-      document.documentElement.animate(
-        {
-          clipPath: [
-            `circle(0px at ${x}px ${y}px)`,
-            `circle(${endRadius}px at ${x}px ${y}px)`,
-          ],
-        },
-        options
-      )
-    })
-    .catch(() => undefined)
+function cleanupThemeRipple() {
+  const root = document.documentElement
+  root.classList.remove(themeTransitionClass)
+  root.style.removeProperty(themeRippleXVariable)
+  root.style.removeProperty(themeRippleYVariable)
+  root.style.removeProperty(themeRippleRadiusVariable)
 }
 
 export function setTheme(nextIsDark: boolean, event?: MouseEvent) {
@@ -80,14 +76,17 @@ export function setTheme(nextIsDark: boolean, event?: MouseEvent) {
   }
 
   const { clientX, clientY } = event
+  prepareThemeRipple(clientX, clientY)
+
   const viewTransitionDocument = document as unknown as ViewTransitionDocument
   const transition = viewTransitionDocument.startViewTransition?.(() => {
     persistTheme(nextIsDark)
   })
 
   if (transition) {
-    animateThemeRipple(transition, clientX, clientY)
+    void transition.finished.finally(cleanupThemeRipple)
   } else {
+    cleanupThemeRipple()
     persistTheme(nextIsDark)
   }
 }

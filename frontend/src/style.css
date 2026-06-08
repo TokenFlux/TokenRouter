@@ -44,10 +44,9 @@
     background-attachment: fixed;
   }
 
-  /* 主题切换使用 View Transition API，关闭默认淡入淡出后交给圆形水波裁剪动画。 */
+  /* 主题切换使用 View Transition API。新主题层首帧即裁剪，避免先全屏闪现再执行水波。 */
   ::view-transition-group(root),
-  ::view-transition-old(root),
-  ::view-transition-new(root) {
+  ::view-transition-old(root) {
     animation: none;
   }
 
@@ -70,6 +69,24 @@
 
   ::view-transition-new(root) {
     z-index: 2147483646;
+    clip-path: circle(0 at var(--theme-ripple-x, 50vw) var(--theme-ripple-y, 50vh));
+    animation: theme-ripple-reveal 640ms cubic-bezier(0.65, 0, 0.35, 1) both;
+  }
+
+  html.theme-transitioning *,
+  html.theme-transitioning *::before,
+  html.theme-transitioning *::after {
+    transition: none !important;
+  }
+
+  @keyframes theme-ripple-reveal {
+    from {
+      clip-path: circle(0 at var(--theme-ripple-x, 50vw) var(--theme-ripple-y, 50vh));
+    }
+
+    to {
+      clip-path: circle(var(--theme-ripple-radius, 150vmax) at var(--theme-ripple-x, 50vw) var(--theme-ripple-y, 50vh));
+    }
   }
 
   /* 自定义滚动条 - 仅针对 Firefox，避免 Chrome 取消 webkit 的全局定制 */
