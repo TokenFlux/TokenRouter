@@ -1489,9 +1489,9 @@ func (r *usageLogRepository) ListByAPIKey(ctx context.Context, apiKeyID int64, p
 	return r.listUsageLogsWithPagination(ctx, "WHERE api_key_id = $1", []any{apiKeyID}, params)
 }
 
-func (r *usageLogRepository) ListRecentRequestStatusesByGroupModels(ctx context.Context, groupIDs []int64, limitPerModel int) (map[int64]map[string][]service.ModelMarketplaceRecentRequest, error) {
-	result := make(map[int64]map[string][]service.ModelMarketplaceRecentRequest, len(groupIDs))
-	if len(groupIDs) == 0 {
+func (r *usageLogRepository) ListRecentRequestStatusesByGroupModels(ctx context.Context, pairs []service.ModelMarketplaceRecentRequestPair, limitPerModel int) (map[int64]map[string][]service.ModelMarketplaceRecentRequest, error) {
+	result := make(map[int64]map[string][]service.ModelMarketplaceRecentRequest)
+	if len(pairs) == 0 {
 		return result, nil
 	}
 	if limitPerModel <= 0 {
@@ -1501,30 +1501,76 @@ func (r *usageLogRepository) ListRecentRequestStatusesByGroupModels(ctx context.
 		limitPerModel = 200
 	}
 
+	groupIDs := make([]int64, 0, len(pairs))
+	modelIDs := make([]string, 0, len(pairs))
+	seen := make(map[service.ModelMarketplaceRecentRequestPair]struct{}, len(pairs))
+	for _, pair := range pairs {
+		pair.ModelID = strings.TrimSpace(pair.ModelID)
+		if pair.GroupID == 0 || pair.ModelID == "" {
+			continue
+		}
+		if _, ok := seen[pair]; ok {
+			continue
+		}
+		seen[pair] = struct{}{}
+		groupIDs = append(groupIDs, pair.GroupID)
+		modelIDs = append(modelIDs, pair.ModelID)
+	}
+	if len(groupIDs) == 0 {
+		return result, nil
+	}
+
 	// usage_logs only contains completed requests, so they are success events.
 	// ops_error_logs records failed HTTP responses; merging both tables keeps the
 	// marketplace status stream grounded in real request records without treating
-	// zero-cost successful requests as failures.
+	// zero-cost successful requests as failures. Pulling a bounded newest window
+	// keeps this auxiliary public signal inexpensive on large log tables without
+	// requiring schema/index changes in the marketplace redesign.
+	candidateLimit := limitPerModel * len(groupIDs) * 8
+	if candidateLimit < 5000 {
+		candidateLimit = 5000
+	}
+	if candidateLimit > 20000 {
+		candidateLimit = 20000
+	}
+
 	query := `
-		WITH events AS (
+		WITH pairs AS (
+			SELECT group_id, model_id
+			FROM unnest($1::bigint[], $2::text[]) AS pair(group_id, model_id)
+		), public_groups AS (
+			SELECT DISTINCT group_id FROM pairs
+		), candidate_usage AS (
 			SELECT
 				ul.group_id,
 				COALESCE(NULLIF(ul.requested_model, ''), NULLIF(ul.model, ''), NULLIF(ul.upstream_model, '')) AS model_id,
 				TRUE AS success,
 				ul.created_at
 			FROM usage_logs ul
-			WHERE ul.group_id = ANY($1)
+			WHERE ul.group_id IN (SELECT group_id FROM public_groups)
 				AND ` + usageLogSuccessFilterUL + `
-			UNION ALL
+			ORDER BY ul.created_at DESC
+			LIMIT $4
+		), candidate_errors AS (
 			SELECT
 				oel.group_id,
 				COALESCE(NULLIF(oel.requested_model, ''), NULLIF(oel.model, ''), NULLIF(oel.upstream_model, '')) AS model_id,
 				FALSE AS success,
 				oel.created_at
 			FROM ops_error_logs oel
-			WHERE oel.group_id = ANY($1)
+			WHERE oel.group_id IN (SELECT group_id FROM public_groups)
 				AND COALESCE(oel.status_code, 0) >= 400
 				AND oel.is_count_tokens = FALSE
+			ORDER BY oel.created_at DESC
+			LIMIT $4
+		), events AS (
+			SELECT cu.group_id, cu.model_id, cu.success, cu.created_at
+			FROM candidate_usage cu
+			JOIN pairs p ON p.group_id = cu.group_id AND p.model_id = cu.model_id
+			UNION ALL
+			SELECT ce.group_id, ce.model_id, ce.success, ce.created_at
+			FROM candidate_errors ce
+			JOIN pairs p ON p.group_id = ce.group_id AND p.model_id = ce.model_id
 		), ranked AS (
 			SELECT
 				group_id,
@@ -1539,11 +1585,11 @@ func (r *usageLogRepository) ListRecentRequestStatusesByGroupModels(ctx context.
 		)
 		SELECT group_id, model_id, success, created_at
 		FROM ranked
-		WHERE rn <= $2
+		WHERE rn <= $3
 		ORDER BY group_id ASC, model_id ASC, created_at ASC
 	`
 
-	rows, err := r.sql.QueryContext(ctx, query, pq.Array(groupIDs), limitPerModel)
+	rows, err := r.sql.QueryContext(ctx, query, pq.Array(groupIDs), pq.Array(modelIDs), limitPerModel, candidateLimit)
 	if err != nil {
 		return nil, err
 	}

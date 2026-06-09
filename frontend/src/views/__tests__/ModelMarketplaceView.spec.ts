@@ -276,8 +276,14 @@ describe('ModelMarketplaceView', () => {
     expect(gptCards[0].text()).toContain('OpenAI')
     expect(gptCards[0].text()).toContain(`3 marketplace.groupsStat`)
     expect(gptCards[0].text()).toContain('x1')
+    expect(gptCards[0].text()).toContain('2/3 succeeded')
+    expect(gptCards[0].find('.marketplace-status-dot.is-warn').exists()).toBe(true)
     expect(gptCards[0].findAll('.card-recent-health-dot.is-success')).toHaveLength(2)
     expect(gptCards[0].findAll('.card-recent-health-dot.is-failed')).toHaveLength(1)
+
+    const claudeCard = modelCards(wrapper).find((card) => card.text().includes('Claude Sonnet 4.5'))!
+    expect(claudeCard.text()).toContain('marketplace.noRecentRequests')
+    expect(claudeCard.find('.marketplace-status-dot.is-empty').exists()).toBe(true)
   })
 
   it('按品牌、分组、搜索和计费类型过滤品牌分区卡片', async () => {
@@ -324,6 +330,8 @@ describe('ModelMarketplaceView', () => {
     expect(availabilityCards()).toHaveLength(3)
     expect(availabilityCards()[0].text()).toContain('Plus')
     expect(overlay.textContent).toContain('Plus marketplace.groupPricingDetail')
+    expect(document.body.querySelectorAll('.uptime-bars-wrapper')).toHaveLength(3)
+    expect(document.body.querySelectorAll('.marketplace-request-segment')).not.toHaveLength(0)
 
     await availabilityCards()[1].trigger('click')
     await nextTick()

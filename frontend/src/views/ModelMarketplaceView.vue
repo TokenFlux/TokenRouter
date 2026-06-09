@@ -1102,46 +1102,10 @@ function availabilityPercent(availability: MarketplaceModelAvailability): number
   return Math.round(availableRatioForAvailability(availability) * 1000) / 10
 }
 
-function modelAvailabilityPercent(model: MarketplaceModelView): number {
-  if (model.availabilities.length === 0) {
-    return 0
-  }
-  const average = model.availabilities.reduce((total, availability) => (
-    total + availableRatioForAvailability(availability)
-  ), 0) / model.availabilities.length
-  return Math.round(average * 1000) / 10
-}
-
 function bestPricedAvailability(model: MarketplaceModelView): MarketplaceModelAvailability | null {
   return model.availabilities.find((availability) => availability.status === 'available' && hasDisplayPricing(availability.model.pricing))
     ?? model.availabilities.find((availability) => hasDisplayPricing(availability.model.pricing))
     ?? null
-}
-
-function modelState(model: MarketplaceModelView): 'good' | 'warn' | 'bad' {
-  const percent = modelAvailabilityPercent(model)
-  if (availableAvailabilityCount(model) === 0 || percent < 35) {
-    return 'bad'
-  }
-  if (percent < 85 || availableAvailabilityCount(model) < model.availabilities.length) {
-    return 'warn'
-  }
-  return 'good'
-}
-
-function modelStateLabel(model: MarketplaceModelView): string {
-  const state = modelState(model)
-  if (state === 'good') {
-    return t('marketplace.healthGood')
-  }
-  if (state === 'bad') {
-    return t('marketplace.statusBusy')
-  }
-  return t('marketplace.healthModerate')
-}
-
-function modelStatusDotClass(model: MarketplaceModelView): string {
-  return `marketplace-status-dot is-${modelState(model)}`
 }
 
 function recentRequestsForModel(model: MarketplaceModelView) {
@@ -1150,8 +1114,43 @@ function recentRequestsForModel(model: MarketplaceModelView) {
     .sort((left, right) => new Date(left.created_at).getTime() - new Date(right.created_at).getTime())
 }
 
+function modelRecentRequestWindow(model: MarketplaceModelView) {
+  return recentRequestsForModel(model).slice(-3)
+}
+
+function modelRequestState(model: MarketplaceModelView): 'good' | 'warn' | 'bad' | 'empty' {
+  const recentRequests = modelRecentRequestWindow(model)
+  if (recentRequests.length === 0) {
+    return 'empty'
+  }
+  const successCount = recentRequests.filter((request) => request.success).length
+  if (successCount === recentRequests.length) {
+    return 'good'
+  }
+  if (successCount === 0) {
+    return 'bad'
+  }
+  return 'warn'
+}
+
+function modelStateLabel(model: MarketplaceModelView): string {
+  const recentRequests = modelRecentRequestWindow(model)
+  if (recentRequests.length === 0) {
+    return t('marketplace.noRecentRequests')
+  }
+  const successCount = recentRequests.filter((request) => request.success).length
+  return t('marketplace.recentRequestSummary', {
+    success: successCount,
+    total: recentRequests.length,
+  })
+}
+
+function modelStatusDotClass(model: MarketplaceModelView): string {
+  return `marketplace-status-dot is-${modelRequestState(model)}`
+}
+
 function modelRecentHealthDots(model: MarketplaceModelView): MarketplaceRecentHealthDot[] {
-  const recentRequests = recentRequestsForModel(model).slice(-3)
+  const recentRequests = modelRecentRequestWindow(model)
   const leadingEmptyCount = Math.max(0, 3 - recentRequests.length)
   return Array.from({ length: 3 }, (_, index) => {
     const request = recentRequests[index - leadingEmptyCount]
@@ -1169,7 +1168,7 @@ function modelRecentHealthDots(model: MarketplaceModelView): MarketplaceRecentHe
 }
 
 function modelRecentHealthTitle(model: MarketplaceModelView): string {
-  const recentRequests = recentRequestsForModel(model).slice(-3)
+  const recentRequests = modelRecentRequestWindow(model)
   if (recentRequests.length === 0) {
     return `${t('marketplace.recentThreeRequests')} · ${t('marketplace.noRecentRequests')}`
   }
@@ -2053,6 +2052,10 @@ onUnmounted(() => {
 .marketplace-status-dot.is-bad,
 .status-dot.is-bad {
   background: rgb(239, 68, 68);
+}
+
+.marketplace-status-dot.is-empty {
+  background: rgb(148, 163, 184);
 }
 
 .detail-overlay {

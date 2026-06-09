@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -915,4 +916,54 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 		require.Equal(t, "priority", *log.ServiceTier)
 	})
 
+}
+
+func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsUsesBoundedCandidateQuery(t *testing.T) {
+	var capturedSQL string
+	matcher := sqlmock.QueryMatcherFunc(func(expectedSQL, actualSQL string) error {
+		capturedSQL = actualSQL
+		compact := strings.ToLower(strings.Join(strings.Fields(actualSQL), " "))
+		for _, want := range []string{
+			"with pairs as",
+			"public_groups as",
+			"candidate_usage as",
+			"candidate_errors as",
+			"limit $4",
+			"join pairs p on p.group_id = cu.group_id and p.model_id = cu.model_id",
+			"join pairs p on p.group_id = ce.group_id and p.model_id = ce.model_id",
+		} {
+			if !strings.Contains(compact, want) {
+				return fmt.Errorf("marketplace recent-request query missing %q in %s", want, compact)
+			}
+		}
+		if strings.Contains(compact, "cross join lateral") {
+			return fmt.Errorf("marketplace recent-request query should use a bounded candidate window, not pair-wise lateral scans: %s", compact)
+		}
+		return nil
+	})
+
+	db, mock, err := sqlmock.New(sqlmock.QueryMatcherOption(matcher))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	repo := &usageLogRepository{sql: db}
+	createdAt := time.Date(2026, 6, 9, 8, 30, 0, 0, time.UTC)
+	mock.ExpectQuery("marketplace recent requests").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), 3, 5000).
+		WillReturnRows(sqlmock.NewRows([]string{"group_id", "model_id", "success", "created_at"}).
+			AddRow(int64(2), "gpt-5.2", true, createdAt))
+
+	result, err := repo.ListRecentRequestStatusesByGroupModels(context.Background(), []service.ModelMarketplaceRecentRequestPair{
+		{GroupID: 2, ModelID: "gpt-5.2"},
+		{GroupID: 2, ModelID: "gpt-5.2"},
+		{GroupID: 13, ModelID: " gpt-5.4 "},
+		{GroupID: 0, ModelID: "ignored"},
+		{GroupID: 14, ModelID: ""},
+	}, 3)
+	require.NoError(t, err)
+	require.NotEmpty(t, capturedSQL)
+	require.Len(t, result[2]["gpt-5.2"], 1)
+	require.True(t, result[2]["gpt-5.2"][0].Success)
+	require.Equal(t, createdAt, result[2]["gpt-5.2"][0].CreatedAt)
+	require.NoError(t, mock.ExpectationsWereMet())
 }

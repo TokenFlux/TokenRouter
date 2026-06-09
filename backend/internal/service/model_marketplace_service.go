@@ -44,8 +44,18 @@ type ModelMarketplaceModel struct {
 	RecentRequests []ModelMarketplaceRecentRequest
 }
 
+type ModelMarketplaceRecentRequestPair struct {
+	GroupID int64
+	ModelID string
+}
+
 type ModelMarketplaceRecentRequestRepository interface {
-	ListRecentRequestStatusesByGroupModels(ctx context.Context, groupIDs []int64, limitPerModel int) (map[int64]map[string][]ModelMarketplaceRecentRequest, error)
+	ListRecentRequestStatusesByGroupModels(ctx context.Context, pairs []ModelMarketplaceRecentRequestPair, limitPerModel int) (map[int64]map[string][]ModelMarketplaceRecentRequest, error)
+}
+
+type modelMarketplaceGroupPlan struct {
+	group     *Group
+	modelDefs []marketplaceModelDef
 }
 
 type ModelMarketplaceService struct {
@@ -83,15 +93,12 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 
 	discountConfig, showDiscount := s.getOfficialPriceRatioConfig(ctx)
 	capacityMap := s.getPublicCapacityMap(ctx, groups)
-	recentRequestMap := s.getPublicRecentRequestMap(ctx, groups)
+	plans, recentRequestPairs := s.buildPublicGroupPlans(ctx, groups)
+	recentRequestMap := s.getPublicRecentRequestMap(ctx, recentRequestPairs)
 	out := make([]ModelMarketplaceGroup, 0, len(groups))
-	for i := range groups {
-		group := &groups[i]
-		if group.IsExclusive || group.ActiveAccountCount <= 0 {
-			continue
-		}
-
-		models := s.listPublicModelsForGroup(ctx, group, recentRequestMap)
+	for _, plan := range plans {
+		group := plan.group
+		models := s.listPublicModelsForGroup(ctx, group, plan.modelDefs, recentRequestMap)
 		if len(models) == 0 {
 			continue
 		}
@@ -120,6 +127,45 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 	}
 
 	return out, nil
+}
+
+func (s *ModelMarketplaceService) buildPublicGroupPlans(ctx context.Context, groups []Group) ([]modelMarketplaceGroupPlan, []ModelMarketplaceRecentRequestPair) {
+	plans := make([]modelMarketplaceGroupPlan, 0, len(groups))
+	pairs := make([]ModelMarketplaceRecentRequestPair, 0)
+	seenPairs := make(map[ModelMarketplaceRecentRequestPair]struct{})
+
+	for i := range groups {
+		group := &groups[i]
+		if group.IsExclusive || group.ActiveAccountCount <= 0 {
+			continue
+		}
+
+		modelDefs := s.resolveGroupModels(ctx, group)
+		if len(modelDefs) == 0 {
+			continue
+		}
+
+		plans = append(plans, modelMarketplaceGroupPlan{
+			group:     group,
+			modelDefs: modelDefs,
+		})
+		for _, modelDef := range modelDefs {
+			pair := ModelMarketplaceRecentRequestPair{
+				GroupID: group.ID,
+				ModelID: strings.TrimSpace(modelDef.ID),
+			}
+			if pair.ModelID == "" {
+				continue
+			}
+			if _, ok := seenPairs[pair]; ok {
+				continue
+			}
+			seenPairs[pair] = struct{}{}
+			pairs = append(pairs, pair)
+		}
+	}
+
+	return plans, pairs
 }
 
 func (s *ModelMarketplaceService) getPublicCapacityMap(ctx context.Context, groups []Group) map[int64]GroupCapacitySummary {
@@ -158,25 +204,13 @@ func marketplaceGroupCapacity(capacityMap map[int64]GroupCapacitySummary, groupI
 	return &capacity
 }
 
-func (s *ModelMarketplaceService) getPublicRecentRequestMap(ctx context.Context, groups []Group) map[int64]map[string][]ModelMarketplaceRecentRequest {
-	if s.recentRequestRepo == nil || len(groups) == 0 {
-		return nil
-	}
-
-	groupIDs := make([]int64, 0, len(groups))
-	for i := range groups {
-		group := &groups[i]
-		if group.IsExclusive || group.ActiveAccountCount <= 0 {
-			continue
-		}
-		groupIDs = append(groupIDs, group.ID)
-	}
-	if len(groupIDs) == 0 {
+func (s *ModelMarketplaceService) getPublicRecentRequestMap(ctx context.Context, pairs []ModelMarketplaceRecentRequestPair) map[int64]map[string][]ModelMarketplaceRecentRequest {
+	if s.recentRequestRepo == nil || len(pairs) == 0 {
 		return nil
 	}
 
 	// 最近请求状态是模型广场的辅助公开信号；读取失败时不影响模型和价格展示。
-	recent, err := s.recentRequestRepo.ListRecentRequestStatusesByGroupModels(ctx, groupIDs, 96)
+	recent, err := s.recentRequestRepo.ListRecentRequestStatusesByGroupModels(ctx, pairs, 96)
 	if err != nil {
 		return nil
 	}
@@ -256,12 +290,7 @@ func parsePositiveMarketplaceSettingFloat(raw string) (float64, bool) {
 	return value, true
 }
 
-func (s *ModelMarketplaceService) listPublicModelsForGroup(ctx context.Context, group *Group, recentRequestMap map[int64]map[string][]ModelMarketplaceRecentRequest) []ModelMarketplaceModel {
-	modelDefs := s.resolveGroupModels(ctx, group)
-	if len(modelDefs) == 0 {
-		return nil
-	}
-
+func (s *ModelMarketplaceService) listPublicModelsForGroup(ctx context.Context, group *Group, modelDefs []marketplaceModelDef, recentRequestMap map[int64]map[string][]ModelMarketplaceRecentRequest) []ModelMarketplaceModel {
 	imageConfig := &ImagePriceConfig{
 		Price1K: group.ImagePrice1K,
 		Price2K: group.ImagePrice2K,
