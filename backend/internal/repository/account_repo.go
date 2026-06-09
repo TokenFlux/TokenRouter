@@ -296,7 +296,7 @@ func (r *accountRepository) ListCRSAccountIDs(ctx context.Context) (map[string]i
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = rows.Close() }()
+	defer rows.Close()
 
 	result := make(map[string]int64)
 	for rows.Next() {
@@ -307,10 +307,80 @@ func (r *accountRepository) ListCRSAccountIDs(ctx context.Context) (map[string]i
 		}
 		result[crsID] = id
 	}
-	if err := rows.Err(); err != nil {
+	return result, rows.Err()
+}
+
+func (r *accountRepository) ListGroupCapacityAccounts(ctx context.Context, groupIDs []int64) (map[int64][]service.GroupCapacityAccount, error) {
+	result := make(map[int64][]service.GroupCapacityAccount)
+	groupIDs = dedupePositiveInt64s(groupIDs)
+	if len(groupIDs) == 0 {
+		return result, nil
+	}
+
+	query := `
+		SELECT
+			ag.group_id,
+			a.id,
+			a.concurrency,
+			CASE WHEN a.extra->>'max_sessions' ~ '^-?[0-9]+$' THEN (a.extra->>'max_sessions')::int ELSE 0 END AS max_sessions,
+			CASE
+				WHEN a.extra->>'session_idle_timeout_minutes' ~ '^-?[0-9]+$'
+					AND (a.extra->>'session_idle_timeout_minutes')::int > 0
+				THEN (a.extra->>'session_idle_timeout_minutes')::int
+				ELSE 5
+			END AS session_idle_timeout_minutes,
+			CASE WHEN a.extra->>'base_rpm' ~ '^-?[0-9]+$' THEN (a.extra->>'base_rpm')::int ELSE 0 END AS base_rpm
+		FROM account_groups ag
+		JOIN accounts a ON a.id = ag.account_id
+		WHERE ag.group_id = ANY($1)
+			AND a.deleted_at IS NULL
+			AND a.status = 'active'
+			AND a.schedulable = TRUE
+			AND (a.temp_unschedulable_until IS NULL OR a.temp_unschedulable_until <= NOW())
+			AND (a.expires_at IS NULL OR a.expires_at > NOW() OR a.auto_pause_on_expired = FALSE)
+			AND (a.overload_until IS NULL OR a.overload_until <= NOW())
+			AND (a.rate_limit_reset_at IS NULL OR a.rate_limit_reset_at <= NOW())
+		ORDER BY ag.group_id, ag.priority, a.priority, a.id
+	`
+
+	rows, err := r.sql.QueryContext(ctx, query, pq.Array(groupIDs))
+	if err != nil {
 		return nil, err
 	}
-	return result, nil
+	defer rows.Close()
+
+	for rows.Next() {
+		var groupID int64
+		var account service.GroupCapacityAccount
+		if err := rows.Scan(
+			&groupID,
+			&account.ID,
+			&account.Concurrency,
+			&account.MaxSessions,
+			&account.SessionIdleTimeoutMinutes,
+			&account.BaseRPM,
+		); err != nil {
+			return nil, err
+		}
+		result[groupID] = append(result[groupID], account)
+	}
+	return result, rows.Err()
+}
+
+func dedupePositiveInt64s(values []int64) []int64 {
+	seen := make(map[int64]struct{}, len(values))
+	out := make([]int64, 0, len(values))
+	for _, value := range values {
+		if value <= 0 {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
 }
 
 func (r *accountRepository) Update(ctx context.Context, account *service.Account) error {
