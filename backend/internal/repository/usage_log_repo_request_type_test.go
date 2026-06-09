@@ -949,7 +949,7 @@ func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsUsesBoundedCand
 	repo := &usageLogRepository{sql: db}
 	createdAt := time.Date(2026, 6, 9, 8, 30, 0, 0, time.UTC)
 	mock.ExpectQuery("marketplace recent requests").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), 3, 5000).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), 3, 1000).
 		WillReturnRows(sqlmock.NewRows([]string{"group_id", "model_id", "success", "created_at"}).
 			AddRow(int64(2), "gpt-5.2", true, createdAt))
 

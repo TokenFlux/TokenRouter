@@ -210,7 +210,8 @@ func (s *ModelMarketplaceService) getPublicRecentRequestMap(ctx context.Context,
 	}
 
 	// 最近请求状态是模型广场的辅助公开信号；读取失败时不影响模型和价格展示。
-	recent, err := s.recentRequestRepo.ListRecentRequestStatusesByGroupModels(ctx, pairs, 96)
+	// 前端状态条只展示每个模型最近 3 次请求，避免为不可见的历史窗口扫描大日志表。
+	recent, err := s.recentRequestRepo.ListRecentRequestStatusesByGroupModels(ctx, pairs, 3)
 	if err != nil {
 		return nil
 	}

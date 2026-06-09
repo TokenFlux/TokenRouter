@@ -1527,11 +1527,11 @@ func (r *usageLogRepository) ListRecentRequestStatusesByGroupModels(ctx context.
 	// keeps this auxiliary public signal inexpensive on large log tables without
 	// requiring schema/index changes in the marketplace redesign.
 	candidateLimit := limitPerModel * len(groupIDs) * 8
-	if candidateLimit < 5000 {
-		candidateLimit = 5000
+	if candidateLimit < 1000 {
+		candidateLimit = 1000
 	}
-	if candidateLimit > 20000 {
-		candidateLimit = 20000
+	if candidateLimit > 5000 {
+		candidateLimit = 5000
 	}
 
 	query := `
