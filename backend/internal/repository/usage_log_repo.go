@@ -1520,18 +1520,43 @@ func (r *usageLogRepository) ListRecentRequestStatusesByGroupModels(ctx context.
 		return result, nil
 	}
 
-	// usage_logs only contains completed requests, so they are success events.
-	// ops_error_logs records failed HTTP responses; merging both tables keeps the
-	// marketplace status stream grounded in real request records without treating
-	// zero-cost successful requests as failures. Pulling a bounded newest window
-	// keeps this auxiliary public signal inexpensive on large log tables without
-	// requiring schema/index changes in the marketplace redesign.
-	candidateLimit := 250 * len(uniqueInt64s(groupIDs))
-	if candidateLimit < 1000 {
-		candidateLimit = 1000
+	// usage_logs provides successful request events, while ops_error_logs provides
+	// failed HTTP response events. The marketplace needs a per-(group, model)
+	// history window: sampling successes group-wide lets high-traffic sibling
+	// models push this model's recent successes out of the candidate window, while
+	// older failures can remain and paint the health bar red.
+	//
+	// The success side is therefore fetched as bounded per-pair branches using the
+	// existing usage_logs(model, created_at) index. For pairs that already have a
+	// full success window, error rows are only considered inside that success
+	// window's time range, so older failures cannot masquerade as recent status.
+	// Pairs without a full success window still use a bounded group error fallback
+	// to avoid unbounded ops_error_logs scans without adding indexes/migrations.
+	errorCandidateLimit := 250 * len(uniqueInt64s(groupIDs))
+	if errorCandidateLimit < 1000 {
+		errorCandidateLimit = 1000
 	}
-	if candidateLimit > 5000 {
-		candidateLimit = 5000
+	if errorCandidateLimit > 5000 {
+		errorCandidateLimit = 5000
+	}
+
+	args := []any{pq.Array(groupIDs), pq.Array(modelIDs), limitPerModel, errorCandidateLimit}
+	usageBranches := make([]string, 0, len(groupIDs))
+	for i := range groupIDs {
+		groupParam := len(args) + 1
+		args = append(args, groupIDs[i])
+		modelParam := len(args) + 1
+		args = append(args, modelIDs[i])
+		usageBranches = append(usageBranches, fmt.Sprintf(`
+			(
+				SELECT $%d::bigint AS group_id, $%d::text AS model_id, TRUE AS success, ul.created_at
+				FROM usage_logs ul
+				WHERE ul.group_id = $%d
+					AND ul.model = $%d
+					AND %s
+				ORDER BY ul.created_at DESC
+				LIMIT $3
+			)`, groupParam, modelParam, groupParam, modelParam, usageLogSuccessFilterUL))
 	}
 
 	query := `
@@ -1540,17 +1565,27 @@ func (r *usageLogRepository) ListRecentRequestStatusesByGroupModels(ctx context.
 			FROM unnest($1::bigint[], $2::text[]) AS pair(group_id, model_id)
 		), public_groups AS (
 			SELECT DISTINCT group_id FROM pairs
-		), candidate_usage AS (
+		), usage_events AS (` + strings.Join(usageBranches, "\n			UNION ALL") + `
+		), usage_summary AS (
 			SELECT
-				ul.group_id,
-				COALESCE(NULLIF(ul.requested_model, ''), NULLIF(ul.model, ''), NULLIF(ul.upstream_model, '')) AS model_id,
-				TRUE AS success,
-				ul.created_at
-			FROM usage_logs ul
-			WHERE ul.group_id IN (SELECT group_id FROM public_groups)
-				AND ` + usageLogSuccessFilterUL + `
-			ORDER BY ul.created_at DESC
-			LIMIT $4
+				group_id,
+				model_id,
+				COUNT(*) AS usage_count,
+				MIN(created_at) AS oldest_usage_at
+			FROM usage_events
+			GROUP BY group_id, model_id
+		), complete_usage_errors AS (
+			SELECT p.group_id, p.model_id, FALSE AS success, oel.created_at
+			FROM ops_error_logs oel
+			JOIN usage_summary us ON us.usage_count >= $3
+				AND oel.group_id = us.group_id
+				AND oel.created_at >= us.oldest_usage_at
+			JOIN pairs p ON p.group_id = oel.group_id
+				AND p.model_id = COALESCE(NULLIF(oel.requested_model, ''), NULLIF(oel.model, ''), NULLIF(oel.upstream_model, ''))
+				AND p.group_id = us.group_id
+				AND p.model_id = us.model_id
+			WHERE COALESCE(oel.status_code, 0) >= 400
+				AND oel.is_count_tokens = FALSE
 		), candidate_errors AS (
 			SELECT
 				oel.group_id,
@@ -1563,14 +1598,18 @@ func (r *usageLogRepository) ListRecentRequestStatusesByGroupModels(ctx context.
 				AND oel.is_count_tokens = FALSE
 			ORDER BY oel.created_at DESC
 			LIMIT $4
-		), events AS (
-			SELECT cu.group_id, cu.model_id, cu.success, cu.created_at
-			FROM candidate_usage cu
-			JOIN pairs p ON p.group_id = cu.group_id AND p.model_id = cu.model_id
-			UNION ALL
+		), fallback_errors AS (
 			SELECT ce.group_id, ce.model_id, ce.success, ce.created_at
 			FROM candidate_errors ce
 			JOIN pairs p ON p.group_id = ce.group_id AND p.model_id = ce.model_id
+			LEFT JOIN usage_summary us ON us.group_id = ce.group_id AND us.model_id = ce.model_id
+			WHERE COALESCE(us.usage_count, 0) < $3
+		), events AS (
+			SELECT group_id, model_id, success, created_at FROM usage_events
+			UNION ALL
+			SELECT group_id, model_id, success, created_at FROM complete_usage_errors
+			UNION ALL
+			SELECT group_id, model_id, success, created_at FROM fallback_errors
 		), ranked AS (
 			SELECT
 				group_id,
@@ -1589,7 +1628,7 @@ func (r *usageLogRepository) ListRecentRequestStatusesByGroupModels(ctx context.
 		ORDER BY group_id ASC, model_id ASC, created_at ASC
 	`
 
-	rows, err := r.sql.QueryContext(ctx, query, pq.Array(groupIDs), pq.Array(modelIDs), limitPerModel, candidateLimit)
+	rows, err := r.sql.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
