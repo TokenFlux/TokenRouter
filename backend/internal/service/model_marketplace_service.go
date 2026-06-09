@@ -14,6 +14,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 )
 
+const marketplaceRecentRequestStatusBarLimit = 96 // 覆盖详情 modal 中可见的请求状态条窗口，卡片仍在前端只展示最近 3 点。
+
 type ModelMarketplaceRecentRequest struct {
 	ModelID   string
 	Success   bool
@@ -210,8 +212,8 @@ func (s *ModelMarketplaceService) getPublicRecentRequestMap(ctx context.Context,
 	}
 
 	// 最近请求状态是模型广场的辅助公开信号；读取失败时不影响模型和价格展示。
-	// 前端状态条只展示每个模型最近 3 次请求，避免为不可见的历史窗口扫描大日志表。
-	recent, err := s.recentRequestRepo.ListRecentRequestStatusesByGroupModels(ctx, pairs, 3)
+	// 详情 modal 的状态条会按实际宽度展示多段历史；卡片摘要仍在前端只截取最近 3 点。
+	recent, err := s.recentRequestRepo.ListRecentRequestStatusesByGroupModels(ctx, pairs, marketplaceRecentRequestStatusBarLimit)
 	if err != nil {
 		return nil
 	}

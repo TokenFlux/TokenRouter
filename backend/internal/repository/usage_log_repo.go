@@ -1526,7 +1526,7 @@ func (r *usageLogRepository) ListRecentRequestStatusesByGroupModels(ctx context.
 	// zero-cost successful requests as failures. Pulling a bounded newest window
 	// keeps this auxiliary public signal inexpensive on large log tables without
 	// requiring schema/index changes in the marketplace redesign.
-	candidateLimit := limitPerModel * len(groupIDs) * 8
+	candidateLimit := 250 * len(uniqueInt64s(groupIDs))
 	if candidateLimit < 1000 {
 		candidateLimit = 1000
 	}

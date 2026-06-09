@@ -338,6 +338,29 @@ describe('ModelMarketplaceView', () => {
     expect(overlay.textContent).toContain('Pro marketplace.groupPricingDetail')
   })
 
+  it('详情 modal 的请求状态条会消费超过卡片 3 点摘要的历史窗口', async () => {
+    const recentRequests = Array.from({ length: 8 }, (_, index) => ({
+      success: index % 2 === 0,
+      created_at: `2026-01-01T00:${String(index).padStart(2, '0')}:00Z`,
+    }))
+    getMarketplaceModels.mockResolvedValue([
+      marketplaceGroup(1, 'Plus', 'OpenAI', false, [
+        marketplaceModel('gpt-5.5', 'GPT 5.5', tokenPricing, recentRequests),
+      ]),
+    ])
+    const wrapper = await mountMarketplace()
+    const gptCard = modelCards(wrapper).find((card) => card.text().includes('GPT 5.5'))!
+
+    await gptCard.trigger('click')
+    await nextTick()
+
+    const firstAvailability = availabilityCards()[0]
+    expect(firstAvailability.findAll('.marketplace-request-segment.is-success')).toHaveLength(4)
+    expect(firstAvailability.findAll('.marketplace-request-segment.is-failed')).toHaveLength(4)
+    expect(firstAvailability.findAll('.marketplace-request-segment.is-empty').length).toBeGreaterThan(0)
+    expect(gptCard.findAll('.card-recent-health-dot')).toHaveLength(3)
+  })
+
   it('详情面板支持复制模型 ID，并从当前分组打开定价弹窗', async () => {
     const wrapper = await mountMarketplace()
     const gptCard = modelCards(wrapper).find((card) => card.text().includes('GPT 5.5'))!

@@ -967,3 +967,27 @@ func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsUsesBoundedCand
 	require.Equal(t, createdAt, result[2]["gpt-5.2"][0].CreatedAt)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
+
+func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsKeepsStatusBarWindowCandidateBounded(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := &usageLogRepository{sql: db}
+
+	mock.ExpectQuery("WITH pairs").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), 96, 1000).
+		WillReturnRows(sqlmock.NewRows([]string{"group_id", "model_id", "success", "created_at"}))
+
+	pairs := make([]service.ModelMarketplaceRecentRequestPair, 0, 28)
+	for _, groupID := range []int64{2, 13, 14, 18} {
+		for modelIndex := 0; modelIndex < 7; modelIndex++ {
+			pairs = append(pairs, service.ModelMarketplaceRecentRequestPair{
+				GroupID: groupID,
+				ModelID: fmt.Sprintf("model-%d", modelIndex),
+			})
+		}
+	}
+
+	result, err := repo.ListRecentRequestStatusesByGroupModels(context.Background(), pairs, 96)
+	require.NoError(t, err)
+	require.Empty(t, result)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
