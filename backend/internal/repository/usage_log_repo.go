@@ -1547,7 +1547,7 @@ func (r *usageLogRepository) ListRecentRequestStatusesByGroupModels(ctx context.
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var groupID int64
