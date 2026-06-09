@@ -871,7 +871,13 @@ func (s *PricingService) matchOpenAIModel(model string) *LiteLLMModelPricing {
 		}
 	}
 
-	// GPT-5.5 使用独立静态兜底价
+	// GPT-5.3 普通/ spark 系列在远端价格缺失时使用静态兜底，避免落到默认模型 fallback。
+	if strings.HasPrefix(model, "gpt-5.3") && !strings.HasPrefix(model, "gpt-5.3-codex") {
+		logger.With(zap.String("component", "service.pricing")).
+			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.3(static)"))
+		return openAIGPT54FallbackPricing
+	}
+
 	if strings.HasPrefix(model, "gpt-5.5") {
 		logger.With(zap.String("component", "service.pricing")).
 			Info(fmt.Sprintf("[Pricing] OpenAI fallback matched %s -> %s", model, "gpt-5.5(static)"))
