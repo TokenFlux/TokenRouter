@@ -1207,42 +1207,35 @@ function hasRecentRequests(availability: MarketplaceModelAvailability): boolean 
   return recentRequestsForAvailability(availability).length > 0
 }
 
+function visibleRequestsForAvailability(availability: MarketplaceModelAvailability) {
+  return recentRequestsForAvailability(availability).slice(-requestSegmentCountForAvailability(availability))
+}
+
 function availabilityRequestSegments(availability: MarketplaceModelAvailability): MarketplaceRequestSegment[] {
   const segmentCount = requestSegmentCountForAvailability(availability)
-  const recentRequests = recentRequestsForAvailability(availability)
-  if (recentRequests.length === 0) {
+  const visibleRequests = visibleRequestsForAvailability(availability)
+  if (visibleRequests.length === 0) {
     return Array.from({ length: segmentCount }, (_, index) => ({
       key: `${availability.key}-request-empty-${index}`,
       class: 'marketplace-request-segment is-empty',
     }))
   }
 
-  const visibleRequests = recentRequests.slice(-segmentCount)
-  const leadingEmptyCount = Math.max(0, segmentCount - visibleRequests.length)
-  return Array.from({ length: segmentCount }, (_, index) => {
-    const request = visibleRequests[index - leadingEmptyCount]
-    if (!request) {
-      return {
-        key: `${availability.key}-request-pad-${index}`,
-        class: 'marketplace-request-segment is-empty',
-      }
-    }
-    return {
-      key: `${availability.key}-request-${index}-${request.created_at}`,
-      class: `marketplace-request-segment is-${request.success ? 'success' : 'failed'}`,
-    }
-  })
+  return visibleRequests.map((request, index) => ({
+    key: `${availability.key}-request-${index}-${request.created_at}`,
+    class: `marketplace-request-segment is-${request.success ? 'success' : 'failed'}`,
+  }))
 }
 
 function requestSuccessSummary(availability: MarketplaceModelAvailability): string {
-  const recentRequests = recentRequestsForAvailability(availability)
-  if (recentRequests.length === 0) {
+  const visibleRequests = visibleRequestsForAvailability(availability)
+  if (visibleRequests.length === 0) {
     return t('marketplace.noRecentRequests')
   }
-  const successCount = recentRequests.filter((request) => request.success).length
+  const successCount = visibleRequests.filter((request) => request.success).length
   return t('marketplace.recentRequestSummary', {
     success: successCount,
-    total: recentRequests.length,
+    total: visibleRequests.length,
   })
 }
 

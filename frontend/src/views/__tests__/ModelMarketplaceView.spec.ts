@@ -355,10 +355,61 @@ describe('ModelMarketplaceView', () => {
     await nextTick()
 
     const firstAvailability = availabilityCards()[0]
+    expect(firstAvailability.text()).toContain('4/8 succeeded')
+    expect(firstAvailability.findAll('.marketplace-request-segment')).toHaveLength(8)
     expect(firstAvailability.findAll('.marketplace-request-segment.is-success')).toHaveLength(4)
     expect(firstAvailability.findAll('.marketplace-request-segment.is-failed')).toHaveLength(4)
-    expect(firstAvailability.findAll('.marketplace-request-segment.is-empty').length).toBeGreaterThan(0)
+    expect(firstAvailability.findAll('.marketplace-request-segment.is-empty')).toHaveLength(0)
     expect(gptCard.findAll('.card-recent-health-dot')).toHaveLength(3)
+  })
+
+  it('详情 modal 有少量真实请求时不会用灰色空槽补满状态条', async () => {
+    const recentRequests = Array.from({ length: 3 }, (_, index) => ({
+      success: true,
+      created_at: `2026-01-01T00:${String(index).padStart(2, '0')}:00Z`,
+    }))
+    getMarketplaceModels.mockResolvedValue([
+      marketplaceGroup(1, 'Plus', 'OpenAI', false, [
+        marketplaceModel('gpt-5.2', 'GPT 5.2', tokenPricing, recentRequests),
+      ]),
+    ])
+    const wrapper = await mountMarketplace()
+    const gptCard = modelCards(wrapper).find((card) => card.text().includes('GPT 5.2'))!
+
+    await gptCard.trigger('click')
+    await nextTick()
+
+    const firstAvailability = availabilityCards()[0]
+    expect(firstAvailability.text()).toContain('3/3 succeeded')
+    expect(firstAvailability.findAll('.marketplace-request-segment')).toHaveLength(3)
+    expect(firstAvailability.findAll('.marketplace-request-segment.is-success')).toHaveLength(3)
+    expect(firstAvailability.findAll('.marketplace-request-segment.is-failed')).toHaveLength(0)
+    expect(firstAvailability.findAll('.marketplace-request-segment.is-empty')).toHaveLength(0)
+  })
+
+  it('详情 modal 摘要数字与实际可见请求状态段使用同一个窗口', async () => {
+    const recentRequests = Array.from({ length: 30 }, (_, index) => ({
+      success: index >= 6,
+      created_at: `2026-01-01T00:${String(index).padStart(2, '0')}:00Z`,
+    }))
+    getMarketplaceModels.mockResolvedValue([
+      marketplaceGroup(1, 'Plus', 'OpenAI', false, [
+        marketplaceModel('gpt-5.5', 'GPT 5.5', tokenPricing, recentRequests),
+      ]),
+    ])
+    const wrapper = await mountMarketplace()
+    const gptCard = modelCards(wrapper).find((card) => card.text().includes('GPT 5.5'))!
+
+    await gptCard.trigger('click')
+    await nextTick()
+
+    const firstAvailability = availabilityCards()[0]
+    expect(firstAvailability.findAll('.marketplace-request-segment')).toHaveLength(24)
+    expect(firstAvailability.findAll('.marketplace-request-segment.is-success')).toHaveLength(24)
+    expect(firstAvailability.findAll('.marketplace-request-segment.is-failed')).toHaveLength(0)
+    expect(firstAvailability.findAll('.marketplace-request-segment.is-empty')).toHaveLength(0)
+    expect(firstAvailability.text()).toContain('24/24 succeeded')
+    expect(firstAvailability.text()).not.toContain('24/30 succeeded')
   })
 
   it('详情面板支持复制模型 ID，并从当前分组打开定价弹窗', async () => {
