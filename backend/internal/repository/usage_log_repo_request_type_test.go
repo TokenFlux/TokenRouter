@@ -918,25 +918,28 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 
 }
 
-func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsUsesPerPairUsageHistory(t *testing.T) {
+func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsQueriesEachSourcePerPairEffectiveModel(t *testing.T) {
 	var capturedSQL string
 	matcher := sqlmock.QueryMatcherFunc(func(expectedSQL, actualSQL string) error {
 		capturedSQL = actualSQL
 		compact := strings.ToLower(strings.Join(strings.Fields(actualSQL), " "))
 		for _, want := range []string{
 			"with pairs as",
+			"from unnest($1::bigint[], $2::text[]) as pair(group_id, model_id)",
 			"usage_events as",
-			"usage_summary as",
-			"complete_usage_errors as",
-			"candidate_errors as",
-			"fallback_errors as",
-			"select $5::bigint as group_id, $6::text as model_id, true as success, ul.created_at",
-			"where ul.group_id = $5",
-			"and ul.model = $6",
-			"order by ul.created_at desc limit $3",
-			"join usage_summary us on us.usage_count >= $3",
-			"and oel.created_at >= us.oldest_usage_at",
-			"where coalesce(us.usage_count, 0) < $3",
+			"error_events as",
+			"cross join lateral",
+			"from usage_logs ul",
+			"where ul.group_id = p.group_id",
+			"coalesce(nullif(ul.requested_model, ''), nullif(ul.model, ''), nullif(ul.upstream_model, '')) = p.model_id",
+			"and ul.actual_cost > 0",
+			"order by ul.created_at desc",
+			"from ops_error_logs oel",
+			"where oel.group_id = p.group_id",
+			"coalesce(nullif(oel.requested_model, ''), nullif(oel.model, ''), nullif(oel.upstream_model, '')) = p.model_id",
+			"and coalesce(oel.status_code, 0) >= 400",
+			"and oel.is_count_tokens = false",
+			"limit $3",
 			"row_number() over (partition by group_id, model_id order by created_at desc)",
 		} {
 			if !strings.Contains(compact, want) {
@@ -945,10 +948,15 @@ func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsUsesPerPairUsag
 		}
 		for _, forbidden := range []string{
 			"candidate_usage as",
+			"candidate_errors as",
+			"fallback_errors as",
+			"public_groups as",
 			"where ul.group_id in (select group_id from public_groups)",
+			"where oel.group_id in (select group_id from public_groups)",
+			"and ul.model = $",
 		} {
 			if strings.Contains(compact, forbidden) {
-				return fmt.Errorf("marketplace recent-request usage history must not be sampled group-wide; found %q in %s", forbidden, compact)
+				return fmt.Errorf("marketplace recent-request history must be filtered per pair before limiting; found %q in %s", forbidden, compact)
 			}
 		}
 		return nil
@@ -961,26 +969,26 @@ func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsUsesPerPairUsag
 	repo := &usageLogRepository{sql: db}
 	createdAt := time.Date(2026, 6, 9, 8, 30, 0, 0, time.UTC)
 	mock.ExpectQuery("marketplace recent requests").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), 3, 1000, int64(2), "gpt-5.2", int64(13), "gpt-5.4").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), 3).
 		WillReturnRows(sqlmock.NewRows([]string{"group_id", "model_id", "success", "created_at"}).
-			AddRow(int64(2), "gpt-5.2", true, createdAt))
+			AddRow(int64(2), "model-low", true, createdAt))
 
 	result, err := repo.ListRecentRequestStatusesByGroupModels(context.Background(), []service.ModelMarketplaceRecentRequestPair{
-		{GroupID: 2, ModelID: "gpt-5.2"},
-		{GroupID: 2, ModelID: "gpt-5.2"},
-		{GroupID: 13, ModelID: " gpt-5.4 "},
+		{GroupID: 2, ModelID: "model-low"},
+		{GroupID: 2, ModelID: "model-low"},
+		{GroupID: 13, ModelID: " model-other "},
 		{GroupID: 0, ModelID: "ignored"},
 		{GroupID: 14, ModelID: ""},
 	}, 3)
 	require.NoError(t, err)
 	require.NotEmpty(t, capturedSQL)
-	require.Len(t, result[2]["gpt-5.2"], 1)
-	require.True(t, result[2]["gpt-5.2"][0].Success)
-	require.Equal(t, createdAt, result[2]["gpt-5.2"][0].CreatedAt)
+	require.Len(t, result[2]["model-low"], 1)
+	require.True(t, result[2]["model-low"][0].Success)
+	require.Equal(t, createdAt, result[2]["model-low"][0].CreatedAt)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsKeepsErrorCandidateBounded(t *testing.T) {
+func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsKeepsQueryParametersBounded(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &usageLogRepository{sql: db}
 
@@ -994,12 +1002,8 @@ func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsKeepsErrorCandi
 		}
 	}
 
-	args := []driver.Value{sqlmock.AnyArg(), sqlmock.AnyArg(), 96, 1000}
-	for _, pair := range pairs {
-		args = append(args, pair.GroupID, pair.ModelID)
-	}
 	mock.ExpectQuery("WITH pairs").
-		WithArgs(args...).
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), 96).
 		WillReturnRows(sqlmock.NewRows([]string{"group_id", "model_id", "success", "created_at"}))
 
 	result, err := repo.ListRecentRequestStatusesByGroupModels(context.Background(), pairs, 96)
@@ -1008,22 +1012,32 @@ func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsKeepsErrorCandi
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
-func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsFiltersErrorsOlderThanFullUsageWindow(t *testing.T) {
+func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsRanksMergedPerPairEvents(t *testing.T) {
 	matcher := sqlmock.QueryMatcherFunc(func(expectedSQL, actualSQL string) error {
 		compact := strings.ToLower(strings.Join(strings.Fields(actualSQL), " "))
 		for _, want := range []string{
-			"usage_summary as",
-			"count(*) as usage_count",
-			"min(created_at) as oldest_usage_at",
-			"complete_usage_errors as",
-			"join usage_summary us on us.usage_count >= $3",
-			"and oel.created_at >= us.oldest_usage_at",
-			"fallback_errors as",
-			"left join usage_summary us on us.group_id = ce.group_id and us.model_id = ce.model_id",
-			"where coalesce(us.usage_count, 0) < $3",
+			"usage_events as",
+			"error_events as",
+			"events as",
+			"select group_id, model_id, success, created_at from usage_events",
+			"union all",
+			"select group_id, model_id, success, created_at from error_events",
+			"row_number() over (partition by group_id, model_id order by created_at desc) as rn",
+			"where rn <= $3",
+			"order by group_id asc, model_id asc, created_at asc",
 		} {
 			if !strings.Contains(compact, want) {
-				return fmt.Errorf("marketplace recent-request query should keep old errors from polluting a full newer usage window and is missing %q in %s", want, compact)
+				return fmt.Errorf("marketplace recent-request query should merge success/error events by true per-pair recency and is missing %q in %s", want, compact)
+			}
+		}
+		for _, forbidden := range []string{
+			"candidate_errors as",
+			"fallback_errors as",
+			"usage_summary as",
+			"complete_usage_errors as",
+		} {
+			if strings.Contains(compact, forbidden) {
+				return fmt.Errorf("marketplace recent-request query should rank actual per-source pair events, not special-case sampled fallbacks; found %q in %s", forbidden, compact)
 			}
 		}
 		return nil
@@ -1034,12 +1048,12 @@ func TestUsageLogRepositoryListRecentRequestStatusesByGroupModelsFiltersErrorsOl
 	t.Cleanup(func() { _ = db.Close() })
 
 	repo := &usageLogRepository{sql: db}
-	mock.ExpectQuery("marketplace recent requests filters stale errors").
-		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), 96, 1000, int64(2), "codex-auto-review").
+	mock.ExpectQuery("marketplace recent requests ranks merged events").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), 96).
 		WillReturnRows(sqlmock.NewRows([]string{"group_id", "model_id", "success", "created_at"}))
 
 	result, err := repo.ListRecentRequestStatusesByGroupModels(context.Background(), []service.ModelMarketplaceRecentRequestPair{
-		{GroupID: 2, ModelID: "codex-auto-review"},
+		{GroupID: 2, ModelID: "model-full-window"},
 	}, 96)
 	require.NoError(t, err)
 	require.Empty(t, result)
