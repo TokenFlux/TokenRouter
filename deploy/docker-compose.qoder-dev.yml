@@ -1,0 +1,125 @@
+name: tokenrouter-qoder-dev
+
+# =============================================================================
+# TokenRouter Qoder Acceptance Stack - Hot Reload Backend
+# =============================================================================
+# Usage:
+#   docker compose -f deploy/docker-compose.qoder-dev.yml up --build
+#
+# App:
+#   http://127.0.0.1:19080
+#
+# Notes:
+#   - Backend source is bind-mounted and rebuilt/restarted by Air.
+#   - Local Qoder auth is mounted from ${QODER_AUTH_DIR:-${HOME}/.qoder/.auth}
+#     to /root/.qoder/.auth.
+# =============================================================================
+
+services:
+  tokenrouter:
+    build:
+      context: ../backend
+      dockerfile: ../deploy/Dockerfile.qoder-hot-reload
+    container_name: tokenrouter-qoder-dev
+    restart: unless-stopped
+    ports:
+      - "${QODER_DEV_BIND_HOST:-127.0.0.1}:${QODER_DEV_PORT:-19080}:8080"
+    volumes:
+      - ../backend:/workspace/backend
+      - ../.air.qoder.toml:/workspace/.air.qoder.toml:ro
+      - ./qoder_dev_data:/app/data
+      - ${QODER_AUTH_DIR:-${HOME}/.qoder/.auth}:/root/.qoder/.auth:ro
+      - qoder_go_mod_cache:/go/pkg/mod
+      - qoder_go_build_cache:/root/.cache/go-build
+    environment:
+      - AUTO_SETUP=true
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8080
+      - SERVER_MODE=debug
+      - RUN_MODE=${RUN_MODE:-standard}
+      - DATA_DIR=/app/data
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${POSTGRES_USER:-sub2api}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD:-sub2api-dev}
+      - DATABASE_DBNAME=${POSTGRES_DB:-sub2api}
+      - DATABASE_SSLMODE=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - ADMIN_EMAIL=${ADMIN_EMAIL:-admin@qoder.local}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-qoder-dev-admin}
+      - JWT_SECRET=${JWT_SECRET:-qoder-dev-jwt-secret-change-me-000000}
+      - TOTP_ENCRYPTION_KEY=${TOTP_ENCRYPTION_KEY:-qoder-dev-totp-key-change-me-000000}
+      - TZ=${TZ:-Asia/Shanghai}
+      - SECURITY_URL_ALLOWLIST_ENABLED=${SECURITY_URL_ALLOWLIST_ENABLED:-false}
+      - GATEWAY_STREAM_KEEPALIVE_INTERVAL=${GATEWAY_STREAM_KEEPALIVE_INTERVAL:-10}
+      - GATEWAY_STREAM_DATA_INTERVAL_TIMEOUT=${GATEWAY_STREAM_DATA_INTERVAL_TIMEOUT:-300}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - qoder-dev
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  postgres:
+    image: postgres:18-alpine
+    container_name: tokenrouter-qoder-postgres
+    restart: unless-stopped
+    volumes:
+      - ./qoder_postgres_data:/var/lib/postgresql/data
+    environment:
+      - PGDATA=/var/lib/postgresql/data
+      - POSTGRES_USER=${POSTGRES_USER:-sub2api}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-sub2api-dev}
+      - POSTGRES_DB=${POSTGRES_DB:-sub2api}
+      - TZ=${TZ:-Asia/Shanghai}
+    networks:
+      - qoder-dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sub2api} -d ${POSTGRES_DB:-sub2api}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+  redis:
+    image: redis:8-alpine
+    container_name: tokenrouter-qoder-redis
+    restart: unless-stopped
+    volumes:
+      - ./qoder_redis_data:/data
+    command: >
+      sh -c '
+        redis-server
+        --save 60 1
+        --appendonly yes
+        --appendfsync everysec
+        ${REDIS_PASSWORD:+--requirepass "$REDIS_PASSWORD"}'
+    environment:
+      - TZ=${TZ:-Asia/Shanghai}
+      - REDISCLI_AUTH=${REDIS_PASSWORD:-}
+    networks:
+      - qoder-dev
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  qoder_go_mod_cache:
+  qoder_go_build_cache:
+
+networks:
+  qoder-dev:
+    driver: bridge

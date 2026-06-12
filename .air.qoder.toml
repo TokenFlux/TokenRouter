@@ -1,0 +1,23 @@
+root = "/workspace/backend"
+tmp_dir = "/tmp/tokenrouter-air"
+
+[build]
+cmd = "go build -tags embed -ldflags='-X main.BuildType=source' -o /tmp/tokenrouter-air/server ./cmd/server"
+bin = "/tmp/tokenrouter-air/server"
+delay = 1000
+exclude_dir = ["bin", "tmp", "vendor", "internal/web/dist"]
+exclude_regex = ["_test\\.go"]
+include_dir = ["cmd", "ent", "internal", "resources"]
+include_ext = ["go", "json", "yaml", "yml", "tmpl"]
+kill_delay = "500ms"
+log = "air-build.log"
+poll = true
+poll_interval = 1000
+send_interrupt = true
+stop_on_error = false
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = true
