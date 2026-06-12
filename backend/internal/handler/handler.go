@@ -51,6 +51,7 @@ type Handlers struct {
 	Admin            *AdminHandlers
 	Gateway          *GatewayHandler
 	OpenAIGateway    *OpenAIGatewayHandler
+	QoderGateway     *QoderGatewayHandler
 	Setting          *SettingHandler
 	Totp             *TotpHandler
 	Payment          *PaymentHandler

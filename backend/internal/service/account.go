@@ -1173,6 +1173,14 @@ func (a *Account) IsAnthropic() bool {
 	return a.Platform == PlatformAnthropic
 }
 
+func (a *Account) IsQoder() bool {
+	return a.Platform == PlatformQoder
+}
+
+func (a *Account) IsQoderCosy() bool {
+	return a.IsQoder() && a.Type == AccountTypeCosy
+}
+
 func (a *Account) IsOpenAIOAuth() bool {
 	return a.IsOpenAI() && a.Type == AccountTypeOAuth
 }

@@ -41,6 +41,7 @@ const (
 	PlatformOpenAI      = domain.PlatformOpenAI
 	PlatformGemini      = domain.PlatformGemini
 	PlatformAntigravity = domain.PlatformAntigravity
+	PlatformQoder       = domain.PlatformQoder
 )
 
 // AllowedQuotaPlatforms 是允许设置 user × platform quota 的平台列表（单一权威来源）。
@@ -51,6 +52,7 @@ var AllowedQuotaPlatforms = []string{
 	PlatformOpenAI,
 	PlatformGemini,
 	PlatformAntigravity,
+	PlatformQoder,
 }
 
 // IsAllowedQuotaPlatform 报告 s 是否为合法的 quota platform 标识。
@@ -71,6 +73,7 @@ const (
 	AccountTypeUpstream       = domain.AccountTypeUpstream       // 上游透传类型账号（通过 Base URL + API Key 连接上游）
 	AccountTypeBedrock        = domain.AccountTypeBedrock        // AWS Bedrock 类型账号（通过 SigV4 签名或 API Key 连接 Bedrock，由 credentials.auth_mode 区分）
 	AccountTypeServiceAccount = domain.AccountTypeServiceAccount // Google Service Account 类型账号（用于 Vertex AI）
+	AccountTypeCosy           = domain.AccountTypeCosy           // Qoder COSY 协议账号
 )
 
 // Redeem type constants

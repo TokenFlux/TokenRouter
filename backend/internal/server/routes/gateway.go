@@ -42,8 +42,12 @@ func RegisterGatewayRoutes(
 	{
 		// /v1/messages: auto-route based on group platform
 		gateway.POST("/messages", func(c *gin.Context) {
-			if getGroupPlatform(c) == service.PlatformOpenAI {
+			switch getGroupPlatform(c) {
+			case service.PlatformOpenAI:
 				h.OpenAIGateway.Messages(c)
+				return
+			case service.PlatformQoder:
+				h.QoderGateway.Messages(c)
 				return
 			}
 			h.Gateway.Messages(c)
@@ -83,8 +87,12 @@ func RegisterGatewayRoutes(
 		gateway.GET("/responses", h.OpenAIGateway.ResponsesWebSocket)
 		// OpenAI Chat Completions API: auto-route based on group platform
 		gateway.POST("/chat/completions", func(c *gin.Context) {
-			if getGroupPlatform(c) == service.PlatformOpenAI {
+			switch getGroupPlatform(c) {
+			case service.PlatformOpenAI:
 				h.OpenAIGateway.ChatCompletions(c)
+				return
+			case service.PlatformQoder:
+				h.QoderGateway.ChatCompletions(c)
 				return
 			}
 			h.Gateway.ChatCompletions(c)
@@ -165,8 +173,12 @@ func RegisterGatewayRoutes(
 	}
 	// OpenAI Chat Completions API（不带v1前缀的别名）— auto-route based on group platform
 	r.POST("/chat/completions", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, func(c *gin.Context) {
-		if getGroupPlatform(c) == service.PlatformOpenAI {
+		switch getGroupPlatform(c) {
+		case service.PlatformOpenAI:
 			h.OpenAIGateway.ChatCompletions(c)
+			return
+		case service.PlatformQoder:
+			h.QoderGateway.ChatCompletions(c)
 			return
 		}
 		h.Gateway.ChatCompletions(c)

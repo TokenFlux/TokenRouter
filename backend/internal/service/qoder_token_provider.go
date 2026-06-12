@@ -1,0 +1,157 @@
+package service
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"sync"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+)
+
+type qoderPATExchanger func(ctx context.Context, pat string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error)
+type qoderLocalAuthReader func(ctx context.Context, authDir string) (*qoder.AuthIdentity, *qoder.MachineIdentity, error)
+
+type qoderSessionCacheEntry struct {
+	credentialsHash string
+	session         *qoder.SessionContext
+}
+
+// QoderTokenProvider builds and caches COSY session contexts for Qoder accounts.
+type QoderTokenProvider struct {
+	mu          sync.Mutex
+	sessions    map[int64]qoderSessionCacheEntry
+	exchangePAT qoderPATExchanger
+	readLocal   qoderLocalAuthReader
+}
+
+func NewQoderTokenProvider() *QoderTokenProvider {
+	return &QoderTokenProvider{
+		sessions: make(map[int64]qoderSessionCacheEntry),
+		exchangePAT: func(ctx context.Context, pat string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			default:
+			}
+			return qoder.ExchangePAT(pat, machine, "")
+		},
+		readLocal: func(ctx context.Context, authDir string) (*qoder.AuthIdentity, *qoder.MachineIdentity, error) {
+			select {
+			case <-ctx.Done():
+				return nil, nil, ctx.Err()
+			default:
+			}
+			return qoder.LoadLocalIdentity(authDir)
+		},
+	}
+}
+
+func (p *QoderTokenProvider) GetSession(ctx context.Context, account *Account) (*qoder.SessionContext, error) {
+	if p == nil {
+		return nil, errors.New("qoder token provider is nil")
+	}
+	if account == nil {
+		return nil, errors.New("account is nil")
+	}
+	if account.Platform != PlatformQoder || account.Type != AccountTypeCosy {
+		return nil, errors.New("not a qoder cosy account")
+	}
+
+	hash := qoderCredentialsHash(account.Credentials)
+	p.mu.Lock()
+	if p.sessions == nil {
+		p.sessions = make(map[int64]qoderSessionCacheEntry)
+	}
+	if entry, ok := p.sessions[account.ID]; ok && entry.credentialsHash == hash && entry.session != nil {
+		session := entry.session
+		p.mu.Unlock()
+		return session, nil
+	}
+	p.mu.Unlock()
+
+	session, err := p.buildSession(ctx, account)
+	if err != nil {
+		return nil, err
+	}
+
+	p.mu.Lock()
+	p.sessions[account.ID] = qoderSessionCacheEntry{credentialsHash: hash, session: session}
+	p.mu.Unlock()
+	return session, nil
+}
+
+func (p *QoderTokenProvider) Invalidate(accountID int64) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	delete(p.sessions, accountID)
+	p.mu.Unlock()
+}
+
+func (p *QoderTokenProvider) buildSession(ctx context.Context, account *Account) (*qoder.SessionContext, error) {
+	pat := strings.TrimSpace(account.GetCredential("pat"))
+	if pat != "" {
+		machine := qoder.NewMachine()
+		identity, err := p.exchangePAT(ctx, pat, machine)
+		if err != nil {
+			return nil, fmt.Errorf("qoder pat exchange: %w", err)
+		}
+		return qoder.NewSession(identity, machine)
+	}
+
+	token := strings.TrimSpace(account.GetCredential("security_oauth_token"))
+	machineID := strings.TrimSpace(account.GetCredential("machine_id"))
+	if token != "" {
+		if machineID == "" {
+			return nil, errors.New("qoder credentials require machine_id with security_oauth_token")
+		}
+		identity := &qoder.AuthIdentity{
+			Name:               account.Name,
+			AID:                firstNonEmptyQoder(account.GetCredential("aid"), account.GetCredential("uid")),
+			UID:                firstNonEmptyQoder(account.GetCredential("uid"), account.GetCredential("aid")),
+			UserType:           firstNonEmptyQoder(account.GetCredential("user_type"), "personal_standard"),
+			SecurityOauthToken: token,
+			RefreshToken:       account.GetCredential("refresh_token"),
+		}
+		machine := &qoder.MachineIdentity{
+			MachineID:    machineID,
+			MachineToken: firstNonEmptyQoder(account.GetCredential("machine_token"), qoder.RandomToken(50)),
+			MachineType:  firstNonEmptyQoder(account.GetCredential("machine_type"), qoder.RandomHex(18)),
+		}
+		return qoder.NewSession(identity, machine)
+	}
+
+	if machineID != "" {
+		authDir := strings.TrimSpace(account.GetCredential("auth_dir"))
+		identity, machine, err := p.readLocal(ctx, authDir)
+		if err != nil {
+			return nil, fmt.Errorf("qoder local auth: %w", err)
+		}
+		if machine.MachineID == "" {
+			machine.MachineID = machineID
+		}
+		return qoder.NewSession(identity, machine)
+	}
+
+	return nil, errors.New("qoder credentials require pat, security_oauth_token+machine_id, or machine_id")
+}
+
+func qoderCredentialsHash(credentials map[string]any) string {
+	body, _ := json.Marshal(credentials)
+	sum := sha256.Sum256(body)
+	return fmt.Sprintf("%x", sum[:])
+}
+
+func firstNonEmptyQoder(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}

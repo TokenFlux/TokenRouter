@@ -579,6 +579,8 @@ var ProviderSet = wire.NewSet(
 	NewAdminService,
 	NewModelMarketplaceService,
 	NewGatewayService,
+	NewQoderTokenProvider,
+	NewQoderGatewayService,
 	ProvideOpenAIGatewayTLSFingerprintRouterServices,
 	NewOpenAIGatewayService,
 	wire.Bind(new(AccountRuntimeBlocker), new(*OpenAIGatewayService)),
