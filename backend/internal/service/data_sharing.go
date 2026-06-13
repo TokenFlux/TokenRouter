@@ -69,6 +69,7 @@ const dataShareLongReplayMinMessages = 16
 const dataShareReplayWindowWidth = 3
 const dataShareReplayWindowCandidateLimit = 64
 const dataShareAdjacentReplayCompactMaxPasses = 4
+const dataShareCompactFixedPointMaxPasses = 4
 const dataShareQualityErrorReplayDuplicateBlock = "replay_duplicate_block"
 const dataShareReplayRangeHashBase uint64 = 11400714819323198485
 
@@ -3299,6 +3300,22 @@ func contentValueFromAnthropicBlocks(blocks []any) any {
 
 // CompactDataShareMessages 压缩 Responses/Codex 每轮请求重复携带的历史消息。
 func CompactDataShareMessages(messages []map[string]any) []map[string]any {
+	out := messages
+	for pass := 0; pass < dataShareCompactFixedPointMaxPasses; pass++ {
+		next := compactDataShareMessagesOnce(out)
+		if len(next) == len(out) {
+			return next
+		}
+		out = next
+		if len(out) < dataShareLongReplayMinMessages*2 {
+			return out
+		}
+	}
+	return out
+}
+
+// compactDataShareMessagesOnce 执行一轮压缩；公开入口会在固定上限内重复调用直到长度稳定。
+func compactDataShareMessagesOnce(messages []map[string]any) []map[string]any {
 	messages = dataShareCompactTrailingReplayBlock(messages)
 	out := make([]map[string]any, 0, len(messages))
 	outIdentities := make([]string, 0, len(messages))
@@ -4785,6 +4802,10 @@ func recheckDataShareExportPayload(payload map[string]any) error {
 		return nil
 	}
 	if dataShareHasReplayDuplicateBlock(messages) {
+		return fmt.Errorf("%w: %s", ErrDataShareExportPayloadInvalid, dataShareQualityErrorReplayDuplicateBlock)
+	}
+	// 导出前再做一轮幂等性复核，兜住达到轮数上限后仍可继续收缩的阶梯 replay。
+	if len(compactDataShareMessagesOnce(messages)) != len(messages) {
 		return fmt.Errorf("%w: %s", ErrDataShareExportPayloadInvalid, dataShareQualityErrorReplayDuplicateBlock)
 	}
 	return nil

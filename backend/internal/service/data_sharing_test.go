@@ -3270,6 +3270,21 @@ func buildSequentialDataShareMessages(prefix string, count int) []map[string]any
 	return messages
 }
 
+func buildLayeredReplayDataShareMessages() []map[string]any {
+	prefix := buildSequentialDataShareMessages("固定点前置", 20)
+	window := buildSequentialDataShareMessages("固定点窗口", 24)
+	window[0] = map[string]any{"role": "user", "content": "<environment_context><cwd>/tmp/fixed-point</cwd><shell>bash</shell></environment_context>"}
+	divider := []map[string]any{{"role": "assistant", "content": "固定点分隔"}}
+	block := buildSequentialDataShareMessages("固定点重复块", 24)
+	messages := cloneBufferedDataShareMaps(prefix)
+	messages = append(messages, cloneBufferedDataShareMaps(window)...)
+	messages = append(messages, cloneBufferedDataShareMaps(divider)...)
+	messages = append(messages, cloneBufferedDataShareMaps(block)...)
+	messages = append(messages, cloneBufferedDataShareMaps(window)...)
+	messages = append(messages, cloneBufferedDataShareMaps(block)...)
+	return messages
+}
+
 func buildSequentialResponsesInputJSON(prefix string, start int, end int) string {
 	items := make([]string, 0, end-start)
 	for i := start; i < end; i++ {
@@ -3291,6 +3306,7 @@ func TestCompactDataShareMessagesDedupesLargeOrderedReplay(t *testing.T) {
 	compact := CompactDataShareMessages(replayed)
 
 	require.Len(t, compact, len(base)+1)
+	require.Len(t, CompactDataShareMessages(compact), len(compact))
 	require.Equal(t, 1, countDataShareMessagesWithContent(compact, "开始执行任务"))
 	require.Equal(t, "新的尾巴", dataShareContentText(compact[len(compact)-1]["content"]))
 }
@@ -3305,6 +3321,7 @@ func TestCompactDataShareMessagesDedupesAdjacentWindowReplay(t *testing.T) {
 	compact := CompactDataShareMessages(replayed)
 
 	require.Len(t, compact, 56)
+	require.Len(t, CompactDataShareMessages(compact), len(compact))
 	require.Equal(t, 1, countDataShareMessagesWithContent(compact, "<environment_context><cwd>/tmp/app</cwd><shell>bash</shell></environment_context>"))
 	require.Equal(t, "新的尾巴", dataShareContentText(compact[len(compact)-1]["content"]))
 }
@@ -3316,6 +3333,7 @@ func TestCompactDataShareMessagesDedupesAdjacentRepeatedLongTextWorkflow(t *test
 	compact := CompactDataShareMessages(messages)
 
 	require.Len(t, compact, len(block))
+	require.Len(t, CompactDataShareMessages(compact), len(compact))
 	require.Equal(t, 1, countDataShareMessagesWithContent(compact, "连续重复任务-000"))
 	require.Equal(t, 1, countDataShareMessagesWithContent(compact, "连续重复任务-059"))
 }
@@ -3330,8 +3348,22 @@ func TestCompactDataShareMessagesDedupesSystemFirstAdjacentRepeatedLongTextWorkf
 	compact := CompactDataShareMessages(messages)
 
 	require.Len(t, compact, len(block))
+	require.Len(t, CompactDataShareMessages(compact), len(compact))
 	require.Equal(t, 1, countDataShareMessagesWithContent(compact, "你是编码助手"))
 	require.Equal(t, 1, countDataShareMessagesWithContent(compact, "系统开头重复任务-059"))
+}
+
+func TestCompactDataShareMessagesReachesFixedPointAfterGlobalReplayRemoval(t *testing.T) {
+	messages := buildLayeredReplayDataShareMessages()
+	once := compactDataShareMessagesOnce(messages)
+
+	compact := CompactDataShareMessages(messages)
+
+	require.Less(t, len(once), len(messages))
+	require.Less(t, len(compact), len(once))
+	require.Len(t, CompactDataShareMessages(compact), len(compact))
+	require.Equal(t, 1, countDataShareMessagesWithContent(compact, "固定点重复块-000"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(compact, "<environment_context><cwd>/tmp/fixed-point</cwd><shell>bash</shell></environment_context>"))
 }
 
 func TestMergeBufferedDataShareMessagesKeepsRepeatedLongWorkflow(t *testing.T) {
@@ -3457,7 +3489,26 @@ func TestExportDownloadPayloadRepairsStoredTrailingToolReplayWithoutMutatingSess
 	require.NoError(t, err)
 	exported := mapsFromAny(payload["messages"])
 	require.Len(t, exported, len(base))
+	require.Len(t, CompactDataShareMessages(exported), len(exported))
+	require.False(t, dataShareHasReplayDuplicateBlock(exported))
 	require.Len(t, session.Messages, len(base)+len(replay))
+}
+
+func TestRecheckDataShareExportPayloadRejectsNonIdempotentCompact(t *testing.T) {
+	messages := []map[string]any{
+		{"role": "assistant", "content": "", "tool_calls": []map[string]any{{"id": "call_1", "name": "exec_command", "arguments": map[string]any{"cmd": "ls"}}}},
+		{"role": "tool", "tool_call_id": "call_1", "content": "README.md"},
+		{"role": "user", "content": "继续"},
+		{"role": "assistant", "content": "", "tool_calls": []map[string]any{{"id": "call_1", "name": "exec_command", "arguments": map[string]any{"cmd": "ls"}}}},
+		{"role": "tool", "tool_call_id": "call_1", "content": "README.md"},
+	}
+	payload := map[string]any{"messages": messages}
+
+	err := recheckDataShareExportPayload(payload)
+
+	require.ErrorIs(t, err, ErrDataShareExportPayloadInvalid)
+	require.False(t, dataShareHasReplayDuplicateBlock(messages))
+	require.Less(t, len(compactDataShareMessagesOnce(messages)), len(messages))
 }
 
 func TestResponsesReplayPlanHandlesLargeNoMatchInputLinearly(t *testing.T) {
