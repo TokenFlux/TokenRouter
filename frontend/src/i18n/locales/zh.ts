@@ -2610,6 +2610,7 @@ export default {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        qoder: 'Qoder',
       },
       saving: '保存中...',
       noGroups: '暂无分组',
@@ -3259,6 +3260,7 @@ export default {
         anthropic: 'Anthropic',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        qoder: 'Qoder',
       },
       types: {
         oauth: 'OAuth',
@@ -3268,6 +3270,7 @@ export default {
         codeAssist: 'Code Assist',
         antigravityOauth: 'Antigravity OAuth',
         antigravityApikey: '通过 Base URL + API Key 连接',
+        qoderCosy: 'Qoder COSY',
         upstream: '对接上游',
         upstreamDesc: '通过 Base URL + API Key 连接上游',
         api_key: 'API Key',
@@ -3990,6 +3993,23 @@ export default {
           validateAndCreate: '验证并创建账号',
           pleaseEnterRefreshToken: '请输入 Refresh Token',
           failedToValidateRT: '验证 Refresh Token 失败'
+        },
+        qoder: {
+          title: 'Qoder 账户授权',
+          followSteps: '请按照以下步骤完成 Qoder 账户授权：',
+          step1GenerateUrl: '生成授权链接',
+          generateAuthUrl: '生成授权链接',
+          step2OpenUrl: '在浏览器中打开链接并完成授权',
+          openUrlDesc: '请在新标签页中打开授权链接，选择 Qoder 账号并完成授权。',
+          importantNotice: 'Qoder 使用设备授权流程。浏览器授权完成后，回到这里点击完成授权；如果授权仍在处理中，请稍后重试。',
+          step3EnterCode: '完成授权',
+          authCodeDesc: '授权完成后可直接点击完成授权；如果页面提供 localhost 回调链接或 code，也可以粘贴到下方。',
+          authCode: '回调链接或 Code（可选）',
+          authCodePlaceholder: '可留空并直接点击完成授权\n或粘贴 localhost callback URL / code',
+          authCodeHint: '系统会根据本次授权会话检查 Qoder 设备授权状态。',
+          failedToGenerateUrl: '生成 Qoder 授权链接失败',
+          missingExchangeParams: '缺少 session_id / state',
+          failedToExchangeCode: 'Qoder 授权检查失败'
         }
       },
       // Gemini specific (platform-wide)
@@ -4133,6 +4153,23 @@ export default {
       openaiAccount: 'OpenAI 账号',
       geminiAccount: 'Gemini 账号',
       antigravityAccount: 'Antigravity 账号',
+      qoderAccount: 'Qoder 账号',
+      qoder: {
+        accountType: {
+          oauthTitle: '授权链接',
+          oauthDesc: '推荐：浏览器完成 Qoder 登录授权。',
+          manualTitle: '手动凭证',
+          manualDesc: '导入已有 token 与 machine_id。'
+        },
+        securityOauthToken: 'Security OAuth Token',
+        securityOauthTokenHint: '现有 Qoder security_oauth_token，通常以 dt- 开头。',
+        machineId: 'Machine ID',
+        machineIdHint: '必须与 security_oauth_token 配套保存。',
+        refreshToken: 'Refresh Token（可选）',
+        userType: 'User Type（可选）',
+        pleaseEnterSecurityOauthToken: '请输入 Security OAuth Token',
+        pleaseEnterMachineId: '请输入 Machine ID'
+      },
       inputMethod: '输入方式',
       reAuthorizedSuccess: '账号重新授权成功',
       // Test Modal

@@ -147,6 +147,19 @@
             <Icon name="cloud" size="sm" />
             Antigravity
           </button>
+          <button
+            type="button"
+            @click="form.platform = 'qoder'"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'qoder'
+                ? 'bg-white text-cyan-600 shadow-sm dark:bg-dark-600 dark:text-cyan-400'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <Icon name="terminal" size="sm" />
+            Qoder
+          </button>
         </div>
       </div>
 
@@ -787,6 +800,119 @@
             placeholder="sk-..."
           />
           <p class="input-hint">{{ t('admin.accounts.upstream.apiKeyHint') }}</p>
+        </div>
+      </div>
+
+      <!-- Account Type Selection (Qoder) -->
+      <div v-if="form.platform === 'qoder'">
+        <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
+        <div class="mt-2 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            @click="qoderAccountType = 'oauth'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              qoderAccountType === 'oauth'
+                ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20'
+                : 'border-gray-200 hover:border-cyan-300 dark:border-dark-600 dark:hover:border-cyan-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                qoderAccountType === 'oauth'
+                  ? 'bg-cyan-500 text-white'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <Icon name="link" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">
+                {{ t('admin.accounts.qoder.accountType.oauthTitle') }}
+              </span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.accounts.qoder.accountType.oauthDesc') }}
+              </span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            @click="qoderAccountType = 'manual'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              qoderAccountType === 'manual'
+                ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20'
+                : 'border-gray-200 hover:border-cyan-300 dark:border-dark-600 dark:hover:border-cyan-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                qoderAccountType === 'manual'
+                  ? 'bg-cyan-500 text-white'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <Icon name="key" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">
+                {{ t('admin.accounts.qoder.accountType.manualTitle') }}
+              </span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.accounts.qoder.accountType.manualDesc') }}
+              </span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Qoder manual credentials -->
+      <div v-if="form.platform === 'qoder' && qoderAccountType === 'manual'" class="space-y-4">
+        <div>
+          <label class="input-label">{{ t('admin.accounts.qoder.securityOauthToken') }}</label>
+          <input
+            v-model="qoderSecurityOauthToken"
+            type="password"
+            class="input font-mono"
+            autocomplete="off"
+            placeholder="dt-..."
+          />
+          <p class="input-hint">{{ t('admin.accounts.qoder.securityOauthTokenHint') }}</p>
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.qoder.machineId') }}</label>
+          <input
+            v-model="qoderMachineId"
+            type="text"
+            class="input font-mono"
+            autocomplete="off"
+            placeholder="machine_id"
+          />
+          <p class="input-hint">{{ t('admin.accounts.qoder.machineIdHint') }}</p>
+        </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label class="input-label">{{ t('admin.accounts.qoder.refreshToken') }}</label>
+            <input
+              v-model="qoderRefreshToken"
+              type="password"
+              class="input font-mono"
+              autocomplete="off"
+            />
+          </div>
+          <div>
+            <label class="input-label">{{ t('admin.accounts.qoder.userType') }}</label>
+            <input
+              v-model="qoderUserType"
+              type="text"
+              class="input font-mono"
+              autocomplete="off"
+              placeholder="personal_standard"
+            />
+          </div>
         </div>
       </div>
 
@@ -3276,6 +3402,7 @@ import {
 } from '@/composables/useOpenAIOAuth'
 import { useGeminiOAuth } from '@/composables/useGeminiOAuth'
 import { useAntigravityOAuth } from '@/composables/useAntigravityOAuth'
+import { useQoderOAuth } from '@/composables/useQoderOAuth'
 import type {
   Proxy,
   AdminGroup,
@@ -3339,6 +3466,7 @@ const oauthStepTitle = computed(() => {
   if (form.platform === 'openai') return t('admin.accounts.oauth.openai.title')
   if (form.platform === 'gemini') return t('admin.accounts.oauth.gemini.title')
   if (form.platform === 'antigravity') return t('admin.accounts.oauth.antigravity.title')
+  if (form.platform === 'qoder') return t('admin.accounts.oauth.qoder.title')
   return t('admin.accounts.oauth.title')
 })
 
@@ -3393,12 +3521,14 @@ const oauth = useAccountOAuth() // For Anthropic OAuth
 const openaiOAuth = useOpenAIOAuth() // For OpenAI OAuth
 const geminiOAuth = useGeminiOAuth() // For Gemini OAuth
 const antigravityOAuth = useAntigravityOAuth() // For Antigravity OAuth
+const qoderOAuth = useQoderOAuth() // For Qoder device authorization
 
 // Computed: current OAuth state for template binding
 const currentAuthUrl = computed(() => {
   if (form.platform === 'openai') return openaiOAuth.authUrl.value
   if (form.platform === 'gemini') return geminiOAuth.authUrl.value
   if (form.platform === 'antigravity') return antigravityOAuth.authUrl.value
+  if (form.platform === 'qoder') return qoderOAuth.authUrl.value
   return oauth.authUrl.value
 })
 
@@ -3406,6 +3536,7 @@ const currentSessionId = computed(() => {
   if (form.platform === 'openai') return openaiOAuth.sessionId.value
   if (form.platform === 'gemini') return geminiOAuth.sessionId.value
   if (form.platform === 'antigravity') return antigravityOAuth.sessionId.value
+  if (form.platform === 'qoder') return qoderOAuth.sessionId.value
   return oauth.sessionId.value
 })
 
@@ -3413,6 +3544,7 @@ const currentOAuthLoading = computed(() => {
   if (form.platform === 'openai') return openaiOAuth.loading.value
   if (form.platform === 'gemini') return geminiOAuth.loading.value
   if (form.platform === 'antigravity') return antigravityOAuth.loading.value
+  if (form.platform === 'qoder') return qoderOAuth.loading.value
   return oauth.loading.value
 })
 
@@ -3420,6 +3552,7 @@ const currentOAuthError = computed(() => {
   if (form.platform === 'openai') return openaiOAuth.error.value
   if (form.platform === 'gemini') return geminiOAuth.error.value
   if (form.platform === 'antigravity') return antigravityOAuth.error.value
+  if (form.platform === 'qoder') return qoderOAuth.error.value
   return oauth.error.value
 })
 
@@ -3533,6 +3666,11 @@ loadQuotaNotifyGlobal()
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
 const allowOverages = ref(false) // For antigravity accounts: enable AI Credits overages
 const antigravityAccountType = ref<'oauth' | 'upstream'>('oauth') // For antigravity: oauth or upstream
+const qoderAccountType = ref<'oauth' | 'manual'>('oauth')
+const qoderSecurityOauthToken = ref('')
+const qoderMachineId = ref('')
+const qoderRefreshToken = ref('')
+const qoderUserType = ref('personal_standard')
 const upstreamBaseUrl = ref('') // For upstream type: base URL
 const upstreamApiKey = ref('') // For upstream type: API key
 const antigravityModelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
@@ -4023,6 +4161,9 @@ const isOAuthFlow = computed(() => {
   if (form.platform === 'antigravity' && antigravityAccountType.value === 'upstream') {
     return false
   }
+  if (form.platform === 'qoder' && qoderAccountType.value === 'manual') {
+    return false
+  }
   // Bedrock 类型不需要 OAuth 流程
   if (form.platform === 'anthropic' && accountCategory.value === 'bedrock') {
     return false
@@ -4051,6 +4192,9 @@ const canExchangeCode = computed(() => {
   }
   if (form.platform === 'antigravity') {
     return authCode.trim() && antigravityOAuth.sessionId.value && !antigravityOAuth.loading.value
+  }
+  if (form.platform === 'qoder') {
+    return qoderOAuth.sessionId.value && !qoderOAuth.loading.value
   }
   return authCode.trim() && oauth.sessionId.value && !oauth.loading.value
 })
@@ -4092,8 +4236,12 @@ watch(
 
 // Sync form.type based on accountCategory, addMethod, and platform-specific type
 watch(
-  [accountCategory, addMethod, antigravityAccountType, () => form.platform],
+  [accountCategory, addMethod, antigravityAccountType, qoderAccountType, () => form.platform],
   ([category, method, agType]) => {
+    if (form.platform === 'qoder') {
+      form.type = 'cosy'
+      return
+    }
     // Antigravity upstream 类型（实际创建为 apikey）
     if (form.platform === 'antigravity' && agType === 'upstream') {
       form.type = 'apikey'
@@ -4155,6 +4303,16 @@ watch(
       antigravityModelMappings.value = []
       antigravityModelRestrictionMode.value = 'mapping'
     }
+    if (newPlatform === 'qoder') {
+      accountCategory.value = 'oauth-based'
+      qoderAccountType.value = 'oauth'
+    } else {
+      qoderAccountType.value = 'oauth'
+      qoderSecurityOauthToken.value = ''
+      qoderMachineId.value = ''
+      qoderRefreshToken.value = ''
+      qoderUserType.value = 'personal_standard'
+    }
     if (newPlatform !== 'gemini' && newPlatform !== 'anthropic' && accountCategory.value === 'service_account') {
       accountCategory.value = 'oauth-based'
     }
@@ -4195,6 +4353,7 @@ watch(
 
     geminiOAuth.resetState()
     antigravityOAuth.resetState()
+    qoderOAuth.resetState()
   }
 )
 
@@ -4617,6 +4776,11 @@ const resetForm = () => {
   customBaseUrl.value = ''
   allowOverages.value = false
   antigravityAccountType.value = 'oauth'
+  qoderAccountType.value = 'oauth'
+  qoderSecurityOauthToken.value = ''
+  qoderMachineId.value = ''
+  qoderRefreshToken.value = ''
+  qoderUserType.value = 'personal_standard'
   upstreamBaseUrl.value = ''
   upstreamApiKey.value = ''
   vertexServiceAccountJson.value = ''
@@ -4633,6 +4797,7 @@ const resetForm = () => {
   openaiOAuth.resetState()
   geminiOAuth.resetState()
   antigravityOAuth.resetState()
+  qoderOAuth.resetState()
   oauthFlowRef.value?.reset()
   antigravityMixedChannelConfirmed.value = false
   openAIOAuthImportDefaults.value = null
@@ -4980,6 +5145,34 @@ const handleSubmit = async () => {
     return
   }
 
+  if (form.platform === 'qoder' && qoderAccountType.value === 'manual') {
+    if (!form.name.trim()) {
+      appStore.showError(t('admin.accounts.pleaseEnterAccountName'))
+      return
+    }
+    if (!qoderSecurityOauthToken.value.trim()) {
+      appStore.showError(t('admin.accounts.qoder.pleaseEnterSecurityOauthToken'))
+      return
+    }
+    if (!qoderMachineId.value.trim()) {
+      appStore.showError(t('admin.accounts.qoder.pleaseEnterMachineId'))
+      return
+    }
+
+    const credentials: Record<string, unknown> = {
+      security_oauth_token: qoderSecurityOauthToken.value.trim(),
+      machine_id: qoderMachineId.value.trim(),
+      user_type: qoderUserType.value.trim() || 'personal_standard'
+    }
+    if (qoderRefreshToken.value.trim()) {
+      credentials.refresh_token = qoderRefreshToken.value.trim()
+    }
+    applyPersistedModelRestriction(credentials)
+    applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
+    await createAccountAndFinish('qoder', 'cosy', credentials)
+    return
+  }
+
   if ((form.platform === 'gemini' || form.platform === 'anthropic') && accountCategory.value === 'service_account') {
     if (!form.name.trim()) {
       appStore.showError(t('admin.accounts.pleaseEnterAccountName'))
@@ -5076,6 +5269,7 @@ const goBackToBasicInfo = () => {
   openaiOAuth.resetState()
   geminiOAuth.resetState()
   antigravityOAuth.resetState()
+  qoderOAuth.resetState()
   oauthFlowRef.value?.reset()
 }
 
@@ -5091,6 +5285,8 @@ const handleGenerateUrl = async () => {
     )
   } else if (form.platform === 'antigravity') {
     await antigravityOAuth.generateAuthUrl(form.proxy_id)
+  } else if (form.platform === 'qoder') {
+    await qoderOAuth.generateAuthUrl(form.proxy_id)
   } else {
     await oauth.generateAuthUrl(addMethod.value, form.proxy_id)
   }
@@ -5826,6 +6022,43 @@ const handleAntigravityExchange = async (authCode: string) => {
   }
 }
 
+const handleQoderExchange = async (authCode: string) => {
+  if (!qoderOAuth.sessionId.value) return
+
+  qoderOAuth.loading.value = true
+  qoderOAuth.error.value = ''
+
+  try {
+    const stateFromInput = oauthFlowRef.value?.oauthState || ''
+    const stateToUse = stateFromInput || qoderOAuth.state.value
+    if (!stateToUse) {
+      qoderOAuth.error.value = t('admin.accounts.oauth.authFailed')
+      appStore.showError(qoderOAuth.error.value)
+      return
+    }
+
+    const rawInput = authCode.trim()
+    const tokenInfo = await qoderOAuth.exchangeAuthCode({
+      code: rawInput,
+      callbackUrl: rawInput,
+      sessionId: qoderOAuth.sessionId.value,
+      state: stateToUse,
+      proxyId: form.proxy_id
+    })
+    if (!tokenInfo) return
+
+    const credentials = qoderOAuth.buildCredentials(tokenInfo)
+    applyPersistedModelRestriction(credentials)
+    applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
+    await createAccountAndFinish('qoder', 'cosy', credentials)
+  } catch (error: any) {
+    qoderOAuth.error.value = error.response?.data?.detail || t('admin.accounts.oauth.authFailed')
+    appStore.showError(qoderOAuth.error.value)
+  } finally {
+    qoderOAuth.loading.value = false
+  }
+}
+
 // Anthropic OAuth 授权码兑换
 const handleAnthropicExchange = async (authCode: string) => {
   if (!authCode.trim() || !oauth.sessionId.value) return
@@ -5929,6 +6162,8 @@ const handleExchangeCode = async () => {
       return handleGeminiExchange(authCode)
     case 'antigravity':
       return handleAntigravityExchange(authCode)
+    case 'qoder':
+      return handleQoderExchange(authCode)
     default:
       return handleAnthropicExchange(authCode)
   }

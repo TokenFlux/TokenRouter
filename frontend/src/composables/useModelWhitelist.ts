@@ -76,6 +76,11 @@ const antigravityModels = [
   'tab_flash_lite_preview'
 ]
 
+const qoderModels = [
+  'gpt-5-codex',
+  'claude-sonnet-4-5'
+]
+
 // 智谱 GLM
 const zhipuModels = [
   'glm-4', 'glm-4v', 'glm-4-plus', 'glm-4-0520',
@@ -361,6 +366,7 @@ export function getModelsByPlatform(platform: string): string[] {
     case 'claude': return claudeModels
     case 'gemini': return geminiModels
     case 'antigravity': return antigravityModels
+    case 'qoder': return qoderModels
     case 'zhipu': return zhipuModels
     case 'qwen': return qwenModels
     case 'deepseek': return deepseekModels

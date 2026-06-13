@@ -51,6 +51,13 @@ describe('useModelWhitelist', () => {
     expect(models).toContain('gemini-3-pro-image')
   })
 
+  it('qoder 模型列表包含当前支持的官方模型', () => {
+    expect(getModelsByPlatform('qoder')).toEqual([
+      'gpt-5-codex',
+      'claude-sonnet-4-5'
+    ])
+  })
+
   it('Claude 模型列表包含新发布的 Claude 模型', () => {
     expect(getModelsByPlatform('claude')).toContain('claude-fable-5')
     expect(getModelsByPlatform('antigravity')).toContain('claude-fable-5')

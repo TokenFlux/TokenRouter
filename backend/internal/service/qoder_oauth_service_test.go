@@ -1,0 +1,194 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	"github.com/stretchr/testify/require"
+)
+
+type fakeQoderOAuthClient struct {
+	token       *qoder.DeviceTokenResponse
+	ready       bool
+	pollErr     error
+	userInfo    *qoder.UserInfo
+	userErr     error
+	gotNonce    string
+	gotVerifier string
+}
+
+func (f *fakeQoderOAuthClient) PollDeviceToken(ctx context.Context, nonce, verifier string) (*qoder.DeviceTokenResponse, bool, error) {
+	f.gotNonce = nonce
+	f.gotVerifier = verifier
+	return f.token, f.ready, f.pollErr
+}
+
+func (f *fakeQoderOAuthClient) GetUserInfo(ctx context.Context, token string) (*qoder.UserInfo, error) {
+	if f.userErr != nil {
+		return nil, f.userErr
+	}
+	return f.userInfo, nil
+}
+
+func TestQoderOAuthServiceGenerateAuthURLCreatesSession(t *testing.T) {
+	svc := NewQoderOAuthService(nil)
+	defer svc.Stop()
+
+	result, err := svc.GenerateAuthURL(context.Background(), nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, result.AuthURL)
+	require.NotEmpty(t, result.SessionID)
+	require.NotEmpty(t, result.State)
+	require.Positive(t, result.ExpiresIn)
+	require.Equal(t, qoderOAuthPollInterval, result.Interval)
+
+	session, ok := svc.sessionStore.Get(result.SessionID)
+	require.True(t, ok)
+	require.Equal(t, result.State, session.State)
+	require.Contains(t, result.AuthURL, "nonce="+session.Nonce)
+	require.Contains(t, result.AuthURL, "challenge=")
+	require.Contains(t, result.AuthURL, "client_id="+qoder.OAuthClientID)
+	require.Contains(t, result.AuthURL, "machine_id=")
+}
+
+func TestQoderOAuthServiceExchangeRejectsInvalidSessionState(t *testing.T) {
+	svc := NewQoderOAuthService(nil)
+	defer svc.Stop()
+
+	_, err := svc.ExchangeCode(context.Background(), &QoderExchangeCodeInput{
+		SessionID: "missing",
+		State:     "state",
+	})
+	require.ErrorContains(t, err, "session not found")
+
+	result, err := svc.GenerateAuthURL(context.Background(), nil)
+	require.NoError(t, err)
+	_, err = svc.ExchangeCode(context.Background(), &QoderExchangeCodeInput{
+		SessionID: result.SessionID,
+		State:     "wrong-state",
+	})
+	require.ErrorContains(t, err, "state is invalid")
+}
+
+func TestQoderOAuthServiceExchangePendingKeepsSession(t *testing.T) {
+	svc := NewQoderOAuthService(nil)
+	defer svc.Stop()
+	client := &fakeQoderOAuthClient{ready: false}
+	svc.clientFactory = func(proxyURL string) (qoderOAuthClient, error) {
+		return client, nil
+	}
+
+	result, err := svc.GenerateAuthURL(context.Background(), nil)
+	require.NoError(t, err)
+	_, err = svc.ExchangeCode(context.Background(), &QoderExchangeCodeInput{
+		SessionID: result.SessionID,
+		State:     result.State,
+		Code:      "completed",
+	})
+	require.ErrorContains(t, err, "still pending")
+
+	_, ok := svc.sessionStore.Get(result.SessionID)
+	require.True(t, ok, "pending authorization should keep the session available")
+	session, _ := svc.sessionStore.Get(result.SessionID)
+	require.Equal(t, session.Nonce, client.gotNonce)
+	require.Equal(t, session.CodeVerifier, client.gotVerifier)
+}
+
+func TestQoderOAuthServiceExchangeParsesCallbackURLAndBuildsUsableCredentials(t *testing.T) {
+	svc := NewQoderOAuthService(nil)
+	defer svc.Stop()
+	svc.clientFactory = func(proxyURL string) (qoderOAuthClient, error) {
+		return &fakeQoderOAuthClient{
+			ready: true,
+			token: &qoder.DeviceTokenResponse{
+				Token:        "security-token",
+				RefreshToken: "refresh-token",
+				UserID:       "user-from-token",
+			},
+			userInfo: &qoder.UserInfo{
+				ID:       "user-from-info",
+				Name:     "Qoder User",
+				UserType: "personal_pro",
+			},
+		}, nil
+	}
+
+	result, err := svc.GenerateAuthURL(context.Background(), nil)
+	require.NoError(t, err)
+	tokenInfo, err := svc.ExchangeCode(context.Background(), &QoderExchangeCodeInput{
+		SessionID:   result.SessionID,
+		CallbackURL: "http://localhost:12345/callback?code=ignored-by-device-flow&state=" + result.State,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "security-token", tokenInfo.SecurityOauthToken)
+	require.Equal(t, "refresh-token", tokenInfo.RefreshToken)
+	require.Equal(t, "user-from-info", tokenInfo.UID)
+	require.Equal(t, "user-from-info", tokenInfo.AID)
+	require.Equal(t, "Qoder User", tokenInfo.Name)
+	require.Equal(t, "personal_pro", tokenInfo.UserType)
+	require.NotEmpty(t, tokenInfo.MachineID)
+	require.NotEmpty(t, tokenInfo.MachineToken)
+	require.NotEmpty(t, tokenInfo.MachineType)
+
+	_, ok := svc.sessionStore.Get(result.SessionID)
+	require.False(t, ok, "completed authorization should consume the session")
+
+	credentials := svc.BuildAccountCredentials(tokenInfo)
+	require.Equal(t, "security-token", credentials["security_oauth_token"])
+	require.Equal(t, tokenInfo.MachineID, credentials["machine_id"])
+
+	provider := NewQoderTokenProvider()
+	session, err := provider.GetSession(context.Background(), &Account{
+		ID:          991,
+		Name:        "qoder-oauth",
+		Platform:    PlatformQoder,
+		Type:        AccountTypeCosy,
+		Credentials: credentials,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "security-token", session.Identity.SecurityOauthToken)
+	require.Equal(t, tokenInfo.MachineID, session.Machine.MachineID)
+	require.Equal(t, tokenInfo.MachineToken, session.Machine.MachineToken)
+}
+
+func TestQoderOAuthServicePollReturnsPendingAndCompleted(t *testing.T) {
+	svc := NewQoderOAuthService(nil)
+	defer svc.Stop()
+	client := &fakeQoderOAuthClient{ready: false}
+	svc.clientFactory = func(proxyURL string) (qoderOAuthClient, error) {
+		return client, nil
+	}
+
+	result, err := svc.GenerateAuthURL(context.Background(), nil)
+	require.NoError(t, err)
+	pending, err := svc.Poll(context.Background(), result.SessionID, result.State, nil)
+	require.NoError(t, err)
+	require.Equal(t, "pending", pending.Status)
+	require.Nil(t, pending.TokenInfo)
+
+	client.ready = true
+	client.token = &qoder.DeviceTokenResponse{AccessToken: "access-token", UserID: "user-1"}
+	client.userErr = errors.New("userinfo unavailable")
+	completed, err := svc.Poll(context.Background(), result.SessionID, result.State, nil)
+	require.NoError(t, err)
+	require.Equal(t, "completed", completed.Status)
+	require.Equal(t, "access-token", completed.TokenInfo.SecurityOauthToken)
+	require.Equal(t, "user-1", completed.TokenInfo.UID)
+	require.Contains(t, completed.TokenInfo.Extra["userinfo_warning"], "userinfo unavailable")
+}
+
+func TestQoderParseCallbackSupportsQueryFragmentAndPlainCode(t *testing.T) {
+	state, code := parseQoderCallback("http://localhost/callback?code=query-code&state=query-state")
+	require.Equal(t, "query-state", state)
+	require.Equal(t, "query-code", code)
+
+	state, code = parseQoderCallback("http://localhost/callback#code=fragment-code&state=fragment-state")
+	require.Equal(t, "fragment-state", state)
+	require.Equal(t, "fragment-code", code)
+
+	state, code = parseQoderCallback("plain-code")
+	require.Empty(t, state)
+	require.Equal(t, "plain-code", code)
+}

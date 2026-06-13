@@ -2585,6 +2585,7 @@ export default {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        qoder: 'Qoder',
       },
       deleteConfirm:
         "Are you sure you want to delete '{name}'? All associated API keys will no longer belong to any group.",
@@ -3082,6 +3083,7 @@ export default {
         codeAssist: 'Code Assist',
         antigravityOauth: 'Antigravity OAuth',
         antigravityApikey: 'Connect via Base URL + API Key',
+        qoderCosy: 'Qoder COSY',
         upstream: 'Upstream',
         upstreamDesc: 'Connect via Base URL + API Key'
       },
@@ -3867,6 +3869,23 @@ export default {
                     validateAndCreate: 'Validate & Create',
                     pleaseEnterRefreshToken: 'Please enter Refresh Token',
                     failedToValidateRT: 'Failed to validate Refresh Token'
+                  },
+                  qoder: {
+                    title: 'Qoder Account Authorization',
+                    followSteps: 'Follow these steps to authorize your Qoder account:',
+                    step1GenerateUrl: 'Generate the authorization URL',
+                    generateAuthUrl: 'Generate Auth URL',
+                    step2OpenUrl: 'Open the URL in your browser and complete authorization',
+                    openUrlDesc: 'Open the authorization URL in a new tab, choose your Qoder account, and authorize.',
+                    importantNotice: 'Qoder uses a device authorization flow. After completing authorization in the browser, return here and click Complete Authorization. If it is still pending, retry after a moment.',
+                    step3EnterCode: 'Complete Authorization',
+                    authCodeDesc: 'After browser authorization, you can complete directly. If the page gives you a localhost callback URL or code, paste it below.',
+                    authCode: 'Callback URL or Code (optional)',
+                    authCodePlaceholder: 'You may leave this empty and click Complete Authorization\nor paste localhost callback URL / code',
+                    authCodeHint: 'The system checks the Qoder device authorization status for this session.',
+                    failedToGenerateUrl: 'Failed to generate Qoder auth URL',
+                    missingExchangeParams: 'Missing session ID or state',
+                    failedToExchangeCode: 'Failed to check Qoder authorization'
                   }
                 },      // Gemini specific (platform-wide)
       gemini: {
@@ -4011,6 +4030,23 @@ export default {
       openaiAccount: 'OpenAI Account',
       geminiAccount: 'Gemini Account',
       antigravityAccount: 'Antigravity Account',
+      qoderAccount: 'Qoder Account',
+      qoder: {
+        accountType: {
+          oauthTitle: 'Authorization Link',
+          oauthDesc: 'Recommended: complete Qoder login in the browser.',
+          manualTitle: 'Manual Credentials',
+          manualDesc: 'Import an existing token and machine_id.'
+        },
+        securityOauthToken: 'Security OAuth Token',
+        securityOauthTokenHint: 'Existing Qoder security_oauth_token, usually starting with dt-.',
+        machineId: 'Machine ID',
+        machineIdHint: 'Required together with security_oauth_token.',
+        refreshToken: 'Refresh Token (optional)',
+        userType: 'User Type (optional)',
+        pleaseEnterSecurityOauthToken: 'Please enter Security OAuth Token',
+        pleaseEnterMachineId: 'Please enter Machine ID'
+      },
       inputMethod: 'Input Method',
       reAuthorizedSuccess: 'Account re-authorized successfully',
       // Test Modal

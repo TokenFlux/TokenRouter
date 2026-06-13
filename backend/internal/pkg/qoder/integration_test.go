@@ -14,6 +14,9 @@ import (
 
 // TestRealAPI performs an end-to-end test against the real Qoder API.
 func TestRealAPI(t *testing.T) {
+	if os.Getenv("QODER_RUN_REAL_API_TESTS") != "1" {
+		t.Skip("set QODER_RUN_REAL_API_TESTS=1 to run real Qoder API integration test")
+	}
 	authDir := DefaultAuthDir()
 	if authDir == "" {
 		t.Skip("no home directory")
@@ -65,7 +68,7 @@ func TestRealAPI(t *testing.T) {
 		},
 		"parameters": map[string]interface{}{"max_tokens": 10},
 		"chat_context": map[string]interface{}{
-			"text":  map[string]interface{}{"type": "text", "text": "Say hi."},
+			"text": map[string]interface{}{"type": "text", "text": "Say hi."},
 			"extra": map[string]interface{}{
 				"modelConfig":     map[string]interface{}{"key": "lite"},
 				"originalContent": map[string]interface{}{"type": "text", "text": "Say hi."},
