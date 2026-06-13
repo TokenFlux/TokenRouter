@@ -24,41 +24,17 @@ const (
 	qoderKeepaliveEvery   = 10 * time.Second
 )
 
-// defaultQoderModelAliases maps user-facing model names to Qoder API keys.
-// Confirmed keys are based on observed Qoder COSY responses. ultimate exposes
-// Claude Opus 4.6 evidence in encrypted reasoning metadata. performance/auto
-// report Anthropic but do not expose confirmed thinking metadata, and lite can
-// route like Qwen with occasional Claude-style output, so keep those aliases
-// explicitly marked as uncertain.
+// defaultQoderModelAliases maps conservative user-facing names to Qoder API
+// keys. Only ultimate has a confirmed upstream identity: observed encrypted
+// reasoning metadata identifies it as Claude Opus 4.6. Other Qoder tiers are
+// dynamic or insufficiently verified, so the default public surface keeps one
+// generic Qoder-selected route instead of pretending exact model identities.
 var defaultQoderModelAliases = map[string]qoderModelInfo{
-	// Claude/Anthropic tier.
+	// Confirmed: ultimate resolves to Claude Opus 4.6.
 	"claude-opus-4-6": {Key: "ultimate", Source: "system"},
-	// UNCERTAIN: performance reports Anthropic but exact Claude variant is unconfirmed.
-	"claude-sonnet-4-5": {Key: "performance", Source: "system"},
-	// UNCERTAIN: auto is backend-selected and may change routing.
-	"claude-haiku-4-5": {Key: "auto", Source: "system"},
-	// UNCERTAIN: auto is backend-selected and may change routing.
-	"auto":     {Key: "auto", Source: "system"},
-	"ultimate": {Key: "ultimate", Source: "system"},
-	// UNCERTAIN: performance reports Anthropic but exact Claude variant is unconfirmed.
-	"performance": {Key: "performance", Source: "system"},
-	// Qwen (Alibaba)
-	"qwen3.7-max":  {Key: "qmodel_latest", Source: "system"},
-	"qwen3.7-plus": {Key: "qmodel", Source: "system"},
-	"efficient":    {Key: "efficient", Source: "system"},
-	// UNCERTAIN: OpenAI-compatible default alias routed through the lite tier.
-	"gpt-5-codex": {Key: "lite", Source: "system"},
-	// UNCERTAIN: usually Qwen, but occasionally observed Claude-style output.
-	"lite": {Key: "lite", Source: "system"},
-	// DeepSeek
-	"deepseek-v4-pro":   {Key: "dmodel", Source: "system"},
-	"deepseek-v4-flash": {Key: "dfmodel", Source: "system"},
-	// GLM
-	"glm-5.1": {Key: "gm51model", Source: "system"},
-	// Kimi
-	"kimi-k2.7-code": {Key: "kmodel", Source: "system"},
-	// MiniMax
-	"minimax-m3": {Key: "mmodel", Source: "system"},
+	"ultimate":        {Key: "ultimate", Source: "system"},
+	// Unconfirmed: auto is the least misleading generic Qoder-selected route.
+	"auto": {Key: "auto", Source: "system"},
 }
 
 type qoderModelInfo struct {
@@ -426,13 +402,13 @@ func qoderBasePayload() map[string]any {
 			"text":       map[string]any{"type": "text", "text": ""},
 			"extra": map[string]any{
 				"context":         []any{},
-				"modelConfig":     map[string]any{"is_reasoning": false, "key": "lite"},
+				"modelConfig":     map[string]any{"is_reasoning": false, "key": "auto"},
 				"originalContent": map[string]any{"type": "text", "text": ""},
 			},
 		},
 		"model_config": map[string]any{
-			"key":              "lite",
-			"display_name":     "Lite",
+			"key":              "auto",
+			"display_name":     "Qoder Auto",
 			"model":            "",
 			"format":           "openai",
 			"is_vl":            false,

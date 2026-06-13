@@ -174,7 +174,7 @@ func TestDefaultModels(t *testing.T) {
 	for _, model := range DefaultModels {
 		ids = append(ids, model.ID)
 	}
-	want := []string{"gpt-5-codex", "claude-sonnet-4-5", "qwen3.7-max"}
+	want := []string{"claude-opus-4-6", "auto"}
 	if len(ids) != len(want) {
 		t.Fatalf("default model count = %d, want %d", len(ids), len(want))
 	}

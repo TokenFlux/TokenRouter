@@ -277,7 +277,7 @@ func TestAccountHandlerGetAvailableModels_QoderFallsBackToDefaults(t *testing.T)
 	for _, model := range resp.Data {
 		ids = append(ids, model.ID)
 	}
-	require.ElementsMatch(t, []string{"gpt-5-codex", "claude-sonnet-4-5", "qwen3.7-max"}, ids)
+	require.ElementsMatch(t, []string{"claude-opus-4-6", "auto"}, ids)
 }
 
 func TestAccountHandlerGetAvailableModels_QoderUsesConfiguredModels(t *testing.T) {

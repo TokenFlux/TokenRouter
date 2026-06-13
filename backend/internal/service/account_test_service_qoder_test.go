@@ -123,7 +123,7 @@ func TestAccountTestService_QoderCosyUsesNativeTestPath(t *testing.T) {
 		qoderOAuthClient: &qoderAccountTestOAuthClientStub{},
 	}
 
-	err := svc.TestAccountConnection(ctx, account.ID, "gpt-5-codex", "hi", "")
+	err := svc.TestAccountConnection(ctx, account.ID, "auto", "hi", "")
 
 	require.NoError(t, err)
 	body := recorder.Body.String()

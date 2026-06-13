@@ -12,21 +12,15 @@ type Model struct {
 // TokenRouter Qoder COSY adapter.
 var DefaultModels = []Model{
 	{
-		ID:          "gpt-5-codex",
+		ID:          "claude-opus-4-6",
 		Type:        "model",
-		DisplayName: "GPT-5 Codex",
+		DisplayName: "Claude Opus 4.6",
 		CreatedAt:   "",
 	},
 	{
-		ID:          "claude-sonnet-4-5",
+		ID:          "auto",
 		Type:        "model",
-		DisplayName: "Claude Sonnet 4.5",
-		CreatedAt:   "",
-	},
-	{
-		ID:          "qwen3.7-max",
-		Type:        "model",
-		DisplayName: "Qwen 3.7 Max",
+		DisplayName: "Qoder Auto",
 		CreatedAt:   "",
 	},
 }

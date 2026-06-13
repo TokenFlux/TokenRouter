@@ -31,7 +31,7 @@ func (r *qoderRateLimitRepoStub) SetRateLimited(_ context.Context, id int64, res
 
 func TestBuildQoderPayloadFromChatCompletions(t *testing.T) {
 	body := []byte(`{
-		"model":"gpt-5-codex",
+		"model":"auto",
 		"max_tokens":123,
 		"messages":[
 			{"role":"system","content":"be terse"},
@@ -44,11 +44,11 @@ func TestBuildQoderPayloadFromChatCompletions(t *testing.T) {
 
 	payload, modelKey, err := BuildQoderPayloadFromChatCompletions(body, "personal_standard")
 	require.NoError(t, err)
-	require.Equal(t, "lite", modelKey)
+	require.Equal(t, "auto", modelKey)
 	require.Equal(t, true, payload["stream"])
 	require.Equal(t, "personal_standard", payload["aliyun_user_type"])
 	require.Equal(t, 123, payload["parameters"].(map[string]any)["max_tokens"])
-	require.Equal(t, "lite", payload["model_config"].(map[string]any)["key"])
+	require.Equal(t, "auto", payload["model_config"].(map[string]any)["key"])
 	require.Equal(t, "hello", payload["chat_context"].(map[string]any)["text"].(map[string]any)["text"])
 
 	messages := payload["messages"].([]any)
@@ -66,7 +66,7 @@ func TestBuildQoderPayloadFromChatCompletions(t *testing.T) {
 
 func TestBuildQoderPayloadFromAnthropicMessages(t *testing.T) {
 	body := []byte(`{
-		"model":"qwen3.7-max",
+		"model":"claude-opus-4-6",
 		"max_tokens":456,
 		"system":[{"type":"text","text":"system one"},{"type":"text","text":"system two"}],
 		"messages":[
@@ -76,9 +76,9 @@ func TestBuildQoderPayloadFromAnthropicMessages(t *testing.T) {
 
 	payload, modelKey, err := BuildQoderPayloadFromAnthropicMessages(body, "personal_standard")
 	require.NoError(t, err)
-	require.Equal(t, "qmodel_latest", modelKey)
+	require.Equal(t, "ultimate", modelKey)
 	require.Equal(t, 456, payload["parameters"].(map[string]any)["max_tokens"])
-	require.Equal(t, "qmodel_latest", payload["model_config"].(map[string]any)["key"])
+	require.Equal(t, "ultimate", payload["model_config"].(map[string]any)["key"])
 
 	messages := payload["messages"].([]any)
 	require.Len(t, messages, 2)
@@ -99,6 +99,9 @@ func TestResolveQoderModelUsesOpus46AliasForUltimate(t *testing.T) {
 
 	legacy := resolveQoderModel("claude-opus-4-5")
 	require.Equal(t, "claude-opus-4-5", legacy.Key)
+
+	codex := resolveQoderModel("gpt-5-codex")
+	require.Equal(t, "gpt-5-codex", codex.Key)
 }
 
 func TestQoderGatewayWritesOpenAIStream(t *testing.T) {
@@ -114,7 +117,7 @@ func TestQoderGatewayWritesOpenAIStream(t *testing.T) {
 		{IsDone: true},
 	}
 
-	err := WriteQoderOpenAIStream(c, "gpt-5-codex", events)
+	err := WriteQoderOpenAIStream(c, "auto", events)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `"delta":{"role":"assistant"}`)
@@ -135,7 +138,7 @@ func TestQoderGatewayWritesAnthropicStream(t *testing.T) {
 		{IsDone: true},
 	}
 
-	err := WriteQoderAnthropicStream(c, "claude-sonnet-4-5", events)
+	err := WriteQoderAnthropicStream(c, "claude-opus-4-6", events)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
@@ -155,7 +158,7 @@ func TestQoderGatewayAssemblesNonStreamingChatCompletion(t *testing.T) {
 		{IsDone: true},
 	}
 
-	body, err := BuildQoderOpenAICompletion("gpt-5-codex", events)
+	body, err := BuildQoderOpenAICompletion("auto", events)
 	require.NoError(t, err)
 
 	var decoded map[string]any
@@ -177,7 +180,7 @@ func TestQoderGatewayAssemblesNonStreamingAnthropicMessageWithoutReasoning(t *te
 		{IsDone: true},
 	}
 
-	body, err := BuildQoderAnthropicMessage("claude-sonnet-4-5", events)
+	body, err := BuildQoderAnthropicMessage("claude-opus-4-6", events)
 	require.NoError(t, err)
 
 	var decoded map[string]any
@@ -318,7 +321,7 @@ func TestQoderGatewayStreamsResponseWithoutPrebuffering(t *testing.T) {
 		)),
 	}
 
-	result, err := WriteQoderOpenAIStreamResponse(c, "gpt-5-codex", resp)
+	result, err := WriteQoderOpenAIStreamResponse(c, "auto", resp)
 	require.NoError(t, err)
 	require.Equal(t, ClaudeUsage{}, result.Usage)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -340,7 +343,7 @@ func TestQoderGatewayStreamsAnthropicResponseWithoutReasoning(t *testing.T) {
 		)),
 	}
 
-	result, err := WriteQoderAnthropicStreamResponse(c, "claude-sonnet-4-5", resp)
+	result, err := WriteQoderAnthropicStreamResponse(c, "claude-opus-4-6", resp)
 	require.NoError(t, err)
 	require.Equal(t, ClaudeUsage{}, result.Usage)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -364,7 +367,7 @@ func TestQoderGatewayStreamsOpenAIUsageForBillingAndClient(t *testing.T) {
 		)),
 	}
 
-	result, err := WriteQoderOpenAIStreamResponse(c, "gpt-5-codex", resp)
+	result, err := WriteQoderOpenAIStreamResponse(c, "auto", resp)
 
 	require.NoError(t, err)
 	require.Equal(t, 5, result.Usage.InputTokens)
@@ -389,7 +392,7 @@ func TestQoderGatewayStreamsAnthropicUsageForBillingAndClient(t *testing.T) {
 		)),
 	}
 
-	result, err := WriteQoderAnthropicStreamResponse(c, "claude-sonnet-4-5", resp)
+	result, err := WriteQoderAnthropicStreamResponse(c, "claude-opus-4-6", resp)
 
 	require.NoError(t, err)
 	require.Equal(t, 8, result.Usage.InputTokens)

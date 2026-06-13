@@ -55,7 +55,7 @@ func TestRealAPI(t *testing.T) {
 		"session_type":     "qodercli",
 		"aliyun_user_type": identity.UserType,
 		"model_config": map[string]interface{}{
-			"key":    "lite",
+			"key":    "auto",
 			"source": "system",
 			"format": "openai",
 		},
@@ -70,7 +70,7 @@ func TestRealAPI(t *testing.T) {
 		"chat_context": map[string]interface{}{
 			"text": map[string]interface{}{"type": "text", "text": "Say hi."},
 			"extra": map[string]interface{}{
-				"modelConfig":     map[string]interface{}{"key": "lite"},
+				"modelConfig":     map[string]interface{}{"key": "auto"},
 				"originalContent": map[string]interface{}{"type": "text", "text": "Say hi."},
 			},
 		},
@@ -83,7 +83,7 @@ func TestRealAPI(t *testing.T) {
 	defer cancel()
 
 	resp, err := client.StreamRequest(session, "", bodyJSON, map[string]string{
-		"x-model-key":    "lite",
+		"x-model-key":    "auto",
 		"x-model-source": "system",
 	})
 	if err != nil {

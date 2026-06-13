@@ -20,7 +20,7 @@ func (qoderModelSyncHandlerServiceStub) SyncModels(_ context.Context, input serv
 		Source:  input.Source,
 		Applied: input.Apply,
 		Preserved: []service.QoderModelAliasRecord{
-			{Alias: "gpt-5-codex", Key: "lite", Source: "system"},
+			{Alias: "claude-opus-4-6", Key: "ultimate", Source: "system"},
 		},
 	}, nil
 }
