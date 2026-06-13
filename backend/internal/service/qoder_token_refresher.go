@@ -1,0 +1,179 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+)
+
+type qoderSessionRefresher func(ctx context.Context, refreshToken, securityOauthToken string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error)
+
+// QoderTokenRefresher exchanges a Qoder refresh_token for a fresh COSY session.
+type QoderTokenRefresher struct {
+	qoderOAuthService *QoderOAuthService
+	refreshSession    qoderSessionRefresher
+}
+
+func NewQoderTokenRefresher(qoderOAuthService *QoderOAuthService) *QoderTokenRefresher {
+	return &QoderTokenRefresher{
+		qoderOAuthService: qoderOAuthService,
+		refreshSession: func(ctx context.Context, refreshToken, securityOauthToken string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			default:
+			}
+			return qoder.RefreshSession(refreshToken, securityOauthToken, machine, "")
+		},
+	}
+}
+
+func (r *QoderTokenRefresher) CacheKey(account *Account) string {
+	return QoderTokenCacheKey(account)
+}
+
+func (r *QoderTokenRefresher) CanRefresh(account *Account) bool {
+	return account != nil && account.Platform == PlatformQoder && account.Type == AccountTypeCosy
+}
+
+func (r *QoderTokenRefresher) NeedsRefresh(account *Account, _ time.Duration) bool {
+	if !r.CanRefresh(account) {
+		return false
+	}
+	if strings.TrimSpace(account.GetCredential("refresh_token")) == "" {
+		return false
+	}
+	if expiresAt := account.GetCredentialAsTime("expires_at"); expiresAt != nil {
+		return time.Until(*expiresAt) < 15*time.Minute
+	}
+	return account.IsRateLimited()
+}
+
+func (r *QoderTokenRefresher) Refresh(ctx context.Context, account *Account) (map[string]any, error) {
+	if !r.CanRefresh(account) {
+		return nil, errors.New("not a qoder cosy account")
+	}
+	refreshToken := strings.TrimSpace(account.GetCredential("refresh_token"))
+	if refreshToken == "" {
+		return nil, errors.New("no refresh token available")
+	}
+	machineID := strings.TrimSpace(account.GetCredential("machine_id"))
+	if machineID == "" {
+		return nil, errors.New("qoder refresh requires machine_id")
+	}
+	refreshSession := r.refreshSession
+	if refreshSession == nil {
+		refreshSession = func(ctx context.Context, refreshToken, securityOauthToken string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			default:
+			}
+			return qoder.RefreshSession(refreshToken, securityOauthToken, machine, "")
+		}
+	}
+	machine := &qoder.MachineIdentity{
+		MachineID:    machineID,
+		MachineToken: firstNonEmptyQoder(account.GetCredential("machine_token"), machineID),
+		MachineType:  firstNonEmptyQoder(account.GetCredential("machine_type"), "5"),
+	}
+	identity, err := refreshSession(ctx, refreshToken, account.GetCredential("security_oauth_token"), machine)
+	if err != nil {
+		return nil, fmt.Errorf("qoder refresh token: %w", err)
+	}
+	if identity == nil {
+		return nil, errors.New("qoder refresh returned empty identity")
+	}
+	applyQoderAccountIdentityMetadata(identity, account)
+	newCredentials := qoderTokenInfoCredentials(identity, account, machine)
+	if r.qoderOAuthService != nil {
+		newCredentials = r.qoderOAuthService.BuildAccountCredentials(&QoderTokenInfo{
+			SecurityOauthToken: strings.TrimSpace(identity.SecurityOauthToken),
+			RefreshToken:       strings.TrimSpace(identity.RefreshToken),
+			MachineID:          strings.TrimSpace(machine.MachineID),
+			MachineToken:       strings.TrimSpace(machine.MachineToken),
+			MachineType:        strings.TrimSpace(machine.MachineType),
+			UID:                strings.TrimSpace(identity.UID),
+			AID:                strings.TrimSpace(identity.AID),
+			OrganizationID:     strings.TrimSpace(identity.OrganizationID),
+			OrganizationName:   strings.TrimSpace(identity.OrganizationName),
+			Name:               strings.TrimSpace(identity.Name),
+			UserType:           firstNonEmptyQoder(identity.UserType, "personal_standard"),
+		})
+	}
+	newCredentials = MergeCredentials(account.Credentials, newCredentials)
+	if strings.TrimSpace(stringFromCredentialValue(newCredentials["refresh_token"])) == "" {
+		newCredentials["refresh_token"] = refreshToken
+	}
+	return newCredentials, nil
+}
+
+func QoderTokenCacheKey(account *Account) string {
+	if account == nil {
+		return "qoder:account:0"
+	}
+	return "qoder:account:" + strconv.FormatInt(account.ID, 10)
+}
+
+func qoderTokenInfoCredentials(identity *qoder.AuthIdentity, account *Account, machine *qoder.MachineIdentity) map[string]any {
+	credentials := map[string]any{}
+	if identity != nil {
+		if token := strings.TrimSpace(identity.SecurityOauthToken); token != "" {
+			credentials["security_oauth_token"] = token
+		}
+		if refreshToken := strings.TrimSpace(identity.RefreshToken); refreshToken != "" {
+			credentials["refresh_token"] = refreshToken
+		}
+		if uid := strings.TrimSpace(identity.UID); uid != "" {
+			credentials["uid"] = uid
+		}
+		if aid := strings.TrimSpace(identity.AID); aid != "" {
+			credentials["aid"] = aid
+		}
+		if orgID := strings.TrimSpace(identity.OrganizationID); orgID != "" {
+			credentials["organization_id"] = orgID
+		}
+		if orgName := strings.TrimSpace(identity.OrganizationName); orgName != "" {
+			credentials["organization_name"] = orgName
+		}
+		if name := strings.TrimSpace(identity.Name); name != "" {
+			credentials["name"] = name
+		}
+		if userType := strings.TrimSpace(identity.UserType); userType != "" {
+			credentials["user_type"] = userType
+		}
+	}
+	if machine != nil {
+		if machineID := strings.TrimSpace(machine.MachineID); machineID != "" {
+			credentials["machine_id"] = machineID
+		}
+		if machineToken := strings.TrimSpace(machine.MachineToken); machineToken != "" {
+			credentials["machine_token"] = machineToken
+		}
+		if machineType := strings.TrimSpace(machine.MachineType); machineType != "" {
+			credentials["machine_type"] = machineType
+		}
+	}
+	if account != nil {
+		if refreshToken := account.GetCredential("refresh_token"); refreshToken != "" {
+			if _, ok := credentials["refresh_token"]; !ok {
+				credentials["refresh_token"] = refreshToken
+			}
+		}
+	}
+	return credentials
+}
+
+func stringFromCredentialValue(value any) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	default:
+		return ""
+	}
+}

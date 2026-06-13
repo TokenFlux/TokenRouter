@@ -43,6 +43,10 @@ type qoderAccountTestSessionProvider interface {
 	GetSession(ctx context.Context, account *Account) (*qoder.SessionContext, error)
 }
 
+type qoderAccountTestOAuthClient interface {
+	GetUserInfo(ctx context.Context, token string) (*qoder.UserInfo, error)
+}
+
 // TestEvent represents a SSE event for account testing
 type TestEvent struct {
 	Type     string `json:"type"`
@@ -79,6 +83,7 @@ type AccountTestService struct {
 	tlsFPProfileService       *TLSFingerprintProfileService
 	qoderSessionProvider      qoderAccountTestSessionProvider
 	qoderClient               qoderStreamClient
+	qoderOAuthClient          qoderAccountTestOAuthClient
 }
 
 // NewAccountTestService creates a new AccountTestService
@@ -101,6 +106,7 @@ func NewAccountTestService(
 		tlsFPProfileService:       tlsFPProfileService,
 		qoderSessionProvider:      NewQoderTokenProvider(),
 		qoderClient:               qoder.NewClient(qoder.APIBaseURL),
+		qoderOAuthClient:          qoder.NewOAuthClient(qoder.OpenAPIBaseURL, nil),
 	}
 }
 
@@ -998,6 +1004,9 @@ func (s *AccountTestService) testQoderAccountConnection(c *gin.Context, account 
 	c.Writer.Flush()
 
 	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+	if err := s.probeQoderUserInfo(ctx, account, session); err != nil {
+		return s.sendErrorAndEnd(c, err.Error())
+	}
 	s.sendEvent(c, TestEvent{Type: "status", Text: "正在通过 Qoder COSY 测试连接"})
 
 	client := s.qoderClient
@@ -1023,6 +1032,36 @@ func (s *AccountTestService) testQoderAccountConnection(c *gin.Context, account 
 	}
 
 	return s.processQoderStream(c, resp.Body)
+}
+
+func (s *AccountTestService) probeQoderUserInfo(ctx context.Context, account *Account, session *qoder.SessionContext) error {
+	if session == nil || session.Identity == nil {
+		return errors.New("Qoder session identity is empty")
+	}
+	token := strings.TrimSpace(session.Identity.SecurityOauthToken)
+	if token == "" {
+		token = strings.TrimSpace(account.GetCredential("security_oauth_token"))
+	}
+	if token == "" {
+		return errors.New("Qoder security_oauth_token is empty")
+	}
+	client := s.qoderOAuthClient
+	if client == nil {
+		client = qoder.NewOAuthClient(qoder.OpenAPIBaseURL, nil)
+	}
+	userInfo, err := client.GetUserInfo(ctx, token)
+	if err != nil {
+		return fmt.Errorf("Qoder userinfo probe failed: %w", err)
+	}
+	if userInfo != nil {
+		if session.Identity.UID == "" && strings.TrimSpace(userInfo.ID) != "" {
+			session.Identity.UID = strings.TrimSpace(userInfo.ID)
+		}
+		if session.Identity.Name == "" && strings.TrimSpace(userInfo.Name) != "" {
+			session.Identity.Name = strings.TrimSpace(userInfo.Name)
+		}
+	}
+	return nil
 }
 
 // testAntigravityAccountConnection tests an Antigravity account's connection

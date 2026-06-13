@@ -92,6 +92,21 @@ func TestCompositeTokenCacheInvalidator_Antigravity(t *testing.T) {
 	require.Equal(t, []string{"ag:ag-project", "ag:account:99"}, cache.deletedKeys)
 }
 
+func TestCompositeTokenCacheInvalidator_QoderCosy(t *testing.T) {
+	cache := &geminiTokenCacheStub{}
+	invalidator := NewCompositeTokenCacheInvalidator(cache)
+	account := &Account{
+		ID:       42,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+	}
+
+	err := invalidator.InvalidateToken(context.Background(), account)
+
+	require.NoError(t, err)
+	require.Contains(t, cache.deletedKeys, "qoder:account:42")
+}
+
 func TestCompositeTokenCacheInvalidator_AntigravityWithoutProjectID(t *testing.T) {
 	cache := &geminiTokenCacheStub{}
 	invalidator := NewCompositeTokenCacheInvalidator(cache)

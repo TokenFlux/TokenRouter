@@ -53,6 +53,19 @@ func (s *qoderAccountTestClientStub) StreamRequestContextWithDoer(ctx context.Co
 	return doer(req)
 }
 
+type qoderAccountTestOAuthClientStub struct {
+	token string
+	err   error
+}
+
+func (s *qoderAccountTestOAuthClientStub) GetUserInfo(_ context.Context, token string) (*qoder.UserInfo, error) {
+	s.token = token
+	if s.err != nil {
+		return nil, s.err
+	}
+	return &qoder.UserInfo{ID: "user-1", Name: "Qoder User"}, nil
+}
+
 type qoderHTTPUpstreamRecorder struct {
 	body       string
 	proxyURL   string
@@ -104,9 +117,10 @@ func TestAccountTestService_QoderCosyUsesNativeTestPath(t *testing.T) {
 	svc := &AccountTestService{
 		accountRepo: repo,
 		qoderSessionProvider: &qoderAccountTestSessionProviderStub{
-			session: &qoder.SessionContext{},
+			session: &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}},
 		},
-		qoderClient: client,
+		qoderClient:      client,
+		qoderOAuthClient: &qoderAccountTestOAuthClientStub{},
 	}
 
 	err := svc.TestAccountConnection(ctx, account.ID, "gpt-5-codex", "hi", "")
@@ -119,6 +133,34 @@ func TestAccountTestService_QoderCosyUsesNativeTestPath(t *testing.T) {
 	require.Contains(t, body, `"type":"test_complete"`)
 	require.NotContains(t, body, "Unsupported account type: cosy")
 	require.NotNil(t, client.request)
+}
+
+func TestAccountTestService_QoderProbesUserInfoBeforeStream(t *testing.T) {
+	ctx, recorder := newQoderAccountTestContext()
+	account := &Account{
+		ID:       11,
+		Name:     "qoder",
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+	}
+	client := &qoderAccountTestClientStub{
+		body: "data: {\"body\":\"[DONE]\"}\n\n",
+	}
+	oauthClient := &qoderAccountTestOAuthClientStub{}
+	svc := &AccountTestService{
+		accountRepo: stubOpenAIAccountRepo{accounts: []Account{*account}},
+		qoderSessionProvider: &qoderAccountTestSessionProviderStub{
+			session: &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "session-token"}},
+		},
+		qoderClient:      client,
+		qoderOAuthClient: oauthClient,
+	}
+
+	err := svc.TestAccountConnection(ctx, account.ID, "", "", "")
+
+	require.NoError(t, err)
+	require.Equal(t, "session-token", oauthClient.token)
+	require.Contains(t, recorder.Body.String(), `"type":"test_complete"`)
 }
 
 func TestAccountTestService_QoderWrappedErrorIsVisible(t *testing.T) {
@@ -135,9 +177,10 @@ func TestAccountTestService_QoderWrappedErrorIsVisible(t *testing.T) {
 	svc := &AccountTestService{
 		accountRepo: stubOpenAIAccountRepo{accounts: []Account{*account}},
 		qoderSessionProvider: &qoderAccountTestSessionProviderStub{
-			session: &qoder.SessionContext{},
+			session: &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}},
 		},
-		qoderClient: client,
+		qoderClient:      client,
+		qoderOAuthClient: &qoderAccountTestOAuthClientStub{},
 	}
 
 	err := svc.TestAccountConnection(ctx, account.ID, "", "", "")
@@ -164,9 +207,10 @@ func TestAccountTestService_QoderReasoningOnlyDoesNotEmitContent(t *testing.T) {
 	svc := &AccountTestService{
 		accountRepo: stubOpenAIAccountRepo{accounts: []Account{*account}},
 		qoderSessionProvider: &qoderAccountTestSessionProviderStub{
-			session: &qoder.SessionContext{},
+			session: &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}},
 		},
-		qoderClient: client,
+		qoderClient:      client,
+		qoderOAuthClient: &qoderAccountTestOAuthClientStub{},
 	}
 
 	err := svc.TestAccountConnection(ctx, account.ID, "", "", "")
@@ -206,9 +250,10 @@ func TestAccountTestService_QoderUsesHTTPUpstreamForProxyAndTLS(t *testing.T) {
 	svc := &AccountTestService{
 		accountRepo: stubOpenAIAccountRepo{accounts: []Account{*account}},
 		qoderSessionProvider: &qoderAccountTestSessionProviderStub{
-			session: &qoder.SessionContext{},
+			session: &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}},
 		},
 		qoderClient:         client,
+		qoderOAuthClient:    &qoderAccountTestOAuthClientStub{},
 		httpUpstream:        upstream,
 		tlsFPProfileService: &TLSFingerprintProfileService{},
 	}

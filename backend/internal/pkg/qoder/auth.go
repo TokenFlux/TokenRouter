@@ -1,6 +1,7 @@
 package qoder
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -83,10 +84,6 @@ func NewMachine() *MachineIdentity {
 
 // ExchangePAT exchanges a Personal Access Token for an AuthIdentity.
 func ExchangePAT(pat string, machine *MachineIdentity, centerURL string) (*AuthIdentity, error) {
-	if centerURL == "" {
-		centerURL = CenterBaseURL
-	}
-
 	inner := map[string]interface{}{
 		"personalToken":      pat,
 		"securityOauthToken": "",
@@ -94,51 +91,56 @@ func ExchangePAT(pat string, machine *MachineIdentity, centerURL string) (*AuthI
 		"needRefresh":        false,
 		"authInfo":           map[string]interface{}{},
 	}
-	innerJSON, _ := json.Marshal(inner)
+	return exchangeJobToken(inner, machine, centerURL, "PAT exchange")
+}
 
+// RefreshSession exchanges a Qoder refresh_token for a new COSY identity.
+func RefreshSession(refreshToken, securityOauthToken string, machine *MachineIdentity, centerURL string) (*AuthIdentity, error) {
+	inner := map[string]interface{}{
+		"personalToken":      "",
+		"securityOauthToken": strings.TrimSpace(securityOauthToken),
+		"refreshToken":       strings.TrimSpace(refreshToken),
+		"needRefresh":        true,
+		"authInfo":           map[string]interface{}{},
+	}
+	return exchangeJobToken(inner, machine, centerURL, "refresh")
+}
+
+func exchangeJobToken(inner map[string]interface{}, machine *MachineIdentity, centerURL string, operation string) (*AuthIdentity, error) {
+	if centerURL == "" {
+		centerURL = CenterBaseURL
+	}
+	if machine == nil {
+		machine = NewMachine()
+	}
+
+	innerJSON, _ := json.Marshal(inner)
 	outer := map[string]interface{}{
 		"payload":       string(innerJSON),
 		"encodeVersion": "1",
 	}
 	outerJSON, _ := json.Marshal(outer)
 
-	body := EncodeJSON(outerJSON)
-
-	req, err := http.NewRequest("POST",
-		centerURL+"/algo/api/v3/user/jobToken?Encode=1",
-		strings.NewReader(body))
+	req, err := newCenterEncodedRequest("POST", centerURL+"/algo/api/v3/user/jobToken?Encode=1", outerJSON, machine)
 	if err != nil {
-		return nil, fmt.Errorf("qoder: PAT exchange request: %w", err)
+		return nil, fmt.Errorf("qoder: %s request: %w", operation, err)
 	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-	req.Header.Set("Accept-Encoding", "identity")
-	req.Header.Set("User-Agent", "Go-http-client/2.0")
-	req.Header.Set("cosy-machinetoken", machine.MachineToken)
-	req.Header.Set("cosy-machinetype", machine.MachineType)
-	req.Header.Set("cosy-machineid", machine.MachineID)
-	req.Header.Set("cosy-version", ClientVersion)
-	req.Header.Set("cosy-clienttype", "5")
-	req.Header.Set("login-version", "v2")
-	req.Header.Set("appcode", AppCode)
-	req.Header.Set("Date", time.Now().UTC().Format(http.TimeFormat))
 
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("qoder: PAT exchange request: %w", err)
+		return nil, fmt.Errorf("qoder: %s request: %w", operation, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("qoder: PAT exchange failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("qoder: %s failed with status %d: %s", operation, resp.StatusCode, string(bodyBytes))
 	}
 
 	var data map[string]interface{}
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, fmt.Errorf("qoder: parse PAT exchange response: %w", err)
+		return nil, fmt.Errorf("qoder: parse %s response: %w", operation, err)
 	}
 
 	token, _ := data["securityOauthToken"].(string)
@@ -155,9 +157,32 @@ func ExchangePAT(pat string, machine *MachineIdentity, centerURL string) (*AuthI
 		AID:                uid,
 		UID:                uid,
 		UserType:           userType,
-		SecurityOauthToken:  token,
+		SecurityOauthToken: token,
 		RefreshToken:       refreshToken,
 	}, nil
+}
+
+func newCenterEncodedRequest(method, rawURL string, payload []byte, machine *MachineIdentity) (*http.Request, error) {
+	body := EncodeJSON(payload)
+	req, err := http.NewRequest(method, rawURL, bytes.NewReader([]byte(body)))
+	if err != nil {
+		return nil, err
+	}
+	date := time.Now().UTC().Format(http.TimeFormat)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Accept-Encoding", "identity")
+	req.Header.Set("User-Agent", "Go-http-client/2.0")
+	req.Header.Set("cosy-machinetoken", machine.MachineToken)
+	req.Header.Set("cosy-machinetype", machine.MachineType)
+	req.Header.Set("cosy-machineid", machine.MachineID)
+	req.Header.Set("cosy-version", ClientVersion)
+	req.Header.Set("cosy-clienttype", "5")
+	req.Header.Set("login-version", "v2")
+	req.Header.Set("appcode", AppCode)
+	req.Header.Set("Date", date)
+	req.Header.Set("signature", SignCenterRequest(date))
+	return req, nil
 }
 
 // pathWithoutAlgo removes the "/algo" prefix from a URL path for signature computation.

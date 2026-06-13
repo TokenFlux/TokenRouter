@@ -1,10 +1,23 @@
 package qoder
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
+
+func readAllString(t *testing.T, r *http.Request) string {
+	t.Helper()
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+	return string(body)
+}
 
 func TestEncodeDecodeRoundTrip(t *testing.T) {
 	cases := []string{
@@ -39,6 +52,105 @@ func TestSignCenterRequest(t *testing.T) {
 	sig := SignCenterRequest("test_date")
 	if len(sig) != 32 {
 		t.Errorf("signature length = %d, want 32", len(sig))
+	}
+}
+
+func TestExchangePATPostsSignedCenterRequest(t *testing.T) {
+	var capturedHeader http.Header
+	var capturedBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		capturedHeader = r.Header.Clone()
+		decoded, err := DecodeString(readAllString(t, r))
+		if err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if err := json.Unmarshal([]byte(decoded), &capturedBody); err != nil {
+			t.Fatalf("parse body: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":                 "user-1",
+			"name":               "User",
+			"userType":           "personal_standard",
+			"securityOauthToken": "token-1",
+			"refreshToken":       "refresh-1",
+		})
+	}))
+	defer server.Close()
+
+	identity, err := ExchangePAT("pat-1", &MachineIdentity{
+		MachineID:    "machine-1",
+		MachineToken: "machine-token",
+		MachineType:  "5",
+	}, server.URL)
+	if err != nil {
+		t.Fatalf("ExchangePAT: %v", err)
+	}
+	if identity.SecurityOauthToken != "token-1" {
+		t.Fatalf("token = %q, want token-1", identity.SecurityOauthToken)
+	}
+	if capturedHeader.Get("signature") == "" {
+		t.Fatal("signature header is empty")
+	}
+	payload, _ := capturedBody["payload"].(string)
+	var inner map[string]any
+	if err := json.Unmarshal([]byte(payload), &inner); err != nil {
+		t.Fatalf("parse payload: %v", err)
+	}
+	if inner["personalToken"] != "pat-1" {
+		t.Fatalf("personalToken = %v, want pat-1", inner["personalToken"])
+	}
+	if inner["needRefresh"] != false {
+		t.Fatalf("needRefresh = %v, want false", inner["needRefresh"])
+	}
+}
+
+func TestRefreshSessionPostsRefreshPayload(t *testing.T) {
+	var capturedBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		decoded, err := DecodeString(readAllString(t, r))
+		if err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if err := json.Unmarshal([]byte(decoded), &capturedBody); err != nil {
+			t.Fatalf("parse body: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"id":                 "user-2",
+			"name":               "User 2",
+			"userType":           "personal_pro",
+			"securityOauthToken": "new-token",
+			"refreshToken":       "new-refresh",
+		})
+	}))
+	defer server.Close()
+
+	identity, err := RefreshSession("old-refresh", "old-token", &MachineIdentity{
+		MachineID:    "machine-1",
+		MachineToken: "machine-token",
+		MachineType:  "5",
+	}, server.URL)
+	if err != nil {
+		t.Fatalf("RefreshSession: %v", err)
+	}
+	if identity.SecurityOauthToken != "new-token" {
+		t.Fatalf("token = %q, want new-token", identity.SecurityOauthToken)
+	}
+	if identity.RefreshToken != "new-refresh" {
+		t.Fatalf("refresh token = %q, want new-refresh", identity.RefreshToken)
+	}
+	payload, _ := capturedBody["payload"].(string)
+	var inner map[string]any
+	if err := json.Unmarshal([]byte(payload), &inner); err != nil {
+		t.Fatalf("parse payload: %v", err)
+	}
+	if inner["refreshToken"] != "old-refresh" {
+		t.Fatalf("refreshToken = %v, want old-refresh", inner["refreshToken"])
+	}
+	if inner["securityOauthToken"] != "old-token" {
+		t.Fatalf("securityOauthToken = %v, want old-token", inner["securityOauthToken"])
+	}
+	if inner["needRefresh"] != true {
+		t.Fatalf("needRefresh = %v, want true", inner["needRefresh"])
 	}
 }
 

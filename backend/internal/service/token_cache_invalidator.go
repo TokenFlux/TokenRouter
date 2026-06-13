@@ -24,7 +24,7 @@ func (c *CompositeTokenCacheInvalidator) InvalidateToken(ctx context.Context, ac
 	if c == nil || c.cache == nil || account == nil {
 		return nil
 	}
-	if account.Type != AccountTypeOAuth {
+	if account.Type != AccountTypeOAuth && !account.IsQoderCosy() {
 		return nil
 	}
 
@@ -46,6 +46,10 @@ func (c *CompositeTokenCacheInvalidator) InvalidateToken(ctx context.Context, ac
 		keysToDelete = append(keysToDelete, OpenAITokenCacheKey(account))
 	case PlatformAnthropic:
 		keysToDelete = append(keysToDelete, ClaudeTokenCacheKey(account))
+	case PlatformQoder:
+		if account.IsQoderCosy() {
+			keysToDelete = append(keysToDelete, QoderTokenCacheKey(account))
+		}
 	default:
 		return nil
 	}
