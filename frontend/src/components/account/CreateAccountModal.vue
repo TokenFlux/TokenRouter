@@ -3374,7 +3374,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import {
@@ -3404,6 +3404,7 @@ import {
 import { useGeminiOAuth } from '@/composables/useGeminiOAuth'
 import { useAntigravityOAuth } from '@/composables/useAntigravityOAuth'
 import { useQoderOAuth } from '@/composables/useQoderOAuth'
+import type { QoderTokenInfo } from '@/api/admin/qoder'
 import type {
   Proxy,
   AdminGroup,
@@ -3524,6 +3525,10 @@ const openaiOAuth = useOpenAIOAuth() // For OpenAI OAuth
 const geminiOAuth = useGeminiOAuth() // For Gemini OAuth
 const antigravityOAuth = useAntigravityOAuth() // For Antigravity OAuth
 const qoderOAuth = useQoderOAuth() // For Qoder device authorization
+let qoderPollTimer: number | null = null
+let qoderAuthPopup: Window | null = null
+let qoderPollInFlight = false
+let qoderPollGeneration = 0
 
 // Computed: current OAuth state for template binding
 const currentAuthUrl = computed(() => {
@@ -4699,6 +4704,7 @@ const submitCreateAccount = async (payload: CreateAccountRequest) => {
 
 // Methods
 const resetForm = () => {
+  stopQoderPolling()
   step.value = 1
   form.name = ''
   form.notes = ''
@@ -4810,6 +4816,8 @@ const resetForm = () => {
 }
 
 const handleClose = () => {
+  stopQoderPolling()
+  qoderAuthPopup = null
   antigravityMixedChannelConfirmed.value = false
   clearMixedChannelDialog()
   emit('close')
@@ -5267,6 +5275,7 @@ const handleSubmit = async () => {
 }
 
 const goBackToBasicInfo = () => {
+  stopQoderPolling()
   step.value = 1
   oauth.resetState()
   openaiOAuth.resetState()
@@ -5274,6 +5283,70 @@ const goBackToBasicInfo = () => {
   antigravityOAuth.resetState()
   qoderOAuth.resetState()
   oauthFlowRef.value?.reset()
+}
+
+const getQoderPopupFeatures = () => {
+  const width = Math.min(1100, (window.screen?.availWidth || 1100) - 40)
+  const height = Math.min(820, (window.screen?.availHeight || 820) - 40)
+  const left = Math.max(0, Math.floor(((window.screen?.availWidth || width) - width) / 2))
+  const top = Math.max(0, Math.floor(((window.screen?.availHeight || height) - height) / 2))
+  return `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+}
+
+const stopQoderPolling = () => {
+  qoderPollGeneration += 1
+  if (qoderPollTimer) {
+    window.clearInterval(qoderPollTimer)
+    qoderPollTimer = null
+  }
+  qoderPollInFlight = false
+}
+
+const createQoderOAuthAccount = async (tokenInfo?: QoderTokenInfo) => {
+  if (!tokenInfo) return
+
+  const credentials = qoderOAuth.buildCredentials(tokenInfo)
+  applyPersistedModelRestriction(credentials)
+  applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
+  await createAccountAndFinish('qoder', 'cosy', credentials)
+}
+
+const pollQoderAuthorizationOnce = async () => {
+  if (qoderPollInFlight || !qoderOAuth.sessionId.value || !qoderOAuth.state.value) return
+  const generation = qoderPollGeneration
+  qoderPollInFlight = true
+
+  try {
+    const result = await qoderOAuth.pollAuthorization({
+      sessionId: qoderOAuth.sessionId.value,
+      state: qoderOAuth.state.value,
+      proxyId: form.proxy_id
+    })
+    if (generation !== qoderPollGeneration) return
+    if (!result && qoderOAuth.error.value) {
+      stopQoderPolling()
+      return
+    }
+    if (result?.status !== 'completed' || !result.token_info) return
+
+    stopQoderPolling()
+    qoderAuthPopup?.close()
+    qoderAuthPopup = null
+    await createQoderOAuthAccount(result.token_info)
+  } finally {
+    qoderPollInFlight = false
+  }
+}
+
+const startQoderPolling = (intervalSeconds = 2) => {
+  stopQoderPolling()
+  const generation = qoderPollGeneration
+  void pollQoderAuthorizationOnce()
+  const intervalMs = Math.max(1, intervalSeconds) * 1000
+  qoderPollTimer = window.setInterval(() => {
+    if (generation !== qoderPollGeneration) return
+    void pollQoderAuthorizationOnce()
+  }, intervalMs)
 }
 
 const handleGenerateUrl = async () => {
@@ -5289,7 +5362,20 @@ const handleGenerateUrl = async () => {
   } else if (form.platform === 'antigravity') {
     await antigravityOAuth.generateAuthUrl(form.proxy_id)
   } else if (form.platform === 'qoder') {
-    await qoderOAuth.generateAuthUrl(form.proxy_id)
+    qoderAuthPopup = window.open('about:blank', 'qoderAuthPopup', getQoderPopupFeatures())
+    const ok = await qoderOAuth.generateAuthUrl(form.proxy_id)
+    if (!ok) {
+      qoderAuthPopup?.close()
+      qoderAuthPopup = null
+      return
+    }
+    if (qoderAuthPopup) {
+      qoderAuthPopup.location.href = qoderOAuth.authUrl.value
+      qoderAuthPopup.focus()
+    } else {
+      appStore.showWarning(t('admin.accounts.oauth.qoder.popupBlocked'))
+    }
+    startQoderPolling(qoderOAuth.pollInterval.value)
   } else {
     await oauth.generateAuthUrl(addMethod.value, form.proxy_id)
   }
@@ -6028,6 +6114,7 @@ const handleAntigravityExchange = async (authCode: string) => {
 const handleQoderExchange = async (authCode: string) => {
   if (!qoderOAuth.sessionId.value) return
 
+  stopQoderPolling()
   qoderOAuth.loading.value = true
   qoderOAuth.error.value = ''
 
@@ -6050,10 +6137,7 @@ const handleQoderExchange = async (authCode: string) => {
     })
     if (!tokenInfo) return
 
-    const credentials = qoderOAuth.buildCredentials(tokenInfo)
-    applyPersistedModelRestriction(credentials)
-    applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
-    await createAccountAndFinish('qoder', 'cosy', credentials)
+    await createQoderOAuthAccount(tokenInfo)
   } catch (error: any) {
     qoderOAuth.error.value = error.response?.data?.detail || t('admin.accounts.oauth.authFailed')
     appStore.showError(qoderOAuth.error.value)
@@ -6328,4 +6412,9 @@ const handleCookieAuth = async (sessionKey: string) => {
     oauth.loading.value = false
   }
 }
+
+onBeforeUnmount(() => {
+  stopQoderPolling()
+  qoderAuthPopup = null
+})
 </script>

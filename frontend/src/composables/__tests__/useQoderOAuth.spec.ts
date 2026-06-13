@@ -52,6 +52,7 @@ describe('useQoderOAuth', () => {
     expect(oauth.authUrl.value).toBe('https://qoder.com/device/selectAccounts?nonce=n')
     expect(oauth.sessionId.value).toBe('session-id')
     expect(oauth.state.value).toBe('state-value')
+    expect(oauth.pollInterval.value).toBe(2)
   })
 
   it('exchanges a pasted callback URL with session and state', async () => {
@@ -96,6 +97,33 @@ describe('useQoderOAuth', () => {
       session_id: 'session-id',
       state: 'state-value'
     })
+  })
+
+  it('polls the device authorization session', async () => {
+    vi.mocked(adminAPI.qoder.poll).mockResolvedValueOnce({
+      status: 'completed',
+      token_info: {
+        security_oauth_token: 'access-token',
+        machine_id: 'machine-id'
+      }
+    })
+
+    const oauth = useQoderOAuth()
+    const result = await oauth.pollAuthorization({
+      sessionId: 'session-id',
+      state: 'state-value',
+      proxyId: 7
+    })
+
+    expect(result?.status).toBe('completed')
+    expect(result?.token_info?.machine_id).toBe('machine-id')
+    expect(adminAPI.qoder.poll).toHaveBeenCalledWith({
+      session_id: 'session-id',
+      state: 'state-value',
+      proxy_id: 7
+    })
+    expect(oauth.loading.value).toBe(false)
+    expect(oauth.polling.value).toBe(false)
   })
 
   it('builds credentials compatible with Qoder token provider', () => {

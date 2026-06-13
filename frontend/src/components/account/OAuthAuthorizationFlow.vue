@@ -629,9 +629,9 @@
                 <p class="text-sm text-blue-700 dark:text-blue-300">
                   {{ oauthOpenUrlDesc }}
                 </p>
-                <!-- OpenAI Important Notice -->
+                <!-- Platform-specific important notice -->
                 <div
-                  v-if="isOpenAI"
+                  v-if="oauthImportantNotice"
                   class="mt-2 rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/30"
                 >
                   <p

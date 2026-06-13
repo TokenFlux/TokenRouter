@@ -3878,15 +3878,16 @@ export default {
                     generateAuthUrl: 'Generate Auth URL',
                     step2OpenUrl: 'Open the URL in your browser and complete authorization',
                     openUrlDesc: 'Open the authorization URL in a new tab, choose your Qoder account, and authorize.',
-                    importantNotice: 'Qoder uses a device authorization flow. After completing authorization in the browser, return here and click Complete Authorization. If it is still pending, retry after a moment.',
+                    importantNotice: 'Qoder uses a device authorization flow. This page opens the Qoder authorization window and checks completion automatically. A localhost callback URL is not expected for this flow.',
                     step3EnterCode: 'Complete Authorization',
-                    authCodeDesc: 'After browser authorization, you can complete directly. If the page gives you a localhost callback URL or code, paste it below.',
-                    authCode: 'Callback URL or Code (optional)',
-                    authCodePlaceholder: 'You may leave this empty and click Complete Authorization\nor paste localhost callback URL / code',
-                    authCodeHint: 'The system checks the Qoder device authorization status for this session.',
+                    authCodeDesc: 'After browser authorization, this page will complete automatically. If automatic checking is interrupted, click Complete Authorization to retry the device status check.',
+                    authCode: 'Manual callback input (optional)',
+                    authCodePlaceholder: 'Usually leave this empty for Qoder device authorization',
+                    authCodeHint: 'Qoder authorization is checked by polling the device session; localhost callback capture is not required.',
                     failedToGenerateUrl: 'Failed to generate Qoder auth URL',
                     missingExchangeParams: 'Missing session ID or state',
-                    failedToExchangeCode: 'Failed to check Qoder authorization'
+                    failedToExchangeCode: 'Failed to check Qoder authorization',
+                    popupBlocked: 'The browser blocked the Qoder authorization popup. Use the open-link button to continue authorization.'
                   }
                 },      // Gemini specific (platform-wide)
       gemini: {

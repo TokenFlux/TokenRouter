@@ -4002,15 +4002,16 @@ export default {
           generateAuthUrl: '生成授权链接',
           step2OpenUrl: '在浏览器中打开链接并完成授权',
           openUrlDesc: '请在新标签页中打开授权链接，选择 Qoder 账号并完成授权。',
-          importantNotice: 'Qoder 使用设备授权流程。浏览器授权完成后，回到这里点击完成授权；如果授权仍在处理中，请稍后重试。',
+          importantNotice: 'Qoder 使用设备授权流程。本页面会打开 Qoder 授权窗口并自动检查完成状态；这个流程通常不会出现 localhost 回调链接。',
           step3EnterCode: '完成授权',
-          authCodeDesc: '授权完成后可直接点击完成授权；如果页面提供 localhost 回调链接或 code，也可以粘贴到下方。',
-          authCode: '回调链接或 Code（可选）',
-          authCodePlaceholder: '可留空并直接点击完成授权\n或粘贴 localhost callback URL / code',
-          authCodeHint: '系统会根据本次授权会话检查 Qoder 设备授权状态。',
+          authCodeDesc: '浏览器授权完成后，本页面会自动完成。若自动检查被中断，可以点击完成授权重新检查设备授权状态。',
+          authCode: '手动回调输入（可选）',
+          authCodePlaceholder: 'Qoder 设备授权通常留空即可',
+          authCodeHint: 'Qoder 通过设备会话轮询授权结果，不需要抓取 localhost 回调。',
           failedToGenerateUrl: '生成 Qoder 授权链接失败',
           missingExchangeParams: '缺少 session_id / state',
-          failedToExchangeCode: 'Qoder 授权检查失败'
+          failedToExchangeCode: 'Qoder 授权检查失败',
+          popupBlocked: '浏览器拦截了 Qoder 授权弹窗，请使用打开链接按钮继续授权。'
         }
       },
       // Gemini specific (platform-wide)

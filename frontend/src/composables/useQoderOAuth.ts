@@ -2,7 +2,7 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'
-import type { QoderTokenInfo } from '@/api/admin/qoder'
+import type { QoderPollResponse, QoderTokenInfo } from '@/api/admin/qoder'
 
 export function useQoderOAuth() {
   const appStore = useAppStore()
@@ -11,14 +11,18 @@ export function useQoderOAuth() {
   const authUrl = ref('')
   const sessionId = ref('')
   const state = ref('')
+  const pollInterval = ref(2)
   const loading = ref(false)
+  const polling = ref(false)
   const error = ref('')
 
   const resetState = () => {
     authUrl.value = ''
     sessionId.value = ''
     state.value = ''
+    pollInterval.value = 2
     loading.value = false
+    polling.value = false
     error.value = ''
   }
 
@@ -37,6 +41,7 @@ export function useQoderOAuth() {
       authUrl.value = response.auth_url
       sessionId.value = response.session_id
       state.value = response.state
+      pollInterval.value = response.interval || 2
       return true
     } catch (err: any) {
       error.value =
@@ -90,6 +95,41 @@ export function useQoderOAuth() {
     }
   }
 
+  const pollAuthorization = async (params: {
+    sessionId: string
+    state: string
+    proxyId?: number | null
+  }): Promise<QoderPollResponse | null> => {
+    if (!params.sessionId || !params.state) {
+      error.value = t('admin.accounts.oauth.qoder.missingExchangeParams')
+      return null
+    }
+
+    polling.value = true
+    loading.value = true
+    error.value = ''
+
+    try {
+      const payload: Record<string, unknown> = {
+        session_id: params.sessionId,
+        state: params.state
+      }
+      if (params.proxyId) payload.proxy_id = params.proxyId
+
+      return await adminAPI.qoder.poll(payload as any)
+    } catch (err: any) {
+      error.value =
+        err.response?.data?.detail ||
+        err.message ||
+        t('admin.accounts.oauth.qoder.failedToExchangeCode')
+      appStore.showError(error.value)
+      return null
+    } finally {
+      loading.value = false
+      polling.value = false
+    }
+  }
+
   const buildCredentials = (tokenInfo: QoderTokenInfo): Record<string, unknown> => ({
     security_oauth_token: tokenInfo.security_oauth_token,
     refresh_token: tokenInfo.refresh_token,
@@ -107,11 +147,14 @@ export function useQoderOAuth() {
     authUrl,
     sessionId,
     state,
+    pollInterval,
     loading,
+    polling,
     error,
     resetState,
     generateAuthUrl,
     exchangeAuthCode,
+    pollAuthorization,
     buildCredentials
   }
 }
