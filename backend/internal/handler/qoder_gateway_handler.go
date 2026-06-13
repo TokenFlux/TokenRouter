@@ -222,6 +222,60 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 			accountRelease()
 		}
 		if err != nil {
+			if h.shouldRefreshQoderAccount(err, c.Writer.Size() != writerSizeBeforeForward) {
+				refreshedAccount, refreshErr := h.refreshQoderAccount(c.Request.Context(), account)
+				if refreshErr == nil && refreshedAccount != nil {
+					reqLog.Info("qoder.account_refreshed_after_auth_error", zap.Int64("account_id", account.ID))
+					account = refreshedAccount
+					setOpsSelectedAccount(c, account.ID, account.Platform)
+					writerSizeBeforeForward = c.Writer.Size()
+					accountRelease, err = h.acquireQoderRetryAccountSlot(c, account, selection, reqStream, &streamStarted)
+					if err != nil {
+						reqLog.Warn("qoder.account_retry_slot_acquire_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+						h.handleConcurrencyError(c, err, "account", streamStarted, endpoint)
+						return
+					}
+					switch endpoint {
+					case qoderEndpointChatCompletions:
+						result, err = h.qoderGatewayService.ForwardChatCompletions(forwardCtx, c, account, body)
+					default:
+						result, err = h.qoderGatewayService.ForwardMessages(forwardCtx, c, account, body)
+					}
+					if accountRelease != nil {
+						accountRelease()
+					}
+				} else if refreshErr != nil {
+					reqLog.Warn("qoder.account_refresh_after_auth_error_failed", zap.Int64("account_id", account.ID), zap.Error(refreshErr))
+				}
+				if err == nil {
+					userAgent := c.GetHeader("User-Agent")
+					clientIP := ip.GetClientIP(c)
+					requestPayloadHash := service.HashUsageRequestPayload(body)
+					inboundEndpoint := GetInboundEndpoint(c)
+					upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+					quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+					h.submitUsageRecordTask(c, func(ctx context.Context) {
+						if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
+							Result:             result,
+							QuotaPlatform:      quotaPlatform,
+							APIKey:             apiKey,
+							User:               apiKey.User,
+							Account:            account,
+							Subscription:       subscription,
+							InboundEndpoint:    inboundEndpoint,
+							UpstreamEndpoint:   upstreamEndpoint,
+							UserAgent:          userAgent,
+							IPAddress:          clientIP,
+							RequestPayloadHash: requestPayloadHash,
+							RequestBody:        append([]byte(nil), body...),
+							APIKeyService:      h.apiKeyService,
+						}); err != nil {
+							reqLog.Error("qoder.record_usage_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+						}
+					})
+					return
+				}
+			}
 			if status, errType, message, ok := qoderGatewayErrorDetails(err); ok {
 				service.SetOpsUpstreamError(c, upstreamStatusFromError(err), message, "")
 				h.streamingAwareError(c, status, errType, message, c.Writer.Size() != writerSizeBeforeForward, endpoint)
@@ -267,6 +321,40 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 		})
 		return
 	}
+}
+
+func (h *QoderGatewayHandler) shouldRefreshQoderAccount(err error, streamStarted bool) bool {
+	if h == nil || h.qoderGatewayService == nil || streamStarted {
+		return false
+	}
+	var apiErr *qoder.APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	return apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden
+}
+
+func (h *QoderGatewayHandler) refreshQoderAccount(ctx context.Context, account *service.Account) (*service.Account, error) {
+	if h == nil || h.qoderGatewayService == nil {
+		return nil, errors.New("qoder gateway service is not configured")
+	}
+	refreshCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	return h.qoderGatewayService.RefreshAccountSession(refreshCtx, account)
+}
+
+func (h *QoderGatewayHandler) acquireQoderRetryAccountSlot(c *gin.Context, account *service.Account, selection *service.AccountSelectionResult, reqStream bool, streamStarted *bool) (func(), error) {
+	if account == nil {
+		return nil, errors.New("account is nil")
+	}
+	if h == nil || h.concurrencyHelper == nil {
+		return nil, nil
+	}
+	maxConcurrency := account.Concurrency
+	if selection != nil && selection.WaitPlan != nil {
+		return h.concurrencyHelper.AcquireAccountSlotWithWaitTimeout(c, account.ID, selection.WaitPlan.MaxConcurrency, selection.WaitPlan.Timeout, reqStream, streamStarted)
+	}
+	return h.concurrencyHelper.AcquireAccountSlotWithWait(c, account.ID, maxConcurrency, reqStream, streamStarted)
 }
 
 func (h *QoderGatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotType string, streamStarted bool, endpoint qoderEndpoint) {

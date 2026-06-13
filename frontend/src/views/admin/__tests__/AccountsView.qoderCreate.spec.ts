@@ -8,13 +8,15 @@ const {
   listWithEtag,
   getBatchTodayStats,
   getAllProxies,
-  getAllGroupsIncludingInactive
+  getAllGroupsIncludingInactive,
+  syncQoderModels
 } = vi.hoisted(() => ({
   listAccounts: vi.fn(),
   listWithEtag: vi.fn(),
   getBatchTodayStats: vi.fn(),
   getAllProxies: vi.fn(),
-  getAllGroupsIncludingInactive: vi.fn()
+  getAllGroupsIncludingInactive: vi.fn(),
+  syncQoderModels: vi.fn()
 }))
 
 vi.mock('@/api/admin', () => ({
@@ -33,6 +35,9 @@ vi.mock('@/api/admin', () => ({
     },
     groups: {
       getAllIncludingInactive: getAllGroupsIncludingInactive
+    },
+    qoder: {
+      syncModels: syncQoderModels
     }
   }
 }))
@@ -134,6 +139,7 @@ describe('admin AccountsView Qoder create entry', () => {
     getBatchTodayStats.mockReset()
     getAllProxies.mockReset()
     getAllGroupsIncludingInactive.mockReset()
+    syncQoderModels.mockReset()
 
     listAccounts.mockResolvedValue({
       items: [],
@@ -150,17 +156,52 @@ describe('admin AccountsView Qoder create entry', () => {
     getBatchTodayStats.mockResolvedValue({ stats: {} })
     getAllProxies.mockResolvedValue([])
     getAllGroupsIncludingInactive.mockResolvedValue([])
+    syncQoderModels.mockResolvedValue({
+      source: 'local',
+      applied: true,
+      script_path: '',
+      persist_path: '',
+      incoming_count: 2,
+      current_count: 2,
+      final_count: 2,
+      added: [],
+      removed: [],
+      changed: [],
+      preserved: [],
+      models: []
+    })
   })
 
-  it('opens CreateAccountModal directly on Qoder from the explicit shortcut', async () => {
+  it('uses the standard create entry and does not render the Qoder shortcut', async () => {
     const wrapper = mountView()
     await flushPromises()
 
-    await wrapper.get('[data-test="create-qoder-account"]').trigger('click')
+    expect(wrapper.find('[data-test="create-qoder-account"]').exists()).toBe(false)
+
+    await wrapper.get('[data-test="default-create"]').trigger('click')
     await flushPromises()
 
     const modal = wrapper.get('[data-test="create-account-modal"]')
     expect(modal.attributes('data-show')).toBe('true')
-    expect(modal.attributes('data-initial-platform')).toBe('qoder')
+    expect(modal.attributes('data-initial-platform')).toBe('')
+  })
+
+  it('syncs Qoder models from the account tools menu', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    const toolsButton = wrapper.findAll('button').find(button => button.text().includes('admin.accounts.moreActions'))
+    expect(toolsButton).toBeTruthy()
+
+    await toolsButton!.trigger('click')
+    await flushPromises()
+
+    const syncButton = wrapper.findAll('button').find(button => button.text().includes('admin.accounts.syncQoderModels'))
+    expect(syncButton).toBeTruthy()
+
+    await syncButton!.trigger('click')
+    await flushPromises()
+
+    expect(syncQoderModels).toHaveBeenCalledWith({ source: 'local', apply: true })
   })
 })

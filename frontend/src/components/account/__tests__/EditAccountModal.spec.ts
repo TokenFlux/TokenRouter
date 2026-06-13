@@ -90,6 +90,13 @@ const ModelWhitelistSelectorStub = defineComponent({
       >
         rewrite
       </button>
+      <button
+        type="button"
+        data-testid="rewrite-to-qoder-defaults"
+        @click="$emit('update:modelValue', ['claude-opus-4-6', 'auto'])"
+      >
+        rewrite qoder
+      </button>
       <span data-testid="model-whitelist-value">
         {{ Array.isArray(modelValue) ? modelValue.join(',') : '' }}
       </span>
@@ -193,7 +200,11 @@ function buildQoderAccount() {
     credentials: {
       security_oauth_token: 'redacted',
       machine_id: 'machine',
-      model_whitelist: ['gpt-5-codex']
+      model_mapping: {
+        'claude-opus-4-6': 'ultimate',
+        auto: 'auto'
+      },
+      model_whitelist: []
     },
     extra: {},
     proxy_id: null,
@@ -547,19 +558,20 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.tls_fingerprint_profile_id).toBe(7)
   })
 
-  it('loads and submits Qoder COSY model restriction settings', async () => {
+  it('loads and submits Qoder COSY model mappings', async () => {
     const account = buildQoderAccount()
     updateAccountMock.mockResolvedValue(account)
 
     const wrapper = mountModal(account)
 
-    expect(wrapper.get('[data-testid="model-whitelist-value"]').text()).toBe('gpt-5-codex')
-
-    await wrapper.get('[data-testid="rewrite-to-snapshot"]').trigger('click')
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
-    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_whitelist).toEqual(['gpt-5.2-2025-12-11'])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual({
+      'claude-opus-4-6': 'ultimate',
+      auto: 'auto'
+    })
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_whitelist).toEqual([])
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.security_oauth_token).toBe('redacted')
   })
 

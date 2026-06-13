@@ -270,6 +270,33 @@ func TestAccountIsModelSupported(t *testing.T) {
 			requestedModel: "model-c",
 			expected:       true,
 		},
+		{
+			name:           "qoder default public alias is supported",
+			platform:       PlatformQoder,
+			credentials:    nil,
+			requestedModel: "claude-opus-4-6",
+			expected:       true,
+		},
+		{
+			name:           "qoder raw upstream key is not a request model by default",
+			platform:       PlatformQoder,
+			credentials:    nil,
+			requestedModel: "ultimate",
+			expected:       false,
+		},
+		{
+			name:     "qoder account mapping restricts request aliases",
+			platform: PlatformQoder,
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"claude-opus-4-6": "ultimate",
+					"auto":            "auto",
+				},
+				"model_whitelist": []any{},
+			},
+			requestedModel: "ultimate",
+			expected:       false,
+		},
 	}
 
 	for _, tt := range tests {

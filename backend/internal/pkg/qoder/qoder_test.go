@@ -174,7 +174,22 @@ func TestDefaultModels(t *testing.T) {
 	for _, model := range DefaultModels {
 		ids = append(ids, model.ID)
 	}
-	want := []string{"claude-opus-4-6", "auto"}
+	want := []string{
+		"claude-opus-4-6",
+		"auto",
+		"performance",
+		"efficient",
+		"lite",
+		"qwen3.7-max",
+		"qwen3.7-plus",
+		"qwen3.5-plus",
+		"deepseek-v4-pro",
+		"deepseek-v4-flash",
+		"glm-5",
+		"glm-5.1",
+		"kimi-k2.7-code",
+		"minimax-m3",
+	}
 	if len(ids) != len(want) {
 		t.Fatalf("default model count = %d, want %d", len(ids), len(want))
 	}
@@ -308,6 +323,27 @@ func TestParseSSELineToolCall(t *testing.T) {
 	}
 	if events[0].ToolName != "bash" {
 		t.Errorf("tool name = %q, want bash", events[0].ToolName)
+	}
+}
+
+func TestParseSSELineToolCallPreservesIndexTypeAndObjectArguments(t *testing.T) {
+	line := `data: {"body": "{\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"tc1\",\"type\":\"function\",\"function\":{\"name\":\"bash\",\"arguments\":{\"cmd\":\"ls\"}}}]}}]}"}`
+	events, err := ParseSSELine(line)
+	if err != nil {
+		t.Fatalf("ParseSSELine: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("events length = %d, want 1", len(events))
+	}
+	event := events[0]
+	if !event.HasToolCallIndex || event.ToolCallIndex != 0 {
+		t.Fatalf("tool call index = (%v, %d), want (true, 0)", event.HasToolCallIndex, event.ToolCallIndex)
+	}
+	if event.ToolType != "function" {
+		t.Fatalf("tool type = %q, want function", event.ToolType)
+	}
+	if event.Arguments != `{"cmd":"ls"}` {
+		t.Fatalf("arguments = %q, want object JSON", event.Arguments)
 	}
 }
 

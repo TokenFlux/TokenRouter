@@ -2437,9 +2437,12 @@ import {
 } from '@/utils/openaiWsMode'
 import {
   getPresetMappingsByPlatform,
+  getModelsByPlatform,
   commonErrorCodes,
   buildModelMappingObject,
   buildPersistedModelRestriction,
+  buildQoderModelMappingObject,
+  splitQoderModelMappingObject,
   splitPersistedModelRestriction,
   isValidWildcardPattern
 } from '@/composables/useModelWhitelist'
@@ -2978,6 +2981,20 @@ const hydrateModelRestrictionFromMapping = (
   modelRestrictionMode.value = parsed.modelMappings.length > 0 ? 'mapping' : 'whitelist'
 }
 
+const hydrateQoderModelRestrictionFromMapping = (existingMappings?: Record<string, string>) => {
+  if (!existingMappings || typeof existingMappings !== 'object') {
+    allowedModels.value = [...getModelsByPlatform('qoder')]
+    modelMappings.value = []
+    modelRestrictionMode.value = 'whitelist'
+    return
+  }
+
+  const parsed = splitQoderModelMappingObject(existingMappings)
+  allowedModels.value = parsed.allowedModels
+  modelMappings.value = parsed.modelMappings
+  modelRestrictionMode.value = modelMappings.value.length > 0 ? 'mapping' : 'whitelist'
+}
+
 const applyPersistedModelRestriction = (credentials: Record<string, unknown>) => {
   // 普通账号将请求侧映射与最终白名单分开持久化。
   // 这里即使白名单为空，也要显式写入 []，避免后端回退到 legacy 的自映射白名单解析。
@@ -2988,6 +3005,16 @@ const applyPersistedModelRestriction = (credentials: Record<string, unknown>) =>
     delete credentials.model_mapping
   }
   credentials.model_whitelist = persisted.modelWhitelist
+}
+
+const applyQoderModelRestriction = (credentials: Record<string, unknown>) => {
+  const mapping = buildQoderModelMappingObject(allowedModels.value, modelMappings.value)
+  if (mapping) {
+    credentials.model_mapping = mapping
+  } else {
+    delete credentials.model_mapping
+  }
+  credentials.model_whitelist = []
 }
 
 const syncFormFromAccount = (newAccount: Account | null) => {
@@ -3274,7 +3301,11 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     ) {
       const oauthCredentials = newAccount.credentials as Record<string, unknown>
       const existingMappings = oauthCredentials.model_mapping as Record<string, string> | undefined
-      hydrateModelRestrictionFromMapping(existingMappings, oauthCredentials.model_whitelist)
+      if (newAccount.platform === 'qoder') {
+        hydrateQoderModelRestrictionFromMapping(existingMappings)
+      } else {
+        hydrateModelRestrictionFromMapping(existingMappings, oauthCredentials.model_whitelist)
+      }
     } else {
       hydrateModelRestrictionFromMapping()
     }
@@ -3861,7 +3892,11 @@ const handleSubmit = async () => {
 
       // Add model mapping if configured（OpenAI 开启自动透传时保留现有映射，不再编辑）
       if (shouldApplyModelMapping) {
-        applyPersistedModelRestriction(newCredentials)
+        if (props.account.platform === 'qoder') {
+          applyQoderModelRestriction(newCredentials)
+        } else {
+          applyPersistedModelRestriction(newCredentials)
+        }
       } else if (currentCredentials.model_mapping) {
         newCredentials.model_mapping = currentCredentials.model_mapping
         if ('model_whitelist' in currentCredentials) {
@@ -4051,7 +4086,11 @@ const handleSubmit = async () => {
       const shouldApplyModelMapping = !(props.account.platform === 'openai' && openaiPassthroughEnabled.value)
 
       if (shouldApplyModelMapping) {
-        applyPersistedModelRestriction(newCredentials)
+        if (props.account.platform === 'qoder') {
+          applyQoderModelRestriction(newCredentials)
+        } else {
+          applyPersistedModelRestriction(newCredentials)
+        }
       } else if (currentCredentials.model_mapping) {
         // 透传模式保留现有映射
         newCredentials.model_mapping = currentCredentials.model_mapping

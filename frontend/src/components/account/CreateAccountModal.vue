@@ -3384,6 +3384,7 @@ import {
   commonErrorCodes,
   buildModelMappingObject,
   buildPersistedModelRestriction,
+  buildQoderModelMappingObject,
   splitPersistedModelRestriction,
   fetchAntigravityDefaultMappings,
   isValidWildcardPattern
@@ -4443,6 +4444,16 @@ const applyPersistedModelRestriction = (credentials: Record<string, unknown>) =>
   credentials.model_whitelist = persisted.modelWhitelist
 }
 
+const applyQoderModelRestriction = (credentials: Record<string, unknown>) => {
+  const mapping = buildQoderModelMappingObject(allowedModels.value, modelMappings.value)
+  if (mapping) {
+    credentials.model_mapping = mapping
+  } else {
+    delete credentials.model_mapping
+  }
+  credentials.model_whitelist = []
+}
+
 const addPresetMapping = (from: string, to: string) => {
   if (modelMappings.value.some((m) => m.from === from)) {
     appStore.showInfo(t('admin.accounts.mappingExists', { model: from }))
@@ -5178,7 +5189,7 @@ const handleSubmit = async () => {
     if (qoderRefreshToken.value.trim()) {
       credentials.refresh_token = qoderRefreshToken.value.trim()
     }
-    applyPersistedModelRestriction(credentials)
+    applyQoderModelRestriction(credentials)
     applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
     await createAccountAndFinish('qoder', 'cosy', credentials)
     return
@@ -5306,7 +5317,7 @@ const createQoderOAuthAccount = async (tokenInfo?: QoderTokenInfo) => {
   if (!tokenInfo) return
 
   const credentials = qoderOAuth.buildCredentials(tokenInfo)
-  applyPersistedModelRestriction(credentials)
+  applyQoderModelRestriction(credentials)
   applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
   await createAccountAndFinish('qoder', 'cosy', credentials)
 }

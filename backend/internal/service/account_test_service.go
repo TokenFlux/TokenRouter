@@ -36,7 +36,7 @@ var sseDataPrefix = regexp.MustCompile(`^data:\s*`)
 const (
 	testClaudeAPIURL      = "https://api.anthropic.com/v1/messages?beta=true"
 	chatgptCodexAPIURL    = "https://chatgpt.com/backend-api/codex/responses"
-	defaultQoderTestModel = "gpt-5-codex"
+	defaultQoderTestModel = "auto"
 )
 
 type qoderAccountTestSessionProvider interface {

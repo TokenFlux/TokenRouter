@@ -68,6 +68,7 @@ type QoderModelAliasChange struct {
 }
 
 type qoderModelSyncScriptEntry struct {
+	Alias       string `json:"alias"`
 	Key         string `json:"key"`
 	Provider    string `json:"provider"`
 	Notes       string `json:"notes"`
@@ -189,7 +190,11 @@ func parseQoderModelSyncOutput(out []byte) (map[string]qoderModelInfo, error) {
 		if key == "" {
 			return nil, errors.New("qoder model sync returned a model without key")
 		}
-		models[key] = qoderModelInfo{
+		alias := strings.TrimSpace(entry.Alias)
+		if alias == "" {
+			alias = key
+		}
+		models[alias] = qoderModelInfo{
 			Key:         key,
 			Source:      "system",
 			Provider:    strings.TrimSpace(entry.Provider),
@@ -201,21 +206,63 @@ func parseQoderModelSyncOutput(out []byte) (map[string]qoderModelInfo, error) {
 	return models, nil
 }
 
-func buildQoderModelSyncAliases(current map[string]qoderModelInfo, incoming map[string]qoderModelInfo) (map[string]qoderModelInfo, []QoderModelAliasRecord) {
-	finalAliases := cloneQoderModelAliases(incoming)
-	var preserved []QoderModelAliasRecord
-	for alias, info := range current {
-		if alias == info.Key {
-			continue
-		}
-		if _, ok := incoming[info.Key]; !ok {
-			continue
-		}
-		finalAliases[alias] = info
-		preserved = append(preserved, qoderAliasRecord(alias, info))
+func normalizeQoderModelInfo(info qoderModelInfo, fallback qoderModelInfo) qoderModelInfo {
+	if strings.TrimSpace(info.Key) == "" {
+		info.Key = fallback.Key
 	}
-	sortQoderModelAliasRecords(preserved)
-	return finalAliases, preserved
+	if strings.TrimSpace(info.Source) == "" {
+		info.Source = fallback.Source
+	}
+	if strings.TrimSpace(info.Provider) == "" {
+		info.Provider = fallback.Provider
+	}
+	if strings.TrimSpace(info.Notes) == "" {
+		info.Notes = fallback.Notes
+	}
+	if strings.TrimSpace(info.DisplayName) == "" {
+		info.DisplayName = fallback.DisplayName
+	}
+	if strings.TrimSpace(info.Description) == "" {
+		info.Description = fallback.Description
+	}
+	return info
+}
+
+func qoderModelInfoForAlias(models map[string]qoderModelInfo, alias string, fallback qoderModelInfo) qoderModelInfo {
+	if info, ok := models[alias]; ok {
+		return normalizeQoderModelInfo(info, fallback)
+	}
+	if key := strings.TrimSpace(fallback.Key); key != "" {
+		if info, ok := models[key]; ok {
+			return normalizeQoderModelInfo(info, fallback)
+		}
+	}
+	return fallback
+}
+
+func buildQoderPublicModelAliases(models map[string]qoderModelInfo) map[string]qoderModelInfo {
+	aliases := make(map[string]qoderModelInfo, len(defaultQoderModelAliases))
+	for alias, fallback := range defaultQoderModelAliases {
+		aliases[alias] = qoderModelInfoForAlias(models, alias, fallback)
+	}
+	return aliases
+}
+
+func buildQoderModelSyncAliases(current map[string]qoderModelInfo, incoming map[string]qoderModelInfo) (map[string]qoderModelInfo, []QoderModelAliasRecord) {
+	finalAliases := buildQoderPublicModelAliases(incoming)
+	return finalAliases, nil
+}
+
+func qoderAliasWasInSource(source map[string]qoderModelInfo, alias string, info qoderModelInfo) bool {
+	if _, ok := source[alias]; ok {
+		return true
+	}
+	key := strings.TrimSpace(info.Key)
+	if key == "" {
+		return false
+	}
+	_, ok := source[key]
+	return ok
 }
 
 func diffQoderModelAliases(current map[string]qoderModelInfo, finalAliases map[string]qoderModelInfo, incoming map[string]qoderModelInfo) ([]QoderModelAliasRecord, []QoderModelAliasRecord, []QoderModelAliasChange) {
@@ -224,7 +271,7 @@ func diffQoderModelAliases(current map[string]qoderModelInfo, finalAliases map[s
 	var changed []QoderModelAliasChange
 
 	for alias, next := range finalAliases {
-		if _, fromSource := incoming[alias]; !fromSource {
+		if !qoderAliasWasInSource(incoming, alias, next) {
 			continue
 		}
 		prev, exists := current[alias]
@@ -319,7 +366,7 @@ func (s *QoderModelSyncService) loadPersisted() error {
 	if len(aliases) == 0 {
 		return nil
 	}
-	applyQoderModelAliases(aliases)
+	applyQoderModelAliases(buildQoderPublicModelAliases(aliases))
 	return nil
 }
 

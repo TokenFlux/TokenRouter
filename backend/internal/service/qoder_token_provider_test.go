@@ -50,6 +50,7 @@ func TestQoderTokenProviderRejectsUnsupportedCredentialShape(t *testing.T) {
 
 func TestQoderTokenProviderSupportsInjectedPATExchange(t *testing.T) {
 	calls := 0
+	orgCalls := 0
 	provider := NewQoderTokenProvider()
 	provider.exchangePAT = func(_ context.Context, pat string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
 		calls++
@@ -63,6 +64,10 @@ func TestQoderTokenProviderSupportsInjectedPATExchange(t *testing.T) {
 			SecurityOauthToken: "dt-from-pat",
 			RefreshToken:       "rt-from-pat",
 		}, nil
+	}
+	provider.getOrgTags = func(context.Context, string, string) (*qoder.OrganizationTags, error) {
+		orgCalls++
+		return nil, nil
 	}
 
 	account := &Account{
@@ -86,4 +91,40 @@ func TestQoderTokenProviderSupportsInjectedPATExchange(t *testing.T) {
 	require.NoError(t, err)
 	require.Same(t, session1, session2)
 	require.Equal(t, 1, calls, "PAT exchange should not run after cache hit")
+	require.Equal(t, 0, orgCalls, "account-provided organization metadata should skip org lookup")
+}
+
+func TestQoderTokenProviderPATExchangePopulatesOrganizationFromAPI(t *testing.T) {
+	provider := NewQoderTokenProvider()
+	provider.exchangePAT = func(_ context.Context, _ string, _ *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
+		return &qoder.AuthIdentity{
+			Name:               "PAT User",
+			UID:                "uid-1",
+			AID:                "aid-1",
+			UserType:           "personal_standard",
+			SecurityOauthToken: "dt-from-pat",
+		}, nil
+	}
+	provider.getOrgTags = func(_ context.Context, token, uid string) (*qoder.OrganizationTags, error) {
+		require.Equal(t, "dt-from-pat", token)
+		require.Equal(t, "uid-1", uid)
+		return &qoder.OrganizationTags{
+			OrganizationID:   "org-from-api",
+			OrganizationName: "Org From API",
+		}, nil
+	}
+
+	account := &Account{
+		ID:       104,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"pat": "pat-123",
+		},
+	}
+
+	session, err := provider.GetSession(context.Background(), account)
+	require.NoError(t, err)
+	require.Equal(t, "org-from-api", session.Identity.OrganizationID)
+	require.Equal(t, "Org From API", session.Identity.OrganizationName)
 }

@@ -111,6 +111,19 @@
                         {{ t('admin.accounts.toolActions') }}
                       </div>
                     </div>
+                    <button
+                      class="account-tools-menu-item"
+                      :class="{ 'cursor-not-allowed opacity-60': syncingQoderModels }"
+                      :disabled="syncingQoderModels"
+                      @click="syncQoderModels"
+                    >
+                      <span class="account-tools-menu-icon bg-cyan-50 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-300">
+                        <Icon name="sync" size="sm" :class="{ 'animate-spin': syncingQoderModels }" />
+                      </span>
+                      <span class="flex-1 text-left">
+                        {{ syncingQoderModels ? t('admin.accounts.syncQoderModelsLoading') : t('admin.accounts.syncQoderModels') }}
+                      </span>
+                    </button>
                     <button class="account-tools-menu-item" @click="openErrorPassthrough">
                       <span class="account-tools-menu-icon bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300">
                         <Icon name="shield" size="sm" />
@@ -153,17 +166,6 @@
                   </div>
                 </div>
               </div>
-            </template>
-            <template #afterCreate>
-              <button
-                type="button"
-                class="btn btn-secondary"
-                data-test="create-qoder-account"
-                @click="openCreateAccount('qoder')"
-              >
-                <Icon name="terminal" size="sm" />
-                {{ t('admin.accounts.addQoderAccount') }}
-              </button>
             </template>
           </AccountTableActions>
         </div>
@@ -523,6 +525,7 @@ const showStats = ref(false)
 const showErrorPassthrough = ref(false)
 const showTLSFingerprintProfiles = ref(false)
 const showTLSFingerprintRouters = ref(false)
+const syncingQoderModels = ref(false)
 const edAcc = ref<Account | null>(null)
 const tempUnschedAcc = ref<Account | null>(null)
 const deletingAcc = ref<Account | null>(null)
@@ -1103,6 +1106,26 @@ const openTLSFingerprintProfiles = () => {
 const openTLSFingerprintRouters = () => {
   closeAccountToolsDropdown()
   showTLSFingerprintRouters.value = true
+}
+
+const syncQoderModels = async () => {
+  if (syncingQoderModels.value) return
+  syncingQoderModels.value = true
+  closeAccountToolsDropdown()
+  try {
+    const result = await adminAPI.qoder.syncModels({ source: 'local', apply: true })
+    const changedCount = result.added.length + result.removed.length + result.changed.length
+    if (changedCount > 0) {
+      appStore.showSuccess(t('admin.accounts.syncQoderModelsSuccess', { count: result.final_count, changed: changedCount }))
+    } else {
+      appStore.showInfo(t('admin.accounts.syncQoderModelsNoChanges', { count: result.final_count }))
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : t('admin.accounts.syncQoderModelsFailed')
+    appStore.showError(t('admin.accounts.syncQoderModelsError', { message }))
+  } finally {
+    syncingQoderModels.value = false
+  }
 }
 
 const syncPendingListChanges = async () => {

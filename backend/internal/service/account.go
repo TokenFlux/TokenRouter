@@ -710,6 +710,14 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 		_, matched := a.ResolveMappedModel(requestedModel)
 		return matched
 	}
+	if a.IsQoder() {
+		if len(mapping) == 0 {
+			_, matched := lookupPublicQoderModelAlias(strings.TrimSpace(requestedModel))
+			return matched
+		}
+		_, matched := a.ResolveMappedModel(requestedModel)
+		return matched
+	}
 	whitelist, _ := resolveFinalModelWhitelist(a.Platform, a.Credentials, mapping)
 	if len(mapping) == 0 {
 		return isModelInFinalWhitelist(a.Platform, requestedModel, whitelist)
@@ -728,6 +736,17 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 // 若不存在白名单，则请求模型空间不受限制，返回 nil 表示调用方应回退到默认模型列表。
 func (a *Account) GetConfiguredRequestModels() []string {
 	mapping := a.GetModelMapping()
+	if a.IsQoder() {
+		if len(mapping) == 0 {
+			return nil
+		}
+		models := make([]string, 0, len(mapping))
+		for model := range mapping {
+			models = append(models, model)
+		}
+		sort.Strings(models)
+		return models
+	}
 	whitelist, _ := resolveFinalModelWhitelist(a.Platform, a.Credentials, mapping)
 	if len(whitelist) == 0 {
 		return nil

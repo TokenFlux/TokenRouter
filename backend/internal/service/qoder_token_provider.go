@@ -13,6 +13,7 @@ import (
 )
 
 type qoderPATExchanger func(ctx context.Context, pat string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error)
+type qoderOrganizationTagsGetter func(ctx context.Context, token, uid string) (*qoder.OrganizationTags, error)
 type qoderLocalAuthReader func(ctx context.Context, authDir string) (*qoder.AuthIdentity, *qoder.MachineIdentity, error)
 
 type qoderSessionCacheEntry struct {
@@ -25,6 +26,7 @@ type QoderTokenProvider struct {
 	mu          sync.Mutex
 	sessions    map[int64]qoderSessionCacheEntry
 	exchangePAT qoderPATExchanger
+	getOrgTags  qoderOrganizationTagsGetter
 	readLocal   qoderLocalAuthReader
 }
 
@@ -38,6 +40,9 @@ func NewQoderTokenProvider() *QoderTokenProvider {
 			default:
 			}
 			return qoder.ExchangePAT(pat, machine, "")
+		},
+		getOrgTags: func(ctx context.Context, token, uid string) (*qoder.OrganizationTags, error) {
+			return qoder.NewOAuthClient(qoder.OpenAPIBaseURL, nil).GetOrganizationTags(ctx, token, uid)
 		},
 		readLocal: func(ctx context.Context, authDir string) (*qoder.AuthIdentity, *qoder.MachineIdentity, error) {
 			select {
@@ -102,6 +107,7 @@ func (p *QoderTokenProvider) buildSession(ctx context.Context, account *Account)
 			return nil, fmt.Errorf("qoder pat exchange: %w", err)
 		}
 		applyQoderAccountIdentityMetadata(identity, account)
+		p.populateOrganizationFromAPI(ctx, identity)
 		return qoder.NewSession(identity, machine)
 	}
 
@@ -142,6 +148,29 @@ func (p *QoderTokenProvider) buildSession(ctx context.Context, account *Account)
 	}
 
 	return nil, errors.New("qoder credentials require pat, security_oauth_token+machine_id, or machine_id")
+}
+
+func (p *QoderTokenProvider) populateOrganizationFromAPI(ctx context.Context, identity *qoder.AuthIdentity) {
+	if p == nil || p.getOrgTags == nil || identity == nil {
+		return
+	}
+	if strings.TrimSpace(identity.OrganizationID) != "" {
+		return
+	}
+	token := strings.TrimSpace(identity.SecurityOauthToken)
+	if token == "" {
+		return
+	}
+	uid := firstNonEmptyQoder(identity.UID, identity.AID)
+	if uid == "" {
+		return
+	}
+	tags, err := p.getOrgTags(ctx, token, uid)
+	if err != nil || tags == nil {
+		return
+	}
+	identity.OrganizationID = strings.TrimSpace(tags.OrganizationID)
+	identity.OrganizationName = strings.TrimSpace(tags.OrganizationName)
 }
 
 func applyQoderAccountIdentityMetadata(identity *qoder.AuthIdentity, account *Account) {

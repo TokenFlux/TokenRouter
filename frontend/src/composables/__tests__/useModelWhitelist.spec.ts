@@ -8,7 +8,10 @@ import {
   buildCombinedModelMappingObject,
   buildModelMappingObject,
   buildPersistedModelRestriction,
+  buildQoderModelMappingObject,
+  getPresetMappingsByPlatform,
   getModelsByPlatform,
+  splitQoderModelMappingObject,
   splitModelMappingObject
 } from '../useModelWhitelist'
 
@@ -52,11 +55,80 @@ describe('useModelWhitelist', () => {
   })
 
   it('qoder 模型列表包含当前支持的官方模型', () => {
-    expect(getModelsByPlatform('qoder')).toEqual([
-      'gpt-5-codex',
-      'claude-sonnet-4-5',
-      'qwen3.7-max'
+    const models = getModelsByPlatform('qoder')
+
+    expect(models).toEqual([
+      'claude-opus-4-6',
+      'auto',
+      'performance',
+      'efficient',
+      'lite',
+      'qwen3.7-max',
+      'qwen3.7-plus',
+      'qwen3.5-plus',
+      'deepseek-v4-pro',
+      'deepseek-v4-flash',
+      'glm-5',
+      'glm-5.1',
+      'kimi-k2.7-code',
+      'minimax-m3'
     ])
+    expect(models).not.toContain('ultimate')
+    expect(models).not.toContain('qmodel_latest')
+    expect(models).not.toContain('mmodel')
+    expect(models).not.toContain('quest-ultimate')
+  })
+
+  it('qoder 默认账号模型映射只把公开模型映射到上游 key', () => {
+    expect(buildQoderModelMappingObject(getModelsByPlatform('qoder'), [])).toEqual({
+      'claude-opus-4-6': 'ultimate',
+      auto: 'auto',
+      performance: 'performance',
+      efficient: 'efficient',
+      lite: 'lite',
+      'qwen3.7-max': 'qmodel_latest',
+      'qwen3.7-plus': 'qmodel',
+      'qwen3.5-plus': 'q35model',
+      'deepseek-v4-pro': 'dmodel',
+      'deepseek-v4-flash': 'dfmodel',
+      'glm-5': 'gmodel',
+      'glm-5.1': 'gm51model',
+      'kimi-k2.7-code': 'kmodel',
+      'minimax-m3': 'mmodel'
+    })
+  })
+
+  it('qoder 预设映射覆盖所有默认公开模型', () => {
+    const presets = getPresetMappingsByPlatform('qoder')
+
+    expect(presets.map((preset) => preset.from)).toEqual(getModelsByPlatform('qoder'))
+    expect(Object.fromEntries(presets.map((preset) => [preset.from, preset.to]))).toEqual({
+      'claude-opus-4-6': 'ultimate',
+      auto: 'auto',
+      performance: 'performance',
+      efficient: 'efficient',
+      lite: 'lite',
+      'qwen3.7-max': 'qmodel_latest',
+      'qwen3.7-plus': 'qmodel',
+      'qwen3.5-plus': 'q35model',
+      'deepseek-v4-pro': 'dmodel',
+      'deepseek-v4-flash': 'dfmodel',
+      'glm-5': 'gmodel',
+      'glm-5.1': 'gm51model',
+      'kimi-k2.7-code': 'kmodel',
+      'minimax-m3': 'mmodel'
+    })
+  })
+
+  it('qoder 编辑页会把默认映射还原成公开模型选择', () => {
+    expect(splitQoderModelMappingObject({
+      'claude-opus-4-6': 'ultimate',
+      auto: 'auto',
+      custom: 'ultimate'
+    })).toEqual({
+      allowedModels: ['claude-opus-4-6', 'auto'],
+      modelMappings: [{ from: 'custom', to: 'ultimate' }]
+    })
   })
 
   it('Claude 模型列表包含新发布的 Claude 模型', () => {

@@ -30,11 +30,13 @@ type qoderAccountTestClientStub struct {
 	request *http.Request
 	body    string
 	err     error
+	headers map[string]string
 }
 
-func (s *qoderAccountTestClientStub) StreamRequestContext(ctx context.Context, _ *qoder.SessionContext, _ string, bodyJSON []byte, _ map[string]string) (*http.Response, error) {
+func (s *qoderAccountTestClientStub) StreamRequestContext(ctx context.Context, _ *qoder.SessionContext, _ string, bodyJSON []byte, headers map[string]string) (*http.Response, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://api1.qoder.sh/test", strings.NewReader(string(bodyJSON)))
 	s.request = req
+	s.headers = headers
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -44,9 +46,10 @@ func (s *qoderAccountTestClientStub) StreamRequestContext(ctx context.Context, _
 	}, nil
 }
 
-func (s *qoderAccountTestClientStub) StreamRequestContextWithDoer(ctx context.Context, _ *qoder.SessionContext, _ string, bodyJSON []byte, _ map[string]string, doer qoder.RequestDoer) (*http.Response, error) {
+func (s *qoderAccountTestClientStub) StreamRequestContextWithDoer(ctx context.Context, _ *qoder.SessionContext, _ string, bodyJSON []byte, headers map[string]string, doer qoder.RequestDoer) (*http.Response, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://api1.qoder.sh/test", strings.NewReader(string(bodyJSON)))
 	s.request = req
+	s.headers = headers
 	if s.err != nil {
 		return nil, s.err
 	}
@@ -161,6 +164,7 @@ func TestAccountTestService_QoderProbesUserInfoBeforeStream(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "session-token", oauthClient.token)
 	require.Contains(t, recorder.Body.String(), `"type":"test_complete"`)
+	require.Equal(t, "auto", client.headers["x-model-key"])
 }
 
 func TestAccountTestService_QoderWrappedErrorIsVisible(t *testing.T) {

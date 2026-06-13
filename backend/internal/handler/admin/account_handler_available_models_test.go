@@ -277,7 +277,25 @@ func TestAccountHandlerGetAvailableModels_QoderFallsBackToDefaults(t *testing.T)
 	for _, model := range resp.Data {
 		ids = append(ids, model.ID)
 	}
-	require.ElementsMatch(t, []string{"claude-opus-4-6", "auto"}, ids)
+	require.ElementsMatch(t, []string{
+		"claude-opus-4-6",
+		"auto",
+		"performance",
+		"efficient",
+		"lite",
+		"qwen3.7-max",
+		"qwen3.7-plus",
+		"qwen3.5-plus",
+		"deepseek-v4-pro",
+		"deepseek-v4-flash",
+		"glm-5",
+		"glm-5.1",
+		"kimi-k2.7-code",
+		"minimax-m3",
+	}, ids)
+	require.NotContains(t, ids, "ultimate")
+	require.NotContains(t, ids, "qmodel_latest")
+	require.NotContains(t, ids, "quest-ultimate")
 }
 
 func TestAccountHandlerGetAvailableModels_QoderUsesConfiguredModels(t *testing.T) {
@@ -291,9 +309,9 @@ func TestAccountHandlerGetAvailableModels_QoderUsesConfiguredModels(t *testing.T
 			Status:   service.StatusActive,
 			Credentials: map[string]any{
 				"model_mapping": map[string]any{
-					"custom-qoder-model": "qwen3.7-max",
+					"custom-qoder-model": "qmodel",
 				},
-				"model_whitelist": []any{"qwen3.7-max"},
+				"model_whitelist": []any{"qmodel"},
 			},
 		},
 	}
@@ -315,7 +333,7 @@ func TestAccountHandlerGetAvailableModels_QoderUsesConfiguredModels(t *testing.T
 	for _, model := range resp.Data {
 		ids = append(ids, model.ID)
 	}
-	require.ElementsMatch(t, []string{"custom-qoder-model", "qwen3.7-max"}, ids)
+	require.ElementsMatch(t, []string{"custom-qoder-model"}, ids)
 }
 
 func TestAccountHandlerSyncUpstreamModels_ConfigErrorReturnsBadRequest(t *testing.T) {

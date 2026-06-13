@@ -218,6 +218,9 @@ type SSEEvent struct {
 	Type             string // text_delta, reasoning_delta, tool_call_delta, usage, error
 	Text             string // For text_delta and reasoning_delta events
 	ToolCallID       string // For tool_call_delta events
+	ToolCallIndex    int    // For tool_call_delta events
+	HasToolCallIndex bool   // True when Qoder returned a tool call index
+	ToolType         string // For tool_call_delta events
 	ToolName         string // For tool_call_delta events
 	Arguments        string // For tool_call_delta events (JSON string)
 	PromptTokens     int    // For usage events
@@ -244,19 +247,25 @@ type qoderErrorBody struct {
 // QoderSSEInner is the inner structure of a Qoder SSE body.
 type QoderSSEInner struct {
 	Choices []struct {
-		Delta struct {
-			Content          string `json:"content"`
-			ReasoningContent string `json:"reasoning_content"`
-			ToolCalls        []struct {
-				ID       string `json:"id"`
-				Function struct {
-					Name      string `json:"name"`
-					Arguments string `json:"arguments"`
-				} `json:"function"`
-			} `json:"tool_calls"`
-		} `json:"delta"`
+		Delta QoderSSEDelta `json:"delta"`
 	} `json:"choices"`
 	Usage *QoderSSEUsage `json:"usage,omitempty"`
+}
+
+type QoderSSEDelta struct {
+	Content          string             `json:"content"`
+	ReasoningContent string             `json:"reasoning_content"`
+	ToolCalls        []QoderSSEToolCall `json:"tool_calls"`
+}
+
+type QoderSSEToolCall struct {
+	Index    *int   `json:"index,omitempty"`
+	ID       string `json:"id"`
+	Type     string `json:"type"`
+	Function struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	} `json:"function"`
 }
 
 // QoderSSEUsage is the token usage object Qoder includes in SSE payloads.
@@ -320,12 +329,18 @@ func ParseSSELine(line string) ([]SSEEvent, error) {
 		}
 
 		for _, tc := range delta.ToolCalls {
-			events = append(events, SSEEvent{
+			event := SSEEvent{
 				Type:       "tool_call_delta",
 				ToolCallID: tc.ID,
+				ToolType:   tc.Type,
 				ToolName:   tc.Function.Name,
-				Arguments:  tc.Function.Arguments,
-			})
+				Arguments:  parseQoderToolCallArguments(tc.Function.Arguments),
+			}
+			if tc.Index != nil {
+				event.ToolCallIndex = *tc.Index
+				event.HasToolCallIndex = true
+			}
+			events = append(events, event)
 		}
 	}
 	if inner.Usage != nil {
@@ -351,6 +366,17 @@ func ParseSSELine(line string) ([]SSEEvent, error) {
 	}
 
 	return events, nil
+}
+
+func parseQoderToolCallArguments(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err == nil {
+		return s
+	}
+	return string(raw)
 }
 
 func parseWrappedAPIError(wrapper QoderSSEWrapper) error {

@@ -30,8 +30,9 @@ func TestQoderModelSyncServicePreviewShowsDefaultAliasDiffWithoutApplying(t *tes
 	require.NoError(t, err)
 	require.False(t, result.Applied)
 	require.Equal(t, 2, result.IncomingCount)
-	require.Contains(t, aliasNames(result.Added), "newmodel")
-	require.Contains(t, aliasNames(result.Removed), "ultimate")
+	require.NotContains(t, aliasNames(result.Added), "newmodel")
+	require.NotContains(t, aliasNames(result.Models), "newmodel")
+	require.NotContains(t, aliasNames(result.Models), "qmodel_latest")
 	require.NotContains(t, aliasNames(result.Preserved), "gpt-5-codex")
 	require.Contains(t, changeNames(result.Changed), "auto")
 
@@ -54,6 +55,7 @@ func TestQoderModelSyncServiceApplyPersistsAndKeepsCompatibilityAliases(t *testi
 			return []byte(`[
 				{"key":"ultimate","provider":"Claude","notes":"synced","display_name":"Claude Opus 4.6","description":"Confirmed"},
 				{"key":"auto","provider":"Qoder","notes":"synced","display_name":"Qoder Auto","description":"Backend selected"},
+				{"key":"qmodel_latest","provider":"Qwen","notes":"synced","display_name":"Qwen3.7-Max","description":"Qwen route"},
 				{"key":"newmodel","provider":"New","notes":"new","display_name":"New Model","description":"New desc"}
 			]`), nil
 		},
@@ -62,22 +64,35 @@ func TestQoderModelSyncServiceApplyPersistsAndKeepsCompatibilityAliases(t *testi
 	result, err := svc.SyncModels(context.Background(), QoderModelSyncInput{Source: "cli", Apply: true})
 	require.NoError(t, err)
 	require.True(t, result.Applied)
-	require.Contains(t, aliasNames(result.Preserved), "claude-opus-4-6")
+	require.NotContains(t, aliasNames(result.Preserved), "claude-opus-4-6")
+	require.Contains(t, changeNames(result.Changed), "claude-opus-4-6")
 
 	info := resolveQoderModel("newmodel")
 	require.Equal(t, "newmodel", info.Key)
-	require.Equal(t, "New", info.Provider)
 	info = resolveQoderModel("gpt-5-codex")
 	require.Equal(t, "gpt-5-codex", info.Key)
 	info = resolveQoderModel("claude-opus-4-6")
 	require.Equal(t, "ultimate", info.Key)
+	require.Equal(t, "Claude", info.Provider)
+	info = resolveQoderModel("qwen3.7-max")
+	require.Equal(t, "qmodel_latest", info.Key)
+	require.Equal(t, "Qwen", info.Provider)
+	require.Equal(t, "Qwen3.7-Max", info.DisplayName)
+	info = resolveQoderModel("qmodel_latest")
+	require.Equal(t, "qmodel_latest", info.Key)
+	require.Empty(t, info.Provider)
 
 	body, err := os.ReadFile(persistPath)
 	require.NoError(t, err)
 	var persisted qoderModelAliasesPersisted
 	require.NoError(t, json.Unmarshal(body, &persisted))
-	require.Contains(t, aliasNames(persisted.Models), "newmodel")
 	require.Contains(t, aliasNames(persisted.Models), "claude-opus-4-6")
+	require.Contains(t, aliasNames(persisted.Models), "auto")
+	require.Contains(t, aliasNames(persisted.Models), "performance")
+	require.Contains(t, aliasNames(persisted.Models), "lite")
+	require.Contains(t, aliasNames(persisted.Models), "qwen3.7-max")
+	require.NotContains(t, aliasNames(persisted.Models), "qmodel_latest")
+	require.NotContains(t, aliasNames(persisted.Models), "newmodel")
 	require.NotContains(t, aliasNames(persisted.Models), "gpt-5-codex")
 }
 
@@ -90,6 +105,8 @@ func TestQoderModelSyncServiceLoadsPersistedAliases(t *testing.T) {
 	require.NoError(t, os.WriteFile(persistPath, []byte(`{
 		"version": 1,
 		"models": [
+			{"alias":"claude-opus-4-6","key":"ultimate","source":"system","provider":"Claude"},
+			{"alias":"auto","key":"auto","source":"system","provider":"Qoder"},
 			{"alias":"persisted","key":"persisted","source":"system","provider":"Persisted"}
 		]
 	}`), 0o644))
@@ -99,7 +116,10 @@ func TestQoderModelSyncServiceLoadsPersistedAliases(t *testing.T) {
 
 	info := resolveQoderModel("persisted")
 	require.Equal(t, "persisted", info.Key)
-	require.Equal(t, "Persisted", info.Provider)
+	require.Empty(t, info.Provider)
+	info = resolveQoderModel("claude-opus-4-6")
+	require.Equal(t, "ultimate", info.Key)
+	require.Equal(t, "Claude", info.Provider)
 }
 
 func aliasNames(records []QoderModelAliasRecord) []string {

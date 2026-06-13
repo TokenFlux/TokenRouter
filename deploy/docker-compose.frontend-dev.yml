@@ -1,0 +1,44 @@
+# =============================================================================
+# TokenRouter Frontend Hot Reload Container
+# =============================================================================
+# Usage:
+#   docker compose -f deploy/docker-compose.frontend-dev.yml up -d
+#
+# This expects the existing dev backend from deploy/docker-compose.dev.yml to be
+# running on the deploy_sub2api-network network.
+# =============================================================================
+
+services:
+  frontend-dev:
+    image: node:24-alpine
+    container_name: tokenrouter-frontend-dev
+    working_dir: /app
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_BIND_HOST:-127.0.0.1}:${FRONTEND_DEV_PORT:-18082}:3000"
+    environment:
+      NODE_ENV: development
+      VITE_DEV_PORT: 3000
+      VITE_DEV_PROXY_TARGET: ${VITE_DEV_PROXY_TARGET:-http://sub2api:8080}
+      CHOKIDAR_USEPOLLING: ${CHOKIDAR_USEPOLLING:-true}
+    volumes:
+      - ../frontend:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_pnpm_store:/pnpm/store
+    command: >
+      sh -lc "corepack enable &&
+      corepack prepare pnpm@9 --activate &&
+      pnpm config set store-dir /pnpm/store &&
+      pnpm install --no-lockfile &&
+      pnpm exec vite --host 0.0.0.0"
+    networks:
+      - sub2api-network
+
+volumes:
+  frontend_node_modules:
+  frontend_pnpm_store:
+
+networks:
+  sub2api-network:
+    external: true
+    name: deploy_sub2api-network

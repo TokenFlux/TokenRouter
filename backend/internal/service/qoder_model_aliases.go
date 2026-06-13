@@ -8,6 +8,14 @@ var qoderModelAliasesState = struct {
 }{}
 
 func lookupQoderModelAlias(model string) (qoderModelInfo, bool) {
+	if info, ok := lookupPublicQoderModelAlias(model); ok {
+		return info, true
+	}
+	info, ok := qoderCompatModelAliases[model]
+	return info, ok
+}
+
+func lookupPublicQoderModelAlias(model string) (qoderModelInfo, bool) {
 	qoderModelAliasesState.RLock()
 	aliases := qoderModelAliasesState.aliases
 	if aliases != nil {
