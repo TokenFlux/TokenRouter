@@ -1,16 +1,19 @@
 name: tokenrouter-qoder-dev
 
 # =============================================================================
-# TokenRouter Qoder Acceptance Stack - Hot Reload Backend
+# TokenRouter Qoder Acceptance Stack - Hot Reload Backend + Frontend
 # =============================================================================
 # Usage:
 #   docker compose -f deploy/docker-compose.qoder-dev.yml up --build
 #
-# App:
+# Backend:
 #   http://127.0.0.1:19080
+# Frontend:
+#   http://127.0.0.1:19081
 #
 # Notes:
 #   - Backend source is bind-mounted and rebuilt/restarted by Air.
+#   - Frontend source is bind-mounted and served by Vite with HMR.
 #   - Local Qoder auth is mounted from ${QODER_AUTH_DIR:-${HOME}/.qoder/.auth}
 #     to /root/.qoder/.auth.
 # =============================================================================
@@ -70,6 +73,40 @@ services:
       retries: 12
       start_period: 30s
 
+  frontend:
+    image: node:24-alpine
+    container_name: tokenrouter-qoder-frontend
+    working_dir: /workspace/frontend
+    restart: unless-stopped
+    ports:
+      - "${QODER_FRONTEND_BIND_HOST:-127.0.0.1}:${QODER_FRONTEND_PORT:-19081}:3000"
+    volumes:
+      - ../frontend:/workspace/frontend
+      - qoder_frontend_node_modules:/workspace/frontend/node_modules
+      - qoder_frontend_pnpm_store:/pnpm/store
+    environment:
+      - NODE_ENV=development
+      - VITE_DEV_PORT=3000
+      - VITE_DEV_PROXY_TARGET=http://tokenrouter:8080
+      - CHOKIDAR_USEPOLLING=${CHOKIDAR_USEPOLLING:-true}
+    command: >
+      sh -lc "corepack enable &&
+      corepack prepare pnpm@9 --activate &&
+      pnpm config set store-dir /pnpm/store &&
+      pnpm install --frozen-lockfile &&
+      pnpm exec vite --host 0.0.0.0"
+    depends_on:
+      tokenrouter:
+        condition: service_healthy
+    networks:
+      - qoder-dev
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-T", "5", "-O", "/dev/null", "http://127.0.0.1:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
   postgres:
     image: postgres:18-alpine
     container_name: tokenrouter-qoder-postgres
@@ -119,6 +156,8 @@ services:
 volumes:
   qoder_go_mod_cache:
   qoder_go_build_cache:
+  qoder_frontend_node_modules:
+  qoder_frontend_pnpm_store:
 
 networks:
   qoder-dev:
