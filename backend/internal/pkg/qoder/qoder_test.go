@@ -1,7 +1,9 @@
 package qoder
 
 import (
+	"errors"
 	"testing"
+	"time"
 )
 
 func TestEncodeDecodeRoundTrip(t *testing.T) {
@@ -55,6 +57,22 @@ func TestComposeBearer(t *testing.T) {
 	}
 }
 
+func TestDefaultModels(t *testing.T) {
+	var ids []string
+	for _, model := range DefaultModels {
+		ids = append(ids, model.ID)
+	}
+	want := []string{"gpt-5-codex", "claude-sonnet-4-5", "qwen3.7-max"}
+	if len(ids) != len(want) {
+		t.Fatalf("default model count = %d, want %d", len(ids), len(want))
+	}
+	for i := range want {
+		if ids[i] != want[i] {
+			t.Fatalf("default model %d = %q, want %q", i, ids[i], want[i])
+		}
+	}
+}
+
 func TestNewSession(t *testing.T) {
 	identity := &AuthIdentity{
 		Name: "test",
@@ -79,6 +97,31 @@ func TestNewSession(t *testing.T) {
 	}
 	if session.Identity.Name != "test" {
 		t.Errorf("identity name = %q, want %q", session.Identity.Name, "test")
+	}
+}
+
+func TestNewSessionDefaultTempKeyIsASCIIHex(t *testing.T) {
+	identity := &AuthIdentity{
+		Name: "test",
+		UID:  "test123",
+	}
+	machine := &MachineIdentity{
+		MachineID:    "test-id",
+		MachineToken: "test-token",
+		MachineType:  "test-type",
+	}
+
+	session, err := NewSession(identity, machine)
+	if err != nil {
+		t.Fatalf("NewSession: %v", err)
+	}
+	if len(session.TempKey) != 16 {
+		t.Fatalf("temp key length = %d, want 16", len(session.TempKey))
+	}
+	for i, b := range session.TempKey {
+		if !((b >= '0' && b <= '9') || (b >= 'a' && b <= 'f')) {
+			t.Fatalf("temp key byte %d = %q, want ASCII hex", i, b)
+		}
 	}
 }
 
@@ -165,8 +208,28 @@ func TestParseSSELineReasoning(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("events length = %d, want 1", len(events))
 	}
+	if events[0].Type != "reasoning_delta" {
+		t.Errorf("event type = %q, want reasoning_delta", events[0].Type)
+	}
 	if events[0].Text != "Let me think..." {
 		t.Errorf("event text = %q, want Let me think...", events[0].Text)
+	}
+}
+
+func TestParseSSELineContentAndReasoningAreSeparate(t *testing.T) {
+	line := `data: {"body": "{\"choices\":[{\"delta\":{\"reasoning_content\":\"Think\",\"content\":\"Answer\"}}]}"}`
+	events, err := ParseSSELine(line)
+	if err != nil {
+		t.Fatalf("ParseSSELine: %v", err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("events length = %d, want 2", len(events))
+	}
+	if events[0].Type != "text_delta" || events[0].Text != "Answer" {
+		t.Fatalf("first event = %#v, want text_delta Answer", events[0])
+	}
+	if events[1].Type != "reasoning_delta" || events[1].Text != "Think" {
+		t.Fatalf("second event = %#v, want reasoning_delta Think", events[1])
 	}
 }
 
@@ -184,13 +247,75 @@ func TestParseSSELineMalformedBody(t *testing.T) {
 	}
 }
 
+func TestParseSSELineUpstreamErrorWrapper(t *testing.T) {
+	line := `data: {"headers":{"Content-Type":["application/json"]},"body":"{\"code\":\"101\",\"message\":\"Signature invalid\"}","statusCodeValue":403,"statusCode":"FORBIDDEN"}`
+	events, err := ParseSSELine(line)
+	if err == nil {
+		t.Fatal("expected upstream API error")
+	}
+	if len(events) != 0 {
+		t.Fatalf("events length = %d, want 0", len(events))
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error type = %T, want *APIError", err)
+	}
+	if apiErr.StatusCode != 403 {
+		t.Errorf("status code = %d, want 403", apiErr.StatusCode)
+	}
+	if apiErr.Code != "101" {
+		t.Errorf("code = %q, want 101", apiErr.Code)
+	}
+	if apiErr.Message != "Signature invalid" {
+		t.Errorf("message = %q, want Signature invalid", apiErr.Message)
+	}
+	if got := apiErr.Error(); got != "Qoder upstream error 101: Signature invalid" {
+		t.Errorf("error = %q, want Qoder upstream error 101: Signature invalid", got)
+	}
+}
+
+func TestParseSSELineAgentLimitError(t *testing.T) {
+	line := `data: {"headers":{"Content-Type":["application/json"]},"body":"{\"code\":\"115\",\"message\":\"{\\\"agentLimitResetTime\\\":1783841289162}\"}","statusCodeValue":429,"statusCode":"TOO_MANY_REQUESTS"}`
+	_, err := ParseSSELine(line)
+	if err == nil {
+		t.Fatal("expected upstream API error")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error type = %T, want *APIError", err)
+	}
+	if apiErr.Code != "115" {
+		t.Fatalf("code = %q, want 115", apiErr.Code)
+	}
+	if apiErr.AgentLimitResetTime != 1783841289162 {
+		t.Fatalf("agentLimitResetTime = %d", apiErr.AgentLimitResetTime)
+	}
+	resetAt, ok := apiErr.AgentLimitResetAt()
+	if !ok {
+		t.Fatal("expected reset time")
+	}
+	if got := resetAt.In(time.FixedZone("Asia/Shanghai", 8*60*60)).Format("2006-01-02 15:04:05"); got != "2026-07-12 15:28:09" {
+		t.Fatalf("reset time = %s", got)
+	}
+	if got := apiErr.Error(); got != "Qoder agent limit reached; resets at 2026-07-12 15:28:09 Asia/Shanghai" {
+		t.Fatalf("error = %q", got)
+	}
+}
+
+func TestParseAPIErrorBodyAgentLimitDirectBody(t *testing.T) {
+	apiErr := ParseAPIErrorBody(429, `{"agentLimitResetTime":1783841289162}`)
+	if apiErr.AgentLimitResetTime != 1783841289162 {
+		t.Fatalf("agentLimitResetTime = %d", apiErr.AgentLimitResetTime)
+	}
+}
+
 func TestLocalAuthInfoToIdentity(t *testing.T) {
 	info := &AuthInfo{
-		Name:              "test user",
-		UID:               "uid123",
+		Name:               "test user",
+		UID:                "uid123",
 		SecurityOauthToken: "dt-token",
-		RefreshToken:      "drt-refresh",
-		UserType:          "personal_standard",
+		RefreshToken:       "drt-refresh",
+		UserType:           "personal_standard",
 	}
 	id := info.ToAuthIdentity()
 	if id.Name != "test user" {

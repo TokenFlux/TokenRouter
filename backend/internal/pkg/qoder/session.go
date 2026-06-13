@@ -40,15 +40,15 @@ func init() {
 
 // AuthIdentity represents a user's authentication identity.
 type AuthIdentity struct {
-	Name              string `json:"name"`
-	AID               string `json:"aid"`
-	UID               string `json:"uid"`
-	YxUID             string `json:"yx_uid"`
-	OrganizationID    string `json:"organization_id"`
-	OrganizationName  string `json:"organization_name"`
-	UserType          string `json:"user_type"`
+	Name               string `json:"name"`
+	AID                string `json:"aid"`
+	UID                string `json:"uid"`
+	YxUID              string `json:"yx_uid"`
+	OrganizationID     string `json:"organization_id"`
+	OrganizationName   string `json:"organization_name"`
+	UserType           string `json:"user_type"`
 	SecurityOauthToken string `json:"security_oauth_token"`
-	RefreshToken      string `json:"refresh_token"`
+	RefreshToken       string `json:"refresh_token"`
 }
 
 // MachineIdentity represents the machine running the client.
@@ -123,10 +123,7 @@ func NewSession(identity *AuthIdentity, machine *MachineIdentity) (*SessionConte
 // NewSessionWithKey creates a COSY session with an optional explicit temp key.
 func NewSessionWithKey(identity *AuthIdentity, machine *MachineIdentity, tempKey []byte) (*SessionContext, error) {
 	if tempKey == nil {
-		tempKey = make([]byte, 16)
-		if _, err := rand.Read(tempKey); err != nil {
-			return nil, fmt.Errorf("qoder: generate temp key: %w", err)
-		}
+		tempKey = []byte(RandomHex(16))
 	}
 
 	encryptedKey, err := RSAEncrypt(tempKey)

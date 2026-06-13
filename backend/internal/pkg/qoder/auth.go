@@ -16,7 +16,7 @@ import (
 const CenterBaseURL = "https://center.qoder.sh"
 
 // APIBaseURL is the default Qoder API base URL.
-const APIBaseURL = "https://api1.qoder.sh"
+const APIBaseURL = "https://api3.qoder.sh"
 
 // ClientVersion is the COSY protocol version.
 const ClientVersion = "0.1.43"

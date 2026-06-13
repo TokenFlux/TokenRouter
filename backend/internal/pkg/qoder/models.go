@@ -1,5 +1,36 @@
 package qoder
 
+// Model represents a Qoder model exposed to admin/model selection APIs.
+type Model struct {
+	ID          string `json:"id"`
+	Type        string `json:"type"`
+	DisplayName string `json:"display_name"`
+	CreatedAt   string `json:"created_at"`
+}
+
+// DefaultModels are the request-side model aliases currently supported by the
+// TokenRouter Qoder COSY adapter.
+var DefaultModels = []Model{
+	{
+		ID:          "gpt-5-codex",
+		Type:        "model",
+		DisplayName: "GPT-5 Codex",
+		CreatedAt:   "",
+	},
+	{
+		ID:          "claude-sonnet-4-5",
+		Type:        "model",
+		DisplayName: "Claude Sonnet 4.5",
+		CreatedAt:   "",
+	},
+	{
+		ID:          "qwen3.7-max",
+		Type:        "model",
+		DisplayName: "Qwen 3.7 Max",
+		CreatedAt:   "",
+	},
+}
+
 // AuthInfo holds the decrypted user information from local Qoder auth storage.
 type AuthInfo struct {
 	UID                    string `json:"uid"`
@@ -33,7 +64,7 @@ func (info *AuthInfo) ToAuthIdentity() *AuthIdentity {
 		AID:                info.UID,
 		UID:                info.UID,
 		UserType:           userType,
-		SecurityOauthToken:  token,
+		SecurityOauthToken: token,
 		RefreshToken:       info.RefreshToken,
 	}
 }

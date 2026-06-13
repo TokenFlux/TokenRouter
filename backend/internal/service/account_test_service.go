@@ -22,6 +22,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
 	"github.com/gin-gonic/gin"
@@ -33,9 +34,14 @@ import (
 var sseDataPrefix = regexp.MustCompile(`^data:\s*`)
 
 const (
-	testClaudeAPIURL   = "https://api.anthropic.com/v1/messages?beta=true"
-	chatgptCodexAPIURL = "https://chatgpt.com/backend-api/codex/responses"
+	testClaudeAPIURL      = "https://api.anthropic.com/v1/messages?beta=true"
+	chatgptCodexAPIURL    = "https://chatgpt.com/backend-api/codex/responses"
+	defaultQoderTestModel = "gpt-5-codex"
 )
+
+type qoderAccountTestSessionProvider interface {
+	GetSession(ctx context.Context, account *Account) (*qoder.SessionContext, error)
+}
 
 // TestEvent represents a SSE event for account testing
 type TestEvent struct {
@@ -71,6 +77,8 @@ type AccountTestService struct {
 	httpUpstream              HTTPUpstream
 	cfg                       *config.Config
 	tlsFPProfileService       *TLSFingerprintProfileService
+	qoderSessionProvider      qoderAccountTestSessionProvider
+	qoderClient               qoderStreamClient
 }
 
 // NewAccountTestService creates a new AccountTestService
@@ -91,6 +99,8 @@ func NewAccountTestService(
 		httpUpstream:              httpUpstream,
 		cfg:                       cfg,
 		tlsFPProfileService:       tlsFPProfileService,
+		qoderSessionProvider:      NewQoderTokenProvider(),
+		qoderClient:               qoder.NewClient(qoder.APIBaseURL),
 	}
 }
 
@@ -199,6 +209,10 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 
 	if account.Platform == PlatformAntigravity {
 		return s.routeAntigravityTest(c, account, modelID, prompt)
+	}
+
+	if account.Platform == PlatformQoder {
+		return s.testQoderAccountConnection(c, account, modelID, prompt)
 	}
 
 	return s.testClaudeAccountConnection(c, account, modelID)
@@ -935,6 +949,82 @@ func (s *AccountTestService) routeAntigravityTest(c *gin.Context, account *Accou
 	return s.testAntigravityAccountConnection(c, account, modelID)
 }
 
+func (s *AccountTestService) testQoderAccountConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
+	if account.Type != AccountTypeCosy {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type))
+	}
+
+	ctx := c.Request.Context()
+	testModelID := strings.TrimSpace(modelID)
+	if testModelID == "" {
+		testModelID = defaultQoderTestModel
+	}
+	testPrompt := strings.TrimSpace(prompt)
+	if testPrompt == "" {
+		testPrompt = "hi"
+	}
+
+	sessionProvider := s.qoderSessionProvider
+	if sessionProvider == nil {
+		sessionProvider = NewQoderTokenProvider()
+	}
+	session, err := sessionProvider.GetSession(ctx, account)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Qoder session failed: %s", err.Error()))
+	}
+
+	requestBody, err := json.Marshal(map[string]any{
+		"model":      testModelID,
+		"messages":   []map[string]string{{"role": "user", "content": testPrompt}},
+		"max_tokens": 16,
+		"stream":     true,
+	})
+	if err != nil {
+		return s.sendErrorAndEnd(c, "Failed to encode Qoder test payload")
+	}
+	payload, modelKey, err := BuildQoderPayloadFromChatCompletions(requestBody, qoderUserType(account))
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build Qoder test payload: %s", err.Error()))
+	}
+	payloadBody, err := json.Marshal(payload)
+	if err != nil {
+		return s.sendErrorAndEnd(c, "Failed to encode Qoder test payload")
+	}
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+	s.sendEvent(c, TestEvent{Type: "status", Text: "正在通过 Qoder COSY 测试连接"})
+
+	client := s.qoderClient
+	if client == nil {
+		client = qoder.NewClient(qoder.APIBaseURL)
+	}
+	headers := map[string]string{
+		"x-model-key":    modelKey,
+		"x-model-source": "system",
+	}
+	if doer := newQoderRequestDoer(account, s.httpUpstream, s.tlsFPProfileService); doer != nil {
+		if doerClient, ok := client.(qoderStreamClientWithDoer); ok {
+			resp, err := doerClient.StreamRequestContextWithDoer(ctx, session, "", payloadBody, headers, doer)
+			if err != nil {
+				return s.sendErrorAndEnd(c, err.Error())
+			}
+			return s.processQoderStream(c, resp.Body)
+		}
+	}
+	resp, err := client.StreamRequestContext(ctx, session, "", payloadBody, headers)
+	if err != nil {
+		return s.sendErrorAndEnd(c, err.Error())
+	}
+
+	return s.processQoderStream(c, resp.Body)
+}
+
 // testAntigravityAccountConnection tests an Antigravity account's connection
 // 支持 Claude 和 Gemini 两种协议，使用非流式请求
 func (s *AccountTestService) testAntigravityAccountConnection(c *gin.Context, account *Account, modelID string) error {
@@ -1330,6 +1420,41 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 			return s.sendErrorAndEnd(c, errorMsg)
 		}
 	}
+}
+
+func (s *AccountTestService) processQoderStream(c *gin.Context, body io.ReadCloser) error {
+	if body == nil {
+		return s.sendErrorAndEnd(c, "Qoder response body is nil")
+	}
+	defer func() { _ = body.Close() }()
+
+	scanner := bufio.NewScanner(body)
+	scanner.Buffer(make([]byte, 0, 64*1024), defaultMaxLineSize)
+	seenEvent := false
+	for scanner.Scan() {
+		events, err := qoder.ParseSSELine(scanner.Text())
+		if err != nil {
+			return s.sendErrorAndEnd(c, err.Error())
+		}
+		for _, event := range events {
+			seenEvent = true
+			if event.Type == "text_delta" && event.Text != "" {
+				s.sendEvent(c, TestEvent{Type: "content", Text: event.Text})
+			}
+			if event.IsDone {
+				s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+				return nil
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Qoder stream read error: %s", err.Error()))
+	}
+	if seenEvent {
+		s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+		return nil
+	}
+	return s.sendErrorAndEnd(c, "Qoder stream ended before any response")
 }
 
 // processOpenAIChatCompletionsStream 处理 OpenAI 兼容 Chat Completions API 返回的 SSE 分片。

@@ -1737,7 +1737,7 @@ func (a *Account) IsAnthropicOAuthOrSetupToken() bool {
 }
 
 // SupportsTLSFingerprint 返回账号是否支持 TLS 指纹伪装。
-// 当前仅 Anthropic OAuth/SetupToken 与 OpenAI OAuth 支持，OpenAI API Key 不开放。
+// 当前支持 Anthropic OAuth/SetupToken、OpenAI OAuth 与 Qoder COSY。
 func (a *Account) SupportsTLSFingerprint() bool {
 	if a == nil {
 		return false
@@ -1745,7 +1745,7 @@ func (a *Account) SupportsTLSFingerprint() bool {
 	if a.IsAnthropicOAuthOrSetupToken() {
 		return true
 	}
-	return a.Platform == PlatformOpenAI && a.Type == AccountTypeOAuth
+	return (a.Platform == PlatformOpenAI && a.Type == AccountTypeOAuth) || a.IsQoderCosy()
 }
 
 // IsTLSFingerprintEnabled 检查是否启用 TLS 指纹伪装

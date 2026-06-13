@@ -183,6 +183,30 @@ function buildVertexAccount() {
   } as any
 }
 
+function buildQoderAccount() {
+  return {
+    id: 3,
+    name: 'Qoder COSY',
+    notes: '',
+    platform: 'qoder',
+    type: 'cosy',
+    credentials: {
+      security_oauth_token: 'redacted',
+      machine_id: 'machine',
+      model_whitelist: ['gpt-5-codex']
+    },
+    extra: {},
+    proxy_id: null,
+    concurrency: 1,
+    priority: 1,
+    rate_multiplier: 1,
+    status: 'active',
+    group_ids: [],
+    expires_at: null,
+    auto_pause_on_expired: false
+  } as any
+}
+
 function mountModal(account = buildAccount()) {
   return mount(EditAccountModal, {
     props: {
@@ -504,6 +528,47 @@ describe('EditAccountModal', () => {
     }
     account.enable_tls_fingerprint = true
     account.tls_fingerprint_profile_id = -1
+    listTLSProfilesMock.mockResolvedValue([{ id: 7, name: 'Profile 7' }])
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="edit-openai-tls-fingerprint-profile"]').exists()).toBe(true)
+    const profileSelect = wrapper.get('[data-testid="edit-openai-tls-fingerprint-profile"]')
+    expect((profileSelect.element as HTMLSelectElement).value).toBe('-1')
+
+    await profileSelect.setValue('7')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.enable_tls_fingerprint).toBe(true)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.tls_fingerprint_profile_id).toBe(7)
+  })
+
+  it('loads and submits Qoder COSY model restriction settings', async () => {
+    const account = buildQoderAccount()
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    expect(wrapper.get('[data-testid="model-whitelist-value"]').text()).toBe('gpt-5-codex')
+
+    await wrapper.get('[data-testid="rewrite-to-snapshot"]').trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_whitelist).toEqual(['gpt-5.2-2025-12-11'])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.security_oauth_token).toBe('redacted')
+  })
+
+  it('loads and submits Qoder COSY TLS fingerprint settings', async () => {
+    const account = buildQoderAccount()
+    account.extra = {
+      enable_tls_fingerprint: true,
+      tls_fingerprint_profile_id: -1
+    }
     listTLSProfilesMock.mockResolvedValue([{ id: 7, name: 'Profile 7' }])
     updateAccountMock.mockResolvedValue(account)
 

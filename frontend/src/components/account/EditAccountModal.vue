@@ -422,9 +422,9 @@
 
       </div>
 
-      <!-- OpenAI OAuth Model Mapping (OAuth 类型没有 apikey 容器，需要独立的模型映射区域) -->
+      <!-- OAuth-like Model Mapping (OAuth/COSY 类型没有 apikey 容器，需要独立的模型映射区域) -->
       <div
-        v-if="account.platform === 'openai' && account.type === 'oauth'"
+        v-if="supportsOAuthLikeModelRestriction"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
         <label class="input-label">{{ t('admin.accounts.modelRestriction') }}</label>
@@ -1681,9 +1681,9 @@
         </div>
       </div>
 
-      <!-- OpenAI OAuth TLS 指纹伪装 -->
+      <!-- OAuth/COSY TLS 指纹伪装 -->
       <div
-        v-if="account?.platform === 'openai' && account?.type === 'oauth'"
+        v-if="supportsTLSFingerprint(account)"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
         <div class="flex items-center justify-between">
@@ -2647,12 +2647,21 @@ const {
 } = useQuotaNotifyState()
 
 const supportsTLSFingerprint = (account: Account | null | undefined) => {
-  // TLS 指纹伪装仅开放给 Anthropic OAuth/SetupToken 和 OpenAI OAuth。
+  // TLS 指纹伪装开放给实际走 OAuth/COSY 客户端模拟链路的账号。
   return !!account && (
     (account.platform === 'anthropic' && (account.type === 'oauth' || account.type === 'setup-token')) ||
-    (account.platform === 'openai' && account.type === 'oauth')
+    (account.platform === 'openai' && account.type === 'oauth') ||
+    (account.platform === 'qoder' && account.type === 'cosy')
   )
 }
+
+const isQoderCosyAccount = computed(() =>
+  props.account?.platform === 'qoder' && props.account?.type === 'cosy'
+)
+const supportsOAuthLikeModelRestriction = computed(() =>
+  (props.account?.platform === 'openai' && props.account?.type === 'oauth') ||
+  isQoderCosyAccount.value
+)
 
 // Load global feature states once
 adminAPI.settings.getWebSearchEmulationConfig().then(cfg => {
@@ -3257,8 +3266,12 @@ const syncFormFromAccount = (newAccount: Account | null) => {
           : 'https://api.anthropic.com'
     editBaseUrl.value = platformDefaultUrl
 
-    // Load model mappings for OpenAI OAuth accounts
-    if (newAccount.platform === 'openai' && newAccount.credentials) {
+    // Load model mappings for OpenAI OAuth and Qoder COSY accounts
+    if (
+      ((newAccount.platform === 'openai' && newAccount.type === 'oauth') ||
+        (newAccount.platform === 'qoder' && newAccount.type === 'cosy')) &&
+      newAccount.credentials
+    ) {
       const oauthCredentials = newAccount.credentials as Record<string, unknown>
       const existingMappings = oauthCredentials.model_mapping as Record<string, string> | undefined
       hydrateModelRestrictionFromMapping(existingMappings, oauthCredentials.model_whitelist)
@@ -3520,6 +3533,26 @@ const applyTempUnschedConfig = (credentials: Record<string, unknown>) => {
   return true
 }
 
+const applyTLSFingerprintExtra = (extra: Record<string, unknown>) => {
+  if (tlsFingerprintEnabled.value) {
+    extra.enable_tls_fingerprint = true
+    if (tlsFingerprintProfileId.value) {
+      extra.tls_fingerprint_profile_id = tlsFingerprintProfileId.value
+    } else {
+      delete extra.tls_fingerprint_profile_id
+    }
+    if (tlsFingerprintRouterId.value) {
+      extra.tls_fingerprint_router_id = tlsFingerprintRouterId.value
+    } else {
+      delete extra.tls_fingerprint_router_id
+    }
+  } else {
+    delete extra.enable_tls_fingerprint
+    delete extra.tls_fingerprint_profile_id
+    delete extra.tls_fingerprint_router_id
+  }
+}
+
 function loadTempUnschedRules(credentials?: Record<string, unknown>) {
   tempUnschedEnabled.value = credentials?.temp_unschedulable_enabled === true
   const rawRules = credentials?.temp_unschedulable_rules
@@ -3564,9 +3597,13 @@ function loadQuotaControlSettings(account: Account) {
 
   // TLS 指纹伪装跨 Anthropic OAuth/SetupToken 与 OpenAI OAuth 复用同一组字段。
   if (supportsTLSFingerprint(account)) {
-    tlsFingerprintEnabled.value = account.enable_tls_fingerprint === true
-    tlsFingerprintProfileId.value = account.tls_fingerprint_profile_id ?? null
-    tlsFingerprintRouterId.value = account.tls_fingerprint_router_id ?? null
+    const extra = account.extra as Record<string, unknown> | undefined
+    tlsFingerprintEnabled.value =
+      account.enable_tls_fingerprint === true || extra?.enable_tls_fingerprint === true
+    tlsFingerprintProfileId.value =
+      account.tls_fingerprint_profile_id ?? toPositiveOrSpecialID(extra?.tls_fingerprint_profile_id)
+    tlsFingerprintRouterId.value =
+      account.tls_fingerprint_router_id ?? toPositiveOrSpecialID(extra?.tls_fingerprint_router_id)
   }
 
   // Remaining quota control settings only apply to Anthropic accounts
@@ -3645,6 +3682,14 @@ const splitTempUnschedKeywords = (value: string) => {
 function toPositiveNumber(value: unknown) {
   const num = Number(value)
   if (!Number.isFinite(num) || num <= 0) {
+    return null
+  }
+  return Math.trunc(num)
+}
+
+function toPositiveOrSpecialID(value: unknown) {
+  const num = Number(value)
+  if (!Number.isFinite(num) || num === 0) {
     return null
   }
   return Math.trunc(num)
@@ -3998,12 +4043,12 @@ const handleSubmit = async () => {
       updatePayload.credentials = newCredentials
     }
 
-    // OpenAI OAuth: persist model mapping to credentials
-    if (props.account.platform === 'openai' && props.account.type === 'oauth') {
+    // OpenAI OAuth / Qoder COSY: persist model mapping to credentials
+    if (supportsOAuthLikeModelRestriction.value) {
       const currentCredentials = (updatePayload.credentials as Record<string, unknown>) ||
         ((props.account.credentials as Record<string, unknown>) || {})
       const newCredentials: Record<string, unknown> = { ...currentCredentials }
-      const shouldApplyModelMapping = !openaiPassthroughEnabled.value
+      const shouldApplyModelMapping = !(props.account.platform === 'openai' && openaiPassthroughEnabled.value)
 
       if (shouldApplyModelMapping) {
         applyPersistedModelRestriction(newCredentials)
@@ -4016,11 +4061,13 @@ const handleSubmit = async () => {
       } else if ('model_whitelist' in currentCredentials) {
         newCredentials.model_whitelist = currentCredentials.model_whitelist
       }
-      const compactModelMapping = buildModelMappingObject('mapping', [], openAICompactModelMappings.value)
-      if (compactModelMapping) {
-        newCredentials.compact_model_mapping = compactModelMapping
-      } else {
-        delete newCredentials.compact_model_mapping
+      if (props.account.platform === 'openai') {
+        const compactModelMapping = buildModelMappingObject('mapping', [], openAICompactModelMappings.value)
+        if (compactModelMapping) {
+          newCredentials.compact_model_mapping = compactModelMapping
+        } else {
+          delete newCredentials.compact_model_mapping
+        }
       }
 
       updatePayload.credentials = newCredentials
@@ -4172,6 +4219,13 @@ const handleSubmit = async () => {
       } else {
         newExtra.web_search_emulation = webSearchEmulationMode.value
       }
+      updatePayload.extra = newExtra
+    }
+
+    if (isQoderCosyAccount.value) {
+      const currentExtra = (updatePayload.extra as Record<string, unknown>) || (props.account.extra as Record<string, unknown>) || {}
+      const newExtra: Record<string, unknown> = { ...currentExtra }
+      applyTLSFingerprintExtra(newExtra)
       updatePayload.extra = newExtra
     }
 

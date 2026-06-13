@@ -23,6 +23,9 @@ type Client struct {
 	HTTPClient    *http.Client
 }
 
+// RequestDoer executes a prepared HTTP request.
+type RequestDoer func(req *http.Request) (*http.Response, error)
+
 // NewClient creates a new Qoder API client.
 func NewClient(apiBaseURL string) *Client {
 	if apiBaseURL == "" {
@@ -42,6 +45,11 @@ func (c *Client) StreamRequest(session *SessionContext, path string, bodyJSON []
 
 // StreamRequestContext sends a streaming POST request to the Qoder API and returns an SSE line reader.
 func (c *Client) StreamRequestContext(ctx context.Context, session *SessionContext, path string, bodyJSON []byte, extraHeaders map[string]string) (*http.Response, error) {
+	return c.StreamRequestContextWithDoer(ctx, session, path, bodyJSON, extraHeaders, nil)
+}
+
+// StreamRequestContextWithDoer sends a streaming POST request using the provided executor.
+func (c *Client) StreamRequestContextWithDoer(ctx context.Context, session *SessionContext, path string, bodyJSON []byte, extraHeaders map[string]string, doer RequestDoer) (*http.Response, error) {
 	if path == "" {
 		path = GenerationPath
 	}
@@ -65,7 +73,14 @@ func (c *Client) StreamRequestContext(ctx context.Context, session *SessionConte
 		req.Header.Set(k, v)
 	}
 
-	resp, err := c.HTTPClient.Do(req)
+	if doer == nil {
+		httpClient := c.HTTPClient
+		if httpClient == nil {
+			httpClient = http.DefaultClient
+		}
+		doer = httpClient.Do
+	}
+	resp, err := doer(req)
 	if err != nil {
 		return nil, fmt.Errorf("qoder: request failed: %w", err)
 	}
@@ -73,14 +88,99 @@ func (c *Client) StreamRequestContext(ctx context.Context, session *SessionConte
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		resp.Body.Close()
-		return nil, &APIError{
-			StatusCode: resp.StatusCode,
-			Body:       string(body),
-			Message:    fmt.Sprintf("Qoder upstream returned HTTP %d", resp.StatusCode),
+		apiErr := ParseAPIErrorBody(resp.StatusCode, string(body))
+		if apiErr == nil {
+			apiErr = &APIError{}
 		}
+		apiErr.StatusCode = resp.StatusCode
+		apiErr.Body = string(body)
+		if strings.TrimSpace(apiErr.Message) == "" {
+			apiErr.Message = fmt.Sprintf("Qoder upstream returned HTTP %d", resp.StatusCode)
+		}
+		return nil, apiErr
 	}
 
 	return resp, nil
+}
+
+// APIError represents an error from the Qoder API.
+type APIError struct {
+	StatusCode          int
+	Body                string
+	Code                string
+	Message             string
+	AgentLimitResetTime int64
+}
+
+func (e *APIError) Error() string {
+	if e == nil {
+		return ""
+	}
+	if e.IsAgentLimit() {
+		if resetAt, ok := e.AgentLimitResetAt(); ok {
+			return fmt.Sprintf("Qoder agent limit reached; resets at %s", resetAt.In(time.FixedZone("Asia/Shanghai", 8*60*60)).Format("2006-01-02 15:04:05 Asia/Shanghai"))
+		}
+		return "Qoder agent limit reached"
+	}
+	if e.Code != "" && e.Message != "" {
+		return fmt.Sprintf("Qoder upstream error %s: %s", e.Code, e.Message)
+	}
+	if e.Message != "" {
+		return e.Message
+	}
+	if e.StatusCode > 0 {
+		return fmt.Sprintf("Qoder upstream returned HTTP %d", e.StatusCode)
+	}
+	return "Qoder upstream error"
+}
+
+// IsAgentLimit reports whether this error is Qoder's agent quota/rate limit.
+func (e *APIError) IsAgentLimit() bool {
+	return e != nil && (e.Code == "115" || e.AgentLimitResetTime > 0)
+}
+
+// AgentLimitResetAt returns the parsed Qoder agent limit reset time.
+func (e *APIError) AgentLimitResetAt() (time.Time, bool) {
+	if e == nil || e.AgentLimitResetTime <= 0 {
+		return time.Time{}, false
+	}
+	return time.UnixMilli(e.AgentLimitResetTime), true
+}
+
+// ParseAPIErrorBody parses Qoder HTTP/SSE error bodies.
+func ParseAPIErrorBody(statusCode int, body string) *APIError {
+	apiErr := &APIError{
+		StatusCode: statusCode,
+		Body:       body,
+		Message:    fmt.Sprintf("Qoder upstream returned HTTP %d", statusCode),
+	}
+	applyQoderErrorPayload(apiErr, []byte(body))
+	return apiErr
+}
+
+func applyQoderErrorPayload(apiErr *APIError, payload []byte) {
+	if apiErr == nil || len(payload) == 0 {
+		return
+	}
+	var body qoderErrorBody
+	if err := json.Unmarshal(payload, &body); err != nil {
+		return
+	}
+	if strings.TrimSpace(body.Code) != "" {
+		apiErr.Code = body.Code
+	}
+	if strings.TrimSpace(body.Message) != "" {
+		apiErr.Message = body.Message
+	}
+	if body.AgentLimitResetTime > 0 {
+		apiErr.AgentLimitResetTime = body.AgentLimitResetTime
+	}
+	if len(body.Data) > 0 {
+		applyQoderErrorPayload(apiErr, body.Data)
+	}
+	if strings.TrimSpace(body.Message) != "" && json.Valid([]byte(body.Message)) {
+		applyQoderErrorPayload(apiErr, []byte(body.Message))
+	}
 }
 
 func (c *Client) setHeaders(req *http.Request, session *SessionContext, path, encodedBody string) {
@@ -106,21 +206,10 @@ func (c *Client) setHeaders(req *http.Request, session *SessionContext, path, en
 	req.Header.Set("Authorization", ComposeBearer(payloadB64, signature))
 }
 
-// APIError represents an error from the Qoder API.
-type APIError struct {
-	StatusCode int
-	Body       string
-	Message    string
-}
-
-func (e *APIError) Error() string {
-	return e.Message
-}
-
 // SSEEvent represents a parsed SSE event from the Qoder stream.
 type SSEEvent struct {
-	Type       string // text_delta, tool_call_delta, error
-	Text       string // For text_delta events
+	Type       string // text_delta, reasoning_delta, tool_call_delta, error
+	Text       string // For text_delta and reasoning_delta events
 	ToolCallID string // For tool_call_delta events
 	ToolName   string // For tool_call_delta events
 	Arguments  string // For tool_call_delta events (JSON string)
@@ -129,7 +218,16 @@ type SSEEvent struct {
 
 // QoderSSEWrapper is the outer SSE structure from Qoder.
 type QoderSSEWrapper struct {
-	Body string `json:"body"`
+	Body            string `json:"body"`
+	StatusCode      string `json:"statusCode"`
+	StatusCodeValue int    `json:"statusCodeValue"`
+}
+
+type qoderErrorBody struct {
+	Code                string          `json:"code"`
+	Message             string          `json:"message"`
+	Data                json.RawMessage `json:"data"`
+	AgentLimitResetTime int64           `json:"agentLimitResetTime"`
 }
 
 // QoderSSEInner is the inner structure of a Qoder SSE body.
@@ -167,6 +265,9 @@ func ParseSSELine(line string) ([]SSEEvent, error) {
 		return nil, fmt.Errorf("qoder: parse SSE wrapper: %w", err)
 	}
 
+	if wrapper.StatusCodeValue >= http.StatusBadRequest {
+		return nil, parseWrappedAPIError(wrapper)
+	}
 	if wrapper.Body == "" {
 		return nil, nil
 	}
@@ -190,9 +291,9 @@ func ParseSSELine(line string) ([]SSEEvent, error) {
 			})
 		}
 
-		if delta.ReasoningContent != "" && delta.Content == "" {
+		if delta.ReasoningContent != "" {
 			events = append(events, SSEEvent{
-				Type: "text_delta",
+				Type: "reasoning_delta",
 				Text: delta.ReasoningContent,
 			})
 		}
@@ -208,6 +309,16 @@ func ParseSSELine(line string) ([]SSEEvent, error) {
 	}
 
 	return events, nil
+}
+
+func parseWrappedAPIError(wrapper QoderSSEWrapper) error {
+	apiErr := &APIError{
+		StatusCode: wrapper.StatusCodeValue,
+		Body:       wrapper.Body,
+		Message:    fmt.Sprintf("Qoder upstream returned HTTP %d", wrapper.StatusCodeValue),
+	}
+	applyQoderErrorPayload(apiErr, []byte(wrapper.Body))
+	return apiErr
 }
 
 // StreamEvents reads SSE lines from a response body and returns a channel of events.

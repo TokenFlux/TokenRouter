@@ -25,6 +25,24 @@ func TestTLSFingerprintProfileService_ResolveTLSProfileOpenAI(t *testing.T) {
 	require.Nil(t, svc.ResolveTLSProfile(openAIAPIKey), "OpenAI API Key 不应启用 TLS 指纹伪装")
 }
 
+func TestTLSFingerprintProfileService_ResolveTLSProfileQoderCosy(t *testing.T) {
+	svc := &TLSFingerprintProfileService{}
+
+	qoderCosy := &Account{
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Extra:    map[string]any{"enable_tls_fingerprint": true},
+	}
+	require.NotNil(t, svc.ResolveTLSProfile(qoderCosy), "Qoder COSY 开启后应返回内置默认 profile")
+
+	qoderOtherType := &Account{
+		Platform: PlatformQoder,
+		Type:     AccountTypeOAuth,
+		Extra:    map[string]any{"enable_tls_fingerprint": true},
+	}
+	require.Nil(t, svc.ResolveTLSProfile(qoderOtherType), "非 COSY Qoder 账号不应启用 TLS 指纹伪装")
+}
+
 func TestOpenAIGatewayService_ResolveTLSProfileRouterFallback(t *testing.T) {
 	account := &Account{
 		Platform: PlatformOpenAI,

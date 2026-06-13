@@ -54,7 +54,8 @@ describe('useModelWhitelist', () => {
   it('qoder 模型列表包含当前支持的官方模型', () => {
     expect(getModelsByPlatform('qoder')).toEqual([
       'gpt-5-codex',
-      'claude-sonnet-4-5'
+      'claude-sonnet-4-5',
+      'qwen3.7-max'
     ])
   })
 

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
@@ -24,9 +25,28 @@ const (
 )
 
 var defaultQoderModelAliases = map[string]qoderModelInfo{
-	"claude-sonnet-4-5": {Key: "lite", Source: "system"},
-	"gpt-5-codex":       {Key: "lite", Source: "system"},
-	"qwen3.7-max":       {Key: "qmodel_latest", Source: "system"},
+	// lite pool (lightweight Qwen)
+	"claude-sonnet-4-5":   {Key: "lite", Source: "system"},
+	"claude-sonnet-4":     {Key: "lite", Source: "system"},
+	"claude-sonnet":       {Key: "lite", Source: "system"},
+	"claude-haiku-4-5":    {Key: "lite", Source: "system"},
+	"gpt-5-codex":         {Key: "lite", Source: "system"},
+	"gpt-5":               {Key: "lite", Source: "system"},
+	"gpt-5.1-codex":       {Key: "lite", Source: "system"},
+	// Qwen family
+	"qwen3.7-max":         {Key: "qmodel_latest", Source: "system"},
+	"qwen3.7-plus":        {Key: "qmodel", Source: "system"},
+	"qwen3.5-plus":        {Key: "q35model", Source: "system"},
+	// DeepSeek family
+	"deepseek-v4-pro":     {Key: "dmodel", Source: "system"},
+	"deepseek-v4-flash":   {Key: "dfmodel", Source: "system"},
+	// GLM family
+	"glm-5":               {Key: "gmodel", Source: "system"},
+	"glm-5.1":             {Key: "gm51model", Source: "system"},
+	// Kimi
+	"kimi-k2.6":           {Key: "kmodel", Source: "system"},
+	// MiniMax
+	"minimax-m3":          {Key: "mmodel", Source: "system"},
 }
 
 type qoderModelInfo struct {
@@ -38,21 +58,29 @@ type qoderStreamClient interface {
 	StreamRequestContext(ctx context.Context, session *qoder.SessionContext, path string, bodyJSON []byte, extraHeaders map[string]string) (*http.Response, error)
 }
 
-// QoderGatewayService forwards OpenAI/Anthropic-compatible requests to Qoder COSY.
-type QoderGatewayService struct {
-	tokenProvider *QoderTokenProvider
-	client        qoderStreamClient
-	accountRepo   AccountRepository
+type qoderStreamClientWithDoer interface {
+	StreamRequestContextWithDoer(ctx context.Context, session *qoder.SessionContext, path string, bodyJSON []byte, extraHeaders map[string]string, doer qoder.RequestDoer) (*http.Response, error)
 }
 
-func NewQoderGatewayService(tokenProvider *QoderTokenProvider, accountRepo AccountRepository) *QoderGatewayService {
+// QoderGatewayService forwards OpenAI/Anthropic-compatible requests to Qoder COSY.
+type QoderGatewayService struct {
+	tokenProvider       *QoderTokenProvider
+	client              qoderStreamClient
+	accountRepo         AccountRepository
+	httpUpstream        HTTPUpstream
+	tlsFPProfileService *TLSFingerprintProfileService
+}
+
+func NewQoderGatewayService(tokenProvider *QoderTokenProvider, accountRepo AccountRepository, httpUpstream HTTPUpstream, tlsFPProfileService *TLSFingerprintProfileService) *QoderGatewayService {
 	if tokenProvider == nil {
 		tokenProvider = NewQoderTokenProvider()
 	}
 	return &QoderGatewayService{
-		tokenProvider: tokenProvider,
-		client:        qoder.NewClient(qoder.APIBaseURL),
-		accountRepo:   accountRepo,
+		tokenProvider:       tokenProvider,
+		client:              qoder.NewClient(qoder.APIBaseURL),
+		accountRepo:         accountRepo,
+		httpUpstream:        httpUpstream,
+		tlsFPProfileService: tlsFPProfileService,
 	}
 }
 
@@ -81,11 +109,13 @@ func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin
 	var responseBody []byte
 	if clientStream {
 		if err := WriteQoderOpenAIStreamResponse(c, requestModel, resp); err != nil {
+			s.applyUpstreamErrorPolicy(ctx, account, err)
 			return nil, err
 		}
 	} else {
 		events, err := ReadQoderSSEEvents(resp)
 		if err != nil {
+			s.applyUpstreamErrorPolicy(ctx, account, err)
 			return nil, err
 		}
 		responseBody, err = BuildQoderOpenAICompletion(requestModel, events)
@@ -129,11 +159,13 @@ func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Contex
 	var responseBody []byte
 	if clientStream {
 		if err := WriteQoderAnthropicStreamResponse(c, requestModel, resp); err != nil {
+			s.applyUpstreamErrorPolicy(ctx, account, err)
 			return nil, err
 		}
 	} else {
 		events, err := ReadQoderSSEEvents(resp)
 		if err != nil {
+			s.applyUpstreamErrorPolicy(ctx, account, err)
 			return nil, err
 		}
 		responseBody, err = BuildQoderAnthropicMessage(requestModel, events)
@@ -165,10 +197,40 @@ func (s *QoderGatewayService) openQoderStream(ctx context.Context, account *Acco
 		client = qoder.NewClient(qoder.APIBaseURL)
 	}
 
-	return client.StreamRequestContext(ctx, session, "", payload, map[string]string{
+	headers := map[string]string{
 		"x-model-key":    modelKey,
 		"x-model-source": "system",
-	})
+	}
+	if doer := s.qoderRequestDoer(account); doer != nil {
+		if doerClient, ok := client.(qoderStreamClientWithDoer); ok {
+			return doerClient.StreamRequestContextWithDoer(ctx, session, "", payload, headers, doer)
+		}
+	}
+	return client.StreamRequestContext(ctx, session, "", payload, headers)
+}
+
+func (s *QoderGatewayService) qoderRequestDoer(account *Account) qoder.RequestDoer {
+	if s == nil {
+		return nil
+	}
+	return newQoderRequestDoer(account, s.httpUpstream, s.tlsFPProfileService)
+}
+
+func newQoderRequestDoer(account *Account, httpUpstream HTTPUpstream, tlsFPProfileService *TLSFingerprintProfileService) qoder.RequestDoer {
+	if httpUpstream == nil || account == nil {
+		return nil
+	}
+	proxyURL := ""
+	if account.ProxyID != nil && account.Proxy != nil {
+		proxyURL = account.Proxy.URL()
+	}
+	var tlsProfile *tlsfingerprint.Profile
+	if tlsFPProfileService != nil {
+		tlsProfile = tlsFPProfileService.ResolveTLSProfile(account)
+	}
+	return func(req *http.Request) (*http.Response, error) {
+		return httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, tlsProfile)
+	}
 }
 
 func (s *QoderGatewayService) applyUpstreamErrorPolicy(ctx context.Context, account *Account, err error) {
@@ -180,6 +242,12 @@ func (s *QoderGatewayService) applyUpstreamErrorPolicy(ctx context.Context, acco
 		return
 	}
 	switch {
+	case apiErr.IsAgentLimit():
+		resetAt, ok := apiErr.AgentLimitResetAt()
+		if !ok {
+			resetAt = time.Now().Add(30 * time.Second)
+		}
+		_ = s.accountRepo.SetRateLimited(ctx, account.ID, resetAt)
 	case apiErr.StatusCode == http.StatusTooManyRequests:
 		_ = s.accountRepo.SetRateLimited(ctx, account.ID, time.Now().Add(30*time.Second))
 	case apiErr.StatusCode >= 500:
@@ -284,6 +352,10 @@ func buildQoderPayload(model, system string, messages []qoderMessage, tools []an
 	extra["modelConfig"].(map[string]any)["source"] = modelInfo.Source
 	extra["originalContent"].(map[string]any)["text"] = prompt
 	payload["business"] = map[string]any{
+		"product":  "cli",
+		"version":  "0.1.43",
+		"type":     "agent",
+		"stage":    "start",
 		"id":       uuid.NewString(),
 		"name":     truncateRunes(prompt, 30),
 		"begin_at": time.Now().UnixMilli(),
@@ -349,11 +421,33 @@ func qoderBasePayload() map[string]any {
 	}
 }
 
+var qoderBlankResponseMeta = map[string]any{
+	"id": "",
+	"usage": map[string]any{
+		"prompt_tokens":     0,
+		"completion_tokens": 0,
+		"total_tokens":      0,
+		"completion_tokens_details": map[string]any{
+			"reasoning_tokens": 0,
+		},
+		"prompt_tokens_details": map[string]any{
+			"cached_tokens": 0,
+		},
+	},
+}
+
 func qoderPayloadMessage(role, text string) map[string]any {
+	isUser := role == "user"
+	content := text
+	if isUser {
+		content = ""
+	}
 	msg := map[string]any{
-		"role":     role,
-		"content":  text,
-		"contents": []any{},
+		"role":                        role,
+		"content":                     content,
+		"contents":                    []any{},
+		"reasoning_content_signature": "",
+		"response_meta":               qoderBlankResponseMeta,
 	}
 	if text != "" {
 		msg["contents"] = []any{map[string]any{"type": "text", "text": text}}

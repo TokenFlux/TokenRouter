@@ -2,12 +2,14 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
 
 	pkghttputil "github.com/TokenFlux/TokenRouter/internal/pkg/httputil"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -219,6 +221,11 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 			accountRelease()
 		}
 		if err != nil {
+			if status, errType, message, ok := qoderGatewayErrorDetails(err); ok {
+				service.SetOpsUpstreamError(c, upstreamStatusFromError(err), message, "")
+				h.streamingAwareError(c, status, errType, message, c.Writer.Size() != writerSizeBeforeForward, endpoint)
+				return
+			}
 			if c.Writer.Size() != writerSizeBeforeForward {
 				h.streamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", true, endpoint)
 				return
@@ -264,6 +271,42 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 func (h *QoderGatewayHandler) handleConcurrencyError(c *gin.Context, err error, slotType string, streamStarted bool, endpoint qoderEndpoint) {
 	status, errType, message := concurrencyErrorResponse(err, slotType)
 	h.streamingAwareError(c, status, errType, message, streamStarted, endpoint)
+}
+
+func qoderGatewayErrorDetails(err error) (int, string, string, bool) {
+	var apiErr *qoder.APIError
+	if !errors.As(err, &apiErr) {
+		return 0, "", "", false
+	}
+
+	status := http.StatusBadGateway
+	errType := "upstream_error"
+	switch apiErr.StatusCode {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		status = http.StatusUnauthorized
+	case http.StatusTooManyRequests:
+		status = http.StatusTooManyRequests
+		errType = "rate_limit_error"
+	case http.StatusServiceUnavailable:
+		status = http.StatusServiceUnavailable
+	default:
+		if apiErr.StatusCode >= http.StatusInternalServerError {
+			status = http.StatusBadGateway
+		}
+	}
+	if apiErr.IsAgentLimit() {
+		status = http.StatusTooManyRequests
+		errType = "rate_limit_error"
+	}
+	return status, errType, apiErr.Error(), true
+}
+
+func upstreamStatusFromError(err error) int {
+	var apiErr *qoder.APIError
+	if errors.As(err, &apiErr) {
+		return apiErr.StatusCode
+	}
+	return 0
 }
 
 func (h *QoderGatewayHandler) streamingAwareError(c *gin.Context, status int, errType, message string, streamStarted bool, endpoint qoderEndpoint) {
