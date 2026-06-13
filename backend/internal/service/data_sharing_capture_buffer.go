@@ -663,6 +663,10 @@ func finalizeBufferedDataShareSession(session *DataShareSession) *DataShareSessi
 	session.Meta = normalizeDataShareMeta(session.Meta)
 	qualityReport := evaluateCompactDataShareSessionQuality(session.Model, optionalStringValue(session.SystemPrompt), session.Messages, session.Tools, session.Usage)
 	qualityStatus, qualityErrors := qualityReport.Status, qualityReport.Errors
+	if dataShareHasReplayDuplicateBlock(session.Messages) {
+		qualityStatus = DataShareQualityInvalid
+		qualityErrors = appendDataShareQualityError(qualityErrors, dataShareQualityErrorReplayDuplicateBlock)
+	}
 	status, finalSnapshot := dataShareCompletionState(qualityStatus)
 	session.Status = status
 	session.IsFinalSnapshot = finalSnapshot

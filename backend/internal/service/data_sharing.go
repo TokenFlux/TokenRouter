@@ -52,7 +52,9 @@ const dataShareInternalCaptureMetaKey = "_capture"
 var (
 	ErrDataShareSessionNotFound = infraerrors.NotFound("DATA_SHARE_SESSION_NOT_FOUND", "data share session not found")
 	ErrDataShareNoticeMissing   = infraerrors.BadRequest("DATA_SHARE_NOTICE_MISSING", "data sharing notice content is required")
-	dataShareCompressionLevel   atomic.Value
+	// ErrDataShareExportPayloadInvalid 表示导出前实时复核发现 payload 仍包含明显坏数据。
+	ErrDataShareExportPayloadInvalid = infraerrors.BadRequest("DATA_SHARE_EXPORT_PAYLOAD_INVALID", "data share session failed export quality recheck")
+	dataShareCompressionLevel        atomic.Value
 )
 
 const defaultDataSharingNoticeContent = "该分组已启用数据共享。使用该分组产生的 Agent 对话数据会被保存，并可能用于训练、评估和改进模型。请确认你已理解并同意该数据共享安排。"
@@ -63,6 +65,12 @@ const dataSharePersistenceRetryInitialDelay = 50 * time.Millisecond
 
 // dataShareReplayOverlapMinMessages 限制重放去重至少命中两条连续消息，避免误删真实重复的单条发言。
 const dataShareReplayOverlapMinMessages = 2
+const dataShareLongReplayMinMessages = 16
+const dataShareReplayWindowWidth = 3
+const dataShareReplayWindowCandidateLimit = 64
+const dataShareAdjacentReplayCompactMaxPasses = 4
+const dataShareQualityErrorReplayDuplicateBlock = "replay_duplicate_block"
+const dataShareReplayRangeHashBase uint64 = 11400714819323198485
 
 // dataShareExportExcludedFields 是导出文件中禁止外发的身份和来源字段。
 var dataShareExportExcludedFields = map[string]struct{}{
@@ -1668,7 +1676,19 @@ func (s *DataSharingService) ExportJSONL(ctx context.Context, w io.Writer, filte
 			return err
 		}
 		for i := range items {
-			payload := exportDownloadPayloadFromSession(&items[i])
+			payload, err := exportDownloadPayloadFromSession(&items[i])
+			if err != nil {
+				if errors.Is(err, ErrDataShareExportPayloadInvalid) && (filters.SelectAll || len(filters.IDs) != 1) {
+					slog.Warn("data sharing: skip session failed export recheck",
+						"trajectory_id", items[i].TrajectoryID,
+						"session_id", items[i].SessionID,
+						"quality_status", items[i].QualityStatus,
+						"error", err,
+					)
+					continue
+				}
+				return err
+			}
 			line, err := json.Marshal(payload)
 			if err != nil {
 				return err
@@ -2242,12 +2262,15 @@ func (s *DataSharingService) buildOpenAIResponsesIncrementalSession(existing *Da
 	if len(requestItems) == 0 {
 		requestItems = normalizeOpenAIResponsesRequestInputItems(input.RequestBody)
 	}
-	replayLen, orderUncertain := dataShareResponsesReplayPrefixLen(state, requestItems)
+	replayPlan, orderUncertain := dataShareBuildResponsesReplayPlan(state, requestItems)
 	if orderUncertain {
 		state.OrderUncertain = true
 	}
-	messages := make([]map[string]any, 0, len(requestItems)-replayLen+2)
-	for _, item := range requestItems[replayLen:] {
+	messages := make([]map[string]any, 0, dataShareResponsesReplayPlanKeepCount(replayPlan)+2)
+	for index, item := range requestItems {
+		if !replayPlan.Keep[index] {
+			continue
+		}
 		messages = append(messages, cloneDataShareMap(item.Message))
 	}
 	responseStart := len(messages)
@@ -2261,7 +2284,7 @@ func (s *DataSharingService) buildOpenAIResponsesIncrementalSession(existing *Da
 		out.Meta["capture_incomplete"] = true
 	}
 	out.Messages = normalizeDataShareMessages(messages)
-	out.captureState = updateDataShareResponsesCaptureState(state, requestItems, replayLen, messages[responseStart:], input.Turn)
+	out.captureState = updateDataShareResponsesCaptureState(state, requestItems, replayPlan.Keep, messages[responseStart:], input.Turn)
 	out.Meta = withDataShareInternalCaptureState(out.Meta, out.captureState)
 	return out
 }
@@ -2271,6 +2294,10 @@ type dataShareResponsesInputItem struct {
 	StableID    string
 	Identity    string
 	IdentityKey string
+}
+
+type dataShareResponsesReplayPlan struct {
+	Keep []bool
 }
 
 func normalizeOpenAIResponsesRequestInputItems(body []byte) []dataShareResponsesInputItem {
@@ -2339,32 +2366,71 @@ func dataShareResponsesStableItemID(item gjson.Result, msg map[string]any) strin
 	return ""
 }
 
-func dataShareResponsesReplayPrefixLen(state *dataShareResponsesCaptureState, incoming []dataShareResponsesInputItem) (int, bool) {
-	if state == nil || len(incoming) == 0 {
-		return 0, false
+func dataShareBuildResponsesReplayPlan(state *dataShareResponsesCaptureState, incoming []dataShareResponsesInputItem) (dataShareResponsesReplayPlan, bool) {
+	plan := dataShareResponsesReplayPlan{Keep: make([]bool, len(incoming))}
+	for i := range plan.Keep {
+		plan.Keep[i] = true
 	}
-	replay := 0
-	for replay < len(incoming) {
-		item := incoming[replay]
+	if state == nil || len(incoming) == 0 {
+		return plan, false
+	}
+	prefixReplay := 0
+	for prefixReplay < len(incoming) {
+		item := incoming[prefixReplay]
 		if item.StableID != "" {
 			if _, ok := state.StableIDs[item.StableID]; ok {
-				replay++
+				prefixReplay++
 				continue
 			}
 			break
 		}
-		if replay < len(state.ReplayIdentities) && state.ReplayIdentities[replay] == item.IdentityKey {
-			replay++
+		if prefixReplay < len(state.ReplayIdentities) && state.ReplayIdentities[prefixReplay] == item.IdentityKey {
+			prefixReplay++
 			continue
 		}
 		break
 	}
-	// 如果当前请求只匹配了一部分且没有稳定 id 锚点，说明客户端可能分叉；保持保守追加。
-	// 完整匹配当前请求时，通常是旧 turn 晚到或纯历史回放，仍应跳过已见前缀。
-	if replay > 0 && replay < len(incoming) && !dataShareResponsesPrefixHasStableAnchor(incoming[:replay]) {
-		return 0, true
+	// 没有稳定 id 的部分前缀命中可能是分叉；保留这段前缀，但仍继续扫描后续明确的长窗口 replay。
+	prefixOrderUncertain := prefixReplay > 0 && prefixReplay < len(incoming) && !dataShareResponsesPrefixHasStableAnchor(incoming[:prefixReplay])
+	if !prefixOrderUncertain {
+		for i := 0; i < prefixReplay; i++ {
+			plan.Keep[i] = false
+		}
 	}
-	return replay, false
+	if state == nil || len(state.ReplayIdentities) < dataShareLongReplayMinMessages || len(incoming) < dataShareLongReplayMinMessages {
+		return plan, prefixOrderUncertain
+	}
+	incomingKeys := dataShareResponsesInputIdentityKeys(incoming)
+	index := dataShareReplayWindowIndex(state.ReplayIdentities)
+	for i := prefixReplay; i < len(incoming); {
+		match := dataShareBestIndexedReplayMatch(state.ReplayIdentities, index, incomingKeys, i)
+		if match.length < dataShareLongReplayMinMessages {
+			i++
+			continue
+		}
+		for end := i + match.length; i < end; i++ {
+			plan.Keep[i] = false
+		}
+	}
+	return plan, prefixOrderUncertain
+}
+
+func dataShareResponsesReplayPlanKeepCount(plan dataShareResponsesReplayPlan) int {
+	count := 0
+	for _, keep := range plan.Keep {
+		if keep {
+			count++
+		}
+	}
+	return count
+}
+
+func dataShareResponsesInputIdentityKeys(items []dataShareResponsesInputItem) []string {
+	out := make([]string, len(items))
+	for i, item := range items {
+		out[i] = item.IdentityKey
+	}
+	return out
 }
 
 func dataShareResponsesPrefixHasStableAnchor(items []dataShareResponsesInputItem) bool {
@@ -2404,7 +2470,7 @@ func dataShareResponsesFilterKnownResponseMessages(state *dataShareResponsesCapt
 	return out
 }
 
-func updateDataShareResponsesCaptureState(state *dataShareResponsesCaptureState, requestItems []dataShareResponsesInputItem, replayLen int, responseMessages []map[string]any, turn int) *dataShareResponsesCaptureState {
+func updateDataShareResponsesCaptureState(state *dataShareResponsesCaptureState, requestItems []dataShareResponsesInputItem, keepRequestItems []bool, responseMessages []map[string]any, turn int) *dataShareResponsesCaptureState {
 	if state == nil {
 		state = &dataShareResponsesCaptureState{}
 	}
@@ -2414,11 +2480,11 @@ func updateDataShareResponsesCaptureState(state *dataShareResponsesCaptureState,
 	if state.ResponseKeys == nil {
 		state.ResponseKeys = map[string]struct{}{}
 	}
-	if replayLen < 0 {
-		replayLen = 0
-	}
-	if replayLen > len(requestItems) {
-		replayLen = len(requestItems)
+	if len(keepRequestItems) != len(requestItems) {
+		keepRequestItems = make([]bool, len(requestItems))
+		for i := range keepRequestItems {
+			keepRequestItems[i] = true
+		}
 	}
 	context := dataShareResponsesContextSeed()
 	for index, item := range requestItems {
@@ -2426,7 +2492,7 @@ func updateDataShareResponsesCaptureState(state *dataShareResponsesCaptureState,
 			// 只记录“前文 + assistant 输出”的固定长度作用域 key，避免误删合法重复回答，也避免 meta 随文本长度膨胀。
 			state.ResponseKeys[dataShareResponsesScopedResponseKey(context, item.IdentityKey)] = struct{}{}
 		}
-		if index >= replayLen {
+		if keepRequestItems[index] {
 			if item.StableID != "" {
 				state.StableIDs[item.StableID] = struct{}{}
 			}
@@ -2749,7 +2815,11 @@ type dataShareQualityReport struct {
 // ValidateDataShareSessionQuality 按附件交付规则检查 session 是否可进入正式导出。
 func ValidateDataShareSessionQuality(model string, systemPrompt string, messages []map[string]any, tools []map[string]any, usage map[string]any) []string {
 	compact := CompactDataShareMessages(messages)
-	return validateCompactDataShareSessionQuality(model, systemPrompt, compact, tools, usage)
+	errs := validateCompactDataShareSessionQuality(model, systemPrompt, compact, tools, usage)
+	if dataShareHasReplayDuplicateBlock(compact) {
+		errs = appendDataShareQualityError(errs, dataShareQualityErrorReplayDuplicateBlock)
+	}
+	return errs
 }
 
 // DataShareSessionQuality 一次性返回质量状态和错误列表，避免采集热路径重复扫描消息。
@@ -2783,6 +2853,9 @@ func evaluateDataShareSessionQuality(model string, systemPrompt string, messages
 // evaluateCompactDataShareSessionQuality 只接收已 compact 的消息，避免最终化阶段重复压缩同一份大快照。
 func evaluateCompactDataShareSessionQuality(model string, systemPrompt string, compact []map[string]any, tools []map[string]any, usage map[string]any) dataShareQualityReport {
 	errs := validateCompactDataShareSessionQuality(model, systemPrompt, compact, tools, usage)
+	if dataShareHasReplayDuplicateBlock(compact) {
+		errs = appendDataShareQualityError(errs, dataShareQualityErrorReplayDuplicateBlock)
+	}
 	status := DataShareQualityInvalid
 	if len(errs) == 0 {
 		status = DataShareQualityComplete
@@ -3226,6 +3299,7 @@ func contentValueFromAnthropicBlocks(blocks []any) any {
 
 // CompactDataShareMessages 压缩 Responses/Codex 每轮请求重复携带的历史消息。
 func CompactDataShareMessages(messages []map[string]any) []map[string]any {
+	messages = dataShareCompactTrailingReplayBlock(messages)
 	out := make([]map[string]any, 0, len(messages))
 	outIdentities := make([]string, 0, len(messages))
 	outIdentityPositions := map[string][]int{}
@@ -3282,7 +3356,378 @@ func CompactDataShareMessages(messages []map[string]any) []map[string]any {
 		outIdentityPositions[identity] = append(outIdentityPositions[identity], len(out)-1)
 		i++
 	}
+	return dataShareCompactGlobalReplayWindows(dataShareCompactTrailingReplayBlock(dataShareCompactAdjacentReplayBlocks(out)))
+}
+
+func dataShareCompactAdjacentReplayBlocks(messages []map[string]any) []map[string]any {
+	if len(messages) < dataShareLongReplayMinMessages*2 {
+		return messages
+	}
+	// 相邻长重复块更符合 replay 污染形态，默认压成一份；非相邻纯文本重复由全局窗口逻辑保守处理。
+	out := cloneBufferedDataShareMaps(messages)
+	for pass := 0; pass < dataShareAdjacentReplayCompactMaxPasses; pass++ {
+		keys := dataShareMessageIdentityKeys(out)
+		keyHash := dataShareNewReplayRangeHash(keys)
+		index := dataShareReplayWindowIndex(keys)
+		compact := make([]map[string]any, 0, len(out))
+		changed := false
+		for i := 0; i < len(out); {
+			if matchLen := dataShareAdjacentReplayBlockLen(keys, keyHash, index, i); matchLen >= dataShareLongReplayMinMessages {
+				runEnd := i + matchLen
+				for runEnd+matchLen <= len(out) && dataShareKeysEqualHashed(keys, keyHash, runEnd-matchLen, runEnd, matchLen) {
+					runEnd += matchLen
+				}
+				if runEnd > i+matchLen && dataShareHasEarlierReplayBlock(keys, keyHash, index, i, matchLen) {
+					// replay run 自身相邻重复且更早历史已有同一块时，整段 run 都是污染副本。
+					i = runEnd
+					changed = true
+					continue
+				}
+				if runEnd > i+matchLen {
+					compact = append(compact, cloneBufferedDataShareMaps(out[i:i+matchLen])...)
+					i = runEnd
+					changed = true
+					continue
+				}
+				compact = append(compact, cloneBufferedDataShareMaps(out[i:runEnd])...)
+				i = runEnd
+				continue
+			}
+			compact = append(compact, cloneDataShareMap(out[i]))
+			i++
+		}
+		out = compact
+		if !changed || len(out) < dataShareLongReplayMinMessages*2 {
+			return out
+		}
+	}
 	return out
+}
+
+func dataShareAdjacentReplayBlockLen(keys []string, keyHash dataShareReplayRangeHash, index map[string][]int, start int) int {
+	candidates := index[dataShareReplayWindowKey(keys, start)]
+	if len(candidates) == 0 || len(candidates) > dataShareReplayWindowCandidateLimit {
+		return 0
+	}
+	best := 0
+	for _, other := range candidates {
+		if other <= start {
+			continue
+		}
+		blockLen := other - start
+		if blockLen < dataShareLongReplayMinMessages || start+blockLen*2 > len(keys) {
+			continue
+		}
+		if dataShareKeysEqualHashed(keys, keyHash, start, other, blockLen) && blockLen > best {
+			best = blockLen
+		}
+	}
+	return best
+}
+
+func dataShareHasEarlierReplayBlock(keys []string, keyHash dataShareReplayRangeHash, index map[string][]int, start int, length int) bool {
+	if start <= 0 || length < dataShareLongReplayMinMessages {
+		return false
+	}
+	candidates := index[dataShareReplayWindowKey(keys, start)]
+	if len(candidates) == 0 || len(candidates) > dataShareReplayWindowCandidateLimit {
+		return false
+	}
+	for _, other := range candidates {
+		if other >= start {
+			continue
+		}
+		if dataShareKeysEqualHashed(keys, keyHash, other, start, length) {
+			return true
+		}
+	}
+	return false
+}
+
+func dataShareCompactTrailingReplayBlock(messages []map[string]any) []map[string]any {
+	if len(messages) < dataShareLongReplayMinMessages*2 {
+		return messages
+	}
+	keys := dataShareMessageIdentityKeys(messages)
+	keyHash := dataShareNewReplayRangeHash(keys)
+	index := dataShareReplayWindowIndex(keys)
+	for suffixStart := dataShareLongReplayMinMessages; suffixStart <= len(keys)-dataShareLongReplayMinMessages; suffixStart++ {
+		suffixLen := len(keys) - suffixStart
+		candidates := index[dataShareReplayWindowKey(keys, suffixStart)]
+		if len(candidates) == 0 || len(candidates) > dataShareReplayWindowCandidateLimit {
+			continue
+		}
+		for _, pos := range candidates {
+			if pos >= suffixStart {
+				continue
+			}
+			if pos+suffixLen > suffixStart {
+				continue
+			}
+			if !dataShareKeysEqualHashed(keys, keyHash, pos, suffixStart, suffixLen) {
+				continue
+			}
+			if !dataShareReplayWindowSafe(messages[suffixStart:]) {
+				return messages
+			}
+			// 尾部窗口完整重复早前历史且带强 replay 信号时，删除尾部污染副本，保留更早的真实上下文。
+			return cloneBufferedDataShareMaps(messages[:suffixStart])
+		}
+	}
+	return messages
+}
+
+func dataShareKeysEqual(keys []string, left int, right int, length int) bool {
+	if left < 0 || right < 0 || length <= 0 || left+length > len(keys) || right+length > len(keys) {
+		return false
+	}
+	for i := 0; i < length; i++ {
+		if keys[left+i] == "" || keys[left+i] != keys[right+i] {
+			return false
+		}
+	}
+	return true
+}
+
+type dataShareReplayRangeHash struct {
+	prefix []uint64
+	power  []uint64
+}
+
+func dataShareNewReplayRangeHash(keys []string) dataShareReplayRangeHash {
+	h := dataShareReplayRangeHash{
+		prefix: []uint64{0},
+		power:  []uint64{1},
+	}
+	for _, key := range keys {
+		h.append(key)
+	}
+	return h
+}
+
+func (h *dataShareReplayRangeHash) append(key string) {
+	value := dataShareReplayKeyHash(key)
+	h.prefix = append(h.prefix, h.prefix[len(h.prefix)-1]*dataShareReplayRangeHashBase+value)
+	h.power = append(h.power, h.power[len(h.power)-1]*dataShareReplayRangeHashBase)
+}
+
+func (h dataShareReplayRangeHash) rangeHash(start int, length int) (uint64, bool) {
+	if start < 0 || length < 0 || start+length >= len(h.prefix) || length >= len(h.power) {
+		return 0, false
+	}
+	return h.prefix[start+length] - h.prefix[start]*h.power[length], true
+}
+
+func dataShareReplayKeyHash(key string) uint64 {
+	hash := uint64(1469598103934665603)
+	for i := 0; i < len(key); i++ {
+		hash ^= uint64(key[i])
+		hash *= 1099511628211
+	}
+	if hash == 0 {
+		return 1
+	}
+	return hash
+}
+
+func dataShareKeysEqualHashed(keys []string, keyHash dataShareReplayRangeHash, left int, right int, length int) bool {
+	leftHash, ok := keyHash.rangeHash(left, length)
+	if !ok {
+		return false
+	}
+	rightHash, ok := keyHash.rangeHash(right, length)
+	if !ok || leftHash != rightHash {
+		return false
+	}
+	return dataShareKeysEqual(keys, left, right, length)
+}
+
+func dataShareCrossKeysEqual(leftKeys []string, leftStart int, rightKeys []string, rightStart int, length int) bool {
+	if leftStart < 0 || rightStart < 0 || length <= 0 || leftStart+length > len(leftKeys) || rightStart+length > len(rightKeys) {
+		return false
+	}
+	for i := 0; i < length; i++ {
+		if leftKeys[leftStart+i] == "" || leftKeys[leftStart+i] != rightKeys[rightStart+i] {
+			return false
+		}
+	}
+	return true
+}
+
+func dataShareContiguousKeyMatchLenHashed(leftKeys []string, leftHash dataShareReplayRangeHash, leftStart int, rightKeys []string, rightHash dataShareReplayRangeHash, rightStart int) int {
+	limit := len(leftKeys) - leftStart
+	if remaining := len(rightKeys) - rightStart; remaining < limit {
+		limit = remaining
+	}
+	if limit <= 0 || leftStart < 0 || rightStart < 0 {
+		return 0
+	}
+	low, high := 0, limit
+	for low < high {
+		mid := (low + high + 1) / 2
+		leftValue, leftOK := leftHash.rangeHash(leftStart, mid)
+		rightValue, rightOK := rightHash.rangeHash(rightStart, mid)
+		if leftOK && rightOK && leftValue == rightValue {
+			low = mid
+			continue
+		}
+		high = mid - 1
+	}
+	// hash 只做候选长度过滤；调用方在删除或报错前必须再做真实 identity 连续比较。
+	return low
+}
+
+func dataShareHasReplayDuplicateBlock(messages []map[string]any) bool {
+	if len(messages) < dataShareLongReplayMinMessages*2 {
+		return false
+	}
+	keys := dataShareMessageIdentityKeys(messages)
+	return dataShareHasUnsafeReplayDuplicateBlock(messages, keys)
+}
+
+func dataShareCompactGlobalReplayWindows(messages []map[string]any) []map[string]any {
+	if len(messages) < dataShareLongReplayMinMessages*2 {
+		return messages
+	}
+	// 非相邻窗口只在强信号下删除，避免把用户真实重复执行的一段长任务误判为 replay。
+	keys := dataShareMessageIdentityKeys(messages)
+	keyHash := dataShareNewReplayRangeHash(keys)
+	safePrefix := dataShareReplaySafePrefix(messages)
+	out := make([]map[string]any, 0, len(messages))
+	outKeys := make([]string, 0, len(messages))
+	outKeyHash := dataShareNewReplayRangeHash(nil)
+	index := map[string][]int{}
+	for i := 0; i < len(messages); {
+		if len(outKeys) >= dataShareLongReplayMinMessages && len(keys)-i >= dataShareLongReplayMinMessages {
+			windowKey := dataShareReplayWindowKey(keys, i)
+			candidates := index[windowKey]
+			if len(candidates) > 0 && len(candidates) <= dataShareReplayWindowCandidateLimit {
+				best := 0
+				bestPos := 0
+				for _, pos := range candidates {
+					length := dataShareContiguousKeyMatchLenHashed(outKeys, outKeyHash, pos, keys, keyHash, i)
+					if length > best {
+						best = length
+						bestPos = pos
+					}
+				}
+				if best >= dataShareLongReplayMinMessages &&
+					dataShareReplayWindowSafeRange(safePrefix, i, i+best) &&
+					dataShareCrossKeysEqual(outKeys, bestPos, keys, i, best) {
+					i += best
+					continue
+				}
+			}
+		}
+		out = append(out, cloneDataShareMap(messages[i]))
+		outKeys = append(outKeys, keys[i])
+		outKeyHash.append(keys[i])
+		dataShareAddReplayWindowIndex(index, outKeys, len(outKeys)-1)
+		i++
+	}
+	return out
+}
+
+func dataShareAddReplayWindowIndex(index map[string][]int, keys []string, appended int) {
+	start := appended - dataShareReplayWindowWidth + 1
+	if start < 0 {
+		return
+	}
+	key := dataShareReplayWindowKey(keys, start)
+	if key == "" {
+		return
+	}
+	index[key] = append(index[key], start)
+}
+
+func dataShareReplayWindowSafe(messages []map[string]any) bool {
+	for _, msg := range messages {
+		if dataShareReplayMessageSafe(msg) {
+			return true
+		}
+	}
+	return false
+}
+
+func dataShareReplayMessageSafe(msg map[string]any) bool {
+	if strings.TrimSpace(stringFromAny(msg["role"])) == "tool" || len(anySlice(msg["tool_calls"])) > 0 {
+		return true
+	}
+	return dataShareSyntheticUserContextText(dataShareMessageTextForReplay(msg))
+}
+
+func dataShareReplaySafePrefix(messages []map[string]any) []int {
+	prefix := make([]int, len(messages)+1)
+	for i, msg := range messages {
+		prefix[i+1] = prefix[i]
+		if dataShareReplayMessageSafe(msg) {
+			prefix[i+1]++
+		}
+	}
+	return prefix
+}
+
+func dataShareReplayWindowSafeRange(prefix []int, start int, end int) bool {
+	if start < 0 {
+		start = 0
+	}
+	if end > len(prefix)-1 {
+		end = len(prefix) - 1
+	}
+	if start >= end || len(prefix) == 0 {
+		return false
+	}
+	return prefix[end] > prefix[start]
+}
+
+func dataShareHasUnsafeReplayDuplicateBlock(messages []map[string]any, keys []string) bool {
+	if len(messages) < dataShareLongReplayMinMessages*2 || len(keys) != len(messages) {
+		return false
+	}
+	keyHash := dataShareNewReplayRangeHash(keys)
+	safePrefix := dataShareReplaySafePrefix(messages)
+	index := dataShareReplayWindowIndex(keys)
+	for start := 0; start+dataShareLongReplayMinMessages <= len(keys); start++ {
+		candidates := index[dataShareReplayWindowKey(keys, start)]
+		if len(candidates) == 0 || len(candidates) > dataShareReplayWindowCandidateLimit {
+			continue
+		}
+		for _, other := range candidates {
+			if other <= start || other-start < dataShareLongReplayMinMessages {
+				continue
+			}
+			length := dataShareContiguousKeyMatchLenHashed(keys, keyHash, start, keys, keyHash, other)
+			if length < dataShareLongReplayMinMessages {
+				continue
+			}
+			if dataShareReplayWindowSafeRange(safePrefix, start, start+length) ||
+				dataShareReplayWindowSafeRange(safePrefix, other, other+length) {
+				if dataShareKeysEqual(keys, start, other, length) {
+					return true
+				}
+				continue
+			}
+			if other == start+length &&
+				dataShareHasEarlierReplayBlock(keys, keyHash, index, start, length) &&
+				dataShareKeysEqual(keys, start, other, length) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func appendDataShareQualityError(errs []string, code string) []string {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return errs
+	}
+	for _, existing := range errs {
+		if existing == code {
+			return errs
+		}
+	}
+	return append(errs, code)
 }
 
 func dataShareReplaySkipLenForMessages(existing, incoming []map[string]any, incomingStart int) int {
@@ -3357,6 +3802,9 @@ func dataShareReplaySkipLen(
 
 func dataShareReplayPrefixSafe(messages []map[string]any, prefix int, seenToolCalls map[string]struct{}, seenToolResults map[string]struct{}) bool {
 	if prefix >= 5 {
+		if prefix >= dataShareLongReplayMinMessages && !dataShareReplayWindowSafe(messages[:prefix]) {
+			return false
+		}
 		return true
 	}
 	if prefix >= dataShareReplayOverlapMinMessages {
@@ -3584,6 +4032,81 @@ func dataShareMessageIdentities(messages []map[string]any) []string {
 		out[i] = dataShareMessageIdentity(msg)
 	}
 	return out
+}
+
+func dataShareMessageIdentityKeys(messages []map[string]any) []string {
+	out := make([]string, len(messages))
+	for i, msg := range messages {
+		out[i] = dataShareResponsesIdentityKey(dataShareMessageIdentity(msg))
+	}
+	return out
+}
+
+type dataShareReplayMatch struct {
+	existingStart int
+	incomingStart int
+	length        int
+}
+
+func dataShareBestIndexedReplayMatch(existingKeys []string, index map[string][]int, incomingKeys []string, incomingStart int) dataShareReplayMatch {
+	if len(existingKeys) < dataShareLongReplayMinMessages || len(incomingKeys)-incomingStart < dataShareLongReplayMinMessages {
+		return dataShareReplayMatch{}
+	}
+	// 使用三元组 hash 锁定当前位置候选，再用完整 identity 连续比较确认，避免随 incoming 尾部反复扫描。
+	if incomingStart < 0 {
+		incomingStart = 0
+	}
+	best := dataShareReplayMatch{}
+	candidates := index[dataShareReplayWindowKey(incomingKeys, incomingStart)]
+	if len(candidates) == 0 || len(candidates) > dataShareReplayWindowCandidateLimit {
+		return dataShareReplayMatch{}
+	}
+	for _, pos := range candidates {
+		length := dataShareContiguousKeyMatchLen(existingKeys, pos, incomingKeys, incomingStart)
+		if length > best.length {
+			best = dataShareReplayMatch{existingStart: pos, incomingStart: incomingStart, length: length}
+		}
+	}
+	if best.length < dataShareLongReplayMinMessages {
+		return dataShareReplayMatch{}
+	}
+	return best
+}
+
+func dataShareReplayWindowIndex(keys []string) map[string][]int {
+	index := map[string][]int{}
+	limit := len(keys) - dataShareReplayWindowWidth
+	for i := 0; i <= limit; i++ {
+		key := dataShareReplayWindowKey(keys, i)
+		if key == "" {
+			continue
+		}
+		index[key] = append(index[key], i)
+	}
+	return index
+}
+
+func dataShareReplayWindowKey(keys []string, start int) string {
+	if start < 0 || start+dataShareReplayWindowWidth > len(keys) {
+		return ""
+	}
+	for i := 0; i < dataShareReplayWindowWidth; i++ {
+		if keys[start+i] == "" {
+			return ""
+		}
+	}
+	return strings.Join(keys[start:start+dataShareReplayWindowWidth], "\x00")
+}
+
+func dataShareContiguousKeyMatchLen(existingKeys []string, existingStart int, incomingKeys []string, incomingStart int) int {
+	length := 0
+	for existingStart+length < len(existingKeys) && incomingStart+length < len(incomingKeys) {
+		if existingKeys[existingStart+length] == "" || existingKeys[existingStart+length] != incomingKeys[incomingStart+length] {
+			break
+		}
+		length++
+	}
+	return length
 }
 
 func dataShareMessageAlreadySeen(msg map[string]any, seenToolCalls map[string]struct{}, seenToolResults map[string]struct{}) bool {
@@ -4245,12 +4768,26 @@ func PublicDataShareSessionMeta(meta map[string]any) map[string]any {
 }
 
 // exportDownloadPayloadFromSession 仅用于下载导出，在保留库内原始采集数据的同时剔除敏感字段。
-func exportDownloadPayloadFromSession(session *DataShareSession) map[string]any {
+func exportDownloadPayloadFromSession(session *DataShareSession) (map[string]any, error) {
 	payload, ok := redactDataShareExportFields(PublicDataShareSessionPayload(exportPayloadFromSession(session))).(map[string]any)
 	if !ok {
-		return map[string]any{}
+		return map[string]any{}, nil
 	}
-	return payload
+	if err := recheckDataShareExportPayload(payload); err != nil {
+		return nil, err
+	}
+	return payload, nil
+}
+
+func recheckDataShareExportPayload(payload map[string]any) error {
+	messages := mapsFromAny(payload["messages"])
+	if len(messages) == 0 {
+		return nil
+	}
+	if dataShareHasReplayDuplicateBlock(messages) {
+		return fmt.Errorf("%w: %s", ErrDataShareExportPayloadInvalid, dataShareQualityErrorReplayDuplicateBlock)
+	}
+	return nil
 }
 
 // BuildDataShareSessionPayload 生成可导出、可压缩持久化的规范 session payload。
@@ -4585,7 +5122,10 @@ func WriteSingleSessionJSONL(w io.Writer, session *DataShareSession) error {
 		return ErrDataShareSessionNotFound
 	}
 	var buf bytes.Buffer
-	payload := exportDownloadPayloadFromSession(session)
+	payload, err := exportDownloadPayloadFromSession(session)
+	if err != nil {
+		return err
+	}
 	line, err := json.Marshal(payload)
 	if err != nil {
 		return err

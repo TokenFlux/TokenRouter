@@ -3258,6 +3258,30 @@ func buildLargeDataShareMessages(systemPrompt string, rounds int, includeUnpaire
 	return messages
 }
 
+func buildSequentialDataShareMessages(prefix string, count int) []map[string]any {
+	messages := make([]map[string]any, 0, count)
+	for i := 0; i < count; i++ {
+		role := "user"
+		if i%2 == 1 {
+			role = "assistant"
+		}
+		messages = append(messages, map[string]any{"role": role, "content": fmt.Sprintf("%s-%03d", prefix, i)})
+	}
+	return messages
+}
+
+func buildSequentialResponsesInputJSON(prefix string, start int, end int) string {
+	items := make([]string, 0, end-start)
+	for i := start; i < end; i++ {
+		role := "user"
+		if i%2 == 1 {
+			role = "assistant"
+		}
+		items = append(items, fmt.Sprintf(`{"type":"message","role":%q,"content":[{"type":"input_text","text":%q}]}`, role, fmt.Sprintf("%s-%03d", prefix, i)))
+	}
+	return "[" + strings.Join(items, ",") + "]"
+}
+
 func TestCompactDataShareMessagesDedupesLargeOrderedReplay(t *testing.T) {
 	sys := "<permissions instructions> sandbox</permissions instructions>"
 	base := buildLargeDataShareMessages(sys, 150, false)
@@ -3269,6 +3293,486 @@ func TestCompactDataShareMessagesDedupesLargeOrderedReplay(t *testing.T) {
 	require.Len(t, compact, len(base)+1)
 	require.Equal(t, 1, countDataShareMessagesWithContent(compact, "开始执行任务"))
 	require.Equal(t, "新的尾巴", dataShareContentText(compact[len(compact)-1]["content"]))
+}
+
+func TestCompactDataShareMessagesDedupesAdjacentWindowReplay(t *testing.T) {
+	base := buildSequentialDataShareMessages("历史", 80)
+	base[20] = map[string]any{"role": "user", "content": "<environment_context><cwd>/tmp/app</cwd><shell>bash</shell></environment_context>"}
+	replayed := append(cloneBufferedDataShareMaps(base[:40]), cloneBufferedDataShareMaps(base[20:55])...)
+	replayed = append(replayed, cloneBufferedDataShareMaps(base[20:55])...)
+	replayed = append(replayed, map[string]any{"role": "user", "content": "新的尾巴"})
+
+	compact := CompactDataShareMessages(replayed)
+
+	require.Len(t, compact, 56)
+	require.Equal(t, 1, countDataShareMessagesWithContent(compact, "<environment_context><cwd>/tmp/app</cwd><shell>bash</shell></environment_context>"))
+	require.Equal(t, "新的尾巴", dataShareContentText(compact[len(compact)-1]["content"]))
+}
+
+func TestCompactDataShareMessagesDedupesAdjacentRepeatedLongTextWorkflow(t *testing.T) {
+	block := buildSequentialDataShareMessages("连续重复任务", 60)
+	messages := append(cloneBufferedDataShareMaps(block), cloneBufferedDataShareMaps(block)...)
+
+	compact := CompactDataShareMessages(messages)
+
+	require.Len(t, compact, len(block))
+	require.Equal(t, 1, countDataShareMessagesWithContent(compact, "连续重复任务-000"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(compact, "连续重复任务-059"))
+}
+
+func TestCompactDataShareMessagesDedupesSystemFirstAdjacentRepeatedLongTextWorkflow(t *testing.T) {
+	block := append(
+		[]map[string]any{{"role": "system", "content": "你是编码助手"}},
+		buildSequentialDataShareMessages("系统开头重复任务", 60)...,
+	)
+	messages := append(cloneBufferedDataShareMaps(block), cloneBufferedDataShareMaps(block)...)
+
+	compact := CompactDataShareMessages(messages)
+
+	require.Len(t, compact, len(block))
+	require.Equal(t, 1, countDataShareMessagesWithContent(compact, "你是编码助手"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(compact, "系统开头重复任务-059"))
+}
+
+func TestMergeBufferedDataShareMessagesKeepsRepeatedLongWorkflow(t *testing.T) {
+	base := buildSequentialDataShareMessages("历史", 120)
+	existing := cloneBufferedDataShareMaps(base[:100])
+	incoming := cloneBufferedDataShareMaps(base[50:120])
+	incoming = append(incoming, map[string]any{"role": "assistant", "content": "新的响应"})
+
+	merged := mergeBufferedDataShareMessages(existing, incoming)
+
+	require.Len(t, merged, len(existing)+len(incoming))
+	require.Equal(t, 2, countDataShareMessagesWithContent(merged, "历史-050"))
+	require.Equal(t, 2, countDataShareMessagesWithContent(merged, "历史-099"))
+	require.Equal(t, "新的响应", dataShareContentText(merged[len(merged)-1]["content"]))
+}
+
+func TestResponsesReplayPlanDedupesMixedPrefixAndSlidingWindow(t *testing.T) {
+	base := buildSequentialDataShareMessages("历史", 120)
+	existingItems := make([]dataShareResponsesInputItem, 0, 100)
+	for _, msg := range base[:100] {
+		identity := dataShareMessageIdentity(msg)
+		existingItems = append(existingItems, dataShareResponsesInputItem{
+			Message:     msg,
+			Identity:    identity,
+			IdentityKey: dataShareResponsesIdentityKey(identity),
+		})
+	}
+	state := updateDataShareResponsesCaptureState(&dataShareResponsesCaptureState{}, existingItems, nil, nil, 1)
+	incomingMessages := append(cloneBufferedDataShareMaps(base[:3]), cloneBufferedDataShareMaps(base[50:120])...)
+	incomingMessages = append(incomingMessages, map[string]any{"role": "user", "content": "新的用户问题"})
+	incoming := make([]dataShareResponsesInputItem, 0, len(incomingMessages))
+	for _, msg := range incomingMessages {
+		identity := dataShareMessageIdentity(msg)
+		incoming = append(incoming, dataShareResponsesInputItem{
+			Message:     msg,
+			Identity:    identity,
+			IdentityKey: dataShareResponsesIdentityKey(identity),
+		})
+	}
+
+	plan, orderUncertain := dataShareBuildResponsesReplayPlan(state, incoming)
+
+	require.True(t, orderUncertain)
+	require.True(t, plan.Keep[0])
+	require.True(t, plan.Keep[1])
+	require.True(t, plan.Keep[2])
+	for i := 3; i < 53; i++ {
+		require.False(t, plan.Keep[i], "replayed window item %d should be dropped", i)
+	}
+	for i := 53; i < len(plan.Keep); i++ {
+		require.True(t, plan.Keep[i], "new tail item %d should be kept", i)
+	}
+}
+
+func TestCompactDataShareMessagesKeepsNonAdjacentRepeatedLongTextWorkflow(t *testing.T) {
+	block := buildSequentialDataShareMessages("重复任务", 60)
+	messages := buildSequentialDataShareMessages("前置", 20)
+	messages = append(messages, cloneBufferedDataShareMaps(block)...)
+	messages = append(messages, buildSequentialDataShareMessages("间隔", 5)...)
+	messages = append(messages, cloneBufferedDataShareMaps(block)...)
+
+	compact := CompactDataShareMessages(messages)
+
+	require.Len(t, compact, len(messages))
+	require.Equal(t, 2, countDataShareMessagesWithContent(compact, "重复任务-000"))
+	require.Equal(t, 2, countDataShareMessagesWithContent(compact, "重复任务-059"))
+}
+
+func TestExportDownloadPayloadKeepsSafeRepeatedLongTextWorkflow(t *testing.T) {
+	sys := "你是编码助手"
+	block := buildSequentialDataShareMessages("重复任务", 60)
+	messages := buildSequentialDataShareMessages("前置", 20)
+	messages = append(messages, cloneBufferedDataShareMaps(block)...)
+	messages = append(messages, buildSequentialDataShareMessages("间隔", 5)...)
+	messages = append(messages, cloneBufferedDataShareMaps(block)...)
+	session := &DataShareSession{
+		TrajectoryID:       "traj-safe-repeat",
+		SessionID:          "sess-safe-repeat",
+		Dataset:            defaultDataShareDataset,
+		Provider:           PlatformOpenAI,
+		Model:              "gpt-5.5",
+		SourceRequestCount: 2,
+		SystemPrompt:       &sys,
+		Tools:              []map[string]any{{"name": "exec_command", "description": "运行命令", "parameters": map[string]any{"type": "object"}}},
+		Messages:           messages,
+		Usage:              map[string]any{"total_tokens": 15},
+		QualityStatus:      DataShareQualityComplete,
+		Exportable:         true,
+		CreatedAt:          time.Now(),
+	}
+
+	payload, err := exportDownloadPayloadFromSession(session)
+
+	require.NoError(t, err)
+	exported := mapsFromAny(payload["messages"])
+	require.Len(t, exported, len(messages))
+	require.Equal(t, 2, countDataShareMessagesWithContent(exported, "重复任务-000"))
+}
+
+func TestExportDownloadPayloadRepairsStoredTrailingToolReplayWithoutMutatingSession(t *testing.T) {
+	sys := "你是编码助手"
+	base := buildLargeDataShareMessages(sys, 30, false)
+	replay := cloneBufferedDataShareMaps(base[10:70])
+	duplicated := append(cloneBufferedDataShareMaps(base), replay...)
+	session := &DataShareSession{
+		TrajectoryID:       "traj-trailing-tool-replay",
+		SessionID:          "sess-trailing-tool-replay",
+		Dataset:            defaultDataShareDataset,
+		Provider:           PlatformOpenAI,
+		Model:              "gpt-5.5",
+		SourceRequestCount: 3,
+		SystemPrompt:       &sys,
+		Tools:              []map[string]any{{"name": "exec_command", "description": "运行命令", "parameters": map[string]any{"type": "object"}}},
+		Messages:           duplicated,
+		Usage:              map[string]any{"total_tokens": 15},
+		QualityStatus:      DataShareQualityComplete,
+		Exportable:         true,
+		CreatedAt:          time.Now(),
+	}
+
+	payload, err := exportDownloadPayloadFromSession(session)
+
+	require.NoError(t, err)
+	exported := mapsFromAny(payload["messages"])
+	require.Len(t, exported, len(base))
+	require.Len(t, session.Messages, len(base)+len(replay))
+}
+
+func TestResponsesReplayPlanHandlesLargeNoMatchInputLinearly(t *testing.T) {
+	existing := buildSequentialDataShareMessages("已有", 50000)
+	incoming := buildSequentialDataShareMessages("新增", 4000)
+	existingItems := make([]dataShareResponsesInputItem, 0, len(existing))
+	for _, msg := range existing {
+		identity := dataShareMessageIdentity(msg)
+		existingItems = append(existingItems, dataShareResponsesInputItem{
+			Message:     msg,
+			Identity:    identity,
+			IdentityKey: dataShareResponsesIdentityKey(identity),
+		})
+	}
+	incomingItems := make([]dataShareResponsesInputItem, 0, len(incoming))
+	for _, msg := range incoming {
+		identity := dataShareMessageIdentity(msg)
+		incomingItems = append(incomingItems, dataShareResponsesInputItem{
+			Message:     msg,
+			Identity:    identity,
+			IdentityKey: dataShareResponsesIdentityKey(identity),
+		})
+	}
+	state := updateDataShareResponsesCaptureState(&dataShareResponsesCaptureState{}, existingItems, nil, nil, 1)
+
+	start := time.Now()
+	plan, orderUncertain := dataShareBuildResponsesReplayPlan(state, incomingItems)
+	elapsed := time.Since(start)
+
+	require.False(t, orderUncertain)
+	require.Equal(t, len(incomingItems), dataShareResponsesReplayPlanKeepCount(plan))
+	require.Less(t, elapsed, 2*time.Second)
+}
+
+func TestCompactDataShareMessagesHandlesLargeTrailingReplayLinearly(t *testing.T) {
+	sys := "你是编码助手"
+	base := buildLargeDataShareMessages(sys, 12500, false)
+	replayed := append(cloneBufferedDataShareMaps(base), cloneBufferedDataShareMaps(base[10000:14000])...)
+
+	compact := CompactDataShareMessages(replayed)
+
+	require.Len(t, compact, len(base))
+}
+
+func TestExportDownloadPayloadKeepsLargeSafeRepeatedTextLinearly(t *testing.T) {
+	sys := "你是编码助手"
+	block := buildSequentialDataShareMessages("重复导出任务", 12000)
+	messages := cloneBufferedDataShareMaps(block)
+	messages = append(messages, buildSequentialDataShareMessages("间隔", 20)...)
+	messages = append(messages, cloneBufferedDataShareMaps(block)...)
+	session := &DataShareSession{
+		TrajectoryID:       "traj-large-safe-repeat",
+		SessionID:          "sess-large-safe-repeat",
+		Dataset:            defaultDataShareDataset,
+		Provider:           PlatformOpenAI,
+		Model:              "gpt-5.5",
+		SourceRequestCount: 2,
+		SystemPrompt:       &sys,
+		Tools:              []map[string]any{{"name": "exec_command", "description": "运行命令", "parameters": map[string]any{"type": "object"}}},
+		Messages:           messages,
+		Usage:              map[string]any{"total_tokens": 15},
+		QualityStatus:      DataShareQualityComplete,
+		Exportable:         true,
+		CreatedAt:          time.Now(),
+	}
+
+	payload, err := exportDownloadPayloadFromSession(session)
+
+	require.NoError(t, err)
+	exported := mapsFromAny(payload["messages"])
+	require.Len(t, exported, len(messages))
+	require.Equal(t, 2, countDataShareMessagesWithContent(exported, "重复导出任务-000"))
+}
+
+func TestOpenAIResponsesRawCaptureDedupesSlidingWindowRequestInput(t *testing.T) {
+	gid := int64(12)
+	repo := &dataShareCaptureRepoStub{}
+	svc := NewDataSharingService(repo, nil)
+	svc.SetDefaultCaptureRuntimeSettings(DataShareCaptureRuntimeSettings{
+		WorkerCount:            1,
+		QueueSize:              4,
+		TaskTimeoutSeconds:     1,
+		CompressionLevel:       string(DataShareCompressionLevelFastest),
+		BufferEnabled:          true,
+		BufferIdleFlushSeconds: 30,
+		BufferMaxSessions:      4096,
+		BufferMaxPendingEvents: 65536,
+	})
+	apiKey := &APIKey{
+		ID:      34,
+		UserID:  56,
+		GroupID: &gid,
+		Group:   &Group{ID: gid, Platform: PlatformOpenAI, DataSharingEnabled: true},
+	}
+	capture := func(requestID string, start, end int, response string) {
+		require.NoError(t, svc.captureRequestFromJob(context.Background(), DataSharingCaptureJob{Input: DataShareCaptureInput{
+			APIKey:          apiKey,
+			Provider:        PlatformOpenAI,
+			Model:           "gpt-5.5",
+			SessionID:       "session-responses-sliding-window",
+			RequestID:       requestID,
+			RequestBody:     []byte(`{"model":"gpt-5.5","input":` + buildSequentialResponsesInputJSON("历史", start, end) + `}`),
+			ResponseBody:    []byte(fmt.Sprintf(`{"id":%q,"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":%q}]}]}`, requestID, response)),
+			InboundEndpoint: "/v1/responses",
+			InputTokens:     10,
+			OutputTokens:    5,
+		}}))
+	}
+
+	capture("request-window-1", 0, 100, "响应-100")
+	capture("request-window-2", 50, 120, "响应-120")
+	svc.captureBuffer.FlushAll(context.Background())
+
+	session := repo.lastSession()
+	require.NotNil(t, session)
+	require.Equal(t, 2, session.SourceRequestCount)
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "历史-050"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "历史-099"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "历史-119"))
+	require.Equal(t, "响应-120", dataShareContentText(session.Messages[len(session.Messages)-1]["content"]))
+}
+
+func TestOpenAIResponsesRawCaptureDedupesMixedPrefixSlidingWindowRequestInput(t *testing.T) {
+	gid := int64(12)
+	repo := &dataShareCaptureRepoStub{}
+	svc := NewDataSharingService(repo, nil)
+	svc.SetDefaultCaptureRuntimeSettings(DataShareCaptureRuntimeSettings{
+		WorkerCount:            1,
+		QueueSize:              4,
+		TaskTimeoutSeconds:     1,
+		CompressionLevel:       string(DataShareCompressionLevelFastest),
+		BufferEnabled:          true,
+		BufferIdleFlushSeconds: 30,
+		BufferMaxSessions:      4096,
+		BufferMaxPendingEvents: 65536,
+	})
+	apiKey := &APIKey{
+		ID:      34,
+		UserID:  56,
+		GroupID: &gid,
+		Group:   &Group{ID: gid, Platform: PlatformOpenAI, DataSharingEnabled: true},
+	}
+	capture := func(requestID string, inputItems string, response string) {
+		require.NoError(t, svc.captureRequestFromJob(context.Background(), DataSharingCaptureJob{Input: DataShareCaptureInput{
+			APIKey:          apiKey,
+			Provider:        PlatformOpenAI,
+			Model:           "gpt-5.5",
+			SessionID:       "session-responses-mixed-window",
+			RequestID:       requestID,
+			RequestBody:     []byte(`{"model":"gpt-5.5","input":` + inputItems + `}`),
+			ResponseBody:    []byte(fmt.Sprintf(`{"id":%q,"output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":%q}]}]}`, requestID, response)),
+			InboundEndpoint: "/v1/responses",
+			InputTokens:     10,
+			OutputTokens:    5,
+		}}))
+	}
+	mixedInput := "[" + strings.TrimPrefix(strings.TrimSuffix(buildSequentialResponsesInputJSON("历史", 0, 3), "]"), "[") + "," +
+		strings.TrimPrefix(strings.TrimSuffix(buildSequentialResponsesInputJSON("历史", 50, 120), "]"), "[") + "]"
+
+	capture("request-mixed-1", buildSequentialResponsesInputJSON("历史", 0, 100), "响应-100")
+	capture("request-mixed-2", mixedInput, "响应-120")
+	svc.captureBuffer.FlushAll(context.Background())
+
+	session := repo.lastSession()
+	require.NotNil(t, session)
+	require.Equal(t, 2, session.SourceRequestCount)
+	require.LessOrEqual(t, countDataShareMessagesWithContent(session.Messages, "历史-000"), 2)
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "历史-050"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "历史-099"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "历史-119"))
+	require.Equal(t, "响应-120", dataShareContentText(session.Messages[len(session.Messages)-1]["content"]))
+}
+
+func TestExportDownloadPayloadRepairsStoredAdjacentReplayWithoutMutatingSession(t *testing.T) {
+	sys := "你是编码助手"
+	base := buildSequentialDataShareMessages("历史", 80)
+	duplicated := append(cloneBufferedDataShareMaps(base), cloneBufferedDataShareMaps(base[20:70])...)
+	duplicated = append(duplicated, cloneBufferedDataShareMaps(base[20:70])...)
+	session := &DataShareSession{
+		TrajectoryID:       "traj-stored-duplicate",
+		SessionID:          "sess-stored-duplicate",
+		Dataset:            defaultDataShareDataset,
+		Provider:           PlatformOpenAI,
+		Model:              "gpt-5.5",
+		SourceRequestCount: 3,
+		SystemPrompt:       &sys,
+		Tools:              []map[string]any{{"name": "exec_command", "description": "运行命令", "parameters": map[string]any{"type": "object"}}},
+		Messages:           duplicated,
+		Usage:              map[string]any{"total_tokens": 15},
+		QualityStatus:      DataShareQualityComplete,
+		Exportable:         true,
+		CreatedAt:          time.Now(),
+	}
+
+	payload, err := exportDownloadPayloadFromSession(session)
+
+	require.NoError(t, err)
+	exported := mapsFromAny(payload["messages"])
+	require.Len(t, exported, len(base))
+	require.Len(t, session.Messages, len(base)+100)
+}
+
+func TestWriteSingleSessionJSONLAllowsSafeRepeatedLongTextBlock(t *testing.T) {
+	messages := buildSafeRepeatedTextMessages()
+	session := &DataShareSession{
+		TrajectoryID:       "traj-safe-text-repeat",
+		SessionID:          "sess-safe-text-repeat",
+		Dataset:            defaultDataShareDataset,
+		Provider:           PlatformOpenAI,
+		Model:              "gpt-5.5",
+		SourceRequestCount: 2,
+		SystemPrompt:       optionalDataShareString("你是编码助手"),
+		Tools:              []map[string]any{{"name": "exec_command", "description": "运行命令", "parameters": map[string]any{"type": "object"}}},
+		Messages:           messages,
+		Usage:              map[string]any{"total_tokens": 15},
+		QualityStatus:      DataShareQualityComplete,
+		Exportable:         true,
+		CreatedAt:          time.Now(),
+	}
+
+	var buf bytes.Buffer
+	err := WriteSingleSessionJSONL(&buf, session)
+
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal(bytes.TrimSpace(buf.Bytes()), &payload))
+	exported := mapsFromAny(payload["messages"])
+	require.Len(t, exported, len(messages))
+	require.Equal(t, 2, countDataShareMessagesWithContent(exported, "重复块-000"))
+}
+
+func TestExportJSONLIncludesSafeRepeatedLongTextBlockInBatch(t *testing.T) {
+	sys := "你是编码助手"
+	good := &DataShareSession{
+		TrajectoryID:       "traj-good-export",
+		SessionID:          "sess-good-export",
+		Dataset:            defaultDataShareDataset,
+		Provider:           PlatformOpenAI,
+		Model:              "gpt-5.5",
+		SourceRequestCount: 1,
+		SystemPrompt:       &sys,
+		Tools:              []map[string]any{{"name": "exec_command", "description": "运行命令", "parameters": map[string]any{"type": "object"}}},
+		Messages:           buildLargeDataShareMessages(sys, 5, false),
+		Usage:              map[string]any{"total_tokens": 15},
+		QualityStatus:      DataShareQualityComplete,
+		Exportable:         true,
+		CreatedAt:          time.Now(),
+	}
+	repeated := cloneBufferedDataShareSession(good)
+	repeated.TrajectoryID = "traj-safe-repeat-export"
+	repeated.SessionID = "sess-safe-repeat-export"
+	repeated.Messages = buildSafeRepeatedTextMessages()
+	repo := &dataShareExportRepoStub{items: []DataShareSession{*repeated, *good}}
+	svc := NewDataSharingService(repo, nil)
+
+	var buf bytes.Buffer
+	err := svc.ExportJSONL(context.Background(), &buf, DataShareSessionFilters{SelectAll: true}, false)
+
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	require.Len(t, lines, 2)
+	require.Contains(t, buf.String(), "sess-safe-repeat-export")
+	require.Contains(t, buf.String(), "sess-good-export")
+}
+
+func buildSafeRepeatedTextMessages() []map[string]any {
+	out := buildSequentialDataShareMessages("前置", 20)
+	block := buildSequentialDataShareMessages("重复块", dataShareLongReplayMinMessages+4)
+	out = append(out, cloneBufferedDataShareMaps(block)...)
+	out = append(out, buildSequentialDataShareMessages("间隔", 5)...)
+	out = append(out, cloneBufferedDataShareMaps(block)...)
+	return out
+}
+
+func BenchmarkCompactDataShareMessages_LargeTrailingReplay(b *testing.B) {
+	sys := "你是编码助手"
+	base := buildLargeDataShareMessages(sys, 12500, false)
+	replayed := append(cloneBufferedDataShareMaps(base), cloneBufferedDataShareMaps(base[10000:14000])...)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		CompactDataShareMessages(replayed)
+	}
+}
+
+func BenchmarkExportDownloadPayload_LargeSafeRepeatedText(b *testing.B) {
+	sys := "你是编码助手"
+	block := buildSequentialDataShareMessages("重复导出任务", 12000)
+	messages := cloneBufferedDataShareMaps(block)
+	messages = append(messages, buildSequentialDataShareMessages("间隔", 20)...)
+	messages = append(messages, cloneBufferedDataShareMaps(block)...)
+	session := &DataShareSession{
+		TrajectoryID:       "traj-large-safe-repeat",
+		SessionID:          "sess-large-safe-repeat",
+		Dataset:            defaultDataShareDataset,
+		Provider:           PlatformOpenAI,
+		Model:              "gpt-5.5",
+		SourceRequestCount: 2,
+		SystemPrompt:       &sys,
+		Tools:              []map[string]any{{"name": "exec_command", "description": "运行命令", "parameters": map[string]any{"type": "object"}}},
+		Messages:           messages,
+		Usage:              map[string]any{"total_tokens": 15},
+		QualityStatus:      DataShareQualityComplete,
+		Exportable:         true,
+		CreatedAt:          time.Now(),
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := exportDownloadPayloadFromSession(session); err != nil {
+			b.Fatal(err)
+		}
+	}
 }
 
 func benchmarkFinalizeBufferedDataShareSession(b *testing.B, rounds int, includeUnpairedTail bool) {
