@@ -67,18 +67,18 @@
         <p class="input-hint">{{ t('admin.accounts.notesHint') }}</p>
       </div>
 
-      <!-- Platform Selection - Segmented Control Style -->
+      <!-- Platform Selection -->
       <div>
         <label class="input-label">{{ t('admin.accounts.platform') }}</label>
-        <div class="mt-2 flex rounded-lg bg-gray-100 p-1 dark:bg-dark-700" data-tour="account-form-platform">
+        <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5" data-tour="account-form-platform">
           <button
             type="button"
             @click="form.platform = 'anthropic'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-h-[2.75rem] items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all',
               form.platform === 'anthropic'
-                ? 'bg-white text-orange-600 shadow-sm dark:bg-dark-600 dark:text-orange-400'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                ? 'border-orange-500 bg-orange-50 text-orange-700 dark:bg-orange-900/20 dark:text-orange-300'
+                : 'border-gray-200 text-gray-600 hover:border-orange-300 hover:text-gray-900 dark:border-dark-600 dark:text-gray-400 dark:hover:border-orange-700 dark:hover:text-gray-200'
             ]"
           >
             <Icon name="sparkles" size="sm" />
@@ -88,10 +88,10 @@
             type="button"
             @click="form.platform = 'openai'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-h-[2.75rem] items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all',
               form.platform === 'openai'
-                ? 'bg-white text-green-600 shadow-sm dark:bg-dark-600 dark:text-green-400'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                ? 'border-green-500 bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-300'
+                : 'border-gray-200 text-gray-600 hover:border-green-300 hover:text-gray-900 dark:border-dark-600 dark:text-gray-400 dark:hover:border-green-700 dark:hover:text-gray-200'
             ]"
           >
             <svg
@@ -113,10 +113,10 @@
             type="button"
             @click="form.platform = 'gemini'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-h-[2.75rem] items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all',
               form.platform === 'gemini'
-                ? 'bg-white text-blue-600 shadow-sm dark:bg-dark-600 dark:text-blue-400'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                ? 'border-blue-500 bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-300'
+                : 'border-gray-200 text-gray-600 hover:border-blue-300 hover:text-gray-900 dark:border-dark-600 dark:text-gray-400 dark:hover:border-blue-700 dark:hover:text-gray-200'
             ]"
           >
             <svg
@@ -138,10 +138,10 @@
             type="button"
             @click="form.platform = 'antigravity'"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-h-[2.75rem] items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all',
               form.platform === 'antigravity'
-                ? 'bg-white text-purple-600 shadow-sm dark:bg-dark-600 dark:text-purple-400'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                ? 'border-purple-500 bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300'
+                : 'border-gray-200 text-gray-600 hover:border-purple-300 hover:text-gray-900 dark:border-dark-600 dark:text-gray-400 dark:hover:border-purple-700 dark:hover:text-gray-200'
             ]"
           >
             <Icon name="cloud" size="sm" />
@@ -150,11 +150,12 @@
           <button
             type="button"
             @click="form.platform = 'qoder'"
+            data-testid="create-account-platform-qoder"
             :class="[
-              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              'flex min-h-[2.75rem] items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium transition-all',
               form.platform === 'qoder'
-                ? 'bg-white text-cyan-600 shadow-sm dark:bg-dark-600 dark:text-cyan-400'
-                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                ? 'border-cyan-500 bg-cyan-50 text-cyan-700 dark:bg-cyan-900/20 dark:text-cyan-300'
+                : 'border-gray-200 text-gray-600 hover:border-cyan-300 hover:text-gray-900 dark:border-dark-600 dark:text-gray-400 dark:hover:border-cyan-700 dark:hover:text-gray-200'
             ]"
           >
             <Icon name="terminal" size="sm" />
@@ -3504,6 +3505,7 @@ const bedrockRegionOptions = groupedAccountSelectOptions(BEDROCK_REGION_OPTIONS)
 
 interface Props {
   show: boolean
+  initialPlatform?: AccountPlatform
   proxies: Proxy[]
   groups: AdminGroup[]
 }
@@ -4204,6 +4206,7 @@ watch(
   () => props.show,
   (newVal) => {
     if (newVal) {
+      form.platform = props.initialPlatform || 'anthropic'
       // Load TLS fingerprint profiles
       adminAPI.tlsFingerprintProfiles.list()
         .then(profiles => { tlsFingerprintProfiles.value = profiles.map(p => ({ id: p.id, name: p.name })) })

@@ -14,7 +14,7 @@
           <AccountTableActions
             :loading="loading"
             @refresh="handleManualRefresh"
-            @create="showCreate = true"
+            @create="openCreateAccount()"
           >
             <template #after>
               <!-- Auto Refresh Dropdown -->
@@ -153,6 +153,17 @@
                   </div>
                 </div>
               </div>
+            </template>
+            <template #afterCreate>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                data-test="create-qoder-account"
+                @click="openCreateAccount('qoder')"
+              >
+                <Icon name="terminal" size="sm" />
+                {{ t('admin.accounts.addQoderAccount') }}
+              </button>
             </template>
           </AccountTableActions>
         </div>
@@ -362,7 +373,14 @@
       </template>
       <template #pagination><Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" /></template>
     </TablePageLayout>
-    <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
+    <CreateAccountModal
+      :show="showCreate"
+      :initial-platform="createInitialPlatform"
+      :proxies="proxies"
+      :groups="groups"
+      @close="showCreate = false"
+      @created="reload"
+    />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
@@ -489,6 +507,7 @@ const selTypes = computed<AccountType[]>(() => {
   return [...types]
 })
 const showCreate = ref(false)
+const createInitialPlatform = ref<AccountPlatform | undefined>(undefined)
 const showEdit = ref(false)
 const showSync = ref(false)
 const showImportData = ref(false)
@@ -517,6 +536,11 @@ const togglingSchedulable = ref<number | null>(null)
 const bulkUsageLoading = ref(false)
 const menu = reactive<{show:boolean, acc:Account|null, pos:{top:number, left:number}|null}>({ show: false, acc: null, pos: null })
 const exportingData = ref(false)
+
+const openCreateAccount = (platform?: AccountPlatform) => {
+  createInitialPlatform.value = platform
+  showCreate.value = true
+}
 
 // 账号工具下拉菜单
 const showAccountToolsDropdown = ref(false)
