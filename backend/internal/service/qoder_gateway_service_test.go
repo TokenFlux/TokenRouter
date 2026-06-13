@@ -89,6 +89,18 @@ func TestBuildQoderPayloadFromAnthropicMessages(t *testing.T) {
 	require.Equal(t, "hello\ntool result", userContents[0].(map[string]any)["text"])
 }
 
+func TestResolveQoderModelUsesOpus46AliasForUltimate(t *testing.T) {
+	resetQoderModelAliasesForTest()
+	t.Cleanup(resetQoderModelAliasesForTest)
+
+	info := resolveQoderModel("claude-opus-4-6")
+	require.Equal(t, "ultimate", info.Key)
+	require.Equal(t, "system", info.Source)
+
+	legacy := resolveQoderModel("claude-opus-4-5")
+	require.Equal(t, "claude-opus-4-5", legacy.Key)
+}
+
 func TestQoderGatewayWritesOpenAIStream(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

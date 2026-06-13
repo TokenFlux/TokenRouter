@@ -25,13 +25,14 @@ const (
 )
 
 // defaultQoderModelAliases maps user-facing model names to Qoder API keys.
-// Confirmed keys are based on observed Qoder COSY responses. performance/auto
+// Confirmed keys are based on observed Qoder COSY responses. ultimate exposes
+// Claude Opus 4.6 evidence in encrypted reasoning metadata. performance/auto
 // report Anthropic but do not expose confirmed thinking metadata, and lite can
 // route like Qwen with occasional Claude-style output, so keep those aliases
 // explicitly marked as uncertain.
 var defaultQoderModelAliases = map[string]qoderModelInfo{
 	// Claude/Anthropic tier.
-	"claude-opus-4-5": {Key: "ultimate", Source: "system"},
+	"claude-opus-4-6": {Key: "ultimate", Source: "system"},
 	// UNCERTAIN: performance reports Anthropic but exact Claude variant is unconfirmed.
 	"claude-sonnet-4-5": {Key: "performance", Source: "system"},
 	// UNCERTAIN: auto is backend-selected and may change routing.
