@@ -46,6 +46,7 @@ func RegisterAdminRoutes(
 
 		// Qoder OAuth 管理
 		registerQoderOAuthRoutes(admin, h)
+		registerQoderModelRoutes(admin, h)
 
 		// 代理管理
 		registerProxyRoutes(admin, h)
@@ -426,6 +427,13 @@ func registerQoderOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		qoder.POST("/oauth/auth-url", h.Admin.QoderOAuth.GenerateAuthURL)
 		qoder.POST("/oauth/exchange-code", h.Admin.QoderOAuth.ExchangeCode)
 		qoder.POST("/oauth/poll", h.Admin.QoderOAuth.Poll)
+	}
+}
+
+func registerQoderModelRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	qoder := admin.Group("/qoder")
+	{
+		qoder.POST("/models/sync", h.Admin.QoderModels.SyncModels)
 	}
 }
 

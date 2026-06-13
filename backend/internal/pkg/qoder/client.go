@@ -215,12 +215,16 @@ func (c *Client) setHeaders(req *http.Request, session *SessionContext, path, en
 
 // SSEEvent represents a parsed SSE event from the Qoder stream.
 type SSEEvent struct {
-	Type       string // text_delta, reasoning_delta, tool_call_delta, error
-	Text       string // For text_delta and reasoning_delta events
-	ToolCallID string // For tool_call_delta events
-	ToolName   string // For tool_call_delta events
-	Arguments  string // For tool_call_delta events (JSON string)
-	IsDone     bool   // True when [DONE] signal received
+	Type             string // text_delta, reasoning_delta, tool_call_delta, usage, error
+	Text             string // For text_delta and reasoning_delta events
+	ToolCallID       string // For tool_call_delta events
+	ToolName         string // For tool_call_delta events
+	Arguments        string // For tool_call_delta events (JSON string)
+	PromptTokens     int    // For usage events
+	CompletionTokens int    // For usage events
+	TotalTokens      int    // For usage events
+	HasUsage         bool   // True when Qoder returned a usage payload
+	IsDone           bool   // True when [DONE] signal received
 }
 
 // QoderSSEWrapper is the outer SSE structure from Qoder.
@@ -252,6 +256,16 @@ type QoderSSEInner struct {
 			} `json:"tool_calls"`
 		} `json:"delta"`
 	} `json:"choices"`
+	Usage *QoderSSEUsage `json:"usage,omitempty"`
+}
+
+// QoderSSEUsage is the token usage object Qoder includes in SSE payloads.
+type QoderSSEUsage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+	InputTokens      int `json:"input_tokens"`
+	OutputTokens     int `json:"output_tokens"`
 }
 
 // ParseSSELine parses a single SSE "data:" line from Qoder's stream.
@@ -313,6 +327,27 @@ func ParseSSELine(line string) ([]SSEEvent, error) {
 				Arguments:  tc.Function.Arguments,
 			})
 		}
+	}
+	if inner.Usage != nil {
+		promptTokens := inner.Usage.PromptTokens
+		if promptTokens == 0 {
+			promptTokens = inner.Usage.InputTokens
+		}
+		completionTokens := inner.Usage.CompletionTokens
+		if completionTokens == 0 {
+			completionTokens = inner.Usage.OutputTokens
+		}
+		totalTokens := inner.Usage.TotalTokens
+		if totalTokens == 0 {
+			totalTokens = promptTokens + completionTokens
+		}
+		events = append(events, SSEEvent{
+			Type:             "usage",
+			PromptTokens:     promptTokens,
+			CompletionTokens: completionTokens,
+			TotalTokens:      totalTokens,
+			HasUsage:         true,
+		})
 	}
 
 	return events, nil

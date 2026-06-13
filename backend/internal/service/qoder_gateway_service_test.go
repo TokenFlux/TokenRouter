@@ -98,6 +98,7 @@ func TestQoderGatewayWritesOpenAIStream(t *testing.T) {
 		{Type: "reasoning_delta", Text: "hidden thought"},
 		{Type: "text_delta", Text: "Hel"},
 		{Type: "text_delta", Text: "lo"},
+		{Type: "usage", PromptTokens: 12, CompletionTokens: 34, TotalTokens: 46, HasUsage: true},
 		{IsDone: true},
 	}
 
@@ -138,6 +139,7 @@ func TestQoderGatewayAssemblesNonStreamingChatCompletion(t *testing.T) {
 		{Type: "reasoning_delta", Text: "hidden thought"},
 		{Type: "text_delta", Text: "Hel"},
 		{Type: "text_delta", Text: "lo"},
+		{Type: "usage", PromptTokens: 12, CompletionTokens: 34, TotalTokens: 46, HasUsage: true},
 		{IsDone: true},
 	}
 
@@ -149,12 +151,17 @@ func TestQoderGatewayAssemblesNonStreamingChatCompletion(t *testing.T) {
 	choices := decoded["choices"].([]any)
 	message := choices[0].(map[string]any)["message"].(map[string]any)
 	require.Equal(t, "Hello", message["content"])
+	usage := decoded["usage"].(map[string]any)
+	require.Equal(t, float64(12), usage["prompt_tokens"])
+	require.Equal(t, float64(34), usage["completion_tokens"])
+	require.Equal(t, float64(46), usage["total_tokens"])
 }
 
 func TestQoderGatewayAssemblesNonStreamingAnthropicMessageWithoutReasoning(t *testing.T) {
 	events := []qoder.SSEEvent{
 		{Type: "reasoning_delta", Text: "hidden thought"},
 		{Type: "text_delta", Text: "Hi"},
+		{Type: "usage", PromptTokens: 12, CompletionTokens: 34, TotalTokens: 46, HasUsage: true},
 		{IsDone: true},
 	}
 
@@ -166,6 +173,9 @@ func TestQoderGatewayAssemblesNonStreamingAnthropicMessageWithoutReasoning(t *te
 	content := decoded["content"].([]any)
 	textBlock := content[0].(map[string]any)
 	require.Equal(t, "Hi", textBlock["text"])
+	usage := decoded["usage"].(map[string]any)
+	require.Equal(t, float64(12), usage["input_tokens"])
+	require.Equal(t, float64(34), usage["output_tokens"])
 }
 
 func TestQoderGatewayReadsWrappedSSE(t *testing.T) {
@@ -173,18 +183,22 @@ func TestQoderGatewayReadsWrappedSSE(t *testing.T) {
 		Body: io.NopCloser(bytes.NewBufferString(
 			"data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"reasoning_content\\\":\\\"hidden thought\\\"}}]}\"}\n\n" +
 				"data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"Hi\\\"}}]}\"}\n\n" +
+				"data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":3,\\\"completion_tokens\\\":4,\\\"total_tokens\\\":7}}\"}\n\n" +
 				"data: {\"body\":\"[DONE]\"}\n\n",
 		)),
 	}
 
 	events, err := ReadQoderSSEEvents(resp)
 	require.NoError(t, err)
-	require.Len(t, events, 3)
+	require.Len(t, events, 4)
 	require.Equal(t, "reasoning_delta", events[0].Type)
 	require.Equal(t, "hidden thought", events[0].Text)
 	require.Equal(t, "text_delta", events[1].Type)
 	require.Equal(t, "Hi", events[1].Text)
-	require.True(t, events[2].IsDone)
+	require.True(t, events[2].HasUsage)
+	require.Equal(t, 3, events[2].PromptTokens)
+	require.Equal(t, 4, events[2].CompletionTokens)
+	require.True(t, events[3].IsDone)
 }
 
 func TestQoderGatewayReadsWrappedSSEUpstreamError(t *testing.T) {
@@ -292,8 +306,9 @@ func TestQoderGatewayStreamsResponseWithoutPrebuffering(t *testing.T) {
 		)),
 	}
 
-	err := WriteQoderOpenAIStreamResponse(c, "gpt-5-codex", resp)
+	result, err := WriteQoderOpenAIStreamResponse(c, "gpt-5-codex", resp)
 	require.NoError(t, err)
+	require.Equal(t, ClaudeUsage{}, result.Usage)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), `"delta":{"role":"assistant"}`)
 	require.Contains(t, rec.Body.String(), `"delta":{"content":"Hi"}`)
@@ -313,13 +328,63 @@ func TestQoderGatewayStreamsAnthropicResponseWithoutReasoning(t *testing.T) {
 		)),
 	}
 
-	err := WriteQoderAnthropicStreamResponse(c, "claude-sonnet-4-5", resp)
+	result, err := WriteQoderAnthropicStreamResponse(c, "claude-sonnet-4-5", resp)
 	require.NoError(t, err)
+	require.Equal(t, ClaudeUsage{}, result.Usage)
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
 	require.Contains(t, body, "event: message_start")
 	require.Contains(t, body, "event: content_block_delta")
 	require.Contains(t, body, `"text":"Hi"`)
 	require.NotContains(t, body, "hidden thought")
+	require.Contains(t, body, "event: message_stop")
+}
+
+func TestQoderGatewayStreamsOpenAIUsageForBillingAndClient(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewBufferString(
+			"data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"Hi\\\"}}]}\"}\n\n" +
+				"data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":5,\\\"completion_tokens\\\":6,\\\"total_tokens\\\":11}}\"}\n\n" +
+				"data: {\"body\":\"[DONE]\"}\n\n",
+		)),
+	}
+
+	result, err := WriteQoderOpenAIStreamResponse(c, "gpt-5-codex", resp)
+
+	require.NoError(t, err)
+	require.Equal(t, 5, result.Usage.InputTokens)
+	require.Equal(t, 6, result.Usage.OutputTokens)
+	body := rec.Body.String()
+	require.Contains(t, body, `"usage":`)
+	require.Contains(t, body, `"prompt_tokens":5`)
+	require.Contains(t, body, `"completion_tokens":6`)
+	require.Contains(t, body, `"total_tokens":11`)
+	require.Contains(t, body, "data: [DONE]\n\n")
+}
+
+func TestQoderGatewayStreamsAnthropicUsageForBillingAndClient(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewBufferString(
+			"data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"Hi\\\"}}]}\"}\n\n" +
+				"data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":8,\\\"completion_tokens\\\":9,\\\"total_tokens\\\":17}}\"}\n\n" +
+				"data: {\"body\":\"[DONE]\"}\n\n",
+		)),
+	}
+
+	result, err := WriteQoderAnthropicStreamResponse(c, "claude-sonnet-4-5", resp)
+
+	require.NoError(t, err)
+	require.Equal(t, 8, result.Usage.InputTokens)
+	require.Equal(t, 9, result.Usage.OutputTokens)
+	body := rec.Body.String()
+	require.Contains(t, body, `"usage":`)
+	require.Contains(t, body, `"input_tokens":8`)
+	require.Contains(t, body, `"output_tokens":9`)
 	require.Contains(t, body, "event: message_stop")
 }

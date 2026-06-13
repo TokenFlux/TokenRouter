@@ -28,26 +28,26 @@ const (
 // Confirmed keys are based on observed Qoder COSY responses. performance/auto
 // report Anthropic but do not expose confirmed thinking metadata, and lite can
 // route like Qwen with occasional Claude-style output, so keep those aliases
-// explicitly marked as provisional.
+// explicitly marked as uncertain.
 var defaultQoderModelAliases = map[string]qoderModelInfo{
 	// Claude/Anthropic tier.
 	"claude-opus-4-5": {Key: "ultimate", Source: "system"},
-	// Provisional: performance reports Anthropic but exact Claude variant is unconfirmed.
+	// UNCERTAIN: performance reports Anthropic but exact Claude variant is unconfirmed.
 	"claude-sonnet-4-5": {Key: "performance", Source: "system"},
-	// Provisional: auto is backend-selected and may change routing.
+	// UNCERTAIN: auto is backend-selected and may change routing.
 	"claude-haiku-4-5": {Key: "auto", Source: "system"},
-	// Provisional: auto is backend-selected and may change routing.
+	// UNCERTAIN: auto is backend-selected and may change routing.
 	"auto":     {Key: "auto", Source: "system"},
 	"ultimate": {Key: "ultimate", Source: "system"},
-	// Provisional: performance reports Anthropic but exact Claude variant is unconfirmed.
+	// UNCERTAIN: performance reports Anthropic but exact Claude variant is unconfirmed.
 	"performance": {Key: "performance", Source: "system"},
 	// Qwen (Alibaba)
 	"qwen3.7-max":  {Key: "qmodel_latest", Source: "system"},
 	"qwen3.7-plus": {Key: "qmodel", Source: "system"},
 	"efficient":    {Key: "efficient", Source: "system"},
-	// Provisional: OpenAI-compatible default alias routed through the lite tier.
+	// UNCERTAIN: OpenAI-compatible default alias routed through the lite tier.
 	"gpt-5-codex": {Key: "lite", Source: "system"},
-	// Provisional: usually Qwen, but occasionally observed Claude-style output.
+	// UNCERTAIN: usually Qwen, but occasionally observed Claude-style output.
 	"lite": {Key: "lite", Source: "system"},
 	// DeepSeek
 	"deepseek-v4-pro":   {Key: "dmodel", Source: "system"},
@@ -61,8 +61,12 @@ var defaultQoderModelAliases = map[string]qoderModelInfo{
 }
 
 type qoderModelInfo struct {
-	Key    string
-	Source string
+	Key         string `json:"key"`
+	Source      string `json:"source"`
+	Provider    string `json:"provider,omitempty"`
+	Notes       string `json:"notes,omitempty"`
+	DisplayName string `json:"display_name,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 type qoderStreamClient interface {
@@ -118,17 +122,21 @@ func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin
 	}
 
 	var responseBody []byte
+	usage := ClaudeUsage{}
 	if clientStream {
-		if err := WriteQoderOpenAIStreamResponse(c, requestModel, resp); err != nil {
+		streamResult, err := WriteQoderOpenAIStreamResponse(c, requestModel, resp)
+		if err != nil {
 			s.applyUpstreamErrorPolicy(ctx, account, err)
 			return nil, err
 		}
+		usage = streamResult.Usage
 	} else {
 		events, err := ReadQoderSSEEvents(resp)
 		if err != nil {
 			s.applyUpstreamErrorPolicy(ctx, account, err)
 			return nil, err
 		}
+		usage = qoderUsageFromEvents(events)
 		responseBody, err = BuildQoderOpenAICompletion(requestModel, events)
 		if err != nil {
 			return nil, err
@@ -139,6 +147,7 @@ func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin
 	return &ForwardResult{
 		Model:         requestModel,
 		UpstreamModel: modelKey,
+		Usage:         usage,
 		Stream:        clientStream,
 		Duration:      time.Since(start),
 		ResponseBody:  responseBody,
@@ -168,17 +177,21 @@ func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Contex
 	}
 
 	var responseBody []byte
+	usage := ClaudeUsage{}
 	if clientStream {
-		if err := WriteQoderAnthropicStreamResponse(c, requestModel, resp); err != nil {
+		streamResult, err := WriteQoderAnthropicStreamResponse(c, requestModel, resp)
+		if err != nil {
 			s.applyUpstreamErrorPolicy(ctx, account, err)
 			return nil, err
 		}
+		usage = streamResult.Usage
 	} else {
 		events, err := ReadQoderSSEEvents(resp)
 		if err != nil {
 			s.applyUpstreamErrorPolicy(ctx, account, err)
 			return nil, err
 		}
+		usage = qoderUsageFromEvents(events)
 		responseBody, err = BuildQoderAnthropicMessage(requestModel, events)
 		if err != nil {
 			return nil, err
@@ -189,6 +202,7 @@ func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Contex
 	return &ForwardResult{
 		Model:         requestModel,
 		UpstreamModel: modelKey,
+		Usage:         usage,
 		Stream:        clientStream,
 		Duration:      time.Since(start),
 		ResponseBody:  responseBody,
@@ -504,7 +518,17 @@ func WriteQoderOpenAIStream(c *gin.Context, model string, events []qoder.SSEEven
 	if err := writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{"role": "assistant"}, nil)); err != nil {
 		return err
 	}
+	usage := ClaudeUsage{}
+	totalTokens := 0
 	for _, event := range events {
+		if event.HasUsage {
+			mergeQoderUsageEvent(&usage, event)
+			totalTokens = event.TotalTokens
+			if err := writeSSEData(c.Writer, openAIUsageChunk(completionID, model, usage, totalTokens)); err != nil {
+				return err
+			}
+			continue
+		}
 		if event.IsDone {
 			if err := writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{}, "stop")); err != nil {
 				return err
@@ -524,7 +548,12 @@ func WriteQoderOpenAIStream(c *gin.Context, model string, events []qoder.SSEEven
 	return nil
 }
 
-func WriteQoderOpenAIStreamResponse(c *gin.Context, model string, resp *http.Response) error {
+type qoderStreamResult struct {
+	Usage       ClaudeUsage
+	TotalTokens int
+}
+
+func WriteQoderOpenAIStreamResponse(c *gin.Context, model string, resp *http.Response) (*qoderStreamResult, error) {
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
@@ -534,9 +563,15 @@ func WriteQoderOpenAIStreamResponse(c *gin.Context, model string, resp *http.Res
 	completionID := "chatcmpl-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:24]
 	if err := writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{"role": "assistant"}, nil)); err != nil {
 		closeQoderResponse(resp)
-		return err
+		return nil, err
 	}
-	return streamQoderEvents(resp, func(event qoder.SSEEvent) error {
+	result := &qoderStreamResult{}
+	if err := streamQoderEvents(resp, func(event qoder.SSEEvent) error {
+		if event.HasUsage {
+			mergeQoderUsageEvent(&result.Usage, event)
+			result.TotalTokens = event.TotalTokens
+			return writeSSEData(c.Writer, openAIUsageChunk(completionID, model, result.Usage, result.TotalTokens))
+		}
 		if event.IsDone {
 			if err := writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{}, "stop")); err != nil {
 				return err
@@ -557,7 +592,10 @@ func WriteQoderOpenAIStreamResponse(c *gin.Context, model string, resp *http.Res
 			flusher.Flush()
 		}
 		return err
-	})
+	}); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func WriteQoderAnthropicStream(c *gin.Context, model string, events []qoder.SSEEvent) error {
@@ -590,7 +628,19 @@ func WriteQoderAnthropicStream(c *gin.Context, model string, events []qoder.SSEE
 	}); err != nil {
 		return err
 	}
+	usage := ClaudeUsage{}
 	for _, event := range events {
+		if event.HasUsage {
+			mergeQoderUsageEvent(&usage, event)
+			if err := writeAnthropicSSE(c.Writer, "message_delta", map[string]any{
+				"type":  "message_delta",
+				"delta": map[string]any{},
+				"usage": qoderAnthropicUsage(usage),
+			}); err != nil {
+				return err
+			}
+			continue
+		}
 		if event.IsDone {
 			if err := writeAnthropicSSE(c.Writer, "content_block_stop", map[string]any{"type": "content_block_stop", "index": 0}); err != nil {
 				return err
@@ -619,7 +669,7 @@ func WriteQoderAnthropicStream(c *gin.Context, model string, events []qoder.SSEE
 	return nil
 }
 
-func WriteQoderAnthropicStreamResponse(c *gin.Context, model string, resp *http.Response) error {
+func WriteQoderAnthropicStreamResponse(c *gin.Context, model string, resp *http.Response) (*qoderStreamResult, error) {
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
@@ -641,7 +691,7 @@ func WriteQoderAnthropicStreamResponse(c *gin.Context, model string, resp *http.
 		},
 	}); err != nil {
 		closeQoderResponse(resp)
-		return err
+		return nil, err
 	}
 	if err := writeAnthropicSSE(c.Writer, "content_block_start", map[string]any{
 		"type":          "content_block_start",
@@ -649,9 +699,18 @@ func WriteQoderAnthropicStreamResponse(c *gin.Context, model string, resp *http.
 		"content_block": map[string]any{"type": "text", "text": ""},
 	}); err != nil {
 		closeQoderResponse(resp)
-		return err
+		return nil, err
 	}
-	return streamQoderEvents(resp, func(event qoder.SSEEvent) error {
+	result := &qoderStreamResult{}
+	if err := streamQoderEvents(resp, func(event qoder.SSEEvent) error {
+		if event.HasUsage {
+			mergeQoderUsageEvent(&result.Usage, event)
+			return writeAnthropicSSE(c.Writer, "message_delta", map[string]any{
+				"type":  "message_delta",
+				"delta": map[string]any{},
+				"usage": qoderAnthropicUsage(result.Usage),
+			})
+		}
 		if event.IsDone {
 			if err := writeAnthropicSSE(c.Writer, "content_block_stop", map[string]any{"type": "content_block_stop", "index": 0}); err != nil {
 				return err
@@ -681,7 +740,10 @@ func WriteQoderAnthropicStreamResponse(c *gin.Context, model string, resp *http.
 			flusher.Flush()
 		}
 		return err
-	})
+	}); err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func streamQoderEvents(resp *http.Response, handle func(qoder.SSEEvent) error, keepalive func() error) error {
@@ -756,6 +818,8 @@ func closeQoderResponse(resp *http.Response) {
 
 func BuildQoderOpenAICompletion(model string, events []qoder.SSEEvent) ([]byte, error) {
 	content := qoderTextFromEvents(events)
+	usage := qoderUsageFromEvents(events)
+	totalTokens := qoderTotalTokensFromEvents(events, usage)
 	return json.Marshal(map[string]any{
 		"id":      "chatcmpl-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:24],
 		"object":  "chat.completion",
@@ -768,12 +832,13 @@ func BuildQoderOpenAICompletion(model string, events []qoder.SSEEvent) ([]byte, 
 				"finish_reason": "stop",
 			},
 		},
-		"usage": map[string]any{"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+		"usage": qoderOpenAIUsage(usage, totalTokens),
 	})
 }
 
 func BuildQoderAnthropicMessage(model string, events []qoder.SSEEvent) ([]byte, error) {
 	content := qoderTextFromEvents(events)
+	usage := qoderUsageFromEvents(events)
 	return json.Marshal(map[string]any{
 		"id":            "msg_" + strings.ReplaceAll(uuid.NewString(), "-", ""),
 		"type":          "message",
@@ -782,8 +847,55 @@ func BuildQoderAnthropicMessage(model string, events []qoder.SSEEvent) ([]byte, 
 		"content":       []any{map[string]any{"type": "text", "text": content}},
 		"stop_reason":   "end_turn",
 		"stop_sequence": nil,
-		"usage":         map[string]any{"input_tokens": 0, "output_tokens": 0},
+		"usage":         qoderAnthropicUsage(usage),
 	})
+}
+
+func qoderUsageFromEvents(events []qoder.SSEEvent) ClaudeUsage {
+	usage := ClaudeUsage{}
+	for _, event := range events {
+		if event.HasUsage {
+			mergeQoderUsageEvent(&usage, event)
+		}
+	}
+	return usage
+}
+
+func mergeQoderUsageEvent(usage *ClaudeUsage, event qoder.SSEEvent) {
+	if usage == nil || !event.HasUsage {
+		return
+	}
+	usage.InputTokens = event.PromptTokens
+	usage.OutputTokens = event.CompletionTokens
+}
+
+func qoderTotalTokensFromEvents(events []qoder.SSEEvent, usage ClaudeUsage) int {
+	for i := len(events) - 1; i >= 0; i-- {
+		if events[i].HasUsage && events[i].TotalTokens > 0 {
+			return events[i].TotalTokens
+		}
+	}
+	return usage.InputTokens + usage.OutputTokens
+}
+
+func qoderOpenAIUsage(usage ClaudeUsage, totalTokens int) map[string]any {
+	promptTokens := usage.InputTokens
+	completionTokens := usage.OutputTokens
+	if totalTokens == 0 {
+		totalTokens = promptTokens + completionTokens
+	}
+	return map[string]any{
+		"prompt_tokens":     promptTokens,
+		"completion_tokens": completionTokens,
+		"total_tokens":      totalTokens,
+	}
+}
+
+func qoderAnthropicUsage(usage ClaudeUsage) map[string]any {
+	return map[string]any{
+		"input_tokens":  usage.InputTokens,
+		"output_tokens": usage.OutputTokens,
+	}
 }
 
 func writeSSEData(w io.Writer, data map[string]any) error {
@@ -830,8 +942,14 @@ func openAIChunk(id, model string, delta map[string]any, finishReason any) map[s
 	}
 }
 
+func openAIUsageChunk(id, model string, usage ClaudeUsage, totalTokens int) map[string]any {
+	chunk := openAIChunk(id, model, map[string]any{}, nil)
+	chunk["usage"] = qoderOpenAIUsage(usage, totalTokens)
+	return chunk
+}
+
 func resolveQoderModel(model string) qoderModelInfo {
-	if info, ok := defaultQoderModelAliases[strings.TrimSpace(model)]; ok {
+	if info, ok := lookupQoderModelAlias(strings.TrimSpace(model)); ok {
 		return info
 	}
 	return qoderModelInfo{Key: strings.TrimSpace(model), Source: "system"}

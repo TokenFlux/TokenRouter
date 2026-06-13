@@ -21,6 +21,7 @@ func ProvideAdminHandlers(
 	geminiOAuthHandler *admin.GeminiOAuthHandler,
 	antigravityOAuthHandler *admin.AntigravityOAuthHandler,
 	qoderOAuthHandler *admin.QoderOAuthHandler,
+	qoderModelSyncHandler *admin.QoderModelSyncHandler,
 	proxyHandler *admin.ProxyHandler,
 	redeemHandler *admin.RedeemHandler,
 	promoHandler *admin.PromoHandler,
@@ -54,6 +55,7 @@ func ProvideAdminHandlers(
 		GeminiOAuth:           geminiOAuthHandler,
 		AntigravityOAuth:      antigravityOAuthHandler,
 		QoderOAuth:            qoderOAuthHandler,
+		QoderModels:           qoderModelSyncHandler,
 		Proxy:                 proxyHandler,
 		Redeem:                redeemHandler,
 		Promo:                 promoHandler,
@@ -98,6 +100,10 @@ func ProvideAdminSettingHandler(settingService *service.SettingService, emailSer
 // ProvideTLSFingerprintProfileHandler 注入页面可控的 TLS 指纹收集器。
 func ProvideTLSFingerprintProfileHandler(profileService *service.TLSFingerprintProfileService, collector *service.TLSFingerprintCollectorService) *admin.TLSFingerprintProfileHandler {
 	return admin.NewTLSFingerprintProfileHandler(profileService, collector)
+}
+
+func ProvideQoderModelSyncHandler(qoderModelSyncService *service.QoderModelSyncService) *admin.QoderModelSyncHandler {
+	return admin.NewQoderModelSyncHandler(qoderModelSyncService)
 }
 
 // ProvideAPIKeyHandler creates APIKeyHandler and injects optional group capacity display data.
@@ -183,6 +189,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewGeminiOAuthHandler,
 	admin.NewAntigravityOAuthHandler,
 	admin.NewQoderOAuthHandler,
+	ProvideQoderModelSyncHandler,
 	admin.NewProxyHandler,
 	admin.NewRedeemHandler,
 	admin.NewPromoHandler,

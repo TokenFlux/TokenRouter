@@ -345,6 +345,43 @@ func TestParseSSELineContentAndReasoningAreSeparate(t *testing.T) {
 	}
 }
 
+func TestParseSSELineUsage(t *testing.T) {
+	line := `data: {"body": "{\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":34,\"total_tokens\":46}}"}`
+	events, err := ParseSSELine(line)
+	if err != nil {
+		t.Fatalf("ParseSSELine: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("events length = %d, want 1", len(events))
+	}
+	if events[0].Type != "usage" || !events[0].HasUsage {
+		t.Fatalf("event = %#v, want usage event", events[0])
+	}
+	if events[0].PromptTokens != 12 {
+		t.Fatalf("prompt tokens = %d, want 12", events[0].PromptTokens)
+	}
+	if events[0].CompletionTokens != 34 {
+		t.Fatalf("completion tokens = %d, want 34", events[0].CompletionTokens)
+	}
+	if events[0].TotalTokens != 46 {
+		t.Fatalf("total tokens = %d, want 46", events[0].TotalTokens)
+	}
+}
+
+func TestParseSSELineUsageAcceptsAnthropicNames(t *testing.T) {
+	line := `data: {"body": "{\"usage\":{\"input_tokens\":7,\"output_tokens\":9}}"}`
+	events, err := ParseSSELine(line)
+	if err != nil {
+		t.Fatalf("ParseSSELine: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("events length = %d, want 1", len(events))
+	}
+	if events[0].PromptTokens != 7 || events[0].CompletionTokens != 9 || events[0].TotalTokens != 16 {
+		t.Fatalf("usage event = %#v, want 7/9/16", events[0])
+	}
+}
+
 func TestParseSSELineMalformedWrapper(t *testing.T) {
 	_, err := ParseSSELine("data: not json")
 	if err == nil {
