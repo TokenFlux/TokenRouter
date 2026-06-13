@@ -71,6 +71,12 @@ func TestQoderOAuthClientPollDeviceTokenCompletedAndUserInfo(t *testing.T) {
 				Name:     "Qoder User",
 				UserType: "personal_pro",
 			})
+		case OrganizationTagsPathPrefix + "user-from-info/tags":
+			require.Equal(t, "Bearer access-token", r.Header.Get("Authorization"))
+			_ = json.NewEncoder(w).Encode(OrganizationTags{
+				OrganizationID:   "org-1",
+				OrganizationName: "Org 1",
+			})
 		default:
 			http.NotFound(w, r)
 		}
@@ -89,6 +95,11 @@ func TestQoderOAuthClientPollDeviceTokenCompletedAndUserInfo(t *testing.T) {
 	require.Equal(t, "user-from-info", user.ID)
 	require.Equal(t, "Qoder User", user.Name)
 	require.Equal(t, "personal_pro", user.UserType)
+
+	tags, err := client.GetOrganizationTags(context.Background(), token.AccessTokenValue(), user.ID)
+	require.NoError(t, err)
+	require.Equal(t, "org-1", tags.OrganizationID)
+	require.Equal(t, "Org 1", tags.OrganizationName)
 }
 
 func TestBuildIdentityFromDeviceToken(t *testing.T) {
@@ -108,4 +119,18 @@ func TestBuildIdentityFromDeviceToken(t *testing.T) {
 	require.Equal(t, "personal_pro", identity.UserType)
 	require.Equal(t, "token-1", identity.SecurityOauthToken)
 	require.Equal(t, "refresh-1", identity.RefreshToken)
+}
+
+func TestBuildIdentityFromDeviceTokenCopiesOrganizationFromUserInfo(t *testing.T) {
+	identity := BuildIdentityFromDeviceToken(&UserInfo{
+		ID:               "user-1",
+		OrganizationID:   "org-1",
+		OrganizationName: "Org 1",
+	}, &DeviceTokenResponse{
+		Token:  "token-1",
+		UserID: "fallback-user",
+	})
+
+	require.Equal(t, "org-1", identity.OrganizationID)
+	require.Equal(t, "Org 1", identity.OrganizationName)
 }

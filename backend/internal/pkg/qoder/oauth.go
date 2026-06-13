@@ -29,6 +29,9 @@ const (
 
 	// UserInfoPath returns the Qoder user identity associated with an access token.
 	UserInfoPath = "/api/v1/userinfo"
+
+	// OrganizationTagsPathPrefix returns organization metadata for a Qoder user.
+	OrganizationTagsPathPrefix = "/api/v1/organizations/"
 )
 
 type DeviceAuthRequest struct {
@@ -47,10 +50,63 @@ type DeviceTokenResponse struct {
 }
 
 type UserInfo struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	UserType string `json:"userType"`
-	Email    string `json:"email"`
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	UserType         string `json:"userType"`
+	Email            string `json:"email"`
+	OrganizationID   string `json:"organization_id"`
+	OrganizationName string `json:"organization_name"`
+}
+
+type OrganizationTags struct {
+	OrganizationID   string `json:"organization_id"`
+	OrganizationName string `json:"organization_name"`
+}
+
+func (u *UserInfo) UnmarshalJSON(data []byte) error {
+	type userInfoAlias UserInfo
+	var raw struct {
+		userInfoAlias
+		UserTypeCamel         string `json:"user_type"`
+		OrganizationIDCamel   string `json:"organizationId"`
+		OrganizationNameCamel string `json:"organizationName"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*u = UserInfo(raw.userInfoAlias)
+	if strings.TrimSpace(u.UserType) == "" {
+		u.UserType = raw.UserTypeCamel
+	}
+	if strings.TrimSpace(u.OrganizationID) == "" {
+		u.OrganizationID = raw.OrganizationIDCamel
+	}
+	if strings.TrimSpace(u.OrganizationName) == "" {
+		u.OrganizationName = raw.OrganizationNameCamel
+	}
+	return nil
+}
+
+func (o *OrganizationTags) UnmarshalJSON(data []byte) error {
+	type organizationTagsAlias OrganizationTags
+	var raw struct {
+		organizationTagsAlias
+		ID                    string `json:"id"`
+		Name                  string `json:"name"`
+		OrganizationIDCamel   string `json:"organizationId"`
+		OrganizationNameCamel string `json:"organizationName"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*o = OrganizationTags(raw.organizationTagsAlias)
+	if strings.TrimSpace(o.OrganizationID) == "" {
+		o.OrganizationID = firstNonEmpty(raw.OrganizationIDCamel, raw.ID)
+	}
+	if strings.TrimSpace(o.OrganizationName) == "" {
+		o.OrganizationName = firstNonEmpty(raw.OrganizationNameCamel, raw.Name)
+	}
+	return nil
 }
 
 type OAuthClient struct {
@@ -187,6 +243,40 @@ func (c *OAuthClient) GetUserInfo(ctx context.Context, token string) (*UserInfo,
 	return &info, nil
 }
 
+func (c *OAuthClient) GetOrganizationTags(ctx context.Context, token, uid string) (*OrganizationTags, error) {
+	if c == nil {
+		c = NewOAuthClient("", nil)
+	}
+	uid = strings.TrimSpace(uid)
+	if uid == "" {
+		return nil, fmt.Errorf("qoder: organization tags require uid")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+OrganizationTagsPathPrefix+url.PathEscape(uid)+"/tags", nil)
+	if err != nil {
+		return nil, fmt.Errorf("qoder: create organization tags request: %w", err)
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
+	req.Header.Set("User-Agent", "Go-http-client/2.0")
+
+	resp, err := c.HTTPClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("qoder: organization tags request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, fmt.Errorf("qoder: organization tags failed with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var tags OrganizationTags
+	if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
+		return nil, fmt.Errorf("qoder: parse organization tags response: %w", err)
+	}
+	return &tags, nil
+}
+
 func (r *DeviceTokenResponse) AccessTokenValue() string {
 	if r == nil {
 		return ""
@@ -202,6 +292,8 @@ func BuildIdentityFromDeviceToken(user *UserInfo, token *DeviceTokenResponse) *A
 	userID := strings.TrimSpace(token.UserID)
 	name := ""
 	userType := "personal_standard"
+	organizationID := ""
+	organizationName := ""
 	if user != nil {
 		if strings.TrimSpace(user.ID) != "" {
 			userID = strings.TrimSpace(user.ID)
@@ -210,13 +302,26 @@ func BuildIdentityFromDeviceToken(user *UserInfo, token *DeviceTokenResponse) *A
 		if strings.TrimSpace(user.UserType) != "" {
 			userType = strings.TrimSpace(user.UserType)
 		}
+		organizationID = strings.TrimSpace(user.OrganizationID)
+		organizationName = strings.TrimSpace(user.OrganizationName)
 	}
 	return &AuthIdentity{
 		Name:               name,
 		AID:                userID,
 		UID:                userID,
+		OrganizationID:     organizationID,
+		OrganizationName:   organizationName,
 		UserType:           userType,
 		SecurityOauthToken: accessToken,
 		RefreshToken:       strings.TrimSpace(token.RefreshToken),
 	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }

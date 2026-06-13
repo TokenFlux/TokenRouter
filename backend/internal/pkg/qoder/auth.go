@@ -15,11 +15,11 @@ import (
 // CenterBaseURL is the default center service URL.
 const CenterBaseURL = "https://center.qoder.sh"
 
-// APIBaseURL is the default Qoder API base URL.
-const APIBaseURL = "https://api3.qoder.sh"
+// APIBaseURL is the default Qoder API base URL (verified from qodercli endpoint-cache.json).
+const APIBaseURL = "https://api1.qoder.sh"
 
-// ClientVersion is the COSY protocol version.
-const ClientVersion = "0.1.43"
+// ClientVersion is the COSY protocol version (matched to real qodercli v1.0.20).
+const ClientVersion = "1.0.20"
 
 // GenerateRequestID generates a random request ID.
 func GenerateRequestID() string {

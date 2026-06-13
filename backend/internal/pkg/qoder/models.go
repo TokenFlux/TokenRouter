@@ -47,6 +47,8 @@ type AuthInfo struct {
 	Email                  string `json:"email"`
 	UserType               string `json:"userType"`
 	MachineID              string `json:"_machine_id"`
+	OrganizationID         string `json:"organization_id"`
+	OrganizationName       string `json:"organization_name"`
 }
 
 // ToAuthIdentity converts the local auth info to an AuthIdentity for session building.
@@ -63,6 +65,8 @@ func (info *AuthInfo) ToAuthIdentity() *AuthIdentity {
 		Name:               info.Name,
 		AID:                info.UID,
 		UID:                info.UID,
+		OrganizationID:     info.OrganizationID,
+		OrganizationName:   info.OrganizationName,
 		UserType:           userType,
 		SecurityOauthToken: token,
 		RefreshToken:       info.RefreshToken,

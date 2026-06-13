@@ -17,6 +17,8 @@ func TestQoderTokenProviderBuildsAndCachesDirectSession(t *testing.T) {
 		Credentials: map[string]any{
 			"security_oauth_token": "dt-token",
 			"machine_id":           "machine-1",
+			"organization_id":      "org-1",
+			"organization_name":    "Org 1",
 		},
 	}
 
@@ -24,6 +26,8 @@ func TestQoderTokenProviderBuildsAndCachesDirectSession(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, session1)
 	require.Equal(t, "dt-token", session1.Identity.SecurityOauthToken)
+	require.Equal(t, "org-1", session1.Identity.OrganizationID)
+	require.Equal(t, "Org 1", session1.Identity.OrganizationName)
 	require.Equal(t, "machine-1", session1.Machine.MachineID)
 
 	session2, err := provider.GetSession(context.Background(), account)
@@ -62,15 +66,21 @@ func TestQoderTokenProviderSupportsInjectedPATExchange(t *testing.T) {
 	}
 
 	account := &Account{
-		ID:          103,
-		Platform:    PlatformQoder,
-		Type:        AccountTypeCosy,
-		Credentials: map[string]any{"pat": "pat-123"},
+		ID:       103,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"pat":               "pat-123",
+			"organization_id":   "org-from-account",
+			"organization_name": "Org From Account",
+		},
 	}
 
 	session1, err := provider.GetSession(context.Background(), account)
 	require.NoError(t, err)
 	require.Equal(t, "dt-from-pat", session1.Identity.SecurityOauthToken)
+	require.Equal(t, "org-from-account", session1.Identity.OrganizationID)
+	require.Equal(t, "Org From Account", session1.Identity.OrganizationName)
 
 	session2, err := provider.GetSession(context.Background(), account)
 	require.NoError(t, err)

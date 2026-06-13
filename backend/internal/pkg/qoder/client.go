@@ -189,20 +189,27 @@ func (c *Client) setHeaders(req *http.Request, session *SessionContext, path, en
 	payloadB64, _ := BuildPayloadB64(session.Info, GenerateRequestID())
 	signature := SignQoderRequest(payloadB64, session.CosyKey, now, encodedBody, pathNoAlgo)
 
+	mid := session.Machine.MachineID
+
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept-Encoding", "identity")
 	req.Header.Set("User-Agent", "Go-http-client/2.0")
 	req.Header.Set("Login-Version", "v2")
-	req.Header.Set("cosy-data-policy", "AGREE")
+	req.Header.Set("cosy-data-policy", "disagree")
 	req.Header.Set("cosy-version", c.ClientVersion)
 	req.Header.Set("cosy-clienttype", "5")
-	req.Header.Set("cosy-clientip", "169.254.198.161")
+	req.Header.Set("cosy-clientip", mid)
 	req.Header.Set("cosy-date", now)
 	req.Header.Set("cosy-key", session.CosyKey)
 	req.Header.Set("cosy-user", session.Identity.UID)
-	req.Header.Set("cosy-machineid", session.Machine.MachineID)
-	req.Header.Set("cosy-machinetype", session.Machine.MachineType)
-	req.Header.Set("cosy-machinetoken", session.Machine.MachineToken)
+	req.Header.Set("cosy-machineid", mid)
+	req.Header.Set("cosy-machinetype", "5")
+	req.Header.Set("cosy-machinetoken", mid)
+	req.Header.Set("cosy-scene", "assistant")
+	req.Header.Set("cosy-organization-id", session.Identity.OrganizationID)
+	req.Header.Set("cosy-organization-tags", "Normal")
+	req.Header.Set("cosy-business-product", "cli")
+	req.Header.Set("cosy-business-type", "agent")
 	req.Header.Set("Authorization", ComposeBearer(payloadB64, signature))
 }
 

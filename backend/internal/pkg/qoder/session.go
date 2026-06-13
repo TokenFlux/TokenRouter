@@ -75,7 +75,7 @@ func BuildAuthPayloadJSON(identity *AuthIdentity) ([]byte, error) {
 // BuildPayloadB64 creates the base64-encoded payload for the COSY header.
 func BuildPayloadB64(info, requestID string) (string, error) {
 	payload := map[string]string{
-		"cosyVersion": "0.1.43",
+		"cosyVersion": "1.0.20",
 		"ideVersion":  "",
 		"info":        info,
 		"requestId":   requestID,

@@ -101,6 +101,7 @@ func (p *QoderTokenProvider) buildSession(ctx context.Context, account *Account)
 		if err != nil {
 			return nil, fmt.Errorf("qoder pat exchange: %w", err)
 		}
+		applyQoderAccountIdentityMetadata(identity, account)
 		return qoder.NewSession(identity, machine)
 	}
 
@@ -111,13 +112,14 @@ func (p *QoderTokenProvider) buildSession(ctx context.Context, account *Account)
 			return nil, errors.New("qoder credentials require machine_id with security_oauth_token")
 		}
 		identity := &qoder.AuthIdentity{
-			Name:               account.Name,
+			Name:               firstNonEmptyQoder(account.GetCredential("name"), account.Name),
 			AID:                firstNonEmptyQoder(account.GetCredential("aid"), account.GetCredential("uid")),
 			UID:                firstNonEmptyQoder(account.GetCredential("uid"), account.GetCredential("aid")),
 			UserType:           firstNonEmptyQoder(account.GetCredential("user_type"), "personal_standard"),
 			SecurityOauthToken: token,
 			RefreshToken:       account.GetCredential("refresh_token"),
 		}
+		applyQoderAccountIdentityMetadata(identity, account)
 		machine := &qoder.MachineIdentity{
 			MachineID:    machineID,
 			MachineToken: firstNonEmptyQoder(account.GetCredential("machine_token"), qoder.RandomToken(50)),
@@ -135,10 +137,26 @@ func (p *QoderTokenProvider) buildSession(ctx context.Context, account *Account)
 		if machine.MachineID == "" {
 			machine.MachineID = machineID
 		}
+		applyQoderAccountIdentityMetadata(identity, account)
 		return qoder.NewSession(identity, machine)
 	}
 
 	return nil, errors.New("qoder credentials require pat, security_oauth_token+machine_id, or machine_id")
+}
+
+func applyQoderAccountIdentityMetadata(identity *qoder.AuthIdentity, account *Account) {
+	if identity == nil || account == nil {
+		return
+	}
+	if strings.TrimSpace(identity.Name) == "" {
+		identity.Name = firstNonEmptyQoder(account.GetCredential("name"), account.Name)
+	}
+	if strings.TrimSpace(identity.OrganizationID) == "" {
+		identity.OrganizationID = account.GetCredential("organization_id")
+	}
+	if strings.TrimSpace(identity.OrganizationName) == "" {
+		identity.OrganizationName = account.GetCredential("organization_name")
+	}
 }
 
 func qoderCredentialsHash(credentials map[string]any) string {

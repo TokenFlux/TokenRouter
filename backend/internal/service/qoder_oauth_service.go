@@ -22,6 +22,7 @@ const (
 type qoderOAuthClient interface {
 	PollDeviceToken(ctx context.Context, nonce, verifier string) (*qoder.DeviceTokenResponse, bool, error)
 	GetUserInfo(ctx context.Context, token string) (*qoder.UserInfo, error)
+	GetOrganizationTags(ctx context.Context, token, uid string) (*qoder.OrganizationTags, error)
 }
 
 type qoderOAuthClientFactory func(proxyURL string) (qoderOAuthClient, error)
@@ -142,6 +143,8 @@ type QoderTokenInfo struct {
 	MachineType        string         `json:"machine_type,omitempty"`
 	UID                string         `json:"uid,omitempty"`
 	AID                string         `json:"aid,omitempty"`
+	OrganizationID     string         `json:"organization_id,omitempty"`
+	OrganizationName   string         `json:"organization_name,omitempty"`
 	Name               string         `json:"name,omitempty"`
 	UserType           string         `json:"user_type,omitempty"`
 	Extra              map[string]any `json:"extra,omitempty"`
@@ -218,10 +221,11 @@ func (s *QoderOAuthService) ExchangeCode(ctx context.Context, input *QoderExchan
 		userInfo = &qoder.UserInfo{ID: tokenResp.UserID}
 	}
 	identity := qoder.BuildIdentityFromDeviceToken(userInfo, tokenResp)
+	orgErr := populateQoderOrganization(ctx, client, accessToken, identity)
 	machine := qoder.NewMachine()
 
 	s.sessionStore.Delete(input.SessionID)
-	return buildQoderTokenInfo(identity, machine, userErr), nil
+	return buildQoderTokenInfo(identity, machine, userErr, orgErr), nil
 }
 
 func (s *QoderOAuthService) Poll(ctx context.Context, sessionID, state string, proxyID *int64) (*QoderPollResult, error) {
@@ -255,11 +259,12 @@ func (s *QoderOAuthService) Poll(ctx context.Context, sessionID, state string, p
 		userInfo = &qoder.UserInfo{ID: tokenResp.UserID}
 	}
 	identity := qoder.BuildIdentityFromDeviceToken(userInfo, tokenResp)
+	orgErr := populateQoderOrganization(ctx, client, accessToken, identity)
 	machine := qoder.NewMachine()
 	s.sessionStore.Delete(sessionID)
 	return &QoderPollResult{
 		Status:    "completed",
-		TokenInfo: buildQoderTokenInfo(identity, machine, userErr),
+		TokenInfo: buildQoderTokenInfo(identity, machine, userErr, orgErr),
 	}, nil
 }
 
@@ -360,7 +365,33 @@ func (s *QoderOAuthService) defaultClientFactory(proxyURL string) (qoderOAuthCli
 	return qoder.NewOAuthClient(qoder.OpenAPIBaseURL, client), nil
 }
 
-func buildQoderTokenInfo(identity *qoder.AuthIdentity, machine *qoder.MachineIdentity, userErr error) *QoderTokenInfo {
+func populateQoderOrganization(ctx context.Context, client qoderOAuthClient, token string, identity *qoder.AuthIdentity) error {
+	if client == nil || identity == nil {
+		return nil
+	}
+	if strings.TrimSpace(identity.OrganizationID) != "" {
+		return nil
+	}
+	uid := strings.TrimSpace(identity.UID)
+	if uid == "" {
+		uid = strings.TrimSpace(identity.AID)
+	}
+	if uid == "" {
+		return nil
+	}
+	tags, err := client.GetOrganizationTags(ctx, token, uid)
+	if err != nil {
+		return err
+	}
+	if tags == nil {
+		return nil
+	}
+	identity.OrganizationID = strings.TrimSpace(tags.OrganizationID)
+	identity.OrganizationName = strings.TrimSpace(tags.OrganizationName)
+	return nil
+}
+
+func buildQoderTokenInfo(identity *qoder.AuthIdentity, machine *qoder.MachineIdentity, userErr error, orgErr error) *QoderTokenInfo {
 	if identity == nil {
 		identity = &qoder.AuthIdentity{UserType: "personal_standard"}
 	}
@@ -370,6 +401,9 @@ func buildQoderTokenInfo(identity *qoder.AuthIdentity, machine *qoder.MachineIde
 	extra := map[string]any{}
 	if userErr != nil {
 		extra["userinfo_warning"] = userErr.Error()
+	}
+	if orgErr != nil {
+		extra["organization_warning"] = orgErr.Error()
 	}
 	if len(extra) == 0 {
 		extra = nil
@@ -382,6 +416,8 @@ func buildQoderTokenInfo(identity *qoder.AuthIdentity, machine *qoder.MachineIde
 		MachineType:        strings.TrimSpace(machine.MachineType),
 		UID:                strings.TrimSpace(identity.UID),
 		AID:                strings.TrimSpace(identity.AID),
+		OrganizationID:     strings.TrimSpace(identity.OrganizationID),
+		OrganizationName:   strings.TrimSpace(identity.OrganizationName),
 		Name:               strings.TrimSpace(identity.Name),
 		UserType:           firstNonEmptyQoder(identity.UserType, "personal_standard"),
 		Extra:              extra,
@@ -413,6 +449,12 @@ func (s *QoderOAuthService) BuildAccountCredentials(tokenInfo *QoderTokenInfo) m
 	}
 	if tokenInfo.AID != "" {
 		credentials["aid"] = tokenInfo.AID
+	}
+	if tokenInfo.OrganizationID != "" {
+		credentials["organization_id"] = tokenInfo.OrganizationID
+	}
+	if tokenInfo.OrganizationName != "" {
+		credentials["organization_name"] = tokenInfo.OrganizationName
 	}
 	if tokenInfo.Name != "" {
 		credentials["name"] = tokenInfo.Name

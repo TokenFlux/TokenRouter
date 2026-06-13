@@ -211,11 +211,12 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 
 		writerSizeBeforeForward := c.Writer.Size()
 		var result *service.ForwardResult
+		forwardCtx := context.Background()
 		switch endpoint {
 		case qoderEndpointChatCompletions:
-			result, err = h.qoderGatewayService.ForwardChatCompletions(c.Request.Context(), c, account, body)
+			result, err = h.qoderGatewayService.ForwardChatCompletions(forwardCtx, c, account, body)
 		default:
-			result, err = h.qoderGatewayService.ForwardMessages(c.Request.Context(), c, account, body)
+			result, err = h.qoderGatewayService.ForwardMessages(forwardCtx, c, account, body)
 		}
 		if accountRelease != nil {
 			accountRelease()

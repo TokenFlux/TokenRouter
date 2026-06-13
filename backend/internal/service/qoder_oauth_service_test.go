@@ -15,6 +15,8 @@ type fakeQoderOAuthClient struct {
 	pollErr     error
 	userInfo    *qoder.UserInfo
 	userErr     error
+	orgTags     *qoder.OrganizationTags
+	orgErr      error
 	gotNonce    string
 	gotVerifier string
 }
@@ -30,6 +32,13 @@ func (f *fakeQoderOAuthClient) GetUserInfo(ctx context.Context, token string) (*
 		return nil, f.userErr
 	}
 	return f.userInfo, nil
+}
+
+func (f *fakeQoderOAuthClient) GetOrganizationTags(ctx context.Context, token, uid string) (*qoder.OrganizationTags, error) {
+	if f.orgErr != nil {
+		return nil, f.orgErr
+	}
+	return f.orgTags, nil
 }
 
 func TestQoderOAuthServiceGenerateAuthURLCreatesSession(t *testing.T) {
@@ -112,6 +121,10 @@ func TestQoderOAuthServiceExchangeParsesCallbackURLAndBuildsUsableCredentials(t 
 				Name:     "Qoder User",
 				UserType: "personal_pro",
 			},
+			orgTags: &qoder.OrganizationTags{
+				OrganizationID:   "org-from-tags",
+				OrganizationName: "Qoder Org",
+			},
 		}, nil
 	}
 
@@ -126,6 +139,8 @@ func TestQoderOAuthServiceExchangeParsesCallbackURLAndBuildsUsableCredentials(t 
 	require.Equal(t, "refresh-token", tokenInfo.RefreshToken)
 	require.Equal(t, "user-from-info", tokenInfo.UID)
 	require.Equal(t, "user-from-info", tokenInfo.AID)
+	require.Equal(t, "org-from-tags", tokenInfo.OrganizationID)
+	require.Equal(t, "Qoder Org", tokenInfo.OrganizationName)
 	require.Equal(t, "Qoder User", tokenInfo.Name)
 	require.Equal(t, "personal_pro", tokenInfo.UserType)
 	require.NotEmpty(t, tokenInfo.MachineID)
@@ -138,6 +153,8 @@ func TestQoderOAuthServiceExchangeParsesCallbackURLAndBuildsUsableCredentials(t 
 	credentials := svc.BuildAccountCredentials(tokenInfo)
 	require.Equal(t, "security-token", credentials["security_oauth_token"])
 	require.Equal(t, tokenInfo.MachineID, credentials["machine_id"])
+	require.Equal(t, "org-from-tags", credentials["organization_id"])
+	require.Equal(t, "Qoder Org", credentials["organization_name"])
 
 	provider := NewQoderTokenProvider()
 	session, err := provider.GetSession(context.Background(), &Account{
@@ -149,6 +166,8 @@ func TestQoderOAuthServiceExchangeParsesCallbackURLAndBuildsUsableCredentials(t 
 	})
 	require.NoError(t, err)
 	require.Equal(t, "security-token", session.Identity.SecurityOauthToken)
+	require.Equal(t, "org-from-tags", session.Identity.OrganizationID)
+	require.Equal(t, "Qoder Org", session.Identity.OrganizationName)
 	require.Equal(t, tokenInfo.MachineID, session.Machine.MachineID)
 	require.Equal(t, tokenInfo.MachineToken, session.Machine.MachineToken)
 }
@@ -171,12 +190,14 @@ func TestQoderOAuthServicePollReturnsPendingAndCompleted(t *testing.T) {
 	client.ready = true
 	client.token = &qoder.DeviceTokenResponse{AccessToken: "access-token", UserID: "user-1"}
 	client.userErr = errors.New("userinfo unavailable")
+	client.orgErr = errors.New("organization unavailable")
 	completed, err := svc.Poll(context.Background(), result.SessionID, result.State, nil)
 	require.NoError(t, err)
 	require.Equal(t, "completed", completed.Status)
 	require.Equal(t, "access-token", completed.TokenInfo.SecurityOauthToken)
 	require.Equal(t, "user-1", completed.TokenInfo.UID)
 	require.Contains(t, completed.TokenInfo.Extra["userinfo_warning"], "userinfo unavailable")
+	require.Contains(t, completed.TokenInfo.Extra["organization_warning"], "organization unavailable")
 }
 
 func TestQoderParseCallbackSupportsQueryFragmentAndPlainCode(t *testing.T) {

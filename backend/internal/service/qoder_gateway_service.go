@@ -24,29 +24,40 @@ const (
 	qoderKeepaliveEvery   = 10 * time.Second
 )
 
+// defaultQoderModelAliases maps user-facing model names to Qoder API keys.
+// Confirmed keys are based on observed Qoder COSY responses. performance/auto
+// report Anthropic but do not expose confirmed thinking metadata, and lite can
+// route like Qwen with occasional Claude-style output, so keep those aliases
+// explicitly marked as provisional.
 var defaultQoderModelAliases = map[string]qoderModelInfo{
-	// lite pool (lightweight Qwen)
-	"claude-sonnet-4-5":   {Key: "lite", Source: "system"},
-	"claude-sonnet-4":     {Key: "lite", Source: "system"},
-	"claude-sonnet":       {Key: "lite", Source: "system"},
-	"claude-haiku-4-5":    {Key: "lite", Source: "system"},
-	"gpt-5-codex":         {Key: "lite", Source: "system"},
-	"gpt-5":               {Key: "lite", Source: "system"},
-	"gpt-5.1-codex":       {Key: "lite", Source: "system"},
-	// Qwen family
-	"qwen3.7-max":         {Key: "qmodel_latest", Source: "system"},
-	"qwen3.7-plus":        {Key: "qmodel", Source: "system"},
-	"qwen3.5-plus":        {Key: "q35model", Source: "system"},
-	// DeepSeek family
-	"deepseek-v4-pro":     {Key: "dmodel", Source: "system"},
-	"deepseek-v4-flash":   {Key: "dfmodel", Source: "system"},
-	// GLM family
-	"glm-5":               {Key: "gmodel", Source: "system"},
-	"glm-5.1":             {Key: "gm51model", Source: "system"},
+	// Claude/Anthropic tier.
+	"claude-opus-4-5": {Key: "ultimate", Source: "system"},
+	// Provisional: performance reports Anthropic but exact Claude variant is unconfirmed.
+	"claude-sonnet-4-5": {Key: "performance", Source: "system"},
+	// Provisional: auto is backend-selected and may change routing.
+	"claude-haiku-4-5": {Key: "auto", Source: "system"},
+	// Provisional: auto is backend-selected and may change routing.
+	"auto":     {Key: "auto", Source: "system"},
+	"ultimate": {Key: "ultimate", Source: "system"},
+	// Provisional: performance reports Anthropic but exact Claude variant is unconfirmed.
+	"performance": {Key: "performance", Source: "system"},
+	// Qwen (Alibaba)
+	"qwen3.7-max":  {Key: "qmodel_latest", Source: "system"},
+	"qwen3.7-plus": {Key: "qmodel", Source: "system"},
+	"efficient":    {Key: "efficient", Source: "system"},
+	// Provisional: OpenAI-compatible default alias routed through the lite tier.
+	"gpt-5-codex": {Key: "lite", Source: "system"},
+	// Provisional: usually Qwen, but occasionally observed Claude-style output.
+	"lite": {Key: "lite", Source: "system"},
+	// DeepSeek
+	"deepseek-v4-pro":   {Key: "dmodel", Source: "system"},
+	"deepseek-v4-flash": {Key: "dfmodel", Source: "system"},
+	// GLM
+	"glm-5.1": {Key: "gm51model", Source: "system"},
 	// Kimi
-	"kimi-k2.6":           {Key: "kmodel", Source: "system"},
+	"kimi-k2.7-code": {Key: "kmodel", Source: "system"},
 	// MiniMax
-	"minimax-m3":          {Key: "mmodel", Source: "system"},
+	"minimax-m3": {Key: "mmodel", Source: "system"},
 }
 
 type qoderModelInfo struct {
@@ -353,9 +364,9 @@ func buildQoderPayload(model, system string, messages []qoderMessage, tools []an
 	extra["originalContent"].(map[string]any)["text"] = prompt
 	payload["business"] = map[string]any{
 		"product":  "cli",
-		"version":  "0.1.43",
+		"version":  "1.0.20",
 		"type":     "agent",
-		"stage":    "start",
+		"stage":    "init",
 		"id":       uuid.NewString(),
 		"name":     truncateRunes(prompt, 30),
 		"begin_at": time.Now().UnixMilli(),
