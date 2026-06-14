@@ -24,23 +24,26 @@ const ClientVersion = "1.0.20"
 
 // GenerateRequestID generates a random request ID.
 func GenerateRequestID() string {
-	b := make([]byte, 16)
-	rand.Read(b)
-	return hex.EncodeToString(b)
+	return hex.EncodeToString(mustRandomBytes(16))
 }
 
 // RandomToken generates a random URL-safe token of the given length.
 func RandomToken(length int) string {
-	b := make([]byte, length)
-	rand.Read(b)
-	return base64URLEncode(b)
+	return base64URLEncode(mustRandomBytes(length))
 }
 
 // RandomHex generates a random hex string of the given length.
 func RandomHex(length int) string {
-	b := make([]byte, (length+1)/2)
-	rand.Read(b)
+	b := mustRandomBytes((length + 1) / 2)
 	return hex.EncodeToString(b)[:length]
+}
+
+func mustRandomBytes(length int) []byte {
+	b := make([]byte, length)
+	if _, err := rand.Read(b); err != nil {
+		panic(fmt.Errorf("qoder random bytes: %w", err))
+	}
+	return b
 }
 
 func base64URLEncode(b []byte) string {

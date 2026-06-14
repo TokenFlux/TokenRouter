@@ -9,6 +9,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -112,9 +113,16 @@ func TestUpdateUserPlatformQuotas_Success(t *testing.T) {
 	if repo.upsertCalls[0].userID != 42 || len(repo.upsertCalls[0].records) != 2 {
 		t.Errorf("unexpected upsert call: %+v", repo.upsertCalls[0])
 	}
-	// 缓存失效：请求中 2 个 platform + 软删除的 2 个 platform（gemini, antigravity）= 4 次
-	if len(cache.deleteCalls) != 4 {
-		t.Errorf("expected 4 cache delete calls, got %d: %+v", len(cache.deleteCalls), cache.deleteCalls)
+	// 缓存失效：请求中 2 个 platform + 软删除的平台（当前为 gemini, antigravity, qoder）。
+	expectedDeletes := []deleteCall{
+		{userID: 42, platform: "anthropic"},
+		{userID: 42, platform: "openai"},
+		{userID: 42, platform: "gemini"},
+		{userID: 42, platform: "antigravity"},
+		{userID: 42, platform: "qoder"},
+	}
+	if !reflect.DeepEqual(cache.deleteCalls, expectedDeletes) {
+		t.Errorf("unexpected cache delete calls: got %+v, want %+v", cache.deleteCalls, expectedDeletes)
 	}
 }
 
