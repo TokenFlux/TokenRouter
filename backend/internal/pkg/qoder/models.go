@@ -23,7 +23,7 @@ var DefaultModels = []Model{
 	{ID: "deepseek-v4-flash", Type: "model", DisplayName: "DeepSeek-V4-Flash", CreatedAt: ""},
 	{ID: "glm-5", Type: "model", DisplayName: "GLM-5", CreatedAt: ""},
 	{ID: "glm-5.1", Type: "model", DisplayName: "GLM-5.1", CreatedAt: ""},
-	{ID: "kimi-k2.7-code", Type: "model", DisplayName: "Kimi-K2.7-Code", CreatedAt: ""},
+	{ID: "kimi-k2.6", Type: "model", DisplayName: "Kimi-K2.6", CreatedAt: ""},
 	{ID: "minimax-m3", Type: "model", DisplayName: "MiniMax-M3", CreatedAt: ""},
 }
 

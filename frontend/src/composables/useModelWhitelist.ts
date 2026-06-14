@@ -89,7 +89,7 @@ const qoderModels = [
   'deepseek-v4-flash',
   'glm-5',
   'glm-5.1',
-  'kimi-k2.7-code',
+  'kimi-k2.6',
   'minimax-m3'
 ]
 
@@ -299,7 +299,7 @@ const qoderPresetMappings = [
   { label: 'DeepSeek V4 Flash', from: 'deepseek-v4-flash', to: 'dfmodel', color: 'bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400' },
   { label: 'GLM 5', from: 'glm-5', to: 'gmodel', color: 'bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400' },
   { label: 'GLM 5.1', from: 'glm-5.1', to: 'gm51model', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400' },
-  { label: 'Kimi K2.7', from: 'kimi-k2.7-code', to: 'kmodel', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400' },
+  { label: 'Kimi K2.6', from: 'kimi-k2.6', to: 'kmodel', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400' },
   { label: 'MiniMax M3', from: 'minimax-m3', to: 'mmodel', color: 'bg-lime-100 text-lime-700 hover:bg-lime-200 dark:bg-lime-900/30 dark:text-lime-400' }
 ]
 
@@ -316,7 +316,7 @@ const qoderModelKeyByAlias: Record<string, string> = {
   'deepseek-v4-flash': 'dfmodel',
   'glm-5': 'gmodel',
   'glm-5.1': 'gm51model',
-  'kimi-k2.7-code': 'kmodel',
+  'kimi-k2.6': 'kmodel',
   'minimax-m3': 'mmodel'
 }
 

@@ -409,6 +409,10 @@ func (s *BillingService) GetModelPricing(model string) (*ModelPricing, error) {
 	// 标准化模型名称（转小写）
 	model = strings.ToLower(model)
 
+	if pricing, ok := qoderPricingForBillingModel(model); ok {
+		return pricing, nil
+	}
+
 	// 1. 优先从动态价格服务获取
 	if s.pricingService != nil {
 		litellmPricing := s.pricingService.GetModelPricing(model)
@@ -952,7 +956,7 @@ func (s *BillingService) GetDisplayPricing(model string, rateMultiplier float64,
 	}
 
 	pricing, err := s.GetModelPricing(model)
-	if err != nil || pricing == nil || !hasAnyDisplayTokenPricing(pricing) {
+	if err != nil || pricing == nil || !hasDisplayTokenPricingForModel(model, pricing) {
 		return unknownDisplayPricing()
 	}
 
@@ -1312,6 +1316,13 @@ func hasAnyDisplayTokenPricing(pricing *ModelPricing) bool {
 		pricing.CacheCreationPricePerToken > 0 ||
 		pricing.CacheReadPricePerToken > 0 ||
 		pricing.ImageOutputPricePerToken > 0
+}
+
+func hasDisplayTokenPricingForModel(model string, pricing *ModelPricing) bool {
+	if hasAnyDisplayTokenPricing(pricing) {
+		return true
+	}
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), qoderBillingModelPrefix)
 }
 
 func looksLikeImageModel(model string) bool {

@@ -187,7 +187,7 @@ func TestDefaultModels(t *testing.T) {
 		"deepseek-v4-flash",
 		"glm-5",
 		"glm-5.1",
-		"kimi-k2.7-code",
+		"kimi-k2.6",
 		"minimax-m3",
 	}
 	if len(ids) != len(want) {

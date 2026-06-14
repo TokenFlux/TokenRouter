@@ -218,9 +218,15 @@ func (s *ModelMarketplaceService) listPublicModelsForGroup(ctx context.Context, 
 
 	models := make([]ModelMarketplaceModel, 0, len(modelDefs))
 	for _, modelDef := range modelDefs {
+		pricingModel := modelDef.ID
+		if group.Platform == PlatformQoder {
+			if qoderModel := qoderBillingModel(modelDef.ID, ""); qoderModel != "" {
+				pricingModel = qoderModel
+			}
+		}
 		pricing := unknownDisplayPricing()
 		if s.billingService != nil {
-			pricing = s.getPublicModelDisplayPricing(ctx, group, modelDef.ID, imageConfig)
+			pricing = s.getPublicModelDisplayPricing(ctx, group, pricingModel, imageConfig)
 		}
 
 		models = append(models, ModelMarketplaceModel{
@@ -328,6 +334,12 @@ func defaultMarketplaceModelDefs(platform string) []marketplaceModelDef {
 			})
 		}
 		return models
+	case PlatformQoder:
+		models := make([]marketplaceModelDef, 0, len(defaultQoderModelAliases))
+		for _, model := range qoderDefaultPublicModels() {
+			models = append(models, model)
+		}
+		return models
 	default:
 		return nil
 	}
@@ -360,8 +372,38 @@ func marketplaceDisplayNameLookup(platform string) map[string]string {
 			registerMarketplaceDisplayName(out, model.ID, model.DisplayName)
 		}
 		return out
+	case PlatformQoder:
+		out := make(map[string]string, len(defaultQoderModelAliases))
+		for _, model := range qoderDefaultPublicModels() {
+			registerMarketplaceDisplayName(out, model.ID, model.DisplayName)
+		}
+		return out
 	default:
 		return nil
+	}
+}
+
+func qoderDefaultPublicModels() []marketplaceModelDef {
+	models := make([]marketplaceModelDef, 0, len(defaultQoderModelAliases))
+	for alias, info := range defaultQoderModelAliases {
+		displayName := info.DisplayName
+		if displayName == "" {
+			displayName = alias
+		}
+		models = append(models, marketplaceModelDef{
+			ID:          alias,
+			DisplayName: displayName,
+		})
+	}
+	sortMarketplaceModelDefs(models)
+	return models
+}
+
+func sortMarketplaceModelDefs(models []marketplaceModelDef) {
+	for i := 1; i < len(models); i++ {
+		for j := i; j > 0 && models[j-1].ID > models[j].ID; j-- {
+			models[j-1], models[j] = models[j], models[j-1]
+		}
 	}
 }
 

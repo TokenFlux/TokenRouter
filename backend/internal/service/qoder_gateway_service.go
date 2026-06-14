@@ -9,20 +9,28 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 const (
 	qoderDefaultMaxTokens = 32768
 	qoderStreamTimeout    = 15 * time.Minute
 	qoderKeepaliveEvery   = 10 * time.Second
+	qoderConversationTTL  = 2 * time.Hour
 )
+
+var qoderClaudeBillingCCHRe = regexp.MustCompile(`(x-anthropic-billing-header:[^\n\r;]*?(?:;[^\n\r;]*?)*\bcch=)[0-9a-fA-F]{5}(;)`)
 
 // defaultQoderModelAliases maps TokenRouter request-side aliases to Qoder API
 // keys. Keep this public surface small: raw Qoder route keys stay internal
@@ -45,13 +53,15 @@ var defaultQoderModelAliases = map[string]qoderModelInfo{
 	"deepseek-v4-flash": {Key: "dfmodel", Source: "system", Provider: "DeepSeek", Notes: "Qoder UI model name DeepSeek-V4-Flash.", DisplayName: "DeepSeek-V4-Flash"},
 	"glm-5":             {Key: "gmodel", Source: "system", Provider: "GLM", Notes: "Qoder UI model name GLM-5.", DisplayName: "GLM-5"},
 	"glm-5.1":           {Key: "gm51model", Source: "system", Provider: "GLM", Notes: "Qoder UI model name GLM-5.1.", DisplayName: "GLM-5.1"},
-	"kimi-k2.7-code":    {Key: "kmodel", Source: "system", Provider: "Kimi", Notes: "Qoder UI model name Kimi-K2.7-Code.", DisplayName: "Kimi-K2.7-Code"},
+	"kimi-k2.6":         {Key: "kmodel", Source: "system", Provider: "Kimi", Notes: "Qoder UI model name Kimi-K2.6.", DisplayName: "Kimi-K2.6"},
 	"minimax-m3":        {Key: "mmodel", Source: "system", Provider: "MiniMax", Notes: "Qoder UI model name MiniMax-M3.", DisplayName: "MiniMax-M3"},
 }
 
 var qoderCompatModelAliases = map[string]qoderModelInfo{
 	// Compatibility only: existing configs may still contain the raw Qoder key.
 	"ultimate": {Key: "ultimate", Source: "system", Provider: "Claude", Notes: "Compatibility alias for Qoder ultimate; expose claude-opus-4-6 instead.", DisplayName: "Claude Opus 4.6"},
+	// Compatibility only: keep resolving the old inferred Kimi label, but expose kimi-k2.6 in defaults.
+	"kimi-k2.7-code": {Key: "kmodel", Source: "system", Provider: "Kimi", Notes: "Compatibility alias for Qoder Kimi route; expose kimi-k2.6 instead.", DisplayName: "Kimi-K2.6"},
 }
 
 type qoderModelInfo struct {
@@ -79,6 +89,8 @@ type QoderGatewayService struct {
 	httpUpstream        HTTPUpstream
 	tlsFPProfileService *TLSFingerprintProfileService
 	newRefresher        func() *QoderTokenRefresher
+	conversationMu      sync.Mutex
+	conversations       *qoderConversationStore
 }
 
 func NewQoderGatewayService(tokenProvider *QoderTokenProvider, accountRepo AccountRepository, httpUpstream HTTPUpstream, tlsFPProfileService *TLSFingerprintProfileService) *QoderGatewayService {
@@ -91,6 +103,7 @@ func NewQoderGatewayService(tokenProvider *QoderTokenProvider, accountRepo Accou
 		accountRepo:         accountRepo,
 		httpUpstream:        httpUpstream,
 		tlsFPProfileService: tlsFPProfileService,
+		conversations:       newQoderConversationStore(qoderConversationTTL),
 	}
 }
 
@@ -101,7 +114,7 @@ func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin
 
 	requestModel := strings.TrimSpace(gjsonString(body, "model"))
 	body = applyQoderAccountModelMapping(account, body)
-	payload, modelKey, err := BuildQoderPayloadFromChatCompletions(body, qoderUserType(account))
+	payload, modelKey, conversationPlan, err := s.buildQoderPayloadFromChatCompletions(c, account, body)
 	if err != nil {
 		return nil, err
 	}
@@ -116,34 +129,40 @@ func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin
 		s.applyUpstreamErrorPolicy(ctx, account, err)
 		return nil, err
 	}
+	// Once Qoder accepts the request, reserve the session immediately. Claude Code
+	// can issue follow-up or duplicate requests before the stream fully drains.
+	conversationPlan.commit()
 
 	var responseBody []byte
-	usage := ClaudeUsage{}
+	upstreamUsage := ClaudeUsage{}
 	if clientStream {
 		streamResult, err := WriteQoderOpenAIStreamResponse(c, requestModel, resp)
 		if err != nil {
 			s.applyUpstreamErrorPolicy(ctx, account, err)
 			return nil, err
 		}
-		usage = streamResult.Usage
+		upstreamUsage = streamResult.Usage
 	} else {
 		events, err := ReadQoderSSEEvents(resp)
 		if err != nil {
 			s.applyUpstreamErrorPolicy(ctx, account, err)
 			return nil, err
 		}
-		usage = qoderUsageFromEvents(events)
+		upstreamUsage = qoderUsageFromEvents(events)
 		responseBody, err = BuildQoderOpenAICompletion(requestModel, events)
 		if err != nil {
 			return nil, err
 		}
 		c.Data(http.StatusOK, "application/json; charset=utf-8", responseBody)
 	}
+	recordUsage := conversationPlan.recordUsage(upstreamUsage)
+	conversationPlan.logUsage(c, account, upstreamUsage, recordUsage)
+	conversationPlan.commit(upstreamUsage)
 
 	return &ForwardResult{
 		Model:         requestModel,
 		UpstreamModel: modelKey,
-		Usage:         usage,
+		Usage:         recordUsage,
 		Stream:        clientStream,
 		Duration:      time.Since(start),
 		ResponseBody:  responseBody,
@@ -157,7 +176,7 @@ func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Contex
 
 	requestModel := strings.TrimSpace(gjsonString(body, "model"))
 	body = applyQoderAccountModelMapping(account, body)
-	payload, modelKey, err := BuildQoderPayloadFromAnthropicMessages(body, qoderUserType(account))
+	payload, modelKey, conversationPlan, err := s.buildQoderPayloadFromAnthropicMessages(c, account, body)
 	if err != nil {
 		return nil, err
 	}
@@ -172,38 +191,102 @@ func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Contex
 		s.applyUpstreamErrorPolicy(ctx, account, err)
 		return nil, err
 	}
+	// Once Qoder accepts the request, reserve the session immediately. Claude Code
+	// can issue follow-up or duplicate requests before the stream fully drains.
+	conversationPlan.commit()
 
 	var responseBody []byte
-	usage := ClaudeUsage{}
+	upstreamUsage := ClaudeUsage{}
 	if clientStream {
 		streamResult, err := WriteQoderAnthropicStreamResponse(c, requestModel, resp)
 		if err != nil {
 			s.applyUpstreamErrorPolicy(ctx, account, err)
 			return nil, err
 		}
-		usage = streamResult.Usage
+		upstreamUsage = streamResult.Usage
 	} else {
 		events, err := ReadQoderSSEEvents(resp)
 		if err != nil {
 			s.applyUpstreamErrorPolicy(ctx, account, err)
 			return nil, err
 		}
-		usage = qoderUsageFromEvents(events)
+		upstreamUsage = qoderUsageFromEvents(events)
 		responseBody, err = BuildQoderAnthropicMessage(requestModel, events)
 		if err != nil {
 			return nil, err
 		}
 		c.Data(http.StatusOK, "application/json; charset=utf-8", responseBody)
 	}
+	recordUsage := conversationPlan.recordUsage(upstreamUsage)
+	conversationPlan.logUsage(c, account, upstreamUsage, recordUsage)
+	conversationPlan.commit(upstreamUsage)
 
 	return &ForwardResult{
 		Model:         requestModel,
 		UpstreamModel: modelKey,
-		Usage:         usage,
+		Usage:         recordUsage,
 		Stream:        clientStream,
 		Duration:      time.Since(start),
 		ResponseBody:  responseBody,
 	}, nil
+}
+
+type qoderPayloadBuildResult struct {
+	Payload  map[string]any
+	ModelKey string
+	Plan     *qoderConversationPlan
+}
+
+type qoderPayloadRequest struct {
+	model           string
+	system          string
+	messages        []qoderMessage
+	tools           []any
+	maxTokens       int
+	userType        string
+	explicitSession string
+	promptCacheKey  string
+	metadataUserID  string
+}
+
+func (s *QoderGatewayService) buildQoderPayloadFromChatCompletions(c *gin.Context, account *Account, body []byte) (map[string]any, string, *qoderConversationPlan, error) {
+	request, err := parseQoderChatCompletionsPayload(body)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	result := s.buildQoderPayloadWithConversation(c, account, "openai_chat_completions", request)
+	return result.Payload, result.ModelKey, result.Plan, nil
+}
+
+func (s *QoderGatewayService) buildQoderPayloadFromAnthropicMessages(c *gin.Context, account *Account, body []byte) (map[string]any, string, *qoderConversationPlan, error) {
+	request, err := parseQoderAnthropicMessagesPayload(body)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	result := s.buildQoderPayloadWithConversation(c, account, "anthropic_messages", request)
+	return result.Payload, result.ModelKey, result.Plan, nil
+}
+
+func (s *QoderGatewayService) buildQoderPayloadWithConversation(c *gin.Context, account *Account, protocol string, request qoderPayloadRequest) qoderPayloadBuildResult {
+	store := s.qoderConversationStore()
+	request.userType = qoderUserType(account)
+	key, keySource := qoderConversationKey(c, account, protocol, request)
+	plan := store.plan(key, request.system, request.tools, request.messages)
+	payload, modelKey := buildQoderPayloadWithOptions(request, plan.sessionID, plan.messagesToSend, plan.includeSystem, plan.includeTools)
+	plan.log(c, account, protocol, request.model, keySource, request, payload)
+	return qoderPayloadBuildResult{Payload: payload, ModelKey: modelKey, Plan: plan}
+}
+
+func (s *QoderGatewayService) qoderConversationStore() *qoderConversationStore {
+	if s == nil {
+		return newQoderConversationStore(qoderConversationTTL)
+	}
+	s.conversationMu.Lock()
+	defer s.conversationMu.Unlock()
+	if s.conversations == nil {
+		s.conversations = newQoderConversationStore(qoderConversationTTL)
+	}
+	return s.conversations
 }
 
 func (s *QoderGatewayService) openQoderStream(ctx context.Context, account *Account, payload []byte, modelKey string) (*http.Response, error) {
@@ -332,13 +415,23 @@ func applyQoderAccountModelMapping(account *Account, body []byte) []byte {
 }
 
 func BuildQoderPayloadFromChatCompletions(body []byte, userType string) (map[string]any, string, error) {
+	request, err := parseQoderChatCompletionsPayload(body)
+	if err != nil {
+		return nil, "", err
+	}
+	request.userType = userType
+	payload, modelKey := buildQoderPayloadWithOptions(request, "", request.messages, true, true)
+	return payload, modelKey, nil
+}
+
+func parseQoderChatCompletionsPayload(body []byte) (qoderPayloadRequest, error) {
 	var req map[string]any
 	if err := json.Unmarshal(body, &req); err != nil {
-		return nil, "", fmt.Errorf("parse chat completions request: %w", err)
+		return qoderPayloadRequest{}, fmt.Errorf("parse chat completions request: %w", err)
 	}
 	model, _ := req["model"].(string)
 	if strings.TrimSpace(model) == "" {
-		return nil, "", errors.New("model is required")
+		return qoderPayloadRequest{}, errors.New("model is required")
 	}
 
 	var messages []qoderMessage
@@ -362,22 +455,41 @@ func BuildQoderPayloadFromChatCompletions(body []byte, userType string) (map[str
 
 	tools := qoderAnySlice(req["tools"])
 	maxTokens := numberAsInt(req["max_tokens"], qoderDefaultMaxTokens)
-	return buildQoderPayload(model, strings.Join(systemParts, "\n"), messages, tools, maxTokens, userType)
+	return qoderPayloadRequest{
+		model:           model,
+		system:          strings.Join(systemParts, "\n"),
+		messages:        messages,
+		tools:           tools,
+		maxTokens:       maxTokens,
+		explicitSession: firstNonEmptyQoder(qoderStringField(req, "session_id"), qoderStringField(req, "conversation_id")),
+		promptCacheKey:  qoderStringField(req, "prompt_cache_key"),
+		metadataUserID:  qoderMetadataUserID(req["metadata"]),
+	}, nil
 }
 
 func BuildQoderPayloadFromAnthropicMessages(body []byte, userType string) (map[string]any, string, error) {
+	request, err := parseQoderAnthropicMessagesPayload(body)
+	if err != nil {
+		return nil, "", err
+	}
+	request.userType = userType
+	payload, modelKey := buildQoderPayloadWithOptions(request, "", request.messages, true, true)
+	return payload, modelKey, nil
+}
+
+func parseQoderAnthropicMessagesPayload(body []byte) (qoderPayloadRequest, error) {
 	var req map[string]any
 	if err := json.Unmarshal(body, &req); err != nil {
-		return nil, "", fmt.Errorf("parse anthropic messages request: %w", err)
+		return qoderPayloadRequest{}, fmt.Errorf("parse anthropic messages request: %w", err)
 	}
 	model, _ := req["model"].(string)
 	if strings.TrimSpace(model) == "" {
-		return nil, "", errors.New("model is required")
+		return qoderPayloadRequest{}, errors.New("model is required")
 	}
 
 	system, err := anthropicSystemText(req["system"])
 	if err != nil {
-		return nil, "", err
+		return qoderPayloadRequest{}, err
 	}
 
 	var messages []qoderMessage
@@ -389,14 +501,23 @@ func BuildQoderPayloadFromAnthropicMessages(body []byte, userType string) (map[s
 		}
 		converted, err := anthropicMessageToQoderMessages(msg)
 		if err != nil {
-			return nil, "", err
+			return qoderPayloadRequest{}, err
 		}
 		messages = append(messages, converted...)
 	}
 
 	tools := convertAnthropicToolsToQoderTools(req["tools"])
 	maxTokens := numberAsInt(req["max_tokens"], qoderDefaultMaxTokens)
-	return buildQoderPayload(model, system, messages, tools, maxTokens, userType)
+	return qoderPayloadRequest{
+		model:           model,
+		system:          system,
+		messages:        messages,
+		tools:           tools,
+		maxTokens:       maxTokens,
+		explicitSession: firstNonEmptyQoder(qoderStringField(req, "session_id"), qoderStringField(req, "conversation_id")),
+		promptCacheKey:  qoderStringField(req, "prompt_cache_key"),
+		metadataUserID:  qoderMetadataUserID(req["metadata"]),
+	}, nil
 }
 
 type qoderMessage struct {
@@ -406,21 +527,556 @@ type qoderMessage struct {
 	Raw        map[string]any
 }
 
-func buildQoderPayload(model, system string, messages []qoderMessage, tools []any, maxTokens int, userType string) (map[string]any, string, error) {
-	modelInfo := resolveQoderModel(model)
-	if userType == "" {
+type qoderConversationStore struct {
+	mu    sync.Mutex
+	ttl   time.Duration
+	items map[string]*qoderConversationState
+}
+
+type qoderConversationState struct {
+	sessionID           string
+	systemFingerprint   string
+	toolsFingerprint    string
+	messageFingerprints []string
+	hasUsage            bool
+	lastUsageInput      int
+	lastUsageOutput     int
+	expiresAt           time.Time
+}
+
+type qoderConversationPlan struct {
+	store                 *qoderConversationStore
+	key                   string
+	sessionID             string
+	messagesToSend        []qoderMessage
+	includeSystem         bool
+	includeTools          bool
+	reused                bool
+	fallback              bool
+	systemFingerprint     string
+	toolsFingerprint      string
+	messageFingerprints   []string
+	committedFingerprints []string
+	hasPreviousUsage      bool
+	previousUsageInput    int
+	previousUsageOutput   int
+	matchStatus           string
+	previousMessageCount  int
+	prefixMessageCount    int
+	storeItemCount        int
+	previousFirstHash     string
+	currentFirstHash      string
+	diagnostics           qoderConversationDiagnostics
+}
+
+type qoderConversationDiagnostics struct {
+	protocol             string
+	model                string
+	keySource            string
+	requestID            string
+	originalMessages     int
+	sentMessages         int
+	originalToolsCount   int
+	sentToolsCount       int
+	originalToolsBytes   int
+	sentToolsBytes       int
+	systemBytes          int
+	sentSystemBytes      int
+	outboundPayloadBytes int
+}
+
+func newQoderConversationStore(ttl time.Duration) *qoderConversationStore {
+	if ttl <= 0 {
+		ttl = qoderConversationTTL
+	}
+	return &qoderConversationStore{
+		ttl:   ttl,
+		items: make(map[string]*qoderConversationState),
+	}
+}
+
+func (s *qoderConversationStore) plan(key, system string, tools []any, messages []qoderMessage) *qoderConversationPlan {
+	systemFingerprint := qoderSystemFingerprint(system)
+	toolsFingerprint := qoderFingerprintAny(tools)
+	messageFingerprints := qoderMessageFingerprints(messages)
+	currentFirstHash := firstQoderFingerprint(messageFingerprints)
+	fullPlan := func(fallback bool, matchStatus string, state *qoderConversationState, storeItemCount int) *qoderConversationPlan {
+		previousMessageCount := 0
+		previousFirstHash := ""
+		if state != nil {
+			previousMessageCount = len(state.messageFingerprints)
+			previousFirstHash = firstQoderFingerprint(state.messageFingerprints)
+		}
+		return &qoderConversationPlan{
+			store:                 s,
+			key:                   key,
+			sessionID:             qoderSessionIDForConversation(key, systemFingerprint, toolsFingerprint, messageFingerprints),
+			messagesToSend:        messages,
+			includeSystem:         true,
+			includeTools:          true,
+			fallback:              fallback,
+			systemFingerprint:     systemFingerprint,
+			toolsFingerprint:      toolsFingerprint,
+			messageFingerprints:   messageFingerprints,
+			committedFingerprints: messageFingerprints,
+			matchStatus:           matchStatus,
+			previousMessageCount:  previousMessageCount,
+			storeItemCount:        storeItemCount,
+			previousFirstHash:     previousFirstHash,
+			currentFirstHash:      currentFirstHash,
+		}
+	}
+	if s == nil || strings.TrimSpace(key) == "" {
+		plan := fullPlan(true, "disabled", nil, 0)
+		plan.store = nil
+		plan.key = ""
+		plan.sessionID = uuid.NewString()
+		return plan
+	}
+
+	now := time.Now()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.items == nil {
+		s.items = make(map[string]*qoderConversationState)
+	}
+	s.pruneExpiredLocked(now)
+	storeItemCount := len(s.items)
+	state := s.items[key]
+	if state == nil {
+		return fullPlan(false, "no_state", nil, storeItemCount)
+	}
+	if now.After(state.expiresAt) {
+		delete(s.items, key)
+		return fullPlan(true, "expired", state, storeItemCount)
+	}
+	if state.systemFingerprint != systemFingerprint {
+		return fullPlan(true, "system_mismatch", state, storeItemCount)
+	}
+	if state.toolsFingerprint != toolsFingerprint {
+		return fullPlan(true, "tools_mismatch", state, storeItemCount)
+	}
+	prefixLen, ok := qoderConversationPrefixLen(state.messageFingerprints, messageFingerprints)
+	if !ok {
+		return fullPlan(true, "prefix_mismatch", state, storeItemCount)
+	}
+	return &qoderConversationPlan{
+		store:                 s,
+		key:                   key,
+		sessionID:             state.sessionID,
+		messagesToSend:        messages[prefixLen:],
+		includeSystem:         false,
+		includeTools:          false,
+		reused:                true,
+		systemFingerprint:     systemFingerprint,
+		toolsFingerprint:      toolsFingerprint,
+		messageFingerprints:   messageFingerprints,
+		committedFingerprints: messageFingerprints,
+		hasPreviousUsage:      state.hasUsage,
+		previousUsageInput:    state.lastUsageInput,
+		previousUsageOutput:   state.lastUsageOutput,
+		matchStatus:           "reused",
+		previousMessageCount:  len(state.messageFingerprints),
+		prefixMessageCount:    prefixLen,
+		storeItemCount:        storeItemCount,
+		previousFirstHash:     firstQoderFingerprint(state.messageFingerprints),
+		currentFirstHash:      currentFirstHash,
+	}
+}
+
+func (s *qoderConversationStore) pruneExpiredLocked(now time.Time) {
+	if s == nil || len(s.items) == 0 {
+		return
+	}
+	for key, state := range s.items {
+		if state == nil || now.After(state.expiresAt) {
+			delete(s.items, key)
+		}
+	}
+}
+
+func (p *qoderConversationPlan) commit(usages ...ClaudeUsage) {
+	if p == nil || p.store == nil || strings.TrimSpace(p.key) == "" {
+		return
+	}
+	hasUsage := p.hasPreviousUsage
+	lastUsageInput := p.previousUsageInput
+	lastUsageOutput := p.previousUsageOutput
+	if len(usages) > 0 && (usages[0].InputTokens > 0 || usages[0].OutputTokens > 0) {
+		hasUsage = true
+		lastUsageInput = usages[0].InputTokens
+		lastUsageOutput = usages[0].OutputTokens
+	}
+	p.store.mu.Lock()
+	defer p.store.mu.Unlock()
+	if p.store.items == nil {
+		p.store.items = make(map[string]*qoderConversationState)
+	}
+	committedFingerprints := append([]string(nil), p.committedFingerprints...)
+	if existing := p.store.items[p.key]; existing != nil &&
+		existing.sessionID == p.sessionID &&
+		existing.systemFingerprint == p.systemFingerprint &&
+		existing.toolsFingerprint == p.toolsFingerprint {
+		if _, ok := qoderConversationPrefixLen(committedFingerprints, existing.messageFingerprints); ok && len(existing.messageFingerprints) > len(committedFingerprints) {
+			committedFingerprints = append([]string(nil), existing.messageFingerprints...)
+		}
+		if existing.hasUsage && (!hasUsage || existing.lastUsageInput > lastUsageInput || existing.lastUsageOutput > lastUsageOutput) {
+			hasUsage = true
+			if existing.lastUsageInput > lastUsageInput {
+				lastUsageInput = existing.lastUsageInput
+			}
+			if existing.lastUsageOutput > lastUsageOutput {
+				lastUsageOutput = existing.lastUsageOutput
+			}
+		}
+	}
+	p.store.items[p.key] = &qoderConversationState{
+		sessionID:           p.sessionID,
+		systemFingerprint:   p.systemFingerprint,
+		toolsFingerprint:    p.toolsFingerprint,
+		messageFingerprints: committedFingerprints,
+		hasUsage:            hasUsage,
+		lastUsageInput:      lastUsageInput,
+		lastUsageOutput:     lastUsageOutput,
+		expiresAt:           time.Now().Add(p.store.ttl),
+	}
+}
+
+func (p *qoderConversationPlan) log(c *gin.Context, account *Account, protocol, model, keySource string, request qoderPayloadRequest, payload map[string]any) {
+	if p == nil {
+		return
+	}
+	var accountID int64
+	if account != nil {
+		accountID = account.ID
+	}
+	originalToolsBytes := qoderJSONSize(request.tools)
+	sentTools := qoderAnySlice(payload["tools"])
+	sentToolsBytes := qoderJSONSize(sentTools)
+	systemBytes := len([]byte(request.system))
+	sentSystemBytes := 0
+	if p.includeSystem {
+		sentSystemBytes = systemBytes
+	}
+	p.diagnostics = qoderConversationDiagnostics{
+		protocol:             protocol,
+		model:                model,
+		keySource:            keySource,
+		requestID:            qoderStringField(payload, "request_id"),
+		originalMessages:     len(request.messages),
+		sentMessages:         len(p.messagesToSend),
+		originalToolsCount:   len(request.tools),
+		sentToolsCount:       len(sentTools),
+		originalToolsBytes:   originalToolsBytes,
+		sentToolsBytes:       sentToolsBytes,
+		systemBytes:          systemBytes,
+		sentSystemBytes:      sentSystemBytes,
+		outboundPayloadBytes: qoderJSONSize(payload),
+	}
+	logger.L().Info("qoder session",
+		zap.String("protocol", protocol),
+		zap.String("model", model),
+		zap.String("key_source", keySource),
+		zap.String("key_hash", hashSensitiveValueForLog(p.key)),
+		zap.String("match_status", p.matchStatus),
+		zap.Int64("account_id", accountID),
+		zap.Int64("api_key_id", getAPIKeyIDFromContext(c)),
+		zap.String("request_id", p.diagnostics.requestID),
+		zap.Bool("reused", p.reused),
+		zap.Bool("used_full_replay", !p.reused),
+		zap.Bool("include_system", p.includeSystem),
+		zap.Bool("include_tools", p.includeTools),
+		zap.Int("store_item_count", p.storeItemCount),
+		zap.Int("previous_messages", p.previousMessageCount),
+		zap.Int("prefix_messages", p.prefixMessageCount),
+		zap.Int("original_messages", p.diagnostics.originalMessages),
+		zap.Int("sent_messages", p.diagnostics.sentMessages),
+		zap.String("previous_first_message_hash", p.previousFirstHash),
+		zap.String("current_first_message_hash", p.currentFirstHash),
+		zap.Bool("first_message_hash_changed", p.previousFirstHash != "" && p.currentFirstHash != "" && p.previousFirstHash != p.currentFirstHash),
+		zap.Bool("system_changed", p.matchStatus == "system_mismatch"),
+		zap.Bool("tools_changed", p.matchStatus == "tools_mismatch"),
+		zap.Int("original_tools_count", p.diagnostics.originalToolsCount),
+		zap.Int("sent_tools_count", p.diagnostics.sentToolsCount),
+		zap.Int("original_tools_bytes", p.diagnostics.originalToolsBytes),
+		zap.Int("sent_tools_bytes", p.diagnostics.sentToolsBytes),
+		zap.Int("system_bytes", p.diagnostics.systemBytes),
+		zap.Int("sent_system_bytes", p.diagnostics.sentSystemBytes),
+		zap.Int("outbound_payload_bytes", p.diagnostics.outboundPayloadBytes),
+	)
+}
+
+func (p *qoderConversationPlan) recordUsage(upstreamUsage ClaudeUsage) ClaudeUsage {
+	if p == nil {
+		return upstreamUsage
+	}
+	previousInput, previousOutput, hasPrevious := p.previousUsageForRecord()
+	if !p.shouldTreatUsageAsCumulative(upstreamUsage, previousInput, hasPrevious) {
+		return upstreamUsage
+	}
+	usage := upstreamUsage
+	usage.InputTokens = max(upstreamUsage.InputTokens-previousInput, 0)
+	if upstreamUsage.OutputTokens >= previousOutput {
+		usage.OutputTokens = upstreamUsage.OutputTokens - previousOutput
+	}
+	return usage
+}
+
+func (p *qoderConversationPlan) previousUsageForRecord() (int, int, bool) {
+	if p == nil {
+		return 0, 0, false
+	}
+	input := p.previousUsageInput
+	output := p.previousUsageOutput
+	hasPrevious := p.hasPreviousUsage
+	if p.store == nil || strings.TrimSpace(p.key) == "" {
+		return input, output, hasPrevious
+	}
+	p.store.mu.Lock()
+	defer p.store.mu.Unlock()
+	state := p.store.items[p.key]
+	if state == nil || !state.hasUsage || state.sessionID != p.sessionID {
+		return input, output, hasPrevious
+	}
+	if _, ok := qoderConversationPrefixLen(state.messageFingerprints, p.messageFingerprints); !ok {
+		return input, output, hasPrevious
+	}
+	if state.lastUsageInput > input {
+		input = state.lastUsageInput
+	}
+	if state.lastUsageOutput > output {
+		output = state.lastUsageOutput
+	}
+	return input, output, true
+}
+
+func (p *qoderConversationPlan) shouldTreatUsageAsCumulative(usage ClaudeUsage, previousInput int, hasPrevious bool) bool {
+	if p == nil || !p.reused || !hasPrevious || previousInput <= 0 || usage.InputTokens <= previousInput {
+		return false
+	}
+	diag := p.diagnostics
+	if !(diag.sentMessages < diag.originalMessages || diag.sentToolsBytes < diag.originalToolsBytes || diag.sentSystemBytes < diag.systemBytes) {
+		return false
+	}
+	// For per-request usage, token count should be bounded by the JSON wire size
+	// with a generous margin. Cumulative Qoder counters can exceed the reduced
+	// incremental payload by a wide margin after tools/system are omitted.
+	return usage.InputTokens > diag.outboundPayloadBytes
+}
+
+func (p *qoderConversationPlan) logUsage(c *gin.Context, account *Account, upstreamUsage ClaudeUsage, recordUsage ClaudeUsage) {
+	if p == nil {
+		return
+	}
+	var accountID int64
+	if account != nil {
+		accountID = account.ID
+	}
+	diag := p.diagnostics
+	previousInput, previousOutput, hasPreviousUsage := p.previousUsageForRecord()
+	upstreamUsageCumulativeSuspected := p.shouldTreatUsageAsCumulative(upstreamUsage, previousInput, hasPreviousUsage)
+	logger.L().Info("qoder usage",
+		zap.String("protocol", diag.protocol),
+		zap.String("model", diag.model),
+		zap.String("key_source", diag.keySource),
+		zap.Int64("account_id", accountID),
+		zap.Int64("api_key_id", getAPIKeyIDFromContext(c)),
+		zap.String("request_id", diag.requestID),
+		zap.Bool("reused", p.reused),
+		zap.Bool("used_full_replay", !p.reused),
+		zap.Bool("include_system", p.includeSystem),
+		zap.Bool("include_tools", p.includeTools),
+		zap.Int("original_messages", diag.originalMessages),
+		zap.Int("sent_messages", diag.sentMessages),
+		zap.Int("sent_tools_bytes", diag.sentToolsBytes),
+		zap.Int("sent_system_bytes", diag.sentSystemBytes),
+		zap.Int("outbound_payload_bytes", diag.outboundPayloadBytes),
+		zap.String("usage_source", "qoder_sse"),
+		zap.Int("upstream_usage_input_tokens", upstreamUsage.InputTokens),
+		zap.Int("upstream_usage_output_tokens", upstreamUsage.OutputTokens),
+		zap.Int("recorded_usage_input_tokens", recordUsage.InputTokens),
+		zap.Int("recorded_usage_output_tokens", recordUsage.OutputTokens),
+		zap.Bool("has_previous_upstream_usage", hasPreviousUsage),
+		zap.Int("previous_upstream_usage_input_tokens", previousInput),
+		zap.Int("previous_upstream_usage_output_tokens", previousOutput),
+		zap.Bool("wire_payload_reduced", p.reused && (diag.sentMessages < diag.originalMessages || diag.sentToolsBytes < diag.originalToolsBytes || diag.sentSystemBytes < diag.systemBytes)),
+		zap.Bool("upstream_usage_cumulative_suspected", upstreamUsageCumulativeSuspected),
+	)
+}
+
+func qoderConversationKey(c *gin.Context, account *Account, protocol string, request qoderPayloadRequest) (string, string) {
+	apiKeyID := getAPIKeyIDFromContext(c)
+	if value := strings.TrimSpace(request.explicitSession); value != "" {
+		return "body_session:" + isolateOpenAISessionID(apiKeyID, value), "body_session"
+	}
+	if value := strings.TrimSpace(request.promptCacheKey); value != "" {
+		return "prompt_cache_key:" + isolateOpenAISessionID(apiKeyID, value), "prompt_cache_key"
+	}
+	if qoderIsClaudeCodeClient(c) {
+		return qoderFallbackConversationKey(c, account, protocol, request, apiKeyID), "stable_seed"
+	}
+	if parsed := ParseMetadataUserID(request.metadataUserID); parsed != nil && strings.TrimSpace(parsed.SessionID) != "" {
+		return "metadata_user_id:" + isolateOpenAISessionID(apiKeyID, parsed.SessionID), "metadata_user_id"
+	}
+	if value := qoderHeaderSessionID(c); value != "" {
+		return "header:" + isolateOpenAISessionID(apiKeyID, value), "header"
+	}
+	return qoderFallbackConversationKey(c, account, protocol, request, apiKeyID), "fallback"
+}
+
+func qoderIsClaudeCodeClient(c *gin.Context) bool {
+	if c == nil || c.Request == nil {
+		return false
+	}
+	if IsClaudeCodeClient(c.Request.Context()) {
+		return true
+	}
+	return NewClaudeCodeValidator().ValidateUserAgent(c.Request.UserAgent())
+}
+
+func qoderHeaderSessionID(c *gin.Context) string {
+	if c == nil || c.Request == nil {
+		return ""
+	}
+	for _, header := range []string{"session_id", "conversation_id", "x-session-id", "x-conversation-id", "X-Claude-Code-Session-Id"} {
+		if value := strings.TrimSpace(c.Request.Header.Get(header)); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func qoderFallbackConversationKey(c *gin.Context, account *Account, protocol string, request qoderPayloadRequest, apiKeyID int64) string {
+	var accountID int64
+	if account != nil {
+		accountID = account.ID
+	}
+	var clientDiscriminator string
+	if c != nil && c.Request != nil {
+		clientDiscriminator = sessionContextDiscriminator(&SessionContext{
+			ClientIP:  ip.GetClientIP(c),
+			UserAgent: c.GetHeader("User-Agent"),
+			APIKeyID:  apiKeyID,
+		})
+	}
+	firstUserText := ""
+	for _, message := range request.messages {
+		if message.Role == "user" && strings.TrimSpace(message.Text) != "" {
+			firstUserText = message.Text
+			break
+		}
+	}
+	seed := strings.Join([]string{
+		protocol,
+		strings.TrimSpace(request.model),
+		buildStableSessionSeed(accountID, clientDiscriminator, firstUserText),
+	}, "::")
+	return "stable_seed:" + qoderFingerprintString(seed)
+}
+
+func qoderMetadataUserID(raw any) string {
+	metadata, ok := raw.(map[string]any)
+	if !ok {
+		return ""
+	}
+	return qoderStringField(metadata, "user_id")
+}
+
+func qoderConversationPrefixLen(previous, current []string) (int, bool) {
+	if len(previous) > len(current) {
+		return 0, false
+	}
+	for i := range previous {
+		if previous[i] != current[i] {
+			return 0, false
+		}
+	}
+	return len(previous), true
+}
+
+func qoderMessageFingerprints(messages []qoderMessage) []string {
+	fingerprints := make([]string, 0, len(messages))
+	for _, message := range messages {
+		fingerprints = append(fingerprints, qoderFingerprintAny(qoderPayloadMessageFromMessage(message)))
+	}
+	return fingerprints
+}
+
+func firstQoderFingerprint(fingerprints []string) string {
+	if len(fingerprints) == 0 {
+		return ""
+	}
+	return fingerprints[0]
+}
+
+func qoderFingerprintString(value string) string {
+	return HashUsageRequestPayload([]byte(value))
+}
+
+func qoderSystemFingerprint(system string) string {
+	return qoderFingerprintString(qoderNormalizeSystemForFingerprint(system))
+}
+
+func qoderNormalizeSystemForFingerprint(system string) string {
+	if !strings.Contains(system, "x-anthropic-billing-header") || !strings.Contains(system, "cch=") {
+		return system
+	}
+	return qoderClaudeBillingCCHRe.ReplaceAllString(system, "${1}<cch>${2}")
+}
+
+func qoderFingerprintAny(value any) string {
+	body, err := json.Marshal(value)
+	if err != nil {
+		return HashUsageRequestPayload([]byte(fmt.Sprint(value)))
+	}
+	return HashUsageRequestPayload(body)
+}
+
+func qoderJSONSize(value any) int {
+	body, err := json.Marshal(value)
+	if err != nil {
+		return len([]byte(fmt.Sprint(value)))
+	}
+	return len(body)
+}
+
+func qoderSessionIDForConversation(key, systemFingerprint, toolsFingerprint string, messageFingerprints []string) string {
+	var b strings.Builder
+	_, _ = b.WriteString(key)
+	_, _ = b.WriteString("::")
+	_, _ = b.WriteString(systemFingerprint)
+	_, _ = b.WriteString("::")
+	_, _ = b.WriteString(toolsFingerprint)
+	_, _ = b.WriteString("::")
+	for _, fingerprint := range messageFingerprints {
+		_, _ = b.WriteString(fingerprint)
+		_, _ = b.WriteString(",")
+	}
+	return generateSessionUUID(b.String())
+}
+
+func buildQoderPayloadWithOptions(request qoderPayloadRequest, sessionID string, messages []qoderMessage, includeSystem bool, includeTools bool) (map[string]any, string) {
+	modelInfo := resolveQoderModel(request.model)
+	userType := request.userType
+	if strings.TrimSpace(userType) == "" {
 		userType = "personal_standard"
 	}
 
 	requestID := uuid.NewString()
 	prompt := latestQoderUserText(messages)
+	if prompt == "" {
+		prompt = latestQoderUserText(request.messages)
+	}
+	if strings.TrimSpace(sessionID) == "" {
+		sessionID = uuid.NewString()
+	}
 	payload := qoderBasePayload()
 	payload["request_id"] = requestID
 	payload["chat_record_id"] = requestID
 	payload["request_set_id"] = uuid.NewString()
-	payload["session_id"] = uuid.NewString()
+	payload["session_id"] = sessionID
 	payload["aliyun_user_type"] = userType
-	payload["parameters"].(map[string]any)["max_tokens"] = maxTokens
+	payload["parameters"].(map[string]any)["max_tokens"] = request.maxTokens
 	payload["model_config"].(map[string]any)["key"] = modelInfo.Key
 	payload["model_config"].(map[string]any)["source"] = modelInfo.Source
 	payload["chat_context"].(map[string]any)["text"].(map[string]any)["text"] = prompt
@@ -439,15 +1095,19 @@ func buildQoderPayload(model, system string, messages []qoderMessage, tools []an
 	}
 
 	outMessages := make([]any, 0, len(messages)+1)
-	if strings.TrimSpace(system) != "" {
-		outMessages = append(outMessages, qoderPayloadMessage("system", system))
+	if includeSystem && strings.TrimSpace(request.system) != "" {
+		outMessages = append(outMessages, qoderPayloadMessage("system", request.system))
 	}
 	for _, msg := range messages {
 		outMessages = append(outMessages, qoderPayloadMessageFromMessage(msg))
 	}
 	payload["messages"] = outMessages
-	payload["tools"] = tools
-	return payload, modelInfo.Key, nil
+	if includeTools {
+		payload["tools"] = request.tools
+	} else {
+		payload["tools"] = []any{}
+	}
+	return payload, modelInfo.Key
 }
 
 func qoderBasePayload() map[string]any {

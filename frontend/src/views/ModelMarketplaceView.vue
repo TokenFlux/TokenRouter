@@ -672,22 +672,6 @@ function hasPositiveValue(value?: number | null): value is number {
   return typeof value === 'number' && value > 0
 }
 
-function hasFlatTokenPricing(pricing: MarketplaceModelPricing): boolean {
-  return [
-    pricing.input_price_per_token,
-    pricing.output_price_per_token,
-    pricing.cache_write_price_per_token,
-    pricing.cache_read_price_per_token,
-    pricing.image_output_price_per_token,
-    pricing.fast_input_price_per_token,
-    pricing.fast_output_price_per_token,
-    pricing.fast_cache_write_price_per_token,
-    pricing.fast_cache_read_price_per_token,
-    pricing.fast_image_output_price_per_token,
-  ].some(hasPositiveValue)
-}
-
-// 区间定价没有顶层 flat 价格，需要单独参与“已定价”判断。
 function hasContextIntervalPricing(pricing: MarketplaceModelPricing): boolean {
   return pricing.context_intervals?.some((interval) => [
     interval.input_price_per_token,
@@ -701,10 +685,6 @@ function hasContextIntervalPricing(pricing: MarketplaceModelPricing): boolean {
     interval.fast_cache_read_price_per_token,
     interval.fast_image_output_price_per_token,
   ].some(hasPositiveValue)) ?? false
-}
-
-function hasTokenPricing(pricing: MarketplaceModelPricing): boolean {
-  return hasFlatTokenPricing(pricing) || hasContextIntervalPricing(pricing)
 }
 
 function hasImagePricing(pricing: MarketplaceModelPricing): boolean {
@@ -722,7 +702,7 @@ function pricingKind(pricing: MarketplaceModelPricing): Exclude<PricingFilter, '
   if (pricing.pricing_mode === 'image' && hasImagePricing(pricing)) {
     return 'image'
   }
-  if (pricing.pricing_mode === 'token' && hasTokenPricing(pricing)) {
+  if (pricing.pricing_mode === 'token') {
     return 'token'
   }
   return 'unpriced'
@@ -949,7 +929,12 @@ function tokenPricingRowsFromValues(pricing: MarketplaceModelPricing | Marketpla
 }
 
 function tokenPricingRows(pricing: MarketplaceModelPricing): PricingRow[] {
-  return tokenPricingRowsFromValues(pricing)
+  const rows = tokenPricingRowsFromValues(pricing)
+  if (rows.length > 0) {
+    return rows
+  }
+
+  return zeroTokenPricingRows()
 }
 
 function compactTokenPricingRows(pricing: MarketplaceModelPricing | MarketplacePricingInterval): PricingRow[] {
@@ -964,9 +949,21 @@ function compactTokenPricingRows(pricing: MarketplaceModelPricing | MarketplaceP
     return primaryRows
   }
 
-  return tokenPricingRowsFromValues(pricing)
+  const rows = tokenPricingRowsFromValues(pricing)
+  if (rows.length === 0) {
+    return zeroTokenPricingRows()
+  }
+
+  return rows
     .filter((row) => !row.key.startsWith('fast_'))
     .slice(0, 2)
+}
+
+function zeroTokenPricingRows(): PricingRow[] {
+  return [
+    { key: 'input', label: t('marketplace.input'), value: formatPerMillion(0) },
+    { key: 'output', label: t('marketplace.output'), value: formatPerMillion(0) },
+  ]
 }
 
 function compactContextIntervalRows(pricing: MarketplaceModelPricing): PricingRow[] {

@@ -27,15 +27,19 @@ func (s *qoderAccountTestSessionProviderStub) GetSession(context.Context, *Accou
 }
 
 type qoderAccountTestClientStub struct {
-	request *http.Request
-	body    string
-	err     error
-	headers map[string]string
+	request  *http.Request
+	requests []*http.Request
+	body     string
+	bodies   [][]byte
+	err      error
+	headers  map[string]string
 }
 
 func (s *qoderAccountTestClientStub) StreamRequestContext(ctx context.Context, _ *qoder.SessionContext, _ string, bodyJSON []byte, headers map[string]string) (*http.Response, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://api1.qoder.sh/test", strings.NewReader(string(bodyJSON)))
 	s.request = req
+	s.requests = append(s.requests, req)
+	s.bodies = append(s.bodies, append([]byte(nil), bodyJSON...))
 	s.headers = headers
 	if s.err != nil {
 		return nil, s.err
@@ -49,6 +53,8 @@ func (s *qoderAccountTestClientStub) StreamRequestContext(ctx context.Context, _
 func (s *qoderAccountTestClientStub) StreamRequestContextWithDoer(ctx context.Context, _ *qoder.SessionContext, _ string, bodyJSON []byte, headers map[string]string, doer qoder.RequestDoer) (*http.Response, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://api1.qoder.sh/test", strings.NewReader(string(bodyJSON)))
 	s.request = req
+	s.requests = append(s.requests, req)
+	s.bodies = append(s.bodies, append([]byte(nil), bodyJSON...))
 	s.headers = headers
 	if s.err != nil {
 		return nil, s.err

@@ -70,7 +70,7 @@ describe('useModelWhitelist', () => {
       'deepseek-v4-flash',
       'glm-5',
       'glm-5.1',
-      'kimi-k2.7-code',
+      'kimi-k2.6',
       'minimax-m3'
     ])
     expect(models).not.toContain('ultimate')
@@ -93,7 +93,7 @@ describe('useModelWhitelist', () => {
       'deepseek-v4-flash': 'dfmodel',
       'glm-5': 'gmodel',
       'glm-5.1': 'gm51model',
-      'kimi-k2.7-code': 'kmodel',
+      'kimi-k2.6': 'kmodel',
       'minimax-m3': 'mmodel'
     })
   })
@@ -115,7 +115,7 @@ describe('useModelWhitelist', () => {
       'deepseek-v4-flash': 'dfmodel',
       'glm-5': 'gmodel',
       'glm-5.1': 'gm51model',
-      'kimi-k2.7-code': 'kmodel',
+      'kimi-k2.6': 'kmodel',
       'minimax-m3': 'mmodel'
     })
   })
