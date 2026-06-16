@@ -55,11 +55,16 @@ func (h *QoderGatewayHandler) Messages(c *gin.Context) {
 	h.handle(c, qoderEndpointMessages)
 }
 
+func (h *QoderGatewayHandler) Responses(c *gin.Context) {
+	h.handle(c, qoderEndpointResponses)
+}
+
 type qoderEndpoint string
 
 const (
 	qoderEndpointChatCompletions qoderEndpoint = "chat_completions"
 	qoderEndpointMessages        qoderEndpoint = "messages"
+	qoderEndpointResponses       qoderEndpoint = "responses"
 )
 
 func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
@@ -101,6 +106,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body", endpoint)
 		return
 	}
+	prepareQoderRequestContext(c, body, endpoint)
 	modelResult := gjson.GetBytes(body, "model")
 	if !modelResult.Exists() || modelResult.Type != gjson.String || modelResult.String() == "" {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required", endpoint)
@@ -215,6 +221,8 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 		switch endpoint {
 		case qoderEndpointChatCompletions:
 			result, err = h.qoderGatewayService.ForwardChatCompletions(forwardCtx, c, account, body)
+		case qoderEndpointResponses:
+			result, err = h.qoderGatewayService.ForwardResponses(forwardCtx, c, account, body)
 		default:
 			result, err = h.qoderGatewayService.ForwardMessages(forwardCtx, c, account, body)
 		}
@@ -238,6 +246,8 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 					switch endpoint {
 					case qoderEndpointChatCompletions:
 						result, err = h.qoderGatewayService.ForwardChatCompletions(forwardCtx, c, account, body)
+					case qoderEndpointResponses:
+						result, err = h.qoderGatewayService.ForwardResponses(forwardCtx, c, account, body)
 					default:
 						result, err = h.qoderGatewayService.ForwardMessages(forwardCtx, c, account, body)
 					}
@@ -320,6 +330,12 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 			}
 		})
 		return
+	}
+}
+
+func prepareQoderRequestContext(c *gin.Context, body []byte, endpoint qoderEndpoint) {
+	if endpoint == qoderEndpointMessages {
+		SetClaudeCodeClientContext(c, body, nil)
 	}
 }
 

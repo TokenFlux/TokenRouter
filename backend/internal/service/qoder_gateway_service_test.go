@@ -1,3 +1,4 @@
+//nolint:errcheck // Qoder gateway tests assert decoded fixture shapes with single-value type assertions.
 package service
 
 import (
@@ -19,6 +20,29 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
+
+const qoderXMLToolCallFixture = `<tool_call>Read<arg_value><arg_key>file_path</arg_key><arg_value>/Users/zzw/project/campus-navigation/README.md</arg_value></tool_call>`
+const qoderJSONShellToolCallFixture = `<tool_call>{"name":"shell","arguments":{"command":"pwd","description":"Print working directory"}}</tool_call>`
+const qoderDSMLToolCallFixture = `<｜｜DSML｜｜tool_calls>
+<｜｜DSML｜｜invoke name="Bash">
+<｜｜DSML｜｜parameter name="command" string="true">ls -la</｜｜DSML｜｜parameter>
+<｜｜DSML｜｜parameter name="description" string="true">List root files</｜｜DSML｜｜parameter>
+</｜｜DSML｜｜invoke>
+</｜｜DSML｜｜tool_calls>`
+
+var qoderCachedUsageEventForTest = qoder.SSEEvent{
+	Type:             "usage",
+	PromptTokens:     66637,
+	CompletionTokens: 6,
+	TotalTokens:      66643,
+	UsageDetails: qoder.UsageDetails{
+		PromptTokensDetails:     &qoder.PromptTokensDetails{CachedTokens: 66612, CacheableTokens: 19},
+		CompletionTokensDetails: &qoder.CompletionTokensDetails{ReasoningTokens: 0},
+	},
+	HasUsage: true,
+}
+
+const qoderCachedUsageSSEForTest = "data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":66637,\\\"completion_tokens\\\":6,\\\"total_tokens\\\":66643,\\\"prompt_tokens_details\\\":{\\\"cached_tokens\\\":66612,\\\"cacheable_tokens\\\":19},\\\"completion_tokens_details\\\":{\\\"reasoning_tokens\\\":0}}}\"}\n\n"
 
 type qoderRateLimitRepoStub struct {
 	stubOpenAIAccountRepo
@@ -68,21 +92,65 @@ func TestBuildQoderPayloadFromChatCompletions(t *testing.T) {
 	require.Equal(t, "auto", modelKey)
 	require.Equal(t, true, payload["stream"])
 	require.Equal(t, "personal_standard", payload["aliyun_user_type"])
-	require.Equal(t, 123, payload["parameters"].(map[string]any)["max_tokens"])
-	require.Equal(t, "auto", payload["model_config"].(map[string]any)["key"])
-	require.Equal(t, "hello", payload["chat_context"].(map[string]any)["text"].(map[string]any)["text"])
+	parameters, _ := payload["parameters"].(map[string]any)
+	modelConfig, _ := payload["model_config"].(map[string]any)
+	chatContext, _ := payload["chat_context"].(map[string]any)
+	chatText, _ := chatContext["text"].(map[string]any)
+	require.Equal(t, 123, parameters["max_tokens"])
+	require.Equal(t, "auto", modelConfig["key"])
+	require.Equal(t, "hello", chatText["text"])
 
-	messages := payload["messages"].([]any)
+	messagesRaw, ok := payload["messages"].([]any)
+	require.True(t, ok)
+	messages := messagesRaw
 	require.Len(t, messages, 4)
-	require.Equal(t, "system", messages[0].(map[string]any)["role"])
-	require.Equal(t, "be terse", messages[0].(map[string]any)["content"])
-	require.Equal(t, "user", messages[1].(map[string]any)["role"])
-	require.Equal(t, "", messages[1].(map[string]any)["content"])
-	userContents := messages[1].(map[string]any)["contents"].([]any)
-	require.Equal(t, "hello", userContents[0].(map[string]any)["text"])
-	require.Equal(t, "tool", messages[3].(map[string]any)["role"])
-	require.Equal(t, "tool output", messages[3].(map[string]any)["content"])
-	require.Len(t, payload["tools"].([]any), 1)
+	firstMsg, ok := messages[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "system", firstMsg["role"])
+	require.Equal(t, "be terse", firstMsg["content"])
+	secondMsg, ok := messages[1].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "user", secondMsg["role"])
+	require.Equal(t, "", secondMsg["content"])
+	userContents, ok := secondMsg["contents"].([]any)
+	require.True(t, ok)
+	firstContent, ok := userContents[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "hello", firstContent["text"])
+	lastMsg, ok := messages[3].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "tool", lastMsg["role"])
+	require.Equal(t, "tool output", lastMsg["content"])
+	tools, ok := payload["tools"].([]any)
+	require.True(t, ok)
+	require.Len(t, tools, 1)
+}
+
+func TestBuildQoderPayloadUserSystemReplacesBuiltInSystem(t *testing.T) {
+	body := []byte(`{
+		"model":"auto",
+		"messages":[
+			{"role":"system","content":"custom system"},
+			{"role":"user","content":"hello"}
+		]
+	}`)
+
+	payload, _, err := BuildQoderPayloadFromChatCompletions(body, "personal_standard")
+	require.NoError(t, err)
+
+	messages, ok := payload["messages"].([]any)
+	require.True(t, ok)
+	require.Len(t, messages, 2)
+	systemMessages := 0
+	for _, raw := range messages {
+		msg, ok := raw.(map[string]any)
+		require.True(t, ok)
+		if msg["role"] == "system" {
+			systemMessages++
+			require.Equal(t, "custom system", msg["content"])
+		}
+	}
+	require.Equal(t, 1, systemMessages)
 }
 
 func TestBuildQoderPayloadFromChatCompletionsPreservesToolHistory(t *testing.T) {
@@ -113,7 +181,37 @@ func TestBuildQoderPayloadFromChatCompletionsPreservesToolHistory(t *testing.T) 
 	tool := messages[2].(map[string]any)
 	require.Equal(t, "tool", tool["role"])
 	require.Equal(t, "call_1", tool["tool_call_id"])
+	require.Equal(t, "call_1", tool["tool_call_call_id"])
 	require.Equal(t, "bash", tool["name"])
+}
+
+func TestBuildQoderPayloadAddsCacheControlToLastEligibleTextBlock(t *testing.T) {
+	body := []byte(`{
+		"model":"auto",
+		"messages":[
+			{"role":"user","content":[{"type":"text","text":"first","cache_control":{"type":"ephemeral"}},{"type":"tool_use","id":"ignored","name":"bash","input":{}},{"type":"thinking","thinking":"ignore"}]},
+			{"role":"assistant","content":[{"type":"redacted_thinking","data":"ignore"},{"type":"tool_use","id":"call_1","name":"bash","input":{"cmd":"pwd"}}]},
+			{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":"repo"},{"type":"text","text":"last"}]}
+		]
+	}`)
+
+	payload, _, err := BuildQoderPayloadFromAnthropicMessages(body, "personal_standard")
+	require.NoError(t, err)
+	messages := payload["messages"].([]any)
+	firstContents := messages[0].(map[string]any)["contents"].([]any)
+	require.Equal(t, "ephemeral", firstContents[0].(map[string]any)["cache_control"].(map[string]any)["type"])
+	lastContents := messages[len(messages)-1].(map[string]any)["contents"].([]any)
+	lastText := lastContents[len(lastContents)-1].(map[string]any)
+	require.Equal(t, "last", lastText["text"])
+	require.Equal(t, "ephemeral", lastText["cache_control"].(map[string]any)["type"])
+	for _, rawMessage := range messages {
+		for _, rawBlock := range rawMessage.(map[string]any)["contents"].([]any) {
+			block := rawBlock.(map[string]any)
+			if block["type"] != "text" {
+				require.NotContains(t, block, "cache_control")
+			}
+		}
+	}
 }
 
 func TestBuildQoderPayloadFromAnthropicMessages(t *testing.T) {
@@ -139,9 +237,10 @@ func TestBuildQoderPayloadFromAnthropicMessages(t *testing.T) {
 	require.Equal(t, "", messages[1].(map[string]any)["content"])
 	userContents := messages[1].(map[string]any)["contents"].([]any)
 	require.Equal(t, "hello", userContents[0].(map[string]any)["text"])
-	require.Equal(t, "tool", messages[2].(map[string]any)["role"])
-	require.Equal(t, "t1", messages[2].(map[string]any)["tool_call_id"])
-	require.Equal(t, "tool result", messages[2].(map[string]any)["content"])
+	toolResult := messages[2].(map[string]any)
+	require.Equal(t, "tool", toolResult["role"])
+	require.Equal(t, "t1", toolResult["tool_call_id"])
+	require.Equal(t, "tool result", toolResult["content"])
 }
 
 func TestBuildQoderPayloadFromAnthropicMessagesPreservesToolUseHistory(t *testing.T) {
@@ -171,6 +270,8 @@ func TestBuildQoderPayloadFromAnthropicMessagesPreservesToolUseHistory(t *testin
 	tool := messages[1].(map[string]any)
 	require.Equal(t, "tool", tool["role"])
 	require.Equal(t, "call_1", tool["tool_call_id"])
+	require.Equal(t, "call_1", tool["tool_call_call_id"])
+	require.Equal(t, "bash", tool["name"])
 	require.Equal(t, "file.txt", tool["content"])
 }
 
@@ -208,6 +309,8 @@ func TestBuildQoderPayloadFromAnthropicMessagesIgnoresThinkingToolUseHistory(t *
 	toolResult := messages[2].(map[string]any)
 	require.Equal(t, "tool", toolResult["role"])
 	require.Equal(t, "toolu_1", toolResult["tool_call_id"])
+	require.Equal(t, "toolu_1", toolResult["tool_call_call_id"])
+	require.Equal(t, "Read", toolResult["name"])
 	require.Equal(t, "contents", toolResult["content"])
 }
 
@@ -225,7 +328,7 @@ func TestBuildQoderPayloadFromAnthropicMessagesDoesNotInventMissingToolResultID(
 	messages := payload["messages"].([]any)
 	require.Len(t, messages, 1)
 	tool := messages[0].(map[string]any)
-	require.Equal(t, "tool", tool["role"])
+	require.Equal(t, "user", tool["role"])
 	require.NotContains(t, tool, "tool_calls")
 	require.NotContains(t, tool, "tool_call_id")
 }
@@ -260,6 +363,44 @@ func TestBuildQoderPayloadFromAnthropicMessagesConvertsTools(t *testing.T) {
 	parameters := function["parameters"].(map[string]any)
 	require.Equal(t, "object", parameters["type"])
 	require.Contains(t, parameters, "properties")
+}
+
+func TestQoderConversationKeyPrefersExplicitSessionOverClaudeCodeStableSeed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Request.Header.Set("User-Agent", "claude-cli/2.1.177 (external, cli)")
+	c.Request.Header.Set("X-Claude-Code-Session-Id", "header-session")
+
+	request := qoderPayloadRequest{
+		model:    "deepseek-v4-pro",
+		messages: []qoderMessage{{Role: "user", Text: "inspect"}},
+	}
+
+	key, source := qoderConversationKey(c, &Account{ID: 7}, "anthropic_messages", request)
+
+	require.Equal(t, "header", source)
+	require.Equal(t, "header:"+isolateOpenAISessionID(0, "header-session"), key)
+	require.NotContains(t, key, "stable_seed")
+}
+
+func TestQoderConversationKeyPrefersMetadataOverClaudeCodeStableSeed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Request.Header.Set("User-Agent", "claude-cli/2.1.177 (external, cli)")
+
+	request := qoderPayloadRequest{
+		model:          "deepseek-v4-pro",
+		metadataUserID: FormatMetadataUserID("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "", "session-123", "2.1.80"),
+		messages:       []qoderMessage{{Role: "user", Text: "inspect"}},
+	}
+
+	key, source := qoderConversationKey(c, &Account{ID: 7}, "anthropic_messages", request)
+
+	require.Equal(t, "metadata_user_id", source)
+	require.Equal(t, "metadata_user_id:"+isolateOpenAISessionID(0, "session-123"), key)
+	require.NotContains(t, key, "stable_seed")
 }
 
 func TestResolveQoderModelUsesOpus46AliasForUltimate(t *testing.T) {
@@ -318,15 +459,15 @@ func TestQoderGatewayAppliesAccountModelMapping(t *testing.T) {
 	require.Contains(t, rec.Body.String(), `"model":"claude-opus-4-6"`)
 }
 
-func TestQoderGatewayChatCompletionsReusesSessionAndSendsIncrementalTail(t *testing.T) {
+func TestQoderGatewayChatCompletionsReusesSessionAndSendsFullReplay(t *testing.T) {
 	account, svc, client := newQoderGatewayForwardTestService()
 
-	first := qoderForwardChatCompletionsForTest(t, svc, account, "", []byte(`{
+	first := qoderForwardChatCompletionsForTest(t, svc, account, "stable-chat-session", []byte(`{
 		"model":"auto",
 		"messages":[{"role":"system","content":"be terse"},{"role":"user","content":"hello"}],
 		"stream":false
 	}`))
-	second := qoderForwardChatCompletionsForTest(t, svc, account, "", []byte(`{
+	second := qoderForwardChatCompletionsForTest(t, svc, account, "stable-chat-session", []byte(`{
 		"model":"auto",
 		"messages":[
 			{"role":"system","content":"be terse"},
@@ -344,10 +485,226 @@ func TestQoderGatewayChatCompletionsReusesSessionAndSendsIncrementalTail(t *test
 	require.Equal(t, "system", firstMessages[0].(map[string]any)["role"])
 
 	secondMessages := second["messages"].([]any)
-	require.Len(t, secondMessages, 2)
-	require.Equal(t, "assistant", secondMessages[0].(map[string]any)["role"])
+	require.Len(t, secondMessages, 4)
+	require.Equal(t, "system", secondMessages[0].(map[string]any)["role"])
 	require.Equal(t, "user", secondMessages[1].(map[string]any)["role"])
+	require.Equal(t, "assistant", secondMessages[2].(map[string]any)["role"])
+	require.Equal(t, "user", secondMessages[3].(map[string]any)["role"])
 	require.Equal(t, "next", second["chat_context"].(map[string]any)["text"].(map[string]any)["text"])
+}
+
+func TestQoderGatewayChatCompletionsWithoutSessionDoesNotReuseByFirstText(t *testing.T) {
+	account, svc, _ := newQoderGatewayForwardTestService()
+
+	first := qoderForwardChatCompletionsForTest(t, svc, account, "", []byte(`{
+		"model":"auto",
+		"messages":[{"role":"user","content":"hello"}],
+		"stream":false
+	}`))
+	second := qoderForwardChatCompletionsForTest(t, svc, account, "", []byte(`{
+		"model":"auto",
+		"messages":[
+			{"role":"user","content":"hello"},
+			{"role":"assistant","content":"hi"},
+			{"role":"user","content":"how many turns?"}
+		],
+		"stream":false
+	}`))
+
+	require.NotEqual(t, first["session_id"], second["session_id"])
+	messages := second["messages"].([]any)
+	require.Len(t, messages, 3)
+	require.Equal(t, "hello", qoderPayloadMessageTextForTest(messages[0].(map[string]any)))
+}
+
+func TestQoderGatewayChatCompletionsMapsUpstreamToolNameToDeclaredOpenAITool(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	client.body = qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+		map[string]any{"delta": map[string]any{"tool_calls": []any{
+			map[string]any{"index": 0, "id": "call_1", "type": "function", "function": map[string]any{"name": "Bash", "arguments": `{"command":"pwd"}`}},
+		}}},
+	}}) +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+	body := []byte(`{
+		"model":"deepseek-v4-pro",
+		"messages":[{"role":"user","content":"run pwd"}],
+		"tools":[{"type":"function","function":{"name":"bash","parameters":{"type":"object","properties":{"command":{"type":"string"}}}}}],
+		"stream":false
+	}`)
+
+	result, response := qoderForwardChatCompletionsResultAndBodyForTest(t, svc, account, "", body)
+
+	require.False(t, result.Stream)
+	require.Equal(t, "tool_calls", gjson.Get(response, "choices.0.finish_reason").String())
+	require.Equal(t, "bash", gjson.Get(response, "choices.0.message.tool_calls.0.function.name").String())
+	require.NotContains(t, response, `"name":"Bash"`)
+	upstream := qoderLastUpstreamPayloadForTest(t, client)
+	tools := upstream["tools"].([]any)
+	require.Equal(t, "bash", tools[0].(map[string]any)["function"].(map[string]any)["name"])
+}
+
+func TestQoderGatewayMessagesMapsUpstreamToolNameToDeclaredAnthropicTool(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	client.body = qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+		map[string]any{"delta": map[string]any{"tool_calls": []any{
+			map[string]any{"index": 0, "id": "call_1", "type": "function", "function": map[string]any{"name": "Bash", "arguments": `{"command":"pwd"}`}},
+		}}},
+	}}) +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+	body := []byte(`{
+		"model":"deepseek-v4-pro",
+		"messages":[{"role":"user","content":"run pwd"}],
+		"tools":[{"name":"bash","input_schema":{"type":"object","properties":{"command":{"type":"string"}}}}],
+		"stream":false
+	}`)
+
+	result, response := qoderForwardMessagesResultAndBodyForTest(t, svc, account, body)
+
+	require.False(t, result.Stream)
+	require.Equal(t, "tool_use", gjson.Get(response, "stop_reason").String())
+	require.Equal(t, "tool_use", gjson.Get(response, "content.0.type").String())
+	require.Equal(t, "bash", gjson.Get(response, "content.0.name").String())
+	require.NotContains(t, response, `"name":"Bash"`)
+	upstream := qoderLastUpstreamPayloadForTest(t, client)
+	tools := upstream["tools"].([]any)
+	require.Equal(t, "bash", tools[0].(map[string]any)["function"].(map[string]any)["name"])
+}
+
+func TestQoderGatewayResponsesMapsUpstreamToolNameToDeclaredFunctionCall(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	client.body = qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+		map[string]any{"delta": map[string]any{"tool_calls": []any{
+			map[string]any{"index": 0, "id": "call_1", "type": "function", "function": map[string]any{"name": "Bash", "arguments": `{"command":"pwd"}`}},
+		}}},
+	}}) +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+	body := []byte(`{
+		"model":"deepseek-v4-pro",
+		"input":[{"role":"user","content":"run pwd"}],
+		"tools":[{"type":"function","name":"bash","parameters":{"type":"object","properties":{"command":{"type":"string"}}}}],
+		"stream":false
+	}`)
+
+	result, response := qoderForwardResponsesResultAndBodyForTest(t, svc, account, body)
+
+	require.False(t, result.Stream)
+	require.Equal(t, "response", gjson.Get(response, "object").String())
+	require.Equal(t, "function_call", gjson.Get(response, "output.0.type").String())
+	require.Equal(t, "bash", gjson.Get(response, "output.0.name").String())
+	require.JSONEq(t, `{"command":"pwd"}`, gjson.Get(response, "output.0.arguments").String())
+	require.NotContains(t, response, `"name":"Bash"`)
+	upstream := qoderLastUpstreamPayloadForTest(t, client)
+	tools := upstream["tools"].([]any)
+	require.Equal(t, "bash", tools[0].(map[string]any)["function"].(map[string]any)["name"])
+}
+
+func TestQoderGatewayResponsesStreamsDeclaredFunctionCallEvents(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	client.body = qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+		map[string]any{"delta": map[string]any{"tool_calls": []any{
+			map[string]any{"index": 0, "id": "call_1", "type": "function", "function": map[string]any{"name": "Bash", "arguments": `{"command":"pwd"}`}},
+		}}},
+	}}) +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+	body := []byte(`{
+		"model":"deepseek-v4-pro",
+		"input":[{"role":"user","content":"run pwd"}],
+		"tools":[{"type":"function","name":"bash","parameters":{"type":"object","properties":{"command":{"type":"string"}}}}],
+		"stream":true
+	}`)
+
+	result, response := qoderForwardResponsesResultAndBodyForTest(t, svc, account, body)
+
+	require.True(t, result.Stream)
+	events := qoderResponsesStreamEventsForTest(t, response)
+	require.Equal(t, "response.created", events[0].Get("type").String())
+	var added gjson.Result
+	var argsDone gjson.Result
+	for _, event := range events {
+		switch event.Get("type").String() {
+		case "response.output_item.added":
+			if event.Get("item.type").String() == "function_call" {
+				added = event
+			}
+		case "response.function_call_arguments.done":
+			argsDone = event
+		}
+	}
+	require.Equal(t, "bash", added.Get("item.name").String())
+	require.JSONEq(t, `{"command":"pwd"}`, argsDone.Get("arguments").String())
+	require.NotContains(t, response, `"name":"Bash"`)
+}
+
+func TestQoderGatewayClaudeRequestsWithoutSessionDoNotReuseByFirstText(t *testing.T) {
+	account, svc, _ := newQoderGatewayForwardTestService()
+	largeTools := qoderLargeToolsJSONForTest()
+	first := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
+		"model":"deepseek-v4-pro",
+		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
+		"messages":[{"role":"user","content":"你好"}],
+		"tools":`+largeTools+`,
+		"stream":false
+	}`), qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
+	second := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
+		"model":"deepseek-v4-pro",
+		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
+		"messages":[
+			{"role":"user","content":"你好"},
+			{"role":"assistant","content":"你好"},
+			{"role":"user","content":"你一共和我对话了几句话？"}
+		],
+		"tools":`+largeTools+`,
+		"stream":false
+	}`), qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
+
+	require.NotEqual(t, first["session_id"], second["session_id"])
+	require.NotEmpty(t, second["tools"].([]any))
+	require.Len(t, second["messages"].([]any), 4)
+}
+
+func TestQoderGatewayClaudeCodeContextWithoutSessionUsesStablePrefixKey(t *testing.T) {
+	account, svc, _ := newQoderGatewayForwardTestService()
+	largeTools := qoderLargeToolsJSONForTest()
+	system1 := "x-anthropic-billing-header: cc_version=2.1.177.19c; cc_entrypoint=sdk-cli; cch=29156;\n" +
+		"You are Claude Code, Anthropic's official CLI for Claude.\n" +
+		"Stable Claude Code system body."
+	system2 := "x-anthropic-billing-header: cc_version=2.1.177.19c; cc_entrypoint=sdk-cli; cch=40d8d;\n" +
+		"You are Claude Code, Anthropic's official CLI for Claude.\n" +
+		"Stable Claude Code system body."
+	first := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
+		"model":"claude-opus-4-6",
+		"system":`+strconv.Quote(system1)+`,
+		"messages":[{"role":"user","content":"inspect"}],
+		"tools":`+largeTools+`,
+		"stream":false
+	}`),
+		qoderHeader("User-Agent", "claude-cli/2.1.177 (external, sdk-cli)"),
+		qoderHeader("X-Test-Claude-Code-Context", "true"),
+	)
+	second := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
+		"model":"claude-opus-4-6",
+		"system":`+strconv.Quote(system2)+`,
+		"messages":[
+			{"role":"user","content":"inspect"},
+			{"role":"assistant","content":"ok"},
+			{"role":"user","content":"continue"}
+		],
+		"tools":`+largeTools+`,
+		"stream":false
+	}`),
+		qoderHeader("User-Agent", "claude-cli/2.1.177 (external, sdk-cli)"),
+		qoderHeader("X-Test-Claude-Code-Context", "true"),
+	)
+
+	require.Equal(t, first["session_id"], second["session_id"])
+	require.NotEmpty(t, second["tools"].([]any))
+	messages := second["messages"].([]any)
+	require.Len(t, messages, 4)
+	require.Equal(t, "system", messages[0].(map[string]any)["role"])
+	require.Equal(t, "user", messages[1].(map[string]any)["role"])
+	require.Equal(t, "assistant", messages[2].(map[string]any)["role"])
+	require.Equal(t, "user", messages[3].(map[string]any)["role"])
+	require.Equal(t, "continue", second["chat_context"].(map[string]any)["text"].(map[string]any)["text"])
 }
 
 func TestQoderGatewayDoesNotCommitConversationOnUpstreamFailure(t *testing.T) {
@@ -376,6 +733,7 @@ func TestQoderGatewayReservesConversationAfterUpstreamAcceptsBeforeStreamComplet
 	svc.client = client
 	body1 := []byte(`{
 		"model":"deepseek-v4-pro",
+		"prompt_cache_key":"reserve-before-stream",
 		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
 		"messages":[{"role":"user","content":"inspect"}],
 		"tools":` + qoderLargeToolsJSONForTest() + `,
@@ -383,6 +741,7 @@ func TestQoderGatewayReservesConversationAfterUpstreamAcceptsBeforeStreamComplet
 	}`)
 	body2 := []byte(`{
 		"model":"deepseek-v4-pro",
+		"prompt_cache_key":"reserve-before-stream",
 		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
 		"messages":[
 			{"role":"user","content":"inspect"},
@@ -414,11 +773,135 @@ func TestQoderGatewayReservesConversationAfterUpstreamAcceptsBeforeStreamComplet
 
 	firstPayload := qoderPayloadAtForTest(t, client, 0)
 	require.Equal(t, firstPayload["session_id"], secondPayload["session_id"])
-	require.Empty(t, secondPayload["tools"].([]any))
+	require.NotEmpty(t, secondPayload["tools"].([]any))
 	messages := secondPayload["messages"].([]any)
-	require.Len(t, messages, 2)
-	require.Equal(t, "assistant", messages[0].(map[string]any)["role"])
+	require.Len(t, messages, 4)
+	require.Equal(t, "system", messages[0].(map[string]any)["role"])
 	require.Equal(t, "user", messages[1].(map[string]any)["role"])
+	require.Equal(t, "assistant", messages[2].(map[string]any)["role"])
+	require.Equal(t, "user", messages[3].(map[string]any)["role"])
+}
+
+func TestQoderGatewayDoesNotCommitFailedPostToolStreamAsComplete(t *testing.T) {
+	account, svc, _ := newQoderGatewayForwardTestService()
+	client := newBlockingQoderClientStub(t)
+	svc.client = client
+	body1 := []byte(`{
+		"model":"glm-5.1",
+		"prompt_cache_key":"failed-post-tool-stream",
+		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
+		"messages":[{"role":"user","content":"run pwd"}],
+		"tools":` + qoderLargeToolsJSONForTest() + `,
+		"stream":true
+	}`)
+	body2 := []byte(`{
+		"model":"glm-5.1",
+		"prompt_cache_key":"failed-post-tool-stream",
+		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
+		"messages":[
+			{"role":"user","content":"run pwd"},
+			{"role":"assistant","content":[{"type":"tool_use","id":"call_1","name":"Bash","input":{"command":"pwd"}}]},
+			{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":"/repo"}]}
+		],
+		"tools":` + qoderLargeToolsJSONForTest() + `,
+		"stream":true
+	}`)
+
+	gin.SetMode(gin.TestMode)
+	firstRec := httptest.NewRecorder()
+	firstCtx, _ := gin.CreateTestContext(firstRec)
+	firstCtx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body1))
+	firstCtx.Request.Header.Set("User-Agent", "claude-cli/2.1.177 (external, cli)")
+	var wg sync.WaitGroup
+	wg.Add(1)
+	var firstErr error
+	go func() {
+		defer wg.Done()
+		_, firstErr = svc.ForwardMessages(context.Background(), firstCtx, account, body1)
+	}()
+	client.waitForCalls(1)
+
+	client.mu.Lock()
+	client.nextError = true
+	client.mu.Unlock()
+	failedRec := httptest.NewRecorder()
+	failedCtx, _ := gin.CreateTestContext(failedRec)
+	failedCtx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body2))
+	failedCtx.Request.Header.Set("User-Agent", "claude-cli/2.1.177 (external, cli)")
+	_, failedErr := svc.ForwardMessages(context.Background(), failedCtx, account, body2)
+	require.Error(t, failedErr)
+
+	retryPayload := qoderForwardMessagesForTest(t, svc, account, "", body2, qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
+	client.finishFirst()
+	wg.Wait()
+	require.NoError(t, firstErr)
+
+	require.Equal(t, qoderPayloadAtForTest(t, client, 0)["session_id"], retryPayload["session_id"])
+	require.NotEmpty(t, retryPayload["tools"].([]any))
+	messages := retryPayload["messages"].([]any)
+	require.Len(t, messages, 4)
+	system := messages[0].(map[string]any)
+	require.Equal(t, "system", system["role"])
+	user := messages[1].(map[string]any)
+	require.Equal(t, "user", user["role"])
+	require.Equal(t, "run pwd", qoderPayloadMessageTextForTest(user))
+	assistant := messages[2].(map[string]any)
+	require.Equal(t, "assistant", assistant["role"])
+	require.NotEmpty(t, assistant["tool_calls"].([]any))
+	toolResult := messages[3].(map[string]any)
+	require.Equal(t, "tool", toolResult["role"])
+	require.Equal(t, "call_1", toolResult["tool_call_id"])
+	require.Equal(t, "call_1", toolResult["tool_call_call_id"])
+	require.Equal(t, "Bash", toolResult["name"])
+	require.Equal(t, "/repo", toolResult["content"])
+}
+
+func TestQoderGatewayRollsBackAcceptedConversationOnStreamParseFailure(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	body1 := []byte(`{
+		"model":"glm-5.1",
+		"prompt_cache_key":"rollback-accepted-stream",
+		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
+		"messages":[{"role":"user","content":"run pwd"}],
+		"tools":` + qoderLargeToolsJSONForTest() + `,
+		"stream":true
+	}`)
+	body2 := []byte(`{
+		"model":"glm-5.1",
+		"prompt_cache_key":"rollback-accepted-stream",
+		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
+		"messages":[
+			{"role":"user","content":"run pwd"},
+			{"role":"assistant","content":[{"type":"tool_use","id":"call_1","name":"Bash","input":{"command":"pwd"}}]},
+			{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":"/repo"}]}
+		],
+		"tools":` + qoderLargeToolsJSONForTest() + `,
+		"stream":true
+	}`)
+
+	firstPayload := qoderForwardMessagesForTest(t, svc, account, "", body1, qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
+
+	client.body = "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\""
+	gin.SetMode(gin.TestMode)
+	failedRec := httptest.NewRecorder()
+	failedCtx, _ := gin.CreateTestContext(failedRec)
+	failedCtx.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body2))
+	failedCtx.Request.Header.Set("User-Agent", "claude-cli/2.1.177 (external, cli)")
+	_, failedErr := svc.ForwardMessages(context.Background(), failedCtx, account, body2)
+	require.Error(t, failedErr)
+
+	client.body = "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"OK\\\"}}]}\"}\n\n" +
+		"data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":5,\\\"completion_tokens\\\":1,\\\"total_tokens\\\":6}}\"}\n\n" +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+	retryPayload := qoderForwardMessagesForTest(t, svc, account, "", body2, qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
+	require.Equal(t, firstPayload["session_id"], retryPayload["session_id"])
+	require.NotEmpty(t, retryPayload["tools"].([]any))
+	messages := retryPayload["messages"].([]any)
+	require.Len(t, messages, 4)
+	require.Equal(t, "system", messages[0].(map[string]any)["role"])
+	require.Equal(t, "user", messages[1].(map[string]any)["role"])
+	require.Equal(t, "assistant", messages[2].(map[string]any)["role"])
+	require.Equal(t, "tool", messages[3].(map[string]any)["role"])
 }
 
 func TestQoderGatewayFallsBackToFullReplayWhenPrefixDoesNotMatch(t *testing.T) {
@@ -489,7 +972,7 @@ func TestQoderGatewayUsesExplicitBodySessionID(t *testing.T) {
 	}`))
 
 	require.Equal(t, first["session_id"], second["session_id"])
-	require.Len(t, second["messages"].([]any), 2)
+	require.Len(t, second["messages"].([]any), 3)
 }
 
 func TestQoderGatewayAnthropicMetadataSessionWinsOverChangingHeader(t *testing.T) {
@@ -514,21 +997,22 @@ func TestQoderGatewayAnthropicMetadataSessionWinsOverChangingHeader(t *testing.T
 
 	require.Equal(t, first["session_id"], second["session_id"])
 	messages := second["messages"].([]any)
-	require.Len(t, messages, 2)
-	require.Equal(t, "assistant", messages[0].(map[string]any)["role"])
-	require.Equal(t, "user", messages[1].(map[string]any)["role"])
+	require.Len(t, messages, 3)
+	require.Equal(t, "user", messages[0].(map[string]any)["role"])
+	require.Equal(t, "assistant", messages[1].(map[string]any)["role"])
+	require.Equal(t, "user", messages[2].(map[string]any)["role"])
 	require.Equal(t, "continue", second["chat_context"].(map[string]any)["text"].(map[string]any)["text"])
 }
 
-func TestQoderGatewayClaudeCodeUsesStableSeedWhenHeaderChanges(t *testing.T) {
+func TestQoderGatewayClaudeCodeUsesExplicitHeaderSessionBeforeStableSeed(t *testing.T) {
 	account, svc, _ := newQoderGatewayForwardTestService()
-	first := qoderForwardMessagesForTest(t, svc, account, "volatile-header-1", []byte(`{
+	first := qoderForwardMessagesForTest(t, svc, account, "stable-header", []byte(`{
 		"model":"deepseek-v4-pro",
 		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
 		"messages":[{"role":"user","content":"inspect"}],
 		"stream":false
 	}`), qoderHeader("User-Agent", "claude-cli/2.1.162 (external, cli)"))
-	second := qoderForwardMessagesForTest(t, svc, account, "volatile-header-2", []byte(`{
+	second := qoderForwardMessagesForTest(t, svc, account, "stable-header", []byte(`{
 		"model":"deepseek-v4-pro",
 		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
 		"messages":[
@@ -541,15 +1025,28 @@ func TestQoderGatewayClaudeCodeUsesStableSeedWhenHeaderChanges(t *testing.T) {
 
 	require.Equal(t, first["session_id"], second["session_id"])
 	messages := second["messages"].([]any)
-	require.Len(t, messages, 2)
-	require.Equal(t, "assistant", messages[0].(map[string]any)["role"])
+	require.Len(t, messages, 4)
+	require.Equal(t, "system", messages[0].(map[string]any)["role"])
 	require.Equal(t, "user", messages[1].(map[string]any)["role"])
+	require.Equal(t, "assistant", messages[2].(map[string]any)["role"])
+	require.Equal(t, "user", messages[3].(map[string]any)["role"])
+
+	other := qoderForwardMessagesForTest(t, svc, account, "other-header", []byte(`{
+		"model":"deepseek-v4-pro",
+		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
+		"messages":[
+			{"role":"user","content":"inspect"},
+			{"role":"assistant","content":"ok"},
+			{"role":"user","content":"continue"}
+		],
+		"stream":false
+	}`), qoderHeader("User-Agent", "claude-cli/2.1.162 (external, cli)"))
+	require.NotEqual(t, first["session_id"], other["session_id"])
 }
 
-func TestQoderGatewayClaudeCodeUsesStableSeedWhenMetadataSessionChanges(t *testing.T) {
+func TestQoderGatewayClaudeCodeUsesMetadataSessionBeforeStableSeed(t *testing.T) {
 	account, svc, _ := newQoderGatewayForwardTestService()
 	metadata1 := `{"device_id":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","account_uuid":"","session_id":"11111111-2222-3333-4444-555555555555"}`
-	metadata2 := `{"device_id":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","account_uuid":"","session_id":"66666666-7777-8888-9999-aaaaaaaaaaaa"}`
 	largeTools := qoderLargeToolsJSONForTest()
 	first := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
 		"model":"deepseek-v4-pro",
@@ -561,7 +1058,7 @@ func TestQoderGatewayClaudeCodeUsesStableSeedWhenMetadataSessionChanges(t *testi
 	}`), qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
 	second := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
 		"model":"deepseek-v4-pro",
-		"metadata":{"user_id":`+strconv.Quote(metadata2)+`},
+		"metadata":{"user_id":`+strconv.Quote(metadata1)+`},
 		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
 		"messages":[
 			{"role":"user","content":"inspect"},
@@ -573,12 +1070,30 @@ func TestQoderGatewayClaudeCodeUsesStableSeedWhenMetadataSessionChanges(t *testi
 	}`), qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
 
 	require.Equal(t, first["session_id"], second["session_id"])
-	require.Empty(t, second["tools"].([]any))
+	require.NotEmpty(t, second["tools"].([]any))
 	messages := second["messages"].([]any)
-	require.Len(t, messages, 2)
-	require.Equal(t, "assistant", messages[0].(map[string]any)["role"])
+	require.Len(t, messages, 4)
+	require.Equal(t, "system", messages[0].(map[string]any)["role"])
 	require.Equal(t, "user", messages[1].(map[string]any)["role"])
+	require.Equal(t, "assistant", messages[2].(map[string]any)["role"])
+	require.Equal(t, "user", messages[3].(map[string]any)["role"])
 	require.Equal(t, "continue", second["chat_context"].(map[string]any)["text"].(map[string]any)["text"])
+
+	metadata2 := `{"device_id":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef","account_uuid":"","session_id":"66666666-7777-8888-9999-aaaaaaaaaaaa"}`
+	other := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
+		"model":"deepseek-v4-pro",
+		"metadata":{"user_id":`+strconv.Quote(metadata2)+`},
+		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
+		"messages":[
+			{"role":"user","content":"inspect"},
+			{"role":"assistant","content":"ok"},
+			{"role":"user","content":"continue"}
+		],
+		"tools":`+largeTools+`,
+		"stream":false
+	}`), qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
+	require.NotEqual(t, first["session_id"], other["session_id"])
+	require.NotEmpty(t, other["tools"].([]any))
 }
 
 func TestQoderGatewayClaudeCodeIgnoresVolatileBillingCCHForSystemReuse(t *testing.T) {
@@ -592,6 +1107,7 @@ func TestQoderGatewayClaudeCodeIgnoresVolatileBillingCCHForSystemReuse(t *testin
 		"Stable Claude Code system body."
 	first := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
 		"model":"glm-5.1",
+		"prompt_cache_key":"billing-cch-session",
 		"system":`+strconv.Quote(system1)+`,
 		"messages":[{"role":"user","content":"inspect"}],
 		"tools":`+largeTools+`,
@@ -599,6 +1115,7 @@ func TestQoderGatewayClaudeCodeIgnoresVolatileBillingCCHForSystemReuse(t *testin
 	}`), qoderHeader("User-Agent", "claude-cli/2.1.177 (external, sdk-cli)"))
 	second := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
 		"model":"glm-5.1",
+		"prompt_cache_key":"billing-cch-session",
 		"system":`+strconv.Quote(system2)+`,
 		"messages":[
 			{"role":"user","content":"inspect"},
@@ -610,11 +1127,65 @@ func TestQoderGatewayClaudeCodeIgnoresVolatileBillingCCHForSystemReuse(t *testin
 	}`), qoderHeader("User-Agent", "claude-cli/2.1.177 (external, sdk-cli)"))
 
 	require.Equal(t, first["session_id"], second["session_id"])
-	require.Empty(t, second["tools"].([]any))
+	require.NotEmpty(t, second["tools"].([]any))
 	messages := second["messages"].([]any)
-	require.Len(t, messages, 2)
-	require.Equal(t, "assistant", messages[0].(map[string]any)["role"])
+	require.Len(t, messages, 4)
+	require.Equal(t, "system", messages[0].(map[string]any)["role"])
 	require.Equal(t, "user", messages[1].(map[string]any)["role"])
+	require.Equal(t, "assistant", messages[2].(map[string]any)["role"])
+	require.Equal(t, "user", messages[3].(map[string]any)["role"])
+}
+
+func TestQoderGatewayClaudeCodeUltimateStablePromptCacheKeyReportsCacheRead(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	largeTools := qoderLargeToolsJSONForTest()
+	system1 := "x-anthropic-billing-header: cc_version=2.1.177.19c; cc_entrypoint=sdk-cli; cch=29156;\n" +
+		"You are a Claude agent, built on Anthropic's Claude Agent SDK.\n" +
+		"Stable Claude Code system body."
+	system2 := "x-anthropic-billing-header: cc_version=2.1.177.19c; cc_entrypoint=sdk-cli; cch=40d8d;\n" +
+		"You are a Claude agent, built on Anthropic's Claude Agent SDK.\n" +
+		"Stable Claude Code system body."
+	firstBody := []byte(`{
+		"model":"claude-opus-4-6",
+		"prompt_cache_key":"ultimate-cache-hit-session",
+		"system":` + strconv.Quote(system1) + `,
+		"messages":[{"role":"user","content":"inspect"}],
+		"tools":` + largeTools + `,
+		"stream":false
+	}`)
+	secondBody := []byte(`{
+		"model":"claude-opus-4-6",
+		"prompt_cache_key":"ultimate-cache-hit-session",
+		"system":` + strconv.Quote(system2) + `,
+		"messages":[
+			{"role":"user","content":"inspect"},
+			{"role":"assistant","content":"ok"},
+			{"role":"user","content":"continue"}
+		],
+		"tools":` + largeTools + `,
+		"stream":false
+	}`)
+
+	client.body = "data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":1200,\\\"completion_tokens\\\":30,\\\"total_tokens\\\":1230}}\"}\n\n" +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+	firstResult := qoderForwardMessagesResultForTest(t, svc, account, firstBody, qoderHeader("User-Agent", "claude-cli/2.1.177 (external, sdk-cli)"))
+	firstPayload := qoderLastUpstreamPayloadForTest(t, client)
+	require.Equal(t, "ultimate", firstResult.UpstreamModel)
+	require.Equal(t, 1200, firstResult.Usage.InputTokens)
+	require.Equal(t, "ultimate", client.headers["x-model-key"])
+
+	client.body = "data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":1500,\\\"completion_tokens\\\":33,\\\"total_tokens\\\":1533,\\\"prompt_tokens_details\\\":{\\\"cached_tokens\\\":1400,\\\"cacheable_tokens\\\":100}}}\"}\n\n" +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+	secondResult, secondResponse := qoderForwardMessagesResultAndBodyForTest(t, svc, account, secondBody, qoderHeader("User-Agent", "claude-cli/2.1.177 (external, sdk-cli)"))
+	secondPayload := qoderLastUpstreamPayloadForTest(t, client)
+
+	require.Equal(t, "ultimate", secondResult.UpstreamModel)
+	require.Equal(t, firstPayload["session_id"], secondPayload["session_id"])
+	require.Equal(t, 100, secondResult.Usage.InputTokens)
+	require.Equal(t, 1400, secondResult.Usage.CacheReadInputTokens)
+	require.Equal(t, 33, secondResult.Usage.OutputTokens)
+	require.Equal(t, int64(1400), gjson.Get(secondResponse, "usage.cache_read_input_tokens").Int())
+	require.Equal(t, int64(100), gjson.Get(secondResponse, "usage.input_tokens").Int())
 }
 
 func TestQoderGatewayStillFullReplaysWhenNonBillingSystemChanges(t *testing.T) {
@@ -626,6 +1197,7 @@ func TestQoderGatewayStillFullReplaysWhenNonBillingSystemChanges(t *testing.T) {
 		"Changed Claude Code system body."
 	first := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
 		"model":"glm-5.1",
+		"prompt_cache_key":"system-change-session",
 		"system":`+strconv.Quote(system1)+`,
 		"messages":[{"role":"user","content":"inspect"}],
 		"tools":`+largeTools+`,
@@ -633,6 +1205,7 @@ func TestQoderGatewayStillFullReplaysWhenNonBillingSystemChanges(t *testing.T) {
 	}`), qoderHeader("User-Agent", "claude-cli/2.1.177 (external, sdk-cli)"))
 	second := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
 		"model":"glm-5.1",
+		"prompt_cache_key":"system-change-session",
 		"system":`+strconv.Quote(system2)+`,
 		"messages":[
 			{"role":"user","content":"inspect"},
@@ -672,11 +1245,13 @@ func TestQoderGatewayReusedAnthropicConversationOmitsUnchangedTools(t *testing.T
 
 	require.NotEmpty(t, first["tools"].([]any))
 	require.Equal(t, first["session_id"], second["session_id"])
-	require.Empty(t, second["tools"].([]any))
+	require.NotEmpty(t, second["tools"].([]any))
 	messages := second["messages"].([]any)
-	require.Len(t, messages, 2)
-	require.Equal(t, "assistant", messages[0].(map[string]any)["role"])
+	require.Len(t, messages, 4)
+	require.Equal(t, "system", messages[0].(map[string]any)["role"])
 	require.Equal(t, "user", messages[1].(map[string]any)["role"])
+	require.Equal(t, "assistant", messages[2].(map[string]any)["role"])
+	require.Equal(t, "user", messages[3].(map[string]any)["role"])
 }
 
 func TestQoderGatewayUsageComesFromUpstreamSSE(t *testing.T) {
@@ -708,10 +1283,109 @@ func TestQoderGatewayUsageComesFromUpstreamSSE(t *testing.T) {
 	require.NotEqual(t, len(body), result.Usage.InputTokens)
 }
 
-func TestQoderGatewayConvertsCumulativeUsageToRecordedDeltaOnReusedConversation(t *testing.T) {
+func TestQoderGatewayUsageSplitsCachedPromptTokens(t *testing.T) {
+	usage := qoderUsageFromEvents([]qoder.SSEEvent{qoderCachedUsageEventForTest})
+	require.Equal(t, 25, usage.InputTokens)
+	require.Equal(t, 66612, usage.CacheReadInputTokens)
+	require.Equal(t, 6, usage.OutputTokens)
+	require.Equal(t, 0, usage.CacheCreationInputTokens)
+}
+
+func TestQoderGatewayUsageClampsCachedPromptTokens(t *testing.T) {
+	event := qoderCachedUsageEventForTest
+	promptDetails := *event.UsageDetails.PromptTokensDetails
+	event.UsageDetails.PromptTokensDetails = &promptDetails
+	event.UsageDetails.PromptTokensDetails.CachedTokens = 70000
+	usage := qoderUsageFromEvents([]qoder.SSEEvent{event})
+	require.Equal(t, 0, usage.InputTokens)
+	require.Equal(t, 70000, usage.CacheReadInputTokens)
+}
+
+func TestQoderGatewayUsageKeepsOldBehaviorWhenDetailsMissing(t *testing.T) {
+	event := qoder.SSEEvent{Type: "usage", PromptTokens: 12, CompletionTokens: 34, TotalTokens: 46, HasUsage: true}
+	usage := qoderUsageFromEvents([]qoder.SSEEvent{event})
+	require.Equal(t, 12, usage.InputTokens)
+	require.Equal(t, 0, usage.CacheReadInputTokens)
+	require.Equal(t, 34, usage.OutputTokens)
+}
+
+func TestQoderGatewayBuildsClientVisibleOpenAIUsageWithUpstreamTotals(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	client.body = "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"OK\\\"}}]}\"}\n\n" +
+		qoderCachedUsageSSEForTest +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+	body := []byte(`{"model":"auto","messages":[{"role":"user","content":"hi"}],"stream":false}`)
+
+	result, response := qoderForwardChatCompletionsResultAndBodyForTest(t, svc, account, "", body)
+
+	require.Equal(t, 25, result.Usage.InputTokens)
+	require.Equal(t, 66612, result.Usage.CacheReadInputTokens)
+	require.Equal(t, 6, result.Usage.OutputTokens)
+	require.Equal(t, int64(66637), gjson.Get(response, "usage.prompt_tokens").Int())
+	require.Equal(t, int64(6), gjson.Get(response, "usage.completion_tokens").Int())
+	require.Equal(t, int64(66643), gjson.Get(response, "usage.total_tokens").Int())
+	require.Equal(t, int64(66612), gjson.Get(response, "usage.prompt_tokens_details.cached_tokens").Int())
+	require.Equal(t, int64(19), gjson.Get(response, "usage.prompt_tokens_details.cacheable_tokens").Int())
+	require.Equal(t, int64(0), gjson.Get(response, "usage.completion_tokens_details.reasoning_tokens").Int())
+}
+
+func TestQoderGatewayOpenAIUsageKeepsUpstreamPromptWhenCachedExceedsPrompt(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	client.body = "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"OK\\\"}}]}\"}\n\n" +
+		"data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":10,\\\"completion_tokens\\\":6,\\\"total_tokens\\\":16,\\\"prompt_tokens_details\\\":{\\\"cached_tokens\\\":15,\\\"cacheable_tokens\\\":1}}}\"}\n\n" +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+	body := []byte(`{"model":"auto","messages":[{"role":"user","content":"hi"}],"stream":false}`)
+
+	result, response := qoderForwardChatCompletionsResultAndBodyForTest(t, svc, account, "", body)
+
+	require.Equal(t, 0, result.Usage.InputTokens)
+	require.Equal(t, 15, result.Usage.CacheReadInputTokens)
+	require.Equal(t, int64(10), gjson.Get(response, "usage.prompt_tokens").Int())
+	require.Equal(t, int64(6), gjson.Get(response, "usage.completion_tokens").Int())
+	require.Equal(t, int64(16), gjson.Get(response, "usage.total_tokens").Int())
+	require.Equal(t, int64(15), gjson.Get(response, "usage.prompt_tokens_details.cached_tokens").Int())
+	require.False(t, gjson.Get(response, "usage.cache_creation_input_tokens").Exists())
+}
+
+func TestQoderGatewayOpenAIUsageDerivesTotalFromPromptWhenUpstreamTotalMissing(t *testing.T) {
+	event := qoderCachedUsageEventForTest
+	event.TotalTokens = 0
+	body, err := BuildQoderOpenAICompletion("auto", []qoder.SSEEvent{
+		{Type: "text_delta", Text: "OK"},
+		event,
+		{IsDone: true},
+	})
+	require.NoError(t, err)
+
+	require.Equal(t, int64(66637), gjson.GetBytes(body, "usage.prompt_tokens").Int())
+	require.Equal(t, int64(6), gjson.GetBytes(body, "usage.completion_tokens").Int())
+	require.Equal(t, int64(66643), gjson.GetBytes(body, "usage.total_tokens").Int())
+	require.Equal(t, int64(66612), gjson.GetBytes(body, "usage.prompt_tokens_details.cached_tokens").Int())
+}
+
+func TestQoderGatewayBuildsClientVisibleAnthropicUsageWithCacheRead(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	client.body = "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"OK\\\"}}]}\"}\n\n" +
+		qoderCachedUsageSSEForTest +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+	body := []byte(`{"model":"auto","messages":[{"role":"user","content":"hi"}],"stream":false}`)
+
+	result, response := qoderForwardMessagesResultAndBodyForTest(t, svc, account, body)
+
+	require.Equal(t, 25, result.Usage.InputTokens)
+	require.Equal(t, 66612, result.Usage.CacheReadInputTokens)
+	require.Equal(t, 6, result.Usage.OutputTokens)
+	require.Equal(t, int64(25), gjson.Get(response, "usage.input_tokens").Int())
+	require.Equal(t, int64(66612), gjson.Get(response, "usage.cache_read_input_tokens").Int())
+	require.Equal(t, int64(6), gjson.Get(response, "usage.output_tokens").Int())
+	require.False(t, gjson.Get(response, "usage.cache_creation_input_tokens").Exists())
+}
+
+func TestQoderGatewayDoesNotSubtractPreviousUsageOnFullReplay(t *testing.T) {
 	account, svc, client := newQoderGatewayForwardTestService()
 	firstBody := []byte(`{
 		"model":"deepseek-v4-pro",
+		"prompt_cache_key":"usage-delta-session",
 		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
 		"messages":[{"role":"user","content":"inspect"}],
 		"tools":` + qoderLargeToolsJSONForTest() + `,
@@ -719,6 +1393,7 @@ func TestQoderGatewayConvertsCumulativeUsageToRecordedDeltaOnReusedConversation(
 	}`)
 	secondBody := []byte(`{
 		"model":"deepseek-v4-pro",
+		"prompt_cache_key":"usage-delta-session",
 		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
 		"messages":[
 			{"role":"user","content":"inspect"},
@@ -737,11 +1412,54 @@ func TestQoderGatewayConvertsCumulativeUsageToRecordedDeltaOnReusedConversation(
 	client.body = "data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":10000,\\\"completion_tokens\\\":33,\\\"total_tokens\\\":10033}}\"}\n\n" +
 		"data: {\"body\":\"[DONE]\"}\n\n"
 	secondResult := qoderForwardMessagesResultForTest(t, svc, account, secondBody, qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
-	require.Equal(t, 8800, secondResult.Usage.InputTokens)
-	require.Equal(t, 3, secondResult.Usage.OutputTokens)
+	require.Equal(t, 10000, secondResult.Usage.InputTokens)
+	require.Equal(t, 33, secondResult.Usage.OutputTokens)
 	secondPayload := qoderLastUpstreamPayloadForTest(t, client)
-	require.Empty(t, secondPayload["tools"].([]any))
-	require.Len(t, secondPayload["messages"].([]any), 2)
+	require.NotEmpty(t, secondPayload["tools"].([]any))
+	require.Len(t, secondPayload["messages"].([]any), 4)
+}
+
+func TestQoderGatewayReturnsDeltaUsageToAnthropicClientOnReusedConversation(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	firstBody := []byte(`{
+		"model":"deepseek-v4-pro",
+		"prompt_cache_key":"client-usage-delta-session",
+		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
+		"messages":[{"role":"user","content":"inspect"}],
+		"tools":` + qoderLargeToolsJSONForTest() + `,
+		"stream":false
+	}`)
+	secondBody := []byte(`{
+		"model":"deepseek-v4-pro",
+		"prompt_cache_key":"client-usage-delta-session",
+		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
+		"messages":[
+			{"role":"user","content":"inspect"},
+			{"role":"assistant","content":[{"type":"tool_use","id":"call_1","name":"bash","input":{"cmd":"pwd"}}]},
+			{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":"repo"}]},
+			{"role":"assistant","content":"done"},
+			{"role":"user","content":"continue"}
+		],
+		"tools":` + qoderLargeToolsJSONForTest() + `,
+		"stream":false
+	}`)
+
+	client.body = "data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":1200,\\\"completion_tokens\\\":30,\\\"total_tokens\\\":1230}}\"}\n\n" +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+	firstResult, firstResponse := qoderForwardMessagesResultAndBodyForTest(t, svc, account, firstBody, qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
+	require.Equal(t, 1200, firstResult.Usage.InputTokens)
+	require.Equal(t, int64(1200), gjson.Get(firstResponse, "usage.input_tokens").Int())
+
+	client.body = "data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":10000,\\\"completion_tokens\\\":33,\\\"total_tokens\\\":10033}}\"}\n\n" +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+	secondResult, secondResponse := qoderForwardMessagesResultAndBodyForTest(t, svc, account, secondBody, qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
+	require.Equal(t, 10000, secondResult.Usage.InputTokens)
+	require.Equal(t, 33, secondResult.Usage.OutputTokens)
+	require.Equal(t, int64(10000), gjson.Get(secondResponse, "usage.input_tokens").Int())
+	require.Equal(t, int64(33), gjson.Get(secondResponse, "usage.output_tokens").Int())
+
+	secondPayload := qoderLastUpstreamPayloadForTest(t, client)
+	require.NotEmpty(t, secondPayload["tools"].([]any))
 }
 
 func TestQoderConversationStoreExpiresState(t *testing.T) {
@@ -764,6 +1482,7 @@ func TestQoderGatewayAnthropicToolUseResultSendsIncrementalTail(t *testing.T) {
 	account, svc, _ := newQoderGatewayForwardTestService()
 	first := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
 		"model":"auto",
+		"prompt_cache_key":"anthropic-tool-session",
 		"system":"be useful",
 		"messages":[{"role":"user","content":"inspect"}],
 		"tools":[{"name":"bash","input_schema":{"type":"object"}}],
@@ -771,6 +1490,7 @@ func TestQoderGatewayAnthropicToolUseResultSendsIncrementalTail(t *testing.T) {
 	}`))
 	second := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
 		"model":"auto",
+		"prompt_cache_key":"anthropic-tool-session",
 		"system":"be useful",
 		"messages":[
 			{"role":"user","content":"inspect"},
@@ -782,31 +1502,42 @@ func TestQoderGatewayAnthropicToolUseResultSendsIncrementalTail(t *testing.T) {
 	}`))
 
 	require.Equal(t, first["session_id"], second["session_id"])
+	require.NotEmpty(t, second["tools"].([]any))
 	messages := second["messages"].([]any)
-	require.Len(t, messages, 2)
+	require.Len(t, messages, 4)
 
-	assistant := messages[0].(map[string]any)
+	require.Equal(t, "system", messages[0].(map[string]any)["role"])
+	user := messages[1].(map[string]any)
+	require.Equal(t, "user", user["role"])
+	require.Equal(t, "inspect", qoderPayloadMessageTextForTest(user))
+
+	assistant := messages[2].(map[string]any)
 	require.Equal(t, "assistant", assistant["role"])
 	toolCalls := assistant["tool_calls"].([]any)
 	require.Len(t, toolCalls, 1)
 	require.Equal(t, "call_1", toolCalls[0].(map[string]any)["id"])
 
-	tool := messages[1].(map[string]any)
+	tool := messages[3].(map[string]any)
 	require.Equal(t, "tool", tool["role"])
 	require.Equal(t, "call_1", tool["tool_call_id"])
+	require.Equal(t, "call_1", tool["tool_call_call_id"])
+	require.Equal(t, "bash", tool["name"])
 	require.Equal(t, "repo", tool["content"])
+	require.Equal(t, "inspect", qoderPayloadPromptForTest(t, second))
 }
 
 func TestQoderGatewayOpenAIToolCallsSendIncrementalTail(t *testing.T) {
 	account, svc, _ := newQoderGatewayForwardTestService()
 	first := qoderForwardChatCompletionsForTest(t, svc, account, "", []byte(`{
 		"model":"auto",
+		"prompt_cache_key":"openai-tool-session",
 		"messages":[{"role":"user","content":"run pwd"}],
 		"tools":[{"type":"function","function":{"name":"bash","parameters":{"type":"object"}}}],
 		"stream":false
 	}`))
 	second := qoderForwardChatCompletionsForTest(t, svc, account, "", []byte(`{
 		"model":"auto",
+		"prompt_cache_key":"openai-tool-session",
 		"messages":[
 			{"role":"user","content":"run pwd"},
 			{"role":"assistant","content":"","tool_calls":[{"id":"call_1","type":"function","function":{"name":"bash","arguments":{"cmd":"pwd"}}}]},
@@ -817,14 +1548,134 @@ func TestQoderGatewayOpenAIToolCallsSendIncrementalTail(t *testing.T) {
 	}`))
 
 	require.Equal(t, first["session_id"], second["session_id"])
+	require.NotEmpty(t, second["tools"].([]any))
 	messages := second["messages"].([]any)
-	require.Len(t, messages, 2)
-	assistant := messages[0].(map[string]any)
+	require.Len(t, messages, 3)
+	user := messages[0].(map[string]any)
+	require.Equal(t, "user", user["role"])
+	require.Equal(t, "run pwd", qoderPayloadMessageTextForTest(user))
+	assistant := messages[1].(map[string]any)
 	require.Equal(t, "assistant", assistant["role"])
 	require.Len(t, assistant["tool_calls"].([]any), 1)
-	tool := messages[1].(map[string]any)
+	tool := messages[2].(map[string]any)
 	require.Equal(t, "tool", tool["role"])
 	require.Equal(t, "call_1", tool["tool_call_id"])
+	require.Equal(t, "call_1", tool["tool_call_call_id"])
+	require.Equal(t, "bash", tool["name"])
+	require.Equal(t, "run pwd", qoderPayloadPromptForTest(t, second))
+}
+
+func TestQoderGatewayRepeatedClaudeCodeRequestKeepsNonEmptyIncrementalTail(t *testing.T) {
+	account, svc, _ := newQoderGatewayForwardTestService()
+	body := []byte(`{
+		"model":"glm-5.1",
+		"prompt_cache_key":"repeated-claude-request-session",
+		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
+		"messages":[
+			{"role":"user","content":"inspect"},
+			{"role":"assistant","content":[{"type":"tool_use","id":"call_1","name":"bash","input":{"cmd":"pwd"}}]},
+			{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":"repo"}]},
+			{"role":"assistant","content":"done"},
+			{"role":"user","content":"continue"}
+		],
+		"tools":` + qoderLargeToolsJSONForTest() + `,
+		"stream":false
+	}`)
+
+	first := qoderForwardMessagesForTest(t, svc, account, "", body, qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
+	second := qoderForwardMessagesForTest(t, svc, account, "", body, qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
+
+	require.Equal(t, first["session_id"], second["session_id"])
+	require.NotEmpty(t, second["tools"].([]any))
+	messages := second["messages"].([]any)
+	require.Len(t, messages, 6)
+	require.Equal(t, "system", messages[0].(map[string]any)["role"])
+	require.Equal(t, "user", messages[1].(map[string]any)["role"])
+}
+
+func TestQoderGatewayStreamsDeltaUsageToOpenAIClientOnReusedConversation(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	firstBody := []byte(`{
+		"model":"auto",
+		"prompt_cache_key":"openai-stream-usage-delta-session",
+		"messages":[{"role":"user","content":"run pwd"}],
+		"tools":` + qoderLargeToolsJSONForTest() + `,
+		"stream":true
+	}`)
+	secondBody := []byte(`{
+		"model":"auto",
+		"prompt_cache_key":"openai-stream-usage-delta-session",
+		"messages":[
+			{"role":"user","content":"run pwd"},
+			{"role":"assistant","content":"","tool_calls":[{"id":"call_1","type":"function","function":{"name":"bash","arguments":{"cmd":"pwd"}}}]},
+			{"role":"tool","tool_call_id":"call_1","name":"bash","content":"/repo"},
+			{"role":"assistant","content":"done"},
+			{"role":"user","content":"continue"}
+		],
+		"tools":` + qoderLargeToolsJSONForTest() + `,
+		"stream":true
+	}`)
+
+	client.body = "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"OK\\\"}}]}\"}\n\n" +
+		"data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":1200,\\\"completion_tokens\\\":30,\\\"total_tokens\\\":1230}}\"}\n\n" +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+	firstResult, firstStream := qoderForwardChatCompletionsResultAndBodyForTest(t, svc, account, "", firstBody, qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
+	require.Equal(t, 1200, firstResult.Usage.InputTokens)
+	require.Contains(t, firstStream, `"prompt_tokens":1200`)
+
+	client.body = "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"OK\\\"}}]}\"}\n\n" +
+		"data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":10000,\\\"completion_tokens\\\":33,\\\"total_tokens\\\":10033}}\"}\n\n" +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+	secondResult, secondStream := qoderForwardChatCompletionsResultAndBodyForTest(t, svc, account, "", secondBody, qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
+	secondPayload := qoderLastUpstreamPayloadForTest(t, client)
+	require.NotEmpty(t, secondPayload["tools"].([]any))
+	require.Equal(t, 10000, secondResult.Usage.InputTokens)
+	require.Equal(t, 33, secondResult.Usage.OutputTokens)
+	require.Contains(t, secondStream, `"prompt_tokens":10000`)
+	require.Contains(t, secondStream, `"completion_tokens":33`)
+}
+
+func TestQoderGatewayAnthropicConversationAfterToolResultKeepsReducingPayload(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	largeTools := qoderLargeToolsJSONForTest()
+	first := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
+		"model":"glm-5.1",
+		"prompt_cache_key":"post-tool-reducing-session",
+		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
+		"messages":[{"role":"user","content":"inspect"}],
+		"tools":`+largeTools+`,
+		"stream":false
+	}`), qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
+	second := qoderForwardMessagesForTest(t, svc, account, "", []byte(`{
+		"model":"glm-5.1",
+		"prompt_cache_key":"post-tool-reducing-session",
+		"system":"You are Claude Code, Anthropic's official CLI for Claude.",
+		"messages":[
+			{"role":"user","content":"inspect"},
+			{"role":"assistant","content":[{"type":"tool_use","id":"call_1","name":"bash","input":{"cmd":"pwd"}}]},
+			{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_1","content":"repo"}]},
+			{"role":"assistant","content":"done"},
+			{"role":"user","content":"continue"}
+		],
+		"tools":`+largeTools+`,
+		"stream":false
+	}`), qoderHeader("User-Agent", "claude-cli/2.1.177 (external, cli)"))
+
+	require.Equal(t, first["session_id"], second["session_id"])
+	require.NotEmpty(t, second["tools"].([]any))
+	messages := second["messages"].([]any)
+	require.Len(t, messages, 6)
+	require.Equal(t, "system", messages[0].(map[string]any)["role"])
+	require.Equal(t, "user", messages[1].(map[string]any)["role"])
+	require.Equal(t, "inspect", qoderPayloadMessageTextForTest(messages[1].(map[string]any)))
+	require.Equal(t, "assistant", messages[2].(map[string]any)["role"])
+	require.NotEmpty(t, messages[2].(map[string]any)["tool_calls"].([]any))
+	require.Equal(t, "tool", messages[3].(map[string]any)["role"])
+	require.Equal(t, "call_1", messages[3].(map[string]any)["tool_call_id"])
+	require.Equal(t, "assistant", messages[4].(map[string]any)["role"])
+	require.Equal(t, "user", messages[5].(map[string]any)["role"])
+
+	require.GreaterOrEqual(t, len(client.bodyAt(1)), len(client.bodyAt(0)))
 }
 
 func TestQoderGatewayWritesOpenAIStream(t *testing.T) {
@@ -872,6 +1723,29 @@ func TestQoderGatewayWritesOpenAIToolCallsStream(t *testing.T) {
 	require.Contains(t, body, `"name":"bash"`)
 	require.Contains(t, body, `"arguments":"{\"cmd\":"`)
 	require.Contains(t, body, `"arguments":"\"pwd\"}"`)
+	require.Contains(t, body, `"finish_reason":"tool_calls"`)
+}
+
+func TestQoderGatewayWritesOpenAIToolCallsStreamSkipsEmptyArgumentPlaceholder(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	events := []qoder.SSEEvent{
+		{Type: "tool_call_delta", ToolCallIndex: 0, HasToolCallIndex: true, ToolCallID: "call_1", ToolType: "function", ToolName: "Bash", Arguments: `{}`},
+		{Type: "tool_call_delta", ToolCallIndex: 0, HasToolCallIndex: true, ToolCallID: "call_1", Arguments: `{"command":"pwd"}`},
+		{IsDone: true},
+	}
+
+	err := WriteQoderOpenAIStream(c, "auto", events)
+	require.NoError(t, err)
+
+	body := rec.Body.String()
+	require.Contains(t, body, `"tool_calls"`)
+	require.Contains(t, body, `"name":"Bash"`)
+	require.Contains(t, body, `"arguments":"{\"command\":\"pwd\"}"`)
+	require.NotContains(t, body, `"arguments":"{}"`)
+	require.NotContains(t, body, `"arguments":"{}{\"command\"`)
 	require.Contains(t, body, `"finish_reason":"tool_calls"`)
 }
 
@@ -932,6 +1806,74 @@ func TestQoderGatewayWritesOpenAIToolCallsStreamKeepsParallelCallIndexes(t *test
 	require.Equal(t, `{"path":"b"}`, toolDeltas[3]["function"].(map[string]any)["arguments"])
 }
 
+func TestQoderGatewayWritesOpenAIToolCallsStreamDropsAmbiguousParallelArgumentDelta(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	events := []qoder.SSEEvent{
+		{Type: "tool_call_delta", ToolCallIndex: 0, HasToolCallIndex: true, ToolCallID: "call_1", ToolType: "function", ToolName: "read"},
+		{Type: "tool_call_delta", ToolCallIndex: 1, HasToolCallIndex: true, ToolCallID: "call_2", ToolType: "function", ToolName: "write"},
+		{Type: "tool_call_delta", Arguments: `{"path":"lost"}`},
+		{IsDone: true},
+	}
+
+	err := WriteQoderOpenAIStream(c, "auto", events)
+	require.NoError(t, err)
+
+	body := rec.Body.String()
+	require.Contains(t, body, `"id":"call_1"`)
+	require.Contains(t, body, `"id":"call_2"`)
+	require.NotContains(t, body, "lost")
+	require.NotContains(t, body, `"index":2`)
+	require.Contains(t, body, `"finish_reason":"tool_calls"`)
+}
+
+func TestQoderGatewayWritesOpenAIStreamParsesXMLTextToolCall(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	events := []qoder.SSEEvent{
+		{Type: "text_delta", Text: qoderXMLToolCallFixture},
+		{IsDone: true},
+	}
+
+	err := WriteQoderOpenAIStream(c, "auto", events)
+	require.NoError(t, err)
+
+	body := rec.Body.String()
+	require.Contains(t, body, `"tool_calls"`)
+	require.Contains(t, body, `"name":"Read"`)
+	require.Contains(t, body, `"arguments":"{\"file_path\":\"/Users/zzw/project/campus-navigation/README.md\"}"`)
+	require.Contains(t, body, `"finish_reason":"tool_calls"`)
+	require.NotContains(t, body, "<tool_call>")
+	require.NotContains(t, body, "arg_key")
+	require.NotContains(t, body, "arg_value")
+}
+
+func TestQoderGatewayWritesOpenAIStreamParsesDSMLTextToolCall(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	events := []qoder.SSEEvent{
+		{Type: "text_delta", Text: qoderDSMLToolCallFixture},
+		{IsDone: true},
+	}
+
+	err := WriteQoderOpenAIStream(c, "auto", events)
+	require.NoError(t, err)
+
+	body := rec.Body.String()
+	require.Contains(t, body, `"tool_calls"`)
+	require.Contains(t, body, `"name":"Bash"`)
+	require.Contains(t, body, `"arguments":"{\"command\":\"ls -la\",\"description\":\"List root files\"}"`)
+	require.Contains(t, body, `"finish_reason":"tool_calls"`)
+	require.NotContains(t, body, "DSML")
+	require.NotContains(t, body, "invoke")
+}
+
 func TestQoderGatewayWritesAnthropicStream(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
@@ -949,11 +1891,80 @@ func TestQoderGatewayWritesAnthropicStream(t *testing.T) {
 	body := rec.Body.String()
 	require.Contains(t, body, "event: message_start")
 	require.Contains(t, body, "event: content_block_delta")
-	require.NotContains(t, body, `"type":"thinking"`)
-	require.NotContains(t, body, `"type":"thinking_delta"`)
-	require.NotContains(t, body, `"thinking":"hidden thought"`)
+	require.Contains(t, body, `"type":"thinking"`)
+	require.Contains(t, body, `"type":"thinking_delta"`)
+	require.Contains(t, body, `"thinking":"hidden thought"`)
 	require.Contains(t, body, `"text":"Hi"`)
 	require.Contains(t, body, "event: message_stop")
+}
+
+func TestQoderGatewayWritesAnthropicStreamParsesXMLTextToolCall(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	events := []qoder.SSEEvent{
+		{Type: "text_delta", Text: qoderXMLToolCallFixture},
+		{IsDone: true},
+	}
+
+	err := WriteQoderAnthropicStream(c, "claude-opus-4-6", events)
+	require.NoError(t, err)
+
+	body := rec.Body.String()
+	require.Contains(t, body, `"type":"tool_use"`)
+	require.Contains(t, body, `"name":"Read"`)
+	require.Contains(t, body, `"type":"input_json_delta"`)
+	require.Contains(t, body, `"partial_json":"{\"file_path\":\"/Users/zzw/project/campus-navigation/README.md\"}"`)
+	require.Contains(t, body, `"stop_reason":"tool_use"`)
+	require.NotContains(t, body, "<tool_call>")
+	require.NotContains(t, body, "arg_key")
+	require.NotContains(t, body, "arg_value")
+}
+
+func TestQoderGatewayWritesAnthropicStreamParsesDSMLTextToolCall(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	events := []qoder.SSEEvent{
+		{Type: "text_delta", Text: qoderDSMLToolCallFixture},
+		{IsDone: true},
+	}
+
+	err := WriteQoderAnthropicStream(c, "claude-opus-4-6", events)
+	require.NoError(t, err)
+
+	body := rec.Body.String()
+	require.Contains(t, body, `"type":"tool_use"`)
+	require.Contains(t, body, `"name":"Bash"`)
+	require.Contains(t, body, `"partial_json":"{\"command\":\"ls -la\",\"description\":\"List root files\"}"`)
+	require.Contains(t, body, `"stop_reason":"tool_use"`)
+	require.NotContains(t, body, "DSML")
+	require.NotContains(t, body, "invoke")
+}
+
+func TestQoderGatewayWritesAnthropicStreamParsesJSONTextToolCall(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	events := []qoder.SSEEvent{
+		{Type: "text_delta", Text: qoderJSONShellToolCallFixture},
+		{IsDone: true},
+	}
+
+	err := WriteQoderAnthropicStream(c, "claude-opus-4-6", events)
+	require.NoError(t, err)
+
+	body := rec.Body.String()
+	require.Contains(t, body, `"type":"tool_use"`)
+	require.Contains(t, body, `"name":"Bash"`)
+	require.Contains(t, body, `"type":"input_json_delta"`)
+	require.Contains(t, body, `"partial_json":"{\"command\":\"pwd\",\"description\":\"Print working directory\"}"`)
+	require.Contains(t, body, `"stop_reason":"tool_use"`)
+	require.NotContains(t, body, `"name":"{\"name\"`)
+	require.NotContains(t, body, "No such tool")
 }
 
 func TestQoderGatewayWritesAnthropicToolUseStream(t *testing.T) {
@@ -1089,9 +2100,32 @@ func TestQoderGatewayAssemblesNonStreamingChatCompletionWithToolCalls(t *testing
 	require.NoError(t, err)
 
 	require.Equal(t, "tool_calls", gjson.GetBytes(body, "choices.0.finish_reason").String())
+	require.True(t, gjson.GetBytes(body, "choices.0.message.content").Exists())
+	require.Equal(t, gjson.Null, gjson.GetBytes(body, "choices.0.message.content").Type)
 	require.Equal(t, "call_1", gjson.GetBytes(body, "choices.0.message.tool_calls.0.id").String())
 	require.Equal(t, "bash", gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.name").String())
 	require.JSONEq(t, `{"cmd":"pwd"}`, gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.arguments").String())
+}
+
+func TestQoderGatewayAssemblesNonStreamingChatCompletionMapsToolNameToDeclaredOpenAITool(t *testing.T) {
+	events := []qoder.SSEEvent{
+		{Type: "tool_call_delta", ToolCallIndex: 0, HasToolCallIndex: true, ToolCallID: "call_1", ToolType: "function", ToolName: "Bash", Arguments: `{"command":"pwd"}`},
+		{IsDone: true},
+	}
+	tools := []any{map[string]any{
+		"type": "function",
+		"function": map[string]any{
+			"name":       "bash",
+			"parameters": map[string]any{"type": "object"},
+		},
+	}}
+
+	body, err := BuildQoderOpenAICompletion("auto", events, qoderDeclaredToolNameMapper(tools))
+	require.NoError(t, err)
+
+	require.Equal(t, "tool_calls", gjson.GetBytes(body, "choices.0.finish_reason").String())
+	require.Equal(t, "bash", gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.name").String())
+	require.JSONEq(t, `{"command":"pwd"}`, gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.arguments").String())
 }
 
 func TestQoderGatewayAssemblesNonStreamingChatCompletionMergesIndexDriftForSameCall(t *testing.T) {
@@ -1133,7 +2167,119 @@ func TestQoderGatewayAssemblesNonStreamingChatCompletionKeepsParallelCallIndexes
 	require.JSONEq(t, `{"path":"b"}`, gjson.GetBytes(body, "choices.0.message.tool_calls.1.function.arguments").String())
 }
 
-func TestQoderGatewayAssemblesNonStreamingAnthropicMessageIgnoresThinking(t *testing.T) {
+func TestQoderGatewayDoesNotAttachAmbiguousArgumentDeltaToParallelToolCall(t *testing.T) {
+	events := []qoder.SSEEvent{
+		{Type: "tool_call_delta", ToolCallIndex: 0, HasToolCallIndex: true, ToolCallID: "call_1", ToolType: "function", ToolName: "read"},
+		{Type: "tool_call_delta", ToolCallIndex: 1, HasToolCallIndex: true, ToolCallID: "call_2", ToolType: "function", ToolName: "write"},
+		{Type: "tool_call_delta", Arguments: `{"path":"lost"}`},
+		{IsDone: true},
+	}
+
+	body, err := BuildQoderOpenAICompletion("auto", events)
+	require.NoError(t, err)
+
+	require.Equal(t, "tool_calls", gjson.GetBytes(body, "choices.0.finish_reason").String())
+	require.Equal(t, int64(2), gjson.GetBytes(body, "choices.0.message.tool_calls.#").Int())
+	require.Equal(t, "call_1", gjson.GetBytes(body, "choices.0.message.tool_calls.0.id").String())
+	require.Equal(t, "read", gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.name").String())
+	require.Empty(t, gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.arguments").String())
+	require.Equal(t, "call_2", gjson.GetBytes(body, "choices.0.message.tool_calls.1.id").String())
+	require.Equal(t, "write", gjson.GetBytes(body, "choices.0.message.tool_calls.1.function.name").String())
+	require.Empty(t, gjson.GetBytes(body, "choices.0.message.tool_calls.1.function.arguments").String())
+	require.NotContains(t, string(body), "lost")
+}
+
+func TestQoderGatewayAssemblesNonStreamingChatCompletionParsesXMLTextToolCall(t *testing.T) {
+	events := []qoder.SSEEvent{
+		{Type: "text_delta", Text: qoderXMLToolCallFixture},
+		{IsDone: true},
+	}
+
+	body, err := BuildQoderOpenAICompletion("auto", events)
+	require.NoError(t, err)
+
+	require.Equal(t, "tool_calls", gjson.GetBytes(body, "choices.0.finish_reason").String())
+	require.Equal(t, gjson.Null, gjson.GetBytes(body, "choices.0.message.content").Type)
+	require.Equal(t, "Read", gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.name").String())
+	require.JSONEq(t, `{"file_path":"/Users/zzw/project/campus-navigation/README.md"}`, gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.arguments").String())
+	require.NotContains(t, string(body), "<tool_call>")
+	require.NotContains(t, string(body), "arg_key")
+	require.NotContains(t, string(body), "arg_value")
+}
+
+func TestQoderGatewayAssemblesNonStreamingChatCompletionParsesJSONTextToolCall(t *testing.T) {
+	events := []qoder.SSEEvent{
+		{Type: "text_delta", Text: qoderJSONShellToolCallFixture},
+		{IsDone: true},
+	}
+
+	body, err := BuildQoderOpenAICompletion("auto", events)
+	require.NoError(t, err)
+
+	require.Equal(t, "tool_calls", gjson.GetBytes(body, "choices.0.finish_reason").String())
+	require.Equal(t, gjson.Null, gjson.GetBytes(body, "choices.0.message.content").Type)
+	require.NotContains(t, gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.name").String(), "{")
+	require.Equal(t, "Bash", gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.name").String())
+	require.JSONEq(t, `{"command":"pwd","description":"Print working directory"}`, gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.arguments").String())
+}
+
+func TestQoderGatewayAssemblesNonStreamingChatCompletionParsesDSMLTextToolCall(t *testing.T) {
+	events := []qoder.SSEEvent{
+		{Type: "text_delta", Text: qoderDSMLToolCallFixture},
+		{IsDone: true},
+	}
+
+	body, err := BuildQoderOpenAICompletion("auto", events)
+	require.NoError(t, err)
+
+	require.Equal(t, "tool_calls", gjson.GetBytes(body, "choices.0.finish_reason").String())
+	require.Equal(t, gjson.Null, gjson.GetBytes(body, "choices.0.message.content").Type)
+	require.Equal(t, "Bash", gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.name").String())
+	require.JSONEq(t, `{"command":"ls -la","description":"List root files"}`, gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.arguments").String())
+	require.NotContains(t, string(body), "DSML")
+	require.NotContains(t, string(body), "invoke")
+}
+
+func TestQoderGatewayAssemblesNonStreamingChatCompletionParsesSplitXMLTextToolCall(t *testing.T) {
+	events := []qoder.SSEEvent{
+		{Type: "text_delta", Text: "<tool_"},
+		{Type: "text_delta", Text: "call>Re"},
+		{Type: "text_delta", Text: "ad<arg_value><arg_key>file_path</arg_key>"},
+		{Type: "text_delta", Text: "<arg_value>/Users/zzw/project/campus-navigation/README.md</arg_value></tool_call>"},
+		{IsDone: true},
+	}
+
+	body, err := BuildQoderOpenAICompletion("auto", events)
+	require.NoError(t, err)
+
+	require.Equal(t, "tool_calls", gjson.GetBytes(body, "choices.0.finish_reason").String())
+	require.Equal(t, "Read", gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.name").String())
+	require.JSONEq(t, `{"file_path":"/Users/zzw/project/campus-navigation/README.md"}`, gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.arguments").String())
+	require.NotContains(t, string(body), "<tool_call>")
+	require.NotContains(t, string(body), "arg_key")
+	require.NotContains(t, string(body), "arg_value")
+}
+
+func TestQoderGatewayAssemblesNonStreamingChatCompletionKeepsMixedXMLToolText(t *testing.T) {
+	events := []qoder.SSEEvent{
+		{Type: "text_delta", Text: "I will inspect it.\n"},
+		{Type: "text_delta", Text: qoderXMLToolCallFixture},
+		{Type: "text_delta", Text: "\nWaiting for result."},
+		{IsDone: true},
+	}
+
+	body, err := BuildQoderOpenAICompletion("auto", events)
+	require.NoError(t, err)
+
+	require.Equal(t, "tool_calls", gjson.GetBytes(body, "choices.0.finish_reason").String())
+	require.Equal(t, "I will inspect it.\n\nWaiting for result.", gjson.GetBytes(body, "choices.0.message.content").String())
+	require.Equal(t, "Read", gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.name").String())
+	require.NotContains(t, string(body), "<tool_call>")
+	require.NotContains(t, string(body), "arg_key")
+	require.NotContains(t, string(body), "arg_value")
+}
+
+func TestQoderGatewayAssemblesNonStreamingAnthropicMessageWithThinking(t *testing.T) {
 	events := []qoder.SSEEvent{
 		{Type: "reasoning_delta", Text: "hidden thought"},
 		{Type: "text_delta", Text: "Hi"},
@@ -1147,8 +2293,11 @@ func TestQoderGatewayAssemblesNonStreamingAnthropicMessageIgnoresThinking(t *tes
 	var decoded map[string]any
 	require.NoError(t, json.Unmarshal(body, &decoded))
 	content := decoded["content"].([]any)
-	require.Len(t, content, 1)
-	textBlock := content[0].(map[string]any)
+	require.Len(t, content, 2)
+	thinkingBlock := content[0].(map[string]any)
+	require.Equal(t, "thinking", thinkingBlock["type"])
+	require.Equal(t, "hidden thought", thinkingBlock["thinking"])
+	textBlock := content[1].(map[string]any)
 	require.Equal(t, "Hi", textBlock["text"])
 	usage := decoded["usage"].(map[string]any)
 	require.Equal(t, float64(12), usage["input_tokens"])
@@ -1172,6 +2321,59 @@ func TestQoderGatewayAssemblesNonStreamingAnthropicMessageWithToolUse(t *testing
 	require.Equal(t, "pwd", gjson.GetBytes(body, "content.0.input.cmd").String())
 }
 
+func TestQoderGatewayAssemblesNonStreamingAnthropicMessageParsesXMLTextToolCall(t *testing.T) {
+	events := []qoder.SSEEvent{
+		{Type: "text_delta", Text: qoderXMLToolCallFixture},
+		{IsDone: true},
+	}
+
+	body, err := BuildQoderAnthropicMessage("claude-opus-4-6", events)
+	require.NoError(t, err)
+
+	require.Equal(t, "tool_use", gjson.GetBytes(body, "stop_reason").String())
+	require.Equal(t, "tool_use", gjson.GetBytes(body, "content.0.type").String())
+	require.Equal(t, "Read", gjson.GetBytes(body, "content.0.name").String())
+	require.Equal(t, "/Users/zzw/project/campus-navigation/README.md", gjson.GetBytes(body, "content.0.input.file_path").String())
+	require.NotContains(t, string(body), "<tool_call>")
+	require.NotContains(t, string(body), "arg_key")
+	require.NotContains(t, string(body), "arg_value")
+}
+
+func TestQoderGatewayAssemblesNonStreamingAnthropicMessageParsesJSONTextToolCall(t *testing.T) {
+	events := []qoder.SSEEvent{
+		{Type: "text_delta", Text: qoderJSONShellToolCallFixture},
+		{IsDone: true},
+	}
+
+	body, err := BuildQoderAnthropicMessage("claude-opus-4-6", events)
+	require.NoError(t, err)
+
+	require.Equal(t, "tool_use", gjson.GetBytes(body, "stop_reason").String())
+	require.Equal(t, "tool_use", gjson.GetBytes(body, "content.0.type").String())
+	require.Equal(t, "Bash", gjson.GetBytes(body, "content.0.name").String())
+	require.Equal(t, "pwd", gjson.GetBytes(body, "content.0.input.command").String())
+	require.Equal(t, "Print working directory", gjson.GetBytes(body, "content.0.input.description").String())
+	require.NotContains(t, string(body), `"name":"{\"name\"`)
+}
+
+func TestQoderGatewayAssemblesNonStreamingAnthropicMessageParsesDSMLTextToolCall(t *testing.T) {
+	events := []qoder.SSEEvent{
+		{Type: "text_delta", Text: qoderDSMLToolCallFixture},
+		{IsDone: true},
+	}
+
+	body, err := BuildQoderAnthropicMessage("claude-opus-4-6", events)
+	require.NoError(t, err)
+
+	require.Equal(t, "tool_use", gjson.GetBytes(body, "stop_reason").String())
+	require.Equal(t, "tool_use", gjson.GetBytes(body, "content.0.type").String())
+	require.Equal(t, "Bash", gjson.GetBytes(body, "content.0.name").String())
+	require.Equal(t, "ls -la", gjson.GetBytes(body, "content.0.input.command").String())
+	require.Equal(t, "List root files", gjson.GetBytes(body, "content.0.input.description").String())
+	require.NotContains(t, string(body), "DSML")
+	require.NotContains(t, string(body), "invoke")
+}
+
 func TestQoderGatewayReadsWrappedSSE(t *testing.T) {
 	resp := &http.Response{
 		Body: io.NopCloser(bytes.NewBufferString(
@@ -1193,6 +2395,48 @@ func TestQoderGatewayReadsWrappedSSE(t *testing.T) {
 	require.Equal(t, 3, events[2].PromptTokens)
 	require.Equal(t, 4, events[2].CompletionTokens)
 	require.True(t, events[3].IsDone)
+}
+
+func TestQoderGatewayScannerStopsWhenResultSendIsCanceled(t *testing.T) {
+	line := "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"Hi\\\"}}]}\"}\n\n"
+	resp := &http.Response{Body: io.NopCloser(strings.NewReader(strings.Repeat(line, 10)))}
+	ctx, cancel := context.WithCancel(context.Background())
+	results := make(chan qoderEventResult, 1)
+	done := make(chan struct{})
+
+	go func() {
+		scanQoderEvents(ctx, resp, results)
+		close(done)
+	}()
+
+	select {
+	case <-results:
+	case <-time.After(time.Second):
+		t.Fatal("scanner did not emit first event")
+	}
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("scanner goroutine did not exit after context cancellation")
+	}
+}
+
+func TestQoderGatewayNonStreamingKeepaliveKeepsJSONParseable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	keepalive := qoderNonStreamingKeepalive(c)
+	require.NotNil(t, keepalive)
+	require.NoError(t, keepalive())
+	c.Data(http.StatusOK, "application/json; charset=utf-8", []byte(`{"ok":true}`))
+
+	require.True(t, json.Valid(rec.Body.Bytes()))
+	require.Equal(t, "\n{\"ok\":true}", rec.Body.String())
+	require.Equal(t, "no-cache", rec.Header().Get("Cache-Control"))
+	require.Equal(t, "no", rec.Header().Get("X-Accel-Buffering"))
 }
 
 func TestQoderGatewayReadsWrappedSSEUpstreamError(t *testing.T) {
@@ -1357,7 +2601,7 @@ func TestQoderGatewayStreamsResponseWithoutPrebuffering(t *testing.T) {
 		)),
 	}
 
-	result, err := WriteQoderOpenAIStreamResponse(c, "auto", resp)
+	result, err := WriteQoderOpenAIStreamResponse(context.Background(), c, "auto", resp)
 	require.NoError(t, err)
 	require.Equal(t, ClaudeUsage{}, result.Usage)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -1367,7 +2611,67 @@ func TestQoderGatewayStreamsResponseWithoutPrebuffering(t *testing.T) {
 	require.Contains(t, rec.Body.String(), "data: [DONE]\n\n")
 }
 
-func TestQoderGatewayStreamsAnthropicResponseIgnoresThinking(t *testing.T) {
+func TestQoderGatewayStreamsOpenAIResponseParsesXMLTextToolCall(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewBufferString(
+			qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+				map[string]any{"delta": map[string]any{"content": qoderXMLToolCallFixture}},
+			}}) +
+				"data: {\"body\":\"[DONE]\"}\n\n",
+		)),
+	}
+
+	result, err := WriteQoderOpenAIStreamResponse(context.Background(), c, "auto", resp)
+	require.NoError(t, err)
+	require.Equal(t, ClaudeUsage{}, result.Usage)
+
+	body := rec.Body.String()
+	require.Contains(t, body, `"tool_calls"`)
+	require.Contains(t, body, `"name":"Read"`)
+	require.Contains(t, body, `"arguments":"{\"file_path\":\"/Users/zzw/project/campus-navigation/README.md\"}"`)
+	require.Contains(t, body, `"finish_reason":"tool_calls"`)
+	require.NotContains(t, body, "<tool_call>")
+	require.NotContains(t, body, "arg_key")
+	require.NotContains(t, body, "arg_value")
+}
+
+func TestQoderGatewayStreamsOpenAIResponseMapsToolNameToDeclaredOpenAITool(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewBufferString(
+			qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+				map[string]any{"delta": map[string]any{"tool_calls": []any{
+					map[string]any{"index": 0, "id": "call_1", "type": "function", "function": map[string]any{"name": "Bash", "arguments": `{"command":"pwd"}`}},
+				}}},
+			}}) +
+				"data: {\"body\":\"[DONE]\"}\n\n",
+		)),
+	}
+	tools := []any{map[string]any{
+		"type": "function",
+		"function": map[string]any{
+			"name":       "bash",
+			"parameters": map[string]any{"type": "object"},
+		},
+	}}
+
+	result, err := WriteQoderOpenAIStreamResponse(context.Background(), c, "auto", resp, qoderOpenAIStreamToolNameMapper(qoderDeclaredToolNameMapper(tools)))
+	require.NoError(t, err)
+	require.Equal(t, ClaudeUsage{}, result.Usage)
+
+	body := rec.Body.String()
+	require.Contains(t, body, `"tool_calls"`)
+	require.Contains(t, body, `"name":"bash"`)
+	require.NotContains(t, body, `"name":"Bash"`)
+	require.Contains(t, body, `"finish_reason":"tool_calls"`)
+}
+
+func TestQoderGatewayStreamsAnthropicResponseMapsThinking(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1379,18 +2683,190 @@ func TestQoderGatewayStreamsAnthropicResponseIgnoresThinking(t *testing.T) {
 		)),
 	}
 
-	result, err := WriteQoderAnthropicStreamResponse(c, "claude-opus-4-6", resp)
+	result, err := WriteQoderAnthropicStreamResponse(context.Background(), c, "claude-opus-4-6", resp)
 	require.NoError(t, err)
 	require.Equal(t, ClaudeUsage{}, result.Usage)
 	require.Equal(t, http.StatusOK, rec.Code)
 	body := rec.Body.String()
 	require.Contains(t, body, "event: message_start")
 	require.Contains(t, body, "event: content_block_delta")
-	require.NotContains(t, body, `"type":"thinking"`)
-	require.NotContains(t, body, `"type":"thinking_delta"`)
-	require.NotContains(t, body, `"thinking":"hidden thought"`)
+	require.Contains(t, body, `"type":"thinking"`)
+	require.Contains(t, body, `"type":"thinking_delta"`)
+	require.Contains(t, body, `"thinking":"hidden thought"`)
 	require.Contains(t, body, `"text":"Hi"`)
 	require.Contains(t, body, "event: message_stop")
+}
+
+func TestQoderGatewayStreamsAnthropicResponseParsesXMLTextToolCall(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewBufferString(
+			qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+				map[string]any{"delta": map[string]any{"content": "<tool_call>Re"}},
+			}}) +
+				qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+					map[string]any{"delta": map[string]any{"content": "ad<arg_value><arg_key>file_path</arg_key><arg_value>/Users/zzw/project/campus-navigation/README.md</arg_value></tool_call>"}},
+				}}) +
+				"data: {\"body\":\"[DONE]\"}\n\n",
+		)),
+	}
+
+	result, err := WriteQoderAnthropicStreamResponse(context.Background(), c, "claude-opus-4-6", resp)
+	require.NoError(t, err)
+	require.Equal(t, ClaudeUsage{}, result.Usage)
+
+	body := rec.Body.String()
+	require.Contains(t, body, `"type":"tool_use"`)
+	require.Contains(t, body, `"name":"Read"`)
+	require.Contains(t, body, `"partial_json":"{\"file_path\":\"/Users/zzw/project/campus-navigation/README.md\"}"`)
+	require.Contains(t, body, `"stop_reason":"tool_use"`)
+	require.NotContains(t, body, "<tool_call>")
+	require.NotContains(t, body, "arg_key")
+	require.NotContains(t, body, "arg_value")
+}
+
+func TestQoderGatewayStreamsAnthropicResponseMapsFlatToolCallInput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewBufferString(
+			qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+				map[string]any{"delta": map[string]any{"tool_calls": []any{
+					map[string]any{"tool_call_id": "call_1", "name": "Bash", "arguments": map[string]any{"command": "pwd"}},
+				}}},
+			}}) +
+				"data: {\"body\":\"[DONE]\"}\n\n",
+		)),
+	}
+
+	result, err := WriteQoderAnthropicStreamResponse(context.Background(), c, "claude-opus-4-6", resp)
+	require.NoError(t, err)
+	require.Equal(t, ClaudeUsage{}, result.Usage)
+
+	streamEvents := qoderAnthropicStreamEventsForTest(t, rec.Body.String())
+	var toolStart map[string]any
+	var partialJSON string
+	for _, event := range streamEvents {
+		switch event.Event {
+		case "content_block_start":
+			block, _ := event.Data["content_block"].(map[string]any)
+			if block["type"] == "tool_use" {
+				toolStart = block
+			}
+		case "content_block_delta":
+			delta, _ := event.Data["delta"].(map[string]any)
+			if delta["type"] == "input_json_delta" {
+				partialJSON += delta["partial_json"].(string)
+			}
+		}
+	}
+	require.NotNil(t, toolStart)
+	require.Equal(t, "call_1", toolStart["id"])
+	require.Equal(t, "Bash", toolStart["name"])
+	require.JSONEq(t, `{"command":"pwd"}`, partialJSON)
+	require.Contains(t, rec.Body.String(), `"stop_reason":"tool_use"`)
+}
+
+func TestQoderGatewayStreamsAnthropicResponseReplacesEmptyToolArguments(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewBufferString(
+			qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+				map[string]any{"delta": map[string]any{"tool_calls": []any{
+					map[string]any{"id": "call_1", "type": "function", "function": map[string]any{"name": "Bash", "arguments": "{}"}},
+				}}},
+			}}) +
+				qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+					map[string]any{"delta": map[string]any{"tool_calls": []any{
+						map[string]any{"id": "call_1", "type": "function", "function": map[string]any{"arguments": map[string]any{"command": "pwd", "description": "Print working directory"}}},
+					}}},
+				}}) +
+				"data: {\"body\":\"[DONE]\"}\n\n",
+		)),
+	}
+
+	result, err := WriteQoderAnthropicStreamResponse(context.Background(), c, "claude-opus-4-6", resp)
+	require.NoError(t, err)
+	require.Equal(t, ClaudeUsage{}, result.Usage)
+
+	body := rec.Body.String()
+	require.Contains(t, body, `"type":"input_json_delta"`)
+	require.Contains(t, body, `"partial_json":"{\"command\":\"pwd\",\"description\":\"Print working directory\"}"`)
+	require.NotContains(t, body, `"partial_json":"{}{\"command\"`)
+}
+
+func TestQoderGatewayStreamsAnthropicResponseCompletesEmptyContentBlock(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewBufferString(
+			"data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":8,\\\"completion_tokens\\\":0,\\\"total_tokens\\\":8}}\"}\n\n" +
+				"data: {\"body\":\"[DONE]\"}\n\n",
+		)),
+	}
+
+	result, err := WriteQoderAnthropicStreamResponse(context.Background(), c, "claude-opus-4-6", resp)
+	require.NoError(t, err)
+	require.Equal(t, 8, result.Usage.InputTokens)
+
+	body := rec.Body.String()
+	require.Contains(t, body, "event: message_start")
+	require.Contains(t, body, "event: content_block_start")
+	require.Contains(t, body, `"content_block":{"text":"","type":"text"}`)
+	require.Contains(t, body, "event: content_block_stop")
+	require.Contains(t, body, `"stop_reason":"end_turn"`)
+	require.Contains(t, body, "event: message_stop")
+}
+
+func TestQoderGatewayStreamsAnthropicResponseCompletesOnEOFWithoutDone(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewBufferString(
+			"data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":8,\\\"completion_tokens\\\":0,\\\"total_tokens\\\":8}}\"}\n\n",
+		)),
+	}
+
+	result, err := WriteQoderAnthropicStreamResponse(context.Background(), c, "claude-opus-4-6", resp)
+	require.NoError(t, err)
+	require.Equal(t, 8, result.Usage.InputTokens)
+
+	body := rec.Body.String()
+	require.Contains(t, body, "event: message_start")
+	require.Contains(t, body, "event: content_block_start")
+	require.Contains(t, body, `"content_block":{"text":"","type":"text"}`)
+	require.Contains(t, body, "event: content_block_stop")
+	require.Contains(t, body, "event: message_delta")
+	require.Contains(t, body, `"stop_reason":"end_turn"`)
+	require.Contains(t, body, "event: message_stop")
+	require.Equal(t, 1, strings.Count(body, "event: message_stop"))
+}
+
+func TestQoderGatewayWritesAnthropicStreamNormalizesExecuteBashToolCall(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	events := []qoder.SSEEvent{
+		{Type: "tool_call_delta", ToolCallID: "call_1", ToolName: "execute_bash", Arguments: `{"cmd":"pwd"}`},
+		{IsDone: true},
+	}
+
+	err := WriteQoderAnthropicStream(c, "auto", events)
+	require.NoError(t, err)
+
+	body := rec.Body.String()
+	require.Contains(t, body, `"type":"tool_use"`)
+	require.Contains(t, body, `"name":"Bash"`)
+	require.Contains(t, body, `"partial_json":"{\"command\":\"pwd\"}"`)
+	require.NotContains(t, body, `"name":"execute_bash"`)
 }
 
 func TestQoderGatewayStreamsOpenAIUsageForBillingAndClient(t *testing.T) {
@@ -1405,7 +2881,7 @@ func TestQoderGatewayStreamsOpenAIUsageForBillingAndClient(t *testing.T) {
 		)),
 	}
 
-	result, err := WriteQoderOpenAIStreamResponse(c, "auto", resp)
+	result, err := WriteQoderOpenAIStreamResponse(context.Background(), c, "auto", resp)
 
 	require.NoError(t, err)
 	require.Equal(t, 5, result.Usage.InputTokens)
@@ -1430,7 +2906,7 @@ func TestQoderGatewayStreamsAnthropicUsageForBillingAndClient(t *testing.T) {
 		)),
 	}
 
-	result, err := WriteQoderAnthropicStreamResponse(c, "claude-opus-4-6", resp)
+	result, err := WriteQoderAnthropicStreamResponse(context.Background(), c, "claude-opus-4-6", resp)
 
 	require.NoError(t, err)
 	require.Equal(t, 8, result.Usage.InputTokens)
@@ -1460,6 +2936,42 @@ func qoderOpenAIStreamChunksForTest(t *testing.T, stream string) [][]byte {
 		}
 	}
 	return chunks
+}
+
+func qoderWrappedSSELineForTest(t *testing.T, inner map[string]any) string {
+	t.Helper()
+	body, err := json.Marshal(inner)
+	require.NoError(t, err)
+	wrapper, err := json.Marshal(map[string]string{"body": string(body)})
+	require.NoError(t, err)
+	return "data: " + string(wrapper) + "\n\n"
+}
+
+func qoderPayloadPromptForTest(t *testing.T, payload map[string]any) string {
+	t.Helper()
+	chatContext := payload["chat_context"].(map[string]any)
+	text := chatContext["text"].(map[string]any)
+	return text["text"].(string)
+}
+
+func qoderPayloadMessageTextForTest(msg map[string]any) string {
+	if msg == nil {
+		return ""
+	}
+	contents, _ := msg["contents"].([]any)
+	for _, raw := range contents {
+		block, ok := raw.(map[string]any)
+		if !ok || block["type"] != "text" {
+			continue
+		}
+		if text, ok := block["text"].(string); ok {
+			return text
+		}
+	}
+	if text, ok := msg["content"].(string); ok {
+		return text
+	}
+	return ""
 }
 
 func newQoderGatewayForwardTestService() (*Account, *QoderGatewayService, *qoderAccountTestClientStub) {
@@ -1500,6 +3012,12 @@ func qoderHeader(key, value string) qoderForwardTestHeader {
 
 func qoderForwardChatCompletionsForTest(t *testing.T, svc *QoderGatewayService, account *Account, sessionID string, body []byte, headers ...qoderForwardTestHeader) map[string]any {
 	t.Helper()
+	_, _ = qoderForwardChatCompletionsResultAndBodyForTest(t, svc, account, sessionID, body, headers...)
+	return qoderLastUpstreamPayloadForTest(t, svc.client.(*qoderAccountTestClientStub))
+}
+
+func qoderForwardChatCompletionsResultAndBodyForTest(t *testing.T, svc *QoderGatewayService, account *Account, sessionID string, body []byte, headers ...qoderForwardTestHeader) (*ForwardResult, string) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1510,9 +3028,9 @@ func qoderForwardChatCompletionsForTest(t *testing.T, svc *QoderGatewayService, 
 	for _, header := range headers {
 		c.Request.Header.Set(header.key, header.value)
 	}
-	_, err := svc.ForwardChatCompletions(context.Background(), c, account, body)
+	result, err := svc.ForwardChatCompletions(context.Background(), c, account, body)
 	require.NoError(t, err)
-	return qoderLastUpstreamPayloadForTest(t, svc.client.(*qoderAccountTestClientStub))
+	return result, rec.Body.String()
 }
 
 func qoderForwardMessagesForTest(t *testing.T, svc *QoderGatewayService, account *Account, sessionID string, body []byte, headers ...qoderForwardTestHeader) map[string]any {
@@ -1529,6 +3047,12 @@ func qoderForwardMessagesForTest(t *testing.T, svc *QoderGatewayService, account
 
 func qoderForwardMessagesResultForTest(t *testing.T, svc *QoderGatewayService, account *Account, body []byte, headers ...qoderForwardTestHeader) *ForwardResult {
 	t.Helper()
+	result, _ := qoderForwardMessagesResultAndBodyForTest(t, svc, account, body, headers...)
+	return result
+}
+
+func qoderForwardMessagesResultAndBodyForTest(t *testing.T, svc *QoderGatewayService, account *Account, body []byte, headers ...qoderForwardTestHeader) (*ForwardResult, string) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -1538,9 +3062,52 @@ func qoderForwardMessagesResultForTest(t *testing.T, svc *QoderGatewayService, a
 			c.Request.Header.Set(header.key, header.value)
 		}
 	}
+	if strings.EqualFold(strings.TrimSpace(c.Request.Header.Get("X-Test-Claude-Code-Context")), "true") {
+		c.Request = c.Request.WithContext(SetClaudeCodeClient(c.Request.Context(), true))
+	}
 	result, err := svc.ForwardMessages(context.Background(), c, account, body)
 	require.NoError(t, err)
-	return result
+	return result, rec.Body.String()
+}
+
+func qoderForwardResponsesResultAndBodyForTest(t *testing.T, svc *QoderGatewayService, account *Account, body []byte, headers ...qoderForwardTestHeader) (*ForwardResult, string) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+	for _, header := range headers {
+		if strings.TrimSpace(header.value) != "" {
+			c.Request.Header.Set(header.key, header.value)
+		}
+	}
+	result, err := svc.ForwardResponses(context.Background(), c, account, body)
+	require.NoError(t, err)
+	return result, rec.Body.String()
+}
+
+func qoderResponsesStreamEventsForTest(t *testing.T, body string) []gjson.Result {
+	t.Helper()
+	var events []gjson.Result
+	for _, frame := range strings.Split(body, "\n\n") {
+		frame = strings.TrimSpace(frame)
+		if frame == "" || strings.HasPrefix(frame, ":") {
+			continue
+		}
+		for _, line := range strings.Split(frame, "\n") {
+			line = strings.TrimSpace(line)
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			data := strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+			if data == "" || data == "[DONE]" {
+				continue
+			}
+			require.True(t, gjson.Valid(data), "invalid Responses SSE JSON data: %s", data)
+			events = append(events, gjson.Parse(data))
+		}
+	}
+	return events
 }
 
 func qoderLastUpstreamPayloadForTest(t *testing.T, client *qoderAccountTestClientStub) map[string]any {
@@ -1579,6 +3146,7 @@ type blockingQoderClientStub struct {
 	headers     map[string]string
 	firstWriter *io.PipeWriter
 	firstDone   bool
+	nextError   bool
 }
 
 func newBlockingQoderClientStub(t *testing.T) *blockingQoderClientStub {
@@ -1606,6 +3174,14 @@ func (s *blockingQoderClientStub) StreamRequestContext(ctx context.Context, _ *q
 			_ = writer.Close()
 		}()
 		return &http.Response{StatusCode: http.StatusOK, Body: reader}, nil
+	}
+	s.mu.Lock()
+	nextError := s.nextError
+	s.nextError = false
+	s.mu.Unlock()
+	if nextError {
+		body := "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\""
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body))}, nil
 	}
 	body := "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"OK\\\"}}]}\"}\n\n" +
 		"data: {\"body\":\"{\\\"usage\\\":{\\\"prompt_tokens\\\":5,\\\"completion_tokens\\\":1,\\\"total_tokens\\\":6}}\"}\n\n" +

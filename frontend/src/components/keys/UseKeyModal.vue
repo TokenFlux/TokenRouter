@@ -303,6 +303,37 @@ const shellTabs: TabConfig[] = [
   { id: 'powershell', label: 'PowerShell', icon: WindowsIcon }
 ]
 
+function withOpenCodeToolCalling(models: Record<string, any>) {
+  return Object.fromEntries(
+    Object.entries(models).map(([model, config]) => [
+      model,
+      {
+        ...config,
+        tool_call: true
+      }
+    ])
+  )
+}
+
+function buildQoderOpenCodeModels() {
+  return withOpenCodeToolCalling({
+    'deepseek-v4-pro': {
+      name: 'DeepSeek-V4-Pro',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    'glm-5.1': {
+      name: 'GLM-5.1',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    }
+  })
+}
+
 // OpenAI tabs (2 OS types)
 const openaiTabs: TabConfig[] = [
   { id: 'unix', label: 'macOS / Linux', icon: AppleIcon },
@@ -407,6 +438,8 @@ const currentFiles = computed((): FileConfig[] => {
           generateOpenCodeConfig('antigravity-claude', antigravityBase, apiKey, 'opencode.json (Claude)'),
           generateOpenCodeConfig('antigravity-gemini', antigravityGeminiBase, apiKey, 'opencode.json (Gemini)')
         ]
+      case 'qoder':
+        return [generateOpenCodeConfig('qoder', apiBase, apiKey)]
       default:
         return [generateOpenCodeConfig('openai', apiBase, apiKey)]
     }
@@ -1036,19 +1069,23 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
 
   if (platform === 'gemini') {
     provider[platform].npm = '@ai-sdk/google'
-    provider[platform].models = geminiModels
+    provider[platform].models = withOpenCodeToolCalling(geminiModels)
   } else if (platform === 'anthropic') {
     provider[platform].npm = '@ai-sdk/anthropic'
+  } else if (platform === 'qoder') {
+    provider[platform].npm = '@ai-sdk/openai-compatible'
+    provider[platform].name = 'Qoder'
+    provider[platform].models = buildQoderOpenCodeModels()
   } else if (platform === 'antigravity-claude') {
     provider[platform].npm = '@ai-sdk/anthropic'
     provider[platform].name = 'Antigravity (Claude)'
-    provider[platform].models = claudeModels
+    provider[platform].models = withOpenCodeToolCalling(claudeModels)
   } else if (platform === 'antigravity-gemini') {
     provider[platform].npm = '@ai-sdk/google'
     provider[platform].name = 'Antigravity (Gemini)'
-    provider[platform].models = antigravityGeminiModels
+    provider[platform].models = withOpenCodeToolCalling(antigravityGeminiModels)
   } else if (platform === 'openai') {
-    provider[platform].models = openaiModels
+    provider[platform].models = withOpenCodeToolCalling(openaiModels)
   }
 
   const agent =

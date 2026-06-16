@@ -120,6 +120,7 @@ describe('UseKeyModal', () => {
     const codeBlock = wrapper.find('pre code')
     expect(codeBlock.exists()).toBe(true)
     expect(codeBlock.text()).toContain('"name": "GPT-5.4 Mini"')
+    expect(codeBlock.text()).toContain('"tool_call": true')
     expect(codeBlock.text()).not.toContain('"name": "GPT-5.4 Nano"')
   })
 
@@ -161,7 +162,44 @@ describe('UseKeyModal', () => {
 
     expect(fable.name).toBe('Claude Fable 5')
     expect(fable.limit).toEqual({ context: 1048576, output: 128000 })
+    expect(fable.tool_call).toBe(true)
     expect(fable.options.thinking).toEqual({ type: 'adaptive' })
     expect(fable.options.thinking).not.toHaveProperty('budgetTokens')
+  })
+
+  it('renders Qoder OpenCode config with tool calling enabled', async () => {
+    const wrapper = mount(UseKeyModal, {
+      props: {
+        show: true,
+        apiKey: 'sk-test',
+        baseUrl: 'https://example.com/v1',
+        platform: 'qoder'
+      },
+      global: {
+        stubs: {
+          BaseDialog: {
+            template: '<div><slot /><slot name="footer" /></div>'
+          },
+          Icon: {
+            template: '<span />'
+          }
+        }
+      }
+    })
+
+    const opencodeTab = wrapper.findAll('button').find((button) =>
+      button.text().includes('keys.useKeyModal.cliTabs.opencode')
+    )
+
+    expect(opencodeTab).toBeDefined()
+    await opencodeTab!.trigger('click')
+    await nextTick()
+
+    const codeBlock = wrapper.find('pre code')
+    expect(codeBlock.exists()).toBe(true)
+    expect(codeBlock.text()).toContain('"name": "DeepSeek-V4-Pro"')
+    expect(codeBlock.text()).toContain('"npm": "@ai-sdk/openai-compatible"')
+    expect(codeBlock.text()).toContain('"tool_call": true')
+    expect(codeBlock.text()).toContain('"name": "GLM-5.1"')
   })
 })

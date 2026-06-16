@@ -4,7 +4,10 @@
 // formats can be served through a unified gateway.
 package apicompat
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+)
 
 // ---------------------------------------------------------------------------
 // Anthropic Messages API types
@@ -507,6 +510,31 @@ type ChatToolCall struct {
 type ChatFunctionCall struct {
 	Name      string `json:"name"`
 	Arguments string `json:"arguments"`
+}
+
+// UnmarshalJSON accepts both the official string form and object arguments
+// seen in some replayed OpenAI-compatible tool histories.
+func (c *ChatFunctionCall) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	c.Name = raw.Name
+	arguments := bytes.TrimSpace(raw.Arguments)
+	if len(arguments) == 0 || string(arguments) == "null" {
+		c.Arguments = ""
+		return nil
+	}
+	var text string
+	if err := json.Unmarshal(arguments, &text); err == nil {
+		c.Arguments = text
+		return nil
+	}
+	c.Arguments = string(arguments)
+	return nil
 }
 
 // ChatCompletionsResponse is the non-streaming response from POST /v1/chat/completions.
