@@ -1036,14 +1036,14 @@ func (s *AccountTestService) testQoderAccountConnection(c *gin.Context, account 
 
 func (s *AccountTestService) probeQoderUserInfo(ctx context.Context, account *Account, session *qoder.SessionContext) error {
 	if session == nil || session.Identity == nil {
-		return errors.New("Qoder session identity is empty")
+		return errors.New("qoder session identity is empty")
 	}
 	token := strings.TrimSpace(session.Identity.SecurityOauthToken)
 	if token == "" {
 		token = strings.TrimSpace(account.GetCredential("security_oauth_token"))
 	}
 	if token == "" {
-		return errors.New("Qoder security_oauth_token is empty")
+		return errors.New("qoder security_oauth_token is empty")
 	}
 	client := s.qoderOAuthClient
 	if client == nil {
@@ -1051,7 +1051,7 @@ func (s *AccountTestService) probeQoderUserInfo(ctx context.Context, account *Ac
 	}
 	userInfo, err := client.GetUserInfo(ctx, token)
 	if err != nil {
-		return fmt.Errorf("Qoder userinfo probe failed: %w", err)
+		return fmt.Errorf("qoder userinfo probe failed: %w", err)
 	}
 	if userInfo != nil {
 		if session.Identity.UID == "" && strings.TrimSpace(userInfo.ID) != "" {

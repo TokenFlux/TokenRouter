@@ -4173,10 +4173,13 @@ export default {
         securityOauthTokenHint: '现有 Qoder security_oauth_token，通常以 dt- 开头。',
         machineId: 'Machine ID',
         machineIdHint: '必须与 security_oauth_token 配套保存。',
+        uidAid: 'Qoder UID / AID',
+        uidAidHint: 'COSY 请求头必需。请输入同一 Qoder 账号的 UID 或 AID。',
         refreshToken: 'Refresh Token（可选）',
         userType: 'User Type（可选）',
         pleaseEnterSecurityOauthToken: '请输入 Security OAuth Token',
-        pleaseEnterMachineId: '请输入 Machine ID'
+        pleaseEnterMachineId: '请输入 Machine ID',
+        pleaseEnterUidAid: '请输入 Qoder UID / AID'
       },
       inputMethod: '输入方式',
       reAuthorizedSuccess: '账号重新授权成功',

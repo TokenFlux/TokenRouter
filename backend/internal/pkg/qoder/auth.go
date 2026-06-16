@@ -64,13 +64,13 @@ func base64URLEncode(b []byte) string {
 			val |= uint32(b[i+2])
 		}
 
-		result.WriteByte(alphabet[(val>>18)&0x3f])
-		result.WriteByte(alphabet[(val>>12)&0x3f])
+		_ = result.WriteByte(alphabet[(val>>18)&0x3f])
+		_ = result.WriteByte(alphabet[(val>>12)&0x3f])
 		if remaining > 1 {
-			result.WriteByte(alphabet[(val>>6)&0x3f])
+			_ = result.WriteByte(alphabet[(val>>6)&0x3f])
 		}
 		if remaining > 2 {
-			result.WriteByte(alphabet[val&0x3f])
+			_ = result.WriteByte(alphabet[val&0x3f])
 		}
 	}
 	return result.String()
@@ -87,29 +87,29 @@ func NewMachine() *MachineIdentity {
 
 // ExchangePAT exchanges a Personal Access Token for an AuthIdentity.
 func ExchangePAT(pat string, machine *MachineIdentity, centerURL string) (*AuthIdentity, error) {
-	inner := map[string]interface{}{
+	inner := map[string]any{
 		"personalToken":      pat,
 		"securityOauthToken": "",
 		"refreshToken":       "",
 		"needRefresh":        false,
-		"authInfo":           map[string]interface{}{},
+		"authInfo":           map[string]any{},
 	}
 	return exchangeJobToken(inner, machine, centerURL, "PAT exchange")
 }
 
 // RefreshSession exchanges a Qoder refresh_token for a new COSY identity.
 func RefreshSession(refreshToken, securityOauthToken string, machine *MachineIdentity, centerURL string) (*AuthIdentity, error) {
-	inner := map[string]interface{}{
+	inner := map[string]any{
 		"personalToken":      "",
 		"securityOauthToken": strings.TrimSpace(securityOauthToken),
 		"refreshToken":       strings.TrimSpace(refreshToken),
 		"needRefresh":        true,
-		"authInfo":           map[string]interface{}{},
+		"authInfo":           map[string]any{},
 	}
 	return exchangeJobToken(inner, machine, centerURL, "refresh")
 }
 
-func exchangeJobToken(inner map[string]interface{}, machine *MachineIdentity, centerURL string, operation string) (*AuthIdentity, error) {
+func exchangeJobToken(inner map[string]any, machine *MachineIdentity, centerURL string, operation string) (*AuthIdentity, error) {
 	if centerURL == "" {
 		centerURL = CenterBaseURL
 	}
@@ -118,7 +118,7 @@ func exchangeJobToken(inner map[string]interface{}, machine *MachineIdentity, ce
 	}
 
 	innerJSON, _ := json.Marshal(inner)
-	outer := map[string]interface{}{
+	outer := map[string]any{
 		"payload":       string(innerJSON),
 		"encodeVersion": "1",
 	}
@@ -134,14 +134,14 @@ func exchangeJobToken(inner map[string]interface{}, machine *MachineIdentity, ce
 	if err != nil {
 		return nil, fmt.Errorf("qoder: %s request: %w", operation, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != 200 {
 		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return nil, fmt.Errorf("qoder: %s failed with status %d: %s", operation, resp.StatusCode, string(bodyBytes))
 	}
 
-	var data map[string]interface{}
+	var data map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
 		return nil, fmt.Errorf("qoder: parse %s response: %w", operation, err)
 	}

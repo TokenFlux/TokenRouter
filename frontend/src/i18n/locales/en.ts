@@ -4050,10 +4050,13 @@ export default {
         securityOauthTokenHint: 'Existing Qoder security_oauth_token, usually starting with dt-.',
         machineId: 'Machine ID',
         machineIdHint: 'Required together with security_oauth_token.',
+        uidAid: 'Qoder UID / AID',
+        uidAidHint: 'Required for COSY headers. Enter the UID or AID from the same Qoder account.',
         refreshToken: 'Refresh Token (optional)',
         userType: 'User Type (optional)',
         pleaseEnterSecurityOauthToken: 'Please enter Security OAuth Token',
-        pleaseEnterMachineId: 'Please enter Machine ID'
+        pleaseEnterMachineId: 'Please enter Machine ID',
+        pleaseEnterUidAid: 'Please enter Qoder UID / AID'
       },
       inputMethod: 'Input Method',
       reAuthorizedSuccess: 'Account re-authorized successfully',

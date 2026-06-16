@@ -193,7 +193,7 @@ func (c *OAuthClient) PollDeviceToken(ctx context.Context, nonce, verifier strin
 	if err != nil {
 		return nil, false, fmt.Errorf("qoder: device token poll request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, false, nil
@@ -229,7 +229,7 @@ func (c *OAuthClient) GetUserInfo(ctx context.Context, token string) (*UserInfo,
 	if err != nil {
 		return nil, fmt.Errorf("qoder: userinfo request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
@@ -263,7 +263,7 @@ func (c *OAuthClient) GetOrganizationTags(ctx context.Context, token, uid string
 	if err != nil {
 		return nil, fmt.Errorf("qoder: organization tags request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))

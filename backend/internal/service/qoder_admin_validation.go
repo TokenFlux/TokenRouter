@@ -40,6 +40,9 @@ func ValidateQoderCosyCredentials(ctx context.Context, account *Account) error {
 		if machineID == "" {
 			return errors.New("qoder cosy credentials require machine_id with security_oauth_token")
 		}
+		if strings.TrimSpace(account.GetCredential("uid")) == "" && strings.TrimSpace(account.GetCredential("aid")) == "" {
+			return errors.New("qoder cosy credentials require uid or aid with security_oauth_token")
+		}
 		return nil
 	}
 	if machineID != "" {

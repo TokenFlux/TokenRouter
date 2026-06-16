@@ -10,10 +10,10 @@ func testSession() *SessionContext {
 		CosyKey: "test-cosy-key",
 		Info:    "test-info",
 		Identity: &AuthIdentity{
-			Name:             "test",
-			UID:              "u-123",
-			AID:              "a-456",
-			OrganizationID:   "org-789",
+			Name:           "test",
+			UID:            "u-123",
+			AID:            "a-456",
+			OrganizationID: "org-789",
 		},
 		Machine: &MachineIdentity{
 			MachineID:    "mid-abc",

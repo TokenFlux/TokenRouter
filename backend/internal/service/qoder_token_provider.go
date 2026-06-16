@@ -117,6 +117,9 @@ func (p *QoderTokenProvider) buildSession(ctx context.Context, account *Account)
 		if machineID == "" {
 			return nil, errors.New("qoder credentials require machine_id with security_oauth_token")
 		}
+		if firstNonEmptyQoder(account.GetCredential("uid"), account.GetCredential("aid")) == "" {
+			return nil, errors.New("qoder credentials require uid or aid with security_oauth_token")
+		}
 		identity := &qoder.AuthIdentity{
 			Name:               firstNonEmptyQoder(account.GetCredential("name"), account.Name),
 			AID:                firstNonEmptyQoder(account.GetCredential("aid"), account.GetCredential("uid")),

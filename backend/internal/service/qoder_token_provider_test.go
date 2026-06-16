@@ -17,6 +17,7 @@ func TestQoderTokenProviderBuildsAndCachesDirectSession(t *testing.T) {
 		Credentials: map[string]any{
 			"security_oauth_token": "dt-token",
 			"machine_id":           "machine-1",
+			"uid":                  "uid-1",
 			"organization_id":      "org-1",
 			"organization_name":    "Org 1",
 		},
@@ -26,6 +27,8 @@ func TestQoderTokenProviderBuildsAndCachesDirectSession(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, session1)
 	require.Equal(t, "dt-token", session1.Identity.SecurityOauthToken)
+	require.Equal(t, "uid-1", session1.Identity.UID)
+	require.Equal(t, "uid-1", session1.Identity.AID)
 	require.Equal(t, "org-1", session1.Identity.OrganizationID)
 	require.Equal(t, "Org 1", session1.Identity.OrganizationName)
 	require.Equal(t, "machine-1", session1.Machine.MachineID)
@@ -46,6 +49,50 @@ func TestQoderTokenProviderRejectsUnsupportedCredentialShape(t *testing.T) {
 
 	_, err := provider.GetSession(context.Background(), account)
 	require.ErrorContains(t, err, "machine_id")
+}
+
+func TestQoderTokenProviderRejectsDirectTokenWithoutIdentity(t *testing.T) {
+	provider := NewQoderTokenProvider()
+	account := &Account{
+		ID:       105,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"security_oauth_token": "dt-token",
+			"machine_id":           "machine-1",
+		},
+	}
+
+	_, err := provider.GetSession(context.Background(), account)
+	require.ErrorContains(t, err, "uid or aid")
+}
+
+func TestQoderTokenProviderKeepsLocalAuthMachineIDPath(t *testing.T) {
+	provider := NewQoderTokenProvider()
+	provider.readLocal = func(_ context.Context, authDir string) (*qoder.AuthIdentity, *qoder.MachineIdentity, error) {
+		require.Equal(t, "/tmp/qoder-auth", authDir)
+		return &qoder.AuthIdentity{
+			Name:               "Local User",
+			UID:                "local-uid",
+			AID:                "local-aid",
+			UserType:           "personal_standard",
+			SecurityOauthToken: "dt-local",
+		}, &qoder.MachineIdentity{}, nil
+	}
+	account := &Account{
+		ID:       106,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"machine_id": "machine-1",
+			"auth_dir":   "/tmp/qoder-auth",
+		},
+	}
+
+	session, err := provider.GetSession(context.Background(), account)
+	require.NoError(t, err)
+	require.Equal(t, "machine-1", session.Machine.MachineID)
+	require.Equal(t, "local-uid", session.Identity.UID)
 }
 
 func TestQoderTokenProviderSupportsInjectedPATExchange(t *testing.T) {

@@ -44,7 +44,7 @@ func TestRealAPI(t *testing.T) {
 	}
 	t.Logf("Session cosy_key length: %d", len(session.CosyKey))
 
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"stream":           true,
 		"session_id":       GenerateRequestID(),
 		"request_id":       GenerateRequestID(),
@@ -54,24 +54,24 @@ func TestRealAPI(t *testing.T) {
 		"task_id":          "common",
 		"session_type":     "qodercli",
 		"aliyun_user_type": identity.UserType,
-		"model_config": map[string]interface{}{
+		"model_config": map[string]any{
 			"key":    "auto",
 			"source": "system",
 			"format": "openai",
 		},
-		"messages": []map[string]interface{}{
+		"messages": []map[string]any{
 			{
 				"role":     "user",
 				"content":  "Say hi.",
-				"contents": []map[string]interface{}{{"type": "text", "text": "Say hi."}},
+				"contents": []map[string]any{{"type": "text", "text": "Say hi."}},
 			},
 		},
-		"parameters": map[string]interface{}{"max_tokens": 10},
-		"chat_context": map[string]interface{}{
-			"text": map[string]interface{}{"type": "text", "text": "Say hi."},
-			"extra": map[string]interface{}{
-				"modelConfig":     map[string]interface{}{"key": "auto"},
-				"originalContent": map[string]interface{}{"type": "text", "text": "Say hi."},
+		"parameters": map[string]any{"max_tokens": 10},
+		"chat_context": map[string]any{
+			"text": map[string]any{"type": "text", "text": "Say hi."},
+			"extra": map[string]any{
+				"modelConfig":     map[string]any{"key": "auto"},
+				"originalContent": map[string]any{"type": "text", "text": "Say hi."},
 			},
 		},
 	}
@@ -108,7 +108,7 @@ func collectStream(ctx context.Context, resp *http.Response, t *testing.T) ([]st
 
 	go func() {
 		<-ctx.Done()
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}()
 
 	for event := range StreamEvents(resp) {

@@ -29,7 +29,8 @@ func TestQoderOAuthHandlerGenerateAuthURL(t *testing.T) {
 	var resp map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.Equal(t, float64(0), resp["code"])
-	data := resp["data"].(map[string]any)
+	data, ok := resp["data"].(map[string]any)
+	require.True(t, ok)
 	require.Contains(t, data["auth_url"], "https://qoder.com/device/selectAccounts")
 	require.NotEmpty(t, data["session_id"])
 	require.NotEmpty(t, data["state"])

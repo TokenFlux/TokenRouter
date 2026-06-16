@@ -894,6 +894,17 @@
           />
           <p class="input-hint">{{ t('admin.accounts.qoder.machineIdHint') }}</p>
         </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.qoder.uidAid') }}</label>
+          <input
+            v-model="qoderUidAid"
+            type="text"
+            class="input font-mono"
+            autocomplete="off"
+            placeholder="uid or aid"
+          />
+          <p class="input-hint">{{ t('admin.accounts.qoder.uidAidHint') }}</p>
+        </div>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
             <label class="input-label">{{ t('admin.accounts.qoder.refreshToken') }}</label>
@@ -3677,6 +3688,7 @@ const antigravityAccountType = ref<'oauth' | 'upstream'>('oauth') // For antigra
 const qoderAccountType = ref<'oauth' | 'manual'>('oauth')
 const qoderSecurityOauthToken = ref('')
 const qoderMachineId = ref('')
+const qoderUidAid = ref('')
 const qoderRefreshToken = ref('')
 const qoderUserType = ref('personal_standard')
 const upstreamBaseUrl = ref('') // For upstream type: base URL
@@ -4319,6 +4331,7 @@ watch(
       qoderAccountType.value = 'oauth'
       qoderSecurityOauthToken.value = ''
       qoderMachineId.value = ''
+      qoderUidAid.value = ''
       qoderRefreshToken.value = ''
       qoderUserType.value = 'personal_standard'
     }
@@ -4799,6 +4812,7 @@ const resetForm = () => {
   qoderAccountType.value = 'oauth'
   qoderSecurityOauthToken.value = ''
   qoderMachineId.value = ''
+  qoderUidAid.value = ''
   qoderRefreshToken.value = ''
   qoderUserType.value = 'personal_standard'
   upstreamBaseUrl.value = ''
@@ -5180,10 +5194,17 @@ const handleSubmit = async () => {
       appStore.showError(t('admin.accounts.qoder.pleaseEnterMachineId'))
       return
     }
+    if (!qoderUidAid.value.trim()) {
+      appStore.showError(t('admin.accounts.qoder.pleaseEnterUidAid'))
+      return
+    }
 
+    const uidAid = qoderUidAid.value.trim()
     const credentials: Record<string, unknown> = {
       security_oauth_token: qoderSecurityOauthToken.value.trim(),
       machine_id: qoderMachineId.value.trim(),
+      uid: uidAid,
+      aid: uidAid,
       user_type: qoderUserType.value.trim() || 'personal_standard'
     }
     if (qoderRefreshToken.value.trim()) {

@@ -246,7 +246,7 @@ func TestNewSessionDefaultTempKeyIsASCIIHex(t *testing.T) {
 		t.Fatalf("temp key length = %d, want 16", len(session.TempKey))
 	}
 	for i, b := range session.TempKey {
-		if !((b >= '0' && b <= '9') || (b >= 'a' && b <= 'f')) {
+		if (b < '0' || b > '9') && (b < 'a' || b > 'f') {
 			t.Fatalf("temp key byte %d = %q, want ASCII hex", i, b)
 		}
 	}
@@ -347,6 +347,67 @@ func TestParseSSELineToolCallPreservesIndexTypeAndObjectArguments(t *testing.T) 
 	}
 }
 
+func TestParseSSELineFlatToolCall(t *testing.T) {
+	line := `data: {"body": "{\"choices\":[{\"delta\":{\"tool_calls\":[{\"tool_call_id\":\"tc1\",\"name\":\"Bash\",\"arguments\":{\"command\":\"pwd\"}}]}}]}"}`
+	events, err := ParseSSELine(line)
+	if err != nil {
+		t.Fatalf("ParseSSELine: %v", err)
+	}
+	if len(events) != 1 {
+		t.Fatalf("events length = %d, want 1", len(events))
+	}
+	event := events[0]
+	if event.Type != "tool_call_delta" || event.ToolCallID != "tc1" || event.ToolName != "Bash" {
+		t.Fatalf("tool event = %#v, want tc1 Bash", event)
+	}
+	if event.ToolType != "function" {
+		t.Fatalf("tool type = %q, want function", event.ToolType)
+	}
+	if event.Arguments != `{"command":"pwd"}` {
+		t.Fatalf("arguments = %q, want object JSON", event.Arguments)
+	}
+}
+
+func TestParseSSELineToolUseEnvelopeEvents(t *testing.T) {
+	start := `data: {"body": "{\"event\":\"tool_use_start\",\"data\":{\"id\":\"tc1\",\"name\":\"Bash\"}}"}`
+	delta := `data: {"body": "{\"event\":\"tool_use_delta\",\"data\":{\"tool_call_id\":\"tc1\",\"name\":\"Bash\",\"arguments\":\"{\\\"command\\\":\\\"pwd\\\"}\"}}"}`
+	events, err := ParseSSELine(start)
+	if err != nil {
+		t.Fatalf("ParseSSELine start: %v", err)
+	}
+	if len(events) != 1 || events[0].ToolCallID != "tc1" || events[0].ToolName != "Bash" {
+		t.Fatalf("start events = %#v, want tc1 Bash", events)
+	}
+	events, err = ParseSSELine(delta)
+	if err != nil {
+		t.Fatalf("ParseSSELine delta: %v", err)
+	}
+	if len(events) != 1 || events[0].ToolCallID != "tc1" || events[0].Arguments != `{"command":"pwd"}` {
+		t.Fatalf("delta events = %#v, want arguments", events)
+	}
+}
+
+func TestParseSSELineFinalMessageToolCalls(t *testing.T) {
+	line := `data: {"body": "{\"choices\":[{\"message\":{\"tool_calls\":[{\"id\":\"tc1\",\"type\":\"function\",\"function\":{\"name\":\"bash\",\"arguments\":{\"cmd\":\"ls\"}}}]},\"finish_reason\":\"tool_calls\"}]}"}`
+	events, err := ParseSSELine(line)
+	if err != nil {
+		t.Fatalf("ParseSSELine: %v", err)
+	}
+	if len(events) != 2 {
+		t.Fatalf("events length = %d, want 2", len(events))
+	}
+	event := events[0]
+	if event.Type != "tool_call_delta" || event.ToolCallID != "tc1" || event.ToolName != "bash" {
+		t.Fatalf("tool event = %#v, want tc1 bash", event)
+	}
+	if event.Arguments != `{"cmd":"ls"}` {
+		t.Fatalf("arguments = %q, want object JSON", event.Arguments)
+	}
+	if !events[1].IsDone {
+		t.Fatalf("second event = %#v, want done", events[1])
+	}
+}
+
 func TestParseSSELineReasoning(t *testing.T) {
 	line := `data: {"body": "{\"choices\":[{\"delta\":{\"reasoning_content\":\"Let me think...\"}}]}"}`
 	events, err := ParseSSELine(line)
@@ -415,6 +476,57 @@ func TestParseSSELineUsageAcceptsAnthropicNames(t *testing.T) {
 	}
 	if events[0].PromptTokens != 7 || events[0].CompletionTokens != 9 || events[0].TotalTokens != 16 {
 		t.Fatalf("usage event = %#v, want 7/9/16", events[0])
+	}
+}
+
+func TestParseSSELineWrappedUsagePreservesDetails(t *testing.T) {
+	line := `data: {"body": "{\"usage\":{\"prompt_tokens\":66637,\"completion_tokens\":6,\"total_tokens\":66643,\"prompt_tokens_details\":{\"cached_tokens\":66612,\"cacheable_tokens\":19},\"completion_tokens_details\":{\"reasoning_tokens\":0}}}"}`
+	events, err := ParseSSELine(line)
+	if err != nil {
+		t.Fatalf("ParseSSELine: %v", err)
+	}
+	if len(events) != 1 || !events[0].HasUsage {
+		t.Fatalf("events = %#v, want one usage event", events)
+	}
+	event := events[0]
+	if event.PromptTokens != 66637 || event.CompletionTokens != 6 || event.TotalTokens != 66643 {
+		t.Fatalf("usage = %#v, want upstream totals", event)
+	}
+	if event.UsageDetails.PromptTokensDetails == nil {
+		t.Fatal("prompt token details missing")
+	}
+	if event.UsageDetails.PromptTokensDetails.CachedTokens != 66612 {
+		t.Fatalf("cached tokens = %d, want 66612", event.UsageDetails.PromptTokensDetails.CachedTokens)
+	}
+	if event.UsageDetails.PromptTokensDetails.CacheableTokens != 19 {
+		t.Fatalf("cacheable tokens = %d, want 19", event.UsageDetails.PromptTokensDetails.CacheableTokens)
+	}
+	if event.UsageDetails.CompletionTokensDetails == nil {
+		t.Fatal("completion token details missing")
+	}
+	if event.UsageDetails.CompletionTokensDetails.ReasoningTokens != 0 {
+		t.Fatalf("reasoning tokens = %d, want 0", event.UsageDetails.CompletionTokensDetails.ReasoningTokens)
+	}
+}
+
+func TestParseSSELineUsageAcceptsNumericStringsAndFloats(t *testing.T) {
+	line := `data: {"body": "{\"usage\":{\"prompt_tokens\":\"66637.0\",\"completion_tokens\":6.0,\"total_tokens\":\"66643\",\"prompt_tokens_details\":{\"cached_tokens\":\"66612.0\",\"cacheable_tokens\":19.0},\"completion_tokens_details\":{\"reasoning_tokens\":\"7.0\"}}}"}`
+	events, err := ParseSSELine(line)
+	if err != nil {
+		t.Fatalf("ParseSSELine: %v", err)
+	}
+	if len(events) != 1 || !events[0].HasUsage {
+		t.Fatalf("events = %#v, want one usage event", events)
+	}
+	event := events[0]
+	if event.PromptTokens != 66637 || event.CompletionTokens != 6 || event.TotalTokens != 66643 {
+		t.Fatalf("usage = %#v, want upstream totals", event)
+	}
+	if event.UsageDetails.PromptTokensDetails == nil || event.UsageDetails.PromptTokensDetails.CachedTokens != 66612 || event.UsageDetails.PromptTokensDetails.CacheableTokens != 19 {
+		t.Fatalf("prompt details = %#v, want cached/cacheable", event.UsageDetails.PromptTokensDetails)
+	}
+	if event.UsageDetails.CompletionTokensDetails == nil || event.UsageDetails.CompletionTokensDetails.ReasoningTokens != 7 {
+		t.Fatalf("completion details = %#v, want reasoning 7", event.UsageDetails.CompletionTokensDetails)
 	}
 }
 

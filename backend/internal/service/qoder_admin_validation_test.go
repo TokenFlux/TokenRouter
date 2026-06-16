@@ -16,7 +16,45 @@ func TestValidateQoderCosyCredentialsAcceptsDirectToken(t *testing.T) {
 		Credentials: map[string]any{
 			"security_oauth_token": "dt-token",
 			"machine_id":           "machine-1",
+			"uid":                  "uid-1",
 		},
+	}
+
+	require.NoError(t, ValidateQoderCosyCredentials(context.Background(), account))
+}
+
+func TestValidateQoderCosyCredentialsAcceptsDirectTokenWithAID(t *testing.T) {
+	account := &Account{
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"security_oauth_token": "dt-token",
+			"machine_id":           "machine-1",
+			"aid":                  "aid-1",
+		},
+	}
+
+	require.NoError(t, ValidateQoderCosyCredentials(context.Background(), account))
+}
+
+func TestValidateQoderCosyCredentialsRejectsDirectTokenWithoutIdentity(t *testing.T) {
+	account := &Account{
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"security_oauth_token": "dt-token",
+			"machine_id":           "machine-1",
+		},
+	}
+
+	require.ErrorContains(t, ValidateQoderCosyCredentials(context.Background(), account), "uid or aid")
+}
+
+func TestValidateQoderCosyCredentialsAcceptsLocalAuthMachineID(t *testing.T) {
+	account := &Account{
+		Platform:    PlatformQoder,
+		Type:        AccountTypeCosy,
+		Credentials: map[string]any{"machine_id": "machine-1"},
 	}
 
 	require.NoError(t, ValidateQoderCosyCredentials(context.Background(), account))

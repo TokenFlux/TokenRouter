@@ -87,7 +87,7 @@ func (c *Client) StreamRequestContextWithDoer(ctx context.Context, session *Sess
 
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		apiErr := ParseAPIErrorBody(resp.StatusCode, string(body))
 		if apiErr == nil {
 			apiErr = &APIError{}
@@ -226,8 +226,23 @@ type SSEEvent struct {
 	PromptTokens     int    // For usage events
 	CompletionTokens int    // For usage events
 	TotalTokens      int    // For usage events
-	HasUsage         bool   // True when Qoder returned a usage payload
-	IsDone           bool   // True when [DONE] signal received
+	UsageDetails     UsageDetails
+	HasUsage         bool // True when Qoder returned a usage payload
+	IsDone           bool // True when [DONE] signal received
+}
+
+type UsageDetails struct {
+	PromptTokensDetails     *PromptTokensDetails
+	CompletionTokensDetails *CompletionTokensDetails
+}
+
+type PromptTokensDetails struct {
+	CachedTokens    int
+	CacheableTokens int
+}
+
+type CompletionTokensDetails struct {
+	ReasoningTokens int
 }
 
 // QoderSSEWrapper is the outer SSE structure from Qoder.
@@ -246,10 +261,17 @@ type qoderErrorBody struct {
 
 // QoderSSEInner is the inner structure of a Qoder SSE body.
 type QoderSSEInner struct {
-	Choices []struct {
-		Delta QoderSSEDelta `json:"delta"`
-	} `json:"choices"`
-	Usage *QoderSSEUsage `json:"usage,omitempty"`
+	Choices []QoderSSEChoice `json:"choices"`
+	Usage   *QoderSSEUsage   `json:"usage,omitempty"`
+	Event   string           `json:"event,omitempty"`
+	Type    string           `json:"type,omitempty"`
+	Data    json.RawMessage  `json:"data,omitempty"`
+}
+
+type QoderSSEChoice struct {
+	Delta        QoderSSEDelta   `json:"delta"`
+	Message      QoderSSEMessage `json:"message"`
+	FinishReason string          `json:"finish_reason"`
 }
 
 type QoderSSEDelta struct {
@@ -258,11 +280,24 @@ type QoderSSEDelta struct {
 	ToolCalls        []QoderSSEToolCall `json:"tool_calls"`
 }
 
+type QoderSSEMessage struct {
+	Content          any                `json:"content"`
+	ReasoningContent string             `json:"reasoning_content"`
+	ToolCalls        []QoderSSEToolCall `json:"tool_calls"`
+}
+
 type QoderSSEToolCall struct {
-	Index    *int   `json:"index,omitempty"`
-	ID       string `json:"id"`
-	Type     string `json:"type"`
-	Function struct {
+	Index      *int            `json:"index,omitempty"`
+	ID         string          `json:"id"`
+	ToolCallID string          `json:"tool_call_id"`
+	CallID     string          `json:"call_id"`
+	Type       string          `json:"type"`
+	Name       string          `json:"name"`
+	ToolName   string          `json:"tool_name"`
+	Arguments  json.RawMessage `json:"arguments"`
+	Input      json.RawMessage `json:"input"`
+	Parameters json.RawMessage `json:"parameters"`
+	Function   struct {
 		Name      string          `json:"name"`
 		Arguments json.RawMessage `json:"arguments"`
 	} `json:"function"`
@@ -270,11 +305,73 @@ type QoderSSEToolCall struct {
 
 // QoderSSEUsage is the token usage object Qoder includes in SSE payloads.
 type QoderSSEUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
-	InputTokens      int `json:"input_tokens"`
-	OutputTokens     int `json:"output_tokens"`
+	PromptTokens            int                      `json:"-"`
+	CompletionTokens        int                      `json:"-"`
+	TotalTokens             int                      `json:"-"`
+	InputTokens             int                      `json:"-"`
+	OutputTokens            int                      `json:"-"`
+	PromptTokensDetails     *PromptTokensDetails     `json:"prompt_tokens_details,omitempty"`
+	CompletionTokensDetails *CompletionTokensDetails `json:"completion_tokens_details,omitempty"`
+}
+
+func (u *QoderSSEUsage) UnmarshalJSON(data []byte) error {
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil
+	}
+	u.PromptTokens = qoderIntField(raw, "prompt_tokens")
+	u.CompletionTokens = qoderIntField(raw, "completion_tokens")
+	u.TotalTokens = qoderIntField(raw, "total_tokens")
+	u.InputTokens = qoderIntField(raw, "input_tokens")
+	u.OutputTokens = qoderIntField(raw, "output_tokens")
+	if value, ok := raw["prompt_tokens_details"]; ok {
+		body, _ := json.Marshal(value)
+		details := &PromptTokensDetails{}
+		_ = details.UnmarshalJSON(body)
+		u.PromptTokensDetails = details
+	}
+	if value, ok := raw["completion_tokens_details"]; ok {
+		body, _ := json.Marshal(value)
+		details := &CompletionTokensDetails{}
+		_ = details.UnmarshalJSON(body)
+		u.CompletionTokensDetails = details
+	}
+	return nil
+}
+
+func (d *PromptTokensDetails) UnmarshalJSON(data []byte) error {
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil
+	}
+	d.CachedTokens = qoderIntField(raw, "cached_tokens")
+	d.CacheableTokens = qoderIntField(raw, "cacheable_tokens")
+	return nil
+}
+
+func (d *CompletionTokensDetails) UnmarshalJSON(data []byte) error {
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return nil
+	}
+	d.ReasoningTokens = qoderIntField(raw, "reasoning_tokens")
+	return nil
+}
+
+func qoderIntField(raw map[string]any, key string) int {
+	switch value := raw[key].(type) {
+	case float64:
+		return int(value)
+	case string:
+		trimmed := strings.TrimSpace(value)
+		if parsed, err := strconv.Atoi(trimmed); err == nil {
+			return parsed
+		}
+		if parsed, err := strconv.ParseFloat(trimmed, 64); err == nil {
+			return int(parsed)
+		}
+	}
+	return 0
 }
 
 // ParseSSELine parses a single SSE "data:" line from Qoder's stream.
@@ -310,7 +407,8 @@ func ParseSSELine(line string) ([]SSEEvent, error) {
 		return nil, fmt.Errorf("qoder: parse SSE inner: %w", err)
 	}
 
-	var events []SSEEvent
+	events := qoderSSEEnvelopeEvents(inner)
+	hasFinalMessage := false
 	for _, choice := range inner.Choices {
 		delta := choice.Delta
 
@@ -328,19 +426,24 @@ func ParseSSELine(line string) ([]SSEEvent, error) {
 			})
 		}
 
-		for _, tc := range delta.ToolCalls {
-			event := SSEEvent{
-				Type:       "tool_call_delta",
-				ToolCallID: tc.ID,
-				ToolType:   tc.Type,
-				ToolName:   tc.Function.Name,
-				Arguments:  parseQoderToolCallArguments(tc.Function.Arguments),
-			}
-			if tc.Index != nil {
-				event.ToolCallIndex = *tc.Index
-				event.HasToolCallIndex = true
-			}
-			events = append(events, event)
+		events = appendQoderToolCallEvents(events, delta.ToolCalls)
+
+		message := choice.Message
+		if text := qoderSSEContentText(message.Content); text != "" {
+			events = append(events, SSEEvent{
+				Type: "text_delta",
+				Text: text,
+			})
+		}
+		if message.ReasoningContent != "" {
+			events = append(events, SSEEvent{
+				Type: "reasoning_delta",
+				Text: message.ReasoningContent,
+			})
+		}
+		events = appendQoderToolCallEvents(events, message.ToolCalls)
+		if choice.FinishReason != "" && qoderSSEMessageHasPayload(message) {
+			hasFinalMessage = true
 		}
 	}
 	if inner.Usage != nil {
@@ -361,22 +464,224 @@ func ParseSSELine(line string) ([]SSEEvent, error) {
 			PromptTokens:     promptTokens,
 			CompletionTokens: completionTokens,
 			TotalTokens:      totalTokens,
-			HasUsage:         true,
+			UsageDetails: UsageDetails{
+				PromptTokensDetails:     inner.Usage.PromptTokensDetails,
+				CompletionTokensDetails: inner.Usage.CompletionTokensDetails,
+			},
+			HasUsage: true,
 		})
+	}
+	if hasFinalMessage {
+		events = append(events, SSEEvent{IsDone: true})
 	}
 
 	return events, nil
 }
 
-func parseQoderToolCallArguments(raw json.RawMessage) string {
-	if len(raw) == 0 || string(raw) == "null" {
+func appendQoderToolCallEvents(events []SSEEvent, toolCalls []QoderSSEToolCall) []SSEEvent {
+	for _, tc := range toolCalls {
+		event := SSEEvent{
+			Type:       "tool_call_delta",
+			ToolCallID: firstNonEmptyQoderSSEString(tc.ID, tc.ToolCallID, tc.CallID),
+			ToolType:   qoderSSEToolType(tc.Type),
+			ToolName:   firstNonEmptyQoderSSEString(tc.Function.Name, tc.Name, tc.ToolName),
+			Arguments: parseQoderToolCallArguments(
+				tc.Function.Arguments,
+				tc.Arguments,
+				tc.Input,
+				tc.Parameters,
+			),
+		}
+		if tc.Index != nil {
+			event.ToolCallIndex = *tc.Index
+			event.HasToolCallIndex = true
+		}
+		events = append(events, event)
+	}
+	return events
+}
+
+func qoderSSEEnvelopeEvents(inner QoderSSEInner) []SSEEvent {
+	eventType := firstNonEmptyQoderSSEString(inner.Event, inner.Type)
+	if eventType == "" {
+		return nil
+	}
+	switch eventType {
+	case "content_block_delta":
+		return qoderSSEContentBlockDeltaEvents(inner.Data)
+	case "tool_use_start":
+		return qoderSSEToolUseStartEvents(inner.Data)
+	case "tool_use_delta", "tool_call_delta":
+		return qoderSSEToolUseDeltaEvents(inner.Data)
+	case "message_delta":
+		return qoderSSEMessageDeltaEvents(inner.Data)
+	case "message_stop":
+		return []SSEEvent{{IsDone: true}}
+	default:
+		return nil
+	}
+}
+
+func qoderSSEContentBlockDeltaEvents(raw json.RawMessage) []SSEEvent {
+	if len(raw) == 0 {
+		return nil
+	}
+	var delta struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if err := json.Unmarshal(raw, &delta); err != nil || delta.Text == "" {
+		return nil
+	}
+	eventType := "text_delta"
+	if delta.Type == "thinking_delta" {
+		eventType = "reasoning_delta"
+	}
+	return []SSEEvent{{Type: eventType, Text: delta.Text}}
+}
+
+func qoderSSEToolUseStartEvents(raw json.RawMessage) []SSEEvent {
+	if len(raw) == 0 {
+		return nil
+	}
+	var toolUse struct {
+		ID         string `json:"id"`
+		ToolCallID string `json:"tool_call_id"`
+		CallID     string `json:"call_id"`
+		Name       string `json:"name"`
+		Type       string `json:"type"`
+	}
+	if err := json.Unmarshal(raw, &toolUse); err != nil {
+		return nil
+	}
+	return []SSEEvent{{
+		Type:       "tool_call_delta",
+		ToolCallID: firstNonEmptyQoderSSEString(toolUse.ID, toolUse.ToolCallID, toolUse.CallID),
+		ToolType:   qoderSSEToolType(toolUse.Type),
+		ToolName:   toolUse.Name,
+	}}
+}
+
+func qoderSSEToolUseDeltaEvents(raw json.RawMessage) []SSEEvent {
+	if len(raw) == 0 {
+		return nil
+	}
+	var delta struct {
+		ID         string          `json:"id"`
+		ToolCallID string          `json:"tool_call_id"`
+		CallID     string          `json:"call_id"`
+		Name       string          `json:"name"`
+		ToolName   string          `json:"tool_name"`
+		Type       string          `json:"type"`
+		Arguments  json.RawMessage `json:"arguments"`
+		Input      json.RawMessage `json:"input"`
+		Parameters json.RawMessage `json:"parameters"`
+	}
+	if err := json.Unmarshal(raw, &delta); err != nil {
+		return nil
+	}
+	return []SSEEvent{{
+		Type:       "tool_call_delta",
+		ToolCallID: firstNonEmptyQoderSSEString(delta.ID, delta.ToolCallID, delta.CallID),
+		ToolType:   qoderSSEToolType(delta.Type),
+		ToolName:   firstNonEmptyQoderSSEString(delta.Name, delta.ToolName),
+		Arguments:  parseQoderToolCallArguments(delta.Arguments, delta.Input, delta.Parameters),
+	}}
+}
+
+func qoderSSEMessageDeltaEvents(raw json.RawMessage) []SSEEvent {
+	if len(raw) == 0 {
+		return nil
+	}
+	var delta struct {
+		Usage *QoderSSEUsage `json:"usage"`
+	}
+	if err := json.Unmarshal(raw, &delta); err != nil || delta.Usage == nil {
+		return nil
+	}
+	promptTokens := delta.Usage.PromptTokens
+	if promptTokens == 0 {
+		promptTokens = delta.Usage.InputTokens
+	}
+	completionTokens := delta.Usage.CompletionTokens
+	if completionTokens == 0 {
+		completionTokens = delta.Usage.OutputTokens
+	}
+	totalTokens := delta.Usage.TotalTokens
+	if totalTokens == 0 {
+		totalTokens = promptTokens + completionTokens
+	}
+	return []SSEEvent{{
+		Type:             "usage",
+		PromptTokens:     promptTokens,
+		CompletionTokens: completionTokens,
+		TotalTokens:      totalTokens,
+		UsageDetails: UsageDetails{
+			PromptTokensDetails:     delta.Usage.PromptTokensDetails,
+			CompletionTokensDetails: delta.Usage.CompletionTokensDetails,
+		},
+		HasUsage: true,
+	}}
+}
+
+func qoderSSEContentText(raw any) string {
+	switch v := raw.(type) {
+	case string:
+		return v
+	case []any:
+		parts := make([]string, 0, len(v))
+		for _, item := range v {
+			block, ok := item.(map[string]any)
+			if !ok || block["type"] != "text" {
+				continue
+			}
+			if text, ok := block["text"].(string); ok && text != "" {
+				parts = append(parts, text)
+			}
+		}
+		return strings.Join(parts, "\n")
+	default:
 		return ""
 	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err == nil {
-		return s
+}
+
+func qoderSSEMessageHasPayload(message QoderSSEMessage) bool {
+	return message.Content != nil || message.ReasoningContent != "" || len(message.ToolCalls) > 0
+}
+
+func parseQoderToolCallArguments(values ...json.RawMessage) string {
+	for _, raw := range values {
+		if len(raw) == 0 || string(raw) == "null" {
+			continue
+		}
+		var s string
+		if err := json.Unmarshal(raw, &s); err == nil {
+			if strings.TrimSpace(s) != "" {
+				return s
+			}
+			continue
+		}
+		return string(raw)
 	}
-	return string(raw)
+	return ""
+}
+
+func firstNonEmptyQoderSSEString(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func qoderSSEToolType(value string) string {
+	switch strings.TrimSpace(value) {
+	case "", "tool_use", "tool_call":
+		return "function"
+	default:
+		return value
+	}
 }
 
 func parseWrappedAPIError(wrapper QoderSSEWrapper) error {
@@ -394,7 +699,7 @@ func StreamEvents(resp *http.Response) <-chan SSEEvent {
 	ch := make(chan SSEEvent, 16)
 	go func() {
 		defer close(ch)
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		scanner := bufio.NewScanner(resp.Body)
 		scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)

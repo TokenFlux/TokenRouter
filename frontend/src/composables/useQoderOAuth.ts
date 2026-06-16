@@ -138,6 +138,8 @@ export function useQoderOAuth() {
     machine_type: tokenInfo.machine_type,
     uid: tokenInfo.uid,
     aid: tokenInfo.aid,
+    organization_id: tokenInfo.organization_id,
+    organization_name: tokenInfo.organization_name,
     name: tokenInfo.name,
     user_type: tokenInfo.user_type,
     extra: tokenInfo.extra

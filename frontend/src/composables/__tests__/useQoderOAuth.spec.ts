@@ -136,6 +136,8 @@ describe('useQoderOAuth', () => {
       machine_type: 'desktop',
       uid: 'uid',
       aid: 'aid',
+      organization_id: 'org-1',
+      organization_name: 'Qoder Org',
       name: 'Qoder User',
       user_type: 'personal_standard',
       extra: { email: 'user@example.com' }
@@ -149,6 +151,8 @@ describe('useQoderOAuth', () => {
       machine_type: 'desktop',
       uid: 'uid',
       aid: 'aid',
+      organization_id: 'org-1',
+      organization_name: 'Qoder Org',
       name: 'Qoder User',
       user_type: 'personal_standard',
       extra: { email: 'user@example.com' }
