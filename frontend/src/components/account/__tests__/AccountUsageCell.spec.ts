@@ -396,6 +396,153 @@ describe('AccountUsageCell', () => {
     expect(getUsage).toHaveBeenCalledWith(2011, 'active', true)
   })
 
+  it('OpenAI OAuth 用量列不再显示容易误触的上游重置按钮', async () => {
+    getUsage.mockResolvedValue({
+      five_hour: {
+        utilization: 26,
+        resets_at: '2099-03-07T12:00:00Z',
+        remaining_seconds: 7200,
+        window_stats: {
+          requests: 828,
+          tokens: 125000000,
+          cost: 98.01,
+          standard_cost: 98.01,
+          user_cost: 352.19
+        }
+      },
+      seven_day: {
+        utilization: 28,
+        resets_at: '2099-03-13T12:00:00Z',
+        remaining_seconds: 561600,
+        window_stats: {
+          requests: 6000,
+          tokens: 689200000,
+          cost: 665.61,
+          standard_cost: 665.61,
+          user_cost: 2327.34
+        }
+      }
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 2014,
+          platform: 'openai',
+          type: 'oauth',
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization', 'resetsAt', 'windowStats', 'color'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}|{{ windowStats?.requests }}</div>'
+          },
+          AccountQuotaInfo: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.activeQuery')
+    expect(wrapper.text()).toContain('admin.accounts.openaiQuotaReset.count')
+    expect(wrapper.text()).not.toContain('admin.accounts.openaiQuotaReset.reset')
+  })
+
+  it('OpenAI OAuth 自动暂停时会在查询按钮右侧显示暂停调度状态', async () => {
+    getUsage.mockResolvedValue({
+      five_hour: {
+        utilization: 99,
+        resets_at: '2099-03-07T12:00:00Z',
+        remaining_seconds: 3600
+      },
+      seven_day: null,
+      quota_auto_paused: true
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 2012,
+          platform: 'openai',
+          type: 'oauth',
+          quota_auto_paused: false,
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization', 'resetsAt', 'windowStats', 'color'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}</div>'
+          },
+          AccountQuotaInfo: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.activeQuery')
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.quotaAutoPaused')
+  })
+
+  it('OpenAI OAuth 主动查询恢复后会隐藏暂停调度状态', async () => {
+    getUsage
+      .mockResolvedValueOnce({
+        five_hour: {
+          utilization: 99,
+          resets_at: '2099-03-07T12:00:00Z',
+          remaining_seconds: 3600
+        },
+        seven_day: null,
+        quota_auto_paused: true
+      })
+      .mockResolvedValueOnce({
+        five_hour: {
+          utilization: 10,
+          resets_at: '2099-03-07T12:00:00Z',
+          remaining_seconds: 3600
+        },
+        seven_day: null,
+        quota_auto_paused: false
+      })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 2013,
+          platform: 'openai',
+          type: 'oauth',
+          quota_auto_paused: true,
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization', 'resetsAt', 'windowStats', 'color'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}</div>'
+          },
+          AccountQuotaInfo: true
+        }
+      }
+    })
+
+    await flushPromises()
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.quotaAutoPaused')
+
+    const refreshButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('admin.accounts.usageWindow.activeQuery'))
+    await refreshButton!.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('admin.accounts.usageWindow.quotaAutoPaused')
+  })
+
   it('OpenAI OAuth 在无 codex 快照时会回退显示 usage 接口窗口', async () => {
 	getUsage.mockResolvedValue({
 	  five_hour: {

@@ -185,7 +185,7 @@ func (s *TokenRefreshService) processRefresh() {
 	// 计算刷新窗口
 	refreshWindow := time.Duration(s.cfg.RefreshBeforeExpiryHours * float64(time.Hour))
 
-	// 获取所有active状态的账号
+	// 只获取后台 OAuth token 刷新候选账号，避免全量 active 账号放大重试压力。
 	accounts, err := s.listActiveAccounts(ctx)
 	if err != nil {
 		slog.Error("token_refresh.list_accounts_failed", "error", err)
@@ -263,10 +263,9 @@ func (s *TokenRefreshService) processRefresh() {
 	}
 }
 
-// listActiveAccounts 获取所有active状态的账号
-// 使用ListActive确保刷新所有活跃账号的token（包括临时禁用的）
+// listActiveAccounts 获取后台 OAuth token 刷新候选账号。
 func (s *TokenRefreshService) listActiveAccounts(ctx context.Context) ([]Account, error) {
-	return s.accountRepo.ListActive(ctx)
+	return s.accountRepo.ListOAuthRefreshCandidates(ctx)
 }
 
 // refreshWithRetry 带重试的刷新
@@ -318,9 +317,6 @@ func (s *TokenRefreshService) refreshWithRetry(ctx context.Context, account *Acc
 					"error", setErr,
 				)
 			}
-			// 刷新失败但 access_token 可能仍有效，尝试设置隐私
-			s.ensureOpenAIPrivacy(ctx, account)
-			s.ensureAntigravityPrivacy(ctx, account)
 			return err
 		}
 
@@ -347,10 +343,6 @@ func (s *TokenRefreshService) refreshWithRetry(ctx context.Context, account *Acc
 		"max_retries", s.cfg.MaxRetries,
 		"error", lastErr,
 	)
-
-	// 刷新失败但 access_token 可能仍有效，尝试设置隐私
-	s.ensureOpenAIPrivacy(ctx, account)
-	s.ensureAntigravityPrivacy(ctx, account)
 
 	// 设置临时不可调度 10 分钟（不标记 error，保持 status=active 让下个刷新周期能继续尝试）
 	until := time.Now().Add(tokenRefreshTempUnschedDuration)
@@ -449,6 +441,8 @@ func isNonRetryableRefreshError(err error) bool {
 	msg := strings.ToLower(err.Error())
 	nonRetryable := []string{
 		"invalid_grant",                       // refresh_token 已失效
+		"invalid_refresh_token",               // refresh_token 无效，team 账号工作区被删除时会出现
+		"app_session_terminated",              // OpenAI app session 被终止，需要重新授权
 		"invalid_client",                      // 客户端配置错误
 		"unauthorized_client",                 // 客户端未授权
 		"access_denied",                       // 访问被拒绝

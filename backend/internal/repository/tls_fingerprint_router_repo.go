@@ -51,12 +51,16 @@ func (r *tlsFingerprintRouterRepository) Create(ctx context.Context, router *mod
 		SetName(router.Name).
 		SetEnabled(router.Enabled).
 		SetChatgptOauthTokenUserAgent(router.ChatGPTOAuthTokenUserAgent).
+		SetCodexInviteResetUserAgent(router.CodexInviteResetUserAgent).
 		SetRules(router.Rules)
 	if router.Description != nil {
 		builder.SetDescription(*router.Description)
 	}
 	if router.ChatGPTOAuthTokenTLSFingerprintProfileID != nil {
 		builder.SetChatgptOauthTokenTLSFingerprintProfileID(*router.ChatGPTOAuthTokenTLSFingerprintProfileID)
+	}
+	if router.CodexInviteResetTLSFingerprintProfileID != nil {
+		builder.SetCodexInviteResetTLSFingerprintProfileID(*router.CodexInviteResetTLSFingerprintProfileID)
 	}
 	created, err := builder.Save(ctx)
 	if err != nil {
@@ -71,6 +75,7 @@ func (r *tlsFingerprintRouterRepository) Update(ctx context.Context, router *mod
 		SetName(router.Name).
 		SetEnabled(router.Enabled).
 		SetChatgptOauthTokenUserAgent(router.ChatGPTOAuthTokenUserAgent).
+		SetCodexInviteResetUserAgent(router.CodexInviteResetUserAgent).
 		SetRules(router.Rules)
 	if router.Description != nil {
 		builder.SetDescription(*router.Description)
@@ -81,6 +86,11 @@ func (r *tlsFingerprintRouterRepository) Update(ctx context.Context, router *mod
 		builder.SetChatgptOauthTokenTLSFingerprintProfileID(*router.ChatGPTOAuthTokenTLSFingerprintProfileID)
 	} else {
 		builder.ClearChatgptOauthTokenTLSFingerprintProfileID()
+	}
+	if router.CodexInviteResetTLSFingerprintProfileID != nil {
+		builder.SetCodexInviteResetTLSFingerprintProfileID(*router.CodexInviteResetTLSFingerprintProfileID)
+	} else {
+		builder.ClearCodexInviteResetTLSFingerprintProfileID()
 	}
 	updated, err := builder.Save(ctx)
 	if err != nil {
@@ -102,6 +112,8 @@ func (r *tlsFingerprintRouterRepository) toModel(e *ent.TLSFingerprintRouter) *m
 		Enabled:                                  e.Enabled,
 		ChatGPTOAuthTokenUserAgent:               e.ChatgptOauthTokenUserAgent,
 		ChatGPTOAuthTokenTLSFingerprintProfileID: e.ChatgptOauthTokenTLSFingerprintProfileID,
+		CodexInviteResetUserAgent:                e.CodexInviteResetUserAgent,
+		CodexInviteResetTLSFingerprintProfileID:  e.CodexInviteResetTLSFingerprintProfileID,
 		Rules:                                    e.Rules,
 		CreatedAt:                                e.CreatedAt,
 		UpdatedAt:                                e.UpdatedAt,

@@ -4,6 +4,7 @@ package provider
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,126 +12,83 @@ import (
 	stripe "github.com/stripe/stripe-go/v85"
 )
 
-func TestBuildStripeInvoiceCreateParamsUsesHostedInvoiceMode(t *testing.T) {
+func TestBuildStripeCheckoutSessionCreateParamsUsesDashboardPaymentMethods(t *testing.T) {
 	t.Parallel()
 
-	expiresAt := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Second)
-	params := buildStripeInvoiceCreateParams("cus_123", payment.CreatePaymentRequest{
+	expiresAt := time.Now().Add(2 * time.Hour).UTC().Truncate(time.Second)
+	params := buildStripeCheckoutSessionCreateParams("cus_123", payment.CreatePaymentRequest{
 		OrderID:   "sub2_order_123",
 		Subject:   "TokenRouter Balance",
+		ReturnURL: "https://app.example.com/payment/result?order_id=101",
 		ExpiresAt: expiresAt,
-	}, []string{"card", "link", "wechat_pay"}, "42", "CNY")
+		BillingInfo: &payment.BillingInfo{
+			Email: "payer@example.com",
+		},
+	}, 1292, "42", "CNY")
 
 	if params.Customer == nil || *params.Customer != "cus_123" {
 		t.Fatalf("customer = %#v, want cus_123", params.Customer)
 	}
-	if params.CollectionMethod == nil || *params.CollectionMethod != string(stripe.InvoiceCollectionMethodSendInvoice) {
-		t.Fatalf("collection_method = %#v, want send_invoice", params.CollectionMethod)
+	if params.Mode == nil || *params.Mode != string(stripe.CheckoutSessionModePayment) {
+		t.Fatalf("mode = %#v, want payment", params.Mode)
 	}
-	if params.DueDate == nil || *params.DueDate != expiresAt.Unix() {
-		t.Fatalf("due_date = %#v, want %d", params.DueDate, expiresAt.Unix())
+	if params.ClientReferenceID == nil || *params.ClientReferenceID != "sub2_order_123" {
+		t.Fatalf("client_reference_id = %#v", params.ClientReferenceID)
 	}
-	if params.DaysUntilDue != nil {
-		t.Fatalf("days_until_due should be empty when due_date is set")
+	if params.SuccessURL == nil || *params.SuccessURL != "https://app.example.com/payment/result?order_id=101&status=success" {
+		t.Fatalf("success_url = %#v", params.SuccessURL)
 	}
-	if params.PaymentSettings == nil || len(params.PaymentSettings.PaymentMethodTypes) != 3 {
-		t.Fatalf("payment method types = %#v", params.PaymentSettings)
+	if params.CancelURL == nil || *params.CancelURL != "https://app.example.com/payment/result?order_id=101&status=cancelled" {
+		t.Fatalf("cancel_url = %#v", params.CancelURL)
 	}
-	if got := *params.PaymentSettings.PaymentMethodTypes[2]; got != "wechat_pay" {
-		t.Fatalf("payment method type[2] = %q, want wechat_pay", got)
+	if params.PaymentMethodTypes != nil {
+		t.Fatalf("payment method types = %#v, want nil so Stripe Dashboard can decide", params.PaymentMethodTypes)
 	}
-	if params.Metadata["orderId"] != "sub2_order_123" {
-		t.Fatalf("metadata orderId = %q", params.Metadata["orderId"])
+	if params.InvoiceCreation == nil || params.InvoiceCreation.Enabled == nil || !*params.InvoiceCreation.Enabled {
+		t.Fatalf("invoice_creation should be enabled")
 	}
-	if params.Metadata["providerInstanceId"] != "42" {
-		t.Fatalf("metadata providerInstanceId = %q", params.Metadata["providerInstanceId"])
+	if params.PaymentIntentData == nil || params.PaymentIntentData.ReceiptEmail == nil || *params.PaymentIntentData.ReceiptEmail != "payer@example.com" {
+		t.Fatalf("receipt email = %#v", params.PaymentIntentData)
 	}
-}
-
-func TestBuildStripeInvoiceCreateParamsOmitsPaymentSettingsWhenMethodsEmpty(t *testing.T) {
-	t.Parallel()
-
-	params := buildStripeInvoiceCreateParams("cus_123", payment.CreatePaymentRequest{
-		OrderID: "sub2_order_123",
-		Subject: "TokenRouter Balance",
-	}, nil, "42", "CNY")
-
-	if params.PaymentSettings != nil {
-		t.Fatalf("payment settings = %#v, want nil", params.PaymentSettings)
+	if params.Metadata["orderId"] != "sub2_order_123" || params.PaymentIntentData.Metadata["providerInstanceId"] != "42" {
+		t.Fatalf("metadata not propagated: checkout=%#v payment_intent=%#v", params.Metadata, params.PaymentIntentData.Metadata)
 	}
-}
-
-func TestBuildStripeInvoiceCreateParamsUsesConfiguredCurrency(t *testing.T) {
-	t.Parallel()
-
-	params := buildStripeInvoiceCreateParams("cus_123", payment.CreatePaymentRequest{}, nil, "42", "HKD")
-	if params.Currency == nil || *params.Currency != "hkd" {
-		t.Fatalf("currency = %#v, want hkd", params.Currency)
+	if len(params.LineItems) != 1 || params.LineItems[0].PriceData == nil {
+		t.Fatalf("line items = %#v, want one inline price", params.LineItems)
 	}
-}
-
-func TestStripeInvoicePaymentMethodTypesMapsConfiguredSubMethods(t *testing.T) {
-	t.Parallel()
-
-	got := stripeInvoicePaymentMethodTypes("card,alipay,wxpay,link,stripe,unknown,alipay")
-	want := []string{"card", "alipay", "wechat_pay", "link"}
-	if len(got) != len(want) {
-		t.Fatalf("payment method types = %#v, want %#v", got, want)
+	lineItem := params.LineItems[0]
+	if lineItem.Quantity == nil || *lineItem.Quantity != 1 {
+		t.Fatalf("quantity = %#v, want 1", lineItem.Quantity)
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("payment method types = %#v, want %#v", got, want)
-		}
+	if lineItem.PriceData.Currency == nil || *lineItem.PriceData.Currency != "cny" {
+		t.Fatalf("currency = %#v, want cny", lineItem.PriceData.Currency)
+	}
+	if lineItem.PriceData.UnitAmount == nil || *lineItem.PriceData.UnitAmount != 1292 {
+		t.Fatalf("unit_amount = %#v, want 1292", lineItem.PriceData.UnitAmount)
+	}
+	if lineItem.PriceData.ProductData == nil || lineItem.PriceData.ProductData.Name == nil || *lineItem.PriceData.ProductData.Name != "TokenRouter Balance" {
+		t.Fatalf("product data = %#v", lineItem.PriceData.ProductData)
+	}
+	if params.ExpiresAt == nil || *params.ExpiresAt != expiresAt.Unix() {
+		t.Fatalf("expires_at = %#v, want %d", params.ExpiresAt, expiresAt.Unix())
+	}
+	gotExpand := strings.Join(stripeStringValues(params.Expand), ",")
+	if !strings.Contains(gotExpand, "invoice") || !strings.Contains(gotExpand, "payment_intent") {
+		t.Fatalf("expand = %q, want invoice and payment_intent", gotExpand)
 	}
 }
 
-func TestBuildStripeInvoiceCreateParamsUsesConfiguredSubMethods(t *testing.T) {
+func TestStripeCheckoutReturnURLRequiresBaseURL(t *testing.T) {
 	t.Parallel()
 
-	req := payment.CreatePaymentRequest{
-		OrderID:            "sub2_order_123",
-		Subject:            "TokenRouter Balance",
-		InstanceSubMethods: "card,alipay,wxpay,link",
+	if got := stripeCheckoutReturnURL("", "success"); got != "" {
+		t.Fatalf("return URL = %q, want empty fallback", got)
 	}
-	params := buildStripeInvoiceCreateParams("cus_123", req, stripeInvoicePaymentMethodTypes(req.InstanceSubMethods), "42", "CNY")
-
-	if params.PaymentSettings == nil || len(params.PaymentSettings.PaymentMethodTypes) != 4 {
-		t.Fatalf("payment method types = %#v, want 4 methods", params.PaymentSettings)
+	if got := stripeCheckoutReturnURL("https://app.example.com/payment/result", ""); got != "https://app.example.com/payment/result" {
+		t.Fatalf("return URL = %q, want unchanged base URL", got)
 	}
-	got := make([]string, 0, len(params.PaymentSettings.PaymentMethodTypes))
-	for _, method := range params.PaymentSettings.PaymentMethodTypes {
-		got = append(got, *method)
-	}
-	want := []string{"card", "alipay", "wechat_pay", "link"}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("payment method types = %#v, want %#v", got, want)
-		}
-	}
-}
-
-func TestBuildStripeInvoiceCreateParamsFallsBackToOneDayDue(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		req  payment.CreatePaymentRequest
-	}{
-		{name: "missing expiry", req: payment.CreatePaymentRequest{}},
-		{name: "past expiry", req: payment.CreatePaymentRequest{ExpiresAt: time.Now().Add(-time.Minute)}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			params := buildStripeInvoiceCreateParams("cus_123", tt.req, []string{"card"}, "", "CNY")
-			if params.DueDate != nil {
-				t.Fatalf("due_date should be empty without a usable order expiry")
-			}
-			if params.DaysUntilDue == nil || *params.DaysUntilDue != 1 {
-				t.Fatalf("days_until_due = %#v, want 1", params.DaysUntilDue)
-			}
-		})
+	if got := stripeCheckoutReturnURL("https://app.example.com/payment/result?order_id=101&status=success", "cancelled"); got != "https://app.example.com/payment/result?order_id=101&status=cancelled" {
+		t.Fatalf("return URL = %q, want status overwritten", got)
 	}
 }
 
@@ -172,33 +130,6 @@ func TestStripePaymentIntentIDFromClientSecret(t *testing.T) {
 				t.Fatalf("payment intent id = %q, want %q", got, tt.want)
 			}
 		})
-	}
-}
-
-func TestStripeInvoiceTradeNo(t *testing.T) {
-	t.Parallel()
-
-	invoiceWithPayment := &stripe.Invoice{
-		ID: "in_with_payment",
-		Payments: &stripe.InvoicePaymentList{Data: []*stripe.InvoicePayment{
-			{
-				Payment: &stripe.InvoicePaymentPayment{
-					PaymentIntent: &stripe.PaymentIntent{ID: "pi_from_payment"},
-				},
-			},
-		}},
-	}
-	if got := stripeInvoiceTradeNo(invoiceWithPayment, "pi_123_secret_abc"); got != "pi_from_payment" {
-		t.Fatalf("trade no = %q, want expanded payment intent", got)
-	}
-
-	invoiceWithoutPayment := &stripe.Invoice{ID: "in_without_payment"}
-	if got := stripeInvoiceTradeNo(invoiceWithoutPayment, "pi_123_secret_abc"); got != "pi_123" {
-		t.Fatalf("trade no = %q, want client secret payment intent", got)
-	}
-
-	if got := stripeInvoiceTradeNo(invoiceWithoutPayment, ""); got != "in_without_payment" {
-		t.Fatalf("trade no = %q, want invoice id fallback", got)
 	}
 }
 
@@ -268,6 +199,142 @@ func TestParseStripeInvoiceUsesInvoicePaymentIntent(t *testing.T) {
 	}
 	if notification.Metadata["invoice_pdf"] != "https://stripe.example/invoice/in_123.pdf" {
 		t.Fatalf("invoice_pdf metadata = %q", notification.Metadata["invoice_pdf"])
+	}
+}
+
+func TestParseStripeCheckoutSessionUsesPaymentIntentAndInvoiceMetadata(t *testing.T) {
+	t.Parallel()
+
+	rawBody := `{"id":"evt_checkout_completed"}`
+	checkoutRaw := stripeCheckoutSessionEventRaw(t, map[string]any{
+		"id":             "cs_test_123",
+		"object":         "checkout.session",
+		"amount_total":   1292,
+		"currency":       "cny",
+		"payment_status": "paid",
+		"metadata": map[string]string{
+			"orderId": "sub2_order_123",
+		},
+		"payment_intent": map[string]any{
+			"id":     "pi_123",
+			"object": "payment_intent",
+		},
+		"invoice": map[string]any{
+			"id":                 "in_123",
+			"object":             "invoice",
+			"status":             "paid",
+			"hosted_invoice_url": "https://stripe.example/invoice/in_123",
+			"invoice_pdf":        "https://stripe.example/invoice/in_123.pdf",
+		},
+	})
+
+	notification, err := parseStripeCheckoutSession(&stripe.Event{
+		Data: &stripe.EventData{Raw: checkoutRaw},
+	}, payment.ProviderStatusSuccess, rawBody)
+	if err != nil {
+		t.Fatalf("parse checkout session: %v", err)
+	}
+
+	if notification.TradeNo != "pi_123" {
+		t.Fatalf("trade no = %q, want pi_123", notification.TradeNo)
+	}
+	if notification.OrderID != "sub2_order_123" {
+		t.Fatalf("order id = %q, want sub2_order_123", notification.OrderID)
+	}
+	if notification.Amount != 12.92 {
+		t.Fatalf("amount = %.2f, want 12.92", notification.Amount)
+	}
+	if notification.Metadata["currency"] != "CNY" {
+		t.Fatalf("currency metadata = %q", notification.Metadata["currency"])
+	}
+	if notification.Metadata["invoice_id"] != "in_123" {
+		t.Fatalf("invoice_id metadata = %q", notification.Metadata["invoice_id"])
+	}
+	if notification.Metadata["invoice_url"] != "https://stripe.example/invoice/in_123" {
+		t.Fatalf("invoice_url metadata = %q", notification.Metadata["invoice_url"])
+	}
+	if notification.RawData != rawBody {
+		t.Fatalf("raw body = %q, want %q", notification.RawData, rawBody)
+	}
+}
+
+func TestParseStripeCheckoutSessionIgnoresUnpaidCompletedSession(t *testing.T) {
+	t.Parallel()
+
+	checkoutRaw := stripeCheckoutSessionEventRaw(t, map[string]any{
+		"id":             "cs_async_pending",
+		"object":         "checkout.session",
+		"amount_total":   1292,
+		"currency":       "cny",
+		"payment_status": "unpaid",
+		"metadata": map[string]string{
+			"orderId": "sub2_async_pending",
+		},
+	})
+
+	notification, err := parseStripeCheckoutSession(&stripe.Event{
+		Data: &stripe.EventData{Raw: checkoutRaw},
+	}, payment.ProviderStatusSuccess, "{}")
+	if err != nil {
+		t.Fatalf("parse checkout session: %v", err)
+	}
+	if notification != nil {
+		t.Fatalf("notification = %#v, want nil before async payment succeeds", notification)
+	}
+}
+
+func TestParseStripeCheckoutSessionKeepsAsyncFailureNotification(t *testing.T) {
+	t.Parallel()
+
+	checkoutRaw := stripeCheckoutSessionEventRaw(t, map[string]any{
+		"id":             "cs_async_failed",
+		"object":         "checkout.session",
+		"amount_total":   1292,
+		"currency":       "cny",
+		"payment_status": "unpaid",
+		"metadata": map[string]string{
+			"orderId": "sub2_async_failed",
+		},
+	})
+
+	notification, err := parseStripeCheckoutSession(&stripe.Event{
+		Data: &stripe.EventData{Raw: checkoutRaw},
+	}, payment.ProviderStatusFailed, "{}")
+	if err != nil {
+		t.Fatalf("parse checkout session: %v", err)
+	}
+	if notification == nil {
+		t.Fatal("notification should be present for async failure")
+	}
+	if notification.Status != payment.ProviderStatusFailed {
+		t.Fatalf("status = %q, want failed", notification.Status)
+	}
+	if notification.TradeNo != "cs_async_failed" {
+		t.Fatalf("trade no = %q, want checkout session id fallback", notification.TradeNo)
+	}
+}
+
+func TestStripeCheckoutInvoiceDocument(t *testing.T) {
+	t.Parallel()
+
+	doc := stripeCheckoutInvoiceDocument(&stripe.CheckoutSession{
+		ID: "cs_123",
+		Invoice: &stripe.Invoice{
+			ID:               "in_123",
+			Status:           stripe.InvoiceStatusPaid,
+			HostedInvoiceURL: "https://stripe.example/invoice/in_123",
+			InvoicePDF:       "https://stripe.example/invoice/in_123.pdf",
+		},
+	})
+
+	if doc.Type != "invoice" {
+		t.Fatalf("type = %q, want invoice", doc.Type)
+	}
+	if doc.URL != "https://stripe.example/invoice/in_123" {
+		t.Fatalf("url = %q, want hosted invoice url", doc.URL)
+	}
+	if doc.InvoiceID != "in_123" || doc.InvoiceStatus != string(stripe.InvoiceStatusPaid) {
+		t.Fatalf("invoice metadata = %#v", doc)
 	}
 }
 
@@ -353,4 +420,26 @@ func stripeInvoiceEventRaw(t *testing.T, invoice map[string]any) json.RawMessage
 		t.Fatalf("marshal invoice fixture: %v", err)
 	}
 	return raw
+}
+
+func stripeCheckoutSessionEventRaw(t *testing.T, session map[string]any) json.RawMessage {
+	t.Helper()
+
+	raw, err := json.Marshal(session)
+	if err != nil {
+		t.Fatalf("marshal checkout session fixture: %v", err)
+	}
+	return raw
+}
+
+func stripeStringValues(values []*string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if value == nil {
+			out = append(out, "")
+			continue
+		}
+		out = append(out, *value)
+	}
+	return out
 }

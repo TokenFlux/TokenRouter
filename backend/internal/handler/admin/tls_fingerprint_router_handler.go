@@ -28,6 +28,8 @@ type CreateTLSFingerprintRouterRequest struct {
 	Enabled                                  *bool                            `json:"enabled"`
 	ChatGPTOAuthTokenUserAgent               string                           `json:"chatgpt_oauth_token_user_agent"`
 	ChatGPTOAuthTokenTLSFingerprintProfileID *int64                           `json:"chatgpt_oauth_token_tls_fingerprint_profile_id"`
+	CodexInviteResetUserAgent                string                           `json:"codex_invite_reset_user_agent"`
+	CodexInviteResetTLSFingerprintProfileID  *int64                           `json:"codex_invite_reset_tls_fingerprint_profile_id"`
 	Rules                                    []model.TLSFingerprintRouterRule `json:"rules"`
 }
 
@@ -38,6 +40,8 @@ type UpdateTLSFingerprintRouterRequest struct {
 	Enabled                                  *bool                            `json:"enabled"`
 	ChatGPTOAuthTokenUserAgent               *string                          `json:"chatgpt_oauth_token_user_agent"`
 	ChatGPTOAuthTokenTLSFingerprintProfileID nullableInt64Patch               `json:"chatgpt_oauth_token_tls_fingerprint_profile_id"`
+	CodexInviteResetUserAgent                *string                          `json:"codex_invite_reset_user_agent"`
+	CodexInviteResetTLSFingerprintProfileID  nullableInt64Patch               `json:"codex_invite_reset_tls_fingerprint_profile_id"`
 	Rules                                    []model.TLSFingerprintRouterRule `json:"rules"`
 }
 
@@ -106,6 +110,8 @@ func (h *TLSFingerprintRouterHandler) Create(c *gin.Context) {
 		Enabled:                                  true,
 		ChatGPTOAuthTokenUserAgent:               req.ChatGPTOAuthTokenUserAgent,
 		ChatGPTOAuthTokenTLSFingerprintProfileID: req.ChatGPTOAuthTokenTLSFingerprintProfileID,
+		CodexInviteResetUserAgent:                req.CodexInviteResetUserAgent,
+		CodexInviteResetTLSFingerprintProfileID:  req.CodexInviteResetTLSFingerprintProfileID,
 		Rules:                                    req.Rules,
 	}
 	if req.Enabled != nil {
@@ -155,6 +161,8 @@ func (h *TLSFingerprintRouterHandler) Update(c *gin.Context) {
 		Enabled:                                  existing.Enabled,
 		ChatGPTOAuthTokenUserAgent:               existing.ChatGPTOAuthTokenUserAgent,
 		ChatGPTOAuthTokenTLSFingerprintProfileID: existing.ChatGPTOAuthTokenTLSFingerprintProfileID,
+		CodexInviteResetUserAgent:                existing.CodexInviteResetUserAgent,
+		CodexInviteResetTLSFingerprintProfileID:  existing.CodexInviteResetTLSFingerprintProfileID,
 		Rules:                                    existing.Rules,
 	}
 	if req.Name != nil {
@@ -171,6 +179,12 @@ func (h *TLSFingerprintRouterHandler) Update(c *gin.Context) {
 	}
 	if req.ChatGPTOAuthTokenTLSFingerprintProfileID.Set {
 		router.ChatGPTOAuthTokenTLSFingerprintProfileID = req.ChatGPTOAuthTokenTLSFingerprintProfileID.Value
+	}
+	if req.CodexInviteResetUserAgent != nil {
+		router.CodexInviteResetUserAgent = *req.CodexInviteResetUserAgent
+	}
+	if req.CodexInviteResetTLSFingerprintProfileID.Set {
+		router.CodexInviteResetTLSFingerprintProfileID = req.CodexInviteResetTLSFingerprintProfileID.Value
 	}
 	if req.Rules != nil {
 		router.Rules = req.Rules

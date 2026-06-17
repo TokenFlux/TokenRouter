@@ -1,6 +1,8 @@
 package dto
 
 import (
+	"time"
+
 	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
@@ -60,20 +62,39 @@ type ModelMarketplaceCapacity struct {
 	RPMMax          int `json:"rpm_max"`
 }
 
+type ModelMarketplaceAvailabilityDay struct {
+	Date             string   `json:"date"`
+	SuccessCount     int64    `json:"success_count"`
+	TotalCount       int64    `json:"total_count"`
+	AvailabilityRate *float64 `json:"availability_rate,omitempty"`
+}
+
+type ModelMarketplaceAvailability struct {
+	WindowDays       int                               `json:"window_days"`
+	BucketMinutes    int                               `json:"bucket_minutes"`
+	SuccessCount     int64                             `json:"success_count"`
+	TotalCount       int64                             `json:"total_count"`
+	AvailabilityRate *float64                          `json:"availability_rate,omitempty"`
+	LastStatus       string                            `json:"last_status,omitempty"`
+	LastCheckedAt    *time.Time                        `json:"last_checked_at,omitempty"`
+	Days             []ModelMarketplaceAvailabilityDay `json:"days"`
+}
+
 type ModelMarketplaceGroup struct {
-	ID                         int64                     `json:"id"`
-	Name                       string                    `json:"name"`
-	Description                string                    `json:"description"`
-	Platform                   string                    `json:"platform"`
-	DisplayBrand               string                    `json:"display_brand"`
-	SortOrder                  int                       `json:"sort_order"`
-	RateMultiplier             float64                   `json:"rate_multiplier"`
-	OfficialPriceRatio         *float64                  `json:"official_price_ratio,omitempty"`
-	OfficialPriceRMBEquivalent *float64                  `json:"official_price_rmb_equivalent,omitempty"`
-	DataSharingEnabled         bool                      `json:"data_sharing_enabled"`
-	Capacity                   *ModelMarketplaceCapacity `json:"capacity,omitempty"`
-	ModelCount                 int                       `json:"model_count"`
-	Models                     []ModelMarketplaceModel   `json:"models"`
+	ID                         int64                         `json:"id"`
+	Name                       string                        `json:"name"`
+	Description                string                        `json:"description"`
+	Platform                   string                        `json:"platform"`
+	DisplayBrand               string                        `json:"display_brand"`
+	SortOrder                  int                           `json:"sort_order"`
+	RateMultiplier             float64                       `json:"rate_multiplier"`
+	OfficialPriceRatio         *float64                      `json:"official_price_ratio,omitempty"`
+	OfficialPriceRMBEquivalent *float64                      `json:"official_price_rmb_equivalent,omitempty"`
+	DataSharingEnabled         bool                          `json:"data_sharing_enabled"`
+	Capacity                   *ModelMarketplaceCapacity     `json:"capacity,omitempty"`
+	Availability               *ModelMarketplaceAvailability `json:"availability,omitempty"`
+	ModelCount                 int                           `json:"model_count"`
+	Models                     []ModelMarketplaceModel       `json:"models"`
 }
 
 func ModelMarketplaceGroupsFromService(groups []service.ModelMarketplaceGroup) []ModelMarketplaceGroup {
@@ -100,12 +121,39 @@ func ModelMarketplaceGroupsFromService(groups []service.ModelMarketplaceGroup) [
 			OfficialPriceRMBEquivalent: group.OfficialPriceRMBEquivalent,
 			DataSharingEnabled:         group.DataSharingEnabled,
 			Capacity:                   modelMarketplaceCapacityFromService(group.Capacity),
+			Availability:               modelMarketplaceAvailabilityFromService(group.Availability),
 			ModelCount:                 group.ModelCount,
 			Models:                     models,
 		})
 	}
 
 	return out
+}
+
+// modelMarketplaceAvailabilityFromService 将主动可用性摘要转换为公开 DTO。
+func modelMarketplaceAvailabilityFromService(availability *service.GroupAvailabilitySummary) *ModelMarketplaceAvailability {
+	if availability == nil {
+		return nil
+	}
+	days := make([]ModelMarketplaceAvailabilityDay, 0, len(availability.Days))
+	for _, day := range availability.Days {
+		days = append(days, ModelMarketplaceAvailabilityDay{
+			Date:             day.Date,
+			SuccessCount:     day.SuccessCount,
+			TotalCount:       day.TotalCount,
+			AvailabilityRate: day.AvailabilityRate,
+		})
+	}
+	return &ModelMarketplaceAvailability{
+		WindowDays:       availability.WindowDays,
+		BucketMinutes:    availability.BucketMinutes,
+		SuccessCount:     availability.SuccessCount,
+		TotalCount:       availability.TotalCount,
+		AvailabilityRate: availability.AvailabilityRate,
+		LastStatus:       availability.LastStatus,
+		LastCheckedAt:    availability.LastCheckedAt,
+		Days:             days,
+	}
 }
 
 // modelMarketplaceCapacityFromService 将分组容量快照转换为公开 DTO。

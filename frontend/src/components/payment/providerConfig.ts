@@ -29,12 +29,13 @@ export interface CallbackPaths {
 
 // --- Constants ---
 
-/** Maps provider key → available payment types. */
+/** 映射服务商到管理端可维护的支付类型。 */
 export const PROVIDER_SUPPORTED_TYPES: Record<string, string[]> = {
   easypay: ['alipay', 'wxpay'],
   alipay: ['alipay'],
   wxpay: ['wxpay'],
-  stripe: ['card', 'alipay', 'wxpay', 'link'],
+  // Stripe Checkout 子支付方式由 Stripe Dashboard 动态支付方式控制，管理端只保留服务商级类型。
+  stripe: ['stripe'],
   airwallex: ['airwallex'],
 }
 

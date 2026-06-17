@@ -39,6 +39,8 @@ type TLSFingerprintRouter struct {
 	Enabled                                  bool                       `json:"enabled"`
 	ChatGPTOAuthTokenUserAgent               string                     `json:"chatgpt_oauth_token_user_agent"`
 	ChatGPTOAuthTokenTLSFingerprintProfileID *int64                     `json:"chatgpt_oauth_token_tls_fingerprint_profile_id"`
+	CodexInviteResetUserAgent                string                     `json:"codex_invite_reset_user_agent"`
+	CodexInviteResetTLSFingerprintProfileID  *int64                     `json:"codex_invite_reset_tls_fingerprint_profile_id"`
 	Rules                                    []TLSFingerprintRouterRule `json:"rules"`
 	CreatedAt                                time.Time                  `json:"created_at"`
 	UpdatedAt                                time.Time                  `json:"updated_at"`
@@ -54,6 +56,12 @@ func (r *TLSFingerprintRouter) Validate() error {
 	}
 	if r.ChatGPTOAuthTokenTLSFingerprintProfileID != nil && *r.ChatGPTOAuthTokenTLSFingerprintProfileID < -1 {
 		return &ValidationError{Field: "chatgpt_oauth_token_tls_fingerprint_profile_id", Message: "chatgpt_oauth_token_tls_fingerprint_profile_id must be null, 0, -1, or a positive profile ID"}
+	}
+	if len(r.CodexInviteResetUserAgent) > 512 {
+		return &ValidationError{Field: "codex_invite_reset_user_agent", Message: "codex_invite_reset_user_agent must be at most 512 characters"}
+	}
+	if r.CodexInviteResetTLSFingerprintProfileID != nil && *r.CodexInviteResetTLSFingerprintProfileID < -1 {
+		return &ValidationError{Field: "codex_invite_reset_tls_fingerprint_profile_id", Message: "codex_invite_reset_tls_fingerprint_profile_id must be null, 0, -1, or a positive profile ID"}
 	}
 	for i, rule := range r.Rules {
 		if err := rule.Validate(); err != nil {

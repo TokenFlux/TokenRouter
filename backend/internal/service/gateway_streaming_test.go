@@ -393,3 +393,124 @@ func TestHandleStreamingResponse_FailoverBodyDoesNotLeakAddresses(t *testing.T) 
 	require.Contains(t, body, "connection reset by peer")
 	require.Contains(t, body, "upstream stream disconnected")
 }
+
+// 上游 HTTP 200 + SSE 流体内 event:error 帧应保留 data 行原文，
+// 这是 Forward 后续补全 UpstreamFailoverError.ResponseBody 与 Ops 日志的前提。
+func TestHandleStreamingResponse_SSEErrorEvent_ReturnsTypedErrorWithRawData(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newMinimalGatewayService()
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	const errorJSON = `{"type":"error","error":{"type":"overloaded_error","message":"Anthropic upstream is overloaded"}}`
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
+
+	go func() {
+		defer func() { _ = pw.Close() }()
+		_, _ = pw.Write([]byte("event: error\ndata: " + errorJSON + "\n\n"))
+	}()
+
+	result, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "model", "model", false)
+	_ = pr.Close()
+
+	require.Error(t, err)
+	require.Nil(t, result)
+
+	var sseErr *sseStreamErrorEventError
+	require.True(t, errors.As(err, &sseErr), "SSE event:error 必须包成 *sseStreamErrorEventError，期望: %v", err)
+	require.Equal(t, errorJSON, sseErr.RawData)
+	require.Equal(t, "have error in stream", err.Error())
+	require.Equal(t, "Anthropic upstream is overloaded", ExtractUpstreamErrorMessage([]byte(sseErr.RawData)))
+}
+
+// 上游只发 event:error 而没有 data 行时，也要返回 typed error，避免上层走不到 stream_error 分支。
+func TestHandleStreamingResponse_SSEErrorEvent_EmptyDataLine(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newMinimalGatewayService()
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
+
+	go func() {
+		defer func() { _ = pw.Close() }()
+		_, _ = pw.Write([]byte("event: error\n\n"))
+	}()
+
+	_, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "model", "model", false)
+	_ = pr.Close()
+
+	require.Error(t, err)
+	var sseErr *sseStreamErrorEventError
+	require.True(t, errors.As(err, &sseErr), "即使 data 行为空，也必须返回 typed error")
+	require.Equal(t, "", sseErr.RawData)
+}
+
+// 上游先发部分流输出再发 event:error 时，仍要保留真实错误体；
+// handler 层会因已写客户端响应而停止继续换号。
+func TestHandleStreamingResponse_SSEErrorEvent_AfterPartialStreamOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newMinimalGatewayService()
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	const errorJSON = `{"type":"error","error":{"type":"rate_limit_error","message":"Rate limited"}}`
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
+
+	go func() {
+		defer func() { _ = pw.Close() }()
+		_, _ = pw.Write([]byte(`data: {"type":"message_start","message":{"usage":{"input_tokens":5}}}` + "\n\n"))
+		_, _ = pw.Write([]byte("event: error\ndata: " + errorJSON + "\n\n"))
+	}()
+
+	_, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "model", "model", false)
+	_ = pr.Close()
+
+	require.Error(t, err)
+	var sseErr *sseStreamErrorEventError
+	require.True(t, errors.As(err, &sseErr), "已发数据后再来的 SSE event:error 必须仍包成 typed error，期望: %v", err)
+	require.Equal(t, errorJSON, sseErr.RawData)
+	require.Greater(t, rec.Body.Len(), 0, "message_start 应被转发到客户端")
+	require.Contains(t, rec.Body.String(), "message_start")
+}
+
+// 上游 event:error 的 data 行不是合法 JSON 时，也要保留原始内容，供 Ops detail 排查。
+func TestHandleStreamingResponse_SSEErrorEvent_NonJSONDataLine(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	svc := newMinimalGatewayService()
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	pr, pw := io.Pipe()
+	resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: pr}
+
+	go func() {
+		defer func() { _ = pw.Close() }()
+		_, _ = pw.Write([]byte("event: error\ndata: not-a-json-payload\n\n"))
+	}()
+
+	_, err := svc.handleStreamingResponse(context.Background(), resp, c, &Account{ID: 1}, time.Now(), "model", "model", false)
+	_ = pr.Close()
+
+	require.Error(t, err)
+	var sseErr *sseStreamErrorEventError
+	require.True(t, errors.As(err, &sseErr))
+	require.Equal(t, "not-a-json-payload", sseErr.RawData)
+	require.NotPanics(t, func() {
+		_ = ExtractUpstreamErrorMessage([]byte(sseErr.RawData))
+	})
+	require.Equal(t, "", ExtractUpstreamErrorMessage([]byte(sseErr.RawData)))
+}

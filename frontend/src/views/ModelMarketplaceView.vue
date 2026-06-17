@@ -152,24 +152,34 @@
                   </div>
                 </div>
               </div>
-              <!-- 容量用量独立放在卡片头部右侧，避免和价格标签挤在一起。 -->
               <div
-                v-if="group.capacity"
-                class="flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-white/80 px-2.5 py-1.5 dark:border-dark-700 dark:bg-dark-950/80 sm:w-auto xl:ml-6 xl:shrink-0"
-                :title="t('marketplace.capacityHint')"
+                v-if="group.availability || group.capacity"
+                class="flex w-full flex-col gap-3 xl:ml-6 xl:w-[720px] xl:shrink-0 xl:flex-row xl:items-center xl:justify-end xl:gap-6"
               >
-                <span class="text-xs font-semibold text-gray-500 dark:text-dark-400">
-                  {{ t('marketplace.capacity') }}
-                </span>
-                <GroupCapacityBadge
-                  layout="horizontal"
-                  :concurrency-used="group.capacity.concurrency_used"
-                  :concurrency-max="group.capacity.concurrency_max"
-                  :sessions-used="group.capacity.sessions_used"
-                  :sessions-max="group.capacity.sessions_max"
-                  :rpm-used="group.capacity.rpm_used"
-                  :rpm-max="group.capacity.rpm_max"
+                <GroupAvailabilityBar
+                  v-if="group.availability"
+                  :availability="group.availability"
+                  class="min-w-0 flex-1"
                 />
+                <!-- 容量用量独立放在卡片头部右侧，避免和价格标签挤在一起。 -->
+                <div
+                  v-if="group.capacity"
+                  class="flex w-full items-center gap-2 rounded-lg border border-gray-200 bg-white/80 px-2.5 py-1.5 dark:border-dark-700 dark:bg-dark-950/80 sm:w-auto xl:shrink-0"
+                  :title="t('marketplace.capacityHint')"
+                >
+                  <span class="text-xs font-semibold text-gray-500 dark:text-dark-400">
+                    {{ t('marketplace.capacity') }}
+                  </span>
+                  <GroupCapacityBadge
+                    layout="horizontal"
+                    :concurrency-used="group.capacity.concurrency_used"
+                    :concurrency-max="group.capacity.concurrency_max"
+                    :sessions-used="group.capacity.sessions_used"
+                    :sessions-max="group.capacity.sessions_max"
+                    :rpm-used="group.capacity.rpm_used"
+                    :rpm-max="group.capacity.rpm_max"
+                  />
+                </div>
               </div>
             </div>
 
@@ -395,6 +405,7 @@ import Icon from '@/components/icons/Icon.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import GroupCapacityBadge from '@/components/common/GroupCapacityBadge.vue'
+import GroupAvailabilityBar from '@/components/marketplace/GroupAvailabilityBar.vue'
 import ModelIcon from '@/components/common/ModelIcon.vue'
 import ProviderIcon from '@/components/common/ProviderIcon.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'

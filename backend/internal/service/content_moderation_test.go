@@ -1908,6 +1908,34 @@ func TestContentModerationRecordCyberWarning_ExtractsResponsesFailedError(t *tes
 	require.Contains(t, repo.cyberWarnings[0].WarningText, "cybersecurity risk")
 }
 
+func TestContentModerationRecordCyberWarning_RecordsCyberPolicyCode(t *testing.T) {
+	rawCfg, _ := json.Marshal(defaultContentModerationConfig())
+	settingRepo := &contentModerationTestSettingRepo{values: map[string]string{
+		SettingKeyRiskControlEnabled:      "true",
+		SettingKeyContentModerationConfig: string(rawCfg),
+	}}
+	repo := &contentModerationTestRepo{}
+	svc := NewContentModerationService(settingRepo, repo, nil, nil, nil, nil, nil)
+
+	warning, err := svc.RecordCyberWarning(context.Background(), ContentModerationCyberWarningInput{
+		RequestID: "req_cyber_policy",
+		UserID:    1001,
+		ResponseBody: []byte(`{
+			"response":{
+				"error":{
+					"code":"cyber_policy",
+					"message":"Request blocked by upstream cyber policy"
+				}
+			}
+		}`),
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, warning)
+	require.Len(t, repo.cyberWarnings, 1)
+	require.Equal(t, "Request blocked by upstream cyber policy", repo.cyberWarnings[0].WarningText)
+}
+
 func TestContentModerationRecordCyberWarning_DefaultRecordsWithoutBan(t *testing.T) {
 	userID := int64(1001)
 	rawCfg, _ := json.Marshal(defaultContentModerationConfig())

@@ -788,16 +788,20 @@ func init() {
 	groupDescModelsListConfig := groupFields[27].Descriptor()
 	// group.DefaultModelsListConfig holds the default value on creation for the models_list_config field.
 	group.DefaultModelsListConfig = groupDescModelsListConfig.Default.(domain.GroupModelsListConfig)
+	// groupDescAvailabilityProbeConfig is the schema descriptor for availability_probe_config field.
+	groupDescAvailabilityProbeConfig := groupFields[28].Descriptor()
+	// group.DefaultAvailabilityProbeConfig holds the default value on creation for the availability_probe_config field.
+	group.DefaultAvailabilityProbeConfig = groupDescAvailabilityProbeConfig.Default.(domain.GroupAvailabilityProbeConfig)
 	// groupDescRpmLimit is the schema descriptor for rpm_limit field.
-	groupDescRpmLimit := groupFields[28].Descriptor()
+	groupDescRpmLimit := groupFields[29].Descriptor()
 	// group.DefaultRpmLimit holds the default value on creation for the rpm_limit field.
 	group.DefaultRpmLimit = groupDescRpmLimit.Default.(int)
 	// groupDescDataSharingEnabled is the schema descriptor for data_sharing_enabled field.
-	groupDescDataSharingEnabled := groupFields[29].Descriptor()
+	groupDescDataSharingEnabled := groupFields[30].Descriptor()
 	// group.DefaultDataSharingEnabled holds the default value on creation for the data_sharing_enabled field.
 	group.DefaultDataSharingEnabled = groupDescDataSharingEnabled.Default.(bool)
 	// groupDescSessionIsolationEnabled is the schema descriptor for session_isolation_enabled field.
-	groupDescSessionIsolationEnabled := groupFields[30].Descriptor()
+	groupDescSessionIsolationEnabled := groupFields[31].Descriptor()
 	// group.DefaultSessionIsolationEnabled holds the default value on creation for the session_isolation_enabled field.
 	group.DefaultSessionIsolationEnabled = groupDescSessionIsolationEnabled.Default.(bool)
 	idempotencyrecordMixin := schema.IdempotencyRecord{}.Mixin()
@@ -1577,6 +1581,12 @@ func init() {
 	tlsfingerprintrouter.DefaultChatgptOauthTokenUserAgent = tlsfingerprintrouterDescChatgptOauthTokenUserAgent.Default.(string)
 	// tlsfingerprintrouter.ChatgptOauthTokenUserAgentValidator is a validator for the "chatgpt_oauth_token_user_agent" field. It is called by the builders before save.
 	tlsfingerprintrouter.ChatgptOauthTokenUserAgentValidator = tlsfingerprintrouterDescChatgptOauthTokenUserAgent.Validators[0].(func(string) error)
+	// tlsfingerprintrouterDescCodexInviteResetUserAgent is the schema descriptor for codex_invite_reset_user_agent field.
+	tlsfingerprintrouterDescCodexInviteResetUserAgent := tlsfingerprintrouterFields[5].Descriptor()
+	// tlsfingerprintrouter.DefaultCodexInviteResetUserAgent holds the default value on creation for the codex_invite_reset_user_agent field.
+	tlsfingerprintrouter.DefaultCodexInviteResetUserAgent = tlsfingerprintrouterDescCodexInviteResetUserAgent.Default.(string)
+	// tlsfingerprintrouter.CodexInviteResetUserAgentValidator is a validator for the "codex_invite_reset_user_agent" field. It is called by the builders before save.
+	tlsfingerprintrouter.CodexInviteResetUserAgentValidator = tlsfingerprintrouterDescCodexInviteResetUserAgent.Validators[0].(func(string) error)
 	usagecleanuptaskMixin := schema.UsageCleanupTask{}.Mixin()
 	usagecleanuptaskMixinFields0 := usagecleanuptaskMixin[0].Fields()
 	_ = usagecleanuptaskMixinFields0

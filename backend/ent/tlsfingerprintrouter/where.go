@@ -89,6 +89,16 @@ func ChatgptOauthTokenTLSFingerprintProfileID(v int64) predicate.TLSFingerprintR
 	return predicate.TLSFingerprintRouter(sql.FieldEQ(FieldChatgptOauthTokenTLSFingerprintProfileID, v))
 }
 
+// CodexInviteResetUserAgent applies equality check predicate on the "codex_invite_reset_user_agent" field. It's identical to CodexInviteResetUserAgentEQ.
+func CodexInviteResetUserAgent(v string) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldEQ(FieldCodexInviteResetUserAgent, v))
+}
+
+// CodexInviteResetTLSFingerprintProfileID applies equality check predicate on the "codex_invite_reset_tls_fingerprint_profile_id" field. It's identical to CodexInviteResetTLSFingerprintProfileIDEQ.
+func CodexInviteResetTLSFingerprintProfileID(v int64) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldEQ(FieldCodexInviteResetTLSFingerprintProfileID, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.TLSFingerprintRouter {
 	return predicate.TLSFingerprintRouter(sql.FieldEQ(FieldCreatedAt, v))
@@ -432,6 +442,121 @@ func ChatgptOauthTokenTLSFingerprintProfileIDIsNil() predicate.TLSFingerprintRou
 // ChatgptOauthTokenTLSFingerprintProfileIDNotNil applies the NotNil predicate on the "chatgpt_oauth_token_tls_fingerprint_profile_id" field.
 func ChatgptOauthTokenTLSFingerprintProfileIDNotNil() predicate.TLSFingerprintRouter {
 	return predicate.TLSFingerprintRouter(sql.FieldNotNull(FieldChatgptOauthTokenTLSFingerprintProfileID))
+}
+
+// CodexInviteResetUserAgentEQ applies the EQ predicate on the "codex_invite_reset_user_agent" field.
+func CodexInviteResetUserAgentEQ(v string) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldEQ(FieldCodexInviteResetUserAgent, v))
+}
+
+// CodexInviteResetUserAgentNEQ applies the NEQ predicate on the "codex_invite_reset_user_agent" field.
+func CodexInviteResetUserAgentNEQ(v string) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldNEQ(FieldCodexInviteResetUserAgent, v))
+}
+
+// CodexInviteResetUserAgentIn applies the In predicate on the "codex_invite_reset_user_agent" field.
+func CodexInviteResetUserAgentIn(vs ...string) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldIn(FieldCodexInviteResetUserAgent, vs...))
+}
+
+// CodexInviteResetUserAgentNotIn applies the NotIn predicate on the "codex_invite_reset_user_agent" field.
+func CodexInviteResetUserAgentNotIn(vs ...string) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldNotIn(FieldCodexInviteResetUserAgent, vs...))
+}
+
+// CodexInviteResetUserAgentGT applies the GT predicate on the "codex_invite_reset_user_agent" field.
+func CodexInviteResetUserAgentGT(v string) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldGT(FieldCodexInviteResetUserAgent, v))
+}
+
+// CodexInviteResetUserAgentGTE applies the GTE predicate on the "codex_invite_reset_user_agent" field.
+func CodexInviteResetUserAgentGTE(v string) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldGTE(FieldCodexInviteResetUserAgent, v))
+}
+
+// CodexInviteResetUserAgentLT applies the LT predicate on the "codex_invite_reset_user_agent" field.
+func CodexInviteResetUserAgentLT(v string) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldLT(FieldCodexInviteResetUserAgent, v))
+}
+
+// CodexInviteResetUserAgentLTE applies the LTE predicate on the "codex_invite_reset_user_agent" field.
+func CodexInviteResetUserAgentLTE(v string) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldLTE(FieldCodexInviteResetUserAgent, v))
+}
+
+// CodexInviteResetUserAgentContains applies the Contains predicate on the "codex_invite_reset_user_agent" field.
+func CodexInviteResetUserAgentContains(v string) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldContains(FieldCodexInviteResetUserAgent, v))
+}
+
+// CodexInviteResetUserAgentHasPrefix applies the HasPrefix predicate on the "codex_invite_reset_user_agent" field.
+func CodexInviteResetUserAgentHasPrefix(v string) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldHasPrefix(FieldCodexInviteResetUserAgent, v))
+}
+
+// CodexInviteResetUserAgentHasSuffix applies the HasSuffix predicate on the "codex_invite_reset_user_agent" field.
+func CodexInviteResetUserAgentHasSuffix(v string) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldHasSuffix(FieldCodexInviteResetUserAgent, v))
+}
+
+// CodexInviteResetUserAgentEqualFold applies the EqualFold predicate on the "codex_invite_reset_user_agent" field.
+func CodexInviteResetUserAgentEqualFold(v string) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldEqualFold(FieldCodexInviteResetUserAgent, v))
+}
+
+// CodexInviteResetUserAgentContainsFold applies the ContainsFold predicate on the "codex_invite_reset_user_agent" field.
+func CodexInviteResetUserAgentContainsFold(v string) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldContainsFold(FieldCodexInviteResetUserAgent, v))
+}
+
+// CodexInviteResetTLSFingerprintProfileIDEQ applies the EQ predicate on the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func CodexInviteResetTLSFingerprintProfileIDEQ(v int64) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldEQ(FieldCodexInviteResetTLSFingerprintProfileID, v))
+}
+
+// CodexInviteResetTLSFingerprintProfileIDNEQ applies the NEQ predicate on the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func CodexInviteResetTLSFingerprintProfileIDNEQ(v int64) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldNEQ(FieldCodexInviteResetTLSFingerprintProfileID, v))
+}
+
+// CodexInviteResetTLSFingerprintProfileIDIn applies the In predicate on the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func CodexInviteResetTLSFingerprintProfileIDIn(vs ...int64) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldIn(FieldCodexInviteResetTLSFingerprintProfileID, vs...))
+}
+
+// CodexInviteResetTLSFingerprintProfileIDNotIn applies the NotIn predicate on the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func CodexInviteResetTLSFingerprintProfileIDNotIn(vs ...int64) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldNotIn(FieldCodexInviteResetTLSFingerprintProfileID, vs...))
+}
+
+// CodexInviteResetTLSFingerprintProfileIDGT applies the GT predicate on the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func CodexInviteResetTLSFingerprintProfileIDGT(v int64) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldGT(FieldCodexInviteResetTLSFingerprintProfileID, v))
+}
+
+// CodexInviteResetTLSFingerprintProfileIDGTE applies the GTE predicate on the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func CodexInviteResetTLSFingerprintProfileIDGTE(v int64) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldGTE(FieldCodexInviteResetTLSFingerprintProfileID, v))
+}
+
+// CodexInviteResetTLSFingerprintProfileIDLT applies the LT predicate on the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func CodexInviteResetTLSFingerprintProfileIDLT(v int64) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldLT(FieldCodexInviteResetTLSFingerprintProfileID, v))
+}
+
+// CodexInviteResetTLSFingerprintProfileIDLTE applies the LTE predicate on the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func CodexInviteResetTLSFingerprintProfileIDLTE(v int64) predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldLTE(FieldCodexInviteResetTLSFingerprintProfileID, v))
+}
+
+// CodexInviteResetTLSFingerprintProfileIDIsNil applies the IsNil predicate on the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func CodexInviteResetTLSFingerprintProfileIDIsNil() predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldIsNull(FieldCodexInviteResetTLSFingerprintProfileID))
+}
+
+// CodexInviteResetTLSFingerprintProfileIDNotNil applies the NotNil predicate on the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func CodexInviteResetTLSFingerprintProfileIDNotNil() predicate.TLSFingerprintRouter {
+	return predicate.TLSFingerprintRouter(sql.FieldNotNull(FieldCodexInviteResetTLSFingerprintProfileID))
 }
 
 // RulesIsNil applies the IsNil predicate on the "rules" field.

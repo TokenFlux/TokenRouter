@@ -25,6 +25,8 @@ export interface TLSFingerprintRouter {
   enabled: boolean
   chatgpt_oauth_token_user_agent?: string
   chatgpt_oauth_token_tls_fingerprint_profile_id?: number | null
+  codex_invite_reset_user_agent?: string
+  codex_invite_reset_tls_fingerprint_profile_id?: number | null
   rules: TLSFingerprintRouterRule[]
   created_at: string
   updated_at: string
@@ -36,6 +38,8 @@ export interface CreateTLSFingerprintRouterRequest {
   enabled?: boolean
   chatgpt_oauth_token_user_agent?: string
   chatgpt_oauth_token_tls_fingerprint_profile_id?: number | null
+  codex_invite_reset_user_agent?: string
+  codex_invite_reset_tls_fingerprint_profile_id?: number | null
   rules?: TLSFingerprintRouterRule[]
 }
 
@@ -45,6 +49,8 @@ export interface UpdateTLSFingerprintRouterRequest {
   enabled?: boolean
   chatgpt_oauth_token_user_agent?: string
   chatgpt_oauth_token_tls_fingerprint_profile_id?: number | null
+  codex_invite_reset_user_agent?: string
+  codex_invite_reset_tls_fingerprint_profile_id?: number | null
   rules?: TLSFingerprintRouterRule[]
 }
 

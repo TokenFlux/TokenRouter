@@ -15,6 +15,7 @@ import (
 
 type settingUpdateRepoStub struct {
 	updates map[string]string
+	values  map[string]string
 }
 
 func (s *settingUpdateRepoStub) Get(ctx context.Context, key string) (*Setting, error) {
@@ -22,7 +23,12 @@ func (s *settingUpdateRepoStub) Get(ctx context.Context, key string) (*Setting, 
 }
 
 func (s *settingUpdateRepoStub) GetValue(ctx context.Context, key string) (string, error) {
-	panic("unexpected GetValue call")
+	if s.values != nil {
+		if value, ok := s.values[key]; ok {
+			return value, nil
+		}
+	}
+	return "", ErrSettingNotFound
 }
 
 func (s *settingUpdateRepoStub) Set(ctx context.Context, key, value string) error {
@@ -37,12 +43,20 @@ func (s *settingUpdateRepoStub) SetMultiple(ctx context.Context, settings map[st
 	s.updates = make(map[string]string, len(settings))
 	for k, v := range settings {
 		s.updates[k] = v
+		if s.values == nil {
+			s.values = map[string]string{}
+		}
+		s.values[k] = v
 	}
 	return nil
 }
 
 func (s *settingUpdateRepoStub) GetAll(ctx context.Context) (map[string]string, error) {
-	panic("unexpected GetAll call")
+	out := make(map[string]string, len(s.values))
+	for key, value := range s.values {
+		out[key] = value
+	}
+	return out, nil
 }
 
 func (s *settingUpdateRepoStub) Delete(ctx context.Context, key string) error {
@@ -277,6 +291,50 @@ func TestSettingService_UpdateSettings_PaymentVisibleMethodsAndAdvancedScheduler
 	require.Equal(t, "true", repo.updates[SettingPaymentVisibleMethodAlipayEnabled])
 	require.Equal(t, "false", repo.updates[SettingPaymentVisibleMethodWxpayEnabled])
 	require.Equal(t, "true", repo.updates[openAIAdvancedSchedulerSettingKey])
+}
+
+func TestSettingService_UpdateSettings_OpenAIQuotaAutoPauseMergesOpsAdvancedSettings(t *testing.T) {
+	repo := &settingUpdateRepoStub{
+		values: map[string]string{
+			SettingKeyOpsAdvancedSettings: `{"data_retention":{"cleanup_enabled":true,"cleanup_schedule":"0 3 * * *","error_log_retention_days":14,"minute_metrics_retention_days":7,"hourly_metrics_retention_days":30},"aggregation":{"aggregation_enabled":true},"openai_account_quota_auto_pause":{"default_threshold_5h":0.8,"default_threshold_7d":0.75},"ignore_count_tokens_errors":false,"ignore_context_canceled":true,"ignore_no_available_accounts":true,"ignore_invalid_api_key_errors":true,"ignore_insufficient_balance_errors":false,"display_openai_token_stats":true,"display_alert_events":false,"auto_refresh_enabled":true,"auto_refresh_interval_seconds":45}`,
+		},
+	}
+	svc := NewSettingService(repo, &config.Config{})
+
+	err := svc.UpdateSettings(context.Background(), &SystemSettings{
+		OpenAIQuotaAutoPauseSettingsSet: true,
+		OpenAIQuotaAutoPauseSettings: OpsOpenAIAccountQuotaAutoPauseSettings{
+			DefaultThreshold5h: 0.95,
+			DefaultThreshold7d: 1.2,
+		},
+	})
+	require.NoError(t, err)
+
+	var got OpsAdvancedSettings
+	require.NoError(t, json.Unmarshal([]byte(repo.updates[SettingKeyOpsAdvancedSettings]), &got))
+	require.Equal(t, true, got.DataRetention.CleanupEnabled)
+	require.Equal(t, "0 3 * * *", got.DataRetention.CleanupSchedule)
+	require.Equal(t, 14, got.DataRetention.ErrorLogRetentionDays)
+	require.True(t, got.Aggregation.AggregationEnabled)
+	require.False(t, got.IgnoreCountTokensErrors)
+	require.True(t, got.DisplayOpenAITokenStats)
+	require.False(t, got.DisplayAlertEvents)
+	require.True(t, got.AutoRefreshEnabled)
+	require.Equal(t, 45, got.AutoRefreshIntervalSec)
+	require.Equal(t, 0.95, got.OpenAIAccountQuotaAutoPause.DefaultThreshold5h)
+	require.Equal(t, 1.0, got.OpenAIAccountQuotaAutoPause.DefaultThreshold7d)
+	require.Equal(t, got.OpenAIAccountQuotaAutoPause, svc.GetOpenAIQuotaAutoPauseSettings(context.Background()))
+}
+
+func TestSettingService_ParseSettings_OpenAIQuotaAutoPauseFromOpsAdvancedSettings(t *testing.T) {
+	svc := NewSettingService(&settingUpdateRepoStub{}, &config.Config{})
+
+	got := svc.parseSettings(map[string]string{
+		SettingKeyOpsAdvancedSettings: `{"openai_account_quota_auto_pause":{"default_threshold_5h":0.7,"default_threshold_7d":1.3}}`,
+	})
+
+	require.Equal(t, 0.7, got.OpenAIQuotaAutoPauseSettings.DefaultThreshold5h)
+	require.Equal(t, 1.0, got.OpenAIQuotaAutoPauseSettings.DefaultThreshold7d)
 }
 
 func TestSettingService_UpdateSettings_AntigravityUserAgentVersion(t *testing.T) {

@@ -281,6 +281,7 @@ func normalizeTLSFingerprintRouter(router *model.TLSFingerprintRouter) {
 	}
 	router.Name = strings.TrimSpace(router.Name)
 	router.ChatGPTOAuthTokenUserAgent = strings.TrimSpace(router.ChatGPTOAuthTokenUserAgent)
+	router.CodexInviteResetUserAgent = strings.TrimSpace(router.CodexInviteResetUserAgent)
 	for i := range router.Rules {
 		router.Rules[i].Name = strings.TrimSpace(router.Rules[i].Name)
 		router.Rules[i].Pattern = strings.TrimSpace(router.Rules[i].Pattern)

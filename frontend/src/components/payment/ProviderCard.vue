@@ -26,10 +26,10 @@
         <span class="text-sm font-medium text-gray-900 dark:text-white">{{ provider.name }}</span>
         <span class="text-xs text-gray-400 dark:text-gray-500">{{ keyLabel }}</span>
         <span v-if="provider.payment_mode" class="text-xs text-gray-400 dark:text-gray-500">· {{ modeLabel }}</span>
-        <span v-if="enabled && availableTypes.length" class="text-xs text-gray-300 dark:text-gray-600">|</span>
-        <div v-if="enabled" class="flex items-center gap-1">
+        <span v-if="enabled && displayTypes.length" class="text-xs text-gray-300 dark:text-gray-600">|</span>
+        <div v-if="enabled && displayTypes.length" class="flex items-center gap-1">
           <button
-            v-for="pt in availableTypes"
+            v-for="pt in displayTypes"
             :key="pt.value"
             type="button"
             :disabled="updating"
@@ -110,6 +110,14 @@ const modeLabel = computed(() => {
 const selectedTypes = computed(() => {
   // 兼容旧接口或脏数据返回 null，避免 includes 在渲染阶段抛错。
   return Array.isArray(props.provider.supported_types) ? props.provider.supported_types : []
+})
+
+const displayTypes = computed(() => {
+  // Stripe Checkout 的具体支付方式由 Stripe Dashboard 控制，旧 supported_types 只做后端兼容，不再展示成可切换按钮。
+  if (props.provider.provider_key === 'stripe') {
+    return []
+  }
+  return props.availableTypes
 })
 
 function isSelected(type: string): boolean {

@@ -138,8 +138,7 @@ func (lb *DefaultLoadBalancer) queryEnabledInstances(
 	var matched []*dbent.PaymentProviderInstance
 	expectedWxpayJSAPIAppID := wxpayJSAPIAppIDFromContext(ctx)
 	for _, inst := range instances {
-		// Stripe: match by provider_key because supported_types lists sub-types (card,link,alipay,wxpay),
-		// not "stripe" itself. The checkout page aggregates all sub-types under "stripe".
+		// Stripe 按 provider_key 匹配，兼容旧 supported_types 子方式和新的服务商级 "stripe" 配置。
 		if paymentType == TypeStripe {
 			if inst.ProviderKey == TypeStripe {
 				matched = append(matched, inst)

@@ -127,6 +127,15 @@ func (e *ConcurrencyError) Error() string {
 	return fmt.Sprintf("%s concurrency limit reached", e.SlotType)
 }
 
+// WaitQueueFullError 表示用户等待队列已满。
+type WaitQueueFullError struct {
+	SlotType string
+}
+
+func (e *WaitQueueFullError) Error() string {
+	return "Too many pending requests, please retry later"
+}
+
 // ConcurrencyHelper provides common concurrency slot management for gateway handlers
 type ConcurrencyHelper struct {
 	concurrencyService *service.ConcurrencyService
@@ -216,13 +225,16 @@ func (h *ConcurrencyHelper) TryAcquireAccountSlot(ctx context.Context, accountID
 	return result.ReleaseFunc, true, nil
 }
 
-// AcquireUserSlotWithWait acquires a user concurrency slot, waiting if necessary.
-// For streaming requests, sends ping events during the wait.
-// streamStarted is updated if streaming response has begun.
+// AcquireUserSlotWithWait 获取用户并发槽位，必要时进入等待队列。
+// 流式请求等待期间会发送 ping，并在真正写出流时更新 streamStarted。
 func (h *ConcurrencyHelper) AcquireUserSlotWithWait(c *gin.Context, userID int64, maxConcurrency int, isStream bool, streamStarted *bool) (func(), error) {
+	return h.acquireUserSlotWithWaitTimeout(c, userID, maxConcurrency, maxConcurrencyWait, isStream, streamStarted)
+}
+
+func (h *ConcurrencyHelper) acquireUserSlotWithWaitTimeout(c *gin.Context, userID int64, maxConcurrency int, timeout time.Duration, isStream bool, streamStarted *bool) (func(), error) {
 	ctx := c.Request.Context()
 
-	// Try to acquire immediately
+	// 先尝试立即获取槽位，避免未排队请求占用等待队列名额。
 	releaseFunc, acquired, err := h.TryAcquireUserSlot(ctx, userID, maxConcurrency)
 	if err != nil {
 		return nil, err
@@ -232,8 +244,21 @@ func (h *ConcurrencyHelper) AcquireUserSlotWithWait(c *gin.Context, userID int64
 		return releaseFunc, nil
 	}
 
-	// Need to wait - handle streaming ping if needed
-	return h.waitForSlotWithPing(c, "user", userID, maxConcurrency, isStream, streamStarted)
+	queueLimit := service.CalculateMaxWait(maxConcurrency) - maxConcurrency
+	if queueLimit < 1 {
+		queueLimit = 1
+	}
+	canWait, err := h.IncrementWaitCount(ctx, userID, queueLimit)
+	if err != nil {
+		return nil, err
+	}
+	if !canWait {
+		return nil, &WaitQueueFullError{SlotType: "user"}
+	}
+	defer h.DecrementWaitCount(ctx, userID)
+
+	// 已进入等待队列，后续只在退避周期内重试获取槽位。
+	return h.waitForSlotWithPingTimeout(c, "user", userID, maxConcurrency, timeout, isStream, streamStarted, false)
 }
 
 // AcquireAccountSlotWithWait acquires an account concurrency slot, waiting if necessary.

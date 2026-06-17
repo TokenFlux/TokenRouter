@@ -7,10 +7,12 @@ import (
 	"errors"
 	"math"
 	"testing"
+	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type paymentFulfillmentTestProvider struct {
@@ -419,4 +421,45 @@ func TestPaymentAmountToleranceForThreeDecimalCurrency(t *testing.T) {
 	assert.Equal(t, amountToleranceCNY, paymentAmountToleranceForCurrency("CNY"))
 	assert.Equal(t, amountToleranceCNY, paymentAmountToleranceForCurrency("JPY"))
 	assert.InDelta(t, 0.0005, paymentAmountToleranceForCurrency("KWD"), 1e-12)
+}
+
+func TestAlreadyProcessedIgnoresDuplicateSuccessWhileProcessing(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	client := newPaymentOrderLifecycleTestClient(t)
+
+	user, err := client.User.Create().
+		SetEmail("duplicate-webhook@example.com").
+		SetPasswordHash("hash").
+		SetUsername("duplicate-webhook").
+		Save(ctx)
+	require.NoError(t, err)
+
+	svc := &PaymentService{entClient: client}
+	for _, status := range []string{OrderStatusPaid, OrderStatusRecharging} {
+		status := status
+		t.Run(status, func(t *testing.T) {
+			order, err := client.PaymentOrder.Create().
+				SetOutTradeNo("sub2_" + status).
+				SetUserID(user.ID).
+				SetUserEmail(user.Email).
+				SetUserName(user.Username).
+				SetAmount(10).
+				SetPayAmount(10).
+				SetFeeRate(0).
+				SetRechargeCode("DUPLICATE-" + status).
+				SetPaymentType(payment.TypeStripe).
+				SetPaymentTradeNo("pi_" + status).
+				SetOrderType(payment.OrderTypeBalance).
+				SetStatus(status).
+				SetExpiresAt(time.Now().Add(time.Hour)).
+				SetClientIP("127.0.0.1").
+				SetSrcHost("api.example.com").
+				Save(ctx)
+			require.NoError(t, err)
+
+			assert.NoError(t, svc.alreadyProcessed(ctx, order))
+		})
+	}
 }

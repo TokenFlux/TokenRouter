@@ -50,6 +50,29 @@ describe('buildOpenAIUsageRefreshKey', () => {
     expect(buildOpenAIUsageRefreshKey(base)).not.toBe(buildOpenAIUsageRefreshKey(next))
   })
 
+  it('会在自动暂停派生状态变化时生成不同 key', () => {
+    const base = {
+      id: 4,
+      platform: 'openai',
+      type: 'oauth',
+      updated_at: '2026-03-07T10:00:00Z',
+      last_used_at: '2026-03-07T10:00:00Z',
+      quota_auto_paused: true,
+      extra: {
+        codex_usage_updated_at: '2026-03-07T10:00:00Z',
+        codex_5h_used_percent: 99,
+        codex_7d_used_percent: 20
+      }
+    } as any
+
+    const next = {
+      ...base,
+      quota_auto_paused: false
+    }
+
+    expect(buildOpenAIUsageRefreshKey(base)).not.toBe(buildOpenAIUsageRefreshKey(next))
+  })
+
   it('非 OpenAI OAuth 账号返回空 key', () => {
     expect(buildOpenAIUsageRefreshKey({
       id: 2,

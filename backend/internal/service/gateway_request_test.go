@@ -77,6 +77,15 @@ func TestParseGatewayRequest_InvalidStreamType(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestParseGatewayRequest_ResponsesInput(t *testing.T) {
+	body := []byte(`{"model":"gpt-5.1","input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}]}`)
+	parsed, err := ParseGatewayRequest(NewRequestBodyRef(body), "responses")
+	require.NoError(t, err)
+	require.NotEmpty(t, parsed.InputRaw())
+	require.Nil(t, parsed.MessagesRaw())
+	require.Equal(t, "hello", gjson.ParseBytes(parsed.InputRaw()).Get("0.content.0.text").String())
+}
+
 // ============ Gemini 原生格式解析测试 ============
 
 func TestParseGatewayRequest_GeminiContents(t *testing.T) {
@@ -1216,6 +1225,139 @@ func TestNormalizeClaudeOutputEffort(t *testing.T) {
 				require.NotNil(t, got)
 				require.Equal(t, *tt.want, *got)
 			}
+		})
+	}
+}
+
+func TestDefaultEffortForThinkingEnabled(t *testing.T) {
+	tests := []struct {
+		name  string
+		model string
+		want  *string
+	}{
+		{name: "glm", model: "glm-5.1", want: strPtr("high")},
+		{name: "kimi", model: "kimi-k2.6", want: strPtr("high")},
+		{name: "moonshot", model: "moonshot-v1-8k", want: strPtr("high")},
+		{name: "minimax lowercase", model: "minimax-m3", want: strPtr("high")},
+		{name: "minimax mixed case", model: "MiniMax-M3", want: strPtr("high")},
+		{name: "qwen thinking", model: "qwen3-235b-a22b-thinking-2507", want: strPtr("high")},
+		{name: "deepseek excluded", model: "deepseek-v4-pro", want: nil},
+		{name: "claude strict", model: "claude-opus-4.6", want: nil},
+		{name: "unknown", model: "gpt-5.5", want: nil},
+		{name: "empty", model: "", want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := DefaultEffortForThinkingEnabled(tt.model)
+			if tt.want == nil {
+				require.Nil(t, got)
+				return
+			}
+			require.NotNil(t, got)
+			require.Equal(t, *tt.want, *got)
+		})
+	}
+}
+
+func TestOpenAIBodyHasThinkingEnabled(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{name: "enabled", body: `{"thinking":{"type":"enabled"}}`, want: true},
+		{name: "adaptive", body: `{"thinking":{"type":"adaptive"}}`, want: true},
+		{name: "uppercase", body: `{"thinking":{"type":"ENABLED"}}`, want: true},
+		{name: "disabled", body: `{"thinking":{"type":"disabled"}}`, want: false},
+		{name: "missing type", body: `{"thinking":{"budget_tokens":1024}}`, want: false},
+		{name: "missing thinking", body: `{"model":"glm-5.1"}`, want: false},
+		{name: "invalid json", body: `{not json`, want: false},
+		{name: "empty body", body: ``, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, OpenAIBodyHasThinkingEnabled([]byte(tt.body)))
+		})
+	}
+}
+
+func TestNormalizeChineseLLMThinking(t *testing.T) {
+	tests := []struct {
+		name        string
+		model       string
+		input       string
+		wantChanged bool
+		wantType    string
+	}{
+		{
+			name:        "minimax enabled becomes adaptive",
+			model:       "MiniMax-M3",
+			input:       `{"thinking":{"type":"enabled","budget_tokens":8192},"messages":[]}`,
+			wantChanged: true,
+			wantType:    "adaptive",
+		},
+		{
+			name:     "minimax adaptive unchanged",
+			model:    "MiniMax-M2.7",
+			input:    `{"thinking":{"type":"adaptive"},"messages":[]}`,
+			wantType: "adaptive",
+		},
+		{
+			name:     "kimi unchanged",
+			model:    "kimi-k2.6",
+			input:    `{"thinking":{"type":"enabled"},"messages":[]}`,
+			wantType: "enabled",
+		},
+		{
+			name:  "invalid json unchanged",
+			model: "MiniMax-M3",
+			input: `{not json`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, changed := NormalizeChineseLLMThinking([]byte(tt.input), tt.model)
+			require.Equal(t, tt.wantChanged, changed)
+			if !tt.wantChanged {
+				require.Equal(t, tt.input, string(got))
+			}
+			if tt.wantType != "" {
+				require.Equal(t, tt.wantType, gjson.GetBytes(got, "thinking.type").String())
+			}
+		})
+	}
+}
+
+func TestApplyThinkingEnabledFallback(t *testing.T) {
+	explicit := "medium"
+	tests := []struct {
+		name        string
+		effort      *string
+		body        string
+		model       string
+		want        *string
+		wantSamePtr bool
+	}{
+		{name: "explicit effort unchanged", effort: &explicit, body: `{"thinking":{"type":"enabled"}}`, model: "glm-5.1", wantSamePtr: true},
+		{name: "glm thinking enabled defaults high", body: `{"thinking":{"type":"enabled"}}`, model: "glm-5.1", want: strPtr("high")},
+		{name: "minimax adaptive defaults high", body: `{"thinking":{"type":"adaptive"}}`, model: "MiniMax-M3", want: strPtr("high")},
+		{name: "deepseek excluded", body: `{"thinking":{"type":"enabled"}}`, model: "deepseek-v4-pro", want: nil},
+		{name: "thinking disabled no fallback", body: `{"thinking":{"type":"disabled"}}`, model: "glm-5.1", want: nil},
+		{name: "unknown model no fallback", body: `{"thinking":{"type":"enabled"}}`, model: "gpt-5.5", want: nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ApplyThinkingEnabledFallback(tt.effort, []byte(tt.body), tt.model)
+			if tt.wantSamePtr {
+				require.Same(t, tt.effort, got)
+				return
+			}
+			if tt.want == nil {
+				require.Nil(t, got)
+				return
+			}
+			require.NotNil(t, got)
+			require.Equal(t, *tt.want, *got)
 		})
 	}
 }

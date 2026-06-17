@@ -150,13 +150,14 @@ export function decidePaymentLaunch(
 ): PaymentLaunchDecision {
   const visibleMethod = normalizeVisibleMethod(context.visibleMethod) || context.visibleMethod
   const hostedInvoiceUrl = (result.invoice_url || '').trim()
+  const hostedPaymentUrl = (result.pay_url || '').trim()
   const baseState = createPaymentRecoverySnapshot({
     orderId: result.order_id,
     amount: result.amount,
     qrCode: result.qr_code || '',
     expiresAt: result.expires_at || '',
     paymentType: visibleMethod,
-    payUrl: result.pay_url || hostedInvoiceUrl,
+    payUrl: hostedPaymentUrl || hostedInvoiceUrl,
     outTradeNo: result.out_trade_no || '',
     clientSecret: result.client_secret || '',
     intentId: result.intent_id || '',
@@ -169,7 +170,13 @@ export function decidePaymentLaunch(
     resumeToken: result.resume_token || '',
   }, context.now)
 
-  if (hostedInvoiceUrl) {
+  // Stripe Checkout 返回的是 pay_url，应优先打开托管收银台；invoice_url 只作为旧账单模式兜底。
+  if (visibleMethod === 'stripe' && hostedPaymentUrl) {
+    const paymentState = { ...baseState, payUrl: hostedPaymentUrl }
+    return { kind: 'redirect_waiting', paymentState, recovery: paymentState }
+  }
+
+  if (hostedInvoiceUrl && !baseState.clientSecret) {
     const paymentState = { ...baseState, payUrl: hostedInvoiceUrl }
     return { kind: 'redirect_waiting', paymentState, recovery: paymentState }
   }

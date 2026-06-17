@@ -607,6 +607,7 @@ var (
 		{Name: "default_mapped_model", Type: field.TypeString, Size: 100, Default: ""},
 		{Name: "messages_dispatch_model_config", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "models_list_config", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "availability_probe_config", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "rpm_limit", Type: field.TypeInt, Default: 0},
 		{Name: "data_sharing_enabled", Type: field.TypeBool, Default: false},
 		{Name: "session_isolation_enabled", Type: field.TypeBool, Default: false},
@@ -650,12 +651,12 @@ var (
 			{
 				Name:    "group_data_sharing_enabled",
 				Unique:  false,
-				Columns: []*schema.Column{GroupsColumns[33]},
+				Columns: []*schema.Column{GroupsColumns[34]},
 			},
 			{
 				Name:    "group_session_isolation_enabled",
 				Unique:  false,
-				Columns: []*schema.Column{GroupsColumns[34]},
+				Columns: []*schema.Column{GroupsColumns[35]},
 			},
 		},
 	}
@@ -1297,6 +1298,8 @@ var (
 		{Name: "enabled", Type: field.TypeBool, Default: true},
 		{Name: "chatgpt_oauth_token_user_agent", Type: field.TypeString, Size: 512, Default: ""},
 		{Name: "chatgpt_oauth_token_tls_fingerprint_profile_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "codex_invite_reset_user_agent", Type: field.TypeString, Size: 512, Default: ""},
+		{Name: "codex_invite_reset_tls_fingerprint_profile_id", Type: field.TypeInt64, Nullable: true},
 		{Name: "rules", Type: field.TypeJSON, Nullable: true, SchemaType: map[string]string{"postgres": "jsonb"}},
 	}
 	// TLSFingerprintRoutersTable holds the schema information for the "tls_fingerprint_routers" table.

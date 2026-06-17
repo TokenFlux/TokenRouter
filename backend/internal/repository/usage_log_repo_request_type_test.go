@@ -653,6 +653,12 @@ func TestBuildRequestTypeFilterConditionLegacyFallback(t *testing.T) {
 			wantArg:   int16(service.RequestTypeWSV2),
 		},
 		{
+			name:      "cyber_without_legacy_fallback",
+			request:   int16(service.RequestTypeCyberBlocked),
+			wantWhere: "request_type = $3",
+			wantArg:   int16(service.RequestTypeCyberBlocked),
+		},
+		{
 			name:      "invalid_request_type_normalized_to_unknown",
 			request:   int16(99),
 			wantWhere: "request_type = $3",

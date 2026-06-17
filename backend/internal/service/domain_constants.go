@@ -140,6 +140,8 @@ const (
 	SettingKeyAffiliateRebateDurationDays      = "affiliate_rebate_duration_days"      // 返利有效期（天，0=永久）
 	SettingKeyAffiliateRebatePerInviteeCap     = "affiliate_rebate_per_invitee_cap"    // 单个被邀请人的累计返利上限（0=无上限）
 	SettingKeyRiskControlEnabled               = "risk_control_enabled"                // 是否启用风控中心入口与内容审计链路
+	SettingKeyCyberSessionBlockEnabled         = "cyber_session_block_enabled"         // cyber_policy 命中后的会话本地屏蔽开关
+	SettingKeyCyberSessionBlockTTLSeconds      = "cyber_session_block_ttl_seconds"     // cyber_policy 会话本地屏蔽时长（秒）
 	SettingKeyContentModerationConfig          = "content_moderation_config"           // 内容审计配置（JSON）
 	SettingKeyLoginAgreementEnabled            = "login_agreement_enabled"             // 登录前是否要求同意条款
 	SettingKeyLoginAgreementMode               = "login_agreement_mode"                // 条款确认展示模式：modal / checkbox
@@ -276,15 +278,17 @@ const (
 	SettingKeyCustomEndpoints             = "custom_endpoints"              // 自定义端点列表（JSON 数组）
 
 	// 默认配置
-	SettingKeyDefaultConcurrency         = "default_concurrency"            // 新用户默认并发量
-	SettingKeyDefaultBalance             = "default_balance"                // 新用户默认余额
-	SettingKeyDefaultSubscriptions       = "default_subscriptions"          // 新用户默认订阅列表（JSON）
-	SettingKeyDefaultUserRPMLimit        = "default_user_rpm_limit"         // 新用户默认 RPM 限制（0 = 不限制）
-	SettingKeyBalanceUnitName            = "balance_unit_name"              // 内部余额展示名称
-	SettingKeyBalanceUnitSymbol          = "balance_unit_symbol"            // 内部余额展示符号
-	SettingKeyBalanceIconSVG             = "balance_icon_svg"               // 内部余额展示 SVG 图标
-	SettingKeyReasoningPointRMBUnitPrice = "reasoning_point_rmb_unit_price" // 推理积分人民币单价
-	SettingKeyUSDExchangeRate            = "usd_exchange_rate"              // 美元兑人民币汇率（1 USD = N CNY）
+	SettingKeyDefaultConcurrency                   = "default_concurrency"                     // 新用户默认并发量
+	SettingKeyDefaultBalance                       = "default_balance"                         // 新用户默认余额
+	SettingKeyDefaultSubscriptions                 = "default_subscriptions"                   // 新用户默认订阅列表（JSON）
+	SettingKeyDefaultUserRPMLimit                  = "default_user_rpm_limit"                  // 新用户默认 RPM 限制（0 = 不限制）
+	SettingKeyBalanceUnitName                      = "balance_unit_name"                       // 内部余额展示名称
+	SettingKeyBalanceUnitSymbol                    = "balance_unit_symbol"                     // 内部余额展示符号
+	SettingKeyBalanceIconSVG                       = "balance_icon_svg"                        // 内部余额展示 SVG 图标
+	SettingKeyReasoningPointRMBUnitPrice           = "reasoning_point_rmb_unit_price"          // 推理积分人民币单价
+	SettingKeyUSDExchangeRate                      = "usd_exchange_rate"                       // 美元兑人民币汇率（1 USD = N CNY）
+	SettingKeyMarketplaceAvailabilityWindowDays    = "marketplace_availability_window_days"    // 模型广场可用率展示天数
+	SettingKeyMarketplaceAvailabilityBucketMinutes = "marketplace_availability_bucket_minutes" // 模型广场可用率每根柱子的分钟数
 
 	// 第三方认证来源默认授予配置
 	SettingKeyAuthSourceDefaultEmailBalance             = "auth_source_default_email_balance"
@@ -435,6 +439,12 @@ const (
 	SettingKeyEnableMetadataPassthrough = "enable_metadata_passthrough"
 	// SettingKeyEnableCCHSigning 是否对 billing header 中的 cch 进行 xxHash64 签名（默认 false）
 	SettingKeyEnableCCHSigning = "enable_cch_signing"
+	// SettingKeyEnableClaudeOAuthSystemPromptInjection 是否对 Claude OAuth mimic 路径注入 Claude Code system blocks（默认 true）
+	SettingKeyEnableClaudeOAuthSystemPromptInjection = "enable_claude_oauth_system_prompt_injection"
+	// SettingKeyClaudeOAuthSystemPrompt Claude OAuth mimic 路径注入的通用扩展 system prompt（空值使用内置默认）
+	SettingKeyClaudeOAuthSystemPrompt = "claude_oauth_system_prompt"
+	// SettingKeyClaudeOAuthSystemPromptBlocks Claude OAuth mimic 路径注入的 system blocks JSON 配置（空值使用内置默认）
+	SettingKeyClaudeOAuthSystemPromptBlocks = "claude_oauth_system_prompt_blocks"
 	// SettingKeyEnableAnthropicCacheTTL1hInjection 是否对 Anthropic OAuth/SetupToken 请求体注入 1h cache_control ttl（默认 false）
 	SettingKeyEnableAnthropicCacheTTL1hInjection = "enable_anthropic_cache_ttl_1h_injection"
 	// SettingKeyRewriteMessageCacheControl 是否改写 messages[*].content[*].cache_control（默认 false）

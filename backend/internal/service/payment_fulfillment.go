@@ -205,7 +205,11 @@ func (s *PaymentService) alreadyProcessed(ctx context.Context, o *dbent.PaymentO
 	case OrderStatusFailed:
 		return s.executeFulfillment(ctx, o.ID)
 	case OrderStatusPaid, OrderStatusRecharging:
-		return fmt.Errorf("order %d is being processed", o.ID)
+		slog.Info("duplicate payment success ignored while order is processing",
+			"orderID", o.ID,
+			"status", cur.Status,
+		)
+		return nil
 	case OrderStatusExpired:
 		slog.Warn("webhook payment success for expired order beyond grace period",
 			"orderID", o.ID,

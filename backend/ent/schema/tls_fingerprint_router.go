@@ -64,6 +64,17 @@ func (TLSFingerprintRouter) Fields() []ent.Field {
 			Optional().
 			Nillable(),
 
+		// codex_invite_reset_user_agent: Codex 邀请重置请求使用的 UA，空值使用 Desktop 兜底。
+		field.String("codex_invite_reset_user_agent").
+			MaxLen(512).
+			Default(""),
+
+		// codex_invite_reset_tls_fingerprint_profile_id: Codex 邀请重置请求使用的 TLS 模板。
+		// nil 表示沿用账号 TLS 模板；0 表示内置默认模板；-1 表示随机模板；正数表示指定模板。
+		field.Int64("codex_invite_reset_tls_fingerprint_profile_id").
+			Optional().
+			Nillable(),
+
 		// rules: 按顺序匹配的 UA 规则列表，命中第一条后返回对应 TLS 模板。
 		field.JSON("rules", []model.TLSFingerprintRouterRule{}).
 			Optional().

@@ -12,6 +12,7 @@ import (
 const (
 	stickySessionPrefix      = "sticky_session:"
 	stickySessionOwnerPrefix = "sticky_session_owner:"
+	cyberSessionBlockPrefix  = "cyber_session_block:"
 )
 
 type gatewayCache struct {
@@ -74,4 +75,20 @@ func (c *gatewayCache) GetSessionOwnerGroupID(ctx context.Context, userID int64,
 func (c *gatewayCache) RefreshSessionOwnerTTL(ctx context.Context, userID int64, source, sessionHash string, ttl time.Duration) error {
 	key := buildSessionOwnerKey(userID, source, sessionHash)
 	return c.rdb.Expire(ctx, key, ttl).Err()
+}
+
+var _ service.CyberSessionBlockStore = (*gatewayCache)(nil)
+
+// SetCyberSessionBlocked 把被 cyber_policy 命中的显式会话写入屏蔽表，TTL 到期后自动解除。
+func (c *gatewayCache) SetCyberSessionBlocked(ctx context.Context, key string, ttl time.Duration) error {
+	return c.rdb.Set(ctx, cyberSessionBlockPrefix+key, "1", ttl).Err()
+}
+
+// IsCyberSessionBlocked 查询显式会话是否仍在屏蔽期内。
+func (c *gatewayCache) IsCyberSessionBlocked(ctx context.Context, key string) (bool, error) {
+	n, err := c.rdb.Exists(ctx, cyberSessionBlockPrefix+key).Result()
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }

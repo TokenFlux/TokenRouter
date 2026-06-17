@@ -191,6 +191,9 @@ type UsageInfo struct {
 	GeminiProMinute    *UsageProgress `json:"gemini_pro_minute,omitempty"`    // Gemini Pro RPM
 	GeminiFlashMinute  *UsageProgress `json:"gemini_flash_minute,omitempty"`  // Gemini Flash RPM
 
+	// QuotaAutoPaused 表示 OpenAI 账号当前因 5h/7d 配额阈值被自动暂停调度。
+	QuotaAutoPaused bool `json:"quota_auto_paused"`
+
 	// Antigravity 多模型配额
 	AntigravityQuota map[string]*AntigravityModelQuota `json:"antigravity_quota,omitempty"`
 
@@ -268,6 +271,7 @@ type AccountUsageService struct {
 	identityCache           IdentityCache
 	tlsFPProfileService     *TLSFingerprintProfileService
 	httpUpstream            HTTPUpstream
+	quotaAutoPauseSettings  OpenAIQuotaAutoPauseSettingsReader
 }
 
 // NewAccountUsageService 创建AccountUsageService实例
@@ -281,6 +285,7 @@ func NewAccountUsageService(
 	identityCache IdentityCache,
 	tlsFPProfileService *TLSFingerprintProfileService,
 	httpUpstream HTTPUpstream,
+	quotaAutoPauseSettings OpenAIQuotaAutoPauseSettingsReader,
 ) *AccountUsageService {
 	return &AccountUsageService{
 		accountRepo:             accountRepo,
@@ -292,6 +297,7 @@ func NewAccountUsageService(
 		identityCache:           identityCache,
 		tlsFPProfileService:     tlsFPProfileService,
 		httpUpstream:            httpUpstream,
+		quotaAutoPauseSettings:  quotaAutoPauseSettings,
 	}
 }
 
@@ -310,6 +316,7 @@ func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64, for
 	if account.Platform == PlatformOpenAI && account.Type == AccountTypeOAuth {
 		usage, err := s.getOpenAIUsage(ctx, account, forceProbe)
 		if err == nil {
+			s.applyOpenAIQuotaAutoPauseState(ctx, account, usage)
 			s.tryClearRecoverableAccountError(ctx, account)
 		}
 		return usage, err
@@ -475,6 +482,17 @@ func (s *AccountUsageService) GetPassiveUsage(ctx context.Context, accountID int
 	return info, nil
 }
 
+func (s *AccountUsageService) applyOpenAIQuotaAutoPauseState(ctx context.Context, account *Account, usage *UsageInfo) {
+	if account == nil || usage == nil || !account.IsOpenAI() {
+		return
+	}
+	// 用量接口可能刚刷新了 account.Extra，这里必须基于刷新后的内存快照实时计算。
+	if s != nil && s.quotaAutoPauseSettings != nil {
+		ctx = WithOpenAIQuotaAutoPauseSettings(ctx, s.quotaAutoPauseSettings.GetOpenAIQuotaAutoPauseSettings(ctx))
+	}
+	usage.QuotaAutoPaused = EvaluateOpenAIQuotaAutoPause(ctx, account)
+}
+
 // syncActiveToPassive 将主动查询的最新数据回写到 Extra 被动缓存，
 // 这样下次被动加载时能看到最新值。
 func (s *AccountUsageService) syncActiveToPassive(ctx context.Context, accountID int64, usage *UsageInfo) {
@@ -616,7 +634,7 @@ func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, acco
 		return nil, fmt.Errorf("no access token available")
 	}
 	modelID := openaipkg.DefaultTestModel
-	payload := createOpenAITestPayload(modelID, true)
+	payload := createOpenAITestPayload(modelID, "", true)
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal openai probe payload: %w", err)

@@ -284,7 +284,8 @@ func TestSettingHandler_UpdateSettings_PersistsPaymentVisibleMethodsAndAdvancedS
 	gin.SetMode(gin.TestMode)
 	repo := &settingHandlerRepoStub{
 		values: map[string]string{
-			service.SettingKeyPromoCodeEnabled: "true",
+			service.SettingKeyPromoCodeEnabled:    "true",
+			service.SettingKeyOpsAdvancedSettings: `{"data_retention":{"cleanup_enabled":true,"cleanup_schedule":"0 4 * * *","error_log_retention_days":12,"minute_metrics_retention_days":8,"hourly_metrics_retention_days":30},"aggregation":{"aggregation_enabled":true},"openai_account_quota_auto_pause":{"default_threshold_5h":0.6,"default_threshold_7d":0.7},"ignore_count_tokens_errors":true,"ignore_context_canceled":true,"ignore_no_available_accounts":false,"ignore_invalid_api_key_errors":false,"ignore_insufficient_balance_errors":true,"display_openai_token_stats":false,"display_alert_events":true,"auto_refresh_enabled":false,"auto_refresh_interval_seconds":30}`,
 		},
 	}
 	svc := service.NewSettingService(repo, &config.Config{Default: config.DefaultConfig{UserConcurrency: 5}})
@@ -297,6 +298,10 @@ func TestSettingHandler_UpdateSettings_PersistsPaymentVisibleMethodsAndAdvancedS
 		"payment_visible_method_alipay_enabled": true,
 		"payment_visible_method_wxpay_enabled":  false,
 		"openai_advanced_scheduler_enabled":     true,
+		"openai_account_quota_auto_pause": map[string]any{
+			"default_threshold_5h": 0.95,
+			"default_threshold_7d": 0.9,
+		},
 	}
 	rawBody, err := json.Marshal(body)
 	require.NoError(t, err)
@@ -314,6 +319,13 @@ func TestSettingHandler_UpdateSettings_PersistsPaymentVisibleMethodsAndAdvancedS
 	require.Equal(t, "true", repo.values[service.SettingPaymentVisibleMethodAlipayEnabled])
 	require.Equal(t, "false", repo.values[service.SettingPaymentVisibleMethodWxpayEnabled])
 	require.Equal(t, "true", repo.values["openai_advanced_scheduler_enabled"])
+	var advanced service.OpsAdvancedSettings
+	require.NoError(t, json.Unmarshal([]byte(repo.values[service.SettingKeyOpsAdvancedSettings]), &advanced))
+	require.True(t, advanced.DataRetention.CleanupEnabled)
+	require.Equal(t, "0 4 * * *", advanced.DataRetention.CleanupSchedule)
+	require.True(t, advanced.Aggregation.AggregationEnabled)
+	require.Equal(t, 0.95, advanced.OpenAIAccountQuotaAutoPause.DefaultThreshold5h)
+	require.Equal(t, 0.9, advanced.OpenAIAccountQuotaAutoPause.DefaultThreshold7d)
 
 	var resp response.Response
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
@@ -324,6 +336,10 @@ func TestSettingHandler_UpdateSettings_PersistsPaymentVisibleMethodsAndAdvancedS
 	require.Equal(t, true, data["payment_visible_method_alipay_enabled"])
 	require.Equal(t, false, data["payment_visible_method_wxpay_enabled"])
 	require.Equal(t, true, data["openai_advanced_scheduler_enabled"])
+	quota, ok := data["openai_account_quota_auto_pause"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, 0.95, quota["default_threshold_5h"])
+	require.Equal(t, 0.9, quota["default_threshold_7d"])
 }
 
 func TestSettingHandler_UpdateSettings_PreservesLegacyBlankPaymentVisibleMethodSource(t *testing.T) {

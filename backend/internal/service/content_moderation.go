@@ -1386,7 +1386,8 @@ func (s *ContentModerationService) RecordCyberWarning(ctx context.Context, input
 	bodyWarningText := extractCyberWarningText(input.ResponseBody)
 	warningTextMatched := IsOpenAICyberWarningText(warningText)
 	bodyMatched := IsOpenAICyberWarningText(bodyWarningText) || IsOpenAICyberWarningText(string(input.ResponseBody))
-	if !warningTextMatched && !bodyMatched {
+	cyberPolicyMatched, _, cyberPolicyMessage := detectOpenAICyberPolicy(input.ResponseBody)
+	if !warningTextMatched && !bodyMatched && !cyberPolicyMatched {
 		return nil, nil
 	}
 	if bodyMatched && !warningTextMatched {
@@ -1394,6 +1395,12 @@ func (s *ContentModerationService) RecordCyberWarning(ctx context.Context, input
 	}
 	if strings.TrimSpace(warningText) == "" {
 		warningText = bodyWarningText
+	}
+	if strings.TrimSpace(warningText) == "" && cyberPolicyMatched {
+		warningText = strings.TrimSpace(cyberPolicyMessage)
+	}
+	if strings.TrimSpace(warningText) == "" && cyberPolicyMatched {
+		warningText = "cyber_policy"
 	}
 	warning := s.buildCyberWarning(input, warningText)
 	autoBanJustApplied, err := s.repo.CreateCyberWarningAndApplyUserBan(ctx, warning, ContentModerationCyberWarningPolicy{

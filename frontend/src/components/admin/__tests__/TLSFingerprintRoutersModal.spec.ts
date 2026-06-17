@@ -134,6 +134,8 @@ const routerRecord = {
   enabled: true,
   chatgpt_oauth_token_user_agent: 'codex-token-ua/1.0',
   chatgpt_oauth_token_tls_fingerprint_profile_id: 7,
+  codex_invite_reset_user_agent: 'Codex Desktop/0.135.0-alpha.1 (Windows 10.0.26200; x86_64)',
+  codex_invite_reset_tls_fingerprint_profile_id: 7,
   rules: [
     {
       name: 'codex mac',
@@ -157,6 +159,8 @@ const importedRouterYaml = [
   '  enabled: false',
   '  chatgpt_oauth_token_user_agent: "import-token-ua/1.0"',
   '  chatgpt_oauth_token_tls_fingerprint_profile_id: -1',
+  '  codex_invite_reset_user_agent: "import-codex-desktop-ua/1.0"',
+  '  codex_invite_reset_tls_fingerprint_profile_id: 7',
   '  rules:',
   '    - name: "codex exact"',
   '      enabled: true',
@@ -241,14 +245,16 @@ describe('TLSFingerprintRoutersModal', () => {
 
     const textInputs = wrapper.findAll('input[type="text"]')
     await textInputs[2].setValue('token-ua/1.0')
-    await textInputs[3].setValue('opencode')
-    await textInputs[4].setValue('opencode/')
-    await textInputs[5].setValue('opencode/1.0 upstream')
-    await textInputs[6].setValue('opencode')
+    await textInputs[3].setValue('Codex Desktop/0.135.0-alpha.1 (Windows 10.0.26200; x86_64)')
+    await textInputs[4].setValue('opencode')
+    await textInputs[5].setValue('opencode/')
+    await textInputs[6].setValue('opencode/1.0 upstream')
+    await textInputs[7].setValue('opencode')
     const selects = wrapper.findAll('select')
     await selects[0].setValue('7')
     await selects[1].setValue('7')
-    await selects[2].setValue('prefix')
+    await selects[2].setValue('7')
+    await selects[3].setValue('prefix')
     await wrapper.findAll('button').find(button => button.text().includes('common.create'))!.trigger('click')
     await flushPromises()
 
@@ -258,6 +264,8 @@ describe('TLSFingerprintRoutersModal', () => {
       enabled: true,
       chatgpt_oauth_token_user_agent: 'token-ua/1.0',
       chatgpt_oauth_token_tls_fingerprint_profile_id: 7,
+      codex_invite_reset_user_agent: 'Codex Desktop/0.135.0-alpha.1 (Windows 10.0.26200; x86_64)',
+      codex_invite_reset_tls_fingerprint_profile_id: 7,
       rules: [
         {
           name: 'opencode',
@@ -310,6 +318,8 @@ describe('TLSFingerprintRoutersModal', () => {
         '  enabled: true',
         '  chatgpt_oauth_token_user_agent: "codex-token-ua/1.0"',
         '  chatgpt_oauth_token_tls_fingerprint_profile_id: 7',
+        '  codex_invite_reset_user_agent: "Codex Desktop/0.135.0-alpha.1 (Windows 10.0.26200; x86_64)"',
+        '  codex_invite_reset_tls_fingerprint_profile_id: 7',
         '  rules:',
         '    - name: "codex mac"',
         '      enabled: true',
@@ -350,6 +360,8 @@ describe('TLSFingerprintRoutersModal', () => {
       enabled: false,
       chatgpt_oauth_token_user_agent: 'import-token-ua/1.0',
       chatgpt_oauth_token_tls_fingerprint_profile_id: -1,
+      codex_invite_reset_user_agent: 'import-codex-desktop-ua/1.0',
+      codex_invite_reset_tls_fingerprint_profile_id: 7,
       rules: [
         {
           name: 'codex exact',
@@ -399,6 +411,8 @@ describe('TLSFingerprintRoutersModal', () => {
       enabled: false,
       chatgpt_oauth_token_user_agent: 'import-token-ua/1.0',
       chatgpt_oauth_token_tls_fingerprint_profile_id: -1,
+      codex_invite_reset_user_agent: 'import-codex-desktop-ua/1.0',
+      codex_invite_reset_tls_fingerprint_profile_id: 7,
       rules: expect.arrayContaining([
         expect.objectContaining({
           name: 'codex exact',
@@ -437,6 +451,8 @@ describe('TLSFingerprintRoutersModal', () => {
       description: 'UA based',
       chatgpt_oauth_token_user_agent: 'codex-token-ua/1.0',
       chatgpt_oauth_token_tls_fingerprint_profile_id: 7,
+      codex_invite_reset_user_agent: 'Codex Desktop/0.135.0-alpha.1 (Windows 10.0.26200; x86_64)',
+      codex_invite_reset_tls_fingerprint_profile_id: 7,
       rules: [
         {
           name: 'codex mac',

@@ -454,6 +454,10 @@ export default {
     dataSharingTag: 'Data Sharing',
     capacity: 'Capacity',
     capacityHint: 'Aggregated group load: concurrency / sessions / RPM',
+    availabilityWindow: '{days}d availability',
+    availabilityNoData: 'No data',
+    availabilityHint: '{days}-day active probe availability {rate} ({success} success / {total} total)',
+    availabilityHintNoData: 'No active probe data in the last {days} days',
     rateMultiplier: 'Group Multiplier',
     rateMultiplierValue: 'Group Multiplier {multiplier}',
     officialPriceDiscount: 'As low as {discount}/10 of official price',
@@ -992,6 +996,7 @@ export default {
     ws: 'WS',
     stream: 'Stream',
     sync: 'Sync',
+    cyber: 'Cyber Blocked',
     unknown: 'Unknown',
     in: 'In',
     out: 'Out',
@@ -1049,7 +1054,7 @@ export default {
       categories: {
         auth: 'Auth failed', rate_limit: 'Rate limited', quota: 'Balance/Subscription',
         invalid_request: 'Invalid request', service_unavailable: 'Service unavailable',
-        upstream: 'Upstream error', internal: 'Platform error', other: 'Other',
+        cyber: 'Cyber policy', upstream: 'Upstream error', internal: 'Platform error', other: 'Other',
       },
       detail: {
         title: 'Error Request Detail',
@@ -2622,6 +2627,18 @@ export default {
         loading: 'Loading model list...',
         empty: 'No displayable models'
       },
+      availabilityProbe: {
+        title: 'Group Availability Probe',
+        hint: 'Send lightweight active probes to this group on a fixed interval. The marketplace shows availability using the configured public window.',
+        model: 'Probe Model',
+        selectModel: 'Select probe model',
+        interval: 'Probe Interval (minutes)',
+        timeout: 'Timeout (seconds)',
+        prompt: 'Probe Prompt',
+        promptPlaceholder: 'e.g. hi',
+        modelRequired: 'Select a probe model before enabling group availability probes',
+        promptRequired: 'Enter a probe prompt before enabling group availability probes'
+      },
       claudeCode: {
         title: 'Claude Code Client Restriction',
         tooltip: 'When enabled, this group only allows official Claude Code clients. Non-Claude Code requests will be rejected or fallback to the specified group.',
@@ -3117,6 +3134,7 @@ export default {
       },
       columns: {
         name: 'Name',
+        id: 'Account ID',
         platformType: 'Platform/Type',
         platform: 'Platform',
         type: 'Type',
@@ -4060,6 +4078,40 @@ export default {
       },
       inputMethod: 'Input Method',
       reAuthorizedSuccess: 'Account re-authorized successfully',
+      inviteReset: 'Invite Reset',
+      inviteResetTitle: 'Codex Invite Reset',
+      inviteResetSubtitle: "Invite friends to use Codex and manage this account's reset credits",
+      inviteResetRefresh: 'Refresh',
+      inviteResetAvailable: 'Available resets',
+      inviteResetAvailableUnit: 'credits',
+      inviteResetSelectedCredit: 'Reset credit',
+      inviteResetSelectCredit: 'Select reset credit',
+      inviteResetCreditFallbackTitle: 'Codex reset credit',
+      inviteResetCreditFallbackDescription: 'Can be used to reset the current Codex usage window',
+      inviteResetNoCredits: 'No reset credits are available right now',
+      inviteResetUseReset: 'Use reset credit',
+      inviteResetUsing: 'Resetting...',
+      inviteResetRules: 'Invite rules',
+      inviteResetRulesEmpty: 'No rules to display',
+      inviteResetInviteEmails: 'Invite emails',
+      inviteResetPlaceholder: 'Enter emails, separated by commas, spaces, or new lines',
+      inviteResetEmailHint: 'Up to {max} email addresses per invite',
+      inviteResetConsent: 'I confirm I have consent from these recipients to send them a Codex invite email',
+      inviteResetSendInvite: 'Send invite',
+      inviteResetSending: 'Sending...',
+      inviteResetEmailsRequired: 'Enter at least one email address',
+      inviteResetInvalidEmail: 'Invalid email address: {email}',
+      inviteResetEmailLimit: 'Up to {max} email addresses per invite',
+      inviteResetConsentRequired: 'Please confirm recipient consent first',
+      inviteResetLoadFailed: 'Failed to load invite reset status',
+      inviteResetInviteSuccess: 'Invite sent',
+      inviteResetInviteFailed: 'Failed to send invite',
+      inviteResetInvitePartialFailed: 'Invite failed for: {emails}',
+      inviteResetConsumeSuccess: 'Codex usage reset',
+      inviteResetConsumeFailed: 'Failed to use reset credit',
+      inviteResetNothingToReset: 'There is no usage window that needs resetting',
+      inviteResetAlreadyRedeemed: 'This reset credit has already been used',
+      inviteResetNoCredit: 'No reset credit is available',
       // Test Modal
       testAccountConnection: 'Test Account Connection',
       account: 'Account',
@@ -4133,7 +4185,13 @@ export default {
         gemini3Image: 'G31FI',
         claude: 'Claude',
         passiveSampled: 'Passive',
-        activeQuery: 'Query'
+        activeQuery: 'Query',
+        quotaAutoPaused: 'Auto-paused'
+      },
+      openaiQuotaReset: {
+        count: 'Credits',
+        countTooltipLoad: 'Click to load the available reset-credit count',
+        countTooltipRefresh: 'Click to refresh the available reset-credit count'
       },
       tier: {
         free: 'Free',
@@ -4915,7 +4973,8 @@ export default {
         requestType: 'Type',
         requestTypeSync: 'Sync',
         requestTypeStream: 'Stream',
-        requestTypeWs: 'WS'
+        requestTypeWs: 'WS',
+        requestTypeCyber: 'Cyber'
       },
       // Error Details Modal
       errorDetails: {
@@ -4998,6 +5057,7 @@ export default {
         requestTypeSync: 'Sync',
         requestTypeStream: 'Stream',
         requestTypeWs: 'WebSocket',
+        requestTypeCyber: 'Cyber Blocked',
         modelMapping: 'Model Mapping',
         timings: 'Timings',
         auth: 'Auth',
@@ -5467,6 +5527,17 @@ export default {
       },
       emailTabDisabledTitle: 'Email Verification Not Enabled',
       emailTabDisabledHint: 'Enable email verification in the Security tab to configure SMTP settings.',
+      marketplaceAvailability: {
+        title: 'Marketplace Availability',
+        description:
+          'Adjust the public marketplace availability bar window and bucket size. Saved changes apply on the next marketplace refresh.',
+        windowDays: 'Window (days)',
+        windowDaysHint: 'Range {min}-{max} days. Default is 7 days.',
+        bucketMinutes: 'Bucket size (minutes)',
+        bucketMinutesHint: 'Range {min}-{max} minutes. Default is 120 minutes.',
+        bucketLimitHint:
+          'If the window and bucket size would produce more than 720 bars, the backend widens the bucket size automatically.'
+      },
       features: {
         riskControl: {
           title: 'Risk Control',
@@ -5474,6 +5545,10 @@ export default {
           configureLink: 'Configure content moderation in Risk Control',
           enabled: 'Enable Risk Control',
           enabledHint: 'When off, the admin sidebar entry is hidden and gateway moderation is skipped.',
+          cyberSessionBlockEnabled: 'Cyber Session Block',
+          cyberSessionBlockEnabledHint: 'After upstream returns cyber_policy, temporarily reject later requests in the same explicit session_id / conversation_id / prompt_cache_key.',
+          cyberSessionBlockTTLSeconds: 'Block Duration (seconds)',
+          cyberSessionBlockTTLSecondsHint: 'Default is 3600 seconds. When disabled, only audit and usage records are written.',
         },
         affiliate: {
           title: 'Affiliate Rebates',
@@ -5728,6 +5803,14 @@ export default {
         metadataPassthroughHint: 'Pass through client\'s original metadata.user_id without rewriting. May improve upstream cache hit rates.',
         cchSigning: 'CCH Signing',
         cchSigningHint: 'Sign the billing header in forwarded requests with CCH hash. When disabled, the placeholder is preserved.',
+        claudeOAuthSystemPromptInjection: 'Claude OAuth System Injection',
+        claudeOAuthSystemPromptInjectionHint: 'Inject Claude Code system blocks when non-Claude-Code clients use Claude OAuth. When disabled, the client system is preserved.',
+        claudeOAuthSystemPrompt: 'Expansion System Prompt',
+        claudeOAuthSystemPromptPlaceholder: 'Leave empty to use the built-in Claude Code expansion prompt',
+        claudeOAuthSystemPromptHint: 'Reference it from blocks JSON with {claude_code_expansion_prompt}.',
+        claudeOAuthSystemPromptBlocks: 'System Blocks JSON',
+        claudeOAuthSystemPromptBlocksPlaceholder: `{'{"blocks":[{"type":"text","text":"{billing_header}"},{"type":"text","text":"{claude_code_system_prompt}"},{"type":"text","text":"{claude_code_expansion_prompt}","cache_control":true}]}'}`,
+        claudeOAuthSystemPromptBlocksHint: 'Supports {billing_header}, {cc_version}, {fp}, {claude_code_system_prompt}, and {claude_code_expansion_prompt}; leave empty for the built-in three blocks.',
         anthropicCacheTTL1hInjection: 'Anthropic Cache TTL Injection',
         anthropicCacheTTL1hInjectionHint: 'When enabled, existing ephemeral cache_control blocks in Anthropic OAuth/Setup Token request bodies are forced to 1h; response usage is billed back as 5m by default, with account-level TTL billing override taking priority.',
         rewriteMessageCacheControl: 'Rewrite Message Cache Breakpoints',
@@ -6480,6 +6563,14 @@ export default {
         title: 'OpenAI experimental scheduler policy',
         description: "Disabled by default. When enabled, this only changes the gateway's experimental account-selection policy for OpenAI traffic; it does not indicate an upstream OpenAI capability."
       },
+      openaiQuotaAutoPause: {
+        title: 'OpenAI account quota auto-pause',
+        description: 'When an OpenAI account reaches its 5h / 7d usage threshold, the scheduler skips it automatically and resumes once the window rolls over. Per-account thresholds take precedence over this global default.',
+        default5h: 'Default 5h usage threshold (%)',
+        default7d: 'Default 7d usage threshold (%)',
+        thresholdHint: 'Value 0-100; leave blank or 0 to disable the global default threshold.',
+        rangeError: 'OpenAI quota auto-pause threshold must be between 0 and 100'
+      },
       usageRecords: {
         title: 'Usage Records',
         description: 'Settings for usage and failed-request records visible to end users.',
@@ -6605,12 +6696,19 @@ export default {
         description: 'Description',
         enabled: 'Enable router',
         chatgptOAuthTokenSettings: 'ChatGPT OAuth Token Requests',
-        chatgptOAuthTokenSettingsHint: 'Only affects exchange/refresh token requests for OpenAI/ChatGPT OAuth accounts bound to this TLS router.',
+        chatgptOAuthTokenSettingsHint: 'Applies only to OpenAI/ChatGPT OAuth exchange and refresh token requests for accounts bound to this TLS router.',
         chatgptOAuthTokenUserAgent: 'Token User-Agent',
-        chatgptOAuthTokenUserAgentHint: 'When token TLS profile is enabled, an empty value falls back to the OpenAI Codex UA.',
+        chatgptOAuthTokenUserAgentHint: 'For exchange/refresh token, an empty value falls back to the OpenAI Codex UA when token TLS profile is enabled.',
         chatgptOAuthTokenProfile: 'Token TLS Profile',
         chatgptOAuthTokenProfileHint: 'Disabled keeps the existing token request behavior. Selecting a profile sends exchange/refresh token through DoWithTLS.',
         chatgptOAuthTokenProfileDisabled: 'Do not enable token-specific TLS profile',
+        codexInviteResetSettings: 'Codex Invite Reset Requests',
+        codexInviteResetSettingsHint: 'Applies only to Codex Desktop invite reset status, invite, and consume requests for accounts bound to this TLS router.',
+        codexInviteResetUserAgent: 'Invite Reset User-Agent',
+        codexInviteResetUserAgentHint: 'Leave empty to fall back to the Codex Desktop User-Agent.',
+        codexInviteResetProfile: 'Invite Reset TLS Profile',
+        codexInviteResetProfileHint: 'Disabled falls back to the account TLS profile. Selecting a profile sends invite reset requests through DoWithTLS.',
+        codexInviteResetProfileDisabled: 'Use account TLS profile',
         rules: 'Routing Rules',
         addRule: 'Add Rule',
         noRules: 'No rules yet. Misses will fall back to the account fixed profile.',

@@ -11,6 +11,10 @@
 *.md
 !deploy/DOCKER.md
 docs/
+# admin-compliance gate 的 LegalDocumentView.vue 构建时会导入 docs/legal/*.md?raw。
+# docs/ 其他内容仍排除，只把法律文档子树放入 Docker 构建上下文。
+!docs/legal/
+!docs/legal/*.md
 
 # IDE
 .idea/

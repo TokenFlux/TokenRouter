@@ -119,6 +119,7 @@ func clearGatewayRequestDerivedState(parsed *ParsedRequest) {
 	parsed.MaxTokens = 0
 	parsed.systemRange = missingJSONRange()
 	parsed.messagesRange = missingJSONRange()
+	parsed.inputRange = missingJSONRange()
 }
 
 func clearGatewayRequestRanges(parsed *ParsedRequest) {
@@ -128,6 +129,7 @@ func clearGatewayRequestRanges(parsed *ParsedRequest) {
 	parsed.HasSystem = false
 	parsed.systemRange = missingJSONRange()
 	parsed.messagesRange = missingJSONRange()
+	parsed.inputRange = missingJSONRange()
 }
 
 func setGatewayRequestRanges(parsed *ParsedRequest, protocol string, jsonStr string) {
@@ -149,6 +151,11 @@ func setGatewayRequestRanges(parsed *ParsedRequest, protocol string, jsonStr str
 		}
 		if msgs := gjson.Get(jsonStr, "messages"); msgs.Exists() && msgs.IsArray() {
 			parsed.messagesRange = rangeFromResult(msgs)
+		}
+		if protocol == "responses" {
+			if input := gjson.Get(jsonStr, "input"); input.Exists() {
+				parsed.inputRange = rangeFromResult(input)
+			}
 		}
 	}
 }
@@ -235,6 +242,7 @@ type ParsedRequest struct {
 	protocol      string    // 当前 Body 的协议格式，用于 Body 替换后刷新 raw range
 	systemRange   jsonRange // system/systemInstruction.parts 的 raw JSON 范围，绑定 Body 当前内容
 	messagesRange jsonRange // messages/contents 的 raw JSON 范围，绑定 Body 当前内容
+	inputRange    jsonRange // Responses API input 的 raw JSON 范围，绑定 Body 当前内容
 
 	// GroupID 请求所属分组 ID（来自 API Key）
 	GroupID *int64
@@ -315,6 +323,10 @@ func (p *ParsedRequest) SystemRaw() []byte {
 
 func (p *ParsedRequest) MessagesRaw() []byte {
 	return p.raw(p.messagesRange)
+}
+
+func (p *ParsedRequest) InputRaw() []byte {
+	return p.raw(p.inputRange)
 }
 
 func (p *ParsedRequest) DecodeSystem(dst any) error {
@@ -502,33 +514,47 @@ func StripEmptyTextBlocks(body []byte) []byte {
 	return out
 }
 
-// FilterThinkingBlocks removes thinking blocks from request body
-// Returns filtered body or original body if filtering fails (fail-safe)
-// This prevents 400 errors from invalid thinking block signatures
+// FilterThinkingBlocks 从请求体中移除不适合直发的 thinking block。
+// 过滤失败时返回原 body，避免整流逻辑影响主请求。
+// 主要用于避免无效 thinking block signature 触发上游 400。
 //
 // 策略：
 //   - 当 thinking.type 不是 "enabled"/"adaptive"：移除所有 thinking 相关块
 //   - 当 thinking.type 是 "enabled"/"adaptive"：仅移除缺失/无效 signature 的 thinking 块（避免 400）
-//     (blocks with missing/empty/dummy signatures that would cause 400 errors)
-func FilterThinkingBlocks(body []byte) []byte {
+//     例如缺失、空值或占位 signature 的块
+//
+// 调用方传入 mappedModel 时会按上游协议族分流：仅 Anthropic 官方语义执行过滤；
+// DeepSeek/Kimi/GLM/MiniMax 等 passback-required 上游必须原样回传历史 thinking block。
+// 未传 mappedModel 时保留旧行为，便于既有单元测试和纯工具调用继续使用。
+func FilterThinkingBlocks(body []byte, mappedModel ...string) []byte {
+	if len(mappedModel) > 0 && !ShouldPreFilterThinkingBlocks(mappedModel[0]) {
+		return body
+	}
 	return filterThinkingBlocksInternal(body, false)
 }
 
-// FilterThinkingBlocksForRetry strips thinking-related constructs for retry scenarios.
+// FilterThinkingBlocksForRetry 在 retry 场景中移除或降级 thinking 相关结构。
 //
-// Why:
-//   - Upstreams may reject historical `thinking`/`redacted_thinking` blocks due to invalid/missing signatures.
-//   - Anthropic extended thinking has a structural constraint: when top-level `thinking` is enabled and the
-//     final message is an assistant prefill, the assistant content must start with a thinking block.
-//   - If we remove thinking blocks but keep top-level `thinking` enabled, we can trigger:
-//     "Expected `thinking` or `redacted_thinking`, but found `text`"
+// 原因：
+//   - 上游可能因为历史 `thinking`/`redacted_thinking` 缺失或非法 signature 而拒收。
+//   - Anthropic extended thinking 有结构约束：顶层 `thinking` 开启且最后一条 assistant
+//     是 prefill 时，assistant content 必须以 thinking block 开头。
+//   - 如果只移除 thinking block 却保留顶层 `thinking`，可能触发
+//     "Expected `thinking` or `redacted_thinking`, but found `text`"。
 //
-// Strategy (B: preserve content as text):
-//   - Disable top-level `thinking` (remove `thinking` field).
-//   - Convert `thinking` blocks to `text` blocks (preserve the thinking content).
-//   - Remove `redacted_thinking` blocks (cannot be converted to text).
-//   - Ensure no message ends up with empty content.
-func FilterThinkingBlocksForRetry(body []byte) []byte {
+// 策略：尽量保留内容语义。
+//   - 禁用顶层 `thinking` 字段。
+//   - 将 `thinking` block 转成 `text` block，保留 thinking 文本。
+//   - 删除无法转成明文的 `redacted_thinking` block。
+//   - 确保消息 content 不会变成空数组。
+//
+// 调用方传入 mappedModel 时，仅 Anthropic 官方语义执行 retry 变形；
+// passback-required/unknown 上游返回原 body，避免破坏原样回传契约。
+func FilterThinkingBlocksForRetry(body []byte, mappedModel ...string) []byte {
+	if len(mappedModel) > 0 && !ShouldApplyRetryFilters(mappedModel[0]) {
+		return body
+	}
+
 	hasThinkingContent := bytes.Contains(body, patternTypeThinking) ||
 		bytes.Contains(body, patternTypeThinkingSpaced) ||
 		bytes.Contains(body, patternTypeRedactedThinking) ||
@@ -862,16 +888,22 @@ func anthropicBetaTokensContains(header, token string) bool {
 	return false
 }
 
-// FilterSignatureSensitiveBlocksForRetry is a stronger retry filter for cases where upstream errors indicate
-// signature/thought_signature validation issues involving tool blocks.
+// FilterSignatureSensitiveBlocksForRetry 是更强的 retry 过滤器，用于上游错误明确指向
+// tool block 的 signature/thought_signature 校验问题。
 //
-// This performs everything in FilterThinkingBlocksForRetry, plus:
-//   - Convert `tool_use` blocks to text (name/id/input) so we stop sending structured tool calls.
-//   - Convert `tool_result` blocks to text so we keep tool results visible without tool semantics.
+// 它包含 FilterThinkingBlocksForRetry 的处理，并额外执行：
+//   - 将 `tool_use` block 转成 text，停止发送结构化工具调用。
+//   - 将 `tool_result` block 转成 text，在不保留工具语义的情况下保留结果内容。
 //
-// Use this only when needed: converting tool blocks to text changes model behaviour and can increase the
-// risk of prompt injection (tool output becomes plain conversation text).
-func FilterSignatureSensitiveBlocksForRetry(body []byte) []byte {
+// 只能在确有必要时使用：把工具块转成纯文本会改变模型行为，也可能增加提示注入风险。
+//
+// 传入 mappedModel 时，仅 Anthropic 官方语义执行变形；passback-required/unknown
+// 上游返回原 body，避免破坏原样回传契约。
+func FilterSignatureSensitiveBlocksForRetry(body []byte, mappedModel ...string) []byte {
+	if len(mappedModel) > 0 && !ShouldApplyRetryFilters(mappedModel[0]) {
+		return body
+	}
+
 	// Fast path: only run when we see likely relevant constructs.
 	if !bytes.Contains(body, []byte(`"type":"thinking"`)) &&
 		!bytes.Contains(body, []byte(`"type": "thinking"`)) &&
@@ -1166,6 +1198,38 @@ func NormalizeClaudeOutputEffort(raw string) *string {
 	}
 }
 
+// DefaultEffortForThinkingEnabled 给"开启 thinking 但协议层没有 effort 档位概念"
+// 的国产模型族返回默认 effort，用于 usage_log.reasoning_effort 展示。
+func DefaultEffortForThinkingEnabled(mappedModel string) *string {
+	if ResolveThinkingProtocol(mappedModel) != ThinkingProtocolPassbackRequired {
+		return nil
+	}
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(mappedModel)), "deepseek-") {
+		// DeepSeek 原生支持 reasoning_effort，不在这里注入默认值。
+		return nil
+	}
+	effort := "high"
+	return &effort
+}
+
+// OpenAIBodyHasThinkingEnabled 检测 OpenAI 协议请求体是否开启 thinking。
+func OpenAIBodyHasThinkingEnabled(body []byte) bool {
+	thinkingType := strings.ToLower(strings.TrimSpace(gjson.GetBytes(body, "thinking.type").String()))
+	return thinkingType == "enabled" || thinkingType == "adaptive"
+}
+
+// ApplyThinkingEnabledFallback 在调用方尚未解析出 effort 时，为启用 thinking 的
+// 国产 passback-required 上游补默认 effort；已显式传入的 effort 永远不覆盖。
+func ApplyThinkingEnabledFallback(effort *string, body []byte, mappedModel string) *string {
+	if effort != nil {
+		return effort
+	}
+	if !OpenAIBodyHasThinkingEnabled(body) {
+		return nil
+	}
+	return DefaultEffortForThinkingEnabled(mappedModel)
+}
+
 // =========================
 // Thinking Budget Rectifier
 // =========================
@@ -1251,4 +1315,21 @@ func RectifyThinkingBudget(body []byte) ([]byte, bool) {
 	}
 
 	return modified, changed
+}
+
+// NormalizeChineseLLMThinking 修正国产 Anthropic 兼容上游的 thinking.type 差异。
+// 当前仅 MiniMax M 系列需要把 Anthropic SDK 默认的 enabled 改成 adaptive。
+func NormalizeChineseLLMThinking(body []byte, mappedModel string) ([]byte, bool) {
+	modelLower := strings.ToLower(strings.TrimSpace(mappedModel))
+	if !strings.HasPrefix(modelLower, "minimax-m") {
+		return body, false
+	}
+	if gjson.GetBytes(body, "thinking.type").String() != "enabled" {
+		return body, false
+	}
+	modified, err := sjson.SetBytes(body, "thinking.type", "adaptive")
+	if err != nil {
+		return body, false
+	}
+	return modified, true
 }

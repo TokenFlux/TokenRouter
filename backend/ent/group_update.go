@@ -540,6 +540,20 @@ func (_u *GroupUpdate) SetNillableModelsListConfig(v *domain.GroupModelsListConf
 	return _u
 }
 
+// SetAvailabilityProbeConfig sets the "availability_probe_config" field.
+func (_u *GroupUpdate) SetAvailabilityProbeConfig(v domain.GroupAvailabilityProbeConfig) *GroupUpdate {
+	_u.mutation.SetAvailabilityProbeConfig(v)
+	return _u
+}
+
+// SetNillableAvailabilityProbeConfig sets the "availability_probe_config" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableAvailabilityProbeConfig(v *domain.GroupAvailabilityProbeConfig) *GroupUpdate {
+	if v != nil {
+		_u.SetAvailabilityProbeConfig(*v)
+	}
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdate) SetRpmLimit(v int) *GroupUpdate {
 	_u.mutation.ResetRpmLimit()
@@ -1000,6 +1014,9 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.ModelsListConfig(); ok {
 		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AvailabilityProbeConfig(); ok {
+		_spec.SetField(group.FieldAvailabilityProbeConfig, field.TypeJSON, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)
@@ -1800,6 +1817,20 @@ func (_u *GroupUpdateOne) SetNillableModelsListConfig(v *domain.GroupModelsListC
 	return _u
 }
 
+// SetAvailabilityProbeConfig sets the "availability_probe_config" field.
+func (_u *GroupUpdateOne) SetAvailabilityProbeConfig(v domain.GroupAvailabilityProbeConfig) *GroupUpdateOne {
+	_u.mutation.SetAvailabilityProbeConfig(v)
+	return _u
+}
+
+// SetNillableAvailabilityProbeConfig sets the "availability_probe_config" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableAvailabilityProbeConfig(v *domain.GroupAvailabilityProbeConfig) *GroupUpdateOne {
+	if v != nil {
+		_u.SetAvailabilityProbeConfig(*v)
+	}
+	return _u
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (_u *GroupUpdateOne) SetRpmLimit(v int) *GroupUpdateOne {
 	_u.mutation.ResetRpmLimit()
@@ -2290,6 +2321,9 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.ModelsListConfig(); ok {
 		_spec.SetField(group.FieldModelsListConfig, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AvailabilityProbeConfig(); ok {
+		_spec.SetField(group.FieldAvailabilityProbeConfig, field.TypeJSON, value)
 	}
 	if value, ok := _u.mutation.RpmLimit(); ok {
 		_spec.SetField(group.FieldRpmLimit, field.TypeInt, value)

@@ -16,6 +16,11 @@ type GroupCapacitySummary struct {
 	RPMMax          int   `json:"rpm_max"`
 }
 
+// OpenAIQuotaAutoPauseSettingsReader 提供 OpenAI 配额自动暂停的全局默认阈值。
+type OpenAIQuotaAutoPauseSettingsReader interface {
+	GetOpenAIQuotaAutoPauseSettings(ctx context.Context) OpsOpenAIAccountQuotaAutoPauseSettings
+}
+
 // GroupCapacityService aggregates per-group capacity from runtime data.
 type GroupCapacityService struct {
 	accountRepo        AccountRepository
@@ -23,6 +28,7 @@ type GroupCapacityService struct {
 	concurrencyService *ConcurrencyService
 	sessionLimitCache  SessionLimitCache
 	rpmCache           RPMCache
+	quotaAutoPause     OpenAIQuotaAutoPauseSettingsReader
 }
 
 // NewGroupCapacityService creates a new GroupCapacityService.
@@ -32,6 +38,7 @@ func NewGroupCapacityService(
 	concurrencyService *ConcurrencyService,
 	sessionLimitCache SessionLimitCache,
 	rpmCache RPMCache,
+	quotaAutoPause OpenAIQuotaAutoPauseSettingsReader,
 ) *GroupCapacityService {
 	return &GroupCapacityService{
 		accountRepo:        accountRepo,
@@ -39,6 +46,7 @@ func NewGroupCapacityService(
 		concurrencyService: concurrencyService,
 		sessionLimitCache:  sessionLimitCache,
 		rpmCache:           rpmCache,
+		quotaAutoPause:     quotaAutoPause,
 	}
 }
 
@@ -99,6 +107,10 @@ func (s *GroupCapacityService) getGroupCapacity(ctx context.Context, groupID int
 	if err != nil {
 		return GroupCapacitySummary{}, err
 	}
+	if len(accounts) == 0 {
+		return GroupCapacitySummary{}, nil
+	}
+	accounts = s.filterQuotaAutoPausedAccounts(ctx, accounts)
 	if len(accounts) == 0 {
 		return GroupCapacitySummary{}, nil
 	}
@@ -163,4 +175,23 @@ func (s *GroupCapacityService) getGroupCapacity(ctx context.Context, groupID int
 		RPMUsed:         rpmUsed,
 		RPMMax:          rpmMax,
 	}, nil
+}
+
+func (s *GroupCapacityService) filterQuotaAutoPausedAccounts(ctx context.Context, accounts []Account) []Account {
+	if len(accounts) == 0 {
+		return accounts
+	}
+	if s != nil && s.quotaAutoPause != nil {
+		ctx = WithOpenAIQuotaAutoPauseSettings(ctx, s.quotaAutoPause.GetOpenAIQuotaAutoPauseSettings(ctx))
+	}
+	filtered := accounts[:0]
+	for i := range accounts {
+		account := &accounts[i]
+		// OpenAI 配额自动暂停不落库，容量统计必须复用同一套实时派生规则过滤。
+		if EvaluateOpenAIQuotaAutoPause(ctx, account) {
+			continue
+		}
+		filtered = append(filtered, accounts[i])
+	}
+	return filtered
 }

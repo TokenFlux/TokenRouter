@@ -22,6 +22,78 @@ import type {
   CheckMixedChannelResponse
 } from '@/types'
 
+export interface CodexInviteResetCredit {
+  id: string
+  status?: string
+  title?: string
+  description?: string
+  profile_user_id?: string
+  profile_image_url?: string
+  raw?: Record<string, unknown>
+}
+
+export interface CodexInviteResetStatus {
+  referral_key: string
+  invite_eligibility?: Record<string, unknown>
+  eligibility_rules?: string[]
+  requires_consent: boolean
+  available_count: number
+  credits: CodexInviteResetCredit[]
+  raw_eligibility_rules?: Record<string, unknown>
+  raw_credits?: Record<string, unknown>
+}
+
+export interface CodexInviteResetInviteResult {
+  invites?: Array<Record<string, unknown>>
+  failed_emails?: string[]
+  message?: string
+  raw?: Record<string, unknown>
+}
+
+export interface CodexInviteResetConsumeResult {
+  code?: string
+  credit_id: string
+  redeem_request_id: string
+  available_count?: number
+  remaining_credits?: Array<Record<string, unknown>>
+  raw?: Record<string, unknown>
+}
+
+export interface OpenAIRateLimitWindow {
+  used_percent: number
+  limit_window_seconds: number
+  reset_after_seconds: number
+  reset_at: number
+}
+
+export interface OpenAIRateLimit {
+  allowed: boolean
+  limit_reached: boolean
+  primary_window?: OpenAIRateLimitWindow | null
+  secondary_window?: OpenAIRateLimitWindow | null
+}
+
+export interface OpenAIAdditionalRateLimit {
+  limit_name: string
+  metered_feature: string
+  rate_limit?: OpenAIRateLimit | null
+}
+
+export interface OpenAIRateLimitResetCredits {
+  available_count: number
+}
+
+export interface OpenAIQuotaUsage {
+  user_id?: string
+  account_id?: string
+  email?: string
+  plan_type?: string
+  rate_limit?: OpenAIRateLimit | null
+  additional_rate_limits?: OpenAIAdditionalRateLimit[]
+  rate_limit_reset_credits?: OpenAIRateLimitResetCredits | null
+  fetched_at: number
+}
+
 /**
  * List all accounts with pagination
  * @param page - Page number (default: 1)
@@ -711,6 +783,62 @@ export async function setPrivacy(id: number): Promise<Account> {
   return data
 }
 
+/**
+ * 查询 OpenAI OAuth 账号的 Codex 邀请重置状态。
+ * @param id - 账号 ID
+ * @returns Codex 邀请重置状态
+ */
+export async function getCodexInviteResetStatus(id: number): Promise<CodexInviteResetStatus> {
+  const { data } = await apiClient.get<CodexInviteResetStatus>(
+    `/admin/accounts/${id}/codex/invite-reset/status`
+  )
+  return data
+}
+
+/**
+ * 通过 Codex 邀请重置接口发送邀请。
+ * @param id - 账号 ID
+ * @param emails - 待邀请邮箱
+ * @returns 邀请结果
+ */
+export async function sendCodexInviteResetInvite(
+  id: number,
+  emails: string[]
+): Promise<CodexInviteResetInviteResult> {
+  const { data } = await apiClient.post<CodexInviteResetInviteResult>(
+    `/admin/accounts/${id}/codex/invite-reset/invite`,
+    { emails }
+  )
+  return data
+}
+
+/**
+ * 使用一次 Codex 邀请重置机会。
+ * @param id - 账号 ID
+ * @param creditId - 重置机会 ID
+ * @returns 使用结果
+ */
+export async function consumeCodexInviteReset(
+  id: number,
+  creditId: string
+): Promise<CodexInviteResetConsumeResult> {
+  const { data } = await apiClient.post<CodexInviteResetConsumeResult>(
+    `/admin/accounts/${id}/codex/invite-reset/consume`,
+    { credit_id: creditId }
+  )
+  return data
+}
+
+/**
+ * 查询 OpenAI OAuth 账号的上游限流和重置次数。
+ * @param id - 账号 ID
+ * @returns OpenAI 上游限流状态
+ */
+export async function queryOpenAIQuota(id: number): Promise<OpenAIQuotaUsage> {
+  const { data } = await apiClient.get<OpenAIQuotaUsage>(`/admin/openai/accounts/${id}/quota`)
+  return data
+}
+
 export const accountsAPI = {
   list,
   listWithEtag,
@@ -752,6 +880,10 @@ export const accountsAPI = {
   batchClearError,
   batchRefresh,
   setPrivacy,
+  getCodexInviteResetStatus,
+  sendCodexInviteResetInvite,
+  consumeCodexInviteReset,
+  queryOpenAIQuota,
   revertProxyFallback
 }
 

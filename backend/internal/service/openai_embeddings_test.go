@@ -37,6 +37,26 @@ func TestBuildOpenAIEmbeddingsURL(t *testing.T) {
 	}
 }
 
+func TestExtractOpenAIEmbeddingsUsage_ParsesImageInputTokens(t *testing.T) {
+	body := []byte(`{
+		"usage":{
+			"prompt_tokens":1340,
+			"prompt_tokens_details":{
+				"text_tokens":1312,
+				"image_tokens":28,
+				"cached_tokens":4
+			}
+		}
+	}`)
+
+	usage := extractOpenAIEmbeddingsUsage(body)
+
+	require.Equal(t, 1340, usage.InputTokens)
+	require.Equal(t, 28, usage.ImageInputTokens)
+	require.Equal(t, 4, usage.CacheReadInputTokens)
+	require.Zero(t, usage.OutputTokens)
+}
+
 func TestForwardEmbeddings_APIKeyPassthroughRecordsUsageAndBatchInput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

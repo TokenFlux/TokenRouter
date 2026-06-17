@@ -150,21 +150,25 @@ type SystemSettings struct {
 	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
 	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
 
-	DefaultConcurrency           int                          `json:"default_concurrency"`
-	DefaultBalance               float64                      `json:"default_balance"`
-	RiskControlEnabled           bool                         `json:"risk_control_enabled"` // 风控中心功能开关
-	AffiliateEnabled             bool                         `json:"affiliate_enabled"`
-	AffiliateRebateRate          float64                      `json:"affiliate_rebate_rate"`
-	AffiliateRebateFreezeHours   int                          `json:"affiliate_rebate_freeze_hours"`
-	AffiliateRebateDurationDays  int                          `json:"affiliate_rebate_duration_days"`
-	AffiliateRebatePerInviteeCap float64                      `json:"affiliate_rebate_per_invitee_cap"`
-	DefaultUserRPMLimit          int                          `json:"default_user_rpm_limit"`
-	DefaultSubscriptions         []DefaultSubscriptionSetting `json:"default_subscriptions"`
-	BalanceUnitName              string                       `json:"balance_unit_name"`
-	BalanceUnitSymbol            string                       `json:"balance_unit_symbol"`
-	BalanceIconSVG               string                       `json:"balance_icon_svg"`
-	ReasoningPointRMBUnitPrice   float64                      `json:"reasoning_point_rmb_unit_price"`
-	USDExchangeRate              float64                      `json:"usd_exchange_rate"`
+	DefaultConcurrency                   int                          `json:"default_concurrency"`
+	DefaultBalance                       float64                      `json:"default_balance"`
+	RiskControlEnabled                   bool                         `json:"risk_control_enabled"` // 风控中心功能开关
+	CyberSessionBlockEnabled             bool                         `json:"cyber_session_block_enabled"`
+	CyberSessionBlockTTLSeconds          int                          `json:"cyber_session_block_ttl_seconds"`
+	AffiliateEnabled                     bool                         `json:"affiliate_enabled"`
+	AffiliateRebateRate                  float64                      `json:"affiliate_rebate_rate"`
+	AffiliateRebateFreezeHours           int                          `json:"affiliate_rebate_freeze_hours"`
+	AffiliateRebateDurationDays          int                          `json:"affiliate_rebate_duration_days"`
+	AffiliateRebatePerInviteeCap         float64                      `json:"affiliate_rebate_per_invitee_cap"`
+	DefaultUserRPMLimit                  int                          `json:"default_user_rpm_limit"`
+	DefaultSubscriptions                 []DefaultSubscriptionSetting `json:"default_subscriptions"`
+	BalanceUnitName                      string                       `json:"balance_unit_name"`
+	BalanceUnitSymbol                    string                       `json:"balance_unit_symbol"`
+	BalanceIconSVG                       string                       `json:"balance_icon_svg"`
+	ReasoningPointRMBUnitPrice           float64                      `json:"reasoning_point_rmb_unit_price"`
+	USDExchangeRate                      float64                      `json:"usd_exchange_rate"`
+	MarketplaceAvailabilityWindowDays    int                          `json:"marketplace_availability_window_days"`
+	MarketplaceAvailabilityBucketMinutes int                          `json:"marketplace_availability_bucket_minutes"`
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -193,14 +197,17 @@ type SystemSettings struct {
 	BackendModeEnabled bool `json:"backend_mode_enabled"`
 
 	// Gateway forwarding behavior
-	EnableFingerprintUnification       bool   `json:"enable_fingerprint_unification"`
-	EnableMetadataPassthrough          bool   `json:"enable_metadata_passthrough"`
-	EnableCCHSigning                   bool   `json:"enable_cch_signing"`
-	EnableAnthropicCacheTTL1hInjection bool   `json:"enable_anthropic_cache_ttl_1h_injection"`
-	RewriteMessageCacheControl         bool   `json:"rewrite_message_cache_control"`
-	AntigravityUserAgentVersion        string `json:"antigravity_user_agent_version"`
-	OpenAICodexUserAgent               string `json:"openai_codex_user_agent"`
-	OpenAIAllowClaudeCodeCodexPlugin   bool   `json:"openai_allow_claude_code_codex_plugin"`
+	EnableFingerprintUnification           bool   `json:"enable_fingerprint_unification"`
+	EnableMetadataPassthrough              bool   `json:"enable_metadata_passthrough"`
+	EnableCCHSigning                       bool   `json:"enable_cch_signing"`
+	EnableClaudeOAuthSystemPromptInjection bool   `json:"enable_claude_oauth_system_prompt_injection"`
+	ClaudeOAuthSystemPrompt                string `json:"claude_oauth_system_prompt"`
+	ClaudeOAuthSystemPromptBlocks          string `json:"claude_oauth_system_prompt_blocks"`
+	EnableAnthropicCacheTTL1hInjection     bool   `json:"enable_anthropic_cache_ttl_1h_injection"`
+	RewriteMessageCacheControl             bool   `json:"rewrite_message_cache_control"`
+	AntigravityUserAgentVersion            string `json:"antigravity_user_agent_version"`
+	OpenAICodexUserAgent                   string `json:"openai_codex_user_agent"`
+	OpenAIAllowClaudeCodeCodexPlugin       bool   `json:"openai_allow_claude_code_codex_plugin"`
 
 	// Web Search Emulation
 	WebSearchEmulationEnabled bool `json:"web_search_emulation_enabled"`
@@ -213,6 +220,8 @@ type SystemSettings struct {
 
 	// OpenAI account scheduling
 	OpenAIAdvancedSchedulerEnabled bool `json:"openai_advanced_scheduler_enabled"`
+	// OpenAI 账号配额自动暂停全局默认阈值。后端按 0~1 存储，0 表示不启用全局默认阈值。
+	OpenAIQuotaAutoPauseSettings service.OpsOpenAIAccountQuotaAutoPauseSettings `json:"openai_account_quota_auto_pause"`
 
 	// Payment configuration
 	PaymentEnabled                   bool                      `json:"payment_enabled"`
@@ -321,7 +330,9 @@ type PublicSettings struct {
 	BalanceLowNotifyEnabled          bool                     `json:"balance_low_notify_enabled"`
 	AccountQuotaNotifyEnabled        bool                     `json:"account_quota_notify_enabled"`
 	RiskControlEnabled               bool                     `json:"risk_control_enabled"` // 风控中心入口开关
-	AffiliateEnabled                 bool                     `json:"affiliate_enabled"`    // 邀请返利入口开关
+	CyberSessionBlockEnabled         bool                     `json:"cyber_session_block_enabled"`
+	CyberSessionBlockTTLSeconds      int                      `json:"cyber_session_block_ttl_seconds"`
+	AffiliateEnabled                 bool                     `json:"affiliate_enabled"` // 邀请返利入口开关
 	BalanceLowNotifyThreshold        float64                  `json:"balance_low_notify_threshold"`
 	BalanceLowNotifyRechargeURL      string                   `json:"balance_low_notify_recharge_url"`
 

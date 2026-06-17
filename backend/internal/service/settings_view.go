@@ -153,19 +153,23 @@ type SystemSettings struct {
 	DefaultConcurrency int
 	DefaultBalance     float64
 	// RiskControlEnabled 控制风控中心入口和网关内容审计总开关。
-	RiskControlEnabled           bool
-	AffiliateEnabled             bool
-	AffiliateRebateRate          float64
-	AffiliateRebateFreezeHours   int
-	AffiliateRebateDurationDays  int
-	AffiliateRebatePerInviteeCap float64
-	DefaultUserRPMLimit          int
-	DefaultSubscriptions         []DefaultSubscriptionSetting
-	BalanceUnitName              string
-	BalanceUnitSymbol            string
-	BalanceIconSVG               string
-	ReasoningPointRMBUnitPrice   float64
-	USDExchangeRate              float64
+	RiskControlEnabled                   bool
+	CyberSessionBlockEnabled             bool
+	CyberSessionBlockTTLSeconds          int
+	AffiliateEnabled                     bool
+	AffiliateRebateRate                  float64
+	AffiliateRebateFreezeHours           int
+	AffiliateRebateDurationDays          int
+	AffiliateRebatePerInviteeCap         float64
+	DefaultUserRPMLimit                  int
+	DefaultSubscriptions                 []DefaultSubscriptionSetting
+	BalanceUnitName                      string
+	BalanceUnitSymbol                    string
+	BalanceIconSVG                       string
+	ReasoningPointRMBUnitPrice           float64
+	USDExchangeRate                      float64
+	MarketplaceAvailabilityWindowDays    int
+	MarketplaceAvailabilityBucketMinutes int
 
 	// Model fallback configuration
 	EnableModelFallback      bool   `json:"enable_model_fallback"`
@@ -195,14 +199,17 @@ type SystemSettings struct {
 	BackendModeEnabled bool
 
 	// Gateway forwarding behavior
-	EnableFingerprintUnification       bool   // 是否统一 OAuth 账号的指纹头（默认 true）
-	EnableMetadataPassthrough          bool   // 是否透传客户端原始 metadata（默认 false）
-	EnableCCHSigning                   bool   // 是否对 billing header cch 进行签名（默认 false）
-	EnableAnthropicCacheTTL1hInjection bool   // 是否对 Anthropic OAuth/SetupToken 请求体注入 1h cache_control ttl（默认 false）
-	RewriteMessageCacheControl         bool   // 是否改写 messages[*].content[*].cache_control（默认 false）
-	AntigravityUserAgentVersion        string // Antigravity 上游 User-Agent 版本号；空值使用配置/默认值
-	OpenAICodexUserAgent               string // OpenAI Codex 上游完整 User-Agent；空值使用内置默认
-	OpenAIAllowClaudeCodeCodexPlugin   bool   // 全局开关：是否额外放行 Claude Code 的 Codex 插件（默认 false）
+	EnableFingerprintUnification           bool   // 是否统一 OAuth 账号的指纹头（默认 true）
+	EnableMetadataPassthrough              bool   // 是否透传客户端原始 metadata（默认 false）
+	EnableCCHSigning                       bool   // 是否对 billing header cch 进行签名（默认 false）
+	EnableClaudeOAuthSystemPromptInjection bool   // 是否对 Claude OAuth mimic 路径注入 Claude Code system blocks（默认 true）
+	ClaudeOAuthSystemPrompt                string // Claude OAuth mimic 路径注入的通用扩展 system prompt；空值使用内置默认
+	ClaudeOAuthSystemPromptBlocks          string // Claude OAuth mimic 路径注入的 system blocks JSON 配置；空值使用内置默认
+	EnableAnthropicCacheTTL1hInjection     bool   // 是否对 Anthropic OAuth/SetupToken 请求体注入 1h cache_control ttl（默认 false）
+	RewriteMessageCacheControl             bool   // 是否改写 messages[*].content[*].cache_control（默认 false）
+	AntigravityUserAgentVersion            string // Antigravity 上游 User-Agent 版本号；空值使用配置/默认值
+	OpenAICodexUserAgent                   string // OpenAI Codex 上游完整 User-Agent；空值使用内置默认
+	OpenAIAllowClaudeCodeCodexPlugin       bool   // 全局开关：是否额外放行 Claude Code 的 Codex 插件（默认 false）
 
 	// Web Search Emulation
 	WebSearchEmulationEnabled bool // 是否启用 web search 模拟
@@ -215,6 +222,10 @@ type SystemSettings struct {
 
 	// OpenAI 账号调度
 	OpenAIAdvancedSchedulerEnabled bool
+	// OpenAIQuotaAutoPauseSettings 是 OpenAI 账号配额自动暂停的全局默认阈值，存储在 ops_advanced_settings 中。
+	OpenAIQuotaAutoPauseSettings OpsOpenAIAccountQuotaAutoPauseSettings
+	// OpenAIQuotaAutoPauseSettingsSet 标记本次系统设置更新是否显式带了配额自动暂停配置，避免旧客户端误覆盖。
+	OpenAIQuotaAutoPauseSettingsSet bool
 
 	// 余额不足提醒
 	BalanceLowNotifyEnabled     bool

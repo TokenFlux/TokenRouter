@@ -80,6 +80,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		qoderOAuthSvc,
 		nil, // openAIGateway
 		nil, // scheduledTestRunner
+		nil, // groupAvailabilityProbeRunner
 		nil, // backupSvc
 		nil, // paymentOrderExpiry
 		nil, // quotaFlusher

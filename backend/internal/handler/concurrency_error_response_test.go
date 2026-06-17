@@ -27,6 +27,14 @@ func TestConcurrencyErrorResponse(t *testing.T) {
 			wantMessage: "Concurrency limit exceeded for account, please retry later",
 		},
 		{
+			name:        "wait queue full is rate limit",
+			err:         &WaitQueueFullError{SlotType: "user"},
+			slotType:    "user",
+			wantStatus:  http.StatusTooManyRequests,
+			wantType:    "rate_limit_error",
+			wantMessage: "Too many pending requests, please retry later",
+		},
+		{
 			name:        "client cancellation is not classified as concurrency limit",
 			err:         context.Canceled,
 			slotType:    "user",

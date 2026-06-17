@@ -76,6 +76,7 @@ func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) er
 		SetDefaultMappedModel(groupIn.DefaultMappedModel).
 		SetMessagesDispatchModelConfig(groupIn.MessagesDispatchModelConfig).
 		SetModelsListConfig(groupIn.ModelsListConfig).
+		SetAvailabilityProbeConfig(groupIn.AvailabilityProbeConfig).
 		SetRpmLimit(groupIn.RPMLimit)
 
 	// 设置模型路由配置
@@ -157,6 +158,7 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetDefaultMappedModel(groupIn.DefaultMappedModel).
 		SetMessagesDispatchModelConfig(groupIn.MessagesDispatchModelConfig).
 		SetModelsListConfig(groupIn.ModelsListConfig).
+		SetAvailabilityProbeConfig(groupIn.AvailabilityProbeConfig).
 		SetRpmLimit(groupIn.RPMLimit)
 
 	if groupIn.ImagePrice1K != nil {

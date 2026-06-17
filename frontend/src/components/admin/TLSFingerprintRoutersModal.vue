@@ -222,6 +222,35 @@
           </div>
         </div>
 
+        <div class="space-y-3 rounded-lg border border-gray-200 p-3 dark:border-dark-600">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.tlsFingerprintRouters.form.codexInviteResetSettings') }}</label>
+            <p class="input-hint">
+              {{ t('admin.tlsFingerprintRouters.form.codexInviteResetSettingsHint') }}
+            </p>
+          </div>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <div>
+              <label class="input-label text-xs">{{ t('admin.tlsFingerprintRouters.form.codexInviteResetUserAgent') }}</label>
+              <input
+                v-model="form.codex_invite_reset_user_agent"
+                type="text"
+                class="input font-mono text-sm"
+              />
+              <p class="input-hint">{{ t('admin.tlsFingerprintRouters.form.codexInviteResetUserAgentHint') }}</p>
+            </div>
+            <div>
+              <label class="input-label text-xs">{{ t('admin.tlsFingerprintRouters.form.codexInviteResetProfile') }}</label>
+              <Select
+                :model-value="form.codex_invite_reset_tls_fingerprint_profile_id"
+                :options="codexInviteResetTLSProfileOptions"
+                @change="form.codex_invite_reset_tls_fingerprint_profile_id = normalizeTokenTLSProfileId($event)"
+              />
+              <p class="input-hint">{{ t('admin.tlsFingerprintRouters.form.codexInviteResetProfileHint') }}</p>
+            </div>
+          </div>
+        </div>
+
         <div class="space-y-3">
           <div class="flex items-center justify-between">
             <label class="input-label mb-0">{{ t('admin.tlsFingerprintRouters.form.rules') }}</label>
@@ -383,6 +412,8 @@ const form = reactive({
   enabled: true,
   chatgpt_oauth_token_user_agent: '',
   chatgpt_oauth_token_tls_fingerprint_profile_id: null as number | null,
+  codex_invite_reset_user_agent: '',
+  codex_invite_reset_tls_fingerprint_profile_id: null as number | null,
   rules: [] as TLSFingerprintRouterRule[]
 })
 
@@ -396,6 +427,11 @@ const profileOptions = computed<SelectOption[]>(() => [
 
 const tokenTLSProfileOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.tlsFingerprintRouters.form.chatgptOAuthTokenProfileDisabled') },
+  ...profileOptions.value
+])
+
+const codexInviteResetTLSProfileOptions = computed<SelectOption[]>(() => [
+  { value: null, label: t('admin.tlsFingerprintRouters.form.codexInviteResetProfileDisabled') },
   ...profileOptions.value
 ])
 
@@ -462,6 +498,8 @@ function resetForm() {
   form.enabled = true
   form.chatgpt_oauth_token_user_agent = ''
   form.chatgpt_oauth_token_tls_fingerprint_profile_id = null
+  form.codex_invite_reset_user_agent = ''
+  form.codex_invite_reset_tls_fingerprint_profile_id = null
   form.rules = []
   yamlInput.value = ''
 }
@@ -480,6 +518,10 @@ function handleEdit(router: TLSFingerprintRouter) {
   form.chatgpt_oauth_token_user_agent = router.chatgpt_oauth_token_user_agent?.trim() || ''
   form.chatgpt_oauth_token_tls_fingerprint_profile_id = normalizeTokenTLSProfileId(
     router.chatgpt_oauth_token_tls_fingerprint_profile_id ?? null
+  )
+  form.codex_invite_reset_user_agent = router.codex_invite_reset_user_agent?.trim() || ''
+  form.codex_invite_reset_tls_fingerprint_profile_id = normalizeTokenTLSProfileId(
+    router.codex_invite_reset_tls_fingerprint_profile_id ?? null
   )
   form.rules = normalizeRules(router.rules)
   yamlInput.value = ''
@@ -589,6 +631,8 @@ async function handleSubmit() {
       enabled: form.enabled,
       chatgpt_oauth_token_user_agent: form.chatgpt_oauth_token_user_agent.trim(),
       chatgpt_oauth_token_tls_fingerprint_profile_id: form.chatgpt_oauth_token_tls_fingerprint_profile_id,
+      codex_invite_reset_user_agent: form.codex_invite_reset_user_agent.trim(),
+      codex_invite_reset_tls_fingerprint_profile_id: form.codex_invite_reset_tls_fingerprint_profile_id,
       rules: normalizeRules(form.rules)
     }
     if (editingRouter.value) {
@@ -613,6 +657,8 @@ interface RouterYamlDraft {
   enabled: boolean
   chatgpt_oauth_token_user_agent: string
   chatgpt_oauth_token_tls_fingerprint_profile_id: number | null
+  codex_invite_reset_user_agent: string
+  codex_invite_reset_tls_fingerprint_profile_id: number | null
 }
 
 // YAML 中只接收路由器可配置字段，先写入草稿，确认解析成功后再覆盖表单。
@@ -634,6 +680,12 @@ function applyRouterYamlField(draft: RouterYamlDraft, key: string, rawValue: str
       return false
     case 'chatgpt_oauth_token_tls_fingerprint_profile_id':
       draft.chatgpt_oauth_token_tls_fingerprint_profile_id = parseYamlNullableNumber(rawValue)
+      return false
+    case 'codex_invite_reset_user_agent':
+      draft.codex_invite_reset_user_agent = value
+      return false
+    case 'codex_invite_reset_tls_fingerprint_profile_id':
+      draft.codex_invite_reset_tls_fingerprint_profile_id = parseYamlNullableNumber(rawValue)
       return false
     default:
       return false
@@ -683,7 +735,9 @@ function parseYamlInput() {
     description: form.description,
     enabled: form.enabled,
     chatgpt_oauth_token_user_agent: form.chatgpt_oauth_token_user_agent,
-    chatgpt_oauth_token_tls_fingerprint_profile_id: form.chatgpt_oauth_token_tls_fingerprint_profile_id
+    chatgpt_oauth_token_tls_fingerprint_profile_id: form.chatgpt_oauth_token_tls_fingerprint_profile_id,
+    codex_invite_reset_user_agent: form.codex_invite_reset_user_agent,
+    codex_invite_reset_tls_fingerprint_profile_id: form.codex_invite_reset_tls_fingerprint_profile_id
   }
   const lines = text.split('\n')
   let currentRule: TLSFingerprintRouterRule | null = null
@@ -742,6 +796,8 @@ function parseYamlInput() {
     form.enabled = draft.enabled
     form.chatgpt_oauth_token_user_agent = draft.chatgpt_oauth_token_user_agent
     form.chatgpt_oauth_token_tls_fingerprint_profile_id = draft.chatgpt_oauth_token_tls_fingerprint_profile_id
+    form.codex_invite_reset_user_agent = draft.codex_invite_reset_user_agent
+    form.codex_invite_reset_tls_fingerprint_profile_id = draft.codex_invite_reset_tls_fingerprint_profile_id
     form.rules = normalizeRules(nextRules)
     appStore.showSuccess(t('admin.tlsFingerprintRouters.form.yamlParsed'))
   } else {
@@ -773,6 +829,8 @@ function buildRouterYaml(router: TLSFingerprintRouter): string {
     `  enabled: ${router.enabled ? 'true' : 'false'}`,
     `  chatgpt_oauth_token_user_agent: ${formatYamlString(router.chatgpt_oauth_token_user_agent || '')}`,
     `  chatgpt_oauth_token_tls_fingerprint_profile_id: ${formatYamlNullableNumber(router.chatgpt_oauth_token_tls_fingerprint_profile_id)}`,
+    `  codex_invite_reset_user_agent: ${formatYamlString(router.codex_invite_reset_user_agent || '')}`,
+    `  codex_invite_reset_tls_fingerprint_profile_id: ${formatYamlNullableNumber(router.codex_invite_reset_tls_fingerprint_profile_id)}`,
     '  rules:'
   ]
 

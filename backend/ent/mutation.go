@@ -13171,6 +13171,7 @@ type GroupMutation struct {
 	default_mapped_model                    *string
 	messages_dispatch_model_config          *domain.OpenAIMessagesDispatchModelConfig
 	models_list_config                      *domain.GroupModelsListConfig
+	availability_probe_config               *domain.GroupAvailabilityProbeConfig
 	rpm_limit                               *int
 	addrpm_limit                            *int
 	data_sharing_enabled                    *bool
@@ -14694,6 +14695,42 @@ func (m *GroupMutation) ResetModelsListConfig() {
 	m.models_list_config = nil
 }
 
+// SetAvailabilityProbeConfig sets the "availability_probe_config" field.
+func (m *GroupMutation) SetAvailabilityProbeConfig(dapc domain.GroupAvailabilityProbeConfig) {
+	m.availability_probe_config = &dapc
+}
+
+// AvailabilityProbeConfig returns the value of the "availability_probe_config" field in the mutation.
+func (m *GroupMutation) AvailabilityProbeConfig() (r domain.GroupAvailabilityProbeConfig, exists bool) {
+	v := m.availability_probe_config
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAvailabilityProbeConfig returns the old "availability_probe_config" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldAvailabilityProbeConfig(ctx context.Context) (v domain.GroupAvailabilityProbeConfig, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAvailabilityProbeConfig is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAvailabilityProbeConfig requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAvailabilityProbeConfig: %w", err)
+	}
+	return oldValue.AvailabilityProbeConfig, nil
+}
+
+// ResetAvailabilityProbeConfig resets all changes to the "availability_probe_config" field.
+func (m *GroupMutation) ResetAvailabilityProbeConfig() {
+	m.availability_probe_config = nil
+}
+
 // SetRpmLimit sets the "rpm_limit" field.
 func (m *GroupMutation) SetRpmLimit(i int) {
 	m.rpm_limit = &i
@@ -15126,7 +15163,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 34)
+	fields := make([]string, 0, 35)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -15220,6 +15257,9 @@ func (m *GroupMutation) Fields() []string {
 	if m.models_list_config != nil {
 		fields = append(fields, group.FieldModelsListConfig)
 	}
+	if m.availability_probe_config != nil {
+		fields = append(fields, group.FieldAvailabilityProbeConfig)
+	}
 	if m.rpm_limit != nil {
 		fields = append(fields, group.FieldRpmLimit)
 	}
@@ -15299,6 +15339,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.MessagesDispatchModelConfig()
 	case group.FieldModelsListConfig:
 		return m.ModelsListConfig()
+	case group.FieldAvailabilityProbeConfig:
+		return m.AvailabilityProbeConfig()
 	case group.FieldRpmLimit:
 		return m.RpmLimit()
 	case group.FieldDataSharingEnabled:
@@ -15376,6 +15418,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldMessagesDispatchModelConfig(ctx)
 	case group.FieldModelsListConfig:
 		return m.OldModelsListConfig(ctx)
+	case group.FieldAvailabilityProbeConfig:
+		return m.OldAvailabilityProbeConfig(ctx)
 	case group.FieldRpmLimit:
 		return m.OldRpmLimit(ctx)
 	case group.FieldDataSharingEnabled:
@@ -15607,6 +15651,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetModelsListConfig(v)
+		return nil
+	case group.FieldAvailabilityProbeConfig:
+		v, ok := value.(domain.GroupAvailabilityProbeConfig)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAvailabilityProbeConfig(v)
 		return nil
 	case group.FieldRpmLimit:
 		v, ok := value.(int)
@@ -15932,6 +15983,9 @@ func (m *GroupMutation) ResetField(name string) error {
 		return nil
 	case group.FieldModelsListConfig:
 		m.ResetModelsListConfig()
+		return nil
+	case group.FieldAvailabilityProbeConfig:
+		m.ResetAvailabilityProbeConfig()
 		return nil
 	case group.FieldRpmLimit:
 		m.ResetRpmLimit()
@@ -33330,6 +33384,9 @@ type TLSFingerprintRouterMutation struct {
 	chatgpt_oauth_token_user_agent                    *string
 	chatgpt_oauth_token_tls_fingerprint_profile_id    *int64
 	addchatgpt_oauth_token_tls_fingerprint_profile_id *int64
+	codex_invite_reset_user_agent                     *string
+	codex_invite_reset_tls_fingerprint_profile_id     *int64
+	addcodex_invite_reset_tls_fingerprint_profile_id  *int64
 	rules                                             *[]model.TLSFingerprintRouterRule
 	appendrules                                       []model.TLSFingerprintRouterRule
 	clearedFields                                     map[string]struct{}
@@ -33735,6 +33792,112 @@ func (m *TLSFingerprintRouterMutation) ResetChatgptOauthTokenTLSFingerprintProfi
 	delete(m.clearedFields, tlsfingerprintrouter.FieldChatgptOauthTokenTLSFingerprintProfileID)
 }
 
+// SetCodexInviteResetUserAgent sets the "codex_invite_reset_user_agent" field.
+func (m *TLSFingerprintRouterMutation) SetCodexInviteResetUserAgent(s string) {
+	m.codex_invite_reset_user_agent = &s
+}
+
+// CodexInviteResetUserAgent returns the value of the "codex_invite_reset_user_agent" field in the mutation.
+func (m *TLSFingerprintRouterMutation) CodexInviteResetUserAgent() (r string, exists bool) {
+	v := m.codex_invite_reset_user_agent
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCodexInviteResetUserAgent returns the old "codex_invite_reset_user_agent" field's value of the TLSFingerprintRouter entity.
+// If the TLSFingerprintRouter object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TLSFingerprintRouterMutation) OldCodexInviteResetUserAgent(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCodexInviteResetUserAgent is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCodexInviteResetUserAgent requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCodexInviteResetUserAgent: %w", err)
+	}
+	return oldValue.CodexInviteResetUserAgent, nil
+}
+
+// ResetCodexInviteResetUserAgent resets all changes to the "codex_invite_reset_user_agent" field.
+func (m *TLSFingerprintRouterMutation) ResetCodexInviteResetUserAgent() {
+	m.codex_invite_reset_user_agent = nil
+}
+
+// SetCodexInviteResetTLSFingerprintProfileID sets the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func (m *TLSFingerprintRouterMutation) SetCodexInviteResetTLSFingerprintProfileID(i int64) {
+	m.codex_invite_reset_tls_fingerprint_profile_id = &i
+	m.addcodex_invite_reset_tls_fingerprint_profile_id = nil
+}
+
+// CodexInviteResetTLSFingerprintProfileID returns the value of the "codex_invite_reset_tls_fingerprint_profile_id" field in the mutation.
+func (m *TLSFingerprintRouterMutation) CodexInviteResetTLSFingerprintProfileID() (r int64, exists bool) {
+	v := m.codex_invite_reset_tls_fingerprint_profile_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldCodexInviteResetTLSFingerprintProfileID returns the old "codex_invite_reset_tls_fingerprint_profile_id" field's value of the TLSFingerprintRouter entity.
+// If the TLSFingerprintRouter object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *TLSFingerprintRouterMutation) OldCodexInviteResetTLSFingerprintProfileID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldCodexInviteResetTLSFingerprintProfileID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldCodexInviteResetTLSFingerprintProfileID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldCodexInviteResetTLSFingerprintProfileID: %w", err)
+	}
+	return oldValue.CodexInviteResetTLSFingerprintProfileID, nil
+}
+
+// AddCodexInviteResetTLSFingerprintProfileID adds i to the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func (m *TLSFingerprintRouterMutation) AddCodexInviteResetTLSFingerprintProfileID(i int64) {
+	if m.addcodex_invite_reset_tls_fingerprint_profile_id != nil {
+		*m.addcodex_invite_reset_tls_fingerprint_profile_id += i
+	} else {
+		m.addcodex_invite_reset_tls_fingerprint_profile_id = &i
+	}
+}
+
+// AddedCodexInviteResetTLSFingerprintProfileID returns the value that was added to the "codex_invite_reset_tls_fingerprint_profile_id" field in this mutation.
+func (m *TLSFingerprintRouterMutation) AddedCodexInviteResetTLSFingerprintProfileID() (r int64, exists bool) {
+	v := m.addcodex_invite_reset_tls_fingerprint_profile_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearCodexInviteResetTLSFingerprintProfileID clears the value of the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func (m *TLSFingerprintRouterMutation) ClearCodexInviteResetTLSFingerprintProfileID() {
+	m.codex_invite_reset_tls_fingerprint_profile_id = nil
+	m.addcodex_invite_reset_tls_fingerprint_profile_id = nil
+	m.clearedFields[tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID] = struct{}{}
+}
+
+// CodexInviteResetTLSFingerprintProfileIDCleared returns if the "codex_invite_reset_tls_fingerprint_profile_id" field was cleared in this mutation.
+func (m *TLSFingerprintRouterMutation) CodexInviteResetTLSFingerprintProfileIDCleared() bool {
+	_, ok := m.clearedFields[tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID]
+	return ok
+}
+
+// ResetCodexInviteResetTLSFingerprintProfileID resets all changes to the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func (m *TLSFingerprintRouterMutation) ResetCodexInviteResetTLSFingerprintProfileID() {
+	m.codex_invite_reset_tls_fingerprint_profile_id = nil
+	m.addcodex_invite_reset_tls_fingerprint_profile_id = nil
+	delete(m.clearedFields, tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID)
+}
+
 // SetRules sets the "rules" field.
 func (m *TLSFingerprintRouterMutation) SetRules(mfrr []model.TLSFingerprintRouterRule) {
 	m.rules = &mfrr
@@ -33834,7 +33997,7 @@ func (m *TLSFingerprintRouterMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *TLSFingerprintRouterMutation) Fields() []string {
-	fields := make([]string, 0, 8)
+	fields := make([]string, 0, 10)
 	if m.created_at != nil {
 		fields = append(fields, tlsfingerprintrouter.FieldCreatedAt)
 	}
@@ -33855,6 +34018,12 @@ func (m *TLSFingerprintRouterMutation) Fields() []string {
 	}
 	if m.chatgpt_oauth_token_tls_fingerprint_profile_id != nil {
 		fields = append(fields, tlsfingerprintrouter.FieldChatgptOauthTokenTLSFingerprintProfileID)
+	}
+	if m.codex_invite_reset_user_agent != nil {
+		fields = append(fields, tlsfingerprintrouter.FieldCodexInviteResetUserAgent)
+	}
+	if m.codex_invite_reset_tls_fingerprint_profile_id != nil {
+		fields = append(fields, tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID)
 	}
 	if m.rules != nil {
 		fields = append(fields, tlsfingerprintrouter.FieldRules)
@@ -33881,6 +34050,10 @@ func (m *TLSFingerprintRouterMutation) Field(name string) (ent.Value, bool) {
 		return m.ChatgptOauthTokenUserAgent()
 	case tlsfingerprintrouter.FieldChatgptOauthTokenTLSFingerprintProfileID:
 		return m.ChatgptOauthTokenTLSFingerprintProfileID()
+	case tlsfingerprintrouter.FieldCodexInviteResetUserAgent:
+		return m.CodexInviteResetUserAgent()
+	case tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID:
+		return m.CodexInviteResetTLSFingerprintProfileID()
 	case tlsfingerprintrouter.FieldRules:
 		return m.Rules()
 	}
@@ -33906,6 +34079,10 @@ func (m *TLSFingerprintRouterMutation) OldField(ctx context.Context, name string
 		return m.OldChatgptOauthTokenUserAgent(ctx)
 	case tlsfingerprintrouter.FieldChatgptOauthTokenTLSFingerprintProfileID:
 		return m.OldChatgptOauthTokenTLSFingerprintProfileID(ctx)
+	case tlsfingerprintrouter.FieldCodexInviteResetUserAgent:
+		return m.OldCodexInviteResetUserAgent(ctx)
+	case tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID:
+		return m.OldCodexInviteResetTLSFingerprintProfileID(ctx)
 	case tlsfingerprintrouter.FieldRules:
 		return m.OldRules(ctx)
 	}
@@ -33966,6 +34143,20 @@ func (m *TLSFingerprintRouterMutation) SetField(name string, value ent.Value) er
 		}
 		m.SetChatgptOauthTokenTLSFingerprintProfileID(v)
 		return nil
+	case tlsfingerprintrouter.FieldCodexInviteResetUserAgent:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCodexInviteResetUserAgent(v)
+		return nil
+	case tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetCodexInviteResetTLSFingerprintProfileID(v)
+		return nil
 	case tlsfingerprintrouter.FieldRules:
 		v, ok := value.([]model.TLSFingerprintRouterRule)
 		if !ok {
@@ -33984,6 +34175,9 @@ func (m *TLSFingerprintRouterMutation) AddedFields() []string {
 	if m.addchatgpt_oauth_token_tls_fingerprint_profile_id != nil {
 		fields = append(fields, tlsfingerprintrouter.FieldChatgptOauthTokenTLSFingerprintProfileID)
 	}
+	if m.addcodex_invite_reset_tls_fingerprint_profile_id != nil {
+		fields = append(fields, tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID)
+	}
 	return fields
 }
 
@@ -33994,6 +34188,8 @@ func (m *TLSFingerprintRouterMutation) AddedField(name string) (ent.Value, bool)
 	switch name {
 	case tlsfingerprintrouter.FieldChatgptOauthTokenTLSFingerprintProfileID:
 		return m.AddedChatgptOauthTokenTLSFingerprintProfileID()
+	case tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID:
+		return m.AddedCodexInviteResetTLSFingerprintProfileID()
 	}
 	return nil, false
 }
@@ -34010,6 +34206,13 @@ func (m *TLSFingerprintRouterMutation) AddField(name string, value ent.Value) er
 		}
 		m.AddChatgptOauthTokenTLSFingerprintProfileID(v)
 		return nil
+	case tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddCodexInviteResetTLSFingerprintProfileID(v)
+		return nil
 	}
 	return fmt.Errorf("unknown TLSFingerprintRouter numeric field %s", name)
 }
@@ -34023,6 +34226,9 @@ func (m *TLSFingerprintRouterMutation) ClearedFields() []string {
 	}
 	if m.FieldCleared(tlsfingerprintrouter.FieldChatgptOauthTokenTLSFingerprintProfileID) {
 		fields = append(fields, tlsfingerprintrouter.FieldChatgptOauthTokenTLSFingerprintProfileID)
+	}
+	if m.FieldCleared(tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID) {
+		fields = append(fields, tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID)
 	}
 	if m.FieldCleared(tlsfingerprintrouter.FieldRules) {
 		fields = append(fields, tlsfingerprintrouter.FieldRules)
@@ -34046,6 +34252,9 @@ func (m *TLSFingerprintRouterMutation) ClearField(name string) error {
 		return nil
 	case tlsfingerprintrouter.FieldChatgptOauthTokenTLSFingerprintProfileID:
 		m.ClearChatgptOauthTokenTLSFingerprintProfileID()
+		return nil
+	case tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID:
+		m.ClearCodexInviteResetTLSFingerprintProfileID()
 		return nil
 	case tlsfingerprintrouter.FieldRules:
 		m.ClearRules()
@@ -34078,6 +34287,12 @@ func (m *TLSFingerprintRouterMutation) ResetField(name string) error {
 		return nil
 	case tlsfingerprintrouter.FieldChatgptOauthTokenTLSFingerprintProfileID:
 		m.ResetChatgptOauthTokenTLSFingerprintProfileID()
+		return nil
+	case tlsfingerprintrouter.FieldCodexInviteResetUserAgent:
+		m.ResetCodexInviteResetUserAgent()
+		return nil
+	case tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID:
+		m.ResetCodexInviteResetTLSFingerprintProfileID()
 		return nil
 	case tlsfingerprintrouter.FieldRules:
 		m.ResetRules()

@@ -237,20 +237,39 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			} else {
 				var imageUpstreamErr *service.OpenAIImagesUpstreamError
 				if errors.As(err, &imageUpstreamErr) {
-					h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, true, nil)
-					reqLog.Warn("openai.images.upstream_user_error",
-						zap.Int64("account_id", account.ID),
-						zap.Int("status_code", imageUpstreamErr.StatusCode),
-						zap.String("error_type", imageUpstreamErr.ErrorType),
-						zap.String("error_code", imageUpstreamErr.Code),
-						zap.Error(err),
-					)
+					if service.IsOpenAIImagesRetryableUpstreamError(imageUpstreamErr) {
+						h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
+						reqLog.Warn("openai.images.upstream_server_error_after_flush",
+							zap.Int64("account_id", account.ID),
+							zap.Int("status_code", imageUpstreamErr.StatusCode),
+							zap.String("error_type", imageUpstreamErr.ErrorType),
+							zap.String("error_code", imageUpstreamErr.Code),
+							zap.Error(err),
+						)
+					} else {
+						h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, true, nil)
+						reqLog.Warn("openai.images.upstream_user_error",
+							zap.Int64("account_id", account.ID),
+							zap.Int("status_code", imageUpstreamErr.StatusCode),
+							zap.String("error_type", imageUpstreamErr.ErrorType),
+							zap.String("error_code", imageUpstreamErr.Code),
+							zap.Error(err),
+						)
+					}
 					return
 				}
 				var failoverErr *service.UpstreamFailoverError
 				if errors.As(err, &failoverErr) {
 					h.recordOpenAICyberWarning(c, reqLog, apiKey, account, parsed.Model, failoverErr.StatusCode, failoverErr.ResponseBody, err.Error())
 					h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
+					if c.Writer.Size() != writerSizeBeforeForward {
+						reqLog.Warn("openai.images.upstream_failover_skipped_after_flush",
+							zap.Int64("account_id", account.ID),
+							zap.Int("upstream_status", failoverErr.StatusCode),
+						)
+						h.handleFailoverExhausted(c, failoverErr, true)
+						return
+					}
 					if failoverErr.RetryableOnSameAccount {
 						retryLimit := account.GetPoolModeRetryCount()
 						if sameAccountRetryCount[account.ID] < retryLimit {

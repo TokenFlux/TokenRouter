@@ -43,6 +43,24 @@ func TestDiffSettings_DetectsGlobalPlatformQuotaChange(t *testing.T) {
 	}
 }
 
+func TestDiffSettings_DetectsOpenAIQuotaAutoPauseChange(t *testing.T) {
+	before := &service.SystemSettings{
+		OpenAIQuotaAutoPauseSettings: service.OpsOpenAIAccountQuotaAutoPauseSettings{
+			DefaultThreshold5h: 0.6,
+			DefaultThreshold7d: 0.7,
+		},
+	}
+	after := &service.SystemSettings{
+		OpenAIQuotaAutoPauseSettings: service.OpsOpenAIAccountQuotaAutoPauseSettings{
+			DefaultThreshold5h: 0.95,
+			DefaultThreshold7d: 0.7,
+		},
+	}
+
+	changed := diffSettings(before, after, nil, nil, UpdateSettingsRequest{})
+	require.Contains(t, changed, "openai_account_quota_auto_pause")
+}
+
 func TestDiffSettings_NoChangeWhenEqual(t *testing.T) {
 	five := 5.0
 	before := &service.SystemSettings{

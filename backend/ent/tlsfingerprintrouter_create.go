@@ -113,6 +113,34 @@ func (_c *TLSFingerprintRouterCreate) SetNillableChatgptOauthTokenTLSFingerprint
 	return _c
 }
 
+// SetCodexInviteResetUserAgent sets the "codex_invite_reset_user_agent" field.
+func (_c *TLSFingerprintRouterCreate) SetCodexInviteResetUserAgent(v string) *TLSFingerprintRouterCreate {
+	_c.mutation.SetCodexInviteResetUserAgent(v)
+	return _c
+}
+
+// SetNillableCodexInviteResetUserAgent sets the "codex_invite_reset_user_agent" field if the given value is not nil.
+func (_c *TLSFingerprintRouterCreate) SetNillableCodexInviteResetUserAgent(v *string) *TLSFingerprintRouterCreate {
+	if v != nil {
+		_c.SetCodexInviteResetUserAgent(*v)
+	}
+	return _c
+}
+
+// SetCodexInviteResetTLSFingerprintProfileID sets the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func (_c *TLSFingerprintRouterCreate) SetCodexInviteResetTLSFingerprintProfileID(v int64) *TLSFingerprintRouterCreate {
+	_c.mutation.SetCodexInviteResetTLSFingerprintProfileID(v)
+	return _c
+}
+
+// SetNillableCodexInviteResetTLSFingerprintProfileID sets the "codex_invite_reset_tls_fingerprint_profile_id" field if the given value is not nil.
+func (_c *TLSFingerprintRouterCreate) SetNillableCodexInviteResetTLSFingerprintProfileID(v *int64) *TLSFingerprintRouterCreate {
+	if v != nil {
+		_c.SetCodexInviteResetTLSFingerprintProfileID(*v)
+	}
+	return _c
+}
+
 // SetRules sets the "rules" field.
 func (_c *TLSFingerprintRouterCreate) SetRules(v []model.TLSFingerprintRouterRule) *TLSFingerprintRouterCreate {
 	_c.mutation.SetRules(v)
@@ -170,6 +198,10 @@ func (_c *TLSFingerprintRouterCreate) defaults() {
 		v := tlsfingerprintrouter.DefaultChatgptOauthTokenUserAgent
 		_c.mutation.SetChatgptOauthTokenUserAgent(v)
 	}
+	if _, ok := _c.mutation.CodexInviteResetUserAgent(); !ok {
+		v := tlsfingerprintrouter.DefaultCodexInviteResetUserAgent
+		_c.mutation.SetCodexInviteResetUserAgent(v)
+	}
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -197,6 +229,14 @@ func (_c *TLSFingerprintRouterCreate) check() error {
 	if v, ok := _c.mutation.ChatgptOauthTokenUserAgent(); ok {
 		if err := tlsfingerprintrouter.ChatgptOauthTokenUserAgentValidator(v); err != nil {
 			return &ValidationError{Name: "chatgpt_oauth_token_user_agent", err: fmt.Errorf(`ent: validator failed for field "TLSFingerprintRouter.chatgpt_oauth_token_user_agent": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.CodexInviteResetUserAgent(); !ok {
+		return &ValidationError{Name: "codex_invite_reset_user_agent", err: errors.New(`ent: missing required field "TLSFingerprintRouter.codex_invite_reset_user_agent"`)}
+	}
+	if v, ok := _c.mutation.CodexInviteResetUserAgent(); ok {
+		if err := tlsfingerprintrouter.CodexInviteResetUserAgentValidator(v); err != nil {
+			return &ValidationError{Name: "codex_invite_reset_user_agent", err: fmt.Errorf(`ent: validator failed for field "TLSFingerprintRouter.codex_invite_reset_user_agent": %w`, err)}
 		}
 	}
 	return nil
@@ -253,6 +293,14 @@ func (_c *TLSFingerprintRouterCreate) createSpec() (*TLSFingerprintRouter, *sqlg
 	if value, ok := _c.mutation.ChatgptOauthTokenTLSFingerprintProfileID(); ok {
 		_spec.SetField(tlsfingerprintrouter.FieldChatgptOauthTokenTLSFingerprintProfileID, field.TypeInt64, value)
 		_node.ChatgptOauthTokenTLSFingerprintProfileID = &value
+	}
+	if value, ok := _c.mutation.CodexInviteResetUserAgent(); ok {
+		_spec.SetField(tlsfingerprintrouter.FieldCodexInviteResetUserAgent, field.TypeString, value)
+		_node.CodexInviteResetUserAgent = value
+	}
+	if value, ok := _c.mutation.CodexInviteResetTLSFingerprintProfileID(); ok {
+		_spec.SetField(tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID, field.TypeInt64, value)
+		_node.CodexInviteResetTLSFingerprintProfileID = &value
 	}
 	if value, ok := _c.mutation.Rules(); ok {
 		_spec.SetField(tlsfingerprintrouter.FieldRules, field.TypeJSON, value)
@@ -397,6 +445,42 @@ func (u *TLSFingerprintRouterUpsert) AddChatgptOauthTokenTLSFingerprintProfileID
 // ClearChatgptOauthTokenTLSFingerprintProfileID clears the value of the "chatgpt_oauth_token_tls_fingerprint_profile_id" field.
 func (u *TLSFingerprintRouterUpsert) ClearChatgptOauthTokenTLSFingerprintProfileID() *TLSFingerprintRouterUpsert {
 	u.SetNull(tlsfingerprintrouter.FieldChatgptOauthTokenTLSFingerprintProfileID)
+	return u
+}
+
+// SetCodexInviteResetUserAgent sets the "codex_invite_reset_user_agent" field.
+func (u *TLSFingerprintRouterUpsert) SetCodexInviteResetUserAgent(v string) *TLSFingerprintRouterUpsert {
+	u.Set(tlsfingerprintrouter.FieldCodexInviteResetUserAgent, v)
+	return u
+}
+
+// UpdateCodexInviteResetUserAgent sets the "codex_invite_reset_user_agent" field to the value that was provided on create.
+func (u *TLSFingerprintRouterUpsert) UpdateCodexInviteResetUserAgent() *TLSFingerprintRouterUpsert {
+	u.SetExcluded(tlsfingerprintrouter.FieldCodexInviteResetUserAgent)
+	return u
+}
+
+// SetCodexInviteResetTLSFingerprintProfileID sets the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func (u *TLSFingerprintRouterUpsert) SetCodexInviteResetTLSFingerprintProfileID(v int64) *TLSFingerprintRouterUpsert {
+	u.Set(tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID, v)
+	return u
+}
+
+// UpdateCodexInviteResetTLSFingerprintProfileID sets the "codex_invite_reset_tls_fingerprint_profile_id" field to the value that was provided on create.
+func (u *TLSFingerprintRouterUpsert) UpdateCodexInviteResetTLSFingerprintProfileID() *TLSFingerprintRouterUpsert {
+	u.SetExcluded(tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID)
+	return u
+}
+
+// AddCodexInviteResetTLSFingerprintProfileID adds v to the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func (u *TLSFingerprintRouterUpsert) AddCodexInviteResetTLSFingerprintProfileID(v int64) *TLSFingerprintRouterUpsert {
+	u.Add(tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID, v)
+	return u
+}
+
+// ClearCodexInviteResetTLSFingerprintProfileID clears the value of the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func (u *TLSFingerprintRouterUpsert) ClearCodexInviteResetTLSFingerprintProfileID() *TLSFingerprintRouterUpsert {
+	u.SetNull(tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID)
 	return u
 }
 
@@ -565,6 +649,48 @@ func (u *TLSFingerprintRouterUpsertOne) UpdateChatgptOauthTokenTLSFingerprintPro
 func (u *TLSFingerprintRouterUpsertOne) ClearChatgptOauthTokenTLSFingerprintProfileID() *TLSFingerprintRouterUpsertOne {
 	return u.Update(func(s *TLSFingerprintRouterUpsert) {
 		s.ClearChatgptOauthTokenTLSFingerprintProfileID()
+	})
+}
+
+// SetCodexInviteResetUserAgent sets the "codex_invite_reset_user_agent" field.
+func (u *TLSFingerprintRouterUpsertOne) SetCodexInviteResetUserAgent(v string) *TLSFingerprintRouterUpsertOne {
+	return u.Update(func(s *TLSFingerprintRouterUpsert) {
+		s.SetCodexInviteResetUserAgent(v)
+	})
+}
+
+// UpdateCodexInviteResetUserAgent sets the "codex_invite_reset_user_agent" field to the value that was provided on create.
+func (u *TLSFingerprintRouterUpsertOne) UpdateCodexInviteResetUserAgent() *TLSFingerprintRouterUpsertOne {
+	return u.Update(func(s *TLSFingerprintRouterUpsert) {
+		s.UpdateCodexInviteResetUserAgent()
+	})
+}
+
+// SetCodexInviteResetTLSFingerprintProfileID sets the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func (u *TLSFingerprintRouterUpsertOne) SetCodexInviteResetTLSFingerprintProfileID(v int64) *TLSFingerprintRouterUpsertOne {
+	return u.Update(func(s *TLSFingerprintRouterUpsert) {
+		s.SetCodexInviteResetTLSFingerprintProfileID(v)
+	})
+}
+
+// AddCodexInviteResetTLSFingerprintProfileID adds v to the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func (u *TLSFingerprintRouterUpsertOne) AddCodexInviteResetTLSFingerprintProfileID(v int64) *TLSFingerprintRouterUpsertOne {
+	return u.Update(func(s *TLSFingerprintRouterUpsert) {
+		s.AddCodexInviteResetTLSFingerprintProfileID(v)
+	})
+}
+
+// UpdateCodexInviteResetTLSFingerprintProfileID sets the "codex_invite_reset_tls_fingerprint_profile_id" field to the value that was provided on create.
+func (u *TLSFingerprintRouterUpsertOne) UpdateCodexInviteResetTLSFingerprintProfileID() *TLSFingerprintRouterUpsertOne {
+	return u.Update(func(s *TLSFingerprintRouterUpsert) {
+		s.UpdateCodexInviteResetTLSFingerprintProfileID()
+	})
+}
+
+// ClearCodexInviteResetTLSFingerprintProfileID clears the value of the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func (u *TLSFingerprintRouterUpsertOne) ClearCodexInviteResetTLSFingerprintProfileID() *TLSFingerprintRouterUpsertOne {
+	return u.Update(func(s *TLSFingerprintRouterUpsert) {
+		s.ClearCodexInviteResetTLSFingerprintProfileID()
 	})
 }
 
@@ -902,6 +1028,48 @@ func (u *TLSFingerprintRouterUpsertBulk) UpdateChatgptOauthTokenTLSFingerprintPr
 func (u *TLSFingerprintRouterUpsertBulk) ClearChatgptOauthTokenTLSFingerprintProfileID() *TLSFingerprintRouterUpsertBulk {
 	return u.Update(func(s *TLSFingerprintRouterUpsert) {
 		s.ClearChatgptOauthTokenTLSFingerprintProfileID()
+	})
+}
+
+// SetCodexInviteResetUserAgent sets the "codex_invite_reset_user_agent" field.
+func (u *TLSFingerprintRouterUpsertBulk) SetCodexInviteResetUserAgent(v string) *TLSFingerprintRouterUpsertBulk {
+	return u.Update(func(s *TLSFingerprintRouterUpsert) {
+		s.SetCodexInviteResetUserAgent(v)
+	})
+}
+
+// UpdateCodexInviteResetUserAgent sets the "codex_invite_reset_user_agent" field to the value that was provided on create.
+func (u *TLSFingerprintRouterUpsertBulk) UpdateCodexInviteResetUserAgent() *TLSFingerprintRouterUpsertBulk {
+	return u.Update(func(s *TLSFingerprintRouterUpsert) {
+		s.UpdateCodexInviteResetUserAgent()
+	})
+}
+
+// SetCodexInviteResetTLSFingerprintProfileID sets the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func (u *TLSFingerprintRouterUpsertBulk) SetCodexInviteResetTLSFingerprintProfileID(v int64) *TLSFingerprintRouterUpsertBulk {
+	return u.Update(func(s *TLSFingerprintRouterUpsert) {
+		s.SetCodexInviteResetTLSFingerprintProfileID(v)
+	})
+}
+
+// AddCodexInviteResetTLSFingerprintProfileID adds v to the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func (u *TLSFingerprintRouterUpsertBulk) AddCodexInviteResetTLSFingerprintProfileID(v int64) *TLSFingerprintRouterUpsertBulk {
+	return u.Update(func(s *TLSFingerprintRouterUpsert) {
+		s.AddCodexInviteResetTLSFingerprintProfileID(v)
+	})
+}
+
+// UpdateCodexInviteResetTLSFingerprintProfileID sets the "codex_invite_reset_tls_fingerprint_profile_id" field to the value that was provided on create.
+func (u *TLSFingerprintRouterUpsertBulk) UpdateCodexInviteResetTLSFingerprintProfileID() *TLSFingerprintRouterUpsertBulk {
+	return u.Update(func(s *TLSFingerprintRouterUpsert) {
+		s.UpdateCodexInviteResetTLSFingerprintProfileID()
+	})
+}
+
+// ClearCodexInviteResetTLSFingerprintProfileID clears the value of the "codex_invite_reset_tls_fingerprint_profile_id" field.
+func (u *TLSFingerprintRouterUpsertBulk) ClearCodexInviteResetTLSFingerprintProfileID() *TLSFingerprintRouterUpsertBulk {
+	return u.Update(func(s *TLSFingerprintRouterUpsert) {
+		s.ClearCodexInviteResetTLSFingerprintProfileID()
 	})
 }
 

@@ -454,6 +454,10 @@ export default {
     dataSharingTag: '数据共享',
     capacity: '容量',
     capacityHint: '当前分组聚合负载：并发 / 会话 / RPM',
+    availabilityWindow: '{days}d 可用率',
+    availabilityNoData: '暂无数据',
+    availabilityHint: '近 {days} 天主动探测可用率 {rate}（成功 {success} / 总计 {total}）',
+    availabilityHintNoData: '近 {days} 天暂无主动探测数据',
     rateMultiplier: '分组倍率',
     rateMultiplierValue: '分组倍率{multiplier}',
     officialPriceDiscount: '最低至官方价格的{discount}折',
@@ -996,6 +1000,7 @@ export default {
     ws: 'WS',
     stream: '流式',
     sync: '同步',
+    cyber: 'Cyber 阻断',
     unknown: '未知',
     in: '输入',
     out: '输出',
@@ -1053,7 +1058,7 @@ export default {
       categories: {
         auth: '认证失败', rate_limit: '限流', quota: '余额/订阅',
         invalid_request: '参数错误', service_unavailable: '服务暂时不可用',
-        upstream: '上游错误', internal: '平台错误', other: '其他',
+        cyber: 'Cyber 风控', upstream: '上游错误', internal: '平台错误', other: '其他',
       },
       detail: {
         title: '错误请求详情',
@@ -2705,6 +2710,18 @@ export default {
         loading: '正在加载模型列表...',
         empty: '暂无可展示模型'
       },
+      availabilityProbe: {
+        title: '分组可用性探测',
+        hint: '按固定间隔对该分组主动发起轻量请求，模型广场将按配置的公开窗口展示可用率。',
+        model: '探测模型',
+        selectModel: '选择探测模型',
+        interval: '探测间隔（分钟）',
+        timeout: '超时时间（秒）',
+        prompt: '探测提示词',
+        promptPlaceholder: '例如：hi',
+        modelRequired: '启用分组可用性探测时必须选择探测模型',
+        promptRequired: '启用分组可用性探测时必须填写探测提示词'
+      },
       claudeCode: {
         title: 'Claude Code 客户端限制',
         tooltip:
@@ -3152,6 +3169,7 @@ export default {
       groupCountTotal: '共 {count} 个分组',
       columns: {
         name: '名称',
+        id: '账号ID',
         platformType: '平台/类型',
         platform: '平台',
         type: '类型',
@@ -3357,7 +3375,13 @@ export default {
         gemini3Image: 'G31FI',
         claude: 'Claude',
         passiveSampled: '被动采样',
-        activeQuery: '查询'
+        activeQuery: '查询',
+        quotaAutoPaused: '暂停调度中'
+      },
+      openaiQuotaReset: {
+        count: '次数',
+        countTooltipLoad: '点击查询剩余重置次数',
+        countTooltipRefresh: '点击刷新剩余重置次数'
       },
       tier: {
         free: 'Free',
@@ -4183,6 +4207,40 @@ export default {
       },
       inputMethod: '输入方式',
       reAuthorizedSuccess: '账号重新授权成功',
+      inviteReset: '邀请重置',
+      inviteResetTitle: 'Codex 邀请重置',
+      inviteResetSubtitle: '邀请好友使用 Codex，并管理该账号可用的重置机会',
+      inviteResetRefresh: '刷新',
+      inviteResetAvailable: '可用重置次数',
+      inviteResetAvailableUnit: '次',
+      inviteResetSelectedCredit: '重置机会',
+      inviteResetSelectCredit: '选择重置机会',
+      inviteResetCreditFallbackTitle: 'Codex 重置机会',
+      inviteResetCreditFallbackDescription: '可用于重置当前 Codex 用量窗口',
+      inviteResetNoCredits: '当前没有可用的重置机会',
+      inviteResetUseReset: '使用重置次数',
+      inviteResetUsing: '重置中...',
+      inviteResetRules: '邀请规则',
+      inviteResetRulesEmpty: '暂无可展示的规则',
+      inviteResetInviteEmails: '邀请邮箱',
+      inviteResetPlaceholder: '输入邮箱，支持逗号、空格或换行分隔',
+      inviteResetEmailHint: '一次最多邀请 {max} 个邮箱',
+      inviteResetConsent: '我确认已获得这些收件人的同意，可以向他们发送 Codex 邀请邮件',
+      inviteResetSendInvite: '发送邀请',
+      inviteResetSending: '发送中...',
+      inviteResetEmailsRequired: '请输入至少一个邮箱',
+      inviteResetInvalidEmail: '邮箱格式不正确：{email}',
+      inviteResetEmailLimit: '一次最多邀请 {max} 个邮箱',
+      inviteResetConsentRequired: '请先确认已获得收件人同意',
+      inviteResetLoadFailed: '加载邀请重置状态失败',
+      inviteResetInviteSuccess: '邀请已发送',
+      inviteResetInviteFailed: '发送邀请失败',
+      inviteResetInvitePartialFailed: '以下邮箱邀请失败：{emails}',
+      inviteResetConsumeSuccess: 'Codex 用量已重置',
+      inviteResetConsumeFailed: '使用重置次数失败',
+      inviteResetNothingToReset: '当前没有需要重置的用量窗口',
+      inviteResetAlreadyRedeemed: '该重置机会已经被使用',
+      inviteResetNoCredit: '没有可用的重置机会',
       // Test Modal
       testAccountConnection: '测试账号连接',
       account: '账号',
@@ -5068,7 +5126,8 @@ export default {
         requestType: '类型',
         requestTypeSync: '同步',
         requestTypeStream: '流式',
-        requestTypeWs: 'WS'
+        requestTypeWs: 'WS',
+        requestTypeCyber: 'Cyber'
       },
       // Error Details Modal
       errorDetails: {
@@ -5151,6 +5210,7 @@ export default {
         requestTypeSync: '同步',
         requestTypeStream: '流式',
         requestTypeWs: 'WebSocket',
+        requestTypeCyber: 'Cyber 阻断',
         modelMapping: '模型映射',
         timings: '时序信息',
         auth: '认证',
@@ -5621,6 +5681,15 @@ export default {
       },
       emailTabDisabledTitle: '邮箱验证未启用',
       emailTabDisabledHint: '请在「安全与认证」选项卡中启用邮箱验证后，再配置 SMTP 设置。',
+      marketplaceAvailability: {
+        title: '模型广场可用率',
+        description: '调整公开模型广场可用率条的统计窗口和柱状粒度，保存后下次刷新模型广场立即生效。',
+        windowDays: '统计窗口（天）',
+        windowDaysHint: '范围 {min}-{max} 天，默认 7 天。',
+        bucketMinutes: '单柱时间窗口（分钟）',
+        bucketMinutesHint: '范围 {min}-{max} 分钟，默认 120 分钟。',
+        bucketLimitHint: '如果窗口和粒度会产生超过 720 根柱子，后端会自动放大单柱时间窗口。'
+      },
       features: {
         riskControl: {
           title: '风控中心',
@@ -5628,6 +5697,10 @@ export default {
           configureLink: '前往 风控中心 配置内容审计',
           enabled: '启用风控中心',
           enabledHint: '关闭后管理员侧边栏入口隐藏，网关内容审计不会执行。',
+          cyberSessionBlockEnabled: 'Cyber 会话屏蔽',
+          cyberSessionBlockEnabledHint: '上游返回 cyber_policy 后，按显式 session_id / conversation_id / prompt_cache_key 临时拒绝同会话后续请求。',
+          cyberSessionBlockTTLSeconds: '屏蔽时长（秒）',
+          cyberSessionBlockTTLSecondsHint: '默认 3600 秒；关闭后只记录审计和用量，不拦截后续会话请求。',
         },
         affiliate: {
           title: '邀请返利',
@@ -5877,6 +5950,14 @@ export default {
         metadataPassthroughHint: '透传客户端原始 metadata.user_id，不进行重写。可能提高上游缓存命中率。',
         cchSigning: 'CCH 签名',
         cchSigningHint: '对转发请求的 billing header 进行 CCH 哈希签名。关闭时保留原始占位符。',
+        claudeOAuthSystemPromptInjection: 'Claude OAuth System 注入',
+        claudeOAuthSystemPromptInjectionHint: '为非 Claude Code 客户端走 Claude OAuth 时注入 Claude Code system blocks。关闭后保留客户端原始 system。',
+        claudeOAuthSystemPrompt: '扩展 System Prompt',
+        claudeOAuthSystemPromptPlaceholder: '留空使用内置 Claude Code 扩展提示词',
+        claudeOAuthSystemPromptHint: '可在 blocks JSON 中通过 {claude_code_expansion_prompt} 引用。',
+        claudeOAuthSystemPromptBlocks: 'System Blocks JSON',
+        claudeOAuthSystemPromptBlocksPlaceholder: `{'{"blocks":[{"type":"text","text":"{billing_header}"},{"type":"text","text":"{claude_code_system_prompt}"},{"type":"text","text":"{claude_code_expansion_prompt}","cache_control":true}]}'}`,
+        claudeOAuthSystemPromptBlocksHint: '支持变量 {billing_header}、{cc_version}、{fp}、{claude_code_system_prompt}、{claude_code_expansion_prompt}；留空使用内置三段 blocks。',
         anthropicCacheTTL1hInjection: 'Anthropic 缓存 TTL 注入',
         anthropicCacheTTL1hInjectionHint: '开启后，对 Anthropic OAuth/Setup Token 请求体中已有的 ephemeral 缓存块强制写入 1h；响应 usage 默认按 5m 回写计费，账号级 TTL 计费设置优先。',
         rewriteMessageCacheControl: '改写消息缓存断点',
@@ -6630,6 +6711,14 @@ export default {
         title: 'OpenAI 实验调度策略',
         description: '默认关闭。开启后仅影响本网关在 OpenAI 账号间的实验性调度选择逻辑，不代表上游 OpenAI 官方能力。'
       },
+      openaiQuotaAutoPause: {
+        title: 'OpenAI 账号配额自动暂停',
+        description: '当 OpenAI 账号 5h / 7d 用量达到阈值时，调度会自动跳过该账号；窗口滚动后自动恢复。账号级阈值优先于此全局默认值。',
+        default5h: '默认 5h 用量阈值 (%)',
+        default7d: '默认 7d 用量阈值 (%)',
+        thresholdHint: '取值 0-100，留空或 0 表示不启用全局默认阈值。',
+        rangeError: 'OpenAI 配额自动暂停阈值必须在 0-100 之间'
+      },
       usageRecords: {
         title: '使用记录',
         description: '与终端用户可见的用量及失败请求记录相关的设置。',
@@ -6755,12 +6844,19 @@ export default {
         description: '描述',
         enabled: '启用路由器',
         chatgptOAuthTokenSettings: 'ChatGPT OAuth Token 请求',
-        chatgptOAuthTokenSettingsHint: '仅对绑定此 TLS 路由器的 OpenAI/ChatGPT OAuth 账号 exchange/refresh token 请求生效。',
+        chatgptOAuthTokenSettingsHint: '仅对绑定此 TLS 路由器的 OpenAI/ChatGPT OAuth exchange/refresh token 请求生效。',
         chatgptOAuthTokenUserAgent: 'Token User-Agent',
-        chatgptOAuthTokenUserAgentHint: '留空时在启用 token TLS 模板的请求中使用 OpenAI Codex UA 兜底。',
+        chatgptOAuthTokenUserAgentHint: '留空时 exchange/refresh token 在启用 token TLS 模板后使用 OpenAI Codex UA 兜底。',
         chatgptOAuthTokenProfile: 'Token TLS 模板',
         chatgptOAuthTokenProfileHint: '不启用时保持现有 token 请求行为；选择模板后 exchange/refresh token 使用 DoWithTLS。',
         chatgptOAuthTokenProfileDisabled: '不启用 token 专用 TLS 模板',
+        codexInviteResetSettings: 'Codex 邀请重置请求',
+        codexInviteResetSettingsHint: '仅对绑定此 TLS 路由器账号的 Codex Desktop 邀请重置状态、邀请和使用重置次数请求生效。',
+        codexInviteResetUserAgent: '邀请重置 User-Agent',
+        codexInviteResetUserAgentHint: '留空时使用 Codex Desktop User-Agent 兜底。',
+        codexInviteResetProfile: '邀请重置 TLS 模板',
+        codexInviteResetProfileHint: '不启用时回退账号 TLS 模板；选择模板后邀请重置请求使用 DoWithTLS。',
+        codexInviteResetProfileDisabled: '使用账号 TLS 模板',
         rules: '路由规则',
         addRule: '添加规则',
         noRules: '暂无规则，未命中时将回退账号固定模板。',

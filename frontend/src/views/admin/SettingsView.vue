@@ -3749,6 +3749,48 @@
                 </div>
                 <Toggle v-model="form.openai_advanced_scheduler_enabled" />
               </div>
+
+              <div class="border-t border-gray-100 pt-5 dark:border-dark-700">
+                <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+                  {{ t("admin.settings.openaiQuotaAutoPause.title") }}
+                </h3>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.openaiQuotaAutoPause.description") }}
+                </p>
+                <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div>
+                    <label class="input-label">
+                      {{ t("admin.settings.openaiQuotaAutoPause.default5h") }}
+                    </label>
+                    <input
+                      v-model.number="openAIQuotaAutoPause5hPercent"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      class="input"
+                      data-testid="settings-openai-quota-auto-pause-5h"
+                    />
+                  </div>
+                  <div>
+                    <label class="input-label">
+                      {{ t("admin.settings.openaiQuotaAutoPause.default7d") }}
+                    </label>
+                    <input
+                      v-model.number="openAIQuotaAutoPause7dPercent"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      class="input"
+                      data-testid="settings-openai-quota-auto-pause-7d"
+                    />
+                  </div>
+                </div>
+                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t("admin.settings.openaiQuotaAutoPause.thresholdHint") }}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -3822,6 +3864,95 @@
                   </p>
                 </div>
                 <Toggle v-model="form.enable_cch_signing" />
+              </div>
+
+              <!-- Claude OAuth System 注入 -->
+              <div class="flex items-center justify-between gap-4">
+                <div>
+                  <label
+                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.claudeOAuthSystemPromptInjection",
+                      )
+                    }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.claudeOAuthSystemPromptInjectionHint",
+                      )
+                    }}
+                  </p>
+                </div>
+                <Toggle
+                  v-model="form.enable_claude_oauth_system_prompt_injection"
+                />
+              </div>
+
+              <div class="grid gap-5 md:grid-cols-2">
+                <div>
+                  <label
+                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    for="claude-oauth-system-prompt"
+                  >
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.claudeOAuthSystemPrompt",
+                      )
+                    }}
+                  </label>
+                  <textarea
+                    id="claude-oauth-system-prompt"
+                    v-model="form.claude_oauth_system_prompt"
+                    rows="6"
+                    class="input min-h-32 font-mono text-sm"
+                    :placeholder="
+                      t(
+                        'admin.settings.gatewayForwarding.claudeOAuthSystemPromptPlaceholder',
+                      )
+                    "
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.claudeOAuthSystemPromptHint",
+                      )
+                    }}
+                  </p>
+                </div>
+
+                <div>
+                  <label
+                    class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                    for="claude-oauth-system-prompt-blocks"
+                  >
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.claudeOAuthSystemPromptBlocks",
+                      )
+                    }}
+                  </label>
+                  <textarea
+                    id="claude-oauth-system-prompt-blocks"
+                    v-model="form.claude_oauth_system_prompt_blocks"
+                    rows="6"
+                    class="input min-h-32 font-mono text-sm"
+                    :placeholder="
+                      t(
+                        'admin.settings.gatewayForwarding.claudeOAuthSystemPromptBlocksPlaceholder',
+                      )
+                    "
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.claudeOAuthSystemPromptBlocksHint",
+                      )
+                    }}
+                  </p>
+                </div>
               </div>
 
               <!-- Anthropic Cache TTL 1h Injection -->
@@ -4528,6 +4659,67 @@
                   </p>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
+              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                {{ t("admin.settings.marketplaceAvailability.title") }}
+              </h2>
+              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.marketplaceAvailability.description") }}
+              </p>
+            </div>
+            <div class="space-y-5 p-6">
+              <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <div>
+                  <label class="input-label">
+                    {{ t("admin.settings.marketplaceAvailability.windowDays") }}
+                  </label>
+                  <input
+                    v-model.number="form.marketplace_availability_window_days"
+                    type="number"
+                    :min="marketplaceAvailabilityWindowDaysMin"
+                    :max="marketplaceAvailabilityWindowDaysMax"
+                    step="1"
+                    class="input"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t("admin.settings.marketplaceAvailability.windowDaysHint", {
+                        min: marketplaceAvailabilityWindowDaysMin,
+                        max: marketplaceAvailabilityWindowDaysMax,
+                      })
+                    }}
+                  </p>
+                </div>
+
+                <div>
+                  <label class="input-label">
+                    {{ t("admin.settings.marketplaceAvailability.bucketMinutes") }}
+                  </label>
+                  <input
+                    v-model.number="form.marketplace_availability_bucket_minutes"
+                    type="number"
+                    :min="marketplaceAvailabilityBucketMinutesMin"
+                    :max="marketplaceAvailabilityBucketMinutesMax"
+                    step="1"
+                    class="input"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t("admin.settings.marketplaceAvailability.bucketMinutesHint", {
+                        min: marketplaceAvailabilityBucketMinutesMin,
+                        max: marketplaceAvailabilityBucketMinutesMax,
+                      })
+                    }}
+                  </p>
+                </div>
+              </div>
+              <p class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t("admin.settings.marketplaceAvailability.bucketLimitHint") }}
+              </p>
             </div>
           </div>
 
@@ -5484,6 +5676,39 @@
                   </p>
                 </div>
                 <Toggle v-model="form.risk_control_enabled" />
+              </div>
+
+              <div class="border-t border-gray-100 pt-5 dark:border-dark-700">
+                <div class="flex items-center justify-between gap-4">
+                  <div>
+                    <label class="font-medium text-gray-900 dark:text-white">
+                      {{ t("admin.settings.features.riskControl.cyberSessionBlockEnabled") }}
+                    </label>
+                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.features.riskControl.cyberSessionBlockEnabledHint") }}
+                    </p>
+                  </div>
+                  <Toggle v-model="form.cyber_session_block_enabled" />
+                </div>
+
+                <div
+                  v-if="form.cyber_session_block_enabled"
+                  class="mt-4 max-w-xs"
+                >
+                  <label class="input-label">
+                    {{ t("admin.settings.features.riskControl.cyberSessionBlockTTLSeconds") }}
+                  </label>
+                  <input
+                    v-model.number="form.cyber_session_block_ttl_seconds"
+                    type="number"
+                    min="1"
+                    step="1"
+                    class="input"
+                  />
+                  <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.features.riskControl.cyberSessionBlockTTLSecondsHint") }}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -6601,6 +6826,7 @@ import type {
   WebSearchProviderConfig,
   WebSearchTestResult,
   PaymentMethodFeeConfig,
+  OpenAIQuotaAutoPauseSettings,
 } from "@/api/admin/settings";
 import type { LoginAgreementDocument, NotifyEmailEntry, Proxy } from "@/types";
 import type { ProviderInstance, SubscriptionPlan } from "@/types/payment";
@@ -6865,6 +7091,12 @@ const tablePageSizeDefault = 20;
 const usageRankingLimitMin = 1;
 const usageRankingLimitMax = 100;
 const usageRankingLimitDefault = 20;
+const marketplaceAvailabilityWindowDaysMin = 1;
+const marketplaceAvailabilityWindowDaysMax = 90;
+const marketplaceAvailabilityWindowDaysDefault = 7;
+const marketplaceAvailabilityBucketMinutesMin = 5;
+const marketplaceAvailabilityBucketMinutesMax = 1440;
+const marketplaceAvailabilityBucketMinutesDefault = 120;
 
 function defaultLoginAgreementDocuments(): LoginAgreementDocument[] {
   return [
@@ -6938,6 +7170,7 @@ type SettingsForm = Omit<
   google_oauth_client_secret: string;
   force_email_on_third_party_signup: boolean;
   openai_advanced_scheduler_enabled: boolean;
+  openai_account_quota_auto_pause: OpenAIQuotaAutoPauseSettings;
   // 系统全局平台限额 map；form 内始终归一化为全 4 平台对象（模板非空绑定依赖此不变量）
   default_platform_quotas: DefaultPlatformQuotasMap;
 };
@@ -6970,6 +7203,10 @@ const form = reactive<SettingsForm>({
   balance_icon_svg: "",
   reasoning_point_rmb_unit_price: 0,
   usd_exchange_rate: 0,
+  marketplace_availability_window_days:
+    marketplaceAvailabilityWindowDaysDefault,
+  marketplace_availability_bucket_minutes:
+    marketplaceAvailabilityBucketMinutesDefault,
   force_email_on_third_party_signup: false,
   default_user_rpm_limit: 0,
   site_name: "Sub2API",
@@ -7141,13 +7378,22 @@ const form = reactive<SettingsForm>({
   // 分组隔离
   allow_ungrouped_key_scheduling: false,
   openai_advanced_scheduler_enabled: false,
+  openai_account_quota_auto_pause: {
+    default_threshold_5h: 0,
+    default_threshold_7d: 0,
+  },
   // Gateway forwarding behavior
   enable_fingerprint_unification: true,
   enable_metadata_passthrough: false,
   enable_cch_signing: false,
+  enable_claude_oauth_system_prompt_injection: true,
+  claude_oauth_system_prompt: "",
+  claude_oauth_system_prompt_blocks: "",
   enable_anthropic_cache_ttl_1h_injection: false,
   rewrite_message_cache_control: false,
   risk_control_enabled: false,
+  cyber_session_block_enabled: false,
+  cyber_session_block_ttl_seconds: 3600,
   antigravity_user_agent_version: "",
   openai_codex_user_agent: "",
   openai_allow_claude_code_codex_plugin: false,
@@ -7171,6 +7417,34 @@ const {
   iconSvg: computed(() => form.balance_icon_svg),
 });
 const previewBalanceAmount = computed(() => formatPreviewBalanceAmount(123.45));
+
+function quotaThresholdToPercent(value: number | undefined): number | null {
+  if (!value || value <= 0) return null;
+  return Math.round(value * 1000) / 10;
+}
+
+function percentToQuotaThreshold(value: number | null): number {
+  return value != null && value > 0 ? value / 100 : 0;
+}
+
+// OpenAI 配额自动暂停在后端以 0~1 存储，系统设置页按百分比展示。
+const openAIQuotaAutoPause5hPercent = computed<number | null>({
+  get() {
+    return quotaThresholdToPercent(form.openai_account_quota_auto_pause?.default_threshold_5h);
+  },
+  set(value) {
+    form.openai_account_quota_auto_pause.default_threshold_5h = percentToQuotaThreshold(value);
+  },
+});
+
+const openAIQuotaAutoPause7dPercent = computed<number | null>({
+  get() {
+    return quotaThresholdToPercent(form.openai_account_quota_auto_pause?.default_threshold_7d);
+  },
+  set(value) {
+    form.openai_account_quota_auto_pause.default_threshold_7d = percentToQuotaThreshold(value);
+  },
+});
 
 const oidcTokenAuthMethodOptions = [
   { value: "client_secret_post", label: "client_secret_post" },
@@ -7836,6 +8110,12 @@ async function loadSettings() {
         : defaultLoginAgreementDocuments();
     Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(settings));
     form.default_platform_quotas = normalizePlatformQuotasMap(settings.default_platform_quotas);
+    form.openai_account_quota_auto_pause = {
+      default_threshold_5h:
+        settings.openai_account_quota_auto_pause?.default_threshold_5h ?? 0,
+      default_threshold_7d:
+        settings.openai_account_quota_auto_pause?.default_threshold_7d ?? 0,
+    };
     form.backend_mode_enabled = settings.backend_mode_enabled;
     form.default_subscriptions = normalizeDefaultSubscriptionSettings(
       settings.default_subscriptions,
@@ -8067,6 +8347,35 @@ async function saveSettings() {
       Number(form.reasoning_point_rmb_unit_price) || 0,
     );
     form.usd_exchange_rate = Math.max(0, Number(form.usd_exchange_rate) || 0);
+    form.marketplace_availability_window_days = Math.min(
+      marketplaceAvailabilityWindowDaysMax,
+      Math.max(
+        marketplaceAvailabilityWindowDaysMin,
+        Math.floor(
+          Number(form.marketplace_availability_window_days) ||
+            marketplaceAvailabilityWindowDaysDefault,
+        ),
+      ),
+    );
+    form.marketplace_availability_bucket_minutes = Math.min(
+      marketplaceAvailabilityBucketMinutesMax,
+      Math.max(
+        marketplaceAvailabilityBucketMinutesMin,
+        Math.floor(
+          Number(form.marketplace_availability_bucket_minutes) ||
+            marketplaceAvailabilityBucketMinutesDefault,
+        ),
+      ),
+    );
+    if (
+      form.openai_account_quota_auto_pause.default_threshold_5h < 0 ||
+      form.openai_account_quota_auto_pause.default_threshold_5h > 1 ||
+      form.openai_account_quota_auto_pause.default_threshold_7d < 0 ||
+      form.openai_account_quota_auto_pause.default_threshold_7d > 1
+    ) {
+      appStore.showError(t("admin.settings.openaiQuotaAutoPause.rangeError"));
+      return;
+    }
 
     const normalizedLoginAgreementDocuments =
       normalizeLoginAgreementDocumentsForSave();
@@ -8214,6 +8523,10 @@ async function saveSettings() {
       balance_icon_svg: form.balance_icon_svg,
       reasoning_point_rmb_unit_price: form.reasoning_point_rmb_unit_price,
       usd_exchange_rate: form.usd_exchange_rate,
+      marketplace_availability_window_days:
+        form.marketplace_availability_window_days,
+      marketplace_availability_bucket_minutes:
+        form.marketplace_availability_bucket_minutes,
       force_email_on_third_party_signup: form.force_email_on_third_party_signup,
       default_user_rpm_limit: form.default_user_rpm_limit,
       site_name: form.site_name_zh || form.site_name_en || form.site_name,
@@ -8349,6 +8662,12 @@ async function saveSettings() {
       enable_fingerprint_unification: form.enable_fingerprint_unification,
       enable_metadata_passthrough: form.enable_metadata_passthrough,
       enable_cch_signing: form.enable_cch_signing,
+      enable_claude_oauth_system_prompt_injection:
+        form.enable_claude_oauth_system_prompt_injection,
+      claude_oauth_system_prompt:
+        form.claude_oauth_system_prompt?.trim() || "",
+      claude_oauth_system_prompt_blocks:
+        form.claude_oauth_system_prompt_blocks?.trim() || "",
       enable_anthropic_cache_ttl_1h_injection:
         form.enable_anthropic_cache_ttl_1h_injection,
       rewrite_message_cache_control: form.rewrite_message_cache_control,
@@ -8360,6 +8679,11 @@ async function saveSettings() {
       // Payment configuration
       payment_enabled: form.payment_enabled,
       risk_control_enabled: form.risk_control_enabled,
+      cyber_session_block_enabled: form.cyber_session_block_enabled,
+      cyber_session_block_ttl_seconds: Math.max(
+        1,
+        Math.floor(Number(form.cyber_session_block_ttl_seconds) || 3600),
+      ),
       payment_min_amount: Number(form.payment_min_amount) || 0,
       payment_max_amount: Number(form.payment_max_amount) || 0,
       payment_daily_limit: Number(form.payment_daily_limit) || 0,
@@ -8387,6 +8711,12 @@ async function saveSettings() {
         form.payment_cancel_rate_limit_window_mode,
       payment_alipay_force_qrcode: form.payment_alipay_force_qrcode,
       openai_advanced_scheduler_enabled: form.openai_advanced_scheduler_enabled,
+      openai_account_quota_auto_pause: {
+        default_threshold_5h:
+          form.openai_account_quota_auto_pause.default_threshold_5h,
+        default_threshold_7d:
+          form.openai_account_quota_auto_pause.default_threshold_7d,
+      },
       // 余额、订阅到期与账号限额通知
       balance_low_notify_enabled: form.balance_low_notify_enabled,
       balance_low_notify_threshold:
@@ -8442,6 +8772,12 @@ async function saveSettings() {
     }
     Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(updated));
     form.default_platform_quotas = normalizePlatformQuotasMap(updated.default_platform_quotas);
+    form.openai_account_quota_auto_pause = {
+      default_threshold_5h:
+        updated.openai_account_quota_auto_pause?.default_threshold_5h ?? 0,
+      default_threshold_7d:
+        updated.openai_account_quota_auto_pause?.default_threshold_7d ?? 0,
+    };
     registrationEmailSuffixWhitelistTags.value =
       normalizeRegistrationEmailSuffixDomains(
         updated.registration_email_suffix_whitelist,
@@ -9327,6 +9663,10 @@ async function handleToggleType(provider: ProviderInstance, type: string) {
   try {
     const currentProvider =
       providers.value.find((item) => item.id === provider.id) ?? provider;
+    if (currentProvider.provider_key === "stripe") {
+      // Stripe Checkout 的支付方式由 Stripe Dashboard 控制，管理端不再写入无效子方式。
+      return;
+    }
     const supportedTypes = Array.isArray(currentProvider.supported_types)
       ? currentProvider.supported_types
       : [];

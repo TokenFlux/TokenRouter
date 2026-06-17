@@ -41,8 +41,14 @@ func (h *OpenAIGatewayHandler) recordOpenAICyberWarning(c *gin.Context, reqLog *
 	h.recordOpenAICyberWarningWithPromptExcerpt(c, reqLog, apiKey, account, model, statusCode, responseBody, warningText, currentOpenAICyberWarningPromptExcerpt(c))
 }
 
+const openAICyberWarningRecordedKey = "openai_cyber_warning_recorded"
+
 func (h *OpenAIGatewayHandler) recordOpenAICyberWarningWithPromptExcerpt(c *gin.Context, reqLog *zap.Logger, apiKey *service.APIKey, account *service.Account, model string, statusCode int, responseBody []byte, warningText string, promptExcerpt string) {
 	if h == nil || h.contentModerationService == nil || c == nil {
+		return
+	}
+	// WS 上游事件回调和 turn 收尾都可能观察到同一个 cyber_policy 终止事件，这里按请求/turn 去重。
+	if c.GetBool(openAICyberWarningRecordedKey) {
 		return
 	}
 	input := buildOpenAICyberWarningInput(c, apiKey, account, model, statusCode, responseBody, warningText, promptExcerpt)
@@ -52,6 +58,9 @@ func (h *OpenAIGatewayHandler) recordOpenAICyberWarningWithPromptExcerpt(c *gin.
 			reqLog.Warn("content_moderation.cyber_warning_record_failed", zap.Error(err))
 		}
 		return
+	}
+	if warning != nil {
+		c.Set(openAICyberWarningRecordedKey, true)
 	}
 	if warning != nil && reqLog != nil {
 		reqLog.Info("content_moderation.cyber_warning_recorded",

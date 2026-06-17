@@ -552,6 +552,24 @@ export interface MarketplaceGroupCapacity {
   rpm_max: number
 }
 
+export interface MarketplaceGroupAvailabilityDay {
+  date: string
+  success_count: number
+  total_count: number
+  availability_rate?: number | null
+}
+
+export interface MarketplaceGroupAvailability {
+  window_days: number
+  bucket_minutes?: number
+  success_count: number
+  total_count: number
+  availability_rate?: number | null
+  last_status?: string
+  last_checked_at?: string | null
+  days: MarketplaceGroupAvailabilityDay[]
+}
+
 export interface MarketplaceGroup {
   id: number
   name: string
@@ -565,6 +583,7 @@ export interface MarketplaceGroup {
   // 数据共享分组需要在模型广场展示醒目标记，提醒用户该分组会进入采集流程。
   data_sharing_enabled: boolean
   capacity?: MarketplaceGroupCapacity
+  availability?: MarketplaceGroupAvailability
   model_count: number
   models: MarketplaceModel[]
 }
@@ -580,6 +599,14 @@ export interface OpenAIMessagesDispatchModelConfig {
   sonnet_mapped_model?: string
   haiku_mapped_model?: string
   exact_model_mappings?: Record<string, string>
+}
+
+export interface GroupAvailabilityProbeConfig {
+  enabled: boolean
+  interval_minutes?: number
+  model_id?: string
+  prompt?: string
+  timeout_seconds?: number
 }
 
 export interface Group {
@@ -611,6 +638,7 @@ export interface Group {
   allow_messages_dispatch?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
+  availability_probe_config?: GroupAvailabilityProbeConfig
   require_oauth_only: boolean
   require_privacy_set: boolean
   created_at: string
@@ -738,6 +766,7 @@ export interface CreateGroupRequest {
   mcp_xml_inject?: boolean
   supported_model_scopes?: string[]
   models_list_config?: ModelsListConfig
+  availability_probe_config?: GroupAvailabilityProbeConfig
   allow_messages_dispatch?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
@@ -774,6 +803,7 @@ export interface UpdateGroupRequest {
   mcp_xml_inject?: boolean
   supported_model_scopes?: string[]
   models_list_config?: ModelsListConfig
+  availability_probe_config?: GroupAvailabilityProbeConfig
   allow_messages_dispatch?: boolean
   default_mapped_model?: string
   messages_dispatch_model_config?: OpenAIMessagesDispatchModelConfig
@@ -957,6 +987,7 @@ export interface Account {
   overload_until: string | null
   temp_unschedulable_until: string | null
   temp_unschedulable_reason: string | null
+  quota_auto_paused?: boolean
 
   // Session window fields (5-hour window)
   session_window_start: string | null
@@ -1057,6 +1088,7 @@ export interface AccountUsageInfo {
   gemini_shared_minute?: UsageProgress | null
   gemini_pro_minute?: UsageProgress | null
   gemini_flash_minute?: UsageProgress | null
+  quota_auto_paused?: boolean
   antigravity_quota?: Record<string, AntigravityModelQuota> | null
   ai_credits?: Array<{
     credit_type?: string
@@ -1312,7 +1344,7 @@ export type RedeemCodeType =
   | 'subscription'
   | 'invitation'
   | 'affiliate_balance'
-export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2'
+export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2' | 'cyber'
 export type ImageSizeSource = 'output' | 'input' | 'default' | 'legacy'
 export type ImageSizeBreakdown = Record<string, number>
 

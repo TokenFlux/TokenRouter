@@ -400,7 +400,7 @@ const paymentModeOptions = computed(() => {
 
 const availableTypes = computed(() => {
   const base = getAvailableTypes(form.provider_key, props.allPaymentTypes, props.redirectLabel)
-  // Resolve i18n labels for types not in allPaymentTypes (e.g. card, link inside stripe)
+  // 兜底处理 allPaymentTypes 中没有的服务商私有类型标签。
   return base.map(opt =>
     opt.label === opt.value
       ? { ...opt, label: t(`payment.methods.${opt.value}`, opt.value) }

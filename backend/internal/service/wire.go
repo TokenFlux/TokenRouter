@@ -426,6 +426,20 @@ func ProvideScheduledTestRunnerService(
 	return svc
 }
 
+// ProvideGroupAvailabilityProbeRunnerService 创建并启动分组主动可用性探测服务。
+func ProvideGroupAvailabilityProbeRunnerService(
+	repo GroupAvailabilityProbeRepository,
+	accountTestSvc *AccountTestService,
+	gatewaySvc *GatewayService,
+	openAIGateway *OpenAIGatewayService,
+	geminiCompatSvc *GeminiMessagesCompatService,
+	cfg *config.Config,
+) *GroupAvailabilityProbeRunnerService {
+	svc := NewGroupAvailabilityProbeRunnerService(repo, accountTestSvc, gatewaySvc, openAIGateway, geminiCompatSvc, cfg)
+	svc.Start()
+	return svc
+}
+
 // ProvideOpsScheduledReportService creates and starts OpsScheduledReportService.
 func ProvideOpsScheduledReportService(
 	opsService *OpsService,
@@ -585,6 +599,8 @@ var ProviderSet = wire.NewSet(
 	NewQoderGatewayService,
 	ProvideOpenAIGatewayTLSFingerprintRouterServices,
 	NewOpenAIGatewayService,
+	NewCodexInviteResetService,
+	NewOpenAIQuotaService,
 	wire.Bind(new(AccountRuntimeBlocker), new(*OpenAIGatewayService)),
 	NewOAuthService,
 	ProvideOpenAIOAuthService,
@@ -607,6 +623,7 @@ var ProviderSet = wire.NewSet(
 	NewAccountUsageService,
 	NewAccountTestService,
 	ProvideSettingService,
+	wire.Bind(new(OpenAIQuotaAutoPauseSettingsReader), new(*SettingService)),
 	NewDataManagementService,
 	ProvideBackupService,
 	ProvideOpsSystemLogSink,
@@ -652,6 +669,7 @@ var ProviderSet = wire.NewSet(
 	ProvideIdempotencyCleanupService,
 	ProvideScheduledTestService,
 	ProvideScheduledTestRunnerService,
+	ProvideGroupAvailabilityProbeRunnerService,
 	NewGroupCapacityService,
 	NewChannelService,
 	NewModelPricingResolver,

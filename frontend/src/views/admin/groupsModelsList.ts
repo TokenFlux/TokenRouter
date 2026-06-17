@@ -11,6 +11,7 @@ export interface ModelsListItem {
 export interface ModelsListState {
   enabled: boolean
   savedModels: string[]
+  candidateModels: string[]
   items: ModelsListItem[]
 }
 
@@ -19,6 +20,7 @@ export const createModelsListState = (
 ): ModelsListState => ({
   enabled: config?.enabled ?? false,
   savedModels: normalizeModels(config?.models ?? []),
+  candidateModels: [],
   items: [],
 })
 
@@ -36,6 +38,7 @@ export const setModelsListCandidates = (
   candidates: string[],
 ) => {
   const normalizedCandidates = normalizeModels(candidates)
+  state.candidateModels = normalizedCandidates
   const currentSelected = new Set(
     state.items.filter(item => item.selected).map(item => item.id),
   )
@@ -105,6 +108,19 @@ export const buildModelsListConfig = (state: ModelsListState): ModelsListConfig 
     ? state.items.filter(item => item.selected).map(item => item.id)
     : [...state.savedModels],
 })
+
+export const getAvailabilityProbeCandidateModels = (state: ModelsListState): string[] => {
+  // 探测模型必须跟当前分组最终对外可见的模型保持一致；自定义列表开启时只允许已勾选模型。
+  if (state.enabled) {
+    if (state.items.length > 0) {
+      return normalizeModels(state.items.filter(item => item.selected).map(item => item.id))
+    }
+    return [...state.savedModels]
+  }
+
+  // 自定义列表关闭时只信任后端本次返回的分组候选，避免历史保存模型或接入格式默认模型混入。
+  return [...state.candidateModels]
+}
 
 const normalizeModels = (models: string[]): string[] => {
   const seen = new Set<string>()

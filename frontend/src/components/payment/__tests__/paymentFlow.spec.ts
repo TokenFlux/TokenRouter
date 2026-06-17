@@ -62,9 +62,10 @@ describe('getVisibleMethods', () => {
 })
 
 describe('decidePaymentLaunch', () => {
-  it('uses hosted invoice URL before Stripe client secret', () => {
+  it('prefers Stripe Checkout pay URL over hosted invoice URL', () => {
     const decision = decidePaymentLaunch(createOrderResult({
       client_secret: 'cs_test',
+      pay_url: 'https://checkout.stripe.com/c/pay/cs_test',
       invoice_url: 'https://invoice.stripe.com/i/acct/test',
       invoice_pdf: 'https://invoice.stripe.com/i/acct/test.pdf',
       resume_token: 'resume-invoice',
@@ -75,9 +76,25 @@ describe('decidePaymentLaunch', () => {
     })
 
     expect(decision.kind).toBe('redirect_waiting')
-    expect(decision.paymentState.payUrl).toBe('https://invoice.stripe.com/i/acct/test')
+    expect(decision.paymentState.payUrl).toBe('https://checkout.stripe.com/c/pay/cs_test')
     expect(decision.recovery.resumeToken).toBe('resume-invoice')
     expect(decision.stripeMethod).toBeUndefined()
+  })
+
+  it('keeps hosted invoice URL as a legacy Stripe fallback without client secret', () => {
+    const decision = decidePaymentLaunch(createOrderResult({
+      invoice_url: 'https://invoice.stripe.com/i/acct/legacy',
+      invoice_pdf: 'https://invoice.stripe.com/i/acct/legacy.pdf',
+      resume_token: 'resume-legacy-invoice',
+    }), {
+      visibleMethod: 'stripe',
+      orderType: 'balance',
+      isMobile: false,
+    })
+
+    expect(decision.kind).toBe('redirect_waiting')
+    expect(decision.paymentState.payUrl).toBe('https://invoice.stripe.com/i/acct/legacy')
+    expect(decision.recovery.resumeToken).toBe('resume-legacy-invoice')
   })
 
   it('does not use invoice PDF as a Stripe hosted payment URL', () => {

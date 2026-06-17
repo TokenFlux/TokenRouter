@@ -234,6 +234,8 @@ type CreateGroupInput struct {
 	RequirePrivacySet           bool
 	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
 	ModelsListConfig            GroupModelsListConfig
+	// AvailabilityProbeConfig 控制分组主动可用性探测。
+	AvailabilityProbeConfig GroupAvailabilityProbeConfig
 	// RPMLimit 分组 RPM 上限（0 = 不限制）
 	RPMLimit int
 	// 从指定分组复制账号（创建分组后在同一事务内绑定）
@@ -278,6 +280,8 @@ type UpdateGroupInput struct {
 	RequirePrivacySet           *bool
 	MessagesDispatchModelConfig *OpenAIMessagesDispatchModelConfig
 	ModelsListConfig            *GroupModelsListConfig
+	// AvailabilityProbeConfig 为 nil 时不修改探测配置。
+	AvailabilityProbeConfig *GroupAvailabilityProbeConfig
 	// RPMLimit 分组 RPM 上限（0 = 不限制），nil 表示未提供不改动。
 	RPMLimit *int
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
@@ -1627,11 +1631,13 @@ func (s *adminServiceImpl) GetGroup(ctx context.Context, id int64) (*Group, erro
 
 func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id int64, platform string) ([]string, error) {
 	platform = strings.TrimSpace(platform)
+	var existingGroup *Group
 	if id > 0 {
 		group, err := s.groupRepo.GetByIDLite(ctx, id)
 		if err != nil {
 			return nil, err
 		}
+		existingGroup = group
 		if platform == "" {
 			platform = group.Platform
 		}
@@ -1640,9 +1646,8 @@ func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id 
 		platform = PlatformAnthropic
 	}
 
-	candidates := defaultModelsListCandidateIDs(platform)
 	if id <= 0 || s.accountRepo == nil {
-		return candidates, nil
+		return defaultModelsListCandidateIDs(platform), nil
 	}
 
 	accounts, err := s.accountRepo.ListSchedulableByGroupID(ctx, id)
@@ -1650,27 +1655,90 @@ func (s *adminServiceImpl) GetGroupModelsListCandidates(ctx context.Context, id 
 		return nil, err
 	}
 
-	seen := make(map[string]struct{}, len(candidates))
-	for _, model := range candidates {
-		seen[model] = struct{}{}
+	candidates := configuredModelsListCandidateIDs(accounts, platform)
+	if existingGroup != nil && existingGroup.Platform == platform && existingGroup.CustomModelsListEnabled() {
+		return filterModelsListCandidates(candidates, existingGroup.ModelsListConfig.Models), nil
 	}
+	if len(candidates) > 0 {
+		return candidates, nil
+	}
+	return defaultModelsListCandidateIDs(platform), nil
+}
+
+func filterModelsListCandidates(candidates []string, selectedModels []string) []string {
+	normalizedSelected := normalizeGroupModelsListConfig(GroupModelsListConfig{
+		Enabled: true,
+		Models:  selectedModels,
+	}).Models
+	if len(normalizedSelected) == 0 {
+		return nil
+	}
+
+	if len(candidates) == 0 {
+		return normalizedSelected
+	}
+
+	allowed := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		candidate = strings.TrimSpace(candidate)
+		if candidate != "" {
+			allowed = append(allowed, candidate)
+		}
+	}
+
+	// 按自定义模型列表顺序输出，确保探测下拉与管理员配置顺序一致。
+	filtered := make([]string, 0, len(normalizedSelected))
+	for _, model := range normalizedSelected {
+		if modelsListCandidateAllowsModel(allowed, model) {
+			filtered = append(filtered, model)
+		}
+	}
+	return filtered
+}
+
+func modelsListCandidateAllowsModel(availablePatterns []string, model string) bool {
+	for _, pattern := range availablePatterns {
+		if pattern == model {
+			return true
+		}
+		if strings.HasSuffix(pattern, "*") && strings.HasPrefix(model, strings.TrimSuffix(pattern, "*")) {
+			return true
+		}
+	}
+	return false
+}
+
+func configuredModelsListCandidateIDs(accounts []Account, platform string) []string {
+	modelSet := make(map[string]struct{})
+	hasAnyConfiguredModels := false
 	for _, acc := range accounts {
 		if acc.Platform != platform {
 			continue
 		}
-		for model := range acc.GetModelMapping() {
+		requestModels := acc.GetConfiguredRequestModels()
+		if len(requestModels) == 0 {
+			continue
+		}
+		hasAnyConfiguredModels = true
+		for _, model := range requestModels {
 			model = strings.TrimSpace(model)
 			if model == "" {
 				continue
 			}
-			if _, ok := seen[model]; ok {
-				continue
-			}
-			seen[model] = struct{}{}
-			candidates = append(candidates, model)
+			modelSet[model] = struct{}{}
 		}
 	}
-	return candidates, nil
+	if !hasAnyConfiguredModels {
+		return nil
+	}
+
+	// 候选项按字典序稳定输出，避免编辑分组时下拉列表随机抖动。
+	models := make([]string, 0, len(modelSet))
+	for model := range modelSet {
+		models = append(models, model)
+	}
+	sort.Strings(models)
+	return models
 }
 
 func defaultModelsListCandidateIDs(platform string) []string {
@@ -1775,6 +1843,10 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 			return nil, fmt.Errorf("failed to get accounts from source groups: %w", err)
 		}
 	}
+	availabilityProbeConfig, err := normalizeGroupAvailabilityProbeConfig(input.AvailabilityProbeConfig)
+	if err != nil {
+		return nil, err
+	}
 
 	group := &Group{
 		Name:                            input.Name,
@@ -1806,6 +1878,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		DefaultMappedModel:              input.DefaultMappedModel,
 		MessagesDispatchModelConfig:     normalizeOpenAIMessagesDispatchModelConfig(input.MessagesDispatchModelConfig),
 		ModelsListConfig:                normalizeGroupModelsListConfig(input.ModelsListConfig),
+		AvailabilityProbeConfig:         availabilityProbeConfig,
 		RPMLimit:                        input.RPMLimit,
 	}
 	sanitizeGroupMessagesDispatchFields(group)
@@ -2124,6 +2197,13 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if input.ModelsListConfig != nil {
 		group.ModelsListConfig = normalizeGroupModelsListConfig(*input.ModelsListConfig)
+	}
+	if input.AvailabilityProbeConfig != nil {
+		config, err := normalizeGroupAvailabilityProbeConfig(*input.AvailabilityProbeConfig)
+		if err != nil {
+			return nil, err
+		}
+		group.AvailabilityProbeConfig = config
 	}
 	if input.RPMLimit != nil {
 		group.RPMLimit = *input.RPMLimit

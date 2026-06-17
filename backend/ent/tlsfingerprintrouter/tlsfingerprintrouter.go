@@ -27,6 +27,10 @@ const (
 	FieldChatgptOauthTokenUserAgent = "chatgpt_oauth_token_user_agent"
 	// FieldChatgptOauthTokenTLSFingerprintProfileID holds the string denoting the chatgpt_oauth_token_tls_fingerprint_profile_id field in the database.
 	FieldChatgptOauthTokenTLSFingerprintProfileID = "chatgpt_oauth_token_tls_fingerprint_profile_id"
+	// FieldCodexInviteResetUserAgent holds the string denoting the codex_invite_reset_user_agent field in the database.
+	FieldCodexInviteResetUserAgent = "codex_invite_reset_user_agent"
+	// FieldCodexInviteResetTLSFingerprintProfileID holds the string denoting the codex_invite_reset_tls_fingerprint_profile_id field in the database.
+	FieldCodexInviteResetTLSFingerprintProfileID = "codex_invite_reset_tls_fingerprint_profile_id"
 	// FieldRules holds the string denoting the rules field in the database.
 	FieldRules = "rules"
 	// Table holds the table name of the tlsfingerprintrouter in the database.
@@ -43,6 +47,8 @@ var Columns = []string{
 	FieldEnabled,
 	FieldChatgptOauthTokenUserAgent,
 	FieldChatgptOauthTokenTLSFingerprintProfileID,
+	FieldCodexInviteResetUserAgent,
+	FieldCodexInviteResetTLSFingerprintProfileID,
 	FieldRules,
 }
 
@@ -71,6 +77,10 @@ var (
 	DefaultChatgptOauthTokenUserAgent string
 	// ChatgptOauthTokenUserAgentValidator is a validator for the "chatgpt_oauth_token_user_agent" field. It is called by the builders before save.
 	ChatgptOauthTokenUserAgentValidator func(string) error
+	// DefaultCodexInviteResetUserAgent holds the default value on creation for the "codex_invite_reset_user_agent" field.
+	DefaultCodexInviteResetUserAgent string
+	// CodexInviteResetUserAgentValidator is a validator for the "codex_invite_reset_user_agent" field. It is called by the builders before save.
+	CodexInviteResetUserAgentValidator func(string) error
 )
 
 // OrderOption defines the ordering options for the TLSFingerprintRouter queries.
@@ -114,4 +124,14 @@ func ByChatgptOauthTokenUserAgent(opts ...sql.OrderTermOption) OrderOption {
 // ByChatgptOauthTokenTLSFingerprintProfileID orders the results by the chatgpt_oauth_token_tls_fingerprint_profile_id field.
 func ByChatgptOauthTokenTLSFingerprintProfileID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldChatgptOauthTokenTLSFingerprintProfileID, opts...).ToFunc()
+}
+
+// ByCodexInviteResetUserAgent orders the results by the codex_invite_reset_user_agent field.
+func ByCodexInviteResetUserAgent(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCodexInviteResetUserAgent, opts...).ToFunc()
+}
+
+// ByCodexInviteResetTLSFingerprintProfileID orders the results by the codex_invite_reset_tls_fingerprint_profile_id field.
+func ByCodexInviteResetTLSFingerprintProfileID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldCodexInviteResetTLSFingerprintProfileID, opts...).ToFunc()
 }

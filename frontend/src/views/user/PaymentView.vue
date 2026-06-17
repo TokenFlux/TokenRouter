@@ -1000,8 +1000,8 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
     const stripeMethod = visibleMethod === 'stripe'
       ? ''
       : visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'
-    const stripeHostedInvoiceUrl = (result.invoice_url || '').trim()
-    const stripeRouteUrl = stripeHostedInvoiceUrl || (result.client_secret && visibleMethod !== 'airwallex'
+    // Stripe Checkout 使用 pay_url 直接跳转；这里仅为旧 Payment Element 响应生成站内路由。
+    const stripeRouteUrl = result.client_secret && visibleMethod !== 'airwallex'
       ? router.resolve({
         path: '/payment/stripe',
         query: {
@@ -1011,7 +1011,7 @@ async function createOrder(orderAmount: number, orderType: OrderType, planId?: n
           resume_token: result.resume_token || undefined,
         },
       }).href
-      : '')
+      : ''
     const airwallexRouteUrl = result.client_secret && result.intent_id
       ? router.resolve({
         path: '/payment/airwallex',
@@ -1209,8 +1209,8 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
     })
     const result = await paymentStore.createOrder(payload) as CreateOrderResult & { resume_token?: string }
     const stripeMethod = visibleMethod === 'wxpay' ? 'wechat_pay' : 'alipay'
-    const stripeHostedInvoiceUrl = (result.invoice_url || '').trim()
-    const stripeRouteUrl = stripeHostedInvoiceUrl || (result.client_secret
+    // 移动端失败后的桌面兜底仍只需要 Payment Element 路由，Checkout pay_url 由决策函数处理。
+    const stripeRouteUrl = result.client_secret
       ? router.resolve({
         path: '/payment/stripe',
         query: {
@@ -1220,7 +1220,7 @@ async function attemptMobileQrFallback(err: unknown, context: MobileQrFallbackCo
           resume_token: result.resume_token || undefined,
         },
       }).href
-      : '')
+      : ''
     const decision = decidePaymentLaunch(result, {
       visibleMethod,
       orderType: context.orderType,

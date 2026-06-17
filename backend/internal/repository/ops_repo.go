@@ -918,9 +918,9 @@ func buildOpsErrorLogsWhere(filter *service.OpsErrorLogFilter) (string, []any) {
 	if filter != nil {
 		resolvedFilter = filter.Resolved
 	}
-	// Keep list endpoints scoped to client errors unless explicitly filtering upstream phase.
+	// 默认仅展示客户端可见错误；cyber_policy 流式命中可能是 200，但仍是对用户可见的拒绝。
 	if phaseFilter != "upstream" {
-		clauses = append(clauses, "COALESCE(e.status_code, 0) >= 400")
+		clauses = append(clauses, "(COALESCE(e.status_code, 0) >= 400 OR e.error_type = 'cyber_policy')")
 	}
 
 	if filter.StartTime != nil && !filter.StartTime.IsZero() {

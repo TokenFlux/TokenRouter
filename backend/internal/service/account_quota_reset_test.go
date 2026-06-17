@@ -210,9 +210,9 @@ func TestIsFixedDailyPeriodExpired_NotExpired(t *testing.T) {
 		"quota_daily_reset_hour": float64(9),
 		"quota_reset_timezone":   "UTC",
 	}}
-	// Period started after the most recent reset → not expired
-	// (This test uses a time very close to "now", which is after the last reset)
-	periodStart := time.Now().Add(-1 * time.Minute)
+	// 固定到当天 UTC 12:00，始终晚于当天 09:00 重置点，避免 09:00-09:01 窗口内抖动。
+	now := time.Now().UTC()
+	periodStart := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, time.UTC)
 	assert.False(t, a.isFixedDailyPeriodExpired(periodStart))
 }
 
@@ -259,8 +259,9 @@ func TestIsFixedWeeklyPeriodExpired_NotExpired(t *testing.T) {
 		"quota_weekly_reset_hour": float64(9),
 		"quota_reset_timezone":    "UTC",
 	}}
-	// Period started 1 minute ago → not expired
-	periodStart := time.Now().Add(-1 * time.Minute)
+	// 固定到当天 UTC 12:00，始终晚于最近一次周一 09:00 重置点，避免重置窗口内抖动。
+	now := time.Now().UTC()
+	periodStart := time.Date(now.Year(), now.Month(), now.Day(), 12, 0, 0, 0, time.UTC)
 	assert.False(t, a.isFixedWeeklyPeriodExpired(periodStart))
 }
 

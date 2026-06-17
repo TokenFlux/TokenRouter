@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildModelsListConfig,
   createModelsListState,
+  getAvailabilityProbeCandidateModels,
   hydrateModelsListState,
   invertModelsListSelection,
   moveModelsListItem,
@@ -121,5 +122,37 @@ describe("groupsModelsList", () => {
       { id: "gpt-5.4", selected: true },
       { id: "gpt-5.4-mini", selected: true },
     ]);
+  });
+
+  it("limits availability probe candidates to selected models when custom list is enabled", () => {
+    const state = hydrateModelsListState({
+      enabled: true,
+      models: ["deepseek-v4-flash"],
+    }, ["gpt-5.5", "deepseek-v4-flash", "deepseek-v4-pro"]);
+
+    expect(getAvailabilityProbeCandidateModels(state)).toEqual(["deepseek-v4-flash"]);
+  });
+
+  it("uses all candidate models for availability probe when custom list is disabled", () => {
+    const state = hydrateModelsListState({
+      enabled: false,
+      models: ["deepseek-v4-flash"],
+    }, ["gpt-5.5", "deepseek-v4-pro"]);
+
+    expect(getAvailabilityProbeCandidateModels(state)).toEqual([
+      "gpt-5.5",
+      "deepseek-v4-pro",
+    ]);
+  });
+
+  it("refreshes availability probe candidates without keeping stale models", () => {
+    const state = hydrateModelsListState({
+      enabled: false,
+      models: ["deepseek-v4-flash"],
+    }, ["gpt-5.5", "deepseek-v4-flash"]);
+
+    setModelsListCandidates(state, ["deepseek-v4-pro"]);
+
+    expect(getAvailabilityProbeCandidateModels(state)).toEqual(["deepseek-v4-pro"]);
   });
 });

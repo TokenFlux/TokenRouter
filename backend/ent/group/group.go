@@ -78,6 +78,8 @@ const (
 	FieldMessagesDispatchModelConfig = "messages_dispatch_model_config"
 	// FieldModelsListConfig holds the string denoting the models_list_config field in the database.
 	FieldModelsListConfig = "models_list_config"
+	// FieldAvailabilityProbeConfig holds the string denoting the availability_probe_config field in the database.
+	FieldAvailabilityProbeConfig = "availability_probe_config"
 	// FieldRpmLimit holds the string denoting the rpm_limit field in the database.
 	FieldRpmLimit = "rpm_limit"
 	// FieldDataSharingEnabled holds the string denoting the data_sharing_enabled field in the database.
@@ -188,6 +190,7 @@ var Columns = []string{
 	FieldDefaultMappedModel,
 	FieldMessagesDispatchModelConfig,
 	FieldModelsListConfig,
+	FieldAvailabilityProbeConfig,
 	FieldRpmLimit,
 	FieldDataSharingEnabled,
 	FieldSessionIsolationEnabled,
@@ -279,6 +282,8 @@ var (
 	DefaultMessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig
 	// DefaultModelsListConfig holds the default value on creation for the "models_list_config" field.
 	DefaultModelsListConfig domain.GroupModelsListConfig
+	// DefaultAvailabilityProbeConfig holds the default value on creation for the "availability_probe_config" field.
+	DefaultAvailabilityProbeConfig domain.GroupAvailabilityProbeConfig
 	// DefaultRpmLimit holds the default value on creation for the "rpm_limit" field.
 	DefaultRpmLimit int
 	// DefaultDataSharingEnabled holds the default value on creation for the "data_sharing_enabled" field.

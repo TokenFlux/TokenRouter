@@ -51,6 +51,9 @@ type Account struct {
 	TempUnschedulableUntil  *time.Time
 	TempUnschedulableReason string
 
+	// QuotaAutoPaused 是 OpenAI 账号配额自动暂停的运行时派生状态，不会持久化到数据库。
+	QuotaAutoPaused bool `json:"-"`
+
 	SessionWindowStart  *time.Time
 	SessionWindowEnd    *time.Time
 	SessionWindowStatus string

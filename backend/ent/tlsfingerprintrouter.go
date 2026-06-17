@@ -33,6 +33,10 @@ type TLSFingerprintRouter struct {
 	ChatgptOauthTokenUserAgent string `json:"chatgpt_oauth_token_user_agent,omitempty"`
 	// ChatgptOauthTokenTLSFingerprintProfileID holds the value of the "chatgpt_oauth_token_tls_fingerprint_profile_id" field.
 	ChatgptOauthTokenTLSFingerprintProfileID *int64 `json:"chatgpt_oauth_token_tls_fingerprint_profile_id,omitempty"`
+	// CodexInviteResetUserAgent holds the value of the "codex_invite_reset_user_agent" field.
+	CodexInviteResetUserAgent string `json:"codex_invite_reset_user_agent,omitempty"`
+	// CodexInviteResetTLSFingerprintProfileID holds the value of the "codex_invite_reset_tls_fingerprint_profile_id" field.
+	CodexInviteResetTLSFingerprintProfileID *int64 `json:"codex_invite_reset_tls_fingerprint_profile_id,omitempty"`
 	// Rules holds the value of the "rules" field.
 	Rules        []model.TLSFingerprintRouterRule `json:"rules,omitempty"`
 	selectValues sql.SelectValues
@@ -47,9 +51,9 @@ func (*TLSFingerprintRouter) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case tlsfingerprintrouter.FieldEnabled:
 			values[i] = new(sql.NullBool)
-		case tlsfingerprintrouter.FieldID, tlsfingerprintrouter.FieldChatgptOauthTokenTLSFingerprintProfileID:
+		case tlsfingerprintrouter.FieldID, tlsfingerprintrouter.FieldChatgptOauthTokenTLSFingerprintProfileID, tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID:
 			values[i] = new(sql.NullInt64)
-		case tlsfingerprintrouter.FieldName, tlsfingerprintrouter.FieldDescription, tlsfingerprintrouter.FieldChatgptOauthTokenUserAgent:
+		case tlsfingerprintrouter.FieldName, tlsfingerprintrouter.FieldDescription, tlsfingerprintrouter.FieldChatgptOauthTokenUserAgent, tlsfingerprintrouter.FieldCodexInviteResetUserAgent:
 			values[i] = new(sql.NullString)
 		case tlsfingerprintrouter.FieldCreatedAt, tlsfingerprintrouter.FieldUpdatedAt:
 			values[i] = new(sql.NullTime)
@@ -118,6 +122,19 @@ func (_m *TLSFingerprintRouter) assignValues(columns []string, values []any) err
 				_m.ChatgptOauthTokenTLSFingerprintProfileID = new(int64)
 				*_m.ChatgptOauthTokenTLSFingerprintProfileID = value.Int64
 			}
+		case tlsfingerprintrouter.FieldCodexInviteResetUserAgent:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field codex_invite_reset_user_agent", values[i])
+			} else if value.Valid {
+				_m.CodexInviteResetUserAgent = value.String
+			}
+		case tlsfingerprintrouter.FieldCodexInviteResetTLSFingerprintProfileID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field codex_invite_reset_tls_fingerprint_profile_id", values[i])
+			} else if value.Valid {
+				_m.CodexInviteResetTLSFingerprintProfileID = new(int64)
+				*_m.CodexInviteResetTLSFingerprintProfileID = value.Int64
+			}
 		case tlsfingerprintrouter.FieldRules:
 			if value, ok := values[i].(*[]byte); !ok {
 				return fmt.Errorf("unexpected type %T for field rules", values[i])
@@ -184,6 +201,14 @@ func (_m *TLSFingerprintRouter) String() string {
 	builder.WriteString(", ")
 	if v := _m.ChatgptOauthTokenTLSFingerprintProfileID; v != nil {
 		builder.WriteString("chatgpt_oauth_token_tls_fingerprint_profile_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	builder.WriteString("codex_invite_reset_user_agent=")
+	builder.WriteString(_m.CodexInviteResetUserAgent)
+	builder.WriteString(", ")
+	if v := _m.CodexInviteResetTLSFingerprintProfileID; v != nil {
+		builder.WriteString("codex_invite_reset_tls_fingerprint_profile_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -34,6 +35,7 @@ type OpenAIGatewayHandler struct {
 	usageRecordWorkerPool    *service.UsageRecordWorkerPool
 	errorPassthroughService  *service.ErrorPassthroughService
 	contentModerationService *service.ContentModerationService
+	opsService               *service.OpsService
 	concurrencyHelper        *ConcurrencyHelper
 	imageLimiter             *imageConcurrencyLimiter
 	maxAccountSwitches       int
@@ -112,6 +114,7 @@ func NewOpenAIGatewayHandler(
 	usageRecordWorkerPool *service.UsageRecordWorkerPool,
 	errorPassthroughService *service.ErrorPassthroughService,
 	contentModerationService *service.ContentModerationService,
+	opsService *service.OpsService,
 	cfg *config.Config,
 ) *OpenAIGatewayHandler {
 	pingInterval := time.Duration(0)
@@ -129,6 +132,7 @@ func NewOpenAIGatewayHandler(
 		usageRecordWorkerPool:    usageRecordWorkerPool,
 		errorPassthroughService:  errorPassthroughService,
 		contentModerationService: contentModerationService,
+		opsService:               opsService,
 		concurrencyHelper:        NewConcurrencyHelper(concurrencyService, SSEPingFormatComment, pingInterval),
 		imageLimiter:             &imageConcurrencyLimiter{},
 		maxAccountSwitches:       maxAccountSwitches,
@@ -315,6 +319,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	// Generate session hash (header first; fallback to prompt_cache_key)
 	explicitSessionHash := h.gatewayService.GenerateExplicitSessionHash(c, sessionHashBody)
 	sessionHash := h.gatewayService.GenerateSessionHash(c, sessionHashBody)
+	if h.rejectIfCyberSessionBlocked(c, apiKey, sessionHashBody, reqModel, cyberBlockFormatResponses) {
+		return
+	}
 	if explicitSessionHash != "" {
 		if err := h.ensureOpenAISessionIsolation(c.Request.Context(), apiKey, subject.UserID, service.SessionIsolationSourceOpenAI, explicitSessionHash); h.handleOpenAISessionIsolationError(c, err, streamStarted) {
 			return
@@ -405,6 +412,11 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			}()
 			return h.gatewayService.Forward(c.Request.Context(), c, account, forwardBody)
 		}()
+		cyberBlockKeyHTTP := ""
+		if service.GetOpsCyberPolicy(c) != nil {
+			cyberBlockKeyHTTP = service.CyberSessionBlockKey(apiKey.ID, c, sessionHashBody)
+		}
+		h.recordCyberPolicyIfMarked(c, apiKey, account, subscription, reqModel, err != nil, cyberBlockKeyHTTP, channelMapping.ToUsageFields(reqModel, ""), service.HashUsageRequestPayload(body))
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		upstreamLatencyMs, _ := getContextInt64(c, service.OpsUpstreamLatencyMsKey)
 		responseLatencyMs := forwardDurationMs
@@ -516,6 +528,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+		cyberBlocked := service.GetOpsCyberPolicy(c) != nil
 
 		// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
 		h.submitOpenAIUsageRecordTask(c, result, func(ctx context.Context) {
@@ -534,6 +547,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 				SessionID:          sessionHash,
 				APIKeyService:      h.apiKeyService,
 				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
+				CyberBlocked:       cyberBlocked,
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.responses"),
@@ -746,6 +760,9 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	sessionHash := h.gatewayService.GenerateSessionHash(c, body)
 	promptCacheKey := h.gatewayService.ExtractSessionID(c, body)
 	sessionHash, promptCacheKey = resolveOpenAIMessagesMetadataSession(sessionHash, promptCacheKey, reqModel, body)
+	if h.rejectIfCyberSessionBlocked(c, apiKey, body, reqModel, cyberBlockFormatAnthropic) {
+		return
+	}
 	isolationSource := service.SessionIsolationSourceOpenAI
 	explicitSessionHash := h.gatewayService.GenerateExplicitSessionHash(c, body)
 	if explicitSessionHash == "" {
@@ -842,6 +859,11 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 			}
 			return h.gatewayService.ForwardAsAnthropic(c.Request.Context(), c, account, forwardBody, promptCacheKey, defaultMappedModel, tlsRouterMatch)
 		}()
+		cyberBlockKeyMsg := ""
+		if service.GetOpsCyberPolicy(c) != nil {
+			cyberBlockKeyMsg = service.CyberSessionBlockKey(apiKey.ID, c, body)
+		}
+		h.recordCyberPolicyIfMarked(c, apiKey, account, subscription, reqModel, err != nil, cyberBlockKeyMsg, channelMappingMsg.ToUsageFields(reqModel, ""), service.HashUsageRequestPayload(body))
 
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		upstreamLatencyMs, _ := getContextInt64(c, service.OpsUpstreamLatencyMsKey)
@@ -923,10 +945,15 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 					h.recordOpenAICyberWarning(c, reqLog, apiKey, account, reqModel, statusCode, nil, err.Error())
 				}
 				h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, false, nil)
-				wroteFallback := h.ensureAnthropicErrorResponse(c, streamStarted)
+				upstreamErrorAlreadyCommunicated := openAIForwardErrorAlreadyCommunicated(c, writerSizeBeforeForward, err)
+				wroteFallback := false
+				if !upstreamErrorAlreadyCommunicated {
+					wroteFallback = h.ensureAnthropicErrorResponse(c, streamStarted)
+				}
 				reqLog.Warn("openai_messages.forward_failed",
 					zap.Int64("account_id", account.ID),
 					zap.Bool("fallback_error_response_written", wroteFallback),
+					zap.Bool("upstream_error_response_already_written", upstreamErrorAlreadyCommunicated),
 					zap.Error(err),
 				)
 				return
@@ -944,6 +971,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+		cyberBlocked := service.GetOpsCyberPolicy(c) != nil
 
 		h.submitOpenAIUsageRecordTask(c, result, func(ctx context.Context) {
 			if err := h.gatewayService.RecordUsage(ctx, &service.OpenAIRecordUsageInput{
@@ -961,6 +989,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 				SessionID:          sessionHash,
 				APIKeyService:      h.apiKeyService,
 				ChannelUsageFields: channelMappingMsg.ToUsageFields(reqModel, result.UpstreamModel),
+				CyberBlocked:       cyberBlocked,
 			}); err != nil {
 				logger.L().With(
 					zap.String("component", "handler.openai_gateway.messages"),
@@ -1083,45 +1112,11 @@ func (h *OpenAIGatewayHandler) acquireResponsesUserSlot(
 	reqLog *zap.Logger,
 ) (func(), bool) {
 	ctx := c.Request.Context()
-	userReleaseFunc, userAcquired, err := h.concurrencyHelper.TryAcquireUserSlot(ctx, userID, userConcurrency)
+	userReleaseFunc, err := h.concurrencyHelper.AcquireUserSlotWithWait(c, userID, userConcurrency, reqStream, streamStarted)
 	if err != nil {
 		reqLog.Warn("openai.user_slot_acquire_failed", zap.Error(err))
 		h.handleConcurrencyError(c, err, "user", *streamStarted)
 		return nil, false
-	}
-	if userAcquired {
-		return wrapReleaseOnDone(ctx, userReleaseFunc), true
-	}
-
-	maxWait := service.CalculateMaxWait(userConcurrency)
-	canWait, waitErr := h.concurrencyHelper.IncrementWaitCount(ctx, userID, maxWait)
-	if waitErr != nil {
-		reqLog.Warn("openai.user_wait_counter_increment_failed", zap.Error(waitErr))
-		// 按现有降级语义：等待计数异常时放行后续抢槽流程
-	} else if !canWait {
-		reqLog.Info("openai.user_wait_queue_full", zap.Int("max_wait", maxWait))
-		h.errorResponse(c, http.StatusTooManyRequests, "rate_limit_error", "Too many pending requests, please retry later")
-		return nil, false
-	}
-
-	waitCounted := waitErr == nil && canWait
-	defer func() {
-		if waitCounted {
-			h.concurrencyHelper.DecrementWaitCount(ctx, userID)
-		}
-	}()
-
-	userReleaseFunc, err = h.concurrencyHelper.AcquireUserSlotWithWait(c, userID, userConcurrency, reqStream, streamStarted)
-	if err != nil {
-		reqLog.Warn("openai.user_slot_acquire_failed_after_wait", zap.Error(err))
-		h.handleConcurrencyError(c, err, "user", *streamStarted)
-		return nil, false
-	}
-
-	// 槽位获取成功后，立刻退出等待计数。
-	if waitCounted {
-		h.concurrencyHelper.DecrementWaitCount(ctx, userID)
-		waitCounted = false
 	}
 	return wrapReleaseOnDone(ctx, userReleaseFunc), true
 }
@@ -1409,6 +1404,14 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		firstMessage,
 		openAIWSIngressFallbackSessionSeed(subject.UserID, apiKey.ID, apiKey.GroupID),
 	)
+	cyberBlockKeyWS := service.CyberSessionBlockKey(apiKey.ID, c, firstMessage)
+	if cyberBlockKeyWS != "" && h.gatewayService.IsCyberSessionBlocked(ctx, cyberBlockKeyWS) {
+		writeCyberSessionBlockedWSError(ctx, wsConn)
+		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, cyberSessionBlockedClientMsg)
+		h.enqueueCyberSessionBlockedOpsEntry(c, apiKey, reqModel, cyberBlockKeyWS)
+		return
+	}
+	var cyberBlockedThisConn atomic.Bool
 	explicitSessionHash := h.gatewayService.GenerateExplicitSessionHash(c, firstMessage)
 	if explicitSessionHash != "" {
 		if err := h.ensureOpenAISessionIsolation(ctx, apiKey, subject.UserID, service.SessionIsolationSourceOpenAI, explicitSessionHash); err != nil {
@@ -1558,6 +1561,9 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				return nil
 			},
 			BeforeTurn: func(turn int) error {
+				if cyberBlockedThisConn.Load() {
+					return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, cyberSessionBlockedClientMsg, nil)
+				}
 				if turn == 1 {
 					return nil
 				}
@@ -1597,9 +1603,31 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				result := capture.Result
 				turnErr := capture.Err
 				releaseTurnSlots()
-				clearCyberPromptExcerpt(turn)
+				defer clearCyberPolicyTurnState(c)
+				turnRequestBodyForCyber := capture.RequestBody
+				if len(turnRequestBodyForCyber) == 0 {
+					turnRequestBodyForCyber = wsFirstMessageForUsageFallback
+				}
+				h.recordCyberPolicyIfMarked(
+					c,
+					apiKey,
+					account,
+					subscription,
+					reqModel,
+					turnErr != nil,
+					cyberBlockKeyWS,
+					channelMappingWS.ToUsageFields(reqModel, ""),
+					service.HashUsageRequestPayload(turnRequestBodyForCyber),
+				)
+				if service.GetOpsCyberPolicy(c) != nil {
+					cyberBlockedThisConn.Store(true)
+				}
+				defer clearCyberPromptExcerpt(turn)
 				if turnErr != nil {
 					if result == nil || result.ImageCount <= 0 {
+						return
+					}
+					if service.GetOpsCyberPolicy(c) != nil {
 						return
 					}
 					reqLog.Warn("openai.websocket_partial_error_with_image_result",
@@ -1622,6 +1650,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					turnRequestBody = wsFirstMessageForUsageFallback
 				}
 				turnPayloadHash := service.HashUsageRequestPayload(turnRequestBody)
+				cyberBlocked := service.GetOpsCyberPolicy(c) != nil
 				h.submitOpenAIUsageRecordTask(c, result, func(taskCtx context.Context) {
 					if err := h.gatewayService.RecordUsage(taskCtx, &service.OpenAIRecordUsageInput{
 						Result:             result,
@@ -1640,6 +1669,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 						CaptureIncomplete:  result.ResponseBody == nil,
 						APIKeyService:      h.apiKeyService,
 						ChannelUsageFields: channelMappingWS.ToUsageFields(reqModel, result.UpstreamModel),
+						CyberBlocked:       cyberBlocked,
 					}); err != nil {
 						reqLog.Error("openai.websocket_record_usage_failed",
 							zap.Int64("account_id", account.ID),
@@ -2068,6 +2098,9 @@ func openAIForwardErrorAlreadyCommunicated(c *gin.Context, writerSizeBeforeForwa
 	if c.Writer.Size() == writerSizeBeforeForward {
 		return false
 	}
+	if service.GetOpsCyberPolicy(c) != nil {
+		return true
+	}
 
 	msg := strings.TrimSpace(err.Error())
 	for _, prefix := range []string{
@@ -2079,6 +2112,293 @@ func openAIForwardErrorAlreadyCommunicated(c *gin.Context, writerSizeBeforeForwa
 		}
 	}
 	return false
+}
+
+const cyberPolicyRecordedKey = "ops_cyber_recorded"
+
+type cyberPolicyOpsErrorMeta struct {
+	RequestID        string
+	ClientRequestID  string
+	Platform         string
+	Model            string
+	RequestPath      string
+	Stream           bool
+	InboundEndpoint  string
+	UpstreamEndpoint string
+	UserAgent        string
+	APIKeyPrefix     string
+	UserID           int64
+	APIKeyID         int64
+	AccountID        int64
+	GroupID          *int64
+	ClientIP         string
+	CreatedAt        time.Time
+	SessionBlockKey  string
+}
+
+func buildCyberPolicyOpsErrorEntry(meta cyberPolicyOpsErrorMeta, mark *service.CyberPolicyMark) *service.OpsInsertErrorLogInput {
+	if mark == nil {
+		return nil
+	}
+	rt := int16(service.RequestTypeCyberBlocked)
+	entry := &service.OpsInsertErrorLogInput{
+		RequestID:         meta.RequestID,
+		ClientRequestID:   meta.ClientRequestID,
+		Platform:          meta.Platform,
+		Model:             meta.Model,
+		RequestPath:       meta.RequestPath,
+		Stream:            meta.Stream,
+		InboundEndpoint:   meta.InboundEndpoint,
+		UpstreamEndpoint:  meta.UpstreamEndpoint,
+		RequestedModel:    meta.Model,
+		RequestType:       &rt,
+		UserAgent:         meta.UserAgent,
+		APIKeyPrefix:      meta.APIKeyPrefix,
+		ErrorPhase:        "request",
+		ErrorType:         "cyber_policy",
+		Severity:          "P3",
+		StatusCode:        mark.UpstreamStatus,
+		IsBusinessLimited: true,
+		ErrorMessage:      "cyber_policy: " + strings.TrimSpace(mark.Message),
+		ErrorBody:         mark.Body,
+		ErrorSource:       "upstream_http",
+		ErrorOwner:        "provider",
+		CreatedAt:         meta.CreatedAt,
+	}
+	if meta.UserID > 0 {
+		entry.UserID = &meta.UserID
+	}
+	if meta.APIKeyID > 0 {
+		entry.APIKeyID = &meta.APIKeyID
+	}
+	if meta.AccountID > 0 {
+		entry.AccountID = &meta.AccountID
+	}
+	if meta.GroupID != nil {
+		entry.GroupID = cloneHandlerInt64Ptr(meta.GroupID)
+	}
+	if meta.ClientIP != "" {
+		entry.ClientIP = &meta.ClientIP
+	}
+	return entry
+}
+
+const cyberSessionBlockedClientMsg = "该会话已被网络安全策略屏蔽，请开启新会话 / This session is blocked by cyber-security policy, please start a new session"
+
+func buildCyberSessionBlockedOpsEntry(meta cyberPolicyOpsErrorMeta) *service.OpsInsertErrorLogInput {
+	rt := int16(service.RequestTypeCyberBlocked)
+	entry := &service.OpsInsertErrorLogInput{
+		RequestID:         meta.RequestID,
+		ClientRequestID:   meta.ClientRequestID,
+		Platform:          meta.Platform,
+		Model:             meta.Model,
+		RequestPath:       meta.RequestPath,
+		Stream:            meta.Stream,
+		InboundEndpoint:   meta.InboundEndpoint,
+		RequestedModel:    meta.Model,
+		RequestType:       &rt,
+		UserAgent:         meta.UserAgent,
+		APIKeyPrefix:      meta.APIKeyPrefix,
+		ErrorPhase:        "request",
+		ErrorType:         "cyber_policy_session_blocked",
+		Severity:          "P3",
+		StatusCode:        http.StatusForbidden,
+		IsBusinessLimited: true,
+		ErrorMessage:      "cyber_policy_session_blocked: request rejected locally by session block",
+		ErrorBody:         "session_block_key=" + meta.SessionBlockKey,
+		ErrorSource:       "gateway_local",
+		ErrorOwner:        "platform",
+		CreatedAt:         meta.CreatedAt,
+	}
+	if meta.UserID > 0 {
+		entry.UserID = &meta.UserID
+	}
+	if meta.APIKeyID > 0 {
+		entry.APIKeyID = &meta.APIKeyID
+	}
+	if meta.GroupID != nil {
+		entry.GroupID = cloneHandlerInt64Ptr(meta.GroupID)
+	}
+	if meta.ClientIP != "" {
+		entry.ClientIP = &meta.ClientIP
+	}
+	return entry
+}
+
+type cyberSessionBlockFormat int
+
+const (
+	cyberBlockFormatResponses cyberSessionBlockFormat = iota
+	cyberBlockFormatChat
+	cyberBlockFormatAnthropic
+)
+
+func (h *OpenAIGatewayHandler) rejectIfCyberSessionBlocked(c *gin.Context, apiKey *service.APIKey, body []byte, model string, format cyberSessionBlockFormat) bool {
+	if h == nil || h.gatewayService == nil || apiKey == nil || c == nil {
+		return false
+	}
+	if enabled, _ := h.gatewayService.CyberSessionBlockRuntime(c.Request.Context()); !enabled {
+		return false
+	}
+	key := service.CyberSessionBlockKey(apiKey.ID, c, body)
+	if key == "" || !h.gatewayService.IsCyberSessionBlocked(c.Request.Context(), key) {
+		return false
+	}
+	switch format {
+	case cyberBlockFormatAnthropic:
+		c.JSON(http.StatusForbidden, gin.H{"type": "error", "error": gin.H{
+			"type":    "permission_error",
+			"message": cyberSessionBlockedClientMsg,
+		}})
+	default:
+		c.JSON(http.StatusForbidden, gin.H{"error": gin.H{
+			"type":    "permission_error",
+			"code":    "session_blocked_by_cyber_policy",
+			"message": cyberSessionBlockedClientMsg,
+		}})
+	}
+	h.enqueueCyberSessionBlockedOpsEntry(c, apiKey, model, key)
+	return true
+}
+
+func (h *OpenAIGatewayHandler) enqueueCyberSessionBlockedOpsEntry(c *gin.Context, apiKey *service.APIKey, model string, sessionBlockKey string) {
+	if h == nil || h.opsService == nil || c == nil {
+		return
+	}
+	meta := h.cyberPolicyOpsMeta(c, apiKey, nil, model, service.PlatformOpenAI, false, sessionBlockKey)
+	enqueueOpsErrorLog(h.opsService, buildCyberSessionBlockedOpsEntry(meta))
+}
+
+func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey *service.APIKey, account *service.Account, subscription *service.UserSubscription, model string, forwardErrored bool, cyberBlockKey string, channelFields service.ChannelUsageFields, requestPayloadHash string) {
+	mark := service.GetOpsCyberPolicy(c)
+	if mark == nil || c == nil {
+		return
+	}
+	if c.GetBool(cyberPolicyRecordedKey) {
+		return
+	}
+	c.Set(cyberPolicyRecordedKey, true)
+
+	platform := service.PlatformOpenAI
+	if account != nil && strings.TrimSpace(account.Platform) != "" {
+		platform = account.Platform
+	}
+	meta := h.cyberPolicyOpsMeta(c, apiKey, account, model, platform, requestIsStream(c), cyberBlockKey)
+	responseBody := []byte(mark.Body)
+	promptExcerpt := currentOpenAICyberWarningPromptExcerpt(c)
+	h.recordOpenAICyberWarningWithPromptExcerpt(c, requestLogger(c, "handler.openai_gateway.cyber_policy"), apiKey, account, model, mark.UpstreamStatus, responseBody, mark.Message, promptExcerpt)
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if forwardErrored && h.gatewayService != nil {
+			h.gatewayService.RecordCyberPolicyUsageLog(ctx, service.CyberPolicyUsageInput{
+				APIKey:             apiKey,
+				Account:            account,
+				Subscription:       subscription,
+				RequestID:          meta.RequestID,
+				Model:              model,
+				Stream:             meta.Stream,
+				InputTokens:        mark.UpstreamInTok,
+				OutputTokens:       mark.UpstreamOutTok,
+				InboundEndpoint:    meta.InboundEndpoint,
+				UpstreamEndpoint:   meta.UpstreamEndpoint,
+				UserAgent:          meta.UserAgent,
+				IPAddress:          meta.ClientIP,
+				RequestPayloadHash: requestPayloadHash,
+				APIKeyService:      h.apiKeyService,
+				ChannelUsageFields: channelFields,
+			})
+		}
+		if h.gatewayService != nil && cyberBlockKey != "" {
+			h.gatewayService.MarkCyberSessionBlocked(ctx, cyberBlockKey)
+		}
+		if h.opsService != nil {
+			enqueueOpsErrorLog(h.opsService, buildCyberPolicyOpsErrorEntry(meta, mark))
+		}
+	}()
+}
+
+func (h *OpenAIGatewayHandler) cyberPolicyOpsMeta(c *gin.Context, apiKey *service.APIKey, account *service.Account, model string, platform string, stream bool, sessionBlockKey string) cyberPolicyOpsErrorMeta {
+	meta := cyberPolicyOpsErrorMeta{
+		RequestID:        c.Writer.Header().Get("X-Request-Id"),
+		ClientRequestID:  c.GetHeader("X-Request-Id"),
+		Platform:         platform,
+		Model:            strings.TrimSpace(model),
+		Stream:           stream,
+		InboundEndpoint:  GetInboundEndpoint(c),
+		UpstreamEndpoint: GetUpstreamEndpoint(c, platform),
+		UserAgent:        c.GetHeader("User-Agent"),
+		ClientIP:         ip.GetClientIP(c),
+		CreatedAt:        time.Now(),
+		SessionBlockKey:  sessionBlockKey,
+	}
+	if c.Request != nil && c.Request.URL != nil {
+		meta.RequestPath = c.Request.URL.Path
+	}
+	if apiKey != nil {
+		meta.APIKeyID = apiKey.ID
+		meta.APIKeyPrefix = keyPrefix(apiKey.Key, 8)
+		meta.UserID = apiKey.UserID
+		meta.GroupID = cloneHandlerInt64Ptr(apiKey.GroupID)
+	}
+	if account != nil {
+		meta.AccountID = account.ID
+	}
+	return meta
+}
+
+func requestIsStream(c *gin.Context) bool {
+	if c == nil {
+		return false
+	}
+	if v, ok := c.Get(opsStreamKey); ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return false
+}
+
+func cloneHandlerInt64Ptr(in *int64) *int64 {
+	if in == nil {
+		return nil
+	}
+	v := *in
+	return &v
+}
+
+func clearCyberPolicyTurnState(c *gin.Context) {
+	if c == nil {
+		return
+	}
+	service.ClearOpsCyberPolicy(c)
+	c.Set(cyberPolicyRecordedKey, false)
+	c.Set(openAICyberWarningRecordedKey, false)
+}
+
+func writeCyberSessionBlockedWSError(ctx context.Context, conn *coderws.Conn) {
+	if conn == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	payload, err := json.Marshal(gin.H{
+		"event_id": "evt_cyber_session_blocked",
+		"type":     "error",
+		"error": gin.H{
+			"type":    "permission_error",
+			"code":    "session_blocked_by_cyber_policy",
+			"message": cyberSessionBlockedClientMsg,
+		},
+	})
+	if err != nil {
+		payload = []byte(`{"event_id":"evt_cyber_session_blocked","type":"error","error":{"type":"permission_error","code":"session_blocked_by_cyber_policy","message":"This session is blocked by cyber-security policy, please start a new session"}}`)
+	}
+	writeCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	_ = conn.Write(writeCtx, coderws.MessageText, payload)
 }
 
 // errorResponse returns OpenAI API format error response

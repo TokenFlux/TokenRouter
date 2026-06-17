@@ -13,7 +13,7 @@ import (
 
 // GetAvailableMethodLimits collects all payment types from enabled provider
 // instances and returns limits for each, plus the global widest range.
-// Stripe sub-types (card, link) are aggregated under "stripe".
+// Stripe 实例按服务商级 "stripe" 聚合，兼容旧实例保存的 card/link 等子方式。
 func (s *PaymentConfigService) GetAvailableMethodLimits(ctx context.Context) (*MethodLimitsResponse, error) {
 	instances, err := s.entClient.PaymentProviderInstance.Query().
 		Where(paymentproviderinstance.EnabledEQ(true)).All(ctx)
@@ -180,10 +180,9 @@ func (s *PaymentConfigService) pcInstancePaymentCurrency(inst *dbent.PaymentProv
 	return paymentProviderConfigCurrency(inst.ProviderKey, cfg)
 }
 
-// pcGroupByPaymentType groups instances by user-facing payment type.
-// For Stripe providers, ALL sub-types (card, link, alipay, wxpay) map to "stripe"
-// because the user sees a single "Stripe" button, not individual sub-methods.
-// Uses a seen set to avoid counting one instance twice.
+// pcGroupByPaymentType 按用户可见支付方式聚合服务商实例。
+// Stripe 统一映射为 "stripe"，因为 Checkout 只展示一个 Stripe 入口，具体支付方式由 Stripe Dashboard 控制。
+// seen 用于避免同一个实例在一个分组里重复计数。
 func pcGroupByPaymentType(instances []*dbent.PaymentProviderInstance) map[string][]*dbent.PaymentProviderInstance {
 	typeInstances := make(map[string][]*dbent.PaymentProviderInstance)
 	seen := make(map[string]map[int64]bool)
@@ -197,7 +196,7 @@ func pcGroupByPaymentType(instances []*dbent.PaymentProviderInstance) map[string
 		}
 	}
 	for _, inst := range instances {
-		// Stripe provider: all sub-types → single "stripe" group
+		// Stripe 服务商统一归到单个 "stripe" 分组。
 		if inst.ProviderKey == payment.TypeStripe {
 			add(payment.TypeStripe, inst)
 			continue
