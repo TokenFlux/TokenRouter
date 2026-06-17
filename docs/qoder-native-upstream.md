@@ -53,6 +53,23 @@ Claude Code may vary the `x-anthropic-billing-header ... cch=...` fragment betwe
 ## OpenAI Chat tool-call compatibility
 Some Qoder routes may emit Claude-style tool names such as `Bash` even when an OpenAI Chat client declared a lowercase function name such as `bash`. TokenRouter maps upstream tool-call names back to the declared OpenAI tool names for both streaming and non-streaming Chat Completions responses, so clients like opencode can match the returned `tool_calls[].function.name` against their configured tools.
 
+## Real-client validation notes
+
+Live validation on 2026-06-17 captured real Claude Code 2.1.179 and OpenCode 1.17.7 traffic through TokenRouter + Qoder using isolated config directories and temporary API keys. The latest sanitized evidence is in `docs/qoder-gateway-current-live-validation-20260617.md` and `tmp/qoder-live-current-20260617-130355/`; the earlier full matrix is in `docs/qoder-gateway-live-client-validation-20260617.md` and `tmp/qoder-live-verify-20260617-065425/`.
+
+Observed transport/base URL shape:
+
+- Claude Code used a root Anthropic base URL (`http://127.0.0.1:19180`) and the gateway received `/v1/messages?beta=true` requests.
+- OpenCode Anthropic required a `/v1` base URL.
+- OpenCode OpenAI Chat and Responses providers both completed tool round trips through the gateway.
+
+Observed successful tool/result characteristics:
+
+- Claude Code: Bash + Read tool round trip, valid `tool_use.input` objects, matching `tool_result.tool_use_id`s, no `Invalid tool parameters`.
+- OpenCode: supported Chat/Responses/Anthropic transports completed `glob` + `bash` tool execution without `provider_error`.
+- OpenCode `deepseek-v4-pro` and `glm-5.1` chat runs showed cached-token usage in the second turn.
+- Direct Anthropic Messages stable-prefix probes showed upstream cache reads on the second turn (`cache_read_input_tokens=5630`); direct Chat probes with a stable prefix still returned zero cached tokens in one run, confirming cache usage must be read from upstream usage fields rather than inferred from key stability alone.
+
 ## Local validation
 Backend:
 - `go test ./internal/pkg/qoder -run 'Qoder|SSE|Usage|Cache|Encode|Decode' -count=1`
@@ -63,7 +80,7 @@ Frontend:
 - `cd frontend && pnpm build`
 
 Full gates:
-- `make test`
+- `PATH="$(go env GOPATH)/bin:$PATH" make test`
 - `make build`
 
 ## Known limits

@@ -347,6 +347,36 @@ func TestParseSSELineToolCallPreservesIndexTypeAndObjectArguments(t *testing.T) 
 	}
 }
 
+func TestParseSSELineToolCallSyntheticIndexSkipsEmptyPlaceholders(t *testing.T) {
+	line := `data: {"body": "{\"choices\":[{\"delta\":{\"tool_calls\":[{}, {\"type\":\"function\"}, {\"type\":\"function\",\"function\":{\"arguments\":\"{\\\"command\\\":\\\"pwd\\\"}\"}}, {\"type\":\"function\",\"function\":{\"arguments\":\"{\\\"command\\\":\\\"printf OPENCODE_PARALLEL_OK\\\"}\"}}, {\"type\":\"function\",\"function\":{\"arguments\":\"{\\\"pattern\\\":\\\"docs/*.md\\\"}\"}}]}}]}"}`
+	events, err := ParseSSELine(line)
+	if err != nil {
+		t.Fatalf("ParseSSELine: %v", err)
+	}
+	if len(events) != 3 {
+		t.Fatalf("events length = %d, want 3: %#v", len(events), events)
+	}
+	for i, event := range events {
+		if !event.HasToolCallIndex || event.ToolCallIndex != i {
+			t.Fatalf("event %d index = (%v, %d), want (true, %d): %#v", i, event.HasToolCallIndex, event.ToolCallIndex, i, events)
+		}
+	}
+	if events[0].Arguments != `{"command":"pwd"}` || events[1].Arguments != `{"command":"printf OPENCODE_PARALLEL_OK"}` || events[2].Arguments != `{"pattern":"docs/*.md"}` {
+		t.Fatalf("arguments = %#v, want compact synthetic indexes with arguments", events)
+	}
+}
+
+func TestParseSSELineToolUseEnvelopeEventsSkipTypeOnlyPlaceholder(t *testing.T) {
+	line := `data: {"body": "{\"event\":\"tool_use_delta\",\"data\":{\"type\":\"function\"}}"}`
+	events, err := ParseSSELine(line)
+	if err != nil {
+		t.Fatalf("ParseSSELine: %v", err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("events = %#v, want no event for type-only placeholder", events)
+	}
+}
+
 func TestParseSSELineFlatToolCall(t *testing.T) {
 	line := `data: {"body": "{\"choices\":[{\"delta\":{\"tool_calls\":[{\"tool_call_id\":\"tc1\",\"name\":\"Bash\",\"arguments\":{\"command\":\"pwd\"}}]}}]}"}`
 	events, err := ParseSSELine(line)
@@ -384,6 +414,26 @@ func TestParseSSELineToolUseEnvelopeEvents(t *testing.T) {
 	}
 	if len(events) != 1 || events[0].ToolCallID != "tc1" || events[0].Arguments != `{"command":"pwd"}` {
 		t.Fatalf("delta events = %#v, want arguments", events)
+	}
+}
+
+func TestParseSSELineToolUseEnvelopeEventsPreserveIndex(t *testing.T) {
+	start := `data: {"body": "{\"event\":\"tool_use_start\",\"data\":{\"index\":2,\"id\":\"tc1\",\"name\":\"Bash\"}}"}`
+	delta := `data: {"body": "{\"event\":\"tool_use_delta\",\"data\":{\"index\":2,\"arguments\":\"{\\\"command\\\":\\\"pwd\\\"}\"}}"}`
+
+	events, err := ParseSSELine(start)
+	if err != nil {
+		t.Fatalf("ParseSSELine start: %v", err)
+	}
+	if len(events) != 1 || !events[0].HasToolCallIndex || events[0].ToolCallIndex != 2 || events[0].ToolName != "Bash" {
+		t.Fatalf("start events = %#v, want index 2 Bash", events)
+	}
+	events, err = ParseSSELine(delta)
+	if err != nil {
+		t.Fatalf("ParseSSELine delta: %v", err)
+	}
+	if len(events) != 1 || !events[0].HasToolCallIndex || events[0].ToolCallIndex != 2 || events[0].Arguments != `{"command":"pwd"}` {
+		t.Fatalf("delta events = %#v, want index 2 arguments", events)
 	}
 }
 

@@ -336,9 +336,7 @@ func defaultMarketplaceModelDefs(platform string) []marketplaceModelDef {
 		return models
 	case PlatformQoder:
 		models := make([]marketplaceModelDef, 0, len(defaultQoderModelAliases))
-		for _, model := range qoderDefaultPublicModels() {
-			models = append(models, model)
-		}
+		models = append(models, qoderDefaultPublicModels()...)
 		return models
 	default:
 		return nil

@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -557,11 +558,7 @@ func parseQoderChatCompletionsPayload(body []byte) (qoderPayloadRequest, error) 
 		return qoderPayloadRequest{}, errors.New("model is required")
 	}
 
-	responsesReq, err := apicompat.ChatCompletionsToResponses(&req)
-	if err != nil {
-		return qoderPayloadRequest{}, fmt.Errorf("convert chat completions request: %w", err)
-	}
-	messages, err := qoderMessagesFromResponsesInput(responsesReq.Input)
+	messages, err := qoderMessagesFromChatCompletions(req.Messages)
 	if err != nil {
 		return qoderPayloadRequest{}, err
 	}
@@ -835,10 +832,6 @@ func (s *qoderConversationStore) plan(key, system string, tools []any, messages 
 		currentFirstHash:      currentFirstHash,
 		previousState:         cloneQoderConversationState(state),
 	}
-}
-
-func qoderMessageTailStartsWithToolContinuation(messages []qoderMessage) bool {
-	return len(messages) >= 2 && messages[0].Role == "assistant" && qoderMessageHasToolCalls(messages[0]) && messages[1].Role == "tool"
 }
 
 func qoderMessageHasToolCalls(message qoderMessage) bool {
@@ -1466,6 +1459,95 @@ func qoderChatContentText(raw json.RawMessage) string {
 		return strings.Join(out, "\n")
 	}
 	return ""
+}
+
+func qoderMessagesFromChatCompletions(messages []apicompat.ChatMessage) ([]qoderMessage, error) {
+	out := make([]qoderMessage, 0, len(messages))
+	for _, message := range messages {
+		converted, err := qoderMessageFromChatCompletionsMessage(message)
+		if err != nil {
+			return nil, err
+		}
+		if converted.Role != "" {
+			out = append(out, converted)
+		}
+	}
+	return out, nil
+}
+
+func qoderMessageFromChatCompletionsMessage(message apicompat.ChatMessage) (qoderMessage, error) {
+	role := strings.TrimSpace(message.Role)
+	switch role {
+	case "", "user":
+		text := qoderChatContentText(message.Content)
+		return qoderMessage{Role: "user", Text: text, Raw: map[string]any{"role": "user", "content": text}}, nil
+	case "system", "developer":
+		return qoderMessage{}, nil
+	case "assistant":
+		text := qoderChatContentText(message.Content)
+		raw := map[string]any{"role": "assistant", "content": text}
+		if toolCalls := qoderChatToolCalls(message.ToolCalls); len(toolCalls) > 0 {
+			raw["tool_calls"] = toolCalls
+		}
+		return qoderMessage{Role: "assistant", Text: text, Raw: raw}, nil
+	case "tool":
+		text := qoderChatContentText(message.Content)
+		if text == "" {
+			text = "(empty)"
+		}
+		raw := map[string]any{
+			"role":         "tool",
+			"tool_call_id": message.ToolCallID,
+			"content":      text,
+		}
+		if name := strings.TrimSpace(message.Name); name != "" {
+			raw["name"] = name
+		}
+		return qoderMessage{Role: "tool", Text: text, ToolCallID: message.ToolCallID, Raw: raw}, nil
+	case "function":
+		text := qoderChatContentText(message.Content)
+		if text == "" {
+			text = "(empty)"
+		}
+		callID := strings.TrimSpace(message.Name)
+		raw := map[string]any{
+			"role":         "tool",
+			"tool_call_id": callID,
+			"content":      text,
+		}
+		if callID != "" {
+			raw["name"] = callID
+		}
+		return qoderMessage{Role: "tool", Text: text, ToolCallID: callID, Raw: raw}, nil
+	default:
+		return qoderMessage{}, fmt.Errorf("unsupported chat message role: %s", role)
+	}
+}
+
+func qoderChatToolCalls(toolCalls []apicompat.ChatToolCall) []any {
+	if len(toolCalls) == 0 {
+		return nil
+	}
+	out := make([]any, 0, len(toolCalls))
+	for _, toolCall := range toolCalls {
+		arguments := toolCall.Function.Arguments
+		if strings.TrimSpace(arguments) == "" {
+			arguments = "{}"
+		}
+		callType := strings.TrimSpace(toolCall.Type)
+		if callType == "" {
+			callType = "function"
+		}
+		out = append(out, map[string]any{
+			"id":   toolCall.ID,
+			"type": callType,
+			"function": map[string]any{
+				"name":      toolCall.Function.Name,
+				"arguments": arguments,
+			},
+		})
+	}
+	return out
 }
 
 func qoderAnthropicSystemText(raw json.RawMessage) (string, error) {
@@ -2226,7 +2308,11 @@ func WriteQoderOpenAIStream(c *gin.Context, model string, events []qoder.SSEEven
 			}
 		}
 		if event.Type == "tool_call_delta" {
-			if err := writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{"tool_calls": toolCalls.AppendDelta(event)}, nil)); err != nil {
+			deltas := toolCalls.AppendDelta(event)
+			if len(deltas) == 0 {
+				continue
+			}
+			if err := writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{"tool_calls": deltas}, nil)); err != nil {
 				return err
 			}
 		}
@@ -2622,6 +2708,9 @@ func normalizeQoderTextToolCallNameAndArguments(name string, arguments string) (
 		if command == "" || command == "{}" {
 			return normalizedName, "{}"
 		}
+		if strings.HasPrefix(command, "{") || strings.HasPrefix(command, "[") {
+			return normalizedName, arguments
+		}
 		body, _ := json.Marshal(map[string]any{"command": command})
 		return normalizedName, string(body)
 	}
@@ -2776,6 +2865,9 @@ func (a *qoderOpenAIToolCallAccumulator) AppendDelta(event qoder.SSEEvent) []any
 		return []any{}
 	}
 	event = normalizeQoderOutboundToolCallEvent(event)
+	if qoderToolCallDeltaIsEmptyPlaceholder(event) {
+		return []any{}
+	}
 	if event.ToolCallID == "" && !event.HasToolCallIndex && event.ToolName == "" && event.ToolType == "" && event.Arguments != "" && len(a.calls) > 1 {
 		return []any{}
 	}
@@ -2856,12 +2948,24 @@ func (a *qoderOpenAIToolCallAccumulator) resolveIndex(event qoder.SSEEvent) int 
 	if event.HasToolCallIndex && event.ToolCallIndex >= 0 {
 		if index, ok := a.slotByUpstreamIndex[event.ToolCallIndex]; ok && index >= 0 && index < len(a.calls) {
 			if event.ToolCallID == "" || a.calls[index].ID == "" || a.calls[index].ID == event.ToolCallID {
+				if a.shouldStartNewToolCallInSlot(event, index) {
+					return len(a.calls)
+				}
 				return index
+			}
+			if event.ToolCallID != "" && a.calls[index].ID != "" && a.calls[index].ID != event.ToolCallID {
+				return len(a.calls)
 			}
 		}
 	}
 	if event.HasToolCallIndex && event.ToolCallIndex >= 0 && event.ToolCallID == "" && (event.ToolName != "" || event.ToolType != "") {
+		if event.ToolCallIndex < len(a.calls) && a.shouldStartNewToolCallInSlot(event, event.ToolCallIndex) {
+			return len(a.calls)
+		}
 		return event.ToolCallIndex
+	}
+	if a.shouldStartImplicitToolCall(event) {
+		return len(a.calls)
 	}
 	if len(a.calls) > 0 {
 		last := &a.calls[len(a.calls)-1]
@@ -2876,6 +2980,38 @@ func (a *qoderOpenAIToolCallAccumulator) resolveIndex(event qoder.SSEEvent) int 
 		return 0
 	}
 	return len(a.calls)
+}
+
+func (a *qoderOpenAIToolCallAccumulator) shouldStartImplicitToolCall(event qoder.SSEEvent) bool {
+	if a == nil || len(a.calls) == 0 || event.ToolCallID != "" || event.HasToolCallIndex {
+		return false
+	}
+	return a.shouldStartNewToolCallInSlot(event, len(a.calls)-1)
+}
+
+func (a *qoderOpenAIToolCallAccumulator) shouldStartNewToolCallInSlot(event qoder.SSEEvent, index int) bool {
+	if a == nil || index < 0 || index >= len(a.calls) || event.ToolCallID != "" {
+		return false
+	}
+	if event.ToolName == "" && event.ToolType == "" {
+		return false
+	}
+	existing := a.calls[index]
+	if existing.ID == "" && existing.Name == "" && existing.Arguments == "" {
+		return false
+	}
+	if qoderToolArgumentsAreCompleteJSON(existing.Arguments) && !qoderToolArgumentStringIsEmptyPlaceholder(existing.Arguments) {
+		return true
+	}
+	return existing.Name != "" && existing.Arguments == "" && event.Arguments == ""
+}
+
+func qoderToolArgumentsAreCompleteJSON(arguments string) bool {
+	trimmed := strings.TrimSpace(arguments)
+	if trimmed == "" {
+		return false
+	}
+	return json.Valid([]byte(trimmed))
 }
 
 func mergeQoderToolArguments(existing string, delta string) string {
@@ -2894,6 +3030,10 @@ func mergeQoderToolArguments(existing string, delta string) string {
 	return existing + delta
 }
 
+func qoderToolCallDeltaIsEmptyPlaceholder(event qoder.SSEEvent) bool {
+	return event.ToolCallID == "" && event.ToolName == "" && event.Arguments == "" && event.ToolType != ""
+}
+
 func (a *qoderOpenAIToolCallAccumulator) bindUpstreamIndex(event qoder.SSEEvent, slot int) {
 	if a == nil || !event.HasToolCallIndex || event.ToolCallIndex < 0 || slot < 0 || slot >= len(a.calls) {
 		return
@@ -2905,6 +3045,7 @@ func (a *qoderOpenAIToolCallAccumulator) bindUpstreamIndex(event qoder.SSEEvent,
 		existingID := a.calls[existingSlot].ID
 		slotID := a.calls[slot].ID
 		if existingID != "" && slotID != "" && existingID != slotID {
+			a.slotByUpstreamIndex[event.ToolCallIndex] = slot
 			return
 		}
 	}
@@ -2937,7 +3078,11 @@ func qoderOpenAIToolCallDelta(index int, event qoder.SSEEvent) map[string]any {
 }
 
 func qoderToolArgumentDeltaIsEmptyPlaceholder(event qoder.SSEEvent) bool {
-	return strings.TrimSpace(event.Arguments) == "{}"
+	return qoderToolArgumentStringIsEmptyPlaceholder(event.Arguments)
+}
+
+func qoderToolArgumentStringIsEmptyPlaceholder(arguments string) bool {
+	return strings.TrimSpace(arguments) == "{}"
 }
 
 func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model string, resp *http.Response, options ...qoderOpenAIStreamResponseOption) (*qoderStreamResult, error) {
@@ -2998,7 +3143,11 @@ func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model s
 		}
 		if event.Type == "tool_call_delta" {
 			result.HasOutput = true
-			return writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{"tool_calls": toolCalls.AppendDelta(event)}, nil))
+			deltas := toolCalls.AppendDelta(event)
+			if len(deltas) == 0 {
+				return nil
+			}
+			return writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{"tool_calls": deltas}, nil))
 		}
 		return nil
 	}, func() error {
@@ -3252,6 +3401,23 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 	messageOutputIndex := -1
 	messageOpen := false
 	messageDone := false
+	var messageText strings.Builder
+	completedOutputs := map[int]apicompat.ResponsesOutput{}
+	completedOutputList := func() []apicompat.ResponsesOutput {
+		if len(completedOutputs) == 0 {
+			return []apicompat.ResponsesOutput{}
+		}
+		indexes := make([]int, 0, len(completedOutputs))
+		for index := range completedOutputs {
+			indexes = append(indexes, index)
+		}
+		sort.Ints(indexes)
+		outputs := make([]apicompat.ResponsesOutput, 0, len(indexes))
+		for _, index := range indexes {
+			outputs = append(outputs, completedOutputs[index])
+		}
+		return outputs
+	}
 	openMessage := func() error {
 		if messageOpen || messageDone {
 			return nil
@@ -3280,21 +3446,25 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 			OutputIndex:  messageOutputIndex,
 			ContentIndex: 0,
 			ItemID:       messageItemID,
+			Text:         messageText.String(),
 		}); err != nil {
 			return err
+		}
+		item := apicompat.ResponsesOutput{
+			Type:    "message",
+			ID:      messageItemID,
+			Role:    "assistant",
+			Content: []apicompat.ResponsesContentPart{{Type: "output_text", Text: messageText.String()}},
+			Status:  "completed",
 		}
 		if err := writeEvent(apicompat.ResponsesStreamEvent{
 			Type:        "response.output_item.done",
 			OutputIndex: messageOutputIndex,
-			Item: &apicompat.ResponsesOutput{
-				Type:   "message",
-				ID:     messageItemID,
-				Role:   "assistant",
-				Status: "completed",
-			},
+			Item:        &item,
 		}); err != nil {
 			return err
 		}
+		completedOutputs[messageOutputIndex] = item
 		messageOpen = false
 		messageDone = true
 		return nil
@@ -3352,8 +3522,14 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 		})
 	}
 	writeToolDelta := func(event qoder.SSEEvent) error {
+		if qoderToolCallDeltaIsEmptyPlaceholder(normalizeQoderOutboundToolCallEvent(event)) {
+			return nil
+		}
 		index := toolIndexForEvent(event)
 		deltas := toolAccumulator.AppendDelta(event)
+		if len(deltas) == 0 {
+			return nil
+		}
 		state, err := ensureToolAdded(index)
 		if err != nil {
 			return err
@@ -3379,7 +3555,13 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 		return nil
 	}
 	closeTools := func() error {
-		for index, state := range toolStates {
+		indexes := make([]int, 0, len(toolStates))
+		for index := range toolStates {
+			indexes = append(indexes, index)
+		}
+		sort.Ints(indexes)
+		for _, index := range indexes {
+			state := toolStates[index]
 			if state == nil {
 				continue
 			}
@@ -3399,20 +3581,22 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 			}); err != nil {
 				return err
 			}
+			item := apicompat.ResponsesOutput{
+				Type:      "function_call",
+				ID:        state.itemID,
+				CallID:    state.callID,
+				Name:      state.name,
+				Arguments: firstNonEmptyQoder(state.arguments, "{}"),
+				Status:    "completed",
+			}
 			if err := writeEvent(apicompat.ResponsesStreamEvent{
 				Type:        "response.output_item.done",
 				OutputIndex: state.outputIndex,
-				Item: &apicompat.ResponsesOutput{
-					Type:      "function_call",
-					ID:        state.itemID,
-					CallID:    state.callID,
-					Name:      state.name,
-					Arguments: firstNonEmptyQoder(state.arguments, "{}"),
-					Status:    "completed",
-				},
+				Item:        &item,
 			}); err != nil {
 				return err
 			}
+			completedOutputs[state.outputIndex] = item
 			state.done = true
 		}
 		return nil
@@ -3440,7 +3624,7 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 				Object: "response",
 				Model:  model,
 				Status: "completed",
-				Output: []apicompat.ResponsesOutput{},
+				Output: completedOutputList(),
 				Usage:  qoderResponsesUsage(finalUsage),
 			},
 		})
@@ -3462,6 +3646,7 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 				if err := openMessage(); err != nil {
 					return err
 				}
+				_, _ = messageText.WriteString(event.Text)
 				return writeEvent(apicompat.ResponsesStreamEvent{
 					Type:         "response.output_text.delta",
 					OutputIndex:  messageOutputIndex,
@@ -3601,17 +3786,22 @@ func (w *qoderAnthropicContentWriter) writeThinkingDelta(text string) error {
 }
 
 func (w *qoderAnthropicContentWriter) writeToolCall(event qoder.SSEEvent) error {
+	normalized := normalizeQoderOutboundToolCallEvent(event)
+	if qoderToolCallDeltaIsEmptyPlaceholder(normalized) {
+		return nil
+	}
 	if err := w.closeOpenTextBlock(); err != nil {
 		return err
 	}
 	if err := w.closeOpenThinkingBlock(); err != nil {
 		return err
 	}
-	w.sawToolCall = true
 	if w.pendingToolCalls == nil {
 		w.pendingToolCalls = newQoderOpenAIToolCallAccumulator(w.mapToolName)
 	}
-	w.pendingToolCalls.AppendDelta(event)
+	if len(w.pendingToolCalls.AppendDelta(normalized)) > 0 {
+		w.sawToolCall = true
+	}
 	return nil
 }
 
@@ -3671,6 +3861,9 @@ func (w *qoderAnthropicContentWriter) flushPendingToolCalls() error {
 		}
 		arguments := qoderToolArgumentsString(function["arguments"])
 		if arguments != "" {
+			if _, err := qoderAnthropicToolInput(arguments); err != nil {
+				return err
+			}
 			if err := writeAnthropicSSE(w.w, "content_block_delta", map[string]any{
 				"type":  "content_block_delta",
 				"index": index,
@@ -3842,7 +4035,10 @@ func BuildQoderOpenAICompletion(model string, events []qoder.SSEEvent, toolNameM
 
 func BuildQoderAnthropicMessage(model string, events []qoder.SSEEvent, toolNameMappers ...qoderToolNameMapper) ([]byte, error) {
 	events = normalizeQoderTextToolCallEvents(events)
-	contentBlocks := qoderAnthropicContentBlocksFromEvents(events, toolNameMappers...)
+	contentBlocks, err := qoderAnthropicContentBlocksFromEvents(events, toolNameMappers...)
+	if err != nil {
+		return nil, err
+	}
 	usage := qoderUsageFromEvents(events)
 	usageDetails := qoderUsageDetailsFromEvents(events)
 	stopReason := "end_turn"
@@ -3872,15 +4068,16 @@ func qoderOpenAIToolCallsFromEvents(events []qoder.SSEEvent, toolNameMappers ...
 }
 
 func qoderEventsHaveToolCalls(events []qoder.SSEEvent) bool {
+	acc := newQoderOpenAIToolCallAccumulator()
 	for _, event := range events {
 		if event.Type == "tool_call_delta" {
-			return true
+			acc.AppendDelta(event)
 		}
 	}
-	return false
+	return acc.HasToolCalls()
 }
 
-func qoderAnthropicContentBlocksFromEvents(events []qoder.SSEEvent, toolNameMappers ...qoderToolNameMapper) []any {
+func qoderAnthropicContentBlocksFromEvents(events []qoder.SSEEvent, toolNameMappers ...qoderToolNameMapper) ([]any, error) {
 	blocks := make([]any, 0)
 	var text bytes.Buffer
 	var thinking bytes.Buffer
@@ -3899,9 +4096,9 @@ func qoderAnthropicContentBlocksFromEvents(events []qoder.SSEEvent, toolNameMapp
 		blocks = append(blocks, map[string]any{"type": "thinking", "thinking": thinking.String()})
 		thinking.Reset()
 	}
-	flushTools := func() {
+	flushTools := func() error {
 		if toolAccumulator == nil {
-			return
+			return nil
 		}
 		for _, rawCall := range toolAccumulator.Calls() {
 			call, ok := rawCall.(map[string]any)
@@ -3909,57 +4106,72 @@ func qoderAnthropicContentBlocksFromEvents(events []qoder.SSEEvent, toolNameMapp
 				continue
 			}
 			function, _ := call["function"].(map[string]any)
+			input, err := qoderAnthropicToolInput(function["arguments"])
+			if err != nil {
+				return err
+			}
 			blocks = append(blocks, map[string]any{
 				"type":  "tool_use",
 				"id":    call["id"],
 				"name":  function["name"],
-				"input": qoderAnthropicToolInput(function["arguments"]),
+				"input": input,
 			})
 		}
 		toolAccumulator = nil
+		return nil
 	}
 	for _, event := range events {
 		switch event.Type {
 		case "text_delta":
 			if event.Text != "" {
-				flushTools()
+				if err := flushTools(); err != nil {
+					return nil, err
+				}
 				flushThinking()
 				_, _ = text.WriteString(event.Text)
 			}
 		case "reasoning_delta":
 			if event.Text != "" {
 				flushText()
-				flushTools()
+				if err := flushTools(); err != nil {
+					return nil, err
+				}
 				_, _ = thinking.WriteString(event.Text)
 			}
 		case "tool_call_delta":
-			flushText()
-			flushThinking()
+			if qoderToolCallDeltaIsEmptyPlaceholder(normalizeQoderOutboundToolCallEvent(event)) {
+				continue
+			}
 			if toolAccumulator == nil {
 				toolAccumulator = newQoderOpenAIToolCallAccumulator(toolNameMappers...)
 			}
-			toolAccumulator.AppendDelta(event)
+			if len(toolAccumulator.AppendDelta(event)) > 0 {
+				flushText()
+				flushThinking()
+			}
 		}
 	}
 	flushText()
 	flushThinking()
-	flushTools()
-	if len(blocks) == 0 {
-		return []any{map[string]any{"type": "text", "text": ""}}
+	if err := flushTools(); err != nil {
+		return nil, err
 	}
-	return blocks
+	if len(blocks) == 0 {
+		return []any{map[string]any{"type": "text", "text": ""}}, nil
+	}
+	return blocks, nil
 }
 
-func qoderAnthropicToolInput(raw any) map[string]any {
+func qoderAnthropicToolInput(raw any) (map[string]any, error) {
 	args := qoderToolArgumentsString(raw)
 	if strings.TrimSpace(args) == "" {
-		return map[string]any{}
+		return map[string]any{}, nil
 	}
 	var decoded map[string]any
 	if err := json.Unmarshal([]byte(args), &decoded); err == nil {
-		return decoded
+		return decoded, nil
 	}
-	return map[string]any{"raw": args}
+	return nil, fmt.Errorf("malformed qoder tool arguments: %s", args)
 }
 
 func qoderUsageFromEvents(events []qoder.SSEEvent) ClaudeUsage {
@@ -4189,8 +4401,8 @@ func qoderPromptTextForMessage(message qoderMessage) string {
 }
 
 func latestQoderPayloadPromptText(messages []qoderMessage, includeTools bool) string {
-	if !includeTools && qoderMessageTailHasToolContinuation(messages) {
-		return latestQoderPromptText(messages)
+	if text := qoderToolContinuationPromptText(messages); text != "" {
+		return text
 	}
 	if text := latestQoderUserText(messages); text != "" {
 		return text
@@ -4198,15 +4410,30 @@ func latestQoderPayloadPromptText(messages []qoderMessage, includeTools bool) st
 	return latestQoderPromptText(messages)
 }
 
-func qoderMessageTailHasToolContinuation(messages []qoderMessage) bool {
-	if qoderMessageTailStartsWithToolContinuation(messages) {
-		return true
+func qoderToolContinuationPromptText(messages []qoderMessage) string {
+	toolStart := len(messages)
+	for toolStart > 0 && messages[toolStart-1].Role == "tool" {
+		toolStart--
 	}
-	return len(messages) >= 3 &&
-		messages[0].Role == "user" &&
-		messages[1].Role == "assistant" &&
-		qoderMessageHasToolCalls(messages[1]) &&
-		messages[2].Role == "tool"
+	if toolStart == len(messages) {
+		return ""
+	}
+
+	// Tool-only Responses continuations are valid when previous_response_id carries
+	// the prior assistant tool call. Otherwise require the current replay to include
+	// an immediately preceding assistant tool-call turn, so ordinary historical tool
+	// messages are not promoted to the active prompt by accident.
+	if toolStart > 0 && !qoderMessageHasToolCalls(messages[toolStart-1]) {
+		return ""
+	}
+
+	parts := make([]string, 0, len(messages)-toolStart)
+	for _, message := range messages[toolStart:] {
+		if text := qoderPromptTextForMessage(message); text != "" {
+			parts = append(parts, text)
+		}
+	}
+	return strings.Join(parts, "\n\n")
 }
 
 func qoderAnySlice(raw any) []any {

@@ -266,6 +266,7 @@ type QoderSSEInner struct {
 	Event   string           `json:"event,omitempty"`
 	Type    string           `json:"type,omitempty"`
 	Data    json.RawMessage  `json:"data,omitempty"`
+	Index   *int             `json:"index,omitempty"`
 }
 
 type QoderSSEChoice struct {
@@ -479,26 +480,43 @@ func ParseSSELine(line string) ([]SSEEvent, error) {
 }
 
 func appendQoderToolCallEvents(events []SSEEvent, toolCalls []QoderSSEToolCall) []SSEEvent {
+	syntheticIndex := 0
 	for _, tc := range toolCalls {
+		arguments := parseQoderToolCallArguments(
+			tc.Function.Arguments,
+			tc.Arguments,
+			tc.Input,
+			tc.Parameters,
+		)
+		if qoderSSEToolCallIsPlaceholder(tc, arguments) {
+			continue
+		}
 		event := SSEEvent{
 			Type:       "tool_call_delta",
 			ToolCallID: firstNonEmptyQoderSSEString(tc.ID, tc.ToolCallID, tc.CallID),
 			ToolType:   qoderSSEToolType(tc.Type),
 			ToolName:   firstNonEmptyQoderSSEString(tc.Function.Name, tc.Name, tc.ToolName),
-			Arguments: parseQoderToolCallArguments(
-				tc.Function.Arguments,
-				tc.Arguments,
-				tc.Input,
-				tc.Parameters,
-			),
+			Arguments:  arguments,
 		}
 		if tc.Index != nil {
 			event.ToolCallIndex = *tc.Index
 			event.HasToolCallIndex = true
+		} else if len(toolCalls) > 1 {
+			event.ToolCallIndex = syntheticIndex
+			event.HasToolCallIndex = true
 		}
 		events = append(events, event)
+		syntheticIndex++
 	}
 	return events
+}
+
+func qoderSSEToolCallIsPlaceholder(tc QoderSSEToolCall, arguments string) bool {
+	meaningful := firstNonEmptyQoderSSEString(tc.ID, tc.ToolCallID, tc.CallID, tc.Function.Name, tc.Name, tc.ToolName)
+	if meaningful != "" || strings.TrimSpace(arguments) != "" {
+		return false
+	}
+	return strings.TrimSpace(tc.Type) == "" || qoderSSEToolType(tc.Type) == "function"
 }
 
 func qoderSSEEnvelopeEvents(inner QoderSSEInner) []SSEEvent {
@@ -510,9 +528,9 @@ func qoderSSEEnvelopeEvents(inner QoderSSEInner) []SSEEvent {
 	case "content_block_delta":
 		return qoderSSEContentBlockDeltaEvents(inner.Data)
 	case "tool_use_start":
-		return qoderSSEToolUseStartEvents(inner.Data)
+		return qoderSSEToolUseStartEvents(inner.Data, inner.Index)
 	case "tool_use_delta", "tool_call_delta":
-		return qoderSSEToolUseDeltaEvents(inner.Data)
+		return qoderSSEToolUseDeltaEvents(inner.Data, inner.Index)
 	case "message_delta":
 		return qoderSSEMessageDeltaEvents(inner.Data)
 	case "message_stop":
@@ -540,11 +558,12 @@ func qoderSSEContentBlockDeltaEvents(raw json.RawMessage) []SSEEvent {
 	return []SSEEvent{{Type: eventType, Text: delta.Text}}
 }
 
-func qoderSSEToolUseStartEvents(raw json.RawMessage) []SSEEvent {
+func qoderSSEToolUseStartEvents(raw json.RawMessage, envelopeIndex *int) []SSEEvent {
 	if len(raw) == 0 {
 		return nil
 	}
 	var toolUse struct {
+		Index      *int   `json:"index,omitempty"`
 		ID         string `json:"id"`
 		ToolCallID string `json:"tool_call_id"`
 		CallID     string `json:"call_id"`
@@ -554,19 +573,25 @@ func qoderSSEToolUseStartEvents(raw json.RawMessage) []SSEEvent {
 	if err := json.Unmarshal(raw, &toolUse); err != nil {
 		return nil
 	}
-	return []SSEEvent{{
+	event := SSEEvent{
 		Type:       "tool_call_delta",
 		ToolCallID: firstNonEmptyQoderSSEString(toolUse.ID, toolUse.ToolCallID, toolUse.CallID),
 		ToolType:   qoderSSEToolType(toolUse.Type),
 		ToolName:   toolUse.Name,
-	}}
+	}
+	if index := firstNonNilQoderSSEInt(toolUse.Index, envelopeIndex); index != nil {
+		event.ToolCallIndex = *index
+		event.HasToolCallIndex = true
+	}
+	return []SSEEvent{event}
 }
 
-func qoderSSEToolUseDeltaEvents(raw json.RawMessage) []SSEEvent {
+func qoderSSEToolUseDeltaEvents(raw json.RawMessage, envelopeIndex *int) []SSEEvent {
 	if len(raw) == 0 {
 		return nil
 	}
 	var delta struct {
+		Index      *int            `json:"index,omitempty"`
 		ID         string          `json:"id"`
 		ToolCallID string          `json:"tool_call_id"`
 		CallID     string          `json:"call_id"`
@@ -580,13 +605,21 @@ func qoderSSEToolUseDeltaEvents(raw json.RawMessage) []SSEEvent {
 	if err := json.Unmarshal(raw, &delta); err != nil {
 		return nil
 	}
-	return []SSEEvent{{
+	event := SSEEvent{
 		Type:       "tool_call_delta",
 		ToolCallID: firstNonEmptyQoderSSEString(delta.ID, delta.ToolCallID, delta.CallID),
 		ToolType:   qoderSSEToolType(delta.Type),
 		ToolName:   firstNonEmptyQoderSSEString(delta.Name, delta.ToolName),
 		Arguments:  parseQoderToolCallArguments(delta.Arguments, delta.Input, delta.Parameters),
-	}}
+	}
+	if event.ToolCallID == "" && event.ToolName == "" && strings.TrimSpace(event.Arguments) == "" && event.ToolType == "function" {
+		return nil
+	}
+	if index := firstNonNilQoderSSEInt(delta.Index, envelopeIndex); index != nil {
+		event.ToolCallIndex = *index
+		event.HasToolCallIndex = true
+	}
+	return []SSEEvent{event}
 }
 
 func qoderSSEMessageDeltaEvents(raw json.RawMessage) []SSEEvent {
@@ -673,6 +706,15 @@ func firstNonEmptyQoderSSEString(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func firstNonNilQoderSSEInt(values ...*int) *int {
+	for _, value := range values {
+		if value != nil {
+			return value
+		}
+	}
+	return nil
 }
 
 func qoderSSEToolType(value string) string {
