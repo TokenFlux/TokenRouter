@@ -135,7 +135,7 @@ func (r *qoderRefreshRaceRepoStub) GetByID(ctx context.Context, id int64) (*Acco
 	if r.getByIDCalls > 1 && r.raceAccount != nil {
 		return r.raceAccount, nil
 	}
-	return r.qoderRefreshAccountRepoStub.stubOpenAIAccountRepo.GetByID(ctx, id)
+	return r.stubOpenAIAccountRepo.GetByID(ctx, id)
 }
 
 func TestBuildQoderPayloadFromChatCompletions(t *testing.T) {
