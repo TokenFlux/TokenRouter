@@ -416,6 +416,11 @@ func upstreamStatusFromError(err error) int {
 
 func (h *QoderGatewayHandler) streamingAwareError(c *gin.Context, status int, errType, message string, streamStarted bool, endpoint qoderEndpoint) {
 	if streamStarted || c.Writer.Written() {
+		if endpoint == qoderEndpointResponses {
+			if writeResponsesFailedSSE(c, errType, message) {
+				return
+			}
+		}
 		errorEvent := `data: {"type":"error","error":{"type":` + strconv.Quote(errType) + `,"message":` + strconv.Quote(message) + `}}` + "\n\n"
 		_, _ = c.Writer.WriteString(errorEvent)
 		if flusher, ok := c.Writer.(http.Flusher); ok {

@@ -1596,12 +1596,32 @@ func qoderMessagesFromResponsesInput(raw json.RawMessage) ([]qoderMessage, error
 		return nil, fmt.Errorf("parse canonical responses input: %w", err)
 	}
 	messages := make([]qoderMessage, 0, len(items))
+	var pendingToolCalls []any
+	flushPendingToolCalls := func() {
+		if len(pendingToolCalls) == 0 {
+			return
+		}
+		messages = append(messages, qoderMessage{
+			Role: "assistant",
+			Raw: map[string]any{
+				"role":       "assistant",
+				"tool_calls": pendingToolCalls,
+			},
+		})
+		pendingToolCalls = nil
+	}
 	for _, item := range items {
+		if item.Type == "function_call" {
+			pendingToolCalls = append(pendingToolCalls, qoderToolCallMap(item.CallID, item.Name, item.Arguments))
+			continue
+		}
+		flushPendingToolCalls()
 		converted := qoderMessageFromResponsesInputItem(item)
 		if converted.Role != "" {
 			messages = append(messages, converted)
 		}
 	}
+	flushPendingToolCalls()
 	return messages, nil
 }
 

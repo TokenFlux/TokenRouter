@@ -233,6 +233,47 @@ func TestGatewayServiceRecordUsage_PreservesRequestedAndUpstreamModels(t *testin
 	require.Equal(t, mappedModel, *usageRepo.lastLog.UpstreamModel)
 }
 
+func TestGatewayServiceRecordUsage_QoderPricingDeferredWithoutChannelPricing(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID: "qoder_pricing_deferred",
+			Usage: ClaudeUsage{
+				InputTokens:  1200,
+				OutputTokens: 300,
+			},
+			Model:    "claude-opus-4.6",
+			Duration: time.Second,
+		},
+		APIKey: &APIKey{
+			ID:    502,
+			Quota: 100,
+			Group: &Group{Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, "claude-opus-4.6", usageRepo.lastLog.Model)
+	require.Equal(t, 1200, usageRepo.lastLog.InputTokens)
+	require.Equal(t, 300, usageRepo.lastLog.OutputTokens)
+	require.Zero(t, usageRepo.lastLog.TotalCost)
+	require.Zero(t, usageRepo.lastLog.ActualCost)
+
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+	require.Zero(t, billingRepo.lastCmd.APIKeyQuotaCost)
+	require.Zero(t, billingRepo.lastCmd.APIKeyRateLimitCost)
+	require.Zero(t, billingRepo.lastCmd.AccountQuotaCost)
+}
+
 func TestGatewayServiceRecordUsage_ImageIndependentMultiplierUsesImageRate(t *testing.T) {
 	imagePrice := 0.2
 	groupID := int64(711)

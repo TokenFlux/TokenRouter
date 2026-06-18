@@ -102,7 +102,7 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 
 		var officialPriceRatio *float64
 		var officialPriceRMBEquivalent *float64
-		if showDiscount {
+		if showDiscount && group.Platform != PlatformQoder {
 			officialPriceRatio = discountConfig.officialPriceRatio(group.RateMultiplier)
 			officialPriceRMBEquivalent = discountConfig.officialPriceRMBEquivalent(group.RateMultiplier)
 		}
@@ -334,11 +334,6 @@ func (s *ModelMarketplaceService) listPublicModelsForGroup(ctx context.Context, 
 	models := make([]ModelMarketplaceModel, 0, len(modelDefs))
 	for _, modelDef := range modelDefs {
 		pricingModel := modelDef.ID
-		if group.Platform == PlatformQoder {
-			if qoderModel := qoderBillingModel(modelDef.ID, ""); qoderModel != "" {
-				pricingModel = qoderModel
-			}
-		}
 		pricing := unknownDisplayPricing()
 		if s.billingService != nil {
 			pricing = s.getPublicModelDisplayPricing(ctx, group, pricingModel, imageConfig)
@@ -356,6 +351,19 @@ func (s *ModelMarketplaceService) listPublicModelsForGroup(ctx context.Context, 
 
 func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Context, group *Group, model string, imageConfig *ImagePriceConfig) ModelDisplayPricing {
 	if s.billingService == nil {
+		return unknownDisplayPricing()
+	}
+	if group != nil && group.Platform == PlatformQoder {
+		if s.gatewayService != nil && s.gatewayService.resolver != nil {
+			groupID := group.ID
+			resolved := s.gatewayService.resolver.Resolve(ctx, PricingInput{
+				Model:   model,
+				GroupID: &groupID,
+			})
+			if resolved.Source == PricingSourceChannel {
+				return s.billingService.getDisplayPricingWithResolved(model, group.RateMultiplier, imageConfig, resolved)
+			}
+		}
 		return unknownDisplayPricing()
 	}
 	if s.gatewayService != nil && s.gatewayService.resolver != nil {

@@ -844,6 +844,39 @@ func TestQoderGatewayResponsesToolContinuationUsesToolResultsAsPrompt(t *testing
 	require.Contains(t, prompt, "B\n")
 }
 
+func TestQoderGatewayResponsesToolContinuationGroupsFunctionCallsIntoOneAssistantTurn(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	tools := `[{"type":"function","name":"bash","parameters":{"type":"object","properties":{"command":{"type":"string"}},"required":["command"]}},{"type":"function","name":"glob","parameters":{"type":"object","properties":{"pattern":{"type":"string"}},"required":["pattern"]}}]`
+	body := []byte(`{
+		"model":"deepseek-v4-pro",
+		"input":[
+			{"role":"user","content":"list docs and print marker"},
+			{"type":"function_call","call_id":"call_glob","name":"glob","arguments":"{\"pattern\":\"docs/*.md\"}"},
+			{"type":"function_call","call_id":"call_bash","name":"bash","arguments":"{\"command\":\"echo CHAIN_OPENAI_OK\"}"},
+			{"type":"function_call_output","call_id":"call_glob","output":"docs/a.md\ndocs/b.md"},
+			{"type":"function_call_output","call_id":"call_bash","output":"CHAIN_OPENAI_OK\n"}
+		],
+		"tools":` + tools + `,
+		"stream":true
+	}`)
+
+	qoderForwardResponsesResultAndBodyForTest(t, svc, account, body, qoderHeader("session_id", "responses-grouped-tool-continuation"))
+
+	payload := qoderLastUpstreamPayloadForTest(t, client)
+	messages := payload["messages"].([]any)
+	require.Len(t, messages, 4)
+	assistant := messages[1].(map[string]any)
+	require.Equal(t, "assistant", assistant["role"])
+	require.Len(t, assistant["tool_calls"].([]any), 2)
+
+	prompt := qoderPayloadPromptForTest(t, payload)
+	require.NotEqual(t, "list docs and print marker", prompt)
+	require.Contains(t, prompt, `<tool_result id="call_glob">`)
+	require.Contains(t, prompt, "docs/a.md")
+	require.Contains(t, prompt, `<tool_result id="call_bash">`)
+	require.Contains(t, prompt, "CHAIN_OPENAI_OK")
+}
+
 func TestQoderGatewayWritesResponsesStreamKeepsNoIndexNamedParallelFunctionCalls(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

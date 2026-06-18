@@ -9240,7 +9240,7 @@ func finalizeUsageBilling(p *usageBillingParams, deps *billingDeps, result *Usag
 	if result != nil {
 		balanceCost = result.BalanceAmountUSD
 	}
-	if p.Platform != "" && balanceCost > 0 && p.User != nil && deps.userPlatformQuotaRepo != nil && deps.billingCacheService != nil {
+	if IsAllowedQuotaPlatform(p.Platform) && balanceCost > 0 && p.User != nil && deps.userPlatformQuotaRepo != nil && deps.billingCacheService != nil {
 		limitCtx, limitCancel := context.WithTimeout(context.Background(), cacheWriteTimeout)
 		hasLimit := deps.billingCacheService.HasUserPlatformQuotaLimit(limitCtx, p.User.ID, p.Platform)
 		limitCancel()
@@ -9559,11 +9559,6 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 
 	// 确定计费模型
 	billingModel := forwardResultBillingModel(result.Model, result.UpstreamModel)
-	if account.Platform == PlatformQoder {
-		if qoderModel := qoderBillingModel(result.Model, result.UpstreamModel); qoderModel != "" {
-			billingModel = qoderModel
-		}
-	}
 	if input.BillingModelSource == BillingModelSourceChannelMapped && input.ChannelMappedModel != "" {
 		billingModel = input.ChannelMappedModel
 	}
@@ -9790,6 +9785,8 @@ func (s *GatewayService) calculateTokenCost(
 			Resolver:       s.resolver,
 			Resolved:       resolved,
 		})
+	} else if isQoderPricingDeferred(apiKey) {
+		return &CostBreakdown{BillingMode: string(BillingModeToken)}
 	} else if opts.LongContextThreshold > 0 {
 		// 长上下文双倍计费（如 Gemini 200K 阈值）
 		cost, err = s.billingService.CalculateCostWithLongContext(
@@ -9804,6 +9801,10 @@ func (s *GatewayService) calculateTokenCost(
 		return &CostBreakdown{ActualCost: 0}
 	}
 	return cost
+}
+
+func isQoderPricingDeferred(apiKey *APIKey) bool {
+	return PlatformFromAPIKey(apiKey) == PlatformQoder
 }
 
 // buildRecordUsageLog 构建使用日志并设置计费模式。

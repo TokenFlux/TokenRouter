@@ -3,10 +3,13 @@ package handler
 import (
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -60,4 +63,39 @@ func TestQoderGatewayShouldRefreshAccountOnlyForUnwrittenAuthErrors(t *testing.T
 	require.False(t, handler.shouldRefreshQoderAccount(&qoder.APIError{StatusCode: http.StatusTooManyRequests}, false))
 	require.False(t, handler.shouldRefreshQoderAccount(&qoder.APIError{StatusCode: http.StatusUnauthorized}, true))
 	require.False(t, (&QoderGatewayHandler{}).shouldRefreshQoderAccount(&qoder.APIError{StatusCode: http.StatusUnauthorized}, false))
+}
+
+func TestQoderGatewayStreamingAwareError_ResponsesStreamingEmitsResponseFailed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	setOpsRequestContext(c, "deepseek-v4-pro", true)
+
+	h := &QoderGatewayHandler{}
+	h.streamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", true, qoderEndpointResponses)
+
+	body := w.Body.String()
+	assert.Contains(t, body, "event: response.failed\n")
+	assert.NotContains(t, body, `"type":"error"`)
+	resp, errObj := parseResponsesFailedSSE(t, body)
+	assert.Equal(t, "failed", resp["status"])
+	assert.Equal(t, "deepseek-v4-pro", resp["model"])
+	assert.Equal(t, "upstream_error", errObj["code"])
+	assert.Equal(t, "Upstream request failed", errObj["message"])
+}
+
+func TestQoderGatewayStreamingAwareError_MessagesKeepsGenericSSEError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	h := &QoderGatewayHandler{}
+	h.streamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", true, qoderEndpointMessages)
+
+	body := w.Body.String()
+	assert.NotContains(t, body, "event: response.failed")
+	assert.Contains(t, body, `"type":"error"`)
+	assert.Contains(t, body, `"message":"Upstream request failed"`)
 }

@@ -132,16 +132,10 @@ const unpricedPricing: MarketplaceModelPricing = {
   price_status: 'unpriced',
 }
 
-const freeTokenPricing: MarketplaceModelPricing = {
-  pricing_mode: 'token',
-  price_status: 'priced',
-}
-
 function marketplaceFixture(): MarketplaceGroup[] {
   return [
     marketplaceGroup(1, 'Plus', false, [
       marketplaceModel('gpt-5.5', 'GPT 5.5', tokenPricing),
-      marketplaceModel('qoder-lite', 'Qoder Lite', freeTokenPricing),
       marketplaceModel('legacy-unpriced', 'Legacy Unpriced', unpricedPricing),
     ]),
     marketplaceGroup(2, 'Pro', false, [
@@ -279,32 +273,7 @@ describe('ModelMarketplaceView', () => {
     await wrapper.get('[data-testid="select-option-token"]').trigger('click')
     await nextTick()
     expect(modelCards(wrapper).filter((card) => card.text().includes('gpt-5.5'))).toHaveLength(1)
-    expect(modelCards(wrapper).some((card) => card.text().includes('qoder-lite'))).toBe(true)
     expect(modelCards(wrapper).some((card) => card.text().includes('legacy-unpriced'))).toBe(false)
-  })
-
-  it('免费 token 定价模型仍作为已定价展示', async () => {
-    const wrapper = await mountMarketplace()
-    const liteCard = modelCards(wrapper).find((card) => card.text().includes('qoder-lite'))
-
-    expect(liteCard?.exists()).toBe(true)
-
-    const liteGroupEntry = liteCard!.get('[data-testid="marketplace-model-group-entry"]')
-    await liteGroupEntry.trigger('click')
-    await nextTick()
-
-    const dialog = wrapper.get('[data-testid="pricing-dialog"]')
-    expect(dialog.text()).toContain('Qoder Lite')
-    expect(dialog.text()).toContain('qoder-lite')
-    expect(dialog.text()).toContain('marketplace.input')
-    expect(dialog.text()).toContain('marketplace.output')
-    expect(dialog.text()).toContain('0.0000 点 usage.perMillionTokens')
-
-    await wrapper.get('[data-testid="select-option-group-model"]').trigger('click')
-    await nextTick()
-    const groupModeLiteCard = wrapper.findAll('article').find((card) => card.text().includes('qoder-lite'))
-    expect(groupModeLiteCard?.text()).toContain('marketplace.tokenPricing')
-    expect(groupModeLiteCard?.text()).toContain('0.0000 点 usage.perMillionTokens')
   })
 
   it('点击分组条目会打开对应分组定价弹窗', async () => {
