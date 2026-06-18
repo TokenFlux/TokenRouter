@@ -183,6 +183,10 @@ func (m *mockObjectStore) Upload(_ context.Context, key string, body io.Reader, 
 	return int64(len(data)), nil
 }
 
+func (m *mockObjectStore) UploadFile(ctx context.Context, key string, body io.Reader, contentType string) (int64, error) {
+	return m.Upload(ctx, key, body, contentType)
+}
+
 func (m *mockObjectStore) Download(_ context.Context, key string) (io.ReadCloser, error) {
 	m.mu.Lock()
 	data, ok := m.objects[key]

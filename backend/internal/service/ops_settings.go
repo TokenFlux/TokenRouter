@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"sort"
 	"strings"
 	"time"
 )
@@ -374,6 +375,7 @@ func defaultOpsAdvancedSettings() *OpsAdvancedSettings {
 		IgnoreContextCanceled:           true,  // Default to true - client disconnects are not errors
 		IgnoreNoAvailableAccounts:       false, // Default to false - this is a real routing issue
 		IgnoreInsufficientBalanceErrors: false, // 默认不忽略，余额不足可能需要关注
+		IgnoredStatusCodes:              DefaultOpsIgnoredStatusCodes(),
 		DisplayOpenAITokenStats:         false,
 		DisplayAlertEvents:              true,
 		AutoRefreshEnabled:              false,
@@ -406,6 +408,7 @@ func normalizeOpsAdvancedSettings(cfg *OpsAdvancedSettings) {
 	if cfg.AutoRefreshIntervalSec <= 0 {
 		cfg.AutoRefreshIntervalSec = 30
 	}
+	cfg.IgnoredStatusCodes = NormalizeOpsIgnoredStatusCodes(cfg.IgnoredStatusCodes)
 }
 
 func clampOpsQuotaAutoPauseThreshold(value float64) float64 {
@@ -435,7 +438,68 @@ func validateOpsAdvancedSettings(cfg *OpsAdvancedSettings) error {
 	if cfg.AutoRefreshIntervalSec < 15 || cfg.AutoRefreshIntervalSec > 300 {
 		return errors.New("auto_refresh_interval_seconds must be between 15 and 300")
 	}
+	for _, code := range cfg.IgnoredStatusCodes {
+		if code < 100 || code > 599 {
+			return errors.New("ignored_status_codes must be valid HTTP status codes")
+		}
+	}
 	return nil
+}
+
+func DefaultOpsIgnoredStatusCodes() []int {
+	return []int{401, 403}
+}
+
+func NormalizeOpsIgnoredStatusCodes(codes []int) []int {
+	if codes == nil {
+		return DefaultOpsIgnoredStatusCodes()
+	}
+	if len(codes) == 0 {
+		return []int{}
+	}
+	seen := make(map[int]struct{}, len(codes))
+	out := make([]int, 0, len(codes))
+	for _, code := range codes {
+		if _, ok := seen[code]; ok {
+			continue
+		}
+		seen[code] = struct{}{}
+		out = append(out, code)
+	}
+	sort.Ints(out)
+	return out
+}
+
+func cloneOpsIgnoredStatusCodes(codes []int) []int {
+	if codes == nil {
+		return nil
+	}
+	out := make([]int, len(codes))
+	copy(out, codes)
+	return out
+}
+
+func (s *OpsService) resolveOpsIgnoredStatusCodes(ctx context.Context) []int {
+	return resolveOpsIgnoredStatusCodesFromRepo(ctx, s.settingRepo)
+}
+
+func resolveOpsIgnoredStatusCodesFromRepo(ctx context.Context, repo SettingRepository) []int {
+	if repo == nil {
+		return DefaultOpsIgnoredStatusCodes()
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	raw, err := repo.GetValue(ctx, SettingKeyOpsAdvancedSettings)
+	if err != nil {
+		return DefaultOpsIgnoredStatusCodes()
+	}
+	cfg := defaultOpsAdvancedSettings()
+	if err := json.Unmarshal([]byte(raw), cfg); err != nil {
+		return DefaultOpsIgnoredStatusCodes()
+	}
+	normalizeOpsAdvancedSettings(cfg)
+	return cloneOpsIgnoredStatusCodes(cfg.IgnoredStatusCodes)
 }
 
 func (s *OpsService) GetOpsAdvancedSettings(ctx context.Context) (*OpsAdvancedSettings, error) {

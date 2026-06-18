@@ -70,6 +70,12 @@ var dataShareExportExcludedFields = map[string]struct{}{
 var ErrDataShareSkipRulesInvalid = infraerrors.BadRequest("DATA_SHARE_SKIP_RULES_INVALID", "data sharing capture skip rules are invalid")
 var ErrDataShareExportTicketInvalid = infraerrors.BadRequest("DATA_SHARE_EXPORT_TICKET_INVALID", "data sharing export ticket is invalid")
 var ErrDataShareExportTicketForbidden = infraerrors.Forbidden("DATA_SHARE_EXPORT_TICKET_FORBIDDEN", "data sharing export ticket scope is not allowed")
+var ErrDataShareExportArtifactNotFound = infraerrors.NotFound("DATA_SHARE_EXPORT_ARTIFACT_NOT_FOUND", "data share export artifact not found")
+var ErrDataShareExportArtifactNotReady = infraerrors.BadRequest("DATA_SHARE_EXPORT_ARTIFACT_NOT_READY", "data share export artifact is not ready")
+var ErrDataShareExportArtifactDeleted = infraerrors.NotFound("DATA_SHARE_EXPORT_ARTIFACT_DELETED", "data share export artifact was deleted")
+var ErrDataShareExportArtifactUploadInProgress = infraerrors.Conflict("DATA_SHARE_EXPORT_ARTIFACT_UPLOAD_IN_PROGRESS", "data share export artifact upload is already in progress")
+var ErrDataShareExportArtifactRemoteUploadInProgress = infraerrors.Conflict("DATA_SHARE_EXPORT_ARTIFACT_REMOTE_UPLOAD_IN_PROGRESS", "data share export artifact remote upload is in progress")
+var ErrDataShareExportArtifactStorageInvalid = infraerrors.InternalServer("DATA_SHARE_EXPORT_ARTIFACT_STORAGE_INVALID", "data share export artifact storage is invalid")
 var ErrDataShareStorageLimitInvalid = infraerrors.BadRequest("DATA_SHARE_STORAGE_LIMIT_INVALID", "data sharing storage limit must be greater than or equal to 0")
 var ErrDataShareCaptureRuntimeInvalid = infraerrors.BadRequest("DATA_SHARE_CAPTURE_RUNTIME_INVALID", "data sharing capture runtime settings are invalid")
 
@@ -259,12 +265,96 @@ type DataShareExportTicket struct {
 
 // DataShareExportTicketClaims 是签名票据中保存的导出上下文。
 type DataShareExportTicketClaims struct {
-	Scope     DataShareExportScope    `json:"scope"`
-	UserID    int64                   `json:"user_id,omitempty"`
-	Filters   DataShareSessionFilters `json:"filters"`
-	Filename  string                  `json:"filename"`
-	Encoding  DataShareExportEncoding `json:"encoding,omitempty"`
-	ExpiresAt int64                   `json:"expires_at"`
+	Scope      DataShareExportScope    `json:"scope"`
+	UserID     int64                   `json:"user_id,omitempty"`
+	Filters    DataShareSessionFilters `json:"filters"`
+	ArtifactID int64                   `json:"artifact_id,omitempty"`
+	Filename   string                  `json:"filename"`
+	Encoding   DataShareExportEncoding `json:"encoding,omitempty"`
+	ExpiresAt  int64                   `json:"expires_at"`
+}
+
+// DataShareExportArtifactStatus 描述预生成导出文件的任务状态。
+type DataShareExportArtifactStatus string
+
+const (
+	DataShareExportArtifactStatusPending   DataShareExportArtifactStatus = "pending"
+	DataShareExportArtifactStatusRunning   DataShareExportArtifactStatus = "running"
+	DataShareExportArtifactStatusCompleted DataShareExportArtifactStatus = "completed"
+	DataShareExportArtifactStatusFailed    DataShareExportArtifactStatus = "failed"
+	DataShareExportArtifactStatusDeleted   DataShareExportArtifactStatus = "deleted"
+)
+
+// DataShareExportArtifactRemoteStatus 描述导出文件上传到远端对象存储的状态。
+type DataShareExportArtifactRemoteStatus string
+
+const (
+	DataShareExportArtifactRemoteStatusNotUploaded DataShareExportArtifactRemoteStatus = "not_uploaded"
+	DataShareExportArtifactRemoteStatusUploading   DataShareExportArtifactRemoteStatus = "uploading"
+	DataShareExportArtifactRemoteStatusUploaded    DataShareExportArtifactRemoteStatus = "uploaded"
+	DataShareExportArtifactRemoteStatusFailed      DataShareExportArtifactRemoteStatus = "failed"
+)
+
+// DataShareExportRemoteConfig 描述数据共享导出文件上传到独立 S3/R2 端点的配置。
+type DataShareExportRemoteConfig struct {
+	Endpoint        string `json:"endpoint"`
+	Region          string `json:"region"`
+	Bucket          string `json:"bucket"`
+	AccessKeyID     string `json:"access_key_id"`
+	SecretAccessKey string `json:"secret_access_key,omitempty"` //nolint:revive // 字段名沿用 AWS 约定
+	Prefix          string `json:"prefix"`
+	ForcePathStyle  bool   `json:"force_path_style"`
+}
+
+// DataShareExportArtifact 记录一次预生成导出文件任务及其本地、远端文件元数据。
+type DataShareExportArtifact struct {
+	ID                 int64                               `json:"id"`
+	Status             DataShareExportArtifactStatus       `json:"status"`
+	Filename           string                              `json:"filename"`
+	StoragePath        string                              `json:"-"`
+	Encoding           string                              `json:"encoding"`
+	Filters            DataShareSessionFilters             `json:"filters"`
+	SessionCount       int64                               `json:"session_count"`
+	FileSize           int64                               `json:"file_size"`
+	SHA256             string                              `json:"sha256"`
+	ErrorMessage       string                              `json:"error_message"`
+	RemoteStatus       DataShareExportArtifactRemoteStatus `json:"remote_status"`
+	RemoteBucket       string                              `json:"remote_bucket"`
+	RemoteKey          string                              `json:"remote_key"`
+	RemoteErrorMessage string                              `json:"remote_error_message"`
+	RemoteUploadedAt   *time.Time                          `json:"remote_uploaded_at,omitempty"`
+	RemoteUploadBytes  int64                               `json:"remote_upload_bytes"`
+	RemoteUploadSpeed  float64                             `json:"remote_upload_speed"`
+	CreatedAt          time.Time                           `json:"created_at"`
+	StartedAt          *time.Time                          `json:"started_at,omitempty"`
+	CompletedAt        *time.Time                          `json:"completed_at,omitempty"`
+	DeletedAt          *time.Time                          `json:"deleted_at,omitempty"`
+	UpdatedAt          time.Time                           `json:"updated_at"`
+}
+
+// DataShareExportArtifactCreateInput 是创建预生成导出任务的输入。
+type DataShareExportArtifactCreateInput struct {
+	Filename string
+	Encoding DataShareExportEncoding
+	Filters  DataShareSessionFilters
+}
+
+// DataShareExportArtifactRepository 定义导出文件任务元数据的持久化能力。
+type DataShareExportArtifactRepository interface {
+	Create(ctx context.Context, artifact *DataShareExportArtifact) (*DataShareExportArtifact, error)
+	Get(ctx context.Context, id int64) (*DataShareExportArtifact, error)
+	List(ctx context.Context, params pagination.PaginationParams) ([]DataShareExportArtifact, *pagination.PaginationResult, error)
+	MarkRunning(ctx context.Context, id int64) error
+	MarkCompleted(ctx context.Context, id int64, storagePath string, sessionCount int64, fileSize int64, sha256 string) error
+	MarkFailed(ctx context.Context, id int64, errorMessage string) error
+	MarkRemoteUploading(ctx context.Context, id int64) error
+	MarkRemoteUploaded(ctx context.Context, id int64, bucket string, key string) error
+	MarkRemoteUploadFailed(ctx context.Context, id int64, errorMessage string) error
+	// MarkInterruptedFailed 将服务启动前遗留且无人继续处理的任务标记为失败。
+	MarkInterruptedFailed(ctx context.Context, errorMessage string) (int64, error)
+	// MarkInterruptedRemoteUploads 将服务启动前遗留的远端上传任务标记为失败。
+	MarkInterruptedRemoteUploads(ctx context.Context, errorMessage string) (int64, error)
+	MarkDeleted(ctx context.Context, id int64) (storagePath string, err error)
 }
 
 // DataShareStoragePoint 用于管理端展示空间增长趋势。
@@ -400,10 +490,21 @@ type DataShareSessionRepository interface {
 	TotalStorageBytes(ctx context.Context) (int64, error)
 }
 
+type dataShareExportUploadProgress struct {
+	uploadedBytes int64
+	totalBytes    int64
+	startedAt     time.Time
+	updatedAt     time.Time
+}
+
 // DataSharingService 负责数据共享须知、采集、导出和统计。
 type DataSharingService struct {
 	repo                     DataShareSessionRepository
+	exportArtifactRepo       DataShareExportArtifactRepository
 	settingRepo              SettingRepository
+	exportStorageDir         string
+	exportObjectStoreFactory BackupObjectStoreFactory
+	exportSecretEncryptor    SecretEncryptor
 	captureWorker            *DataSharingCaptureWorkerPool
 	captureBuffer            *DataSharingCaptureBuffer
 	captureDurations         *dataShareCaptureDurationRecorder
@@ -413,6 +514,8 @@ type DataSharingService struct {
 	skipRulesMu              sync.RWMutex
 	skipRulesCache           []DataShareCaptureSkipRule
 	skipRulesCacheExpiresAt  time.Time
+	exportUploadProgressMu   sync.RWMutex
+	exportUploadProgress     map[int64]dataShareExportUploadProgress
 }
 
 func NewDataSharingService(repo DataShareSessionRepository, settingRepo SettingRepository, captureWorker ...*DataSharingCaptureWorkerPool) *DataSharingService {
@@ -421,6 +524,7 @@ func NewDataSharingService(repo DataShareSessionRepository, settingRepo SettingR
 		settingRepo:            settingRepo,
 		defaultRuntimeSettings: *defaultDataShareCaptureRuntimeSettings(),
 		captureDurations:       newDataShareCaptureDurationRecorder(defaultDataSharingCaptureDurationWindowSize),
+		exportUploadProgress:   make(map[int64]dataShareExportUploadProgress),
 	}
 	if len(captureWorker) > 0 {
 		svc.captureWorker = captureWorker[0]
@@ -442,4 +546,29 @@ func NewDataSharingService(repo DataShareSessionRepository, settingRepo SettingR
 		svc.captureWorker.SetDurationRecorder(svc.captureDurations)
 	}
 	return svc
+}
+
+// SetExportArtifactRepository 绑定预生成导出文件任务仓储。
+func (s *DataSharingService) SetExportArtifactRepository(repo DataShareExportArtifactRepository) {
+	if s == nil {
+		return
+	}
+	s.exportArtifactRepo = repo
+}
+
+// SetExportStorageDir 设置预生成导出文件的本地保存目录。
+func (s *DataSharingService) SetExportStorageDir(dir string) {
+	if s == nil {
+		return
+	}
+	s.exportStorageDir = strings.TrimSpace(dir)
+}
+
+// SetExportObjectStoreDeps 注入数据共享导出上传 S3/R2 所需的对象存储依赖。
+func (s *DataSharingService) SetExportObjectStoreDeps(factory BackupObjectStoreFactory, encryptor SecretEncryptor) {
+	if s == nil {
+		return
+	}
+	s.exportObjectStoreFactory = factory
+	s.exportSecretEncryptor = encryptor
 }

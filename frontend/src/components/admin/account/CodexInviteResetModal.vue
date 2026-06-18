@@ -46,6 +46,25 @@
               </div>
             </div>
 
+            <div class="grid grid-cols-1 gap-2 rounded-lg bg-gray-50 p-3 text-sm dark:bg-dark-800">
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('admin.accounts.inviteResetRewardType') }}</span>
+                <span class="text-right font-medium text-gray-900 dark:text-white">{{ rewardTypeLabel }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('admin.accounts.inviteResetRewardAmount') }}</span>
+                <span class="text-right font-medium text-gray-900 dark:text-white">{{ rewardAmountLabel }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-3">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('admin.accounts.inviteResetShouldShow') }}</span>
+                <span :class="['rounded-full px-2 py-0.5 text-xs font-medium', shouldShowClass]">{{ shouldShowLabel }}</span>
+              </div>
+              <div v-if="showGrantAction" class="flex items-center justify-between gap-3">
+                <span class="text-gray-500 dark:text-gray-400">{{ t('admin.accounts.inviteResetGrantAction') }}</span>
+                <span class="max-w-[12rem] truncate text-right font-mono text-xs text-gray-700 dark:text-gray-200">{{ status?.grant_action }}</span>
+              </div>
+            </div>
+
             <div v-if="availableCredits.length > 0" class="space-y-3">
               <label class="input-label">{{ t('admin.accounts.inviteResetSelectedCredit') }}</label>
               <Select
@@ -193,6 +212,40 @@ const availableCredits = computed(() => {
 const availableCount = computed(() => status.value?.available_count ?? availableCredits.value.length)
 
 const rules = computed(() => status.value?.eligibility_rules ?? [])
+
+// 管理端始终展示上游资格信息，should_show 只作为 Codex Desktop 主动展示建议。
+const rewardTypeLabel = computed(() => {
+  if (status.value?.grant_type === 'rate_limit_reset') {
+    return t('admin.accounts.inviteResetGrantTypeRateLimitReset')
+  }
+  if (status.value?.grant_type === 'workspace_credits') {
+    return t('admin.accounts.inviteResetGrantTypeWorkspaceCredits')
+  }
+  return t('admin.accounts.inviteResetGrantTypeUnknown')
+})
+
+const rewardAmountLabel = computed(() => {
+  const amount = status.value?.grant_amount
+  return typeof amount === 'number' ? String(amount) : t('admin.accounts.inviteResetRewardAmountUnknown')
+})
+
+const shouldShowLabel = computed(() => {
+  if (status.value?.should_show === true) return t('admin.accounts.inviteResetShouldShowTrue')
+  if (status.value?.should_show === false) return t('admin.accounts.inviteResetShouldShowFalse')
+  return t('admin.accounts.inviteResetShouldShowUnknown')
+})
+
+const shouldShowClass = computed(() => {
+  if (status.value?.should_show === true) {
+    return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+  }
+  if (status.value?.should_show === false) {
+    return 'bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'
+  }
+  return 'bg-gray-200 text-gray-600 dark:bg-dark-600 dark:text-gray-300'
+})
+
+const showGrantAction = computed(() => Boolean(status.value?.grant_action) && status.value?.grant_type === 'unknown')
 
 const creditOptions = computed<SelectOption[]>(() => {
   return availableCredits.value.map((credit, index) => ({

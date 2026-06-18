@@ -81,6 +81,9 @@ func (s *DataSharingService) ParseExportTicket(ctx context.Context, scope DataSh
 // ExportJSONL 导出选中的数据共享 session；显式选中的记录保留原始快照，不再因质量状态跳过。
 func (s *DataSharingService) ExportJSONL(ctx context.Context, w io.Writer, filters DataShareSessionFilters, includeNonExportable bool) error {
 	_ = includeNonExportable
+	if s == nil || s.repo == nil {
+		return ErrDataShareExportArtifactStorageInvalid
+	}
 	params := pagination.PaginationParams{Page: 1, PageSize: 1000, SortBy: "created_at", SortOrder: pagination.SortOrderAsc}
 	for {
 		items, result, err := s.repo.ListWithPayload(ctx, params, filters)

@@ -22,7 +22,7 @@ func (s *OpsService) GetErrorTrend(ctx context.Context, filter *OpsDashboardFilt
 	if filter.StartTime.After(filter.EndTime) {
 		return nil, infraerrors.BadRequest("OPS_TIME_RANGE_INVALID", "start_time must be <= end_time")
 	}
-	filter.QueryMode = s.resolveOpsQueryMode(ctx, filter.QueryMode)
+	s.resolveOpsQueryModeWithIgnoredStatusCodes(ctx, filter)
 
 	result, err := s.opsRepo.GetErrorTrend(ctx, filter, bucketSeconds)
 	if err != nil && shouldFallbackOpsPreagg(filter, err) {
@@ -48,7 +48,7 @@ func (s *OpsService) GetErrorDistribution(ctx context.Context, filter *OpsDashbo
 	if filter.StartTime.After(filter.EndTime) {
 		return nil, infraerrors.BadRequest("OPS_TIME_RANGE_INVALID", "start_time must be <= end_time")
 	}
-	filter.QueryMode = s.resolveOpsQueryMode(ctx, filter.QueryMode)
+	s.resolveOpsQueryModeWithIgnoredStatusCodes(ctx, filter)
 
 	result, err := s.opsRepo.GetErrorDistribution(ctx, filter)
 	if err != nil && shouldFallbackOpsPreagg(filter, err) {

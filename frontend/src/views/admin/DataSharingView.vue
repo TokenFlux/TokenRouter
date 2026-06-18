@@ -745,7 +745,7 @@
                 </button>
                 <button class="btn btn-primary" :disabled="exporting || selectedCount === 0" @click="downloadSelected">
                   <Icon name="download" size="md" class="mr-2" />
-                  导出已选 JSONL
+                  生成导出文件
                 </button>
               </div>
             </div>
@@ -815,7 +815,7 @@
                 </button>
                 <button class="btn btn-ghost btn-sm" @click="downloadOne(row)">
                   <Icon name="download" size="sm" class="mr-1" />
-                  下载
+                  生成
                 </button>
                 <button class="btn btn-ghost btn-sm text-red-600 hover:text-red-700" @click="deleteOne(row)">
                   <Icon name="trash" size="sm" class="mr-1" />
@@ -840,6 +840,146 @@
           />
         </template>
       </TablePageLayout>
+
+      <div class="card overflow-hidden">
+        <div class="border-b border-gray-200 p-4 dark:border-gray-700">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 class="text-sm font-semibold text-gray-900 dark:text-white">导出文件</h2>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">已预处理完成的文件可下载，也可上传到数据共享专用 S3/R2 存储桶。</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <button class="btn btn-secondary btn-sm" :disabled="exportArtifactsLoading" @click="loadExportArtifacts">
+                <Icon name="refresh" size="sm" :class="exportArtifactsLoading ? 'animate-spin' : ''" />
+                <span class="ml-1">刷新</span>
+              </button>
+            </div>
+          </div>
+          <div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-4 md:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="data-share-export-remote-endpoint">端点地址</label>
+              <input id="data-share-export-remote-endpoint" v-model="exportRemoteForm.endpoint" class="input w-full text-sm" placeholder="https://<账号ID>.r2.cloudflarestorage.com" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="data-share-export-remote-region">区域</label>
+              <input id="data-share-export-remote-region" v-model="exportRemoteForm.region" class="input w-full text-sm" placeholder="auto" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="data-share-export-remote-bucket">存储桶</label>
+              <input id="data-share-export-remote-bucket" v-model="exportRemoteForm.bucket" class="input w-full text-sm" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="data-share-export-remote-prefix">对象前缀</label>
+              <input id="data-share-export-remote-prefix" v-model="exportRemoteForm.prefix" class="input w-full text-sm" placeholder="data-sharing-exports" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="data-share-export-remote-access-key">访问密钥 ID</label>
+              <input id="data-share-export-remote-access-key" v-model="exportRemoteForm.access_key_id" class="input w-full text-sm" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="data-share-export-remote-secret-key">访问密钥 Secret</label>
+              <input id="data-share-export-remote-secret-key" v-model="exportRemoteForm.secret_access_key" type="password" class="input w-full text-sm" :placeholder="exportRemoteSecretConfigured ? '已配置，留空则保留' : ''" />
+            </div>
+            <div class="flex flex-col gap-3 md:col-span-2 md:flex-row md:items-end md:justify-between lg:col-span-2">
+              <label class="flex min-h-10 items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                <input v-model="exportRemoteForm.force_path_style" type="checkbox" />
+                <span>使用路径样式 URL</span>
+              </label>
+              <div class="flex flex-wrap items-center gap-2 md:justify-end">
+                <button class="btn btn-secondary btn-sm" type="button" :disabled="testingExportRemoteConfig" @click="testExportRemoteConfig">
+                  {{ testingExportRemoteConfig ? '测试中' : '测试连接' }}
+                </button>
+                <button class="btn btn-primary btn-sm" type="button" :disabled="savingExportRemoteConfig" @click="saveExportRemoteConfig">
+                  {{ savingExportRemoteConfig ? '保存中' : '保存配置' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <DataTable :columns="exportArtifactColumns" :data="exportArtifacts" :loading="exportArtifactsLoading">
+          <template #cell-status="{ value }">
+            <span :class="['badge', exportArtifactStatusBadgeClass(value)]">{{ exportArtifactStatusLabel(value) }}</span>
+          </template>
+          <template #cell-filename="{ row }">
+            <div class="max-w-sm">
+              <p class="truncate font-medium text-gray-900 dark:text-white" :title="row.filename">{{ row.filename }}</p>
+              <p v-if="row.error_message" class="truncate text-xs text-red-600 dark:text-red-400" :title="row.error_message">{{ row.error_message }}</p>
+              <p v-else class="truncate text-xs text-gray-500 dark:text-gray-400">{{ row.sha256 ? `SHA256 ${row.sha256.slice(0, 12)}` : row.encoding }}</p>
+            </div>
+          </template>
+          <template #cell-session_count="{ value }">{{ formatNumber(value) }}</template>
+          <template #cell-file_size="{ value }">{{ formatBytes(value) }}</template>
+          <template #cell-remote_status="{ row }">
+            <div class="max-w-xs">
+              <span :class="['badge', exportArtifactRemoteStatusBadgeClass(row.remote_status)]">{{ exportArtifactRemoteStatusLabel(row.remote_status) }}</span>
+              <div v-if="row.remote_status === 'uploading'" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ formatExportUploadProgress(row) }} · {{ formatExportUploadSpeed(row.remote_upload_speed) }}
+              </div>
+              <div v-if="row.remote_key" class="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                <span class="truncate" :title="`${row.remote_bucket}/${row.remote_key}`">{{ row.remote_bucket }}/{{ row.remote_key }}</span>
+                <button
+                  class="btn btn-ghost btn-xs shrink-0"
+                  type="button"
+                  title="复制远端对象 key"
+                  @click="copyRemoteKey(row)"
+                >
+                  <Icon name="copy" size="xs" />
+                </button>
+              </div>
+              <p v-if="row.remote_error_message" class="mt-1 truncate text-xs text-red-600 dark:text-red-400" :title="row.remote_error_message">
+                {{ row.remote_error_message }}
+              </p>
+            </div>
+          </template>
+          <template #cell-created_at="{ value }">{{ formatDate(value) }}</template>
+          <template #cell-completed_at="{ value }">{{ formatDate(value) }}</template>
+          <template #cell-actions="{ row }">
+            <div class="flex items-center gap-1">
+              <button class="btn btn-ghost btn-sm" :disabled="row.status !== 'completed'" @click="downloadExportArtifact(row)">
+                <Icon name="download" size="sm" class="mr-1" />
+                下载
+              </button>
+              <button
+                class="btn btn-ghost btn-sm"
+                :disabled="row.status !== 'completed' || row.remote_status === 'uploading'"
+                @click="uploadExportArtifact(row)"
+              >
+                <Icon name="upload" size="sm" class="mr-1" />
+                {{ row.remote_status === 'uploaded' ? '重新上传' : '上传' }}
+              </button>
+              <button
+                class="btn btn-ghost btn-sm"
+                :disabled="!row.remote_key"
+                @click="downloadRemoteExportArtifact(row)"
+              >
+                <Icon name="externalLink" size="sm" class="mr-1" />
+                远端下载
+              </button>
+              <button
+                class="btn btn-ghost btn-sm text-red-600 hover:text-red-700"
+                :disabled="row.status === 'deleted' || row.status === 'pending' || row.status === 'running' || row.remote_status === 'uploading'"
+                @click="deleteExportArtifact(row)"
+              >
+                <Icon name="trash" size="sm" class="mr-1" />
+                删除
+              </button>
+            </div>
+          </template>
+          <template #empty>
+            <EmptyState title="暂无导出文件" description="选择数据并生成导出文件后会显示在这里。" />
+          </template>
+        </DataTable>
+        <!-- 导出文件分页直接使用通用分页器的条形样式，保持和上方 session 表一致。 -->
+        <div v-if="exportArtifactPagination.total > 0">
+          <Pagination
+            :page="exportArtifactPagination.page"
+            :total="exportArtifactPagination.total"
+            :page-size="exportArtifactPagination.page_size"
+            @update:page="handleExportArtifactPageChange"
+            @update:pageSize="handleExportArtifactPageSizeChange"
+          />
+        </div>
+      </div>
     </div>
 
     <BaseDialog :show="detailOpen" title="数据共享详情" width="extra-wide" @close="detailOpen = false">
@@ -1003,6 +1143,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
+import { useClipboard } from '@/composables/useClipboard'
 import {
   adminDataSharingAPI,
   type AdminDataShareSessionFilters,
@@ -1010,6 +1151,8 @@ import {
   type DataShareInvalidUserPoint,
   type DataShareCaptureSkipRule,
   type DataShareCaptureSkipRuleFieldScope,
+  type DataShareExportArtifact,
+  type DataShareExportRemoteConfig,
   type DataShareStorageLimit,
   type DataShareStats
 } from '@/api/admin/dataSharing'
@@ -1022,6 +1165,7 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 const appStore = useAppStore()
 const { t, te } = useI18n()
 const { balanceUnitName, formatBalanceAmount } = useBalanceDisplay()
+const { copyToClipboard } = useClipboard()
 
 const notice = ref<DataShareNotice | null>(null)
 const noticeContent = ref('')
@@ -1077,6 +1221,7 @@ const excludedIds = ref<Set<number>>(new Set())
 const selectAllMatching = ref(false)
 
 const loading = ref(false)
+const exportArtifactsLoading = ref(false)
 const statsLoading = ref(false)
 const statsAutoRefreshEnabled = ref(false)
 const statsAutoRefreshIntervalSeconds = ref<(typeof statsAutoRefreshIntervals)[number]>(statsAutoRefreshDefaultSeconds)
@@ -1090,13 +1235,27 @@ const savingSkipRules = ref(false)
 const storageLimitLoading = ref(false)
 const savingStorageLimit = ref(false)
 const savingCaptureRuntimeSettings = ref(false)
+const savingExportRemoteConfig = ref(false)
+const testingExportRemoteConfig = ref(false)
 const exporting = ref(false)
 const detailOpen = ref(false)
 const detailLoading = ref(false)
 const durationDetailOpen = ref(false)
 
 const pagination = reactive({ page: 1, page_size: 20, total: 0, pages: 1 })
+const exportArtifactPagination = reactive({ page: 1, page_size: 10, total: 0, pages: 1 })
 const sortState = reactive({ sort_by: 'created_at', sort_order: 'desc' as 'asc' | 'desc' })
+const exportArtifacts = ref<DataShareExportArtifact[]>([])
+const exportRemoteSecretConfigured = ref(false)
+const exportRemoteForm = ref<DataShareExportRemoteConfig>({
+  endpoint: '',
+  region: 'auto',
+  bucket: '',
+  access_key_id: '',
+  secret_access_key: '',
+  prefix: 'data-sharing-exports',
+  force_path_style: false
+})
 const filters = reactive({
   search: '',
   user_name: '',
@@ -1240,6 +1399,17 @@ const columns: Column[] = [
   { key: 'storage_bytes', label: '空间', sortable: true },
   { key: 'total_tokens', label: 'Token', sortable: true },
   { key: 'created_at', label: '创建时间', sortable: true },
+  { key: 'actions', label: '操作' }
+]
+
+const exportArtifactColumns: Column[] = [
+  { key: 'status', label: '状态' },
+  { key: 'filename', label: '文件' },
+  { key: 'session_count', label: 'Session' },
+  { key: 'file_size', label: '大小' },
+  { key: 'remote_status', label: 'S3/R2' },
+  { key: 'created_at', label: '创建时间' },
+  { key: 'completed_at', label: '完成时间' },
   { key: 'actions', label: '操作' }
 ]
 
@@ -1727,6 +1897,7 @@ const statsAutoRefreshTitle = computed(() => {
 
 let filterTimer: number | null = null
 let statsAutoRefreshTimer: number | null = null
+let exportArtifactPollingTimer: number | null = null
 
 function buildFilters(): AdminDataShareSessionFilters {
   const out: AdminDataShareSessionFilters = {
@@ -1826,6 +1997,64 @@ async function loadCaptureRuntimeSettings() {
   } catch (error) {
     appStore.showError('加载采集 Worker 配置失败')
   }
+}
+
+async function loadExportRemoteConfig() {
+  try {
+    const cfg = await adminDataSharingAPI.getExportRemoteConfig()
+    exportRemoteForm.value = normalizeExportRemoteConfig(cfg)
+    exportRemoteSecretConfigured.value = Boolean(cfg.access_key_id)
+  } catch (error) {
+    appStore.showError('加载远端上传配置失败')
+  }
+}
+
+async function saveExportRemoteConfig() {
+  savingExportRemoteConfig.value = true
+  try {
+    const cfg = await adminDataSharingAPI.updateExportRemoteConfig(buildExportRemoteConfigPayload())
+    exportRemoteForm.value = normalizeExportRemoteConfig(cfg)
+    exportRemoteSecretConfigured.value = Boolean(cfg.access_key_id)
+    appStore.showSuccess('远端上传配置已保存')
+  } catch (error) {
+    appStore.showError('保存远端上传配置失败')
+  } finally {
+    savingExportRemoteConfig.value = false
+  }
+}
+
+async function testExportRemoteConfig() {
+  testingExportRemoteConfig.value = true
+  try {
+    const result = await adminDataSharingAPI.testExportRemoteConfig(buildExportRemoteConfigPayload())
+    if (result.ok) {
+      appStore.showSuccess(result.message || '连接成功')
+    } else {
+      appStore.showError(result.message || '连接失败')
+    }
+  } catch (error) {
+    appStore.showError('测试远端上传配置失败')
+  } finally {
+    testingExportRemoteConfig.value = false
+  }
+}
+
+function normalizeExportRemoteConfig(cfg?: Partial<DataShareExportRemoteConfig>): DataShareExportRemoteConfig {
+  return {
+    endpoint: cfg?.endpoint || '',
+    region: cfg?.region || 'auto',
+    bucket: cfg?.bucket || '',
+    access_key_id: cfg?.access_key_id || '',
+    secret_access_key: '',
+    prefix: cfg?.prefix || 'data-sharing-exports',
+    force_path_style: Boolean(cfg?.force_path_style)
+  }
+}
+
+function buildExportRemoteConfigPayload(): DataShareExportRemoteConfig {
+  const cfg = normalizeExportRemoteConfig(exportRemoteForm.value)
+  cfg.secret_access_key = exportRemoteForm.value.secret_access_key || ''
+  return cfg
 }
 
 function captureRuntimeSettingsFromForm() {
@@ -2214,8 +2443,44 @@ async function loadSessions() {
   }
 }
 
+async function loadExportArtifacts() {
+  // 导出文件列表和 session 列表分开分页，避免刷新任务状态时影响当前筛选结果。
+  exportArtifactsLoading.value = true
+  try {
+    const res = await adminDataSharingAPI.listExportArtifacts(exportArtifactPagination.page, exportArtifactPagination.page_size)
+    exportArtifacts.value = res.items
+    exportArtifactPagination.total = res.total
+    exportArtifactPagination.pages = res.pages
+    updateExportArtifactPolling()
+  } catch (error) {
+    appStore.showError('加载导出文件失败')
+  } finally {
+    exportArtifactsLoading.value = false
+  }
+}
+
+function updateExportArtifactPolling() {
+  const hasUploading = exportArtifacts.value.some(item => item.remote_status === 'uploading')
+  if (!hasUploading) {
+    stopExportArtifactPolling()
+    return
+  }
+  if (exportArtifactPollingTimer) return
+  exportArtifactPollingTimer = window.setInterval(() => {
+    loadExportArtifacts()
+  }, 2000)
+}
+
+function stopExportArtifactPolling() {
+  if (exportArtifactPollingTimer) {
+    window.clearInterval(exportArtifactPollingTimer)
+    exportArtifactPollingTimer = null
+  }
+}
+
 function refreshAll() {
   loadSessions()
+  loadExportArtifacts()
   loadStats()
   loadStorageLimit()
 }
@@ -2258,6 +2523,17 @@ function handlePageSizeChange(pageSize: number) {
   pagination.page_size = pageSize
   pagination.page = 1
   loadSessions()
+}
+
+function handleExportArtifactPageChange(page: number) {
+  exportArtifactPagination.page = page
+  loadExportArtifacts()
+}
+
+function handleExportArtifactPageSizeChange(pageSize: number) {
+  exportArtifactPagination.page_size = pageSize
+  exportArtifactPagination.page = 1
+  loadExportArtifacts()
 }
 
 function clearSelection() {
@@ -2389,11 +2665,13 @@ async function downloadSelected() {
   if (selectedCount.value === 0) return
   exporting.value = true
   try {
-    const ticket = await adminDataSharingAPI.createExportTicket(buildSelectionFilters())
-    dataSharingAPI.startTicketDownload(ticket)
-    appStore.showSuccess('下载已开始')
+    // 批量导出只创建后台生成任务，实际下载从“导出文件”板块读取已生成文件。
+    await adminDataSharingAPI.createExportArtifact(buildSelectionFilters())
+    exportArtifactPagination.page = 1
+    await loadExportArtifacts()
+    appStore.showSuccess('导出文件生成任务已创建')
   } catch (error) {
-    appStore.showError('导出失败')
+    appStore.showError('创建导出任务失败')
   } finally {
     exporting.value = false
   }
@@ -2401,11 +2679,72 @@ async function downloadSelected() {
 
 async function downloadOne(row: DataShareSession) {
   try {
-    const ticket = await adminDataSharingAPI.createSessionExportTicket(row.id)
+    // 单条 session 也走预生成任务，保持管理端下载链路一致。
+    await adminDataSharingAPI.createSessionExportArtifact(row.id)
+    exportArtifactPagination.page = 1
+    await loadExportArtifacts()
+    appStore.showSuccess('单条导出文件生成任务已创建')
+  } catch (error) {
+    appStore.showError('创建导出任务失败')
+  }
+}
+
+async function downloadExportArtifact(row: DataShareExportArtifact) {
+  try {
+    // 下载票据只绑定已生成文件，不再触发实时查询和压缩。
+    const ticket = await adminDataSharingAPI.createExportArtifactDownloadTicket(row.id)
     dataSharingAPI.startTicketDownload(ticket)
     appStore.showSuccess('下载已开始')
   } catch (error) {
     appStore.showError('下载失败')
+  }
+}
+
+async function uploadExportArtifact(row: DataShareExportArtifact) {
+  try {
+    const artifact = await adminDataSharingAPI.uploadExportArtifact(row.id)
+    replaceExportArtifact(artifact)
+    updateExportArtifactPolling()
+    appStore.showSuccess('上传任务已开始')
+  } catch (error) {
+    appStore.showError('启动上传到 S3/R2 失败')
+    await loadExportArtifacts()
+  }
+}
+
+async function downloadRemoteExportArtifact(row: DataShareExportArtifact) {
+  try {
+    const result = await adminDataSharingAPI.getExportArtifactRemoteDownloadURL(row.id)
+    if (result.url) {
+      window.open(result.url, '_blank', 'noopener')
+    }
+  } catch (error) {
+    appStore.showError('远端下载链接生成失败')
+  }
+}
+
+function replaceExportArtifact(artifact: DataShareExportArtifact) {
+  const idx = exportArtifacts.value.findIndex(item => item.id === artifact.id)
+  if (idx >= 0) {
+    exportArtifacts.value.splice(idx, 1, artifact)
+  } else {
+    exportArtifacts.value.unshift(artifact)
+  }
+}
+
+function copyRemoteKey(row: DataShareExportArtifact) {
+  if (!row.remote_key) return
+  copyToClipboard(row.remote_key, '远端对象 key 已复制')
+}
+
+async function deleteExportArtifact(row: DataShareExportArtifact) {
+  if (!window.confirm(`确定删除导出文件 ${row.filename} 吗？`)) return
+  try {
+    await adminDataSharingAPI.deleteExportArtifact(row.id)
+    appStore.showSuccess('导出文件已删除')
+    loadExportArtifacts()
+  } catch (error) {
+    appStore.showError('删除导出文件失败')
   }
 }
 
@@ -2635,6 +2974,37 @@ function qualityBadgeClass(value?: string) {
   return 'badge-danger'
 }
 
+function exportArtifactStatusLabel(value?: string) {
+  if (value === 'pending') return '等待中'
+  if (value === 'running') return '生成中'
+  if (value === 'completed') return '已完成'
+  if (value === 'failed') return '失败'
+  if (value === 'deleted') return '已删除'
+  return value || '-'
+}
+
+function exportArtifactStatusBadgeClass(value?: string) {
+  if (value === 'completed') return 'badge-success'
+  if (value === 'running') return 'badge-gray'
+  if (value === 'pending') return 'badge-warning'
+  if (value === 'failed') return 'badge-danger'
+  return 'badge-gray'
+}
+
+function exportArtifactRemoteStatusLabel(value?: string) {
+  if (value === 'uploading') return '上传中'
+  if (value === 'uploaded') return '已上传'
+  if (value === 'failed') return '上传失败'
+  return '未上传'
+}
+
+function exportArtifactRemoteStatusBadgeClass(value?: string) {
+  if (value === 'uploaded') return 'badge-success'
+  if (value === 'uploading') return 'badge-warning'
+  if (value === 'failed') return 'badge-danger'
+  return 'badge-gray'
+}
+
 function formatBytes(value?: number | null) {
   const bytes = value || 0
   if (bytes < 1024) return `${bytes} B`
@@ -2648,6 +3018,17 @@ function formatBytes(value?: number | null) {
   return `${size.toFixed(size >= 10 ? 1 : 2)} ${units[unit]}`
 }
 
+function formatExportUploadProgress(row: DataShareExportArtifact) {
+  if (!row.file_size || row.file_size <= 0) return '0%'
+  const percent = Math.min(100, Math.max(0, ((row.remote_upload_bytes || 0) / row.file_size) * 100))
+  return `${percent.toFixed(percent >= 10 ? 1 : 2)}%`
+}
+
+function formatExportUploadSpeed(bytesPerSecond?: number | null) {
+  const mbPerSecond = Math.max(0, bytesPerSecond || 0) / 1_000_000
+  return `${mbPerSecond.toFixed(mbPerSecond >= 10 ? 1 : 2)} MB/s`
+}
+
 onMounted(() => {
   document.addEventListener('click', closeSkipRulePathMenuOnOutsideClick)
   document.addEventListener('click', closeStatsAutoRefreshDropdownOnOutsideClick)
@@ -2657,6 +3038,7 @@ onMounted(() => {
   loadNotice()
   loadSkipRules()
   loadCaptureRuntimeSettings()
+  loadExportRemoteConfig()
   refreshAll()
   if (statsAutoRefreshEnabled.value) restartStatsAutoRefresh()
 })
@@ -2667,5 +3049,6 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleStatsAutoRefreshViewportChange)
   window.removeEventListener('scroll', handleStatsAutoRefreshViewportChange, true)
   stopStatsAutoRefresh()
+  stopExportArtifactPolling()
 })
 </script>

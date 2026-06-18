@@ -45,7 +45,7 @@ func TestOpsMetricsCollectorQueryErrorCountsExcludesCountTokens(t *testing.T) {
 			"upstream_529",
 		}).AddRow(int64(5), int64(2), int64(3), int64(1), int64(1), int64(1)))
 
-	errorTotal, businessLimited, errorSLA, upstreamExcl429529, upstream429, upstream529, err := collector.queryErrorCounts(context.Background(), start, end)
+	errorTotal, businessLimited, errorSLA, upstreamExcl429529, upstream429, upstream529, err := collector.queryErrorCounts(context.Background(), start, end, DefaultOpsIgnoredStatusCodes())
 	require.NoError(t, err)
 	require.Equal(t, int64(5), errorTotal)
 	require.Equal(t, int64(2), businessLimited)

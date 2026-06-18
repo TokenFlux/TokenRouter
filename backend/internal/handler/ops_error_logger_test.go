@@ -371,6 +371,46 @@ func TestClassifyOpsAuthClientErrorsExcludedFromSLA(t *testing.T) {
 	}
 }
 
+func TestClassifyOpsClientHTTPAuthStatusesUseQueryTimeExclusion(t *testing.T) {
+	tests := []struct {
+		name    string
+		errType string
+		message string
+		code    string
+		status  int
+	}{
+		{
+			name:    "generic local unauthorized",
+			errType: "api_error",
+			message: "Unauthorized",
+			code:    "401",
+			status:  http.StatusUnauthorized,
+		},
+		{
+			name:    "generic local forbidden",
+			errType: "forbidden_error",
+			message: "Forbidden",
+			code:    "403",
+			status:  http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+
+			errType := normalizeOpsErrorType(tt.errType, tt.code)
+			_, isBusinessLimited, errorOwner, errorSource := classifyOpsErrorLog(c, errType, tt.message, tt.code, tt.status)
+
+			require.False(t, isBusinessLimited)
+			require.NotEqual(t, "provider", errorOwner)
+			require.NotEqual(t, "upstream_http", errorSource)
+		})
+	}
+}
+
 func TestClassifyOpsLocalBusinessLimitErrorsExcludedFromSLA(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -758,6 +798,18 @@ func TestClassifyOpsUpstreamAuthTextStillCountsForSLA(t *testing.T) {
 			message: "Invalid API key",
 			code:    "401",
 			status:  http.StatusUnauthorized,
+		},
+		{
+			name:    "generic upstream unauthorized",
+			message: "Unauthorized",
+			code:    "401",
+			status:  http.StatusUnauthorized,
+		},
+		{
+			name:    "generic upstream forbidden",
+			message: "Forbidden",
+			code:    "403",
+			status:  http.StatusForbidden,
 		},
 		{
 			name:    "disabled API key",

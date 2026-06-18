@@ -964,22 +964,28 @@ func buildOpsErrorLogsWhere(filter *service.OpsErrorLogFilter) (string, []any) {
 	}
 
 	// View filter: errors vs excluded vs all.
-	// Excluded = business-limited errors (quota/concurrency/billing).
+	// 过滤业务限制类错误和配置的客户端侧状态码，保持 SLA 口径只统计服务侧问题。
 	// Upstream 429/529 are included in errors view to match SLA calculation.
+	ignoredStatusCodes := []int(nil)
+	if filter != nil {
+		ignoredStatusCodes = filter.IgnoredStatusCodes
+	}
+	businessLimitedSQL := opsBusinessLimitedSQL("e.status_code", "e.upstream_status_code", "e.upstream_errors", "e.error_owner", "e.is_business_limited", ignoredStatusCodes)
+	slaCountableSQL := opsSLACountableSQL("e.status_code", "e.upstream_status_code", "e.upstream_errors", "e.error_owner", "e.is_business_limited", ignoredStatusCodes)
 	view := ""
 	if filter != nil {
 		view = strings.ToLower(strings.TrimSpace(filter.View))
 	}
 	switch view {
 	case "", "errors":
-		clauses = append(clauses, "COALESCE(e.is_business_limited,false) = false")
+		clauses = append(clauses, slaCountableSQL)
 	case "excluded":
-		clauses = append(clauses, "COALESCE(e.is_business_limited,false) = true")
+		clauses = append(clauses, businessLimitedSQL)
 	case "all":
 		// no-op
 	default:
 		// treat unknown as default 'errors'
-		clauses = append(clauses, "COALESCE(e.is_business_limited,false) = false")
+		clauses = append(clauses, slaCountableSQL)
 	}
 	if len(filter.StatusCodes) > 0 {
 		args = append(args, pq.Array(filter.StatusCodes))

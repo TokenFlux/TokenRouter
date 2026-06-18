@@ -281,7 +281,8 @@ func (c *OpsMetricsCollector) collectAndPersist(ctx context.Context) error {
 		return fmt.Errorf("query usage latency: %w", err)
 	}
 
-	errorTotal, businessLimited, errorSLA, upstreamExcl, upstream429, upstream529, err := c.queryErrorCounts(ctx, windowStart, windowEnd)
+	ignoredStatusCodes := resolveOpsIgnoredStatusCodesFromRepo(ctx, c.settingRepo)
+	errorTotal, businessLimited, errorSLA, upstreamExcl, upstream429, upstream529, err := c.queryErrorCounts(ctx, windowStart, windowEnd, ignoredStatusCodes)
 	if err != nil {
 		return fmt.Errorf("query error counts: %w", err)
 	}
@@ -524,7 +525,7 @@ WHERE created_at >= $1 AND created_at < $2
 	return duration, ttft, nil
 }
 
-func (c *OpsMetricsCollector) queryErrorCounts(ctx context.Context, start, end time.Time) (
+func (c *OpsMetricsCollector) queryErrorCounts(ctx context.Context, start, end time.Time, ignoredStatusCodes []int) (
 	errorTotal int64,
 	businessLimited int64,
 	errorSLA int64,
@@ -533,14 +534,16 @@ func (c *OpsMetricsCollector) queryErrorCounts(ctx context.Context, start, end t
 	upstream529 int64,
 	err error,
 ) {
+	businessLimitedSQL := opsMetricsBusinessLimitedSQL("status_code", "upstream_status_code", "upstream_errors", "error_owner", "is_business_limited", ignoredStatusCodes)
+	slaCountableSQL := opsMetricsSLACountableSQL("status_code", "upstream_status_code", "upstream_errors", "error_owner", "is_business_limited", ignoredStatusCodes)
 	q := `
 SELECT
   COALESCE(COUNT(*) FILTER (WHERE COALESCE(status_code, 0) >= 400), 0) AS error_total,
-  COALESCE(COUNT(*) FILTER (WHERE COALESCE(status_code, 0) >= 400 AND is_business_limited), 0) AS business_limited,
-  COALESCE(COUNT(*) FILTER (WHERE COALESCE(status_code, 0) >= 400 AND NOT is_business_limited), 0) AS error_sla,
-  COALESCE(COUNT(*) FILTER (WHERE error_owner = 'provider' AND NOT is_business_limited AND COALESCE(upstream_status_code, status_code, 0) NOT IN (429, 529)), 0) AS upstream_excl,
-  COALESCE(COUNT(*) FILTER (WHERE error_owner = 'provider' AND NOT is_business_limited AND COALESCE(upstream_status_code, status_code, 0) = 429), 0) AS upstream_429,
-  COALESCE(COUNT(*) FILTER (WHERE error_owner = 'provider' AND NOT is_business_limited AND COALESCE(upstream_status_code, status_code, 0) = 529), 0) AS upstream_529
+  COALESCE(COUNT(*) FILTER (WHERE COALESCE(status_code, 0) >= 400 AND ` + businessLimitedSQL + `), 0) AS business_limited,
+  COALESCE(COUNT(*) FILTER (WHERE COALESCE(status_code, 0) >= 400 AND ` + slaCountableSQL + `), 0) AS error_sla,
+  COALESCE(COUNT(*) FILTER (WHERE error_owner = 'provider' AND ` + slaCountableSQL + ` AND COALESCE(upstream_status_code, status_code, 0) NOT IN (429, 529)), 0) AS upstream_excl,
+  COALESCE(COUNT(*) FILTER (WHERE error_owner = 'provider' AND ` + slaCountableSQL + ` AND COALESCE(upstream_status_code, status_code, 0) = 429), 0) AS upstream_429,
+  COALESCE(COUNT(*) FILTER (WHERE error_owner = 'provider' AND ` + slaCountableSQL + ` AND COALESCE(upstream_status_code, status_code, 0) = 529), 0) AS upstream_529
 FROM ops_error_logs
 WHERE created_at >= $1 AND created_at < $2
   AND is_count_tokens = FALSE`
@@ -556,6 +559,44 @@ WHERE created_at >= $1 AND created_at < $2
 		return 0, 0, 0, 0, 0, 0, err
 	}
 	return errorTotal, businessLimited, errorSLA, upstreamExcl429529, upstream429, upstream529, nil
+}
+
+func opsMetricsUpstreamContextSQL(upstreamStatusExpr, upstreamErrorsExpr, ownerExpr string) string {
+	upstreamErrorsPresentSQL := fmt.Sprintf(`COALESCE(
+  CASE
+    WHEN jsonb_typeof(COALESCE(NULLIF(%s, 'null'::jsonb), '[]'::jsonb)) = 'array'
+      THEN jsonb_array_length(COALESCE(NULLIF(%s, 'null'::jsonb), '[]'::jsonb))
+    ELSE 0
+  END,
+  0
+) > 0`, upstreamErrorsExpr, upstreamErrorsExpr)
+
+	return fmt.Sprintf("(%s IS NOT NULL OR %s OR LOWER(COALESCE(%s, '')) = 'provider')", upstreamStatusExpr, upstreamErrorsPresentSQL, ownerExpr)
+}
+
+func opsMetricsIgnoredStatusCodeSQL(statusExpr string, ignoredStatusCodes []int) string {
+	codes := NormalizeOpsIgnoredStatusCodes(ignoredStatusCodes)
+	if len(codes) == 0 {
+		return "FALSE"
+	}
+	parts := make([]string, 0, len(codes))
+	for _, code := range codes {
+		parts = append(parts, strconv.Itoa(code))
+	}
+	return fmt.Sprintf("COALESCE(%s, 0) IN (%s)", statusExpr, strings.Join(parts, ", "))
+}
+
+func opsMetricsClientSideStatusExcludedSQL(statusExpr, upstreamStatusExpr, upstreamErrorsExpr, ownerExpr string, ignoredStatusCodes []int) string {
+	// 分钟级系统指标也排除配置的客户端侧状态码，保持 dashboard/raw 与 system metrics 口径一致。
+	return fmt.Sprintf("(%s AND NOT %s)", opsMetricsIgnoredStatusCodeSQL(statusExpr, ignoredStatusCodes), opsMetricsUpstreamContextSQL(upstreamStatusExpr, upstreamErrorsExpr, ownerExpr))
+}
+
+func opsMetricsBusinessLimitedSQL(statusExpr, upstreamStatusExpr, upstreamErrorsExpr, ownerExpr, businessExpr string, ignoredStatusCodes []int) string {
+	return fmt.Sprintf("(COALESCE(%s, false) OR %s)", businessExpr, opsMetricsClientSideStatusExcludedSQL(statusExpr, upstreamStatusExpr, upstreamErrorsExpr, ownerExpr, ignoredStatusCodes))
+}
+
+func opsMetricsSLACountableSQL(statusExpr, upstreamStatusExpr, upstreamErrorsExpr, ownerExpr, businessExpr string, ignoredStatusCodes []int) string {
+	return fmt.Sprintf("(NOT COALESCE(%s, false) AND NOT %s)", businessExpr, opsMetricsClientSideStatusExcludedSQL(statusExpr, upstreamStatusExpr, upstreamErrorsExpr, ownerExpr, ignoredStatusCodes))
 }
 
 func (c *OpsMetricsCollector) queryAccountSwitchCount(ctx context.Context, start, end time.Time) (int64, error) {

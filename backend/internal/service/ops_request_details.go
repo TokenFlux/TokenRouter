@@ -46,6 +46,10 @@ type OpsRequestDetailFilter struct {
 
 	// kind: success|error|all
 	Kind string
+	// SLAOnly 仅在错误行上保留 SLA 口径内的错误，用于 SLA 卡片详情。
+	SLAOnly bool
+	// IgnoredStatusCodes 是客户端侧状态码忽略列表；nil 表示使用系统默认值，空切片表示不按状态码忽略。
+	IgnoredStatusCodes []int
 
 	Platform string
 	GroupID  *int64
@@ -133,6 +137,11 @@ func (s *OpsService) ListRequestDetails(ctx context.Context, filter *OpsRequestD
 	filterCopy.PageSize = pageSize
 	filterCopy.StartTime = &startTime
 	filterCopy.EndTime = &endTime
+	if filterCopy.IgnoredStatusCodes == nil {
+		filterCopy.IgnoredStatusCodes = s.resolveOpsIgnoredStatusCodes(ctx)
+	} else {
+		filterCopy.IgnoredStatusCodes = NormalizeOpsIgnoredStatusCodes(filterCopy.IgnoredStatusCodes)
+	}
 
 	items, total, err := s.opsRepo.ListRequestDetails(ctx, filterCopy)
 	if err != nil {

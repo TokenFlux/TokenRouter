@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -64,6 +66,120 @@ func (s *adminDataShareSettingRepoStub) GetAll(context.Context) (map[string]stri
 func (s *adminDataShareSettingRepoStub) Delete(_ context.Context, key string) error {
 	delete(s.values, key)
 	return nil
+}
+
+type adminDataShareExportArtifactRepoStub struct {
+	mu     sync.Mutex
+	nextID int64
+	items  map[int64]*service.DataShareExportArtifact
+}
+
+func (r *adminDataShareExportArtifactRepoStub) Create(_ context.Context, artifact *service.DataShareExportArtifact) (*service.DataShareExportArtifact, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.items == nil {
+		r.items = map[int64]*service.DataShareExportArtifact{}
+	}
+	r.nextID++
+	item := *artifact
+	item.ID = r.nextID
+	item.CreatedAt = time.Now()
+	item.UpdatedAt = item.CreatedAt
+	r.items[item.ID] = &item
+	return &item, nil
+}
+
+func (r *adminDataShareExportArtifactRepoStub) Get(_ context.Context, id int64) (*service.DataShareExportArtifact, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	item := r.items[id]
+	if item == nil {
+		return nil, service.ErrDataShareExportArtifactNotFound
+	}
+	out := *item
+	return &out, nil
+}
+
+func (r *adminDataShareExportArtifactRepoStub) List(context.Context, pagination.PaginationParams) ([]service.DataShareExportArtifact, *pagination.PaginationResult, error) {
+	return nil, &pagination.PaginationResult{}, nil
+}
+
+func (r *adminDataShareExportArtifactRepoStub) MarkRunning(_ context.Context, id int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if item := r.items[id]; item != nil {
+		item.Status = service.DataShareExportArtifactStatusRunning
+		return nil
+	}
+	return service.ErrDataShareExportArtifactNotFound
+}
+
+func (r *adminDataShareExportArtifactRepoStub) MarkCompleted(context.Context, int64, string, int64, int64, string) error {
+	return nil
+}
+
+func (r *adminDataShareExportArtifactRepoStub) MarkFailed(_ context.Context, id int64, errorMessage string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if item := r.items[id]; item != nil {
+		item.Status = service.DataShareExportArtifactStatusFailed
+		item.ErrorMessage = errorMessage
+		return nil
+	}
+	return service.ErrDataShareExportArtifactNotFound
+}
+
+func (r *adminDataShareExportArtifactRepoStub) MarkRemoteUploading(_ context.Context, id int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if item := r.items[id]; item != nil {
+		item.RemoteStatus = service.DataShareExportArtifactRemoteStatusUploading
+		item.RemoteErrorMessage = ""
+		return nil
+	}
+	return service.ErrDataShareExportArtifactNotFound
+}
+
+func (r *adminDataShareExportArtifactRepoStub) MarkRemoteUploaded(_ context.Context, id int64, bucket string, key string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if item := r.items[id]; item != nil {
+		now := time.Now()
+		item.RemoteStatus = service.DataShareExportArtifactRemoteStatusUploaded
+		item.RemoteBucket = bucket
+		item.RemoteKey = key
+		item.RemoteUploadedAt = &now
+		item.RemoteErrorMessage = ""
+		return nil
+	}
+	return service.ErrDataShareExportArtifactNotFound
+}
+
+func (r *adminDataShareExportArtifactRepoStub) MarkRemoteUploadFailed(_ context.Context, id int64, errorMessage string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if item := r.items[id]; item != nil {
+		if item.RemoteKey != "" {
+			item.RemoteStatus = service.DataShareExportArtifactRemoteStatusUploaded
+		} else {
+			item.RemoteStatus = service.DataShareExportArtifactRemoteStatusFailed
+		}
+		item.RemoteErrorMessage = errorMessage
+		return nil
+	}
+	return service.ErrDataShareExportArtifactNotFound
+}
+
+func (r *adminDataShareExportArtifactRepoStub) MarkInterruptedFailed(context.Context, string) (int64, error) {
+	return 0, nil
+}
+
+func (r *adminDataShareExportArtifactRepoStub) MarkInterruptedRemoteUploads(context.Context, string) (int64, error) {
+	return 0, nil
+}
+
+func (r *adminDataShareExportArtifactRepoStub) MarkDeleted(context.Context, int64) (string, error) {
+	return "", nil
 }
 
 func TestParseAdminDataShareFiltersIncludesRequestPath(t *testing.T) {
@@ -127,18 +243,22 @@ func TestDataShareSkipRulesHandlers(t *testing.T) {
 	require.NotEmpty(t, repo.values[service.SettingKeyDataSharingCaptureSkipRules])
 }
 
-func TestCreateSessionExportTicketReturnsJSONFilename(t *testing.T) {
+func TestCreateSessionExportArtifactReturnsJSONFilename(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	repo := &adminDataShareSettingRepoStub{values: map[string]string{}}
-	h := NewDataSharingHandler(service.NewDataSharingService(nil, repo))
+	svc := service.NewDataSharingService(nil, repo)
+	artifactRepo := &adminDataShareExportArtifactRepoStub{}
+	svc.SetExportArtifactRepository(artifactRepo)
+	svc.SetExportStorageDir(t.TempDir())
+	h := NewDataSharingHandler(svc)
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Params = gin.Params{{Key: "id", Value: "7"}}
-	c.Request = httptest.NewRequest(http.MethodPost, "/admin/data-sharing/sessions/7/export-ticket", nil)
-	h.CreateSessionExportTicket(c)
+	c.Request = httptest.NewRequest(http.MethodPost, "/admin/data-sharing/sessions/7/export-artifacts", nil)
+	h.CreateSessionExportArtifact(c)
 
-	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, http.StatusAccepted, recorder.Code)
 	var envelope struct {
 		Code int `json:"code"`
 		Data struct {
@@ -149,6 +269,10 @@ func TestCreateSessionExportTicketReturnsJSONFilename(t *testing.T) {
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &envelope))
 	require.Equal(t, "admin-data-sharing-session-7.json", envelope.Data.Filename)
 	require.Equal(t, string(service.DataShareExportEncodingJSON), envelope.Data.Encoding)
+	require.Eventually(t, func() bool {
+		item, err := artifactRepo.Get(context.Background(), 1)
+		return err == nil && item.Status == service.DataShareExportArtifactStatusFailed
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestDataShareStorageLimitHandlers(t *testing.T) {

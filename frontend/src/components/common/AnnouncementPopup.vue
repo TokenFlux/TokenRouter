@@ -66,7 +66,7 @@
             <div class="flex items-center justify-end">
               <button
                 @click="handleDismiss"
-                class="rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-6 py-2.5 text-sm font-medium text-white shadow-lg shadow-amber-500/30 transition-all hover:shadow-xl hover:scale-105"
+                class="rounded-xl bg-amber-500 px-6 py-2.5 text-sm font-medium text-white shadow-none transition-all hover:scale-105 hover:bg-amber-600 hover:shadow-none"
               >
                 <span class="flex items-center gap-2">
                   <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

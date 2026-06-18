@@ -69,7 +69,7 @@ func TestCodexInviteResetServiceGetStatusAggregatesDesktopEndpoints(t *testing.T
 		},
 	}
 	upstream := &codexInviteResetHTTPUpstreamStub{responses: []*http.Response{
-		codexInviteResetJSONResponse(`{"requires_explicit_confirmation":true}`),
+		codexInviteResetJSONResponse(`{"requires_explicit_confirmation":true,"should_show":false,"grant_action":"rate_limit_reset_credit","grant_amount":3}`),
 		codexInviteResetJSONResponse(`{"rules":[{"text":"friend must send first Codex message"}]}`),
 		codexInviteResetJSONResponse(`{"available_count":2,"credits":[{"id":"credit-1","status":"available","title":"Reset"},{"id":"credit-2","status":"available"}]}`),
 	}}
@@ -80,6 +80,12 @@ func TestCodexInviteResetServiceGetStatusAggregatesDesktopEndpoints(t *testing.T
 	require.Equal(t, codexInviteResetReferralKey, status.ReferralKey)
 	require.Equal(t, 2, status.AvailableCount)
 	require.True(t, status.RequiresConsent)
+	require.NotNil(t, status.ShouldShow)
+	require.False(t, *status.ShouldShow)
+	require.Equal(t, "rate_limit_reset_credit", status.GrantAction)
+	require.NotNil(t, status.GrantAmount)
+	require.Equal(t, 3, *status.GrantAmount)
+	require.Equal(t, "rate_limit_reset", status.GrantType)
 	require.Len(t, status.Credits, 2)
 	require.Equal(t, "friend must send first Codex message", status.EligibilityRules[0])
 
@@ -95,6 +101,13 @@ func TestCodexInviteResetServiceGetStatusAggregatesDesktopEndpoints(t *testing.T
 	require.Equal(t, "1", upstream.requests[0].Header.Get("X-OpenAI-Attach-Integrity-State"))
 	require.Equal(t, "chatgpt-acc", upstream.requests[0].Header.Get("chatgpt-account-id"))
 	require.Equal(t, HTTPUpstreamProfileOpenAI, HTTPUpstreamProfileFromContext(upstream.requests[0].Context()))
+}
+
+func TestNormalizeCodexInviteResetGrantType(t *testing.T) {
+	require.Equal(t, "rate_limit_reset", normalizeCodexInviteResetGrantType("rate_limit_reset_credit"))
+	require.Equal(t, "workspace_credits", normalizeCodexInviteResetGrantType("workspace_credits"))
+	require.Equal(t, "workspace_credits", normalizeCodexInviteResetGrantType(""))
+	require.Equal(t, "unknown", normalizeCodexInviteResetGrantType("future_reward"))
 }
 
 func TestCodexInviteResetServiceSendInviteNormalizesEmails(t *testing.T) {

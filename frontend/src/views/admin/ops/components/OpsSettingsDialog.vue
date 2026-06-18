@@ -22,6 +22,7 @@ const emit = defineEmits<{
 
 const loading = ref(false)
 const saving = ref(false)
+const ignoredStatusCodesInput = ref('401, 403')
 
 // 运行时设置
 const runtimeSettings = ref<OpsAlertRuntimeSettings | null>(null)
@@ -37,6 +38,39 @@ const metricThresholds = ref<OpsMetricThresholds>({
   upstream_error_rate_percent_max: 5
 })
 
+// 解析管理员输入的客户端侧忽略状态码；空输入表示不按状态码忽略。
+function parseIgnoredStatusCodes(raw: string): { valid: boolean; codes: number[]; error?: string } {
+  const text = raw.trim()
+  if (!text) return { valid: true, codes: [] }
+  const parts = text
+    .split(/[,\s]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+  const seen = new Set<number>()
+  const codes: number[] = []
+  for (const part of parts) {
+    if (!/^\d+$/.test(part)) {
+      return { valid: false, codes: [], error: t('admin.ops.settings.validation.ignoredStatusCodesRange') }
+    }
+    const code = Number.parseInt(part, 10)
+    if (!Number.isFinite(code) || code < 100 || code > 599) {
+      return { valid: false, codes: [], error: t('admin.ops.settings.validation.ignoredStatusCodesRange') }
+    }
+    if (!seen.has(code)) {
+      seen.add(code)
+      codes.push(code)
+    }
+  }
+  codes.sort((a, b) => a - b)
+  return { valid: true, codes }
+}
+
+function formatIgnoredStatusCodes(codes: number[] | null | undefined): string {
+  const fallback = Array.isArray(codes) ? codes : [401, 403]
+  const parsed = parseIgnoredStatusCodes(fallback.join(', '))
+  return parsed.valid ? parsed.codes.join(', ') : '401, 403'
+}
+
 // 加载所有配置
 async function loadAllSettings() {
   loading.value = true
@@ -50,6 +84,10 @@ async function loadAllSettings() {
     runtimeSettings.value = runtime
     emailConfig.value = email
     advancedSettings.value = advanced
+    if (!Array.isArray(advancedSettings.value.ignored_status_codes)) {
+      advancedSettings.value.ignored_status_codes = [401, 403]
+    }
+    ignoredStatusCodesInput.value = formatIgnoredStatusCodes(advancedSettings.value.ignored_status_codes)
     // 如果后端返回了阈值，使用后端的值；否则保持默认值
     if (thresholds && Object.keys(thresholds).length > 0) {
         metricThresholds.value = {
@@ -146,6 +184,10 @@ const validation = computed(() => {
       errors.push(t('admin.ops.settings.validation.retentionDaysRange'))
     }
   }
+  const ignoredStatusCodes = parseIgnoredStatusCodes(ignoredStatusCodesInput.value)
+  if (!ignoredStatusCodes.valid) {
+    errors.push(ignoredStatusCodes.error || t('admin.ops.settings.validation.ignoredStatusCodesRange'))
+  }
 
   // 验证指标阈值
   if (metricThresholds.value.sla_percent_min != null && (metricThresholds.value.sla_percent_min < 0 || metricThresholds.value.sla_percent_min > 100)) {
@@ -181,6 +223,11 @@ async function saveAllSettings() {
       if (emailConfig.value.report.enabled && emailConfig.value.report.recipients.length === 0) {
         emailConfig.value.report.enabled = false
       }
+    }
+    if (advancedSettings.value) {
+      const ignoredStatusCodes = parseIgnoredStatusCodes(ignoredStatusCodesInput.value)
+      advancedSettings.value.ignored_status_codes = ignoredStatusCodes.codes
+      ignoredStatusCodesInput.value = ignoredStatusCodes.codes.join(', ')
     }
     await Promise.all([
       runtimeSettings.value ? opsAPI.updateAlertRuntimeSettings(runtimeSettings.value) : Promise.resolve(),
@@ -476,6 +523,19 @@ async function saveAllSettings() {
           <!-- Error Filtering -->
           <div class="space-y-3">
             <h5 class="text-xs font-semibold text-gray-700 dark:text-gray-300">{{ t('admin.ops.settings.errorFiltering') }}</h5>
+
+            <div>
+              <label class="input-label">{{ t('admin.ops.settings.ignoredStatusCodes') }}</label>
+              <input
+                v-model="ignoredStatusCodesInput"
+                type="text"
+                class="input"
+                :placeholder="t('admin.ops.settings.ignoredStatusCodesPlaceholder')"
+              />
+              <p class="mt-1 text-xs text-gray-500">
+                {{ t('admin.ops.settings.ignoredStatusCodesHint') }}
+              </p>
+            </div>
 
             <div class="flex items-center justify-between">
               <div>

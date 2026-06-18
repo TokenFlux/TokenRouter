@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -191,6 +194,81 @@ type dataShareExportRepoStub struct {
 	items []DataShareSession
 }
 
+type dataShareExportObjectStoreStub struct {
+	mu            sync.Mutex
+	objects       map[string][]byte
+	presignedKeys []string
+	uploadErr     error
+}
+
+func newDataShareExportObjectStoreStub() *dataShareExportObjectStoreStub {
+	return &dataShareExportObjectStoreStub{objects: map[string][]byte{}}
+}
+
+func (s *dataShareExportObjectStoreStub) Upload(_ context.Context, key string, body io.Reader, _ string) (int64, error) {
+	if s.uploadErr != nil {
+		return 0, s.uploadErr
+	}
+	data, err := io.ReadAll(body)
+	if err != nil {
+		return 0, err
+	}
+	s.mu.Lock()
+	s.objects[key] = data
+	s.mu.Unlock()
+	return int64(len(data)), nil
+}
+
+func (s *dataShareExportObjectStoreStub) UploadFile(ctx context.Context, key string, body io.Reader, contentType string) (int64, error) {
+	return s.Upload(ctx, key, body, contentType)
+}
+
+func (s *dataShareExportObjectStoreStub) UploadFileWithProgress(ctx context.Context, key string, body io.Reader, contentType string, onProgress func(uploadedBytes int64)) (int64, error) {
+	size, err := s.Upload(ctx, key, body, contentType)
+	if err == nil && onProgress != nil {
+		onProgress(size)
+	}
+	return size, err
+}
+
+func (s *dataShareExportObjectStoreStub) Download(_ context.Context, key string) (io.ReadCloser, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data, ok := s.objects[key]
+	if !ok {
+		return nil, fmt.Errorf("not found: %s", key)
+	}
+	return io.NopCloser(bytes.NewReader(data)), nil
+}
+
+func (s *dataShareExportObjectStoreStub) Delete(_ context.Context, key string) error {
+	s.mu.Lock()
+	delete(s.objects, key)
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *dataShareExportObjectStoreStub) PresignURL(_ context.Context, key string, _ time.Duration) (string, error) {
+	s.mu.Lock()
+	s.presignedKeys = append(s.presignedKeys, key)
+	s.mu.Unlock()
+	return "https://download.example.test/" + key, nil
+}
+
+func (s *dataShareExportObjectStoreStub) HeadBucket(context.Context) error {
+	return nil
+}
+
+type dataSharePlainEncryptor struct{}
+
+func (dataSharePlainEncryptor) Encrypt(value string) (string, error) {
+	return "ENC:" + value, nil
+}
+
+func (dataSharePlainEncryptor) Decrypt(value string) (string, error) {
+	return strings.TrimPrefix(value, "ENC:"), nil
+}
+
 func (r *dataShareExportRepoStub) GetCaptureByTrajectoryIDWithPayload(context.Context, string) (*DataShareSession, error) {
 	panic("unexpected GetCaptureByTrajectoryIDWithPayload call")
 }
@@ -245,6 +323,216 @@ func (r *dataShareExportRepoStub) FilterOptions(context.Context, DataShareSessio
 
 func (r *dataShareExportRepoStub) TotalStorageBytes(context.Context) (int64, error) {
 	return 0, nil
+}
+
+type dataShareExportArtifactRepoStub struct {
+	mu                sync.Mutex
+	nextID            int64
+	items             map[int64]*DataShareExportArtifact
+	markCompletedErr  error
+	recoveredMessages []string
+}
+
+func newDataShareExportArtifactRepoStub() *dataShareExportArtifactRepoStub {
+	return &dataShareExportArtifactRepoStub{nextID: 1, items: map[int64]*DataShareExportArtifact{}}
+}
+
+func (r *dataShareExportArtifactRepoStub) Create(_ context.Context, artifact *DataShareExportArtifact) (*DataShareExportArtifact, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	item := *artifact
+	item.ID = r.nextID
+	r.nextID++
+	now := time.Now()
+	item.CreatedAt = now
+	item.UpdatedAt = now
+	r.items[item.ID] = &item
+	return cloneDataShareExportArtifact(&item), nil
+}
+
+func (r *dataShareExportArtifactRepoStub) Get(_ context.Context, id int64) (*DataShareExportArtifact, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	item := r.items[id]
+	if item == nil {
+		return nil, ErrDataShareExportArtifactNotFound
+	}
+	return cloneDataShareExportArtifact(item), nil
+}
+
+func (r *dataShareExportArtifactRepoStub) List(_ context.Context, params pagination.PaginationParams) ([]DataShareExportArtifact, *pagination.PaginationResult, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	items := make([]DataShareExportArtifact, 0, len(r.items))
+	for _, item := range r.items {
+		items = append(items, *cloneDataShareExportArtifact(item))
+	}
+	return items, &pagination.PaginationResult{Total: int64(len(items)), Page: params.Page, PageSize: params.PageSize, Pages: 1}, nil
+}
+
+func (r *dataShareExportArtifactRepoStub) MarkRunning(_ context.Context, id int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	item := r.items[id]
+	if item == nil {
+		return ErrDataShareExportArtifactNotFound
+	}
+	now := time.Now()
+	item.Status = DataShareExportArtifactStatusRunning
+	item.StartedAt = &now
+	item.UpdatedAt = now
+	return nil
+}
+
+func (r *dataShareExportArtifactRepoStub) MarkCompleted(_ context.Context, id int64, storagePath string, sessionCount int64, fileSize int64, sha256 string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if r.markCompletedErr != nil {
+		return r.markCompletedErr
+	}
+	item := r.items[id]
+	if item == nil {
+		return ErrDataShareExportArtifactNotFound
+	}
+	now := time.Now()
+	item.Status = DataShareExportArtifactStatusCompleted
+	item.StoragePath = storagePath
+	item.SessionCount = sessionCount
+	item.FileSize = fileSize
+	item.SHA256 = sha256
+	item.CompletedAt = &now
+	item.UpdatedAt = now
+	return nil
+}
+
+func (r *dataShareExportArtifactRepoStub) MarkFailed(_ context.Context, id int64, errorMessage string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	item := r.items[id]
+	if item == nil {
+		return ErrDataShareExportArtifactNotFound
+	}
+	now := time.Now()
+	item.Status = DataShareExportArtifactStatusFailed
+	item.ErrorMessage = errorMessage
+	item.CompletedAt = &now
+	item.UpdatedAt = now
+	return nil
+}
+
+func (r *dataShareExportArtifactRepoStub) MarkRemoteUploading(_ context.Context, id int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	item := r.items[id]
+	if item == nil {
+		return ErrDataShareExportArtifactNotFound
+	}
+	item.RemoteStatus = DataShareExportArtifactRemoteStatusUploading
+	item.RemoteErrorMessage = ""
+	item.UpdatedAt = time.Now()
+	return nil
+}
+
+func (r *dataShareExportArtifactRepoStub) MarkRemoteUploaded(_ context.Context, id int64, bucket string, key string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	item := r.items[id]
+	if item == nil {
+		return ErrDataShareExportArtifactNotFound
+	}
+	now := time.Now()
+	item.RemoteStatus = DataShareExportArtifactRemoteStatusUploaded
+	item.RemoteBucket = bucket
+	item.RemoteKey = key
+	item.RemoteErrorMessage = ""
+	item.RemoteUploadedAt = &now
+	item.UpdatedAt = now
+	return nil
+}
+
+func (r *dataShareExportArtifactRepoStub) MarkRemoteUploadFailed(_ context.Context, id int64, errorMessage string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	item := r.items[id]
+	if item == nil {
+		return ErrDataShareExportArtifactNotFound
+	}
+	if item.RemoteKey != "" {
+		item.RemoteStatus = DataShareExportArtifactRemoteStatusUploaded
+	} else {
+		item.RemoteStatus = DataShareExportArtifactRemoteStatusFailed
+	}
+	item.RemoteErrorMessage = errorMessage
+	item.UpdatedAt = time.Now()
+	return nil
+}
+
+func (r *dataShareExportArtifactRepoStub) MarkInterruptedFailed(_ context.Context, errorMessage string) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.recoveredMessages = append(r.recoveredMessages, errorMessage)
+	now := time.Now()
+	var affected int64
+	for _, item := range r.items {
+		if item.Status != DataShareExportArtifactStatusPending && item.Status != DataShareExportArtifactStatusRunning {
+			continue
+		}
+		item.Status = DataShareExportArtifactStatusFailed
+		item.ErrorMessage = errorMessage
+		item.CompletedAt = &now
+		item.UpdatedAt = now
+		affected++
+	}
+	return affected, nil
+}
+
+func (r *dataShareExportArtifactRepoStub) MarkInterruptedRemoteUploads(_ context.Context, errorMessage string) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var affected int64
+	for _, item := range r.items {
+		if item.RemoteStatus != DataShareExportArtifactRemoteStatusUploading {
+			continue
+		}
+		if item.RemoteKey != "" {
+			item.RemoteStatus = DataShareExportArtifactRemoteStatusUploaded
+		} else {
+			item.RemoteStatus = DataShareExportArtifactRemoteStatusFailed
+		}
+		item.RemoteErrorMessage = errorMessage
+		item.UpdatedAt = time.Now()
+		affected++
+	}
+	return affected, nil
+}
+
+func (r *dataShareExportArtifactRepoStub) MarkDeleted(_ context.Context, id int64) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	item := r.items[id]
+	if item == nil {
+		return "", ErrDataShareExportArtifactNotFound
+	}
+	if item.RemoteStatus == DataShareExportArtifactRemoteStatusUploading {
+		return "", ErrDataShareExportArtifactRemoteUploadInProgress
+	}
+	now := time.Now()
+	storagePath := item.StoragePath
+	item.Status = DataShareExportArtifactStatusDeleted
+	item.StoragePath = ""
+	item.DeletedAt = &now
+	item.UpdatedAt = now
+	return storagePath, nil
+}
+
+func cloneDataShareExportArtifact(item *DataShareExportArtifact) *DataShareExportArtifact {
+	if item == nil {
+		return nil
+	}
+	out := *item
+	out.Filters.IDs = append([]int64(nil), item.Filters.IDs...)
+	out.Filters.ExcludeIDs = append([]int64(nil), item.Filters.ExcludeIDs...)
+	return &out
 }
 
 func TestDataSharingService_CaptureAsyncUsesWorkerContext(t *testing.T) {
@@ -3964,6 +4252,511 @@ func TestDataShareExportRedactsSensitiveFields(t *testing.T) {
 	nestedMeta, ok := meta["nested"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, true, nestedMeta["kept"])
+}
+
+func TestDataSharingService_CreateExportArtifactGeneratesDownloadableFile(t *testing.T) {
+	session := DataShareSession{
+		TrajectoryID:  "traj-artifact",
+		SessionID:     "sess-artifact",
+		Dataset:       defaultDataShareDataset,
+		Provider:      PlatformOpenAI,
+		Model:         "gpt-5.5",
+		Messages:      []map[string]any{{"role": "user", "content": "hello"}},
+		SessionJSON:   map[string]any{"messages": []any{map[string]any{"role": "user", "content": "hello"}}},
+		Exportable:    true,
+		QualityStatus: DataShareQualityComplete,
+		UserID:        1,
+		APIKeyID:      2,
+		GroupID:       3,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	settingRepo := &dataShareSettingRepoStub{values: map[string]string{SettingKeyDataSharingExportTicketKey: "test-secret"}}
+	svc := NewDataSharingService(&dataShareExportRepoStub{items: []DataShareSession{session}}, settingRepo)
+	svc.SetExportArtifactRepository(artifactRepo)
+	svc.SetExportStorageDir(t.TempDir())
+
+	artifact, err := svc.CreateExportArtifact(context.Background(), DataShareExportArtifactCreateInput{
+		Filters:  DataShareSessionFilters{IDs: []int64{1}},
+		Filename: "artifact-test",
+		Encoding: DataShareExportEncodingJSONL,
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		got, err := svc.GetExportArtifact(context.Background(), artifact.ID)
+		return err == nil && got.Status == DataShareExportArtifactStatusCompleted
+	}, time.Second, 10*time.Millisecond)
+
+	completed, err := svc.GetExportArtifact(context.Background(), artifact.ID)
+	require.NoError(t, err)
+	require.Equal(t, int64(1), completed.SessionCount)
+	require.Greater(t, completed.FileSize, int64(0))
+	require.FileExists(t, completed.StoragePath)
+
+	ticket, err := svc.CreateExportArtifactDownloadTicket(context.Background(), artifact.ID)
+	require.NoError(t, err)
+	body, opened, err := svc.OpenExportArtifactDownload(context.Background(), ticket.Token)
+	require.NoError(t, err)
+	defer func() { _ = body.Close() }()
+	raw, err := io.ReadAll(body)
+	require.NoError(t, err)
+	require.Equal(t, completed.ID, opened.ID)
+	require.Contains(t, string(raw), "sess-artifact")
+}
+
+func TestDataSharingService_ExportArtifactRemoteConfigDefaultsAndSavesConfig(t *testing.T) {
+	repo := &dataShareSettingRepoStub{values: map[string]string{}}
+	svc := NewDataSharingService(nil, repo)
+	svc.SetExportObjectStoreDeps(nil, dataSharePlainEncryptor{})
+
+	cfg, err := svc.GetExportRemoteConfig(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, defaultDataShareExportArtifactRemotePrefix, cfg.Prefix)
+	require.Equal(t, "auto", cfg.Region)
+
+	cfg, err = svc.UpdateExportRemoteConfig(context.Background(), DataShareExportRemoteConfig{
+		Endpoint:        " https://r2.example.test ",
+		Region:          "",
+		Bucket:          "shared-bucket",
+		AccessKeyID:     "ak",
+		SecretAccessKey: "sk",
+		Prefix:          "/team/../data-sharing//exports/",
+		ForcePathStyle:  true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "https://r2.example.test", cfg.Endpoint)
+	require.Equal(t, "auto", cfg.Region)
+	require.Equal(t, "shared-bucket", cfg.Bucket)
+	require.Equal(t, "ak", cfg.AccessKeyID)
+	require.Empty(t, cfg.SecretAccessKey)
+	require.Equal(t, "team/data-sharing/exports", cfg.Prefix)
+	require.True(t, cfg.ForcePathStyle)
+	require.JSONEq(t, `{"endpoint":"https://r2.example.test","region":"auto","bucket":"shared-bucket","access_key_id":"ak","secret_access_key":"ENC:sk","prefix":"team/data-sharing/exports","force_path_style":true}`, repo.values[SettingKeyDataSharingExportRemoteConfig])
+}
+
+func TestDataSharingService_UploadExportArtifactToRemoteAndPresignURL(t *testing.T) {
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	settingRepo := &dataShareSettingRepoStub{values: map[string]string{}}
+	store := newDataShareExportObjectStoreStub()
+	factory := func(context.Context, *BackupS3Config) (BackupObjectStore, error) {
+		return store, nil
+	}
+	svc := NewDataSharingService(nil, settingRepo)
+	svc.SetExportArtifactRepository(artifactRepo)
+	svc.SetExportStorageDir(t.TempDir())
+	svc.SetExportObjectStoreDeps(factory, dataSharePlainEncryptor{})
+	_, err := svc.UpdateExportRemoteConfig(context.Background(), DataShareExportRemoteConfig{
+		Bucket:          "bucket-a",
+		AccessKeyID:     "ak",
+		SecretAccessKey: "sk",
+		Region:          "auto",
+		Prefix:          "exports/share",
+	})
+	require.NoError(t, err)
+
+	path := filepath.Join(svc.exportStorageDir, "artifact.jsonl")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+	require.NoError(t, os.WriteFile(path, []byte(`{"ok":true}`+"\n"), 0644))
+	artifact, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:      DataShareExportArtifactStatusCompleted,
+		Filename:    "artifact.jsonl",
+		StoragePath: path,
+		Encoding:    string(DataShareExportEncodingJSONL),
+		FileSize:    12,
+	})
+	require.NoError(t, err)
+
+	uploaded, err := svc.UploadExportArtifactToRemote(context.Background(), artifact.ID)
+	require.NoError(t, err)
+	require.Equal(t, DataShareExportArtifactRemoteStatusUploading, uploaded.RemoteStatus)
+	require.Eventually(t, func() bool {
+		got, err := svc.GetExportArtifact(context.Background(), artifact.ID)
+		if err != nil || got.RemoteStatus != DataShareExportArtifactRemoteStatusUploaded {
+			return false
+		}
+		uploaded = got
+		return true
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, DataShareExportArtifactRemoteStatusUploaded, uploaded.RemoteStatus)
+	require.Equal(t, "bucket-a", uploaded.RemoteBucket)
+	require.Contains(t, uploaded.RemoteKey, "exports/share/")
+	require.Contains(t, uploaded.RemoteKey, "artifact.jsonl")
+	require.NotNil(t, uploaded.RemoteUploadedAt)
+	store.mu.Lock()
+	_, exists := store.objects[uploaded.RemoteKey]
+	store.mu.Unlock()
+	require.True(t, exists)
+
+	url, err := svc.CreateExportArtifactRemoteDownloadURL(context.Background(), artifact.ID)
+	require.NoError(t, err)
+	require.Equal(t, "https://download.example.test/"+uploaded.RemoteKey, url)
+}
+
+func TestDataSharingService_UploadExportArtifactToRemoteUsesDedicatedConfig(t *testing.T) {
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	settingRepo := &dataShareSettingRepoStub{values: map[string]string{}}
+	store := newDataShareExportObjectStoreStub()
+	var usedCfg BackupS3Config
+	factory := func(_ context.Context, cfg *BackupS3Config) (BackupObjectStore, error) {
+		usedCfg = *cfg
+		return store, nil
+	}
+	svc := NewDataSharingService(nil, settingRepo)
+	svc.SetExportArtifactRepository(artifactRepo)
+	svc.SetExportStorageDir(t.TempDir())
+	svc.SetExportObjectStoreDeps(factory, dataSharePlainEncryptor{})
+	_, err := svc.UpdateExportRemoteConfig(context.Background(), DataShareExportRemoteConfig{
+		Endpoint:        "https://data-share.example.test",
+		Region:          "auto",
+		Bucket:          "data-share-bucket",
+		AccessKeyID:     "data-share-ak",
+		SecretAccessKey: "data-share-secret",
+		Prefix:          "share",
+	})
+	require.NoError(t, err)
+	backupData, err := json.Marshal(BackupStorageConfig{
+		Type: BackupStorageTypeS3,
+		S3: BackupS3Config{
+			Bucket:          "backup-bucket",
+			AccessKeyID:     "backup-ak",
+			SecretAccessKey: "ENC:backup-secret",
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, settingRepo.Set(context.Background(), settingKeyBackupStorageConfig, string(backupData)))
+	path := filepath.Join(svc.exportStorageDir, "artifact.jsonl")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+	require.NoError(t, os.WriteFile(path, []byte("data"), 0644))
+	artifact, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:      DataShareExportArtifactStatusCompleted,
+		Filename:    "artifact.jsonl",
+		StoragePath: path,
+		Encoding:    string(DataShareExportEncodingJSONL),
+	})
+	require.NoError(t, err)
+
+	uploaded, err := svc.UploadExportArtifactToRemote(context.Background(), artifact.ID)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		got, err := svc.GetExportArtifact(context.Background(), artifact.ID)
+		if err != nil || got.RemoteStatus != DataShareExportArtifactRemoteStatusUploaded {
+			return false
+		}
+		uploaded = got
+		return true
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, DataShareExportArtifactRemoteStatusUploaded, uploaded.RemoteStatus)
+	require.Equal(t, "data-share-bucket", uploaded.RemoteBucket)
+	require.Equal(t, "data-share-bucket", usedCfg.Bucket)
+	require.Equal(t, "data-share-ak", usedCfg.AccessKeyID)
+	require.Equal(t, "data-share-secret", usedCfg.SecretAccessKey)
+}
+
+func TestDataSharingService_UploadExportArtifactToRemoteRecordsFailure(t *testing.T) {
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	settingRepo := &dataShareSettingRepoStub{values: map[string]string{}}
+	store := newDataShareExportObjectStoreStub()
+	store.uploadErr = errors.New("upload failed")
+	factory := func(context.Context, *BackupS3Config) (BackupObjectStore, error) {
+		return store, nil
+	}
+	svc := NewDataSharingService(nil, settingRepo)
+	svc.SetExportArtifactRepository(artifactRepo)
+	svc.SetExportStorageDir(t.TempDir())
+	svc.SetExportObjectStoreDeps(factory, dataSharePlainEncryptor{})
+	_, err := svc.UpdateExportRemoteConfig(context.Background(), DataShareExportRemoteConfig{
+		Bucket:          "bucket-a",
+		AccessKeyID:     "ak",
+		SecretAccessKey: "sk",
+		Prefix:          "share",
+	})
+	require.NoError(t, err)
+	path := filepath.Join(svc.exportStorageDir, "artifact.jsonl")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+	require.NoError(t, os.WriteFile(path, []byte("data"), 0644))
+	artifact, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:      DataShareExportArtifactStatusCompleted,
+		Filename:    "artifact.jsonl",
+		StoragePath: path,
+		Encoding:    string(DataShareExportEncodingJSONL),
+	})
+	require.NoError(t, err)
+
+	_, err = svc.UploadExportArtifactToRemote(context.Background(), artifact.ID)
+	require.NoError(t, err)
+	var got *DataShareExportArtifact
+	require.Eventually(t, func() bool {
+		got, err = svc.GetExportArtifact(context.Background(), artifact.ID)
+		return err == nil && got.RemoteStatus == DataShareExportArtifactRemoteStatusFailed
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, DataShareExportArtifactRemoteStatusFailed, got.RemoteStatus)
+	require.Contains(t, got.RemoteErrorMessage, "upload failed")
+}
+
+func TestDataSharingService_UploadExportArtifactToRemoteKeepsOldRemoteFileOnRetryFailure(t *testing.T) {
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	settingRepo := &dataShareSettingRepoStub{values: map[string]string{}}
+	store := newDataShareExportObjectStoreStub()
+	factory := func(context.Context, *BackupS3Config) (BackupObjectStore, error) {
+		return store, nil
+	}
+	svc := NewDataSharingService(nil, settingRepo)
+	svc.SetExportArtifactRepository(artifactRepo)
+	svc.SetExportStorageDir(t.TempDir())
+	svc.SetExportObjectStoreDeps(factory, dataSharePlainEncryptor{})
+	_, err := svc.UpdateExportRemoteConfig(context.Background(), DataShareExportRemoteConfig{
+		Bucket:          "bucket-a",
+		AccessKeyID:     "ak",
+		SecretAccessKey: "sk",
+		Prefix:          "share",
+	})
+	require.NoError(t, err)
+	path := filepath.Join(svc.exportStorageDir, "artifact.jsonl")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+	require.NoError(t, os.WriteFile(path, []byte("data"), 0644))
+	artifact, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:       DataShareExportArtifactStatusCompleted,
+		Filename:     "artifact.jsonl",
+		StoragePath:  path,
+		Encoding:     string(DataShareExportEncodingJSONL),
+		RemoteStatus: DataShareExportArtifactRemoteStatusUploaded,
+		RemoteBucket: "bucket-a",
+		RemoteKey:    "share/2026/06/18/1-artifact.jsonl",
+	})
+	require.NoError(t, err)
+	store.uploadErr = errors.New("retry upload failed")
+
+	_, err = svc.UploadExportArtifactToRemote(context.Background(), artifact.ID)
+	require.NoError(t, err)
+	var got *DataShareExportArtifact
+	require.Eventually(t, func() bool {
+		got, err = svc.GetExportArtifact(context.Background(), artifact.ID)
+		return err == nil && strings.Contains(got.RemoteErrorMessage, "retry upload failed")
+	}, time.Second, 10*time.Millisecond)
+	require.Equal(t, DataShareExportArtifactRemoteStatusUploaded, got.RemoteStatus)
+	require.Equal(t, "share/2026/06/18/1-artifact.jsonl", got.RemoteKey)
+
+	url, err := svc.CreateExportArtifactRemoteDownloadURL(context.Background(), artifact.ID)
+	require.NoError(t, err)
+	require.Equal(t, "https://download.example.test/share/2026/06/18/1-artifact.jsonl", url)
+}
+
+func TestDataSharingService_CreateExportArtifactRemoteDownloadURLAllowsUploadingWithOldKey(t *testing.T) {
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	settingRepo := &dataShareSettingRepoStub{values: map[string]string{}}
+	store := newDataShareExportObjectStoreStub()
+	factory := func(context.Context, *BackupS3Config) (BackupObjectStore, error) {
+		return store, nil
+	}
+	svc := NewDataSharingService(nil, settingRepo)
+	svc.SetExportArtifactRepository(artifactRepo)
+	svc.SetExportObjectStoreDeps(factory, dataSharePlainEncryptor{})
+	_, err := svc.UpdateExportRemoteConfig(context.Background(), DataShareExportRemoteConfig{
+		Bucket:          "bucket-a",
+		AccessKeyID:     "ak",
+		SecretAccessKey: "sk",
+		Prefix:          "share",
+	})
+	require.NoError(t, err)
+	artifact, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:       DataShareExportArtifactStatusCompleted,
+		Filename:     "artifact.jsonl",
+		Encoding:     string(DataShareExportEncodingJSONL),
+		RemoteStatus: DataShareExportArtifactRemoteStatusUploading,
+		RemoteBucket: "bucket-a",
+		RemoteKey:    "share/old-artifact.jsonl",
+	})
+	require.NoError(t, err)
+
+	url, err := svc.CreateExportArtifactRemoteDownloadURL(context.Background(), artifact.ID)
+	require.NoError(t, err)
+	require.Equal(t, "https://download.example.test/share/old-artifact.jsonl", url)
+}
+
+func TestDataSharingService_ListExportArtifactsMergesUploadProgress(t *testing.T) {
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	svc := NewDataSharingService(nil, nil)
+	svc.SetExportArtifactRepository(artifactRepo)
+	artifact, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:       DataShareExportArtifactStatusCompleted,
+		Filename:     "artifact.jsonl",
+		Encoding:     string(DataShareExportEncodingJSONL),
+		FileSize:     1000,
+		RemoteStatus: DataShareExportArtifactRemoteStatusUploading,
+	})
+	require.NoError(t, err)
+
+	svc.startExportArtifactUploadProgress(artifact.ID, artifact.FileSize)
+	svc.updateExportArtifactUploadProgress(artifact.ID, 250)
+	items, _, err := svc.ListExportArtifacts(context.Background(), pagination.PaginationParams{Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, int64(250), items[0].RemoteUploadBytes)
+	require.Greater(t, items[0].RemoteUploadSpeed, 0.0)
+}
+
+func TestDataSharingService_GenerateExportArtifactCleansFinalFileWhenMarkCompletedFails(t *testing.T) {
+	session := DataShareSession{
+		TrajectoryID:  "traj-artifact-cleanup",
+		SessionID:     "sess-artifact-cleanup",
+		Dataset:       defaultDataShareDataset,
+		Provider:      PlatformOpenAI,
+		Model:         "gpt-5.5",
+		Messages:      []map[string]any{{"role": "user", "content": "hello"}},
+		SessionJSON:   map[string]any{"messages": []any{map[string]any{"role": "user", "content": "hello"}}},
+		Exportable:    true,
+		QualityStatus: DataShareQualityComplete,
+		UserID:        1,
+		APIKeyID:      2,
+		GroupID:       3,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	artifactRepo.markCompletedErr = errors.New("mark completed failed")
+	storageDir := t.TempDir()
+	svc := NewDataSharingService(&dataShareExportRepoStub{items: []DataShareSession{session}}, nil)
+	svc.SetExportArtifactRepository(artifactRepo)
+	svc.SetExportStorageDir(storageDir)
+	artifact, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:   DataShareExportArtifactStatusPending,
+		Filename: normalizeDataShareExportFilename("artifact-cleanup", DataShareExportEncodingJSONL),
+		Encoding: string(DataShareExportEncodingJSONL),
+		Filters:  DataShareSessionFilters{IDs: []int64{1}},
+	})
+	require.NoError(t, err)
+	finalPath := filepath.Join(storageDir, dataShareExportArtifactStorageFilename(artifact.ID, artifact.Filename))
+
+	err = svc.generateExportArtifactWithError(context.Background(), artifact.ID)
+	require.ErrorContains(t, err, "mark completed failed")
+	require.NoFileExists(t, finalPath)
+
+	got, err := svc.GetExportArtifact(context.Background(), artifact.ID)
+	require.NoError(t, err)
+	require.Equal(t, DataShareExportArtifactStatusRunning, got.Status)
+	require.Empty(t, got.StoragePath)
+}
+
+func TestDataSharingService_DeleteExportArtifactRejectsRunning(t *testing.T) {
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	svc := NewDataSharingService(nil, nil)
+	svc.SetExportArtifactRepository(artifactRepo)
+	artifact, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:   DataShareExportArtifactStatusRunning,
+		Filename: "running.jsonl",
+		Encoding: string(DataShareExportEncodingJSONL),
+	})
+	require.NoError(t, err)
+
+	err = svc.DeleteExportArtifact(context.Background(), artifact.ID)
+	require.ErrorIs(t, err, ErrDataShareExportArtifactNotReady)
+}
+
+func TestDataSharingService_DeleteExportArtifactRejectsRemoteUploading(t *testing.T) {
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	storageDir := t.TempDir()
+	svc := NewDataSharingService(nil, nil)
+	svc.SetExportArtifactRepository(artifactRepo)
+	svc.SetExportStorageDir(storageDir)
+	path := filepath.Join(storageDir, "uploading.jsonl")
+	require.NoError(t, os.WriteFile(path, []byte("data"), 0644))
+	artifact, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:       DataShareExportArtifactStatusCompleted,
+		Filename:     "uploading.jsonl",
+		StoragePath:  path,
+		Encoding:     string(DataShareExportEncodingJSONL),
+		RemoteStatus: DataShareExportArtifactRemoteStatusUploading,
+	})
+	require.NoError(t, err)
+
+	err = svc.DeleteExportArtifact(context.Background(), artifact.ID)
+	require.ErrorIs(t, err, ErrDataShareExportArtifactRemoteUploadInProgress)
+	require.FileExists(t, path)
+
+	got, err := svc.GetExportArtifact(context.Background(), artifact.ID)
+	require.NoError(t, err)
+	require.Equal(t, DataShareExportArtifactStatusCompleted, got.Status)
+	require.Equal(t, path, got.StoragePath)
+}
+
+func TestDataSharingService_RecoverInterruptedExportArtifactsMarksActiveTasksFailed(t *testing.T) {
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	svc := NewDataSharingService(nil, nil)
+	svc.SetExportArtifactRepository(artifactRepo)
+	pending, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:   DataShareExportArtifactStatusPending,
+		Filename: "pending.jsonl",
+		Encoding: string(DataShareExportEncodingJSONL),
+	})
+	require.NoError(t, err)
+	running, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:   DataShareExportArtifactStatusRunning,
+		Filename: "running.jsonl",
+		Encoding: string(DataShareExportEncodingJSONL),
+	})
+	require.NoError(t, err)
+	completed, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:   DataShareExportArtifactStatusCompleted,
+		Filename: "completed.jsonl",
+		Encoding: string(DataShareExportEncodingJSONL),
+	})
+	require.NoError(t, err)
+
+	affected, err := svc.RecoverInterruptedExportArtifacts(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, int64(2), affected)
+
+	gotPending, err := svc.GetExportArtifact(context.Background(), pending.ID)
+	require.NoError(t, err)
+	require.Equal(t, DataShareExportArtifactStatusFailed, gotPending.Status)
+	require.Equal(t, dataShareExportArtifactInterruptedMessage, gotPending.ErrorMessage)
+
+	gotRunning, err := svc.GetExportArtifact(context.Background(), running.ID)
+	require.NoError(t, err)
+	require.Equal(t, DataShareExportArtifactStatusFailed, gotRunning.Status)
+	require.Equal(t, dataShareExportArtifactInterruptedMessage, gotRunning.ErrorMessage)
+
+	gotCompleted, err := svc.GetExportArtifact(context.Background(), completed.ID)
+	require.NoError(t, err)
+	require.Equal(t, DataShareExportArtifactStatusCompleted, gotCompleted.Status)
+	require.Empty(t, gotCompleted.ErrorMessage)
+}
+
+func TestDataSharingService_RecoverInterruptedExportArtifactRemoteUploadsMarksUploadingFailed(t *testing.T) {
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	svc := NewDataSharingService(nil, nil)
+	svc.SetExportArtifactRepository(artifactRepo)
+	freshUpload, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:       DataShareExportArtifactStatusCompleted,
+		Filename:     "fresh.jsonl",
+		Encoding:     string(DataShareExportEncodingJSONL),
+		RemoteStatus: DataShareExportArtifactRemoteStatusUploading,
+	})
+	require.NoError(t, err)
+	retryUpload, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:       DataShareExportArtifactStatusCompleted,
+		Filename:     "retry.jsonl",
+		Encoding:     string(DataShareExportEncodingJSONL),
+		RemoteStatus: DataShareExportArtifactRemoteStatusUploading,
+		RemoteKey:    "share/retry.jsonl",
+	})
+	require.NoError(t, err)
+
+	affected, err := svc.RecoverInterruptedExportArtifactRemoteUploads(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, int64(2), affected)
+
+	gotFresh, err := svc.GetExportArtifact(context.Background(), freshUpload.ID)
+	require.NoError(t, err)
+	require.Equal(t, DataShareExportArtifactRemoteStatusFailed, gotFresh.RemoteStatus)
+	require.Equal(t, dataShareExportArtifactRemoteInterruptedMessage, gotFresh.RemoteErrorMessage)
+
+	gotRetry, err := svc.GetExportArtifact(context.Background(), retryUpload.ID)
+	require.NoError(t, err)
+	require.Equal(t, DataShareExportArtifactRemoteStatusUploaded, gotRetry.RemoteStatus)
+	require.Equal(t, "share/retry.jsonl", gotRetry.RemoteKey)
+	require.Equal(t, dataShareExportArtifactRemoteInterruptedMessage, gotRetry.RemoteErrorMessage)
 }
 
 func TestWriteSingleSessionJSONLRedactsSensitiveFields(t *testing.T) {

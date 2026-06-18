@@ -2,7 +2,7 @@ package admin
 
 import (
 	"fmt"
-	"net/http"
+	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -12,7 +12,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/klauspost/compress/zstd"
 )
 
 // DataSharingHandler 处理管理端数据共享须知、session 管理、导出和统计。
@@ -52,6 +51,17 @@ type UpdateDataShareCaptureRuntimeSettingsRequest struct {
 	BufferMaxSessions      int    `json:"buffer_max_sessions"`
 	BufferMaxPendingEvents int    `json:"buffer_max_pending_events"`
 	DurationWindowSize     int    `json:"duration_window_size"`
+}
+
+// UpdateDataShareExportRemoteConfigRequest 是管理端更新导出远端上传配置的请求。
+type UpdateDataShareExportRemoteConfigRequest struct {
+	Endpoint        string `json:"endpoint"`
+	Region          string `json:"region"`
+	Bucket          string `json:"bucket"`
+	AccessKeyID     string `json:"access_key_id"`
+	SecretAccessKey string `json:"secret_access_key"`
+	Prefix          string `json:"prefix"`
+	ForcePathStyle  bool   `json:"force_path_style"`
 }
 
 // BatchDeleteDataShareSessionsRequest 是管理端批量删除数据共享 session 的请求。
@@ -105,6 +115,29 @@ type adminDataShareExportTicketResponse struct {
 	Filename    string    `json:"filename"`
 	Encoding    string    `json:"encoding"`
 	ExpiresAt   time.Time `json:"expires_at"`
+}
+
+type adminDataShareExportArtifactResponse struct {
+	ID                 int64      `json:"id"`
+	Status             string     `json:"status"`
+	Filename           string     `json:"filename"`
+	Encoding           string     `json:"encoding"`
+	SessionCount       int64      `json:"session_count"`
+	FileSize           int64      `json:"file_size"`
+	SHA256             string     `json:"sha256"`
+	ErrorMessage       string     `json:"error_message"`
+	RemoteStatus       string     `json:"remote_status"`
+	RemoteBucket       string     `json:"remote_bucket"`
+	RemoteKey          string     `json:"remote_key"`
+	RemoteErrorMessage string     `json:"remote_error_message"`
+	RemoteUploadedAt   *time.Time `json:"remote_uploaded_at,omitempty"`
+	RemoteUploadBytes  int64      `json:"remote_upload_bytes"`
+	RemoteUploadSpeed  float64    `json:"remote_upload_speed"`
+	CreatedAt          time.Time  `json:"created_at"`
+	StartedAt          *time.Time `json:"started_at,omitempty"`
+	CompletedAt        *time.Time `json:"completed_at,omitempty"`
+	DeletedAt          *time.Time `json:"deleted_at,omitempty"`
+	UpdatedAt          time.Time  `json:"updated_at"`
 }
 
 // GetNotice 返回当前数据共享须知。
@@ -218,6 +251,62 @@ func (h *DataSharingHandler) UpdateCaptureRuntimeSettings(c *gin.Context) {
 	response.Success(c, settings)
 }
 
+// GetExportRemoteConfig 返回数据共享导出上传 S3/R2 的独立配置。
+func (h *DataSharingHandler) GetExportRemoteConfig(c *gin.Context) {
+	cfg, err := h.dataSharingService.GetExportRemoteConfig(c.Request.Context())
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, cfg)
+}
+
+// UpdateExportRemoteConfig 保存数据共享导出上传 S3/R2 的独立配置。
+func (h *DataSharingHandler) UpdateExportRemoteConfig(c *gin.Context) {
+	var req UpdateDataShareExportRemoteConfigRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	cfg, err := h.dataSharingService.UpdateExportRemoteConfig(c.Request.Context(), service.DataShareExportRemoteConfig{
+		Endpoint:        req.Endpoint,
+		Region:          req.Region,
+		Bucket:          req.Bucket,
+		AccessKeyID:     req.AccessKeyID,
+		SecretAccessKey: req.SecretAccessKey,
+		Prefix:          req.Prefix,
+		ForcePathStyle:  req.ForcePathStyle,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, cfg)
+}
+
+// TestExportRemoteConfig 测试数据共享导出上传 S3/R2 的连接配置。
+func (h *DataSharingHandler) TestExportRemoteConfig(c *gin.Context) {
+	var req UpdateDataShareExportRemoteConfigRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	err := h.dataSharingService.TestExportRemoteConfig(c.Request.Context(), service.DataShareExportRemoteConfig{
+		Endpoint:        req.Endpoint,
+		Region:          req.Region,
+		Bucket:          req.Bucket,
+		AccessKeyID:     req.AccessKeyID,
+		SecretAccessKey: req.SecretAccessKey,
+		Prefix:          req.Prefix,
+		ForcePathStyle:  req.ForcePathStyle,
+	})
+	if err != nil {
+		response.Success(c, gin.H{"ok": false, "message": err.Error()})
+		return
+	}
+	response.Success(c, gin.H{"ok": true, "message": "connection successful"})
+}
+
 // ListSessions 查询所有数据共享 session。
 func (h *DataSharingHandler) ListSessions(c *gin.Context) {
 	page, pageSize := response.ParsePagination(c)
@@ -311,8 +400,8 @@ func (h *DataSharingHandler) BatchDeleteSessions(c *gin.Context) {
 	response.Success(c, gin.H{"deleted": affected})
 }
 
-// CreateExportTicket 按筛选条件签发管理端数据共享下载票据。
-func (h *DataSharingHandler) CreateExportTicket(c *gin.Context) {
+// CreateExportArtifact 按筛选条件创建预生成导出文件任务。
+func (h *DataSharingHandler) CreateExportArtifact(c *gin.Context) {
 	filters, ok := parseAdminDataShareFilters(c)
 	if !ok {
 		return
@@ -323,27 +412,26 @@ func (h *DataSharingHandler) CreateExportTicket(c *gin.Context) {
 		response.BadRequest(c, "ids or select_all is required")
 		return
 	}
-	ticket, err := h.dataSharingService.CreateExportTicket(c.Request.Context(), service.DataShareExportTicketRequest{
-		Scope:    service.DataShareExportScopeAdmin,
+	artifact, err := h.dataSharingService.CreateExportArtifact(c.Request.Context(), service.DataShareExportArtifactCreateInput{
 		Filters:  filters,
 		Filename: fmt.Sprintf("admin-data-sharing-%s", time.Now().Format("20060102-150405")),
+		Encoding: service.DataShareExportEncodingZstd,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, adminDataShareExportTicketToResponse(ticket))
+	response.Accepted(c, adminDataShareExportArtifactToResponse(artifact))
 }
 
-// CreateSessionExportTicket 为管理端单条 session 签发未压缩 JSON 下载票据。
-func (h *DataSharingHandler) CreateSessionExportTicket(c *gin.Context) {
+// CreateSessionExportArtifact 为单条 session 创建预生成导出文件任务。
+func (h *DataSharingHandler) CreateSessionExportArtifact(c *gin.Context) {
 	id, err := parseAdminDataShareIDParam(c)
 	if err != nil {
 		response.BadRequest(c, "Invalid session ID")
 		return
 	}
-	ticket, err := h.dataSharingService.CreateExportTicket(c.Request.Context(), service.DataShareExportTicketRequest{
-		Scope:    service.DataShareExportScopeAdmin,
+	artifact, err := h.dataSharingService.CreateExportArtifact(c.Request.Context(), service.DataShareExportArtifactCreateInput{
 		Filters:  service.DataShareSessionFilters{IDs: []int64{id}},
 		Filename: fmt.Sprintf("admin-data-sharing-session-%d", id),
 		Encoding: service.DataShareExportEncodingJSON,
@@ -352,31 +440,133 @@ func (h *DataSharingHandler) CreateSessionExportTicket(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, adminDataShareExportTicketToResponse(ticket))
+	response.Accepted(c, adminDataShareExportArtifactToResponse(artifact))
 }
 
-// DownloadExport 使用短期票据下载 JSONL 或 zstd 压缩后的 JSONL。
-func (h *DataSharingHandler) DownloadExport(c *gin.Context) {
-	claims, err := h.dataSharingService.ParseExportTicket(c.Request.Context(), service.DataShareExportScopeAdmin, strings.TrimSpace(c.Query("ticket")))
+// ListExportArtifacts 查询预生成导出文件任务列表。
+func (h *DataSharingHandler) ListExportArtifacts(c *gin.Context) {
+	page, pageSize := response.ParsePagination(c)
+	params := pagination.PaginationParams{
+		Page:      page,
+		PageSize:  pageSize,
+		SortBy:    c.DefaultQuery("sort_by", "created_at"),
+		SortOrder: c.DefaultQuery("sort_order", "desc"),
+	}
+	items, result, err := h.dataSharingService.ListExportArtifacts(c.Request.Context(), params)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	if claims.Encoding == service.DataShareExportEncodingJSON {
-		writeAdminDataSharePlainJSON(c, claims.Filename, func() error {
-			return h.dataSharingService.ExportJSONL(c.Request.Context(), c.Writer, claims.Filters, false)
-		})
+	out := make([]adminDataShareExportArtifactResponse, 0, len(items))
+	for i := range items {
+		out = append(out, adminDataShareExportArtifactToResponse(&items[i]))
+	}
+	total := int64(0)
+	if result != nil {
+		total = result.Total
+	}
+	response.Paginated(c, out, total, page, pageSize)
+}
+
+// GetExportArtifact 返回单个预生成导出文件任务。
+func (h *DataSharingHandler) GetExportArtifact(c *gin.Context) {
+	id, err := parseAdminDataShareIDParam(c)
+	if err != nil {
+		response.BadRequest(c, "Invalid export artifact ID")
 		return
 	}
-	if claims.Encoding == service.DataShareExportEncodingJSONL {
-		writeAdminDataSharePlainJSONL(c, claims.Filename, func() error {
-			return h.dataSharingService.ExportJSONL(c.Request.Context(), c.Writer, claims.Filters, false)
-		})
+	artifact, err := h.dataSharingService.GetExportArtifact(c.Request.Context(), id)
+	if err != nil {
+		response.ErrorFrom(c, err)
 		return
 	}
-	writeAdminDataShareZstdJSONL(c, claims.Filename, func(zw *zstd.Encoder) error {
-		return h.dataSharingService.ExportJSONL(c.Request.Context(), zw, claims.Filters, false)
-	})
+	response.Success(c, adminDataShareExportArtifactToResponse(artifact))
+}
+
+// CreateExportArtifactDownloadTicket 为已完成的预生成文件签发下载票据。
+func (h *DataSharingHandler) CreateExportArtifactDownloadTicket(c *gin.Context) {
+	id, err := parseAdminDataShareIDParam(c)
+	if err != nil {
+		response.BadRequest(c, "Invalid export artifact ID")
+		return
+	}
+	ticket, err := h.dataSharingService.CreateExportArtifactDownloadTicket(c.Request.Context(), id)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, adminDataShareExportTicketToResponse(ticket))
+}
+
+// UploadExportArtifact 将已完成的本地导出文件上传到 S3/R2。
+func (h *DataSharingHandler) UploadExportArtifact(c *gin.Context) {
+	id, err := parseAdminDataShareIDParam(c)
+	if err != nil {
+		response.BadRequest(c, "Invalid export artifact ID")
+		return
+	}
+	artifact, err := h.dataSharingService.UploadExportArtifactToRemote(c.Request.Context(), id)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, adminDataShareExportArtifactToResponse(artifact))
+}
+
+// GetExportArtifactRemoteDownloadURL 为已上传到 S3/R2 的导出文件签发预签名下载链接。
+func (h *DataSharingHandler) GetExportArtifactRemoteDownloadURL(c *gin.Context) {
+	id, err := parseAdminDataShareIDParam(c)
+	if err != nil {
+		response.BadRequest(c, "Invalid export artifact ID")
+		return
+	}
+	url, err := h.dataSharingService.CreateExportArtifactRemoteDownloadURL(c.Request.Context(), id)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"url": url})
+}
+
+// DeleteExportArtifact 删除预生成导出文件。
+func (h *DataSharingHandler) DeleteExportArtifact(c *gin.Context) {
+	id, err := parseAdminDataShareIDParam(c)
+	if err != nil {
+		response.BadRequest(c, "Invalid export artifact ID")
+		return
+	}
+	if err := h.dataSharingService.DeleteExportArtifact(c.Request.Context(), id); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"deleted": true})
+}
+
+// DownloadExportArtifact 使用短期票据下载已预生成的本地文件。
+func (h *DataSharingHandler) DownloadExportArtifact(c *gin.Context) {
+	body, artifact, err := h.dataSharingService.OpenExportArtifactDownload(c.Request.Context(), strings.TrimSpace(c.Query("ticket")))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	defer func() { _ = body.Close() }()
+	encoding := service.DataShareExportEncoding(artifact.Encoding)
+	contentType := "application/octet-stream"
+	switch encoding {
+	case service.DataShareExportEncodingJSON:
+		contentType = "application/json"
+	case service.DataShareExportEncodingJSONL:
+		contentType = "application/x-ndjson"
+	}
+	c.Header("Content-Type", contentType)
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, sanitizeAdminDataShareFilename(artifact.Filename)))
+	c.Header("X-Content-Type-Options", "nosniff")
+	if artifact.FileSize > 0 {
+		c.Header("Content-Length", strconv.FormatInt(artifact.FileSize, 10))
+	}
+	if _, err := io.Copy(c.Writer, body); err != nil {
+		_ = c.Error(err)
+	}
 }
 
 // Stats 返回管理端数据共享统计和图表数据。
@@ -592,56 +782,38 @@ func adminDataShareExportTicketToResponse(ticket *service.DataShareExportTicket)
 	}
 }
 
-func writeAdminDataSharePlainJSON(c *gin.Context, filename string, write func() error) {
-	if filename == "" {
-		filename = fmt.Sprintf("admin-data-sharing-%s.json", time.Now().Format("20060102-150405"))
+func adminDataShareExportArtifactToResponse(artifact *service.DataShareExportArtifact) adminDataShareExportArtifactResponse {
+	if artifact == nil {
+		return adminDataShareExportArtifactResponse{}
 	}
-	c.Header("Content-Type", "application/json; charset=utf-8")
-	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
-	c.Header("Cache-Control", "no-store")
-	c.Header("X-Accel-Buffering", "no")
-	c.Status(http.StatusOK)
-	if err := write(); err != nil {
-		_ = c.Error(err)
+	return adminDataShareExportArtifactResponse{
+		ID:                 artifact.ID,
+		Status:             string(artifact.Status),
+		Filename:           artifact.Filename,
+		Encoding:           artifact.Encoding,
+		SessionCount:       artifact.SessionCount,
+		FileSize:           artifact.FileSize,
+		SHA256:             artifact.SHA256,
+		ErrorMessage:       artifact.ErrorMessage,
+		RemoteStatus:       string(artifact.RemoteStatus),
+		RemoteBucket:       artifact.RemoteBucket,
+		RemoteKey:          artifact.RemoteKey,
+		RemoteErrorMessage: artifact.RemoteErrorMessage,
+		RemoteUploadedAt:   artifact.RemoteUploadedAt,
+		RemoteUploadBytes:  artifact.RemoteUploadBytes,
+		RemoteUploadSpeed:  artifact.RemoteUploadSpeed,
+		CreatedAt:          artifact.CreatedAt,
+		StartedAt:          artifact.StartedAt,
+		CompletedAt:        artifact.CompletedAt,
+		DeletedAt:          artifact.DeletedAt,
+		UpdatedAt:          artifact.UpdatedAt,
 	}
 }
 
-func writeAdminDataSharePlainJSONL(c *gin.Context, filename string, write func() error) {
+func sanitizeAdminDataShareFilename(filename string) string {
+	filename = strings.TrimSpace(filename)
 	if filename == "" {
-		filename = fmt.Sprintf("admin-data-sharing-%s.jsonl", time.Now().Format("20060102-150405"))
+		return fmt.Sprintf("admin-data-sharing-%s.jsonl.zst", time.Now().Format("20060102-150405"))
 	}
-	c.Header("Content-Type", "application/x-ndjson; charset=utf-8")
-	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
-	c.Header("Cache-Control", "no-store")
-	c.Header("X-Accel-Buffering", "no")
-	c.Status(http.StatusOK)
-	if err := write(); err != nil {
-		_ = c.Error(err)
-	}
-}
-
-func writeAdminDataShareZstdJSONL(c *gin.Context, filename string, write func(*zstd.Encoder) error) {
-	if filename == "" {
-		filename = fmt.Sprintf("admin-data-sharing-%s.jsonl.zst", time.Now().Format("20060102-150405"))
-	}
-	c.Header("Content-Type", "application/zstd")
-	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
-	c.Header("Cache-Control", "no-store")
-	c.Header("X-Accel-Buffering", "no")
-	c.Status(http.StatusOK)
-
-	zw, err := zstd.NewWriter(c.Writer)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	if err := write(zw); err != nil {
-		_ = zw.Close()
-		_ = c.Error(err)
-		return
-	}
-	if err := zw.Close(); err != nil {
-		_ = c.Error(err)
-		return
-	}
+	return strings.NewReplacer("/", "-", "\\", "-", "\x00", "", `"`, "").Replace(filename)
 }

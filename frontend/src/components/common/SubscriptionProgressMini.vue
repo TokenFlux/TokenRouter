@@ -1,22 +1,28 @@
 <template>
-  <div v-if="hasActiveSubscriptions" ref="containerRef" class="relative">
+  <div v-if="shouldShow" ref="containerRef" class="relative">
     <button
-      class="flex cursor-pointer items-center gap-2 rounded-xl bg-primary-50 px-3 py-1.5 transition-colors hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30"
-      :title="t('subscriptionProgress.viewDetails')"
+      :class="triggerClass"
+      :title="hasActiveSubscriptions ? t('subscriptionProgress.viewDetails') : ''"
+      :disabled="!hasActiveSubscriptions"
       @click="toggleTooltip"
     >
-      <Icon name="creditCard" size="sm" class="text-primary-600 dark:text-primary-400" />
-      <div class="flex items-center gap-1.5">
+      <Icon
+        v-if="variant !== 'status'"
+        name="creditCard"
+        size="sm"
+        class="text-primary-600 dark:text-primary-400"
+      />
+      <div class="flex items-center gap-2">
         <div class="flex items-center gap-0.5">
           <div
-            v-for="(subscription, index) in displaySubscriptions.slice(0, 3)"
+            v-for="(dotClass, index) in displayDots"
             :key="index"
-            class="h-2 w-2 rounded-full"
-            :class="getProgressDotClass(subscription)"
+            class="rounded-full"
+            :class="[variant === 'status' ? 'h-2 w-2' : 'h-2 w-2', dotClass]"
           />
         </div>
-        <span class="text-xs font-medium text-primary-700 dark:text-primary-300">
-          {{ activeSubscriptions.length }}
+        <span :class="variant === 'status' ? 'text-sm font-semibold text-primary-900 dark:text-dark-50' : 'text-xs font-medium text-primary-700 dark:text-primary-300'">
+          {{ statusCount }}
         </span>
       </div>
     </button>
@@ -108,6 +114,12 @@ import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { useSubscriptionStore } from '@/stores'
 import type { UserSubscription } from '@/types'
 
+const props = withDefaults(defineProps<{
+  variant?: 'default' | 'status'
+}>(), {
+  variant: 'default'
+})
+
 const { t } = useI18n()
 const subscriptionStore = useSubscriptionStore()
 const { formatBalanceAmount } = useBalanceDisplay()
@@ -117,10 +129,25 @@ const tooltipOpen = ref(false)
 
 const activeSubscriptions = computed(() => subscriptionStore.activeSubscriptions)
 const hasActiveSubscriptions = computed(() => subscriptionStore.hasActiveSubscriptions)
+const variant = computed(() => props.variant)
+const shouldShow = computed(() => variant.value === 'status' || hasActiveSubscriptions.value)
+const statusCount = computed(() => activeSubscriptions.value.length)
+const triggerClass = computed(() => {
+  if (variant.value === 'status') {
+    return 'flex h-8 min-w-[50px] items-center justify-center gap-1.5 rounded-lg border border-primary-200/70 bg-primary-100/80 px-2.5 shadow-sm transition-colors hover:bg-primary-100 disabled:cursor-default disabled:hover:bg-primary-100/80 dark:border-transparent dark:bg-dark-800/80 dark:shadow-none dark:hover:bg-dark-700 dark:disabled:hover:bg-dark-800/80'
+  }
+  return 'flex cursor-pointer items-center gap-2 rounded-xl bg-primary-50 px-3 py-1.5 transition-colors hover:bg-primary-100 dark:bg-primary-900/20 dark:hover:bg-primary-900/30'
+})
 
 const displaySubscriptions = computed(() =>
   [...activeSubscriptions.value].sort((a, b) => getMaxUsagePercentage(b) - getMaxUsagePercentage(a))
 )
+const displayDots = computed(() => {
+  if (displaySubscriptions.value.length > 0) {
+    return displaySubscriptions.value.slice(0, 3).map((subscription) => getProgressDotClass(subscription))
+  }
+  return ['bg-green-500']
+})
 
 function usageWindows(subscription: UserSubscription) {
   return [
@@ -199,6 +226,7 @@ function getDaysRemainingClass(expiresAt: string): string {
 }
 
 function toggleTooltip() {
+  if (!hasActiveSubscriptions.value) return
   tooltipOpen.value = !tooltipOpen.value
 }
 

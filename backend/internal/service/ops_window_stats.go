@@ -20,5 +20,6 @@ func (s *OpsService) GetWindowStats(ctx context.Context, startTime, endTime time
 		StartTime: startTime,
 		EndTime:   endTime,
 	}
+	s.applyOpsIgnoredStatusCodes(ctx, filter)
 	return s.opsRepo.GetWindowStats(ctx, filter)
 }

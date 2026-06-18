@@ -1294,7 +1294,7 @@ function handleToolbarRefresh() {
               v-if="!props.fullscreen"
               class="text-[10px] font-bold text-blue-500 hover:underline"
               type="button"
-              @click="openDetails({ title: t('admin.ops.requestDetails.title'), kind: 'error' })"
+              @click="openDetails({ title: t('admin.ops.requestDetails.title'), kind: 'error', sla_only: true })"
             >
               {{ t('admin.ops.requestDetails.details') }}
             </button>

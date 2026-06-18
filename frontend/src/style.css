@@ -306,10 +306,10 @@
   }
 
   .btn-primary {
-    @apply bg-gradient-to-r from-primary-500 to-primary-600;
-    @apply text-white shadow-md shadow-primary-500/25;
-    @apply hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/30;
-    @apply dark:shadow-primary-500/20;
+    /* 按钮保持纯色和无彩色阴影，避免出现渐变或发光感。 */
+    @apply bg-primary-600;
+    @apply text-white shadow-none;
+    @apply hover:bg-primary-700 hover:shadow-none;
   }
 
   .btn-secondary {
@@ -326,51 +326,47 @@
   }
 
   .btn-danger {
-    @apply bg-gradient-to-r from-red-500 to-red-600;
-    @apply text-white shadow-md shadow-red-500/25;
-    @apply hover:from-red-600 hover:to-red-700 hover:shadow-lg hover:shadow-red-500/30;
+    @apply bg-red-600;
+    @apply text-white shadow-none;
+    @apply hover:bg-red-700 hover:shadow-none;
   }
 
   .btn-success {
-    @apply bg-gradient-to-r from-emerald-500 to-emerald-600;
-    @apply text-white shadow-md shadow-emerald-500/25;
-    @apply hover:from-emerald-600 hover:to-emerald-700 hover:shadow-lg hover:shadow-emerald-500/30;
-    @apply dark:shadow-emerald-500/20;
+    @apply bg-emerald-600;
+    @apply text-white shadow-none;
+    @apply hover:bg-emerald-700 hover:shadow-none;
   }
 
   .btn-warning {
-    @apply bg-gradient-to-r from-amber-500 to-amber-600;
-    @apply text-white shadow-md shadow-amber-500/25;
-    @apply hover:from-amber-600 hover:to-amber-700 hover:shadow-lg hover:shadow-amber-500/30;
-    @apply dark:shadow-amber-500/20;
+    @apply bg-amber-500;
+    @apply text-white shadow-none;
+    @apply hover:bg-amber-600 hover:shadow-none;
   }
 
   .btn-stripe {
-    @apply bg-[#635bff] text-white shadow-md shadow-[#635bff]/25;
-    @apply hover:bg-[#5851ea] hover:shadow-lg hover:shadow-[#635bff]/30;
-    @apply dark:bg-[#7a73ff] dark:shadow-[#7a73ff]/20;
+    @apply bg-[#635bff] text-white shadow-none;
+    @apply hover:bg-[#5851ea] hover:shadow-none;
+    @apply dark:bg-[#7a73ff];
     @apply dark:hover:bg-[#635bff];
   }
 
   .btn-airwallex {
-    @apply bg-[#14171A] text-white shadow-md shadow-emerald-500/20;
-    @apply hover:bg-[#20252a] hover:shadow-lg hover:shadow-emerald-500/25;
-    @apply dark:bg-[#7AF0C4] dark:text-gray-950 dark:shadow-emerald-500/20;
+    @apply bg-[#14171A] text-white shadow-none;
+    @apply hover:bg-[#20252a] hover:shadow-none;
+    @apply dark:bg-[#7AF0C4] dark:text-gray-950;
     @apply dark:hover:bg-[#62d9ad];
   }
 
   .btn-alipay {
-    @apply bg-[#00AEEF] text-white shadow-md shadow-[#00AEEF]/25;
-    @apply hover:bg-[#009dd6] hover:shadow-lg hover:shadow-[#00AEEF]/30;
+    @apply bg-[#00AEEF] text-white shadow-none;
+    @apply hover:bg-[#009dd6] hover:shadow-none;
     @apply active:bg-[#008cbe];
-    @apply dark:shadow-[#00AEEF]/20;
   }
 
   .btn-wxpay {
-    @apply bg-[#2BB741] text-white shadow-md shadow-[#2BB741]/25;
-    @apply hover:bg-[#24a038] hover:shadow-lg hover:shadow-[#2BB741]/30;
+    @apply bg-[#2BB741] text-white shadow-none;
+    @apply hover:bg-[#24a038] hover:shadow-none;
     @apply active:bg-[#1d8a2f];
-    @apply dark:shadow-[#2BB741]/20;
   }
 
   .btn-sm {

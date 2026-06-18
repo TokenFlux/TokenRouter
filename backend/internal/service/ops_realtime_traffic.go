@@ -31,6 +31,7 @@ func (s *OpsService) GetRealtimeTrafficSummary(ctx context.Context, filter *OpsD
 
 	// Realtime traffic summary always uses raw logs (minute granularity peaks).
 	filter.QueryMode = OpsQueryModeRaw
+	s.applyOpsIgnoredStatusCodes(ctx, filter)
 
 	return s.opsRepo.GetRealtimeTrafficSummary(ctx, filter)
 }

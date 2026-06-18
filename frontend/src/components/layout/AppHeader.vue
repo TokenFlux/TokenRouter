@@ -21,48 +21,48 @@
         </div>
       </div>
 
-      <!-- Right: Announcements + Docs + Language + Subscriptions + Balance + User Dropdown -->
-      <div class="flex items-center gap-3">
-        <!-- Announcement Bell -->
-        <AnnouncementBell v-if="user" />
+      <!-- 右侧状态项：只调整按钮形状、间距和分隔线，不改变顶部栏主体结构。 -->
+      <div class="header-status-actions">
+        <div class="header-status-icon-group">
+          <AnnouncementBell v-if="user" variant="status" />
 
-        <!-- Docs Link -->
-        <a
-          v-if="docUrl"
-          :href="docUrl"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-primary-100 hover:text-primary-900 dark:text-dark-100/80 dark:hover:bg-dark-800 dark:hover:text-white"
-        >
-          <Icon name="book" size="sm" />
-          <span class="hidden sm:inline">{{ t('nav.docs') }}</span>
-        </a>
-
-        <!-- Language Switcher -->
-        <LocaleSwitcher />
-
-        <!-- Subscription Progress (for users with active subscriptions) -->
-        <SubscriptionProgressMini v-if="user" />
-
-        <!-- Balance Display -->
-        <div
-          v-if="user"
-          class="hidden items-center gap-2 rounded-xl border border-primary-200/80 bg-primary-50 px-3 py-1.5 dark:border-primary-500/80 dark:bg-dark-900 sm:flex"
-        >
-          <BalanceIcon size="sm" class="text-primary-600 dark:text-primary-400" />
-          <span class="text-sm font-semibold text-primary-700 dark:text-primary-300">
-            {{ formatBalanceAmount(user.balance, { fractionDigits: 2 }) }}
-          </span>
+          <a
+            v-if="docUrl"
+            :href="docUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="header-status-icon-button"
+            :aria-label="t('nav.docs')"
+            :title="t('nav.docs')"
+          >
+            <Icon name="book" size="md" />
+          </a>
         </div>
 
-        <!-- User Dropdown -->
+        <div v-if="user || docUrl" class="header-status-divider hidden sm:block"></div>
+
+        <LocaleSwitcher variant="status" />
+
+        <template v-if="user">
+          <SubscriptionProgressMini variant="status" />
+
+          <div class="header-status-balance hidden sm:flex">
+            <span class="text-sm font-semibold text-primary-700 dark:text-primary-300">
+              {{ formatBalanceAmount(user.balance, { fractionDigits: 2 }) }}
+            </span>
+          </div>
+
+          <div class="header-status-divider hidden md:block"></div>
+        </template>
+
+        <!-- 用户下拉菜单入口只保留头像和箭头，使状态栏节奏接近参考图。 -->
         <div v-if="user" class="relative" ref="dropdownRef">
           <button
             @click="toggleDropdown"
-            class="flex items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-primary-100 dark:hover:bg-dark-800"
+            class="header-status-user-button"
             aria-label="User Menu"
           >
-            <div class="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 text-sm font-medium text-white shadow-sm">
+            <div class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-sm font-medium text-white shadow-sm">
               <img
                 v-if="avatarUrl"
                 :src="avatarUrl"
@@ -71,15 +71,6 @@
               >
               <span v-else>{{ userInitials }}</span>
             </div>
-            <div class="hidden text-left md:block">
-              <div class="text-sm font-medium text-gray-900 dark:text-white">
-                {{ displayName }}
-              </div>
-              <div class="text-xs capitalize text-gray-500 dark:text-dark-400">
-                {{ user.role }}
-              </div>
-            </div>
-            <Icon name="chevronDown" size="sm" class="hidden text-gray-400 md:block" />
           </button>
 
           <!-- Dropdown Menu -->
@@ -210,7 +201,6 @@ import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import SubscriptionProgressMini from '@/components/common/SubscriptionProgressMini.vue'
 import AnnouncementBell from '@/components/common/AnnouncementBell.vue'
 import Icon from '@/components/icons/Icon.vue'
-import BalanceIcon from '@/components/common/BalanceIcon.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 
 const router = useRouter()
@@ -321,6 +311,30 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.header-status-actions {
+  @apply ml-auto flex min-w-0 shrink-0 items-center gap-3.5;
+}
+
+.header-status-icon-group {
+  @apply hidden items-center gap-2 sm:flex;
+}
+
+.header-status-divider {
+  @apply h-9 w-px shrink-0 bg-primary-200/80 dark:bg-dark-600/90;
+}
+
+.header-status-icon-button {
+  @apply flex h-10 w-10 items-center justify-center rounded-xl text-primary-900/70 transition-colors hover:bg-primary-100 hover:text-primary-900 dark:text-dark-100/80 dark:hover:bg-dark-800 dark:hover:text-white;
+}
+
+.header-status-balance {
+  @apply h-8 min-w-[104px] items-center justify-center rounded-lg border border-primary-200/70 bg-primary-100/80 px-3 shadow-sm dark:border-transparent dark:bg-dark-800/80 dark:shadow-none;
+}
+
+.header-status-user-button {
+  @apply flex h-11 w-11 items-center justify-center rounded-full transition-colors hover:bg-primary-100 dark:hover:bg-dark-800;
+}
+
 .dropdown-enter-active,
 .dropdown-leave-active {
   transition: all 0.2s ease;

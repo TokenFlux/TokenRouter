@@ -84,6 +84,18 @@ func (r *opsRepository) ListRequestDetails(ctx context.Context, filter *service.
 		where = "WHERE " + strings.Join(conditions, " AND ")
 	}
 
+	slaErrorWhere := ""
+	if filter != nil && filter.SLAOnly {
+		slaErrorWhere = "\n    AND " + opsSLACountableSQL(
+			"o.status_code",
+			"o.upstream_status_code",
+			"o.upstream_errors",
+			"o.error_owner",
+			"o.is_business_limited",
+			filter.IgnoredStatusCodes,
+		)
+	}
+
 	cte := `
 WITH combined AS (
   SELECT
@@ -132,6 +144,7 @@ WITH combined AS (
   LEFT JOIN accounts a ON a.id = o.account_id
   WHERE o.created_at >= $1 AND o.created_at < $2
     AND COALESCE(o.status_code, 0) >= 400
+` + slaErrorWhere + `
 )
 `
 

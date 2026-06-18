@@ -3,12 +3,13 @@
     <button
       @click="toggleDropdown"
       :disabled="switching"
-      class="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+      :class="triggerClass"
       :title="currentLocale?.name"
     >
-      <span class="text-base">{{ currentLocale?.flag }}</span>
-      <span class="hidden sm:inline">{{ currentLocale?.code.toUpperCase() }}</span>
+      <span class="text-base leading-none">{{ currentLocale?.flag }}</span>
+      <span v-if="variant !== 'status'" class="hidden sm:inline">{{ currentLocale?.code.toUpperCase() }}</span>
       <Icon
+        v-if="variant !== 'status'"
         name="chevronDown"
         size="xs"
         class="text-gray-400 transition-transform duration-200"
@@ -47,6 +48,12 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { setLocale, availableLocales } from '@/i18n'
 
+const props = withDefaults(defineProps<{
+  variant?: 'default' | 'status'
+}>(), {
+  variant: 'default'
+})
+
 const { locale } = useI18n()
 
 const isOpen = ref(false)
@@ -55,6 +62,13 @@ const switching = ref(false)
 
 const currentLocaleCode = computed(() => locale.value)
 const currentLocale = computed(() => availableLocales.find((l) => l.code === locale.value))
+const variant = computed(() => props.variant)
+const triggerClass = computed(() => {
+  if (variant.value === 'status') {
+    return 'flex h-10 items-center gap-2 rounded-xl px-2.5 text-sm font-medium text-primary-900/75 transition-colors hover:bg-primary-100 hover:text-primary-900 disabled:cursor-not-allowed disabled:opacity-60 dark:text-dark-100/80 dark:hover:bg-dark-800 dark:hover:text-white'
+  }
+  return 'flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:text-gray-300 dark:hover:bg-dark-700'
+})
 
 function toggleDropdown() {
   isOpen.value = !isOpen.value

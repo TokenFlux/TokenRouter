@@ -204,10 +204,11 @@ func (s *OpsAggregationService) aggregateHourly() {
 		return
 	}
 
+	ignoredStatusCodes := resolveOpsIgnoredStatusCodesFromRepo(ctx, s.settingRepo)
 	var aggErr error
 	for cursor := start; cursor.Before(end); cursor = cursor.Add(opsAggHourlyChunk) {
 		chunkEnd := minTime(cursor.Add(opsAggHourlyChunk), end)
-		if err := s.opsRepo.UpsertHourlyMetrics(ctx, cursor, chunkEnd); err != nil {
+		if err := s.opsRepo.UpsertHourlyMetrics(ctx, cursor, chunkEnd, ignoredStatusCodes); err != nil {
 			aggErr = err
 			logger.LegacyPrintf("service.ops_aggregation", "[OpsAggregation][hourly] upsert failed (%s..%s): %v", cursor.Format(time.RFC3339), chunkEnd.Format(time.RFC3339), err)
 			break

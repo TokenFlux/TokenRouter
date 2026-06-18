@@ -23,6 +23,9 @@ func TestGetOpsAdvancedSettings_DefaultHidesOpenAITokenStats(t *testing.T) {
 	if !cfg.DisplayAlertEvents {
 		t.Fatalf("DisplayAlertEvents = false, want true by default")
 	}
+	if got := cfg.IgnoredStatusCodes; len(got) != 2 || got[0] != 401 || got[1] != 403 {
+		t.Fatalf("IgnoredStatusCodes = %#v, want [401 403]", got)
+	}
 	if repo.setCalls != 1 {
 		t.Fatalf("expected defaults to be persisted once, got %d", repo.setCalls)
 	}
@@ -96,6 +99,41 @@ func TestGetOpsAdvancedSettings_BackfillsNewDisplayFlagsFromDefaults(t *testing.
 	}
 	if !cfg.DisplayAlertEvents {
 		t.Fatalf("DisplayAlertEvents = false, want true default backfill")
+	}
+	if got := cfg.IgnoredStatusCodes; len(got) != 2 || got[0] != 401 || got[1] != 403 {
+		t.Fatalf("IgnoredStatusCodes = %#v, want default backfill [401 403]", got)
+	}
+}
+
+func TestUpdateOpsAdvancedSettings_NormalizesIgnoredStatusCodes(t *testing.T) {
+	repo := newRuntimeSettingRepoStub()
+	svc := &OpsService{settingRepo: repo}
+
+	cfg := defaultOpsAdvancedSettings()
+	cfg.IgnoredStatusCodes = []int{403, 401, 401}
+
+	updated, err := svc.UpdateOpsAdvancedSettings(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("UpdateOpsAdvancedSettings() error = %v", err)
+	}
+	if got := updated.IgnoredStatusCodes; len(got) != 2 || got[0] != 401 || got[1] != 403 {
+		t.Fatalf("IgnoredStatusCodes = %#v, want normalized [401 403]", got)
+	}
+}
+
+func TestUpdateOpsAdvancedSettings_AllowsEmptyIgnoredStatusCodes(t *testing.T) {
+	repo := newRuntimeSettingRepoStub()
+	svc := &OpsService{settingRepo: repo}
+
+	cfg := defaultOpsAdvancedSettings()
+	cfg.IgnoredStatusCodes = []int{}
+
+	updated, err := svc.UpdateOpsAdvancedSettings(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("UpdateOpsAdvancedSettings() error = %v", err)
+	}
+	if len(updated.IgnoredStatusCodes) != 0 {
+		t.Fatalf("IgnoredStatusCodes = %#v, want empty", updated.IgnoredStatusCodes)
 	}
 }
 

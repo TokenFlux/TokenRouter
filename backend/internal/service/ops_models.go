@@ -155,6 +155,9 @@ type OpsErrorLogFilter struct {
 	// - all: show everything
 	View string
 
+	// IgnoredStatusCodes 是客户端侧状态码忽略列表；nil 表示使用系统默认值，空切片表示不按状态码忽略。
+	IgnoredStatusCodes []int
+
 	Page     int
 	PageSize int
 }

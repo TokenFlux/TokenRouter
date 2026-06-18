@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"strings"
 )
@@ -52,4 +53,41 @@ func cloneOpsFilterWithMode(filter *OpsDashboardFilter, mode OpsQueryMode) *OpsD
 	cloned := *filter
 	cloned.QueryMode = mode
 	return &cloned
+}
+
+func (s *OpsService) applyOpsIgnoredStatusCodes(ctx context.Context, filter *OpsDashboardFilter) {
+	if filter == nil {
+		return
+	}
+	if filter.IgnoredStatusCodes == nil {
+		filter.IgnoredStatusCodes = s.resolveOpsIgnoredStatusCodes(ctx)
+	} else {
+		filter.IgnoredStatusCodes = NormalizeOpsIgnoredStatusCodes(filter.IgnoredStatusCodes)
+	}
+	if !opsIgnoredStatusCodesEqual(filter.IgnoredStatusCodes, DefaultOpsIgnoredStatusCodes()) {
+		// 预聚合表没有把忽略状态码作为维度；自定义状态码时强制走 raw，确保设置立即生效。
+		filter.QueryMode = OpsQueryModeRaw
+	}
+}
+
+func (s *OpsService) resolveOpsQueryModeWithIgnoredStatusCodes(ctx context.Context, filter *OpsDashboardFilter) {
+	if filter == nil {
+		return
+	}
+	filter.QueryMode = s.resolveOpsQueryMode(ctx, filter.QueryMode)
+	s.applyOpsIgnoredStatusCodes(ctx, filter)
+}
+
+func opsIgnoredStatusCodesEqual(a, b []int) bool {
+	a = NormalizeOpsIgnoredStatusCodes(a)
+	b = NormalizeOpsIgnoredStatusCodes(b)
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }

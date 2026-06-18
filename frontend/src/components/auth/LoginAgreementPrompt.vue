@@ -125,7 +125,7 @@
               </button>
               <button
                 type="button"
-                class="rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-primary-600/20 transition hover:bg-primary-700"
+                class="rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white shadow-none transition hover:bg-primary-700"
                 @click="emit('accept')"
               >
                 同意并继续

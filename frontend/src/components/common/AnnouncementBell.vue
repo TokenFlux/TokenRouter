@@ -3,9 +3,12 @@
     <!-- 铃铛按钮 -->
     <button
       @click="openModal"
-      class="relative flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all hover:bg-gray-100 hover:scale-105 dark:text-gray-400 dark:hover:bg-dark-800"
-      :class="{ 'text-blue-600 dark:text-blue-400': unreadCount > 0 }"
+      :class="[
+        triggerClass,
+        { 'text-blue-600 dark:text-blue-400': unreadCount > 0 }
+      ]"
       :aria-label="t('announcements.title')"
+      :title="t('announcements.title')"
     >
       <Icon name="bell" size="md" />
       <!-- 未读红点 -->
@@ -52,7 +55,7 @@
                     v-if="unreadCount > 0"
                     @click="markAllAsRead"
                     :disabled="loading"
-                    class="rounded-lg bg-blue-600 px-4 py-2 text-xs font-medium text-white shadow-lg shadow-blue-500/30 transition-all hover:bg-blue-700 hover:shadow-xl disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
+                    class="rounded-lg bg-blue-600 px-4 py-2 text-xs font-medium text-white shadow-none transition-all hover:bg-blue-700 hover:shadow-none disabled:opacity-50 dark:bg-blue-500 dark:hover:bg-blue-600"
                   >
                     {{ t('announcements.markAllRead') }}
                   </button>
@@ -292,7 +295,7 @@
                   <button
                     v-if="!selectedAnnouncement.read_at"
                     @click="markAsReadAndClose(selectedAnnouncement.id)"
-                    class="rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-blue-500/30 transition-all hover:shadow-xl hover:scale-105"
+                    class="rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-medium text-white shadow-none transition-all hover:scale-105 hover:bg-blue-700 hover:shadow-none"
                   >
                     <span class="flex items-center gap-2">
                       <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
@@ -323,6 +326,12 @@ import { formatRelativeTime, formatRelativeWithDateTime } from '@/utils/format'
 import type { UserAnnouncement } from '@/types'
 import Icon from '@/components/icons/Icon.vue'
 
+const props = withDefaults(defineProps<{
+  variant?: 'default' | 'status'
+}>(), {
+  variant: 'default'
+})
+
 const { t } = useI18n()
 const appStore = useAppStore()
 const announcementStore = useAnnouncementStore()
@@ -336,6 +345,12 @@ marked.setOptions({
 // Use store state (storeToRefs for reactivity)
 const { announcements, loading } = storeToRefs(announcementStore)
 const unreadCount = computed(() => announcementStore.unreadCount)
+const triggerClass = computed(() => {
+  if (props.variant === 'status') {
+    return 'relative flex h-10 w-10 items-center justify-center rounded-xl text-primary-900/70 transition-colors hover:bg-primary-100 hover:text-primary-900 dark:text-dark-100/80 dark:hover:bg-dark-800 dark:hover:text-white'
+  }
+  return 'relative flex h-9 w-9 items-center justify-center rounded-lg text-gray-600 transition-all hover:bg-gray-100 hover:scale-105 dark:text-gray-400 dark:hover:bg-dark-800'
+})
 
 // Local modal state
 const isModalOpen = ref(false)

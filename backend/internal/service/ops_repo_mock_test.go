@@ -174,7 +174,7 @@ func (m *opsRepoMock) IsAlertSilenced(ctx context.Context, ruleID int64, platfor
 	return false, nil
 }
 
-func (m *opsRepoMock) UpsertHourlyMetrics(ctx context.Context, startTime, endTime time.Time) error {
+func (m *opsRepoMock) UpsertHourlyMetrics(ctx context.Context, startTime, endTime time.Time, ignoredStatusCodes []int) error {
 	return nil
 }
 

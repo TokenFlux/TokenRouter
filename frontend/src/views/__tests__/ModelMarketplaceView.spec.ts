@@ -233,6 +233,7 @@ describe('ModelMarketplaceView', () => {
     expect(gptCards[0].text()).toContain('Pro')
     expect(gptCards[0].text()).toContain('Plus Data Sharing')
     expect(gptCards[0].text()).toContain('Pro Data Sharing')
+    expect(gptCards[0].text()).not.toContain('marketplace.dataSharingTag')
   })
 
   it('可以切换到分组-模型模式并保存本地偏好', async () => {
@@ -244,6 +245,7 @@ describe('ModelMarketplaceView', () => {
     expect(localStorage.getItem('tokenrouter:model-marketplace:view-mode')).toBe('group-model')
     expect(wrapper.findAll('[data-testid="marketplace-group-section"]')).toHaveLength(4)
     expect(wrapper.findAll('[data-testid="marketplace-model-card"]')).toHaveLength(0)
+    expect(wrapper.findAll('[data-testid="marketplace-group-section"]').map((section) => section.text()).join('\n')).toContain('marketplace.dataSharingTag')
 
     wrapper.unmount()
 

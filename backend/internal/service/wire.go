@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 	"database/sql"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
@@ -559,16 +562,51 @@ func ProvideAPIKeyService(
 // ProvideDataSharingService 注入数据共享服务并绑定独立采集 worker。
 func ProvideDataSharingService(
 	repo DataShareSessionRepository,
+	exportArtifactRepo DataShareExportArtifactRepository,
 	settingRepo SettingRepository,
 	captureWorker *DataSharingCaptureWorkerPool,
 	cfg *config.Config,
+	storeFactory BackupObjectStoreFactory,
+	encryptor SecretEncryptor,
 ) *DataSharingService {
 	svc := NewDataSharingService(repo, settingRepo, captureWorker)
+	svc.SetExportArtifactRepository(exportArtifactRepo)
+	svc.SetExportStorageDir(resolveDataShareExportStorageDir(cfg))
+	svc.SetExportObjectStoreDeps(storeFactory, encryptor)
+	if recovered, err := svc.RecoverInterruptedExportArtifacts(context.Background()); err != nil {
+		logger.LegacyPrintf("service.data_sharing", "recover interrupted export artifacts failed: %v", err)
+	} else if recovered > 0 {
+		logger.LegacyPrintf("service.data_sharing", "marked %d interrupted export artifact(s) as failed", recovered)
+	}
+	if recovered, err := svc.RecoverInterruptedExportArtifactRemoteUploads(context.Background()); err != nil {
+		logger.LegacyPrintf("service.data_sharing", "recover interrupted export artifact remote uploads failed: %v", err)
+	} else if recovered > 0 {
+		logger.LegacyPrintf("service.data_sharing", "marked %d interrupted export artifact remote upload(s) as failed", recovered)
+	}
 	svc.SetDefaultCaptureRuntimeSettings(dataShareCaptureRuntimeSettingsFromConfig(cfg))
 	if _, err := svc.LoadRuntimeSettings(context.Background()); err != nil {
 		logger.LegacyPrintf("service.data_sharing", "load data sharing runtime settings failed: %v", err)
 	}
 	return svc
+}
+
+func resolveDataShareExportStorageDir(cfg *config.Config) string {
+	if cfg != nil {
+		if dir := strings.TrimSpace(cfg.Gateway.DataSharingExport.StorageDir); dir != "" {
+			return dir
+		}
+	}
+	return filepath.Join(defaultDataShareExportDataDir(), "data-sharing-exports")
+}
+
+func defaultDataShareExportDataDir() string {
+	if dir := strings.TrimSpace(os.Getenv("DATA_DIR")); dir != "" {
+		return dir
+	}
+	if info, err := os.Stat("/app/data"); err == nil && info.IsDir() {
+		return "/app/data"
+	}
+	return "."
 }
 
 // ProviderSet is the Wire provider set for all services

@@ -342,6 +342,17 @@ func (s *OpsService) GetErrorLogs(ctx context.Context, filter *OpsErrorLogFilter
 	if s.opsRepo == nil {
 		return &OpsErrorLogList{Errors: []*OpsErrorLog{}, Total: 0, Page: 1, PageSize: 20}, nil
 	}
+	if filter == nil {
+		filter = &OpsErrorLogFilter{}
+	} else {
+		filterCopy := *filter
+		filter = &filterCopy
+	}
+	if filter.IgnoredStatusCodes == nil {
+		filter.IgnoredStatusCodes = s.resolveOpsIgnoredStatusCodes(ctx)
+	} else {
+		filter.IgnoredStatusCodes = NormalizeOpsIgnoredStatusCodes(filter.IgnoredStatusCodes)
+	}
 	result, err := s.opsRepo.ListErrorLogs(ctx, filter)
 	if err != nil {
 		log.Printf("[Ops] GetErrorLogs failed: %v", err)

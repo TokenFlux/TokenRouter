@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func (r *opsRepository) UpsertHourlyMetrics(ctx context.Context, startTime, endTime time.Time) error {
+func (r *opsRepository) UpsertHourlyMetrics(ctx context.Context, startTime, endTime time.Time, ignoredStatusCodes []int) error {
 	if r == nil || r.db == nil {
 		return fmt.Errorf("nil ops repository")
 	}
@@ -17,6 +17,8 @@ func (r *opsRepository) UpsertHourlyMetrics(ctx context.Context, startTime, endT
 
 	start := startTime.UTC()
 	end := endTime.UTC()
+	businessLimitedSQL := opsBusinessLimitedSQL("client_status_code", "upstream_status_code", "upstream_errors", "error_owner", "is_business_limited", ignoredStatusCodes)
+	slaCountableSQL := opsSLACountableSQL("client_status_code", "upstream_status_code", "upstream_errors", "error_owner", "is_business_limited", ignoredStatusCodes)
 
 	// NOTE:
 	// - We aggregate usage_logs + ops_error_logs into ops_metrics_hourly.
@@ -79,6 +81,8 @@ error_base AS (
     is_business_limited AS is_business_limited,
     error_owner AS error_owner,
     status_code AS client_status_code,
+    upstream_status_code AS upstream_status_code,
+    upstream_errors AS upstream_errors,
     COALESCE(upstream_status_code, status_code, 0) AS effective_status_code
   FROM ops_error_logs
   -- Exclude count_tokens requests from error metrics as they are informational probes
@@ -91,11 +95,11 @@ error_agg AS (
     CASE WHEN GROUPING(platform) = 1 THEN NULL ELSE platform END AS platform,
     CASE WHEN GROUPING(group_id) = 1 THEN NULL ELSE group_id END AS group_id,
     COUNT(*) FILTER (WHERE COALESCE(client_status_code, 0) >= 400) AS error_count_total,
-    COUNT(*) FILTER (WHERE COALESCE(client_status_code, 0) >= 400 AND is_business_limited) AS business_limited_count,
-    COUNT(*) FILTER (WHERE COALESCE(client_status_code, 0) >= 400 AND NOT is_business_limited) AS error_count_sla,
-    COUNT(*) FILTER (WHERE error_owner = 'provider' AND NOT is_business_limited AND COALESCE(effective_status_code, 0) NOT IN (429, 529)) AS upstream_error_count_excl_429_529,
-    COUNT(*) FILTER (WHERE error_owner = 'provider' AND NOT is_business_limited AND COALESCE(effective_status_code, 0) = 429) AS upstream_429_count,
-    COUNT(*) FILTER (WHERE error_owner = 'provider' AND NOT is_business_limited AND COALESCE(effective_status_code, 0) = 529) AS upstream_529_count
+    COUNT(*) FILTER (WHERE COALESCE(client_status_code, 0) >= 400 AND ` + businessLimitedSQL + `) AS business_limited_count,
+    COUNT(*) FILTER (WHERE COALESCE(client_status_code, 0) >= 400 AND ` + slaCountableSQL + `) AS error_count_sla,
+    COUNT(*) FILTER (WHERE error_owner = 'provider' AND ` + slaCountableSQL + ` AND COALESCE(effective_status_code, 0) NOT IN (429, 529)) AS upstream_error_count_excl_429_529,
+    COUNT(*) FILTER (WHERE error_owner = 'provider' AND ` + slaCountableSQL + ` AND COALESCE(effective_status_code, 0) = 429) AS upstream_429_count,
+    COUNT(*) FILTER (WHERE error_owner = 'provider' AND ` + slaCountableSQL + ` AND COALESCE(effective_status_code, 0) = 529) AS upstream_529_count
   FROM error_base
   GROUP BY GROUPING SETS (
     (bucket_start),

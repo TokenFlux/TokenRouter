@@ -576,7 +576,11 @@ func (s *OpsAlertEvaluatorService) computeRuleMetric(
 		return float64(n), true
 	}
 
-	overview, err := s.opsRepo.GetDashboardOverview(ctx, &OpsDashboardFilter{
+	opsQueryService := s.opsService
+	if opsQueryService == nil {
+		opsQueryService = &OpsService{opsRepo: s.opsRepo}
+	}
+	overview, err := opsQueryService.GetDashboardOverview(ctx, &OpsDashboardFilter{
 		StartTime: start,
 		EndTime:   end,
 		Platform:  platform,

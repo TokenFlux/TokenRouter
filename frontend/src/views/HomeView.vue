@@ -55,7 +55,7 @@
           <router-link
             v-if="isAuthenticated"
             :to="dashboardPath"
-            class="inline-flex items-center gap-1.5 rounded-full bg-primary-600 py-1.5 pl-1.5 pr-3 text-xs font-semibold text-white shadow-sm shadow-primary-500/20 transition hover:bg-primary-700 dark:bg-primary-600 dark:text-white dark:hover:bg-primary-700"
+            class="inline-flex items-center gap-1.5 rounded-full bg-primary-600 py-1.5 pl-1.5 pr-3 text-xs font-semibold text-white shadow-none transition hover:bg-primary-700 dark:bg-primary-600 dark:text-white dark:hover:bg-primary-700"
           >
             <span class="flex h-5 w-5 items-center justify-center rounded-full bg-primary-500 text-[10px] text-white">
               {{ userInitial }}
@@ -85,7 +85,7 @@
         <div class="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <router-link
             :to="isAuthenticated ? dashboardPath : '/login'"
-            class="inline-flex min-h-[44px] min-w-[180px] items-center justify-center gap-2 rounded-lg bg-primary-600 px-6 py-3 text-sm font-semibold text-white shadow-sm shadow-primary-500/20 transition hover:bg-primary-700"
+            class="inline-flex min-h-[44px] min-w-[180px] items-center justify-center gap-2 rounded-lg bg-primary-600 px-6 py-3 text-sm font-semibold text-white shadow-none transition hover:bg-primary-700"
           >
             {{ isAuthenticated ? t('home.goToDashboard') : t('home.getStarted') }}
             <Icon name="arrowRight" size="sm" :stroke-width="2" />

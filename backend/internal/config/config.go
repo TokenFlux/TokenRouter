@@ -810,6 +810,8 @@ type GatewayConfig struct {
 	UsageRecord GatewayUsageRecordConfig `mapstructure:"usage_record"`
 	// DataSharingCapture: 数据共享采集异步队列配置
 	DataSharingCapture GatewayDataSharingCaptureConfig `mapstructure:"data_sharing_capture"`
+	// DataSharingExport: 数据共享预生成导出文件配置
+	DataSharingExport GatewayDataSharingExportConfig `mapstructure:"data_sharing_export"`
 
 	// UserGroupRateCacheTTLSeconds: 用户分组倍率热路径缓存 TTL（秒）
 	UserGroupRateCacheTTLSeconds int `mapstructure:"user_group_rate_cache_ttl_seconds"`
@@ -1040,6 +1042,12 @@ type GatewayDataSharingCaptureConfig struct {
 	BufferMaxSessions int `mapstructure:"buffer_max_sessions"`
 	// BufferMaxPendingEvents: 最大待落库增量事件数
 	BufferMaxPendingEvents int `mapstructure:"buffer_max_pending_events"`
+}
+
+// GatewayDataSharingExportConfig 数据共享预生成导出文件配置。
+type GatewayDataSharingExportConfig struct {
+	// StorageDir: 本地导出文件保存目录，留空时使用 DATA_DIR/data-sharing-exports。
+	StorageDir string `mapstructure:"storage_dir"`
 }
 
 // TLSFingerprintConfig TLS指纹伪装配置
@@ -1499,6 +1507,7 @@ func load(allowMissingJWTSecret bool) (*Config, error) {
 	cfg.Log.Environment = strings.TrimSpace(cfg.Log.Environment)
 	cfg.Log.StacktraceLevel = strings.ToLower(strings.TrimSpace(cfg.Log.StacktraceLevel))
 	cfg.Log.Output.FilePath = strings.TrimSpace(cfg.Log.Output.FilePath)
+	cfg.Gateway.DataSharingExport.StorageDir = strings.TrimSpace(cfg.Gateway.DataSharingExport.StorageDir)
 	cfg.Gateway.ForcedCodexInstructionsTemplateFile = strings.TrimSpace(cfg.Gateway.ForcedCodexInstructionsTemplateFile)
 	if cfg.Gateway.ForcedCodexInstructionsTemplateFile != "" {
 		content, err := os.ReadFile(cfg.Gateway.ForcedCodexInstructionsTemplateFile)
@@ -1993,6 +2002,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.data_sharing_capture.buffer_idle_flush_seconds", 30)
 	viper.SetDefault("gateway.data_sharing_capture.buffer_max_sessions", 4096)
 	viper.SetDefault("gateway.data_sharing_capture.buffer_max_pending_events", 65536)
+	viper.SetDefault("gateway.data_sharing_export.storage_dir", "")
 	viper.SetDefault("gateway.user_group_rate_cache_ttl_seconds", 30)
 	viper.SetDefault("gateway.models_list_cache_ttl_seconds", 15)
 	// TLS指纹伪装配置（默认关闭，需要账号级别单独启用）

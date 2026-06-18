@@ -36,6 +36,10 @@ export interface CodexInviteResetStatus {
   referral_key: string
   invite_eligibility?: Record<string, unknown>
   eligibility_rules?: string[]
+  should_show?: boolean | null
+  grant_action?: string
+  grant_amount?: number | null
+  grant_type?: 'rate_limit_reset' | 'workspace_credits' | 'unknown' | string
   requires_consent: boolean
   available_count: number
   credits: CodexInviteResetCredit[]

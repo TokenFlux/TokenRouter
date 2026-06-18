@@ -406,6 +406,10 @@ gateway:
     buffer_max_sessions: 4096
     # 最大待落库增量事件数，超过后优先触发 flush
     buffer_max_pending_events: 65536
+  # 数据共享预生成导出文件
+  data_sharing_export:
+    # 本地导出文件保存目录；留空时使用 DATA_DIR/data-sharing-exports
+    storage_dir: ""
   # SSE max line size in bytes (default: 40MB)
   # SSE 单行最大字节数（默认 40MB）
   max_line_size: 41943040

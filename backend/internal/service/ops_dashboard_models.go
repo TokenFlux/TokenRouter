@@ -12,6 +12,9 @@ type OpsDashboardFilter struct {
 	// QueryMode controls whether dashboard queries should use raw logs or pre-aggregated tables.
 	// Expected values: auto/raw/preagg (see OpsQueryMode).
 	QueryMode OpsQueryMode
+
+	// IgnoredStatusCodes 是客户端侧状态码忽略列表；nil 表示使用系统默认值，空切片表示不按状态码忽略。
+	IgnoredStatusCodes []int
 }
 
 type OpsRateSummary struct {

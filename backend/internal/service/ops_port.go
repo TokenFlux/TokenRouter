@@ -57,7 +57,7 @@ type OpsRepository interface {
 	IsAlertSilenced(ctx context.Context, ruleID int64, platform string, groupID *int64, region *string, now time.Time) (bool, error)
 
 	// 小时/天级预聚合，用于提升长窗口仪表盘查询性能。
-	UpsertHourlyMetrics(ctx context.Context, startTime, endTime time.Time) error
+	UpsertHourlyMetrics(ctx context.Context, startTime, endTime time.Time, ignoredStatusCodes []int) error
 	UpsertDailyMetrics(ctx context.Context, startTime, endTime time.Time) error
 	GetLatestHourlyBucketStart(ctx context.Context) (time.Time, bool, error)
 	GetLatestDailyBucketDate(ctx context.Context) (time.Time, bool, error)

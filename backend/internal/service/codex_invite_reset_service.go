@@ -54,9 +54,17 @@ func NewCodexInviteResetService(
 }
 
 type CodexInviteResetStatus struct {
-	ReferralKey         string                   `json:"referral_key"`
-	InviteEligibility   map[string]any           `json:"invite_eligibility,omitempty"`
-	EligibilityRules    []string                 `json:"eligibility_rules,omitempty"`
+	ReferralKey       string         `json:"referral_key"`
+	InviteEligibility map[string]any `json:"invite_eligibility,omitempty"`
+	EligibilityRules  []string       `json:"eligibility_rules,omitempty"`
+	// ShouldShow 表示上游是否建议 Codex Desktop 主动展示邀请入口，管理端只作为状态标记展示。
+	ShouldShow *bool `json:"should_show,omitempty"`
+	// GrantAction 保留上游返回的原始奖励动作，便于排查新增奖励类型。
+	GrantAction string `json:"grant_action,omitempty"`
+	// GrantAmount 表示单次邀请达成后双方获得的奖励数量。
+	GrantAmount *int `json:"grant_amount,omitempty"`
+	// GrantType 是管理端使用的稳定奖励类型枚举。
+	GrantType           string                   `json:"grant_type,omitempty"`
 	RequiresConsent     bool                     `json:"requires_consent"`
 	AvailableCount      int                      `json:"available_count"`
 	Credits             []CodexInviteResetCredit `json:"credits"`
@@ -136,6 +144,10 @@ func (s *CodexInviteResetService) GetStatus(ctx context.Context, accountID int64
 		ReferralKey:         codexInviteResetReferralKey,
 		InviteEligibility:   eligibility,
 		EligibilityRules:    normalizeCodexInviteResetRules(rules),
+		ShouldShow:          codexInviteResetOptionalBoolFromMap(eligibility, "should_show"),
+		GrantAction:         codexInviteResetStringFromMap(eligibility, "grant_action"),
+		GrantAmount:         codexInviteResetOptionalIntFromMap(eligibility, "grant_amount"),
+		GrantType:           normalizeCodexInviteResetGrantType(codexInviteResetStringFromMap(eligibility, "grant_action")),
 		RequiresConsent:     codexInviteResetBoolFromMapDefault(eligibility, "requires_explicit_confirmation", true),
 		AvailableCount:      availableCount,
 		Credits:             credits,
@@ -474,6 +486,18 @@ func normalizeCodexInviteResetRules(raw map[string]any) []string {
 	return rules
 }
 
+// normalizeCodexInviteResetGrantType 将 Codex Desktop 的原始奖励动作归一化为管理端稳定枚举。
+func normalizeCodexInviteResetGrantType(action string) string {
+	switch strings.TrimSpace(action) {
+	case "rate_limit_reset_credit":
+		return "rate_limit_reset"
+	case "", "workspace_credits":
+		return "workspace_credits"
+	default:
+		return "unknown"
+	}
+}
+
 func codexInviteResetStringFromMap(raw map[string]any, key string) string {
 	if raw == nil {
 		return ""
@@ -509,6 +533,39 @@ func codexInviteResetIntFromMap(raw map[string]any, key string) int {
 	default:
 		return 0
 	}
+}
+
+// codexInviteResetOptionalIntFromMap 区分字段缺失和上游明确返回 0。
+func codexInviteResetOptionalIntFromMap(raw map[string]any, key string) *int {
+	if raw == nil {
+		return nil
+	}
+	if _, ok := raw[key]; !ok {
+		return nil
+	}
+	value := codexInviteResetIntFromMap(raw, key)
+	return &value
+}
+
+// codexInviteResetOptionalBoolFromMap 区分字段缺失和上游明确返回 false。
+func codexInviteResetOptionalBoolFromMap(raw map[string]any, key string) *bool {
+	if raw == nil {
+		return nil
+	}
+	value, ok := raw[key]
+	if !ok || value == nil {
+		return nil
+	}
+	result := false
+	switch v := value.(type) {
+	case bool:
+		result = v
+	case string:
+		result = strings.EqualFold(strings.TrimSpace(v), "true")
+	default:
+		return nil
+	}
+	return &result
 }
 
 func codexInviteResetBoolFromMapDefault(raw map[string]any, key string, fallback bool) bool {

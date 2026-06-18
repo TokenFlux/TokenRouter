@@ -183,17 +183,13 @@
               </div>
             </div>
 
-            <div class="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 md:p-5">
-              <div
-                v-for="(column, columnIndex) in modelCardColumns(group.models)"
-                :key="`${group.id}-column-${columnIndex}`"
-                class="grid content-start gap-3"
+            <div class="space-y-3 p-4 md:columns-2 md:gap-3 xl:columns-3 2xl:columns-4 md:p-5">
+              <!-- 模型卡片高度不一致，用 CSS columns 自然填充，避免手动分列留下大块空白。 -->
+              <article
+                v-for="model in group.models"
+                :key="`${group.id}-${model.id}`"
+                class="group mb-3 break-inside-avoid rounded-xl border border-gray-100 bg-gray-50/80 p-4 transition hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-card dark:border-dark-700 dark:bg-dark-950/80 dark:hover:border-primary-500/50"
               >
-                <article
-                  v-for="model in column"
-                  :key="`${group.id}-${model.id}`"
-                  class="group rounded-xl border border-gray-100 bg-gray-50/80 p-4 transition hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-card dark:border-dark-700 dark:bg-dark-950/80 dark:hover:border-primary-500/50"
-                >
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
                     <h3 class="truncate text-base font-semibold text-gray-950 dark:text-white">{{ model.display_name }}</h3>
@@ -232,8 +228,7 @@
                     {{ t('marketplace.viewPricing') }}
                   </button>
                 </div>
-                </article>
-              </div>
+              </article>
             </div>
             </section>
           </template>
@@ -278,12 +273,6 @@
                     <h3 class="min-w-0 shrink-0 truncate text-sm font-semibold text-gray-950 dark:text-white">{{ entry.group.name }}</h3>
                     <span class="shrink-0 whitespace-nowrap rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-semibold text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200">
                       {{ formatMultiplier(entry.group.rate_multiplier) }}
-                    </span>
-                    <span
-                      v-if="entry.group.data_sharing_enabled"
-                      class="shrink-0 whitespace-nowrap rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200"
-                    >
-                      {{ t('marketplace.dataSharingTag') }}
                     </span>
                     <div
                       v-if="entry.group.capacity"
@@ -398,7 +387,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -467,7 +456,6 @@ const selectedBrand = ref<string | 'all'>('all')
 const selectedPricingMode = ref<PricingFilter>('all')
 const selectedGroupId = ref<number | 'all'>('all')
 const selectedPricing = ref<SelectedPricingModel | null>(null)
-const marketplaceColumnCount = ref(1)
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isAdmin = computed(() => authStore.isAdmin)
@@ -732,19 +720,6 @@ function openPricingDialog(group: MarketplaceGroup, model: MarketplaceModel) {
 
 function closePricingDialog() {
   selectedPricing.value = null
-}
-
-function updateMarketplaceColumnCount() {
-  const width = window.innerWidth
-  if (width >= 1536) {
-    marketplaceColumnCount.value = 4
-    return
-  }
-  if (width >= 1280) {
-    marketplaceColumnCount.value = 3
-    return
-  }
-  marketplaceColumnCount.value = width >= 768 ? 2 : 1
 }
 
 function resetFilters() {
@@ -1022,33 +997,6 @@ function compactPricingRows(pricing: MarketplaceModelPricing): PricingRow[] {
   return []
 }
 
-function estimateModelCardHeight(model: MarketplaceModel): number {
-  const rowCount = compactPricingRows(model.pricing).length
-  const rowHeight = hasContextIntervalPricing(model.pricing) ? 78 : 58
-  const actionHeight = hasDisplayPricing(model.pricing) ? 52 : 0
-  return 132 + rowCount * rowHeight + actionHeight
-}
-
-// 模型卡片高度不一致，手动分列避免 CSS grid 被最高卡片撑出整行空白。
-function modelCardColumns(models: MarketplaceModel[]): MarketplaceModel[][] {
-  const columnCount = Math.min(marketplaceColumnCount.value, models.length)
-  const columns = Array.from({ length: columnCount }, () => [] as MarketplaceModel[])
-  const heights = Array.from({ length: columnCount }, () => 0)
-
-  for (const model of models) {
-    let targetColumn = 0
-    for (let i = 1; i < heights.length; i++) {
-      if (heights[i] < heights[targetColumn]) {
-        targetColumn = i
-      }
-    }
-    columns[targetColumn].push(model)
-    heights[targetColumn] += estimateModelCardHeight(model)
-  }
-
-  return columns
-}
-
 // 上下文区间价格直接复用 token 价格行，只额外展示区间范围。
 function contextIntervalPricingRows(pricing: MarketplaceModelPricing): ContextIntervalPricingRow[] {
   return pricing.context_intervals?.flatMap((interval, index) => {
@@ -1104,16 +1052,10 @@ async function fetchMarketplace() {
 
 onMounted(async () => {
   initTheme()
-  updateMarketplaceColumnCount()
-  window.addEventListener('resize', updateMarketplaceColumnCount)
   authStore.checkAuth()
   if (!appStore.publicSettingsLoaded) {
     await appStore.fetchPublicSettings()
   }
   await fetchMarketplace()
-})
-
-onUnmounted(() => {
-  window.removeEventListener('resize', updateMarketplaceColumnCount)
 })
 </script>
