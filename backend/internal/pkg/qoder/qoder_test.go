@@ -252,6 +252,16 @@ func TestNewSessionDefaultTempKeyIsASCIIHex(t *testing.T) {
 	}
 }
 
+func TestAESDecryptRejectsEmptyCiphertext(t *testing.T) {
+	_, err := AESDecrypt(nil, []byte("abcdefghijklmnop"))
+	if err == nil {
+		t.Fatal("expected empty ciphertext error")
+	}
+	if err.Error() != "qoder: ciphertext is empty" {
+		t.Fatalf("error = %q, want empty ciphertext", err.Error())
+	}
+}
+
 func TestBuildPayloadB64(t *testing.T) {
 	b64, err := BuildPayloadB64("test_info", "request123")
 	if err != nil {

@@ -68,9 +68,6 @@ deploy/sub2api-sudoers
 deploy/data/
 deploy/postgres_data/
 deploy/redis_data/
-deploy/qoder_dev_data/
-deploy/qoder_postgres_data/
-deploy/qoder_redis_data/
 
 # GoReleaser
 .goreleaser.yaml

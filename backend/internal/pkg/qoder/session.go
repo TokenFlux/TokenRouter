@@ -159,6 +159,9 @@ func AESDecrypt(ciphertext, key []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	if len(ciphertext) == 0 {
+		return nil, fmt.Errorf("qoder: ciphertext is empty")
+	}
 	if len(ciphertext)%aes.BlockSize != 0 {
 		return nil, fmt.Errorf("qoder: ciphertext is not a multiple of block size")
 	}

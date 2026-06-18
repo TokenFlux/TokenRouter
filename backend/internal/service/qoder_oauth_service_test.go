@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -196,8 +197,31 @@ func TestQoderOAuthServicePollReturnsPendingAndCompleted(t *testing.T) {
 	require.Equal(t, "completed", completed.Status)
 	require.Equal(t, "access-token", completed.TokenInfo.SecurityOauthToken)
 	require.Equal(t, "user-1", completed.TokenInfo.UID)
-	require.Contains(t, completed.TokenInfo.Extra["userinfo_warning"], "userinfo unavailable")
-	require.Contains(t, completed.TokenInfo.Extra["organization_warning"], "organization unavailable")
+	require.Equal(t, map[string]string{
+		"code":    "userinfo_unavailable",
+		"message": "Qoder user info could not be loaded",
+	}, completed.TokenInfo.Extra["userinfo_warning"])
+	require.Equal(t, map[string]string{
+		"code":    "organization_unavailable",
+		"message": "Qoder organization info could not be loaded",
+	}, completed.TokenInfo.Extra["organization_warning"])
+}
+
+func TestQoderOAuthServiceWarningsDoNotPersistRawUpstreamErrors(t *testing.T) {
+	rawErr := errors.New(`upstream 500 {"access_token":"secret-token","email":"user@example.com","account_id":"aid-123"}`)
+
+	tokenInfo := buildQoderTokenInfo(&qoder.AuthIdentity{
+		SecurityOauthToken: "security-token",
+		UID:                "user-1",
+	}, &qoder.MachineIdentity{MachineID: "machine-1"}, rawErr, rawErr)
+	body, err := json.Marshal(tokenInfo.Extra)
+	require.NoError(t, err)
+
+	require.NotContains(t, string(body), "secret-token")
+	require.NotContains(t, string(body), "user@example.com")
+	require.NotContains(t, string(body), "aid-123")
+	require.Contains(t, string(body), "userinfo_unavailable")
+	require.Contains(t, string(body), "organization_unavailable")
 }
 
 func TestQoderParseCallbackSupportsQueryFragmentAndPlainCode(t *testing.T) {

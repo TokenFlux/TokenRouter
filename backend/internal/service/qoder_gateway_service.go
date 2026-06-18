@@ -105,6 +105,7 @@ type QoderGatewayService struct {
 	accountRepo         AccountRepository
 	httpUpstream        HTTPUpstream
 	tlsFPProfileService *TLSFingerprintProfileService
+	refreshAPI          *OAuthRefreshAPI
 	newRefresher        func() *QoderTokenRefresher
 	conversationMu      sync.Mutex
 	conversations       *qoderConversationStore
@@ -120,6 +121,7 @@ func NewQoderGatewayService(tokenProvider *QoderTokenProvider, accountRepo Accou
 		accountRepo:         accountRepo,
 		httpUpstream:        httpUpstream,
 		tlsFPProfileService: tlsFPProfileService,
+		refreshAPI:          NewOAuthRefreshAPI(accountRepo, nil),
 		conversations:       newQoderConversationStore(qoderConversationTTL),
 	}
 }
@@ -173,7 +175,7 @@ func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin
 		recordUsage = conversationPlan.recordUsage(upstreamUsage)
 		commitCompleteConversation = streamResult.HasOutput
 	} else {
-		events, err := ReadQoderSSEEventsContext(streamCtx, resp, qoderNonStreamingKeepalive(c))
+		events, err := ReadQoderSSEEventsContext(streamCtx, resp, nil)
 		if err != nil {
 			conversationPlan.rollbackAccepted()
 			s.applyUpstreamErrorPolicy(ctx, account, err)
@@ -254,7 +256,7 @@ func (s *QoderGatewayService) ForwardResponses(ctx context.Context, c *gin.Conte
 		recordUsage = conversationPlan.recordUsage(upstreamUsage)
 		commitCompleteConversation = streamResult.HasOutput
 	} else {
-		events, err := ReadQoderSSEEventsContext(streamCtx, resp, qoderNonStreamingKeepalive(c))
+		events, err := ReadQoderSSEEventsContext(streamCtx, resp, nil)
 		if err != nil {
 			conversationPlan.rollbackAccepted()
 			s.applyUpstreamErrorPolicy(ctx, account, err)
@@ -326,7 +328,7 @@ func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Contex
 		recordUsage = conversationPlan.recordUsage(upstreamUsage)
 		commitCompleteConversation = streamResult.HasOutput
 	} else {
-		events, err := ReadQoderSSEEventsContext(streamCtx, resp, qoderNonStreamingKeepalive(c))
+		events, err := ReadQoderSSEEventsContext(streamCtx, resp, nil)
 		if err != nil {
 			conversationPlan.rollbackAccepted()
 			s.applyUpstreamErrorPolicy(ctx, account, err)
@@ -453,6 +455,9 @@ func (s *QoderGatewayService) RefreshAccountSession(ctx context.Context, account
 	if account == nil {
 		return nil, errors.New("account is nil")
 	}
+	if s.accountRepo == nil {
+		return nil, errors.New("qoder account repository is not configured")
+	}
 	refresherFactory := s.newRefresher
 	if refresherFactory == nil {
 		refresherFactory = func() *QoderTokenRefresher {
@@ -463,19 +468,19 @@ func (s *QoderGatewayService) RefreshAccountSession(ctx context.Context, account
 	if refresher == nil {
 		return nil, errors.New("qoder token refresher is nil")
 	}
-	newCredentials, err := refresher.Refresh(ctx, account)
+	refreshAPI := s.refreshAPI
+	if refreshAPI == nil {
+		refreshAPI = NewOAuthRefreshAPI(s.accountRepo, nil)
+	}
+	result, err := refreshAPI.RefreshIfNeeded(ctx, account, qoderGatewayRefreshExecutor{QoderTokenRefresher: refresher}, 15*time.Minute)
 	if err != nil {
 		return nil, err
 	}
-	if newCredentials == nil {
-		newCredentials = map[string]any{}
-	}
-	newCredentials["_token_version"] = time.Now().UnixMilli()
-	if err := persistAccountCredentials(ctx, s.accountRepo, account, newCredentials); err != nil {
-		return nil, fmt.Errorf("save qoder credentials: %w", err)
-	}
-	if s.tokenProvider != nil {
+	if s.tokenProvider != nil && (result == nil || result.Refreshed || result.Account != nil) {
 		s.tokenProvider.Invalidate(account.ID)
+	}
+	if result != nil && result.Account != nil {
+		return result.Account, nil
 	}
 	if s.accountRepo != nil {
 		if fresh, err := s.accountRepo.GetByID(ctx, account.ID); err == nil && fresh != nil {
@@ -483,6 +488,14 @@ func (s *QoderGatewayService) RefreshAccountSession(ctx context.Context, account
 		}
 	}
 	return account, nil
+}
+
+type qoderGatewayRefreshExecutor struct {
+	*QoderTokenRefresher
+}
+
+func (e qoderGatewayRefreshExecutor) NeedsRefresh(account *Account, _ time.Duration) bool {
+	return e.QoderTokenRefresher != nil && e.CanRefresh(account)
 }
 
 func newQoderRequestDoer(account *Account, httpUpstream HTTPUpstream, tlsFPProfileService *TLSFingerprintProfileService) qoder.RequestDoer {

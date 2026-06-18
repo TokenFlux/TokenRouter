@@ -124,6 +124,20 @@ func (r *qoderRefreshAccountRepoStub) UpdateCredentials(_ context.Context, id in
 	return nil
 }
 
+type qoderRefreshRaceRepoStub struct {
+	qoderRefreshAccountRepoStub
+	raceAccount  *Account
+	getByIDCalls int
+}
+
+func (r *qoderRefreshRaceRepoStub) GetByID(ctx context.Context, id int64) (*Account, error) {
+	r.getByIDCalls++
+	if r.getByIDCalls > 1 && r.raceAccount != nil {
+		return r.raceAccount, nil
+	}
+	return r.qoderRefreshAccountRepoStub.stubOpenAIAccountRepo.GetByID(ctx, id)
+}
+
 func TestBuildQoderPayloadFromChatCompletions(t *testing.T) {
 	body := []byte(`{
 		"model":"auto",
@@ -3063,6 +3077,25 @@ func TestQoderGatewayNonStreamingKeepaliveKeepsJSONParseable(t *testing.T) {
 	require.Equal(t, "no", rec.Header().Get("X-Accel-Buffering"))
 }
 
+func TestQoderGatewayNonStreamingReadDoesNotCommitResponseBeforeError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewBufferString(
+			"data: {\"headers\":{\"Content-Type\":[\"application/json\"]},\"body\":\"{\\\"code\\\":\\\"101\\\",\\\"message\\\":\\\"Signature invalid\\\"}\",\"statusCodeValue\":403,\"statusCode\":\"FORBIDDEN\"}\n\n",
+		)),
+	}
+
+	events, err := ReadQoderSSEEventsContext(context.Background(), resp, nil)
+
+	require.Error(t, err)
+	require.Empty(t, events)
+	require.Empty(t, rec.Body.String())
+	require.Empty(t, rec.Header().Get("Cache-Control"))
+	require.False(t, c.Writer.Written())
+}
+
 func TestQoderGatewayReadsWrappedSSEUpstreamError(t *testing.T) {
 	resp := &http.Response{
 		Body: io.NopCloser(bytes.NewBufferString(
@@ -3212,6 +3245,81 @@ func TestQoderGatewayRefreshAccountSessionPersistsCredentialsAndInvalidatesCache
 	require.NotNil(t, repo.updatedCredentials["_token_version"])
 	_, cached := provider.sessions[account.ID]
 	require.False(t, cached)
+}
+
+func TestQoderGatewayRefreshAccountSessionRecoversRotatedRefreshTokenRace(t *testing.T) {
+	account := Account{
+		ID:       92,
+		Name:     "qoder",
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"security_oauth_token": "old-token",
+			"refresh_token":        "old-refresh",
+			"machine_id":           "machine-1",
+		},
+	}
+	racedAccount := account
+	racedAccount.Credentials = map[string]any{
+		"security_oauth_token": "new-token",
+		"refresh_token":        "new-refresh",
+		"machine_id":           "machine-1",
+	}
+	repo := &qoderRefreshRaceRepoStub{
+		qoderRefreshAccountRepoStub: qoderRefreshAccountRepoStub{
+			stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
+		},
+		raceAccount: &racedAccount,
+	}
+	refresher := NewQoderTokenRefresher(nil)
+	refresher.refreshSession = func(_ context.Context, refreshToken, _ string, _ *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
+		require.Equal(t, "old-refresh", refreshToken)
+		return nil, errors.New("invalid_grant: refresh token has already been used")
+	}
+	svc := &QoderGatewayService{
+		tokenProvider: NewQoderTokenProvider(),
+		accountRepo:   repo,
+		newRefresher:  func() *QoderTokenRefresher { return refresher },
+	}
+
+	refreshed, err := svc.RefreshAccountSession(context.Background(), &account)
+
+	require.NoError(t, err)
+	require.NotNil(t, refreshed)
+	require.Equal(t, "new-refresh", refreshed.GetCredential("refresh_token"))
+	require.Equal(t, 0, repo.updateCalls)
+	require.GreaterOrEqual(t, repo.getByIDCalls, 2)
+}
+
+func TestQoderGatewayForwardChatCompletionsHonorsCanceledContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	account := &Account{
+		ID:       93,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"pat": "pat-token",
+		},
+	}
+	provider := NewQoderTokenProvider()
+	provider.exchangePAT = func(ctx context.Context, _ string, _ *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			return &qoder.AuthIdentity{SecurityOauthToken: "token", UID: "uid"}, nil
+		}
+	}
+	svc := &QoderGatewayService{tokenProvider: provider}
+
+	_, err := svc.ForwardChatCompletions(ctx, c, account, []byte(`{"model":"auto","messages":[{"role":"user","content":"hi"}]}`))
+
+	require.ErrorIs(t, err, context.Canceled)
+	require.False(t, c.Writer.Written())
 }
 
 func TestQoderGatewayStreamsResponseWithoutPrebuffering(t *testing.T) {

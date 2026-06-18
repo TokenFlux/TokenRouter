@@ -7,15 +7,26 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/stretchr/testify/require"
 )
+
+func TestQoderModelSyncServiceDefaultPathDisabled(t *testing.T) {
+	svc := NewQoderModelSyncService(&config.Config{Pricing: config.PricingConfig{DataDir: t.TempDir()}})
+
+	result, err := svc.SyncModels(context.Background(), QoderModelSyncInput{Source: "local"})
+
+	require.Nil(t, result)
+	require.ErrorContains(t, err, "configure qoder.model_sync_script_path")
+	require.Empty(t, svc.scriptPath)
+}
 
 func TestQoderModelSyncServicePreviewShowsDefaultAliasDiffWithoutApplying(t *testing.T) {
 	resetQoderModelAliasesForTest()
 	t.Cleanup(resetQoderModelAliasesForTest)
 
 	svc := &QoderModelSyncService{
-		scriptPath:  "/tmp/sync_models.py",
+		scriptPath:  "/tmp/qoder-model-sync-script",
 		persistPath: filepath.Join(t.TempDir(), qoderModelAliasesFileName),
 		runner: func(_ context.Context, source string) ([]byte, error) {
 			require.Equal(t, "local", source)
@@ -48,7 +59,7 @@ func TestQoderModelSyncServiceApplyPersistsAndKeepsCompatibilityAliases(t *testi
 
 	persistPath := filepath.Join(t.TempDir(), qoderModelAliasesFileName)
 	svc := &QoderModelSyncService{
-		scriptPath:  "/tmp/sync_models.py",
+		scriptPath:  "/tmp/qoder-model-sync-script",
 		persistPath: persistPath,
 		runner: func(_ context.Context, source string) ([]byte, error) {
 			require.Equal(t, "cli", source)

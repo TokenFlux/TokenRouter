@@ -400,10 +400,10 @@ func buildQoderTokenInfo(identity *qoder.AuthIdentity, machine *qoder.MachineIde
 	}
 	extra := map[string]any{}
 	if userErr != nil {
-		extra["userinfo_warning"] = userErr.Error()
+		extra["userinfo_warning"] = sanitizedQoderOAuthWarning("userinfo_unavailable", "Qoder user info could not be loaded")
 	}
 	if orgErr != nil {
-		extra["organization_warning"] = orgErr.Error()
+		extra["organization_warning"] = sanitizedQoderOAuthWarning("organization_unavailable", "Qoder organization info could not be loaded")
 	}
 	if len(extra) == 0 {
 		extra = nil
@@ -466,6 +466,13 @@ func (s *QoderOAuthService) BuildAccountCredentials(tokenInfo *QoderTokenInfo) m
 		credentials["extra"] = tokenInfo.Extra
 	}
 	return credentials
+}
+
+func sanitizedQoderOAuthWarning(code, message string) map[string]string {
+	return map[string]string{
+		"code":    code,
+		"message": message,
+	}
 }
 
 func (s *QoderOAuthService) Stop() {

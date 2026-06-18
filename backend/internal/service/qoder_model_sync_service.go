@@ -17,9 +17,8 @@ import (
 )
 
 const (
-	defaultQoderModelSyncScriptPath = "/home/ycyc/projects/qoder2api/sync_models.py"
-	qoderModelAliasesFileName       = "qoder-model-aliases.json"
-	qoderModelSyncTimeout           = 30 * time.Second
+	qoderModelAliasesFileName = "qoder-model-aliases.json"
+	qoderModelSyncTimeout     = 30 * time.Second
 )
 
 type qoderModelSyncRunner func(ctx context.Context, source string) ([]byte, error)
@@ -87,7 +86,7 @@ func NewQoderModelSyncService(cfg *config.Config) *QoderModelSyncService {
 		dataDir = strings.TrimSpace(cfg.Pricing.DataDir)
 	}
 	svc := &QoderModelSyncService{
-		scriptPath:  defaultQoderModelSyncScriptPath,
+		scriptPath:  strings.TrimSpace(cfg.Qoder.ModelSyncScriptPath),
 		persistPath: filepath.Join(dataDir, qoderModelAliasesFileName),
 	}
 	svc.runner = svc.runSyncScript
@@ -150,7 +149,7 @@ func (s *QoderModelSyncService) SyncModels(ctx context.Context, input QoderModel
 func (s *QoderModelSyncService) runSyncScript(ctx context.Context, source string) ([]byte, error) {
 	scriptPath := strings.TrimSpace(s.scriptPath)
 	if scriptPath == "" {
-		scriptPath = defaultQoderModelSyncScriptPath
+		return nil, errors.New("qoder model sync is disabled: configure qoder.model_sync_script_path")
 	}
 	timeoutCtx, cancel := context.WithTimeout(ctx, qoderModelSyncTimeout)
 	defer cancel()

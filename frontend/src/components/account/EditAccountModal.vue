@@ -472,7 +472,12 @@
 
           <!-- Whitelist Mode -->
           <div v-if="modelRestrictionMode === 'whitelist'">
-            <ModelWhitelistSelector v-model="allowedModels" :platform="account?.platform || 'anthropic'" :account-id="account?.id" />
+            <ModelWhitelistSelector
+              :model-value="allowedModels"
+              :platform="account?.platform || 'anthropic'"
+              :account-id="account?.id"
+              @update:modelValue="setAllowedModels"
+            />
             <p class="text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.selectedModels', { count: allowedModels.length }) }}
               <span v-if="allowedModels.length === 0">{{
@@ -2510,6 +2515,8 @@ const modelMappings = ref<ModelMapping[]>([])
 const openAICompactModelMappings = ref<ModelMapping[]>([])
 const modelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const allowedModels = ref<string[]>([])
+const qoderModelRestrictionConfigured = ref(false)
+const qoderModelRestrictionTouched = ref(false)
 const DEFAULT_POOL_MODE_RETRY_COUNT = 3
 const MAX_POOL_MODE_RETRY_COUNT = 10
 const DEFAULT_POOL_MODE_RETRY_STATUS_CODES = [401, 403, 429]
@@ -2981,9 +2988,27 @@ const hydrateModelRestrictionFromMapping = (
   modelRestrictionMode.value = parsed.modelMappings.length > 0 ? 'mapping' : 'whitelist'
 }
 
+const qoderDefaultAllowedModels = () => [...getModelsByPlatform('qoder')]
+
+const qoderMappingHasEntries = (existingMappings?: Record<string, string>) =>
+  !!existingMappings && typeof existingMappings === 'object' && Object.keys(existingMappings).length > 0
+
+const qoderModelRestrictionIsDefault = () => {
+  if (modelRestrictionMode.value !== 'whitelist' || modelMappings.value.length > 0) {
+    return false
+  }
+  const defaults = qoderDefaultAllowedModels()
+  if (allowedModels.value.length !== defaults.length) {
+    return false
+  }
+  return defaults.every((model, index) => allowedModels.value[index] === model)
+}
+
 const hydrateQoderModelRestrictionFromMapping = (existingMappings?: Record<string, string>) => {
-  if (!existingMappings || typeof existingMappings !== 'object') {
-    allowedModels.value = [...getModelsByPlatform('qoder')]
+  qoderModelRestrictionConfigured.value = qoderMappingHasEntries(existingMappings)
+  qoderModelRestrictionTouched.value = false
+  if (!qoderModelRestrictionConfigured.value) {
+    allowedModels.value = qoderDefaultAllowedModels()
     modelMappings.value = []
     modelRestrictionMode.value = 'whitelist'
     return
@@ -3008,6 +3033,12 @@ const applyPersistedModelRestriction = (credentials: Record<string, unknown>) =>
 }
 
 const applyQoderModelRestriction = (credentials: Record<string, unknown>) => {
+  if (!qoderModelRestrictionConfigured.value && !qoderModelRestrictionTouched.value && qoderModelRestrictionIsDefault()) {
+    delete credentials.model_mapping
+    delete credentials.model_whitelist
+    return
+  }
+
   const mapping = buildQoderModelMappingObject(allowedModels.value, modelMappings.value)
   if (mapping) {
     credentials.model_mapping = mapping
@@ -3359,15 +3390,29 @@ watch(
 )
 
 // Model mapping helpers
+const touchQoderModelRestriction = () => {
+  if (isQoderCosyAccount.value) {
+    qoderModelRestrictionTouched.value = true
+  }
+}
+
+const setAllowedModels = (models: string[]) => {
+  touchQoderModelRestriction()
+  allowedModels.value = models
+}
+
 const addModelMapping = () => {
+  touchQoderModelRestriction()
   modelMappings.value.push({ from: '', to: '' })
 }
 
 const removeModelMapping = (index: number) => {
+  touchQoderModelRestriction()
   modelMappings.value.splice(index, 1)
 }
 
 const addPresetMapping = (from: string, to: string) => {
+  touchQoderModelRestriction()
   const exists = modelMappings.value.some((m) => m.from === from)
   if (exists) {
     appStore.showInfo(t('admin.accounts.mappingExists', { model: from }))

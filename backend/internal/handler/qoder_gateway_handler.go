@@ -217,7 +217,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 
 		writerSizeBeforeForward := c.Writer.Size()
 		var result *service.ForwardResult
-		forwardCtx := context.Background()
+		forwardCtx := c.Request.Context()
 		switch endpoint {
 		case qoderEndpointChatCompletions:
 			result, err = h.qoderGatewayService.ForwardChatCompletions(forwardCtx, c, account, body)
@@ -459,7 +459,7 @@ func (h *QoderGatewayHandler) submitUsageRecordTask(c *gin.Context, task service
 		h.usageRecordWorkerPool.Submit(task)
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 10*time.Second)
 	defer cancel()
 	task(ctx)
 }

@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -98,4 +100,31 @@ func TestQoderGatewayStreamingAwareError_MessagesKeepsGenericSSEError(t *testing
 	assert.NotContains(t, body, "event: response.failed")
 	assert.Contains(t, body, `"type":"error"`)
 	assert.Contains(t, body, `"message":"Upstream request failed"`)
+}
+
+func TestQoderGatewaySubmitUsageRecordIgnoresRequestCancellation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	reqCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil).WithContext(reqCtx)
+
+	done := make(chan error, 1)
+	h := &QoderGatewayHandler{}
+	h.submitUsageRecordTask(c, func(ctx context.Context) {
+		select {
+		case <-ctx.Done():
+			done <- ctx.Err()
+		default:
+			done <- nil
+		}
+	})
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("usage task did not run")
+	}
 }
