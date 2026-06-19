@@ -1,11 +1,13 @@
 package qoder
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -104,6 +106,49 @@ func TestExchangePATPostsSignedCenterRequest(t *testing.T) {
 	}
 }
 
+func TestExchangePATContextUsesProvidedDoerAndContext(t *testing.T) {
+	type contextKey string
+	ctx := context.WithValue(context.Background(), contextKey("marker"), "ctx-value")
+	called := false
+	doer := func(req *http.Request) (*http.Response, error) {
+		called = true
+		if req.Context().Value(contextKey("marker")) != "ctx-value" {
+			t.Fatalf("request context marker = %v, want ctx-value", req.Context().Value(contextKey("marker")))
+		}
+		if req.URL.String() != "https://center.example/algo/api/v3/user/jobToken?Encode=1" {
+			t.Fatalf("request URL = %s", req.URL.String())
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body: io.NopCloser(strings.NewReader(`{
+				"id":"user-1",
+				"name":"User",
+				"userType":"personal_standard",
+				"securityOauthToken":"token-1",
+				"refreshToken":"refresh-1"
+			}`)),
+			Request: req,
+		}, nil
+	}
+
+	identity, err := ExchangePATContext(ctx, "pat-1", &MachineIdentity{
+		MachineID:    "machine-1",
+		MachineToken: "machine-token",
+		MachineType:  "5",
+	}, "https://center.example", doer)
+
+	if err != nil {
+		t.Fatalf("ExchangePATContext: %v", err)
+	}
+	if !called {
+		t.Fatal("provided doer was not called")
+	}
+	if identity.SecurityOauthToken != "token-1" {
+		t.Fatalf("token = %q, want token-1", identity.SecurityOauthToken)
+	}
+}
+
 func TestRefreshSessionPostsRefreshPayload(t *testing.T) {
 	var capturedBody map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -151,6 +196,32 @@ func TestRefreshSessionPostsRefreshPayload(t *testing.T) {
 	}
 	if inner["needRefresh"] != true {
 		t.Fatalf("needRefresh = %v, want true", inner["needRefresh"])
+	}
+}
+
+func TestRefreshSessionContextPropagatesCanceledContextToDoer(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	called := false
+	doer := func(req *http.Request) (*http.Response, error) {
+		called = true
+		if req.Context().Err() != context.Canceled {
+			t.Fatalf("request context err = %v, want context.Canceled", req.Context().Err())
+		}
+		return nil, req.Context().Err()
+	}
+
+	_, err := RefreshSessionContext(ctx, "old-refresh", "old-token", &MachineIdentity{
+		MachineID:    "machine-1",
+		MachineToken: "machine-token",
+		MachineType:  "5",
+	}, "https://center.example", doer)
+
+	if !called {
+		t.Fatal("provided doer was not called")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("RefreshSessionContext error = %v, want context.Canceled", err)
 	}
 }
 

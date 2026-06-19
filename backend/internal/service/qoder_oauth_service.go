@@ -31,6 +31,7 @@ type qoderOAuthSession struct {
 	State        string
 	Nonce        string
 	CodeVerifier string
+	Machine      *qoder.MachineIdentity
 	AuthURL      string
 	ProxyURL     string
 	CreatedAt    time.Time
@@ -167,9 +168,14 @@ func (s *QoderOAuthService) GenerateAuthURL(ctx context.Context, proxyID *int64)
 		State:        state,
 		Nonce:        req.Nonce,
 		CodeVerifier: req.CodeVerifier,
-		AuthURL:      req.AuthorizationURL(),
-		ProxyURL:     proxyURL,
-		CreatedAt:    time.Now(),
+		Machine: &qoder.MachineIdentity{
+			MachineID:    req.MachineID,
+			MachineToken: qoder.RandomToken(50),
+			MachineType:  qoder.RandomHex(18),
+		},
+		AuthURL:   req.AuthorizationURL(),
+		ProxyURL:  proxyURL,
+		CreatedAt: time.Now(),
 	}
 	s.sessionStore.Set(sessionID, session)
 
@@ -222,7 +228,7 @@ func (s *QoderOAuthService) ExchangeCode(ctx context.Context, input *QoderExchan
 	}
 	identity := qoder.BuildIdentityFromDeviceToken(userInfo, tokenResp)
 	orgErr := populateQoderOrganization(ctx, client, accessToken, identity)
-	machine := qoder.NewMachine()
+	machine := session.Machine
 
 	s.sessionStore.Delete(input.SessionID)
 	return buildQoderTokenInfo(identity, machine, userErr, orgErr), nil
@@ -260,7 +266,7 @@ func (s *QoderOAuthService) Poll(ctx context.Context, sessionID, state string, p
 	}
 	identity := qoder.BuildIdentityFromDeviceToken(userInfo, tokenResp)
 	orgErr := populateQoderOrganization(ctx, client, accessToken, identity)
-	machine := qoder.NewMachine()
+	machine := session.Machine
 	s.sessionStore.Delete(sessionID)
 	return &QoderPollResult{
 		Status:    "completed",

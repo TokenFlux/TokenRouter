@@ -85,8 +85,12 @@ func NewQoderModelSyncService(cfg *config.Config) *QoderModelSyncService {
 	if cfg != nil && strings.TrimSpace(cfg.Pricing.DataDir) != "" {
 		dataDir = strings.TrimSpace(cfg.Pricing.DataDir)
 	}
+	scriptPath := ""
+	if cfg != nil {
+		scriptPath = strings.TrimSpace(cfg.Qoder.ModelSyncScriptPath)
+	}
 	svc := &QoderModelSyncService{
-		scriptPath:  strings.TrimSpace(cfg.Qoder.ModelSyncScriptPath),
+		scriptPath:  scriptPath,
 		persistPath: filepath.Join(dataDir, qoderModelAliasesFileName),
 	}
 	svc.runner = svc.runSyncScript

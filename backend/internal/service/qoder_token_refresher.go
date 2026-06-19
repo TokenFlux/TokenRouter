@@ -17,20 +17,21 @@ type qoderSessionRefresher func(ctx context.Context, refreshToken, securityOauth
 type QoderTokenRefresher struct {
 	qoderOAuthService *QoderOAuthService
 	refreshSession    qoderSessionRefresher
+	httpUpstream      HTTPUpstream
+	tlsFPProfileSvc   *TLSFingerprintProfileService
 }
 
 func NewQoderTokenRefresher(qoderOAuthService *QoderOAuthService) *QoderTokenRefresher {
 	return &QoderTokenRefresher{
 		qoderOAuthService: qoderOAuthService,
-		refreshSession: func(ctx context.Context, refreshToken, securityOauthToken string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			default:
-			}
-			return qoder.RefreshSession(refreshToken, securityOauthToken, machine, "")
-		},
 	}
+}
+
+func NewQoderTokenRefresherWithHTTPUpstream(qoderOAuthService *QoderOAuthService, httpUpstream HTTPUpstream, tlsFPProfileService *TLSFingerprintProfileService) *QoderTokenRefresher {
+	refresher := NewQoderTokenRefresher(qoderOAuthService)
+	refresher.httpUpstream = httpUpstream
+	refresher.tlsFPProfileSvc = tlsFPProfileService
+	return refresher
 }
 
 func (r *QoderTokenRefresher) CacheKey(account *Account) string {
@@ -69,12 +70,7 @@ func (r *QoderTokenRefresher) Refresh(ctx context.Context, account *Account) (ma
 	refreshSession := r.refreshSession
 	if refreshSession == nil {
 		refreshSession = func(ctx context.Context, refreshToken, securityOauthToken string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			default:
-			}
-			return qoder.RefreshSession(refreshToken, securityOauthToken, machine, "")
+			return qoder.RefreshSessionContext(ctx, refreshToken, securityOauthToken, machine, "", newQoderRequestDoer(account, r.httpUpstream, r.tlsFPProfileSvc))
 		}
 	}
 	machine := &qoder.MachineIdentity{

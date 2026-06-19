@@ -62,6 +62,14 @@ type AccountHandler struct {
 	tokenCacheInvalidator   service.TokenCacheInvalidator
 }
 
+type qoderAdminTokenRefresher interface {
+	Refresh(ctx context.Context, account *service.Account) (map[string]any, error)
+}
+
+var newQoderTokenRefresherForAdmin = func(qoderOAuthService *service.QoderOAuthService) qoderAdminTokenRefresher {
+	return service.NewQoderTokenRefresher(qoderOAuthService)
+}
+
 // NewAccountHandler creates a new admin account handler
 func NewAccountHandler(
 	adminService service.AdminService,
@@ -876,13 +884,20 @@ func (h *AccountHandler) PreviewFromCRS(c *gin.Context) {
 // refreshSingleAccount refreshes credentials for a single OAuth account.
 // Returns (updatedAccount, warning, error) where warning is used for Antigravity ProjectIDMissing scenario.
 func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *service.Account) (*service.Account, string, error) {
-	if !account.IsOAuth() {
+	if !account.IsOAuth() && !account.IsQoderCosy() {
 		return nil, "", infraerrors.BadRequest("NOT_OAUTH", "cannot refresh non-OAuth account")
 	}
 
 	var newCredentials map[string]any
 
-	if account.IsOpenAI() {
+	if account.IsQoderCosy() {
+		refresher := newQoderTokenRefresherForAdmin(nil)
+		credentials, err := refresher.Refresh(ctx, account)
+		if err != nil {
+			return nil, "", err
+		}
+		newCredentials = credentials
+	} else if account.IsOpenAI() {
 		tokenInfo, err := h.openaiOAuthService.RefreshAccountToken(ctx, account)
 		if err != nil {
 			// 刷新失败但 access_token 可能仍有效，尝试设置隐私

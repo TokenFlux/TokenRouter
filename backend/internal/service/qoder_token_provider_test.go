@@ -2,9 +2,13 @@ package service
 
 import (
 	"context"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/stretchr/testify/require"
 )
 
@@ -174,4 +178,59 @@ func TestQoderTokenProviderPATExchangePopulatesOrganizationFromAPI(t *testing.T)
 	require.NoError(t, err)
 	require.Equal(t, "org-from-api", session.Identity.OrganizationID)
 	require.Equal(t, "Org From API", session.Identity.OrganizationName)
+}
+
+func TestQoderTokenProviderPATExchangeUsesAccountDoer(t *testing.T) {
+	upstream := &qoderCenterHTTPUpstreamStub{}
+	provider := NewQoderTokenProvider()
+	provider.SetHTTPUpstream(upstream, nil)
+	account := &Account{
+		ID:          107,
+		Platform:    PlatformQoder,
+		Type:        AccountTypeCosy,
+		Concurrency: 3,
+		ProxyID:     ptrInt64ForQoderTest(9),
+		Proxy:       &Proxy{Protocol: "http", Host: "proxy.example.com", Port: 8080},
+		Credentials: map[string]any{"pat": "pat-123"},
+	}
+
+	session, err := provider.GetSession(context.Background(), account)
+
+	require.NoError(t, err)
+	require.Equal(t, "dt-from-center", session.Identity.SecurityOauthToken)
+	require.Equal(t, "http://proxy.example.com:8080", upstream.proxyURL)
+	require.Equal(t, int64(107), upstream.accountID)
+	require.Equal(t, 3, upstream.accountConcurrency)
+}
+
+type qoderCenterHTTPUpstreamStub struct {
+	proxyURL           string
+	accountID          int64
+	accountConcurrency int
+}
+
+func (s *qoderCenterHTTPUpstreamStub) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
+	return s.DoWithTLS(req, proxyURL, accountID, accountConcurrency, nil)
+}
+
+func (s *qoderCenterHTTPUpstreamStub) DoWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
+	s.proxyURL = proxyURL
+	s.accountID = accountID
+	s.accountConcurrency = accountConcurrency
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body: io.NopCloser(strings.NewReader(`{
+			"id":"user-1",
+			"name":"User",
+			"userType":"personal_standard",
+			"securityOauthToken":"dt-from-center",
+			"refreshToken":"rt-from-center"
+		}`)),
+		Request: req,
+	}, nil
+}
+
+func ptrInt64ForQoderTest(v int64) *int64 {
+	return &v
 }

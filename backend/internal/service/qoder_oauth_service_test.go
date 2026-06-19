@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
@@ -57,10 +58,13 @@ func TestQoderOAuthServiceGenerateAuthURLCreatesSession(t *testing.T) {
 	session, ok := svc.sessionStore.Get(result.SessionID)
 	require.True(t, ok)
 	require.Equal(t, result.State, session.State)
+	require.NotNil(t, session.Machine)
 	require.Contains(t, result.AuthURL, "nonce="+session.Nonce)
 	require.Contains(t, result.AuthURL, "challenge=")
 	require.Contains(t, result.AuthURL, "client_id="+qoder.OAuthClientID)
-	require.Contains(t, result.AuthURL, "machine_id=")
+	authURL, err := url.Parse(result.AuthURL)
+	require.NoError(t, err)
+	require.Equal(t, session.Machine.MachineID, authURL.Query().Get("machine_id"))
 }
 
 func TestQoderOAuthServiceExchangeRejectsInvalidSessionState(t *testing.T) {
@@ -131,6 +135,10 @@ func TestQoderOAuthServiceExchangeParsesCallbackURLAndBuildsUsableCredentials(t 
 
 	result, err := svc.GenerateAuthURL(context.Background(), nil)
 	require.NoError(t, err)
+	authURL, err := url.Parse(result.AuthURL)
+	require.NoError(t, err)
+	authMachineID := authURL.Query().Get("machine_id")
+	require.NotEmpty(t, authMachineID)
 	tokenInfo, err := svc.ExchangeCode(context.Background(), &QoderExchangeCodeInput{
 		SessionID:   result.SessionID,
 		CallbackURL: "http://localhost:12345/callback?code=ignored-by-device-flow&state=" + result.State,
@@ -144,7 +152,7 @@ func TestQoderOAuthServiceExchangeParsesCallbackURLAndBuildsUsableCredentials(t 
 	require.Equal(t, "Qoder Org", tokenInfo.OrganizationName)
 	require.Equal(t, "Qoder User", tokenInfo.Name)
 	require.Equal(t, "personal_pro", tokenInfo.UserType)
-	require.NotEmpty(t, tokenInfo.MachineID)
+	require.Equal(t, authMachineID, tokenInfo.MachineID)
 	require.NotEmpty(t, tokenInfo.MachineToken)
 	require.NotEmpty(t, tokenInfo.MachineType)
 
@@ -183,6 +191,8 @@ func TestQoderOAuthServicePollReturnsPendingAndCompleted(t *testing.T) {
 
 	result, err := svc.GenerateAuthURL(context.Background(), nil)
 	require.NoError(t, err)
+	authURL, err := url.Parse(result.AuthURL)
+	require.NoError(t, err)
 	pending, err := svc.Poll(context.Background(), result.SessionID, result.State, nil)
 	require.NoError(t, err)
 	require.Equal(t, "pending", pending.Status)
@@ -196,6 +206,7 @@ func TestQoderOAuthServicePollReturnsPendingAndCompleted(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "completed", completed.Status)
 	require.Equal(t, "access-token", completed.TokenInfo.SecurityOauthToken)
+	require.Equal(t, authURL.Query().Get("machine_id"), completed.TokenInfo.MachineID)
 	require.Equal(t, "user-1", completed.TokenInfo.UID)
 	require.Equal(t, map[string]string{
 		"code":    "userinfo_unavailable",

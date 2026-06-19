@@ -51,6 +51,44 @@ func NewTokenRefreshService(
 	tempUnschedCache TempUnschedCache,
 	qoderOAuthServices ...*QoderOAuthService,
 ) *TokenRefreshService {
+	var qoderOAuthService *QoderOAuthService
+	if len(qoderOAuthServices) > 0 {
+		qoderOAuthService = qoderOAuthServices[0]
+	}
+	return newTokenRefreshService(accountRepo, oauthService, openaiOAuthService, geminiOAuthService, antigravityOAuthService, qoderOAuthService, cacheInvalidator, schedulerCache, cfg, tempUnschedCache, nil, nil)
+}
+
+func NewTokenRefreshServiceWithHTTPUpstream(
+	accountRepo AccountRepository,
+	oauthService *OAuthService,
+	openaiOAuthService *OpenAIOAuthService,
+	geminiOAuthService *GeminiOAuthService,
+	antigravityOAuthService *AntigravityOAuthService,
+	cacheInvalidator TokenCacheInvalidator,
+	schedulerCache SchedulerCache,
+	cfg *config.Config,
+	tempUnschedCache TempUnschedCache,
+	qoderOAuthService *QoderOAuthService,
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
+) *TokenRefreshService {
+	return newTokenRefreshService(accountRepo, oauthService, openaiOAuthService, geminiOAuthService, antigravityOAuthService, qoderOAuthService, cacheInvalidator, schedulerCache, cfg, tempUnschedCache, httpUpstream, tlsFPProfileService)
+}
+
+func newTokenRefreshService(
+	accountRepo AccountRepository,
+	oauthService *OAuthService,
+	openaiOAuthService *OpenAIOAuthService,
+	geminiOAuthService *GeminiOAuthService,
+	antigravityOAuthService *AntigravityOAuthService,
+	qoderOAuthService *QoderOAuthService,
+	cacheInvalidator TokenCacheInvalidator,
+	schedulerCache SchedulerCache,
+	cfg *config.Config,
+	tempUnschedCache TempUnschedCache,
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
+) *TokenRefreshService {
 	s := &TokenRefreshService{
 		accountRepo:      accountRepo,
 		refreshPolicy:    DefaultBackgroundRefreshPolicy(),
@@ -66,11 +104,7 @@ func NewTokenRefreshService(
 	claudeRefresher := NewClaudeTokenRefresher(oauthService)
 	geminiRefresher := NewGeminiTokenRefresher(geminiOAuthService)
 	agRefresher := NewAntigravityTokenRefresher(antigravityOAuthService)
-	var qoderOAuthService *QoderOAuthService
-	if len(qoderOAuthServices) > 0 {
-		qoderOAuthService = qoderOAuthServices[0]
-	}
-	qoderRefresher := NewQoderTokenRefresher(qoderOAuthService)
+	qoderRefresher := NewQoderTokenRefresherWithHTTPUpstream(qoderOAuthService, httpUpstream, tlsFPProfileService)
 
 	// 注册平台特定的刷新器（TokenRefresher 接口）
 	s.refreshers = []TokenRefresher{

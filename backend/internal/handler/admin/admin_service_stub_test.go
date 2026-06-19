@@ -336,6 +336,12 @@ func (s *stubAdminService) ListAccounts(ctx context.Context, page, pageSize int,
 }
 
 func (s *stubAdminService) GetAccount(ctx context.Context, id int64) (*service.Account, error) {
+	for i := range s.accounts {
+		if s.accounts[i].ID == id {
+			account := s.accounts[i]
+			return &account, nil
+		}
+	}
 	account := service.Account{ID: id, Name: "account", Platform: service.PlatformAnthropic, Type: service.AccountTypeOAuth, Status: service.StatusActive}
 	return &account, nil
 }
@@ -343,6 +349,18 @@ func (s *stubAdminService) GetAccount(ctx context.Context, id int64) (*service.A
 func (s *stubAdminService) GetAccountsByIDs(ctx context.Context, ids []int64) ([]*service.Account, error) {
 	out := make([]*service.Account, 0, len(ids))
 	for _, id := range ids {
+		found := false
+		for i := range s.accounts {
+			if s.accounts[i].ID == id {
+				account := s.accounts[i]
+				out = append(out, &account)
+				found = true
+				break
+			}
+		}
+		if found {
+			continue
+		}
 		account := service.Account{ID: id, Name: "account", Status: service.StatusActive}
 		out = append(out, &account)
 	}
@@ -365,6 +383,15 @@ func (s *stubAdminService) UpdateAccount(ctx context.Context, id int64, input *s
 		return nil, s.updateAccountErr
 	}
 	s.updateAccountInput = input
+	for i := range s.accounts {
+		if s.accounts[i].ID == id {
+			if input.Credentials != nil {
+				s.accounts[i].Credentials = input.Credentials
+			}
+			account := s.accounts[i]
+			return &account, nil
+		}
+	}
 	account := service.Account{ID: id, Name: input.Name, Platform: service.PlatformAnthropic, Type: input.Type, Status: service.StatusActive, Credentials: input.Credentials}
 	return &account, nil
 }

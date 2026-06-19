@@ -9,16 +9,15 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 )
 
-var qoderValidatePAT = func(ctx context.Context, pat string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	default:
-	}
-	return qoder.ExchangePAT(pat, machine, "")
+var qoderValidatePAT = func(ctx context.Context, account *Account, pat string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
+	return qoder.ExchangePATContext(ctx, pat, machine, "", nil)
 }
 
 func ValidateQoderCosyCredentials(ctx context.Context, account *Account) error {
+	return validateQoderCosyCredentials(ctx, account, nil, nil)
+}
+
+func validateQoderCosyCredentials(ctx context.Context, account *Account, httpUpstream HTTPUpstream, tlsFPProfileService *TLSFingerprintProfileService) error {
 	if account == nil || account.Platform != PlatformQoder || account.Type != AccountTypeCosy {
 		return nil
 	}
@@ -28,7 +27,13 @@ func ValidateQoderCosyCredentials(ctx context.Context, account *Account) error {
 
 	pat := strings.TrimSpace(account.GetCredential("pat"))
 	if pat != "" {
-		if _, err := qoderValidatePAT(ctx, pat, qoder.NewMachine()); err != nil {
+		validatePAT := qoderValidatePAT
+		if httpUpstream != nil {
+			validatePAT = func(ctx context.Context, account *Account, pat string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
+				return qoder.ExchangePATContext(ctx, pat, machine, "", newQoderRequestDoer(account, httpUpstream, tlsFPProfileService))
+			}
+		}
+		if _, err := validatePAT(ctx, account, pat, qoder.NewMachine()); err != nil {
 			return fmt.Errorf("validate qoder pat: %w", err)
 		}
 		return nil

@@ -2,6 +2,7 @@ package qoder
 
 import (
 	"bytes"
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -87,6 +88,11 @@ func NewMachine() *MachineIdentity {
 
 // ExchangePAT exchanges a Personal Access Token for an AuthIdentity.
 func ExchangePAT(pat string, machine *MachineIdentity, centerURL string) (*AuthIdentity, error) {
+	return ExchangePATContext(context.Background(), pat, machine, centerURL, nil)
+}
+
+// ExchangePATContext exchanges a Personal Access Token using the provided context and request executor.
+func ExchangePATContext(ctx context.Context, pat string, machine *MachineIdentity, centerURL string, doer RequestDoer) (*AuthIdentity, error) {
 	inner := map[string]any{
 		"personalToken":      pat,
 		"securityOauthToken": "",
@@ -94,11 +100,16 @@ func ExchangePAT(pat string, machine *MachineIdentity, centerURL string) (*AuthI
 		"needRefresh":        false,
 		"authInfo":           map[string]any{},
 	}
-	return exchangeJobToken(inner, machine, centerURL, "PAT exchange")
+	return exchangeJobToken(ctx, inner, machine, centerURL, "PAT exchange", doer)
 }
 
 // RefreshSession exchanges a Qoder refresh_token for a new COSY identity.
 func RefreshSession(refreshToken, securityOauthToken string, machine *MachineIdentity, centerURL string) (*AuthIdentity, error) {
+	return RefreshSessionContext(context.Background(), refreshToken, securityOauthToken, machine, centerURL, nil)
+}
+
+// RefreshSessionContext exchanges a Qoder refresh_token using the provided context and request executor.
+func RefreshSessionContext(ctx context.Context, refreshToken, securityOauthToken string, machine *MachineIdentity, centerURL string, doer RequestDoer) (*AuthIdentity, error) {
 	inner := map[string]any{
 		"personalToken":      "",
 		"securityOauthToken": strings.TrimSpace(securityOauthToken),
@@ -106,10 +117,10 @@ func RefreshSession(refreshToken, securityOauthToken string, machine *MachineIde
 		"needRefresh":        true,
 		"authInfo":           map[string]any{},
 	}
-	return exchangeJobToken(inner, machine, centerURL, "refresh")
+	return exchangeJobToken(ctx, inner, machine, centerURL, "refresh", doer)
 }
 
-func exchangeJobToken(inner map[string]any, machine *MachineIdentity, centerURL string, operation string) (*AuthIdentity, error) {
+func exchangeJobToken(ctx context.Context, inner map[string]any, machine *MachineIdentity, centerURL string, operation string, doer RequestDoer) (*AuthIdentity, error) {
 	if centerURL == "" {
 		centerURL = CenterBaseURL
 	}
@@ -128,9 +139,16 @@ func exchangeJobToken(inner map[string]any, machine *MachineIdentity, centerURL 
 	if err != nil {
 		return nil, fmt.Errorf("qoder: %s request: %w", operation, err)
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	req = req.WithContext(ctx)
 
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
+	if doer == nil {
+		client := &http.Client{Timeout: 15 * time.Second}
+		doer = client.Do
+	}
+	resp, err := doer(req)
 	if err != nil {
 		return nil, fmt.Errorf("qoder: %s request: %w", operation, err)
 	}

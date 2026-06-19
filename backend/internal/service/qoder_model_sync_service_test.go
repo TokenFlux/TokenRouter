@@ -21,6 +21,14 @@ func TestQoderModelSyncServiceDefaultPathDisabled(t *testing.T) {
 	require.Empty(t, svc.scriptPath)
 }
 
+func TestNewQoderModelSyncServiceNilConfigDoesNotPanic(t *testing.T) {
+	require.NotPanics(t, func() {
+		svc := NewQoderModelSyncService(nil)
+		require.NotNil(t, svc)
+		require.Empty(t, svc.scriptPath)
+	})
+}
+
 func TestQoderModelSyncServicePreviewShowsDefaultAliasDiffWithoutApplying(t *testing.T) {
 	resetQoderModelAliasesForTest()
 	t.Cleanup(resetQoderModelAliasesForTest)

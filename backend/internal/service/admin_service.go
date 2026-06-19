@@ -579,6 +579,8 @@ type adminServiceImpl struct {
 	userSubRepo          UserSubscriptionRepository
 	privacyClientFactory PrivacyClientFactory
 	runtimeBlocker       AccountRuntimeBlocker
+	httpUpstream         HTTPUpstream
+	tlsFPProfileService  *TLSFingerprintProfileService
 }
 
 type userGroupRateBatchReader interface {
@@ -605,6 +607,8 @@ func NewAdminService(
 	userSubRepo UserSubscriptionRepository,
 	privacyClientFactory PrivacyClientFactory,
 	runtimeBlocker AccountRuntimeBlocker,
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
 ) AdminService {
 	return &adminServiceImpl{
 		userRepo:             userRepo,
@@ -625,6 +629,8 @@ func NewAdminService(
 		userSubRepo:          userSubRepo,
 		privacyClientFactory: privacyClientFactory,
 		runtimeBlocker:       runtimeBlocker,
+		httpUpstream:         httpUpstream,
+		tlsFPProfileService:  tlsFPProfileService,
 	}
 }
 
@@ -2674,7 +2680,8 @@ func (s *adminServiceImpl) CreateAccount(ctx context.Context, input *CreateAccou
 		}
 		account.LoadFactor = input.LoadFactor
 	}
-	if err := ValidateQoderCosyCredentials(ctx, account); err != nil {
+	s.attachAccountProxyForValidation(ctx, account)
+	if err := validateQoderCosyCredentials(ctx, account, s.httpUpstream, s.tlsFPProfileService); err != nil {
 		return nil, err
 	}
 	if err := s.accountRepo.Create(ctx, account); err != nil {
@@ -2826,7 +2833,8 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		}
 	}
 
-	if err := ValidateQoderCosyCredentials(ctx, account); err != nil {
+	s.attachAccountProxyForValidation(ctx, account)
+	if err := validateQoderCosyCredentials(ctx, account, s.httpUpstream, s.tlsFPProfileService); err != nil {
 		return nil, err
 	}
 	if err := s.accountRepo.Update(ctx, account); err != nil {
@@ -2846,6 +2854,15 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		return nil, err
 	}
 	return updated, nil
+}
+
+func (s *adminServiceImpl) attachAccountProxyForValidation(ctx context.Context, account *Account) {
+	if s == nil || s.proxyRepo == nil || account == nil || account.Proxy != nil || account.ProxyID == nil || *account.ProxyID <= 0 {
+		return
+	}
+	if proxy, err := s.proxyRepo.GetByID(ctx, *account.ProxyID); err == nil && proxy != nil {
+		account.Proxy = proxy
+	}
 }
 
 // UpdateAccountExtra 仅对账号 Extra JSONB 做 key 级合并，避免覆盖运行态或持久化配置键。

@@ -23,24 +23,18 @@ type qoderSessionCacheEntry struct {
 
 // QoderTokenProvider builds and caches COSY session contexts for Qoder accounts.
 type QoderTokenProvider struct {
-	mu          sync.Mutex
-	sessions    map[int64]qoderSessionCacheEntry
-	exchangePAT qoderPATExchanger
-	getOrgTags  qoderOrganizationTagsGetter
-	readLocal   qoderLocalAuthReader
+	mu                  sync.Mutex
+	sessions            map[int64]qoderSessionCacheEntry
+	exchangePAT         qoderPATExchanger
+	getOrgTags          qoderOrganizationTagsGetter
+	readLocal           qoderLocalAuthReader
+	httpUpstream        HTTPUpstream
+	tlsFPProfileService *TLSFingerprintProfileService
 }
 
 func NewQoderTokenProvider() *QoderTokenProvider {
 	return &QoderTokenProvider{
 		sessions: make(map[int64]qoderSessionCacheEntry),
-		exchangePAT: func(ctx context.Context, pat string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			default:
-			}
-			return qoder.ExchangePAT(pat, machine, "")
-		},
 		getOrgTags: func(ctx context.Context, token, uid string) (*qoder.OrganizationTags, error) {
 			return qoder.NewOAuthClient(qoder.OpenAPIBaseURL, nil).GetOrganizationTags(ctx, token, uid)
 		},
@@ -53,6 +47,14 @@ func NewQoderTokenProvider() *QoderTokenProvider {
 			return qoder.LoadLocalIdentity(authDir)
 		},
 	}
+}
+
+func (p *QoderTokenProvider) SetHTTPUpstream(httpUpstream HTTPUpstream, tlsFPProfileService *TLSFingerprintProfileService) {
+	if p == nil {
+		return
+	}
+	p.httpUpstream = httpUpstream
+	p.tlsFPProfileService = tlsFPProfileService
 }
 
 func (p *QoderTokenProvider) GetSession(ctx context.Context, account *Account) (*qoder.SessionContext, error) {
@@ -102,7 +104,11 @@ func (p *QoderTokenProvider) buildSession(ctx context.Context, account *Account)
 	pat := strings.TrimSpace(account.GetCredential("pat"))
 	if pat != "" {
 		machine := qoder.NewMachine()
-		identity, err := p.exchangePAT(ctx, pat, machine)
+		exchangePAT := p.exchangePAT
+		if exchangePAT == nil {
+			exchangePAT = p.defaultExchangePAT(account)
+		}
+		identity, err := exchangePAT(ctx, pat, machine)
 		if err != nil {
 			return nil, fmt.Errorf("qoder pat exchange: %w", err)
 		}
@@ -151,6 +157,12 @@ func (p *QoderTokenProvider) buildSession(ctx context.Context, account *Account)
 	}
 
 	return nil, errors.New("qoder credentials require pat, security_oauth_token+machine_id, or machine_id")
+}
+
+func (p *QoderTokenProvider) defaultExchangePAT(account *Account) qoderPATExchanger {
+	return func(ctx context.Context, pat string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
+		return qoder.ExchangePATContext(ctx, pat, machine, "", newQoderRequestDoer(account, p.httpUpstream, p.tlsFPProfileService))
+	}
 }
 
 func (p *QoderTokenProvider) populateOrganizationFromAPI(ctx context.Context, identity *qoder.AuthIdentity) {

@@ -115,6 +115,7 @@ func NewQoderGatewayService(tokenProvider *QoderTokenProvider, accountRepo Accou
 	if tokenProvider == nil {
 		tokenProvider = NewQoderTokenProvider()
 	}
+	tokenProvider.SetHTTPUpstream(httpUpstream, tlsFPProfileService)
 	return &QoderGatewayService{
 		tokenProvider:       tokenProvider,
 		client:              qoder.NewClient(qoder.APIBaseURL),
@@ -461,7 +462,7 @@ func (s *QoderGatewayService) RefreshAccountSession(ctx context.Context, account
 	refresherFactory := s.newRefresher
 	if refresherFactory == nil {
 		refresherFactory = func() *QoderTokenRefresher {
-			return NewQoderTokenRefresher(nil)
+			return NewQoderTokenRefresherWithHTTPUpstream(nil, s.httpUpstream, s.tlsFPProfileService)
 		}
 	}
 	refresher := refresherFactory()

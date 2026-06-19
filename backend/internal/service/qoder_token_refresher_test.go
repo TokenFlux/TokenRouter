@@ -3,10 +3,14 @@ package service
 import (
 	"context"
 	"errors"
+	"io"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/stretchr/testify/require"
 )
 
@@ -140,4 +144,59 @@ func TestQoderTokenRefresherRefreshWrapsError(t *testing.T) {
 	_, err := refresher.Refresh(context.Background(), account)
 
 	require.ErrorContains(t, err, "invalid_grant")
+}
+
+func TestQoderTokenRefresherUsesAccountDoer(t *testing.T) {
+	upstream := &qoderRefreshHTTPUpstreamStub{}
+	refresher := NewQoderTokenRefresherWithHTTPUpstream(nil, upstream, nil)
+	proxyID := int64(9)
+	account := &Account{
+		ID:          108,
+		Platform:    PlatformQoder,
+		Type:        AccountTypeCosy,
+		Concurrency: 4,
+		ProxyID:     &proxyID,
+		Proxy:       &Proxy{Protocol: "http", Host: "proxy.example.com", Port: 8080},
+		Credentials: map[string]any{
+			"security_oauth_token": "old-token",
+			"refresh_token":        "old-refresh",
+			"machine_id":           "machine-1",
+		},
+	}
+
+	credentials, err := refresher.Refresh(context.Background(), account)
+
+	require.NoError(t, err)
+	require.Equal(t, "new-token", credentials["security_oauth_token"])
+	require.Equal(t, "http://proxy.example.com:8080", upstream.proxyURL)
+	require.Equal(t, int64(108), upstream.accountID)
+	require.Equal(t, 4, upstream.accountConcurrency)
+}
+
+type qoderRefreshHTTPUpstreamStub struct {
+	proxyURL           string
+	accountID          int64
+	accountConcurrency int
+}
+
+func (s *qoderRefreshHTTPUpstreamStub) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
+	return s.DoWithTLS(req, proxyURL, accountID, accountConcurrency, nil)
+}
+
+func (s *qoderRefreshHTTPUpstreamStub) DoWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
+	s.proxyURL = proxyURL
+	s.accountID = accountID
+	s.accountConcurrency = accountConcurrency
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body: io.NopCloser(strings.NewReader(`{
+			"id":"user-1",
+			"name":"User",
+			"userType":"personal_standard",
+			"securityOauthToken":"new-token",
+			"refreshToken":"new-refresh"
+		}`)),
+		Request: req,
+	}, nil
 }

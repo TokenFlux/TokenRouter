@@ -96,6 +96,8 @@ func NewAccountTestService(
 	cfg *config.Config,
 	tlsFPProfileService *TLSFingerprintProfileService,
 ) *AccountTestService {
+	qoderSessionProvider := NewQoderTokenProvider()
+	qoderSessionProvider.SetHTTPUpstream(httpUpstream, tlsFPProfileService)
 	return &AccountTestService{
 		accountRepo:               accountRepo,
 		geminiTokenProvider:       geminiTokenProvider,
@@ -104,7 +106,7 @@ func NewAccountTestService(
 		httpUpstream:              httpUpstream,
 		cfg:                       cfg,
 		tlsFPProfileService:       tlsFPProfileService,
-		qoderSessionProvider:      NewQoderTokenProvider(),
+		qoderSessionProvider:      qoderSessionProvider,
 		qoderClient:               qoder.NewClient(qoder.APIBaseURL),
 		qoderOAuthClient:          qoder.NewOAuthClient(qoder.OpenAPIBaseURL, nil),
 	}

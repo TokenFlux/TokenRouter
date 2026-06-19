@@ -35,9 +35,10 @@ func (r *tokenRefreshCandidateRepo) ListOAuthRefreshCandidates(context.Context) 
 		inRetryCooldown := account.TempUnschedulableUntil != nil &&
 			account.TempUnschedulableUntil.After(now) &&
 			strings.HasPrefix(account.TempUnschedulableReason, "token refresh retry exhausted:")
+		refreshable := account.Type == AccountTypeOAuth && isOAuthRefreshPlatform(account.Platform)
+		refreshable = refreshable || account.IsQoderCosy()
 		if account.Status != StatusActive ||
-			account.Type != AccountTypeOAuth ||
-			!isOAuthRefreshPlatform(account.Platform) ||
+			!refreshable ||
 			strings.TrimSpace(refreshToken) == "" ||
 			inRetryCooldown {
 			continue
@@ -128,6 +129,13 @@ func TestTokenRefreshService_ProcessRefreshUsesOAuthRefreshCandidates(t *testing
 				Status:      StatusActive,
 				Credentials: map[string]any{"refresh_token": "refresh-token"},
 			},
+			{
+				ID:          6,
+				Platform:    PlatformQoder,
+				Type:        AccountTypeCosy,
+				Status:      StatusActive,
+				Credentials: map[string]any{"refresh_token": "refresh-token"},
+			},
 		},
 	}
 	svc := &TokenRefreshService{
@@ -140,7 +148,7 @@ func TestTokenRefreshService_ProcessRefreshUsesOAuthRefreshCandidates(t *testing
 	svc.processRefresh()
 
 	require.Zero(t, repo.listActiveCalls, "TokenRefreshService should not use the broad active-account query")
-	require.Equal(t, []int64{1}, repo.updatedCredentialIDs)
+	require.Equal(t, []int64{1, 6}, repo.updatedCredentialIDs)
 }
 
 func TestTokenRefreshService_RefreshFailureDoesNotCallPrivacy(t *testing.T) {

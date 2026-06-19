@@ -31,6 +31,61 @@ func setupAccountMixedChannelRouter(adminSvc *stubAdminService) *gin.Engine {
 	return router
 }
 
+func TestAccountHandlerBatchRefreshSupportsQoderCosy(t *testing.T) {
+	oldFactory := newQoderTokenRefresherForAdmin
+	defer func() { newQoderTokenRefresherForAdmin = oldFactory }()
+	newQoderTokenRefresherForAdmin = func(qoderOAuthService *service.QoderOAuthService) qoderAdminTokenRefresher {
+		return qoderAdminTokenRefresherFunc(func(_ context.Context, account *service.Account) (map[string]any, error) {
+			require.Equal(t, "old-refresh", account.GetCredential("refresh_token"))
+			require.Equal(t, "old-token", account.GetCredential("security_oauth_token"))
+			require.Equal(t, "machine-1", account.GetCredential("machine_id"))
+			return map[string]any{
+				"security_oauth_token": "new-token",
+				"refresh_token":        "new-refresh",
+				"machine_id":           "machine-1",
+			}, nil
+		})
+	}
+	adminSvc := newStubAdminService()
+	adminSvc.accounts = []service.Account{{
+		ID:       44,
+		Name:     "qoder",
+		Platform: service.PlatformQoder,
+		Type:     service.AccountTypeCosy,
+		Status:   service.StatusActive,
+		Credentials: map[string]any{
+			"security_oauth_token": "old-token",
+			"refresh_token":        "old-refresh",
+			"machine_id":           "machine-1",
+		},
+	}}
+	router := setupAccountMixedChannelRouter(adminSvc)
+	router.POST("/api/v1/admin/accounts/batch-refresh", NewAccountHandler(adminSvc, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil).BatchRefresh)
+
+	body, _ := json.Marshal(map[string]any{"account_ids": []int64{44}})
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/batch-refresh", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var resp map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	require.Equal(t, float64(0), resp["code"])
+	data, ok := resp["data"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, float64(1), data["success"])
+	require.Equal(t, float64(0), data["failed"])
+	require.Equal(t, "new-token", adminSvc.updateAccountInput.Credentials["security_oauth_token"])
+	require.Equal(t, "new-refresh", adminSvc.updateAccountInput.Credentials["refresh_token"])
+}
+
+type qoderAdminTokenRefresherFunc func(context.Context, *service.Account) (map[string]any, error)
+
+func (f qoderAdminTokenRefresherFunc) Refresh(ctx context.Context, account *service.Account) (map[string]any, error) {
+	return f(ctx, account)
+}
+
 func TestAccountHandlerCheckMixedChannelNoRisk(t *testing.T) {
 	adminSvc := newStubAdminService()
 	router := setupAccountMixedChannelRouter(adminSvc)
