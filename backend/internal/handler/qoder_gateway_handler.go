@@ -421,6 +421,10 @@ func (h *QoderGatewayHandler) streamingAwareError(c *gin.Context, status int, er
 				return
 			}
 		}
+		if endpoint == qoderEndpointChatCompletions {
+			writeQoderChatCompletionsErrorSSE(c, errType, message)
+			return
+		}
 		errorEvent := `data: {"type":"error","error":{"type":` + strconv.Quote(errType) + `,"message":` + strconv.Quote(message) + `}}` + "\n\n"
 		_, _ = c.Writer.WriteString(errorEvent)
 		if flusher, ok := c.Writer.(http.Flusher); ok {
@@ -429,6 +433,14 @@ func (h *QoderGatewayHandler) streamingAwareError(c *gin.Context, status int, er
 		return
 	}
 	h.errorResponse(c, status, errType, message, endpoint)
+}
+
+func writeQoderChatCompletionsErrorSSE(c *gin.Context, errType, message string) {
+	errorEvent := `data: {"error":{"type":` + strconv.Quote(errType) + `,"message":` + strconv.Quote(message) + `}}` + "\n\n" + "data: [DONE]\n\n"
+	_, _ = c.Writer.WriteString(errorEvent)
+	if flusher, ok := c.Writer.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }
 
 func (h *QoderGatewayHandler) errorResponse(c *gin.Context, status int, errType, message string, endpoint qoderEndpoint) {

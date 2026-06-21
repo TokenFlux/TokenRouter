@@ -14,7 +14,6 @@ import (
 
 type qoderPATExchanger func(ctx context.Context, pat string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error)
 type qoderOrganizationTagsGetter func(ctx context.Context, token, uid string) (*qoder.OrganizationTags, error)
-type qoderLocalAuthReader func(ctx context.Context, authDir string) (*qoder.AuthIdentity, *qoder.MachineIdentity, error)
 
 type qoderSessionCacheEntry struct {
 	credentialsHash string
@@ -27,7 +26,6 @@ type QoderTokenProvider struct {
 	sessions            map[int64]qoderSessionCacheEntry
 	exchangePAT         qoderPATExchanger
 	getOrgTags          qoderOrganizationTagsGetter
-	readLocal           qoderLocalAuthReader
 	httpUpstream        HTTPUpstream
 	tlsFPProfileService *TLSFingerprintProfileService
 }
@@ -37,14 +35,6 @@ func NewQoderTokenProvider() *QoderTokenProvider {
 		sessions: make(map[int64]qoderSessionCacheEntry),
 		getOrgTags: func(ctx context.Context, token, uid string) (*qoder.OrganizationTags, error) {
 			return qoder.NewOAuthClient(qoder.OpenAPIBaseURL, nil).GetOrganizationTags(ctx, token, uid)
-		},
-		readLocal: func(ctx context.Context, authDir string) (*qoder.AuthIdentity, *qoder.MachineIdentity, error) {
-			select {
-			case <-ctx.Done():
-				return nil, nil, ctx.Err()
-			default:
-			}
-			return qoder.LoadLocalIdentity(authDir)
 		},
 	}
 }
@@ -143,20 +133,7 @@ func (p *QoderTokenProvider) buildSession(ctx context.Context, account *Account)
 		return qoder.NewSession(identity, machine)
 	}
 
-	if machineID != "" {
-		authDir := strings.TrimSpace(account.GetCredential("auth_dir"))
-		identity, machine, err := p.readLocal(ctx, authDir)
-		if err != nil {
-			return nil, fmt.Errorf("qoder local auth: %w", err)
-		}
-		if machine.MachineID == "" {
-			machine.MachineID = machineID
-		}
-		applyQoderAccountIdentityMetadata(identity, account)
-		return qoder.NewSession(identity, machine)
-	}
-
-	return nil, errors.New("qoder credentials require pat, security_oauth_token+machine_id, or machine_id")
+	return nil, errors.New("qoder credentials require pat or security_oauth_token+machine_id")
 }
 
 func (p *QoderTokenProvider) defaultExchangePAT(account *Account) qoderPATExchanger {

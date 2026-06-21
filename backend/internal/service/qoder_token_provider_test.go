@@ -71,18 +71,23 @@ func TestQoderTokenProviderRejectsDirectTokenWithoutIdentity(t *testing.T) {
 	require.ErrorContains(t, err, "uid or aid")
 }
 
-func TestQoderTokenProviderKeepsLocalAuthMachineIDPath(t *testing.T) {
+func TestQoderTokenProviderRejectsMachineIDOnlyWithoutReadingLocalAuth(t *testing.T) {
 	provider := NewQoderTokenProvider()
-	provider.readLocal = func(_ context.Context, authDir string) (*qoder.AuthIdentity, *qoder.MachineIdentity, error) {
-		require.Equal(t, "/tmp/qoder-auth", authDir)
-		return &qoder.AuthIdentity{
-			Name:               "Local User",
-			UID:                "local-uid",
-			AID:                "local-aid",
-			UserType:           "personal_standard",
-			SecurityOauthToken: "dt-local",
-		}, &qoder.MachineIdentity{}, nil
+	account := &Account{
+		ID:       106,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"machine_id": "machine-1",
+		},
 	}
+
+	_, err := provider.GetSession(context.Background(), account)
+	require.ErrorContains(t, err, "pat or security_oauth_token")
+}
+
+func TestQoderTokenProviderRejectsExplicitAuthDirWithoutReadingLocalAuth(t *testing.T) {
+	provider := NewQoderTokenProvider()
 	account := &Account{
 		ID:       106,
 		Platform: PlatformQoder,
@@ -93,10 +98,8 @@ func TestQoderTokenProviderKeepsLocalAuthMachineIDPath(t *testing.T) {
 		},
 	}
 
-	session, err := provider.GetSession(context.Background(), account)
-	require.NoError(t, err)
-	require.Equal(t, "machine-1", session.Machine.MachineID)
-	require.Equal(t, "local-uid", session.Identity.UID)
+	_, err := provider.GetSession(context.Background(), account)
+	require.ErrorContains(t, err, "pat or security_oauth_token")
 }
 
 func TestQoderTokenProviderSupportsInjectedPATExchange(t *testing.T) {

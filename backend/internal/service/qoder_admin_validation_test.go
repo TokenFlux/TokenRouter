@@ -54,14 +54,27 @@ func TestValidateQoderCosyCredentialsRejectsDirectTokenWithoutIdentity(t *testin
 	require.ErrorContains(t, ValidateQoderCosyCredentials(context.Background(), account), "uid or aid")
 }
 
-func TestValidateQoderCosyCredentialsAcceptsLocalAuthMachineID(t *testing.T) {
+func TestValidateQoderCosyCredentialsRejectsMachineIDOnly(t *testing.T) {
 	account := &Account{
 		Platform:    PlatformQoder,
 		Type:        AccountTypeCosy,
 		Credentials: map[string]any{"machine_id": "machine-1"},
 	}
 
-	require.NoError(t, ValidateQoderCosyCredentials(context.Background(), account))
+	require.ErrorContains(t, ValidateQoderCosyCredentials(context.Background(), account), "pat or security_oauth_token")
+}
+
+func TestValidateQoderCosyCredentialsRejectsMachineIDWithAuthDir(t *testing.T) {
+	account := &Account{
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"machine_id": "machine-1",
+			"auth_dir":   "/tmp/qoder-auth",
+		},
+	}
+
+	require.ErrorContains(t, ValidateQoderCosyCredentials(context.Background(), account), "pat or security_oauth_token")
 }
 
 func TestValidateQoderCosyCredentialsExchangesPAT(t *testing.T) {

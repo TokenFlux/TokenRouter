@@ -102,6 +102,22 @@ func TestQoderGatewayStreamingAwareError_MessagesKeepsGenericSSEError(t *testing
 	assert.Contains(t, body, `"message":"Upstream request failed"`)
 }
 
+func TestQoderGatewayStreamingAwareError_ChatCompletionsStreamingEmitsOpenAIErrorAndDone(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	h := &QoderGatewayHandler{}
+	h.streamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", true, qoderEndpointChatCompletions)
+
+	body := w.Body.String()
+	assert.NotContains(t, body, "event: response.failed")
+	assert.NotContains(t, body, `"type":"error"`)
+	assert.Contains(t, body, `data: {"error":{"type":"upstream_error","message":"Upstream request failed"}}`)
+	assert.Contains(t, body, "data: [DONE]\n\n")
+}
+
 func TestQoderGatewaySubmitUsageRecordIgnoresRequestCancellation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()

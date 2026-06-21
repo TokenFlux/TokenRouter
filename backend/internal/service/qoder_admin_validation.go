@@ -50,9 +50,5 @@ func validateQoderCosyCredentials(ctx context.Context, account *Account, httpUps
 		}
 		return nil
 	}
-	if machineID != "" {
-		return nil
-	}
-
-	return errors.New("qoder cosy credentials require pat, security_oauth_token+machine_id, or machine_id")
+	return errors.New("qoder cosy credentials require pat or security_oauth_token+machine_id")
 }
