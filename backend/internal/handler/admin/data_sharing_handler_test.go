@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -341,7 +342,7 @@ func TestDataShareCaptureRuntimeSettingsHandlers(t *testing.T) {
 	putCtx.Request.Header.Set("Content-Type", "application/json")
 	h.UpdateCaptureRuntimeSettings(putCtx)
 	require.Equal(t, http.StatusOK, putRecorder.Code)
-	require.JSONEq(t, `{"worker_count":3,"queue_size":8,"flush_queue_size":9,"task_timeout_seconds":60,"compression_level":"default","buffer_enabled":true,"buffer_idle_flush_seconds":7,"buffer_max_sessions":123,"buffer_max_pending_events":456,"duration_window_size":256}`, repo.values[service.SettingKeyDataSharingCaptureRuntime])
+	require.JSONEq(t, fmt.Sprintf(`{"worker_count":3,"queue_size":8,"flush_queue_size":9,"task_timeout_seconds":60,"compression_level":"default","buffer_enabled":true,"buffer_idle_flush_seconds":7,"buffer_max_sessions":123,"buffer_max_pending_events":456,"duration_window_size":256,"export_batch_size":500,"export_worker_count":%d}`, service.NormalizeDataShareExportWorkerCount(0)), repo.values[service.SettingKeyDataSharingCaptureRuntime])
 	require.Equal(t, 3, pool.Stats().WorkerCount)
 	require.Equal(t, 8, pool.Stats().QueueCapacity)
 	require.Equal(t, 9, pool.Stats().FlushQueueCapacity)
@@ -372,5 +373,5 @@ func TestDataShareCaptureRuntimeSettingsHandlerBackfillsLegacyPayload(t *testing
 	h.UpdateCaptureRuntimeSettings(c)
 
 	require.Equal(t, http.StatusOK, recorder.Code)
-	require.JSONEq(t, `{"worker_count":3,"queue_size":8,"flush_queue_size":8,"task_timeout_seconds":60,"compression_level":"default","buffer_enabled":true,"buffer_idle_flush_seconds":30,"buffer_max_sessions":4096,"buffer_max_pending_events":65536,"duration_window_size":512}`, repo.values[service.SettingKeyDataSharingCaptureRuntime])
+	require.JSONEq(t, fmt.Sprintf(`{"worker_count":3,"queue_size":8,"flush_queue_size":8,"task_timeout_seconds":60,"compression_level":"default","buffer_enabled":true,"buffer_idle_flush_seconds":30,"buffer_max_sessions":4096,"buffer_max_pending_events":65536,"duration_window_size":512,"export_batch_size":500,"export_worker_count":%d}`, service.NormalizeDataShareExportWorkerCount(0)), repo.values[service.SettingKeyDataSharingCaptureRuntime])
 }

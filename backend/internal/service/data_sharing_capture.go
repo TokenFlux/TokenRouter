@@ -64,6 +64,9 @@ func (s *DataSharingService) buildCaptureSessionWithOptions(ctx context.Context,
 	if dataShareCaptureInputIsOpenAIResponses(input) && !opts.FinalizeQuality {
 		return s.buildOpenAIResponsesRawCaptureSession(input)
 	}
+	if dataShareCaptureInputIsMessagesRaw(input) && !opts.FinalizeQuality {
+		return s.buildMessagesRawCaptureSession(input)
+	}
 	return s.buildSessionWithOptions(input, opts)
 }
 
@@ -310,6 +313,7 @@ func (s *DataSharingService) Stats(ctx context.Context, filters DataShareSession
 	stats.CaptureWorker = s.CaptureWorkerStats()
 	stats.CaptureBuffer = s.CaptureBufferStats()
 	stats.CaptureDurations = s.CaptureDurationStats()
+	stats.ExportDurations = s.ExportDurationStats()
 	return stats, nil
 }
 
@@ -340,6 +344,14 @@ func (s *DataSharingService) CaptureDurationStats() DataShareCaptureDurationStat
 		return DataShareCaptureDurationStats{WindowSize: defaultDataSharingCaptureDurationWindowSize}
 	}
 	return s.captureDurations.Snapshot()
+}
+
+// ExportDurationStats 返回预生成导出链路的进程内耗时统计。
+func (s *DataSharingService) ExportDurationStats() DataShareExportDurationStats {
+	if s == nil || s.exportDurations == nil {
+		return DataShareExportDurationStats{WindowSize: defaultDataSharingCaptureDurationWindowSize}
+	}
+	return s.exportDurations.Snapshot()
 }
 
 func (s *DataSharingService) FilterOptions(ctx context.Context, filters DataShareSessionFilters) (*DataShareSessionFilterOptions, error) {

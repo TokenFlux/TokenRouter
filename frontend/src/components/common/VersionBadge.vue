@@ -40,19 +40,35 @@
             <span class="text-sm font-medium text-gray-700 dark:text-dark-300">{{
               t('version.currentVersion')
             }}</span>
-            <button
-              @click="refreshVersion(true)"
-              class="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-dark-200"
-              :disabled="loading"
-              :title="t('version.refresh')"
-            >
-              <Icon
-                name="refresh"
-                size="sm"
-                :stroke-width="2"
-                :class="{ 'animate-spin': loading }"
-              />
-            </button>
+            <!-- 弹窗头部常驻重启入口，方便管理员不经过更新流程直接重启服务。 -->
+            <div class="flex items-center gap-1">
+              <button
+                @click="handleRestart"
+                class="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-dark-700 dark:hover:text-dark-200"
+                :disabled="restarting"
+                :title="restarting ? t('version.restarting') : t('version.restartNow')"
+              >
+                <Icon
+                  :name="restarting ? 'refresh' : 'power'"
+                  size="sm"
+                  :stroke-width="2"
+                  :class="{ 'animate-spin': restarting }"
+                />
+              </button>
+              <button
+                @click="refreshVersion(true)"
+                class="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-dark-200"
+                :disabled="loading"
+                :title="t('version.refresh')"
+              >
+                <Icon
+                  name="refresh"
+                  size="sm"
+                  :stroke-width="2"
+                  :class="{ 'animate-spin': loading }"
+                />
+              </button>
+            </div>
           </div>
 
           <div class="p-4">

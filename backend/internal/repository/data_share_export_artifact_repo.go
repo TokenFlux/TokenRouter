@@ -147,7 +147,7 @@ func (r *dataShareExportArtifactRepository) MarkRemoteUploaded(ctx context.Conte
 		UPDATE data_share_export_artifacts
 		SET remote_status = 'uploaded', remote_bucket = $2, remote_key = $3, remote_error_message = '',
 			remote_uploaded_at = NOW(), updated_at = NOW()
-		WHERE id = $1 AND status = 'completed'
+		WHERE id = $1 AND status = 'completed' AND remote_status = 'uploading'
 	`, id, strings.TrimSpace(bucket), strings.TrimSpace(key))
 }
 

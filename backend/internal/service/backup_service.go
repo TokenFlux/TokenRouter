@@ -140,13 +140,15 @@ type BackupContentConfig struct {
 
 // BackupS3Config S3 兼容存储配置（支持 Cloudflare R2）
 type BackupS3Config struct {
-	Endpoint        string `json:"endpoint"` // 例如 https://<account_id>.r2.cloudflarestorage.com
-	Region          string `json:"region"`   // R2 用 "auto"
-	Bucket          string `json:"bucket"`
-	AccessKeyID     string `json:"access_key_id"`
-	SecretAccessKey string `json:"secret_access_key,omitempty"` //nolint:revive // 字段名沿用 AWS 约定
-	Prefix          string `json:"prefix"`                      // S3 key 前缀，如 "backups/"
-	ForcePathStyle  bool   `json:"force_path_style"`
+	Endpoint          string `json:"endpoint"` // 例如 https://<account_id>.r2.cloudflarestorage.com
+	Region            string `json:"region"`   // R2 用 "auto"
+	Bucket            string `json:"bucket"`
+	AccessKeyID       string `json:"access_key_id"`
+	SecretAccessKey   string `json:"secret_access_key,omitempty"` //nolint:revive // 字段名沿用 AWS 约定
+	Prefix            string `json:"prefix"`                      // S3 key 前缀，如 "backups/"
+	ForcePathStyle    bool   `json:"force_path_style"`
+	UploadConcurrency int    `json:"upload_concurrency"`
+	UploadPartSizeMB  int    `json:"upload_part_size_mb"`
 }
 
 // IsConfigured 检查必要字段是否已配置

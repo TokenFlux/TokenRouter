@@ -849,13 +849,27 @@
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">已预处理完成的文件可下载，也可上传到数据共享专用 S3/R2 存储桶。</p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-              <button class="btn btn-secondary btn-sm" :disabled="exportArtifactsLoading" @click="loadExportArtifacts">
-                <Icon name="refresh" size="sm" :class="exportArtifactsLoading ? 'animate-spin' : ''" />
+              <button class="btn btn-secondary btn-sm" type="button" :disabled="testingExportRemoteConfig" @click="testExportRemoteConfig">
+                {{ testingExportRemoteConfig ? '测试中' : '测试连接' }}
+              </button>
+              <button class="btn btn-primary btn-sm" type="button" :disabled="savingExportSettings" @click="saveExportSettings">
+                {{ savingExportSettings ? '保存中' : '保存配置' }}
+              </button>
+              <button class="btn btn-secondary btn-sm" :disabled="exportArtifactsLoading || statsLoading" @click="refreshExportArtifacts">
+                <Icon name="refresh" size="sm" :class="exportArtifactsLoading || statsLoading ? 'animate-spin' : ''" />
                 <span class="ml-1">刷新</span>
               </button>
             </div>
           </div>
           <div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-4 md:grid-cols-2">
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="data-share-export-batch-size">导出批次大小</label>
+              <input id="data-share-export-batch-size" v-model="exportBatchSizeInput" type="number" :min="exportBatchSizeMin" :max="exportBatchSizeMax" step="1" class="input w-full text-sm" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="data-share-export-worker-count">导出并发数</label>
+              <input id="data-share-export-worker-count" v-model="exportWorkerCountInput" type="number" :min="exportWorkerCountMin" :max="exportWorkerCountMax" step="1" class="input w-full text-sm" />
+            </div>
             <div>
               <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="data-share-export-remote-endpoint">端点地址</label>
               <input id="data-share-export-remote-endpoint" v-model="exportRemoteForm.endpoint" class="input w-full text-sm" placeholder="https://<账号ID>.r2.cloudflarestorage.com" />
@@ -873,6 +887,14 @@
               <input id="data-share-export-remote-prefix" v-model="exportRemoteForm.prefix" class="input w-full text-sm" placeholder="data-sharing-exports" />
             </div>
             <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="data-share-export-upload-concurrency">上传并发数</label>
+              <input id="data-share-export-upload-concurrency" v-model.number="exportRemoteForm.upload_concurrency" type="number" :min="exportUploadConcurrencyMin" :max="exportUploadConcurrencyMax" step="1" class="input w-full text-sm" />
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="data-share-export-upload-part-size">分片大小(MB)</label>
+              <input id="data-share-export-upload-part-size" v-model.number="exportRemoteForm.upload_part_size_mb" type="number" :min="exportUploadPartSizeMBMin" :max="exportUploadPartSizeMBMax" step="1" class="input w-full text-sm" />
+            </div>
+            <div>
               <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="data-share-export-remote-access-key">访问密钥 ID</label>
               <input id="data-share-export-remote-access-key" v-model="exportRemoteForm.access_key_id" class="input w-full text-sm" />
             </div>
@@ -880,25 +902,69 @@
               <label class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400" for="data-share-export-remote-secret-key">访问密钥 Secret</label>
               <input id="data-share-export-remote-secret-key" v-model="exportRemoteForm.secret_access_key" type="password" class="input w-full text-sm" :placeholder="exportRemoteSecretConfigured ? '已配置，留空则保留' : ''" />
             </div>
-            <div class="flex flex-col gap-3 md:col-span-2 md:flex-row md:items-end md:justify-between lg:col-span-2">
+            <div class="flex items-end">
               <label class="flex min-h-10 items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                 <input v-model="exportRemoteForm.force_path_style" type="checkbox" />
                 <span>使用路径样式 URL</span>
               </label>
-              <div class="flex flex-wrap items-center gap-2 md:justify-end">
-                <button class="btn btn-secondary btn-sm" type="button" :disabled="testingExportRemoteConfig" @click="testExportRemoteConfig">
-                  {{ testingExportRemoteConfig ? '测试中' : '测试连接' }}
-                </button>
-                <button class="btn btn-primary btn-sm" type="button" :disabled="savingExportRemoteConfig" @click="saveExportRemoteConfig">
-                  {{ savingExportRemoteConfig ? '保存中' : '保存配置' }}
-                </button>
+            </div>
+          </div>
+          <div class="mt-4 border-t border-gray-100 pt-4 dark:border-gray-800">
+            <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p class="text-sm font-medium text-gray-900 dark:text-white">导出生成耗时</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400">窗口 {{ formatNumber(exportDurationWindowSize) }} · 样本 {{ formatNumber(exportDurationSampleCount) }}</p>
               </div>
+              <span v-if="exportGenerateTotalDurationPart?.sample_count" class="badge badge-gray">最近总耗时 {{ formatDurationMillis(exportGenerateTotalDurationPart.last_millis) }}</span>
+            </div>
+            <div v-if="exportDurationSampleCount" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.75fr)]">
+              <div class="h-56">
+                <Bar v-if="exportDurationChartParts.length" :data="exportDurationChartData" :options="exportDurationChartOptions" />
+                <div v-else class="flex h-full items-center justify-center rounded-lg border border-dashed border-gray-300 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+                  暂无阶段耗时样本
+                </div>
+              </div>
+              <div class="overflow-x-auto rounded-lg border border-gray-100 dark:border-gray-800">
+                <table class="min-w-full divide-y divide-gray-100 text-xs dark:divide-gray-800">
+                  <thead class="bg-gray-50 text-gray-500 dark:bg-gray-800/60 dark:text-gray-400">
+                    <tr>
+                      <th class="px-3 py-2 text-left font-medium">阶段</th>
+                      <th class="px-3 py-2 text-right font-medium">最近</th>
+                      <th class="px-3 py-2 text-right font-medium">平均</th>
+                      <th class="px-3 py-2 text-right font-medium">P95</th>
+                      <th class="px-3 py-2 text-right font-medium">样本</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+                    <tr v-for="part in exportDurationActiveParts" :key="part.key">
+                      <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ part.label }}</td>
+                      <td class="px-3 py-2 text-right font-medium text-gray-900 dark:text-white">{{ formatDurationMillis(part.last_millis) }}</td>
+                      <td class="px-3 py-2 text-right text-gray-600 dark:text-gray-400">{{ formatDurationMillis(part.avg_millis) }}</td>
+                      <td class="px-3 py-2 text-right text-gray-600 dark:text-gray-400">{{ formatDurationMillis(part.p95_millis) }}</td>
+                      <td class="px-3 py-2 text-right text-gray-500 dark:text-gray-400">{{ formatNumber(part.sample_count) }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div v-else class="rounded-lg border border-dashed border-gray-300 p-4 text-center text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              暂无导出耗时样本
             </div>
           </div>
         </div>
         <DataTable :columns="exportArtifactColumns" :data="exportArtifacts" :loading="exportArtifactsLoading">
-          <template #cell-status="{ value }">
-            <span :class="['badge', exportArtifactStatusBadgeClass(value)]">{{ exportArtifactStatusLabel(value) }}</span>
+          <template #cell-status="{ row }">
+            <div class="min-w-36">
+              <span :class="['badge', exportArtifactStatusBadgeClass(row.status)]">{{ exportArtifactStatusLabel(row.status) }}</span>
+              <div v-if="row.status === 'running'" class="mt-2 w-36">
+                <div class="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-700">
+                  <div class="h-full rounded-full bg-primary-600 transition-all" :style="{ width: formatExportGenerateProgress(row) }"></div>
+                </div>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {{ formatExportGenerateProgress(row) }} · {{ formatExportGenerateCount(row) }}
+                </p>
+              </div>
+            </div>
           </template>
           <template #cell-filename="{ row }">
             <div class="max-w-sm">
@@ -941,11 +1007,12 @@
               </button>
               <button
                 class="btn btn-ghost btn-sm"
-                :disabled="row.status !== 'completed' || row.remote_status === 'uploading'"
-                @click="uploadExportArtifact(row)"
+                :class="row.remote_status === 'uploading' ? 'text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300' : ''"
+                :disabled="row.status !== 'completed' || isCancelingExportUpload(row.id)"
+                @click="handleExportArtifactUploadAction(row)"
               >
-                <Icon name="upload" size="sm" class="mr-1" />
-                {{ row.remote_status === 'uploaded' ? '重新上传' : '上传' }}
+                <Icon :name="row.remote_status === 'uploading' ? 'xCircle' : 'upload'" size="sm" class="mr-1" />
+                {{ exportArtifactUploadActionLabel(row) }}
               </button>
               <button
                 class="btn btn-ghost btn-sm"
@@ -1114,6 +1181,17 @@
         </div>
       </div>
     </BaseDialog>
+
+    <ConfirmDialog
+      :show="cancelUploadDialogOpen"
+      title="取消上传"
+      :message="cancelUploadDialogMessage"
+      confirm-text="取消上传"
+      cancel-text="继续上传"
+      danger
+      @confirm="confirmCancelExportArtifactUpload"
+      @cancel="closeCancelExportArtifactUploadDialog"
+    />
   </AppLayout>
 </template>
 
@@ -1140,6 +1218,7 @@ import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
+import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
@@ -1183,6 +1262,8 @@ const captureBufferIdleFlushInput = ref('')
 const captureBufferMaxSessionsInput = ref('')
 const captureBufferMaxPendingEventsInput = ref('')
 const captureDurationWindowInput = ref('')
+const exportBatchSizeInput = ref('')
+const exportWorkerCountInput = ref('')
 const captureWorkerCountMax = 1024
 const captureQueueSizeMax = 100000
 const captureFlushQueueSizeMax = 100000
@@ -1194,6 +1275,18 @@ const captureBufferMaxPendingEventsLimit = 1000000
 const captureDurationWindowMin = 32
 const captureDurationWindowMax = 10000
 const captureDurationWindowDefault = 512
+const exportBatchSizeMin = 50
+const exportBatchSizeMax = 2000
+const exportBatchSizeDefault = 500
+const exportWorkerCountMin = 1
+const exportWorkerCountMax = 8
+const exportWorkerCountDefault = 4
+const exportUploadConcurrencyMin = 1
+const exportUploadConcurrencyMax = 8
+const exportUploadConcurrencyDefault = 4
+const exportUploadPartSizeMBMin = 5
+const exportUploadPartSizeMBMax = 128
+const exportUploadPartSizeMBDefault = 64
 const statsAutoRefreshDefaultSeconds = 5
 const statsAutoRefreshIntervals = [5, 10, 15, 30] as const
 const captureCompressionLevelOptions = [
@@ -1236,6 +1329,7 @@ const storageLimitLoading = ref(false)
 const savingStorageLimit = ref(false)
 const savingCaptureRuntimeSettings = ref(false)
 const savingExportRemoteConfig = ref(false)
+const savingExportSettings = ref(false)
 const testingExportRemoteConfig = ref(false)
 const exporting = ref(false)
 const detailOpen = ref(false)
@@ -1247,6 +1341,9 @@ const exportArtifactPagination = reactive({ page: 1, page_size: 10, total: 0, pa
 const sortState = reactive({ sort_by: 'created_at', sort_order: 'desc' as 'asc' | 'desc' })
 const exportArtifacts = ref<DataShareExportArtifact[]>([])
 const exportRemoteSecretConfigured = ref(false)
+const cancelUploadDialogOpen = ref(false)
+const cancelUploadTarget = ref<DataShareExportArtifact | null>(null)
+const cancelingExportUploadIds = ref<Set<number>>(new Set())
 const exportRemoteForm = ref<DataShareExportRemoteConfig>({
   endpoint: '',
   region: 'auto',
@@ -1254,7 +1351,9 @@ const exportRemoteForm = ref<DataShareExportRemoteConfig>({
   access_key_id: '',
   secret_access_key: '',
   prefix: 'data-sharing-exports',
-  force_path_style: false
+  force_path_style: false,
+  upload_concurrency: exportUploadConcurrencyDefault,
+  upload_part_size_mb: exportUploadPartSizeMBDefault
 })
 const filters = reactive({
   search: '',
@@ -1680,6 +1779,43 @@ const durationBucketChartOptions = computed(() => ({
     }
   }
 }))
+const exportDurationChartOptions = computed(() => ({
+  responsive: true,
+  maintainAspectRatio: false,
+  indexAxis: 'y' as const,
+  scales: {
+    x: {
+      beginAtZero: true,
+      ticks: {
+        color: chartColors.value.text,
+        callback: (value: string | number) => formatDurationMillis(Number(value))
+      },
+      grid: { color: chartColors.value.grid }
+    },
+    y: {
+      ticks: { color: chartColors.value.text },
+      grid: { color: chartColors.value.grid }
+    }
+  },
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      callbacks: {
+        label: (ctx: any) => {
+          const part = exportDurationChartParts.value[ctx.dataIndex]
+          if (!part) return `P95: ${formatDurationMillis(Number(ctx.raw || 0))}`
+          return [
+            `最近: ${formatDurationMillis(part.last_millis)}`,
+            `P95: ${formatDurationMillis(part.p95_millis)}`,
+            `平均: ${formatDurationMillis(part.avg_millis)}`,
+            `最大: ${formatDurationMillis(part.max_millis)}`,
+            `样本: ${formatNumber(part.sample_count)}`
+          ]
+        }
+      }
+    }
+  }
+}))
 const captureWorkerQueueText = computed(() => {
   const worker = stats.value?.capture_worker
   if (!worker) return '-'
@@ -1808,6 +1944,25 @@ const captureDurationWindowSize = computed(() => stats.value?.capture_durations?
 const captureDurationSampleCount = computed(() => stats.value?.capture_durations?.sample_count || 0)
 const captureDurationParts = computed(() => stats.value?.capture_durations?.parts || [])
 const captureFlushTotalDurationPart = computed(() => captureDurationParts.value.find(part => part.key === 'flush_total'))
+const exportDurationWindowSize = computed(() => stats.value?.export_durations?.window_size || captureDurationWindowDefault)
+const exportDurationSampleCount = computed(() => stats.value?.export_durations?.sample_count || 0)
+const exportDurationParts = computed(() => stats.value?.export_durations?.parts || [])
+const exportDurationActiveParts = computed(() => exportDurationParts.value.filter(part => part.sample_count > 0))
+const exportGenerateTotalDurationPart = computed(() => exportDurationParts.value.find(part => part.key === 'export_generate_total'))
+// 图表排除总耗时，避免总耗时数量级过大导致分页、解码等子阶段不可读。
+const exportDurationChartParts = computed(() => exportDurationActiveParts.value.filter(part => part.key !== 'export_generate_total'))
+const exportDurationChartData = computed(() => ({
+  labels: exportDurationChartParts.value.map(part => part.label),
+  datasets: [
+    {
+      label: 'P95',
+      data: exportDurationChartParts.value.map(part => part.p95_millis),
+      backgroundColor: '#0ea5e988',
+      borderColor: '#0ea5e9',
+      borderWidth: 1
+    }
+  ]
+}))
 const captureBufferRecentDurationMillis = computed(() => {
   const flushTotal = captureFlushTotalDurationPart.value
   return flushTotal && flushTotal.sample_count > 0 ? flushTotal.last_millis : captureBufferLastFlushDurationMillis.value
@@ -1894,10 +2049,14 @@ const statsAutoRefreshTitle = computed(() => {
   if (!statsAutoRefreshEnabled.value) return '自动刷新已关闭'
   return `每 ${statsAutoRefreshIntervalSeconds.value} 秒自动刷新统计`
 })
+const cancelUploadDialogMessage = computed(() => {
+  const target = cancelUploadTarget.value
+  if (!target) return '确定取消当前上传任务吗？'
+  return `确定取消上传 ${target.filename} 吗？已上传到远端的临时分片会由对象存储清理，本地导出文件会保留。`
+})
 
 let filterTimer: number | null = null
 let statsAutoRefreshTimer: number | null = null
-let exportArtifactPollingTimer: number | null = null
 
 function buildFilters(): AdminDataShareSessionFilters {
   const out: AdminDataShareSessionFilters = {
@@ -2009,15 +2168,45 @@ async function loadExportRemoteConfig() {
   }
 }
 
-async function saveExportRemoteConfig() {
+async function saveExportSettings() {
+  savingExportSettings.value = true
+  try {
+    await saveExportRuntimeSettingsOnly()
+    await saveExportRemoteConfigOnly()
+    await loadStats()
+    appStore.showSuccess('导出配置已保存')
+  } catch (error) {
+    appStore.showError('保存导出配置失败')
+  } finally {
+    savingExportSettings.value = false
+  }
+}
+
+async function saveExportRuntimeSettingsOnly() {
+  const exportBatchSize = boundedIntegerFromInput(exportBatchSizeInput.value, exportBatchSizeMin, exportBatchSizeMax)
+  if (!exportBatchSize) {
+    throw new Error('invalid export batch size')
+  }
+  const exportWorkerCount = boundedIntegerFromInput(exportWorkerCountInput.value, exportWorkerCountMin, exportWorkerCountMax)
+  if (!exportWorkerCount) {
+    throw new Error('invalid export worker count')
+  }
+  const current = await adminDataSharingAPI.getRuntimeSettings()
+  const settings = await adminDataSharingAPI.updateRuntimeSettings({
+    ...current,
+    export_batch_size: exportBatchSize,
+    export_worker_count: exportWorkerCount
+  })
+  exportBatchSizeInput.value = String(settings.export_batch_size || exportBatchSizeDefault)
+  exportWorkerCountInput.value = String(settings.export_worker_count || exportWorkerCountDefault)
+}
+
+async function saveExportRemoteConfigOnly() {
   savingExportRemoteConfig.value = true
   try {
     const cfg = await adminDataSharingAPI.updateExportRemoteConfig(buildExportRemoteConfigPayload())
     exportRemoteForm.value = normalizeExportRemoteConfig(cfg)
     exportRemoteSecretConfigured.value = Boolean(cfg.access_key_id)
-    appStore.showSuccess('远端上传配置已保存')
-  } catch (error) {
-    appStore.showError('保存远端上传配置失败')
   } finally {
     savingExportRemoteConfig.value = false
   }
@@ -2047,13 +2236,17 @@ function normalizeExportRemoteConfig(cfg?: Partial<DataShareExportRemoteConfig>)
     access_key_id: cfg?.access_key_id || '',
     secret_access_key: '',
     prefix: cfg?.prefix || 'data-sharing-exports',
-    force_path_style: Boolean(cfg?.force_path_style)
+    force_path_style: Boolean(cfg?.force_path_style),
+    upload_concurrency: boundedIntegerFromInput(String(cfg?.upload_concurrency || exportUploadConcurrencyDefault), exportUploadConcurrencyMin, exportUploadConcurrencyMax) || exportUploadConcurrencyDefault,
+    upload_part_size_mb: boundedIntegerFromInput(String(cfg?.upload_part_size_mb || exportUploadPartSizeMBDefault), exportUploadPartSizeMBMin, exportUploadPartSizeMBMax) || exportUploadPartSizeMBDefault
   }
 }
 
 function buildExportRemoteConfigPayload(): DataShareExportRemoteConfig {
   const cfg = normalizeExportRemoteConfig(exportRemoteForm.value)
   cfg.secret_access_key = exportRemoteForm.value.secret_access_key || ''
+  cfg.upload_concurrency = boundedIntegerFromInput(String(exportRemoteForm.value.upload_concurrency), exportUploadConcurrencyMin, exportUploadConcurrencyMax) || exportUploadConcurrencyDefault
+  cfg.upload_part_size_mb = boundedIntegerFromInput(String(exportRemoteForm.value.upload_part_size_mb), exportUploadPartSizeMBMin, exportUploadPartSizeMBMax) || exportUploadPartSizeMBDefault
   return cfg
 }
 
@@ -2066,7 +2259,9 @@ function captureRuntimeSettingsFromForm() {
   const bufferMaxSessions = boundedPositiveIntegerFromInput(captureBufferMaxSessionsInput.value, captureBufferMaxSessionsLimit)
   const bufferMaxPendingEvents = boundedPositiveIntegerFromInput(captureBufferMaxPendingEventsInput.value, captureBufferMaxPendingEventsLimit)
   const durationWindowSize = boundedIntegerFromInput(captureDurationWindowInput.value, captureDurationWindowMin, captureDurationWindowMax)
-  if (!workerCount || !queueSize || !flushQueueSize || !timeoutSeconds || !bufferIdleFlushSeconds || !bufferMaxSessions || !bufferMaxPendingEvents || !durationWindowSize) {
+  const exportBatchSize = boundedIntegerFromInput(exportBatchSizeInput.value, exportBatchSizeMin, exportBatchSizeMax)
+  const exportWorkerCount = boundedIntegerFromInput(exportWorkerCountInput.value, exportWorkerCountMin, exportWorkerCountMax)
+  if (!workerCount || !queueSize || !flushQueueSize || !timeoutSeconds || !bufferIdleFlushSeconds || !bufferMaxSessions || !bufferMaxPendingEvents || !durationWindowSize || !exportBatchSize || !exportWorkerCount) {
     throw new Error('invalid capture runtime settings')
   }
   return {
@@ -2079,7 +2274,9 @@ function captureRuntimeSettingsFromForm() {
     buffer_idle_flush_seconds: bufferIdleFlushSeconds,
     buffer_max_sessions: bufferMaxSessions,
     buffer_max_pending_events: bufferMaxPendingEvents,
-    duration_window_size: durationWindowSize
+    duration_window_size: durationWindowSize,
+    export_batch_size: exportBatchSize,
+    export_worker_count: exportWorkerCount
   }
 }
 
@@ -2115,6 +2312,8 @@ function applyCaptureRuntimeSettingsToForm(settings: {
   buffer_max_sessions?: number
   buffer_max_pending_events?: number
   duration_window_size?: number
+  export_batch_size?: number
+  export_worker_count?: number
 }) {
   captureWorkerCountInput.value = String(settings.worker_count)
   captureQueueSizeInput.value = String(settings.queue_size)
@@ -2126,6 +2325,8 @@ function applyCaptureRuntimeSettingsToForm(settings: {
   captureBufferMaxSessionsInput.value = String(settings.buffer_max_sessions || 4096)
   captureBufferMaxPendingEventsInput.value = String(settings.buffer_max_pending_events || 65536)
   captureDurationWindowInput.value = String(settings.duration_window_size || captureDurationWindowDefault)
+  exportBatchSizeInput.value = String(settings.export_batch_size || exportBatchSizeDefault)
+  exportWorkerCountInput.value = String(settings.export_worker_count || exportWorkerCountDefault)
 }
 
 function applyStorageLimitToForm(limitBytes: number) {
@@ -2343,6 +2544,12 @@ async function loadStats() {
     if (!captureDurationWindowInput.value) {
       captureDurationWindowInput.value = String(captureDurationWindowSize.value)
     }
+    if (!exportBatchSizeInput.value) {
+      exportBatchSizeInput.value = String(exportBatchSizeDefault)
+    }
+    if (!exportWorkerCountInput.value) {
+      exportWorkerCountInput.value = String(exportWorkerCountDefault)
+    }
   } catch (error) {
     appStore.showError('加载数据共享统计失败')
   } finally {
@@ -2451,7 +2658,7 @@ async function loadExportArtifacts() {
     exportArtifacts.value = res.items
     exportArtifactPagination.total = res.total
     exportArtifactPagination.pages = res.pages
-    updateExportArtifactPolling()
+    // 导出文件状态只在页面加载、手动刷新和任务操作后刷新，避免后台自动轮询。
   } catch (error) {
     appStore.showError('加载导出文件失败')
   } finally {
@@ -2459,23 +2666,8 @@ async function loadExportArtifacts() {
   }
 }
 
-function updateExportArtifactPolling() {
-  const hasUploading = exportArtifacts.value.some(item => item.remote_status === 'uploading')
-  if (!hasUploading) {
-    stopExportArtifactPolling()
-    return
-  }
-  if (exportArtifactPollingTimer) return
-  exportArtifactPollingTimer = window.setInterval(() => {
-    loadExportArtifacts()
-  }, 2000)
-}
-
-function stopExportArtifactPolling() {
-  if (exportArtifactPollingTimer) {
-    window.clearInterval(exportArtifactPollingTimer)
-    exportArtifactPollingTimer = null
-  }
+async function refreshExportArtifacts() {
+  await Promise.all([loadExportArtifacts(), loadStats()])
 }
 
 function refreshAll() {
@@ -2704,11 +2896,64 @@ async function uploadExportArtifact(row: DataShareExportArtifact) {
   try {
     const artifact = await adminDataSharingAPI.uploadExportArtifact(row.id)
     replaceExportArtifact(artifact)
-    updateExportArtifactPolling()
     appStore.showSuccess('上传任务已开始')
   } catch (error) {
     appStore.showError('启动上传到 S3/R2 失败')
     await loadExportArtifacts()
+  }
+}
+
+function handleExportArtifactUploadAction(row: DataShareExportArtifact) {
+  if (row.remote_status === 'uploading') {
+    openCancelExportArtifactUploadDialog(row)
+    return
+  }
+  uploadExportArtifact(row)
+}
+
+function openCancelExportArtifactUploadDialog(row: DataShareExportArtifact) {
+  cancelUploadTarget.value = row
+  cancelUploadDialogOpen.value = true
+}
+
+function closeCancelExportArtifactUploadDialog() {
+  cancelUploadDialogOpen.value = false
+  cancelUploadTarget.value = null
+}
+
+function isCancelingExportUpload(id: number) {
+  return cancelingExportUploadIds.value.has(id)
+}
+
+function setCancelingExportUpload(id: number, canceling: boolean) {
+  const next = new Set(cancelingExportUploadIds.value)
+  if (canceling) {
+    next.add(id)
+  } else {
+    next.delete(id)
+  }
+  cancelingExportUploadIds.value = next
+}
+
+async function confirmCancelExportArtifactUpload() {
+  const target = cancelUploadTarget.value
+  if (!target) {
+    closeCancelExportArtifactUploadDialog()
+    return
+  }
+  setCancelingExportUpload(target.id, true)
+  cancelUploadDialogOpen.value = false
+  try {
+    // 取消只中断远端上传任务，本地生成好的导出文件仍保留，可稍后重新上传。
+    const artifact = await adminDataSharingAPI.cancelExportArtifactUpload(target.id)
+    replaceExportArtifact(artifact)
+    appStore.showSuccess('上传任务已取消')
+  } catch (error) {
+    appStore.showError('取消上传失败')
+    await loadExportArtifacts()
+  } finally {
+    setCancelingExportUpload(target.id, false)
+    cancelUploadTarget.value = null
   }
 }
 
@@ -2735,6 +2980,12 @@ function replaceExportArtifact(artifact: DataShareExportArtifact) {
 function copyRemoteKey(row: DataShareExportArtifact) {
   if (!row.remote_key) return
   copyToClipboard(row.remote_key, '远端对象 key 已复制')
+}
+
+function exportArtifactUploadActionLabel(row: DataShareExportArtifact) {
+  if (isCancelingExportUpload(row.id)) return '取消中'
+  if (row.remote_status === 'uploading') return '取消上传'
+  return row.remote_status === 'uploaded' ? '重新上传' : '上传'
 }
 
 async function deleteExportArtifact(row: DataShareExportArtifact) {
@@ -3024,6 +3275,17 @@ function formatExportUploadProgress(row: DataShareExportArtifact) {
   return `${percent.toFixed(percent >= 10 ? 1 : 2)}%`
 }
 
+function formatExportGenerateProgress(row: DataShareExportArtifact) {
+  if (!row.generate_progress_total || row.generate_progress_total <= 0) return '0%'
+  const percent = Math.min(100, Math.max(0, row.generate_progress_percent || 0))
+  return `${percent.toFixed(percent >= 10 ? 1 : 2)}%`
+}
+
+function formatExportGenerateCount(row: DataShareExportArtifact) {
+  if (!row.generate_progress_total || row.generate_progress_total <= 0) return '计算中'
+  return `${formatNumber(row.generate_progress_done || 0)} / ${formatNumber(row.generate_progress_total)}`
+}
+
 function formatExportUploadSpeed(bytesPerSecond?: number | null) {
   const mbPerSecond = Math.max(0, bytesPerSecond || 0) / 1_000_000
   return `${mbPerSecond.toFixed(mbPerSecond >= 10 ? 1 : 2)} MB/s`
@@ -3049,6 +3311,5 @@ onUnmounted(() => {
   window.removeEventListener('resize', handleStatsAutoRefreshViewportChange)
   window.removeEventListener('scroll', handleStatsAutoRefreshViewportChange, true)
   stopStatsAutoRefresh()
-  stopExportArtifactPolling()
 })
 </script>

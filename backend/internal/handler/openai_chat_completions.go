@@ -312,7 +312,7 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		userAgent := c.GetHeader("User-Agent")
 		clientIP := ip.GetClientIP(c)
 		inboundEndpoint := GetInboundEndpoint(c)
-		upstreamEndpoint := resolveRawCCUpstreamEndpoint(c, account)
+		upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account)
 		cyberBlocked := service.GetOpsCyberPolicy(c) != nil
 
 		h.submitOpenAIUsageRecordTask(c, result, func(ctx context.Context) {
@@ -350,10 +350,10 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	}
 }
 
-// resolveRawCCUpstreamEndpoint 返回 Chat Completions 请求的实际上游端点。
-// 对强制或探测确认不支持 Responses API 的 APIKey 账号，请求会直转
-// /v1/chat/completions，而不是走默认的 CC→Responses 转换路径。
-func resolveRawCCUpstreamEndpoint(c *gin.Context, account *service.Account) string {
+// resolveOpenAIUpstreamEndpoint 返回 OpenAI 账号的实际上游端点。
+// API Key 账号如果被强制或探测为不支持 Responses API，即使入口不是
+// Chat Completions，也会直转 /v1/chat/completions；其它路径继续按入口映射。
+func resolveOpenAIUpstreamEndpoint(c *gin.Context, account *service.Account) string {
 	if account != nil && account.Type == service.AccountTypeAPIKey &&
 		!openai_compat.ShouldUseResponsesAPI(account.Extra) {
 		return "/v1/chat/completions"

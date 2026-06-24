@@ -51,17 +51,21 @@ type UpdateDataShareCaptureRuntimeSettingsRequest struct {
 	BufferMaxSessions      int    `json:"buffer_max_sessions"`
 	BufferMaxPendingEvents int    `json:"buffer_max_pending_events"`
 	DurationWindowSize     int    `json:"duration_window_size"`
+	ExportBatchSize        int    `json:"export_batch_size"`
+	ExportWorkerCount      int    `json:"export_worker_count"`
 }
 
 // UpdateDataShareExportRemoteConfigRequest 是管理端更新导出远端上传配置的请求。
 type UpdateDataShareExportRemoteConfigRequest struct {
-	Endpoint        string `json:"endpoint"`
-	Region          string `json:"region"`
-	Bucket          string `json:"bucket"`
-	AccessKeyID     string `json:"access_key_id"`
-	SecretAccessKey string `json:"secret_access_key"`
-	Prefix          string `json:"prefix"`
-	ForcePathStyle  bool   `json:"force_path_style"`
+	Endpoint          string `json:"endpoint"`
+	Region            string `json:"region"`
+	Bucket            string `json:"bucket"`
+	AccessKeyID       string `json:"access_key_id"`
+	SecretAccessKey   string `json:"secret_access_key"`
+	Prefix            string `json:"prefix"`
+	ForcePathStyle    bool   `json:"force_path_style"`
+	UploadConcurrency int    `json:"upload_concurrency"`
+	UploadPartSizeMB  int    `json:"upload_part_size_mb"`
 }
 
 // BatchDeleteDataShareSessionsRequest 是管理端批量删除数据共享 session 的请求。
@@ -118,26 +122,29 @@ type adminDataShareExportTicketResponse struct {
 }
 
 type adminDataShareExportArtifactResponse struct {
-	ID                 int64      `json:"id"`
-	Status             string     `json:"status"`
-	Filename           string     `json:"filename"`
-	Encoding           string     `json:"encoding"`
-	SessionCount       int64      `json:"session_count"`
-	FileSize           int64      `json:"file_size"`
-	SHA256             string     `json:"sha256"`
-	ErrorMessage       string     `json:"error_message"`
-	RemoteStatus       string     `json:"remote_status"`
-	RemoteBucket       string     `json:"remote_bucket"`
-	RemoteKey          string     `json:"remote_key"`
-	RemoteErrorMessage string     `json:"remote_error_message"`
-	RemoteUploadedAt   *time.Time `json:"remote_uploaded_at,omitempty"`
-	RemoteUploadBytes  int64      `json:"remote_upload_bytes"`
-	RemoteUploadSpeed  float64    `json:"remote_upload_speed"`
-	CreatedAt          time.Time  `json:"created_at"`
-	StartedAt          *time.Time `json:"started_at,omitempty"`
-	CompletedAt        *time.Time `json:"completed_at,omitempty"`
-	DeletedAt          *time.Time `json:"deleted_at,omitempty"`
-	UpdatedAt          time.Time  `json:"updated_at"`
+	ID                      int64      `json:"id"`
+	Status                  string     `json:"status"`
+	Filename                string     `json:"filename"`
+	Encoding                string     `json:"encoding"`
+	SessionCount            int64      `json:"session_count"`
+	FileSize                int64      `json:"file_size"`
+	SHA256                  string     `json:"sha256"`
+	ErrorMessage            string     `json:"error_message"`
+	RemoteStatus            string     `json:"remote_status"`
+	RemoteBucket            string     `json:"remote_bucket"`
+	RemoteKey               string     `json:"remote_key"`
+	RemoteErrorMessage      string     `json:"remote_error_message"`
+	RemoteUploadedAt        *time.Time `json:"remote_uploaded_at,omitempty"`
+	RemoteUploadBytes       int64      `json:"remote_upload_bytes"`
+	RemoteUploadSpeed       float64    `json:"remote_upload_speed"`
+	GenerateProgressDone    int64      `json:"generate_progress_done"`
+	GenerateProgressTotal   int64      `json:"generate_progress_total"`
+	GenerateProgressPercent float64    `json:"generate_progress_percent"`
+	CreatedAt               time.Time  `json:"created_at"`
+	StartedAt               *time.Time `json:"started_at,omitempty"`
+	CompletedAt             *time.Time `json:"completed_at,omitempty"`
+	DeletedAt               *time.Time `json:"deleted_at,omitempty"`
+	UpdatedAt               time.Time  `json:"updated_at"`
 }
 
 // GetNotice 返回当前数据共享须知。
@@ -243,6 +250,8 @@ func (h *DataSharingHandler) UpdateCaptureRuntimeSettings(c *gin.Context) {
 		BufferMaxSessions:      req.BufferMaxSessions,
 		BufferMaxPendingEvents: req.BufferMaxPendingEvents,
 		DurationWindowSize:     req.DurationWindowSize,
+		ExportBatchSize:        req.ExportBatchSize,
+		ExportWorkerCount:      req.ExportWorkerCount,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -269,13 +278,15 @@ func (h *DataSharingHandler) UpdateExportRemoteConfig(c *gin.Context) {
 		return
 	}
 	cfg, err := h.dataSharingService.UpdateExportRemoteConfig(c.Request.Context(), service.DataShareExportRemoteConfig{
-		Endpoint:        req.Endpoint,
-		Region:          req.Region,
-		Bucket:          req.Bucket,
-		AccessKeyID:     req.AccessKeyID,
-		SecretAccessKey: req.SecretAccessKey,
-		Prefix:          req.Prefix,
-		ForcePathStyle:  req.ForcePathStyle,
+		Endpoint:          req.Endpoint,
+		Region:            req.Region,
+		Bucket:            req.Bucket,
+		AccessKeyID:       req.AccessKeyID,
+		SecretAccessKey:   req.SecretAccessKey,
+		Prefix:            req.Prefix,
+		ForcePathStyle:    req.ForcePathStyle,
+		UploadConcurrency: req.UploadConcurrency,
+		UploadPartSizeMB:  req.UploadPartSizeMB,
 	})
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -292,13 +303,15 @@ func (h *DataSharingHandler) TestExportRemoteConfig(c *gin.Context) {
 		return
 	}
 	err := h.dataSharingService.TestExportRemoteConfig(c.Request.Context(), service.DataShareExportRemoteConfig{
-		Endpoint:        req.Endpoint,
-		Region:          req.Region,
-		Bucket:          req.Bucket,
-		AccessKeyID:     req.AccessKeyID,
-		SecretAccessKey: req.SecretAccessKey,
-		Prefix:          req.Prefix,
-		ForcePathStyle:  req.ForcePathStyle,
+		Endpoint:          req.Endpoint,
+		Region:            req.Region,
+		Bucket:            req.Bucket,
+		AccessKeyID:       req.AccessKeyID,
+		SecretAccessKey:   req.SecretAccessKey,
+		Prefix:            req.Prefix,
+		ForcePathStyle:    req.ForcePathStyle,
+		UploadConcurrency: req.UploadConcurrency,
+		UploadPartSizeMB:  req.UploadPartSizeMB,
 	})
 	if err != nil {
 		response.Success(c, gin.H{"ok": false, "message": err.Error()})
@@ -506,6 +519,21 @@ func (h *DataSharingHandler) UploadExportArtifact(c *gin.Context) {
 		return
 	}
 	artifact, err := h.dataSharingService.UploadExportArtifactToRemote(c.Request.Context(), id)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, adminDataShareExportArtifactToResponse(artifact))
+}
+
+// CancelExportArtifactRemoteUpload 取消正在进行的导出文件远端上传任务。
+func (h *DataSharingHandler) CancelExportArtifactRemoteUpload(c *gin.Context) {
+	id, err := parseAdminDataShareIDParam(c)
+	if err != nil {
+		response.BadRequest(c, "Invalid export artifact ID")
+		return
+	}
+	artifact, err := h.dataSharingService.CancelExportArtifactRemoteUpload(c.Request.Context(), id)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
@@ -787,26 +815,29 @@ func adminDataShareExportArtifactToResponse(artifact *service.DataShareExportArt
 		return adminDataShareExportArtifactResponse{}
 	}
 	return adminDataShareExportArtifactResponse{
-		ID:                 artifact.ID,
-		Status:             string(artifact.Status),
-		Filename:           artifact.Filename,
-		Encoding:           artifact.Encoding,
-		SessionCount:       artifact.SessionCount,
-		FileSize:           artifact.FileSize,
-		SHA256:             artifact.SHA256,
-		ErrorMessage:       artifact.ErrorMessage,
-		RemoteStatus:       string(artifact.RemoteStatus),
-		RemoteBucket:       artifact.RemoteBucket,
-		RemoteKey:          artifact.RemoteKey,
-		RemoteErrorMessage: artifact.RemoteErrorMessage,
-		RemoteUploadedAt:   artifact.RemoteUploadedAt,
-		RemoteUploadBytes:  artifact.RemoteUploadBytes,
-		RemoteUploadSpeed:  artifact.RemoteUploadSpeed,
-		CreatedAt:          artifact.CreatedAt,
-		StartedAt:          artifact.StartedAt,
-		CompletedAt:        artifact.CompletedAt,
-		DeletedAt:          artifact.DeletedAt,
-		UpdatedAt:          artifact.UpdatedAt,
+		ID:                      artifact.ID,
+		Status:                  string(artifact.Status),
+		Filename:                artifact.Filename,
+		Encoding:                artifact.Encoding,
+		SessionCount:            artifact.SessionCount,
+		FileSize:                artifact.FileSize,
+		SHA256:                  artifact.SHA256,
+		ErrorMessage:            artifact.ErrorMessage,
+		RemoteStatus:            string(artifact.RemoteStatus),
+		RemoteBucket:            artifact.RemoteBucket,
+		RemoteKey:               artifact.RemoteKey,
+		RemoteErrorMessage:      artifact.RemoteErrorMessage,
+		RemoteUploadedAt:        artifact.RemoteUploadedAt,
+		RemoteUploadBytes:       artifact.RemoteUploadBytes,
+		RemoteUploadSpeed:       artifact.RemoteUploadSpeed,
+		GenerateProgressDone:    artifact.GenerateProgressDone,
+		GenerateProgressTotal:   artifact.GenerateProgressTotal,
+		GenerateProgressPercent: artifact.GenerateProgressPercent,
+		CreatedAt:               artifact.CreatedAt,
+		StartedAt:               artifact.StartedAt,
+		CompletedAt:             artifact.CompletedAt,
+		DeletedAt:               artifact.DeletedAt,
+		UpdatedAt:               artifact.UpdatedAt,
 	}
 }
 

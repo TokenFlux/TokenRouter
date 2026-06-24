@@ -74,6 +74,7 @@ func (DataShareSession) Indexes() []ent.Index {
 		index.Fields("exportable"),
 		index.Fields("quality_status"),
 		index.Fields("created_at"),
+		index.Fields("created_at", "id"),
 		index.Fields("updated_at"),
 	}
 }

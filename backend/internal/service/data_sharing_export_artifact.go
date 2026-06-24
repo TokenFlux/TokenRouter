@@ -22,7 +22,15 @@ const dataShareExportArtifactDownloadTicketTTL = 10 * time.Minute
 const dataShareExportArtifactRemoteDownloadURLTTL = time.Hour
 const dataShareExportArtifactInterruptedMessage = "server restarted before export artifact completed"
 const dataShareExportArtifactRemoteInterruptedMessage = "server restarted before export artifact remote upload completed"
+const dataShareExportArtifactRemoteCancelMessage = "remote upload canceled by administrator"
 const defaultDataShareExportArtifactRemotePrefix = "data-sharing-exports"
+const defaultDataShareExportRemoteUploadTaskLimit = 1
+const defaultDataShareExportRemoteUploadConcurrency = 4
+const minDataShareExportRemoteUploadConcurrency = 1
+const maxDataShareExportRemoteUploadConcurrency = 8
+const defaultDataShareExportRemoteUploadPartSizeMB = 64
+const minDataShareExportRemoteUploadPartSizeMB = 5
+const maxDataShareExportRemoteUploadPartSizeMB = 128
 
 // CreateExportArtifact 创建预生成导出文件任务，并在后台执行真实文件生成。
 func (s *DataSharingService) CreateExportArtifact(ctx context.Context, input DataShareExportArtifactCreateInput) (*DataShareExportArtifact, error) {
@@ -59,6 +67,7 @@ func (s *DataSharingService) ListExportArtifacts(ctx context.Context, params pag
 	}
 	for i := range items {
 		s.mergeExportArtifactUploadProgress(&items[i])
+		s.mergeExportArtifactGenerateProgress(&items[i])
 	}
 	return items, result, nil
 }
@@ -76,6 +85,7 @@ func (s *DataSharingService) GetExportArtifact(ctx context.Context, id int64) (*
 		return nil, err
 	}
 	s.mergeExportArtifactUploadProgress(artifact)
+	s.mergeExportArtifactGenerateProgress(artifact)
 	return artifact, nil
 }
 
@@ -118,8 +128,10 @@ func (s *DataSharingService) DeleteExportArtifact(ctx context.Context, id int64)
 func (s *DataSharingService) GetExportRemoteConfig(ctx context.Context) (DataShareExportRemoteConfig, error) {
 	if s == nil || s.settingRepo == nil {
 		return DataShareExportRemoteConfig{
-			Region: "auto",
-			Prefix: defaultDataShareExportArtifactRemotePrefix,
+			Region:            "auto",
+			Prefix:            defaultDataShareExportArtifactRemotePrefix,
+			UploadConcurrency: defaultDataShareExportRemoteUploadConcurrency,
+			UploadPartSizeMB:  defaultDataShareExportRemoteUploadPartSizeMB,
 		}, nil
 	}
 	cfg, err := s.loadExportArtifactStoredRemoteConfig(ctx)
@@ -130,6 +142,8 @@ func (s *DataSharingService) GetExportRemoteConfig(ctx context.Context) (DataSha
 		cfg.Region = "auto"
 	}
 	cfg.Prefix = normalizeDataShareExportRemotePrefix(cfg.Prefix)
+	cfg.UploadConcurrency = NormalizeDataShareExportRemoteUploadConcurrency(cfg.UploadConcurrency)
+	cfg.UploadPartSizeMB = NormalizeDataShareExportRemoteUploadPartSizeMB(cfg.UploadPartSizeMB)
 	cfg.SecretAccessKey = ""
 	return cfg, nil
 }
@@ -199,16 +213,52 @@ func (s *DataSharingService) UploadExportArtifactToRemote(ctx context.Context, i
 	if _, _, err := s.exportArtifactRemoteStore(ctx); err != nil {
 		return nil, err
 	}
+	if !s.tryAcquireExportArtifactUploadSlot() {
+		return nil, ErrDataShareExportArtifactRemoteUploadInProgress
+	}
+	slotAcquired := true
+	defer func() {
+		if slotAcquired {
+			s.releaseExportArtifactUploadSlot()
+		}
+	}()
 	if err := s.exportArtifactRepo.MarkRemoteUploading(ctx, id); err != nil {
 		return nil, err
 	}
 	s.startExportArtifactUploadProgress(id, artifact.FileSize)
-	go s.uploadExportArtifactToRemote(context.Background(), id)
+	// 上传任务不绑定发起请求生命周期，但会登记 cancel 供管理端主动取消慢速上传。
+	uploadCtx, cancel := context.WithCancel(context.Background())
+	s.registerExportArtifactUploadTask(id, cancel)
+	go s.uploadExportArtifactToRemote(uploadCtx, id)
+	slotAcquired = false
+	return s.GetExportArtifact(ctx, id)
+}
+
+// CancelExportArtifactRemoteUpload 取消正在进行的远端上传任务。
+func (s *DataSharingService) CancelExportArtifactRemoteUpload(ctx context.Context, id int64) (*DataShareExportArtifact, error) {
+	if s == nil || s.exportArtifactRepo == nil {
+		return nil, ErrDataShareExportArtifactStorageInvalid
+	}
+	artifact, err := s.GetExportArtifact(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if artifact.RemoteStatus != DataShareExportArtifactRemoteStatusUploading {
+		return nil, ErrDataShareExportArtifactRemoteUploadNotRunning
+	}
+	if cancel := s.unregisterExportArtifactUploadTask(id); cancel != nil {
+		cancel()
+	}
+	s.clearExportArtifactUploadProgress(id)
+	if err := s.exportArtifactRepo.MarkRemoteUploadFailed(ctx, id, dataShareExportArtifactRemoteCancelMessage); err != nil {
+		return nil, err
+	}
 	return s.GetExportArtifact(ctx, id)
 }
 
 func (s *DataSharingService) uploadExportArtifactToRemote(ctx context.Context, id int64) {
-	defer s.clearExportArtifactUploadProgress(id)
+	defer s.releaseExportArtifactUploadSlot()
+	defer s.finishExportArtifactUploadTask(id)
 	artifact, err := s.GetExportArtifact(ctx, id)
 	if err != nil {
 		return
@@ -235,12 +285,73 @@ func (s *DataSharingService) uploadExportArtifactToRemote(ctx context.Context, i
 	key := s.buildExportArtifactRemoteKey(ctx, artifact)
 	uploadSize, err := s.uploadExportArtifactFile(ctx, store, key, f, dataShareExportArtifactContentType(artifact), id)
 	if err != nil {
+		if ctx.Err() != nil {
+			return
+		}
 		_ = s.exportArtifactRepo.MarkRemoteUploadFailed(context.Background(), id, err.Error())
+		return
+	}
+	if ctx.Err() != nil {
 		return
 	}
 	s.updateExportArtifactUploadProgress(id, uploadSize)
 	if err := s.exportArtifactRepo.MarkRemoteUploaded(ctx, id, cfg.Bucket, key); err != nil {
 		slog.Warn("data sharing: mark export artifact remote upload completed failed", "artifact_id", id, "error", err)
+	}
+}
+
+func (s *DataSharingService) registerExportArtifactUploadTask(id int64, cancel context.CancelFunc) {
+	if s == nil || cancel == nil {
+		return
+	}
+	s.exportUploadTasksMu.Lock()
+	defer s.exportUploadTasksMu.Unlock()
+	if s.exportUploadTasks == nil {
+		s.exportUploadTasks = make(map[int64]dataShareExportUploadTask)
+	}
+	s.exportUploadTasks[id] = dataShareExportUploadTask{cancel: cancel}
+}
+
+func (s *DataSharingService) unregisterExportArtifactUploadTask(id int64) context.CancelFunc {
+	if s == nil {
+		return nil
+	}
+	s.exportUploadTasksMu.Lock()
+	defer s.exportUploadTasksMu.Unlock()
+	task, ok := s.exportUploadTasks[id]
+	if ok {
+		delete(s.exportUploadTasks, id)
+	}
+	return task.cancel
+}
+
+func (s *DataSharingService) finishExportArtifactUploadTask(id int64) {
+	if cancel := s.unregisterExportArtifactUploadTask(id); cancel != nil {
+		cancel()
+	}
+	s.clearExportArtifactUploadProgress(id)
+}
+
+func (s *DataSharingService) tryAcquireExportArtifactUploadSlot() bool {
+	if s == nil || s.exportUploadSlots == nil {
+		return false
+	}
+	// 远端上传内部已经有分片并发，这里限制后台任务数，避免多个大文件同时放大内存和连接数。
+	select {
+	case s.exportUploadSlots <- struct{}{}:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *DataSharingService) releaseExportArtifactUploadSlot() {
+	if s == nil || s.exportUploadSlots == nil {
+		return
+	}
+	select {
+	case <-s.exportUploadSlots:
+	default:
 	}
 }
 
@@ -324,6 +435,98 @@ func dataShareExportUploadSpeedBytesPerSecond(progress dataShareExportUploadProg
 		return 0
 	}
 	return float64(progress.uploadedBytes) / elapsed
+}
+
+func (s *DataSharingService) startExportArtifactGenerateProgress(id int64, totalSessions int64) {
+	if s == nil {
+		return
+	}
+	now := time.Now()
+	s.exportGenerateProgressMu.Lock()
+	defer s.exportGenerateProgressMu.Unlock()
+	if s.exportGenerateProgress == nil {
+		s.exportGenerateProgress = make(map[int64]dataShareExportGenerateProgress)
+	}
+	s.exportGenerateProgress[id] = dataShareExportGenerateProgress{
+		totalSessions: totalSessions,
+		startedAt:     now,
+		updatedAt:     now,
+	}
+}
+
+func (s *DataSharingService) updateExportArtifactGenerateProgress(id int64, processedSessions int64, totalSessions int64) {
+	if s == nil {
+		return
+	}
+	now := time.Now()
+	s.exportGenerateProgressMu.Lock()
+	defer s.exportGenerateProgressMu.Unlock()
+	if s.exportGenerateProgress == nil {
+		s.exportGenerateProgress = make(map[int64]dataShareExportGenerateProgress)
+	}
+	progress := s.exportGenerateProgress[id]
+	if progress.startedAt.IsZero() {
+		progress.startedAt = now
+	}
+	if processedSessions < 0 {
+		processedSessions = 0
+	}
+	progress.processedSessions = processedSessions
+	if totalSessions >= 0 {
+		progress.totalSessions = totalSessions
+	}
+	if progress.totalSessions > 0 && progress.processedSessions > progress.totalSessions {
+		progress.processedSessions = progress.totalSessions
+	}
+	progress.updatedAt = now
+	s.exportGenerateProgress[id] = progress
+}
+
+func (s *DataSharingService) clearExportArtifactGenerateProgress(id int64) {
+	if s == nil {
+		return
+	}
+	s.exportGenerateProgressMu.Lock()
+	defer s.exportGenerateProgressMu.Unlock()
+	delete(s.exportGenerateProgress, id)
+}
+
+func (s *DataSharingService) mergeExportArtifactGenerateProgress(artifact *DataShareExportArtifact) {
+	if s == nil || artifact == nil {
+		return
+	}
+	s.exportGenerateProgressMu.RLock()
+	progress, ok := s.exportGenerateProgress[artifact.ID]
+	s.exportGenerateProgressMu.RUnlock()
+	if !ok || artifact.Status != DataShareExportArtifactStatusRunning {
+		return
+	}
+	artifact.GenerateProgressDone = progress.processedSessions
+	if artifact.GenerateProgressDone < 0 {
+		artifact.GenerateProgressDone = 0
+	}
+	artifact.GenerateProgressTotal = progress.totalSessions
+	if artifact.GenerateProgressTotal < 0 {
+		artifact.GenerateProgressTotal = 0
+	}
+	if artifact.GenerateProgressTotal > 0 && artifact.GenerateProgressDone > artifact.GenerateProgressTotal {
+		artifact.GenerateProgressDone = artifact.GenerateProgressTotal
+	}
+	artifact.GenerateProgressPercent = dataShareExportGenerateProgressPercent(progress)
+}
+
+func dataShareExportGenerateProgressPercent(progress dataShareExportGenerateProgress) float64 {
+	if progress.totalSessions <= 0 {
+		return 0
+	}
+	processed := progress.processedSessions
+	if processed < 0 {
+		processed = 0
+	}
+	if processed > progress.totalSessions {
+		processed = progress.totalSessions
+	}
+	return float64(processed) / float64(progress.totalSessions) * 100
 }
 
 // CreateExportArtifactRemoteDownloadURL 为已上传到 S3/R2 的导出文件生成短期预签名下载链接。
@@ -473,8 +676,10 @@ func (s *DataSharingService) loadExportArtifactRemoteS3Config(ctx context.Contex
 
 func (s *DataSharingService) loadExportArtifactStoredRemoteConfig(ctx context.Context) (DataShareExportRemoteConfig, error) {
 	cfg := DataShareExportRemoteConfig{
-		Region: "auto",
-		Prefix: defaultDataShareExportArtifactRemotePrefix,
+		Region:            "auto",
+		Prefix:            defaultDataShareExportArtifactRemotePrefix,
+		UploadConcurrency: defaultDataShareExportRemoteUploadConcurrency,
+		UploadPartSizeMB:  defaultDataShareExportRemoteUploadPartSizeMB,
 	}
 	raw, err := s.settingRepo.GetValue(ctx, SettingKeyDataSharingExportRemoteConfig)
 	if err == nil && strings.TrimSpace(raw) != "" {
@@ -486,6 +691,8 @@ func (s *DataSharingService) loadExportArtifactStoredRemoteConfig(ctx context.Co
 			cfg.Region = "auto"
 		}
 		cfg.Prefix = normalizeDataShareExportRemotePrefix(cfg.Prefix)
+		cfg.UploadConcurrency = NormalizeDataShareExportRemoteUploadConcurrency(cfg.UploadConcurrency)
+		cfg.UploadPartSizeMB = NormalizeDataShareExportRemoteUploadPartSizeMB(cfg.UploadPartSizeMB)
 		return cfg, nil
 	}
 	raw, err = s.settingRepo.GetValue(ctx, SettingKeyDataSharingExportRemotePrefix)
@@ -504,6 +711,8 @@ func (s *DataSharingService) prepareExportArtifactRemoteConfigForSave(ctx contex
 	cfg.Bucket = strings.TrimSpace(cfg.Bucket)
 	cfg.AccessKeyID = strings.TrimSpace(cfg.AccessKeyID)
 	cfg.Prefix = normalizeDataShareExportRemotePrefix(cfg.Prefix)
+	cfg.UploadConcurrency = NormalizeDataShareExportRemoteUploadConcurrency(cfg.UploadConcurrency)
+	cfg.UploadPartSizeMB = NormalizeDataShareExportRemoteUploadPartSizeMB(cfg.UploadPartSizeMB)
 	if cfg.SecretAccessKey == "" {
 		cfg.SecretAccessKey = s.loadStoredEncryptedExportArtifactRemoteSecret(ctx)
 	} else {
@@ -548,14 +757,44 @@ func (s *DataSharingService) decryptExportArtifactRemoteSecret(cfg *DataShareExp
 
 func dataShareExportRemoteConfigToBackupS3Config(cfg DataShareExportRemoteConfig) BackupS3Config {
 	return BackupS3Config{
-		Endpoint:        strings.TrimSpace(cfg.Endpoint),
-		Region:          strings.TrimSpace(cfg.Region),
-		Bucket:          strings.TrimSpace(cfg.Bucket),
-		AccessKeyID:     strings.TrimSpace(cfg.AccessKeyID),
-		SecretAccessKey: cfg.SecretAccessKey,
-		Prefix:          normalizeDataShareExportRemotePrefix(cfg.Prefix),
-		ForcePathStyle:  cfg.ForcePathStyle,
+		Endpoint:          strings.TrimSpace(cfg.Endpoint),
+		Region:            strings.TrimSpace(cfg.Region),
+		Bucket:            strings.TrimSpace(cfg.Bucket),
+		AccessKeyID:       strings.TrimSpace(cfg.AccessKeyID),
+		SecretAccessKey:   cfg.SecretAccessKey,
+		Prefix:            normalizeDataShareExportRemotePrefix(cfg.Prefix),
+		ForcePathStyle:    cfg.ForcePathStyle,
+		UploadConcurrency: NormalizeDataShareExportRemoteUploadConcurrency(cfg.UploadConcurrency),
+		UploadPartSizeMB:  NormalizeDataShareExportRemoteUploadPartSizeMB(cfg.UploadPartSizeMB),
 	}
+}
+
+// NormalizeDataShareExportRemoteUploadConcurrency 归一化远端上传并发，避免单任务占满出口连接。
+func NormalizeDataShareExportRemoteUploadConcurrency(count int) int {
+	if count <= 0 {
+		count = defaultDataShareExportRemoteUploadConcurrency
+	}
+	if count < minDataShareExportRemoteUploadConcurrency {
+		return minDataShareExportRemoteUploadConcurrency
+	}
+	if count > maxDataShareExportRemoteUploadConcurrency {
+		return maxDataShareExportRemoteUploadConcurrency
+	}
+	return count
+}
+
+// NormalizeDataShareExportRemoteUploadPartSizeMB 归一化分片大小，满足 S3 multipart 最小 5MiB 限制。
+func NormalizeDataShareExportRemoteUploadPartSizeMB(sizeMB int) int {
+	if sizeMB <= 0 {
+		sizeMB = defaultDataShareExportRemoteUploadPartSizeMB
+	}
+	if sizeMB < minDataShareExportRemoteUploadPartSizeMB {
+		return minDataShareExportRemoteUploadPartSizeMB
+	}
+	if sizeMB > maxDataShareExportRemoteUploadPartSizeMB {
+		return maxDataShareExportRemoteUploadPartSizeMB
+	}
+	return sizeMB
 }
 
 func (s *DataSharingService) buildExportArtifactRemoteKey(ctx context.Context, artifact *DataShareExportArtifact) string {
@@ -630,6 +869,7 @@ func validateDataShareExportArtifactInput(input DataShareExportArtifactCreateInp
 }
 
 func (s *DataSharingService) generateExportArtifact(ctx context.Context, id int64) {
+	defer s.clearExportArtifactGenerateProgress(id)
 	if err := s.generateExportArtifactWithError(ctx, id); err != nil {
 		slog.Warn("data sharing: generate export artifact failed", "artifact_id", id, "error", err)
 		if s != nil && s.exportArtifactRepo != nil {
@@ -639,6 +879,10 @@ func (s *DataSharingService) generateExportArtifact(ctx context.Context, id int6
 }
 
 func (s *DataSharingService) generateExportArtifactWithError(ctx context.Context, id int64) error {
+	generateStart := time.Now()
+	defer func() {
+		recordDataShareExportDuration(s.exportDurations, DataShareExportDurationPartGenerateTotal, time.Since(generateStart))
+	}()
 	artifact, err := s.GetExportArtifact(ctx, id)
 	if err != nil {
 		return err
@@ -665,10 +909,25 @@ func (s *DataSharingService) generateExportArtifactWithError(ctx context.Context
 
 	fileWriter := &dataShareExportArtifactFileWriter{w: tmp, hash: sha256.New()}
 	encoding := normalizeDataShareExportEncoding(DataShareExportEncoding(artifact.Encoding))
+	if s.repo == nil {
+		return ErrDataShareExportArtifactStorageInvalid
+	}
+	countStart := time.Now()
+	totalSessions, err := s.repo.Count(ctx, artifact.Filters)
+	recordDataShareExportDuration(s.exportDurations, DataShareExportDurationPartCount, time.Since(countStart))
+	if err != nil {
+		return err
+	}
+	s.startExportArtifactGenerateProgress(id, totalSessions)
+	updateGenerateProgress := func(processed int64, total int64) {
+		s.updateExportArtifactGenerateProgress(id, processed, total)
+	}
+	batchSize := s.currentExportBatchSize()
+	workerCount := s.currentExportWorkerCount()
 	switch encoding {
 	case DataShareExportEncodingJSON, DataShareExportEncodingJSONL:
 		lineCounter := &dataShareExportArtifactLineCountingWriter{w: fileWriter}
-		if err := s.ExportJSONL(ctx, lineCounter, artifact.Filters, false); err != nil {
+		if err := s.exportJSONL(ctx, lineCounter, artifact.Filters, false, totalSessions, batchSize, workerCount, updateGenerateProgress, s.exportDurations); err != nil {
 			return err
 		}
 		fileWriter.lines = lineCounter.lines
@@ -678,7 +937,7 @@ func (s *DataSharingService) generateExportArtifactWithError(ctx context.Context
 			return err
 		}
 		lineCounter := &dataShareExportArtifactLineCountingWriter{w: zw}
-		if err := s.ExportJSONL(ctx, lineCounter, artifact.Filters, false); err != nil {
+		if err := s.exportJSONL(ctx, lineCounter, artifact.Filters, false, totalSessions, batchSize, workerCount, updateGenerateProgress, s.exportDurations); err != nil {
 			_ = zw.Close()
 			return err
 		}

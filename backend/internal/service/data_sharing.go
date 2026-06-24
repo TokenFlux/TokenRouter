@@ -27,6 +27,7 @@ type dataShareCaptureMode string
 const (
 	dataShareCaptureModeSnapshot           dataShareCaptureMode = ""
 	dataShareCaptureModeOpenAIResponsesRaw dataShareCaptureMode = "openai_responses_raw"
+	dataShareCaptureModeMessagesRaw        dataShareCaptureMode = "messages_raw"
 	dataShareCaptureModeIncremental        dataShareCaptureMode = "incremental"
 )
 
@@ -75,6 +76,7 @@ var ErrDataShareExportArtifactNotReady = infraerrors.BadRequest("DATA_SHARE_EXPO
 var ErrDataShareExportArtifactDeleted = infraerrors.NotFound("DATA_SHARE_EXPORT_ARTIFACT_DELETED", "data share export artifact was deleted")
 var ErrDataShareExportArtifactUploadInProgress = infraerrors.Conflict("DATA_SHARE_EXPORT_ARTIFACT_UPLOAD_IN_PROGRESS", "data share export artifact upload is already in progress")
 var ErrDataShareExportArtifactRemoteUploadInProgress = infraerrors.Conflict("DATA_SHARE_EXPORT_ARTIFACT_REMOTE_UPLOAD_IN_PROGRESS", "data share export artifact remote upload is in progress")
+var ErrDataShareExportArtifactRemoteUploadNotRunning = infraerrors.BadRequest("DATA_SHARE_EXPORT_ARTIFACT_REMOTE_UPLOAD_NOT_RUNNING", "data share export artifact remote upload is not running")
 var ErrDataShareExportArtifactStorageInvalid = infraerrors.InternalServer("DATA_SHARE_EXPORT_ARTIFACT_STORAGE_INVALID", "data share export artifact storage is invalid")
 var ErrDataShareStorageLimitInvalid = infraerrors.BadRequest("DATA_SHARE_STORAGE_LIMIT_INVALID", "data sharing storage limit must be greater than or equal to 0")
 var ErrDataShareCaptureRuntimeInvalid = infraerrors.BadRequest("DATA_SHARE_CAPTURE_RUNTIME_INVALID", "data sharing capture runtime settings are invalid")
@@ -126,6 +128,8 @@ type DataShareCaptureRuntimeSettings struct {
 	BufferMaxSessions      int    `json:"buffer_max_sessions"`
 	BufferMaxPendingEvents int    `json:"buffer_max_pending_events"`
 	DurationWindowSize     int    `json:"duration_window_size"`
+	ExportBatchSize        int    `json:"export_batch_size"`
+	ExportWorkerCount      int    `json:"export_worker_count"`
 }
 
 // DataShareCompressionLevel 表示采集 payload 的 zstd 压缩等级。
@@ -140,50 +144,52 @@ const (
 
 // DataShareSession 保存一条聚合后的 Agent session。
 type DataShareSession struct {
-	ID                   int64
-	TrajectoryID         string
-	SessionID            string
-	Dataset              string
-	Provider             string
-	Model                string
-	RequestPath          string
-	UserAgent            string
-	Status               string
-	IsFinalSnapshot      bool
-	SourceRequestCount   int
-	SystemPrompt         *string
-	Tools                []map[string]any
-	Messages             []map[string]any
-	Usage                map[string]any
-	Meta                 map[string]any
-	SessionJSON          map[string]any
-	SessionJSONFinalized bool
-	PayloadCompressed    []byte
-	PayloadEncoding      string
-	PayloadBytes         int64
-	Exportable           bool
-	QualityStatus        string
-	QualityErrors        []string
-	StorageBytes         int64
-	InputTokens          int64
-	OutputTokens         int64
-	TotalTokens          int64
-	ActualCost           *float64
-	UserID               int64
-	UserName             string
-	UserEmail            string
-	APIKeyID             int64
-	APIKeyName           string
-	GroupID              int64
-	GroupName            string
-	CreatedAt            time.Time
-	EndedAt              *time.Time
-	UpdatedAt            time.Time
-	captureMode          dataShareCaptureMode
-	captureInput         *DataShareCaptureInput
-	captureState         *dataShareResponsesCaptureState
-	captureRequestItems  []dataShareResponsesInputItem
-	captureResponseItems []map[string]any
+	ID                      int64
+	TrajectoryID            string
+	SessionID               string
+	Dataset                 string
+	Provider                string
+	Model                   string
+	RequestPath             string
+	UserAgent               string
+	Status                  string
+	IsFinalSnapshot         bool
+	SourceRequestCount      int
+	SystemPrompt            *string
+	Tools                   []map[string]any
+	Messages                []map[string]any
+	Usage                   map[string]any
+	Meta                    map[string]any
+	SessionJSON             map[string]any
+	SessionJSONFinalized    bool
+	PayloadCompressed       []byte
+	PayloadEncoding         string
+	PayloadBytes            int64
+	Exportable              bool
+	QualityStatus           string
+	QualityErrors           []string
+	StorageBytes            int64
+	InputTokens             int64
+	OutputTokens            int64
+	TotalTokens             int64
+	ActualCost              *float64
+	UserID                  int64
+	UserName                string
+	UserEmail               string
+	APIKeyID                int64
+	APIKeyName              string
+	GroupID                 int64
+	GroupName               string
+	CreatedAt               time.Time
+	EndedAt                 *time.Time
+	UpdatedAt               time.Time
+	captureMode             dataShareCaptureMode
+	captureInput            *DataShareCaptureInput
+	captureState            *dataShareResponsesCaptureState
+	captureRequestItems     []dataShareResponsesInputItem
+	captureResponseItems    []map[string]any
+	captureRequestMessages  []map[string]any
+	captureResponseMessages []map[string]any
 }
 
 // DataShareSessionFilters 描述列表/统计/导出筛选条件。
@@ -297,13 +303,15 @@ const (
 
 // DataShareExportRemoteConfig 描述数据共享导出文件上传到独立 S3/R2 端点的配置。
 type DataShareExportRemoteConfig struct {
-	Endpoint        string `json:"endpoint"`
-	Region          string `json:"region"`
-	Bucket          string `json:"bucket"`
-	AccessKeyID     string `json:"access_key_id"`
-	SecretAccessKey string `json:"secret_access_key,omitempty"` //nolint:revive // 字段名沿用 AWS 约定
-	Prefix          string `json:"prefix"`
-	ForcePathStyle  bool   `json:"force_path_style"`
+	Endpoint          string `json:"endpoint"`
+	Region            string `json:"region"`
+	Bucket            string `json:"bucket"`
+	AccessKeyID       string `json:"access_key_id"`
+	SecretAccessKey   string `json:"secret_access_key,omitempty"` //nolint:revive // 字段名沿用 AWS 约定
+	Prefix            string `json:"prefix"`
+	ForcePathStyle    bool   `json:"force_path_style"`
+	UploadConcurrency int    `json:"upload_concurrency"`
+	UploadPartSizeMB  int    `json:"upload_part_size_mb"`
 }
 
 // DataShareExportArtifact 记录一次预生成导出文件任务及其本地、远端文件元数据。
@@ -325,11 +333,17 @@ type DataShareExportArtifact struct {
 	RemoteUploadedAt   *time.Time                          `json:"remote_uploaded_at,omitempty"`
 	RemoteUploadBytes  int64                               `json:"remote_upload_bytes"`
 	RemoteUploadSpeed  float64                             `json:"remote_upload_speed"`
-	CreatedAt          time.Time                           `json:"created_at"`
-	StartedAt          *time.Time                          `json:"started_at,omitempty"`
-	CompletedAt        *time.Time                          `json:"completed_at,omitempty"`
-	DeletedAt          *time.Time                          `json:"deleted_at,omitempty"`
-	UpdatedAt          time.Time                           `json:"updated_at"`
+	// GenerateProgressDone 记录当前进程中导出生成任务已处理的 session 数。
+	GenerateProgressDone int64 `json:"generate_progress_done"`
+	// GenerateProgressTotal 记录当前进程中导出生成任务需要处理的 session 总数。
+	GenerateProgressTotal int64 `json:"generate_progress_total"`
+	// GenerateProgressPercent 记录当前进程中导出生成任务的百分比进度。
+	GenerateProgressPercent float64    `json:"generate_progress_percent"`
+	CreatedAt               time.Time  `json:"created_at"`
+	StartedAt               *time.Time `json:"started_at,omitempty"`
+	CompletedAt             *time.Time `json:"completed_at,omitempty"`
+	DeletedAt               *time.Time `json:"deleted_at,omitempty"`
+	UpdatedAt               time.Time  `json:"updated_at"`
 }
 
 // DataShareExportArtifactCreateInput 是创建预生成导出任务的输入。
@@ -437,6 +451,7 @@ type DataShareStats struct {
 	CaptureWorker           DataSharingCaptureWorkerPoolStats `json:"capture_worker"`
 	CaptureBuffer           DataSharingCaptureBufferStats     `json:"capture_buffer"`
 	CaptureDurations        DataShareCaptureDurationStats     `json:"capture_durations"`
+	ExportDurations         DataShareExportDurationStats      `json:"export_durations"`
 }
 
 // DataShareCaptureInput 是网关成功完成请求后的采集输入。
@@ -476,12 +491,23 @@ type DataShareUpsertOptions struct {
 	DurationRecorder DataShareCaptureDurationRecorder
 }
 
+// DataShareSessionExportCursor 是预生成导出使用的稳定游标，避免大 offset 翻页。
+type DataShareSessionExportCursor struct {
+	CreatedAt time.Time
+	ID        int64
+}
+
 // DataShareSessionRepository 定义数据共享 session 的持久化能力。
 type DataShareSessionRepository interface {
 	GetCaptureByTrajectoryIDWithPayload(ctx context.Context, trajectoryID string) (*DataShareSession, error)
 	SaveCaptureSnapshot(ctx context.Context, session *DataShareSession, opts ...DataShareUpsertOptions) error
+	Count(ctx context.Context, filters DataShareSessionFilters) (int64, error)
 	List(ctx context.Context, params pagination.PaginationParams, filters DataShareSessionFilters) ([]DataShareSession, *pagination.PaginationResult, error)
 	ListWithPayload(ctx context.Context, params pagination.PaginationParams, filters DataShareSessionFilters) ([]DataShareSession, *pagination.PaginationResult, error)
+	// ListWithPayloadPage 按页加载包含 payload 的 session，不重复统计总数，供导出流程使用。
+	ListWithPayloadPage(ctx context.Context, params pagination.PaginationParams, filters DataShareSessionFilters) ([]DataShareSession, error)
+	// ListExportPayloadPage 按游标加载导出 payload，不回填展示字段，避免大导出时重复 count 和大 offset 扫描。
+	ListExportPayloadPage(ctx context.Context, filters DataShareSessionFilters, cursor *DataShareSessionExportCursor, limit int, workerCount int, recorder DataShareExportDurationRecorder) ([]DataShareSession, *DataShareSessionExportCursor, error)
 	GetByID(ctx context.Context, id int64) (*DataShareSession, error)
 	Delete(ctx context.Context, id int64) error
 	BatchDelete(ctx context.Context, ids []int64, filters DataShareSessionFilters) (int64, error)
@@ -497,6 +523,17 @@ type dataShareExportUploadProgress struct {
 	updatedAt     time.Time
 }
 
+type dataShareExportUploadTask struct {
+	cancel context.CancelFunc
+}
+
+type dataShareExportGenerateProgress struct {
+	processedSessions int64
+	totalSessions     int64
+	startedAt         time.Time
+	updatedAt         time.Time
+}
+
 // DataSharingService 负责数据共享须知、采集、导出和统计。
 type DataSharingService struct {
 	repo                     DataShareSessionRepository
@@ -508,7 +545,10 @@ type DataSharingService struct {
 	captureWorker            *DataSharingCaptureWorkerPool
 	captureBuffer            *DataSharingCaptureBuffer
 	captureDurations         *dataShareCaptureDurationRecorder
+	exportDurations          *dataShareExportDurationRecorder
 	defaultRuntimeSettings   DataShareCaptureRuntimeSettings
+	exportBatchSize          atomic.Int64
+	exportWorkerCount        atomic.Int64
 	captureWorkerNilDropped  atomic.Uint64
 	captureWorkerNilLogNanos atomic.Int64
 	skipRulesMu              sync.RWMutex
@@ -516,6 +556,11 @@ type DataSharingService struct {
 	skipRulesCacheExpiresAt  time.Time
 	exportUploadProgressMu   sync.RWMutex
 	exportUploadProgress     map[int64]dataShareExportUploadProgress
+	exportUploadTasksMu      sync.Mutex
+	exportUploadTasks        map[int64]dataShareExportUploadTask
+	exportUploadSlots        chan struct{}
+	exportGenerateProgressMu sync.RWMutex
+	exportGenerateProgress   map[int64]dataShareExportGenerateProgress
 }
 
 func NewDataSharingService(repo DataShareSessionRepository, settingRepo SettingRepository, captureWorker ...*DataSharingCaptureWorkerPool) *DataSharingService {
@@ -524,8 +569,14 @@ func NewDataSharingService(repo DataShareSessionRepository, settingRepo SettingR
 		settingRepo:            settingRepo,
 		defaultRuntimeSettings: *defaultDataShareCaptureRuntimeSettings(),
 		captureDurations:       newDataShareCaptureDurationRecorder(defaultDataSharingCaptureDurationWindowSize),
+		exportDurations:        newDataShareExportDurationRecorder(defaultDataSharingCaptureDurationWindowSize),
 		exportUploadProgress:   make(map[int64]dataShareExportUploadProgress),
+		exportUploadTasks:      make(map[int64]dataShareExportUploadTask),
+		exportUploadSlots:      make(chan struct{}, defaultDataShareExportRemoteUploadTaskLimit),
+		exportGenerateProgress: make(map[int64]dataShareExportGenerateProgress),
 	}
+	svc.exportBatchSize.Store(int64(svc.defaultRuntimeSettings.ExportBatchSize))
+	svc.exportWorkerCount.Store(int64(svc.defaultRuntimeSettings.ExportWorkerCount))
 	if len(captureWorker) > 0 {
 		svc.captureWorker = captureWorker[0]
 	}

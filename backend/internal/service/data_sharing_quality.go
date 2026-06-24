@@ -109,10 +109,9 @@ func validateCompactDataShareSessionQuality(model string, systemPrompt string, m
 	if len(toolCalls) > 0 && !hasFinalAssistantMessage(messages) {
 		addErr("missing_final_assistant")
 	}
-	if !dataShareModelAllowed(model) {
-		addErr("model_not_allowed")
-	}
 	// 交付文档允许 token 用量无法聚合时为空或保留在 meta，因此 usage 不能作为 session 可用性的硬门槛。
+	// 模型范围由数据共享采集跳过规则控制，这里只校验已采集 session 的结构质量。
+	_ = model
 	_ = usage
 	return errs
 }
@@ -139,7 +138,6 @@ func dataShareCompleteTrimPrefixLen(model string, systemPrompt string, compact [
 
 // dataSharePrefixQualityState 增量维护 validateCompactDataShareSessionQuality 关心的质量条件。
 type dataSharePrefixQualityState struct {
-	modelAllowed               bool
 	toolDefinitionsReady       bool
 	hasSystemPrompt            bool
 	messageCount               int
@@ -156,9 +154,10 @@ type dataSharePrefixQualityState struct {
 }
 
 func newDataSharePrefixQualityState(model string, systemPrompt string, tools []map[string]any) *dataSharePrefixQualityState {
+	// 模型范围由采集跳过规则控制，前缀质量状态机只维护结构完整性。
+	_ = model
 	toolDefs, invalidToolCount := collectDataShareToolDefinitions(tools)
 	return &dataSharePrefixQualityState{
-		modelAllowed:         dataShareModelAllowed(model),
 		toolDefinitionsReady: len(toolDefs) > 0 && invalidToolCount == 0,
 		hasSystemPrompt:      strings.TrimSpace(systemPrompt) != "",
 		callIDs:              map[string]struct{}{},
@@ -248,7 +247,6 @@ func (s *dataSharePrefixQualityState) callIDNeedsResult(id string, resultCount i
 
 func (s *dataSharePrefixQualityState) complete() bool {
 	return s != nil &&
-		s.modelAllowed &&
 		s.toolDefinitionsReady &&
 		s.hasSystemPrompt &&
 		s.messageCount >= 2 &&
@@ -305,16 +303,6 @@ func dataShareMessagesNeedNormalizeFallback(messages []map[string]any) bool {
 		}
 	}
 	return false
-}
-
-func dataShareModelAllowed(model string) bool {
-	model = strings.ToLower(strings.TrimSpace(model))
-	if model == "" {
-		return false
-	}
-	return strings.Contains(model, "gpt-5") ||
-		strings.Contains(model, "claude") && (strings.Contains(model, "4.5") || strings.Contains(model, "4-5")) ||
-		strings.Contains(model, "gemini-3")
 }
 
 type dataShareToolCall struct {

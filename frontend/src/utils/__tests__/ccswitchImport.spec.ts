@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { buildCcSwitchImportDeeplink } from '@/utils/ccswitchImport'
+import {
+  OPENAI_CC_SWITCH_CODEX_MODEL,
+  buildCcSwitchImportDeeplink
+} from '@/utils/ccswitchImport'
 import type { GroupPlatform } from '@/types'
 
 function paramsFromDeeplink(deeplink: string): URLSearchParams {
@@ -12,6 +15,10 @@ function decodeBase64Utf8(value: string): string {
 }
 
 describe('ccswitchImport utils', () => {
+  it('defaults OpenAI CC Switch imports to the current Codex model', () => {
+    expect(OPENAI_CC_SWITCH_CODEX_MODEL).toBe('gpt-5.5')
+  })
+
   const baseInput = {
     baseUrl: 'https://api.example.com',
     providerName: 'Sub2API',

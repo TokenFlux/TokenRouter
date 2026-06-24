@@ -136,6 +136,7 @@ func registerDataSharingRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		dataSharing.GET("/exports/:id", h.Admin.DataSharing.GetExportArtifact)
 		dataSharing.POST("/exports/:id/download-ticket", h.Admin.DataSharing.CreateExportArtifactDownloadTicket)
 		dataSharing.POST("/exports/:id/upload", h.Admin.DataSharing.UploadExportArtifact)
+		dataSharing.POST("/exports/:id/upload/cancel", h.Admin.DataSharing.CancelExportArtifactRemoteUpload)
 		dataSharing.GET("/exports/:id/download-url", h.Admin.DataSharing.GetExportArtifactRemoteDownloadURL)
 		dataSharing.DELETE("/exports/:id", h.Admin.DataSharing.DeleteExportArtifact)
 		dataSharing.GET("/stats", h.Admin.DataSharing.Stats)

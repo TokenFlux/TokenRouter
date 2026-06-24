@@ -142,6 +142,67 @@ func dataShareCaptureInputIsOpenAIResponses(input DataShareCaptureInput) bool {
 	return gjson.GetBytes(input.RequestBody, "input").Exists()
 }
 
+func (s *DataSharingService) buildMessagesRawCaptureSession(input DataShareCaptureInput) *DataShareSession {
+	facts := newDataShareCaptureFacts(input)
+	if input.CaptureIncomplete {
+		facts.meta["capture_incomplete"] = true
+	}
+	systemPrompt := strings.TrimSpace(input.SystemPrompt)
+	if systemPrompt == "" {
+		systemPrompt = extractSystemPromptFromRequest(input.RequestBody)
+	}
+	inputCopy := cloneDataShareCaptureInput(input)
+	requestMessages := normalizeCaptureRequestMessages(input)
+	responseMessages := normalizeCaptureResponseMessages(input)
+	messages := append(cloneBufferedDataShareMaps(requestMessages), cloneBufferedDataShareMaps(responseMessages)...)
+	return &DataShareSession{
+		TrajectoryID:            facts.trajectoryID,
+		SessionID:               facts.sessionID,
+		Dataset:                 defaultDataShareDataset,
+		Provider:                facts.provider,
+		Model:                   facts.model,
+		RequestPath:             facts.requestPath,
+		UserAgent:               facts.userAgent,
+		Status:                  DataShareStatusTerminated,
+		IsFinalSnapshot:         false,
+		SourceRequestCount:      1,
+		SystemPrompt:            optionalDataShareString(systemPrompt),
+		Tools:                   normalizeCaptureTools(input),
+		Messages:                messages,
+		Usage:                   facts.usage,
+		Meta:                    facts.meta,
+		QualityStatus:           DataShareQualityInvalid,
+		Exportable:              false,
+		InputTokens:             facts.inputTokens,
+		OutputTokens:            facts.outputTokens,
+		TotalTokens:             facts.inputTokens + facts.outputTokens,
+		ActualCost:              facts.actualCost,
+		UserID:                  facts.userID,
+		APIKeyID:                facts.apiKeyID,
+		GroupID:                 facts.groupID,
+		CreatedAt:               facts.now,
+		EndedAt:                 &facts.now,
+		UpdatedAt:               facts.now,
+		captureMode:             dataShareCaptureModeMessagesRaw,
+		captureInput:            &inputCopy,
+		captureRequestMessages:  cloneBufferedDataShareMaps(requestMessages),
+		captureResponseMessages: cloneBufferedDataShareMaps(responseMessages),
+	}
+}
+
+func dataShareCaptureInputIsMessagesRaw(input DataShareCaptureInput) bool {
+	if input.CaptureMode == dataShareCaptureModeMessagesRaw {
+		return true
+	}
+	if normalizeDataShareRequestPath(input.InboundEndpoint) != "/v1/messages" {
+		return false
+	}
+	if len(input.Messages) > 0 {
+		return true
+	}
+	return len(input.RequestBody) > 0 && gjson.GetBytes(input.RequestBody, "messages").IsArray()
+}
+
 func optionalDataShareString(value string) *string {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -260,6 +321,12 @@ func (s *DataSharingService) buildSessionWithOptions(input DataShareCaptureInput
 }
 
 func normalizeCaptureMessages(input DataShareCaptureInput) []map[string]any {
+	out := normalizeCaptureRequestMessages(input)
+	out = append(out, normalizeCaptureResponseMessages(input)...)
+	return normalizeDataShareMessages(out)
+}
+
+func normalizeCaptureRequestMessages(input DataShareCaptureInput) []map[string]any {
 	var out []map[string]any
 	if len(input.Messages) > 0 {
 		out = appendAnyMessages(out, input.Messages)
@@ -267,6 +334,11 @@ func normalizeCaptureMessages(input DataShareCaptureInput) []map[string]any {
 	if len(out) == 0 && len(input.RequestBody) > 0 {
 		out = appendRequestMessages(out, input.RequestBody)
 	}
+	return normalizeDataShareMessages(out)
+}
+
+func normalizeCaptureResponseMessages(input DataShareCaptureInput) []map[string]any {
+	var out []map[string]any
 	if len(input.ResponseBody) > 0 {
 		out = appendAssistantMessageFromResponse(out, input.ResponseBody)
 	}

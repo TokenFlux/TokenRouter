@@ -83,6 +83,17 @@ func findDataShareCaptureDurationPart(t *testing.T, stats DataShareCaptureDurati
 	return DataShareCaptureDurationPart{}
 }
 
+func findDataShareExportDurationPart(t *testing.T, stats DataShareExportDurationStats, key DataShareExportDurationPartKey) DataShareExportDurationPart {
+	t.Helper()
+	for _, part := range stats.Parts {
+		if part.Key == string(key) {
+			return part
+		}
+	}
+	t.Fatalf("export duration part %s not found", key)
+	return DataShareExportDurationPart{}
+}
+
 func durationBucketCount(part DataShareCaptureDurationPart, label string) int {
 	for _, bucket := range part.Buckets {
 		if bucket.Label == label {

@@ -140,12 +140,24 @@ func (r *dataShareCaptureRepoStub) SaveCaptureSnapshot(ctx context.Context, sess
 	return ctx.Err()
 }
 
+func (r *dataShareCaptureRepoStub) Count(context.Context, DataShareSessionFilters) (int64, error) {
+	panic("unexpected Count call")
+}
+
 func (r *dataShareCaptureRepoStub) List(context.Context, pagination.PaginationParams, DataShareSessionFilters) ([]DataShareSession, *pagination.PaginationResult, error) {
 	panic("unexpected List call")
 }
 
 func (r *dataShareCaptureRepoStub) ListWithPayload(context.Context, pagination.PaginationParams, DataShareSessionFilters) ([]DataShareSession, *pagination.PaginationResult, error) {
 	panic("unexpected ListWithPayload call")
+}
+
+func (r *dataShareCaptureRepoStub) ListWithPayloadPage(context.Context, pagination.PaginationParams, DataShareSessionFilters) ([]DataShareSession, error) {
+	panic("unexpected ListWithPayloadPage call")
+}
+
+func (r *dataShareCaptureRepoStub) ListExportPayloadPage(context.Context, DataShareSessionFilters, *DataShareSessionExportCursor, int, int, DataShareExportDurationRecorder) ([]DataShareSession, *DataShareSessionExportCursor, error) {
+	panic("unexpected ListExportPayloadPage call")
 }
 
 func (r *dataShareCaptureRepoStub) GetByID(context.Context, int64) (*DataShareSession, error) {
@@ -191,7 +203,10 @@ func (r *dataShareCaptureRepoStub) lastSession() *DataShareSession {
 }
 
 type dataShareExportRepoStub struct {
-	items []DataShareSession
+	items       []DataShareSession
+	countCalls  int
+	pageLimits  []int
+	pageWorkers []int
 }
 
 type dataShareExportObjectStoreStub struct {
@@ -199,6 +214,10 @@ type dataShareExportObjectStoreStub struct {
 	objects       map[string][]byte
 	presignedKeys []string
 	uploadErr     error
+}
+
+type dataShareBlockingExportObjectStoreStub struct {
+	started chan struct{}
 }
 
 func newDataShareExportObjectStoreStub() *dataShareExportObjectStoreStub {
@@ -229,6 +248,43 @@ func (s *dataShareExportObjectStoreStub) UploadFileWithProgress(ctx context.Cont
 		onProgress(size)
 	}
 	return size, err
+}
+
+func newDataShareBlockingExportObjectStoreStub() *dataShareBlockingExportObjectStoreStub {
+	return &dataShareBlockingExportObjectStoreStub{started: make(chan struct{})}
+}
+
+func (s *dataShareBlockingExportObjectStoreStub) Upload(context.Context, string, io.Reader, string) (int64, error) {
+	panic("unexpected Upload call")
+}
+
+func (s *dataShareBlockingExportObjectStoreStub) UploadFile(ctx context.Context, key string, body io.Reader, contentType string) (int64, error) {
+	return s.UploadFileWithProgress(ctx, key, body, contentType, nil)
+}
+
+func (s *dataShareBlockingExportObjectStoreStub) UploadFileWithProgress(ctx context.Context, _ string, _ io.Reader, _ string, onProgress func(uploadedBytes int64)) (int64, error) {
+	close(s.started)
+	if onProgress != nil {
+		onProgress(1)
+	}
+	<-ctx.Done()
+	return 1, ctx.Err()
+}
+
+func (s *dataShareBlockingExportObjectStoreStub) Download(context.Context, string) (io.ReadCloser, error) {
+	return nil, fmt.Errorf("not found")
+}
+
+func (s *dataShareBlockingExportObjectStoreStub) Delete(context.Context, string) error {
+	return nil
+}
+
+func (s *dataShareBlockingExportObjectStoreStub) PresignURL(context.Context, string, time.Duration) (string, error) {
+	return "", nil
+}
+
+func (s *dataShareBlockingExportObjectStoreStub) HeadBucket(context.Context) error {
+	return nil
 }
 
 func (s *dataShareExportObjectStoreStub) Download(_ context.Context, key string) (io.ReadCloser, error) {
@@ -277,6 +333,18 @@ func (r *dataShareExportRepoStub) SaveCaptureSnapshot(context.Context, *DataShar
 	panic("unexpected SaveCaptureSnapshot call")
 }
 
+func (r *dataShareExportRepoStub) Count(_ context.Context, filters DataShareSessionFilters) (int64, error) {
+	r.countCalls++
+	_, result, err := r.ListWithPayload(context.Background(), pagination.PaginationParams{Page: 1, PageSize: len(r.items)}, filters)
+	if err != nil {
+		return 0, err
+	}
+	if result == nil {
+		return 0, nil
+	}
+	return result.Total, nil
+}
+
 func (r *dataShareExportRepoStub) List(context.Context, pagination.PaginationParams, DataShareSessionFilters) ([]DataShareSession, *pagination.PaginationResult, error) {
 	panic("unexpected List call")
 }
@@ -299,6 +367,47 @@ func (r *dataShareExportRepoStub) ListWithPayload(_ context.Context, params pagi
 		pages = (len(r.items) + pageSize - 1) / pageSize
 	}
 	return r.items[start:end], &pagination.PaginationResult{Total: int64(len(r.items)), Page: params.Page, PageSize: pageSize, Pages: pages}, nil
+}
+
+func (r *dataShareExportRepoStub) ListWithPayloadPage(ctx context.Context, params pagination.PaginationParams, filters DataShareSessionFilters) ([]DataShareSession, error) {
+	items, _, err := r.ListWithPayload(ctx, params, filters)
+	return items, err
+}
+
+func (r *dataShareExportRepoStub) ListExportPayloadPage(_ context.Context, _ DataShareSessionFilters, cursor *DataShareSessionExportCursor, limit int, workerCount int, recorder DataShareExportDurationRecorder) ([]DataShareSession, *DataShareSessionExportCursor, error) {
+	r.pageLimits = append(r.pageLimits, limit)
+	r.pageWorkers = append(r.pageWorkers, workerCount)
+	start := 0
+	if cursor != nil {
+		for i := range r.items {
+			item := r.items[i]
+			if item.CreatedAt.After(cursor.CreatedAt) || (item.CreatedAt.Equal(cursor.CreatedAt) && item.ID > cursor.ID) {
+				start = i
+				break
+			}
+			start = i + 1
+		}
+	}
+	if limit <= 0 {
+		limit = len(r.items)
+	}
+	if start >= len(r.items) {
+		return nil, nil, nil
+	}
+	end := start + limit
+	if end > len(r.items) {
+		end = len(r.items)
+	}
+	if recorder != nil {
+		recorder.Observe(DataShareExportDurationPartDBPage, 0)
+		recorder.Observe(DataShareExportDurationPartPayloadDecode, 0)
+	}
+	out := r.items[start:end]
+	if len(out) == 0 {
+		return out, nil, nil
+	}
+	last := out[len(out)-1]
+	return out, &DataShareSessionExportCursor{CreatedAt: last.CreatedAt, ID: last.ID}, nil
 }
 
 func (r *dataShareExportRepoStub) GetByID(context.Context, int64) (*DataShareSession, error) {
@@ -734,7 +843,9 @@ func TestDataSharingService_UpdateCaptureRuntimeSettingsAppliesWorkerTimeout(t *
 	require.Equal(t, 7, settings.BufferIdleFlushSeconds)
 	require.Equal(t, 123, settings.BufferMaxSessions)
 	require.Equal(t, 456, settings.BufferMaxPendingEvents)
-	require.JSONEq(t, `{"worker_count":2,"queue_size":9,"flush_queue_size":12,"task_timeout_seconds":45,"compression_level":"default","buffer_enabled":true,"buffer_idle_flush_seconds":7,"buffer_max_sessions":123,"buffer_max_pending_events":456,"duration_window_size":512}`, repo.values[SettingKeyDataSharingCaptureRuntime])
+	require.Equal(t, defaultDataShareExportBatchSize, settings.ExportBatchSize)
+	require.Equal(t, defaultDataShareExportWorkerCount(), settings.ExportWorkerCount)
+	require.JSONEq(t, fmt.Sprintf(`{"worker_count":2,"queue_size":9,"flush_queue_size":12,"task_timeout_seconds":45,"compression_level":"default","buffer_enabled":true,"buffer_idle_flush_seconds":7,"buffer_max_sessions":123,"buffer_max_pending_events":456,"duration_window_size":512,"export_batch_size":500,"export_worker_count":%d}`, defaultDataShareExportWorkerCount()), repo.values[SettingKeyDataSharingCaptureRuntime])
 	require.Equal(t, 2, svc.CaptureWorkerStats().WorkerCount)
 	require.Equal(t, 9, svc.CaptureWorkerStats().QueueCapacity)
 	require.Equal(t, 12, svc.CaptureWorkerStats().FlushQueueCapacity)
@@ -761,6 +872,8 @@ func TestDataSharingService_UpdateCaptureRuntimeSettingsClampsUpperBounds(t *tes
 		BufferIdleFlushSeconds: maxDataSharingCaptureBufferIdleSeconds + 100,
 		BufferMaxSessions:      maxDataSharingCaptureBufferMaxSessions + 100,
 		BufferMaxPendingEvents: maxDataSharingCaptureBufferMaxEvents + 100,
+		ExportBatchSize:        maxDataShareExportBatchSize + 100,
+		ExportWorkerCount:      maxDataShareExportWorkerCount + 100,
 	})
 	require.NoError(t, err)
 	require.Equal(t, maxDataSharingCaptureWorkerCount, settings.WorkerCount)
@@ -771,7 +884,9 @@ func TestDataSharingService_UpdateCaptureRuntimeSettingsClampsUpperBounds(t *tes
 	require.Equal(t, maxDataSharingCaptureBufferIdleSeconds, settings.BufferIdleFlushSeconds)
 	require.Equal(t, maxDataSharingCaptureBufferMaxSessions, settings.BufferMaxSessions)
 	require.Equal(t, maxDataSharingCaptureBufferMaxEvents, settings.BufferMaxPendingEvents)
-	require.JSONEq(t, `{"worker_count":1024,"queue_size":100000,"flush_queue_size":100000,"task_timeout_seconds":1800,"compression_level":"fastest","buffer_enabled":true,"buffer_idle_flush_seconds":300,"buffer_max_sessions":100000,"buffer_max_pending_events":1000000,"duration_window_size":512}`, repo.values[SettingKeyDataSharingCaptureRuntime])
+	require.Equal(t, maxDataShareExportBatchSize, settings.ExportBatchSize)
+	require.Equal(t, maxDataShareExportWorkerCount, settings.ExportWorkerCount)
+	require.JSONEq(t, `{"worker_count":1024,"queue_size":100000,"flush_queue_size":100000,"task_timeout_seconds":1800,"compression_level":"fastest","buffer_enabled":true,"buffer_idle_flush_seconds":300,"buffer_max_sessions":100000,"buffer_max_pending_events":1000000,"duration_window_size":512,"export_batch_size":2000,"export_worker_count":8}`, repo.values[SettingKeyDataSharingCaptureRuntime])
 	require.Equal(t, maxDataSharingCaptureWorkerCount, pool.Stats().WorkerCount)
 	require.Equal(t, maxDataSharingCaptureQueueSize, pool.Stats().QueueCapacity)
 	require.Equal(t, maxDataSharingCaptureQueueSize, pool.Stats().FlushQueueCapacity)
@@ -846,6 +961,7 @@ func TestDataSharingService_LoadRuntimeSettingsClampsStoredUpperBounds(t *testin
 	require.Equal(t, maxDataSharingCaptureBufferIdleSeconds, settings.BufferIdleFlushSeconds)
 	require.Equal(t, maxDataSharingCaptureBufferMaxSessions, settings.BufferMaxSessions)
 	require.Equal(t, maxDataSharingCaptureBufferMaxEvents, settings.BufferMaxPendingEvents)
+	require.Equal(t, defaultDataShareExportWorkerCount(), settings.ExportWorkerCount)
 	require.Equal(t, maxDataSharingCaptureWorkerCount, pool.Stats().WorkerCount)
 	require.Equal(t, maxDataSharingCaptureQueueSize, pool.Stats().QueueCapacity)
 	require.Equal(t, maxDataSharingCaptureQueueSize, pool.Stats().FlushQueueCapacity)
@@ -901,7 +1017,9 @@ func TestDataSharingService_UpdateRuntimeSettingsBackfillsLegacyRequest(t *testi
 	require.Equal(t, defaultDataSharingCaptureBufferIdleSeconds, settings.BufferIdleFlushSeconds)
 	require.Equal(t, defaultDataSharingCaptureBufferMaxSessions, settings.BufferMaxSessions)
 	require.Equal(t, defaultDataSharingCaptureBufferMaxEvents, settings.BufferMaxPendingEvents)
-	require.JSONEq(t, `{"worker_count":3,"queue_size":8,"flush_queue_size":8,"task_timeout_seconds":60,"compression_level":"default","buffer_enabled":true,"buffer_idle_flush_seconds":30,"buffer_max_sessions":4096,"buffer_max_pending_events":65536,"duration_window_size":512}`, repo.values[SettingKeyDataSharingCaptureRuntime])
+	require.Equal(t, defaultDataShareExportBatchSize, settings.ExportBatchSize)
+	require.Equal(t, defaultDataShareExportWorkerCount(), settings.ExportWorkerCount)
+	require.JSONEq(t, fmt.Sprintf(`{"worker_count":3,"queue_size":8,"flush_queue_size":8,"task_timeout_seconds":60,"compression_level":"default","buffer_enabled":true,"buffer_idle_flush_seconds":30,"buffer_max_sessions":4096,"buffer_max_pending_events":65536,"duration_window_size":512,"export_batch_size":500,"export_worker_count":%d}`, defaultDataShareExportWorkerCount()), repo.values[SettingKeyDataSharingCaptureRuntime])
 }
 
 func TestDataSharingService_CaptureAsyncBuffersUntilFlush(t *testing.T) {
@@ -1624,6 +1742,279 @@ func TestDataSharingCaptureBufferDedupesReplayWithoutLosingCounters(t *testing.T
 	require.Len(t, merged.Messages, 6)
 	require.Equal(t, 1, countDataShareMessagesWithContent(merged.Messages, "修复按钮"))
 	require.Equal(t, "开始修改", dataShareContentText(merged.Messages[len(merged.Messages)-1]["content"]))
+}
+
+func TestDataSharingService_MessagesRawCaptureDedupesStatelessReplay(t *testing.T) {
+	gid := int64(12)
+	repo := &dataShareCaptureRepoStub{}
+	svc := NewDataSharingService(repo, nil)
+	svc.SetDefaultCaptureRuntimeSettings(DataShareCaptureRuntimeSettings{
+		WorkerCount:            1,
+		QueueSize:              4,
+		TaskTimeoutSeconds:     1,
+		CompressionLevel:       string(DataShareCompressionLevelFastest),
+		BufferEnabled:          true,
+		BufferIdleFlushSeconds: 30,
+		BufferMaxSessions:      4096,
+		BufferMaxPendingEvents: 65536,
+	})
+	apiKey := &APIKey{
+		ID:      34,
+		UserID:  56,
+		GroupID: &gid,
+		Group:   &Group{ID: gid, Platform: PlatformAnthropic, DataSharingEnabled: true},
+	}
+	capture := func(requestID string, messages string, response string) {
+		require.NoError(t, svc.captureRequestFromJob(context.Background(), DataSharingCaptureJob{Input: DataShareCaptureInput{
+			APIKey:          apiKey,
+			Provider:        PlatformAnthropic,
+			Model:           "claude-opus-4-8",
+			SessionID:       "session-messages-stateless-replay",
+			RequestID:       requestID,
+			RequestBody:     []byte(`{"model":"claude-opus-4-8","messages":` + messages + `}`),
+			ResponseBody:    []byte(fmt.Sprintf(`{"id":%q,"content":[{"type":"text","text":%q}]}`, requestID, response)),
+			InboundEndpoint: "/v1/messages",
+			InputTokens:     10,
+			OutputTokens:    5,
+		}}))
+	}
+
+	capture("messages-replay-1", `[
+		{"role":"user","content":"<system-reminder>current_date and cwd</system-reminder>"},
+		{"role":"user","content":"第一步"}
+	]`, "完成第一步")
+	capture("messages-replay-2", `[
+		{"role":"user","content":"<system-reminder>current_date and cwd</system-reminder>"},
+		{"role":"user","content":"第一步"},
+		{"role":"assistant","content":"完成第一步"},
+		{"role":"user","content":"第二步"}
+	]`, "完成第二步")
+	svc.captureBuffer.FlushAll(context.Background())
+
+	session := repo.lastSession()
+	require.NotNil(t, session)
+	require.Equal(t, 2, session.SourceRequestCount)
+	require.Equal(t, int64(30), session.TotalTokens)
+	require.Len(t, session.Messages, 5)
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "<system-reminder>current_date and cwd</system-reminder>"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "第一步"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "完成第一步"))
+	require.Equal(t, "第二步", dataShareContentText(session.Messages[3]["content"]))
+	require.Equal(t, "完成第二步", dataShareContentText(session.Messages[4]["content"]))
+}
+
+func TestDataSharingService_MessagesRawCaptureKeepsHistoryBeforeCompaction(t *testing.T) {
+	gid := int64(12)
+	repo := &dataShareCaptureRepoStub{}
+	svc := NewDataSharingService(repo, nil)
+	svc.SetDefaultCaptureRuntimeSettings(DataShareCaptureRuntimeSettings{
+		WorkerCount:            1,
+		QueueSize:              4,
+		TaskTimeoutSeconds:     1,
+		CompressionLevel:       string(DataShareCompressionLevelFastest),
+		BufferEnabled:          true,
+		BufferIdleFlushSeconds: 30,
+		BufferMaxSessions:      4096,
+		BufferMaxPendingEvents: 65536,
+	})
+	apiKey := &APIKey{
+		ID:      34,
+		UserID:  56,
+		GroupID: &gid,
+		Group:   &Group{ID: gid, Platform: PlatformAnthropic, DataSharingEnabled: true},
+	}
+	capture := func(requestID string, messages string, response string) {
+		require.NoError(t, svc.captureRequestFromJob(context.Background(), DataSharingCaptureJob{Input: DataShareCaptureInput{
+			APIKey:          apiKey,
+			Provider:        PlatformAnthropic,
+			Model:           "claude-opus-4-8",
+			SessionID:       "session-messages-compaction",
+			RequestID:       requestID,
+			RequestBody:     []byte(`{"model":"claude-opus-4-8","messages":` + messages + `}`),
+			ResponseBody:    []byte(fmt.Sprintf(`{"id":%q,"content":[{"type":"text","text":%q}]}`, requestID, response)),
+			InboundEndpoint: "/v1/messages",
+			InputTokens:     10,
+			OutputTokens:    5,
+		}}))
+	}
+
+	capture("messages-compact-1", `[
+		{"role":"user","content":"第一步"},
+		{"role":"assistant","content":"完成第一步"},
+		{"role":"user","content":"第二步"}
+	]`, "完成第二步")
+	capture("messages-compact-2", `[
+		{"role":"assistant","content":[{"type":"compaction","content":"摘要：已经完成第一步和第二步。"}]},
+		{"role":"user","content":"第三步"}
+	]`, "完成第三步")
+	svc.captureBuffer.FlushAll(context.Background())
+
+	session := repo.lastSession()
+	require.NotNil(t, session)
+	require.Equal(t, 2, session.SourceRequestCount)
+	require.Len(t, session.Messages, 7)
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "第一步"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "完成第一步"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "第二步"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "完成第二步"))
+	require.Contains(t, dataShareContentText(session.Messages[4]["content"]), "摘要：已经完成第一步和第二步。")
+	require.Equal(t, "第三步", dataShareContentText(session.Messages[5]["content"]))
+	require.Equal(t, "完成第三步", dataShareContentText(session.Messages[6]["content"]))
+}
+
+func TestDataSharingService_MessagesRawCaptureDedupesCompactionPreservedRecentMessages(t *testing.T) {
+	gid := int64(12)
+	repo := &dataShareCaptureRepoStub{}
+	svc := NewDataSharingService(repo, nil)
+	svc.SetDefaultCaptureRuntimeSettings(DataShareCaptureRuntimeSettings{
+		WorkerCount:            1,
+		QueueSize:              4,
+		TaskTimeoutSeconds:     1,
+		CompressionLevel:       string(DataShareCompressionLevelFastest),
+		BufferEnabled:          true,
+		BufferIdleFlushSeconds: 30,
+		BufferMaxSessions:      4096,
+		BufferMaxPendingEvents: 65536,
+	})
+	apiKey := &APIKey{
+		ID:      34,
+		UserID:  56,
+		GroupID: &gid,
+		Group:   &Group{ID: gid, Platform: PlatformAnthropic, DataSharingEnabled: true},
+	}
+	capture := func(requestID string, messages string, response string) {
+		require.NoError(t, svc.captureRequestFromJob(context.Background(), DataSharingCaptureJob{Input: DataShareCaptureInput{
+			APIKey:          apiKey,
+			Provider:        PlatformAnthropic,
+			Model:           "claude-opus-4-8",
+			SessionID:       "session-messages-compaction-recent",
+			RequestID:       requestID,
+			RequestBody:     []byte(`{"model":"claude-opus-4-8","messages":` + messages + `}`),
+			ResponseBody:    []byte(fmt.Sprintf(`{"id":%q,"content":[{"type":"text","text":%q}]}`, requestID, response)),
+			InboundEndpoint: "/v1/messages",
+			InputTokens:     10,
+			OutputTokens:    5,
+		}}))
+	}
+
+	capture("messages-preserved-recent-1", `[
+		{"role":"user","content":"第一步"}
+	]`, "完成第一步")
+	capture("messages-preserved-recent-2", `[
+		{"role":"user","content":"第一步"},
+		{"role":"assistant","content":"完成第一步"},
+		{"role":"user","content":"第二步"}
+	]`, "完成第二步")
+	capture("messages-preserved-recent-3", `[
+		{"role":"assistant","content":[{"type":"compaction","content":"摘要：已经完成第一步和第二步。"}]},
+		{"role":"user","content":"第二步"},
+		{"role":"assistant","content":"完成第二步"},
+		{"role":"user","content":"第三步"}
+	]`, "完成第三步")
+	svc.captureBuffer.FlushAll(context.Background())
+
+	session := repo.lastSession()
+	require.NotNil(t, session)
+	require.Equal(t, 3, session.SourceRequestCount)
+	require.Len(t, session.Messages, 7)
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "第一步"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "完成第一步"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "第二步"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "完成第二步"))
+	require.Contains(t, dataShareContentText(session.Messages[4]["content"]), "摘要：已经完成第一步和第二步。")
+	require.Equal(t, "第三步", dataShareContentText(session.Messages[5]["content"]))
+	require.Equal(t, "完成第三步", dataShareContentText(session.Messages[6]["content"]))
+}
+
+func TestDataSharingService_MessagesRawCaptureDedupesCompactionSinglePreservedRecentMessage(t *testing.T) {
+	gid := int64(12)
+	repo := &dataShareCaptureRepoStub{}
+	svc := NewDataSharingService(repo, nil)
+	svc.SetDefaultCaptureRuntimeSettings(DataShareCaptureRuntimeSettings{
+		WorkerCount:            1,
+		QueueSize:              4,
+		TaskTimeoutSeconds:     1,
+		CompressionLevel:       string(DataShareCompressionLevelFastest),
+		BufferEnabled:          true,
+		BufferIdleFlushSeconds: 30,
+		BufferMaxSessions:      4096,
+		BufferMaxPendingEvents: 65536,
+	})
+	apiKey := &APIKey{
+		ID:      34,
+		UserID:  56,
+		GroupID: &gid,
+		Group:   &Group{ID: gid, Platform: PlatformAnthropic, DataSharingEnabled: true},
+	}
+	capture := func(requestID string, messages string, response string) {
+		require.NoError(t, svc.captureRequestFromJob(context.Background(), DataSharingCaptureJob{Input: DataShareCaptureInput{
+			APIKey:          apiKey,
+			Provider:        PlatformAnthropic,
+			Model:           "claude-opus-4-8",
+			SessionID:       "session-messages-compaction-single-recent",
+			RequestID:       requestID,
+			RequestBody:     []byte(`{"model":"claude-opus-4-8","messages":` + messages + `}`),
+			ResponseBody:    []byte(fmt.Sprintf(`{"id":%q,"content":[{"type":"text","text":%q}]}`, requestID, response)),
+			InboundEndpoint: "/v1/messages",
+			InputTokens:     10,
+			OutputTokens:    5,
+		}}))
+	}
+
+	capture("messages-single-recent-1", `[
+		{"role":"user","content":"第一步"}
+	]`, "完成第一步")
+	capture("messages-single-recent-2", `[
+		{"role":"user","content":"第一步"},
+		{"role":"assistant","content":"完成第一步"},
+		{"role":"user","content":"第二步"}
+	]`, "完成第二步")
+	capture("messages-single-recent-3", `[
+		{"role":"assistant","content":[{"type":"compaction","content":"摘要：已经完成第一步和第二步。"}]},
+		{"role":"assistant","content":"完成第二步"},
+		{"role":"user","content":"第三步"}
+	]`, "完成第三步")
+	svc.captureBuffer.FlushAll(context.Background())
+
+	session := repo.lastSession()
+	require.NotNil(t, session)
+	require.Equal(t, 3, session.SourceRequestCount)
+	require.Len(t, session.Messages, 7)
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "第一步"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "完成第一步"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "第二步"))
+	require.Equal(t, 1, countDataShareMessagesWithContent(session.Messages, "完成第二步"))
+	require.Contains(t, dataShareContentText(session.Messages[4]["content"]), "摘要：已经完成第一步和第二步。")
+	require.Equal(t, "第三步", dataShareContentText(session.Messages[5]["content"]))
+	require.Equal(t, "完成第三步", dataShareContentText(session.Messages[6]["content"]))
+}
+
+func TestDataShareMessagesRequestDeltaUsesLongWindowIndexWhenIdentityIsCommon(t *testing.T) {
+	existing := make([]map[string]any, 0, 6000)
+	for i := 0; i < dataShareReplayWindowCandidateLimit+1; i++ {
+		existing = append(existing, map[string]any{
+			"role":    "user",
+			"content": "重复锚点",
+		})
+	}
+	existing = append(existing, map[string]any{"role": "user", "content": "重复锚点"})
+	for i := 0; i < dataShareLongReplayMinMessages; i++ {
+		existing = append(existing, map[string]any{
+			"role":    "assistant",
+			"content": fmt.Sprintf("历史尾部-%04d", i),
+		})
+	}
+	incoming := []map[string]any{
+		{"role": "assistant", "content": []any{map[string]any{"type": "compaction", "content": "摘要：保留最后一段历史。"}}},
+	}
+	incoming = append(incoming, cloneBufferedDataShareMaps(existing[len(existing)-dataShareLongReplayMinMessages-1:])...)
+	incoming = append(incoming, map[string]any{"role": "user", "content": "新的问题"})
+
+	delta := dataShareMessagesRequestDelta(existing, incoming)
+
+	require.Len(t, delta, 2)
+	require.Contains(t, dataShareContentText(delta[0]["content"]), "摘要：保留最后一段历史。")
+	require.Equal(t, "新的问题", dataShareContentText(delta[1]["content"]))
 }
 
 func TestDataShareMessageIdentityKeepsStructuredContentDistinct(t *testing.T) {
@@ -3291,6 +3682,27 @@ func TestDataShareQualityAllowsMissingUsageTokens(t *testing.T) {
 	}
 }
 
+func TestDataShareQualityDoesNotApplyHardcodedModelScope(t *testing.T) {
+	sys := "你是编码助手"
+	messages := []map[string]any{
+		{"role": "system", "content": sys},
+		{"role": "user", "content": "列目录"},
+		{"role": "assistant", "tool_calls": []map[string]any{{"id": "call_1", "name": "exec_command", "arguments": map[string]any{"cmd": "ls"}}}},
+		{"role": "tool", "tool_call_id": "call_1", "content": "README.md", "status": "success", "is_error": false},
+		{"role": "assistant", "content": "看到了 README.md"},
+	}
+	tools := []map[string]any{
+		{"name": "exec_command", "description": "运行命令", "parameters": map[string]any{"type": "object"}},
+	}
+
+	for _, model := range []string{"claude-opus-4-6", "claude-sonnet-4-20250514", "gpt-4.1"} {
+		// 模型是否进入数据共享由采集跳过规则决定，质量校验不能再用硬编码模型范围判无效。
+		if errs := ValidateDataShareSessionQuality(model, sys, messages, tools, map[string]any{"total_tokens": 15}); len(errs) != 0 {
+			t.Fatalf("model %q quality_errors = %v, want none", model, errs)
+		}
+	}
+}
+
 func TestDataShareQualityStatusNormalizesLegacyPartialPayload(t *testing.T) {
 	sys := "你是编码助手"
 	messages := []map[string]any{
@@ -3377,10 +3789,10 @@ func TestDataShareQualityStatusDoesNotNormalizeUnfixableErrors(t *testing.T) {
 		{"role": "assistant", "content": "看到了 README.md"},
 	}
 	tools := []map[string]any{
-		{"name": "exec_command", "description": "运行命令", "parameters": map[string]any{"type": "object"}},
+		{"name": "other_tool", "description": "其他工具", "parameters": map[string]any{"type": "object"}},
 	}
 
-	if status := DataSharePayloadQualityStatus("gpt-4.1", sys, messages, tools, map[string]any{"total_tokens": 15}); status != DataShareQualityInvalid {
+	if status := DataSharePayloadQualityStatus("gpt-5.5", sys, messages, tools, map[string]any{"total_tokens": 15}); status != DataShareQualityInvalid {
 		t.Fatalf("quality_status = %q, want invalid", status)
 	}
 }
@@ -4062,6 +4474,44 @@ func TestExportJSONLIncludesSafeRepeatedLongTextBlockInBatch(t *testing.T) {
 	require.Contains(t, buf.String(), "sess-good-export")
 }
 
+func TestExportJSONLParallelKeepsCursorOrder(t *testing.T) {
+	now := time.Now()
+	items := make([]DataShareSession, 0, 8)
+	for i := 0; i < 8; i++ {
+		items = append(items, DataShareSession{
+			ID:            int64(i + 1),
+			TrajectoryID:  fmt.Sprintf("traj-parallel-%02d", i),
+			SessionID:     fmt.Sprintf("sess-parallel-%02d", i),
+			Dataset:       defaultDataShareDataset,
+			Provider:      PlatformOpenAI,
+			Model:         "gpt-5.5",
+			Messages:      []map[string]any{{"role": "user", "content": fmt.Sprintf("hello-%02d", i)}},
+			SessionJSON:   map[string]any{"messages": []any{map[string]any{"role": "user", "content": fmt.Sprintf("hello-%02d", i)}}},
+			Usage:         map[string]any{"total_tokens": i + 1},
+			QualityStatus: DataShareQualityComplete,
+			Exportable:    true,
+			CreatedAt:     now.Add(time.Duration(i) * time.Millisecond),
+			UpdatedAt:     now.Add(time.Duration(i) * time.Millisecond),
+		})
+	}
+	repo := &dataShareExportRepoStub{items: items}
+	svc := NewDataSharingService(repo, nil)
+
+	var buf bytes.Buffer
+	err := svc.exportJSONL(context.Background(), &buf, DataShareSessionFilters{SelectAll: true}, false, int64(len(items)), 4, 4, nil, nil)
+
+	require.NoError(t, err)
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	require.Len(t, lines, len(items))
+	for i, line := range lines {
+		var payload map[string]any
+		require.NoError(t, json.Unmarshal([]byte(line), &payload))
+		require.Equal(t, fmt.Sprintf("sess-parallel-%02d", i), payload["session_id"])
+	}
+	require.NotEmpty(t, repo.pageWorkers)
+	require.Equal(t, 4, repo.pageWorkers[0])
+}
+
 func buildSafeRepeatedTextMessages() []map[string]any {
 	out := buildSequentialDataShareMessages("前置", 20)
 	block := buildSequentialDataShareMessages("重复块", dataShareLongReplayMinMessages+4)
@@ -4305,6 +4755,73 @@ func TestDataSharingService_CreateExportArtifactGeneratesDownloadableFile(t *tes
 	require.Contains(t, string(raw), "sess-artifact")
 }
 
+func TestDataSharingService_CreateExportArtifactUsesRuntimeBatchAndRecordsDurations(t *testing.T) {
+	now := time.Now()
+	sessions := make([]DataShareSession, 0, 120)
+	for i := 1; i <= 120; i++ {
+		sessions = append(sessions, DataShareSession{
+			ID:            int64(i),
+			TrajectoryID:  fmt.Sprintf("traj-artifact-batch-%d", i),
+			SessionID:     fmt.Sprintf("sess-artifact-batch-%d", i),
+			Dataset:       defaultDataShareDataset,
+			Provider:      PlatformOpenAI,
+			Model:         "gpt-5.5",
+			Messages:      []map[string]any{{"role": "user", "content": "hello"}},
+			SessionJSON:   map[string]any{"messages": []any{map[string]any{"role": "user", "content": "hello"}}},
+			Exportable:    true,
+			QualityStatus: DataShareQualityComplete,
+			UserID:        1,
+			APIKeyID:      2,
+			GroupID:       3,
+			CreatedAt:     now.Add(time.Duration(i) * time.Millisecond),
+			UpdatedAt:     now.Add(time.Duration(i) * time.Millisecond),
+		})
+	}
+	exportRepo := &dataShareExportRepoStub{items: sessions}
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	settingRepo := &dataShareSettingRepoStub{values: map[string]string{SettingKeyDataSharingExportTicketKey: "test-secret"}}
+	svc := NewDataSharingService(exportRepo, settingRepo)
+	svc.SetExportArtifactRepository(artifactRepo)
+	svc.SetExportStorageDir(t.TempDir())
+	_, err := svc.UpdateCaptureRuntimeSettings(context.Background(), DataShareCaptureRuntimeSettings{
+		WorkerCount:            1,
+		QueueSize:              1,
+		FlushQueueSize:         1,
+		TaskTimeoutSeconds:     1,
+		CompressionLevel:       string(DataShareCompressionLevelFastest),
+		BufferEnabled:          true,
+		BufferIdleFlushSeconds: 1,
+		BufferMaxSessions:      1,
+		BufferMaxPendingEvents: 1,
+		DurationWindowSize:     64,
+		ExportBatchSize:        50,
+		ExportWorkerCount:      3,
+	})
+	require.NoError(t, err)
+
+	artifact, err := svc.CreateExportArtifact(context.Background(), DataShareExportArtifactCreateInput{
+		Filters:  DataShareSessionFilters{SelectAll: true},
+		Filename: "artifact-batch-test",
+		Encoding: DataShareExportEncodingJSONL,
+	})
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		got, err := svc.GetExportArtifact(context.Background(), artifact.ID)
+		return err == nil && got.Status == DataShareExportArtifactStatusCompleted
+	}, time.Second, 10*time.Millisecond)
+
+	require.Equal(t, 1, exportRepo.countCalls)
+	require.NotEmpty(t, exportRepo.pageLimits)
+	require.Equal(t, 50, exportRepo.pageLimits[0])
+	require.NotEmpty(t, exportRepo.pageWorkers)
+	require.Equal(t, 3, exportRepo.pageWorkers[0])
+	stats := svc.ExportDurationStats()
+	require.Greater(t, stats.SampleCount, 0)
+	require.Greater(t, findDataShareExportDurationPart(t, stats, DataShareExportDurationPartCount).SampleCount, 0)
+	require.Greater(t, findDataShareExportDurationPart(t, stats, DataShareExportDurationPartGenerateTotal).SampleCount, 0)
+	require.Greater(t, findDataShareExportDurationPart(t, stats, DataShareExportDurationPartWriteCompress).SampleCount, 0)
+}
+
 func TestDataSharingService_ExportArtifactRemoteConfigDefaultsAndSavesConfig(t *testing.T) {
 	repo := &dataShareSettingRepoStub{values: map[string]string{}}
 	svc := NewDataSharingService(nil, repo)
@@ -4332,7 +4849,20 @@ func TestDataSharingService_ExportArtifactRemoteConfigDefaultsAndSavesConfig(t *
 	require.Empty(t, cfg.SecretAccessKey)
 	require.Equal(t, "team/data-sharing/exports", cfg.Prefix)
 	require.True(t, cfg.ForcePathStyle)
-	require.JSONEq(t, `{"endpoint":"https://r2.example.test","region":"auto","bucket":"shared-bucket","access_key_id":"ak","secret_access_key":"ENC:sk","prefix":"team/data-sharing/exports","force_path_style":true}`, repo.values[SettingKeyDataSharingExportRemoteConfig])
+	require.Equal(t, defaultDataShareExportRemoteUploadConcurrency, cfg.UploadConcurrency)
+	require.Equal(t, defaultDataShareExportRemoteUploadPartSizeMB, cfg.UploadPartSizeMB)
+	require.JSONEq(t, `{"endpoint":"https://r2.example.test","region":"auto","bucket":"shared-bucket","access_key_id":"ak","secret_access_key":"ENC:sk","prefix":"team/data-sharing/exports","force_path_style":true,"upload_concurrency":4,"upload_part_size_mb":64}`, repo.values[SettingKeyDataSharingExportRemoteConfig])
+	cfg, err = svc.UpdateExportRemoteConfig(context.Background(), DataShareExportRemoteConfig{
+		Endpoint:          "https://r2.example.test",
+		Bucket:            "shared-bucket",
+		AccessKeyID:       "ak",
+		SecretAccessKey:   "sk",
+		UploadConcurrency: 99,
+		UploadPartSizeMB:  512,
+	})
+	require.NoError(t, err)
+	require.Equal(t, maxDataShareExportRemoteUploadConcurrency, cfg.UploadConcurrency)
+	require.Equal(t, maxDataShareExportRemoteUploadPartSizeMB, cfg.UploadPartSizeMB)
 }
 
 func TestDataSharingService_UploadExportArtifactToRemoteAndPresignURL(t *testing.T) {
@@ -4407,12 +4937,14 @@ func TestDataSharingService_UploadExportArtifactToRemoteUsesDedicatedConfig(t *t
 	svc.SetExportStorageDir(t.TempDir())
 	svc.SetExportObjectStoreDeps(factory, dataSharePlainEncryptor{})
 	_, err := svc.UpdateExportRemoteConfig(context.Background(), DataShareExportRemoteConfig{
-		Endpoint:        "https://data-share.example.test",
-		Region:          "auto",
-		Bucket:          "data-share-bucket",
-		AccessKeyID:     "data-share-ak",
-		SecretAccessKey: "data-share-secret",
-		Prefix:          "share",
+		Endpoint:          "https://data-share.example.test",
+		Region:            "auto",
+		Bucket:            "data-share-bucket",
+		AccessKeyID:       "data-share-ak",
+		SecretAccessKey:   "data-share-secret",
+		Prefix:            "share",
+		UploadConcurrency: 7,
+		UploadPartSizeMB:  128,
 	})
 	require.NoError(t, err)
 	backupData, err := json.Marshal(BackupStorageConfig{
@@ -4451,6 +4983,8 @@ func TestDataSharingService_UploadExportArtifactToRemoteUsesDedicatedConfig(t *t
 	require.Equal(t, "data-share-bucket", usedCfg.Bucket)
 	require.Equal(t, "data-share-ak", usedCfg.AccessKeyID)
 	require.Equal(t, "data-share-secret", usedCfg.SecretAccessKey)
+	require.Equal(t, 7, usedCfg.UploadConcurrency)
+	require.Equal(t, 128, usedCfg.UploadPartSizeMB)
 }
 
 func TestDataSharingService_UploadExportArtifactToRemoteRecordsFailure(t *testing.T) {
@@ -4574,6 +5108,118 @@ func TestDataSharingService_CreateExportArtifactRemoteDownloadURLAllowsUploading
 	require.Equal(t, "https://download.example.test/share/old-artifact.jsonl", url)
 }
 
+func TestDataSharingService_CancelExportArtifactRemoteUploadStopsRunningTask(t *testing.T) {
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	settingRepo := &dataShareSettingRepoStub{values: map[string]string{}}
+	store := newDataShareBlockingExportObjectStoreStub()
+	factory := func(context.Context, *BackupS3Config) (BackupObjectStore, error) {
+		return store, nil
+	}
+	svc := NewDataSharingService(nil, settingRepo)
+	svc.SetExportArtifactRepository(artifactRepo)
+	svc.SetExportStorageDir(t.TempDir())
+	svc.SetExportObjectStoreDeps(factory, dataSharePlainEncryptor{})
+	_, err := svc.UpdateExportRemoteConfig(context.Background(), DataShareExportRemoteConfig{
+		Bucket:          "bucket-a",
+		AccessKeyID:     "ak",
+		SecretAccessKey: "sk",
+		Prefix:          "share",
+	})
+	require.NoError(t, err)
+	path := filepath.Join(svc.exportStorageDir, "cancel-upload.jsonl")
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), 0755))
+	require.NoError(t, os.WriteFile(path, []byte(`{"ok":true}`+"\n"), 0644))
+	artifact, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:      DataShareExportArtifactStatusCompleted,
+		Filename:    "cancel-upload.jsonl",
+		StoragePath: path,
+		Encoding:    string(DataShareExportEncodingJSONL),
+		FileSize:    12,
+	})
+	require.NoError(t, err)
+
+	uploaded, err := svc.UploadExportArtifactToRemote(context.Background(), artifact.ID)
+	require.NoError(t, err)
+	require.Equal(t, DataShareExportArtifactRemoteStatusUploading, uploaded.RemoteStatus)
+	select {
+	case <-store.started:
+	case <-time.After(time.Second):
+		t.Fatal("upload task did not start")
+	}
+
+	cancelled, err := svc.CancelExportArtifactRemoteUpload(context.Background(), artifact.ID)
+	require.NoError(t, err)
+	require.Equal(t, DataShareExportArtifactRemoteStatusFailed, cancelled.RemoteStatus)
+	require.Equal(t, dataShareExportArtifactRemoteCancelMessage, cancelled.RemoteErrorMessage)
+	require.Eventually(t, func() bool {
+		got, err := svc.GetExportArtifact(context.Background(), artifact.ID)
+		return err == nil && got.RemoteStatus == DataShareExportArtifactRemoteStatusFailed && got.RemoteUploadBytes == 0
+	}, time.Second, 10*time.Millisecond)
+
+	_, err = svc.CancelExportArtifactRemoteUpload(context.Background(), artifact.ID)
+	require.ErrorIs(t, err, ErrDataShareExportArtifactRemoteUploadNotRunning)
+}
+
+func TestDataSharingService_UploadExportArtifactToRemoteRejectsConcurrentTask(t *testing.T) {
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	settingRepo := &dataShareSettingRepoStub{values: map[string]string{}}
+	store := newDataShareBlockingExportObjectStoreStub()
+	factory := func(context.Context, *BackupS3Config) (BackupObjectStore, error) {
+		return store, nil
+	}
+	svc := NewDataSharingService(nil, settingRepo)
+	svc.SetExportArtifactRepository(artifactRepo)
+	svc.SetExportStorageDir(t.TempDir())
+	svc.SetExportObjectStoreDeps(factory, dataSharePlainEncryptor{})
+	_, err := svc.UpdateExportRemoteConfig(context.Background(), DataShareExportRemoteConfig{
+		Bucket:          "bucket-a",
+		AccessKeyID:     "ak",
+		SecretAccessKey: "sk",
+		Prefix:          "share",
+	})
+	require.NoError(t, err)
+
+	pathA := filepath.Join(svc.exportStorageDir, "upload-a.jsonl")
+	pathB := filepath.Join(svc.exportStorageDir, "upload-b.jsonl")
+	require.NoError(t, os.MkdirAll(filepath.Dir(pathA), 0755))
+	require.NoError(t, os.WriteFile(pathA, []byte(`{"a":true}`+"\n"), 0644))
+	require.NoError(t, os.WriteFile(pathB, []byte(`{"b":true}`+"\n"), 0644))
+	artifactA, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:      DataShareExportArtifactStatusCompleted,
+		Filename:    "upload-a.jsonl",
+		StoragePath: pathA,
+		Encoding:    string(DataShareExportEncodingJSONL),
+		FileSize:    11,
+	})
+	require.NoError(t, err)
+	artifactB, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:       DataShareExportArtifactStatusCompleted,
+		Filename:     "upload-b.jsonl",
+		StoragePath:  pathB,
+		Encoding:     string(DataShareExportEncodingJSONL),
+		FileSize:     11,
+		RemoteStatus: DataShareExportArtifactRemoteStatusNotUploaded,
+	})
+	require.NoError(t, err)
+
+	_, err = svc.UploadExportArtifactToRemote(context.Background(), artifactA.ID)
+	require.NoError(t, err)
+	select {
+	case <-store.started:
+	case <-time.After(time.Second):
+		t.Fatal("upload task did not start")
+	}
+
+	_, err = svc.UploadExportArtifactToRemote(context.Background(), artifactB.ID)
+	require.ErrorIs(t, err, ErrDataShareExportArtifactRemoteUploadInProgress)
+	gotB, err := svc.GetExportArtifact(context.Background(), artifactB.ID)
+	require.NoError(t, err)
+	require.Equal(t, DataShareExportArtifactRemoteStatusNotUploaded, gotB.RemoteStatus)
+
+	_, err = svc.CancelExportArtifactRemoteUpload(context.Background(), artifactA.ID)
+	require.NoError(t, err)
+}
+
 func TestDataSharingService_ListExportArtifactsMergesUploadProgress(t *testing.T) {
 	artifactRepo := newDataShareExportArtifactRepoStub()
 	svc := NewDataSharingService(nil, nil)
@@ -4594,6 +5240,28 @@ func TestDataSharingService_ListExportArtifactsMergesUploadProgress(t *testing.T
 	require.Len(t, items, 1)
 	require.Equal(t, int64(250), items[0].RemoteUploadBytes)
 	require.Greater(t, items[0].RemoteUploadSpeed, 0.0)
+}
+
+func TestDataSharingService_ListExportArtifactsMergesGenerateProgress(t *testing.T) {
+	artifactRepo := newDataShareExportArtifactRepoStub()
+	svc := NewDataSharingService(nil, nil)
+	svc.SetExportArtifactRepository(artifactRepo)
+	artifact, err := artifactRepo.Create(context.Background(), &DataShareExportArtifact{
+		Status:   DataShareExportArtifactStatusPending,
+		Filename: "artifact.jsonl",
+		Encoding: string(DataShareExportEncodingJSONL),
+	})
+	require.NoError(t, err)
+	require.NoError(t, artifactRepo.MarkRunning(context.Background(), artifact.ID))
+
+	svc.startExportArtifactGenerateProgress(artifact.ID, 100)
+	svc.updateExportArtifactGenerateProgress(artifact.ID, 25, 100)
+	items, _, err := svc.ListExportArtifacts(context.Background(), pagination.PaginationParams{Page: 1, PageSize: 10})
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, int64(25), items[0].GenerateProgressDone)
+	require.Equal(t, int64(100), items[0].GenerateProgressTotal)
+	require.Equal(t, 25.0, items[0].GenerateProgressPercent)
 }
 
 func TestDataSharingService_GenerateExportArtifactCleansFinalFileWhenMarkCompletedFails(t *testing.T) {

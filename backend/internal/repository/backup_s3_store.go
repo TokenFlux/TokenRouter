@@ -5,24 +5,34 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync/atomic"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 
 	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
-const s3MultipartPartSize = 64 * 1024 * 1024
+const s3UploadPartSizeMB = 64
+const s3UploadConcurrency = 4
+const s3MinUploadPartSizeMB = 5
+const s3MaxUploadPartSizeMB = 128
+const s3MinUploadConcurrency = 1
+const s3MaxUploadConcurrency = 8
+const s3MaxUploadParts = 10000
+const s3UploadFailTimeout = 30 * time.Second
 
 // S3BackupStore implements service.BackupObjectStore using AWS S3 compatible storage
 type S3BackupStore struct {
-	client *s3.Client
-	bucket string
+	client            *s3.Client
+	bucket            string
+	uploadConcurrency int
+	uploadPartSizeMB  int
 }
 
 // NewS3BackupStoreFactory returns a BackupObjectStoreFactory that creates S3-backed stores
@@ -54,7 +64,12 @@ func NewS3BackupStoreFactory() service.BackupObjectStoreFactory {
 			o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
 		})
 
-		return &S3BackupStore{client: client, bucket: cfg.Bucket}, nil
+		return &S3BackupStore{
+			client:            client,
+			bucket:            cfg.Bucket,
+			uploadConcurrency: normalizeS3UploadConcurrency(cfg.UploadConcurrency),
+			uploadPartSizeMB:  normalizeS3UploadPartSizeMB(cfg.UploadPartSizeMB),
+		}, nil
 	}
 }
 
@@ -77,103 +92,35 @@ func (s *S3BackupStore) UploadFile(ctx context.Context, key string, body io.Read
 	return s.UploadFileWithProgress(ctx, key, body, contentType, nil)
 }
 
-// UploadFileWithProgress 面向几十 GB 级别的本地文件，按分片完成情况上报累计上传字节数。
+// UploadFileWithProgress 面向几十 GB 级别的本地文件，使用官方 transfermanager 并发上传分片。
 func (s *S3BackupStore) UploadFileWithProgress(ctx context.Context, key string, body io.Reader, contentType string, onProgress func(uploadedBytes int64)) (int64, error) {
-	buf := make([]byte, s3MultipartPartSize)
-	firstSize, readErr := io.ReadFull(body, buf)
-	if readErr == io.EOF || readErr == io.ErrUnexpectedEOF {
-		if err := s.putObject(ctx, key, bytes.NewReader(buf[:firstSize]), contentType); err != nil {
-			return 0, err
-		}
-		if onProgress != nil {
-			onProgress(int64(firstSize))
-		}
-		return int64(firstSize), nil
-	}
-	if readErr != nil {
-		return 0, fmt.Errorf("read multipart body: %w", readErr)
-	}
-
-	created, err := s.client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
+	partSizeBytes := int64(normalizeS3UploadPartSizeMB(s.uploadPartSizeMB)) * 1024 * 1024
+	progress := &s3UploadProgressListener{onProgress: onProgress}
+	uploader := transfermanager.New(s.client, func(o *transfermanager.Options) {
+		o.PartSizeBytes = partSizeBytes
+		o.MultipartUploadThreshold = partSizeBytes
+		o.Concurrency = normalizeS3UploadConcurrency(s.uploadConcurrency)
+		o.MaxUploadParts = s3MaxUploadParts
+		o.FailTimeout = s3UploadFailTimeout
+		o.ObjectProgressListeners.Register(progress)
+	})
+	out, err := uploader.UploadObject(ctx, &transfermanager.UploadObjectInput{
 		Bucket:      &s.bucket,
 		Key:         &key,
+		Body:        body,
 		ContentType: &contentType,
 	})
 	if err != nil {
-		return 0, fmt.Errorf("S3 create multipart upload: %w", err)
+		return progress.UploadedBytes(), fmt.Errorf("S3 transfer upload object: %w", err)
 	}
-	if created.UploadId == nil || *created.UploadId == "" {
-		return 0, fmt.Errorf("S3 create multipart upload: missing upload id")
+	uploaded := progress.UploadedBytes()
+	if out.ContentLength != nil && *out.ContentLength > uploaded {
+		uploaded = *out.ContentLength
 	}
-	uploadID := *created.UploadId
-	completedParts := make([]types.CompletedPart, 0, 16)
-	var total int64
-	partNumber := int32(1)
-	abort := true
-	defer func() {
-		if abort {
-			_, _ = s.client.AbortMultipartUpload(context.Background(), &s3.AbortMultipartUploadInput{
-				Bucket:   &s.bucket,
-				Key:      &key,
-				UploadId: &uploadID,
-			})
-		}
-	}()
-
-	etag, err := s.uploadPart(ctx, key, uploadID, partNumber, bytes.NewReader(buf[:firstSize]))
-	if err != nil {
-		return 0, err
-	}
-	completedPartNumber := partNumber
-	completedParts = append(completedParts, types.CompletedPart{
-		ETag:       etag,
-		PartNumber: &completedPartNumber,
-	})
-	total += int64(firstSize)
 	if onProgress != nil {
-		onProgress(total)
+		onProgress(uploaded)
 	}
-	partNumber++
-
-	for {
-		n, readErr := io.ReadFull(body, buf)
-		if readErr != nil && readErr != io.ErrUnexpectedEOF && readErr != io.EOF {
-			return total, fmt.Errorf("read multipart body: %w", readErr)
-		}
-		if n == 0 && readErr == io.EOF {
-			break
-		}
-		etag, err := s.uploadPart(ctx, key, uploadID, partNumber, bytes.NewReader(buf[:n]))
-		if err != nil {
-			return total, err
-		}
-		completedPartNumber := partNumber
-		completedParts = append(completedParts, types.CompletedPart{
-			ETag:       etag,
-			PartNumber: &completedPartNumber,
-		})
-		total += int64(n)
-		if onProgress != nil {
-			onProgress(total)
-		}
-		partNumber++
-		if readErr == io.ErrUnexpectedEOF || readErr == io.EOF {
-			break
-		}
-	}
-	_, err = s.client.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
-		Bucket:   &s.bucket,
-		Key:      &key,
-		UploadId: &uploadID,
-		MultipartUpload: &types.CompletedMultipartUpload{
-			Parts: completedParts,
-		},
-	})
-	if err != nil {
-		return total, fmt.Errorf("S3 complete multipart upload: %w", err)
-	}
-	abort = false
-	return total, nil
+	return uploaded, nil
 }
 
 func (s *S3BackupStore) putObject(ctx context.Context, key string, body io.Reader, contentType string) error {
@@ -187,20 +134,6 @@ func (s *S3BackupStore) putObject(ctx context.Context, key string, body io.Reade
 		return fmt.Errorf("S3 PutObject: %w", err)
 	}
 	return nil
-}
-
-func (s *S3BackupStore) uploadPart(ctx context.Context, key string, uploadID string, partNumber int32, body io.Reader) (*string, error) {
-	partOut, err := s.client.UploadPart(ctx, &s3.UploadPartInput{
-		Bucket:     &s.bucket,
-		Key:        &key,
-		UploadId:   &uploadID,
-		PartNumber: &partNumber,
-		Body:       body,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("S3 upload part %d: %w", partNumber, err)
-	}
-	return partOut.ETag, nil
 }
 
 func (s *S3BackupStore) Download(ctx context.Context, key string) (io.ReadCloser, error) {
@@ -242,4 +175,53 @@ func (s *S3BackupStore) HeadBucket(ctx context.Context) error {
 		return fmt.Errorf("S3 HeadBucket failed: %w", err)
 	}
 	return nil
+}
+
+type s3UploadProgressListener struct {
+	uploaded   atomic.Int64
+	onProgress func(uploadedBytes int64)
+}
+
+func (l *s3UploadProgressListener) OnObjectBytesTransferred(_ context.Context, event *transfermanager.ObjectBytesTransferredEvent) {
+	if l == nil || event == nil {
+		return
+	}
+	uploaded := event.BytesTransferred
+	l.uploaded.Store(uploaded)
+	if l.onProgress != nil {
+		l.onProgress(uploaded)
+	}
+}
+
+func (l *s3UploadProgressListener) UploadedBytes() int64 {
+	if l == nil {
+		return 0
+	}
+	return l.uploaded.Load()
+}
+
+func normalizeS3UploadConcurrency(count int) int {
+	if count <= 0 {
+		count = s3UploadConcurrency
+	}
+	if count < s3MinUploadConcurrency {
+		return s3MinUploadConcurrency
+	}
+	if count > s3MaxUploadConcurrency {
+		return s3MaxUploadConcurrency
+	}
+	return count
+}
+
+func normalizeS3UploadPartSizeMB(sizeMB int) int {
+	if sizeMB <= 0 {
+		sizeMB = s3UploadPartSizeMB
+	}
+	if sizeMB < s3MinUploadPartSizeMB {
+		return s3MinUploadPartSizeMB
+	}
+	if sizeMB > s3MaxUploadPartSizeMB {
+		return s3MaxUploadPartSizeMB
+	}
+	return sizeMB
 }

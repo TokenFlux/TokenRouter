@@ -530,6 +530,11 @@ var (
 				Columns: []*schema.Column{DataShareSessionsColumns[31]},
 			},
 			{
+				Name:    "datasharesession_created_at_id",
+				Unique:  false,
+				Columns: []*schema.Column{DataShareSessionsColumns[31], DataShareSessionsColumns[0]},
+			},
+			{
 				Name:    "datasharesession_updated_at",
 				Unique:  false,
 				Columns: []*schema.Column{DataShareSessionsColumns[33]},

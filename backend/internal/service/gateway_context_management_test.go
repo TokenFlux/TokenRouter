@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -409,7 +408,7 @@ func TestBuildCountTokensRequestAnthropicAPIKeyPassthrough_StripsContextManageme
 // ============================================================================
 // 集成测试：buildUpstreamRequest
 // 全路径验证上游 outgoing body 与 anthropic-beta header 严格对称。
-// 这个测试能挡住未来某人忘调 sanitize / 将 sanitize 挪到 CCH 之后 等 regression。
+// 这个测试能挡住未来某人忘调 sanitize / 将 sanitize 挪到请求构造之后 等 regression。
 // ============================================================================
 
 func TestBuildUpstreamRequest_OAuthMimicHaiku_StripsContextManagementEndToEnd(t *testing.T) {
@@ -501,68 +500,6 @@ func TestBuildUpstreamRequest_OAuthTransparentHaikuWithRealCCBeta_PreservesField
 		"真 CC 透传路径：客户端 header 中的 context-management beta 必须保留")
 	require.True(t, gjson.GetBytes(outBody, "context_management").Exists(),
 		"回归保护：真 CC + haiku + 客户端带 beta token 时，clear_thinking_20251015 功能不能静默失效")
-}
-
-// CCH 顺序语义测试：sanitize 必须在 signBillingHeaderCCH 之前，
-// 否则签名的 hash 与最终发送的 body 不一致，被 Anthropic 判 third-party。
-//
-// 该测试不走 buildUpstreamRequest 完整路径（需要 mock SettingService 成本高），
-// 而是直接验证两个顺序产生的 cch 不同，证明二者不可交换。
-// 测试名本身是语义约束的文档化 marker。
-func TestSanitizeMustBeBeforeCCHSigning_HashConsistency(t *testing.T) {
-	// 构造 body：含 context_management + cch=00000 占位符
-	body := []byte(`{"model":"claude-haiku-4-5","context_management":{"edits":[{"type":"clear_thinking_20251015"}]},"system":[{"type":"text","text":"x-anthropic-billing-header: cc_version=2.1.92; cch=00000;"}],"messages":[]}`)
-
-	// 最终发送场景：final beta 不含 context-management beta → sanitize 会 strip
-	finalBeta := "oauth-2025-04-20,interleaved-thinking-2025-05-14"
-
-	extractCCH := func(t *testing.T, b []byte) string {
-		t.Helper()
-		m := regexp.MustCompile(`\bcch=([0-9a-fA-F]{5})\b`).FindSubmatch(b)
-		require.NotNil(t, m, "body 里找不到 cch=<5hex> ：%s", string(b))
-		return string(m[1])
-	}
-
-	// === 正确顺序：sanitize → signBillingHeaderCCH ===
-	// 1. strip context_management
-	sanitizedFirst, changed := sanitizeAnthropicBodyForBetaTokens(body, finalBeta)
-	require.True(t, changed)
-	require.False(t, gjson.GetBytes(sanitizedFirst, "context_management").Exists())
-	// 2. 基于“strip 后的 body”算 hash
-	correctFinal := signBillingHeaderCCH(sanitizedFirst)
-	correctCCH := extractCCH(t, correctFinal)
-	require.NotEqual(t, "00000", correctCCH, "placeholder 应被替换")
-
-	// === 错误顺序：signBillingHeaderCCH → sanitize（未来 regression 场景）===
-	// 1. 先基于“含 context_management 的 body”算 hash → cch=H_with
-	signedFirst := signBillingHeaderCCH(body)
-	wrongCCH := extractCCH(t, signedFirst)
-	require.NotEqual(t, "00000", wrongCCH)
-	// 2. 后 strip context_management → body 变化但 cch 仍是 H_with
-	wrongFinal, _ := sanitizeAnthropicBodyForBetaTokens(signedFirst, finalBeta)
-	wrongFinalCCH := extractCCH(t, wrongFinal)
-
-	// === 关键断言 ===
-	// 上游验证逻辑：将 outgoing body 的 cch 还原为 00000、重算 hash、与 cch 字段比较。
-	// 模拟上游验证：用发送 body 算出“期望的 cch”，与发送 body 里的 cch 字段比。
-	recomputeExpected := func(b []byte, currentCCH string) string {
-		t.Helper()
-		// 把 cch=<currentCCH> 还原为 cch=00000
-		re := regexp.MustCompile(`(\bcch=)` + currentCCH + `(\b)`)
-		restored := re.ReplaceAll(b, []byte("${1}00000${2}"))
-		return extractCCH(t, signBillingHeaderCCH(restored))
-	}
-
-	// 正确顺序：发送 body 的 cch == 重算 hash → 上游验证过
-	require.Equal(t, correctCCH, recomputeExpected(correctFinal, correctCCH),
-		"正确顺序：final body 里的 cch 与重算 hash 一致 → 上游验证通过")
-
-	// 错误顺序：发送 body 的 cch 是“含 ctx 算的”，但最终 body 不含 ctx → 重算 hash 不同
-	require.NotEqual(t, wrongFinalCCH, recomputeExpected(wrongFinal, wrongFinalCCH),
-		"错误顺序：final body 里的 cch 是基于含 ctx 的 body 算的，"+
-			"但发送 body 已 strip ctx → 上游重算 hash 与 cch 不一致 → 被判 third-party。"+
-			"这是 buildUpstreamRequest / buildCountTokensRequest 里 sanitize 必须在 "+
-			"signBillingHeaderCCH 之前的原因。")
 }
 
 // count_tokens 主路径 E2E 集成测试

@@ -69,6 +69,17 @@ func (r *dataShareHandlerRepoStub) SaveCaptureSnapshot(context.Context, *service
 	panic("unexpected SaveCaptureSnapshot call")
 }
 
+func (r *dataShareHandlerRepoStub) Count(ctx context.Context, filters service.DataShareSessionFilters) (int64, error) {
+	_, result, err := r.ListWithPayload(ctx, pagination.PaginationParams{Page: 1, PageSize: len(r.items)}, filters)
+	if err != nil {
+		return 0, err
+	}
+	if result == nil {
+		return 0, nil
+	}
+	return result.Total, nil
+}
+
 func (r *dataShareHandlerRepoStub) List(context.Context, pagination.PaginationParams, service.DataShareSessionFilters) ([]service.DataShareSession, *pagination.PaginationResult, error) {
 	panic("unexpected List call")
 }
@@ -94,6 +105,20 @@ func (r *dataShareHandlerRepoStub) ListWithPayload(_ context.Context, _ paginati
 		out = append(out, item)
 	}
 	return out, &pagination.PaginationResult{Total: int64(len(out)), Page: 1, PageSize: 1000, Pages: 1}, nil
+}
+
+func (r *dataShareHandlerRepoStub) ListWithPayloadPage(ctx context.Context, params pagination.PaginationParams, filters service.DataShareSessionFilters) ([]service.DataShareSession, error) {
+	items, _, err := r.ListWithPayload(ctx, params, filters)
+	return items, err
+}
+
+func (r *dataShareHandlerRepoStub) ListExportPayloadPage(ctx context.Context, filters service.DataShareSessionFilters, _ *service.DataShareSessionExportCursor, _ int, _ int, _ service.DataShareExportDurationRecorder) ([]service.DataShareSession, *service.DataShareSessionExportCursor, error) {
+	items, _, err := r.ListWithPayload(ctx, pagination.PaginationParams{Page: 1, PageSize: len(r.items)}, filters)
+	if err != nil || len(items) == 0 {
+		return items, nil, err
+	}
+	last := items[len(items)-1]
+	return items, &service.DataShareSessionExportCursor{CreatedAt: last.CreatedAt, ID: last.ID}, nil
 }
 
 func (r *dataShareHandlerRepoStub) GetByID(context.Context, int64) (*service.DataShareSession, error) {

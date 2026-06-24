@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -206,10 +207,17 @@ func (b *DataSharingCaptureBuffer) Submit(ctx context.Context, session *DataShar
 }
 
 func (b *DataSharingCaptureBuffer) prepareIncomingSessionLocked(existing *DataShareSession, incoming *DataShareSession) *DataShareSession {
-	if incoming == nil || incoming.captureMode != dataShareCaptureModeOpenAIResponsesRaw {
+	if incoming == nil {
 		return incoming
 	}
-	return (&DataSharingService{}).buildOpenAIResponsesIncrementalSession(existing, incoming)
+	switch incoming.captureMode {
+	case dataShareCaptureModeOpenAIResponsesRaw:
+		return (&DataSharingService{}).buildOpenAIResponsesIncrementalSession(existing, incoming)
+	case dataShareCaptureModeMessagesRaw:
+		return buildMessagesIncrementalSession(existing, incoming)
+	default:
+		return incoming
+	}
 }
 
 // FlushAll 立即落库当前缓冲内容；用于正常停机和测试。
@@ -649,8 +657,193 @@ func mergeBufferedDataShareSession(existing *DataShareSession, incoming *DataSha
 	if incoming.captureState != nil {
 		existing.captureState = cloneDataShareResponsesCaptureState(incoming.captureState)
 	}
+	if len(incoming.captureRequestMessages) > 0 {
+		existing.captureRequestMessages = cloneBufferedDataShareMaps(incoming.captureRequestMessages)
+	}
+	if len(incoming.captureResponseMessages) > 0 {
+		existing.captureResponseMessages = cloneBufferedDataShareMaps(incoming.captureResponseMessages)
+	}
 	existing.UpdatedAt = now
 	return existing
+}
+
+func buildMessagesIncrementalSession(existing *DataShareSession, raw *DataShareSession) *DataShareSession {
+	if raw == nil {
+		return nil
+	}
+	out := cloneBufferedDataShareSession(raw)
+	out.captureMode = dataShareCaptureModeIncremental
+	requestMessages := cloneBufferedDataShareMaps(raw.captureRequestMessages)
+	if len(requestMessages) == 0 && raw.captureInput != nil {
+		requestMessages = normalizeCaptureRequestMessages(*raw.captureInput)
+	}
+	responseMessages := cloneBufferedDataShareMaps(raw.captureResponseMessages)
+	if len(responseMessages) == 0 && raw.captureInput != nil {
+		responseMessages = normalizeCaptureResponseMessages(*raw.captureInput)
+	}
+	base := []map[string]any(nil)
+	if existing != nil {
+		base = existing.Messages
+	}
+	requestDelta := dataShareMessagesRequestDelta(base, requestMessages)
+	messages := cloneBufferedDataShareMaps(requestDelta)
+	if len(requestDelta) == 0 && dataShareMessagesAreExistingSuffix(base, responseMessages) {
+		responseMessages = nil
+	}
+	messages = append(messages, cloneBufferedDataShareMaps(responseMessages)...)
+	out.Messages = normalizeDataShareMessages(messages)
+	out.captureRequestMessages = cloneBufferedDataShareMaps(requestMessages)
+	out.captureResponseMessages = cloneBufferedDataShareMaps(responseMessages)
+	return out
+}
+
+func dataShareMessagesRequestDelta(existing, incoming []map[string]any) []map[string]any {
+	if len(incoming) == 0 {
+		return nil
+	}
+	if len(existing) == 0 {
+		return cloneBufferedDataShareMaps(incoming)
+	}
+	existingIdentities := dataShareMessageIdentities(existing)
+	incomingIdentities := dataShareMessageIdentities(incoming)
+	replayIndex := newDataShareMessagesReplayIndex(existingIdentities)
+	// Anthropic Messages 是无状态请求；compaction 后请求可能是“新摘要 + 已保存近期消息 + 新消息”。
+	// 因此这里扫描整段请求，保留新摘要等前置内容，只跳过已在历史中出现的连续重放窗口。
+	out := make([]map[string]any, 0, len(incoming))
+	hasPriorCompaction := false
+	for i := 0; i < len(incoming); {
+		match := dataShareBestRequestReplayMatchAt(existingIdentities, replayIndex, incomingIdentities, i, hasPriorCompaction)
+		if match.length > 0 {
+			if !hasPriorCompaction {
+				hasPriorCompaction = dataShareMessagesHaveCompaction(incoming[i : i+match.length])
+			}
+			i += match.length
+			continue
+		}
+		if !hasPriorCompaction && dataShareMessageHasCompaction(incoming[i]) {
+			hasPriorCompaction = true
+		}
+		out = append(out, cloneDataShareMap(incoming[i]))
+		i++
+	}
+	return out
+}
+
+type dataShareMessagesReplayIndex struct {
+	identityPositions map[string][]int
+	windowPositions   map[string][]int
+}
+
+func newDataShareMessagesReplayIndex(existingIdentities []string) dataShareMessagesReplayIndex {
+	index := dataShareMessagesReplayIndex{
+		identityPositions: map[string][]int{},
+	}
+	for i, identity := range existingIdentities {
+		if identity == "" {
+			continue
+		}
+		index.identityPositions[identity] = append(index.identityPositions[identity], i)
+	}
+	if len(existingIdentities) >= dataShareLongReplayMinMessages {
+		index.windowPositions = dataShareReplayWindowIndex(existingIdentities)
+	}
+	return index
+}
+
+func dataShareBestRequestReplayMatchAt(existingIdentities []string, index dataShareMessagesReplayIndex, incomingIdentities []string, incomingStart int, hasPriorCompaction bool) dataShareReplayMatch {
+	if len(existingIdentities) == 0 || incomingStart < 0 || incomingStart >= len(incomingIdentities) {
+		return dataShareReplayMatch{}
+	}
+	identity := incomingIdentities[incomingStart]
+	if identity == "" {
+		return dataShareReplayMatch{}
+	}
+	best := dataShareReplayMatch{}
+	if longMatch := dataShareBestIndexedReplayMatch(existingIdentities, index.windowPositions, incomingIdentities, incomingStart); longMatch.length > 0 {
+		best = longMatch
+	}
+	candidates := index.identityPositions[identity]
+	if len(candidates) > dataShareReplayWindowCandidateLimit {
+		return best
+	}
+	for _, existingStart := range candidates {
+		length := dataShareContiguousKeyMatchLen(existingIdentities, existingStart, incomingIdentities, incomingStart)
+		if !dataShareRequestReplayMatchSafe(len(existingIdentities), incomingStart, existingStart, length, hasPriorCompaction) {
+			continue
+		}
+		if length > best.length || (length == best.length && dataShareRequestReplayMatchPreferred(best, existingStart, length, len(existingIdentities))) {
+			best = dataShareReplayMatch{existingStart: existingStart, incomingStart: incomingStart, length: length}
+		}
+	}
+	return best
+}
+
+func dataShareRequestReplayMatchSafe(existingLen int, incomingStart int, existingStart int, length int, hasPriorCompaction bool) bool {
+	if length < dataShareReplayOverlapMinMessages {
+		// compaction 后客户端可能只保留一条旧历史尾部消息；只在明确有 compaction 前缀且贴住旧尾部时跳过。
+		return hasPriorCompaction && length == 1 && existingStart+length == existingLen && incomingStart > 0
+	}
+	// 请求开头重放是无状态 Messages 的常规形态，沿用旧逻辑直接跳过。
+	if incomingStart == 0 {
+		return true
+	}
+	// compaction 后客户端通常会在新摘要后保留旧历史尾部；短窗口只信任这种贴住尾部的重放。
+	if existingStart+length == existingLen {
+		return true
+	}
+	// 很长的连续窗口碰撞概率极低，可用于覆盖客户端从历史中段截断发送的情况。
+	return length >= dataShareLongReplayMinMessages
+}
+
+func dataShareMessagesHaveCompaction(messages []map[string]any) bool {
+	for _, msg := range messages {
+		if dataShareMessageHasCompaction(msg) {
+			return true
+		}
+	}
+	return false
+}
+
+func dataShareMessageHasCompaction(msg map[string]any) bool {
+	content := firstPresentAny(msg["content"], msg["text"])
+	for _, block := range anySlice(content) {
+		item, ok := mapFromAny(block)
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(stringFromAny(item["type"])) == "compaction" {
+			return true
+		}
+	}
+	text := strings.ToLower(strings.TrimSpace(dataShareContentText(content)))
+	return strings.HasPrefix(text, "compaction:") || strings.HasPrefix(text, "compaction summary:")
+}
+
+func dataShareRequestReplayMatchPreferred(current dataShareReplayMatch, existingStart int, length int, existingLen int) bool {
+	if current.length == 0 {
+		return true
+	}
+	currentSuffix := current.existingStart+current.length == existingLen
+	nextSuffix := existingStart+length == existingLen
+	if nextSuffix != currentSuffix {
+		return nextSuffix
+	}
+	return existingStart > current.existingStart
+}
+
+func dataShareMessagesAreExistingSuffix(existing, incoming []map[string]any) bool {
+	if len(existing) == 0 || len(incoming) == 0 || len(incoming) > len(existing) {
+		return false
+	}
+	existingIdentities := dataShareMessageIdentities(existing)
+	incomingIdentities := dataShareMessageIdentities(incoming)
+	start := len(existingIdentities) - len(incomingIdentities)
+	for i := range incomingIdentities {
+		if incomingIdentities[i] == "" || incomingIdentities[i] != existingIdentities[start+i] {
+			return false
+		}
+	}
+	return true
 }
 
 func finalizeBufferedDataShareSession(session *DataShareSession) *DataShareSession {
@@ -709,6 +902,8 @@ func cloneBufferedDataShareSession(session *DataShareSession) *DataShareSession 
 	clone.captureState = cloneDataShareResponsesCaptureState(session.captureState)
 	clone.captureRequestItems = cloneDataShareResponsesInputItems(session.captureRequestItems)
 	clone.captureResponseItems = cloneBufferedDataShareMaps(session.captureResponseItems)
+	clone.captureRequestMessages = cloneBufferedDataShareMaps(session.captureRequestMessages)
+	clone.captureResponseMessages = cloneBufferedDataShareMaps(session.captureResponseMessages)
 	return &clone
 }
 

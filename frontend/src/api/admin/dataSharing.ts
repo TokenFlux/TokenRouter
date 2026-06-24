@@ -120,6 +120,10 @@ export interface DataShareCaptureDurationStats {
   parts: DataShareCaptureDurationPart[]
 }
 
+export type DataShareExportDurationBucket = DataShareCaptureDurationBucket
+export type DataShareExportDurationPart = DataShareCaptureDurationPart
+export type DataShareExportDurationStats = DataShareCaptureDurationStats
+
 export interface DataShareCaptureRuntimeSettings {
   worker_count: number
   queue_size: number
@@ -131,6 +135,8 @@ export interface DataShareCaptureRuntimeSettings {
   buffer_max_sessions: number
   buffer_max_pending_events: number
   duration_window_size: number
+  export_batch_size: number
+  export_worker_count: number
 }
 
 export interface DataShareStats {
@@ -155,6 +161,7 @@ export interface DataShareStats {
   capture_worker?: DataShareCaptureWorkerStats | null
   capture_buffer?: DataShareCaptureBufferStats | null
   capture_durations?: DataShareCaptureDurationStats | null
+  export_durations?: DataShareExportDurationStats | null
 }
 
 export type DataShareExportArtifactStatus = 'pending' | 'running' | 'completed' | 'failed' | 'deleted'
@@ -168,6 +175,8 @@ export interface DataShareExportRemoteConfig {
   secret_access_key?: string
   prefix: string
   force_path_style: boolean
+  upload_concurrency: number
+  upload_part_size_mb: number
 }
 
 export interface DataShareExportArtifact {
@@ -186,6 +195,9 @@ export interface DataShareExportArtifact {
   remote_uploaded_at?: string | null
   remote_upload_bytes: number
   remote_upload_speed: number
+  generate_progress_done: number
+  generate_progress_total: number
+  generate_progress_percent: number
   created_at: string
   started_at?: string | null
   completed_at?: string | null
@@ -347,6 +359,11 @@ export async function uploadExportArtifact(id: number): Promise<DataShareExportA
   return data
 }
 
+export async function cancelExportArtifactUpload(id: number): Promise<DataShareExportArtifact> {
+  const { data } = await apiClient.post<DataShareExportArtifact>(`/admin/data-sharing/exports/${id}/upload/cancel`)
+  return data
+}
+
 export async function getExportArtifactRemoteDownloadURL(id: number): Promise<{ url: string }> {
   const { data } = await apiClient.get<{ url: string }>(`/admin/data-sharing/exports/${id}/download-url`)
   return data
@@ -386,6 +403,7 @@ export const adminDataSharingAPI = {
   listExportArtifacts,
   createExportArtifactDownloadTicket,
   uploadExportArtifact,
+  cancelExportArtifactUpload,
   getExportArtifactRemoteDownloadURL,
   deleteExportArtifact,
   getStats
