@@ -144,3 +144,13 @@ func TestQoderGatewaySubmitUsageRecordIgnoresRequestCancellation(t *testing.T) {
 		t.Fatal("usage task did not run")
 	}
 }
+
+func TestQoderGatewayRequestCanceledDetectsErrorOrContext(t *testing.T) {
+	require.True(t, qoderRequestCanceled(context.Background(), context.Canceled))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.True(t, qoderRequestCanceled(ctx, fmt.Errorf("wrapped upstream error")))
+
+	require.False(t, qoderRequestCanceled(context.Background(), fmt.Errorf("upstream error")))
+}

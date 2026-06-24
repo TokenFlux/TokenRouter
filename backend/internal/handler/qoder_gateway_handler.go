@@ -230,6 +230,10 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 			accountRelease()
 		}
 		if err != nil {
+			if qoderRequestCanceled(forwardCtx, err) {
+				reqLog.Info("qoder.forward_canceled", zap.Int64("account_id", account.ID), zap.Error(err))
+				return
+			}
 			if h.shouldRefreshQoderAccount(err, c.Writer.Size() != writerSizeBeforeForward) {
 				refreshedAccount, refreshErr := h.refreshQoderAccount(c.Request.Context(), account)
 				if refreshErr == nil && refreshedAccount != nil {
@@ -253,6 +257,10 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 					}
 					if accountRelease != nil {
 						accountRelease()
+					}
+					if err != nil && qoderRequestCanceled(forwardCtx, err) {
+						reqLog.Info("qoder.retry_forward_canceled", zap.Int64("account_id", account.ID), zap.Error(err))
+						return
 					}
 				} else if refreshErr != nil {
 					reqLog.Warn("qoder.account_refresh_after_auth_error_failed", zap.Int64("account_id", account.ID), zap.Error(refreshErr))
@@ -331,6 +339,13 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 		})
 		return
 	}
+}
+
+func qoderRequestCanceled(ctx context.Context, err error) bool {
+	if err != nil && errors.Is(err, context.Canceled) {
+		return true
+	}
+	return ctx != nil && errors.Is(ctx.Err(), context.Canceled)
 }
 
 func prepareQoderRequestContext(c *gin.Context, body []byte, endpoint qoderEndpoint) {

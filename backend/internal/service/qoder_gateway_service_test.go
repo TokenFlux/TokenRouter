@@ -3233,6 +3233,7 @@ func TestQoderGatewayRefreshAccountSessionPersistsCredentialsAndInvalidatesCache
 		tokenProvider: provider,
 		accountRepo:   repo,
 		newRefresher:  func() *QoderTokenRefresher { return refresher },
+		refreshAPI:    NewOAuthRefreshAPI(repo, nil),
 	}
 
 	refreshed, err := svc.RefreshAccountSession(context.Background(), &account)
@@ -3245,6 +3246,28 @@ func TestQoderGatewayRefreshAccountSessionPersistsCredentialsAndInvalidatesCache
 	require.NotNil(t, repo.updatedCredentials["_token_version"])
 	_, cached := provider.sessions[account.ID]
 	require.False(t, cached)
+}
+
+func TestNewQoderGatewayServiceUsesInjectedRefreshAPI(t *testing.T) {
+	repo := &qoderRefreshAccountRepoStub{}
+	refreshAPI := NewOAuthRefreshAPI(repo, nil)
+
+	svc := NewQoderGatewayService(nil, repo, nil, nil, refreshAPI)
+
+	require.Same(t, refreshAPI, svc.refreshAPI)
+	require.NotNil(t, svc.tokenProvider)
+}
+
+func TestQoderGatewayRefreshAccountSessionRequiresInjectedRefreshAPI(t *testing.T) {
+	svc := &QoderGatewayService{
+		accountRepo:  &qoderRefreshAccountRepoStub{},
+		newRefresher: func() *QoderTokenRefresher { return NewQoderTokenRefresher(nil) },
+	}
+
+	refreshed, err := svc.RefreshAccountSession(context.Background(), &Account{ID: 1})
+
+	require.Nil(t, refreshed)
+	require.EqualError(t, err, "qoder refresh API is not configured")
 }
 
 func TestQoderGatewayRefreshAccountSessionRecoversRotatedRefreshTokenRace(t *testing.T) {
@@ -3280,6 +3303,7 @@ func TestQoderGatewayRefreshAccountSessionRecoversRotatedRefreshTokenRace(t *tes
 		tokenProvider: NewQoderTokenProvider(),
 		accountRepo:   repo,
 		newRefresher:  func() *QoderTokenRefresher { return refresher },
+		refreshAPI:    NewOAuthRefreshAPI(repo, nil),
 	}
 
 	refreshed, err := svc.RefreshAccountSession(context.Background(), &account)

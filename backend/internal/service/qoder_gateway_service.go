@@ -111,7 +111,7 @@ type QoderGatewayService struct {
 	conversations       *qoderConversationStore
 }
 
-func NewQoderGatewayService(tokenProvider *QoderTokenProvider, accountRepo AccountRepository, httpUpstream HTTPUpstream, tlsFPProfileService *TLSFingerprintProfileService) *QoderGatewayService {
+func NewQoderGatewayService(tokenProvider *QoderTokenProvider, accountRepo AccountRepository, httpUpstream HTTPUpstream, tlsFPProfileService *TLSFingerprintProfileService, refreshAPI *OAuthRefreshAPI) *QoderGatewayService {
 	if tokenProvider == nil {
 		tokenProvider = NewQoderTokenProvider()
 	}
@@ -122,7 +122,7 @@ func NewQoderGatewayService(tokenProvider *QoderTokenProvider, accountRepo Accou
 		accountRepo:         accountRepo,
 		httpUpstream:        httpUpstream,
 		tlsFPProfileService: tlsFPProfileService,
-		refreshAPI:          NewOAuthRefreshAPI(accountRepo, nil),
+		refreshAPI:          refreshAPI,
 		conversations:       newQoderConversationStore(qoderConversationTTL),
 	}
 }
@@ -471,7 +471,7 @@ func (s *QoderGatewayService) RefreshAccountSession(ctx context.Context, account
 	}
 	refreshAPI := s.refreshAPI
 	if refreshAPI == nil {
-		refreshAPI = NewOAuthRefreshAPI(s.accountRepo, nil)
+		return nil, errors.New("qoder refresh API is not configured")
 	}
 	result, err := refreshAPI.RefreshIfNeeded(ctx, account, qoderGatewayRefreshExecutor{QoderTokenRefresher: refresher}, 15*time.Minute)
 	if err != nil {

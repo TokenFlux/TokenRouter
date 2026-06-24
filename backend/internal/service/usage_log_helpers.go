@@ -27,6 +27,15 @@ func forwardResultBillingModel(requestedModel, upstreamModel string) string {
 	return strings.TrimSpace(upstreamModel)
 }
 
+func forwardResultBillingModelForPlatform(platform, requestedModel, upstreamModel string) string {
+	if platform == PlatformQoder {
+		if trimmed := strings.TrimSpace(upstreamModel); trimmed != "" {
+			return trimmed
+		}
+	}
+	return forwardResultBillingModel(requestedModel, upstreamModel)
+}
+
 func optionalInt64Ptr(v int64) *int64 {
 	if v == 0 {
 		return nil

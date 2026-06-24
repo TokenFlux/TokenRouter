@@ -60,18 +60,18 @@ func newSettingServiceForPlatformQuotaTest(seed map[string]string) *SettingServi
 	return NewSettingService(repo, &config.Config{})
 }
 
-func TestGetDefaultPlatformQuotas_ReturnsFourPlatforms(t *testing.T) {
+func TestGetDefaultPlatformQuotas_ReturnsAllowedPlatforms(t *testing.T) {
 	zero := 0.0
 	svc := newSettingServiceForPlatformQuotaTest(map[string]string{
-		// 新 JSON 格式：anthropic daily=10.5, openai monthly=0, gemini/antigravity 无配置
+		// 新 JSON 格式：anthropic daily=10.5, openai monthly=0, 其他平台无配置
 		SettingKeyDefaultPlatformQuotas: `{"anthropic":{"daily":10.5},"openai":{"monthly":0}}`,
 	})
 	got, err := svc.GetDefaultPlatformQuotas(context.Background())
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// 必须包含全部 4 个 platform key（补齐契约）
-	for _, platform := range []string{"anthropic", "openai", "gemini", "antigravity"} {
+	// 必须包含全部允许的 platform key（补齐契约）
+	for _, platform := range AllowedQuotaPlatforms {
 		if _, ok := got[platform]; !ok {
 			t.Errorf("missing platform key: %q", platform)
 		}
@@ -88,15 +88,15 @@ func TestGetDefaultPlatformQuotas_ReturnsFourPlatforms(t *testing.T) {
 	if v := got["gemini"].WeeklyLimitUSD; v != nil {
 		t.Errorf("gemini weekly want nil (not configured), got %v", *v)
 	}
-	// antigravity 无配置 → daily = nil
-	if v := got["antigravity"].DailyLimitUSD; v != nil {
-		t.Errorf("antigravity daily want nil (not configured), got %v", *v)
+	// qoder 无配置 → daily = nil
+	if v := got["qoder"].DailyLimitUSD; v != nil {
+		t.Errorf("qoder daily want nil (not configured), got %v", *v)
 	}
 }
 
 func TestGetAuthSourcePlatformQuotas_OnlyConfiguredReturned(t *testing.T) {
 	source := "email"
-	// 新 JSON 格式：anthropic daily=5, monthly=100；openai weekly=0；gemini/antigravity 无配置
+	// 新 JSON 格式：anthropic daily=5, monthly=100；openai weekly=0；其他平台无配置
 	svc := newSettingServiceForPlatformQuotaTest(map[string]string{
 		SettingKeyAuthSourcePlatformQuotas(source): `{"anthropic":{"daily":5,"monthly":100},"openai":{"weekly":0}}`,
 	})
@@ -126,12 +126,15 @@ func TestGetAuthSourcePlatformQuotas_OnlyConfiguredReturned(t *testing.T) {
 		t.Errorf("openai weekly want 0, got %v", oai.WeeklyLimitUSD)
 	}
 
-	// gemini / antigravity 无配置 → 不在结果中（override 语义）
+	// gemini / antigravity / qoder 无配置 → 不在结果中（override 语义）
 	if _, ok := got["gemini"]; ok {
 		t.Error("gemini not configured, should be absent from result")
 	}
 	if _, ok := got["antigravity"]; ok {
 		t.Error("antigravity not configured, should be absent from result")
+	}
+	if _, ok := got["qoder"]; ok {
+		t.Error("qoder not configured, should be absent from result")
 	}
 }
 
@@ -152,7 +155,7 @@ func TestGetAuthSourcePlatformQuotas_AllNegativeOrEmpty_NoEntry(t *testing.T) {
 }
 
 // TestSystemPlatformQuotas_WriteReadRoundTrip 验证系统层 platform quota 经 buildSystemSettingsUpdates（写）
-// 再由 GetDefaultPlatformQuotas（读）正确往返——覆盖真实 write→read 路径，锁住 4-key 补齐契约。
+// 再由 GetDefaultPlatformQuotas（读）正确往返——覆盖真实 write→read 路径，锁住允许平台补齐契约。
 func TestSystemPlatformQuotas_WriteReadRoundTrip(t *testing.T) {
 	svc := newSettingServiceForPlatformQuotaTest(nil)
 	ctx := context.Background()
@@ -171,10 +174,10 @@ func TestSystemPlatformQuotas_WriteReadRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 4-key 补齐契约：无论写了几个 platform，读回必须含全部 4 个
-	for _, p := range []string{"anthropic", "openai", "gemini", "antigravity"} {
+	// 允许平台补齐契约：无论写了几个 platform，读回必须含全部允许平台
+	for _, p := range AllowedQuotaPlatforms {
 		if _, ok := got[p]; !ok {
-			t.Errorf("4-key contract violated: missing platform %q", p)
+			t.Errorf("allowed-platform contract violated: missing platform %q", p)
 		}
 	}
 	// 写入值正确往返
@@ -188,7 +191,7 @@ func TestSystemPlatformQuotas_WriteReadRoundTrip(t *testing.T) {
 }
 
 // TestSystemPlatformQuotas_EmptyMapClearsAll 验证空 map 的整体替换语义：
-// 写入 DefaultPlatformQuotas={} 后，GetDefaultPlatformQuotas 返回 4 个平台、所有字段均为 nil，
+// 写入 DefaultPlatformQuotas={} 后，GetDefaultPlatformQuotas 返回所有允许平台、所有字段均为 nil，
 // 明确文档化"空 map = 清空全部配额"是有意为之的 whole-replace 语义。
 func TestSystemPlatformQuotas_EmptyMapClearsAll(t *testing.T) {
 	svc := newSettingServiceForPlatformQuotaTest(nil)
@@ -215,10 +218,10 @@ func TestSystemPlatformQuotas_EmptyMapClearsAll(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 4 个 key 仍然存在（补齐契约）
-	for _, p := range []string{"anthropic", "openai", "gemini", "antigravity"} {
+	// 全部允许平台 key 仍然存在（补齐契约）
+	for _, p := range AllowedQuotaPlatforms {
 		if _, ok := got[p]; !ok {
-			t.Errorf("4-key contract violated after empty write: missing %q", p)
+			t.Errorf("allowed-platform contract violated after empty write: missing %q", p)
 		}
 	}
 	// 所有字段 nil（全部已清空）

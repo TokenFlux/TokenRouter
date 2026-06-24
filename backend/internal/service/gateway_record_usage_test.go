@@ -274,6 +274,12 @@ func TestGatewayServiceRecordUsage_QoderPricingDeferredWithoutChannelPricing(t *
 	require.Zero(t, billingRepo.lastCmd.AccountQuotaCost)
 }
 
+func TestForwardResultBillingModelForPlatform_QoderPrefersMappedUpstreamModel(t *testing.T) {
+	require.Equal(t, "ultimate", forwardResultBillingModelForPlatform(PlatformQoder, "claude-opus-4-6", "ultimate"))
+	require.Equal(t, "claude-opus-4-6", forwardResultBillingModelForPlatform(PlatformQoder, "claude-opus-4-6", ""))
+	require.Equal(t, "claude-opus-4-6", forwardResultBillingModelForPlatform(PlatformAnthropic, "claude-opus-4-6", "ultimate"))
+}
+
 func TestGatewayServiceRecordUsage_ImageIndependentMultiplierUsesImageRate(t *testing.T) {
 	imagePrice := 0.2
 	groupID := int64(711)

@@ -9558,7 +9558,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	imageMultiplier := resolveImageRateMultiplier(apiKey, multiplier)
 
 	// 确定计费模型
-	billingModel := forwardResultBillingModel(result.Model, result.UpstreamModel)
+	billingModel := forwardResultBillingModelForPlatform(PlatformFromAPIKey(apiKey), result.Model, result.UpstreamModel)
 	if input.BillingModelSource == BillingModelSourceChannelMapped && input.ChannelMappedModel != "" {
 		billingModel = input.ChannelMappedModel
 	}

@@ -593,6 +593,26 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.security_oauth_token).toBe('redacted')
   })
 
+  it('does not persist generated Qoder model mappings after only viewing the mapping tab', async () => {
+    const account = buildQoderAccount()
+    delete account.credentials.model_mapping
+    delete account.credentials.model_whitelist
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const mappingButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('admin.accounts.modelMapping'))
+    expect(mappingButton).toBeTruthy()
+
+    await mappingButton!.trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toBeUndefined()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_whitelist).toBeUndefined()
+  })
+
   it('persists Qoder model mappings after explicit whitelist edit', async () => {
     const account = buildQoderAccount()
     delete account.credentials.model_mapping
