@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 )
 
 // OAuthRefreshExecutor 各平台实现的 OAuth 刷新执行器
@@ -101,7 +103,12 @@ func (api *OAuthRefreshAPI) RefreshIfNeeded(
 			return &OAuthRefreshResult{LockHeld: true}, nil
 		} else {
 			lockAcquired = true
-			defer func() { _ = api.tokenCache.ReleaseRefreshLock(ctx, cacheKey) }()
+			defer func() {
+				if err := api.tokenCache.ReleaseRefreshLock(ctx, cacheKey); err != nil {
+					// ALERT: 锁释放失败会导致锁保持到 TTL 过期，阻塞其他 worker
+					logger.LegacyPrintf("service.oauth_refresh", "ALERT: failed to release refresh lock account=%d cache_key=%s: %v", account.ID, cacheKey, err)
+				}
+			}()
 		}
 	}
 

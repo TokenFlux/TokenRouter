@@ -406,11 +406,14 @@ func (s *QoderGatewayService) buildQoderPayloadWithConversation(c *gin.Context, 
 }
 
 func (s *QoderGatewayService) qoderConversationStore() *qoderConversationStore {
+	// 在锁外检查 nil receiver 是安全的：s 是 receiver 指针，只在方法调用前验证
 	if s == nil {
 		return newQoderConversationStore(qoderConversationTTL)
 	}
 	s.conversationMu.Lock()
 	defer s.conversationMu.Unlock()
+	// NewQoderGatewayService 已初始化 conversations，这里是防御性检查
+	// 持有锁期间的检查和初始化避免了竞态条件
 	if s.conversations == nil {
 		s.conversations = newQoderConversationStore(qoderConversationTTL)
 	}
@@ -751,6 +754,7 @@ type qoderConversationState struct {
 	lastUsageInput      int
 	lastUsageOutput     int
 	expiresAt           time.Time
+	version             int64 // 版本号，用于检测 rollback 竞态
 }
 
 type qoderConversationPlan struct {
@@ -934,6 +938,11 @@ func (p *qoderConversationPlan) rollbackAccepted() {
 	if current == nil {
 		return
 	}
+	// 版本检查：如果当前 state 的版本号与 previousState 不匹配，说明已被其他 goroutine 修改
+	if p.previousState != nil && current.version != p.previousState.version {
+		// 过期的 rollback，放弃回滚以避免破坏新的 state
+		return
+	}
 	if current.sessionID != p.sessionID ||
 		current.systemFingerprint != p.systemFingerprint ||
 		current.toolsFingerprint != p.toolsFingerprint {
@@ -988,10 +997,13 @@ func (p *qoderConversationPlan) commitFingerprints(fingerprints []string, usages
 		p.store.items = make(map[string]*qoderConversationState)
 	}
 	committedFingerprints := append([]string(nil), fingerprints...)
+	var newVersion int64 = 1
 	if existing := p.store.items[p.key]; existing != nil &&
 		existing.sessionID == p.sessionID &&
 		existing.systemFingerprint == p.systemFingerprint &&
 		existing.toolsFingerprint == p.toolsFingerprint {
+		// 继承现有版本号并递增
+		newVersion = existing.version + 1
 		if _, ok := qoderConversationPrefixLen(committedFingerprints, existing.messageFingerprints); ok && len(existing.messageFingerprints) > len(committedFingerprints) {
 			committedFingerprints = append([]string(nil), existing.messageFingerprints...)
 		}
@@ -1014,6 +1026,7 @@ func (p *qoderConversationPlan) commitFingerprints(fingerprints []string, usages
 		lastUsageInput:      lastUsageInput,
 		lastUsageOutput:     lastUsageOutput,
 		expiresAt:           time.Now().Add(p.store.ttl),
+		version:             newVersion,
 	}
 }
 
@@ -3171,6 +3184,9 @@ func qoderToolArgumentStringIsEmptyPlaceholder(arguments string) bool {
 
 func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model string, resp *http.Response, options ...qoderOpenAIStreamResponseOption) (*qoderStreamResult, error) {
 	usageMapper, toolNameMapper := qoderOpenAIStreamResponseOptions(options)
+	// 确保无论成功或失败都关闭响应
+	defer closeQoderResponse(resp)
+
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
@@ -3179,7 +3195,6 @@ func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model s
 
 	completionID := "chatcmpl-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:24]
 	if err := writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{"role": "assistant"}, nil)); err != nil {
-		closeQoderResponse(resp)
 		return nil, err
 	}
 	result := &qoderStreamResult{}
@@ -3334,6 +3349,9 @@ func WriteQoderAnthropicStream(c *gin.Context, model string, events []qoder.SSEE
 
 func WriteQoderAnthropicStreamResponse(ctx context.Context, c *gin.Context, model string, resp *http.Response, options ...qoderAnthropicStreamResponseOption) (*qoderStreamResult, error) {
 	usageMapper, toolNameMapper := qoderAnthropicStreamResponseOptions(options)
+	// 确保无论成功或失败都关闭响应
+	defer closeQoderResponse(resp)
+
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
@@ -3354,7 +3372,6 @@ func WriteQoderAnthropicStreamResponse(ctx context.Context, c *gin.Context, mode
 			"usage":         map[string]any{"input_tokens": 0, "output_tokens": 0},
 		},
 	}); err != nil {
-		closeQoderResponse(resp)
 		return nil, err
 	}
 	result := &qoderStreamResult{}
@@ -4023,6 +4040,13 @@ func scanQoderEvents(ctx context.Context, resp *http.Response, results chan<- qo
 		}
 	}
 	if err := scanner.Err(); err != nil {
+		// 显式处理 bufio.ErrTooLong：SSE event 超过 defaultMaxLineSize
+		if errors.Is(err, bufio.ErrTooLong) {
+			qoderSendEventResult(ctx, results, qoderEventResult{
+				err: fmt.Errorf("SSE event exceeds max line size (%d bytes, buffer limit %d): %w", defaultMaxLineSize, 64*1024, err),
+			})
+			return
+		}
 		qoderSendEventResult(ctx, results, qoderEventResult{err: err})
 	}
 }

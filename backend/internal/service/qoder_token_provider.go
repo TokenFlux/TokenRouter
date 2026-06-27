@@ -64,6 +64,7 @@ func (p *QoderTokenProvider) GetSession(ctx context.Context, account *Account) (
 		p.sessions = make(map[int64]qoderSessionCacheEntry)
 	}
 	if entry, ok := p.sessions[account.ID]; ok && entry.credentialsHash == hash && entry.session != nil {
+		// 在持有锁的情况下复制 session 指针，避免释放锁后被 Invalidate() 删除
 		session := entry.session
 		p.mu.Unlock()
 		return session, nil
