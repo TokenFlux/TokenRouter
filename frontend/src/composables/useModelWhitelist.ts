@@ -627,16 +627,20 @@ export function splitQoderModelMappingObject(
     const to = String(rawTo).trim()
     if (!from || !to) continue
 
+    // 别名映射到内部 key：识别为白名单项（如 claude-opus-4-6 → ultimate）
     if (qoderModelKeyByAlias[from] === to) {
       allowedModels.push(from)
       continue
     }
 
-    if (from === to && qoderAliasByModelKey[from]) {
-      allowedModels.push(qoderAliasByModelKey[from])
+    // 原始 key 自映射（如 ultimate → ultimate）：保留在 modelMappings，避免下次保存后丢失
+    // 不要将其转换为别名白名单项，否则客户端使用原始 key 时会失配
+    if (from === to) {
+      modelMappings.push({ from, to })
       continue
     }
 
+    // 其他映射规则
     modelMappings.push({ from, to })
   }
 

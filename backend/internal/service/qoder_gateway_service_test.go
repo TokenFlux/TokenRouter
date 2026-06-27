@@ -3191,6 +3191,8 @@ func TestQoderGatewayRequestDoerUsesHTTPUpstreamProxyAndTLS(t *testing.T) {
 }
 
 func TestQoderGatewayRefreshAccountSessionPersistsCredentialsAndInvalidatesCache(t *testing.T) {
+	now := time.Now()
+	expiredAt := now.Add(-1 * time.Hour) // 已过期
 	account := Account{
 		ID:       91,
 		Name:     "qoder",
@@ -3200,6 +3202,7 @@ func TestQoderGatewayRefreshAccountSessionPersistsCredentialsAndInvalidatesCache
 			"security_oauth_token": "old-token",
 			"refresh_token":        "old-refresh",
 			"machine_id":           "machine-1",
+			"expires_at":           expiredAt.Format(time.RFC3339), // 设置过期时间让 NeedsRefresh 返回 true
 		},
 	}
 	repo := &qoderRefreshAccountRepoStub{
@@ -3271,6 +3274,8 @@ func TestQoderGatewayRefreshAccountSessionRequiresInjectedRefreshAPI(t *testing.
 }
 
 func TestQoderGatewayRefreshAccountSessionRecoversRotatedRefreshTokenRace(t *testing.T) {
+	now := time.Now()
+	expiredAt := now.Add(-1 * time.Hour) // 已过期
 	account := Account{
 		ID:       92,
 		Name:     "qoder",
@@ -3280,6 +3285,7 @@ func TestQoderGatewayRefreshAccountSessionRecoversRotatedRefreshTokenRace(t *tes
 			"security_oauth_token": "old-token",
 			"refresh_token":        "old-refresh",
 			"machine_id":           "machine-1",
+			"expires_at":           expiredAt.Format(time.RFC3339), // 设置过期时间
 		},
 	}
 	racedAccount := account
@@ -3287,6 +3293,7 @@ func TestQoderGatewayRefreshAccountSessionRecoversRotatedRefreshTokenRace(t *tes
 		"security_oauth_token": "new-token",
 		"refresh_token":        "new-refresh",
 		"machine_id":           "machine-1",
+		"expires_at":           now.Add(1 * time.Hour).Format(time.RFC3339), // 新 token 未过期
 	}
 	repo := &qoderRefreshRaceRepoStub{
 		qoderRefreshAccountRepoStub: qoderRefreshAccountRepoStub{

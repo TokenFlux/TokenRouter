@@ -477,6 +477,23 @@ func (s *QoderGatewayService) RefreshAccountSession(ctx context.Context, account
 	if err != nil {
 		return nil, err
 	}
+
+	// 如果另一个 worker 正在刷新（LockHeld=true），等待一小段时间让其完成
+	if result != nil && result.LockHeld {
+		select {
+		case <-time.After(200 * time.Millisecond):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+		// 重新读取账号获取刷新后的凭证
+		if s.accountRepo != nil {
+			if fresh, err := s.accountRepo.GetByID(ctx, account.ID); err == nil && fresh != nil {
+				return fresh, nil
+			}
+		}
+		return account, nil
+	}
+
 	if s.tokenProvider != nil && (result == nil || result.Refreshed || result.Account != nil) {
 		s.tokenProvider.Invalidate(account.ID)
 	}
@@ -495,8 +512,16 @@ type qoderGatewayRefreshExecutor struct {
 	*QoderTokenRefresher
 }
 
-func (e qoderGatewayRefreshExecutor) NeedsRefresh(account *Account, _ time.Duration) bool {
-	return e.QoderTokenRefresher != nil && e.CanRefresh(account)
+func (e qoderGatewayRefreshExecutor) NeedsRefresh(account *Account, ttl time.Duration) bool {
+	if e.QoderTokenRefresher == nil {
+		return false
+	}
+	// 先检查是否能刷新，再检查是否需要刷新
+	if !e.CanRefresh(account) {
+		return false
+	}
+	// 调用 QoderTokenRefresher.NeedsRefresh 检查 token 是否真正需要刷新
+	return e.QoderTokenRefresher.NeedsRefresh(account, ttl)
 }
 
 func newQoderRequestDoer(account *Account, httpUpstream HTTPUpstream, tlsFPProfileService *TLSFingerprintProfileService) qoder.RequestDoer {
@@ -580,7 +605,10 @@ func parseQoderChatCompletionsPayload(body []byte) (qoderPayloadRequest, error) 
 
 	rawReq := qoderRequestMap(body)
 	maxTokens := qoderDefaultMaxTokens
-	if req.MaxTokens != nil && *req.MaxTokens > 0 {
+	// max_completion_tokens 优先于 max_tokens
+	if req.MaxCompletionTokens != nil && *req.MaxCompletionTokens > 0 {
+		maxTokens = *req.MaxCompletionTokens
+	} else if req.MaxTokens != nil && *req.MaxTokens > 0 {
 		maxTokens = *req.MaxTokens
 	}
 	return qoderPayloadRequest{
@@ -618,7 +646,28 @@ func parseQoderResponsesPayload(body []byte) (qoderPayloadRequest, error) {
 		return qoderPayloadRequest{}, err
 	}
 	messages = enrichQoderToolResultMessages(messages)
-	system := strings.TrimSpace(req.Instructions)
+
+	// 从 instructions 和 input 中的 developer/system 项收集 system prompt
+	systemParts := make([]string, 0)
+	if req.Instructions != "" {
+		systemParts = append(systemParts, strings.TrimSpace(req.Instructions))
+	}
+	// 从 input 中提取 developer/system 消息
+	if len(req.Input) > 0 {
+		var items []apicompat.ResponsesInputItem
+		if err := json.Unmarshal(req.Input, &items); err == nil {
+			for _, item := range items {
+				if item.Role == "developer" || item.Role == "system" {
+					text := qoderResponsesContentText(item.Content)
+					if text != "" {
+						systemParts = append(systemParts, text)
+					}
+				}
+			}
+		}
+	}
+	system := strings.Join(systemParts, "\n\n")
+
 	rawReq := qoderRequestMap(body)
 	maxTokens := qoderDefaultMaxTokens
 	if req.MaxOutputTokens != nil && *req.MaxOutputTokens > 0 {
@@ -1442,7 +1491,8 @@ func qoderRequestMap(body []byte) map[string]any {
 func qoderChatSystemText(messages []apicompat.ChatMessage) string {
 	parts := make([]string, 0)
 	for _, message := range messages {
-		if message.Role != "system" {
+		// system 和 developer 消息都应该合并到 system prompt
+		if message.Role != "system" && message.Role != "developer" {
 			continue
 		}
 		text := qoderChatContentText(message.Content)
