@@ -940,7 +940,8 @@ func (p *qoderConversationPlan) rollbackAccepted() {
 	}
 	// 版本检查：如果当前 state 的版本号与 previousState 不匹配，说明已被其他 goroutine 修改
 	if p.previousState != nil && current.version != p.previousState.version {
-		// 过期的 rollback，放弃回滚以避免破坏新的 state
+		// 过期的 rollback，记录并放弃回滚
+		logger.LegacyPrintf("service.qoder_conversation", "WARN: stale rollback abandoned key=%s prev_version=%d current_version=%d", p.key, p.previousState.version, current.version)
 		return
 	}
 	if current.sessionID != p.sessionID ||

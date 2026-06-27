@@ -101,9 +101,11 @@ func (p *QoderTokenProvider) buildSession(ctx context.Context, account *Account)
 		}
 		identity, err := exchangePAT(ctx, pat, machine)
 		if err != nil {
+			// PAT exchange 失败通常是永久错误（无效凭据），不跳过缓存
 			return nil, fmt.Errorf("qoder pat exchange: %w", err)
 		}
 		applyQoderAccountIdentityMetadata(identity, account)
+		// populateOrganizationFromAPI 在 session 创建前调用，避免缓存后并发修改 identity
 		p.populateOrganizationFromAPI(ctx, identity)
 		return qoder.NewSession(identity, machine)
 	}
