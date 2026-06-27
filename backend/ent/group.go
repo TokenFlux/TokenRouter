@@ -59,6 +59,8 @@ type Group struct {
 	FallbackGroupID *int64 `json:"fallback_group_id,omitempty"`
 	// 无效请求兜底使用的分组 ID
 	FallbackGroupIDOnInvalidRequest *int64 `json:"fallback_group_id_on_invalid_request,omitempty"`
+	// 当前分组不可用时优先回退使用的分组 ID
+	UnavailableFallbackGroupID *int64 `json:"unavailable_fallback_group_id,omitempty"`
 	// 模型路由配置：模型模式 -> 优先账号ID列表
 	ModelRouting map[string][]int64 `json:"model_routing,omitempty"`
 	// 是否启用模型路由配置
@@ -201,7 +203,7 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case group.FieldRateMultiplier, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k:
 			values[i] = new(sql.NullFloat64)
-		case group.FieldID, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldSortOrder, group.FieldRpmLimit:
+		case group.FieldID, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldUnavailableFallbackGroupID, group.FieldSortOrder, group.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
 		case group.FieldName, group.FieldDescription, group.FieldStatus, group.FieldPlatform, group.FieldDisplayBrand, group.FieldDefaultMappedModel:
 			values[i] = new(sql.NullString)
@@ -354,6 +356,13 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.FallbackGroupIDOnInvalidRequest = new(int64)
 				*_m.FallbackGroupIDOnInvalidRequest = value.Int64
+			}
+		case group.FieldUnavailableFallbackGroupID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field unavailable_fallback_group_id", values[i])
+			} else if value.Valid {
+				_m.UnavailableFallbackGroupID = new(int64)
+				*_m.UnavailableFallbackGroupID = value.Int64
 			}
 		case group.FieldModelRouting:
 			if value, ok := values[i].(*[]byte); !ok {
@@ -602,6 +611,11 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	if v := _m.FallbackGroupIDOnInvalidRequest; v != nil {
 		builder.WriteString("fallback_group_id_on_invalid_request=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
+	builder.WriteString(", ")
+	if v := _m.UnavailableFallbackGroupID; v != nil {
+		builder.WriteString("unavailable_fallback_group_id=")
 		builder.WriteString(fmt.Sprintf("%v", *v))
 	}
 	builder.WriteString(", ")

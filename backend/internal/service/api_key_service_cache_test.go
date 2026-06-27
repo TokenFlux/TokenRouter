@@ -132,6 +132,7 @@ type authCacheStub struct {
 
 type authGroupRepoStub struct {
 	groupsByPlatform map[string][]Group
+	groupsByID       map[int64]Group
 }
 
 func (s *authGroupRepoStub) Create(ctx context.Context, group *Group) error {
@@ -143,7 +144,14 @@ func (s *authGroupRepoStub) GetByID(ctx context.Context, id int64) (*Group, erro
 }
 
 func (s *authGroupRepoStub) GetByIDLite(ctx context.Context, id int64) (*Group, error) {
-	panic("unexpected GetByIDLite call")
+	if s.groupsByID == nil {
+		panic("unexpected GetByIDLite call")
+	}
+	group, ok := s.groupsByID[id]
+	if !ok {
+		return nil, ErrGroupNotFound
+	}
+	return &group, nil
 }
 
 func (s *authGroupRepoStub) Update(ctx context.Context, group *Group) error {
@@ -414,6 +422,137 @@ func TestAPIKeyService_GetByKey_FallsBackDisabledBoundGroupToPlatformDefaultFrom
 	require.NotNil(t, apiKey.User.UserGroupRPMOverride)
 	require.Equal(t, defaultRPM, *apiKey.User.UserGroupRPMOverride)
 	require.Equal(t, []int64{defaultGroupID}, rateRepo.calls)
+}
+
+func TestAPIKeyService_GetByKey_FallsBackDisabledBoundGroupToConfiguredGroup(t *testing.T) {
+	disabledGroupID := int64(9)
+	configuredFallbackID := int64(11)
+	defaultGroupID := int64(10)
+	repo := &authRepoStub{
+		getByKeyForAuth: func(ctx context.Context, key string) (*APIKey, error) {
+			return &APIKey{
+				ID:                                    1,
+				UserID:                                2,
+				GroupID:                               &disabledGroupID,
+				Key:                                   key,
+				Status:                                StatusActive,
+				FallbackToDefaultGroupWhenUnavailable: true,
+				User: &User{
+					ID:          2,
+					Status:      StatusActive,
+					Role:        RoleUser,
+					Balance:     10,
+					Concurrency: 3,
+				},
+				Group: &Group{
+					ID:                         disabledGroupID,
+					Name:                       "openai-disabled",
+					Platform:                   PlatformOpenAI,
+					Status:                     StatusDisabled,
+					Hydrated:                   true,
+					UnavailableFallbackGroupID: &configuredFallbackID,
+				},
+			}, nil
+		},
+	}
+	groupRepo := &authGroupRepoStub{
+		groupsByID: map[int64]Group{
+			configuredFallbackID: {
+				ID:             configuredFallbackID,
+				Name:           "openai-configured-fallback",
+				Platform:       PlatformOpenAI,
+				Status:         StatusActive,
+				Hydrated:       true,
+				RateMultiplier: 1.2,
+			},
+		},
+		groupsByPlatform: map[string][]Group{
+			PlatformOpenAI: {
+				{
+					ID:             defaultGroupID,
+					Name:           "openai-default",
+					Platform:       PlatformOpenAI,
+					Status:         StatusActive,
+					Hydrated:       true,
+					IsDefault:      true,
+					RateMultiplier: 1,
+				},
+			},
+		},
+	}
+	svc := NewAPIKeyService(repo, nil, groupRepo, nil, nil, nil, &config.Config{})
+
+	apiKey, err := svc.GetByKey(context.Background(), "k-disabled")
+	require.NoError(t, err)
+	require.NotNil(t, apiKey.GroupID)
+	require.Equal(t, configuredFallbackID, *apiKey.GroupID)
+	require.NotNil(t, apiKey.Group)
+	require.Equal(t, configuredFallbackID, apiKey.Group.ID)
+	require.Equal(t, "openai-configured-fallback", apiKey.Group.Name)
+}
+
+func TestAPIKeyService_GetByKey_InvalidConfiguredUnavailableFallbackUsesPlatformDefault(t *testing.T) {
+	disabledGroupID := int64(9)
+	configuredFallbackID := int64(11)
+	defaultGroupID := int64(10)
+	repo := &authRepoStub{
+		getByKeyForAuth: func(ctx context.Context, key string) (*APIKey, error) {
+			return &APIKey{
+				ID:                                    1,
+				UserID:                                2,
+				GroupID:                               &disabledGroupID,
+				Key:                                   key,
+				Status:                                StatusActive,
+				FallbackToDefaultGroupWhenUnavailable: true,
+				User: &User{
+					ID:          2,
+					Status:      StatusActive,
+					Role:        RoleUser,
+					Balance:     10,
+					Concurrency: 3,
+				},
+				Group: &Group{
+					ID:                         disabledGroupID,
+					Name:                       "openai-disabled",
+					Platform:                   PlatformOpenAI,
+					Status:                     StatusDisabled,
+					Hydrated:                   true,
+					UnavailableFallbackGroupID: &configuredFallbackID,
+				},
+			}, nil
+		},
+	}
+	groupRepo := &authGroupRepoStub{
+		groupsByID: map[int64]Group{
+			configuredFallbackID: {
+				ID:       configuredFallbackID,
+				Name:     "gemini-wrong-platform",
+				Platform: PlatformGemini,
+				Status:   StatusActive,
+				Hydrated: true,
+			},
+		},
+		groupsByPlatform: map[string][]Group{
+			PlatformOpenAI: {
+				{
+					ID:        defaultGroupID,
+					Name:      "openai-default",
+					Platform:  PlatformOpenAI,
+					Status:    StatusActive,
+					Hydrated:  true,
+					IsDefault: true,
+				},
+			},
+		},
+	}
+	svc := NewAPIKeyService(repo, nil, groupRepo, nil, nil, nil, &config.Config{})
+
+	apiKey, err := svc.GetByKey(context.Background(), "k-disabled")
+	require.NoError(t, err)
+	require.NotNil(t, apiKey.GroupID)
+	require.Equal(t, defaultGroupID, *apiKey.GroupID)
+	require.NotNil(t, apiKey.Group)
+	require.Equal(t, defaultGroupID, apiKey.Group.ID)
 }
 
 func TestAPIKeyService_GetByKey_FallsBackDisabledBoundGroupToPlatformDefaultFromAuthCache(t *testing.T) {

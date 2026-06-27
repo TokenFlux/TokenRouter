@@ -369,6 +369,7 @@ func TestAPIContracts(t *testing.T) {
 						"session_isolation_enabled": false,
 						"fallback_group_id": null,
 						"fallback_group_id_on_invalid_request": null,
+						"unavailable_fallback_group_id": null,
 						"require_oauth_only": false,
 						"require_privacy_set": false,
 						"rpm_limit": 0,

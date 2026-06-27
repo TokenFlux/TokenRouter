@@ -98,6 +98,10 @@ func (Group) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			Comment("无效请求兜底使用的分组 ID"),
+		field.Int64("unavailable_fallback_group_id").
+			Optional().
+			Nillable().
+			Comment("当前分组不可用时优先回退使用的分组 ID"),
 
 		// 模型路由配置 (added by migration 040)
 		field.JSON("model_routing", map[string][]int64{}).

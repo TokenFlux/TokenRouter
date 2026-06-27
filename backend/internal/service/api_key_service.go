@@ -612,6 +612,11 @@ func (s *APIKeyService) applyDefaultGroupFallback(ctx context.Context, apiKey *A
 			if !apiKey.FallbackToDefaultGroupWhenUnavailable {
 				return apiKey
 			}
+			if fallbackID := apiKey.Group.UnavailableFallbackGroupID; fallbackID != nil && *fallbackID > 0 {
+				if fallbackKey := s.applyUnavailableFallbackGroup(ctx, apiKey, fallbackPlatform, *fallbackID); fallbackKey != nil {
+					return fallbackKey
+				}
+			}
 			return s.applyDefaultGroupByPlatform(ctx, apiKey, fallbackPlatform)
 		}
 		if apiKey.GroupID != nil && apiKey.Group.ID == *apiKey.GroupID {
@@ -628,6 +633,26 @@ func (s *APIKeyService) applyDefaultGroupFallback(ctx context.Context, apiKey *A
 	}
 
 	return s.applyDefaultGroupByPlatform(ctx, apiKey, platform)
+}
+
+// applyUnavailableFallbackGroup 将停用分组的请求优先切到管理员指定的回退分组。
+// 若目标分组不存在、停用或平台不匹配，返回 nil 交给默认分组兜底逻辑继续处理。
+func (s *APIKeyService) applyUnavailableFallbackGroup(ctx context.Context, apiKey *APIKey, platform string, fallbackGroupID int64) *APIKey {
+	if apiKey == nil || s.groupRepo == nil || fallbackGroupID <= 0 {
+		return nil
+	}
+	group, err := s.groupRepo.GetByIDLite(ctx, fallbackGroupID)
+	if err != nil || group == nil {
+		return nil
+	}
+	if !group.IsActive() || group.Platform != platform {
+		return nil
+	}
+	gid := group.ID
+	apiKey.GroupID = &gid
+	apiKey.Group = group
+	s.refreshFallbackUserGroupRPMOverride(ctx, apiKey, gid)
+	return apiKey
 }
 
 // fallbackPlatformFromBoundGroup 返回停用绑定分组所属平台。

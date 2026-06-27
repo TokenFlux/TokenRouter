@@ -52,6 +52,8 @@ type CreateGroupRequest struct {
 	ClaudeCodeOnly                  bool     `json:"claude_code_only"`
 	FallbackGroupID                 *int64   `json:"fallback_group_id"`
 	FallbackGroupIDOnInvalidRequest *int64   `json:"fallback_group_id_on_invalid_request"`
+	// UnavailableFallbackGroupID 当前分组停用时 API Key 优先回退到的分组。
+	UnavailableFallbackGroupID *int64 `json:"unavailable_fallback_group_id"`
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64 `json:"model_routing"`
 	ModelRoutingEnabled bool               `json:"model_routing_enabled"`
@@ -97,6 +99,8 @@ type UpdateGroupRequest struct {
 	ClaudeCodeOnly                  *bool    `json:"claude_code_only"`
 	FallbackGroupID                 *int64   `json:"fallback_group_id"`
 	FallbackGroupIDOnInvalidRequest *int64   `json:"fallback_group_id_on_invalid_request"`
+	// UnavailableFallbackGroupID 当前分组停用时 API Key 优先回退到的分组。
+	UnavailableFallbackGroupID *int64 `json:"unavailable_fallback_group_id"`
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64 `json:"model_routing"`
 	ModelRoutingEnabled *bool              `json:"model_routing_enabled"`
@@ -252,6 +256,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		ClaudeCodeOnly:                  req.ClaudeCodeOnly,
 		FallbackGroupID:                 req.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: req.FallbackGroupIDOnInvalidRequest,
+		UnavailableFallbackGroupID:      req.UnavailableFallbackGroupID,
 		ModelRouting:                    req.ModelRouting,
 		ModelRoutingEnabled:             req.ModelRoutingEnabled,
 		MCPXMLInject:                    req.MCPXMLInject,
@@ -310,6 +315,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		ClaudeCodeOnly:                  req.ClaudeCodeOnly,
 		FallbackGroupID:                 req.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: req.FallbackGroupIDOnInvalidRequest,
+		UnavailableFallbackGroupID:      req.UnavailableFallbackGroupID,
 		ModelRouting:                    req.ModelRouting,
 		ModelRoutingEnabled:             req.ModelRoutingEnabled,
 		MCPXMLInject:                    req.MCPXMLInject,

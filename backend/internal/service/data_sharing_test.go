@@ -886,7 +886,7 @@ func TestDataSharingService_UpdateCaptureRuntimeSettingsClampsUpperBounds(t *tes
 	require.Equal(t, maxDataSharingCaptureBufferMaxEvents, settings.BufferMaxPendingEvents)
 	require.Equal(t, maxDataShareExportBatchSize, settings.ExportBatchSize)
 	require.Equal(t, maxDataShareExportWorkerCount, settings.ExportWorkerCount)
-	require.JSONEq(t, `{"worker_count":1024,"queue_size":100000,"flush_queue_size":100000,"task_timeout_seconds":1800,"compression_level":"fastest","buffer_enabled":true,"buffer_idle_flush_seconds":300,"buffer_max_sessions":100000,"buffer_max_pending_events":1000000,"duration_window_size":512,"export_batch_size":2000,"export_worker_count":8}`, repo.values[SettingKeyDataSharingCaptureRuntime])
+	require.JSONEq(t, `{"worker_count":1024,"queue_size":100000,"flush_queue_size":100000,"task_timeout_seconds":1800,"compression_level":"fastest","buffer_enabled":true,"buffer_idle_flush_seconds":1800,"buffer_max_sessions":100000,"buffer_max_pending_events":1000000,"duration_window_size":512,"export_batch_size":2000,"export_worker_count":8}`, repo.values[SettingKeyDataSharingCaptureRuntime])
 	require.Equal(t, maxDataSharingCaptureWorkerCount, pool.Stats().WorkerCount)
 	require.Equal(t, maxDataSharingCaptureQueueSize, pool.Stats().QueueCapacity)
 	require.Equal(t, maxDataSharingCaptureQueueSize, pool.Stats().FlushQueueCapacity)
@@ -942,7 +942,7 @@ func TestDataSharingService_LoadRuntimeSettingsUsesCurrentCompressionDefault(t *
 
 func TestDataSharingService_LoadRuntimeSettingsClampsStoredUpperBounds(t *testing.T) {
 	resetDataShareCompressionLevel(t)
-	repo := &dataShareSettingRepoStub{values: map[string]string{SettingKeyDataSharingCaptureRuntime: `{"worker_count":2048,"queue_size":999999,"task_timeout_seconds":9999,"buffer_enabled":true,"buffer_idle_flush_seconds":999,"buffer_max_sessions":999999,"buffer_max_pending_events":9999999}`}}
+	repo := &dataShareSettingRepoStub{values: map[string]string{SettingKeyDataSharingCaptureRuntime: `{"worker_count":2048,"queue_size":999999,"task_timeout_seconds":9999,"buffer_enabled":true,"buffer_idle_flush_seconds":9999,"buffer_max_sessions":999999,"buffer_max_pending_events":9999999}`}}
 	pool := NewDataSharingCaptureWorkerPoolWithOptions(DataSharingCaptureWorkerPoolOptions{
 		WorkerCount: 1,
 		QueueSize:   1,

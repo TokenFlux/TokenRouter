@@ -120,7 +120,7 @@ func TestHandleSmartRetry_QuotaExhausted_UsesCreditsAndStoresIndependentState(t 
 		Body:       io.NopCloser(bytes.NewReader(respBody)),
 	}
 	params := antigravityRetryLoopParams{
-		ctx:            context.Background(),
+		ctx:            withAccountTestUserAgent(context.Background(), "probe-client/9.9"),
 		prefix:         "[test]",
 		account:        account,
 		accessToken:    "token",
@@ -143,6 +143,7 @@ func TestHandleSmartRetry_QuotaExhausted_UsesCreditsAndStoresIndependentState(t 
 	require.Nil(t, result.switchError)
 	require.Len(t, upstream.requestBodies, 1)
 	require.Contains(t, string(upstream.requestBodies[0]), "enabledCreditTypes")
+	require.Equal(t, "probe-client/9.9", upstream.userAgents[0])
 	require.Empty(t, repo.modelRateLimitCalls, "overages 成功后不应写入普通 model_rate_limits")
 }
 

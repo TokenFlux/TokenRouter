@@ -135,6 +135,10 @@
               <span>{{ t('admin.accounts.inviteResetConsent') }}</span>
             </label>
 
+            <div v-if="inviteUnavailableMessage" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+              {{ inviteUnavailableMessage }}
+            </div>
+
             <div v-if="message" :class="['rounded-lg p-3 text-sm', messageClass]">
               {{ message }}
             </div>
@@ -142,7 +146,7 @@
             <button
               type="button"
               class="btn btn-secondary w-full justify-center"
-              :disabled="sendingInvite"
+              :disabled="!canSendInvite"
               @click="handleSendInvite"
             >
               <Icon name="mail" size="sm" :class="sendingInvite && 'animate-pulse'" />
@@ -262,6 +266,15 @@ const canConsume = computed(() => {
   return Boolean(selectedCreditId.value) && !loading.value && !consuming.value && availableCredits.value.length > 0
 })
 
+const inviteUnavailableMessage = computed(() => {
+  if (!status.value || status.value.invite_available !== false) return ''
+  return status.value.invite_unavailable_message || t('admin.accounts.inviteResetInviteUnavailable')
+})
+
+const canSendInvite = computed(() => {
+  return Boolean(status.value) && !loading.value && !sendingInvite.value && status.value?.invite_available !== false
+})
+
 const messageClass = computed(() => {
   if (messageType.value === 'success') {
     return 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
@@ -337,6 +350,13 @@ const loadStatus = async (clearMessage = true) => {
 const handleSendInvite = async () => {
   if (!props.account || sendingInvite.value) return
   try {
+    if (!status.value) {
+      throw new Error(t('admin.accounts.inviteResetLoadFailed'))
+    }
+    if (inviteUnavailableMessage.value) {
+      setMessage('error', inviteUnavailableMessage.value)
+      return
+    }
     const emails = parseEmails()
     if ((status.value?.requires_consent ?? true) && !consentConfirmed.value) {
       throw new Error(t('admin.accounts.inviteResetConsentRequired'))

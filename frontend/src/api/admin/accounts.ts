@@ -40,6 +40,9 @@ export interface CodexInviteResetStatus {
   grant_action?: string
   grant_amount?: number | null
   grant_type?: 'rate_limit_reset' | 'workspace_credits' | 'unknown' | string
+  invite_available: boolean
+  invite_unavailable_reason?: string
+  invite_unavailable_message?: string
   requires_consent: boolean
   available_count: number
   credits: CodexInviteResetCredit[]

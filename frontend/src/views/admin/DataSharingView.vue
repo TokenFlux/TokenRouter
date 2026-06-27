@@ -1269,7 +1269,8 @@ const captureQueueSizeMax = 100000
 const captureFlushQueueSizeMax = 100000
 // 采集 flush 可能处理大 session，前端允许配置到 30 分钟。
 const captureTimeoutSecondsMax = 1800
-const captureBufferIdleFlushMax = 300
+// 缓冲池空闲 Flush 上限与后端一致，最长 30 分钟。
+const captureBufferIdleFlushMax = 1800
 const captureBufferMaxSessionsLimit = 100000
 const captureBufferMaxPendingEventsLimit = 1000000
 const captureDurationWindowMin = 32

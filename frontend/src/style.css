@@ -306,10 +306,10 @@
   }
 
   .btn-primary {
-    /* 按钮保持纯色和无彩色阴影，避免出现渐变或发光感。 */
+    /* 按钮保持纯色和中性投影，避免出现渐变或发光感。 */
     @apply bg-primary-600;
-    @apply text-white shadow-none;
-    @apply hover:bg-primary-700 hover:shadow-none;
+    @apply text-white shadow-sm;
+    @apply hover:bg-primary-700 hover:shadow-sm;
   }
 
   .btn-secondary {

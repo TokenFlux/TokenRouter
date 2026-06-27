@@ -1,6 +1,9 @@
 package service
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNormalizeGroupAvailabilityProbeConfig(t *testing.T) {
 	tests := []struct {
@@ -11,18 +14,19 @@ func TestNormalizeGroupAvailabilityProbeConfig(t *testing.T) {
 	}{
 		{
 			name:  "disabled clears detail fields",
-			input: GroupAvailabilityProbeConfig{Enabled: false, ModelID: "gpt-5.4", Prompt: "hi", IntervalMinutes: 10, TimeoutSeconds: 10},
+			input: GroupAvailabilityProbeConfig{Enabled: false, ModelID: "gpt-5.4", Prompt: "hi", IntervalMinutes: 10, TimeoutSeconds: 10, UserAgent: "probe/1.0"},
 			want:  GroupAvailabilityProbeConfig{},
 		},
 		{
 			name:  "enabled applies defaults and trims strings",
-			input: GroupAvailabilityProbeConfig{Enabled: true, ModelID: " gpt-5.4 ", Prompt: " hi "},
+			input: GroupAvailabilityProbeConfig{Enabled: true, ModelID: " gpt-5.4 ", Prompt: " hi ", UserAgent: " probe/1.0 "},
 			want: GroupAvailabilityProbeConfig{
 				Enabled:         true,
 				ModelID:         "gpt-5.4",
 				Prompt:          "hi",
 				IntervalMinutes: defaultGroupAvailabilityProbeIntervalMinutes,
 				TimeoutSeconds:  defaultGroupAvailabilityProbeTimeoutSeconds,
+				UserAgent:       "probe/1.0",
 			},
 		},
 		{
@@ -43,6 +47,16 @@ func TestNormalizeGroupAvailabilityProbeConfig(t *testing.T) {
 		{
 			name:    "rejects too short timeout",
 			input:   GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", TimeoutSeconds: 1},
+			wantErr: true,
+		},
+		{
+			name:    "rejects too long user agent",
+			input:   GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", UserAgent: strings.Repeat("a", maxGroupAvailabilityProbeUserAgentLength+1)},
+			wantErr: true,
+		},
+		{
+			name:    "rejects invalid user agent header characters",
+			input:   GroupAvailabilityProbeConfig{Enabled: true, ModelID: "gpt-5.4", Prompt: "hi", UserAgent: "probe/1.0\r\nx-test: injected"},
 			wantErr: true,
 		},
 	}

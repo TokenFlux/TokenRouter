@@ -176,7 +176,7 @@ func (s *GroupAvailabilityProbeRunnerService) runOne(ctx context.Context, due Gr
 		return
 	}
 
-	result, err := s.accountTestSvc.RunTestBackgroundWithPrompt(probeCtx, account.ID, config.ModelID, config.Prompt)
+	result, err := s.accountTestSvc.RunTestBackgroundWithPromptAndUserAgent(probeCtx, account.ID, config.ModelID, config.Prompt, config.UserAgent)
 	finishedAt := time.Now()
 	probeResult := &GroupAvailabilityProbeResult{
 		GroupID:    due.GroupID,

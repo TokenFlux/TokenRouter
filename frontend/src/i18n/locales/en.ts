@@ -2524,6 +2524,11 @@ export default {
         disabled: 'Do not use as default group',
         hint: 'When an API key has no valid group binding, requests fall back to the default group for that platform. Only one default group is kept per platform.'
       },
+      unavailableFallback: {
+        title: 'Specific fallback group',
+        noFallback: 'Not specified (use default group)',
+        hint: 'When this group is disabled, API keys bound to it prefer this group as fallback. Leave empty to keep falling back to the platform default group.'
+      },
       dataSharing: {
         title: 'Data Sharing Group',
         enabled: 'Enabled',
@@ -2638,6 +2643,8 @@ export default {
         selectModel: 'Select probe model',
         interval: 'Probe Interval (minutes)',
         timeout: 'Timeout (seconds)',
+        userAgent: 'User Agent',
+        userAgentPlaceholder: 'Leave empty to use the default probe User Agent',
         prompt: 'Probe Prompt',
         promptPlaceholder: 'e.g. hi',
         modelRequired: 'Select a probe model before enabling group availability probes',
@@ -4122,6 +4129,7 @@ export default {
       inviteResetInviteSuccess: 'Invite sent',
       inviteResetInviteFailed: 'Failed to send invite',
       inviteResetInvitePartialFailed: 'Invite failed for: {emails}',
+      inviteResetInviteUnavailable: 'The Codex referral invite entry is currently unavailable, but existing reset credits can still be used',
       inviteResetConsumeSuccess: 'Codex usage reset',
       inviteResetConsumeFailed: 'Failed to use reset credit',
       inviteResetNothingToReset: 'There is no usage window that needs resetting',

@@ -155,6 +155,11 @@ func FallbackGroupIDOnInvalidRequest(v int64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldFallbackGroupIDOnInvalidRequest, v))
 }
 
+// UnavailableFallbackGroupID applies equality check predicate on the "unavailable_fallback_group_id" field. It's identical to UnavailableFallbackGroupIDEQ.
+func UnavailableFallbackGroupID(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldUnavailableFallbackGroupID, v))
+}
+
 // ModelRoutingEnabled applies equality check predicate on the "model_routing_enabled" field. It's identical to ModelRoutingEnabledEQ.
 func ModelRoutingEnabled(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldModelRoutingEnabled, v))
@@ -1048,6 +1053,56 @@ func FallbackGroupIDOnInvalidRequestIsNil() predicate.Group {
 // FallbackGroupIDOnInvalidRequestNotNil applies the NotNil predicate on the "fallback_group_id_on_invalid_request" field.
 func FallbackGroupIDOnInvalidRequestNotNil() predicate.Group {
 	return predicate.Group(sql.FieldNotNull(FieldFallbackGroupIDOnInvalidRequest))
+}
+
+// UnavailableFallbackGroupIDEQ applies the EQ predicate on the "unavailable_fallback_group_id" field.
+func UnavailableFallbackGroupIDEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldUnavailableFallbackGroupID, v))
+}
+
+// UnavailableFallbackGroupIDNEQ applies the NEQ predicate on the "unavailable_fallback_group_id" field.
+func UnavailableFallbackGroupIDNEQ(v int64) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldUnavailableFallbackGroupID, v))
+}
+
+// UnavailableFallbackGroupIDIn applies the In predicate on the "unavailable_fallback_group_id" field.
+func UnavailableFallbackGroupIDIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldUnavailableFallbackGroupID, vs...))
+}
+
+// UnavailableFallbackGroupIDNotIn applies the NotIn predicate on the "unavailable_fallback_group_id" field.
+func UnavailableFallbackGroupIDNotIn(vs ...int64) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldUnavailableFallbackGroupID, vs...))
+}
+
+// UnavailableFallbackGroupIDGT applies the GT predicate on the "unavailable_fallback_group_id" field.
+func UnavailableFallbackGroupIDGT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldUnavailableFallbackGroupID, v))
+}
+
+// UnavailableFallbackGroupIDGTE applies the GTE predicate on the "unavailable_fallback_group_id" field.
+func UnavailableFallbackGroupIDGTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldUnavailableFallbackGroupID, v))
+}
+
+// UnavailableFallbackGroupIDLT applies the LT predicate on the "unavailable_fallback_group_id" field.
+func UnavailableFallbackGroupIDLT(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldUnavailableFallbackGroupID, v))
+}
+
+// UnavailableFallbackGroupIDLTE applies the LTE predicate on the "unavailable_fallback_group_id" field.
+func UnavailableFallbackGroupIDLTE(v int64) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldUnavailableFallbackGroupID, v))
+}
+
+// UnavailableFallbackGroupIDIsNil applies the IsNil predicate on the "unavailable_fallback_group_id" field.
+func UnavailableFallbackGroupIDIsNil() predicate.Group {
+	return predicate.Group(sql.FieldIsNull(FieldUnavailableFallbackGroupID))
+}
+
+// UnavailableFallbackGroupIDNotNil applies the NotNil predicate on the "unavailable_fallback_group_id" field.
+func UnavailableFallbackGroupIDNotNil() predicate.Group {
+	return predicate.Group(sql.FieldNotNull(FieldUnavailableFallbackGroupID))
 }
 
 // ModelRoutingIsNil applies the IsNil predicate on the "model_routing" field.

@@ -221,6 +221,8 @@ type CreateGroupInput struct {
 	FallbackGroupID      *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
+	// UnavailableFallbackGroupID 当前分组不可用时 API Key 优先回退到的分组 ID。
+	UnavailableFallbackGroupID *int64
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64
 	ModelRoutingEnabled bool // 是否启用模型路由
@@ -267,6 +269,8 @@ type UpdateGroupInput struct {
 	FallbackGroupID      *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
+	// UnavailableFallbackGroupID 当前分组不可用时 API Key 优先回退到的分组 ID。
+	UnavailableFallbackGroupID *int64
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64
 	ModelRoutingEnabled *bool // 是否启用模型路由
@@ -1801,6 +1805,15 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 			return nil, err
 		}
 	}
+	unavailableFallbackGroupID := input.UnavailableFallbackGroupID
+	if unavailableFallbackGroupID != nil && *unavailableFallbackGroupID <= 0 {
+		unavailableFallbackGroupID = nil
+	}
+	if unavailableFallbackGroupID != nil {
+		if err := s.validateUnavailableFallbackGroup(ctx, 0, platform, *unavailableFallbackGroupID); err != nil {
+			return nil, err
+		}
+	}
 	fallbackOnInvalidRequest := input.FallbackGroupIDOnInvalidRequest
 	if fallbackOnInvalidRequest != nil && *fallbackOnInvalidRequest <= 0 {
 		fallbackOnInvalidRequest = nil
@@ -1875,6 +1888,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		ClaudeCodeOnly:                  input.ClaudeCodeOnly,
 		FallbackGroupID:                 input.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: fallbackOnInvalidRequest,
+		UnavailableFallbackGroupID:      unavailableFallbackGroupID,
 		ModelRouting:                    input.ModelRouting,
 		MCPXMLInject:                    mcpXMLInject,
 		SupportedModelScopes:            input.SupportedModelScopes,
@@ -2072,6 +2086,25 @@ func (s *adminServiceImpl) validateFallbackGroupOnInvalidRequest(ctx context.Con
 	return nil
 }
 
+// validateUnavailableFallbackGroup 校验分组不可用时的指定回退分组。
+// 该回退会继承入口平台语义，因此必须指向同平台且当前可用的分组。
+func (s *adminServiceImpl) validateUnavailableFallbackGroup(ctx context.Context, currentGroupID int64, platform string, fallbackGroupID int64) error {
+	if currentGroupID > 0 && currentGroupID == fallbackGroupID {
+		return fmt.Errorf("cannot set self as unavailable fallback group")
+	}
+	fallbackGroup, err := s.groupRepo.GetByIDLite(ctx, fallbackGroupID)
+	if err != nil {
+		return fmt.Errorf("unavailable fallback group not found: %w", err)
+	}
+	if fallbackGroup.Platform != platform {
+		return fmt.Errorf("unavailable fallback group must use the same platform")
+	}
+	if !fallbackGroup.IsActive() {
+		return fmt.Errorf("unavailable fallback group must be active")
+	}
+	return nil
+}
+
 func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *UpdateGroupInput) (*Group, error) {
 	group, err := s.groupRepo.GetByID(ctx, id)
 	if err != nil {
@@ -2168,6 +2201,20 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		}
 	}
 	group.FallbackGroupIDOnInvalidRequest = fallbackOnInvalidRequest
+	unavailableFallbackGroupID := group.UnavailableFallbackGroupID
+	if input.UnavailableFallbackGroupID != nil {
+		if *input.UnavailableFallbackGroupID > 0 {
+			unavailableFallbackGroupID = input.UnavailableFallbackGroupID
+		} else {
+			unavailableFallbackGroupID = nil
+		}
+	}
+	if unavailableFallbackGroupID != nil {
+		if err := s.validateUnavailableFallbackGroup(ctx, id, group.Platform, *unavailableFallbackGroupID); err != nil {
+			return nil, err
+		}
+	}
+	group.UnavailableFallbackGroupID = unavailableFallbackGroupID
 
 	// 模型路由配置
 	if input.ModelRouting != nil {

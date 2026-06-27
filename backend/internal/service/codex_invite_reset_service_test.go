@@ -99,8 +99,40 @@ func TestCodexInviteResetServiceGetStatusAggregatesDesktopEndpoints(t *testing.T
 	require.Equal(t, codexInviteResetDefaultUserAgent, upstream.requests[0].Header.Get("User-Agent"))
 	require.Equal(t, "1", upstream.requests[0].Header.Get("X-OpenAI-Attach-Auth"))
 	require.Equal(t, "1", upstream.requests[0].Header.Get("X-OpenAI-Attach-Integrity-State"))
+	require.Equal(t, "none", upstream.requests[0].Header.Get("sec-fetch-site"))
+	require.Equal(t, "no-cors", upstream.requests[0].Header.Get("sec-fetch-mode"))
+	require.Equal(t, "empty", upstream.requests[0].Header.Get("sec-fetch-dest"))
+	require.Equal(t, "u=4, i", upstream.requests[0].Header.Get("priority"))
 	require.Equal(t, "chatgpt-acc", upstream.requests[0].Header.Get("chatgpt-account-id"))
 	require.Equal(t, HTTPUpstreamProfileOpenAI, HTTPUpstreamProfileFromContext(upstream.requests[0].Context()))
+}
+
+func TestCodexInviteResetServiceGetStatusKeepsCreditsWhenInviteUnavailable(t *testing.T) {
+	account := &Account{
+		ID:       50,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Credentials: map[string]any{
+			"access_token": "oauth-token",
+		},
+	}
+	upstream := &codexInviteResetHTTPUpstreamStub{responses: []*http.Response{
+		codexInviteResetJSONStatusResponse(http.StatusForbidden, `{"detail":"该推荐码对应的推荐邀请不可用"}`),
+		codexInviteResetJSONStatusResponse(http.StatusForbidden, `{"detail":"\u8be5\u63a8\u8350\u7801\u5bf9\u5e94\u7684\u63a8\u8350\u9080\u8bf7\u4e0d\u53ef\u7528"}`),
+		codexInviteResetJSONResponse(`{"available_count":1,"credits":[{"id":"credit-1","status":"available"}]}`),
+	}}
+	svc := NewCodexInviteResetService(codexInviteResetAdminServiceStub{account: account}, upstream, nil, nil, nil)
+
+	status, err := svc.GetStatus(context.Background(), account.ID)
+	require.NoError(t, err)
+	require.False(t, status.InviteAvailable)
+	require.Equal(t, codexInviteResetUnavailable, status.InviteUnavailableReason)
+	require.Equal(t, codexInviteResetUnavailableMessage, status.InviteUnavailableMessage)
+	require.Equal(t, 1, status.AvailableCount)
+	require.Len(t, status.Credits, 1)
+	require.Equal(t, "credit-1", status.Credits[0].ID)
+	require.Len(t, upstream.requests, 3)
+	require.Equal(t, "/backend-api/wham/rate-limit-reset-credits", upstream.requests[2].URL.Path)
 }
 
 func TestNormalizeCodexInviteResetGrantType(t *testing.T) {
@@ -132,6 +164,27 @@ func TestCodexInviteResetServiceSendInviteNormalizesEmails(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(upstream.bodies[0]), &payload))
 	require.Equal(t, codexInviteResetReferralKey, payload["referral_key"])
 	require.Equal(t, []any{"a@example.com", "b@example.com"}, payload["emails"])
+}
+
+func TestCodexInviteResetServiceSendInviteMapsUnavailableInvite(t *testing.T) {
+	account := &Account{
+		ID:          8,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeOAuth,
+		Credentials: map[string]any{"access_token": "oauth-token"},
+	}
+	upstream := &codexInviteResetHTTPUpstreamStub{responses: []*http.Response{
+		codexInviteResetJSONStatusResponse(http.StatusForbidden, `{"detail":"该推荐码对应的推荐邀请不可用"}`),
+	}}
+	svc := NewCodexInviteResetService(codexInviteResetAdminServiceStub{account: account}, upstream, nil, nil, nil)
+
+	result, err := svc.SendInvite(context.Background(), account.ID, []string{"a@example.com"})
+	require.Nil(t, result)
+	require.Error(t, err)
+	require.Equal(t, http.StatusForbidden, infraerrors.Code(err))
+	require.Equal(t, codexInviteResetUnavailable, infraerrors.Reason(err))
+	require.Equal(t, codexInviteResetUnavailableMessage, infraerrors.Message(err))
+	require.Equal(t, "该推荐码对应的推荐邀请不可用", infraerrors.FromError(err).Metadata["upstream_detail"])
 }
 
 func TestCodexInviteResetServiceConsumeSendsRedeemRequestID(t *testing.T) {
@@ -271,8 +324,12 @@ func TestNormalizeCodexInviteEmailsRejectsInvalidAndTooMany(t *testing.T) {
 }
 
 func codexInviteResetJSONResponse(body string) *http.Response {
+	return codexInviteResetJSONStatusResponse(http.StatusOK, body)
+}
+
+func codexInviteResetJSONStatusResponse(statusCode int, body string) *http.Response {
 	return &http.Response{
-		StatusCode: http.StatusOK,
+		StatusCode: statusCode,
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(body)),
 	}

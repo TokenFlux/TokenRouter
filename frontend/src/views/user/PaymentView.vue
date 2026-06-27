@@ -403,6 +403,7 @@ const previewImage = ref('')
 const duplicatePlanDialogPlan = ref<SubscriptionPlan | null>(null)
 const duplicatePlanDialogConfirm = ref<(() => void) | null>(null)
 const duplicatePlanAcknowledgedId = ref<number | null>(null)
+const lastAutoBillingName = ref('')
 const billingInfo = reactive({
   name: '',
   email: '',
@@ -649,9 +650,19 @@ const globalMaxAmount = computed(() => {
 const selectedLimit = computed(() => visibleMethods.value[selectedMethod.value])
 const isStripeSelected = computed(() => (normalizeVisibleMethod(selectedMethod.value) || selectedMethod.value) === 'stripe')
 const registeredEmail = computed(() => (user.value?.email || '').trim())
+const defaultBillingName = computed(() => (user.value?.username || '').trim() || registeredEmail.value)
 
 function optionalBillingLabel(key: 'country' | 'postalCode' | 'line1' | 'city' | 'state'): string {
   return `${t(`payment.billing.${key}`)}${t('payment.billing.optionalMark')}`
+}
+
+// 默认使用用户名作为账单抬头，未设置用户名时回退到邮箱，避免 Stripe 账单信息看起来未填。
+function fillBillingNameFromUser() {
+  const nextName = defaultBillingName.value
+  if (!nextName) return
+  if (billingInfo.name.trim() !== '' && billingInfo.name !== lastAutoBillingName.value) return
+  billingInfo.name = nextName
+  lastAutoBillingName.value = nextName
 }
 
 // 默认使用注册邮箱，但不覆盖用户已经填写过的账单邮箱。
@@ -662,6 +673,8 @@ function fillBillingEmailFromUser() {
 
 function buildStripeBillingInfo(): BillingInfo | undefined {
   if (!isStripeSelected.value) return undefined
+  fillBillingNameFromUser()
+  fillBillingEmailFromUser()
   const address = {
     country: billingInfo.country.trim().toUpperCase(),
     line1: billingInfo.line1.trim(),
@@ -820,6 +833,7 @@ watch(() => [validAmount.value, selectedMethod.value] as const, ([amt, method]) 
   if (available) selectedMethod.value = available
 })
 
+watch(defaultBillingName, fillBillingNameFromUser, { immediate: true })
 watch(registeredEmail, fillBillingEmailFromUser, { immediate: true })
 
 // Payment button class: follows selected payment method color

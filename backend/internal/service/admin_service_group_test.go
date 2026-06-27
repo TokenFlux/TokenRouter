@@ -1090,6 +1090,115 @@ func TestAdminService_CreateGroup_InvalidRequestFallbackClearsOnZero(t *testing.
 	require.Nil(t, repo.created.FallbackGroupIDOnInvalidRequest)
 }
 
+func TestAdminService_CreateGroup_UnavailableFallbackAllowsSamePlatformActiveGroup(t *testing.T) {
+	fallbackID := int64(10)
+	repo := &groupRepoStubForInvalidRequestFallback{
+		groups: map[int64]*Group{
+			fallbackID: {ID: fallbackID, Platform: PlatformOpenAI, Status: StatusActive},
+		},
+	}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+		Name:                       "g1",
+		Platform:                   PlatformOpenAI,
+		RateMultiplier:             1.0,
+		UnavailableFallbackGroupID: &fallbackID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.created)
+	require.Equal(t, fallbackID, *repo.created.UnavailableFallbackGroupID)
+}
+
+func TestAdminService_CreateGroup_UnavailableFallbackRejectsInvalidGroup(t *testing.T) {
+	tests := []struct {
+		name        string
+		fallback    *Group
+		wantMessage string
+	}{
+		{
+			name:        "platform_mismatch",
+			fallback:    &Group{ID: 10, Platform: PlatformGemini, Status: StatusActive},
+			wantMessage: "unavailable fallback group must use the same platform",
+		},
+		{
+			name:        "inactive_target",
+			fallback:    &Group{ID: 10, Platform: PlatformOpenAI, Status: StatusDisabled},
+			wantMessage: "unavailable fallback group must be active",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			fallbackID := tc.fallback.ID
+			repo := &groupRepoStubForInvalidRequestFallback{
+				groups: map[int64]*Group{
+					fallbackID: tc.fallback,
+				},
+			}
+			svc := &adminServiceImpl{groupRepo: repo}
+
+			_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+				Name:                       "g1",
+				Platform:                   PlatformOpenAI,
+				RateMultiplier:             1.0,
+				UnavailableFallbackGroupID: &fallbackID,
+			})
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.wantMessage)
+			require.Nil(t, repo.created)
+		})
+	}
+}
+
+func TestAdminService_UpdateGroup_UnavailableFallbackRejectsSelf(t *testing.T) {
+	existing := &Group{
+		ID:       1,
+		Name:     "g1",
+		Platform: PlatformOpenAI,
+		Status:   StatusActive,
+	}
+	repo := &groupRepoStubForInvalidRequestFallback{
+		groups: map[int64]*Group{existing.ID: existing},
+	}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	_, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
+		UnavailableFallbackGroupID: &existing.ID,
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "cannot set self as unavailable fallback group")
+	require.Nil(t, repo.updated)
+}
+
+func TestAdminService_UpdateGroup_UnavailableFallbackClearsOnZero(t *testing.T) {
+	fallbackID := int64(10)
+	existing := &Group{
+		ID:                         1,
+		Name:                       "g1",
+		Platform:                   PlatformOpenAI,
+		Status:                     StatusActive,
+		UnavailableFallbackGroupID: &fallbackID,
+	}
+	repo := &groupRepoStubForInvalidRequestFallback{
+		groups: map[int64]*Group{
+			existing.ID: existing,
+			fallbackID:  {ID: fallbackID, Platform: PlatformOpenAI, Status: StatusActive},
+		},
+	}
+	svc := &adminServiceImpl{groupRepo: repo}
+
+	clear := int64(0)
+	group, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
+		UnavailableFallbackGroupID: &clear,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, group)
+	require.NotNil(t, repo.updated)
+	require.Nil(t, repo.updated.UnavailableFallbackGroupID)
+}
+
 func TestAdminService_UpdateGroup_InvalidRequestFallbackPlatformMismatch(t *testing.T) {
 	fallbackID := int64(10)
 	existing := &Group{

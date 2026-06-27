@@ -163,6 +163,35 @@ func TestAccountTestService_OpenAIStreamEOFBeforeCompletedFails(t *testing.T) {
 	require.NotContains(t, recorder.Body.String(), `"success":true`)
 }
 
+func TestAccountTestService_RunTestBackgroundWithPromptAndUserAgentOverridesHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	resp := newJSONResponse(http.StatusOK, "")
+	resp.Body = io.NopCloser(strings.NewReader(`data: {"type":"response.completed"}
+
+`))
+	account := Account{
+		ID:          901,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeOAuth,
+		Concurrency: 1,
+		Credentials: map[string]any{"access_token": "test-token"},
+	}
+	repo := &snapshotUpdateAccountRepo{
+		stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
+		updateExtraCalls:      make(chan map[string]any, 1),
+	}
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
+	svc := &AccountTestService{accountRepo: repo, httpUpstream: upstream}
+
+	result, err := svc.RunTestBackgroundWithPromptAndUserAgent(context.Background(), account.ID, "gpt-5.4", "hi", "probe-client/9.9")
+
+	require.NoError(t, err)
+	require.Equal(t, "success", result.Status)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "probe-client/9.9", upstream.requests[0].Header.Get("User-Agent"))
+}
+
 func TestAccountTestService_OpenAI429PersistsSnapshotAndRateLimitState(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, _ := newTestContext()

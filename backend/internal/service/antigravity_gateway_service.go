@@ -303,6 +303,7 @@ func (s *AntigravityGatewayService) handleSmartRetry(p antigravityRetryLoopParam
 					},
 				}
 			}
+			applyAccountTestUserAgent(retryReq)
 
 			retryResp, retryErr := p.httpUpstream.Do(retryReq, p.proxyURL, p.account.ID, p.account.Concurrency)
 			if retryErr == nil && retryResp != nil && retryResp.StatusCode != http.StatusTooManyRequests && retryResp.StatusCode != http.StatusServiceUnavailable {
@@ -478,6 +479,7 @@ func (s *AntigravityGatewayService) handleSingleAccountRetryInPlace(
 			logger.LegacyPrintf("service.antigravity_gateway", "%s single_account_503_retry: request_build_failed error=%v", p.prefix, err)
 			break
 		}
+		applyAccountTestUserAgent(retryReq)
 
 		retryResp, retryErr := p.httpUpstream.Do(retryReq, p.proxyURL, p.account.ID, p.account.Concurrency)
 		if retryErr == nil && retryResp != nil && retryResp.StatusCode != http.StatusTooManyRequests && retryResp.StatusCode != http.StatusServiceUnavailable {
@@ -616,6 +618,7 @@ urlFallbackLoop:
 			if err != nil {
 				return nil, err
 			}
+			applyAccountTestUserAgent(upstreamReq)
 
 			resp, err = p.httpUpstream.Do(upstreamReq, p.proxyURL, p.account.ID, p.account.Concurrency)
 			if err == nil && resp == nil {

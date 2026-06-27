@@ -24,7 +24,8 @@ const (
 	defaultDataSharingCaptureCompressionLevel  = DataShareCompressionLevelFastest
 	defaultDataSharingCaptureBufferEnabled     = true
 	defaultDataSharingCaptureBufferIdleSeconds = 30
-	maxDataSharingCaptureBufferIdleSeconds     = 300
+	// 缓冲池空闲 Flush 最长允许 30 分钟，便于管理端降低热点 session 的落库频率。
+	maxDataSharingCaptureBufferIdleSeconds     = 1800
 	defaultDataSharingCaptureBufferMaxSessions = 4096
 	maxDataSharingCaptureBufferMaxSessions     = 100000
 	defaultDataSharingCaptureBufferMaxEvents   = 65536

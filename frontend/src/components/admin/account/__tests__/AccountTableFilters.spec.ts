@@ -47,6 +47,7 @@ function group(overrides: Partial<AdminGroup>): AdminGroup {
     claude_code_only: false,
     fallback_group_id: null,
     fallback_group_id_on_invalid_request: null,
+    unavailable_fallback_group_id: null,
     require_oauth_only: false,
     require_privacy_set: false,
     created_at: '2026-01-01T00:00:00Z',

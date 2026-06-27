@@ -39,6 +39,36 @@ const (
 	defaultQoderTestModel = "auto"
 )
 
+type accountTestContextKey string
+
+const accountTestUserAgentContextKey accountTestContextKey = "account_test_user_agent"
+
+// withAccountTestUserAgent 只给后台主动探测覆盖上游 User-Agent，避免影响普通账号测试入口。
+func withAccountTestUserAgent(ctx context.Context, userAgent string) context.Context {
+	userAgent = strings.TrimSpace(userAgent)
+	if userAgent == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, accountTestUserAgentContextKey, userAgent)
+}
+
+func accountTestUserAgentFromContext(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	userAgent, _ := ctx.Value(accountTestUserAgentContextKey).(string)
+	return strings.TrimSpace(userAgent)
+}
+
+func applyAccountTestUserAgent(req *http.Request) {
+	if req == nil {
+		return
+	}
+	if userAgent := accountTestUserAgentFromContext(req.Context()); userAgent != "" {
+		req.Header.Set("User-Agent", userAgent)
+	}
+}
+
 type qoderAccountTestSessionProvider interface {
 	GetSession(ctx context.Context, account *Account) (*qoder.SessionContext, error)
 }
@@ -326,6 +356,7 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		req.Header.Set("anthropic-beta", claude.APIKeyBetaHeader)
 		req.Header.Set("x-api-key", authToken)
 	}
+	applyAccountTestUserAgent(req)
 
 	// Get proxy URL
 	proxyURL := ""
@@ -399,6 +430,7 @@ func (s *AccountTestService) testClaudeVertexServiceAccountConnection(c *gin.Con
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
+	applyAccountTestUserAgent(req)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
@@ -489,6 +521,7 @@ func (s *AccountTestService) testBedrockAccountConnection(c *gin.Context, ctx co
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to sign request: %s", err.Error()))
 		}
 	}
+	applyAccountTestUserAgent(req)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
@@ -624,6 +657,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	// Set common headers
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+authToken)
+	applyAccountTestUserAgent(req)
 
 	// Set OAuth-specific headers for ChatGPT internal API
 	if isOAuth {
@@ -702,6 +736,7 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("Authorization", "Bearer "+authToken)
+	applyAccountTestUserAgent(req)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
@@ -791,6 +826,7 @@ func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account
 	probeSessionID := compactProbeSessionID(account.ID)
 	req.Header.Set("Session_ID", probeSessionID)
 	req.Header.Set("Conversation_ID", probeSessionID)
+	applyAccountTestUserAgent(req)
 
 	if isOAuth {
 		req.Host = "chatgpt.com"
@@ -1141,6 +1177,7 @@ func (s *AccountTestService) buildGeminiAPIKeyRequest(ctx context.Context, accou
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-goog-api-key", apiKey)
+	applyAccountTestUserAgent(req)
 
 	return req, nil
 }
@@ -1176,6 +1213,7 @@ func (s *AccountTestService) buildGeminiOAuthRequest(ctx context.Context, accoun
 		}
 		req.Header.Set("Content-Type", "application/json")
 		req.Header.Set("Authorization", "Bearer "+accessToken)
+		applyAccountTestUserAgent(req)
 		return req, nil
 	}
 
@@ -1201,6 +1239,7 @@ func (s *AccountTestService) buildGeminiServiceAccountRequest(ctx context.Contex
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
+	applyAccountTestUserAgent(req)
 	return req, nil
 }
 
@@ -1232,6 +1271,7 @@ func (s *AccountTestService) buildCodeAssistRequest(ctx context.Context, accessT
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("User-Agent", geminicli.GeminiCLIUserAgent)
+	applyAccountTestUserAgent(req)
 
 	return req, nil
 }
@@ -1686,6 +1726,7 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+authToken)
+	applyAccountTestUserAgent(req)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
@@ -1784,6 +1825,7 @@ func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Co
 	} else {
 		req.Header.Set("User-Agent", codexCLIUserAgent)
 	}
+	applyAccountTestUserAgent(req)
 	if chatgptAccountID := strings.TrimSpace(account.GetChatGPTAccountID()); chatgptAccountID != "" {
 		req.Header.Set("chatgpt-account-id", chatgptAccountID)
 	}
@@ -1863,7 +1905,13 @@ func (s *AccountTestService) RunTestBackground(ctx context.Context, accountID in
 
 // RunTestBackgroundWithPrompt 在后台执行账号测试，并允许主动探测传入自定义提示词。
 func (s *AccountTestService) RunTestBackgroundWithPrompt(ctx context.Context, accountID int64, modelID string, prompt string) (*ScheduledTestResult, error) {
+	return s.RunTestBackgroundWithPromptAndUserAgent(ctx, accountID, modelID, prompt, "")
+}
+
+// RunTestBackgroundWithPromptAndUserAgent 在后台执行账号测试，并允许主动探测覆盖 User-Agent。
+func (s *AccountTestService) RunTestBackgroundWithPromptAndUserAgent(ctx context.Context, accountID int64, modelID string, prompt string, userAgent string) (*ScheduledTestResult, error) {
 	startedAt := time.Now()
+	ctx = withAccountTestUserAgent(ctx, userAgent)
 
 	w := httptest.NewRecorder()
 	ginCtx, _ := gin.CreateTestContext(w)

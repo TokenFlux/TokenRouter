@@ -2597,6 +2597,11 @@ export default {
         disabled: '不作为默认分组',
         hint: '当 API Key 未绑定到任何有效分组时，会自动回退到该平台的默认分组；同一平台只会保留一个默认分组。'
       },
+      unavailableFallback: {
+        title: '指定 fallback 分组',
+        noFallback: '不指定（使用默认分组）',
+        hint: '当该分组被停用时，绑定到该分组的 API Key 会优先回退到这里选择的分组；留空则继续回退到同平台默认分组。'
+      },
       dataSharing: {
         title: '数据共享分组',
         enabled: '已启用',
@@ -2721,6 +2726,8 @@ export default {
         selectModel: '选择探测模型',
         interval: '探测间隔（分钟）',
         timeout: '超时时间（秒）',
+        userAgent: 'User Agent',
+        userAgentPlaceholder: '留空则使用默认探测 User Agent',
         prompt: '探测提示词',
         promptPlaceholder: '例如：hi',
         modelRequired: '启用分组可用性探测时必须选择探测模型',
@@ -4251,6 +4258,7 @@ export default {
       inviteResetInviteSuccess: '邀请已发送',
       inviteResetInviteFailed: '发送邀请失败',
       inviteResetInvitePartialFailed: '以下邮箱邀请失败：{emails}',
+      inviteResetInviteUnavailable: '当前 Codex 推荐邀请入口暂不可用，但已有重置次数仍可使用',
       inviteResetConsumeSuccess: 'Codex 用量已重置',
       inviteResetConsumeFailed: '使用重置次数失败',
       inviteResetNothingToReset: '当前没有需要重置的用量窗口',

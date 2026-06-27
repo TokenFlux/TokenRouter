@@ -46,6 +46,13 @@ const routerPush = vi.hoisted(() => vi.fn())
 const routerResolve = vi.hoisted(() => vi.fn(() => ({ href: '/payment/stripe?mock=1' })))
 const createOrder = vi.hoisted(() => vi.fn())
 const refreshUser = vi.hoisted(() => vi.fn())
+const authUserState = vi.hoisted(() => ({
+  value: {
+    username: 'demo-user',
+    email: 'buyer@example.com',
+    balance: 0,
+  },
+}))
 const fetchActiveSubscriptions = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
 const activeSubscriptionsState = vi.hoisted(() => ({ value: [] as Array<Record<string, unknown>> }))
 const showError = vi.hoisted(() => vi.fn())
@@ -79,11 +86,7 @@ vi.mock('vue-i18n', async () => {
 
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({
-    user: {
-      username: 'demo-user',
-      email: 'buyer@example.com',
-      balance: 0,
-    },
+    user: authUserState.value,
     refreshUser,
   }),
 }))
@@ -291,6 +294,11 @@ describe('PaymentView WeChat JSAPI flow', () => {
     routerResolve.mockClear()
     createOrder.mockReset()
     refreshUser.mockReset()
+    authUserState.value = {
+      username: 'demo-user',
+      email: 'buyer@example.com',
+      balance: 0,
+    }
     fetchActiveSubscriptions.mockReset().mockResolvedValue(undefined)
     showError.mockReset()
     showInfo.mockReset()
@@ -526,6 +534,11 @@ describe('PaymentView Stripe billing form', () => {
     routerResolve.mockClear()
     createOrder.mockReset()
     refreshUser.mockReset()
+    authUserState.value = {
+      username: 'demo-user',
+      email: 'buyer@example.com',
+      balance: 0,
+    }
     fetchActiveSubscriptions.mockReset().mockResolvedValue(undefined)
     showError.mockReset()
     showInfo.mockReset()
@@ -536,7 +549,7 @@ describe('PaymentView Stripe billing form', () => {
     window.localStorage.clear()
   })
 
-  it('uses the registered email as the Stripe billing email default and marks optional fields', async () => {
+  it('uses the username and registered email as the Stripe billing defaults and marks optional fields', async () => {
     const wrapper = shallowMount(PaymentView, {
       global: {
         stubs: {
@@ -548,7 +561,9 @@ describe('PaymentView Stripe billing form', () => {
     })
     await flushPromises()
 
+    const nameInput = wrapper.get('input[autocomplete="name"]')
     const emailInput = wrapper.get('input[autocomplete="email"]')
+    expect((nameInput.element as HTMLInputElement).value).toBe('demo-user')
     expect((emailInput.element as HTMLInputElement).value).toBe('buyer@example.com')
     const labels = wrapper.findAll('label').map(label => label.text())
     expect(labels).toContain('payment.billing.name')
@@ -558,6 +573,28 @@ describe('PaymentView Stripe billing form', () => {
     expect(labels).toContain('payment.billing.line1payment.billing.optionalMark')
     expect(labels).toContain('payment.billing.citypayment.billing.optionalMark')
     expect(labels).toContain('payment.billing.statepayment.billing.optionalMark')
+  })
+
+  it('uses the registered email as the Stripe billing name when username is empty', async () => {
+    authUserState.value = {
+      username: '',
+      email: 'buyer@example.com',
+      balance: 0,
+    }
+
+    const wrapper = shallowMount(PaymentView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<main><slot /></main>' },
+          Teleport: true,
+          Transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    const nameInput = wrapper.get('input[autocomplete="name"]')
+    expect((nameInput.element as HTMLInputElement).value).toBe('buyer@example.com')
   })
 
   it('shows Stripe fixed and rate fee breakdown on checkout', async () => {
@@ -638,6 +675,11 @@ describe('PaymentView duplicate subscription notice', () => {
     routerResolve.mockClear()
     createOrder.mockReset()
     refreshUser.mockReset()
+    authUserState.value = {
+      username: 'demo-user',
+      email: 'buyer@example.com',
+      balance: 0,
+    }
     showError.mockReset()
     showInfo.mockReset()
     showWarning.mockReset()
@@ -689,6 +731,11 @@ describe('PaymentView payment help text', () => {
     routerResolve.mockClear()
     createOrder.mockReset()
     refreshUser.mockReset()
+    authUserState.value = {
+      username: 'demo-user',
+      email: 'buyer@example.com',
+      balance: 0,
+    }
     fetchActiveSubscriptions.mockReset().mockResolvedValue(undefined)
     showError.mockReset()
     showInfo.mockReset()

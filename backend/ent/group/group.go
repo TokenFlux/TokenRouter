@@ -56,6 +56,8 @@ const (
 	FieldFallbackGroupID = "fallback_group_id"
 	// FieldFallbackGroupIDOnInvalidRequest holds the string denoting the fallback_group_id_on_invalid_request field in the database.
 	FieldFallbackGroupIDOnInvalidRequest = "fallback_group_id_on_invalid_request"
+	// FieldUnavailableFallbackGroupID holds the string denoting the unavailable_fallback_group_id field in the database.
+	FieldUnavailableFallbackGroupID = "unavailable_fallback_group_id"
 	// FieldModelRouting holds the string denoting the model_routing field in the database.
 	FieldModelRouting = "model_routing"
 	// FieldModelRoutingEnabled holds the string denoting the model_routing_enabled field in the database.
@@ -179,6 +181,7 @@ var Columns = []string{
 	FieldClaudeCodeOnly,
 	FieldFallbackGroupID,
 	FieldFallbackGroupIDOnInvalidRequest,
+	FieldUnavailableFallbackGroupID,
 	FieldModelRouting,
 	FieldModelRoutingEnabled,
 	FieldMcpXMLInject,
@@ -398,6 +401,11 @@ func ByFallbackGroupID(opts ...sql.OrderTermOption) OrderOption {
 // ByFallbackGroupIDOnInvalidRequest orders the results by the fallback_group_id_on_invalid_request field.
 func ByFallbackGroupIDOnInvalidRequest(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldFallbackGroupIDOnInvalidRequest, opts...).ToFunc()
+}
+
+// ByUnavailableFallbackGroupID orders the results by the unavailable_fallback_group_id field.
+func ByUnavailableFallbackGroupID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldUnavailableFallbackGroupID, opts...).ToFunc()
 }
 
 // ByModelRoutingEnabled orders the results by the model_routing_enabled field.

@@ -119,6 +119,8 @@ type Group struct {
 	FallbackGroupID *int64 `json:"fallback_group_id"`
 	// 无效请求兜底分组
 	FallbackGroupIDOnInvalidRequest *int64 `json:"fallback_group_id_on_invalid_request"`
+	// 当前分组不可用时 API Key 优先回退到的分组。
+	UnavailableFallbackGroupID *int64 `json:"unavailable_fallback_group_id"`
 
 	// OpenAI Messages 调度开关（用户侧需要此字段判断是否展示 Claude Code 教程）
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch"`

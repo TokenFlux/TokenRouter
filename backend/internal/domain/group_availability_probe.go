@@ -8,4 +8,5 @@ type GroupAvailabilityProbeConfig struct {
 	ModelID         string `json:"model_id,omitempty"`
 	Prompt          string `json:"prompt,omitempty"`
 	TimeoutSeconds  int    `json:"timeout_seconds,omitempty"`
+	UserAgent       string `json:"user_agent,omitempty"`
 }

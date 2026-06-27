@@ -37,6 +37,7 @@ type mockSmartRetryUpstream struct {
 	errors         []error
 	callIdx        int
 	calls          []string
+	userAgents     []string
 	requestBodies  [][]byte
 	repeatLast     bool // 超出范围时重复最后一个响应
 }
@@ -44,6 +45,7 @@ type mockSmartRetryUpstream struct {
 func (m *mockSmartRetryUpstream) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
 	idx := m.callIdx
 	m.calls = append(m.calls, req.URL.String())
+	m.userAgents = append(m.userAgents, req.Header.Get("User-Agent"))
 	if req != nil && req.Body != nil {
 		body, _ := io.ReadAll(req.Body)
 		m.requestBodies = append(m.requestBodies, body)
@@ -227,7 +229,7 @@ func TestHandleSmartRetry_ShortDelay_SmartRetrySuccess(t *testing.T) {
 	}
 
 	params := antigravityRetryLoopParams{
-		ctx:          context.Background(),
+		ctx:          withAccountTestUserAgent(context.Background(), "probe-client/9.9"),
 		prefix:       "[test]",
 		account:      account,
 		accessToken:  "token",
@@ -251,6 +253,7 @@ func TestHandleSmartRetry_ShortDelay_SmartRetrySuccess(t *testing.T) {
 	require.Nil(t, result.err)
 	require.Nil(t, result.switchError, "should not return switchError on success")
 	require.Len(t, upstream.calls, 1, "should have made one retry call")
+	require.Equal(t, "probe-client/9.9", upstream.userAgents[0])
 }
 
 // TestHandleSmartRetry_ShortDelay_SmartRetryFailed_ReturnsSwitchError 测试智能重试失败后返回 switchError

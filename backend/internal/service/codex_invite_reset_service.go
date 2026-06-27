@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,9 +19,11 @@ import (
 )
 
 const (
-	codexInviteResetReferralKey = "codex_referral_persistent_invite"
-	codexBackendAPIBaseURL      = "https://chatgpt.com/backend-api"
-	codexInviteResetMaxEmails   = 5
+	codexInviteResetReferralKey        = "codex_referral_persistent_invite"
+	codexBackendAPIBaseURL             = "https://chatgpt.com/backend-api"
+	codexInviteResetMaxEmails          = 5
+	codexInviteResetUnavailable        = "CODEX_INVITE_RESET_REFERRAL_UNAVAILABLE"
+	codexInviteResetUnavailableMessage = "当前 Codex 推荐邀请入口暂不可用，但已有重置次数仍可使用"
 	// Codex Desktop 的邀请重置请求默认使用 Desktop UA；账号绑定 TLS 路由器时可配置专用 UA 覆盖。
 	codexInviteResetDefaultUserAgent = "Codex Desktop/0.0.0 (Linux; x86_64)"
 )
@@ -64,12 +67,18 @@ type CodexInviteResetStatus struct {
 	// GrantAmount 表示单次邀请达成后双方获得的奖励数量。
 	GrantAmount *int `json:"grant_amount,omitempty"`
 	// GrantType 是管理端使用的稳定奖励类型枚举。
-	GrantType           string                   `json:"grant_type,omitempty"`
-	RequiresConsent     bool                     `json:"requires_consent"`
-	AvailableCount      int                      `json:"available_count"`
-	Credits             []CodexInviteResetCredit `json:"credits"`
-	RawEligibilityRules map[string]any           `json:"raw_eligibility_rules,omitempty"`
-	RawCredits          map[string]any           `json:"raw_credits,omitempty"`
+	GrantType string `json:"grant_type,omitempty"`
+	// InviteAvailable 表示当前账号是否还能继续通过推荐入口发送 Codex 邀请。
+	InviteAvailable bool `json:"invite_available"`
+	// InviteUnavailableReason 是推荐入口不可用时返回给前端判断的稳定原因码。
+	InviteUnavailableReason string `json:"invite_unavailable_reason,omitempty"`
+	// InviteUnavailableMessage 是推荐入口不可用时展示给管理员的非致命提示。
+	InviteUnavailableMessage string                   `json:"invite_unavailable_message,omitempty"`
+	RequiresConsent          bool                     `json:"requires_consent"`
+	AvailableCount           int                      `json:"available_count"`
+	Credits                  []CodexInviteResetCredit `json:"credits"`
+	RawEligibilityRules      map[string]any           `json:"raw_eligibility_rules,omitempty"`
+	RawCredits               map[string]any           `json:"raw_credits,omitempty"`
 }
 
 type CodexInviteResetCredit struct {
@@ -116,18 +125,36 @@ func (s *CodexInviteResetService) GetStatus(ctx context.Context, accountID int64
 	eligibility, err := s.getJSON(ctx, accountCtx, "/referrals/invite/eligibility", map[string]string{
 		"referral_key": codexInviteResetReferralKey,
 	})
-	if err != nil {
+	inviteUnavailable := codexInviteResetUnavailableError(err)
+	if err != nil && inviteUnavailable == nil {
 		return nil, err
 	}
 	rules, err := s.getJSON(ctx, accountCtx, "/wham/referrals/eligibility_rules", map[string]string{
 		"referral_key": codexInviteResetReferralKey,
 	})
 	if err != nil {
-		return nil, err
+		if inviteUnavailable == nil {
+			inviteUnavailable = codexInviteResetUnavailableError(err)
+		}
+		if inviteUnavailable == nil {
+			return nil, err
+		}
+		rules = nil
+	}
+	if inviteUnavailable != nil {
+		eligibility = nil
 	}
 	creditsRaw, err := s.getJSON(ctx, accountCtx, "/wham/rate-limit-reset-credits", nil)
 	if err != nil {
 		return nil, err
+	}
+
+	inviteAvailable := inviteUnavailable == nil
+	unavailableReason := ""
+	unavailableMessage := ""
+	if inviteUnavailable != nil {
+		unavailableReason = infraerrors.Reason(inviteUnavailable)
+		unavailableMessage = infraerrors.Message(inviteUnavailable)
 	}
 
 	credits := normalizeCodexInviteResetCredits(creditsRaw)
@@ -141,18 +168,21 @@ func (s *CodexInviteResetService) GetStatus(ctx context.Context, accountID int64
 	}
 
 	return &CodexInviteResetStatus{
-		ReferralKey:         codexInviteResetReferralKey,
-		InviteEligibility:   eligibility,
-		EligibilityRules:    normalizeCodexInviteResetRules(rules),
-		ShouldShow:          codexInviteResetOptionalBoolFromMap(eligibility, "should_show"),
-		GrantAction:         codexInviteResetStringFromMap(eligibility, "grant_action"),
-		GrantAmount:         codexInviteResetOptionalIntFromMap(eligibility, "grant_amount"),
-		GrantType:           normalizeCodexInviteResetGrantType(codexInviteResetStringFromMap(eligibility, "grant_action")),
-		RequiresConsent:     codexInviteResetBoolFromMapDefault(eligibility, "requires_explicit_confirmation", true),
-		AvailableCount:      availableCount,
-		Credits:             credits,
-		RawEligibilityRules: rules,
-		RawCredits:          creditsRaw,
+		ReferralKey:              codexInviteResetReferralKey,
+		InviteEligibility:        eligibility,
+		EligibilityRules:         normalizeCodexInviteResetRules(rules),
+		ShouldShow:               codexInviteResetOptionalBoolFromMap(eligibility, "should_show"),
+		GrantAction:              codexInviteResetStringFromMap(eligibility, "grant_action"),
+		GrantAmount:              codexInviteResetOptionalIntFromMap(eligibility, "grant_amount"),
+		GrantType:                normalizeCodexInviteResetGrantType(codexInviteResetStringFromMap(eligibility, "grant_action")),
+		InviteAvailable:          inviteAvailable,
+		InviteUnavailableReason:  unavailableReason,
+		InviteUnavailableMessage: unavailableMessage,
+		RequiresConsent:          codexInviteResetBoolFromMapDefault(eligibility, "requires_explicit_confirmation", true),
+		AvailableCount:           availableCount,
+		Credits:                  credits,
+		RawEligibilityRules:      rules,
+		RawCredits:               creditsRaw,
 	}, nil
 }
 
@@ -343,6 +373,10 @@ func (s *CodexInviteResetService) applyHeaders(req *http.Request, accountCtx *co
 	req.Header.Set("X-OpenAI-Attach-Auth", "1")
 	req.Header.Set("X-OpenAI-Attach-Integrity-State", "1")
 	req.Header.Set("User-Agent", accountCtx.userAgent)
+	req.Header.Set("sec-fetch-site", "none")
+	req.Header.Set("sec-fetch-mode", "no-cors")
+	req.Header.Set("sec-fetch-dest", "empty")
+	req.Header.Set("priority", "u=4, i")
 	if chatgptAccountID := accountCtx.account.GetChatGPTAccountID(); chatgptAccountID != "" {
 		req.Header.Set("chatgpt-account-id", chatgptAccountID)
 	}
@@ -369,6 +403,9 @@ func (s *CodexInviteResetService) doJSON(req *http.Request, accountCtx *codexInv
 		if message == "" {
 			message = http.StatusText(resp.StatusCode)
 		}
+		if err := codexInviteResetUpstreamBusinessError(resp.StatusCode, message); err != nil {
+			return nil, err
+		}
 		return nil, infraerrors.Newf(resp.StatusCode, "CODEX_INVITE_RESET_UPSTREAM_ERROR", "codex invite reset upstream returned %d: %s", resp.StatusCode, message)
 	}
 	if len(bytes.TrimSpace(body)) == 0 {
@@ -380,6 +417,39 @@ func (s *CodexInviteResetService) doJSON(req *http.Request, accountCtx *codexInv
 		return nil, fmt.Errorf("decode codex invite reset response: %w", err)
 	}
 	return result, nil
+}
+
+func codexInviteResetUpstreamBusinessError(statusCode int, body string) error {
+	detail := codexInviteResetUpstreamDetail(body)
+	if statusCode != http.StatusForbidden || !strings.Contains(detail, "推荐邀请不可用") {
+		return nil
+	}
+	// 上游在活动关闭或账号不具备推荐资格时会返回 403，仍可能保留可用重置次数。
+	return infraerrors.Forbidden(codexInviteResetUnavailable, codexInviteResetUnavailableMessage).WithMetadata(map[string]string{
+		"upstream_status": fmt.Sprint(statusCode),
+		"upstream_detail": detail,
+	})
+}
+
+func codexInviteResetUnavailableError(err error) *infraerrors.ApplicationError {
+	if err == nil {
+		return nil
+	}
+	var appErr *infraerrors.ApplicationError
+	if errors.As(err, &appErr) && appErr.Reason == codexInviteResetUnavailable {
+		return appErr
+	}
+	return nil
+}
+
+func codexInviteResetUpstreamDetail(body string) string {
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(body), &payload); err == nil {
+		if detail := codexInviteResetStringFromMap(payload, "detail"); detail != "" {
+			return detail
+		}
+	}
+	return strings.TrimSpace(body)
 }
 
 func buildCodexInviteResetURL(path string, query map[string]string) (string, error) {

@@ -211,7 +211,8 @@ func fetchCapturedFingerprint(t *testing.T, captureURL string, profile *Profile)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		t.Fatalf("request failed: %v", err)
+		// 公共采集服务可能因证书过期或网络波动不可用，此时跳过外部依赖测试。
+		skipIfExternalServiceUnavailable(t, err)
 		return nil
 	}
 	defer resp.Body.Close()
