@@ -320,10 +320,6 @@ const qoderModelKeyByAlias: Record<string, string> = {
   'minimax-m3': 'mmodel'
 }
 
-const qoderAliasByModelKey = Object.fromEntries(
-  Object.entries(qoderModelKeyByAlias).map(([alias, key]) => [key, alias])
-)
-
 // Antigravity 预设映射（支持通配符）
 const antigravityPresetMappings = [
   // Claude 通配符映射
