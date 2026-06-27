@@ -1041,7 +1041,11 @@ func (p *qoderConversationPlan) previousUsageSnapshot() (bool, int, int) {
 	if p.store == nil || strings.TrimSpace(p.key) == "" {
 		return hasUsage, lastUsageInput, lastUsageOutput
 	}
-	if existing := p.store.items[p.key]; existing != nil &&
+	// 访问 store.items 必须持有锁，避免与 commitFingerprints 的写操作竞态
+	p.store.mu.Lock()
+	existing := p.store.items[p.key]
+	p.store.mu.Unlock()
+	if existing != nil &&
 		existing.sessionID == p.sessionID &&
 		existing.systemFingerprint == p.systemFingerprint &&
 		existing.toolsFingerprint == p.toolsFingerprint &&
