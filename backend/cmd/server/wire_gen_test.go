@@ -39,6 +39,8 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		nil,
 		cfg,
 		nil,
+		nil,
+		nil,
 	)
 	accountExpirySvc := service.NewAccountExpiryService(nil, time.Second)
 	proxyExpirySvc := service.NewProxyExpiryService(nil, time.Second)
@@ -78,6 +80,7 @@ func TestProvideCleanup_WithMinimalDependencies_NoPanic(t *testing.T) {
 		geminiOAuthSvc,
 		antigravityOAuthSvc,
 		qoderOAuthSvc,
+		nil, // grokOAuth
 		nil, // openAIGateway
 		nil, // scheduledTestRunner
 		nil, // groupAvailabilityProbeRunner
