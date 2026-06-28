@@ -163,7 +163,7 @@ const qrUrl = ref('')
 const remainingSeconds = ref(0)
 const cancelling = ref(false)
 const paidOrder = ref<PaymentOrder | null>(null)
-const paymentCurrency = computed(() => normalizePaymentCurrency(props.currency))
+const paymentCurrency = computed(() => normalizePaymentCurrency(paidOrder.value?.currency || props.currency))
 const localeCode = computed(() => {
   const raw = i18n.locale as unknown
   if (typeof raw === 'string') return raw

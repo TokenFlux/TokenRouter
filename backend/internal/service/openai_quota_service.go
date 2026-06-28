@@ -336,9 +336,7 @@ func (s *OpenAIQuotaService) applyHeaders(req *http.Request, accountCtx *openAIQ
 	req.Header.Set("sec-fetch-mode", openaiQuotaSecFetchMode)
 	req.Header.Set("sec-fetch-dest", openaiQuotaSecFetchDest)
 	req.Header.Set("priority", "u=4, i")
-	if chatGPTAccountID := accountCtx.account.GetChatGPTAccountID(); chatGPTAccountID != "" {
-		req.Header.Set("chatgpt-account-id", chatGPTAccountID)
-	}
+	setOpenAIChatGPTAccountHeaders(req.Header, accountCtx.account)
 }
 
 func (s *OpenAIQuotaService) doJSON(req *http.Request, accountCtx *openAIQuotaAccountContext) (map[string]any, error) {

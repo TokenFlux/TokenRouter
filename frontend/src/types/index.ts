@@ -498,7 +498,7 @@ export interface PaginationConfig {
 
 // ==================== API Key & Group Types ====================
 
-export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'qoder'
+export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'qoder' | 'grok'
 export type MarketplacePricingMode = 'token' | 'image' | 'unknown'
 export type MarketplacePriceStatus = 'priced' | 'unpriced'
 
@@ -821,7 +821,7 @@ export interface UpdateGroupRequest {
 
 // ==================== Account & Proxy Types ====================
 
-export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'qoder'
+export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'qoder' | 'grok'
 export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock' | 'service_account' | 'cosy'
 export type OAuthAddMethod = 'oauth' | 'setup-token'
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h'
@@ -1080,6 +1080,13 @@ export interface AntigravityModelQuota {
   reset_time: string  // 重置时间 ISO8601
 }
 
+export interface GrokQuotaWindow {
+  limit?: number
+  remaining?: number
+  reset_unix?: number
+  reset_at?: string
+}
+
 export interface AccountUsageInfo {
   source?: 'passive' | 'active'
   updated_at: string | null
@@ -1094,6 +1101,15 @@ export interface AccountUsageInfo {
   gemini_flash_minute?: UsageProgress | null
   quota_auto_paused?: boolean
   antigravity_quota?: Record<string, AntigravityModelQuota> | null
+  grok_request_quota?: GrokQuotaWindow | null
+  grok_token_quota?: GrokQuotaWindow | null
+  grok_retry_after_seconds?: number | null
+  grok_entitlement_status?: string
+  grok_quota_snapshot_state?: string
+  grok_last_quota_probe_at?: string
+  grok_last_headers_seen_at?: string
+  grok_last_status_code?: number
+  grok_local_usage?: WindowStats | null
   ai_credits?: Array<{
     credit_type?: string
     amount?: number
@@ -1309,6 +1325,24 @@ export interface CodexSessionImportRequest {
   credential_extras?: Record<string, unknown>
   extra?: Record<string, unknown>
   update_existing?: boolean
+  skip_default_group_bind?: boolean
+  confirm_mixed_channel_risk?: boolean
+}
+
+export interface OpenAICodexPATCreateRequest {
+  access_token: string
+  name?: string
+  notes?: string | null
+  group_ids?: number[]
+  proxy_id?: number | null
+  concurrency?: number
+  priority?: number
+  rate_multiplier?: number
+  load_factor?: number | null
+  expires_at?: number | null
+  auto_pause_on_expired?: boolean
+  credential_extras?: Record<string, unknown>
+  extra?: Record<string, unknown>
   skip_default_group_bind?: boolean
   confirm_mixed_channel_risk?: boolean
 }

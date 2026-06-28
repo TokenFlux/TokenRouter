@@ -19,27 +19,27 @@
         </div>
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.baseAmount') }}</p>
-          <p class="text-sm font-medium text-gray-900 dark:text-white">¥{{ baseAmount.toFixed(2) }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(baseAmount) }}</p>
         </div>
         <div v-if="order.fee_fixed > 0">
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.fixedFee') }}</p>
-          <p class="text-sm font-medium text-gray-900 dark:text-white">¥{{ order.fee_fixed.toFixed(2) }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(order.fee_fixed) }}</p>
         </div>
         <div v-if="order.fee_rate_amount > 0">
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.rateFee') }} ({{ order.fee_rate }}%)</p>
-          <p class="text-sm font-medium text-gray-900 dark:text-white">¥{{ order.fee_rate_amount.toFixed(2) }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(order.fee_rate_amount) }}</p>
         </div>
         <div v-if="feeAmount > 0">
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.feeTotal') }}</p>
-          <p class="text-sm font-medium text-gray-900 dark:text-white">¥{{ feeAmount.toFixed(2) }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(feeAmount) }}</p>
         </div>
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</p>
-          <p class="text-sm font-medium text-gray-900 dark:text-white">¥{{ order.pay_amount.toFixed(2) }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(order.pay_amount) }}</p>
         </div>
         <div v-if="order.amount !== order.pay_amount">
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</p>
-          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ formatOrderAmount(order.amount, order.order_type) }}</p>
+          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ formatOrderAmount(order.amount, order) }}</p>
         </div>
         <div>
           <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('payment.orders.paymentMethod') }}</p>
@@ -85,7 +85,7 @@
         <div class="grid grid-cols-2 gap-2 text-sm">
           <div>
             <span class="text-red-600 dark:text-red-400">{{ t('payment.admin.refundAmount') }}:</span>
-            <span class="ml-1 font-medium text-red-700 dark:text-red-300">{{ formatOrderAmount(order.refund_amount, order.order_type) }}</span>
+            <span class="ml-1 font-medium text-red-700 dark:text-red-300">{{ formatOrderAmount(order.refund_amount, order) }}</span>
           </div>
           <div v-if="order.refund_reason" class="col-span-2">
             <span class="text-red-600 dark:text-red-400">{{ t('payment.admin.refundReason') }}:</span>
@@ -128,6 +128,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { PaymentOrder } from '@/types/payment'
 import { statusBadgeClass, canRefund as canRefundStatus, formatOrderDateTime } from '@/components/payment/orderUtils'
+import { formatPaymentAmount } from '@/components/payment/currency'
 
 const { t } = useI18n()
 const { formatBalanceAmount } = useBalanceDisplay()
@@ -170,7 +171,11 @@ function formatDateTime(dateStr: string): string {
   return formatOrderDateTime(dateStr)
 }
 
-function formatOrderAmount(amount: number, orderType: string): string {
-  return orderType === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : `¥${amount.toFixed(2)}`
+function formatOrderAmount(amount: number, order: PaymentOrder): string {
+  return order.order_type === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : formatGatewayAmount(amount)
+}
+
+function formatGatewayAmount(amount: number): string {
+  return formatPaymentAmount(amount, props.order?.currency)
 }
 </script>

@@ -137,6 +137,40 @@ describe('PaymentStatusPanel', () => {
     expect(wrapper.text()).not.toContain('$88.00')
   })
 
+  it('uses resolved order currency for pay amount after successful polling', async () => {
+    pollOrderStatus.mockResolvedValue({
+      ...orderFactory('COMPLETED'),
+      order_type: 'subscription',
+      amount: 100,
+      pay_amount: 108,
+      currency: 'USD',
+    })
+
+    const wrapper = mount(PaymentStatusPanel, {
+      props: {
+        orderId: 42,
+        qrCode: 'https://pay.example.com/qr/42',
+        expiresAt: '2099-01-01T12:30:00Z',
+        paymentType: 'alipay',
+        orderType: 'subscription',
+        currency: 'CNY',
+      },
+      global: {
+        stubs: {
+          Icon: true,
+        },
+      },
+    })
+
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(3000)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('$108.00')
+    expect(wrapper.text()).toContain('$100.00')
+    expect(wrapper.text()).not.toContain('¥108.00')
+  })
+
   it('shows reopen button in QR mode when payUrl is also available', async () => {
     const openSpy = vi.spyOn(window, 'open').mockReturnValue({ closed: false } as Window)
 

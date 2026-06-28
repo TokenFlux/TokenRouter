@@ -88,6 +88,7 @@ func ProvideTokenRefreshService(
 	geminiOAuthService *GeminiOAuthService,
 	antigravityOAuthService *AntigravityOAuthService,
 	qoderOAuthService *QoderOAuthService,
+	grokOAuthService *GrokOAuthService,
 	cacheInvalidator TokenCacheInvalidator,
 	schedulerCache SchedulerCache,
 	cfg *config.Config,
@@ -99,7 +100,7 @@ func ProvideTokenRefreshService(
 	httpUpstream HTTPUpstream,
 	tlsFPProfileService *TLSFingerprintProfileService,
 ) *TokenRefreshService {
-	svc := NewTokenRefreshServiceWithHTTPUpstream(accountRepo, oauthService, openaiOAuthService, geminiOAuthService, antigravityOAuthService, cacheInvalidator, schedulerCache, cfg, tempUnschedCache, qoderOAuthService, httpUpstream, tlsFPProfileService)
+	svc := NewTokenRefreshServiceWithHTTPUpstream(accountRepo, oauthService, openaiOAuthService, geminiOAuthService, antigravityOAuthService, cacheInvalidator, schedulerCache, cfg, tempUnschedCache, qoderOAuthService, []*GrokOAuthService{grokOAuthService}, httpUpstream, tlsFPProfileService)
 	// 注入 OpenAI privacy opt-out 依赖
 	svc.SetPrivacyDeps(privacyClientFactory, proxyRepo)
 	// 注入统一 OAuth 刷新 API（消除 TokenRefreshService 与 TokenProvider 之间的竞争条件）
@@ -164,6 +165,15 @@ func ProvideOpenAITokenProvider(
 	return p
 }
 
+func ProvideGrokQuotaService(
+	accountRepo AccountRepository,
+	proxyRepo ProxyRepository,
+	tokenProvider *GrokTokenProvider,
+	httpUpstream HTTPUpstream,
+) *GrokQuotaService {
+	return NewGrokQuotaService(accountRepo, proxyRepo, tokenProvider, httpUpstream)
+}
+
 // ProvideGeminiTokenProvider creates GeminiTokenProvider with OAuthRefreshAPI injection
 func ProvideGeminiTokenProvider(
 	accountRepo AccountRepository,
@@ -188,6 +198,22 @@ func ProvideAntigravityTokenProvider(
 ) *AntigravityTokenProvider {
 	p := NewAntigravityTokenProvider(accountRepo, tokenCache, antigravityOAuthService)
 	executor := NewAntigravityTokenRefresher(antigravityOAuthService)
+	p.SetRefreshAPI(refreshAPI, executor)
+	p.SetRefreshPolicy(AntigravityProviderRefreshPolicy())
+	p.SetTempUnschedCache(tempUnschedCache)
+	return p
+}
+
+// ProvideGrokTokenProvider 创建注入 OAuthRefreshAPI 的 GrokTokenProvider。
+func ProvideGrokTokenProvider(
+	accountRepo AccountRepository,
+	tokenCache GeminiTokenCache,
+	grokOAuthService *GrokOAuthService,
+	refreshAPI *OAuthRefreshAPI,
+	tempUnschedCache TempUnschedCache,
+) *GrokTokenProvider {
+	p := NewGrokTokenProvider(accountRepo, tokenCache)
+	executor := NewGrokTokenRefresher(grokOAuthService)
 	p.SetRefreshAPI(refreshAPI, executor)
 	p.SetRefreshPolicy(AntigravityProviderRefreshPolicy())
 	p.SetTempUnschedCache(tempUnschedCache)
@@ -646,6 +672,8 @@ var ProviderSet = wire.NewSet(
 	ProvideOpenAIOAuthService,
 	wire.Bind(new(OpenAIOAuthTokenRouterReader), new(*TLSFingerprintRouterService)),
 	wire.Bind(new(OpenAIOAuthTokenProfileResolver), new(*TLSFingerprintProfileService)),
+	wire.Bind(new(OpenAIQuotaAutoPauseSettingsReader), new(*SettingService)),
+	NewGrokOAuthService,
 	NewGeminiOAuthService,
 	NewGeminiQuotaService,
 	NewCompositeTokenCacheInvalidator,
@@ -656,7 +684,9 @@ var ProviderSet = wire.NewSet(
 	ProvideGeminiTokenProvider,
 	NewGeminiMessagesCompatService,
 	ProvideAntigravityTokenProvider,
+	ProvideGrokTokenProvider,
 	ProvideOpenAITokenProvider,
+	ProvideGrokQuotaService,
 	ProvideClaudeTokenProvider,
 	NewAntigravityGatewayService,
 	ProvideRateLimitService,
@@ -696,6 +726,7 @@ var ProviderSet = wire.NewSet(
 	ProvideUsageCleanupService,
 	ProvideDeferredService,
 	NewAntigravityQuotaFetcher,
+	NewGrokQuotaFetcher,
 	NewUserAttributeService,
 	NewUsageCache,
 	NewTotpService,

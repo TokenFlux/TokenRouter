@@ -1211,9 +1211,7 @@ func (s *OpenAIGatewayService) buildOpenAIWSHeaders(
 	}
 
 	if account != nil && account.Type == AccountTypeOAuth {
-		if chatgptAccountID := account.GetChatGPTAccountID(); chatgptAccountID != "" {
-			headers.Set("chatgpt-account-id", chatgptAccountID)
-		}
+		setOpenAIChatGPTAccountHeaders(headers, account)
 		headers.Set("originator", resolveOpenAIUpstreamOriginator(c, isCodexCLI, routerMatch...))
 	}
 
@@ -2543,6 +2541,27 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 	}, nil
 }
 
+// stripCodexSparkImageGenerationToolFromRawPayload 会在上游模型为 Spark 时，从原始
+// /responses payload 中剥离 image_generation 工具。Spark 上游会以 param=tools 拒绝该工具，
+// 而 Codex 客户端默认会携带它；返回值包含可能更新后的 payload、是否修改以及 JSON 错误。
+func stripCodexSparkImageGenerationToolFromRawPayload(payload []byte, model string) ([]byte, bool, error) {
+	if !isCodexSparkModel(model) || !openAIRequestBodyHasImageGenerationTool(payload) {
+		return payload, false, nil
+	}
+	payloadMap := make(map[string]any)
+	if err := json.Unmarshal(payload, &payloadMap); err != nil {
+		return payload, false, err
+	}
+	if !stripCodexSparkImageGenerationTools(payloadMap) {
+		return payload, false, nil
+	}
+	rebuilt, err := json.Marshal(payloadMap)
+	if err != nil {
+		return payload, false, err
+	}
+	return rebuilt, true, nil
+}
+
 // ProxyResponsesWebSocketFromClient 处理客户端入站 WebSocket（OpenAI Responses WS Mode）并转发到上游。
 // 当前实现按“单请求 -> 终止事件 -> 下一请求”的顺序代理，适配 Codex CLI 的 turn 模式。
 func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
@@ -2780,6 +2799,12 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				return openAIWSClientPayload{}, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "invalid websocket request payload", setErr)
 			}
 			normalized = next
+		}
+		if stripped, changed, stripErr := stripCodexSparkImageGenerationToolFromRawPayload(normalized, upstreamModel); stripErr != nil {
+			return openAIWSClientPayload{}, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "invalid websocket request payload", stripErr)
+		} else if changed {
+			normalized = stripped
+			logOpenAIWSModeInfo("ingress_ws_codex_spark_image_tool_stripped account_id=%d", account.ID)
 		}
 		imageIntent := IsImageGenerationIntent(openAIResponsesEndpoint, originalModel, normalized)
 		if imageIntent && !imageGenerationAllowed {

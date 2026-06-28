@@ -196,6 +196,56 @@ func TestCalculateCreateOrderPayAmountUsesCurrencyPrecision(t *testing.T) {
 	}
 }
 
+func TestCalculateCreateOrderPayAmountForSubscriptionKeepsDirectPriceWithFixedFee(t *testing.T) {
+	t.Parallel()
+
+	_, amountStr, amount, err := calculateCreateOrderPayAmount(69.90, payment.FeeConfig{FixedFee: 2.70}, "CNY")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "72.60" || amount != 72.60 {
+		t.Fatalf("subscription CNY pay amount = (%q, %v), want (72.60, 72.60)", amountStr, amount)
+	}
+}
+
+func TestCalculateCreateOrderPayAmountForSubscriptionAppliesFeeToDirectPrice(t *testing.T) {
+	t.Parallel()
+
+	_, amountStr, amount, err := calculateCreateOrderPayAmount(69.90, payment.FeeConfig{FeeRate: 2.5}, "CNY")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "71.65" || amount != 71.65 {
+		t.Fatalf("subscription CNY pay amount with fee = (%q, %v), want (71.65, 71.65)", amountStr, amount)
+	}
+}
+
+func TestCalculateCreditedBalanceStillUsesRechargeMultiplier(t *testing.T) {
+	t.Parallel()
+
+	got := calculateCreditedBalance(10, 0.14)
+	if got != 1.4 {
+		t.Fatalf("credited balance = %v, want 1.4", got)
+	}
+
+	got = calculateCreditedBalance(69.90, 10)
+	if got != 699 {
+		t.Fatalf("credited balance = %v, want 699", got)
+	}
+}
+
+func TestCalculateCreateOrderPayAmountKeepsCurrencyPrecisionWithoutRechargeMultiplier(t *testing.T) {
+	t.Parallel()
+
+	_, amountStr, amount, err := calculateCreateOrderPayAmount(100, payment.FeeConfig{FeeRate: 2.5}, "JPY")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "103" || amount != 103 {
+		t.Fatalf("JPY pay amount = (%q, %v), want (103, 103)", amountStr, amount)
+	}
+}
+
 func TestCalculateCreateOrderPayAmountRejectsFractionalZeroDecimal(t *testing.T) {
 	t.Parallel()
 
@@ -205,6 +255,34 @@ func TestCalculateCreateOrderPayAmountRejectsFractionalZeroDecimal(t *testing.T)
 	}
 	if appErr := infraerrors.FromError(err); appErr.Reason != "INVALID_AMOUNT" {
 		t.Fatalf("reason = %q, want INVALID_AMOUNT", appErr.Reason)
+	}
+}
+
+func TestComputeValidityDaysSupportsSingularAndPluralUnits(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		days int
+		unit string
+		want int
+	}{
+		{name: "days", days: 1, unit: "days", want: 1},
+		{name: "week", days: 1, unit: "week", want: 7},
+		{name: "weeks", days: 2, unit: "weeks", want: 14},
+		{name: "month", days: 1, unit: "month", want: 30},
+		{name: "months", days: 1, unit: "months", want: 30},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := psComputeValidityDays(tt.days, tt.unit); got != tt.want {
+				t.Fatalf("psComputeValidityDays(%d, %q) = %d, want %d", tt.days, tt.unit, got, tt.want)
+			}
+		})
 	}
 }
 

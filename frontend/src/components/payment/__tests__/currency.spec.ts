@@ -13,4 +13,9 @@ describe('formatPaymentAmount', () => {
     expect(paymentCurrencyFractionDigits('HKD')).toBe(2)
     expect(paymentCurrencyFractionDigits('KWD')).toBe(3)
   })
+
+  it('normalizes invalid currencies to the default display currency', () => {
+    expect(formatPaymentAmount(108, '', 'en-US')).toBe('¥108.00')
+    expect(formatPaymentAmount(108, 'USD', 'en-US')).toBe('$108.00')
+  })
 })

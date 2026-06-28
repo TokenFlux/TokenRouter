@@ -73,4 +73,30 @@ describe('OrderTable', () => {
     expect(wrapper.text()).toContain('payment.orders.creditedAmount: 点数65.00')
     expect(wrapper.text()).not.toContain('$65.00')
   })
+
+  it('uses order currency for pay amount and subscription amount', () => {
+    const wrapper = mount(OrderTable, {
+      props: {
+        orders: [
+          {
+            ...baseOrder,
+            order_type: 'subscription' as const,
+            amount: 100,
+            pay_amount: 108,
+            currency: 'USD',
+          },
+        ],
+        loading: false,
+      },
+      global: {
+        stubs: {
+          OrderStatusBadge: true,
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('$108.00')
+    expect(wrapper.text()).toContain('payment.orders.creditedAmount: $100.00')
+    expect(wrapper.text()).not.toContain('¥108.00')
+  })
 })

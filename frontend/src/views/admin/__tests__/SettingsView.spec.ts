@@ -956,6 +956,65 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(getProviders).toHaveBeenCalledTimes(2);
   });
 
+  it("normalizes null provider supported types from API", async () => {
+    const provider = {
+      id: 42,
+      provider_key: "easypay",
+      name: "EasyPay",
+      config: {},
+      supported_types: null as unknown as string[],
+      enabled: true,
+      payment_mode: "",
+      refund_enabled: false,
+      allow_user_refund: false,
+      limits: "",
+      sort_order: 0,
+    };
+    getProviders.mockReset();
+    getProviders.mockResolvedValue({ data: [provider] });
+
+    let receivedProviders: Array<Record<string, unknown>> = [];
+    const PaymentProviderListCapture = defineComponent({
+      props: {
+        providers: {
+          type: Array,
+          default: () => [],
+        },
+      },
+      setup(props) {
+        receivedProviders = props.providers as Array<Record<string, unknown>>;
+        return () => h("div", { class: "provider-list-capture" });
+      },
+    });
+
+    const wrapper = mount(SettingsView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          Select: SelectStub,
+          Toggle: ToggleStub,
+          Icon: true,
+          ConfirmDialog: true,
+          PaymentProviderList: PaymentProviderListCapture,
+          PaymentProviderDialog: true,
+          GroupBadge: true,
+          GroupOptionItem: true,
+          ProxySelector: true,
+          ModelWhitelistSelector: true,
+          ImageUpload: ImageUploadStub,
+          BackupSettings: true,
+        },
+      },
+    });
+
+    await flushPromises();
+    await openPaymentTab(wrapper);
+
+    expect(receivedProviders).toHaveLength(1);
+    expect(Array.isArray(receivedProviders[0].supported_types)).toBe(true);
+    expect(receivedProviders[0].supported_types).toEqual([]);
+  });
+
   it("ignores repeated provider type clicks while the same provider is updating", async () => {
     const provider = {
       id: 8,
@@ -1607,7 +1666,7 @@ describe("admin SettingsView platform quota matrix", () => {
     // 应携带嵌套对象，而非扁平字段
     expect(payload).toHaveProperty("default_platform_quotas");
     const quotas = payload["default_platform_quotas"] as Record<string, unknown>;
-    const platforms = ["anthropic", "openai", "gemini", "antigravity", "qoder"];
+    const platforms = ["anthropic", "openai", "gemini", "antigravity", "qoder", "grok"];
     for (const p of platforms) {
       expect(quotas).toHaveProperty(p);
       const pq = quotas[p] as Record<string, unknown>;

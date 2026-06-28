@@ -2625,6 +2625,7 @@ export default {
         gemini: 'Gemini',
         antigravity: 'Antigravity',
         qoder: 'Qoder',
+        grok: 'Grok',
       },
       saving: '保存中...',
       noGroups: '暂无分组',
@@ -3297,6 +3298,7 @@ export default {
         gemini: 'Gemini',
         antigravity: 'Antigravity',
         qoder: 'Qoder',
+        grok: 'Grok',
       },
       types: {
         oauth: 'OAuth',
@@ -3305,6 +3307,7 @@ export default {
         googleOauth: 'Google OAuth',
         codeAssist: 'Code Assist',
         antigravityOauth: 'Antigravity OAuth',
+        grokOauth: 'Grok OAuth',
         antigravityApikey: '通过 Base URL + API Key 连接',
         qoderCosy: 'Qoder COSY',
         upstream: '对接上游',
@@ -3312,6 +3315,10 @@ export default {
         api_key: 'API Key',
         cookie: 'Cookie'
       },
+      antigravityProjectIdLabel: 'GCP Project ID（可选）',
+      antigravityProjectIdPlaceholder: 'your-gcp-project-id',
+      antigravityProjectIdHint:
+        'standard-tier 且未自动返回 project_id 的 Antigravity 账号需要填写用户自带 GCP project。',
       status: {
         active: '正常',
         inactive: '停用',
@@ -3385,6 +3392,18 @@ export default {
         gemini3Flash: 'G3F',
         gemini3Image: 'G31FI',
         claude: 'Claude',
+        grokRequests: '请求',
+        grokTokens: 'Token',
+        grokUnknown: 'Grok 配额需等待首次上游响应返回 xAI rate-limit 头后显示。',
+        grokRetryAfter: '{time} 后重试',
+        grokProbe: '探测',
+        grokProbeTooltip: '发送最小 xAI Responses 探测请求并读取配额响应头',
+        grokResetUnsupported: '不支持重置',
+        grokResetUnsupportedTooltip: 'xAI 未向 Grok OAuth 账号开放重置额度接口',
+        grokNoHeaders: '未观察到配额响应头',
+        grokLastStatus: '状态 {status}',
+        grokLastProbe: '探测 {time}',
+        grokLastHeadersSeen: '响应头 {time}',
         passiveSampled: '被动采样',
         activeQuery: '查询',
         quotaAutoPaused: '暂停调度中'
@@ -3631,6 +3650,10 @@ export default {
         testModeDefault: '常规请求',
         testModeCompact: 'Compact 探测',
         modelRestrictionDisabledByPassthrough: '已开启自动透传：模型白名单/映射不会生效。',
+      },
+      grok: {
+        baseUrlHint: 'Grok OAuth 账号会转发到官方 xAI API Base URL。',
+        apiKeyHint: 'Grok 订阅支持使用 OAuth refresh token；API Key 账号不在本次范围内。'
       },
       anthropic: {
         apiKeyPassthrough: '自动透传（仅替换认证）',
@@ -3945,6 +3968,14 @@ export default {
           codexSessionImportFailed: 'Codex 账号导入失败',
           codexSessionImportSuccess: '导入完成：新增 {created}，更新 {updated}，跳过 {skipped}',
           codexSessionImportPartial: '部分成功：新增 {created}，更新 {updated}，跳过 {skipped}，失败 {failed}',
+          codexPatAuth: 'Codex Personal Access Token',
+          codexPatDesc: '输入 Codex at- Personal Access Token，系统会先调用 OpenAI whoami 校验后再创建账号。',
+          codexPatInputLabel: 'Codex PAT',
+          codexPatPlaceholder: 'at-...',
+          codexPatHint: '这是独立认证模式，不保存 refresh_token，也不会写入 OAuth access_token 过期时间。',
+          codexPatImportAndCreate: '校验并创建 Codex PAT 账号',
+          codexPatEmpty: '请输入 Codex Personal Access Token',
+          codexPatImportFailed: 'Codex PAT 账号创建失败',
           sessionTokenAuth: '手动输入 ST',
           sessionTokenDesc: '输入您已有的 Session Token，支持批量输入（每行一个），系统将自动验证并创建账号。',
           sessionTokenPlaceholder: '粘贴您的 Session Token...\n支持多个，每行一个',
@@ -3961,6 +3992,49 @@ export default {
           validateAndCreate: '验证并创建账号',
           pleaseEnterRefreshToken: '请输入 Refresh Token',
           pleaseEnterSessionToken: '请输入 Session Token'
+        },
+        grok: {
+          title: 'Grok 账号授权',
+          followSteps: '请按照以下步骤授权您的 xAI/Grok 账号：',
+          step1GenerateUrl: '生成 xAI 授权链接',
+          generateAuthUrl: '生成授权链接',
+          step2OpenUrl: '在浏览器中打开链接并完成授权',
+          openUrlDesc: '在新标签页中打开授权链接，登录 xAI 并授权 API 访问。',
+          importantNotice: '当浏览器跳转到本地 callback URL 后，请复制完整 URL 或 code 参数回填到这里。',
+          step3EnterCode: '输入授权链接或 Code',
+          authCodeDesc: '授权完成后，粘贴 callback URL、查询字符串或授权码：',
+          authCode: '授权链接或 Code',
+          authCodePlaceholder: '粘贴完整 callback URL、?code=... 查询字符串或 code 值',
+          authCodeHint: '支持完整 callback URL、查询字符串或裸 code。',
+          refreshTokenAuth: '手动输入 RT',
+          refreshTokenDesc: '输入已有的 xAI refresh token，支持批量输入（每行一个）。',
+          refreshTokenPlaceholder: '粘贴您的 xAI refresh token...\n支持多个，每行一个',
+          validating: '验证中...',
+          validateAndCreate: '验证并创建账号',
+          pleaseEnterRefreshToken: '请输入 Refresh Token',
+          failedToGenerateUrl: '生成 Grok 授权链接失败',
+          missingExchangeParams: '缺少授权码、state 或 OAuth 会话',
+          failedToExchangeCode: 'Grok 授权码兑换失败',
+          failedToValidateRT: '验证 Grok refresh token 失败',
+          oauthOnlyHint: '首版 Grok 支持仅包含 OAuth 订阅的 Responses API 文本/推理转发。'
+        },
+        qoder: {
+          title: 'Qoder 账户授权',
+          followSteps: '请按照以下步骤完成 Qoder 账户授权：',
+          step1GenerateUrl: '生成授权链接',
+          generateAuthUrl: '生成授权链接',
+          step2OpenUrl: '在浏览器中打开链接并完成授权',
+          openUrlDesc: '请在新标签页中打开授权链接，选择 Qoder 账号并完成授权。',
+          importantNotice: 'Qoder 使用设备授权流程。本页面会打开 Qoder 授权窗口并自动检查完成状态；这个流程通常不会出现 localhost 回调链接。',
+          step3EnterCode: '完成授权',
+          authCodeDesc: '浏览器授权完成后，本页面会自动完成。若自动检查被中断，可以点击完成授权重新检查设备授权状态。',
+          authCode: '手动回调输入（可选）',
+          authCodePlaceholder: 'Qoder 设备授权通常留空即可',
+          authCodeHint: 'Qoder 通过设备会话轮询授权结果，不需要抓取 localhost 回调。',
+          failedToGenerateUrl: '生成 Qoder 授权链接失败',
+          missingExchangeParams: '缺少 session_id / state',
+          failedToExchangeCode: 'Qoder 授权检查失败',
+          popupBlocked: '浏览器拦截了 Qoder 授权弹窗，请使用打开链接按钮继续授权。'
         },
         // Gemini specific
         gemini: {
@@ -4035,24 +4109,6 @@ export default {
           validateAndCreate: '验证并创建账号',
           pleaseEnterRefreshToken: '请输入 Refresh Token',
           failedToValidateRT: '验证 Refresh Token 失败'
-        },
-        qoder: {
-          title: 'Qoder 账户授权',
-          followSteps: '请按照以下步骤完成 Qoder 账户授权：',
-          step1GenerateUrl: '生成授权链接',
-          generateAuthUrl: '生成授权链接',
-          step2OpenUrl: '在浏览器中打开链接并完成授权',
-          openUrlDesc: '请在新标签页中打开授权链接，选择 Qoder 账号并完成授权。',
-          importantNotice: 'Qoder 使用设备授权流程。本页面会打开 Qoder 授权窗口并自动检查完成状态；这个流程通常不会出现 localhost 回调链接。',
-          step3EnterCode: '完成授权',
-          authCodeDesc: '浏览器授权完成后，本页面会自动完成。若自动检查被中断，可以点击完成授权重新检查设备授权状态。',
-          authCode: '手动回调输入（可选）',
-          authCodePlaceholder: 'Qoder 设备授权通常留空即可',
-          authCodeHint: 'Qoder 通过设备会话轮询授权结果，不需要抓取 localhost 回调。',
-          failedToGenerateUrl: '生成 Qoder 授权链接失败',
-          missingExchangeParams: '缺少 session_id / state',
-          failedToExchangeCode: 'Qoder 授权检查失败',
-          popupBlocked: '浏览器拦截了 Qoder 授权弹窗，请使用打开链接按钮继续授权。'
         }
       },
       // Gemini specific (platform-wide)
@@ -4197,6 +4253,7 @@ export default {
       geminiAccount: 'Gemini 账号',
       antigravityAccount: 'Antigravity 账号',
       qoderAccount: 'Qoder 账号',
+      grokAccount: 'Grok 账号',
       qoder: {
         accountType: {
           oauthTitle: '授权链接',

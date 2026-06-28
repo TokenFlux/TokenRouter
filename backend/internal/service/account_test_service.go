@@ -598,7 +598,6 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	var authToken string
 	var apiURL string
 	var isOAuth bool
-	var chatgptAccountID string
 
 	if account.IsOAuth() {
 		isOAuth = true
@@ -610,7 +609,6 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 
 		// OAuth uses ChatGPT internal API
 		apiURL = chatgptCodexAPIURL
-		chatgptAccountID = account.GetChatGPTAccountID()
 	} else if account.Type == "apikey" {
 		// API Key - use Platform API
 		authToken = account.GetOpenAIApiKey()
@@ -663,9 +661,7 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	if isOAuth {
 		req.Host = "chatgpt.com"
 		req.Header.Set("accept", "text/event-stream")
-		if chatgptAccountID != "" {
-			req.Header.Set("chatgpt-account-id", chatgptAccountID)
-		}
+		setOpenAIChatGPTAccountHeaders(req.Header, account)
 	}
 
 	// Get proxy URL
@@ -772,7 +768,6 @@ func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account
 	authToken := ""
 	apiURL := ""
 	isOAuth := false
-	chatgptAccountID := ""
 
 	switch {
 	case account.IsOAuth():
@@ -782,7 +777,6 @@ func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account
 			return s.sendErrorAndEnd(c, "No access token available")
 		}
 		apiURL = chatgptCodexAPIURL + "/compact"
-		chatgptAccountID = account.GetChatGPTAccountID()
 	case account.Type == AccountTypeAPIKey:
 		authToken = account.GetOpenAIApiKey()
 		if authToken == "" {
@@ -830,9 +824,7 @@ func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account
 
 	if isOAuth {
 		req.Host = "chatgpt.com"
-		if chatgptAccountID != "" {
-			req.Header.Set("chatgpt-account-id", chatgptAccountID)
-		}
+		setOpenAIChatGPTAccountHeaders(req.Header, account)
 	}
 
 	proxyURL := ""
@@ -1826,9 +1818,7 @@ func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Co
 		req.Header.Set("User-Agent", codexCLIUserAgent)
 	}
 	applyAccountTestUserAgent(req)
-	if chatgptAccountID := strings.TrimSpace(account.GetChatGPTAccountID()); chatgptAccountID != "" {
-		req.Header.Set("chatgpt-account-id", chatgptAccountID)
-	}
+	setOpenAIChatGPTAccountHeaders(req.Header, account)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {

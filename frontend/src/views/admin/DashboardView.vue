@@ -535,14 +535,20 @@ const formatTokens = (value: number | undefined): string => {
   return value.toLocaleString()
 }
 
-const formatNumber = (value: number): string => {
-  return value.toLocaleString()
+const toFiniteNumber = (value: unknown): number => {
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) ? numberValue : 0
 }
 
-const costDigits = (value: number): number => {
-  if (value >= 1000) return 2
-  if (value >= 1) return 2
-  if (value >= 0.01) return 3
+const formatNumber = (value: number | null | undefined): string => {
+  return toFiniteNumber(value).toLocaleString()
+}
+
+const costDigits = (value: number | null | undefined): number => {
+  const safeValue = toFiniteNumber(value)
+  if (safeValue >= 1000) return 2
+  if (safeValue >= 1) return 2
+  if (safeValue >= 0.01) return 3
   return 4
 }
 

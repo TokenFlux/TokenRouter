@@ -124,6 +124,34 @@ func TestForwardAsRawChatCompletions_ForcesStreamUsageUpstreamAndPassesUsageDown
 	require.Contains(t, rec.Body.String(), "data: [DONE]")
 }
 
+func TestForwardAsRawChatCompletions_TransportErrorFailsOver(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"deepseek-v4-flash-free","messages":[{"role":"user","content":"hello"}]}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstream := &httpUpstreamRecorder{
+		err: errors.New(`Post "https://opencode.ai/zen/v1/chat/completions": EOF`),
+	}
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+	account := rawChatCompletionsTestAccount()
+	account.Credentials["base_url"] = "https://opencode.ai/zen/v1"
+
+	_, err := svc.forwardAsRawChatCompletions(context.Background(), c, account, body, "")
+
+	var failoverErr *UpstreamFailoverError
+	require.True(t, errors.As(err, &failoverErr), "transport error must trigger account failover")
+	require.Equal(t, http.StatusBadGateway, failoverErr.StatusCode)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, 0, rec.Body.Len(), "service must not write a hard 502 before handler can fail over")
+}
+
 func TestForwardAsRawChatCompletions_PreservesDeepSeekReasoningContentNonStreaming(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

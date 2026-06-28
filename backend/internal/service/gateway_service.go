@@ -9312,7 +9312,7 @@ func finalizeUsageBilling(p *usageBillingParams, deps *billingDeps, result *Usag
 	}
 
 	if result != nil && result.BalanceAmountUSD > 0 && p.User != nil {
-		deps.billingCacheService.QueueDeductBalance(p.User.ID, result.BalanceAmountUSD)
+		syncBalanceCacheAfterDeduction(context.Background(), p, deps, result)
 	}
 
 	if p.Cost.ActualCost > 0 && p.APIKey != nil && p.APIKey.HasRateLimits() {
@@ -9363,6 +9363,23 @@ func finalizeUsageBilling(p *usageBillingParams, deps *billingDeps, result *Usag
 	// 通知检查异步执行，所需参数已全部捕获，不依赖请求 context 或上游连接。
 	go notifyBalanceLow(p, deps, result)
 	go notifyAccountQuota(p, deps, result)
+}
+
+func syncBalanceCacheAfterDeduction(ctx context.Context, p *usageBillingParams, deps *billingDeps, result *UsageBillingApplyResult) {
+	if p == nil || p.User == nil || deps == nil || deps.billingCacheService == nil || result == nil || result.BalanceAmountUSD <= 0 {
+		return
+	}
+	if result.NewBalance != nil && deps.billingCacheService.balanceBelowEligibilityThreshold(*result.NewBalance) {
+		if err := deps.billingCacheService.InvalidateUserBalance(ctx, p.User.ID); err != nil {
+			slog.Warn("invalidate balance cache after exhausted deduction failed",
+				"user_id", p.User.ID,
+				"new_balance", *result.NewBalance,
+				"error", err,
+			)
+		}
+		return
+	}
+	deps.billingCacheService.QueueDeductBalance(p.User.ID, result.BalanceAmountUSD)
 }
 
 // notifyBalanceLow 在扣费后发送余额不足通知。

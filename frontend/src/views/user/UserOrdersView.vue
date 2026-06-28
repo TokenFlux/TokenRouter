@@ -66,7 +66,7 @@
           </div>
           <div class="mt-2 flex justify-between text-sm">
             <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-            <span class="text-gray-900 dark:text-white">{{ formatOrderAmount(refundTarget.amount, refundTarget.order_type) }}</span>
+            <span class="text-gray-900 dark:text-white">{{ formatOrderAmount(refundTarget.amount, refundTarget) }}</span>
           </div>
         </div>
         <div>
@@ -99,6 +99,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import OrderTable from '@/components/payment/OrderTable.vue'
+import { formatPaymentAmount } from '@/components/payment/currency'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -162,8 +163,12 @@ async function confirmCancel() {
 
 function openRefundDialog(order: PaymentOrder) { refundTarget.value = order; refundReason.value = '' }
 
-function formatOrderAmount(amount: number, orderType: string): string {
-  return orderType === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : `¥${amount.toFixed(2)}`
+function formatOrderAmount(amount: number, order: PaymentOrder): string {
+  return order.order_type === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : formatGatewayAmount(amount, order.currency)
+}
+
+function formatGatewayAmount(amount: number, currency?: string | null): string {
+  return formatPaymentAmount(amount, currency)
 }
 
 async function confirmRefund() {

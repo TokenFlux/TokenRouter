@@ -156,4 +156,24 @@ describe('PaymentProviderDialog payment guide', () => {
     const payload = wrapper.emitted('save')?.[0]?.[0] as { config: Record<string, string> }
     expect(payload.config.accountId).toBe('')
   })
+
+  it('normalizes null supported_types when loading a provider', async () => {
+    const provider = providerFactory({
+      config: {
+        clientId: 'cid_123',
+        apiBase: 'https://api.airwallex.com/api/v1',
+        countryCode: 'CN',
+        currency: 'CNY',
+      },
+      supported_types: null as unknown as string[],
+    })
+    const wrapper = mountDialog({ editing: provider })
+
+    ;(wrapper.vm as unknown as { loadProvider: (provider: ProviderInstance) => void }).loadProvider(provider)
+    await nextTick()
+    await wrapper.find('form').trigger('submit.prevent')
+
+    const payload = wrapper.emitted('save')?.[0]?.[0] as { supported_types: string[] }
+    expect(payload.supported_types).toEqual([])
+  })
 })

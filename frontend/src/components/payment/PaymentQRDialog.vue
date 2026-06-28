@@ -45,11 +45,11 @@
           </div>
           <div class="flex justify-between">
             <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-            <span class="font-medium text-gray-900 dark:text-white">{{ paidOrder.order_type === 'balance' ? '$' : '¥' }}{{ paidOrder.amount.toFixed(2) }}</span>
+            <span class="font-medium text-gray-900 dark:text-white">{{ formatOrderAmount(paidOrder.amount, paidOrder) }}</span>
           </div>
           <div class="flex justify-between">
             <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
-            <span class="font-medium text-gray-900 dark:text-white">¥{{ paidOrder.pay_amount.toFixed(2) }}</span>
+            <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(paidOrder.pay_amount, paidOrder.currency) }}</span>
           </div>
         </div>
       </div>
@@ -80,6 +80,8 @@ import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { getPaymentPopupFeatures } from '@/components/payment/providerConfig'
+import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
+import { formatPaymentAmount } from '@/components/payment/currency'
 import type { PaymentOrder } from '@/types/payment'
 import QRCode from 'qrcode'
 import alipayIcon from '@/assets/icons/alipay.svg'
@@ -103,6 +105,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const paymentStore = usePaymentStore()
 const appStore = useAppStore()
+const { formatBalanceAmount } = useBalanceDisplay()
 
 const qrCanvas = ref<HTMLCanvasElement | null>(null)
 const qrUrl = ref('')
@@ -142,6 +145,14 @@ const countdownDisplay = computed(() => {
   const s = remainingSeconds.value % 60
   return m.toString().padStart(2, '0') + ':' + s.toString().padStart(2, '0')
 })
+
+function formatOrderAmount(amount: number, order: PaymentOrder): string {
+  return order.order_type === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : formatGatewayAmount(amount, order.currency)
+}
+
+function formatGatewayAmount(amount: number, currency?: string | null): string {
+  return formatPaymentAmount(amount, currency)
+}
 
 function getLogoForType(): string | null {
   if (isAlipay.value) return alipayIcon

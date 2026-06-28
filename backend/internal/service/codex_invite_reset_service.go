@@ -377,9 +377,7 @@ func (s *CodexInviteResetService) applyHeaders(req *http.Request, accountCtx *co
 	req.Header.Set("sec-fetch-mode", "no-cors")
 	req.Header.Set("sec-fetch-dest", "empty")
 	req.Header.Set("priority", "u=4, i")
-	if chatgptAccountID := accountCtx.account.GetChatGPTAccountID(); chatgptAccountID != "" {
-		req.Header.Set("chatgpt-account-id", chatgptAccountID)
-	}
+	setOpenAIChatGPTAccountHeaders(req.Header, accountCtx.account)
 }
 
 func (s *CodexInviteResetService) doJSON(req *http.Request, accountCtx *codexInviteResetAccountContext) (map[string]any, error) {

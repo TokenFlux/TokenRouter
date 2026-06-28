@@ -751,6 +751,62 @@ func TestApplyCodexOAuthTransform_DoesNotAddSparkImageUnsupportedForNonSpark(t *
 	require.NotContains(t, instructions, codexSparkImageUnsupportedMarker)
 }
 
+// gpt-5.3-codex-spark 上游会拒绝 image_generation 工具，OAuth 转换需要剥离该工具并保留其它工具。
+func TestApplyCodexOAuthTransform_StripsImageGenerationToolForSpark(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "gpt-5.3-codex-spark",
+		"input": "hello",
+		"tools": []any{
+			map[string]any{"type": "function", "name": "shell"},
+			map[string]any{"type": "image_generation", "output_format": "png"},
+		},
+	}
+
+	result := applyCodexOAuthTransform(reqBody, true, false)
+	require.True(t, result.Modified)
+	require.False(t, hasOpenAIImageGenerationTool(reqBody))
+
+	tools, ok := reqBody["tools"].([]any)
+	require.True(t, ok)
+	require.Len(t, tools, 1)
+	first, ok := tools[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "function", first["type"])
+	require.Equal(t, "shell", first["name"])
+}
+
+// Spark 推理强度别名会归一化为 gpt-5.3-codex-spark，也需要剥离 image_generation。
+func TestApplyCodexOAuthTransform_StripsImageGenerationToolForSparkAlias(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "gpt-5.3-codex-spark-high",
+		"input": "hello",
+		"tools": []any{
+			map[string]any{"type": "image_generation", "output_format": "png"},
+		},
+	}
+
+	result := applyCodexOAuthTransform(reqBody, true, false)
+	require.True(t, result.Modified)
+	require.False(t, hasOpenAIImageGenerationTool(reqBody))
+	// 剥离唯一工具后 tools 会被清空并删除字段。
+	_, hasTools := reqBody["tools"]
+	require.False(t, hasTools)
+}
+
+// 非 Spark Codex 模型支持 image_generation，工具应保持不变。
+func TestApplyCodexOAuthTransform_KeepsImageGenerationToolForNonSpark(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "gpt-5.3-codex",
+		"input": "hello",
+		"tools": []any{
+			map[string]any{"type": "image_generation", "output_format": "png"},
+		},
+	}
+
+	applyCodexOAuthTransform(reqBody, true, false)
+	require.True(t, hasOpenAIImageGenerationTool(reqBody))
+}
+
 func TestNormalizeOpenAIResponsesImageOnlyModel_BuildsImageToolRequest(t *testing.T) {
 	reqBody := map[string]any{
 		"model":         "gpt-image-2",

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -175,24 +176,122 @@ func (h *PaymentHandler) RetryFulfillment(c *gin.Context) {
 	response.Success(c, gin.H{"message": "fulfillment retried"})
 }
 
-func sanitizeAdminPaymentOrdersForResponse(orders []*dbent.PaymentOrder) []*dbent.PaymentOrder {
-	if len(orders) == 0 {
-		return orders
-	}
-	out := make([]*dbent.PaymentOrder, 0, len(orders))
+// AdminPaymentOrderResult 是后台订单响应 DTO，显式排除 provider_snapshot。
+type AdminPaymentOrderResult struct {
+	ID                   int64                           `json:"id"`
+	UserID               int64                           `json:"user_id"`
+	UserEmail            string                          `json:"user_email,omitempty"`
+	UserName             string                          `json:"user_name,omitempty"`
+	UserNotes            *string                         `json:"user_notes,omitempty"`
+	Amount               float64                         `json:"amount"`
+	PayAmount            float64                         `json:"pay_amount"`
+	FeeRate              float64                         `json:"fee_rate"`
+	FeeFixed             float64                         `json:"fee_fixed"`
+	FeeRateAmount        float64                         `json:"fee_rate_amount"`
+	FeeAmount            float64                         `json:"fee_amount"`
+	Currency             string                          `json:"currency"`
+	RechargeCode         string                          `json:"recharge_code,omitempty"`
+	OutTradeNo           string                          `json:"out_trade_no"`
+	PaymentType          string                          `json:"payment_type"`
+	PaymentTradeNo       string                          `json:"payment_trade_no,omitempty"`
+	PayURL               *string                         `json:"pay_url,omitempty"`
+	QRCode               *string                         `json:"qr_code,omitempty"`
+	QRCodeImg            *string                         `json:"qr_code_img,omitempty"`
+	PaymentCustomerID    *string                         `json:"payment_customer_id,omitempty"`
+	PaymentInvoiceID     *string                         `json:"payment_invoice_id,omitempty"`
+	PaymentInvoiceURL    *string                         `json:"payment_invoice_url,omitempty"`
+	PaymentInvoicePdfURL *string                         `json:"payment_invoice_pdf_url,omitempty"`
+	PaymentInvoiceStatus *string                         `json:"payment_invoice_status,omitempty"`
+	BillingSnapshot      map[string]any                  `json:"billing_snapshot,omitempty"`
+	OrderType            string                          `json:"order_type"`
+	PlanID               *int64                          `json:"plan_id,omitempty"`
+	PlanSnapshot         domain.SubscriptionPlanSnapshot `json:"plan_snapshot,omitempty"`
+	ProviderInstanceID   *string                         `json:"provider_instance_id,omitempty"`
+	ProviderKey          *string                         `json:"provider_key,omitempty"`
+	Status               string                          `json:"status"`
+	RefundAmount         float64                         `json:"refund_amount"`
+	RefundReason         *string                         `json:"refund_reason,omitempty"`
+	RefundAt             *time.Time                      `json:"refund_at,omitempty"`
+	ForceRefund          bool                            `json:"force_refund,omitempty"`
+	RefundRequestedAt    *time.Time                      `json:"refund_requested_at,omitempty"`
+	RefundRequestReason  *string                         `json:"refund_request_reason,omitempty"`
+	RefundRequestedBy    *string                         `json:"refund_requested_by,omitempty"`
+	ExpiresAt            time.Time                       `json:"expires_at"`
+	PaidAt               *time.Time                      `json:"paid_at,omitempty"`
+	CompletedAt          *time.Time                      `json:"completed_at,omitempty"`
+	FailedAt             *time.Time                      `json:"failed_at,omitempty"`
+	FailedReason         *string                         `json:"failed_reason,omitempty"`
+	ClientIP             string                          `json:"client_ip,omitempty"`
+	SrcHost              string                          `json:"src_host,omitempty"`
+	SrcURL               *string                         `json:"src_url,omitempty"`
+	CreatedAt            time.Time                       `json:"created_at"`
+	UpdatedAt            time.Time                       `json:"updated_at"`
+}
+
+func sanitizeAdminPaymentOrdersForResponse(orders []*dbent.PaymentOrder) []*AdminPaymentOrderResult {
+	out := make([]*AdminPaymentOrderResult, 0, len(orders))
 	for _, order := range orders {
-		out = append(out, sanitizeAdminPaymentOrderForResponse(order))
+		if item := sanitizeAdminPaymentOrderForResponse(order); item != nil {
+			out = append(out, item)
+		}
 	}
 	return out
 }
 
-func sanitizeAdminPaymentOrderForResponse(order *dbent.PaymentOrder) *dbent.PaymentOrder {
+func sanitizeAdminPaymentOrderForResponse(order *dbent.PaymentOrder) *AdminPaymentOrderResult {
 	if order == nil {
 		return nil
 	}
-	cloned := *order
-	cloned.ProviderSnapshot = nil
-	return &cloned
+	return &AdminPaymentOrderResult{
+		ID:                   order.ID,
+		UserID:               order.UserID,
+		UserEmail:            order.UserEmail,
+		UserName:             order.UserName,
+		UserNotes:            order.UserNotes,
+		Amount:               order.Amount,
+		PayAmount:            order.PayAmount,
+		FeeRate:              order.FeeRate,
+		FeeFixed:             order.FeeFixed,
+		FeeRateAmount:        order.FeeRateAmount,
+		FeeAmount:            order.FeeAmount,
+		Currency:             service.PaymentOrderCurrency(order),
+		RechargeCode:         order.RechargeCode,
+		OutTradeNo:           order.OutTradeNo,
+		PaymentType:          order.PaymentType,
+		PaymentTradeNo:       order.PaymentTradeNo,
+		PayURL:               order.PayURL,
+		QRCode:               order.QrCode,
+		QRCodeImg:            order.QrCodeImg,
+		PaymentCustomerID:    order.PaymentCustomerID,
+		PaymentInvoiceID:     order.PaymentInvoiceID,
+		PaymentInvoiceURL:    order.PaymentInvoiceURL,
+		PaymentInvoicePdfURL: order.PaymentInvoicePdfURL,
+		PaymentInvoiceStatus: order.PaymentInvoiceStatus,
+		BillingSnapshot:      order.BillingSnapshot,
+		OrderType:            order.OrderType,
+		PlanID:               order.PlanID,
+		PlanSnapshot:         order.PlanSnapshot,
+		ProviderInstanceID:   order.ProviderInstanceID,
+		ProviderKey:          order.ProviderKey,
+		Status:               order.Status,
+		RefundAmount:         order.RefundAmount,
+		RefundReason:         order.RefundReason,
+		RefundAt:             order.RefundAt,
+		ForceRefund:          order.ForceRefund,
+		RefundRequestedAt:    order.RefundRequestedAt,
+		RefundRequestReason:  order.RefundRequestReason,
+		RefundRequestedBy:    order.RefundRequestedBy,
+		ExpiresAt:            order.ExpiresAt,
+		PaidAt:               order.PaidAt,
+		CompletedAt:          order.CompletedAt,
+		FailedAt:             order.FailedAt,
+		FailedReason:         order.FailedReason,
+		ClientIP:             order.ClientIP,
+		SrcHost:              order.SrcHost,
+		SrcURL:               order.SrcURL,
+		CreatedAt:            order.CreatedAt,
+		UpdatedAt:            order.UpdatedAt,
+	}
 }
 
 // AdminProcessRefundRequest is the request body for admin refund processing.

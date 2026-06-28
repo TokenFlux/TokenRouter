@@ -1001,6 +1001,21 @@
         </div>
       </div>
 
+      <div
+        v-if="account.platform === 'antigravity' && account.type === 'oauth'"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <label class="input-label">{{ t('admin.accounts.antigravityProjectIdLabel') }}</label>
+        <input
+          v-model="antigravityProjectId"
+          data-testid="antigravity-project-id-input"
+          type="text"
+          class="input font-mono"
+          :placeholder="t('admin.accounts.antigravityProjectIdPlaceholder')"
+        />
+        <p class="input-hint">{{ t('admin.accounts.antigravityProjectIdHint') }}</p>
+      </div>
+
       <!-- Antigravity model restriction (applies to all antigravity types) -->
       <!-- Antigravity 只支持模型映射模式，不支持白名单模式 -->
       <div v-if="account.platform === 'antigravity'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
@@ -2424,7 +2439,11 @@ import ProxyAdBanner from '@/components/common/ProxyAdBanner.vue'
 import GroupSelector from '@/components/common/GroupSelector.vue'
 import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.vue'
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
-import { applyInterceptWarmup } from '@/components/account/credentialsBuilder'
+import {
+  ANTIGRAVITY_PROJECT_ID_CREDENTIAL_KEY,
+  applyAntigravityProjectID,
+  applyInterceptWarmup
+} from '@/components/account/credentialsBuilder'
 import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import {
@@ -2566,6 +2585,7 @@ const autoPause5hDisabled = ref(false)
 const autoPause7dDisabled = ref(false)
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
 const allowOverages = ref(false) // For antigravity accounts: enable AI Credits overages
+const antigravityProjectId = ref('')
 const antigravityModelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const antigravityWhitelistModels = ref<string[]>([])
 const antigravityModelMappings = ref<ModelMapping[]>([])
@@ -3181,6 +3201,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   // Load antigravity model mapping (Antigravity 只支持映射模式)
   if (newAccount.platform === 'antigravity') {
     const credentials = newAccount.credentials as Record<string, unknown> | undefined
+    const configuredProjectID = credentials?.[ANTIGRAVITY_PROJECT_ID_CREDENTIAL_KEY]
+    antigravityProjectId.value = typeof configuredProjectID === 'string' ? configuredProjectID : ''
 
     // Antigravity 始终使用映射模式
     antigravityModelRestrictionMode.value = 'mapping'
@@ -3205,6 +3227,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
       }
     }
   } else {
+    antigravityProjectId.value = ''
     antigravityModelRestrictionMode.value = 'mapping'
     antigravityWhitelistModels.value = []
     antigravityModelMappings.value = []
@@ -4165,6 +4188,9 @@ const handleSubmit = async () => {
       )
       if (antigravityModelMapping) {
         newCredentials.model_mapping = antigravityModelMapping
+      }
+      if (props.account.type === 'oauth') {
+        applyAntigravityProjectID(newCredentials, antigravityProjectId.value, 'edit')
       }
 
       updatePayload.credentials = newCredentials

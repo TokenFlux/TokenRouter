@@ -53,12 +53,12 @@
 
       <template #cell-pay_amount="{ value, row }">
         <div class="text-sm">
-          <span class="font-medium text-gray-900 dark:text-white">¥{{ value.toFixed(2) }}</span>
+          <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(value, row.currency) }}</span>
         <span v-if="row.fee_amount > 0 || row.fee_rate > 0" class="ml-1 text-xs text-gray-400" :title="feeTitle(row)">
-          (+¥{{ feeAmount(row).toFixed(2) }})
+          (+{{ formatGatewayAmount(feeAmount(row), row.currency) }})
         </span>
         <div v-if="row.amount !== row.pay_amount" class="text-xs text-gray-500">
-            {{ t('payment.orders.creditedAmount') }}: {{ formatOrderAmount(row.amount, row.order_type) }}
+            {{ t('payment.orders.creditedAmount') }}: {{ formatOrderAmount(row.amount, row) }}
         </div>
       </div>
     </template>
@@ -144,6 +144,7 @@ import Pagination from '@/components/common/Pagination.vue'
 import Select from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { statusBadgeClass, canRefund, formatOrderDateTime } from '@/components/payment/orderUtils'
+import { formatPaymentAmount } from '@/components/payment/currency'
 
 const { t } = useI18n()
 const { formatBalanceAmount } = useBalanceDisplay()
@@ -231,8 +232,12 @@ function formatDateTime(dateStr: string): string {
   return formatOrderDateTime(dateStr)
 }
 
-function formatOrderAmount(amount: number, orderType: string): string {
-  return orderType === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : `¥${amount.toFixed(2)}`
+function formatOrderAmount(amount: number, order: PaymentOrder): string {
+  return order.order_type === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : formatGatewayAmount(amount, order.currency)
+}
+
+function formatGatewayAmount(amount: number, currency?: string | null): string {
+  return formatPaymentAmount(amount, currency)
 }
 
 function feeAmount(row: PaymentOrder): number {
@@ -243,8 +248,8 @@ function feeAmount(row: PaymentOrder): number {
 
 function feeTitle(row: PaymentOrder): string {
   const parts: string[] = []
-  if ((row.fee_fixed || 0) > 0) parts.push(`${t('payment.fixedFee')}: ¥${row.fee_fixed.toFixed(2)}`)
-  if ((row.fee_rate_amount || 0) > 0) parts.push(`${t('payment.rateFee')}: ¥${row.fee_rate_amount.toFixed(2)} (${row.fee_rate}%)`)
+  if ((row.fee_fixed || 0) > 0) parts.push(`${t('payment.fixedFee')}: ${formatGatewayAmount(row.fee_fixed, row.currency)}`)
+  if ((row.fee_rate_amount || 0) > 0) parts.push(`${t('payment.rateFee')}: ${formatGatewayAmount(row.fee_rate_amount, row.currency)} (${row.fee_rate}%)`)
   if (parts.length === 0 && row.fee_rate > 0) parts.push(`${t('payment.orders.fee')}: ${row.fee_rate}%`)
   return parts.join(' / ')
 }

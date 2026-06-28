@@ -619,9 +619,10 @@ func TestNewOpenAIGatewayService_InitializesOpenAIWSResolver(t *testing.T) {
 		nil,
 		nil,
 		nil,
-		nil, // settingService
-		nil, // userPlatformQuotaRepo
-		nil, // dataSharingService
+		nil, // 余额通知服务
+		nil, // 设置服务
+		nil, // 用户平台配额仓库
+		nil, // 数据共享服务
 	)
 
 	decision := svc.getOpenAIWSProtocolResolver().Resolve(nil)

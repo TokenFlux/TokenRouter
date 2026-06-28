@@ -10,6 +10,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/oauth"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 )
 
 // OpenAIOAuthTokenRequestOptions 定义 OpenAI OAuth token 请求的可选指纹配置。
@@ -35,6 +36,18 @@ type OpenAIOAuthClient interface {
 	ExchangeCode(ctx context.Context, code, codeVerifier, redirectURI, proxyURL, clientID string, options ...OpenAIOAuthTokenRequestOptions) (*openai.TokenResponse, error)
 	RefreshToken(ctx context.Context, refreshToken, proxyURL string, options ...OpenAIOAuthTokenRequestOptions) (*openai.TokenResponse, error)
 	RefreshTokenWithClientID(ctx context.Context, refreshToken, proxyURL string, clientID string, options ...OpenAIOAuthTokenRequestOptions) (*openai.TokenResponse, error)
+}
+
+// GrokOAuthClient 定义 xAI/Grok OAuth 操作接口。
+type GrokOAuthClient interface {
+	ExchangeCode(ctx context.Context, code, codeVerifier, redirectURI, proxyURL, clientID string) (*xai.TokenResponse, error)
+	RefreshToken(ctx context.Context, refreshToken, proxyURL, clientID string) (*xai.TokenResponse, error)
+}
+
+// GrokOAuthTokenService 是 Grok token provider 使用的窄刷新端口。
+type GrokOAuthTokenService interface {
+	RefreshAccountToken(ctx context.Context, account *Account) (*GrokTokenInfo, error)
+	BuildAccountCredentials(tokenInfo *GrokTokenInfo) map[string]any
 }
 
 // ClaudeOAuthClient handles HTTP requests for Claude OAuth flows

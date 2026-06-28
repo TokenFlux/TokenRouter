@@ -14,12 +14,12 @@
     </template>
     <template #cell-pay_amount="{ value, row }">
       <div class="text-sm">
-        <span class="font-medium text-gray-900 dark:text-white">¥{{ value.toFixed(2) }}</span>
+        <span class="font-medium text-gray-900 dark:text-white">{{ formatGatewayAmount(value, row.currency) }}</span>
         <span v-if="row.fee_rate > 0" class="ml-1 text-xs text-gray-400" :title="t('payment.orders.fee') + ': ' + row.fee_rate + '%'">
           ({{ t('payment.orders.fee') }} {{ row.fee_rate }}%)
         </span>
         <div v-if="row.amount !== row.pay_amount" class="text-xs text-gray-500">
-          {{ t('payment.orders.creditedAmount') }}: {{ formatOrderAmount(row.amount, row.order_type) }}
+          {{ t('payment.orders.creditedAmount') }}: {{ formatOrderAmount(row.amount, row) }}
         </div>
       </div>
     </template>
@@ -46,6 +46,7 @@ import type { Column } from '@/components/common/types'
 import DataTable from '@/components/common/DataTable.vue'
 import OrderStatusBadge from '@/components/payment/OrderStatusBadge.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
+import { formatPaymentAmount } from '@/components/payment/currency'
 
 const { t } = useI18n()
 const { formatBalanceAmount } = useBalanceDisplay()
@@ -58,9 +59,13 @@ const props = defineProps<{
 
 function formatDate(dateStr: string) { return new Date(dateStr).toLocaleString() }
 
-/** 余额到账金额使用用户配置的单位，套餐订单继续使用人民币价格。 */
-function formatOrderAmount(amount: number, orderType: string): string {
-  return orderType === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : `¥${amount.toFixed(2)}`
+/** 余额到账金额使用用户配置的单位，套餐订单使用渠道币种。 */
+function formatOrderAmount(amount: number, order: PaymentOrder): string {
+  return order.order_type === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : formatGatewayAmount(amount, order.currency)
+}
+
+function formatGatewayAmount(amount: number, currency?: string | null): string {
+  return formatPaymentAmount(amount, currency)
 }
 
 const columns = computed((): Column[] => {

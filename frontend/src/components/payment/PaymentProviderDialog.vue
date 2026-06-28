@@ -654,7 +654,9 @@ function reset(defaultKey: string) {
 function loadProvider(provider: ProviderInstance) {
   form.name = provider.name
   form.provider_key = provider.provider_key
-  form.supported_types = provider.supported_types
+  form.supported_types = Array.isArray(provider.supported_types)
+    ? [...provider.supported_types]
+    : []
   form.enabled = provider.enabled
   // 将旧数据或跨服务商写入的 payment_mode 归一化到当前服务商允许的值。
   form.payment_mode = isValidPaymentMode(provider.provider_key, provider.payment_mode || '')

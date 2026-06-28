@@ -606,6 +606,61 @@ func openAIImagesUpstreamErrorFromSSEPayload(payload []byte) *OpenAIImagesUpstre
 	}
 }
 
+// extractOpenAIImagesModelRefusal 从上游 SSE 响应体提取「模型未出图、改用文字拒绝」
+// 的拒绝文本（内容审核场景）。
+//
+// 上游 response.completed 无图时，模型常以 output_text / message 形式输出拒绝说明。
+// 这类失败是内容策略拦截，重试或换账号均无效，应把文本作为内容策略错误透传给客户端。
+// 返回空串表示无文字输出（真空响应）。
+func extractOpenAIImagesModelRefusal(body []byte) string {
+	var b strings.Builder
+	collect := func(s string) {
+		if s = strings.TrimSpace(s); s != "" {
+			if b.Len() > 0 {
+				_ = b.WriteByte(' ')
+			}
+			_, _ = b.WriteString(s)
+		}
+	}
+	forEachOpenAISSEDataPayload(string(body), func(payload []byte) {
+		if !gjson.ValidBytes(payload) {
+			return
+		}
+		switch gjson.GetBytes(payload, "type").String() {
+		case "response.output_text.delta":
+			// 流式文本增量。
+			collect(gjson.GetBytes(payload, "delta").String())
+		case "response.completed", "response.output_item.done":
+			// 终态里的 message/output_text。
+			gjson.GetBytes(payload, "response.output").ForEach(func(_, item gjson.Result) bool {
+				if item.Get("type").String() == "message" {
+					item.Get("content").ForEach(func(_, part gjson.Result) bool {
+						if part.Get("type").String() == "output_text" {
+							collect(part.Get("text").String())
+						}
+						return true
+					})
+				}
+				return true
+			})
+			if item := gjson.GetBytes(payload, "item"); item.Get("type").String() == "message" {
+				item.Get("content").ForEach(func(_, part gjson.Result) bool {
+					if part.Get("type").String() == "output_text" {
+						collect(part.Get("text").String())
+					}
+					return true
+				})
+			}
+		}
+	})
+	refusal := strings.TrimSpace(b.String())
+	const maxRefusal = 600
+	if len(refusal) > maxRefusal {
+		refusal = refusal[:maxRefusal]
+	}
+	return refusal
+}
+
 // summarizeOpenAIImagesNoOutputBody 从上游 SSE 响应体提取诊断摘要，用于软失败时
 // 记录到 ops 日志（上游无图、无标准错误的场景）。提取最终事件类型、response.status、
 // incomplete_details.reason，并附 body 截断片段，便于事后定位上游到底返回了什么。
@@ -1058,14 +1113,24 @@ func (s *OpenAIGatewayService) handleOpenAIImagesOAuthNonStreamingResponse(
 			}
 			return OpenAIUsage{}, 0, nil, upstreamErr
 		}
-		// 软失败兜底：上游既无图、又无任何可识别的 error/failed/incomplete 事件
-		// （实测：上游偶发把请求路由到 gpt-5.x-mini，返回 response.completed 但 output 为空、
-		// image_gen 工具未执行）。这是上游的概率性失败——同账号有时成功有时失败。
-		// 处理：① 记录上游诊断摘要到 ops（last_event/status/model/body 片段）便于排查；
-		// ② 返回 UpstreamFailoverError 触发重试。因实测为「同账号概率性失败」，优先
-		//    RetryableOnSameAccount 同账号快速重试（默认 3 次，大概率某次正常出图），
-		//    用尽后由 handler 自然换账号 failover（switchCount 上限保护），既提高成功率
-		//    又不无谓消耗其他账号配额。
+		// 软失败兜底：上游无图。先区分内容审核拒绝和真空响应：
+		// ① 内容审核拒绝：模型未出图，但输出了文字拒绝；这是内容策略拦截，
+		//    换账号或重试均无效，应作为 400 透传给客户端。
+		// ② 真空响应：既无图也无文字输出，才按上游概率性失败触发重试。
+		if refusal := extractOpenAIImagesModelRefusal(body); refusal != "" {
+			refusalErr := &OpenAIImagesUpstreamError{
+				StatusCode: http.StatusBadRequest,
+				ErrorType:  "image_generation_user_error",
+				Code:       "content_policy_violation",
+				Message:    sanitizeUpstreamErrorMessage(refusal),
+			}
+			setOpsUpstreamError(c, http.StatusBadRequest, refusalErr.clientMessage(), s.summarizeOpenAIImagesNoOutputBody(body))
+			writeOpenAIImagesUpstreamErrorResponse(c, refusalErr)
+			return OpenAIUsage{}, 0, nil, refusalErr
+		}
+		// 真空响应：记录上游诊断摘要到 ops（last_event/status/model/body 片段）便于排查；
+		// 返回 UpstreamFailoverError 触发重试。因实测为「同账号概率性失败」，优先同账号
+		// 快速重试，用尽后由 handler 自然换账号 failover。
 		setOpsUpstreamError(c, http.StatusBadGateway, "upstream did not return image output", s.summarizeOpenAIImagesNoOutputBody(body))
 		return OpenAIUsage{}, 0, nil, &UpstreamFailoverError{
 			StatusCode:             http.StatusBadGateway,

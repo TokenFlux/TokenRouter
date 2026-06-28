@@ -234,6 +234,18 @@ func TestIsOpenAITransientProcessingError(t *testing.T) {
 		nil,
 	))
 
+	require.True(t, isOpenAITransientProcessingError(
+		http.StatusBadRequest,
+		"",
+		[]byte(`{"error":{"code":"server_is_overloaded","message":"Please retry later.","type":"invalid_request_error"}}`),
+	))
+
+	require.True(t, isOpenAITransientProcessingError(
+		http.StatusServiceUnavailable,
+		"",
+		[]byte(`{"error":{"code":"slow_down","message":"Please retry later."}}`),
+	))
+
 	require.False(t, isOpenAITransientProcessingError(
 		http.StatusBadRequest,
 		"Missing required parameter: 'instructions'",

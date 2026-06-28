@@ -2600,6 +2600,7 @@ export default {
         gemini: 'Gemini',
         antigravity: 'Antigravity',
         qoder: 'Qoder',
+        grok: 'Grok',
       },
       deleteConfirm:
         "Are you sure you want to delete '{name}'? All associated API keys will no longer belong to any group.",
@@ -3109,6 +3110,8 @@ export default {
         openai: 'OpenAI',
         gemini: 'Gemini',
         antigravity: 'Antigravity',
+        qoder: 'Qoder',
+        grok: 'Grok',
       },
       types: {
         oauth: 'OAuth',
@@ -3117,11 +3120,16 @@ export default {
         googleOauth: 'Google OAuth',
         codeAssist: 'Code Assist',
         antigravityOauth: 'Antigravity OAuth',
+        grokOauth: 'Grok OAuth',
         antigravityApikey: 'Connect via Base URL + API Key',
         qoderCosy: 'Qoder COSY',
         upstream: 'Upstream',
         upstreamDesc: 'Connect via Base URL + API Key'
       },
+      antigravityProjectIdLabel: 'GCP Project ID (optional)',
+      antigravityProjectIdPlaceholder: 'your-gcp-project-id',
+      antigravityProjectIdHint:
+        'Antigravity standard-tier accounts that do not receive an automatic project_id need a user-owned GCP project.',
       status: {
         active: 'Active',
         inactive: 'Inactive',
@@ -3485,6 +3493,10 @@ export default {
         testModeCompact: 'Compact probe',
         modelRestrictionDisabledByPassthrough: 'Automatic passthrough is enabled: model whitelist/mapping will not take effect.',
       },
+      grok: {
+        baseUrlHint: 'Grok OAuth accounts forward to the official xAI API base URL.',
+        apiKeyHint: 'Grok subscription support uses OAuth refresh tokens; API keys are out of scope for this account type.'
+      },
       anthropic: {
         apiKeyPassthrough: 'Auto passthrough (auth only)',
         apiKeyPassthroughDesc:
@@ -3811,6 +3823,14 @@ export default {
           codexSessionImportFailed: 'Failed to import Codex account',
           codexSessionImportSuccess: 'Import completed: created {created}, updated {updated}, skipped {skipped}',
           codexSessionImportPartial: 'Partial success: created {created}, updated {updated}, skipped {skipped}, failed {failed}',
+          codexPatAuth: 'Codex Personal Access Token',
+          codexPatDesc: 'Enter a Codex at- Personal Access Token. The account is created after OpenAI whoami validation succeeds.',
+          codexPatInputLabel: 'Codex PAT',
+          codexPatPlaceholder: 'at-...',
+          codexPatHint: 'This is a separate auth mode. It does not save refresh_token or OAuth access_token expiry.',
+          codexPatImportAndCreate: 'Validate & Create Codex PAT Account',
+          codexPatEmpty: 'Please enter a Codex Personal Access Token',
+          codexPatImportFailed: 'Failed to create Codex PAT account',
           sessionTokenAuth: 'Manual ST Input',
           sessionTokenDesc: 'Enter your existing Session Token(s). Supports batch input (one per line). The system will automatically validate and create accounts.',
           sessionTokenPlaceholder: 'Paste your Session Token...\nSupports multiple, one per line',
@@ -3827,6 +3847,49 @@ export default {
           validateAndCreate: 'Validate & Create Account',
           pleaseEnterRefreshToken: 'Please enter Refresh Token',
           pleaseEnterSessionToken: 'Please enter Session Token'
+        },
+        grok: {
+          title: 'Grok Account Authorization',
+          followSteps: 'Follow these steps to authorize your xAI/Grok account:',
+          step1GenerateUrl: 'Generate the xAI authorization URL',
+          generateAuthUrl: 'Generate Auth URL',
+          step2OpenUrl: 'Open the URL in your browser and complete authorization',
+          openUrlDesc: 'Open the authorization URL in a new tab, sign in to xAI, and authorize API access.',
+          importantNotice: 'When the browser reaches the local callback URL, copy the full URL or the code query parameter back here.',
+          step3EnterCode: 'Enter Authorization URL or Code',
+          authCodeDesc: 'After authorization, paste the callback URL, query string, or authorization code:',
+          authCode: 'Authorization URL or Code',
+          authCodePlaceholder: 'Paste the full callback URL, ?code=... query string, or code value',
+          authCodeHint: 'Full callback URLs, query strings, and bare codes are accepted.',
+          refreshTokenAuth: 'Manual RT Input',
+          refreshTokenDesc: 'Enter existing xAI refresh token(s). Supports batch input, one per line.',
+          refreshTokenPlaceholder: 'Paste your xAI refresh token...\nSupports multiple, one per line',
+          validating: 'Validating...',
+          validateAndCreate: 'Validate & Create Account',
+          pleaseEnterRefreshToken: 'Please enter Refresh Token',
+          failedToGenerateUrl: 'Failed to generate Grok auth URL',
+          missingExchangeParams: 'Missing authorization code, state, or OAuth session',
+          failedToExchangeCode: 'Failed to exchange Grok authorization code',
+          failedToValidateRT: 'Failed to validate Grok refresh token',
+          oauthOnlyHint: 'Initial Grok support is OAuth subscription-backed Responses API text and reasoning traffic only.'
+        },
+        qoder: {
+          title: 'Qoder Account Authorization',
+          followSteps: 'Follow these steps to authorize your Qoder account:',
+          step1GenerateUrl: 'Generate the authorization URL',
+          generateAuthUrl: 'Generate Auth URL',
+          step2OpenUrl: 'Open the URL in your browser and complete authorization',
+          openUrlDesc: 'Open the authorization URL in a new tab, choose your Qoder account, and authorize.',
+          importantNotice: 'Qoder uses a device authorization flow. This page opens the Qoder authorization window and checks completion automatically. A localhost callback URL is not expected for this flow.',
+          step3EnterCode: 'Complete Authorization',
+          authCodeDesc: 'After browser authorization, this page will complete automatically. If automatic checking is interrupted, click Complete Authorization to retry the device status check.',
+          authCode: 'Manual callback input (optional)',
+          authCodePlaceholder: 'Usually leave this empty for Qoder device authorization',
+          authCodeHint: 'Qoder authorization is checked by polling the device session; localhost callback capture is not required.',
+          failedToGenerateUrl: 'Failed to generate Qoder auth URL',
+          missingExchangeParams: 'Missing session ID or state',
+          failedToExchangeCode: 'Failed to check Qoder authorization',
+          popupBlocked: 'The browser blocked the Qoder authorization popup. Use the open-link button to continue authorization.'
         },
         // Gemini specific
 	        gemini: {
@@ -3905,24 +3968,6 @@ export default {
                     validateAndCreate: 'Validate & Create',
                     pleaseEnterRefreshToken: 'Please enter Refresh Token',
                     failedToValidateRT: 'Failed to validate Refresh Token'
-                  },
-                  qoder: {
-                    title: 'Qoder Account Authorization',
-                    followSteps: 'Follow these steps to authorize your Qoder account:',
-                    step1GenerateUrl: 'Generate the authorization URL',
-                    generateAuthUrl: 'Generate Auth URL',
-                    step2OpenUrl: 'Open the URL in your browser and complete authorization',
-                    openUrlDesc: 'Open the authorization URL in a new tab, choose your Qoder account, and authorize.',
-                    importantNotice: 'Qoder uses a device authorization flow. This page opens the Qoder authorization window and checks completion automatically. A localhost callback URL is not expected for this flow.',
-                    step3EnterCode: 'Complete Authorization',
-                    authCodeDesc: 'After browser authorization, this page will complete automatically. If automatic checking is interrupted, click Complete Authorization to retry the device status check.',
-                    authCode: 'Manual callback input (optional)',
-                    authCodePlaceholder: 'Usually leave this empty for Qoder device authorization',
-                    authCodeHint: 'Qoder authorization is checked by polling the device session; localhost callback capture is not required.',
-                    failedToGenerateUrl: 'Failed to generate Qoder auth URL',
-                    missingExchangeParams: 'Missing session ID or state',
-                    failedToExchangeCode: 'Failed to check Qoder authorization',
-                    popupBlocked: 'The browser blocked the Qoder authorization popup. Use the open-link button to continue authorization.'
                   }
                 },      // Gemini specific (platform-wide)
       gemini: {
@@ -4068,6 +4113,7 @@ export default {
       geminiAccount: 'Gemini Account',
       antigravityAccount: 'Antigravity Account',
       qoderAccount: 'Qoder Account',
+      grokAccount: 'Grok Account',
       qoder: {
         accountType: {
           oauthTitle: 'Authorization Link',
@@ -4207,6 +4253,18 @@ export default {
         gemini3Flash: 'G3F',
         gemini3Image: 'G31FI',
         claude: 'Claude',
+        grokRequests: 'Req',
+        grokTokens: 'Tok',
+        grokUnknown: 'Grok quota is unknown until the first upstream response includes xAI rate-limit headers.',
+        grokRetryAfter: 'Retry after {time}',
+        grokProbe: 'Probe',
+        grokProbeTooltip: 'Send a minimal xAI Responses probe and read quota headers',
+        grokResetUnsupported: 'Reset unsupported',
+        grokResetUnsupportedTooltip: 'xAI does not expose reset credits for Grok OAuth accounts',
+        grokNoHeaders: 'No quota headers observed',
+        grokLastStatus: 'Status {status}',
+        grokLastProbe: 'Probe {time}',
+        grokLastHeadersSeen: 'Headers {time}',
         passiveSampled: 'Passive',
         activeQuery: 'Query',
         quotaAutoPaused: 'Auto-paused'

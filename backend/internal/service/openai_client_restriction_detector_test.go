@@ -50,6 +50,20 @@ func TestOpenAICodexClientRestrictionDetector_Detect(t *testing.T) {
 		require.Equal(t, CodexClientRestrictionReasonMatchedUA, result.Reason)
 	})
 
+	t.Run("开启后 codex-tui 命中", func(t *testing.T) {
+		detector := NewOpenAICodexClientRestrictionDetector(nil)
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Extra:    map[string]any{"codex_cli_only": true},
+		}
+
+		result := detector.Detect(newCodexDetectorTestContext("codex-tui/0.125.0", ""), account, nil, TLSFingerprintRouterMatchResult{})
+		require.True(t, result.Enabled)
+		require.True(t, result.Matched)
+		require.Equal(t, CodexClientRestrictionReasonMatchedUA, result.Reason)
+	})
+
 	t.Run("开启后 codex_vscode 命中", func(t *testing.T) {
 		detector := NewOpenAICodexClientRestrictionDetector(nil)
 		account := &Account{
@@ -59,6 +73,20 @@ func TestOpenAICodexClientRestrictionDetector_Detect(t *testing.T) {
 		}
 
 		result := detector.Detect(newCodexDetectorTestContext("codex_vscode/1.0.0", ""), account, nil, TLSFingerprintRouterMatchResult{})
+		require.True(t, result.Enabled)
+		require.True(t, result.Matched)
+		require.Equal(t, CodexClientRestrictionReasonMatchedUA, result.Reason)
+	})
+
+	t.Run("开启后 codex_vscode_copilot 命中", func(t *testing.T) {
+		detector := NewOpenAICodexClientRestrictionDetector(nil)
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Extra:    map[string]any{"codex_cli_only": true},
+		}
+
+		result := detector.Detect(newCodexDetectorTestContext("codex_vscode_copilot/1.0.0", ""), account, nil, TLSFingerprintRouterMatchResult{})
 		require.True(t, result.Enabled)
 		require.True(t, result.Matched)
 		require.Equal(t, CodexClientRestrictionReasonMatchedUA, result.Reason)
@@ -78,6 +106,21 @@ func TestOpenAICodexClientRestrictionDetector_Detect(t *testing.T) {
 		require.Equal(t, CodexClientRestrictionReasonMatchedUA, result.Reason)
 	})
 
+	t.Run("开启后 UA 尾部官方客户端命中", func(t *testing.T) {
+		detector := NewOpenAICodexClientRestrictionDetector(nil)
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Extra:    map[string]any{"codex_cli_only": true},
+		}
+
+		ua := "cccc/0.1.0 (Ubuntu 22.04; x86_64) xterm-256color (codex-tui; 0.125.0)"
+		result := detector.Detect(newCodexDetectorTestContext(ua, ""), account, nil, TLSFingerprintRouterMatchResult{})
+		require.True(t, result.Enabled)
+		require.True(t, result.Matched)
+		require.Equal(t, CodexClientRestrictionReasonMatchedUA, result.Reason)
+	})
+
 	t.Run("开启后 originator 命中", func(t *testing.T) {
 		detector := NewOpenAICodexClientRestrictionDetector(nil)
 		account := &Account{
@@ -90,6 +133,34 @@ func TestOpenAICodexClientRestrictionDetector_Detect(t *testing.T) {
 		require.True(t, result.Enabled)
 		require.True(t, result.Matched)
 		require.Equal(t, CodexClientRestrictionReasonMatchedOriginator, result.Reason)
+	})
+
+	t.Run("开启后伪造复合 UA 拒绝", func(t *testing.T) {
+		detector := NewOpenAICodexClientRestrictionDetector(nil)
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Extra:    map[string]any{"codex_cli_only": true},
+		}
+
+		result := detector.Detect(newCodexDetectorTestContext("Mozilla/5.0 codex_cli_rs/0.1.0", ""), account, nil, TLSFingerprintRouterMatchResult{})
+		require.True(t, result.Enabled)
+		require.False(t, result.Matched)
+		require.Equal(t, CodexClientRestrictionReasonNotMatchedUA, result.Reason)
+	})
+
+	t.Run("开启后伪造 originator 拒绝", func(t *testing.T) {
+		detector := NewOpenAICodexClientRestrictionDetector(nil)
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Extra:    map[string]any{"codex_cli_only": true},
+		}
+
+		result := detector.Detect(newCodexDetectorTestContext("curl/8.0", "my_codex_thing"), account, nil, TLSFingerprintRouterMatchResult{})
+		require.True(t, result.Enabled)
+		require.False(t, result.Matched)
+		require.Equal(t, CodexClientRestrictionReasonNotMatchedUA, result.Reason)
 	})
 
 	t.Run("开启后非官方客户端拒绝", func(t *testing.T) {
@@ -327,6 +398,27 @@ func TestOpenAICodexClientRestrictionDetector_Detect_ClientPolicy(t *testing.T) 
 
 		result := detector.Detect(
 			newCodexDetectorTestContext("opencode/1.0", ""),
+			account,
+			nil,
+			TLSFingerprintRouterMatchResult{Matched: true, RouterID: 9, TLSFingerprintProfileID: 2},
+		)
+		require.True(t, result.Enabled)
+		require.True(t, result.Matched)
+		require.Equal(t, CodexClientRestrictionReasonMatchedTLSRouter, result.Reason)
+	})
+
+	t.Run("TLS 路由器策略命中时不受伪造 UA 影响", func(t *testing.T) {
+		account := &Account{
+			Platform: PlatformOpenAI,
+			Type:     AccountTypeOAuth,
+			Extra: map[string]any{
+				"openai_oauth_client_policy": OpenAIOAuthClientPolicyTLSRouterMatchedOnly,
+				"tls_fingerprint_router_id":  int64(9),
+			},
+		}
+
+		result := detector.Detect(
+			newCodexDetectorTestContext("Mozilla/5.0 codex_cli_rs/0.1.0", ""),
 			account,
 			nil,
 			TLSFingerprintRouterMatchResult{Matched: true, RouterID: 9, TLSFingerprintProfileID: 2},

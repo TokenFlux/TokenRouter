@@ -3,6 +3,8 @@ package proxyurl
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParse_空字符串直连(t *testing.T) {
@@ -39,9 +41,7 @@ func TestParse_有效HTTP代理(t *testing.T) {
 	if trimmed != "http://proxy.example.com:8080" {
 		t.Errorf("trimmed 不匹配: got %q", trimmed)
 	}
-	if parsed == nil {
-		t.Fatal("parsed 不应为 nil")
-	}
+	require.NotNil(t, parsed)
 	if parsed.Host != "proxy.example.com:8080" {
 		t.Errorf("Host 不匹配: got %q", parsed.Host)
 	}

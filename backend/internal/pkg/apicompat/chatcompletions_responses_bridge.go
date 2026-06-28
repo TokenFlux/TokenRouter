@@ -712,6 +712,9 @@ func ChatCompletionsChunkToResponsesEvents(
 					copyCall.ID = generateItemID()
 				}
 				copyCall.Type = "function"
+				// arguments 由下面的共享累加逻辑统一处理，避免 GLM/Zhipu 这类
+				// 首帧同时携带 id/name/arguments 的上游把首帧参数计入两次。
+				copyCall.Function.Arguments = ""
 				state.ToolCalls[idx] = &copyCall
 				stored = &copyCall
 				itemID := generateItemID()

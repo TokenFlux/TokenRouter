@@ -35,15 +35,15 @@
         </div>
         <div class="mt-1 flex justify-between text-sm">
           <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.creditedAmount') }}</span>
-          <span class="font-medium text-gray-900 dark:text-white">{{ order ? formatOrderAmount(order.amount, order.order_type) : '-' }}</span>
+          <span class="font-medium text-gray-900 dark:text-white">{{ order ? formatOrderAmount(order.amount, order) : '-' }}</span>
         </div>
         <div class="mt-1 flex justify-between text-sm">
           <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
-          <span class="font-medium text-gray-900 dark:text-white">¥{{ order?.pay_amount?.toFixed(2) }}</span>
+          <span class="font-medium text-gray-900 dark:text-white">{{ order ? formatGatewayAmount(order.pay_amount, order.currency) : '-' }}</span>
         </div>
         <div v-if="actuallyRefunded > 0" class="mt-1 flex justify-between text-sm">
           <span class="text-gray-500 dark:text-gray-400">{{ t('payment.admin.alreadyRefunded') }}</span>
-          <span class="font-medium text-red-600 dark:text-red-400">{{ order ? formatOrderAmount(actuallyRefunded, order.order_type) : '-' }}</span>
+          <span class="font-medium text-red-600 dark:text-red-400">{{ order ? formatOrderAmount(actuallyRefunded, order) : '-' }}</span>
         </div>
       </div>
 
@@ -70,7 +70,7 @@
           </div>
           <div class="rounded-lg bg-gray-50 p-3 text-sm dark:bg-dark-700">
             <div class="text-gray-500 dark:text-gray-400">{{ t('payment.admin.orderAmount') }}</div>
-            <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ order ? formatOrderAmount(order.amount, order.order_type) : '-' }}</div>
+            <div class="mt-1 font-semibold text-gray-900 dark:text-white">{{ order ? formatOrderAmount(order.amount, order) : '-' }}</div>
           </div>
         </div>
 
@@ -95,7 +95,7 @@
       <div>
         <label class="input-label">{{ t('payment.admin.refundAmount') }}</label>
         <div class="relative">
-          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ order?.order_type === 'balance' ? balanceUnitSymbol : '¥' }}</span>
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ refundInputSymbol }}</span>
           <input
             v-model.number="form.amount"
             type="number"
@@ -107,7 +107,7 @@
           />
         </div>
         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          {{ t('payment.admin.maxRefundable') }}: {{ order ? formatOrderAmount(maxRefundable, order.order_type) : '-' }}
+          {{ t('payment.admin.maxRefundable') }}: {{ order ? formatOrderAmount(maxRefundable, order) : '-' }}
         </p>
       </div>
 
@@ -170,6 +170,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import type { PaymentOrder } from '@/types/payment'
 import { formatOrderDateTime } from '@/components/payment/orderUtils'
+import { formatPaymentAmount } from '@/components/payment/currency'
 
 const { t } = useI18n()
 const { balanceUnitSymbol, formatBalanceAmount } = useBalanceDisplay()
@@ -214,6 +215,12 @@ const balanceInsufficient = computed(() => {
   return props.userBalance < props.order.amount
 })
 
+const refundInputSymbol = computed(() => {
+  if (!props.order) return balanceUnitSymbol
+  if (props.order.order_type === 'balance') return balanceUnitSymbol
+  return formatGatewayAmount(0, props.order.currency).replace(/[\d\s.,\u00a0]/g, '') || props.order.currency || '¥'
+})
+
 watch(() => props.show, (val) => {
   if (val && props.order) {
     // For REFUND_REQUESTED, pre-fill with the requested amount
@@ -232,8 +239,12 @@ function formatDateTime(dateStr: string): string {
   return formatOrderDateTime(dateStr)
 }
 
-function formatOrderAmount(amount: number, orderType: string): string {
-  return orderType === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : `¥${amount.toFixed(2)}`
+function formatOrderAmount(amount: number, order: PaymentOrder): string {
+  return order.order_type === 'balance' ? formatBalanceAmount(amount, { fractionDigits: 2 }) : formatGatewayAmount(amount, order.currency)
+}
+
+function formatGatewayAmount(amount: number, currency?: string | null): string {
+  return formatPaymentAmount(amount, currency)
 }
 
 function handleSubmit() {

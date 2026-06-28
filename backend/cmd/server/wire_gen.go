@@ -72,14 +72,14 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	billingCacheService := service.ProvideBillingCacheService(billingCache, userRepository, userSubscriptionRepository, apiKeyRepository, userRPMCache, userGroupRateRepository, configConfig, serviceUserPlatformQuotaRepository)
 	groupRepository := repository.NewGroupRepository(client, db)
 	apiKeyCache := repository.NewAPIKeyCache(redisClient)
-	secretEncryptor, err := repository.NewAESEncryptor(configConfig)
-	if err != nil {
-		return nil, err
-	}
 	dataShareSessionRepository := repository.NewDataShareSessionRepository(client, db)
 	dataShareExportArtifactRepository := repository.NewDataShareExportArtifactRepository(db)
 	dataSharingCaptureWorkerPool := service.NewDataSharingCaptureWorkerPool(configConfig)
 	backupObjectStoreFactory := repository.NewS3BackupStoreFactory()
+	secretEncryptor, err := repository.NewAESEncryptor(configConfig)
+	if err != nil {
+		return nil, err
+	}
 	dataSharingService := service.ProvideDataSharingService(dataShareSessionRepository, dataShareExportArtifactRepository, settingRepository, dataSharingCaptureWorkerPool, configConfig, backupObjectStoreFactory, secretEncryptor)
 	apiKeyService := service.ProvideAPIKeyService(apiKeyRepository, userRepository, groupRepository, userSubscriptionRepository, userGroupRateRepository, apiKeyCache, configConfig, billingCacheService, dataSharingService)
 	apiKeyAuthCacheInvalidator := service.ProvideAPIKeyAuthCacheInvalidator(apiKeyService)
@@ -155,8 +155,11 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	tlsFingerprintRouterService := service.NewTLSFingerprintRouterService(tlsFingerprintRouterRepository, tlsFingerprintRouterCache)
 	openAIOAuthService := service.ProvideOpenAIOAuthService(proxyRepository, openAIOAuthClient, privacyClientFactory, settingService, tlsFingerprintRouterService, tlsFingerprintProfileService)
 	openAITokenProvider := service.ProvideOpenAITokenProvider(accountRepository, geminiTokenCache, openAIOAuthService, oAuthRefreshAPI)
+	grokOAuthClient := repository.NewGrokOAuthClient()
+	grokOAuthService := service.NewGrokOAuthService(proxyRepository, grokOAuthClient)
+	grokTokenProvider := service.ProvideGrokTokenProvider(accountRepository, geminiTokenCache, grokOAuthService, oAuthRefreshAPI, tempUnschedCache)
 	v := service.ProvideOpenAIGatewayTLSFingerprintRouterServices(tlsFingerprintRouterService)
-	openAIGatewayService := service.NewOpenAIGatewayService(accountRepository, usageLogRepository, usageBillingRepository, userRepository, userSubscriptionRepository, userGroupRateRepository, gatewayCache, configConfig, schedulerSnapshotService, concurrencyService, billingService, rateLimitService, billingCacheService, httpUpstream, tlsFingerprintProfileService, deferredService, openAITokenProvider, modelPricingResolver, channelService, balanceNotifyService, settingService, serviceUserPlatformQuotaRepository, dataSharingService, v...)
+	openAIGatewayService := service.NewOpenAIGatewayService(accountRepository, usageLogRepository, usageBillingRepository, userRepository, userSubscriptionRepository, userGroupRateRepository, gatewayCache, configConfig, schedulerSnapshotService, concurrencyService, billingService, rateLimitService, billingCacheService, httpUpstream, tlsFingerprintProfileService, deferredService, openAITokenProvider, grokTokenProvider, modelPricingResolver, channelService, balanceNotifyService, settingService, serviceUserPlatformQuotaRepository, dataSharingService, v...)
 	geminiOAuthClient := repository.NewGeminiOAuthClient(configConfig)
 	geminiCliCodeAssistClient := repository.NewGeminiCliCodeAssistClient()
 	driveClient := repository.NewGeminiDriveClient()
@@ -192,8 +195,9 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	groupHandler := admin.NewGroupHandler(adminService, dashboardService, groupCapacityService)
 	claudeUsageFetcher := repository.NewClaudeUsageFetcher(httpUpstream)
 	antigravityQuotaFetcher := service.NewAntigravityQuotaFetcher(proxyRepository)
+	grokQuotaFetcher := service.NewGrokQuotaFetcher()
 	usageCache := service.NewUsageCache()
-	accountUsageService := service.NewAccountUsageService(accountRepository, usageLogRepository, claudeUsageFetcher, geminiQuotaService, antigravityQuotaFetcher, usageCache, identityCache, tlsFingerprintProfileService, httpUpstream, settingService)
+	accountUsageService := service.NewAccountUsageService(accountRepository, usageLogRepository, claudeUsageFetcher, geminiQuotaService, antigravityQuotaFetcher, grokQuotaFetcher, usageCache, identityCache, tlsFingerprintProfileService, httpUpstream, settingService)
 	accountTestService := service.NewAccountTestService(accountRepository, geminiTokenProvider, claudeTokenProvider, antigravityGatewayService, httpUpstream, configConfig, tlsFingerprintProfileService)
 	crsSyncService := service.NewCRSSyncService(accountRepository, proxyRepository, oAuthService, openAIOAuthService, geminiOAuthService, configConfig)
 	accountHandler := admin.NewAccountHandler(adminService, settingService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, rateLimitService, accountUsageService, accountTestService, concurrencyService, crsSyncService, sessionLimitCache, rpmCache, compositeTokenCacheInvalidator)
@@ -212,6 +216,8 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	qoderOAuthHandler := admin.NewQoderOAuthHandler(qoderOAuthService)
 	qoderModelSyncService := service.NewQoderModelSyncService(configConfig)
 	qoderModelSyncHandler := handler.ProvideQoderModelSyncHandler(qoderModelSyncService)
+	grokQuotaService := service.ProvideGrokQuotaService(accountRepository, proxyRepository, grokTokenProvider, httpUpstream)
+	grokOAuthHandler := admin.NewGrokOAuthHandler(grokOAuthService, adminService, grokQuotaService)
 	proxyHandler := admin.NewProxyHandler(adminService)
 	adminRedeemHandler := admin.NewRedeemHandler(adminService, redeemService)
 	promoHandler := admin.NewPromoHandler(promoService)
@@ -254,7 +260,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	dataSharingHandler := admin.NewDataSharingHandler(dataSharingService)
 	codexInviteResetService := service.NewCodexInviteResetService(adminService, httpUpstream, openAITokenProvider, tlsFingerprintProfileService, tlsFingerprintRouterService)
 	codexInviteResetHandler := admin.NewCodexInviteResetHandler(codexInviteResetService)
-	adminHandlers := handler.ProvideAdminHandlers(dashboardHandler, adminUserHandler, groupHandler, accountHandler, adminAnnouncementHandler, dataManagementHandler, backupHandler, oAuthHandler, openAIOAuthHandler, geminiOAuthHandler, antigravityOAuthHandler, qoderOAuthHandler, qoderModelSyncHandler, proxyHandler, adminRedeemHandler, promoHandler, settingHandler, opsHandler, systemHandler, adminSubscriptionHandler, adminUsageHandler, userAttributeHandler, errorPassthroughHandler, tlsFingerprintProfileHandler, tlsFingerprintRouterHandler, adminAPIKeyHandler, scheduledTestHandler, channelHandler, contentModerationHandler, paymentHandler, affiliateHandler, dataSharingHandler, codexInviteResetHandler)
+	adminHandlers := handler.ProvideAdminHandlers(dashboardHandler, adminUserHandler, groupHandler, accountHandler, adminAnnouncementHandler, dataManagementHandler, backupHandler, oAuthHandler, openAIOAuthHandler, geminiOAuthHandler, antigravityOAuthHandler, grokOAuthHandler, qoderOAuthHandler, qoderModelSyncHandler, proxyHandler, adminRedeemHandler, promoHandler, settingHandler, opsHandler, systemHandler, adminSubscriptionHandler, adminUsageHandler, userAttributeHandler, errorPassthroughHandler, tlsFingerprintProfileHandler, tlsFingerprintRouterHandler, adminAPIKeyHandler, scheduledTestHandler, channelHandler, contentModerationHandler, paymentHandler, affiliateHandler, dataSharingHandler, codexInviteResetHandler)
 	usageRecordWorkerPool := service.NewUsageRecordWorkerPool(configConfig)
 	userMsgQueueCache := repository.NewUserMsgQueueCache(redisClient)
 	userMessageQueueService := service.ProvideUserMessageQueueService(userMsgQueueCache, rpmCache, configConfig)
@@ -281,7 +287,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	opsAlertEvaluatorService := service.ProvideOpsAlertEvaluatorService(opsService, opsRepository, emailService, redisClient, configConfig, proxyRepository)
 	opsCleanupService := service.ProvideOpsCleanupService(opsRepository, settingRepository, opsService, db, redisClient, configConfig)
 	opsScheduledReportService := service.ProvideOpsScheduledReportService(opsService, userService, emailService, redisClient, configConfig)
-	tokenRefreshService := service.ProvideTokenRefreshService(accountRepository, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, qoderOAuthService, compositeTokenCacheInvalidator, schedulerCache, configConfig, tempUnschedCache, privacyClientFactory, proxyRepository, oAuthRefreshAPI, openAIGatewayService, httpUpstream, tlsFingerprintProfileService)
+	tokenRefreshService := service.ProvideTokenRefreshService(accountRepository, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, qoderOAuthService, grokOAuthService, compositeTokenCacheInvalidator, schedulerCache, configConfig, tempUnschedCache, privacyClientFactory, proxyRepository, oAuthRefreshAPI, openAIGatewayService, httpUpstream, tlsFingerprintProfileService)
 	accountExpiryService := service.ProvideAccountExpiryService(accountRepository)
 	proxyExpiryService := service.ProvideProxyExpiryService(proxyRepository)
 	subscriptionExpiryService := service.ProvideSubscriptionExpiryService(userSubscriptionRepository, settingRepository, notificationEmailService, leaderLockCache, db)
@@ -289,7 +295,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	groupAvailabilityProbeRunnerService := service.ProvideGroupAvailabilityProbeRunnerService(groupAvailabilityProbeRepository, accountTestService, gatewayService, openAIGatewayService, geminiMessagesCompatService, configConfig)
 	paymentOrderExpiryService := service.ProvidePaymentOrderExpiryService(paymentService, leaderLockCache, db)
 	userPlatformQuotaUsageFlusher := service.ProvideUserPlatformQuotaUsageFlusher(configConfig, billingCache, serviceUserPlatformQuotaRepository, timingWheelService)
-	v2 := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, schedulerSnapshotService, tokenRefreshService, accountExpiryService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, dataSharingService, dataSharingCaptureWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, qoderOAuthService, openAIGatewayService, scheduledTestRunnerService, groupAvailabilityProbeRunnerService, backupService, paymentOrderExpiryService, userPlatformQuotaUsageFlusher, tlsFingerprintCollectorService)
+	v2 := provideCleanup(client, redisClient, opsMetricsCollector, opsAggregationService, opsAlertEvaluatorService, opsCleanupService, opsScheduledReportService, opsSystemLogSink, schedulerSnapshotService, tokenRefreshService, accountExpiryService, proxyExpiryService, subscriptionExpiryService, usageCleanupService, idempotencyCleanupService, pricingService, emailQueueService, billingCacheService, usageRecordWorkerPool, dataSharingService, dataSharingCaptureWorkerPool, subscriptionService, oAuthService, openAIOAuthService, geminiOAuthService, antigravityOAuthService, qoderOAuthService, grokOAuthService, openAIGatewayService, scheduledTestRunnerService, groupAvailabilityProbeRunnerService, backupService, paymentOrderExpiryService, userPlatformQuotaUsageFlusher, tlsFingerprintCollectorService)
 	application := &Application{
 		Server:  httpServer,
 		Cleanup: v2,
@@ -343,6 +349,7 @@ func provideCleanup(
 	geminiOAuth *service.GeminiOAuthService,
 	antigravityOAuth *service.AntigravityOAuthService,
 	qoderOAuth *service.QoderOAuthService,
+	grokOAuth *service.GrokOAuthService,
 	openAIGateway *service.OpenAIGatewayService,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	groupAvailabilityProbeRunner *service.GroupAvailabilityProbeRunnerService,
@@ -473,6 +480,12 @@ func provideCleanup(
 			}},
 			{"QoderOAuthService", func() error {
 				qoderOAuth.Stop()
+				return nil
+			}},
+			{"GrokOAuthService", func() error {
+				if grokOAuth != nil {
+					grokOAuth.Stop()
+				}
 				return nil
 			}},
 			{"OpenAIWSPool", func() error {
