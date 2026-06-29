@@ -262,6 +262,11 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 						reqLog.Info("qoder.retry_forward_canceled", zap.Int64("account_id", account.ID), zap.Error(err))
 						return
 					}
+				} else if errors.Is(refreshErr, service.ErrQoderRefreshInProgress) {
+					reqLog.Info("qoder.account_refresh_after_auth_error_in_progress", zap.Int64("account_id", account.ID))
+					c.Header("Retry-After", "1")
+					h.streamingAwareError(c, http.StatusServiceUnavailable, "upstream_error", "Qoder account refresh is still in progress, please retry shortly", false, endpoint)
+					return
 				} else if refreshErr != nil {
 					reqLog.Warn("qoder.account_refresh_after_auth_error_failed", zap.Int64("account_id", account.ID), zap.Error(refreshErr))
 				}

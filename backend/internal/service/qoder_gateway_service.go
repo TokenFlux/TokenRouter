@@ -31,6 +31,8 @@ const (
 	qoderStreamTimeout    = 15 * time.Minute
 	qoderKeepaliveEvery   = 10 * time.Second
 	qoderConversationTTL  = 2 * time.Hour
+	qoderRefreshLockPoll  = 100 * time.Millisecond
+	qoderRefreshLockWait  = 3 * time.Second
 
 	qoderTextToolCallStart = "<tool_call>"
 	qoderTextToolCallEnd   = "</tool_call>"
@@ -48,6 +50,10 @@ const (
 )
 
 var qoderClaudeBillingCCHRe = regexp.MustCompile(`(x-anthropic-billing-header:[^\n\r;]*?(?:;[^\n\r;]*?)*\bcch=)[0-9a-fA-F]{5}(;)`)
+
+// ErrQoderRefreshInProgress indicates another worker still owns the refresh
+// lock and no rotated credentials have appeared in the database yet.
+var ErrQoderRefreshInProgress = errors.New("qoder refresh in progress")
 
 // defaultQoderModelAliases maps TokenRouter request-side aliases to Qoder API
 // keys. Keep this public surface small: raw Qoder route keys stay internal
@@ -476,25 +482,21 @@ func (s *QoderGatewayService) RefreshAccountSession(ctx context.Context, account
 	if refreshAPI == nil {
 		return nil, errors.New("qoder refresh API is not configured")
 	}
-	result, err := refreshAPI.RefreshIfNeeded(ctx, account, qoderGatewayRefreshExecutor{QoderTokenRefresher: refresher}, 15*time.Minute)
+	failedCredentialsHash := qoderCredentialsHash(account.Credentials)
+	executor := qoderGatewayRefreshExecutor{
+		QoderTokenRefresher: refresher,
+		failedCredentials:   failedCredentialsHash,
+	}
+	result, err := refreshAPI.RefreshIfNeeded(ctx, account, executor, 15*time.Minute)
 	if err != nil {
 		return nil, err
 	}
 
-	// 如果另一个 worker 正在刷新（LockHeld=true），等待一小段时间让其完成
+	// 如果另一个 worker 正在刷新（LockHeld=true），等待 DB 中出现已轮换凭证。
+	// 不能只 sleep 后返回当前账号：锁持有者可能尚未写回新 token，
+	// handler 随后会用同一份 stale credentials 立即重试并再次 401。
 	if result != nil && result.LockHeld {
-		select {
-		case <-time.After(200 * time.Millisecond):
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-		// 重新读取账号获取刷新后的凭证
-		if s.accountRepo != nil {
-			if fresh, err := s.accountRepo.GetByID(ctx, account.ID); err == nil && fresh != nil {
-				return fresh, nil
-			}
-		}
-		return account, nil
+		return s.waitForQoderLockedRefresh(ctx, account, failedCredentialsHash)
 	}
 
 	if s.tokenProvider != nil && (result == nil || result.Refreshed || result.Account != nil) {
@@ -511,8 +513,61 @@ func (s *QoderGatewayService) RefreshAccountSession(ctx context.Context, account
 	return account, nil
 }
 
+func (s *QoderGatewayService) waitForQoderLockedRefresh(ctx context.Context, account *Account, failedCredentialsHash string) (*Account, error) {
+	if s == nil || s.accountRepo == nil || account == nil {
+		return nil, ErrQoderRefreshInProgress
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, qoderRefreshLockWait)
+	defer cancel()
+
+	readFresh := func() (*Account, bool, error) {
+		fresh, err := s.accountRepo.GetByID(waitCtx, account.ID)
+		if err != nil {
+			return nil, false, err
+		}
+		if fresh == nil {
+			return nil, false, nil
+		}
+		if qoderCredentialsHash(fresh.Credentials) != failedCredentialsHash {
+			if s.tokenProvider != nil {
+				s.tokenProvider.Invalidate(account.ID)
+			}
+			return fresh, true, nil
+		}
+		return fresh, false, nil
+	}
+
+	var lastErr error
+	if fresh, changed, err := readFresh(); changed {
+		return fresh, nil
+	} else if err != nil {
+		lastErr = err
+	}
+
+	ticker := time.NewTicker(qoderRefreshLockPoll)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-waitCtx.Done():
+			if lastErr != nil {
+				return nil, fmt.Errorf("%w: %v", ErrQoderRefreshInProgress, lastErr)
+			}
+			return nil, fmt.Errorf("%w: %v", ErrQoderRefreshInProgress, waitCtx.Err())
+		case <-ticker.C:
+			fresh, changed, err := readFresh()
+			if changed {
+				return fresh, nil
+			}
+			if err != nil {
+				lastErr = err
+			}
+		}
+	}
+}
+
 type qoderGatewayRefreshExecutor struct {
 	*QoderTokenRefresher
+	failedCredentials string
 }
 
 func (e qoderGatewayRefreshExecutor) NeedsRefresh(account *Account, ttl time.Duration) bool {
@@ -523,7 +578,15 @@ func (e qoderGatewayRefreshExecutor) NeedsRefresh(account *Account, ttl time.Dur
 	if !e.CanRefresh(account) {
 		return false
 	}
-	// 调用 QoderTokenRefresher.NeedsRefresh 检查 token 是否真正需要刷新
+	if strings.TrimSpace(account.GetCredential("refresh_token")) == "" {
+		return false
+	}
+	// request-time 401/403 刷新应基于“失败时的凭证快照”判定：
+	// - DB 中凭证已经变了，说明其它 worker 已刷新，当前请求不应再次消费 refresh_token。
+	// - DB 中仍是同一份失败凭证，则即使 expires_at 还没临近，也需要刷新这份已被上游拒绝的 token。
+	if e.failedCredentials != "" {
+		return qoderCredentialsHash(account.Credentials) == e.failedCredentials
+	}
 	return e.QoderTokenRefresher.NeedsRefresh(account, ttl)
 }
 
@@ -1959,6 +2022,9 @@ func qoderAnthropicToolResultText(raw json.RawMessage) string {
 func qoderResponsesRole(role string) string {
 	switch strings.TrimSpace(role) {
 	case "developer", "system":
+		// Responses control-role input items are folded into the Qoder system
+		// prompt by parseQoderResponsesPayload; do not also send them as chat
+		// history turns.
 		return ""
 	case "assistant":
 		return "assistant"

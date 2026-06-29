@@ -138,6 +138,28 @@ func (r *qoderRefreshRaceRepoStub) GetByID(ctx context.Context, id int64) (*Acco
 	return r.stubOpenAIAccountRepo.GetByID(ctx, id)
 }
 
+type qoderRefreshLockCacheStub struct{}
+
+func (qoderRefreshLockCacheStub) GetAccessToken(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func (qoderRefreshLockCacheStub) SetAccessToken(context.Context, string, string, time.Duration) error {
+	return nil
+}
+
+func (qoderRefreshLockCacheStub) DeleteAccessToken(context.Context, string) error {
+	return nil
+}
+
+func (qoderRefreshLockCacheStub) AcquireRefreshLock(context.Context, string, time.Duration) (bool, error) {
+	return false, nil
+}
+
+func (qoderRefreshLockCacheStub) ReleaseRefreshLock(context.Context, string) error {
+	return nil
+}
+
 func TestBuildQoderPayloadFromChatCompletions(t *testing.T) {
 	body := []byte(`{
 		"model":"auto",
@@ -700,6 +722,26 @@ func TestQoderGatewayResponsesMapsUpstreamToolNameToDeclaredFunctionCall(t *test
 	upstream := qoderLastUpstreamPayloadForTest(t, client)
 	tools := upstream["tools"].([]any)
 	require.Equal(t, "bash", tools[0].(map[string]any)["function"].(map[string]any)["name"])
+}
+
+func TestQoderResponsesPayloadPreservesControlRoleInputAsSystemPrompt(t *testing.T) {
+	request, err := parseQoderResponsesPayload([]byte(`{
+		"model":"deepseek-v4-pro",
+		"instructions":"top-level instructions",
+		"input":[
+			{"type":"message","role":"system","content":[{"type":"input_text","text":"system item"}]},
+			{"type":"message","role":"developer","content":[{"type":"input_text","text":"developer item"}]},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}
+		]
+	}`))
+
+	require.NoError(t, err)
+	require.Contains(t, request.system, "top-level instructions")
+	require.Contains(t, request.system, "system item")
+	require.Contains(t, request.system, "developer item")
+	require.Len(t, request.messages, 1)
+	require.Equal(t, "user", request.messages[0].Role)
+	require.Equal(t, "hello", request.messages[0].Text)
 }
 
 func TestQoderGatewayAssemblesResponsesKeepsNoIndexNamedParallelFunctionCalls(t *testing.T) {
@@ -3320,6 +3362,136 @@ func TestQoderGatewayRefreshAccountSessionRecoversRotatedRefreshTokenRace(t *tes
 	require.Equal(t, "new-refresh", refreshed.GetCredential("refresh_token"))
 	require.Equal(t, 0, repo.updateCalls)
 	require.GreaterOrEqual(t, repo.getByIDCalls, 2)
+}
+
+func TestQoderGatewayRefreshAccountSessionWaitsForLockHolderRotation(t *testing.T) {
+	now := time.Now()
+	account := Account{
+		ID:       94,
+		Name:     "qoder",
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"security_oauth_token": "old-token",
+			"refresh_token":        "old-refresh",
+			"machine_id":           "machine-1",
+			"uid":                  "user-1",
+			"expires_at":           now.Add(1 * time.Hour).Format(time.RFC3339),
+		},
+	}
+	rotatedAccount := account
+	rotatedAccount.Credentials = map[string]any{
+		"security_oauth_token": "new-token",
+		"refresh_token":        "new-refresh",
+		"machine_id":           "machine-1",
+		"uid":                  "user-1",
+		"expires_at":           now.Add(2 * time.Hour).Format(time.RFC3339),
+	}
+	repo := &qoderRefreshRaceRepoStub{
+		qoderRefreshAccountRepoStub: qoderRefreshAccountRepoStub{
+			stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
+		},
+		raceAccount: &rotatedAccount,
+	}
+	provider := NewQoderTokenProvider()
+	provider.sessions[account.ID] = qoderSessionCacheEntry{
+		credentialsHash: qoderCredentialsHash(account.Credentials),
+		session:         &qoder.SessionContext{},
+	}
+	svc := &QoderGatewayService{
+		tokenProvider: provider,
+		accountRepo:   repo,
+		newRefresher:  func() *QoderTokenRefresher { return NewQoderTokenRefresher(nil) },
+		refreshAPI:    NewOAuthRefreshAPI(repo, qoderRefreshLockCacheStub{}),
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	refreshed, err := svc.RefreshAccountSession(ctx, &account)
+
+	require.NoError(t, err)
+	require.NotNil(t, refreshed)
+	require.Equal(t, "new-token", refreshed.GetCredential("security_oauth_token"))
+	require.Equal(t, "new-refresh", refreshed.GetCredential("refresh_token"))
+	require.GreaterOrEqual(t, repo.getByIDCalls, 2)
+	_, cached := provider.sessions[account.ID]
+	require.False(t, cached)
+}
+
+func TestQoderGatewayRefreshAccountSessionLockHeldReturnsRefreshInProgressWithoutStaleAccount(t *testing.T) {
+	now := time.Now()
+	account := Account{
+		ID:       95,
+		Name:     "qoder",
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"security_oauth_token": "old-token",
+			"refresh_token":        "old-refresh",
+			"machine_id":           "machine-1",
+			"uid":                  "user-1",
+			"expires_at":           now.Add(1 * time.Hour).Format(time.RFC3339),
+		},
+	}
+	repo := &qoderRefreshAccountRepoStub{
+		stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
+	}
+	provider := NewQoderTokenProvider()
+	provider.sessions[account.ID] = qoderSessionCacheEntry{
+		credentialsHash: qoderCredentialsHash(account.Credentials),
+		session:         &qoder.SessionContext{},
+	}
+	svc := &QoderGatewayService{
+		tokenProvider: provider,
+		accountRepo:   repo,
+		newRefresher:  func() *QoderTokenRefresher { return NewQoderTokenRefresher(nil) },
+		refreshAPI:    NewOAuthRefreshAPI(repo, qoderRefreshLockCacheStub{}),
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	refreshed, err := svc.RefreshAccountSession(ctx, &account)
+
+	require.Nil(t, refreshed)
+	require.ErrorIs(t, err, ErrQoderRefreshInProgress)
+	_, cached := provider.sessions[account.ID]
+	require.True(t, cached)
+	require.Equal(t, "old-token", repo.accounts[0].GetCredential("security_oauth_token"))
+}
+
+func TestQoderGatewayRefreshExecutorNeedsRefreshUsesFailedCredentialSnapshot(t *testing.T) {
+	now := time.Now()
+	failedAccount := Account{
+		ID:       96,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"security_oauth_token": "failed-token",
+			"refresh_token":        "failed-refresh",
+			"machine_id":           "machine-1",
+			"expires_at":           now.Add(1 * time.Hour).Format(time.RFC3339),
+		},
+	}
+	rotatedAccount := failedAccount
+	rotatedAccount.Credentials = cloneCredentials(failedAccount.Credentials)
+	rotatedAccount.Credentials["security_oauth_token"] = "rotated-token"
+	rotatedAccount.Credentials["refresh_token"] = "rotated-refresh"
+
+	executor := qoderGatewayRefreshExecutor{
+		QoderTokenRefresher: NewQoderTokenRefresher(nil),
+		failedCredentials:   qoderCredentialsHash(failedAccount.Credentials),
+	}
+
+	require.True(t, executor.NeedsRefresh(&failedAccount, 15*time.Minute))
+	require.False(t, executor.NeedsRefresh(&rotatedAccount, 15*time.Minute))
+
+	missingRefreshToken := failedAccount
+	missingRefreshToken.Credentials = cloneCredentials(failedAccount.Credentials)
+	delete(missingRefreshToken.Credentials, "refresh_token")
+	require.False(t, executor.NeedsRefresh(&missingRefreshToken, 15*time.Minute))
+
+	defaultExecutor := qoderGatewayRefreshExecutor{QoderTokenRefresher: NewQoderTokenRefresher(nil)}
+	require.False(t, defaultExecutor.NeedsRefresh(&failedAccount, 15*time.Minute))
 }
 
 func TestQoderGatewayForwardChatCompletionsHonorsCanceledContext(t *testing.T) {
