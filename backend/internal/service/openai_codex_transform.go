@@ -1141,14 +1141,6 @@ func filterCodexInputWithOptions(input []any, opts codexInputFilterOptions) []an
 		}
 		typ, _ := m["type"].(string)
 
-		// chatgpt.com codex backend (OAuth path) does not persist reasoning
-		// items because applyCodexOAuthTransform forces store=false. Any rs_*
-		// reference replayed in input is guaranteed to 404 upstream
-		// ("Item with id 'rs_...' not found"). Drop reasoning items entirely.
-		if typ == "reasoning" {
-			continue
-		}
-
 		// 仅修正真正的 tool/function call 标识，避免误改普通 message/reasoning id；
 		// 若 item_reference 指向 legacy call_* 标识，则仅修正该引用本身。
 		fixCallIDPrefix := func(id string) string {
@@ -1231,6 +1223,13 @@ func filterCodexInputWithOptions(input []any, opts codexInputFilterOptions) []an
 				ensureCopy()
 				newItem["name"] = name
 			}
+		}
+
+		if typ == "reasoning" {
+			// OAuth 上游 store=false 时不会持久化 rs_* id；保留 reasoning 内容，
+			// 但移除 id，避免上游按不可达的 item id 续链时报 404。
+			ensureCopy()
+			delete(newItem, "id")
 		}
 
 		if !opts.PreserveReferences {

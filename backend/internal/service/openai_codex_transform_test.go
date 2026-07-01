@@ -1,8 +1,6 @@
 package service
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -472,6 +470,32 @@ func TestApplyCodexOAuthTransform_NonContinuationDefaultsStoreFalseAndStripsIDs(
 	require.True(t, ok)
 	_, hasID := item["id"]
 	require.False(t, hasID)
+}
+
+func TestApplyCodexOAuthTransform_PreservesReasoningInput(t *testing.T) {
+	// HTTP 非透传路径需要保留 reasoning item，避免多轮任务丢失模型交错思考上下文。
+	reqBody := map[string]any{
+		"model": "gpt-5.1",
+		"input": []any{
+			map[string]any{"type": "message", "role": "user", "content": "hi"},
+			map[string]any{
+				"type":    "reasoning",
+				"id":      "rs_0672f12450da0b9c0169f07220a6c08198b68c2455ced99344",
+				"summary": []any{},
+			},
+		},
+	}
+
+	applyCodexOAuthTransform(reqBody, true, false)
+
+	input, ok := reqBody["input"].([]any)
+	require.True(t, ok)
+	require.Len(t, input, 2)
+	reasoning, ok := input[1].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "reasoning", reasoning["type"])
+	require.Equal(t, []any{}, reasoning["summary"])
+	require.NotContains(t, reasoning, "id")
 }
 
 func TestFilterCodexInput_RemovesItemReferenceWhenNotPreserved(t *testing.T) {
@@ -1256,55 +1280,45 @@ func TestIsInstructionsEmpty(t *testing.T) {
 	}
 }
 
-func TestFilterCodexInput_DropsReasoningItemsRegardlessOfPreserveReferences(t *testing.T) {
-	// Reasoning items in input[] reference rs_* IDs that were emitted by
-	// chatgpt.com under store=false (forced by applyCodexOAuthTransform).
-	// They are never persisted upstream, so forwarding them produces a
-	// guaranteed 404 ("Item with id 'rs_...' not found"). Drop them
-	// regardless of preserveReferences. See: Wei-Shaw/sub2api issue #1957.
-
-	build := func() []any {
-		return []any{
-			map[string]any{"type": "message", "id": "msg_0", "role": "user", "content": "hi"},
-			map[string]any{
-				"type":    "reasoning",
-				"id":      "rs_0672f12450da0b9c0169f07220a6c08198b68c2455ced99344",
-				"summary": []any{},
-			},
-			map[string]any{"type": "function_call", "id": "fc_1", "call_id": "call_1", "name": "tool"},
-			map[string]any{"type": "function_call_output", "call_id": "call_1", "output": "{}"},
-		}
+func TestFilterCodexInput_PreservesReasoningItems(t *testing.T) {
+	// HTTP 非透传路径需要把 reasoning item 继续传给上游，保持 Codex CLI
+	// 多轮上下文行为；非续链场景仍沿用原有策略移除普通 item id。
+	input := []any{
+		map[string]any{"type": "message", "id": "msg_0", "role": "user", "content": "hi"},
+		map[string]any{
+			"type":    "reasoning",
+			"id":      "rs_0672f12450da0b9c0169f07220a6c08198b68c2455ced99344",
+			"summary": []any{},
+		},
+		map[string]any{"type": "function_call", "id": "fc_1", "call_id": "call_1", "name": "tool"},
+		map[string]any{"type": "function_call_output", "call_id": "call_1", "output": "{}"},
 	}
 
-	for _, preserve := range []bool{true, false} {
-		preserve := preserve
-		t.Run(fmt.Sprintf("preserveReferences=%v", preserve), func(t *testing.T) {
-			filtered := filterCodexInput(build(), preserve)
+	filtered := filterCodexInput(input, false)
 
-			for _, raw := range filtered {
-				item, ok := raw.(map[string]any)
-				require.True(t, ok)
-				require.NotEqual(t, "reasoning", item["type"],
-					"reasoning items must be dropped from input on the OAuth path")
-				if id, ok := item["id"].(string); ok {
-					require.False(t, strings.HasPrefix(id, "rs_"),
-						"no item carrying an rs_* id should survive the filter")
-				}
-			}
+	require.Len(t, filtered, 4)
+	reasoning, ok := filtered[1].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "reasoning", reasoning["type"])
+	require.Equal(t, []any{}, reasoning["summary"])
+	require.NotContains(t, reasoning, "id")
+}
 
-			// Sanity check: the non-reasoning items should still be present.
-			gotTypes := make(map[string]int)
-			for _, raw := range filtered {
-				item, ok := raw.(map[string]any)
-				require.True(t, ok)
-				typ, ok := item["type"].(string)
-				require.True(t, ok)
-				gotTypes[typ]++
-			}
-			require.Equal(t, 1, gotTypes["message"])
-			require.Equal(t, 1, gotTypes["function_call"])
-			require.Equal(t, 1, gotTypes["function_call_output"])
-			require.Equal(t, 0, gotTypes["reasoning"])
-		})
+func TestFilterCodexInput_StripsReasoningIDsWhenReferencesArePreserved(t *testing.T) {
+	// 续链场景仍移除 reasoning item 的 rs_* id，避免 store=false 时触发不可达引用。
+	input := []any{
+		map[string]any{
+			"type":    "reasoning",
+			"id":      "rs_0672f12450da0b9c0169f07220a6c08198b68c2455ced99344",
+			"summary": []any{},
+		},
 	}
+
+	filtered := filterCodexInput(input, true)
+
+	require.Len(t, filtered, 1)
+	reasoning, ok := filtered[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "reasoning", reasoning["type"])
+	require.NotContains(t, reasoning, "id")
 }
