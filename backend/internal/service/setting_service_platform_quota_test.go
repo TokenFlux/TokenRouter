@@ -88,10 +88,6 @@ func TestGetDefaultPlatformQuotas_ReturnsAllowedPlatforms(t *testing.T) {
 	if v := got["gemini"].WeeklyLimitUSD; v != nil {
 		t.Errorf("gemini weekly want nil (not configured), got %v", *v)
 	}
-	// qoder 无配置 → daily = nil
-	if v := got["qoder"].DailyLimitUSD; v != nil {
-		t.Errorf("qoder daily want nil (not configured), got %v", *v)
-	}
 }
 
 func TestGetAuthSourcePlatformQuotas_OnlyConfiguredReturned(t *testing.T) {
@@ -126,15 +122,12 @@ func TestGetAuthSourcePlatformQuotas_OnlyConfiguredReturned(t *testing.T) {
 		t.Errorf("openai weekly want 0, got %v", oai.WeeklyLimitUSD)
 	}
 
-	// gemini / antigravity / qoder 无配置 → 不在结果中（override 语义）
+	// gemini / antigravity 无配置 → 不在结果中（override 语义）
 	if _, ok := got["gemini"]; ok {
 		t.Error("gemini not configured, should be absent from result")
 	}
 	if _, ok := got["antigravity"]; ok {
 		t.Error("antigravity not configured, should be absent from result")
-	}
-	if _, ok := got["qoder"]; ok {
-		t.Error("qoder not configured, should be absent from result")
 	}
 }
 

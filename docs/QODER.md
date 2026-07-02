@@ -16,7 +16,7 @@ Qoder account `model_mapping` remains optional. When it is unconfigured, TokenRo
 
 ## Billing Scope
 
-Qoder billing, pricing, marketplace pricing, and user platform USD quota policy are intentionally deferred. This integration records upstream usage fields where available, but it does not define Qoder-specific price multipliers, fake official prices, free marketplace pricing, or Qoder platform quota behavior.
+Qoder billing, pricing, marketplace pricing, and user platform USD quota policy are intentionally deferred. This integration records upstream usage fields where available, but it does not define Qoder-specific price multipliers, fake official prices, free marketplace pricing, or Qoder platform quota behavior. Because Qoder currently has no non-zero USD pricing basis, `qoder` is intentionally excluded from user × platform USD quota allowlists and admin quota matrices; otherwise precheck limits could be enabled without post-usage accrual.
 
 ## Model Sync
 
