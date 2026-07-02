@@ -135,12 +135,3 @@ vite.config.js
 frontend/coverage/
 aicodex
 output/
-.hermes/
-deploy/qoder_dev_data/
-deploy/qoder_redis_data/
-deploy/qoder_postgres_data/
-tmp_*.py
-tmp_*.sh
-count_lines.sh
-docs/qoder-*.md
-docs/qoder-*.txt
