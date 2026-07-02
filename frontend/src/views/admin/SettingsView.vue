@@ -4077,6 +4077,156 @@
               </div>
             </div>
           </div>
+          <!-- 用户提示词替换 -->
+          <div class="card">
+            <div
+              class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                    {{ t("admin.settings.userPromptReplacement.title") }}
+                  </h2>
+                  <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.userPromptReplacement.description") }}
+                  </p>
+                </div>
+                <Toggle v-model="form.user_prompt_replacement_config.enabled" />
+              </div>
+            </div>
+            <div class="space-y-5 p-6">
+              <div class="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  @click="addUserPromptReplacementRule"
+                >
+                  {{ t("admin.settings.userPromptReplacement.addRule") }}
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary btn-sm"
+                  @click="resetUserPromptReplacementRules"
+                >
+                  {{ t("admin.settings.userPromptReplacement.resetDefault") }}
+                </button>
+              </div>
+
+              <div
+                v-if="form.user_prompt_replacement_config.rules.length === 0"
+                class="rounded-lg border border-dashed border-gray-300 p-4 text-center text-sm text-gray-400 dark:border-dark-600"
+              >
+                {{ t("admin.settings.userPromptReplacement.empty") }}
+              </div>
+
+              <div
+                v-for="(rule, index) in form.user_prompt_replacement_config.rules"
+                :key="rule.id || index"
+                class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+              >
+                <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div class="flex min-w-0 flex-1 items-center gap-3">
+                    <Toggle v-model="rule.enabled" />
+                    <input
+                      v-model="rule.name"
+                      type="text"
+                      class="input min-w-0 flex-1 text-sm"
+                      :placeholder="
+                        t('admin.settings.userPromptReplacement.namePlaceholder')
+                      "
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    class="btn btn-secondary btn-sm text-red-600 hover:text-red-700 dark:text-red-400"
+                    @click="removeUserPromptReplacementRule(index)"
+                  >
+                    {{ t("common.delete") }}
+                  </button>
+                </div>
+
+                <div class="grid gap-4 lg:grid-cols-6">
+                  <div class="lg:col-span-4">
+                    <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.userPromptReplacement.pattern") }}
+                    </label>
+                    <textarea
+                      v-model="rule.pattern"
+                      rows="3"
+                      class="input font-mono text-xs"
+                      :placeholder="
+                        t('admin.settings.userPromptReplacement.patternPlaceholder')
+                      "
+                    />
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.userPromptReplacement.targetGroup") }}
+                    </label>
+                    <input
+                      v-model.number="rule.target_group"
+                      type="number"
+                      min="0"
+                      step="1"
+                      class="input text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.userPromptReplacement.replacementType") }}
+                    </label>
+                    <Select
+                      v-model="rule.replacement_type"
+                      :options="userPromptReplacementTypeOptions"
+                      class="text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div class="mt-4 grid gap-4 md:grid-cols-3">
+                  <div v-if="rule.replacement_type === 'static'">
+                    <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.userPromptReplacement.staticText") }}
+                    </label>
+                    <input
+                      v-model="rule.static_text"
+                      type="text"
+                      class="input text-sm"
+                      :placeholder="
+                        t('admin.settings.userPromptReplacement.staticTextPlaceholder')
+                      "
+                    />
+                  </div>
+                  <div v-if="rule.replacement_type !== 'static'">
+                    <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.userPromptReplacement.timezone") }}
+                    </label>
+                    <Select
+                      v-model="rule.timezone"
+                      :options="userPromptReplacementTimezoneOptions"
+                      searchable
+                      creatable
+                      :creatable-prefix="
+                        t('admin.settings.userPromptReplacement.useTimezone')
+                      "
+                      class="text-sm"
+                    />
+                  </div>
+                  <div v-if="rule.replacement_type === 'current_time'">
+                    <label class="mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.userPromptReplacement.timeFormat") }}
+                    </label>
+                    <input
+                      v-model="rule.time_format"
+                      type="text"
+                      class="input font-mono text-sm"
+                      placeholder="2006-01-02"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           <!-- Web Search Emulation -->
           <div class="card">
             <div
@@ -6827,6 +6977,9 @@ import type {
   WebSearchTestResult,
   PaymentMethodFeeConfig,
   OpenAIQuotaAutoPauseSettings,
+  UserPromptReplacementConfig,
+  UserPromptReplacementRule,
+  UserPromptReplacementType,
 } from "@/api/admin/settings";
 import type { LoginAgreementDocument, NotifyEmailEntry, Proxy } from "@/types";
 import type { ProviderInstance, SubscriptionPlan } from "@/types/payment";
@@ -7123,6 +7276,93 @@ function defaultLoginAgreementDocuments(): LoginAgreementDocument[] {
   ];
 }
 
+// 默认规则与后端内置配置保持一致，便于新环境或旧后端缺字段时回显。
+function defaultUserPromptReplacementConfig(): UserPromptReplacementConfig {
+  return {
+    enabled: true,
+    rules: [
+      {
+        id: "environment-context-timezone-japan",
+        name: "environment_context timezone -> Asia/Tokyo",
+        enabled: true,
+        pattern:
+          "(?s)(<environment_context\\b[^>]*>.*?<timezone>)([^<]*)(</timezone>.*?</environment_context>)",
+        target_group: 2,
+        replacement_type: "timezone_name",
+        scope: "environment_context",
+        timezone: "Asia/Tokyo",
+      },
+      {
+        id: "environment-context-current-date-japan",
+        name: "environment_context current_date -> Asia/Tokyo today",
+        enabled: true,
+        pattern:
+          "(?s)(<environment_context\\b[^>]*>.*?<current_date>)([^<]*)(</current_date>.*?</environment_context>)",
+        target_group: 2,
+        replacement_type: "current_time",
+        scope: "environment_context",
+        timezone: "Asia/Tokyo",
+        time_format: "2006-01-02",
+      },
+    ],
+  };
+}
+
+// 后端可能返回旧格式或空值，这里统一整理为表单可直接绑定的结构。
+function normalizeUserPromptReplacementConfig(
+  raw: UserPromptReplacementConfig | null | undefined,
+): UserPromptReplacementConfig {
+  const source = raw ?? defaultUserPromptReplacementConfig();
+  return {
+    enabled: source.enabled !== false,
+    rules: Array.isArray(source.rules)
+      ? source.rules.map((rule, index) => ({
+          id: String(rule.id || `rule-${index + 1}`).trim(),
+          name: String(rule.name || rule.id || `Rule ${index + 1}`).trim(),
+          enabled: rule.enabled !== false,
+          pattern: String(rule.pattern || "").trim(),
+          target_group: Number.isFinite(Number(rule.target_group))
+            ? Math.max(0, Math.floor(Number(rule.target_group)))
+            : 0,
+          replacement_type: normalizeUserPromptReplacementType(
+            rule.replacement_type,
+          ),
+          scope: String(rule.scope || "").trim(),
+          static_text: String(rule.static_text ?? ""),
+          timezone: String(rule.timezone || "Asia/Tokyo").trim(),
+          time_format: String(rule.time_format || "2006-01-02").trim(),
+        }))
+      : [],
+  };
+}
+
+// 替换类型只允许后端支持的三种内置值，未知值降级为固定文本。
+function normalizeUserPromptReplacementType(
+  value: unknown,
+): UserPromptReplacementType {
+  return value === "static" ||
+    value === "timezone_name" ||
+    value === "current_time"
+    ? value
+    : "static";
+}
+
+// 新增规则默认使用固定文本，避免管理员未配置动态参数时保存失败。
+function createUserPromptReplacementRule(): UserPromptReplacementRule {
+  return {
+    id: `rule-${Date.now()}`,
+    name: "",
+    enabled: true,
+    pattern: "",
+    target_group: 0,
+    replacement_type: "static",
+    scope: "",
+    static_text: "",
+    timezone: "Asia/Tokyo",
+    time_format: "2006-01-02",
+  };
+}
+
 function normalizeLoginAgreementDocumentId(raw: string): string {
   return raw
     .trim()
@@ -7171,7 +7411,7 @@ type SettingsForm = Omit<
   force_email_on_third_party_signup: boolean;
   openai_advanced_scheduler_enabled: boolean;
   openai_account_quota_auto_pause: OpenAIQuotaAutoPauseSettings;
-  // 系统全局平台限额 map；form 内始终归一化为全 4 平台对象（模板非空绑定依赖此不变量）
+  // 系统全局平台限额 map；form 内始终归一化为全平台对象（模板非空绑定依赖此不变量）
   default_platform_quotas: DefaultPlatformQuotasMap;
 };
 
@@ -7397,6 +7637,7 @@ const form = reactive<SettingsForm>({
   antigravity_user_agent_version: "",
   openai_codex_user_agent: "",
   openai_allow_claude_code_codex_plugin: false,
+  user_prompt_replacement_config: defaultUserPromptReplacementConfig(),
   // 余额、订阅到期与账号限额通知
   balance_low_notify_enabled: false,
   balance_low_notify_threshold: 0,
@@ -7456,6 +7697,44 @@ const customMenuVisibilityOptions = computed(() => [
   { value: "user", label: t("admin.settings.customMenu.visibilityUser") },
   { value: "admin", label: t("admin.settings.customMenu.visibilityAdmin") },
 ]);
+
+const userPromptReplacementTypeOptions = computed(() => [
+  {
+    value: "static",
+    label: t("admin.settings.userPromptReplacement.typeStatic"),
+  },
+  {
+    value: "timezone_name",
+    label: t("admin.settings.userPromptReplacement.typeTimezoneName"),
+  },
+  {
+    value: "current_time",
+    label: t("admin.settings.userPromptReplacement.typeCurrentTime"),
+  },
+]);
+
+const userPromptReplacementTimezoneOptions = [
+  { value: "Asia/Tokyo", label: "Asia/Tokyo" },
+  { value: "Asia/Shanghai", label: "Asia/Shanghai" },
+  { value: "UTC", label: "UTC" },
+  { value: "America/Los_Angeles", label: "America/Los_Angeles" },
+  { value: "America/New_York", label: "America/New_York" },
+  { value: "Europe/London", label: "Europe/London" },
+];
+
+function addUserPromptReplacementRule(): void {
+  form.user_prompt_replacement_config.rules.push(
+    createUserPromptReplacementRule(),
+  );
+}
+
+function removeUserPromptReplacementRule(index: number): void {
+  form.user_prompt_replacement_config.rules.splice(index, 1);
+}
+
+function resetUserPromptReplacementRules(): void {
+  form.user_prompt_replacement_config = defaultUserPromptReplacementConfig();
+}
 
 function defaultPaymentMethodFee(enabled = false): PaymentMethodFeeConfig {
   return { enabled, fixed_fee: 0, fee_rate: 0 };
@@ -8033,6 +8312,30 @@ function normalizeLoginAgreementDocumentsForSave(): LoginAgreementDocument[] {
     .filter((doc) => doc.title || doc.content_md);
 }
 
+// 保存前清洗空白与数值字段，让后端只负责正则和时区等强校验。
+function normalizeUserPromptReplacementConfigForSave(): UserPromptReplacementConfig {
+  const config = normalizeUserPromptReplacementConfig(
+    form.user_prompt_replacement_config,
+  );
+  return {
+    enabled: config.enabled,
+    rules: config.rules.map((rule, index) => ({
+      id: rule.id || `rule-${index + 1}`,
+      name: rule.name || rule.id || `Rule ${index + 1}`,
+      enabled: rule.enabled !== false,
+      pattern: rule.pattern.trim(),
+      target_group: Math.max(0, Math.floor(Number(rule.target_group) || 0)),
+      replacement_type: normalizeUserPromptReplacementType(
+        rule.replacement_type,
+      ),
+      scope: rule.scope || "",
+      static_text: rule.static_text || "",
+      timezone: rule.timezone || "Asia/Tokyo",
+      time_format: rule.time_format || "2006-01-02",
+    })),
+  };
+}
+
 function findDuplicateLoginAgreementDocumentId(
   documents: LoginAgreementDocument[],
 ): string | null {
@@ -8110,6 +8413,10 @@ async function loadSettings() {
         : defaultLoginAgreementDocuments();
     Object.assign(authSourceDefaults, buildAuthSourceDefaultsState(settings));
     form.default_platform_quotas = normalizePlatformQuotasMap(settings.default_platform_quotas);
+    form.user_prompt_replacement_config =
+      normalizeUserPromptReplacementConfig(
+        settings.user_prompt_replacement_config,
+      );
     form.openai_account_quota_auto_pause = {
       default_threshold_5h:
         settings.openai_account_quota_auto_pause?.default_threshold_5h ?? 0,
@@ -8676,6 +8983,8 @@ async function saveSettings() {
       openai_codex_user_agent:
         form.openai_codex_user_agent?.trim() || "",
       openai_allow_claude_code_codex_plugin: form.openai_allow_claude_code_codex_plugin,
+      user_prompt_replacement_config:
+        normalizeUserPromptReplacementConfigForSave(),
       // Payment configuration
       payment_enabled: form.payment_enabled,
       risk_control_enabled: form.risk_control_enabled,

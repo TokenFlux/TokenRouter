@@ -97,6 +97,29 @@ export type PaymentVisibleMethodSource =
   | "official_wxpay"
   | "easypay_wxpay";
 export type WeChatConnectMode = "open" | "mp" | "mobile";
+export type UserPromptReplacementType =
+  | "static"
+  | "timezone_name"
+  | "current_time";
+
+export interface UserPromptReplacementRule {
+  id: string;
+  name: string;
+  enabled: boolean;
+  pattern: string;
+  target_group: number;
+  replacement_type: UserPromptReplacementType;
+  scope?: string;
+  static_text?: string;
+  timezone?: string;
+  time_format?: string;
+}
+
+export interface UserPromptReplacementConfig {
+  enabled: boolean;
+  rules: UserPromptReplacementRule[];
+}
+
 
 export interface PaymentVisibleMethodSourceOption {
   value: PaymentVisibleMethodSource;
@@ -595,6 +618,7 @@ export interface SystemSettings {
   antigravity_user_agent_version: string;
   openai_codex_user_agent: string;
   openai_allow_claude_code_codex_plugin: boolean;
+  user_prompt_replacement_config: UserPromptReplacementConfig;
   web_search_emulation_enabled?: boolean;
 
   // Payment configuration
@@ -843,6 +867,7 @@ export interface UpdateSettingsRequest {
   antigravity_user_agent_version?: string;
   openai_codex_user_agent?: string;
   openai_allow_claude_code_codex_plugin?: boolean;
+  user_prompt_replacement_config?: UserPromptReplacementConfig;
   // Payment configuration
   payment_enabled?: boolean;
   risk_control_enabled?: boolean;
