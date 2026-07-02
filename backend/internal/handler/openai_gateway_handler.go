@@ -199,7 +199,6 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	}
 
 	setOpsRequestContext(c, "", false)
-	sessionHashBody := body
 	if service.IsOpenAIResponsesCompactPathForTest(c) {
 		if compactSeed := strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String()); compactSeed != "" {
 			c.Set(service.OpenAICompactSessionSeedKeyForTest(), compactSeed)
@@ -219,6 +218,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return
 	}
+	// 用户提示词替换必须在 compact 归一化之后、模型解析之前执行。
+	body = h.gatewayService.ApplyUserPromptReplacement(c.Request.Context(), body, "openai_responses")
+	sessionHashBody := body
 
 	// 使用 gjson 只读提取字段做校验，避免完整 Unmarshal
 	modelResult := gjson.GetBytes(body, "model")
@@ -719,6 +721,8 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return
 	}
+	// 用户提示词替换必须早于模型解析、内容审计和会话 hash，确保后续链路看到同一份请求体。
+	body = h.gatewayService.ApplyUserPromptReplacement(c.Request.Context(), body, "anthropic_messages")
 
 	modelResult := gjson.GetBytes(body, "model")
 	if !modelResult.Exists() || modelResult.Type != gjson.String || modelResult.String() == "" {
@@ -1310,6 +1314,8 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "invalid JSON payload")
 		return
 	}
+	// 用户提示词替换必须在首帧模型解析、内容审计和会话 hash 前执行，保证 WS 首轮请求与 HTTP 入口一致。
+	firstMessage = h.gatewayService.ApplyUserPromptReplacement(ctx, firstMessage, "openai_responses")
 
 	reqModel := strings.TrimSpace(gjson.GetBytes(firstMessage, "model").String())
 	if reqModel == "" {
@@ -1551,13 +1557,14 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		}
 		hooks := &service.OpenAIWSIngressHooks{
 			InitialRequestModel: reqModel,
-			BeforeRequest: func(turn int, payload []byte, originalModel, payloadPreviousResponseID string) error {
+			BeforeRequest: func(turn int, payload []byte, originalModel, _ string) ([]byte, error) {
 				if turn == 1 {
-					return nil
+					return payload, nil
 				}
 				if !gjson.ValidBytes(payload) {
-					return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "invalid websocket request payload", errors.New("invalid json"))
+					return payload, service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "invalid websocket request payload", errors.New("invalid json"))
 				}
+				payloadPreviousResponseID := strings.TrimSpace(gjson.GetBytes(payload, "previous_response_id").String())
 				model := strings.TrimSpace(originalModel)
 				if model == "" {
 					model = strings.TrimSpace(gjson.GetBytes(payload, "model").String())
@@ -1569,22 +1576,22 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				setCyberPromptExcerpt(turn, currentOpenAICyberWarningPromptExcerpt(c))
 				if decision := h.checkContentModeration(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, model, payload); decision != nil && decision.Blocked {
 					writeContentModerationWSError(ctx, wsConn, decision)
-					return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, decision.Message, nil)
+					return payload, service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, decision.Message, nil)
 				}
 				if payloadPreviousResponseID != "" {
 					previousResponseHash := service.DeriveSessionHashFromSeed(payloadPreviousResponseID)
 					if err := h.ensureOpenAISessionIsolation(ctx, apiKey, subject.UserID, service.SessionIsolationSourceOpenAIPreviousResponse, previousResponseHash); err != nil {
 						writeSessionIsolationWSError(ctx, wsConn, err)
-						return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, openAIWSSessionIsolationCloseReason(err), err)
+						return payload, service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, openAIWSSessionIsolationCloseReason(err), err)
 					}
 				}
 				if explicitHash := h.gatewayService.GenerateExplicitSessionHash(c, payload); explicitHash != "" {
 					if err := h.ensureOpenAISessionIsolation(ctx, apiKey, subject.UserID, service.SessionIsolationSourceOpenAI, explicitHash); err != nil {
 						writeSessionIsolationWSError(ctx, wsConn, err)
-						return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, openAIWSSessionIsolationCloseReason(err), err)
+						return payload, service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, openAIWSSessionIsolationCloseReason(err), err)
 					}
 				}
-				return nil
+				return payload, nil
 			},
 			BeforeTurn: func(turn int) error {
 				if cyberBlockedThisConn.Load() {

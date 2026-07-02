@@ -181,3 +181,13 @@ func TestMigration163AddsAccountAutoPauseExpiryPartialIndex(t *testing.T) {
 	require.Contains(t, sql, "auto_pause_on_expired = TRUE")
 	require.Contains(t, sql, "expires_at IS NOT NULL")
 }
+
+func TestMigration171AllowsGrokUserPlatformQuotas(t *testing.T) {
+	content, err := FS.ReadFile("171_allow_grok_user_platform_quotas.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "DROP CONSTRAINT IF EXISTS user_platform_quotas_platform_check")
+	require.Contains(t, sql, "ADD CONSTRAINT user_platform_quotas_platform_check")
+	require.Contains(t, sql, "'grok'")
+}

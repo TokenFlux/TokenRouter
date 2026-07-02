@@ -68,6 +68,9 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		return
 	}
 
+	// 用户提示词替换必须早于模型解析、内容审计和会话 hash，确保后续链路看到同一份请求体。
+	body = h.gatewayService.ApplyUserPromptReplacement(c.Request.Context(), body, "chat_completions")
+
 	// Extract model and stream
 	modelResult := gjson.GetBytes(body, "model")
 	if !modelResult.Exists() || modelResult.Type != gjson.String || modelResult.String() == "" {

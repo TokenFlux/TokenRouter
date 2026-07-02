@@ -279,6 +279,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		AntigravityUserAgentVersion:            settings.AntigravityUserAgentVersion,
 		OpenAICodexUserAgent:                   settings.OpenAICodexUserAgent,
 		OpenAIAllowClaudeCodeCodexPlugin:       settings.OpenAIAllowClaudeCodeCodexPlugin,
+		UserPromptReplacementConfig:            settings.UserPromptReplacementConfig,
 		WebSearchEmulationEnabled:              settings.WebSearchEmulationEnabled,
 		PaymentVisibleMethodAlipaySource:       settings.PaymentVisibleMethodAlipaySource,
 		PaymentVisibleMethodWxpaySource:        settings.PaymentVisibleMethodWxpaySource,
@@ -649,17 +650,18 @@ type UpdateSettingsRequest struct {
 	BackendModeEnabled bool `json:"backend_mode_enabled"`
 
 	// Gateway forwarding behavior
-	EnableFingerprintUnification           *bool   `json:"enable_fingerprint_unification"`
-	EnableMetadataPassthrough              *bool   `json:"enable_metadata_passthrough"`
-	EnableCCHSigning                       *bool   `json:"enable_cch_signing"`
-	EnableClaudeOAuthSystemPromptInjection *bool   `json:"enable_claude_oauth_system_prompt_injection"`
-	ClaudeOAuthSystemPrompt                *string `json:"claude_oauth_system_prompt"`
-	ClaudeOAuthSystemPromptBlocks          *string `json:"claude_oauth_system_prompt_blocks"`
-	EnableAnthropicCacheTTL1hInjection     *bool   `json:"enable_anthropic_cache_ttl_1h_injection"`
-	RewriteMessageCacheControl             *bool   `json:"rewrite_message_cache_control"`
-	AntigravityUserAgentVersion            *string `json:"antigravity_user_agent_version"`
-	OpenAICodexUserAgent                   *string `json:"openai_codex_user_agent"`
-	OpenAIAllowClaudeCodeCodexPlugin       *bool   `json:"openai_allow_claude_code_codex_plugin"`
+	EnableFingerprintUnification           *bool                                `json:"enable_fingerprint_unification"`
+	EnableMetadataPassthrough              *bool                                `json:"enable_metadata_passthrough"`
+	EnableCCHSigning                       *bool                                `json:"enable_cch_signing"`
+	EnableClaudeOAuthSystemPromptInjection *bool                                `json:"enable_claude_oauth_system_prompt_injection"`
+	ClaudeOAuthSystemPrompt                *string                              `json:"claude_oauth_system_prompt"`
+	ClaudeOAuthSystemPromptBlocks          *string                              `json:"claude_oauth_system_prompt_blocks"`
+	EnableAnthropicCacheTTL1hInjection     *bool                                `json:"enable_anthropic_cache_ttl_1h_injection"`
+	RewriteMessageCacheControl             *bool                                `json:"rewrite_message_cache_control"`
+	AntigravityUserAgentVersion            *string                              `json:"antigravity_user_agent_version"`
+	OpenAICodexUserAgent                   *string                              `json:"openai_codex_user_agent"`
+	OpenAIAllowClaudeCodeCodexPlugin       *bool                                `json:"openai_allow_claude_code_codex_plugin"`
+	UserPromptReplacementConfig            *service.UserPromptReplacementConfig `json:"user_prompt_replacement_config"`
 
 	// Payment visible method routing
 	PaymentVisibleMethodAlipaySource  *string `json:"payment_visible_method_alipay_source"`
@@ -1879,6 +1881,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.OpenAIAllowClaudeCodeCodexPlugin
 		}(),
+		UserPromptReplacementConfig: func() *service.UserPromptReplacementConfig {
+			if req.UserPromptReplacementConfig != nil {
+				return req.UserPromptReplacementConfig
+			}
+			return previousSettings.UserPromptReplacementConfig
+		}(),
 		PaymentVisibleMethodAlipaySource: func() string {
 			if req.PaymentVisibleMethodAlipaySource != nil {
 				return strings.TrimSpace(*req.PaymentVisibleMethodAlipaySource)
@@ -2256,6 +2264,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		AntigravityUserAgentVersion:            updatedSettings.AntigravityUserAgentVersion,
 		OpenAICodexUserAgent:                   updatedSettings.OpenAICodexUserAgent,
 		OpenAIAllowClaudeCodeCodexPlugin:       updatedSettings.OpenAIAllowClaudeCodeCodexPlugin,
+		UserPromptReplacementConfig:            updatedSettings.UserPromptReplacementConfig,
 		PaymentVisibleMethodAlipaySource:       updatedSettings.PaymentVisibleMethodAlipaySource,
 		PaymentVisibleMethodWxpaySource:        updatedSettings.PaymentVisibleMethodWxpaySource,
 		PaymentVisibleMethodAlipayEnabled:      updatedSettings.PaymentVisibleMethodAlipayEnabled,
@@ -2818,6 +2827,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.OpenAIAllowClaudeCodeCodexPlugin != after.OpenAIAllowClaudeCodeCodexPlugin {
 		changed = append(changed, "openai_allow_claude_code_codex_plugin")
 	}
+	if !equalUserPromptReplacementConfig(before.UserPromptReplacementConfig, after.UserPromptReplacementConfig) {
+		changed = append(changed, "user_prompt_replacement_config")
+	}
 	if before.PaymentVisibleMethodAlipaySource != after.PaymentVisibleMethodAlipaySource {
 		changed = append(changed, "payment_visible_method_alipay_source")
 	}
@@ -3101,6 +3113,13 @@ func equalNotifyEmailEntries(a, b []service.NotifyEmailEntry) bool {
 		}
 	}
 	return true
+}
+
+func equalUserPromptReplacementConfig(a, b *service.UserPromptReplacementConfig) bool {
+	// 用户提示词替换是嵌套 JSON 配置，序列化后比较可避免遗漏 rules 内字段。
+	rawA, _ := json.Marshal(a)
+	rawB, _ := json.Marshal(b)
+	return string(rawA) == string(rawB)
 }
 
 // TestSMTPRequest 测试SMTP连接请求

@@ -156,6 +156,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 	setOpsRequestContext(c, "", false)
 
+	// 用户提示词替换必须早于解析、内容审计和会话 hash，确保后续链路看到同一份请求体。
+	body = h.gatewayService.ApplyUserPromptReplacement(c.Request.Context(), body, "anthropic_messages")
+
 	bodyRef := service.NewRequestBodyRef(body)
 	parsedReq, err := service.ParseGatewayRequest(bodyRef, domain.PlatformAnthropic)
 	if err != nil {
@@ -1749,6 +1752,9 @@ func (h *GatewayHandler) CountTokens(c *gin.Context) {
 	}
 
 	setOpsRequestContext(c, "", false)
+
+	// count_tokens 也要先执行用户提示词替换，保证解析、会话 hash 和上游请求体一致。
+	body = h.gatewayService.ApplyUserPromptReplacement(c.Request.Context(), body, "anthropic_messages")
 
 	bodyRef := service.NewRequestBodyRef(body)
 	parsedReq, err := service.ParseGatewayRequest(bodyRef, domain.PlatformAnthropic)

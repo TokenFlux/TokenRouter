@@ -454,7 +454,15 @@ func (s *AuthService) updateOAuthSignupSource(ctx context.Context, userID int64,
 	if client == nil || userID <= 0 || strings.TrimSpace(signupSource) == "" {
 		return
 	}
-	_ = client.User.UpdateOneID(userID).SetSignupSource(signupSource).Exec(ctx)
+	if err := s.runFailOpenDBStep(ctx, "auth_oauth_signup_source", func(stepCtx context.Context) error {
+		stepClient := s.oauthEmailFlowClient(stepCtx)
+		if stepClient == nil {
+			return ErrServiceUnavailable
+		}
+		return stepClient.User.UpdateOneID(userID).SetSignupSource(signupSource).Exec(stepCtx)
+	}); err != nil {
+		slog.Warn("[Auth] update oauth signup source failed (fail-open)", "user_id", userID, "source", signupSource, "error", err)
+	}
 }
 
 func oauthEmailFlowStringValue(value *string) string {

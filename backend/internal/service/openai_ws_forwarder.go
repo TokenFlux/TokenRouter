@@ -251,7 +251,7 @@ type OpenAIWSIngressHooks struct {
 	// 的 reasoning effort 后缀推导，禁止用于上游请求或计费模型。
 	InitialRequestModel string
 	BeforeTurn          func(turn int) error
-	BeforeRequest       func(turn int, payload []byte, originalModel, previousResponseID string) error
+	BeforeRequest       func(turn int, payload []byte, originalModel, previousResponseID string) ([]byte, error)
 	// OnUpstreamError 在上游 WS 返回 error/failed 类事件时触发，用于记录 OpenAI cyber 等上游风控信号。
 	OnUpstreamError func(turn int, statusCode int, responseBody []byte, message string)
 	AfterTurn       func(capture OpenAIWSTurnCapture)
@@ -2695,13 +2695,17 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		return rebuilt, nil
 	}
 
-	parseClientPayload := func(raw []byte) (openAIWSClientPayload, error) {
+	parseClientPayload := func(raw []byte, applyUserPromptReplacement bool) (openAIWSClientPayload, error) {
 		trimmed := bytes.TrimSpace(raw)
 		if len(trimmed) == 0 {
 			return openAIWSClientPayload{}, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "empty websocket request payload", nil)
 		}
 		if !gjson.ValidBytes(trimmed) {
 			return openAIWSClientPayload{}, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "invalid websocket request payload", errors.New("invalid json"))
+		}
+		if applyUserPromptReplacement {
+			// 后续 response.create 帧先执行用户提示词替换，再进入模型归一化、图片桥接和 OpenAI Fast Policy。
+			trimmed = s.ApplyUserPromptReplacement(ctx, trimmed, "openai_responses")
 		}
 
 		values := gjson.GetManyBytes(trimmed, "type", "model", "prompt_cache_key", "previous_response_id")
@@ -2897,7 +2901,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		return payload, nil
 	}
 
-	firstPayload, err := parseClientPayload(firstClientMessage)
+	firstPayload, err := parseClientPayload(firstClientMessage, false)
 	if err != nil {
 		return err
 	}
@@ -2948,8 +2952,14 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		bridgeReplayInputExists := false
 		for turn := 1; ; turn++ {
 			if turn > 1 && hooks != nil && hooks.BeforeRequest != nil {
-				if err := hooks.BeforeRequest(turn, currentBridgePayload.payloadRaw, currentBridgePayload.originalModel, currentBridgePayload.previousResponseID); err != nil {
+				updatedPayload, err := hooks.BeforeRequest(turn, currentBridgePayload.payloadRaw, currentBridgePayload.originalModel, currentBridgePayload.previousResponseID)
+				if err != nil {
 					return err
+				}
+				if len(updatedPayload) > 0 {
+					currentBridgePayload.payloadRaw = updatedPayload
+					currentBridgePayload.payloadBytes = len(updatedPayload)
+					currentBridgePayload.previousResponseID = strings.TrimSpace(gjson.GetBytes(updatedPayload, "previous_response_id").String())
 				}
 			}
 			if hooks != nil && hooks.BeforeTurn != nil {
@@ -3055,7 +3065,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				}
 				return fmt.Errorf("read client websocket request: %w", readErr)
 			}
-			nextPayload, parseErr := parseClientPayload(nextClientMessage)
+			nextPayload, parseErr := parseClientPayload(nextClientMessage, true)
 			if parseErr != nil {
 				return parseErr
 			}
@@ -3673,8 +3683,13 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	for {
 		if turn > 1 && !skipBeforeTurn && hooks != nil && hooks.BeforeRequest != nil {
 			currentPreviousResponseID := openAIWSPayloadStringFromRaw(currentPayload, "previous_response_id")
-			if err := hooks.BeforeRequest(turn, currentPayload, currentOriginalModel, currentPreviousResponseID); err != nil {
+			updatedPayload, err := hooks.BeforeRequest(turn, currentPayload, currentOriginalModel, currentPreviousResponseID)
+			if err != nil {
 				return err
+			}
+			if len(updatedPayload) > 0 {
+				currentPayload = updatedPayload
+				currentPayloadBytes = len(updatedPayload)
 			}
 		}
 		if !skipBeforeTurn && hooks != nil && hooks.BeforeTurn != nil {
@@ -4074,7 +4089,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			return fmt.Errorf("read client websocket request: %w", readErr)
 		}
 
-		nextPayload, parseErr := parseClientPayload(nextClientMessage)
+		nextPayload, parseErr := parseClientPayload(nextClientMessage, true)
 		if parseErr != nil {
 			return parseErr
 		}

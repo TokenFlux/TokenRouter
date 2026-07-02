@@ -803,14 +803,48 @@ func (s *AuthService) assignSubscriptions(ctx context.Context, userID int64, ite
 		return
 	}
 	for _, item := range items {
-		if _, _, err := s.defaultSubAssigner.AssignOrExtendSubscription(ctx, &AssignSubscriptionInput{
-			UserID: userID,
-			PlanID: item.PlanID,
-			Notes:  notes,
-		}); err != nil {
+		err := s.runFailOpenDBStep(ctx, "auth_default_subscription", func(stepCtx context.Context) error {
+			_, _, err := s.defaultSubAssigner.AssignOrExtendSubscription(stepCtx, &AssignSubscriptionInput{
+				UserID: userID,
+				PlanID: item.PlanID,
+				Notes:  notes,
+			})
+			return err
+		})
+		if err != nil {
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to assign default subscription: user_id=%d plan_id=%d err=%v", userID, item.PlanID, err)
 		}
 	}
+}
+
+func (s *AuthService) runFailOpenDBStep(ctx context.Context, savepointName string, fn func(context.Context) error) error {
+	if fn == nil {
+		return nil
+	}
+	tx := dbent.TxFromContext(ctx)
+	if tx == nil {
+		return fn(ctx)
+	}
+
+	client := tx.Client()
+	// 非关键注册初始化运行在主事务内时必须用 savepoint 隔离；
+	// PostgreSQL 任意一条语句失败都会把整个事务标记为 aborted。
+	if _, err := client.ExecContext(ctx, "SAVEPOINT "+savepointName); err != nil {
+		return fmt.Errorf("create savepoint %s: %w", savepointName, err)
+	}
+	if err := fn(ctx); err != nil {
+		if _, rollbackErr := client.ExecContext(ctx, "ROLLBACK TO SAVEPOINT "+savepointName); rollbackErr != nil {
+			return fmt.Errorf("rollback savepoint %s after %v: %w", savepointName, err, rollbackErr)
+		}
+		if _, releaseErr := client.ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName); releaseErr != nil {
+			return fmt.Errorf("release savepoint %s after %v: %w", savepointName, err, releaseErr)
+		}
+		return err
+	}
+	if _, err := client.ExecContext(ctx, "RELEASE SAVEPOINT "+savepointName); err != nil {
+		return fmt.Errorf("release savepoint %s: %w", savepointName, err)
+	}
+	return nil
 }
 
 type registrationArtifacts struct {
@@ -843,12 +877,17 @@ func (s *AuthService) bindRegistrationAffiliate(ctx context.Context, userID int6
 	if s == nil || s.affiliateService == nil || userID <= 0 {
 		return
 	}
-	if _, err := s.affiliateService.EnsureUserAffiliate(ctx, userID); err != nil {
+	if err := s.runFailOpenDBStep(ctx, "auth_affiliate_profile", func(stepCtx context.Context) error {
+		_, err := s.affiliateService.EnsureUserAffiliate(stepCtx, userID)
+		return err
+	}); err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Failed to initialize affiliate profile for user %d: %v", userID, err)
 		return
 	}
 	if code := strings.TrimSpace(affiliateCode); code != "" {
-		if err := s.affiliateService.BindInviterByCode(ctx, userID, code); err != nil {
+		if err := s.runFailOpenDBStep(ctx, "auth_affiliate_bind_inviter", func(stepCtx context.Context) error {
+			return s.affiliateService.BindInviterByCode(stepCtx, userID, code)
+		}); err != nil {
 			// 邀请返利码绑定失败不影响注册结果，只记录日志便于排查。
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to bind affiliate inviter for user %d: %v", userID, err)
 		}
@@ -1773,7 +1812,7 @@ func resolvedTokenVersion(user *User) int64 {
 	return user.TokenVersion ^ fingerprint
 }
 
-// snapshotPlatformQuotaDefaults 把 plan.PlatformQuotas（4 platform × 3 window）以
+// snapshotPlatformQuotaDefaults 把 plan.PlatformQuotas（当前 5 platform × 3 window）以
 // BulkInsertInitial 形式写入 user_platform_quotas 表。失败 fail-open（仅 warn log）。
 func (s *AuthService) snapshotPlatformQuotaDefaults(ctx context.Context, userID int64, plan *signupGrantPlan) error {
 	if s.userPlatformQuotaRepo == nil || plan == nil || len(plan.PlatformQuotas) == 0 {
@@ -1792,7 +1831,10 @@ func (s *AuthService) snapshotPlatformQuotaDefaults(ctx context.Context, userID 
 		}
 		records = append(records, rec)
 	}
-	if err := s.userPlatformQuotaRepo.BulkInsertInitial(ctx, records); err != nil {
+
+	if err := s.runFailOpenDBStep(ctx, "auth_platform_quota_snapshot", func(stepCtx context.Context) error {
+		return s.userPlatformQuotaRepo.BulkInsertInitial(stepCtx, records)
+	}); err != nil {
 		logger.LegacyPrintf("service.auth", "[Auth] Warning: snapshot platform quota failed user=%d: %v (fail-open)", userID, err)
 		return nil // fail-open：返回 nil，让调用方继续
 	}

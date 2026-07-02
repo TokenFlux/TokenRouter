@@ -446,6 +446,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			if msgType != coderws.MessageText {
 				return payload, nil, nil
 			}
+			// 后续 response.create 帧在策略过滤和上游转发前执行同一套用户提示词替换。
+			payload = s.ApplyUserPromptReplacement(ctx, payload, "openai_responses")
 			if strings.TrimSpace(gjson.GetBytes(payload, "type").String()) == "response.create" && hooks != nil && hooks.BeforeRequest != nil {
 				turnNo := int(completedTurns.Load()) + 1
 				if turnNo < 2 {
@@ -456,8 +458,12 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 					requestModel = capturedSessionModel
 				}
 				previousResponseID := strings.TrimSpace(gjson.GetBytes(payload, "previous_response_id").String())
-				if err := hooks.BeforeRequest(turnNo, payload, requestModel, previousResponseID); err != nil {
+				updatedPayload, err := hooks.BeforeRequest(turnNo, payload, requestModel, previousResponseID)
+				if err != nil {
 					return payload, nil, err
+				}
+				if len(updatedPayload) > 0 {
+					payload = updatedPayload
 				}
 			}
 			// 在评估策略前先刷新 capturedSessionModel：客户端可能通过
