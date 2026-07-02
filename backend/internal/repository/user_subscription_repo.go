@@ -504,6 +504,7 @@ func subscriptionPlanEntityToService(plan *dbent.SubscriptionPlan) *service.Subs
 		OriginalPrice:   plan.OriginalPrice,
 		ValidityDays:    plan.ValidityDays,
 		ValidityUnit:    plan.ValidityUnit,
+		GroupIDs:        append([]int64(nil), plan.GroupIds...),
 		DailyLimitUSD:   plan.DailyLimitUsd,
 		WeeklyLimitUSD:  plan.WeeklyLimitUsd,
 		MonthlyLimitUSD: plan.MonthlyLimitUsd,

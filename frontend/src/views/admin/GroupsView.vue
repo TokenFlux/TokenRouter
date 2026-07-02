@@ -475,6 +475,20 @@
           />
           <p class="input-hint">{{ t("admin.groups.rateMultiplierHint") }}</p>
         </div>
+        <div>
+          <label class="input-label">{{
+            t("admin.groups.form.subscriptionRateMultiplier")
+          }}</label>
+          <input
+            v-model.number="createForm.subscription_rate_multiplier"
+            type="number"
+            step="0.001"
+            min="0.001"
+            required
+            class="input"
+          />
+          <p class="input-hint">{{ t("admin.groups.subscriptionRateMultiplierHint") }}</p>
+        </div>
         <div data-tour="group-form-exclusive">
           <div class="mb-1.5 flex items-center gap-1">
             <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1891,6 +1905,20 @@
             class="input"
             data-tour="group-form-multiplier"
           />
+        </div>
+        <div>
+          <label class="input-label">{{
+            t("admin.groups.form.subscriptionRateMultiplier")
+          }}</label>
+          <input
+            v-model.number="editForm.subscription_rate_multiplier"
+            type="number"
+            step="0.001"
+            min="0.001"
+            required
+            class="input"
+          />
+          <p class="input-hint">{{ t("admin.groups.subscriptionRateMultiplierHint") }}</p>
         </div>
         <div>
           <div class="mb-1.5 flex items-center gap-1">
@@ -3663,6 +3691,7 @@ const createForm = reactive({
   sort_order: 0,
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
+  subscription_rate_multiplier: 1.0,
   is_exclusive: false,
   is_default: false,
   // 数据共享分组开关
@@ -4066,6 +4095,7 @@ const editForm = reactive({
   sort_order: 0,
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
+  subscription_rate_multiplier: 1.0,
   is_exclusive: false,
   is_default: false,
   // 数据共享分组开关
@@ -4345,6 +4375,7 @@ const closeCreateModal = () => {
   createForm.sort_order = 0;
   createForm.platform = "anthropic";
   createForm.rate_multiplier = 1.0;
+  createForm.subscription_rate_multiplier = 1.0;
   createForm.is_exclusive = false;
   createForm.is_default = false;
   createForm.data_sharing_enabled = false;
@@ -4450,6 +4481,7 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.sort_order = group.sort_order ?? 0;
   editForm.platform = group.platform;
   editForm.rate_multiplier = group.rate_multiplier;
+  editForm.subscription_rate_multiplier = group.subscription_rate_multiplier ?? 1.0;
   editForm.is_exclusive = group.is_exclusive;
   editForm.is_default = group.is_default ?? false;
   editForm.data_sharing_enabled = group.data_sharing_enabled ?? false;

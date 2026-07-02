@@ -134,6 +134,12 @@ func (_c *SubscriptionPlanCreate) SetNillableValidityUnit(v *string) *Subscripti
 	return _c
 }
 
+// SetGroupIds sets the "group_ids" field.
+func (_c *SubscriptionPlanCreate) SetGroupIds(v []int64) *SubscriptionPlanCreate {
+	_c.mutation.SetGroupIds(v)
+	return _c
+}
+
 // SetFeatures sets the "features" field.
 func (_c *SubscriptionPlanCreate) SetFeatures(v string) *SubscriptionPlanCreate {
 	_c.mutation.SetFeatures(v)
@@ -434,6 +440,10 @@ func (_c *SubscriptionPlanCreate) createSpec() (*SubscriptionPlan, *sqlgraph.Cre
 		_spec.SetField(subscriptionplan.FieldValidityUnit, field.TypeString, value)
 		_node.ValidityUnit = value
 	}
+	if value, ok := _c.mutation.GroupIds(); ok {
+		_spec.SetField(subscriptionplan.FieldGroupIds, field.TypeJSON, value)
+		_node.GroupIds = value
+	}
 	if value, ok := _c.mutation.Features(); ok {
 		_spec.SetField(subscriptionplan.FieldFeatures, field.TypeString, value)
 		_node.Features = value
@@ -707,6 +717,24 @@ func (u *SubscriptionPlanUpsert) SetValidityUnit(v string) *SubscriptionPlanUpse
 // UpdateValidityUnit sets the "validity_unit" field to the value that was provided on create.
 func (u *SubscriptionPlanUpsert) UpdateValidityUnit() *SubscriptionPlanUpsert {
 	u.SetExcluded(subscriptionplan.FieldValidityUnit)
+	return u
+}
+
+// SetGroupIds sets the "group_ids" field.
+func (u *SubscriptionPlanUpsert) SetGroupIds(v []int64) *SubscriptionPlanUpsert {
+	u.Set(subscriptionplan.FieldGroupIds, v)
+	return u
+}
+
+// UpdateGroupIds sets the "group_ids" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsert) UpdateGroupIds() *SubscriptionPlanUpsert {
+	u.SetExcluded(subscriptionplan.FieldGroupIds)
+	return u
+}
+
+// ClearGroupIds clears the value of the "group_ids" field.
+func (u *SubscriptionPlanUpsert) ClearGroupIds() *SubscriptionPlanUpsert {
+	u.SetNull(subscriptionplan.FieldGroupIds)
 	return u
 }
 
@@ -1014,6 +1042,27 @@ func (u *SubscriptionPlanUpsertOne) SetValidityUnit(v string) *SubscriptionPlanU
 func (u *SubscriptionPlanUpsertOne) UpdateValidityUnit() *SubscriptionPlanUpsertOne {
 	return u.Update(func(s *SubscriptionPlanUpsert) {
 		s.UpdateValidityUnit()
+	})
+}
+
+// SetGroupIds sets the "group_ids" field.
+func (u *SubscriptionPlanUpsertOne) SetGroupIds(v []int64) *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.SetGroupIds(v)
+	})
+}
+
+// UpdateGroupIds sets the "group_ids" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsertOne) UpdateGroupIds() *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.UpdateGroupIds()
+	})
+}
+
+// ClearGroupIds clears the value of the "group_ids" field.
+func (u *SubscriptionPlanUpsertOne) ClearGroupIds() *SubscriptionPlanUpsertOne {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.ClearGroupIds()
 	})
 }
 
@@ -1498,6 +1547,27 @@ func (u *SubscriptionPlanUpsertBulk) SetValidityUnit(v string) *SubscriptionPlan
 func (u *SubscriptionPlanUpsertBulk) UpdateValidityUnit() *SubscriptionPlanUpsertBulk {
 	return u.Update(func(s *SubscriptionPlanUpsert) {
 		s.UpdateValidityUnit()
+	})
+}
+
+// SetGroupIds sets the "group_ids" field.
+func (u *SubscriptionPlanUpsertBulk) SetGroupIds(v []int64) *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.SetGroupIds(v)
+	})
+}
+
+// UpdateGroupIds sets the "group_ids" field to the value that was provided on create.
+func (u *SubscriptionPlanUpsertBulk) UpdateGroupIds() *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.UpdateGroupIds()
+	})
+}
+
+// ClearGroupIds clears the value of the "group_ids" field.
+func (u *SubscriptionPlanUpsertBulk) ClearGroupIds() *SubscriptionPlanUpsertBulk {
+	return u.Update(func(s *SubscriptionPlanUpsert) {
+		s.ClearGroupIds()
 	})
 }
 

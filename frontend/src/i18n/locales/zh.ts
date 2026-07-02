@@ -2554,6 +2554,7 @@ export default {
         sortOrder: '排序',
         sortOrderHint: '数值越小越靠前，用于模型广场分组展示顺序',
         rateMultiplier: '费率倍数',
+        subscriptionRateMultiplier: '订阅倍率',
         status: '状态',
         exclusive: '专属分组',
         nameLabel: '分组名称',
@@ -2590,6 +2591,7 @@ export default {
           '公开分组费率 0.8，您可以创建一个费率 0.7 的专属分组，手动分配给 VIP 用户，让他们享受更优惠的价格。'
       },
       rateMultiplierHint: '1.0 = 标准费率，0.5 = 半价，2.0 = 双倍',
+      subscriptionRateMultiplierHint: '用户使用订阅额度请求本分组时使用的计费倍率。',
       defaultGroup: {
         title: '默认分组',
         badge: '默认',
@@ -7638,6 +7640,8 @@ export default {
       offSale: '下架',
       group: '分组',
       groupId: '分组 ID',
+      planGroups: '包含分组',
+      planGroupsRequired: '套餐至少需要选择一个分组',
       features: '功能特性',
       featuresHint: '每行一个特性',
       featuresPlaceholder: '输入套餐特性...',

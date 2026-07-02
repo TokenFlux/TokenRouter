@@ -10,6 +10,7 @@ type SubscriptionPlan struct {
 	OriginalPrice   *float64
 	ValidityDays    int
 	ValidityUnit    string
+	GroupIDs        []int64
 	DailyLimitUSD   *float64
 	WeeklyLimitUSD  *float64
 	MonthlyLimitUSD *float64

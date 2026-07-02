@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/TokenFlux/TokenRouter/ent/predicate"
 	"github.com/TokenFlux/TokenRouter/ent/redeemcode"
@@ -219,6 +220,24 @@ func (_u *SubscriptionPlanUpdate) SetNillableValidityUnit(v *string) *Subscripti
 	if v != nil {
 		_u.SetValidityUnit(*v)
 	}
+	return _u
+}
+
+// SetGroupIds sets the "group_ids" field.
+func (_u *SubscriptionPlanUpdate) SetGroupIds(v []int64) *SubscriptionPlanUpdate {
+	_u.mutation.SetGroupIds(v)
+	return _u
+}
+
+// AppendGroupIds appends value to the "group_ids" field.
+func (_u *SubscriptionPlanUpdate) AppendGroupIds(v []int64) *SubscriptionPlanUpdate {
+	_u.mutation.AppendGroupIds(v)
+	return _u
+}
+
+// ClearGroupIds clears the value of the "group_ids" field.
+func (_u *SubscriptionPlanUpdate) ClearGroupIds() *SubscriptionPlanUpdate {
+	_u.mutation.ClearGroupIds()
 	return _u
 }
 
@@ -492,6 +511,17 @@ func (_u *SubscriptionPlanUpdate) sqlSave(ctx context.Context) (_node int, err e
 	}
 	if value, ok := _u.mutation.ValidityUnit(); ok {
 		_spec.SetField(subscriptionplan.FieldValidityUnit, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GroupIds(); ok {
+		_spec.SetField(subscriptionplan.FieldGroupIds, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedGroupIds(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, subscriptionplan.FieldGroupIds, value)
+		})
+	}
+	if _u.mutation.GroupIdsCleared() {
+		_spec.ClearField(subscriptionplan.FieldGroupIds, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.Features(); ok {
 		_spec.SetField(subscriptionplan.FieldFeatures, field.TypeString, value)
@@ -813,6 +843,24 @@ func (_u *SubscriptionPlanUpdateOne) SetNillableValidityUnit(v *string) *Subscri
 	return _u
 }
 
+// SetGroupIds sets the "group_ids" field.
+func (_u *SubscriptionPlanUpdateOne) SetGroupIds(v []int64) *SubscriptionPlanUpdateOne {
+	_u.mutation.SetGroupIds(v)
+	return _u
+}
+
+// AppendGroupIds appends value to the "group_ids" field.
+func (_u *SubscriptionPlanUpdateOne) AppendGroupIds(v []int64) *SubscriptionPlanUpdateOne {
+	_u.mutation.AppendGroupIds(v)
+	return _u
+}
+
+// ClearGroupIds clears the value of the "group_ids" field.
+func (_u *SubscriptionPlanUpdateOne) ClearGroupIds() *SubscriptionPlanUpdateOne {
+	_u.mutation.ClearGroupIds()
+	return _u
+}
+
 // SetFeatures sets the "features" field.
 func (_u *SubscriptionPlanUpdateOne) SetFeatures(v string) *SubscriptionPlanUpdateOne {
 	_u.mutation.SetFeatures(v)
@@ -1113,6 +1161,17 @@ func (_u *SubscriptionPlanUpdateOne) sqlSave(ctx context.Context) (_node *Subscr
 	}
 	if value, ok := _u.mutation.ValidityUnit(); ok {
 		_spec.SetField(subscriptionplan.FieldValidityUnit, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GroupIds(); ok {
+		_spec.SetField(subscriptionplan.FieldGroupIds, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedGroupIds(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, subscriptionplan.FieldGroupIds, value)
+		})
+	}
+	if _u.mutation.GroupIdsCleared() {
+		_spec.ClearField(subscriptionplan.FieldGroupIds, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.Features(); ok {
 		_spec.SetField(subscriptionplan.FieldFeatures, field.TypeString, value)

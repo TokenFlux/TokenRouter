@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 17 // v17：认证快照包含分组不可用时的指定回退分组
+const apiKeyAuthSnapshotVersion = 19 // v19：认证快照从鉴权查询加载分组订阅倍率
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -256,6 +256,7 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			IsExclusive:                     apiKey.Group.IsExclusive,
 			Status:                          apiKey.Group.Status,
 			RateMultiplier:                  apiKey.Group.RateMultiplier,
+			SubscriptionRateMultiplier:      apiKey.Group.SubscriptionRateMultiplier,
 			DataSharingEnabled:              apiKey.Group.DataSharingEnabled,
 			SessionIsolationEnabled:         apiKey.Group.SessionIsolationEnabled,
 			AllowImageGeneration:            apiKey.Group.AllowImageGeneration,
@@ -331,6 +332,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			Status:                          snapshot.Group.Status,
 			Hydrated:                        true,
 			RateMultiplier:                  snapshot.Group.RateMultiplier,
+			SubscriptionRateMultiplier:      snapshot.Group.SubscriptionRateMultiplier,
 			DataSharingEnabled:              snapshot.Group.DataSharingEnabled,
 			SessionIsolationEnabled:         snapshot.Group.SessionIsolationEnabled,
 			AllowImageGeneration:            snapshot.Group.AllowImageGeneration,

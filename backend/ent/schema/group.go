@@ -45,6 +45,10 @@ func (Group) Fields() []ent.Field {
 		field.Float("rate_multiplier").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
 			Default(1.0),
+		field.Float("subscription_rate_multiplier").
+			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
+			Default(1.0).
+			Comment("订阅额度计费倍率；请求使用订阅额度时覆盖普通分组倍率"),
 		field.Bool("is_exclusive").
 			Default(false),
 		field.Bool("is_default").

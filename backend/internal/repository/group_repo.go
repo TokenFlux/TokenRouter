@@ -53,6 +53,7 @@ func (r *groupRepository) Create(ctx context.Context, groupIn *service.Group) er
 		SetPlatform(groupIn.Platform).
 		SetDisplayBrand(groupIn.DisplayBrand).
 		SetRateMultiplier(groupIn.RateMultiplier).
+		SetSubscriptionRateMultiplier(groupIn.SubscriptionRateMultiplier).
 		SetSortOrder(groupIn.SortOrder).
 		SetIsExclusive(groupIn.IsExclusive).
 		SetIsDefault(groupIn.IsDefault).
@@ -138,6 +139,7 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetPlatform(groupIn.Platform).
 		SetDisplayBrand(groupIn.DisplayBrand).
 		SetRateMultiplier(groupIn.RateMultiplier).
+		SetSubscriptionRateMultiplier(groupIn.SubscriptionRateMultiplier).
 		SetSortOrder(groupIn.SortOrder).
 		SetIsExclusive(groupIn.IsExclusive).
 		SetIsDefault(groupIn.IsDefault).

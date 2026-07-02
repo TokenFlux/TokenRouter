@@ -103,6 +103,20 @@ func (_c *GroupCreate) SetNillableRateMultiplier(v *float64) *GroupCreate {
 	return _c
 }
 
+// SetSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field.
+func (_c *GroupCreate) SetSubscriptionRateMultiplier(v float64) *GroupCreate {
+	_c.mutation.SetSubscriptionRateMultiplier(v)
+	return _c
+}
+
+// SetNillableSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableSubscriptionRateMultiplier(v *float64) *GroupCreate {
+	if v != nil {
+		_c.SetSubscriptionRateMultiplier(*v)
+	}
+	return _c
+}
+
 // SetIsExclusive sets the "is_exclusive" field.
 func (_c *GroupCreate) SetIsExclusive(v bool) *GroupCreate {
 	_c.mutation.SetIsExclusive(v)
@@ -637,6 +651,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultRateMultiplier
 		_c.mutation.SetRateMultiplier(v)
 	}
+	if _, ok := _c.mutation.SubscriptionRateMultiplier(); !ok {
+		v := group.DefaultSubscriptionRateMultiplier
+		_c.mutation.SetSubscriptionRateMultiplier(v)
+	}
 	if _, ok := _c.mutation.IsExclusive(); !ok {
 		v := group.DefaultIsExclusive
 		_c.mutation.SetIsExclusive(v)
@@ -750,6 +768,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		return &ValidationError{Name: "rate_multiplier", err: errors.New(`ent: missing required field "Group.rate_multiplier"`)}
+	}
+	if _, ok := _c.mutation.SubscriptionRateMultiplier(); !ok {
+		return &ValidationError{Name: "subscription_rate_multiplier", err: errors.New(`ent: missing required field "Group.subscription_rate_multiplier"`)}
 	}
 	if _, ok := _c.mutation.IsExclusive(); !ok {
 		return &ValidationError{Name: "is_exclusive", err: errors.New(`ent: missing required field "Group.is_exclusive"`)}
@@ -890,6 +911,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.RateMultiplier(); ok {
 		_spec.SetField(group.FieldRateMultiplier, field.TypeFloat64, value)
 		_node.RateMultiplier = value
+	}
+	if value, ok := _c.mutation.SubscriptionRateMultiplier(); ok {
+		_spec.SetField(group.FieldSubscriptionRateMultiplier, field.TypeFloat64, value)
+		_node.SubscriptionRateMultiplier = value
 	}
 	if value, ok := _c.mutation.IsExclusive(); ok {
 		_spec.SetField(group.FieldIsExclusive, field.TypeBool, value)
@@ -1230,6 +1255,24 @@ func (u *GroupUpsert) UpdateRateMultiplier() *GroupUpsert {
 // AddRateMultiplier adds v to the "rate_multiplier" field.
 func (u *GroupUpsert) AddRateMultiplier(v float64) *GroupUpsert {
 	u.Add(group.FieldRateMultiplier, v)
+	return u
+}
+
+// SetSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field.
+func (u *GroupUpsert) SetSubscriptionRateMultiplier(v float64) *GroupUpsert {
+	u.Set(group.FieldSubscriptionRateMultiplier, v)
+	return u
+}
+
+// UpdateSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateSubscriptionRateMultiplier() *GroupUpsert {
+	u.SetExcluded(group.FieldSubscriptionRateMultiplier)
+	return u
+}
+
+// AddSubscriptionRateMultiplier adds v to the "subscription_rate_multiplier" field.
+func (u *GroupUpsert) AddSubscriptionRateMultiplier(v float64) *GroupUpsert {
+	u.Add(group.FieldSubscriptionRateMultiplier, v)
 	return u
 }
 
@@ -1822,6 +1865,27 @@ func (u *GroupUpsertOne) AddRateMultiplier(v float64) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateRateMultiplier() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateRateMultiplier()
+	})
+}
+
+// SetSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field.
+func (u *GroupUpsertOne) SetSubscriptionRateMultiplier(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSubscriptionRateMultiplier(v)
+	})
+}
+
+// AddSubscriptionRateMultiplier adds v to the "subscription_rate_multiplier" field.
+func (u *GroupUpsertOne) AddSubscriptionRateMultiplier(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddSubscriptionRateMultiplier(v)
+	})
+}
+
+// UpdateSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateSubscriptionRateMultiplier() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSubscriptionRateMultiplier()
 	})
 }
 
@@ -2656,6 +2720,27 @@ func (u *GroupUpsertBulk) AddRateMultiplier(v float64) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateRateMultiplier() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateRateMultiplier()
+	})
+}
+
+// SetSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field.
+func (u *GroupUpsertBulk) SetSubscriptionRateMultiplier(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSubscriptionRateMultiplier(v)
+	})
+}
+
+// AddSubscriptionRateMultiplier adds v to the "subscription_rate_multiplier" field.
+func (u *GroupUpsertBulk) AddSubscriptionRateMultiplier(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddSubscriptionRateMultiplier(v)
+	})
+}
+
+// UpdateSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateSubscriptionRateMultiplier() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSubscriptionRateMultiplier()
 	})
 }
 

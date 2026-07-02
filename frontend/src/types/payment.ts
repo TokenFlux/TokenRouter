@@ -125,6 +125,7 @@ export type PublicPaymentOrder = PaymentOrder
 export interface SubscriptionPlan {
   id: number
   group_id?: number
+  group_ids?: number[]
   group_platform?: string
   group_name?: string
   daily_limit_usd?: number | null

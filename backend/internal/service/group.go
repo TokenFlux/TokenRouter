@@ -12,16 +12,17 @@ type GroupModelsListConfig = domain.GroupModelsListConfig
 type GroupAvailabilityProbeConfig = domain.GroupAvailabilityProbeConfig
 
 type Group struct {
-	ID             int64
-	Name           string
-	Description    string
-	Platform       string
-	DisplayBrand   string
-	RateMultiplier float64
-	IsExclusive    bool
-	IsDefault      bool
-	Status         string
-	Hydrated       bool // indicates the group was loaded from a trusted repository source
+	ID                         int64
+	Name                       string
+	Description                string
+	Platform                   string
+	DisplayBrand               string
+	RateMultiplier             float64
+	SubscriptionRateMultiplier float64
+	IsExclusive                bool
+	IsDefault                  bool
+	Status                     string
+	Hydrated                   bool // indicates the group was loaded from a trusted repository source
 	// DataSharingEnabled 表示该分组产生的 Agent session 是否进入数据共享采集流程。
 	DataSharingEnabled bool
 	// SessionIsolationEnabled 表示目标分组是否拒绝其它分组已归属的显式会话切入。

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
 	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
@@ -571,10 +572,13 @@ func (s *SubscriptionService) GetActiveSubscription(ctx context.Context, userID,
 	return nil, ErrSubscriptionNotFound
 }
 
-func (s *SubscriptionService) GetUsableSubscription(ctx context.Context, userID int64) (*UserSubscription, bool, error) {
+func (s *SubscriptionService) GetUsableSubscription(ctx context.Context, userID int64, groupID ...int64) (*UserSubscription, bool, error) {
 	subs, err := s.userSubRepo.ListActiveByUserID(ctx, userID)
 	if err != nil {
 		return nil, false, err
+	}
+	if len(groupID) > 0 && groupID[0] > 0 {
+		subs = s.filterSubscriptionsByGroup(ctx, subs, groupID[0])
 	}
 	sort.SliceStable(subs, func(i, j int) bool {
 		if subs[i].ExpiresAt.Equal(subs[j].ExpiresAt) {
@@ -599,6 +603,38 @@ func (s *SubscriptionService) GetUsableSubscription(ctx context.Context, userID 
 		return nil, false, validateErr
 	}
 	return nil, false, ErrSubscriptionNotFound
+}
+
+func (s *SubscriptionService) filterSubscriptionsByGroup(ctx context.Context, subs []UserSubscription, groupID int64) []UserSubscription {
+	if s == nil || s.entClient == nil || groupID <= 0 || len(subs) == 0 {
+		return subs
+	}
+	planIDs := make([]int64, 0, len(subs))
+	for i := range subs {
+		planIDs = append(planIDs, subs[i].PlanID)
+	}
+	plans, err := s.entClient.SubscriptionPlan.Query().
+		Where(subscriptionplan.IDIn(planIDs...)).
+		All(ctx)
+	if err != nil {
+		return subs
+	}
+	allowed := make(map[int64]struct{}, len(plans))
+	for _, plan := range plans {
+		for _, gid := range plan.GroupIds {
+			if gid == groupID {
+				allowed[int64(plan.ID)] = struct{}{}
+				break
+			}
+		}
+	}
+	out := subs[:0]
+	for i := range subs {
+		if _, ok := allowed[subs[i].PlanID]; ok {
+			out = append(out, subs[i])
+		}
+	}
+	return out
 }
 
 func (s *SubscriptionService) ListUserSubscriptions(ctx context.Context, userID int64) ([]UserSubscription, error) {

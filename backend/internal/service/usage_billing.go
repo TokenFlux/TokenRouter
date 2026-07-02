@@ -23,6 +23,7 @@ type UsageBillingCommand struct {
 
 	UserID              int64
 	AccountID           int64
+	GroupID             *int64
 	BillableAmountUSD   float64
 	AccountType         string
 	Model               string

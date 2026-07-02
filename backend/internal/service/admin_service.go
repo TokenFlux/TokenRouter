@@ -199,14 +199,15 @@ type AdminBoundAuthIdentityChannel struct {
 }
 
 type CreateGroupInput struct {
-	Name           string
-	Description    string
-	Platform       string
-	DisplayBrand   string
-	SortOrder      int
-	RateMultiplier float64
-	IsExclusive    bool
-	IsDefault      bool
+	Name                       string
+	Description                string
+	Platform                   string
+	DisplayBrand               string
+	SortOrder                  int
+	RateMultiplier             float64
+	SubscriptionRateMultiplier *float64
+	IsExclusive                bool
+	IsDefault                  bool
 	// DataSharingEnabled 将新建分组标记为数据共享分组。
 	DataSharingEnabled bool
 	// SessionIsolationEnabled 开启后拒绝其它分组已归属的显式会话切入。
@@ -246,14 +247,15 @@ type CreateGroupInput struct {
 }
 
 type UpdateGroupInput struct {
-	Name           string
-	Description    *string
-	Platform       string
-	DisplayBrand   *string
-	SortOrder      *int
-	RateMultiplier *float64 // 使用指针以支持设置为0
-	IsExclusive    *bool
-	IsDefault      *bool
+	Name                       string
+	Description                *string
+	Platform                   string
+	DisplayBrand               *string
+	SortOrder                  *int
+	RateMultiplier             *float64 // 使用指针以支持设置为0
+	SubscriptionRateMultiplier *float64
+	IsExclusive                *bool
+	IsDefault                  *bool
 	// DataSharingEnabled 控制分组是否进入数据共享采集流程。
 	DataSharingEnabled *bool
 	// SessionIsolationEnabled 控制目标分组是否开启会话隔离。
@@ -1778,6 +1780,13 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	if input.RateMultiplier <= 0 {
 		return nil, errors.New("rate_multiplier must be > 0")
 	}
+	subscriptionRateMultiplier := input.RateMultiplier
+	if input.SubscriptionRateMultiplier != nil {
+		if *input.SubscriptionRateMultiplier <= 0 {
+			return nil, errors.New("subscription_rate_multiplier must be > 0")
+		}
+		subscriptionRateMultiplier = *input.SubscriptionRateMultiplier
+	}
 
 	platform := input.Platform
 	if platform == "" {
@@ -1871,6 +1880,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		DisplayBrand:                    strings.TrimSpace(input.DisplayBrand),
 		SortOrder:                       input.SortOrder,
 		RateMultiplier:                  input.RateMultiplier,
+		SubscriptionRateMultiplier:      subscriptionRateMultiplier,
 		IsExclusive:                     input.IsExclusive,
 		IsDefault:                       input.IsDefault,
 		DataSharingEnabled:              input.DataSharingEnabled,
@@ -2130,6 +2140,12 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 			return nil, errors.New("rate_multiplier must be > 0")
 		}
 		group.RateMultiplier = *input.RateMultiplier
+	}
+	if input.SubscriptionRateMultiplier != nil {
+		if *input.SubscriptionRateMultiplier <= 0 {
+			return nil, errors.New("subscription_rate_multiplier must be > 0")
+		}
+		group.SubscriptionRateMultiplier = *input.SubscriptionRateMultiplier
 	}
 	if input.IsExclusive != nil {
 		group.IsExclusive = *input.IsExclusive

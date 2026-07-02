@@ -33,11 +33,14 @@ func (s *openAIRecordUsageLogRepoStub) Create(ctx context.Context, log *UsageLog
 type openAIRecordUsageBillingRepoStub struct {
 	UsageBillingRepository
 
-	result     *UsageBillingApplyResult
-	err        error
-	calls      int
-	lastCmd    *UsageBillingCommand
-	lastCtxErr error
+	result       *UsageBillingApplyResult
+	err          error
+	calls        int
+	lastCmd      *UsageBillingCommand
+	lastCtxErr   error
+	resolveSub   *UserSubscription
+	resolveErr   error
+	resolveCalls int
 }
 
 func (s *openAIRecordUsageBillingRepoStub) Apply(ctx context.Context, cmd *UsageBillingCommand) (*UsageBillingApplyResult, error) {
@@ -60,6 +63,18 @@ func (s *openAIRecordUsageBillingRepoStub) Apply(ctx context.Context, cmd *Usage
 		}
 	}
 	return result, nil
+}
+
+func (s *openAIRecordUsageBillingRepoStub) ResolveUsableSubscriptionForGroup(ctx context.Context, userID, groupID int64) (*UserSubscription, error) {
+	s.resolveCalls++
+	s.lastCtxErr = ctx.Err()
+	if s.resolveErr != nil {
+		return nil, s.resolveErr
+	}
+	if s.resolveSub == nil || s.resolveSub.UserID != userID {
+		return nil, nil
+	}
+	return s.resolveSub, nil
 }
 
 func TestOpenAIGatewayServiceRecordUsage_RejectsNilInput(t *testing.T) {
@@ -90,15 +105,33 @@ func (s *openAIRecordUsageUserRepoStub) DeductBalance(ctx context.Context, id in
 type openAIRecordUsageSubRepoStub struct {
 	UserSubscriptionRepository
 
-	incrementCalls int
-	incrementErr   error
-	lastCtxErr     error
+	incrementCalls  int
+	incrementErr    error
+	lastCtxErr      error
+	activeSubs      []UserSubscription
+	listActiveErr   error
+	listActiveCalls int
 }
 
 func (s *openAIRecordUsageSubRepoStub) IncrementUsage(ctx context.Context, id int64, costUSD float64) error {
 	s.incrementCalls++
 	s.lastCtxErr = ctx.Err()
 	return s.incrementErr
+}
+
+func (s *openAIRecordUsageSubRepoStub) ListActiveByUserID(ctx context.Context, userID int64) ([]UserSubscription, error) {
+	s.listActiveCalls++
+	s.lastCtxErr = ctx.Err()
+	if s.listActiveErr != nil {
+		return nil, s.listActiveErr
+	}
+	out := make([]UserSubscription, 0, len(s.activeSubs))
+	for i := range s.activeSubs {
+		if s.activeSubs[i].UserID == userID {
+			out = append(out, s.activeSubs[i])
+		}
+	}
+	return out, nil
 }
 
 type openAIRecordUsageAPIKeyQuotaStub struct {
@@ -1388,6 +1421,134 @@ func TestOpenAIGatewayServiceRecordUsage_SubscriptionBillingSetsSubscriptionFiel
 	require.Equal(t, subscription.ID, *usageRepo.lastLog.SubscriptionID)
 	require.Equal(t, 1, billingRepo.calls)
 	require.Equal(t, 0, userRepo.deductCalls)
+}
+
+func TestOpenAIGatewayServiceRecordUsage_SubscriptionBillingUsesGroupSubscriptionRateOverUserGroupRate(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	userGroupRate := 0.17
+	rateRepo := &openAIUserGroupRateRepoStub{rate: &userGroupRate}
+	subscription := &UserSubscription{ID: 99}
+	planID := int64(199)
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{
+		Applied:               true,
+		SubscriptionAmountUSD: 1,
+		BillingAllocations: []domain.BillingAllocation{
+			{
+				Type:           domain.BillingAllocationTypeSubscription,
+				AmountUSD:      1,
+				SubscriptionID: &subscription.ID,
+				PlanID:         &planID,
+			},
+		},
+	}}
+	svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, userRepo, subRepo, rateRepo)
+
+	usage := OpenAIUsage{InputTokens: 10, OutputTokens: 5}
+	expectedCost := expectedOpenAICost(t, svc, "gpt-5.1", usage, 0.5)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID: "resp_subscription_group_rate",
+			Usage:     usage,
+			Model:     "gpt-5.1",
+			Duration:  time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      100,
+			GroupID: i64p(88),
+			Group: &Group{
+				ID:                         88,
+				RateMultiplier:             1.0,
+				SubscriptionRateMultiplier: 0.5,
+			},
+		},
+		User:         &User{ID: 200},
+		Account:      &Account{ID: 300},
+		Subscription: subscription,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, BillingTypeSubscription, usageRepo.lastLog.BillingType)
+	require.NotNil(t, usageRepo.lastLog.SubscriptionID)
+	require.Equal(t, subscription.ID, *usageRepo.lastLog.SubscriptionID)
+	require.InDelta(t, 0.5, usageRepo.lastLog.RateMultiplier, 1e-12)
+	require.InDelta(t, expectedCost.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
+	require.InDelta(t, expectedCost.ActualCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+	require.Equal(t, 0, rateRepo.calls)
+}
+
+func TestOpenAIGatewayServiceRecordUsage_InferredSubscriptionUsesGroupSubscriptionRate(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	now := time.Now()
+	subscription := UserSubscription{
+		ID:        99,
+		UserID:    200,
+		PlanID:    199,
+		StartsAt:  now.Add(-time.Hour),
+		ExpiresAt: now.Add(time.Hour),
+		Status:    SubscriptionStatusActive,
+		Plan: &SubscriptionPlan{
+			ID:       199,
+			GroupIDs: []int64{88},
+		},
+	}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	userGroupRate := 0.17
+	rateRepo := &openAIUserGroupRateRepoStub{rate: &userGroupRate}
+	planID := subscription.PlanID
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{
+		Applied:               true,
+		SubscriptionAmountUSD: 1,
+		BillingAllocations: []domain.BillingAllocation{
+			{
+				Type:           domain.BillingAllocationTypeSubscription,
+				AmountUSD:      1,
+				SubscriptionID: &subscription.ID,
+				PlanID:         &planID,
+			},
+		},
+	}}
+	billingRepo.resolveSub = &subscription
+	svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, userRepo, subRepo, rateRepo)
+
+	usage := OpenAIUsage{InputTokens: 10, OutputTokens: 5}
+	expectedCost := expectedOpenAICost(t, svc, "gpt-5.1", usage, 0.5)
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID: "resp_inferred_subscription_group_rate",
+			Usage:     usage,
+			Model:     "gpt-5.1",
+			Duration:  time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      100,
+			GroupID: i64p(88),
+			Group: &Group{
+				ID:                         88,
+				RateMultiplier:             1.0,
+				SubscriptionRateMultiplier: 0.5,
+			},
+		},
+		User:    &User{ID: 200},
+		Account: &Account{ID: 300},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, BillingTypeSubscription, usageRepo.lastLog.BillingType)
+	require.NotNil(t, usageRepo.lastLog.SubscriptionID)
+	require.Equal(t, subscription.ID, *usageRepo.lastLog.SubscriptionID)
+	require.InDelta(t, 0.5, usageRepo.lastLog.RateMultiplier, 1e-12)
+	require.InDelta(t, expectedCost.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
+	require.InDelta(t, expectedCost.ActualCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+	require.Equal(t, 0, rateRepo.calls)
+	require.Equal(t, 1, billingRepo.resolveCalls)
+	require.Equal(t, 0, subRepo.listActiveCalls)
 }
 
 func TestOpenAIGatewayServiceRecordUsage_SimpleModeSkipsBillingAfterPersist(t *testing.T) {

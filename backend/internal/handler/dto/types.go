@@ -91,16 +91,17 @@ type APIKey struct {
 }
 
 type Group struct {
-	ID             int64          `json:"id"`
-	Name           string         `json:"name"`
-	Description    string         `json:"description"`
-	Platform       string         `json:"platform"`
-	DisplayBrand   string         `json:"display_brand"`
-	RateMultiplier float64        `json:"rate_multiplier"`
-	Capacity       *GroupCapacity `json:"capacity,omitempty"`
-	IsExclusive    bool           `json:"is_exclusive"`
-	IsDefault      bool           `json:"is_default"`
-	Status         string         `json:"status"`
+	ID                         int64          `json:"id"`
+	Name                       string         `json:"name"`
+	Description                string         `json:"description"`
+	Platform                   string         `json:"platform"`
+	DisplayBrand               string         `json:"display_brand"`
+	RateMultiplier             float64        `json:"rate_multiplier"`
+	SubscriptionRateMultiplier float64        `json:"subscription_rate_multiplier"`
+	Capacity                   *GroupCapacity `json:"capacity,omitempty"`
+	IsExclusive                bool           `json:"is_exclusive"`
+	IsDefault                  bool           `json:"is_default"`
+	Status                     string         `json:"status"`
 	// 数据共享分组会采集符合规则的 Agent session，用户切换前必须确认须知。
 	DataSharingEnabled bool `json:"data_sharing_enabled"`
 	// 会话隔离开启后，目标分组会拒绝其它分组已归属的显式会话切入。
@@ -153,6 +154,7 @@ type SubscriptionPlan struct {
 	OriginalPrice   *float64  `json:"original_price,omitempty"`
 	ValidityDays    int       `json:"validity_days"`
 	ValidityUnit    string    `json:"validity_unit"`
+	GroupIDs        []int64   `json:"group_ids"`
 	DailyLimitUSD   *float64  `json:"daily_limit_usd"`
 	WeeklyLimitUSD  *float64  `json:"weekly_limit_usd"`
 	MonthlyLimitUSD *float64  `json:"monthly_limit_usd"`

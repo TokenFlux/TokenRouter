@@ -137,6 +137,9 @@ func mustCreatePlan(t *testing.T, client *dbent.Client, p *service.SubscriptionP
 	if p.MonthlyLimitUSD != nil {
 		create.SetMonthlyLimitUsd(*p.MonthlyLimitUSD)
 	}
+	if p.GroupIDs != nil {
+		create.SetGroupIds(p.GroupIDs)
+	}
 	if !p.CreatedAt.IsZero() {
 		create.SetCreatedAt(p.CreatedAt)
 	}

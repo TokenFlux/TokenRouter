@@ -67,6 +67,7 @@ type APIKeyAuthGroupSnapshot struct {
 	IsExclusive                     bool     `json:"is_exclusive"`
 	Status                          string   `json:"status"`
 	RateMultiplier                  float64  `json:"rate_multiplier"`
+	SubscriptionRateMultiplier      float64  `json:"subscription_rate_multiplier"`
 	DataSharingEnabled              bool     `json:"data_sharing_enabled"`
 	SessionIsolationEnabled         bool     `json:"session_isolation_enabled"`
 	AllowImageGeneration            bool     `json:"allow_image_generation"`

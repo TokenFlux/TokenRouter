@@ -60,6 +60,7 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 		OriginalPrice   *float64 `json:"original_price,omitempty"`
 		ValidityDays    int      `json:"validity_days"`
 		ValidityUnit    string   `json:"validity_unit"`
+		GroupIDs        []int64  `json:"group_ids"`
 		DailyLimitUSD   *float64 `json:"daily_limit_usd,omitempty"`
 		WeeklyLimitUSD  *float64 `json:"weekly_limit_usd,omitempty"`
 		MonthlyLimitUSD *float64 `json:"monthly_limit_usd,omitempty"`
@@ -78,6 +79,7 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 			OriginalPrice:   p.OriginalPrice,
 			ValidityDays:    p.ValidityDays,
 			ValidityUnit:    p.ValidityUnit,
+			GroupIDs:        append([]int64(nil), p.GroupIds...),
 			DailyLimitUSD:   p.DailyLimitUsd,
 			WeeklyLimitUSD:  p.WeeklyLimitUsd,
 			MonthlyLimitUSD: p.MonthlyLimitUsd,
@@ -136,6 +138,7 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 			OriginalPrice:   p.OriginalPrice,
 			ValidityDays:    p.ValidityDays,
 			ValidityUnit:    p.ValidityUnit,
+			GroupIDs:        append([]int64(nil), p.GroupIds...),
 			Features:        parseFeatures(p.Features),
 			ProductName:     p.ProductName,
 		})
@@ -175,6 +178,7 @@ type checkoutInfoResponse struct {
 type checkoutPlan struct {
 	ID              int64    `json:"id"`
 	GroupID         *int64   `json:"group_id,omitempty"`
+	GroupIDs        []int64  `json:"group_ids"`
 	GroupPlatform   string   `json:"group_platform,omitempty"`
 	GroupName       string   `json:"group_name,omitempty"`
 	DailyLimitUSD   *float64 `json:"daily_limit_usd"`

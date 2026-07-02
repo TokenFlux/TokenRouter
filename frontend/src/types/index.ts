@@ -617,6 +617,7 @@ export interface Group {
   platform: GroupPlatform
   display_brand?: string
   rate_multiplier: number
+  subscription_rate_multiplier: number
   capacity?: MarketplaceGroupCapacity
   rpm_limit?: number // Group-level RPM cap (0 = unlimited); overrides user-level rpm_limit when set
   is_exclusive: boolean
@@ -752,6 +753,7 @@ export interface CreateGroupRequest {
   display_brand?: string
   sort_order?: number
   rate_multiplier?: number
+  subscription_rate_multiplier?: number
   is_exclusive?: boolean
   is_default?: boolean
   data_sharing_enabled?: boolean
@@ -789,6 +791,7 @@ export interface UpdateGroupRequest {
   display_brand?: string
   sort_order?: number
   rate_multiplier?: number
+  subscription_rate_multiplier?: number
   is_exclusive?: boolean
   is_default?: boolean
   data_sharing_enabled?: boolean

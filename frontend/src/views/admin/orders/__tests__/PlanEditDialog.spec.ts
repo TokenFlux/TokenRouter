@@ -7,11 +7,18 @@ import { useAppStore } from '@/stores/app'
 
 const mockCreatePlan = vi.fn()
 const mockUpdatePlan = vi.fn()
+const mockGetAllIncludingInactive = vi.fn()
 
 vi.mock('@/api/admin/payment', () => ({
   adminPaymentAPI: {
     createPlan: (...args: unknown[]) => mockCreatePlan(...args),
     updatePlan: (...args: unknown[]) => mockUpdatePlan(...args)
+  }
+}))
+
+vi.mock('@/api/admin/groups', () => ({
+  groupsAPI: {
+    getAllIncludingInactive: (...args: unknown[]) => mockGetAllIncludingInactive(...args)
   }
 }))
 
@@ -45,11 +52,14 @@ function createTestI18n() {
             forSale: 'For Sale',
             planNameRequired: 'Plan name is required',
             priceRequired: 'Price must be greater than 0',
-            validityDaysRequired: 'Validity days must be greater than 0'
+            validityDaysRequired: 'Validity days must be greater than 0',
+            planGroups: 'Plan Groups',
+            planGroupsRequired: 'Select at least one group'
           }
         },
         common: {
           cancel: 'Cancel',
+          loading: 'Loading',
           save: 'Save',
           saving: 'Saving',
           saved: 'Saved',
@@ -94,6 +104,11 @@ describe('PlanEditDialog', () => {
   beforeEach(() => {
     mockCreatePlan.mockReset()
     mockUpdatePlan.mockReset()
+    mockGetAllIncludingInactive.mockReset()
+    mockGetAllIncludingInactive.mockResolvedValue([
+      { id: 1, name: 'Default', platform: 'anthropic', status: 'active' },
+      { id: 2, name: 'OpenAI', platform: 'openai', status: 'inactive' }
+    ])
   })
 
   it('submits unlimited plan when all quota limits are empty', async () => {
@@ -107,6 +122,8 @@ describe('PlanEditDialog', () => {
     await wrapper.find('textarea').setValue('Starter plan')
     await inputs[2].setValue('9.99')
     await inputs[4].setValue('30')
+    await flushPromises()
+    await wrapper.find('input[type="checkbox"][value="1"]').setValue(true)
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
@@ -119,7 +136,8 @@ describe('PlanEditDialog', () => {
         validity_days: 30,
         daily_limit_usd: null,
         weekly_limit_usd: null,
-        monthly_limit_usd: null
+        monthly_limit_usd: null,
+        group_ids: [1]
       })
     )
     expect(showErrorSpy).not.toHaveBeenCalled()
@@ -135,6 +153,8 @@ describe('PlanEditDialog', () => {
     await inputs[2].setValue('9.99')
     await inputs[4].setValue('30')
     await inputs[5].setValue('5')
+    await flushPromises()
+    await wrapper.find('input[type="checkbox"][value="1"]').setValue(true)
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
@@ -164,6 +184,8 @@ describe('PlanEditDialog', () => {
     await inputs[5].setValue('10')
     await inputs[6].setValue('0')
     await inputs[7].setValue('100')
+    await flushPromises()
+    await wrapper.find('input[type="checkbox"][value="1"]').setValue(true)
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
@@ -175,5 +197,30 @@ describe('PlanEditDialog', () => {
         monthly_limit_usd: 100
       })
     )
+  })
+
+  it('requires at least one group before saving a plan', async () => {
+    mockCreatePlan.mockResolvedValue({})
+    const wrapper = mountDialog()
+    const appStore = useAppStore()
+    const showErrorSpy = vi.spyOn(appStore, 'showError')
+
+    const inputs = wrapper.findAll('input')
+    await inputs[0].setValue('Starter')
+    await wrapper.find('textarea').setValue('Starter plan')
+    await inputs[2].setValue('9.99')
+    await inputs[4].setValue('30')
+    await flushPromises()
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(mockCreatePlan).not.toHaveBeenCalled()
+    expect(showErrorSpy).toHaveBeenCalledWith('payment.admin.planGroupsRequired')
+
+    await wrapper.find('input[type="checkbox"][value="2"]').setValue(true)
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(mockCreatePlan).toHaveBeenCalledWith(expect.objectContaining({ group_ids: [2] }))
   })
 })
