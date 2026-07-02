@@ -389,13 +389,13 @@ func TestAccountGetConfiguredRequestModels(t *testing.T) {
 			expected: []string{"claude-opus-4-6"},
 		},
 		{
-			name:     "qoder explicit whitelist returns whitelist and mapping keys",
+			name:     "qoder explicit mapping returns mapping keys for model list display",
 			platform: PlatformQoder,
 			credentials: map[string]any{
 				"model_mapping":   map[string]any{"claude-opus-4-6": "ultimate"},
 				"model_whitelist": []any{"ultimate"},
 			},
-			expected: []string{"claude-opus-4-6", "ultimate"},
+			expected: []string{"claude-opus-4-6"},
 		},
 	}
 
