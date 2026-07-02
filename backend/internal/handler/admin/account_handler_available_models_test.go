@@ -376,7 +376,8 @@ func TestAccountHandlerGetAvailableModels_QoderUsesConfiguredModels(t *testing.T
 	for _, model := range resp.Data {
 		ids = append(ids, model.ID)
 	}
-	require.ElementsMatch(t, []string{"custom-qoder-model"}, ids)
+	require.ElementsMatch(t, []string{"custom-qoder-model", "qmodel"}, ids,
+		"available models follow GetConfiguredRequestModels: mapping keys plus final whitelist models")
 }
 
 func TestAccountHandlerSyncUpstreamModels_ConfigErrorReturnsBadRequest(t *testing.T) {
