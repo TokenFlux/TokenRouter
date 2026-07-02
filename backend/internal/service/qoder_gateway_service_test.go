@@ -21,7 +21,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-const qoderXMLToolCallFixture = `<tool_call>Read<arg_value><arg_key>file_path</arg_key><arg_value>/Users/zzw/project/campus-navigation/README.md</arg_value></tool_call>`
+const qoderXMLToolCallFixture = `<tool_call>Read<arg_value><arg_key>file_path</arg_key><arg_value>/workspace/campus-navigation/README.md</arg_value></tool_call>`
 const qoderJSONShellToolCallFixture = `<tool_call>{"name":"shell","arguments":{"command":"pwd","description":"Print working directory"}}</tool_call>`
 const qoderDSMLToolCallFixture = `<｜｜DSML｜｜tool_calls>
 <｜｜DSML｜｜invoke name="Bash">
@@ -2278,7 +2278,7 @@ func TestQoderGatewayWritesOpenAIStreamParsesXMLTextToolCall(t *testing.T) {
 	body := rec.Body.String()
 	require.Contains(t, body, `"tool_calls"`)
 	require.Contains(t, body, `"name":"Read"`)
-	require.Contains(t, body, `"arguments":"{\"file_path\":\"/Users/zzw/project/campus-navigation/README.md\"}"`)
+	require.Contains(t, body, `"arguments":"{\"file_path\":\"/workspace/campus-navigation/README.md\"}"`)
 	require.Contains(t, body, `"finish_reason":"tool_calls"`)
 	require.NotContains(t, body, "<tool_call>")
 	require.NotContains(t, body, "arg_key")
@@ -2348,7 +2348,7 @@ func TestQoderGatewayWritesAnthropicStreamParsesXMLTextToolCall(t *testing.T) {
 	require.Contains(t, body, `"type":"tool_use"`)
 	require.Contains(t, body, `"name":"Read"`)
 	require.Contains(t, body, `"type":"input_json_delta"`)
-	require.Contains(t, body, `"partial_json":"{\"file_path\":\"/Users/zzw/project/campus-navigation/README.md\"}"`)
+	require.Contains(t, body, `"partial_json":"{\"file_path\":\"/workspace/campus-navigation/README.md\"}"`)
 	require.Contains(t, body, `"stop_reason":"tool_use"`)
 	require.NotContains(t, body, "<tool_call>")
 	require.NotContains(t, body, "arg_key")
@@ -2816,7 +2816,7 @@ func TestQoderGatewayAssemblesNonStreamingChatCompletionParsesXMLTextToolCall(t 
 	require.Equal(t, "tool_calls", gjson.GetBytes(body, "choices.0.finish_reason").String())
 	require.Equal(t, gjson.Null, gjson.GetBytes(body, "choices.0.message.content").Type)
 	require.Equal(t, "Read", gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.name").String())
-	require.JSONEq(t, `{"file_path":"/Users/zzw/project/campus-navigation/README.md"}`, gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.arguments").String())
+	require.JSONEq(t, `{"file_path":"/workspace/campus-navigation/README.md"}`, gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.arguments").String())
 	require.NotContains(t, string(body), "<tool_call>")
 	require.NotContains(t, string(body), "arg_key")
 	require.NotContains(t, string(body), "arg_value")
@@ -2860,7 +2860,7 @@ func TestQoderGatewayAssemblesNonStreamingChatCompletionParsesSplitXMLTextToolCa
 		{Type: "text_delta", Text: "<tool_"},
 		{Type: "text_delta", Text: "call>Re"},
 		{Type: "text_delta", Text: "ad<arg_value><arg_key>file_path</arg_key>"},
-		{Type: "text_delta", Text: "<arg_value>/Users/zzw/project/campus-navigation/README.md</arg_value></tool_call>"},
+		{Type: "text_delta", Text: "<arg_value>/workspace/campus-navigation/README.md</arg_value></tool_call>"},
 		{IsDone: true},
 	}
 
@@ -2869,7 +2869,7 @@ func TestQoderGatewayAssemblesNonStreamingChatCompletionParsesSplitXMLTextToolCa
 
 	require.Equal(t, "tool_calls", gjson.GetBytes(body, "choices.0.finish_reason").String())
 	require.Equal(t, "Read", gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.name").String())
-	require.JSONEq(t, `{"file_path":"/Users/zzw/project/campus-navigation/README.md"}`, gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.arguments").String())
+	require.JSONEq(t, `{"file_path":"/workspace/campus-navigation/README.md"}`, gjson.GetBytes(body, "choices.0.message.tool_calls.0.function.arguments").String())
 	require.NotContains(t, string(body), "<tool_call>")
 	require.NotContains(t, string(body), "arg_key")
 	require.NotContains(t, string(body), "arg_value")
@@ -3013,7 +3013,7 @@ func TestQoderGatewayAssemblesNonStreamingAnthropicMessageParsesXMLTextToolCall(
 	require.Equal(t, "tool_use", gjson.GetBytes(body, "stop_reason").String())
 	require.Equal(t, "tool_use", gjson.GetBytes(body, "content.0.type").String())
 	require.Equal(t, "Read", gjson.GetBytes(body, "content.0.name").String())
-	require.Equal(t, "/Users/zzw/project/campus-navigation/README.md", gjson.GetBytes(body, "content.0.input.file_path").String())
+	require.Equal(t, "/workspace/campus-navigation/README.md", gjson.GetBytes(body, "content.0.input.file_path").String())
 	require.NotContains(t, string(body), "<tool_call>")
 	require.NotContains(t, string(body), "arg_key")
 	require.NotContains(t, string(body), "arg_value")
@@ -3566,7 +3566,7 @@ func TestQoderGatewayStreamsOpenAIResponseParsesXMLTextToolCall(t *testing.T) {
 	body := rec.Body.String()
 	require.Contains(t, body, `"tool_calls"`)
 	require.Contains(t, body, `"name":"Read"`)
-	require.Contains(t, body, `"arguments":"{\"file_path\":\"/Users/zzw/project/campus-navigation/README.md\"}"`)
+	require.Contains(t, body, `"arguments":"{\"file_path\":\"/workspace/campus-navigation/README.md\"}"`)
 	require.Contains(t, body, `"finish_reason":"tool_calls"`)
 	require.NotContains(t, body, "<tool_call>")
 	require.NotContains(t, body, "arg_key")
@@ -3642,7 +3642,7 @@ func TestQoderGatewayStreamsAnthropicResponseParsesXMLTextToolCall(t *testing.T)
 				map[string]any{"delta": map[string]any{"content": "<tool_call>Re"}},
 			}}) +
 				qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
-					map[string]any{"delta": map[string]any{"content": "ad<arg_value><arg_key>file_path</arg_key><arg_value>/Users/zzw/project/campus-navigation/README.md</arg_value></tool_call>"}},
+					map[string]any{"delta": map[string]any{"content": "ad<arg_value><arg_key>file_path</arg_key><arg_value>/workspace/campus-navigation/README.md</arg_value></tool_call>"}},
 				}}) +
 				"data: {\"body\":\"[DONE]\"}\n\n",
 		)),
@@ -3655,7 +3655,7 @@ func TestQoderGatewayStreamsAnthropicResponseParsesXMLTextToolCall(t *testing.T)
 	body := rec.Body.String()
 	require.Contains(t, body, `"type":"tool_use"`)
 	require.Contains(t, body, `"name":"Read"`)
-	require.Contains(t, body, `"partial_json":"{\"file_path\":\"/Users/zzw/project/campus-navigation/README.md\"}"`)
+	require.Contains(t, body, `"partial_json":"{\"file_path\":\"/workspace/campus-navigation/README.md\"}"`)
 	require.Contains(t, body, `"stop_reason":"tool_use"`)
 	require.NotContains(t, body, "<tool_call>")
 	require.NotContains(t, body, "arg_key")
