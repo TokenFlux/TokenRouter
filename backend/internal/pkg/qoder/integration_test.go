@@ -29,7 +29,7 @@ func TestRealAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadLocalAuth: %v", err)
 	}
-	t.Logf("Loaded auth for: %s (%s)", info.Name, info.UID)
+	t.Log("Loaded local Qoder auth metadata")
 
 	identity := info.ToAuthIdentity()
 	machine := &MachineIdentity{
@@ -130,6 +130,9 @@ func collectStream(ctx context.Context, resp *http.Response, t *testing.T) ([]st
 
 // TestReadLocalAuthFromDisk tests reading and decrypting local Qoder auth.
 func TestReadLocalAuthFromDisk(t *testing.T) {
+	if os.Getenv("QODER_RUN_LOCAL_AUTH_TESTS") != "1" && os.Getenv("QODER_RUN_REAL_API_TESTS") != "1" {
+		t.Skip("set QODER_RUN_LOCAL_AUTH_TESTS=1 to run local Qoder auth import test")
+	}
 	authDir := DefaultAuthDir()
 	if authDir == "" {
 		t.Skip("no home directory")
@@ -149,7 +152,5 @@ func TestReadLocalAuthFromDisk(t *testing.T) {
 	if info.AccessToken == "" && info.SecurityOauthToken == "" {
 		t.Error("expected non-empty token")
 	}
-	t.Logf("UID: %s", info.UID)
-	t.Logf("Name: %s", info.Name)
-	t.Logf("Token prefix: %.10s...", info.SecurityOauthToken)
+	t.Log("Loaded local Qoder auth metadata")
 }
