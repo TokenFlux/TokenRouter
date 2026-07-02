@@ -97,6 +97,7 @@ func TestOpsServiceCleanupSystemLogs_SuccessAndAudit(t *testing.T) {
 	}
 	svc := NewOpsService(repo, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	userID := int64(7)
+	apiKeyID := int64(8)
 	now := time.Now().UTC()
 	filter := &OpsSystemLogCleanupFilter{
 		StartTime:       &now,
@@ -104,6 +105,7 @@ func TestOpsServiceCleanupSystemLogs_SuccessAndAudit(t *testing.T) {
 		RequestID:       "req-1",
 		ClientRequestID: "creq-1",
 		UserID:          &userID,
+		APIKeyID:        &apiKeyID,
 		Query:           "timeout",
 	}
 
@@ -122,6 +124,9 @@ func TestOpsServiceCleanupSystemLogs_SuccessAndAudit(t *testing.T) {
 	}
 	if !strings.Contains(audit.Conditions, `"user_id":7`) {
 		t.Fatalf("audit conditions should include user_id: %s", audit.Conditions)
+	}
+	if !strings.Contains(audit.Conditions, `"api_key_id":8`) {
+		t.Fatalf("audit conditions should include api_key_id: %s", audit.Conditions)
 	}
 }
 

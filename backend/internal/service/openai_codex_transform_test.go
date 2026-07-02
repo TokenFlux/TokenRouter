@@ -919,6 +919,10 @@ func TestNormalizeCodexModel_Gpt53(t *testing.T) {
 		"gpt-5.4":                   "gpt-5.4",
 		"gpt5.5":                    "gpt-5.5",
 		"openai/gpt5.5":             "gpt-5.5",
+		"gpt-5.5-pro":               "gpt-5.5-pro",
+		"gpt5.5-pro":                "gpt-5.5-pro",
+		"openai/gpt5.5-pro":         "gpt-5.5-pro",
+		"gpt-5.5-pro-high":          "gpt-5.5-pro",
 		"codex-auto-review":         "codex-auto-review",
 		"gpt5.4":                    "gpt-5.4",
 		"gpt-5.4-high":              "gpt-5.4",
@@ -1029,6 +1033,21 @@ func TestApplyCodexOAuthTransform_CodexCLI_SuppliesDefaultWhenEmpty(t *testing.T
 	require.True(t, result.Modified)
 }
 
+func TestApplyCodexOAuthTransform_GPT55SuppliesModelSpecificInstructions(t *testing.T) {
+	reqBody := map[string]any{
+		"model":        "gpt-5.5",
+		"instructions": "   ",
+	}
+
+	result := applyCodexOAuthTransform(reqBody, true, false)
+
+	instructions, ok := reqBody["instructions"].(string)
+	require.True(t, ok)
+	require.Contains(t, instructions, "You are Codex, a coding agent based on GPT-5")
+	require.NotContains(t, instructions, "You are GPT-5.1 running in the Codex CLI")
+	require.True(t, result.Modified)
+}
+
 func TestApplyCodexOAuthTransform_NonCodexCLI_PreservesExistingInstructions(t *testing.T) {
 	// 非 Codex CLI 场景：已有 instructions 时保留客户端的值，不再覆盖
 
@@ -1115,10 +1134,15 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 		require.True(t, result)
 		input, ok := reqBody["input"].([]any)
 		require.True(t, ok)
-		require.Len(t, input, 1)
+		require.Len(t, input, 2)
 		msg, ok := input[0].(map[string]any)
 		require.True(t, ok)
-		require.Equal(t, "user", msg["role"])
+		require.Equal(t, "developer", msg["role"])
+		require.Equal(t, "You are an assistant.", msg["content"])
+		user, ok := input[1].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "user", user["role"])
+		require.Equal(t, "hello", user["content"])
 		require.Equal(t, "You are an assistant.", reqBody["instructions"])
 	})
 
@@ -1138,7 +1162,10 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 		require.Equal(t, "Be helpful.", reqBody["instructions"])
 		input, ok := reqBody["input"].([]any)
 		require.True(t, ok)
-		require.Len(t, input, 0)
+		require.Len(t, input, 1)
+		msg, ok := input[0].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "developer", msg["role"])
 	})
 
 	t.Run("multiple system messages concatenated", func(t *testing.T) {
@@ -1154,7 +1181,16 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 		require.Equal(t, "First.\n\nSecond.", reqBody["instructions"])
 		input, ok := reqBody["input"].([]any)
 		require.True(t, ok)
-		require.Len(t, input, 1)
+		require.Len(t, input, 3)
+		first, ok := input[0].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "developer", first["role"])
+		second, ok := input[1].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "developer", second["role"])
+		user, ok := input[2].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "user", user["role"])
 	})
 
 	t.Run("mixed system and non-system preserves non-system", func(t *testing.T) {
@@ -1169,13 +1205,17 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 		require.True(t, result)
 		input, ok := reqBody["input"].([]any)
 		require.True(t, ok)
-		require.Len(t, input, 2)
+		require.Len(t, input, 3)
 		first, ok := input[0].(map[string]any)
 		require.True(t, ok)
 		require.Equal(t, "user", first["role"])
 		second, ok := input[1].(map[string]any)
 		require.True(t, ok)
-		require.Equal(t, "assistant", second["role"])
+		require.Equal(t, "developer", second["role"])
+		third, ok := input[2].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "assistant", third["role"])
+		require.Equal(t, "Sys prompt.", reqBody["instructions"])
 	})
 
 	t.Run("existing instructions prepended", func(t *testing.T) {
@@ -1189,6 +1229,11 @@ func TestExtractSystemMessagesFromInput(t *testing.T) {
 		result := extractSystemMessagesFromInput(reqBody)
 		require.True(t, result)
 		require.Equal(t, "Extracted.\n\nExisting instructions.", reqBody["instructions"])
+		input, ok := reqBody["input"].([]any)
+		require.True(t, ok)
+		msg, ok := input[0].(map[string]any)
+		require.True(t, ok)
+		require.Equal(t, "developer", msg["role"])
 	})
 }
 
@@ -1248,14 +1293,56 @@ func TestApplyCodexOAuthTransform_ExtractsSystemMessages(t *testing.T) {
 
 	input, ok := reqBody["input"].([]any)
 	require.True(t, ok)
-	require.Len(t, input, 1)
-	msg, ok := input[0].(map[string]any)
+	require.Len(t, input, 2)
+	system, ok := input[0].(map[string]any)
 	require.True(t, ok)
-	require.Equal(t, "user", msg["role"])
+	require.Equal(t, "developer", system["role"])
+	require.Equal(t, "You are a coding assistant.", system["content"])
+	user, ok := input[1].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "user", user["role"])
 
 	instructions, ok := reqBody["instructions"].(string)
 	require.True(t, ok)
 	require.Equal(t, "You are a coding assistant.", instructions)
+}
+
+func TestApplyCodexOAuthTransform_JsonObjectKeepsJsonInstructionInInput(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "gpt-5.4",
+		"input": []any{
+			map[string]any{
+				"role":    "system",
+				"content": "You are an assistant. Output JSON only.",
+			},
+			map[string]any{
+				"role":    "user",
+				"content": "symbol data without the keyword",
+			},
+		},
+		"text": map[string]any{
+			"format": map[string]any{
+				"type": "json_object",
+			},
+		},
+	}
+
+	result := applyCodexOAuthTransform(reqBody, false, false)
+
+	require.True(t, result.Modified)
+	instructions, ok := reqBody["instructions"].(string)
+	require.True(t, ok)
+	require.Contains(t, instructions, "JSON")
+	input, ok := reqBody["input"].([]any)
+	require.True(t, ok)
+	require.Len(t, input, 2)
+	developer, ok := input[0].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "developer", developer["role"])
+	require.Contains(t, developer["content"], "JSON")
+	user, ok := input[1].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "user", user["role"])
 }
 
 func TestIsInstructionsEmpty(t *testing.T) {

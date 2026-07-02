@@ -16,6 +16,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -150,7 +151,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		return nil, fmt.Errorf("marshal responses request: %w", err)
 	}
 
-	if account.Type == AccountTypeOAuth {
+	if account.Type == AccountTypeOAuth && account.Platform != PlatformGrok {
 		var reqBody map[string]any
 		if err := json.Unmarshal(responsesBody, &reqBody); err != nil {
 			return nil, fmt.Errorf("unmarshal for codex transform: %w", err)
@@ -243,6 +244,13 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	} else {
 		responsesReq.ServiceTier = ""
 	}
+	if account.Platform == PlatformGrok {
+		patchedBody, patchErr := patchGrokResponsesBody(responsesBody, upstreamModel)
+		if patchErr != nil {
+			return nil, patchErr
+		}
+		responsesBody = patchedBody
+	}
 
 	// 5. Get access token
 	token, _, err := s.GetAccessToken(ctx, account)
@@ -252,7 +260,12 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 
 	// 6. Build upstream request
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
-	upstreamReq, err := s.buildUpstreamRequest(upstreamCtx, c, account, responsesBody, token, isStream, promptCacheKey, false, tlsRouterMatch...)
+	var upstreamReq *http.Request
+	if account.Platform == PlatformGrok {
+		upstreamReq, err = buildGrokResponsesRequest(upstreamCtx, c, account, responsesBody, token)
+	} else {
+		upstreamReq, err = s.buildUpstreamRequest(upstreamCtx, c, account, responsesBody, token, isStream, promptCacheKey, false, tlsRouterMatch...)
+	}
 	releaseUpstreamCtx()
 	if err != nil {
 		return nil, fmt.Errorf("build upstream request: %w", err)
@@ -267,7 +280,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 			upstreamReq.Header.Set("conversation_id", isolatedSessionID)
 		}
 	}
-	if account.Type == AccountTypeOAuth {
+	if account.Type == AccountTypeOAuth && account.Platform != PlatformGrok {
 		// Anthropic Messages compatibility uses the ChatGPT Codex SSE endpoint.
 		// Match airgate-openai's request shape: the SSE endpoint does not need
 		// the Responses experimental beta header, and forcing originator can make
@@ -309,6 +322,10 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		respBody := s.readUpstreamErrorBody(resp)
 		_ = resp.Body.Close()
 		resp.Body = io.NopCloser(bytes.NewReader(respBody))
+		if account.Platform == PlatformGrok {
+			s.updateGrokUsageSnapshot(ctx, account.ID, xai.ParseQuotaHeaders(resp.Header, resp.StatusCode))
+			s.handleGrokAccountUpstreamError(ctx, account, resp.StatusCode, resp.Header, respBody)
+		}
 
 		upstreamMsg := strings.TrimSpace(extractUpstreamErrorMessage(respBody))
 		upstreamMsg = sanitizeUpstreamErrorMessage(upstreamMsg)
@@ -397,9 +414,12 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 		}
 	}
 
-	// Extract and save Codex usage snapshot from response headers (for OAuth accounts)
-	if handleErr == nil && account.Type == AccountTypeOAuth {
-		if snapshot := ParseCodexRateLimitHeaders(resp.Header); snapshot != nil {
+	// Extract and save Codex usage snapshot from response headers (for OAuth accounts).
+	// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
+	if handleErr == nil && account.Type == AccountTypeOAuth && !account.IsShadow() {
+		if account.Platform == PlatformGrok {
+			s.updateGrokUsageSnapshot(ctx, account.ID, xai.ParseQuotaHeaders(resp.Header, resp.StatusCode))
+		} else if snapshot := ParseCodexRateLimitHeaders(resp.Header); snapshot != nil {
 			s.updateCodexUsageSnapshot(ctx, account.ID, snapshot)
 		}
 	}

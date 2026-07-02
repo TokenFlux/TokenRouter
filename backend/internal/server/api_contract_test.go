@@ -871,6 +871,7 @@ func TestAPIContracts(t *testing.T) {
 					"claude_oauth_system_prompt_blocks": "",
 					"enable_anthropic_cache_ttl_1h_injection": false,
 					"rewrite_message_cache_control": false,
+					"enable_client_dateline_normalization": true,
 					"antigravity_user_agent_version": "",
 					"openai_codex_user_agent": "",
 					"enable_fingerprint_unification": true,
@@ -1161,6 +1162,7 @@ func TestAPIContracts(t *testing.T) {
 					"claude_oauth_system_prompt_blocks": "",
 					"enable_anthropic_cache_ttl_1h_injection": false,
 					"rewrite_message_cache_control": false,
+					"enable_client_dateline_normalization": true,
 					"antigravity_user_agent_version": "",
 					"openai_codex_user_agent": "",
 					"web_search_emulation_enabled": false,
@@ -1851,6 +1853,10 @@ func (s *stubAccountRepo) AutoPauseExpiredAccounts(ctx context.Context, now time
 
 func (s *stubAccountRepo) BindGroups(ctx context.Context, accountID int64, groupIDs []int64) error {
 	return errors.New("not implemented")
+}
+
+func (s *stubAccountRepo) ListShadowsByParent(ctx context.Context, parentID int64) ([]*service.Account, error) {
+	return nil, errors.New("not implemented")
 }
 
 func (s *stubAccountRepo) ListSchedulable(ctx context.Context) ([]service.Account, error) {
@@ -2660,7 +2666,7 @@ func (r *stubUsageLogRepo) ListWithFilters(ctx context.Context, params paginatio
 			continue
 		}
 		// Apply Model filter
-		if filters.Model != "" && log.Model != filters.Model {
+		if filters.Model != "" && stubUsageLogFilterModel(log, filters.ModelFilterSource) != filters.Model {
 			continue
 		}
 		// Apply Stream filter
@@ -2686,6 +2692,13 @@ func (r *stubUsageLogRepo) ListWithFilters(ctx context.Context, params paginatio
 	return out, paginationResult(total, params), nil
 }
 
+func stubUsageLogFilterModel(log service.UsageLog, source string) string {
+	if source == usagestats.ModelSourceRequested && log.RequestedModel != "" {
+		return log.RequestedModel
+	}
+	return log.Model
+}
+
 func (r *stubUsageLogRepo) GetGlobalStats(ctx context.Context, startTime, endTime time.Time) (*usagestats.UsageStats, error) {
 	return nil, errors.New("not implemented")
 }
@@ -2695,7 +2708,55 @@ func (r *stubUsageLogRepo) GetAccountUsageStats(ctx context.Context, accountID i
 }
 
 func (r *stubUsageLogRepo) GetStatsWithFilters(ctx context.Context, filters usagestats.UsageLogFilters) (*usagestats.UsageStats, error) {
-	return nil, errors.New("not implemented")
+	logs, _, err := r.ListWithFilters(ctx, pagination.PaginationParams{Page: 1, PageSize: 100000}, filters)
+	if err != nil {
+		return nil, err
+	}
+
+	var totalRequests int64
+	var totalInputTokens int64
+	var totalOutputTokens int64
+	var totalCacheTokens int64
+	var totalCacheCreationTokens int64
+	var totalCacheReadTokens int64
+	var totalCost float64
+	var totalActualCost float64
+	var totalDuration int64
+	var durationCount int64
+
+	for _, log := range logs {
+		totalRequests++
+		totalInputTokens += int64(log.InputTokens)
+		totalOutputTokens += int64(log.OutputTokens)
+		totalCacheTokens += int64(log.CacheCreationTokens + log.CacheReadTokens)
+		totalCacheCreationTokens += int64(log.CacheCreationTokens)
+		totalCacheReadTokens += int64(log.CacheReadTokens)
+		totalCost += log.TotalCost
+		totalActualCost += log.ActualCost
+		if log.DurationMs != nil {
+			totalDuration += int64(*log.DurationMs)
+			durationCount++
+		}
+	}
+
+	var avgDuration float64
+	if durationCount > 0 {
+		avgDuration = float64(totalDuration) / float64(durationCount)
+	}
+
+	return &usagestats.UsageStats{
+		TotalRequests:            totalRequests,
+		TotalInputTokens:         totalInputTokens,
+		TotalOutputTokens:        totalOutputTokens,
+		TotalCacheTokens:         totalCacheTokens,
+		TotalCacheCreationTokens: totalCacheCreationTokens,
+		TotalCacheReadTokens:     totalCacheReadTokens,
+		TotalTokens:              totalInputTokens + totalOutputTokens + totalCacheTokens,
+		TotalCost:                totalCost,
+		TotalActualCost:          totalActualCost,
+		AverageDurationMs:        avgDuration,
+		Endpoints:                []usagestats.EndpointStat{},
+	}, nil
 }
 func (r *stubUsageLogRepo) GetAllGroupUsageSummary(ctx context.Context, todayStart time.Time) ([]usagestats.GroupUsageSummary, error) {
 	return nil, errors.New("not implemented")

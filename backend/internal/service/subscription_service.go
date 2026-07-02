@@ -781,6 +781,8 @@ func (s *SubscriptionService) ValidateAndCheckLimits(sub *UserSubscription, _ *G
 		return false, ErrSubscriptionSuspended
 	case SubscriptionStatusPending:
 		return false, ErrSubscriptionInvalid
+	case SubscriptionStatusRevoked:
+		return false, ErrSubscriptionNotFound
 	}
 	if sub.NeedsDailyReset() {
 		sub.DailyUsageUSD = 0
@@ -930,6 +932,8 @@ func (s *SubscriptionService) ValidateSubscription(ctx context.Context, sub *Use
 		return ErrSubscriptionSuspended
 	case SubscriptionStatusPending:
 		return ErrSubscriptionInvalid
+	case SubscriptionStatusRevoked:
+		return ErrSubscriptionNotFound
 	default:
 		return nil
 	}

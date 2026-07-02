@@ -21,6 +21,14 @@ func buildOpenAIEndpointURL(base string, endpoint string) string {
 	return normalized + endpoint
 }
 
+func buildOpenAIResponsesInputTokensURL(base string) string {
+	normalized := strings.TrimRight(strings.TrimSpace(base), "/")
+	if strings.HasSuffix(normalized, "/responses") {
+		return normalized + "/input_tokens"
+	}
+	return buildOpenAIEndpointURL(base, "/v1/responses/input_tokens")
+}
+
 // openAIBaseURLHasVersionSuffix 判断 base_url 路径最后一段是否是 API 版本段。
 func openAIBaseURLHasVersionSuffix(raw string) bool {
 	trimmed := strings.TrimSpace(raw)

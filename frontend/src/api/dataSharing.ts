@@ -1,4 +1,4 @@
-import { apiClient } from './client'
+import { apiClient, buildApiUrl } from './client'
 import type { PaginatedResponse } from '@/types'
 
 // 数据库存储的三态质量状态，筛选项会额外扩展虚拟值。
@@ -152,11 +152,10 @@ export function startTicketDownload(ticket: DataShareExportTicket) {
 
 function resolveDownloadURL(downloadURL: string): string {
   if (/^https?:\/\//i.test(downloadURL)) return downloadURL
-  const apiBase = (apiClient.defaults.baseURL || '/api/v1').replace(/\/$/, '')
   const path = downloadURL.startsWith('/api/v1/')
     ? downloadURL.slice('/api/v1'.length)
     : downloadURL
-  return apiBase + (path.startsWith('/') ? path : `/${path}`)
+  return buildApiUrl(path)
 }
 
 export const dataSharingAPI = {

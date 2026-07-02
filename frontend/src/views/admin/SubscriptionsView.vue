@@ -909,7 +909,8 @@ const statusOptions = computed(() => [
   { value: 'active', label: t('admin.subscriptions.status.active') },
   { value: 'pending', label: t('admin.subscriptions.status.pending') },
   { value: 'expired', label: t('admin.subscriptions.status.expired') },
-  { value: 'suspended', label: t('admin.subscriptions.status.suspended') }
+  { value: 'suspended', label: t('admin.subscriptions.status.suspended') },
+  { value: 'revoked', label: t('admin.subscriptions.status.revoked') }
 ])
 
 const subscriptions = ref<UserSubscription[]>([])

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 import type { AdminUser } from '@/types'
@@ -55,7 +55,7 @@ vi.mock('vue-i18n', async () => {
   }
 })
 
-const createAdminUser = (): AdminUser => ({
+const createAdminUser = (overrides: Partial<AdminUser> = {}): AdminUser => ({
   id: 42,
   username: 'scoped-user',
   email: 'scoped@example.com',
@@ -72,7 +72,8 @@ const createAdminUser = (): AdminUser => ({
   notes: '',
   last_active_at: '2026-04-16T02:00:00Z',
   last_used_at: '2026-04-17T02:00:00Z',
-  current_concurrency: 0
+  current_concurrency: 0,
+  ...overrides
 })
 
 const mountUsersView = () => mount(UsersView, {
@@ -111,7 +112,11 @@ const DataTableStub = {
   template: `
     <div>
       <div data-test="columns">{{ columns.map(col => col.key).join(',') }}</div>
+      <div data-test="row-order">{{ data.map(row => row.email).join(',') }}</div>
       <button data-test="sort-last-used" @click="$emit('sort', 'last_used_at', 'desc')">sort</button>
+      <template v-for="col in columns" :key="col.key">
+        <slot :name="'header-' + col.key" :column="col" />
+      </template>
       <div v-for="row in data" :key="row.id">
         <div data-test="row-email">{{ row.email }}</div>
         <slot name="cell-last_used_at" :value="row.last_used_at" :row="row" />
@@ -123,6 +128,7 @@ const DataTableStub = {
 
 describe('admin UsersView', () => {
   beforeEach(() => {
+    vi.useRealTimers()
     localStorage.clear()
 
     listUsers.mockReset()
@@ -142,6 +148,10 @@ describe('admin UsersView', () => {
     getBatchUsersUsage.mockResolvedValue({ stats: {} })
     listEnabledDefinitions.mockResolvedValue([])
     getBatchUserAttributes.mockResolvedValue({ values: {} })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('shows active, used, and created activity columns in order and requests last_used_at sort', async () => {
@@ -236,5 +246,71 @@ describe('admin UsersView', () => {
       'high@example.com',
       'low@example.com'
     ])
+  })
+
+  it('clears usage current-page sort when switching to last_used_at server sort', async () => {
+    vi.useFakeTimers()
+    localStorage.setItem('user-column-settings-version', '3')
+    localStorage.setItem(
+      'user-hidden-columns',
+      JSON.stringify([
+        'notes',
+        'groups',
+        'subscriptions',
+        'concurrency',
+        'usage_anthropic',
+        'usage_openai',
+        'usage_gemini',
+        'usage_antigravity',
+        'balance_platform_quota'
+      ])
+    )
+
+    listUsers.mockResolvedValue({
+      items: [
+        createAdminUser({ id: 1, email: 'last-used-first@example.com' }),
+        createAdminUser({ id: 2, email: 'usage-first@example.com' })
+      ],
+      total: 2,
+      page: 1,
+      page_size: 20,
+      pages: 1
+    })
+    getBatchUsersUsage.mockResolvedValue({
+      stats: {
+        1: { user_id: 1, today_actual_cost: 1, total_actual_cost: 1, by_platform: [] },
+        2: { user_id: 2, today_actual_cost: 9, total_actual_cost: 9, by_platform: [] }
+      }
+    })
+
+    const wrapper = mountUsersView()
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(50)
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="row-order"]').text()).toBe('last-used-first@example.com,usage-first@example.com')
+
+    await wrapper.get('[data-test="usage-sort-trigger-usage"]').trigger('click')
+    await flushPromises()
+    await wrapper.get('[data-test="usage-sort-usage-today"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="row-order"]').text()).toBe('usage-first@example.com,last-used-first@example.com')
+    expect(localStorage.getItem('admin-users-usage-sort')).toContain('"key":"usage"')
+
+    await wrapper.get('[data-test="sort-last-used"]').trigger('click')
+    await flushPromises()
+
+    expect(localStorage.getItem('admin-users-usage-sort')).toBeNull()
+    expect(wrapper.get('[data-test="row-order"]').text()).toBe('last-used-first@example.com,usage-first@example.com')
+    expect(listUsers).toHaveBeenLastCalledWith(
+      1,
+      20,
+      expect.objectContaining({
+        sort_by: 'last_used_at',
+        sort_order: 'desc'
+      }),
+      expect.any(Object)
+    )
   })
 })

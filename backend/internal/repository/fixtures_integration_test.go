@@ -8,6 +8,7 @@ import (
 	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+	dbaccount "github.com/TokenFlux/TokenRouter/ent/account"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -268,6 +269,12 @@ func mustCreateAccount(t *testing.T, client *dbent.Client, a *service.Account) *
 	}
 	if !a.UpdatedAt.IsZero() {
 		create.SetUpdatedAt(a.UpdatedAt)
+	}
+	if a.ParentAccountID != nil {
+		create.SetParentAccountID(*a.ParentAccountID)
+	}
+	if a.QuotaDimension != "" {
+		create.SetQuotaDimension(dbaccount.QuotaDimension(a.QuotaDimension))
 	}
 
 	created, err := create.Save(ctx)

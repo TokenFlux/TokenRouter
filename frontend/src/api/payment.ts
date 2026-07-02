@@ -17,6 +17,16 @@ import type {
 } from '@/types/payment'
 import type { BasePaginationResponse } from '@/types'
 
+export interface PublicOrderVerifyResult {
+  out_trade_no: string
+  status: string
+  paid: boolean
+  created_at: string
+  expires_at: string
+  paid_at?: string
+  completed_at?: string
+}
+
 export const paymentAPI = {
   /** Get payment configuration (enabled types, limits, etc.) */
   getConfig() {
@@ -73,12 +83,12 @@ export const paymentAPI = {
     return apiClient.post<PaymentOrder>('/payment/orders/verify', { out_trade_no: outTradeNo })
   },
 
-  /** Legacy-compatible public order lookup by out_trade_no */
+  /** 通过 out_trade_no 做匿名兼容查单，只返回最小状态信息 */
   verifyOrderPublic(outTradeNo: string) {
-    return apiClient.post<PaymentOrder>('/payment/public/orders/verify', { out_trade_no: outTradeNo })
+    return apiClient.post<PublicOrderVerifyResult>('/payment/public/orders/verify', { out_trade_no: outTradeNo })
   },
 
-  /** Resolve an order from a signed resume token without auth */
+  /** 通过签名恢复 token 无需登录读取完整支付结果 */
   resolveOrderPublicByResumeToken(resumeToken: string) {
     return apiClient.post<PaymentOrder>('/payment/public/orders/resolve', { resume_token: resumeToken })
   },

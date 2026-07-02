@@ -27,6 +27,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/anthropicfp"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
@@ -4854,6 +4855,28 @@ func (s *GatewayService) shouldInjectAnthropicCacheTTL1h(ctx context.Context, ac
 	return s.settingService.IsAnthropicCacheTTL1hInjectionEnabled(ctx)
 }
 
+// shouldNormalizeClientDateline 判断转发到 Anthropic 前是否需要归一化客户端 dateline。
+// 开关只作用于 Anthropic OAuth/SetupToken 账号；API-Key 与非 Anthropic 平台始终跳过。
+func (s *GatewayService) shouldNormalizeClientDateline(ctx context.Context, account *Account) bool {
+	if account == nil || !account.IsAnthropicOAuthOrSetupToken() || s == nil || s.settingService == nil {
+		return false
+	}
+	return s.settingService.IsClientDatelineNormalizationEnabled(ctx)
+}
+
+// normalizeClientDatelineIfEnabled 在开关开启且账号符合条件时归一化请求体。
+// 只有请求体实际变化时才返回 (nextBody, true)，否则返回 (nil, false) 让调用方跳过回写。
+func (s *GatewayService) normalizeClientDatelineIfEnabled(ctx context.Context, account *Account, body []byte) ([]byte, bool) {
+	if !s.shouldNormalizeClientDateline(ctx, account) {
+		return nil, false
+	}
+	next, _, changed := anthropicfp.NormalizeDateline(body)
+	if !changed {
+		return nil, false
+	}
+	return next, true
+}
+
 func (s *GatewayService) claudeOAuthSystemPromptInjectionSettings(ctx context.Context) (bool, string, string) {
 	if s == nil || s.settingService == nil {
 		return true, "", ""
@@ -5000,6 +5023,16 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 			if err := replaceBody(applyToolsLastCacheBreakpoint(body)); err != nil {
 				return nil, err
 			}
+		}
+	}
+
+	// 客户端 dateline 归一化：仅对 Anthropic OAuth/SetupToken 账号生效。
+	// 抹除 "Today's date is …" 语句里可能被注入的隐写指纹（4 种撇号 × 2 种日期
+	// 分隔符），还原为 ASCII 撇号 + "-" 分隔符。运行在 mimicry 分支之外，
+	// 保证真实 Claude Code 客户端注入的指纹同样被清洗。
+	if next, ok := s.normalizeClientDatelineIfEnabled(ctx, account, body); ok {
+		if err := replaceBody(next); err != nil {
+			return nil, err
 		}
 	}
 

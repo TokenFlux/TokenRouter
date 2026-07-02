@@ -25,6 +25,7 @@ import (
 type mockUserRepo struct {
 	updateBalanceErr        error
 	updateBalanceFn         func(ctx context.Context, id int64, amount float64) error
+	deductBalanceFn         func(ctx context.Context, id int64, amount float64) error
 	getByIDUser             *User
 	getByIDErr              error
 	identities              []UserAuthIdentityRecord
@@ -167,7 +168,10 @@ func (m *mockUserRepo) UpdateBalance(ctx context.Context, id int64, amount float
 	return m.updateBalanceErr
 }
 func (m *mockUserRepo) AddBalance(context.Context, int64, float64) error { return nil }
-func (m *mockUserRepo) DeductBalance(context.Context, int64, float64) (float64, error) {
+func (m *mockUserRepo) DeductBalance(ctx context.Context, id int64, amount float64) (float64, error) {
+	if m.deductBalanceFn != nil {
+		return 0, m.deductBalanceFn(ctx, id, amount)
+	}
 	return 0, nil
 }
 func (m *mockUserRepo) UpdateConcurrency(context.Context, int64, int) error { return nil }

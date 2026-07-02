@@ -62,6 +62,120 @@ func (s *openAIRecordUsageBillingRepoStub) Apply(ctx context.Context, cmd *Usage
 	return result, nil
 }
 
+type openAIRecordUsageQuotaCacheStub struct {
+	entry     *UserPlatformQuotaCacheEntry
+	getCalls  []openAIRecordUsageQuotaCacheGetCall
+	incrCalls []openAIRecordUsageQuotaCacheIncrCall
+}
+
+type openAIRecordUsageQuotaCacheGetCall struct {
+	userID   int64
+	platform string
+}
+
+type openAIRecordUsageQuotaCacheIncrCall struct {
+	userID   int64
+	platform string
+	cost     float64
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) GetUserBalance(ctx context.Context, userID int64) (float64, error) {
+	return 0, nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) SetUserBalance(ctx context.Context, userID int64, balance float64) error {
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) DeductUserBalance(ctx context.Context, userID int64, amount float64) error {
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) InvalidateUserBalance(ctx context.Context, userID int64) error {
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) GetAPIKeyRateLimit(ctx context.Context, keyID int64) (*APIKeyRateLimitCacheData, error) {
+	return nil, nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) SetAPIKeyRateLimit(ctx context.Context, keyID int64, data *APIKeyRateLimitCacheData) error {
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) UpdateAPIKeyRateLimitUsage(ctx context.Context, keyID int64, cost float64) error {
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) InvalidateAPIKeyRateLimit(ctx context.Context, keyID int64) error {
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) GetUserPlatformQuotaCache(ctx context.Context, userID int64, platform string) (*UserPlatformQuotaCacheEntry, bool, error) {
+	s.getCalls = append(s.getCalls, openAIRecordUsageQuotaCacheGetCall{userID: userID, platform: platform})
+	if s.entry == nil {
+		return nil, false, nil
+	}
+	return s.entry, true, nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) SetUserPlatformQuotaCache(ctx context.Context, userID int64, platform string, entry *UserPlatformQuotaCacheEntry, ttl time.Duration) error {
+	s.entry = entry
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) DeleteUserPlatformQuotaCache(ctx context.Context, userID int64, platform string) error {
+	s.entry = nil
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) IncrUserPlatformQuotaUsageCache(ctx context.Context, userID int64, platform string, cost float64, ttl time.Duration, markDirty bool) error {
+	s.incrCalls = append(s.incrCalls, openAIRecordUsageQuotaCacheIncrCall{userID: userID, platform: platform, cost: cost})
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) PopDirtyUserPlatformQuotaKeys(ctx context.Context, n int) ([]UserPlatformQuotaKey, error) {
+	return nil, nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) ReaddDirtyUserPlatformQuotaKeys(ctx context.Context, keys []UserPlatformQuotaKey) error {
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) BatchGetUserPlatformQuotaCache(ctx context.Context, keys []UserPlatformQuotaKey) ([]*UserPlatformQuotaCacheEntry, error) {
+	return make([]*UserPlatformQuotaCacheEntry, len(keys)), nil
+}
+
+type openAIRecordUsagePlatformQuotaRepoStub struct{}
+
+func (s *openAIRecordUsagePlatformQuotaRepoStub) GetByUserPlatform(ctx context.Context, userID int64, platform string) (*UserPlatformQuotaRecord, error) {
+	return nil, nil
+}
+
+func (s *openAIRecordUsagePlatformQuotaRepoStub) BulkInsertInitial(ctx context.Context, records []UserPlatformQuotaRecord) error {
+	return nil
+}
+
+func (s *openAIRecordUsagePlatformQuotaRepoStub) IncrementUsageWithReset(ctx context.Context, userID int64, platform string, cost float64, now time.Time) error {
+	return nil
+}
+
+func (s *openAIRecordUsagePlatformQuotaRepoStub) ListByUser(ctx context.Context, userID int64) ([]UserPlatformQuotaRecord, error) {
+	return nil, nil
+}
+
+func (s *openAIRecordUsagePlatformQuotaRepoStub) UpsertForUser(ctx context.Context, userID int64, records []UserPlatformQuotaRecord) error {
+	return nil
+}
+
+func (s *openAIRecordUsagePlatformQuotaRepoStub) ResetExpiredWindow(ctx context.Context, userID int64, platform string, window string, newStart time.Time) error {
+	return nil
+}
+
+func (s *openAIRecordUsagePlatformQuotaRepoStub) BatchSnapshotUsage(ctx context.Context, snapshots []UserPlatformQuotaSnapshot, now time.Time) error {
+	return nil
+}
+
 func TestOpenAIGatewayServiceRecordUsage_RejectsNilInput(t *testing.T) {
 	svc := &OpenAIGatewayService{}
 	require.Error(t, svc.RecordUsage(context.Background(), nil))
@@ -348,6 +462,61 @@ func TestOpenAIGatewayServiceRecordUsage_MissingPricingRecordsZeroCostUsageLog(t
 	require.Zero(t, billingRepo.lastCmd.APIKeyQuotaCost)
 	require.Zero(t, billingRepo.lastCmd.APIKeyRateLimitCost)
 	require.Zero(t, billingRepo.lastCmd.AccountQuotaCost)
+}
+
+func TestOpenAIGatewayServiceRecordUsage_UsesQuotaPlatformForPlatformQuota(t *testing.T) {
+	dailyLimit := 100.0
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{
+		result: &UsageBillingApplyResult{
+			Applied:          true,
+			BalanceAmountUSD: 0.25,
+		},
+	}
+	quotaCache := &openAIRecordUsageQuotaCacheStub{
+		entry: &UserPlatformQuotaCacheEntry{DailyLimitUSD: &dailyLimit},
+	}
+	svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(
+		usageRepo,
+		billingRepo,
+		&openAIRecordUsageUserRepoStub{},
+		&openAIRecordUsageSubRepoStub{},
+		nil,
+	)
+	svc.billingCacheService = &BillingCacheService{
+		cache: quotaCache,
+		cfg:   &config.Config{},
+	}
+	svc.userPlatformQuotaRepo = &openAIRecordUsagePlatformQuotaRepoStub{}
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID: "resp_quota_platform",
+			Usage: OpenAIUsage{
+				InputTokens:  1000,
+				OutputTokens: 1000,
+			},
+			Model:    "gpt-5.1",
+			Duration: time.Second,
+		},
+		APIKey: &APIKey{
+			ID:    1100,
+			Quota: 100,
+			Group: &Group{Platform: PlatformOpenAI, RateMultiplier: 1},
+		},
+		User:          &User{ID: 2100, Balance: 10},
+		Account:       &Account{ID: 3100, Type: AccountTypeAPIKey},
+		QuotaPlatform: PlatformAntigravity,
+	})
+
+	require.NoError(t, err)
+	// ForcePlatform 由 handler 预先拍进 QuotaPlatform，后扣不能再回退到 API key 的 openai 分组。
+	require.Equal(t, []openAIRecordUsageQuotaCacheGetCall{
+		{userID: 2100, platform: PlatformAntigravity},
+	}, quotaCache.getCalls)
+	require.Equal(t, []openAIRecordUsageQuotaCacheIncrCall{
+		{userID: 2100, platform: PlatformAntigravity, cost: 0.25},
+	}, quotaCache.incrCalls)
 }
 
 func TestOpenAIGatewayServiceRecordUsage_UsesUserSpecificGroupRate(t *testing.T) {

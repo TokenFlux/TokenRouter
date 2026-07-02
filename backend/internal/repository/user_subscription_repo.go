@@ -5,6 +5,9 @@ import (
 	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
+	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
+	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -215,6 +218,11 @@ func (r *userSubscriptionRepository) ListByPlanID(ctx context.Context, planID in
 
 func (r *userSubscriptionRepository) List(ctx context.Context, params pagination.PaginationParams, userID, planID *int64, status, _platform, sortBy, sortOrder string) ([]service.UserSubscription, *pagination.PaginationResult, error) {
 	client := clientFromContext(ctx, r.client)
+	queryCtx := ctx
+	if status == "" || status == service.SubscriptionStatusRevoked {
+		// 管理端列表需要看到软删除订阅，以便撤销后仍能展示历史记录。
+		queryCtx = mixins.SkipSoftDelete(ctx)
+	}
 	q := client.UserSubscription.Query()
 	if userID != nil {
 		q = q.Where(usersubscription.UserIDEQ(*userID))
@@ -244,17 +252,21 @@ func (r *userSubscriptionRepository) List(ctx context.Context, params pagination
 				usersubscription.ExpiresAtLTE(now),
 			),
 		)
+	case service.SubscriptionStatusRevoked:
+		q = q.Where(usersubscription.DeletedAtNotNil())
 	case "":
 	default:
 		q = q.Where(usersubscription.StatusEQ(status))
 	}
 
-	total, err := q.Clone().Count(ctx)
+	total, err := q.Clone().Count(queryCtx)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	q = q.WithUser().WithPlan().WithAssignedByUser()
+	if status != "" && status != service.SubscriptionStatusRevoked {
+		q = q.WithUser().WithPlan().WithAssignedByUser()
+	}
 
 	var field string
 	switch sortBy {
@@ -277,12 +289,19 @@ func (r *userSubscriptionRepository) List(ctx context.Context, params pagination
 	subs, err := q.
 		Offset(params.Offset()).
 		Limit(params.Limit()).
-		All(ctx)
+		All(queryCtx)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return userSubscriptionEntitiesToService(subs), paginationResultFromTotal(int64(total), params), nil
+	result := userSubscriptionEntitiesToService(subs)
+	if status == "" || status == service.SubscriptionStatusRevoked {
+		if err := r.attachUserSubscriptionRelations(ctx, result); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	return result, paginationResultFromTotal(int64(total), params), nil
 }
 
 func (r *userSubscriptionRepository) ListBySourceOrderID(ctx context.Context, sourceOrderID int64) ([]service.UserSubscription, error) {
@@ -434,9 +453,70 @@ func (r *userSubscriptionRepository) DeleteByGroupID(_ context.Context, _ int64)
 	return 0, nil
 }
 
+func (r *userSubscriptionRepository) attachUserSubscriptionRelations(ctx context.Context, subs []service.UserSubscription) error {
+	if len(subs) == 0 {
+		return nil
+	}
+
+	userIDs := make([]int64, 0, len(subs))
+	planIDs := make([]int64, 0, len(subs))
+	assignedByIDs := make([]int64, 0, len(subs))
+	for i := range subs {
+		userIDs = append(userIDs, subs[i].UserID)
+		planIDs = append(planIDs, subs[i].PlanID)
+		if subs[i].AssignedBy != nil {
+			assignedByIDs = append(assignedByIDs, *subs[i].AssignedBy)
+		}
+	}
+
+	client := clientFromContext(ctx, r.client)
+	users, err := client.User.Query().Where(dbuser.IDIn(uniqueInt64s(userIDs)...)).All(ctx)
+	if err != nil {
+		return err
+	}
+	userByID := make(map[int64]*service.User, len(users))
+	for _, u := range users {
+		userByID[u.ID] = userEntityToService(u)
+	}
+
+	plans, err := client.SubscriptionPlan.Query().Where(subscriptionplan.IDIn(uniqueInt64s(planIDs)...)).All(ctx)
+	if err != nil {
+		return err
+	}
+	planByID := make(map[int64]*service.SubscriptionPlan, len(plans))
+	for _, plan := range plans {
+		planByID[plan.ID] = subscriptionPlanEntityToService(plan)
+	}
+
+	assignedByID := map[int64]*service.User{}
+	if len(assignedByIDs) > 0 {
+		assignedUsers, err := client.User.Query().Where(dbuser.IDIn(uniqueInt64s(assignedByIDs)...)).All(ctx)
+		if err != nil {
+			return err
+		}
+		assignedByID = make(map[int64]*service.User, len(assignedUsers))
+		for _, u := range assignedUsers {
+			assignedByID[u.ID] = userEntityToService(u)
+		}
+	}
+
+	for i := range subs {
+		subs[i].User = userByID[subs[i].UserID]
+		subs[i].Plan = planByID[subs[i].PlanID]
+		if subs[i].AssignedBy != nil {
+			subs[i].AssignedByUser = assignedByID[*subs[i].AssignedBy]
+		}
+	}
+	return nil
+}
+
 func userSubscriptionEntityToService(m *dbent.UserSubscription) *service.UserSubscription {
 	if m == nil {
 		return nil
+	}
+	status := m.Status
+	if m.DeletedAt != nil {
+		status = service.SubscriptionStatusRevoked
 	}
 	out := &service.UserSubscription{
 		ID:                 m.ID,
@@ -444,7 +524,7 @@ func userSubscriptionEntityToService(m *dbent.UserSubscription) *service.UserSub
 		PlanID:             m.PlanID,
 		StartsAt:           m.StartsAt,
 		ExpiresAt:          m.ExpiresAt,
-		Status:             m.Status,
+		Status:             status,
 		DailyWindowStart:   m.DailyWindowStart,
 		WeeklyWindowStart:  m.WeeklyWindowStart,
 		MonthlyWindowStart: m.MonthlyWindowStart,
@@ -460,6 +540,7 @@ func userSubscriptionEntityToService(m *dbent.UserSubscription) *service.UserSub
 		Notes:              derefString(m.Notes),
 		CreatedAt:          m.CreatedAt,
 		UpdatedAt:          m.UpdatedAt,
+		DeletedAt:          m.DeletedAt,
 	}
 	if m.Edges.User != nil {
 		out.User = userEntityToService(m.Edges.User)

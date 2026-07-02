@@ -490,8 +490,7 @@ func (h *PaymentHandler) VerifyOrder(c *gin.Context) {
 	response.Success(c, sanitizePaymentOrderForResponse(order))
 }
 
-// PublicOrderResult is the limited order info returned by the public verify endpoint.
-// No user details are exposed — only payment status information.
+// PublicOrderResult 是签名恢复 token 可读取的订单结果；token 已证明持有支付会话。
 type PublicOrderResult struct {
 	ID                  int64      `json:"id"`
 	OutTradeNo          string     `json:"out_trade_no"`
@@ -515,6 +514,17 @@ type PublicOrderResult struct {
 	RefundRequestedBy   *string    `json:"refund_requested_by,omitempty"`
 	RefundRequestReason *string    `json:"refund_request_reason,omitempty"`
 	PlanID              *int64     `json:"plan_id,omitempty"`
+}
+
+// PublicOrderVerifyResult 是匿名 out_trade_no 查单结果；out_trade_no 不是密钥，只返回最小状态信息。
+type PublicOrderVerifyResult struct {
+	OutTradeNo  string     `json:"out_trade_no"`
+	Status      string     `json:"status"`
+	Paid        bool       `json:"paid"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ExpiresAt   time.Time  `json:"expires_at"`
+	PaidAt      *time.Time `json:"paid_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
 
 func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
@@ -544,6 +554,35 @@ func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
 	}
 }
 
+func buildPublicOrderVerifyResult(order *dbent.PaymentOrder) PublicOrderVerifyResult {
+	return PublicOrderVerifyResult{
+		OutTradeNo:  order.OutTradeNo,
+		Status:      order.Status,
+		Paid:        publicOrderStatusPaid(order.Status),
+		CreatedAt:   order.CreatedAt,
+		ExpiresAt:   order.ExpiresAt,
+		PaidAt:      order.PaidAt,
+		CompletedAt: order.CompletedAt,
+	}
+}
+
+func publicOrderStatusPaid(status string) bool {
+	switch status {
+	case service.OrderStatusPaid,
+		service.OrderStatusRecharging,
+		service.OrderStatusCompleted,
+		service.OrderStatusRefundRequested,
+		service.OrderStatusRefunding,
+		service.OrderStatusRefundPending,
+		service.OrderStatusPartiallyRefunded,
+		service.OrderStatusRefunded,
+		service.OrderStatusRefundFailed:
+		return true
+	default:
+		return false
+	}
+}
+
 // VerifyOrderPublic keeps the legacy anonymous out_trade_no lookup available as
 // a compatibility path for older result pages and staggered deploys.
 // POST /api/v1/payment/public/orders/verify
@@ -559,10 +598,10 @@ func (h *PaymentHandler) VerifyOrderPublic(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, buildPublicOrderResult(order))
+	response.Success(c, buildPublicOrderVerifyResult(order))
 }
 
-// ResolveOrderPublicByResumeToken resolves a payment order from a signed resume token.
+// ResolveOrderPublicByResumeToken 通过签名恢复 token 读取支付订单。
 // POST /api/v1/payment/public/orders/resolve
 func (h *PaymentHandler) ResolveOrderPublicByResumeToken(c *gin.Context) {
 	var req ResolveOrderByResumeTokenRequest

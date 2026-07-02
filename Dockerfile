@@ -58,16 +58,16 @@ WORKDIR /app/backend
 COPY backend/go.mod backend/go.sum ./
 RUN go mod download
 
-# Copy backend source first
+# 先复制后端源码
 COPY backend/ ./
 
-# Copy frontend dist from previous stage (must be after backend copy to avoid being overwritten)
+# 再复制前端构建产物，避免被后端源码覆盖
 COPY --from=frontend-builder /app/backend/internal/web/dist ./internal/web/dist
 
-# Build the binary (BuildType=release for CI builds, embed frontend)
-# Version precedence: build arg VERSION > cmd/server/VERSION
+# 构建 release 二进制，并嵌入前端资源
+# 版本优先级：构建参数 VERSION > 精确 Git tag > cmd/server/VERSION
 RUN VERSION_VALUE="${VERSION}" && \
-    if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="$(tr -d '\r\n' < ./cmd/server/VERSION)"; fi && \
+    if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="$(./scripts/resolve-version.sh)"; fi && \
     DATE_VALUE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" && \
     CGO_ENABLED=0 GOOS=linux go build \
     -tags embed \

@@ -44,7 +44,10 @@ func (s *OpenAIGatewayService) openAIWSHTTPBridgeThresholdBytes() int64 {
 }
 
 // shouldBridgeOpenAIWSHTTP 判断当前 WS 首帧是否应改用 HTTP Responses 上游。
-func (s *OpenAIGatewayService) shouldBridgeOpenAIWSHTTP(payloadBytes int, previousResponseID string) bool {
+func (s *OpenAIGatewayService) shouldBridgeOpenAIWSHTTP(account *Account, payloadBytes int, previousResponseID string) bool {
+	if account != nil && account.Platform == PlatformGrok {
+		return true
+	}
 	if !s.openAIWSHTTPBridgeEnabled() {
 		return false
 	}
@@ -184,7 +187,26 @@ func (s *OpenAIGatewayService) proxyOpenAIWSHTTPBridgeTurn(
 	}
 
 	upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)
-	upstreamReq, err := s.buildUpstreamRequestOpenAIPassthrough(upstreamCtx, c, account, body, token, routerMatch...)
+	var upstreamReq *http.Request
+	if account.Platform == PlatformGrok {
+		upstreamModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+		if originalModel != "" {
+			if mappedModel := normalizeOpenAIModelForUpstream(account, account.GetMappedModel(originalModel)); mappedModel != "" {
+				upstreamModel = mappedModel
+			}
+		}
+		if upstreamModel == "" {
+			upstreamModel = "grok-4.3"
+		}
+		body, err = patchGrokResponsesBody(body, upstreamModel)
+		if err != nil {
+			releaseUpstreamCtx()
+			return nil, err
+		}
+		upstreamReq, err = buildGrokResponsesRequest(upstreamCtx, c, account, body, token)
+	} else {
+		upstreamReq, err = s.buildUpstreamRequestOpenAIPassthrough(upstreamCtx, c, account, body, token, routerMatch...)
+	}
 	releaseUpstreamCtx()
 	if err != nil {
 		return nil, err

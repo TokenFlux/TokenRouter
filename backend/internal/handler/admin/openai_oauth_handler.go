@@ -197,6 +197,13 @@ func (h *OpenAIOAuthHandler) RefreshAccountToken(c *gin.Context) {
 		return
 	}
 
+	// spark 影子账号凭据透传母账号、自身恒空,刷新无意义;在调用上游前早拒,避免先打上游
+	// 再被凭据写守卫拦下的无谓副作用(外审第6轮)。
+	if account.IsCredentialShadow() {
+		response.BadRequest(c, "Cannot refresh spark shadow account; its credentials are managed by the parent account")
+		return
+	}
+
 	// Use OpenAI OAuth service to refresh token
 	tokenInfo, err := h.openaiOAuthService.RefreshAccountToken(c.Request.Context(), account)
 	if err != nil {
@@ -428,6 +435,43 @@ func (h *OpenAIOAuthHandler) QueryQuota(c *gin.Context) {
 		return
 	}
 	response.Success(c, usage)
+}
+
+// CreateShadowRequest 是创建 Spark 影子账号的请求体。
+type CreateShadowRequest struct {
+	Name        string  `json:"name"`
+	Priority    int     `json:"priority"`
+	Concurrency int     `json:"concurrency"`
+	GroupIDs    []int64 `json:"group_ids"`
+}
+
+// CreateShadow 为母 OpenAI OAuth 账号创建 spark 维度影子账号。
+// POST /api/v1/admin/accounts/:id/shadow
+func (h *OpenAIOAuthHandler) CreateShadow(c *gin.Context) {
+	parentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid account ID")
+		return
+	}
+
+	var req CreateShadowRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	shadow, err := h.adminService.CreateShadow(c.Request.Context(), parentID, service.ShadowOptions{
+		Name:        req.Name,
+		Priority:    req.Priority,
+		Concurrency: req.Concurrency,
+		GroupIDs:    req.GroupIDs,
+	})
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.AccountFromServiceShallow(shadow))
 }
 
 // ResetQuota 消耗一次 OpenAI OAuth 账号的上游限流重置次数。

@@ -314,6 +314,7 @@ func TestAccountHandlerBulkUpdateOpenAIAPIKeyCredentialsSchedulesResponsesProbe(
 		nil,
 		nil,
 		nil,
+		nil,
 		upstream,
 		&config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{AllowInsecureHTTP: true}}},
 		nil,

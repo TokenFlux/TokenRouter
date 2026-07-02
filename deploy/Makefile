@@ -1,5 +1,10 @@
 .PHONY: wire build build-embed test-unit test-integration test-e2e test-cover-integration
 
+# 兼容从 backend、deploy 或仓库根目录调用本 Makefile。
+VERSION_SCRIPT ?= $(firstword $(wildcard ./scripts/resolve-version.sh ../backend/scripts/resolve-version.sh backend/scripts/resolve-version.sh))
+VERSION ?= $(shell $(VERSION_SCRIPT))
+LDFLAGS ?= -s -w -X main.Version=$(VERSION)
+
 wire:
 	@echo "生成 Wire 代码..."
 	@cd cmd/server && go generate
@@ -7,12 +12,12 @@ wire:
 
 build:
 	@echo "构建后端（不嵌入前端）..."
-	@go build -o bin/server ./cmd/server
+	@go build -ldflags="$(LDFLAGS)" -o bin/server ./cmd/server
 	@echo "构建完成: bin/server"
 
 build-embed:
 	@echo "构建后端（嵌入前端）..."
-	@go build -tags embed -o bin/server ./cmd/server
+	@go build -tags embed -ldflags="$(LDFLAGS)" -o bin/server ./cmd/server
 	@echo "构建完成: bin/server (with embedded frontend)"
 
 test-unit:

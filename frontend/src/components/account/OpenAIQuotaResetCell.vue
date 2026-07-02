@@ -57,6 +57,7 @@ const data = ref<OpenAIQuotaUsage | null>(null)
 
 const availableResetCount = computed(() => data.value?.rate_limit_reset_credits?.available_count ?? 0)
 
+// 「次数」按钮同时负责上游查询和数量展示；未加载时提示查询，已加载后提示刷新。
 const countButtonTitle = computed(() => {
   if (!data.value) return t('admin.accounts.openaiQuotaReset.countTooltipLoad')
   return t('admin.accounts.openaiQuotaReset.countTooltipRefresh')

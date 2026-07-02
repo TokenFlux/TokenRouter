@@ -114,6 +114,9 @@ func TestOpenAIGatewayServiceForward_CodexImageInjectionRespectsGroupCapability(
 			require.NotNil(t, upstream.lastReq)
 			hasImageTool := gjson.GetBytes(upstream.lastBody, `tools.#(type=="image_generation")`).Exists()
 			require.Equal(t, tt.wantInjected, hasImageTool)
+			if tt.wantInjected {
+				require.Equal(t, "auto", gjson.GetBytes(upstream.lastBody, "tool_choice").String())
+			}
 			instructions := gjson.GetBytes(upstream.lastBody, "instructions").String()
 			require.Equal(t, tt.wantInjected, strings.Contains(instructions, "image_generation"))
 		})

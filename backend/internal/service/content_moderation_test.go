@@ -547,11 +547,12 @@ func TestContentModerationCheck_PreBlockKeywordHitSkipsUpstreamCall(t *testing.T
 	require.NoError(t, err)
 	require.True(t, decision.Blocked)
 	require.Equal(t, ContentModerationActionKeywordBlock, decision.Action)
-	require.False(t, upstreamCalled, "keyword block must short-circuit upstream moderation call")
+	require.False(t, upstreamCalled, "关键词拦截必须跳过上游审核调用")
 	logs := requireContentModerationLogCount(t, repo, 1)
 	require.True(t, logs[0].Flagged)
 	require.Equal(t, ContentModerationActionKeywordBlock, logs[0].Action)
 	require.Equal(t, contentModerationKeywordCategory, logs[0].HighestCategory)
+	require.Equal(t, "secret-token", logs[0].MatchedKeyword, "关键词拦截日志必须记录命中的关键词")
 }
 
 func TestContentModerationCheck_KeywordsIgnoredInObserveMode(t *testing.T) {

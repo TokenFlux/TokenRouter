@@ -33,6 +33,37 @@
               >
                 <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
               </button>
+              <div class="relative" ref="columnDropdownRef">
+                <button
+                  @click.stop="showColumnDropdown = !showColumnDropdown"
+                  class="btn btn-secondary px-2 md:px-3"
+                  :title="t('keys.columnSettings')"
+                >
+                  <Icon name="grid" size="sm" class="md:mr-1.5" />
+                  <span class="hidden md:inline">{{ t('keys.columnSettings') }}</span>
+                  <Icon name="chevronDown" size="xs" class="ml-1 hidden md:inline" />
+                </button>
+                <div
+                  v-if="showColumnDropdown"
+                  class="absolute right-0 top-full z-50 mt-2 max-h-80 w-52 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+                >
+                  <button
+                    v-for="column in toggleableColumns"
+                    :key="column.key"
+                    @click="toggleColumn(column.key)"
+                    class="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-700"
+                  >
+                    <span>{{ column.label }}</span>
+                    <Icon
+                      v-if="isColumnVisible(column.key)"
+                      name="check"
+                      size="sm"
+                      class="text-primary-500"
+                      :stroke-width="2"
+                    />
+                  </button>
+                </div>
+              </div>
               <button @click="showCreateModal = true" class="btn btn-primary" data-tour="keys-create-btn">
                 <Icon name="plus" size="md" class="mr-2" />
                 {{ t('keys.createKey') }}
@@ -1089,7 +1120,7 @@
 </template>
 
 <script setup lang="ts">
-	import { ref, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
+	import { ref, reactive, computed, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
 	import { useAppStore } from '@/stores/app'
 import { useOnboardingStore } from '@/stores/onboarding'
@@ -1114,7 +1145,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
-	import type { ApiKey, Group, PublicSettings, GroupPlatform } from '@/types'
+	import type { ApiKey, Group, PublicSettings, GroupPlatform, UpdateApiKeyRequest } from '@/types'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import type { DataShareNotice } from '@/api/dataSharing'
@@ -1158,7 +1189,7 @@ const formatBalancePair = (
   return `${formatBalanceAmount(used, { fractionDigits: usedDigits })}${separator}${formatBalanceAmount(limit, { fractionDigits: limitDigits })}`
 }
 
-const columns = computed<Column[]>(() => [
+const allColumns = computed<Column[]>(() => [
   { key: 'name', label: t('common.name'), sortable: true },
   { key: 'key', label: t('keys.apiKey'), sortable: false },
   { key: 'group', label: t('keys.group'), sortable: false },
@@ -1170,6 +1201,67 @@ const columns = computed<Column[]>(() => [
   { key: 'created_at', label: t('keys.created'), sortable: true },
   { key: 'actions', label: t('common.actions'), sortable: false }
 ])
+
+const ALWAYS_VISIBLE_COLUMNS = new Set(['name', 'actions'])
+const DEFAULT_HIDDEN_COLUMNS = ['rate_limit', 'last_used_at']
+const HIDDEN_COLUMNS_KEY = 'api-key-hidden-columns'
+const COLUMN_SETTINGS_VERSION_KEY = 'api-key-column-settings-version'
+const COLUMN_SETTINGS_VERSION = 1
+
+const toggleableColumns = computed(() =>
+  allColumns.value.filter((column) => !ALWAYS_VISIBLE_COLUMNS.has(column.key))
+)
+const hiddenColumns = reactive<Set<string>>(new Set())
+
+// 加载 API Key 表格列设置；新列默认展示，低频列首次加载默认隐藏。
+const loadSavedColumns = () => {
+  hiddenColumns.clear()
+  try {
+    const saved = localStorage.getItem(HIDDEN_COLUMNS_KEY)
+    const validColumnKeys = new Set(allColumns.value.map((column) => column.key))
+    if (saved) {
+      const parsed = JSON.parse(saved) as string[]
+      parsed
+        .filter((key) =>
+          typeof key === 'string' &&
+          validColumnKeys.has(key) &&
+          !ALWAYS_VISIBLE_COLUMNS.has(key)
+        )
+        .forEach((key) => hiddenColumns.add(key))
+    } else {
+      DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
+    }
+    localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
+  } catch (error) {
+    console.error('Failed to load API key table columns:', error)
+    DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
+  }
+}
+
+const saveColumnsToStorage = () => {
+  try {
+    localStorage.setItem(HIDDEN_COLUMNS_KEY, JSON.stringify([...hiddenColumns]))
+    localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
+  } catch (error) {
+    console.error('Failed to save API key table columns:', error)
+  }
+}
+
+const toggleColumn = (key: string) => {
+  if (ALWAYS_VISIBLE_COLUMNS.has(key)) return
+  if (hiddenColumns.has(key)) {
+    hiddenColumns.delete(key)
+  } else {
+    hiddenColumns.add(key)
+  }
+  saveColumnsToStorage()
+}
+
+const isColumnVisible = (key: string) => !hiddenColumns.has(key)
+
+const columns = computed<Column[]>(() =>
+  allColumns.value.filter((column) => ALWAYS_VISIBLE_COLUMNS.has(column.key) || !hiddenColumns.has(column.key))
+)
 
 const apiKeys = ref<ApiKey[]>([])
 const groups = ref<Group[]>([])
@@ -1203,12 +1295,14 @@ const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
 const showCcsClientSelect = ref(false)
+const showColumnDropdown = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
 const copiedKeyId = ref<number | null>(null)
 const groupSelectorKeyId = ref<number | null>(null)
 const publicSettings = ref<PublicSettings | null>(null)
 const dropdownRef = ref<HTMLElement | null>(null)
+const columnDropdownRef = ref<HTMLElement | null>(null)
 const dropdownPosition = ref<{ top?: number; bottom?: number; left: number } | null>(null)
 const groupButtonRefs = ref<Map<number, HTMLElement>>(new Map())
 let abortController: AbortController | null = null
@@ -1289,6 +1383,13 @@ const statusOptions = computed(() => [
   { value: 'active', label: t('common.active') },
   { value: 'inactive', label: t('common.inactive') }
 ])
+
+const shouldSubmitEditStatus = (key: ApiKey, status: 'active' | 'inactive') => {
+  if (key.status === 'quota_exhausted' || key.status === 'expired') {
+    return status === 'active'
+  }
+  return true
+}
 
 // 筛选下拉选项。
 const groupFilterOptions = computed(() => [
@@ -1666,10 +1767,13 @@ const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
 
 const closeGroupSelector = (event: MouseEvent) => {
   const target = event.target as HTMLElement
-  // 判断点击是否发生在下拉框或触发按钮内。
+  // 判断点击是否发生在下拉框或触发按钮内，同时关闭列设置菜单。
   if (!target.closest('.group\\/dropdown') && !dropdownRef.value?.contains(target)) {
     groupSelectorKeyId.value = null
     dropdownPosition.value = null
+  }
+  if (columnDropdownRef.value && !columnDropdownRef.value.contains(target)) {
+    showColumnDropdown.value = false
   }
 }
 
@@ -1724,10 +1828,9 @@ const submitKeyForm = async (
   submitting.value = true
   try {
     if (showEditModal.value && selectedKey.value) {
-      await keysAPI.update(selectedKey.value.id, {
+      const updates: UpdateApiKeyRequest = {
         name: formData.value.name,
         group_id: formData.value.group_id,
-        status: formData.value.status,
         ip_whitelist: ipWhitelist,
         ip_blacklist: ipBlacklist,
         quota: quota,
@@ -1737,7 +1840,11 @@ const submitKeyForm = async (
         rate_limit_7d: rateLimitData.rate_limit_7d,
         fallback_to_default_group_when_unavailable: formData.value.fallback_to_default_group_when_unavailable,
         ...consent
-      })
+      }
+      if (shouldSubmitEditStatus(selectedKey.value, formData.value.status)) {
+        updates.status = formData.value.status
+      }
+      await keysAPI.update(selectedKey.value.id, updates)
       appStore.showSuccess(t('keys.keyUpdatedSuccess'))
     } else {
       const customKey = formData.value.use_custom_key ? formData.value.custom_key : undefined
@@ -2001,6 +2108,7 @@ function formatResetTime(resetAt: string | null): string {
 }
 
 onMounted(() => {
+  loadSavedColumns()
   loadApiKeys()
   loadGroups()
   loadUserGroupRates()

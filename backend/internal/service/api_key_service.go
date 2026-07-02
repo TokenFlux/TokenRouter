@@ -805,8 +805,8 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 	// Update quota fields
 	if req.Quota != nil {
 		apiKey.Quota = *req.Quota
-		// If quota is increased and status was quota_exhausted, reactivate
-		if apiKey.Status == StatusAPIKeyQuotaExhausted && *req.Quota > apiKey.QuotaUsed {
+		// 额度仍有剩余，或改为 0（不限额）时，恢复已因额度耗尽停用的 Key。
+		if apiKey.Status == StatusAPIKeyQuotaExhausted && (*req.Quota <= 0 || *req.Quota > apiKey.QuotaUsed) {
 			apiKey.Status = StatusActive
 		}
 	}

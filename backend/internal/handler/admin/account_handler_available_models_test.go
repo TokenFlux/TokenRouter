@@ -61,6 +61,7 @@ func setupSyncUpstreamModelsRouter(adminSvc service.AdminService, upstream servi
 		nil,
 		nil,
 		nil,
+		nil,
 		upstream,
 		&config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
 		nil,
@@ -246,6 +247,48 @@ func TestAccountHandlerGetAvailableModels_OpenAIOAuthPassthroughFallsBackToDefau
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.NotEmpty(t, resp.Data)
 	require.NotEqual(t, "gpt-5", resp.Data[0].ID)
+}
+
+func TestAccountHandlerGetAvailableModels_OpenAISparkShadowReturnsMappingModels(t *testing.T) {
+	parentID := int64(100)
+	svc := &availableModelsAdminService{
+		stubAdminService: newStubAdminService(),
+		account: service.Account{
+			ID:              44,
+			Name:            "openai-spark-shadow",
+			Platform:        service.PlatformOpenAI,
+			Type:            service.AccountTypeOAuth,
+			Status:          service.StatusActive,
+			ParentAccountID: &parentID,
+			QuotaDimension:  service.QuotaDimensionSpark,
+			Credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"gpt-5.3-codex-spark": "gpt-5.3-codex-spark",
+				},
+			},
+		},
+	}
+	router := setupAvailableModelsRouter(svc)
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/accounts/44/models", nil)
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	var resp struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	ids := make([]string, 0, len(resp.Data))
+	for _, m := range resp.Data {
+		ids = append(ids, m.ID)
+	}
+	require.ElementsMatch(t, []string{
+		"gpt-5.3-codex-spark",
+	}, ids, "影子可用模型由 model_mapping 派生（非写死）")
 }
 
 func TestAccountHandlerGetAvailableModels_QoderFallsBackToDefaults(t *testing.T) {
