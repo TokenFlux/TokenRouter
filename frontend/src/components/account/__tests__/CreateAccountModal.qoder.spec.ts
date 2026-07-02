@@ -169,7 +169,7 @@ describe('CreateAccountModal Qoder model restriction', () => {
     expect(payload.credentials.model_whitelist).toBeUndefined()
   })
 
-  it('persists Qoder model mappings after explicit whitelist edit on manual create', async () => {
+  it('persists Qoder whitelist without generated mappings after explicit whitelist edit on manual create', async () => {
     const wrapper = mountModal()
     await fillQoderManualForm(wrapper)
 
@@ -179,10 +179,7 @@ describe('CreateAccountModal Qoder model restriction', () => {
 
     expect(createAccountMock).toHaveBeenCalledTimes(1)
     const payload = createAccountMock.mock.calls[0]?.[0]
-    expect(payload.credentials.model_mapping).toEqual({
-      'claude-opus-4-6': 'ultimate',
-      auto: 'auto'
-    })
-    expect(payload.credentials.model_whitelist).toEqual([])
+    expect(payload.credentials.model_mapping).toBeUndefined()
+    expect(payload.credentials.model_whitelist).toEqual(['claude-opus-4-6', 'auto'])
   })
 })

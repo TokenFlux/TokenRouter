@@ -12,7 +12,7 @@ TokenRouter supports Qoder native upstream accounts through the Qoder COSY gatew
 
 Default public aliases include Qoder routing tiers (`auto`, `performance`, `efficient`, `lite`) and UI-facing model names such as `qwen3.7-max`, `deepseek-v4-pro`, `glm-5`, and `kimi-k2.6`.
 
-Qoder account `model_mapping` remains optional. When it is unconfigured, TokenRouter treats the account as allowing the current Qoder public aliases. Configure `model_mapping` only when a specific whitelist or alias override is required.
+Qoder account `model_mapping` remains optional and only rewrites request models to Qoder route keys or final upstream models. It does not restrict the request model space by itself. Use `model_whitelist` to restrict the final model after mapping; if no whitelist is configured, the account remains unrestricted and public aliases are resolved by the Qoder gateway.
 
 ## Billing Scope
 

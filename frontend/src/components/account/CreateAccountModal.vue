@@ -3566,7 +3566,6 @@ import {
   commonErrorCodes,
   buildModelMappingObject,
   buildPersistedModelRestriction,
-  buildQoderModelMappingObject,
   splitPersistedModelRestriction,
   fetchAntigravityDefaultMappings,
   isValidWildcardPattern
@@ -3812,6 +3811,7 @@ const openAICompactModelMappings = ref<ModelMapping[]>([])
 const modelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const allowedModels = ref<string[]>([])
 const qoderModelRestrictionTouched = ref(false)
+const qoderModelWhitelistTouched = ref(false)
 const DEFAULT_POOL_MODE_RETRY_COUNT = 3
 const MAX_POOL_MODE_RETRY_COUNT = 10
 const DEFAULT_POOL_MODE_RETRY_STATUS_CODES = [401, 403, 429]
@@ -4502,6 +4502,7 @@ watch(
     allowedModels.value = [...getModelsByPlatform(newPlatform)]
     modelMappings.value = []
     qoderModelRestrictionTouched.value = false
+    qoderModelWhitelistTouched.value = false
     // Antigravity: 默认使用映射模式并填充默认映射
     if (newPlatform === 'antigravity') {
       antigravityModelRestrictionMode.value = 'mapping'
@@ -4638,6 +4639,9 @@ const touchQoderModelRestriction = () => {
 
 const setAllowedModels = (models: string[]) => {
   touchQoderModelRestriction()
+  if (form.platform === 'qoder') {
+    qoderModelWhitelistTouched.value = true
+  }
   allowedModels.value = models
 }
 
@@ -4677,13 +4681,16 @@ const applyQoderModelRestriction = (credentials: Record<string, unknown>) => {
     delete credentials.model_whitelist
     return
   }
-  const mapping = buildQoderModelMappingObject(allowedModels.value, modelMappings.value)
-  if (mapping) {
-    credentials.model_mapping = mapping
+  const persisted = buildPersistedModelRestriction(
+    qoderModelWhitelistTouched.value ? allowedModels.value : [],
+    modelMappings.value
+  )
+  if (persisted.modelMapping) {
+    credentials.model_mapping = persisted.modelMapping
   } else {
     delete credentials.model_mapping
   }
-  credentials.model_whitelist = []
+  credentials.model_whitelist = persisted.modelWhitelist
 }
 
 const addPresetMapping = (from: string, to: string) => {
@@ -4980,6 +4987,7 @@ const resetForm = () => {
   modelRestrictionMode.value = 'whitelist'
   allowedModels.value = [...claudeModels] // Default fill related models
   qoderModelRestrictionTouched.value = false
+  qoderModelWhitelistTouched.value = false
 
   antigravityModelRestrictionMode.value = 'mapping'
   antigravityWhitelistModels.value = []

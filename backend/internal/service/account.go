@@ -712,6 +712,9 @@ func resolveFinalModelWhitelist(platform string, credentials map[string]any, map
 			return extractExplicitFinalModelWhitelist(platform, rawWhitelist), true
 		}
 	}
+	if platform == PlatformQoder {
+		return nil, false
+	}
 	return extractFinalModelWhitelist(platform, mapping), false
 }
 
@@ -724,12 +727,32 @@ func isModelInFinalWhitelist(platform, model string, whitelist map[string]struct
 	if _, ok := whitelist[model]; ok {
 		return true
 	}
+	if platform == PlatformQoder {
+		modelKey := normalizeQoderModelForWhitelist(model)
+		for allowedModel := range whitelist {
+			if normalizeQoderModelForWhitelist(allowedModel) == modelKey {
+				return true
+			}
+		}
+		return false
+	}
 	normalized := normalizeRequestedModelForLookup(platform, model)
 	if normalized == model {
 		return false
 	}
 	_, ok := whitelist[normalized]
 	return ok
+}
+
+func normalizeQoderModelForWhitelist(model string) string {
+	trimmed := strings.TrimSpace(model)
+	if trimmed == "" {
+		return ""
+	}
+	if info, ok := lookupQoderModelAlias(trimmed); ok {
+		return strings.TrimSpace(info.Key)
+	}
+	return trimmed
 }
 
 // IsModelSupported 检查账号是否支持该请求模型。
@@ -746,14 +769,6 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 	if a.Platform == PlatformAntigravity {
 		if len(mapping) == 0 {
 			return true
-		}
-		_, matched := a.ResolveMappedModel(requestedModel)
-		return matched
-	}
-	if a.IsQoder() {
-		if len(mapping) == 0 {
-			_, matched := lookupPublicQoderModelAlias(strings.TrimSpace(requestedModel))
-			return matched
 		}
 		_, matched := a.ResolveMappedModel(requestedModel)
 		return matched
@@ -776,17 +791,6 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 // 若不存在白名单，则请求模型空间不受限制，返回 nil 表示调用方应回退到默认模型列表。
 func (a *Account) GetConfiguredRequestModels() []string {
 	mapping := a.GetModelMapping()
-	if a.IsQoder() {
-		if len(mapping) == 0 {
-			return nil
-		}
-		models := make([]string, 0, len(mapping))
-		for model := range mapping {
-			models = append(models, model)
-		}
-		sort.Strings(models)
-		return models
-	}
 	whitelist, _ := resolveFinalModelWhitelist(a.Platform, a.Credentials, mapping)
 	if len(whitelist) == 0 {
 		return nil

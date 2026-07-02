@@ -2465,8 +2465,7 @@ import {
   commonErrorCodes,
   buildModelMappingObject,
   buildPersistedModelRestriction,
-  buildQoderModelMappingObject,
-  splitQoderModelMappingObject,
+  splitQoderPersistedModelRestriction,
   splitPersistedModelRestriction,
   isValidWildcardPattern
 } from '@/composables/useModelWhitelist'
@@ -2536,6 +2535,8 @@ const modelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const allowedModels = ref<string[]>([])
 const qoderModelRestrictionConfigured = ref(false)
 const qoderModelRestrictionTouched = ref(false)
+const qoderModelWhitelistConfigured = ref(false)
+const qoderModelWhitelistTouched = ref(false)
 const DEFAULT_POOL_MODE_RETRY_COUNT = 3
 const MAX_POOL_MODE_RETRY_COUNT = 10
 const DEFAULT_POOL_MODE_RETRY_STATUS_CODES = [401, 403, 429]
@@ -3008,22 +3009,29 @@ const hydrateModelRestrictionFromMapping = (
   modelRestrictionMode.value = parsed.modelMappings.length > 0 ? 'mapping' : 'whitelist'
 }
 
-const qoderDefaultAllowedModels = () => [...getModelsByPlatform('qoder')]
+const hasConfiguredModelRestriction = (
+  existingMappings?: Record<string, string>,
+  rawWhitelist?: unknown
+) =>
+  (!!existingMappings && typeof existingMappings === 'object' && Object.keys(existingMappings).length > 0) ||
+  Array.isArray(rawWhitelist)
 
-const qoderMappingHasEntries = (existingMappings?: Record<string, string>) =>
-  !!existingMappings && typeof existingMappings === 'object' && Object.keys(existingMappings).length > 0
-
-const hydrateQoderModelRestrictionFromMapping = (existingMappings?: Record<string, string>) => {
-  qoderModelRestrictionConfigured.value = qoderMappingHasEntries(existingMappings)
+const hydrateQoderModelRestrictionFromMapping = (
+  existingMappings?: Record<string, string>,
+  rawWhitelist?: unknown
+) => {
+  qoderModelRestrictionConfigured.value = hasConfiguredModelRestriction(existingMappings, rawWhitelist)
+  qoderModelWhitelistConfigured.value = Array.isArray(rawWhitelist)
   qoderModelRestrictionTouched.value = false
+  qoderModelWhitelistTouched.value = false
   if (!qoderModelRestrictionConfigured.value) {
-    allowedModels.value = qoderDefaultAllowedModels()
+    allowedModels.value = [...getModelsByPlatform('qoder')]
     modelMappings.value = []
     modelRestrictionMode.value = 'whitelist'
     return
   }
 
-  const parsed = splitQoderModelMappingObject(existingMappings)
+  const parsed = splitQoderPersistedModelRestriction(existingMappings, rawWhitelist)
   allowedModels.value = parsed.allowedModels
   modelMappings.value = parsed.modelMappings
   modelRestrictionMode.value = modelMappings.value.length > 0 ? 'mapping' : 'whitelist'
@@ -3048,13 +3056,16 @@ const applyQoderModelRestriction = (credentials: Record<string, unknown>) => {
     return
   }
 
-  const mapping = buildQoderModelMappingObject(allowedModels.value, modelMappings.value)
-  if (mapping) {
-    credentials.model_mapping = mapping
+  const persisted = buildPersistedModelRestriction(
+    qoderModelWhitelistConfigured.value || qoderModelWhitelistTouched.value ? allowedModels.value : [],
+    modelMappings.value
+  )
+  if (persisted.modelMapping) {
+    credentials.model_mapping = persisted.modelMapping
   } else {
     delete credentials.model_mapping
   }
-  credentials.model_whitelist = []
+  credentials.model_whitelist = persisted.modelWhitelist
 }
 
 const syncFormFromAccount = (newAccount: Account | null) => {
@@ -3345,7 +3356,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
       const oauthCredentials = newAccount.credentials as Record<string, unknown>
       const existingMappings = oauthCredentials.model_mapping as Record<string, string> | undefined
       if (newAccount.platform === 'qoder') {
-        hydrateQoderModelRestrictionFromMapping(existingMappings)
+        hydrateQoderModelRestrictionFromMapping(existingMappings, oauthCredentials.model_whitelist)
       } else {
         hydrateModelRestrictionFromMapping(existingMappings, oauthCredentials.model_whitelist)
       }
@@ -3410,6 +3421,9 @@ const touchQoderModelRestriction = () => {
 
 const setAllowedModels = (models: string[]) => {
   touchQoderModelRestriction()
+  if (isQoderCosyAccount.value) {
+    qoderModelWhitelistTouched.value = true
+  }
   allowedModels.value = models
 }
 

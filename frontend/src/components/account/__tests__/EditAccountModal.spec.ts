@@ -613,7 +613,7 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_whitelist).toBeUndefined()
   })
 
-  it('persists Qoder model mappings after explicit whitelist edit', async () => {
+  it('persists Qoder whitelist without generated mappings after explicit whitelist edit', async () => {
     const account = buildQoderAccount()
     delete account.credentials.model_mapping
     delete account.credentials.model_whitelist
@@ -625,11 +625,8 @@ describe('EditAccountModal', () => {
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
-    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual({
-      'claude-opus-4-6': 'ultimate',
-      auto: 'auto'
-    })
-    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_whitelist).toEqual([])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toBeUndefined()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_whitelist).toEqual(['claude-opus-4-6', 'auto'])
   })
 
   it('loads and submits Qoder COSY TLS fingerprint settings', async () => {

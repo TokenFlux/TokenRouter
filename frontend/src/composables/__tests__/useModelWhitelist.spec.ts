@@ -8,10 +8,11 @@ import {
   buildCombinedModelMappingObject,
   buildModelMappingObject,
   buildPersistedModelRestriction,
-  buildQoderModelMappingObject,
+  qoderModelKeyByPublicAlias,
   getPresetMappingsByPlatform,
   getModelsByPlatform,
-  splitQoderModelMappingObject,
+  splitPersistedModelRestriction,
+  splitQoderPersistedModelRestriction,
   splitModelMappingObject
 } from '../useModelWhitelist'
 
@@ -79,22 +80,10 @@ describe('useModelWhitelist', () => {
     expect(models).not.toContain('quest-ultimate')
   })
 
-  it('qoder 默认账号模型映射只把公开模型映射到上游 key', () => {
-    expect(buildQoderModelMappingObject(getModelsByPlatform('qoder'), [])).toEqual({
-      'claude-opus-4-6': 'ultimate',
-      auto: 'auto',
-      performance: 'performance',
-      efficient: 'efficient',
-      lite: 'lite',
-      'qwen3.7-max': 'qmodel_latest',
-      'qwen3.7-plus': 'qmodel',
-      'qwen3.5-plus': 'q35model',
-      'deepseek-v4-pro': 'dmodel',
-      'deepseek-v4-flash': 'dfmodel',
-      'glm-5': 'gmodel',
-      'glm-5.1': 'gm51model',
-      'kimi-k2.6': 'kmodel',
-      'minimax-m3': 'mmodel'
+  it('qoder 默认账号不会把公开模型列表写进 model_mapping', () => {
+    expect(buildPersistedModelRestriction(getModelsByPlatform('qoder'), [])).toEqual({
+      modelMapping: null,
+      modelWhitelist: getModelsByPlatform('qoder')
     })
   })
 
@@ -120,14 +109,37 @@ describe('useModelWhitelist', () => {
     })
   })
 
-  it('qoder 编辑页会把默认映射还原成公开模型选择', () => {
-    expect(splitQoderModelMappingObject({
+  it('qoder 公开别名到上游 route key 的映射只作为预设规则使用', () => {
+    expect(qoderModelKeyByPublicAlias('claude-opus-4-6')).toBe('ultimate')
+    expect(qoderModelKeyByPublicAlias('minimax-m3')).toBe('mmodel')
+    expect(qoderModelKeyByPublicAlias('custom-model')).toBeUndefined()
+  })
+
+  it('qoder legacy 映射会保留为显式映射规则', () => {
+    expect(splitQoderPersistedModelRestriction({
       'claude-opus-4-6': 'ultimate',
       auto: 'auto',
       custom: 'ultimate'
     })).toEqual({
-      allowedModels: ['claude-opus-4-6', 'auto'],
-      modelMappings: [{ from: 'custom', to: 'ultimate' }]
+      allowedModels: [],
+      modelMappings: [
+        { from: 'claude-opus-4-6', to: 'ultimate' },
+        { from: 'auto', to: 'auto' },
+        { from: 'custom', to: 'ultimate' }
+      ]
+    })
+  })
+
+  it('qoder 新格式优先使用 model_whitelist，并保留 legacy raw self mapping', () => {
+    expect(splitQoderPersistedModelRestriction({
+      ultimate: 'ultimate',
+      'claude-opus-4-6': 'ultimate'
+    }, ['ultimate'])).toEqual({
+      allowedModels: ['ultimate'],
+      modelMappings: [
+        { from: 'ultimate', to: 'ultimate' },
+        { from: 'claude-opus-4-6', to: 'ultimate' }
+      ]
     })
   })
 

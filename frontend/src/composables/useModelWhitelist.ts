@@ -600,63 +600,29 @@ export function buildPersistedModelRestriction(
   }
 }
 
-export function buildQoderModelMappingObject(
-  allowedModels: string[],
-  modelMappings: { from: string; to: string }[]
-): Record<string, string> | null {
-  const mapping: Record<string, string> = {}
-
-  for (const rawModel of allowedModels) {
-    const model = rawModel.trim()
-    if (!model || model.includes('*')) continue
-    mapping[model] = qoderModelKeyByAlias[model] ?? model
-  }
-
-  for (const entry of modelMappings) {
-    const from = entry.from.trim()
-    const to = entry.to.trim()
-    if (from && to) {
-      mapping[from] = to
-    }
-  }
-
-  return Object.keys(mapping).length > 0 ? mapping : null
+export function qoderModelKeyByPublicAlias(alias: string): string | undefined {
+  return qoderModelKeyByAlias[alias.trim()]
 }
 
-export function splitQoderModelMappingObject(
-  existingMappings?: Record<string, string>
+export function splitQoderPersistedModelRestriction(
+  existingMappings?: Record<string, string>,
+  rawWhitelist?: unknown
 ): { allowedModels: string[]; modelMappings: { from: string; to: string }[] } {
-  if (!existingMappings || typeof existingMappings !== 'object') {
-    return { allowedModels: [], modelMappings: [] }
-  }
-
-  const allowedModels: string[] = []
   const modelMappings: { from: string; to: string }[] = []
 
-  for (const [rawFrom, rawTo] of Object.entries(existingMappings)) {
-    const from = rawFrom.trim()
-    const to = String(rawTo).trim()
-    if (!from || !to) continue
-
-    // 别名映射到内部 key：识别为白名单项（如 claude-opus-4-6 → ultimate）
-    if (qoderModelKeyByAlias[from] === to) {
-      allowedModels.push(from)
-      continue
-    }
-
-    // 原始 key 自映射（如 ultimate → ultimate）：保留在 modelMappings，避免下次保存后丢失
-    // 不要将其转换为别名白名单项，否则客户端使用原始 key 时会失配
-    if (from === to) {
+  if (existingMappings && typeof existingMappings === 'object') {
+    for (const [rawFrom, rawTo] of Object.entries(existingMappings)) {
+      const from = rawFrom.trim()
+      const to = String(rawTo).trim()
+      if (!from || !to) {
+        continue
+      }
       modelMappings.push({ from, to })
-      continue
     }
-
-    // 其他映射规则
-    modelMappings.push({ from, to })
   }
 
   return {
-    allowedModels: Array.from(new Set(allowedModels)),
+    allowedModels: normalizeModelWhitelist(rawWhitelist),
     modelMappings
   }
 }
