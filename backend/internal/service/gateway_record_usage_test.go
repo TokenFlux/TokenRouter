@@ -233,20 +233,25 @@ func TestGatewayServiceRecordUsage_PreservesRequestedAndUpstreamModels(t *testin
 	require.Equal(t, mappedModel, *usageRepo.lastLog.UpstreamModel)
 }
 
-func TestGatewayServiceRecordUsage_QoderPricingDeferredWithoutChannelPricing(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderUsesStandardRequestedModelPricing(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
 
-	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	expectedCost, err := svc.billingService.CalculateCost("gpt-5.4", UsageTokens{
+		InputTokens:  usage.InputTokens,
+		OutputTokens: usage.OutputTokens,
+	}, 1.1)
+	require.NoError(t, err)
+
+	err = svc.RecordUsage(context.Background(), &RecordUsageInput{
 		Result: &ForwardResult{
-			RequestID: "qoder_pricing_deferred",
-			Usage: ClaudeUsage{
-				InputTokens:  1200,
-				OutputTokens: 300,
-			},
-			Model:    "claude-opus-4.6",
-			Duration: time.Second,
+			RequestID:     "qoder_standard_requested_model_pricing",
+			Usage:         usage,
+			Model:         "gpt-5.4",
+			UpstreamModel: "ultimate",
+			Duration:      time.Second,
 		},
 		APIKey: &APIKey{
 			ID:    502,
@@ -260,24 +265,24 @@ func TestGatewayServiceRecordUsage_QoderPricingDeferredWithoutChannelPricing(t *
 	require.NoError(t, err)
 	require.Equal(t, 1, usageRepo.calls)
 	require.NotNil(t, usageRepo.lastLog)
-	require.Equal(t, "claude-opus-4.6", usageRepo.lastLog.Model)
+	require.Equal(t, "gpt-5.4", usageRepo.lastLog.Model)
 	require.Equal(t, 1200, usageRepo.lastLog.InputTokens)
 	require.Equal(t, 300, usageRepo.lastLog.OutputTokens)
-	require.Zero(t, usageRepo.lastLog.TotalCost)
-	require.Zero(t, usageRepo.lastLog.ActualCost)
+	require.InDelta(t, expectedCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expectedCost.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
+	require.True(t, usageRepo.lastLog.ActualCost > 0, "Qoder should reuse standard requested-model pricing instead of a Qoder-specific upstream/deferred branch")
 
 	require.Equal(t, 1, billingRepo.calls)
 	require.NotNil(t, billingRepo.lastCmd)
-	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+	require.InDelta(t, expectedCost.ActualCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
 	require.Zero(t, billingRepo.lastCmd.APIKeyQuotaCost)
 	require.Zero(t, billingRepo.lastCmd.APIKeyRateLimitCost)
 	require.Zero(t, billingRepo.lastCmd.AccountQuotaCost)
 }
 
-func TestForwardResultBillingModelForPlatform_QoderPrefersMappedUpstreamModel(t *testing.T) {
-	require.Equal(t, "ultimate", forwardResultBillingModelForPlatform(PlatformQoder, "claude-opus-4-6", "ultimate"))
-	require.Equal(t, "claude-opus-4-6", forwardResultBillingModelForPlatform(PlatformQoder, "claude-opus-4-6", ""))
-	require.Equal(t, "claude-opus-4-6", forwardResultBillingModelForPlatform(PlatformAnthropic, "claude-opus-4-6", "ultimate"))
+func TestForwardResultBillingModelPrefersRequestedModel(t *testing.T) {
+	require.Equal(t, "claude-opus-4-6", forwardResultBillingModel("claude-opus-4-6", "ultimate"))
+	require.Equal(t, "ultimate", forwardResultBillingModel("", "ultimate"))
 }
 
 func TestGatewayServiceRecordUsage_ImageIndependentMultiplierUsesImageRate(t *testing.T) {

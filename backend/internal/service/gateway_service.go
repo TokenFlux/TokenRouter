@@ -9700,7 +9700,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	imageMultiplier := resolveImageRateMultiplier(apiKey, multiplier)
 
 	// 确定计费模型
-	billingModel := forwardResultBillingModelForPlatform(PlatformFromAPIKey(apiKey), result.Model, result.UpstreamModel)
+	billingModel := forwardResultBillingModel(result.Model, result.UpstreamModel)
 	if input.BillingModelSource == BillingModelSourceChannelMapped && input.ChannelMappedModel != "" {
 		billingModel = input.ChannelMappedModel
 	}
@@ -9927,8 +9927,6 @@ func (s *GatewayService) calculateTokenCost(
 			Resolver:       s.resolver,
 			Resolved:       resolved,
 		})
-	} else if isQoderPricingDeferred(apiKey) {
-		return &CostBreakdown{BillingMode: string(BillingModeToken)}
 	} else if opts.LongContextThreshold > 0 {
 		// 长上下文双倍计费（如 Gemini 200K 阈值）
 		cost, err = s.billingService.CalculateCostWithLongContext(
@@ -9943,10 +9941,6 @@ func (s *GatewayService) calculateTokenCost(
 		return &CostBreakdown{ActualCost: 0}
 	}
 	return cost
-}
-
-func isQoderPricingDeferred(apiKey *APIKey) bool {
-	return PlatformFromAPIKey(apiKey) == PlatformQoder
 }
 
 // buildRecordUsageLog 构建使用日志并设置计费模式。
