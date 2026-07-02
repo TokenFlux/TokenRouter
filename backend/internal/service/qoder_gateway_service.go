@@ -844,6 +844,7 @@ type qoderConversationPlan struct {
 	currentFirstHash      string
 	diagnostics           qoderConversationDiagnostics
 	previousState         *qoderConversationState
+	acceptedState         *qoderConversationState
 	acceptedCommitted     bool
 }
 
@@ -987,12 +988,16 @@ func (p *qoderConversationPlan) commitAccepted() {
 	if p == nil {
 		return
 	}
-	p.commitFingerprints(p.acceptedFingerprints())
+	acceptedState := p.commitFingerprints(p.acceptedFingerprints())
+	if acceptedState == nil {
+		return
+	}
+	p.acceptedState = acceptedState
 	p.acceptedCommitted = true
 }
 
 func (p *qoderConversationPlan) rollbackAccepted() {
-	if p == nil || !p.acceptedCommitted || p.store == nil || strings.TrimSpace(p.key) == "" {
+	if p == nil || !p.acceptedCommitted || p.acceptedState == nil || p.store == nil || strings.TrimSpace(p.key) == "" {
 		return
 	}
 	p.store.mu.Lock()
@@ -1001,15 +1006,10 @@ func (p *qoderConversationPlan) rollbackAccepted() {
 	if current == nil {
 		return
 	}
-	// 版本检查：如果当前 state 的版本号与 previousState 不匹配，说明已被其他 goroutine 修改
-	if p.previousState != nil && current.version != p.previousState.version {
-		// 过期的 rollback，记录并放弃回滚
-		logger.LegacyPrintf("service.qoder_conversation", "WARN: stale rollback abandoned key=%s prev_version=%d current_version=%d", p.key, p.previousState.version, current.version)
-		return
-	}
-	if current.sessionID != p.sessionID ||
-		current.systemFingerprint != p.systemFingerprint ||
-		current.toolsFingerprint != p.toolsFingerprint {
+	// 只回滚本 plan 在 commitAccepted() 中实际写入的 accepted state。
+	// 如果其他 goroutine 已经在其后提交了新状态，则 current 会与 acceptedState 不一致，必须放弃回滚。
+	if !qoderConversationStateEqual(current, p.acceptedState) {
+		logger.LegacyPrintf("service.qoder_conversation", "WARN: stale rollback abandoned key=%s accepted_version=%d current_version=%d", p.key, p.acceptedState.version, current.version)
 		return
 	}
 	if p.previousState == nil {
@@ -1026,6 +1026,31 @@ func cloneQoderConversationState(state *qoderConversationState) *qoderConversati
 	cloned := *state
 	cloned.messageFingerprints = append([]string(nil), state.messageFingerprints...)
 	return &cloned
+}
+
+func qoderConversationStateEqual(a, b *qoderConversationState) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	if a.sessionID != b.sessionID ||
+		a.systemFingerprint != b.systemFingerprint ||
+		a.toolsFingerprint != b.toolsFingerprint ||
+		a.hasUsage != b.hasUsage ||
+		a.lastUsageInput != b.lastUsageInput ||
+		a.lastUsageOutput != b.lastUsageOutput ||
+		a.version != b.version ||
+		!a.expiresAt.Equal(b.expiresAt) {
+		return false
+	}
+	if len(a.messageFingerprints) != len(b.messageFingerprints) {
+		return false
+	}
+	for i := range a.messageFingerprints {
+		if a.messageFingerprints[i] != b.messageFingerprints[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *qoderConversationPlan) acceptedFingerprints() []string {
@@ -1045,9 +1070,9 @@ func (p *qoderConversationPlan) acceptedFingerprints() []string {
 	return append([]string(nil), p.messageFingerprints[:prefixLen]...)
 }
 
-func (p *qoderConversationPlan) commitFingerprints(fingerprints []string, usages ...ClaudeUsage) {
+func (p *qoderConversationPlan) commitFingerprints(fingerprints []string, usages ...ClaudeUsage) *qoderConversationState {
 	if p == nil || p.store == nil || strings.TrimSpace(p.key) == "" {
-		return
+		return nil
 	}
 	hasUsage, lastUsageInput, lastUsageOutput := p.previousUsageSnapshot()
 	if len(usages) > 0 && (usages[0].InputTokens > 0 || usages[0].OutputTokens > 0) {
@@ -1081,7 +1106,7 @@ func (p *qoderConversationPlan) commitFingerprints(fingerprints []string, usages
 			}
 		}
 	}
-	p.store.items[p.key] = &qoderConversationState{
+	next := &qoderConversationState{
 		sessionID:           p.sessionID,
 		systemFingerprint:   p.systemFingerprint,
 		toolsFingerprint:    p.toolsFingerprint,
@@ -1092,6 +1117,8 @@ func (p *qoderConversationPlan) commitFingerprints(fingerprints []string, usages
 		expiresAt:           time.Now().Add(p.store.ttl),
 		version:             newVersion,
 	}
+	p.store.items[p.key] = next
+	return cloneQoderConversationState(next)
 }
 
 func (p *qoderConversationPlan) previousUsageSnapshot() (bool, int, int) {
