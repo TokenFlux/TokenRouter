@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent/group"
 	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 )
@@ -27,9 +28,12 @@ func validatePlanQuotas(daily, weekly, monthly *float64) error {
 	return nil
 }
 
-func validatePlanRequired(name string, _ int64, price float64, validityDays int, validityUnit string, originalPrice *float64) error {
+func validatePlanRequired(name string, groupIDs []int64, price float64, validityDays int, validityUnit string, originalPrice *float64) error {
 	if strings.TrimSpace(name) == "" {
 		return infraerrors.BadRequest("PLAN_NAME_REQUIRED", "plan name is required")
+	}
+	if len(normalizePlanGroupIDs(groupIDs)) == 0 {
+		return infraerrors.BadRequest("PLAN_GROUP_REQUIRED", "at least one OpenAI group is required")
 	}
 	if price <= 0 {
 		return infraerrors.BadRequest("PLAN_PRICE_INVALID", "price must be > 0")
@@ -62,7 +66,48 @@ func validatePlanPatch(req UpdatePlanRequest) error {
 	if req.OriginalPrice.present && req.OriginalPrice.value != nil && *req.OriginalPrice.value < 0 {
 		return infraerrors.BadRequest("PLAN_ORIGINAL_PRICE_INVALID", "original price must be >= 0")
 	}
+	if len(normalizePlanGroupIDs(req.GroupIDs)) == 0 {
+		return infraerrors.BadRequest("PLAN_GROUP_REQUIRED", "at least one OpenAI group is required")
+	}
 	return validatePlanQuotaPatch(req)
+}
+
+func normalizePlanGroupIDs(groupIDs []int64) []int64 {
+	seen := make(map[int64]struct{}, len(groupIDs))
+	out := make([]int64, 0, len(groupIDs))
+	for _, id := range groupIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+func (s *PaymentConfigService) validatePlanGroups(ctx context.Context, groupIDs []int64) ([]int64, error) {
+	groupIDs = normalizePlanGroupIDs(groupIDs)
+	if len(groupIDs) == 0 {
+		return nil, infraerrors.BadRequest("PLAN_GROUP_REQUIRED", "at least one OpenAI group is required")
+	}
+	groups, err := s.entClient.Group.Query().
+		Where(group.IDIn(groupIDs...)).
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(groups) != len(groupIDs) {
+		return nil, infraerrors.BadRequest("PLAN_GROUP_NOT_FOUND", "group not found")
+	}
+	for _, item := range groups {
+		if !strings.EqualFold(item.Platform, PlatformOpenAI) {
+			return nil, infraerrors.BadRequest("PLAN_GROUP_PLATFORM_INVALID", "subscription plan groups must be OpenAI groups")
+		}
+	}
+	return groupIDs, nil
 }
 
 func validatePlanQuotaPatch(req UpdatePlanRequest) error {
@@ -83,18 +128,22 @@ func validatePlanQuotaPatch(req UpdatePlanRequest) error {
 }
 
 func (s *PaymentConfigService) ListPlans(ctx context.Context) ([]*dbent.SubscriptionPlan, error) {
-	return s.entClient.SubscriptionPlan.Query().Order(subscriptionplan.BySortOrder()).All(ctx)
+	return s.entClient.SubscriptionPlan.Query().WithGroup().WithGroups().Order(subscriptionplan.BySortOrder()).All(ctx)
 }
 
 func (s *PaymentConfigService) ListPlansForSale(ctx context.Context) ([]*dbent.SubscriptionPlan, error) {
-	return s.entClient.SubscriptionPlan.Query().Where(subscriptionplan.ForSaleEQ(true)).Order(subscriptionplan.BySortOrder()).All(ctx)
+	return s.entClient.SubscriptionPlan.Query().WithGroup().WithGroups().Where(subscriptionplan.ForSaleEQ(true)).Order(subscriptionplan.BySortOrder()).All(ctx)
 }
 
 func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanRequest) (*dbent.SubscriptionPlan, error) {
-	if err := validatePlanRequired(req.Name, req.GroupID, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
+	if err := validatePlanRequired(req.Name, req.GroupIDs, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
 		return nil, err
 	}
 	if err := validatePlanQuotas(req.DailyLimitUSD, req.WeeklyLimitUSD, req.MonthlyLimitUSD); err != nil {
+		return nil, err
+	}
+	groupIDs, err := s.validatePlanGroups(ctx, req.GroupIDs)
+	if err != nil {
 		return nil, err
 	}
 
@@ -120,11 +169,19 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 	if req.MonthlyLimitUSD != nil {
 		builder.SetMonthlyLimitUsd(*req.MonthlyLimitUSD)
 	}
-	return builder.Save(ctx)
+	plan, err := builder.AddGroupIDs(groupIDs...).Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetPlan(ctx, plan.ID)
 }
 
 func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req UpdatePlanRequest) (*dbent.SubscriptionPlan, error) {
 	if err := validatePlanPatch(req); err != nil {
+		return nil, err
+	}
+	groupIDs, err := s.validatePlanGroups(ctx, req.GroupIDs)
+	if err != nil {
 		return nil, err
 	}
 
@@ -184,7 +241,11 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	if req.SortOrder != nil {
 		update.SetSortOrder(*req.SortOrder)
 	}
-	return update.Save(ctx)
+	plan, err := update.ClearGroups().AddGroupIDs(groupIDs...).Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return s.GetPlan(ctx, plan.ID)
 }
 
 func (s *PaymentConfigService) DeletePlan(ctx context.Context, id int64) error {
@@ -200,7 +261,7 @@ func (s *PaymentConfigService) DeletePlan(ctx context.Context, id int64) error {
 }
 
 func (s *PaymentConfigService) GetPlan(ctx context.Context, id int64) (*dbent.SubscriptionPlan, error) {
-	plan, err := s.entClient.SubscriptionPlan.Get(ctx, id)
+	plan, err := s.entClient.SubscriptionPlan.Query().WithGroup().WithGroups().Where(subscriptionplan.IDEQ(id)).Only(ctx)
 	if err != nil {
 		return nil, infraerrors.NotFound("PLAN_NOT_FOUND", "subscription plan not found")
 	}

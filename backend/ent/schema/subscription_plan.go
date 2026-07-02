@@ -70,6 +70,9 @@ func (SubscriptionPlan) Fields() []ent.Field {
 			Default(true),
 		field.Int("sort_order").
 			Default(0),
+		field.Int64("group_id").
+			Optional().
+			Nillable(),
 		field.Time("created_at").
 			Immutable().
 			Default(time.Now).
@@ -85,11 +88,18 @@ func (SubscriptionPlan) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.To("subscriptions", UserSubscription.Type),
 		edge.To("redeem_codes", RedeemCode.Type),
+		edge.To("groups", Group.Type).
+			Through("subscription_plan_groups", SubscriptionPlanGroup.Type),
+		edge.From("group", Group.Type).
+			Ref("subscription_plans").
+			Field("group_id").
+			Unique(),
 	}
 }
 
 func (SubscriptionPlan) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("for_sale"),
+		index.Fields("group_id"),
 	}
 }

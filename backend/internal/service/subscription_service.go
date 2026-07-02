@@ -573,6 +573,18 @@ func (s *SubscriptionService) GetActiveSubscription(ctx context.Context, userID,
 
 func (s *SubscriptionService) GetUsableSubscription(ctx context.Context, userID int64) (*UserSubscription, bool, error) {
 	subs, err := s.userSubRepo.ListActiveByUserID(ctx, userID)
+	return s.getUsableSubscriptionFromList(subs, err)
+}
+
+func (s *SubscriptionService) GetUsableSubscriptionForGroup(ctx context.Context, userID, groupID int64) (*UserSubscription, bool, error) {
+	if groupID <= 0 {
+		return nil, false, ErrSubscriptionNotFound
+	}
+	subs, err := s.userSubRepo.ListActiveByUserIDAndGroupID(ctx, userID, groupID)
+	return s.getUsableSubscriptionFromList(subs, err)
+}
+
+func (s *SubscriptionService) getUsableSubscriptionFromList(subs []UserSubscription, err error) (*UserSubscription, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}

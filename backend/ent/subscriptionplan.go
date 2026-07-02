@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/TokenFlux/TokenRouter/ent/group"
 	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
 )
 
@@ -43,6 +44,8 @@ type SubscriptionPlan struct {
 	ForSale bool `json:"for_sale,omitempty"`
 	// SortOrder holds the value of the "sort_order" field.
 	SortOrder int `json:"sort_order,omitempty"`
+	// GroupID holds the value of the "group_id" field.
+	GroupID *int64 `json:"group_id,omitempty"`
 	// CreatedAt holds the value of the "created_at" field.
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt holds the value of the "updated_at" field.
@@ -59,9 +62,15 @@ type SubscriptionPlanEdges struct {
 	Subscriptions []*UserSubscription `json:"subscriptions,omitempty"`
 	// RedeemCodes holds the value of the redeem_codes edge.
 	RedeemCodes []*RedeemCode `json:"redeem_codes,omitempty"`
+	// Groups holds the value of the groups edge.
+	Groups []*Group `json:"groups,omitempty"`
+	// Group holds the value of the group edge.
+	Group *Group `json:"group,omitempty"`
+	// SubscriptionPlanGroups holds the value of the subscription_plan_groups edge.
+	SubscriptionPlanGroups []*SubscriptionPlanGroup `json:"subscription_plan_groups,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [2]bool
+	loadedTypes [5]bool
 }
 
 // SubscriptionsOrErr returns the Subscriptions value or an error if the edge
@@ -82,6 +91,35 @@ func (e SubscriptionPlanEdges) RedeemCodesOrErr() ([]*RedeemCode, error) {
 	return nil, &NotLoadedError{edge: "redeem_codes"}
 }
 
+// GroupsOrErr returns the Groups value or an error if the edge
+// was not loaded in eager-loading.
+func (e SubscriptionPlanEdges) GroupsOrErr() ([]*Group, error) {
+	if e.loadedTypes[2] {
+		return e.Groups, nil
+	}
+	return nil, &NotLoadedError{edge: "groups"}
+}
+
+// GroupOrErr returns the Group value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e SubscriptionPlanEdges) GroupOrErr() (*Group, error) {
+	if e.Group != nil {
+		return e.Group, nil
+	} else if e.loadedTypes[3] {
+		return nil, &NotFoundError{label: group.Label}
+	}
+	return nil, &NotLoadedError{edge: "group"}
+}
+
+// SubscriptionPlanGroupsOrErr returns the SubscriptionPlanGroups value or an error if the edge
+// was not loaded in eager-loading.
+func (e SubscriptionPlanEdges) SubscriptionPlanGroupsOrErr() ([]*SubscriptionPlanGroup, error) {
+	if e.loadedTypes[4] {
+		return e.SubscriptionPlanGroups, nil
+	}
+	return nil, &NotLoadedError{edge: "subscription_plan_groups"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*SubscriptionPlan) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -91,7 +129,7 @@ func (*SubscriptionPlan) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case subscriptionplan.FieldPrice, subscriptionplan.FieldOriginalPrice, subscriptionplan.FieldDailyLimitUsd, subscriptionplan.FieldWeeklyLimitUsd, subscriptionplan.FieldMonthlyLimitUsd:
 			values[i] = new(sql.NullFloat64)
-		case subscriptionplan.FieldID, subscriptionplan.FieldValidityDays, subscriptionplan.FieldSortOrder:
+		case subscriptionplan.FieldID, subscriptionplan.FieldValidityDays, subscriptionplan.FieldSortOrder, subscriptionplan.FieldGroupID:
 			values[i] = new(sql.NullInt64)
 		case subscriptionplan.FieldName, subscriptionplan.FieldDescription, subscriptionplan.FieldValidityUnit, subscriptionplan.FieldFeatures, subscriptionplan.FieldProductName:
 			values[i] = new(sql.NullString)
@@ -200,6 +238,13 @@ func (_m *SubscriptionPlan) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.SortOrder = int(value.Int64)
 			}
+		case subscriptionplan.FieldGroupID:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field group_id", values[i])
+			} else if value.Valid {
+				_m.GroupID = new(int64)
+				*_m.GroupID = value.Int64
+			}
 		case subscriptionplan.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
@@ -233,6 +278,21 @@ func (_m *SubscriptionPlan) QuerySubscriptions() *UserSubscriptionQuery {
 // QueryRedeemCodes queries the "redeem_codes" edge of the SubscriptionPlan entity.
 func (_m *SubscriptionPlan) QueryRedeemCodes() *RedeemCodeQuery {
 	return NewSubscriptionPlanClient(_m.config).QueryRedeemCodes(_m)
+}
+
+// QueryGroups queries the "groups" edge of the SubscriptionPlan entity.
+func (_m *SubscriptionPlan) QueryGroups() *GroupQuery {
+	return NewSubscriptionPlanClient(_m.config).QueryGroups(_m)
+}
+
+// QueryGroup queries the "group" edge of the SubscriptionPlan entity.
+func (_m *SubscriptionPlan) QueryGroup() *GroupQuery {
+	return NewSubscriptionPlanClient(_m.config).QueryGroup(_m)
+}
+
+// QuerySubscriptionPlanGroups queries the "subscription_plan_groups" edge of the SubscriptionPlan entity.
+func (_m *SubscriptionPlan) QuerySubscriptionPlanGroups() *SubscriptionPlanGroupQuery {
+	return NewSubscriptionPlanClient(_m.config).QuerySubscriptionPlanGroups(_m)
 }
 
 // Update returns a builder for updating this SubscriptionPlan.
@@ -304,6 +364,11 @@ func (_m *SubscriptionPlan) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("sort_order=")
 	builder.WriteString(fmt.Sprintf("%v", _m.SortOrder))
+	builder.WriteString(", ")
+	if v := _m.GroupID; v != nil {
+		builder.WriteString("group_id=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))

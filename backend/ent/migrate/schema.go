@@ -1256,17 +1256,64 @@ var (
 		{Name: "sort_order", Type: field.TypeInt, Default: 0},
 		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "updated_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "group_id", Type: field.TypeInt64, Nullable: true},
 	}
 	// SubscriptionPlansTable holds the schema information for the "subscription_plans" table.
 	SubscriptionPlansTable = &schema.Table{
 		Name:       "subscription_plans",
 		Columns:    SubscriptionPlansColumns,
 		PrimaryKey: []*schema.Column{SubscriptionPlansColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "subscription_plans_groups_subscription_plans",
+				Columns:    []*schema.Column{SubscriptionPlansColumns[16]},
+				RefColumns: []*schema.Column{GroupsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
 		Indexes: []*schema.Index{
 			{
 				Name:    "subscriptionplan_for_sale",
 				Unique:  false,
 				Columns: []*schema.Column{SubscriptionPlansColumns[12]},
+			},
+			{
+				Name:    "subscriptionplan_group_id",
+				Unique:  false,
+				Columns: []*schema.Column{SubscriptionPlansColumns[16]},
+			},
+		},
+	}
+	// SubscriptionPlanGroupsColumns holds the columns for the "subscription_plan_groups" table.
+	SubscriptionPlanGroupsColumns = []*schema.Column{
+		{Name: "created_at", Type: field.TypeTime, SchemaType: map[string]string{"postgres": "timestamptz"}},
+		{Name: "subscription_plan_id", Type: field.TypeInt64},
+		{Name: "group_id", Type: field.TypeInt64},
+	}
+	// SubscriptionPlanGroupsTable holds the schema information for the "subscription_plan_groups" table.
+	SubscriptionPlanGroupsTable = &schema.Table{
+		Name:       "subscription_plan_groups",
+		Columns:    SubscriptionPlanGroupsColumns,
+		PrimaryKey: []*schema.Column{SubscriptionPlanGroupsColumns[1], SubscriptionPlanGroupsColumns[2]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "subscription_plan_groups_subscription_plans_subscription_plan",
+				Columns:    []*schema.Column{SubscriptionPlanGroupsColumns[1]},
+				RefColumns: []*schema.Column{SubscriptionPlansColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "subscription_plan_groups_groups_group",
+				Columns:    []*schema.Column{SubscriptionPlanGroupsColumns[2]},
+				RefColumns: []*schema.Column{GroupsColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "subscriptionplangroup_group_id",
+				Unique:  false,
+				Columns: []*schema.Column{SubscriptionPlanGroupsColumns[2]},
 			},
 		},
 	}
@@ -1880,6 +1927,7 @@ var (
 		SecuritySecretsTable,
 		SettingsTable,
 		SubscriptionPlansTable,
+		SubscriptionPlanGroupsTable,
 		TLSFingerprintProfilesTable,
 		TLSFingerprintRoutersTable,
 		UsageCleanupTasksTable,
@@ -1984,8 +2032,14 @@ func init() {
 	SettingsTable.Annotation = &entsql.Annotation{
 		Table: "settings",
 	}
+	SubscriptionPlansTable.ForeignKeys[0].RefTable = GroupsTable
 	SubscriptionPlansTable.Annotation = &entsql.Annotation{
 		Table: "subscription_plans",
+	}
+	SubscriptionPlanGroupsTable.ForeignKeys[0].RefTable = SubscriptionPlansTable
+	SubscriptionPlanGroupsTable.ForeignKeys[1].RefTable = GroupsTable
+	SubscriptionPlanGroupsTable.Annotation = &entsql.Annotation{
+		Table: "subscription_plan_groups",
 	}
 	TLSFingerprintProfilesTable.Annotation = &entsql.Annotation{
 		Table: "tls_fingerprint_profiles",

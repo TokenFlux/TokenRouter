@@ -109,15 +109,20 @@ func (r *usageBillingRepository) claimUsageBillingKey(ctx context.Context, tx *s
 }
 
 func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, tx *sql.Tx, cmd *service.UsageBillingCommand, result *service.UsageBillingApplyResult) error {
-	remainingAmount, allocations, err := allocateUsageBillingSubscriptions(ctx, tx, cmd.UserID, cmd.BillableAmountUSD)
+	subscriptionAmount := cmd.BillableAmountUSD
+	if cmd.BaseAmountUSD > 0 && cmd.SubscriptionRate >= 0 {
+		subscriptionAmount = cmd.BaseAmountUSD * cmd.SubscriptionRate
+	}
+	remainingAmount, allocations, err := allocateUsageBillingSubscriptions(ctx, tx, cmd.UserID, cmd.GroupID, subscriptionAmount)
 	if err != nil {
 		return err
 	}
 	result.BillingAllocations = allocations
-	result.SubscriptionAmountUSD = cmd.BillableAmountUSD - remainingAmount
+	result.SubscriptionAmountUSD = subscriptionAmount - remainingAmount
 
 	if remainingAmount > 0 {
-		newBalance, deductedAmount, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, remainingAmount)
+		balanceAmount := calculateSplitBillingBalanceAmount(cmd.BaseAmountUSD, cmd.SubscriptionRate, cmd.BalanceRate, remainingAmount)
+		newBalance, deductedAmount, err := deductUsageBillingBalance(ctx, tx, cmd.UserID, balanceAmount)
 		if err != nil {
 			return err
 		}
@@ -156,6 +161,17 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 	return nil
 }
 
+func calculateSplitBillingBalanceAmount(baseAmountUSD, subscriptionRate, balanceRate, uncoveredSubscriptionAmount float64) float64 {
+	if baseAmountUSD <= 0 || subscriptionRate <= 0 || balanceRate < 0 {
+		return uncoveredSubscriptionAmount
+	}
+	uncoveredBaseAmount := uncoveredSubscriptionAmount / subscriptionRate
+	if uncoveredBaseAmount <= 0 {
+		return 0
+	}
+	return uncoveredBaseAmount * balanceRate
+}
+
 type usageBillingSubscriptionRow struct {
 	ID                 int64
 	PlanID             int64
@@ -172,35 +188,48 @@ type usageBillingSubscriptionRow struct {
 	MonthlyUsageUSD    float64
 }
 
-func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, userID int64, amountUSD float64) (float64, []domain.BillingAllocation, error) {
+func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, userID int64, groupID *int64, amountUSD float64) (float64, []domain.BillingAllocation, error) {
 	if amountUSD <= 0 {
 		return 0, nil, nil
 	}
 
+	args := []any{userID, service.SubscriptionStatusActive, service.SubscriptionStatusPending}
+	groupFilter := ""
+	if groupID != nil && *groupID > 0 {
+		groupFilter = `AND EXISTS (
+				SELECT 1
+				FROM subscription_plan_groups spg
+				WHERE spg.subscription_plan_id = sp.id
+					AND spg.group_id = $4
+			)`
+		args = append(args, *groupID)
+	}
 	rows, err := tx.QueryContext(ctx, `
 		SELECT
-			id,
-			plan_id,
-			starts_at,
-			expires_at,
-			daily_window_start,
-			weekly_window_start,
-			monthly_window_start,
-			daily_limit_usd,
-			weekly_limit_usd,
-			monthly_limit_usd,
-			daily_usage_usd,
-			weekly_usage_usd,
-			monthly_usage_usd
-		FROM user_subscriptions
-		WHERE user_id = $1
-			AND deleted_at IS NULL
-			AND starts_at <= NOW()
-			AND expires_at > NOW()
-			AND status IN ($2, $3)
-		ORDER BY expires_at ASC, starts_at ASC, id ASC
+			us.id,
+			us.plan_id,
+			us.starts_at,
+			us.expires_at,
+			us.daily_window_start,
+			us.weekly_window_start,
+			us.monthly_window_start,
+			us.daily_limit_usd,
+			us.weekly_limit_usd,
+			us.monthly_limit_usd,
+			us.daily_usage_usd,
+			us.weekly_usage_usd,
+			us.monthly_usage_usd
+		FROM user_subscriptions us
+		JOIN subscription_plans sp ON sp.id = us.plan_id
+		WHERE us.user_id = $1
+			AND us.deleted_at IS NULL
+			AND us.starts_at <= NOW()
+			AND us.expires_at > NOW()
+			AND us.status IN ($2, $3)
+			`+groupFilter+`
+		ORDER BY us.expires_at ASC, us.starts_at ASC, us.id ASC
 		FOR UPDATE
-	`, userID, service.SubscriptionStatusActive, service.SubscriptionStatusPending)
+	`, args...)
 	if err != nil {
 		return 0, nil, err
 	}

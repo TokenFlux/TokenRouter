@@ -2,6 +2,7 @@ package admin
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
@@ -344,7 +345,7 @@ func (h *PaymentHandler) ListPlans(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, plans)
+	response.Success(c, sanitizeSubscriptionPlansForResponse(plans))
 }
 
 // CreatePlan creates a new subscription plan.
@@ -360,7 +361,7 @@ func (h *PaymentHandler) CreatePlan(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Created(c, plan)
+	response.Created(c, sanitizeSubscriptionPlanForResponse(plan))
 }
 
 // UpdatePlan updates an existing subscription plan.
@@ -380,7 +381,7 @@ func (h *PaymentHandler) UpdatePlan(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, plan)
+	response.Success(c, sanitizeSubscriptionPlanForResponse(plan))
 }
 
 // DeletePlan deletes a subscription plan.
@@ -472,6 +473,125 @@ func parseIDParam(c *gin.Context, paramName string) (int64, bool) {
 		return 0, false
 	}
 	return id, true
+}
+
+type AdminSubscriptionPlanResult struct {
+	ID              int64             `json:"id"`
+	GroupID         *int64            `json:"group_id,omitempty"`
+	GroupIDs        []int64           `json:"group_ids"`
+	Groups          []PlanGroupResult `json:"groups"`
+	GroupPlatform   string            `json:"group_platform,omitempty"`
+	GroupName       string            `json:"group_name,omitempty"`
+	Name            string            `json:"name"`
+	Description     string            `json:"description"`
+	Price           float64           `json:"price"`
+	OriginalPrice   *float64          `json:"original_price,omitempty"`
+	ValidityDays    int               `json:"validity_days"`
+	ValidityUnit    string            `json:"validity_unit"`
+	DailyLimitUSD   *float64          `json:"daily_limit_usd"`
+	WeeklyLimitUSD  *float64          `json:"weekly_limit_usd"`
+	MonthlyLimitUSD *float64          `json:"monthly_limit_usd"`
+	Features        []string          `json:"features"`
+	ProductName     string            `json:"product_name"`
+	ForSale         bool              `json:"for_sale"`
+	SortOrder       int               `json:"sort_order"`
+	CreatedAt       time.Time         `json:"created_at"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+}
+
+type PlanGroupResult struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Platform string `json:"platform"`
+}
+
+func sanitizeSubscriptionPlansForResponse(plans []*dbent.SubscriptionPlan) []AdminSubscriptionPlanResult {
+	out := make([]AdminSubscriptionPlanResult, 0, len(plans))
+	for _, plan := range plans {
+		if item := sanitizeSubscriptionPlanForResponse(plan); item != nil {
+			out = append(out, *item)
+		}
+	}
+	return out
+}
+
+func sanitizeSubscriptionPlanForResponse(plan *dbent.SubscriptionPlan) *AdminSubscriptionPlanResult {
+	if plan == nil {
+		return nil
+	}
+	result := &AdminSubscriptionPlanResult{
+		ID:              plan.ID,
+		GroupID:         plan.GroupID,
+		GroupIDs:        planGroupIDs(plan),
+		Groups:          planGroups(plan),
+		Name:            plan.Name,
+		Description:     plan.Description,
+		Price:           plan.Price,
+		OriginalPrice:   plan.OriginalPrice,
+		ValidityDays:    plan.ValidityDays,
+		ValidityUnit:    plan.ValidityUnit,
+		DailyLimitUSD:   plan.DailyLimitUsd,
+		WeeklyLimitUSD:  plan.WeeklyLimitUsd,
+		MonthlyLimitUSD: plan.MonthlyLimitUsd,
+		Features:        splitPlanFeatures(plan.Features),
+		ProductName:     plan.ProductName,
+		ForSale:         plan.ForSale,
+		SortOrder:       plan.SortOrder,
+		CreatedAt:       plan.CreatedAt,
+		UpdatedAt:       plan.UpdatedAt,
+	}
+	if plan.Edges.Group != nil {
+		result.GroupName = plan.Edges.Group.Name
+		result.GroupPlatform = plan.Edges.Group.Platform
+	}
+	if len(result.Groups) > 0 {
+		first := result.Groups[0]
+		result.GroupID = &first.ID
+		result.GroupName = first.Name
+		result.GroupPlatform = first.Platform
+	}
+	return result
+}
+
+func planGroupIDs(plan *dbent.SubscriptionPlan) []int64 {
+	groups := planGroups(plan)
+	out := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		out = append(out, group.ID)
+	}
+	return out
+}
+
+func planGroups(plan *dbent.SubscriptionPlan) []PlanGroupResult {
+	if plan == nil || len(plan.Edges.Groups) == 0 {
+		return []PlanGroupResult{}
+	}
+	out := make([]PlanGroupResult, 0, len(plan.Edges.Groups))
+	for _, group := range plan.Edges.Groups {
+		if group == nil {
+			continue
+		}
+		out = append(out, PlanGroupResult{
+			ID:       group.ID,
+			Name:     group.Name,
+			Platform: group.Platform,
+		})
+	}
+	return out
+}
+
+func splitPlanFeatures(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return []string{}
+	}
+	features := make([]string, 0, len(strings.Split(raw, "\n")))
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" {
+			features = append(features, line)
+		}
+	}
+	return features
 }
 
 // --- Config ---

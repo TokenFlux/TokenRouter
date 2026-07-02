@@ -22,8 +22,12 @@ type UsageBillingCommand struct {
 	RequestPayloadHash string
 
 	UserID              int64
+	GroupID             *int64
 	AccountID           int64
 	BillableAmountUSD   float64
+	BaseAmountUSD       float64
+	SubscriptionRate    float64
+	BalanceRate         float64
 	AccountType         string
 	Model               string
 	ServiceTier         string

@@ -53,25 +53,35 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 		return
 	}
 	type planWithPlatform struct {
-		ID              int64    `json:"id"`
-		Name            string   `json:"name"`
-		Description     string   `json:"description"`
-		Price           float64  `json:"price"`
-		OriginalPrice   *float64 `json:"original_price,omitempty"`
-		ValidityDays    int      `json:"validity_days"`
-		ValidityUnit    string   `json:"validity_unit"`
-		DailyLimitUSD   *float64 `json:"daily_limit_usd,omitempty"`
-		WeeklyLimitUSD  *float64 `json:"weekly_limit_usd,omitempty"`
-		MonthlyLimitUSD *float64 `json:"monthly_limit_usd,omitempty"`
-		Features        []string `json:"features"`
-		ProductName     string   `json:"product_name"`
-		ForSale         bool     `json:"for_sale"`
-		SortOrder       int      `json:"sort_order"`
+		ID              int64             `json:"id"`
+		GroupID         *int64            `json:"group_id,omitempty"`
+		GroupIDs        []int64           `json:"group_ids"`
+		Groups          []planGroupResult `json:"groups"`
+		GroupPlatform   string            `json:"group_platform,omitempty"`
+		GroupName       string            `json:"group_name,omitempty"`
+		Name            string            `json:"name"`
+		Description     string            `json:"description"`
+		Price           float64           `json:"price"`
+		OriginalPrice   *float64          `json:"original_price,omitempty"`
+		ValidityDays    int               `json:"validity_days"`
+		ValidityUnit    string            `json:"validity_unit"`
+		DailyLimitUSD   *float64          `json:"daily_limit_usd,omitempty"`
+		WeeklyLimitUSD  *float64          `json:"weekly_limit_usd,omitempty"`
+		MonthlyLimitUSD *float64          `json:"monthly_limit_usd,omitempty"`
+		Features        []string          `json:"features"`
+		ProductName     string            `json:"product_name"`
+		ForSale         bool              `json:"for_sale"`
+		SortOrder       int               `json:"sort_order"`
 	}
 	result := make([]planWithPlatform, 0, len(plans))
 	for _, p := range plans {
 		result = append(result, planWithPlatform{
 			ID:              int64(p.ID),
+			GroupID:         firstPlanGroupID(p),
+			GroupIDs:        planGroupIDs(p),
+			Groups:          planGroups(p),
+			GroupPlatform:   firstPlanGroupPlatform(p),
+			GroupName:       firstPlanGroupName(p),
 			Name:            p.Name,
 			Description:     p.Description,
 			Price:           p.Price,
@@ -127,6 +137,11 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	for _, p := range plans {
 		planList = append(planList, checkoutPlan{
 			ID:              int64(p.ID),
+			GroupID:         firstPlanGroupID(p),
+			GroupIDs:        planGroupIDs(p),
+			Groups:          planGroups(p),
+			GroupPlatform:   firstPlanGroupPlatform(p),
+			GroupName:       firstPlanGroupName(p),
 			DailyLimitUSD:   p.DailyLimitUsd,
 			WeeklyLimitUSD:  p.WeeklyLimitUsd,
 			MonthlyLimitUSD: p.MonthlyLimitUsd,
@@ -157,6 +172,66 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	})
 }
 
+type planGroupResult struct {
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Platform string `json:"platform"`
+}
+
+func firstPlanGroupID(plan *dbent.SubscriptionPlan) *int64 {
+	if groups := planGroups(plan); len(groups) > 0 {
+		id := groups[0].ID
+		return &id
+	}
+	if plan != nil {
+		return plan.GroupID
+	}
+	return nil
+}
+
+func firstPlanGroupName(plan *dbent.SubscriptionPlan) string {
+	if groups := planGroups(plan); len(groups) > 0 {
+		return groups[0].Name
+	}
+	if plan == nil || plan.Edges.Group == nil {
+		return ""
+	}
+	return plan.Edges.Group.Name
+}
+
+func firstPlanGroupPlatform(plan *dbent.SubscriptionPlan) string {
+	if groups := planGroups(plan); len(groups) > 0 {
+		return groups[0].Platform
+	}
+	if plan == nil || plan.Edges.Group == nil {
+		return ""
+	}
+	return plan.Edges.Group.Platform
+}
+
+func planGroupIDs(plan *dbent.SubscriptionPlan) []int64 {
+	groups := planGroups(plan)
+	out := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		out = append(out, group.ID)
+	}
+	return out
+}
+
+func planGroups(plan *dbent.SubscriptionPlan) []planGroupResult {
+	if plan == nil || len(plan.Edges.Groups) == 0 {
+		return []planGroupResult{}
+	}
+	out := make([]planGroupResult, 0, len(plan.Edges.Groups))
+	for _, group := range plan.Edges.Groups {
+		if group == nil {
+			continue
+		}
+		out = append(out, planGroupResult{ID: group.ID, Name: group.Name, Platform: group.Platform})
+	}
+	return out
+}
+
 type checkoutInfoResponse struct {
 	Methods                   map[string]service.MethodLimits `json:"methods"`
 	GlobalMin                 float64                         `json:"global_min"`
@@ -173,22 +248,24 @@ type checkoutInfoResponse struct {
 }
 
 type checkoutPlan struct {
-	ID              int64    `json:"id"`
-	GroupID         *int64   `json:"group_id,omitempty"`
-	GroupPlatform   string   `json:"group_platform,omitempty"`
-	GroupName       string   `json:"group_name,omitempty"`
-	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
-	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
-	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
-	ModelScopes     []string `json:"supported_model_scopes,omitempty"`
-	Name            string   `json:"name"`
-	Description     string   `json:"description"`
-	Price           float64  `json:"price"`
-	OriginalPrice   *float64 `json:"original_price,omitempty"`
-	ValidityDays    int      `json:"validity_days"`
-	ValidityUnit    string   `json:"validity_unit"`
-	Features        []string `json:"features"`
-	ProductName     string   `json:"product_name"`
+	ID              int64             `json:"id"`
+	GroupID         *int64            `json:"group_id,omitempty"`
+	GroupIDs        []int64           `json:"group_ids"`
+	Groups          []planGroupResult `json:"groups"`
+	GroupPlatform   string            `json:"group_platform,omitempty"`
+	GroupName       string            `json:"group_name,omitempty"`
+	DailyLimitUSD   *float64          `json:"daily_limit_usd"`
+	WeeklyLimitUSD  *float64          `json:"weekly_limit_usd"`
+	MonthlyLimitUSD *float64          `json:"monthly_limit_usd"`
+	ModelScopes     []string          `json:"supported_model_scopes,omitempty"`
+	Name            string            `json:"name"`
+	Description     string            `json:"description"`
+	Price           float64           `json:"price"`
+	OriginalPrice   *float64          `json:"original_price,omitempty"`
+	ValidityDays    int               `json:"validity_days"`
+	ValidityUnit    string            `json:"validity_unit"`
+	Features        []string          `json:"features"`
+	ProductName     string            `json:"product_name"`
 }
 
 // parseFeatures splits a newline-separated features string into a string slice.

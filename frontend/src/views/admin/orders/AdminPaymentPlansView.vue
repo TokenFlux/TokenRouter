@@ -32,6 +32,12 @@
           <span class="text-sm">{{ value }} {{ formatValidityUnit(row.validity_unit) }}</span>
         </template>
 
+        <template #cell-group="{ row }">
+          <span class="text-sm text-gray-700 dark:text-gray-300">
+            {{ formatPlanGroup(row) }}
+          </span>
+        </template>
+
         <template #cell-quota="{ row }">
           <div class="space-y-1 text-xs text-gray-600 dark:text-gray-300">
             <div v-if="row.daily_limit_usd != null && row.daily_limit_usd > 0">{{ t('payment.admin.dailyLimit') }}: {{ row.daily_limit_usd }}</div>
@@ -136,6 +142,7 @@ const planColumns = computed((): Column[] => [
   { key: 'name', label: t('payment.admin.planName') },
   { key: 'price', label: t('payment.admin.price') },
   { key: 'validity_days', label: t('payment.admin.validityDays') },
+  { key: 'group', label: t('payment.admin.boundGroup') },
   { key: 'quota', label: t('payment.admin.quota') },
   { key: 'for_sale', label: t('payment.admin.forSale') },
   { key: 'sort_order', label: t('payment.admin.sortOrder') },
@@ -162,6 +169,16 @@ function formatValidityUnit(unit: string): string {
   return t('payment.admin.days')
 }
 
+function formatPlanGroup(plan: SubscriptionPlan): string {
+  if (plan.groups?.length) {
+    return plan.groups.map((group) => group.name || `#${group.id}`).join(' / ')
+  }
+  if (plan.group_ids?.length) return plan.group_ids.map((id) => `#${id}`).join(' / ')
+  if (plan.group_name) return plan.group_name
+  if (plan.group_id) return `#${plan.group_id}`
+  return t('payment.admin.unboundGroup')
+}
+
 async function loadPlans() {
   plansLoading.value = true
   try {
@@ -183,7 +200,10 @@ function openPlanEdit(plan: SubscriptionPlan | null) {
 
 async function toggleForSale(plan: SubscriptionPlan) {
   try {
-    await adminPaymentAPI.updatePlan(plan.id, { for_sale: !plan.for_sale })
+    await adminPaymentAPI.updatePlan(plan.id, {
+      for_sale: !plan.for_sale,
+      group_ids: plan.group_ids?.length ? plan.group_ids : plan.group_id ? [plan.group_id] : []
+    })
     plan.for_sale = !plan.for_sale
   } catch (error: unknown) {
     appStore.showError(extractI18nErrorMessage(error, t, 'payment.errors', t('common.error')))

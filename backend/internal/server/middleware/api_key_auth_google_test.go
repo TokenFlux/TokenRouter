@@ -141,6 +141,19 @@ func (f fakeGoogleSubscriptionRepo) ListActiveByUserID(ctx context.Context, user
 	}
 	return nil, errors.New("not implemented")
 }
+func (f fakeGoogleSubscriptionRepo) ListActiveByUserIDAndGroupID(ctx context.Context, userID, groupID int64) ([]service.UserSubscription, error) {
+	subs, err := f.ListActiveByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]service.UserSubscription, 0, len(subs))
+	for _, sub := range subs {
+		if sub.Plan != nil && sub.Plan.GroupID != nil && *sub.Plan.GroupID == groupID {
+			filtered = append(filtered, sub)
+		}
+	}
+	return filtered, nil
+}
 func (f fakeGoogleSubscriptionRepo) ListByUserIDAndPlanID(ctx context.Context, userID, planID int64) ([]service.UserSubscription, error) {
 	return nil, errors.New("not implemented")
 }

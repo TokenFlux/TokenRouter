@@ -174,6 +174,105 @@ func TestSimpleModeBypassesQuotaCheck(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, w.Code)
 	})
+
+	t.Run("standard_mode_ignores_subscription_from_different_group", func(t *testing.T) {
+		cfg := &config.Config{RunMode: config.RunModeStandard}
+		noBalanceUser := *user
+		noBalanceUser.Balance = 0
+		apiKeyForOpenAI := *apiKey
+		apiKeyForOpenAI.User = &noBalanceUser
+		apiKeyRepo := &stubApiKeyRepo{
+			getByKey: func(ctx context.Context, key string) (*service.APIKey, error) {
+				if key != apiKeyForOpenAI.Key {
+					return nil, service.ErrAPIKeyNotFound
+				}
+				clone := apiKeyForOpenAI
+				return &clone, nil
+			},
+		}
+		apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
+
+		otherGroupID := int64(999)
+		sub := &service.UserSubscription{
+			ID:        55,
+			UserID:    noBalanceUser.ID,
+			PlanID:    1,
+			Status:    service.SubscriptionStatusActive,
+			StartsAt:  time.Now().Add(-time.Hour),
+			ExpiresAt: time.Now().Add(24 * time.Hour),
+			Plan: &service.SubscriptionPlan{
+				ID:      1,
+				GroupID: &otherGroupID,
+			},
+		}
+		subscriptionRepo := &stubUserSubscriptionRepo{
+			listActive: func(ctx context.Context, userID int64) ([]service.UserSubscription, error) {
+				clone := *sub
+				return []service.UserSubscription{clone}, nil
+			},
+			listActiveByGroup: func(ctx context.Context, userID, groupID int64) ([]service.UserSubscription, error) {
+				require.Equal(t, noBalanceUser.ID, userID)
+				require.Equal(t, group.ID, groupID)
+				return nil, service.ErrSubscriptionNotFound
+			},
+		}
+		subscriptionService := service.NewSubscriptionService(nil, subscriptionRepo, nil, nil, cfg)
+		router := newAuthTestRouter(apiKeyService, subscriptionService, cfg)
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/t", nil)
+		req.Header.Set("x-api-key", apiKeyForOpenAI.Key)
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("standard_mode_accepts_subscription_bound_to_multiple_groups", func(t *testing.T) {
+		cfg := &config.Config{RunMode: config.RunModeStandard}
+		noBalanceUser := *user
+		noBalanceUser.Balance = 0
+		apiKeyForOpenAI := *apiKey
+		apiKeyForOpenAI.User = &noBalanceUser
+		apiKeyRepo := &stubApiKeyRepo{
+			getByKey: func(ctx context.Context, key string) (*service.APIKey, error) {
+				if key != apiKeyForOpenAI.Key {
+					return nil, service.ErrAPIKeyNotFound
+				}
+				clone := apiKeyForOpenAI
+				return &clone, nil
+			},
+		}
+		apiKeyService := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, cfg)
+
+		proGroupID := int64(99)
+		sub := &service.UserSubscription{
+			ID:        56,
+			UserID:    noBalanceUser.ID,
+			PlanID:    1,
+			Status:    service.SubscriptionStatusActive,
+			StartsAt:  time.Now().Add(-time.Hour),
+			ExpiresAt: time.Now().Add(24 * time.Hour),
+			Plan: &service.SubscriptionPlan{
+				ID:       1,
+				GroupIDs: []int64{group.ID, proGroupID},
+			},
+		}
+		subscriptionRepo := &stubUserSubscriptionRepo{
+			listActive: func(ctx context.Context, userID int64) ([]service.UserSubscription, error) {
+				clone := *sub
+				return []service.UserSubscription{clone}, nil
+			},
+		}
+		subscriptionService := service.NewSubscriptionService(nil, subscriptionRepo, nil, nil, cfg)
+		router := newAuthTestRouter(apiKeyService, subscriptionService, cfg)
+
+		w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/t", nil)
+		req.Header.Set("x-api-key", apiKeyForOpenAI.Key)
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+	})
 }
 
 func TestAPIKeyAuthSetsGroupContext(t *testing.T) {
@@ -1464,12 +1563,13 @@ func (r *stubApiKeyRepo) GetRateLimitData(ctx context.Context, id int64) (*servi
 }
 
 type stubUserSubscriptionRepo struct {
-	listActive     func(ctx context.Context, userID int64) ([]service.UserSubscription, error)
-	updateStatus   func(ctx context.Context, subscriptionID int64, status string) error
-	activateWindow func(ctx context.Context, id int64, start time.Time) error
-	resetDaily     func(ctx context.Context, id int64, start time.Time) error
-	resetWeekly    func(ctx context.Context, id int64, start time.Time) error
-	resetMonthly   func(ctx context.Context, id int64, start time.Time) error
+	listActive        func(ctx context.Context, userID int64) ([]service.UserSubscription, error)
+	listActiveByGroup func(ctx context.Context, userID, groupID int64) ([]service.UserSubscription, error)
+	updateStatus      func(ctx context.Context, subscriptionID int64, status string) error
+	activateWindow    func(ctx context.Context, id int64, start time.Time) error
+	resetDaily        func(ctx context.Context, id int64, start time.Time) error
+	resetWeekly       func(ctx context.Context, id int64, start time.Time) error
+	resetMonthly      func(ctx context.Context, id int64, start time.Time) error
 }
 
 func (r *stubUserSubscriptionRepo) Create(ctx context.Context, sub *service.UserSubscription) error {
@@ -1508,6 +1608,31 @@ func (r *stubUserSubscriptionRepo) ListActiveByUserID(ctx context.Context, userI
 		return r.listActive(ctx, userID)
 	}
 	return nil, errors.New("not implemented")
+}
+func (r *stubUserSubscriptionRepo) ListActiveByUserIDAndGroupID(ctx context.Context, userID, groupID int64) ([]service.UserSubscription, error) {
+	if r.listActiveByGroup != nil {
+		return r.listActiveByGroup(ctx, userID, groupID)
+	}
+	subs, err := r.ListActiveByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]service.UserSubscription, 0, len(subs))
+	for _, sub := range subs {
+		if sub.Plan == nil || subscriptionPlanContainsGroupForAuthTest(sub.Plan, groupID) {
+			filtered = append(filtered, sub)
+		}
+	}
+	return filtered, nil
+}
+
+func subscriptionPlanContainsGroupForAuthTest(plan *service.SubscriptionPlan, groupID int64) bool {
+	for _, id := range plan.GroupIDs {
+		if id == groupID {
+			return true
+		}
+	}
+	return plan.GroupID == nil || *plan.GroupID == groupID
 }
 func (r *stubUserSubscriptionRepo) ListByUserIDAndPlanID(ctx context.Context, userID, planID int64) ([]service.UserSubscription, error) {
 	return nil, errors.New("not implemented")

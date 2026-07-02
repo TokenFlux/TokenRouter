@@ -7,11 +7,18 @@ import { useAppStore } from '@/stores/app'
 
 const mockCreatePlan = vi.fn()
 const mockUpdatePlan = vi.fn()
+const mockGetGroupsByPlatform = vi.fn()
 
 vi.mock('@/api/admin/payment', () => ({
   adminPaymentAPI: {
     createPlan: (...args: unknown[]) => mockCreatePlan(...args),
     updatePlan: (...args: unknown[]) => mockUpdatePlan(...args)
+  }
+}))
+
+vi.mock('@/api/admin/groups', () => ({
+  groupsAPI: {
+    getByPlatform: (...args: unknown[]) => mockGetGroupsByPlatform(...args)
   }
 }))
 
@@ -39,6 +46,11 @@ function createTestI18n() {
             dailyLimit: 'Daily Limit',
             weeklyLimit: 'Weekly Limit',
             monthlyLimit: 'Monthly Limit',
+            boundGroup: 'Bound Group',
+            boundGroupPlaceholder: 'Select OpenAI groups',
+            boundGroupHint: 'Subscription plans only apply to API keys using selected OpenAI groups.',
+            boundGroupRequired: 'Select at least one OpenAI group',
+            unboundGroup: 'Unbound',
             features: 'Features',
             featuresPlaceholder: 'Features',
             featuresHint: 'Hint',
@@ -53,7 +65,9 @@ function createTestI18n() {
           save: 'Save',
           saving: 'Saving',
           saved: 'Saved',
-          error: 'Error'
+          error: 'Error',
+          loading: 'Loading',
+          noOptionsFound: 'No options found'
         }
       }
     }
@@ -76,24 +90,49 @@ function mountDialog() {
           props: ['show', 'title', 'width'],
           template: '<div v-if="show"><slot /><slot name="footer" /></div>'
         },
-        Select: {
-          props: ['modelValue', 'options'],
-          emits: ['update:modelValue'],
-          template: `
-            <select :value="modelValue" @change="$emit('update:modelValue', $event.target.value)">
-              <option v-for="option in options" :key="option.value" :value="option.value">{{ option.label }}</option>
-            </select>
-          `
-        }
       }
     }
   })
+}
+
+async function fillRequiredPlanFields(wrapper: ReturnType<typeof mount>) {
+  await wrapper.find('input[type="text"]').setValue('Starter')
+  await wrapper.find('textarea').setValue('Starter plan')
+  const numberInputs = wrapper.findAll('input[type="number"]')
+  await numberInputs[1].setValue('9.99')
+  await numberInputs[3].setValue('30')
+}
+
+async function selectFirstGroup(wrapper: ReturnType<typeof mount>) {
+  await flushPromises()
+  const checkboxes = wrapper.findAll('input[type="checkbox"]')
+  expect(checkboxes.length).toBeGreaterThan(0)
+  await checkboxes[0].setValue(true)
 }
 
 describe('PlanEditDialog', () => {
   beforeEach(() => {
     mockCreatePlan.mockReset()
     mockUpdatePlan.mockReset()
+    mockGetGroupsByPlatform.mockReset()
+    mockGetGroupsByPlatform.mockResolvedValue([
+      {
+        id: 11,
+        name: 'Plus OpenAI',
+        display_brand: 'Plus',
+        platform: 'openai',
+        status: 'active',
+        description: null
+      },
+      {
+        id: 12,
+        name: 'Pro OpenAI',
+        display_brand: 'Pro',
+        platform: 'openai',
+        status: 'active',
+        description: null
+      }
+    ])
   })
 
   it('submits unlimited plan when all quota limits are empty', async () => {
@@ -102,11 +141,8 @@ describe('PlanEditDialog', () => {
     const appStore = useAppStore()
     const showErrorSpy = vi.spyOn(appStore, 'showError')
 
-    const inputs = wrapper.findAll('input')
-    await inputs[0].setValue('Starter')
-    await wrapper.find('textarea').setValue('Starter plan')
-    await inputs[2].setValue('9.99')
-    await inputs[4].setValue('30')
+    await fillRequiredPlanFields(wrapper)
+    await selectFirstGroup(wrapper)
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
@@ -115,6 +151,7 @@ describe('PlanEditDialog', () => {
       expect.objectContaining({
         name: 'Starter',
         description: 'Starter plan',
+        group_ids: [11],
         price: 9.99,
         validity_days: 30,
         daily_limit_usd: null,
@@ -125,16 +162,41 @@ describe('PlanEditDialog', () => {
     expect(showErrorSpy).not.toHaveBeenCalled()
   })
 
+  it('loads OpenAI groups and submits selected plan groups', async () => {
+    mockCreatePlan.mockResolvedValue({})
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    expect(mockGetGroupsByPlatform).toHaveBeenCalledWith('openai')
+
+    const checkboxes = wrapper.findAll('input[type="checkbox"]')
+    await checkboxes[0].setValue(true)
+    await checkboxes[1].setValue(true)
+
+    await wrapper.find('input[type="text"]').setValue('Pro Plan')
+    await wrapper.find('textarea').setValue('Pro only')
+    const numberInputs = wrapper.findAll('input[type="number"]')
+    await numberInputs[1].setValue('29.99')
+    await numberInputs[3].setValue('30')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(mockCreatePlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Pro Plan',
+        group_ids: [11, 12]
+      })
+    )
+  })
+
   it('submits when at least one quota limit is set', async () => {
     mockCreatePlan.mockResolvedValue({})
     const wrapper = mountDialog()
 
-    const inputs = wrapper.findAll('input')
-    await inputs[0].setValue('Starter')
-    await wrapper.find('textarea').setValue('Starter plan')
-    await inputs[2].setValue('9.99')
-    await inputs[4].setValue('30')
-    await inputs[5].setValue('5')
+    await fillRequiredPlanFields(wrapper)
+    await selectFirstGroup(wrapper)
+    const numberInputs = wrapper.findAll('input[type="number"]')
+    await numberInputs[4].setValue('5')
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
@@ -156,14 +218,12 @@ describe('PlanEditDialog', () => {
     mockCreatePlan.mockResolvedValue({})
     const wrapper = mountDialog()
 
-    const inputs = wrapper.findAll('input')
-    await inputs[0].setValue('Starter')
-    await wrapper.find('textarea').setValue('Starter plan')
-    await inputs[2].setValue('9.99')
-    await inputs[4].setValue('30')
-    await inputs[5].setValue('10')
-    await inputs[6].setValue('0')
-    await inputs[7].setValue('100')
+    await fillRequiredPlanFields(wrapper)
+    await selectFirstGroup(wrapper)
+    const numberInputs = wrapper.findAll('input[type="number"]')
+    await numberInputs[4].setValue('10')
+    await numberInputs[5].setValue('0')
+    await numberInputs[6].setValue('100')
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 

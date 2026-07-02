@@ -187,7 +187,7 @@ func (p *nullableFloat64Patch) UnmarshalJSON(data []byte) error {
 }
 
 type CreatePlanRequest struct {
-	GroupID         int64    `json:"group_id"`
+	GroupIDs        []int64  `json:"group_ids"`
 	Name            string   `json:"name"`
 	Description     string   `json:"description"`
 	Price           float64  `json:"price"`
@@ -204,7 +204,7 @@ type CreatePlanRequest struct {
 }
 
 type UpdatePlanRequest struct {
-	GroupID         *int64               `json:"group_id"`
+	GroupIDs        []int64              `json:"group_ids"`
 	Name            *string              `json:"name"`
 	Description     *string              `json:"description"`
 	Price           *float64             `json:"price"`
@@ -240,6 +240,7 @@ func (s *PaymentConfigService) GetByID(ctx context.Context, id int64) (*Subscrip
 	}
 	return &SubscriptionPlan{
 		ID:              plan.ID,
+		GroupID:         plan.GroupID,
 		Name:            plan.Name,
 		Description:     plan.Description,
 		Price:           plan.Price,

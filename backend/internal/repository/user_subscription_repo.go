@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
@@ -65,7 +66,9 @@ func (r *userSubscriptionRepository) GetByID(ctx context.Context, id int64) (*se
 	m, err := client.UserSubscription.Query().
 		Where(usersubscription.IDEQ(id)).
 		WithUser().
-		WithPlan().
+		WithPlan(func(q *dbent.SubscriptionPlanQuery) {
+			q.WithGroups()
+		}).
 		WithAssignedByUser().
 		Only(ctx)
 	if err != nil {
@@ -188,6 +191,36 @@ func (r *userSubscriptionRepository) ListActiveByUserID(ctx context.Context, use
 		return nil, err
 	}
 	return userSubscriptionEntitiesToService(subs), nil
+}
+
+func (r *userSubscriptionRepository) ListActiveByUserIDAndGroupID(ctx context.Context, userID, groupID int64) ([]service.UserSubscription, error) {
+	client := clientFromContext(ctx, r.client)
+	now := time.Now()
+	subs, err := client.UserSubscription.Query().
+		Where(
+			usersubscription.UserIDEQ(userID),
+			usersubscription.StartsAtLTE(now),
+			usersubscription.ExpiresAtGT(now),
+			usersubscription.StatusIn(service.SubscriptionStatusActive, service.SubscriptionStatusPending),
+		).
+		WithPlan().
+		All(ctx)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]service.UserSubscription, 0, len(subs))
+	for _, sub := range userSubscriptionEntitiesToService(subs) {
+		if sub.Plan != nil && subscriptionPlanHasGroup(sub.Plan, groupID) {
+			filtered = append(filtered, sub)
+		}
+	}
+	sort.SliceStable(filtered, func(i, j int) bool {
+		if filtered[i].ExpiresAt.Equal(filtered[j].ExpiresAt) {
+			return filtered[i].StartsAt.Before(filtered[j].StartsAt)
+		}
+		return filtered[i].ExpiresAt.Before(filtered[j].ExpiresAt)
+	})
+	return filtered, nil
 }
 
 func (r *userSubscriptionRepository) ListByPlanID(ctx context.Context, planID int64, params pagination.PaginationParams) ([]service.UserSubscription, *pagination.PaginationResult, error) {
@@ -496,8 +529,9 @@ func subscriptionPlanEntityToService(plan *dbent.SubscriptionPlan) *service.Subs
 	if plan == nil {
 		return nil
 	}
-	return &service.SubscriptionPlan{
+	out := &service.SubscriptionPlan{
 		ID:              plan.ID,
+		GroupID:         plan.GroupID,
 		Name:            plan.Name,
 		Description:     plan.Description,
 		Price:           plan.Price,
@@ -514,6 +548,30 @@ func subscriptionPlanEntityToService(plan *dbent.SubscriptionPlan) *service.Subs
 		CreatedAt:       plan.CreatedAt,
 		UpdatedAt:       plan.UpdatedAt,
 	}
+	if len(plan.Edges.Groups) > 0 {
+		out.GroupIDs = make([]int64, 0, len(plan.Edges.Groups))
+		out.Groups = make([]service.Group, 0, len(plan.Edges.Groups))
+		for _, group := range plan.Edges.Groups {
+			if group == nil {
+				continue
+			}
+			out.GroupIDs = append(out.GroupIDs, group.ID)
+			out.Groups = append(out.Groups, *groupEntityToService(group))
+		}
+	}
+	return out
+}
+
+func subscriptionPlanHasGroup(plan *service.SubscriptionPlan, groupID int64) bool {
+	for _, id := range plan.GroupIDs {
+		if id == groupID {
+			return true
+		}
+	}
+	if plan.GroupID != nil && *plan.GroupID == groupID {
+		return true
+	}
+	return false
 }
 
 var _ service.UserSubscriptionRepository = (*userSubscriptionRepository)(nil)

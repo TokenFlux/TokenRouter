@@ -44,6 +44,38 @@
         </div>
       </div>
 
+      <div>
+        <label class="input-label">{{ t('payment.admin.boundGroup') }} <span class="text-red-500">*</span></label>
+        <div class="rounded-xl border border-primary-200 bg-white p-3 dark:border-dark-600 dark:bg-dark-950">
+          <div v-if="groupsLoading" class="text-sm text-gray-500 dark:text-gray-400">
+            {{ t('common.loading') }}
+          </div>
+          <div v-else-if="openAIGroups.length === 0" class="text-sm text-gray-500 dark:text-gray-400">
+            {{ t('common.noOptionsFound') }}
+          </div>
+          <div v-else class="grid grid-cols-1 gap-2 md:grid-cols-2">
+            <label
+              v-for="group in openAIGroups"
+              :key="group.id"
+              class="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-sm transition-colors hover:border-primary-300 hover:bg-primary-50/40 dark:border-dark-700 dark:hover:border-primary-500 dark:hover:bg-dark-800"
+            >
+              <input
+                type="checkbox"
+                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                :checked="planForm.group_ids.includes(group.id)"
+                @change="toggleGroup(group.id)"
+              />
+              <span class="min-w-0 flex-1 truncate text-gray-800 dark:text-gray-100">
+                {{ group.display_brand ? `${group.name} (${group.display_brand})` : group.name }}
+              </span>
+            </label>
+          </div>
+        </div>
+        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          {{ groupsLoading ? t('common.loading') : t('payment.admin.boundGroupHint') }}
+        </p>
+      </div>
+
       <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div>
           <label class="input-label">{{ t('payment.admin.dailyLimit') }}</label>
@@ -110,8 +142,10 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
+import { groupsAPI } from '@/api/admin/groups'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import type { SubscriptionPlan } from '@/types/payment'
+import type { AdminGroup } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 
@@ -129,10 +163,13 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const saving = ref(false)
+const groupsLoading = ref(false)
+const openAIGroups = ref<AdminGroup[]>([])
 const planFeaturesText = ref('')
 const planForm = reactive({
   name: '',
   description: '',
+  group_ids: [] as number[],
   price: 0,
   original_price: null as number | null,
   validity_days: 30,
@@ -155,10 +192,12 @@ watch(
   () => props.show,
   (visible) => {
     if (!visible) return
+    void loadOpenAIGroups()
     if (props.plan) {
       Object.assign(planForm, {
         name: props.plan.name,
         description: props.plan.description,
+        group_ids: [...(props.plan.group_ids?.length ? props.plan.group_ids : props.plan.group_id ? [props.plan.group_id] : [])],
         price: props.plan.price,
         original_price: props.plan.original_price ?? null,
         validity_days: props.plan.validity_days,
@@ -176,6 +215,7 @@ watch(
     Object.assign(planForm, {
       name: '',
       description: '',
+      group_ids: [],
       price: 0,
       original_price: null,
       validity_days: 30,
@@ -187,8 +227,21 @@ watch(
       for_sale: true
     })
     planFeaturesText.value = ''
-  }
+  },
+  { immediate: true }
 )
+
+async function loadOpenAIGroups() {
+  if (openAIGroups.value.length > 0 || groupsLoading.value) return
+  groupsLoading.value = true
+  try {
+    openAIGroups.value = await groupsAPI.getByPlatform('openai')
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t('common.error')))
+  } finally {
+    groupsLoading.value = false
+  }
+}
 
 function normalizeNullableNumber(value: number | null): number | null {
   if (value == null || Number.isNaN(value) || value <= 0) return null
@@ -205,10 +258,20 @@ function normalizeQuotaLimit(value: number | null): number | null {
   return value
 }
 
+function toggleGroup(groupID: number) {
+  const index = planForm.group_ids.indexOf(groupID)
+  if (index >= 0) {
+    planForm.group_ids.splice(index, 1)
+    return
+  }
+  planForm.group_ids.push(groupID)
+}
+
 function buildPlanPayload() {
   return {
     name: planForm.name.trim(),
     description: planForm.description.trim(),
+    group_ids: [...planForm.group_ids],
     price: planForm.price,
     original_price: normalizeNullableNumber(planForm.original_price),
     validity_days: planForm.validity_days,
@@ -237,6 +300,10 @@ async function handleSavePlan() {
   }
   if (!planForm.validity_days || planForm.validity_days < 1) {
     appStore.showError(t('payment.admin.validityDaysRequired'))
+    return
+  }
+  if (planForm.group_ids.length === 0) {
+    appStore.showError(t('payment.admin.boundGroupRequired'))
     return
   }
   const payload = buildPlanPayload()

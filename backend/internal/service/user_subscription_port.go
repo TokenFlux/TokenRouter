@@ -17,6 +17,7 @@ type UserSubscriptionRepository interface {
 	ListByUserID(ctx context.Context, userID int64) ([]UserSubscription, error)
 	ListByUserIDAndPlanID(ctx context.Context, userID, planID int64) ([]UserSubscription, error)
 	ListActiveByUserID(ctx context.Context, userID int64) ([]UserSubscription, error)
+	ListActiveByUserIDAndGroupID(ctx context.Context, userID, groupID int64) ([]UserSubscription, error)
 	ListByPlanID(ctx context.Context, planID int64, params pagination.PaginationParams) ([]UserSubscription, *pagination.PaginationResult, error)
 	List(ctx context.Context, params pagination.PaginationParams, userID, planID *int64, status, platform, sortBy, sortOrder string) ([]UserSubscription, *pagination.PaginationResult, error)
 	ListBySourceOrderID(ctx context.Context, sourceOrderID int64) ([]UserSubscription, error)

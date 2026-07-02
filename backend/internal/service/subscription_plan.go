@@ -4,6 +4,10 @@ import "time"
 
 type SubscriptionPlan struct {
 	ID              int64
+	GroupID         *int64
+	Group           *Group
+	GroupIDs        []int64
+	Groups          []Group
 	Name            string
 	Description     string
 	Price           float64

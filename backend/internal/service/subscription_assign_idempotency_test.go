@@ -88,6 +88,9 @@ func (userSubRepoNoop) ListByUserIDAndPlanID(context.Context, int64, int64) ([]U
 func (userSubRepoNoop) ListActiveByUserID(context.Context, int64) ([]UserSubscription, error) {
 	panic("unexpected ListActiveByUserID call")
 }
+func (userSubRepoNoop) ListActiveByUserIDAndGroupID(context.Context, int64, int64) ([]UserSubscription, error) {
+	panic("unexpected ListActiveByUserIDAndGroupID call")
+}
 func (userSubRepoNoop) ListByGroupID(context.Context, int64, pagination.PaginationParams) ([]UserSubscription, *pagination.PaginationResult, error) {
 	panic("unexpected ListByGroupID call")
 }
@@ -267,6 +270,20 @@ func (s *subscriptionUserSubRepoStub) ListActiveByUserID(_ context.Context, user
 		}
 	}
 	return out, nil
+}
+
+func (s *subscriptionUserSubRepoStub) ListActiveByUserIDAndGroupID(ctx context.Context, userID, groupID int64) ([]UserSubscription, error) {
+	subs, err := s.ListActiveByUserID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]UserSubscription, 0, len(subs))
+	for _, sub := range subs {
+		if sub.Plan != nil && sub.Plan.GroupID != nil && *sub.Plan.GroupID == groupID {
+			filtered = append(filtered, sub)
+		}
+	}
+	return filtered, nil
 }
 
 func (s *subscriptionUserSubRepoStub) ListBySourceOrderID(_ context.Context, sourceOrderID int64) ([]UserSubscription, error) {

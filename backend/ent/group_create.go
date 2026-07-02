@@ -14,6 +14,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/account"
 	"github.com/TokenFlux/TokenRouter/ent/apikey"
 	"github.com/TokenFlux/TokenRouter/ent/group"
+	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
 	"github.com/TokenFlux/TokenRouter/ent/usagelog"
 	"github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
@@ -582,6 +583,36 @@ func (_c *GroupCreate) AddDisabledPublicUsers(v ...*User) *GroupCreate {
 	return _c.AddDisabledPublicUserIDs(ids...)
 }
 
+// AddSubscriptionPlansV2IDs adds the "subscription_plans_v2" edge to the SubscriptionPlan entity by IDs.
+func (_c *GroupCreate) AddSubscriptionPlansV2IDs(ids ...int64) *GroupCreate {
+	_c.mutation.AddSubscriptionPlansV2IDs(ids...)
+	return _c
+}
+
+// AddSubscriptionPlansV2 adds the "subscription_plans_v2" edges to the SubscriptionPlan entity.
+func (_c *GroupCreate) AddSubscriptionPlansV2(v ...*SubscriptionPlan) *GroupCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddSubscriptionPlansV2IDs(ids...)
+}
+
+// AddSubscriptionPlanIDs adds the "subscription_plans" edge to the SubscriptionPlan entity by IDs.
+func (_c *GroupCreate) AddSubscriptionPlanIDs(ids ...int64) *GroupCreate {
+	_c.mutation.AddSubscriptionPlanIDs(ids...)
+	return _c
+}
+
+// AddSubscriptionPlans adds the "subscription_plans" edges to the SubscriptionPlan entity.
+func (_c *GroupCreate) AddSubscriptionPlans(v ...*SubscriptionPlan) *GroupCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddSubscriptionPlanIDs(ids...)
+}
+
 // Mutation returns the GroupMutation object of the builder.
 func (_c *GroupCreate) Mutation() *GroupMutation {
 	return _c.mutation
@@ -1101,6 +1132,42 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		createE.defaults()
 		_, specE := createE.createSpec()
 		edge.Target.Fields = specE.Fields
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.SubscriptionPlansV2IDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   group.SubscriptionPlansV2Table,
+			Columns: group.SubscriptionPlansV2PrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(subscriptionplan.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		createE := &SubscriptionPlanGroupCreate{config: _c.config, mutation: newSubscriptionPlanGroupMutation(_c.config, OpCreate)}
+		createE.defaults()
+		_, specE := createE.createSpec()
+		edge.Target.Fields = specE.Fields
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.SubscriptionPlansIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   group.SubscriptionPlansTable,
+			Columns: []string{group.SubscriptionPlansColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(subscriptionplan.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
