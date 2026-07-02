@@ -30,6 +30,21 @@ const qoderDSMLToolCallFixture = `<｜｜DSML｜｜tool_calls>
 </｜｜DSML｜｜invoke>
 </｜｜DSML｜｜tool_calls>`
 
+func cloneCredentials(src map[string]any) map[string]any {
+	if src == nil {
+		return nil
+	}
+	dst := make(map[string]any, len(src))
+	for key, value := range src {
+		if nested, ok := value.(map[string]any); ok {
+			dst[key] = cloneCredentials(nested)
+			continue
+		}
+		dst[key] = value
+	}
+	return dst
+}
+
 func qoderNoIndexNamedParallelToolCallEventsForTest() []qoder.SSEEvent {
 	return []qoder.SSEEvent{
 		{Type: "tool_call_delta", ToolName: "Bash", Arguments: `{"command":"pwd && date \"+%Y-%m-%d %H:%M:%S\" && uname -srm","description":"Show current dir, time, system info"}`},
