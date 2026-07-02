@@ -381,12 +381,12 @@ func TestAccountGetConfiguredRequestModels(t *testing.T) {
 			expected: nil,
 		},
 		{
-			name:     "qoder mapping only returns nil because request space is unrestricted",
+			name:     "qoder mapping only returns mapping keys for model list display",
 			platform: PlatformQoder,
 			credentials: map[string]any{
 				"model_mapping": map[string]any{"claude-opus-4-6": "ultimate"},
 			},
-			expected: nil,
+			expected: []string{"claude-opus-4-6"},
 		},
 		{
 			name:     "qoder explicit whitelist returns whitelist and mapping keys",

@@ -821,6 +821,9 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 func (a *Account) GetConfiguredRequestModels() []string {
 	mapping := a.GetModelMapping()
 	whitelist, _ := resolveFinalModelWhitelist(a.Platform, a.Credentials, mapping)
+	if a.Platform == PlatformQoder {
+		return configuredQoderRequestModels(mapping, whitelist)
+	}
 	if len(whitelist) == 0 {
 		return nil
 	}
@@ -833,6 +836,40 @@ func (a *Account) GetConfiguredRequestModels() []string {
 	// 无论白名单来自显式字段还是 legacy 自映射，白名单模型本身都可直接请求。
 	for model := range whitelist {
 		modelSet[model] = struct{}{}
+	}
+	models := make([]string, 0, len(modelSet))
+	for model := range modelSet {
+		models = append(models, model)
+	}
+	sort.Strings(models)
+	return models
+}
+
+// configuredQoderRequestModels treats model_mapping keys as the Qoder
+// request/display model set. If no mapping is configured, model_whitelist can
+// still act as an explicit request model list for whitelist-only accounts.
+func configuredQoderRequestModels(mapping map[string]string, whitelist map[string]struct{}) []string {
+	if len(mapping) == 0 && len(whitelist) == 0 {
+		return nil
+	}
+	modelSet := make(map[string]struct{}, len(mapping)+len(whitelist))
+	if len(mapping) > 0 {
+		for rawModel := range mapping {
+			model := strings.TrimSpace(rawModel)
+			if model != "" {
+				modelSet[model] = struct{}{}
+			}
+		}
+	} else {
+		for rawModel := range whitelist {
+			model := strings.TrimSpace(rawModel)
+			if model != "" {
+				modelSet[model] = struct{}{}
+			}
+		}
+	}
+	if len(modelSet) == 0 {
+		return nil
 	}
 	models := make([]string, 0, len(modelSet))
 	for model := range modelSet {

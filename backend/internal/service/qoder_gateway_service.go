@@ -55,9 +55,9 @@ var qoderClaudeBillingCCHRe = regexp.MustCompile(`(x-anthropic-billing-header:[^
 // lock and no rotated credentials have appeared in the database yet.
 var ErrQoderRefreshInProgress = errors.New("qoder refresh in progress")
 
-// defaultQoderModelAliases maps TokenRouter request-side aliases to Qoder API
-// keys. Keep this public surface small: raw Qoder route keys stay internal
-// unless they are intentionally exposed as readable request aliases.
+// defaultQoderModelAliases maps fallback TokenRouter request-side aliases to
+// Qoder API keys. Account model_mapping is authoritative for configured Qoder
+// accounts, so this table is only a compatibility/default surface.
 var defaultQoderModelAliases = map[string]qoderModelInfo{
 	// Confirmed Claude Opus 4.6 via encrypted reasoning metadata.
 	"claude-opus-4-6": {Key: "ultimate", Source: "system", Provider: "Claude", Notes: "Confirmed Claude Opus 4.6 via encrypted reasoning metadata.", DisplayName: "Claude Opus 4.6"},
@@ -71,20 +71,23 @@ var defaultQoderModelAliases = map[string]qoderModelInfo{
 	// Qoder UI exposes these provider model names; map readable public aliases to internal Qoder route keys.
 	"qwen3.7-max":       {Key: "qmodel_latest", Source: "system", Provider: "Qwen", Notes: "Qoder UI model name Qwen3.7-Max.", DisplayName: "Qwen3.7-Max"},
 	"qwen3.7-plus":      {Key: "qmodel", Source: "system", Provider: "Qwen", Notes: "Qoder UI model name Qwen3.7-Plus.", DisplayName: "Qwen3.7-Plus"},
-	"qwen3.5-plus":      {Key: "q35model", Source: "system", Provider: "Qwen", Notes: "Qoder UI model name Qwen3.5-Plus.", DisplayName: "Qwen3.5-Plus"},
 	"deepseek-v4-pro":   {Key: "dmodel", Source: "system", Provider: "DeepSeek", Notes: "Qoder UI model name DeepSeek-V4-Pro.", DisplayName: "DeepSeek-V4-Pro"},
 	"deepseek-v4-flash": {Key: "dfmodel", Source: "system", Provider: "DeepSeek", Notes: "Qoder UI model name DeepSeek-V4-Flash.", DisplayName: "DeepSeek-V4-Flash"},
-	"glm-5":             {Key: "gmodel", Source: "system", Provider: "GLM", Notes: "Qoder UI model name GLM-5.", DisplayName: "GLM-5"},
-	"glm-5.1":           {Key: "gm51model", Source: "system", Provider: "GLM", Notes: "Qoder UI model name GLM-5.1.", DisplayName: "GLM-5.1"},
-	"kimi-k2.6":         {Key: "kmodel", Source: "system", Provider: "Kimi", Notes: "Qoder UI model name Kimi-K2.6.", DisplayName: "Kimi-K2.6"},
+	"glm-5.2":           {Key: "gm51model", Source: "system", Provider: "GLM", Notes: "Qoder UI model name GLM-5.2.", DisplayName: "GLM-5.2"},
+	"kimi-k2.7-code":    {Key: "kmodel", Source: "system", Provider: "Kimi", Notes: "Qoder UI model name Kimi-K2.7-Code.", DisplayName: "Kimi-K2.7-Code"},
 	"minimax-m3":        {Key: "mmodel", Source: "system", Provider: "MiniMax", Notes: "Qoder UI model name MiniMax-M3.", DisplayName: "MiniMax-M3"},
 }
 
 var qoderCompatModelAliases = map[string]qoderModelInfo{
 	// Compatibility only: existing configs may still contain the raw Qoder key.
 	"ultimate": {Key: "ultimate", Source: "system", Provider: "Claude", Notes: "Compatibility alias for Qoder ultimate; expose claude-opus-4-6 instead.", DisplayName: "Claude Opus 4.6"},
-	// Compatibility only: keep resolving the old inferred Kimi label, but expose kimi-k2.6 in defaults.
-	"kimi-k2.7-code": {Key: "kmodel", Source: "system", Provider: "Kimi", Notes: "Compatibility alias for Qoder Kimi route; expose kimi-k2.6 instead.", DisplayName: "Kimi-K2.6"},
+	// Compatibility only: Qoder CLI no longer lists these routes by default, but old configs may still refer to them.
+	"qwen3.5-plus": {Key: "q35model", Source: "system", Provider: "Qwen", Notes: "Compatibility alias for old Qoder Qwen3.5-Plus display name.", DisplayName: "Qwen3.5-Plus"},
+	"glm-5":        {Key: "gmodel", Source: "system", Provider: "GLM", Notes: "Compatibility alias for old Qoder GLM-5 display name.", DisplayName: "GLM-5"},
+	// Compatibility only: Qoder renamed the displayed GLM route from GLM-5.1 to GLM-5.2 while keeping gm51model.
+	"glm-5.1": {Key: "gm51model", Source: "system", Provider: "GLM", Notes: "Compatibility alias for old Qoder GLM-5.1 display name; expose glm-5.2 instead.", DisplayName: "GLM-5.2"},
+	// Compatibility only: keep resolving the old inferred Kimi label, but expose kimi-k2.7-code in defaults.
+	"kimi-k2.6": {Key: "kmodel", Source: "system", Provider: "Kimi", Notes: "Compatibility alias for old Qoder Kimi display name; expose kimi-k2.7-code instead.", DisplayName: "Kimi-K2.7-Code"},
 }
 
 type qoderModelInfo struct {

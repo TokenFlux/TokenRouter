@@ -328,12 +328,10 @@ func TestAccountHandlerGetAvailableModels_QoderFallsBackToDefaults(t *testing.T)
 		"lite",
 		"qwen3.7-max",
 		"qwen3.7-plus",
-		"qwen3.5-plus",
 		"deepseek-v4-pro",
 		"deepseek-v4-flash",
-		"glm-5",
-		"glm-5.1",
-		"kimi-k2.6",
+		"glm-5.2",
+		"kimi-k2.7-code",
 		"minimax-m3",
 	}, ids)
 	require.NotContains(t, ids, "ultimate")
@@ -376,8 +374,8 @@ func TestAccountHandlerGetAvailableModels_QoderUsesConfiguredModels(t *testing.T
 	for _, model := range resp.Data {
 		ids = append(ids, model.ID)
 	}
-	require.ElementsMatch(t, []string{"custom-qoder-model", "qmodel"}, ids,
-		"available models follow GetConfiguredRequestModels: mapping keys plus final whitelist models")
+	require.ElementsMatch(t, []string{"custom-qoder-model"}, ids,
+		"available models are driven by Qoder model_mapping keys when mapping is configured")
 }
 
 func TestAccountHandlerSyncUpstreamModels_ConfigErrorReturnsBadRequest(t *testing.T) {

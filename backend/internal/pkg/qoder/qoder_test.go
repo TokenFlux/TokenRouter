@@ -253,12 +253,10 @@ func TestDefaultModels(t *testing.T) {
 		"lite",
 		"qwen3.7-max",
 		"qwen3.7-plus",
-		"qwen3.5-plus",
 		"deepseek-v4-pro",
 		"deepseek-v4-flash",
-		"glm-5",
-		"glm-5.1",
-		"kimi-k2.6",
+		"glm-5.2",
+		"kimi-k2.7-code",
 		"minimax-m3",
 	}
 	if len(ids) != len(want) {

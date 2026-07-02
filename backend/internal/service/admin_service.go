@@ -24,6 +24,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 	"github.com/TokenFlux/TokenRouter/internal/util/httputil"
 )
@@ -1781,6 +1782,8 @@ func defaultModelsListCandidateIDs(platform string) []string {
 			ids = append(ids, model.ID)
 		}
 		return ids
+	case PlatformQoder:
+		return qoder.DefaultRequestModelIDs()
 	case PlatformGrok:
 		return xai.DefaultModelIDs()
 	default:

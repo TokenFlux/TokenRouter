@@ -55,7 +55,7 @@ describe('useModelWhitelist', () => {
     expect(models).toContain('gemini-3-pro-image')
   })
 
-  it('qoder 模型列表包含当前支持的官方模型', () => {
+  it('qoder 模型列表提供创建账号快捷候选且不暴露旧 route key', () => {
     const models = getModelsByPlatform('qoder')
 
     expect(models).toEqual([
@@ -66,52 +66,54 @@ describe('useModelWhitelist', () => {
       'lite',
       'qwen3.7-max',
       'qwen3.7-plus',
-      'qwen3.5-plus',
       'deepseek-v4-pro',
       'deepseek-v4-flash',
-      'glm-5',
-      'glm-5.1',
-      'kimi-k2.6',
+      'glm-5.2',
+      'kimi-k2.7-code',
       'minimax-m3'
     ])
     expect(models).not.toContain('ultimate')
     expect(models).not.toContain('qmodel_latest')
     expect(models).not.toContain('mmodel')
     expect(models).not.toContain('quest-ultimate')
+    expect(models).not.toContain('qwen3.5-plus')
+    expect(models).not.toContain('glm-5')
+    expect(models).not.toContain('glm-5.1')
   })
 
-  it('qoder 默认账号不会把公开模型列表写进 model_mapping', () => {
-    expect(buildPersistedModelRestriction(getModelsByPlatform('qoder'), [])).toEqual({
+  it('qoder 默认账号未触碰模型限制时不会生成限制配置', () => {
+    expect(buildPersistedModelRestriction([], [])).toEqual({
       modelMapping: null,
-      modelWhitelist: getModelsByPlatform('qoder')
+      modelWhitelist: []
     })
   })
 
-  it('qoder 预设映射覆盖所有默认公开模型', () => {
+  it('qoder 预设映射跟随当前 Qoder CLI 可见模型', () => {
     const presets = getPresetMappingsByPlatform('qoder')
 
-    expect(presets.map((preset) => preset.from)).toEqual(getModelsByPlatform('qoder'))
-    expect(Object.fromEntries(presets.map((preset) => [preset.from, preset.to]))).toEqual({
-      'claude-opus-4-6': 'ultimate',
-      auto: 'auto',
-      performance: 'performance',
-      efficient: 'efficient',
-      lite: 'lite',
-      'qwen3.7-max': 'qmodel_latest',
-      'qwen3.7-plus': 'qmodel',
-      'qwen3.5-plus': 'q35model',
-      'deepseek-v4-pro': 'dmodel',
-      'deepseek-v4-flash': 'dfmodel',
-      'glm-5': 'gmodel',
-      'glm-5.1': 'gm51model',
-      'kimi-k2.6': 'kmodel',
-      'minimax-m3': 'mmodel'
-    })
+    expect(presets.map(preset => [preset.from, preset.to])).toEqual([
+      ['claude-opus-4-6', 'ultimate'],
+      ['auto', 'auto'],
+      ['performance', 'performance'],
+      ['efficient', 'efficient'],
+      ['lite', 'lite'],
+      ['qwen3.7-max', 'qmodel_latest'],
+      ['qwen3.7-plus', 'qmodel'],
+      ['deepseek-v4-pro', 'dmodel'],
+      ['deepseek-v4-flash', 'dfmodel'],
+      ['glm-5.2', 'gm51model'],
+      ['kimi-k2.7-code', 'kmodel'],
+      ['minimax-m3', 'mmodel']
+    ])
+    expect(presets.map(preset => preset.from)).not.toContain('qwen3.5-plus')
+    expect(presets.map(preset => preset.from)).not.toContain('glm-5')
   })
 
-  it('qoder 公开别名到上游 route key 的映射只作为预设规则使用', () => {
+  it('qoder 公开别名到上游 route key 仅用于创建账号快捷填充', () => {
     expect(qoderModelKeyByPublicAlias('claude-opus-4-6')).toBe('ultimate')
+    expect(qoderModelKeyByPublicAlias('glm-5.2')).toBe('gm51model')
     expect(qoderModelKeyByPublicAlias('minimax-m3')).toBe('mmodel')
+    expect(qoderModelKeyByPublicAlias('qwen3.5-plus')).toBeUndefined()
     expect(qoderModelKeyByPublicAlias('custom-model')).toBeUndefined()
   })
 

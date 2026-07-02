@@ -169,17 +169,27 @@ describe('CreateAccountModal Qoder model restriction', () => {
     expect(payload.credentials.model_whitelist).toBeUndefined()
   })
 
-  it('persists Qoder whitelist without generated mappings after explicit whitelist edit on manual create', async () => {
+  it('persists Qoder model_mapping after explicit mapping edit on manual create', async () => {
     const wrapper = mountModal()
     await fillQoderManualForm(wrapper)
 
-    await wrapper.get('[data-testid="rewrite-to-qoder-defaults"]').trigger('click')
+    const addMappingButton = wrapper.findAll('button').find(button => button.text().includes('admin.accounts.addMapping'))
+    expect(addMappingButton).toBeTruthy()
+    await addMappingButton!.trigger('click')
+
+    const requestInput = wrapper.findAll('input').find(input => input.attributes('placeholder') === 'admin.accounts.requestModel')
+    const targetInput = wrapper.findAll('input').find(input => input.attributes('placeholder') === 'admin.accounts.actualModel')
+    expect(requestInput).toBeTruthy()
+    expect(targetInput).toBeTruthy()
+    await requestInput!.setValue('glm-5.2')
+    await targetInput!.setValue('gm51model')
+
     await wrapper.get('form#create-account-form').trigger('submit.prevent')
     await flushPromises()
 
     expect(createAccountMock).toHaveBeenCalledTimes(1)
     const payload = createAccountMock.mock.calls[0]?.[0]
-    expect(payload.credentials.model_mapping).toBeUndefined()
-    expect(payload.credentials.model_whitelist).toEqual(['claude-opus-4-6', 'auto'])
+    expect(payload.credentials.model_mapping).toEqual({ 'glm-5.2': 'gm51model' })
+    expect(payload.credentials.model_whitelist).toEqual([])
   })
 })

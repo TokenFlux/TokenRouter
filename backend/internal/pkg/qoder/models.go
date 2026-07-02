@@ -8,8 +8,9 @@ type Model struct {
 	CreatedAt   string `json:"created_at"`
 }
 
-// DefaultModels are the request-side model aliases currently supported by the
-// TokenRouter Qoder COSY adapter.
+// DefaultModels are only fallback request-side model aliases. For Qoder
+// accounts with model_mapping configured, model_mapping keys are the source of
+// the exposed request/display model list.
 var DefaultModels = []Model{
 	{ID: "claude-opus-4-6", Type: "model", DisplayName: "Claude Opus 4.6", CreatedAt: ""},
 	{ID: "auto", Type: "model", DisplayName: "Qoder Auto", CreatedAt: ""},
@@ -18,12 +19,10 @@ var DefaultModels = []Model{
 	{ID: "lite", Type: "model", DisplayName: "Qoder Lite", CreatedAt: ""},
 	{ID: "qwen3.7-max", Type: "model", DisplayName: "Qwen3.7-Max", CreatedAt: ""},
 	{ID: "qwen3.7-plus", Type: "model", DisplayName: "Qwen3.7-Plus", CreatedAt: ""},
-	{ID: "qwen3.5-plus", Type: "model", DisplayName: "Qwen3.5-Plus", CreatedAt: ""},
 	{ID: "deepseek-v4-pro", Type: "model", DisplayName: "DeepSeek-V4-Pro", CreatedAt: ""},
 	{ID: "deepseek-v4-flash", Type: "model", DisplayName: "DeepSeek-V4-Flash", CreatedAt: ""},
-	{ID: "glm-5", Type: "model", DisplayName: "GLM-5", CreatedAt: ""},
-	{ID: "glm-5.1", Type: "model", DisplayName: "GLM-5.1", CreatedAt: ""},
-	{ID: "kimi-k2.6", Type: "model", DisplayName: "Kimi-K2.6", CreatedAt: ""},
+	{ID: "glm-5.2", Type: "model", DisplayName: "GLM-5.2", CreatedAt: ""},
+	{ID: "kimi-k2.7-code", Type: "model", DisplayName: "Kimi-K2.7-Code", CreatedAt: ""},
 	{ID: "minimax-m3", Type: "model", DisplayName: "MiniMax-M3", CreatedAt: ""},
 }
 

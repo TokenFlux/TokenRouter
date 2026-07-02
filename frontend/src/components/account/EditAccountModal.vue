@@ -2461,7 +2461,6 @@ import {
 } from '@/utils/openaiWsMode'
 import {
   getPresetMappingsByPlatform,
-  getModelsByPlatform,
   commonErrorCodes,
   buildModelMappingObject,
   buildPersistedModelRestriction,
@@ -3029,9 +3028,9 @@ const hydrateQoderModelRestrictionFromMapping = (
   qoderModelRestrictionTouched.value = false
   qoderModelWhitelistTouched.value = false
   if (!qoderModelRestrictionConfigured.value) {
-    allowedModels.value = [...getModelsByPlatform('qoder')]
+    allowedModels.value = []
     modelMappings.value = []
-    modelRestrictionMode.value = 'whitelist'
+    modelRestrictionMode.value = 'mapping'
     return
   }
 

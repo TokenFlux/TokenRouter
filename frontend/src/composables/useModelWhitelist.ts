@@ -77,6 +77,8 @@ const antigravityModels = [
   'tab_flash_lite_preview'
 ]
 
+// Qoder 上游模型变化较快。账号级 model_mapping 的 key 才是 Qoder
+// 前端/客户端应展示的请求模型；这里仅保留创建账号时的快捷候选。
 const qoderModels = [
   'claude-opus-4-6',
   'auto',
@@ -85,12 +87,10 @@ const qoderModels = [
   'lite',
   'qwen3.7-max',
   'qwen3.7-plus',
-  'qwen3.5-plus',
   'deepseek-v4-pro',
   'deepseek-v4-flash',
-  'glm-5',
-  'glm-5.1',
-  'kimi-k2.6',
+  'glm-5.2',
+  'kimi-k2.7-code',
   'minimax-m3'
 ]
 
@@ -302,31 +302,16 @@ const qoderPresetMappings = [
   { label: 'Lite', from: 'lite', to: 'lite', color: 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400' },
   { label: 'Qwen 3.7 Max', from: 'qwen3.7-max', to: 'qmodel_latest', color: 'bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/30 dark:text-sky-400' },
   { label: 'Qwen 3.7 Plus', from: 'qwen3.7-plus', to: 'qmodel', color: 'bg-cyan-100 text-cyan-700 hover:bg-cyan-200 dark:bg-cyan-900/30 dark:text-cyan-400' },
-  { label: 'Qwen 3.5 Plus', from: 'qwen3.5-plus', to: 'q35model', color: 'bg-teal-100 text-teal-700 hover:bg-teal-200 dark:bg-teal-900/30 dark:text-teal-400' },
   { label: 'DeepSeek V4 Pro', from: 'deepseek-v4-pro', to: 'dmodel', color: 'bg-rose-100 text-rose-700 hover:bg-rose-200 dark:bg-rose-900/30 dark:text-rose-400' },
   { label: 'DeepSeek V4 Flash', from: 'deepseek-v4-flash', to: 'dfmodel', color: 'bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400' },
-  { label: 'GLM 5', from: 'glm-5', to: 'gmodel', color: 'bg-violet-100 text-violet-700 hover:bg-violet-200 dark:bg-violet-900/30 dark:text-violet-400' },
-  { label: 'GLM 5.1', from: 'glm-5.1', to: 'gm51model', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400' },
-  { label: 'Kimi K2.6', from: 'kimi-k2.6', to: 'kmodel', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400' },
+  { label: 'GLM 5.2', from: 'glm-5.2', to: 'gm51model', color: 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400' },
+  { label: 'Kimi K2.7 Code', from: 'kimi-k2.7-code', to: 'kmodel', color: 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/30 dark:text-amber-400' },
   { label: 'MiniMax M3', from: 'minimax-m3', to: 'mmodel', color: 'bg-lime-100 text-lime-700 hover:bg-lime-200 dark:bg-lime-900/30 dark:text-lime-400' }
 ]
 
-const qoderModelKeyByAlias: Record<string, string> = {
-  'claude-opus-4-6': 'ultimate',
-  auto: 'auto',
-  performance: 'performance',
-  efficient: 'efficient',
-  lite: 'lite',
-  'qwen3.7-max': 'qmodel_latest',
-  'qwen3.7-plus': 'qmodel',
-  'qwen3.5-plus': 'q35model',
-  'deepseek-v4-pro': 'dmodel',
-  'deepseek-v4-flash': 'dfmodel',
-  'glm-5': 'gmodel',
-  'glm-5.1': 'gm51model',
-  'kimi-k2.6': 'kmodel',
-  'minimax-m3': 'mmodel'
-}
+const qoderModelKeyByAlias: Record<string, string> = Object.fromEntries(
+  qoderPresetMappings.map(({ from, to }) => [from, to])
+)
 
 const grokPresetMappings = [
   { label: 'Grok 4.3', from: 'grok-4.3', to: 'grok-4.3', color: 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800/50 dark:text-slate-300' },

@@ -97,7 +97,7 @@ func TestAccountGetConfiguredRequestModels_QoderMappingWhitelistSemantics(t *tes
 			},
 		},
 	}
-	require.Nil(t, mappingOnly.GetConfiguredRequestModels())
+	require.Equal(t, []string{"claude-opus-4-6"}, mappingOnly.GetConfiguredRequestModels())
 
 	withWhitelist := &Account{
 		Platform: PlatformQoder,
@@ -108,5 +108,13 @@ func TestAccountGetConfiguredRequestModels_QoderMappingWhitelistSemantics(t *tes
 			"model_whitelist": []any{"ultimate"},
 		},
 	}
-	require.Equal(t, []string{"claude-opus-4-6", "ultimate"}, withWhitelist.GetConfiguredRequestModels())
+	require.Equal(t, []string{"claude-opus-4-6"}, withWhitelist.GetConfiguredRequestModels())
+
+	whitelistOnly := &Account{
+		Platform: PlatformQoder,
+		Credentials: map[string]any{
+			"model_whitelist": []any{"claude-opus-4-6", "glm-5.2"},
+		},
+	}
+	require.Equal(t, []string{"claude-opus-4-6", "glm-5.2"}, whitelistOnly.GetConfiguredRequestModels())
 }

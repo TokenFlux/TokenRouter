@@ -4423,7 +4423,7 @@ watch(
         .then(routers => { tlsFingerprintRouters.value = routers.map(router => ({ id: router.id, name: router.name })) })
         .catch(() => { tlsFingerprintRouters.value = [] })
       // Modal opened - fill related models
-      allowedModels.value = [...getModelsByPlatform(form.platform)]
+      allowedModels.value = form.platform === 'qoder' ? [] : [...getModelsByPlatform(form.platform)]
       if (isOpenAIOAuthImportDefaultsTarget.value) {
         void loadOpenAIOAuthImportDefaults()
       }
@@ -4498,9 +4498,11 @@ watch(
           : newPlatform === 'grok'
             ? 'https://api.x.ai/v1'
             : 'https://api.anthropic.com'
-    // 切换平台时旧平台模型不再适用，重置为新平台默认白名单。
-    allowedModels.value = [...getModelsByPlatform(newPlatform)]
+    // 切换平台时旧平台模型不再适用。Qoder 由账号 model_mapping
+    // 配置展示/请求模型，默认不填充会过期的前端硬编码白名单。
+    allowedModels.value = newPlatform === 'qoder' ? [] : [...getModelsByPlatform(newPlatform)]
     modelMappings.value = []
+    modelRestrictionMode.value = (newPlatform === 'qoder' || newPlatform === 'grok') ? 'mapping' : 'whitelist'
     qoderModelRestrictionTouched.value = false
     qoderModelWhitelistTouched.value = false
     // Antigravity: 默认使用映射模式并填充默认映射

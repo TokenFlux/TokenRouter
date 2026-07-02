@@ -1126,6 +1126,7 @@ func (s *AccountTestService) testQoderAccountConnection(c *gin.Context, account 
 	if err != nil {
 		return s.sendErrorAndEnd(c, "Failed to encode Qoder test payload")
 	}
+	requestBody = applyQoderAccountModelMapping(account, requestBody)
 	payload, modelKey, err := BuildQoderPayloadFromChatCompletions(requestBody, qoderUserType(account))
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build Qoder test payload: %s", err.Error()))
