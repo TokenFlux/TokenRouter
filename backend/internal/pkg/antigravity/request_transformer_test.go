@@ -565,3 +565,62 @@ func TestTransformClaudeToGeminiWithOptions_PreservesWebSearchAlongsideFunctions
 	require.Equal(t, "get_weather", req.Request.Tools[0].FunctionDeclarations[0].Name)
 	require.NotNil(t, req.Request.Tools[1].GoogleSearch)
 }
+
+func TestTransformClaudeToGeminiWithOptions_GeminiReasoningSkipsInvalidArguments(t *testing.T) {
+	temperature := 0.7
+	topP := 0.9
+	topK := 40
+	claudeReq := &ClaudeRequest{
+		Model:       "claude-3-5-sonnet-latest",
+		MaxTokens:   4096,
+		Temperature: &temperature,
+		TopP:        &topP,
+		TopK:        &topK,
+		Messages: []ClaudeMessage{
+			{
+				Role:    "user",
+				Content: json.RawMessage(`"hello"`),
+			},
+		},
+	}
+
+	body, err := TransformClaudeToGeminiWithOptions(claudeReq, "project-1", "gemini-3.1-pro-high", DefaultTransformOptions())
+	require.NoError(t, err)
+
+	var req V1InternalRequest
+	require.NoError(t, json.Unmarshal(body, &req))
+	require.Nil(t, req.Request.ToolConfig)
+	require.NotNil(t, req.Request.GenerationConfig)
+	require.Nil(t, req.Request.GenerationConfig.Temperature)
+	require.Nil(t, req.Request.GenerationConfig.TopP)
+	require.Nil(t, req.Request.GenerationConfig.TopK)
+	require.Empty(t, req.Request.GenerationConfig.StopSequences)
+	require.Equal(t, 4096, req.Request.GenerationConfig.MaxOutputTokens)
+}
+
+func TestTransformClaudeToGeminiWithOptions_GeminiReasoningKeepsToolConfigWithTools(t *testing.T) {
+	claudeReq := &ClaudeRequest{
+		Model: "claude-3-5-sonnet-latest",
+		Messages: []ClaudeMessage{
+			{
+				Role:    "user",
+				Content: json.RawMessage(`"hello"`),
+			},
+		},
+		Tools: []ClaudeTool{{
+			Name:        "get_weather",
+			Description: "Get weather information",
+			InputSchema: map[string]any{"type": "object"},
+		}},
+	}
+
+	body, err := TransformClaudeToGeminiWithOptions(claudeReq, "project-1", "gemini-3.1-pro-high", DefaultTransformOptions())
+	require.NoError(t, err)
+
+	var req V1InternalRequest
+	require.NoError(t, json.Unmarshal(body, &req))
+	require.NotNil(t, req.Request.ToolConfig)
+	require.NotNil(t, req.Request.ToolConfig.FunctionCallingConfig)
+	require.Equal(t, "VALIDATED", req.Request.ToolConfig.FunctionCallingConfig.Mode)
+	require.Len(t, req.Request.Tools, 1)
+}

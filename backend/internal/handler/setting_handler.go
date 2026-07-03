@@ -7,6 +7,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/handler/dto"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -91,6 +92,8 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		BackendModeEnabled:               settings.BackendModeEnabled,
 		PaymentEnabled:                   settings.PaymentEnabled,
 		Version:                          h.version,
+		ServerTimezone:                   timezone.Name(),
+		ServerUTCOffset:                  timezone.UTCOffset(),
 		BalanceUnitName:                  settings.BalanceUnitName,
 		BalanceUnitSymbol:                settings.BalanceUnitSymbol,
 		BalanceIconSVG:                   settings.BalanceIconSVG,

@@ -576,6 +576,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_InjectsCodexImag
 	upstreamPayload := requestToJSONString(captureConn.writes[0])
 	require.True(t, gjson.Get(upstreamPayload, `tools.#(type=="image_generation")`).Exists())
 	require.Equal(t, "png", gjson.Get(upstreamPayload, `tools.#(type=="image_generation").output_format`).String())
+	require.Equal(t, "auto", gjson.Get(upstreamPayload, "tool_choice").String())
 	require.Contains(t, gjson.Get(upstreamPayload, "instructions").String(), "image_generation")
 }
 
@@ -857,6 +858,157 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 
 	require.Equal(t, 1, captureDialer.DialCount(), "passthrough 模式应直接建立上游 websocket")
 	require.Len(t, upstreamConn.writes, 1, "passthrough 模式应透传首条 response.create")
+}
+
+func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRelaysHTTPStream(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := &config.Config{}
+	cfg.Security.URLAllowlist.Enabled = false
+	cfg.Security.URLAllowlist.AllowInsecureHTTP = true
+	cfg.Gateway.OpenAIWS.Enabled = true
+	cfg.Gateway.OpenAIWS.OAuthEnabled = true
+	cfg.Gateway.OpenAIWS.APIKeyEnabled = true
+	cfg.Gateway.OpenAIWS.ResponsesWebsocketsV2 = true
+	cfg.Gateway.OpenAIWS.ModeRouterV2Enabled = true
+	cfg.Gateway.OpenAIWS.IngressModeDefault = OpenAIWSIngressModeCtxPool
+	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 3
+	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
+
+	upstream := &httpUpstreamRecorder{
+		resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_bridge_1"}},
+			Body: io.NopCloser(strings.NewReader(
+				"data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\n" +
+					"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_http_bridge_1\",\"usage\":{\"input_tokens\":2,\"output_tokens\":1,\"input_tokens_details\":{\"cached_tokens\":1}}}}\n\n" +
+					"data: [DONE]\n\n",
+			)),
+		},
+	}
+	svc := &OpenAIGatewayService{
+		cfg:              cfg,
+		httpUpstream:     upstream,
+		cache:            &stubGatewayCache{},
+		openaiWSResolver: NewOpenAIWSProtocolResolver(cfg),
+		toolCorrector:    NewCodexToolCorrector(),
+	}
+
+	account := &Account{
+		ID:          552,
+		Name:        "openai-ingress-http-bridge",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Status:      StatusActive,
+		Schedulable: true,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"api_key": "sk-test",
+		},
+		Extra: map[string]any{
+			"openai_apikey_responses_websockets_v2_mode": OpenAIWSIngressModeHTTPBridge,
+		},
+	}
+
+	serverErrCh := make(chan error, 1)
+	resultCh := make(chan *OpenAIForwardResult, 1)
+	hooks := &OpenAIWSIngressHooks{
+		AfterTurn: func(capture OpenAIWSTurnCapture) {
+			if capture.Err == nil && capture.Result != nil {
+				resultCh <- capture.Result
+			}
+		},
+	}
+
+	wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := coderws.Accept(w, r, &coderws.AcceptOptions{
+			CompressionMode: coderws.CompressionContextTakeover,
+		})
+		if err != nil {
+			serverErrCh <- err
+			return
+		}
+		defer func() {
+			_ = conn.CloseNow()
+		}()
+
+		rec := httptest.NewRecorder()
+		ginCtx, _ := gin.CreateTestContext(rec)
+		req := r.Clone(r.Context())
+		req.Header = req.Header.Clone()
+		req.Header.Set("User-Agent", "unit-test-agent/1.0")
+		ginCtx.Request = req
+
+		readCtx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+		msgType, firstMessage, readErr := conn.Read(readCtx)
+		cancel()
+		if readErr != nil {
+			serverErrCh <- readErr
+			return
+		}
+		if msgType != coderws.MessageText && msgType != coderws.MessageBinary {
+			serverErrCh <- errors.New("unsupported websocket client message type")
+			return
+		}
+
+		serverErrCh <- svc.ProxyResponsesWebSocketFromClient(r.Context(), ginCtx, conn, account, "sk-test", firstMessage, hooks)
+	}))
+	defer wsServer.Close()
+
+	dialCtx, cancelDial := context.WithTimeout(context.Background(), 3*time.Second)
+	clientConn, _, err := coderws.Dial(dialCtx, "ws"+strings.TrimPrefix(wsServer.URL, "http"), nil)
+	cancelDial()
+	require.NoError(t, err)
+	defer func() {
+		_ = clientConn.CloseNow()
+	}()
+
+	writeCtx, cancelWrite := context.WithTimeout(context.Background(), 3*time.Second)
+	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","model":"gpt-5.1","stream":false}`))
+	cancelWrite()
+	require.NoError(t, err)
+
+	readCtx, cancelRead := context.WithTimeout(context.Background(), 3*time.Second)
+	_, event1, readErr1 := clientConn.Read(readCtx)
+	cancelRead()
+	require.NoError(t, readErr1)
+	require.Equal(t, "response.output_text.delta", gjson.GetBytes(event1, "type").String())
+	require.Equal(t, "hello", gjson.GetBytes(event1, "delta").String())
+
+	readCtx2, cancelRead2 := context.WithTimeout(context.Background(), 3*time.Second)
+	_, event2, readErr2 := clientConn.Read(readCtx2)
+	cancelRead2()
+	require.NoError(t, readErr2)
+	require.Equal(t, "response.completed", gjson.GetBytes(event2, "type").String())
+	require.Equal(t, "resp_http_bridge_1", gjson.GetBytes(event2, "response.id").String())
+	_ = clientConn.Close(coderws.StatusNormalClosure, "done")
+
+	select {
+	case serverErr := <-serverErrCh:
+		if serverErr != nil {
+			require.Contains(t, serverErr.Error(), "StatusNormalClosure",
+				"server error should only be a normal close frame, got: %v", serverErr)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("等待 http_bridge websocket 结束超时")
+	}
+
+	select {
+	case result := <-resultCh:
+		require.Equal(t, "resp_http_bridge_1", result.RequestID)
+		require.True(t, result.OpenAIWSMode)
+		require.Equal(t, 2, result.Usage.InputTokens)
+		require.Equal(t, 1, result.Usage.OutputTokens)
+		require.Equal(t, 1, result.Usage.CacheReadInputTokens)
+		require.NotNil(t, result.FirstTokenMs)
+	case <-time.After(2 * time.Second):
+		t.Fatal("未收到 http_bridge turn 结果回调")
+	}
+
+	require.NotNil(t, upstream.lastReq, "http_bridge 模式应调用 HTTP 上游")
+	require.Equal(t, "https://api.openai.com/v1/responses", upstream.lastReq.URL.String())
+	require.True(t, gjson.GetBytes(upstream.lastBody, "stream").Bool())
+	require.False(t, gjson.GetBytes(upstream.lastBody, "type").Exists())
 }
 
 func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughHeadersUsePromptCacheAndTurnState(t *testing.T) {
@@ -4082,15 +4234,17 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberErro
 	serverErrCh := make(chan error, 1)
 	type upstreamErrorRecord struct {
 		turn       int
+		model      string
 		statusCode int
 		body       []byte
 		message    string
 	}
 	upstreamErrCh := make(chan upstreamErrorRecord, 1)
 	hooks := &OpenAIWSIngressHooks{
-		OnUpstreamError: func(turn int, statusCode int, responseBody []byte, message string) {
+		OnUpstreamError: func(turn int, originalModel string, statusCode int, responseBody []byte, message string) {
 			upstreamErrCh <- upstreamErrorRecord{
 				turn:       turn,
+				model:      originalModel,
 				statusCode: statusCode,
 				body:       append([]byte(nil), responseBody...),
 				message:    message,
@@ -4147,6 +4301,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberErro
 	select {
 	case got := <-upstreamErrCh:
 		require.Equal(t, 1, got.turn)
+		require.Equal(t, "gpt-5.1", got.model)
 		require.Equal(t, http.StatusBadRequest, got.statusCode)
 		require.JSONEq(t, string(errorEvent), string(got.body))
 		require.Contains(t, got.message, "cybersecurity risk")
@@ -4211,12 +4366,19 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberFail
 	}
 
 	serverErrCh := make(chan error, 1)
-	upstreamErrCh := make(chan int, 1)
+	type failedUpstreamErrorRecord struct {
+		model      string
+		statusCode int
+	}
+	upstreamErrCh := make(chan failedUpstreamErrorRecord, 1)
 	hooks := &OpenAIWSIngressHooks{
-		OnUpstreamError: func(_ int, statusCode int, responseBody []byte, message string) {
+		OnUpstreamError: func(_ int, originalModel string, statusCode int, responseBody []byte, message string) {
 			require.JSONEq(t, string(failedEvent), string(responseBody))
 			require.Contains(t, message, "cybersecurity risk")
-			upstreamErrCh <- statusCode
+			upstreamErrCh <- failedUpstreamErrorRecord{
+				model:      originalModel,
+				statusCode: statusCode,
+			}
 		},
 	}
 	wsServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -4268,8 +4430,9 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_ReportsCyberFail
 	require.NoError(t, clientConn.Close(coderws.StatusNormalClosure, "done"))
 
 	select {
-	case statusCode := <-upstreamErrCh:
-		require.Equal(t, http.StatusBadGateway, statusCode)
+	case got := <-upstreamErrCh:
+		require.Equal(t, "gpt-5.1", got.model)
+		require.Equal(t, http.StatusBadGateway, got.statusCode)
 	case <-time.After(2 * time.Second):
 		t.Fatal("未收到上游 response.failed 事件回调")
 	}

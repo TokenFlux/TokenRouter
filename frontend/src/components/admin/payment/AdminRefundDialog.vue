@@ -196,8 +196,8 @@ const form = reactive({
   force: false,
 })
 
-// In REFUND_REQUESTED status, refund_amount is the REQUESTED amount, not actually refunded.
-// Only PARTIALLY_REFUNDED / REFUNDED have real refund amounts.
+// REFUND_REQUESTED/REFUND_PENDING 中的 refund_amount 是申请或待确认金额，不是已退款金额。
+// 只有 PARTIALLY_REFUNDED/REFUNDED 的 refund_amount 才是实际已退款金额。
 const actuallyRefunded = computed(() => {
   if (!props.order) return 0
   const s = props.order.status
@@ -223,7 +223,7 @@ const refundInputSymbol = computed(() => {
 
 watch(() => props.show, (val) => {
   if (val && props.order) {
-    // For REFUND_REQUESTED, pre-fill with the requested amount
+    // REFUND_REQUESTED 优先回填用户申请的退款金额。
     if (props.order.status === 'REFUND_REQUESTED' && props.order.refund_amount) {
       form.amount = props.order.refund_amount
     } else {

@@ -523,6 +523,16 @@ func TestResolveOpenAIMessagesDispatchMappedModel(t *testing.T) {
 		require.Empty(t, resolveOpenAIMessagesDispatchMappedModel(&service.APIKey{Group: &service.Group{}}, "gpt-5.4"))
 	})
 
+	t.Run("grok_group_maps_claude_cli_model_to_grok_default", func(t *testing.T) {
+		apiKey := &service.APIKey{
+			Group: &service.Group{
+				Platform: service.PlatformGrok,
+			},
+		}
+		require.Equal(t, "grok-4.3", resolveOpenAIMessagesDispatchMappedModel(apiKey, "claude-sonnet-4-5"))
+		require.Empty(t, resolveOpenAIMessagesDispatchMappedModel(apiKey, "grok"))
+	})
+
 	t.Run("does_not_fall_back_to_group_default_mapped_model", func(t *testing.T) {
 		apiKey := &service.APIKey{
 			Group: &service.Group{
@@ -531,6 +541,60 @@ func TestResolveOpenAIMessagesDispatchMappedModel(t *testing.T) {
 		}
 		require.Empty(t, resolveOpenAIMessagesDispatchMappedModel(apiKey, "gpt-5.4"))
 		require.Equal(t, "gpt-5.3-codex", resolveOpenAIMessagesDispatchMappedModel(apiKey, "claude-sonnet-4-5-20250929"))
+	})
+}
+
+func TestOpenAIGatewayMessagesDispatchGateAllowsGrokGroups(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("openai_group_without_dispatch_flag_is_rejected", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"hi"}]}`))
+		groupID := int64(4101)
+		c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
+			ID:      5101,
+			GroupID: &groupID,
+			User:    &service.User{ID: 6101},
+			Group: &service.Group{
+				ID:                    groupID,
+				Platform:              service.PlatformOpenAI,
+				AllowMessagesDispatch: false,
+			},
+		})
+		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 6101, Concurrency: 1})
+
+		h := &OpenAIGatewayHandler{}
+		h.Messages(c)
+
+		require.Equal(t, http.StatusForbidden, rec.Code)
+		require.Equal(t, "permission_error", gjson.GetBytes(rec.Body.Bytes(), "error.type").String())
+		require.Contains(t, rec.Body.String(), "This group does not allow /v1/messages dispatch")
+	})
+
+	t.Run("grok_group_without_dispatch_flag_reaches_gateway_dependencies", func(t *testing.T) {
+		rec := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(rec)
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(`{"model":"grok-4.3","messages":[{"role":"user","content":"hi"}]}`))
+		groupID := int64(4102)
+		c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
+			ID:      5102,
+			GroupID: &groupID,
+			User:    &service.User{ID: 6102},
+			Group: &service.Group{
+				ID:                    groupID,
+				Platform:              service.PlatformGrok,
+				AllowMessagesDispatch: false,
+			},
+		})
+		c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 6102, Concurrency: 1})
+
+		h := &OpenAIGatewayHandler{}
+		h.Messages(c)
+
+		require.Equal(t, http.StatusServiceUnavailable, rec.Code)
+		require.Equal(t, "api_error", gjson.GetBytes(rec.Body.Bytes(), "error.type").String())
+		require.NotContains(t, rec.Body.String(), "This group does not allow /v1/messages dispatch")
 	})
 }
 
@@ -1041,6 +1105,7 @@ func TestOpenAIRecordCyberWarning_RecordsStructuredResponseBody(t *testing.T) {
 	cfg := service.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
+		AllGroups:           true,
 	}
 	rawCfg, err := json.Marshal(cfg)
 	require.NoError(t, err)
@@ -1093,6 +1158,7 @@ func TestOpenAIRecordCyberWarning_UsesExplicitPromptExcerpt(t *testing.T) {
 	cfg := service.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
+		AllGroups:           true,
 	}
 	rawCfg, err := json.Marshal(cfg)
 	require.NoError(t, err)
@@ -1134,6 +1200,7 @@ func TestOpenAIRecordCyberWarning_RequestSnapshotFallsBackToLatestUserPrompt(t *
 	cfg := service.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
+		AllGroups:           true,
 	}
 	rawCfg, err := json.Marshal(cfg)
 	require.NoError(t, err)
@@ -1182,6 +1249,7 @@ func TestOpenAIRecordForwardResultCyberWarning_RecordsWSV2TerminalWarning(t *tes
 	cfg := service.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
+		AllGroups:           true,
 	}
 	rawCfg, err := json.Marshal(cfg)
 	require.NoError(t, err)
@@ -1256,6 +1324,7 @@ func TestOpenAIRecordForwardErrorCyberWarning_RecordsWSV2TerminalWarning(t *test
 	cfg := service.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
+		AllGroups:           true,
 	}
 	rawCfg, err := json.Marshal(cfg)
 	require.NoError(t, err)
@@ -1298,6 +1367,51 @@ func TestOpenAIRecordForwardErrorCyberWarning_RecordsWSV2TerminalWarning(t *test
 	require.Equal(t, int64(2001), *warning.AccountID)
 	require.Equal(t, 502, warning.UpstreamStatus)
 	require.Contains(t, warning.WarningText, "high-risk cyber")
+}
+
+func TestOpenAIRecordCyberPolicyIfMarked_SkipsSideEffectsOutOfScope(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := service.ContentModerationConfig{
+		CyberWarningEnabled: true,
+		CyberWindowHours:    720,
+		AllGroups:           false,
+		GroupIDs:            []int64{101},
+	}
+	rawCfg, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	repo := &contentModerationHandlerTestRepo{}
+	settingRepo := &contentModerationHandlerSettingRepo{values: map[string]string{
+		service.SettingKeyRiskControlEnabled:      "true",
+		service.SettingKeyContentModerationConfig: string(rawCfg),
+	}}
+	moderationSvc := service.NewContentModerationService(settingRepo, repo, nil, nil, nil, nil, nil)
+	h := &OpenAIGatewayHandler{contentModerationService: moderationSvc}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+	service.MarkOpsCyberPolicy(c, service.CyberPolicyMark{
+		Message:        "Request blocked by upstream cyber policy",
+		Body:           `{"response":{"error":{"code":"cyber_policy","message":"Request blocked by upstream cyber policy"}}}`,
+		UpstreamStatus: http.StatusOK,
+	})
+	outOfScopeGroupID := int64(202)
+	apiKey := &service.APIKey{
+		ID:      101,
+		Name:    "test-key",
+		UserID:  1001,
+		GroupID: &outOfScopeGroupID,
+		User:    &service.User{ID: 1001, Email: "user@example.com"},
+		Group:   &service.Group{ID: outOfScopeGroupID, Name: "out-of-scope"},
+	}
+	account := &service.Account{ID: 2001, Name: "openai-1"}
+
+	handled := h.recordCyberPolicyIfMarked(c, apiKey, account, nil, "gpt-5.1", true, "cyber-session-key", service.ChannelUsageFields{}, "payload-hash")
+
+	require.False(t, handled)
+	require.Empty(t, repo.cyberWarnings)
+	require.False(t, c.GetBool(cyberPolicyRecordedKey))
 }
 
 func TestOpenAIResponsesWebSocket_PassthroughUsageLogPersistsUserAgentAndReasoningEffort(t *testing.T) {

@@ -65,6 +65,19 @@ func (q *openAIWSTurnPayloadQueue) Push(item openAIWSTurnPayload) {
 	q.items = append(q.items, item)
 }
 
+// Peek 返回当前 turn 的请求上下文但不出队，用于上游错误事件先于 turn 完成时复用同一模型。
+func (q *openAIWSTurnPayloadQueue) Peek() openAIWSTurnPayload {
+	if q == nil {
+		return openAIWSTurnPayload{Source: "passthrough_missing"}
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.items) == 0 {
+		return openAIWSTurnPayload{Source: "passthrough_missing"}
+	}
+	return q.items[0]
+}
+
 func (q *openAIWSTurnPayloadQueue) Pop() openAIWSTurnPayload {
 	if q == nil {
 		return openAIWSTurnPayload{Source: "passthrough_missing"}
@@ -390,7 +403,10 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		turnState = strings.TrimSpace(c.GetHeader(openAIWSTurnStateHeader))
 		turnMetadata = strings.TrimSpace(c.GetHeader(openAIWSTurnMetadataHeader))
 	}
-	headers, _ := s.buildOpenAIWSHeaders(c, account, token, wsDecision, isCodexCLI, turnState, turnMetadata, promptCacheKey, tlsRouterMatch)
+	headers, _, buildHdrErr := s.buildOpenAIWSHeaders(ctx, c, account, token, wsDecision, isCodexCLI, turnState, turnMetadata, promptCacheKey, tlsRouterMatch)
+	if buildHdrErr != nil {
+		return fmt.Errorf("build ws headers: %w", buildHdrErr)
+	}
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
@@ -582,7 +598,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 					if turnNo < 1 {
 						turnNo = 1
 					}
-					hooks.OnUpstreamError(turnNo, warning.StatusCode, warning.ResponseBody, warning.Message)
+					turnPayload := turnPayloads.Peek()
+					hooks.OnUpstreamError(turnNo, turnPayload.OriginalModel, warning.StatusCode, warning.ResponseBody, warning.Message)
 				}
 			},
 			OnTurnComplete: func(turn openaiwsv2.RelayTurnResult) {

@@ -3,12 +3,30 @@
 package service
 
 import (
+	"bytes"
+	"log"
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/stretchr/testify/require"
 )
+
+// captureStdLog 将标准库 log 临时重定向到 buffer，用于断言 fallback 警告日志数量。
+func captureStdLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	prevOut := log.Writer()
+	prevFlags := log.Flags()
+	log.SetOutput(&buf)
+	log.SetFlags(0)
+	t.Cleanup(func() {
+		log.SetOutput(prevOut)
+		log.SetFlags(prevFlags)
+	})
+	return &buf
+}
 
 func newTestBillingService() *BillingService {
 	return NewBillingService(&config.Config{}, nil)
@@ -106,6 +124,46 @@ func TestGetModelPricing_CaseInsensitive(t *testing.T) {
 	require.Equal(t, p1.InputPricePerToken, p2.InputPricePerToken)
 }
 
+func TestGetModelPricing_FallbackWarnLoggedOncePerModel(t *testing.T) {
+	svc := newTestBillingService()
+	buf := captureStdLog(t)
+
+	for i := 0; i < 5; i++ {
+		pricing, err := svc.GetModelPricing("glm-5.2")
+		require.NoError(t, err)
+		require.NotNil(t, pricing)
+	}
+
+	got := strings.Count(buf.String(), "Using fallback pricing for model: glm-5.2")
+	require.Equal(t, 1, got, "同一模型的 fallback 警告每进程只应输出一次，实际日志：\n%s", buf.String())
+}
+
+func TestGetModelPricing_FallbackWarnPerModelNotGlobal(t *testing.T) {
+	svc := newTestBillingService()
+	buf := captureStdLog(t)
+
+	for i := 0; i < 3; i++ {
+		_, _ = svc.GetModelPricing("glm-5.2")
+		_, _ = svc.GetModelPricing("GLM-5.2")
+		_, _ = svc.GetModelPricing("glm-4.6")
+	}
+
+	out := buf.String()
+	require.Equal(t, 1, strings.Count(out, "model: glm-5.2"), out)
+	require.Equal(t, 1, strings.Count(out, "model: glm-4.6"), out)
+	require.Zero(t, strings.Count(out, "model: GLM-5.2"), out)
+}
+
+func TestGetModelPricing_GLM52FallsBackToGLM5Price(t *testing.T) {
+	svc := newTestBillingService()
+
+	pricing, err := svc.GetModelPricing("glm-5.2")
+	require.NoError(t, err)
+	require.NotNil(t, pricing)
+	require.InDelta(t, 1e-6, pricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, 3.2e-6, pricing.OutputPricePerToken, 1e-12)
+}
+
 func TestGetModelPricing_UnknownClaudeModelFallsBackToSonnet(t *testing.T) {
 	svc := newTestBillingService()
 
@@ -194,6 +252,25 @@ func TestCalculateCost_OpenAIGPT54LongContextAppliesWholeSessionMultipliers(t *t
 
 	expectedInput := float64(tokens.InputTokens) * 2.5e-6 * 2.0
 	expectedOutput := float64(tokens.OutputTokens) * 15e-6 * 1.5
+	require.InDelta(t, expectedInput, cost.InputCost, 1e-10)
+	require.InDelta(t, expectedOutput, cost.OutputCost, 1e-10)
+	require.InDelta(t, expectedInput+expectedOutput, cost.TotalCost, 1e-10)
+	require.InDelta(t, expectedInput+expectedOutput, cost.ActualCost, 1e-10)
+}
+
+func TestCalculateCost_OpenAIGPT55ProLongContextAppliesWholeSessionMultipliers(t *testing.T) {
+	svc := newTestBillingService()
+
+	tokens := UsageTokens{
+		InputTokens:  300000,
+		OutputTokens: 4000,
+	}
+
+	cost, err := svc.CalculateCost("gpt-5.5-pro-high", tokens, 1.0)
+	require.NoError(t, err)
+
+	expectedInput := float64(tokens.InputTokens) * 30e-6 * 2.0
+	expectedOutput := float64(tokens.OutputTokens) * 180e-6 * 1.5
 	require.InDelta(t, expectedInput, cost.InputCost, 1e-10)
 	require.InDelta(t, expectedOutput, cost.OutputCost, 1e-10)
 	require.InDelta(t, expectedInput+expectedOutput, cost.TotalCost, 1e-10)

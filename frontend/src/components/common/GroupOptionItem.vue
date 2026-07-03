@@ -45,6 +45,13 @@
           {{ rateMultiplier }}x 倍率
         </template>
       </span>
+      <span
+        v-if="hasPeakRate"
+        class="inline-flex items-center whitespace-nowrap rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+        :title="peakRateTitle"
+      >
+        {{ peakRateText }}
+      </span>
       <!-- 选中勾 -->
       <svg
         v-if="showCheckmark && selected"
@@ -62,10 +69,14 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import GroupBadge from './GroupBadge.vue'
 import GroupCapacityBadge from './GroupCapacityBadge.vue'
 import type { GroupPlatform, MarketplaceGroupCapacity } from '@/types'
+import { currentServerTimezoneLabel, formatPeakRateWindow } from '@/utils/peak-rate'
 import { resolveProviderBrand } from '@/utils/providerBrand'
+
+const { t } = useI18n()
 
 interface Props {
   name: string
@@ -73,6 +84,10 @@ interface Props {
   displayBrand?: string | null
   rateMultiplier?: number
   userRateMultiplier?: number | null
+  peakRateEnabled?: boolean
+  peakStart?: string
+  peakEnd?: string
+  peakRateMultiplier?: number
   description?: string | null
   capacity?: MarketplaceGroupCapacity
   selected?: boolean
@@ -82,7 +97,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   selected: false,
   showCheckmark: true,
-  userRateMultiplier: null
+  userRateMultiplier: null,
+  peakRateEnabled: false
 })
 
 const brandName = computed(() => props.displayBrand?.trim() || '')
@@ -95,6 +111,26 @@ const hasCustomRate = computed(() => {
     props.rateMultiplier !== undefined &&
     props.userRateMultiplier !== props.rateMultiplier
   )
+})
+
+const hasPeakRate = computed(() => {
+  return Boolean(props.peakRateEnabled && props.peakStart && props.peakEnd)
+})
+
+const peakRateText = computed(() => {
+  return formatPeakRateWindow(
+    {
+      peak_rate_enabled: props.peakRateEnabled,
+      peak_start: props.peakStart,
+      peak_end: props.peakEnd,
+      peak_rate_multiplier: props.peakRateMultiplier
+    },
+    currentServerTimezoneLabel()
+  )
+})
+
+const peakRateTitle = computed(() => {
+  return t('common.peakRateTooltip', { window: peakRateText.value })
 })
 
 // 倍率标签跟随展示品牌；没有品牌时回退到接入格式配色。

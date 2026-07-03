@@ -4003,6 +4003,31 @@
                 <Toggle v-model="form.rewrite_message_cache_control" />
               </div>
 
+              <!-- 客户端 dateline 归一化（仅 Anthropic OAuth/SetupToken） -->
+              <div class="flex items-center justify-between">
+                <div>
+                  <label
+                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.clientDatelineNormalization",
+                      )
+                    }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t(
+                        "admin.settings.gatewayForwarding.clientDatelineNormalizationHint",
+                      )
+                    }}
+                  </p>
+                </div>
+                <Toggle
+                  v-model="form.enable_client_dateline_normalization"
+                />
+              </div>
+
               <!-- Antigravity UA 版本 -->
               <div>
                 <label
@@ -7631,6 +7656,7 @@ const form = reactive<SettingsForm>({
   claude_oauth_system_prompt_blocks: "",
   enable_anthropic_cache_ttl_1h_injection: false,
   rewrite_message_cache_control: false,
+  enable_client_dateline_normalization: true,
   risk_control_enabled: false,
   cyber_session_block_enabled: false,
   cyber_session_block_ttl_seconds: 3600,
@@ -8108,13 +8134,15 @@ const addQuotaNotifyEmail = () => {
 const currentOrigin =
   typeof window !== "undefined" ? window.location.origin : "";
 
+function buildApiCallbackUrl(path: string): string {
+  const base = (form.api_base_url || currentOrigin).replace(/\/+$/, "");
+  const apiRoot = base.endsWith("/api/v1") ? base : `${base}/api/v1`;
+  return `${apiRoot}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 // LinuxDo OAuth redirect URL suggestion
 const linuxdoRedirectUrlSuggestion = computed(() => {
-  if (typeof window === "undefined") return "";
-  const origin =
-    window.location.origin ||
-    `${window.location.protocol}//${window.location.host}`;
-  return `${origin}/api/v1/auth/oauth/linuxdo/callback`;
+  return buildApiCallbackUrl("/auth/oauth/linuxdo/callback");
 });
 
 async function setAndCopyLinuxdoRedirectUrl() {
@@ -8131,19 +8159,11 @@ async function setAndCopyLinuxdoRedirectUrl() {
 type EmailOAuthProvider = "github" | "google";
 
 const githubOAuthRedirectUrlSuggestion = computed(() => {
-  if (typeof window === "undefined") return "";
-  const origin =
-    window.location.origin ||
-    `${window.location.protocol}//${window.location.host}`;
-  return `${origin}/api/v1/auth/oauth/github/callback`;
+  return buildApiCallbackUrl("/auth/oauth/github/callback");
 });
 
 const googleOAuthRedirectUrlSuggestion = computed(() => {
-  if (typeof window === "undefined") return "";
-  const origin =
-    window.location.origin ||
-    `${window.location.protocol}//${window.location.host}`;
-  return `${origin}/api/v1/auth/oauth/google/callback`;
+  return buildApiCallbackUrl("/auth/oauth/google/callback");
 });
 
 async function setAndCopyEmailOAuthRedirectUrl(provider: EmailOAuthProvider) {
@@ -8162,11 +8182,7 @@ async function setAndCopyEmailOAuthRedirectUrl(provider: EmailOAuthProvider) {
 }
 
 const wechatRedirectUrlSuggestion = computed(() => {
-  if (typeof window === "undefined") return "";
-  const origin =
-    window.location.origin ||
-    `${window.location.protocol}//${window.location.host}`;
-  return `${origin}/api/v1/auth/oauth/wechat/callback`;
+  return buildApiCallbackUrl("/auth/oauth/wechat/callback");
 });
 
 function syncWeChatConnectMode(preferredMode?: WeChatConnectMode) {
@@ -8231,11 +8247,7 @@ async function setAndCopyWeChatRedirectUrl() {
 }
 
 const oidcRedirectUrlSuggestion = computed(() => {
-  if (typeof window === "undefined") return "";
-  const origin =
-    window.location.origin ||
-    `${window.location.protocol}//${window.location.host}`;
-  return `${origin}/api/v1/auth/oauth/oidc/callback`;
+  return buildApiCallbackUrl("/auth/oauth/oidc/callback");
 });
 
 async function setAndCopyOIDCRedirectUrl() {
@@ -8978,6 +8990,8 @@ async function saveSettings() {
       enable_anthropic_cache_ttl_1h_injection:
         form.enable_anthropic_cache_ttl_1h_injection,
       rewrite_message_cache_control: form.rewrite_message_cache_control,
+      enable_client_dateline_normalization:
+        form.enable_client_dateline_normalization,
       antigravity_user_agent_version:
         form.antigravity_user_agent_version?.trim() || "",
       openai_codex_user_agent:

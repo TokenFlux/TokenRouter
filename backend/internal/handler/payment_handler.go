@@ -53,40 +53,42 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 		return
 	}
 	type planWithPlatform struct {
-		ID              int64    `json:"id"`
-		Name            string   `json:"name"`
-		Description     string   `json:"description"`
-		Price           float64  `json:"price"`
-		OriginalPrice   *float64 `json:"original_price,omitempty"`
-		ValidityDays    int      `json:"validity_days"`
-		ValidityUnit    string   `json:"validity_unit"`
-		GroupIDs        []int64  `json:"group_ids"`
-		DailyLimitUSD   *float64 `json:"daily_limit_usd,omitempty"`
-		WeeklyLimitUSD  *float64 `json:"weekly_limit_usd,omitempty"`
-		MonthlyLimitUSD *float64 `json:"monthly_limit_usd,omitempty"`
-		Features        []string `json:"features"`
-		ProductName     string   `json:"product_name"`
-		ForSale         bool     `json:"for_sale"`
-		SortOrder       int      `json:"sort_order"`
+		ID                   int64             `json:"id"`
+		Name                 string            `json:"name"`
+		Description          string            `json:"description"`
+		Price                float64           `json:"price"`
+		OriginalPrice        *float64          `json:"original_price,omitempty"`
+		ValidityDays         int               `json:"validity_days"`
+		ValidityUnit         string            `json:"validity_unit"`
+		GroupIDs             []int64           `json:"group_ids"`
+		GroupRateMultipliers map[int64]float64 `json:"group_rate_multipliers"`
+		DailyLimitUSD        *float64          `json:"daily_limit_usd,omitempty"`
+		WeeklyLimitUSD       *float64          `json:"weekly_limit_usd,omitempty"`
+		MonthlyLimitUSD      *float64          `json:"monthly_limit_usd,omitempty"`
+		Features             []string          `json:"features"`
+		ProductName          string            `json:"product_name"`
+		ForSale              bool              `json:"for_sale"`
+		SortOrder            int               `json:"sort_order"`
 	}
 	result := make([]planWithPlatform, 0, len(plans))
 	for _, p := range plans {
 		result = append(result, planWithPlatform{
-			ID:              int64(p.ID),
-			Name:            p.Name,
-			Description:     p.Description,
-			Price:           p.Price,
-			OriginalPrice:   p.OriginalPrice,
-			ValidityDays:    p.ValidityDays,
-			ValidityUnit:    p.ValidityUnit,
-			GroupIDs:        append([]int64(nil), p.GroupIds...),
-			DailyLimitUSD:   p.DailyLimitUsd,
-			WeeklyLimitUSD:  p.WeeklyLimitUsd,
-			MonthlyLimitUSD: p.MonthlyLimitUsd,
-			Features:        parseFeatures(p.Features),
-			ProductName:     p.ProductName,
-			ForSale:         p.ForSale,
-			SortOrder:       p.SortOrder,
+			ID:                   int64(p.ID),
+			Name:                 p.Name,
+			Description:          p.Description,
+			Price:                p.Price,
+			OriginalPrice:        p.OriginalPrice,
+			ValidityDays:         p.ValidityDays,
+			ValidityUnit:         p.ValidityUnit,
+			GroupIDs:             append([]int64(nil), p.GroupIds...),
+			GroupRateMultipliers: cloneInt64Float64Map(p.GroupRateMultipliers),
+			DailyLimitUSD:        p.DailyLimitUsd,
+			WeeklyLimitUSD:       p.WeeklyLimitUsd,
+			MonthlyLimitUSD:      p.MonthlyLimitUsd,
+			Features:             parseFeatures(p.Features),
+			ProductName:          p.ProductName,
+			ForSale:              p.ForSale,
+			SortOrder:            p.SortOrder,
 		})
 	}
 	response.Success(c, result)
@@ -128,19 +130,20 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	planList := make([]checkoutPlan, 0, len(plans))
 	for _, p := range plans {
 		planList = append(planList, checkoutPlan{
-			ID:              int64(p.ID),
-			DailyLimitUSD:   p.DailyLimitUsd,
-			WeeklyLimitUSD:  p.WeeklyLimitUsd,
-			MonthlyLimitUSD: p.MonthlyLimitUsd,
-			Name:            p.Name,
-			Description:     p.Description,
-			Price:           p.Price,
-			OriginalPrice:   p.OriginalPrice,
-			ValidityDays:    p.ValidityDays,
-			ValidityUnit:    p.ValidityUnit,
-			GroupIDs:        append([]int64(nil), p.GroupIds...),
-			Features:        parseFeatures(p.Features),
-			ProductName:     p.ProductName,
+			ID:                   int64(p.ID),
+			DailyLimitUSD:        p.DailyLimitUsd,
+			WeeklyLimitUSD:       p.WeeklyLimitUsd,
+			MonthlyLimitUSD:      p.MonthlyLimitUsd,
+			Name:                 p.Name,
+			Description:          p.Description,
+			Price:                p.Price,
+			OriginalPrice:        p.OriginalPrice,
+			ValidityDays:         p.ValidityDays,
+			ValidityUnit:         p.ValidityUnit,
+			GroupIDs:             append([]int64(nil), p.GroupIds...),
+			GroupRateMultipliers: cloneInt64Float64Map(p.GroupRateMultipliers),
+			Features:             parseFeatures(p.Features),
+			ProductName:          p.ProductName,
 		})
 	}
 
@@ -176,23 +179,24 @@ type checkoutInfoResponse struct {
 }
 
 type checkoutPlan struct {
-	ID              int64    `json:"id"`
-	GroupID         *int64   `json:"group_id,omitempty"`
-	GroupIDs        []int64  `json:"group_ids"`
-	GroupPlatform   string   `json:"group_platform,omitempty"`
-	GroupName       string   `json:"group_name,omitempty"`
-	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
-	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
-	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
-	ModelScopes     []string `json:"supported_model_scopes,omitempty"`
-	Name            string   `json:"name"`
-	Description     string   `json:"description"`
-	Price           float64  `json:"price"`
-	OriginalPrice   *float64 `json:"original_price,omitempty"`
-	ValidityDays    int      `json:"validity_days"`
-	ValidityUnit    string   `json:"validity_unit"`
-	Features        []string `json:"features"`
-	ProductName     string   `json:"product_name"`
+	ID                   int64             `json:"id"`
+	GroupID              *int64            `json:"group_id,omitempty"`
+	GroupIDs             []int64           `json:"group_ids"`
+	GroupRateMultipliers map[int64]float64 `json:"group_rate_multipliers"`
+	GroupPlatform        string            `json:"group_platform,omitempty"`
+	GroupName            string            `json:"group_name,omitempty"`
+	DailyLimitUSD        *float64          `json:"daily_limit_usd"`
+	WeeklyLimitUSD       *float64          `json:"weekly_limit_usd"`
+	MonthlyLimitUSD      *float64          `json:"monthly_limit_usd"`
+	ModelScopes          []string          `json:"supported_model_scopes,omitempty"`
+	Name                 string            `json:"name"`
+	Description          string            `json:"description"`
+	Price                float64           `json:"price"`
+	OriginalPrice        *float64          `json:"original_price,omitempty"`
+	ValidityDays         int               `json:"validity_days"`
+	ValidityUnit         string            `json:"validity_unit"`
+	Features             []string          `json:"features"`
+	ProductName          string            `json:"product_name"`
 }
 
 // parseFeatures splits a newline-separated features string into a string slice.
@@ -208,6 +212,17 @@ func parseFeatures(raw string) []string {
 	}
 	if out == nil {
 		return []string{}
+	}
+	return out
+}
+
+func cloneInt64Float64Map(in map[int64]float64) map[int64]float64 {
+	if len(in) == 0 {
+		return map[int64]float64{}
+	}
+	out := make(map[int64]float64, len(in))
+	for k, v := range in {
+		out[k] = v
 	}
 	return out
 }
@@ -494,8 +509,7 @@ func (h *PaymentHandler) VerifyOrder(c *gin.Context) {
 	response.Success(c, sanitizePaymentOrderForResponse(order))
 }
 
-// PublicOrderResult is the limited order info returned by the public verify endpoint.
-// No user details are exposed — only payment status information.
+// PublicOrderResult 是签名恢复 token 可读取的订单结果；token 已证明持有支付会话。
 type PublicOrderResult struct {
 	ID                  int64      `json:"id"`
 	OutTradeNo          string     `json:"out_trade_no"`
@@ -519,6 +533,17 @@ type PublicOrderResult struct {
 	RefundRequestedBy   *string    `json:"refund_requested_by,omitempty"`
 	RefundRequestReason *string    `json:"refund_request_reason,omitempty"`
 	PlanID              *int64     `json:"plan_id,omitempty"`
+}
+
+// PublicOrderVerifyResult 是匿名 out_trade_no 查单结果；out_trade_no 不是密钥，只返回最小状态信息。
+type PublicOrderVerifyResult struct {
+	OutTradeNo  string     `json:"out_trade_no"`
+	Status      string     `json:"status"`
+	Paid        bool       `json:"paid"`
+	CreatedAt   time.Time  `json:"created_at"`
+	ExpiresAt   time.Time  `json:"expires_at"`
+	PaidAt      *time.Time `json:"paid_at,omitempty"`
+	CompletedAt *time.Time `json:"completed_at,omitempty"`
 }
 
 func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
@@ -548,6 +573,35 @@ func buildPublicOrderResult(order *dbent.PaymentOrder) PublicOrderResult {
 	}
 }
 
+func buildPublicOrderVerifyResult(order *dbent.PaymentOrder) PublicOrderVerifyResult {
+	return PublicOrderVerifyResult{
+		OutTradeNo:  order.OutTradeNo,
+		Status:      order.Status,
+		Paid:        publicOrderStatusPaid(order.Status),
+		CreatedAt:   order.CreatedAt,
+		ExpiresAt:   order.ExpiresAt,
+		PaidAt:      order.PaidAt,
+		CompletedAt: order.CompletedAt,
+	}
+}
+
+func publicOrderStatusPaid(status string) bool {
+	switch status {
+	case service.OrderStatusPaid,
+		service.OrderStatusRecharging,
+		service.OrderStatusCompleted,
+		service.OrderStatusRefundRequested,
+		service.OrderStatusRefunding,
+		service.OrderStatusRefundPending,
+		service.OrderStatusPartiallyRefunded,
+		service.OrderStatusRefunded,
+		service.OrderStatusRefundFailed:
+		return true
+	default:
+		return false
+	}
+}
+
 // VerifyOrderPublic keeps the legacy anonymous out_trade_no lookup available as
 // a compatibility path for older result pages and staggered deploys.
 // POST /api/v1/payment/public/orders/verify
@@ -563,10 +617,10 @@ func (h *PaymentHandler) VerifyOrderPublic(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, buildPublicOrderResult(order))
+	response.Success(c, buildPublicOrderVerifyResult(order))
 }
 
-// ResolveOrderPublicByResumeToken resolves a payment order from a signed resume token.
+// ResolveOrderPublicByResumeToken 通过签名恢复 token 读取支付订单。
 // POST /api/v1/payment/public/orders/resolve
 func (h *PaymentHandler) ResolveOrderPublicByResumeToken(c *gin.Context) {
 	var req ResolveOrderByResumeTokenRequest

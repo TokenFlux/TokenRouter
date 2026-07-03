@@ -24,7 +24,7 @@ export async function list(
   page: number = 1,
   pageSize: number = 20,
   filters?: {
-    status?: 'active' | 'pending' | 'expired' | 'suspended'
+    status?: 'active' | 'pending' | 'expired' | 'suspended' | 'revoked'
     user_id?: number
     plan_id?: number
     platform?: string
@@ -117,7 +117,12 @@ export async function extend(
  * @returns Success confirmation
  */
 export async function revoke(id: number): Promise<{ message: string }> {
-  const { data } = await apiClient.delete<{ message: string }>(`/admin/subscriptions/${id}`)
+  const { data } = await apiClient.post<{ message: string }>(`/admin/subscriptions/${id}/revoke`)
+  return data
+}
+
+export async function restore(id: number): Promise<UserSubscription> {
+  const { data } = await apiClient.post<UserSubscription>(`/admin/subscriptions/${id}/restore`)
   return data
 }
 
@@ -188,6 +193,7 @@ export const subscriptionsAPI = {
   bulkAssign,
   extend,
   revoke,
+  restore,
   resetQuota,
   listByPlan,
   listByUser

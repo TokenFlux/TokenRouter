@@ -1,10 +1,13 @@
 package service
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 )
 
 type OpenAIMessagesDispatchModelConfig = domain.OpenAIMessagesDispatchModelConfig
@@ -12,17 +15,22 @@ type GroupModelsListConfig = domain.GroupModelsListConfig
 type GroupAvailabilityProbeConfig = domain.GroupAvailabilityProbeConfig
 
 type Group struct {
-	ID                         int64
-	Name                       string
-	Description                string
-	Platform                   string
-	DisplayBrand               string
-	RateMultiplier             float64
-	SubscriptionRateMultiplier float64
-	IsExclusive                bool
-	IsDefault                  bool
-	Status                     string
-	Hydrated                   bool // indicates the group was loaded from a trusted repository source
+	ID             int64
+	Name           string
+	Description    string
+	Platform       string
+	DisplayBrand   string
+	RateMultiplier float64
+	// 高峰时段倍率：peak_rate_enabled 为 true 且当前时刻处于 [PeakStart, PeakEnd) 时，
+	// token 计费倍率额外乘以 PeakRateMultiplier。详见 PeakMultiplierAt。
+	PeakRateEnabled    bool
+	PeakStart          string
+	PeakEnd            string
+	PeakRateMultiplier float64
+	IsExclusive        bool
+	IsDefault          bool
+	Status             string
+	Hydrated           bool // indicates the group was loaded from a trusted repository source
 	// DataSharingEnabled 表示该分组产生的 Agent session 是否进入数据共享采集流程。
 	DataSharingEnabled bool
 	// SessionIsolationEnabled 表示目标分组是否拒绝其它分组已归属的显式会话切入。
@@ -156,4 +164,115 @@ func matchModelPattern(pattern, model string) bool {
 	}
 
 	return false
+}
+
+// parseMinutes 把 "HH:MM" 解析为当日分钟数（0..1439），格式非法返回 (0,false)。
+func parseMinutes(hhmm string) (int, bool) {
+	// 手工解析避免计费热路径反复走 time.Parse；接受集保持与 time.Parse("15:04", s) 一致：
+	// 小时允许 1-2 位数字（0..23），分钟必须是 2 位数字（00..59）。
+	colon := strings.IndexByte(hhmm, ':')
+	if (colon != 1 && colon != 2) || len(hhmm)-colon-1 != 2 {
+		return 0, false
+	}
+	hour := 0
+	for i := 0; i < colon; i++ {
+		digit := hhmm[i] - '0'
+		if digit > 9 {
+			return 0, false
+		}
+		hour = hour*10 + int(digit)
+	}
+	minuteTens, minuteOnes := hhmm[colon+1]-'0', hhmm[colon+2]-'0'
+	if minuteTens > 9 || minuteOnes > 9 {
+		return 0, false
+	}
+	minute := int(minuteTens)*10 + int(minuteOnes)
+	if hour > 23 || minute > 59 {
+		return 0, false
+	}
+	return hour*60 + minute, true
+}
+
+// PeakMultiplierAt 返回指定时刻 now 的高峰因子。
+//   - 未启用 / 未配置 / 配置非法（start>=end 或格式错误） / 非高峰时段 → 返回 1.0（安全降级）
+//   - 区间为左闭右开 [PeakStart, PeakEnd)，仅支持当日区间，不支持跨天（如 22:00-次日02:00）
+//   - 时刻基于全局系统时区（timezone.Location）判定
+//
+// 该方法是纯函数，不读取任何外部状态，便于单测。
+func (g *Group) PeakMultiplierAt(now time.Time) float64 {
+	if g == nil || !g.PeakRateEnabled || g.PeakStart == "" || g.PeakEnd == "" {
+		return 1.0
+	}
+	start, ok1 := parseMinutes(g.PeakStart)
+	end, ok2 := parseMinutes(g.PeakEnd)
+	if !ok1 || !ok2 || start >= end {
+		return 1.0
+	}
+	t := now.In(timezone.Location())
+	cur := t.Hour()*60 + t.Minute()
+	if cur >= start && cur < end {
+		return g.PeakRateMultiplier
+	}
+	return 1.0
+}
+
+// ValidatePeakRateConfig 是高峰倍率配置的唯一校验来源，供 handler 与 service 层共用。
+// enabled=true 时要求 start/end 合法且 end>start（不支持跨天），multiplier>=0。
+// multiplier=0 是允许的，表示高峰 token 请求按 0 倍计费，可用于折扣/免费策略。
+// enabled=false 时放行。
+func ValidatePeakRateConfig(enabled bool, start, end string, multiplier float64) error {
+	if !enabled {
+		return nil
+	}
+	if start == "" || end == "" {
+		return errors.New("peak_rate_enabled 为 true 时 peak_start 与 peak_end 必填")
+	}
+	st, okStart := parseMinutes(start)
+	if !okStart {
+		return fmt.Errorf("peak_start 格式应为 HH:MM，got %q", start)
+	}
+	en, okEnd := parseMinutes(end)
+	if !okEnd {
+		return fmt.Errorf("peak_end 格式应为 HH:MM，got %q", end)
+	}
+	if st >= en {
+		return errors.New("peak_end 必须大于 peak_start（不支持跨天区间，如 22:00-02:00）")
+	}
+	if multiplier < 0 {
+		return errors.New("peak_rate_multiplier 不能为负")
+	}
+	return nil
+}
+
+// NormalizePeakRateConfig 归一化最终落库的高峰倍率配置，供 CreateGroup 与 UpdateGroup 共用。
+// 启用时保持原值并交给 ValidatePeakRateConfig 严格校验；停用时保留合法窗口与非负倍率，
+// 仅清理脏窗口与负倍率，便于管理员临时停用后按原配置重新启用。
+func NormalizePeakRateConfig(enabled bool, start, end string, multiplier float64) (bool, string, string, float64) {
+	if enabled {
+		return enabled, start, end, multiplier
+	}
+	if _, ok := parseMinutes(start); !ok {
+		start = ""
+	}
+	if _, ok := parseMinutes(end); !ok {
+		end = ""
+	}
+	if multiplier < 0 {
+		multiplier = 1.0
+	}
+	return false, start, end, multiplier
+}
+
+// computePeakAwareMultipliers 把"基础 token 倍率 base"（已含系统/分组/用户级倍率，但不含高峰）
+// 拆分为最终 token 倍率与图片按次倍率：图片按次倍率基于 base 现算、不受高峰影响；token 倍率在 base 上叠加高峰因子。
+// gateway_service.recordUsageCore 与 openai_gateway_service.RecordUsage 共用此函数，
+// 锁死"高峰因子只乘入 token 倍率、图片按次倍率不受影响"这一叠加顺序——任何调换都会被 group_peak_rate_test 覆盖。
+func computePeakAwareMultipliers(apiKey *APIKey, base float64, now time.Time) (text, image float64) {
+	image = resolveImageRateMultiplier(apiKey, base)
+	peak := 1.0
+	if apiKey != nil && apiKey.Group != nil {
+		peak = apiKey.Group.PeakMultiplierAt(now)
+	}
+	text = base * peak
+	return
 }

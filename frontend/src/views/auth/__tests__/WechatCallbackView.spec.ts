@@ -133,6 +133,7 @@ vi.mock('@/api/client', () => ({
   apiClient: {
     post: (...args: any[]) => apiClientPostMock(...args),
   },
+  buildApiUrl: (path: string) => `/api/v1${path.startsWith('/') ? path : `/${path}`}`,
 }))
 
 vi.mock('@/api/auth', async () => {

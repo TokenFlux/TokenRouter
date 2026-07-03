@@ -243,7 +243,7 @@ gateway:
   openai_ws:
     # 新版 WS mode 路由（默认关闭）。关闭时保持当前 legacy 实现行为。
     mode_router_v2_enabled: false
-    # ingress 默认模式：off|ctx_pool|passthrough（仅 mode_router_v2_enabled=true 生效）
+    # ingress 默认模式：off|ctx_pool|passthrough|http_bridge（仅 mode_router_v2_enabled=true 生效）
     # 兼容旧值：shared/dedicated 会按 ctx_pool 处理。
     ingress_mode_default: ctx_pool
     # 全局总开关，默认 true；关闭时所有请求保持原有 HTTP/SSE 路由
@@ -320,6 +320,9 @@ gateway:
       # 倾向「会话窗口最早重置」的账号，剩余重置时间越短得分越高。
       # 0 表示关闭（默认，不改变原有行为）；调大可让即将重置的账号被优先用尽。
       reset: 0.0
+      # 倾向 Codex 7d 剩余额度更健康的账号。
+      # 0 表示关闭（默认，不改变原有行为）；小流量灰度可设为 0.3。
+      quota_headroom: 0.0
   # OpenAI 高级调度器补充配置
   openai_scheduler:
     # 是否允许 session_hash sticky 在账号健康度恶化时临时逃逸；false 可一键回退旧行为

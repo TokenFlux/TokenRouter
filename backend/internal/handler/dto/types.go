@@ -91,29 +91,33 @@ type APIKey struct {
 }
 
 type Group struct {
-	ID                         int64          `json:"id"`
-	Name                       string         `json:"name"`
-	Description                string         `json:"description"`
-	Platform                   string         `json:"platform"`
-	DisplayBrand               string         `json:"display_brand"`
-	RateMultiplier             float64        `json:"rate_multiplier"`
-	SubscriptionRateMultiplier float64        `json:"subscription_rate_multiplier"`
-	Capacity                   *GroupCapacity `json:"capacity,omitempty"`
-	IsExclusive                bool           `json:"is_exclusive"`
-	IsDefault                  bool           `json:"is_default"`
-	Status                     string         `json:"status"`
+	ID             int64          `json:"id"`
+	Name           string         `json:"name"`
+	Description    string         `json:"description"`
+	Platform       string         `json:"platform"`
+	DisplayBrand   string         `json:"display_brand"`
+	RateMultiplier float64        `json:"rate_multiplier"`
+	Capacity       *GroupCapacity `json:"capacity,omitempty"`
+	IsExclusive    bool           `json:"is_exclusive"`
+	IsDefault      bool           `json:"is_default"`
+	Status         string         `json:"status"`
 	// 数据共享分组会采集符合规则的 Agent session，用户切换前必须确认须知。
 	DataSharingEnabled bool `json:"data_sharing_enabled"`
 	// 会话隔离开启后，目标分组会拒绝其它分组已归属的显式会话切入。
 	SessionIsolationEnabled bool `json:"session_isolation_enabled"`
 
 	// 图片生成计费配置（仅 antigravity 平台使用）
-	AllowImageGeneration bool     `json:"allow_image_generation"`
-	ImageRateIndependent bool     `json:"image_rate_independent"`
-	ImageRateMultiplier  float64  `json:"image_rate_multiplier"`
-	ImagePrice1K         *float64 `json:"image_price_1k"`
-	ImagePrice2K         *float64 `json:"image_price_2k"`
-	ImagePrice4K         *float64 `json:"image_price_4k"`
+	AllowImageGeneration bool    `json:"allow_image_generation"`
+	ImageRateIndependent bool    `json:"image_rate_independent"`
+	ImageRateMultiplier  float64 `json:"image_rate_multiplier"`
+	// 高峰时段倍率配置
+	PeakRateEnabled    bool     `json:"peak_rate_enabled"`
+	PeakStart          string   `json:"peak_start"`
+	PeakEnd            string   `json:"peak_end"`
+	PeakRateMultiplier float64  `json:"peak_rate_multiplier"`
+	ImagePrice1K       *float64 `json:"image_price_1k"`
+	ImagePrice2K       *float64 `json:"image_price_2k"`
+	ImagePrice4K       *float64 `json:"image_price_4k"`
 
 	// Claude Code 客户端限制
 	ClaudeCodeOnly  bool   `json:"claude_code_only"`
@@ -147,23 +151,24 @@ type GroupCapacity struct {
 }
 
 type SubscriptionPlan struct {
-	ID              int64     `json:"id"`
-	Name            string    `json:"name"`
-	Description     string    `json:"description"`
-	Price           float64   `json:"price"`
-	OriginalPrice   *float64  `json:"original_price,omitempty"`
-	ValidityDays    int       `json:"validity_days"`
-	ValidityUnit    string    `json:"validity_unit"`
-	GroupIDs        []int64   `json:"group_ids"`
-	DailyLimitUSD   *float64  `json:"daily_limit_usd"`
-	WeeklyLimitUSD  *float64  `json:"weekly_limit_usd"`
-	MonthlyLimitUSD *float64  `json:"monthly_limit_usd"`
-	Features        string    `json:"features"`
-	ProductName     string    `json:"product_name"`
-	ForSale         bool      `json:"for_sale"`
-	SortOrder       int       `json:"sort_order"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID                   int64             `json:"id"`
+	Name                 string            `json:"name"`
+	Description          string            `json:"description"`
+	Price                float64           `json:"price"`
+	OriginalPrice        *float64          `json:"original_price,omitempty"`
+	ValidityDays         int               `json:"validity_days"`
+	ValidityUnit         string            `json:"validity_unit"`
+	GroupIDs             []int64           `json:"group_ids"`
+	GroupRateMultipliers map[int64]float64 `json:"group_rate_multipliers"`
+	DailyLimitUSD        *float64          `json:"daily_limit_usd"`
+	WeeklyLimitUSD       *float64          `json:"weekly_limit_usd"`
+	MonthlyLimitUSD      *float64          `json:"monthly_limit_usd"`
+	Features             string            `json:"features"`
+	ProductName          string            `json:"product_name"`
+	ForSale              bool              `json:"for_sale"`
+	SortOrder            int               `json:"sort_order"`
+	CreatedAt            time.Time         `json:"created_at"`
+	UpdatedAt            time.Time         `json:"updated_at"`
 }
 
 // AdminGroup 是管理员接口使用的 group DTO（包含敏感/内部字段）。
@@ -303,6 +308,17 @@ type Account struct {
 	QuotaNotifyWeeklyThreshold *float64 `json:"quota_notify_weekly_threshold,omitempty"`
 	QuotaNotifyTotalEnabled    *bool    `json:"quota_notify_total_enabled,omitempty"`
 	QuotaNotifyTotalThreshold  *float64 `json:"quota_notify_total_threshold,omitempty"`
+
+	// 影子账号关系（spark 维度影子）
+	ParentAccountID *int64 `json:"parent_account_id,omitempty"`
+	QuotaDimension  string `json:"quota_dimension,omitempty"`
+
+	// 影子账号回填的母账号信息（仅影子非空，源自母账号 Credentials/Extra）
+	ParentEmail                 string `json:"parent_email,omitempty"`
+	ParentPlanType              string `json:"parent_plan_type,omitempty"`
+	ParentPrivacyMode           string `json:"parent_privacy_mode,omitempty"`
+	ParentSubscriptionExpiresAt string `json:"parent_subscription_expires_at,omitempty"`
+	ParentChatGPTAccountID      string `json:"parent_chatgpt_account_id,omitempty"`
 
 	Proxy         *Proxy         `json:"proxy,omitempty"`
 	AccountGroups []AccountGroup `json:"account_groups,omitempty"`
@@ -517,6 +533,8 @@ type UsageLog struct {
 
 	// User-Agent
 	UserAgent *string `json:"user_agent"`
+	// IPAddress 对用量记录所有者可见。
+	IPAddress *string `json:"ip_address,omitempty"`
 
 	// Cache TTL Override 标记
 	CacheTTLOverridden bool `json:"cache_ttl_overridden"`
@@ -552,7 +570,7 @@ type AdminUsageLog struct {
 	// AccountStatsCost 自定义定价规则计算的账号统计费用（nil 表示使用默认公式）
 	AccountStatsCost *float64 `json:"account_stats_cost,omitempty"`
 
-	// IPAddress 用户请求 IP（仅管理员可见）
+	// IPAddress 用户请求 IP
 	IPAddress *string `json:"ip_address,omitempty"`
 
 	// Account 最小账号信息（避免泄露敏感字段）
@@ -622,8 +640,9 @@ type UserSubscription struct {
 	WeeklyUsageUSD  float64 `json:"weekly_usage_usd"`
 	MonthlyUsageUSD float64 `json:"monthly_usage_usd"`
 
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty"`
 
 	User *User             `json:"user,omitempty"`
 	Plan *SubscriptionPlan `json:"plan,omitempty"`

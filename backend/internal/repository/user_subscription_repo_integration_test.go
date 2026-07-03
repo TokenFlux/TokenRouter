@@ -225,6 +225,104 @@ func (s *UserSubscriptionRepoSuite) TestList_FilterByPlanAndPendingStatus() {
 	s.Require().Equal(pending.ID, subs[0].ID)
 }
 
+func (s *UserSubscriptionRepoSuite) TestList_IncludesRevokedWhenStatusEmpty() {
+	user := s.mustCreateUser("revoked-all@test.com", service.RoleUser)
+	plan := s.mustCreatePlan("plan-revoked-all", 30)
+
+	active := s.mustCreateSubscription(user.ID, plan.ID, nil)
+	revoked := s.mustCreateSubscription(user.ID, plan.ID, func(c *dbent.UserSubscriptionCreate) {
+		c.SetStartsAt(time.Now().Add(24 * time.Hour))
+		c.SetExpiresAt(time.Now().Add(48 * time.Hour))
+		c.SetStatus(service.SubscriptionStatusPending)
+	})
+	s.Require().NoError(s.repo.Delete(s.ctx, revoked.ID))
+
+	subs, page, err := s.repo.List(
+		s.ctx,
+		pagination.PaginationParams{Page: 1, PageSize: 10},
+		&user.ID,
+		nil,
+		"",
+		"",
+		"created_at",
+		"desc",
+	)
+	s.Require().NoError(err)
+	s.Require().Equal(int64(2), page.Total)
+	s.Require().Len(subs, 2)
+
+	byID := make(map[int64]service.UserSubscription, len(subs))
+	for _, sub := range subs {
+		byID[sub.ID] = sub
+	}
+	s.Require().Equal(service.SubscriptionStatusActive, byID[active.ID].Status)
+	s.Require().Equal(service.SubscriptionStatusRevoked, byID[revoked.ID].Status)
+	s.Require().NotNil(byID[revoked.ID].DeletedAt)
+	s.Require().NotNil(byID[revoked.ID].User)
+	s.Require().NotNil(byID[revoked.ID].Plan)
+}
+
+func (s *UserSubscriptionRepoSuite) TestList_FilterByRevokedStatus() {
+	user := s.mustCreateUser("revoked-filter@test.com", service.RoleUser)
+	plan := s.mustCreatePlan("plan-revoked-filter", 30)
+
+	_ = s.mustCreateSubscription(user.ID, plan.ID, nil)
+	revoked := s.mustCreateSubscription(user.ID, plan.ID, nil)
+	s.Require().NoError(s.repo.Delete(s.ctx, revoked.ID))
+
+	subs, page, err := s.repo.List(
+		s.ctx,
+		pagination.PaginationParams{Page: 1, PageSize: 10},
+		&user.ID,
+		nil,
+		service.SubscriptionStatusRevoked,
+		"",
+		"created_at",
+		"desc",
+	)
+	s.Require().NoError(err)
+	s.Require().Equal(int64(1), page.Total)
+	s.Require().Len(subs, 1)
+	s.Require().Equal(revoked.ID, subs[0].ID)
+	s.Require().Equal(service.SubscriptionStatusRevoked, subs[0].Status)
+	s.Require().NotNil(subs[0].DeletedAt)
+}
+
+func (s *UserSubscriptionRepoSuite) TestGetByIDIncludeDeleted_PreservesPersistedStatus() {
+	user := s.mustCreateUser("include-deleted@test.com", service.RoleUser)
+	plan := s.mustCreatePlan("plan-include-deleted", 30)
+
+	sub := s.mustCreateSubscription(user.ID, plan.ID, nil)
+	s.Require().NoError(s.repo.Delete(s.ctx, sub.ID))
+
+	got, err := s.repo.GetByIDIncludeDeleted(s.ctx, sub.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(sub.ID, got.ID)
+	s.Require().Equal(service.SubscriptionStatusActive, got.Status)
+	s.Require().NotNil(got.DeletedAt)
+	s.Require().NotNil(got.User)
+	s.Require().NotNil(got.Plan)
+}
+
+func (s *UserSubscriptionRepoSuite) TestRestore() {
+	user := s.mustCreateUser("restore@test.com", service.RoleUser)
+	plan := s.mustCreatePlan("plan-restore", 30)
+
+	sub := s.mustCreateSubscription(user.ID, plan.ID, nil)
+	s.Require().NoError(s.repo.Delete(s.ctx, sub.ID))
+
+	restored, err := s.repo.Restore(s.ctx, sub.ID, service.SubscriptionStatusExpired)
+	s.Require().NoError(err)
+	s.Require().Equal(sub.ID, restored.ID)
+	s.Require().Equal(service.SubscriptionStatusExpired, restored.Status)
+	s.Require().Nil(restored.DeletedAt)
+
+	got, err := s.repo.GetByID(s.ctx, sub.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(service.SubscriptionStatusExpired, got.Status)
+	s.Require().Nil(got.DeletedAt)
+}
+
 func (s *UserSubscriptionRepoSuite) TestListBySourceOrderIDAndUsageMutations() {
 	user := s.mustCreateUser("source-order@test.com", service.RoleUser)
 	plan := s.mustCreatePlan("plan-source-order", 30)

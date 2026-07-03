@@ -196,7 +196,7 @@ type SystemSettings struct {
 	// Backend Mode
 	BackendModeEnabled bool `json:"backend_mode_enabled"`
 
-	// Gateway forwarding behavior
+	// 网关转发行为
 	EnableFingerprintUnification           bool                                 `json:"enable_fingerprint_unification"`
 	EnableMetadataPassthrough              bool                                 `json:"enable_metadata_passthrough"`
 	EnableCCHSigning                       bool                                 `json:"enable_cch_signing"`
@@ -205,6 +205,7 @@ type SystemSettings struct {
 	ClaudeOAuthSystemPromptBlocks          string                               `json:"claude_oauth_system_prompt_blocks"`
 	EnableAnthropicCacheTTL1hInjection     bool                                 `json:"enable_anthropic_cache_ttl_1h_injection"`
 	RewriteMessageCacheControl             bool                                 `json:"rewrite_message_cache_control"`
+	EnableClientDatelineNormalization      bool                                 `json:"enable_client_dateline_normalization"`
 	AntigravityUserAgentVersion            string                               `json:"antigravity_user_agent_version"`
 	OpenAICodexUserAgent                   string                               `json:"openai_codex_user_agent"`
 	OpenAIAllowClaudeCodeCodexPlugin       bool                                 `json:"openai_allow_claude_code_codex_plugin"`
@@ -325,17 +326,20 @@ type PublicSettings struct {
 	BackendModeEnabled               bool                     `json:"backend_mode_enabled"`
 	PaymentEnabled                   bool                     `json:"payment_enabled"`
 	Version                          string                   `json:"version"`
-	BalanceUnitName                  string                   `json:"balance_unit_name"`
-	BalanceUnitSymbol                string                   `json:"balance_unit_symbol"`
-	BalanceIconSVG                   string                   `json:"balance_icon_svg"`
-	BalanceLowNotifyEnabled          bool                     `json:"balance_low_notify_enabled"`
-	AccountQuotaNotifyEnabled        bool                     `json:"account_quota_notify_enabled"`
-	RiskControlEnabled               bool                     `json:"risk_control_enabled"` // 风控中心入口开关
-	CyberSessionBlockEnabled         bool                     `json:"cyber_session_block_enabled"`
-	CyberSessionBlockTTLSeconds      int                      `json:"cyber_session_block_ttl_seconds"`
-	AffiliateEnabled                 bool                     `json:"affiliate_enabled"` // 邀请返利入口开关
-	BalanceLowNotifyThreshold        float64                  `json:"balance_low_notify_threshold"`
-	BalanceLowNotifyRechargeURL      string                   `json:"balance_low_notify_recharge_url"`
+	// 服务器全局时区与当前 UTC 偏移，供前端标注高峰计费窗口等服务端本地时间。
+	ServerTimezone              string  `json:"server_timezone"`
+	ServerUTCOffset             string  `json:"server_utc_offset"`
+	BalanceUnitName             string  `json:"balance_unit_name"`
+	BalanceUnitSymbol           string  `json:"balance_unit_symbol"`
+	BalanceIconSVG              string  `json:"balance_icon_svg"`
+	BalanceLowNotifyEnabled     bool    `json:"balance_low_notify_enabled"`
+	AccountQuotaNotifyEnabled   bool    `json:"account_quota_notify_enabled"`
+	RiskControlEnabled          bool    `json:"risk_control_enabled"` // 风控中心入口开关
+	CyberSessionBlockEnabled    bool    `json:"cyber_session_block_enabled"`
+	CyberSessionBlockTTLSeconds int     `json:"cyber_session_block_ttl_seconds"`
+	AffiliateEnabled            bool    `json:"affiliate_enabled"` // 邀请返利入口开关
+	BalanceLowNotifyThreshold   float64 `json:"balance_low_notify_threshold"`
+	BalanceLowNotifyRechargeURL string  `json:"balance_low_notify_recharge_url"`
 
 	// 允许终端用户在用量页查看自己的失败请求
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`

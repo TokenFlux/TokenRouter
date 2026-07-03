@@ -4,7 +4,7 @@
  */
 
 // Re-export the HTTP client
-export { apiClient } from './client'
+export { apiClient, buildApiUrl, buildGatewayUrl } from './client'
 
 // Auth API
 export { authAPI, isTotp2FARequired, type LoginResponse } from './auth'

@@ -190,7 +190,7 @@ func (s *UsageService) Delete(ctx context.Context, id int64) error {
 	return nil
 }
 
-// GetUserDashboardStats returns per-user dashboard summary stats.
+// GetUserDashboardStats 获取单个用户的仪表盘汇总统计。
 func (s *UsageService) GetUserDashboardStats(ctx context.Context, userID int64) (*usagestats.UserDashboardStats, error) {
 	stats, err := s.usageRepo.GetUserDashboardStats(ctx, userID)
 	if err != nil {
@@ -199,7 +199,7 @@ func (s *UsageService) GetUserDashboardStats(ctx context.Context, userID int64) 
 	return stats, nil
 }
 
-// GetAPIKeyDashboardStats returns dashboard summary stats filtered by API Key.
+// GetAPIKeyDashboardStats 获取指定 API Key 的仪表盘汇总统计。
 func (s *UsageService) GetAPIKeyDashboardStats(ctx context.Context, apiKeyID int64) (*usagestats.UserDashboardStats, error) {
 	stats, err := s.usageRepo.GetAPIKeyDashboardStats(ctx, apiKeyID)
 	if err != nil {
@@ -208,7 +208,7 @@ func (s *UsageService) GetAPIKeyDashboardStats(ctx context.Context, apiKeyID int
 	return stats, nil
 }
 
-// GetUserUsageTrendByUserID returns per-user usage trend.
+// GetUserUsageTrendByUserID 获取指定用户的用量趋势。
 func (s *UsageService) GetUserUsageTrendByUserID(ctx context.Context, userID int64, startTime, endTime time.Time, granularity string) ([]usagestats.TrendDataPoint, error) {
 	trend, err := s.usageRepo.GetUserUsageTrendByUserID(ctx, userID, startTime, endTime, granularity)
 	if err != nil {
@@ -217,7 +217,26 @@ func (s *UsageService) GetUserUsageTrendByUserID(ctx context.Context, userID int
 	return trend, nil
 }
 
-// GetUserModelStats returns per-user model usage stats.
+// GetUsageTrendWithFilters 使用统一过滤条件获取用量趋势。
+func (s *UsageService) GetUsageTrendWithFilters(ctx context.Context, startTime, endTime time.Time, granularity string, filters usagestats.UsageLogFilters) ([]usagestats.TrendDataPoint, error) {
+	type usageTrendWithFiltersRepo interface {
+		GetUsageTrendWithUsageFilters(ctx context.Context, startTime, endTime time.Time, granularity string, filters usagestats.UsageLogFilters) ([]usagestats.TrendDataPoint, error)
+	}
+	if filterRepo, ok := s.usageRepo.(usageTrendWithFiltersRepo); ok {
+		trend, err := filterRepo.GetUsageTrendWithUsageFilters(ctx, startTime, endTime, granularity, filters)
+		if err != nil {
+			return nil, fmt.Errorf("get usage trend with filters: %w", err)
+		}
+		return trend, nil
+	}
+	trend, err := s.usageRepo.GetUsageTrendWithFilters(ctx, startTime, endTime, granularity, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.Model, filters.RequestType, filters.Stream, filters.BillingType)
+	if err != nil {
+		return nil, fmt.Errorf("get usage trend with filters: %w", err)
+	}
+	return trend, nil
+}
+
+// GetUserModelStats 获取指定用户的模型用量统计。
 func (s *UsageService) GetUserModelStats(ctx context.Context, userID int64, startTime, endTime time.Time) ([]usagestats.ModelStat, error) {
 	stats, err := s.usageRepo.GetUserModelStats(ctx, userID, startTime, endTime)
 	if err != nil {
@@ -226,7 +245,56 @@ func (s *UsageService) GetUserModelStats(ctx context.Context, userID int64, star
 	return stats, nil
 }
 
-// GetAPIKeyModelStats returns per-model usage stats for a specific API Key.
+// GetModelStatsWithFiltersBySource 使用统一过滤条件按模型来源获取模型统计。
+func (s *UsageService) GetModelStatsWithFiltersBySource(ctx context.Context, startTime, endTime time.Time, filters usagestats.UsageLogFilters, modelSource string) ([]usagestats.ModelStat, error) {
+	normalizedSource := usagestats.NormalizeModelSource(modelSource)
+	type modelStatsWithUsageFiltersRepo interface {
+		GetModelStatsWithUsageFiltersBySource(ctx context.Context, startTime, endTime time.Time, filters usagestats.UsageLogFilters, source string) ([]usagestats.ModelStat, error)
+	}
+	if filterRepo, ok := s.usageRepo.(modelStatsWithUsageFiltersRepo); ok {
+		stats, err := filterRepo.GetModelStatsWithUsageFiltersBySource(ctx, startTime, endTime, filters, normalizedSource)
+		if err != nil {
+			return nil, fmt.Errorf("get model stats with filters by source: %w", err)
+		}
+		return stats, nil
+	}
+	type modelStatsBySourceRepo interface {
+		GetModelStatsWithFiltersBySource(ctx context.Context, startTime, endTime time.Time, userID, apiKeyID, accountID, groupID int64, requestType *int16, stream *bool, billingType *int8, source string) ([]usagestats.ModelStat, error)
+	}
+	if sourceRepo, ok := s.usageRepo.(modelStatsBySourceRepo); ok {
+		stats, err := sourceRepo.GetModelStatsWithFiltersBySource(ctx, startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.RequestType, filters.Stream, filters.BillingType, normalizedSource)
+		if err != nil {
+			return nil, fmt.Errorf("get model stats with filters by source: %w", err)
+		}
+		return stats, nil
+	}
+	stats, err := s.usageRepo.GetModelStatsWithFilters(ctx, startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.RequestType, filters.Stream, filters.BillingType)
+	if err != nil {
+		return nil, fmt.Errorf("get model stats with filters: %w", err)
+	}
+	return stats, nil
+}
+
+// GetGroupStatsWithFilters 使用统一过滤条件获取分组统计。
+func (s *UsageService) GetGroupStatsWithFilters(ctx context.Context, startTime, endTime time.Time, filters usagestats.UsageLogFilters) ([]usagestats.GroupStat, error) {
+	type groupStatsWithUsageFiltersRepo interface {
+		GetGroupStatsWithUsageFilters(ctx context.Context, startTime, endTime time.Time, filters usagestats.UsageLogFilters) ([]usagestats.GroupStat, error)
+	}
+	if filterRepo, ok := s.usageRepo.(groupStatsWithUsageFiltersRepo); ok {
+		stats, err := filterRepo.GetGroupStatsWithUsageFilters(ctx, startTime, endTime, filters)
+		if err != nil {
+			return nil, fmt.Errorf("get group stats with filters: %w", err)
+		}
+		return stats, nil
+	}
+	stats, err := s.usageRepo.GetGroupStatsWithFilters(ctx, startTime, endTime, filters.UserID, filters.APIKeyID, filters.AccountID, filters.GroupID, filters.RequestType, filters.Stream, filters.BillingType)
+	if err != nil {
+		return nil, fmt.Errorf("get group stats with filters: %w", err)
+	}
+	return stats, nil
+}
+
+// GetAPIKeyModelStats 获取指定 API Key 的模型用量统计。
 func (s *UsageService) GetAPIKeyModelStats(ctx context.Context, apiKeyID int64, startTime, endTime time.Time) ([]usagestats.ModelStat, error) {
 	stats, err := s.usageRepo.GetModelStatsWithFilters(ctx, startTime, endTime, 0, apiKeyID, 0, 0, nil, nil, nil)
 	if err != nil {
@@ -259,7 +327,7 @@ func (s *UsageService) GetAPIKeyDailyUsage(ctx context.Context, userID, apiKeyID
 	return points, nil
 }
 
-// GetBatchAPIKeyUsageStats returns today/total actual_cost for given api keys.
+// GetBatchAPIKeyUsageStats 获取多个 API Key 的今日/累计实际扣费。
 func (s *UsageService) GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs []int64, startTime, endTime time.Time) (map[int64]*usagestats.BatchAPIKeyUsageStats, error) {
 	stats, err := s.usageRepo.GetBatchAPIKeyUsageStats(ctx, apiKeyIDs, startTime, endTime)
 	if err != nil {
@@ -268,7 +336,7 @@ func (s *UsageService) GetBatchAPIKeyUsageStats(ctx context.Context, apiKeyIDs [
 	return stats, nil
 }
 
-// ListWithFilters lists usage logs with admin filters.
+// ListWithFilters 按统一过滤条件列出用量日志。
 func (s *UsageService) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters usagestats.UsageLogFilters) ([]UsageLog, *pagination.PaginationResult, error) {
 	logs, result, err := s.usageRepo.ListWithFilters(ctx, params, filters)
 	if err != nil {
@@ -277,7 +345,7 @@ func (s *UsageService) ListWithFilters(ctx context.Context, params pagination.Pa
 	return logs, result, nil
 }
 
-// GetGlobalStats returns global usage stats for a time range.
+// GetGlobalStats 获取指定时间范围内的全局用量统计。
 func (s *UsageService) GetGlobalStats(ctx context.Context, startTime, endTime time.Time) (*usagestats.UsageStats, error) {
 	stats, err := s.usageRepo.GetGlobalStats(ctx, startTime, endTime)
 	if err != nil {
@@ -286,7 +354,7 @@ func (s *UsageService) GetGlobalStats(ctx context.Context, startTime, endTime ti
 	return stats, nil
 }
 
-// GetStatsWithFilters returns usage stats with optional filters.
+// GetStatsWithFilters 按统一过滤条件获取用量统计。
 func (s *UsageService) GetStatsWithFilters(ctx context.Context, filters usagestats.UsageLogFilters) (*usagestats.UsageStats, error) {
 	stats, err := s.usageRepo.GetStatsWithFilters(ctx, filters)
 	if err != nil {

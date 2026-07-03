@@ -181,7 +181,6 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldIsExclusive,
 				group.FieldStatus,
 				group.FieldRateMultiplier,
-				group.FieldSubscriptionRateMultiplier,
 				group.FieldAllowImageGeneration,
 				group.FieldImageRateIndependent,
 				group.FieldImageRateMultiplier,
@@ -202,6 +201,10 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldRpmLimit,
 				group.FieldDataSharingEnabled,
 				group.FieldSessionIsolationEnabled,
+				group.FieldPeakRateEnabled,
+				group.FieldPeakStart,
+				group.FieldPeakEnd,
+				group.FieldPeakRateMultiplier,
 			)
 		}).
 		Only(ctx)
@@ -912,7 +915,6 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		Platform:                        g.Platform,
 		DisplayBrand:                    g.DisplayBrand,
 		RateMultiplier:                  g.RateMultiplier,
-		SubscriptionRateMultiplier:      g.SubscriptionRateMultiplier,
 		IsExclusive:                     g.IsExclusive,
 		IsDefault:                       g.IsDefault,
 		Status:                          g.Status,
@@ -942,6 +944,10 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		ModelsListConfig:                g.ModelsListConfig,
 		AvailabilityProbeConfig:         g.AvailabilityProbeConfig,
 		RPMLimit:                        g.RpmLimit,
+		PeakRateEnabled:                 g.PeakRateEnabled,
+		PeakStart:                       g.PeakStart,
+		PeakEnd:                         g.PeakEnd,
+		PeakRateMultiplier:              g.PeakRateMultiplier,
 		CreatedAt:                       g.CreatedAt,
 		UpdatedAt:                       g.UpdatedAt,
 	}

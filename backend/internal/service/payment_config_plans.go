@@ -37,6 +37,37 @@ func validatePlanGroupIDs(groupIDs []int64) error {
 	return nil
 }
 
+func normalizePlanGroupRateMultipliers(groupIDs []int64, rates map[int64]float64) (map[int64]float64, error) {
+	out := make(map[int64]float64, len(groupIDs))
+	for _, groupID := range groupIDs {
+		if groupID <= 0 {
+			continue
+		}
+		rate := 1.0
+		if rates != nil {
+			if configured, ok := rates[groupID]; ok {
+				rate = configured
+			}
+		}
+		if rate <= 0 {
+			return nil, infraerrors.BadRequest("PLAN_GROUP_RATE_INVALID", "plan group rate multiplier must be > 0")
+		}
+		out[groupID] = rate
+	}
+	return out, nil
+}
+
+func cloneInt64Float64Map(in map[int64]float64) map[int64]float64 {
+	if len(in) == 0 {
+		return map[int64]float64{}
+	}
+	out := make(map[int64]float64, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
 func validatePlanQuotas(daily, weekly, monthly *float64) error {
 	for _, item := range []struct {
 		value *float64
@@ -122,6 +153,10 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 	if err := validatePlanGroupIDs(groupIDs); err != nil {
 		return nil, err
 	}
+	groupRates, err := normalizePlanGroupRateMultipliers(groupIDs, req.GroupRateMultipliers)
+	if err != nil {
+		return nil, err
+	}
 	if err := validatePlanRequired(req.Name, req.GroupID, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
 		return nil, err
 	}
@@ -136,6 +171,7 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 		SetValidityDays(req.ValidityDays).
 		SetValidityUnit(strings.TrimSpace(req.ValidityUnit)).
 		SetGroupIds(groupIDs).
+		SetGroupRateMultipliers(groupRates).
 		SetFeatures(req.Features).
 		SetProductName(req.ProductName).
 		SetForSale(req.ForSale).
@@ -160,6 +196,7 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 		return nil, err
 	}
 	var groupIDs []int64
+	var groupRates map[int64]float64
 	if req.GroupIDs != nil {
 		groupID := int64(0)
 		if req.GroupID != nil {
@@ -170,10 +207,30 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 			return nil, err
 		}
 	}
+	if req.GroupIDs != nil || req.GroupRateMultipliers != nil {
+		existing, err := s.entClient.SubscriptionPlan.Get(ctx, id)
+		if err != nil {
+			return nil, infraerrors.NotFound("PLAN_NOT_FOUND", "subscription plan not found")
+		}
+		if req.GroupIDs == nil {
+			groupIDs = append([]int64(nil), existing.GroupIds...)
+		}
+		rates := existing.GroupRateMultipliers
+		if req.GroupRateMultipliers != nil {
+			rates = *req.GroupRateMultipliers
+		}
+		groupRates, err = normalizePlanGroupRateMultipliers(groupIDs, rates)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	update := s.entClient.SubscriptionPlan.UpdateOneID(id)
 	if req.GroupIDs != nil {
 		update.SetGroupIds(groupIDs)
+	}
+	if req.GroupIDs != nil || req.GroupRateMultipliers != nil {
+		update.SetGroupRateMultipliers(groupRates)
 	}
 	if req.Name != nil {
 		update.SetName(strings.TrimSpace(*req.Name))

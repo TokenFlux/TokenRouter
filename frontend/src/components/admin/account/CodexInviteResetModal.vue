@@ -76,6 +76,27 @@
               <div v-if="selectedCredit" class="rounded-lg bg-gray-50 p-3 text-sm text-gray-600 dark:bg-dark-800 dark:text-gray-300">
                 <div class="font-medium text-gray-900 dark:text-white">{{ creditTitle(selectedCredit) }}</div>
                 <div class="mt-1">{{ creditDescription(selectedCredit) }}</div>
+                <div v-if="selectedCredit.expires_at" class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  {{ t('admin.accounts.inviteResetCreditExpiresAtFull', { time: formatCreditExpiry(selectedCredit.expires_at, 'full') }) }}
+                </div>
+              </div>
+              <div
+                v-if="creditExpirations.length > 0"
+                class="space-y-2 text-xs text-gray-600 dark:text-gray-300"
+              >
+                <div class="font-medium text-gray-700 dark:text-gray-200">
+                  {{ t('admin.accounts.inviteResetCreditExpirations') }}
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <span
+                    v-for="(expiresAt, index) in creditExpirations"
+                    :key="`${expiresAt}-${index}`"
+                    class="inline-flex max-w-full items-center rounded bg-gray-100 px-2 py-1 tabular-nums dark:bg-dark-700"
+                    :title="t('admin.accounts.inviteResetCreditExpiresAtFull', { time: formatCreditExpiry(expiresAt, 'full') })"
+                  >
+                    {{ formatCreditExpiry(expiresAt, 'short') }}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -254,12 +275,21 @@ const showGrantAction = computed(() => Boolean(status.value?.grant_action) && st
 const creditOptions = computed<SelectOption[]>(() => {
   return availableCredits.value.map((credit, index) => ({
     value: credit.id,
-    label: `${creditTitle(credit)} #${index + 1}`
+    label: credit.expires_at
+      ? `${creditTitle(credit)} #${index + 1} · ${formatCreditExpiry(credit.expires_at, 'short')}`
+      : `${creditTitle(credit)} #${index + 1}`
   }))
 })
 
 const selectedCredit = computed(() => {
   return availableCredits.value.find((credit) => credit.id === selectedCreditId.value) ?? null
+})
+
+const creditExpirations = computed(() => {
+  return availableCredits.value
+    .map((credit) => credit.expires_at?.trim() ?? '')
+    .filter((expiresAt) => expiresAt.length > 0)
+    .sort(compareCreditExpiry)
 })
 
 const canConsume = computed(() => {
@@ -291,6 +321,33 @@ const creditTitle = (credit: CodexInviteResetCredit) => {
 
 const creditDescription = (credit: CodexInviteResetCredit) => {
   return credit.description || t('admin.accounts.inviteResetCreditFallbackDescription')
+}
+
+const getCreditExpiryTime = (value: string): number => {
+  const time = new Date(value).getTime()
+  return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time
+}
+
+const compareCreditExpiry = (a: string, b: string): number => {
+  const diff = getCreditExpiryTime(a) - getCreditExpiryTime(b)
+  if (diff !== 0) return diff
+  return a.localeCompare(b)
+}
+
+const formatCreditExpiry = (value: string, style: 'short' | 'full'): string => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  const options: Intl.DateTimeFormatOptions = {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  }
+  if (style === 'full') {
+    options.year = 'numeric'
+  }
+  return new Intl.DateTimeFormat(undefined, options).format(date)
 }
 
 // 邀请接口支持逗号、分号、空白和换行分隔，这里先在前端做同样的校验。

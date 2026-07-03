@@ -21,6 +21,9 @@
         {{ labelText }}
       </template>
     </span>
+    <span v-if="hasPeakRate" :class="peakRateClass" :title="peakRateTitle">
+      {{ peakRateText }}
+    </span>
   </span>
 </template>
 
@@ -28,6 +31,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { GroupPlatform } from '@/types'
+import { currentServerTimezoneLabel, formatPeakRateWindow } from '@/utils/peak-rate'
 import PlatformIcon from './PlatformIcon.vue'
 import ProviderIcon from './ProviderIcon.vue'
 import { resolveProviderBrand } from '@/utils/providerBrand'
@@ -38,6 +42,10 @@ interface Props {
   displayBrand?: string | null
   rateMultiplier?: number
   userRateMultiplier?: number | null // 用户专属倍率
+  peakRateEnabled?: boolean
+  peakStart?: string
+  peakEnd?: string
+  peakRateMultiplier?: number
   showRate?: boolean
   daysRemaining?: number | null
 }
@@ -45,7 +53,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   showRate: true,
   daysRemaining: null,
-  userRateMultiplier: null
+  userRateMultiplier: null,
+  peakRateEnabled: false
 })
 
 const { t } = useI18n()
@@ -60,6 +69,26 @@ const hasCustomRate = computed(() => {
     props.rateMultiplier !== undefined &&
     props.userRateMultiplier !== props.rateMultiplier
   )
+})
+
+const hasPeakRate = computed(() => {
+  return Boolean(props.showRate && props.peakRateEnabled && props.peakStart && props.peakEnd)
+})
+
+const peakRateText = computed(() => {
+  return formatPeakRateWindow(
+    {
+      peak_rate_enabled: props.peakRateEnabled,
+      peak_start: props.peakStart,
+      peak_end: props.peakEnd,
+      peak_rate_multiplier: props.peakRateMultiplier
+    },
+    currentServerTimezoneLabel()
+  )
+})
+
+const peakRateTitle = computed(() => {
+  return t('common.peakRateTooltip', { window: peakRateText.value })
 })
 
 // 是否显示右侧标签
@@ -104,7 +133,17 @@ const labelClass = computed(() => {
   if (props.platform === 'gemini') {
     return `${base} bg-blue-200/60 text-blue-800 dark:bg-blue-800/40 dark:text-blue-300`
   }
+  if (props.platform === 'antigravity') {
+    return `${base} bg-purple-200/60 text-purple-800 dark:bg-purple-800/40 dark:text-purple-300`
+  }
+  if (props.platform === 'grok') {
+    return `${base} bg-zinc-300/70 text-zinc-800 dark:bg-zinc-700/60 dark:text-zinc-200`
+  }
   return `${base} bg-violet-200/60 text-violet-800 dark:bg-violet-800/40 dark:text-violet-300`
+})
+
+const peakRateClass = computed(() => {
+  return 'px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
 })
 
 const badgeClass = computed(() => {
@@ -119,6 +158,12 @@ const badgeClass = computed(() => {
   }
   if (props.platform === 'gemini') {
     return 'bg-sky-50 text-sky-700 dark:bg-sky-900/20 dark:text-sky-400'
+  }
+  if (props.platform === 'antigravity') {
+    return 'bg-fuchsia-50 text-fuchsia-700 dark:bg-fuchsia-900/20 dark:text-fuchsia-400'
+  }
+  if (props.platform === 'grok') {
+    return 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200'
   }
   return 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400'
 })

@@ -334,6 +334,21 @@ func (h *PaymentHandler) ProcessRefund(c *gin.Context) {
 	response.Success(c, result)
 }
 
+// QueryAndFinalizeRefund 查询渠道侧退款状态，并在结果变为终态时完成 REFUND_PENDING 订单。
+// POST /api/v1/admin/payment/orders/:id/refund/query
+func (h *PaymentHandler) QueryAndFinalizeRefund(c *gin.Context) {
+	orderID, ok := parseIDParam(c, "id")
+	if !ok {
+		return
+	}
+	result, err := h.paymentService.QueryAndFinalizeRefund(c.Request.Context(), orderID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, result)
+}
+
 // --- Subscription Plans ---
 
 // ListPlans returns all subscription plans.

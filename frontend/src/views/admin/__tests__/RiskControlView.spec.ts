@@ -4,7 +4,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import type { DOMWrapper, VueWrapper } from '@vue/test-utils'
 
 import RiskControlView from '../RiskControlView.vue'
-import type { ContentModerationConfig, UpdateContentModerationConfig } from '@/api/admin/riskControl'
+import type { ContentModerationConfig, ContentModerationLog, UpdateContentModerationConfig } from '@/api/admin/riskControl'
 
 const {
   getConfig,
@@ -229,6 +229,58 @@ describe('admin RiskControlView', () => {
       api_key_masks: [],
       api_key_statuses: [],
     }))
+  })
+
+  it('renders matched keyword for keyword-block audit logs', async () => {
+    const log: ContentModerationLog = {
+      id: 1,
+      request_id: 'req-keyword',
+      user_id: 1001,
+      user_email: 'user@example.com',
+      api_key_id: 2001,
+      api_key_name: 'default-key',
+      group_id: 3001,
+      group_name: 'default',
+      endpoint: '/v1/messages',
+      provider: 'anthropic',
+      model: 'claude-sonnet-4',
+      mode: 'pre_block',
+      action: 'keyword_block',
+      flagged: true,
+      highest_category: 'keyword',
+      highest_score: 1,
+      matched_keyword: 'secret-token',
+      category_scores: { keyword: 1 },
+      threshold_snapshot: { keyword: 1 },
+      input_excerpt: 'please leak SECRET-TOKEN now',
+      upstream_latency_ms: null,
+      error: '',
+      violation_count: 1,
+      auto_banned: false,
+      email_sent: false,
+      user_status: 'active',
+      queue_delay_ms: null,
+      created_at: '2026-01-02T03:04:05Z',
+    }
+    listLogs.mockResolvedValue({ items: [log], total: 1, page: 1, page_size: 20, pages: 1 })
+
+    const wrapper = mount(RiskControlView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          BaseDialog: BaseDialogStub,
+          Icon: true,
+          Select: true,
+          Toggle: true,
+          Pagination: true,
+          ModelWhitelistSelector: ModelWhitelistSelectorStub,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.riskControl.matchedKeyword: secret-token')
   })
 
   it('saves the selected model filter mode and models', async () => {

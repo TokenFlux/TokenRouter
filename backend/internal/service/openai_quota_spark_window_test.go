@@ -1,0 +1,430 @@
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"testing"
+	"time"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/stretchr/testify/require"
+)
+
+// ── stub helpers ─────────────────────────────────────────────────────────────
+
+// stubQuotaAccountRepo 是多账号 AccountRepository stub，仅实现 GetByID。
+type stubQuotaAccountRepo struct {
+	AccountRepository
+	accounts map[int64]*Account
+}
+
+func (r *stubQuotaAccountRepo) GetByID(_ context.Context, id int64) (*Account, error) {
+	acc, ok := r.accounts[id]
+	if !ok {
+		return nil, fmt.Errorf("account %d not found", id)
+	}
+	return acc, nil
+}
+
+type quotaAccountGetter interface {
+	GetByID(context.Context, int64) (*Account, error)
+}
+
+type stubQuotaAdminService struct {
+	AdminService
+	repo quotaAccountGetter
+}
+
+func (s stubQuotaAdminService) GetAccount(ctx context.Context, id int64) (*Account, error) {
+	return s.repo.GetByID(ctx, id)
+}
+
+// stubQuotaTokenCache 实现 OpenAITokenCache，返回预设静态 token。
+type stubQuotaTokenCache struct {
+	tokens map[string]string
+}
+
+func (c *stubQuotaTokenCache) GetAccessToken(_ context.Context, key string) (string, error) {
+	if t, ok := c.tokens[key]; ok {
+		return t, nil
+	}
+	return "", errors.New("token not found")
+}
+
+func (c *stubQuotaTokenCache) SetAccessToken(_ context.Context, _ string, _ string, _ time.Duration) error {
+	return nil
+}
+
+func (c *stubQuotaTokenCache) DeleteAccessToken(_ context.Context, _ string) error { return nil }
+
+func (c *stubQuotaTokenCache) AcquireRefreshLock(_ context.Context, _ string, _ time.Duration) (bool, error) {
+	return true, nil
+}
+
+func (c *stubQuotaTokenCache) ReleaseRefreshLock(_ context.Context, _ string) error { return nil }
+
+type stubQuotaHTTPUpstream struct {
+	capturedAccountID string
+	responseBody      string
+	responses         map[string]stubQuotaHTTPResponse
+}
+
+func (s *stubQuotaHTTPUpstream) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
+	return s.DoWithTLS(req, proxyURL, accountID, accountConcurrency, nil)
+}
+
+func (s *stubQuotaHTTPUpstream) DoWithTLS(req *http.Request, _ string, _ int64, _ int, _ *tlsfingerprint.Profile) (*http.Response, error) {
+	s.capturedAccountID = req.Header.Get("chatgpt-account-id")
+	if s.responses != nil {
+		if response, ok := s.responses[req.URL.Path]; ok {
+			status := response.status
+			if status == 0 {
+				status = http.StatusOK
+			}
+			return &http.Response{
+				StatusCode: status,
+				Header:     http.Header{"content-type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(response.body)),
+			}, nil
+		}
+	}
+	body := s.responseBody
+	if body == "" {
+		body = `{}`
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"content-type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}, nil
+}
+
+type stubQuotaHTTPResponse struct {
+	status int
+	body   string
+}
+
+// ── Part A: buildCodexSparkWindowExtraUpdates ─────────────────────────────────
+
+// TestBuildCodexSparkWindowExtraUpdates_ContainsCodexKeys 验证:
+//   - 产出包含 codex_5h_used_percent / codex_7d_used_percent
+//   - 不含任何 codex_spark_ 前缀的 key（Method Z 前缀已禁止）
+//   - 数值正确映射（primary 较短→5h，secondary 较长→7d）
+func TestBuildCodexSparkWindowExtraUpdates_ContainsCodexKeys(t *testing.T) {
+	now := time.Now().UTC()
+	usage := &OpenAIQuotaUsage{
+		AdditionalRateLimits: []OpenAIAdditionalRateLimit{
+			{
+				MeteredFeature: "codex_bengalfox",
+				RateLimit: &OpenAIRateLimit{
+					PrimaryWindow: &OpenAIRateLimitWindow{
+						UsedPercent:        0.42,
+						LimitWindowSeconds: 18000, // 300 min = 5 h
+						ResetAfterSeconds:  3600,
+					},
+					SecondaryWindow: &OpenAIRateLimitWindow{
+						UsedPercent:        0.15,
+						LimitWindowSeconds: 604800, // 7 d
+						ResetAfterSeconds:  86400,
+					},
+				},
+			},
+		},
+	}
+
+	updates := buildCodexSparkWindowExtraUpdates(usage, now)
+	require.NotNil(t, updates, "expected non-nil updates for valid codex_bengalfox entry")
+
+	// 必须含有 codex_5h_* 和 codex_7d_* 键
+	require.Contains(t, updates, "codex_5h_used_percent")
+	require.Contains(t, updates, "codex_7d_used_percent")
+
+	// 任何键不得含有 codex_spark_ 前缀（Method Z 已禁止）
+	for k := range updates {
+		require.False(t, strings.Contains(k, "codex_spark_"),
+			"unexpected Method-Z prefix in key: %s", k)
+	}
+
+	// 数值验证（primary=5h, secondary=7d）
+	require.InDelta(t, 0.42, updates["codex_5h_used_percent"], 1e-9)
+	require.InDelta(t, 0.15, updates["codex_7d_used_percent"], 1e-9)
+}
+
+// TestBuildCodexSparkWindowExtraUpdates_NilUsage 验证 nil usage 返回 nil。
+func TestBuildCodexSparkWindowExtraUpdates_NilUsage(t *testing.T) {
+	require.Nil(t, buildCodexSparkWindowExtraUpdates(nil, time.Now()))
+}
+
+// TestBuildCodexSparkWindowExtraUpdates_NoBengalfox 验证无 codex_bengalfox 条目时返回 nil。
+func TestBuildCodexSparkWindowExtraUpdates_NoBengalfox(t *testing.T) {
+	usage := &OpenAIQuotaUsage{
+		AdditionalRateLimits: []OpenAIAdditionalRateLimit{
+			{MeteredFeature: "other_feature", RateLimit: &OpenAIRateLimit{}},
+		},
+	}
+	require.Nil(t, buildCodexSparkWindowExtraUpdates(usage, time.Now()))
+}
+
+// ── Part C: ResetCredit 影子拒绝 ───────────────────────────────────────────
+
+// TestResetCreditShadowRejected 验证:
+//   - ResetCredit(ctx, shadowID) 返回 ErrSparkShadowResetNotSupported
+//   - 不触达上游（HTTPUpstream 为 nil，若调用会先触发配置错误）
+func TestResetCreditShadowRejected(t *testing.T) {
+	pid := int64(100)
+	shadow := &Account{
+		ID:              200,
+		ParentAccountID: &pid,
+		Platform:        PlatformOpenAI,
+		Type:            AccountTypeOAuth,
+		QuotaDimension:  QuotaDimensionSpark,
+	}
+	repo := &stubQuotaAccountRepo{
+		accounts: map[int64]*Account{200: shadow},
+	}
+	// httpUpstream 故意为 nil：若流程误到上游会先命中配置检查，但这里应先拦截影子重置。
+	svc := NewOpenAIQuotaService(stubQuotaAdminService{repo: repo}, nil, nil, nil, nil)
+
+	_, err := svc.ResetCredit(context.Background(), 200)
+	require.ErrorIs(t, err, ErrSparkShadowResetNotSupported,
+		"shadow ResetCredit should return ErrSparkShadowResetNotSupported, got: %v", err)
+	// 外审 F6:必须是结构化 409(而非裸 error→500)。
+	require.Equal(t, http.StatusConflict, infraerrors.Code(err),
+		"shadow ResetCredit 应映射为 409 Conflict 而非 500")
+}
+
+// ── Part B: prepareAccount 影子 resolve ──────────────────────────────
+
+// TestPrepareAccountShadowResolve 验证影子账号（200）QueryUsage 时:
+//   - 不因 chatgpt_account_id 为空而报错
+//   - 准备好的请求上下文使用母账号（100）的 chatgpt_account_id("org-parent123")
+//
+// 测试策略: 直接调用包内可见的 prepareAccount，注入 stubTokenCache（命中路径）
+// 和 stubQuotaAdminService（同时持有影子+母账号），绕开 /wham/usage HTTP 往返。
+func TestPrepareAccountShadowResolve(t *testing.T) {
+	ctx := context.Background()
+	pid := int64(100)
+
+	// 影子账号：无 chatgpt_account_id credentials
+	shadow := &Account{
+		ID:              200,
+		ParentAccountID: &pid,
+		Platform:        PlatformOpenAI,
+		Type:            AccountTypeOAuth,
+		Status:          StatusActive,
+		QuotaDimension:  QuotaDimensionSpark,
+	}
+	// 母账号：有完整 credentials
+	parent := &Account{
+		ID:       100,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Status:   StatusActive,
+		Credentials: map[string]any{
+			"chatgpt_account_id": "org-parent123",
+		},
+	}
+	repo := &stubQuotaAccountRepo{accounts: map[int64]*Account{200: shadow, 100: parent}}
+
+	// stubTokenCache 为母账号 cache key 提供 fake token（走缓存命中路径，无需真实刷新）
+	tokenCache := &stubQuotaTokenCache{tokens: map[string]string{
+		OpenAITokenCacheKey(parent): "fake-access-token",
+	}}
+	tokenProvider := NewOpenAITokenProvider(repo, tokenCache, nil)
+
+	upstream := &stubQuotaHTTPUpstream{}
+	svc := NewOpenAIQuotaService(stubQuotaAdminService{repo: repo}, upstream, tokenProvider, nil, nil)
+
+	accountCtx, err := svc.prepareAccount(ctx, 200)
+	require.NoError(t, err, "shadow resolve should succeed; got error: %v", err)
+	require.Equal(t, "org-parent123", accountCtx.account.GetChatGPTAccountID(),
+		"prepareAccount should use parent's chatgpt_account_id after shadow resolve")
+}
+
+func TestParseOpenAIRateLimitResetCreditDetails_CompatibleContainers(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want []string
+	}{
+		{
+			name: "credits",
+			body: `{"credits":[{"id":"secret-id","expires_at":"2026-07-03T04:05:06Z"}]}`,
+			want: []string{"2026-07-03T04:05:06Z"},
+		},
+		{
+			name: "rate limit reset credits",
+			body: `{"rate_limit_reset_credits":[{"expiresAt":"2026-07-04T04:05:06Z"}]}`,
+			want: []string{"2026-07-04T04:05:06Z"},
+		},
+		{
+			name: "items",
+			body: `{"items":[{"expires_at":"2026-07-05T04:05:06Z"}]}`,
+			want: []string{"2026-07-05T04:05:06Z"},
+		},
+		{
+			name: "data",
+			body: `{"data":[{"expires_at":"2026-07-06T04:05:06Z"}]}`,
+			want: []string{"2026-07-06T04:05:06Z"},
+		},
+		{
+			name: "array",
+			body: `[{"expires_at":"2026-07-07T04:05:06Z"}]`,
+			want: []string{"2026-07-07T04:05:06Z"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseOpenAIRateLimitResetCreditDetails([]byte(tt.body))
+			require.NoError(t, err)
+			require.Len(t, got, len(tt.want))
+			for i := range tt.want {
+				require.Equal(t, tt.want[i], got[i].ExpiresAt)
+			}
+			encoded, err := json.Marshal(got)
+			require.NoError(t, err)
+			require.NotContains(t, string(encoded), "secret-id")
+		})
+	}
+}
+
+func TestQueryUsageIncludesResetCreditExpirations_EndToEnd(t *testing.T) {
+	ctx := context.Background()
+	account := &Account{
+		ID:       100,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Status:   StatusActive,
+		Credentials: map[string]any{
+			"chatgpt_account_id": "org-parent123",
+		},
+	}
+	repo := &stubQuotaAccountRepo{accounts: map[int64]*Account{100: account}}
+	tokenCache := &stubQuotaTokenCache{tokens: map[string]string{
+		OpenAITokenCacheKey(account): "fake-token",
+	}}
+	tokenProvider := NewOpenAITokenProvider(repo, tokenCache, nil)
+	upstream := &stubQuotaHTTPUpstream{
+		responses: map[string]stubQuotaHTTPResponse{
+			"/backend-api/wham/usage": {
+				body: `{"rate_limit_reset_credits":{"available_count":2}}`,
+			},
+			"/backend-api/wham/rate-limit-reset-credits": {
+				body: `{"credits":[{"id":"secret-credit-id","expires_at":"2026-07-03T04:05:06Z"},{"expiresAt":"2026-07-04T04:05:06Z"}]}`,
+			},
+		},
+	}
+
+	svc := NewOpenAIQuotaService(stubQuotaAdminService{repo: repo}, upstream, tokenProvider, nil, nil)
+	usage, err := svc.QueryUsage(ctx, 100)
+	require.NoError(t, err)
+	require.NotNil(t, usage)
+	require.NotNil(t, usage.RateLimitResetCredits)
+	require.Equal(t, 2, usage.RateLimitResetCredits.AvailableCount)
+	require.Equal(t, []OpenAIRateLimitResetCreditDetail{
+		{ExpiresAt: "2026-07-03T04:05:06Z"},
+		{ExpiresAt: "2026-07-04T04:05:06Z"},
+	}, usage.RateLimitResetCredits.Credits)
+
+	encoded, err := json.Marshal(usage)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "secret-credit-id")
+}
+
+func TestQueryUsageResetCreditDetails401NonFatal(t *testing.T) {
+	ctx := context.Background()
+	account := &Account{
+		ID:       100,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Status:   StatusActive,
+		Credentials: map[string]any{
+			"chatgpt_account_id": "org-parent123",
+		},
+	}
+	repo := &stubQuotaAccountRepo{accounts: map[int64]*Account{100: account}}
+	tokenCache := &stubQuotaTokenCache{tokens: map[string]string{
+		OpenAITokenCacheKey(account): "fake-token",
+	}}
+	tokenProvider := NewOpenAITokenProvider(repo, tokenCache, nil)
+	upstream := &stubQuotaHTTPUpstream{
+		responses: map[string]stubQuotaHTTPResponse{
+			"/backend-api/wham/usage": {
+				body: `{"rate_limit_reset_credits":{"available_count":1}}`,
+			},
+			"/backend-api/wham/rate-limit-reset-credits": {
+				status: http.StatusUnauthorized,
+				body:   `{"error":"unauthorized","id":"secret-error-id"}`,
+			},
+		},
+	}
+
+	svc := NewOpenAIQuotaService(stubQuotaAdminService{repo: repo}, upstream, tokenProvider, nil, nil)
+	usage, err := svc.QueryUsage(ctx, 100)
+	require.NoError(t, err)
+	require.NotNil(t, usage)
+	require.NotNil(t, usage.RateLimitResetCredits)
+	require.Equal(t, 1, usage.RateLimitResetCredits.AvailableCount)
+	require.Empty(t, usage.RateLimitResetCredits.Credits)
+}
+
+// TestResetCreditGetByIDError_FailsClosed 验证守卫「失败关闭」语义：
+// 当守卫的 GetByID 发生瞬时错误时，ResetCredit 必须立即返回该错误，
+// 不得旁路进入 prepareAccount 的上游准备流程（否则影子账号会借 resolve 路径操作母账号）。
+//
+// 区分方法：httpUpstream/tokenProvider 留 nil；
+//   - 旁路路径：prepareAccount 配置检查先命中，报 "not configured"
+//   - 守卫正确关闭：报 "account not found"（来自守卫的 infraerrors）
+func TestResetCreditGetByIDError_FailsClosed(t *testing.T) {
+	// 空 map：GetByID(200) 返回 "account 200 not found"
+	repo := &stubQuotaAccountRepo{accounts: map[int64]*Account{}}
+	// tokenProvider / httpUpstream 故意为 nil：
+	// 若代码泄漏到 prepareAccount，会因配置检查而报 "not configured" 而非 "account not found"。
+	svc := NewOpenAIQuotaService(stubQuotaAdminService{repo: repo}, nil, nil, nil, nil)
+
+	_, err := svc.ResetCredit(context.Background(), 200)
+	require.Error(t, err, "GetByID error must propagate; got nil")
+	require.NotContains(t, err.Error(), "not configured",
+		"error reached prepareAccount config-check — guard did not fail-closed; got: %v", err)
+}
+
+// TestQueryUsageShadowResolve_EndToEnd 验证影子账号的 QueryUsage 能成功拿到响应
+// 且 header 由母账号注入。
+func TestQueryUsageShadowResolve_EndToEnd(t *testing.T) {
+	ctx := context.Background()
+	pid := int64(100)
+
+	shadow := &Account{
+		ID: 200, ParentAccountID: &pid,
+		Platform: PlatformOpenAI, Type: AccountTypeOAuth,
+		Status: StatusActive, QuotaDimension: QuotaDimensionSpark,
+	}
+	parent := &Account{
+		ID: 100, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive,
+		Credentials: map[string]any{"chatgpt_account_id": "org-e2e-parent"},
+	}
+	repo := &stubQuotaAccountRepo{accounts: map[int64]*Account{200: shadow, 100: parent}}
+
+	tokenCache := &stubQuotaTokenCache{tokens: map[string]string{
+		OpenAITokenCacheKey(parent): "fake-token-e2e",
+	}}
+	tokenProvider := NewOpenAITokenProvider(repo, tokenCache, nil)
+
+	payload, err := json.Marshal(OpenAIQuotaUsage{})
+	require.NoError(t, err)
+	upstream := &stubQuotaHTTPUpstream{responseBody: string(payload)}
+
+	svc := NewOpenAIQuotaService(stubQuotaAdminService{repo: repo}, upstream, tokenProvider, nil, nil)
+	usage, err := svc.QueryUsage(ctx, 200)
+	require.NoError(t, err)
+	require.NotNil(t, usage)
+	require.Equal(t, "org-e2e-parent", upstream.capturedAccountID,
+		"upstream should receive parent's chatgpt-account-id; got: %s", upstream.capturedAccountID)
+}

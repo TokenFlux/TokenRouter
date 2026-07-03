@@ -3,8 +3,10 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -88,7 +90,9 @@ func (r *usageBillingRepository) ResolveUsableSubscriptionForGroup(ctx context.C
 			us.monthly_limit_usd,
 			us.daily_usage_usd,
 			us.weekly_usage_usd,
-			us.monthly_usage_usd
+			us.monthly_usage_usd,
+			sp.group_ids,
+			sp.group_rate_multipliers
 		FROM user_subscriptions us
 		JOIN subscription_plans sp ON sp.id = us.plan_id
 		WHERE us.user_id = $1
@@ -129,6 +133,8 @@ func (r *usageBillingRepository) ResolveUsableSubscriptionForGroup(ctx context.C
 		&row.DailyUsageUSD,
 		&row.WeeklyUsageUSD,
 		&row.MonthlyUsageUSD,
+		&row.PlanGroupIDsRaw,
+		&row.PlanGroupRateMultipliersRaw,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, service.ErrSubscriptionNotFound
@@ -231,19 +237,21 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 }
 
 type usageBillingSubscriptionRow struct {
-	ID                 int64
-	PlanID             int64
-	StartsAt           time.Time
-	ExpiresAt          time.Time
-	DailyWindowStart   sql.NullTime
-	WeeklyWindowStart  sql.NullTime
-	MonthlyWindowStart sql.NullTime
-	DailyLimitUSD      sql.NullFloat64
-	WeeklyLimitUSD     sql.NullFloat64
-	MonthlyLimitUSD    sql.NullFloat64
-	DailyUsageUSD      float64
-	WeeklyUsageUSD     float64
-	MonthlyUsageUSD    float64
+	ID                          int64
+	PlanID                      int64
+	StartsAt                    time.Time
+	ExpiresAt                   time.Time
+	DailyWindowStart            sql.NullTime
+	WeeklyWindowStart           sql.NullTime
+	MonthlyWindowStart          sql.NullTime
+	DailyLimitUSD               sql.NullFloat64
+	WeeklyLimitUSD              sql.NullFloat64
+	MonthlyLimitUSD             sql.NullFloat64
+	DailyUsageUSD               float64
+	WeeklyUsageUSD              float64
+	MonthlyUsageUSD             float64
+	PlanGroupIDsRaw             []byte
+	PlanGroupRateMultipliersRaw []byte
 }
 
 func usageBillingSubscriptionRowToService(userID int64, row usageBillingSubscriptionRow) *service.UserSubscription {
@@ -263,7 +271,42 @@ func usageBillingSubscriptionRowToService(userID int64, row usageBillingSubscrip
 		DailyUsageUSD:      row.DailyUsageUSD,
 		WeeklyUsageUSD:     row.WeeklyUsageUSD,
 		MonthlyUsageUSD:    row.MonthlyUsageUSD,
+		Plan: &service.SubscriptionPlan{
+			ID:                   row.PlanID,
+			GroupIDs:             parseInt64JSONSlice(row.PlanGroupIDsRaw),
+			GroupRateMultipliers: parseInt64Float64JSONMap(row.PlanGroupRateMultipliersRaw),
+		},
 	}
+}
+
+func parseInt64JSONSlice(data []byte) []int64 {
+	if len(data) == 0 {
+		return nil
+	}
+	var out []int64
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil
+	}
+	return out
+}
+
+func parseInt64Float64JSONMap(data []byte) map[int64]float64 {
+	if len(data) == 0 {
+		return map[int64]float64{}
+	}
+	var raw map[string]float64
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return map[int64]float64{}
+	}
+	out := make(map[int64]float64, len(raw))
+	for key, value := range raw {
+		id, err := strconv.ParseInt(key, 10, 64)
+		if err != nil || id <= 0 {
+			continue
+		}
+		out[id] = value
+	}
+	return out
 }
 
 func usageBillingNullableTimePtr(v sql.NullTime) *time.Time {

@@ -36,6 +36,7 @@ type UserSubscription struct {
 
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	DeletedAt *time.Time
 
 	User           *User
 	Plan           *SubscriptionPlan
@@ -55,14 +56,14 @@ func (a SubscriptionWindowActivation) Any() bool {
 
 func (s *UserSubscription) IsActive() bool {
 	now := time.Now()
-	return s.Status == SubscriptionStatusActive && !now.Before(s.StartsAt) && now.Before(s.ExpiresAt)
+	return s.DeletedAt == nil && s.Status == SubscriptionStatusActive && !now.Before(s.StartsAt) && now.Before(s.ExpiresAt)
 }
 
 func (s *UserSubscription) IsPending() bool {
 	if s == nil {
 		return false
 	}
-	return s.Status == SubscriptionStatusPending && time.Now().Before(s.StartsAt)
+	return s.DeletedAt == nil && s.Status == SubscriptionStatusPending && time.Now().Before(s.StartsAt)
 }
 
 func (s *UserSubscription) IsEffective() bool {
@@ -76,6 +77,9 @@ func (s *UserSubscription) IsEffective() bool {
 func (s *UserSubscription) EffectiveStatus(now time.Time) string {
 	if s == nil {
 		return SubscriptionStatusExpired
+	}
+	if s.DeletedAt != nil {
+		return SubscriptionStatusRevoked
 	}
 	if !s.ExpiresAt.After(now) {
 		return SubscriptionStatusExpired

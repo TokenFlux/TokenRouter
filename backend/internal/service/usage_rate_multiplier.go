@@ -80,6 +80,22 @@ func subscriptionPlanIncludesGroup(plan *SubscriptionPlan, groupID int64) bool {
 	return false
 }
 
+func subscriptionPlanGroupRateMultiplier(plan *SubscriptionPlan, groupID int64) (float64, bool) {
+	if plan == nil || groupID <= 0 {
+		return 0, false
+	}
+	if !subscriptionPlanIncludesGroup(plan, groupID) {
+		return 0, false
+	}
+	if plan.GroupRateMultipliers == nil {
+		return 1, true
+	}
+	if multiplier, ok := plan.GroupRateMultipliers[groupID]; ok && multiplier > 0 {
+		return multiplier, true
+	}
+	return 1, true
+}
+
 func subscriptionHasBillableCapacity(sub *UserSubscription) bool {
 	if sub == nil {
 		return false
@@ -107,10 +123,10 @@ func resolveUsageRateMultiplier(
 		return multiplier
 	}
 	if subscription != nil {
-		if group.SubscriptionRateMultiplier > 0 {
-			return group.SubscriptionRateMultiplier
+		if multiplier, ok := subscriptionPlanGroupRateMultiplier(subscription.Plan, *groupID); ok {
+			return multiplier
 		}
-		return group.RateMultiplier
+		return 1
 	}
 	groupDefault := group.RateMultiplier
 	if resolveUserGroupRate == nil {

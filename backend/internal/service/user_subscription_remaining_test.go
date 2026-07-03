@@ -4,6 +4,7 @@ package service
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -38,4 +39,18 @@ func TestUserSubscriptionAvailableQuotaUSD_NoPositiveLimitsReturnsZero(t *testin
 	require.Nil(t, sub.RemainingWeeklyUSD())
 	require.Nil(t, sub.RemainingMonthlyUSD())
 	require.Equal(t, 0.0, sub.AvailableQuotaUSD())
+}
+
+func TestUserSubscriptionEffectiveStatus_DeletedAtReturnsRevoked(t *testing.T) {
+	now := time.Now()
+	deletedAt := now.Add(-time.Minute)
+	sub := &UserSubscription{
+		StartsAt:  now.Add(-time.Hour),
+		ExpiresAt: now.Add(time.Hour),
+		Status:    SubscriptionStatusActive,
+		DeletedAt: &deletedAt,
+	}
+
+	require.Equal(t, SubscriptionStatusRevoked, sub.EffectiveStatus(now))
+	require.False(t, sub.IsActive())
 }

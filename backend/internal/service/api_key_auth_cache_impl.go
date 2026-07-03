@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 19 // v19：认证快照从鉴权查询加载分组订阅倍率
+const apiKeyAuthSnapshotVersion = 18 // v18：认证快照包含分组高峰倍率字段
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -256,7 +256,6 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			IsExclusive:                     apiKey.Group.IsExclusive,
 			Status:                          apiKey.Group.Status,
 			RateMultiplier:                  apiKey.Group.RateMultiplier,
-			SubscriptionRateMultiplier:      apiKey.Group.SubscriptionRateMultiplier,
 			DataSharingEnabled:              apiKey.Group.DataSharingEnabled,
 			SessionIsolationEnabled:         apiKey.Group.SessionIsolationEnabled,
 			AllowImageGeneration:            apiKey.Group.AllowImageGeneration,
@@ -278,6 +277,10 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			MessagesDispatchModelConfig:     apiKey.Group.MessagesDispatchModelConfig,
 			ModelsListConfig:                apiKey.Group.ModelsListConfig,
 			RPMLimit:                        apiKey.Group.RPMLimit,
+			PeakRateEnabled:                 apiKey.Group.PeakRateEnabled,
+			PeakStart:                       apiKey.Group.PeakStart,
+			PeakEnd:                         apiKey.Group.PeakEnd,
+			PeakRateMultiplier:              apiKey.Group.PeakRateMultiplier,
 		}
 	}
 	return snapshot
@@ -332,7 +335,6 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			Status:                          snapshot.Group.Status,
 			Hydrated:                        true,
 			RateMultiplier:                  snapshot.Group.RateMultiplier,
-			SubscriptionRateMultiplier:      snapshot.Group.SubscriptionRateMultiplier,
 			DataSharingEnabled:              snapshot.Group.DataSharingEnabled,
 			SessionIsolationEnabled:         snapshot.Group.SessionIsolationEnabled,
 			AllowImageGeneration:            snapshot.Group.AllowImageGeneration,
@@ -354,6 +356,10 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			MessagesDispatchModelConfig:     snapshot.Group.MessagesDispatchModelConfig,
 			ModelsListConfig:                snapshot.Group.ModelsListConfig,
 			RPMLimit:                        snapshot.Group.RPMLimit,
+			PeakRateEnabled:                 snapshot.Group.PeakRateEnabled,
+			PeakStart:                       snapshot.Group.PeakStart,
+			PeakEnd:                         snapshot.Group.PeakEnd,
+			PeakRateMultiplier:              snapshot.Group.PeakRateMultiplier,
 		}
 	}
 	s.compileAPIKeyIPRules(apiKey)

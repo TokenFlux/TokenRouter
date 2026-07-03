@@ -518,6 +518,61 @@ func (s *Stripe) Refund(ctx context.Context, req payment.RefundRequest) (*paymen
 	}, nil
 }
 
+// QueryRefund 按 refund id 查询 Stripe 退款；缺少 refund id 时回退到 PaymentIntent 最新退款。
+func (s *Stripe) QueryRefund(ctx context.Context, req payment.RefundQueryRequest) (*payment.RefundResponse, error) {
+	s.ensureInit()
+
+	var r *stripe.Refund
+	var err error
+	if refundID := strings.TrimSpace(req.RefundID); refundID != "" {
+		r, err = s.sc.V1Refunds.Retrieve(ctx, refundID, nil)
+		if err != nil {
+			return nil, fmt.Errorf("stripe query refund: %w", err)
+		}
+	} else {
+		paymentIntentID := strings.TrimSpace(req.TradeNo)
+		switch {
+		case strings.HasPrefix(paymentIntentID, "cs_"):
+			paymentIntentID, err = s.findCheckoutSessionPaymentIntentID(ctx, paymentIntentID)
+			if err != nil {
+				return nil, err
+			}
+		case strings.HasPrefix(paymentIntentID, "in_"):
+			paymentIntentID, err = s.findInvoicePaymentIntentID(ctx, paymentIntentID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if paymentIntentID == "" {
+			return nil, fmt.Errorf("stripe query refund: missing payment intent id")
+		}
+		params := &stripe.RefundListParams{PaymentIntent: stripe.String(paymentIntentID)}
+		params.Limit = stripe.Int64(1)
+		list := s.sc.V1Refunds.List(ctx, params)
+		if list.Err() != nil {
+			return nil, fmt.Errorf("stripe query refund: %w", list.Err())
+		}
+		refunds := list.Data()
+		if len(refunds) == 0 {
+			return nil, fmt.Errorf("stripe query refund: no refund found")
+		}
+		r = refunds[0]
+	}
+
+	return &payment.RefundResponse{RefundID: r.ID, Status: stripeRefundProviderStatus(r.Status)}, nil
+}
+
+func stripeRefundProviderStatus(status stripe.RefundStatus) string {
+	switch status {
+	case stripe.RefundStatusSucceeded:
+		return payment.ProviderStatusSuccess
+	case stripe.RefundStatusFailed, stripe.RefundStatusCanceled:
+		return payment.ProviderStatusFailed
+	default:
+		return payment.ProviderStatusPending
+	}
+}
+
 func stripeIntentCurrency(raw stripe.Currency, fallback string) string {
 	currency, err := payment.NormalizePaymentCurrency(string(raw))
 	if err != nil || currency == payment.DefaultPaymentCurrency && strings.TrimSpace(string(raw)) == "" {

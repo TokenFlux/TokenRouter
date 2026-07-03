@@ -21,6 +21,79 @@ func TestBuildContentModerationLogWhere_BlockedIncludesAllBlockActions(t *testin
 	require.NotContains(t, sql, "l.action = 'block'")
 }
 
+func TestContentModerationRepositoryCreateLog_PersistsMatchedKeyword(t *testing.T) {
+	db, mock := newSQLMock(t)
+	repo := NewContentModerationRepository(db)
+	userID := int64(1001)
+	apiKeyID := int64(2001)
+	groupID := int64(3001)
+	latencyMS := 42
+	queueDelayMS := 7
+	createdAt := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	log := &service.ContentModerationLog{
+		RequestID:         "req-keyword",
+		UserID:            &userID,
+		UserEmail:         "user@example.com",
+		APIKeyID:          &apiKeyID,
+		APIKeyName:        "default-key",
+		GroupID:           &groupID,
+		GroupName:         "default",
+		Endpoint:          "/v1/messages",
+		Provider:          "anthropic",
+		Model:             "claude-sonnet-4",
+		Mode:              service.ContentModerationModePreBlock,
+		Action:            service.ContentModerationActionKeywordBlock,
+		Flagged:           true,
+		HighestCategory:   "keyword",
+		HighestScore:      1,
+		CategoryScores:    map[string]float64{"keyword": 1},
+		ThresholdSnapshot: map[string]float64{"keyword": 1},
+		InputExcerpt:      "blocked prompt",
+		UpstreamLatencyMS: &latencyMS,
+		ViolationCount:    1,
+		EmailSent:         true,
+		QueueDelayMS:      &queueDelayMS,
+		MatchedKeyword:    "secret-token",
+	}
+
+	mock.ExpectQuery("INSERT INTO content_moderation_logs").
+		WithArgs(
+			log.RequestID,
+			userID,
+			log.UserEmail,
+			apiKeyID,
+			log.APIKeyName,
+			groupID,
+			log.GroupName,
+			log.Endpoint,
+			log.Provider,
+			log.Model,
+			log.Mode,
+			log.Action,
+			log.Flagged,
+			log.HighestCategory,
+			log.HighestScore,
+			sqlmock.AnyArg(), // 分类分数快照
+			sqlmock.AnyArg(), // 阈值快照
+			log.InputExcerpt,
+			latencyMS,
+			log.Error,
+			log.ViolationCount,
+			log.AutoBanned,
+			log.EmailSent,
+			queueDelayMS,
+			log.MatchedKeyword,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
+
+	err := repo.CreateLog(context.Background(), log)
+
+	require.NoError(t, err)
+	require.Equal(t, int64(99), log.ID)
+	require.Equal(t, createdAt, log.CreatedAt)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestContentModerationRepositoryCountFlaggedByUserSince_ExcludesHashBlock(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := NewContentModerationRepository(db)

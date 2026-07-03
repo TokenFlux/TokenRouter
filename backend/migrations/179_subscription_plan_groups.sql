@@ -1,7 +1,4 @@
--- Add subscription-only group multiplier and plan/group availability mapping.
-
-ALTER TABLE groups
-	ADD COLUMN IF NOT EXISTS subscription_rate_multiplier DECIMAL(10,4) NOT NULL DEFAULT 1.0;
+-- Add subscription plan group availability mapping.
 
 ALTER TABLE subscription_plans
 	ADD COLUMN IF NOT EXISTS group_ids JSONB NOT NULL DEFAULT '[]'::jsonb;

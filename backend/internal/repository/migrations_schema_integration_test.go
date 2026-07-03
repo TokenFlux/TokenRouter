@@ -78,6 +78,9 @@ func TestMigrationsRunner_IsIdempotent_AndSchemaIsUpToDate(t *testing.T) {
 	requireColumn(t, tx, "usage_logs", "image_output_size", "character varying", 32, true)
 	requireColumn(t, tx, "usage_logs", "image_size_source", "character varying", 16, true)
 	requireColumn(t, tx, "usage_logs", "image_size_breakdown", "jsonb", 0, true)
+	// ops_system_logs: 按 API Key ID 过滤系统日志的列和索引。
+	requireColumn(t, tx, "ops_system_logs", "api_key_id", "bigint", 0, true)
+	requireIndex(t, tx, "ops_system_logs", "idx_ops_system_logs_api_key_id_created_at")
 	// data_share_sessions: 实际扣费积分保持可空，历史未知 session 不回填。
 	requireColumn(t, tx, "data_share_sessions", "actual_cost", "numeric", 0, true)
 	requireColumn(t, tx, "ops_metrics_hourly", "ttft_sample_count", "bigint", 0, false)

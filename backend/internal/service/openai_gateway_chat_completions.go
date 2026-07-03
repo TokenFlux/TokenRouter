@@ -335,8 +335,9 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		}
 	}
 
-	// Extract and save Codex usage snapshot from response headers (for OAuth accounts)
-	if handleErr == nil && account.Type == AccountTypeOAuth {
+	// Extract and save Codex usage snapshot from response headers (for OAuth accounts).
+	// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
+	if handleErr == nil && account.Type == AccountTypeOAuth && !account.IsShadow() {
 		if snapshot := ParseCodexRateLimitHeaders(resp.Header); snapshot != nil {
 			s.updateCodexUsageSnapshot(ctx, account.ID, snapshot)
 		}
@@ -439,7 +440,13 @@ func (s *OpenAIGatewayService) handleChatBufferedStreamingResponse(
 			writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", clientMsg)
 			return nil, fmt.Errorf("openai cyber_policy: %s", msg)
 		}
-		return nil, s.newOpenAIStreamFailoverError(c, account, false, requestID, payload, openAICompatFailedResponseMessage(finalResponse))
+		message := openAICompatFailedResponseMessage(finalResponse)
+		if openAIStreamFailedEventShouldFailover(payload, message) {
+			return nil, s.newOpenAIStreamFailoverError(c, account, false, requestID, payload, message)
+		}
+		message = s.recordOpenAIStreamUpstreamError(c, account, false, requestID, "http_error", payload, message)
+		writeChatCompletionsError(c, http.StatusBadGateway, "upstream_error", message)
+		return nil, fmt.Errorf("upstream response failed: %s", message)
 	}
 
 	// When the terminal event has an empty output array, reconstruct from
@@ -517,6 +524,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 	pendingSSE := make([]string, 0, 4)
 	refusalDetector := newOpenAIChatSilentRefusalDetector(requestBodyLen)
 	var streamFailoverErr *UpstreamFailoverError
+	var streamNonFailoverErr error
 	var cyberPolicyErr error
 
 	scanner := bufio.NewScanner(resp.Body)
@@ -617,7 +625,32 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				cyberPolicyErr = errOpenAICyberPolicyForwarded
 				return true
 			}
-			streamFailoverErr = s.newOpenAIStreamFailoverError(c, account, false, requestID, payloadBytes, message)
+			if openAIStreamFailedEventShouldFailover(payloadBytes, message) {
+				streamFailoverErr = s.newOpenAIStreamFailoverError(c, account, false, requestID, payloadBytes, message)
+				return true
+			}
+			message = s.recordOpenAIStreamUpstreamError(c, account, false, requestID, "http_error", payloadBytes, message)
+			errorPayload, _ := json.Marshal(gin.H{
+				"error": gin.H{
+					"type":    "upstream_error",
+					"message": message,
+				},
+			})
+			if !clientDisconnected {
+				if !clientOutputStarted {
+					writeChatCompletionsError(c, http.StatusBadGateway, "upstream_error", message)
+					clientOutputStarted = true
+				} else if _, err := fmt.Fprintf(c.Writer, "data: %s\n\n", errorPayload); err != nil {
+					clientDisconnected = true
+					logger.L().Info("openai chat_completions stream: client disconnected while writing upstream error",
+						zap.String("request_id", requestID),
+					)
+				}
+			}
+			if !clientDisconnected {
+				c.Writer.Flush()
+			}
+			streamNonFailoverErr = fmt.Errorf("upstream response failed: %s", message)
 			return true
 		}
 
@@ -681,6 +714,9 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 				return nil, streamFailoverErr
 			}
 			return resultWithUsage(), streamFailoverErr
+		}
+		if streamNonFailoverErr != nil {
+			return resultWithUsage(), streamNonFailoverErr
 		}
 		finalChunks := apicompat.FinalizeResponsesChatStream(state)
 		for _, chunk := range finalChunks {

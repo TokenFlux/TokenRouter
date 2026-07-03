@@ -351,7 +351,8 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 			}
 		}
 		if result != nil {
-			if account.Type == service.AccountTypeOAuth {
+			// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
+			if account.Type == service.AccountTypeOAuth && !account.IsShadow() {
 				h.gatewayService.UpdateCodexUsageSnapshotFromHeaders(c.Request.Context(), account.ID, result.ResponseHeaders)
 			}
 			h.gatewayService.ReportOpenAIAccountScheduleResult(account.ID, true, result.FirstTokenMs)
@@ -367,6 +368,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 		}
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 
 		upstreamModel := ""
 		if result != nil {
@@ -387,6 +389,7 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 				RequestBody:        body,
 				SessionID:          parsed.StickySessionSeed(),
 				APIKeyService:      h.apiKeyService,
+				QuotaPlatform:      quotaPlatform,
 				ChannelUsageFields: channelMapping.ToUsageFields(requestModel, upstreamModel),
 			}); err != nil {
 				logger.L().With(

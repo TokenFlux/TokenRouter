@@ -547,11 +547,12 @@ func TestContentModerationCheck_PreBlockKeywordHitSkipsUpstreamCall(t *testing.T
 	require.NoError(t, err)
 	require.True(t, decision.Blocked)
 	require.Equal(t, ContentModerationActionKeywordBlock, decision.Action)
-	require.False(t, upstreamCalled, "keyword block must short-circuit upstream moderation call")
+	require.False(t, upstreamCalled, "关键词拦截必须跳过上游审核调用")
 	logs := requireContentModerationLogCount(t, repo, 1)
 	require.True(t, logs[0].Flagged)
 	require.Equal(t, ContentModerationActionKeywordBlock, logs[0].Action)
 	require.Equal(t, contentModerationKeywordCategory, logs[0].HighestCategory)
+	require.Equal(t, "secret-token", logs[0].MatchedKeyword, "关键词拦截日志必须记录命中的关键词")
 }
 
 func TestContentModerationCheck_KeywordsIgnoredInObserveMode(t *testing.T) {
@@ -1934,6 +1935,60 @@ func TestContentModerationRecordCyberWarning_RecordsCyberPolicyCode(t *testing.T
 	require.NotNil(t, warning)
 	require.Len(t, repo.cyberWarnings, 1)
 	require.Equal(t, "Request blocked by upstream cyber policy", repo.cyberWarnings[0].WarningText)
+}
+
+func TestContentModerationRecordCyberWarning_SkipsGroupOutOfScope(t *testing.T) {
+	cfg := defaultContentModerationConfig()
+	cfg.AllGroups = false
+	cfg.GroupIDs = []int64{101}
+	rawCfg, _ := json.Marshal(cfg)
+	settingRepo := &contentModerationTestSettingRepo{values: map[string]string{
+		SettingKeyRiskControlEnabled:      "true",
+		SettingKeyContentModerationConfig: string(rawCfg),
+	}}
+	repo := &contentModerationTestRepo{}
+	svc := NewContentModerationService(settingRepo, repo, nil, nil, nil, nil, nil)
+	outOfScopeGroupID := int64(202)
+
+	warning, err := svc.RecordCyberWarning(context.Background(), ContentModerationCyberWarningInput{
+		RequestID:      "req_cyber_out_of_group_scope",
+		UserID:         1001,
+		GroupID:        &outOfScopeGroupID,
+		GroupName:      "out-of-scope",
+		WarningText:    "This request may pose a cybersecurity risk.",
+		UpstreamStatus: 400,
+	})
+
+	require.NoError(t, err)
+	require.Nil(t, warning)
+	require.Empty(t, repo.cyberWarnings)
+}
+
+func TestContentModerationRecordCyberWarning_SkipsModelOutOfScope(t *testing.T) {
+	cfg := defaultContentModerationConfig()
+	cfg.ModelFilter = ContentModerationModelFilter{
+		Type:   ContentModerationModelFilterInclude,
+		Models: []string{"gpt-5"},
+	}
+	rawCfg, _ := json.Marshal(cfg)
+	settingRepo := &contentModerationTestSettingRepo{values: map[string]string{
+		SettingKeyRiskControlEnabled:      "true",
+		SettingKeyContentModerationConfig: string(rawCfg),
+	}}
+	repo := &contentModerationTestRepo{}
+	svc := NewContentModerationService(settingRepo, repo, nil, nil, nil, nil, nil)
+
+	warning, err := svc.RecordCyberWarning(context.Background(), ContentModerationCyberWarningInput{
+		RequestID:      "req_cyber_out_of_model_scope",
+		UserID:         1001,
+		Model:          "gpt-4.1",
+		WarningText:    "This request may pose a cybersecurity risk.",
+		UpstreamStatus: 400,
+	})
+
+	require.NoError(t, err)
+	require.Nil(t, warning)
+	require.Empty(t, repo.cyberWarnings)
 }
 
 func TestContentModerationRecordCyberWarning_DefaultRecordsWithoutBan(t *testing.T) {

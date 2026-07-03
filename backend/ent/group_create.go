@@ -103,16 +103,58 @@ func (_c *GroupCreate) SetNillableRateMultiplier(v *float64) *GroupCreate {
 	return _c
 }
 
-// SetSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field.
-func (_c *GroupCreate) SetSubscriptionRateMultiplier(v float64) *GroupCreate {
-	_c.mutation.SetSubscriptionRateMultiplier(v)
+// SetPeakRateEnabled sets the "peak_rate_enabled" field.
+func (_c *GroupCreate) SetPeakRateEnabled(v bool) *GroupCreate {
+	_c.mutation.SetPeakRateEnabled(v)
 	return _c
 }
 
-// SetNillableSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field if the given value is not nil.
-func (_c *GroupCreate) SetNillableSubscriptionRateMultiplier(v *float64) *GroupCreate {
+// SetNillablePeakRateEnabled sets the "peak_rate_enabled" field if the given value is not nil.
+func (_c *GroupCreate) SetNillablePeakRateEnabled(v *bool) *GroupCreate {
 	if v != nil {
-		_c.SetSubscriptionRateMultiplier(*v)
+		_c.SetPeakRateEnabled(*v)
+	}
+	return _c
+}
+
+// SetPeakStart sets the "peak_start" field.
+func (_c *GroupCreate) SetPeakStart(v string) *GroupCreate {
+	_c.mutation.SetPeakStart(v)
+	return _c
+}
+
+// SetNillablePeakStart sets the "peak_start" field if the given value is not nil.
+func (_c *GroupCreate) SetNillablePeakStart(v *string) *GroupCreate {
+	if v != nil {
+		_c.SetPeakStart(*v)
+	}
+	return _c
+}
+
+// SetPeakEnd sets the "peak_end" field.
+func (_c *GroupCreate) SetPeakEnd(v string) *GroupCreate {
+	_c.mutation.SetPeakEnd(v)
+	return _c
+}
+
+// SetNillablePeakEnd sets the "peak_end" field if the given value is not nil.
+func (_c *GroupCreate) SetNillablePeakEnd(v *string) *GroupCreate {
+	if v != nil {
+		_c.SetPeakEnd(*v)
+	}
+	return _c
+}
+
+// SetPeakRateMultiplier sets the "peak_rate_multiplier" field.
+func (_c *GroupCreate) SetPeakRateMultiplier(v float64) *GroupCreate {
+	_c.mutation.SetPeakRateMultiplier(v)
+	return _c
+}
+
+// SetNillablePeakRateMultiplier sets the "peak_rate_multiplier" field if the given value is not nil.
+func (_c *GroupCreate) SetNillablePeakRateMultiplier(v *float64) *GroupCreate {
+	if v != nil {
+		_c.SetPeakRateMultiplier(*v)
 	}
 	return _c
 }
@@ -651,9 +693,21 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultRateMultiplier
 		_c.mutation.SetRateMultiplier(v)
 	}
-	if _, ok := _c.mutation.SubscriptionRateMultiplier(); !ok {
-		v := group.DefaultSubscriptionRateMultiplier
-		_c.mutation.SetSubscriptionRateMultiplier(v)
+	if _, ok := _c.mutation.PeakRateEnabled(); !ok {
+		v := group.DefaultPeakRateEnabled
+		_c.mutation.SetPeakRateEnabled(v)
+	}
+	if _, ok := _c.mutation.PeakStart(); !ok {
+		v := group.DefaultPeakStart
+		_c.mutation.SetPeakStart(v)
+	}
+	if _, ok := _c.mutation.PeakEnd(); !ok {
+		v := group.DefaultPeakEnd
+		_c.mutation.SetPeakEnd(v)
+	}
+	if _, ok := _c.mutation.PeakRateMultiplier(); !ok {
+		v := group.DefaultPeakRateMultiplier
+		_c.mutation.SetPeakRateMultiplier(v)
 	}
 	if _, ok := _c.mutation.IsExclusive(); !ok {
 		v := group.DefaultIsExclusive
@@ -769,8 +823,27 @@ func (_c *GroupCreate) check() error {
 	if _, ok := _c.mutation.RateMultiplier(); !ok {
 		return &ValidationError{Name: "rate_multiplier", err: errors.New(`ent: missing required field "Group.rate_multiplier"`)}
 	}
-	if _, ok := _c.mutation.SubscriptionRateMultiplier(); !ok {
-		return &ValidationError{Name: "subscription_rate_multiplier", err: errors.New(`ent: missing required field "Group.subscription_rate_multiplier"`)}
+	if _, ok := _c.mutation.PeakRateEnabled(); !ok {
+		return &ValidationError{Name: "peak_rate_enabled", err: errors.New(`ent: missing required field "Group.peak_rate_enabled"`)}
+	}
+	if _, ok := _c.mutation.PeakStart(); !ok {
+		return &ValidationError{Name: "peak_start", err: errors.New(`ent: missing required field "Group.peak_start"`)}
+	}
+	if v, ok := _c.mutation.PeakStart(); ok {
+		if err := group.PeakStartValidator(v); err != nil {
+			return &ValidationError{Name: "peak_start", err: fmt.Errorf(`ent: validator failed for field "Group.peak_start": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.PeakEnd(); !ok {
+		return &ValidationError{Name: "peak_end", err: errors.New(`ent: missing required field "Group.peak_end"`)}
+	}
+	if v, ok := _c.mutation.PeakEnd(); ok {
+		if err := group.PeakEndValidator(v); err != nil {
+			return &ValidationError{Name: "peak_end", err: fmt.Errorf(`ent: validator failed for field "Group.peak_end": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.PeakRateMultiplier(); !ok {
+		return &ValidationError{Name: "peak_rate_multiplier", err: errors.New(`ent: missing required field "Group.peak_rate_multiplier"`)}
 	}
 	if _, ok := _c.mutation.IsExclusive(); !ok {
 		return &ValidationError{Name: "is_exclusive", err: errors.New(`ent: missing required field "Group.is_exclusive"`)}
@@ -912,9 +985,21 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldRateMultiplier, field.TypeFloat64, value)
 		_node.RateMultiplier = value
 	}
-	if value, ok := _c.mutation.SubscriptionRateMultiplier(); ok {
-		_spec.SetField(group.FieldSubscriptionRateMultiplier, field.TypeFloat64, value)
-		_node.SubscriptionRateMultiplier = value
+	if value, ok := _c.mutation.PeakRateEnabled(); ok {
+		_spec.SetField(group.FieldPeakRateEnabled, field.TypeBool, value)
+		_node.PeakRateEnabled = value
+	}
+	if value, ok := _c.mutation.PeakStart(); ok {
+		_spec.SetField(group.FieldPeakStart, field.TypeString, value)
+		_node.PeakStart = value
+	}
+	if value, ok := _c.mutation.PeakEnd(); ok {
+		_spec.SetField(group.FieldPeakEnd, field.TypeString, value)
+		_node.PeakEnd = value
+	}
+	if value, ok := _c.mutation.PeakRateMultiplier(); ok {
+		_spec.SetField(group.FieldPeakRateMultiplier, field.TypeFloat64, value)
+		_node.PeakRateMultiplier = value
 	}
 	if value, ok := _c.mutation.IsExclusive(); ok {
 		_spec.SetField(group.FieldIsExclusive, field.TypeBool, value)
@@ -1258,21 +1343,57 @@ func (u *GroupUpsert) AddRateMultiplier(v float64) *GroupUpsert {
 	return u
 }
 
-// SetSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field.
-func (u *GroupUpsert) SetSubscriptionRateMultiplier(v float64) *GroupUpsert {
-	u.Set(group.FieldSubscriptionRateMultiplier, v)
+// SetPeakRateEnabled sets the "peak_rate_enabled" field.
+func (u *GroupUpsert) SetPeakRateEnabled(v bool) *GroupUpsert {
+	u.Set(group.FieldPeakRateEnabled, v)
 	return u
 }
 
-// UpdateSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field to the value that was provided on create.
-func (u *GroupUpsert) UpdateSubscriptionRateMultiplier() *GroupUpsert {
-	u.SetExcluded(group.FieldSubscriptionRateMultiplier)
+// UpdatePeakRateEnabled sets the "peak_rate_enabled" field to the value that was provided on create.
+func (u *GroupUpsert) UpdatePeakRateEnabled() *GroupUpsert {
+	u.SetExcluded(group.FieldPeakRateEnabled)
 	return u
 }
 
-// AddSubscriptionRateMultiplier adds v to the "subscription_rate_multiplier" field.
-func (u *GroupUpsert) AddSubscriptionRateMultiplier(v float64) *GroupUpsert {
-	u.Add(group.FieldSubscriptionRateMultiplier, v)
+// SetPeakStart sets the "peak_start" field.
+func (u *GroupUpsert) SetPeakStart(v string) *GroupUpsert {
+	u.Set(group.FieldPeakStart, v)
+	return u
+}
+
+// UpdatePeakStart sets the "peak_start" field to the value that was provided on create.
+func (u *GroupUpsert) UpdatePeakStart() *GroupUpsert {
+	u.SetExcluded(group.FieldPeakStart)
+	return u
+}
+
+// SetPeakEnd sets the "peak_end" field.
+func (u *GroupUpsert) SetPeakEnd(v string) *GroupUpsert {
+	u.Set(group.FieldPeakEnd, v)
+	return u
+}
+
+// UpdatePeakEnd sets the "peak_end" field to the value that was provided on create.
+func (u *GroupUpsert) UpdatePeakEnd() *GroupUpsert {
+	u.SetExcluded(group.FieldPeakEnd)
+	return u
+}
+
+// SetPeakRateMultiplier sets the "peak_rate_multiplier" field.
+func (u *GroupUpsert) SetPeakRateMultiplier(v float64) *GroupUpsert {
+	u.Set(group.FieldPeakRateMultiplier, v)
+	return u
+}
+
+// UpdatePeakRateMultiplier sets the "peak_rate_multiplier" field to the value that was provided on create.
+func (u *GroupUpsert) UpdatePeakRateMultiplier() *GroupUpsert {
+	u.SetExcluded(group.FieldPeakRateMultiplier)
+	return u
+}
+
+// AddPeakRateMultiplier adds v to the "peak_rate_multiplier" field.
+func (u *GroupUpsert) AddPeakRateMultiplier(v float64) *GroupUpsert {
+	u.Add(group.FieldPeakRateMultiplier, v)
 	return u
 }
 
@@ -1868,24 +1989,66 @@ func (u *GroupUpsertOne) UpdateRateMultiplier() *GroupUpsertOne {
 	})
 }
 
-// SetSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field.
-func (u *GroupUpsertOne) SetSubscriptionRateMultiplier(v float64) *GroupUpsertOne {
+// SetPeakRateEnabled sets the "peak_rate_enabled" field.
+func (u *GroupUpsertOne) SetPeakRateEnabled(v bool) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
-		s.SetSubscriptionRateMultiplier(v)
+		s.SetPeakRateEnabled(v)
 	})
 }
 
-// AddSubscriptionRateMultiplier adds v to the "subscription_rate_multiplier" field.
-func (u *GroupUpsertOne) AddSubscriptionRateMultiplier(v float64) *GroupUpsertOne {
+// UpdatePeakRateEnabled sets the "peak_rate_enabled" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdatePeakRateEnabled() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
-		s.AddSubscriptionRateMultiplier(v)
+		s.UpdatePeakRateEnabled()
 	})
 }
 
-// UpdateSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdateSubscriptionRateMultiplier() *GroupUpsertOne {
+// SetPeakStart sets the "peak_start" field.
+func (u *GroupUpsertOne) SetPeakStart(v string) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
-		s.UpdateSubscriptionRateMultiplier()
+		s.SetPeakStart(v)
+	})
+}
+
+// UpdatePeakStart sets the "peak_start" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdatePeakStart() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdatePeakStart()
+	})
+}
+
+// SetPeakEnd sets the "peak_end" field.
+func (u *GroupUpsertOne) SetPeakEnd(v string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetPeakEnd(v)
+	})
+}
+
+// UpdatePeakEnd sets the "peak_end" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdatePeakEnd() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdatePeakEnd()
+	})
+}
+
+// SetPeakRateMultiplier sets the "peak_rate_multiplier" field.
+func (u *GroupUpsertOne) SetPeakRateMultiplier(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetPeakRateMultiplier(v)
+	})
+}
+
+// AddPeakRateMultiplier adds v to the "peak_rate_multiplier" field.
+func (u *GroupUpsertOne) AddPeakRateMultiplier(v float64) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddPeakRateMultiplier(v)
+	})
+}
+
+// UpdatePeakRateMultiplier sets the "peak_rate_multiplier" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdatePeakRateMultiplier() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdatePeakRateMultiplier()
 	})
 }
 
@@ -2723,24 +2886,66 @@ func (u *GroupUpsertBulk) UpdateRateMultiplier() *GroupUpsertBulk {
 	})
 }
 
-// SetSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field.
-func (u *GroupUpsertBulk) SetSubscriptionRateMultiplier(v float64) *GroupUpsertBulk {
+// SetPeakRateEnabled sets the "peak_rate_enabled" field.
+func (u *GroupUpsertBulk) SetPeakRateEnabled(v bool) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
-		s.SetSubscriptionRateMultiplier(v)
+		s.SetPeakRateEnabled(v)
 	})
 }
 
-// AddSubscriptionRateMultiplier adds v to the "subscription_rate_multiplier" field.
-func (u *GroupUpsertBulk) AddSubscriptionRateMultiplier(v float64) *GroupUpsertBulk {
+// UpdatePeakRateEnabled sets the "peak_rate_enabled" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdatePeakRateEnabled() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
-		s.AddSubscriptionRateMultiplier(v)
+		s.UpdatePeakRateEnabled()
 	})
 }
 
-// UpdateSubscriptionRateMultiplier sets the "subscription_rate_multiplier" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdateSubscriptionRateMultiplier() *GroupUpsertBulk {
+// SetPeakStart sets the "peak_start" field.
+func (u *GroupUpsertBulk) SetPeakStart(v string) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
-		s.UpdateSubscriptionRateMultiplier()
+		s.SetPeakStart(v)
+	})
+}
+
+// UpdatePeakStart sets the "peak_start" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdatePeakStart() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdatePeakStart()
+	})
+}
+
+// SetPeakEnd sets the "peak_end" field.
+func (u *GroupUpsertBulk) SetPeakEnd(v string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetPeakEnd(v)
+	})
+}
+
+// UpdatePeakEnd sets the "peak_end" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdatePeakEnd() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdatePeakEnd()
+	})
+}
+
+// SetPeakRateMultiplier sets the "peak_rate_multiplier" field.
+func (u *GroupUpsertBulk) SetPeakRateMultiplier(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetPeakRateMultiplier(v)
+	})
+}
+
+// AddPeakRateMultiplier adds v to the "peak_rate_multiplier" field.
+func (u *GroupUpsertBulk) AddPeakRateMultiplier(v float64) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.AddPeakRateMultiplier(v)
+	})
+}
+
+// UpdatePeakRateMultiplier sets the "peak_rate_multiplier" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdatePeakRateMultiplier() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdatePeakRateMultiplier()
 	})
 }
 

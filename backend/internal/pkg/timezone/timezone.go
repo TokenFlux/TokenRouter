@@ -82,6 +82,11 @@ func Name() string {
 	return tzName
 }
 
+// UTCOffset 返回当前配置时区相对 UTC 的偏移，例如 "+08:00"。
+func UTCOffset() string {
+	return getUTCOffset(Location())
+}
+
 // StartOfDay returns the start of the given day (00:00:00) in the configured timezone.
 func StartOfDay(t time.Time) time.Time {
 	loc := Location()

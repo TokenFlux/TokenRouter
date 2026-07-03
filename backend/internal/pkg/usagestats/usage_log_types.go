@@ -282,24 +282,26 @@ type PlatformDashboardStats struct {
 	TodayActualCost float64 `json:"today_actual_cost"`
 }
 
-// UsageLogFilters represents filters for usage log queries
+// UsageLogFilters 表示用量日志查询过滤条件。
 type UsageLogFilters struct {
-	UserID      int64
-	APIKeyID    int64
-	AccountID   int64
-	GroupID     int64
-	Model       string
-	RequestType *int16
-	Stream      *bool
-	BillingType *int8
-	BillingMode string
-	StartTime   *time.Time
-	EndTime     *time.Time
-	// ExactTotal requests exact COUNT(*) for pagination. Default false for fast large-table paging.
+	UserID    int64
+	APIKeyID  int64
+	AccountID int64
+	GroupID   int64
+	Model     string
+	// ModelFilterSource 控制 Model 的匹配维度；为空时保留 usage_logs.model 原始语义。
+	ModelFilterSource string
+	RequestType       *int16
+	Stream            *bool
+	BillingType       *int8
+	BillingMode       string
+	StartTime         *time.Time
+	EndTime           *time.Time
+	// ExactTotal 要求分页使用精确 COUNT(*)；默认 false 以加速大表分页。
 	ExactTotal bool
 }
 
-// UsageStats represents usage statistics
+// UsageStats 表示用量统计。
 type UsageStats struct {
 	TotalRequests            int64          `json:"total_requests"`
 	TotalInputTokens         int64          `json:"total_input_tokens"`

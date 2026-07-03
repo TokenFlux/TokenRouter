@@ -615,6 +615,16 @@ func GroupIdsNotNil() predicate.SubscriptionPlan {
 	return predicate.SubscriptionPlan(sql.FieldNotNull(FieldGroupIds))
 }
 
+// GroupRateMultipliersIsNil applies the IsNil predicate on the "group_rate_multipliers" field.
+func GroupRateMultipliersIsNil() predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldIsNull(FieldGroupRateMultipliers))
+}
+
+// GroupRateMultipliersNotNil applies the NotNil predicate on the "group_rate_multipliers" field.
+func GroupRateMultipliersNotNil() predicate.SubscriptionPlan {
+	return predicate.SubscriptionPlan(sql.FieldNotNull(FieldGroupRateMultipliers))
+}
+
 // FeaturesEQ applies the EQ predicate on the "features" field.
 func FeaturesEQ(v string) predicate.SubscriptionPlan {
 	return predicate.SubscriptionPlan(sql.FieldEQ(FieldFeatures, v))

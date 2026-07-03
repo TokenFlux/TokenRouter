@@ -7,19 +7,23 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	dbent "github.com/TokenFlux/TokenRouter/ent"
 )
 
 // fakeInsertRecorder 记录 BulkInsertInitial 调用，实现 UserPlatformQuotaRepository port。
 type fakeInsertRecorder struct {
 	records []UserPlatformQuotaRecord
 	err     error
+	lastCtx context.Context // 记录最后一次调用收到的 ctx，用于断言事务隔离。
 }
 
 func (f *fakeInsertRecorder) GetByUserPlatform(_ context.Context, _ int64, _ string) (*UserPlatformQuotaRecord, error) {
 	return nil, nil
 }
 
-func (f *fakeInsertRecorder) BulkInsertInitial(_ context.Context, recs []UserPlatformQuotaRecord) error {
+func (f *fakeInsertRecorder) BulkInsertInitial(ctx context.Context, recs []UserPlatformQuotaRecord) error {
+	f.lastCtx = ctx
 	if f.err != nil {
 		return f.err
 	}
@@ -74,6 +78,31 @@ func TestSnapshotPlatformQuotaDefaults_PassesToRepoBulkInsert(t *testing.T) {
 	}
 	if !found {
 		t.Error("anthropic daily = 5 not snapshotted")
+	}
+}
+
+// TestSnapshotPlatformQuotaDefaults_DetachesCallerTransaction 锁定平台配额快照的事务隔离：
+// 该快照是 fail-open 副作用，即使失败也不能毒化外层注册事务。
+func TestSnapshotPlatformQuotaDefaults_DetachesCallerTransaction(t *testing.T) {
+	fakeRepo := &fakeInsertRecorder{}
+	s := &AuthService{userPlatformQuotaRepo: fakeRepo}
+
+	five := 5.0
+	plan := &signupGrantPlan{
+		PlatformQuotas: map[string]*DefaultPlatformQuotaSetting{
+			"anthropic": {DailyLimitUSD: &five},
+		},
+	}
+	txCtx := dbent.NewTxContext(context.Background(), &dbent.Tx{})
+
+	if err := s.snapshotPlatformQuotaDefaults(txCtx, 999, plan); err != nil {
+		t.Fatalf("snapshot should not error (fail-open): %v", err)
+	}
+	if fakeRepo.lastCtx == nil {
+		t.Fatal("expected BulkInsertInitial to be called")
+	}
+	if dbent.TxFromContext(fakeRepo.lastCtx) != nil {
+		t.Error("平台配额快照必须脱离调用方事务执行，避免失败时污染注册主事务")
 	}
 }
 

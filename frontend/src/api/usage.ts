@@ -11,6 +11,8 @@ import type {
   PaginatedResponse,
   TrendDataPoint,
   ModelStat,
+  GroupStat,
+  UsageRequestType,
   UserErrorRequest,
   UserErrorRequestDetail,
   UserErrorListParams
@@ -57,6 +59,14 @@ export interface TrendParams {
   start_date?: string
   end_date?: string
   granularity?: 'day' | 'hour'
+  api_key_id?: number
+  model?: string
+  group_id?: number
+  request_type?: UsageRequestType
+  stream?: boolean
+  billing_type?: number | null
+  billing_mode?: string | null
+  timezone?: string
 }
 
 export interface TrendResponse {
@@ -120,6 +130,22 @@ export interface ApiKeyDailyUsageResponse {
   end_date: string
 }
 
+export interface UsageDashboardSnapshotV2Params extends TrendParams {
+  include_trend?: boolean
+  include_model_stats?: boolean
+  include_group_stats?: boolean
+}
+
+export interface UsageDashboardSnapshotV2Response {
+  generated_at: string
+  start_date: string
+  end_date: string
+  granularity: string
+  trend?: TrendDataPoint[]
+  models?: ModelStat[]
+  groups?: GroupStat[]
+}
+
 /**
  * List usage logs with optional filters
  * @param page - Page number (default: 1)
@@ -170,10 +196,12 @@ export async function query(
  * @returns Usage statistics
  */
 export async function getStats(
-  period: string = 'today',
+  paramsOrPeriod: (UsageQueryParams & { period?: string; timezone?: string }) | string = 'today',
   apiKeyId?: number
 ): Promise<UsageStatsResponse> {
-  const params: Record<string, unknown> = { period }
+  const params: Record<string, unknown> = typeof paramsOrPeriod === 'string'
+    ? { period: paramsOrPeriod }
+    : { ...paramsOrPeriod }
 
   if (apiKeyId !== undefined) {
     params.api_key_id = apiKeyId
@@ -290,6 +318,15 @@ export async function getDashboardTrend(params?: TrendParams): Promise<TrendResp
 export async function getDashboardModels(params?: {
   start_date?: string
   end_date?: string
+  api_key_id?: number
+  model?: string
+  model_source?: 'requested'
+  group_id?: number
+  request_type?: UsageRequestType
+  stream?: boolean
+  billing_type?: number | null
+  billing_mode?: string | null
+  timezone?: string
 }): Promise<ModelStatsResponse> {
   const { data } = await apiClient.get<ModelStatsResponse>('/usage/dashboard/models', { params })
   return data
@@ -308,6 +345,16 @@ export async function getMyApiKeyDailyUsage(
   const { data } = await apiClient.get<ApiKeyDailyUsageResponse>(
     `/user/api-keys/${apiKeyId}/usage/daily`,
     { params: { days } }
+  )
+  return data
+}
+
+export async function getDashboardSnapshotV2(
+  params?: UsageDashboardSnapshotV2Params
+): Promise<UsageDashboardSnapshotV2Response> {
+  const { data } = await apiClient.get<UsageDashboardSnapshotV2Response>(
+    '/usage/dashboard/snapshot-v2',
+    { params }
   )
   return data
 }
@@ -347,11 +394,9 @@ export async function getDashboardApiKeysUsage(
 }
 
 export async function listMyErrorRequests(
-  params: UserErrorListParams,
-  config: { signal?: AbortSignal } = {}
+  params: UserErrorListParams
 ): Promise<PaginatedResponse<UserErrorRequest>> {
   const { data } = await apiClient.get<PaginatedResponse<UserErrorRequest>>('/usage/errors', {
-    ...config,
     params
   })
   return data
@@ -375,10 +420,11 @@ export const usageAPI = {
   getDashboardTrend,
   getDashboardModels,
   getMyApiKeyDailyUsage,
+  getDashboardSnapshotV2,
   getDashboardApiKeysUsage,
   // 错误请求
   listMyErrorRequests,
-  getMyErrorDetail,
+  getMyErrorDetail
 }
 
 export default usageAPI

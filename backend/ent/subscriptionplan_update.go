@@ -241,6 +241,18 @@ func (_u *SubscriptionPlanUpdate) ClearGroupIds() *SubscriptionPlanUpdate {
 	return _u
 }
 
+// SetGroupRateMultipliers sets the "group_rate_multipliers" field.
+func (_u *SubscriptionPlanUpdate) SetGroupRateMultipliers(v map[int64]float64) *SubscriptionPlanUpdate {
+	_u.mutation.SetGroupRateMultipliers(v)
+	return _u
+}
+
+// ClearGroupRateMultipliers clears the value of the "group_rate_multipliers" field.
+func (_u *SubscriptionPlanUpdate) ClearGroupRateMultipliers() *SubscriptionPlanUpdate {
+	_u.mutation.ClearGroupRateMultipliers()
+	return _u
+}
+
 // SetFeatures sets the "features" field.
 func (_u *SubscriptionPlanUpdate) SetFeatures(v string) *SubscriptionPlanUpdate {
 	_u.mutation.SetFeatures(v)
@@ -522,6 +534,12 @@ func (_u *SubscriptionPlanUpdate) sqlSave(ctx context.Context) (_node int, err e
 	}
 	if _u.mutation.GroupIdsCleared() {
 		_spec.ClearField(subscriptionplan.FieldGroupIds, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.GroupRateMultipliers(); ok {
+		_spec.SetField(subscriptionplan.FieldGroupRateMultipliers, field.TypeJSON, value)
+	}
+	if _u.mutation.GroupRateMultipliersCleared() {
+		_spec.ClearField(subscriptionplan.FieldGroupRateMultipliers, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.Features(); ok {
 		_spec.SetField(subscriptionplan.FieldFeatures, field.TypeString, value)
@@ -861,6 +879,18 @@ func (_u *SubscriptionPlanUpdateOne) ClearGroupIds() *SubscriptionPlanUpdateOne 
 	return _u
 }
 
+// SetGroupRateMultipliers sets the "group_rate_multipliers" field.
+func (_u *SubscriptionPlanUpdateOne) SetGroupRateMultipliers(v map[int64]float64) *SubscriptionPlanUpdateOne {
+	_u.mutation.SetGroupRateMultipliers(v)
+	return _u
+}
+
+// ClearGroupRateMultipliers clears the value of the "group_rate_multipliers" field.
+func (_u *SubscriptionPlanUpdateOne) ClearGroupRateMultipliers() *SubscriptionPlanUpdateOne {
+	_u.mutation.ClearGroupRateMultipliers()
+	return _u
+}
+
 // SetFeatures sets the "features" field.
 func (_u *SubscriptionPlanUpdateOne) SetFeatures(v string) *SubscriptionPlanUpdateOne {
 	_u.mutation.SetFeatures(v)
@@ -1172,6 +1202,12 @@ func (_u *SubscriptionPlanUpdateOne) sqlSave(ctx context.Context) (_node *Subscr
 	}
 	if _u.mutation.GroupIdsCleared() {
 		_spec.ClearField(subscriptionplan.FieldGroupIds, field.TypeJSON)
+	}
+	if value, ok := _u.mutation.GroupRateMultipliers(); ok {
+		_spec.SetField(subscriptionplan.FieldGroupRateMultipliers, field.TypeJSON, value)
+	}
+	if _u.mutation.GroupRateMultipliersCleared() {
+		_spec.ClearField(subscriptionplan.FieldGroupRateMultipliers, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.Features(); ok {
 		_spec.SetField(subscriptionplan.FieldFeatures, field.TypeString, value)

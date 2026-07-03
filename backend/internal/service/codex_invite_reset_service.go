@@ -86,6 +86,7 @@ type CodexInviteResetCredit struct {
 	Status          string         `json:"status,omitempty"`
 	Title           string         `json:"title,omitempty"`
 	Description     string         `json:"description,omitempty"`
+	ExpiresAt       string         `json:"expires_at,omitempty"`
 	ProfileUserID   string         `json:"profile_user_id,omitempty"`
 	ProfileImageURL string         `json:"profile_image_url,omitempty"`
 	Raw             map[string]any `json:"raw,omitempty"`
@@ -368,6 +369,7 @@ func (s *CodexInviteResetService) applyHeaders(req *http.Request, accountCtx *co
 	req.Host = "chatgpt.com"
 	req.Header.Set("Authorization", "Bearer "+accountCtx.token)
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("OpenAI-Beta", openaiQuotaCodexBeta)
 	req.Header.Set("OAI-Language", "zh-CN")
 	req.Header.Set("originator", "Codex Desktop")
 	req.Header.Set("X-OpenAI-Attach-Auth", "1")
@@ -522,6 +524,7 @@ func normalizeCodexInviteResetCredits(raw map[string]any) []CodexInviteResetCred
 			Status:          codexInviteResetStringFromMap(item, "status"),
 			Title:           codexInviteResetStringFromMap(item, "title"),
 			Description:     codexInviteResetStringFromMap(item, "description"),
+			ExpiresAt:       codexInviteResetFirstStringFromMap(item, "expires_at", "expiresAt"),
 			ProfileUserID:   codexInviteResetStringFromMap(item, "profile_user_id"),
 			ProfileImageURL: codexInviteResetStringFromMap(item, "profile_image_url"),
 			Raw:             item,
@@ -582,6 +585,15 @@ func codexInviteResetStringFromMap(raw map[string]any, key string) string {
 	default:
 		return strings.TrimSpace(fmt.Sprint(v))
 	}
+}
+
+func codexInviteResetFirstStringFromMap(raw map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value := codexInviteResetStringFromMap(raw, key); value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func codexInviteResetIntFromMap(raw map[string]any, key string) int {

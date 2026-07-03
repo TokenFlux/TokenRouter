@@ -27,10 +27,12 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/anthropicfp"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
 	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
@@ -71,10 +73,11 @@ IMPORTANT: You must NEVER generate or guess URLs for the user unless you are con
  - Do not use a colon before tool calls. Your tool calls may not be shown directly in the output, so text like "Let me read the file:" followed by a read tool call should just be "Let me read the file." with a period.`
 	maxCacheControlBlocks = 4 // Anthropic API 允许的最大 cache_control 块数量
 
-	defaultUserGroupRateCacheTTL = 30 * time.Second
-	defaultModelsListCacheTTL    = 15 * time.Second
-	usageBillingTimeout          = 15 * time.Second
-	debugGatewayBodyEnv          = "SUB2API_DEBUG_GATEWAY_BODY"
+	defaultUserGroupRateCacheTTL           = 30 * time.Second
+	defaultModelsListCacheTTL              = 15 * time.Second
+	usageBillingTimeout                    = 15 * time.Second
+	claudeCodeNoopDeltaKeepaliveMinVersion = "2.1.193"
+	debugGatewayBodyEnv                    = "SUB2API_DEBUG_GATEWAY_BODY"
 	// 上游错误体只需要提取错误 JSON/日志摘要，默认 512KiB 避免错误风暴叠加大请求体。
 	gatewayUpstreamErrorBodyReadLimit int64 = 512 << 10
 )
@@ -4201,6 +4204,67 @@ func isClaudeCodeClient(userAgent string, metadataUserID string) bool {
 	return ParseMetadataUserID(metadataUserID) != nil
 }
 
+func shouldUseClaudeCodeNoopDeltaKeepalive(userAgent string) bool {
+	version := ExtractCLIVersion(userAgent)
+	if version == "" {
+		return false
+	}
+	return CompareVersions(version, claudeCodeNoopDeltaKeepaliveMinVersion) >= 0
+}
+
+func claudeCodeKeepaliveDeltaTypeForContentBlock(blockType string) string {
+	switch blockType {
+	case "text":
+		return "text_delta"
+	case "tool_use":
+		return "input_json_delta"
+	case "thinking":
+		return "thinking_delta"
+	default:
+		return ""
+	}
+}
+
+func claudeCodeKeepaliveFieldForDeltaType(deltaType string) string {
+	switch deltaType {
+	case "text_delta":
+		return "text"
+	case "input_json_delta":
+		return "partial_json"
+	case "thinking_delta":
+		return "thinking"
+	default:
+		return ""
+	}
+}
+
+func buildClaudeCodeNoopDeltaKeepalive(index int, deltaType string) (string, bool) {
+	fieldName := claudeCodeKeepaliveFieldForDeltaType(deltaType)
+	if fieldName == "" {
+		return "", false
+	}
+	return fmt.Sprintf("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":%d,\"delta\":{\"type\":\"%s\",\"%s\":\"\"}}\n\n", index, deltaType, fieldName), true
+}
+
+func sseEventIndex(event map[string]any) (int, bool) {
+	switch v := event["index"].(type) {
+	case float64:
+		return int(v), true
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	case json.Number:
+		i, err := v.Int64()
+		if err != nil {
+			return 0, false
+		}
+		return int(i), true
+	default:
+		return 0, false
+	}
+}
+
 // normalizeSystemParam 将 json.RawMessage 类型的 system 参数转为标准 Go 类型（string / []any / nil），
 // 避免 type switch 中 json.RawMessage（底层 []byte）无法匹配 case string / case []any / case nil 的问题。
 // 这是 Go 的 typed nil 陷阱：(json.RawMessage, nil) ≠ (nil, nil)。
@@ -4854,6 +4918,28 @@ func (s *GatewayService) shouldInjectAnthropicCacheTTL1h(ctx context.Context, ac
 	return s.settingService.IsAnthropicCacheTTL1hInjectionEnabled(ctx)
 }
 
+// shouldNormalizeClientDateline 判断转发到 Anthropic 前是否需要归一化客户端 dateline。
+// 开关只作用于 Anthropic OAuth/SetupToken 账号；API-Key 与非 Anthropic 平台始终跳过。
+func (s *GatewayService) shouldNormalizeClientDateline(ctx context.Context, account *Account) bool {
+	if account == nil || !account.IsAnthropicOAuthOrSetupToken() || s == nil || s.settingService == nil {
+		return false
+	}
+	return s.settingService.IsClientDatelineNormalizationEnabled(ctx)
+}
+
+// normalizeClientDatelineIfEnabled 在开关开启且账号符合条件时归一化请求体。
+// 只有请求体实际变化时才返回 (nextBody, true)，否则返回 (nil, false) 让调用方跳过回写。
+func (s *GatewayService) normalizeClientDatelineIfEnabled(ctx context.Context, account *Account, body []byte) ([]byte, bool) {
+	if !s.shouldNormalizeClientDateline(ctx, account) {
+		return nil, false
+	}
+	next, _, changed := anthropicfp.NormalizeDateline(body)
+	if !changed {
+		return nil, false
+	}
+	return next, true
+}
+
 func (s *GatewayService) claudeOAuthSystemPromptInjectionSettings(ctx context.Context) (bool, string, string) {
 	if s == nil || s.settingService == nil {
 		return true, "", ""
@@ -5000,6 +5086,16 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 			if err := replaceBody(applyToolsLastCacheBreakpoint(body)); err != nil {
 				return nil, err
 			}
+		}
+	}
+
+	// 客户端 dateline 归一化：仅对 Anthropic OAuth/SetupToken 账号生效。
+	// 抹除 "Today's date is …" 语句里可能被注入的隐写指纹（4 种撇号 × 2 种日期
+	// 分隔符），还原为 ASCII 撇号 + "-" 分隔符。运行在 mimicry 分支之外，
+	// 保证真实 Claude Code 客户端注入的指纹同样被清洗。
+	if next, ok := s.normalizeClientDatelineIfEnabled(ctx, account, body); ok {
+		if err := replaceBody(next); err != nil {
+			return nil, err
 		}
 	}
 
@@ -5915,7 +6011,7 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 	req.Header.Del("x-api-key")
 	req.Header.Del("x-goog-api-key")
 	req.Header.Del("cookie")
-	setHeaderRaw(req.Header, "x-api-key", token)
+	setAnthropicAPIKeyAuthHeader(req.Header, account, token)
 
 	if getHeaderRaw(req.Header, "content-type") == "" {
 		setHeaderRaw(req.Header, "content-type", "application/json")
@@ -6040,16 +6136,28 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 	if s.cfg != nil && s.cfg.Gateway.StreamKeepaliveInterval > 0 {
 		keepaliveInterval = time.Duration(s.cfg.Gateway.StreamKeepaliveInterval) * time.Second
 	}
-	var keepaliveTicker *time.Ticker
+	var keepaliveTimer *time.Timer
 	if keepaliveInterval > 0 {
-		keepaliveTicker = time.NewTicker(keepaliveInterval)
-		defer keepaliveTicker.Stop()
+		keepaliveTimer = time.NewTimer(keepaliveInterval)
+		defer keepaliveTimer.Stop()
 	}
 	var keepaliveCh <-chan time.Time
-	if keepaliveTicker != nil {
-		keepaliveCh = keepaliveTicker.C
+	if keepaliveTimer != nil {
+		keepaliveCh = keepaliveTimer.C
 	}
 	lastDataAt := time.Now()
+	resetKeepaliveTimer := func() {
+		if keepaliveTimer == nil {
+			return
+		}
+		if !keepaliveTimer.Stop() {
+			select {
+			case <-keepaliveTimer.C:
+			default:
+			}
+		}
+		keepaliveTimer.Reset(keepaliveInterval)
+	}
 	// 只在完整 SSE 事件之间发送保活，避免 ping 插入上游事件内容中间。
 	inPartialEvent := false
 
@@ -6124,6 +6232,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 					// 按 SSE 事件边界刷出，减少每行 flush 带来的 syscall 开销。
 					flusher.Flush()
 					lastDataAt = time.Now()
+					resetKeepaliveTimer()
 					inPartialEvent = false
 				} else {
 					inPartialEvent = true
@@ -6145,10 +6254,15 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 			return &streamingResult{usage: usage, firstTokenMs: firstTokenMs, responseBody: responseBody}, fmt.Errorf("stream data interval timeout")
 
 		case <-keepaliveCh:
-			if clientDisconnected || inPartialEvent {
+			if clientDisconnected {
+				continue
+			}
+			if inPartialEvent {
+				resetKeepaliveTimer()
 				continue
 			}
 			if time.Since(lastDataAt) < keepaliveInterval {
+				resetKeepaliveTimer()
 				continue
 			}
 			if _, err := fmt.Fprint(w, "event: ping\ndata: {\"type\": \"ping\"}\n\n"); err != nil {
@@ -6158,6 +6272,7 @@ func (s *GatewayService) handleStreamingResponseAnthropicAPIKeyPassthrough(
 			}
 			flusher.Flush()
 			lastDataAt = time.Now()
+			resetKeepaliveTimer()
 		}
 	}
 }
@@ -6868,7 +6983,7 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 	if tokenType == "oauth" {
 		setHeaderRaw(req.Header, "authorization", "Bearer "+token)
 	} else {
-		setHeaderRaw(req.Header, "x-api-key", token)
+		setAnthropicAPIKeyAuthHeader(req.Header, account, token)
 	}
 
 	// 白名单透传 headers
@@ -8413,16 +8528,28 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 	if s.cfg != nil && s.cfg.Gateway.StreamKeepaliveInterval > 0 {
 		keepaliveInterval = time.Duration(s.cfg.Gateway.StreamKeepaliveInterval) * time.Second
 	}
-	var keepaliveTicker *time.Ticker
+	var keepaliveTimer *time.Timer
 	if keepaliveInterval > 0 {
-		keepaliveTicker = time.NewTicker(keepaliveInterval)
-		defer keepaliveTicker.Stop()
+		keepaliveTimer = time.NewTimer(keepaliveInterval)
+		defer keepaliveTimer.Stop()
 	}
 	var keepaliveCh <-chan time.Time
-	if keepaliveTicker != nil {
-		keepaliveCh = keepaliveTicker.C
+	if keepaliveTimer != nil {
+		keepaliveCh = keepaliveTimer.C
 	}
 	lastDataAt := time.Now()
+	resetKeepaliveTimer := func() {
+		if keepaliveTimer == nil {
+			return
+		}
+		if !keepaliveTimer.Stop() {
+			select {
+			case <-keepaliveTimer.C:
+			default:
+			}
+		}
+		keepaliveTimer.Reset(keepaliveInterval)
+	}
 
 	// 仅发送一次错误事件，避免多次写入导致协议混乱（写失败时尽力通知客户端）。
 	// 事件格式遵循 Anthropic SSE 标准：{"type":"error","error":{"type":<reason>,"message":<message>}}
@@ -8457,6 +8584,9 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 	sawTerminalEvent := false
 	var responseBody []byte
 	responseAccumulator := &anthropicStreamResponseAccumulator{}
+	useNoopDeltaKeepalive := c != nil && c.Request != nil && shouldUseClaudeCodeNoopDeltaKeepalive(c.GetHeader("User-Agent"))
+	noopDeltaKeepaliveBlockIndex := -1
+	noopDeltaKeepaliveDeltaType := ""
 
 	pendingEventLines := make([]string, 0, 4)
 
@@ -8512,6 +8642,41 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 			eventName = eventType
 		}
 		eventChanged := false
+
+		if useNoopDeltaKeepalive {
+			switch eventType {
+			case "content_block_start":
+				if idx, ok := sseEventIndex(event); ok {
+					noopDeltaKeepaliveBlockIndex = -1
+					noopDeltaKeepaliveDeltaType = ""
+					if contentBlock, ok := event["content_block"].(map[string]any); ok {
+						blockType, _ := contentBlock["type"].(string)
+						if deltaType := claudeCodeKeepaliveDeltaTypeForContentBlock(blockType); deltaType != "" {
+							noopDeltaKeepaliveBlockIndex = idx
+							noopDeltaKeepaliveDeltaType = deltaType
+						}
+					}
+				}
+			case "content_block_delta":
+				if idx, ok := sseEventIndex(event); ok {
+					if delta, ok := event["delta"].(map[string]any); ok {
+						deltaType, _ := delta["type"].(string)
+						if claudeCodeKeepaliveFieldForDeltaType(deltaType) != "" {
+							noopDeltaKeepaliveBlockIndex = idx
+							noopDeltaKeepaliveDeltaType = deltaType
+						}
+					}
+				}
+			case "content_block_stop":
+				if idx, ok := sseEventIndex(event); ok && idx == noopDeltaKeepaliveBlockIndex {
+					noopDeltaKeepaliveBlockIndex = -1
+					noopDeltaKeepaliveDeltaType = ""
+				}
+			case "message_stop":
+				noopDeltaKeepaliveBlockIndex = -1
+				noopDeltaKeepaliveDeltaType = ""
+			}
+		}
 
 		// 兼容 Kimi cached_tokens → cache_read_input_tokens
 		if eventType == "message_start" {
@@ -8670,6 +8835,7 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 						}
 						flusher.Flush()
 						lastDataAt = time.Now()
+						resetKeepaliveTimer()
 					}
 					if data != "" {
 						if firstTokenMs == nil && data != "[DONE]" {
@@ -8707,16 +8873,23 @@ func (s *GatewayService) handleStreamingResponse(ctx context.Context, resp *http
 				continue
 			}
 			if time.Since(lastDataAt) < keepaliveInterval {
+				resetKeepaliveTimer()
 				continue
 			}
-			// SSE ping 事件：Anthropic 原生格式，客户端会正确处理，
-			// 同时保持连接活跃防止 Cloudflare Tunnel 等代理断开
-			if _, werr := fmt.Fprint(w, "event: ping\ndata: {\"type\": \"ping\"}\n\n"); werr != nil {
+			keepaliveBlock := "event: ping\ndata: {\"type\": \"ping\"}\n\n"
+			if useNoopDeltaKeepalive && noopDeltaKeepaliveBlockIndex >= 0 {
+				if block, ok := buildClaudeCodeNoopDeltaKeepalive(noopDeltaKeepaliveBlockIndex, noopDeltaKeepaliveDeltaType); ok {
+					keepaliveBlock = block
+				}
+			}
+			if _, werr := fmt.Fprint(w, keepaliveBlock); werr != nil {
 				clientDisconnected = true
 				logger.LegacyPrintf("service.gateway", "Client disconnected during keepalive ping, continuing to drain upstream for billing")
 				continue
 			}
 			flusher.Flush()
+			lastDataAt = time.Now()
+			resetKeepaliveTimer()
 		}
 	}
 
@@ -9184,7 +9357,6 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *usageBill
 		APIKeyID:           p.APIKey.ID,
 		UserID:             p.User.ID,
 		AccountID:          p.Account.ID,
-		GroupID:            p.APIKey.GroupID,
 		AccountType:        p.Account.Type,
 		RequestPayloadHash: strings.TrimSpace(p.RequestPayloadHash),
 	}
@@ -9637,7 +9809,6 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	user := input.User
 	account := input.Account
 	subscription := input.Subscription
-	subscription = resolveUsageSubscription(ctx, subscription, s.userSubRepo, usageSubscriptionResolverFrom(s.usageBillingRepo), user.ID, apiKey.GroupID)
 	ApplyForwardImageBillingResolution(result)
 
 	// 强制缓存计费：将 input_tokens 转为 cache_read_input_tokens
@@ -9662,16 +9833,16 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	if s.cfg != nil {
 		multiplier = s.cfg.Default.RateMultiplier
 	}
-	multiplier = resolveUsageRateMultiplier(
-		ctx,
-		user.ID,
-		apiKey.GroupID,
-		apiKey.Group,
-		multiplier,
-		subscription,
-		s.getUserGroupRateMultiplier,
-	)
-	imageMultiplier := resolveImageRateMultiplier(apiKey, multiplier)
+	subscription = resolveUsageSubscription(ctx, subscription, s.userSubRepo, usageSubscriptionResolverFrom(s.usageBillingRepo), user.ID, apiKey.GroupID)
+	if apiKey.GroupID != nil && apiKey.Group != nil && subscription == nil {
+		groupDefault := apiKey.Group.RateMultiplier
+		multiplier = s.getUserGroupRateMultiplier(ctx, user.ID, *apiKey.GroupID, groupDefault)
+	} else {
+		multiplier = resolveUsageRateMultiplier(ctx, user.ID, apiKey.GroupID, apiKey.Group, multiplier, subscription, nil)
+	}
+	// token 倍率叠加高峰因子（token 计费含图片 token，图片按次倍率不受影响）。高峰因子按请求时刻现算，
+	// 不并入上面的 getUserGroupRateMultiplier，以免污染 user:group 倍率缓存。
+	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, multiplier, timezone.Now())
 
 	// 确定计费模型
 	billingModel := forwardResultBillingModel(result.Model, result.UpstreamModel)
@@ -9903,10 +10074,7 @@ func (s *GatewayService) calculateTokenCost(
 		})
 	} else if opts.LongContextThreshold > 0 {
 		// 长上下文双倍计费（如 Gemini 200K 阈值）
-		cost, err = s.billingService.CalculateCostWithLongContext(
-			billingModel, tokens, multiplier,
-			opts.LongContextThreshold, opts.LongContextMultiplier,
-		)
+		cost, err = s.billingService.CalculateCostWithLongContext(billingModel, tokens, multiplier, opts.LongContextThreshold, opts.LongContextMultiplier)
 	} else {
 		cost, err = s.billingService.CalculateCost(billingModel, tokens, multiplier)
 	}
@@ -10518,7 +10686,7 @@ func (s *GatewayService) buildCountTokensRequestAnthropicAPIKeyPassthrough(
 	req.Header.Del("x-api-key")
 	req.Header.Del("x-goog-api-key")
 	req.Header.Del("cookie")
-	req.Header.Set("x-api-key", token)
+	setAnthropicAPIKeyAuthHeader(req.Header, account, token)
 
 	if req.Header.Get("content-type") == "" {
 		req.Header.Set("content-type", "application/json")
@@ -10609,7 +10777,7 @@ func (s *GatewayService) buildCountTokensRequest(ctx context.Context, c *gin.Con
 	if tokenType == "oauth" {
 		setHeaderRaw(req.Header, "authorization", "Bearer "+token)
 	} else {
-		setHeaderRaw(req.Header, "x-api-key", token)
+		setAnthropicAPIKeyAuthHeader(req.Header, account, token)
 	}
 
 	// 白名单透传 headers（恢复真实 wire casing）

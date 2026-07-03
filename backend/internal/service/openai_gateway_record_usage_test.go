@@ -39,7 +39,6 @@ type openAIRecordUsageBillingRepoStub struct {
 	lastCmd      *UsageBillingCommand
 	lastCtxErr   error
 	resolveSub   *UserSubscription
-	resolveErr   error
 	resolveCalls int
 }
 
@@ -67,14 +66,121 @@ func (s *openAIRecordUsageBillingRepoStub) Apply(ctx context.Context, cmd *Usage
 
 func (s *openAIRecordUsageBillingRepoStub) ResolveUsableSubscriptionForGroup(ctx context.Context, userID, groupID int64) (*UserSubscription, error) {
 	s.resolveCalls++
-	s.lastCtxErr = ctx.Err()
-	if s.resolveErr != nil {
-		return nil, s.resolveErr
-	}
-	if s.resolveSub == nil || s.resolveSub.UserID != userID {
-		return nil, nil
-	}
 	return s.resolveSub, nil
+}
+
+type openAIRecordUsageQuotaCacheStub struct {
+	entry     *UserPlatformQuotaCacheEntry
+	getCalls  []openAIRecordUsageQuotaCacheGetCall
+	incrCalls []openAIRecordUsageQuotaCacheIncrCall
+}
+
+type openAIRecordUsageQuotaCacheGetCall struct {
+	userID   int64
+	platform string
+}
+
+type openAIRecordUsageQuotaCacheIncrCall struct {
+	userID   int64
+	platform string
+	cost     float64
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) GetUserBalance(ctx context.Context, userID int64) (float64, error) {
+	return 0, nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) SetUserBalance(ctx context.Context, userID int64, balance float64) error {
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) DeductUserBalance(ctx context.Context, userID int64, amount float64) error {
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) InvalidateUserBalance(ctx context.Context, userID int64) error {
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) GetAPIKeyRateLimit(ctx context.Context, keyID int64) (*APIKeyRateLimitCacheData, error) {
+	return nil, nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) SetAPIKeyRateLimit(ctx context.Context, keyID int64, data *APIKeyRateLimitCacheData) error {
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) UpdateAPIKeyRateLimitUsage(ctx context.Context, keyID int64, cost float64) error {
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) InvalidateAPIKeyRateLimit(ctx context.Context, keyID int64) error {
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) GetUserPlatformQuotaCache(ctx context.Context, userID int64, platform string) (*UserPlatformQuotaCacheEntry, bool, error) {
+	s.getCalls = append(s.getCalls, openAIRecordUsageQuotaCacheGetCall{userID: userID, platform: platform})
+	if s.entry == nil {
+		return nil, false, nil
+	}
+	return s.entry, true, nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) SetUserPlatformQuotaCache(ctx context.Context, userID int64, platform string, entry *UserPlatformQuotaCacheEntry, ttl time.Duration) error {
+	s.entry = entry
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) DeleteUserPlatformQuotaCache(ctx context.Context, userID int64, platform string) error {
+	s.entry = nil
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) IncrUserPlatformQuotaUsageCache(ctx context.Context, userID int64, platform string, cost float64, ttl time.Duration, markDirty bool) error {
+	s.incrCalls = append(s.incrCalls, openAIRecordUsageQuotaCacheIncrCall{userID: userID, platform: platform, cost: cost})
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) PopDirtyUserPlatformQuotaKeys(ctx context.Context, n int) ([]UserPlatformQuotaKey, error) {
+	return nil, nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) ReaddDirtyUserPlatformQuotaKeys(ctx context.Context, keys []UserPlatformQuotaKey) error {
+	return nil
+}
+
+func (s *openAIRecordUsageQuotaCacheStub) BatchGetUserPlatformQuotaCache(ctx context.Context, keys []UserPlatformQuotaKey) ([]*UserPlatformQuotaCacheEntry, error) {
+	return make([]*UserPlatformQuotaCacheEntry, len(keys)), nil
+}
+
+type openAIRecordUsagePlatformQuotaRepoStub struct{}
+
+func (s *openAIRecordUsagePlatformQuotaRepoStub) GetByUserPlatform(ctx context.Context, userID int64, platform string) (*UserPlatformQuotaRecord, error) {
+	return nil, nil
+}
+
+func (s *openAIRecordUsagePlatformQuotaRepoStub) BulkInsertInitial(ctx context.Context, records []UserPlatformQuotaRecord) error {
+	return nil
+}
+
+func (s *openAIRecordUsagePlatformQuotaRepoStub) IncrementUsageWithReset(ctx context.Context, userID int64, platform string, cost float64, now time.Time) error {
+	return nil
+}
+
+func (s *openAIRecordUsagePlatformQuotaRepoStub) ListByUser(ctx context.Context, userID int64) ([]UserPlatformQuotaRecord, error) {
+	return nil, nil
+}
+
+func (s *openAIRecordUsagePlatformQuotaRepoStub) UpsertForUser(ctx context.Context, userID int64, records []UserPlatformQuotaRecord) error {
+	return nil
+}
+
+func (s *openAIRecordUsagePlatformQuotaRepoStub) ResetExpiredWindow(ctx context.Context, userID int64, platform string, window string, newStart time.Time) error {
+	return nil
+}
+
+func (s *openAIRecordUsagePlatformQuotaRepoStub) BatchSnapshotUsage(ctx context.Context, snapshots []UserPlatformQuotaSnapshot, now time.Time) error {
+	return nil
 }
 
 func TestOpenAIGatewayServiceRecordUsage_RejectsNilInput(t *testing.T) {
@@ -105,33 +211,15 @@ func (s *openAIRecordUsageUserRepoStub) DeductBalance(ctx context.Context, id in
 type openAIRecordUsageSubRepoStub struct {
 	UserSubscriptionRepository
 
-	incrementCalls  int
-	incrementErr    error
-	lastCtxErr      error
-	activeSubs      []UserSubscription
-	listActiveErr   error
-	listActiveCalls int
+	incrementCalls int
+	incrementErr   error
+	lastCtxErr     error
 }
 
 func (s *openAIRecordUsageSubRepoStub) IncrementUsage(ctx context.Context, id int64, costUSD float64) error {
 	s.incrementCalls++
 	s.lastCtxErr = ctx.Err()
 	return s.incrementErr
-}
-
-func (s *openAIRecordUsageSubRepoStub) ListActiveByUserID(ctx context.Context, userID int64) ([]UserSubscription, error) {
-	s.listActiveCalls++
-	s.lastCtxErr = ctx.Err()
-	if s.listActiveErr != nil {
-		return nil, s.listActiveErr
-	}
-	out := make([]UserSubscription, 0, len(s.activeSubs))
-	for i := range s.activeSubs {
-		if s.activeSubs[i].UserID == userID {
-			out = append(out, s.activeSubs[i])
-		}
-	}
-	return out, nil
 }
 
 type openAIRecordUsageAPIKeyQuotaStub struct {
@@ -383,6 +471,61 @@ func TestOpenAIGatewayServiceRecordUsage_MissingPricingRecordsZeroCostUsageLog(t
 	require.Zero(t, billingRepo.lastCmd.AccountQuotaCost)
 }
 
+func TestOpenAIGatewayServiceRecordUsage_UsesQuotaPlatformForPlatformQuota(t *testing.T) {
+	dailyLimit := 100.0
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{
+		result: &UsageBillingApplyResult{
+			Applied:          true,
+			BalanceAmountUSD: 0.25,
+		},
+	}
+	quotaCache := &openAIRecordUsageQuotaCacheStub{
+		entry: &UserPlatformQuotaCacheEntry{DailyLimitUSD: &dailyLimit},
+	}
+	svc := newOpenAIRecordUsageServiceWithBillingRepoForTest(
+		usageRepo,
+		billingRepo,
+		&openAIRecordUsageUserRepoStub{},
+		&openAIRecordUsageSubRepoStub{},
+		nil,
+	)
+	svc.billingCacheService = &BillingCacheService{
+		cache: quotaCache,
+		cfg:   &config.Config{},
+	}
+	svc.userPlatformQuotaRepo = &openAIRecordUsagePlatformQuotaRepoStub{}
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID: "resp_quota_platform",
+			Usage: OpenAIUsage{
+				InputTokens:  1000,
+				OutputTokens: 1000,
+			},
+			Model:    "gpt-5.1",
+			Duration: time.Second,
+		},
+		APIKey: &APIKey{
+			ID:    1100,
+			Quota: 100,
+			Group: &Group{Platform: PlatformOpenAI, RateMultiplier: 1},
+		},
+		User:          &User{ID: 2100, Balance: 10},
+		Account:       &Account{ID: 3100, Type: AccountTypeAPIKey},
+		QuotaPlatform: PlatformAntigravity,
+	})
+
+	require.NoError(t, err)
+	// ForcePlatform 由 handler 预先拍进 QuotaPlatform，后扣不能再回退到 API key 的 openai 分组。
+	require.Equal(t, []openAIRecordUsageQuotaCacheGetCall{
+		{userID: 2100, platform: PlatformAntigravity},
+	}, quotaCache.getCalls)
+	require.Equal(t, []openAIRecordUsageQuotaCacheIncrCall{
+		{userID: 2100, platform: PlatformAntigravity, cost: 0.25},
+	}, quotaCache.incrCalls)
+}
+
 func TestOpenAIGatewayServiceRecordUsage_UsesUserSpecificGroupRate(t *testing.T) {
 	groupID := int64(11)
 	groupRate := 1.4
@@ -427,6 +570,74 @@ func TestOpenAIGatewayServiceRecordUsage_UsesUserSpecificGroupRate(t *testing.T)
 	require.Equal(t, 1, billingRepo.calls)
 	require.NotNil(t, billingRepo.lastCmd)
 	require.InDelta(t, expected.ActualCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+}
+
+func TestOpenAIGatewayServiceRecordUsage_PeakRateAffectsTokenModeImageOutputTokens(t *testing.T) {
+	groupID := int64(14)
+	groupRate := 1.0
+	usage := OpenAIUsage{
+		InputTokens:       1000,
+		OutputTokens:      600,
+		ImageOutputTokens: 100,
+	}
+
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	userRepo := &openAIRecordUsageUserRepoStub{}
+	subRepo := &openAIRecordUsageSubRepoStub{}
+	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
+	svc.resolver = newOpenAITokenImageChannelPricingResolverForTest(t, groupID, "gpt-5.1")
+
+	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
+		Result: &OpenAIForwardResult{
+			RequestID:  "resp_peak_image_tokens",
+			Usage:      usage,
+			Model:      "gpt-5.1",
+			Duration:   time.Second,
+			ImageCount: 1,
+		},
+		APIKey: &APIKey{
+			ID:      1004,
+			GroupID: i64p(groupID),
+			Group: &Group{
+				ID:                 groupID,
+				RateMultiplier:     groupRate,
+				PeakRateEnabled:    true,
+				PeakStart:          "00:00",
+				PeakEnd:            "23:59",
+				PeakRateMultiplier: 3.0,
+			},
+		},
+		User:    &User{ID: 2004},
+		Account: &Account{ID: 3004},
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, 3.0, usageRepo.lastLog.RateMultiplier)
+	require.Equal(t, usage.ImageOutputTokens, usageRepo.lastLog.ImageOutputTokens)
+
+	expected, err := svc.billingService.CalculateCostUnified(CostInput{
+		Ctx:     context.Background(),
+		Model:   "gpt-5.1",
+		GroupID: i64p(groupID),
+		Tokens: UsageTokens{
+			InputTokens:       usage.InputTokens,
+			OutputTokens:      usage.OutputTokens,
+			ImageOutputTokens: usage.ImageOutputTokens,
+		},
+		RateMultiplier: 1.0,
+		Resolver:       svc.resolver,
+	})
+	require.NoError(t, err)
+	expectedActual := expected.TotalCost * 3.0
+
+	require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expected.ImageOutputCost, usageRepo.lastLog.ImageOutputCost, 1e-12)
+	require.InDelta(t, expectedActual, usageRepo.lastLog.ActualCost, 1e-12)
+	billingRepo := requireOpenAIRecordUsageBillingRepoStub(t, svc)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, expectedActual, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
 }
 
 func TestOpenAIGatewayServiceRecordUsage_IncludesEndpointMetadata(t *testing.T) {
@@ -1423,14 +1634,23 @@ func TestOpenAIGatewayServiceRecordUsage_SubscriptionBillingSetsSubscriptionFiel
 	require.Equal(t, 0, userRepo.deductCalls)
 }
 
-func TestOpenAIGatewayServiceRecordUsage_SubscriptionBillingUsesGroupSubscriptionRateOverUserGroupRate(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_SubscriptionBillingUsesPlanGroupRateOverUserGroupRate(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	subRepo := &openAIRecordUsageSubRepoStub{}
 	userGroupRate := 0.17
 	rateRepo := &openAIUserGroupRateRepoStub{rate: &userGroupRate}
-	subscription := &UserSubscription{ID: 99}
 	planID := int64(199)
+	subscription := &UserSubscription{
+		ID: 99,
+		Plan: &SubscriptionPlan{
+			ID:       planID,
+			GroupIDs: []int64{88},
+			GroupRateMultipliers: map[int64]float64{
+				88: 0.5,
+			},
+		},
+	}
 	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{
 		Applied:               true,
 		SubscriptionAmountUSD: 1,
@@ -1459,9 +1679,8 @@ func TestOpenAIGatewayServiceRecordUsage_SubscriptionBillingUsesGroupSubscriptio
 			ID:      100,
 			GroupID: i64p(88),
 			Group: &Group{
-				ID:                         88,
-				RateMultiplier:             1.0,
-				SubscriptionRateMultiplier: 0.5,
+				ID:             88,
+				RateMultiplier: 1.0,
 			},
 		},
 		User:         &User{ID: 200},
@@ -1480,7 +1699,7 @@ func TestOpenAIGatewayServiceRecordUsage_SubscriptionBillingUsesGroupSubscriptio
 	require.Equal(t, 0, rateRepo.calls)
 }
 
-func TestOpenAIGatewayServiceRecordUsage_InferredSubscriptionUsesGroupSubscriptionRate(t *testing.T) {
+func TestOpenAIGatewayServiceRecordUsage_InferredSubscriptionUsesPlanGroupRate(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	now := time.Now()
@@ -1494,6 +1713,9 @@ func TestOpenAIGatewayServiceRecordUsage_InferredSubscriptionUsesGroupSubscripti
 		Plan: &SubscriptionPlan{
 			ID:       199,
 			GroupIDs: []int64{88},
+			GroupRateMultipliers: map[int64]float64{
+				88: 0.5,
+			},
 		},
 	}
 	subRepo := &openAIRecordUsageSubRepoStub{}
@@ -1529,9 +1751,8 @@ func TestOpenAIGatewayServiceRecordUsage_InferredSubscriptionUsesGroupSubscripti
 			ID:      100,
 			GroupID: i64p(88),
 			Group: &Group{
-				ID:                         88,
-				RateMultiplier:             1.0,
-				SubscriptionRateMultiplier: 0.5,
+				ID:             88,
+				RateMultiplier: 1.0,
 			},
 		},
 		User:    &User{ID: 200},
@@ -1548,7 +1769,6 @@ func TestOpenAIGatewayServiceRecordUsage_InferredSubscriptionUsesGroupSubscripti
 	require.InDelta(t, expectedCost.ActualCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
 	require.Equal(t, 0, rateRepo.calls)
 	require.Equal(t, 1, billingRepo.resolveCalls)
-	require.Equal(t, 0, subRepo.listActiveCalls)
 }
 
 func TestOpenAIGatewayServiceRecordUsage_SimpleModeSkipsBillingAfterPersist(t *testing.T) {
@@ -1941,6 +2161,26 @@ func newOpenAIImageChannelPricingResolverForTest(t *testing.T, groupID int64, mo
 	cache.pricingByGroupModel[channelModelKey{groupID: groupID, model: model}] = &ChannelModelPricing{
 		BillingMode:     BillingModeImage,
 		PerRequestPrice: &price,
+	}
+	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
+	cache.groupPlatform[groupID] = ""
+	cache.loadedAt = time.Now()
+	cs := &ChannelService{}
+	cs.cache.Store(cache)
+	return NewModelPricingResolver(cs, NewBillingService(&config.Config{}, nil))
+}
+
+func newOpenAITokenImageChannelPricingResolverForTest(t *testing.T, groupID int64, model string) *ModelPricingResolver {
+	t.Helper()
+	inputPrice := 3e-6
+	outputPrice := 15e-6
+	imageOutputPrice := 15e-6
+	cache := newEmptyChannelCache()
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, model: model}] = &ChannelModelPricing{
+		BillingMode:      BillingModeToken,
+		InputPrice:       &inputPrice,
+		OutputPrice:      &outputPrice,
+		ImageOutputPrice: &imageOutputPrice,
 	}
 	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
 	cache.groupPlatform[groupID] = ""

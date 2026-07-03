@@ -62,20 +62,35 @@
       <div>
         <label class="input-label">{{ t('payment.admin.planGroups') }} <span class="text-red-500">*</span></label>
         <div class="max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 dark:border-dark-600 dark:bg-dark-800">
-          <label
+          <div class="mb-1 flex items-center px-2 text-xs text-gray-400">
+            <span class="flex-1">{{ t('payment.admin.planGroups') }}</span>
+            <span>{{ t('payment.admin.subscriptionRateMultiplier') }}</span>
+          </div>
+          <div
             v-for="group in groups"
             :key="group.id"
-            class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-dark-700"
+            class="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-dark-700"
           >
-            <input
-              v-model="planForm.group_ids"
-              type="checkbox"
-              :value="group.id"
-              class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
-            />
-            <span class="flex-1 truncate">{{ group.name }}</span>
+            <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+              <input
+                v-model="planForm.group_ids"
+                type="checkbox"
+                :value="group.id"
+                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                @change="ensureGroupRate(group.id)"
+              />
+              <span class="flex-1 truncate">{{ group.name }}</span>
+            </label>
             <span class="text-xs text-gray-400">{{ group.platform }}</span>
-          </label>
+            <input
+              v-if="isGroupSelected(group.id)"
+              v-model.number="planForm.group_rate_multipliers[group.id]"
+              type="number"
+              step="0.01"
+              min="0.01"
+              class="input h-8 w-24 text-right text-xs"
+            />
+          </div>
           <div v-if="!groupsLoading && groups.length === 0" class="px-2 py-3 text-sm text-gray-500">
             {{ t('admin.groups.noGroups') }}
           </div>
@@ -171,6 +186,7 @@ const planForm = reactive({
   weekly_limit_usd: null as number | null,
   monthly_limit_usd: null as number | null,
   group_ids: [] as number[],
+  group_rate_multipliers: {} as Record<number, number>,
   sort_order: 0,
   for_sale: true
 })
@@ -199,6 +215,7 @@ watch(
         weekly_limit_usd: normalizeQuotaFormValue(props.plan.weekly_limit_usd),
         monthly_limit_usd: normalizeQuotaFormValue(props.plan.monthly_limit_usd),
         group_ids: normalizePlanGroupIDs(props.plan),
+        group_rate_multipliers: normalizePlanGroupRateMultipliers(props.plan),
         sort_order: props.plan.sort_order || 0,
         for_sale: props.plan.for_sale
       })
@@ -217,6 +234,7 @@ watch(
       weekly_limit_usd: null,
       monthly_limit_usd: null,
       group_ids: [],
+      group_rate_multipliers: {},
       sort_order: 0,
       for_sale: true
     })
@@ -243,6 +261,31 @@ function normalizePlanGroupIDs(plan: SubscriptionPlan): number[] {
   return plan.group_id && plan.group_id > 0 ? [plan.group_id] : []
 }
 
+function normalizePlanGroupRateMultipliers(plan: SubscriptionPlan): Record<number, number> {
+  const rates: Record<number, number> = {}
+  const raw = plan.group_rate_multipliers || {}
+  for (const groupId of normalizePlanGroupIDs(plan)) {
+    const rate = Number((raw as Record<string, number>)[String(groupId)] ?? (raw as Record<number, number>)[groupId])
+    rates[groupId] = Number.isFinite(rate) && rate > 0 ? rate : 1
+  }
+  return rates
+}
+
+function isGroupSelected(groupId: number): boolean {
+  return planForm.group_ids.includes(groupId)
+}
+
+function ensureGroupRate(groupId: number) {
+  if (isGroupSelected(groupId)) {
+    const rate = planForm.group_rate_multipliers[groupId]
+    if (!Number.isFinite(rate) || rate <= 0) {
+      planForm.group_rate_multipliers[groupId] = 1
+    }
+    return
+  }
+  delete planForm.group_rate_multipliers[groupId]
+}
+
 function normalizeNullableNumber(value: number | null): number | null {
   if (value == null || Number.isNaN(value) || value <= 0) return null
   return value
@@ -259,6 +302,11 @@ function normalizeQuotaLimit(value: number | null): number | null {
 }
 
 function buildPlanPayload() {
+  const groupRateMultipliers = planForm.group_ids.reduce<Record<number, number>>((acc, groupId) => {
+    const rate = Number(planForm.group_rate_multipliers[groupId])
+    acc[groupId] = Number.isFinite(rate) && rate > 0 ? rate : 1
+    return acc
+  }, {})
   return {
     name: planForm.name.trim(),
     description: planForm.description.trim(),
@@ -270,6 +318,7 @@ function buildPlanPayload() {
     weekly_limit_usd: normalizeQuotaLimit(planForm.weekly_limit_usd),
     monthly_limit_usd: normalizeQuotaLimit(planForm.monthly_limit_usd),
     group_ids: [...planForm.group_ids],
+    group_rate_multipliers: groupRateMultipliers,
     sort_order: planForm.sort_order,
     for_sale: planForm.for_sale,
     features: planFeaturesText.value
@@ -296,6 +345,13 @@ async function handleSavePlan() {
   if (planForm.group_ids.length === 0) {
     appStore.showError(t('payment.admin.planGroupsRequired'))
     return
+  }
+  for (const groupId of planForm.group_ids) {
+    const rate = Number(planForm.group_rate_multipliers[groupId])
+    if (!Number.isFinite(rate) || rate <= 0) {
+      appStore.showError(t('payment.admin.subscriptionRateMultiplierRequired'))
+      return
+    }
   }
   const payload = buildPlanPayload()
 

@@ -28,6 +28,7 @@ export interface CodexInviteResetCredit {
   status?: string
   title?: string
   description?: string
+  expires_at?: string
   profile_user_id?: string
   profile_image_url?: string
   raw?: Record<string, unknown>
@@ -87,8 +88,13 @@ export interface OpenAIAdditionalRateLimit {
   rate_limit?: OpenAIRateLimit | null
 }
 
+export interface OpenAIRateLimitResetCreditDetail {
+  expires_at?: string
+}
+
 export interface OpenAIRateLimitResetCredits {
   available_count: number
+  credits?: OpenAIRateLimitResetCreditDetail[]
 }
 
 export interface OpenAIQuotaUsage {
@@ -787,9 +793,9 @@ export async function batchRefresh(accountIds: number[]): Promise<BatchOperation
 }
 
 /**
- * Set privacy for an Antigravity OAuth account
- * @param id - Account ID
- * @returns Updated account
+ * 为支持的 OAuth 账号设置隐私选项。
+ * @param id - 账号 ID
+ * @returns 更新后的账号
  */
 export async function setPrivacy(id: number): Promise<Account> {
   const { data } = await apiClient.post<Account>(`/admin/accounts/${id}/set-privacy`)
@@ -852,6 +858,28 @@ export async function queryOpenAIQuota(id: number): Promise<OpenAIQuotaUsage> {
   return data
 }
 
+/**
+ * 重置 OpenAI OAuth 账号的上游额度。
+ * @param id - 账号 ID
+ * @returns OpenAI 上游限流状态
+ */
+export async function resetOpenAIQuota(id: number): Promise<OpenAIQuotaUsage> {
+  const { data } = await apiClient.post<OpenAIQuotaUsage>(`/admin/openai/accounts/${id}/reset-quota`)
+  return data
+}
+
+export interface SparkShadowCreatePayload {
+  name?: string
+  priority?: number
+  concurrency?: number
+  group_ids?: number[]
+}
+
+export async function createSparkShadow(parentId: number, payload: SparkShadowCreatePayload): Promise<Account> {
+  const { data } = await apiClient.post<Account>(`/admin/accounts/${parentId}/shadow`, payload)
+  return data
+}
+
 export const accountsAPI = {
   list,
   listWithEtag,
@@ -898,7 +926,9 @@ export const accountsAPI = {
   sendCodexInviteResetInvite,
   consumeCodexInviteReset,
   queryOpenAIQuota,
-  revertProxyFallback
+  revertProxyFallback,
+  resetOpenAIQuota,
+  createSparkShadow
 }
 
 export default accountsAPI

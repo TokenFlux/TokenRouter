@@ -883,7 +883,7 @@ func (c *UserMessageQueueConfig) GetEffectiveMode() string {
 type GatewayOpenAIWSConfig struct {
 	// ModeRouterV2Enabled: 新版 WS mode 路由开关（默认 false；关闭时保持 legacy 行为）
 	ModeRouterV2Enabled bool `mapstructure:"mode_router_v2_enabled"`
-	// IngressModeDefault: ingress 默认模式（off/ctx_pool/passthrough）
+	// IngressModeDefault: ingress 默认模式（off/ctx_pool/passthrough/http_bridge）
 	IngressModeDefault string `mapstructure:"ingress_mode_default"`
 	// Enabled: 全局总开关（默认 true）
 	Enabled bool `mapstructure:"enabled"`
@@ -980,6 +980,9 @@ type GatewayOpenAIWSSchedulerScoreWeights struct {
 	// Reset 倾向「会话窗口最早重置」的账号。
 	// >0 时，剩余重置时间越短的账号得分越高，从而被优先用尽。默认 0（关闭，不改变原有行为）。
 	Reset float64 `mapstructure:"reset"`
+	// QuotaHeadroom 倾向 Codex 7d 剩余额度更健康的账号。
+	// 默认 0（关闭，不改变原有行为）。
+	QuotaHeadroom float64 `mapstructure:"quota_headroom"`
 }
 
 // GatewayOpenAISchedulerConfig OpenAI 高级调度器配置。
@@ -1935,6 +1938,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.error_rate", 0.8)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.ttft", 0.5)
 	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.reset", 0.0)
+	viper.SetDefault("gateway.openai_ws.scheduler_score_weights.quota_headroom", 0.0)
 	// OpenAI HTTP 上游协议策略
 	viper.SetDefault("gateway.openai_http2.enabled", true)
 	viper.SetDefault("gateway.openai_http2.allow_proxy_fallback_to_http1", true)
@@ -2681,11 +2685,11 @@ func (c *Config) Validate() error {
 	}
 	if mode := strings.ToLower(strings.TrimSpace(c.Gateway.OpenAIWS.IngressModeDefault)); mode != "" {
 		switch mode {
-		case "off", "ctx_pool", "passthrough":
+		case "off", "ctx_pool", "passthrough", "http_bridge":
 		case "shared", "dedicated":
-			slog.Warn("gateway.openai_ws.ingress_mode_default is deprecated, treating as ctx_pool; please update to off|ctx_pool|passthrough", "value", mode)
+			slog.Warn("gateway.openai_ws.ingress_mode_default is deprecated, treating as ctx_pool; please update to off|ctx_pool|passthrough|http_bridge", "value", mode)
 		default:
-			return fmt.Errorf("gateway.openai_ws.ingress_mode_default must be one of off|ctx_pool|passthrough")
+			return fmt.Errorf("gateway.openai_ws.ingress_mode_default must be one of off|ctx_pool|passthrough|http_bridge")
 		}
 	}
 	if mode := strings.ToLower(strings.TrimSpace(c.Gateway.OpenAIWS.StoreDisabledConnMode)); mode != "" {
@@ -2724,7 +2728,8 @@ func (c *Config) Validate() error {
 		c.Gateway.OpenAIWS.SchedulerScoreWeights.Queue < 0 ||
 		c.Gateway.OpenAIWS.SchedulerScoreWeights.ErrorRate < 0 ||
 		c.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT < 0 ||
-		c.Gateway.OpenAIWS.SchedulerScoreWeights.Reset < 0 {
+		c.Gateway.OpenAIWS.SchedulerScoreWeights.Reset < 0 ||
+		c.Gateway.OpenAIWS.SchedulerScoreWeights.QuotaHeadroom < 0 {
 		return fmt.Errorf("gateway.openai_ws.scheduler_score_weights.* must be non-negative")
 	}
 	weightSum := c.Gateway.OpenAIWS.SchedulerScoreWeights.Priority +
@@ -2732,7 +2737,8 @@ func (c *Config) Validate() error {
 		c.Gateway.OpenAIWS.SchedulerScoreWeights.Queue +
 		c.Gateway.OpenAIWS.SchedulerScoreWeights.ErrorRate +
 		c.Gateway.OpenAIWS.SchedulerScoreWeights.TTFT +
-		c.Gateway.OpenAIWS.SchedulerScoreWeights.Reset
+		c.Gateway.OpenAIWS.SchedulerScoreWeights.Reset +
+		c.Gateway.OpenAIWS.SchedulerScoreWeights.QuotaHeadroom
 	if weightSum <= 0 {
 		return fmt.Errorf("gateway.openai_ws.scheduler_score_weights must not all be zero")
 	}

@@ -730,6 +730,8 @@ func checkEffectiveSubscriptionEligibility(subscription *UserSubscription) error
 		return ErrSubscriptionInvalid
 	case SubscriptionStatusPending:
 		return ErrSubscriptionInvalid
+	case SubscriptionStatusRevoked:
+		return ErrSubscriptionInvalid
 	}
 
 	effective := *subscription

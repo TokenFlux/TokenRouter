@@ -338,7 +338,10 @@ func (s *OpenAIOAuthService) enrichTokenInfo(ctx context.Context, tokenInfo *Ope
 		}
 	}
 	if info := fetchChatGPTAccountInfo(ctx, s.privacyClientFactory, tokenInfo.AccessToken, proxyURL, orgID); info != nil {
-		if info.PlanType != "" {
+		// ID token 里的 chatgpt_plan_type 是个人订阅的权威值。
+		// accounts/check 是多账号/工作区接口，已失效的团队或商业工作区可能会用内部计费计划名
+		// 覆盖 Pro/Free，例如 self_serve_business_usage_based。
+		if shouldApplyChatGPTAccountInfoPlanType(tokenInfo.PlanType, info.PlanType) {
 			tokenInfo.PlanType = info.PlanType
 		}
 		if info.SubscriptionExpiresAt != "" {
@@ -356,6 +359,10 @@ func (s *OpenAIOAuthService) enrichTokenInfo(ctx context.Context, tokenInfo *Ope
 
 	// 尝试设置隐私（关闭训练数据共享），best-effort
 	tokenInfo.PrivacyMode = disableOpenAITraining(ctx, s.privacyClientFactory, tokenInfo.AccessToken, proxyURL)
+}
+
+func shouldApplyChatGPTAccountInfoPlanType(current, candidate string) bool {
+	return strings.TrimSpace(candidate) != "" && strings.TrimSpace(current) == ""
 }
 
 func resolveChatGPTSubscriptionAccountID(tokenInfo *OpenAITokenInfo, orgID string) string {

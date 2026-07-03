@@ -62,6 +62,7 @@ var codexVersionModelPrefixes = []struct {
 	{prefix: "gpt-5.3-codex", target: "gpt-5.3-codex"},
 	{prefix: "gpt-5.4-mini", target: "gpt-5.4-mini"},
 	{prefix: "gpt-5.4-nano", target: "gpt-5.4-nano"},
+	{prefix: "gpt-5.5-pro", target: "gpt-5.5-pro"},
 	{prefix: "gpt-5.5", target: "gpt-5.5"},
 	{prefix: "gpt-5.4", target: "gpt-5.4"},
 	{prefix: "gpt-5.2", target: "gpt-5.2"},
@@ -752,6 +753,20 @@ func ensureOpenAIResponsesImageGenerationTool(reqBody map[string]any) bool {
 	return true
 }
 
+func ensureOpenAIResponsesImageGenerationToolChoiceAuto(reqBody map[string]any) bool {
+	if len(reqBody) == 0 || !hasOpenAIImageGenerationTool(reqBody) {
+		return false
+	}
+	if isCodexSparkModel(firstNonEmptyString(reqBody["model"])) {
+		return false
+	}
+	if _, ok := reqBody["tool_choice"]; ok {
+		return false
+	}
+	reqBody["tool_choice"] = "auto"
+	return true
+}
+
 func applyCodexImageGenerationBridgeInstructions(reqBody map[string]any) bool {
 	if len(reqBody) == 0 || !hasOpenAIImageGenerationTool(reqBody) {
 		return false
@@ -946,10 +961,9 @@ func extractTextFromContent(content any) string {
 	}
 }
 
-// extractSystemMessagesFromInput scans the input array for items with role=="system",
-// removes them, and merges their content into reqBody["instructions"].
-// If instructions is already non-empty, extracted content is prepended with "\n\n".
-// Returns true if any system messages were extracted.
+// extractSystemMessagesFromInput 将 role=="system" 的 input 消息改写为 developer，
+// 并把其文本同步到 instructions。这样既避开 ChatGPT internal Codex endpoint
+// 不接受 system role 的限制，也保留 Responses JSON mode 依赖的 input 内提示。
 func extractSystemMessagesFromInput(reqBody map[string]any) bool {
 	input, ok := reqBody["input"].([]any)
 	if !ok || len(input) == 0 {
@@ -957,25 +971,24 @@ func extractSystemMessagesFromInput(reqBody map[string]any) bool {
 	}
 
 	var systemTexts []string
-	remaining := make([]any, 0, len(input))
-
+	modified := false
 	for _, item := range input {
 		m, ok := item.(map[string]any)
 		if !ok {
-			remaining = append(remaining, item)
 			continue
 		}
 		if role, _ := m["role"].(string); role != "system" {
-			remaining = append(remaining, item)
 			continue
 		}
+		m["role"] = "developer"
+		modified = true
 		if text := extractTextFromContent(m["content"]); text != "" {
 			systemTexts = append(systemTexts, text)
 		}
 	}
 
 	if len(systemTexts) == 0 {
-		return false
+		return modified
 	}
 
 	extracted := strings.Join(systemTexts, "\n\n")
@@ -984,7 +997,6 @@ func extractSystemMessagesFromInput(reqBody map[string]any) bool {
 	} else {
 		reqBody["instructions"] = extracted
 	}
-	reqBody["input"] = remaining
 	return true
 }
 
@@ -1013,7 +1025,8 @@ func extractPromptLikeInstructionsFromInput(reqBody map[string]any) string {
 // defaultCodexSynthInstructions 返回合成路径在 instructions 为空时应填入的默认提示词。
 //
 // 按 model 选择真实 Codex CLI 的 base instructions（codex 系→GPT-5-Codex，
-// gpt-5.2→GPT-5.2，gpt-5.1/gpt-5→GPT-5.1），使合成请求在提示词层面贴近真实 Codex 行为；
+// gpt-5.5 及未单独维护的 GPT-5 版本→GPT-5.5，gpt-5.2→GPT-5.2，gpt-5.1→GPT-5.1），
+// 使合成请求在提示词层面贴近真实 Codex 行为；
 // 若内嵌 prompt 意外为空，回退到最小占位符以保证字段非空。
 func defaultCodexSynthInstructions(model string) string {
 	if instructions := strings.TrimSpace(openai.CodexBaseInstructionsForModel(model)); instructions != "" {

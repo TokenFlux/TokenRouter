@@ -66,6 +66,9 @@ func (userSubRepoNoop) Create(context.Context, *UserSubscription) error {
 func (userSubRepoNoop) GetByID(context.Context, int64) (*UserSubscription, error) {
 	panic("unexpected GetByID call")
 }
+func (userSubRepoNoop) GetByIDIncludeDeleted(context.Context, int64) (*UserSubscription, error) {
+	panic("unexpected GetByIDIncludeDeleted call")
+}
 func (userSubRepoNoop) GetByUserIDAndGroupID(context.Context, int64, int64) (*UserSubscription, error) {
 	panic("unexpected GetByUserIDAndGroupID call")
 }
@@ -79,6 +82,9 @@ func (userSubRepoNoop) Update(context.Context, *UserSubscription) error {
 	panic("unexpected Update call")
 }
 func (userSubRepoNoop) Delete(context.Context, int64) error { panic("unexpected Delete call") }
+func (userSubRepoNoop) Restore(context.Context, int64, string) (*UserSubscription, error) {
+	panic("unexpected Restore call")
+}
 func (userSubRepoNoop) ListByUserID(context.Context, int64) ([]UserSubscription, error) {
 	panic("unexpected ListByUserID call")
 }
@@ -212,6 +218,15 @@ func (s *subscriptionUserSubRepoStub) GetByID(_ context.Context, id int64) (*Use
 	return &cp, nil
 }
 
+func (s *subscriptionUserSubRepoStub) GetByIDIncludeDeleted(_ context.Context, id int64) (*UserSubscription, error) {
+	sub := s.byID[id]
+	if sub == nil {
+		return nil, ErrSubscriptionNotFound
+	}
+	cp := *sub
+	return &cp, nil
+}
+
 func (s *subscriptionUserSubRepoStub) GetLatestByUserIDAndPlanID(_ context.Context, userID, planID int64) (*UserSubscription, error) {
 	ids := s.byUserPlan[s.key(userID, planID)]
 	if len(ids) == 0 {
@@ -237,6 +252,20 @@ func (s *subscriptionUserSubRepoStub) Update(_ context.Context, sub *UserSubscri
 	s.byID[cp.ID] = &cp
 	s.rebuildIndex()
 	return nil
+}
+
+func (s *subscriptionUserSubRepoStub) Restore(_ context.Context, subscriptionID int64, restoredStatus string) (*UserSubscription, error) {
+	sub := s.byID[subscriptionID]
+	if sub == nil {
+		return nil, ErrSubscriptionNotFound
+	}
+	cp := *sub
+	cp.Status = restoredStatus
+	cp.DeletedAt = nil
+	cp.UpdatedAt = time.Now().UTC()
+	s.byID[subscriptionID] = &cp
+	s.rebuildIndex()
+	return &cp, nil
 }
 
 func (s *subscriptionUserSubRepoStub) ListByUserID(_ context.Context, userID int64) ([]UserSubscription, error) {
@@ -521,6 +550,106 @@ func TestGetActiveSubscription_FiltersByPlanID(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(14), sub.ID)
 	require.Equal(t, int64(200), sub.PlanID)
+}
+
+func TestRestoreSubscription_ExpiredActiveRestoresAsExpired(t *testing.T) {
+	subRepo := newSubscriptionUserSubRepoStub()
+	now := time.Now().UTC()
+	deletedAt := now.Add(-time.Hour)
+	subRepo.seed(&UserSubscription{
+		ID:        101,
+		UserID:    31,
+		PlanID:    41,
+		StartsAt:  now.Add(-48 * time.Hour),
+		ExpiresAt: now.Add(-time.Minute),
+		Status:    SubscriptionStatusActive,
+		DeletedAt: &deletedAt,
+		CreatedAt: now.Add(-48 * time.Hour),
+	})
+
+	svc := NewSubscriptionService(groupRepoNoop{}, subRepo, nil, nil, nil)
+	restored, err := svc.RestoreSubscription(context.Background(), 101)
+	require.NoError(t, err)
+	require.Equal(t, SubscriptionStatusExpired, restored.Status)
+	require.Nil(t, restored.DeletedAt)
+
+	got, err := subRepo.GetByID(context.Background(), 101)
+	require.NoError(t, err)
+	require.Equal(t, SubscriptionStatusExpired, got.Status)
+	require.Nil(t, got.DeletedAt)
+}
+
+func TestRestoreSubscription_NotRevokedReturnsConflict(t *testing.T) {
+	subRepo := newSubscriptionUserSubRepoStub()
+	now := time.Now().UTC()
+	subRepo.seed(&UserSubscription{
+		ID:        102,
+		UserID:    31,
+		PlanID:    42,
+		StartsAt:  now.Add(-time.Hour),
+		ExpiresAt: now.Add(24 * time.Hour),
+		Status:    SubscriptionStatusActive,
+		CreatedAt: now.Add(-time.Hour),
+	})
+
+	svc := NewSubscriptionService(groupRepoNoop{}, subRepo, nil, nil, nil)
+	_, err := svc.RestoreSubscription(context.Background(), 102)
+	require.ErrorIs(t, err, ErrSubscriptionNotRevoked)
+}
+
+func TestRestoreSubscription_LiveSubscriptionConflict(t *testing.T) {
+	subRepo := newSubscriptionUserSubRepoStub()
+	now := time.Now().UTC()
+	deletedAt := now.Add(-30 * time.Minute)
+	subRepo.seed(&UserSubscription{
+		ID:        103,
+		UserID:    31,
+		PlanID:    43,
+		StartsAt:  now.Add(-time.Hour),
+		ExpiresAt: now.Add(24 * time.Hour),
+		Status:    SubscriptionStatusActive,
+		DeletedAt: &deletedAt,
+		CreatedAt: now.Add(-time.Hour),
+	})
+	subRepo.seed(&UserSubscription{
+		ID:        104,
+		UserID:    31,
+		PlanID:    43,
+		StartsAt:  now.Add(-30 * time.Minute),
+		ExpiresAt: now.Add(48 * time.Hour),
+		Status:    SubscriptionStatusActive,
+		CreatedAt: now.Add(-30 * time.Minute),
+	})
+
+	svc := NewSubscriptionService(groupRepoNoop{}, subRepo, nil, nil, nil)
+	_, err := svc.RestoreSubscription(context.Background(), 103)
+	require.ErrorIs(t, err, ErrSubscriptionRestoreConflict)
+
+	got, getErr := subRepo.GetByIDIncludeDeleted(context.Background(), 103)
+	require.NoError(t, getErr)
+	require.NotNil(t, got.DeletedAt)
+}
+
+func TestRestoreSubscription_FutureWindowRestoresAsPending(t *testing.T) {
+	subRepo := newSubscriptionUserSubRepoStub()
+	now := time.Now().UTC()
+	deletedAt := now.Add(-time.Hour)
+	subRepo.seed(&UserSubscription{
+		ID:        105,
+		UserID:    31,
+		PlanID:    44,
+		StartsAt:  now.Add(24 * time.Hour),
+		ExpiresAt: now.Add(48 * time.Hour),
+		Status:    SubscriptionStatusActive,
+		DeletedAt: &deletedAt,
+		CreatedAt: now.Add(-time.Hour),
+	})
+
+	svc := NewSubscriptionService(groupRepoNoop{}, subRepo, nil, nil, nil)
+	restored, err := svc.RestoreSubscription(context.Background(), 105)
+	require.NoError(t, err)
+	require.Equal(t, SubscriptionStatusPending, restored.Status)
+	require.Nil(t, restored.DeletedAt)
 }
 
 func TestNormalizeAssignValidityDays(t *testing.T) {
