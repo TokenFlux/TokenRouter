@@ -121,6 +121,14 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
 	setOpsRequestContext(c, reqModel, reqStream)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(reqStream, false)))
+	channelMapping := service.ChannelMappingResult{MappedModel: reqModel}
+	if h.gatewayService != nil {
+		channelMapping, _ = h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
+	}
+	forwardBody := body
+	if channelMapping.Mapped && h.gatewayService != nil {
+		forwardBody = h.gatewayService.ReplaceModelInBody(body, channelMapping.MappedModel)
+	}
 
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
@@ -220,11 +228,11 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 		forwardCtx := c.Request.Context()
 		switch endpoint {
 		case qoderEndpointChatCompletions:
-			result, err = h.qoderGatewayService.ForwardChatCompletions(forwardCtx, c, account, body)
+			result, err = h.qoderGatewayService.ForwardChatCompletions(forwardCtx, c, account, forwardBody)
 		case qoderEndpointResponses:
-			result, err = h.qoderGatewayService.ForwardResponses(forwardCtx, c, account, body)
+			result, err = h.qoderGatewayService.ForwardResponses(forwardCtx, c, account, forwardBody)
 		default:
-			result, err = h.qoderGatewayService.ForwardMessages(forwardCtx, c, account, body)
+			result, err = h.qoderGatewayService.ForwardMessages(forwardCtx, c, account, forwardBody)
 		}
 		if accountRelease != nil {
 			accountRelease()
@@ -249,11 +257,11 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 					}
 					switch endpoint {
 					case qoderEndpointChatCompletions:
-						result, err = h.qoderGatewayService.ForwardChatCompletions(forwardCtx, c, account, body)
+						result, err = h.qoderGatewayService.ForwardChatCompletions(forwardCtx, c, account, forwardBody)
 					case qoderEndpointResponses:
-						result, err = h.qoderGatewayService.ForwardResponses(forwardCtx, c, account, body)
+						result, err = h.qoderGatewayService.ForwardResponses(forwardCtx, c, account, forwardBody)
 					default:
-						result, err = h.qoderGatewayService.ForwardMessages(forwardCtx, c, account, body)
+						result, err = h.qoderGatewayService.ForwardMessages(forwardCtx, c, account, forwardBody)
 					}
 					if accountRelease != nil {
 						accountRelease()
@@ -292,6 +300,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 							RequestPayloadHash: requestPayloadHash,
 							RequestBody:        append([]byte(nil), body...),
 							APIKeyService:      h.apiKeyService,
+							ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
 						}); err != nil {
 							reqLog.Error("qoder.record_usage_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 						}
@@ -338,6 +347,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 				RequestPayloadHash: requestPayloadHash,
 				RequestBody:        append([]byte(nil), body...),
 				APIKeyService:      h.apiKeyService,
+				ChannelUsageFields: channelMapping.ToUsageFields(reqModel, result.UpstreamModel),
 			}); err != nil {
 				reqLog.Error("qoder.record_usage_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 			}

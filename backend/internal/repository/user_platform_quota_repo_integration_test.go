@@ -72,9 +72,9 @@ func TestUserPlatformQuotaRepository_BulkInsertInitial_Empty(t *testing.T) {
 	require.NoError(t, repo.BulkInsertInitial(txCtx, []UserPlatformQuotaRecord{}))
 }
 
-// TestUserPlatformQuotaRepository_BulkInsertInitial_GrokAllowed 回归迁移 171：
-// grok 平台必须能写入 user_platform_quotas，数据库 CHECK 约束需要与平台列表保持一致。
-func TestUserPlatformQuotaRepository_BulkInsertInitial_GrokAllowed(t *testing.T) {
+// TestUserPlatformQuotaRepository_BulkInsertInitial_QoderAndGrokAllowed 回归迁移 171/177：
+// qoder / grok 平台必须能写入 user_platform_quotas，数据库 CHECK 约束需要与平台列表保持一致。
+func TestUserPlatformQuotaRepository_BulkInsertInitial_QoderAndGrokAllowed(t *testing.T) {
 	ctx := context.Background()
 	tx := testEntTx(t)
 	txCtx := dbent.NewTxContext(ctx, tx)
@@ -83,13 +83,21 @@ func TestUserPlatformQuotaRepository_BulkInsertInitial_GrokAllowed(t *testing.T)
 	userID := mustCreateUserForQuota(t, client)
 	repo := NewUserPlatformQuotaRepository(client)
 
-	daily := 9.0
+	qoderDaily := 8.0
+	grokDaily := 9.0
 	records := []UserPlatformQuotaRecord{
-		{UserID: userID, Platform: "grok", DailyLimitUSD: &daily},
+		{UserID: userID, Platform: "qoder", DailyLimitUSD: &qoderDaily},
+		{UserID: userID, Platform: "grok", DailyLimitUSD: &grokDaily},
 	}
-	require.NoError(t, repo.BulkInsertInitial(txCtx, records), "grok 平台应可写入")
+	require.NoError(t, repo.BulkInsertInitial(txCtx, records), "qoder / grok 平台应可写入")
 
-	rec, err := repo.GetByUserPlatform(txCtx, userID, "grok")
+	rec, err := repo.GetByUserPlatform(txCtx, userID, "qoder")
+	require.NoError(t, err)
+	require.NotNil(t, rec, "qoder 配额行应已写入")
+	require.NotNil(t, rec.DailyLimitUSD)
+	require.InDelta(t, 8.0, *rec.DailyLimitUSD, 1e-9)
+
+	rec, err = repo.GetByUserPlatform(txCtx, userID, "grok")
 	require.NoError(t, err)
 	require.NotNil(t, rec, "grok 配额行应已写入")
 	require.NotNil(t, rec.DailyLimitUSD)

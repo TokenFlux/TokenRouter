@@ -200,6 +200,6 @@ describe('UseKeyModal', () => {
     expect(codeBlock.text()).toContain('"name": "DeepSeek-V4-Pro"')
     expect(codeBlock.text()).toContain('"npm": "@ai-sdk/openai-compatible"')
     expect(codeBlock.text()).toContain('"tool_call": true')
-    expect(codeBlock.text()).toContain('"name": "GLM-5.1"')
+    expect(codeBlock.text()).toContain('"name": "GLM-5.2"')
   })
 })

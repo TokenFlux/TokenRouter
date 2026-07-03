@@ -4267,7 +4267,6 @@ const loadOpenAIOAuthImportDefaults = async () => {
     applyOpenAIOAuthImportDefaultsToForm()
     return
   }
-
   try {
     openAIOAuthImportDefaults.value = await adminAPI.settings.getOpenAIOAuthImportDefaults()
     openAIOAuthImportDefaultsLoaded.value = true
@@ -6538,16 +6537,24 @@ const handleAntigravityExchange = async (authCode: string) => {
 const handleQoderExchange = async (authCode: string) => {
   if (!qoderOAuth.sessionId.value) return
 
+  const shouldResumePolling = qoderPollTimer !== null
   stopQoderPolling()
   qoderOAuth.loading.value = true
   qoderOAuth.error.value = ''
+  const resumePollingIfNeeded = () => {
+    if (shouldResumePolling && !qoderPollTimer && qoderOAuth.sessionId.value && qoderOAuth.state.value) {
+      startQoderPolling(qoderOAuth.pollInterval.value)
+    }
+  }
 
+  let exchanged = false
   try {
     const stateFromInput = oauthFlowRef.value?.oauthState || ''
     const stateToUse = stateFromInput || qoderOAuth.state.value
     if (!stateToUse) {
       qoderOAuth.error.value = t('admin.accounts.oauth.authFailed')
       appStore.showError(qoderOAuth.error.value)
+      resumePollingIfNeeded()
       return
     }
 
@@ -6559,12 +6566,19 @@ const handleQoderExchange = async (authCode: string) => {
       state: stateToUse,
       proxyId: form.proxy_id
     })
-    if (!tokenInfo) return
+    if (!tokenInfo) {
+      resumePollingIfNeeded()
+      return
+    }
 
+    exchanged = true
     await createQoderOAuthAccount(tokenInfo)
   } catch (error: any) {
     qoderOAuth.error.value = error.response?.data?.detail || t('admin.accounts.oauth.authFailed')
     appStore.showError(qoderOAuth.error.value)
+    if (!exchanged) {
+      resumePollingIfNeeded()
+    }
   } finally {
     qoderOAuth.loading.value = false
   }

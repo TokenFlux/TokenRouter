@@ -192,6 +192,17 @@ func TestMigration171AllowsGrokUserPlatformQuotas(t *testing.T) {
 	require.Contains(t, sql, "'grok'")
 }
 
+func TestMigration177AllowsQoderUserPlatformQuotas(t *testing.T) {
+	content, err := FS.ReadFile("177_allow_qoder_user_platform_quotas.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "DROP CONSTRAINT IF EXISTS user_platform_quotas_platform_check")
+	require.Contains(t, sql, "ADD CONSTRAINT user_platform_quotas_platform_check")
+	require.Contains(t, sql, "'qoder'")
+	require.Contains(t, sql, "'grok'")
+}
+
 func TestMigration175AddsSparkShadowColumnsAndConstraintsWithoutHotIndexes(t *testing.T) {
 	content, err := FS.ReadFile("175_account_spark_shadow.sql")
 	require.NoError(t, err)

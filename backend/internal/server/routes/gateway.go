@@ -84,6 +84,15 @@ func RegisterGatewayRoutes(
 			},
 		})
 	}
+	qoderResponsesSubpathUnsupported := func(c *gin.Context) {
+		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": gin.H{
+				"type":    "not_found_error",
+				"message": "Qoder Responses subpaths are not supported",
+			},
+		})
+	}
 	// API网关（Claude API兼容）
 	gateway := r.Group("/v1")
 	gateway.Use(bodyLimit)
@@ -144,7 +153,7 @@ func RegisterGatewayRoutes(
 				return
 			}
 			if getGroupPlatform(c) == service.PlatformQoder {
-				h.QoderGateway.Responses(c)
+				qoderResponsesSubpathUnsupported(c)
 				return
 			}
 			h.Gateway.Responses(c)
@@ -205,6 +214,10 @@ func RegisterGatewayRoutes(
 			return
 		}
 		if getGroupPlatform(c) == service.PlatformQoder {
+			if c.Param("subpath") != "" {
+				qoderResponsesSubpathUnsupported(c)
+				return
+			}
 			h.QoderGateway.Responses(c)
 			return
 		}

@@ -88,6 +88,23 @@ func TestGatewayRoutesQoderPathsAreRegistered(t *testing.T) {
 	}
 }
 
+func TestGatewayRoutesQoderResponsesSubpathsAreRejected(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformQoder)
+
+	for _, path := range []string{
+		"/v1/responses/compact",
+		"/responses/compact",
+		"/backend-api/codex/responses/compact",
+	} {
+		req := httptest.NewRequest(http.MethodPost, path, nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusNotFound, w.Code, "path=%s should reject unsupported Qoder Responses subpath", path)
+		require.Contains(t, w.Body.String(), "Qoder Responses subpaths are not supported")
+	}
+}
+
 func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 	router := newGatewayRoutesTestRouter()
 

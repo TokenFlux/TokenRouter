@@ -693,7 +693,6 @@ var ProviderSet = wire.NewSet(
 	NewAccountUsageService,
 	NewAccountTestService,
 	ProvideSettingService,
-	wire.Bind(new(OpenAIQuotaAutoPauseSettingsReader), new(*SettingService)),
 	NewDataManagementService,
 	ProvideBackupService,
 	ProvideOpsSystemLogSink,

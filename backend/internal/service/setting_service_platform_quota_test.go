@@ -60,6 +60,11 @@ func newSettingServiceForPlatformQuotaTest(seed map[string]string) *SettingServi
 	return NewSettingService(repo, &config.Config{})
 }
 
+func TestAllowedQuotaPlatformsIncludesQoder(t *testing.T) {
+	require.True(t, IsAllowedQuotaPlatform(PlatformQoder))
+	require.Contains(t, AllowedQuotaPlatforms, PlatformQoder)
+}
+
 func TestGetDefaultPlatformQuotas_ReturnsAllowedPlatforms(t *testing.T) {
 	zero := 0.0
 	svc := newSettingServiceForPlatformQuotaTest(map[string]string{
