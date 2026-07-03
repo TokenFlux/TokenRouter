@@ -274,6 +274,53 @@ describe('BulkEditAccountModal', () => {
     })
   })
 
+  it('Qoder 批量编辑应把旧 self mapping 保留为显式映射', async () => {
+    vi.mocked(adminAPI.accounts.getById)
+      .mockResolvedValueOnce(createAccount({
+        id: 1,
+        platform: 'qoder',
+        type: 'cosy',
+        credentials: {
+          model_mapping: {
+            ultimate: 'ultimate'
+          }
+        }
+      }))
+      .mockResolvedValueOnce(createAccount({
+        id: 2,
+        platform: 'qoder',
+        type: 'cosy',
+        credentials: {
+          model_mapping: {
+            ultimate: 'ultimate'
+          }
+        }
+      }))
+
+    const wrapper = mountModal({
+      show: false,
+      selectedPlatforms: ['qoder'],
+      selectedTypes: ['cosy']
+    })
+
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    await wrapper.get('#bulk-edit-model-restriction-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      credentials: {
+        model_mapping: {
+          ultimate: 'ultimate'
+        },
+        model_whitelist: []
+      }
+    })
+  })
+
   it('包含 Antigravity 的跨平台批量修改不允许提交模型限制', async () => {
     const wrapper = mountModal({
       selectedPlatforms: ['antigravity', 'openai'],

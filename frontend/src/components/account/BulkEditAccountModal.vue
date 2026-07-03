@@ -1381,6 +1381,7 @@ import {
   buildPersistedModelRestriction,
   getPresetMappingsByPlatform,
   normalizeModelWhitelist,
+  splitQoderPersistedModelRestriction,
   splitModelMappingObject,
   splitPersistedModelRestriction
 } from '@/composables/useModelWhitelist'
@@ -1694,6 +1695,13 @@ const parseAccountModelRestriction = (account: Account): ParsedModelRestrictionS
     } else {
       allowedModels = normalizeModelWhitelist(credentials.model_whitelist)
     }
+  } else if (account.platform === 'qoder') {
+    const parsed = splitQoderPersistedModelRestriction(
+      credentials.model_mapping as Record<string, string> | undefined,
+      credentials.model_whitelist
+    )
+    allowedModels = parsed.allowedModels
+    modelMappings = parsed.modelMappings
   } else {
     const parsed = splitPersistedModelRestriction(
       credentials.model_mapping as Record<string, string> | undefined,
