@@ -123,8 +123,13 @@ describe('KeyUsageView', () => {
   beforeEach(() => {
     mockFetch.mockReset()
     vi.stubGlobal('fetch', mockFetch)
+    let perfNow = 0
+    vi.spyOn(performance, 'now').mockImplementation(() => {
+      perfNow += 1000
+      return perfNow
+    })
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
-      callback(0)
+      callback(perfNow)
       return 0
     })
     Object.defineProperty(window, 'matchMedia', {
@@ -142,7 +147,9 @@ describe('KeyUsageView', () => {
     })
   })
 
-  afterEach(() => {
+  afterEach(async () => {
+    await new Promise(resolve => setTimeout(resolve, 60))
+    vi.restoreAllMocks()
     vi.unstubAllGlobals()
   })
 

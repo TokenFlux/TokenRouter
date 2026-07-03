@@ -614,7 +614,7 @@ func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user 
 	}
 
 	// user × platform quota 仅在 standard（余额）模式生效；订阅模式豁免。
-	// 不在 allowlist 的平台（如 Qoder）不参与本功能的 per-user USD quota。
+	// 不在 allowlist 的平台不参与本功能的 per-user USD quota。
 	if !isSubscriptionMode && IsAllowedQuotaPlatform(platform) {
 		if err := s.checkUserPlatformQuotaEligibility(ctx, user.ID, platform); err != nil {
 			return err

@@ -11,7 +11,6 @@ import {
   qoderModelKeyByPublicAlias,
   getPresetMappingsByPlatform,
   getModelsByPlatform,
-  splitPersistedModelRestriction,
   splitQoderPersistedModelRestriction,
   splitModelMappingObject
 } from '../useModelWhitelist'
