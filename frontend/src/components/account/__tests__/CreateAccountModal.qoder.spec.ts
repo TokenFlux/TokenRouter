@@ -169,6 +169,21 @@ describe('CreateAccountModal Qoder model restriction', () => {
     expect(payload.credentials.model_whitelist).toBeUndefined()
   })
 
+  it('persists Qoder TLS fingerprint settings on manual create without OpenAI router', async () => {
+    const wrapper = mountModal()
+    await fillQoderManualForm(wrapper)
+
+    await wrapper.get('[data-testid="create-qoder-tls-fingerprint-toggle"]').trigger('click')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    const payload = createAccountMock.mock.calls[0]?.[0]
+    expect(payload.extra).toEqual({
+      enable_tls_fingerprint: true
+    })
+  })
+
   it('persists Qoder model_mapping after explicit mapping edit on manual create', async () => {
     const wrapper = mountModal()
     await fillQoderManualForm(wrapper)

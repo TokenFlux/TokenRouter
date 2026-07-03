@@ -142,7 +142,6 @@ func NewAccountTestService(
 		tlsFPProfileService:       tlsFPProfileService,
 		qoderSessionProvider:      qoderSessionProvider,
 		qoderClient:               qoder.NewClient(qoder.APIBaseURL),
-		qoderOAuthClient:          qoder.NewOAuthClient(qoder.OpenAPIBaseURL, nil),
 	}
 }
 
@@ -1180,10 +1179,13 @@ func (s *AccountTestService) probeQoderUserInfo(ctx context.Context, account *Ac
 		return errors.New("qoder security_oauth_token is empty")
 	}
 	client := s.qoderOAuthClient
-	if client == nil {
-		client = qoder.NewOAuthClient(qoder.OpenAPIBaseURL, nil)
+	var userInfo *qoder.UserInfo
+	var err error
+	if client != nil {
+		userInfo, err = client.GetUserInfo(ctx, token)
+	} else {
+		userInfo, err = s.getQoderUserInfoForAccount(ctx, account, token)
 	}
-	userInfo, err := client.GetUserInfo(ctx, token)
 	if err != nil {
 		return fmt.Errorf("qoder userinfo probe failed: %w", err)
 	}
@@ -1196,6 +1198,36 @@ func (s *AccountTestService) probeQoderUserInfo(ctx context.Context, account *Ac
 		}
 	}
 	return nil
+}
+
+func (s *AccountTestService) getQoderUserInfoForAccount(ctx context.Context, account *Account, token string) (*qoder.UserInfo, error) {
+	if doer := newQoderRequestDoer(account, s.httpUpstream, s.tlsFPProfileService); doer != nil {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, qoder.OpenAPIBaseURL+qoder.UserInfoPath, nil)
+		if err != nil {
+			return nil, fmt.Errorf("qoder: create userinfo request: %w", err)
+		}
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
+		req.Header.Set("User-Agent", "Go-http-client/2.0")
+
+		resp, err := doer(req)
+		if err != nil {
+			return nil, fmt.Errorf("qoder: userinfo request: %w", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			return nil, fmt.Errorf("qoder: userinfo failed with status %d: %s", resp.StatusCode, string(body))
+		}
+
+		var info qoder.UserInfo
+		if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+			return nil, fmt.Errorf("qoder: parse userinfo response: %w", err)
+		}
+		return &info, nil
+	}
+	return qoder.NewOAuthClient(qoder.OpenAPIBaseURL, nil).GetUserInfo(ctx, token)
 }
 
 // testAntigravityAccountConnection tests an Antigravity account's connection

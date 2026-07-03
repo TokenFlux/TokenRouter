@@ -1464,10 +1464,11 @@ const allAnthropicOAuthOrSetupToken = computed(() => {
 })
 
 const isTLSFingerprintCapableTarget = (platform: AccountPlatform, type: AccountType) => {
-  // TLS 指纹伪装支持 Anthropic OAuth/SetupToken 与 OpenAI OAuth，OpenAI API Key 不开放。
+  // TLS 指纹伪装支持 Anthropic OAuth/SetupToken、OpenAI OAuth 与 Qoder COSY，OpenAI API Key 不开放。
   return (
     (platform === 'anthropic' && (type === 'oauth' || type === 'setup-token')) ||
-    (platform === 'openai' && type === 'oauth')
+    (platform === 'openai' && type === 'oauth') ||
+    (platform === 'qoder' && type === 'cosy')
   )
 }
 
@@ -1475,12 +1476,15 @@ const allTLSFingerprintCapable = computed(() => {
   const platforms = targetSelectedPlatforms.value
   const types = targetSelectedTypes.value
   if (platforms.length === 0 || types.length === 0) return false
-  if (!platforms.every(platform => platform === 'anthropic' || platform === 'openai')) return false
-  if (!types.every(type => type === 'oauth' || type === 'setup-token')) return false
+  if (!platforms.every(platform => platform === 'anthropic' || platform === 'openai' || platform === 'qoder')) return false
+  if (!types.every(type => type === 'oauth' || type === 'setup-token' || type === 'cosy')) return false
   if (platforms.length === 1) {
     return types.every(type => isTLSFingerprintCapableTarget(platforms[0], type))
   }
-  return platforms.includes('openai') && platforms.includes('anthropic')
+  return platforms.every(platform => platform === 'anthropic' || platform === 'openai') &&
+    platforms.includes('openai') &&
+    platforms.includes('anthropic') &&
+    types.every(type => type === 'oauth' || type === 'setup-token')
 })
 
 const filteredPresets = computed(() => {

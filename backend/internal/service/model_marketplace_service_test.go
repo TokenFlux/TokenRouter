@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 )
 
 func TestParseMarketplaceAvailabilityWindowSettings(t *testing.T) {
@@ -57,7 +58,7 @@ func TestParseMarketplaceAvailabilityWindowSettings(t *testing.T) {
 	}
 }
 
-func TestModelMarketplaceQoderPricingDeferredByDefault(t *testing.T) {
+func TestModelMarketplaceQoderNonAliasPricingRemainsUnknown(t *testing.T) {
 	svc := NewModelMarketplaceService(nil, nil, nil, NewBillingService(nil, nil), nil, nil, nil)
 	group := &Group{ID: 1, Platform: PlatformQoder, RateMultiplier: 1}
 
@@ -65,6 +66,51 @@ func TestModelMarketplaceQoderPricingDeferredByDefault(t *testing.T) {
 
 	if pricing.PricingMode != "unknown" || pricing.PriceStatus != "unpriced" {
 		t.Fatalf("Qoder marketplace pricing = (%q, %q), want unknown/unpriced", pricing.PricingMode, pricing.PriceStatus)
+	}
+}
+
+func TestModelMarketplaceQoderDefaultAliasesUseOpus48DisplayPricing(t *testing.T) {
+	billingService := NewBillingService(nil, nil)
+	svc := NewModelMarketplaceService(nil, nil, nil, billingService, nil, nil, nil)
+	group := &Group{ID: 1, Platform: PlatformQoder, RateMultiplier: 1.25}
+
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "auto", nil)
+	expected := billingService.GetDisplayPricing(qoderDefaultAliasFallbackBillingModel, group.RateMultiplier, nil)
+
+	if pricing.PricingMode != "token" || pricing.PriceStatus != "priced" {
+		t.Fatalf("Qoder default alias pricing = (%q, %q), want token/priced", pricing.PricingMode, pricing.PriceStatus)
+	}
+	if pricing.InputPricePerToken != expected.InputPricePerToken || pricing.OutputPricePerToken != expected.OutputPricePerToken {
+		t.Fatalf("Qoder default alias price = (%g, %g), want (%g, %g)", pricing.InputPricePerToken, pricing.OutputPricePerToken, expected.InputPricePerToken, expected.OutputPricePerToken)
+	}
+}
+
+func TestModelMarketplaceQoderManualChannelPricingOverridesDefaultAliasDisplayPricing(t *testing.T) {
+	groupID := int64(902)
+	inputPrice := 0.01
+	outputPrice := 0.02
+	cache := newEmptyChannelCache()
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "auto"}] = &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		InputPrice:  &inputPrice,
+		OutputPrice: &outputPrice,
+	}
+	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+
+	billingService := NewBillingService(nil, nil)
+	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
+		resolver: NewModelPricingResolver(channelService, billingService),
+	}, billingService, nil, nil, nil)
+	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
+
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "auto", nil)
+
+	if pricing.InputPricePerToken != inputPrice || pricing.OutputPricePerToken != outputPrice {
+		t.Fatalf("Qoder manual alias price = (%g, %g), want (%g, %g)", pricing.InputPricePerToken, pricing.OutputPricePerToken, inputPrice, outputPrice)
 	}
 }
 
@@ -104,8 +150,8 @@ func TestModelMarketplaceQoderOmitsOfficialPriceDiscount(t *testing.T) {
 		t.Fatal("Qoder marketplace should still list public models")
 	}
 	for _, model := range groups[0].Models {
-		if model.Pricing.PriceStatus != "unpriced" {
-			t.Fatalf("Qoder model %s price status = %q, want unpriced", model.ID, model.Pricing.PriceStatus)
+		if model.Pricing.PriceStatus != "priced" {
+			t.Fatalf("Qoder model %s price status = %q, want priced", model.ID, model.Pricing.PriceStatus)
 		}
 	}
 }

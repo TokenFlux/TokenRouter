@@ -317,6 +317,55 @@ function withOpenCodeToolCalling(models: Record<string, any>) {
 
 function buildQoderOpenCodeModels() {
   return withOpenCodeToolCalling({
+    'claude-opus-4-6': {
+      name: 'Claude Opus 4.6',
+      limit: {
+        context: 200000,
+        output: 128000
+      }
+    },
+    auto: {
+      name: 'Qoder Auto',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    performance: {
+      name: 'Qoder Performance',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    efficient: {
+      name: 'Qoder Efficient',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    lite: {
+      name: 'Qoder Lite',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    'qwen3.7-max': {
+      name: 'Qwen3.7-Max',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    'qwen3.7-plus': {
+      name: 'Qwen3.7-Plus',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
     'deepseek-v4-pro': {
       name: 'DeepSeek-V4-Pro',
       limit: {
@@ -324,8 +373,29 @@ function buildQoderOpenCodeModels() {
         output: 128000
       }
     },
+    'deepseek-v4-flash': {
+      name: 'DeepSeek-V4-Flash',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
     'glm-5.2': {
       name: 'GLM-5.2',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    'kimi-k2.7-code': {
+      name: 'Kimi-K2.7-Code',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    'minimax-m3': {
+      name: 'MiniMax-M3',
       limit: {
         context: 400000,
         output: 128000

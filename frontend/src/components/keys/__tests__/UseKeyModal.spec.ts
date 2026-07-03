@@ -197,9 +197,29 @@ describe('UseKeyModal', () => {
 
     const codeBlock = wrapper.find('pre code')
     expect(codeBlock.exists()).toBe(true)
-    expect(codeBlock.text()).toContain('"name": "DeepSeek-V4-Pro"')
-    expect(codeBlock.text()).toContain('"npm": "@ai-sdk/openai-compatible"')
-    expect(codeBlock.text()).toContain('"tool_call": true')
-    expect(codeBlock.text()).toContain('"name": "GLM-5.2"')
+    const parsed = JSON.parse(codeBlock.text())
+    const qoderProvider = parsed.provider.qoder
+    expect(qoderProvider.npm).toBe('@ai-sdk/openai-compatible')
+
+    const expectedModels = [
+      'claude-opus-4-6',
+      'auto',
+      'performance',
+      'efficient',
+      'lite',
+      'qwen3.7-max',
+      'qwen3.7-plus',
+      'deepseek-v4-pro',
+      'deepseek-v4-flash',
+      'glm-5.2',
+      'kimi-k2.7-code',
+      'minimax-m3'
+    ]
+    expect(Object.keys(qoderProvider.models).sort()).toEqual([...expectedModels].sort())
+    for (const model of expectedModels) {
+      expect(qoderProvider.models[model].tool_call).toBe(true)
+    }
+    expect(qoderProvider.models['deepseek-v4-pro'].name).toBe('DeepSeek-V4-Pro')
+    expect(qoderProvider.models['glm-5.2'].name).toBe('GLM-5.2')
   })
 })

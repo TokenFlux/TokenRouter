@@ -662,6 +662,20 @@ func NewAdminService(
 	}
 }
 
+func (s *adminServiceImpl) qoderRefreshHTTPUpstream() HTTPUpstream {
+	if s == nil {
+		return nil
+	}
+	return s.httpUpstream
+}
+
+func (s *adminServiceImpl) qoderRefreshTLSFingerprintService() *TLSFingerprintProfileService {
+	if s == nil {
+		return nil
+	}
+	return s.tlsFPProfileService
+}
+
 // User management implementations
 func (s *adminServiceImpl) ListUsers(ctx context.Context, page, pageSize int, filters UserListFilters, sortBy, sortOrder string) ([]User, int64, error) {
 	params := pagination.PaginationParams{Page: page, PageSize: pageSize, SortBy: sortBy, SortOrder: sortOrder}

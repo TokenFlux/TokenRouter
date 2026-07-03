@@ -67,8 +67,8 @@ type qoderAdminTokenRefresher interface {
 	Refresh(ctx context.Context, account *service.Account) (map[string]any, error)
 }
 
-var newQoderTokenRefresherForAdmin = func(qoderOAuthService *service.QoderOAuthService) qoderAdminTokenRefresher {
-	return service.NewQoderTokenRefresher(qoderOAuthService)
+var newQoderTokenRefresherForAdmin = func(adminService service.AdminService, qoderOAuthService *service.QoderOAuthService) qoderAdminTokenRefresher {
+	return service.NewQoderTokenRefresherForAdmin(adminService, qoderOAuthService)
 }
 
 // NewAccountHandler creates a new admin account handler
@@ -902,7 +902,7 @@ func (h *AccountHandler) refreshSingleAccount(ctx context.Context, account *serv
 	var newCredentials map[string]any
 
 	if account.IsQoderCosy() {
-		refresher := newQoderTokenRefresherForAdmin(nil)
+		refresher := newQoderTokenRefresherForAdmin(h.adminService, nil)
 		credentials, err := refresher.Refresh(ctx, account)
 		if err != nil {
 			return nil, "", err

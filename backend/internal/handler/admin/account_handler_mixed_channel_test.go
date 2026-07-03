@@ -34,7 +34,8 @@ func setupAccountMixedChannelRouter(adminSvc *stubAdminService) *gin.Engine {
 func TestAccountHandlerBatchRefreshSupportsQoderCosy(t *testing.T) {
 	oldFactory := newQoderTokenRefresherForAdmin
 	defer func() { newQoderTokenRefresherForAdmin = oldFactory }()
-	newQoderTokenRefresherForAdmin = func(qoderOAuthService *service.QoderOAuthService) qoderAdminTokenRefresher {
+	newQoderTokenRefresherForAdmin = func(adminService service.AdminService, qoderOAuthService *service.QoderOAuthService) qoderAdminTokenRefresher {
+		require.NotNil(t, adminService)
 		return qoderAdminTokenRefresherFunc(func(_ context.Context, account *service.Account) (map[string]any, error) {
 			require.Equal(t, "old-refresh", account.GetCredential("refresh_token"))
 			require.Equal(t, "old-token", account.GetCredential("security_oauth_token"))

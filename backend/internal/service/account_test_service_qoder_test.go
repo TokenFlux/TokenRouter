@@ -76,23 +76,35 @@ func (s *qoderAccountTestOAuthClientStub) GetUserInfo(_ context.Context, token s
 }
 
 type qoderHTTPUpstreamRecorder struct {
-	body       string
-	proxyURL   string
-	accountID  int64
-	profileSet bool
+	body               string
+	userInfoBody       string
+	proxyURL           string
+	accountID          int64
+	accountConcurrency int
+	profileSet         bool
+	requests           []*http.Request
 }
 
 func (u *qoderHTTPUpstreamRecorder) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
 	return u.DoWithTLS(req, proxyURL, accountID, accountConcurrency, nil)
 }
 
-func (u *qoderHTTPUpstreamRecorder) DoWithTLS(req *http.Request, proxyURL string, accountID int64, _ int, profile *tlsfingerprint.Profile) (*http.Response, error) {
+func (u *qoderHTTPUpstreamRecorder) DoWithTLS(req *http.Request, proxyURL string, accountID int64, accountConcurrency int, profile *tlsfingerprint.Profile) (*http.Response, error) {
 	u.proxyURL = proxyURL
 	u.accountID = accountID
+	u.accountConcurrency = accountConcurrency
 	u.profileSet = profile != nil
+	u.requests = append(u.requests, req)
+	body := u.body
+	if req.Method == http.MethodGet && strings.Contains(req.URL.Path, qoder.UserInfoPath) {
+		body = u.userInfoBody
+		if body == "" {
+			body = `{"id":"user-1","name":"Qoder User"}`
+		}
+	}
 	return &http.Response{
 		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(strings.NewReader(u.body)),
+		Body:       io.NopCloser(strings.NewReader(body)),
 	}, nil
 }
 
@@ -276,4 +288,54 @@ func TestAccountTestService_QoderUsesHTTPUpstreamForProxyAndTLS(t *testing.T) {
 	require.Equal(t, int64(10), upstream.accountID)
 	require.True(t, upstream.profileSet)
 	require.NotNil(t, client.request)
+}
+
+func TestAccountTestService_QoderDefaultUserInfoProbeUsesHTTPUpstream(t *testing.T) {
+	ctx, recorder := newQoderAccountTestContext()
+	proxyID := int64(12)
+	account := &Account{
+		ID:          12,
+		Name:        "qoder",
+		Platform:    PlatformQoder,
+		Type:        AccountTypeCosy,
+		Concurrency: 3,
+		ProxyID:     &proxyID,
+		Proxy: &Proxy{
+			ID:       proxyID,
+			Protocol: "http",
+			Host:     "proxy.example.com",
+			Port:     8080,
+		},
+		Extra: map[string]any{
+			"enable_tls_fingerprint": true,
+		},
+	}
+	client := &qoderAccountTestClientStub{}
+	upstream := &qoderHTTPUpstreamRecorder{
+		userInfoBody: `{"id":"user-12","name":"Qoder User"}`,
+		body: "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"OK\\\"}}]}\"}\n\n" +
+			"data: {\"body\":\"[DONE]\"}\n\n",
+	}
+	svc := &AccountTestService{
+		accountRepo: stubOpenAIAccountRepo{accounts: []Account{*account}},
+		qoderSessionProvider: &qoderAccountTestSessionProviderStub{
+			session: &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}},
+		},
+		qoderClient:         client,
+		httpUpstream:        upstream,
+		tlsFPProfileService: &TLSFingerprintProfileService{},
+	}
+
+	err := svc.TestAccountConnection(ctx, account.ID, "", "", "")
+
+	require.NoError(t, err)
+	require.Contains(t, recorder.Body.String(), `"text":"OK"`)
+	require.Len(t, upstream.requests, 2)
+	require.Equal(t, http.MethodGet, upstream.requests[0].Method)
+	require.Contains(t, upstream.requests[0].URL.Path, qoder.UserInfoPath)
+	require.Equal(t, "http://proxy.example.com:8080", upstream.proxyURL)
+	require.Equal(t, int64(12), upstream.accountID)
+	require.Equal(t, 3, upstream.accountConcurrency)
+	require.True(t, upstream.profileSet)
+	require.Equal(t, "user-12", svc.qoderSessionProvider.(*qoderAccountTestSessionProviderStub).session.Identity.UID)
 }

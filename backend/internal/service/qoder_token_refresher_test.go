@@ -173,6 +173,20 @@ func TestQoderTokenRefresherUsesAccountDoer(t *testing.T) {
 	require.Equal(t, 4, upstream.accountConcurrency)
 }
 
+func TestNewQoderTokenRefresherForAdminUsesAdminTransport(t *testing.T) {
+	upstream := &qoderRefreshHTTPUpstreamStub{}
+	tlsProfileService := &TLSFingerprintProfileService{}
+	adminSvc := &adminServiceImpl{
+		httpUpstream:        upstream,
+		tlsFPProfileService: tlsProfileService,
+	}
+
+	refresher := NewQoderTokenRefresherForAdmin(adminSvc, nil)
+
+	require.Same(t, upstream, refresher.httpUpstream)
+	require.Same(t, tlsProfileService, refresher.tlsFPProfileSvc)
+}
+
 type qoderRefreshHTTPUpstreamStub struct {
 	proxyURL           string
 	accountID          int64

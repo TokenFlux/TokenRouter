@@ -206,10 +206,52 @@ func TestQoderTokenProviderPATExchangeUsesAccountDoer(t *testing.T) {
 	require.Equal(t, 3, upstream.accountConcurrency)
 }
 
+func TestQoderTokenProviderPATOrganizationTagsUsesAccountDoer(t *testing.T) {
+	upstream := &qoderCenterHTTPUpstreamStub{
+		body: `{"organization_id":"org-via-upstream","organization_name":"Org Via Upstream"}`,
+	}
+	provider := NewQoderTokenProvider()
+	provider.SetHTTPUpstream(upstream, &TLSFingerprintProfileService{})
+	provider.exchangePAT = func(_ context.Context, _ string, _ *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
+		return &qoder.AuthIdentity{
+			Name:               "PAT User",
+			UID:                "uid-1",
+			AID:                "uid-1",
+			UserType:           "personal_standard",
+			SecurityOauthToken: "dt-from-pat",
+		}, nil
+	}
+	account := &Account{
+		ID:          108,
+		Platform:    PlatformQoder,
+		Type:        AccountTypeCosy,
+		Concurrency: 4,
+		ProxyID:     ptrInt64ForQoderTest(10),
+		Proxy:       &Proxy{Protocol: "http", Host: "proxy.example.com", Port: 8081},
+		Credentials: map[string]any{"pat": "pat-123"},
+		Extra:       map[string]any{"enable_tls_fingerprint": true},
+	}
+
+	session, err := provider.GetSession(context.Background(), account)
+
+	require.NoError(t, err)
+	require.Equal(t, "org-via-upstream", session.Identity.OrganizationID)
+	require.Equal(t, "Org Via Upstream", session.Identity.OrganizationName)
+	require.Len(t, upstream.requests, 1)
+	require.Contains(t, upstream.requests[0].URL.Path, qoder.OrganizationTagsPathPrefix+"uid-1/tags")
+	require.Equal(t, "http://proxy.example.com:8081", upstream.proxyURL)
+	require.Equal(t, int64(108), upstream.accountID)
+	require.Equal(t, 4, upstream.accountConcurrency)
+	require.True(t, upstream.profileSet)
+}
+
 type qoderCenterHTTPUpstreamStub struct {
 	proxyURL           string
 	accountID          int64
 	accountConcurrency int
+	body               string
+	profileSet         bool
+	requests           []*http.Request
 }
 
 func (s *qoderCenterHTTPUpstreamStub) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
@@ -220,17 +262,23 @@ func (s *qoderCenterHTTPUpstreamStub) DoWithTLS(req *http.Request, proxyURL stri
 	s.proxyURL = proxyURL
 	s.accountID = accountID
 	s.accountConcurrency = accountConcurrency
-	return &http.Response{
-		StatusCode: http.StatusOK,
-		Header:     make(http.Header),
-		Body: io.NopCloser(strings.NewReader(`{
+	s.profileSet = profile != nil
+	s.requests = append(s.requests, req)
+	body := s.body
+	if body == "" {
+		body = `{
 			"id":"user-1",
 			"name":"User",
 			"userType":"personal_standard",
 			"securityOauthToken":"dt-from-center",
 			"refreshToken":"rt-from-center"
-		}`)),
-		Request: req,
+		}`
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     make(http.Header),
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Request:    req,
 	}, nil
 }
 

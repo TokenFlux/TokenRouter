@@ -448,6 +448,29 @@ describe('BulkEditAccountModal', () => {
     })
   })
 
+  it('Qoder COSY 批量编辑可启用 TLS 指纹伪装且不写入 OpenAI TLS 路由器', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['qoder'],
+      selectedTypes: ['cosy']
+    })
+    await flushPromises()
+
+    expect(wrapper.find('#bulk-edit-tls-fingerprint-enabled').exists()).toBe(true)
+    await wrapper.get('#bulk-edit-tls-fingerprint-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-tls-fingerprint-toggle').trigger('click')
+    await wrapper.get('[data-testid="bulk-edit-tls-fingerprint-profile"]').setValue('-1')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: {
+        enable_tls_fingerprint: true,
+        tls_fingerprint_profile_id: -1
+      }
+    })
+  })
+
   it('OpenAI OAuth 批量编辑应提交 codex_cli_only_allowed_clients 字段', async () => {
     const wrapper = mountModal({
       selectedPlatforms: ['openai'],

@@ -364,6 +364,9 @@ func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Conte
 				return s.billingService.getDisplayPricingWithResolved(model, group.RateMultiplier, imageConfig, resolved)
 			}
 		}
+		if isQoderAliasBillingModel(model) {
+			return s.billingService.GetDisplayPricing(qoderDefaultAliasFallbackBillingModel, group.RateMultiplier, imageConfig)
+		}
 		return unknownDisplayPricing()
 	}
 	if s.gatewayService != nil && s.gatewayService.resolver != nil {

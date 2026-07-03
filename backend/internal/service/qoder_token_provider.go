@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 
@@ -33,9 +36,6 @@ type QoderTokenProvider struct {
 func NewQoderTokenProvider() *QoderTokenProvider {
 	return &QoderTokenProvider{
 		sessions: make(map[int64]qoderSessionCacheEntry),
-		getOrgTags: func(ctx context.Context, token, uid string) (*qoder.OrganizationTags, error) {
-			return qoder.NewOAuthClient(qoder.OpenAPIBaseURL, nil).GetOrganizationTags(ctx, token, uid)
-		},
 	}
 }
 
@@ -106,7 +106,7 @@ func (p *QoderTokenProvider) buildSession(ctx context.Context, account *Account)
 		}
 		applyQoderAccountIdentityMetadata(identity, account)
 		// populateOrganizationFromAPI 在 session 创建前调用，避免缓存后并发修改 identity
-		p.populateOrganizationFromAPI(ctx, identity)
+		p.populateOrganizationFromAPI(ctx, account, identity)
 		return qoder.NewSession(identity, machine)
 	}
 
@@ -145,8 +145,8 @@ func (p *QoderTokenProvider) defaultExchangePAT(account *Account) qoderPATExchan
 	}
 }
 
-func (p *QoderTokenProvider) populateOrganizationFromAPI(ctx context.Context, identity *qoder.AuthIdentity) {
-	if p == nil || p.getOrgTags == nil || identity == nil {
+func (p *QoderTokenProvider) populateOrganizationFromAPI(ctx context.Context, account *Account, identity *qoder.AuthIdentity) {
+	if p == nil || identity == nil {
 		return
 	}
 	if strings.TrimSpace(identity.OrganizationID) != "" {
@@ -160,12 +160,52 @@ func (p *QoderTokenProvider) populateOrganizationFromAPI(ctx context.Context, id
 	if uid == "" {
 		return
 	}
-	tags, err := p.getOrgTags(ctx, token, uid)
+	var tags *qoder.OrganizationTags
+	var err error
+	if p.getOrgTags != nil {
+		tags, err = p.getOrgTags(ctx, token, uid)
+	} else {
+		tags, err = p.getOrganizationTagsForAccount(ctx, account, token, uid)
+	}
 	if err != nil || tags == nil {
 		return
 	}
 	identity.OrganizationID = strings.TrimSpace(tags.OrganizationID)
 	identity.OrganizationName = strings.TrimSpace(tags.OrganizationName)
+}
+
+func (p *QoderTokenProvider) getOrganizationTagsForAccount(ctx context.Context, account *Account, token, uid string) (*qoder.OrganizationTags, error) {
+	uid = strings.TrimSpace(uid)
+	if uid == "" {
+		return nil, fmt.Errorf("qoder: organization tags require uid")
+	}
+	if doer := newQoderRequestDoer(account, p.httpUpstream, p.tlsFPProfileService); doer != nil {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, qoder.OpenAPIBaseURL+qoder.OrganizationTagsPathPrefix+url.PathEscape(uid)+"/tags", nil)
+		if err != nil {
+			return nil, fmt.Errorf("qoder: create organization tags request: %w", err)
+		}
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
+		req.Header.Set("User-Agent", "Go-http-client/2.0")
+
+		resp, err := doer(req)
+		if err != nil {
+			return nil, fmt.Errorf("qoder: organization tags request: %w", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			return nil, fmt.Errorf("qoder: organization tags failed with status %d: %s", resp.StatusCode, string(body))
+		}
+
+		var tags qoder.OrganizationTags
+		if err := json.NewDecoder(resp.Body).Decode(&tags); err != nil {
+			return nil, fmt.Errorf("qoder: parse organization tags response: %w", err)
+		}
+		return &tags, nil
+	}
+	return qoder.NewOAuthClient(qoder.OpenAPIBaseURL, nil).GetOrganizationTags(ctx, token, uid)
 }
 
 func applyQoderAccountIdentityMetadata(identity *qoder.AuthIdentity, account *Account) {

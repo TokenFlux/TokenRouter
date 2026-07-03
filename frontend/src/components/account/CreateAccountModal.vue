@@ -1097,6 +1097,44 @@
         </div>
       </div>
 
+      <!-- Qoder COSY TLS 指纹伪装 -->
+      <div
+        v-if="form.platform === 'qoder'"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.quotaControl.tlsFingerprint.label') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.quotaControl.tlsFingerprint.hint') }}
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="create-qoder-tls-fingerprint-toggle"
+            @click="tlsFingerprintEnabled = !tlsFingerprintEnabled"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              tlsFingerprintEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                tlsFingerprintEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+        <div v-if="tlsFingerprintEnabled" class="mt-3 space-y-3">
+          <Select
+            v-model="tlsFingerprintProfileId"
+            data-testid="create-qoder-tls-fingerprint-profile"
+            :options="tlsFingerprintProfileOptions"
+          />
+        </div>
+      </div>
+
       <!-- Vertex Service Account -->
       <div v-if="(form.platform === 'gemini' || form.platform === 'anthropic') && accountCategory === 'service_account'" class="space-y-4">
         <div>
@@ -5220,6 +5258,17 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
   return Object.keys(extra).length > 0 ? extra : undefined
 }
 
+const buildQoderExtra = (): Record<string, unknown> | undefined => {
+  const extra: Record<string, unknown> = {}
+  if (tlsFingerprintEnabled.value) {
+    extra.enable_tls_fingerprint = true
+    if (tlsFingerprintProfileId.value) {
+      extra.tls_fingerprint_profile_id = tlsFingerprintProfileId.value
+    }
+  }
+  return Object.keys(extra).length > 0 ? extra : undefined
+}
+
 const buildAnthropicExtra = (base?: Record<string, unknown>): Record<string, unknown> | undefined => {
   if (form.platform !== 'anthropic' || accountCategory.value !== 'apikey') {
     return base
@@ -5479,7 +5528,7 @@ const handleSubmit = async () => {
     }
     applyQoderModelRestriction(credentials)
     applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
-    await createAccountAndFinish('qoder', 'cosy', credentials)
+    await createAccountAndFinish('qoder', 'cosy', credentials, buildQoderExtra())
     return
   }
 
@@ -5608,7 +5657,7 @@ const createQoderOAuthAccount = async (tokenInfo?: QoderTokenInfo) => {
   const credentials = qoderOAuth.buildCredentials(tokenInfo)
   applyQoderModelRestriction(credentials)
   applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
-  await createAccountAndFinish('qoder', 'cosy', credentials)
+  await createAccountAndFinish('qoder', 'cosy', credentials, buildQoderExtra())
 }
 
 const pollQoderAuthorizationOnce = async () => {

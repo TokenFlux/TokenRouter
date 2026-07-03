@@ -34,6 +34,22 @@ func NewQoderTokenRefresherWithHTTPUpstream(qoderOAuthService *QoderOAuthService
 	return refresher
 }
 
+type qoderAdminRefreshTransportProvider interface {
+	qoderRefreshHTTPUpstream() HTTPUpstream
+	qoderRefreshTLSFingerprintService() *TLSFingerprintProfileService
+}
+
+func NewQoderTokenRefresherForAdmin(adminService AdminService, qoderOAuthService *QoderOAuthService) *QoderTokenRefresher {
+	if provider, ok := adminService.(qoderAdminRefreshTransportProvider); ok {
+		return NewQoderTokenRefresherWithHTTPUpstream(
+			qoderOAuthService,
+			provider.qoderRefreshHTTPUpstream(),
+			provider.qoderRefreshTLSFingerprintService(),
+		)
+	}
+	return NewQoderTokenRefresher(qoderOAuthService)
+}
+
 func (r *QoderTokenRefresher) CacheKey(account *Account) string {
 	return QoderTokenCacheKey(account)
 }
