@@ -268,6 +268,24 @@ func (h *SubscriptionHandler) Revoke(c *gin.Context) {
 	response.Success(c, gin.H{"message": "Subscription revoked successfully"})
 }
 
+// Restore 恢复已撤销订阅。
+// POST /api/v1/admin/subscriptions/:id/restore
+func (h *SubscriptionHandler) Restore(c *gin.Context) {
+	subscriptionID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "Invalid subscription ID")
+		return
+	}
+
+	subscription, err := h.subscriptionService.RestoreSubscription(c.Request.Context(), subscriptionID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, dto.UserSubscriptionFromServiceAdmin(subscription))
+}
+
 // ListByPlan handles listing subscriptions for a plan.
 func (h *SubscriptionHandler) ListByPlan(c *gin.Context) {
 	planID, err := strconv.ParseInt(c.Param("id"), 10, 64)

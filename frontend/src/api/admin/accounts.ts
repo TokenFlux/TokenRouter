@@ -28,6 +28,7 @@ export interface CodexInviteResetCredit {
   status?: string
   title?: string
   description?: string
+  expires_at?: string
   profile_user_id?: string
   profile_image_url?: string
   raw?: Record<string, unknown>
@@ -87,8 +88,13 @@ export interface OpenAIAdditionalRateLimit {
   rate_limit?: OpenAIRateLimit | null
 }
 
+export interface OpenAIRateLimitResetCreditDetail {
+  expires_at?: string
+}
+
 export interface OpenAIRateLimitResetCredits {
   available_count: number
+  credits?: OpenAIRateLimitResetCreditDetail[]
 }
 
 export interface OpenAIQuotaUsage {

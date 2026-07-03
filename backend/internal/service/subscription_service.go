@@ -19,16 +19,18 @@ var MaxExpiresAt = time.Date(2099, 12, 31, 23, 59, 59, 0, time.UTC)
 const MaxValidityDays = 36500
 
 var (
-	ErrSubscriptionNotFound      = infraerrors.NotFound("SUBSCRIPTION_NOT_FOUND", "subscription not found")
-	ErrSubscriptionExpired       = infraerrors.Forbidden("SUBSCRIPTION_EXPIRED", "subscription has expired")
-	ErrSubscriptionSuspended     = infraerrors.Forbidden("SUBSCRIPTION_SUSPENDED", "subscription is suspended")
-	ErrSubscriptionAlreadyExists = infraerrors.Conflict("SUBSCRIPTION_ALREADY_EXISTS", "subscription already exists")
-	ErrInvalidInput              = infraerrors.BadRequest("INVALID_INPUT", "at least one of resetDaily, resetWeekly, or resetMonthly must be true")
-	ErrDailyLimitExceeded        = infraerrors.TooManyRequests("DAILY_LIMIT_EXCEEDED", "daily usage limit exceeded")
-	ErrWeeklyLimitExceeded       = infraerrors.TooManyRequests("WEEKLY_LIMIT_EXCEEDED", "weekly usage limit exceeded")
-	ErrMonthlyLimitExceeded      = infraerrors.TooManyRequests("MONTHLY_LIMIT_EXCEEDED", "monthly usage limit exceeded")
-	ErrSubscriptionNilInput      = infraerrors.BadRequest("SUBSCRIPTION_NIL_INPUT", "subscription input cannot be nil")
-	ErrAdjustWouldExpire         = infraerrors.BadRequest("ADJUST_WOULD_EXPIRE", "adjustment would result in invalid subscription window")
+	ErrSubscriptionNotFound        = infraerrors.NotFound("SUBSCRIPTION_NOT_FOUND", "subscription not found")
+	ErrSubscriptionExpired         = infraerrors.Forbidden("SUBSCRIPTION_EXPIRED", "subscription has expired")
+	ErrSubscriptionSuspended       = infraerrors.Forbidden("SUBSCRIPTION_SUSPENDED", "subscription is suspended")
+	ErrSubscriptionAlreadyExists   = infraerrors.Conflict("SUBSCRIPTION_ALREADY_EXISTS", "subscription already exists")
+	ErrSubscriptionNotRevoked      = infraerrors.Conflict("SUBSCRIPTION_NOT_REVOKED", "subscription is not revoked")
+	ErrSubscriptionRestoreConflict = infraerrors.Conflict("SUBSCRIPTION_RESTORE_CONFLICT", "subscription already exists for this user and plan")
+	ErrInvalidInput                = infraerrors.BadRequest("INVALID_INPUT", "at least one of resetDaily, resetWeekly, or resetMonthly must be true")
+	ErrDailyLimitExceeded          = infraerrors.TooManyRequests("DAILY_LIMIT_EXCEEDED", "daily usage limit exceeded")
+	ErrWeeklyLimitExceeded         = infraerrors.TooManyRequests("WEEKLY_LIMIT_EXCEEDED", "weekly usage limit exceeded")
+	ErrMonthlyLimitExceeded        = infraerrors.TooManyRequests("MONTHLY_LIMIT_EXCEEDED", "monthly usage limit exceeded")
+	ErrSubscriptionNilInput        = infraerrors.BadRequest("SUBSCRIPTION_NIL_INPUT", "subscription input cannot be nil")
+	ErrAdjustWouldExpire           = infraerrors.BadRequest("ADJUST_WOULD_EXPIRE", "adjustment would result in invalid subscription window")
 )
 
 type SubscriptionService struct {
@@ -357,6 +359,94 @@ func (s *SubscriptionService) RevokeSubscription(ctx context.Context, subscripti
 		return fmt.Errorf("commit transaction: %w", err)
 	}
 	return nil
+}
+
+// RestoreSubscription 恢复已撤销订阅。
+func (s *SubscriptionService) RestoreSubscription(ctx context.Context, subscriptionID int64) (*UserSubscription, error) {
+	if tx := dbent.TxFromContext(ctx); tx != nil {
+		return s.restoreSubscriptionInTx(ctx, tx, subscriptionID)
+	}
+	if s.entClient == nil {
+		return s.restoreSubscriptionUnlocked(ctx, subscriptionID)
+	}
+
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	txCtx := dbent.NewTxContext(ctx, tx)
+
+	restored, err := s.restoreSubscriptionInTx(txCtx, tx, subscriptionID)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+	return restored, nil
+}
+
+func (s *SubscriptionService) restoreSubscriptionInTx(ctx context.Context, tx *dbent.Tx, subscriptionID int64) (*UserSubscription, error) {
+	initial, err := s.userSubRepo.GetByIDIncludeDeleted(ctx, subscriptionID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := tx.User.Query().Where(dbuser.IDEQ(initial.UserID)).ForUpdate().Only(ctx); err != nil {
+		return nil, fmt.Errorf("lock user %d: %w", initial.UserID, err)
+	}
+	return s.restoreSubscriptionUnlocked(ctx, subscriptionID)
+}
+
+func (s *SubscriptionService) restoreSubscriptionUnlocked(ctx context.Context, subscriptionID int64) (*UserSubscription, error) {
+	sub, err := s.userSubRepo.GetByIDIncludeDeleted(ctx, subscriptionID)
+	if err != nil {
+		return nil, err
+	}
+	if sub.DeletedAt == nil {
+		return nil, ErrSubscriptionNotRevoked
+	}
+
+	now := time.Now()
+	restoredStatus := restoredSubscriptionStatus(sub, now)
+	if restoredStatus != SubscriptionStatusExpired {
+		chain, err := s.userSubRepo.ListByUserIDAndPlanID(ctx, sub.UserID, sub.PlanID)
+		if err != nil {
+			return nil, err
+		}
+		if subscriptionRestoreWouldOverlap(sub, chain, now) {
+			return nil, ErrSubscriptionRestoreConflict
+		}
+	}
+
+	return s.userSubRepo.Restore(ctx, subscriptionID, restoredStatus)
+}
+
+// restoredSubscriptionStatus 根据恢复后的时间窗口重新计算状态，避免把已过期撤销记录恢复为 active。
+func restoredSubscriptionStatus(sub *UserSubscription, now time.Time) string {
+	if sub == nil {
+		return SubscriptionStatusExpired
+	}
+	cp := *sub
+	cp.DeletedAt = nil
+	return cp.EffectiveStatus(now)
+}
+
+// subscriptionRestoreWouldOverlap 防止恢复后的套餐窗口与同一用户同一套餐的现有链路重叠。
+func subscriptionRestoreWouldOverlap(restored *UserSubscription, chain []UserSubscription, now time.Time) bool {
+	if restored == nil {
+		return false
+	}
+	for i := range chain {
+		item := chain[i]
+		if item.ID == restored.ID || item.DeletedAt != nil || !item.ExpiresAt.After(now) {
+			continue
+		}
+		if restored.StartsAt.Before(item.ExpiresAt) && item.StartsAt.Before(restored.ExpiresAt) {
+			return true
+		}
+	}
+	return false
 }
 
 func revokeChainDelta(sub *UserSubscription, now time.Time) time.Duration {

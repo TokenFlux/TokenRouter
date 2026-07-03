@@ -60,3 +60,59 @@ func TestAccount_IsAnthropicAPIKeyPassthroughEnabled(t *testing.T) {
 		require.False(t, openai.IsAnthropicAPIKeyPassthroughEnabled())
 	})
 }
+
+func TestAccount_GetAnthropicAPIKeyAuthScheme(t *testing.T) {
+	tests := []struct {
+		name    string
+		account *Account
+		want    string
+	}{
+		{
+			name: "缺省使用 x-api-key",
+			account: &Account{
+				Platform: PlatformAnthropic,
+				Type:     AccountTypeAPIKey,
+			},
+			want: AnthropicAPIKeyAuthSchemeXAPIKey,
+		},
+		{
+			name: "显式使用 bearer",
+			account: &Account{
+				Platform: PlatformAnthropic,
+				Type:     AccountTypeAPIKey,
+				Extra: map[string]any{
+					"anthropic_apikey_auth_scheme": AnthropicAPIKeyAuthSchemeAuthorizationBearer,
+				},
+			},
+			want: AnthropicAPIKeyAuthSchemeAuthorizationBearer,
+		},
+		{
+			name: "非法值回退 x-api-key",
+			account: &Account{
+				Platform: PlatformAnthropic,
+				Type:     AccountTypeAPIKey,
+				Extra: map[string]any{
+					"anthropic_apikey_auth_scheme": "bearer",
+				},
+			},
+			want: AnthropicAPIKeyAuthSchemeXAPIKey,
+		},
+		{
+			name: "非 Anthropic API Key 回退 x-api-key",
+			account: &Account{
+				Platform: PlatformOpenAI,
+				Type:     AccountTypeAPIKey,
+				Extra: map[string]any{
+					"anthropic_apikey_auth_scheme": AnthropicAPIKeyAuthSchemeAuthorizationBearer,
+				},
+			},
+			want: AnthropicAPIKeyAuthSchemeXAPIKey,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.account.GetAnthropicAPIKeyAuthScheme())
+		})
+	}
+}

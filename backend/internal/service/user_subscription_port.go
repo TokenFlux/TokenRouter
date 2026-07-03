@@ -10,9 +10,13 @@ import (
 type UserSubscriptionRepository interface {
 	Create(ctx context.Context, sub *UserSubscription) error
 	GetByID(ctx context.Context, id int64) (*UserSubscription, error)
+	// GetByIDIncludeDeleted 按 ID 查询订阅，并保留软删除记录的原始状态。
+	GetByIDIncludeDeleted(ctx context.Context, id int64) (*UserSubscription, error)
 	GetLatestByUserIDAndPlanID(ctx context.Context, userID, planID int64) (*UserSubscription, error)
 	Update(ctx context.Context, sub *UserSubscription) error
 	Delete(ctx context.Context, id int64) error
+	// Restore 清除软删除标记，并写入恢复后的有效状态。
+	Restore(ctx context.Context, subscriptionID int64, restoredStatus string) (*UserSubscription, error)
 
 	ListByUserID(ctx context.Context, userID int64) ([]UserSubscription, error)
 	ListByUserIDAndPlanID(ctx context.Context, userID, planID int64) ([]UserSubscription, error)

@@ -72,6 +72,7 @@ func (c *stubQuotaTokenCache) ReleaseRefreshLock(_ context.Context, _ string) er
 type stubQuotaHTTPUpstream struct {
 	capturedAccountID string
 	responseBody      string
+	responses         map[string]stubQuotaHTTPResponse
 }
 
 func (s *stubQuotaHTTPUpstream) Do(req *http.Request, proxyURL string, accountID int64, accountConcurrency int) (*http.Response, error) {
@@ -80,6 +81,19 @@ func (s *stubQuotaHTTPUpstream) Do(req *http.Request, proxyURL string, accountID
 
 func (s *stubQuotaHTTPUpstream) DoWithTLS(req *http.Request, _ string, _ int64, _ int, _ *tlsfingerprint.Profile) (*http.Response, error) {
 	s.capturedAccountID = req.Header.Get("chatgpt-account-id")
+	if s.responses != nil {
+		if response, ok := s.responses[req.URL.Path]; ok {
+			status := response.status
+			if status == 0 {
+				status = http.StatusOK
+			}
+			return &http.Response{
+				StatusCode: status,
+				Header:     http.Header{"content-type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(response.body)),
+			}, nil
+		}
+	}
 	body := s.responseBody
 	if body == "" {
 		body = `{}`
@@ -89,6 +103,11 @@ func (s *stubQuotaHTTPUpstream) DoWithTLS(req *http.Request, _ string, _ int64, 
 		Header:     http.Header{"content-type": []string{"application/json"}},
 		Body:       io.NopCloser(strings.NewReader(body)),
 	}, nil
+}
+
+type stubQuotaHTTPResponse struct {
+	status int
+	body   string
 }
 
 // ── Part A: buildCodexSparkWindowExtraUpdates ─────────────────────────────────
@@ -226,6 +245,134 @@ func TestPrepareAccountShadowResolve(t *testing.T) {
 	require.NoError(t, err, "shadow resolve should succeed; got error: %v", err)
 	require.Equal(t, "org-parent123", accountCtx.account.GetChatGPTAccountID(),
 		"prepareAccount should use parent's chatgpt_account_id after shadow resolve")
+}
+
+func TestParseOpenAIRateLimitResetCreditDetails_CompatibleContainers(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want []string
+	}{
+		{
+			name: "credits",
+			body: `{"credits":[{"id":"secret-id","expires_at":"2026-07-03T04:05:06Z"}]}`,
+			want: []string{"2026-07-03T04:05:06Z"},
+		},
+		{
+			name: "rate limit reset credits",
+			body: `{"rate_limit_reset_credits":[{"expiresAt":"2026-07-04T04:05:06Z"}]}`,
+			want: []string{"2026-07-04T04:05:06Z"},
+		},
+		{
+			name: "items",
+			body: `{"items":[{"expires_at":"2026-07-05T04:05:06Z"}]}`,
+			want: []string{"2026-07-05T04:05:06Z"},
+		},
+		{
+			name: "data",
+			body: `{"data":[{"expires_at":"2026-07-06T04:05:06Z"}]}`,
+			want: []string{"2026-07-06T04:05:06Z"},
+		},
+		{
+			name: "array",
+			body: `[{"expires_at":"2026-07-07T04:05:06Z"}]`,
+			want: []string{"2026-07-07T04:05:06Z"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseOpenAIRateLimitResetCreditDetails([]byte(tt.body))
+			require.NoError(t, err)
+			require.Len(t, got, len(tt.want))
+			for i := range tt.want {
+				require.Equal(t, tt.want[i], got[i].ExpiresAt)
+			}
+			encoded, err := json.Marshal(got)
+			require.NoError(t, err)
+			require.NotContains(t, string(encoded), "secret-id")
+		})
+	}
+}
+
+func TestQueryUsageIncludesResetCreditExpirations_EndToEnd(t *testing.T) {
+	ctx := context.Background()
+	account := &Account{
+		ID:       100,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Status:   StatusActive,
+		Credentials: map[string]any{
+			"chatgpt_account_id": "org-parent123",
+		},
+	}
+	repo := &stubQuotaAccountRepo{accounts: map[int64]*Account{100: account}}
+	tokenCache := &stubQuotaTokenCache{tokens: map[string]string{
+		OpenAITokenCacheKey(account): "fake-token",
+	}}
+	tokenProvider := NewOpenAITokenProvider(repo, tokenCache, nil)
+	upstream := &stubQuotaHTTPUpstream{
+		responses: map[string]stubQuotaHTTPResponse{
+			"/backend-api/wham/usage": {
+				body: `{"rate_limit_reset_credits":{"available_count":2}}`,
+			},
+			"/backend-api/wham/rate-limit-reset-credits": {
+				body: `{"credits":[{"id":"secret-credit-id","expires_at":"2026-07-03T04:05:06Z"},{"expiresAt":"2026-07-04T04:05:06Z"}]}`,
+			},
+		},
+	}
+
+	svc := NewOpenAIQuotaService(stubQuotaAdminService{repo: repo}, upstream, tokenProvider, nil, nil)
+	usage, err := svc.QueryUsage(ctx, 100)
+	require.NoError(t, err)
+	require.NotNil(t, usage)
+	require.NotNil(t, usage.RateLimitResetCredits)
+	require.Equal(t, 2, usage.RateLimitResetCredits.AvailableCount)
+	require.Equal(t, []OpenAIRateLimitResetCreditDetail{
+		{ExpiresAt: "2026-07-03T04:05:06Z"},
+		{ExpiresAt: "2026-07-04T04:05:06Z"},
+	}, usage.RateLimitResetCredits.Credits)
+
+	encoded, err := json.Marshal(usage)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "secret-credit-id")
+}
+
+func TestQueryUsageResetCreditDetails401NonFatal(t *testing.T) {
+	ctx := context.Background()
+	account := &Account{
+		ID:       100,
+		Platform: PlatformOpenAI,
+		Type:     AccountTypeOAuth,
+		Status:   StatusActive,
+		Credentials: map[string]any{
+			"chatgpt_account_id": "org-parent123",
+		},
+	}
+	repo := &stubQuotaAccountRepo{accounts: map[int64]*Account{100: account}}
+	tokenCache := &stubQuotaTokenCache{tokens: map[string]string{
+		OpenAITokenCacheKey(account): "fake-token",
+	}}
+	tokenProvider := NewOpenAITokenProvider(repo, tokenCache, nil)
+	upstream := &stubQuotaHTTPUpstream{
+		responses: map[string]stubQuotaHTTPResponse{
+			"/backend-api/wham/usage": {
+				body: `{"rate_limit_reset_credits":{"available_count":1}}`,
+			},
+			"/backend-api/wham/rate-limit-reset-credits": {
+				status: http.StatusUnauthorized,
+				body:   `{"error":"unauthorized","id":"secret-error-id"}`,
+			},
+		},
+	}
+
+	svc := NewOpenAIQuotaService(stubQuotaAdminService{repo: repo}, upstream, tokenProvider, nil, nil)
+	usage, err := svc.QueryUsage(ctx, 100)
+	require.NoError(t, err)
+	require.NotNil(t, usage)
+	require.NotNil(t, usage.RateLimitResetCredits)
+	require.Equal(t, 1, usage.RateLimitResetCredits.AvailableCount)
+	require.Empty(t, usage.RateLimitResetCredits.Credits)
 }
 
 // TestResetCreditGetByIDError_FailsClosed 验证守卫「失败关闭」语义：

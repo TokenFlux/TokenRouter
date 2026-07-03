@@ -26,6 +26,7 @@ const (
 	chatGPTRateLimitCreditsPath = "/wham/rate-limit-reset-credits"
 	chatGPTRateLimitResetPath   = "/wham/rate-limit-reset-credits/consume"
 	openaiQuotaUpstreamTimeout  = 20 * time.Second
+	openaiQuotaCodexBeta        = "codex-1"
 	openaiQuotaCodexOriginator  = "Codex Desktop"
 	openaiQuotaCodexLanguageTag = "zh-CN"
 	openaiQuotaSecFetchSite     = "none"
@@ -56,9 +57,15 @@ type OpenAIAdditionalRateLimit struct {
 	RateLimit      *OpenAIRateLimit `json:"rate_limit,omitempty"`
 }
 
+// OpenAIRateLimitResetCreditDetail 是暴露给前端的单个重置机会安全明细。
+type OpenAIRateLimitResetCreditDetail struct {
+	ExpiresAt string `json:"expires_at,omitempty"`
+}
+
 // OpenAIRateLimitResetCredits 描述当前可用的重置次数。
 type OpenAIRateLimitResetCredits struct {
-	AvailableCount int `json:"available_count"`
+	AvailableCount int                                `json:"available_count"`
+	Credits        []OpenAIRateLimitResetCreditDetail `json:"credits,omitempty"`
 }
 
 // OpenAIQuotaUsage 是暴露给前端的 /wham/usage 精简结果。
@@ -137,7 +144,29 @@ func (s *OpenAIQuotaService) QueryUsage(ctx context.Context, accountID int64) (*
 		return nil, err
 	}
 	usage.FetchedAt = time.Now().Unix()
+	if usage.RateLimitResetCredits != nil && usage.RateLimitResetCredits.AvailableCount > 0 {
+		usage.RateLimitResetCredits.Credits = s.queryResetCreditDetails(ctx, accountCtx)
+	}
 	return &usage, nil
+}
+
+func (s *OpenAIQuotaService) queryResetCreditDetails(ctx context.Context, accountCtx *openAIQuotaAccountContext) []OpenAIRateLimitResetCreditDetail {
+	raw, err := s.getJSON(ctx, accountCtx, chatGPTRateLimitCreditsPath)
+	if err != nil {
+		slog.Warn("openai_quota_reset_credit_details_failed", "account_id", accountCtx.account.ID, "error", err)
+		return nil
+	}
+	encoded, err := json.Marshal(raw)
+	if err != nil {
+		slog.Warn("openai_quota_reset_credit_details_marshal_failed", "account_id", accountCtx.account.ID, "error", err)
+		return nil
+	}
+	credits, err := parseOpenAIRateLimitResetCreditDetails(encoded)
+	if err != nil {
+		slog.Warn("openai_quota_reset_credit_details_parse_failed", "account_id", accountCtx.account.ID, "error", err)
+		return nil
+	}
+	return credits
 }
 
 // ResetCredit 消耗一次限流窗口重置次数。
@@ -365,6 +394,7 @@ func (s *OpenAIQuotaService) applyHeaders(req *http.Request, accountCtx *openAIQ
 	req.Host = "chatgpt.com"
 	req.Header.Set("Authorization", "Bearer "+accountCtx.token)
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("OpenAI-Beta", openaiQuotaCodexBeta)
 	req.Header.Set("OAI-Language", openaiQuotaCodexLanguageTag)
 	req.Header.Set("originator", openaiQuotaCodexOriginator)
 	req.Header.Set("X-OpenAI-Attach-Auth", "1")
@@ -413,6 +443,65 @@ func remarshalOpenAIQuotaPayload(raw map[string]any, target any) error {
 		return err
 	}
 	return json.Unmarshal(encoded, target)
+}
+
+type openAIRateLimitResetCreditDetailPayload struct {
+	ExpiresAt      string `json:"expires_at,omitempty"`
+	ExpiresAtCamel string `json:"expiresAt,omitempty"`
+}
+
+type openAIRateLimitResetCreditDetailsPayload struct {
+	Credits               []openAIRateLimitResetCreditDetailPayload `json:"credits,omitempty"`
+	RateLimitResetCredits []openAIRateLimitResetCreditDetailPayload `json:"rate_limit_reset_credits,omitempty"`
+	Items                 []openAIRateLimitResetCreditDetailPayload `json:"items,omitempty"`
+	Data                  []openAIRateLimitResetCreditDetailPayload `json:"data,omitempty"`
+}
+
+func parseOpenAIRateLimitResetCreditDetails(body []byte) ([]OpenAIRateLimitResetCreditDetail, error) {
+	trimmed := bytes.TrimSpace(body)
+	if len(trimmed) == 0 {
+		return nil, nil
+	}
+
+	var rawCredits []openAIRateLimitResetCreditDetailPayload
+	if trimmed[0] == '[' {
+		if err := json.Unmarshal(trimmed, &rawCredits); err != nil {
+			return nil, err
+		}
+	} else {
+		var payload openAIRateLimitResetCreditDetailsPayload
+		if err := json.Unmarshal(trimmed, &payload); err != nil {
+			return nil, err
+		}
+		rawCredits = firstNonEmptyResetCreditPayload(
+			payload.Credits,
+			payload.RateLimitResetCredits,
+			payload.Items,
+			payload.Data,
+		)
+	}
+
+	credits := make([]OpenAIRateLimitResetCreditDetail, 0, len(rawCredits))
+	for _, raw := range rawCredits {
+		expiresAt := strings.TrimSpace(raw.ExpiresAt)
+		if expiresAt == "" {
+			expiresAt = strings.TrimSpace(raw.ExpiresAtCamel)
+		}
+		if expiresAt == "" {
+			continue
+		}
+		credits = append(credits, OpenAIRateLimitResetCreditDetail{ExpiresAt: expiresAt})
+	}
+	return credits, nil
+}
+
+func firstNonEmptyResetCreditPayload(lists ...[]openAIRateLimitResetCreditDetailPayload) []openAIRateLimitResetCreditDetailPayload {
+	for _, list := range lists {
+		if len(list) > 0 {
+			return list
+		}
+	}
+	return nil
 }
 
 func generateOpenAIQuotaRedeemRequestID() (string, error) {

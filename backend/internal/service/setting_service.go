@@ -20,6 +20,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/imroc/req/v3"
 	"golang.org/x/sync/singleflight"
 )
@@ -1321,16 +1322,19 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		GitHubOAuthEnabled               bool                     `json:"github_oauth_enabled"`
 		GoogleOAuthEnabled               bool                     `json:"google_oauth_enabled"`
 		Version                          string                   `json:"version,omitempty"`
-		BalanceUnitName                  string                   `json:"balance_unit_name"`
-		BalanceUnitSymbol                string                   `json:"balance_unit_symbol"`
-		BalanceIconSVG                   string                   `json:"balance_icon_svg"`
-		BalanceLowNotifyEnabled          bool                     `json:"balance_low_notify_enabled"`
-		AccountQuotaNotifyEnabled        bool                     `json:"account_quota_notify_enabled"`
-		RiskControlEnabled               bool                     `json:"risk_control_enabled"`
-		AffiliateEnabled                 bool                     `json:"affiliate_enabled"`
-		BalanceLowNotifyThreshold        float64                  `json:"balance_low_notify_threshold"`
-		BalanceLowNotifyRechargeURL      string                   `json:"balance_low_notify_recharge_url"`
-		AllowUserViewErrorRequests       bool                     `json:"allow_user_view_error_requests"`
+		// 服务器全局时区与当前 UTC 偏移，供前端标注高峰计费窗口等服务端本地时间。
+		ServerTimezone              string  `json:"server_timezone"`
+		ServerUTCOffset             string  `json:"server_utc_offset"`
+		BalanceUnitName             string  `json:"balance_unit_name"`
+		BalanceUnitSymbol           string  `json:"balance_unit_symbol"`
+		BalanceIconSVG              string  `json:"balance_icon_svg"`
+		BalanceLowNotifyEnabled     bool    `json:"balance_low_notify_enabled"`
+		AccountQuotaNotifyEnabled   bool    `json:"account_quota_notify_enabled"`
+		RiskControlEnabled          bool    `json:"risk_control_enabled"`
+		AffiliateEnabled            bool    `json:"affiliate_enabled"`
+		BalanceLowNotifyThreshold   float64 `json:"balance_low_notify_threshold"`
+		BalanceLowNotifyRechargeURL string  `json:"balance_low_notify_recharge_url"`
+		AllowUserViewErrorRequests  bool    `json:"allow_user_view_error_requests"`
 	}{
 		RegistrationEnabled:              settings.RegistrationEnabled,
 		EmailVerifyEnabled:               settings.EmailVerifyEnabled,
@@ -1381,6 +1385,8 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		GitHubOAuthEnabled:               settings.GitHubOAuthEnabled,
 		GoogleOAuthEnabled:               settings.GoogleOAuthEnabled,
 		Version:                          s.version,
+		ServerTimezone:                   timezone.Name(),
+		ServerUTCOffset:                  timezone.UTCOffset(),
 		BalanceUnitName:                  settings.BalanceUnitName,
 		BalanceUnitSymbol:                settings.BalanceUnitSymbol,
 		BalanceIconSVG:                   settings.BalanceIconSVG,

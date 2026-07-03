@@ -25,6 +25,7 @@ func TestOpenAIQuotaServiceQueryUsageUsesCodexHeaders(t *testing.T) {
 	}
 	upstream := &codexInviteResetHTTPUpstreamStub{responses: []*http.Response{
 		codexInviteResetJSONResponse(`{"user_id":"user-1","rate_limit_reset_credits":{"available_count":2}}`),
+		codexInviteResetJSONResponse(`{"credits":[{"expires_at":"2026-07-03T04:05:06Z"},{"expiresAt":"2026-07-04T04:05:06Z"}]}`),
 	}}
 	svc := NewOpenAIQuotaService(codexInviteResetAdminServiceStub{account: account}, upstream, nil, nil, nil)
 
@@ -33,18 +34,25 @@ func TestOpenAIQuotaServiceQueryUsageUsesCodexHeaders(t *testing.T) {
 	require.Equal(t, "user-1", usage.UserID)
 	require.NotNil(t, usage.RateLimitResetCredits)
 	require.Equal(t, 2, usage.RateLimitResetCredits.AvailableCount)
+	require.Equal(t, []OpenAIRateLimitResetCreditDetail{
+		{ExpiresAt: "2026-07-03T04:05:06Z"},
+		{ExpiresAt: "2026-07-04T04:05:06Z"},
+	}, usage.RateLimitResetCredits.Credits)
 	require.Greater(t, usage.FetchedAt, int64(0))
 
-	require.Len(t, upstream.requests, 1)
-	req := upstream.requests[0]
-	require.Equal(t, "/backend-api/wham/usage", req.URL.Path)
-	require.Equal(t, "Bearer oauth-token", req.Header.Get("Authorization"))
-	require.Equal(t, "Codex Desktop", req.Header.Get("originator"))
-	require.Equal(t, codexInviteResetDefaultUserAgent, req.Header.Get("User-Agent"))
-	require.Equal(t, "chatgpt-acc", req.Header.Get("chatgpt-account-id"))
-	require.Equal(t, "1", req.Header.Get("X-OpenAI-Attach-Auth"))
-	require.Equal(t, "1", req.Header.Get("X-OpenAI-Attach-Integrity-State"))
-	require.Equal(t, HTTPUpstreamProfileOpenAI, HTTPUpstreamProfileFromContext(req.Context()))
+	require.Len(t, upstream.requests, 2)
+	require.Equal(t, "/backend-api/wham/usage", upstream.requests[0].URL.Path)
+	require.Equal(t, "/backend-api/wham/rate-limit-reset-credits", upstream.requests[1].URL.Path)
+	for _, req := range upstream.requests {
+		require.Equal(t, "Bearer oauth-token", req.Header.Get("Authorization"))
+		require.Equal(t, openaiQuotaCodexBeta, req.Header.Get("OpenAI-Beta"))
+		require.Equal(t, "Codex Desktop", req.Header.Get("originator"))
+		require.Equal(t, codexInviteResetDefaultUserAgent, req.Header.Get("User-Agent"))
+		require.Equal(t, "chatgpt-acc", req.Header.Get("chatgpt-account-id"))
+		require.Equal(t, "1", req.Header.Get("X-OpenAI-Attach-Auth"))
+		require.Equal(t, "1", req.Header.Get("X-OpenAI-Attach-Integrity-State"))
+		require.Equal(t, HTTPUpstreamProfileOpenAI, HTTPUpstreamProfileFromContext(req.Context()))
+	}
 }
 
 func TestOpenAIQuotaServiceResetCreditSendsCreditIDAndRedeemRequestID(t *testing.T) {

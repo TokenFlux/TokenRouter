@@ -192,8 +192,19 @@ func TestMigration171AllowsGrokUserPlatformQuotas(t *testing.T) {
 	require.Contains(t, sql, "'grok'")
 }
 
-func TestMigration177AllowsQoderUserPlatformQuotas(t *testing.T) {
-	content, err := FS.ReadFile("177_allow_qoder_user_platform_quotas.sql")
+func TestMigration178BackfillsGrokMediaGenerationGroups(t *testing.T) {
+	content, err := FS.ReadFile("178_enable_grok_media_generation_groups.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "UPDATE groups")
+	require.Contains(t, sql, "SET allow_image_generation = true")
+	require.Contains(t, sql, "WHERE platform = 'grok'")
+	require.Contains(t, sql, "AND allow_image_generation = false")
+}
+
+func TestMigration179AllowsQoderUserPlatformQuotas(t *testing.T) {
+	content, err := FS.ReadFile("179_allow_qoder_user_platform_quotas.sql")
 	require.NoError(t, err)
 
 	sql := string(content)

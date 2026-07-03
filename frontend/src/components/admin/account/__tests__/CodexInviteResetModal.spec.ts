@@ -34,6 +34,7 @@ vi.mock('vue-i18n', async () => {
     useI18n: () => ({
       t: (key: string, params?: Record<string, string | number>) => {
         if (key === 'admin.accounts.inviteResetEmailHint') return `max-${params?.max}`
+        if (params?.time) return `${key}:${params.time}`
         return key
       }
     })
@@ -93,7 +94,8 @@ describe('CodexInviteResetModal', () => {
         {
           id: 'credit-1',
           status: 'available',
-          title: 'Reset'
+          title: 'Reset',
+          expires_at: '2026-07-03T04:05:06Z'
         }
       ]
     })
@@ -110,6 +112,8 @@ describe('CodexInviteResetModal', () => {
 
     expect(consumeButton?.attributes('disabled')).toBeUndefined()
     expect(sendButton?.attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('admin.accounts.inviteResetCreditExpirations')
+    expect(wrapper.text()).toContain('admin.accounts.inviteResetCreditExpiresAtFull:')
 
     await sendButton!.trigger('click')
     expect(sendInviteMock).not.toHaveBeenCalled()

@@ -445,7 +445,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		if service.GetOpsCyberPolicy(c) != nil {
 			cyberBlockKeyHTTP = service.CyberSessionBlockKey(apiKey.ID, c, sessionHashBody)
 		}
-		h.recordCyberPolicyIfMarked(c, apiKey, account, subscription, reqModel, err != nil, cyberBlockKeyHTTP, channelMapping.ToUsageFields(reqModel, ""), service.HashUsageRequestPayload(body))
+		cyberPolicyHandled := h.recordCyberPolicyIfMarked(c, apiKey, account, subscription, reqModel, err != nil, cyberBlockKeyHTTP, channelMapping.ToUsageFields(reqModel, ""), service.HashUsageRequestPayload(body))
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		upstreamLatencyMs, _ := getContextInt64(c, service.OpsUpstreamLatencyMsKey)
 		responseLatencyMs := forwardDurationMs
@@ -558,7 +558,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account)
-		cyberBlocked := service.GetOpsCyberPolicy(c) != nil
+		cyberBlocked := cyberPolicyHandled
 		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 
 		// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
@@ -905,7 +905,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		if service.GetOpsCyberPolicy(c) != nil {
 			cyberBlockKeyMsg = service.CyberSessionBlockKey(apiKey.ID, c, body)
 		}
-		h.recordCyberPolicyIfMarked(c, apiKey, account, subscription, reqModel, err != nil, cyberBlockKeyMsg, channelMappingMsg.ToUsageFields(reqModel, ""), service.HashUsageRequestPayload(body))
+		cyberPolicyHandled := h.recordCyberPolicyIfMarked(c, apiKey, account, subscription, reqModel, err != nil, cyberBlockKeyMsg, channelMappingMsg.ToUsageFields(reqModel, ""), service.HashUsageRequestPayload(body))
 
 		forwardDurationMs := time.Since(forwardStart).Milliseconds()
 		upstreamLatencyMs, _ := getContextInt64(c, service.OpsUpstreamLatencyMsKey)
@@ -1013,7 +1013,7 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 		requestPayloadHash := service.HashUsageRequestPayload(body)
 		inboundEndpoint := GetInboundEndpoint(c)
 		upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account)
-		cyberBlocked := service.GetOpsCyberPolicy(c) != nil
+		cyberBlocked := cyberPolicyHandled
 		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 
 		h.submitOpenAIUsageRecordTask(c, result, func(ctx context.Context) {
@@ -1489,7 +1489,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			sessionHash,
 			reqModel,
 			failedAccountIDs,
-			service.OpenAIUpstreamTransportResponsesWebsocketV2,
+			service.OpenAIUpstreamTransportResponsesWebsocketV2Ingress,
 			service.OpenAIEndpointCapabilityChatCompletions,
 			false,
 			requestPlatform,
@@ -1643,32 +1643,39 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				currentAccountRelease = wrapReleaseOnDone(ctx, accountReleaseFunc)
 				return nil
 			},
-			OnUpstreamError: func(turn int, statusCode int, responseBody []byte, warningText string) {
-				model := reqModel
+			OnUpstreamError: func(turn int, originalModel string, statusCode int, responseBody []byte, warningText string) {
+				model := strings.TrimSpace(originalModel)
+				if model == "" {
+					model = reqModel
+				}
 				h.recordOpenAICyberWarningWithPromptExcerpt(c, reqLog, apiKey, account, model, statusCode, responseBody, warningText, getCyberPromptExcerpt(turn))
 			},
 			AfterTurn: func(capture service.OpenAIWSTurnCapture) {
 				turn := capture.Turn
 				result := capture.Result
 				turnErr := capture.Err
+				turnModel := strings.TrimSpace(capture.OriginalModel)
+				if turnModel == "" {
+					turnModel = reqModel
+				}
 				releaseTurnSlots()
 				defer clearCyberPolicyTurnState(c)
 				turnRequestBodyForCyber := capture.RequestBody
 				if len(turnRequestBodyForCyber) == 0 {
 					turnRequestBodyForCyber = wsFirstMessageForUsageFallback
 				}
-				h.recordCyberPolicyIfMarked(
+				cyberPolicyHandled := h.recordCyberPolicyIfMarked(
 					c,
 					apiKey,
 					account,
 					subscription,
-					reqModel,
+					turnModel,
 					turnErr != nil,
 					cyberBlockKeyWS,
-					channelMappingWS.ToUsageFields(reqModel, ""),
+					channelMappingWS.ToUsageFields(turnModel, ""),
 					service.HashUsageRequestPayload(turnRequestBodyForCyber),
 				)
-				if service.GetOpsCyberPolicy(c) != nil {
+				if cyberPolicyHandled {
 					cyberBlockedThisConn.Store(true)
 				}
 				defer clearCyberPromptExcerpt(turn)
@@ -1676,7 +1683,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					if result == nil || result.ImageCount <= 0 {
 						return
 					}
-					if service.GetOpsCyberPolicy(c) != nil {
+					if cyberPolicyHandled {
 						return
 					}
 					reqLog.Warn("openai.websocket_partial_error_with_image_result",
@@ -1700,7 +1707,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					turnRequestBody = wsFirstMessageForUsageFallback
 				}
 				turnPayloadHash := service.HashUsageRequestPayload(turnRequestBody)
-				cyberBlocked := service.GetOpsCyberPolicy(c) != nil
+				cyberBlocked := cyberPolicyHandled
 				quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 				h.submitOpenAIUsageRecordTask(c, result, func(taskCtx context.Context) {
 					if err := h.gatewayService.RecordUsage(taskCtx, &service.OpenAIRecordUsageInput{
@@ -1720,7 +1727,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 						CaptureIncomplete:  result.ResponseBody == nil,
 						APIKeyService:      h.apiKeyService,
 						QuotaPlatform:      quotaPlatform,
-						ChannelUsageFields: channelMappingWS.ToUsageFields(reqModel, result.UpstreamModel),
+						ChannelUsageFields: channelMappingWS.ToUsageFields(turnModel, result.UpstreamModel),
 						CyberBlocked:       cyberBlocked,
 					}); err != nil {
 						reqLog.Error("openai.websocket_record_usage_failed",
@@ -2321,15 +2328,14 @@ func (h *OpenAIGatewayHandler) enqueueCyberSessionBlockedOpsEntry(c *gin.Context
 	enqueueOpsErrorLog(h.opsService, buildCyberSessionBlockedOpsEntry(meta))
 }
 
-func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey *service.APIKey, account *service.Account, subscription *service.UserSubscription, model string, forwardErrored bool, cyberBlockKey string, channelFields service.ChannelUsageFields, requestPayloadHash string) {
+func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey *service.APIKey, account *service.Account, subscription *service.UserSubscription, model string, forwardErrored bool, cyberBlockKey string, channelFields service.ChannelUsageFields, requestPayloadHash string) bool {
 	mark := service.GetOpsCyberPolicy(c)
 	if mark == nil || c == nil {
-		return
+		return false
 	}
 	if c.GetBool(cyberPolicyRecordedKey) {
-		return
+		return true
 	}
-	c.Set(cyberPolicyRecordedKey, true)
 
 	platform := service.PlatformOpenAI
 	if account != nil && strings.TrimSpace(account.Platform) != "" {
@@ -2338,6 +2344,18 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 	meta := h.cyberPolicyOpsMeta(c, apiKey, account, model, platform, requestIsStream(c), cyberBlockKey)
 	responseBody := []byte(mark.Body)
 	promptExcerpt := currentOpenAICyberWarningPromptExcerpt(c)
+	if h.contentModerationService != nil {
+		input := buildOpenAICyberWarningInput(c, apiKey, account, model, mark.UpstreamStatus, responseBody, mark.Message, promptExcerpt)
+		inScope, err := h.contentModerationService.CyberWarningInScope(c.Request.Context(), input)
+		if err != nil {
+			requestLogger(c, "handler.openai_gateway.cyber_policy").Warn("content_moderation.cyber_policy_scope_check_failed", zap.Error(err))
+			return false
+		}
+		if !inScope {
+			return false
+		}
+	}
+	c.Set(cyberPolicyRecordedKey, true)
 	h.recordOpenAICyberWarningWithPromptExcerpt(c, requestLogger(c, "handler.openai_gateway.cyber_policy"), apiKey, account, model, mark.UpstreamStatus, responseBody, mark.Message, promptExcerpt)
 	quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
 
@@ -2371,6 +2389,7 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 			enqueueOpsErrorLog(h.opsService, buildCyberPolicyOpsErrorEntry(meta, mark))
 		}
 	}()
+	return true
 }
 
 func (h *OpenAIGatewayHandler) cyberPolicyOpsMeta(c *gin.Context, apiKey *service.APIKey, account *service.Account, model string, platform string, stream bool, sessionBlockKey string) cyberPolicyOpsErrorMeta {

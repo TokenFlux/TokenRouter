@@ -1384,6 +1384,9 @@ func (s *ContentModerationService) RecordCyberWarning(ctx context.Context, input
 	if !cfg.CyberWarningEnabled {
 		return nil, nil
 	}
+	if !cfg.cyberInputInScope(input, "content_moderation.cyber_warning") {
+		return nil, nil
+	}
 	warningText := strings.TrimSpace(input.WarningText)
 	bodyWarningText := extractCyberWarningText(input.ResponseBody)
 	warningTextMatched := IsOpenAICyberWarningText(warningText)
@@ -1415,6 +1418,56 @@ func (s *ContentModerationService) RecordCyberWarning(ctx context.Context, input
 	}
 	s.applyCyberWarningPostCommitSideEffects(ctx, cfg, warning, autoBanJustApplied)
 	return warning, nil
+}
+
+// CyberWarningInScope 判断 OpenAI Cyber 相关副作用是否落在风控检测范围内。
+func (s *ContentModerationService) CyberWarningInScope(ctx context.Context, input ContentModerationCyberWarningInput) (bool, error) {
+	if s == nil || s.settingRepo == nil {
+		return false, nil
+	}
+	if !s.isRiskControlEnabled(ctx) {
+		return false, nil
+	}
+	cfg, err := s.loadConfig(ctx)
+	if err != nil {
+		return false, err
+	}
+	return cfg.cyberInputInScope(input, "content_moderation.cyber_policy"), nil
+}
+
+func (cfg *ContentModerationConfig) cyberInputInScope(input ContentModerationCyberWarningInput, logPrefix string) bool {
+	if cfg == nil {
+		return true
+	}
+	if logPrefix == "" {
+		logPrefix = "content_moderation.cyber_scope"
+	}
+	// Cyber 告警和 cyber_policy 副作用沿用普通风控检测范围，避免范围外分组或模型进入告警、封禁和 OPS 统计。
+	if !cfg.includesGroup(input.GroupID) {
+		slog.Info(logPrefix+"_skip_group_out_of_scope",
+			"user_id", input.UserID,
+			"api_key_id", input.APIKeyID,
+			"group_id", contentModerationLogGroupID(input.GroupID),
+			"group_name", input.GroupName,
+			"endpoint", input.Endpoint,
+			"model", input.Model,
+			"all_groups", cfg.AllGroups,
+			"configured_group_ids", cfg.GroupIDs)
+		return false
+	}
+	if !cfg.includesModel(input.Model) {
+		slog.Info(logPrefix+"_skip_model_out_of_scope",
+			"user_id", input.UserID,
+			"api_key_id", input.APIKeyID,
+			"group_id", contentModerationLogGroupID(input.GroupID),
+			"group_name", input.GroupName,
+			"endpoint", input.Endpoint,
+			"model", input.Model,
+			"model_filter_type", cfg.ModelFilter.Type,
+			"configured_models", cfg.ModelFilter.Models)
+		return false
+	}
+	return true
 }
 
 func (s *ContentModerationService) ListCyberWarnings(ctx context.Context, filter ContentModerationCyberWarningFilter) ([]ContentModerationCyberWarning, *pagination.PaginationResult, error) {

@@ -1105,6 +1105,7 @@ func TestOpenAIRecordCyberWarning_RecordsStructuredResponseBody(t *testing.T) {
 	cfg := service.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
+		AllGroups:           true,
 	}
 	rawCfg, err := json.Marshal(cfg)
 	require.NoError(t, err)
@@ -1157,6 +1158,7 @@ func TestOpenAIRecordCyberWarning_UsesExplicitPromptExcerpt(t *testing.T) {
 	cfg := service.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
+		AllGroups:           true,
 	}
 	rawCfg, err := json.Marshal(cfg)
 	require.NoError(t, err)
@@ -1198,6 +1200,7 @@ func TestOpenAIRecordCyberWarning_RequestSnapshotFallsBackToLatestUserPrompt(t *
 	cfg := service.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
+		AllGroups:           true,
 	}
 	rawCfg, err := json.Marshal(cfg)
 	require.NoError(t, err)
@@ -1246,6 +1249,7 @@ func TestOpenAIRecordForwardResultCyberWarning_RecordsWSV2TerminalWarning(t *tes
 	cfg := service.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
+		AllGroups:           true,
 	}
 	rawCfg, err := json.Marshal(cfg)
 	require.NoError(t, err)
@@ -1320,6 +1324,7 @@ func TestOpenAIRecordForwardErrorCyberWarning_RecordsWSV2TerminalWarning(t *test
 	cfg := service.ContentModerationConfig{
 		CyberWarningEnabled: true,
 		CyberWindowHours:    720,
+		AllGroups:           true,
 	}
 	rawCfg, err := json.Marshal(cfg)
 	require.NoError(t, err)
@@ -1362,6 +1367,51 @@ func TestOpenAIRecordForwardErrorCyberWarning_RecordsWSV2TerminalWarning(t *test
 	require.Equal(t, int64(2001), *warning.AccountID)
 	require.Equal(t, 502, warning.UpstreamStatus)
 	require.Contains(t, warning.WarningText, "high-risk cyber")
+}
+
+func TestOpenAIRecordCyberPolicyIfMarked_SkipsSideEffectsOutOfScope(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := service.ContentModerationConfig{
+		CyberWarningEnabled: true,
+		CyberWindowHours:    720,
+		AllGroups:           false,
+		GroupIDs:            []int64{101},
+	}
+	rawCfg, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	repo := &contentModerationHandlerTestRepo{}
+	settingRepo := &contentModerationHandlerSettingRepo{values: map[string]string{
+		service.SettingKeyRiskControlEnabled:      "true",
+		service.SettingKeyContentModerationConfig: string(rawCfg),
+	}}
+	moderationSvc := service.NewContentModerationService(settingRepo, repo, nil, nil, nil, nil, nil)
+	h := &OpenAIGatewayHandler{contentModerationService: moderationSvc}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", nil)
+	service.MarkOpsCyberPolicy(c, service.CyberPolicyMark{
+		Message:        "Request blocked by upstream cyber policy",
+		Body:           `{"response":{"error":{"code":"cyber_policy","message":"Request blocked by upstream cyber policy"}}}`,
+		UpstreamStatus: http.StatusOK,
+	})
+	outOfScopeGroupID := int64(202)
+	apiKey := &service.APIKey{
+		ID:      101,
+		Name:    "test-key",
+		UserID:  1001,
+		GroupID: &outOfScopeGroupID,
+		User:    &service.User{ID: 1001, Email: "user@example.com"},
+		Group:   &service.Group{ID: outOfScopeGroupID, Name: "out-of-scope"},
+	}
+	account := &service.Account{ID: 2001, Name: "openai-1"}
+
+	handled := h.recordCyberPolicyIfMarked(c, apiKey, account, nil, "gpt-5.1", true, "cyber-session-key", service.ChannelUsageFields{}, "payload-hash")
+
+	require.False(t, handled)
+	require.Empty(t, repo.cyberWarnings)
+	require.False(t, c.GetBool(cyberPolicyRecordedKey))
 }
 
 func TestOpenAIResponsesWebSocket_PassthroughUsageLogPersistsUserAgentAndReasoningEffort(t *testing.T) {

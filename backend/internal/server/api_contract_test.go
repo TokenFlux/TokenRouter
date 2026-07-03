@@ -327,6 +327,7 @@ func TestAPIContracts(t *testing.T) {
 						Description:         "desc",
 						Platform:            service.PlatformAnthropic,
 						RateMultiplier:      1.5,
+						PeakRateMultiplier:  1.0,
 						IsExclusive:         false,
 						Status:              service.StatusActive,
 						ModelRoutingEnabled: true,
@@ -354,6 +355,10 @@ func TestAPIContracts(t *testing.T) {
 						"platform": "anthropic",
 						"display_brand": "",
 						"rate_multiplier": 1.5,
+						"peak_rate_enabled": false,
+						"peak_start": "",
+						"peak_end": "",
+						"peak_rate_multiplier": 1,
 						"is_exclusive": false,
 						"status": "active",
 						"image_price_1k": null,
@@ -473,6 +478,103 @@ func TestAPIContracts(t *testing.T) {
 						"plan_id": null
 					}
 				]
+			}`,
+		},
+		{
+			name: "POST /api/v1/admin/subscriptions/501/restore",
+			setup: func(t *testing.T, deps *contractDeps) {
+				t.Helper()
+				deletedAt := deps.now.Add(-time.Hour)
+				deps.userSubRepo.SetByID(501, service.UserSubscription{
+					ID:         501,
+					UserID:     1,
+					PlanID:     10,
+					StartsAt:   deps.now.Add(-24 * time.Hour),
+					ExpiresAt:  time.Date(2099, 1, 2, 3, 4, 5, 0, time.UTC),
+					Status:     service.SubscriptionStatusActive,
+					AssignedBy: ptr(int64(1)),
+					AssignedAt: deps.now,
+					Notes:      "restore-note",
+					CreatedAt:  deps.now.Add(-24 * time.Hour),
+					UpdatedAt:  deps.now.Add(-time.Hour),
+					DeletedAt:  &deletedAt,
+					User: &service.User{
+						ID:       1,
+						Email:    "alice@example.com",
+						Username: "alice",
+						Role:     service.RoleUser,
+						Status:   service.StatusActive,
+					},
+					Plan: &service.SubscriptionPlan{
+						ID:   10,
+						Name: "Pro",
+					},
+				})
+			},
+			method:     http.MethodPost,
+			path:       "/api/v1/admin/subscriptions/501/restore",
+			wantStatus: http.StatusOK,
+			wantJSON: `{
+				"code": 0,
+				"message": "success",
+				"data": {
+					"id": 501,
+					"user_id": 1,
+					"plan_id": 10,
+					"starts_at": "2025-01-01T03:04:05Z",
+					"expires_at": "2099-01-02T03:04:05Z",
+					"status": "active",
+					"daily_window_start": null,
+					"weekly_window_start": null,
+					"monthly_window_start": null,
+					"daily_limit_usd": null,
+					"weekly_limit_usd": null,
+					"monthly_limit_usd": null,
+					"daily_usage_usd": 0,
+					"weekly_usage_usd": 0,
+					"monthly_usage_usd": 0,
+					"created_at": "2025-01-01T03:04:05Z",
+					"updated_at": "2025-01-02T03:04:05Z",
+					"user": {
+						"id": 1,
+						"email": "alice@example.com",
+						"username": "alice",
+						"role": "user",
+						"balance": 0,
+						"concurrency": 0,
+						"rpm_limit": 0,
+						"status": "active",
+						"allowed_groups": null,
+						"disabled_public_groups": null,
+						"created_at": "0001-01-01T00:00:00Z",
+						"updated_at": "0001-01-01T00:00:00Z",
+						"balance_notify_enabled": false,
+						"balance_notify_threshold_type": "",
+						"balance_notify_threshold": null,
+						"balance_notify_extra_emails": null,
+						"total_recharged": 0
+					},
+					"plan": {
+						"id": 10,
+						"name": "Pro",
+						"description": "",
+						"price": 0,
+						"daily_limit_usd": null,
+						"weekly_limit_usd": null,
+						"monthly_limit_usd": null,
+						"validity_days": 0,
+						"validity_unit": "",
+						"features": "",
+						"product_name": "",
+						"for_sale": false,
+						"sort_order": 0,
+						"created_at": "0001-01-01T00:00:00Z",
+						"updated_at": "0001-01-01T00:00:00Z"
+					},
+					"assigned_by": 1,
+					"assigned_at": "2025-01-02T03:04:05Z",
+					"notes": "restore-note"
+				}
 			}`,
 		},
 		{
@@ -1391,6 +1493,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 
 	subscriptionService := service.NewSubscriptionService(groupRepo, userSubRepo, nil, nil, cfg)
 	subscriptionHandler := handler.NewSubscriptionHandler(subscriptionService)
+	adminSubscriptionHandler := adminhandler.NewSubscriptionHandler(subscriptionService)
 
 	redeemService := service.NewRedeemService(redeemRepo, userRepo, subscriptionService, nil, nil, nil, nil, nil)
 	redeemHandler := handler.NewRedeemHandler(redeemService)
@@ -1453,6 +1556,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 	v1Admin.Use(adminAuth)
 	v1Admin.GET("/settings", adminSettingHandler.GetSettings)
 	v1Admin.POST("/accounts/bulk-update", adminAccountHandler.BulkUpdate)
+	v1Admin.POST("/subscriptions/:id/restore", adminSubscriptionHandler.Restore)
 
 	return &contractDeps{
 		now:         now,
@@ -2115,6 +2219,7 @@ func (stubRedeemCodeRepo) SumPositiveBalanceByUser(ctx context.Context, userID i
 type stubUserSubscriptionRepo struct {
 	byUser       map[int64][]service.UserSubscription
 	activeByUser map[int64][]service.UserSubscription
+	byID         map[int64]service.UserSubscription
 }
 
 func (r *stubUserSubscriptionRepo) SetByUserID(userID int64, subs []service.UserSubscription) {
@@ -2131,11 +2236,35 @@ func (r *stubUserSubscriptionRepo) SetActiveByUserID(userID int64, subs []servic
 	r.activeByUser[userID] = append([]service.UserSubscription(nil), subs...)
 }
 
+func (r *stubUserSubscriptionRepo) SetByID(id int64, sub service.UserSubscription) {
+	if r.byID == nil {
+		r.byID = make(map[int64]service.UserSubscription)
+	}
+	r.byID[id] = sub
+}
+
 func (stubUserSubscriptionRepo) Create(ctx context.Context, sub *service.UserSubscription) error {
 	return errors.New("not implemented")
 }
-func (stubUserSubscriptionRepo) GetByID(ctx context.Context, id int64) (*service.UserSubscription, error) {
-	return nil, errors.New("not implemented")
+func (r *stubUserSubscriptionRepo) GetByID(ctx context.Context, id int64) (*service.UserSubscription, error) {
+	if r.byID == nil {
+		return nil, errors.New("not implemented")
+	}
+	sub, ok := r.byID[id]
+	if !ok || sub.DeletedAt != nil {
+		return nil, service.ErrSubscriptionNotFound
+	}
+	return &sub, nil
+}
+func (r *stubUserSubscriptionRepo) GetByIDIncludeDeleted(ctx context.Context, id int64) (*service.UserSubscription, error) {
+	if r.byID == nil {
+		return nil, errors.New("not implemented")
+	}
+	sub, ok := r.byID[id]
+	if !ok {
+		return nil, service.ErrSubscriptionNotFound
+	}
+	return &sub, nil
 }
 func (stubUserSubscriptionRepo) GetByUserIDAndGroupID(ctx context.Context, userID, groupID int64) (*service.UserSubscription, error) {
 	return nil, errors.New("not implemented")
@@ -2152,6 +2281,20 @@ func (stubUserSubscriptionRepo) Update(ctx context.Context, sub *service.UserSub
 func (stubUserSubscriptionRepo) Delete(ctx context.Context, id int64) error {
 	return errors.New("not implemented")
 }
+func (r *stubUserSubscriptionRepo) Restore(ctx context.Context, subscriptionID int64, restoredStatus string) (*service.UserSubscription, error) {
+	if r.byID == nil {
+		return nil, errors.New("not implemented")
+	}
+	sub, ok := r.byID[subscriptionID]
+	if !ok {
+		return nil, service.ErrSubscriptionNotFound
+	}
+	sub.Status = restoredStatus
+	sub.DeletedAt = nil
+	sub.UpdatedAt = time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
+	r.byID[subscriptionID] = sub
+	return &sub, nil
+}
 func (r *stubUserSubscriptionRepo) ListByUserID(ctx context.Context, userID int64) ([]service.UserSubscription, error) {
 	if r.byUser == nil {
 		return nil, nil
@@ -2164,8 +2307,17 @@ func (r *stubUserSubscriptionRepo) ListActiveByUserID(ctx context.Context, userI
 	}
 	return append([]service.UserSubscription(nil), r.activeByUser[userID]...), nil
 }
-func (stubUserSubscriptionRepo) ListByUserIDAndPlanID(ctx context.Context, userID, planID int64) ([]service.UserSubscription, error) {
-	return nil, errors.New("not implemented")
+func (r *stubUserSubscriptionRepo) ListByUserIDAndPlanID(ctx context.Context, userID, planID int64) ([]service.UserSubscription, error) {
+	if r.byID == nil {
+		return nil, errors.New("not implemented")
+	}
+	out := make([]service.UserSubscription, 0)
+	for _, sub := range r.byID {
+		if sub.UserID == userID && sub.PlanID == planID {
+			out = append(out, sub)
+		}
+	}
+	return out, nil
 }
 func (stubUserSubscriptionRepo) ListByGroupID(ctx context.Context, groupID int64, params pagination.PaginationParams) ([]service.UserSubscription, *pagination.PaginationResult, error) {
 	return nil, nil, errors.New("not implemented")
