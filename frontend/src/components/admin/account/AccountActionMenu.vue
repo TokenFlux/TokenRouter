@@ -23,11 +23,13 @@
               {{ t('admin.scheduledTests.schedule') }}
             </button>
             <!-- 影子账号不持凭据:重授权/刷新 token 对其无效(后端拒绝),故隐藏(外审 G4)。 -->
-            <template v-if="(account.type === 'oauth' || account.type === 'setup-token') && !isShadow">
+            <template v-if="supportsReauth">
               <button @click="$emit('reauth', account); $emit('close')" class="flex w-full items-center gap-2 px-4 py-2 text-sm text-blue-600 hover:bg-gray-100 dark:hover:bg-dark-700">
                 <Icon name="link" size="sm" />
                 {{ t('admin.accounts.reAuthorize') }}
               </button>
+            </template>
+            <template v-if="supportsTokenRefresh">
               <button @click="$emit('refresh-token', account); $emit('close')" class="flex w-full items-center gap-2 px-4 py-2 text-sm text-purple-600 hover:bg-gray-100 dark:hover:bg-dark-700">
                 <Icon name="refresh" size="sm" />
                 {{ t('admin.accounts.refreshToken') }}
@@ -92,6 +94,17 @@ const isAntigravityOAuth = computed(() => props.account?.platform === 'antigravi
 const isOpenAIOAuth = computed(() => props.account?.platform === 'openai' && props.account?.type === 'oauth')
 // 影子账号(链接型,持 parent_account_id)不持凭据、type 不可变,凭据/隐私类操作对其无效。
 const isShadow = computed(() => props.account?.parent_account_id != null)
+const supportsReauth = computed(() =>
+  (props.account?.type === 'oauth' || props.account?.type === 'setup-token') && !isShadow.value
+)
+const supportsTokenRefresh = computed(() =>
+  supportsReauth.value || (
+    props.account?.platform === 'qoder' &&
+    props.account?.type === 'cosy' &&
+    props.account.credentials_status?.has_refresh_token === true &&
+    !isShadow.value
+  )
+)
 // OpenAI OAuth 母账号指自身不是影子账号(parent_account_id == null)的账号。
 const isOpenAIOAuthParent = computed(() => isOpenAIOAuth.value && !isShadow.value)
 const supportsPrivacy = computed(() => (isAntigravityOAuth.value || isOpenAIOAuth.value) && !isShadow.value)

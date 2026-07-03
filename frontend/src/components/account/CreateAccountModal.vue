@@ -933,6 +933,22 @@
       <!-- Qoder manual credentials -->
       <div v-if="form.platform === 'qoder' && qoderAccountType === 'manual'" class="space-y-4">
         <div>
+          <label class="input-label">{{ t('admin.accounts.qoder.pat') }}</label>
+          <input
+            v-model="qoderPAT"
+            type="password"
+            class="input font-mono"
+            autocomplete="off"
+            placeholder="pat-..."
+          />
+          <p class="input-hint">{{ t('admin.accounts.qoder.patHint') }}</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="h-px flex-1 bg-gray-200 dark:bg-dark-600"></div>
+          <span class="text-xs uppercase tracking-wide text-gray-400">{{ t('common.or') }}</span>
+          <div class="h-px flex-1 bg-gray-200 dark:bg-dark-600"></div>
+        </div>
+        <div>
           <label class="input-label">{{ t('admin.accounts.qoder.securityOauthToken') }}</label>
           <input
             v-model="qoderSecurityOauthToken"
@@ -3931,6 +3947,7 @@ const mixedScheduling = ref(false) // For antigravity accounts: enable mixed sch
 const allowOverages = ref(false) // For antigravity accounts: enable AI Credits overages
 const antigravityAccountType = ref<'oauth' | 'upstream'>('oauth') // For antigravity: oauth or upstream
 const qoderAccountType = ref<'oauth' | 'manual'>('oauth')
+const qoderPAT = ref('')
 const qoderSecurityOauthToken = ref('')
 const qoderMachineId = ref('')
 const qoderUidAid = ref('')
@@ -4588,6 +4605,7 @@ watch(
       qoderAccountType.value = 'oauth'
     } else {
       qoderAccountType.value = 'oauth'
+      qoderPAT.value = ''
       qoderSecurityOauthToken.value = ''
       qoderMachineId.value = ''
       qoderUidAid.value = ''
@@ -5108,6 +5126,7 @@ const resetForm = () => {
   allowOverages.value = false
   antigravityAccountType.value = 'oauth'
   qoderAccountType.value = 'oauth'
+  qoderPAT.value = ''
   qoderSecurityOauthToken.value = ''
   qoderMachineId.value = ''
   qoderUidAid.value = ''
@@ -5228,7 +5247,7 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
     } else {
       delete extra.tls_fingerprint_profile_id
     }
-    if (tlsFingerprintRouterId.value) {
+    if (form.platform === 'openai' && accountCategory.value === 'oauth-based' && tlsFingerprintRouterId.value) {
       extra.tls_fingerprint_router_id = tlsFingerprintRouterId.value
     } else {
       delete extra.tls_fingerprint_router_id
@@ -5502,29 +5521,32 @@ const handleSubmit = async () => {
       appStore.showError(t('admin.accounts.pleaseEnterAccountName'))
       return
     }
-    if (!qoderSecurityOauthToken.value.trim()) {
-      appStore.showError(t('admin.accounts.qoder.pleaseEnterSecurityOauthToken'))
-      return
-    }
-    if (!qoderMachineId.value.trim()) {
-      appStore.showError(t('admin.accounts.qoder.pleaseEnterMachineId'))
-      return
-    }
-    if (!qoderUidAid.value.trim()) {
-      appStore.showError(t('admin.accounts.qoder.pleaseEnterUidAid'))
-      return
-    }
+    const credentials: Record<string, unknown> = {}
+    if (qoderPAT.value.trim()) {
+      credentials.pat = qoderPAT.value.trim()
+    } else {
+      if (!qoderSecurityOauthToken.value.trim()) {
+        appStore.showError(t('admin.accounts.qoder.pleaseEnterSecurityOauthToken'))
+        return
+      }
+      if (!qoderMachineId.value.trim()) {
+        appStore.showError(t('admin.accounts.qoder.pleaseEnterMachineId'))
+        return
+      }
+      if (!qoderUidAid.value.trim()) {
+        appStore.showError(t('admin.accounts.qoder.pleaseEnterUidAid'))
+        return
+      }
 
-    const uidAid = qoderUidAid.value.trim()
-    const credentials: Record<string, unknown> = {
-      security_oauth_token: qoderSecurityOauthToken.value.trim(),
-      machine_id: qoderMachineId.value.trim(),
-      uid: uidAid,
-      aid: uidAid,
-      user_type: qoderUserType.value.trim() || 'personal_standard'
-    }
-    if (qoderRefreshToken.value.trim()) {
-      credentials.refresh_token = qoderRefreshToken.value.trim()
+      const uidAid = qoderUidAid.value.trim()
+      credentials.security_oauth_token = qoderSecurityOauthToken.value.trim()
+      credentials.machine_id = qoderMachineId.value.trim()
+      credentials.uid = uidAid
+      credentials.aid = uidAid
+      credentials.user_type = qoderUserType.value.trim() || 'personal_standard'
+      if (qoderRefreshToken.value.trim()) {
+        credentials.refresh_token = qoderRefreshToken.value.trim()
+      }
     }
     applyQoderModelRestriction(credentials)
     applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
@@ -5683,7 +5705,9 @@ const pollQoderAuthorizationOnce = async () => {
     qoderAuthPopup = null
     await createQoderOAuthAccount(result.token_info)
   } finally {
-    qoderPollInFlight = false
+    if (generation === qoderPollGeneration) {
+      qoderPollInFlight = false
+    }
   }
 }
 

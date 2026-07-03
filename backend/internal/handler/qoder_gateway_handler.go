@@ -19,13 +19,14 @@ import (
 
 // QoderGatewayHandler handles native Qoder gateway requests.
 type QoderGatewayHandler struct {
-	gatewayService        *service.GatewayService
-	qoderGatewayService   *service.QoderGatewayService
-	billingCacheService   *service.BillingCacheService
-	usageRecordWorkerPool *service.UsageRecordWorkerPool
-	apiKeyService         *service.APIKeyService
-	concurrencyHelper     *ConcurrencyHelper
-	maxAccountSwitches    int
+	gatewayService          *service.GatewayService
+	qoderGatewayService     *service.QoderGatewayService
+	billingCacheService     *service.BillingCacheService
+	usageRecordWorkerPool   *service.UsageRecordWorkerPool
+	apiKeyService           *service.APIKeyService
+	errorPassthroughService *service.ErrorPassthroughService
+	concurrencyHelper       *ConcurrencyHelper
+	maxAccountSwitches      int
 }
 
 func NewQoderGatewayHandler(
@@ -35,15 +36,17 @@ func NewQoderGatewayHandler(
 	billingCacheService *service.BillingCacheService,
 	usageRecordWorkerPool *service.UsageRecordWorkerPool,
 	apiKeyService *service.APIKeyService,
+	errorPassthroughService *service.ErrorPassthroughService,
 ) *QoderGatewayHandler {
 	return &QoderGatewayHandler{
-		gatewayService:        gatewayService,
-		qoderGatewayService:   qoderGatewayService,
-		billingCacheService:   billingCacheService,
-		usageRecordWorkerPool: usageRecordWorkerPool,
-		apiKeyService:         apiKeyService,
-		concurrencyHelper:     NewConcurrencyHelper(concurrencyService, SSEPingFormatComment, 0),
-		maxAccountSwitches:    3,
+		gatewayService:          gatewayService,
+		qoderGatewayService:     qoderGatewayService,
+		billingCacheService:     billingCacheService,
+		usageRecordWorkerPool:   usageRecordWorkerPool,
+		apiKeyService:           apiKeyService,
+		errorPassthroughService: errorPassthroughService,
+		concurrencyHelper:       NewConcurrencyHelper(concurrencyService, SSEPingFormatComment, 0),
+		maxAccountSwitches:      3,
 	}
 }
 
@@ -80,6 +83,9 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 	if !ok {
 		h.errorResponse(c, http.StatusInternalServerError, "api_error", "User context not found", endpoint)
 		return
+	}
+	if h.errorPassthroughService != nil {
+		service.BindErrorPassthroughService(c, h.errorPassthroughService)
 	}
 	reqLog := requestLogger(
 		c,
@@ -308,7 +314,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 					return
 				}
 			}
-			if status, errType, message, ok := qoderGatewayErrorDetails(err); ok {
+			if status, errType, message, ok := h.qoderGatewayErrorDetails(c, err); ok {
 				service.SetOpsUpstreamError(c, upstreamStatusFromError(err), message, "")
 				h.streamingAwareError(c, status, errType, message, c.Writer.Size() != writerSizeBeforeForward, endpoint)
 				return
@@ -434,6 +440,37 @@ func qoderGatewayErrorDetails(err error) (int, string, string, bool) {
 		errType = "rate_limit_error"
 	}
 	return status, errType, apiErr.Error(), true
+}
+
+func (h *QoderGatewayHandler) qoderGatewayErrorDetails(c *gin.Context, err error) (int, string, string, bool) {
+	status, errType, message, ok := qoderGatewayErrorDetails(err)
+	if !ok || h == nil || h.errorPassthroughService == nil {
+		return status, errType, message, ok
+	}
+
+	var apiErr *qoder.APIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode <= 0 {
+		return status, errType, message, ok
+	}
+	rule := h.errorPassthroughService.MatchRule(service.PlatformQoder, apiErr.StatusCode, []byte(apiErr.Body))
+	if rule == nil {
+		return status, errType, message, ok
+	}
+
+	status = apiErr.StatusCode
+	if !rule.PassthroughCode && rule.ResponseCode != nil {
+		status = *rule.ResponseCode
+	}
+	errType = "upstream_error"
+	if !rule.PassthroughBody && rule.CustomMessage != nil {
+		message = *rule.CustomMessage
+	} else if extracted := service.ExtractUpstreamErrorMessage([]byte(apiErr.Body)); extracted != "" {
+		message = extracted
+	}
+	if rule.SkipMonitoring && c != nil {
+		c.Set(service.OpsSkipPassthroughKey, true)
+	}
+	return status, errType, message, true
 }
 
 func upstreamStatusFromError(err error) int {

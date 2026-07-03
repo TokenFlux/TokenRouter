@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"log/slog"
+	"strings"
 )
 
 // PricingSource 定价来源标识
@@ -59,8 +60,9 @@ func NewModelPricingResolver(channelService *ChannelService, billingService *Bil
 
 // PricingInput 定价解析输入
 type PricingInput struct {
-	Model   string
-	GroupID *int64 // nil 表示不检查渠道
+	Model         string
+	GroupID       *int64 // nil 表示不检查渠道
+	BaseModelHint string // 可选：最终上游模型提示，用于 Qoder 自定义 alias 的部分手动价回退
 }
 
 // Resolve 解析模型定价。
@@ -90,7 +92,8 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	}
 
 	// 1. 获取基础定价
-	basePricing, source := r.resolveBasePricing(input.Model)
+	basePricingModel := r.resolveBasePricingModel(ctx, input)
+	basePricing, source := r.resolveBasePricing(basePricingModel)
 
 	resolved := &ResolvedPricing{
 		Mode:                   BillingModeToken,
@@ -110,6 +113,29 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	}
 
 	return resolved
+}
+
+func (r *ModelPricingResolver) resolveBasePricingModel(ctx context.Context, input PricingInput) string {
+	if input.GroupID == nil || r.channelService == nil {
+		return input.Model
+	}
+	if r.channelService.GetGroupPlatform(ctx, *input.GroupID) != PlatformQoder {
+		return input.Model
+	}
+	if hint := strings.TrimSpace(input.BaseModelHint); hint != "" && hint != input.Model {
+		if defaultModel, ok := QoderAliasDefaultBillingModel(hint); ok {
+			return defaultModel
+		}
+	}
+	if defaultModel, ok := QoderAliasDefaultBillingModel(input.Model); ok {
+		return defaultModel
+	}
+	if mapping := r.channelService.ResolveChannelMapping(ctx, *input.GroupID, input.Model); mapping.Mapped {
+		if defaultModel, ok := QoderAliasDefaultBillingModel(mapping.MappedModel); ok {
+			return defaultModel
+		}
+	}
+	return input.Model
 }
 
 // resolveBasePricing 从 LiteLLM 或 Fallback 获取基础定价
@@ -166,7 +192,8 @@ func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricin
 		return
 	}
 
-	// 否则用 flat 字段覆盖 BasePricing
+	// 否则用 flat 字段覆盖 BasePricing；未配置的 token 价格字段继续保留基础定价，
+	// 便于只手动覆盖其中一部分字段。
 	if resolved.BasePricing == nil {
 		resolved.BasePricing = &ModelPricing{}
 	}
@@ -188,7 +215,8 @@ func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricin
 		resolved.BasePricing.CacheReadPricePerToken = *chPricing.CacheReadPrice
 		resolved.BasePricing.CacheReadPricePerTokenPriority = *chPricing.CacheReadPrice
 	}
-	// 渠道定价覆盖一切：显式配置则用配置值，未配置则归零，不回退到默认定价
+	// 图片输出价格与 token 价格不同：nil 表示该渠道未启用图片 token 计费，
+	// 因此显式归零，避免意外回退到模型默认图片价格。
 	if chPricing.ImageOutputPrice != nil {
 		resolved.BasePricing.ImageOutputPricePerToken = *chPricing.ImageOutputPrice
 	} else {

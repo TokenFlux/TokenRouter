@@ -18,6 +18,25 @@ func isQoderAliasBillingModel(model string) bool {
 	if _, ok := defaultQoderModelAliases[model]; ok {
 		return true
 	}
-	_, ok := qoderCompatModelAliases[model]
-	return ok
+	if _, ok := qoderCompatModelAliases[model]; ok {
+		return true
+	}
+	return isQoderAliasRouteKey(model, defaultQoderModelAliases) ||
+		isQoderAliasRouteKey(model, qoderCompatModelAliases)
+}
+
+func isQoderAliasRouteKey(model string, aliases map[string]qoderModelInfo) bool {
+	for _, info := range aliases {
+		if strings.TrimSpace(info.Key) == model {
+			return true
+		}
+	}
+	return false
+}
+
+func QoderAliasDefaultBillingModel(model string) (string, bool) {
+	if !isQoderAliasBillingModel(model) {
+		return "", false
+	}
+	return qoderDefaultAliasFallbackBillingModel, true
 }

@@ -156,9 +156,9 @@ export interface ModelDefaultPricing {
   image_output_price?: number
 }
 
-export async function getModelDefaultPricing(model: string): Promise<ModelDefaultPricing> {
+export async function getModelDefaultPricing(model: string, platform?: string): Promise<ModelDefaultPricing> {
   const { data } = await apiClient.get<ModelDefaultPricing>('/admin/channels/model-pricing', {
-    params: { model }
+    params: { model, platform }
   })
   return data
 }

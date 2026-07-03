@@ -64,6 +64,26 @@ func TestValidateQoderCosyCredentialsRejectsMachineIDOnly(t *testing.T) {
 	require.ErrorContains(t, ValidateQoderCosyCredentials(context.Background(), account), "pat or security_oauth_token")
 }
 
+func TestValidateQoderCosyCredentialsRejectsNonCosyQoderAccountType(t *testing.T) {
+	account := &Account{
+		Platform:    PlatformQoder,
+		Type:        AccountTypeAPIKey,
+		Credentials: map[string]any{"api_key": "key"},
+	}
+
+	require.ErrorContains(t, ValidateQoderCosyCredentials(context.Background(), account), "require cosy")
+}
+
+func TestValidateQoderCosyCredentialsRejectsCosyNonQoderPlatform(t *testing.T) {
+	account := &Account{
+		Platform:    PlatformAnthropic,
+		Type:        AccountTypeCosy,
+		Credentials: map[string]any{"pat": "pat"},
+	}
+
+	require.ErrorContains(t, ValidateQoderCosyCredentials(context.Background(), account), "requires qoder platform")
+}
+
 func TestValidateQoderCosyCredentialsRejectsMachineIDWithAuthDir(t *testing.T) {
 	account := &Account{
 		Platform: PlatformQoder,

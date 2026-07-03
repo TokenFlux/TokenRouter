@@ -321,6 +321,7 @@ export default {
     no: '否',
     all: '全部',
     none: '无',
+    or: '或',
     noData: '暂无数据',
     expand: '展开',
     collapse: '收起',
@@ -2258,6 +2259,7 @@ export default {
         usageOpenAI: '用量 (OpenAI)',
         usageGemini: '用量 (Gemini)',
         usageAntigravity: '用量 (Antigravity)',
+        usageQoder: '用量 (Qoder)',
         concurrency: '并发数',
         status: '状态',
         lastActive: '最后活跃时间',
@@ -4320,8 +4322,10 @@ export default {
           oauthTitle: '授权链接',
           oauthDesc: '推荐：浏览器完成 Qoder 登录授权。',
           manualTitle: '手动凭证',
-          manualDesc: '导入已有 token 与 machine_id。'
+          manualDesc: '导入 PAT，或导入已有 token 与 machine_id。'
         },
+        pat: 'Qoder PAT（可选）',
+        patHint: '填入 PAT 时会由后端完成 COSY 会话引导；留空则使用下方已有 token 与 machine_id。',
         securityOauthToken: 'Security OAuth Token',
         securityOauthTokenHint: '现有 Qoder security_oauth_token，通常以 dt- 开头。',
         machineId: 'Machine ID',

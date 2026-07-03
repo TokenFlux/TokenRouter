@@ -321,6 +321,7 @@ export default {
     no: 'No',
     all: 'All',
     none: 'None',
+    or: 'or',
     noData: 'No data',
     expand: 'Expand',
     collapse: 'Collapse',
@@ -2237,6 +2238,7 @@ export default {
         usageOpenAI: 'Usage (OpenAI)',
         usageGemini: 'Usage (Gemini)',
         usageAntigravity: 'Usage (Antigravity)',
+        usageQoder: 'Usage (Qoder)',
         concurrency: 'Concurrency',
         status: 'Status',
         lastActive: 'Last Active',
@@ -4173,8 +4175,10 @@ export default {
           oauthTitle: 'Authorization Link',
           oauthDesc: 'Recommended: complete Qoder login in the browser.',
           manualTitle: 'Manual Credentials',
-          manualDesc: 'Import an existing token and machine_id.'
+          manualDesc: 'Import a PAT, or import an existing token and machine_id.'
         },
+        pat: 'Qoder PAT (optional)',
+        patHint: 'When a PAT is provided, the backend bootstraps the COSY session; leave it empty to use an existing token and machine_id below.',
         securityOauthToken: 'Security OAuth Token',
         securityOauthTokenHint: 'Existing Qoder security_oauth_token, usually starting with dt-.',
         machineId: 'Machine ID',

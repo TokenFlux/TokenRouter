@@ -11,10 +11,12 @@ import (
 // 优先级（先命中为准）：
 //  1. 自定义规则（始终尝试，不依赖 ApplyPricingToAccountStats 开关）
 //  2. ApplyPricingToAccountStats 启用时，直接使用本次请求的客户计费（倍率前的 totalCost）
-//  3. 模型定价文件（LiteLLM）中上游模型的默认价格
+//  3. 模型定价文件（LiteLLM）中上游模型的默认价格（Qoder 公开 alias 统一映射到 Opus 4.8）
 //  4. nil → 走默认公式（total_cost × account_rate_multiplier）
 //
 // upstreamModel 是最终发往上游的模型 ID。
+// requestedModel 是渠道映射前的请求模型 ID，用于 Qoder 这类上游 route key
+// 与公开 alias 分离的平台在自定义规则与模型价 fallback 时仍能按公开 alias 归一化计价。
 // totalCost 是本次请求的客户计费（倍率前），用于优先级 2。
 func resolveAccountStatsCost(
 	ctx context.Context,
@@ -23,6 +25,7 @@ func resolveAccountStatsCost(
 	accountID int64,
 	groupID int64,
 	upstreamModel string,
+	requestedModel string,
 	tokens UsageTokens,
 	requestCount int,
 	totalCost float64,
@@ -38,8 +41,10 @@ func resolveAccountStatsCost(
 	platform := channelService.GetGroupPlatform(ctx, groupID)
 
 	// 优先级 1：自定义规则（始终尝试）
-	if cost := tryCustomRules(channel, accountID, groupID, platform, upstreamModel, tokens, requestCount); cost != nil {
-		return cost
+	for _, customRuleModel := range accountStatsCustomRuleModels(platform, upstreamModel, requestedModel) {
+		if cost := tryCustomRules(channel, accountID, groupID, platform, customRuleModel, tokens, requestCount); cost != nil {
+			return cost
+		}
 	}
 
 	// 优先级 2：渠道开启"应用模型定价到账号统计"时，直接使用客户计费（倍率前）
@@ -53,10 +58,35 @@ func resolveAccountStatsCost(
 
 	// 优先级 3：模型定价文件（LiteLLM）默认价格
 	if billingService != nil {
-		return tryModelFilePricing(billingService, upstreamModel, tokens)
+		return tryModelFilePricing(billingService, accountStatsPricingModel(platform, upstreamModel, requestedModel), tokens)
 	}
 
 	return nil
+}
+
+func accountStatsPricingModel(platform, upstreamModel, requestedModel string) string {
+	if platform != PlatformQoder {
+		return upstreamModel
+	}
+	if defaultModel, ok := QoderAliasDefaultBillingModel(upstreamModel); ok {
+		return defaultModel
+	}
+	if defaultModel, ok := QoderAliasDefaultBillingModel(requestedModel); ok {
+		return defaultModel
+	}
+	return upstreamModel
+}
+
+func accountStatsCustomRuleModels(platform, upstreamModel, requestedModel string) []string {
+	upstreamModel = strings.TrimSpace(upstreamModel)
+	requestedModel = strings.TrimSpace(requestedModel)
+	if platform != PlatformQoder || requestedModel == "" || requestedModel == upstreamModel {
+		if upstreamModel == "" {
+			return nil
+		}
+		return []string{upstreamModel}
+	}
+	return []string{upstreamModel, requestedModel}
 }
 
 // tryModelFilePricing 使用模型定价文件（LiteLLM/fallback）中的标准价格计算费用。
@@ -235,6 +265,6 @@ func applyAccountStatsCost(
 		requestCount = usageLog.ImageCount
 	}
 	usageLog.AccountStatsCost = resolveAccountStatsCost(
-		ctx, cs, bs, accountID, groupID, model, tokens, requestCount, totalCost,
+		ctx, cs, bs, accountID, groupID, model, requestedModel, tokens, requestCount, totalCost,
 	)
 }

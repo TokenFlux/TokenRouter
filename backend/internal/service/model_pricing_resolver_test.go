@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -242,6 +243,72 @@ func TestResolve_WithChannelOverride_TokenPartialOverride(t *testing.T) {
 	require.InDelta(t, 20e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
 	// OutputPrice kept from base (fallback: 15e-6)
 	require.InDelta(t, 15e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
+}
+
+func TestResolve_QoderCustomAliasMappedToRouteKeyUsesOpus48BaseForPartialChannelPricing(t *testing.T) {
+	groupID := int64(100)
+	inputPrice := 20e-6
+	cache := newEmptyChannelCache()
+	cache.channelByGroupID[groupID] = &Channel{ID: 1, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "custom-qoder"}] = &ChannelModelPricing{
+		Platform:    PlatformQoder,
+		Models:      []string{"custom-qoder"},
+		BillingMode: BillingModeToken,
+		InputPrice:  &inputPrice,
+	}
+	cache.mappingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "custom-qoder"}] = "qmodel"
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+	billingService := NewBillingService(nil, nil)
+	r := NewModelPricingResolver(channelService, billingService)
+
+	resolved := r.Resolve(context.Background(), PricingInput{
+		Model:   "custom-qoder",
+		GroupID: &groupID,
+	})
+
+	expectedBase, err := billingService.GetModelPricing(qoderDefaultAliasFallbackBillingModel)
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+	require.Equal(t, PricingSourceChannel, resolved.Source)
+	require.NotNil(t, resolved.BasePricing)
+	require.InDelta(t, inputPrice, resolved.BasePricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, expectedBase.OutputPricePerToken, resolved.BasePricing.OutputPricePerToken, 1e-12)
+}
+
+func TestResolve_QoderCustomAliasUsesBaseModelHintForPartialChannelPricing(t *testing.T) {
+	groupID := int64(100)
+	inputPrice := 20e-6
+	cache := newEmptyChannelCache()
+	cache.channelByGroupID[groupID] = &Channel{ID: 1, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "custom-qoder"}] = &ChannelModelPricing{
+		Platform:    PlatformQoder,
+		Models:      []string{"custom-qoder"},
+		BillingMode: BillingModeToken,
+		InputPrice:  &inputPrice,
+	}
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+	billingService := NewBillingService(nil, nil)
+	r := NewModelPricingResolver(channelService, billingService)
+
+	resolved := r.Resolve(context.Background(), PricingInput{
+		Model:         "custom-qoder",
+		GroupID:       &groupID,
+		BaseModelHint: "qmodel",
+	})
+
+	expectedBase, err := billingService.GetModelPricing(qoderDefaultAliasFallbackBillingModel)
+	require.NoError(t, err)
+	require.NotNil(t, resolved)
+	require.Equal(t, PricingSourceChannel, resolved.Source)
+	require.NotNil(t, resolved.BasePricing)
+	require.InDelta(t, inputPrice, resolved.BasePricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, expectedBase.OutputPricePerToken, resolved.BasePricing.OutputPricePerToken, 1e-12)
 }
 
 func TestResolve_WithChannelOverride_TokenWithIntervals(t *testing.T) {

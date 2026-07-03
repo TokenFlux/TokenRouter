@@ -398,7 +398,79 @@ func TestImportDataDoesNotApplyOpenAIOAuthDefaultsToOtherPlatforms(t *testing.T)
 	require.False(t, exists)
 }
 
+func TestImportDataAcceptsQoderCosyAccount(t *testing.T) {
+	router, adminSvc := setupAccountDataRouter()
+
+	postImportAccount(t, router, map[string]any{
+		"name":     "qoder-cosy",
+		"platform": service.PlatformQoder,
+		"type":     service.AccountTypeCosy,
+		"credentials": map[string]any{
+			"pat": "pat-123",
+		},
+	})
+
+	require.Len(t, adminSvc.createdAccounts, 1)
+	require.Equal(t, service.PlatformQoder, adminSvc.createdAccounts[0].Platform)
+	require.Equal(t, service.AccountTypeCosy, adminSvc.createdAccounts[0].Type)
+	require.Equal(t, "pat-123", adminSvc.createdAccounts[0].Credentials["pat"])
+}
+
+func TestImportDataRejectsQoderNonCosyAccount(t *testing.T) {
+	router, adminSvc := setupAccountDataRouter()
+
+	rec := postImportAccountRaw(t, router, map[string]any{
+		"name":        "qoder-apikey",
+		"platform":    service.PlatformQoder,
+		"type":        service.AccountTypeAPIKey,
+		"credentials": map[string]any{"api_key": "key"},
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Empty(t, adminSvc.createdAccounts)
+	result := decodeImportResult(t, rec)
+	require.Equal(t, 1, result.Data.AccountFailed)
+	require.Contains(t, rec.Body.String(), "qoder accounts require cosy")
+}
+
+func TestImportDataRejectsCosyNonQoderAccount(t *testing.T) {
+	router, adminSvc := setupAccountDataRouter()
+
+	rec := postImportAccountRaw(t, router, map[string]any{
+		"name":        "anthropic-cosy",
+		"platform":    service.PlatformAnthropic,
+		"type":        service.AccountTypeCosy,
+		"credentials": map[string]any{"pat": "pat-123"},
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Empty(t, adminSvc.createdAccounts)
+	result := decodeImportResult(t, rec)
+	require.Equal(t, 1, result.Data.AccountFailed)
+	require.Contains(t, rec.Body.String(), "cosy account type requires qoder platform")
+}
+
+func decodeImportResult(t *testing.T, rec *httptest.ResponseRecorder) struct {
+	Code int              `json:"code"`
+	Data DataImportResult `json:"data"`
+} {
+	t.Helper()
+	var result struct {
+		Code int              `json:"code"`
+		Data DataImportResult `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &result))
+	return result
+}
+
 func postImportAccount(t *testing.T, router *gin.Engine, account map[string]any) {
+	t.Helper()
+
+	rec := postImportAccountRaw(t, router, account)
+	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func postImportAccountRaw(t *testing.T, router *gin.Engine, account map[string]any) *httptest.ResponseRecorder {
 	t.Helper()
 
 	dataPayload := map[string]any{
@@ -416,5 +488,5 @@ func postImportAccount(t *testing.T, router *gin.Engine, account map[string]any)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/admin/accounts/data", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(rec, req)
-	require.Equal(t, http.StatusOK, rec.Code)
+	return rec
 }

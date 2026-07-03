@@ -18,7 +18,7 @@ import (
 //   - 匹配条件：错误码 + 关键词组合
 //   - 响应行为：透传原始信息 或 自定义错误信息
 //   - 响应状态码：可指定返回给客户端的状态码
-//   - 平台范围：规则适用的平台（Anthropic、OpenAI、Gemini、Antigravity）
+//   - 平台范围：规则适用的平台（Anthropic、OpenAI、Gemini、Antigravity、Qoder、Grok）
 type ErrorPassthroughRule struct {
 	ent.Schema
 }
@@ -75,7 +75,7 @@ func (ErrorPassthroughRule) Fields() []ent.Field {
 			Default("any"),
 
 		// platforms: 适用平台列表
-		// 例如：["anthropic", "openai", "gemini", "antigravity"]
+		// 例如：["anthropic", "openai", "gemini", "antigravity", "qoder", "grok"]
 		// 空列表表示适用于所有平台
 		field.JSON("platforms", []string{}).
 			Optional().

@@ -717,7 +717,8 @@ describe('EditAccountModal', () => {
     const account = buildQoderAccount()
     account.extra = {
       enable_tls_fingerprint: true,
-      tls_fingerprint_profile_id: -1
+      tls_fingerprint_profile_id: -1,
+      tls_fingerprint_router_id: 9
     }
     listTLSProfilesMock.mockResolvedValue([{ id: 7, name: 'Profile 7' }])
     updateAccountMock.mockResolvedValue(account)
@@ -726,6 +727,7 @@ describe('EditAccountModal', () => {
     await flushPromises()
 
     expect(wrapper.find('[data-testid="edit-openai-tls-fingerprint-profile"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="edit-openai-tls-fingerprint-router"]').exists()).toBe(false)
     const profileSelect = wrapper.get('[data-testid="edit-openai-tls-fingerprint-profile"]')
     expect((profileSelect.element as HTMLSelectElement).value).toBe('-1')
 
@@ -736,6 +738,7 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.enable_tls_fingerprint).toBe(true)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.tls_fingerprint_profile_id).toBe(7)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('tls_fingerprint_router_id')
   })
 
   it('allows saving apikey account when backend redacted api_key but credentials_status reports it exists', async () => {

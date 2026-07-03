@@ -114,6 +114,32 @@ func TestModelMarketplaceQoderManualChannelPricingOverridesDefaultAliasDisplayPr
 	}
 }
 
+func TestModelMarketplaceQoderBlankChannelPricingUsesOpus48DisplayPricing(t *testing.T) {
+	groupID := int64(902)
+	cache := newEmptyChannelCache()
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "auto"}] = &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+	}
+	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+
+	billingService := NewBillingService(nil, nil)
+	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
+		resolver: NewModelPricingResolver(channelService, billingService),
+	}, billingService, nil, nil, nil)
+	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
+
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "auto", nil)
+	expected := billingService.GetDisplayPricing(qoderDefaultAliasFallbackBillingModel, group.RateMultiplier, nil)
+
+	if pricing.InputPricePerToken != expected.InputPricePerToken || pricing.OutputPricePerToken != expected.OutputPricePerToken {
+		t.Fatalf("Qoder blank channel alias price = (%g, %g), want (%g, %g)", pricing.InputPricePerToken, pricing.OutputPricePerToken, expected.InputPricePerToken, expected.OutputPricePerToken)
+	}
+}
+
 func TestModelMarketplaceQoderOmitsOfficialPriceDiscount(t *testing.T) {
 	settingRepo := &marketplaceSettingRepoStub{settings: map[string]string{
 		SettingKeyReasoningPointRMBUnitPrice: "1",

@@ -1721,7 +1721,7 @@
 
       <!-- OAuth/COSY TLS 指纹伪装 -->
       <div
-        v-if="supportsTLSFingerprint(account)"
+        v-if="showStandaloneTLSFingerprint"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
       >
         <div class="flex items-center justify-between">
@@ -1754,7 +1754,7 @@
             data-testid="edit-openai-tls-fingerprint-profile"
             :options="tlsFingerprintProfileOptions"
           />
-          <div>
+          <div v-if="supportsTLSFingerprintRouter">
             <Select
               v-model="tlsFingerprintRouterId"
               data-testid="edit-openai-tls-fingerprint-router"
@@ -2720,6 +2720,16 @@ const isQoderCosyAccount = computed(() =>
 const supportsOAuthLikeModelRestriction = computed(() =>
   (props.account?.platform === 'openai' && props.account?.type === 'oauth') ||
   isQoderCosyAccount.value
+)
+const isAnthropicOAuthLikeAccount = computed(() =>
+  props.account?.platform === 'anthropic' &&
+  (props.account?.type === 'oauth' || props.account?.type === 'setup-token')
+)
+const supportsTLSFingerprintRouter = computed(() =>
+  props.account?.platform === 'openai' && props.account?.type === 'oauth'
+)
+const showStandaloneTLSFingerprint = computed(() =>
+  supportsTLSFingerprint(props.account) && !isAnthropicOAuthLikeAccount.value
 )
 
 // Load global feature states once
@@ -3698,7 +3708,7 @@ const applyTLSFingerprintExtra = (extra: Record<string, unknown>) => {
     } else {
       delete extra.tls_fingerprint_profile_id
     }
-    if (tlsFingerprintRouterId.value) {
+    if (supportsTLSFingerprintRouter.value && tlsFingerprintRouterId.value) {
       extra.tls_fingerprint_router_id = tlsFingerprintRouterId.value
     } else {
       delete extra.tls_fingerprint_router_id

@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/model"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -53,6 +54,46 @@ func TestQoderGatewayErrorDetailsMapsAgentLimitToRateLimit(t *testing.T) {
 	require.Equal(t, http.StatusTooManyRequests, status)
 	require.Equal(t, "rate_limit_error", errType)
 	require.Equal(t, "Qoder agent limit reached; resets at 2026-07-12 15:28:09 Asia/Shanghai", message)
+}
+
+func TestQoderGatewayErrorDetailsAppliesPassthroughRule(t *testing.T) {
+	customMessage := "Use another Qoder account"
+	responseCode := http.StatusTeapot
+	svc := service.NewErrorPassthroughService(&qoderErrorPassthroughRepoStub{
+		rules: []*model.ErrorPassthroughRule{
+			{
+				Name:            "qoder custom",
+				Enabled:         true,
+				Priority:        1,
+				ErrorCodes:      []int{http.StatusUnprocessableEntity},
+				MatchMode:       model.MatchModeAny,
+				Platforms:       []string{service.PlatformQoder},
+				PassthroughCode: false,
+				ResponseCode:    &responseCode,
+				PassthroughBody: false,
+				CustomMessage:   &customMessage,
+				SkipMonitoring:  true,
+			},
+		},
+	}, nil)
+	h := &QoderGatewayHandler{errorPassthroughService: svc}
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	status, errType, message, ok := h.qoderGatewayErrorDetails(c, &qoder.APIError{
+		StatusCode: http.StatusUnprocessableEntity,
+		Body:       `{"message":"original upstream message"}`,
+		Message:    "original upstream message",
+	})
+
+	require.True(t, ok)
+	require.Equal(t, responseCode, status)
+	require.Equal(t, "upstream_error", errType)
+	require.Equal(t, customMessage, message)
+	skip, exists := c.Get(service.OpsSkipPassthroughKey)
+	require.True(t, exists)
+	require.Equal(t, true, skip)
 }
 
 func TestQoderGatewayShouldRefreshAccountOnlyForUnwrittenAuthErrors(t *testing.T) {
@@ -153,4 +194,28 @@ func TestQoderGatewayRequestCanceledDetectsErrorOrContext(t *testing.T) {
 	require.True(t, qoderRequestCanceled(ctx, fmt.Errorf("wrapped upstream error")))
 
 	require.False(t, qoderRequestCanceled(context.Background(), fmt.Errorf("upstream error")))
+}
+
+type qoderErrorPassthroughRepoStub struct {
+	rules []*model.ErrorPassthroughRule
+}
+
+func (r *qoderErrorPassthroughRepoStub) List(context.Context) ([]*model.ErrorPassthroughRule, error) {
+	return r.rules, nil
+}
+
+func (r *qoderErrorPassthroughRepoStub) GetByID(context.Context, int64) (*model.ErrorPassthroughRule, error) {
+	return nil, nil
+}
+
+func (r *qoderErrorPassthroughRepoStub) Create(context.Context, *model.ErrorPassthroughRule) (*model.ErrorPassthroughRule, error) {
+	return nil, nil
+}
+
+func (r *qoderErrorPassthroughRepoStub) Update(context.Context, *model.ErrorPassthroughRule) (*model.ErrorPassthroughRule, error) {
+	return nil, nil
+}
+
+func (r *qoderErrorPassthroughRepoStub) Delete(context.Context, int64) error {
+	return nil
 }

@@ -7,6 +7,7 @@ import (
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
@@ -487,8 +488,14 @@ func (h *ChannelHandler) GetModelDefaultPricing(c *gin.Context) {
 			WithMetadata(map[string]string{"param": "model"}))
 		return
 	}
+	pricingModel := model
+	if strings.ToLower(strings.TrimSpace(c.Query("platform"))) == service.PlatformQoder {
+		if defaultModel, ok := service.QoderAliasDefaultBillingModel(model); ok {
+			pricingModel = defaultModel
+		}
+	}
 
-	pricing, err := h.billingService.GetModelPricing(model)
+	pricing, err := h.billingService.GetModelPricing(pricingModel)
 	if err != nil {
 		// 模型不在定价列表中
 		response.Success(c, gin.H{"found": false})
@@ -521,6 +528,10 @@ func (h *ChannelHandler) SyncPricingModels(c *gin.Context) {
 	if platform == "" {
 		response.ErrorFrom(c, infraerrors.BadRequest("MISSING_PARAMETER", "platform parameter is required").
 			WithMetadata(map[string]string{"param": "platform"}))
+		return
+	}
+	if platform == service.PlatformQoder {
+		response.Success(c, gin.H{"models": qoder.DefaultRequestModelIDs()})
 		return
 	}
 

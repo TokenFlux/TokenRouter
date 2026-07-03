@@ -266,7 +266,7 @@ func initializeApplication(buildInfo handler.BuildInfo) (*Application, error) {
 	openAIGatewayHandler := handler.NewOpenAIGatewayHandler(openAIGatewayService, concurrencyService, billingCacheService, apiKeyService, usageRecordWorkerPool, errorPassthroughService, contentModerationService, opsService, configConfig)
 	qoderTokenProvider := service.NewQoderTokenProvider()
 	qoderGatewayService := service.NewQoderGatewayService(qoderTokenProvider, accountRepository, httpUpstream, tlsFingerprintProfileService, oAuthRefreshAPI)
-	qoderGatewayHandler := handler.NewQoderGatewayHandler(gatewayService, qoderGatewayService, concurrencyService, billingCacheService, usageRecordWorkerPool, apiKeyService)
+	qoderGatewayHandler := handler.NewQoderGatewayHandler(gatewayService, qoderGatewayService, concurrencyService, billingCacheService, usageRecordWorkerPool, apiKeyService, errorPassthroughService)
 	handlerSettingHandler := handler.ProvideSettingHandler(settingService, buildInfo, notificationEmailService)
 	totpHandler := handler.NewTotpHandler(totpService)
 	handlerPaymentHandler := handler.NewPaymentHandler(paymentService, paymentConfigService, channelService)

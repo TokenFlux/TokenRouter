@@ -18,8 +18,17 @@ func ValidateQoderCosyCredentials(ctx context.Context, account *Account) error {
 }
 
 func validateQoderCosyCredentials(ctx context.Context, account *Account, httpUpstream HTTPUpstream, tlsFPProfileService *TLSFingerprintProfileService) error {
-	if account == nil || account.Platform != PlatformQoder || account.Type != AccountTypeCosy {
+	if account == nil {
 		return nil
+	}
+	if account.Platform != PlatformQoder {
+		if account.Type == AccountTypeCosy {
+			return fmt.Errorf("%s account type requires %s platform", AccountTypeCosy, PlatformQoder)
+		}
+		return nil
+	}
+	if account.Type != AccountTypeCosy {
+		return fmt.Errorf("qoder accounts require %s account type", AccountTypeCosy)
 	}
 	if account.Credentials == nil {
 		return errors.New("qoder cosy credentials are required")

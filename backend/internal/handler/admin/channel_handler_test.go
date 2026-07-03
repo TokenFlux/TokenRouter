@@ -406,6 +406,72 @@ func TestPricingRequestToService_NilPriceFields(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// GetModelDefaultPricing 处理器测试
+// ---------------------------------------------------------------------------
+
+func setupModelDefaultPricingRouter(billingSvc *service.BillingService) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	h := &ChannelHandler{billingService: billingSvc}
+	router.GET("/channels/model-pricing", h.GetModelDefaultPricing)
+	return router
+}
+
+func TestGetModelDefaultPricing_QoderAliasUsesOpus48(t *testing.T) {
+	billingSvc := service.NewBillingService(nil, nil)
+	router := setupModelDefaultPricingRouter(billingSvc)
+
+	req := httptest.NewRequest(http.MethodGet, "/channels/model-pricing?platform=qoder&model=claude-opus-4-6", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var body struct {
+		Data struct {
+			Found           bool    `json:"found"`
+			InputPrice      float64 `json:"input_price"`
+			OutputPrice     float64 `json:"output_price"`
+			CacheWritePrice float64 `json:"cache_write_price"`
+			CacheReadPrice  float64 `json:"cache_read_price"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+
+	expected, err := billingSvc.GetModelPricing("claude-opus-4.8")
+	require.NoError(t, err)
+	require.True(t, body.Data.Found)
+	require.InDelta(t, expected.InputPricePerToken, body.Data.InputPrice, 1e-12)
+	require.InDelta(t, expected.OutputPricePerToken, body.Data.OutputPrice, 1e-12)
+	require.InDelta(t, expected.CacheCreationPricePerToken, body.Data.CacheWritePrice, 1e-12)
+	require.InDelta(t, expected.CacheReadPricePerToken, body.Data.CacheReadPrice, 1e-12)
+}
+
+func TestGetModelDefaultPricing_QoderRouteKeyUsesOpus48(t *testing.T) {
+	billingSvc := service.NewBillingService(nil, nil)
+	router := setupModelDefaultPricingRouter(billingSvc)
+
+	req := httptest.NewRequest(http.MethodGet, "/channels/model-pricing?platform=qoder&model=qmodel", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var body struct {
+		Data struct {
+			Found      bool    `json:"found"`
+			InputPrice float64 `json:"input_price"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+
+	expected, err := billingSvc.GetModelPricing("claude-opus-4.8")
+	require.NoError(t, err)
+	require.True(t, body.Data.Found)
+	require.InDelta(t, expected.InputPricePerToken, body.Data.InputPrice, 1e-12)
+}
+
+// ---------------------------------------------------------------------------
 // SyncPricingModels 处理器测试
 // ---------------------------------------------------------------------------
 
@@ -443,7 +509,7 @@ func TestSyncPricingModels_ValidPlatform_EmptyService(t *testing.T) {
 	svc := service.NewPricingService(nil, nil)
 	router := setupSyncPricingModelsRouter(svc)
 
-	for _, platform := range []string{"anthropic", "openai", "gemini", "antigravity"} {
+	for _, platform := range []string{"anthropic", "openai", "gemini", "antigravity", "qoder"} {
 		req := httptest.NewRequest(http.MethodGet, "/channels/pricing/sync-models?platform="+platform, nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -458,4 +524,37 @@ func TestSyncPricingModels_ValidPlatform_EmptyService(t *testing.T) {
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 		require.NotNil(t, body.Data.Models, "models must not be null for platform=%s", platform)
 	}
+}
+
+func TestSyncPricingModels_QoderUsesDefaultAliases(t *testing.T) {
+	svc := service.NewPricingService(nil, nil)
+	router := setupSyncPricingModelsRouter(svc)
+
+	req := httptest.NewRequest(http.MethodGet, "/channels/pricing/sync-models?platform=qoder", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var body struct {
+		Data struct {
+			Models []string `json:"models"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Equal(t, []string{
+		"claude-opus-4-6",
+		"auto",
+		"performance",
+		"efficient",
+		"lite",
+		"qwen3.7-max",
+		"qwen3.7-plus",
+		"deepseek-v4-pro",
+		"deepseek-v4-flash",
+		"glm-5.2",
+		"kimi-k2.7-code",
+		"minimax-m3",
+	}, body.Data.Models)
+	require.NotContains(t, body.Data.Models, "ultimate")
 }

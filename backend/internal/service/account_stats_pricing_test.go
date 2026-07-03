@@ -539,7 +539,7 @@ func TestResolveAccountStatsCost_NilChannelService(t *testing.T) {
 		context.Background(),
 		nil, // channelService is nil
 		newTestBillingServiceWithPrices(map[string]*ModelPricing{}),
-		1, 1, "claude-sonnet-4",
+		1, 1, "claude-sonnet-4", "",
 		UsageTokens{InputTokens: 100}, 1, 0.5,
 	)
 	require.Nil(t, result)
@@ -555,7 +555,7 @@ func TestResolveAccountStatsCost_EmptyUpstreamModel(t *testing.T) {
 		context.Background(),
 		cs,
 		newTestBillingServiceWithPrices(map[string]*ModelPricing{}),
-		1, 1, "", // empty upstream model
+		1, 1, "", "", // empty upstream model
 		UsageTokens{InputTokens: 100}, 1, 0.5,
 	)
 	require.Nil(t, result)
@@ -572,7 +572,7 @@ func TestResolveAccountStatsCost_GetChannelForGroupReturnsNil(t *testing.T) {
 		context.Background(),
 		cs,
 		newTestBillingServiceWithPrices(map[string]*ModelPricing{}),
-		1, 99, "claude-sonnet-4", // groupID 99 has no channel
+		1, 99, "claude-sonnet-4", "", // groupID 99 has no channel
 		UsageTokens{InputTokens: 100}, 1, 0.5,
 	)
 	require.Nil(t, result)
@@ -603,7 +603,7 @@ func TestResolveAccountStatsCost_HitsCustomRule(t *testing.T) {
 	result := resolveAccountStatsCost(
 		context.Background(),
 		cs, nil, // billingService not needed when custom rule hits
-		1, 10, "claude-sonnet-4",
+		1, 10, "claude-sonnet-4", "",
 		tokens, 1, 999.0, // totalCost ignored because custom rule hits
 	)
 	require.NotNil(t, result)
@@ -625,7 +625,7 @@ func TestResolveAccountStatsCost_ApplyPricingToAccountStats_UsesTotalCost(t *tes
 	result := resolveAccountStatsCost(
 		context.Background(),
 		cs, nil,
-		1, 10, "claude-sonnet-4",
+		1, 10, "claude-sonnet-4", "",
 		tokens, 1, 0.75, // totalCost = 0.75
 	)
 	require.NotNil(t, result)
@@ -643,7 +643,7 @@ func TestResolveAccountStatsCost_ApplyPricingToAccountStats_ZeroTotalCost_Return
 	result := resolveAccountStatsCost(
 		context.Background(),
 		cs, nil,
-		1, 10, "claude-sonnet-4",
+		1, 10, "claude-sonnet-4", "",
 		UsageTokens{}, 1, 0.0, // totalCost = 0
 	)
 	require.Nil(t, result)
@@ -670,12 +670,71 @@ func TestResolveAccountStatsCost_FallsBackToLiteLLM(t *testing.T) {
 	result := resolveAccountStatsCost(
 		context.Background(),
 		cs, bs,
-		1, 10, "claude-sonnet-4",
+		1, 10, "claude-sonnet-4", "",
 		tokens, 1, 999.0, // totalCost ignored
 	)
 	require.NotNil(t, result)
 	// 100*0.001 + 50*0.002 = 0.1 + 0.1 = 0.2
 	require.InDelta(t, 0.2, *result, 1e-12)
+}
+
+func TestResolveAccountStatsCost_QoderRouteKeyFallsBackToRequestedAliasOpus48(t *testing.T) {
+	channel := &Channel{
+		ID:                         1,
+		Status:                     StatusActive,
+		ApplyPricingToAccountStats: false,
+	}
+	cs := newTestChannelServiceForStats(t, channel, 10, PlatformQoder)
+
+	bs := newTestBillingServiceWithPrices(map[string]*ModelPricing{
+		qoderDefaultAliasFallbackBillingModel: {
+			InputPricePerToken:  0.005,
+			OutputPricePerToken: 0.025,
+		},
+	})
+
+	tokens := UsageTokens{InputTokens: 100, OutputTokens: 50}
+
+	result := resolveAccountStatsCost(
+		context.Background(),
+		cs, bs,
+		1, 10, "qmodel", "qwen3.7-plus",
+		tokens, 1, 999.0,
+	)
+	require.NotNil(t, result)
+	// Qoder route key "qmodel" 应归一到默认公开 alias 的 Opus 4.8 默认价。
+	require.InDelta(t, 1.75, *result, 1e-12)
+}
+
+func TestResolveAccountStatsCost_QoderCustomRuleCanMatchRequestedAliasAfterRouteKeyMiss(t *testing.T) {
+	channel := &Channel{
+		ID:     1,
+		Status: StatusActive,
+		AccountStatsPricingRules: []AccountStatsPricingRule{
+			{
+				GroupIDs: []int64{10},
+				Pricing: []ChannelModelPricing{
+					{
+						ID:          100,
+						Models:      []string{"qwen3.7-plus"},
+						InputPrice:  testPtrFloat64(0.01),
+						OutputPrice: testPtrFloat64(0.02),
+					},
+				},
+			},
+		},
+	}
+	cs := newTestChannelServiceForStats(t, channel, 10, PlatformQoder)
+
+	result := resolveAccountStatsCost(
+		context.Background(),
+		cs, nil,
+		1, 10, "qmodel", "qwen3.7-plus",
+		UsageTokens{InputTokens: 100, OutputTokens: 50}, 1, 999.0,
+	)
+
+	require.NotNil(t, result)
+	require.InDelta(t, 2.0, *result, 1e-12)
 }
 
 func TestResolveAccountStatsCost_AllMiss_ReturnsNil(t *testing.T) {
@@ -695,7 +754,7 @@ func TestResolveAccountStatsCost_AllMiss_ReturnsNil(t *testing.T) {
 	result := resolveAccountStatsCost(
 		context.Background(),
 		cs, bs,
-		1, 10, "totally-unknown-model",
+		1, 10, "totally-unknown-model", "",
 		tokens, 1, 0.0,
 	)
 	require.Nil(t, result)
@@ -712,7 +771,7 @@ func TestResolveAccountStatsCost_NilBillingService_SkipsLiteLLM(t *testing.T) {
 	result := resolveAccountStatsCost(
 		context.Background(),
 		cs, nil, // billingService is nil
-		1, 10, "claude-sonnet-4",
+		1, 10, "claude-sonnet-4", "",
 		UsageTokens{InputTokens: 100}, 1, 0.0,
 	)
 	require.Nil(t, result)
@@ -745,7 +804,7 @@ func TestResolveAccountStatsCost_CustomRulePriorityOverApplyPricing(t *testing.T
 	result := resolveAccountStatsCost(
 		context.Background(),
 		cs, nil,
-		1, 10, "claude-sonnet-4",
+		1, 10, "claude-sonnet-4", "",
 		tokens, 1, 99.0, // totalCost = 99.0 (would be used if ApplyPricing wins)
 	)
 	require.NotNil(t, result)

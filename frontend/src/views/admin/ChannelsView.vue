@@ -879,15 +879,38 @@ async function syncLatestModels(sectionIdx: number) {
       appStore.showSuccess(t('admin.channels.form.syncModelsAlreadyUpToDate'))
       return
     }
-    // 将新增模型合并为一个待填写价格的定价条目
-    form.platforms[sectionIdx].model_pricing.push({
-      models: newModels,
-      billing_mode: 'token',
+    let defaultPricing: Pick<PricingFormEntry, 'input_price' | 'output_price' | 'cache_write_price' | 'cache_read_price' | 'image_output_price'> = {
       input_price: null,
       output_price: null,
       cache_write_price: null,
       cache_read_price: null,
-      image_output_price: null,
+      image_output_price: null
+    }
+    if (platform === 'qoder') {
+      try {
+        const pricing = await adminAPI.channels.getModelDefaultPricing(newModels[0], platform)
+        if (pricing.found) {
+          defaultPricing = {
+            input_price: perTokenToMTok(pricing.input_price ?? null),
+            output_price: perTokenToMTok(pricing.output_price ?? null),
+            cache_write_price: perTokenToMTok(pricing.cache_write_price ?? null),
+            cache_read_price: perTokenToMTok(pricing.cache_read_price ?? null),
+            image_output_price: perTokenToMTok(pricing.image_output_price ?? null)
+          }
+        }
+      } catch {
+        // 查询默认价格失败不影响同步模型列表，用户仍可手动填写。
+      }
+    }
+    // 将新增模型合并为一个可继续手动调整价格的定价条目
+    form.platforms[sectionIdx].model_pricing.push({
+      models: newModels,
+      billing_mode: 'token',
+      input_price: defaultPricing.input_price,
+      output_price: defaultPricing.output_price,
+      cache_write_price: defaultPricing.cache_write_price,
+      cache_read_price: defaultPricing.cache_read_price,
+      image_output_price: defaultPricing.image_output_price,
       per_request_price: null,
       intervals: []
     })

@@ -169,6 +169,39 @@ describe('CreateAccountModal Qoder model restriction', () => {
     expect(payload.credentials.model_whitelist).toBeUndefined()
   })
 
+  it('creates Qoder manual account with PAT bootstrap without token fields', async () => {
+    const wrapper = mountModal()
+    await wrapper.get('[data-testid="create-account-platform-qoder"]').trigger('click')
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    const nameInput = inputs.find((input) => input.attributes('type') === 'text' && input.attributes('required') !== undefined)
+    expect(nameInput).toBeTruthy()
+    await nameInput!.setValue('Qoder PAT')
+
+    const manualButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('admin.accounts.qoder.accountType.manualTitle'))
+    expect(manualButton).toBeTruthy()
+    await manualButton!.trigger('click')
+    await flushPromises()
+
+    const patInput = wrapper.findAll('input').find((input) => input.attributes('placeholder') === 'pat-...')
+    expect(patInput).toBeTruthy()
+    await patInput!.setValue('pat-123')
+
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    const payload = createAccountMock.mock.calls[0]?.[0]
+    expect(payload.platform).toBe('qoder')
+    expect(payload.type).toBe('cosy')
+    expect(payload.credentials).toMatchObject({ pat: 'pat-123' })
+    expect(payload.credentials.security_oauth_token).toBeUndefined()
+    expect(payload.credentials.machine_id).toBeUndefined()
+  })
+
   it('persists Qoder TLS fingerprint settings on manual create without OpenAI router', async () => {
     const wrapper = mountModal()
     await fillQoderManualForm(wrapper)
