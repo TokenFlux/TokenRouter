@@ -9857,7 +9857,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	}
 
 	// 计算费用
-	cost := s.calculateRecordUsageCost(ctx, result, apiKey, billingModel, multiplier, imageMultiplier, opts)
+	cost := s.calculateRecordUsageCost(ctx, result, apiKey, account, billingModel, multiplier, imageMultiplier, opts)
 
 	// 预填 billing_type 仅用于 simple mode / 持久化前对象，真实扣费结果会在统一扣费后回填。
 	isSubscriptionBilling := subscription != nil
@@ -9958,6 +9958,7 @@ func (s *GatewayService) calculateRecordUsageCost(
 	ctx context.Context,
 	result *ForwardResult,
 	apiKey *APIKey,
+	account *Account,
 	billingModel string,
 	multiplier float64,
 	imageMultiplier float64,
@@ -9966,13 +9967,13 @@ func (s *GatewayService) calculateRecordUsageCost(
 	// 图片生成：渠道定价为令牌计费时走令牌路径，否则走图片计费
 	if result.ImageCount > 0 {
 		if resolved := s.resolveChannelPricing(ctx, billingModel, apiKey); resolved != nil && resolved.Mode == BillingModeToken {
-			return s.calculateTokenCost(ctx, result, apiKey, billingModel, multiplier, opts)
+			return s.calculateTokenCost(ctx, result, apiKey, account, billingModel, multiplier, opts)
 		}
 		return s.calculateImageCost(ctx, result, apiKey, billingModel, imageMultiplier)
 	}
 
 	// Token 计费
-	return s.calculateTokenCost(ctx, result, apiKey, billingModel, multiplier, opts)
+	return s.calculateTokenCost(ctx, result, apiKey, account, billingModel, multiplier, opts)
 }
 
 // resolveChannelPricing 检查指定模型是否存在渠道级别定价。
@@ -10039,6 +10040,7 @@ func (s *GatewayService) calculateTokenCost(
 	ctx context.Context,
 	result *ForwardResult,
 	apiKey *APIKey,
+	account *Account,
 	billingModel string,
 	multiplier float64,
 	opts *recordUsageOpts,
@@ -10069,17 +10071,39 @@ func (s *GatewayService) calculateTokenCost(
 			Resolver:       s.resolver,
 			Resolved:       resolved,
 		})
-	} else if opts.LongContextThreshold > 0 {
-		// 长上下文双倍计费（如 Gemini 200K 阈值）
-		cost, err = s.billingService.CalculateCostWithLongContext(billingModel, tokens, multiplier, opts.LongContextThreshold, opts.LongContextMultiplier)
 	} else {
-		cost, err = s.billingService.CalculateCost(billingModel, tokens, multiplier)
+		defaultBillingModel := qoderAliasDefaultBillingModel(account, apiKey, billingModel)
+		if opts == nil {
+			opts = &recordUsageOpts{}
+		}
+		if opts.LongContextThreshold > 0 {
+			// 长上下文双倍计费（如 Gemini 200K 阈值）
+			cost, err = s.billingService.CalculateCostWithLongContext(defaultBillingModel, tokens, multiplier, opts.LongContextThreshold, opts.LongContextMultiplier)
+		} else {
+			cost, err = s.billingService.CalculateCost(defaultBillingModel, tokens, multiplier)
+		}
 	}
 	if err != nil {
 		logger.LegacyPrintf("service.gateway", "Calculate cost failed: %v", err)
 		return &CostBreakdown{ActualCost: 0}
 	}
 	return cost
+}
+
+const qoderDefaultAliasFallbackBillingModel = "claude-opus-4.8"
+
+func qoderAliasDefaultBillingModel(account *Account, apiKey *APIKey, billingModel string) string {
+	if !isQoderBillingContext(account, apiKey) || !isQoderAliasBillingModel(billingModel) {
+		return billingModel
+	}
+	return qoderDefaultAliasFallbackBillingModel
+}
+
+func isQoderBillingContext(account *Account, apiKey *APIKey) bool {
+	if account != nil && account.Platform == PlatformQoder {
+		return true
+	}
+	return apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == PlatformQoder
 }
 
 // buildRecordUsageLog 构建使用日志并设置计费模式。

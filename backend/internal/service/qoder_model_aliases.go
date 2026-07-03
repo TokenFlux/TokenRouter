@@ -1,63 +1,23 @@
 package service
 
-import "sync"
-
-var qoderModelAliasesState = struct {
-	sync.RWMutex
-	aliases map[string]qoderModelInfo
-}{}
+import "strings"
 
 func lookupQoderModelAlias(model string) (qoderModelInfo, bool) {
-	if info, ok := lookupPublicQoderModelAlias(model); ok {
+	if info, ok := defaultQoderModelAliases[model]; ok {
 		return info, true
 	}
 	info, ok := qoderCompatModelAliases[model]
 	return info, ok
 }
 
-func lookupPublicQoderModelAlias(model string) (qoderModelInfo, bool) {
-	qoderModelAliasesState.RLock()
-	aliases := qoderModelAliasesState.aliases
-	if aliases != nil {
-		info, ok := aliases[model]
-		qoderModelAliasesState.RUnlock()
-		return info, ok
+func isQoderAliasBillingModel(model string) bool {
+	model = strings.TrimSpace(model)
+	if model == "" {
+		return false
 	}
-	qoderModelAliasesState.RUnlock()
-
-	qoderModelAliasesState.Lock()
-	defer qoderModelAliasesState.Unlock()
-	if qoderModelAliasesState.aliases == nil {
-		qoderModelAliasesState.aliases = cloneQoderModelAliases(defaultQoderModelAliases)
+	if _, ok := defaultQoderModelAliases[model]; ok {
+		return true
 	}
-	info, ok := qoderModelAliasesState.aliases[model]
-	return info, ok
-}
-
-func currentQoderModelAliases() map[string]qoderModelInfo {
-	qoderModelAliasesState.RLock()
-	aliases := qoderModelAliasesState.aliases
-	qoderModelAliasesState.RUnlock()
-	if aliases != nil {
-		return cloneQoderModelAliases(aliases)
-	}
-	return cloneQoderModelAliases(defaultQoderModelAliases)
-}
-
-func applyQoderModelAliases(aliases map[string]qoderModelInfo) {
-	qoderModelAliasesState.Lock()
-	defer qoderModelAliasesState.Unlock()
-	qoderModelAliasesState.aliases = cloneQoderModelAliases(aliases)
-}
-
-func resetQoderModelAliasesForTest() {
-	applyQoderModelAliases(defaultQoderModelAliases)
-}
-
-func cloneQoderModelAliases(src map[string]qoderModelInfo) map[string]qoderModelInfo {
-	out := make(map[string]qoderModelInfo, len(src))
-	for key, value := range src {
-		out[key] = value
-	}
-	return out
+	_, ok := qoderCompatModelAliases[model]
+	return ok
 }

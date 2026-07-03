@@ -545,8 +545,6 @@ func TestQoderConversationKeyPrefersMetadataOverClaudeCodeStableSeed(t *testing.
 }
 
 func TestResolveQoderModelUsesOpus46AliasForUltimate(t *testing.T) {
-	resetQoderModelAliasesForTest()
-	t.Cleanup(resetQoderModelAliasesForTest)
 
 	info := resolveQoderModel("claude-opus-4-6")
 	require.Equal(t, "ultimate", info.Key)

@@ -18,7 +18,6 @@ type AdminHandlers struct {
 	GeminiOAuth           *admin.GeminiOAuthHandler
 	AntigravityOAuth      *admin.AntigravityOAuthHandler
 	QoderOAuth            *admin.QoderOAuthHandler
-	QoderModels           *admin.QoderModelSyncHandler
 	GrokOAuth             *admin.GrokOAuthHandler
 	Proxy                 *admin.ProxyHandler
 	Redeem                *admin.RedeemHandler

@@ -47,43 +47,6 @@ export interface QoderPollResponse {
   token_info?: QoderTokenInfo
 }
 
-export interface QoderModelSyncRequest {
-  source?: 'local' | 'cli'
-  apply?: boolean
-}
-
-export interface QoderModelAliasRecord {
-  alias: string
-  key: string
-  source: string
-  provider?: string
-  notes?: string
-  display_name?: string
-  description?: string
-}
-
-export interface QoderModelAliasChange {
-  alias: string
-  before: QoderModelAliasRecord
-  after: QoderModelAliasRecord
-  fields: string[]
-}
-
-export interface QoderModelSyncResponse {
-  source: 'local' | 'cli'
-  applied: boolean
-  script_path: string
-  persist_path: string
-  incoming_count: number
-  current_count: number
-  final_count: number
-  added: QoderModelAliasRecord[]
-  removed: QoderModelAliasRecord[]
-  changed: QoderModelAliasChange[]
-  preserved: QoderModelAliasRecord[]
-  models: QoderModelAliasRecord[]
-}
-
 export async function generateAuthUrl(
   payload: QoderAuthUrlRequest
 ): Promise<QoderAuthUrlResponse> {
@@ -110,12 +73,4 @@ export async function poll(payload: QoderPollRequest): Promise<QoderPollResponse
   return data
 }
 
-export async function syncModels(payload: QoderModelSyncRequest): Promise<QoderModelSyncResponse> {
-  const { data } = await apiClient.post<QoderModelSyncResponse>(
-    '/admin/qoder/models/sync',
-    payload
-  )
-  return data
-}
-
-export default { generateAuthUrl, exchangeCode, poll, syncModels }
+export default { generateAuthUrl, exchangeCode, poll }
