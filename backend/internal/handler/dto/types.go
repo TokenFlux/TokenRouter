@@ -151,22 +151,24 @@ type GroupCapacity struct {
 }
 
 type SubscriptionPlan struct {
-	ID              int64     `json:"id"`
-	Name            string    `json:"name"`
-	Description     string    `json:"description"`
-	Price           float64   `json:"price"`
-	OriginalPrice   *float64  `json:"original_price,omitempty"`
-	ValidityDays    int       `json:"validity_days"`
-	ValidityUnit    string    `json:"validity_unit"`
-	DailyLimitUSD   *float64  `json:"daily_limit_usd"`
-	WeeklyLimitUSD  *float64  `json:"weekly_limit_usd"`
-	MonthlyLimitUSD *float64  `json:"monthly_limit_usd"`
-	Features        string    `json:"features"`
-	ProductName     string    `json:"product_name"`
-	ForSale         bool      `json:"for_sale"`
-	SortOrder       int       `json:"sort_order"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID                   int64             `json:"id"`
+	Name                 string            `json:"name"`
+	Description          string            `json:"description"`
+	Price                float64           `json:"price"`
+	OriginalPrice        *float64          `json:"original_price,omitempty"`
+	ValidityDays         int               `json:"validity_days"`
+	ValidityUnit         string            `json:"validity_unit"`
+	GroupIDs             []int64           `json:"group_ids"`
+	GroupRateMultipliers map[int64]float64 `json:"group_rate_multipliers"`
+	DailyLimitUSD        *float64          `json:"daily_limit_usd"`
+	WeeklyLimitUSD       *float64          `json:"weekly_limit_usd"`
+	MonthlyLimitUSD      *float64          `json:"monthly_limit_usd"`
+	Features             string            `json:"features"`
+	ProductName          string            `json:"product_name"`
+	ForSale              bool              `json:"for_sale"`
+	SortOrder            int               `json:"sort_order"`
+	CreatedAt            time.Time         `json:"created_at"`
+	UpdatedAt            time.Time         `json:"updated_at"`
 }
 
 // AdminGroup 是管理员接口使用的 group DTO（包含敏感/内部字段）。

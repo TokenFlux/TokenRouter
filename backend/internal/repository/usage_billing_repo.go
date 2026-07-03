@@ -3,8 +3,10 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -65,6 +67,84 @@ func (r *usageBillingRepository) Apply(ctx context.Context, cmd *service.UsageBi
 	return result, nil
 }
 
+func (r *usageBillingRepository) ResolveUsableSubscriptionForGroup(ctx context.Context, userID, groupID int64) (*service.UserSubscription, error) {
+	if r == nil || r.db == nil {
+		return nil, errors.New("usage billing repository db is nil")
+	}
+	if userID <= 0 || groupID <= 0 {
+		return nil, service.ErrSubscriptionNotFound
+	}
+
+	row := usageBillingSubscriptionRow{}
+	err := r.db.QueryRowContext(ctx, `
+		SELECT
+			us.id,
+			us.plan_id,
+			us.starts_at,
+			us.expires_at,
+			us.daily_window_start,
+			us.weekly_window_start,
+			us.monthly_window_start,
+			us.daily_limit_usd,
+			us.weekly_limit_usd,
+			us.monthly_limit_usd,
+			us.daily_usage_usd,
+			us.weekly_usage_usd,
+			us.monthly_usage_usd,
+			sp.group_ids,
+			sp.group_rate_multipliers
+		FROM user_subscriptions us
+		JOIN subscription_plans sp ON sp.id = us.plan_id
+		WHERE us.user_id = $1
+			AND us.deleted_at IS NULL
+			AND us.starts_at <= NOW()
+			AND us.expires_at > NOW()
+			AND us.status IN ($2, $3)
+			AND (
+				sp.group_ids @> to_jsonb(ARRAY[$4]::bigint[])
+				OR EXISTS (
+					SELECT 1
+					FROM subscription_plan_groups spg
+					WHERE spg.plan_id = us.plan_id
+						AND spg.group_id = $4
+				)
+			)
+			AND (us.daily_limit_usd IS NULL OR us.daily_limit_usd <= 0 OR us.daily_usage_usd < us.daily_limit_usd)
+			AND (us.weekly_limit_usd IS NULL OR us.weekly_limit_usd <= 0 OR us.weekly_usage_usd < us.weekly_limit_usd)
+			AND (us.monthly_limit_usd IS NULL OR us.monthly_limit_usd <= 0 OR us.monthly_usage_usd < us.monthly_limit_usd)
+		ORDER BY us.expires_at ASC, us.starts_at ASC, us.id ASC
+		LIMIT 1
+	`,
+		userID,
+		service.SubscriptionStatusActive,
+		service.SubscriptionStatusPending,
+		groupID,
+	).Scan(
+		&row.ID,
+		&row.PlanID,
+		&row.StartsAt,
+		&row.ExpiresAt,
+		&row.DailyWindowStart,
+		&row.WeeklyWindowStart,
+		&row.MonthlyWindowStart,
+		&row.DailyLimitUSD,
+		&row.WeeklyLimitUSD,
+		&row.MonthlyLimitUSD,
+		&row.DailyUsageUSD,
+		&row.WeeklyUsageUSD,
+		&row.MonthlyUsageUSD,
+		&row.PlanGroupIDsRaw,
+		&row.PlanGroupRateMultipliersRaw,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, service.ErrSubscriptionNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return usageBillingSubscriptionRowToService(userID, row), nil
+}
+
 func (r *usageBillingRepository) claimUsageBillingKey(ctx context.Context, tx *sql.Tx, cmd *service.UsageBillingCommand) (bool, error) {
 	var id int64
 	err := tx.QueryRowContext(ctx, `
@@ -109,7 +189,7 @@ func (r *usageBillingRepository) claimUsageBillingKey(ctx context.Context, tx *s
 }
 
 func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, tx *sql.Tx, cmd *service.UsageBillingCommand, result *service.UsageBillingApplyResult) error {
-	remainingAmount, allocations, err := allocateUsageBillingSubscriptions(ctx, tx, cmd.UserID, cmd.BillableAmountUSD)
+	remainingAmount, allocations, err := allocateUsageBillingSubscriptions(ctx, tx, cmd.UserID, cmd.GroupID, cmd.BillableAmountUSD)
 	if err != nil {
 		return err
 	}
@@ -157,27 +237,98 @@ func (r *usageBillingRepository) applyUsageBillingEffects(ctx context.Context, t
 }
 
 type usageBillingSubscriptionRow struct {
-	ID                 int64
-	PlanID             int64
-	StartsAt           time.Time
-	ExpiresAt          time.Time
-	DailyWindowStart   sql.NullTime
-	WeeklyWindowStart  sql.NullTime
-	MonthlyWindowStart sql.NullTime
-	DailyLimitUSD      sql.NullFloat64
-	WeeklyLimitUSD     sql.NullFloat64
-	MonthlyLimitUSD    sql.NullFloat64
-	DailyUsageUSD      float64
-	WeeklyUsageUSD     float64
-	MonthlyUsageUSD    float64
+	ID                          int64
+	PlanID                      int64
+	StartsAt                    time.Time
+	ExpiresAt                   time.Time
+	DailyWindowStart            sql.NullTime
+	WeeklyWindowStart           sql.NullTime
+	MonthlyWindowStart          sql.NullTime
+	DailyLimitUSD               sql.NullFloat64
+	WeeklyLimitUSD              sql.NullFloat64
+	MonthlyLimitUSD             sql.NullFloat64
+	DailyUsageUSD               float64
+	WeeklyUsageUSD              float64
+	MonthlyUsageUSD             float64
+	PlanGroupIDsRaw             []byte
+	PlanGroupRateMultipliersRaw []byte
 }
 
-func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, userID int64, amountUSD float64) (float64, []domain.BillingAllocation, error) {
+func usageBillingSubscriptionRowToService(userID int64, row usageBillingSubscriptionRow) *service.UserSubscription {
+	return &service.UserSubscription{
+		ID:                 row.ID,
+		UserID:             userID,
+		PlanID:             row.PlanID,
+		StartsAt:           row.StartsAt,
+		ExpiresAt:          row.ExpiresAt,
+		Status:             service.SubscriptionStatusActive,
+		DailyWindowStart:   usageBillingNullableTimePtr(row.DailyWindowStart),
+		WeeklyWindowStart:  usageBillingNullableTimePtr(row.WeeklyWindowStart),
+		MonthlyWindowStart: usageBillingNullableTimePtr(row.MonthlyWindowStart),
+		DailyLimitUSD:      usageBillingNullableFloat64Ptr(row.DailyLimitUSD),
+		WeeklyLimitUSD:     usageBillingNullableFloat64Ptr(row.WeeklyLimitUSD),
+		MonthlyLimitUSD:    usageBillingNullableFloat64Ptr(row.MonthlyLimitUSD),
+		DailyUsageUSD:      row.DailyUsageUSD,
+		WeeklyUsageUSD:     row.WeeklyUsageUSD,
+		MonthlyUsageUSD:    row.MonthlyUsageUSD,
+		Plan: &service.SubscriptionPlan{
+			ID:                   row.PlanID,
+			GroupIDs:             parseInt64JSONSlice(row.PlanGroupIDsRaw),
+			GroupRateMultipliers: parseInt64Float64JSONMap(row.PlanGroupRateMultipliersRaw),
+		},
+	}
+}
+
+func parseInt64JSONSlice(data []byte) []int64 {
+	if len(data) == 0 {
+		return nil
+	}
+	var out []int64
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil
+	}
+	return out
+}
+
+func parseInt64Float64JSONMap(data []byte) map[int64]float64 {
+	if len(data) == 0 {
+		return map[int64]float64{}
+	}
+	var raw map[string]float64
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return map[int64]float64{}
+	}
+	out := make(map[int64]float64, len(raw))
+	for key, value := range raw {
+		id, err := strconv.ParseInt(key, 10, 64)
+		if err != nil || id <= 0 {
+			continue
+		}
+		out[id] = value
+	}
+	return out
+}
+
+func usageBillingNullableTimePtr(v sql.NullTime) *time.Time {
+	if !v.Valid {
+		return nil
+	}
+	return &v.Time
+}
+
+func usageBillingNullableFloat64Ptr(v sql.NullFloat64) *float64 {
+	if !v.Valid {
+		return nil
+	}
+	return &v.Float64
+}
+
+func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, userID int64, groupID *int64, amountUSD float64) (float64, []domain.BillingAllocation, error) {
 	if amountUSD <= 0 {
 		return 0, nil, nil
 	}
 
-	rows, err := tx.QueryContext(ctx, `
+	query := `
 		SELECT
 			id,
 			plan_id,
@@ -198,9 +349,32 @@ func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, userID i
 			AND starts_at <= NOW()
 			AND expires_at > NOW()
 			AND status IN ($2, $3)
+`
+	args := []any{userID, service.SubscriptionStatusActive, service.SubscriptionStatusPending}
+	if groupID != nil && *groupID > 0 {
+		query += `
+			AND EXISTS (
+				SELECT 1
+				FROM subscription_plans sp
+				WHERE sp.id = user_subscriptions.plan_id
+					AND (
+						sp.group_ids @> to_jsonb(ARRAY[$4]::bigint[])
+						OR EXISTS (
+							SELECT 1
+							FROM subscription_plan_groups spg
+							WHERE spg.plan_id = user_subscriptions.plan_id
+								AND spg.group_id = $4
+						)
+					)
+			)
+`
+		args = append(args, *groupID)
+	}
+	query += `
 		ORDER BY expires_at ASC, starts_at ASC, id ASC
 		FOR UPDATE
-	`, userID, service.SubscriptionStatusActive, service.SubscriptionStatusPending)
+	`
+	rows, err := tx.QueryContext(ctx, query, args...)
 	if err != nil {
 		return 0, nil, err
 	}

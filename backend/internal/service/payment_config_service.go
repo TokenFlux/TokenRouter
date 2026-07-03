@@ -187,37 +187,41 @@ func (p *nullableFloat64Patch) UnmarshalJSON(data []byte) error {
 }
 
 type CreatePlanRequest struct {
-	GroupID         int64    `json:"group_id"`
-	Name            string   `json:"name"`
-	Description     string   `json:"description"`
-	Price           float64  `json:"price"`
-	OriginalPrice   *float64 `json:"original_price"`
-	ValidityDays    int      `json:"validity_days"`
-	ValidityUnit    string   `json:"validity_unit"`
-	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
-	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
-	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
-	Features        string   `json:"features"`
-	ProductName     string   `json:"product_name"`
-	ForSale         bool     `json:"for_sale"`
-	SortOrder       int      `json:"sort_order"`
+	GroupID              int64             `json:"group_id"`
+	GroupIDs             []int64           `json:"group_ids"`
+	GroupRateMultipliers map[int64]float64 `json:"group_rate_multipliers"`
+	Name                 string            `json:"name"`
+	Description          string            `json:"description"`
+	Price                float64           `json:"price"`
+	OriginalPrice        *float64          `json:"original_price"`
+	ValidityDays         int               `json:"validity_days"`
+	ValidityUnit         string            `json:"validity_unit"`
+	DailyLimitUSD        *float64          `json:"daily_limit_usd"`
+	WeeklyLimitUSD       *float64          `json:"weekly_limit_usd"`
+	MonthlyLimitUSD      *float64          `json:"monthly_limit_usd"`
+	Features             string            `json:"features"`
+	ProductName          string            `json:"product_name"`
+	ForSale              bool              `json:"for_sale"`
+	SortOrder            int               `json:"sort_order"`
 }
 
 type UpdatePlanRequest struct {
-	GroupID         *int64               `json:"group_id"`
-	Name            *string              `json:"name"`
-	Description     *string              `json:"description"`
-	Price           *float64             `json:"price"`
-	OriginalPrice   nullableFloat64Patch `json:"original_price"`
-	ValidityDays    *int                 `json:"validity_days"`
-	ValidityUnit    *string              `json:"validity_unit"`
-	DailyLimitUSD   nullableFloat64Patch `json:"daily_limit_usd"`
-	WeeklyLimitUSD  nullableFloat64Patch `json:"weekly_limit_usd"`
-	MonthlyLimitUSD nullableFloat64Patch `json:"monthly_limit_usd"`
-	Features        *string              `json:"features"`
-	ProductName     *string              `json:"product_name"`
-	ForSale         *bool                `json:"for_sale"`
-	SortOrder       *int                 `json:"sort_order"`
+	GroupID              *int64               `json:"group_id"`
+	GroupIDs             *[]int64             `json:"group_ids"`
+	GroupRateMultipliers *map[int64]float64   `json:"group_rate_multipliers"`
+	Name                 *string              `json:"name"`
+	Description          *string              `json:"description"`
+	Price                *float64             `json:"price"`
+	OriginalPrice        nullableFloat64Patch `json:"original_price"`
+	ValidityDays         *int                 `json:"validity_days"`
+	ValidityUnit         *string              `json:"validity_unit"`
+	DailyLimitUSD        nullableFloat64Patch `json:"daily_limit_usd"`
+	WeeklyLimitUSD       nullableFloat64Patch `json:"weekly_limit_usd"`
+	MonthlyLimitUSD      nullableFloat64Patch `json:"monthly_limit_usd"`
+	Features             *string              `json:"features"`
+	ProductName          *string              `json:"product_name"`
+	ForSale              *bool                `json:"for_sale"`
+	SortOrder            *int                 `json:"sort_order"`
 }
 
 // PaymentConfigService manages payment configuration and CRUD for
@@ -239,22 +243,24 @@ func (s *PaymentConfigService) GetByID(ctx context.Context, id int64) (*Subscrip
 		return nil, infraerrors.NotFound("PLAN_NOT_FOUND", "subscription plan not found")
 	}
 	return &SubscriptionPlan{
-		ID:              plan.ID,
-		Name:            plan.Name,
-		Description:     plan.Description,
-		Price:           plan.Price,
-		OriginalPrice:   plan.OriginalPrice,
-		ValidityDays:    plan.ValidityDays,
-		ValidityUnit:    plan.ValidityUnit,
-		DailyLimitUSD:   plan.DailyLimitUsd,
-		WeeklyLimitUSD:  plan.WeeklyLimitUsd,
-		MonthlyLimitUSD: plan.MonthlyLimitUsd,
-		Features:        plan.Features,
-		ProductName:     plan.ProductName,
-		ForSale:         plan.ForSale,
-		SortOrder:       plan.SortOrder,
-		CreatedAt:       plan.CreatedAt,
-		UpdatedAt:       plan.UpdatedAt,
+		ID:                   plan.ID,
+		Name:                 plan.Name,
+		Description:          plan.Description,
+		Price:                plan.Price,
+		OriginalPrice:        plan.OriginalPrice,
+		ValidityDays:         plan.ValidityDays,
+		ValidityUnit:         plan.ValidityUnit,
+		DailyLimitUSD:        plan.DailyLimitUsd,
+		WeeklyLimitUSD:       plan.WeeklyLimitUsd,
+		MonthlyLimitUSD:      plan.MonthlyLimitUsd,
+		GroupIDs:             append([]int64(nil), plan.GroupIds...),
+		GroupRateMultipliers: cloneInt64Float64Map(plan.GroupRateMultipliers),
+		Features:             plan.Features,
+		ProductName:          plan.ProductName,
+		ForSale:              plan.ForSale,
+		SortOrder:            plan.SortOrder,
+		CreatedAt:            plan.CreatedAt,
+		UpdatedAt:            plan.UpdatedAt,
 	}, nil
 }
 

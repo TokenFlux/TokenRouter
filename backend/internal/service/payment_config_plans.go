@@ -10,6 +10,69 @@ import (
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 )
 
+func normalizePlanGroupIDs(groupID int64, groupIDs []int64) []int64 {
+	seen := make(map[int64]struct{}, len(groupIDs)+1)
+	out := make([]int64, 0, len(groupIDs)+1)
+	if groupID > 0 {
+		seen[groupID] = struct{}{}
+		out = append(out, groupID)
+	}
+	for _, id := range groupIDs {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
+}
+
+func validatePlanGroupIDs(groupIDs []int64) error {
+	if len(groupIDs) == 0 {
+		return infraerrors.BadRequest("PLAN_GROUPS_REQUIRED", "plan must include at least one group")
+	}
+	return nil
+}
+
+func normalizePlanGroupRateMultipliers(groupIDs []int64, rates map[int64]float64) (map[int64]float64, error) {
+	selected := make(map[int64]struct{}, len(groupIDs))
+	for _, groupID := range groupIDs {
+		if groupID <= 0 {
+			continue
+		}
+		selected[groupID] = struct{}{}
+	}
+
+	out := make(map[int64]float64, len(selected))
+	for groupID, rate := range rates {
+		if groupID <= 0 {
+			continue
+		}
+		if _, ok := selected[groupID]; !ok {
+			continue
+		}
+		if rate <= 0 {
+			return nil, infraerrors.BadRequest("PLAN_GROUP_RATE_INVALID", "plan group rate multiplier must be > 0")
+		}
+		out[groupID] = rate
+	}
+	return out, nil
+}
+
+func cloneInt64Float64Map(in map[int64]float64) map[int64]float64 {
+	if len(in) == 0 {
+		return map[int64]float64{}
+	}
+	out := make(map[int64]float64, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
 func validatePlanQuotas(daily, weekly, monthly *float64) error {
 	for _, item := range []struct {
 		value *float64
@@ -91,6 +154,14 @@ func (s *PaymentConfigService) ListPlansForSale(ctx context.Context) ([]*dbent.S
 }
 
 func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanRequest) (*dbent.SubscriptionPlan, error) {
+	groupIDs := normalizePlanGroupIDs(req.GroupID, req.GroupIDs)
+	if err := validatePlanGroupIDs(groupIDs); err != nil {
+		return nil, err
+	}
+	groupRates, err := normalizePlanGroupRateMultipliers(groupIDs, req.GroupRateMultipliers)
+	if err != nil {
+		return nil, err
+	}
 	if err := validatePlanRequired(req.Name, req.GroupID, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
 		return nil, err
 	}
@@ -104,6 +175,8 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 		SetPrice(req.Price).
 		SetValidityDays(req.ValidityDays).
 		SetValidityUnit(strings.TrimSpace(req.ValidityUnit)).
+		SetGroupIds(groupIDs).
+		SetGroupRateMultipliers(groupRates).
 		SetFeatures(req.Features).
 		SetProductName(req.ProductName).
 		SetForSale(req.ForSale).
@@ -127,8 +200,43 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	if err := validatePlanPatch(req); err != nil {
 		return nil, err
 	}
+	var groupIDs []int64
+	var groupRates map[int64]float64
+	if req.GroupIDs != nil {
+		groupID := int64(0)
+		if req.GroupID != nil {
+			groupID = *req.GroupID
+		}
+		groupIDs = normalizePlanGroupIDs(groupID, *req.GroupIDs)
+		if err := validatePlanGroupIDs(groupIDs); err != nil {
+			return nil, err
+		}
+	}
+	if req.GroupIDs != nil || req.GroupRateMultipliers != nil {
+		existing, err := s.entClient.SubscriptionPlan.Get(ctx, id)
+		if err != nil {
+			return nil, infraerrors.NotFound("PLAN_NOT_FOUND", "subscription plan not found")
+		}
+		if req.GroupIDs == nil {
+			groupIDs = append([]int64(nil), existing.GroupIds...)
+		}
+		rates := existing.GroupRateMultipliers
+		if req.GroupRateMultipliers != nil {
+			rates = *req.GroupRateMultipliers
+		}
+		groupRates, err = normalizePlanGroupRateMultipliers(groupIDs, rates)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	update := s.entClient.SubscriptionPlan.UpdateOneID(id)
+	if req.GroupIDs != nil {
+		update.SetGroupIds(groupIDs)
+	}
+	if req.GroupIDs != nil || req.GroupRateMultipliers != nil {
+		update.SetGroupRateMultipliers(groupRates)
+	}
 	if req.Name != nil {
 		update.SetName(strings.TrimSpace(*req.Name))
 	}

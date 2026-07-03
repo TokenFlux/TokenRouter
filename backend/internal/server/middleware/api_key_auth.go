@@ -155,7 +155,11 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		var subscription *service.UserSubscription
 		needsMaintenance := false
 		if subscriptionService != nil {
-			sub, maintenance, subErr := subscriptionService.GetUsableSubscription(c.Request.Context(), apiKey.User.ID)
+			var groupID int64
+			if apiKey.GroupID != nil {
+				groupID = *apiKey.GroupID
+			}
+			sub, maintenance, subErr := subscriptionService.GetUsableSubscription(c.Request.Context(), apiKey.User.ID, groupID)
 			if subErr != nil && !errors.Is(subErr, service.ErrSubscriptionNotFound) {
 				AbortWithError(c, 500, "INTERNAL_ERROR", "Failed to validate subscription")
 				return

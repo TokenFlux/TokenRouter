@@ -161,23 +161,36 @@ func SubscriptionPlanFromServiceShallow(plan *service.SubscriptionPlan) *Subscri
 		return nil
 	}
 	return &SubscriptionPlan{
-		ID:              plan.ID,
-		Name:            plan.Name,
-		Description:     plan.Description,
-		Price:           plan.Price,
-		OriginalPrice:   plan.OriginalPrice,
-		ValidityDays:    plan.ValidityDays,
-		ValidityUnit:    plan.ValidityUnit,
-		DailyLimitUSD:   plan.DailyLimitUSD,
-		WeeklyLimitUSD:  plan.WeeklyLimitUSD,
-		MonthlyLimitUSD: plan.MonthlyLimitUSD,
-		Features:        plan.Features,
-		ProductName:     plan.ProductName,
-		ForSale:         plan.ForSale,
-		SortOrder:       plan.SortOrder,
-		CreatedAt:       plan.CreatedAt,
-		UpdatedAt:       plan.UpdatedAt,
+		ID:                   plan.ID,
+		Name:                 plan.Name,
+		Description:          plan.Description,
+		Price:                plan.Price,
+		OriginalPrice:        plan.OriginalPrice,
+		ValidityDays:         plan.ValidityDays,
+		ValidityUnit:         plan.ValidityUnit,
+		GroupIDs:             append([]int64(nil), plan.GroupIDs...),
+		GroupRateMultipliers: cloneInt64Float64Map(plan.GroupRateMultipliers),
+		DailyLimitUSD:        plan.DailyLimitUSD,
+		WeeklyLimitUSD:       plan.WeeklyLimitUSD,
+		MonthlyLimitUSD:      plan.MonthlyLimitUSD,
+		Features:             plan.Features,
+		ProductName:          plan.ProductName,
+		ForSale:              plan.ForSale,
+		SortOrder:            plan.SortOrder,
+		CreatedAt:            plan.CreatedAt,
+		UpdatedAt:            plan.UpdatedAt,
 	}
+}
+
+func cloneInt64Float64Map(in map[int64]float64) map[int64]float64 {
+	if len(in) == 0 {
+		return map[int64]float64{}
+	}
+	out := make(map[int64]float64, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }
 
 // GroupFromServiceAdmin converts a service Group to DTO for admin users.
