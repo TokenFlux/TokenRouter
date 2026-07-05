@@ -368,6 +368,7 @@ func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Conte
 	return s.billingService.getDisplayPricing(model, group.RateMultiplier, imageRateMultiplier, imageConfig)
 }
 
+// marketplaceImageRateMultiplier 返回模型广场图片价格应使用的倍率。
 func marketplaceImageRateMultiplier(group *Group) float64 {
 	if group == nil {
 		return 1
