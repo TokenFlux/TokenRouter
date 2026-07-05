@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS subscription_plan_groups (
 	PRIMARY KEY (plan_id, group_id)
 );
 
+ALTER TABLE subscription_plan_groups
+	ADD COLUMN IF NOT EXISTS rate_multiplier DECIMAL(20,8);
+
 CREATE INDEX IF NOT EXISTS idx_subscription_plan_groups_group_id
 	ON subscription_plan_groups(group_id);
 
