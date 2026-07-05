@@ -581,6 +581,8 @@ export interface MarketplaceGroup {
   display_brand: string
   sort_order: number
   rate_multiplier: number
+  image_rate_independent: boolean
+  image_rate_multiplier: number
   official_price_ratio?: number
   official_price_rmb_equivalent?: number
   // 数据共享分组需要在模型广场展示醒目标记，提醒用户该分组会进入采集流程。

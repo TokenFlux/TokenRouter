@@ -33,6 +33,8 @@ type ModelMarketplaceGroup struct {
 	DisplayBrand               string
 	SortOrder                  int
 	RateMultiplier             float64
+	ImageRateIndependent       bool
+	ImageRateMultiplier        float64
 	OfficialPriceRatio         *float64
 	OfficialPriceRMBEquivalent *float64
 	// DataSharingEnabled 标记公开分组是否会采集数据共享会话，供模型广场展示提示。
@@ -114,6 +116,8 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 			DisplayBrand:               marketplaceGroupDisplayBrand(group),
 			SortOrder:                  group.SortOrder,
 			RateMultiplier:             group.RateMultiplier,
+			ImageRateIndependent:       group.ImageRateIndependent,
+			ImageRateMultiplier:        group.ImageRateMultiplier,
 			OfficialPriceRatio:         officialPriceRatio,
 			OfficialPriceRMBEquivalent: officialPriceRMBEquivalent,
 			DataSharingEnabled:         group.DataSharingEnabled,
@@ -352,15 +356,29 @@ func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Conte
 	if s.billingService == nil {
 		return unknownDisplayPricing()
 	}
+	imageRateMultiplier := marketplaceImageRateMultiplier(group)
 	if s.gatewayService != nil && s.gatewayService.resolver != nil {
 		groupID := group.ID
 		resolved := s.gatewayService.resolver.Resolve(ctx, PricingInput{
 			Model:   model,
 			GroupID: &groupID,
 		})
-		return s.billingService.getDisplayPricingWithResolved(model, group.RateMultiplier, imageConfig, resolved)
+		return s.billingService.getDisplayPricingWithResolvedMultipliers(model, group.RateMultiplier, imageRateMultiplier, imageConfig, resolved)
 	}
-	return s.billingService.GetDisplayPricing(model, group.RateMultiplier, imageConfig)
+	return s.billingService.getDisplayPricing(model, group.RateMultiplier, imageRateMultiplier, imageConfig)
+}
+
+func marketplaceImageRateMultiplier(group *Group) float64 {
+	if group == nil {
+		return 1
+	}
+	if !group.ImageRateIndependent {
+		return group.RateMultiplier
+	}
+	if group.ImageRateMultiplier < 0 {
+		return 0
+	}
+	return group.ImageRateMultiplier
 }
 
 func (s *ModelMarketplaceService) resolveGroupModels(ctx context.Context, group *Group) []marketplaceModelDef {

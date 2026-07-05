@@ -47,6 +47,9 @@ vi.mock('vue-i18n', async () => {
         if (key === 'marketplace.rateMultiplierValue') {
           return `marketplace.rateMultiplierValue ${params?.multiplier || ''}`
         }
+        if (key === 'marketplace.imageRateMultiplierValue') {
+          return `marketplace.imageRateMultiplierValue ${params?.multiplier || ''}`
+        }
 
         return key
       },
@@ -127,6 +130,12 @@ const tokenPricing: MarketplaceModelPricing = {
   output_price_per_token: 0.000002,
 }
 
+const imagePricing: MarketplaceModelPricing = {
+  pricing_mode: 'image',
+  price_status: 'priced',
+  image_price_1k: 0.5,
+}
+
 const unpricedPricing: MarketplaceModelPricing = {
   pricing_mode: 'unknown',
   price_status: 'unpriced',
@@ -159,6 +168,8 @@ function marketplaceGroup(id: number, name: string, dataSharingEnabled: boolean,
     display_brand: 'OpenAI',
     sort_order: id,
     rate_multiplier: id,
+    image_rate_independent: false,
+    image_rate_multiplier: 1,
     official_price_ratio: id / 10,
     official_price_rmb_equivalent: id,
     data_sharing_enabled: dataSharingEnabled,
@@ -251,6 +262,28 @@ describe('ModelMarketplaceView', () => {
 
     const restored = await mountMarketplace()
     expect(restored.findAll('[data-testid="marketplace-group-section"]')).toHaveLength(4)
+  })
+
+  it('展示开启独立配置的生图倍率', async () => {
+    const fixture = marketplaceFixture()
+    fixture[0] = {
+      ...fixture[0],
+      image_rate_independent: true,
+      image_rate_multiplier: 0.5,
+      models: [
+        marketplaceModel('gpt-image-1', 'GPT Image', imagePricing),
+      ],
+    }
+    getMarketplaceModels.mockResolvedValue(fixture)
+
+    const wrapper = await mountMarketplace()
+
+    expect(modelCards(wrapper).map((card) => card.text()).join('\n')).toContain('marketplace.imageRateMultiplierValue x0.50')
+
+    await wrapper.get('[data-testid="select-option-group-model"]').trigger('click')
+    await nextTick()
+
+    expect(wrapper.findAll('[data-testid="marketplace-group-section"]').map((section) => section.text()).join('\n')).toContain('marketplace.imageRateMultiplierValue x0.50')
   })
 
   it('模型-分组模式下按分组、搜索和计费类型裁剪分组条目', async () => {

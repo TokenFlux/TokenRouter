@@ -426,9 +426,9 @@ export default {
 
   marketplace: {
     title: 'Model Marketplace',
-    subtitle: 'Browse currently available models by public group, with actual charged pricing after the group multiplier is applied.',
+    subtitle: 'Browse currently available models by public group, with actual charged pricing after group and independent image multipliers are applied.',
     backHome: 'Back Home',
-    actualPricingNote: 'Prices are calculated from the pricing file base rates multiplied by the group multiplier, using {unitName}',
+    actualPricingNote: 'Prices are calculated from pricing file base rates multiplied by the group multiplier. When independent image pricing is enabled, image prices use the image multiplier instead. Unit: {unitName}',
     tokenPricing: 'Token Pricing',
     contextIntervalPricing: 'Context Interval Pricing',
     pricingDetail: 'Full Pricing Details',
@@ -461,6 +461,7 @@ export default {
     availabilityHintNoData: 'No active probe data in the last {days} days',
     rateMultiplier: 'Group Multiplier',
     rateMultiplierValue: 'Group Multiplier {multiplier}',
+    imageRateMultiplierValue: 'Image Multiplier {multiplier}',
     officialPriceDiscount: 'As low as {discount}/10 of official price',
     usdRmbEquivalent: 'As low as {amount} CNY equals 1 USD',
     contextTokens: 'Context Tokens',

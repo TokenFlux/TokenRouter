@@ -426,9 +426,9 @@ export default {
 
   marketplace: {
     title: '模型广场',
-    subtitle: '按公开分组浏览当前可用模型，并直接查看已包含分组倍率的实际扣费价格。',
+    subtitle: '按公开分组浏览当前可用模型，并直接查看已包含分组倍率和生图独立倍率的实际扣费价格。',
     backHome: '返回首页',
-    actualPricingNote: '价格已按价格文件记录的基础价乘以分组倍率计算，单位为 {unitName}',
+    actualPricingNote: '价格已按价格文件记录的基础价乘以分组倍率计算；生图独立倍率开启时，图片价格会改用生图倍率，单位为 {unitName}',
     tokenPricing: 'Token 计费',
     contextIntervalPricing: '按上下文区间定价',
     pricingDetail: '完整定价信息',
@@ -461,6 +461,7 @@ export default {
     availabilityHintNoData: '近 {days} 天暂无主动探测数据',
     rateMultiplier: '分组倍率',
     rateMultiplierValue: '分组倍率{multiplier}',
+    imageRateMultiplierValue: '生图倍率{multiplier}',
     officialPriceDiscount: '最低至官方价格的{discount}折',
     usdRmbEquivalent: '最低 {amount} 元相当于 1 美元',
     contextTokens: '上下文 Token',
