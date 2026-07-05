@@ -7718,6 +7718,7 @@ export default {
       groupId: '分组 ID',
       planGroups: '包含分组',
       planGroupsRequired: '套餐至少需要选择一个分组',
+      planGroupsGlobalHint: '不选择分组时，套餐对全部分组可用，包括之后新增的分组。',
       subscriptionRateMultiplier: '订阅倍率',
       subscriptionRateMultiplierRequired: '所选分组的订阅倍率必须大于 0',
       features: '功能特性',

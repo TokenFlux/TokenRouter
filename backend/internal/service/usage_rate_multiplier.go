@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"sort"
-	"time"
 )
 
 func resolveUsageSubscription(
@@ -20,40 +18,11 @@ func resolveUsageSubscription(
 	if groupID == nil || *groupID <= 0 || userID <= 0 {
 		return nil
 	}
-	if resolver != nil {
-		sub, err := resolver.ResolveUsableSubscriptionForGroup(ctx, userID, *groupID)
-		if err == nil && sub != nil {
-			return sub
-		}
-	}
-	if repo == nil {
+	if resolver == nil {
 		return nil
 	}
-	subs, err := repo.ListActiveByUserID(ctx, userID)
-	if err != nil {
-		return nil
-	}
-	sort.SliceStable(subs, func(i, j int) bool {
-		if subs[i].ExpiresAt.Equal(subs[j].ExpiresAt) {
-			if subs[i].StartsAt.Equal(subs[j].StartsAt) {
-				return subs[i].ID < subs[j].ID
-			}
-			return subs[i].StartsAt.Before(subs[j].StartsAt)
-		}
-		return subs[i].ExpiresAt.Before(subs[j].ExpiresAt)
-	})
-	now := time.Now()
-	for i := range subs {
-		sub := &subs[i]
-		if sub.EffectiveStatus(now) != SubscriptionStatusActive {
-			continue
-		}
-		if !subscriptionPlanIncludesGroup(sub.Plan, *groupID) {
-			continue
-		}
-		if !subscriptionHasBillableCapacity(sub) {
-			continue
-		}
+	sub, err := resolver.ResolveUsableSubscriptionForGroup(ctx, userID, *groupID)
+	if err == nil && sub != nil {
 		return sub
 	}
 	return nil
@@ -71,6 +40,9 @@ func usageSubscriptionResolverFrom(repo UsageBillingRepository) usageSubscriptio
 func subscriptionPlanIncludesGroup(plan *SubscriptionPlan, groupID int64) bool {
 	if plan == nil || groupID <= 0 {
 		return false
+	}
+	if len(plan.GroupIDs) == 0 {
+		return true
 	}
 	for _, id := range plan.GroupIDs {
 		if id == groupID {

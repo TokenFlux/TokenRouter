@@ -31,9 +31,6 @@ func normalizePlanGroupIDs(groupID int64, groupIDs []int64) []int64 {
 }
 
 func validatePlanGroupIDs(groupIDs []int64) error {
-	if len(groupIDs) == 0 {
-		return infraerrors.BadRequest("PLAN_GROUPS_REQUIRED", "plan must include at least one group")
-	}
 	return nil
 }
 
@@ -193,7 +190,14 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 	if req.MonthlyLimitUSD != nil {
 		builder.SetMonthlyLimitUsd(*req.MonthlyLimitUSD)
 	}
-	return builder.Save(ctx)
+	plan, err := builder.Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.syncPlanGroupMappings(ctx, int64(plan.ID), groupIDs, groupRates); err != nil {
+		return nil, err
+	}
+	return plan, nil
 }
 
 func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req UpdatePlanRequest) (*dbent.SubscriptionPlan, error) {
@@ -292,7 +296,43 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	if req.SortOrder != nil {
 		update.SetSortOrder(*req.SortOrder)
 	}
-	return update.Save(ctx)
+	plan, err := update.Save(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if req.GroupIDs != nil || req.GroupRateMultipliers != nil {
+		if err := s.syncPlanGroupMappings(ctx, id, groupIDs, groupRates); err != nil {
+			return nil, err
+		}
+	}
+	return plan, nil
+}
+
+func (s *PaymentConfigService) syncPlanGroupMappings(ctx context.Context, planID int64, groupIDs []int64, rates map[int64]float64) error {
+	if s == nil || s.entClient == nil || planID <= 0 {
+		return nil
+	}
+	if _, err := s.entClient.ExecContext(ctx, `DELETE FROM subscription_plan_groups WHERE plan_id = $1`, planID); err != nil {
+		return err
+	}
+	for _, groupID := range groupIDs {
+		if groupID <= 0 {
+			continue
+		}
+		var rate any
+		if value, ok := rates[groupID]; ok && value > 0 {
+			rate = value
+		}
+		if _, err := s.entClient.ExecContext(ctx, `
+			INSERT INTO subscription_plan_groups (plan_id, group_id, rate_multiplier)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (plan_id, group_id)
+			DO UPDATE SET rate_multiplier = EXCLUDED.rate_multiplier
+		`, planID, groupID, rate); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *PaymentConfigService) DeletePlan(ctx context.Context, id int64) error {

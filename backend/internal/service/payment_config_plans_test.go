@@ -9,11 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidatePlanGroupIDs_RequiresAtLeastOneGroup(t *testing.T) {
+func TestValidatePlanGroupIDs_AllowsEmptyGlobalPlan(t *testing.T) {
 	err := validatePlanGroupIDs(nil)
 
-	require.Error(t, err)
-	require.Equal(t, "PLAN_GROUPS_REQUIRED", infraerrors.Reason(err))
+	require.NoError(t, err)
 }
 
 func TestNormalizePlanGroupIDs_DeduplicatesAndPreservesLegacyGroupID(t *testing.T) {

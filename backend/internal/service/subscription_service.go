@@ -8,11 +8,11 @@ import (
 	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
 	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/lib/pq"
 )
 
 var MaxExpiresAt = time.Date(2099, 12, 31, 23, 59, 59, 0, time.UTC)
@@ -668,7 +668,10 @@ func (s *SubscriptionService) GetUsableSubscription(ctx context.Context, userID 
 		return nil, false, err
 	}
 	if len(groupID) > 0 && groupID[0] > 0 {
-		subs = s.filterSubscriptionsByGroup(ctx, subs, groupID[0])
+		subs, err = s.filterSubscriptionsByGroup(ctx, subs, groupID[0])
+		if err != nil {
+			return nil, false, err
+		}
 	}
 	sort.SliceStable(subs, func(i, j int) bool {
 		if subs[i].ExpiresAt.Equal(subs[j].ExpiresAt) {
@@ -695,28 +698,50 @@ func (s *SubscriptionService) GetUsableSubscription(ctx context.Context, userID 
 	return nil, false, ErrSubscriptionNotFound
 }
 
-func (s *SubscriptionService) filterSubscriptionsByGroup(ctx context.Context, subs []UserSubscription, groupID int64) []UserSubscription {
-	if s == nil || s.entClient == nil || groupID <= 0 || len(subs) == 0 {
-		return subs
+func (s *SubscriptionService) filterSubscriptionsByGroup(ctx context.Context, subs []UserSubscription, groupID int64) ([]UserSubscription, error) {
+	if groupID <= 0 || len(subs) == 0 {
+		return subs, nil
+	}
+	if s == nil || s.entClient == nil {
+		return nil, fmt.Errorf("subscription plan group filter unavailable")
 	}
 	planIDs := make([]int64, 0, len(subs))
 	for i := range subs {
 		planIDs = append(planIDs, subs[i].PlanID)
 	}
-	plans, err := s.entClient.SubscriptionPlan.Query().
-		Where(subscriptionplan.IDIn(planIDs...)).
-		All(ctx)
+	rows, err := s.entClient.QueryContext(ctx, `
+		SELECT sp.id
+		FROM subscription_plans sp
+		WHERE sp.id = ANY($1)
+			AND (
+				NOT EXISTS (
+					SELECT 1
+					FROM subscription_plan_groups spg
+					WHERE spg.plan_id = sp.id
+				)
+				OR EXISTS (
+					SELECT 1
+					FROM subscription_plan_groups spg
+					WHERE spg.plan_id = sp.id
+						AND spg.group_id = $2
+				)
+			)
+	`, pq.Array(planIDs), groupID)
 	if err != nil {
-		return subs
+		return nil, err
 	}
-	allowed := make(map[int64]struct{}, len(plans))
-	for _, plan := range plans {
-		for _, gid := range plan.GroupIds {
-			if gid == groupID {
-				allowed[int64(plan.ID)] = struct{}{}
-				break
-			}
+	defer rows.Close()
+
+	allowed := make(map[int64]struct{}, len(planIDs))
+	for rows.Next() {
+		var planID int64
+		if err := rows.Scan(&planID); err != nil {
+			return nil, err
 		}
+		allowed[planID] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 	out := subs[:0]
 	for i := range subs {
@@ -724,7 +749,7 @@ func (s *SubscriptionService) filterSubscriptionsByGroup(ctx context.Context, su
 			out = append(out, subs[i])
 		}
 	}
-	return out
+	return out, nil
 }
 
 func (s *SubscriptionService) ListUserSubscriptions(ctx context.Context, userID int64) ([]UserSubscription, error) {

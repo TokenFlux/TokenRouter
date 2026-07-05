@@ -7549,6 +7549,7 @@ export default {
       groupId: 'Group ID',
       planGroups: 'Included Groups',
       planGroupsRequired: 'Select at least one group for this plan',
+      planGroupsGlobalHint: 'Leave empty to make the plan available to all groups, including groups added later.',
       subscriptionRateMultiplier: 'Subscription Rate',
       subscriptionRateMultiplierRequired: 'Subscription rate for selected groups must be greater than 0',
       features: 'Features',

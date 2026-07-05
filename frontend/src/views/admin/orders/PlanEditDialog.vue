@@ -60,7 +60,8 @@
       </div>
 
       <div>
-        <label class="input-label">{{ t('payment.admin.planGroups') }} <span class="text-red-500">*</span></label>
+        <label class="input-label">{{ t('payment.admin.planGroups') }}</label>
+        <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.planGroupsGlobalHint') }}</p>
         <div class="max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 dark:border-dark-600 dark:bg-dark-800">
           <div class="mb-1 flex items-center px-2 text-xs text-gray-400">
             <span class="flex-1">{{ t('payment.admin.planGroups') }}</span>
@@ -353,10 +354,6 @@ async function handleSavePlan() {
   }
   if (!planForm.validity_days || planForm.validity_days < 1) {
     appStore.showError(t('payment.admin.validityDaysRequired'))
-    return
-  }
-  if (planForm.group_ids.length === 0) {
-    appStore.showError(t('payment.admin.planGroupsRequired'))
     return
   }
   for (const groupId of planForm.group_ids) {

@@ -91,8 +91,17 @@ func (r *usageBillingRepository) ResolveUsableSubscriptionForGroup(ctx context.C
 			us.daily_usage_usd,
 			us.weekly_usage_usd,
 			us.monthly_usage_usd,
-			sp.group_ids,
-			sp.group_rate_multipliers
+			COALESCE((
+				SELECT jsonb_agg(spg.group_id ORDER BY spg.group_id)
+				FROM subscription_plan_groups spg
+				WHERE spg.plan_id = sp.id
+			), '[]'::jsonb),
+			COALESCE((
+				SELECT jsonb_object_agg(spg.group_id, spg.rate_multiplier)
+				FROM subscription_plan_groups spg
+				WHERE spg.plan_id = sp.id
+					AND spg.rate_multiplier IS NOT NULL
+			), '{}'::jsonb)
 		FROM user_subscriptions us
 		JOIN subscription_plans sp ON sp.id = us.plan_id
 		WHERE us.user_id = $1
@@ -101,7 +110,11 @@ func (r *usageBillingRepository) ResolveUsableSubscriptionForGroup(ctx context.C
 			AND us.expires_at > NOW()
 			AND us.status IN ($2, $3)
 			AND (
-				sp.group_ids @> to_jsonb(ARRAY[$4]::bigint[])
+				NOT EXISTS (
+					SELECT 1
+					FROM subscription_plan_groups spg
+					WHERE spg.plan_id = us.plan_id
+				)
 				OR EXISTS (
 					SELECT 1
 					FROM subscription_plan_groups spg
@@ -358,7 +371,11 @@ func allocateUsageBillingSubscriptions(ctx context.Context, tx *sql.Tx, userID i
 				FROM subscription_plans sp
 				WHERE sp.id = user_subscriptions.plan_id
 					AND (
-						sp.group_ids @> to_jsonb(ARRAY[$4]::bigint[])
+						NOT EXISTS (
+							SELECT 1
+							FROM subscription_plan_groups spg
+							WHERE spg.plan_id = user_subscriptions.plan_id
+						)
 						OR EXISTS (
 							SELECT 1
 							FROM subscription_plan_groups spg

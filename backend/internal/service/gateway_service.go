@@ -9360,6 +9360,10 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *usageBill
 		AccountType:        p.Account.Type,
 		RequestPayloadHash: strings.TrimSpace(p.RequestPayloadHash),
 	}
+	if p.APIKey.GroupID != nil && *p.APIKey.GroupID > 0 {
+		groupID := *p.APIKey.GroupID
+		cmd.GroupID = &groupID
+	}
 	if usageLog != nil {
 		cmd.Model = usageLog.Model
 		cmd.BillingType = usageLog.BillingType

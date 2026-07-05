@@ -338,6 +338,62 @@ func TestUsageBillingRepositoryApply_UsesOnlySubscriptionPlansContainingRequestG
 	require.InDelta(t, 2.5, usageB, 0.000001)
 }
 
+func TestUsageBillingRepositoryApply_GlobalPlanAppliesToNewRequestGroup(t *testing.T) {
+	ctx := context.Background()
+	client := testEntClient(t)
+	repo := NewUsageBillingRepository(client, integrationDB)
+
+	user := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("usage-billing-global-plan-user-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Balance:      10,
+	})
+	plan := mustCreatePlan(t, client, &service.SubscriptionPlan{
+		Name:            "usage-billing-global-plan-" + uuid.NewString(),
+		Description:     "global plan applies to future groups",
+		Price:           19.9,
+		ValidityDays:    30,
+		ValidityUnit:    "day",
+		ForSale:         true,
+		DailyLimitUSD:   float64Ptr(100),
+		WeeklyLimitUSD:  float64Ptr(100),
+		MonthlyLimitUSD: float64Ptr(100),
+	})
+	group := mustCreateGroup(t, client, &service.Group{
+		Name:     "usage-billing-new-group-" + uuid.NewString(),
+		Platform: service.PlatformAnthropic,
+	})
+	apiKey := mustCreateApiKey(t, client, &service.APIKey{
+		UserID:  user.ID,
+		GroupID: &group.ID,
+		Key:     "sk-usage-billing-global-plan-" + uuid.NewString(),
+		Name:    "billing-global-plan",
+	})
+	subscription := mustCreateSubscription(t, client, &service.UserSubscription{
+		UserID:          user.ID,
+		PlanID:          plan.ID,
+		DailyLimitUSD:   float64Ptr(100),
+		WeeklyLimitUSD:  float64Ptr(100),
+		MonthlyLimitUSD: float64Ptr(100),
+	})
+
+	result, err := repo.Apply(ctx, &service.UsageBillingCommand{
+		RequestID:         uuid.NewString(),
+		APIKeyID:          apiKey.ID,
+		UserID:            user.ID,
+		GroupID:           &group.ID,
+		BillableAmountUSD: 2.5,
+	})
+
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.InDelta(t, 2.5, result.SubscriptionAmountUSD, 0.000001)
+
+	var usage float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT daily_usage_usd FROM user_subscriptions WHERE id = $1", subscription.ID).Scan(&usage))
+	require.InDelta(t, 2.5, usage, 0.000001)
+}
+
 func TestUsageBillingRepositoryApply_UnlimitedSubscriptionDoesNotDeductBalance(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)

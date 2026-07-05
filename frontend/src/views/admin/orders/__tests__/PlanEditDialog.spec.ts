@@ -54,7 +54,9 @@ function createTestI18n() {
             priceRequired: 'Price must be greater than 0',
             validityDaysRequired: 'Validity days must be greater than 0',
             planGroups: 'Plan Groups',
-            planGroupsRequired: 'Select at least one group'
+            planGroupsRequired: 'Select at least one group',
+            planGroupsGlobalHint: 'Leave empty to make the plan available to all groups',
+            subscriptionRateMultiplierRequired: 'Subscription rate for selected groups must be greater than 0'
           }
         },
         common: {
@@ -199,7 +201,7 @@ describe('PlanEditDialog', () => {
     )
   })
 
-  it('requires at least one group before saving a plan', async () => {
+  it('allows saving a global plan without selected groups', async () => {
     mockCreatePlan.mockResolvedValue({})
     const wrapper = mountDialog()
     const appStore = useAppStore()
@@ -214,13 +216,7 @@ describe('PlanEditDialog', () => {
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
-    expect(mockCreatePlan).not.toHaveBeenCalled()
-    expect(showErrorSpy).toHaveBeenCalledWith('payment.admin.planGroupsRequired')
-
-    await wrapper.find('input[type="checkbox"][value="2"]').setValue(true)
-    await wrapper.find('form').trigger('submit.prevent')
-    await flushPromises()
-
-    expect(mockCreatePlan).toHaveBeenCalledWith(expect.objectContaining({ group_ids: [2] }))
+    expect(mockCreatePlan).toHaveBeenCalledWith(expect.objectContaining({ group_ids: [] }))
+    expect(showErrorSpy).not.toHaveBeenCalledWith('payment.admin.planGroupsRequired')
   })
 })
