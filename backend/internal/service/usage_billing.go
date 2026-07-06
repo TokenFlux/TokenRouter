@@ -21,21 +21,25 @@ type UsageBillingCommand struct {
 	RequestFingerprint string
 	RequestPayloadHash string
 
-	UserID              int64
-	AccountID           int64
-	GroupID             *int64
-	BillableAmountUSD   float64
-	AccountType         string
-	Model               string
-	ServiceTier         string
-	ReasoningEffort     string
-	BillingType         int8
-	InputTokens         int
-	OutputTokens        int
-	CacheCreationTokens int
-	CacheReadTokens     int
-	ImageCount          int
-	MediaType           string
+	UserID                          int64
+	AccountID                       int64
+	GroupID                         *int64
+	BillableAmountUSD               float64
+	BaseAmountUSD                   float64
+	SubscriptionRateMultiplier      float64
+	SubscriptionRateMultiplierScale float64
+	BalanceRateMultiplier           float64
+	AccountType                     string
+	Model                           string
+	ServiceTier                     string
+	ReasoningEffort                 string
+	BillingType                     int8
+	InputTokens                     int
+	OutputTokens                    int
+	CacheCreationTokens             int
+	CacheReadTokens                 int
+	ImageCount                      int
+	MediaType                       string
 
 	APIKeyQuotaCost     float64
 	APIKeyRateLimitCost float64
@@ -57,7 +61,7 @@ func buildUsageBillingFingerprint(c *UsageBillingCommand) string {
 		return ""
 	}
 	raw := fmt.Sprintf(
-		"%d|%d|%d|%s|%s|%s|%s|%d|%d|%d|%d|%d|%d|%s|%0.10f|%0.10f|%0.10f|%0.10f",
+		"%d|%d|%d|%s|%s|%s|%s|%d|%d|%d|%d|%d|%d|%s|%0.10f|%0.10f|%0.10f|%0.10f|%0.10f|%0.10f|%0.10f|%0.10f",
 		c.UserID,
 		c.AccountID,
 		c.APIKeyID,
@@ -73,6 +77,10 @@ func buildUsageBillingFingerprint(c *UsageBillingCommand) string {
 		c.ImageCount,
 		strings.TrimSpace(c.MediaType),
 		c.BillableAmountUSD,
+		c.BaseAmountUSD,
+		c.SubscriptionRateMultiplier,
+		c.SubscriptionRateMultiplierScale,
+		c.BalanceRateMultiplier,
 		c.APIKeyQuotaCost,
 		c.APIKeyRateLimitCost,
 		c.AccountQuotaCost,
@@ -104,13 +112,14 @@ type AccountQuotaState struct {
 }
 
 type UsageBillingApplyResult struct {
-	Applied               bool
-	APIKeyQuotaExhausted  bool
-	NewBalance            *float64           // post-deduction balance (nil = no balance deduction)
-	QuotaState            *AccountQuotaState // post-increment quota state (nil = no quota increment)
-	SubscriptionAmountUSD float64
-	BalanceAmountUSD      float64
-	BillingAllocations    []domain.BillingAllocation
+	Applied                 bool
+	APIKeyQuotaExhausted    bool
+	NewBalance              *float64           // post-deduction balance (nil = no balance deduction)
+	QuotaState              *AccountQuotaState // post-increment quota state (nil = no quota increment)
+	SubscriptionAmountUSD   float64
+	BalanceAmountUSD        float64
+	BillingAllocations      []domain.BillingAllocation
+	EffectiveRateMultiplier *float64
 }
 
 type UsageBillingRepository interface {

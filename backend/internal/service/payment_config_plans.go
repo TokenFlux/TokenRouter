@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 
@@ -166,7 +167,14 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 		return nil, err
 	}
 
-	builder := s.entClient.SubscriptionPlan.Create().
+	tx, err := s.entClient.Tx(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	client := tx.Client()
+
+	builder := client.SubscriptionPlan.Create().
 		SetName(strings.TrimSpace(req.Name)).
 		SetDescription(req.Description).
 		SetPrice(req.Price).
@@ -194,7 +202,10 @@ func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanReq
 	if err != nil {
 		return nil, err
 	}
-	if err := s.syncPlanGroupMappings(ctx, int64(plan.ID), groupIDs, groupRates); err != nil {
+	if err := syncPlanGroupMappings(ctx, client, int64(plan.ID), groupIDs, groupRates); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return plan, nil
@@ -216,8 +227,21 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 			return nil, err
 		}
 	}
+	useTx := req.GroupIDs != nil || req.GroupRateMultipliers != nil
+	client := s.entClient
+	var tx *dbent.Tx
+	if useTx {
+		var err error
+		tx, err = s.entClient.Tx(ctx)
+		if err != nil {
+			return nil, err
+		}
+		defer func() { _ = tx.Rollback() }()
+		client = tx.Client()
+	}
+
 	if req.GroupIDs != nil || req.GroupRateMultipliers != nil {
-		existing, err := s.entClient.SubscriptionPlan.Get(ctx, id)
+		existing, err := client.SubscriptionPlan.Get(ctx, id)
 		if err != nil {
 			return nil, infraerrors.NotFound("PLAN_NOT_FOUND", "subscription plan not found")
 		}
@@ -234,7 +258,7 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 		}
 	}
 
-	update := s.entClient.SubscriptionPlan.UpdateOneID(id)
+	update := client.SubscriptionPlan.UpdateOneID(id)
 	if req.GroupIDs != nil {
 		update.SetGroupIds(groupIDs)
 	}
@@ -301,7 +325,12 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 		return nil, err
 	}
 	if req.GroupIDs != nil || req.GroupRateMultipliers != nil {
-		if err := s.syncPlanGroupMappings(ctx, id, groupIDs, groupRates); err != nil {
+		if err := syncPlanGroupMappings(ctx, client, id, groupIDs, groupRates); err != nil {
+			return nil, err
+		}
+	}
+	if tx != nil {
+		if err := tx.Commit(); err != nil {
 			return nil, err
 		}
 	}
@@ -312,7 +341,18 @@ func (s *PaymentConfigService) syncPlanGroupMappings(ctx context.Context, planID
 	if s == nil || s.entClient == nil || planID <= 0 {
 		return nil
 	}
-	if _, err := s.entClient.ExecContext(ctx, `DELETE FROM subscription_plan_groups WHERE plan_id = $1`, planID); err != nil {
+	return syncPlanGroupMappings(ctx, s.entClient, planID, groupIDs, rates)
+}
+
+type planGroupMappingExecutor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
+}
+
+func syncPlanGroupMappings(ctx context.Context, exec planGroupMappingExecutor, planID int64, groupIDs []int64, rates map[int64]float64) error {
+	if exec == nil || planID <= 0 {
+		return nil
+	}
+	if _, err := exec.ExecContext(ctx, `DELETE FROM subscription_plan_groups WHERE plan_id = $1`, planID); err != nil {
 		return err
 	}
 	for _, groupID := range groupIDs {
@@ -323,7 +363,7 @@ func (s *PaymentConfigService) syncPlanGroupMappings(ctx context.Context, planID
 		if value, ok := rates[groupID]; ok && value > 0 {
 			rate = value
 		}
-		if _, err := s.entClient.ExecContext(ctx, `
+		if _, err := exec.ExecContext(ctx, `
 			INSERT INTO subscription_plan_groups (plan_id, group_id, rate_multiplier)
 			VALUES ($1, $2, $3)
 			ON CONFLICT (plan_id, group_id)

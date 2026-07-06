@@ -6771,18 +6771,34 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if s.cfg != nil {
 		multiplier = s.cfg.Default.RateMultiplier
 	}
-	if apiKey.GroupID != nil && apiKey.Group != nil && subscription == nil {
-		resolver := s.userGroupRateResolver
-		if resolver == nil {
-			resolver = newUserGroupRateResolver(nil, nil, resolveUserGroupRateCacheTTL(s.cfg), nil, "service.openai_gateway")
+	subscriptionMultiplier := multiplier
+	balanceMultiplier := multiplier
+	if apiKey.GroupID != nil && apiKey.Group != nil {
+		subscriptionMultiplier = apiKey.Group.RateMultiplier
+		balanceMultiplier = apiKey.Group.RateMultiplier
+		if subscription == nil {
+			resolver := s.userGroupRateResolver
+			if resolver == nil {
+				resolver = newUserGroupRateResolver(nil, nil, resolveUserGroupRateCacheTTL(s.cfg), nil, "service.openai_gateway")
+			}
+			balanceMultiplier = resolver.Resolve(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
 		}
-		multiplier = resolver.Resolve(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
+	}
+	if apiKey.GroupID != nil && apiKey.Group != nil && subscription == nil {
+		multiplier = balanceMultiplier
 	} else {
 		multiplier = resolveUsageRateMultiplier(ctx, user.ID, apiKey.GroupID, apiKey.Group, multiplier, subscription, nil)
 	}
 	// token 倍率叠加高峰因子（token 计费含图片 token，图片按次倍率不受影响）。高峰因子按请求时刻现算，
 	// 不并入上面的 Resolve，以免污染 user:group 倍率缓存。
-	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, multiplier, timezone.Now())
+	rateNow := timezone.Now()
+	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, multiplier, rateNow)
+	subscriptionMultiplier, _ = computePeakAwareMultipliers(apiKey, subscriptionMultiplier, rateNow)
+	balanceMultiplier, _ = computePeakAwareMultipliers(apiKey, balanceMultiplier, rateNow)
+	subscriptionMultiplierScale := 1.0
+	if apiKey.Group != nil && apiKey.Group.RateMultiplier > 0 {
+		subscriptionMultiplierScale = subscriptionMultiplier / apiKey.Group.RateMultiplier
+	}
 
 	var cost *CostBreakdown
 	var err error
@@ -6951,15 +6967,18 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 
 	billingErr := func() error {
 		_, err := applyUsageBilling(ctx, requestID, usageLog, &usageBillingParams{
-			Cost:                  cost,
-			User:                  user,
-			APIKey:                apiKey,
-			Account:               account,
-			Subscription:          subscription,
-			RequestPayloadHash:    resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
-			AccountRateMultiplier: accountRateMultiplier,
-			APIKeyService:         input.APIKeyService,
-			Platform:              quotaPlatform,
+			Cost:                            cost,
+			User:                            user,
+			APIKey:                          apiKey,
+			Account:                         account,
+			Subscription:                    subscription,
+			RequestPayloadHash:              resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
+			AccountRateMultiplier:           accountRateMultiplier,
+			SubscriptionRateMultiplier:      subscriptionMultiplier,
+			SubscriptionRateMultiplierScale: subscriptionMultiplierScale,
+			BalanceRateMultiplier:           balanceMultiplier,
+			APIKeyService:                   input.APIKeyService,
+			Platform:                        quotaPlatform,
 		}, s.billingDeps(), s.usageBillingRepo)
 		return err
 	}()

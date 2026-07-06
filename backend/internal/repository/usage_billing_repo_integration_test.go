@@ -250,6 +250,97 @@ func TestUsageBillingRepositoryApply_DeductsBalanceDeficitAfterPartialSubscripti
 	require.InDelta(t, 10.0, dailyUsage, 0.000001)
 }
 
+func TestUsageBillingRepositoryApply_PricesByActualSubscriptionAllocations(t *testing.T) {
+	ctx := context.Background()
+	client := testEntClient(t)
+	repo := NewUsageBillingRepository(client, integrationDB)
+
+	user := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("usage-billing-allocation-rate-user-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Balance:      10,
+	})
+	group := mustCreateGroup(t, client, &service.Group{
+		Name:     "usage-billing-allocation-rate-group-" + uuid.NewString(),
+		Platform: service.PlatformOpenAI,
+	})
+	planA := mustCreatePlan(t, client, &service.SubscriptionPlan{
+		Name:                 "usage-billing-allocation-rate-plan-a-" + uuid.NewString(),
+		Description:          "discounted plan with little remaining quota",
+		Price:                19.9,
+		ValidityDays:         30,
+		ValidityUnit:         "day",
+		GroupIDs:             []int64{group.ID},
+		GroupRateMultipliers: map[int64]float64{group.ID: 0.5},
+		ForSale:              true,
+		DailyLimitUSD:        float64Ptr(1),
+		WeeklyLimitUSD:       float64Ptr(1),
+		MonthlyLimitUSD:      float64Ptr(1),
+	})
+	planB := mustCreatePlan(t, client, &service.SubscriptionPlan{
+		Name:                 "usage-billing-allocation-rate-plan-b-" + uuid.NewString(),
+		Description:          "higher-rate plan",
+		Price:                19.9,
+		ValidityDays:         30,
+		ValidityUnit:         "day",
+		GroupIDs:             []int64{group.ID},
+		GroupRateMultipliers: map[int64]float64{group.ID: 2},
+		ForSale:              true,
+		DailyLimitUSD:        float64Ptr(100),
+		WeeklyLimitUSD:       float64Ptr(100),
+		MonthlyLimitUSD:      float64Ptr(100),
+	})
+	apiKey := mustCreateApiKey(t, client, &service.APIKey{
+		UserID:  user.ID,
+		GroupID: &group.ID,
+		Key:     "sk-usage-billing-allocation-rate-" + uuid.NewString(),
+		Name:    "billing-allocation-rate",
+	})
+	subA := mustCreateSubscription(t, client, &service.UserSubscription{
+		UserID:          user.ID,
+		PlanID:          planA.ID,
+		DailyLimitUSD:   float64Ptr(1),
+		WeeklyLimitUSD:  float64Ptr(1),
+		MonthlyLimitUSD: float64Ptr(1),
+	})
+	subB := mustCreateSubscription(t, client, &service.UserSubscription{
+		UserID:          user.ID,
+		PlanID:          planB.ID,
+		DailyLimitUSD:   float64Ptr(100),
+		WeeklyLimitUSD:  float64Ptr(100),
+		MonthlyLimitUSD: float64Ptr(100),
+	})
+
+	result, err := repo.Apply(ctx, &service.UsageBillingCommand{
+		RequestID:                       uuid.NewString(),
+		APIKeyID:                        apiKey.ID,
+		UserID:                          user.ID,
+		GroupID:                         &group.ID,
+		BillableAmountUSD:               1.5,
+		BaseAmountUSD:                   3,
+		SubscriptionRateMultiplier:      1,
+		SubscriptionRateMultiplierScale: 1,
+		BalanceRateMultiplier:           1,
+	})
+
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.InDelta(t, 3.0, result.SubscriptionAmountUSD, 0.000001)
+	require.InDelta(t, 0.0, result.BalanceAmountUSD, 0.000001)
+
+	var usageA float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT daily_usage_usd FROM user_subscriptions WHERE id = $1", subA.ID).Scan(&usageA))
+	require.InDelta(t, 1.0, usageA, 0.000001)
+
+	var usageB float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT daily_usage_usd FROM user_subscriptions WHERE id = $1", subB.ID).Scan(&usageB))
+	require.InDelta(t, 2.0, usageB, 0.000001)
+
+	var balance float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT balance FROM users WHERE id = $1", user.ID).Scan(&balance))
+	require.InDelta(t, 10.0, balance, 0.000001)
+}
+
 func TestUsageBillingRepositoryApply_UsesOnlySubscriptionPlansContainingRequestGroup(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)

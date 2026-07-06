@@ -9270,15 +9270,18 @@ type usageLogBestEffortWriter interface {
 
 // usageBillingParams 统一扣费所需的参数
 type usageBillingParams struct {
-	Cost                  *CostBreakdown
-	User                  *User
-	APIKey                *APIKey
-	Account               *Account
-	Subscription          *UserSubscription
-	RequestPayloadHash    string
-	AccountRateMultiplier float64
-	APIKeyService         APIKeyQuotaUpdater
-	Platform              string // 来自 APIKey 关联 Group 的平台标识
+	Cost                            *CostBreakdown
+	User                            *User
+	APIKey                          *APIKey
+	Account                         *Account
+	Subscription                    *UserSubscription
+	RequestPayloadHash              string
+	AccountRateMultiplier           float64
+	SubscriptionRateMultiplier      float64
+	SubscriptionRateMultiplierScale float64
+	BalanceRateMultiplier           float64
+	APIKeyService                   APIKeyQuotaUpdater
+	Platform                        string // 来自 APIKey 关联 Group 的平台标识
 }
 
 // PlatformFromAPIKey 从 APIKey 关联的 Group 推导 platform 名称。
@@ -9383,6 +9386,16 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *usageBill
 	if p.Cost.ActualCost > 0 {
 		cmd.BillableAmountUSD = p.Cost.ActualCost
 	}
+	if p.Cost.TotalCost > 0 {
+		cmd.BaseAmountUSD = p.Cost.TotalCost
+		fallback := p.Cost.ActualCost / p.Cost.TotalCost
+		cmd.SubscriptionRateMultiplier = usageBillingRateOrFallback(p.SubscriptionRateMultiplier, fallback)
+		cmd.SubscriptionRateMultiplierScale = p.SubscriptionRateMultiplierScale
+		if cmd.SubscriptionRateMultiplierScale <= 0 {
+			cmd.SubscriptionRateMultiplierScale = 1
+		}
+		cmd.BalanceRateMultiplier = usageBillingRateOrFallback(p.BalanceRateMultiplier, fallback)
+	}
 
 	if p.shouldDeductAPIKeyQuota() {
 		cmd.APIKeyQuotaCost = p.Cost.ActualCost
@@ -9396,6 +9409,13 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *usageBill
 
 	cmd.Normalize()
 	return cmd
+}
+
+func usageBillingRateOrFallback(value, fallback float64) float64 {
+	if value > 0 || fallback == 0 {
+		return value
+	}
+	return fallback
 }
 
 func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog, p *usageBillingParams, deps *billingDeps, repo UsageBillingRepository) (bool, error) {
@@ -9444,6 +9464,10 @@ func applyUsageBillingResultToUsageLog(usageLog *UsageLog, result *UsageBillingA
 	usageLog.BalanceAmountUSD = result.BalanceAmountUSD
 	usageLog.BillingAllocations = cloneBillingAllocations(result.BillingAllocations)
 	usageLog.SubscriptionID = firstAllocatedSubscriptionID(result.BillingAllocations)
+	if billable := usageBillingResultBillableAmount(result); billable >= 0 && result.EffectiveRateMultiplier != nil {
+		usageLog.ActualCost = billable
+		usageLog.RateMultiplier = *result.EffectiveRateMultiplier
+	}
 	switch {
 	case result.SubscriptionAmountUSD > 0:
 		usageLog.BillingType = BillingTypeSubscription
@@ -9492,8 +9516,12 @@ func finalizeUsageBilling(p *usageBillingParams, deps *billingDeps, result *Usag
 		syncBalanceCacheAfterDeduction(context.Background(), p, deps, result)
 	}
 
-	if p.Cost.ActualCost > 0 && p.APIKey != nil && p.APIKey.HasRateLimits() {
-		deps.billingCacheService.QueueUpdateAPIKeyRateLimitUsage(p.APIKey.ID, p.Cost.ActualCost)
+	rateLimitCost := p.Cost.ActualCost
+	if result != nil {
+		rateLimitCost = usageBillingResultBillableAmount(result)
+	}
+	if rateLimitCost > 0 && p.APIKey != nil && p.APIKey.HasRateLimits() {
+		deps.billingCacheService.QueueUpdateAPIKeyRateLimitUsage(p.APIKey.ID, rateLimitCost)
 	}
 
 	deps.deferredService.ScheduleLastUsedUpdate(p.Account.ID)
@@ -9540,6 +9568,13 @@ func finalizeUsageBilling(p *usageBillingParams, deps *billingDeps, result *Usag
 	// 通知检查异步执行，所需参数已全部捕获，不依赖请求 context 或上游连接。
 	go notifyBalanceLow(p, deps, result)
 	go notifyAccountQuota(p, deps, result)
+}
+
+func usageBillingResultBillableAmount(result *UsageBillingApplyResult) float64 {
+	if result == nil {
+		return -1
+	}
+	return result.SubscriptionAmountUSD + result.BalanceAmountUSD
 }
 
 func syncBalanceCacheAfterDeduction(ctx context.Context, p *usageBillingParams, deps *billingDeps, result *UsageBillingApplyResult) {
@@ -9837,16 +9872,32 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	if s.cfg != nil {
 		multiplier = s.cfg.Default.RateMultiplier
 	}
+	subscriptionMultiplier := multiplier
+	balanceMultiplier := multiplier
 	subscription = resolveUsageSubscription(ctx, subscription, s.userSubRepo, usageSubscriptionResolverFrom(s.usageBillingRepo), user.ID, apiKey.GroupID)
-	if apiKey.GroupID != nil && apiKey.Group != nil && subscription == nil {
+	if apiKey.GroupID != nil && apiKey.Group != nil {
 		groupDefault := apiKey.Group.RateMultiplier
-		multiplier = s.getUserGroupRateMultiplier(ctx, user.ID, *apiKey.GroupID, groupDefault)
+		subscriptionMultiplier = groupDefault
+		balanceMultiplier = groupDefault
+		if subscription == nil {
+			balanceMultiplier = s.getUserGroupRateMultiplier(ctx, user.ID, *apiKey.GroupID, groupDefault)
+		}
+	}
+	if apiKey.GroupID != nil && apiKey.Group != nil && subscription == nil {
+		multiplier = balanceMultiplier
 	} else {
 		multiplier = resolveUsageRateMultiplier(ctx, user.ID, apiKey.GroupID, apiKey.Group, multiplier, subscription, nil)
 	}
 	// token 倍率叠加高峰因子（token 计费含图片 token，图片按次倍率不受影响）。高峰因子按请求时刻现算，
 	// 不并入上面的 getUserGroupRateMultiplier，以免污染 user:group 倍率缓存。
-	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, multiplier, timezone.Now())
+	rateNow := timezone.Now()
+	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, multiplier, rateNow)
+	subscriptionMultiplier, _ = computePeakAwareMultipliers(apiKey, subscriptionMultiplier, rateNow)
+	balanceMultiplier, _ = computePeakAwareMultipliers(apiKey, balanceMultiplier, rateNow)
+	subscriptionMultiplierScale := 1.0
+	if apiKey.Group != nil && apiKey.Group.RateMultiplier > 0 {
+		subscriptionMultiplierScale = subscriptionMultiplier / apiKey.Group.RateMultiplier
+	}
 
 	// 确定计费模型
 	billingModel := forwardResultBillingModel(result.Model, result.UpstreamModel)
@@ -9911,15 +9962,18 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	}
 	requestID := usageLog.RequestID
 	_, billingErr := applyUsageBilling(ctx, requestID, usageLog, &usageBillingParams{
-		Cost:                  cost,
-		User:                  user,
-		APIKey:                apiKey,
-		Account:               account,
-		Subscription:          subscription,
-		RequestPayloadHash:    resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
-		AccountRateMultiplier: accountRateMultiplier,
-		APIKeyService:         input.APIKeyService,
-		Platform:              quotaPlatform,
+		Cost:                            cost,
+		User:                            user,
+		APIKey:                          apiKey,
+		Account:                         account,
+		Subscription:                    subscription,
+		RequestPayloadHash:              resolveUsageBillingPayloadFingerprint(ctx, input.RequestPayloadHash),
+		AccountRateMultiplier:           accountRateMultiplier,
+		SubscriptionRateMultiplier:      subscriptionMultiplier,
+		SubscriptionRateMultiplierScale: subscriptionMultiplierScale,
+		BalanceRateMultiplier:           balanceMultiplier,
+		APIKeyService:                   input.APIKeyService,
+		Platform:                        quotaPlatform,
 	}, s.billingDeps(), s.usageBillingRepo)
 
 	if billingErr != nil {
