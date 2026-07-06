@@ -26,8 +26,8 @@ const colors = computed(() => ({
   blue: '#3b82f6',
   red: '#ef4444',
   orange: '#f59e0b',
-  gray: '#9ca3af',
-  text: isDarkMode.value ? '#9ca3af' : '#6b7280'
+  gray: '#A1A1AA',
+  text: isDarkMode.value ? '#A1A1AA' : '#71717A'
 }))
 
 const totalSlaErrors = computed(() =>
@@ -100,9 +100,9 @@ const options = computed(() => ({
   plugins: {
     legend: { display: false },
     tooltip: {
-      backgroundColor: isDarkMode.value ? '#1f2937' : '#ffffff',
-      titleColor: isDarkMode.value ? '#f3f4f6' : '#111827',
-      bodyColor: isDarkMode.value ? '#d1d5db' : '#4b5563'
+      backgroundColor: isDarkMode.value ? '#1F1F23' : '#ffffff',
+      titleColor: isDarkMode.value ? '#F4F4F5' : '#18181B',
+      bodyColor: isDarkMode.value ? '#D4D4D8' : '#52525B'
     }
   }
 }))

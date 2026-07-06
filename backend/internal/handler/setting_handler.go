@@ -79,6 +79,8 @@ func (h *SettingHandler) GetPublicSettings(c *gin.Context) {
 		UsageRankingLimit:                settings.UsageRankingLimit,
 		CustomMenuItems:                  dto.ParseUserVisibleMenuItems(settings.CustomMenuItems),
 		CustomEndpoints:                  dto.ParseCustomEndpoints(settings.CustomEndpoints),
+		FooterLinks:                      dto.ParseFooterLinks(settings.FooterLinks),
+		FooterText:                       settings.FooterText,
 		DingTalkOAuthEnabled:             settings.DingTalkOAuthEnabled,
 		LinuxDoOAuthEnabled:              settings.LinuxDoOAuthEnabled,
 		WeChatOAuthEnabled:               settings.WeChatOAuthEnabled,

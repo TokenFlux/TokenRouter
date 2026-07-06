@@ -5518,6 +5518,151 @@
               </button>
             </div>
           </div>
+
+          <!-- Footer Settings -->
+          <div class="card">
+            <div
+              class="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <div>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                  {{ localText("底栏设置", "Footer settings") }}
+                </h2>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {{
+                    localText(
+                      "配置首页底栏的链接分组与附加文本（如备案号）。留空时底栏仅显示版权信息。",
+                      "Configure homepage footer link groups and extra text (e.g. ICP number). When empty, the footer only shows the copyright line.",
+                    )
+                  }}
+                </p>
+              </div>
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm shrink-0"
+                @click="applyDefaultFooterLinks"
+              >
+                {{ localText("使用默认模板", "Use default template") }}
+              </button>
+            </div>
+            <div class="space-y-4 p-6">
+              <!-- Link groups -->
+              <div
+                v-for="(group, gIndex) in form.footer_links"
+                :key="gIndex"
+                class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+              >
+                <div class="mb-3 flex items-center justify-between gap-3">
+                  <input
+                    v-model="group.title"
+                    type="text"
+                    class="input max-w-xs text-sm font-medium"
+                    :placeholder="localText('分组标题，如：产品', 'Group title, e.g. Product')"
+                  />
+                  <div class="flex items-center gap-2">
+                    <button
+                      v-if="gIndex > 0"
+                      type="button"
+                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
+                      :title="t('admin.settings.customMenu.moveUp')"
+                      @click="moveFooterGroup(gIndex, -1)"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+                      </svg>
+                    </button>
+                    <button
+                      v-if="gIndex < form.footer_links.length - 1"
+                      type="button"
+                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
+                      :title="t('admin.settings.customMenu.moveDown')"
+                      @click="moveFooterGroup(gIndex, 1)"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                      :title="localText('删除分组', 'Remove group')"
+                      @click="removeFooterGroup(gIndex)"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <div
+                    v-for="(link, lIndex) in group.links"
+                    :key="lIndex"
+                    class="flex items-center gap-2"
+                  >
+                    <input
+                      v-model="link.label"
+                      type="text"
+                      class="input w-40 text-sm"
+                      :placeholder="localText('名称', 'Label')"
+                    />
+                    <input
+                      v-model="link.url"
+                      type="text"
+                      class="input flex-1 font-mono text-sm"
+                      :placeholder="localText('https://... 或 /models', 'https://... or /models')"
+                    />
+                    <button
+                      type="button"
+                      class="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                      :title="localText('删除链接', 'Remove link')"
+                      @click="group.links.splice(lIndex, 1)"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    class="inline-flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                    @click="group.links.push({ label: '', url: '' })"
+                  >
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    {{ localText("添加链接", "Add link") }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Add group button -->
+              <button
+                type="button"
+                class="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                @click="addFooterGroup"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                {{ localText("添加分组", "Add group") }}
+              </button>
+
+              <!-- Footer text -->
+              <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ localText("底栏附加文本", "Footer text") }}
+                </label>
+                <textarea
+                  v-model="form.footer_text"
+                  rows="2"
+                  class="input min-h-[64px] resize-y text-sm"
+                  :placeholder="localText('例如备案号、自定义版权说明，支持多行', 'e.g. ICP number or custom copyright, multiline supported')"
+                ></textarea>
+              </div>
+            </div>
+          </div>
         </div>
         <!-- /分页：通用设置 -->
 
@@ -7527,6 +7672,11 @@ const form = reactive<SettingsForm>({
     endpoint: string;
     description: string;
   }>,
+  footer_links: [] as Array<{
+    title: string;
+    links: Array<{ label: string; url: string }>;
+  }>,
+  footer_text: "",
   frontend_url: "",
   smtp_host: "",
   smtp_port: 587,
@@ -8300,6 +8450,67 @@ function removeEndpoint(index: number) {
   form.custom_endpoints.splice(index, 1);
 }
 
+// Footer link group management
+function addFooterGroup() {
+  form.footer_links.push({ title: "", links: [{ label: "", url: "" }] });
+}
+
+// 默认底栏模板:基于站内已有页面 + 已配置的文档/联系方式,可直接用或小改
+function applyDefaultFooterLinks() {
+  const zh = locale.value.toLowerCase().startsWith("zh");
+  const groups: Array<{ title: string; links: Array<{ label: string; url: string }> }> = [
+    {
+      title: zh ? "产品" : "Product",
+      links: [
+        { label: zh ? "模型广场" : "Models", url: "/models" },
+        { label: zh ? "用量查询" : "Key usage", url: "/key-usage" },
+        { label: zh ? "控制台" : "Dashboard", url: "/dashboard" },
+      ],
+    },
+    {
+      title: zh ? "开发者" : "Developer",
+      links: [
+        ...(form.doc_url ? [{ label: zh ? "文档" : "Documentation", url: form.doc_url }] : []),
+        ...(form.api_base_url
+          ? [{ label: "API Base URL", url: form.api_base_url }]
+          : []),
+      ],
+    },
+    {
+      title: zh ? "支持" : "Support",
+      links: [
+        { label: zh ? "登录 / 注册" : "Sign in / Sign up", url: "/login" },
+      ],
+    },
+  ];
+  form.footer_links = groups.filter((g) => g.links.length > 0);
+}
+
+function removeFooterGroup(index: number) {
+  form.footer_links.splice(index, 1);
+}
+
+function moveFooterGroup(index: number, direction: -1 | 1) {
+  const targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= form.footer_links.length) return;
+  const groups = form.footer_links;
+  const temp = groups[index];
+  groups[index] = groups[targetIndex];
+  groups[targetIndex] = temp;
+}
+
+// 保存前清理:去掉空链接行和无标题且无链接的分组
+function normalizeFooterLinksForSave() {
+  return form.footer_links
+    .map((group) => ({
+      title: group.title.trim(),
+      links: group.links
+        .map((link) => ({ label: link.label.trim(), url: link.url.trim() }))
+        .filter((link) => link.label && link.url),
+    }))
+    .filter((group) => group.title && group.links.length > 0);
+}
+
 function addLoginAgreementDocument() {
   form.login_agreement_documents.push({
     id: `custom-${Date.now().toString(36)}`,
@@ -8869,6 +9080,8 @@ async function saveSettings() {
       usage_ranking_limit: form.usage_ranking_limit,
       custom_menu_items: form.custom_menu_items,
       custom_endpoints: form.custom_endpoints,
+      footer_links: normalizeFooterLinksForSave(),
+      footer_text: form.footer_text,
       frontend_url: form.frontend_url,
       smtp_host: form.smtp_host,
       smtp_port: form.smtp_port,
@@ -10201,15 +10414,15 @@ watch(
 <style>
 /* 暗色模式 Tab 覆盖必须放在非 scoped 样式块，避免生产构建丢弃后导致未激活 Tab 不可读。 */
 .dark .settings-tabs-shell {
-  border-color: rgb(51 65 85 / 0.65);
-  background: rgb(15 23 42 / 0.86);
+  border-color: rgb(63 63 70 / 0.65);
+  background: rgb(24 24 27 / 0.86);
   box-shadow:
     0 16px 36px rgb(0 0 0 / 0.28),
     0 1px 0 rgb(255 255 255 / 0.06) inset;
 }
 
 .dark .settings-tab::before {
-  background: linear-gradient(135deg, rgb(30 41 59 / 0.9), rgb(51 65 85 / 0.62));
+  background: linear-gradient(135deg, rgb(39 39 42 / 0.9), rgb(63 63 70 / 0.62));
 }
 
 .dark .settings-tab-active {

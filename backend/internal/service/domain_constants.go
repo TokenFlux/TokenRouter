@@ -282,6 +282,8 @@ const (
 	SettingKeyUsageRankingLimit           = "usage_ranking_limit"           // 用户侧用量排行显示名次上限
 	SettingKeyCustomMenuItems             = "custom_menu_items"             // 自定义菜单项（JSON 数组）
 	SettingKeyCustomEndpoints             = "custom_endpoints"              // 自定义端点列表（JSON 数组）
+	SettingKeyFooterLinks                 = "footer_links"                  // 首页底栏链接分组（JSON 数组）
+	SettingKeyFooterText                  = "footer_text"                   // 首页底栏附加文本（备案号等，支持多行）
 
 	// 默认配置
 	SettingKeyDefaultConcurrency                   = "default_concurrency"                     // 新用户默认并发量

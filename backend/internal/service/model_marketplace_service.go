@@ -33,6 +33,8 @@ type ModelMarketplaceGroup struct {
 	DisplayBrand               string
 	SortOrder                  int
 	RateMultiplier             float64
+	ImageRateIndependent       bool
+	ImageRateMultiplier        float64
 	OfficialPriceRatio         *float64
 	OfficialPriceRMBEquivalent *float64
 	// DataSharingEnabled 标记公开分组是否会采集数据共享会话，供模型广场展示提示。
@@ -114,6 +116,8 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 			DisplayBrand:               marketplaceGroupDisplayBrand(group),
 			SortOrder:                  group.SortOrder,
 			RateMultiplier:             group.RateMultiplier,
+			ImageRateIndependent:       group.ImageRateIndependent,
+			ImageRateMultiplier:        group.ImageRateMultiplier,
 			OfficialPriceRatio:         officialPriceRatio,
 			OfficialPriceRMBEquivalent: officialPriceRMBEquivalent,
 			DataSharingEnabled:         group.DataSharingEnabled,
@@ -353,6 +357,7 @@ func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Conte
 	if s.billingService == nil {
 		return unknownDisplayPricing()
 	}
+	imageRateMultiplier := marketplaceImageRateMultiplier(group)
 	if group != nil && group.Platform == PlatformQoder {
 		billingModel := strings.TrimSpace(model)
 		billingSource := BillingModelSourceRequested
@@ -361,14 +366,14 @@ func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Conte
 			billingModel, billingSource, baseHint = s.qoderMarketplacePricingModels(ctx, group, model, baseHint)
 			resolved, pricingModel := s.gatewayService.resolveChannelPricingForUsage(ctx, billingModel, model, billingSource, baseHint, baseHint, &APIKey{Group: group}, nil)
 			if resolved.HasEffectiveChannelPricing() {
-				return s.billingService.getDisplayPricingWithResolved(pricingModel, group.RateMultiplier, imageConfig, resolved)
+				return s.billingService.getDisplayPricingWithResolvedMultipliers(pricingModel, group.RateMultiplier, imageRateMultiplier, imageConfig, resolved)
 			}
 		}
 		for _, candidate := range qoderDefaultPricingCandidates(billingModel, model, billingSource) {
 			if !qoderCanUseDefaultDisplayPricing(s.billingService, candidate) {
 				continue
 			}
-			pricing := s.billingService.GetDisplayPricing(candidate, group.RateMultiplier, imageConfig)
+			pricing := s.billingService.getDisplayPricing(candidate, group.RateMultiplier, imageRateMultiplier, imageConfig)
 			if pricing.PriceStatus != "unpriced" {
 				return pricing
 			}
@@ -381,9 +386,23 @@ func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Conte
 			Model:   model,
 			GroupID: &groupID,
 		})
-		return s.billingService.getDisplayPricingWithResolved(model, group.RateMultiplier, imageConfig, resolved)
+		return s.billingService.getDisplayPricingWithResolvedMultipliers(model, group.RateMultiplier, imageRateMultiplier, imageConfig, resolved)
 	}
-	return s.billingService.GetDisplayPricing(model, group.RateMultiplier, imageConfig)
+	return s.billingService.getDisplayPricing(model, group.RateMultiplier, imageRateMultiplier, imageConfig)
+}
+
+// marketplaceImageRateMultiplier 返回模型广场图片价格应使用的倍率。
+func marketplaceImageRateMultiplier(group *Group) float64 {
+	if group == nil {
+		return 1
+	}
+	if !group.ImageRateIndependent {
+		return group.RateMultiplier
+	}
+	if group.ImageRateMultiplier < 0 {
+		return 0
+	}
+	return group.ImageRateMultiplier
 }
 
 func qoderCanUseDefaultDisplayPricing(billingService *BillingService, model string) bool {

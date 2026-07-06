@@ -128,27 +128,29 @@ type SystemSettings struct {
 	GoogleOAuthRedirectURL            string `json:"google_oauth_redirect_url"`
 	GoogleOAuthFrontendRedirectURL    string `json:"google_oauth_frontend_redirect_url"`
 
-	SiteName                    string           `json:"site_name"`
-	SiteLogo                    string           `json:"site_logo"`
-	SiteSubtitle                string           `json:"site_subtitle"`
-	SiteNameZh                  string           `json:"site_name_zh"`
-	SiteNameEn                  string           `json:"site_name_en"`
-	SiteTitleZh                 string           `json:"site_title_zh"`
-	SiteTitleEn                 string           `json:"site_title_en"`
-	SiteSubtitleZh              string           `json:"site_subtitle_zh"`
-	SiteSubtitleEn              string           `json:"site_subtitle_en"`
-	APIBaseURL                  string           `json:"api_base_url"`
-	ContactInfo                 string           `json:"contact_info"`
-	DocURL                      string           `json:"doc_url"`
-	HomeContent                 string           `json:"home_content"`
-	HideCcsImportButton         bool             `json:"hide_ccs_import_button"`
-	PurchaseSubscriptionEnabled bool             `json:"purchase_subscription_enabled"`
-	PurchaseSubscriptionURL     string           `json:"purchase_subscription_url"`
-	TableDefaultPageSize        int              `json:"table_default_page_size"`
-	TablePageSizeOptions        []int            `json:"table_page_size_options"`
-	UsageRankingLimit           int              `json:"usage_ranking_limit"`
-	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
-	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
+	SiteName                    string            `json:"site_name"`
+	SiteLogo                    string            `json:"site_logo"`
+	SiteSubtitle                string            `json:"site_subtitle"`
+	SiteNameZh                  string            `json:"site_name_zh"`
+	SiteNameEn                  string            `json:"site_name_en"`
+	SiteTitleZh                 string            `json:"site_title_zh"`
+	SiteTitleEn                 string            `json:"site_title_en"`
+	SiteSubtitleZh              string            `json:"site_subtitle_zh"`
+	SiteSubtitleEn              string            `json:"site_subtitle_en"`
+	APIBaseURL                  string            `json:"api_base_url"`
+	ContactInfo                 string            `json:"contact_info"`
+	DocURL                      string            `json:"doc_url"`
+	HomeContent                 string            `json:"home_content"`
+	HideCcsImportButton         bool              `json:"hide_ccs_import_button"`
+	PurchaseSubscriptionEnabled bool              `json:"purchase_subscription_enabled"`
+	PurchaseSubscriptionURL     string            `json:"purchase_subscription_url"`
+	TableDefaultPageSize        int               `json:"table_default_page_size"`
+	TablePageSizeOptions        []int             `json:"table_page_size_options"`
+	UsageRankingLimit           int               `json:"usage_ranking_limit"`
+	CustomMenuItems             []CustomMenuItem  `json:"custom_menu_items"`
+	CustomEndpoints             []CustomEndpoint  `json:"custom_endpoints"`
+	FooterLinks                 []FooterLinkGroup `json:"footer_links"`
+	FooterText                  string            `json:"footer_text"`
 
 	DefaultConcurrency                   int                          `json:"default_concurrency"`
 	DefaultBalance                       float64                      `json:"default_balance"`
@@ -312,6 +314,8 @@ type PublicSettings struct {
 	UsageRankingLimit                int                      `json:"usage_ranking_limit"`
 	CustomMenuItems                  []CustomMenuItem         `json:"custom_menu_items"`
 	CustomEndpoints                  []CustomEndpoint         `json:"custom_endpoints"`
+	FooterLinks                      []FooterLinkGroup        `json:"footer_links"`
+	FooterText                       string                   `json:"footer_text"`
 	DingTalkOAuthEnabled             bool                     `json:"dingtalk_oauth_enabled"`
 	LinuxDoOAuthEnabled              bool                     `json:"linuxdo_oauth_enabled"`
 	WeChatOAuthEnabled               bool                     `json:"wechat_oauth_enabled"`
@@ -535,4 +539,30 @@ func ParseCustomEndpoints(raw string) []CustomEndpoint {
 		return []CustomEndpoint{}
 	}
 	return items
+}
+
+// FooterLink 首页底栏单条链接。
+type FooterLink struct {
+	Label string `json:"label"`
+	URL   string `json:"url"`
+}
+
+// FooterLinkGroup 首页底栏链接分组（一列）。
+type FooterLinkGroup struct {
+	Title string       `json:"title"`
+	Links []FooterLink `json:"links"`
+}
+
+// ParseFooterLinks parses a JSON string into a slice of FooterLinkGroup.
+// Returns empty slice on empty/invalid input.
+func ParseFooterLinks(raw string) []FooterLinkGroup {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "[]" {
+		return []FooterLinkGroup{}
+	}
+	var groups []FooterLinkGroup
+	if err := json.Unmarshal([]byte(raw), &groups); err != nil {
+		return []FooterLinkGroup{}
+	}
+	return groups
 }

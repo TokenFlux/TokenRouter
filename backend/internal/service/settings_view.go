@@ -149,6 +149,8 @@ type SystemSettings struct {
 	UsageRankingLimit           int
 	CustomMenuItems             string // JSON array of custom menu items
 	CustomEndpoints             string // JSON array of custom endpoints
+	FooterLinks                 string // JSON array of footer link groups
+	FooterText                  string // Extra footer text (ICP number etc.)
 
 	DefaultConcurrency int
 	DefaultBalance     float64
@@ -290,6 +292,8 @@ type PublicSettings struct {
 	UsageRankingLimit           int
 	CustomMenuItems             string // JSON array of custom menu items
 	CustomEndpoints             string // JSON array of custom endpoints
+	FooterLinks                 string // JSON array of footer link groups
+	FooterText                  string // Extra footer text (ICP number etc.)
 
 	LinuxDoOAuthEnabled      bool
 	DingTalkOAuthEnabled     bool

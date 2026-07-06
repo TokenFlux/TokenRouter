@@ -1257,16 +1257,24 @@ type ModelDisplayPricingInterval struct {
 // GetDisplayPricing 返回用于模型广场展示的价格信息。
 // 它会优先识别图片模型并展示按图计费，否则展示按 token 计费。
 func (s *BillingService) GetDisplayPricing(model string, rateMultiplier float64, groupConfig *ImagePriceConfig) ModelDisplayPricing {
+	return s.getDisplayPricing(model, rateMultiplier, rateMultiplier, groupConfig)
+}
+
+// getDisplayPricing 按普通倍率和图片独立倍率计算模型广场展示价格。
+func (s *BillingService) getDisplayPricing(model string, rateMultiplier float64, imageRateMultiplier float64, groupConfig *ImagePriceConfig) ModelDisplayPricing {
 	if rateMultiplier < 0 {
 		rateMultiplier = 0
+	}
+	if imageRateMultiplier < 0 {
+		imageRateMultiplier = 0
 	}
 
 	rawPricing := s.getRawModelPricing(model)
 	if hasExplicitImagePricing(rawPricing) || looksLikeImageModel(model) {
 		return buildImageDisplayPricing(
-			s.getImageUnitPrice(model, "1K", groupConfig)*rateMultiplier,
-			s.getImageUnitPrice(model, "2K", groupConfig)*rateMultiplier,
-			s.getImageUnitPrice(model, "4K", groupConfig)*rateMultiplier,
+			s.getImageUnitPrice(model, "1K", groupConfig)*imageRateMultiplier,
+			s.getImageUnitPrice(model, "2K", groupConfig)*imageRateMultiplier,
+			s.getImageUnitPrice(model, "4K", groupConfig)*imageRateMultiplier,
 		)
 	}
 
@@ -1278,20 +1286,25 @@ func (s *BillingService) GetDisplayPricing(model string, rateMultiplier float64,
 	return buildTokenDisplayPricing(pricing, rateMultiplier)
 }
 
-func (s *BillingService) getDisplayPricingWithResolved(model string, rateMultiplier float64, groupConfig *ImagePriceConfig, resolved *ResolvedPricing) ModelDisplayPricing {
+// getDisplayPricingWithResolvedMultipliers 优先使用已解析的渠道价格计算展示价格。
+func (s *BillingService) getDisplayPricingWithResolvedMultipliers(model string, rateMultiplier float64, imageRateMultiplier float64, groupConfig *ImagePriceConfig, resolved *ResolvedPricing) ModelDisplayPricing {
 	if rateMultiplier < 0 {
 		rateMultiplier = 0
+	}
+	if imageRateMultiplier < 0 {
+		imageRateMultiplier = 0
 	}
 	if resolved.IsUnpriced() {
 		return unknownDisplayPricing()
 	}
-	if pricing, ok := displayPricingFromResolved(model, rateMultiplier, resolved); ok {
+	if pricing, ok := displayPricingFromResolved(model, rateMultiplier, imageRateMultiplier, resolved); ok {
 		return pricing
 	}
-	return s.GetDisplayPricing(model, rateMultiplier, groupConfig)
+	return s.getDisplayPricing(model, rateMultiplier, imageRateMultiplier, groupConfig)
 }
 
-func displayPricingFromResolved(model string, rateMultiplier float64, resolved *ResolvedPricing) (ModelDisplayPricing, bool) {
+// displayPricingFromResolved 将已解析的渠道计费配置转换成模型广场展示价格。
+func displayPricingFromResolved(model string, rateMultiplier float64, imageRateMultiplier float64, resolved *ResolvedPricing) (ModelDisplayPricing, bool) {
 	if resolved == nil || resolved.Source != PricingSourceChannel {
 		return ModelDisplayPricing{}, false
 	}
@@ -1316,9 +1329,9 @@ func displayPricingFromResolved(model string, rateMultiplier float64, resolved *
 			return ModelDisplayPricing{}, false
 		}
 		return buildImageDisplayPricing(
-			price1K*rateMultiplier,
-			price2K*rateMultiplier,
-			price4K*rateMultiplier,
+			price1K*imageRateMultiplier,
+			price2K*imageRateMultiplier,
+			price4K*imageRateMultiplier,
 		), true
 	default:
 		return ModelDisplayPricing{}, false

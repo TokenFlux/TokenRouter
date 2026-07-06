@@ -497,3 +497,52 @@ func (s *marketplaceSettingRepoStub) GetMultiple(_ context.Context, keys []strin
 	}
 	return out, nil
 }
+func TestModelMarketplaceDisplayPricing_UsesIndependentImageRateMultiplier(t *testing.T) {
+	image1K := 10.0
+	group := &Group{
+		ID:                   1,
+		RateMultiplier:       2.0,
+		ImageRateIndependent: true,
+		ImageRateMultiplier:  0.5,
+		ImagePrice1K:         &image1K,
+	}
+	svc := &ModelMarketplaceService{
+		billingService: &BillingService{},
+	}
+
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-image-1", &ImagePriceConfig{
+		Price1K: group.ImagePrice1K,
+	})
+
+	if pricing.PricingMode != "image" {
+		t.Fatalf("pricing mode = %q, want image", pricing.PricingMode)
+	}
+	if pricing.ImagePrice1K != 5 {
+		t.Fatalf("image 1K price = %v, want 5", pricing.ImagePrice1K)
+	}
+}
+
+func TestModelMarketplaceDisplayPricing_SharedImageRateUsesGroupMultiplier(t *testing.T) {
+	image1K := 10.0
+	group := &Group{
+		ID:                   1,
+		RateMultiplier:       2.0,
+		ImageRateIndependent: false,
+		ImageRateMultiplier:  0.5,
+		ImagePrice1K:         &image1K,
+	}
+	svc := &ModelMarketplaceService{
+		billingService: &BillingService{},
+	}
+
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-image-1", &ImagePriceConfig{
+		Price1K: group.ImagePrice1K,
+	})
+
+	if pricing.PricingMode != "image" {
+		t.Fatalf("pricing mode = %q, want image", pricing.PricingMode)
+	}
+	if pricing.ImagePrice1K != 20 {
+		t.Fatalf("image 1K price = %v, want 20", pricing.ImagePrice1K)
+	}
+}

@@ -160,6 +160,6 @@ watch(
 }
 
 .dark .overflow-y-auto::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, #35406C, #293059);
+  background: linear-gradient(to bottom, #333338, #29292E);
 }
 </style>

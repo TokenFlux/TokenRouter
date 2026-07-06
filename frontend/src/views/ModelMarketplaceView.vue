@@ -128,6 +128,12 @@
                   <span class="rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200">
                     {{ formatRateMultiplierLabel(group.rate_multiplier) }}
                   </span>
+                  <span
+                    v-if="hasIndependentImageRate(group)"
+                    class="rounded-full border border-fuchsia-200 bg-fuchsia-50 px-3 py-1 text-xs font-semibold text-fuchsia-700 dark:border-fuchsia-500/30 dark:bg-fuchsia-500/10 dark:text-fuchsia-200"
+                  >
+                    {{ formatImageRateMultiplierLabel(group.image_rate_multiplier) }}
+                  </span>
                   <span class="rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200">
                     {{ group.model_count }} {{ t('marketplace.modelsStat') }}
                   </span>
@@ -273,6 +279,12 @@
                     <h3 class="min-w-0 shrink-0 truncate text-sm font-semibold text-gray-950 dark:text-white">{{ entry.group.name }}</h3>
                     <span class="shrink-0 whitespace-nowrap rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-semibold text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200">
                       {{ formatMultiplier(entry.group.rate_multiplier) }}
+                    </span>
+                    <span
+                      v-if="hasIndependentImageRate(entry.group)"
+                      class="shrink-0 whitespace-nowrap rounded-full border border-fuchsia-200 bg-fuchsia-50 px-2 py-0.5 text-xs font-semibold text-fuchsia-700 dark:border-fuchsia-500/30 dark:bg-fuchsia-500/10 dark:text-fuchsia-200"
+                    >
+                      {{ formatImageRateMultiplierLabel(entry.group.image_rate_multiplier) }}
                     </span>
                     <div
                       v-if="entry.group.capacity"
@@ -736,6 +748,14 @@ function formatMultiplier(multiplier: number): string {
 // 分组倍率文案交给 i18n 拼接，避免不同语言的空格规则写死在模板里。
 function formatRateMultiplierLabel(multiplier: number): string {
   return t('marketplace.rateMultiplierValue', { multiplier: formatMultiplier(multiplier) })
+}
+
+function hasIndependentImageRate(group: Pick<MarketplaceGroup, 'image_rate_independent'>): boolean {
+  return Boolean(group.image_rate_independent)
+}
+
+function formatImageRateMultiplierLabel(multiplier: number): string {
+  return t('marketplace.imageRateMultiplierValue', { multiplier: formatMultiplier(multiplier) })
 }
 
 function formatPrice(value: number): string {

@@ -42,9 +42,9 @@
 }
 
 .dark .driver-popover.theme-tour-popover {
-  background-color: #10182C !important;
-  border-color: #35406C !important;
-  color: #D5E5FB !important;
+  background-color: #121215 !important;
+  border-color: #29292E !important;
+  color: #F0F0F1 !important;
 }
 
 /* 3. Header Area */
@@ -84,7 +84,7 @@
   justify-content: center !important;
 }
 .theme-tour-popover .driver-popover-close-btn:hover { background-color: #f3f4f6 !important; color: #4b5563 !important; }
-.dark .theme-tour-popover .driver-popover-close-btn:hover { background-color: #293059 !important; }
+.dark .theme-tour-popover .driver-popover-close-btn:hover { background-color: #29292E !important; }
 
 /* 4. Body Content */
 .theme-tour-popover .driver-popover-description {
@@ -97,7 +97,7 @@
   line-height: 1.6 !important;
   background-color: transparent !important;
 }
-.dark .theme-tour-popover .driver-popover-description { color: #D5E5FB !important; }
+.dark .theme-tour-popover .driver-popover-description { color: #F0F0F1 !important; }
 
 /* 5. Footer Area - Flex Row with Left/Right Containers */
 .theme-tour-popover .driver-popover-footer {
@@ -110,8 +110,8 @@
   margin: 0 !important;
 }
 .dark .theme-tour-popover .driver-popover-footer {
-  background-color: #1A2643 !important;
-  border-top-color: #35406C !important;
+  background-color: #18181B !important;
+  border-top-color: #29292E !important;
 }
 
 /* Left Container: Progress + Shortcuts */
@@ -136,7 +136,7 @@
   font-weight: 500 !important;
   white-space: nowrap !important;
 }
-.dark .theme-tour-popover .driver-popover-progress-text { color: #D5E5FB !important; }
+.dark .theme-tour-popover .driver-popover-progress-text { color: #F0F0F1 !important; }
 
 /* Shortcuts (Divider + Keys) */
 .footer-shortcuts {
@@ -147,7 +147,7 @@
   border-left: 1px solid #CDEFFD !important;
   height: 20px !important;
 }
-.dark .footer-shortcuts { border-left-color: #35406C !important; }
+.dark .footer-shortcuts { border-left-color: #29292E !important; }
 
 .shortcut-item {
   display: flex !important;
@@ -157,7 +157,7 @@
   color: #2D4F68 !important;
   white-space: nowrap !important;
 }
-.dark .shortcut-item { color: #D5E5FB !important; }
+.dark .shortcut-item { color: #F0F0F1 !important; }
 
 .shortcut-item kbd {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace !important;
@@ -174,9 +174,9 @@
   display: inline-block !important;
 }
 .dark .shortcut-item kbd {
-  background-color: #1A2643 !important;
-  border-color: #35406C !important;
-  color: #D5E5FB !important;
+  background-color: #18181B !important;
+  border-color: #29292E !important;
+  color: #F0F0F1 !important;
 }
 
 /* Nav Buttons */
@@ -210,9 +210,9 @@
 }
 .theme-tour-popover .driver-popover-prev-btn:hover { background-color: #F6FCFF !important; color: #2D4F68 !important; }
 .dark .theme-tour-popover .driver-popover-prev-btn {
-  background-color: #10182C !important;
-  border-color: #35406C !important;
-  color: #D5E5FB !important;
+  background-color: #121215 !important;
+  border-color: #29292E !important;
+  color: #F0F0F1 !important;
 }
 
 /* Arrows */
@@ -222,7 +222,7 @@
 .driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: #ffffff !important; }
 .driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: #ffffff !important; }
 
-.dark .driver-popover-arrow-side-left.driver-popover-arrow { border-left-color: #10182C !important; }
-.dark .driver-popover-arrow-side-right.driver-popover-arrow { border-right-color: #10182C !important; }
-.dark .driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: #10182C !important; }
-.dark .driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: #10182C !important; }
+.dark .driver-popover-arrow-side-left.driver-popover-arrow { border-left-color: #121215 !important; }
+.dark .driver-popover-arrow-side-right.driver-popover-arrow { border-right-color: #121215 !important; }
+.dark .driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: #121215 !important; }
+.dark .driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: #121215 !important; }

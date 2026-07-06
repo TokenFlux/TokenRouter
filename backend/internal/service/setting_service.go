@@ -926,6 +926,8 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		SettingKeyUsageRankingLimit,
 		SettingKeyCustomMenuItems,
 		SettingKeyCustomEndpoints,
+		SettingKeyFooterLinks,
+		SettingKeyFooterText,
 		SettingKeyLinuxDoConnectEnabled,
 		SettingKeyDingTalkConnectEnabled,
 		SettingKeyWeChatConnectEnabled,
@@ -1071,6 +1073,8 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		UsageRankingLimit:                usageRankingLimit,
 		CustomMenuItems:                  settings[SettingKeyCustomMenuItems],
 		CustomEndpoints:                  settings[SettingKeyCustomEndpoints],
+		FooterLinks:                      settings[SettingKeyFooterLinks],
+		FooterText:                       settings[SettingKeyFooterText],
 		LinuxDoOAuthEnabled:              linuxDoEnabled,
 		DingTalkOAuthEnabled:             dingTalkEnabled,
 		WeChatOAuthEnabled:               weChatEnabled,
@@ -1309,6 +1313,8 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		UsageRankingLimit                int                      `json:"usage_ranking_limit"`
 		CustomMenuItems                  json.RawMessage          `json:"custom_menu_items"`
 		CustomEndpoints                  json.RawMessage          `json:"custom_endpoints"`
+		FooterLinks                      json.RawMessage          `json:"footer_links"`
+		FooterText                       string                   `json:"footer_text,omitempty"`
 		LinuxDoOAuthEnabled              bool                     `json:"linuxdo_oauth_enabled"`
 		DingTalkOAuthEnabled             bool                     `json:"dingtalk_oauth_enabled"`
 		WeChatOAuthEnabled               bool                     `json:"wechat_oauth_enabled"`
@@ -1372,6 +1378,8 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		UsageRankingLimit:                settings.UsageRankingLimit,
 		CustomMenuItems:                  filterUserVisibleMenuItems(settings.CustomMenuItems),
 		CustomEndpoints:                  safeRawJSONArray(settings.CustomEndpoints),
+		FooterLinks:                      safeRawJSONArray(settings.FooterLinks),
+		FooterText:                       settings.FooterText,
 		LinuxDoOAuthEnabled:              settings.LinuxDoOAuthEnabled,
 		DingTalkOAuthEnabled:             settings.DingTalkOAuthEnabled,
 		WeChatOAuthEnabled:               settings.WeChatOAuthEnabled,
@@ -1913,6 +1921,8 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 	updates[SettingKeyUsageRankingLimit] = strconv.Itoa(normalizeUsageRankingLimit(settings.UsageRankingLimit))
 	updates[SettingKeyCustomMenuItems] = settings.CustomMenuItems
 	updates[SettingKeyCustomEndpoints] = settings.CustomEndpoints
+	updates[SettingKeyFooterLinks] = settings.FooterLinks
+	updates[SettingKeyFooterText] = strings.TrimSpace(settings.FooterText)
 
 	// 默认配置
 	updates[SettingKeyDefaultConcurrency] = strconv.Itoa(settings.DefaultConcurrency)
@@ -2866,6 +2876,8 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyUsageRankingLimit:                         strconv.Itoa(DefaultUsageRankingLimit),
 		SettingKeyCustomMenuItems:                           "[]",
 		SettingKeyCustomEndpoints:                           "[]",
+		SettingKeyFooterLinks:                               "[]",
+		SettingKeyFooterText:                                "",
 		SettingKeyWeChatConnectEnabled:                      "false",
 		SettingKeyWeChatConnectAppID:                        "",
 		SettingKeyWeChatConnectAppSecret:                    "",
@@ -3071,6 +3083,8 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		PurchaseSubscriptionURL:          strings.TrimSpace(settings[SettingKeyPurchaseSubscriptionURL]),
 		CustomMenuItems:                  settings[SettingKeyCustomMenuItems],
 		CustomEndpoints:                  settings[SettingKeyCustomEndpoints],
+		FooterLinks:                      settings[SettingKeyFooterLinks],
+		FooterText:                       settings[SettingKeyFooterText],
 		BalanceUnitName:                  balanceUnitName,
 		BalanceUnitSymbol:                balanceUnitSymbol,
 		BalanceIconSVG:                   strings.TrimSpace(settings[SettingKeyBalanceIconSVG]),

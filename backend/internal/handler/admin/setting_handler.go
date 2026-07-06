@@ -234,6 +234,8 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		UsageRankingLimit:                      settings.UsageRankingLimit,
 		CustomMenuItems:                        dto.ParseCustomMenuItems(settings.CustomMenuItems),
 		CustomEndpoints:                        dto.ParseCustomEndpoints(settings.CustomEndpoints),
+		FooterLinks:                            dto.ParseFooterLinks(settings.FooterLinks),
+		FooterText:                             settings.FooterText,
 		DefaultConcurrency:                     settings.DefaultConcurrency,
 		DefaultBalance:                         settings.DefaultBalance,
 		RiskControlEnabled:                     settings.RiskControlEnabled,
@@ -548,27 +550,29 @@ type UpdateSettingsRequest struct {
 	GoogleOAuthFrontendRedirectURL string `json:"google_oauth_frontend_redirect_url"`
 
 	// OEM设置
-	SiteName                    string                `json:"site_name"`
-	SiteLogo                    string                `json:"site_logo"`
-	SiteSubtitle                string                `json:"site_subtitle"`
-	SiteNameZh                  string                `json:"site_name_zh"`
-	SiteNameEn                  string                `json:"site_name_en"`
-	SiteTitleZh                 string                `json:"site_title_zh"`
-	SiteTitleEn                 string                `json:"site_title_en"`
-	SiteSubtitleZh              string                `json:"site_subtitle_zh"`
-	SiteSubtitleEn              string                `json:"site_subtitle_en"`
-	APIBaseURL                  string                `json:"api_base_url"`
-	ContactInfo                 string                `json:"contact_info"`
-	DocURL                      string                `json:"doc_url"`
-	HomeContent                 string                `json:"home_content"`
-	HideCcsImportButton         bool                  `json:"hide_ccs_import_button"`
-	PurchaseSubscriptionEnabled *bool                 `json:"purchase_subscription_enabled"`
-	PurchaseSubscriptionURL     *string               `json:"purchase_subscription_url"`
-	TableDefaultPageSize        int                   `json:"table_default_page_size"`
-	TablePageSizeOptions        []int                 `json:"table_page_size_options"`
-	UsageRankingLimit           int                   `json:"usage_ranking_limit"`
-	CustomMenuItems             *[]dto.CustomMenuItem `json:"custom_menu_items"`
-	CustomEndpoints             *[]dto.CustomEndpoint `json:"custom_endpoints"`
+	SiteName                    string                 `json:"site_name"`
+	SiteLogo                    string                 `json:"site_logo"`
+	SiteSubtitle                string                 `json:"site_subtitle"`
+	SiteNameZh                  string                 `json:"site_name_zh"`
+	SiteNameEn                  string                 `json:"site_name_en"`
+	SiteTitleZh                 string                 `json:"site_title_zh"`
+	SiteTitleEn                 string                 `json:"site_title_en"`
+	SiteSubtitleZh              string                 `json:"site_subtitle_zh"`
+	SiteSubtitleEn              string                 `json:"site_subtitle_en"`
+	APIBaseURL                  string                 `json:"api_base_url"`
+	ContactInfo                 string                 `json:"contact_info"`
+	DocURL                      string                 `json:"doc_url"`
+	HomeContent                 string                 `json:"home_content"`
+	HideCcsImportButton         bool                   `json:"hide_ccs_import_button"`
+	PurchaseSubscriptionEnabled *bool                  `json:"purchase_subscription_enabled"`
+	PurchaseSubscriptionURL     *string                `json:"purchase_subscription_url"`
+	TableDefaultPageSize        int                    `json:"table_default_page_size"`
+	TablePageSizeOptions        []int                  `json:"table_page_size_options"`
+	UsageRankingLimit           int                    `json:"usage_ranking_limit"`
+	CustomMenuItems             *[]dto.CustomMenuItem  `json:"custom_menu_items"`
+	CustomEndpoints             *[]dto.CustomEndpoint  `json:"custom_endpoints"`
+	FooterLinks                 *[]dto.FooterLinkGroup `json:"footer_links"`
+	FooterText                  *string                `json:"footer_text"`
 
 	// 默认配置
 	DefaultConcurrency                        int                               `json:"default_concurrency"`
@@ -1557,6 +1561,80 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		customEndpointsJSON = string(endpointBytes)
 	}
 
+	// 底栏链接分组验证
+	const (
+		maxFooterGroups      = 6
+		maxFooterLinksPerGrp = 10
+		maxFooterLabelLen    = 50
+		maxFooterURLLen      = 2048
+		maxFooterTextLen     = 500
+	)
+
+	footerLinksJSON := previousSettings.FooterLinks
+	if req.FooterLinks != nil {
+		groups := *req.FooterLinks
+		if len(groups) > maxFooterGroups {
+			response.BadRequest(c, "Too many footer link groups (max 6)")
+			return
+		}
+		for _, group := range groups {
+			if strings.TrimSpace(group.Title) == "" {
+				response.BadRequest(c, "Footer link group title is required")
+				return
+			}
+			if len(group.Title) > maxFooterLabelLen {
+				response.BadRequest(c, "Footer link group title is too long (max 50 characters)")
+				return
+			}
+			if len(group.Links) > maxFooterLinksPerGrp {
+				response.BadRequest(c, "Too many links in footer group (max 10)")
+				return
+			}
+			for _, link := range group.Links {
+				if strings.TrimSpace(link.Label) == "" {
+					response.BadRequest(c, "Footer link label is required")
+					return
+				}
+				if len(link.Label) > maxFooterLabelLen {
+					response.BadRequest(c, "Footer link label is too long (max 50 characters)")
+					return
+				}
+				trimmedURL := strings.TrimSpace(link.URL)
+				if trimmedURL == "" {
+					response.BadRequest(c, "Footer link URL is required")
+					return
+				}
+				if len(trimmedURL) > maxFooterURLLen {
+					response.BadRequest(c, "Footer link URL is too long (max 2048 characters)")
+					return
+				}
+				// 允许绝对 http(s) URL 或站内相对路径（以 / 开头）
+				if !strings.HasPrefix(trimmedURL, "/") {
+					if err := config.ValidateAbsoluteHTTPURL(trimmedURL); err != nil {
+						response.BadRequest(c, "Footer link URL must be an absolute http(s) URL or a path starting with /")
+						return
+					}
+				}
+			}
+		}
+		groupBytes, err := json.Marshal(groups)
+		if err != nil {
+			response.BadRequest(c, "Failed to serialize footer links")
+			return
+		}
+		footerLinksJSON = string(groupBytes)
+	}
+
+	footerText := previousSettings.FooterText
+	if req.FooterText != nil {
+		trimmed := strings.TrimSpace(*req.FooterText)
+		if len(trimmed) > maxFooterTextLen {
+			response.BadRequest(c, "Footer text is too long (max 500 characters)")
+			return
+		}
+		footerText = trimmed
+	}
+
 	// Ops metrics collector interval validation (seconds).
 	if req.OpsMetricsIntervalSeconds != nil {
 		v := *req.OpsMetricsIntervalSeconds
@@ -1742,6 +1820,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		UsageRankingLimit:                      req.UsageRankingLimit,
 		CustomMenuItems:                        customMenuJSON,
 		CustomEndpoints:                        customEndpointsJSON,
+		FooterLinks:                            footerLinksJSON,
+		FooterText:                             footerText,
 		DefaultConcurrency:                     req.DefaultConcurrency,
 		DefaultBalance:                         req.DefaultBalance,
 		AffiliateEnabled:                       req.AffiliateEnabled,
@@ -2226,6 +2306,8 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		UsageRankingLimit:                      updatedSettings.UsageRankingLimit,
 		CustomMenuItems:                        dto.ParseCustomMenuItems(updatedSettings.CustomMenuItems),
 		CustomEndpoints:                        dto.ParseCustomEndpoints(updatedSettings.CustomEndpoints),
+		FooterLinks:                            dto.ParseFooterLinks(updatedSettings.FooterLinks),
+		FooterText:                             updatedSettings.FooterText,
 		DefaultConcurrency:                     updatedSettings.DefaultConcurrency,
 		DefaultBalance:                         updatedSettings.DefaultBalance,
 		RiskControlEnabled:                     updatedSettings.RiskControlEnabled,
@@ -2802,6 +2884,12 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	}
 	if before.CustomEndpoints != after.CustomEndpoints {
 		changed = append(changed, "custom_endpoints")
+	}
+	if before.FooterLinks != after.FooterLinks {
+		changed = append(changed, "footer_links")
+	}
+	if before.FooterText != after.FooterText {
+		changed = append(changed, "footer_text")
 	}
 	if before.EnableFingerprintUnification != after.EnableFingerprintUnification {
 		changed = append(changed, "enable_fingerprint_unification")

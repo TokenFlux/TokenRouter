@@ -140,7 +140,7 @@
     </nav>
 
     <!-- Bottom Section -->
-    <div class="mt-auto border-t border-primary-100 p-3 dark:border-dark-600">
+    <div class="mt-auto border-t border-primary-900/10 p-3 dark:border-dark-600">
       <!-- Theme Toggle -->
       <button
         @click="toggleTheme"
@@ -953,7 +953,7 @@ onMounted(() => {
 }
 
 .dark .sidebar-section-title::after {
-  background: rgb(53 64 108);
+  background: rgb(42 46 54);
 }
 
 .sidebar-section-title-text-collapsed {
