@@ -65,6 +65,36 @@ func TestResolveAccountUpstreamModel_NonAntigravity(t *testing.T) {
 	require.Equal(t, "claude-sonnet-4-6", got, "no mapping = passthrough")
 }
 
+func TestIsModelSupportedByAccountWithContext_QoderUsesChannelMappedAccountLayerModel(t *testing.T) {
+	t.Parallel()
+	ch := Channel{
+		ID:       1,
+		Status:   StatusActive,
+		GroupIDs: []int64{10},
+		ModelMapping: map[string]map[string]string{
+			PlatformQoder: {"my-qoder": "qmodel"},
+		},
+	}
+	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: PlatformQoder}))
+	svc := &GatewayService{channelService: channelSvc}
+	ctx := svc.withGroupContext(context.Background(), &Group{
+		ID:       10,
+		Platform: PlatformQoder,
+		Status:   StatusActive,
+		Hydrated: true,
+	})
+	account := &Account{
+		Platform: PlatformQoder,
+		Credentials: map[string]any{
+			"model_mapping":   map[string]any{"qmodel": "ultimate"},
+			"model_whitelist": []any{"ultimate"},
+		},
+	}
+
+	require.True(t, svc.isModelSupportedByAccountWithContext(ctx, account, "my-qoder"),
+		"account whitelist should be checked after channel mapping and account mapping")
+}
+
 // --- checkChannelPricingRestriction ---
 
 func TestCheckChannelPricingRestriction_NilGroupID(t *testing.T) {
@@ -270,6 +300,35 @@ func TestIsUpstreamModelRestrictedByChannel_Allowed(t *testing.T) {
 	account := &Account{Platform: PlatformAntigravity}
 	require.False(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), 10, account, "claude-sonnet-4-6"),
 		"upstream model claude-sonnet-4-6 IS in pricing → allowed")
+}
+
+func TestIsUpstreamModelRestrictedByChannel_AppliesChannelMappingBeforeAccountMapping(t *testing.T) {
+	t.Parallel()
+	price := 1e-6
+	ch := Channel{
+		ID:                 1,
+		Status:             StatusActive,
+		GroupIDs:           []int64{10},
+		RestrictModels:     true,
+		BillingModelSource: BillingModelSourceUpstream,
+		ModelPricing: []ChannelModelPricing{
+			{Platform: PlatformQoder, Models: []string{"ultimate"}, BillingMode: BillingModeToken, InputPrice: &price},
+		},
+		ModelMapping: map[string]map[string]string{
+			PlatformQoder: {"my-qoder": "qmodel"},
+		},
+	}
+	channelSvc := newTestChannelService(makeStandardRepo(ch, map[int64]string{10: PlatformQoder}))
+	svc := &GatewayService{channelService: channelSvc}
+	account := &Account{
+		Platform: PlatformQoder,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{"qmodel": "ultimate"},
+		},
+	}
+
+	require.False(t, svc.isUpstreamModelRestrictedByChannel(context.Background(), 10, account, "my-qoder"),
+		"upstream restriction should check the final model after channel mapping and account mapping")
 }
 
 func TestIsUpstreamModelRestrictedByChannel_UnsupportedModel(t *testing.T) {

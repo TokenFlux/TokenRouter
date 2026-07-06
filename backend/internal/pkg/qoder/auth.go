@@ -110,6 +110,9 @@ func RefreshSession(refreshToken, securityOauthToken string, machine *MachineIde
 
 // RefreshSessionContext exchanges a Qoder refresh_token using the provided context and request executor.
 func RefreshSessionContext(ctx context.Context, refreshToken, securityOauthToken string, machine *MachineIdentity, centerURL string, doer RequestDoer) (*AuthIdentity, error) {
+	if strings.TrimSpace(securityOauthToken) == "" {
+		return nil, fmt.Errorf("qoder: refresh requires securityOauthToken")
+	}
 	inner := map[string]any{
 		"personalToken":      "",
 		"securityOauthToken": strings.TrimSpace(securityOauthToken),
@@ -156,7 +159,7 @@ func exchangeJobToken(ctx context.Context, inner map[string]any, machine *Machin
 
 	if resp.StatusCode != 200 {
 		bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("qoder: %s failed with status %d: %s", operation, resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf("qoder: %s failed with status %d: %s", operation, resp.StatusCode, RedactSensitiveText(string(bodyBytes)))
 	}
 
 	var data map[string]any
@@ -172,14 +175,17 @@ func exchangeJobToken(ctx context.Context, inner map[string]any, machine *Machin
 	if userType == "" {
 		userType = "personal_standard"
 	}
+	if strings.TrimSpace(token) == "" {
+		return nil, fmt.Errorf("qoder: %s response missing securityOauthToken", operation)
+	}
 
 	return &AuthIdentity{
 		Name:               name,
 		AID:                uid,
 		UID:                uid,
 		UserType:           userType,
-		SecurityOauthToken: token,
-		RefreshToken:       refreshToken,
+		SecurityOauthToken: strings.TrimSpace(token),
+		RefreshToken:       strings.TrimSpace(refreshToken),
 	}, nil
 }
 

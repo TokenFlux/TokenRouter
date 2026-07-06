@@ -110,6 +110,32 @@ func TestQoderTokenRefresherRefreshPreservesOldRefreshTokenWhenMissing(t *testin
 	require.Equal(t, "old-refresh", credentials["refresh_token"])
 }
 
+func TestQoderTokenRefresherRefreshRejectsEmptySecurityOauthToken(t *testing.T) {
+	refresher := NewQoderTokenRefresher(nil)
+	refresher.refreshSession = func(context.Context, string, string, *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
+		return &qoder.AuthIdentity{
+			UID:          "user-1",
+			AID:          "user-1",
+			RefreshToken: "new-refresh",
+		}, nil
+	}
+	account := &Account{
+		ID:       1,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"security_oauth_token": "old-token",
+			"refresh_token":        "old-refresh",
+			"machine_id":           "machine-1",
+		},
+	}
+
+	credentials, err := refresher.Refresh(context.Background(), account)
+
+	require.Nil(t, credentials)
+	require.ErrorContains(t, err, "empty security_oauth_token")
+}
+
 func TestQoderTokenRefresherRefreshRequiresMachineID(t *testing.T) {
 	refresher := NewQoderTokenRefresher(nil)
 	account := &Account{

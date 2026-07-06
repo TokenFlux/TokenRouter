@@ -30,6 +30,16 @@ const qoderDSMLToolCallFixture = `<｜｜DSML｜｜tool_calls>
 </｜｜DSML｜｜invoke>
 </｜｜DSML｜｜tool_calls>`
 
+type qoderTrackingReadCloser struct {
+	*strings.Reader
+	closed bool
+}
+
+func (r *qoderTrackingReadCloser) Close() error {
+	r.closed = true
+	return nil
+}
+
 func cloneCredentials(src map[string]any) map[string]any {
 	if src == nil {
 		return nil
@@ -598,6 +608,59 @@ func TestQoderGatewayAppliesAccountModelMapping(t *testing.T) {
 	require.Contains(t, rec.Body.String(), `"model":"claude-opus-4-6"`)
 }
 
+func TestQoderGatewayForwardUsesOriginalModelAfterChannelMapping(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		body []byte
+		call func(context.Context, *QoderGatewayService, *gin.Context, *Account, []byte, string) (*ForwardResult, error)
+	}{
+		{
+			name: "chat completions",
+			path: "/v1/chat/completions",
+			body: []byte(`{"model":"qmodel","messages":[{"role":"user","content":"hi"}],"stream":false}`),
+			call: func(ctx context.Context, svc *QoderGatewayService, c *gin.Context, account *Account, body []byte, responseModel string) (*ForwardResult, error) {
+				return svc.ForwardChatCompletions(ctx, c, account, body, responseModel)
+			},
+		},
+		{
+			name: "responses",
+			path: "/v1/responses",
+			body: []byte(`{"model":"qmodel","input":"hi","stream":false}`),
+			call: func(ctx context.Context, svc *QoderGatewayService, c *gin.Context, account *Account, body []byte, responseModel string) (*ForwardResult, error) {
+				return svc.ForwardResponses(ctx, c, account, body, responseModel)
+			},
+		},
+		{
+			name: "messages",
+			path: "/v1/messages",
+			body: []byte(`{"model":"qmodel","max_tokens":16,"messages":[{"role":"user","content":"hi"}],"stream":false}`),
+			call: func(ctx context.Context, svc *QoderGatewayService, c *gin.Context, account *Account, body []byte, responseModel string) (*ForwardResult, error) {
+				return svc.ForwardMessages(ctx, c, account, body, responseModel)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			account, svc, client := newQoderGatewayForwardTestService()
+
+			gin.SetMode(gin.TestMode)
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			c.Request = httptest.NewRequest(http.MethodPost, tt.path, bytes.NewReader(tt.body))
+
+			result, err := tt.call(context.Background(), svc, c, account, tt.body, "qwen3.7-plus")
+
+			require.NoError(t, err)
+			require.Equal(t, "qwen3.7-plus", result.Model)
+			require.Equal(t, "qmodel", result.UpstreamModel)
+			require.Equal(t, "qmodel", client.headers["x-model-key"])
+			require.Equal(t, "qwen3.7-plus", gjson.Get(rec.Body.String(), "model").String())
+		})
+	}
+}
+
 func TestQoderGatewayChatCompletionsReusesSessionAndSendsFullReplay(t *testing.T) {
 	account, svc, client := newQoderGatewayForwardTestService()
 
@@ -852,6 +915,203 @@ func TestQoderGatewayResponsesStreamCompletedOutputIncludesTextMessage(t *testin
 	require.Equal(t, "completed", completed.Get("response.output.0.status").String())
 	require.Equal(t, "output_text", completed.Get("response.output.0.content.0.type").String())
 	require.Equal(t, "Hello world", completed.Get("response.output.0.content.0.text").String())
+}
+
+func TestQoderGatewayResponsesStreamClosesUpstreamBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := &qoderTrackingReadCloser{Reader: strings.NewReader(
+		qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+			map[string]any{"delta": map[string]any{"content": "ok"}},
+		}}) +
+			"data: {\"body\":\"[DONE]\"}\n\n",
+	)}
+	resp := &http.Response{Body: body}
+
+	_, err := WriteQoderResponsesStreamResponse(context.Background(), c, "deepseek-v4-pro", resp)
+	require.NoError(t, err)
+	require.True(t, body.closed)
+}
+
+func TestQoderGatewayOpenAIStreamUsageRequiresIncludeUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	respBody := qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+		map[string]any{"delta": map[string]any{"content": "ok"}},
+	}}) +
+		qoderWrappedSSELineForTest(t, map[string]any{
+			"usage": map[string]any{
+				"prompt_tokens":     12,
+				"completion_tokens": 3,
+				"total_tokens":      15,
+			},
+		}) +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{Body: io.NopCloser(strings.NewReader(respBody))}
+
+	result, err := WriteQoderOpenAIStreamResponse(context.Background(), c, "auto", resp)
+	require.NoError(t, err)
+	require.Equal(t, 12, result.Usage.InputTokens)
+	require.Equal(t, 3, result.Usage.OutputTokens)
+	require.NotContains(t, rec.Body.String(), `"usage"`)
+}
+
+func TestQoderGatewayOpenAIStreamUsageChunkShapeWhenIncluded(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	respBody := qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+		map[string]any{"delta": map[string]any{"content": "ok"}},
+	}}) +
+		qoderWrappedSSELineForTest(t, map[string]any{
+			"usage": map[string]any{
+				"prompt_tokens":     12,
+				"completion_tokens": 3,
+				"total_tokens":      15,
+			},
+		}) +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{Body: io.NopCloser(strings.NewReader(respBody))}
+
+	_, err := WriteQoderOpenAIStreamResponse(context.Background(), c, "auto", resp, qoderOpenAIStreamIncludeUsage(true))
+	require.NoError(t, err)
+	body := rec.Body.String()
+	require.Contains(t, body, `"usage"`)
+	require.Contains(t, body, `"choices":[]`)
+	require.Contains(t, body, `"prompt_tokens":12`)
+	require.Contains(t, body, `"completion_tokens":3`)
+}
+
+func TestQoderGatewayStreamWritersDoNotWriteBeforeUpstreamError(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	errorLine := qoderWrappedErrorSSELineForTest(t, http.StatusTooManyRequests, map[string]any{
+		"code":                "115",
+		"message":             "agent limit",
+		"agentLimitResetTime": time.Date(2026, 7, 12, 7, 28, 9, 0, time.UTC).UnixMilli(),
+	})
+
+	tests := []struct {
+		name  string
+		write func(context.Context, *gin.Context, *http.Response) (*qoderStreamResult, error)
+	}{
+		{
+			name: "openai chat completions",
+			write: func(ctx context.Context, c *gin.Context, resp *http.Response) (*qoderStreamResult, error) {
+				return WriteQoderOpenAIStreamResponse(ctx, c, "qwen3.7-plus", resp)
+			},
+		},
+		{
+			name: "anthropic messages",
+			write: func(ctx context.Context, c *gin.Context, resp *http.Response) (*qoderStreamResult, error) {
+				return WriteQoderAnthropicStreamResponse(ctx, c, "qwen3.7-plus", resp)
+			},
+		},
+		{
+			name: "responses",
+			write: func(ctx context.Context, c *gin.Context, resp *http.Response) (*qoderStreamResult, error) {
+				return WriteQoderResponsesStreamResponse(ctx, c, "qwen3.7-plus", resp)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			resp := &http.Response{Body: io.NopCloser(strings.NewReader(errorLine))}
+
+			result, err := tt.write(context.Background(), c, resp)
+			require.Error(t, err)
+			require.Nil(t, result)
+			var apiErr *qoder.APIError
+			require.ErrorAs(t, err, &apiErr)
+			require.True(t, apiErr.IsAgentLimit())
+			require.Equal(t, -1, c.Writer.Size(), "handler failover depends on no bytes being written before the upstream error")
+			require.Empty(t, rec.Body.String())
+		})
+	}
+}
+
+func TestQoderGatewayResponsesStreamMapsReasoningDelta(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{Body: io.NopCloser(bytes.NewBufferString(
+		qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+			map[string]any{"delta": map[string]any{"reasoning_content": "think "}},
+		}}) +
+			qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+				map[string]any{"delta": map[string]any{"reasoning_content": "first"}},
+			}}) +
+			qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+				map[string]any{"delta": map[string]any{"content": "answer"}},
+			}}) +
+			"data: {\"body\":\"[DONE]\"}\n\n"))}
+
+	result, err := WriteQoderResponsesStreamResponse(context.Background(), c, "deepseek-v4-pro", resp)
+	require.NoError(t, err)
+	require.True(t, result.HasOutput)
+
+	events := qoderResponsesStreamEventsForTest(t, rec.Body.String())
+	var sawReasoningAdded, sawReasoningDelta, sawReasoningDone bool
+	for _, event := range events {
+		switch event.Get("type").String() {
+		case "response.output_item.added":
+			if event.Get("item.type").String() == "reasoning" {
+				sawReasoningAdded = true
+			}
+		case "response.reasoning_summary_text.delta":
+			if event.Get("delta").String() == "think " || event.Get("delta").String() == "first" {
+				sawReasoningDelta = true
+			}
+		case "response.output_item.done":
+			if event.Get("item.type").String() == "reasoning" && event.Get("item.summary.0.text").String() == "think first" {
+				sawReasoningDone = true
+			}
+		}
+	}
+	require.True(t, sawReasoningAdded, rec.Body.String())
+	require.True(t, sawReasoningDelta, rec.Body.String())
+	require.True(t, sawReasoningDone, rec.Body.String())
+
+	completed := qoderResponsesCompletedEventForTest(t, rec.Body.String())
+	require.Equal(t, "reasoning", completed.Get("response.output.0.type").String())
+	require.Equal(t, "think first", completed.Get("response.output.0.summary.0.text").String())
+	require.Equal(t, "message", completed.Get("response.output.1.type").String())
+	require.Equal(t, "answer", completed.Get("response.output.1.content.0.text").String())
+}
+
+func TestQoderGatewayResponsesStreamAllowsTextAfterReasoningInterleave(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{Body: io.NopCloser(bytes.NewBufferString(
+		qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+			map[string]any{"delta": map[string]any{"content": "first"}},
+		}}) +
+			qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+				map[string]any{"delta": map[string]any{"reasoning_content": "think"}},
+			}}) +
+			qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+				map[string]any{"delta": map[string]any{"content": "second"}},
+			}}) +
+			"data: {\"body\":\"[DONE]\"}\n\n"))}
+
+	result, err := WriteQoderResponsesStreamResponse(context.Background(), c, "deepseek-v4-pro", resp)
+	require.NoError(t, err)
+	require.True(t, result.HasOutput)
+
+	completed := qoderResponsesCompletedEventForTest(t, rec.Body.String())
+	require.Equal(t, "message", completed.Get("response.output.0.type").String())
+	require.Equal(t, "first", completed.Get("response.output.0.content.0.text").String())
+	require.Equal(t, "reasoning", completed.Get("response.output.1.type").String())
+	require.Equal(t, "think", completed.Get("response.output.1.summary.0.text").String())
+	require.Equal(t, "message", completed.Get("response.output.2.type").String())
+	require.Equal(t, "second", completed.Get("response.output.2.content.0.text").String())
 }
 
 func TestQoderGatewayResponsesStreamCompletedOutputIncludesFunctionCalls(t *testing.T) {
@@ -2018,7 +2278,8 @@ func TestQoderGatewayStreamsDeltaUsageToOpenAIClientOnReusedConversation(t *test
 		"prompt_cache_key":"openai-stream-usage-delta-session",
 		"messages":[{"role":"user","content":"run pwd"}],
 		"tools":` + qoderLargeToolsJSONForTest() + `,
-		"stream":true
+		"stream":true,
+		"stream_options":{"include_usage":true}
 	}`)
 	secondBody := []byte(`{
 		"model":"auto",
@@ -2031,7 +2292,8 @@ func TestQoderGatewayStreamsDeltaUsageToOpenAIClientOnReusedConversation(t *test
 			{"role":"user","content":"continue"}
 		],
 		"tools":` + qoderLargeToolsJSONForTest() + `,
-		"stream":true
+		"stream":true,
+		"stream_options":{"include_usage":true}
 	}`)
 
 	client.body = "data: {\"body\":\"{\\\"choices\\\":[{\\\"delta\\\":{\\\"content\\\":\\\"OK\\\"}}]}\"}\n\n" +
@@ -3132,6 +3394,20 @@ func TestQoderGatewayNonStreamingKeepaliveKeepsJSONParseable(t *testing.T) {
 	require.Equal(t, "no", rec.Header().Get("X-Accel-Buffering"))
 }
 
+func TestQoderGatewayStreamKeepaliveDoesNotCommitBeforeStart(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+
+	require.NoError(t, writeQoderStreamKeepalive(c, false))
+	require.Equal(t, -1, c.Writer.Size())
+	require.Empty(t, rec.Body.String())
+
+	c.Writer.WriteHeader(http.StatusOK)
+	require.NoError(t, writeQoderStreamKeepalive(c, true))
+	require.Equal(t, ": keep-alive\n\n", rec.Body.String())
+}
+
 func TestQoderGatewayNonStreamingReadDoesNotCommitResponseBeforeError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
@@ -3878,7 +4154,7 @@ func TestQoderGatewayWritesAnthropicStreamNormalizesExecuteBashToolCall(t *testi
 	require.NotContains(t, body, `"name":"execute_bash"`)
 }
 
-func TestQoderGatewayStreamsOpenAIUsageForBillingAndClient(t *testing.T) {
+func TestQoderGatewayStreamsOpenAIUsageForBillingAndClientWhenRequested(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -3890,7 +4166,7 @@ func TestQoderGatewayStreamsOpenAIUsageForBillingAndClient(t *testing.T) {
 		)),
 	}
 
-	result, err := WriteQoderOpenAIStreamResponse(context.Background(), c, "auto", resp)
+	result, err := WriteQoderOpenAIStreamResponse(context.Background(), c, "auto", resp, qoderOpenAIStreamIncludeUsage(true))
 
 	require.NoError(t, err)
 	require.Equal(t, 5, result.Usage.InputTokens)
@@ -3900,6 +4176,37 @@ func TestQoderGatewayStreamsOpenAIUsageForBillingAndClient(t *testing.T) {
 	require.Contains(t, body, `"prompt_tokens":5`)
 	require.Contains(t, body, `"completion_tokens":6`)
 	require.Contains(t, body, `"total_tokens":11`)
+	usageChunk := qoderOpenAIUsageChunkForTest(t, body)
+	require.Len(t, usageChunk.Get("choices").Array(), 0, usageChunk.Raw)
+	require.Contains(t, body, "data: [DONE]\n\n")
+}
+
+func TestQoderGatewayStreamsOpenAIUsageForBillingWithoutClientChunkByDefault(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewBufferString(
+			qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+				map[string]any{"delta": map[string]any{"content": "Hi"}},
+			}}) +
+				qoderWrappedSSELineForTest(t, map[string]any{"usage": map[string]any{
+					"prompt_tokens":     5,
+					"completion_tokens": 6,
+					"total_tokens":      11,
+				}}) +
+				"data: {\"body\":\"[DONE]\"}\n\n",
+		)),
+	}
+
+	result, err := WriteQoderOpenAIStreamResponse(context.Background(), c, "auto", resp)
+
+	require.NoError(t, err)
+	require.Equal(t, 5, result.Usage.InputTokens)
+	require.Equal(t, 6, result.Usage.OutputTokens)
+	body := rec.Body.String()
+	require.NotContains(t, body, `"usage":`)
+	require.Contains(t, body, `"delta":{"content":"Hi"}`)
 	require.Contains(t, body, "data: [DONE]\n\n")
 }
 
@@ -3952,6 +4259,18 @@ func qoderWrappedSSELineForTest(t *testing.T, inner map[string]any) string {
 	body, err := json.Marshal(inner)
 	require.NoError(t, err)
 	wrapper, err := json.Marshal(map[string]string{"body": string(body)})
+	require.NoError(t, err)
+	return "data: " + string(wrapper) + "\n\n"
+}
+
+func qoderWrappedErrorSSELineForTest(t *testing.T, statusCode int, inner map[string]any) string {
+	t.Helper()
+	body, err := json.Marshal(inner)
+	require.NoError(t, err)
+	wrapper, err := json.Marshal(map[string]any{
+		"body":            string(body),
+		"statusCodeValue": statusCode,
+	})
 	require.NoError(t, err)
 	return "data: " + string(wrapper) + "\n\n"
 }
@@ -4093,6 +4412,32 @@ func qoderForwardResponsesResultAndBodyForTest(t *testing.T, svc *QoderGatewaySe
 	result, err := svc.ForwardResponses(context.Background(), c, account, body)
 	require.NoError(t, err)
 	return result, rec.Body.String()
+}
+
+func qoderOpenAIUsageChunkForTest(t *testing.T, body string) gjson.Result {
+	t.Helper()
+	for _, frame := range strings.Split(body, "\n\n") {
+		frame = strings.TrimSpace(frame)
+		if frame == "" {
+			continue
+		}
+		for _, line := range strings.Split(frame, "\n") {
+			line = strings.TrimSpace(line)
+			if !strings.HasPrefix(line, "data: ") {
+				continue
+			}
+			data := strings.TrimSpace(strings.TrimPrefix(line, "data: "))
+			if data == "" || data == "[DONE]" || !gjson.Valid(data) {
+				continue
+			}
+			chunk := gjson.Parse(data)
+			if chunk.Get("usage").Exists() {
+				return chunk
+			}
+		}
+	}
+	t.Fatalf("OpenAI usage chunk not found in %s", body)
+	return gjson.Result{}
 }
 
 func qoderResponsesStreamEventsForTest(t *testing.T, body string) []gjson.Result {

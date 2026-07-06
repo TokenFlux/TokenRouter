@@ -4021,6 +4021,9 @@ func summarizeSelectionFailureStats(stats selectionFailureStats) string {
 // isModelSupportedByAccountWithContext 根据账户平台检查模型支持（带 context）
 // 对于 Antigravity 平台，会先获取映射后的最终模型名（包括 thinking 后缀）再检查支持
 func (s *GatewayService) isModelSupportedByAccountWithContext(ctx context.Context, account *Account, requestedModel string) bool {
+	if account.Platform == PlatformQoder {
+		requestedModel = s.channelMappedModelForAccountLayer(ctx, requestedModel)
+	}
 	if account.Platform == PlatformAntigravity {
 		if strings.TrimSpace(requestedModel) == "" {
 			return true
@@ -4041,6 +4044,21 @@ func (s *GatewayService) isModelSupportedByAccountWithContext(ctx context.Contex
 		return true
 	}
 	return s.isModelSupportedByAccount(account, requestedModel)
+}
+
+func (s *GatewayService) channelMappedModelForAccountLayer(ctx context.Context, requestedModel string) string {
+	if s == nil || s.channelService == nil || strings.TrimSpace(requestedModel) == "" {
+		return requestedModel
+	}
+	group, ok := ctx.Value(ctxkey.Group).(*Group)
+	if !ok || !IsGroupContextValid(group) {
+		return requestedModel
+	}
+	mapping := s.channelService.ResolveChannelMapping(ctx, group.ID, requestedModel)
+	if !mapping.Mapped || strings.TrimSpace(mapping.MappedModel) == "" {
+		return requestedModel
+	}
+	return mapping.MappedModel
 }
 
 // isModelSupportedByAccount 根据账户平台检查模型支持（无 context，用于非 Antigravity 平台）
@@ -9860,7 +9878,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	}
 
 	// 计算费用
-	cost := s.calculateRecordUsageCost(ctx, result, apiKey, account, billingModel, requestedModel, input.BillingModelSource, multiplier, imageMultiplier, opts)
+	cost := s.calculateRecordUsageCost(ctx, result, apiKey, account, billingModel, requestedModel, input.BillingModelSource, input.ChannelMappedModel, multiplier, imageMultiplier, opts)
 
 	// 预填 billing_type 仅用于 simple mode / 持久化前对象，真实扣费结果会在统一扣费后回填。
 	isSubscriptionBilling := subscription != nil
@@ -9874,10 +9892,10 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	usageLog := s.buildRecordUsageLog(ctx, input, result, apiKey, user, account, subscription,
 		requestedModel, multiplier, imageMultiplier, accountRateMultiplier, billingType, cacheTTLOverridden, cost, opts)
 
-	// 计算账号统计定价费用（Qoder 会先按最终 route key、再按原始请求 alias 匹配自定义规则）
+	// 计算账号统计定价费用（Qoder 会先按原始请求 alias、再按渠道 route key / 最终 upstream 匹配自定义规则）
 	if apiKey.GroupID != nil {
 		applyAccountStatsCost(ctx, usageLog, s.channelService, s.billingService,
-			account.ID, *apiKey.GroupID, result.UpstreamModel, requestedModel,
+			account.ID, *apiKey.GroupID, result.UpstreamModel, requestedModel, input.ChannelMappedModel,
 			// Anthropic's input_tokens excludes cache_read and cache_creation (billed separately);
 			// OpenAI gateway uses actualInputTokens which also excludes cache_read for the same reason.
 			UsageTokens{
@@ -9965,22 +9983,23 @@ func (s *GatewayService) calculateRecordUsageCost(
 	billingModel string,
 	requestedModel string,
 	billingModelSource string,
+	channelMappedModel string,
 	multiplier float64,
 	imageMultiplier float64,
 	opts *recordUsageOpts,
 ) *CostBreakdown {
 	// 图片生成：渠道定价为令牌计费时走令牌路径，否则走图片计费
 	if result.ImageCount > 0 {
-		if resolved, pricingModel := s.resolveChannelPricingForUsage(ctx, billingModel, requestedModel, billingModelSource, result.UpstreamModel, apiKey, account); resolved != nil && resolved.Mode == BillingModeToken {
-			return s.calculateTokenCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, multiplier, opts)
+		if resolved, pricingModel := s.resolveChannelPricingForUsage(ctx, billingModel, requestedModel, billingModelSource, channelMappedModel, result.UpstreamModel, apiKey, account); resolved != nil && resolved.Mode == BillingModeToken {
+			return s.calculateTokenCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, channelMappedModel, multiplier, opts)
 		} else if resolved != nil {
-			return s.calculateImageCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, pricingModel, resolved, imageMultiplier)
+			return s.calculateImageCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, channelMappedModel, pricingModel, resolved, imageMultiplier)
 		}
-		return s.calculateImageCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, billingModel, nil, imageMultiplier)
+		return s.calculateImageCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, channelMappedModel, billingModel, nil, imageMultiplier)
 	}
 
 	// Token 计费
-	return s.calculateTokenCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, multiplier, opts)
+	return s.calculateTokenCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, channelMappedModel, multiplier, opts)
 }
 
 // resolveChannelPricing 检查指定模型是否存在渠道级别定价。
@@ -10006,31 +10025,71 @@ func (s *GatewayService) resolveChannelPricingForUsage(
 	billingModel string,
 	requestedModel string,
 	billingModelSource string,
+	channelMappedModel string,
 	baseModelHint string,
 	apiKey *APIKey,
 	account *Account,
 ) (*ResolvedPricing, string) {
+	if isQoderBillingContext(account, apiKey) {
+		return s.resolveQoderChannelPricingForUsage(ctx, billingModel, requestedModel, channelMappedModel, baseModelHint, apiKey)
+	}
 	if resolved := s.resolveChannelPricingWithBaseHint(ctx, billingModel, baseModelHint, apiKey); resolved != nil {
 		return resolved, billingModel
 	}
-	// Qoder channel mappings often rewrite a public/custom request alias to an
-	// internal route key (for example qwen3.7-plus → qmodel). Operators edit
-	// prices on the public alias surface, so let that explicit alias price
-	// override the built-in route-key Opus fallback when the route key itself has
-	// no channel pricing.
-	if billingModelSource == BillingModelSourceChannelMapped &&
-		requestedModel != "" &&
-		requestedModel != billingModel &&
-		isQoderBillingContext(account, apiKey) {
-		hint := strings.TrimSpace(baseModelHint)
-		if hint == "" {
-			hint = billingModel
+	return nil, billingModel
+}
+
+func (s *GatewayService) resolveQoderChannelPricingForUsage(
+	ctx context.Context,
+	billingModel string,
+	requestedModel string,
+	channelMappedModel string,
+	baseModelHint string,
+	apiKey *APIKey,
+) (*ResolvedPricing, string) {
+	type pricingCandidate struct {
+		model string
+		hint  string
+	}
+	candidates := make([]pricingCandidate, 0, 4)
+	seen := make(map[string]struct{}, 4)
+	addCandidate := func(model, hint string) {
+		model = strings.TrimSpace(model)
+		if model == "" {
+			return
 		}
-		if resolved := s.resolveChannelPricingWithBaseHint(ctx, requestedModel, hint, apiKey); resolved != nil {
-			return resolved, requestedModel
+		if _, ok := seen[model]; ok {
+			return
+		}
+		seen[model] = struct{}{}
+		candidates = append(candidates, pricingCandidate{model: model, hint: strings.TrimSpace(hint)})
+	}
+
+	// Qoder can expose several names for one request: public/custom requested
+	// alias, channel route key, billing model, and final upstream route key.
+	// Manual pricing is intentionally resolved in user-visible alias order
+	// first; blank rows are "unconfigured" and must not mask a later effective
+	// manual price.
+	channelMappedModel = strings.TrimSpace(channelMappedModel)
+	aliasHint := strings.TrimSpace(channelMappedModel)
+	if aliasHint == "" {
+		aliasHint = strings.TrimSpace(baseModelHint)
+	}
+	if aliasHint == "" {
+		aliasHint = strings.TrimSpace(billingModel)
+	}
+	addCandidate(requestedModel, aliasHint)
+	addCandidate(channelMappedModel, baseModelHint)
+	addCandidate(billingModel, baseModelHint)
+	addCandidate(baseModelHint, "")
+
+	for _, candidate := range candidates {
+		resolved := s.resolveChannelPricingWithBaseHint(ctx, candidate.model, candidate.hint, apiKey)
+		if resolved != nil && resolved.HasEffectiveChannelPricing() {
+			return resolved, candidate.model
 		}
 	}
-	return nil, billingModel
+	return nil, strings.TrimSpace(billingModel)
 }
 
 // calculateImageCost 计算图片生成费用：渠道级别定价优先，否则走按次计费。
@@ -10042,13 +10101,14 @@ func (s *GatewayService) calculateImageCost(
 	billingModel string,
 	requestedModel string,
 	billingModelSource string,
+	channelMappedModel string,
 	resolvedModel string,
 	resolved *ResolvedPricing,
 	multiplier float64,
 ) *CostBreakdown {
 	sizeTier := NormalizeImageBillingTierOrDefault(result.ImageSize)
 	if resolved == nil {
-		resolved, resolvedModel = s.resolveChannelPricingForUsage(ctx, billingModel, requestedModel, billingModelSource, result.UpstreamModel, apiKey, account)
+		resolved, resolvedModel = s.resolveChannelPricingForUsage(ctx, billingModel, requestedModel, billingModelSource, channelMappedModel, result.UpstreamModel, apiKey, account)
 	}
 	if resolved != nil {
 		tokens := UsageTokens{
@@ -10083,7 +10143,36 @@ func (s *GatewayService) calculateImageCost(
 			Price4K: apiKey.Group.ImagePrice4K,
 		}
 	}
+	if isQoderBillingContext(account, apiKey) {
+		for _, model := range qoderDefaultPricingCandidates(billingModel, requestedModel, billingModelSource) {
+			if !s.qoderCanUseDefaultImagePricing(model) {
+				continue
+			}
+			return s.billingService.CalculateImageCost(model, sizeTier, result.ImageCount, groupConfig, multiplier)
+		}
+		if qoderAliasRequiresManualPricingAny(billingModel, requestedModel, channelMappedModel, resolvedModel, result.UpstreamModel) {
+			return zeroCostBreakdown(BillingModeImage)
+		}
+	}
 	return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
+}
+
+func (s *GatewayService) qoderCanUseDefaultImagePricing(model string) bool {
+	model = strings.TrimSpace(model)
+	if model == "" || qoderAliasRequiresManualPricingAny(model) {
+		return false
+	}
+	if qoderKnownDefaultImagePricingModel(model) {
+		return true
+	}
+	return s != nil && s.billingService != nil && hasExplicitImagePricing(s.billingService.getRawModelPricing(model))
+}
+
+func qoderKnownDefaultImagePricingModel(model string) bool {
+	model = strings.ToLower(strings.TrimSpace(model))
+	return strings.HasPrefix(model, "gpt-image-") ||
+		strings.HasPrefix(model, "dall-e") ||
+		strings.HasPrefix(model, "imagen-")
 }
 
 // calculateTokenCost 计算 Token 计费：根据 opts 决定走普通/长上下文/渠道统一计费。
@@ -10095,6 +10184,7 @@ func (s *GatewayService) calculateTokenCost(
 	billingModel string,
 	requestedModel string,
 	billingModelSource string,
+	channelMappedModel string,
 	multiplier float64,
 	opts *recordUsageOpts,
 ) *CostBreakdown {
@@ -10112,7 +10202,7 @@ func (s *GatewayService) calculateTokenCost(
 	var err error
 
 	// 优先尝试渠道定价 → CalculateCostUnified
-	if resolved, resolvedModel := s.resolveChannelPricingForUsage(ctx, billingModel, requestedModel, billingModelSource, result.UpstreamModel, apiKey, account); resolved != nil {
+	if resolved, resolvedModel := s.resolveChannelPricingForUsage(ctx, billingModel, requestedModel, billingModelSource, channelMappedModel, result.UpstreamModel, apiKey, account); resolved != nil {
 		gid := apiKey.Group.ID
 		cost, err = s.billingService.CalculateCostUnified(CostInput{
 			Ctx:            ctx,
@@ -10125,7 +10215,6 @@ func (s *GatewayService) calculateTokenCost(
 			Resolved:       resolved,
 		})
 	} else {
-		defaultBillingModel := qoderAliasDefaultBillingModel(account, apiKey, billingModel)
 		calculateDefaultCost := func(model string) (*CostBreakdown, error) {
 			if opts == nil {
 				opts = &recordUsageOpts{}
@@ -10136,12 +10225,18 @@ func (s *GatewayService) calculateTokenCost(
 			}
 			return s.billingService.CalculateCost(model, tokens, multiplier)
 		}
-		cost, err = calculateDefaultCost(defaultBillingModel)
-		if err != nil && defaultBillingModel == billingModel {
-			if upstreamDefaultBillingModel := qoderAliasDefaultBillingModel(account, apiKey, result.UpstreamModel); upstreamDefaultBillingModel != result.UpstreamModel {
-				cost, err = calculateDefaultCost(upstreamDefaultBillingModel)
+		if isQoderBillingContext(account, apiKey) {
+			for _, model := range qoderDefaultPricingCandidates(billingModel, requestedModel, billingModelSource) {
+				cost, err = calculateDefaultCost(model)
+				if err == nil {
+					return cost
+				}
+			}
+			if qoderAliasRequiresManualPricingAny(billingModel, requestedModel, channelMappedModel, result.UpstreamModel) {
+				return zeroCostBreakdown(BillingModeToken)
 			}
 		}
+		cost, err = calculateDefaultCost(billingModel)
 	}
 	if err != nil {
 		logger.LegacyPrintf("service.gateway", "Calculate cost failed: %v", err)
@@ -10150,16 +10245,41 @@ func (s *GatewayService) calculateTokenCost(
 	return cost
 }
 
-const qoderDefaultAliasFallbackBillingModel = "claude-opus-4.8"
+func qoderDefaultPricingCandidates(billingModel string, requestedModel string, _ string) []string {
+	candidates := make([]string, 0, 2)
+	seen := make(map[string]struct{}, 2)
+	add := func(model string) {
+		model = strings.TrimSpace(model)
+		if model == "" || qoderAliasRequiresManualPricingAny(model) {
+			return
+		}
+		if _, ok := seen[model]; ok {
+			return
+		}
+		seen[model] = struct{}{}
+		candidates = append(candidates, model)
+	}
+	if qoderAliasRequiresManualPricingAny(requestedModel) {
+		return candidates
+	}
+	add(requestedModel)
+	add(billingModel)
+	return candidates
+}
 
-func qoderAliasDefaultBillingModel(account *Account, apiKey *APIKey, billingModel string) string {
+func qoderAliasRequiresManualPricingInContext(account *Account, apiKey *APIKey, models ...string) bool {
 	if !isQoderBillingContext(account, apiKey) {
-		return billingModel
+		return false
 	}
-	if defaultModel, ok := QoderAliasDefaultBillingModel(billingModel); ok {
-		return defaultModel
+	return qoderAliasRequiresManualPricingAny(models...)
+}
+
+func zeroCostBreakdown(mode BillingMode) *CostBreakdown {
+	modeString := string(mode)
+	if modeString == "" {
+		modeString = string(BillingModeToken)
 	}
-	return billingModel
+	return &CostBreakdown{BillingMode: modeString}
 }
 
 func isQoderBillingContext(account *Account, apiKey *APIKey) bool {
@@ -10332,7 +10452,11 @@ func (s *GatewayService) isUpstreamModelRestrictedByChannel(ctx context.Context,
 	if s.channelService == nil {
 		return false
 	}
-	upstreamModel := resolveAccountUpstreamModel(account, requestedModel)
+	routingModel := requestedModel
+	if mapping := s.channelService.ResolveChannelMapping(ctx, groupID, requestedModel); mapping.Mapped {
+		routingModel = mapping.MappedModel
+	}
+	upstreamModel := resolveAccountUpstreamModel(account, routingModel)
 	if upstreamModel == "" {
 		return false
 	}

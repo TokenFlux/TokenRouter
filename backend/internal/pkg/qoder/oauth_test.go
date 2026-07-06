@@ -102,6 +102,28 @@ func TestQoderOAuthClientPollDeviceTokenCompletedAndUserInfo(t *testing.T) {
 	require.Equal(t, "Org 1", tags.OrganizationName)
 }
 
+func TestQoderOAuthClientRedactsSensitiveErrorBodies(t *testing.T) {
+	sensitiveBody := `{"message":"failed","securityOauthToken":"sec-secret","refresh_token":"rt-secret","uid":"uid-secret","cookie":"sid=secret"}`
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, sensitiveBody, http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewOAuthClient(server.URL, server.Client())
+
+	_, _, err := client.PollDeviceToken(context.Background(), "nonce", "verifier")
+	require.Error(t, err)
+	assertQoderOAuthErrorRedacted(t, err.Error())
+
+	_, err = client.GetUserInfo(context.Background(), "sec-token")
+	require.Error(t, err)
+	assertQoderOAuthErrorRedacted(t, err.Error())
+
+	_, err = client.GetOrganizationTags(context.Background(), "sec-token", "uid-1")
+	require.Error(t, err)
+	assertQoderOAuthErrorRedacted(t, err.Error())
+}
+
 func TestBuildIdentityFromDeviceToken(t *testing.T) {
 	identity := BuildIdentityFromDeviceToken(&UserInfo{
 		ID:       "user-1",
@@ -119,6 +141,16 @@ func TestBuildIdentityFromDeviceToken(t *testing.T) {
 	require.Equal(t, "personal_pro", identity.UserType)
 	require.Equal(t, "token-1", identity.SecurityOauthToken)
 	require.Equal(t, "refresh-1", identity.RefreshToken)
+}
+
+func assertQoderOAuthErrorRedacted(t *testing.T, errText string) {
+	t.Helper()
+	require.Contains(t, errText, "status 500")
+	require.NotContains(t, errText, "sec-secret")
+	require.NotContains(t, errText, "rt-secret")
+	require.NotContains(t, errText, "uid-secret")
+	require.NotContains(t, errText, "sid=secret")
+	require.Contains(t, errText, "***")
 }
 
 func TestBuildIdentityFromDeviceTokenCopiesOrganizationFromUserInfo(t *testing.T) {

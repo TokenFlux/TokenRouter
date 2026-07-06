@@ -3,6 +3,7 @@ package service
 import "strings"
 
 func lookupQoderModelAlias(model string) (qoderModelInfo, bool) {
+	model = normalizeQoderAliasModel(model)
 	if info, ok := defaultQoderModelAliases[model]; ok {
 		return info, true
 	}
@@ -11,7 +12,7 @@ func lookupQoderModelAlias(model string) (qoderModelInfo, bool) {
 }
 
 func isQoderAliasBillingModel(model string) bool {
-	model = strings.TrimSpace(model)
+	model = normalizeQoderAliasModel(model)
 	if model == "" {
 		return false
 	}
@@ -27,16 +28,26 @@ func isQoderAliasBillingModel(model string) bool {
 
 func isQoderAliasRouteKey(model string, aliases map[string]qoderModelInfo) bool {
 	for _, info := range aliases {
-		if strings.TrimSpace(info.Key) == model {
+		if normalizeQoderAliasModel(info.Key) == model {
 			return true
 		}
 	}
 	return false
 }
 
-func QoderAliasDefaultBillingModel(model string) (string, bool) {
-	if !isQoderAliasBillingModel(model) {
-		return "", false
+func normalizeQoderAliasModel(model string) string {
+	return strings.ToLower(strings.TrimSpace(model))
+}
+
+func QoderAliasRequiresManualPricing(model string) bool {
+	return isQoderAliasBillingModel(model)
+}
+
+func qoderAliasRequiresManualPricingAny(models ...string) bool {
+	for _, model := range models {
+		if isQoderAliasBillingModel(model) {
+			return true
+		}
 	}
-	return qoderDefaultAliasFallbackBillingModel, true
+	return false
 }

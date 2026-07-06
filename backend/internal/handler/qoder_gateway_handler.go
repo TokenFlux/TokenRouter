@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	pkghttputil "github.com/TokenFlux/TokenRouter/internal/pkg/httputil"
@@ -114,11 +115,11 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 	}
 	prepareQoderRequestContext(c, body, endpoint)
 	modelResult := gjson.GetBytes(body, "model")
-	if !modelResult.Exists() || modelResult.Type != gjson.String || modelResult.String() == "" {
+	if !modelResult.Exists() || modelResult.Type != gjson.String || strings.TrimSpace(modelResult.String()) == "" {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required", endpoint)
 		return
 	}
-	reqModel := modelResult.String()
+	reqModel := strings.TrimSpace(modelResult.String())
 	reqStream, ok := parseOpenAICompatibleStream(body)
 	if !ok {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", invalidStreamFieldTypeMessage, endpoint)
@@ -234,11 +235,11 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 		forwardCtx := c.Request.Context()
 		switch endpoint {
 		case qoderEndpointChatCompletions:
-			result, err = h.qoderGatewayService.ForwardChatCompletions(forwardCtx, c, account, forwardBody)
+			result, err = h.qoderGatewayService.ForwardChatCompletions(forwardCtx, c, account, forwardBody, reqModel)
 		case qoderEndpointResponses:
-			result, err = h.qoderGatewayService.ForwardResponses(forwardCtx, c, account, forwardBody)
+			result, err = h.qoderGatewayService.ForwardResponses(forwardCtx, c, account, forwardBody, reqModel)
 		default:
-			result, err = h.qoderGatewayService.ForwardMessages(forwardCtx, c, account, forwardBody)
+			result, err = h.qoderGatewayService.ForwardMessages(forwardCtx, c, account, forwardBody, reqModel)
 		}
 		if accountRelease != nil {
 			accountRelease()
@@ -261,13 +262,14 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 						h.handleConcurrencyError(c, err, "account", streamStarted, endpoint)
 						return
 					}
+					accountRelease = wrapReleaseOnDone(c.Request.Context(), accountRelease)
 					switch endpoint {
 					case qoderEndpointChatCompletions:
-						result, err = h.qoderGatewayService.ForwardChatCompletions(forwardCtx, c, account, forwardBody)
+						result, err = h.qoderGatewayService.ForwardChatCompletions(forwardCtx, c, account, forwardBody, reqModel)
 					case qoderEndpointResponses:
-						result, err = h.qoderGatewayService.ForwardResponses(forwardCtx, c, account, forwardBody)
+						result, err = h.qoderGatewayService.ForwardResponses(forwardCtx, c, account, forwardBody, reqModel)
 					default:
-						result, err = h.qoderGatewayService.ForwardMessages(forwardCtx, c, account, forwardBody)
+						result, err = h.qoderGatewayService.ForwardMessages(forwardCtx, c, account, forwardBody, reqModel)
 					}
 					if accountRelease != nil {
 						accountRelease()
@@ -312,6 +314,12 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 						}
 					})
 					return
+				}
+			}
+			if c.Writer.Size() == writerSizeBeforeForward && qoderShouldFailover(err) {
+				fs.FailedAccountIDs[account.ID] = struct{}{}
+				if len(fs.FailedAccountIDs) < h.maxAccountSwitches {
+					continue
 				}
 			}
 			if status, errType, message, ok := h.qoderGatewayErrorDetails(c, err); ok {
@@ -383,6 +391,9 @@ func (h *QoderGatewayHandler) shouldRefreshQoderAccount(err error, streamStarted
 	if !errors.As(err, &apiErr) {
 		return false
 	}
+	if apiErr.IsAgentLimit() {
+		return false
+	}
 	return apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden
 }
 
@@ -442,6 +453,17 @@ func qoderGatewayErrorDetails(err error) (int, string, string, bool) {
 	return status, errType, apiErr.Error(), true
 }
 
+func qoderShouldFailover(err error) bool {
+	var apiErr *qoder.APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	if apiErr.IsAgentLimit() || apiErr.StatusCode == http.StatusTooManyRequests {
+		return true
+	}
+	return apiErr.StatusCode >= http.StatusInternalServerError
+}
+
 func (h *QoderGatewayHandler) qoderGatewayErrorDetails(c *gin.Context, err error) (int, string, string, bool) {
 	status, errType, message, ok := qoderGatewayErrorDetails(err)
 	if !ok || h == nil || h.errorPassthroughService == nil {
@@ -483,6 +505,10 @@ func upstreamStatusFromError(err error) int {
 
 func (h *QoderGatewayHandler) streamingAwareError(c *gin.Context, status int, errType, message string, streamStarted bool, endpoint qoderEndpoint) {
 	if streamStarted || c.Writer.Written() {
+		if !requestIsStream(c) {
+			h.errorResponse(c, status, errType, message, endpoint)
+			return
+		}
 		if endpoint == qoderEndpointResponses {
 			if writeResponsesFailedSSE(c, errType, message) {
 				return

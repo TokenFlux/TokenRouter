@@ -1218,7 +1218,7 @@ func (s *AccountTestService) getQoderUserInfoForAccount(ctx context.Context, acc
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-			return nil, fmt.Errorf("qoder: userinfo failed with status %d: %s", resp.StatusCode, string(body))
+			return nil, fmt.Errorf("qoder: userinfo failed with status %d: %s", resp.StatusCode, qoder.RedactSensitiveText(string(body)))
 		}
 
 		var info qoder.UserInfo

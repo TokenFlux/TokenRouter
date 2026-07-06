@@ -199,6 +199,56 @@ func TestRefreshSessionPostsRefreshPayload(t *testing.T) {
 	}
 }
 
+func TestRefreshSessionContextRejectsEmptySecurityOauthToken(t *testing.T) {
+	_, err := RefreshSessionContext(context.Background(), "old-refresh", "old-token", &MachineIdentity{
+		MachineID:    "machine-1",
+		MachineToken: "machine-token",
+		MachineType:  "5",
+	}, "https://center.example", func(req *http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body: io.NopCloser(strings.NewReader(`{
+				"id":"user-2",
+				"name":"User 2",
+				"userType":"personal_pro",
+				"securityOauthToken":"",
+				"refreshToken":"new-refresh"
+			}`)),
+			Request: req,
+		}, nil
+	})
+
+	if err == nil {
+		t.Fatal("expected empty securityOauthToken error")
+	}
+	if !strings.Contains(err.Error(), "missing securityOauthToken") {
+		t.Fatalf("error = %q, want missing securityOauthToken", err.Error())
+	}
+}
+
+func TestRefreshSessionContextRejectsEmptyInputSecurityOauthToken(t *testing.T) {
+	called := false
+	_, err := RefreshSessionContext(context.Background(), "old-refresh", "  ", &MachineIdentity{
+		MachineID:    "machine-1",
+		MachineToken: "machine-token",
+		MachineType:  "5",
+	}, "https://center.example", func(req *http.Request) (*http.Response, error) {
+		called = true
+		return nil, nil
+	})
+
+	if err == nil {
+		t.Fatal("expected empty input securityOauthToken error")
+	}
+	if !strings.Contains(err.Error(), "requires securityOauthToken") {
+		t.Fatalf("error = %q, want requires securityOauthToken", err.Error())
+	}
+	if called {
+		t.Fatal("doer should not be called for empty input securityOauthToken")
+	}
+}
+
 func TestRefreshSessionContextPropagatesCanceledContextToDoer(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -700,6 +750,92 @@ func TestParseSSELineUpstreamErrorWrapper(t *testing.T) {
 	}
 }
 
+func TestParseSSELineUpstreamErrorWrapperUsesStatusCodeNameFallback(t *testing.T) {
+	line := `data: {"headers":{"Content-Type":["application/json"]},"body":"{\"code\":\"101\",\"message\":\"Signature invalid\"}","statusCode":"FORBIDDEN"}`
+	_, err := ParseSSELine(line)
+	if err == nil {
+		t.Fatal("expected upstream API error")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error type = %T, want *APIError", err)
+	}
+	if apiErr.StatusCode != http.StatusForbidden {
+		t.Fatalf("status code = %d, want 403", apiErr.StatusCode)
+	}
+	if apiErr.Code != "101" {
+		t.Fatalf("code = %q, want 101", apiErr.Code)
+	}
+}
+
+func TestParseAPIErrorBodyRedactsSensitiveFields(t *testing.T) {
+	body := `{"code":"101","message":"Authorization: Bearer secret-token securityOauthToken=dt-secret refreshToken=drt-secret cookie=session=abc uid=user-secret aid=account-secret","data":{"securityOauthToken":"nested-secret","refreshToken":"nested-refresh","uid":"nested-user","aid":"nested-account"}}`
+	apiErr := ParseAPIErrorBody(http.StatusForbidden, body)
+
+	if strings.Contains(apiErr.Body, "secret-token") ||
+		strings.Contains(apiErr.Body, "dt-secret") ||
+		strings.Contains(apiErr.Body, "drt-secret") ||
+		strings.Contains(apiErr.Body, "session=abc") ||
+		strings.Contains(apiErr.Body, "user-secret") ||
+		strings.Contains(apiErr.Body, "account-secret") ||
+		strings.Contains(apiErr.Body, "nested-secret") ||
+		strings.Contains(apiErr.Body, "nested-refresh") ||
+		strings.Contains(apiErr.Body, "nested-user") ||
+		strings.Contains(apiErr.Body, "nested-account") ||
+		strings.Contains(apiErr.Message, "secret-token") ||
+		strings.Contains(apiErr.Message, "dt-secret") ||
+		strings.Contains(apiErr.Message, "drt-secret") ||
+		strings.Contains(apiErr.Message, "session=abc") ||
+		strings.Contains(apiErr.Message, "user-secret") ||
+		strings.Contains(apiErr.Message, "account-secret") {
+		t.Fatalf("sensitive value leaked: body=%s message=%s", apiErr.Body, apiErr.Message)
+	}
+	if apiErr.Code != "101" {
+		t.Fatalf("code = %q, want 101", apiErr.Code)
+	}
+}
+
+func TestRedactSensitiveTextPreservesQoderNumericErrorCodes(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		contains string
+	}{
+		{
+			name:     "json string code",
+			input:    `{"code":"115","message":"securityOauthToken=secret"}`,
+			contains: `"code":"115"`,
+		},
+		{
+			name:     "json numeric code",
+			input:    `{"code":115,"message":"securityOauthToken=secret"}`,
+			contains: `"code":115`,
+		},
+		{
+			name:     "plain equals code",
+			input:    `code=115 securityOauthToken=secret`,
+			contains: `code=115`,
+		},
+		{
+			name:     "plain colon code",
+			input:    `code: 115 securityOauthToken=secret`,
+			contains: `code: 115`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			redacted := RedactSensitiveText(tt.input)
+			if !strings.Contains(redacted, tt.contains) {
+				t.Fatalf("redacted = %q, want to contain %q", redacted, tt.contains)
+			}
+			if strings.Contains(redacted, "secret") {
+				t.Fatalf("secret leaked: %q", redacted)
+			}
+		})
+	}
+}
+
 func TestParseSSELineAgentLimitError(t *testing.T) {
 	line := `data: {"headers":{"Content-Type":["application/json"]},"body":"{\"code\":\"115\",\"message\":\"{\\\"agentLimitResetTime\\\":1783841289162}\"}","statusCodeValue":429,"statusCode":"TOO_MANY_REQUESTS"}`
 	_, err := ParseSSELine(line)
@@ -728,10 +864,53 @@ func TestParseSSELineAgentLimitError(t *testing.T) {
 	}
 }
 
+func TestParseSSELineAgentLimitErrorNumericCode(t *testing.T) {
+	line := `data: {"headers":{"Content-Type":["application/json"]},"body":"{\"code\":115,\"message\":\"agent limited\",\"agentLimitResetTime\":1783841289162,\"securityOauthToken\":\"secret\"}","statusCodeValue":429,"statusCode":"TOO_MANY_REQUESTS"}`
+	_, err := ParseSSELine(line)
+	if err == nil {
+		t.Fatal("expected upstream API error")
+	}
+	var apiErr *APIError
+	if !errors.As(err, &apiErr) {
+		t.Fatalf("error type = %T, want *APIError", err)
+	}
+	if apiErr.Code != "115" {
+		t.Fatalf("code = %q, want 115", apiErr.Code)
+	}
+	if !apiErr.IsAgentLimit() {
+		t.Fatal("expected numeric code=115 to be treated as agent limit")
+	}
+	if apiErr.AgentLimitResetTime != 1783841289162 {
+		t.Fatalf("agentLimitResetTime = %d", apiErr.AgentLimitResetTime)
+	}
+	if strings.Contains(apiErr.Body, "secret") {
+		t.Fatalf("secret leaked in body: %s", apiErr.Body)
+	}
+	if !strings.Contains(apiErr.Body, `"code":115`) {
+		t.Fatalf("body = %q, want numeric code preserved", apiErr.Body)
+	}
+}
+
 func TestParseAPIErrorBodyAgentLimitDirectBody(t *testing.T) {
 	apiErr := ParseAPIErrorBody(429, `{"agentLimitResetTime":1783841289162}`)
 	if apiErr.AgentLimitResetTime != 1783841289162 {
 		t.Fatalf("agentLimitResetTime = %d", apiErr.AgentLimitResetTime)
+	}
+}
+
+func TestParseAPIErrorBodyAgentLimitNumericCode(t *testing.T) {
+	apiErr := ParseAPIErrorBody(429, `{"code":115,"message":"agent limited","securityOauthToken":"secret"}`)
+	if apiErr.Code != "115" {
+		t.Fatalf("code = %q, want 115", apiErr.Code)
+	}
+	if !apiErr.IsAgentLimit() {
+		t.Fatal("expected numeric code=115 to be treated as agent limit")
+	}
+	if strings.Contains(apiErr.Body, "secret") || strings.Contains(apiErr.Message, "secret") {
+		t.Fatalf("secret leaked: body=%s message=%s", apiErr.Body, apiErr.Message)
+	}
+	if !strings.Contains(apiErr.Body, `"code":115`) {
+		t.Fatalf("body = %q, want numeric code preserved", apiErr.Body)
 	}
 }
 

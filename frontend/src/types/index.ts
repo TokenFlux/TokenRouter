@@ -1141,6 +1141,24 @@ export interface AccountUsageInfo {
     amount?: number
     minimum_balance?: number
   }> | null
+  qoder_quota?: {
+    user_type?: string
+    usage_type?: string
+    total_usage_percentage?: number
+    is_quota_exceeded?: boolean
+    expires_at?: string | null
+    upgrade_url?: string
+    user_quota?: {
+      total?: number
+      used?: number
+      remaining?: number
+      percentage?: number
+      unit?: string
+    } | null
+    is_plan_quota_prorated?: boolean
+    last_updated_at?: string | null
+    snapshot_from_account?: boolean
+  } | null
   // Antigravity 403 forbidden 状态
   is_forbidden?: boolean
   forbidden_reason?: string

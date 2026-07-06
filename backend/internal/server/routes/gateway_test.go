@@ -105,6 +105,23 @@ func TestGatewayRoutesQoderResponsesSubpathsAreRejected(t *testing.T) {
 	}
 }
 
+func TestGatewayRoutesQoderResponsesWebSocketIsRejected(t *testing.T) {
+	router := newGatewayRoutesTestRouter(service.PlatformQoder)
+
+	for _, path := range []string{
+		"/v1/responses",
+		"/responses",
+		"/backend-api/codex/responses",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+		require.Equal(t, http.StatusNotFound, w.Code, "path=%s should reject Qoder Responses websocket", path)
+		require.Contains(t, w.Body.String(), "Qoder Responses WebSocket is not supported")
+	}
+}
+
 func TestGatewayRoutesOpenAIImagesPathsAreRegistered(t *testing.T) {
 	router := newGatewayRoutesTestRouter()
 

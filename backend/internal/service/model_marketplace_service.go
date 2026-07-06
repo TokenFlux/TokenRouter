@@ -336,7 +336,7 @@ func (s *ModelMarketplaceService) listPublicModelsForGroup(ctx context.Context, 
 		pricingModel := modelDef.ID
 		pricing := unknownDisplayPricing()
 		if s.billingService != nil {
-			pricing = s.getPublicModelDisplayPricing(ctx, group, pricingModel, imageConfig)
+			pricing = s.getPublicModelDisplayPricing(ctx, group, pricingModel, imageConfig, modelDef.BaseModelHint)
 		}
 
 		models = append(models, ModelMarketplaceModel{
@@ -349,23 +349,29 @@ func (s *ModelMarketplaceService) listPublicModelsForGroup(ctx context.Context, 
 	return models
 }
 
-func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Context, group *Group, model string, imageConfig *ImagePriceConfig) ModelDisplayPricing {
+func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Context, group *Group, model string, imageConfig *ImagePriceConfig, baseModelHints ...string) ModelDisplayPricing {
 	if s.billingService == nil {
 		return unknownDisplayPricing()
 	}
 	if group != nil && group.Platform == PlatformQoder {
+		billingModel := strings.TrimSpace(model)
+		billingSource := BillingModelSourceRequested
+		baseHint := firstNonEmptyMarketplaceHint(baseModelHints...)
 		if s.gatewayService != nil && s.gatewayService.resolver != nil {
-			groupID := group.ID
-			resolved := s.gatewayService.resolver.Resolve(ctx, PricingInput{
-				Model:   model,
-				GroupID: &groupID,
-			})
-			if resolved.Source == PricingSourceChannel {
-				return s.billingService.getDisplayPricingWithResolved(model, group.RateMultiplier, imageConfig, resolved)
+			billingModel, billingSource, baseHint = s.qoderMarketplacePricingModels(ctx, group, model, baseHint)
+			resolved, pricingModel := s.gatewayService.resolveChannelPricingForUsage(ctx, billingModel, model, billingSource, baseHint, baseHint, &APIKey{Group: group}, nil)
+			if resolved.HasEffectiveChannelPricing() {
+				return s.billingService.getDisplayPricingWithResolved(pricingModel, group.RateMultiplier, imageConfig, resolved)
 			}
 		}
-		if isQoderAliasBillingModel(model) {
-			return s.billingService.GetDisplayPricing(qoderDefaultAliasFallbackBillingModel, group.RateMultiplier, imageConfig)
+		for _, candidate := range qoderDefaultPricingCandidates(billingModel, model, billingSource) {
+			if !qoderCanUseDefaultDisplayPricing(s.billingService, candidate) {
+				continue
+			}
+			pricing := s.billingService.GetDisplayPricing(candidate, group.RateMultiplier, imageConfig)
+			if pricing.PriceStatus != "unpriced" {
+				return pricing
+			}
 		}
 		return unknownDisplayPricing()
 	}
@@ -380,7 +386,61 @@ func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Conte
 	return s.billingService.GetDisplayPricing(model, group.RateMultiplier, imageConfig)
 }
 
+func qoderCanUseDefaultDisplayPricing(billingService *BillingService, model string) bool {
+	if !looksLikeImageModel(model) {
+		return true
+	}
+	if qoderKnownDefaultImagePricingModel(model) {
+		return true
+	}
+	return billingService != nil && hasExplicitImagePricing(billingService.getRawModelPricing(model))
+}
+
+func firstNonEmptyMarketplaceHint(hints ...string) string {
+	for _, hint := range hints {
+		if trimmed := strings.TrimSpace(hint); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func (s *ModelMarketplaceService) qoderMarketplacePricingModels(ctx context.Context, group *Group, model string, baseHintOverride string) (billingModel, billingSource, baseHint string) {
+	billingModel = strings.TrimSpace(model)
+	billingSource = BillingModelSourceRequested
+	if trimmed := strings.TrimSpace(baseHintOverride); trimmed != "" {
+		baseHint = trimmed
+	} else if info, ok := lookupQoderModelAlias(billingModel); ok {
+		baseHint = strings.TrimSpace(info.Key)
+	}
+	if s == nil || s.gatewayService == nil || s.gatewayService.channelService == nil || group == nil {
+		return billingModel, billingSource, baseHint
+	}
+
+	mapping := s.gatewayService.channelService.ResolveChannelMapping(ctx, group.ID, billingModel)
+	if mapping.BillingModelSource != "" {
+		billingSource = mapping.BillingModelSource
+	}
+	if !mapping.Mapped {
+		return billingModel, billingSource, baseHint
+	}
+	baseHint = strings.TrimSpace(mapping.MappedModel)
+	switch billingSource {
+	case BillingModelSourceRequested:
+		return billingModel, billingSource, baseHint
+	case BillingModelSourceUpstream, BillingModelSourceChannelMapped:
+		return baseHint, billingSource, baseHint
+	default:
+		return baseHint, BillingModelSourceChannelMapped, baseHint
+	}
+}
+
 func (s *ModelMarketplaceService) resolveGroupModels(ctx context.Context, group *Group) []marketplaceModelDef {
+	if group != nil && group.Platform == PlatformQoder {
+		if models := s.resolveQoderGroupModels(ctx, group); len(models) > 0 {
+			return models
+		}
+	}
 	if s.gatewayService != nil {
 		groupID := group.ID
 		modelIDs := s.gatewayService.GetAvailableModels(ctx, &groupID, "")
@@ -393,8 +453,64 @@ func (s *ModelMarketplaceService) resolveGroupModels(ctx context.Context, group 
 }
 
 type marketplaceModelDef struct {
-	ID          string
-	DisplayName string
+	ID            string
+	DisplayName   string
+	BaseModelHint string
+}
+
+func (s *ModelMarketplaceService) resolveQoderGroupModels(ctx context.Context, group *Group) []marketplaceModelDef {
+	if s == nil || s.gatewayService == nil || s.gatewayService.accountRepo == nil || group == nil {
+		return nil
+	}
+	accounts, err := s.gatewayService.accountRepo.ListSchedulableByGroupID(ctx, group.ID)
+	if err != nil || len(accounts) == 0 {
+		return nil
+	}
+
+	displayNames := marketplaceDisplayNameLookup(PlatformQoder)
+	modelsByID := make(map[string]marketplaceModelDef)
+	hasConfiguredModels := false
+	for i := range accounts {
+		account := &accounts[i]
+		if account.Platform != PlatformQoder {
+			continue
+		}
+		requestModels := account.GetConfiguredRequestModels()
+		if len(requestModels) == 0 {
+			continue
+		}
+		hasConfiguredModels = true
+		mapping := account.GetModelMapping()
+		for _, rawModel := range requestModels {
+			modelID := strings.TrimSpace(rawModel)
+			if modelID == "" {
+				continue
+			}
+			def := modelsByID[modelID]
+			if def.ID == "" {
+				def = marketplaceModelDef{
+					ID:          modelID,
+					DisplayName: lookupMarketplaceDisplayName(modelID, displayNames),
+				}
+			}
+			if def.BaseModelHint == "" {
+				if mappedModel, matched := resolveRequestedModelInMapping(mapping, modelID); matched {
+					def.BaseModelHint = strings.TrimSpace(mappedModel)
+				}
+			}
+			modelsByID[modelID] = def
+		}
+	}
+	if !hasConfiguredModels || len(modelsByID) == 0 {
+		return nil
+	}
+
+	models := make([]marketplaceModelDef, 0, len(modelsByID))
+	for _, def := range modelsByID {
+		models = append(models, def)
+	}
+	sortMarketplaceModelDefs(models)
+	return models
 }
 
 func buildMarketplaceModelDefs(modelIDs []string, platform string) []marketplaceModelDef {

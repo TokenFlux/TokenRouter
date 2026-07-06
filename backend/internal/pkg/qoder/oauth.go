@@ -200,7 +200,7 @@ func (c *OAuthClient) PollDeviceToken(ctx context.Context, nonce, verifier strin
 	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, false, fmt.Errorf("qoder: device token poll failed with status %d: %s", resp.StatusCode, string(body))
+		return nil, false, fmt.Errorf("qoder: device token poll failed with status %d: %s", resp.StatusCode, RedactSensitiveText(string(body)))
 	}
 
 	var token DeviceTokenResponse
@@ -233,7 +233,7 @@ func (c *OAuthClient) GetUserInfo(ctx context.Context, token string) (*UserInfo,
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("qoder: userinfo failed with status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("qoder: userinfo failed with status %d: %s", resp.StatusCode, RedactSensitiveText(string(body)))
 	}
 
 	var info UserInfo
@@ -267,7 +267,7 @@ func (c *OAuthClient) GetOrganizationTags(ctx context.Context, token, uid string
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, fmt.Errorf("qoder: organization tags failed with status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("qoder: organization tags failed with status %d: %s", resp.StatusCode, RedactSensitiveText(string(body)))
 	}
 
 	var tags OrganizationTags

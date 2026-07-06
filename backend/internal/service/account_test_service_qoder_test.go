@@ -78,6 +78,7 @@ func (s *qoderAccountTestOAuthClientStub) GetUserInfo(_ context.Context, token s
 type qoderHTTPUpstreamRecorder struct {
 	body               string
 	userInfoBody       string
+	userInfoStatusCode int
 	proxyURL           string
 	accountID          int64
 	accountConcurrency int
@@ -102,8 +103,12 @@ func (u *qoderHTTPUpstreamRecorder) DoWithTLS(req *http.Request, proxyURL string
 			body = `{"id":"user-1","name":"Qoder User"}`
 		}
 	}
+	statusCode := http.StatusOK
+	if req.Method == http.MethodGet && strings.Contains(req.URL.Path, qoder.UserInfoPath) && u.userInfoStatusCode != 0 {
+		statusCode = u.userInfoStatusCode
+	}
 	return &http.Response{
-		StatusCode: http.StatusOK,
+		StatusCode: statusCode,
 		Body:       io.NopCloser(strings.NewReader(body)),
 	}, nil
 }
@@ -338,4 +343,42 @@ func TestAccountTestService_QoderDefaultUserInfoProbeUsesHTTPUpstream(t *testing
 	require.Equal(t, 3, upstream.accountConcurrency)
 	require.True(t, upstream.profileSet)
 	require.Equal(t, "user-12", svc.qoderSessionProvider.(*qoderAccountTestSessionProviderStub).session.Identity.UID)
+}
+
+func TestAccountTestService_QoderUserInfoProbeRedactsSensitiveErrorBody(t *testing.T) {
+	ctx, recorder := newQoderAccountTestContext()
+	account := &Account{
+		ID:          13,
+		Name:        "qoder",
+		Platform:    PlatformQoder,
+		Type:        AccountTypeCosy,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"security_oauth_token": "token",
+		},
+	}
+	upstream := &qoderHTTPUpstreamRecorder{
+		userInfoStatusCode: http.StatusInternalServerError,
+		userInfoBody:       `{"message":"failed","securityOauthToken":"sec-secret","refresh_token":"rt-secret","uid":"uid-secret","cookie":"sid=secret"}`,
+	}
+	svc := &AccountTestService{
+		accountRepo: stubOpenAIAccountRepo{accounts: []Account{*account}},
+		qoderSessionProvider: &qoderAccountTestSessionProviderStub{
+			session: &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token"}},
+		},
+		qoderClient:      &qoderAccountTestClientStub{},
+		httpUpstream:     upstream,
+		qoderOAuthClient: nil,
+	}
+
+	err := svc.TestAccountConnection(ctx, account.ID, "", "", "")
+
+	require.Error(t, err)
+	body := recorder.Body.String()
+	require.Contains(t, body, "qoder userinfo probe failed")
+	require.NotContains(t, body, "sec-secret")
+	require.NotContains(t, body, "rt-secret")
+	require.NotContains(t, body, "uid-secret")
+	require.NotContains(t, body, "sid=secret")
+	require.Contains(t, body, "***")
 }

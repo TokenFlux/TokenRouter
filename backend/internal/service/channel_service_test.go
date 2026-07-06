@@ -1017,6 +1017,44 @@ func TestIsModelRestricted_ModelInPricing(t *testing.T) {
 	require.False(t, restricted)
 }
 
+func TestIsModelRestricted_QoderBlankPricingIsNotAllowlist(t *testing.T) {
+	zero := 0.0
+	ch := Channel{
+		ID:             1,
+		Status:         StatusActive,
+		GroupIDs:       []int64{10},
+		RestrictModels: true,
+		ModelPricing: []ChannelModelPricing{
+			{Platform: PlatformQoder, Models: []string{"qmodel"}, BillingMode: BillingModeToken},
+			{Platform: PlatformQoder, Models: []string{"free-model"}, BillingMode: BillingModeToken, InputPrice: &zero},
+		},
+	}
+	repo := makeStandardRepo(ch, map[int64]string{10: PlatformQoder})
+	svc := newTestChannelService(repo)
+
+	require.True(t, svc.IsModelRestricted(context.Background(), 10, "qmodel"))
+	require.False(t, svc.IsModelRestricted(context.Background(), 10, "free-model"))
+}
+
+func TestIsModelRestricted_QoderBlankWildcardDoesNotMaskEffectiveWildcard(t *testing.T) {
+	price := 1e-6
+	ch := Channel{
+		ID:             1,
+		Status:         StatusActive,
+		GroupIDs:       []int64{10},
+		RestrictModels: true,
+		ModelPricing: []ChannelModelPricing{
+			{Platform: PlatformQoder, Models: []string{"qwen3.*"}, BillingMode: BillingModeToken},
+			{Platform: PlatformQoder, Models: []string{"qwen3.7-*"}, BillingMode: BillingModeToken, InputPrice: &price},
+		},
+	}
+	repo := makeStandardRepo(ch, map[int64]string{10: PlatformQoder})
+	svc := newTestChannelService(repo)
+
+	require.False(t, svc.IsModelRestricted(context.Background(), 10, "qwen3.7-plus"))
+	require.True(t, svc.IsModelRestricted(context.Background(), 10, "qwen3.6-plus"))
+}
+
 func TestIsModelRestricted_ModelInWildcard(t *testing.T) {
 	ch := Channel{
 		ID:             1,

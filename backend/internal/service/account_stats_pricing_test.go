@@ -274,6 +274,26 @@ func TestCalculateStatsCost_TokenBilling_AllTokensZero(t *testing.T) {
 	require.Nil(t, result)
 }
 
+func TestCalculateStatsCost_TokenBilling_ExplicitZeroPriceOverrides(t *testing.T) {
+	pricing := &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		InputPrice:  testPtrFloat64(0),
+	}
+	tokens := UsageTokens{InputTokens: 100, OutputTokens: 50}
+	result := calculateStatsCost(pricing, tokens, 1)
+	require.NotNil(t, result)
+	require.Zero(t, *result)
+}
+
+func TestCalculateStatsCost_TokenBilling_BlankPricingDoesNotOverride(t *testing.T) {
+	pricing := &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+	}
+	tokens := UsageTokens{InputTokens: 100}
+	result := calculateStatsCost(pricing, tokens, 1)
+	require.Nil(t, result)
+}
+
 func TestCalculateStatsCost_PerRequestBilling(t *testing.T) {
 	pricing := &ChannelModelPricing{
 		BillingMode:     BillingModePerRequest,
@@ -295,14 +315,14 @@ func TestCalculateStatsCost_PerRequestBilling_PriceNil(t *testing.T) {
 	require.Nil(t, result)
 }
 
-func TestCalculateStatsCost_PerRequestBilling_PriceZero(t *testing.T) {
+func TestCalculateStatsCost_PerRequestBilling_ExplicitZeroPrice(t *testing.T) {
 	pricing := &ChannelModelPricing{
 		BillingMode:     BillingModePerRequest,
 		PerRequestPrice: testPtrFloat64(0),
 	}
 	result := calculateStatsCost(pricing, UsageTokens{}, 1)
-	// price == 0 → condition *pricing.PerRequestPrice > 0 is false → returns nil
-	require.Nil(t, result)
+	require.NotNil(t, result)
+	require.Zero(t, *result)
 }
 
 func TestCalculateStatsCost_ImageBilling(t *testing.T) {
@@ -678,7 +698,7 @@ func TestResolveAccountStatsCost_FallsBackToLiteLLM(t *testing.T) {
 	require.InDelta(t, 0.2, *result, 1e-12)
 }
 
-func TestResolveAccountStatsCost_QoderRouteKeyFallsBackToRequestedAliasOpus48(t *testing.T) {
+func TestResolveAccountStatsCost_QoderRouteKeyWithoutManualPricingReturnsNil(t *testing.T) {
 	channel := &Channel{
 		ID:                         1,
 		Status:                     StatusActive,
@@ -687,7 +707,7 @@ func TestResolveAccountStatsCost_QoderRouteKeyFallsBackToRequestedAliasOpus48(t 
 	cs := newTestChannelServiceForStats(t, channel, 10, PlatformQoder)
 
 	bs := newTestBillingServiceWithPrices(map[string]*ModelPricing{
-		qoderDefaultAliasFallbackBillingModel: {
+		"claude-opus-4.8": {
 			InputPricePerToken:  0.005,
 			OutputPricePerToken: 0.025,
 		},
@@ -701,9 +721,30 @@ func TestResolveAccountStatsCost_QoderRouteKeyFallsBackToRequestedAliasOpus48(t 
 		1, 10, "qmodel", "qwen3.7-plus",
 		tokens, 1, 999.0,
 	)
-	require.NotNil(t, result)
-	// Qoder route key "qmodel" 应归一到默认公开 alias 的 Opus 4.8 默认价。
-	require.InDelta(t, 1.75, *result, 1e-12)
+	require.Nil(t, result)
+}
+
+func TestResolveAccountStatsCost_QoderManualOnlyRequestedModelDoesNotUseStandardUpstreamPricing(t *testing.T) {
+	channel := &Channel{
+		ID:                         1,
+		Status:                     StatusActive,
+		ApplyPricingToAccountStats: false,
+	}
+	cs := newTestChannelServiceForStats(t, channel, 10, PlatformQoder)
+	bs := newTestBillingServiceWithPrices(map[string]*ModelPricing{
+		"gpt-5.4-mini": {
+			InputPricePerToken:  0.001,
+			OutputPricePerToken: 0.002,
+		},
+	})
+
+	result := resolveAccountStatsCost(
+		context.Background(),
+		cs, bs,
+		1, 10, "gpt-5.4-mini", "qwen3.7-plus",
+		UsageTokens{InputTokens: 100, OutputTokens: 50}, 1, 999.0,
+	)
+	require.Nil(t, result)
 }
 
 func TestResolveAccountStatsCost_QoderCustomRuleCanMatchRequestedAliasAfterRouteKeyMiss(t *testing.T) {
@@ -735,6 +776,204 @@ func TestResolveAccountStatsCost_QoderCustomRuleCanMatchRequestedAliasAfterRoute
 
 	require.NotNil(t, result)
 	require.InDelta(t, 2.0, *result, 1e-12)
+}
+
+func TestResolveAccountStatsCost_QoderChannelMappedRuleMatchesBeforeDifferentUpstream(t *testing.T) {
+	channel := &Channel{
+		ID:     1,
+		Status: StatusActive,
+		AccountStatsPricingRules: []AccountStatsPricingRule{
+			{
+				GroupIDs: []int64{10},
+				Pricing: []ChannelModelPricing{
+					{
+						ID:          100,
+						Models:      []string{"qmodel"},
+						InputPrice:  testPtrFloat64(0.01),
+						OutputPrice: testPtrFloat64(0.02),
+					},
+				},
+			},
+		},
+	}
+	cs := newTestChannelServiceForStats(t, channel, 10, PlatformQoder)
+
+	result := resolveAccountStatsCostWithMapped(
+		context.Background(),
+		cs, nil,
+		1, 10, "ultimate", "qwen3.7-plus", "qmodel",
+		UsageTokens{InputTokens: 100, OutputTokens: 50}, 1, 999.0,
+	)
+
+	require.NotNil(t, result)
+	require.InDelta(t, 2.0, *result, 1e-12)
+}
+
+func TestResolveAccountStatsCost_QoderChannelMappedRuleMatchesWhenUpstreamFallsBackToRequested(t *testing.T) {
+	channel := &Channel{
+		ID:     1,
+		Status: StatusActive,
+		AccountStatsPricingRules: []AccountStatsPricingRule{
+			{
+				GroupIDs: []int64{10},
+				Pricing: []ChannelModelPricing{
+					{
+						ID:          100,
+						Models:      []string{"qmodel"},
+						InputPrice:  testPtrFloat64(0.01),
+						OutputPrice: testPtrFloat64(0.02),
+					},
+				},
+			},
+		},
+	}
+	cs := newTestChannelServiceForStats(t, channel, 10, PlatformQoder)
+
+	result := resolveAccountStatsCostWithMapped(
+		context.Background(),
+		cs, nil,
+		1, 10, "qwen3.7-plus", "qwen3.7-plus", "qmodel",
+		UsageTokens{InputTokens: 100, OutputTokens: 50}, 1, 999.0,
+	)
+
+	require.NotNil(t, result)
+	require.InDelta(t, 2.0, *result, 1e-12)
+}
+
+func TestResolveAccountStatsCost_QoderRequestedAliasRuleOverridesRouteKeyRule(t *testing.T) {
+	channel := &Channel{
+		ID:     1,
+		Status: StatusActive,
+		AccountStatsPricingRules: []AccountStatsPricingRule{
+			{
+				GroupIDs: []int64{10},
+				Pricing: []ChannelModelPricing{
+					{
+						ID:          100,
+						Models:      []string{"qmodel"},
+						InputPrice:  testPtrFloat64(0.50),
+						OutputPrice: testPtrFloat64(0.75),
+					},
+					{
+						ID:          101,
+						Models:      []string{"qwen3.7-plus"},
+						InputPrice:  testPtrFloat64(0.01),
+						OutputPrice: testPtrFloat64(0.02),
+					},
+				},
+			},
+		},
+	}
+	cs := newTestChannelServiceForStats(t, channel, 10, PlatformQoder)
+
+	result := resolveAccountStatsCost(
+		context.Background(),
+		cs, nil,
+		1, 10, "qmodel", "qwen3.7-plus",
+		UsageTokens{InputTokens: 100, OutputTokens: 50}, 1, 999.0,
+	)
+
+	require.NotNil(t, result)
+	require.InDelta(t, 2.0, *result, 1e-12)
+}
+
+func TestResolveAccountStatsCost_QoderBlankRuleDoesNotMaskLaterAliasRule(t *testing.T) {
+	channel := &Channel{
+		ID:     1,
+		Status: StatusActive,
+		AccountStatsPricingRules: []AccountStatsPricingRule{
+			{
+				GroupIDs: []int64{10},
+				Pricing: []ChannelModelPricing{
+					{
+						ID:     100,
+						Models: []string{"qwen3.7-plus"},
+					},
+				},
+			},
+			{
+				GroupIDs: []int64{10},
+				Pricing: []ChannelModelPricing{
+					{
+						ID:          101,
+						Models:      []string{"qwen3.7-plus"},
+						InputPrice:  testPtrFloat64(0.01),
+						OutputPrice: testPtrFloat64(0.02),
+					},
+				},
+			},
+		},
+	}
+	cs := newTestChannelServiceForStats(t, channel, 10, PlatformQoder)
+
+	result := resolveAccountStatsCost(
+		context.Background(),
+		cs, nil,
+		1, 10, "qmodel", "qwen3.7-plus",
+		UsageTokens{InputTokens: 100, OutputTokens: 50}, 1, 999.0,
+	)
+
+	require.NotNil(t, result)
+	require.InDelta(t, 2.0, *result, 1e-12)
+}
+
+func TestResolveAccountStatsCost_CustomRuleExplicitZeroOverridesTotalCost(t *testing.T) {
+	channel := &Channel{
+		ID:     1,
+		Status: StatusActive,
+		AccountStatsPricingRules: []AccountStatsPricingRule{
+			{
+				GroupIDs: []int64{10},
+				Pricing: []ChannelModelPricing{
+					{
+						ID:         100,
+						Models:     []string{"qwen3.7-plus"},
+						InputPrice: testPtrFloat64(0),
+					},
+				},
+			},
+		},
+	}
+	cs := newTestChannelServiceForStats(t, channel, 10, PlatformQoder)
+
+	result := resolveAccountStatsCost(
+		context.Background(),
+		cs, nil,
+		1, 10, "qmodel", "qwen3.7-plus",
+		UsageTokens{InputTokens: 100, OutputTokens: 50}, 1, 999.0,
+	)
+
+	require.NotNil(t, result)
+	require.Zero(t, *result)
+}
+
+func TestResolveAccountStatsCost_QoderStandardRequestedModelCanUseLiteLLMBeforeRouteKey(t *testing.T) {
+	channel := &Channel{
+		ID:                         1,
+		Status:                     StatusActive,
+		ApplyPricingToAccountStats: false,
+	}
+	cs := newTestChannelServiceForStats(t, channel, 10, PlatformQoder)
+	bs := newTestBillingServiceWithPrices(map[string]*ModelPricing{
+		"gpt-5.4": {
+			InputPricePerToken:  0.001,
+			OutputPricePerToken: 0.002,
+		},
+		"ultimate": {
+			InputPricePerToken:  0.50,
+			OutputPricePerToken: 0.75,
+		},
+	})
+
+	result := resolveAccountStatsCost(
+		context.Background(),
+		cs, bs,
+		1, 10, "ultimate", "gpt-5.4",
+		UsageTokens{InputTokens: 100, OutputTokens: 50}, 1, 999.0,
+	)
+
+	require.NotNil(t, result)
+	require.InDelta(t, 0.2, *result, 1e-12)
 }
 
 func TestResolveAccountStatsCost_AllMiss_ReturnsNil(t *testing.T) {

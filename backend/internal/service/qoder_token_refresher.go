@@ -101,6 +101,9 @@ func (r *QoderTokenRefresher) Refresh(ctx context.Context, account *Account) (ma
 	if identity == nil {
 		return nil, errors.New("qoder refresh returned empty identity")
 	}
+	if strings.TrimSpace(identity.SecurityOauthToken) == "" {
+		return nil, errors.New("qoder refresh returned empty security_oauth_token")
+	}
 	applyQoderAccountIdentityMetadata(identity, account)
 	newCredentials := qoderTokenInfoCredentials(identity, account, machine)
 	if r.qoderOAuthService != nil {

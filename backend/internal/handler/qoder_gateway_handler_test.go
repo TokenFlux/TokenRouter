@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -103,9 +104,19 @@ func TestQoderGatewayShouldRefreshAccountOnlyForUnwrittenAuthErrors(t *testing.T
 
 	require.True(t, handler.shouldRefreshQoderAccount(&qoder.APIError{StatusCode: http.StatusUnauthorized}, false))
 	require.True(t, handler.shouldRefreshQoderAccount(&qoder.APIError{StatusCode: http.StatusForbidden}, false))
+	require.False(t, handler.shouldRefreshQoderAccount(&qoder.APIError{StatusCode: http.StatusForbidden, Code: "115"}, false))
 	require.False(t, handler.shouldRefreshQoderAccount(&qoder.APIError{StatusCode: http.StatusTooManyRequests}, false))
 	require.False(t, handler.shouldRefreshQoderAccount(&qoder.APIError{StatusCode: http.StatusUnauthorized}, true))
 	require.False(t, (&QoderGatewayHandler{}).shouldRefreshQoderAccount(&qoder.APIError{StatusCode: http.StatusUnauthorized}, false))
+}
+
+func TestQoderGatewayShouldFailoverRetryableUpstreamErrors(t *testing.T) {
+	require.True(t, qoderShouldFailover(&qoder.APIError{StatusCode: http.StatusTooManyRequests}))
+	require.True(t, qoderShouldFailover(&qoder.APIError{StatusCode: http.StatusBadGateway, Code: "115"}))
+	require.True(t, qoderShouldFailover(&qoder.APIError{StatusCode: http.StatusForbidden, Code: "115"}))
+	require.True(t, qoderShouldFailover(&qoder.APIError{StatusCode: http.StatusInternalServerError}))
+	require.False(t, qoderShouldFailover(&qoder.APIError{StatusCode: http.StatusUnauthorized}))
+	require.False(t, qoderShouldFailover(fmt.Errorf("plain error")))
 }
 
 func TestQoderGatewayStreamingAwareError_ResponsesStreamingEmitsResponseFailed(t *testing.T) {
@@ -133,6 +144,7 @@ func TestQoderGatewayStreamingAwareError_MessagesKeepsGenericSSEError(t *testing
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	setOpsRequestContext(c, "claude-opus-4-6", true)
 
 	h := &QoderGatewayHandler{}
 	h.streamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", true, qoderEndpointMessages)
@@ -148,6 +160,7 @@ func TestQoderGatewayStreamingAwareError_ChatCompletionsStreamingEmitsOpenAIErro
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	setOpsRequestContext(c, "qwen3.7-plus", true)
 
 	h := &QoderGatewayHandler{}
 	h.streamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", true, qoderEndpointChatCompletions)
@@ -157,6 +170,26 @@ func TestQoderGatewayStreamingAwareError_ChatCompletionsStreamingEmitsOpenAIErro
 	assert.NotContains(t, body, `"type":"error"`)
 	assert.Contains(t, body, `data: {"error":{"type":"upstream_error","message":"Upstream request failed"}}`)
 	assert.Contains(t, body, "data: [DONE]\n\n")
+}
+
+func TestQoderGatewayStreamingAwareError_NonStreamingAfterKeepaliveKeepsJSON(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	setOpsRequestContext(c, "qwen3.7-plus", false)
+	c.Writer.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_, err := c.Writer.WriteString("\n")
+	require.NoError(t, err)
+
+	h := &QoderGatewayHandler{}
+	h.streamingAwareError(c, http.StatusBadGateway, "upstream_error", "Upstream request failed", true, qoderEndpointChatCompletions)
+
+	body := w.Body.Bytes()
+	require.True(t, json.Valid(body), "body should remain parseable JSON after keepalive whitespace: %q", string(body))
+	assert.NotContains(t, string(body), "data:")
+	assert.Contains(t, string(body), `"type":"upstream_error"`)
+	assert.Contains(t, string(body), `"message":"Upstream request failed"`)
 }
 
 func TestQoderGatewaySubmitUsageRecordIgnoresRequestCancellation(t *testing.T) {

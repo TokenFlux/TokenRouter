@@ -488,14 +488,12 @@ func (h *ChannelHandler) GetModelDefaultPricing(c *gin.Context) {
 			WithMetadata(map[string]string{"param": "model"}))
 		return
 	}
-	pricingModel := model
-	if strings.ToLower(strings.TrimSpace(c.Query("platform"))) == service.PlatformQoder {
-		if defaultModel, ok := service.QoderAliasDefaultBillingModel(model); ok {
-			pricingModel = defaultModel
-		}
+	if strings.ToLower(strings.TrimSpace(c.Query("platform"))) == service.PlatformQoder &&
+		service.QoderAliasRequiresManualPricing(model) {
+		response.Success(c, gin.H{"found": false})
+		return
 	}
-
-	pricing, err := h.billingService.GetModelPricing(pricingModel)
+	pricing, err := h.billingService.GetModelPricing(model)
 	if err != nil {
 		// 模型不在定价列表中
 		response.Success(c, gin.H{"found": false})

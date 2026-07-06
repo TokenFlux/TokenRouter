@@ -11,12 +11,12 @@ import (
 // 优先级（先命中为准）：
 //  1. 自定义规则（始终尝试，不依赖 ApplyPricingToAccountStats 开关）
 //  2. ApplyPricingToAccountStats 启用时，直接使用本次请求的客户计费（倍率前的 totalCost）
-//  3. 模型定价文件（LiteLLM）中上游模型的默认价格（Qoder 公开 alias 统一映射到 Opus 4.8）
+//  3. 模型定价文件（LiteLLM）中的默认价格（Qoder 按 requested → upstream 尝试，但已知 alias/route key 不走模型价兜底）
 //  4. nil → 走默认公式（total_cost × account_rate_multiplier）
 //
 // upstreamModel 是最终发往上游的模型 ID。
-// requestedModel 是渠道映射前的请求模型 ID，用于 Qoder 这类上游 route key
-// 与公开 alias 分离的平台在自定义规则与模型价 fallback 时仍能按公开 alias 归一化计价。
+// requestedModel 是渠道映射前的请求模型 ID；channelMappedModel 是渠道映射后的 route key。
+// Qoder 这类上游 route key 与公开 alias 分离的平台会按 requested → channelMapped → upstream 尝试。
 // totalCost 是本次请求的客户计费（倍率前），用于优先级 2。
 func resolveAccountStatsCost(
 	ctx context.Context,
@@ -26,6 +26,22 @@ func resolveAccountStatsCost(
 	groupID int64,
 	upstreamModel string,
 	requestedModel string,
+	tokens UsageTokens,
+	requestCount int,
+	totalCost float64,
+) *float64 {
+	return resolveAccountStatsCostWithMapped(ctx, channelService, billingService, accountID, groupID, upstreamModel, requestedModel, "", tokens, requestCount, totalCost)
+}
+
+func resolveAccountStatsCostWithMapped(
+	ctx context.Context,
+	channelService *ChannelService,
+	billingService *BillingService,
+	accountID int64,
+	groupID int64,
+	upstreamModel string,
+	requestedModel string,
+	channelMappedModel string,
 	tokens UsageTokens,
 	requestCount int,
 	totalCost float64,
@@ -41,7 +57,7 @@ func resolveAccountStatsCost(
 	platform := channelService.GetGroupPlatform(ctx, groupID)
 
 	// 优先级 1：自定义规则（始终尝试）
-	for _, customRuleModel := range accountStatsCustomRuleModels(platform, upstreamModel, requestedModel) {
+	for _, customRuleModel := range accountStatsCustomRuleModels(platform, upstreamModel, requestedModel, channelMappedModel) {
 		if cost := tryCustomRules(channel, accountID, groupID, platform, customRuleModel, tokens, requestCount); cost != nil {
 			return cost
 		}
@@ -58,35 +74,82 @@ func resolveAccountStatsCost(
 
 	// 优先级 3：模型定价文件（LiteLLM）默认价格
 	if billingService != nil {
-		return tryModelFilePricing(billingService, accountStatsPricingModel(platform, upstreamModel, requestedModel), tokens)
+		if platform == PlatformQoder {
+			if qoderAliasRequiresManualPricingAny(requestedModel) {
+				return nil
+			}
+			for _, model := range accountStatsModelFilePricingModels(platform, upstreamModel, requestedModel, channelMappedModel) {
+				if qoderAliasRequiresManualPricingAny(model) {
+					continue
+				}
+				if cost := tryModelFilePricing(billingService, model, tokens); cost != nil {
+					return cost
+				}
+			}
+			return nil
+		}
+		return tryModelFilePricing(billingService, upstreamModel, tokens)
 	}
 
 	return nil
 }
 
-func accountStatsPricingModel(platform, upstreamModel, requestedModel string) string {
-	if platform != PlatformQoder {
-		return upstreamModel
-	}
-	if defaultModel, ok := QoderAliasDefaultBillingModel(upstreamModel); ok {
-		return defaultModel
-	}
-	if defaultModel, ok := QoderAliasDefaultBillingModel(requestedModel); ok {
-		return defaultModel
-	}
-	return upstreamModel
-}
-
-func accountStatsCustomRuleModels(platform, upstreamModel, requestedModel string) []string {
+func accountStatsCustomRuleModels(platform, upstreamModel, requestedModel string, channelMappedModel ...string) []string {
 	upstreamModel = strings.TrimSpace(upstreamModel)
 	requestedModel = strings.TrimSpace(requestedModel)
-	if platform != PlatformQoder || requestedModel == "" || requestedModel == upstreamModel {
+	mappedModel := ""
+	if len(channelMappedModel) > 0 {
+		mappedModel = strings.TrimSpace(channelMappedModel[0])
+	}
+	if platform != PlatformQoder || requestedModel == "" ||
+		(requestedModel == upstreamModel && (mappedModel == "" || mappedModel == requestedModel)) {
 		if upstreamModel == "" {
 			return nil
 		}
 		return []string{upstreamModel}
 	}
-	return []string{upstreamModel, requestedModel}
+	models := []string{requestedModel}
+	models = append(models, mappedModel)
+	models = append(models, upstreamModel)
+	return uniqueNonEmptyAccountStatsModels(models)
+}
+
+func accountStatsModelFilePricingModels(platform, upstreamModel, requestedModel string, channelMappedModel ...string) []string {
+	upstreamModel = strings.TrimSpace(upstreamModel)
+	requestedModel = strings.TrimSpace(requestedModel)
+	mappedModel := ""
+	if len(channelMappedModel) > 0 {
+		mappedModel = strings.TrimSpace(channelMappedModel[0])
+	}
+	if platform != PlatformQoder || requestedModel == "" ||
+		(requestedModel == upstreamModel && (mappedModel == "" || mappedModel == requestedModel)) {
+		if upstreamModel == "" {
+			return nil
+		}
+		return []string{upstreamModel}
+	}
+	models := []string{requestedModel}
+	models = append(models, mappedModel)
+	models = append(models, upstreamModel)
+	return uniqueNonEmptyAccountStatsModels(models)
+}
+
+func uniqueNonEmptyAccountStatsModels(models []string) []string {
+	out := make([]string, 0, len(models))
+	seen := make(map[string]struct{}, len(models))
+	for _, model := range models {
+		model = strings.TrimSpace(model)
+		if model == "" {
+			continue
+		}
+		key := strings.ToLower(model)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, model)
+	}
+	return out
 }
 
 // tryModelFilePricing 使用模型定价文件（LiteLLM/fallback）中的标准价格计算费用。
@@ -116,11 +179,13 @@ func tryCustomRules(
 		if !matchAccountStatsRule(&rule, accountID, groupID) {
 			continue
 		}
-		pricing := findPricingForModel(rule.Pricing, platform, modelLower)
+		pricing := findEffectivePricingForModel(rule.Pricing, platform, modelLower)
 		if pricing == nil {
 			continue // 规则匹配但模型不在规则定价中，继续下一条
 		}
-		return calculateStatsCost(pricing, tokens, requestCount)
+		if cost := calculateStatsCost(pricing, tokens, requestCount); cost != nil {
+			return cost
+		}
 	}
 	return nil
 }
@@ -148,10 +213,25 @@ func matchAccountStatsRule(rule *AccountStatsPricingRule, accountID, groupID int
 // findPricingForModel 在定价列表中查找匹配的模型定价。
 // 先精确匹配，再通配符匹配（按配置顺序，先匹配先使用）。
 func findPricingForModel(pricingList []ChannelModelPricing, platform, modelLower string) *ChannelModelPricing {
+	return findPricingForModelByPredicate(pricingList, platform, modelLower, nil)
+}
+
+// findEffectivePricingForModel 用于账号统计成本规则。
+// 空定价行只是配置占位，不是成本规则；显式 0 指针仍视为有效，返回 0 成本覆盖。
+func findEffectivePricingForModel(pricingList []ChannelModelPricing, platform, modelLower string) *ChannelModelPricing {
+	return findPricingForModelByPredicate(pricingList, platform, modelLower, func(p *ChannelModelPricing) bool {
+		return p != nil && p.HasEffectivePricing()
+	})
+}
+
+func findPricingForModelByPredicate(pricingList []ChannelModelPricing, platform, modelLower string, include func(*ChannelModelPricing) bool) *ChannelModelPricing {
+	if include == nil {
+		include = func(*ChannelModelPricing) bool { return true }
+	}
 	// 精确匹配优先
 	for i := range pricingList {
 		p := &pricingList[i]
-		if !isPlatformMatch(platform, p.Platform) {
+		if !include(p) || !isPlatformMatch(platform, p.Platform) {
 			continue
 		}
 		for _, m := range p.Models {
@@ -163,7 +243,7 @@ func findPricingForModel(pricingList []ChannelModelPricing, platform, modelLower
 	// 通配符匹配：按配置顺序，先匹配先使用
 	for i := range pricingList {
 		p := &pricingList[i]
-		if !isPlatformMatch(platform, p.Platform) {
+		if !include(p) || !isPlatformMatch(platform, p.Platform) {
 			continue
 		}
 		for _, m := range p.Models {
@@ -203,10 +283,16 @@ func calculateStatsCost(pricing *ChannelModelPricing, tokens UsageTokens, reques
 
 // calculatePerRequestStatsCost 按次/图片计费。
 func calculatePerRequestStatsCost(pricing *ChannelModelPricing, requestCount int) *float64 {
-	if pricing.PerRequestPrice == nil || *pricing.PerRequestPrice <= 0 {
+	if pricing.PerRequestPrice == nil {
 		return nil
 	}
+	if requestCount <= 0 {
+		requestCount = 1
+	}
 	cost := *pricing.PerRequestPrice * float64(requestCount)
+	if cost < 0 {
+		return nil
+	}
 	return &cost
 }
 
@@ -215,17 +301,20 @@ func calculatePerRequestStatsCost(pricing *ChannelModelPricing, requestCount int
 // and use its prices instead of the flat pricing fields.
 func calculateTokenStatsCost(pricing *ChannelModelPricing, tokens UsageTokens) *float64 {
 	p := pricing
-	if len(pricing.Intervals) > 0 {
+	if validIntervals := filterValidTokenIntervals(pricing.Intervals); len(validIntervals) > 0 {
 		totalTokens := tokens.InputTokens + tokens.OutputTokens + tokens.CacheCreationTokens + tokens.CacheReadTokens
-		if iv := FindMatchingInterval(pricing.Intervals, totalTokens); iv != nil {
+		if iv := FindMatchingInterval(validIntervals, totalTokens); iv != nil {
 			p = &ChannelModelPricing{
-				InputPrice:      iv.InputPrice,
-				OutputPrice:     iv.OutputPrice,
-				CacheWritePrice: iv.CacheWritePrice,
-				CacheReadPrice:  iv.CacheReadPrice,
-				PerRequestPrice: iv.PerRequestPrice,
+				InputPrice:       iv.InputPrice,
+				OutputPrice:      iv.OutputPrice,
+				CacheWritePrice:  iv.CacheWritePrice,
+				CacheReadPrice:   iv.CacheReadPrice,
+				ImageOutputPrice: pricing.ImageOutputPrice,
 			}
 		}
+	}
+	if !hasAnyTokenStatsPrice(p) || !hasAnyStatsTokenUsage(tokens) {
+		return nil
 	}
 	deref := func(ptr *float64) float64 {
 		if ptr == nil {
@@ -238,10 +327,26 @@ func calculateTokenStatsCost(pricing *ChannelModelPricing, tokens UsageTokens) *
 		float64(tokens.CacheCreationTokens)*deref(p.CacheWritePrice) +
 		float64(tokens.CacheReadTokens)*deref(p.CacheReadPrice) +
 		float64(tokens.ImageOutputTokens)*deref(p.ImageOutputPrice)
-	if cost <= 0 {
+	if cost < 0 {
 		return nil
 	}
 	return &cost
+}
+
+func hasAnyTokenStatsPrice(pricing *ChannelModelPricing) bool {
+	return pricing != nil && (pricing.InputPrice != nil ||
+		pricing.OutputPrice != nil ||
+		pricing.CacheWritePrice != nil ||
+		pricing.CacheReadPrice != nil ||
+		pricing.ImageOutputPrice != nil)
+}
+
+func hasAnyStatsTokenUsage(tokens UsageTokens) bool {
+	return tokens.InputTokens > 0 ||
+		tokens.OutputTokens > 0 ||
+		tokens.CacheCreationTokens > 0 ||
+		tokens.CacheReadTokens > 0 ||
+		tokens.ImageOutputTokens > 0
 }
 
 // applyAccountStatsCost resolves the account stats cost for a usage log entry.
@@ -252,7 +357,7 @@ func applyAccountStatsCost(
 	usageLog *UsageLog,
 	cs *ChannelService, bs *BillingService,
 	accountID int64, groupID int64,
-	upstreamModel, requestedModel string,
+	upstreamModel, requestedModel, channelMappedModel string,
 	tokens UsageTokens,
 	totalCost float64,
 ) {
@@ -264,7 +369,7 @@ func applyAccountStatsCost(
 	if usageLog != nil && usageLog.ImageCount > 0 {
 		requestCount = usageLog.ImageCount
 	}
-	usageLog.AccountStatsCost = resolveAccountStatsCost(
-		ctx, cs, bs, accountID, groupID, model, requestedModel, tokens, requestCount, totalCost,
+	usageLog.AccountStatsCost = resolveAccountStatsCostWithMapped(
+		ctx, cs, bs, accountID, groupID, model, requestedModel, channelMappedModel, tokens, requestCount, totalCost,
 	)
 }

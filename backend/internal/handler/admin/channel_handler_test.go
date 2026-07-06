@@ -417,58 +417,60 @@ func setupModelDefaultPricingRouter(billingSvc *service.BillingService) *gin.Eng
 	return router
 }
 
-func TestGetModelDefaultPricing_QoderAliasUsesOpus48(t *testing.T) {
+func TestGetModelDefaultPricing_QoderAliasRequiresManualPricing(t *testing.T) {
 	billingSvc := service.NewBillingService(nil, nil)
 	router := setupModelDefaultPricingRouter(billingSvc)
 
-	req := httptest.NewRequest(http.MethodGet, "/channels/model-pricing?platform=qoder&model=claude-opus-4-6", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	for _, model := range []string{"claude-opus-4-6", "CLAUDE-OPUS-4-6"} {
+		t.Run(model, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/channels/model-pricing?platform=qoder&model="+model, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusOK, w.Code)
+			require.Equal(t, http.StatusOK, w.Code)
 
-	var body struct {
-		Data struct {
-			Found           bool    `json:"found"`
-			InputPrice      float64 `json:"input_price"`
-			OutputPrice     float64 `json:"output_price"`
-			CacheWritePrice float64 `json:"cache_write_price"`
-			CacheReadPrice  float64 `json:"cache_read_price"`
-		} `json:"data"`
+			var body struct {
+				Data struct {
+					Found           bool    `json:"found"`
+					InputPrice      float64 `json:"input_price"`
+					OutputPrice     float64 `json:"output_price"`
+					CacheWritePrice float64 `json:"cache_write_price"`
+					CacheReadPrice  float64 `json:"cache_read_price"`
+				} `json:"data"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+
+			require.False(t, body.Data.Found)
+			require.Zero(t, body.Data.InputPrice)
+			require.Zero(t, body.Data.OutputPrice)
+			require.Zero(t, body.Data.CacheWritePrice)
+			require.Zero(t, body.Data.CacheReadPrice)
+		})
 	}
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-
-	expected, err := billingSvc.GetModelPricing("claude-opus-4.8")
-	require.NoError(t, err)
-	require.True(t, body.Data.Found)
-	require.InDelta(t, expected.InputPricePerToken, body.Data.InputPrice, 1e-12)
-	require.InDelta(t, expected.OutputPricePerToken, body.Data.OutputPrice, 1e-12)
-	require.InDelta(t, expected.CacheCreationPricePerToken, body.Data.CacheWritePrice, 1e-12)
-	require.InDelta(t, expected.CacheReadPricePerToken, body.Data.CacheReadPrice, 1e-12)
 }
 
-func TestGetModelDefaultPricing_QoderRouteKeyUsesOpus48(t *testing.T) {
+func TestGetModelDefaultPricing_QoderRouteKeysRequireManualPricing(t *testing.T) {
 	billingSvc := service.NewBillingService(nil, nil)
 	router := setupModelDefaultPricingRouter(billingSvc)
 
-	req := httptest.NewRequest(http.MethodGet, "/channels/model-pricing?platform=qoder&model=qmodel", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+	for _, model := range []string{"qmodel", "ultimate", "q35model", "gmodel"} {
+		req := httptest.NewRequest(http.MethodGet, "/channels/model-pricing?platform=qoder&model="+model, nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
 
-	require.Equal(t, http.StatusOK, w.Code)
+		require.Equal(t, http.StatusOK, w.Code)
 
-	var body struct {
-		Data struct {
-			Found      bool    `json:"found"`
-			InputPrice float64 `json:"input_price"`
-		} `json:"data"`
+		var body struct {
+			Data struct {
+				Found      bool    `json:"found"`
+				InputPrice float64 `json:"input_price"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+
+		require.False(t, body.Data.Found, "model=%s", model)
+		require.Zero(t, body.Data.InputPrice, "model=%s", model)
 	}
-	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-
-	expected, err := billingSvc.GetModelPricing("claude-opus-4.8")
-	require.NoError(t, err)
-	require.True(t, body.Data.Found)
-	require.InDelta(t, expected.InputPricePerToken, body.Data.InputPrice, 1e-12)
 }
 
 // ---------------------------------------------------------------------------

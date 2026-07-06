@@ -25,6 +25,13 @@ func newTestBillingServiceForResolver() *BillingService {
 	return bs
 }
 
+func TestQoderAliasRequiresManualPricingIsCaseInsensitive(t *testing.T) {
+	require.True(t, QoderAliasRequiresManualPricing("CLAUDE-OPUS-4-6"))
+	require.True(t, QoderAliasRequiresManualPricing("QMODEL"))
+	require.True(t, QoderAliasRequiresManualPricing("GMODEL"))
+	require.True(t, QoderAliasRequiresManualPricing("Q35MODEL"))
+}
+
 func TestResolve_NoGroupID(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
 	r := NewModelPricingResolver(&ChannelService{}, bs)
@@ -128,8 +135,13 @@ func TestGetRequestTierPrice(t *testing.T) {
 	}
 
 	require.InDelta(t, 0.04, r.GetRequestTierPrice(resolved, "1K"), 1e-12)
+	require.InDelta(t, 0.04, r.GetRequestTierPrice(resolved, "1k"), 1e-12)
 	require.InDelta(t, 0.08, r.GetRequestTierPrice(resolved, "2K"), 1e-12)
 	require.InDelta(t, 0.0, r.GetRequestTierPrice(resolved, "4K"), 1e-12)
+
+	price, ok := r.GetRequestTierPriceValue(resolved, "4K")
+	require.False(t, ok)
+	require.Zero(t, price)
 }
 
 func TestGetRequestTierPriceByContext(t *testing.T) {
@@ -146,6 +158,10 @@ func TestGetRequestTierPriceByContext(t *testing.T) {
 
 	require.InDelta(t, 0.05, r.GetRequestTierPriceByContext(resolved, 50000), 1e-12)
 	require.InDelta(t, 0.10, r.GetRequestTierPriceByContext(resolved, 200000), 1e-12)
+
+	price, ok := r.GetRequestTierPriceByContextValue(resolved, 0)
+	require.False(t, ok)
+	require.Zero(t, price)
 }
 
 func TestGetRequestTierPrice_NilPerRequestPrice(t *testing.T) {
@@ -245,7 +261,28 @@ func TestResolve_WithChannelOverride_TokenPartialOverride(t *testing.T) {
 	require.InDelta(t, 15e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
 }
 
-func TestResolve_QoderCustomAliasMappedToRouteKeyUsesOpus48BaseForPartialChannelPricing(t *testing.T) {
+func TestResolve_BlankChannelPricingIsIgnoredForNonQoder(t *testing.T) {
+	r := newResolverWithChannel(t, []ChannelModelPricing{{
+		Platform:    "anthropic",
+		Models:      []string{"claude-sonnet-4"},
+		BillingMode: BillingModeToken,
+	}})
+
+	resolved := r.Resolve(context.Background(), PricingInput{
+		Model:   "claude-sonnet-4",
+		GroupID: groupIDPtr(),
+	})
+
+	require.NotNil(t, resolved)
+	require.Equal(t, PricingSourceLiteLLM, resolved.Source)
+	require.False(t, resolved.HasEffectiveChannelPricing())
+	require.NotNil(t, resolved.BasePricing)
+	require.InDelta(t, 3e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, 15e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
+	require.False(t, resolved.BasePricing.ImageOutputPriceExplicit)
+}
+
+func TestResolve_QoderCustomAliasMappedToRouteKeyZerosMissingPartialChannelPricing(t *testing.T) {
 	groupID := int64(100)
 	inputPrice := 20e-6
 	cache := newEmptyChannelCache()
@@ -269,16 +306,90 @@ func TestResolve_QoderCustomAliasMappedToRouteKeyUsesOpus48BaseForPartialChannel
 		GroupID: &groupID,
 	})
 
-	expectedBase, err := billingService.GetModelPricing(qoderDefaultAliasFallbackBillingModel)
-	require.NoError(t, err)
 	require.NotNil(t, resolved)
 	require.Equal(t, PricingSourceChannel, resolved.Source)
 	require.NotNil(t, resolved.BasePricing)
 	require.InDelta(t, inputPrice, resolved.BasePricing.InputPricePerToken, 1e-12)
-	require.InDelta(t, expectedBase.OutputPricePerToken, resolved.BasePricing.OutputPricePerToken, 1e-12)
+	require.Zero(t, resolved.BasePricing.OutputPricePerToken)
 }
 
-func TestResolve_QoderCustomAliasUsesBaseModelHintForPartialChannelPricing(t *testing.T) {
+func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialChannelPricing(t *testing.T) {
+	groupID := int64(100)
+	inputPrice := 20e-6
+	cache := newEmptyChannelCache()
+	cache.channelByGroupID[groupID] = &Channel{ID: 1, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "gpt-5.4"}] = &ChannelModelPricing{
+		Platform:    PlatformQoder,
+		Models:      []string{"gpt-5.4"},
+		BillingMode: BillingModeToken,
+		InputPrice:  &inputPrice,
+	}
+	cache.mappingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "gpt-5.4"}] = "qmodel"
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+	billingService := NewBillingService(nil, nil)
+	r := NewModelPricingResolver(channelService, billingService)
+
+	basePricing, err := billingService.GetModelPricing("gpt-5.4")
+	require.NoError(t, err)
+	require.NotZero(t, basePricing.OutputPricePerToken)
+
+	resolved := r.Resolve(context.Background(), PricingInput{
+		Model:         "gpt-5.4",
+		GroupID:       &groupID,
+		BaseModelHint: "qmodel",
+	})
+
+	require.NotNil(t, resolved)
+	require.Equal(t, PricingSourceChannel, resolved.Source)
+	require.NotNil(t, resolved.BasePricing)
+	require.InDelta(t, inputPrice, resolved.BasePricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, basePricing.OutputPricePerToken, resolved.BasePricing.OutputPricePerToken, 1e-12)
+}
+
+func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialIntervalPricing(t *testing.T) {
+	groupID := int64(100)
+	inputPrice := 20e-6
+	maxTokens := 1000
+	cache := newEmptyChannelCache()
+	cache.channelByGroupID[groupID] = &Channel{ID: 1, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "gpt-5.4"}] = &ChannelModelPricing{
+		Platform:    PlatformQoder,
+		Models:      []string{"gpt-5.4"},
+		BillingMode: BillingModeToken,
+		Intervals: []PricingInterval{
+			{MinTokens: 0, MaxTokens: &maxTokens, InputPrice: &inputPrice},
+		},
+	}
+	cache.mappingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "gpt-5.4"}] = "qmodel"
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+	billingService := NewBillingService(nil, nil)
+	r := NewModelPricingResolver(channelService, billingService)
+
+	basePricing, err := billingService.GetModelPricing("gpt-5.4")
+	require.NoError(t, err)
+	require.NotZero(t, basePricing.OutputPricePerToken)
+
+	resolved := r.Resolve(context.Background(), PricingInput{
+		Model:         "gpt-5.4",
+		GroupID:       &groupID,
+		BaseModelHint: "qmodel",
+	})
+	require.NotNil(t, resolved)
+	require.Equal(t, PricingSourceChannel, resolved.Source)
+
+	intervalPricing := r.GetIntervalPricing(resolved, 100)
+	require.NotNil(t, intervalPricing)
+	require.InDelta(t, inputPrice, intervalPricing.InputPricePerToken, 1e-12)
+	require.InDelta(t, basePricing.OutputPricePerToken, intervalPricing.OutputPricePerToken, 1e-12)
+}
+
+func TestResolve_QoderCustomAliasUsesBaseModelHintZerosMissingPartialChannelPricing(t *testing.T) {
 	groupID := int64(100)
 	inputPrice := 20e-6
 	cache := newEmptyChannelCache()
@@ -302,13 +413,178 @@ func TestResolve_QoderCustomAliasUsesBaseModelHintForPartialChannelPricing(t *te
 		BaseModelHint: "qmodel",
 	})
 
-	expectedBase, err := billingService.GetModelPricing(qoderDefaultAliasFallbackBillingModel)
-	require.NoError(t, err)
 	require.NotNil(t, resolved)
 	require.Equal(t, PricingSourceChannel, resolved.Source)
 	require.NotNil(t, resolved.BasePricing)
 	require.InDelta(t, inputPrice, resolved.BasePricing.InputPricePerToken, 1e-12)
-	require.InDelta(t, expectedBase.OutputPricePerToken, resolved.BasePricing.OutputPricePerToken, 1e-12)
+	require.Zero(t, resolved.BasePricing.OutputPricePerToken)
+}
+
+func TestResolve_QoderCustomAliasUsesBaseModelHintZerosMissingPartialIntervalPricing(t *testing.T) {
+	groupID := int64(100)
+	inputPrice := 20e-6
+	maxTokens := 1000
+	cache := newEmptyChannelCache()
+	cache.channelByGroupID[groupID] = &Channel{ID: 1, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "custom-qoder"}] = &ChannelModelPricing{
+		Platform:    PlatformQoder,
+		Models:      []string{"custom-qoder"},
+		BillingMode: BillingModeToken,
+		Intervals: []PricingInterval{
+			{MinTokens: 0, MaxTokens: &maxTokens, InputPrice: &inputPrice},
+		},
+	}
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+	billingService := NewBillingService(nil, nil)
+	r := NewModelPricingResolver(channelService, billingService)
+
+	resolved := r.Resolve(context.Background(), PricingInput{
+		Model:         "custom-qoder",
+		GroupID:       &groupID,
+		BaseModelHint: "qmodel",
+	})
+	require.NotNil(t, resolved)
+	require.Equal(t, PricingSourceChannel, resolved.Source)
+
+	intervalPricing := r.GetIntervalPricing(resolved, 100)
+	require.NotNil(t, intervalPricing)
+	require.InDelta(t, inputPrice, intervalPricing.InputPricePerToken, 1e-12)
+	require.Zero(t, intervalPricing.OutputPricePerToken)
+}
+
+func TestResolve_QoderBlankRouteKeyPricingIsUnpricedButAliasManualPricingWorks(t *testing.T) {
+	groupID := int64(100)
+	inputPrice := 20e-6
+	cache := newEmptyChannelCache()
+	cache.channelByGroupID[groupID] = &Channel{ID: 1, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qmodel"}] = &ChannelModelPricing{
+		Platform:    PlatformQoder,
+		Models:      []string{"qmodel"},
+		BillingMode: BillingModeToken,
+	}
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qwen3.7-plus"}] = &ChannelModelPricing{
+		Platform:    PlatformQoder,
+		Models:      []string{"qwen3.7-plus"},
+		BillingMode: BillingModeToken,
+		InputPrice:  &inputPrice,
+	}
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+	billingService := NewBillingService(nil, nil)
+	r := NewModelPricingResolver(channelService, billingService)
+
+	routeResolved := r.Resolve(context.Background(), PricingInput{
+		Model:   "qmodel",
+		GroupID: &groupID,
+	})
+	require.NotNil(t, routeResolved)
+	require.Equal(t, PricingSourceUnpriced, routeResolved.Source)
+	require.False(t, routeResolved.HasEffectiveChannelPricing())
+
+	aliasResolved := r.Resolve(context.Background(), PricingInput{
+		Model:         "qwen3.7-plus",
+		GroupID:       &groupID,
+		BaseModelHint: "qmodel",
+	})
+	require.NotNil(t, aliasResolved)
+	require.Equal(t, PricingSourceChannel, aliasResolved.Source)
+	require.True(t, aliasResolved.HasEffectiveChannelPricing())
+	require.InDelta(t, inputPrice, aliasResolved.BasePricing.InputPricePerToken, 1e-12)
+	require.Zero(t, aliasResolved.BasePricing.OutputPricePerToken)
+}
+
+func TestResolve_BlankWildcardPricingDoesNotMaskLaterEffectiveWildcard(t *testing.T) {
+	groupID := int64(100)
+	inputPrice := 20e-6
+	cache := newEmptyChannelCache()
+	cache.channelByGroupID[groupID] = &Channel{ID: 1, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.wildcardByGroupPlatform[channelGroupPlatformKey{groupID: groupID, platform: PlatformQoder}] = []*wildcardPricingEntry{
+		{
+			prefix: "qwen3.",
+			pricing: &ChannelModelPricing{
+				Platform:    PlatformQoder,
+				Models:      []string{"qwen3.*"},
+				BillingMode: BillingModeToken,
+			},
+		},
+		{
+			prefix: "qwen3.7-",
+			pricing: &ChannelModelPricing{
+				Platform:    PlatformQoder,
+				Models:      []string{"qwen3.7-*"},
+				BillingMode: BillingModeToken,
+				InputPrice:  &inputPrice,
+			},
+		},
+	}
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+	billingService := NewBillingService(nil, nil)
+	r := NewModelPricingResolver(channelService, billingService)
+
+	resolved := r.Resolve(context.Background(), PricingInput{
+		Model:   "qwen3.7-plus",
+		GroupID: &groupID,
+	})
+
+	require.NotNil(t, resolved)
+	require.Equal(t, PricingSourceChannel, resolved.Source)
+	require.True(t, resolved.HasEffectiveChannelPricing())
+	require.InDelta(t, inputPrice, resolved.BasePricing.InputPricePerToken, 1e-12)
+	require.Zero(t, resolved.BasePricing.OutputPricePerToken)
+}
+
+func TestResolve_QoderPerRequestRouteKeyTokenOnlyIntervalIsUnpriced(t *testing.T) {
+	groupID := int64(100)
+	inputPrice := 20e-6
+	staleTokenPrice := 99e-6
+	cache := newEmptyChannelCache()
+	cache.channelByGroupID[groupID] = &Channel{ID: 1, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qmodel"}] = &ChannelModelPricing{
+		Platform:    PlatformQoder,
+		Models:      []string{"qmodel"},
+		BillingMode: BillingModePerRequest,
+		Intervals: []PricingInterval{
+			{MinTokens: 0, InputPrice: &staleTokenPrice},
+		},
+	}
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qwen3.7-plus"}] = &ChannelModelPricing{
+		Platform:    PlatformQoder,
+		Models:      []string{"qwen3.7-plus"},
+		BillingMode: BillingModeToken,
+		InputPrice:  &inputPrice,
+	}
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+	billingService := NewBillingService(nil, nil)
+	r := NewModelPricingResolver(channelService, billingService)
+
+	routeResolved := r.Resolve(context.Background(), PricingInput{
+		Model:   "qmodel",
+		GroupID: &groupID,
+	})
+	require.NotNil(t, routeResolved)
+	require.Equal(t, PricingSourceUnpriced, routeResolved.Source)
+	require.False(t, routeResolved.HasEffectiveChannelPricing())
+
+	aliasResolved := r.Resolve(context.Background(), PricingInput{
+		Model:         "qwen3.7-plus",
+		GroupID:       &groupID,
+		BaseModelHint: "qmodel",
+	})
+	require.NotNil(t, aliasResolved)
+	require.Equal(t, PricingSourceChannel, aliasResolved.Source)
+	require.True(t, aliasResolved.HasEffectiveChannelPricing())
+	require.InDelta(t, inputPrice, aliasResolved.BasePricing.InputPricePerToken, 1e-12)
 }
 
 func TestResolve_WithChannelOverride_TokenWithIntervals(t *testing.T) {
@@ -654,10 +930,10 @@ func TestGetRequestTierPriceByContext_ExactBoundary(t *testing.T) {
 }
 
 // ===========================================================================
-// 8. filterValidIntervals
+// 8. interval filtering
 // ===========================================================================
 
-func TestFilterValidIntervals(t *testing.T) {
+func TestFilterValidTokenIntervals(t *testing.T) {
 	tests := []struct {
 		name      string
 		intervals []PricingInterval
@@ -704,11 +980,11 @@ func TestFilterValidIntervals(t *testing.T) {
 			wantLen: 1,
 		},
 		{
-			name: "interval with only PerRequestPrice kept",
+			name: "interval with only PerRequestPrice filtered out for token mode",
 			intervals: []PricingInterval{
 				{TierLabel: "1K", PerRequestPrice: testPtrFloat64(0.04)},
 			},
-			wantLen: 1,
+			wantLen: 0,
 		},
 		{
 			name: "mixed valid and invalid",
@@ -723,10 +999,82 @@ func TestFilterValidIntervals(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := filterValidIntervals(tt.intervals)
+			result := filterValidTokenIntervals(tt.intervals)
 			require.Len(t, result, tt.wantLen)
 		})
 	}
+}
+
+func TestFilterValidRequestIntervals(t *testing.T) {
+	tests := []struct {
+		name      string
+		intervals []PricingInterval
+		wantLen   int
+	}{
+		{
+			name: "all-nil interval filtered out",
+			intervals: []PricingInterval{
+				{TierLabel: "1K"},
+			},
+			wantLen: 0,
+		},
+		{
+			name: "token-only interval filtered out for request mode",
+			intervals: []PricingInterval{
+				{MinTokens: 0, MaxTokens: testPtrInt(128000), InputPrice: testPtrFloat64(1e-6)},
+			},
+			wantLen: 0,
+		},
+		{
+			name: "per-request interval kept",
+			intervals: []PricingInterval{
+				{TierLabel: "1K", PerRequestPrice: testPtrFloat64(0.04)},
+			},
+			wantLen: 1,
+		},
+		{
+			name: "explicit zero per-request interval kept",
+			intervals: []PricingInterval{
+				{TierLabel: "1K", PerRequestPrice: testPtrFloat64(0)},
+			},
+			wantLen: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := filterValidRequestIntervals(tt.intervals)
+			require.Len(t, result, tt.wantLen)
+		})
+	}
+}
+
+func TestChannelModelPricingHasEffectivePricingIsModeAware(t *testing.T) {
+	require.False(t, (&ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		Intervals: []PricingInterval{
+			{TierLabel: "1K", PerRequestPrice: testPtrFloat64(0.04)},
+		},
+	}).HasEffectivePricing())
+
+	require.False(t, (&ChannelModelPricing{
+		BillingMode: BillingModePerRequest,
+		Intervals: []PricingInterval{
+			{MinTokens: 0, InputPrice: testPtrFloat64(1e-6)},
+		},
+	}).HasEffectivePricing())
+
+	require.True(t, (&ChannelModelPricing{
+		BillingMode: BillingModePerRequest,
+		Intervals: []PricingInterval{
+			{TierLabel: "1K", PerRequestPrice: testPtrFloat64(0)},
+		},
+	}).HasEffectivePricing())
+
+	require.True(t, (&ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		InputPrice:  testPtrFloat64(0),
+	}).HasEffectivePricing())
 }
 
 // ===========================================================================

@@ -8,9 +8,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/util/logredact"
 )
 
 // GenerationPath is the SSE streaming endpoint for Qoder LLM inference.
@@ -97,6 +100,7 @@ func (c *Client) StreamRequestContextWithDoer(ctx context.Context, session *Sess
 		if strings.TrimSpace(apiErr.Message) == "" {
 			apiErr.Message = fmt.Sprintf("Qoder upstream returned HTTP %d", resp.StatusCode)
 		}
+		redactQoderAPIError(apiErr)
 		return nil, apiErr
 	}
 
@@ -155,7 +159,78 @@ func ParseAPIErrorBody(statusCode int, body string) *APIError {
 		Message:    fmt.Sprintf("Qoder upstream returned HTTP %d", statusCode),
 	}
 	applyQoderErrorPayload(apiErr, []byte(body))
+	redactQoderAPIError(apiErr)
 	return apiErr
+}
+
+var (
+	qoderBearerTokenPattern  = regexp.MustCompile(`(?i)\b(authorization\s*[:=]\s*bearer\s+|bearer\s+)([^\s"',;]+)`)
+	qoderCookiePattern       = regexp.MustCompile(`(?i)\b(cookie|set-cookie)(\s*[:=]\s*)([^\r\n"]+)`)
+	qoderInlineSecretPattern = regexp.MustCompile(`(?i)\b(securityOauthToken|security_oauth_token|refreshToken|refresh_token|personalToken|personal_token|cosy-key|cosyKey)(\s*[:=]\s*)([^,\s"']+)`)
+	qoderJSONCodeStringRe    = regexp.MustCompile(`(?i)("code"\s*:\s*")([0-9]{1,8})(")`)
+	qoderJSONCodeNumberRe    = regexp.MustCompile(`(?i)("code"\s*:\s*)([0-9]{1,8})(\b)`)
+	qoderPlainCodeNumberRe   = regexp.MustCompile(`(?i)\b(code)(\s*[:=]\s*)([0-9]{1,8})\b`)
+	redactedJSONCodeRe       = regexp.MustCompile(`(?i)("code"\s*:\s*)"\*\*\*"`)
+	redactedPlainCodeRe      = regexp.MustCompile(`(?i)\b(code)(\s*[:=]\s*)\*\*\*`)
+)
+
+var qoderSensitiveErrorKeys = []string{
+	"authorization",
+	"cookie",
+	"set-cookie",
+	"securityOauthToken",
+	"security_oauth_token",
+	"refreshToken",
+	"refresh_token",
+	"personalToken",
+	"personal_token",
+	"cosy-key",
+	"cosyKey",
+	"cosy_user",
+	"cosy-user",
+	"uid",
+	"aid",
+}
+
+// RedactSensitiveText removes Qoder credentials from upstream error text before
+// the message is returned to clients or persisted in logs/snapshots.
+func RedactSensitiveText(input string) string {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return ""
+	}
+	redacted := redactQoderInlineSecrets(input)
+	redacted = logredact.RedactText(redacted, qoderSensitiveErrorKeys...)
+	redacted = redactQoderInlineSecrets(redacted)
+	return restoreQoderNumericCode(input, redacted)
+}
+
+func redactQoderInlineSecrets(input string) string {
+	redacted := qoderBearerTokenPattern.ReplaceAllString(input, `${1}***`)
+	redacted = qoderCookiePattern.ReplaceAllString(redacted, `${1}${2}***`)
+	redacted = qoderInlineSecretPattern.ReplaceAllString(redacted, `${1}${2}***`)
+	return redacted
+}
+
+func restoreQoderNumericCode(original, redacted string) string {
+	if match := qoderJSONCodeStringRe.FindStringSubmatch(original); len(match) == 4 {
+		return redactedJSONCodeRe.ReplaceAllString(redacted, `${1}"`+match[2]+`"`)
+	}
+	if match := qoderJSONCodeNumberRe.FindStringSubmatch(original); len(match) == 4 {
+		return redactedJSONCodeRe.ReplaceAllString(redacted, `${1}`+match[2])
+	}
+	if match := qoderPlainCodeNumberRe.FindStringSubmatch(original); len(match) == 4 {
+		return redactedPlainCodeRe.ReplaceAllString(redacted, `${1}${2}`+match[3])
+	}
+	return redacted
+}
+
+func redactQoderAPIError(apiErr *APIError) {
+	if apiErr == nil {
+		return
+	}
+	apiErr.Body = RedactSensitiveText(apiErr.Body)
+	apiErr.Message = RedactSensitiveText(apiErr.Message)
 }
 
 func applyQoderErrorPayload(apiErr *APIError, payload []byte) {
@@ -166,8 +241,8 @@ func applyQoderErrorPayload(apiErr *APIError, payload []byte) {
 	if err := json.Unmarshal(payload, &body); err != nil {
 		return
 	}
-	if strings.TrimSpace(body.Code) != "" {
-		apiErr.Code = body.Code
+	if code := strings.TrimSpace(string(body.Code)); code != "" {
+		apiErr.Code = code
 	}
 	if strings.TrimSpace(body.Message) != "" {
 		apiErr.Message = body.Message
@@ -253,10 +328,26 @@ type QoderSSEWrapper struct {
 }
 
 type qoderErrorBody struct {
-	Code                string          `json:"code"`
+	Code                qoderErrorCode  `json:"code"`
 	Message             string          `json:"message"`
 	Data                json.RawMessage `json:"data"`
 	AgentLimitResetTime int64           `json:"agentLimitResetTime"`
+}
+
+type qoderErrorCode string
+
+func (c *qoderErrorCode) UnmarshalJSON(data []byte) error {
+	var raw any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	switch v := raw.(type) {
+	case string:
+		*c = qoderErrorCode(strings.TrimSpace(v))
+	case float64:
+		*c = qoderErrorCode(strconv.FormatFloat(v, 'f', -1, 64))
+	}
+	return nil
 }
 
 // QoderSSEInner is the inner structure of a Qoder SSE body.
@@ -393,7 +484,8 @@ func ParseSSELine(line string) ([]SSEEvent, error) {
 		return nil, fmt.Errorf("qoder: parse SSE wrapper: %w", err)
 	}
 
-	if wrapper.StatusCodeValue >= http.StatusBadRequest {
+	if statusCode := qoderWrapperHTTPStatus(wrapper); statusCode >= http.StatusBadRequest {
+		wrapper.StatusCodeValue = statusCode
 		return nil, parseWrappedAPIError(wrapper)
 	}
 	if wrapper.Body == "" {
@@ -477,6 +569,41 @@ func ParseSSELine(line string) ([]SSEEvent, error) {
 	}
 
 	return events, nil
+}
+
+func qoderWrapperHTTPStatus(wrapper QoderSSEWrapper) int {
+	if wrapper.StatusCodeValue > 0 {
+		return wrapper.StatusCodeValue
+	}
+	status := strings.TrimSpace(wrapper.StatusCode)
+	if status == "" {
+		return 0
+	}
+	if parsed, err := strconv.Atoi(status); err == nil {
+		return parsed
+	}
+	switch strings.ToUpper(status) {
+	case "BAD_REQUEST":
+		return http.StatusBadRequest
+	case "UNAUTHORIZED":
+		return http.StatusUnauthorized
+	case "FORBIDDEN":
+		return http.StatusForbidden
+	case "NOT_FOUND":
+		return http.StatusNotFound
+	case "TOO_MANY_REQUESTS":
+		return http.StatusTooManyRequests
+	case "INTERNAL_SERVER_ERROR":
+		return http.StatusInternalServerError
+	case "BAD_GATEWAY":
+		return http.StatusBadGateway
+	case "SERVICE_UNAVAILABLE":
+		return http.StatusServiceUnavailable
+	case "GATEWAY_TIMEOUT":
+		return http.StatusGatewayTimeout
+	default:
+		return 0
+	}
 }
 
 func appendQoderToolCallEvents(events []SSEEvent, toolCalls []QoderSSEToolCall) []SSEEvent {
@@ -733,6 +860,7 @@ func parseWrappedAPIError(wrapper QoderSSEWrapper) error {
 		Message:    fmt.Sprintf("Qoder upstream returned HTTP %d", wrapper.StatusCodeValue),
 	}
 	applyQoderErrorPayload(apiErr, []byte(wrapper.Body))
+	redactQoderAPIError(apiErr)
 	return apiErr
 }
 

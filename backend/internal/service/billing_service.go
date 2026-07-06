@@ -746,7 +746,8 @@ func (s *BillingService) GetModelPricing(model string) (*ModelPricing, error) {
 		if _, seen := s.fallbackWarnSeen.LoadOrStore(model, struct{}{}); !seen {
 			log.Printf("[Billing] Using fallback pricing for model: %s", model)
 		}
-		return s.applyModelSpecificPricingPolicy(model, fallback), nil
+		cloned := *fallback
+		return s.applyModelSpecificPricingPolicy(model, &cloned), nil
 	}
 
 	return nil, fmt.Errorf("%w for model: %s", ErrModelPricingUnavailable, model)
@@ -979,18 +980,19 @@ func (s *BillingService) calculatePerRequestCost(resolved *ResolvedPricing, inpu
 	}
 
 	var unitPrice float64
+	var priceFound bool
 
 	if input.SizeTier != "" {
-		unitPrice = input.Resolver.GetRequestTierPrice(resolved, input.SizeTier)
+		unitPrice, priceFound = input.Resolver.GetRequestTierPriceValue(resolved, input.SizeTier)
 	}
 
-	if unitPrice == 0 {
+	if !priceFound {
 		totalContext := input.Tokens.InputTokens + input.Tokens.CacheReadTokens
-		unitPrice = input.Resolver.GetRequestTierPriceByContext(resolved, totalContext)
+		unitPrice, priceFound = input.Resolver.GetRequestTierPriceByContextValue(resolved, totalContext)
 	}
 
 	// 回退到默认按次价格
-	if unitPrice == 0 {
+	if !priceFound {
 		unitPrice = resolved.DefaultPerRequestPrice
 	}
 
@@ -1280,6 +1282,9 @@ func (s *BillingService) getDisplayPricingWithResolved(model string, rateMultipl
 	if rateMultiplier < 0 {
 		rateMultiplier = 0
 	}
+	if resolved.IsUnpriced() {
+		return unknownDisplayPricing()
+	}
 	if pricing, ok := displayPricingFromResolved(model, rateMultiplier, resolved); ok {
 		return pricing
 	}
@@ -1294,7 +1299,7 @@ func displayPricingFromResolved(model string, rateMultiplier float64, resolved *
 	switch resolved.Mode {
 	case BillingModeToken:
 		pricing := resolvedDisplayTokenPricing(resolved)
-		if hasAnyDisplayTokenPricing(pricing) {
+		if pricing != nil && (hasAnyDisplayTokenPricing(pricing) || resolved.HasEffectiveChannelPricing()) {
 			return buildTokenDisplayPricing(pricing, rateMultiplier), true
 		}
 		intervals := resolvedDisplayPricingIntervals(resolved, rateMultiplier)
@@ -1307,7 +1312,7 @@ func displayPricingFromResolved(model string, rateMultiplier float64, resolved *
 			return ModelDisplayPricing{}, false
 		}
 		price1K, price2K, price4K := resolvedImageTierPrices(resolved)
-		if price1K <= 0 && price2K <= 0 && price4K <= 0 {
+		if price1K <= 0 && price2K <= 0 && price4K <= 0 && !resolved.HasEffectiveChannelPricing() {
 			return ModelDisplayPricing{}, false
 		}
 		return buildImageDisplayPricing(
@@ -1328,10 +1333,10 @@ func resolvedDisplayTokenPricing(resolved *ResolvedPricing) *ModelPricing {
 		return resolved.BasePricing
 	}
 
-	pricing := intervalToModelPricing(&resolved.Intervals[0], resolved.SupportsCacheBreakdown, resolved.channelPricing)
+	pricing := intervalToModelPricingWithBase(&resolved.Intervals[0], resolved.SupportsCacheBreakdown, resolved.channelPricing, resolved.BasePricing)
 	pricing.SupportsServiceTier = resolved.SupportsServiceTier
 	for i := 1; i < len(resolved.Intervals); i++ {
-		next := intervalToModelPricing(&resolved.Intervals[i], resolved.SupportsCacheBreakdown, resolved.channelPricing)
+		next := intervalToModelPricingWithBase(&resolved.Intervals[i], resolved.SupportsCacheBreakdown, resolved.channelPricing, resolved.BasePricing)
 		next.SupportsServiceTier = resolved.SupportsServiceTier
 		if !sameDisplayTokenPricing(pricing, next) {
 			return nil
@@ -1349,14 +1354,21 @@ func resolvedDisplayPricingIntervals(resolved *ResolvedPricing, rateMultiplier f
 	intervals := make([]ModelDisplayPricingInterval, 0, len(resolved.Intervals))
 	for i := range resolved.Intervals {
 		interval := resolved.Intervals[i]
-		pricing := intervalToModelPricing(&interval, resolved.SupportsCacheBreakdown, resolved.channelPricing)
+		pricing := intervalToModelPricingWithBase(&interval, resolved.SupportsCacheBreakdown, resolved.channelPricing, resolved.BasePricing)
 		pricing.SupportsServiceTier = resolved.SupportsServiceTier
-		if !hasAnyDisplayTokenPricing(pricing) {
+		if !hasAnyDisplayTokenPricing(pricing) && !pricingIntervalHasEffectiveTokenPricing(interval) {
 			continue
 		}
 		intervals = append(intervals, modelPricingDisplayInterval(interval.MinTokens, interval.MaxTokens, pricing, rateMultiplier))
 	}
 	return intervals
+}
+
+func pricingIntervalHasEffectiveTokenPricing(interval PricingInterval) bool {
+	return interval.InputPrice != nil ||
+		interval.OutputPrice != nil ||
+		interval.CacheWritePrice != nil ||
+		interval.CacheReadPrice != nil
 }
 
 func sameDisplayTokenPricing(a *ModelPricing, b *ModelPricing) bool {

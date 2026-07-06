@@ -183,6 +183,34 @@ func TestQoderTokenProviderPATExchangePopulatesOrganizationFromAPI(t *testing.T)
 	require.Equal(t, "Org From API", session.Identity.OrganizationName)
 }
 
+func TestQoderTokenProviderDirectTokenPopulatesOrganizationFromAPI(t *testing.T) {
+	provider := NewQoderTokenProvider()
+	provider.getOrgTags = func(_ context.Context, token, uid string) (*qoder.OrganizationTags, error) {
+		require.Equal(t, "dt-token", token)
+		require.Equal(t, "uid-1", uid)
+		return &qoder.OrganizationTags{
+			OrganizationID:   "org-from-api",
+			OrganizationName: "Org From API",
+		}, nil
+	}
+
+	account := &Account{
+		ID:       110,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"security_oauth_token": "dt-token",
+			"machine_id":           "machine-1",
+			"uid":                  "uid-1",
+		},
+	}
+
+	session, err := provider.GetSession(context.Background(), account)
+	require.NoError(t, err)
+	require.Equal(t, "org-from-api", session.Identity.OrganizationID)
+	require.Equal(t, "Org From API", session.Identity.OrganizationName)
+}
+
 func TestQoderTokenProviderPATExchangeUsesAccountDoer(t *testing.T) {
 	upstream := &qoderCenterHTTPUpstreamStub{}
 	provider := NewQoderTokenProvider()
@@ -245,10 +273,41 @@ func TestQoderTokenProviderPATOrganizationTagsUsesAccountDoer(t *testing.T) {
 	require.True(t, upstream.profileSet)
 }
 
+func TestQoderTokenProviderOrganizationTagsErrorRedactsSensitiveBody(t *testing.T) {
+	upstream := &qoderCenterHTTPUpstreamStub{
+		statusCode: http.StatusInternalServerError,
+		body:       `{"message":"failed","securityOauthToken":"sec-secret","refresh_token":"rt-secret","uid":"uid-secret","cookie":"sid=secret"}`,
+	}
+	provider := NewQoderTokenProvider()
+	provider.SetHTTPUpstream(upstream, nil)
+	account := &Account{
+		ID:       109,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"security_oauth_token": "sec-token",
+			"machine_id":           "machine-1",
+			"uid":                  "uid-1",
+		},
+	}
+
+	_, err := provider.getOrganizationTagsForAccount(context.Background(), account, "sec-token", "uid-1")
+
+	require.Error(t, err)
+	errText := err.Error()
+	require.Contains(t, errText, "status 500")
+	require.NotContains(t, errText, "sec-secret")
+	require.NotContains(t, errText, "rt-secret")
+	require.NotContains(t, errText, "uid-secret")
+	require.NotContains(t, errText, "sid=secret")
+	require.Contains(t, errText, "***")
+}
+
 type qoderCenterHTTPUpstreamStub struct {
 	proxyURL           string
 	accountID          int64
 	accountConcurrency int
+	statusCode         int
 	body               string
 	profileSet         bool
 	requests           []*http.Request
@@ -274,8 +333,12 @@ func (s *qoderCenterHTTPUpstreamStub) DoWithTLS(req *http.Request, proxyURL stri
 			"refreshToken":"rt-from-center"
 		}`
 	}
+	statusCode := s.statusCode
+	if statusCode == 0 {
+		statusCode = http.StatusOK
+	}
 	return &http.Response{
-		StatusCode: http.StatusOK,
+		StatusCode: statusCode,
 		Header:     make(http.Header),
 		Body:       io.NopCloser(strings.NewReader(body)),
 		Request:    req,

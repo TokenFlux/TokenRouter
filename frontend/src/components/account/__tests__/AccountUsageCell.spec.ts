@@ -671,6 +671,81 @@ describe('AccountUsageCell', () => {
 	expect(wrapper.text()).toContain('5h|0|200')
   })
 
+  it('Qoder COSY 账号会展示上游月度 credits 用量，并支持主动刷新', async () => {
+	getUsage
+	  .mockResolvedValueOnce({
+	    qoder_quota: {
+	      user_type: 'personal_standard',
+	      usage_type: 'credits',
+	      total_usage_percentage: 0,
+	      is_quota_exceeded: true,
+	      expires_at: '2099-03-07T12:00:00Z',
+	      snapshot_from_account: true,
+	      user_quota: {
+	        total: 0,
+	        used: 0,
+	        remaining: 0,
+	        percentage: 0,
+	        unit: 'credits'
+	      }
+	    }
+	  })
+	  .mockResolvedValueOnce({
+	    qoder_quota: {
+	      user_type: 'teams',
+	      usage_type: 'credits',
+	      total_usage_percentage: 10,
+	      is_quota_exceeded: false,
+	      expires_at: '2099-04-07T12:00:00Z',
+	      user_quota: {
+	        total: 100,
+	        used: 10,
+	        remaining: 90,
+	        percentage: 10,
+	        unit: 'credits'
+	      }
+	    }
+	  })
+
+	const wrapper = mount(AccountUsageCell, {
+	  props: {
+	    account: makeAccount({
+	      id: 5001,
+	      platform: 'qoder',
+	      type: 'cosy'
+	    })
+	  },
+	  global: {
+	    stubs: {
+	      UsageProgressBar: {
+	        props: ['label', 'utilization', 'resetsAt', 'color'],
+	        template: '<div class="usage-bar">{{ label }}|{{ utilization }}|{{ resetsAt }}</div>'
+	      },
+	      AccountQuotaInfo: true
+	    }
+	  }
+	})
+
+	await flushPromises()
+
+	expect(getUsage).toHaveBeenCalledWith(5001)
+	expect(wrapper.text()).toContain('Qoder|0|2099-03-07T12:00:00Z')
+	expect(wrapper.text()).toContain('0/0 credits')
+	expect(wrapper.text()).toContain('exceeded')
+	expect(wrapper.text()).toContain('cached')
+
+	const refreshButton = wrapper
+	  .findAll('button')
+	  .find((button) => button.text().includes('admin.accounts.usageWindow.activeQuery'))
+	expect(refreshButton).toBeTruthy()
+	await refreshButton!.trigger('click')
+	await flushPromises()
+
+	expect(getUsage).toHaveBeenCalledWith(5001, 'active', true)
+	expect(wrapper.text()).toContain('Qoder|10|2099-04-07T12:00:00Z')
+	expect(wrapper.text()).toContain('10/100 credits')
+  })
+
   it('OpenAI OAuth 已限额时显示 /usage API 返回的限额数据', async () => {
 	getUsage.mockResolvedValue({
 	  five_hour: {

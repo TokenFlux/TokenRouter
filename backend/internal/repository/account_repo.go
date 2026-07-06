@@ -61,6 +61,8 @@ var schedulerNeutralExtraKeyPrefixes = []string{
 
 var schedulerNeutralExtraKeys = map[string]struct{}{
 	"codex_usage_updated_at":     {},
+	"qoder_quota_snapshot":       {},
+	"qoder_quota_updated_at":     {},
 	"session_window_utilization": {},
 }
 

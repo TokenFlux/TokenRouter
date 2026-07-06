@@ -380,6 +380,82 @@
       <div v-else class="text-xs text-gray-400">-</div>
     </template>
 
+    <!-- Qoder COSY accounts: upstream monthly credits -->
+    <template v-else-if="account.platform === 'qoder'">
+      <div v-if="loading" class="space-y-1.5">
+        <div class="flex items-center gap-1">
+          <div class="h-3 w-[48px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+          <div class="h-1.5 w-8 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
+          <div class="h-3 w-[40px] animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+        </div>
+      </div>
+      <div v-else-if="error" class="text-xs text-red-500">
+        {{ error }}
+      </div>
+      <div v-else-if="usageInfo?.qoder_quota" class="space-y-1">
+        <div v-if="usageInfo.error" class="truncate text-xs text-amber-600 dark:text-amber-400 max-w-[200px]" :title="usageInfo.error">
+          {{ usageErrorLabel }}
+        </div>
+        <UsageProgressBar
+          label="Qoder"
+          :utilization="qoderQuotaUsageBar.utilization"
+          :resets-at="qoderQuotaUsageBar.resetsAt"
+          color="indigo"
+        />
+        <div class="flex items-center gap-1.5 text-[9px] text-gray-500 dark:text-gray-400">
+          <span class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+            {{ qoderQuotaCreditsLabel }}
+          </span>
+          <span
+            v-if="usageInfo.qoder_quota.is_quota_exceeded"
+            class="rounded bg-amber-100 px-1.5 py-0.5 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+          >
+            exceeded
+          </span>
+          <span
+            v-if="usageInfo.qoder_quota.snapshot_from_account"
+            class="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800"
+          >
+            cached
+          </span>
+        </div>
+        <button
+          type="button"
+          class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium text-blue-600 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors"
+          :disabled="activeQueryLoading"
+          @click="loadActiveUsage"
+        >
+          <Icon
+            name="refresh"
+            size="xs"
+            :class="{ 'animate-spin': activeQueryLoading }"
+            :stroke-width="2"
+          />
+          {{ t('admin.accounts.usageWindow.activeQuery') }}
+        </button>
+      </div>
+      <div v-else-if="usageInfo?.error" class="space-y-1">
+        <div class="truncate text-xs text-amber-600 dark:text-amber-400 max-w-[200px]" :title="usageInfo.error">
+          {{ usageErrorLabel }}
+        </div>
+        <button
+          type="button"
+          class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[9px] font-medium text-blue-600 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors"
+          :disabled="activeQueryLoading"
+          @click="loadActiveUsage"
+        >
+          <Icon
+            name="refresh"
+            size="xs"
+            :class="{ 'animate-spin': activeQueryLoading }"
+            :stroke-width="2"
+          />
+          {{ t('admin.accounts.usageWindow.activeQuery') }}
+        </button>
+      </div>
+      <div v-else class="text-xs text-gray-400">-</div>
+    </template>
+
     <!-- Gemini platform: show quota + local usage window -->
     <template v-else-if="account.platform === 'gemini'">
       <!-- Auth Type + Tier Badge (first line) -->
@@ -626,6 +702,7 @@ let visibilityObserver: IntersectionObserver | null = null
 const showUsageWindows = computed(() => {
   // Gemini: we can always compute local usage windows from DB logs (simulated quotas).
   if (props.account.platform === 'gemini') return true
+  if (props.account.platform === 'qoder') return true
   return props.account.type === 'oauth' || props.account.type === 'setup-token'
 })
 
@@ -641,6 +718,9 @@ const shouldFetchUsage = computed(() => {
   }
   if (props.account.platform === 'grok') {
     return props.account.type === 'oauth'
+  }
+  if (props.account.platform === 'qoder') {
+    return props.account.type === 'cosy'
   }
   if (props.account.platform === 'openai') {
     return props.account.type === 'oauth'
@@ -1023,6 +1103,23 @@ const makeGrokQuotaBar = (quota?: { limit?: number | null; remaining?: number | 
 
 const grokRequestQuotaBar = computed(() => makeGrokQuotaBar(usageInfo.value?.grok_request_quota))
 const grokTokenQuotaBar = computed(() => makeGrokQuotaBar(usageInfo.value?.grok_token_quota))
+const qoderQuotaUsageBar = computed(() => {
+  const quota = usageInfo.value?.qoder_quota
+  const userQuota = quota?.user_quota
+  const utilization = userQuota?.percentage ?? quota?.total_usage_percentage ?? 0
+  return {
+    utilization: Math.max(0, Math.min(100, utilization)),
+    resetsAt: quota?.expires_at || null
+  }
+})
+const qoderQuotaCreditsLabel = computed(() => {
+  const userQuota = usageInfo.value?.qoder_quota?.user_quota
+  if (!userQuota) return '-'
+  const used = formatCompactNumber(userQuota.used ?? 0)
+  const total = userQuota.total != null ? formatCompactNumber(userQuota.total) : 'unknown'
+  const unit = userQuota.unit || 'credits'
+  return `${used}/${total} ${unit}`
+})
 const grokQuotaUnknown = computed(() => {
   if (props.account.platform !== 'grok') return false
   if (grokRequestQuotaBar.value || grokTokenQuotaBar.value) return false
@@ -1250,8 +1347,11 @@ const attachVisibilityObserver = () => {
 
 const loadActiveUsage = async () => {
   activeQueryLoading.value = true
+  error.value = null
   try {
-    usageInfo.value = await adminAPI.accounts.getUsage(props.account.id, 'active', true)
+    const result = await adminAPI.accounts.getUsage(props.account.id, 'active', true)
+    usageInfo.value = result
+    _usageCache.set(props.account.id, { data: result, ts: Date.now() })
   } catch (e: any) {
     console.error('Failed to load active usage:', e)
   } finally {

@@ -1367,7 +1367,8 @@ const canQueryAccountUsage = (account: Account) => {
     (account.platform === 'anthropic' && (account.type === 'oauth' || account.type === 'setup-token')) ||
     (account.platform === 'openai' && account.type === 'oauth') ||
     account.platform === 'gemini' ||
-    (account.platform === 'antigravity' && account.type === 'oauth')
+    (account.platform === 'antigravity' && account.type === 'oauth') ||
+    (account.platform === 'qoder' && account.type === 'cosy')
   )
 }
 const handleBulkQueryUsage = async () => {

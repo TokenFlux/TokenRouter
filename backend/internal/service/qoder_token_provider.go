@@ -128,6 +128,7 @@ func (p *QoderTokenProvider) buildSession(ctx context.Context, account *Account)
 			RefreshToken:       account.GetCredential("refresh_token"),
 		}
 		applyQoderAccountIdentityMetadata(identity, account)
+		p.populateOrganizationFromAPI(ctx, account, identity)
 		machine := &qoder.MachineIdentity{
 			MachineID:    machineID,
 			MachineToken: firstNonEmptyQoder(account.GetCredential("machine_token"), qoder.RandomToken(50)),
@@ -196,7 +197,7 @@ func (p *QoderTokenProvider) getOrganizationTagsForAccount(ctx context.Context, 
 
 		if resp.StatusCode != http.StatusOK {
 			body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-			return nil, fmt.Errorf("qoder: organization tags failed with status %d: %s", resp.StatusCode, string(body))
+			return nil, fmt.Errorf("qoder: organization tags failed with status %d: %s", resp.StatusCode, qoder.RedactSensitiveText(string(body)))
 		}
 
 		var tags qoder.OrganizationTags

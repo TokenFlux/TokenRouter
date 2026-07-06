@@ -23,6 +23,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
 
@@ -136,12 +137,16 @@ func NewQoderGatewayService(tokenProvider *QoderTokenProvider, accountRepo Accou
 	}
 }
 
-func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
+func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin.Context, account *Account, body []byte, responseModels ...string) (*ForwardResult, error) {
 	start := time.Now()
 	streamCtx, cancel := context.WithTimeout(ctx, qoderStreamTimeout)
 	defer cancel()
 
 	requestModel := strings.TrimSpace(gjsonString(body, "model"))
+	responseModel := firstNonEmptyQoder(responseModels...)
+	if responseModel == "" {
+		responseModel = requestModel
+	}
 	body = applyQoderAccountModelMapping(account, body)
 	payload, modelKey, conversationPlan, err := s.buildQoderPayloadFromChatCompletions(c, account, body)
 	if err != nil {
@@ -171,10 +176,11 @@ func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin
 		streamResult, err := WriteQoderOpenAIStreamResponse(
 			streamCtx,
 			c,
-			requestModel,
+			responseModel,
 			resp,
 			qoderOpenAIStreamUsageMapper(conversationPlan.recordUsage),
 			qoderOpenAIStreamToolNameMapper(toolNameMapper),
+			qoderOpenAIStreamIncludeUsage(gjsonBool(body, "stream_options.include_usage")),
 		)
 		if err != nil {
 			conversationPlan.rollbackAccepted()
@@ -193,7 +199,7 @@ func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin
 		}
 		upstreamUsage = qoderUsageFromEvents(events)
 		recordUsage = conversationPlan.recordUsage(upstreamUsage)
-		responseBody, err = BuildQoderOpenAICompletion(requestModel, qoderEventsWithUsage(events, upstreamUsage), toolNameMapper)
+		responseBody, err = BuildQoderOpenAICompletion(responseModel, qoderEventsWithUsage(events, upstreamUsage), toolNameMapper)
 		if err != nil {
 			conversationPlan.rollbackAccepted()
 			return nil, err
@@ -206,7 +212,7 @@ func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin
 	}
 
 	return &ForwardResult{
-		Model:         requestModel,
+		Model:         responseModel,
 		UpstreamModel: modelKey,
 		Usage:         recordUsage,
 		Stream:        clientStream,
@@ -215,12 +221,16 @@ func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin
 	}, nil
 }
 
-func (s *QoderGatewayService) ForwardResponses(ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
+func (s *QoderGatewayService) ForwardResponses(ctx context.Context, c *gin.Context, account *Account, body []byte, responseModels ...string) (*ForwardResult, error) {
 	start := time.Now()
 	streamCtx, cancel := context.WithTimeout(ctx, qoderStreamTimeout)
 	defer cancel()
 
 	requestModel := strings.TrimSpace(gjsonString(body, "model"))
+	responseModel := firstNonEmptyQoder(responseModels...)
+	if responseModel == "" {
+		responseModel = requestModel
+	}
 	body = applyQoderAccountModelMapping(account, body)
 	request, err := parseQoderResponsesPayload(body)
 	if err != nil {
@@ -252,7 +262,7 @@ func (s *QoderGatewayService) ForwardResponses(ctx context.Context, c *gin.Conte
 		streamResult, err := WriteQoderResponsesStreamResponse(
 			streamCtx,
 			c,
-			requestModel,
+			responseModel,
 			resp,
 			qoderResponsesStreamUsageMapper(conversationPlan.recordUsage),
 			qoderResponsesStreamToolNameMapper(toolNameMapper),
@@ -274,7 +284,7 @@ func (s *QoderGatewayService) ForwardResponses(ctx context.Context, c *gin.Conte
 		}
 		upstreamUsage = qoderUsageFromEvents(events)
 		recordUsage = conversationPlan.recordUsage(upstreamUsage)
-		responseBody, err = BuildQoderResponsesResponse(requestModel, qoderEventsWithUsage(events, recordUsage), toolNameMapper)
+		responseBody, err = BuildQoderResponsesResponse(responseModel, qoderEventsWithUsage(events, recordUsage), toolNameMapper)
 		if err != nil {
 			conversationPlan.rollbackAccepted()
 			return nil, err
@@ -287,7 +297,7 @@ func (s *QoderGatewayService) ForwardResponses(ctx context.Context, c *gin.Conte
 	}
 
 	return &ForwardResult{
-		Model:         requestModel,
+		Model:         responseModel,
 		UpstreamModel: modelKey,
 		Usage:         recordUsage,
 		Stream:        clientStream,
@@ -296,12 +306,16 @@ func (s *QoderGatewayService) ForwardResponses(ctx context.Context, c *gin.Conte
 	}, nil
 }
 
-func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Context, account *Account, body []byte) (*ForwardResult, error) {
+func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Context, account *Account, body []byte, responseModels ...string) (*ForwardResult, error) {
 	start := time.Now()
 	streamCtx, cancel := context.WithTimeout(ctx, qoderStreamTimeout)
 	defer cancel()
 
 	requestModel := strings.TrimSpace(gjsonString(body, "model"))
+	responseModel := firstNonEmptyQoder(responseModels...)
+	if responseModel == "" {
+		responseModel = requestModel
+	}
 	body = applyQoderAccountModelMapping(account, body)
 	payload, modelKey, conversationPlan, err := s.buildQoderPayloadFromAnthropicMessages(c, account, body)
 	if err != nil {
@@ -328,7 +342,7 @@ func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Contex
 	commitCompleteConversation := true
 	toolNameMapper := qoderDeclaredToolNameMapper(qoderAnySlice(payload["tools"]))
 	if clientStream {
-		streamResult, err := WriteQoderAnthropicStreamResponse(streamCtx, c, requestModel, resp, qoderAnthropicStreamUsageMapper(conversationPlan.recordUsage), qoderAnthropicStreamToolNameMapper(toolNameMapper))
+		streamResult, err := WriteQoderAnthropicStreamResponse(streamCtx, c, responseModel, resp, qoderAnthropicStreamUsageMapper(conversationPlan.recordUsage), qoderAnthropicStreamToolNameMapper(toolNameMapper))
 		if err != nil {
 			conversationPlan.rollbackAccepted()
 			s.applyUpstreamErrorPolicy(ctx, account, err)
@@ -346,7 +360,7 @@ func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Contex
 		}
 		upstreamUsage = qoderUsageFromEvents(events)
 		recordUsage = conversationPlan.recordUsage(upstreamUsage)
-		responseBody, err = BuildQoderAnthropicMessage(requestModel, qoderEventsWithUsage(events, upstreamUsage), toolNameMapper)
+		responseBody, err = BuildQoderAnthropicMessage(responseModel, qoderEventsWithUsage(events, upstreamUsage), toolNameMapper)
 		if err != nil {
 			conversationPlan.rollbackAccepted()
 			return nil, err
@@ -359,7 +373,7 @@ func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Contex
 	}
 
 	return &ForwardResult{
-		Model:         requestModel,
+		Model:         responseModel,
 		UpstreamModel: modelKey,
 		Usage:         recordUsage,
 		Stream:        clientStream,
@@ -2461,6 +2475,17 @@ func qoderNonStreamingKeepalive(c *gin.Context) func() error {
 	}
 }
 
+func writeQoderStreamKeepalive(c *gin.Context, started bool) error {
+	if c == nil || c.Writer == nil || !started {
+		return nil
+	}
+	_, err := io.WriteString(c.Writer, ": keep-alive\n\n")
+	if flusher, ok := c.Writer.(http.Flusher); ok {
+		flusher.Flush()
+	}
+	return err
+}
+
 func WriteQoderOpenAIStream(c *gin.Context, model string, events []qoder.SSEEvent, toolNameMappers ...qoderToolNameMapper) error {
 	events = normalizeQoderTextToolCallEvents(events)
 
@@ -2528,8 +2553,9 @@ type qoderStreamResult struct {
 type qoderToolNameMapper func(string) string
 
 type qoderOpenAIStreamResponseOption struct {
-	mapUsage    func(ClaudeUsage) ClaudeUsage
-	mapToolName qoderToolNameMapper
+	mapUsage     func(ClaudeUsage) ClaudeUsage
+	mapToolName  qoderToolNameMapper
+	includeUsage bool
 }
 
 type qoderAnthropicStreamResponseOption struct {
@@ -2550,6 +2576,10 @@ func qoderOpenAIStreamToolNameMapper(mapper qoderToolNameMapper) qoderOpenAIStre
 	return qoderOpenAIStreamResponseOption{mapToolName: mapper}
 }
 
+func qoderOpenAIStreamIncludeUsage(include bool) qoderOpenAIStreamResponseOption {
+	return qoderOpenAIStreamResponseOption{includeUsage: include}
+}
+
 func qoderAnthropicStreamUsageMapper(mapper func(ClaudeUsage) ClaudeUsage) qoderAnthropicStreamResponseOption {
 	return qoderAnthropicStreamResponseOption{mapUsage: mapper}
 }
@@ -2566,9 +2596,10 @@ func qoderResponsesStreamToolNameMapper(mapper qoderToolNameMapper) qoderRespons
 	return qoderResponsesStreamResponseOption{mapToolName: mapper}
 }
 
-func qoderOpenAIStreamResponseOptions(options []qoderOpenAIStreamResponseOption) (func(ClaudeUsage) ClaudeUsage, qoderToolNameMapper) {
+func qoderOpenAIStreamResponseOptions(options []qoderOpenAIStreamResponseOption) (func(ClaudeUsage) ClaudeUsage, qoderToolNameMapper, bool) {
 	var usageMapper func(ClaudeUsage) ClaudeUsage
 	var toolNameMapper qoderToolNameMapper
+	includeUsage := false
 	for _, option := range options {
 		if option.mapUsage != nil && usageMapper == nil {
 			usageMapper = option.mapUsage
@@ -2576,8 +2607,9 @@ func qoderOpenAIStreamResponseOptions(options []qoderOpenAIStreamResponseOption)
 		if option.mapToolName != nil && toolNameMapper == nil {
 			toolNameMapper = option.mapToolName
 		}
+		includeUsage = includeUsage || option.includeUsage
 	}
-	return usageMapper, toolNameMapper
+	return usageMapper, toolNameMapper, includeUsage
 }
 
 func qoderAnthropicStreamResponseOptions(options []qoderAnthropicStreamResponseOption) (func(ClaudeUsage) ClaudeUsage, qoderToolNameMapper) {
@@ -3284,7 +3316,7 @@ func qoderToolArgumentStringIsEmptyPlaceholder(arguments string) bool {
 }
 
 func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model string, resp *http.Response, options ...qoderOpenAIStreamResponseOption) (*qoderStreamResult, error) {
-	usageMapper, toolNameMapper := qoderOpenAIStreamResponseOptions(options)
+	usageMapper, toolNameMapper, includeUsage := qoderOpenAIStreamResponseOptions(options)
 	// 确保无论成功或失败都关闭响应
 	defer closeQoderResponse(resp)
 
@@ -3292,11 +3324,16 @@ func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model s
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.WriteHeader(http.StatusOK)
 
 	completionID := "chatcmpl-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:24]
-	if err := writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{"role": "assistant"}, nil)); err != nil {
-		return nil, err
+	started := false
+	ensureStarted := func() error {
+		if started {
+			return nil
+		}
+		started = true
+		c.Writer.WriteHeader(http.StatusOK)
+		return writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{"role": "assistant"}, nil))
 	}
 	result := &qoderStreamResult{}
 	toolCalls := newQoderOpenAIToolCallAccumulator(toolNameMapper)
@@ -3309,6 +3346,9 @@ func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model s
 		finishReason := "stop"
 		if toolCalls.HasToolCalls() {
 			finishReason = "tool_calls"
+		}
+		if err := ensureStarted(); err != nil {
+			return err
 		}
 		if err := writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{}, finishReason)); err != nil {
 			return err
@@ -3332,13 +3372,22 @@ func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model s
 			if totalTokens == 0 {
 				totalTokens = chunkUsage.InputTokens + chunkUsage.CacheReadInputTokens + chunkUsage.OutputTokens
 			}
-			return writeSSEData(c.Writer, openAIUsageChunk(completionID, model, chunkUsage, totalTokens, event.UsageDetails))
+			if includeUsage {
+				if err := ensureStarted(); err != nil {
+					return err
+				}
+				return writeSSEData(c.Writer, openAIUsageChunk(completionID, model, chunkUsage, totalTokens, event.UsageDetails))
+			}
+			return nil
 		}
 		if event.IsDone {
 			return finish()
 		}
 		if event.Type == "text_delta" && event.Text != "" {
 			result.HasOutput = true
+			if err := ensureStarted(); err != nil {
+				return err
+			}
 			return writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{"content": event.Text}, nil))
 		}
 		if event.Type == "tool_call_delta" {
@@ -3347,15 +3396,14 @@ func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model s
 			if len(deltas) == 0 {
 				return nil
 			}
+			if err := ensureStarted(); err != nil {
+				return err
+			}
 			return writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{"tool_calls": deltas}, nil))
 		}
 		return nil
 	}, func() error {
-		_, err := io.WriteString(c.Writer, ": keep-alive\n\n")
-		if flusher, ok := c.Writer.(http.Flusher); ok {
-			flusher.Flush()
-		}
-		return err
+		return writeQoderStreamKeepalive(c, started)
 	}); err != nil {
 		return nil, err
 	}
@@ -3457,23 +3505,28 @@ func WriteQoderAnthropicStreamResponse(ctx context.Context, c *gin.Context, mode
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.WriteHeader(http.StatusOK)
 
 	messageID := "msg_" + strings.ReplaceAll(uuid.NewString(), "-", "")
-	if err := writeAnthropicSSE(c.Writer, "message_start", map[string]any{
-		"type": "message_start",
-		"message": map[string]any{
-			"id":            messageID,
-			"type":          "message",
-			"role":          "assistant",
-			"model":         model,
-			"content":       []any{},
-			"stop_reason":   nil,
-			"stop_sequence": nil,
-			"usage":         map[string]any{"input_tokens": 0, "output_tokens": 0},
-		},
-	}); err != nil {
-		return nil, err
+	started := false
+	ensureStarted := func() error {
+		if started {
+			return nil
+		}
+		started = true
+		c.Writer.WriteHeader(http.StatusOK)
+		return writeAnthropicSSE(c.Writer, "message_start", map[string]any{
+			"type": "message_start",
+			"message": map[string]any{
+				"id":            messageID,
+				"type":          "message",
+				"role":          "assistant",
+				"model":         model,
+				"content":       []any{},
+				"stop_reason":   nil,
+				"stop_sequence": nil,
+				"usage":         map[string]any{"input_tokens": 0, "output_tokens": 0},
+			},
+		})
 	}
 	result := &qoderStreamResult{}
 	writer := newQoderAnthropicContentWriter(c.Writer, toolNameMapper)
@@ -3483,6 +3536,9 @@ func WriteQoderAnthropicStreamResponse(ctx context.Context, c *gin.Context, mode
 			return nil
 		}
 		finalized = true
+		if err := ensureStarted(); err != nil {
+			return err
+		}
 		if err := writer.closeOpenBlock(); err != nil {
 			return err
 		}
@@ -3516,25 +3572,31 @@ func WriteQoderAnthropicStreamResponse(ctx context.Context, c *gin.Context, mode
 		}
 		if event.Type == "text_delta" && event.Text != "" {
 			result.HasOutput = true
+			if err := ensureStarted(); err != nil {
+				return err
+			}
 			return writer.writeTextDelta(event.Text)
 		}
 		if event.Type == "reasoning_delta" {
-			if event.Text != "" {
-				result.HasOutput = true
+			if event.Text == "" {
+				return nil
+			}
+			result.HasOutput = true
+			if err := ensureStarted(); err != nil {
+				return err
 			}
 			return writer.writeThinkingDelta(event.Text)
 		}
 		if event.Type == "tool_call_delta" {
 			result.HasOutput = true
+			if err := ensureStarted(); err != nil {
+				return err
+			}
 			return writer.writeToolCall(event)
 		}
 		return nil
 	}, func() error {
-		_, err := io.WriteString(c.Writer, ": keep-alive\n\n")
-		if flusher, ok := c.Writer.(http.Flusher); ok {
-			flusher.Flush()
-		}
-		return err
+		return writeQoderStreamKeepalive(c, started)
 	}); err != nil {
 		return nil, err
 	}
@@ -3560,16 +3622,16 @@ func BuildQoderResponsesResponse(model string, events []qoder.SSEEvent, toolName
 
 func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, model string, resp *http.Response, options ...qoderResponsesStreamResponseOption) (*qoderStreamResult, error) {
 	usageMapper, toolNameMapper := qoderResponsesStreamResponseOptions(options)
+	defer closeQoderResponse(resp)
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
-	c.Writer.WriteHeader(http.StatusOK)
 
 	result := &qoderStreamResult{}
 	responseID := "resp_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	sequence := 0
-	writeEvent := func(evt apicompat.ResponsesStreamEvent) error {
+	writeEventFrame := func(evt apicompat.ResponsesStreamEvent) error {
 		evt.SequenceNumber = sequence
 		sequence++
 		sse, err := apicompat.ResponsesEventToSSE(evt)
@@ -3584,18 +3646,29 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 		}
 		return nil
 	}
-	if err := writeEvent(apicompat.ResponsesStreamEvent{
-		Type: "response.created",
-		Response: &apicompat.ResponsesResponse{
-			ID:     responseID,
-			Object: "response",
-			Model:  model,
-			Status: "in_progress",
-			Output: []apicompat.ResponsesOutput{},
-		},
-	}); err != nil {
-		closeQoderResponse(resp)
-		return nil, err
+	started := false
+	ensureStarted := func() error {
+		if started {
+			return nil
+		}
+		started = true
+		c.Writer.WriteHeader(http.StatusOK)
+		return writeEventFrame(apicompat.ResponsesStreamEvent{
+			Type: "response.created",
+			Response: &apicompat.ResponsesResponse{
+				ID:     responseID,
+				Object: "response",
+				Model:  model,
+				Status: "in_progress",
+				Output: []apicompat.ResponsesOutput{},
+			},
+		})
+	}
+	writeEvent := func(evt apicompat.ResponsesStreamEvent) error {
+		if err := ensureStarted(); err != nil {
+			return err
+		}
+		return writeEventFrame(evt)
 	}
 
 	nextOutputIndex := 0
@@ -3620,14 +3693,92 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 		}
 		return outputs
 	}
-	openMessage := func() error {
-		if messageOpen || messageDone {
+
+	var reasoningItemID string
+	reasoningOutputIndex := -1
+	reasoningOpen := false
+	var reasoningText strings.Builder
+	openReasoning := func() error {
+		if reasoningOpen {
 			return nil
 		}
+		reasoningText.Reset()
+		reasoningItemID = "item_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+		reasoningOutputIndex = nextOutputIndex
+		nextOutputIndex++
+		reasoningOpen = true
+		if err := writeEvent(apicompat.ResponsesStreamEvent{
+			Type:        "response.output_item.added",
+			OutputIndex: reasoningOutputIndex,
+			Item: &apicompat.ResponsesOutput{
+				Type:   "reasoning",
+				ID:     reasoningItemID,
+				Status: "in_progress",
+			},
+		}); err != nil {
+			return err
+		}
+		return writeEvent(apicompat.ResponsesStreamEvent{
+			Type:         "response.reasoning_summary_part.added",
+			OutputIndex:  reasoningOutputIndex,
+			SummaryIndex: 0,
+			ItemID:       reasoningItemID,
+			Part:         &apicompat.ResponsesContentPart{Type: "summary_text"},
+		})
+	}
+	closeReasoning := func() error {
+		if !reasoningOpen {
+			return nil
+		}
+		text := reasoningText.String()
+		if err := writeEvent(apicompat.ResponsesStreamEvent{
+			Type:         "response.reasoning_summary_text.done",
+			OutputIndex:  reasoningOutputIndex,
+			SummaryIndex: 0,
+			Text:         text,
+			ItemID:       reasoningItemID,
+		}); err != nil {
+			return err
+		}
+		if err := writeEvent(apicompat.ResponsesStreamEvent{
+			Type:         "response.reasoning_summary_part.done",
+			OutputIndex:  reasoningOutputIndex,
+			SummaryIndex: 0,
+			ItemID:       reasoningItemID,
+			Part:         &apicompat.ResponsesContentPart{Type: "summary_text", Text: text},
+		}); err != nil {
+			return err
+		}
+		item := apicompat.ResponsesOutput{
+			Type:    "reasoning",
+			ID:      reasoningItemID,
+			Status:  "completed",
+			Summary: []apicompat.ResponsesSummary{{Type: "summary_text", Text: text}},
+		}
+		if err := writeEvent(apicompat.ResponsesStreamEvent{
+			Type:        "response.output_item.done",
+			OutputIndex: reasoningOutputIndex,
+			Item:        &item,
+		}); err != nil {
+			return err
+		}
+		completedOutputs[reasoningOutputIndex] = item
+		reasoningOpen = false
+		return nil
+	}
+	openMessage := func() error {
+		if messageOpen {
+			return nil
+		}
+		if err := closeReasoning(); err != nil {
+			return err
+		}
+		messageText.Reset()
 		messageItemID = "item_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 		messageOutputIndex = nextOutputIndex
 		nextOutputIndex++
 		messageOpen = true
+		messageDone = false
 		return writeEvent(apicompat.ResponsesStreamEvent{
 			Type:        "response.output_item.added",
 			OutputIndex: messageOutputIndex,
@@ -3706,6 +3857,9 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 		}
 		if state.added || state.name == "" {
 			return state, nil
+		}
+		if err := closeReasoning(); err != nil {
+			return state, err
 		}
 		if err := closeMessage(); err != nil {
 			return state, err
@@ -3809,6 +3963,9 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 			return nil
 		}
 		finalized = true
+		if err := closeReasoning(); err != nil {
+			return err
+		}
 		if err := closeMessage(); err != nil {
 			return err
 		}
@@ -3857,17 +4014,31 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 					Delta:        event.Text,
 				})
 			}
+		case "reasoning_delta":
+			if event.Text != "" {
+				result.HasOutput = true
+				if err := closeMessage(); err != nil {
+					return err
+				}
+				if err := openReasoning(); err != nil {
+					return err
+				}
+				_, _ = reasoningText.WriteString(event.Text)
+				return writeEvent(apicompat.ResponsesStreamEvent{
+					Type:         "response.reasoning_summary_text.delta",
+					OutputIndex:  reasoningOutputIndex,
+					SummaryIndex: 0,
+					ItemID:       reasoningItemID,
+					Delta:        event.Text,
+				})
+			}
 		case "tool_call_delta":
 			result.HasOutput = true
 			return writeToolDelta(event)
 		}
 		return nil
 	}, func() error {
-		_, err := io.WriteString(c.Writer, ": keep-alive\n\n")
-		if flusher, ok := c.Writer.(http.Flusher); ok {
-			flusher.Flush()
-		}
-		return err
+		return writeQoderStreamKeepalive(c, started)
 	}); err != nil {
 		return nil, err
 	}
@@ -4557,9 +4728,14 @@ func openAIChunk(id, model string, delta map[string]any, finishReason any) map[s
 }
 
 func openAIUsageChunk(id, model string, usage ClaudeUsage, totalTokens int, usageDetails ...qoder.UsageDetails) map[string]any {
-	chunk := openAIChunk(id, model, map[string]any{}, nil)
-	chunk["usage"] = qoderOpenAIUsage(usage, totalTokens, usageDetails...)
-	return chunk
+	return map[string]any{
+		"id":      id,
+		"object":  "chat.completion.chunk",
+		"created": time.Now().Unix(),
+		"model":   model,
+		"choices": []any{},
+		"usage":   qoderOpenAIUsage(usage, totalTokens, usageDetails...),
+	}
 }
 
 func resolveQoderModel(model string) qoderModelInfo {
@@ -4710,10 +4886,5 @@ func gjsonString(body []byte, path string) string {
 }
 
 func gjsonBool(body []byte, path string) bool {
-	var decoded map[string]any
-	if err := json.Unmarshal(body, &decoded); err != nil {
-		return false
-	}
-	value, _ := decoded[path].(bool)
-	return value
+	return gjson.GetBytes(body, path).Bool()
 }
