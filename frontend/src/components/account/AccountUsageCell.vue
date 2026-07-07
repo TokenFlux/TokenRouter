@@ -1103,21 +1103,56 @@ const makeGrokQuotaBar = (quota?: { limit?: number | null; remaining?: number | 
 
 const grokRequestQuotaBar = computed(() => makeGrokQuotaBar(usageInfo.value?.grok_request_quota))
 const grokTokenQuotaBar = computed(() => makeGrokQuotaBar(usageInfo.value?.grok_token_quota))
+
+type QoderQuotaProgressLike = NonNullable<NonNullable<AccountUsageInfo['qoder_quota']>['user_quota']>
+
+const qoderQuotaPoolCapacity = (pool: QoderQuotaProgressLike) => {
+  if (pool.total && pool.total > 0) return pool.total
+  if (pool.cap && pool.cap > 0) return pool.cap
+  return (pool.used ?? 0) + (pool.remaining ?? 0)
+}
+
+const qoderQuotaPoolHasCapacity = (pool: QoderQuotaProgressLike) => {
+  return pool.total != null || pool.cap != null || pool.used != null || pool.remaining != null
+}
+
+const qoderQuotaPools = computed<QoderQuotaProgressLike[]>(() => {
+  const quota = usageInfo.value?.qoder_quota
+  return [quota?.user_quota, quota?.add_on_quota, quota?.org_resource_package].filter(
+    (pool): pool is QoderQuotaProgressLike => !!pool
+  )
+})
+
+const qoderQuotaAggregate = computed(() => {
+  const pools = qoderQuotaPools.value
+  if (pools.length === 0) return null
+
+  const used = pools.reduce((sum, pool) => sum + (pool.used ?? 0), 0)
+  const remaining = pools.reduce((sum, pool) => sum + (pool.remaining ?? 0), 0)
+  const total = pools.reduce((sum, pool) => sum + qoderQuotaPoolCapacity(pool), 0)
+  const totalKnown = pools.some(qoderQuotaPoolHasCapacity)
+  const unit = pools.find((pool) => pool.unit)?.unit || 'credits'
+  const utilization = total > 0
+    ? (used / total) * 100
+    : (usageInfo.value?.qoder_quota?.total_usage_percentage ?? pools[0]?.percentage ?? 0)
+
+  return { used, remaining, total, totalKnown, unit, utilization }
+})
+
 const qoderQuotaUsageBar = computed(() => {
   const quota = usageInfo.value?.qoder_quota
-  const userQuota = quota?.user_quota
-  const utilization = userQuota?.percentage ?? quota?.total_usage_percentage ?? 0
+  const utilization = qoderQuotaAggregate.value?.utilization ?? quota?.total_usage_percentage ?? 0
   return {
     utilization: Math.max(0, Math.min(100, utilization)),
     resetsAt: quota?.expires_at || null
   }
 })
 const qoderQuotaCreditsLabel = computed(() => {
-  const userQuota = usageInfo.value?.qoder_quota?.user_quota
-  if (!userQuota) return '-'
-  const used = formatCompactNumber(userQuota.used ?? 0)
-  const total = userQuota.total != null ? formatCompactNumber(userQuota.total) : 'unknown'
-  const unit = userQuota.unit || 'credits'
+  const quota = qoderQuotaAggregate.value
+  if (!quota) return '-'
+  const used = formatCompactNumber(quota.used)
+  const total = quota.totalKnown ? formatCompactNumber(quota.total) : 'unknown'
+  const unit = quota.unit
   return `${used}/${total} ${unit}`
 })
 const grokQuotaUnknown = computed(() => {

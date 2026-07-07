@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,6 +18,7 @@ type accountUsageCodexProbeRepo struct {
 	stubOpenAIAccountRepo
 	updateExtraCh chan map[string]any
 	rateLimitCh   chan time.Time
+	clearLimitCh  chan int64
 	clearErrorCh  chan int64
 }
 
@@ -34,6 +36,13 @@ func (r *accountUsageCodexProbeRepo) UpdateExtra(_ context.Context, _ int64, upd
 func (r *accountUsageCodexProbeRepo) SetRateLimited(_ context.Context, _ int64, resetAt time.Time) error {
 	if r.rateLimitCh != nil {
 		r.rateLimitCh <- resetAt
+	}
+	return nil
+}
+
+func (r *accountUsageCodexProbeRepo) ClearRateLimit(_ context.Context, id int64) error {
+	if r.clearLimitCh != nil {
+		r.clearLimitCh <- id
 	}
 	return nil
 }
@@ -112,7 +121,7 @@ func TestAccountUsageService_QoderUsageFetchesQuotaAndPersistsSnapshot(t *testin
 	upstream := &qoderUsageHTTPUpstreamStub{body: `{
 		"userType":"teams",
 		"usageType":"credits",
-		"totalUsagePercentage":12.5,
+		"totalUsagePercentage":0.125,
 		"isQuotaExceeded":false,
 		"expiresAt":1783875207000,
 		"userQuota":{"total":2940,"used":2,"remaining":2938,"percentage":0.01,"unit":"credits"}
@@ -144,6 +153,12 @@ func TestAccountUsageService_QoderUsageFetchesQuotaAndPersistsSnapshot(t *testin
 	}
 	if usage.QoderQuota.UserQuota.Remaining != 2938 {
 		t.Fatalf("remaining = %v, want 2938", usage.QoderQuota.UserQuota.Remaining)
+	}
+	if usage.QoderQuota.TotalUsagePercentage != 12.5 {
+		t.Fatalf("total percentage = %v, want 12.5", usage.QoderQuota.TotalUsagePercentage)
+	}
+	if usage.QoderQuota.UserQuota.Percentage != 1 {
+		t.Fatalf("user quota percentage = %v, want 1", usage.QoderQuota.UserQuota.Percentage)
 	}
 	if got := upstream.req.Header.Get("Authorization"); got != "Bearer sec-token" {
 		t.Fatalf("Authorization = %q", got)
@@ -354,6 +369,418 @@ func TestAccountUsageService_QoderQuotaExceededSetsRateLimited(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("expected SetRateLimited call")
+	}
+}
+
+func TestAccountUsageService_QoderAddOnQuotaRemainingPreventsUserQuotaRateLimit(t *testing.T) {
+	t.Parallel()
+
+	expiresAt := time.Now().Add(time.Hour).Truncate(time.Millisecond)
+	upstream := &qoderUsageHTTPUpstreamStub{body: fmt.Sprintf(`{
+		"userType":"teams",
+		"usageType":"credits",
+		"totalUsagePercentage":90,
+		"isQuotaExceeded":false,
+		"expiresAt":%d,
+		"userQuota":{"total":100,"used":100,"remaining":0,"percentage":100,"unit":"credits"},
+		"addOnQuota":{"total":50,"used":10,"remaining":40,"percentage":20,"unit":"credits","detailUrl":"https://qoder.example/addon"}
+	}`, expiresAt.UnixMilli())}
+	repo := &accountUsageCodexProbeRepo{
+		stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{{
+			ID:               12,
+			Platform:         PlatformQoder,
+			Type:             AccountTypeCosy,
+			Credentials:      map[string]any{"security_oauth_token": "sec-token"},
+			RateLimitResetAt: &expiresAt,
+		}}},
+		rateLimitCh:  make(chan time.Time, 1),
+		clearLimitCh: make(chan int64, 1),
+	}
+	svc := &AccountUsageService{accountRepo: repo, cache: NewUsageCache(), httpUpstream: upstream}
+
+	usage, err := svc.GetUsage(context.Background(), 12)
+
+	if err != nil {
+		t.Fatalf("GetUsage() error = %v", err)
+	}
+	if usage.QoderQuota == nil || usage.QoderQuota.AddOnQuota == nil || usage.QoderQuota.AddOnQuota.Remaining != 40 {
+		t.Fatalf("expected add-on quota remaining in qoder usage, got %#v", usage.QoderQuota)
+	}
+	select {
+	case resetAt := <-repo.rateLimitCh:
+		t.Fatalf("unexpected SetRateLimited call while add-on quota remains: %v", resetAt)
+	default:
+	}
+	select {
+	case id := <-repo.clearLimitCh:
+		if id != 12 {
+			t.Fatalf("ClearRateLimit id = %d, want 12", id)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected ClearRateLimit call for matching stale quota lock")
+	}
+}
+
+func TestQoderQuotaInfoFromResponseInfersAddOnQuotaRemainingFromCap(t *testing.T) {
+	t.Parallel()
+
+	quota := qoderQuotaInfoFromResponse(&qoderQuotaUsageResponse{
+		UserType:        "teams",
+		UsageType:       "credits",
+		IsQuotaExceeded: true,
+		ExpiresAt:       time.Now().Add(time.Hour).UnixMilli(),
+		UserQuota:       &qoderQuotaProgressRaw{Total: 100, Used: 100, Remaining: 0, Unit: "credits"},
+		AddOnQuota: &qoderQuotaProgressRaw{
+			Cap:  50,
+			Used: 10,
+			Unit: "credits",
+		},
+	}, time.Now(), false)
+
+	if quota.AddOnQuota == nil {
+		t.Fatalf("expected add-on quota: %#v", quota)
+	}
+	if quota.AddOnQuota.Total != 50 {
+		t.Fatalf("add-on total = %v, want 50", quota.AddOnQuota.Total)
+	}
+	if quota.AddOnQuota.Remaining != 40 {
+		t.Fatalf("add-on remaining = %v, want 40", quota.AddOnQuota.Remaining)
+	}
+	if _, limited := qoderQuotaRateLimitResetAt(quota, time.Now()); limited {
+		t.Fatalf("add-on cap-derived remaining credits should prevent quota rate limit")
+	}
+}
+
+func TestQoderQuotaInfoFromResponseInfersOrgResourcePackageTotalFromUsedRemaining(t *testing.T) {
+	t.Parallel()
+
+	quota := qoderQuotaInfoFromResponse(&qoderQuotaUsageResponse{
+		UserType:        "teams",
+		UsageType:       "credits",
+		IsQuotaExceeded: true,
+		ExpiresAt:       time.Now().Add(time.Hour).UnixMilli(),
+		UserQuota:       &qoderQuotaProgressRaw{Total: 100, Used: 100, Remaining: 0, Unit: "credits"},
+		OrgResourcePackage: &qoderQuotaProgressRaw{
+			Used:      25,
+			Remaining: 75,
+			Unit:      "credits",
+		},
+	}, time.Now(), false)
+
+	if quota.OrgResourcePackage == nil {
+		t.Fatalf("expected org resource package quota: %#v", quota)
+	}
+	if quota.OrgResourcePackage.Total != 100 {
+		t.Fatalf("org resource total = %v, want 100", quota.OrgResourcePackage.Total)
+	}
+	if capacity := qoderQuotaTotalCapacity(quota); capacity != 200 {
+		t.Fatalf("total capacity = %v, want 200", capacity)
+	}
+	if remaining, ok := qoderQuotaTotalRemaining(quota); !ok || remaining != 75 {
+		t.Fatalf("total remaining = (%v, %v), want (75, true)", remaining, ok)
+	}
+	if _, limited := qoderQuotaRateLimitResetAt(quota, time.Now()); limited {
+		t.Fatalf("org resource remaining credits should prevent quota rate limit")
+	}
+}
+
+func TestQoderQuotaProgressFromJSONInfersOnlyMissingRemaining(t *testing.T) {
+	t.Parallel()
+
+	var explicit qoderQuotaUsageResponse
+	if err := json.Unmarshal([]byte(`{
+		"userType":"teams",
+		"isQuotaExceeded":true,
+		"expiresAt":4102444800000,
+		"userQuota":{"total":100,"used":50,"remaining":0,"percentage":0,"unit":"credits"}
+	}`), &explicit); err != nil {
+		t.Fatalf("unmarshal explicit quota response: %v", err)
+	}
+	quota := qoderQuotaInfoFromResponse(&explicit, time.Now(), false)
+	if quota == nil || quota.UserQuota == nil {
+		t.Fatalf("expected user quota: %#v", quota)
+	}
+	if quota.UserQuota.Remaining != 0 {
+		t.Fatalf("explicit remaining=0 must not be inferred to positive balance, got %v", quota.UserQuota.Remaining)
+	}
+	if quota.UserQuota.Percentage != 0 {
+		t.Fatalf("explicit percentage=0 must be preserved, got %v", quota.UserQuota.Percentage)
+	}
+	if _, limited := qoderQuotaRateLimitResetAt(quota, time.Now()); !limited {
+		t.Fatalf("explicit zero remaining with exceeded quota should set quota rate limit")
+	}
+
+	var missing qoderQuotaUsageResponse
+	if err := json.Unmarshal([]byte(`{
+		"userType":"teams",
+		"isQuotaExceeded":false,
+		"expiresAt":4102444800000,
+		"userQuota":{"total":100,"used":40,"unit":"credits"}
+	}`), &missing); err != nil {
+		t.Fatalf("unmarshal missing quota response: %v", err)
+	}
+	missingQuota := qoderQuotaInfoFromResponse(&missing, time.Now(), false)
+	if missingQuota == nil || missingQuota.UserQuota == nil {
+		t.Fatalf("expected missing user quota: %#v", missingQuota)
+	}
+	if missingQuota.UserQuota.Remaining != 60 {
+		t.Fatalf("missing remaining should be inferred from total-used, got %v", missingQuota.UserQuota.Remaining)
+	}
+	if missingQuota.UserQuota.Percentage != 40 {
+		t.Fatalf("missing percentage should be inferred from used/total, got %v", missingQuota.UserQuota.Percentage)
+	}
+}
+
+func TestAccountUsageService_QoderQuotaLockedAccountBypassesCachedUsage(t *testing.T) {
+	t.Parallel()
+
+	expiresAt := time.Now().Add(time.Hour).Truncate(time.Millisecond)
+	upstream := &qoderUsageHTTPUpstreamStub{bodies: []string{
+		fmt.Sprintf(`{
+			"userType":"teams",
+			"usageType":"credits",
+			"totalUsagePercentage":100,
+			"isQuotaExceeded":true,
+			"expiresAt":%d,
+			"userQuota":{"total":100,"used":100,"remaining":0,"percentage":100,"unit":"credits"}
+		}`, expiresAt.UnixMilli()),
+		fmt.Sprintf(`{
+			"userType":"teams",
+			"usageType":"credits",
+			"totalUsagePercentage":50,
+			"isQuotaExceeded":false,
+			"expiresAt":%d,
+			"userQuota":{"total":100,"used":50,"remaining":50,"percentage":50,"unit":"credits"}
+		}`, expiresAt.UnixMilli()),
+	}}
+	repo := &accountUsageCodexProbeRepo{
+		stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{{
+			ID:          9,
+			Platform:    PlatformQoder,
+			Type:        AccountTypeCosy,
+			Credentials: map[string]any{"security_oauth_token": "sec-token"},
+		}}},
+		rateLimitCh:  make(chan time.Time, 1),
+		clearLimitCh: make(chan int64, 1),
+	}
+	svc := &AccountUsageService{accountRepo: repo, cache: NewUsageCache(), httpUpstream: upstream}
+
+	first, err := svc.GetUsage(context.Background(), 9)
+	if err != nil {
+		t.Fatalf("first GetUsage() error = %v", err)
+	}
+	if first.QoderQuota == nil || !first.QoderQuota.IsQuotaExceeded {
+		t.Fatalf("expected cached exceeded quota: %#v", first.QoderQuota)
+	}
+	select {
+	case <-repo.rateLimitCh:
+	case <-time.After(time.Second):
+		t.Fatal("expected SetRateLimited call")
+	}
+	repo.accounts[0].RateLimitResetAt = &expiresAt
+
+	second, err := svc.GetUsage(context.Background(), 9)
+	if err != nil {
+		t.Fatalf("second GetUsage() error = %v", err)
+	}
+	if second.QoderQuota == nil || second.QoderQuota.IsQuotaExceeded || second.QoderQuota.UserQuota == nil || second.QoderQuota.UserQuota.Remaining != 50 {
+		t.Fatalf("expected refreshed available quota, got %#v", second.QoderQuota)
+	}
+	if got := atomic.LoadInt32(&upstream.calls); got != 2 {
+		t.Fatalf("upstream calls = %d, want 2; quota-locked account must bypass cached exceeded usage", got)
+	}
+	select {
+	case id := <-repo.clearLimitCh:
+		if id != 9 {
+			t.Fatalf("ClearRateLimit id = %d, want 9", id)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected ClearRateLimit call after refreshed quota became available")
+	}
+}
+
+func TestAccountUsageService_QoderQuotaAvailableClearsMatchingQuotaRateLimit(t *testing.T) {
+	t.Parallel()
+
+	expiresAt := time.Now().Add(time.Hour).Truncate(time.Millisecond)
+	upstream := &qoderUsageHTTPUpstreamStub{body: fmt.Sprintf(`{
+		"userType":"teams",
+		"usageType":"credits",
+		"totalUsagePercentage":50,
+		"isQuotaExceeded":false,
+		"expiresAt":%d,
+		"userQuota":{"total":100,"used":50,"remaining":50,"percentage":50,"unit":"credits"}
+	}`, expiresAt.UnixMilli())}
+	repo := &accountUsageCodexProbeRepo{
+		stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{{
+			ID:               7,
+			Platform:         PlatformQoder,
+			Type:             AccountTypeCosy,
+			Credentials:      map[string]any{"security_oauth_token": "sec-token"},
+			RateLimitResetAt: &expiresAt,
+		}}},
+		rateLimitCh:  make(chan time.Time, 1),
+		clearLimitCh: make(chan int64, 1),
+	}
+	svc := &AccountUsageService{accountRepo: repo, cache: NewUsageCache(), httpUpstream: upstream}
+
+	usage, err := svc.GetUsage(context.Background(), 7)
+
+	if err != nil {
+		t.Fatalf("GetUsage() error = %v", err)
+	}
+	if usage.QoderQuota == nil || usage.QoderQuota.IsQuotaExceeded {
+		t.Fatalf("expected available qoder quota: %#v", usage.QoderQuota)
+	}
+	select {
+	case id := <-repo.clearLimitCh:
+		if id != 7 {
+			t.Fatalf("ClearRateLimit id = %d, want 7", id)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("expected ClearRateLimit call")
+	}
+	select {
+	case resetAt := <-repo.rateLimitCh:
+		t.Fatalf("unexpected SetRateLimited call: %v", resetAt)
+	default:
+	}
+}
+
+func TestAccountUsageService_QoderQuotaLockedAccountKeepsDegradedCache(t *testing.T) {
+	t.Parallel()
+
+	expiresAt := time.Now().Add(time.Hour).Truncate(time.Millisecond)
+	upstream := &qoderUsageHTTPUpstreamStub{body: fmt.Sprintf(`{
+		"userType":"teams",
+		"usageType":"credits",
+		"totalUsagePercentage":50,
+		"isQuotaExceeded":false,
+		"expiresAt":%d,
+		"userQuota":{"total":100,"used":50,"remaining":50,"percentage":50,"unit":"credits"}
+	}`, expiresAt.UnixMilli())}
+	repo := &accountUsageCodexProbeRepo{
+		stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{{
+			ID:               11,
+			Platform:         PlatformQoder,
+			Type:             AccountTypeCosy,
+			Credentials:      map[string]any{"security_oauth_token": "sec-token"},
+			RateLimitResetAt: &expiresAt,
+		}}},
+		clearLimitCh: make(chan int64, 1),
+	}
+	cache := NewUsageCache()
+	cache.qoderCache.Store(int64(11), &qoderUsageCache{
+		usageInfo: &UsageInfo{
+			Error:     "usage API error: temporary network error",
+			ErrorCode: errorCodeNetworkError,
+			QoderQuota: &QoderQuotaInfo{
+				UserType:        "teams",
+				IsQuotaExceeded: true,
+				ExpiresAt:       &expiresAt,
+				UserQuota:       &QoderQuotaProgress{Total: 100, Used: 100, Remaining: 0, Percentage: 100, Unit: "credits"},
+			},
+		},
+		timestamp: time.Now(),
+	})
+	svc := &AccountUsageService{accountRepo: repo, cache: cache, httpUpstream: upstream}
+
+	usage, err := svc.GetUsage(context.Background(), 11)
+
+	if err != nil {
+		t.Fatalf("GetUsage() error = %v", err)
+	}
+	if usage == nil || usage.ErrorCode != errorCodeNetworkError {
+		t.Fatalf("expected cached degraded usage, got %#v", usage)
+	}
+	if got := atomic.LoadInt32(&upstream.calls); got != 0 {
+		t.Fatalf("upstream calls = %d, want 0 while degraded cache TTL is valid", got)
+	}
+	select {
+	case id := <-repo.clearLimitCh:
+		t.Fatalf("unexpected ClearRateLimit(%d) from degraded cache", id)
+	default:
+	}
+}
+
+func TestAccountUsageService_QoderQuotaAvailableDoesNotClearActiveOverload(t *testing.T) {
+	t.Parallel()
+
+	expiresAt := time.Now().Add(time.Hour).Truncate(time.Millisecond)
+	overloadUntil := time.Now().Add(5 * time.Minute)
+	upstream := &qoderUsageHTTPUpstreamStub{body: fmt.Sprintf(`{
+		"userType":"teams",
+		"usageType":"credits",
+		"totalUsagePercentage":20,
+		"isQuotaExceeded":false,
+		"expiresAt":%d,
+		"userQuota":{"total":100,"used":20,"remaining":80,"percentage":20,"unit":"credits"}
+	}`, expiresAt.UnixMilli())}
+	repo := &accountUsageCodexProbeRepo{
+		stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{{
+			ID:               10,
+			Platform:         PlatformQoder,
+			Type:             AccountTypeCosy,
+			Credentials:      map[string]any{"security_oauth_token": "sec-token"},
+			RateLimitResetAt: &expiresAt,
+			OverloadUntil:    &overloadUntil,
+		}}},
+		clearLimitCh: make(chan int64, 1),
+	}
+	svc := &AccountUsageService{accountRepo: repo, cache: NewUsageCache(), httpUpstream: upstream}
+
+	usage, err := svc.GetUsage(context.Background(), 10)
+
+	if err != nil {
+		t.Fatalf("GetUsage() error = %v", err)
+	}
+	if usage.QoderQuota == nil || usage.QoderQuota.IsQuotaExceeded {
+		t.Fatalf("expected available qoder quota: %#v", usage.QoderQuota)
+	}
+	select {
+	case id := <-repo.clearLimitCh:
+		t.Fatalf("unexpected ClearRateLimit(%d) while active overload is present", id)
+	default:
+	}
+}
+
+func TestAccountUsageService_QoderQuotaAvailableDoesNotClearUnrelatedRateLimit(t *testing.T) {
+	t.Parallel()
+
+	resetAt := time.Now().Add(30 * time.Second)
+	expiresAt := time.Now().Add(time.Hour).UnixMilli()
+	upstream := &qoderUsageHTTPUpstreamStub{body: fmt.Sprintf(`{
+		"userType":"teams",
+		"usageType":"credits",
+		"totalUsagePercentage":10,
+		"isQuotaExceeded":false,
+		"expiresAt":%d,
+		"userQuota":{"total":100,"used":10,"remaining":90,"percentage":10,"unit":"credits"}
+	}`, expiresAt)}
+	repo := &accountUsageCodexProbeRepo{
+		stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{{
+			ID:               8,
+			Platform:         PlatformQoder,
+			Type:             AccountTypeCosy,
+			Credentials:      map[string]any{"security_oauth_token": "sec-token"},
+			RateLimitResetAt: &resetAt,
+		}}},
+		clearLimitCh: make(chan int64, 1),
+	}
+	svc := &AccountUsageService{accountRepo: repo, cache: NewUsageCache(), httpUpstream: upstream}
+
+	usage, err := svc.GetUsage(context.Background(), 8)
+
+	if err != nil {
+		t.Fatalf("GetUsage() error = %v", err)
+	}
+	if usage.QoderQuota == nil || usage.QoderQuota.IsQuotaExceeded {
+		t.Fatalf("expected available qoder quota: %#v", usage.QoderQuota)
+	}
+	select {
+	case id := <-repo.clearLimitCh:
+		t.Fatalf("unexpected ClearRateLimit(%d) for unrelated reset", id)
+	default:
 	}
 }
 

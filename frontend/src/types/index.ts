@@ -1168,6 +1168,29 @@ export interface AccountUsageInfo {
       remaining?: number
       percentage?: number
       unit?: string
+      detail_url?: string
+      cap?: number
+      available?: boolean
+    } | null
+    add_on_quota?: {
+      total?: number
+      used?: number
+      remaining?: number
+      percentage?: number
+      unit?: string
+      detail_url?: string
+      cap?: number
+      available?: boolean
+    } | null
+    org_resource_package?: {
+      total?: number
+      used?: number
+      remaining?: number
+      percentage?: number
+      unit?: string
+      detail_url?: string
+      cap?: number
+      available?: boolean
     } | null
     is_plan_quota_prorated?: boolean
     last_updated_at?: string | null

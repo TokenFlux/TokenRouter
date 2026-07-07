@@ -28,12 +28,13 @@ import (
 )
 
 const (
-	qoderDefaultMaxTokens = 32768
-	qoderStreamTimeout    = 15 * time.Minute
-	qoderKeepaliveEvery   = 10 * time.Second
-	qoderConversationTTL  = 2 * time.Hour
-	qoderRefreshLockPoll  = 100 * time.Millisecond
-	qoderRefreshLockWait  = 3 * time.Second
+	qoderDefaultMaxTokens          = 32768
+	qoderStreamTimeout             = 15 * time.Minute
+	qoderKeepaliveEvery            = 10 * time.Second
+	qoderConversationTTL           = 2 * time.Hour
+	qoderRefreshLockPoll           = 100 * time.Millisecond
+	qoderRefreshLockWait           = 3 * time.Second
+	qoderAccountStateUpdateTimeout = 5 * time.Second
 
 	qoderTextToolCallStart = "<tool_call>"
 	qoderTextToolCallEnd   = "</tool_call>"
@@ -139,7 +140,8 @@ func NewQoderGatewayService(tokenProvider *QoderTokenProvider, accountRepo Accou
 
 func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin.Context, account *Account, body []byte, responseModels ...string) (*ForwardResult, error) {
 	start := time.Now()
-	streamCtx, cancel := context.WithTimeout(ctx, qoderStreamTimeout)
+	clientStream := gjsonBool(body, "stream")
+	streamCtx, cancel := qoderForwardContext(ctx, clientStream)
 	defer cancel()
 
 	requestModel := strings.TrimSpace(gjsonString(body, "model"))
@@ -152,7 +154,6 @@ func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin
 	if err != nil {
 		return nil, err
 	}
-	clientStream := gjsonBool(body, "stream")
 	payloadBody, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal qoder payload: %w", err)
@@ -223,7 +224,8 @@ func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin
 
 func (s *QoderGatewayService) ForwardResponses(ctx context.Context, c *gin.Context, account *Account, body []byte, responseModels ...string) (*ForwardResult, error) {
 	start := time.Now()
-	streamCtx, cancel := context.WithTimeout(ctx, qoderStreamTimeout)
+	clientStream := gjsonBool(body, "stream")
+	streamCtx, cancel := qoderForwardContext(ctx, clientStream)
 	defer cancel()
 
 	requestModel := strings.TrimSpace(gjsonString(body, "model"))
@@ -236,7 +238,6 @@ func (s *QoderGatewayService) ForwardResponses(ctx context.Context, c *gin.Conte
 	if err != nil {
 		return nil, err
 	}
-	clientStream := gjsonBool(body, "stream")
 	result := s.buildQoderPayloadWithConversation(c, account, "openai_responses", request)
 	payload := result.Payload
 	modelKey := result.ModelKey
@@ -266,6 +267,7 @@ func (s *QoderGatewayService) ForwardResponses(ctx context.Context, c *gin.Conte
 			resp,
 			qoderResponsesStreamUsageMapper(conversationPlan.recordUsage),
 			qoderResponsesStreamToolNameMapper(toolNameMapper),
+			qoderResponsesStreamResponseID(request.responseID),
 		)
 		if err != nil {
 			conversationPlan.rollbackAccepted()
@@ -284,7 +286,7 @@ func (s *QoderGatewayService) ForwardResponses(ctx context.Context, c *gin.Conte
 		}
 		upstreamUsage = qoderUsageFromEvents(events)
 		recordUsage = conversationPlan.recordUsage(upstreamUsage)
-		responseBody, err = BuildQoderResponsesResponse(responseModel, qoderEventsWithUsage(events, recordUsage), toolNameMapper)
+		responseBody, err = BuildQoderResponsesResponseWithID(responseModel, request.responseID, qoderEventsWithUsage(events, recordUsage), toolNameMapper)
 		if err != nil {
 			conversationPlan.rollbackAccepted()
 			return nil, err
@@ -295,8 +297,12 @@ func (s *QoderGatewayService) ForwardResponses(ctx context.Context, c *gin.Conte
 	if commitCompleteConversation {
 		conversationPlan.commit(upstreamUsage)
 	}
+	if request.responseID != "" {
+		conversationPlan.addAlias(qoderAccountScopedConversationKey(account, qoderConversationExplicitSessionKey(c, request.responseID)))
+	}
 
 	return &ForwardResult{
+		RequestID:     request.responseID,
 		Model:         responseModel,
 		UpstreamModel: modelKey,
 		Usage:         recordUsage,
@@ -308,7 +314,8 @@ func (s *QoderGatewayService) ForwardResponses(ctx context.Context, c *gin.Conte
 
 func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Context, account *Account, body []byte, responseModels ...string) (*ForwardResult, error) {
 	start := time.Now()
-	streamCtx, cancel := context.WithTimeout(ctx, qoderStreamTimeout)
+	clientStream := gjsonBool(body, "stream")
+	streamCtx, cancel := qoderForwardContext(ctx, clientStream)
 	defer cancel()
 
 	requestModel := strings.TrimSpace(gjsonString(body, "model"))
@@ -321,7 +328,6 @@ func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Contex
 	if err != nil {
 		return nil, err
 	}
-	clientStream := gjsonBool(body, "stream")
 	payloadBody, err := json.Marshal(payload)
 	if err != nil {
 		return nil, fmt.Errorf("marshal qoder payload: %w", err)
@@ -398,6 +404,16 @@ type qoderPayloadRequest struct {
 	explicitSession string
 	promptCacheKey  string
 	metadataUserID  string
+	responseID      string
+	// autoResponseSession is true when explicitSession was synthesized from the
+	// outgoing response id rather than supplied by the client. It must not hide
+	// older stable session keys such as prompt_cache_key or headers.
+	autoResponseSession bool
+	// previousResponseID marks OpenAI Responses continuation requests. Unlike
+	// session_id/conversation_id, previous_response_id commonly carries only
+	// the new input item, so the conversation planner may append it to the
+	// previous state instead of requiring a full replay prefix.
+	previousResponseID string
 }
 
 func (s *QoderGatewayService) buildQoderPayloadFromChatCompletions(c *gin.Context, account *Account, body []byte) (map[string]any, string, *qoderConversationPlan, error) {
@@ -422,7 +438,9 @@ func (s *QoderGatewayService) buildQoderPayloadWithConversation(c *gin.Context, 
 	request.userType = qoderUserType(account)
 	store := s.qoderConversationStore()
 	key, keySource := qoderConversationKey(c, account, protocol, request)
-	plan := store.plan(key, request.system, request.tools, request.messages)
+	plan := store.planWithOptions(key, request.system, request.tools, request.messages, qoderConversationPlanOptions{
+		appendToExisting: protocol == "openai_responses" && strings.TrimSpace(request.previousResponseID) != "",
+	})
 	payload, modelKey := buildQoderPayloadWithOptions(request, plan.sessionID, plan.messagesToSend, plan.includeSystem, plan.includeTools)
 	plan.log(c, account, protocol, request.model, keySource, request, payload)
 	return qoderPayloadBuildResult{Payload: payload, ModelKey: modelKey, Plan: plan}
@@ -441,6 +459,24 @@ func (s *QoderGatewayService) qoderConversationStore() *qoderConversationStore {
 		s.conversations = newQoderConversationStore(qoderConversationTTL)
 	}
 	return s.conversations
+}
+
+func qoderForwardContext(ctx context.Context, stream bool) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if stream {
+		ctx = context.WithoutCancel(ctx)
+	}
+	return context.WithTimeout(ctx, qoderStreamTimeout)
+}
+
+func qoderAccountStateUpdateContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	base := context.Background()
+	if ctx != nil {
+		base = context.WithoutCancel(ctx)
+	}
+	return context.WithTimeout(base, qoderAccountStateUpdateTimeout)
 }
 
 func (s *QoderGatewayService) openQoderStream(ctx context.Context, account *Account, payload []byte, modelKey string) (*http.Response, error) {
@@ -499,7 +535,7 @@ func (s *QoderGatewayService) RefreshAccountSession(ctx context.Context, account
 	if refreshAPI == nil {
 		return nil, errors.New("qoder refresh API is not configured")
 	}
-	failedCredentialsHash := qoderCredentialsHash(account.Credentials)
+	failedCredentialsHash := qoderRefreshCredentialsHash(account.Credentials)
 	executor := qoderGatewayRefreshExecutor{
 		QoderTokenRefresher: refresher,
 		failedCredentials:   failedCredentialsHash,
@@ -545,7 +581,7 @@ func (s *QoderGatewayService) waitForQoderLockedRefresh(ctx context.Context, acc
 		if fresh == nil {
 			return nil, false, nil
 		}
-		if qoderCredentialsHash(fresh.Credentials) != failedCredentialsHash {
+		if qoderRefreshCredentialsHash(fresh.Credentials) != failedCredentialsHash {
 			if s.tokenProvider != nil {
 				s.tokenProvider.Invalidate(account.ID)
 			}
@@ -602,7 +638,7 @@ func (e qoderGatewayRefreshExecutor) NeedsRefresh(account *Account, ttl time.Dur
 	// - DB 中凭证已经变了，说明其它 worker 已刷新，当前请求不应再次消费 refresh_token。
 	// - DB 中仍是同一份失败凭证，则即使 expires_at 还没临近，也需要刷新这份已被上游拒绝的 token。
 	if e.failedCredentials != "" {
-		return qoderCredentialsHash(account.Credentials) == e.failedCredentials
+		return qoderRefreshCredentialsHash(account.Credentials) == e.failedCredentials
 	}
 	return e.QoderTokenRefresher.NeedsRefresh(account, ttl)
 }
@@ -632,17 +668,19 @@ func (s *QoderGatewayService) applyUpstreamErrorPolicy(ctx context.Context, acco
 	if !errors.As(err, &apiErr) {
 		return
 	}
+	stateCtx, cancel := qoderAccountStateUpdateContext(ctx)
+	defer cancel()
 	switch {
 	case apiErr.IsAgentLimit():
 		resetAt, ok := apiErr.AgentLimitResetAt()
 		if !ok {
 			resetAt = time.Now().Add(30 * time.Second)
 		}
-		_ = s.accountRepo.SetRateLimited(ctx, account.ID, resetAt)
+		_ = s.accountRepo.SetRateLimited(stateCtx, account.ID, resetAt)
 	case apiErr.StatusCode == http.StatusTooManyRequests:
-		_ = s.accountRepo.SetRateLimited(ctx, account.ID, time.Now().Add(30*time.Second))
+		_ = s.accountRepo.SetRateLimited(stateCtx, account.ID, time.Now().Add(30*time.Second))
 	case apiErr.StatusCode >= 500:
-		_ = s.accountRepo.SetOverloaded(ctx, account.ID, time.Now().Add(30*time.Second))
+		_ = s.accountRepo.SetOverloaded(stateCtx, account.ID, time.Now().Add(30*time.Second))
 	}
 }
 
@@ -752,19 +790,31 @@ func parseQoderResponsesPayload(body []byte) (qoderPayloadRequest, error) {
 	system := strings.Join(systemParts, "\n\n")
 
 	rawReq := qoderRequestMap(body)
+	sessionID := qoderStringField(rawReq, "session_id")
+	conversationID := qoderStringField(rawReq, "conversation_id")
+	previousResponseID := qoderStringField(rawReq, "previous_response_id")
+	explicitSession := firstNonEmptyQoder(sessionID, conversationID, previousResponseID)
+	responseID := qoderResponsesID()
+	autoResponseSession := explicitSession == ""
+	if explicitSession == "" {
+		explicitSession = responseID
+	}
 	maxTokens := qoderDefaultMaxTokens
 	if req.MaxOutputTokens != nil && *req.MaxOutputTokens > 0 {
 		maxTokens = *req.MaxOutputTokens
 	}
 	return qoderPayloadRequest{
-		model:           req.Model,
-		system:          system,
-		messages:        messages,
-		tools:           qoderResponsesToolsToQoderTools(req.Tools),
-		maxTokens:       maxTokens,
-		explicitSession: firstNonEmptyQoder(qoderStringField(rawReq, "session_id"), qoderStringField(rawReq, "conversation_id"), qoderStringField(rawReq, "previous_response_id")),
-		promptCacheKey:  qoderStringField(rawReq, "prompt_cache_key"),
-		metadataUserID:  qoderMetadataUserID(rawReq["metadata"]),
+		model:               req.Model,
+		system:              system,
+		messages:            messages,
+		tools:               qoderResponsesToolsToQoderTools(req.Tools),
+		maxTokens:           maxTokens,
+		explicitSession:     explicitSession,
+		promptCacheKey:      qoderStringField(rawReq, "prompt_cache_key"),
+		metadataUserID:      qoderMetadataUserID(rawReq["metadata"]),
+		responseID:          responseID,
+		autoResponseSession: autoResponseSession,
+		previousResponseID:  previousResponseID,
 	}, nil
 }
 
@@ -823,6 +873,9 @@ type qoderConversationStore struct {
 	mu    sync.Mutex
 	ttl   time.Duration
 	items map[string]*qoderConversationState
+	// aliases map externally-visible response/session ids to the canonical
+	// conversation key. This is used by OpenAI Responses previous_response_id.
+	aliases map[string]string
 }
 
 type qoderConversationState struct {
@@ -886,12 +939,21 @@ func newQoderConversationStore(ttl time.Duration) *qoderConversationStore {
 		ttl = qoderConversationTTL
 	}
 	return &qoderConversationStore{
-		ttl:   ttl,
-		items: make(map[string]*qoderConversationState),
+		ttl:     ttl,
+		items:   make(map[string]*qoderConversationState),
+		aliases: make(map[string]string),
 	}
 }
 
+type qoderConversationPlanOptions struct {
+	appendToExisting bool
+}
+
 func (s *qoderConversationStore) plan(key, system string, tools []any, messages []qoderMessage) *qoderConversationPlan {
+	return s.planWithOptions(key, system, tools, messages, qoderConversationPlanOptions{})
+}
+
+func (s *qoderConversationStore) planWithOptions(key, system string, tools []any, messages []qoderMessage, options qoderConversationPlanOptions) *qoderConversationPlan {
 	systemFingerprint := qoderSystemFingerprint(system)
 	toolsFingerprint := qoderFingerprintAny(tools)
 	messageFingerprints := qoderMessageFingerprints(messages)
@@ -937,7 +999,11 @@ func (s *qoderConversationStore) plan(key, system string, tools []any, messages 
 	if s.items == nil {
 		s.items = make(map[string]*qoderConversationState)
 	}
+	if s.aliases == nil {
+		s.aliases = make(map[string]string)
+	}
 	s.pruneExpiredLocked(now)
+	key = s.resolveAliasLocked(key)
 	storeItemCount := len(s.items)
 	state := s.items[key]
 	if state == nil {
@@ -947,15 +1013,61 @@ func (s *qoderConversationStore) plan(key, system string, tools []any, messages 
 		delete(s.items, key)
 		return fullPlan(true, "expired", state, storeItemCount)
 	}
+	effectiveSystemFingerprint := systemFingerprint
 	if state.systemFingerprint != systemFingerprint {
+		if !options.appendToExisting || strings.TrimSpace(system) != "" {
+			return fullPlan(true, "system_mismatch", state, storeItemCount)
+		}
+		effectiveSystemFingerprint = state.systemFingerprint
+	}
+	effectiveToolsFingerprint := toolsFingerprint
+	if state.toolsFingerprint != toolsFingerprint {
+		if !options.appendToExisting || len(tools) != 0 {
+			return fullPlan(true, "tools_mismatch", state, storeItemCount)
+		}
+		effectiveToolsFingerprint = state.toolsFingerprint
+	}
+	if state.systemFingerprint != effectiveSystemFingerprint {
 		return fullPlan(true, "system_mismatch", state, storeItemCount)
 	}
-	if state.toolsFingerprint != toolsFingerprint {
+	if state.toolsFingerprint != effectiveToolsFingerprint {
 		return fullPlan(true, "tools_mismatch", state, storeItemCount)
 	}
 	prefixLen, ok := qoderConversationPrefixLen(state.messageFingerprints, messageFingerprints)
 	if !ok {
-		return fullPlan(true, "prefix_mismatch", state, storeItemCount)
+		if !options.appendToExisting || len(messageFingerprints) == 0 {
+			return fullPlan(true, "prefix_mismatch", state, storeItemCount)
+		}
+		committedFingerprints := append([]string(nil), state.messageFingerprints...)
+		matchStatus := "reused_previous_response"
+		if qoderConversationHasSuffix(state.messageFingerprints, messageFingerprints) {
+			matchStatus = "reused_previous_response_suffix"
+		} else {
+			committedFingerprints = append(committedFingerprints, messageFingerprints...)
+		}
+		return &qoderConversationPlan{
+			store:                 s,
+			key:                   key,
+			sessionID:             state.sessionID,
+			messagesToSend:        messages,
+			includeSystem:         strings.TrimSpace(system) != "",
+			includeTools:          len(tools) > 0,
+			reused:                true,
+			systemFingerprint:     effectiveSystemFingerprint,
+			toolsFingerprint:      effectiveToolsFingerprint,
+			messageFingerprints:   committedFingerprints,
+			committedFingerprints: committedFingerprints,
+			hasPreviousUsage:      state.hasUsage,
+			previousUsageInput:    state.lastUsageInput,
+			previousUsageOutput:   state.lastUsageOutput,
+			matchStatus:           matchStatus,
+			previousMessageCount:  len(state.messageFingerprints),
+			prefixMessageCount:    len(state.messageFingerprints),
+			storeItemCount:        storeItemCount,
+			previousFirstHash:     firstQoderFingerprint(state.messageFingerprints),
+			currentFirstHash:      currentFirstHash,
+			previousState:         cloneQoderConversationState(state),
+		}
 	}
 	return &qoderConversationPlan{
 		store:                 s,
@@ -965,8 +1077,8 @@ func (s *qoderConversationStore) plan(key, system string, tools []any, messages 
 		includeSystem:         true,
 		includeTools:          true,
 		reused:                true,
-		systemFingerprint:     systemFingerprint,
-		toolsFingerprint:      toolsFingerprint,
+		systemFingerprint:     effectiveSystemFingerprint,
+		toolsFingerprint:      effectiveToolsFingerprint,
 		messageFingerprints:   messageFingerprints,
 		committedFingerprints: messageFingerprints,
 		hasPreviousUsage:      state.hasUsage,
@@ -987,7 +1099,13 @@ func qoderMessageHasToolCalls(message qoderMessage) bool {
 }
 
 func (s *qoderConversationStore) pruneExpiredLocked(now time.Time) {
-	if s == nil || len(s.items) == 0 {
+	if s == nil {
+		return
+	}
+	if len(s.items) == 0 {
+		for alias := range s.aliases {
+			delete(s.aliases, alias)
+		}
 		return
 	}
 	for key, state := range s.items {
@@ -995,10 +1113,54 @@ func (s *qoderConversationStore) pruneExpiredLocked(now time.Time) {
 			delete(s.items, key)
 		}
 	}
+	for alias, target := range s.aliases {
+		if _, ok := s.items[target]; !ok {
+			delete(s.aliases, alias)
+		}
+	}
+}
+
+func (s *qoderConversationStore) resolveAliasLocked(key string) string {
+	if s == nil || strings.TrimSpace(key) == "" {
+		return key
+	}
+	seen := map[string]struct{}{}
+	for {
+		target := strings.TrimSpace(s.aliases[key])
+		if target == "" || target == key {
+			return key
+		}
+		if _, ok := seen[key]; ok {
+			return key
+		}
+		seen[key] = struct{}{}
+		key = target
+	}
+}
+
+func (s *qoderConversationStore) addAlias(alias, canonical string) {
+	alias = strings.TrimSpace(alias)
+	canonical = strings.TrimSpace(canonical)
+	if s == nil || alias == "" || canonical == "" || alias == canonical {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.aliases == nil {
+		s.aliases = make(map[string]string)
+	}
+	s.aliases[alias] = s.resolveAliasLocked(canonical)
 }
 
 func (p *qoderConversationPlan) commit(usages ...ClaudeUsage) {
 	p.commitFingerprints(p.committedFingerprints, usages...)
+}
+
+func (p *qoderConversationPlan) addAlias(alias string) {
+	if p == nil || p.store == nil || strings.TrimSpace(p.key) == "" {
+		return
+	}
+	p.store.addAlias(alias, p.key)
 }
 
 func (p *qoderConversationPlan) commitAccepted() {
@@ -1313,25 +1475,39 @@ func (p *qoderConversationPlan) logUsage(c *gin.Context, account *Account, upstr
 }
 
 func qoderConversationKey(c *gin.Context, account *Account, protocol string, request qoderPayloadRequest) (string, string) {
-	apiKeyID := getAPIKeyIDFromContext(c)
-	if value := strings.TrimSpace(request.explicitSession); value != "" {
-		return "body_session:" + isolateOpenAISessionID(apiKeyID, value), "body_session"
+	if value := strings.TrimSpace(request.explicitSession); value != "" && !request.autoResponseSession {
+		return qoderAccountScopedConversationKey(account, qoderConversationExplicitSessionKey(c, value)), "body_session"
 	}
 	if value := strings.TrimSpace(request.promptCacheKey); value != "" {
-		return "prompt_cache_key:" + isolateOpenAISessionID(apiKeyID, value), "prompt_cache_key"
+		return qoderAccountScopedConversationKey(account, "prompt_cache_key:"+isolateOpenAISessionID(getAPIKeyIDFromContext(c), value)), "prompt_cache_key"
 	}
 	if parsed := ParseMetadataUserID(request.metadataUserID); parsed != nil && strings.TrimSpace(parsed.SessionID) != "" {
-		return "metadata_user_id:" + isolateOpenAISessionID(apiKeyID, parsed.SessionID), "metadata_user_id"
+		return qoderAccountScopedConversationKey(account, "metadata_user_id:"+isolateOpenAISessionID(getAPIKeyIDFromContext(c), parsed.SessionID)), "metadata_user_id"
 	}
 	if value := qoderHeaderSessionID(c); value != "" {
-		return "header:" + isolateOpenAISessionID(apiKeyID, value), "header"
+		return qoderAccountScopedConversationKey(account, "header:"+isolateOpenAISessionID(getAPIKeyIDFromContext(c), value)), "header"
 	}
 	if c != nil && c.Request != nil && IsClaudeCodeClient(c.Request.Context()) {
 		if value := qoderClaudeCodeStablePrefixKey(request); value != "" {
-			return "claude_code_prefix:" + isolateOpenAISessionID(apiKeyID, value), "claude_code_prefix"
+			return qoderAccountScopedConversationKey(account, "claude_code_prefix:"+isolateOpenAISessionID(getAPIKeyIDFromContext(c), value)), "claude_code_prefix"
 		}
 	}
-	return "request:" + uuid.NewString(), "request"
+	if value := strings.TrimSpace(request.explicitSession); value != "" {
+		return qoderAccountScopedConversationKey(account, qoderConversationExplicitSessionKey(c, value)), "body_session"
+	}
+	return qoderAccountScopedConversationKey(account, "request:"+uuid.NewString()), "request"
+}
+
+func qoderAccountScopedConversationKey(account *Account, key string) string {
+	key = strings.TrimSpace(key)
+	if key == "" || account == nil || account.ID <= 0 {
+		return key
+	}
+	return fmt.Sprintf("account:%d:%s", account.ID, key)
+}
+
+func qoderConversationExplicitSessionKey(c *gin.Context, value string) string {
+	return "body_session:" + isolateOpenAISessionID(getAPIKeyIDFromContext(c), value)
 }
 
 func qoderClaudeCodeStablePrefixKey(request qoderPayloadRequest) string {
@@ -1388,6 +1564,19 @@ func qoderConversationPrefixLen(previous, current []string) (int, bool) {
 		}
 	}
 	return len(previous), true
+}
+
+func qoderConversationHasSuffix(full, suffix []string) bool {
+	if len(suffix) == 0 || len(suffix) > len(full) {
+		return false
+	}
+	offset := len(full) - len(suffix)
+	for i := range suffix {
+		if full[offset+i] != suffix[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func qoderMessageFingerprints(messages []qoderMessage) []string {
@@ -1838,6 +2027,9 @@ func qoderMessageFromResponsesInputItem(item apicompat.ResponsesInputItem) qoder
 			},
 		}
 	default:
+		if item.Type != "" && item.Type != "message" {
+			return qoderMessage{}
+		}
 		role := qoderResponsesRole(item.Role)
 		if role == "" {
 			return qoderMessage{}
@@ -2550,6 +2742,44 @@ type qoderStreamResult struct {
 	HasOutput    bool
 }
 
+type qoderStreamWriteTracker struct {
+	disconnected bool
+}
+
+type qoderDisconnectAwareWriter struct {
+	writer  io.Writer
+	tracker *qoderStreamWriteTracker
+}
+
+func (w qoderDisconnectAwareWriter) Write(p []byte) (int, error) {
+	if w.tracker != nil && w.tracker.disconnected {
+		return len(p), nil
+	}
+	if w.writer == nil {
+		if w.tracker != nil {
+			w.tracker.disconnected = true
+		}
+		return len(p), nil
+	}
+	n, err := w.writer.Write(p)
+	if err != nil {
+		if w.tracker != nil {
+			w.tracker.disconnected = true
+		}
+		return len(p), nil
+	}
+	return n, nil
+}
+
+func (w qoderDisconnectAwareWriter) Flush() {
+	if w.tracker != nil && w.tracker.disconnected {
+		return
+	}
+	if flusher, ok := w.writer.(http.Flusher); ok {
+		flusher.Flush()
+	}
+}
+
 type qoderToolNameMapper func(string) string
 
 type qoderOpenAIStreamResponseOption struct {
@@ -2566,6 +2796,7 @@ type qoderAnthropicStreamResponseOption struct {
 type qoderResponsesStreamResponseOption struct {
 	mapUsage    func(ClaudeUsage) ClaudeUsage
 	mapToolName qoderToolNameMapper
+	responseID  string
 }
 
 func qoderOpenAIStreamUsageMapper(mapper func(ClaudeUsage) ClaudeUsage) qoderOpenAIStreamResponseOption {
@@ -2594,6 +2825,10 @@ func qoderResponsesStreamUsageMapper(mapper func(ClaudeUsage) ClaudeUsage) qoder
 
 func qoderResponsesStreamToolNameMapper(mapper qoderToolNameMapper) qoderResponsesStreamResponseOption {
 	return qoderResponsesStreamResponseOption{mapToolName: mapper}
+}
+
+func qoderResponsesStreamResponseID(responseID string) qoderResponsesStreamResponseOption {
+	return qoderResponsesStreamResponseOption{responseID: responseID}
 }
 
 func qoderOpenAIStreamResponseOptions(options []qoderOpenAIStreamResponseOption) (func(ClaudeUsage) ClaudeUsage, qoderToolNameMapper, bool) {
@@ -2626,9 +2861,10 @@ func qoderAnthropicStreamResponseOptions(options []qoderAnthropicStreamResponseO
 	return usageMapper, toolNameMapper
 }
 
-func qoderResponsesStreamResponseOptions(options []qoderResponsesStreamResponseOption) (func(ClaudeUsage) ClaudeUsage, qoderToolNameMapper) {
+func qoderResponsesStreamResponseOptions(options []qoderResponsesStreamResponseOption) (func(ClaudeUsage) ClaudeUsage, qoderToolNameMapper, string) {
 	var usageMapper func(ClaudeUsage) ClaudeUsage
 	var toolNameMapper qoderToolNameMapper
+	var responseID string
 	for _, option := range options {
 		if option.mapUsage != nil && usageMapper == nil {
 			usageMapper = option.mapUsage
@@ -2636,8 +2872,11 @@ func qoderResponsesStreamResponseOptions(options []qoderResponsesStreamResponseO
 		if option.mapToolName != nil && toolNameMapper == nil {
 			toolNameMapper = option.mapToolName
 		}
+		if option.responseID != "" && responseID == "" {
+			responseID = option.responseID
+		}
 	}
-	return usageMapper, toolNameMapper
+	return usageMapper, toolNameMapper, responseID
 }
 
 type qoderTextToolCallTransformer struct {
@@ -3327,13 +3566,21 @@ func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model s
 
 	completionID := "chatcmpl-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:24]
 	started := false
+	writeTracker := &qoderStreamWriteTracker{}
+	streamWriter := qoderDisconnectAwareWriter{writer: c.Writer, tracker: writeTracker}
+	writeData := func(data map[string]any) error {
+		if writeTracker.disconnected {
+			return nil
+		}
+		return writeSSEData(streamWriter, data)
+	}
 	ensureStarted := func() error {
-		if started {
+		if started || writeTracker.disconnected {
 			return nil
 		}
 		started = true
 		c.Writer.WriteHeader(http.StatusOK)
-		return writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{"role": "assistant"}, nil))
+		return writeData(openAIChunk(completionID, model, map[string]any{"role": "assistant"}, nil))
 	}
 	result := &qoderStreamResult{}
 	toolCalls := newQoderOpenAIToolCallAccumulator(toolNameMapper)
@@ -3343,6 +3590,9 @@ func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model s
 			return nil
 		}
 		finalized = true
+		if writeTracker.disconnected {
+			return nil
+		}
 		finishReason := "stop"
 		if toolCalls.HasToolCalls() {
 			finishReason = "tool_calls"
@@ -3350,13 +3600,17 @@ func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model s
 		if err := ensureStarted(); err != nil {
 			return err
 		}
-		if err := writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{}, finishReason)); err != nil {
+		if err := writeData(openAIChunk(completionID, model, map[string]any{}, finishReason)); err != nil {
 			return err
 		}
-		_, err := io.WriteString(c.Writer, "data: [DONE]\n\n")
-		if flusher, ok := c.Writer.(http.Flusher); ok {
-			flusher.Flush()
+		if writeTracker.disconnected {
+			return nil
 		}
+		_, err := io.WriteString(streamWriter, "data: [DONE]\n\n")
+		if err != nil {
+			return err
+		}
+		streamWriter.Flush()
 		return err
 	}
 	if err := streamQoderEvents(ctx, resp, func(event qoder.SSEEvent) error {
@@ -3376,7 +3630,7 @@ func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model s
 				if err := ensureStarted(); err != nil {
 					return err
 				}
-				return writeSSEData(c.Writer, openAIUsageChunk(completionID, model, chunkUsage, totalTokens, event.UsageDetails))
+				return writeData(openAIUsageChunk(completionID, model, chunkUsage, totalTokens, event.UsageDetails))
 			}
 			return nil
 		}
@@ -3388,7 +3642,7 @@ func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model s
 			if err := ensureStarted(); err != nil {
 				return err
 			}
-			return writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{"content": event.Text}, nil))
+			return writeData(openAIChunk(completionID, model, map[string]any{"content": event.Text}, nil))
 		}
 		if event.Type == "tool_call_delta" {
 			result.HasOutput = true
@@ -3399,11 +3653,17 @@ func WriteQoderOpenAIStreamResponse(ctx context.Context, c *gin.Context, model s
 			if err := ensureStarted(); err != nil {
 				return err
 			}
-			return writeSSEData(c.Writer, openAIChunk(completionID, model, map[string]any{"tool_calls": deltas}, nil))
+			return writeData(openAIChunk(completionID, model, map[string]any{"tool_calls": deltas}, nil))
 		}
 		return nil
 	}, func() error {
-		return writeQoderStreamKeepalive(c, started)
+		if writeTracker.disconnected {
+			return nil
+		}
+		if err := writeQoderStreamKeepalive(c, started); err != nil {
+			writeTracker.disconnected = true
+		}
+		return nil
 	}); err != nil {
 		return nil, err
 	}
@@ -3508,13 +3768,21 @@ func WriteQoderAnthropicStreamResponse(ctx context.Context, c *gin.Context, mode
 
 	messageID := "msg_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 	started := false
+	writeTracker := &qoderStreamWriteTracker{}
+	streamWriter := qoderDisconnectAwareWriter{writer: c.Writer, tracker: writeTracker}
+	writeEvent := func(event string, data map[string]any) error {
+		if writeTracker.disconnected {
+			return nil
+		}
+		return writeAnthropicSSE(streamWriter, event, data)
+	}
 	ensureStarted := func() error {
-		if started {
+		if started || writeTracker.disconnected {
 			return nil
 		}
 		started = true
 		c.Writer.WriteHeader(http.StatusOK)
-		return writeAnthropicSSE(c.Writer, "message_start", map[string]any{
+		return writeEvent("message_start", map[string]any{
 			"type": "message_start",
 			"message": map[string]any{
 				"id":            messageID,
@@ -3529,7 +3797,7 @@ func WriteQoderAnthropicStreamResponse(ctx context.Context, c *gin.Context, mode
 		})
 	}
 	result := &qoderStreamResult{}
-	writer := newQoderAnthropicContentWriter(c.Writer, toolNameMapper)
+	writer := newQoderAnthropicContentWriter(streamWriter, toolNameMapper)
 	finalized := false
 	finish := func() error {
 		if finalized {
@@ -3549,7 +3817,7 @@ func WriteQoderAnthropicStreamResponse(ctx context.Context, c *gin.Context, mode
 		if usageMapper != nil {
 			finalUsage = usageMapper(finalUsage)
 		}
-		if err := writeAnthropicSSE(c.Writer, "message_delta", map[string]any{
+		if err := writeEvent("message_delta", map[string]any{
 			"type": "message_delta",
 			"delta": map[string]any{
 				"stop_reason":   writer.stopReason(),
@@ -3559,7 +3827,7 @@ func WriteQoderAnthropicStreamResponse(ctx context.Context, c *gin.Context, mode
 		}); err != nil {
 			return err
 		}
-		return writeAnthropicSSE(c.Writer, "message_stop", map[string]any{"type": "message_stop"})
+		return writeEvent("message_stop", map[string]any{"type": "message_stop"})
 	}
 	if err := streamQoderEvents(ctx, resp, func(event qoder.SSEEvent) error {
 		if event.HasUsage {
@@ -3596,7 +3864,13 @@ func WriteQoderAnthropicStreamResponse(ctx context.Context, c *gin.Context, mode
 		}
 		return nil
 	}, func() error {
-		return writeQoderStreamKeepalive(c, started)
+		if writeTracker.disconnected {
+			return nil
+		}
+		if err := writeQoderStreamKeepalive(c, started); err != nil {
+			writeTracker.disconnected = true
+		}
+		return nil
 	}); err != nil {
 		return nil, err
 	}
@@ -3607,6 +3881,10 @@ func WriteQoderAnthropicStreamResponse(ctx context.Context, c *gin.Context, mode
 }
 
 func BuildQoderResponsesResponse(model string, events []qoder.SSEEvent, toolNameMappers ...qoderToolNameMapper) ([]byte, error) {
+	return BuildQoderResponsesResponseWithID(model, "", events, toolNameMappers...)
+}
+
+func BuildQoderResponsesResponseWithID(model, responseID string, events []qoder.SSEEvent, toolNameMappers ...qoderToolNameMapper) ([]byte, error) {
 	anthropicBody, err := BuildQoderAnthropicMessage(model, events, toolNameMappers...)
 	if err != nil {
 		return nil, err
@@ -3616,12 +3894,15 @@ func BuildQoderResponsesResponse(model string, events []qoder.SSEEvent, toolName
 		return nil, fmt.Errorf("parse qoder anthropic response: %w", err)
 	}
 	responsesResp := apicompat.AnthropicToResponsesResponse(&anthropicResp)
+	if strings.TrimSpace(responseID) != "" {
+		responsesResp.ID = strings.TrimSpace(responseID)
+	}
 	responsesResp.Model = model
 	return json.Marshal(responsesResp)
 }
 
 func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, model string, resp *http.Response, options ...qoderResponsesStreamResponseOption) (*qoderStreamResult, error) {
-	usageMapper, toolNameMapper := qoderResponsesStreamResponseOptions(options)
+	usageMapper, toolNameMapper, responseID := qoderResponsesStreamResponseOptions(options)
 	defer closeQoderResponse(resp)
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
@@ -3629,9 +3910,15 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 
 	result := &qoderStreamResult{}
-	responseID := "resp_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	if responseID == "" {
+		responseID = qoderResponsesID()
+	}
 	sequence := 0
+	clientDisconnected := false
 	writeEventFrame := func(evt apicompat.ResponsesStreamEvent) error {
+		if clientDisconnected {
+			return nil
+		}
 		evt.SequenceNumber = sequence
 		sequence++
 		sse, err := apicompat.ResponsesEventToSSE(evt)
@@ -3639,7 +3926,8 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 			return err
 		}
 		if _, err := io.WriteString(c.Writer, sse); err != nil {
-			return err
+			clientDisconnected = true
+			return nil
 		}
 		if flusher, ok := c.Writer.(http.Flusher); ok {
 			flusher.Flush()
@@ -3648,7 +3936,7 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 	}
 	started := false
 	ensureStarted := func() error {
-		if started {
+		if started || clientDisconnected {
 			return nil
 		}
 		started = true
@@ -4038,7 +4326,13 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 		}
 		return nil
 	}, func() error {
-		return writeQoderStreamKeepalive(c, started)
+		if clientDisconnected {
+			return nil
+		}
+		if err := writeQoderStreamKeepalive(c, started); err != nil {
+			clientDisconnected = true
+		}
+		return nil
 	}); err != nil {
 		return nil, err
 	}
@@ -4067,6 +4361,10 @@ func toResponsesCallIDForQoder(id string) string {
 		return trimmed
 	}
 	return "call_" + trimmed
+}
+
+func qoderResponsesID() string {
+	return "resp_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 }
 
 func qoderResponsesUsage(usage ClaudeUsage) *apicompat.ResponsesUsage {

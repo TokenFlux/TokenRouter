@@ -746,6 +746,58 @@ describe('AccountUsageCell', () => {
 	expect(wrapper.text()).toContain('10/100 credits')
   })
 
+  it('Qoder COSY 账号会合并主额度和附加额度展示月度 credits', async () => {
+	getUsage.mockResolvedValueOnce({
+	  qoder_quota: {
+	    user_type: 'teams',
+	    usage_type: 'credits',
+	    total_usage_percentage: 100,
+	    is_quota_exceeded: false,
+	    expires_at: '2099-04-07T12:00:00Z',
+	    user_quota: {
+	      total: 100,
+	      used: 100,
+	      remaining: 0,
+	      percentage: 100,
+	      unit: 'credits'
+	    },
+	    add_on_quota: {
+	      total: 50,
+	      used: 10,
+	      remaining: 40,
+	      percentage: 20,
+	      unit: 'credits'
+	    },
+	    org_resource_package: {
+	      used: 25,
+	      remaining: 75,
+	      percentage: 25,
+	      unit: 'credits'
+	    }
+	  }
+	})
+
+	const wrapper = mount(AccountUsageCell, {
+	  props: {
+	    account: makeAccount({
+	      id: 5002,
+	      platform: 'qoder',
+	      type: 'cosy'
+	    })
+	  },
+	  global: {
+	    stubs: {
+	      UsageProgressBar: true,
+	      AccountQuotaInfo: true
+	    }
+	  }
+	})
+
+	await flushPromises()
+
+	expect(wrapper.text()).toContain('135/250 credits')
+  })
+
   it('OpenAI OAuth 已限额时显示 /usage API 返回的限额数据', async () => {
 	getUsage.mockResolvedValue({
 	  five_hour: {

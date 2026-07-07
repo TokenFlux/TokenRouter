@@ -68,7 +68,9 @@ func (r *QoderTokenRefresher) NeedsRefresh(account *Account, _ time.Duration) bo
 	if expiresAt := account.GetCredentialAsTime("expires_at"); expiresAt != nil {
 		return time.Until(*expiresAt) < 15*time.Minute
 	}
-	return account.IsRateLimited()
+	// Qoder 的 RateLimitResetAt 也承载 upstream 月度 quota / agent-limit 调度信号，
+	// 不能像 OpenAI 一样把通用限流状态当成后台 token refresh 触发器。
+	return false
 }
 
 func (r *QoderTokenRefresher) Refresh(ctx context.Context, account *Account) (map[string]any, error) {
@@ -125,6 +127,11 @@ func (r *QoderTokenRefresher) Refresh(ctx context.Context, account *Account) (ma
 	if strings.TrimSpace(stringFromCredentialValue(newCredentials["refresh_token"])) == "" {
 		newCredentials["refresh_token"] = refreshToken
 	}
+	// Qoder refresh responses observed so far do not provide a reliable
+	// replacement expiry. Do not preserve a stale imported expires_at value:
+	// NeedsRefresh would immediately treat the freshly refreshed account as
+	// expiring again and can cause refresh loops.
+	delete(newCredentials, "expires_at")
 	return newCredentials, nil
 }
 

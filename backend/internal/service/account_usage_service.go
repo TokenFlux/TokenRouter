@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"log/slog"
+	"math"
 	"math/rand/v2"
 	"net/http"
 	"strings"
@@ -193,6 +194,9 @@ type QoderQuotaProgress struct {
 	Remaining  float64 `json:"remaining"`
 	Percentage float64 `json:"percentage"`
 	Unit       string  `json:"unit,omitempty"`
+	DetailURL  string  `json:"detail_url,omitempty"`
+	Cap        float64 `json:"cap,omitempty"`
+	Available  bool    `json:"available,omitempty"`
 }
 
 type QoderQuotaInfo struct {
@@ -203,6 +207,8 @@ type QoderQuotaInfo struct {
 	ExpiresAt            *time.Time          `json:"expires_at,omitempty"`
 	UpgradeURL           string              `json:"upgrade_url,omitempty"`
 	UserQuota            *QoderQuotaProgress `json:"user_quota,omitempty"`
+	AddOnQuota           *QoderQuotaProgress `json:"add_on_quota,omitempty"`
+	OrgResourcePackage   *QoderQuotaProgress `json:"org_resource_package,omitempty"`
 	IsPlanQuotaProrated  bool                `json:"is_plan_quota_prorated,omitempty"`
 	LastUpdatedAt        *time.Time          `json:"last_updated_at,omitempty"`
 	SnapshotFromAccount  bool                `json:"snapshot_from_account,omitempty"`
@@ -1011,15 +1017,67 @@ type qoderQuotaUsageResponse struct {
 	ExpiresAt            int64                  `json:"expiresAt"`
 	UpgradeURL           string                 `json:"upgradeUrl"`
 	UserQuota            *qoderQuotaProgressRaw `json:"userQuota"`
+	AddOnQuota           *qoderQuotaProgressRaw `json:"addOnQuota"`
+	AddOnQuotaSnake      *qoderQuotaProgressRaw `json:"add_on_quota"`
+	OrgResourcePackage   *qoderQuotaProgressRaw `json:"orgResourcePackage"`
+	OrgResourcePkgSnake  *qoderQuotaProgressRaw `json:"org_resource_package"`
+	SharedQuota          *qoderQuotaProgressRaw `json:"sharedQuota"`
+	SharedQuotaSnake     *qoderQuotaProgressRaw `json:"shared_quota"`
 	IsPlanQuotaProrated  bool                   `json:"isPlanQuotaProrated"`
 }
 
 type qoderQuotaProgressRaw struct {
-	Total      float64 `json:"total"`
-	Used       float64 `json:"used"`
-	Remaining  float64 `json:"remaining"`
-	Percentage float64 `json:"percentage"`
-	Unit       string  `json:"unit"`
+	Total          float64 `json:"total"`
+	Cap            float64 `json:"cap"`
+	Used           float64 `json:"used"`
+	Remaining      float64 `json:"remaining"`
+	Percentage     float64 `json:"percentage"`
+	Unit           string  `json:"unit"`
+	DetailURL      string  `json:"detailUrl"`
+	DetailURLSnake string  `json:"detail_url"`
+	Available      bool    `json:"available"`
+
+	totalSet      bool
+	capSet        bool
+	usedSet       bool
+	remainingSet  bool
+	percentageSet bool
+	availableSet  bool
+}
+
+func (r *qoderQuotaProgressRaw) UnmarshalJSON(data []byte) error {
+	type alias qoderQuotaProgressRaw
+	var decoded alias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*r = qoderQuotaProgressRaw(decoded)
+
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil
+	}
+	r.totalSet = qoderJSONHasAnyField(fields, "total")
+	r.capSet = qoderJSONHasAnyField(fields, "cap")
+	r.usedSet = qoderJSONHasAnyField(fields, "used")
+	r.remainingSet = qoderJSONHasAnyField(fields, "remaining")
+	r.percentageSet = qoderJSONHasAnyField(fields, "percentage")
+	r.availableSet = qoderJSONHasAnyField(fields, "available")
+	return nil
+}
+
+func qoderJSONHasAnyField(fields map[string]json.RawMessage, names ...string) bool {
+	for _, name := range names {
+		raw, ok := fields[name]
+		if !ok {
+			continue
+		}
+		if bytes.Equal(bytes.TrimSpace(raw), []byte("null")) {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func (s *AccountUsageService) getQoderUsage(ctx context.Context, account *Account, force bool) (*UsageInfo, error) {
@@ -1033,10 +1091,8 @@ func (s *AccountUsageService) getQoderUsage(ctx context.Context, account *Accoun
 
 	if !force {
 		if cached, ok := s.cache.qoderCache.Load(account.ID); ok {
-			if cache, ok := cached.(*qoderUsageCache); ok {
-				if time.Since(cache.timestamp) < qoderUsageCacheTTL(cache.usageInfo) {
-					return cache.usageInfo, nil
-				}
+			if cache, ok := cached.(*qoderUsageCache); ok && qoderUsageCacheUsable(account, cache, time.Now()) {
+				return cache.usageInfo, nil
 			}
 		}
 	}
@@ -1045,10 +1101,8 @@ func (s *AccountUsageService) getQoderUsage(ctx context.Context, account *Accoun
 	result, flightErr, _ := s.cache.qoderFlight.Do(flightKey, func() (any, error) {
 		if !force {
 			if cached, ok := s.cache.qoderCache.Load(account.ID); ok {
-				if cache, ok := cached.(*qoderUsageCache); ok {
-					if time.Since(cache.timestamp) < qoderUsageCacheTTL(cache.usageInfo) {
-						return cache.usageInfo, nil
-					}
+				if cache, ok := cached.(*qoderUsageCache); ok && qoderUsageCacheUsable(account, cache, time.Now()) {
+					return cache.usageInfo, nil
 				}
 			}
 		}
@@ -1067,7 +1121,7 @@ func (s *AccountUsageService) getQoderUsage(ctx context.Context, account *Accoun
 		usage := buildQoderUsageInfo(resp)
 		enrichUsageWithAccountError(usage, account)
 		s.persistQoderQuotaSnapshot(fetchCtx, account.ID, usage.QoderQuota)
-		s.applyQoderQuotaSchedulingSignal(fetchCtx, account.ID, usage.QoderQuota)
+		s.applyQoderQuotaSchedulingSignal(fetchCtx, account, usage.QoderQuota)
 		s.cache.qoderCache.Store(account.ID, &qoderUsageCache{usageInfo: usage, timestamp: time.Now()})
 		return usage, nil
 	})
@@ -1079,6 +1133,26 @@ func (s *AccountUsageService) getQoderUsage(ctx context.Context, account *Accoun
 		return &UsageInfo{UpdatedAt: &now}, nil
 	}
 	return usage, nil
+}
+
+func qoderUsageCacheUsable(account *Account, cache *qoderUsageCache, now time.Time) bool {
+	if cache == nil || cache.usageInfo == nil {
+		return false
+	}
+	if now.Sub(cache.timestamp) >= qoderUsageCacheTTL(cache.usageInfo) {
+		return false
+	}
+	if cache.usageInfo.Error != "" || cache.usageInfo.ErrorCode != "" {
+		return true
+	}
+	return !qoderAccountRateLimitMatchesUsageQuota(account, cache.usageInfo, now)
+}
+
+func qoderAccountRateLimitMatchesUsageQuota(account *Account, usage *UsageInfo, now time.Time) bool {
+	if account == nil || usage == nil || usage.QoderQuota == nil || account.RateLimitResetAt == nil || !account.RateLimitResetAt.After(now) {
+		return false
+	}
+	return qoderQuotaRateLimitResetMatches(account.RateLimitResetAt, usage.QoderQuota.ExpiresAt)
 }
 
 func qoderUsageCacheTTL(info *UsageInfo) time.Duration {
@@ -1177,7 +1251,7 @@ func qoderQuotaInfoFromResponse(resp *qoderQuotaUsageResponse, updatedAt time.Ti
 	quota := &QoderQuotaInfo{
 		UserType:             strings.TrimSpace(resp.UserType),
 		UsageType:            strings.TrimSpace(resp.UsageType),
-		TotalUsagePercentage: resp.TotalUsagePercentage,
+		TotalUsagePercentage: normalizeQoderQuotaPercentage(resp.TotalUsagePercentage),
 		IsQuotaExceeded:      resp.IsQuotaExceeded,
 		ExpiresAt:            expiresAt,
 		UpgradeURL:           strings.TrimSpace(resp.UpgradeURL),
@@ -1185,29 +1259,140 @@ func qoderQuotaInfoFromResponse(resp *qoderQuotaUsageResponse, updatedAt time.Ti
 		LastUpdatedAt:        &updatedAt,
 		SnapshotFromAccount:  fromSnapshot,
 	}
-	if resp.UserQuota != nil {
-		quota.UserQuota = &QoderQuotaProgress{
-			Total:      resp.UserQuota.Total,
-			Used:       resp.UserQuota.Used,
-			Remaining:  resp.UserQuota.Remaining,
-			Percentage: resp.UserQuota.Percentage,
-			Unit:       strings.TrimSpace(resp.UserQuota.Unit),
-		}
-	}
+	quota.UserQuota = qoderQuotaProgressFromRaw(resp.UserQuota, true)
+	quota.AddOnQuota = qoderQuotaProgressFromRaw(firstNonNilQoderQuotaProgress(resp.AddOnQuota, resp.AddOnQuotaSnake), true)
+	quota.OrgResourcePackage = qoderQuotaProgressFromRaw(firstNonNilQoderQuotaProgress(
+		resp.OrgResourcePackage,
+		resp.OrgResourcePkgSnake,
+		resp.SharedQuota,
+		resp.SharedQuotaSnake,
+	), true)
 	return quota
 }
 
-func (s *AccountUsageService) applyQoderQuotaSchedulingSignal(ctx context.Context, accountID int64, quota *QoderQuotaInfo) {
-	if s == nil || s.accountRepo == nil {
+func firstNonNilQoderQuotaProgress(values ...*qoderQuotaProgressRaw) *qoderQuotaProgressRaw {
+	for _, value := range values {
+		if value != nil {
+			return value
+		}
+	}
+	return nil
+}
+
+func qoderQuotaProgressFromRaw(raw *qoderQuotaProgressRaw, useCapAsTotal bool) *QoderQuotaProgress {
+	if raw == nil {
+		return nil
+	}
+	total := 0.0
+	if qoderQuotaRawFieldSet(raw.totalSet, raw.Total) {
+		total = raw.Total
+	}
+	if useCapAsTotal && total <= 0 {
+		if qoderQuotaRawFieldSet(raw.capSet, raw.Cap) {
+			total = raw.Cap
+		}
+		if total <= 0 && (qoderQuotaRawFieldSet(raw.usedSet, raw.Used) || qoderQuotaRawFieldSet(raw.remainingSet, raw.Remaining)) {
+			total = raw.Used + raw.Remaining
+		}
+	}
+	used := 0.0
+	if qoderQuotaRawFieldSet(raw.usedSet, raw.Used) {
+		used = raw.Used
+	}
+	remaining := 0.0
+	if qoderQuotaRawFieldSet(raw.remainingSet, raw.Remaining) {
+		remaining = raw.Remaining
+	} else if total > used {
+		remaining = total - used
+	}
+	if remaining < 0 {
+		remaining = 0
+	}
+	percentage := 0.0
+	if qoderQuotaRawFieldSet(raw.percentageSet, raw.Percentage) {
+		percentage = raw.Percentage
+	} else if total > 0 && used > 0 {
+		percentage = used / total
+	}
+	percentage = normalizeQoderQuotaPercentage(percentage)
+	available := raw.Available
+	if useCapAsTotal && !raw.availableSet {
+		baseCapacity := 0.0
+		if qoderQuotaRawFieldSet(raw.capSet, raw.Cap) {
+			baseCapacity = raw.Cap
+		} else if qoderQuotaRawFieldSet(raw.totalSet, raw.Total) {
+			baseCapacity = raw.Total
+		}
+		available = baseCapacity > 0
+	}
+	return &QoderQuotaProgress{
+		Total:      total,
+		Used:       used,
+		Remaining:  remaining,
+		Percentage: percentage,
+		Unit:       strings.TrimSpace(raw.Unit),
+		DetailURL:  strings.TrimSpace(firstNonEmptyQoder(raw.DetailURL, raw.DetailURLSnake)),
+		Cap:        raw.Cap,
+		Available:  available,
+	}
+}
+
+func qoderQuotaRawFieldSet(explicit bool, value float64) bool {
+	return explicit || value != 0
+}
+
+func normalizeQoderQuotaPercentage(value float64) float64 {
+	if value < 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+		return 0
+	}
+	if value >= 0 && value <= 1 {
+		value *= 100
+	}
+	return math.Round(value*100) / 100
+}
+
+func (s *AccountUsageService) applyQoderQuotaSchedulingSignal(ctx context.Context, account *Account, quota *QoderQuotaInfo) {
+	if s == nil || s.accountRepo == nil || account == nil {
 		return
 	}
-	resetAt, ok := qoderQuotaRateLimitResetAt(quota, time.Now())
+	now := time.Now()
+	resetAt, ok := qoderQuotaRateLimitResetAt(quota, now)
 	if !ok {
+		if qoderQuotaShouldClearRateLimit(account, quota, now) {
+			if err := s.accountRepo.ClearRateLimit(ctx, account.ID); err != nil {
+				slog.Warn("failed to clear qoder quota rate limit", "account_id", account.ID, "error", err)
+			}
+		}
 		return
 	}
-	if err := s.accountRepo.SetRateLimited(ctx, accountID, resetAt); err != nil {
-		slog.Warn("failed to apply qoder quota rate limit", "account_id", accountID, "error", err)
+	if err := s.accountRepo.SetRateLimited(ctx, account.ID, resetAt); err != nil {
+		slog.Warn("failed to apply qoder quota rate limit", "account_id", account.ID, "error", err)
 	}
+}
+
+func qoderQuotaShouldClearRateLimit(account *Account, quota *QoderQuotaInfo, now time.Time) bool {
+	if account == nil || quota == nil || quota.ExpiresAt == nil || account.RateLimitResetAt == nil || !account.RateLimitResetAt.After(now) {
+		return false
+	}
+	if account.OverloadUntil != nil && account.OverloadUntil.After(now) {
+		return false
+	}
+	if qoderQuotaRateLimitResetMatches(account.RateLimitResetAt, quota.ExpiresAt) {
+		_, limited := qoderQuotaRateLimitResetAt(quota, now)
+		return !limited
+	}
+	return false
+}
+
+func qoderQuotaRateLimitResetMatches(accountResetAt, quotaExpiresAt *time.Time) bool {
+	if accountResetAt == nil || quotaExpiresAt == nil {
+		return false
+	}
+	delta := accountResetAt.Sub(*quotaExpiresAt)
+	if delta < 0 {
+		delta = -delta
+	}
+	return delta <= 2*time.Second
 }
 
 func qoderQuotaRateLimitResetAt(quota *QoderQuotaInfo, now time.Time) (time.Time, bool) {
@@ -1215,6 +1400,15 @@ func qoderQuotaRateLimitResetAt(quota *QoderQuotaInfo, now time.Time) (time.Time
 		return time.Time{}, false
 	}
 	if qoderQuotaIsPersonalZeroQuota(quota) {
+		return time.Time{}, false
+	}
+	if remaining, ok := qoderQuotaTotalRemaining(quota); ok {
+		if remaining > 0 {
+			return time.Time{}, false
+		}
+		if quota.IsQuotaExceeded || qoderQuotaTotalCapacity(quota) > 0 {
+			return *quota.ExpiresAt, true
+		}
 		return time.Time{}, false
 	}
 	if quota.IsQuotaExceeded {
@@ -1232,7 +1426,53 @@ func qoderQuotaIsPersonalZeroQuota(quota *QoderQuotaInfo) bool {
 	}
 	return strings.EqualFold(strings.TrimSpace(quota.UserType), "personal_standard") &&
 		quota.UserQuota.Total <= 0 &&
-		quota.UserQuota.Remaining <= 0
+		quota.UserQuota.Remaining <= 0 &&
+		qoderQuotaTotalCapacity(quota) <= 0 &&
+		qoderQuotaPositiveRemaining(quota) <= 0
+}
+
+func qoderQuotaTotalRemaining(quota *QoderQuotaInfo) (float64, bool) {
+	if quota == nil {
+		return 0, false
+	}
+	total := 0.0
+	known := false
+	for _, progress := range []*QoderQuotaProgress{quota.UserQuota, quota.AddOnQuota, quota.OrgResourcePackage} {
+		if progress == nil {
+			continue
+		}
+		known = true
+		total += progress.Remaining
+	}
+	return total, known
+}
+
+func qoderQuotaPositiveRemaining(quota *QoderQuotaInfo) float64 {
+	remaining, ok := qoderQuotaTotalRemaining(quota)
+	if !ok || remaining < 0 {
+		return 0
+	}
+	return remaining
+}
+
+func qoderQuotaTotalCapacity(quota *QoderQuotaInfo) float64 {
+	if quota == nil {
+		return 0
+	}
+	total := 0.0
+	for _, progress := range []*QoderQuotaProgress{quota.UserQuota, quota.AddOnQuota, quota.OrgResourcePackage} {
+		if progress == nil {
+			continue
+		}
+		if progress.Total > 0 {
+			total += progress.Total
+			continue
+		}
+		if progress.Cap > 0 {
+			total += progress.Cap
+		}
+	}
+	return total
 }
 
 func buildQoderDegradedUsage(err error, account *Account) *UsageInfo {

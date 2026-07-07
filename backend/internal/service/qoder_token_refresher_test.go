@@ -14,7 +14,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestQoderTokenRefresherNeedsRefreshWhenRateLimited(t *testing.T) {
+func TestQoderTokenRefresherNeedsRefreshWhenExpiresAtWithinWindow(t *testing.T) {
+	refresher := NewQoderTokenRefresher(nil)
+	expiresAt := time.Now().Add(time.Minute).Format(time.RFC3339)
+	account := &Account{
+		ID:       1,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"refresh_token": "refresh-1",
+			"expires_at":    expiresAt,
+		},
+	}
+
+	require.True(t, refresher.CanRefresh(account))
+	require.True(t, refresher.NeedsRefresh(account, time.Hour))
+}
+
+func TestQoderTokenRefresherDoesNotRefreshQuotaRateLimitedWithoutExpiresAt(t *testing.T) {
 	refresher := NewQoderTokenRefresher(nil)
 	resetAt := time.Now().Add(time.Minute)
 	account := &Account{
@@ -27,8 +44,7 @@ func TestQoderTokenRefresherNeedsRefreshWhenRateLimited(t *testing.T) {
 		},
 	}
 
-	require.True(t, refresher.CanRefresh(account))
-	require.True(t, refresher.NeedsRefresh(account, time.Hour))
+	require.False(t, refresher.NeedsRefresh(account, time.Hour))
 }
 
 func TestQoderTokenRefresherDoesNotRefreshWithoutRefreshToken(t *testing.T) {
@@ -108,6 +124,36 @@ func TestQoderTokenRefresherRefreshPreservesOldRefreshTokenWhenMissing(t *testin
 	require.NoError(t, err)
 	require.Equal(t, "new-token", credentials["security_oauth_token"])
 	require.Equal(t, "old-refresh", credentials["refresh_token"])
+}
+
+func TestQoderTokenRefresherRefreshDropsStaleExpiresAt(t *testing.T) {
+	refresher := NewQoderTokenRefresher(nil)
+	refresher.refreshSession = func(context.Context, string, string, *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
+		return &qoder.AuthIdentity{
+			UID:                "user-1",
+			AID:                "user-1",
+			SecurityOauthToken: "new-token",
+			RefreshToken:       "new-refresh",
+		}, nil
+	}
+	account := &Account{
+		ID:       1,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"security_oauth_token": "old-token",
+			"refresh_token":        "old-refresh",
+			"machine_id":           "machine-1",
+			"expires_at":           time.Now().Add(-time.Hour).Format(time.RFC3339),
+		},
+	}
+
+	credentials, err := refresher.Refresh(context.Background(), account)
+
+	require.NoError(t, err)
+	require.Equal(t, "new-token", credentials["security_oauth_token"])
+	require.Equal(t, "new-refresh", credentials["refresh_token"])
+	require.NotContains(t, credentials, "expires_at")
 }
 
 func TestQoderTokenRefresherRefreshRejectsEmptySecurityOauthToken(t *testing.T) {

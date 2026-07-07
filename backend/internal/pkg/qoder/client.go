@@ -143,6 +143,13 @@ func (e *APIError) IsAgentLimit() bool {
 	return e != nil && (e.Code == "115" || e.AgentLimitResetTime > 0)
 }
 
+// IsEntitlementDenied reports whether this error is Qoder's model/account
+// entitlement denial. It is not an auth-token failure and should not consume a
+// refresh token.
+func (e *APIError) IsEntitlementDenied() bool {
+	return e != nil && e.Code == "112"
+}
+
 // AgentLimitResetAt returns the parsed Qoder agent limit reset time.
 func (e *APIError) AgentLimitResetAt() (time.Time, bool) {
 	if e == nil || e.AgentLimitResetTime <= 0 {

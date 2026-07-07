@@ -131,6 +131,16 @@ func (r *qoderRateLimitRepoStub) SetRateLimited(_ context.Context, id int64, res
 	return nil
 }
 
+type qoderPolicyContextRepoStub struct {
+	qoderRateLimitRepoStub
+	rateLimitCtxErr error
+}
+
+func (r *qoderPolicyContextRepoStub) SetRateLimited(ctx context.Context, id int64, resetAt time.Time) error {
+	r.rateLimitCtxErr = ctx.Err()
+	return r.qoderRateLimitRepoStub.SetRateLimited(ctx, id, resetAt)
+}
+
 type qoderRefreshAccountRepoStub struct {
 	stubOpenAIAccountRepo
 	updatedCredentials map[string]any
@@ -531,7 +541,7 @@ func TestQoderConversationKeyPrefersExplicitSessionOverClaudeCodeStableSeed(t *t
 	key, source := qoderConversationKey(c, &Account{ID: 7}, "anthropic_messages", request)
 
 	require.Equal(t, "header", source)
-	require.Equal(t, "header:"+isolateOpenAISessionID(0, "header-session"), key)
+	require.Equal(t, qoderAccountScopedConversationKey(&Account{ID: 7}, "header:"+isolateOpenAISessionID(0, "header-session")), key)
 	require.NotContains(t, key, "stable_seed")
 }
 
@@ -550,7 +560,7 @@ func TestQoderConversationKeyPrefersMetadataOverClaudeCodeStableSeed(t *testing.
 	key, source := qoderConversationKey(c, &Account{ID: 7}, "anthropic_messages", request)
 
 	require.Equal(t, "metadata_user_id", source)
-	require.Equal(t, "metadata_user_id:"+isolateOpenAISessionID(0, "session-123"), key)
+	require.Equal(t, qoderAccountScopedConversationKey(&Account{ID: 7}, "metadata_user_id:"+isolateOpenAISessionID(0, "session-123")), key)
 	require.NotContains(t, key, "stable_seed")
 }
 
@@ -800,6 +810,193 @@ func TestQoderGatewayResponsesMapsUpstreamToolNameToDeclaredFunctionCall(t *test
 	require.Equal(t, "bash", tools[0].(map[string]any)["function"].(map[string]any)["name"])
 }
 
+func TestQoderGatewayResponsesPreviousResponseIDReusesQoderSession(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+
+	_, firstResponse := qoderForwardResponsesResultAndBodyForTest(t, svc, account, []byte(`{
+		"model":"deepseek-v4-pro",
+		"instructions":"be terse",
+		"input":"hello",
+		"stream":false
+	}`))
+	firstID := gjson.Get(firstResponse, "id").String()
+	require.NotEmpty(t, firstID)
+	firstPayload := qoderPayloadAtForTest(t, client, 0)
+
+	_, secondResponse := qoderForwardResponsesResultAndBodyForTest(t, svc, account, []byte(`{
+		"model":"deepseek-v4-pro",
+		"previous_response_id":`+strconv.Quote(firstID)+`,
+		"input":"next",
+		"stream":false
+	}`))
+	secondID := gjson.Get(secondResponse, "id").String()
+	require.NotEmpty(t, secondID)
+	require.NotEqual(t, firstID, secondID)
+	secondPayload := qoderPayloadAtForTest(t, client, 1)
+	require.Equal(t, firstPayload["session_id"], secondPayload["session_id"])
+	require.Equal(t, "next", qoderPayloadPromptForTest(t, secondPayload))
+
+	qoderForwardResponsesResultAndBodyForTest(t, svc, account, []byte(`{
+		"model":"deepseek-v4-pro",
+		"previous_response_id":`+strconv.Quote(secondID)+`,
+		"input":"third",
+		"stream":false
+	}`))
+	thirdPayload := qoderPayloadAtForTest(t, client, 2)
+	require.Equal(t, firstPayload["session_id"], thirdPayload["session_id"])
+	require.Equal(t, "third", qoderPayloadPromptForTest(t, thirdPayload))
+}
+
+func TestQoderGatewayResponsesPreviousResponseIDIsScopedByAccount(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	account2 := *account
+	account2.ID = account.ID + 1
+	svc.tokenProvider.sessions[account2.ID] = qoderSessionCacheEntry{
+		credentialsHash: qoderCredentialsHash(account2.Credentials),
+		session:         &qoder.SessionContext{Identity: &qoder.AuthIdentity{SecurityOauthToken: "token-2"}},
+	}
+
+	_, firstResponse := qoderForwardResponsesResultAndBodyForTest(t, svc, account, []byte(`{
+		"model":"deepseek-v4-pro",
+		"input":"hello",
+		"stream":false
+	}`))
+	firstID := gjson.Get(firstResponse, "id").String()
+	require.NotEmpty(t, firstID)
+	firstPayload := qoderPayloadAtForTest(t, client, 0)
+
+	qoderForwardResponsesResultAndBodyForTest(t, svc, &account2, []byte(`{
+		"model":"deepseek-v4-pro",
+		"previous_response_id":`+strconv.Quote(firstID)+`,
+		"input":"next",
+		"stream":false
+	}`))
+	secondPayload := qoderPayloadAtForTest(t, client, 1)
+	require.NotEqual(t, firstPayload["session_id"], secondPayload["session_id"], "Qoder upstream sessions are account-scoped; a response id from one account must not alias another account's session")
+}
+
+func TestQoderGatewayResponsesPreviousResponseIDWithExplicitSessionAppendsToExistingSession(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+
+	_, firstResponse := qoderForwardResponsesResultAndBodyForTest(t, svc, account, []byte(`{
+		"model":"deepseek-v4-pro",
+		"session_id":"responses-explicit-session",
+		"input":"hello",
+		"stream":false
+	}`))
+	firstID := gjson.Get(firstResponse, "id").String()
+	require.NotEmpty(t, firstID)
+	firstPayload := qoderPayloadAtForTest(t, client, 0)
+
+	qoderForwardResponsesResultAndBodyForTest(t, svc, account, []byte(`{
+		"model":"deepseek-v4-pro",
+		"session_id":"responses-explicit-session",
+		"previous_response_id":`+strconv.Quote(firstID)+`,
+		"input":"next",
+		"stream":false
+	}`))
+	secondPayload := qoderPayloadAtForTest(t, client, 1)
+	require.Equal(t, firstPayload["session_id"], secondPayload["session_id"])
+	require.Equal(t, "next", qoderPayloadPromptForTest(t, secondPayload))
+}
+
+func TestQoderGatewayResponsesGeneratedResponseIDDoesNotMaskPromptCacheKey(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+
+	_, firstResponse := qoderForwardResponsesResultAndBodyForTest(t, svc, account, []byte(`{
+		"model":"deepseek-v4-pro",
+		"prompt_cache_key":"responses-cache-session",
+		"input":[{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]}],
+		"stream":false
+	}`))
+	firstID := gjson.Get(firstResponse, "id").String()
+	require.NotEmpty(t, firstID)
+	firstPayload := qoderPayloadAtForTest(t, client, 0)
+
+	qoderForwardResponsesResultAndBodyForTest(t, svc, account, []byte(`{
+		"model":"deepseek-v4-pro",
+		"prompt_cache_key":"responses-cache-session",
+		"input":[
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]},
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"next"}]}
+		],
+		"stream":false
+	}`))
+	secondPayload := qoderPayloadAtForTest(t, client, 1)
+	require.Equal(t, firstPayload["session_id"], secondPayload["session_id"])
+
+	qoderForwardResponsesResultAndBodyForTest(t, svc, account, []byte(`{
+		"model":"deepseek-v4-pro",
+		"previous_response_id":`+strconv.Quote(firstID)+`,
+		"input":"branch from first id",
+		"stream":false
+	}`))
+	thirdPayload := qoderPayloadAtForTest(t, client, 2)
+	require.Equal(t, firstPayload["session_id"], thirdPayload["session_id"])
+	require.Equal(t, "branch from first id", qoderPayloadPromptForTest(t, thirdPayload))
+}
+
+func TestQoderGatewayResponsesStreamEmptyOutputAliasesResponseIDToStableSession(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	client.body = "data: {\"body\":\"[DONE]\"}\n\n"
+
+	_, firstStream := qoderForwardResponsesResultAndBodyForTest(t, svc, account, []byte(`{
+		"model":"deepseek-v4-pro",
+		"prompt_cache_key":"responses-empty-stream-session",
+		"input":"hello",
+		"stream":true
+	}`))
+	firstID := qoderResponsesCompletedEventForTest(t, firstStream).Get("response.id").String()
+	require.NotEmpty(t, firstID)
+	firstPayload := qoderPayloadAtForTest(t, client, 0)
+
+	client.body = qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+		map[string]any{"delta": map[string]any{"content": "OK"}},
+	}}) + "data: {\"body\":\"[DONE]\"}\n\n"
+	qoderForwardResponsesResultAndBodyForTest(t, svc, account, []byte(`{
+		"model":"deepseek-v4-pro",
+		"previous_response_id":`+strconv.Quote(firstID)+`,
+		"input":"next",
+		"stream":false
+	}`))
+	secondPayload := qoderPayloadAtForTest(t, client, 1)
+	require.Equal(t, firstPayload["session_id"], secondPayload["session_id"])
+	require.Equal(t, "next", qoderPayloadPromptForTest(t, secondPayload))
+}
+
+func TestQoderGatewayResponsesStreamPreviousResponseIDReusesQoderSession(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+
+	_, firstStream := qoderForwardResponsesResultAndBodyForTest(t, svc, account, []byte(`{
+		"model":"deepseek-v4-pro",
+		"instructions":"be terse",
+		"input":"hello",
+		"stream":true
+	}`))
+	firstCreated := qoderResponsesCreatedEventForTest(t, firstStream)
+	firstCompleted := qoderResponsesCompletedEventForTest(t, firstStream)
+	firstID := firstCreated.Get("response.id").String()
+	require.NotEmpty(t, firstID)
+	require.Equal(t, firstID, firstCompleted.Get("response.id").String())
+	firstPayload := qoderPayloadAtForTest(t, client, 0)
+
+	_, secondStream := qoderForwardResponsesResultAndBodyForTest(t, svc, account, []byte(`{
+		"model":"deepseek-v4-pro",
+		"previous_response_id":`+strconv.Quote(firstID)+`,
+		"input":"next",
+		"stream":true
+	}`))
+	secondCreated := qoderResponsesCreatedEventForTest(t, secondStream)
+	secondCompleted := qoderResponsesCompletedEventForTest(t, secondStream)
+	secondID := secondCreated.Get("response.id").String()
+	require.NotEmpty(t, secondID)
+	require.NotEqual(t, firstID, secondID)
+	require.Equal(t, secondID, secondCompleted.Get("response.id").String())
+	secondPayload := qoderPayloadAtForTest(t, client, 1)
+	require.Equal(t, firstPayload["session_id"], secondPayload["session_id"])
+	require.Equal(t, "next", qoderPayloadPromptForTest(t, secondPayload))
+}
+
 func TestQoderResponsesPayloadPreservesControlRoleInputAsSystemPrompt(t *testing.T) {
 	request, err := parseQoderResponsesPayload([]byte(`{
 		"model":"deepseek-v4-pro",
@@ -818,6 +1015,29 @@ func TestQoderResponsesPayloadPreservesControlRoleInputAsSystemPrompt(t *testing
 	require.Len(t, request.messages, 1)
 	require.Equal(t, "user", request.messages[0].Role)
 	require.Equal(t, "hello", request.messages[0].Text)
+}
+
+func TestQoderResponsesPayloadSkipsReasoningAndUnknownOutputItems(t *testing.T) {
+	request, err := parseQoderResponsesPayload([]byte(`{
+		"model":"deepseek-v4-pro",
+		"input":[
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"latest sha?"}]},
+			{"type":"reasoning","summary":[{"type":"summary_text","text":"need to run curl"}]},
+			{"type":"function_call","call_id":"call_a","name":"exec_command","arguments":"{\"cmd\":\"curl x\"}"},
+			{"type":"web_search_call","id":"ws_1","status":"completed","action":{"type":"search","query":"x"}},
+			{"type":"function_call_output","call_id":"call_a","output":"deadbeef"}
+		]
+	}`))
+
+	require.NoError(t, err)
+	require.Len(t, request.messages, 3)
+	require.Equal(t, "user", request.messages[0].Role)
+	require.Equal(t, "latest sha?", request.messages[0].Text)
+	require.Equal(t, "assistant", request.messages[1].Role)
+	require.Len(t, qoderAnySlice(request.messages[1].Raw["tool_calls"]), 1)
+	require.Equal(t, "tool", request.messages[2].Role)
+	require.Equal(t, "call_a", request.messages[2].ToolCallID)
+	require.Equal(t, "deadbeef", request.messages[2].Text)
 }
 
 func TestQoderGatewayAssemblesResponsesKeepsNoIndexNamedParallelFunctionCalls(t *testing.T) {
@@ -984,6 +1204,76 @@ func TestQoderGatewayOpenAIStreamUsageChunkShapeWhenIncluded(t *testing.T) {
 	require.Contains(t, body, `"choices":[]`)
 	require.Contains(t, body, `"prompt_tokens":12`)
 	require.Contains(t, body, `"completion_tokens":3`)
+}
+
+func TestQoderGatewayStreamClientDisconnectStillCollectsUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	respBody := qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{
+		map[string]any{"delta": map[string]any{"content": "ok"}},
+	}}) +
+		qoderWrappedSSELineForTest(t, map[string]any{
+			"usage": map[string]any{
+				"prompt_tokens":     12,
+				"completion_tokens": 3,
+				"total_tokens":      15,
+			},
+		}) +
+		"data: {\"body\":\"[DONE]\"}\n\n"
+
+	tests := []struct {
+		name  string
+		write func(context.Context, *gin.Context, *http.Response) (*qoderStreamResult, error)
+	}{
+		{
+			name: "openai chat completions",
+			write: func(ctx context.Context, c *gin.Context, resp *http.Response) (*qoderStreamResult, error) {
+				return WriteQoderOpenAIStreamResponse(ctx, c, "auto", resp)
+			},
+		},
+		{
+			name: "anthropic messages",
+			write: func(ctx context.Context, c *gin.Context, resp *http.Response) (*qoderStreamResult, error) {
+				return WriteQoderAnthropicStreamResponse(ctx, c, "auto", resp)
+			},
+		},
+		{
+			name: "responses",
+			write: func(ctx context.Context, c *gin.Context, resp *http.Response) (*qoderStreamResult, error) {
+				return WriteQoderResponsesStreamResponse(ctx, c, "auto", resp)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(rec)
+			// 首帧成功后模拟客户端断开；后续 usage 事件仍应被读完用于计费。
+			c.Writer = &failingGinWriter{ResponseWriter: c.Writer, failAfter: 1}
+			resp := &http.Response{Body: io.NopCloser(strings.NewReader(respBody))}
+
+			result, err := tt.write(context.Background(), c, resp)
+
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.True(t, result.HasOutput)
+			require.Equal(t, 12, result.Usage.InputTokens)
+			require.Equal(t, 3, result.Usage.OutputTokens)
+		})
+	}
+}
+
+func TestQoderForwardContextDetachesStreamingFromClientCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	streamCtx, streamCancel := qoderForwardContext(ctx, true)
+	defer streamCancel()
+	require.NoError(t, streamCtx.Err())
+
+	nonStreamCtx, nonStreamCancel := qoderForwardContext(ctx, false)
+	defer nonStreamCancel()
+	require.ErrorIs(t, nonStreamCtx.Err(), context.Canceled)
 }
 
 func TestQoderGatewayStreamWritersDoNotWriteBeforeUpstreamError(t *testing.T) {
@@ -3461,6 +3751,18 @@ func TestQoderGatewayAgentLimitSetsRateLimitedUntilReset(t *testing.T) {
 	require.Equal(t, int64(1783841289162), repo.resetAt.UnixMilli())
 }
 
+func TestQoderGatewayUpstreamErrorPolicyIgnoresCanceledRequestContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	repo := &qoderPolicyContextRepoStub{}
+	svc := &QoderGatewayService{accountRepo: repo}
+
+	svc.applyUpstreamErrorPolicy(ctx, &Account{ID: 79}, &qoder.APIError{StatusCode: http.StatusTooManyRequests})
+
+	require.Equal(t, int64(79), repo.rateLimitedID)
+	require.NoError(t, repo.rateLimitCtxErr)
+}
+
 func TestQoderGatewayNonStreamingSSEAgentLimitSetsRateLimited(t *testing.T) {
 	account := &Account{ID: 78}
 	repo := &qoderRateLimitRepoStub{}
@@ -3602,6 +3904,54 @@ func TestQoderGatewayRefreshAccountSessionRequiresInjectedRefreshAPI(t *testing.
 
 	require.Nil(t, refreshed)
 	require.EqualError(t, err, "qoder refresh API is not configured")
+}
+
+func TestQoderGatewayRefreshAccountSessionIgnoresNonAuthCredentialDrift(t *testing.T) {
+	now := time.Now()
+	failedAccount := Account{
+		ID:       91,
+		Name:     "qoder",
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+		Credentials: map[string]any{
+			"security_oauth_token": "old-token",
+			"refresh_token":        "old-refresh",
+			"machine_id":           "machine-1",
+			"uid":                  "user-1",
+			"expires_at":           now.Add(1 * time.Hour).Format(time.RFC3339),
+		},
+	}
+	freshAccount := failedAccount
+	freshAccount.Credentials = cloneCredentials(failedAccount.Credentials)
+	freshAccount.Credentials["model_mapping"] = map[string]any{"qwen3.7-plus": "qmodel"}
+	repo := &qoderRefreshAccountRepoStub{
+		stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{freshAccount}},
+	}
+	refresher := NewQoderTokenRefresher(nil)
+	refresher.refreshSession = func(_ context.Context, refreshToken, _ string, _ *qoder.MachineIdentity) (*qoder.AuthIdentity, error) {
+		require.Equal(t, "old-refresh", refreshToken)
+		return &qoder.AuthIdentity{
+			UID:                "user-1",
+			AID:                "user-1",
+			SecurityOauthToken: "new-token",
+			RefreshToken:       "new-refresh",
+		}, nil
+	}
+	svc := &QoderGatewayService{
+		tokenProvider: NewQoderTokenProvider(),
+		accountRepo:   repo,
+		newRefresher:  func() *QoderTokenRefresher { return refresher },
+		refreshAPI:    NewOAuthRefreshAPI(repo, nil),
+	}
+
+	refreshed, err := svc.RefreshAccountSession(context.Background(), &failedAccount)
+
+	require.NoError(t, err)
+	require.NotNil(t, refreshed)
+	require.Equal(t, 1, repo.updateCalls)
+	require.Equal(t, "new-token", repo.updatedCredentials["security_oauth_token"])
+	require.Equal(t, "new-refresh", repo.updatedCredentials["refresh_token"])
+	require.Equal(t, map[string]any{"qwen3.7-plus": "qmodel"}, repo.updatedCredentials["model_mapping"])
 }
 
 func TestQoderGatewayRefreshAccountSessionRecoversRotatedRefreshTokenRace(t *testing.T) {
@@ -3768,10 +4118,24 @@ func TestQoderGatewayRefreshExecutorNeedsRefreshUsesFailedCredentialSnapshot(t *
 
 	executor := qoderGatewayRefreshExecutor{
 		QoderTokenRefresher: NewQoderTokenRefresher(nil),
-		failedCredentials:   qoderCredentialsHash(failedAccount.Credentials),
+		failedCredentials:   qoderRefreshCredentialsHash(failedAccount.Credentials),
 	}
 
 	require.True(t, executor.NeedsRefresh(&failedAccount, 15*time.Minute))
+
+	failedWithoutExpiry := failedAccount
+	failedWithoutExpiry.Credentials = cloneCredentials(failedAccount.Credentials)
+	delete(failedWithoutExpiry.Credentials, "expires_at")
+	executor.failedCredentials = qoderRefreshCredentialsHash(failedWithoutExpiry.Credentials)
+	require.True(t, executor.NeedsRefresh(&failedWithoutExpiry, 15*time.Minute))
+
+	changedMapping := failedAccount
+	changedMapping.Credentials = cloneCredentials(failedAccount.Credentials)
+	changedMapping.Credentials["model_mapping"] = map[string]any{"qwen3.7-plus": "qmodel"}
+	executor.failedCredentials = qoderRefreshCredentialsHash(failedAccount.Credentials)
+	require.True(t, executor.NeedsRefresh(&changedMapping, 15*time.Minute))
+
+	executor.failedCredentials = qoderRefreshCredentialsHash(failedAccount.Credentials)
 	require.False(t, executor.NeedsRefresh(&rotatedAccount, 15*time.Minute))
 
 	missingRefreshToken := failedAccount
@@ -4472,6 +4836,17 @@ func qoderResponsesCompletedEventForTest(t *testing.T, body string) gjson.Result
 		}
 	}
 	t.Fatalf("response.completed event not found in %s", body)
+	return gjson.Result{}
+}
+
+func qoderResponsesCreatedEventForTest(t *testing.T, body string) gjson.Result {
+	t.Helper()
+	for _, event := range qoderResponsesStreamEventsForTest(t, body) {
+		if event.Get("type").String() == "response.created" {
+			return event
+		}
+	}
+	t.Fatalf("response.created event not found in %s", body)
 	return gjson.Result{}
 }
 

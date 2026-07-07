@@ -343,6 +343,8 @@ func intervalToModelPricingWithBase(iv *PricingInterval, supportsCacheBreakdown 
 		pricing.ImageOutputPriceExplicit = true
 		if chPricing.ImageOutputPrice != nil {
 			pricing.ImageOutputPricePerToken = *chPricing.ImageOutputPrice
+		} else {
+			pricing.ImageOutputPricePerToken = 0
 		}
 	}
 	return pricing

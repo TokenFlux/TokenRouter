@@ -11,17 +11,19 @@ type TokenCacheInvalidator interface {
 }
 
 type CompositeTokenCacheInvalidator struct {
-	cache GeminiTokenCache // 统一使用一个缓存接口，通过缓存键前缀区分平台
+	cache              GeminiTokenCache // 统一使用一个缓存接口，通过缓存键前缀区分平台
+	qoderTokenProvider *QoderTokenProvider
 }
 
-func NewCompositeTokenCacheInvalidator(cache GeminiTokenCache) *CompositeTokenCacheInvalidator {
+func NewCompositeTokenCacheInvalidator(cache GeminiTokenCache, qoderTokenProvider *QoderTokenProvider) *CompositeTokenCacheInvalidator {
 	return &CompositeTokenCacheInvalidator{
-		cache: cache,
+		cache:              cache,
+		qoderTokenProvider: qoderTokenProvider,
 	}
 }
 
 func (c *CompositeTokenCacheInvalidator) InvalidateToken(ctx context.Context, account *Account) error {
-	if c == nil || c.cache == nil || account == nil {
+	if c == nil || account == nil {
 		return nil
 	}
 	if account.Type != AccountTypeOAuth && !account.IsQoderCosy() {
@@ -52,8 +54,15 @@ func (c *CompositeTokenCacheInvalidator) InvalidateToken(ctx context.Context, ac
 	case PlatformQoder:
 		if account.IsQoderCosy() {
 			keysToDelete = append(keysToDelete, QoderTokenCacheKey(account))
+			if c.qoderTokenProvider != nil {
+				c.qoderTokenProvider.Invalidate(account.ID)
+			}
 		}
 	default:
+		return nil
+	}
+
+	if c.cache == nil {
 		return nil
 	}
 

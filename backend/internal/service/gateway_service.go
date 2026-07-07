@@ -10009,7 +10009,7 @@ func (s *GatewayService) resolveChannelPricing(ctx context.Context, billingModel
 }
 
 func (s *GatewayService) resolveChannelPricingWithBaseHint(ctx context.Context, billingModel string, baseModelHint string, apiKey *APIKey) *ResolvedPricing {
-	if s.resolver == nil || apiKey.Group == nil {
+	if s.resolver == nil || apiKey == nil || apiKey.Group == nil {
 		return nil
 	}
 	gid := apiKey.Group.ID
@@ -10428,6 +10428,9 @@ func (s *GatewayService) checkChannelPricingRestriction(ctx context.Context, gro
 	if billingModel == "" {
 		return false
 	}
+	if s.qoderRestrictionHasEffectivePricing(ctx, *groupID, requestedModel, mapping.MappedModel, billingModel) {
+		return false
+	}
 	return s.channelService.IsModelRestricted(ctx, *groupID, billingModel)
 }
 
@@ -10460,7 +10463,31 @@ func (s *GatewayService) isUpstreamModelRestrictedByChannel(ctx context.Context,
 	if upstreamModel == "" {
 		return false
 	}
+	if s.qoderRestrictionHasEffectivePricing(ctx, groupID, requestedModel, routingModel, upstreamModel) {
+		return false
+	}
 	return s.channelService.IsModelRestricted(ctx, groupID, upstreamModel)
+}
+
+func (s *GatewayService) qoderRestrictionHasEffectivePricing(ctx context.Context, groupID int64, models ...string) bool {
+	if s == nil || s.channelService == nil || s.channelService.GetGroupPlatform(ctx, groupID) != PlatformQoder {
+		return false
+	}
+	seen := map[string]struct{}{}
+	for _, model := range models {
+		model = strings.TrimSpace(model)
+		if model == "" {
+			continue
+		}
+		if _, ok := seen[model]; ok {
+			continue
+		}
+		seen[model] = struct{}{}
+		if pricing := s.channelService.GetEffectiveChannelModelPricing(ctx, groupID, model); pricing != nil && pricing.HasEffectivePricing() {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveAccountUpstreamModel 确定账号将请求模型映射为什么上游模型。

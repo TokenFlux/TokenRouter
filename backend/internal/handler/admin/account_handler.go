@@ -1186,7 +1186,7 @@ func (h *AccountHandler) ClearError(c *gin.Context) {
 
 	// 清除错误后，同时清除 token 缓存，确保下次请求会获取最新的 token（触发刷新或从 DB 读取）
 	// 这解决了管理员重置账号状态后，旧的失效 token 仍在缓存中导致立即再次 401 的问题
-	if h.tokenCacheInvalidator != nil && account.IsOAuth() {
+	if h.tokenCacheInvalidator != nil {
 		if invalidateErr := h.tokenCacheInvalidator.InvalidateToken(c.Request.Context(), account); invalidateErr != nil {
 			log.Printf("[WARN] Failed to invalidate token cache for account %d: %v", accountID, invalidateErr)
 		}
@@ -1252,7 +1252,7 @@ func (h *AccountHandler) BatchClearError(c *gin.Context) {
 			}
 
 			// 清除错误后，同时清除 token 缓存
-			if h.tokenCacheInvalidator != nil && account.IsOAuth() {
+			if h.tokenCacheInvalidator != nil {
 				if invalidateErr := h.tokenCacheInvalidator.InvalidateToken(gctx, account); invalidateErr != nil {
 					log.Printf("[WARN] Failed to invalidate token cache for account %d: %v", accountID, invalidateErr)
 				}
@@ -1418,6 +1418,7 @@ func (h *AccountHandler) BatchCreate(c *gin.Context) {
 				Concurrency:           item.Concurrency,
 				Priority:              item.Priority,
 				RateMultiplier:        item.RateMultiplier,
+				LoadFactor:            item.LoadFactor,
 				GroupIDs:              item.GroupIDs,
 				ExpiresAt:             item.ExpiresAt,
 				AutoPauseOnExpired:    item.AutoPauseOnExpired,

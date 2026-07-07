@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	pkghttputil "github.com/TokenFlux/TokenRouter/internal/pkg/httputil"
@@ -151,6 +152,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 			return
 		}
 	}
+	sessionHash := h.qoderSessionHash(c, endpoint, body, apiKey.ID)
 
 	maxWait := service.CalculateMaxWait(subject.Concurrency)
 	waitCounted := false
@@ -180,16 +182,23 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 			h.concurrencyHelper.DecrementWaitCount(c.Request.Context(), subject.UserID)
 			waitCounted = false
 		}
-		userRelease = wrapReleaseOnDone(c.Request.Context(), userRelease)
+		userRelease = wrapQoderReleaseOnDone(c.Request.Context(), userRelease, reqStream)
 		if userRelease != nil {
 			defer userRelease()
 		}
 	}
 
 	fs := NewFailoverState(h.maxAccountSwitches, false)
+	refreshInProgressSelectionExhausted := false
+	var lastQoderFailoverErr error
 	for {
-		selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), apiKey.GroupID, "", reqModel, fs.FailedAccountIDs, "", subject.UserID)
+		selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), apiKey.GroupID, sessionHash, reqModel, fs.FailedAccountIDs, "", subject.UserID)
 		if err != nil {
+			if refreshInProgressSelectionExhausted {
+				c.Header("Retry-After", "1")
+				h.streamingAwareError(c, http.StatusServiceUnavailable, "upstream_error", "Qoder account refresh is still in progress, please retry shortly", streamStarted, endpoint)
+				return
+			}
 			if len(fs.FailedAccountIDs) == 0 {
 				markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 				if handleGroupModelUnsupportedError(c, err, streamStarted, func(status int, errType string, message string, streamStarted bool) {
@@ -207,10 +216,14 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 			case FailoverCanceled:
 				return
 			default:
+				if h.writeQoderFailoverExhaustedError(c, endpoint, streamStarted, lastQoderFailoverErr) {
+					return
+				}
 				h.errorResponse(c, http.StatusBadGateway, "upstream_error", "All available accounts exhausted", endpoint)
 				return
 			}
 		}
+		refreshInProgressSelectionExhausted = false
 
 		account := selection.Account
 		setOpsSelectedAccount(c, account.ID, account.Platform)
@@ -221,14 +234,14 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 				h.errorResponse(c, http.StatusServiceUnavailable, "api_error", "No available accounts", endpoint)
 				return
 			}
-			accountRelease, err = h.concurrencyHelper.AcquireAccountSlotWithWaitTimeout(c, account.ID, selection.WaitPlan.MaxConcurrency, selection.WaitPlan.Timeout, reqStream, &streamStarted)
+			accountRelease, err = h.acquireQoderAccountSlotWithWait(c, account, selection.WaitPlan, reqStream, &streamStarted, reqLog)
 			if err != nil {
 				reqLog.Warn("qoder.account_slot_acquire_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 				h.handleConcurrencyError(c, err, "account", streamStarted, endpoint)
 				return
 			}
 		}
-		accountRelease = wrapReleaseOnDone(c.Request.Context(), accountRelease)
+		accountRelease = wrapQoderReleaseOnDone(c.Request.Context(), accountRelease, reqStream)
 
 		writerSizeBeforeForward := c.Writer.Size()
 		var result *service.ForwardResult
@@ -262,7 +275,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 						h.handleConcurrencyError(c, err, "account", streamStarted, endpoint)
 						return
 					}
-					accountRelease = wrapReleaseOnDone(c.Request.Context(), accountRelease)
+					accountRelease = wrapQoderReleaseOnDone(c.Request.Context(), accountRelease, reqStream)
 					switch endpoint {
 					case qoderEndpointChatCompletions:
 						result, err = h.qoderGatewayService.ForwardChatCompletions(forwardCtx, c, account, forwardBody, reqModel)
@@ -280,6 +293,10 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 					}
 				} else if errors.Is(refreshErr, service.ErrQoderRefreshInProgress) {
 					reqLog.Info("qoder.account_refresh_after_auth_error_in_progress", zap.Int64("account_id", account.ID))
+					if c.Writer.Size() == writerSizeBeforeForward && qoderMarkRefreshInProgressAccountFailed(fs, account.ID, h.maxAccountSwitches) {
+						refreshInProgressSelectionExhausted = true
+						continue
+					}
 					c.Header("Retry-After", "1")
 					h.streamingAwareError(c, http.StatusServiceUnavailable, "upstream_error", "Qoder account refresh is still in progress, please retry shortly", false, endpoint)
 					return
@@ -287,6 +304,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 					reqLog.Warn("qoder.account_refresh_after_auth_error_failed", zap.Int64("account_id", account.ID), zap.Error(refreshErr))
 				}
 				if err == nil {
+					h.bindQoderStickySessions(c.Request.Context(), apiKey.GroupID, sessionHash, account.ID, endpoint, result, reqLog)
 					userAgent := c.GetHeader("User-Agent")
 					clientIP := ip.GetClientIP(c)
 					requestPayloadHash := service.HashUsageRequestPayload(body)
@@ -319,6 +337,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 			if c.Writer.Size() == writerSizeBeforeForward && qoderShouldFailover(err) {
 				fs.FailedAccountIDs[account.ID] = struct{}{}
 				if len(fs.FailedAccountIDs) < h.maxAccountSwitches {
+					lastQoderFailoverErr = err
 					continue
 				}
 			}
@@ -333,6 +352,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 			}
 			fs.FailedAccountIDs[account.ID] = struct{}{}
 			if len(fs.FailedAccountIDs) < h.maxAccountSwitches {
+				lastQoderFailoverErr = err
 				continue
 			}
 			reqLog.Error("qoder.forward_failed", zap.Int64("account_id", account.ID), zap.Error(err))
@@ -340,6 +360,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 			return
 		}
 
+		h.bindQoderStickySessions(c.Request.Context(), apiKey.GroupID, sessionHash, account.ID, endpoint, result, reqLog)
 		userAgent := c.GetHeader("User-Agent")
 		clientIP := ip.GetClientIP(c)
 		requestPayloadHash := service.HashUsageRequestPayload(body)
@@ -377,6 +398,106 @@ func qoderRequestCanceled(ctx context.Context, err error) bool {
 	return ctx != nil && errors.Is(ctx.Err(), context.Canceled)
 }
 
+func wrapQoderReleaseOnDone(ctx context.Context, releaseFunc func(), isStream bool) func() {
+	if releaseFunc == nil {
+		return nil
+	}
+	if !isStream {
+		if ctx == nil {
+			ctx = context.Background()
+		}
+		return wrapReleaseOnDone(ctx, releaseFunc)
+	}
+
+	var once sync.Once
+	return func() {
+		once.Do(releaseFunc)
+	}
+}
+
+func (h *QoderGatewayHandler) qoderSessionHash(c *gin.Context, endpoint qoderEndpoint, body []byte, apiKeyID int64) string {
+	if seed := qoderExplicitStickySessionSeed(c, body); seed != "" {
+		return qoderStickySessionHashFromSeed(seed)
+	}
+	if h == nil || h.gatewayService == nil {
+		return ""
+	}
+	protocol := service.PlatformAnthropic
+	if endpoint == qoderEndpointResponses {
+		protocol = "responses"
+	}
+	parsed, err := service.ParseGatewayRequest(service.NewRequestBodyRef(body), protocol)
+	if err != nil {
+		return ""
+	}
+	if c != nil {
+		parsed.SessionContext = &service.SessionContext{
+			ClientIP:  ip.GetClientIP(c),
+			UserAgent: c.GetHeader("User-Agent"),
+			APIKeyID:  apiKeyID,
+		}
+	}
+	if generated := h.gatewayService.GenerateSessionHash(parsed); generated != "" {
+		return qoderStickySessionHashFromSeed("fallback:" + generated)
+	}
+	return ""
+}
+
+func qoderExplicitStickySessionSeed(c *gin.Context, body []byte) string {
+	if c != nil && c.Request != nil {
+		for _, header := range []string{"session_id", "conversation_id", "x-session-id", "x-conversation-id", "X-Claude-Code-Session-Id"} {
+			if value := strings.TrimSpace(c.Request.Header.Get(header)); value != "" {
+				return value
+			}
+		}
+	}
+	for _, path := range []string{"session_id", "conversation_id", "previous_response_id", "prompt_cache_key"} {
+		if value := strings.TrimSpace(gjson.GetBytes(body, path).String()); value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func qoderStickySessionHashFromSeed(seed string) string {
+	seed = strings.TrimSpace(seed)
+	if seed == "" {
+		return ""
+	}
+	return service.DeriveSessionHashFromSeed("qoder:" + seed)
+}
+
+func (h *QoderGatewayHandler) bindQoderStickySessions(ctx context.Context, groupID *int64, sessionHash string, accountID int64, endpoint qoderEndpoint, result *service.ForwardResult, reqLog *zap.Logger) {
+	if h == nil || h.gatewayService == nil || accountID <= 0 {
+		return
+	}
+	bindCtx, cancel := qoderDetachedTimeoutContext(ctx, 5*time.Second)
+	defer cancel()
+	bind := func(hash string) {
+		if hash == "" {
+			return
+		}
+		if err := h.gatewayService.BindStickySession(bindCtx, groupID, hash, accountID); err != nil && reqLog != nil {
+			reqLog.Warn("qoder.bind_sticky_session_failed", zap.Int64("account_id", accountID), zap.Error(err))
+		}
+	}
+	bind(sessionHash)
+	if endpoint == qoderEndpointResponses && result != nil {
+		bind(qoderStickySessionHashFromSeed(result.RequestID))
+	}
+}
+
+func qoderDetachedTimeoutContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	base := context.Background()
+	if ctx != nil {
+		base = context.WithoutCancel(ctx)
+	}
+	return context.WithTimeout(base, timeout)
+}
+
 func prepareQoderRequestContext(c *gin.Context, body []byte, endpoint qoderEndpoint) {
 	if endpoint == qoderEndpointMessages {
 		SetClaudeCodeClientContext(c, body, nil)
@@ -394,6 +515,9 @@ func (h *QoderGatewayHandler) shouldRefreshQoderAccount(err error, streamStarted
 	if apiErr.IsAgentLimit() {
 		return false
 	}
+	if apiErr.IsEntitlementDenied() {
+		return false
+	}
 	return apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden
 }
 
@@ -406,6 +530,52 @@ func (h *QoderGatewayHandler) refreshQoderAccount(ctx context.Context, account *
 	return h.qoderGatewayService.RefreshAccountSession(refreshCtx, account)
 }
 
+func (h *QoderGatewayHandler) acquireQoderAccountSlotWithWait(c *gin.Context, account *service.Account, waitPlan *service.AccountWaitPlan, reqStream bool, streamStarted *bool, reqLog *zap.Logger) (func(), error) {
+	if account == nil {
+		return nil, errors.New("account is nil")
+	}
+	if h == nil || h.concurrencyHelper == nil {
+		return nil, nil
+	}
+	if waitPlan == nil {
+		return h.concurrencyHelper.AcquireAccountSlotWithWait(c, account.ID, account.Concurrency, reqStream, streamStarted)
+	}
+
+	ctx := c.Request.Context()
+	accountWaitCounted := false
+	canWait, err := h.concurrencyHelper.IncrementAccountWaitCount(ctx, account.ID, waitPlan.MaxWaiting)
+	if err != nil {
+		if reqLog != nil {
+			reqLog.Warn("qoder.account_wait_counter_increment_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+		}
+	} else if !canWait {
+		if reqLog != nil {
+			reqLog.Info("qoder.account_wait_queue_full",
+				zap.Int64("account_id", account.ID),
+				zap.Int("max_waiting", waitPlan.MaxWaiting),
+			)
+		}
+		return nil, &WaitQueueFullError{SlotType: "account"}
+	}
+	if err == nil && canWait {
+		accountWaitCounted = true
+	}
+	releaseWait := func() {
+		if accountWaitCounted {
+			h.concurrencyHelper.DecrementAccountWaitCount(ctx, account.ID)
+			accountWaitCounted = false
+		}
+	}
+
+	accountRelease, err := h.concurrencyHelper.AcquireAccountSlotWithWaitTimeout(c, account.ID, waitPlan.MaxConcurrency, waitPlan.Timeout, reqStream, streamStarted)
+	if err != nil {
+		releaseWait()
+		return nil, err
+	}
+	releaseWait()
+	return accountRelease, nil
+}
+
 func (h *QoderGatewayHandler) acquireQoderRetryAccountSlot(c *gin.Context, account *service.Account, selection *service.AccountSelectionResult, reqStream bool, streamStarted *bool) (func(), error) {
 	if account == nil {
 		return nil, errors.New("account is nil")
@@ -415,7 +585,7 @@ func (h *QoderGatewayHandler) acquireQoderRetryAccountSlot(c *gin.Context, accou
 	}
 	maxConcurrency := account.Concurrency
 	if selection != nil && selection.WaitPlan != nil {
-		return h.concurrencyHelper.AcquireAccountSlotWithWaitTimeout(c, account.ID, selection.WaitPlan.MaxConcurrency, selection.WaitPlan.Timeout, reqStream, streamStarted)
+		return h.acquireQoderAccountSlotWithWait(c, account, selection.WaitPlan, reqStream, streamStarted, nil)
 	}
 	return h.concurrencyHelper.AcquireAccountSlotWithWait(c, account.ID, maxConcurrency, reqStream, streamStarted)
 }
@@ -434,8 +604,14 @@ func qoderGatewayErrorDetails(err error) (int, string, string, bool) {
 	status := http.StatusBadGateway
 	errType := "upstream_error"
 	switch apiErr.StatusCode {
-	case http.StatusUnauthorized, http.StatusForbidden:
+	case http.StatusUnauthorized:
 		status = http.StatusUnauthorized
+	case http.StatusForbidden:
+		if apiErr.IsEntitlementDenied() {
+			status = http.StatusForbidden
+		} else {
+			status = http.StatusUnauthorized
+		}
 	case http.StatusTooManyRequests:
 		status = http.StatusTooManyRequests
 		errType = "rate_limit_error"
@@ -461,7 +637,30 @@ func qoderShouldFailover(err error) bool {
 	if apiErr.IsAgentLimit() || apiErr.StatusCode == http.StatusTooManyRequests {
 		return true
 	}
+	if apiErr.IsEntitlementDenied() {
+		return true
+	}
 	return apiErr.StatusCode >= http.StatusInternalServerError
+}
+
+func qoderMarkRefreshInProgressAccountFailed(fs *FailoverState, accountID int64, maxSwitches int) bool {
+	if fs == nil {
+		return false
+	}
+	fs.FailedAccountIDs[accountID] = struct{}{}
+	return len(fs.FailedAccountIDs) < maxSwitches
+}
+
+func (h *QoderGatewayHandler) writeQoderFailoverExhaustedError(c *gin.Context, endpoint qoderEndpoint, streamStarted bool, err error) bool {
+	if err == nil {
+		return false
+	}
+	if status, errType, message, ok := h.qoderGatewayErrorDetails(c, err); ok {
+		service.SetOpsUpstreamError(c, upstreamStatusFromError(err), message, "")
+		h.streamingAwareError(c, status, errType, message, streamStarted, endpoint)
+		return true
+	}
+	return false
 }
 
 func (h *QoderGatewayHandler) qoderGatewayErrorDetails(c *gin.Context, err error) (int, string, string, bool) {

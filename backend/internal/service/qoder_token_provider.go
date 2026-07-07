@@ -230,6 +230,28 @@ func qoderCredentialsHash(credentials map[string]any) string {
 	return fmt.Sprintf("%x", sum[:])
 }
 
+func qoderRefreshCredentialsHash(credentials map[string]any) string {
+	if len(credentials) == 0 {
+		return qoderCredentialsHash(nil)
+	}
+	keys := []string{
+		"security_oauth_token",
+		"refresh_token",
+		"machine_id",
+		"machine_token",
+		"machine_type",
+		"uid",
+		"aid",
+	}
+	auth := make(map[string]any, len(keys))
+	for _, key := range keys {
+		if value, ok := credentials[key]; ok {
+			auth[key] = value
+		}
+	}
+	return qoderCredentialsHash(auth)
+}
+
 func firstNonEmptyQoder(values ...string) string {
 	for _, value := range values {
 		if strings.TrimSpace(value) != "" {

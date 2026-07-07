@@ -1142,3 +1142,22 @@ func TestApplyTokenOverrides_IntervalSetsImageOutputPriceExplicit(t *testing.T) 
 	require.True(t, pricing.ImageOutputPriceExplicit)
 	require.Equal(t, 0.0, pricing.ImageOutputPricePerToken)
 }
+
+func TestIntervalToModelPricingWithBaseClearsImageOutputWhenChannelUnset(t *testing.T) {
+	base := &ModelPricing{
+		ImageOutputPricePerToken: 99e-6,
+	}
+	pricing := intervalToModelPricingWithBase(
+		&PricingInterval{
+			MinTokens:   0,
+			InputPrice:  testPtrFloat64(3e-6),
+			OutputPrice: testPtrFloat64(15e-6),
+		},
+		false,
+		&ChannelModelPricing{BillingMode: BillingModeToken},
+		base,
+	)
+
+	require.True(t, pricing.ImageOutputPriceExplicit)
+	require.Equal(t, 0.0, pricing.ImageOutputPricePerToken)
+}
