@@ -195,6 +195,7 @@ func TestQoderConversationRollbackVersionControl(t *testing.T) {
 	store.mu.Unlock()
 	if stateFinal == nil {
 		t.Fatal("expected state to exist after rollback")
+		return
 	}
 	if stateFinal.version != 2 {
 		t.Errorf("rollback should be rejected, expected version=2, got=%d", stateFinal.version)
