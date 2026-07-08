@@ -864,7 +864,7 @@
         </div>
       </div>
 
-      <!-- Account Type Selection (Qoder) -->
+      <!-- Qoder 账号类型选择 -->
       <div v-if="form.platform === 'qoder'">
         <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
         <div class="mt-2 grid grid-cols-2 gap-3">
@@ -930,7 +930,7 @@
         </div>
       </div>
 
-      <!-- Qoder manual credentials -->
+      <!-- Qoder 手动凭据 -->
       <div v-if="form.platform === 'qoder' && qoderAccountType === 'manual'" class="space-y-4">
         <div>
           <label class="input-label">{{ t('admin.accounts.qoder.pat') }}</label>
@@ -1004,7 +1004,7 @@
         </div>
       </div>
 
-      <!-- Qoder model restriction (applies to OAuth + manual) -->
+      <!-- Qoder 模型限制，适用于 OAuth 和手动凭据 -->
       <div v-if="form.platform === 'qoder'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <label class="input-label">{{ t('admin.accounts.modelRestriction') }}</label>
 

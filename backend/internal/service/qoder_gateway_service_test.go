@@ -306,6 +306,37 @@ func TestBuildQoderPayloadFromChatCompletionsPreservesToolHistory(t *testing.T) 
 	require.Equal(t, "bash", tool["name"])
 }
 
+func TestBuildQoderPayloadFromChatCompletionsPreservesLegacyFunctionHistory(t *testing.T) {
+	body := []byte(`{
+		"model":"auto",
+		"messages":[
+			{"role":"user","content":"weather"},
+			{"role":"assistant","content":null,"function_call":{"name":"get_weather","arguments":"{\"city\":\"Tokyo\"}"}},
+			{"role":"function","name":"get_weather","content":"sunny"}
+		],
+		"functions":[{"name":"get_weather","parameters":{"type":"object"}}]
+	}`)
+
+	payload, _, err := BuildQoderPayloadFromChatCompletions(body, "personal_standard")
+	require.NoError(t, err)
+
+	messages := payload["messages"].([]any)
+	assistant := messages[1].(map[string]any)
+	toolCalls := assistant["tool_calls"].([]any)
+	require.Len(t, toolCalls, 1)
+	toolCall := toolCalls[0].(map[string]any)
+	require.Equal(t, "get_weather", toolCall["id"])
+	function := toolCall["function"].(map[string]any)
+	require.Equal(t, "get_weather", function["name"])
+	require.JSONEq(t, `{"city":"Tokyo"}`, function["arguments"].(string))
+
+	tool := messages[2].(map[string]any)
+	require.Equal(t, "tool", tool["role"])
+	require.Equal(t, "get_weather", tool["tool_call_id"])
+	require.Equal(t, "get_weather", tool["tool_call_call_id"])
+	require.Equal(t, "get_weather", tool["name"])
+}
+
 func TestBuildQoderPayloadFromChatCompletionsMergesParallelToolHistory(t *testing.T) {
 	body := []byte(`{
 		"model":"deepseek-v4-pro",

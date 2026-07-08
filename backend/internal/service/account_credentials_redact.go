@@ -5,7 +5,7 @@ package service
 var SensitiveCredentialKeys = []string{
 	// OAuth
 	"access_token", "refresh_token", "id_token",
-	// Qoder COSY
+	// Qoder COSY 凭据
 	"pat", "security_oauth_token", "machine_token",
 	// API Key 类
 	"api_key", "session_key", "cookie",

@@ -53,24 +53,23 @@ const (
 
 var qoderClaudeBillingCCHRe = regexp.MustCompile(`(x-anthropic-billing-header:[^\n\r;]*?(?:;[^\n\r;]*?)*\bcch=)[0-9a-fA-F]{5}(;)`)
 
-// ErrQoderRefreshInProgress indicates another worker still owns the refresh
-// lock and no rotated credentials have appeared in the database yet.
+// ErrQoderRefreshInProgress 表示仍有其他 worker 持有刷新锁，
+// 且数据库里还没有出现轮换后的凭据。
 var ErrQoderRefreshInProgress = errors.New("qoder refresh in progress")
 
-// defaultQoderModelAliases maps fallback TokenRouter request-side aliases to
-// Qoder API keys. Account model_mapping is authoritative for configured Qoder
-// accounts, so this table is only a compatibility/default surface.
+// defaultQoderModelAliases 将兜底的 TokenRouter 请求侧 alias 映射到 Qoder API key。
+// 已配置 model_mapping 的 Qoder 账号以账号配置为准，此表仅作为兼容和默认展示面。
 var defaultQoderModelAliases = map[string]qoderModelInfo{
-	// Confirmed Claude Opus 4.6 via encrypted reasoning metadata.
+	// 通过加密 reasoning metadata 确认该路由为 Claude Opus 4.6。
 	"claude-opus-4-6": {Key: "ultimate", Source: "system", Provider: "Claude", Notes: "Confirmed Claude Opus 4.6 via encrypted reasoning metadata.", DisplayName: "Claude Opus 4.6"},
-	// Qoder-selected route; exact upstream model is dynamic and unconfirmed.
+	// Qoder 自动选择路由，具体上游模型动态变化且未确认。
 	"auto": {Key: "auto", Source: "system", Provider: "Qoder", Notes: "Qoder-selected route; exact upstream model is dynamic and unconfirmed.", DisplayName: "Qoder Auto"},
-	// Qoder performance/efficient/lite tiers do not have a confirmed concrete provider model.
+	// Qoder performance/efficient/lite tier 目前没有确认到具体供应商模型。
 	"performance": {Key: "performance", Source: "system", Provider: "Qoder", Notes: "Qoder performance tier; exact upstream model is unconfirmed.", DisplayName: "Qoder Performance"},
 	"efficient":   {Key: "efficient", Source: "system", Provider: "Qoder", Notes: "Qoder efficient tier; exact upstream model is unconfirmed.", DisplayName: "Qoder Efficient"},
-	// Unverified Qoder lite tier; observations are mixed.
+	// Qoder lite tier 尚未验证，观测结果不完全一致。
 	"lite": {Key: "lite", Source: "system", Provider: "Qoder", Notes: "Unverified Qoder lite tier; observations are mixed.", DisplayName: "Qoder Lite"},
-	// Qoder UI exposes these provider model names; map readable public aliases to internal Qoder route keys.
+	// Qoder UI 暴露的是这些供应商模型名，这里把可读公开 alias 映射到内部 route key。
 	"qwen3.7-max":       {Key: "qmodel_latest", Source: "system", Provider: "Qwen", Notes: "Qoder UI model name Qwen3.7-Max.", DisplayName: "Qwen3.7-Max"},
 	"qwen3.7-plus":      {Key: "qmodel", Source: "system", Provider: "Qwen", Notes: "Qoder UI model name Qwen3.7-Plus.", DisplayName: "Qwen3.7-Plus"},
 	"deepseek-v4-pro":   {Key: "dmodel", Source: "system", Provider: "DeepSeek", Notes: "Qoder UI model name DeepSeek-V4-Pro.", DisplayName: "DeepSeek-V4-Pro"},
@@ -81,14 +80,14 @@ var defaultQoderModelAliases = map[string]qoderModelInfo{
 }
 
 var qoderCompatModelAliases = map[string]qoderModelInfo{
-	// Compatibility only: existing configs may still contain the raw Qoder key.
+	// 仅用于兼容：已有配置可能仍保存 Qoder 原始 key。
 	"ultimate": {Key: "ultimate", Source: "system", Provider: "Claude", Notes: "Compatibility alias for Qoder ultimate; expose claude-opus-4-6 instead.", DisplayName: "Claude Opus 4.6"},
-	// Compatibility only: Qoder CLI no longer lists these routes by default, but old configs may still refer to them.
+	// 仅用于兼容：Qoder CLI 默认不再列出这些路由，但旧配置可能仍引用它们。
 	"qwen3.5-plus": {Key: "q35model", Source: "system", Provider: "Qwen", Notes: "Compatibility alias for old Qoder Qwen3.5-Plus display name.", DisplayName: "Qwen3.5-Plus"},
 	"glm-5":        {Key: "gmodel", Source: "system", Provider: "GLM", Notes: "Compatibility alias for old Qoder GLM-5 display name.", DisplayName: "GLM-5"},
-	// Compatibility only: Qoder renamed the displayed GLM route from GLM-5.1 to GLM-5.2 while keeping gm51model.
+	// 仅用于兼容：Qoder 将 GLM 展示名从 GLM-5.1 改为 GLM-5.2，但保留 gm51model。
 	"glm-5.1": {Key: "gm51model", Source: "system", Provider: "GLM", Notes: "Compatibility alias for old Qoder GLM-5.1 display name; expose glm-5.2 instead.", DisplayName: "GLM-5.2"},
-	// Compatibility only: keep resolving the old inferred Kimi label, but expose kimi-k2.7-code in defaults.
+	// 仅用于兼容：继续解析旧推断的 Kimi 标签，但默认展示 kimi-k2.7-code。
 	"kimi-k2.6": {Key: "kmodel", Source: "system", Provider: "Kimi", Notes: "Compatibility alias for old Qoder Kimi display name; expose kimi-k2.7-code instead.", DisplayName: "Kimi-K2.7-Code"},
 }
 
@@ -109,7 +108,7 @@ type qoderStreamClientWithDoer interface {
 	StreamRequestContextWithDoer(ctx context.Context, session *qoder.SessionContext, path string, bodyJSON []byte, extraHeaders map[string]string, doer qoder.RequestDoer) (*http.Response, error)
 }
 
-// QoderGatewayService forwards OpenAI/Anthropic-compatible requests to Qoder COSY.
+// QoderGatewayService 将 OpenAI/Anthropic 兼容请求转发到 Qoder COSY。
 type QoderGatewayService struct {
 	tokenProvider       *QoderTokenProvider
 	client              qoderStreamClient
@@ -164,8 +163,8 @@ func (s *QoderGatewayService) ForwardChatCompletions(ctx context.Context, c *gin
 		s.applyUpstreamErrorPolicy(ctx, account, err)
 		return nil, err
 	}
-	// Once Qoder accepts the request, reserve the session immediately. Claude Code
-	// can issue follow-up or duplicate requests before the stream fully drains.
+	// Qoder 接受请求后立即保留 session。Claude Code 可能在流完全结束前
+	// 发出后续请求或重复请求。
 	conversationPlan.commitAccepted()
 
 	var responseBody []byte
@@ -338,8 +337,8 @@ func (s *QoderGatewayService) ForwardMessages(ctx context.Context, c *gin.Contex
 		s.applyUpstreamErrorPolicy(ctx, account, err)
 		return nil, err
 	}
-	// Once Qoder accepts the request, reserve the session immediately. Claude Code
-	// can issue follow-up or duplicate requests before the stream fully drains.
+	// Qoder 接受请求后立即保留 session。Claude Code 可能在流完全结束前
+	// 发出后续请求或重复请求。
 	conversationPlan.commitAccepted()
 
 	var responseBody []byte
@@ -405,14 +404,13 @@ type qoderPayloadRequest struct {
 	promptCacheKey  string
 	metadataUserID  string
 	responseID      string
-	// autoResponseSession is true when explicitSession was synthesized from the
-	// outgoing response id rather than supplied by the client. It must not hide
-	// older stable session keys such as prompt_cache_key or headers.
+	// autoResponseSession 表示 explicitSession 是根据本次响应 id 合成的，
+	// 而不是客户端显式传入的。它不能遮蔽 prompt_cache_key 或 header 这类
+	// 更稳定的旧 session key。
 	autoResponseSession bool
-	// previousResponseID marks OpenAI Responses continuation requests. Unlike
-	// session_id/conversation_id, previous_response_id commonly carries only
-	// the new input item, so the conversation planner may append it to the
-	// previous state instead of requiring a full replay prefix.
+	// previousResponseID 标记 OpenAI Responses 续写请求。不同于
+	// session_id/conversation_id，previous_response_id 通常只携带新的 input item，
+	// 因此对话规划器可以把它追加到旧状态，而不是要求完整回放前缀。
 	previousResponseID string
 }
 
@@ -873,8 +871,8 @@ type qoderConversationStore struct {
 	mu    sync.Mutex
 	ttl   time.Duration
 	items map[string]*qoderConversationState
-	// aliases map externally-visible response/session ids to the canonical
-	// conversation key. This is used by OpenAI Responses previous_response_id.
+	// aliases 将外部可见的 response/session id 映射到规范 conversation key。
+	// OpenAI Responses previous_response_id 会使用这张表。
 	aliases map[string]string
 }
 
@@ -1866,6 +1864,8 @@ func qoderMessageFromChatCompletionsMessage(message apicompat.ChatMessage) (qode
 		raw := map[string]any{"role": "assistant", "content": text}
 		if toolCalls := qoderChatToolCalls(message.ToolCalls); len(toolCalls) > 0 {
 			raw["tool_calls"] = toolCalls
+		} else if toolCalls := qoderLegacyChatFunctionCall(message.FunctionCall); len(toolCalls) > 0 {
+			raw["tool_calls"] = toolCalls
 		}
 		return qoderMessage{Role: "assistant", Text: text, Raw: raw}, nil
 	case "tool":
@@ -1926,6 +1926,18 @@ func qoderChatToolCalls(toolCalls []apicompat.ChatToolCall) []any {
 		})
 	}
 	return out
+}
+
+func qoderLegacyChatFunctionCall(functionCall *apicompat.ChatFunctionCall) []any {
+	if functionCall == nil {
+		return nil
+	}
+	name := strings.TrimSpace(functionCall.Name)
+	if name == "" {
+		return nil
+	}
+	// 旧版 function 消息没有 call id，使用函数名作为稳定 id，保证后续 role=function 的结果能关联回来。
+	return []any{qoderToolCallMap(name, name, functionCall.Arguments)}
 }
 
 func qoderAnthropicSystemText(raw json.RawMessage) (string, error) {
@@ -2146,9 +2158,9 @@ func qoderMessagesFromAnthropicMessage(message apicompat.AnthropicMessage) ([]qo
 				})
 			}
 		case "tool_use":
-			// Qoder payload.py ignores tool_use when flattening message text.
+			// Qoder payload.py 展开消息文本时会忽略 tool_use。
 		case "thinking", "redacted_thinking":
-			// Qoder does not accept Anthropic thinking signatures in history.
+			// Qoder 历史消息不接受 Anthropic thinking signature。
 		default:
 			return nil, fmt.Errorf("unsupported content block type: %v", block.Type)
 		}
@@ -2184,7 +2196,7 @@ func qoderAnthropicMessageTextAndRaw(message apicompat.AnthropicMessage) (string
 				"input": qoderRawMessageOrDefault(block.Input, map[string]any{}),
 			})
 		case "thinking", "redacted_thinking":
-			// Do not include thinking in Qoder content/tool history.
+			// 不把 thinking 写入 Qoder content/tool 历史。
 		default:
 			return "", nil, fmt.Errorf("unsupported content block type: %v", block.Type)
 		}
@@ -2258,9 +2270,8 @@ func qoderAnthropicToolResultText(raw json.RawMessage) string {
 func qoderResponsesRole(role string) string {
 	switch strings.TrimSpace(role) {
 	case "developer", "system":
-		// Responses control-role input items are folded into the Qoder system
-		// prompt by parseQoderResponsesPayload; do not also send them as chat
-		// history turns.
+		// Responses 的控制角色 input item 已由 parseQoderResponsesPayload 合并到
+		// Qoder system prompt，不能再作为 chat 历史轮次发送。
 		return ""
 	case "assistant":
 		return "assistant"
@@ -2757,8 +2768,8 @@ func qoderNonStreamingKeepalive(c *gin.Context) func() error {
 		if !c.Writer.Written() {
 			c.Writer.WriteHeader(http.StatusOK)
 		}
-		// Non-streaming clients parse the final body as JSON; whitespace keeps
-		// the connection alive without corrupting that JSON document.
+		// 非流式客户端会把最终 body 当作 JSON 解析；空白字符可以保持连接活跃，
+		// 同时不会破坏 JSON 文档。
 		_, err := io.WriteString(c.Writer, "\n")
 		if flusher, ok := c.Writer.(http.Flusher); ok {
 			flusher.Flush()
@@ -5202,10 +5213,9 @@ func qoderToolContinuationPromptText(messages []qoderMessage) string {
 		return ""
 	}
 
-	// Tool-only Responses continuations are valid when previous_response_id carries
-	// the prior assistant tool call. Otherwise require the current replay to include
-	// an immediately preceding assistant tool-call turn, so ordinary historical tool
-	// messages are not promoted to the active prompt by accident.
+	// 当 previous_response_id 承载前一次 assistant tool call 时，只有 tool 的
+	// Responses 续写是合法的。否则要求当前回放中存在紧邻的 assistant tool-call
+	// 轮次，避免普通历史 tool 消息被误提升为当前 prompt。
 	if toolStart > 0 && !qoderMessageHasToolCalls(messages[toolStart-1]) {
 		return ""
 	}

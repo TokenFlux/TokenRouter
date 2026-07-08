@@ -18,8 +18,8 @@ type QoderGenerateAuthURLRequest struct {
 	ProxyID *int64 `json:"proxy_id"`
 }
 
-// GenerateAuthURL generates a Qoder browser authorization URL.
-// POST /api/v1/admin/qoder/oauth/auth-url
+// GenerateAuthURL 生成 Qoder 浏览器授权 URL。
+// 路由：POST /api/v1/admin/qoder/oauth/auth-url
 func (h *QoderOAuthHandler) GenerateAuthURL(c *gin.Context) {
 	var req QoderGenerateAuthURLRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -44,8 +44,8 @@ type QoderExchangeCodeRequest struct {
 	ProxyID     *int64 `json:"proxy_id"`
 }
 
-// ExchangeCode completes Qoder device authorization and returns account credentials.
-// POST /api/v1/admin/qoder/oauth/exchange-code
+// ExchangeCode 完成 Qoder 设备授权并返回账号凭据。
+// 路由：POST /api/v1/admin/qoder/oauth/exchange-code
 func (h *QoderOAuthHandler) ExchangeCode(c *gin.Context) {
 	var req QoderExchangeCodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -74,8 +74,8 @@ type QoderPollRequest struct {
 	ProxyID   *int64 `json:"proxy_id"`
 }
 
-// Poll checks whether Qoder browser authorization has completed.
-// POST /api/v1/admin/qoder/oauth/poll
+// Poll 检查 Qoder 浏览器授权是否已完成。
+// 路由：POST /api/v1/admin/qoder/oauth/poll
 func (h *QoderOAuthHandler) Poll(c *gin.Context) {
 	var req QoderPollRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

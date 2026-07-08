@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 )
 
-// DefaultAuthDir returns the default Qoder auth directory.
+// DefaultAuthDir 返回默认的 Qoder 认证目录。
 func DefaultAuthDir() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -17,7 +17,7 @@ func DefaultAuthDir() string {
 	return filepath.Join(home, ".qoder", ".auth")
 }
 
-// ReadLocalAuth reads and decrypts Qoder authentication data from the local filesystem.
+// ReadLocalAuth 从本地文件系统读取并解密 Qoder 认证数据。
 func ReadLocalAuth(authDir string) (*AuthInfo, error) {
 	if authDir == "" {
 		authDir = DefaultAuthDir()
@@ -28,7 +28,7 @@ func ReadLocalAuth(authDir string) (*AuthInfo, error) {
 		return nil, fmt.Errorf("qoder: read machine_id: %w", err)
 	}
 	machineID = []byte(string(machineID))[:len(machineID)]
-	// Trim whitespace/newlines
+	// 去掉结尾空白和换行。
 	for len(machineID) > 0 && (machineID[len(machineID)-1] == '\n' || machineID[len(machineID)-1] == '\r') {
 		machineID = machineID[:len(machineID)-1]
 	}
@@ -37,7 +37,7 @@ func ReadLocalAuth(authDir string) (*AuthInfo, error) {
 	if err != nil {
 		return nil, fmt.Errorf("qoder: read user: %w", err)
 	}
-	// Trim whitespace
+	// 去掉结尾空白。
 	for len(userB64) > 0 && (userB64[len(userB64)-1] == '\n' || userB64[len(userB64)-1] == '\r') {
 		userB64 = userB64[:len(userB64)-1]
 	}
@@ -47,7 +47,7 @@ func ReadLocalAuth(authDir string) (*AuthInfo, error) {
 		return nil, fmt.Errorf("qoder: decode user base64: %w", err)
 	}
 
-	// Key is first 16 ASCII bytes of machine_id
+	// key 取 machine_id 的前 16 个 ASCII 字节。
 	key := make([]byte, 16)
 	copy(key, machineID)
 
@@ -65,7 +65,7 @@ func ReadLocalAuth(authDir string) (*AuthInfo, error) {
 	return &info, nil
 }
 
-// LoadLocalIdentity loads identity from local Qoder auth.
+// LoadLocalIdentity 从本地 Qoder 认证数据加载身份。
 func LoadLocalIdentity(authDir string) (*AuthIdentity, *MachineIdentity, error) {
 	info, err := ReadLocalAuth(authDir)
 	if err != nil {

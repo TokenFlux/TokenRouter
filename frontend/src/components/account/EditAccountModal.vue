@@ -422,7 +422,7 @@
 
       </div>
 
-      <!-- OAuth-like Model Mapping (OAuth/COSY 类型没有 apikey 容器，需要独立的模型映射区域) -->
+      <!-- OAuth/COSY 模型映射：这类账号没有 apikey 容器，需要独立的模型映射区域 -->
       <div
         v-if="supportsOAuthLikeModelRestriction"
         class="border-t border-gray-200 pt-4 dark:border-dark-600"
@@ -3412,7 +3412,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
           : 'https://api.anthropic.com'
     editBaseUrl.value = platformDefaultUrl
 
-    // Load model mappings for OpenAI OAuth and Qoder COSY accounts
+    // 加载 OpenAI OAuth 和 Qoder COSY 账号的模型映射。
     if (
       ((newAccount.platform === 'openai' && newAccount.type === 'oauth') ||
         (newAccount.platform === 'qoder' && newAccount.type === 'cosy')) &&
@@ -4214,7 +4214,7 @@ const handleSubmit = async () => {
       updatePayload.credentials = newCredentials
     }
 
-    // OpenAI OAuth / Qoder COSY: persist model mapping to credentials
+    // OpenAI OAuth / Qoder COSY：将模型映射保存到 credentials。
     if (supportsOAuthLikeModelRestriction.value) {
       const currentCredentials = props.account.platform === 'openai' && isSparkShadow.value
         ? {}

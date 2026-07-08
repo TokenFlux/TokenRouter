@@ -15,22 +15,22 @@ import (
 )
 
 const (
-	// OpenAPIBaseURL is the Qoder OpenAPI service used by qodercli browser login.
+	// OpenAPIBaseURL 是 qodercli 浏览器登录使用的 Qoder OpenAPI 服务地址。
 	OpenAPIBaseURL = "https://openapi.qoder.sh"
 
-	// OAuthClientID is the public qodercli device authorization client ID.
+	// OAuthClientID 是 qodercli 设备授权使用的公开 client ID。
 	OAuthClientID = "e883ade2-e6e3-4d6d-adf7-f92ceff5fdcb"
 
-	// DeviceAuthorizationURL is the browser URL used by qodercli login.
+	// DeviceAuthorizationURL 是 qodercli 登录使用的浏览器授权地址。
 	DeviceAuthorizationURL = "https://qoder.com/device/selectAccounts"
 
-	// DevicePollPath is the device-token poll endpoint used after browser authorization.
+	// DevicePollPath 是浏览器授权后轮询 device token 的端点。
 	DevicePollPath = "/api/v1/deviceToken/poll"
 
-	// UserInfoPath returns the Qoder user identity associated with an access token.
+	// UserInfoPath 返回 access token 对应 Qoder 用户身份的端点。
 	UserInfoPath = "/api/v1/userinfo"
 
-	// OrganizationTagsPathPrefix returns organization metadata for a Qoder user.
+	// OrganizationTagsPathPrefix 返回 Qoder 用户组织元数据的端点前缀。
 	OrganizationTagsPathPrefix = "/api/v1/organizations/"
 )
 

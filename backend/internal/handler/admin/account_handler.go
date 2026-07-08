@@ -2131,7 +2131,7 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 		return
 	}
 
-	// Handle Qoder COSY accounts
+	// 处理 Qoder COSY 账号。
 	if account.IsQoder() {
 		requestModels := account.GetConfiguredRequestModels()
 		if len(requestModels) == 0 {
@@ -2162,7 +2162,7 @@ func (h *AccountHandler) GetAvailableModels(c *gin.Context) {
 		return
 	}
 
-	// Handle Grok/xAI accounts
+	// 处理 Grok/xAI 账号。
 	if account.Platform == service.PlatformGrok {
 		defaultModels := xai.DefaultModels()
 		requestModels := account.GetConfiguredRequestModels()

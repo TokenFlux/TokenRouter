@@ -157,9 +157,8 @@ func (p *ChannelModelPricing) GetTierByLabel(label string) *PricingInterval {
 	return nil
 }
 
-// HasEffectivePricing reports whether this row contains an explicit price.
-// A nil price pointer means "not configured"; a pointer to 0 is an explicit
-// free price and is therefore effective.
+// HasEffectivePricing 判断该行是否配置了明确价格。
+// nil 价格指针表示“未配置”；指向 0 的指针表示显式免费价格，因此仍然有效。
 func (p *ChannelModelPricing) HasEffectivePricing() bool {
 	if p == nil {
 		return false

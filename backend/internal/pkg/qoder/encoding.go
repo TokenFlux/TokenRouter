@@ -1,5 +1,5 @@
-// Package qoder implements the Qoder COSY protocol for API integration.
-// Ported from the Python qoder2api reference implementation.
+// qoder 包实现用于 API 集成的 Qoder COSY 协议。
+// 编码算法移植自 Python qoder2api 参考实现。
 package qoder
 
 import (
@@ -53,23 +53,22 @@ func Decode(encoded string) ([]byte, error) {
 	n := len(mapped)
 	pivot := n / 3
 	standard := mapped[n-pivot:] + mapped[pivot:n-pivot] + mapped[:pivot]
-	// Remove padding characters — they may end up in the middle after rearrangement.
-	// RawStdEncoding handles unpadded base64 correctly.
+	// 重排后 padding 可能出现在中间，先移除再交给 RawStdEncoding 解码。
 	noPad := strings.ReplaceAll(standard, string(stdPad), "")
 	return base64.RawStdEncoding.DecodeString(noPad)
 }
 
-// EncodeBytesToString is a convenience wrapper.
+// EncodeBytesToString 是 Encode 的便捷封装。
 func EncodeBytesToString(plaintext []byte) string {
 	return Encode(plaintext)
 }
 
-// EncodeString is a convenience wrapper for JSON strings.
+// EncodeString 是字符串输入的便捷封装。
 func EncodeString(plaintext string) string {
 	return Encode([]byte(plaintext))
 }
 
-// DecodeString decodes an encoded string and returns it as a plain string.
+// DecodeString 解码字符串并以明文字符串返回。
 func DecodeString(encoded string) (string, error) {
 	b, err := Decode(encoded)
 	if err != nil {
@@ -78,13 +77,13 @@ func DecodeString(encoded string) (string, error) {
 	return string(b), nil
 }
 
-// EncodeJSON is a convenience that encodes a JSON byte slice directly.
-// It removes all whitespace (compact JSON) before encoding.
+// EncodeJSON 直接编码 JSON 字节切片。
+// 调用方需传入已压缩的 JSON。
 func EncodeJSON(compactJSON []byte) string {
 	return Encode(compactJSON)
 }
 
-// MustDecode panics if decode fails. Only for tests.
+// MustDecode 在解码失败时 panic，仅用于测试。
 func MustDecode(encoded string) []byte {
 	b, err := Decode(encoded)
 	if err != nil {
@@ -93,5 +92,5 @@ func MustDecode(encoded string) []byte {
 	return b
 }
 
-// Ensure interfaces are satisfied
-var _ = strings.NewReader // unused import guard
+// 保留 strings.NewReader 引用，避免后续调整导入时误删 strings。
+var _ = strings.NewReader

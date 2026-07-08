@@ -16,20 +16,20 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/util/logredact"
 )
 
-// GenerationPath is the SSE streaming endpoint for Qoder LLM inference.
+// GenerationPath 是 Qoder LLM 推理的 SSE 流式端点。
 const GenerationPath = "/algo/api/v2/service/pro/sse/agent_chat_generation?FetchKeys=llm_model_result&AgentId=agent_common&Encode=1"
 
-// Client is an HTTP client for the Qoder API with COSY protocol support.
+// Client 是支持 COSY 协议的 Qoder API HTTP 客户端。
 type Client struct {
 	APIBaseURL    string
 	ClientVersion string
 	HTTPClient    *http.Client
 }
 
-// RequestDoer executes a prepared HTTP request.
+// RequestDoer 执行已构造好的 HTTP 请求。
 type RequestDoer func(req *http.Request) (*http.Response, error)
 
-// NewClient creates a new Qoder API client.
+// NewClient 创建新的 Qoder API 客户端。
 func NewClient(apiBaseURL string) *Client {
 	if apiBaseURL == "" {
 		apiBaseURL = APIBaseURL
@@ -41,17 +41,17 @@ func NewClient(apiBaseURL string) *Client {
 	}
 }
 
-// StreamRequest sends a streaming POST request to the Qoder API and returns an SSE line reader.
+// StreamRequest 向 Qoder API 发送流式 POST 请求并返回响应。
 func (c *Client) StreamRequest(session *SessionContext, path string, bodyJSON []byte, extraHeaders map[string]string) (*http.Response, error) {
 	return c.StreamRequestContext(context.Background(), session, path, bodyJSON, extraHeaders)
 }
 
-// StreamRequestContext sends a streaming POST request to the Qoder API and returns an SSE line reader.
+// StreamRequestContext 使用传入 context 向 Qoder API 发送流式 POST 请求。
 func (c *Client) StreamRequestContext(ctx context.Context, session *SessionContext, path string, bodyJSON []byte, extraHeaders map[string]string) (*http.Response, error) {
 	return c.StreamRequestContextWithDoer(ctx, session, path, bodyJSON, extraHeaders, nil)
 }
 
-// StreamRequestContextWithDoer sends a streaming POST request using the provided executor.
+// StreamRequestContextWithDoer 使用传入执行器发送流式 POST 请求。
 func (c *Client) StreamRequestContextWithDoer(ctx context.Context, session *SessionContext, path string, bodyJSON []byte, extraHeaders map[string]string, doer RequestDoer) (*http.Response, error) {
 	if path == "" {
 		path = GenerationPath
@@ -107,7 +107,7 @@ func (c *Client) StreamRequestContextWithDoer(ctx context.Context, session *Sess
 	return resp, nil
 }
 
-// APIError represents an error from the Qoder API.
+// APIError 表示 Qoder API 返回的错误。
 type APIError struct {
 	StatusCode          int
 	Body                string
@@ -138,19 +138,18 @@ func (e *APIError) Error() string {
 	return "Qoder upstream error"
 }
 
-// IsAgentLimit reports whether this error is Qoder's agent quota/rate limit.
+// IsAgentLimit 判断错误是否为 Qoder agent quota/rate limit。
 func (e *APIError) IsAgentLimit() bool {
 	return e != nil && (e.Code == "115" || e.AgentLimitResetTime > 0)
 }
 
-// IsEntitlementDenied reports whether this error is Qoder's model/account
-// entitlement denial. It is not an auth-token failure and should not consume a
-// refresh token.
+// IsEntitlementDenied 判断错误是否为 Qoder 模型或账号权限拒绝。
+// 这类错误不是认证 token 失效，不应消耗 refresh token。
 func (e *APIError) IsEntitlementDenied() bool {
 	return e != nil && e.Code == "112"
 }
 
-// AgentLimitResetAt returns the parsed Qoder agent limit reset time.
+// AgentLimitResetAt 返回解析后的 Qoder agent limit 重置时间。
 func (e *APIError) AgentLimitResetAt() (time.Time, bool) {
 	if e == nil || e.AgentLimitResetTime <= 0 {
 		return time.Time{}, false
@@ -158,7 +157,7 @@ func (e *APIError) AgentLimitResetAt() (time.Time, bool) {
 	return time.UnixMilli(e.AgentLimitResetTime), true
 }
 
-// ParseAPIErrorBody parses Qoder HTTP/SSE error bodies.
+// ParseAPIErrorBody 解析 Qoder HTTP/SSE 错误响应体。
 func ParseAPIErrorBody(statusCode int, body string) *APIError {
 	apiErr := &APIError{
 		StatusCode: statusCode,
@@ -199,8 +198,7 @@ var qoderSensitiveErrorKeys = []string{
 	"aid",
 }
 
-// RedactSensitiveText removes Qoder credentials from upstream error text before
-// the message is returned to clients or persisted in logs/snapshots.
+// RedactSensitiveText 在错误返回给客户端或写入日志/快照前脱敏 Qoder 凭据。
 func RedactSensitiveText(input string) string {
 	input = strings.TrimSpace(input)
 	if input == "" {
@@ -295,22 +293,22 @@ func (c *Client) setHeaders(req *http.Request, session *SessionContext, path, en
 	req.Header.Set("Authorization", ComposeBearer(payloadB64, signature))
 }
 
-// SSEEvent represents a parsed SSE event from the Qoder stream.
+// SSEEvent 表示从 Qoder 流中解析出的 SSE 事件。
 type SSEEvent struct {
-	Type             string // text_delta, reasoning_delta, tool_call_delta, usage, error
-	Text             string // For text_delta and reasoning_delta events
-	ToolCallID       string // For tool_call_delta events
-	ToolCallIndex    int    // For tool_call_delta events
-	HasToolCallIndex bool   // True when Qoder returned a tool call index
-	ToolType         string // For tool_call_delta events
-	ToolName         string // For tool_call_delta events
-	Arguments        string // For tool_call_delta events (JSON string)
-	PromptTokens     int    // For usage events
-	CompletionTokens int    // For usage events
-	TotalTokens      int    // For usage events
+	Type             string // text_delta、reasoning_delta、tool_call_delta、usage、error
+	Text             string // text_delta 和 reasoning_delta 事件内容
+	ToolCallID       string // tool_call_delta 事件 ID
+	ToolCallIndex    int    // tool_call_delta 事件序号
+	HasToolCallIndex bool   // Qoder 返回 tool call index 时为 true
+	ToolType         string // tool_call_delta 事件类型
+	ToolName         string // tool_call_delta 事件名称
+	Arguments        string // tool_call_delta 事件参数，JSON 字符串
+	PromptTokens     int    // usage 事件的输入 token
+	CompletionTokens int    // usage 事件的输出 token
+	TotalTokens      int    // usage 事件的总 token
 	UsageDetails     UsageDetails
-	HasUsage         bool // True when Qoder returned a usage payload
-	IsDone           bool // True when [DONE] signal received
+	HasUsage         bool // Qoder 返回 usage payload 时为 true
+	IsDone           bool // 收到 [DONE] 信号时为 true
 }
 
 type UsageDetails struct {
@@ -327,7 +325,7 @@ type CompletionTokensDetails struct {
 	ReasoningTokens int
 }
 
-// QoderSSEWrapper is the outer SSE structure from Qoder.
+// QoderSSEWrapper 是 Qoder SSE 外层结构。
 type QoderSSEWrapper struct {
 	Body            string `json:"body"`
 	StatusCode      string `json:"statusCode"`
@@ -357,7 +355,7 @@ func (c *qoderErrorCode) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// QoderSSEInner is the inner structure of a Qoder SSE body.
+// QoderSSEInner 是 Qoder SSE body 的内层结构。
 type QoderSSEInner struct {
 	Choices []QoderSSEChoice `json:"choices"`
 	Usage   *QoderSSEUsage   `json:"usage,omitempty"`
@@ -402,7 +400,7 @@ type QoderSSEToolCall struct {
 	} `json:"function"`
 }
 
-// QoderSSEUsage is the token usage object Qoder includes in SSE payloads.
+// QoderSSEUsage 是 Qoder SSE payload 中携带的 token usage 对象。
 type QoderSSEUsage struct {
 	PromptTokens            int                      `json:"-"`
 	CompletionTokens        int                      `json:"-"`
@@ -473,8 +471,8 @@ func qoderIntField(raw map[string]any, key string) int {
 	return 0
 }
 
-// ParseSSELine parses a single SSE "data:" line from Qoder's stream.
-// Returns nil if the line doesn't contain any meaningful events.
+// ParseSSELine 解析 Qoder 流里的单行 SSE "data:"。
+// 如果该行没有有效事件，则返回 nil。
 func ParseSSELine(line string) ([]SSEEvent, error) {
 	line = strings.TrimSpace(line)
 	if !strings.HasPrefix(line, "data:") {
@@ -871,7 +869,7 @@ func parseWrappedAPIError(wrapper QoderSSEWrapper) error {
 	return apiErr
 }
 
-// StreamEvents reads SSE lines from a response body and returns a channel of events.
+// StreamEvents 从响应体读取 SSE 行并返回事件 channel。
 func StreamEvents(resp *http.Response) <-chan SSEEvent {
 	ch := make(chan SSEEvent, 16)
 	go func() {
@@ -902,8 +900,8 @@ func StreamEvents(resp *http.Response) <-chan SSEEvent {
 	return ch
 }
 
-// ParseSSEEvent parses a single SSE data line and returns the first event.
-// This is a convenience wrapper around ParseSSELine for single-event consumption.
+// ParseSSEEvent 解析单行 SSE data，并返回第一个事件。
+// 这是面向单事件消费场景的 ParseSSELine 便捷封装。
 func ParseSSEEvent(line string) (*SSEEvent, error) {
 	events, err := ParseSSELine(line)
 	if err != nil {
@@ -915,5 +913,5 @@ func ParseSSEEvent(line string) (*SSEEvent, error) {
 	return &events[0], nil
 }
 
-// Ensure url package usage
+// 保留 url 包引用，避免后续调整导入时误删。
 var _ = url.Parse

@@ -10067,11 +10067,9 @@ func (s *GatewayService) resolveQoderChannelPricingForUsage(
 		candidates = append(candidates, pricingCandidate{model: model, hint: strings.TrimSpace(hint)})
 	}
 
-	// Qoder can expose several names for one request: public/custom requested
-	// alias, channel route key, billing model, and final upstream route key.
-	// Manual pricing is intentionally resolved in user-visible alias order
-	// first; blank rows are "unconfigured" and must not mask a later effective
-	// manual price.
+	// Qoder 的同一次请求可能同时存在公开/自定义请求 alias、渠道 route key、
+	// 计费模型和最终上游 route key。手工定价先按用户可见 alias 顺序解析；
+	// 空价格行表示“未配置”，不能遮蔽后续真正有效的手工价格。
 	channelMappedModel = strings.TrimSpace(channelMappedModel)
 	aliasHint := strings.TrimSpace(channelMappedModel)
 	if aliasHint == "" {

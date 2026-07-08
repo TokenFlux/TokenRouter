@@ -23,7 +23,7 @@ type qoderSessionCacheEntry struct {
 	session         *qoder.SessionContext
 }
 
-// QoderTokenProvider builds and caches COSY session contexts for Qoder accounts.
+// QoderTokenProvider 为 Qoder 账号构建并缓存 COSY session 上下文。
 type QoderTokenProvider struct {
 	mu                  sync.Mutex
 	sessions            map[int64]qoderSessionCacheEntry

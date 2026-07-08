@@ -512,8 +512,7 @@ type ChatFunctionCall struct {
 	Arguments string `json:"arguments"`
 }
 
-// UnmarshalJSON accepts both the official string form and object arguments
-// seen in some replayed OpenAI-compatible tool histories.
+// UnmarshalJSON 同时兼容官方字符串参数，以及部分 OpenAI 兼容历史回放里的对象参数。
 func (c *ChatFunctionCall) UnmarshalJSON(data []byte) error {
 	var raw struct {
 		Name      string          `json:"name"`

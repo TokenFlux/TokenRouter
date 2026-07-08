@@ -380,7 +380,7 @@
       <div v-else class="text-xs text-gray-400">-</div>
     </template>
 
-    <!-- Qoder COSY accounts: upstream monthly credits -->
+    <!-- Qoder COSY 账号：上游月度 credits -->
     <template v-else-if="account.platform === 'qoder'">
       <div v-if="loading" class="space-y-1.5">
         <div class="flex items-center gap-1">

@@ -714,7 +714,7 @@
                 <p class="text-sm text-blue-700 dark:text-blue-300">
                   {{ oauthOpenUrlDesc }}
                 </p>
-                <!-- Platform-specific important notice / local callback notice -->
+                <!-- 平台特定的重要提示和本地回调提示 -->
                 <div
                   v-if="showLocalCallbackNotice || oauthImportantNotice"
                   class="mt-2 rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/30"

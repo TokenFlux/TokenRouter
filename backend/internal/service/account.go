@@ -845,9 +845,8 @@ func (a *Account) GetConfiguredRequestModels() []string {
 	return models
 }
 
-// configuredQoderRequestModels treats model_mapping keys as the Qoder
-// request/display model set. If no mapping is configured, model_whitelist can
-// still act as an explicit request model list for whitelist-only accounts.
+// configuredQoderRequestModels 将 model_mapping key 作为 Qoder 请求和展示模型集合。
+// 如果没有配置 mapping，model_whitelist 仍可作为仅白名单账号的显式请求模型列表。
 func configuredQoderRequestModels(mapping map[string]string, whitelist map[string]struct{}) []string {
 	if len(mapping) == 0 && len(whitelist) == 0 {
 		return nil

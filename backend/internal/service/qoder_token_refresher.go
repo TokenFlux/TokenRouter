@@ -13,7 +13,7 @@ import (
 
 type qoderSessionRefresher func(ctx context.Context, refreshToken, securityOauthToken string, machine *qoder.MachineIdentity) (*qoder.AuthIdentity, error)
 
-// QoderTokenRefresher exchanges a Qoder refresh_token for a fresh COSY session.
+// QoderTokenRefresher 使用 Qoder refresh_token 换取新的 COSY session。
 type QoderTokenRefresher struct {
 	qoderOAuthService *QoderOAuthService
 	refreshSession    qoderSessionRefresher
@@ -127,10 +127,9 @@ func (r *QoderTokenRefresher) Refresh(ctx context.Context, account *Account) (ma
 	if strings.TrimSpace(stringFromCredentialValue(newCredentials["refresh_token"])) == "" {
 		newCredentials["refresh_token"] = refreshToken
 	}
-	// Qoder refresh responses observed so far do not provide a reliable
-	// replacement expiry. Do not preserve a stale imported expires_at value:
-	// NeedsRefresh would immediately treat the freshly refreshed account as
-	// expiring again and can cause refresh loops.
+	// 目前观测到的 Qoder refresh 响应没有可靠的新过期时间。
+	// 不保留导入时的旧 expires_at，否则 NeedsRefresh 会立刻把刚刷新的账号
+	// 判定为即将过期，并可能形成刷新循环。
 	delete(newCredentials, "expires_at")
 	return newCredentials, nil
 }

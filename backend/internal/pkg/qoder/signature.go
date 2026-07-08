@@ -11,17 +11,17 @@ const (
 	Sep     = "&"
 )
 
-// SignCenterRequest generates an MD5 signature for center.qoder.sh API requests.
+// SignCenterRequest 为 center.qoder.sh API 请求生成 MD5 签名。
 func SignCenterRequest(date string) string {
 	return md5Hex(fmt.Sprintf("%s%s%s%s%s", AppCode, Sep, Secret, Sep, date))
 }
 
-// SignQoderRequest generates an MD5 signature for api1.qoder.sh API requests.
+// SignQoderRequest 为 api1.qoder.sh API 请求生成 MD5 签名。
 func SignQoderRequest(payloadB64, cosyKey, cosyDate, body, pathWithoutAlgo string) string {
 	return md5Hex(fmt.Sprintf("%s\n%s\n%s\n%s\n%s", payloadB64, cosyKey, cosyDate, body, pathWithoutAlgo))
 }
 
-// ComposeBearer composes the Authorization header value.
+// ComposeBearer 组合 Authorization header 值。
 func ComposeBearer(payloadB64, signature string) string {
 	return fmt.Sprintf("Bearer COSY.%s.%s", payloadB64, signature)
 }

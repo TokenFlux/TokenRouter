@@ -14,26 +14,26 @@ import (
 	"time"
 )
 
-// CenterBaseURL is the default center service URL.
+// CenterBaseURL 是 Qoder center 服务的默认地址。
 const CenterBaseURL = "https://center.qoder.sh"
 
-// APIBaseURL is the default Qoder API base URL (verified from qodercli endpoint-cache.json).
+// APIBaseURL 是 Qoder API 的默认地址，已按 qodercli endpoint-cache.json 校验。
 const APIBaseURL = "https://api1.qoder.sh"
 
-// ClientVersion is the COSY protocol version (matched to real qodercli v1.0.20).
+// ClientVersion 是 COSY 协议版本，与 qodercli v1.0.20 保持一致。
 const ClientVersion = "1.0.20"
 
-// GenerateRequestID generates a random request ID.
+// GenerateRequestID 生成随机请求 ID。
 func GenerateRequestID() string {
 	return hex.EncodeToString(mustRandomBytes(16))
 }
 
-// RandomToken generates a random URL-safe token of the given length.
+// RandomToken 生成指定长度的 URL-safe 随机 token。
 func RandomToken(length int) string {
 	return base64URLEncode(mustRandomBytes(length))
 }
 
-// RandomHex generates a random hex string of the given length.
+// RandomHex 生成指定长度的十六进制随机字符串。
 func RandomHex(length int) string {
 	b := mustRandomBytes((length + 1) / 2)
 	return hex.EncodeToString(b)[:length]
@@ -48,7 +48,7 @@ func mustRandomBytes(length int) []byte {
 }
 
 func base64URLEncode(b []byte) string {
-	// Manual URL-safe base64 encoding without padding
+	// 手动实现不带 padding 的 URL-safe base64 编码。
 	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 	var result strings.Builder
 	result.Grow((len(b)*8 + 5) / 6)
@@ -77,21 +77,21 @@ func base64URLEncode(b []byte) string {
 	return result.String()
 }
 
-// NewMachine creates a new random machine identity.
+// NewMachine 创建新的随机机器身份。
 func NewMachine() *MachineIdentity {
 	return &MachineIdentity{
-		MachineID:    RandomHex(36), // UUID format length
+		MachineID:    RandomHex(36), // UUID 格式长度
 		MachineToken: RandomToken(50),
 		MachineType:  RandomHex(18),
 	}
 }
 
-// ExchangePAT exchanges a Personal Access Token for an AuthIdentity.
+// ExchangePAT 使用 Personal Access Token 换取 AuthIdentity。
 func ExchangePAT(pat string, machine *MachineIdentity, centerURL string) (*AuthIdentity, error) {
 	return ExchangePATContext(context.Background(), pat, machine, centerURL, nil)
 }
 
-// ExchangePATContext exchanges a Personal Access Token using the provided context and request executor.
+// ExchangePATContext 使用传入的 context 和请求执行器换取 AuthIdentity。
 func ExchangePATContext(ctx context.Context, pat string, machine *MachineIdentity, centerURL string, doer RequestDoer) (*AuthIdentity, error) {
 	inner := map[string]any{
 		"personalToken":      pat,
@@ -103,12 +103,12 @@ func ExchangePATContext(ctx context.Context, pat string, machine *MachineIdentit
 	return exchangeJobToken(ctx, inner, machine, centerURL, "PAT exchange", doer)
 }
 
-// RefreshSession exchanges a Qoder refresh_token for a new COSY identity.
+// RefreshSession 使用 Qoder refresh_token 换取新的 COSY 身份。
 func RefreshSession(refreshToken, securityOauthToken string, machine *MachineIdentity, centerURL string) (*AuthIdentity, error) {
 	return RefreshSessionContext(context.Background(), refreshToken, securityOauthToken, machine, centerURL, nil)
 }
 
-// RefreshSessionContext exchanges a Qoder refresh_token using the provided context and request executor.
+// RefreshSessionContext 使用传入的 context 和请求执行器刷新 COSY 身份。
 func RefreshSessionContext(ctx context.Context, refreshToken, securityOauthToken string, machine *MachineIdentity, centerURL string, doer RequestDoer) (*AuthIdentity, error) {
 	if strings.TrimSpace(securityOauthToken) == "" {
 		return nil, fmt.Errorf("qoder: refresh requires securityOauthToken")
@@ -212,7 +212,7 @@ func newCenterEncodedRequest(method, rawURL string, payload []byte, machine *Mac
 	return req, nil
 }
 
-// pathWithoutAlgo removes the "/algo" prefix from a URL path for signature computation.
+// pathWithoutAlgo 移除 URL path 中用于签名计算之外的 "/algo" 前缀。
 func pathWithoutAlgo(rawURL string) string {
 	u, err := url.Parse(rawURL)
 	if err != nil {

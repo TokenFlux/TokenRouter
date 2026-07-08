@@ -19,7 +19,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// QoderGatewayHandler handles native Qoder gateway requests.
+// QoderGatewayHandler 处理 Qoder 原生网关请求。
 type QoderGatewayHandler struct {
 	gatewayService          *service.GatewayService
 	qoderGatewayService     *service.QoderGatewayService
