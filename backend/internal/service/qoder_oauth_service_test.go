@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"net/url"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/stretchr/testify/require"
@@ -15,6 +18,7 @@ type fakeQoderOAuthClient struct {
 	token       *qoder.DeviceTokenResponse
 	ready       bool
 	pollErr     error
+	pollCalls   int
 	userInfo    *qoder.UserInfo
 	userErr     error
 	orgTags     *qoder.OrganizationTags
@@ -23,7 +27,15 @@ type fakeQoderOAuthClient struct {
 	gotVerifier string
 }
 
+type blockingQoderOAuthClient struct {
+	started   chan struct{}
+	release   chan struct{}
+	startOnce sync.Once
+	pollCalls atomic.Int32
+}
+
 func (f *fakeQoderOAuthClient) PollDeviceToken(ctx context.Context, nonce, verifier string) (*qoder.DeviceTokenResponse, bool, error) {
+	f.pollCalls++
 	f.gotNonce = nonce
 	f.gotVerifier = verifier
 	return f.token, f.ready, f.pollErr
@@ -41,6 +53,29 @@ func (f *fakeQoderOAuthClient) GetOrganizationTags(ctx context.Context, token, u
 		return nil, f.orgErr
 	}
 	return f.orgTags, nil
+}
+
+func (f *blockingQoderOAuthClient) PollDeviceToken(ctx context.Context, nonce, verifier string) (*qoder.DeviceTokenResponse, bool, error) {
+	f.pollCalls.Add(1)
+	f.startOnce.Do(func() { close(f.started) })
+	select {
+	case <-ctx.Done():
+		return nil, false, ctx.Err()
+	case <-f.release:
+		return &qoder.DeviceTokenResponse{
+			AccessToken:  "access-token",
+			RefreshToken: "refresh-token",
+			UserID:       "user-1",
+		}, true, nil
+	}
+}
+
+func (f *blockingQoderOAuthClient) GetUserInfo(ctx context.Context, token string) (*qoder.UserInfo, error) {
+	return &qoder.UserInfo{ID: "user-1", Name: "Qoder User"}, nil
+}
+
+func (f *blockingQoderOAuthClient) GetOrganizationTags(ctx context.Context, token, uid string) (*qoder.OrganizationTags, error) {
+	return nil, nil
 }
 
 func TestQoderOAuthServiceGenerateAuthURLCreatesSession(t *testing.T) {
@@ -156,8 +191,9 @@ func TestQoderOAuthServiceExchangeParsesCallbackURLAndBuildsUsableCredentials(t 
 	require.NotEmpty(t, tokenInfo.MachineToken)
 	require.NotEmpty(t, tokenInfo.MachineType)
 
-	_, ok := svc.sessionStore.Get(result.SessionID)
-	require.False(t, ok, "completed authorization should consume the session")
+	sessionAfterComplete, ok := svc.sessionStore.Get(result.SessionID)
+	require.True(t, ok, "completed authorization should remain available for idempotent retry")
+	require.NotNil(t, sessionAfterComplete.CompletedTokenInfo)
 
 	credentials := svc.BuildAccountCredentials(tokenInfo)
 	require.Equal(t, "security-token", credentials["security_oauth_token"])
@@ -216,6 +252,91 @@ func TestQoderOAuthServicePollReturnsPendingAndCompleted(t *testing.T) {
 		"code":    "organization_unavailable",
 		"message": "Qoder organization info could not be loaded",
 	}, completed.TokenInfo.Extra["organization_warning"])
+}
+
+func TestQoderOAuthServiceCompletedSessionIsIdempotent(t *testing.T) {
+	svc := NewQoderOAuthService(nil)
+	defer svc.Stop()
+	client := &fakeQoderOAuthClient{
+		ready: true,
+		token: &qoder.DeviceTokenResponse{
+			AccessToken:  "access-token",
+			RefreshToken: "refresh-token",
+			UserID:       "user-1",
+		},
+		userInfo: &qoder.UserInfo{ID: "user-1", Name: "Qoder User"},
+	}
+	svc.clientFactory = func(proxyURL string) (qoderOAuthClient, error) {
+		return client, nil
+	}
+
+	result, err := svc.GenerateAuthURL(context.Background(), nil)
+	require.NoError(t, err)
+	completed, err := svc.Poll(context.Background(), result.SessionID, result.State, nil)
+	require.NoError(t, err)
+	require.Equal(t, "completed", completed.Status)
+	require.Equal(t, "access-token", completed.TokenInfo.SecurityOauthToken)
+
+	tokenInfo, err := svc.ExchangeCode(context.Background(), &QoderExchangeCodeInput{
+		SessionID: result.SessionID,
+		State:     result.State,
+		Code:      "ignored-by-device-flow",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "access-token", tokenInfo.SecurityOauthToken)
+	require.Equal(t, 1, client.pollCalls, "completed session should return cached token info")
+}
+
+func TestQoderOAuthServiceConcurrentCompletionReusesSingleResult(t *testing.T) {
+	svc := NewQoderOAuthService(nil)
+	defer svc.Stop()
+	client := &blockingQoderOAuthClient{
+		started: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	svc.clientFactory = func(proxyURL string) (qoderOAuthClient, error) {
+		return client, nil
+	}
+
+	result, err := svc.GenerateAuthURL(context.Background(), nil)
+	require.NoError(t, err)
+
+	pollDone := make(chan *QoderPollResult, 1)
+	pollErr := make(chan error, 1)
+	go func() {
+		pollResult, pollErrValue := svc.Poll(context.Background(), result.SessionID, result.State, nil)
+		pollDone <- pollResult
+		pollErr <- pollErrValue
+	}()
+	<-client.started
+
+	exchangeDone := make(chan *QoderTokenInfo, 1)
+	exchangeErr := make(chan error, 1)
+	go func() {
+		tokenInfo, exchangeErrValue := svc.ExchangeCode(context.Background(), &QoderExchangeCodeInput{
+			SessionID: result.SessionID,
+			State:     result.State,
+			Code:      "ignored-by-device-flow",
+		})
+		exchangeDone <- tokenInfo
+		exchangeErr <- exchangeErrValue
+	}()
+
+	select {
+	case <-exchangeDone:
+		t.Fatal("exchange should wait for the in-flight completion")
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	close(client.release)
+	pollResult := <-pollDone
+	require.NoError(t, <-pollErr)
+	require.Equal(t, "completed", pollResult.Status)
+
+	tokenInfo := <-exchangeDone
+	require.NoError(t, <-exchangeErr)
+	require.Equal(t, "access-token", tokenInfo.SecurityOauthToken)
+	require.Equal(t, int32(1), client.pollCalls.Load())
 }
 
 func TestQoderOAuthServiceWarningsDoNotPersistRawUpstreamErrors(t *testing.T) {

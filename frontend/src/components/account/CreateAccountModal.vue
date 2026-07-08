@@ -3788,12 +3788,14 @@ const oauth = useAccountOAuth() // Anthropic OAuth
 const openaiOAuth = useOpenAIOAuth() // OpenAI OAuth
 const geminiOAuth = useGeminiOAuth() // Gemini OAuth
 const antigravityOAuth = useAntigravityOAuth() // Antigravity OAuth
-const qoderOAuth = useQoderOAuth() // Qoder device authorization
+const qoderOAuth = useQoderOAuth() // Qoder 设备授权
 const grokOAuth = useGrokOAuth() // Grok OAuth
 let qoderPollTimer: number | null = null
 let qoderAuthPopup: Window | null = null
 let qoderPollInFlight = false
 let qoderPollGeneration = 0
+let qoderAccountCreateInFlight = false
+let qoderOAuthCompleted = false
 
 // 当前 OAuth 状态用于模板绑定。
 const currentAuthUrl = computed(() => {
@@ -5041,6 +5043,7 @@ const submitCreateAccount = async (payload: CreateAccountRequest) => {
 // Methods
 const resetForm = () => {
   stopQoderPolling()
+  resetQoderOAuthCompletionState()
   step.value = 1
   form.name = ''
   form.notes = ''
@@ -5161,6 +5164,7 @@ const resetForm = () => {
 
 const handleClose = () => {
   stopQoderPolling()
+  resetQoderOAuthCompletionState()
   qoderAuthPopup = null
   antigravityMixedChannelConfirmed.value = false
   clearMixedChannelDialog()
@@ -5646,6 +5650,7 @@ const handleSubmit = async () => {
 
 const goBackToBasicInfo = () => {
   stopQoderPolling()
+  resetQoderOAuthCompletionState()
   step.value = 1
   oauth.resetState()
   openaiOAuth.resetState()
@@ -5673,17 +5678,29 @@ const stopQoderPolling = () => {
   qoderPollInFlight = false
 }
 
-const createQoderOAuthAccount = async (tokenInfo?: QoderTokenInfo) => {
-  if (!tokenInfo) return
+const resetQoderOAuthCompletionState = () => {
+  qoderAccountCreateInFlight = false
+  qoderOAuthCompleted = false
+}
 
-  const credentials = qoderOAuth.buildCredentials(tokenInfo)
-  applyQoderModelRestriction(credentials)
-  applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
-  await createAccountAndFinish('qoder', 'cosy', credentials, buildQoderExtra())
+const createQoderOAuthAccount = async (tokenInfo?: QoderTokenInfo) => {
+  if (!tokenInfo || qoderAccountCreateInFlight || qoderOAuthCompleted) return
+
+  qoderAccountCreateInFlight = true
+  try {
+    const credentials = qoderOAuth.buildCredentials(tokenInfo)
+    applyQoderModelRestriction(credentials)
+    applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
+    await createAccountAndFinish('qoder', 'cosy', credentials, buildQoderExtra())
+    qoderOAuthCompleted = true
+  } finally {
+    qoderAccountCreateInFlight = false
+  }
 }
 
 const pollQoderAuthorizationOnce = async () => {
-  if (qoderPollInFlight || !qoderOAuth.sessionId.value || !qoderOAuth.state.value) return
+  if (qoderPollInFlight || qoderOAuthCompleted || !qoderOAuth.sessionId.value || !qoderOAuth.state.value)
+    return
   const generation = qoderPollGeneration
   qoderPollInFlight = true
 
@@ -5735,6 +5752,7 @@ const handleGenerateUrl = async () => {
   } else if (form.platform === 'antigravity') {
     await antigravityOAuth.generateAuthUrl(form.proxy_id)
   } else if (form.platform === 'qoder') {
+    resetQoderOAuthCompletionState()
     qoderAuthPopup = window.open('about:blank', 'qoderAuthPopup', getQoderPopupFeatures())
     const ok = await qoderOAuth.generateAuthUrl(form.proxy_id)
     if (!ok) {
@@ -6642,7 +6660,7 @@ const handleAntigravityExchange = async (authCode: string) => {
 }
 
 const handleQoderExchange = async (authCode: string) => {
-  if (!qoderOAuth.sessionId.value) return
+  if (!qoderOAuth.sessionId.value || qoderOAuthCompleted || qoderAccountCreateInFlight) return
 
   const shouldResumePolling = qoderPollTimer !== null
   stopQoderPolling()

@@ -1,5 +1,7 @@
 .PHONY: build build-backend build-frontend build-datamanagementd test test-backend test-frontend test-frontend-critical test-datamanagementd secret-scan
 
+PNPM ?= npx --yes pnpm@9
+
 FRONTEND_CRITICAL_VITEST := \
 	src/views/auth/__tests__/LinuxDoCallbackView.spec.ts \
 	src/views/auth/__tests__/WechatCallbackView.spec.ts \
@@ -21,7 +23,7 @@ build-backend:
 
 # 编译前端（需要已安装依赖）
 build-frontend:
-	@pnpm --dir frontend run build
+	@$(PNPM) --dir frontend run build
 
 # 编译 datamanagementd（宿主机数据管理进程）
 build-datamanagementd:
@@ -34,12 +36,12 @@ test-backend:
 	@$(MAKE) -C backend test
 
 test-frontend:
-	@pnpm --dir frontend run lint:check
-	@pnpm --dir frontend run typecheck
+	@$(PNPM) --dir frontend run lint:check
+	@$(PNPM) --dir frontend run typecheck
 	@$(MAKE) test-frontend-critical
 
 test-frontend-critical:
-	@pnpm --dir frontend exec vitest run $(FRONTEND_CRITICAL_VITEST)
+	@$(PNPM) --dir frontend exec vitest run $(FRONTEND_CRITICAL_VITEST)
 
 test-datamanagementd:
 	@cd datamanagement && go test ./...

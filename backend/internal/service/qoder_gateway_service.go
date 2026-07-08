@@ -2012,7 +2012,7 @@ func qoderMessagesFromResponsesInput(raw json.RawMessage) ([]qoderMessage, error
 		}
 	}
 	flushPendingToolCalls()
-	return messages, nil
+	return normalizeQoderResponsesToolPairing(messages), nil
 }
 
 func qoderMessageFromResponsesInputItem(item apicompat.ResponsesInputItem) qoderMessage {
@@ -2056,6 +2056,82 @@ func qoderMessageFromResponsesInputItem(item apicompat.ResponsesInputItem) qoder
 			Raw:  map[string]any{"role": role, "content": text},
 		}
 	}
+}
+
+func normalizeQoderResponsesToolPairing(messages []qoderMessage) []qoderMessage {
+	// Responses 历史可能包含未返回 output 的 function_call，或重连后遗留的孤儿 output。
+	// Qoder 走 Chat 形状上游，同样要求 assistant tool_calls 后面有对应 tool 消息。
+	replies := make(map[string]qoderMessage)
+	for _, message := range messages {
+		if message.Role != "tool" {
+			continue
+		}
+		if id := qoderMessageToolCallID(message); id != "" {
+			replies[id] = message
+		}
+	}
+
+	out := make([]qoderMessage, 0, len(messages))
+	for _, message := range messages {
+		switch {
+		case message.Role == "tool":
+			continue
+		case qoderMessageHasToolCalls(message):
+			tools := normalizeQoderToolCalls(message.Raw["tool_calls"])
+			keptTools := make([]any, 0, len(tools))
+			keptReplies := make([]qoderMessage, 0, len(tools))
+			for _, rawTool := range tools {
+				tool, ok := rawTool.(map[string]any)
+				if !ok {
+					continue
+				}
+				id := qoderToolCallIDFromMap(tool)
+				if id == "" {
+					continue
+				}
+				reply, ok := replies[id]
+				if !ok {
+					continue
+				}
+				keptTools = append(keptTools, tool)
+				keptReplies = append(keptReplies, reply)
+			}
+			if len(keptTools) == 0 {
+				if qoderMessageHasText(message) {
+					out = append(out, qoderMessageWithoutToolCalls(message))
+				}
+				continue
+			}
+			message.Raw = qoderCopyRawMap(message.Raw)
+			message.Raw["tool_calls"] = keptTools
+			out = append(out, message)
+			out = append(out, keptReplies...)
+		default:
+			out = append(out, message)
+		}
+	}
+	return out
+}
+
+func qoderMessageHasText(message qoderMessage) bool {
+	return strings.TrimSpace(message.Text) != "" || len(message.TextContent) > 0
+}
+
+func qoderMessageWithoutToolCalls(message qoderMessage) qoderMessage {
+	message.Raw = qoderCopyRawMap(message.Raw)
+	delete(message.Raw, "tool_calls")
+	return message
+}
+
+func qoderCopyRawMap(raw map[string]any) map[string]any {
+	if len(raw) == 0 {
+		return map[string]any{}
+	}
+	copied := make(map[string]any, len(raw))
+	for key, value := range raw {
+		copied[key] = value
+	}
+	return copied
 }
 
 func qoderResponsesContentText(raw json.RawMessage) string {
@@ -2617,6 +2693,14 @@ func qoderMessageToolCallID(message qoderMessage) string {
 		qoderStringField(message.Raw, "tool_call_id"),
 		qoderStringField(message.Raw, "tool_call_call_id"),
 		qoderStringField(message.Raw, "call_id"),
+	)
+}
+
+func qoderToolCallIDFromMap(tool map[string]any) string {
+	return firstNonEmptyQoder(
+		qoderStringField(tool, "id"),
+		qoderStringField(tool, "tool_call_id"),
+		qoderStringField(tool, "call_id"),
 	)
 }
 

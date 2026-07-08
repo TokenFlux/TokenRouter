@@ -1116,6 +1116,42 @@ func TestQoderResponsesPayloadSkipsReasoningAndUnknownOutputItems(t *testing.T) 
 	require.Equal(t, "deadbeef", request.messages[2].Text)
 }
 
+func TestQoderResponsesPayloadDropsUnansweredParallelFunctionCall(t *testing.T) {
+	request, err := parseQoderResponsesPayload([]byte(`{
+		"model":"deepseek-v4-pro",
+		"input":[
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"run commands"}]},
+			{"type":"function_call","call_id":"call_a","name":"bash","arguments":"{\"command\":\"printf A\"}"},
+			{"type":"function_call","call_id":"call_b","name":"bash","arguments":"{\"command\":\"printf B\"}"},
+			{"type":"function_call_output","call_id":"call_a","output":"A\n"}
+		]
+	}`))
+
+	require.NoError(t, err)
+	require.Len(t, request.messages, 3)
+	toolCalls := qoderAnySlice(request.messages[1].Raw["tool_calls"])
+	require.Len(t, toolCalls, 1)
+	toolCall := toolCalls[0].(map[string]any)
+	require.Equal(t, "call_a", toolCall["id"])
+	require.Equal(t, "tool", request.messages[2].Role)
+	require.Equal(t, "call_a", request.messages[2].ToolCallID)
+}
+
+func TestQoderResponsesPayloadDropsOrphanFunctionCallOutput(t *testing.T) {
+	request, err := parseQoderResponsesPayload([]byte(`{
+		"model":"deepseek-v4-pro",
+		"input":[
+			{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]},
+			{"type":"function_call_output","call_id":"ghost","output":"stale output"}
+		]
+	}`))
+
+	require.NoError(t, err)
+	require.Len(t, request.messages, 1)
+	require.Equal(t, "user", request.messages[0].Role)
+	require.Equal(t, "hello", request.messages[0].Text)
+}
+
 func TestQoderGatewayAssemblesResponsesKeepsNoIndexNamedParallelFunctionCalls(t *testing.T) {
 	body, err := BuildQoderResponsesResponse("claude-opus-4-6", qoderNoIndexNamedParallelToolCallEventsForTest())
 	require.NoError(t, err)

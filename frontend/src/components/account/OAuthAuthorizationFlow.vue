@@ -697,7 +697,7 @@
             </div>
           </div>
 
-          <!-- Step 2: Open URL and authorize -->
+          <!-- 步骤 2：打开授权地址 -->
           <div
             class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
           >
@@ -724,9 +724,9 @@
                     v-text="oauthImportantNotice"
                   ></p>
                 </div>
-                <!-- Proxy Warning (for non-OpenAI) -->
+                <!-- 非 OpenAI 平台代理提示 -->
                 <div
-                  v-else-if="showProxyWarning"
+                  v-if="showProxyWarning"
                   class="mt-2 rounded border border-yellow-300 bg-yellow-50 p-3 dark:border-yellow-700 dark:bg-yellow-900/30"
                 >
                   <p
@@ -738,7 +738,7 @@
             </div>
           </div>
 
-          <!-- Step 3: Enter authorization code -->
+          <!-- 步骤 3：输入授权码 -->
           <div
             class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
           >

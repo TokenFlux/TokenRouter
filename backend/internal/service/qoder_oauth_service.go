@@ -28,13 +28,16 @@ type qoderOAuthClient interface {
 type qoderOAuthClientFactory func(proxyURL string) (qoderOAuthClient, error)
 
 type qoderOAuthSession struct {
-	State        string
-	Nonce        string
-	CodeVerifier string
-	Machine      *qoder.MachineIdentity
-	AuthURL      string
-	ProxyURL     string
-	CreatedAt    time.Time
+	State              string
+	Nonce              string
+	CodeVerifier       string
+	Machine            *qoder.MachineIdentity
+	AuthURL            string
+	ProxyURL           string
+	CreatedAt          time.Time
+	Completing         bool
+	CompleteCh         chan struct{}
+	CompletedTokenInfo *QoderTokenInfo
 }
 
 type qoderOAuthSessionStore struct {
@@ -71,10 +74,55 @@ func (s *qoderOAuthSessionStore) Get(sessionID string) (*qoderOAuthSession, bool
 	return session, true
 }
 
-func (s *qoderOAuthSessionStore) Delete(sessionID string) {
+func (s *qoderOAuthSessionStore) BeginCompletion(sessionID, state string) (*qoderOAuthSession, *QoderTokenInfo, <-chan struct{}, error) {
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		return nil, nil, nil, errors.New("qoder oauth session_id is required")
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	delete(s.sessions, sessionID)
+
+	session, ok := s.sessions[sessionID]
+	if !ok || time.Since(session.CreatedAt) > qoderOAuthSessionTTL {
+		if ok {
+			delete(s.sessions, sessionID)
+		}
+		return nil, nil, nil, errors.New("qoder oauth session not found or expired")
+	}
+	if strings.TrimSpace(state) == "" || strings.TrimSpace(state) != session.State {
+		return nil, nil, nil, errors.New("qoder oauth state is invalid")
+	}
+	if session.CompletedTokenInfo != nil {
+		return session, session.CompletedTokenInfo, nil, nil
+	}
+	if session.Completing {
+		if session.CompleteCh == nil {
+			session.CompleteCh = make(chan struct{})
+		}
+		return nil, nil, session.CompleteCh, nil
+	}
+	session.Completing = true
+	session.CompleteCh = make(chan struct{})
+	return session, nil, nil, nil
+}
+
+func (s *qoderOAuthSessionStore) FinishCompletion(sessionID string, tokenInfo *QoderTokenInfo) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	session, ok := s.sessions[strings.TrimSpace(sessionID)]
+	if !ok {
+		return
+	}
+	if tokenInfo != nil {
+		session.CompletedTokenInfo = tokenInfo
+	}
+	session.Completing = false
+	if session.CompleteCh != nil {
+		close(session.CompleteCh)
+		session.CompleteCh = nil
+	}
 }
 
 func (s *qoderOAuthSessionStore) Stop() {
@@ -195,82 +243,27 @@ func (s *QoderOAuthService) ExchangeCode(ctx context.Context, input *QoderExchan
 	if err := normalizeQoderExchangeInput(input); err != nil {
 		return nil, err
 	}
-	session, err := s.validateSession(input.SessionID, input.State)
+	tokenInfo, pending, err := s.completeSession(ctx, input.SessionID, input.State, input.ProxyID)
 	if err != nil {
 		return nil, err
 	}
-
-	proxyURL := session.ProxyURL
-	if input.ProxyID != nil {
-		proxyURL, err = s.resolveProxyURL(ctx, input.ProxyID)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	client, err := s.clientFactory(proxyURL)
-	if err != nil {
-		return nil, err
-	}
-
-	tokenResp, ready, err := client.PollDeviceToken(ctx, session.Nonce, session.CodeVerifier)
-	if err != nil {
-		return nil, err
-	}
-	if !ready {
+	if pending {
 		return nil, errors.New("qoder authorization is still pending; finish authorization in the browser and try again")
 	}
-
-	accessToken := tokenResp.AccessTokenValue()
-	userInfo, userErr := client.GetUserInfo(ctx, accessToken)
-	if userErr != nil {
-		userInfo = &qoder.UserInfo{ID: tokenResp.UserID}
-	}
-	identity := qoder.BuildIdentityFromDeviceToken(userInfo, tokenResp)
-	orgErr := populateQoderOrganization(ctx, client, accessToken, identity)
-	machine := session.Machine
-
-	s.sessionStore.Delete(input.SessionID)
-	return buildQoderTokenInfo(identity, machine, userErr, orgErr), nil
+	return tokenInfo, nil
 }
 
 func (s *QoderOAuthService) Poll(ctx context.Context, sessionID, state string, proxyID *int64) (*QoderPollResult, error) {
-	session, err := s.validateSession(sessionID, state)
+	tokenInfo, pending, err := s.completeSession(ctx, sessionID, state, proxyID)
 	if err != nil {
 		return nil, err
 	}
-
-	proxyURL := session.ProxyURL
-	if proxyID != nil {
-		proxyURL, err = s.resolveProxyURL(ctx, proxyID)
-		if err != nil {
-			return nil, err
-		}
-	}
-	client, err := s.clientFactory(proxyURL)
-	if err != nil {
-		return nil, err
-	}
-	tokenResp, ready, err := client.PollDeviceToken(ctx, session.Nonce, session.CodeVerifier)
-	if err != nil {
-		return nil, err
-	}
-	if !ready {
+	if pending {
 		return &QoderPollResult{Status: "pending"}, nil
 	}
-
-	accessToken := tokenResp.AccessTokenValue()
-	userInfo, userErr := client.GetUserInfo(ctx, accessToken)
-	if userErr != nil {
-		userInfo = &qoder.UserInfo{ID: tokenResp.UserID}
-	}
-	identity := qoder.BuildIdentityFromDeviceToken(userInfo, tokenResp)
-	orgErr := populateQoderOrganization(ctx, client, accessToken, identity)
-	machine := session.Machine
-	s.sessionStore.Delete(sessionID)
 	return &QoderPollResult{
 		Status:    "completed",
-		TokenInfo: buildQoderTokenInfo(identity, machine, userErr, orgErr),
+		TokenInfo: tokenInfo,
 	}, nil
 }
 
@@ -279,19 +272,63 @@ type QoderPollResult struct {
 	TokenInfo *QoderTokenInfo `json:"token_info,omitempty"`
 }
 
-func (s *QoderOAuthService) validateSession(sessionID, state string) (*qoderOAuthSession, error) {
-	sessionID = strings.TrimSpace(sessionID)
-	if sessionID == "" {
-		return nil, errors.New("qoder oauth session_id is required")
+func (s *QoderOAuthService) completeSession(ctx context.Context, sessionID, state string, proxyID *int64) (*QoderTokenInfo, bool, error) {
+	for {
+		session, cachedTokenInfo, waitCh, err := s.sessionStore.BeginCompletion(sessionID, state)
+		if err != nil {
+			return nil, false, err
+		}
+		if cachedTokenInfo != nil {
+			return cachedTokenInfo, false, nil
+		}
+		if waitCh != nil {
+			select {
+			case <-ctx.Done():
+				return nil, false, ctx.Err()
+			case <-waitCh:
+				continue
+			}
+		}
+		tokenInfo, pending, err := s.completeSessionOnce(ctx, session, proxyID)
+		if err != nil || pending {
+			s.sessionStore.FinishCompletion(sessionID, nil)
+			return nil, pending, err
+		}
+		s.sessionStore.FinishCompletion(sessionID, tokenInfo)
+		return tokenInfo, false, nil
 	}
-	session, ok := s.sessionStore.Get(sessionID)
-	if !ok {
-		return nil, errors.New("qoder oauth session not found or expired")
+}
+
+func (s *QoderOAuthService) completeSessionOnce(ctx context.Context, session *qoderOAuthSession, proxyID *int64) (*QoderTokenInfo, bool, error) {
+	proxyURL := session.ProxyURL
+	if proxyID != nil {
+		resolvedProxyURL, err := s.resolveProxyURL(ctx, proxyID)
+		if err != nil {
+			return nil, false, err
+		}
+		proxyURL = resolvedProxyURL
 	}
-	if strings.TrimSpace(state) == "" || strings.TrimSpace(state) != session.State {
-		return nil, errors.New("qoder oauth state is invalid")
+	client, err := s.clientFactory(proxyURL)
+	if err != nil {
+		return nil, false, err
 	}
-	return session, nil
+
+	tokenResp, ready, err := client.PollDeviceToken(ctx, session.Nonce, session.CodeVerifier)
+	if err != nil {
+		return nil, false, err
+	}
+	if !ready {
+		return nil, true, nil
+	}
+
+	accessToken := tokenResp.AccessTokenValue()
+	userInfo, userErr := client.GetUserInfo(ctx, accessToken)
+	if userErr != nil {
+		userInfo = &qoder.UserInfo{ID: tokenResp.UserID}
+	}
+	identity := qoder.BuildIdentityFromDeviceToken(userInfo, tokenResp)
+	orgErr := populateQoderOrganization(ctx, client, accessToken, identity)
+	return buildQoderTokenInfo(identity, session.Machine, userErr, orgErr), false, nil
 }
 
 func normalizeQoderExchangeInput(input *QoderExchangeCodeInput) error {
