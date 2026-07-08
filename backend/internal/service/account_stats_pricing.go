@@ -18,6 +18,8 @@ import (
 // requestedModel 是渠道映射前的请求模型 ID；channelMappedModel 是渠道映射后的 route key。
 // Qoder 这类上游 route key 与公开 alias 分离的平台会按 requested → channelMapped → upstream 尝试。
 // totalCost 是本次请求的客户计费（倍率前），用于优先级 2。
+//
+//nolint:unused // 兼容旧测试入口；生产路径会传入 channelMappedModel 并调用 WithMapped 版本。
 func resolveAccountStatsCost(
 	ctx context.Context,
 	channelService *ChannelService,
@@ -212,6 +214,8 @@ func matchAccountStatsRule(rule *AccountStatsPricingRule, accountID, groupID int
 
 // findPricingForModel 在定价列表中查找匹配的模型定价。
 // 先精确匹配，再通配符匹配（按配置顺序，先匹配先使用）。
+//
+//nolint:unused // 兼容旧测试入口；生产路径需要过滤空定价行并调用 findEffectivePricingForModel。
 func findPricingForModel(pricingList []ChannelModelPricing, platform, modelLower string) *ChannelModelPricing {
 	return findPricingForModelByPredicate(pricingList, platform, modelLower, nil)
 }

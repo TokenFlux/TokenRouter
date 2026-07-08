@@ -755,6 +755,51 @@ func TestQoderGatewayChatCompletionsMapsUpstreamToolNameToDeclaredOpenAITool(t *
 	require.Equal(t, "bash", tools[0].(map[string]any)["function"].(map[string]any)["name"])
 }
 
+func TestQoderGatewayChatCompletionsConvertsLegacyFunctions(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	body := []byte(`{
+		"model":"deepseek-v4-pro",
+		"messages":[{"role":"user","content":"weather"}],
+		"functions":[{
+			"name":"get_weather",
+			"description":"Get weather",
+			"parameters":{"type":"object","properties":{"city":{"type":"string"}}}
+		}],
+		"function_call":{"name":"get_weather"},
+		"stream":false
+	}`)
+
+	result, _ := qoderForwardChatCompletionsResultAndBodyForTest(t, svc, account, "", body)
+
+	require.False(t, result.Stream)
+	upstream := qoderLastUpstreamPayloadForTest(t, client)
+	tools := upstream["tools"].([]any)
+	require.Len(t, tools, 1)
+	// 兼容旧版 OpenAI Chat Completions 客户端传入的 functions/function_call。
+	function := tools[0].(map[string]any)["function"].(map[string]any)
+	require.Equal(t, "get_weather", function["name"])
+	require.Equal(t, "Get weather", function["description"])
+	require.Equal(t, "object", function["parameters"].(map[string]any)["type"])
+}
+
+func TestQoderGatewayChatCompletionsLegacyFunctionCallNoneClearsTools(t *testing.T) {
+	account, svc, client := newQoderGatewayForwardTestService()
+	body := []byte(`{
+		"model":"deepseek-v4-pro",
+		"messages":[{"role":"user","content":"plain answer"}],
+		"functions":[{"name":"get_weather","parameters":{"type":"object"}}],
+		"function_call":"none",
+		"stream":false
+	}`)
+
+	result, _ := qoderForwardChatCompletionsResultAndBodyForTest(t, svc, account, "", body)
+
+	require.False(t, result.Stream)
+	upstream := qoderLastUpstreamPayloadForTest(t, client)
+	tools := upstream["tools"].([]any)
+	require.Empty(t, tools)
+}
+
 func TestQoderGatewayMessagesMapsUpstreamToolNameToDeclaredAnthropicTool(t *testing.T) {
 	account, svc, client := newQoderGatewayForwardTestService()
 	client.body = qoderWrappedSSELineForTest(t, map[string]any{"choices": []any{

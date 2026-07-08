@@ -736,7 +736,7 @@ func parseQoderChatCompletionsPayload(body []byte) (qoderPayloadRequest, error) 
 		model:           req.Model,
 		system:          qoderChatSystemText(req.Messages),
 		messages:        messages,
-		tools:           qoderAnySlice(rawReq["tools"]),
+		tools:           qoderChatCompletionsTools(req, rawReq),
 		maxTokens:       maxTokens,
 		explicitSession: firstNonEmptyQoder(qoderStringField(rawReq, "session_id"), qoderStringField(rawReq, "conversation_id")),
 		promptCacheKey:  qoderStringField(rawReq, "prompt_cache_key"),
@@ -2283,6 +2283,106 @@ func qoderToolCallMap(id, name, arguments string) map[string]any {
 			"arguments": arguments,
 		},
 	}
+}
+
+func qoderChatCompletionsTools(req apicompat.ChatCompletionsRequest, rawReq map[string]any) []any {
+	tools := append([]any(nil), qoderAnySlice(rawReq["tools"])...)
+	for _, fn := range req.Functions {
+		if tool, ok := qoderChatFunctionToQoderTool(fn); ok {
+			tools = append(tools, tool)
+		}
+	}
+	return qoderApplyChatToolChoice(tools, req.ToolChoice, req.FunctionCall)
+}
+
+func qoderChatFunctionToQoderTool(fn apicompat.ChatFunction) (map[string]any, bool) {
+	name := strings.TrimSpace(fn.Name)
+	if name == "" {
+		return nil, false
+	}
+	function := map[string]any{
+		"name":       name,
+		"parameters": qoderRawMessageOrDefault(fn.Parameters, map[string]any{"type": "object", "properties": map[string]any{}}),
+	}
+	if strings.TrimSpace(fn.Description) != "" {
+		function["description"] = fn.Description
+	}
+	if fn.Strict != nil {
+		function["strict"] = *fn.Strict
+	}
+	return map[string]any{
+		"type":     "function",
+		"function": function,
+	}, true
+}
+
+func qoderApplyChatToolChoice(tools []any, toolChoice json.RawMessage, functionCall json.RawMessage) []any {
+	if len(tools) == 0 {
+		return []any{}
+	}
+	name, disabled := qoderChatToolChoiceTarget(toolChoice, functionCall)
+	if disabled {
+		return []any{}
+	}
+	if name == "" {
+		return tools
+	}
+	filtered := make([]any, 0, len(tools))
+	for _, tool := range tools {
+		if strings.EqualFold(qoderDeclaredToolName(tool), name) {
+			filtered = append(filtered, tool)
+		}
+	}
+	// 如果客户端传了不存在的工具名，保持原始 tools，让上游按正常协议报错或自行处理。
+	if len(filtered) == 0 {
+		return tools
+	}
+	return filtered
+}
+
+func qoderChatToolChoiceTarget(toolChoice json.RawMessage, functionCall json.RawMessage) (string, bool) {
+	if name, disabled, ok := qoderParseChatToolChoice(toolChoice, true); ok {
+		return name, disabled
+	}
+	if name, disabled, ok := qoderParseChatToolChoice(functionCall, false); ok {
+		return name, disabled
+	}
+	return "", false
+}
+
+func qoderParseChatToolChoice(raw json.RawMessage, modern bool) (string, bool, bool) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || bytes.Equal(raw, []byte("null")) {
+		return "", false, false
+	}
+	var value string
+	if err := json.Unmarshal(raw, &value); err == nil {
+		switch strings.ToLower(strings.TrimSpace(value)) {
+		case "none":
+			return "", true, true
+		case "auto", "required":
+			return "", false, true
+		default:
+			return strings.TrimSpace(value), false, true
+		}
+	}
+	var obj map[string]any
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return "", false, false
+	}
+	if !modern {
+		return qoderStringField(obj, "name"), false, true
+	}
+	if strings.EqualFold(qoderStringField(obj, "type"), "none") {
+		return "", true, true
+	}
+	if name := qoderStringField(obj, "name"); name != "" {
+		return name, false, true
+	}
+	if fn, ok := obj["function"].(map[string]any); ok {
+		return qoderStringField(fn, "name"), false, true
+	}
+	return "", false, true
 }
 
 func qoderResponsesToolsToQoderTools(tools []apicompat.ResponsesTool) []any {

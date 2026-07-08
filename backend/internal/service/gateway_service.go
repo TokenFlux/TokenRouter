@@ -10004,6 +10004,8 @@ func (s *GatewayService) calculateRecordUsageCost(
 
 // resolveChannelPricing 检查指定模型是否存在渠道级别定价。
 // 返回非 nil 的 ResolvedPricing 表示有渠道定价，nil 表示走默认定价路径。
+//
+//nolint:unused // 保留旧调用入口；当前生产路径需要 baseModelHint 并调用 WithBaseHint 版本。
 func (s *GatewayService) resolveChannelPricing(ctx context.Context, billingModel string, apiKey *APIKey) *ResolvedPricing {
 	return s.resolveChannelPricingWithBaseHint(ctx, billingModel, "", apiKey)
 }
@@ -10267,6 +10269,9 @@ func qoderDefaultPricingCandidates(billingModel string, requestedModel string, _
 	return candidates
 }
 
+// qoderAliasRequiresManualPricingInContext 在 Qoder 账号上下文中判断 alias 是否必须使用手工定价。
+//
+//nolint:unused // 保留语义化判断入口；当前生产路径已在各调用点直接判断 Qoder 上下文。
 func qoderAliasRequiresManualPricingInContext(account *Account, apiKey *APIKey, models ...string) bool {
 	if !isQoderBillingContext(account, apiKey) {
 		return false

@@ -300,6 +300,8 @@ func (r *ModelPricingResolver) GetIntervalPricing(resolved *ResolvedPricing, tot
 }
 
 // intervalToModelPricing 将区间定价转换为 ModelPricing
+//
+//nolint:unused // 兼容旧测试入口；生产路径需要 base pricing fallback 并调用 WithBase 版本。
 func intervalToModelPricing(iv *PricingInterval, supportsCacheBreakdown bool, chPricing *ChannelModelPricing) *ModelPricing {
 	return intervalToModelPricingWithBase(iv, supportsCacheBreakdown, chPricing, nil)
 }

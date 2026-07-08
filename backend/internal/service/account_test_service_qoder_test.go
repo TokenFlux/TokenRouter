@@ -342,7 +342,10 @@ func TestAccountTestService_QoderDefaultUserInfoProbeUsesHTTPUpstream(t *testing
 	require.Equal(t, int64(12), upstream.accountID)
 	require.Equal(t, 3, upstream.accountConcurrency)
 	require.True(t, upstream.profileSet)
-	require.Equal(t, "user-12", svc.qoderSessionProvider.(*qoderAccountTestSessionProviderStub).session.Identity.UID)
+	// 确认探测路径使用注入的 Qoder session provider，而不是绕过代理/TLS 的默认客户端。
+	sessionProvider, ok := svc.qoderSessionProvider.(*qoderAccountTestSessionProviderStub)
+	require.True(t, ok)
+	require.Equal(t, "user-12", sessionProvider.session.Identity.UID)
 }
 
 func TestAccountTestService_QoderUserInfoProbeRedactsSensitiveErrorBody(t *testing.T) {
