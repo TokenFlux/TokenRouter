@@ -22,6 +22,7 @@ func TestPaymentDocumentFromOrderPrefersHostedInvoiceURL(t *testing.T) {
 
 	if doc == nil {
 		t.Fatal("expected invoice document, got nil")
+		return
 	}
 	if doc.Type != "invoice" {
 		t.Fatalf("type = %q, want invoice", doc.Type)
@@ -53,6 +54,7 @@ func TestPaymentDocumentFromOrderFallsBackToPDFURL(t *testing.T) {
 
 	if doc == nil {
 		t.Fatal("expected invoice document, got nil")
+		return
 	}
 	if doc.URL != "https://stripe.example/invoice/fallback.pdf" {
 		t.Fatalf("url = %q, want trimmed pdf url", doc.URL)
