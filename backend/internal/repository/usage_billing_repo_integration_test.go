@@ -341,6 +341,76 @@ func TestUsageBillingRepositoryApply_PricesByActualSubscriptionAllocations(t *te
 	require.InDelta(t, 10.0, balance, 0.000001)
 }
 
+func TestUsageBillingRepositoryApply_UsesBalanceRateAfterPartialSubscription(t *testing.T) {
+	ctx := context.Background()
+	client := testEntClient(t)
+	repo := NewUsageBillingRepository(client, integrationDB)
+
+	user := mustCreateUser(t, client, &service.User{
+		Email:        fmt.Sprintf("usage-billing-partial-rate-user-%d@example.com", time.Now().UnixNano()),
+		PasswordHash: "hash",
+		Balance:      10,
+	})
+	group := mustCreateGroup(t, client, &service.Group{
+		Name:     "usage-billing-partial-rate-group-" + uuid.NewString(),
+		Platform: service.PlatformOpenAI,
+	})
+	plan := mustCreatePlan(t, client, &service.SubscriptionPlan{
+		Name:                 "usage-billing-partial-rate-plan-" + uuid.NewString(),
+		Description:          "subscription covers only part of the base amount",
+		Price:                19.9,
+		ValidityDays:         30,
+		ValidityUnit:         "day",
+		GroupIDs:             []int64{group.ID},
+		GroupRateMultipliers: map[int64]float64{group.ID: 0.5},
+		ForSale:              true,
+		DailyLimitUSD:        float64Ptr(1),
+		WeeklyLimitUSD:       float64Ptr(1),
+		MonthlyLimitUSD:      float64Ptr(1),
+	})
+	apiKey := mustCreateApiKey(t, client, &service.APIKey{
+		UserID:  user.ID,
+		GroupID: &group.ID,
+		Key:     "sk-usage-billing-partial-rate-" + uuid.NewString(),
+		Name:    "billing-partial-rate",
+	})
+	subscription := mustCreateSubscription(t, client, &service.UserSubscription{
+		UserID:          user.ID,
+		PlanID:          plan.ID,
+		DailyLimitUSD:   float64Ptr(1),
+		WeeklyLimitUSD:  float64Ptr(1),
+		MonthlyLimitUSD: float64Ptr(1),
+	})
+
+	// 套餐以 0.5x 覆盖 2 美元基础费用，剩余 1 美元按非 token 的 0.25x 从余额扣除。
+	result, err := repo.Apply(ctx, &service.UsageBillingCommand{
+		RequestID:                       uuid.NewString(),
+		APIKeyID:                        apiKey.ID,
+		UserID:                          user.ID,
+		GroupID:                         &group.ID,
+		BillableAmountUSD:               0.75,
+		BaseAmountUSD:                   3,
+		SubscriptionRateMultiplier:      0.25,
+		SubscriptionRateMultiplierScale: 1,
+		BalanceRateMultiplier:           0.25,
+	})
+
+	require.NoError(t, err)
+	require.True(t, result.Applied)
+	require.InDelta(t, 1.0, result.SubscriptionAmountUSD, 0.000001)
+	require.InDelta(t, 0.25, result.BalanceAmountUSD, 0.000001)
+	require.NotNil(t, result.EffectiveRateMultiplier)
+	require.InDelta(t, 1.25/3.0, *result.EffectiveRateMultiplier, 0.000001)
+
+	var usage float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT daily_usage_usd FROM user_subscriptions WHERE id = $1", subscription.ID).Scan(&usage))
+	require.InDelta(t, 1.0, usage, 0.000001)
+
+	var balance float64
+	require.NoError(t, integrationDB.QueryRowContext(ctx, "SELECT balance FROM users WHERE id = $1", user.ID).Scan(&balance))
+	require.InDelta(t, 9.75, balance, 0.000001)
+}
+
 func TestUsageBillingRepositoryApply_UsesOnlySubscriptionPlansContainingRequestGroup(t *testing.T) {
 	ctx := context.Background()
 	client := testEntClient(t)

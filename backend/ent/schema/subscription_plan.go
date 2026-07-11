@@ -63,7 +63,7 @@ func (SubscriptionPlan) Fields() []ent.Field {
 		field.JSON("group_ids", []int64{}).
 			Optional().
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
-			Comment("套餐包含的分组 ID 列表；创建/更新时至少包含一个分组"),
+			Comment("套餐包含的分组 ID 列表；空列表表示对全部分组可用"),
 		field.JSON("group_rate_multipliers", map[int64]float64{}).
 			Optional().
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).

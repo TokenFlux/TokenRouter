@@ -158,13 +158,7 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *usageBill
 	}
 	if p.Cost.TotalCost > 0 {
 		cmd.BaseAmountUSD = p.Cost.TotalCost
-		fallback := p.Cost.ActualCost / p.Cost.TotalCost
-		cmd.SubscriptionRateMultiplier = usageBillingRateOrFallback(p.SubscriptionRateMultiplier, fallback)
-		cmd.SubscriptionRateMultiplierScale = p.SubscriptionRateMultiplierScale
-		if cmd.SubscriptionRateMultiplierScale <= 0 {
-			cmd.SubscriptionRateMultiplierScale = 1
-		}
-		cmd.BalanceRateMultiplier = usageBillingRateOrFallback(p.BalanceRateMultiplier, fallback)
+		applyUsageBillingRateMultipliers(cmd, p)
 	}
 
 	if p.shouldDeductAPIKeyQuota() {
@@ -179,6 +173,28 @@ func buildUsageBillingCommand(requestID string, usageLog *UsageLog, p *usageBill
 
 	cmd.Normalize()
 	return cmd
+}
+
+func applyUsageBillingRateMultipliers(cmd *UsageBillingCommand, p *usageBillingParams) {
+	if cmd == nil || p == nil || p.Cost == nil || p.Cost.TotalCost <= 0 {
+		return
+	}
+
+	effectiveRate := p.Cost.ActualCost / p.Cost.TotalCost
+	if mode := strings.TrimSpace(p.Cost.BillingMode); mode != "" && mode != string(BillingModeToken) {
+		// 非 token 模式已在 ActualCost 中应用图片、视频或按次倍率；默认 allocation 必须沿用该倍率。
+		cmd.SubscriptionRateMultiplier = effectiveRate
+		cmd.SubscriptionRateMultiplierScale = 1
+		cmd.BalanceRateMultiplier = effectiveRate
+		return
+	}
+
+	cmd.SubscriptionRateMultiplier = usageBillingRateOrFallback(p.SubscriptionRateMultiplier, effectiveRate)
+	cmd.SubscriptionRateMultiplierScale = p.SubscriptionRateMultiplierScale
+	if cmd.SubscriptionRateMultiplierScale <= 0 {
+		cmd.SubscriptionRateMultiplierScale = 1
+	}
+	cmd.BalanceRateMultiplier = usageBillingRateOrFallback(p.BalanceRateMultiplier, effectiveRate)
 }
 
 func usageBillingRateOrFallback(value, fallback float64) float64 {

@@ -92,3 +92,86 @@ func TestBuildUsageBillingCommand_IncludesRequestGroupID(t *testing.T) {
 		t.Fatalf("GroupID = %d, want %d", *cmd.GroupID, groupID)
 	}
 }
+
+func TestBuildUsageBillingCommand_NonTokenModesPreserveEffectiveRate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		mode       BillingMode
+		totalCost  float64
+		actualCost float64
+		wantRate   float64
+	}{
+		{name: "image independent rate", mode: BillingModeImage, totalCost: 0.2, actualCost: 0.2, wantRate: 1},
+		{name: "video independent rate", mode: BillingModeVideo, totalCost: 0.08, actualCost: 0.02, wantRate: 0.25},
+		{name: "per request rate", mode: BillingModePerRequest, totalCost: 0.4, actualCost: 0.1, wantRate: 0.25},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			p := &usageBillingParams{
+				Cost: &CostBreakdown{
+					TotalCost:   tt.totalCost,
+					ActualCost:  tt.actualCost,
+					BillingMode: string(tt.mode),
+				},
+				User:                            &User{ID: 1},
+				APIKey:                          &APIKey{ID: 2},
+				Account:                         &Account{ID: 3},
+				SubscriptionRateMultiplier:      0.15,
+				SubscriptionRateMultiplierScale: 2,
+				BalanceRateMultiplier:           0.15,
+			}
+
+			cmd := buildUsageBillingCommand("req-non-token", nil, p)
+
+			if cmd == nil {
+				t.Fatal("buildUsageBillingCommand returned nil")
+			}
+			if cmd.SubscriptionRateMultiplier != tt.wantRate {
+				t.Errorf("SubscriptionRateMultiplier = %v, want %v", cmd.SubscriptionRateMultiplier, tt.wantRate)
+			}
+			if cmd.SubscriptionRateMultiplierScale != 1 {
+				t.Errorf("SubscriptionRateMultiplierScale = %v, want 1", cmd.SubscriptionRateMultiplierScale)
+			}
+			if cmd.BalanceRateMultiplier != tt.wantRate {
+				t.Errorf("BalanceRateMultiplier = %v, want %v", cmd.BalanceRateMultiplier, tt.wantRate)
+			}
+		})
+	}
+}
+
+func TestBuildUsageBillingCommand_TokenModeKeepsAllocationRates(t *testing.T) {
+	t.Parallel()
+
+	p := &usageBillingParams{
+		Cost: &CostBreakdown{
+			TotalCost:   1,
+			ActualCost:  0.5,
+			BillingMode: string(BillingModeToken),
+		},
+		User:                            &User{ID: 1},
+		APIKey:                          &APIKey{ID: 2},
+		Account:                         &Account{ID: 3},
+		SubscriptionRateMultiplier:      0.8,
+		SubscriptionRateMultiplierScale: 1.5,
+		BalanceRateMultiplier:           0.3,
+	}
+
+	cmd := buildUsageBillingCommand("req-token", nil, p)
+
+	if cmd == nil {
+		t.Fatal("buildUsageBillingCommand returned nil")
+	}
+	if cmd.SubscriptionRateMultiplier != 0.8 {
+		t.Errorf("SubscriptionRateMultiplier = %v, want 0.8", cmd.SubscriptionRateMultiplier)
+	}
+	if cmd.SubscriptionRateMultiplierScale != 1.5 {
+		t.Errorf("SubscriptionRateMultiplierScale = %v, want 1.5", cmd.SubscriptionRateMultiplierScale)
+	}
+	if cmd.BalanceRateMultiplier != 0.3 {
+		t.Errorf("BalanceRateMultiplier = %v, want 0.3", cmd.BalanceRateMultiplier)
+	}
+}
