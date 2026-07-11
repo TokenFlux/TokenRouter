@@ -2,11 +2,13 @@ package handler
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -42,4 +44,18 @@ func TestRequestBodyLimitTooLarge(t *testing.T) {
 
 	require.Equal(t, http.StatusRequestEntityTooLarge, recorder.Code)
 	require.Contains(t, recorder.Body.String(), buildBodyTooLargeMessage(limit))
+}
+
+func TestReadLenientJSONRequestBodyWithPreallocUsesGatewayLimit(t *testing.T) {
+	body := []byte("{\"input\":\"\x00\x00\"}")
+	limit := int64(len(body) + 5)
+	cfg := &config.Config{}
+	cfg.Gateway.MaxBodySize = limit
+	req := httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
+
+	_, err := readLenientJSONRequestBodyWithPrealloc(req, cfg)
+	var maxErr *http.MaxBytesError
+	require.True(t, errors.As(err, &maxErr))
+	// 归一化膨胀后必须继续使用网关配置的上限。
+	require.Equal(t, limit, maxErr.Limit)
 }

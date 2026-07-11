@@ -93,6 +93,13 @@ const ModelWhitelistSelectorStub = defineComponent({
       >
         rewrite
       </button>
+      <button
+        type="button"
+        data-testid="rewrite-to-qoder-defaults"
+        @click="$emit('update:modelValue', ['claude-opus-4-6', 'auto'])"
+      >
+        rewrite qoder
+      </button>
       <span data-testid="model-whitelist-value">
         {{ Array.isArray(modelValue) ? modelValue.join(',') : '' }}
       </span>
@@ -232,6 +239,60 @@ function buildVertexAccount() {
   } as any
 }
 
+function buildQoderAccount() {
+  return {
+    id: 3,
+    name: 'Qoder COSY',
+    notes: '',
+    platform: 'qoder',
+    type: 'cosy',
+    credentials: {
+      security_oauth_token: 'redacted',
+      machine_id: 'machine',
+      model_mapping: {
+        'claude-opus-4-6': 'ultimate',
+        auto: 'auto'
+      },
+      model_whitelist: []
+    },
+    extra: {},
+    proxy_id: null,
+    concurrency: 1,
+    priority: 1,
+    rate_multiplier: 1,
+    status: 'active',
+    group_ids: [],
+    expires_at: null,
+    auto_pause_on_expired: false
+  } as any
+}
+
+function buildGrokOAuthAccount() {
+  return {
+    id: 5,
+    name: 'Grok OAuth',
+    notes: '',
+    platform: 'grok',
+    type: 'oauth',
+    credentials: {
+      refresh_token: 'grok-rt',
+      base_url: 'https://api.x.ai/v1',
+      model_mapping: {
+        'grok-latest': 'grok-4.3'
+      }
+    },
+    extra: {},
+    proxy_id: null,
+    concurrency: 1,
+    priority: 1,
+    rate_multiplier: 1,
+    status: 'active',
+    group_ids: [],
+    expires_at: null,
+    auto_pause_on_expired: false
+  } as any
+}
+
 function mountModal(account = buildAccount()) {
   return mount(EditAccountModal, {
     props: {
@@ -344,6 +405,35 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_compact_mode).toBe('force_on')
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.compact_model_mapping).toEqual({
       'gpt-5.4': 'gpt-5.4-openai-compact'
+    })
+  })
+
+  it('loads and submits Grok OAuth model mapping edits', async () => {
+    const account = buildGrokOAuthAccount()
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    expect(wrapper.text()).toContain('Imagine Image')
+    expect(wrapper.text()).toContain('Imagine Video')
+
+    const inputWithValue = (value: string) => {
+      const input = wrapper
+        .findAll('input')
+        .find((input) => (input.element as HTMLInputElement).value === value)
+      expect(input).toBeTruthy()
+      return input!
+    }
+
+    await inputWithValue('grok-latest').setValue('grok')
+    await inputWithValue('grok-4.3').setValue('grok-build-0.1')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual({
+      grok: 'grok-build-0.1'
     })
   })
 
@@ -545,7 +635,7 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_supported).toBe(true)
   })
 
-  it('submits account-level Codex image generation bridge override', async () => {
+  it('submits Codex image tool force-inject mode as bridge override', async () => {
     const account = buildAccount()
     account.extra = {
       codex_image_generation_bridge: false,
@@ -558,12 +648,70 @@ describe('EditAccountModal', () => {
 
     const wrapper = mountModal(account)
 
-    await wrapper.get('button[data-testid="codex-image-bridge-enabled"]').trigger('click')
+    await wrapper.get('button[data-testid="codex-image-tool-enabled"]').trigger('click')
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.codex_image_generation_bridge).toBe(true)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('codex_image_generation_bridge_enabled')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('codex_image_generation_explicit_tool_policy')
+  })
+
+  it('submits Codex image tool no-injection mode without strip policy', async () => {
+    const account = buildAccount()
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('button[data-testid="codex-image-tool-disabled"]').trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.codex_image_generation_bridge).toBe(false)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('codex_image_generation_explicit_tool_policy')
+  })
+
+  it('submits Codex image tool block mode as strip policy and clears bridge override', async () => {
+    const account = buildAccount()
+    account.extra = {
+      codex_image_generation_bridge: true
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('button[data-testid="codex-image-tool-block"]').trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.codex_image_generation_explicit_tool_policy).toBe('strip')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('codex_image_generation_bridge')
+  })
+
+  it('loads strip policy as block mode and clears both keys when reset to inherit', async () => {
+    const account = buildAccount()
+    account.extra = {
+      codex_image_generation_explicit_tool_policy: 'strip'
+    }
+    updateAccountMock.mockReset()
+    checkMixedChannelRiskMock.mockReset()
+    checkMixedChannelRiskMock.mockResolvedValue({ has_risk: false })
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('button[data-testid="codex-image-tool-inherit"]').trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('codex_image_generation_explicit_tool_policy')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('codex_image_generation_bridge')
   })
 
   it('loads and submits OpenAI OAuth TLS fingerprint settings', async () => {
@@ -597,6 +745,113 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.enable_tls_fingerprint).toBe(true)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.tls_fingerprint_profile_id).toBe(7)
+  })
+
+  it('loads and submits Qoder COSY model mappings', async () => {
+    const account = buildQoderAccount()
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual({
+      'claude-opus-4-6': 'ultimate',
+      auto: 'auto'
+    })
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_whitelist).toEqual([])
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.security_oauth_token).toBe('redacted')
+  })
+
+  it('does not persist generated Qoder model mappings on unrelated edits', async () => {
+    const account = buildQoderAccount()
+    delete account.credentials.model_mapping
+    delete account.credentials.model_whitelist
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toBeUndefined()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_whitelist).toBeUndefined()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.security_oauth_token).toBe('redacted')
+  })
+
+  it('does not persist generated Qoder model mappings after only viewing the mapping tab', async () => {
+    const account = buildQoderAccount()
+    delete account.credentials.model_mapping
+    delete account.credentials.model_whitelist
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const mappingButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('admin.accounts.modelMapping'))
+    expect(mappingButton).toBeTruthy()
+
+    await mappingButton!.trigger('click')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toBeUndefined()
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_whitelist).toBeUndefined()
+  })
+
+  it('persists Qoder model_mapping after explicit mapping edit', async () => {
+    const account = buildQoderAccount()
+    delete account.credentials.model_mapping
+    delete account.credentials.model_whitelist
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+
+    const addMappingButton = wrapper.findAll('button').find(button => button.text().includes('admin.accounts.addMapping'))
+    expect(addMappingButton).toBeTruthy()
+    await addMappingButton!.trigger('click')
+
+    const requestInput = wrapper.findAll('input').find(input => input.attributes('placeholder') === 'admin.accounts.requestModel')
+    const targetInput = wrapper.findAll('input').find(input => input.attributes('placeholder') === 'admin.accounts.actualModel')
+    expect(requestInput).toBeTruthy()
+    expect(targetInput).toBeTruthy()
+    await requestInput!.setValue('glm-5.2')
+    await targetInput!.setValue('gm51model')
+
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toEqual({ 'glm-5.2': 'gm51model' })
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_whitelist).toEqual([])
+  })
+
+  it('loads and submits Qoder COSY TLS fingerprint settings', async () => {
+    const account = buildQoderAccount()
+    account.extra = {
+      enable_tls_fingerprint: true,
+      tls_fingerprint_profile_id: -1,
+      tls_fingerprint_router_id: 9
+    }
+    listTLSProfilesMock.mockResolvedValue([{ id: 7, name: 'Profile 7' }])
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="edit-openai-tls-fingerprint-profile"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="edit-openai-tls-fingerprint-router"]').exists()).toBe(false)
+    const profileSelect = wrapper.get('[data-testid="edit-openai-tls-fingerprint-profile"]')
+    expect((profileSelect.element as HTMLSelectElement).value).toBe('-1')
+
+    await profileSelect.setValue('7')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.enable_tls_fingerprint).toBe(true)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.tls_fingerprint_profile_id).toBe(7)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('tls_fingerprint_router_id')
   })
 
   it('allows saving apikey account when backend redacted api_key but credentials_status reports it exists', async () => {

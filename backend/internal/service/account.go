@@ -74,6 +74,14 @@ type Account struct {
 	modelMappingCacheRawPtr         uintptr
 	modelMappingCacheRawLen         int
 	modelMappingCacheRawSig         uint64
+
+	// header_overrides 热路径缓存（非持久化字段，同 model_mapping 缓存先例）
+	headerOverrideCache               map[string]string
+	headerOverrideCacheReady          bool
+	headerOverrideCacheCredentialsPtr uintptr
+	headerOverrideCacheRawPtr         uintptr
+	headerOverrideCacheRawLen         int
+	headerOverrideCacheRawSig         uint64
 }
 
 type OpenAIEndpointCapability string
@@ -584,6 +592,7 @@ func (a *Account) resolveModelMapping(rawMapping map[string]any) map[string]stri
 				"gemini-3.1-pro-high",
 				"gemini-3.1-pro-low",
 			})
+			applyAntigravityGemini31ProAliases(result)
 		}
 		return result
 	}
@@ -648,6 +657,63 @@ func ensureAntigravityDefaultPassthroughs(mapping map[string]string, models []st
 	for _, model := range models {
 		ensureAntigravityDefaultPassthrough(mapping, model)
 	}
+}
+
+// applyAntigravityGemini31ProAliases 将旧的 3.1 Pro 目标规范为实际 Pro Agent 路由。
+func applyAntigravityGemini31ProAliases(mapping map[string]string) {
+	target := strings.TrimSpace(mapping[domain.AntigravityGemini31ProAgentModel])
+	if target == "" {
+		return
+	}
+
+	aliases := []struct {
+		model         string
+		legacyTargets map[string]struct{}
+	}{
+		{
+			model: "gemini-3.1-pro",
+			legacyTargets: map[string]struct{}{
+				"gemini-3.1-pro": {},
+			},
+		},
+		{
+			model: "gemini-3.1-pro-high",
+			legacyTargets: map[string]struct{}{
+				"gemini-3.1-pro-high": {},
+			},
+		},
+		{
+			model: "gemini-3.1-pro-preview",
+			legacyTargets: map[string]struct{}{
+				"gemini-3.1-pro-preview": {},
+				"gemini-3.1-pro-high":    {},
+			},
+		},
+	}
+
+	for _, alias := range aliases {
+		current, exists := mapping[alias.model]
+		if exists {
+			if _, legacy := alias.legacyTargets[current]; legacy {
+				mapping[alias.model] = target
+			}
+			continue
+		}
+		if mappingHasWildcardForModel(mapping, alias.model) {
+			continue
+		}
+		mapping[alias.model] = target
+	}
+}
+
+// mappingHasWildcardForModel 判断现有映射是否已通过通配符覆盖指定模型。
+func mappingHasWildcardForModel(mapping map[string]string, model string) bool {
+	for pattern := range mapping {
+		if matchWildcard(pattern, model) {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeRequestedModelForLookup(platform, requestedModel string) string {
@@ -741,6 +807,9 @@ func resolveFinalModelWhitelist(platform string, credentials map[string]any, map
 			return extractExplicitFinalModelWhitelist(platform, rawWhitelist), true
 		}
 	}
+	if platform == PlatformQoder {
+		return nil, false
+	}
 	return extractFinalModelWhitelist(platform, mapping), false
 }
 
@@ -753,6 +822,15 @@ func isModelInFinalWhitelist(platform, model string, whitelist map[string]struct
 	if _, ok := whitelist[model]; ok {
 		return true
 	}
+	if platform == PlatformQoder {
+		modelKey := normalizeQoderModelForWhitelist(model)
+		for allowedModel := range whitelist {
+			if normalizeQoderModelForWhitelist(allowedModel) == modelKey {
+				return true
+			}
+		}
+		return false
+	}
 	normalized := normalizeRequestedModelForLookup(platform, model)
 	if normalized == model {
 		return false
@@ -761,13 +839,25 @@ func isModelInFinalWhitelist(platform, model string, whitelist map[string]struct
 	return ok
 }
 
+func normalizeQoderModelForWhitelist(model string) string {
+	trimmed := strings.TrimSpace(model)
+	if trimmed == "" {
+		return ""
+	}
+	if info, ok := lookupQoderModelAlias(trimmed); ok {
+		return strings.TrimSpace(info.Key)
+	}
+	return trimmed
+}
+
 // IsModelSupported 检查账号是否支持该请求模型。
 // 规则：
 // 1. 未配置 model_mapping 时，直接按最终白名单（model_whitelist）判断；未配置白名单则允许所有模型；
 // 2. 已配置时，若请求模型命中映射/透传规则，则先映射，再对映射后的最终模型做白名单校验；
 // 3. 若请求模型未命中映射，则把它当作隐式透传模型，直接按最终模型做白名单校验；
 // 4. 当不存在任何白名单时，mapping 仅作为可选改写规则，不限制请求模型。
-// 5. 为兼容旧数据，若未配置独立 model_whitelist，会继续把精确自映射条目视作最终白名单。
+// 5. 为兼容旧数据，非 Qoder 平台若未配置独立 model_whitelist，会继续把精确自映射条目视作最终白名单。
+// 6. OpenAI OAuth 非透传账号还会排除明确属于其他厂商的模型，避免 Codex 上游返回不可重试的 400。
 func (a *Account) IsModelSupported(requestedModel string) bool {
 	mapping := a.GetModelMapping()
 	// Antigravity 仍保持“请求模型命中映射即可支持”的既有语义。
@@ -781,7 +871,13 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 	}
 	whitelist, _ := resolveFinalModelWhitelist(a.Platform, a.Credentials, mapping)
 	if len(mapping) == 0 {
-		return isModelInFinalWhitelist(a.Platform, requestedModel, whitelist)
+		if !isModelInFinalWhitelist(a.Platform, requestedModel, whitelist) {
+			return false
+		}
+		if a.IsOpenAIOAuth() && !a.IsOpenAIPassthroughEnabled() {
+			return isOpenAIOAuthServableModel(requestedModel)
+		}
+		return true
 	}
 	mappedModel, matched := a.ResolveMappedModel(requestedModel)
 	if matched {
@@ -798,6 +894,9 @@ func (a *Account) IsModelSupported(requestedModel string) bool {
 func (a *Account) GetConfiguredRequestModels() []string {
 	mapping := a.GetModelMapping()
 	whitelist, _ := resolveFinalModelWhitelist(a.Platform, a.Credentials, mapping)
+	if a.Platform == PlatformQoder {
+		return configuredQoderRequestModels(mapping, whitelist)
+	}
 	if len(whitelist) == 0 {
 		return nil
 	}
@@ -810,6 +909,39 @@ func (a *Account) GetConfiguredRequestModels() []string {
 	// 无论白名单来自显式字段还是 legacy 自映射，白名单模型本身都可直接请求。
 	for model := range whitelist {
 		modelSet[model] = struct{}{}
+	}
+	models := make([]string, 0, len(modelSet))
+	for model := range modelSet {
+		models = append(models, model)
+	}
+	sort.Strings(models)
+	return models
+}
+
+// configuredQoderRequestModels 将 model_mapping key 作为 Qoder 请求和展示模型集合。
+// 如果没有配置 mapping，model_whitelist 仍可作为仅白名单账号的显式请求模型列表。
+func configuredQoderRequestModels(mapping map[string]string, whitelist map[string]struct{}) []string {
+	if len(mapping) == 0 && len(whitelist) == 0 {
+		return nil
+	}
+	modelSet := make(map[string]struct{}, len(mapping)+len(whitelist))
+	if len(mapping) > 0 {
+		for rawModel := range mapping {
+			model := strings.TrimSpace(rawModel)
+			if model != "" {
+				modelSet[model] = struct{}{}
+			}
+		}
+	} else {
+		for rawModel := range whitelist {
+			model := strings.TrimSpace(rawModel)
+			if model != "" {
+				modelSet[model] = struct{}{}
+			}
+		}
+	}
+	if len(modelSet) == 0 {
+		return nil
 	}
 	models := make([]string, 0, len(modelSet))
 	for model := range modelSet {
@@ -1242,8 +1374,29 @@ func (a *Account) IsAnthropic() bool {
 	return a.Platform == PlatformAnthropic
 }
 
+func (a *Account) IsQoder() bool {
+	return a.Platform == PlatformQoder
+}
+
+func (a *Account) IsQoderCosy() bool {
+	return a.IsQoder() && a.Type == AccountTypeCosy
+}
+
 func (a *Account) IsOpenAIOAuth() bool {
 	return a.IsOpenAI() && a.Type == AccountTypeOAuth
+}
+
+// IsOpenAIChatGPTSubscription 判断 OpenAI OAuth 账号是否为可优先调度的 ChatGPT 订阅账号。
+func (a *Account) IsOpenAIChatGPTSubscription() bool {
+	if !a.IsOpenAIOAuth() {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(a.GetCredential("plan_type"))) {
+	case "", "free", "abnormal":
+		return false
+	default:
+		return true
+	}
 }
 
 // IsOpenAIPersonalAccessToken 判断 OpenAI OAuth 账号是否使用 Codex PAT 认证模式。
@@ -1870,7 +2023,7 @@ func (a *Account) IsAnthropicOAuthOrSetupToken() bool {
 }
 
 // SupportsTLSFingerprint 返回账号是否支持 TLS 指纹伪装。
-// 当前仅 Anthropic OAuth/SetupToken 与 OpenAI OAuth 支持，OpenAI API Key 不开放。
+// 当前支持 Anthropic OAuth/SetupToken、OpenAI OAuth 与 Qoder COSY。
 func (a *Account) SupportsTLSFingerprint() bool {
 	if a == nil {
 		return false
@@ -1878,7 +2031,7 @@ func (a *Account) SupportsTLSFingerprint() bool {
 	if a.IsAnthropicOAuthOrSetupToken() {
 		return true
 	}
-	return a.Platform == PlatformOpenAI && a.Type == AccountTypeOAuth
+	return (a.Platform == PlatformOpenAI && a.Type == AccountTypeOAuth) || a.IsQoderCosy()
 }
 
 // IsTLSFingerprintEnabled 检查是否启用 TLS 指纹伪装

@@ -11,36 +11,26 @@
     @apply scroll-smooth antialiased;
     scrollbar-color: rgba(18, 167, 232, 0.26) transparent;
     scrollbar-width: thin;
-    background:
-      radial-gradient(ellipse at 9% 88%, rgba(255, 244, 248, 0.86) 0%, rgba(255, 250, 252, 0.6) 26%, transparent 54%),
-      radial-gradient(ellipse at 82% 8%, rgba(224, 248, 255, 0.78) 0%, transparent 50%),
-      linear-gradient(180deg, #BEEAFF 0%, #D6F5FF 34%, #F1FBFF 66%, #FFFFFF 100%);
+    background: linear-gradient(180deg, #D8F1FC 0%, #EAF7FD 40%, #FFFFFF 100%);
     background-attachment: fixed;
   }
 
   html.dark {
-    scrollbar-color: rgba(213, 229, 251, 0.62) #10182c;
-    background:
-      radial-gradient(circle at 72% 12%, rgba(0, 210, 255, 0.12), transparent 34%),
-      linear-gradient(180deg, #10182c 0%, #1a2643 54%, #10182c 100%);
+    scrollbar-color: rgba(166, 166, 175, 0.45) #0A0A0C;
+    background: linear-gradient(180deg, #111113 0%, #0A0A0C 100%);
     background-attachment: fixed;
   }
 
   body {
     @apply text-dark-950 dark:text-white;
     @apply min-h-screen;
-    background:
-      radial-gradient(ellipse at 9% 88%, rgba(255, 244, 248, 0.86) 0%, rgba(255, 250, 252, 0.6) 26%, transparent 54%),
-      radial-gradient(ellipse at 82% 8%, rgba(224, 248, 255, 0.78) 0%, transparent 50%),
-      linear-gradient(180deg, #BEEAFF 0%, #D6F5FF 34%, #F1FBFF 66%, #FFFFFF 100%);
+    background: linear-gradient(180deg, #D8F1FC 0%, #EAF7FD 40%, #FFFFFF 100%);
     background-attachment: fixed;
   }
 
   .dark body {
-    scrollbar-color: rgba(213, 229, 251, 0.62) #10182c;
-    background:
-      radial-gradient(circle at 72% 12%, rgba(0, 210, 255, 0.12), transparent 34%),
-      linear-gradient(180deg, #10182c 0%, #1a2643 54%, #10182c 100%);
+    scrollbar-color: rgba(166, 166, 175, 0.45) #0A0A0C;
+    background: linear-gradient(180deg, #111113 0%, #0A0A0C 100%);
     background-attachment: fixed;
   }
 
@@ -131,7 +121,7 @@
       .sidebar-nav,
       .code-block
     ):focus-within {
-      scrollbar-color: rgba(213, 229, 251, 0.35) transparent;
+      scrollbar-color: rgba(166, 166, 175, 0.35) transparent;
     }
   }
 
@@ -147,7 +137,7 @@
 
   html.dark::-webkit-scrollbar-track,
   html.dark body::-webkit-scrollbar-track {
-    background-color: #10182c;
+    background-color: #0A0A0C;
   }
 
   html::-webkit-scrollbar-thumb,
@@ -161,7 +151,7 @@
 
   html.dark::-webkit-scrollbar-thumb,
   html.dark body::-webkit-scrollbar-thumb {
-    background-color: rgba(213, 229, 251, 0.62);
+    background-color: rgba(166, 166, 175, 0.45);
   }
 
   html::-webkit-scrollbar-thumb:hover,
@@ -171,7 +161,7 @@
 
   html.dark::-webkit-scrollbar-thumb:hover,
   html.dark body::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(213, 229, 251, 0.82);
+    background-color: rgba(166, 166, 175, 0.65);
   }
 
   :where(
@@ -257,7 +247,7 @@
     .sidebar-nav,
     .code-block
   ):focus-within::-webkit-scrollbar-thumb {
-    background-color: rgba(213, 229, 251, 0.3);
+    background-color: rgba(166, 166, 175, 0.3);
   }
 
   :where(
@@ -283,7 +273,7 @@
     .sidebar-nav,
     .code-block
   )::-webkit-scrollbar-thumb:hover {
-    background-color: rgba(213, 229, 251, 0.42);
+    background-color: rgba(166, 166, 175, 0.5);
   }
 
   /* 选中文本样式 */
@@ -317,7 +307,7 @@
     @apply text-primary-900 dark:text-dark-50;
     @apply border border-primary-200 dark:border-dark-600;
     @apply shadow-sm hover:bg-primary-50 dark:hover:bg-dark-800;
-    @apply hover:border-primary-300 dark:hover:border-primary-500;
+    @apply hover:border-primary-300 dark:hover:border-dark-400;
   }
 
   .btn-ghost {
@@ -447,13 +437,9 @@
     @apply transition-all duration-300;
   }
 
-  .dark .card {
-    box-shadow: none;
-  }
-
   .card-hover {
     @apply hover:-translate-y-0.5 hover:shadow-card-hover;
-    @apply hover:border-primary-200 dark:hover:border-primary-500/70;
+    @apply hover:border-primary-200 dark:hover:border-dark-500;
   }
 
   .card-glass {
@@ -760,7 +746,7 @@
   .sidebar {
     @apply fixed inset-y-0 left-0 z-40;
     @apply w-64 bg-white dark:bg-dark-900/95;
-    @apply border-r border-primary-200 dark:border-dark-600;
+    @apply border-r border-primary-900/10 dark:border-dark-600;
     @apply flex flex-col;
     @apply transition-transform duration-300;
     transition-property: width, transform;
@@ -769,7 +755,7 @@
   .sidebar-header {
     @apply h-16 px-6;
     @apply flex items-center gap-3;
-    @apply border-b border-primary-100 dark:border-dark-600;
+    @apply border-b border-primary-900/10 dark:border-dark-600;
     transition:
       padding 0.2s ease,
       gap 0.2s ease;
@@ -871,7 +857,7 @@
   .tab-active {
     @apply bg-white dark:bg-dark-700;
     @apply text-primary-900 dark:text-white;
-    @apply shadow-sm dark:ring-1 dark:ring-primary-500/90;
+    @apply shadow-sm dark:ring-1 dark:ring-dark-500/60;
   }
 
   .dark .tab-active {
@@ -985,48 +971,29 @@
 
   .dark .card,
   .dark .glass-card,
-  .dark .card-glass,
+  .dark .card-glass {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+  }
+
   .dark .dropdown,
   .dark .modal-content,
   .dark .dialog-container,
   .dark .toast {
-    box-shadow: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.3) !important;
   }
 
-  /* 全局工程蓝图背景，网格线参考 Blue Archive 主视觉 */
+  /* 全局背景:浅色为蓝白纵向渐变,深色为微亮到纯黑,同一设计语言的镜像 */
   .ba-theme-shell {
-    background:
-      radial-gradient(ellipse at 9% 88%, rgba(255, 244, 248, 0.86) 0%, rgba(255, 250, 252, 0.6) 26%, transparent 54%),
-      radial-gradient(ellipse at 82% 8%, rgba(224, 248, 255, 0.78) 0%, transparent 50%),
-      linear-gradient(180deg, #BEEAFF 0%, #D6F5FF 34%, #F1FBFF 66%, #FFFFFF 100%);
+    background: linear-gradient(180deg, #D8F1FC 0%, #EAF7FD 40%, #FFFFFF 100%);
   }
 
   .dark .ba-theme-shell {
-    background:
-      radial-gradient(circle at 78% 12%, rgba(0, 210, 255, 0.13), transparent 34%),
-      linear-gradient(180deg, #10182c 0%, #1a2643 56%, #10182c 100%);
+    background: linear-gradient(180deg, #111113 0%, #0A0A0C 100%);
   }
 
   .ba-theme-backdrop {
     overflow: hidden;
-    background:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Cg fill='none'%3E%3Cpath d='M0 0H150M0 0V150' stroke='%23ffffff' stroke-width='1' opacity='.58'/%3E%3Cpath d='M75 0V150M0 75H150' stroke='%238BDDF8' stroke-width='1' opacity='.26'/%3E%3Cpath d='M66 0H84M75 -9V9M66 75H84M75 66V84M-9 75H9M141 75H159M150 66V84M66 150H84M75 141V159' stroke='%23ffffff' stroke-width='3' opacity='.58' stroke-linecap='square'/%3E%3Cpath d='M70 0H80M75 -5V5M70 75H80M75 70V80M-5 75H5M145 75H155M150 70V80M70 150H80M75 145V155' stroke='%238BDDF8' stroke-width='2' opacity='.42' stroke-linecap='square'/%3E%3C/g%3E%3C/svg%3E"),
-      radial-gradient(circle, rgba(139, 221, 248, 0.38) 1px, transparent 1.6px),
-      radial-gradient(ellipse at 9% 88%, rgba(255, 244, 248, 0.88) 0%, rgba(255, 250, 252, 0.62) 26%, transparent 54%),
-      radial-gradient(ellipse at 82% 8%, rgba(224, 248, 255, 0.78) 0%, transparent 50%),
-      linear-gradient(180deg, #BEEAFF 0%, #D6F5FF 34%, #F1FBFF 66%, #FFFFFF 100%);
-    background-position:
-      center top,
-      center top,
-      0 0,
-      0 0,
-      center top;
-    background-size:
-      150px 150px,
-      18px 18px,
-      100% 100%,
-      100% 100%,
-      100% 100%;
+    background: linear-gradient(180deg, #D8F1FC 0%, #EAF7FD 40%, #FFFFFF 100%);
   }
 
   .ba-theme-backdrop::before {
@@ -1034,15 +1001,7 @@
   }
 
   .dark .ba-theme-backdrop {
-    background:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150' viewBox='0 0 150 150'%3E%3Cg fill='none'%3E%3Cpath d='M0 0H150M0 0V150' stroke='%23D5E5FB' stroke-width='1' opacity='.07'/%3E%3Cpath d='M75 0V150M0 75H150' stroke='%2300D2FF' stroke-width='1' opacity='.045'/%3E%3C/g%3E%3C/svg%3E"),
-      linear-gradient(180deg, rgba(16, 24, 44, 0.92) 0%, rgba(26, 38, 67, 0.86) 52%, rgba(16, 24, 44, 0.96) 100%);
-    background-position:
-      center top,
-      0 0;
-    background-size:
-      150px 150px,
-      100% 100%;
+    background: linear-gradient(180deg, #111113 0%, #0A0A0C 100%);
   }
 
   .dark .ba-theme-backdrop::before {

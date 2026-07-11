@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -22,7 +23,8 @@ import (
 )
 
 var (
-	ErrNoUpdateAvailable = infraerrors.Conflict("ALREADY_UP_TO_DATE", "no update available; current version is latest")
+	ErrNoUpdateAvailable         = infraerrors.Conflict("ALREADY_UP_TO_DATE", "no update available; current version is latest")
+	ErrRollbackVersionNotAllowed = infraerrors.BadRequest("ROLLBACK_VERSION_NOT_ALLOWED", "version is not in the allowed rollback list")
 )
 
 const (
@@ -36,6 +38,11 @@ const (
 
 	// Security: max download size (500MB)
 	maxDownloadSize = 500 * 1024 * 1024
+
+	// 回退列表最多暴露当前版本之前的 3 个最近版本。
+	maxRollbackVersions = 3
+	// 多拉取一些 release，避免过滤当前版、新版本和预发布版后没有足够候选。
+	rollbackFetchPageSize = 15
 )
 
 // UpdateCache defines cache operations for update service
@@ -47,6 +54,7 @@ type UpdateCache interface {
 // GitHubReleaseClient 获取 GitHub release 信息的接口
 type GitHubReleaseClient interface {
 	FetchLatestRelease(ctx context.Context, repo string) (*GitHubRelease, error)
+	FetchRecentReleases(ctx context.Context, repo string, perPage int) ([]*GitHubRelease, error)
 	DownloadFile(ctx context.Context, url, dest string, maxSize int64) error
 	FetchChecksumFile(ctx context.Context, url string) ([]byte, error)
 }
@@ -103,7 +111,16 @@ type GitHubRelease struct {
 	Body        string        `json:"body"`
 	PublishedAt string        `json:"published_at"`
 	HTMLURL     string        `json:"html_url"`
+	Draft       bool          `json:"draft"`
+	Prerelease  bool          `json:"prerelease"`
 	Assets      []GitHubAsset `json:"assets"`
+}
+
+// RollbackVersion 描述系统允许回退到的正式版本。
+type RollbackVersion struct {
+	Version     string `json:"version"` // 不带 v 前缀，例如 0.1.146。
+	PublishedAt string `json:"published_at"`
+	HTMLURL     string `json:"html_url"`
 }
 
 type GitHubAsset struct {
@@ -155,12 +172,18 @@ func (s *UpdateService) PerformUpdate(ctx context.Context) error {
 		return ErrNoUpdateAvailable
 	}
 
+	return s.applyReleaseAssets(ctx, info.ReleaseInfo.Assets)
+}
+
+// applyReleaseAssets 下载当前平台的 release 包，校验 checksum，并原子替换运行中的二进制。
+// PerformUpdate（最新版）和 RollbackToVersion（指定旧版）共用该流程。
+func (s *UpdateService) applyReleaseAssets(ctx context.Context, releaseAssets []Asset) error {
 	// Find matching archive and checksum for current platform
 	archiveName := s.getArchiveName()
 	var downloadURL string
 	var checksumURL string
 
-	for _, asset := range info.ReleaseInfo.Assets {
+	for _, asset := range releaseAssets {
 		if strings.Contains(asset.Name, archiveName) && !strings.HasSuffix(asset.Name, ".txt") {
 			downloadURL = asset.DownloadURL
 		}
@@ -277,6 +300,133 @@ func (s *UpdateService) Rollback() error {
 	}
 
 	return nil
+}
+
+// ListRollbackVersions 返回严格早于当前版本的最近正式版本，按新到旧排序。
+// 草稿、预发布和非标准版本号均不会进入列表。
+func (s *UpdateService) ListRollbackVersions(ctx context.Context) ([]RollbackVersion, error) {
+	releases, err := s.fetchRollbackCandidates(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	versions := make([]RollbackVersion, 0, len(releases))
+	for _, r := range releases {
+		version, _ := normalizeRollbackVersion(r.TagName)
+		versions = append(versions, RollbackVersion{
+			Version:     version,
+			PublishedAt: r.PublishedAt,
+			HTMLURL:     r.HTMLURL,
+		})
+	}
+	return versions, nil
+}
+
+// RollbackToVersion 下载并安装指定旧版本。
+// 目标必须属于 ListRollbackVersions 返回的允许列表，当前版本和其他输入都会被拒绝。
+func (s *UpdateService) RollbackToVersion(ctx context.Context, version string) error {
+	target, ok := normalizeRollbackVersion(version)
+	if !ok {
+		return ErrRollbackVersionNotAllowed
+	}
+
+	releases, err := s.fetchRollbackCandidates(ctx)
+	if err != nil {
+		return err
+	}
+
+	var match *GitHubRelease
+	for _, r := range releases {
+		candidateVersion, _ := normalizeRollbackVersion(r.TagName)
+		if candidateVersion == target {
+			match = r
+			break
+		}
+	}
+	if match == nil {
+		return ErrRollbackVersionNotAllowed
+	}
+
+	assets := make([]Asset, len(match.Assets))
+	for i, a := range match.Assets {
+		assets[i] = Asset{
+			Name:        a.Name,
+			DownloadURL: a.BrowserDownloadURL,
+			Size:        a.Size,
+		}
+	}
+
+	return s.applyReleaseAssets(ctx, assets)
+}
+
+// fetchRollbackCandidates 拉取最近 release，并只保留严格早于当前版本的最新候选。
+func (s *UpdateService) fetchRollbackCandidates(ctx context.Context) ([]*GitHubRelease, error) {
+	releases, err := s.githubClient.FetchRecentReleases(ctx, githubRepo, rollbackFetchPageSize)
+	if err != nil {
+		return nil, err
+	}
+
+	currentVersion, ok := normalizeRollbackVersion(s.currentVersion)
+	if !ok {
+		return []*GitHubRelease{}, nil
+	}
+
+	seen := make(map[string]bool, len(releases))
+	candidates := make([]*GitHubRelease, 0, maxRollbackVersions)
+	for _, r := range releases {
+		if r == nil || r.Draft || r.Prerelease {
+			continue
+		}
+		v, valid := normalizeRollbackVersion(r.TagName)
+		if !valid || seen[v] {
+			continue
+		}
+		// 仅允许严格早于当前版本的正式语义版本，同时排除当前版本。
+		if compareVersions(v, currentVersion) >= 0 {
+			continue
+		}
+		seen[v] = true
+		candidates = append(candidates, r)
+	}
+
+	sort.SliceStable(candidates, func(i, j int) bool {
+		left, _ := normalizeRollbackVersion(candidates[i].TagName)
+		right, _ := normalizeRollbackVersion(candidates[j].TagName)
+		return compareVersions(
+			left,
+			right,
+		) > 0
+	})
+
+	if len(candidates) > maxRollbackVersions {
+		candidates = candidates[:maxRollbackVersions]
+	}
+	return candidates, nil
+}
+
+// normalizeRollbackVersion 只接受可安全用于下载与手动命令展示的 v?MAJOR.MINOR.PATCH。
+// 严格格式既保证排序语义，也防止 release tag 中的 shell 元字符进入复制命令。
+func normalizeRollbackVersion(raw string) (string, bool) {
+	version := strings.TrimSpace(raw)
+	version = strings.TrimPrefix(version, "v")
+	parts := strings.Split(version, ".")
+	if len(parts) != 3 {
+		return "", false
+	}
+	for _, part := range parts {
+		if part == "" || (len(part) > 1 && part[0] == '0') {
+			return "", false
+		}
+		for _, ch := range part {
+			if ch < '0' || ch > '9' {
+				return "", false
+			}
+		}
+		if _, err := strconv.Atoi(part); err != nil {
+			return "", false
+		}
+	}
+	return strings.Join(parts, "."), true
 }
 
 func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, error) {

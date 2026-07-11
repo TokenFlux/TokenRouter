@@ -50,7 +50,56 @@ func NewTokenRefreshService(
 	schedulerCache SchedulerCache,
 	cfg *config.Config,
 	tempUnschedCache TempUnschedCache,
-	grokOAuthServices ...*GrokOAuthService,
+	qoderOAuthServices []*QoderOAuthService,
+	grokOAuthServices []*GrokOAuthService,
+) *TokenRefreshService {
+	var qoderOAuthService *QoderOAuthService
+	if len(qoderOAuthServices) > 0 {
+		qoderOAuthService = qoderOAuthServices[0]
+	}
+	var grokOAuthService *GrokOAuthService
+	if len(grokOAuthServices) > 0 {
+		grokOAuthService = grokOAuthServices[0]
+	}
+	return newTokenRefreshService(accountRepo, oauthService, openaiOAuthService, geminiOAuthService, antigravityOAuthService, qoderOAuthService, grokOAuthService, cacheInvalidator, schedulerCache, cfg, tempUnschedCache, nil, nil)
+}
+
+func NewTokenRefreshServiceWithHTTPUpstream(
+	accountRepo AccountRepository,
+	oauthService *OAuthService,
+	openaiOAuthService *OpenAIOAuthService,
+	geminiOAuthService *GeminiOAuthService,
+	antigravityOAuthService *AntigravityOAuthService,
+	cacheInvalidator TokenCacheInvalidator,
+	schedulerCache SchedulerCache,
+	cfg *config.Config,
+	tempUnschedCache TempUnschedCache,
+	qoderOAuthService *QoderOAuthService,
+	grokOAuthServices []*GrokOAuthService,
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
+) *TokenRefreshService {
+	var grokOAuthService *GrokOAuthService
+	if len(grokOAuthServices) > 0 {
+		grokOAuthService = grokOAuthServices[0]
+	}
+	return newTokenRefreshService(accountRepo, oauthService, openaiOAuthService, geminiOAuthService, antigravityOAuthService, qoderOAuthService, grokOAuthService, cacheInvalidator, schedulerCache, cfg, tempUnschedCache, httpUpstream, tlsFPProfileService)
+}
+
+func newTokenRefreshService(
+	accountRepo AccountRepository,
+	oauthService *OAuthService,
+	openaiOAuthService *OpenAIOAuthService,
+	geminiOAuthService *GeminiOAuthService,
+	antigravityOAuthService *AntigravityOAuthService,
+	qoderOAuthService *QoderOAuthService,
+	grokOAuthService *GrokOAuthService,
+	cacheInvalidator TokenCacheInvalidator,
+	schedulerCache SchedulerCache,
+	cfg *config.Config,
+	tempUnschedCache TempUnschedCache,
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
 ) *TokenRefreshService {
 	s := &TokenRefreshService{
 		accountRepo:      accountRepo,
@@ -67,10 +116,7 @@ func NewTokenRefreshService(
 	claudeRefresher := NewClaudeTokenRefresher(oauthService)
 	geminiRefresher := NewGeminiTokenRefresher(geminiOAuthService)
 	agRefresher := NewAntigravityTokenRefresher(antigravityOAuthService)
-	var grokOAuthService *GrokOAuthService
-	if len(grokOAuthServices) > 0 {
-		grokOAuthService = grokOAuthServices[0]
-	}
+	qoderRefresher := NewQoderTokenRefresherWithHTTPUpstream(qoderOAuthService, httpUpstream, tlsFPProfileService)
 	grokRefresher := NewGrokTokenRefresher(grokOAuthService)
 
 	// 注册平台特定的刷新器（TokenRefresher 接口）
@@ -79,6 +125,7 @@ func NewTokenRefreshService(
 		openAIRefresher,
 		geminiRefresher,
 		agRefresher,
+		qoderRefresher,
 		grokRefresher,
 	}
 
@@ -88,6 +135,7 @@ func NewTokenRefreshService(
 		openAIRefresher,
 		geminiRefresher,
 		agRefresher,
+		qoderRefresher,
 		grokRefresher,
 	}
 
@@ -312,6 +360,7 @@ func (s *TokenRefreshService) refreshWithRetry(ctx context.Context, account *Acc
 		if isNonRetryableRefreshError(err) {
 			errorMsg := "Token refresh failed (non-retryable): " + logredact.RedactText(err.Error())
 			s.notifyAccountSchedulingBlocked(account, time.Time{}, "token_refresh_non_retryable")
+			s.clearAntigravityForceTokenRefresh(ctx, account, "non_retryable")
 			if setErr := s.accountRepo.SetError(ctx, account.ID, errorMsg); setErr != nil {
 				slog.Error("token_refresh.set_error_status_failed",
 					"account_id", account.ID,
@@ -369,6 +418,8 @@ func (s *TokenRefreshService) refreshWithRetry(ctx context.Context, account *Acc
 
 // postRefreshActions 刷新成功后的后续动作（清除错误状态、缓存失效、调度器同步等）
 func (s *TokenRefreshService) postRefreshActions(ctx context.Context, account *Account) {
+	s.clearAntigravityForceTokenRefresh(ctx, account, "success")
+
 	// Antigravity 账户：如果之前是因为缺少 project_id 而标记为 error，现在成功获取到了，清除错误状态
 	if account.Platform == PlatformAntigravity &&
 		account.Status == StatusError &&
@@ -405,7 +456,7 @@ func (s *TokenRefreshService) postRefreshActions(ctx context.Context, account *A
 		}
 	}
 	// 对所有 OAuth 账号调用缓存失效（InvalidateToken 内部根据平台判断是否需要处理）
-	if s.cacheInvalidator != nil && account.Type == AccountTypeOAuth {
+	if s.cacheInvalidator != nil && (account.Type == AccountTypeOAuth || account.IsQoderCosy()) {
 		if err := s.cacheInvalidator.InvalidateToken(ctx, account); err != nil {
 			slog.Warn("token_refresh.invalidate_token_cache_failed",
 				"account_id", account.ID,
@@ -432,6 +483,31 @@ func (s *TokenRefreshService) postRefreshActions(ctx context.Context, account *A
 	s.ensureAntigravityPrivacy(ctx, account)
 }
 
+// clearAntigravityForceTokenRefresh 在刷新完成或确定不可恢复后清除一次性强制刷新标记。
+func (s *TokenRefreshService) clearAntigravityForceTokenRefresh(ctx context.Context, account *Account, outcome string) {
+	if s == nil || account == nil || !accountNeedsAntigravityForceTokenRefresh(account) {
+		return
+	}
+	updates := clearAntigravityForceTokenRefreshExtra()
+	if err := s.accountRepo.UpdateExtra(ctx, account.ID, updates); err != nil {
+		slog.Warn("token_refresh.clear_antigravity_force_refresh_failed",
+			"account_id", account.ID,
+			"outcome", outcome,
+			"error", err,
+		)
+		return
+	}
+	if account.Extra != nil {
+		for k, v := range updates {
+			account.Extra[k] = v
+		}
+	}
+	slog.Info("token_refresh.cleared_antigravity_force_refresh",
+		"account_id", account.ID,
+		"outcome", outcome,
+	)
+}
+
 // errRefreshSkipped 表示刷新被跳过（锁竞争或已被其他路径刷新），不计入 failed 或 refreshed
 var errRefreshSkipped = fmt.Errorf("refresh skipped")
 
@@ -446,6 +522,7 @@ func isNonRetryableRefreshError(err error) bool {
 	nonRetryable := []string{
 		"invalid_grant",                       // refresh_token 已失效
 		"invalid_refresh_token",               // refresh_token 无效，team 账号工作区被删除时会出现
+		"token_expired",                       // OpenAI refresh_token 已过期，需要重新授权
 		"app_session_terminated",              // OpenAI app session 被终止，需要重新授权
 		"invalid_client",                      // 客户端配置错误
 		"unauthorized_client",                 // 客户端未授权

@@ -671,6 +671,133 @@ describe('AccountUsageCell', () => {
 	expect(wrapper.text()).toContain('5h|0|200')
   })
 
+  it('Qoder COSY 账号会展示上游月度 credits 用量，并支持主动刷新', async () => {
+	getUsage
+	  .mockResolvedValueOnce({
+	    qoder_quota: {
+	      user_type: 'personal_standard',
+	      usage_type: 'credits',
+	      total_usage_percentage: 0,
+	      is_quota_exceeded: true,
+	      expires_at: '2099-03-07T12:00:00Z',
+	      snapshot_from_account: true,
+	      user_quota: {
+	        total: 0,
+	        used: 0,
+	        remaining: 0,
+	        percentage: 0,
+	        unit: 'credits'
+	      }
+	    }
+	  })
+	  .mockResolvedValueOnce({
+	    qoder_quota: {
+	      user_type: 'teams',
+	      usage_type: 'credits',
+	      total_usage_percentage: 10,
+	      is_quota_exceeded: false,
+	      expires_at: '2099-04-07T12:00:00Z',
+	      user_quota: {
+	        total: 100,
+	        used: 10,
+	        remaining: 90,
+	        percentage: 10,
+	        unit: 'credits'
+	      }
+	    }
+	  })
+
+	const wrapper = mount(AccountUsageCell, {
+	  props: {
+	    account: makeAccount({
+	      id: 5001,
+	      platform: 'qoder',
+	      type: 'cosy'
+	    })
+	  },
+	  global: {
+	    stubs: {
+	      UsageProgressBar: {
+	        props: ['label', 'utilization', 'resetsAt', 'color'],
+	        template: '<div class="usage-bar">{{ label }}|{{ utilization }}|{{ resetsAt }}</div>'
+	      },
+	      AccountQuotaInfo: true
+	    }
+	  }
+	})
+
+	await flushPromises()
+
+	expect(getUsage).toHaveBeenCalledWith(5001)
+	expect(wrapper.text()).toContain('Qoder|0|2099-03-07T12:00:00Z')
+	expect(wrapper.text()).toContain('0/0 credits')
+	expect(wrapper.text()).toContain('exceeded')
+	expect(wrapper.text()).toContain('cached')
+
+	const refreshButton = wrapper
+	  .findAll('button')
+	  .find((button) => button.text().includes('admin.accounts.usageWindow.activeQuery'))
+	expect(refreshButton).toBeTruthy()
+	await refreshButton!.trigger('click')
+	await flushPromises()
+
+	expect(getUsage).toHaveBeenCalledWith(5001, 'active', true)
+	expect(wrapper.text()).toContain('Qoder|10|2099-04-07T12:00:00Z')
+	expect(wrapper.text()).toContain('10/100 credits')
+  })
+
+  it('Qoder COSY 账号会合并主额度和附加额度展示月度 credits', async () => {
+	getUsage.mockResolvedValueOnce({
+	  qoder_quota: {
+	    user_type: 'teams',
+	    usage_type: 'credits',
+	    total_usage_percentage: 100,
+	    is_quota_exceeded: false,
+	    expires_at: '2099-04-07T12:00:00Z',
+	    user_quota: {
+	      total: 100,
+	      used: 100,
+	      remaining: 0,
+	      percentage: 100,
+	      unit: 'credits'
+	    },
+	    add_on_quota: {
+	      total: 50,
+	      used: 10,
+	      remaining: 40,
+	      percentage: 20,
+	      unit: 'credits'
+	    },
+	    org_resource_package: {
+	      used: 25,
+	      remaining: 75,
+	      percentage: 25,
+	      unit: 'credits'
+	    }
+	  }
+	})
+
+	const wrapper = mount(AccountUsageCell, {
+	  props: {
+	    account: makeAccount({
+	      id: 5002,
+	      platform: 'qoder',
+	      type: 'cosy'
+	    })
+	  },
+	  global: {
+	    stubs: {
+	      UsageProgressBar: true,
+	      AccountQuotaInfo: true
+	    }
+	  }
+	})
+
+	await flushPromises()
+
+	expect(wrapper.text()).toContain('135/250 credits')
+  })
+
   it('OpenAI OAuth 已限额时显示 /usage API 返回的限额数据', async () => {
 	getUsage.mockResolvedValue({
 	  five_hour: {
@@ -766,6 +893,58 @@ describe('AccountUsageCell', () => {
 		expect(badges.some(node => node.attributes('title') === 'usage.userBilled')).toBe(true)
   })
 
+  it('Grok OAuth 会展示本地 user billed 用量并保留超限百分比', async () => {
+    getUsage.mockResolvedValue({
+      grok_local_usage: {
+        requests: 4,
+        tokens: 1200,
+        cost: 0.12,
+        standard_cost: 0.12,
+        user_cost: 0.34
+      },
+      grok_request_quota: {
+        limit: 10,
+        remaining: -2,
+        reset_at: '2026-07-09T16:00:00Z'
+      },
+      grok_quota_snapshot_state: 'observed'
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 3861,
+          platform: 'grok',
+          type: 'oauth',
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization', 'resetsAt', 'color'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}|{{ resetsAt }}</div>'
+          },
+          AccountQuotaInfo: true,
+          GrokQuotaProbeCell: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(getUsage).toHaveBeenCalledWith(3861)
+    expect(wrapper.text()).toContain('4 req')
+    expect(wrapper.text()).toContain('1.2K')
+    expect(wrapper.text()).toContain('A $0.12')
+    expect(wrapper.text()).toContain('U $0.34')
+    expect(wrapper.text()).toContain('admin.accounts.usageWindow.grokRequests|120|2026-07-09T16:00:00Z')
+
+    const badges = wrapper.findAll('span[title]')
+    expect(badges.some(node => node.attributes('title') === 'usage.accountBilled')).toBe(true)
+    expect(badges.some(node => node.attributes('title') === 'usage.userBilled')).toBe(true)
+  })
+
   it('Key 账号在 today stats loading 时显示骨架屏', async () => {
 		const wrapper = mount(AccountUsageCell, {
 		  props: {
@@ -854,5 +1033,103 @@ describe('AccountUsageCell', () => {
 		expect(wrapper.text()).toContain('0')
 		expect(wrapper.text()).toContain('A $0.00')
 		expect(wrapper.text()).toContain('U $0.00')
+  })
+
+  it('Anthropic OAuth 会渲染 7d F (Fable) 进度条，且 7d S 逻辑保留', async () => {
+    getUsage.mockResolvedValue({
+      source: 'passive',
+      five_hour: {
+        utilization: 41,
+        resets_at: '2026-07-03T10:00:00Z',
+        remaining_seconds: 3600
+      },
+      seven_day: {
+        utilization: 56,
+        resets_at: '2026-07-06T22:00:00Z',
+        remaining_seconds: 300000
+      },
+      seven_day_sonnet: {
+        utilization: 30,
+        resets_at: '2026-07-06T22:00:00Z',
+        remaining_seconds: 300000
+      },
+      seven_day_fable: {
+        utilization: 100,
+        resets_at: '2026-07-06T22:00:00Z',
+        remaining_seconds: 300000
+      }
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 3001,
+          platform: 'anthropic',
+          type: 'oauth',
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization', 'resetsAt', 'color'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}</div>'
+          },
+          AccountQuotaInfo: true,
+          GrokQuotaProbeCell: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('5h|41')
+    expect(wrapper.text()).toContain('7d|56')
+    expect(wrapper.text()).toContain('7d S|30')
+    expect(wrapper.text()).toContain('7d F|100')
+  })
+
+  it('Anthropic OAuth 无 Fable 数据时不渲染 7d F 进度条', async () => {
+    getUsage.mockResolvedValue({
+      source: 'passive',
+      five_hour: {
+        utilization: 41,
+        resets_at: '2026-07-03T10:00:00Z',
+        remaining_seconds: 3600
+      },
+      seven_day: {
+        utilization: 56,
+        resets_at: '2026-07-06T22:00:00Z',
+        remaining_seconds: 300000
+      }
+    })
+
+    const wrapper = mount(AccountUsageCell, {
+      props: {
+        account: makeAccount({
+          id: 3002,
+          platform: 'anthropic',
+          type: 'oauth',
+          extra: {}
+        })
+      },
+      global: {
+        stubs: {
+          UsageProgressBar: {
+            props: ['label', 'utilization', 'resetsAt', 'color'],
+            template: '<div class="usage-bar">{{ label }}|{{ utilization }}</div>'
+          },
+          AccountQuotaInfo: true,
+          GrokQuotaProbeCell: true
+        }
+      }
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('5h|41')
+    expect(wrapper.text()).toContain('7d|56')
+    expect(wrapper.text()).not.toContain('7d S')
+    expect(wrapper.text()).not.toContain('7d F')
   })
 })

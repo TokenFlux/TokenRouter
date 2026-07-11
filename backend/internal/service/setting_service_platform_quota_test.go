@@ -60,6 +60,11 @@ func newSettingServiceForPlatformQuotaTest(seed map[string]string) *SettingServi
 	return NewSettingService(repo, &config.Config{})
 }
 
+func TestAllowedQuotaPlatformsIncludesQoder(t *testing.T) {
+	require.True(t, IsAllowedQuotaPlatform(PlatformQoder))
+	require.Contains(t, AllowedQuotaPlatforms, PlatformQoder)
+}
+
 func TestGetDefaultPlatformQuotas_ReturnsAllowedPlatforms(t *testing.T) {
 	zero := 0.0
 	svc := newSettingServiceForPlatformQuotaTest(map[string]string{
@@ -88,15 +93,11 @@ func TestGetDefaultPlatformQuotas_ReturnsAllowedPlatforms(t *testing.T) {
 	if v := got["gemini"].WeeklyLimitUSD; v != nil {
 		t.Errorf("gemini weekly want nil (not configured), got %v", *v)
 	}
-	// antigravity 无配置 → daily = nil
-	if v := got["antigravity"].DailyLimitUSD; v != nil {
-		t.Errorf("antigravity daily want nil (not configured), got %v", *v)
-	}
 }
 
 func TestGetAuthSourcePlatformQuotas_OnlyConfiguredReturned(t *testing.T) {
 	source := "email"
-	// 新 JSON 格式：anthropic daily=5, monthly=100；openai weekly=0；gemini/antigravity 无配置
+	// 新 JSON 格式：anthropic daily=5, monthly=100；openai weekly=0；其他平台无配置
 	svc := newSettingServiceForPlatformQuotaTest(map[string]string{
 		SettingKeyAuthSourcePlatformQuotas(source): `{"anthropic":{"daily":5,"monthly":100},"openai":{"weekly":0}}`,
 	})

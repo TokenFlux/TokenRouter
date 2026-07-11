@@ -149,6 +149,20 @@
           </button>
           <button
             type="button"
+            @click="form.platform = 'qoder'"
+            data-testid="create-account-platform-qoder"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'qoder'
+                ? 'bg-white text-cyan-600 shadow-sm dark:bg-dark-600 dark:text-cyan-300'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <Icon name="terminal" size="sm" />
+            Qoder
+          </button>
+          <button
+            type="button"
             @click="form.platform = 'grok'"
             :class="[
               'flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all',
@@ -850,6 +864,293 @@
         </div>
       </div>
 
+      <!-- Qoder 账号类型选择 -->
+      <div v-if="form.platform === 'qoder'">
+        <label class="input-label">{{ t('admin.accounts.accountType') }}</label>
+        <div class="mt-2 grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            @click="qoderAccountType = 'oauth'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              qoderAccountType === 'oauth'
+                ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20'
+                : 'border-gray-200 hover:border-cyan-300 dark:border-dark-600 dark:hover:border-cyan-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                qoderAccountType === 'oauth'
+                  ? 'bg-cyan-500 text-white'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <Icon name="link" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">
+                {{ t('admin.accounts.qoder.accountType.oauthTitle') }}
+              </span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.accounts.qoder.accountType.oauthDesc') }}
+              </span>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            @click="qoderAccountType = 'manual'"
+            :class="[
+              'flex items-center gap-3 rounded-lg border-2 p-3 text-left transition-all',
+              qoderAccountType === 'manual'
+                ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20'
+                : 'border-gray-200 hover:border-cyan-300 dark:border-dark-600 dark:hover:border-cyan-700'
+            ]"
+          >
+            <div
+              :class="[
+                'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
+                qoderAccountType === 'manual'
+                  ? 'bg-cyan-500 text-white'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-600 dark:text-gray-400'
+              ]"
+            >
+              <Icon name="key" size="sm" />
+            </div>
+            <div>
+              <span class="block text-sm font-medium text-gray-900 dark:text-white">
+                {{ t('admin.accounts.qoder.accountType.manualTitle') }}
+              </span>
+              <span class="text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.accounts.qoder.accountType.manualDesc') }}
+              </span>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Qoder 手动凭据 -->
+      <div v-if="form.platform === 'qoder' && qoderAccountType === 'manual'" class="space-y-4">
+        <div>
+          <label class="input-label">{{ t('admin.accounts.qoder.pat') }}</label>
+          <input
+            v-model="qoderPAT"
+            type="password"
+            class="input font-mono"
+            autocomplete="off"
+            placeholder="pat-..."
+          />
+          <p class="input-hint">{{ t('admin.accounts.qoder.patHint') }}</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="h-px flex-1 bg-gray-200 dark:bg-dark-600"></div>
+          <span class="text-xs uppercase tracking-wide text-gray-400">{{ t('common.or') }}</span>
+          <div class="h-px flex-1 bg-gray-200 dark:bg-dark-600"></div>
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.qoder.securityOauthToken') }}</label>
+          <input
+            v-model="qoderSecurityOauthToken"
+            type="password"
+            class="input font-mono"
+            autocomplete="off"
+            placeholder="dt-..."
+          />
+          <p class="input-hint">{{ t('admin.accounts.qoder.securityOauthTokenHint') }}</p>
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.qoder.machineId') }}</label>
+          <input
+            v-model="qoderMachineId"
+            type="text"
+            class="input font-mono"
+            autocomplete="off"
+            placeholder="machine_id"
+          />
+          <p class="input-hint">{{ t('admin.accounts.qoder.machineIdHint') }}</p>
+        </div>
+        <div>
+          <label class="input-label">{{ t('admin.accounts.qoder.uidAid') }}</label>
+          <input
+            v-model="qoderUidAid"
+            type="text"
+            class="input font-mono"
+            autocomplete="off"
+            placeholder="uid or aid"
+          />
+          <p class="input-hint">{{ t('admin.accounts.qoder.uidAidHint') }}</p>
+        </div>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label class="input-label">{{ t('admin.accounts.qoder.refreshToken') }}</label>
+            <input
+              v-model="qoderRefreshToken"
+              type="password"
+              class="input font-mono"
+              autocomplete="off"
+            />
+          </div>
+          <div>
+            <label class="input-label">{{ t('admin.accounts.qoder.userType') }}</label>
+            <input
+              v-model="qoderUserType"
+              type="text"
+              class="input font-mono"
+              autocomplete="off"
+              placeholder="personal_standard"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Qoder 模型限制，适用于 OAuth 和手动凭据 -->
+      <div v-if="form.platform === 'qoder'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <label class="input-label">{{ t('admin.accounts.modelRestriction') }}</label>
+
+        <div class="mb-4 flex gap-2">
+          <button
+            type="button"
+            @click="modelRestrictionMode = 'whitelist'"
+            :class="[
+              'flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all',
+              modelRestrictionMode === 'whitelist'
+                ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-600 dark:text-gray-400 dark:hover:bg-dark-500'
+            ]"
+          >
+            {{ t('admin.accounts.modelWhitelist') }}
+          </button>
+          <button
+            type="button"
+            @click="modelRestrictionMode = 'mapping'"
+            :class="[
+              'flex-1 rounded-lg px-4 py-2 text-sm font-medium transition-all',
+              modelRestrictionMode === 'mapping'
+                ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-600 dark:text-gray-400 dark:hover:bg-dark-500'
+            ]"
+          >
+            {{ t('admin.accounts.modelMapping') }}
+          </button>
+        </div>
+        <p class="mb-3 text-xs text-gray-500 dark:text-gray-400">
+          {{ t('admin.accounts.modelRestrictionCombinedHint') }}
+        </p>
+
+        <div v-if="modelRestrictionMode === 'whitelist'">
+          <ModelWhitelistSelector :model-value="allowedModels" platform="qoder" @update:model-value="setAllowedModels" />
+          <p class="text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.selectedModels', { count: allowedModels.length }) }}
+            <span v-if="allowedModels.length === 0">{{ t('admin.accounts.supportsAllModels') }}</span>
+          </p>
+        </div>
+
+        <div v-else>
+          <div class="mb-3 rounded-lg bg-purple-50 p-3 dark:bg-purple-900/20">
+            <p class="text-xs text-purple-700 dark:text-purple-400">
+              {{ t('admin.accounts.mapRequestModels') }}
+            </p>
+          </div>
+
+          <div v-if="modelMappings.length > 0" class="mb-3 space-y-2">
+            <div
+              v-for="(mapping, index) in modelMappings"
+              :key="'qoder-' + getModelMappingKey(mapping)"
+              class="flex items-center gap-2"
+            >
+              <input
+                v-model="mapping.from"
+                type="text"
+                class="input flex-1"
+                :placeholder="t('admin.accounts.requestModel')"
+              />
+              <svg class="h-4 w-4 flex-shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+              <input
+                v-model="mapping.to"
+                type="text"
+                class="input flex-1"
+                :placeholder="t('admin.accounts.actualModel')"
+              />
+              <button
+                type="button"
+                @click="removeModelMapping(index)"
+                class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            @click="addModelMapping"
+            class="mb-3 w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300"
+          >
+            + {{ t('admin.accounts.addMapping') }}
+          </button>
+
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="preset in presetMappings"
+              :key="'qoder-' + preset.label"
+              type="button"
+              @click="addPresetMapping(preset.from, preset.to)"
+              :class="['rounded-lg px-3 py-1 text-xs transition-colors', preset.color]"
+            >
+              + {{ preset.label }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Qoder COSY TLS 指纹伪装 -->
+      <div
+        v-if="form.platform === 'qoder'"
+        class="border-t border-gray-200 pt-4 dark:border-dark-600"
+      >
+        <div class="flex items-center justify-between">
+          <div>
+            <label class="input-label mb-0">{{ t('admin.accounts.quotaControl.tlsFingerprint.label') }}</label>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.quotaControl.tlsFingerprint.hint') }}
+            </p>
+          </div>
+          <button
+            type="button"
+            data-testid="create-qoder-tls-fingerprint-toggle"
+            @click="tlsFingerprintEnabled = !tlsFingerprintEnabled"
+            :class="[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+              tlsFingerprintEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+            ]"
+          >
+            <span
+              :class="[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                tlsFingerprintEnabled ? 'translate-x-5' : 'translate-x-0'
+              ]"
+            />
+          </button>
+        </div>
+        <div v-if="tlsFingerprintEnabled" class="mt-3 space-y-3">
+          <Select
+            v-model="tlsFingerprintProfileId"
+            data-testid="create-qoder-tls-fingerprint-profile"
+            :options="tlsFingerprintProfileOptions"
+          />
+        </div>
+      </div>
+
       <!-- Vertex Service Account -->
       <div v-if="(form.platform === 'gemini' || form.platform === 'anthropic') && accountCategory === 'service_account'" class="space-y-4">
         <div>
@@ -1161,7 +1462,7 @@
 
             <!-- Whitelist Mode -->
             <div v-if="modelRestrictionMode === 'whitelist'">
-              <ModelWhitelistSelector v-model="allowedModels" :platform="form.platform" :sync-credentials="syncPreviewCredentials" />
+              <ModelWhitelistSelector :model-value="allowedModels" :platform="form.platform" :sync-credentials="syncPreviewCredentials" @update:model-value="setAllowedModels" />
               <p class="text-xs text-gray-500 dark:text-gray-400">
                 {{ t('admin.accounts.selectedModels', { count: allowedModels.length }) }}
                 <span v-if="allowedModels.length === 0">{{
@@ -1439,6 +1740,110 @@
           </div>
         </div>
 
+        <!-- Header Override Section (anthropic/openai apikey only) -->
+        <div
+          v-if="isHeaderOverridePlatform(form.platform)"
+          class="border-t border-gray-200 pt-4 dark:border-dark-600"
+        >
+          <div class="mb-3 flex items-center justify-between">
+            <div>
+              <label class="input-label mb-0">{{ t('admin.accounts.headerOverride.title') }}</label>
+              <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {{ t('admin.accounts.headerOverride.hint') }}
+              </p>
+            </div>
+            <button
+              type="button"
+              @click="headerOverrideEnabled = !headerOverrideEnabled"
+              :class="[
+                'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+                headerOverrideEnabled ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
+              ]"
+            >
+              <span
+                :class="[
+                  'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
+                  headerOverrideEnabled ? 'translate-x-5' : 'translate-x-0'
+                ]"
+              />
+            </button>
+          </div>
+
+          <div v-if="headerOverrideEnabled" class="space-y-3">
+            <div class="rounded-lg bg-blue-50 p-3 dark:bg-blue-900/20">
+              <p class="text-xs text-blue-700 dark:text-blue-400">
+                <Icon name="exclamationCircle" size="sm" class="mr-1 inline" :stroke-width="2" />
+                {{ t('admin.accounts.headerOverride.info') }}
+              </p>
+            </div>
+
+            <div v-if="headerOverrideRows.length > 0" class="space-y-2">
+              <div
+                v-for="(row, index) in headerOverrideRows"
+                :key="getHeaderOverrideRowKey(row)"
+                class="flex items-center gap-2"
+              >
+                <input
+                  v-model="row.name"
+                  type="text"
+                  class="input flex-1"
+                  :placeholder="t('admin.accounts.headerOverride.namePlaceholder')"
+                />
+                <input
+                  v-model="row.value"
+                  type="text"
+                  class="input flex-1"
+                  :placeholder="t('admin.accounts.headerOverride.valuePlaceholder')"
+                />
+                <button
+                  type="button"
+                  @click="removeHeaderOverrideRow(index)"
+                  class="rounded-lg p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                >
+                  <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              @click="addHeaderOverrideRow"
+              class="w-full rounded-lg border-2 border-dashed border-gray-300 px-4 py-2 text-gray-600 transition-colors hover:border-gray-400 hover:text-gray-700 dark:border-dark-500 dark:text-gray-400 dark:hover:border-dark-400 dark:hover:text-gray-300"
+            >
+              <svg class="mr-1 inline h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              {{ t('admin.accounts.headerOverride.addRow') }}
+            </button>
+
+            <div class="flex flex-wrap gap-2">
+              <button
+                type="button"
+                @click="fillHeaderOverrideTemplate"
+                class="rounded-lg bg-primary-50 px-3 py-1 text-xs text-primary-700 transition-colors hover:bg-primary-100 dark:bg-primary-900/30 dark:text-primary-400 dark:hover:bg-primary-900/50"
+              >
+                + {{ t('admin.accounts.headerOverride.fillTemplate') }}
+              </button>
+            </div>
+
+            <p class="text-xs text-gray-500 dark:text-gray-400">
+              {{ t('admin.accounts.headerOverride.emptyValueHint') }}
+            </p>
+          </div>
+        </div>
+
       </div>
 
       <!-- Bedrock credentials (only for Anthropic Bedrock type) -->
@@ -1568,7 +1973,7 @@
 
           <!-- Whitelist Mode -->
           <div v-if="modelRestrictionMode === 'whitelist'">
-            <ModelWhitelistSelector v-model="allowedModels" platform="anthropic" :sync-credentials="syncPreviewCredentials" />
+            <ModelWhitelistSelector :model-value="allowedModels" platform="anthropic" :sync-credentials="syncPreviewCredentials" @update:model-value="setAllowedModels" />
             <p class="text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.selectedModels', { count: allowedModels.length }) }}
               <span v-if="allowedModels.length === 0">{{ t('admin.accounts.supportsAllModels') }}</span>
@@ -1822,7 +2227,7 @@
 
           <!-- Whitelist Mode -->
           <div v-if="modelRestrictionMode === 'whitelist'">
-            <ModelWhitelistSelector v-model="allowedModels" :platform="form.platform" :sync-credentials="syncPreviewCredentials" />
+            <ModelWhitelistSelector :model-value="allowedModels" :platform="form.platform" :sync-credentials="syncPreviewCredentials" @update:model-value="setAllowedModels" />
             <p class="text-xs text-gray-500 dark:text-gray-400">
               {{ t('admin.accounts.selectedModels', { count: allowedModels.length }) }}
               <span v-if="allowedModels.length === 0">{{
@@ -3327,7 +3732,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import {
@@ -3356,6 +3761,8 @@ import {
 } from '@/composables/useOpenAIOAuth'
 import { useGeminiOAuth } from '@/composables/useGeminiOAuth'
 import { useAntigravityOAuth } from '@/composables/useAntigravityOAuth'
+import { useQoderOAuth } from '@/composables/useQoderOAuth'
+import type { QoderTokenInfo } from '@/api/admin/qoder'
 import { useGrokOAuth } from '@/composables/useGrokOAuth'
 import type {
   Proxy,
@@ -3383,7 +3790,12 @@ import ModelWhitelistSelector from '@/components/account/ModelWhitelistSelector.
 import QuotaLimitCard from '@/components/account/QuotaLimitCard.vue'
 import {
   applyAntigravityProjectID,
-  applyInterceptWarmup
+  applyHeaderOverride,
+  applyInterceptWarmup,
+  getHeaderOverrideTemplate,
+  isHeaderOverridePlatform,
+  validateHeaderOverrideRows,
+  type HeaderOverrideRow
 } from '@/components/account/credentialsBuilder'
 import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
@@ -3426,6 +3838,7 @@ const oauthStepTitle = computed(() => {
   if (form.platform === 'openai') return t('admin.accounts.oauth.openai.title')
   if (form.platform === 'gemini') return t('admin.accounts.oauth.gemini.title')
   if (form.platform === 'antigravity') return t('admin.accounts.oauth.antigravity.title')
+  if (form.platform === 'qoder') return t('admin.accounts.oauth.qoder.title')
   if (form.platform === 'grok') return t('admin.accounts.oauth.grok.title')
   return t('admin.accounts.oauth.title')
 })
@@ -3466,6 +3879,7 @@ const bedrockRegionOptions = groupedAccountSelectOptions(BEDROCK_REGION_OPTIONS)
 
 interface Props {
   show: boolean
+  initialPlatform?: AccountPlatform
   proxies: Proxy[]
   groups: AdminGroup[]
 }
@@ -3483,13 +3897,21 @@ const oauth = useAccountOAuth() // Anthropic OAuth
 const openaiOAuth = useOpenAIOAuth() // OpenAI OAuth
 const geminiOAuth = useGeminiOAuth() // Gemini OAuth
 const antigravityOAuth = useAntigravityOAuth() // Antigravity OAuth
+const qoderOAuth = useQoderOAuth() // Qoder 设备授权
 const grokOAuth = useGrokOAuth() // Grok OAuth
+let qoderPollTimer: number | null = null
+let qoderAuthPopup: Window | null = null
+let qoderPollInFlight = false
+let qoderPollGeneration = 0
+let qoderAccountCreateInFlight = false
+let qoderOAuthCompleted = false
 
 // 当前 OAuth 状态用于模板绑定。
 const currentAuthUrl = computed(() => {
   if (form.platform === 'openai') return openaiOAuth.authUrl.value
   if (form.platform === 'gemini') return geminiOAuth.authUrl.value
   if (form.platform === 'antigravity') return antigravityOAuth.authUrl.value
+  if (form.platform === 'qoder') return qoderOAuth.authUrl.value
   if (form.platform === 'grok') return grokOAuth.authUrl.value
   return oauth.authUrl.value
 })
@@ -3498,6 +3920,7 @@ const currentSessionId = computed(() => {
   if (form.platform === 'openai') return openaiOAuth.sessionId.value
   if (form.platform === 'gemini') return geminiOAuth.sessionId.value
   if (form.platform === 'antigravity') return antigravityOAuth.sessionId.value
+  if (form.platform === 'qoder') return qoderOAuth.sessionId.value
   if (form.platform === 'grok') return grokOAuth.sessionId.value
   return oauth.sessionId.value
 })
@@ -3506,6 +3929,7 @@ const currentOAuthLoading = computed(() => {
   if (form.platform === 'openai') return openaiOAuth.loading.value
   if (form.platform === 'gemini') return geminiOAuth.loading.value
   if (form.platform === 'antigravity') return antigravityOAuth.loading.value
+  if (form.platform === 'qoder') return qoderOAuth.loading.value
   if (form.platform === 'grok') return grokOAuth.loading.value
   return oauth.loading.value
 })
@@ -3514,6 +3938,7 @@ const currentOAuthError = computed(() => {
   if (form.platform === 'openai') return openaiOAuth.error.value
   if (form.platform === 'gemini') return geminiOAuth.error.value
   if (form.platform === 'antigravity') return antigravityOAuth.error.value
+  if (form.platform === 'qoder') return qoderOAuth.error.value
   if (form.platform === 'grok') return grokOAuth.error.value
   return oauth.error.value
 })
@@ -3569,6 +3994,8 @@ const modelMappings = ref<ModelMapping[]>([])
 const openAICompactModelMappings = ref<ModelMapping[]>([])
 const modelRestrictionMode = ref<'whitelist' | 'mapping'>('whitelist')
 const allowedModels = ref<string[]>([])
+const qoderModelRestrictionTouched = ref(false)
+const qoderModelWhitelistTouched = ref(false)
 const DEFAULT_POOL_MODE_RETRY_COUNT = 3
 const MAX_POOL_MODE_RETRY_COUNT = 10
 const DEFAULT_POOL_MODE_RETRY_STATUS_CODES = [401, 403, 429]
@@ -3595,6 +4022,30 @@ function parsePoolModeRetryStatusCodes(input: string): number[] {
 const customErrorCodesEnabled = ref(false)
 const selectedErrorCodes = ref<number[]>([])
 const customErrorCodeInput = ref<number | null>(null)
+const headerOverrideEnabled = ref(false)
+const headerOverrideRows = ref<HeaderOverrideRow[]>([])
+
+const addHeaderOverrideRow = () => {
+  headerOverrideRows.value.push({ name: '', value: '' })
+}
+
+const removeHeaderOverrideRow = (index: number) => {
+  headerOverrideRows.value.splice(index, 1)
+}
+
+// 模板按钮：填入标准客户端请求头名称（值留空），跳过已存在的同名行
+const fillHeaderOverrideTemplate = () => {
+  const existing = new Set(
+    headerOverrideRows.value.map((row) => row.name.trim().toLowerCase()).filter(Boolean)
+  )
+  const rows = headerOverrideRows.value.filter((row) => row.name.trim() || row.value.trim())
+  for (const row of getHeaderOverrideTemplate(form.platform)) {
+    if (!existing.has(row.name)) {
+      rows.push(row)
+    }
+  }
+  headerOverrideRows.value = rows
+}
 const interceptWarmupRequests = ref(false)
 const autoPauseOnExpired = ref(true)
 const autoPause5hThreshold = ref<number | null>(null)
@@ -3630,6 +4081,13 @@ loadQuotaNotifyGlobal()
 const mixedScheduling = ref(false) // For antigravity accounts: enable mixed scheduling
 const allowOverages = ref(false) // For antigravity accounts: enable AI Credits overages
 const antigravityAccountType = ref<'oauth' | 'upstream'>('oauth') // For antigravity: oauth or upstream
+const qoderAccountType = ref<'oauth' | 'manual'>('oauth')
+const qoderPAT = ref('')
+const qoderSecurityOauthToken = ref('')
+const qoderMachineId = ref('')
+const qoderUidAid = ref('')
+const qoderRefreshToken = ref('')
+const qoderUserType = ref('personal_standard')
 const antigravityProjectId = ref('')
 const upstreamBaseUrl = ref('') // For upstream type: base URL
 const upstreamApiKey = ref('') // For upstream type: API key
@@ -3656,6 +4114,7 @@ const vertexServiceAccountDragActive = ref(false)
 const tempUnschedEnabled = ref(false)
 const tempUnschedRules = ref<TempUnschedRuleForm[]>([])
 const getModelMappingKey = createStableObjectKeyResolver<ModelMapping>('create-model-mapping')
+const getHeaderOverrideRowKey = createStableObjectKeyResolver<HeaderOverrideRow>('create-header-override-row')
 const getOpenAICompactModelMappingKey = createStableObjectKeyResolver<ModelMapping>('create-openai-compact-model-mapping')
 const getAntigravityModelMappingKey = createStableObjectKeyResolver<ModelMapping>('create-antigravity-model-mapping')
 const getTempUnschedRuleKey = createStableObjectKeyResolver<TempUnschedRuleForm>('create-temp-unsched-rule')
@@ -4025,7 +4484,6 @@ const loadOpenAIOAuthImportDefaults = async () => {
     applyOpenAIOAuthImportDefaultsToForm()
     return
   }
-
   try {
     openAIOAuthImportDefaults.value = await adminAPI.settings.getOpenAIOAuthImportDefaults()
     openAIOAuthImportDefaultsLoaded.value = true
@@ -4126,6 +4584,9 @@ const isOAuthFlow = computed(() => {
   if (form.platform === 'antigravity' && antigravityAccountType.value === 'upstream') {
     return false
   }
+  if (form.platform === 'qoder' && qoderAccountType.value === 'manual') {
+    return false
+  }
   // Bedrock 类型不需要 OAuth 流程
   if (form.platform === 'anthropic' && accountCategory.value === 'bedrock') {
     return false
@@ -4155,6 +4616,9 @@ const canExchangeCode = computed(() => {
   if (form.platform === 'antigravity') {
     return authCode.trim() && antigravityOAuth.sessionId.value && !antigravityOAuth.loading.value
   }
+  if (form.platform === 'qoder') {
+    return qoderOAuth.sessionId.value && !qoderOAuth.loading.value
+  }
   if (form.platform === 'grok') {
     return authCode.trim() && grokOAuth.sessionId.value && !grokOAuth.loading.value
   }
@@ -4166,6 +4630,7 @@ watch(
   () => props.show,
   (newVal) => {
     if (newVal) {
+      form.platform = props.initialPlatform || 'anthropic'
       // Load TLS fingerprint profiles
       adminAPI.tlsFingerprintProfiles.list()
         .then(profiles => { tlsFingerprintProfiles.value = profiles.map(p => ({ id: p.id, name: p.name })) })
@@ -4174,7 +4639,7 @@ watch(
         .then(routers => { tlsFingerprintRouters.value = routers.map(router => ({ id: router.id, name: router.name })) })
         .catch(() => { tlsFingerprintRouters.value = [] })
       // Modal opened - fill related models
-      allowedModels.value = [...getModelsByPlatform(form.platform)]
+      allowedModels.value = form.platform === 'qoder' ? [] : [...getModelsByPlatform(form.platform)]
       if (isOpenAIOAuthImportDefaultsTarget.value) {
         void loadOpenAIOAuthImportDefaults()
       }
@@ -4198,8 +4663,12 @@ watch(
 
 // Sync form.type based on accountCategory, addMethod, and platform-specific type
 watch(
-  [accountCategory, addMethod, antigravityAccountType, () => form.platform],
+  [accountCategory, addMethod, antigravityAccountType, qoderAccountType, () => form.platform],
   ([category, method, agType]) => {
+    if (form.platform === 'qoder') {
+      form.type = 'cosy'
+      return
+    }
     // Antigravity upstream 类型（实际创建为 apikey）
     if (form.platform === 'antigravity' && agType === 'upstream') {
       form.type = 'apikey'
@@ -4245,9 +4714,13 @@ watch(
           : newPlatform === 'grok'
             ? 'https://api.x.ai/v1'
             : 'https://api.anthropic.com'
-    // 切换平台时旧平台模型不再适用，重置为新平台默认白名单。
-    allowedModels.value = [...getModelsByPlatform(newPlatform)]
+    // 切换平台时旧平台模型不再适用。Qoder 由账号 model_mapping
+    // 配置展示/请求模型，默认不填充会过期的前端硬编码白名单。
+    allowedModels.value = newPlatform === 'qoder' ? [] : [...getModelsByPlatform(newPlatform)]
     modelMappings.value = []
+    modelRestrictionMode.value = (newPlatform === 'qoder' || newPlatform === 'grok') ? 'mapping' : 'whitelist'
+    qoderModelRestrictionTouched.value = false
+    qoderModelWhitelistTouched.value = false
     // Antigravity: 默认使用映射模式并填充默认映射
     if (newPlatform === 'antigravity') {
       antigravityModelRestrictionMode.value = 'mapping'
@@ -4262,6 +4735,18 @@ watch(
       antigravityWhitelistModels.value = []
       antigravityModelMappings.value = []
       antigravityModelRestrictionMode.value = 'mapping'
+    }
+    if (newPlatform === 'qoder') {
+      accountCategory.value = 'oauth-based'
+      qoderAccountType.value = 'oauth'
+    } else {
+      qoderAccountType.value = 'oauth'
+      qoderPAT.value = ''
+      qoderSecurityOauthToken.value = ''
+      qoderMachineId.value = ''
+      qoderUidAid.value = ''
+      qoderRefreshToken.value = ''
+      qoderUserType.value = 'personal_standard'
     }
     if (newPlatform === 'grok') {
       accountCategory.value = 'oauth-based'
@@ -4305,12 +4790,17 @@ watch(
       anthropicAPIKeyAuthScheme.value = 'x_api_key'
       webSearchEmulationMode.value = 'default'
     }
+    // 请求头覆写为平台相关配置（模板/常用头集合不同），切换平台时清空，
+    // 避免上一平台的模板行被提交到新平台账号
+    headerOverrideEnabled.value = false
+    headerOverrideRows.value = []
     // Reset OAuth states
     oauth.resetState()
     openaiOAuth.resetState()
 
     geminiOAuth.resetState()
     antigravityOAuth.resetState()
+    qoderOAuth.resetState()
     grokOAuth.resetState()
   }
 )
@@ -4366,7 +4856,22 @@ watch(
 )
 
 // Model mapping helpers
+const touchQoderModelRestriction = () => {
+  if (form.platform === 'qoder') {
+    qoderModelRestrictionTouched.value = true
+  }
+}
+
+const setAllowedModels = (models: string[]) => {
+  touchQoderModelRestriction()
+  if (form.platform === 'qoder') {
+    qoderModelWhitelistTouched.value = true
+  }
+  allowedModels.value = models
+}
+
 const addModelMapping = () => {
+  touchQoderModelRestriction()
   modelMappings.value.push({ from: '', to: '' })
 }
 
@@ -4379,6 +4884,7 @@ const removeOpenAICompactModelMapping = (index: number) => {
 }
 
 const removeModelMapping = (index: number) => {
+  touchQoderModelRestriction()
   modelMappings.value.splice(index, 1)
 }
 
@@ -4394,7 +4900,26 @@ const applyPersistedModelRestriction = (credentials: Record<string, unknown>) =>
   credentials.model_whitelist = persisted.modelWhitelist
 }
 
+const applyQoderModelRestriction = (credentials: Record<string, unknown>) => {
+  if (!qoderModelRestrictionTouched.value) {
+    delete credentials.model_mapping
+    delete credentials.model_whitelist
+    return
+  }
+  const persisted = buildPersistedModelRestriction(
+    qoderModelWhitelistTouched.value ? allowedModels.value : [],
+    modelMappings.value
+  )
+  if (persisted.modelMapping) {
+    credentials.model_mapping = persisted.modelMapping
+  } else {
+    delete credentials.model_mapping
+  }
+  credentials.model_whitelist = persisted.modelWhitelist
+}
+
 const addPresetMapping = (from: string, to: string) => {
+  touchQoderModelRestriction()
   if (modelMappings.value.some((m) => m.from === from)) {
     appStore.showInfo(t('admin.accounts.mappingExists', { model: from }))
     return
@@ -4655,6 +5180,8 @@ const submitCreateAccount = async (payload: CreateAccountRequest) => {
 
 // Methods
 const resetForm = () => {
+  stopQoderPolling()
+  resetQoderOAuthCompletionState()
   step.value = 1
   form.name = ''
   form.notes = ''
@@ -4685,6 +5212,8 @@ const resetForm = () => {
   openAICompactModelMappings.value = []
   modelRestrictionMode.value = 'whitelist'
   allowedModels.value = [...claudeModels] // Default fill related models
+  qoderModelRestrictionTouched.value = false
+  qoderModelWhitelistTouched.value = false
 
   antigravityModelRestrictionMode.value = 'mapping'
   antigravityWhitelistModels.value = []
@@ -4698,6 +5227,8 @@ const resetForm = () => {
   customErrorCodesEnabled.value = false
   selectedErrorCodes.value = []
   customErrorCodeInput.value = null
+  headerOverrideEnabled.value = false
+  headerOverrideRows.value = []
   interceptWarmupRequests.value = false
   autoPauseOnExpired.value = true
   autoPause5hThreshold.value = null
@@ -4737,6 +5268,13 @@ const resetForm = () => {
   customBaseUrl.value = ''
   allowOverages.value = false
   antigravityAccountType.value = 'oauth'
+  qoderAccountType.value = 'oauth'
+  qoderPAT.value = ''
+  qoderSecurityOauthToken.value = ''
+  qoderMachineId.value = ''
+  qoderUidAid.value = ''
+  qoderRefreshToken.value = ''
+  qoderUserType.value = 'personal_standard'
   antigravityProjectId.value = ''
   upstreamBaseUrl.value = ''
   upstreamApiKey.value = ''
@@ -4754,6 +5292,7 @@ const resetForm = () => {
   openaiOAuth.resetState()
   geminiOAuth.resetState()
   antigravityOAuth.resetState()
+  qoderOAuth.resetState()
   grokOAuth.resetState()
   oauthFlowRef.value?.reset()
   antigravityMixedChannelConfirmed.value = false
@@ -4764,6 +5303,9 @@ const resetForm = () => {
 }
 
 const handleClose = () => {
+  stopQoderPolling()
+  resetQoderOAuthCompletionState()
+  qoderAuthPopup = null
   antigravityMixedChannelConfirmed.value = false
   clearMixedChannelDialog()
   emit('close')
@@ -4849,7 +5391,7 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
     } else {
       delete extra.tls_fingerprint_profile_id
     }
-    if (tlsFingerprintRouterId.value) {
+    if (form.platform === 'openai' && accountCategory.value === 'oauth-based' && tlsFingerprintRouterId.value) {
       extra.tls_fingerprint_router_id = tlsFingerprintRouterId.value
     } else {
       delete extra.tls_fingerprint_router_id
@@ -4876,6 +5418,17 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
     delete extra.openai_responses_mode
   }
 
+  return Object.keys(extra).length > 0 ? extra : undefined
+}
+
+const buildQoderExtra = (): Record<string, unknown> | undefined => {
+  const extra: Record<string, unknown> = {}
+  if (tlsFingerprintEnabled.value) {
+    extra.enable_tls_fingerprint = true
+    if (tlsFingerprintProfileId.value) {
+      extra.tls_fingerprint_profile_id = tlsFingerprintProfileId.value
+    }
+  }
   return Object.keys(extra).length > 0 ? extra : undefined
 }
 
@@ -5107,6 +5660,44 @@ const handleSubmit = async () => {
     return
   }
 
+  if (form.platform === 'qoder' && qoderAccountType.value === 'manual') {
+    if (!form.name.trim()) {
+      appStore.showError(t('admin.accounts.pleaseEnterAccountName'))
+      return
+    }
+    const credentials: Record<string, unknown> = {}
+    if (qoderPAT.value.trim()) {
+      credentials.pat = qoderPAT.value.trim()
+    } else {
+      if (!qoderSecurityOauthToken.value.trim()) {
+        appStore.showError(t('admin.accounts.qoder.pleaseEnterSecurityOauthToken'))
+        return
+      }
+      if (!qoderMachineId.value.trim()) {
+        appStore.showError(t('admin.accounts.qoder.pleaseEnterMachineId'))
+        return
+      }
+      if (!qoderUidAid.value.trim()) {
+        appStore.showError(t('admin.accounts.qoder.pleaseEnterUidAid'))
+        return
+      }
+
+      const uidAid = qoderUidAid.value.trim()
+      credentials.security_oauth_token = qoderSecurityOauthToken.value.trim()
+      credentials.machine_id = qoderMachineId.value.trim()
+      credentials.uid = uidAid
+      credentials.aid = uidAid
+      credentials.user_type = qoderUserType.value.trim() || 'personal_standard'
+      if (qoderRefreshToken.value.trim()) {
+        credentials.refresh_token = qoderRefreshToken.value.trim()
+      }
+    }
+    applyQoderModelRestriction(credentials)
+    applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
+    await createAccountAndFinish('qoder', 'cosy', credentials, buildQoderExtra())
+    return
+  }
+
   if ((form.platform === 'gemini' || form.platform === 'anthropic') && accountCategory.value === 'service_account') {
     if (!form.name.trim()) {
       appStore.showError(t('admin.accounts.pleaseEnterAccountName'))
@@ -5181,6 +5772,18 @@ const handleSubmit = async () => {
     credentials.custom_error_codes = [...selectedErrorCodes.value]
   }
 
+  // 仅为启用该功能的 Anthropic/OpenAI API Key 账号写入请求头覆写。
+  if (isHeaderOverridePlatform(form.platform)) {
+    if (headerOverrideEnabled.value) {
+      const headerError = validateHeaderOverrideRows(headerOverrideRows.value)
+      if (headerError) {
+        appStore.showError(t(`admin.accounts.headerOverride.${headerError}`))
+        return
+      }
+    }
+    applyHeaderOverride(credentials, headerOverrideEnabled.value, headerOverrideRows.value, 'create')
+  }
+
   applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
   if (!applyTempUnschedConfig(credentials)) {
     return
@@ -5198,13 +5801,94 @@ const handleSubmit = async () => {
 }
 
 const goBackToBasicInfo = () => {
+  stopQoderPolling()
+  resetQoderOAuthCompletionState()
   step.value = 1
   oauth.resetState()
   openaiOAuth.resetState()
   geminiOAuth.resetState()
   antigravityOAuth.resetState()
+  qoderOAuth.resetState()
   grokOAuth.resetState()
   oauthFlowRef.value?.reset()
+}
+
+const getQoderPopupFeatures = () => {
+  const width = Math.min(1100, (window.screen?.availWidth || 1100) - 40)
+  const height = Math.min(820, (window.screen?.availHeight || 820) - 40)
+  const left = Math.max(0, Math.floor(((window.screen?.availWidth || width) - width) / 2))
+  const top = Math.max(0, Math.floor(((window.screen?.availHeight || height) - height) / 2))
+  return `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+}
+
+const stopQoderPolling = () => {
+  qoderPollGeneration += 1
+  if (qoderPollTimer) {
+    window.clearInterval(qoderPollTimer)
+    qoderPollTimer = null
+  }
+  qoderPollInFlight = false
+}
+
+const resetQoderOAuthCompletionState = () => {
+  qoderAccountCreateInFlight = false
+  qoderOAuthCompleted = false
+}
+
+const createQoderOAuthAccount = async (tokenInfo?: QoderTokenInfo) => {
+  if (!tokenInfo || qoderAccountCreateInFlight || qoderOAuthCompleted) return
+
+  qoderAccountCreateInFlight = true
+  try {
+    const credentials = qoderOAuth.buildCredentials(tokenInfo)
+    applyQoderModelRestriction(credentials)
+    applyInterceptWarmup(credentials, interceptWarmupRequests.value, 'create')
+    await createAccountAndFinish('qoder', 'cosy', credentials, buildQoderExtra())
+    qoderOAuthCompleted = true
+  } finally {
+    qoderAccountCreateInFlight = false
+  }
+}
+
+const pollQoderAuthorizationOnce = async () => {
+  if (qoderPollInFlight || qoderOAuthCompleted || !qoderOAuth.sessionId.value || !qoderOAuth.state.value)
+    return
+  const generation = qoderPollGeneration
+  qoderPollInFlight = true
+
+  try {
+    const result = await qoderOAuth.pollAuthorization({
+      sessionId: qoderOAuth.sessionId.value,
+      state: qoderOAuth.state.value,
+      proxyId: form.proxy_id
+    })
+    if (generation !== qoderPollGeneration) return
+    if (!result && qoderOAuth.error.value) {
+      stopQoderPolling()
+      return
+    }
+    if (result?.status !== 'completed' || !result.token_info) return
+
+    stopQoderPolling()
+    qoderAuthPopup?.close()
+    qoderAuthPopup = null
+    await createQoderOAuthAccount(result.token_info)
+  } finally {
+    if (generation === qoderPollGeneration) {
+      qoderPollInFlight = false
+    }
+  }
+}
+
+const startQoderPolling = (intervalSeconds = 2) => {
+  stopQoderPolling()
+  const generation = qoderPollGeneration
+  void pollQoderAuthorizationOnce()
+  const intervalMs = Math.max(1, intervalSeconds) * 1000
+  qoderPollTimer = window.setInterval(() => {
+    if (generation !== qoderPollGeneration) return
+    void pollQoderAuthorizationOnce()
+  }, intervalMs)
 }
 
 const handleGenerateUrl = async () => {
@@ -5219,6 +5903,22 @@ const handleGenerateUrl = async () => {
     )
   } else if (form.platform === 'antigravity') {
     await antigravityOAuth.generateAuthUrl(form.proxy_id)
+  } else if (form.platform === 'qoder') {
+    resetQoderOAuthCompletionState()
+    qoderAuthPopup = window.open('about:blank', 'qoderAuthPopup', getQoderPopupFeatures())
+    const ok = await qoderOAuth.generateAuthUrl(form.proxy_id)
+    if (!ok) {
+      qoderAuthPopup?.close()
+      qoderAuthPopup = null
+      return
+    }
+    if (qoderAuthPopup) {
+      qoderAuthPopup.location.href = qoderOAuth.authUrl.value
+      qoderAuthPopup.focus()
+    } else {
+      appStore.showWarning(t('admin.accounts.oauth.qoder.popupBlocked'))
+    }
+    startQoderPolling(qoderOAuth.pollInterval.value)
   } else if (form.platform === 'grok') {
     await grokOAuth.generateAuthUrl(form.proxy_id)
   } else {
@@ -5974,7 +6674,7 @@ const handleAntigravityValidateRT = async (refreshTokenInput: string) => {
 
         const credentials = antigravityOAuth.buildCredentials(tokenInfo)
         applyAntigravityProjectID(credentials, antigravityProjectId.value, 'create')
-        
+
         // Generate account name with index for batch
         const accountName = refreshTokens.length > 1 ? `${form.name} #${i + 1}` : form.name
 
@@ -6108,6 +6808,56 @@ const handleAntigravityExchange = async (authCode: string) => {
     appStore.showError(antigravityOAuth.error.value)
   } finally {
     antigravityOAuth.loading.value = false
+  }
+}
+
+const handleQoderExchange = async (authCode: string) => {
+  if (!qoderOAuth.sessionId.value || qoderOAuthCompleted || qoderAccountCreateInFlight) return
+
+  const shouldResumePolling = qoderPollTimer !== null
+  stopQoderPolling()
+  qoderOAuth.loading.value = true
+  qoderOAuth.error.value = ''
+  const resumePollingIfNeeded = () => {
+    if (shouldResumePolling && !qoderPollTimer && qoderOAuth.sessionId.value && qoderOAuth.state.value) {
+      startQoderPolling(qoderOAuth.pollInterval.value)
+    }
+  }
+
+  let exchanged = false
+  try {
+    const stateFromInput = oauthFlowRef.value?.oauthState || ''
+    const stateToUse = stateFromInput || qoderOAuth.state.value
+    if (!stateToUse) {
+      qoderOAuth.error.value = t('admin.accounts.oauth.authFailed')
+      appStore.showError(qoderOAuth.error.value)
+      resumePollingIfNeeded()
+      return
+    }
+
+    const rawInput = authCode.trim()
+    const tokenInfo = await qoderOAuth.exchangeAuthCode({
+      code: rawInput,
+      callbackUrl: rawInput,
+      sessionId: qoderOAuth.sessionId.value,
+      state: stateToUse,
+      proxyId: form.proxy_id
+    })
+    if (!tokenInfo) {
+      resumePollingIfNeeded()
+      return
+    }
+
+    exchanged = true
+    await createQoderOAuthAccount(tokenInfo)
+  } catch (error: any) {
+    qoderOAuth.error.value = error.response?.data?.detail || t('admin.accounts.oauth.authFailed')
+    appStore.showError(qoderOAuth.error.value)
+    if (!exchanged) {
+      resumePollingIfNeeded()
+    }
+  } finally {
+    qoderOAuth.loading.value = false
   }
 }
 
@@ -6249,6 +6999,8 @@ const handleExchangeCode = async () => {
       return handleGeminiExchange(authCode)
     case 'antigravity':
       return handleAntigravityExchange(authCode)
+    case 'qoder':
+      return handleQoderExchange(authCode)
     case 'grok':
       return handleGrokExchange(authCode)
     default:
@@ -6412,4 +7164,9 @@ const handleCookieAuth = async (sessionKey: string) => {
     oauth.loading.value = false
   }
 }
+
+onBeforeUnmount(() => {
+  stopQoderPolling()
+  qoderAuthPopup = null
+})
 </script>

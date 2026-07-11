@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/model"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/cespare/xxhash/v2"
 	"github.com/gin-gonic/gin"
@@ -781,6 +782,7 @@ func TestOpenAISelectAccountWithScheduler_GroupModelUnsupportedError(t *testing.
 		OpenAIUpstreamTransportAny,
 		OpenAIEndpointCapabilityChatCompletions,
 		false,
+		false,
 	)
 	if err == nil {
 		t.Fatalf("expected group model unsupported error")
@@ -1462,6 +1464,7 @@ func TestOpenAIStreamingResponseFailedAfterOutputSanitizesVerboseResponseForClie
 	body := rec.Body.String()
 	require.Contains(t, body, "event: response.failed")
 	require.Contains(t, body, "context_length_exceeded")
+	require.Contains(t, body, `"type":"invalid_request_error"`)
 	require.Contains(t, body, "Your input exceeds the context window")
 	require.NotContains(t, body, "You are GPT-5.1 running in the Codex CLI")
 	require.NotContains(t, body, `"instructions"`)
@@ -1503,7 +1506,62 @@ func TestOpenAIStreamingContextWindowResponseFailedBeforeOutputPassesThrough(t *
 	require.False(t, errors.As(err, &failoverErr))
 	require.True(t, c.Writer.Written())
 	require.Contains(t, rec.Body.String(), "response.failed")
+	require.Contains(t, rec.Body.String(), `"type":"upstream_error"`)
 	require.Contains(t, rec.Body.String(), "Your input exceeds the context window")
+}
+
+func TestOpenAIStreamingContextWindowResponseFailedBeforeOutputAppliesPassthroughRule(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			StreamDataIntervalTimeout: 0,
+			StreamKeepaliveInterval:   0,
+			MaxLineSize:               defaultMaxLineSize,
+		},
+	}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	rule := newNonFailoverPassthroughRule(http.StatusBadRequest, "context_length_exceeded", http.StatusBadRequest, "")
+	rule.Platforms = []string{PlatformOpenAI}
+	rule.PassthroughBody = true
+	rule.CustomMessage = nil
+	ruleSvc := &ErrorPassthroughService{}
+	ruleSvc.setLocalCache([]*model.ErrorPassthroughRule{rule})
+	BindErrorPassthroughService(c, ruleSvc)
+
+	upstreamMessage := "Your input exceeds the context window of this model. Please adjust your input and try again."
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			"event: response.created",
+			`data: {"type":"response.created","response":{"id":"resp_1"}}`,
+			"",
+			"event: response.failed",
+			`data: {"type":"response.failed","response":{"id":"resp_1","error":{"type":"invalid_request_error","code":"context_length_exceeded","message":"` + upstreamMessage + `"}}}`,
+			"",
+		}, "\n"))),
+		Header: http.Header{"X-Request-Id": []string{"rid-context-window-passthrough-rule"}},
+	}
+
+	_, err := svc.handleStreamingResponse(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Name: "acc"}, time.Now(), "model", "model")
+	require.Error(t, err)
+	var failoverErr *UpstreamFailoverError
+	require.False(t, errors.As(err, &failoverErr))
+	require.True(t, IsResponseCommitted(c))
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	body := rec.Body.String()
+	require.Equal(t, "upstream_error", gjson.Get(body, "error.type").String())
+	require.Equal(t, upstreamMessage, gjson.Get(body, "error.message").String())
+	require.NotContains(t, body, "response.failed")
+	require.NotContains(t, body, "Upstream request failed")
+	// 命中透传规则也应记录 ops 上游错误事件（对齐 CC/Messages 与 antigravity 先例）。
+	opsVal, opsRecorded := c.Get(OpsUpstreamErrorsKey)
+	require.True(t, opsRecorded, "passthrough hit should record an ops upstream error event")
+	opsEvents, _ := opsVal.([]*OpsUpstreamErrorEvent)
+	require.NotEmpty(t, opsEvents)
 }
 
 func TestOpenAIStreamingPreambleOnlyMissingTerminalReturnsFailover(t *testing.T) {
@@ -1961,6 +2019,94 @@ func TestOpenAIStreamingPassthroughResponseFailedBeforeOutputReturnsFailover(t *
 	require.Empty(t, rec.Body.String())
 }
 
+func TestOpenAIStreamingPassthroughContextWindowResponseFailedBeforeOutputAppliesPassthroughRule(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			MaxLineSize: defaultMaxLineSize,
+		},
+	}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+	rule := newNonFailoverPassthroughRule(http.StatusBadRequest, "input exceeds the context window", http.StatusBadRequest, "")
+	rule.Platforms = []string{PlatformOpenAI}
+	rule.PassthroughBody = true
+	rule.CustomMessage = nil
+	ruleSvc := &ErrorPassthroughService{}
+	ruleSvc.setLocalCache([]*model.ErrorPassthroughRule{rule})
+	BindErrorPassthroughService(c, ruleSvc)
+
+	upstreamMessage := "Your input exceeds the context window of this model. Please adjust your input and try again."
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			"event: response.created",
+			`data: {"type":"response.created","response":{"id":"resp_1"}}`,
+			"",
+			"event: response.failed",
+			`data: {"type":"response.failed","response":{"id":"resp_1","error":{"type":"invalid_request_error","code":"context_length_exceeded","message":"` + upstreamMessage + `"}}}`,
+			"",
+		}, "\n"))),
+		Header: http.Header{"X-Request-Id": []string{"rid-pass-context-window-passthrough-rule"}},
+	}
+
+	_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Name: "acc"}, time.Now(), "", "")
+	require.Error(t, err)
+	var failoverErr *UpstreamFailoverError
+	require.False(t, errors.As(err, &failoverErr))
+	require.True(t, IsResponseCommitted(c))
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	body := rec.Body.String()
+	require.Equal(t, "upstream_error", gjson.Get(body, "error.type").String())
+	require.Equal(t, upstreamMessage, gjson.Get(body, "error.message").String())
+	require.NotContains(t, body, "response.failed")
+	require.NotContains(t, body, "Upstream request failed")
+	// 命中透传规则也应记录 ops 上游错误事件（对齐 CC/Messages 与 antigravity 先例）。
+	opsVal, opsRecorded := c.Get(OpsUpstreamErrorsKey)
+	require.True(t, opsRecorded, "passthrough hit should record an ops upstream error event")
+	opsEvents, _ := opsVal.([]*OpsUpstreamErrorEvent)
+	require.NotEmpty(t, opsEvents)
+}
+
+func TestOpenAIStreamingPassthroughContextWindowResponseFailedBeforeOutputWithoutRulePassesThrough(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			MaxLineSize: defaultMaxLineSize,
+		},
+	}
+	svc := &OpenAIGatewayService{cfg: cfg}
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/", nil)
+
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body: io.NopCloser(strings.NewReader(strings.Join([]string{
+			"event: response.created",
+			`data: {"type":"response.created","response":{"id":"resp_1"}}`,
+			"",
+			"event: response.failed",
+			`data: {"type":"response.failed","response":{"id":"resp_1","error":{"type":"invalid_request_error","code":"context_length_exceeded","message":"Your input exceeds the context window of this model. Please adjust your input and try again."}}}`,
+			"",
+		}, "\n"))),
+		Header: http.Header{"X-Request-Id": []string{"rid-pass-context-window-no-rule"}},
+	}
+
+	_, err := svc.handleStreamingResponsePassthrough(c.Request.Context(), resp, c, &Account{ID: 1, Platform: PlatformOpenAI, Name: "acc"}, time.Now(), "", "")
+	require.Error(t, err)
+	var failoverErr *UpstreamFailoverError
+	require.False(t, errors.As(err, &failoverErr))
+	body := rec.Body.String()
+	require.Contains(t, body, "event: response.failed")
+	require.Contains(t, body, "context_length_exceeded")
+	require.Contains(t, body, "Your input exceeds the context window")
+}
+
 func TestOpenAIStreamingPassthroughResponseFailedAfterOutputSanitizesVerboseResponseForClient(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{
@@ -2003,6 +2149,7 @@ func TestOpenAIStreamingPassthroughResponseFailedAfterOutputSanitizesVerboseResp
 	body := rec.Body.String()
 	require.Contains(t, body, "event: response.failed")
 	require.Contains(t, body, "context_length_exceeded")
+	require.Contains(t, body, `"type":"invalid_request_error"`)
 	require.Contains(t, body, "Your input exceeds the context window")
 	require.NotContains(t, body, "You are GPT-5.1 running in the Codex CLI")
 	require.NotContains(t, body, `"instructions"`)
@@ -2506,15 +2653,25 @@ func TestOpenAIBuildUpstreamRequestPreservesCompactPathForAPIKeyBaseURL(t *testi
 func TestOpenAIBuildUpstreamRequestOAuthOfficialClientOriginatorCompatibility(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
+	// 上游要求 originator 与最终 User-Agent 首段配套（issue #3901）：
+	// originator 一律由最终 UA 推导；推导不出官方身份时整体回退默认 Codex CLI 身份。
 	tests := []struct {
 		name           string
 		userAgent      string
 		originator     string
 		wantOriginator string
+		wantUA         string
 	}{
-		{name: "desktop originator preserved", originator: "Codex Desktop", wantOriginator: "Codex Desktop"},
-		{name: "vscode originator preserved", originator: "codex_vscode", wantOriginator: "codex_vscode"},
-		{name: "official ua fallback to codex_cli_rs", userAgent: "Codex Desktop/1.2.3", wantOriginator: "codex_cli_rs"},
+		{name: "official ua pairs originator", userAgent: "Codex Desktop/1.2.3", wantOriginator: "Codex Desktop", wantUA: "Codex Desktop/1.2.3"},
+		{
+			name:           "mismatched originator repaired from ua",
+			userAgent:      "codex-tui/0.140.2 (Mac OS X 14.0; arm64) iTerm (codex-tui; 0.140.2)",
+			originator:     "codex_cli_rs",
+			wantOriginator: "codex-tui",
+			wantUA:         "codex-tui/0.140.2 (Mac OS X 14.0; arm64) iTerm (codex-tui; 0.140.2)",
+		},
+		{name: "official originator without ua falls back to default identity", originator: "codex_vscode", wantOriginator: "codex_cli_rs", wantUA: codexCLIUserAgent},
+		{name: "third-party ua masked to default identity", userAgent: "luna/1.2.0", wantOriginator: "codex_cli_rs", wantUA: codexCLIUserAgent},
 	}
 
 	for _, tt := range tests {
@@ -2539,6 +2696,7 @@ func TestOpenAIBuildUpstreamRequestOAuthOfficialClientOriginatorCompatibility(t 
 			req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", isCodexCLI)
 			require.NoError(t, err)
 			require.Equal(t, tt.wantOriginator, req.Header.Get("originator"))
+			require.Equal(t, tt.wantUA, req.Header.Get("User-Agent"))
 		})
 	}
 }
@@ -2557,16 +2715,16 @@ func TestOpenAIBuildUpstreamRequestUsesTLSRouterUpstreamHeaders(t *testing.T) {
 		Type:     AccountTypeOAuth,
 		Credentials: map[string]any{
 			"chatgpt_account_id": "chatgpt-acc",
-			"user_agent":         "account-ua/1.0",
+			"user_agent":         "codex-tui/9.8.0 account-fallback",
 		},
 	}
 	routerMatch := TLSFingerprintRouterMatchResult{
 		Matched:                 true,
 		RouterID:                9,
-		RuleName:                "Claude Code",
+		RuleName:                "Codex TUI",
 		TLSFingerprintProfileID: 7,
-		UpstreamUserAgent:       "Claude Code/0.5.0 (Macos 15.5; arm64) iTerm2.app (Claude Code; 1.0.4)",
-		UpstreamOriginator:      "Claude Code",
+		UpstreamUserAgent:       "codex-tui/9.9.0 (Mac OS X 15.5; arm64) iTerm (codex-tui; 9.9.0)",
+		UpstreamOriginator:      "codex-tui",
 	}
 
 	req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", false, routerMatch)
@@ -2588,14 +2746,14 @@ func TestOpenAIBuildUpstreamRequestRouterEmptyUAUsesAccountFallback(t *testing.T
 		Type:     AccountTypeOAuth,
 		Credentials: map[string]any{
 			"chatgpt_account_id": "chatgpt-acc",
-			"user_agent":         "account-ua/1.0",
+			"user_agent":         "codex-tui/9.8.0 account-fallback",
 		},
 	}
 
 	req, err := svc.buildUpstreamRequest(c.Request.Context(), c, account, []byte(`{"model":"gpt-5"}`), "token", false, "", false, TLSFingerprintRouterMatchResult{Matched: true})
 	require.NoError(t, err)
-	require.Equal(t, "account-ua/1.0", req.Header.Get("User-Agent"))
-	require.Equal(t, "opencode", req.Header.Get("originator"))
+	require.Equal(t, "codex-tui/9.8.0 account-fallback", req.Header.Get("User-Agent"))
+	require.Equal(t, "codex-tui", req.Header.Get("originator"))
 }
 
 // ==================== P1-08 修复：model 替换性能优化测试 ====================
@@ -2879,19 +3037,37 @@ func TestParseSSEUsage_SelectiveParsing(t *testing.T) {
 }
 
 func TestExtractOpenAIUsageFromJSONBytes_AcceptsResponseAndChatUsageShapes(t *testing.T) {
-	usage, ok := extractOpenAIUsageFromJSONBytes([]byte(`{"id":"resp_1","usage":{"input_tokens":3,"output_tokens":5,"input_tokens_details":{"cached_tokens":2}}}`))
+	usage, ok := extractOpenAIUsageFromJSONBytes([]byte(`{"id":"resp_1","usage":{"input_tokens":9,"output_tokens":5,"input_tokens_details":{"cached_tokens":2,"cache_write_tokens":4}}}`))
 	require.True(t, ok)
-	require.Equal(t, 3, usage.InputTokens)
+	require.Equal(t, 9, usage.InputTokens)
 	require.Equal(t, 5, usage.OutputTokens)
 	require.Equal(t, 2, usage.CacheReadInputTokens)
+	require.Equal(t, 4, usage.CacheCreationInputTokens)
 
-	usage, ok = extractOpenAIUsageFromJSONBytes([]byte(`{"type":"response.completed","response":{"usage":{"prompt_tokens":13,"completion_tokens":7,"prompt_tokens_details":{"cached_tokens":4,"image_tokens":2},"completion_tokens_details":{"image_tokens":1}}}}`))
+	usage, ok = extractOpenAIUsageFromJSONBytes([]byte(`{"type":"response.completed","response":{"usage":{"prompt_tokens":13,"completion_tokens":7,"prompt_tokens_details":{"cached_tokens":4,"cache_creation_tokens":3,"image_tokens":2},"completion_tokens_details":{"image_tokens":1}}}}`))
 	require.True(t, ok)
 	require.Equal(t, 13, usage.InputTokens)
 	require.Equal(t, 2, usage.ImageInputTokens)
 	require.Equal(t, 7, usage.OutputTokens)
 	require.Equal(t, 4, usage.CacheReadInputTokens)
+	require.Equal(t, 3, usage.CacheCreationInputTokens)
 	require.Equal(t, 1, usage.ImageOutputTokens)
+
+	usage, ok = extractOpenAIUsageFromJSONBytes([]byte(`{"usage":{"input_tokens":11,"output_tokens":2,"cache_write_input_tokens":6}}`))
+	require.True(t, ok)
+	require.Equal(t, 6, usage.CacheCreationInputTokens)
+
+	usage, ok = extractOpenAIUsageFromJSONBytes([]byte(`{"usage":{"input_tokens":20,"output_tokens":2,"cache_creation_input_tokens":19,"input_tokens_details":{"cache_write_tokens":7}}}`))
+	require.True(t, ok)
+	require.Equal(t, 7, usage.CacheCreationInputTokens, "官方嵌套字段应优先于兼容顶层别名")
+
+	usage, ok = extractOpenAIUsageFromJSONBytes([]byte(`{"usage":{"input_tokens":20,"output_tokens":2,"cache_creation_input_tokens":19,"input_tokens_details":{"cache_write_tokens":0}}}`))
+	require.True(t, ok)
+	require.Zero(t, usage.CacheCreationInputTokens, "官方嵌套字段显式为零时仍应优先于兼容顶层别名")
+
+	usage, ok = extractOpenAIUsageFromJSONBytes([]byte(`{"usage":{"input_tokens":20,"output_tokens":2,"cache_read_input_tokens":19,"input_tokens_details":{"cached_tokens":0}}}`))
+	require.True(t, ok)
+	require.Zero(t, usage.CacheReadInputTokens, "官方嵌套缓存读取字段显式为零时仍应优先于兼容顶层别名")
 }
 
 func TestExtractCodexFinalResponse_SampleReplay(t *testing.T) {
@@ -2964,6 +3140,37 @@ func TestHandleNonStreamingResponse_APIKeyFallsBackToSSEBodyWhenContentTypeIsWro
 	require.NotContains(t, rec.Body.String(), "data:")
 	require.Equal(t, "resp_api_key_sse", gjson.Get(rec.Body.String(), "id").String())
 	require.Equal(t, "hello", gjson.Get(rec.Body.String(), "output.0.content.0.text").String())
+}
+
+func TestHandleNonStreamingResponse_OAuthJSONBodyWithDataEventTextKeepsJSONUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses/compact", nil)
+
+	svc := &OpenAIGatewayService{cfg: &config.Config{}}
+	// Compact JSON 输出文本可以包含 data:/event: 普通字样，但不能因此被误判为 SSE。
+	jsonBody := `{"id":"resp_oauth_compact","object":"response","model":"gpt-5.4","status":"completed",` +
+		`"output":[{"type":"message","content":[{"type":"output_text",` +
+		`"text":"processing data: 1,2,3 then event: click finished"}]}],` +
+		`"usage":{"input_tokens":11,"output_tokens":22,"total_tokens":33}}`
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(jsonBody)),
+	}
+	account := &Account{ID: 146, Type: AccountTypeOAuth}
+
+	result, err := svc.handleNonStreamingResponse(context.Background(), resp, c, account, "gpt-5.4", "gpt-5.4")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.Equal(t, 11, result.InputTokens)
+	require.Equal(t, 22, result.OutputTokens)
+	// 响应必须保持原始 JSON，不能经 SSE 路径改写或丢失用量。
+	require.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+	require.Equal(t, "resp_oauth_compact", gjson.Get(rec.Body.String(), "id").String())
+	require.Equal(t, int64(33), gjson.Get(rec.Body.String(), "usage.total_tokens").Int())
+	require.Contains(t, rec.Body.String(), "processing data: 1,2,3 then event: click finished")
 }
 
 func TestHandleSSEToJSON_ReconstructsImageGenerationOutputItemDone(t *testing.T) {

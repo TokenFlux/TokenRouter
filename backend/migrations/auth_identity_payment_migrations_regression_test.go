@@ -203,6 +203,51 @@ func TestMigration178BackfillsGrokMediaGenerationGroups(t *testing.T) {
 	require.Contains(t, sql, "AND allow_image_generation = false")
 }
 
+func TestMigration179AllowsQoderUserPlatformQuotas(t *testing.T) {
+	content, err := FS.ReadFile("179_allow_qoder_user_platform_quotas.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "DROP CONSTRAINT IF EXISTS user_platform_quotas_platform_check")
+	require.Contains(t, sql, "ADD CONSTRAINT user_platform_quotas_platform_check")
+	require.Contains(t, sql, "'qoder'")
+	require.Contains(t, sql, "'grok'")
+}
+
+func TestMigration192AddsGrokVideoPricingControls(t *testing.T) {
+	content, err := FS.ReadFile("192_add_grok_video_pricing_controls.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "video_rate_independent BOOLEAN NOT NULL DEFAULT false")
+	require.Contains(t, sql, "video_rate_multiplier DECIMAL(10,4) NOT NULL DEFAULT 1.0")
+	require.Contains(t, sql, "video_price_480p DECIMAL(20,8)")
+	require.Contains(t, sql, "video_price_720p DECIMAL(20,8)")
+	require.Contains(t, sql, "video_price_1080p DECIMAL(20,8)")
+}
+
+func TestMigration193AllowsVideoUsageWithoutImageSize(t *testing.T) {
+	content, err := FS.ReadFile("193_allow_video_usage_without_image_size.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "DROP CONSTRAINT IF EXISTS usage_logs_image_billing_size_check")
+	require.Contains(t, sql, "OR billing_mode = 'video'")
+	require.Contains(t, sql, "image_size IN ('1K', '2K', '4K', 'mixed')")
+}
+
+func TestMigration194AddsVideoPerSecondBillingMetadata(t *testing.T) {
+	content, err := FS.ReadFile("194_video_per_second_billing_metadata.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "video_count INTEGER NOT NULL DEFAULT 0")
+	require.Contains(t, sql, "video_resolution VARCHAR(10)")
+	require.Contains(t, sql, "video_duration_seconds INTEGER")
+	require.Contains(t, sql, "OR COALESCE(video_count, 0) > 0")
+	require.Contains(t, sql, "每秒单价 (USD/s)")
+}
+
 func TestMigration175AddsSparkShadowColumnsAndConstraintsWithoutHotIndexes(t *testing.T) {
 	content, err := FS.ReadFile("175_account_spark_shadow.sql")
 	require.NoError(t, err)
@@ -235,4 +280,31 @@ func TestMigration176AddsSparkShadowIndexesConcurrently(t *testing.T) {
 	require.Contains(t, sql, "WHERE parent_account_id IS NOT NULL")
 	require.Contains(t, sql, "quota_dimension = 'spark'")
 	require.Contains(t, sql, "deleted_at IS NULL")
+}
+
+func TestMigration195AllowsCyberBlockedUsageRequestType(t *testing.T) {
+	entries, err := FS.ReadDir(".")
+	require.NoError(t, err)
+
+	previousIndex := -1
+	currentIndex := -1
+	for i, entry := range entries {
+		switch entry.Name() {
+		case "194_video_per_second_billing_metadata.sql":
+			previousIndex = i
+		case "195_allow_cyber_blocked_usage_request_type.sql":
+			currentIndex = i
+		}
+	}
+	require.NotEqual(t, -1, previousIndex)
+	require.NotEqual(t, -1, currentIndex)
+	require.Less(t, previousIndex, currentIndex)
+
+	content, err := FS.ReadFile("195_allow_cyber_blocked_usage_request_type.sql")
+	require.NoError(t, err)
+
+	sql := string(content)
+	require.Contains(t, sql, "DROP CONSTRAINT IF EXISTS usage_logs_request_type_check")
+	require.Contains(t, sql, "ADD CONSTRAINT usage_logs_request_type_check")
+	require.Contains(t, sql, "CHECK (request_type IN (0, 1, 2, 3, 4)) NOT VALID")
 }

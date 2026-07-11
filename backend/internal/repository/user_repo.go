@@ -38,6 +38,8 @@ type userRepository struct {
 	sql    sqlExecutor
 }
 
+var _ service.RedeemUserAdjustmentRepository = (*userRepository)(nil)
+
 func NewUserRepository(client *dbent.Client, sqlDB *sql.DB) service.UserRepository {
 	return newUserRepositoryWithSQL(client, sqlDB)
 }
@@ -813,6 +815,28 @@ func (r *userRepository) AddBalance(ctx context.Context, id int64, amount float6
 	return nil
 }
 
+// ApplyRedeemBalanceAdjustment 原子应用兑换码余额增量，并确保余额不低于 0。
+func (r *userRepository) ApplyRedeemBalanceAdjustment(ctx context.Context, id int64, delta float64) error {
+	const updateSQL = `
+		UPDATE users
+		SET balance = GREATEST(balance + $1, 0), updated_at = NOW()
+		WHERE id = $2 AND deleted_at IS NULL
+	`
+	client := clientFromContext(ctx, r.client)
+	result, err := client.ExecContext(ctx, updateSQL, delta, id)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
+		return service.ErrUserNotFound
+	}
+	return nil
+}
+
 // DeductBalance 扣除用户余额，最多扣到 0，不继续扩大历史负余额。
 func (r *userRepository) DeductBalance(ctx context.Context, id int64, amount float64) (float64, error) {
 	sqlq := r.sqlExecutorFromContext(ctx)
@@ -834,6 +858,28 @@ func (r *userRepository) UpdateConcurrency(ctx context.Context, id int64, amount
 		return translatePersistenceError(err, service.ErrUserNotFound, nil)
 	}
 	if n == 0 {
+		return service.ErrUserNotFound
+	}
+	return nil
+}
+
+// ApplyRedeemConcurrencyAdjustment 原子应用兑换码并发增量，并确保并发数不低于 0。
+func (r *userRepository) ApplyRedeemConcurrencyAdjustment(ctx context.Context, id int64, delta int) error {
+	const updateSQL = `
+		UPDATE users
+		SET concurrency = GREATEST(concurrency + $1, 0), updated_at = NOW()
+		WHERE id = $2 AND deleted_at IS NULL
+	`
+	client := clientFromContext(ctx, r.client)
+	result, err := client.ExecContext(ctx, updateSQL, delta, id)
+	if err != nil {
+		return err
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
 		return service.ErrUserNotFound
 	}
 	return nil

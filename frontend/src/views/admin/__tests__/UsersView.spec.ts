@@ -190,8 +190,9 @@ describe('admin UsersView', () => {
     expect(visibleColumns).not.toContain('usage_openai')
     expect(visibleColumns).not.toContain('usage_gemini')
     expect(visibleColumns).not.toContain('usage_antigravity')
+    expect(visibleColumns).not.toContain('usage_qoder')
     expect(JSON.parse(localStorage.getItem('user-hidden-columns') || '[]')).toEqual(
-      expect.arrayContaining(['usage_anthropic', 'usage_openai', 'usage_gemini', 'usage_antigravity'])
+      expect.arrayContaining(['usage_anthropic', 'usage_openai', 'usage_gemini', 'usage_antigravity', 'usage_qoder'])
     )
   })
 
@@ -205,7 +206,7 @@ describe('admin UsersView', () => {
 
     localStorage.setItem(
       'user-hidden-columns',
-      JSON.stringify(['notes', 'groups', 'subscriptions', 'usage', 'concurrency', 'usage_openai', 'usage_gemini', 'usage_antigravity'])
+      JSON.stringify(['notes', 'groups', 'subscriptions', 'usage', 'concurrency', 'usage_openai', 'usage_gemini', 'usage_antigravity', 'usage_qoder'])
     )
     localStorage.setItem('user-column-settings-version', '2')
     localStorage.setItem(
@@ -250,7 +251,7 @@ describe('admin UsersView', () => {
 
   it('clears usage current-page sort when switching to last_used_at server sort', async () => {
     vi.useFakeTimers()
-    localStorage.setItem('user-column-settings-version', '3')
+    localStorage.setItem('user-column-settings-version', '4')
     localStorage.setItem(
       'user-hidden-columns',
       JSON.stringify([
@@ -262,6 +263,7 @@ describe('admin UsersView', () => {
         'usage_openai',
         'usage_gemini',
         'usage_antigravity',
+        'usage_qoder',
         'balance_platform_quota'
       ])
     )

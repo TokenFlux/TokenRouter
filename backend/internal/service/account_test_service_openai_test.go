@@ -131,11 +131,43 @@ func TestAccountTestService_OpenAISuccessPersistsSnapshotFromHeaders(t *testing.
 	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
 	require.NoError(t, err)
 	require.Len(t, upstream.requests, 1)
-	require.Equal(t, HTTPUpstreamProfileOpenAI, HTTPUpstreamProfileFromContext(upstream.requests[0].Context()))
+	req := upstream.requests[0]
+	require.Equal(t, HTTPUpstreamProfileOpenAI, HTTPUpstreamProfileFromContext(req.Context()))
+	require.Equal(t, "responses=experimental", req.Header.Get("OpenAI-Beta"))
+	require.Equal(t, "codex_cli_rs", req.Header.Get("Originator"))
+	require.Equal(t, codexCLIUserAgent, req.Header.Get("User-Agent"))
 	require.NotEmpty(t, repo.updatedExtra)
 	require.Equal(t, 42.0, repo.updatedExtra["codex_5h_used_percent"])
 	require.Equal(t, 88.0, repo.updatedExtra["codex_7d_used_percent"])
 	require.Contains(t, recorder.Body.String(), "test_complete")
+}
+
+func TestAccountTestService_OpenAIOAuthUsesConfiguredUserAgent(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ctx, _ := newTestContext()
+
+	resp := newJSONResponse(http.StatusOK, "")
+	resp.Body = io.NopCloser(strings.NewReader(`data: {"type":"response.completed"}
+
+`))
+	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
+	svc := &AccountTestService{httpUpstream: upstream}
+	account := &Account{
+		ID:          890,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeOAuth,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"access_token": "test-token",
+			"user_agent":   "codex-tui/9.9.0 test-terminal",
+		},
+	}
+
+	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
+	require.NoError(t, err)
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "codex-tui/9.9.0 test-terminal", upstream.requests[0].Header.Get("User-Agent"))
+	require.Equal(t, "codex-tui", upstream.requests[0].Header.Get("Originator"))
 }
 
 func TestAccountTestService_OpenAIShadowUsesParentCredentialsAndShadowModel(t *testing.T) {
@@ -233,7 +265,10 @@ func TestAccountTestService_RunTestBackgroundWithPromptAndUserAgentOverridesHead
 		Platform:    PlatformOpenAI,
 		Type:        AccountTypeOAuth,
 		Concurrency: 1,
-		Credentials: map[string]any{"access_token": "test-token"},
+		Credentials: map[string]any{
+			"access_token": "test-token",
+			"user_agent":   "account-client/1.0",
+		},
 	}
 	repo := &snapshotUpdateAccountRepo{
 		stubOpenAIAccountRepo: stubOpenAIAccountRepo{accounts: []Account{account}},
@@ -242,12 +277,13 @@ func TestAccountTestService_RunTestBackgroundWithPromptAndUserAgentOverridesHead
 	upstream := &queuedHTTPUpstream{responses: []*http.Response{resp}}
 	svc := &AccountTestService{accountRepo: repo, httpUpstream: upstream}
 
-	result, err := svc.RunTestBackgroundWithPromptAndUserAgent(context.Background(), account.ID, "gpt-5.4", "hi", "probe-client/9.9")
+	result, err := svc.RunTestBackgroundWithPromptAndUserAgent(context.Background(), account.ID, "gpt-5.4", "hi", "codex-tui/9.9.1 test-terminal")
 
 	require.NoError(t, err)
 	require.Equal(t, "success", result.Status)
 	require.Len(t, upstream.requests, 1)
-	require.Equal(t, "probe-client/9.9", upstream.requests[0].Header.Get("User-Agent"))
+	require.Equal(t, "codex-tui/9.9.1 test-terminal", upstream.requests[0].Header.Get("User-Agent"))
+	require.Equal(t, "codex-tui", upstream.requests[0].Header.Get("Originator"))
 }
 
 func TestAccountTestService_OpenAI429PersistsSnapshotAndRateLimitState(t *testing.T) {

@@ -168,6 +168,19 @@
             </div>
           </template>
 
+          <template #cell-current_concurrency="{ value }">
+            <span
+              :class="[
+                'inline-flex min-w-8 items-center justify-center rounded px-2 py-1 text-sm font-semibold tabular-nums',
+                (value ?? 0) > 0
+                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-800'
+                  : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
+              ]"
+            >
+              {{ value ?? 0 }}
+            </span>
+          </template>
+
           <template #cell-usage="{ row }">
             <div class="text-sm">
               <div class="flex items-center gap-1.5">
@@ -335,6 +348,13 @@
           <template #cell-last_used_at="{ value }">
             <span v-if="value" class="text-sm text-gray-500 dark:text-dark-400">
               {{ formatDateTime(value) }}
+            </span>
+            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
+          </template>
+
+          <template #cell-last_used_ip="{ value }">
+            <span v-if="value" class="break-all font-mono text-xs text-gray-500 dark:text-dark-400">
+              {{ value }}
             </span>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
           </template>
@@ -1214,20 +1234,25 @@ const allColumns = computed<Column[]>(() => [
   { key: 'name', label: t('common.name'), sortable: true },
   { key: 'key', label: t('keys.apiKey'), sortable: false },
   { key: 'group', label: t('keys.group'), sortable: false },
+  { key: 'current_concurrency', label: t('keys.currentConcurrency'), sortable: true },
   { key: 'usage', label: t('keys.usage'), sortable: true },
   { key: 'rate_limit', label: t('keys.rateLimitColumn'), sortable: false },
   { key: 'expires_at', label: t('keys.expiresAt'), sortable: true },
   { key: 'status', label: t('common.status'), sortable: true },
   { key: 'last_used_at', label: t('keys.lastUsedAt'), sortable: true },
+  { key: 'last_used_ip', label: t('keys.lastUsedIP'), sortable: false },
   { key: 'created_at', label: t('keys.created'), sortable: true },
   { key: 'actions', label: t('common.actions'), sortable: false }
 ])
 
 const ALWAYS_VISIBLE_COLUMNS = new Set(['name', 'actions'])
-const DEFAULT_HIDDEN_COLUMNS = ['rate_limit', 'last_used_at']
+const DEFAULT_HIDDEN_COLUMNS = ['rate_limit', 'last_used_at', 'last_used_ip']
 const HIDDEN_COLUMNS_KEY = 'api-key-hidden-columns'
 const COLUMN_SETTINGS_VERSION_KEY = 'api-key-column-settings-version'
-const COLUMN_SETTINGS_VERSION = 1
+const COLUMN_SETTINGS_VERSION = 2
+const VERSION_NEW_HIDDEN_COLUMNS: Record<number, string[]> = {
+  2: ['last_used_ip']
+}
 
 const toggleableColumns = computed(() =>
   allColumns.value.filter((column) => !ALWAYS_VISIBLE_COLUMNS.has(column.key))
@@ -1249,10 +1274,27 @@ const loadSavedColumns = () => {
           !ALWAYS_VISIBLE_COLUMNS.has(key)
         )
         .forEach((key) => hiddenColumns.add(key))
+      const rawStoredVersion = Number(localStorage.getItem(COLUMN_SETTINGS_VERSION_KEY) ?? '1')
+      // 版本值被损坏时按最旧版处理，避免新的低频列意外显示。
+      const storedVersion = Number.isInteger(rawStoredVersion) && rawStoredVersion >= 1
+        ? rawStoredVersion
+        : 1
+      if (storedVersion < COLUMN_SETTINGS_VERSION) {
+        for (let version = storedVersion + 1; version <= COLUMN_SETTINGS_VERSION; version++) {
+          for (const key of VERSION_NEW_HIDDEN_COLUMNS[version] ?? []) {
+            if (validColumnKeys.has(key) && !ALWAYS_VISIBLE_COLUMNS.has(key)) {
+              hiddenColumns.add(key)
+            }
+          }
+        }
+        saveColumnsToStorage()
+      } else {
+        localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
+      }
     } else {
       DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))
+      localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
     }
-    localStorage.setItem(COLUMN_SETTINGS_VERSION_KEY, String(COLUMN_SETTINGS_VERSION))
   } catch (error) {
     console.error('Failed to load API key table columns:', error)
     DEFAULT_HIDDEN_COLUMNS.forEach((key) => hiddenColumns.add(key))

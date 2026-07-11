@@ -274,6 +274,53 @@ describe('BulkEditAccountModal', () => {
     })
   })
 
+  it('Qoder 批量编辑应把旧 self mapping 保留为显式映射', async () => {
+    vi.mocked(adminAPI.accounts.getById)
+      .mockResolvedValueOnce(createAccount({
+        id: 1,
+        platform: 'qoder',
+        type: 'cosy',
+        credentials: {
+          model_mapping: {
+            ultimate: 'ultimate'
+          }
+        }
+      }))
+      .mockResolvedValueOnce(createAccount({
+        id: 2,
+        platform: 'qoder',
+        type: 'cosy',
+        credentials: {
+          model_mapping: {
+            ultimate: 'ultimate'
+          }
+        }
+      }))
+
+    const wrapper = mountModal({
+      show: false,
+      selectedPlatforms: ['qoder'],
+      selectedTypes: ['cosy']
+    })
+
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    await wrapper.get('#bulk-edit-model-restriction-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      credentials: {
+        model_mapping: {
+          ultimate: 'ultimate'
+        },
+        model_whitelist: []
+      }
+    })
+  })
+
   it('包含 Antigravity 的跨平台批量修改不允许提交模型限制', async () => {
     const wrapper = mountModal({
       selectedPlatforms: ['antigravity', 'openai'],
@@ -382,6 +429,29 @@ describe('BulkEditAccountModal', () => {
     const wrapper = mountModal({
       selectedPlatforms: ['openai', 'anthropic'],
       selectedTypes: ['oauth', 'setup-token']
+    })
+    await flushPromises()
+
+    expect(wrapper.find('#bulk-edit-tls-fingerprint-enabled').exists()).toBe(true)
+    await wrapper.get('#bulk-edit-tls-fingerprint-enabled').setValue(true)
+    await wrapper.get('#bulk-edit-tls-fingerprint-toggle').trigger('click')
+    await wrapper.get('[data-testid="bulk-edit-tls-fingerprint-profile"]').setValue('-1')
+    await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledTimes(1)
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
+      extra: {
+        enable_tls_fingerprint: true,
+        tls_fingerprint_profile_id: -1
+      }
+    })
+  })
+
+  it('Qoder COSY 批量编辑可启用 TLS 指纹伪装且不写入 OpenAI TLS 路由器', async () => {
+    const wrapper = mountModal({
+      selectedPlatforms: ['qoder'],
+      selectedTypes: ['cosy']
     })
     await flushPromises()
 

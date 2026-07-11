@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -168,7 +169,7 @@ func parseGatewayRequestCurrentBody(parsed *ParsedRequest, protocol string) erro
 
 	bodyBytes := parsed.Body.Bytes()
 	if !gjson.ValidBytes(bodyBytes) {
-		return fmt.Errorf("invalid json")
+		return DescribeInvalidJSON(bodyBytes)
 	}
 
 	// 只在当前函数内零拷贝读取 JSON 字段；ReplaceBody 后必须重新进入本函数刷新派生状态。
@@ -214,6 +215,22 @@ func parseGatewayRequestCurrentBody(parsed *ParsedRequest, protocol string) erro
 
 func refreshGatewayRequestRanges(parsed *ParsedRequest, protocol string) error {
 	return parseGatewayRequestCurrentBody(parsed, protocol)
+}
+
+// DescribeInvalidJSON 为校验失败的请求体生成诊断错误。它只在失败路径使用
+// encoding/json 复解析并定位首个非法字节，错误仅包含长度、偏移和字符信息，
+// 不包含请求体内容，因此调用方可以安全包装或记录。
+func DescribeInvalidJSON(body []byte) error {
+	var raw json.RawMessage
+	if err := json.Unmarshal(body, &raw); err != nil {
+		var syntaxErr *json.SyntaxError
+		if errors.As(err, &syntaxErr) {
+			return fmt.Errorf("invalid json (len=%d, offset=%d): %s", len(body), syntaxErr.Offset, syntaxErr.Error())
+		}
+		return fmt.Errorf("invalid json (len=%d): %w", len(body), err)
+	}
+	// gjson 拒绝但 encoding/json 接受的边缘情况只报告长度。
+	return fmt.Errorf("invalid json (len=%d)", len(body))
 }
 
 // ParsedRequest 保存网关请求的预解析结果

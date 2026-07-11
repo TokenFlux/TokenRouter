@@ -431,6 +431,7 @@ import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import Icon from '@/components/icons/Icon.vue'
 import { useTheme } from '@/composables/useTheme'
 import { buildGatewayUrl } from '@/api/client'
+import { sanitizeUrl } from '@/utils/url'
 
 const { t, locale } = useI18n()
 const appStore = useAppStore()
@@ -439,8 +440,8 @@ const { formatBalanceAmount } = useBalanceDisplay()
 // ==================== Site Settings (same as HomeView) ====================
 
 const siteName = computed(() => appStore.siteName || 'Sub2API')
-const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '')
-const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
+const siteLogo = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
+const docUrl = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl || ''))
 const githubUrl = 'https://github.com/TokenFlux/TokenRouter'
 
 // ==================== Theme (same as HomeView) ====================
@@ -985,7 +986,7 @@ onUnmounted(() => {
   border-radius: 8px;
 }
 :global(.dark) .skeleton {
-  background: linear-gradient(90deg, #293059 25%, #10182C 50%, #293059 75%);
+  background: linear-gradient(90deg, #1F1F23 25%, #121215 50%, #1F1F23 75%);
   background-size: 200% 100%;
 }
 

@@ -84,6 +84,31 @@ func RegisterGatewayRoutes(
 			},
 		})
 	}
+	qoderResponsesSubpathUnsupported := func(c *gin.Context) {
+		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": gin.H{
+				"type":    "not_found_error",
+				"message": "Qoder Responses subpaths are not supported",
+			},
+		})
+	}
+	qoderResponsesWebSocketUnsupported := func(c *gin.Context) {
+		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": gin.H{
+				"type":    "not_found_error",
+				"message": "Qoder Responses WebSocket is not supported",
+			},
+		})
+	}
+	responsesWebSocketHandler := func(c *gin.Context) {
+		if getGroupPlatform(c) == service.PlatformQoder {
+			qoderResponsesWebSocketUnsupported(c)
+			return
+		}
+		h.OpenAIGateway.ResponsesWebSocket(c)
+	}
 	// API网关（Claude API兼容）
 	gateway := r.Group("/v1")
 	gateway.Use(bodyLimit)
@@ -97,6 +122,10 @@ func RegisterGatewayRoutes(
 		gateway.POST("/messages", func(c *gin.Context) {
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
 				h.OpenAIGateway.Messages(c)
+				return
+			}
+			if getGroupPlatform(c) == service.PlatformQoder {
+				h.QoderGateway.Messages(c)
 				return
 			}
 			h.Gateway.Messages(c)
@@ -120,12 +149,24 @@ func RegisterGatewayRoutes(
 			}
 			h.Gateway.CountTokens(c)
 		})
-		gateway.GET("/models", h.Gateway.Models)
+		// Codex 客户端携带 client_version 时需要 ChatGPT manifest 格式，
+		// 其他客户端继续使用 OpenAI 风格的本地模型列表。
+		gateway.GET("/models", func(c *gin.Context) {
+			if isOpenAIGatewayPlatform(c) && c.Query("client_version") != "" {
+				h.OpenAIGateway.CodexModels(c)
+				return
+			}
+			h.Gateway.Models(c)
+		})
 		gateway.GET("/usage", h.Gateway.Usage)
 		// OpenAI Responses API: auto-route based on group platform
 		gateway.POST("/responses", func(c *gin.Context) {
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
 				h.OpenAIGateway.Responses(c)
+				return
+			}
+			if getGroupPlatform(c) == service.PlatformQoder {
+				h.QoderGateway.Responses(c)
 				return
 			}
 			h.Gateway.Responses(c)
@@ -135,15 +176,21 @@ func RegisterGatewayRoutes(
 				h.OpenAIGateway.Responses(c)
 				return
 			}
+			if getGroupPlatform(c) == service.PlatformQoder {
+				qoderResponsesSubpathUnsupported(c)
+				return
+			}
 			h.Gateway.Responses(c)
 		})
-		gateway.GET("/responses", func(c *gin.Context) {
-			h.OpenAIGateway.ResponsesWebSocket(c)
-		})
+		gateway.GET("/responses", responsesWebSocketHandler)
 		// OpenAI Chat Completions API: auto-route based on group platform
 		gateway.POST("/chat/completions", func(c *gin.Context) {
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
 				h.OpenAIGateway.ChatCompletions(c)
+				return
+			}
+			if getGroupPlatform(c) == service.PlatformQoder {
+				h.QoderGateway.ChatCompletions(c)
 				return
 			}
 			h.Gateway.ChatCompletions(c)
@@ -163,6 +210,16 @@ func RegisterGatewayRoutes(
 		})
 		gateway.POST("/images/generations", imagesHandler)
 		gateway.POST("/images/edits", imagesHandler)
+		gateway.POST("/images/batches", h.BatchImage.Submit)
+		gateway.GET("/images/batches", h.BatchImage.List)
+		gateway.GET("/images/batches/models", h.BatchImage.Models)
+		gateway.GET("/images/batches/:id", h.BatchImage.Get)
+		gateway.GET("/images/batches/:id/items", h.BatchImage.Items)
+		gateway.GET("/images/batches/:id/items/:custom_id/content", h.BatchImage.ItemContent)
+		gateway.GET("/images/batches/:id/download", h.BatchImage.Download)
+		gateway.POST("/images/batches/:id/cancel", h.BatchImage.Cancel)
+		gateway.DELETE("/images/batches/:id", h.BatchImage.DeleteRecord)
+		gateway.DELETE("/images/batches/:id/outputs", h.BatchImage.DeleteOutputs)
 		gateway.POST("/videos/generations", videoGenerationHandler)
 		gateway.GET("/videos/:request_id", videoStatusHandler)
 	}
@@ -188,26 +245,35 @@ func RegisterGatewayRoutes(
 			h.OpenAIGateway.Responses(c)
 			return
 		}
+		if getGroupPlatform(c) == service.PlatformQoder {
+			if c.Param("subpath") != "" {
+				qoderResponsesSubpathUnsupported(c)
+				return
+			}
+			h.QoderGateway.Responses(c)
+			return
+		}
 		h.Gateway.Responses(c)
 	}
 	r.POST("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, responsesHandler)
 	r.POST("/responses/*subpath", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, responsesHandler)
-	r.GET("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, func(c *gin.Context) {
-		h.OpenAIGateway.ResponsesWebSocket(c)
-	})
+	r.GET("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, responsesWebSocketHandler)
 	codexDirect := r.Group("/backend-api/codex")
 	codexDirect.Use(bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic)
 	{
 		codexDirect.POST("/responses", responsesHandler)
 		codexDirect.POST("/responses/*subpath", responsesHandler)
-		codexDirect.GET("/responses", func(c *gin.Context) {
-			h.OpenAIGateway.ResponsesWebSocket(c)
-		})
+		codexDirect.GET("/responses", responsesWebSocketHandler)
+		codexDirect.GET("/models", h.OpenAIGateway.CodexModels)
 	}
 	// OpenAI Chat Completions API（不带v1前缀的别名）— auto-route based on group platform
 	r.POST("/chat/completions", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, func(c *gin.Context) {
 		if isOpenAIResponsesCompatibleGatewayPlatform(c) {
 			h.OpenAIGateway.ChatCompletions(c)
+			return
+		}
+		if getGroupPlatform(c) == service.PlatformQoder {
+			h.QoderGateway.ChatCompletions(c)
 			return
 		}
 		h.Gateway.ChatCompletions(c)

@@ -19,13 +19,23 @@
       <div>
         <label class="input-label">{{ t('admin.accounts.dataImportFile') }}</label>
         <div
-          class="flex flex-col gap-3 rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-3 dark:border-dark-600 dark:bg-dark-800 sm:flex-row sm:items-center sm:justify-between"
+          class="flex flex-col gap-3 rounded-lg border border-dashed px-4 py-3 transition-colors sm:flex-row sm:items-center sm:justify-between"
+          :class="dragActive
+            ? 'border-primary-400 bg-primary-50/70 dark:border-primary-500 dark:bg-primary-900/20'
+            : 'border-gray-300 bg-gray-50 dark:border-dark-600 dark:bg-dark-800'"
+          @dragenter.prevent="handleDragEnter"
+          @dragover.prevent
+          @dragleave.prevent="handleDragLeave"
+          @drop.prevent="handleDrop"
         >
           <div class="min-w-0">
-            <div class="truncate text-sm text-gray-700 dark:text-dark-200">
-              {{ fileName || t('admin.accounts.dataImportSelectFile') }}
+            <div class="truncate text-sm text-gray-700 dark:text-dark-200" :title="fileListTitle">
+              {{ selectedFilesLabel || t('admin.accounts.dataImportSelectFile') }}
             </div>
-            <div class="text-xs text-gray-500 dark:text-dark-400">JSON (.json)</div>
+            <div class="text-xs text-gray-500 dark:text-dark-400">
+              JSON (.json)
+              <span v-if="files.length > 1"> · {{ fileListTitle }}</span>
+            </div>
           </div>
           <div class="flex shrink-0 flex-wrap gap-2">
             <button
@@ -43,6 +53,7 @@
           type="file"
           class="hidden"
           accept="application/json,.json"
+          multiple
           @change="handleFileChange"
         />
       </div>
@@ -111,7 +122,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { adminAPI } from '@/api/admin'
 import { useAppStore } from '@/stores/app'
-import type { AdminDataImportResult } from '@/types'
+import type { AdminDataImportResult, AdminDataPayload } from '@/types'
 
 interface Props {
   show: boolean
@@ -129,13 +140,21 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const importing = ref(false)
-const file = ref<File | null>(null)
+const files = ref<File[]>([])
+const dragDepth = ref(0)
 const pastedDataText = ref('')
+const dragActive = computed(() => dragDepth.value > 0)
+const hasCreatedData = ref(false)
 const result = ref<AdminDataImportResult | null>(null)
 const pasteDataPlaceholder = '{\n  "accounts": [],\n  "proxies": []\n}'
 
 const fileInput = ref<HTMLInputElement | null>(null)
-const fileName = computed(() => file.value?.name || '')
+const selectedFilesLabel = computed(() => {
+  if (files.value.length === 0) return ''
+  if (files.value.length === 1) return files.value[0]?.name || ''
+  return t('admin.accounts.selectedCount', { count: files.value.length })
+})
+const fileListTitle = computed(() => files.value.map((item) => item.name).join(', '))
 
 const errorItems = computed(() => result.value?.errors || [])
 
@@ -143,8 +162,10 @@ watch(
   () => props.show,
   (open) => {
     if (open) {
-      file.value = null
+      files.value = []
+      dragDepth.value = 0
       pastedDataText.value = ''
+      hasCreatedData.value = false
       result.value = null
       if (fileInput.value) {
         fileInput.value.value = ''
@@ -159,12 +180,54 @@ const openFilePicker = () => {
 
 const handleFileChange = (event: Event) => {
   const target = event.target as HTMLInputElement
-  file.value = target.files?.[0] || null
+  setSelectedFiles(target.files)
+  target.value = ''
 }
 
 const handleClose = () => {
   if (importing.value) return
+  if (hasCreatedData.value) {
+    hasCreatedData.value = false
+    emit('imported')
+  }
   emit('close')
+}
+
+const isJsonFile = (sourceFile: File) => {
+  const name = sourceFile.name.toLowerCase()
+  return name.endsWith('.json') || sourceFile.type === 'application/json'
+}
+
+const setSelectedFiles = (sourceFiles: FileList | File[] | null | undefined) => {
+  if (importing.value) return
+  const incoming = Array.from(sourceFiles || [])
+  const picked = incoming.filter(isJsonFile)
+  if (!picked.length) {
+    appStore.showError(t('admin.accounts.dataImportSelectFile'))
+    return
+  }
+  if (picked.length < incoming.length) {
+    appStore.showWarning(
+      t('admin.accounts.dataImportIgnoredFiles', { count: incoming.length - picked.length })
+    )
+  }
+  files.value = picked
+  result.value = null
+}
+
+const handleDragEnter = () => {
+  if (importing.value) return
+  dragDepth.value += 1
+}
+
+const handleDragLeave = () => {
+  dragDepth.value = Math.max(0, dragDepth.value - 1)
+}
+
+const handleDrop = (event: DragEvent) => {
+  dragDepth.value = 0
+  if (importing.value) return
+  setSelectedFiles(event.dataTransfer?.files)
 }
 
 const readFileAsText = async (sourceFile: File): Promise<string> => {
@@ -185,30 +248,81 @@ const readFileAsText = async (sourceFile: File): Promise<string> => {
   })
 }
 
-const readImportSourceText = async (): Promise<string | null> => {
-  // 粘贴内容优先，便于用户覆盖已选择的文件内容。
-  const pastedText = pastedDataText.value.trim()
-  if (pastedText) {
-    return pastedText
-  }
+const SUPPORTED_DATA_TYPES = ['sub2api-data', 'sub2api-bundle']
+const SUPPORTED_DATA_VERSION = 1
 
-  if (file.value) {
-    return readFileAsText(file.value)
+// 与后端 validateDataHeader 对齐：合并前逐文件校验，避免坏文件混入合并 payload 后
+// 无法定位报错来源，或绕过后端原本会对单文件执行的 type/version 检查。
+const isValidDataPayload = (payload: unknown): payload is AdminDataPayload => {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false
+  const candidate = payload as Record<string, unknown>
+  if (
+    candidate.type !== undefined &&
+    candidate.type !== '' &&
+    !SUPPORTED_DATA_TYPES.includes(candidate.type as string)
+  ) {
+    return false
   }
+  if (
+    candidate.version !== undefined &&
+    candidate.version !== 0 &&
+    candidate.version !== SUPPORTED_DATA_VERSION
+  ) {
+    return false
+  }
+  return Array.isArray(candidate.proxies) && Array.isArray(candidate.accounts)
+}
 
-  return null
+const mergeDataPayloads = (payloads: AdminDataPayload[]): AdminDataPayload => {
+  const [firstPayload] = payloads
+  if (payloads.length === 1 && firstPayload) return firstPayload
+
+  return {
+    type: payloads.find((item) => typeof item.type === 'string')?.type,
+    version: payloads.find((item) => typeof item.version === 'number')?.version,
+    exported_at: new Date().toISOString(),
+    proxies: payloads.flatMap((item) => item.proxies),
+    accounts: payloads.flatMap((item) => item.accounts),
+    skipped_shadows: payloads.reduce((sum, item) => {
+      const count = Number(item.skipped_shadows || 0)
+      return Number.isFinite(count) ? sum + count : sum
+    }, 0)
+  }
 }
 
 const handleImport = async () => {
   importing.value = true
   try {
-    const text = await readImportSourceText()
-    if (!text) {
+    const pastedText = pastedDataText.value.trim()
+    if (!pastedText && files.value.length === 0) {
       appStore.showError(t('admin.accounts.dataImportSelectSource'))
       return
     }
 
-    const dataPayload = JSON.parse(text)
+    let dataPayload: AdminDataPayload
+    if (pastedText) {
+      // 粘贴内容优先，便于用户覆盖已选择的文件内容。
+      dataPayload = JSON.parse(pastedText) as AdminDataPayload
+    } else {
+      const dataPayloads: AdminDataPayload[] = []
+      for (const sourceFile of files.value) {
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(await readFileAsText(sourceFile))
+        } catch {
+          appStore.showError(
+            t('admin.accounts.dataImportParseFailedFile', { name: sourceFile.name })
+          )
+          return
+        }
+        if (!isValidDataPayload(parsed)) {
+          appStore.showError(t('admin.accounts.dataImportInvalidFile', { name: sourceFile.name }))
+          return
+        }
+        dataPayloads.push(parsed)
+      }
+      dataPayload = mergeDataPayloads(dataPayloads)
+    }
 
     const res = await adminAPI.accounts.importData({
       data: dataPayload,
@@ -225,6 +339,10 @@ const handleImport = async () => {
       proxy_failed: res.proxy_failed,
     }
     if (res.account_failed > 0 || res.proxy_failed > 0) {
+      // 部分成功也创建了数据；弹窗关闭时通过 imported 通知父组件刷新列表。
+      if (res.account_created > 0 || res.proxy_created > 0) {
+        hasCreatedData.value = true
+      }
       appStore.showError(t('admin.accounts.dataImportCompletedWithErrors', msgParams))
     } else {
       appStore.showSuccess(t('admin.accounts.dataImportSuccess', msgParams))

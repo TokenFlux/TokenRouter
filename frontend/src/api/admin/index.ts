@@ -18,6 +18,7 @@ import usageAPI from './usage'
 import geminiAPI from './gemini'
 import antigravityAPI from './antigravity'
 import grokAPI from './grok'
+import qoderAPI from './qoder'
 import userAttributesAPI from './userAttributes'
 import opsAPI from './ops'
 import errorPassthroughAPI from './errorPassthrough'
@@ -51,6 +52,7 @@ export const adminAPI = {
   gemini: geminiAPI,
   antigravity: antigravityAPI,
   grok: grokAPI,
+  qoder: qoderAPI,
   userAttributes: userAttributesAPI,
   ops: opsAPI,
   errorPassthrough: errorPassthroughAPI,
@@ -82,6 +84,7 @@ export {
   geminiAPI,
   antigravityAPI,
   grokAPI,
+  qoderAPI,
   userAttributesAPI,
   opsAPI,
   errorPassthroughAPI,

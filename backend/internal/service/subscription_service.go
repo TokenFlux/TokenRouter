@@ -815,20 +815,8 @@ func (s *SubscriptionService) AdminResetQuota(ctx context.Context, subscriptionI
 		return nil, err
 	}
 	windowStart := startOfDay(time.Now())
-	if resetDaily {
-		if err := s.userSubRepo.ResetDailyUsage(ctx, sub.ID, windowStart); err != nil {
-			return nil, err
-		}
-	}
-	if resetWeekly {
-		if err := s.userSubRepo.ResetWeeklyUsage(ctx, sub.ID, windowStart); err != nil {
-			return nil, err
-		}
-	}
-	if resetMonthly {
-		if err := s.userSubRepo.ResetMonthlyUsage(ctx, sub.ID, windowStart); err != nil {
-			return nil, err
-		}
+	if err := s.userSubRepo.ResetUsageWindows(ctx, sub.ID, resetDaily, resetWeekly, resetMonthly, windowStart); err != nil {
+		return nil, err
 	}
 	return s.userSubRepo.GetByID(ctx, subscriptionID)
 }
@@ -836,27 +824,45 @@ func (s *SubscriptionService) AdminResetQuota(ctx context.Context, subscriptionI
 func (s *SubscriptionService) CheckAndResetWindows(ctx context.Context, sub *UserSubscription) error {
 	windowStart := startOfDay(time.Now())
 	if sub.NeedsDailyReset() {
-		if err := s.userSubRepo.ResetDailyUsage(ctx, sub.ID, windowStart); err != nil {
+		expectedWindowStart := sub.DailyWindowStart
+		if err := s.userSubRepo.ResetDailyUsage(ctx, sub.ID, expectedWindowStart, windowStart); err != nil {
 			return err
 		}
 		sub.DailyWindowStart = &windowStart
 		sub.DailyUsageUSD = 0
 	}
 	if sub.NeedsWeeklyReset() {
-		if err := s.userSubRepo.ResetWeeklyUsage(ctx, sub.ID, windowStart); err != nil {
+		expectedWindowStart := sub.WeeklyWindowStart
+		if err := s.userSubRepo.ResetWeeklyUsage(ctx, sub.ID, expectedWindowStart, windowStart); err != nil {
 			return err
 		}
 		sub.WeeklyWindowStart = &windowStart
 		sub.WeeklyUsageUSD = 0
 	}
 	if sub.NeedsMonthlyReset() {
-		if err := s.userSubRepo.ResetMonthlyUsage(ctx, sub.ID, windowStart); err != nil {
+		expectedWindowStart := sub.MonthlyWindowStart
+		if err := s.userSubRepo.ResetMonthlyUsage(ctx, sub.ID, expectedWindowStart, windowStart); err != nil {
 			return err
 		}
 		sub.MonthlyWindowStart = &windowStart
 		sub.MonthlyUsageUSD = 0
 	}
 	return nil
+}
+
+// EnsureWindowMaintenance 在放行请求前同步推进过期用量窗口，并回读数据库
+// 快照。并发请求可能先完成条件重置，回读可避免失败方使用本地归零值校验。
+func (s *SubscriptionService) EnsureWindowMaintenance(ctx context.Context, sub *UserSubscription) (*UserSubscription, error) {
+	if sub == nil {
+		return nil, ErrSubscriptionNilInput
+	}
+	if err := s.CheckAndActivateWindow(ctx, sub); err != nil {
+		return nil, err
+	}
+	if err := s.CheckAndResetWindows(ctx, sub); err != nil {
+		return nil, err
+	}
+	return s.userSubRepo.GetByID(ctx, sub.ID)
 }
 
 func (s *SubscriptionService) CheckUsageLimits(_ context.Context, sub *UserSubscription, _ *Group, additionalCost float64) error {
@@ -887,6 +893,8 @@ func subscriptionWindowLimitExceeded(limit *float64, used float64, additionalCos
 	return used+additionalCost > *limit
 }
 
+// ValidateAndCheckLimits 只执行内存预检查；返回 needsMaintenance 时，调用方
+// 必须在放行请求前执行 EnsureWindowMaintenance 并用回读快照重新校验。
 func (s *SubscriptionService) ValidateAndCheckLimits(sub *UserSubscription, _ *Group) (needsMaintenance bool, err error) {
 	switch sub.EffectiveStatus(time.Now()) {
 	case SubscriptionStatusExpired:

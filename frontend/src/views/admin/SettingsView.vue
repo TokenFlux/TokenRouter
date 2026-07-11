@@ -1283,7 +1283,11 @@
                     <Select
                       :modelValue="rule.action"
                       @update:modelValue="
-                        rule.action = $event as 'pass' | 'filter' | 'block'
+                        rule.action = $event as
+                          | 'pass'
+                          | 'filter'
+                          | 'block'
+                          | 'force_priority'
                       "
                       :options="openaiFastPolicyActionOptions"
                     />
@@ -1308,6 +1312,58 @@
                       :options="openaiFastPolicyScopeOptions"
                     />
                   </div>
+                </div>
+
+                <!-- 用户范围 -->
+                <div class="mt-3">
+                  <label
+                    class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-400"
+                  >
+                    {{ t("admin.settings.openaiFastPolicy.userIds") }}
+                  </label>
+                  <p class="mb-2 text-xs text-gray-400 dark:text-gray-500">
+                    {{ t("admin.settings.openaiFastPolicy.userIdsHint") }}
+                  </p>
+                  <div
+                    v-for="(_, userIDIndex) in rule.user_ids || []"
+                    :key="userIDIndex"
+                    class="mb-1.5 flex items-center gap-2"
+                  >
+                    <input
+                      v-model.number="rule.user_ids![userIDIndex]"
+                      type="number"
+                      min="1"
+                      step="1"
+                      class="input input-sm flex-1"
+                      :placeholder="t('admin.settings.openaiFastPolicy.userIdPlaceholder')"
+                    />
+                    <button
+                      type="button"
+                      @click="removeOpenAIFastPolicyUserID(rule, userIDIndex)"
+                      class="shrink-0 rounded p-1 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                      :title="t('admin.settings.openaiFastPolicy.removeUserId')"
+                    >
+                      <Icon
+                        name="x"
+                        size="sm"
+                        class="h-4 w-4"
+                        :stroke-width="2"
+                      />
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    @click="addOpenAIFastPolicyUserID(rule)"
+                    class="mb-2 inline-flex items-center gap-1 text-xs text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                  >
+                    <Icon
+                      name="plus"
+                      size="xs"
+                      class="h-3.5 w-3.5"
+                      :stroke-width="2"
+                    />
+                    {{ t("admin.settings.openaiFastPolicy.addUserId") }}
+                  </button>
                 </div>
 
                 <!-- Error Message (only when action=block) -->
@@ -1422,6 +1478,7 @@
                         | 'pass'
                         | 'filter'
                         | 'block'
+                        | 'force_priority'
                     "
                     :options="openaiFastPolicyActionOptions"
                   />
@@ -3349,7 +3406,7 @@
                       </tr>
                     </thead>
                     <tbody class="space-y-2">
-                      <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity', 'grok'] as const)" :key="p" class="align-top">
+                      <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity', 'qoder', 'grok'] as const)" :key="p" class="align-top">
                         <td class="pr-4 py-1">
                           <span class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ p }}</span>
                         </td>
@@ -3605,7 +3662,7 @@
                             </tr>
                           </thead>
                           <tbody>
-                            <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity', 'grok'] as const)" :key="`${authSource.source}-pq-${p}`" class="align-top">
+                            <tr v-for="p in (['anthropic', 'openai', 'gemini', 'antigravity', 'qoder', 'grok'] as const)" :key="`${authSource.source}-pq-${p}`" class="align-top">
                               <td class="pr-4 py-1">
                                 <span class="font-mono text-xs text-gray-700 dark:text-gray-300">{{ p }}</span>
                               </td>
@@ -3748,6 +3805,81 @@
                   </p>
                 </div>
                 <Toggle v-model="form.openai_advanced_scheduler_enabled" />
+              </div>
+
+              <div
+                v-if="form.openai_advanced_scheduler_enabled"
+                class="flex items-center justify-between border-t border-gray-100 pt-5 dark:border-dark-700"
+              >
+                <div>
+                  <label
+                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.openaiExperimentalScheduler.stickyWeightedTitle") }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t("admin.settings.openaiExperimentalScheduler.stickyWeightedDescription")
+                    }}
+                  </p>
+                </div>
+                <Toggle v-model="form.openai_advanced_scheduler_sticky_weighted_enabled" />
+              </div>
+
+              <div
+                v-if="form.openai_advanced_scheduler_enabled"
+                class="flex items-center justify-between border-t border-gray-100 pt-5 dark:border-dark-700"
+              >
+                <div>
+                  <label
+                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.openaiExperimentalScheduler.subscriptionPriorityTitle") }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t("admin.settings.openaiExperimentalScheduler.subscriptionPriorityDescription")
+                    }}
+                  </p>
+                </div>
+                <Toggle v-model="form.openai_advanced_scheduler_subscription_priority_enabled" />
+              </div>
+
+              <div
+                v-if="form.openai_advanced_scheduler_enabled"
+                class="border-t border-gray-100 pt-5 dark:border-dark-700"
+              >
+                <div>
+                  <label
+                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.openaiExperimentalScheduler.weightsTitle") }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{
+                      t("admin.settings.openaiExperimentalScheduler.weightsDescription")
+                    }}
+                  </p>
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+                  <label
+                    v-for="field in openAIAdvancedSchedulerWeightFields"
+                    :key="field.key"
+                    class="block"
+                  >
+                    <span class="text-xs font-medium text-gray-600 dark:text-gray-400">
+                      {{ field.label }}
+                    </span>
+                    <input
+                      v-model="form[field.key]"
+                      class="input mt-1"
+                      inputmode="decimal"
+                      :placeholder="field.placeholder"
+                      type="text"
+                    />
+                  </label>
+                </div>
               </div>
 
               <div class="border-t border-gray-100 pt-5 dark:border-dark-700">
@@ -5518,6 +5650,151 @@
               </button>
             </div>
           </div>
+
+          <!-- Footer Settings -->
+          <div class="card">
+            <div
+              class="flex items-start justify-between gap-4 border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+            >
+              <div>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+                  {{ localText("底栏设置", "Footer settings") }}
+                </h2>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  {{
+                    localText(
+                      "配置首页底栏的链接分组与附加文本（如备案号）。留空时底栏仅显示版权信息。",
+                      "Configure homepage footer link groups and extra text (e.g. ICP number). When empty, the footer only shows the copyright line.",
+                    )
+                  }}
+                </p>
+              </div>
+              <button
+                type="button"
+                class="btn btn-secondary btn-sm shrink-0"
+                @click="applyDefaultFooterLinks"
+              >
+                {{ localText("使用默认模板", "Use default template") }}
+              </button>
+            </div>
+            <div class="space-y-4 p-6">
+              <!-- Link groups -->
+              <div
+                v-for="(group, gIndex) in form.footer_links"
+                :key="gIndex"
+                class="rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+              >
+                <div class="mb-3 flex items-center justify-between gap-3">
+                  <input
+                    v-model="group.title"
+                    type="text"
+                    class="input max-w-xs text-sm font-medium"
+                    :placeholder="localText('分组标题，如：产品', 'Group title, e.g. Product')"
+                  />
+                  <div class="flex items-center gap-2">
+                    <button
+                      v-if="gIndex > 0"
+                      type="button"
+                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
+                      :title="t('admin.settings.customMenu.moveUp')"
+                      @click="moveFooterGroup(gIndex, -1)"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+                      </svg>
+                    </button>
+                    <button
+                      v-if="gIndex < form.footer_links.length - 1"
+                      type="button"
+                      class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
+                      :title="t('admin.settings.customMenu.moveDown')"
+                      @click="moveFooterGroup(gIndex, 1)"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      class="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                      :title="localText('删除分组', 'Remove group')"
+                      @click="removeFooterGroup(gIndex)"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="space-y-2">
+                  <div
+                    v-for="(link, lIndex) in group.links"
+                    :key="lIndex"
+                    class="flex items-center gap-2"
+                  >
+                    <input
+                      v-model="link.label"
+                      type="text"
+                      class="input w-40 text-sm"
+                      :placeholder="localText('名称', 'Label')"
+                    />
+                    <input
+                      v-model="link.url"
+                      type="text"
+                      class="input flex-1 font-mono text-sm"
+                      :placeholder="localText('https://... 或 /models', 'https://... or /models')"
+                    />
+                    <button
+                      type="button"
+                      class="rounded p-1 text-red-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"
+                      :title="localText('删除链接', 'Remove link')"
+                      @click="group.links.splice(lIndex, 1)"
+                    >
+                      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    class="inline-flex items-center gap-1.5 text-sm text-primary-600 hover:text-primary-700 dark:text-primary-400"
+                    @click="group.links.push({ label: '', url: '' })"
+                  >
+                    <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    {{ localText("添加链接", "Add link") }}
+                  </button>
+                </div>
+              </div>
+
+              <!-- Add group button -->
+              <button
+                type="button"
+                class="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 py-3 text-sm text-gray-500 transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                @click="addFooterGroup"
+              >
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                {{ localText("添加分组", "Add group") }}
+              </button>
+
+              <!-- Footer text -->
+              <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
+                <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  {{ localText("底栏附加文本", "Footer text") }}
+                </label>
+                <textarea
+                  v-model="form.footer_text"
+                  rows="2"
+                  class="input min-h-[64px] resize-y text-sm"
+                  :placeholder="localText('例如备案号、自定义版权说明，支持多行', 'e.g. ICP number or custom copyright, multiline supported')"
+                ></textarea>
+              </div>
+            </div>
+          </div>
         </div>
         <!-- /分页：通用设置 -->
 
@@ -6065,6 +6342,34 @@
                     >
                       {{
                         t("admin.settings.payment.balanceRechargePreview", { amount: (Number(form.payment_balance_recharge_multiplier) || 1).toFixed(2), unitName: previewBalanceUnitName })
+                      }}
+                    </p>
+                  </div>
+                  <div>
+                    <label class="input-label">{{
+                      t("admin.settings.payment.subscriptionUsdToCnyRate")
+                    }}</label>
+                    <input
+                      :value="form.payment_subscription_usd_to_cny_rate || ''"
+                      @input="
+                        form.payment_subscription_usd_to_cny_rate =
+                          parseFloat(
+                            ($event.target as HTMLInputElement).value,
+                          ) || 0
+                      "
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      class="input"
+                      :placeholder="
+                        t(
+                          'admin.settings.payment.subscriptionUsdToCnyRateDisabled',
+                        )
+                      "
+                    />
+                    <p class="mt-0.5 text-xs text-gray-400">
+                      {{
+                        t("admin.settings.payment.subscriptionUsdToCnyRateHint")
                       }}
                     </p>
                   </div>
@@ -7435,8 +7740,20 @@ type SettingsForm = Omit<
   google_oauth_client_secret: string;
   force_email_on_third_party_signup: boolean;
   openai_advanced_scheduler_enabled: boolean;
+  openai_advanced_scheduler_sticky_weighted_enabled: boolean;
+  openai_advanced_scheduler_subscription_priority_enabled: boolean;
+  openai_advanced_scheduler_lb_top_k: string;
+  openai_advanced_scheduler_weight_priority: string;
+  openai_advanced_scheduler_weight_load: string;
+  openai_advanced_scheduler_weight_queue: string;
+  openai_advanced_scheduler_weight_error_rate: string;
+  openai_advanced_scheduler_weight_ttft: string;
+  openai_advanced_scheduler_weight_reset: string;
+  openai_advanced_scheduler_weight_quota_headroom: string;
+  openai_advanced_scheduler_weight_previous_response: string;
+  openai_advanced_scheduler_weight_session_sticky: string;
   openai_account_quota_auto_pause: OpenAIQuotaAutoPauseSettings;
-  // 系统全局平台限额 map；form 内始终归一化为全 4 平台对象（模板非空绑定依赖此不变量）
+  // 系统全局平台限额 map；form 内始终归一化为全平台对象（模板非空绑定依赖此不变量）
   default_platform_quotas: DefaultPlatformQuotasMap;
 };
 
@@ -7497,6 +7814,7 @@ const form = reactive<SettingsForm>({
   payment_order_timeout_minutes: 30,
   payment_balance_disabled: false,
   payment_balance_recharge_multiplier: 1,
+  payment_subscription_usd_to_cny_rate: 0,
   payment_recharge_fee_rate: 0,
   payment_method_fees: {},
   payment_enabled_types: [],
@@ -7527,6 +7845,11 @@ const form = reactive<SettingsForm>({
     endpoint: string;
     description: string;
   }>,
+  footer_links: [] as Array<{
+    title: string;
+    links: Array<{ label: string; url: string }>;
+  }>,
+  footer_text: "",
   frontend_url: "",
   smtp_host: "",
   smtp_port: 587,
@@ -7643,6 +7966,18 @@ const form = reactive<SettingsForm>({
   // 分组隔离
   allow_ungrouped_key_scheduling: false,
   openai_advanced_scheduler_enabled: false,
+  openai_advanced_scheduler_sticky_weighted_enabled: false,
+  openai_advanced_scheduler_subscription_priority_enabled: false,
+  openai_advanced_scheduler_lb_top_k: "",
+  openai_advanced_scheduler_weight_priority: "",
+  openai_advanced_scheduler_weight_load: "",
+  openai_advanced_scheduler_weight_queue: "",
+  openai_advanced_scheduler_weight_error_rate: "",
+  openai_advanced_scheduler_weight_ttft: "",
+  openai_advanced_scheduler_weight_reset: "",
+  openai_advanced_scheduler_weight_quota_headroom: "",
+  openai_advanced_scheduler_weight_previous_response: "",
+  openai_advanced_scheduler_weight_session_sticky: "",
   openai_account_quota_auto_pause: {
     default_threshold_5h: 0,
     default_threshold_7d: 0,
@@ -7806,6 +8141,104 @@ function methodFeePreview(method: string): string {
     amount: (base + totalFee).toFixed(2),
   });
 }
+
+
+type OpenAIAdvancedSchedulerOverrideKey =
+  | "openai_advanced_scheduler_lb_top_k"
+  | "openai_advanced_scheduler_weight_priority"
+  | "openai_advanced_scheduler_weight_load"
+  | "openai_advanced_scheduler_weight_queue"
+  | "openai_advanced_scheduler_weight_error_rate"
+  | "openai_advanced_scheduler_weight_ttft"
+  | "openai_advanced_scheduler_weight_reset"
+  | "openai_advanced_scheduler_weight_quota_headroom"
+  | "openai_advanced_scheduler_weight_previous_response"
+  | "openai_advanced_scheduler_weight_session_sticky";
+
+type OpenAIAdvancedSchedulerEffectiveKey =
+  | "openai_advanced_scheduler_effective_lb_top_k"
+  | "openai_advanced_scheduler_effective_weight_priority"
+  | "openai_advanced_scheduler_effective_weight_load"
+  | "openai_advanced_scheduler_effective_weight_queue"
+  | "openai_advanced_scheduler_effective_weight_error_rate"
+  | "openai_advanced_scheduler_effective_weight_ttft"
+  | "openai_advanced_scheduler_effective_weight_reset"
+  | "openai_advanced_scheduler_effective_weight_quota_headroom"
+  | "openai_advanced_scheduler_effective_weight_previous_response"
+  | "openai_advanced_scheduler_effective_weight_session_sticky";
+
+const openAIAdvancedSchedulerWeightFields = computed<
+  Array<{
+    key: OpenAIAdvancedSchedulerOverrideKey;
+    label: string;
+    placeholder: string;
+  }>
+>(() => {
+  const placeholder = (
+    effectiveKey: OpenAIAdvancedSchedulerEffectiveKey,
+    fallbackValue: string,
+  ) => {
+    const effectiveValue = String(
+      (form as Record<string, unknown>)[effectiveKey] ?? "",
+    ).trim();
+    return t("admin.settings.openaiExperimentalScheduler.defaultPlaceholder", {
+      value: effectiveValue || fallbackValue,
+    });
+  };
+
+  return [
+    {
+      key: "openai_advanced_scheduler_lb_top_k",
+      label: t("admin.settings.openaiExperimentalScheduler.topKLabel"),
+      placeholder: placeholder("openai_advanced_scheduler_effective_lb_top_k", "7"),
+    },
+    {
+      key: "openai_advanced_scheduler_weight_priority",
+      label: t("admin.settings.openaiExperimentalScheduler.priorityWeight"),
+      placeholder: placeholder("openai_advanced_scheduler_effective_weight_priority", "1"),
+    },
+    {
+      key: "openai_advanced_scheduler_weight_load",
+      label: t("admin.settings.openaiExperimentalScheduler.loadWeight"),
+      placeholder: placeholder("openai_advanced_scheduler_effective_weight_load", "1"),
+    },
+    {
+      key: "openai_advanced_scheduler_weight_queue",
+      label: t("admin.settings.openaiExperimentalScheduler.queueWeight"),
+      placeholder: placeholder("openai_advanced_scheduler_effective_weight_queue", "0.7"),
+    },
+    {
+      key: "openai_advanced_scheduler_weight_error_rate",
+      label: t("admin.settings.openaiExperimentalScheduler.errorRateWeight"),
+      placeholder: placeholder("openai_advanced_scheduler_effective_weight_error_rate", "0.8"),
+    },
+    {
+      key: "openai_advanced_scheduler_weight_ttft",
+      label: t("admin.settings.openaiExperimentalScheduler.ttftWeight"),
+      placeholder: placeholder("openai_advanced_scheduler_effective_weight_ttft", "0.5"),
+    },
+    {
+      key: "openai_advanced_scheduler_weight_reset",
+      label: t("admin.settings.openaiExperimentalScheduler.resetWeight"),
+      placeholder: placeholder("openai_advanced_scheduler_effective_weight_reset", "0"),
+    },
+    {
+      key: "openai_advanced_scheduler_weight_quota_headroom",
+      label: t("admin.settings.openaiExperimentalScheduler.quotaHeadroomWeight"),
+      placeholder: placeholder("openai_advanced_scheduler_effective_weight_quota_headroom", "0"),
+    },
+    {
+      key: "openai_advanced_scheduler_weight_previous_response",
+      label: t("admin.settings.openaiExperimentalScheduler.previousResponseWeight"),
+      placeholder: placeholder("openai_advanced_scheduler_effective_weight_previous_response", "5"),
+    },
+    {
+      key: "openai_advanced_scheduler_weight_session_sticky",
+      label: t("admin.settings.openaiExperimentalScheduler.sessionStickyWeight"),
+      placeholder: placeholder("openai_advanced_scheduler_effective_weight_session_sticky", "3"),
+    },
+  ];
+});
 
 const authSourceDefaults = reactive<AuthSourceDefaultsState>(
   buildAuthSourceDefaultsState({}),
@@ -8300,6 +8733,67 @@ function removeEndpoint(index: number) {
   form.custom_endpoints.splice(index, 1);
 }
 
+// Footer link group management
+function addFooterGroup() {
+  form.footer_links.push({ title: "", links: [{ label: "", url: "" }] });
+}
+
+// 默认底栏模板:基于站内已有页面 + 已配置的文档/联系方式,可直接用或小改
+function applyDefaultFooterLinks() {
+  const zh = locale.value.toLowerCase().startsWith("zh");
+  const groups: Array<{ title: string; links: Array<{ label: string; url: string }> }> = [
+    {
+      title: zh ? "产品" : "Product",
+      links: [
+        { label: zh ? "模型广场" : "Models", url: "/models" },
+        { label: zh ? "用量查询" : "Key usage", url: "/key-usage" },
+        { label: zh ? "控制台" : "Dashboard", url: "/dashboard" },
+      ],
+    },
+    {
+      title: zh ? "开发者" : "Developer",
+      links: [
+        ...(form.doc_url ? [{ label: zh ? "文档" : "Documentation", url: form.doc_url }] : []),
+        ...(form.api_base_url
+          ? [{ label: "API Base URL", url: form.api_base_url }]
+          : []),
+      ],
+    },
+    {
+      title: zh ? "支持" : "Support",
+      links: [
+        { label: zh ? "登录 / 注册" : "Sign in / Sign up", url: "/login" },
+      ],
+    },
+  ];
+  form.footer_links = groups.filter((g) => g.links.length > 0);
+}
+
+function removeFooterGroup(index: number) {
+  form.footer_links.splice(index, 1);
+}
+
+function moveFooterGroup(index: number, direction: -1 | 1) {
+  const targetIndex = index + direction;
+  if (targetIndex < 0 || targetIndex >= form.footer_links.length) return;
+  const groups = form.footer_links;
+  const temp = groups[index];
+  groups[index] = groups[targetIndex];
+  groups[targetIndex] = temp;
+}
+
+// 保存前清理:去掉空链接行和无标题且无链接的分组
+function normalizeFooterLinksForSave() {
+  return form.footer_links
+    .map((group) => ({
+      title: group.title.trim(),
+      links: group.links
+        .map((link) => ({ label: link.label.trim(), url: link.url.trim() }))
+        .filter((link) => link.label && link.url),
+    }))
+    .filter((group) => group.title && group.links.length > 0);
+}
+
 function addLoginAgreementDocument() {
   form.login_agreement_documents.push({
     id: `custom-${Date.now().toString(36)}`,
@@ -8523,6 +9017,7 @@ async function loadSettings() {
       openaiFastPolicyForm.rules =
         settings.openai_fast_policy_settings.rules.map((rule) => ({
           ...rule,
+          user_ids: rule.user_ids ? [...rule.user_ids] : [],
           model_whitelist: rule.model_whitelist
             ? [...rule.model_whitelist]
             : [],
@@ -8869,6 +9364,8 @@ async function saveSettings() {
       usage_ranking_limit: form.usage_ranking_limit,
       custom_menu_items: form.custom_menu_items,
       custom_endpoints: form.custom_endpoints,
+      footer_links: normalizeFooterLinksForSave(),
+      footer_text: form.footer_text,
       frontend_url: form.frontend_url,
       smtp_host: form.smtp_host,
       smtp_port: form.smtp_port,
@@ -9016,6 +9513,8 @@ async function saveSettings() {
       payment_balance_disabled: form.payment_balance_disabled,
       payment_balance_recharge_multiplier:
         Number(form.payment_balance_recharge_multiplier) || 1,
+      payment_subscription_usd_to_cny_rate:
+        Number(form.payment_subscription_usd_to_cny_rate) || 0,
       payment_recharge_fee_rate: Number(form.payment_recharge_fee_rate) || 0,
       payment_method_fees: form.payment_method_fees,
       payment_enabled_types: form.payment_enabled_types,
@@ -9034,6 +9533,30 @@ async function saveSettings() {
         form.payment_cancel_rate_limit_window_mode,
       payment_alipay_force_qrcode: form.payment_alipay_force_qrcode,
       openai_advanced_scheduler_enabled: form.openai_advanced_scheduler_enabled,
+      openai_advanced_scheduler_sticky_weighted_enabled:
+        form.openai_advanced_scheduler_sticky_weighted_enabled,
+      openai_advanced_scheduler_subscription_priority_enabled:
+        form.openai_advanced_scheduler_subscription_priority_enabled,
+      openai_advanced_scheduler_lb_top_k:
+        form.openai_advanced_scheduler_lb_top_k.trim(),
+      openai_advanced_scheduler_weight_priority:
+        form.openai_advanced_scheduler_weight_priority.trim(),
+      openai_advanced_scheduler_weight_load:
+        form.openai_advanced_scheduler_weight_load.trim(),
+      openai_advanced_scheduler_weight_queue:
+        form.openai_advanced_scheduler_weight_queue.trim(),
+      openai_advanced_scheduler_weight_error_rate:
+        form.openai_advanced_scheduler_weight_error_rate.trim(),
+      openai_advanced_scheduler_weight_ttft:
+        form.openai_advanced_scheduler_weight_ttft.trim(),
+      openai_advanced_scheduler_weight_reset:
+        form.openai_advanced_scheduler_weight_reset.trim(),
+      openai_advanced_scheduler_weight_quota_headroom:
+        form.openai_advanced_scheduler_weight_quota_headroom.trim(),
+      openai_advanced_scheduler_weight_previous_response:
+        form.openai_advanced_scheduler_weight_previous_response.trim(),
+      openai_advanced_scheduler_weight_session_sticky:
+        form.openai_advanced_scheduler_weight_session_sticky.trim(),
       openai_account_quota_auto_pause: {
         default_threshold_5h:
           form.openai_account_quota_auto_pause.default_threshold_5h,
@@ -9068,6 +9591,10 @@ async function saveSettings() {
             service_tier: rule.service_tier,
             action: rule.action,
             scope: rule.scope,
+            user_ids:
+              rule.user_ids && rule.user_ids.length > 0
+                ? [...rule.user_ids]
+                : undefined,
             error_message:
               rule.action === "block" ? rule.error_message : undefined,
             model_whitelist: hasWhitelist ? whitelist : undefined,
@@ -9150,6 +9677,7 @@ async function saveSettings() {
       openaiFastPolicyForm.rules =
         updated.openai_fast_policy_settings.rules.map((rule) => ({
           ...rule,
+          user_ids: rule.user_ids ? [...rule.user_ids] : [],
           model_whitelist: rule.model_whitelist
             ? [...rule.model_whitelist]
             : [],
@@ -9579,6 +10107,10 @@ const openaiFastPolicyTierOptions = computed(() => [
 const openaiFastPolicyActionOptions = computed(() => [
   { value: "pass", label: t("admin.settings.openaiFastPolicy.actionPass") },
   { value: "filter", label: t("admin.settings.openaiFastPolicy.actionFilter") },
+  {
+    value: "force_priority",
+    label: t("admin.settings.openaiFastPolicy.actionForcePriority"),
+  },
   { value: "block", label: t("admin.settings.openaiFastPolicy.actionBlock") },
 ]);
 
@@ -9597,6 +10129,7 @@ function addOpenAIFastPolicyRule() {
     service_tier: "priority",
     action: "filter",
     scope: "all",
+    user_ids: [],
     error_message: "",
     model_whitelist: [],
     fallback_action: "pass",
@@ -9606,6 +10139,20 @@ function addOpenAIFastPolicyRule() {
 
 function removeOpenAIFastPolicyRule(index: number) {
   openaiFastPolicyForm.rules.splice(index, 1);
+}
+
+// addOpenAIFastPolicyUserID 为规则追加一个待填写的用户 ID。
+function addOpenAIFastPolicyUserID(rule: OpenAIFastPolicyRule) {
+  if (!rule.user_ids) rule.user_ids = [];
+  rule.user_ids.push(0);
+}
+
+// removeOpenAIFastPolicyUserID 删除指定位置的用户 ID。
+function removeOpenAIFastPolicyUserID(
+  rule: OpenAIFastPolicyRule,
+  idx: number,
+) {
+  rule.user_ids?.splice(idx, 1);
 }
 
 function addOpenAIFastPolicyModelPattern(rule: OpenAIFastPolicyRule) {
@@ -10201,15 +10748,15 @@ watch(
 <style>
 /* 暗色模式 Tab 覆盖必须放在非 scoped 样式块，避免生产构建丢弃后导致未激活 Tab 不可读。 */
 .dark .settings-tabs-shell {
-  border-color: rgb(51 65 85 / 0.65);
-  background: rgb(15 23 42 / 0.86);
+  border-color: rgb(63 63 70 / 0.65);
+  background: rgb(24 24 27 / 0.86);
   box-shadow:
     0 16px 36px rgb(0 0 0 / 0.28),
     0 1px 0 rgb(255 255 255 / 0.06) inset;
 }
 
 .dark .settings-tab::before {
-  background: linear-gradient(135deg, rgb(30 41 59 / 0.9), rgb(51 65 85 / 0.62));
+  background: linear-gradient(135deg, rgb(39 39 42 / 0.9), rgb(63 63 70 / 0.62));
 }
 
 .dark .settings-tab-active {

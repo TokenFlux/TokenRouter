@@ -307,3 +307,28 @@ func TestRateLimitService_RecoverAccountState_InvalidatesOAuthTokenOnErrorRecove
 	require.Len(t, invalidator.accounts, 1)
 	require.Equal(t, int64(21), invalidator.accounts[0].ID)
 }
+
+func TestRateLimitService_RecoverAccountState_InvalidatesQoderCosyTokenOnErrorRecovery(t *testing.T) {
+	repo := &rateLimitClearRepoStub{
+		getByIDAccount: &Account{
+			ID:       22,
+			Platform: PlatformQoder,
+			Type:     AccountTypeCosy,
+			Status:   StatusError,
+		},
+	}
+	invalidator := &recoverTokenInvalidatorStub{}
+	svc := NewRateLimitService(repo, nil, &config.Config{}, nil, nil)
+	svc.SetTokenCacheInvalidator(invalidator)
+
+	result, err := svc.RecoverAccountState(context.Background(), 22, AccountRecoveryOptions{
+		InvalidateToken: true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.True(t, result.ClearedError)
+	require.False(t, result.ClearedRateLimit)
+	require.Equal(t, 1, repo.clearErrorCalls)
+	require.Len(t, invalidator.accounts, 1)
+	require.Equal(t, int64(22), invalidator.accounts[0].ID)
+}

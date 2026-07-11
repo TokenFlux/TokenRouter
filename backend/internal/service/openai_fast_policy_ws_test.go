@@ -14,6 +14,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -50,6 +51,22 @@ func TestWSResponseCreate_DefaultPassesPriorityAndNormalizesFast(t *testing.T) {
 	require.Equal(t, "priority", gjson.GetBytes(updated, "service_tier").String())
 }
 
+func TestWSResponseCreate_RejectsUltraBeforeUpstream(t *testing.T) {
+	svc := newOpenAIGatewayServiceWithSettings(t, DefaultOpenAIFastPolicySettings())
+	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+
+	frames := [][]byte{
+		[]byte(`{"type":"response.create","model":"gpt-5.6-sol","reasoning":{"effort":"ultra"}}`),
+		[]byte(`{"type":"session.update","session":{"model":"gpt-5.6-sol-ultra"}}`),
+	}
+	for _, frame := range frames {
+		updated, blocked, err := svc.applyOpenAIFastPolicyToWSResponseCreate(context.Background(), account, "gpt-5.6-sol", frame)
+		require.ErrorContains(t, err, "not supported")
+		require.Nil(t, blocked)
+		require.Equal(t, frame, updated)
+	}
+}
+
 func TestWSResponseCreate_ExplicitFilterStripsServiceTier(t *testing.T) {
 	svc := newOpenAIGatewayServiceWithSettings(t, openAIFastFilterPriorityPolicy())
 	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
@@ -65,6 +82,60 @@ func TestWSResponseCreate_ExplicitFilterStripsServiceTier(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, blocked)
 	require.NotContains(t, string(updated), `"service_tier"`)
+}
+
+func TestWSResponseCreate_UserScopedRuleOverridesGlobalRule(t *testing.T) {
+	settings := &OpenAIFastPolicySettings{
+		Rules: []OpenAIFastPolicyRule{
+			{
+				ServiceTier: OpenAIFastTierPriority,
+				Action:      BetaPolicyActionFilter,
+				Scope:       BetaPolicyScopeAll,
+			},
+			{
+				ServiceTier: OpenAIFastTierPriority,
+				Action:      BetaPolicyActionPass,
+				Scope:       BetaPolicyScopeAll,
+				UserIDs:     []int64{42},
+			},
+		},
+	}
+	svc := newOpenAIGatewayServiceWithSettings(t, settings)
+	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+	frame := []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"priority"}`)
+
+	allowedUserCtx := context.WithValue(context.Background(), ctxkey.UserID, int64(42))
+	updated, blocked, err := svc.applyOpenAIFastPolicyToWSResponseCreate(allowedUserCtx, account, "gpt-5.5", frame)
+	require.NoError(t, err)
+	require.Nil(t, blocked)
+	require.Equal(t, "priority", gjson.GetBytes(updated, "service_tier").String())
+
+	otherUserCtx := context.WithValue(context.Background(), ctxkey.UserID, int64(43))
+	updated, blocked, err = svc.applyOpenAIFastPolicyToWSResponseCreate(otherUserCtx, account, "gpt-5.5", frame)
+	require.NoError(t, err)
+	require.Nil(t, blocked)
+	require.NotContains(t, string(updated), `"service_tier"`)
+}
+
+func TestWSResponseCreate_ForcePriorityRewritesKnownTier(t *testing.T) {
+	settings := &OpenAIFastPolicySettings{
+		Rules: []OpenAIFastPolicyRule{{
+			ServiceTier: OpenAIFastTierAny,
+			Action:      OpenAIFastPolicyActionForcePriority,
+			Scope:       BetaPolicyScopeAll,
+		}},
+	}
+	svc := newOpenAIGatewayServiceWithSettings(t, settings)
+	account := &Account{Platform: PlatformOpenAI, Type: AccountTypeAPIKey}
+
+	for _, tier := range []string{"flex", "auto", "default", "scale", "fast", "priority"} {
+		frame := []byte(`{"type":"response.create","model":"gpt-5.5","service_tier":"` + tier + `"}`)
+		updated, blocked, err := svc.applyOpenAIFastPolicyToWSResponseCreate(context.Background(), account, "gpt-5.5", frame)
+		require.NoError(t, err)
+		require.Nil(t, blocked)
+		require.Equal(t, OpenAIFastTierPriority, gjson.GetBytes(updated, "service_tier").String(),
+			"tier %q should be forced to priority", tier)
+	}
 }
 
 func TestWSResponseCreate_FlexPassThrough(t *testing.T) {
@@ -988,7 +1059,7 @@ func TestPassthroughUsageMeta_TracksReasoningEffortAcrossTurns(t *testing.T) {
 	firstOut, firstBlocked, firstErr := svc.applyOpenAIFastPolicyToWSResponseCreate(context.Background(), account, capturedSessionModel, firstFrame)
 	require.NoError(t, firstErr)
 	require.Nil(t, firstBlocked)
-	meta.initFromFirstFrame(firstOut)
+	meta.initFromFirstFrame(firstOut, capturedSessionModel)
 	require.NotNil(t, meta.reasoningEffort.Load())
 	require.Equal(t, "medium", *meta.reasoningEffort.Load())
 
@@ -1005,7 +1076,7 @@ func TestPassthroughUsageMeta_TracksReasoningEffortAcrossTurns(t *testing.T) {
 		out, blocked, policyErr := svc.applyOpenAIFastPolicyToWSResponseCreate(context.Background(), account, model, payload)
 		if policyErr == nil && blocked == nil &&
 			strings.TrimSpace(gjson.GetBytes(payload, "type").String()) == "response.create" {
-			meta.updateFromResponseCreate(out, requestModelForThisFrame)
+			meta.updateFromResponseCreate(out, model, requestModelForThisFrame)
 		}
 		return out, blocked, policyErr
 	}

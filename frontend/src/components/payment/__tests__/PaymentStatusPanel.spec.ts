@@ -233,7 +233,6 @@ describe('PaymentStatusPanel', () => {
 
   it('keeps non-stripe payment polling read-only even when out_trade_no is available', async () => {
     pollOrderStatus.mockResolvedValue(orderFactory('RECHARGING'))
-
     const wrapper = mount(PaymentStatusPanel, {
       props: {
         orderId: 42,
@@ -257,6 +256,28 @@ describe('PaymentStatusPanel', () => {
     expect(verifyOrder).not.toHaveBeenCalled()
     expect(pollOrderStatus).toHaveBeenCalledWith(42)
     expect(wrapper.text()).toContain('payment.result.success')
+  })
+
+  it('uses generic QR copy for custom methods that contain built-in names', async () => {
+    const wrapper = mount(PaymentStatusPanel, {
+      props: {
+        orderId: 42,
+        qrCode: 'https://pay.example.com/qr/42',
+        expiresAt: '2099-01-01T12:30:00Z',
+        paymentType: 'card_alipay',
+        orderType: 'balance',
+      },
+      global: {
+        stubs: {
+          Icon: true,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('payment.qr.scanToPay')
+    expect(wrapper.text()).not.toContain('payment.qr.scanAlipay')
   })
 
   it('actively verifies a stuck wxpay pending order and settles it when upstream confirms payment', async () => {

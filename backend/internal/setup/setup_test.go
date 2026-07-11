@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestDecideAdminBootstrap(t *testing.T) {
@@ -68,6 +69,26 @@ func TestSetupDefaultAdminConcurrency(t *testing.T) {
 			t.Fatalf("setupDefaultAdminConcurrency()=%d, want %d", got, defaultUserConcurrency)
 		}
 	})
+}
+
+func TestSetupMigrationTimeout(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *SetupConfig
+		want time.Duration
+	}{
+		{name: "nil config uses default", cfg: nil, want: defaultMigrationTimeout},
+		{name: "zero uses default", cfg: &SetupConfig{}, want: defaultMigrationTimeout},
+		{name: "negative uses default", cfg: &SetupConfig{MigrationTimeoutSeconds: -1}, want: defaultMigrationTimeout},
+		{name: "positive uses configured value", cfg: &SetupConfig{MigrationTimeoutSeconds: 300}, want: 300 * time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.cfg.migrationTimeout(); got != tt.want {
+				t.Fatalf("migrationTimeout()=%s, want %s", got, tt.want)
+			}
+		})
+	}
 }
 
 func TestWriteConfigFileKeepsDefaultUserConcurrency(t *testing.T) {

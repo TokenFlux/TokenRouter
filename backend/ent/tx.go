@@ -28,6 +28,12 @@ type Tx struct {
 	AuthIdentity *AuthIdentityClient
 	// AuthIdentityChannel is the client for interacting with the AuthIdentityChannel builders.
 	AuthIdentityChannel *AuthIdentityChannelClient
+	// BatchImageEvent is the client for interacting with the BatchImageEvent builders.
+	BatchImageEvent *BatchImageEventClient
+	// BatchImageItem is the client for interacting with the BatchImageItem builders.
+	BatchImageItem *BatchImageItemClient
+	// BatchImageJob is the client for interacting with the BatchImageJob builders.
+	BatchImageJob *BatchImageJobClient
 	// DataShareSession is the client for interacting with the DataShareSession builders.
 	DataShareSession *DataShareSessionClient
 	// ErrorPassthroughRule is the client for interacting with the ErrorPassthroughRule builders.
@@ -222,6 +228,9 @@ func (tx *Tx) init() {
 	tx.AnnouncementRead = NewAnnouncementReadClient(tx.config)
 	tx.AuthIdentity = NewAuthIdentityClient(tx.config)
 	tx.AuthIdentityChannel = NewAuthIdentityChannelClient(tx.config)
+	tx.BatchImageEvent = NewBatchImageEventClient(tx.config)
+	tx.BatchImageItem = NewBatchImageItemClient(tx.config)
+	tx.BatchImageJob = NewBatchImageJobClient(tx.config)
 	tx.DataShareSession = NewDataShareSessionClient(tx.config)
 	tx.ErrorPassthroughRule = NewErrorPassthroughRuleClient(tx.config)
 	tx.Group = NewGroupClient(tx.config)

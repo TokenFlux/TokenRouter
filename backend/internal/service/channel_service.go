@@ -354,6 +354,17 @@ func (c *channelCache) matchWildcard(groupID int64, platform, modelLower string)
 	return nil
 }
 
+func (c *channelCache) matchEffectiveWildcard(groupID int64, platform, modelLower string) *ChannelModelPricing {
+	gpKey := channelGroupPlatformKey{groupID: groupID, platform: platform}
+	wildcards := c.wildcardByGroupPlatform[gpKey]
+	for _, wc := range wildcards {
+		if strings.HasPrefix(modelLower, wc.prefix) && wc.pricing != nil && wc.pricing.HasEffectivePricing() {
+			return wc.pricing
+		}
+	}
+	return nil
+}
+
 // matchWildcardMapping 在通配符映射中查找匹配项（最先匹配到优先）
 func (c *channelCache) matchWildcardMapping(groupID int64, platform, modelLower string) string {
 	gpKey := channelGroupPlatformKey{groupID: groupID, platform: platform}
@@ -378,6 +389,21 @@ func lookupPricingAcrossPlatforms(cache *channelCache, groupID int64, groupPlatf
 	// 精确查找全部失败，依次尝试通配符匹配
 	for _, p := range matchingPlatforms(groupPlatform) {
 		if pricing := cache.matchWildcard(groupID, p, modelLower); pricing != nil {
+			return pricing
+		}
+	}
+	return nil
+}
+
+func lookupEffectivePricingAcrossPlatforms(cache *channelCache, groupID int64, groupPlatform, modelLower string) *ChannelModelPricing {
+	for _, p := range matchingPlatforms(groupPlatform) {
+		key := channelModelKey{groupID: groupID, platform: p, model: modelLower}
+		if pricing, ok := cache.pricingByGroupModel[key]; ok && pricing != nil && pricing.HasEffectivePricing() {
+			return pricing
+		}
+	}
+	for _, p := range matchingPlatforms(groupPlatform) {
+		if pricing := cache.matchEffectiveWildcard(groupID, p, modelLower); pricing != nil {
 			return pricing
 		}
 	}
@@ -472,6 +498,26 @@ func (s *ChannelService) GetChannelModelPricing(ctx context.Context, groupID int
 	return &cp
 }
 
+func (s *ChannelService) GetEffectiveChannelModelPricing(ctx context.Context, groupID int64, model string) *ChannelModelPricing {
+	lk, err := s.lookupGroupChannel(ctx, groupID)
+	if err != nil {
+		slog.Warn("failed to load channel cache", "group_id", groupID, "error", err)
+		return nil
+	}
+	if lk == nil {
+		return nil
+	}
+
+	modelLower := strings.ToLower(model)
+	pricing := lookupEffectivePricingAcrossPlatforms(lk.cache, groupID, lk.platform, modelLower)
+	if pricing == nil {
+		return nil
+	}
+
+	cp := pricing.Clone()
+	return &cp
+}
+
 // ResolveChannelMapping 解析渠道级模型映射（热路径 O(1)）
 // 返回映射结果，包含映射后的模型名、渠道 ID、计费模型来源。
 func (s *ChannelService) ResolveChannelMapping(ctx context.Context, groupID int64, model string) ChannelMappingResult {
@@ -542,10 +588,14 @@ func checkRestricted(lk *channelLookup, groupID int64, model string) bool {
 	}
 	modelLower := strings.ToLower(model)
 	// 使用与查找定价相同的跨平台逻辑
-	if lookupPricingAcrossPlatforms(lk.cache, groupID, lk.platform, modelLower) != nil {
-		return false
+	pricing := lookupPricingAcrossPlatforms(lk.cache, groupID, lk.platform, modelLower)
+	if pricing == nil {
+		return true
 	}
-	return true
+	if lk.platform == PlatformQoder && !pricing.HasEffectivePricing() {
+		return lookupEffectivePricingAcrossPlatforms(lk.cache, groupID, lk.platform, modelLower) == nil
+	}
+	return false
 }
 
 // ReplaceModelInBody 替换请求体 JSON 中的 model 字段。

@@ -125,6 +125,93 @@ func TestCalculateCostUnified_PerRequestMode(t *testing.T) {
 	require.Equal(t, string(BillingModePerRequest), cost.BillingMode)
 }
 
+func TestCalculateCostUnified_PerRequestTierExplicitZeroDoesNotFallbackToDefault(t *testing.T) {
+	zero := 0.0
+	defaultPrice := 0.10
+	cs := newTestChannelServiceWithCache(t, &channelCache{
+		pricingByGroupModel: map[channelModelKey]*ChannelModelPricing{
+			{groupID: 3, model: "qoder-image"}: {
+				BillingMode:     BillingModeImage,
+				PerRequestPrice: &defaultPrice,
+				Intervals: []PricingInterval{
+					{TierLabel: "1K", PerRequestPrice: &zero},
+				},
+			},
+		},
+		channelByGroupID: map[int64]*Channel{
+			3: {ID: 3, Status: StatusActive},
+		},
+		groupPlatform:           map[int64]string{3: ""},
+		wildcardByGroupPlatform: map[channelGroupPlatformKey][]*wildcardPricingEntry{},
+		mappingByGroupModel:     map[channelModelKey]string{},
+		wildcardMappingByGP:     map[channelGroupPlatformKey][]*wildcardMappingEntry{},
+		byID:                    map[int64]*Channel{},
+	})
+
+	bs := newTestBillingService()
+	resolver := NewModelPricingResolver(cs, bs)
+	groupID := int64(3)
+
+	cost, err := bs.CalculateCostUnified(CostInput{
+		Ctx:            context.Background(),
+		Model:          "qoder-image",
+		GroupID:        &groupID,
+		SizeTier:       "1K",
+		RequestCount:   2,
+		RateMultiplier: 1.0,
+		Resolver:       resolver,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, cost)
+	require.InDelta(t, 0.0, cost.TotalCost, 1e-10)
+	require.InDelta(t, 0.0, cost.ActualCost, 1e-10)
+	require.Equal(t, string(BillingModeImage), cost.BillingMode)
+}
+
+func TestCalculateCostUnified_PerRequestContextTierExplicitZeroDoesNotFallbackToDefault(t *testing.T) {
+	zero := 0.0
+	defaultPrice := 0.10
+	maxTokens := 1000
+	cs := newTestChannelServiceWithCache(t, &channelCache{
+		pricingByGroupModel: map[channelModelKey]*ChannelModelPricing{
+			{groupID: 4, model: "qoder-request"}: {
+				BillingMode:     BillingModePerRequest,
+				PerRequestPrice: &defaultPrice,
+				Intervals: []PricingInterval{
+					{MinTokens: 0, MaxTokens: &maxTokens, PerRequestPrice: &zero},
+				},
+			},
+		},
+		channelByGroupID: map[int64]*Channel{
+			4: {ID: 4, Status: StatusActive},
+		},
+		groupPlatform:           map[int64]string{4: ""},
+		wildcardByGroupPlatform: map[channelGroupPlatformKey][]*wildcardPricingEntry{},
+		mappingByGroupModel:     map[channelModelKey]string{},
+		wildcardMappingByGP:     map[channelGroupPlatformKey][]*wildcardMappingEntry{},
+		byID:                    map[int64]*Channel{},
+	})
+
+	bs := newTestBillingService()
+	resolver := NewModelPricingResolver(cs, bs)
+	groupID := int64(4)
+
+	cost, err := bs.CalculateCostUnified(CostInput{
+		Ctx:            context.Background(),
+		Model:          "qoder-request",
+		GroupID:        &groupID,
+		Tokens:         UsageTokens{InputTokens: 500},
+		RequestCount:   3,
+		RateMultiplier: 1.0,
+		Resolver:       resolver,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, cost)
+	require.InDelta(t, 0.0, cost.TotalCost, 1e-10)
+	require.InDelta(t, 0.0, cost.ActualCost, 1e-10)
+	require.Equal(t, string(BillingModePerRequest), cost.BillingMode)
+}
+
 func TestCalculateCostUnified_ImageMode(t *testing.T) {
 	cs := newTestChannelServiceWithCache(t, &channelCache{
 		pricingByGroupModel: map[channelModelKey]*ChannelModelPricing{

@@ -128,27 +128,29 @@ type SystemSettings struct {
 	GoogleOAuthRedirectURL            string `json:"google_oauth_redirect_url"`
 	GoogleOAuthFrontendRedirectURL    string `json:"google_oauth_frontend_redirect_url"`
 
-	SiteName                    string           `json:"site_name"`
-	SiteLogo                    string           `json:"site_logo"`
-	SiteSubtitle                string           `json:"site_subtitle"`
-	SiteNameZh                  string           `json:"site_name_zh"`
-	SiteNameEn                  string           `json:"site_name_en"`
-	SiteTitleZh                 string           `json:"site_title_zh"`
-	SiteTitleEn                 string           `json:"site_title_en"`
-	SiteSubtitleZh              string           `json:"site_subtitle_zh"`
-	SiteSubtitleEn              string           `json:"site_subtitle_en"`
-	APIBaseURL                  string           `json:"api_base_url"`
-	ContactInfo                 string           `json:"contact_info"`
-	DocURL                      string           `json:"doc_url"`
-	HomeContent                 string           `json:"home_content"`
-	HideCcsImportButton         bool             `json:"hide_ccs_import_button"`
-	PurchaseSubscriptionEnabled bool             `json:"purchase_subscription_enabled"`
-	PurchaseSubscriptionURL     string           `json:"purchase_subscription_url"`
-	TableDefaultPageSize        int              `json:"table_default_page_size"`
-	TablePageSizeOptions        []int            `json:"table_page_size_options"`
-	UsageRankingLimit           int              `json:"usage_ranking_limit"`
-	CustomMenuItems             []CustomMenuItem `json:"custom_menu_items"`
-	CustomEndpoints             []CustomEndpoint `json:"custom_endpoints"`
+	SiteName                    string            `json:"site_name"`
+	SiteLogo                    string            `json:"site_logo"`
+	SiteSubtitle                string            `json:"site_subtitle"`
+	SiteNameZh                  string            `json:"site_name_zh"`
+	SiteNameEn                  string            `json:"site_name_en"`
+	SiteTitleZh                 string            `json:"site_title_zh"`
+	SiteTitleEn                 string            `json:"site_title_en"`
+	SiteSubtitleZh              string            `json:"site_subtitle_zh"`
+	SiteSubtitleEn              string            `json:"site_subtitle_en"`
+	APIBaseURL                  string            `json:"api_base_url"`
+	ContactInfo                 string            `json:"contact_info"`
+	DocURL                      string            `json:"doc_url"`
+	HomeContent                 string            `json:"home_content"`
+	HideCcsImportButton         bool              `json:"hide_ccs_import_button"`
+	PurchaseSubscriptionEnabled bool              `json:"purchase_subscription_enabled"`
+	PurchaseSubscriptionURL     string            `json:"purchase_subscription_url"`
+	TableDefaultPageSize        int               `json:"table_default_page_size"`
+	TablePageSizeOptions        []int             `json:"table_page_size_options"`
+	UsageRankingLimit           int               `json:"usage_ranking_limit"`
+	CustomMenuItems             []CustomMenuItem  `json:"custom_menu_items"`
+	CustomEndpoints             []CustomEndpoint  `json:"custom_endpoints"`
+	FooterLinks                 []FooterLinkGroup `json:"footer_links"`
+	FooterText                  string            `json:"footer_text"`
 
 	DefaultConcurrency                   int                          `json:"default_concurrency"`
 	DefaultBalance                       float64                      `json:"default_balance"`
@@ -221,7 +223,29 @@ type SystemSettings struct {
 	PaymentVisibleMethodWxpayEnabled  bool   `json:"payment_visible_method_wxpay_enabled"`
 
 	// OpenAI account scheduling
-	OpenAIAdvancedSchedulerEnabled bool `json:"openai_advanced_scheduler_enabled"`
+	OpenAIAdvancedSchedulerEnabled                         bool   `json:"openai_advanced_scheduler_enabled"`
+	OpenAIAdvancedSchedulerStickyWeightedEnabled           bool   `json:"openai_advanced_scheduler_sticky_weighted_enabled"`
+	OpenAIAdvancedSchedulerSubscriptionPriorityEnabled     bool   `json:"openai_advanced_scheduler_subscription_priority_enabled"`
+	OpenAIAdvancedSchedulerLBTopK                          string `json:"openai_advanced_scheduler_lb_top_k"`
+	OpenAIAdvancedSchedulerWeightPriority                  string `json:"openai_advanced_scheduler_weight_priority"`
+	OpenAIAdvancedSchedulerWeightLoad                      string `json:"openai_advanced_scheduler_weight_load"`
+	OpenAIAdvancedSchedulerWeightQueue                     string `json:"openai_advanced_scheduler_weight_queue"`
+	OpenAIAdvancedSchedulerWeightErrorRate                 string `json:"openai_advanced_scheduler_weight_error_rate"`
+	OpenAIAdvancedSchedulerWeightTTFT                      string `json:"openai_advanced_scheduler_weight_ttft"`
+	OpenAIAdvancedSchedulerWeightReset                     string `json:"openai_advanced_scheduler_weight_reset"`
+	OpenAIAdvancedSchedulerWeightQuotaHeadroom             string `json:"openai_advanced_scheduler_weight_quota_headroom"`
+	OpenAIAdvancedSchedulerWeightPreviousResponse          string `json:"openai_advanced_scheduler_weight_previous_response"`
+	OpenAIAdvancedSchedulerWeightSessionSticky             string `json:"openai_advanced_scheduler_weight_session_sticky"`
+	OpenAIAdvancedSchedulerEffectiveLBTopK                 string `json:"openai_advanced_scheduler_effective_lb_top_k"`
+	OpenAIAdvancedSchedulerEffectiveWeightPriority         string `json:"openai_advanced_scheduler_effective_weight_priority"`
+	OpenAIAdvancedSchedulerEffectiveWeightLoad             string `json:"openai_advanced_scheduler_effective_weight_load"`
+	OpenAIAdvancedSchedulerEffectiveWeightQueue            string `json:"openai_advanced_scheduler_effective_weight_queue"`
+	OpenAIAdvancedSchedulerEffectiveWeightErrorRate        string `json:"openai_advanced_scheduler_effective_weight_error_rate"`
+	OpenAIAdvancedSchedulerEffectiveWeightTTFT             string `json:"openai_advanced_scheduler_effective_weight_ttft"`
+	OpenAIAdvancedSchedulerEffectiveWeightReset            string `json:"openai_advanced_scheduler_effective_weight_reset"`
+	OpenAIAdvancedSchedulerEffectiveWeightQuotaHeadroom    string `json:"openai_advanced_scheduler_effective_weight_quota_headroom"`
+	OpenAIAdvancedSchedulerEffectiveWeightPreviousResponse string `json:"openai_advanced_scheduler_effective_weight_previous_response"`
+	OpenAIAdvancedSchedulerEffectiveWeightSessionSticky    string `json:"openai_advanced_scheduler_effective_weight_session_sticky"`
 	// OpenAI 账号配额自动暂停全局默认阈值。后端按 0~1 存储，0 表示不启用全局默认阈值。
 	OpenAIQuotaAutoPauseSettings service.OpsOpenAIAccountQuotaAutoPauseSettings `json:"openai_account_quota_auto_pause"`
 
@@ -235,6 +259,7 @@ type SystemSettings struct {
 	PaymentEnabledTypes              []string                  `json:"payment_enabled_types"`
 	PaymentBalanceDisabled           bool                      `json:"payment_balance_disabled"`
 	PaymentBalanceRechargeMultiplier float64                   `json:"payment_balance_recharge_multiplier"`
+	PaymentSubscriptionUSDToCNYRate  float64                   `json:"payment_subscription_usd_to_cny_rate"`
 	PaymentRechargeFeeRate           float64                   `json:"payment_recharge_fee_rate"`
 	PaymentMethodFees                service.MethodFeeSettings `json:"payment_method_fees"`
 	PaymentLoadBalanceStrat          string                    `json:"payment_load_balance_strategy"`
@@ -312,6 +337,8 @@ type PublicSettings struct {
 	UsageRankingLimit                int                      `json:"usage_ranking_limit"`
 	CustomMenuItems                  []CustomMenuItem         `json:"custom_menu_items"`
 	CustomEndpoints                  []CustomEndpoint         `json:"custom_endpoints"`
+	FooterLinks                      []FooterLinkGroup        `json:"footer_links"`
+	FooterText                       string                   `json:"footer_text"`
 	DingTalkOAuthEnabled             bool                     `json:"dingtalk_oauth_enabled"`
 	LinuxDoOAuthEnabled              bool                     `json:"linuxdo_oauth_enabled"`
 	WeChatOAuthEnabled               bool                     `json:"wechat_oauth_enabled"`
@@ -411,6 +438,7 @@ type OpenAIFastPolicyRule struct {
 	ServiceTier          string   `json:"service_tier"`
 	Action               string   `json:"action"`
 	Scope                string   `json:"scope"`
+	UserIDs              []int64  `json:"user_ids,omitempty"`
 	ErrorMessage         string   `json:"error_message,omitempty"`
 	ModelWhitelist       []string `json:"model_whitelist,omitempty"`
 	FallbackAction       string   `json:"fallback_action,omitempty"`
@@ -535,4 +563,30 @@ func ParseCustomEndpoints(raw string) []CustomEndpoint {
 		return []CustomEndpoint{}
 	}
 	return items
+}
+
+// FooterLink 首页底栏单条链接。
+type FooterLink struct {
+	Label string `json:"label"`
+	URL   string `json:"url"`
+}
+
+// FooterLinkGroup 首页底栏链接分组（一列）。
+type FooterLinkGroup struct {
+	Title string       `json:"title"`
+	Links []FooterLink `json:"links"`
+}
+
+// ParseFooterLinks parses a JSON string into a slice of FooterLinkGroup.
+// Returns empty slice on empty/invalid input.
+func ParseFooterLinks(raw string) []FooterLinkGroup {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || raw == "[]" {
+		return []FooterLinkGroup{}
+	}
+	var groups []FooterLinkGroup
+	if err := json.Unmarshal([]byte(raw), &groups); err != nil {
+		return []FooterLinkGroup{}
+	}
+	return groups
 }

@@ -303,6 +303,107 @@ const shellTabs: TabConfig[] = [
   { id: 'powershell', label: 'PowerShell', icon: WindowsIcon }
 ]
 
+function withOpenCodeToolCalling(models: Record<string, any>) {
+  return Object.fromEntries(
+    Object.entries(models).map(([model, config]) => [
+      model,
+      {
+        ...config,
+        tool_call: true
+      }
+    ])
+  )
+}
+
+function buildQoderOpenCodeModels() {
+  return withOpenCodeToolCalling({
+    'claude-opus-4-6': {
+      name: 'Claude Opus 4.6',
+      limit: {
+        context: 200000,
+        output: 128000
+      }
+    },
+    auto: {
+      name: 'Qoder Auto',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    performance: {
+      name: 'Qoder Performance',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    efficient: {
+      name: 'Qoder Efficient',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    lite: {
+      name: 'Qoder Lite',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    'qwen3.7-max': {
+      name: 'Qwen3.7-Max',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    'qwen3.7-plus': {
+      name: 'Qwen3.7-Plus',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    'deepseek-v4-pro': {
+      name: 'DeepSeek-V4-Pro',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    'deepseek-v4-flash': {
+      name: 'DeepSeek-V4-Flash',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    'glm-5.2': {
+      name: 'GLM-5.2',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    'kimi-k2.7-code': {
+      name: 'Kimi-K2.7-Code',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    },
+    'minimax-m3': {
+      name: 'MiniMax-M3',
+      limit: {
+        context: 400000,
+        output: 128000
+      }
+    }
+  })
+}
+
 // OpenAI tabs (2 OS types)
 const openaiTabs: TabConfig[] = [
   { id: 'unix', label: 'macOS / Linux', icon: AppleIcon },
@@ -407,6 +508,8 @@ const currentFiles = computed((): FileConfig[] => {
           generateOpenCodeConfig('antigravity-claude', antigravityBase, apiKey, 'opencode.json (Claude)'),
           generateOpenCodeConfig('antigravity-gemini', antigravityGeminiBase, apiKey, 'opencode.json (Gemini)')
         ]
+      case 'qoder':
+        return [generateOpenCodeConfig('qoder', apiBase, apiKey)]
       default:
         return [generateOpenCodeConfig('openai', apiBase, apiKey)]
     }
@@ -634,6 +737,74 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
         medium: {},
         high: {},
         xhigh: {}
+      }
+    },
+    'gpt-5.6': {
+      name: 'GPT-5.6 (Sol)',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
+    'gpt-5.6-sol': {
+      name: 'GPT-5.6 Sol',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
+    'gpt-5.6-terra': {
+      name: 'GPT-5.6 Terra',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
+      }
+    },
+    'gpt-5.6-luna': {
+      name: 'GPT-5.6 Luna',
+      limit: {
+        context: 1050000,
+        output: 128000
+      },
+      options: {
+        store: false
+      },
+      variants: {
+        low: {},
+        medium: {},
+        high: {},
+        xhigh: {},
+        max: {}
       }
     },
     'gpt-5.5': {
@@ -1023,19 +1194,23 @@ function generateOpenCodeConfig(platform: string, baseUrl: string, apiKey: strin
 
   if (platform === 'gemini') {
     provider[platform].npm = '@ai-sdk/google'
-    provider[platform].models = geminiModels
+    provider[platform].models = withOpenCodeToolCalling(geminiModels)
   } else if (platform === 'anthropic') {
     provider[platform].npm = '@ai-sdk/anthropic'
+  } else if (platform === 'qoder') {
+    provider[platform].npm = '@ai-sdk/openai-compatible'
+    provider[platform].name = 'Qoder'
+    provider[platform].models = buildQoderOpenCodeModels()
   } else if (platform === 'antigravity-claude') {
     provider[platform].npm = '@ai-sdk/anthropic'
     provider[platform].name = 'Antigravity (Claude)'
-    provider[platform].models = claudeModels
+    provider[platform].models = withOpenCodeToolCalling(claudeModels)
   } else if (platform === 'antigravity-gemini') {
     provider[platform].npm = '@ai-sdk/google'
     provider[platform].name = 'Antigravity (Gemini)'
-    provider[platform].models = antigravityGeminiModels
+    provider[platform].models = withOpenCodeToolCalling(antigravityGeminiModels)
   } else if (platform === 'openai') {
-    provider[platform].models = openaiModels
+    provider[platform].models = withOpenCodeToolCalling(openaiModels)
   }
 
   const agent =

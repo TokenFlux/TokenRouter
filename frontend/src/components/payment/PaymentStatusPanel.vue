@@ -79,7 +79,7 @@
             <!-- Brand logo overlay -->
             <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
               <span :class="['rounded-full p-2 shadow ring-2 ring-white', qrLogoBgClass]">
-                <img :src="isAlipay ? alipayIcon : wxpayIcon" alt="" class="h-5 w-5 brightness-0 invert" />
+                <img :src="qrLogoIcon" alt="" class="h-5 w-5 brightness-0 invert" />
               </span>
             </div>
           </div>
@@ -128,7 +128,7 @@ import { usePaymentStore } from '@/stores/payment'
 import { useAppStore } from '@/stores'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
-import { getPaymentPopupFeatures } from '@/components/payment/providerConfig'
+import { getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { formatPaymentAmount, normalizePaymentCurrency } from '@/components/payment/currency'
 import type { PaymentOrder } from '@/types/payment'
@@ -136,6 +136,7 @@ import Icon from '@/components/icons/Icon.vue'
 import QRCode from 'qrcode'
 import alipayIcon from '@/assets/icons/alipay.svg'
 import wxpayIcon from '@/assets/icons/wxpay.svg'
+import paymentIcon from '@/assets/icons/payment.svg'
 
 const props = defineProps<{
   orderId: number
@@ -184,8 +185,8 @@ let lastVerifyAt = 0
 const VERIFY_RETRY_INTERVAL_MS = 15000
 const VERIFY_RETRY_MAX_ATTEMPTS = 6
 
-const isAlipay = computed(() => props.paymentType.includes('alipay'))
-const isWxpay = computed(() => props.paymentType.includes('wxpay'))
+const isAlipay = computed(() => isBuiltInAlipayMethod(props.paymentType))
+const isWxpay = computed(() => isBuiltInWxpayMethod(props.paymentType))
 
 const qrBorderClass = computed(() => {
   if (isAlipay.value) return 'border-[#00AEEF] bg-blue-50 dark:border-[#00AEEF]/70 dark:bg-blue-950/20'
@@ -197,6 +198,12 @@ const qrLogoBgClass = computed(() => {
   if (isAlipay.value) return 'bg-[#00AEEF]'
   if (isWxpay.value) return 'bg-[#2BB741]'
   return 'bg-gray-400'
+})
+
+const qrLogoIcon = computed(() => {
+  if (isAlipay.value) return alipayIcon
+  if (isWxpay.value) return wxpayIcon
+  return paymentIcon
 })
 
 const scanTitle = computed(() => {
@@ -258,15 +265,23 @@ async function renderQR() {
   })
 }
 
+let pollInFlight = false
 async function pollStatus() {
-  if (!props.orderId || outcome.value) return
-  // Stripe 直接查上游；微信在本地仍 pending 时再节流补查，避免漏回调导致一直等待。
-  const upstreamOutTradeNo = upstreamVerificationOutTradeNo()
-  let order = upstreamOutTradeNo && props.paymentType === 'stripe'
-    ? await verifyOrderWithUpstream(upstreamOutTradeNo)
-    : await paymentStore.pollOrderStatus(props.orderId)
-  order = await tryRecoverPendingWxpayOrder(order)
-  applyResolvedOrderStatus(order)
+  if (!props.orderId || outcome.value || pollInFlight) return
+  pollInFlight = true
+  try {
+    // Stripe 直接查上游；微信在本地仍 pending 时再节流补查，避免漏回调导致一直等待。
+    const upstreamOutTradeNo = upstreamVerificationOutTradeNo()
+    let order = upstreamOutTradeNo && props.paymentType === 'stripe'
+      ? await verifyOrderWithUpstream(upstreamOutTradeNo)
+      : await paymentStore.pollOrderStatus(props.orderId)
+    if (outcome.value) return
+    order = await tryRecoverPendingWxpayOrder(order)
+    if (outcome.value) return
+    applyResolvedOrderStatus(order)
+  } finally {
+    pollInFlight = false
+  }
 }
 
 function applyResolvedOrderStatus(order: PaymentOrder | null): boolean {

@@ -83,6 +83,9 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			sqlmock.AnyArg(), // 图片输出尺寸
 			sqlmock.AnyArg(), // 图片尺寸来源
 			sqlmock.AnyArg(), // 图片尺寸明细
+			sqlmock.AnyArg(), // 视频数量
+			sqlmock.AnyArg(), // 视频分辨率
+			sqlmock.AnyArg(), // 视频时长
 			sqlmock.AnyArg(), // service_tier
 			sqlmock.AnyArg(), // reasoning_effort
 			sqlmock.AnyArg(), // inbound_endpoint
@@ -169,6 +172,9 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			sqlmock.AnyArg(), // 图片输出尺寸
 			sqlmock.AnyArg(), // 图片尺寸来源
 			sqlmock.AnyArg(), // 图片尺寸明细
+			sqlmock.AnyArg(), // 视频数量
+			sqlmock.AnyArg(), // 视频分辨率
+			sqlmock.AnyArg(), // 视频时长
 			serviceTier,
 			sqlmock.AnyArg(),
 			sqlmock.AnyArg(),
@@ -287,9 +293,14 @@ func TestAppendUsageLogBillingModeWhereCondition(t *testing.T) {
 		wantCondition string
 	}{
 		{
-			name:          "image includes legacy image rows",
+			name:          "image includes explicit image and legacy image rows",
 			billingMode:   string(service.BillingModeImage),
-			wantCondition: "(billing_mode = $1 OR COALESCE(image_count, 0) > 0)",
+			wantCondition: "(billing_mode = $1 OR ((billing_mode IS NULL OR billing_mode = '') AND COALESCE(image_count, 0) > 0))",
+		},
+		{
+			name:          "video remains exact",
+			billingMode:   string(service.BillingModeVideo),
+			wantCondition: "billing_mode = $1",
 		},
 		{
 			name:          "token includes legacy non-image rows",
@@ -315,7 +326,7 @@ func TestAppendUsageLogBillingModeWhereCondition(t *testing.T) {
 func TestAppendUsageLogBillingModeWhereConditionWithAlias(t *testing.T) {
 	conditions, args := appendUsageLogBillingModeWhereConditionWithAlias(nil, nil, string(service.BillingModeImage), "ul")
 
-	require.Equal(t, []string{"(ul.billing_mode = $1 OR COALESCE(ul.image_count, 0) > 0)"}, conditions)
+	require.Equal(t, []string{"(ul.billing_mode = $1 OR ((ul.billing_mode IS NULL OR ul.billing_mode = '') AND COALESCE(ul.image_count, 0) > 0))"}, conditions)
 	require.Equal(t, []any{string(service.BillingModeImage)}, args)
 }
 
@@ -888,6 +899,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{Valid: true, String: "3840x2160"},
 			sql.NullString{Valid: true, String: "output"},
 			sql.NullString{Valid: true, String: `{"4K":2}`},
+			0,                // video_count
+			sql.NullString{}, // video_resolution
+			sql.NullInt64{},  // video_duration_seconds
 			sql.NullString{},
 			sql.NullString{},
 			sql.NullString{},
@@ -959,6 +973,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{}, // 图片输出尺寸
 			sql.NullString{}, // 图片尺寸来源
 			sql.NullString{}, // 图片尺寸明细
+			0,                // 视频数量
+			sql.NullString{}, // 视频分辨率
+			sql.NullInt64{},  // 视频时长
 			sql.NullString{Valid: true, String: "priority"},
 			sql.NullString{},
 			sql.NullString{},
@@ -1012,6 +1029,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{}, // 图片输出尺寸
 			sql.NullString{}, // 图片尺寸来源
 			sql.NullString{}, // 图片尺寸明细
+			0,                // 视频数量
+			sql.NullString{}, // 视频分辨率
+			sql.NullInt64{},  // 视频时长
 			sql.NullString{Valid: true, String: "flex"},
 			sql.NullString{},
 			sql.NullString{},
@@ -1065,6 +1085,9 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{}, // 图片输出尺寸
 			sql.NullString{}, // 图片尺寸来源
 			sql.NullString{}, // 图片尺寸明细
+			0,                // 视频数量
+			sql.NullString{}, // 视频分辨率
+			sql.NullInt64{},  // 视频时长
 			sql.NullString{Valid: true, String: "priority"},
 			sql.NullString{},
 			sql.NullString{},

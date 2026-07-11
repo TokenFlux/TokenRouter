@@ -3,7 +3,10 @@
 package service
 
 import (
+	"reflect"
 	"testing"
+
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
 
 func TestMatchWildcard(t *testing.T) {
@@ -270,6 +273,69 @@ func TestAccountIsModelSupported(t *testing.T) {
 			requestedModel: "model-c",
 			expected:       true,
 		},
+		{
+			name:           "qoder mapping absent does not restrict public alias",
+			platform:       PlatformQoder,
+			credentials:    nil,
+			requestedModel: "claude-opus-4-6",
+			expected:       true,
+		},
+		{
+			name:           "qoder mapping absent does not reject raw upstream key",
+			platform:       PlatformQoder,
+			credentials:    nil,
+			requestedModel: "ultimate",
+			expected:       true,
+		},
+		{
+			name:     "qoder mapping only does not restrict unmatched request model",
+			platform: PlatformQoder,
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"claude-opus-4-6": "ultimate",
+					"auto":            "auto",
+				},
+				"model_whitelist": []any{},
+			},
+			requestedModel: "glm-5",
+			expected:       true,
+		},
+		{
+			name:     "qoder whitelist allows mapped final route key",
+			platform: PlatformQoder,
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"claude-opus-4-6": "ultimate",
+				},
+				"model_whitelist": []any{"ultimate"},
+			},
+			requestedModel: "claude-opus-4-6",
+			expected:       true,
+		},
+		{
+			name:     "qoder whitelist rejects unmatched final model",
+			platform: PlatformQoder,
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"claude-opus-4-6": "ultimate",
+				},
+				"model_whitelist": []any{"ultimate"},
+			},
+			requestedModel: "auto",
+			expected:       false,
+		},
+		{
+			name:     "qoder whitelist accepts public alias for final route key",
+			platform: PlatformQoder,
+			credentials: map[string]any{
+				"model_mapping": map[string]any{
+					"claude-opus-4-6": "ultimate",
+				},
+				"model_whitelist": []any{"claude-opus-4-6"},
+			},
+			requestedModel: "ultimate",
+			expected:       true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -281,6 +347,69 @@ func TestAccountIsModelSupported(t *testing.T) {
 			result := account.IsModelSupported(tt.requestedModel)
 			if result != tt.expected {
 				t.Errorf("IsModelSupported(%q) = %v, want %v", tt.requestedModel, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestAccountGetConfiguredRequestModels(t *testing.T) {
+	tests := []struct {
+		name        string
+		platform    string
+		credentials map[string]any
+		expected    []string
+	}{
+		{
+			name: "mapping only returns nil because request space is unrestricted",
+			credentials: map[string]any{
+				"model_mapping": map[string]any{"model-a": "model-b"},
+			},
+			expected: nil,
+		},
+		{
+			name: "explicit whitelist returns whitelist and mapping keys",
+			credentials: map[string]any{
+				"model_mapping":   map[string]any{"model-a": "model-b"},
+				"model_whitelist": []any{"model-b", "model-c"},
+			},
+			expected: []string{"model-a", "model-b", "model-c"},
+		},
+		{
+			name: "explicit empty whitelist returns nil even with mapping",
+			credentials: map[string]any{
+				"model_mapping":   map[string]any{"model-a": "model-b"},
+				"model_whitelist": []any{},
+			},
+			expected: nil,
+		},
+		{
+			name:     "qoder mapping only returns mapping keys for model list display",
+			platform: PlatformQoder,
+			credentials: map[string]any{
+				"model_mapping": map[string]any{"claude-opus-4-6": "ultimate"},
+			},
+			expected: []string{"claude-opus-4-6"},
+		},
+		{
+			name:     "qoder explicit mapping returns mapping keys for model list display",
+			platform: PlatformQoder,
+			credentials: map[string]any{
+				"model_mapping":   map[string]any{"claude-opus-4-6": "ultimate"},
+				"model_whitelist": []any{"ultimate"},
+			},
+			expected: []string{"claude-opus-4-6"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			account := &Account{
+				Platform:    tt.platform,
+				Credentials: tt.credentials,
+			}
+			result := account.GetConfiguredRequestModels()
+			if !reflect.DeepEqual(result, tt.expected) {
+				t.Fatalf("GetConfiguredRequestModels() = %#v, want %#v", result, tt.expected)
 			}
 		})
 	}
@@ -381,6 +510,86 @@ func TestAccountGetMappedModel(t *testing.T) {
 				t.Errorf("GetMappedModel(%q) = %q, want %q", tt.requestedModel, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestAccountGetModelMapping_AntigravityNormalizesGemini31ProAliases(t *testing.T) {
+	t.Parallel()
+
+	account := &Account{
+		Platform: PlatformAntigravity,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{
+				domain.AntigravityGemini31ProAgentModel: domain.AntigravityGemini31ProAgentModel,
+				"gemini-3.1-pro-high":                   "gemini-3.1-pro-high",
+				"gemini-3.1-pro-preview":                "gemini-3.1-pro-high",
+			},
+		},
+	}
+
+	mapping := account.GetModelMapping()
+
+	if got := mapping["gemini-3.1-pro"]; got != domain.AntigravityGemini31ProAgentModel {
+		t.Fatalf("expected gemini-3.1-pro to map to %q, got %q", domain.AntigravityGemini31ProAgentModel, got)
+	}
+	if got := mapping["gemini-3.1-pro-high"]; got != domain.AntigravityGemini31ProAgentModel {
+		t.Fatalf("expected gemini-3.1-pro-high to map to %q, got %q", domain.AntigravityGemini31ProAgentModel, got)
+	}
+	if got := mapping["gemini-3.1-pro-preview"]; got != domain.AntigravityGemini31ProAgentModel {
+		t.Fatalf("expected gemini-3.1-pro-preview to map to %q, got %q", domain.AntigravityGemini31ProAgentModel, got)
+	}
+}
+
+func TestAccountGetModelMapping_AntigravityPreservesGemini31ProOverrides(t *testing.T) {
+	t.Parallel()
+
+	account := &Account{
+		Platform: PlatformAntigravity,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{
+				domain.AntigravityGemini31ProAgentModel: domain.AntigravityGemini31ProAgentModel,
+				"gemini-3.1-pro-high":                   "custom-high",
+				"gemini-3.1-pro-preview":                "custom-preview",
+			},
+		},
+	}
+
+	mapping := account.GetModelMapping()
+
+	if got := mapping["gemini-3.1-pro-high"]; got != "custom-high" {
+		t.Fatalf("expected gemini-3.1-pro-high override to be preserved, got %q", got)
+	}
+	if got := mapping["gemini-3.1-pro-preview"]; got != "custom-preview" {
+		t.Fatalf("expected gemini-3.1-pro-preview override to be preserved, got %q", got)
+	}
+	if got := mapping["gemini-3.1-pro"]; got != domain.AntigravityGemini31ProAgentModel {
+		t.Fatalf("expected gemini-3.1-pro alias to default to %q, got %q", domain.AntigravityGemini31ProAgentModel, got)
+	}
+}
+
+func TestAccountGetModelMapping_AntigravityGemini31ProAliasesRespectWildcard(t *testing.T) {
+	t.Parallel()
+
+	account := &Account{
+		Platform: PlatformAntigravity,
+		Credentials: map[string]any{
+			"model_mapping": map[string]any{
+				domain.AntigravityGemini31ProAgentModel: domain.AntigravityGemini31ProAgentModel,
+				"gemini-3.1-*":                          "custom-wildcard",
+			},
+		},
+	}
+
+	mapping := account.GetModelMapping()
+
+	if got := mapping["gemini-3.1-pro"]; got != "" {
+		t.Fatalf("expected gemini-3.1-pro exact alias to stay unset when wildcard exists, got %q", got)
+	}
+	if got := mapping["gemini-3.1-pro-high"]; got != "" {
+		t.Fatalf("expected gemini-3.1-pro-high exact alias to stay unset when wildcard exists, got %q", got)
+	}
+	if got := mapping["gemini-3.1-pro-preview"]; got != "" {
+		t.Fatalf("expected gemini-3.1-pro-preview exact alias to stay unset when wildcard exists, got %q", got)
 	}
 }
 

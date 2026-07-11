@@ -9,20 +9,29 @@
     <!-- Logo/Brand -->
     <div class="sidebar-header" :class="{ 'sidebar-header-collapsed': sidebarCollapsed }">
       <!-- Custom Logo or Default Logo -->
-      <div class="sidebar-logo flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl shadow-glow">
+      <router-link
+        :to="homePath"
+        class="sidebar-logo flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl shadow-glow transition-opacity hover:opacity-80"
+        @click="handleMenuItemClick(homePath)"
+      >
         <img v-if="settingsLoaded" :src="siteLogo || '/logo.png'" alt="Logo" class="h-full w-full object-contain" />
-      </div>
+      </router-link>
       <div class="sidebar-brand" :class="{ 'sidebar-brand-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
-        <span class="sidebar-brand-title text-lg font-bold text-gray-900 dark:text-white">
+        <router-link
+          :to="homePath"
+          :tabindex="sidebarCollapsed ? -1 : undefined"
+          class="sidebar-brand-title text-lg font-bold text-gray-900 transition-colors hover:text-primary-600 dark:text-white dark:hover:text-primary-400"
+          @click="handleMenuItemClick(homePath)"
+        >
           {{ siteName }}
-        </span>
+        </router-link>
         <!-- Version Badge -->
         <VersionBadge :version="siteVersion" />
       </div>
     </div>
 
     <!-- Navigation -->
-    <nav class="sidebar-nav scrollbar-hide">
+    <nav ref="sidebarNavRef" class="sidebar-nav scrollbar-hide">
       <!-- Admin View: Admin menu first, then personal menu -->
       <template v-if="isAdmin">
         <!-- Admin Section -->
@@ -140,7 +149,7 @@
     </nav>
 
     <!-- Bottom Section -->
-    <div class="mt-auto border-t border-primary-100 p-3 dark:border-dark-600">
+    <div class="mt-auto border-t border-primary-900/10 p-3 dark:border-dark-600">
       <!-- Theme Toggle -->
       <button
         @click="toggleTheme"
@@ -180,13 +189,15 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, onMounted, ref, watch } from 'vue'
+import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
 import VersionBadge from '@/components/common/VersionBadge.vue'
 import { sanitizeSvg } from '@/utils/sanitize'
+import { sanitizeUrl } from '@/utils/url'
 import { useTheme } from '@/composables/useTheme'
+import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
 
 interface NavItem {
   path: string
@@ -206,18 +217,23 @@ const appStore = useAppStore()
 const authStore = useAuthStore()
 const onboardingStore = useOnboardingStore()
 const adminSettingsStore = useAdminSettingsStore()
+const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
+const sidebarNavRef = ref<HTMLElement | null>(null)
 const { isDark, toggleTheme } = useTheme()
+
+// 品牌入口按当前身份返回对应首页。
+const homePath = computed(() => (isAdmin.value ? '/admin/dashboard' : '/dashboard'))
 
 // Track which parent nav groups are expanded
 const expandedGroups = ref<Set<string>>(new Set())
 
 // Site settings from appStore (cached, no flicker)
 const siteName = computed(() => appStore.siteName)
-const siteLogo = computed(() => appStore.siteLogo)
+const siteLogo = computed(() => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
 const siteVersion = computed(() => appStore.siteVersion)
 const settingsLoaded = computed(() => appStore.publicSettingsLoaded)
 
@@ -262,6 +278,26 @@ const KeyIcon = {
           'stroke-linecap': 'round',
           'stroke-linejoin': 'round',
           d: 'M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z'
+        })
+      ]
+    )
+}
+
+const BatchImageIcon = {
+  render: () =>
+    h(
+      'svg',
+      { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor', 'stroke-width': '1.5' },
+      [
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M6.827 6.175A2.31 2.31 0 015.186 7.23c-.38.054-.757.112-1.134.175C2.999 7.58 2.25 8.507 2.25 9.574V18a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9.574c0-1.067-.75-1.994-1.802-2.169a47.865 47.865 0 00-1.134-.175 2.31 2.31 0 01-1.64-1.055l-.822-1.316a2.25 2.25 0 00-1.906-1.059H9.554a2.25 2.25 0 00-1.906 1.059l-.821 1.316z'
+        }),
+        h('path', {
+          'stroke-linecap': 'round',
+          'stroke-linejoin': 'round',
+          d: 'M16.5 12.75a4.5 4.5 0 11-9 0 4.5 4.5 0 019 0zM18.75 10.5h.008v.008h-.008V10.5z'
         })
       ]
     )
@@ -613,13 +649,17 @@ const ChevronDownIcon = {
     )
 }
 
-// User navigation items (for regular users)
+// 批量图片入口还需要用户 API Key 和分组权限同时满足。
+const flagBatchImageAccess = () => canUseBatchImage.value
+
+// 普通用户导航项。
 const userNavItems = computed((): NavItem[] => {
   const items: NavItem[] = [
     { path: '/dashboard', label: t('nav.dashboard'), icon: DashboardIcon },
     { path: '/models', label: t('nav.modelMarketplace'), icon: ModelMarketplaceIcon },
     { path: '/usage-ranking', label: t('nav.usageRanking'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
+    { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/data-sharing', label: t('nav.dataSharing'), icon: DatabaseIcon, hideInSimpleMode: true },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
@@ -662,7 +702,8 @@ const userNavItems = computed((): NavItem[] => {
       iconSvg: item.icon_svg,
     })),
   ]
-  return authStore.isSimpleMode ? items.filter(item => !item.hideInSimpleMode) : items
+  const visibleItems = items.filter(item => item.featureFlag?.() !== false)
+  return authStore.isSimpleMode ? visibleItems.filter(item => !item.hideInSimpleMode) : visibleItems
 })
 
 // 管理员“我的账户”分组使用的个人导航项
@@ -672,6 +713,7 @@ const personalNavItems = computed((): NavItem[] => {
     { path: '/models', label: t('nav.modelMarketplace'), icon: ModelMarketplaceIcon },
     { path: '/usage-ranking', label: t('nav.usageRanking'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/keys', label: t('nav.apiKeys'), icon: KeyIcon },
+    { path: '/batch-image', label: t('nav.batchImage'), icon: BatchImageIcon, hideInSimpleMode: true, featureFlag: flagBatchImageAccess },
     { path: '/usage', label: t('nav.usage'), icon: ChartIcon, hideInSimpleMode: true },
     { path: '/data-sharing', label: t('nav.dataSharing'), icon: DatabaseIcon, hideInSimpleMode: true },
     { path: '/subscriptions', label: t('nav.mySubscriptions'), icon: CreditCardIcon, hideInSimpleMode: true },
@@ -714,7 +756,8 @@ const personalNavItems = computed((): NavItem[] => {
       iconSvg: item.icon_svg,
     })),
   ]
-  return authStore.isSimpleMode ? items.filter(item => !item.hideInSimpleMode) : items
+  const visibleItems = items.filter(item => item.featureFlag?.() !== false)
+  return authStore.isSimpleMode ? visibleItems.filter(item => !item.hideInSimpleMode) : visibleItems
 })
 
 // Custom menu items filtered by visibility
@@ -870,8 +913,23 @@ watch(
 )
 
 onMounted(() => {
+  void refreshBatchImageAccess()
   if (isAdmin.value) {
     adminSettingsStore.fetch()
+  }
+  // 路由切换重新挂载组件后恢复侧边栏滚动位置。
+  if (appStore.sidebarScrollTop > 0 && sidebarNavRef.value) {
+    void nextTick(() => {
+      if (sidebarNavRef.value) {
+        sidebarNavRef.value.scrollTop = appStore.sidebarScrollTop
+      }
+    })
+  }
+})
+
+onBeforeUnmount(() => {
+  if (sidebarNavRef.value) {
+    appStore.sidebarScrollTop = sidebarNavRef.value.scrollTop
   }
 })
 </script>
@@ -953,7 +1011,7 @@ onMounted(() => {
 }
 
 .dark .sidebar-section-title::after {
-  background: rgb(53 64 108);
+  background: rgb(42 46 54);
 }
 
 .sidebar-section-title-text-collapsed {

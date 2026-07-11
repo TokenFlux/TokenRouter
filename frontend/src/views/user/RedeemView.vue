@@ -3,17 +3,17 @@
     <div class="mx-auto max-w-2xl space-y-6">
       <!-- Current Balance Card -->
       <div class="card overflow-hidden">
-        <div class="bg-gradient-to-br from-primary-500 to-primary-600 px-6 py-8 text-center">
+        <div class="px-6 py-8 text-center">
           <div
-            class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm"
+            class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-100 dark:bg-primary-500/15"
           >
-            <BalanceIcon size="xl" class="text-white" />
+            <BalanceIcon size="xl" class="text-primary-600 dark:text-primary-400" />
           </div>
-          <p class="text-sm font-medium text-primary-100">{{ t('redeem.currentBalance') }}</p>
-          <p class="mt-2 text-4xl font-bold text-white">
+          <p class="text-sm font-medium text-primary-900/65 dark:text-dark-300">{{ t('redeem.currentBalance') }}</p>
+          <p class="mt-2 text-4xl font-bold text-dark-950 dark:text-white">
             {{ formatBalanceAmount(user?.balance, { fractionDigits: 2 }) }}
           </p>
-          <p class="mt-2 text-sm text-primary-100">
+          <p class="mt-2 text-sm text-primary-900/65 dark:text-dark-300">
             {{ t('redeem.concurrency') }}: {{ user?.concurrency || 0 }} {{ t('redeem.requests') }}
           </p>
         </div>
@@ -163,22 +163,20 @@
       </transition>
 
       <!-- Information Card -->
-      <div
-        class="card border-primary-200 bg-primary-50 dark:border-primary-800/50 dark:bg-primary-900/20"
-      >
+      <div class="card">
         <div class="p-6">
           <div class="flex items-start gap-4">
             <div
-              class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/30"
+              class="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-500/15"
             >
               <Icon name="infoCircle" size="md" class="text-primary-600 dark:text-primary-400" />
             </div>
             <div class="flex-1">
-              <h3 class="text-sm font-semibold text-primary-800 dark:text-primary-300">
+              <h3 class="text-sm font-semibold text-dark-950 dark:text-white">
                 {{ t('redeem.aboutCodes') }}
               </h3>
               <ul
-                class="mt-2 list-inside list-disc space-y-1 text-sm text-primary-700 dark:text-primary-400"
+                class="mt-2 list-inside list-disc space-y-1 text-sm text-primary-900/70 dark:text-dark-200"
               >
                 <li>{{ t('redeem.codeRule1') }}</li>
                 <li>{{ t('redeem.codeRule2') }}</li>
@@ -187,7 +185,7 @@
                   {{ t('redeem.codeRule4') }}
                   <span
                     v-if="contactInfo"
-                    class="ml-1.5 inline-flex items-center rounded-md bg-primary-200/50 px-2 py-0.5 text-xs font-medium text-primary-800 dark:bg-primary-800/40 dark:text-primary-200"
+                    class="ml-1.5 inline-flex items-center rounded-md bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-800 dark:bg-dark-800 dark:text-dark-100"
                   >
                     {{ contactInfo }}
                   </span>

@@ -142,9 +142,9 @@
                 <!-- Price -->
                 <div class="flex items-baseline gap-2">
                   <span v-if="selectedPlan.original_price" class="text-sm text-gray-400 line-through dark:text-gray-500">
-                    {{ formatSelectedPaymentAmount(selectedPlan.original_price) }}
+                    {{ formatSelectedSubscriptionPaymentAmount(selectedPlan.original_price) }}
                   </span>
-                  <span :class="['text-3xl font-bold', planTextClass]">{{ formatSelectedPaymentAmount(selectedPlan.price) }}</span>
+                  <span :class="['text-3xl font-bold', planTextClass]">{{ formatSelectedSubscriptionPaymentAmount(selectedPlan.price) }}</span>
                   <span class="text-sm text-gray-500 dark:text-gray-400">/ {{ planValiditySuffix }}</span>
                 </div>
                 <!-- Description -->
@@ -214,7 +214,7 @@
                 <div class="space-y-2 text-sm">
                   <div class="flex justify-between">
                     <span class="text-gray-500 dark:text-gray-400">{{ t('payment.amountLabel') }}</span>
-                    <span class="text-gray-900 dark:text-white">{{ formatSelectedPaymentAmount(selectedPlan.price) }}</span>
+                    <span class="text-gray-900 dark:text-white">{{ formatSelectedSubscriptionPaymentAmount(selectedPlan.price) }}</span>
                   </div>
                   <div v-if="subscriptionFeeBreakdown.fixedFee > 0" class="flex justify-between">
                     <span class="text-gray-500 dark:text-gray-400">{{ t('payment.fixedFee') }}</span>
@@ -345,7 +345,7 @@ import type { UserSubscription } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import AmountInput from '@/components/payment/AmountInput.vue'
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector.vue'
-import { METHOD_ORDER, getPaymentPopupFeatures } from '@/components/payment/providerConfig'
+import { METHOD_ORDER, getPaymentPopupFeatures, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from '@/components/payment/providerConfig'
 import {
   PAYMENT_RECOVERY_STORAGE_KEY,
   buildCreateOrderPayload,
@@ -363,7 +363,7 @@ import PaymentStatusPanel from '@/components/payment/PaymentStatusPanel.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
-import { formatPaymentAmount, normalizePaymentCurrency, paymentCurrencyFractionDigits } from '@/components/payment/currency'
+import { DEFAULT_PAYMENT_CURRENCY, formatPaymentAmount, normalizePaymentCurrency, paymentCurrencyFractionDigits } from '@/components/payment/currency'
 import type { PaymentMethodOption } from '@/components/payment/PaymentMethodSelector.vue'
 import { buildPaymentErrorToastMessage, describePaymentScenarioError } from './paymentUx'
 import { hasWechatResumeQuery, parseWechatResumeRoute, stripWechatResumeQuery } from './paymentWechatResume'
@@ -585,7 +585,7 @@ function onPaymentSettled() {
 // All checkout data from single API call
 const checkout = ref<CheckoutInfoResponse>({
   methods: {}, global_min: 0, global_max: 0,
-  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, recharge_fee_rate: 0, method_fees: {}, help_text: '', help_image_url: '', stripe_publishable_key: '',
+  plans: [], balance_disabled: false, balance_recharge_multiplier: 1, subscription_usd_to_cny_rate: 0, recharge_fee_rate: 0, method_fees: {}, help_text: '', help_image_url: '', stripe_publishable_key: '',
 })
 
 const tabs = computed(() => {
@@ -601,6 +601,11 @@ const validAmount = computed(() => amount.value ?? 0)
 const balanceRechargeMultiplier = computed(() => {
   const multiplier = checkout.value.balance_recharge_multiplier
   return multiplier > 0 ? multiplier : 1
+})
+// 订阅 CNY 换算汇率（1 USD = X CNY）。0 = 未配置，订阅保持 price 直付（与后端 opt-in 条件严格镜像）。
+const subscriptionUsdToCnyRate = computed(() => {
+  const rate = checkout.value.subscription_usd_to_cny_rate
+  return Number.isFinite(rate) && rate > 0 ? rate : 0
 })
 const creditedAmount = computed(() => Math.round((validAmount.value * balanceRechargeMultiplier.value) * 100) / 100)
 const renderedHelpText = computed(() => {
@@ -719,16 +724,25 @@ const localeCode = computed(() => {
   return undefined
 })
 
+function subscriptionPaymentAmountForCurrency(value: number, currency: string): number {
+  const rate = subscriptionUsdToCnyRate.value
+  if (rate <= 0 || currency !== DEFAULT_PAYMENT_CURRENCY) return roundMoneyForCurrency(value, currency)
+  return roundMoneyForCurrency(value * rate, currency)
+}
 function formatSelectedPaymentAmount(value: number): string {
   return formatPaymentAmount(value, selectedCurrency.value, localeCode.value)
 }
 
+function formatSelectedSubscriptionPaymentAmount(value: number): string {
+  return formatSelectedPaymentAmount(subscriptionPaymentAmountForCurrency(value, selectedCurrency.value))
+}
 const methodOptions = computed<PaymentMethodOption[]>(() =>
   enabledMethods.value.map((type) => {
     const ml = visibleMethods.value[type]
     return {
       type,
       fee_fixed: ml?.fee_fixed ?? 0,
+      display_name: ml?.display_name,
       fee_rate: ml?.fee_rate ?? 0,
       available: ml?.available !== false && amountFitsMethod(validAmount.value, type),
     }
@@ -802,21 +816,27 @@ const canSubmit = computed(() =>
     && (!isStripeSelected.value || (billingInfo.name.trim() !== '' && billingInfo.email.trim() !== ''))
 )
 
-// Subscription-specific: method options based on plan price
+// 订阅方式限额按换算后的网关实扣金额（含手续费）判断。
 const subMethodOptions = computed<PaymentMethodOption[]>(() => {
   const planPrice = selectedPlan.value?.price ?? 0
   return enabledMethods.value.map((type) => {
     const ml = visibleMethods.value[type]
+    const currency = normalizePaymentCurrency(ml?.currency)
+    const baseAmount = subscriptionPaymentAmountForCurrency(planPrice, currency)
     return {
       type,
       fee_fixed: ml?.fee_fixed ?? 0,
+      display_name: ml?.display_name,
       fee_rate: ml?.fee_rate ?? 0,
-      available: ml?.available !== false && amountFitsMethod(planPrice, type),
+      available: ml?.available !== false && amountFitsMethod(calculateFeeBreakdown(baseAmount, type).payAmount, type),
     }
   })
 })
 
-const subscriptionFeeBreakdown = computed(() => calculateFeeBreakdown(selectedPlan.value?.price ?? 0, selectedMethod.value))
+const subscriptionFeeBreakdown = computed(() => {
+  const baseAmount = subscriptionPaymentAmountForCurrency(selectedPlan.value?.price ?? 0, selectedCurrency.value)
+  return calculateFeeBreakdown(baseAmount, selectedMethod.value)
+})
 const subTotalAmount = computed(() => subscriptionFeeBreakdown.value.payAmount)
 
 const canSubmitSubscription = computed(() =>
@@ -840,8 +860,8 @@ watch(registeredEmail, fillBillingEmailFromUser, { immediate: true })
 const paymentButtonClass = computed(() => {
   const m = selectedMethod.value
   if (!m) return 'btn-primary'
-  if (m.includes('alipay')) return 'btn-alipay'
-  if (m.includes('wxpay')) return 'btn-wxpay'
+  if (isBuiltInAlipayMethod(m)) return 'btn-alipay'
+  if (isBuiltInWxpayMethod(m)) return 'btn-wxpay'
   if (m === 'stripe') return 'btn-stripe'
   if (m === 'airwallex') return 'btn-airwallex'
   return 'btn-primary'
@@ -1341,6 +1361,7 @@ onMounted(async () => {
         paymentState.value = restored
         paymentPhase.value = 'paying'
         const restoredMethod = normalizeVisibleMethod(restored.paymentType)
+          || (visibleMethods.value[restored.paymentType] ? restored.paymentType : '')
         if (restoredMethod) {
           selectedMethod.value = restoredMethod
         }

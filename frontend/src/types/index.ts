@@ -88,6 +88,7 @@ export interface User {
   wechat_bound?: boolean
   role: 'admin' | 'user' // 用户角色
   balance: number // 用户余额
+  frozen_balance?: number // 异步批量任务当前冻结的余额
   concurrency: number // 允许的并发请求数
   rpm_limit?: number // 用户级 RPM 上限（0 表示无限制）；分组未配置时作为兜底
   status: 'active' | 'disabled' // 账号状态
@@ -183,6 +184,16 @@ export interface CustomEndpoint {
   description: string
 }
 
+export interface FooterLink {
+  label: string
+  url: string
+}
+
+export interface FooterLinkGroup {
+  title: string
+  links: FooterLink[]
+}
+
 export interface LoginAgreementDocument {
   id: string
   title: string
@@ -225,6 +236,8 @@ export interface PublicSettings {
   usage_ranking_limit: number
   custom_menu_items: CustomMenuItem[]
   custom_endpoints: CustomEndpoint[]
+  footer_links?: FooterLinkGroup[]
+  footer_text?: string
   linuxdo_oauth_enabled: boolean
   dingtalk_oauth_enabled?: boolean
   wechat_oauth_enabled: boolean
@@ -501,7 +514,7 @@ export interface PaginationConfig {
 
 // ==================== API Key & Group Types ====================
 
-export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok'
+export type GroupPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'qoder' | 'grok'
 export type MarketplacePricingMode = 'token' | 'image' | 'unknown'
 export type MarketplacePriceStatus = 'priced' | 'unpriced'
 
@@ -581,6 +594,8 @@ export interface MarketplaceGroup {
   display_brand: string
   sort_order: number
   rate_multiplier: number
+  image_rate_independent: boolean
+  image_rate_multiplier: number
   official_price_ratio?: number
   official_price_rmb_equivalent?: number
   // 数据共享分组需要在模型广场展示醒目标记，提醒用户该分组会进入采集流程。
@@ -629,11 +644,19 @@ export interface Group {
   status: 'active' | 'inactive'
   // 图片生成计费配置
   allow_image_generation: boolean
+  allow_batch_image_generation: boolean
   image_rate_independent: boolean
   image_rate_multiplier: number
+  batch_image_discount_multiplier: number
+  batch_image_hold_multiplier: number
   image_price_1k: number | null
   image_price_2k: number | null
   image_price_4k: number | null
+  video_rate_independent: boolean
+  video_rate_multiplier: number
+  video_price_480p: number | null
+  video_price_720p: number | null
+  video_price_1080p: number | null
   // 高峰时段倍率配置
   peak_rate_enabled: boolean
   peak_start: string
@@ -695,11 +718,13 @@ export interface ApiKey {
   ip_whitelist: string[]
   ip_blacklist: string[]
   last_used_at: string | null
+  last_used_ip: string | null // 最近一条带 IP 的用量日志。
   quota: number // Quota limit in USD (0 = unlimited)
   quota_used: number // Used quota amount in USD
   expires_at: string | null // Expiration time (null = never expires)
   created_at: string
   updated_at: string
+  current_concurrency: number
   group?: Group
   rate_limit_5h: number
   rate_limit_1d: number
@@ -765,11 +790,19 @@ export interface CreateGroupRequest {
   data_sharing_enabled?: boolean
   session_isolation_enabled?: boolean
   allow_image_generation?: boolean
+  allow_batch_image_generation?: boolean
   image_rate_independent?: boolean
   image_rate_multiplier?: number
+  batch_image_discount_multiplier?: number
+  batch_image_hold_multiplier?: number
   image_price_1k?: number | null
   image_price_2k?: number | null
   image_price_4k?: number | null
+  video_rate_independent?: boolean
+  video_rate_multiplier?: number
+  video_price_480p?: number | null
+  video_price_720p?: number | null
+  video_price_1080p?: number | null
   peak_rate_enabled?: boolean
   peak_start?: string
   peak_end?: string
@@ -807,11 +840,19 @@ export interface UpdateGroupRequest {
   session_isolation_enabled?: boolean
   status?: 'active' | 'inactive'
   allow_image_generation?: boolean
+  allow_batch_image_generation?: boolean
   image_rate_independent?: boolean
   image_rate_multiplier?: number
+  batch_image_discount_multiplier?: number
+  batch_image_hold_multiplier?: number
   image_price_1k?: number | null
   image_price_2k?: number | null
   image_price_4k?: number | null
+  video_rate_independent?: boolean
+  video_rate_multiplier?: number
+  video_price_480p?: number | null
+  video_price_720p?: number | null
+  video_price_1080p?: number | null
   peak_rate_enabled?: boolean
   peak_start?: string
   peak_end?: string
@@ -837,8 +878,8 @@ export interface UpdateGroupRequest {
 
 // ==================== Account & Proxy Types ====================
 
-export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'grok'
-export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock' | 'service_account'
+export type AccountPlatform = 'anthropic' | 'openai' | 'gemini' | 'antigravity' | 'qoder' | 'grok'
+export type AccountType = 'oauth' | 'setup-token' | 'apikey' | 'upstream' | 'bedrock' | 'service_account' | 'cosy'
 export type OAuthAddMethod = 'oauth' | 'setup-token'
 export type ProxyProtocol = 'http' | 'https' | 'socks5' | 'socks5h'
 
@@ -987,6 +1028,13 @@ export interface Account {
   concurrency: number
   load_factor?: number | null
   current_concurrency?: number // Real-time concurrency count from Redis
+  scheduler_score?: {
+    base_score: number
+    sticky_score?: number
+    sticky_score_infinity?: boolean
+    sticky_weighted_enabled: boolean
+  } | null
+  scheduler_scores?: AccountSchedulerGroupScore[] | null
   priority: number
   rate_multiplier?: number // Account billing multiplier (>=0, 0 means free)
   status: 'active' | 'inactive' | 'error'
@@ -1082,6 +1130,16 @@ export interface Account {
   parent_chatgpt_account_id?: string
 }
 
+export interface AccountSchedulerGroupScore {
+  group_id?: number | null
+  group_name?: string
+  group_priority?: number | null
+  base_score: number
+  sticky_score?: number
+  sticky_score_infinity?: boolean
+  sticky_weighted_enabled: boolean
+}
+
 // Account Usage types
 export interface WindowStats {
   requests: number
@@ -1119,6 +1177,7 @@ export interface AccountUsageInfo {
   five_hour: UsageProgress | null
   seven_day: UsageProgress | null
   seven_day_sonnet: UsageProgress | null
+  seven_day_fable?: UsageProgress | null
   gemini_shared_daily?: UsageProgress | null
   gemini_pro_daily?: UsageProgress | null
   gemini_flash_daily?: UsageProgress | null
@@ -1141,6 +1200,47 @@ export interface AccountUsageInfo {
     amount?: number
     minimum_balance?: number
   }> | null
+  qoder_quota?: {
+    user_type?: string
+    usage_type?: string
+    total_usage_percentage?: number
+    is_quota_exceeded?: boolean
+    expires_at?: string | null
+    upgrade_url?: string
+    user_quota?: {
+      total?: number
+      used?: number
+      remaining?: number
+      percentage?: number
+      unit?: string
+      detail_url?: string
+      cap?: number
+      available?: boolean
+    } | null
+    add_on_quota?: {
+      total?: number
+      used?: number
+      remaining?: number
+      percentage?: number
+      unit?: string
+      detail_url?: string
+      cap?: number
+      available?: boolean
+    } | null
+    org_resource_package?: {
+      total?: number
+      used?: number
+      remaining?: number
+      percentage?: number
+      unit?: string
+      detail_url?: string
+      cap?: number
+      available?: boolean
+    } | null
+    is_plan_quota_prorated?: boolean
+    last_updated_at?: string | null
+    snapshot_from_account?: boolean
+  } | null
   // Antigravity 403 forbidden 状态
   is_forbidden?: boolean
   forbidden_reason?: string
@@ -1701,6 +1801,9 @@ export interface UserBreakdownItem {
   user_id: number
   email: string
   requests: number
+  input_tokens: number
+  output_tokens: number
+  cache_tokens: number
   total_tokens: number
   cost: number
   actual_cost: number
@@ -1864,6 +1967,11 @@ export interface UserErrorRequest {
   message: string
   key_name: string
   key_deleted: boolean
+  client_ip?: string
+  group_name?: string
+  request_type?: number
+  stream?: boolean
+  user_agent?: string
 }
 
 export interface UserErrorRequestDetail extends UserErrorRequest {
@@ -1881,6 +1989,9 @@ export interface UserErrorListParams {
   status_code?: number
   category?: string
   api_key_id?: number
+  // 服务端排序,列白名单见后端 opsErrorLogsOrderBy(created_at/model/status_code)
+  sort_by?: string
+  sort_order?: 'asc' | 'desc'
 }
 
 export interface UsageQueryParams {

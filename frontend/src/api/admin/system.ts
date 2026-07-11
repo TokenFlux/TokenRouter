@@ -45,6 +45,20 @@ export interface UpdateResult {
   need_restart: boolean
 }
 
+export interface RollbackVersionInfo {
+  version: string
+  published_at: string
+  html_url: string
+}
+
+/** 获取允许回退的版本，最多返回当前版本之前的 3 个版本。 */
+export async function getRollbackVersions(): Promise<{ versions: RollbackVersionInfo[] }> {
+  const { data } = await apiClient.get<{ versions: RollbackVersionInfo[] }>(
+    '/admin/system/rollback-versions'
+  )
+  return data
+}
+
 /**
  * Perform system update
  * Downloads and applies the latest version
@@ -55,10 +69,14 @@ export async function performUpdate(): Promise<UpdateResult> {
 }
 
 /**
- * Rollback to previous version
+ * 回退到旧版本。
+ * @param version 目标版本，例如 0.1.146；不传时恢复本地备份二进制。
  */
-export async function rollback(): Promise<UpdateResult> {
-  const { data } = await apiClient.post<UpdateResult>('/admin/system/rollback')
+export async function rollback(version?: string): Promise<UpdateResult> {
+  const { data } = await apiClient.post<UpdateResult>(
+    '/admin/system/rollback',
+    version ? { version } : undefined
+  )
   return data
 }
 
@@ -74,6 +92,7 @@ export const systemAPI = {
   getVersion,
   checkUpdates,
   performUpdate,
+  getRollbackVersions,
   rollback,
   restartService
 }

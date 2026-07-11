@@ -3,6 +3,7 @@ package apicompat
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -53,16 +54,17 @@ func AnthropicToResponses(req *AnthropicRequest) (*ResponsesRequest, error) {
 		out.Tools = convertAnthropicToolsToResponses(req.Tools)
 	}
 
-	// Determine reasoning effort: only output_config.effort controls the
-	// level; thinking.type is ignored. Default follows Codex CLI / airgate's
-	// Anthropic bridge shape, which uses medium when unset.
-	// Anthropic levels map 1:1 to OpenAI: low→low, medium→medium, high→high, max→xhigh.
+	// 只使用 output_config.effort 控制推理等级，thinking.type 不参与判断。
+	// 默认值跟随 Codex CLI / airgate 的 Anthropic bridge 形态：未设置时使用 medium。
 	effort := "medium"
 	if req.OutputConfig != nil && req.OutputConfig.Effort != "" {
 		effort = req.OutputConfig.Effort
 	}
+	if isUltraReasoningEffort(effort) {
+		return nil, fmt.Errorf("reasoning effort %q is not supported", strings.TrimSpace(effort))
+	}
 	out.Reasoning = &ResponsesReasoning{
-		Effort:  mapAnthropicEffortToResponses(effort),
+		Effort:  mapAnthropicEffortToResponsesForModel(req.Model, effort),
 		Summary: "auto",
 	}
 
@@ -398,22 +400,99 @@ func extractAnthropicTextFromBlocks(blocks []AnthropicContentBlock) string {
 	return strings.Join(parts, "\n\n")
 }
 
-// mapAnthropicEffortToResponses converts Anthropic reasoning effort levels to
-// OpenAI Responses API effort levels.
-//
-// Both APIs default to "high". The mapping is 1:1 for shared levels;
-// only Anthropic's "max" (Opus 4.6 exclusive) maps to OpenAI's "xhigh"
-// (GPT-5.2+ exclusive) as both represent the highest reasoning tier.
-//
-//	low    → low
-//	medium → medium
-//	high   → high
-//	max    → xhigh
-func mapAnthropicEffortToResponses(effort string) string {
-	if effort == "max" {
+func mapAnthropicEffortToResponsesForModel(model, effort string) string {
+	normalized := strings.ToLower(strings.TrimSpace(effort))
+	switch normalized {
+	case "max":
+		if supportsResponsesMaxReasoningEffort(model) {
+			return "max"
+		}
 		return "xhigh"
+	default:
+		return normalized
 	}
-	return effort // low→low, medium→medium, high→high, unknown→passthrough
+}
+
+func supportsResponsesMaxReasoningEffort(model string) bool {
+	return isResponsesGPTModelAtLeastVersion(model, 5, 6)
+}
+
+func isResponsesGPTModelAtLeastVersion(model string, minMajor, minMinor int) bool {
+	major, minor, ok := parseResponsesGPTModelVersion(model)
+	if !ok {
+		return false
+	}
+	if major != minMajor {
+		return major > minMajor
+	}
+	return minor >= minMinor
+}
+
+func parseResponsesGPTModelVersion(model string) (major int, minor int, ok bool) {
+	normalized := normalizeResponsesGPTModel(model)
+	if normalized == "" || !strings.HasPrefix(normalized, "gpt-") {
+		return 0, 0, false
+	}
+
+	rest := strings.TrimPrefix(normalized, "gpt-")
+	majorEnd := 0
+	for majorEnd < len(rest) && rest[majorEnd] >= '0' && rest[majorEnd] <= '9' {
+		majorEnd++
+	}
+	if majorEnd == 0 {
+		return 0, 0, false
+	}
+
+	major, err := strconv.Atoi(rest[:majorEnd])
+	if err != nil {
+		return 0, 0, false
+	}
+
+	minor = 0
+	if majorEnd < len(rest) && rest[majorEnd] == '.' {
+		minorStart := majorEnd + 1
+		minorEnd := minorStart
+		for minorEnd < len(rest) && rest[minorEnd] >= '0' && rest[minorEnd] <= '9' {
+			minorEnd++
+		}
+		if minorEnd == minorStart {
+			return 0, 0, false
+		}
+		minor, err = strconv.Atoi(rest[minorStart:minorEnd])
+		if err != nil {
+			return 0, 0, false
+		}
+	}
+
+	return major, minor, true
+}
+
+func normalizeResponsesGPTModel(model string) string {
+	normalized := strings.ToLower(strings.TrimSpace(model))
+	if strings.Contains(normalized, "/") {
+		parts := strings.Split(normalized, "/")
+		normalized = strings.TrimSpace(parts[len(parts)-1])
+	}
+	normalized = strings.ReplaceAll(normalized, "_", "-")
+	normalized = strings.Join(strings.Fields(normalized), "-")
+	for strings.Contains(normalized, "--") {
+		normalized = strings.ReplaceAll(normalized, "--", "-")
+	}
+	if strings.HasPrefix(normalized, "gpt5") {
+		normalized = "gpt-5" + strings.TrimPrefix(normalized, "gpt5")
+	}
+	replacements := []struct {
+		from string
+		to   string
+	}{
+		{"gpt-5.6sol", "gpt-5.6-sol"},
+		{"gpt-5.6terra", "gpt-5.6-terra"},
+		{"gpt-5.6luna", "gpt-5.6-luna"},
+	}
+	for _, replacement := range replacements {
+		normalized = strings.ReplaceAll(normalized, replacement.from, replacement.to)
+	}
+	return normalized
 }
 
 // convertAnthropicToolsToResponses maps Anthropic tool definitions to

@@ -23,6 +23,7 @@ const (
 	PlatformGemini      = "gemini"
 	PlatformAntigravity = "antigravity"
 	PlatformGrok        = "grok"
+	PlatformQoder       = "qoder"
 )
 
 // Account type constants
@@ -33,6 +34,7 @@ const (
 	AccountTypeUpstream       = "upstream"        // 上游透传类型账号（通过 Base URL + API Key 连接上游）
 	AccountTypeBedrock        = "bedrock"         // AWS Bedrock 类型账号（通过 SigV4 签名或 API Key 连接 Bedrock，由 credentials.auth_mode 区分）
 	AccountTypeServiceAccount = "service_account" // Google Service Account 类型账号（用于 Vertex AI）
+	AccountTypeCosy           = "cosy"            // Qoder COSY 协议账号
 )
 
 // Redeem type constants
@@ -69,6 +71,9 @@ const (
 	SubscriptionStatusSuspended = "suspended"
 )
 
+// AntigravityGemini31ProAgentModel 是 Gemini 3.1 Pro High 的实际上游路由模型。
+const AntigravityGemini31ProAgentModel = "gemini-pro-agent"
+
 // DefaultAntigravityModelMapping 是 Antigravity 平台的默认模型映射
 // 当账号未配置 model_mapping 时使用此默认值
 // 与前端 useModelWhitelist.ts 中的 antigravityDefaultMappings 保持一致
@@ -104,10 +109,12 @@ var DefaultAntigravityModelMapping = map[string]string{
 	"gemini-3-flash-preview": "gemini-3-flash",
 	"gemini-3-pro-preview":   "gemini-3-pro-high",
 	// Gemini 3.1 白名单
-	"gemini-3.1-pro-high": "gemini-3.1-pro-high",
-	"gemini-3.1-pro-low":  "gemini-3.1-pro-low",
+	AntigravityGemini31ProAgentModel: AntigravityGemini31ProAgentModel,
+	"gemini-3.1-pro":                 AntigravityGemini31ProAgentModel,
+	"gemini-3.1-pro-high":            AntigravityGemini31ProAgentModel,
+	"gemini-3.1-pro-low":             "gemini-3.1-pro-low",
 	// Gemini 3.1 preview 映射
-	"gemini-3.1-pro-preview": "gemini-3.1-pro-high",
+	"gemini-3.1-pro-preview": AntigravityGemini31ProAgentModel,
 	// Gemini 3.1 image 白名单
 	"gemini-3.1-flash-image": "gemini-3.1-flash-image",
 	// Gemini 3.1 image preview 映射

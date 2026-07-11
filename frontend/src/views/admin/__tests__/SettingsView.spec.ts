@@ -204,6 +204,23 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.openaiQuotaAutoPause.default7d": "默认 7d 用量阈值 (%)",
     "admin.settings.openaiQuotaAutoPause.thresholdHint": "取值 0-100，留空或 0 表示不启用全局默认阈值。",
     "admin.settings.openaiQuotaAutoPause.rangeError": "OpenAI 配额自动暂停阈值必须在 0-100 之间",
+    "admin.settings.openaiExperimentalScheduler.stickyWeightedTitle": "粘性加权",
+    "admin.settings.openaiExperimentalScheduler.stickyWeightedDescription": "开启后 previous_response_id 和 session_hash 粘性进入高级调度打分；关闭时仍按旧逻辑硬命中粘性账号。",
+    "admin.settings.openaiExperimentalScheduler.subscriptionPriorityTitle": "订阅优先",
+    "admin.settings.openaiExperimentalScheduler.subscriptionPriorityDescription": "开启后先在 ChatGPT 订阅账号池中按权值选取；订阅池拿不到席位时再回退到非订阅账号池。",
+    "admin.settings.openaiExperimentalScheduler.weightsTitle": "调度权值覆盖",
+    "admin.settings.openaiExperimentalScheduler.weightsDescription": "留空时使用配置/环境变量值；配置未设置时使用内置默认值。页面非空设置优先。",
+    "admin.settings.openaiExperimentalScheduler.defaultPlaceholder": "配置/默认：{value}",
+    "admin.settings.openaiExperimentalScheduler.topKLabel": "TopK",
+    "admin.settings.openaiExperimentalScheduler.priorityWeight": "优先级",
+    "admin.settings.openaiExperimentalScheduler.loadWeight": "负载",
+    "admin.settings.openaiExperimentalScheduler.queueWeight": "排队",
+    "admin.settings.openaiExperimentalScheduler.errorRateWeight": "错误率",
+    "admin.settings.openaiExperimentalScheduler.ttftWeight": "首包延迟",
+    "admin.settings.openaiExperimentalScheduler.resetWeight": "重置窗口",
+    "admin.settings.openaiExperimentalScheduler.quotaHeadroomWeight": "额度余量",
+    "admin.settings.openaiExperimentalScheduler.previousResponseWeight": "previous_response 粘性",
+    "admin.settings.openaiExperimentalScheduler.sessionStickyWeight": "session_hash 粘性",
     "admin.settings.site.uploadImage": "上传图片",
     "admin.settings.site.remove": "移除",
     "admin.settings.platformQuota.platform": "平台",
@@ -487,6 +504,7 @@ const baseSettingsResponse = {
   payment_enabled_types: [],
   payment_balance_disabled: false,
   payment_balance_recharge_multiplier: 1,
+  payment_subscription_usd_to_cny_rate: 0,
   payment_recharge_fee_rate: 0,
   payment_method_fees: {},
   payment_load_balance_strategy: "round-robin",
@@ -504,6 +522,28 @@ const baseSettingsResponse = {
   payment_visible_method_alipay_enabled: true,
   payment_visible_method_wxpay_enabled: true,
   openai_advanced_scheduler_enabled: false,
+  openai_advanced_scheduler_sticky_weighted_enabled: false,
+  openai_advanced_scheduler_subscription_priority_enabled: false,
+  openai_advanced_scheduler_lb_top_k: "",
+  openai_advanced_scheduler_weight_priority: "",
+  openai_advanced_scheduler_weight_load: "",
+  openai_advanced_scheduler_weight_queue: "",
+  openai_advanced_scheduler_weight_error_rate: "",
+  openai_advanced_scheduler_weight_ttft: "",
+  openai_advanced_scheduler_weight_reset: "",
+  openai_advanced_scheduler_weight_quota_headroom: "",
+  openai_advanced_scheduler_weight_previous_response: "",
+  openai_advanced_scheduler_weight_session_sticky: "",
+  openai_advanced_scheduler_effective_lb_top_k: "7",
+  openai_advanced_scheduler_effective_weight_priority: "1",
+  openai_advanced_scheduler_effective_weight_load: "1",
+  openai_advanced_scheduler_effective_weight_queue: "0.7",
+  openai_advanced_scheduler_effective_weight_error_rate: "0.8",
+  openai_advanced_scheduler_effective_weight_ttft: "0.5",
+  openai_advanced_scheduler_effective_weight_reset: "0",
+  openai_advanced_scheduler_effective_weight_quota_headroom: "0",
+  openai_advanced_scheduler_effective_weight_previous_response: "5",
+  openai_advanced_scheduler_effective_weight_session_sticky: "3",
   openai_account_quota_auto_pause: {
     default_threshold_5h: 0,
     default_threshold_7d: 0,
@@ -809,6 +849,42 @@ describe("admin SettingsView payment visible method controls", () => {
     expect(updateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         rewrite_message_cache_control: true,
+      }),
+    );
+  });
+
+  it("preserves OpenAI Fast policy user IDs when saving", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      openai_fast_policy_settings: {
+        rules: [
+          {
+            service_tier: "priority",
+            action: "pass",
+            scope: "all",
+            user_ids: [42, 43],
+            model_whitelist: [],
+            fallback_action: "pass",
+          },
+        ],
+      },
+    });
+
+    const wrapper = mountView();
+
+    await flushPromises();
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        openai_fast_policy_settings: {
+          rules: [
+            expect.objectContaining({
+              user_ids: [42, 43],
+            }),
+          ],
+        },
       }),
     );
   });
@@ -1635,7 +1711,7 @@ describe("admin SettingsView platform quota matrix", () => {
     getProviders.mockResolvedValue({ data: [] });
   });
 
-  it("从 baseSettings 加载默认平台配额数据并在 Users tab 渲染 5 平台行", async () => {
+  it("从 baseSettings 加载默认平台配额数据并在 Users tab 渲染 6 平台行", async () => {
     const wrapper = mountView();
     await flushPromises();
     await openUsersTab(wrapper);
@@ -1648,9 +1724,11 @@ describe("admin SettingsView platform quota matrix", () => {
     expect(html).toContain("openai");
     expect(html).toContain("gemini");
     expect(html).toContain("antigravity");
+    expect(html).toContain("qoder");
+    expect(html).toContain("grok");
   });
 
-  it("保存时 updateSettings payload 应包含嵌套 default_platform_quotas 对象（含全 5 平台）", async () => {
+  it("保存时 updateSettings payload 应包含嵌套 default_platform_quotas 对象（含全 6 平台）", async () => {
     const wrapper = mountView();
     await flushPromises();
     await openUsersTab(wrapper);
@@ -1666,7 +1744,7 @@ describe("admin SettingsView platform quota matrix", () => {
     // 应携带嵌套对象，而非扁平字段
     expect(payload).toHaveProperty("default_platform_quotas");
     const quotas = payload["default_platform_quotas"] as Record<string, unknown>;
-    const platforms = ["anthropic", "openai", "gemini", "antigravity", "grok"];
+    const platforms = ["anthropic", "openai", "gemini", "antigravity", "qoder", "grok"];
     for (const p of platforms) {
       expect(quotas).toHaveProperty(p);
       const pq = quotas[p] as Record<string, unknown>;
@@ -1680,13 +1758,13 @@ describe("admin SettingsView platform quota matrix", () => {
     expect(payload).not.toHaveProperty("default_platform_quota_openai_weekly");
   });
 
-  it("加载后 form.default_platform_quotas 含全 5 平台，从嵌套 JSON 正确读取数值", async () => {
+  it("加载后 form.default_platform_quotas 含全 6 平台，从嵌套 JSON 正确读取数值", async () => {
     getSettings.mockResolvedValueOnce({
       ...baseSettingsResponse,
       default_platform_quotas: {
         anthropic: { daily: 5, weekly: null, monthly: null },
         openai:    { daily: null, weekly: 12.5, monthly: null },
-        // gemini / antigravity 缺失 → 应被归一化为全 null
+        // gemini / antigravity / qoder / grok 缺失 → 应被归一化为全 null
       },
     });
 
@@ -1705,6 +1783,8 @@ describe("admin SettingsView platform quota matrix", () => {
     // 缺失平台应补全为 null
     expect(quotas["gemini"]).toEqual({ daily: null, weekly: null, monthly: null });
     expect(quotas["antigravity"]).toEqual({ daily: null, weekly: null, monthly: null });
+    expect(quotas["qoder"]).toEqual({ daily: null, weekly: null, monthly: null });
+    expect(quotas["grok"]).toEqual({ daily: null, weekly: null, monthly: null });
   });
 
   it("空输入（v-model.number 产出 \"\"）在提交时清洗为 null 而非空字符串", async () => {

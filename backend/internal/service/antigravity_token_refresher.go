@@ -12,6 +12,11 @@ const (
 	// antigravityRefreshWindow Antigravity token 提前刷新窗口：15分钟
 	// Google OAuth token 有效期55分钟，提前15分钟刷新
 	antigravityRefreshWindow = 15 * time.Minute
+
+	// 以下 extra 字段记录服务端 401 触发的强制刷新状态及诊断信息。
+	antigravityForceTokenRefreshExtraKey       = "antigravity_force_token_refresh"
+	antigravityForceTokenRefreshReasonExtraKey = "antigravity_force_token_refresh_reason"
+	antigravityForceTokenRefreshAtExtraKey     = "antigravity_force_token_refresh_at"
 )
 
 // AntigravityTokenRefresher 实现 TokenRefresher 接口
@@ -41,6 +46,9 @@ func (r *AntigravityTokenRefresher) NeedsRefresh(account *Account, _ time.Durati
 	if !r.CanRefresh(account) {
 		return false
 	}
+	if accountNeedsAntigravityForceTokenRefresh(account) {
+		return true
+	}
 	expiresAt := account.GetCredentialAsTime("expires_at")
 	if expiresAt == nil {
 		return false
@@ -52,6 +60,32 @@ func (r *AntigravityTokenRefresher) NeedsRefresh(account *Account, _ time.Durati
 			account.ID, expiresAt.Format("2006-01-02 15:04:05"), timeUntilExpiry, antigravityRefreshWindow)
 	}
 	return needsRefresh
+}
+
+// accountNeedsAntigravityForceTokenRefresh 判断账号是否被服务端 401 标记为需要立即刷新。
+func accountNeedsAntigravityForceTokenRefresh(account *Account) bool {
+	return account != nil &&
+		account.Platform == PlatformAntigravity &&
+		account.Type == AccountTypeOAuth &&
+		account.getExtraBool(antigravityForceTokenRefreshExtraKey)
+}
+
+// antigravityForceTokenRefreshExtra 构造强制刷新标记的持久化字段。
+func antigravityForceTokenRefreshExtra(reason string) map[string]any {
+	return map[string]any{
+		antigravityForceTokenRefreshExtraKey:       true,
+		antigravityForceTokenRefreshReasonExtraKey: reason,
+		antigravityForceTokenRefreshAtExtraKey:     time.Now().UTC().Format(time.RFC3339),
+	}
+}
+
+// clearAntigravityForceTokenRefreshExtra 构造清除强制刷新标记的字段更新。
+func clearAntigravityForceTokenRefreshExtra() map[string]any {
+	return map[string]any{
+		antigravityForceTokenRefreshExtraKey:       false,
+		antigravityForceTokenRefreshReasonExtraKey: "",
+		antigravityForceTokenRefreshAtExtraKey:     "",
+	}
 }
 
 // Refresh 执行 token 刷新

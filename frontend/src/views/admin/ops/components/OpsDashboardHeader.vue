@@ -438,9 +438,9 @@ const healthScoreValue = computed<number | null>(() => {
 })
 
 const healthScoreColor = computed(() => {
-  if (isSystemIdle.value) return '#9ca3af' // gray-400
+  if (isSystemIdle.value) return '#A1A1AA' // gray-400
   const score = healthScoreValue.value
-  if (score == null) return '#9ca3af'
+  if (score == null) return '#A1A1AA'
   if (score >= 90) return '#10b981' // green
   if (score >= 60) return '#f59e0b' // yellow
   return '#ef4444' // red

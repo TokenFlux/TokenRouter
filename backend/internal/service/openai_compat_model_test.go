@@ -76,6 +76,11 @@ func TestNormalizeOpenAICompatRequestedModel(t *testing.T) {
 		want  string
 	}{
 		{name: "gpt reasoning alias strips xhigh", input: "gpt-5.4-xhigh", want: "gpt-5.4"},
+		{name: "gpt reasoning alias strips max", input: "gpt-5.6-sol-max", want: "gpt-5.6-sol"},
+		{name: "gpt reasoning alias keeps unsupported ultra", input: "gpt-5.6-terra-ultra", want: "gpt-5.6-terra-ultra"},
+		{name: "gpt luna strips max", input: "gpt-5.6-luna-max", want: "gpt-5.6-luna"},
+		{name: "gpt luna keeps unsupported ultra suffix", input: "gpt-5.6-luna-ultra", want: "gpt-5.6-luna-ultra"},
+		{name: "old gpt keeps unsupported max suffix", input: "gpt-5.5-max", want: "gpt-5.5-max"},
 		{name: "gpt reasoning alias strips none", input: "gpt-5.4-none", want: "gpt-5.4"},
 		{name: "codex max model stays intact", input: "gpt-5.1-codex-max", want: "gpt-5.1-codex-max"},
 		{name: "non openai model unchanged", input: "claude-opus-4-6", want: "claude-opus-4-6"},
@@ -99,6 +104,15 @@ func TestApplyOpenAICompatModelNormalization(t *testing.T) {
 		require.Equal(t, "gpt-5.4", req.Model)
 		require.NotNil(t, req.OutputConfig)
 		require.Equal(t, "max", req.OutputConfig.Effort)
+	})
+
+	t.Run("does not derive unsupported ultra suffix", func(t *testing.T) {
+		req := &apicompat.AnthropicRequest{Model: "gpt-5.6-terra-ultra"}
+
+		applyOpenAICompatModelNormalization(req)
+
+		require.Equal(t, "gpt-5.6-terra-ultra", req.Model)
+		require.Nil(t, req.OutputConfig)
 	})
 
 	t.Run("explicit output config wins over model suffix", func(t *testing.T) {
@@ -379,6 +393,44 @@ func TestForwardAsAnthropic_DoesNotAutoDerivePromptCacheKeyForNonCodexModel(t *t
 	require.Empty(t, upstream.lastReq.Header.Get("session_id"))
 }
 
+// OAuth Messages bridge 映射到非 Codex 模型时也必须保留最小身份头形态。
+func TestForwardAsAnthropic_OAuthNonCodexModelKeepsBridgeIdentityShape(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	body := []byte(`{"model":"claude-sonnet-4-5","max_tokens":16,"messages":[{"role":"user","content":"hello"}],"stream":false}`)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Request.Header.Set("User-Agent", "messages-bridge/1.0")
+
+	upstream := &httpUpstreamRecorder{resp: openAICompatSSECompletedResponse("resp_bridge_identity", "gpt-4o")}
+	svc := &OpenAIGatewayService{
+		httpUpstream: upstream,
+		cfg:          &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}},
+	}
+	account := &Account{
+		ID:          1,
+		Name:        "openai-oauth",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeOAuth,
+		Concurrency: 1,
+		Credentials: map[string]any{
+			"access_token":       "oauth-token",
+			"chatgpt_account_id": "chatgpt-acc",
+		},
+	}
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "gpt-4o")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.NotNil(t, upstream.lastReq)
+	require.Equal(t, "messages-bridge/1.0", upstream.lastReq.Header.Get("User-Agent"))
+	require.Empty(t, upstream.lastReq.Header.Get("originator"))
+	require.Empty(t, upstream.lastReq.Header.Get("OpenAI-Beta"))
+}
+
 func TestForwardAsAnthropic_TrimsFullReplayOnlyForCodexCompatModels(t *testing.T) {
 	t.Parallel()
 	gin.SetMode(gin.TestMode)
@@ -630,11 +682,14 @@ func TestForwardAsAnthropic_ReplaysWithoutContinuationWhenPreviousResponseMissin
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(secondBody))
 	c.Request.Header.Set("Content-Type", "application/json")
 
-	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, secondBody, "stable-cache-key", "gpt-5.3-codex")
+	tlsMatch := TLSFingerprintRouterMatchResult{Matched: true, UpstreamUserAgent: "router-agent"}
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, secondBody, "stable-cache-key", "gpt-5.3-codex", tlsMatch)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	require.Equal(t, "resp_replayed", result.ResponseID)
 	require.Len(t, upstream.requests, 2)
+	require.Equal(t, "router-agent", upstream.requests[0].Header.Get("User-Agent"))
+	require.Equal(t, "router-agent", upstream.requests[1].Header.Get("User-Agent"))
 	require.Equal(t, "resp_missing", gjson.GetBytes(upstream.bodies[0], "previous_response_id").String())
 	require.False(t, gjson.GetBytes(upstream.bodies[1], "previous_response_id").Exists())
 	require.Equal(t, int64(4), gjson.GetBytes(upstream.bodies[1], "input.#").Int())

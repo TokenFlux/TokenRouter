@@ -129,6 +129,13 @@ type UserRepository interface {
 	DisableTotp(ctx context.Context, userID int64) error
 }
 
+// RedeemUserAdjustmentRepository 为负值兑换码提供原子更新，并保证结果不低于 0。
+// 该接口刻意小于 UserRepository，因为常规用量计费允许余额透支。
+type RedeemUserAdjustmentRepository interface {
+	ApplyRedeemBalanceAdjustment(ctx context.Context, id int64, delta float64) error
+	ApplyRedeemConcurrencyAdjustment(ctx context.Context, id int64, delta int) error
+}
+
 type UserAuthIdentityRecord struct {
 	ProviderType    string
 	ProviderKey     string

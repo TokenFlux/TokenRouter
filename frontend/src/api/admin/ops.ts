@@ -935,11 +935,16 @@ export interface OpsErrorLog {
   requested_model?: string
   upstream_model?: string
   request_type?: number | null
+  user_agent?: string
+
+  // 已删除 KEY 所有者(INVALID_API_KEY 归因快照):认证失败行 user_id 为空,
+  // 用户列以此回退显示所有者
+  deleted_key_owner_user_id?: number | null
+  deleted_key_owner_email?: string | null
 }
 
 export interface OpsErrorDetail extends OpsErrorLog {
   error_body: string
-  user_agent: string
 
   // Upstream context (optional; enriched by gateway services)
   upstream_status_code?: number | null
@@ -955,10 +960,8 @@ export interface OpsErrorDetail extends OpsErrorLog {
 
   is_business_limited: boolean
 
-  // 已删除 key 归因信息（INVALID_API_KEY）
+  // 已删除 Key 的归因信息；所有者字段已上移到 OpsErrorLog，供列表用户列回退。
   attempted_key_prefix?: string | null
-  deleted_key_owner_user_id?: number | null
-  deleted_key_owner_email?: string | null
   deleted_key_name?: string | null
 
   // 有效未删除 key 报错时的前缀快照
@@ -1103,6 +1106,8 @@ export type OpsErrorListQueryParams = {
   model?: string
 
   phase?: string
+  // 分类(用户侧粗分类码,如 auth/rate_limit/upstream),后端反查为 phase/type ANY 条件
+  category?: string
   error_owner?: string
   error_source?: string
   resolved?: string
@@ -1111,6 +1116,10 @@ export type OpsErrorListQueryParams = {
   q?: string
   status_codes?: string
   status_codes_other?: string
+
+  // 服务端排序,列白名单见后端 opsErrorLogsOrderBy(created_at/model/status_code)
+  sort_by?: string
+  sort_order?: 'asc' | 'desc'
 }
 
 // Legacy unified endpoints

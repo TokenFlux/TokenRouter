@@ -14,6 +14,7 @@ type User struct {
 	Username      string  `json:"username"`
 	Role          string  `json:"role"`
 	Balance       float64 `json:"balance"`
+	FrozenBalance float64 `json:"frozen_balance"`
 	Concurrency   int     `json:"concurrency"`
 	Status        string  `json:"status"`
 	AllowedGroups []int64 `json:"allowed_groups"`
@@ -60,9 +61,10 @@ type APIKey struct {
 	IPWhitelist []string   `json:"ip_whitelist"`
 	IPBlacklist []string   `json:"ip_blacklist"`
 	LastUsedAt  *time.Time `json:"last_used_at"`
-	Quota       float64    `json:"quota"`      // Quota limit in USD (0 = unlimited)
-	QuotaUsed   float64    `json:"quota_used"` // Used quota amount in USD
-	ExpiresAt   *time.Time `json:"expires_at"` // Expiration time (nil = never expires)
+	LastUsedIP  *string    `json:"last_used_ip"` // 最近一条带 IP 的用量日志。
+	Quota       float64    `json:"quota"`        // Quota limit in USD (0 = unlimited)
+	QuotaUsed   float64    `json:"quota_used"`   // Used quota amount in USD
+	ExpiresAt   *time.Time `json:"expires_at"`   // Expiration time (nil = never expires)
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
 	// 数据共享确认记录，用于前端判断切换分组时是否需要重新弹窗。
@@ -71,6 +73,8 @@ type APIKey struct {
 	DataSharingConfirmedAt      *time.Time `json:"data_sharing_confirmed_at"`
 	// 绑定分组不可用时是否自动回退到同平台默认分组。
 	FallbackToDefaultGroupWhenUnavailable bool `json:"fallback_to_default_group_when_unavailable"`
+	// CurrentConcurrency 表示当前 API Key 的实时活跃请求数。
+	CurrentConcurrency int `json:"current_concurrency"`
 
 	// Rate limit fields
 	RateLimit5h   float64    `json:"rate_limit_5h"`
@@ -107,9 +111,14 @@ type Group struct {
 	SessionIsolationEnabled bool `json:"session_isolation_enabled"`
 
 	// 图片生成计费配置（仅 antigravity 平台使用）
-	AllowImageGeneration bool    `json:"allow_image_generation"`
-	ImageRateIndependent bool    `json:"image_rate_independent"`
-	ImageRateMultiplier  float64 `json:"image_rate_multiplier"`
+	AllowImageGeneration         bool    `json:"allow_image_generation"`
+	AllowBatchImageGeneration    bool    `json:"allow_batch_image_generation"`
+	ImageRateIndependent         bool    `json:"image_rate_independent"`
+	ImageRateMultiplier          float64 `json:"image_rate_multiplier"`
+	BatchImageDiscountMultiplier float64 `json:"batch_image_discount_multiplier"`
+	BatchImageHoldMultiplier     float64 `json:"batch_image_hold_multiplier"`
+	VideoRateIndependent         bool    `json:"video_rate_independent"`
+	VideoRateMultiplier          float64 `json:"video_rate_multiplier"`
 	// 高峰时段倍率配置
 	PeakRateEnabled    bool     `json:"peak_rate_enabled"`
 	PeakStart          string   `json:"peak_start"`
@@ -118,6 +127,9 @@ type Group struct {
 	ImagePrice1K       *float64 `json:"image_price_1k"`
 	ImagePrice2K       *float64 `json:"image_price_2k"`
 	ImagePrice4K       *float64 `json:"image_price_4k"`
+	VideoPrice480P     *float64 `json:"video_price_480p"`
+	VideoPrice720P     *float64 `json:"video_price_720p"`
+	VideoPrice1080P    *float64 `json:"video_price_1080p"`
 
 	// Claude Code 客户端限制
 	ClaudeCodeOnly  bool   `json:"claude_code_only"`

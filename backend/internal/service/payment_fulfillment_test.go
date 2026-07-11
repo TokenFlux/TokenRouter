@@ -14,6 +14,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/paymentauditlog"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -589,45 +590,222 @@ func TestPaymentAmountToleranceForThreeDecimalCurrency(t *testing.T) {
 	assert.InDelta(t, 0.0005, paymentAmountToleranceForCurrency("KWD"), 1e-12)
 }
 
-func TestAlreadyProcessedIgnoresDuplicateSuccessWhileProcessing(t *testing.T) {
-	t.Parallel()
-
+func TestRetryFulfillmentRejectsFreshRechargingLease(t *testing.T) {
 	ctx := context.Background()
-	client := newPaymentOrderLifecycleTestClient(t)
+	client := newPaymentConfigServiceTestClient(t)
+	order := createPaymentFulfillmentSubscriptionOrder(t, ctx, client, OrderStatusRecharging, time.Now())
 
-	user, err := client.User.Create().
-		SetEmail("duplicate-webhook@example.com").
-		SetPasswordHash("hash").
-		SetUsername("duplicate-webhook").
+	svc := &PaymentService{entClient: client}
+	err := svc.RetryFulfillment(ctx, order.ID)
+	require.Error(t, err)
+	require.Equal(t, "CONFLICT", infraerrors.Reason(err))
+
+	reloaded, getErr := client.PaymentOrder.Get(ctx, order.ID)
+	require.NoError(t, getErr)
+	require.Equal(t, OrderStatusRecharging, reloaded.Status)
+}
+
+func TestAlreadyProcessedRecoversStaleRechargingLease(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	ensurePaymentAuditOrderActionUniqueIndex(t, ctx, client)
+	order := createPaymentFulfillmentSubscriptionOrder(
+		t,
+		ctx,
+		client,
+		OrderStatusRecharging,
+		time.Now().Add(-paymentFulfillmentLeaseDuration-time.Minute),
+	)
+	_, err := client.PaymentAuditLog.Create().
+		SetOrderID(strconv.FormatInt(order.ID, 10)).
+		SetAction("SUBSCRIPTION_ASSIGNED").
+		SetDetail(`{"planID":100}`).
+		SetOperator("system").
 		Save(ctx)
 	require.NoError(t, err)
 
-	svc := &PaymentService{entClient: client}
-	for _, status := range []string{OrderStatusPaid, OrderStatusRecharging} {
-		status := status
-		t.Run(status, func(t *testing.T) {
-			order, err := client.PaymentOrder.Create().
-				SetOutTradeNo("sub2_" + status).
-				SetUserID(user.ID).
-				SetUserEmail(user.Email).
-				SetUserName(user.Username).
-				SetAmount(10).
-				SetPayAmount(10).
-				SetFeeRate(0).
-				SetRechargeCode("DUPLICATE-" + status).
-				SetPaymentType(payment.TypeStripe).
-				SetPaymentTradeNo("pi_" + status).
-				SetOrderType(payment.OrderTypeBalance).
-				SetStatus(status).
-				SetExpiresAt(time.Now().Add(time.Hour)).
-				SetClientIP("127.0.0.1").
-				SetSrcHost("api.example.com").
-				Save(ctx)
-			require.NoError(t, err)
-
-			assert.NoError(t, svc.alreadyProcessed(ctx, order))
-		})
+	svc := &PaymentService{
+		entClient:       client,
+		subscriptionSvc: &SubscriptionService{},
 	}
+
+	require.NoError(t, svc.alreadyProcessed(ctx, order))
+	reloaded, err := client.PaymentOrder.Get(ctx, order.ID)
+	require.NoError(t, err)
+	require.Equal(t, OrderStatusCompleted, reloaded.Status)
+}
+
+func TestFulfillmentLeaseVersionRejectsStaleWorker(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	staleAt := time.Now().Add(-paymentFulfillmentLeaseDuration - time.Minute)
+	order := createPaymentFulfillmentSubscriptionOrder(t, ctx, client, OrderStatusRecharging, staleAt)
+	svc := &PaymentService{entClient: client}
+
+	firstLease, err := svc.acquirePaymentFulfillmentLease(ctx, order)
+	require.NoError(t, err)
+	require.NotNil(t, firstLease)
+
+	_, err = client.PaymentOrder.UpdateOneID(order.ID).SetUpdatedAt(staleAt).Save(ctx)
+	require.NoError(t, err)
+	time.Sleep(time.Millisecond)
+	staleOrder, err := client.PaymentOrder.Get(ctx, order.ID)
+	require.NoError(t, err)
+	secondLease, err := svc.acquirePaymentFulfillmentLease(ctx, staleOrder)
+	require.NoError(t, err)
+	require.NotNil(t, secondLease)
+	require.False(t, firstLease.version.Equal(secondLease.version))
+
+	err = svc.markCompleted(ctx, order, firstLease, "SUBSCRIPTION_SUCCESS")
+	require.Error(t, err)
+	require.Equal(t, "CONFLICT", infraerrors.Reason(err))
+	svc.markFailed(ctx, order.ID, firstLease, errors.New("stale worker failure"))
+
+	reloaded, err := client.PaymentOrder.Get(ctx, order.ID)
+	require.NoError(t, err)
+	require.Equal(t, OrderStatusRecharging, reloaded.Status)
+	require.NoError(t, svc.markCompleted(ctx, order, secondLease, "SUBSCRIPTION_SUCCESS"))
+}
+
+func TestExecuteBalanceFulfillmentRecoversAfterRedeemWithoutCreditingAgain(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	ensurePaymentAuditOrderActionUniqueIndex(t, ctx, client)
+	staleAt := time.Now().Add(-paymentFulfillmentLeaseDuration - time.Minute)
+	order := createPaymentFulfillmentSubscriptionOrder(t, ctx, client, OrderStatusRecharging, staleAt)
+	order, err := client.PaymentOrder.UpdateOneID(order.ID).
+		SetOrderType(payment.OrderTypeBalance).
+		ClearPlanID().
+		SetUpdatedAt(staleAt).
+		Save(ctx)
+	require.NoError(t, err)
+
+	redeemRepo := &redeemCodeRepoStub{codesByCode: map[string]*RedeemCode{
+		order.RechargeCode: {
+			ID:        101,
+			Code:      order.RechargeCode,
+			Type:      RedeemTypeBalance,
+			Value:     order.Amount,
+			Status:    StatusUsed,
+			MaxUses:   1,
+			UsedCount: 1,
+		},
+	}}
+	svc := &PaymentService{
+		entClient:     client,
+		redeemService: &RedeemService{redeemRepo: redeemRepo},
+	}
+
+	require.NoError(t, svc.ExecuteBalanceFulfillment(ctx, order.ID))
+	require.Empty(t, redeemRepo.useCalls, "an already-used order code must not be redeemed again")
+	reloaded, err := client.PaymentOrder.Get(ctx, order.ID)
+	require.NoError(t, err)
+	require.Equal(t, OrderStatusCompleted, reloaded.Status)
+}
+
+func TestExecuteSubscriptionFulfillmentRecoversCommittedAssignmentWithoutExtendingAgain(t *testing.T) {
+	ctx := context.Background()
+	client := newPaymentConfigServiceTestClient(t)
+	ensurePaymentAuditOrderActionUniqueIndex(t, ctx, client)
+	staleAt := time.Now().Add(-paymentFulfillmentLeaseDuration - time.Minute)
+	order := createPaymentFulfillmentSubscriptionOrder(t, ctx, client, OrderStatusRecharging, staleAt)
+
+	expiresAt := time.Now().Add(30 * 24 * time.Hour).Truncate(time.Second)
+	sourceOrderID := order.ID
+	subRepo := newSubscriptionUserSubRepoStub()
+	subRepo.seed(&UserSubscription{
+		ID:            99,
+		UserID:        order.UserID,
+		PlanID:        *order.PlanID,
+		StartsAt:      time.Now().Add(-time.Hour),
+		ExpiresAt:     expiresAt,
+		Status:        SubscriptionStatusActive,
+		SourceOrderID: &sourceOrderID,
+		Notes:         "payment order already assigned",
+	})
+	svc := &PaymentService{
+		entClient:       client,
+		subscriptionSvc: NewSubscriptionService(groupRepoNoop{}, subRepo, nil, nil, nil),
+	}
+
+	require.NoError(t, svc.ExecuteSubscriptionFulfillment(ctx, order.ID))
+	assertPaymentSubscriptionExpiry(t, subRepo, order, expiresAt)
+
+	assignmentAuditCount, err := client.PaymentAuditLog.Query().
+		Where(
+			paymentauditlog.OrderIDEQ(strconv.FormatInt(order.ID, 10)),
+			paymentauditlog.ActionEQ("SUBSCRIPTION_ASSIGNED"),
+		).
+		Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, assignmentAuditCount)
+
+	// 模拟完成后再次恢复过期租约，持久化审计必须保证订阅权益不会重复发放。
+	_, err = client.PaymentOrder.UpdateOneID(order.ID).
+		SetStatus(OrderStatusRecharging).
+		SetUpdatedAt(staleAt).
+		ClearCompletedAt().
+		Save(ctx)
+	require.NoError(t, err)
+	require.NoError(t, svc.ExecuteSubscriptionFulfillment(ctx, order.ID))
+	assertPaymentSubscriptionExpiry(t, subRepo, order, expiresAt)
+
+	assignmentAuditCount, err = client.PaymentAuditLog.Query().
+		Where(
+			paymentauditlog.OrderIDEQ(strconv.FormatInt(order.ID, 10)),
+			paymentauditlog.ActionEQ("SUBSCRIPTION_ASSIGNED"),
+		).
+		Count(ctx)
+	require.NoError(t, err)
+	require.Equal(t, 1, assignmentAuditCount)
+}
+
+func createPaymentFulfillmentSubscriptionOrder(
+	t *testing.T,
+	ctx context.Context,
+	client *dbent.Client,
+	status string,
+	updatedAt time.Time,
+) *dbent.PaymentOrder {
+	t.Helper()
+	user, err := client.User.Create().
+		SetEmail("fulfillment-" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com").
+		SetPasswordHash("hash").
+		SetUsername("payment-fulfillment-user").
+		Save(ctx)
+	require.NoError(t, err)
+
+	order, err := client.PaymentOrder.Create().
+		SetUserID(user.ID).
+		SetUserEmail(user.Email).
+		SetUserName(user.Username).
+		SetAmount(80).
+		SetPayAmount(80).
+		SetFeeRate(0).
+		SetRechargeCode("PAY-SUB-" + strconv.FormatInt(time.Now().UnixNano(), 10)).
+		SetOutTradeNo("sub2_fulfillment_" + strconv.FormatInt(time.Now().UnixNano(), 10)).
+		SetPaymentType(payment.TypeAlipay).
+		SetPaymentTradeNo("trade-fulfillment").
+		SetOrderType(payment.OrderTypeSubscription).
+		SetPlanID(100).
+		SetStatus(status).
+		SetPaidAt(time.Now().Add(-time.Hour)).
+		SetExpiresAt(time.Now().Add(time.Hour)).
+		SetClientIP("127.0.0.1").
+		SetSrcHost("api.example.com").
+		SetUpdatedAt(updatedAt).
+		Save(ctx)
+	require.NoError(t, err)
+	return order
+}
+
+func assertPaymentSubscriptionExpiry(t *testing.T, repo *subscriptionUserSubRepoStub, order *dbent.PaymentOrder, expected time.Time) {
+	t.Helper()
+	subs, err := repo.ListBySourceOrderID(context.Background(), order.ID)
+	require.NoError(t, err)
+	require.Len(t, subs, 1)
+	sub := subs[0]
+	require.True(t, sub.ExpiresAt.Equal(expected), "subscription expiry changed from %s to %s", expected, sub.ExpiresAt)
 }
 
 func TestExecuteSubscriptionFulfillmentAppliesAffiliateRebate(t *testing.T) {
@@ -647,8 +825,8 @@ func TestExecuteSubscriptionFulfillmentAppliesAffiliateRebate(t *testing.T) {
 		SetUserID(user.ID).
 		SetUserEmail(user.Email).
 		SetUserName(user.Username).
-		SetAmount(120).
-		SetPayAmount(120).
+		SetAmount(9.99).
+		SetPayAmount(71.36).
 		SetFeeRate(0).
 		SetRechargeCode("PAY-SUB-AFFILIATE").
 		SetOutTradeNo("sub2_subscription_affiliate").
@@ -685,7 +863,7 @@ func TestExecuteSubscriptionFulfillmentAppliesAffiliateRebate(t *testing.T) {
 	}
 	settingSvc := NewSettingService(&paymentFulfillmentSettingRepoStub{values: map[string]string{
 		SettingKeyAffiliateEnabled:           "true",
-		SettingKeyAffiliateRebateRate:        "20",
+		SettingKeyAffiliateRebateRate:        "15",
 		SettingKeyAffiliateRebateFreezeHours: "0",
 	}}, nil)
 	subRepo := newSubscriptionUserSubRepoStub()
@@ -705,7 +883,7 @@ func TestExecuteSubscriptionFulfillmentAppliesAffiliateRebate(t *testing.T) {
 	require.Len(t, affiliateRepo.accrueCalls, 1)
 	require.Equal(t, inviterID, affiliateRepo.accrueCalls[0].inviterID)
 	require.Equal(t, user.ID, affiliateRepo.accrueCalls[0].inviteeUserID)
-	require.Equal(t, 24.0, affiliateRepo.accrueCalls[0].amount)
+	require.InDelta(t, 1.4985, affiliateRepo.accrueCalls[0].amount, 0.00000001)
 	require.NotNil(t, affiliateRepo.accrueCalls[0].sourceOrderID)
 	require.Equal(t, order.ID, *affiliateRepo.accrueCalls[0].sourceOrderID)
 	require.Equal(t, 1, subRepo.createCalls)
@@ -724,8 +902,8 @@ func TestExecuteSubscriptionFulfillmentAppliesAffiliateRebate(t *testing.T) {
 		Where(paymentauditlog.OrderIDEQ(strconv.FormatInt(order.ID, 10)), paymentauditlog.ActionEQ("AFFILIATE_REBATE_APPLIED")).
 		Only(ctx)
 	require.NoError(t, err)
-	require.Contains(t, applied.Detail, `"baseAmount":120`)
-	require.Contains(t, applied.Detail, `"rebateAmount":24`)
+	require.Contains(t, applied.Detail, `"baseAmount":9.99`)
+	require.Contains(t, applied.Detail, `"rebateAmount":1.4985`)
 }
 
 func TestExecuteSubscriptionFulfillmentDoesNotDuplicateWorkAfterLegacySuccessAudit(t *testing.T) {

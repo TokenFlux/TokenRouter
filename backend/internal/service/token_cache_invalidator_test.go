@@ -39,7 +39,7 @@ func (s *geminiTokenCacheStub) ReleaseRefreshLock(ctx context.Context, cacheKey 
 
 func TestCompositeTokenCacheInvalidator_Gemini(t *testing.T) {
 	cache := &geminiTokenCacheStub{}
-	invalidator := NewCompositeTokenCacheInvalidator(cache)
+	invalidator := NewCompositeTokenCacheInvalidator(cache, nil)
 	account := &Account{
 		ID:       10,
 		Platform: PlatformGemini,
@@ -58,7 +58,7 @@ func TestCompositeTokenCacheInvalidator_Gemini(t *testing.T) {
 
 func TestCompositeTokenCacheInvalidator_GeminiWithoutProjectID(t *testing.T) {
 	cache := &geminiTokenCacheStub{}
-	invalidator := NewCompositeTokenCacheInvalidator(cache)
+	invalidator := NewCompositeTokenCacheInvalidator(cache, nil)
 	account := &Account{
 		ID:       10,
 		Platform: PlatformGemini,
@@ -76,7 +76,7 @@ func TestCompositeTokenCacheInvalidator_GeminiWithoutProjectID(t *testing.T) {
 
 func TestCompositeTokenCacheInvalidator_Antigravity(t *testing.T) {
 	cache := &geminiTokenCacheStub{}
-	invalidator := NewCompositeTokenCacheInvalidator(cache)
+	invalidator := NewCompositeTokenCacheInvalidator(cache, nil)
 	account := &Account{
 		ID:       99,
 		Platform: PlatformAntigravity,
@@ -92,9 +92,49 @@ func TestCompositeTokenCacheInvalidator_Antigravity(t *testing.T) {
 	require.Equal(t, []string{"ag:ag-project", "ag:account:99"}, cache.deletedKeys)
 }
 
+func TestCompositeTokenCacheInvalidator_QoderCosy(t *testing.T) {
+	cache := &geminiTokenCacheStub{}
+	provider := NewQoderTokenProvider()
+	provider.sessions[42] = qoderSessionCacheEntry{credentialsHash: "old"}
+	invalidator := NewCompositeTokenCacheInvalidator(cache, provider)
+	account := &Account{
+		ID:       42,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+	}
+
+	err := invalidator.InvalidateToken(context.Background(), account)
+
+	require.NoError(t, err)
+	require.Contains(t, cache.deletedKeys, "qoder:account:42")
+	provider.mu.Lock()
+	_, cached := provider.sessions[42]
+	provider.mu.Unlock()
+	require.False(t, cached, "qoder provider session cache should be invalidated too")
+}
+
+func TestCompositeTokenCacheInvalidator_QoderCosyInvalidatesProviderWithoutExternalCache(t *testing.T) {
+	provider := NewQoderTokenProvider()
+	provider.sessions[43] = qoderSessionCacheEntry{credentialsHash: "old"}
+	invalidator := NewCompositeTokenCacheInvalidator(nil, provider)
+	account := &Account{
+		ID:       43,
+		Platform: PlatformQoder,
+		Type:     AccountTypeCosy,
+	}
+
+	err := invalidator.InvalidateToken(context.Background(), account)
+
+	require.NoError(t, err)
+	provider.mu.Lock()
+	_, cached := provider.sessions[43]
+	provider.mu.Unlock()
+	require.False(t, cached)
+}
+
 func TestCompositeTokenCacheInvalidator_AntigravityWithoutProjectID(t *testing.T) {
 	cache := &geminiTokenCacheStub{}
-	invalidator := NewCompositeTokenCacheInvalidator(cache)
+	invalidator := NewCompositeTokenCacheInvalidator(cache, nil)
 	account := &Account{
 		ID:       99,
 		Platform: PlatformAntigravity,
@@ -112,7 +152,7 @@ func TestCompositeTokenCacheInvalidator_AntigravityWithoutProjectID(t *testing.T
 
 func TestCompositeTokenCacheInvalidator_OpenAI(t *testing.T) {
 	cache := &geminiTokenCacheStub{}
-	invalidator := NewCompositeTokenCacheInvalidator(cache)
+	invalidator := NewCompositeTokenCacheInvalidator(cache, nil)
 	account := &Account{
 		ID:       500,
 		Platform: PlatformOpenAI,
@@ -129,7 +169,7 @@ func TestCompositeTokenCacheInvalidator_OpenAI(t *testing.T) {
 
 func TestCompositeTokenCacheInvalidator_Claude(t *testing.T) {
 	cache := &geminiTokenCacheStub{}
-	invalidator := NewCompositeTokenCacheInvalidator(cache)
+	invalidator := NewCompositeTokenCacheInvalidator(cache, nil)
 	account := &Account{
 		ID:       600,
 		Platform: PlatformAnthropic,
@@ -146,7 +186,7 @@ func TestCompositeTokenCacheInvalidator_Claude(t *testing.T) {
 
 func TestCompositeTokenCacheInvalidator_SkipNonOAuth(t *testing.T) {
 	cache := &geminiTokenCacheStub{}
-	invalidator := NewCompositeTokenCacheInvalidator(cache)
+	invalidator := NewCompositeTokenCacheInvalidator(cache, nil)
 
 	tests := []struct {
 		name    string
@@ -198,7 +238,7 @@ func TestCompositeTokenCacheInvalidator_SkipNonOAuth(t *testing.T) {
 
 func TestCompositeTokenCacheInvalidator_SkipUnsupportedPlatform(t *testing.T) {
 	cache := &geminiTokenCacheStub{}
-	invalidator := NewCompositeTokenCacheInvalidator(cache)
+	invalidator := NewCompositeTokenCacheInvalidator(cache, nil)
 	account := &Account{
 		ID:       100,
 		Platform: "unknown-platform",
@@ -211,7 +251,7 @@ func TestCompositeTokenCacheInvalidator_SkipUnsupportedPlatform(t *testing.T) {
 }
 
 func TestCompositeTokenCacheInvalidator_NilCache(t *testing.T) {
-	invalidator := NewCompositeTokenCacheInvalidator(nil)
+	invalidator := NewCompositeTokenCacheInvalidator(nil, nil)
 	account := &Account{
 		ID:       2,
 		Platform: PlatformGemini,
@@ -224,7 +264,7 @@ func TestCompositeTokenCacheInvalidator_NilCache(t *testing.T) {
 
 func TestCompositeTokenCacheInvalidator_NilAccount(t *testing.T) {
 	cache := &geminiTokenCacheStub{}
-	invalidator := NewCompositeTokenCacheInvalidator(cache)
+	invalidator := NewCompositeTokenCacheInvalidator(cache, nil)
 
 	err := invalidator.InvalidateToken(context.Background(), nil)
 	require.NoError(t, err)
@@ -246,7 +286,7 @@ func TestCompositeTokenCacheInvalidator_NilInvalidator(t *testing.T) {
 func TestCompositeTokenCacheInvalidator_DeleteError(t *testing.T) {
 	expectedErr := errors.New("redis connection failed")
 	cache := &geminiTokenCacheStub{deleteErr: expectedErr}
-	invalidator := NewCompositeTokenCacheInvalidator(cache)
+	invalidator := NewCompositeTokenCacheInvalidator(cache, nil)
 
 	tests := []struct {
 		name    string
@@ -283,7 +323,7 @@ func TestCompositeTokenCacheInvalidator_DeleteError(t *testing.T) {
 func TestCompositeTokenCacheInvalidator_AllPlatformsIntegration(t *testing.T) {
 	// 测试所有平台的缓存键生成和删除
 	cache := &geminiTokenCacheStub{}
-	invalidator := NewCompositeTokenCacheInvalidator(cache)
+	invalidator := NewCompositeTokenCacheInvalidator(cache, nil)
 
 	accounts := []*Account{
 		{ID: 1, Platform: PlatformGemini, Type: AccountTypeOAuth, Credentials: map[string]any{"project_id": "gemini-proj"}},

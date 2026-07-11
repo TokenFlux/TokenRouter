@@ -7,6 +7,7 @@ import { apiClient } from "../client";
 import type {
   CustomEndpoint,
   CustomMenuItem,
+  FooterLinkGroup,
   LoginAgreementDocument,
   NotifyEmailEntry,
 } from "@/types";
@@ -26,7 +27,7 @@ type DefaultSubscriptionInput = Partial<DefaultSubscriptionSetting> & {
 };
 
 // ── 平台限额类型 ──────────────────────────────────────────────────
-export type PlatformType = "anthropic" | "openai" | "gemini" | "antigravity" | "grok"
+export type PlatformType = "anthropic" | "openai" | "gemini" | "antigravity" | "qoder" | "grok"
 export type QuotaWindowType = "daily" | "weekly" | "monthly"
 
 /** 单平台三档限额；null = 不限制，undefined = 未填（等价 null） */
@@ -39,9 +40,9 @@ export interface PlatformQuotaLimits {
 /** 全平台默认限额 map（key = PlatformType） */
 export type DefaultPlatformQuotasMap = Partial<Record<PlatformType, PlatformQuotaLimits>>
 
-const PLATFORMS: PlatformType[] = ["anthropic", "openai", "gemini", "antigravity", "grok"]
+const PLATFORMS: PlatformType[] = ["anthropic", "openai", "gemini", "antigravity", "qoder", "grok"]
 
-/** 归一化为全 4 平台 × 3 窗口（缺失填 null），供模板非空绑定 */
+/** 归一化为全平台 × 3 窗口（缺失填 null），供模板非空绑定 */
 export function normalizePlatformQuotasMap(input?: DefaultPlatformQuotasMap | null): DefaultPlatformQuotasMap {
   const result: DefaultPlatformQuotasMap = {}
   for (const p of PLATFORMS) {
@@ -55,7 +56,7 @@ export function normalizePlatformQuotasMap(input?: DefaultPlatformQuotasMap | nu
   return result
 }
 
-/** 提交前清洗：非有限数/负数/空字符串 → null（保留 0 = 显式禁用），返回全 4 平台嵌套 map */
+/** 提交前清洗：非有限数/负数/空字符串 → null（保留 0 = 显式禁用），返回全平台嵌套 map */
 export function sanitizePlatformQuotasMap(input?: DefaultPlatformQuotasMap | null): DefaultPlatformQuotasMap {
   const clean = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null)
   const result: DefaultPlatformQuotasMap = {}
@@ -119,6 +120,7 @@ export interface UserPromptReplacementConfig {
   enabled: boolean;
   rules: UserPromptReplacementRule[];
 }
+
 
 export interface PaymentVisibleMethodSourceOption {
   value: PaymentVisibleMethodSource;
@@ -491,6 +493,8 @@ export interface SystemSettings {
   backend_mode_enabled: boolean;
   custom_menu_items: CustomMenuItem[];
   custom_endpoints: CustomEndpoint[];
+  footer_links: FooterLinkGroup[];
+  footer_text: string;
   // SMTP settings
   smtp_host: string;
   smtp_port: number;
@@ -634,6 +638,7 @@ export interface SystemSettings {
   payment_enabled_types: string[];
   payment_balance_disabled: boolean;
   payment_balance_recharge_multiplier: number;
+  payment_subscription_usd_to_cny_rate: number;
   payment_recharge_fee_rate: number;
   payment_method_fees: Record<string, PaymentMethodFeeConfig>;
   payment_load_balance_strategy: string;
@@ -653,6 +658,28 @@ export interface SystemSettings {
   payment_visible_method_wxpay_enabled?: boolean;
   openai_advanced_scheduler_enabled?: boolean;
   openai_account_quota_auto_pause?: OpenAIQuotaAutoPauseSettings;
+  openai_advanced_scheduler_sticky_weighted_enabled?: boolean;
+  openai_advanced_scheduler_subscription_priority_enabled?: boolean;
+  openai_advanced_scheduler_lb_top_k?: string;
+  openai_advanced_scheduler_weight_priority?: string;
+  openai_advanced_scheduler_weight_load?: string;
+  openai_advanced_scheduler_weight_queue?: string;
+  openai_advanced_scheduler_weight_error_rate?: string;
+  openai_advanced_scheduler_weight_ttft?: string;
+  openai_advanced_scheduler_weight_reset?: string;
+  openai_advanced_scheduler_weight_quota_headroom?: string;
+  openai_advanced_scheduler_weight_previous_response?: string;
+  openai_advanced_scheduler_weight_session_sticky?: string;
+  openai_advanced_scheduler_effective_lb_top_k?: string;
+  openai_advanced_scheduler_effective_weight_priority?: string;
+  openai_advanced_scheduler_effective_weight_load?: string;
+  openai_advanced_scheduler_effective_weight_queue?: string;
+  openai_advanced_scheduler_effective_weight_error_rate?: string;
+  openai_advanced_scheduler_effective_weight_ttft?: string;
+  openai_advanced_scheduler_effective_weight_reset?: string;
+  openai_advanced_scheduler_effective_weight_quota_headroom?: string;
+  openai_advanced_scheduler_effective_weight_previous_response?: string;
+  openai_advanced_scheduler_effective_weight_session_sticky?: string;
 
   // 余额、订阅到期与账号限额通知
   balance_low_notify_enabled: boolean;
@@ -763,6 +790,8 @@ export interface UpdateSettingsRequest {
   backend_mode_enabled?: boolean;
   custom_menu_items?: CustomMenuItem[];
   custom_endpoints?: CustomEndpoint[];
+  footer_links?: FooterLinkGroup[];
+  footer_text?: string;
   smtp_host?: string;
   smtp_port?: number;
   smtp_username?: string;
@@ -882,6 +911,7 @@ export interface UpdateSettingsRequest {
   payment_enabled_types?: string[];
   payment_balance_disabled?: boolean;
   payment_balance_recharge_multiplier?: number;
+  payment_subscription_usd_to_cny_rate?: number;
   payment_recharge_fee_rate?: number;
   payment_method_fees?: Record<string, PaymentMethodFeeConfig>;
   payment_load_balance_strategy?: string;
@@ -901,6 +931,18 @@ export interface UpdateSettingsRequest {
   payment_visible_method_wxpay_enabled?: boolean;
   openai_advanced_scheduler_enabled?: boolean;
   openai_account_quota_auto_pause?: OpenAIQuotaAutoPauseSettings;
+  openai_advanced_scheduler_sticky_weighted_enabled?: boolean;
+  openai_advanced_scheduler_subscription_priority_enabled?: boolean;
+  openai_advanced_scheduler_lb_top_k?: string;
+  openai_advanced_scheduler_weight_priority?: string;
+  openai_advanced_scheduler_weight_load?: string;
+  openai_advanced_scheduler_weight_queue?: string;
+  openai_advanced_scheduler_weight_error_rate?: string;
+  openai_advanced_scheduler_weight_ttft?: string;
+  openai_advanced_scheduler_weight_reset?: string;
+  openai_advanced_scheduler_weight_quota_headroom?: string;
+  openai_advanced_scheduler_weight_previous_response?: string;
+  openai_advanced_scheduler_weight_session_sticky?: string;
   // 余额、订阅到期与账号限额通知
   balance_low_notify_enabled?: boolean;
   balance_low_notify_threshold?: number;
@@ -1336,11 +1378,12 @@ export async function updateRectifierSettings(
  */
 export interface OpenAIFastPolicyRule {
   service_tier: "all" | "priority" | "flex";
-  action: "pass" | "filter" | "block";
+  action: "pass" | "filter" | "block" | "force_priority";
   scope: "all" | "oauth" | "apikey" | "bedrock";
+  user_ids?: number[];
   error_message?: string;
   model_whitelist?: string[];
-  fallback_action?: "pass" | "filter" | "block";
+  fallback_action?: "pass" | "filter" | "block" | "force_priority";
   fallback_error_message?: string;
 }
 

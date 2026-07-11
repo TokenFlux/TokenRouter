@@ -17,6 +17,7 @@ type AdminHandlers struct {
 	OpenAIOAuth           *admin.OpenAIOAuthHandler
 	GeminiOAuth           *admin.GeminiOAuthHandler
 	AntigravityOAuth      *admin.AntigravityOAuthHandler
+	QoderOAuth            *admin.QoderOAuthHandler
 	GrokOAuth             *admin.GrokOAuthHandler
 	Proxy                 *admin.ProxyHandler
 	Redeem                *admin.RedeemHandler
@@ -53,11 +54,13 @@ type Handlers struct {
 	Admin            *AdminHandlers
 	Gateway          *GatewayHandler
 	OpenAIGateway    *OpenAIGatewayHandler
+	QoderGateway     *QoderGatewayHandler
 	Setting          *SettingHandler
 	Totp             *TotpHandler
 	Payment          *PaymentHandler
 	PaymentWebhook   *PaymentWebhookHandler
 	DataSharing      *DataSharingHandler
+	BatchImage       *BatchImageHandler
 }
 
 // BuildInfo contains build-time information

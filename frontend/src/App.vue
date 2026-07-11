@@ -7,6 +7,7 @@ import { resolveRouteDocumentTitle } from '@/router/title'
 import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
 import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminSettingsStore } from '@/stores'
 import { getSetupStatus } from '@/api/setup'
+import { sanitizeUrl } from '@/utils/url'
 
 const router = useRouter()
 const route = useRoute()
@@ -42,7 +43,7 @@ function updateFavicon(logoUrl: string) {
 
 // Watch for site settings changes and update favicon/title
 watch(
-  () => appStore.siteLogo,
+  () => sanitizeUrl(appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }),
   (newLogo) => {
     if (newLogo) {
       updateFavicon(newLogo)

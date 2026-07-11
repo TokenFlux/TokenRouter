@@ -43,8 +43,9 @@ func TestAccountRepository_ListOAuthRefreshCandidates_SQLFilter(t *testing.T) {
 	normalized := normalizeSQLWhitespace(capturedSQL)
 	require.Contains(t, normalized, "deleted_at IS NULL")
 	require.Contains(t, normalized, "status = 'active'")
-	require.Contains(t, normalized, "type = 'oauth'")
-	require.Contains(t, normalized, "platform IN ('anthropic', 'openai', 'gemini', 'antigravity')")
+	// setup-token 的 access_token 同为 8h 短期令牌，必须与 oauth 一起纳入后台刷新候选
+	require.Contains(t, normalized, "(type IN ('oauth', 'setup-token') AND platform IN ('anthropic', 'openai', 'gemini', 'antigravity'))")
+	require.Contains(t, normalized, "OR (platform = 'qoder' AND type = 'cosy')")
 	require.Contains(t, normalized, "credentials ? 'refresh_token'")
 	require.Contains(t, normalized, "btrim(credentials->>'refresh_token') <> ''")
 	require.Contains(t, normalized, "temp_unschedulable_until > NOW()")

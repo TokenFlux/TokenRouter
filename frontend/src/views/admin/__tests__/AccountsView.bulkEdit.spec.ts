@@ -470,9 +470,19 @@ describe('admin AccountsView bulk edit scope', () => {
           schedulable: true,
           created_at: '2026-03-07T10:00:00Z',
           updated_at: '2026-03-07T10:00:00Z'
+        },
+        {
+          id: 4,
+          name: 'qoder-cosy',
+          platform: 'qoder',
+          type: 'cosy',
+          status: 'active',
+          schedulable: true,
+          created_at: '2026-03-07T10:00:00Z',
+          updated_at: '2026-03-07T10:00:00Z'
         }
       ],
-      total: 3,
+      total: 4,
       page: 1,
       page_size: 20,
       pages: 1
@@ -518,7 +528,7 @@ describe('admin AccountsView bulk edit scope', () => {
     await flushPromises()
 
     const checkboxes = wrapper.findAll('input[type="checkbox"]')
-    expect(checkboxes).toHaveLength(3)
+    expect(checkboxes).toHaveLength(4)
     for (const checkbox of checkboxes) {
       await checkbox.setValue(true)
     }
@@ -527,9 +537,10 @@ describe('admin AccountsView bulk edit scope', () => {
     await flushPromises()
     await flushPromises()
 
-    expect(getUsage).toHaveBeenCalledTimes(2)
+    expect(getUsage).toHaveBeenCalledTimes(3)
     expect(getUsage).toHaveBeenCalledWith(1, 'active', true)
     expect(getUsage).toHaveBeenCalledWith(3, 'active', true)
+    expect(getUsage).toHaveBeenCalledWith(4, 'active', true)
     expect(getUsage).not.toHaveBeenCalledWith(2, 'active', true)
     expect(showSuccess).toHaveBeenCalledWith('admin.accounts.bulkActions.queryUsageSuccess')
   })

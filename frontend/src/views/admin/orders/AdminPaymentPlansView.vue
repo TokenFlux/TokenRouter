@@ -91,6 +91,7 @@
     <PlanEditDialog
       :show="showPlanDialog"
       :plan="editingPlan"
+      :payment-config="paymentConfig"
       @close="showPlanDialog = false"
       @saved="loadPlans"
     />
@@ -112,6 +113,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
+import type { AdminPaymentConfig } from '@/api/admin/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import type { SubscriptionPlan } from '@/types/payment'
 import type { Column } from '@/components/common/types'
@@ -124,6 +126,16 @@ import PlanEditDialog from './PlanEditDialog.vue'
 const { t } = useI18n()
 const appStore = useAppStore()
 
+const paymentConfig = ref<AdminPaymentConfig | null>(null)
+
+async function loadPaymentConfig() {
+  try {
+    const res = await adminPaymentAPI.getConfig()
+    paymentConfig.value = res.data
+  } catch {
+    // 支付配置只用于预览，加载失败不影响套餐管理。
+  }
+}
 const plansLoading = ref(false)
 const plans = ref<SubscriptionPlan[]>([])
 const showPlanDialog = ref(false)
@@ -208,6 +220,7 @@ async function handleDeletePlan() {
 }
 
 onMounted(() => {
+  void loadPaymentConfig()
   loadPlans()
 })
 </script>

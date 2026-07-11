@@ -9,6 +9,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 )
 
 const groupModelUnsupportedAvailableModelsLimit = 20
@@ -65,6 +66,8 @@ func defaultRequestModelIDsForPlatform(platform string) []string {
 			ids = append(ids, model.ID)
 		}
 		return ids
+	case PlatformQoder:
+		return qoder.DefaultRequestModelIDs()
 	default:
 		return claude.DefaultModelIDs()
 	}

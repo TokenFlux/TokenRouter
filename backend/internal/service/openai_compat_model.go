@@ -84,6 +84,13 @@ func splitOpenAICompatReasoningModel(model string) (normalizedModel string, reas
 		reasoningEffort = last
 	case "xhigh", "extrahigh":
 		reasoningEffort = "xhigh"
+	case "max":
+		// max 是 GPT-5.6+ 的新增 reasoning 档位；旧模型
+		// gpt-5.1-codex-max 中的 max 是模型名组成部分，不能剥离。
+		if !openAIModelSupportsReasoningEffort(modelID, last) {
+			return trimmed, "", false
+		}
+		reasoningEffort = last
 	default:
 		return trimmed, "", false
 	}
@@ -97,6 +104,8 @@ func openAIReasoningEffortToClaudeOutputEffort(effort string) string {
 		return effort
 	case "xhigh":
 		return "max"
+	case "max":
+		return effort
 	default:
 		return ""
 	}

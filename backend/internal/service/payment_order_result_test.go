@@ -161,6 +161,55 @@ func TestBuildProviderCreatePaymentRequestCopiesExpiresAt(t *testing.T) {
 	}
 }
 
+func TestSanitizeCreatePaymentResponseDetailsRemovesNULBytes(t *testing.T) {
+	t.Parallel()
+
+	resp := &payment.CreatePaymentResponse{
+		TradeNo:       "trade\x00-no",
+		PayURL:        "https://pay.example.com/\x00checkout",
+		QRCode:        "wxp://payment-token\x00",
+		ClientSecret:  "secret\x00unchanged",
+		CustomerID:    "cus\x00-1",
+		InvoiceID:     "in\x00-1",
+		InvoiceURL:    "https://pay.example.com/invoice\x00",
+		InvoicePDF:    "https://pay.example.com/invoice\x00.pdf",
+		InvoiceStatus: "op\x00en",
+	}
+
+	sanitizeCreatePaymentResponseDetails(resp)
+
+	if strings.ContainsRune(resp.TradeNo, 0) {
+		t.Fatalf("trade_no still contains NUL: %q", resp.TradeNo)
+	}
+	if strings.ContainsRune(resp.PayURL, 0) {
+		t.Fatalf("pay_url still contains NUL: %q", resp.PayURL)
+	}
+	if strings.ContainsRune(resp.QRCode, 0) {
+		t.Fatalf("qr_code still contains NUL: %q", resp.QRCode)
+	}
+	if resp.TradeNo != "trade-no" {
+		t.Fatalf("trade_no = %q, want trade-no", resp.TradeNo)
+	}
+	if resp.PayURL != "https://pay.example.com/checkout" {
+		t.Fatalf("pay_url = %q, want sanitized URL", resp.PayURL)
+	}
+	if resp.QRCode != "wxp://payment-token" {
+		t.Fatalf("qr_code = %q, want sanitized QR code", resp.QRCode)
+	}
+	if resp.CustomerID != "cus-1" || resp.InvoiceID != "in-1" {
+		t.Fatalf("stripe ids were not sanitized: customer=%q invoice=%q", resp.CustomerID, resp.InvoiceID)
+	}
+	if resp.InvoiceURL != "https://pay.example.com/invoice" || resp.InvoicePDF != "https://pay.example.com/invoice.pdf" {
+		t.Fatalf("stripe invoice urls were not sanitized: url=%q pdf=%q", resp.InvoiceURL, resp.InvoicePDF)
+	}
+	if resp.InvoiceStatus != "open" {
+		t.Fatalf("invoice_status = %q, want open", resp.InvoiceStatus)
+	}
+	if resp.ClientSecret != "secret\x00unchanged" {
+		t.Fatalf("client_secret = %q, should not be touched by payment detail sanitization", resp.ClientSecret)
+	}
+}
+
 func TestValidateSelectedCreateOrderAmountCurrencyRejectsFractionalZeroDecimal(t *testing.T) {
 	t.Parallel()
 
@@ -208,15 +257,66 @@ func TestCalculateCreateOrderPayAmountForSubscriptionKeepsDirectPriceWithFixedFe
 	}
 }
 
-func TestCalculateCreateOrderPayAmountForSubscriptionAppliesFeeToDirectPrice(t *testing.T) {
+func TestCalculateCreateOrderPayAmountForSubscriptionConvertsCNYPriceWhenRateConfigured(t *testing.T) {
 	t.Parallel()
 
-	_, amountStr, amount, err := calculateCreateOrderPayAmount(69.90, payment.FeeConfig{FeeRate: 2.5}, "CNY")
+	_, amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(9.99, payment.FeeConfig{}, "CNY", payment.OrderTypeSubscription, 7.15)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if amountStr != "71.65" || amount != 71.65 {
-		t.Fatalf("subscription CNY pay amount with fee = (%q, %v), want (71.65, 71.65)", amountStr, amount)
+	if amountStr != "71.43" || amount != 71.43 {
+		t.Fatalf("subscription CNY pay amount = (%q, %v), want (71.43, 71.43)", amountStr, amount)
+	}
+}
+
+func TestCalculateCreateOrderPayAmountForSubscriptionAppliesFeeAfterCNYConversion(t *testing.T) {
+	t.Parallel()
+
+	_, amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(9.99, payment.FeeConfig{FeeRate: 2.5}, "CNY", payment.OrderTypeSubscription, 7.15)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "73.22" || amount != 73.22 {
+		t.Fatalf("subscription CNY pay amount with fee = (%q, %v), want (73.22, 73.22)", amountStr, amount)
+	}
+}
+
+func TestCalculateCreateOrderPayAmountForSubscriptionKeepsNonCNYPrice(t *testing.T) {
+	t.Parallel()
+
+	_, amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(9.99, payment.FeeConfig{}, "USD", payment.OrderTypeSubscription, 7.15)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "9.99" || amount != 9.99 {
+		t.Fatalf("subscription USD pay amount = (%q, %v), want (9.99, 9.99)", amountStr, amount)
+	}
+}
+
+// 换算是 opt-in：未配置汇率（rate=0）时，CNY 订阅保持 price 直付的存量行为。
+// 该测试锁住存量部署升级后行为不变的兼容承诺。
+func TestCalculateCreateOrderPayAmountForSubscriptionKeepsDirectPriceWhenRateDisabled(t *testing.T) {
+	t.Parallel()
+
+	_, amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(9.99, payment.FeeConfig{}, "CNY", payment.OrderTypeSubscription, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "9.99" || amount != 9.99 {
+		t.Fatalf("subscription CNY pay amount without rate = (%q, %v), want (9.99, 9.99)", amountStr, amount)
+	}
+}
+
+// 汇率只作用于订阅订单，余额充值订单不受影响。
+func TestCalculateCreateOrderPayAmountForBalanceIgnoresSubscriptionRate(t *testing.T) {
+	t.Parallel()
+
+	_, amountStr, amount, err := calculateCreateOrderPayAmountForOrderType(50, payment.FeeConfig{}, "CNY", payment.OrderTypeBalance, 7.15)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if amountStr != "50.00" || amount != 50 {
+		t.Fatalf("balance CNY pay amount = (%q, %v), want (50.00, 50)", amountStr, amount)
 	}
 }
 
@@ -346,12 +446,14 @@ func TestMaybeBuildWeChatOAuthRequiredResponse(t *testing.T) {
 	}
 	if resp == nil {
 		t.Fatal("expected oauth_required response, got nil")
+		return
 	}
 	if resp.ResultType != payment.CreatePaymentResultOAuthRequired {
 		t.Fatalf("result type = %q, want %q", resp.ResultType, payment.CreatePaymentResultOAuthRequired)
 	}
 	if resp.OAuth == nil {
 		t.Fatal("expected oauth payload, got nil")
+		return
 	}
 	if resp.OAuth.AppID != "wx123456" {
 		t.Fatalf("appid = %q, want %q", resp.OAuth.AppID, "wx123456")
@@ -460,6 +562,7 @@ func TestMaybeBuildWeChatOAuthRequiredResponseFallsBackToConfiguredLegacySigning
 	}
 	if resp == nil {
 		t.Fatal("expected oauth-required response, got nil")
+		return
 	}
 	if resp.ResultType != payment.CreatePaymentResultOAuthRequired {
 		t.Fatalf("result type = %q, want %q", resp.ResultType, payment.CreatePaymentResultOAuthRequired)

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
-	pkghttputil "github.com/TokenFlux/TokenRouter/internal/pkg/httputil"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -46,7 +45,7 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 		return
 	}
 
-	body, err := pkghttputil.ReadRequestBodyWithPrealloc(c.Request)
+	body, err := readLenientJSONRequestBodyWithPrealloc(c.Request, h.cfg)
 	if err != nil {
 		if maxErr, ok := extractMaxBytesError(err); ok {
 			h.anthropicErrorResponse(c, http.StatusRequestEntityTooLarge, "invalid_request_error", buildBodyTooLargeMessage(maxErr.Limit))
@@ -66,6 +65,7 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 	bodyRef := service.NewRequestBodyRef(body)
 	parsedReq, err := service.ParseGatewayRequest(bodyRef, domain.PlatformAnthropic)
 	if err != nil {
+		logRequestBodyParseFailure(reqLog, body, err)
 		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return
 	}
@@ -112,6 +112,7 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 		nil,
 		service.OpenAIUpstreamTransportAny,
 		service.OpenAIEndpointCapabilityChatCompletions,
+		false,
 		false,
 		requestPlatform,
 	)

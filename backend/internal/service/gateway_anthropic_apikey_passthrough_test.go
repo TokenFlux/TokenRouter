@@ -722,6 +722,43 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_CountTokens404PassthroughNotE
 	}
 }
 
+func TestGatewayService_QoderCountTokensUnsupported(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages/count_tokens", nil)
+	body := []byte(`{"model":"deepseek-v4-pro","messages":[{"role":"user","content":"hi"}]}`)
+	parsed := &ParsedRequest{Body: NewRequestBodyRef(body), Model: "deepseek-v4-pro"}
+	upstream := &anthropicHTTPUpstreamRecorder{
+		resp: &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader(`{"input_tokens":999}`)),
+		},
+	}
+	svc := &GatewayService{httpUpstream: upstream}
+	account := &Account{
+		ID:          301,
+		Name:        "qoder",
+		Platform:    PlatformQoder,
+		Type:        AccountTypeCosy,
+		Concurrency: 1,
+		Status:      StatusActive,
+		Schedulable: true,
+	}
+
+	err := svc.ForwardCountTokens(context.Background(), c, account, parsed)
+
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNotFound, rec.Code)
+	require.Nil(t, upstream.lastReq)
+	var errResp map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errResp))
+	require.Equal(t, "error", errResp["type"])
+	errObj, ok := errResp["error"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "not_found_error", errObj["type"])
+}
+
 func TestGatewayService_AnthropicAPIKeyPassthrough_BuildRequestRejectsInvalidBaseURL(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()

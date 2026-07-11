@@ -1009,9 +1009,7 @@ func TestIsAntigravityAccountSwitchError(t *testing.T) {
 	}
 }
 
-func TestResolveAntigravityForwardBaseURL_DefaultDaily(t *testing.T) {
-	t.Setenv(antigravityForwardBaseURLEnv, "")
-
+func TestResolveAntigravityForwardBaseURL(t *testing.T) {
 	oldBaseURLs := append([]string(nil), antigravity.BaseURLs...)
 	defer func() {
 		antigravity.BaseURLs = oldBaseURLs
@@ -1019,10 +1017,25 @@ func TestResolveAntigravityForwardBaseURL_DefaultDaily(t *testing.T) {
 
 	prodURL := "https://prod.test"
 	dailyURL := "https://daily.test"
-	antigravity.BaseURLs = []string{dailyURL, prodURL}
+	antigravity.BaseURLs = []string{prodURL, dailyURL}
 
-	resolved := resolveAntigravityForwardBaseURL()
-	require.Equal(t, dailyURL, resolved)
+	tests := []struct {
+		name string
+		mode string
+		want string
+	}{
+		{name: "默认生产端点", mode: "", want: prodURL},
+		{name: "旧 prod 配置", mode: "prod", want: prodURL},
+		{name: "显式 daily", mode: "daily", want: dailyURL},
+		{name: "显式 sandbox", mode: "sandbox", want: dailyURL},
+		{name: "未知值回退生产", mode: "unknown", want: prodURL},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(antigravityForwardBaseURLEnv, tt.mode)
+			require.Equal(t, tt.want, resolveAntigravityForwardBaseURL())
+		})
+	}
 }
 
 func TestAntigravityAccountSwitchError_Error(t *testing.T) {

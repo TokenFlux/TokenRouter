@@ -9,6 +9,9 @@ import (
 )
 
 var codexModelMap = map[string]string{
+	"gpt-5.6-sol":                "gpt-5.6-sol",
+	"gpt-5.6-terra":              "gpt-5.6-terra",
+	"gpt-5.6-luna":               "gpt-5.6-luna",
 	"gpt-5.5-pro":                "gpt-5.5-pro",
 	"gpt-5.5":                    "gpt-5.5",
 	"codex-auto-review":          "codex-auto-review",
@@ -58,6 +61,9 @@ var codexVersionModelPrefixes = []struct {
 	prefix string
 	target string
 }{
+	{prefix: "gpt-5.6-sol", target: "gpt-5.6-sol"},
+	{prefix: "gpt-5.6-terra", target: "gpt-5.6-terra"},
+	{prefix: "gpt-5.6-luna", target: "gpt-5.6-luna"},
 	{prefix: "gpt-5.3-codex-spark", target: "gpt-5.3-codex-spark"},
 	{prefix: "gpt-5.3-codex", target: "gpt-5.3-codex"},
 	{prefix: "gpt-5.4-mini", target: "gpt-5.4-mini"},
@@ -526,9 +532,6 @@ func normalizeKnownCodexModel(model string) (string, bool) {
 	if normalized := canonicalizeOpenAIModelAliasSpelling(modelID); normalized != "" {
 		modelID = normalized
 	}
-	if mapped := normalizeKnownOpenAICodexModel(modelID); mapped != "" {
-		return mapped, true
-	}
 	key := codexModelLookupKey(modelID)
 	if key == "" {
 		return "", false
@@ -536,12 +539,18 @@ func normalizeKnownCodexModel(model string) (string, bool) {
 	if mapped := getNormalizedCodexModel(key); mapped != "" {
 		return mapped, true
 	}
+	if hasUnsupportedOpenAIReasoningSuffix(modelID) {
+		return "", false
+	}
+	if mapped := normalizeKnownOpenAICodexModel(modelID); mapped != "" {
+		return mapped, true
+	}
 	for _, item := range codexVersionModelPrefixes {
 		if key == item.prefix {
 			return item.target, true
 		}
 		suffix, ok := strings.CutPrefix(key, item.prefix+"-")
-		if ok && isKnownCodexModelSuffix(suffix) {
+		if ok && isKnownCodexModelSuffixForTarget(item.target, suffix) {
 			return item.target, true
 		}
 	}
@@ -568,6 +577,48 @@ func isKnownCodexModelSuffix(suffix string) bool {
 	return isCodexDateSuffix(suffix)
 }
 
+func isKnownCodexModelSuffixForTarget(target string, suffix string) bool {
+	if isKnownCodexModelSuffix(suffix) {
+		return true
+	}
+	switch suffix {
+	case "max":
+		return openAIModelSupportsReasoningEffort(target, suffix)
+	default:
+		return false
+	}
+}
+
+func hasUnsupportedOpenAIReasoningSuffix(model string) bool {
+	normalized := canonicalizeOpenAIModelAliasSpelling(model)
+	if normalized == "" || !strings.HasPrefix(normalized, "gpt-") {
+		return false
+	}
+
+	parts := strings.FieldsFunc(normalized, func(r rune) bool {
+		switch r {
+		case '-', '_', ' ':
+			return true
+		default:
+			return false
+		}
+	})
+	if len(parts) == 0 {
+		return false
+	}
+
+	suffix := parts[len(parts)-1]
+	switch suffix {
+	case "max":
+		return !openAIModelSupportsReasoningEffort(normalized, suffix)
+	case "ultra":
+		// Ultra 是 Codex 客户端的多代理模式，不是上游模型 ID 后缀。
+		return true
+	default:
+		return false
+	}
+}
+
 func isCodexDateSuffix(suffix string) bool {
 	parts := strings.Split(suffix, "-")
 	if len(parts) != 3 || len(parts[0]) != 4 || len(parts[1]) != 2 || len(parts[2]) != 2 {
@@ -588,8 +639,14 @@ func isCodexSparkModel(model string) bool {
 }
 
 func hasOpenAIImageGenerationTool(reqBody map[string]any) bool {
-	rawTools, ok := reqBody["tools"]
-	if !ok || rawTools == nil {
+	if toolsContainImageGeneration(reqBody["tools"]) {
+		return true
+	}
+	return inputContainsImageGenerationTool(reqBody["input"])
+}
+
+func toolsContainImageGeneration(rawTools any) bool {
+	if rawTools == nil {
 		return false
 	}
 	tools, ok := rawTools.([]any)
@@ -601,18 +658,66 @@ func hasOpenAIImageGenerationTool(reqBody map[string]any) bool {
 		if !ok {
 			continue
 		}
-		if strings.TrimSpace(firstNonEmptyString(toolMap["type"])) == "image_generation" {
+		if isOpenAIImageGenerationToolMap(toolMap) {
 			return true
 		}
 	}
 	return false
 }
 
-// stripCodexSparkImageGenerationTools 会从 reqBody["tools"] 中移除 image_generation。
-// gpt-5.3-codex-spark 上游会以 param=tools 拒绝该工具，而 Codex CLI 默认会携带它。
-// 当 tools 被清空时同步删除字段；返回值表示请求体是否被修改。
-func stripCodexSparkImageGenerationTools(reqBody map[string]any) bool {
-	rawTools, ok := reqBody["tools"]
+// isOpenAIImageGenerationToolMap 判断 map 工具是否为扁平或命名空间格式的生图声明。
+func isOpenAIImageGenerationToolMap(tool map[string]any) bool {
+	return isOpenAIImageGenerationType(firstNonEmptyString(tool["type"])) ||
+		isImageGenNamespaceToolMap(tool)
+}
+
+// isImageGenNamespaceToolMap 判断 map 工具是否为 Codex 生图命名空间。
+func isImageGenNamespaceToolMap(tool map[string]any) bool {
+	return strings.TrimSpace(firstNonEmptyString(tool["type"])) == "namespace" &&
+		isOpenAIImageGenNamespaceName(firstNonEmptyString(tool["name"]))
+}
+
+// inputContainsImageGenerationTool 检测 Responses Lite input 中嵌套的生图工具声明。
+func inputContainsImageGenerationTool(rawInput any) bool {
+	input, ok := rawInput.([]any)
+	if !ok {
+		return false
+	}
+	for _, rawItem := range input {
+		item, ok := rawItem.(map[string]any)
+		if !ok {
+			continue
+		}
+		if strings.TrimSpace(firstNonEmptyString(item["type"])) != "additional_tools" {
+			continue
+		}
+		if toolsContainImageGeneration(item["tools"]) {
+			return true
+		}
+	}
+	return false
+}
+
+// stripOpenAIImageGenerationTools 对称处理顶层 tools、Responses Lite additional_tools
+// 和 tool_choice 中的生图声明；返回值表示请求体是否被修改。
+func stripOpenAIImageGenerationTools(reqBody map[string]any) bool {
+	if reqBody == nil {
+		return false
+	}
+	modified := stripOpenAIImageGenerationToolList(reqBody, "tools")
+	if stripOpenAIImageGenerationToolsFromInput(reqBody) {
+		modified = true
+	}
+	if openAIAnyToolChoiceSelectsImageGeneration(reqBody["tool_choice"]) {
+		delete(reqBody, "tool_choice")
+		modified = true
+	}
+	return modified
+}
+
+// stripOpenAIImageGenerationToolList 从指定工具数组中移除所有生图声明。
+func stripOpenAIImageGenerationToolList(container map[string]any, key string) bool {
+	rawTools, ok := container[key]
 	if !ok || rawTools == nil {
 		return false
 	}
@@ -623,8 +728,7 @@ func stripCodexSparkImageGenerationTools(reqBody map[string]any) bool {
 	filtered := make([]any, 0, len(tools))
 	removed := false
 	for _, rawTool := range tools {
-		if toolMap, ok := rawTool.(map[string]any); ok &&
-			strings.TrimSpace(firstNonEmptyString(toolMap["type"])) == "image_generation" {
+		if toolMap, ok := rawTool.(map[string]any); ok && isOpenAIImageGenerationToolMap(toolMap) {
 			removed = true
 			continue
 		}
@@ -634,11 +738,72 @@ func stripCodexSparkImageGenerationTools(reqBody map[string]any) bool {
 		return false
 	}
 	if len(filtered) == 0 {
-		delete(reqBody, "tools")
+		delete(container, key)
 	} else {
-		reqBody["tools"] = filtered
+		container[key] = filtered
 	}
 	return true
+}
+
+// stripOpenAIImageGenerationToolsFromInput 清理 Responses Lite input 内的生图工具。
+func stripOpenAIImageGenerationToolsFromInput(reqBody map[string]any) bool {
+	input, ok := reqBody["input"].([]any)
+	if !ok {
+		return false
+	}
+
+	filteredInput := make([]any, 0, len(input))
+	modified := false
+	for _, rawItem := range input {
+		item, ok := rawItem.(map[string]any)
+		if !ok || strings.TrimSpace(firstNonEmptyString(item["type"])) != "additional_tools" {
+			filteredInput = append(filteredInput, rawItem)
+			continue
+		}
+		if !stripOpenAIImageGenerationToolList(item, "tools") {
+			filteredInput = append(filteredInput, rawItem)
+			continue
+		}
+		modified = true
+		if _, hasTools := item["tools"]; hasTools {
+			filteredInput = append(filteredInput, rawItem)
+		}
+		// 移除唯一声明的能力后，空 additional_tools 容器对上游无意义，直接丢弃。
+	}
+	if modified {
+		reqBody["input"] = filteredInput
+	}
+	return modified
+}
+
+// stripOpenAIImageGenerationToolsFromRawPayload 为直接转发原始 HTTP 或 WebSocket
+// 请求体的路径提供统一清理入口。
+func stripOpenAIImageGenerationToolsFromRawPayload(payload []byte) ([]byte, bool, error) {
+	if !openAIRequestBodyHasImageGenerationDeclaration(payload) {
+		if json.Valid(payload) {
+			return payload, false, nil
+		}
+		var invalidPayload map[string]any
+		return payload, false, json.Unmarshal(payload, &invalidPayload)
+	}
+	payloadMap := make(map[string]any)
+	if err := json.Unmarshal(payload, &payloadMap); err != nil {
+		return payload, false, err
+	}
+	if !stripOpenAIImageGenerationTools(payloadMap) {
+		return payload, false, nil
+	}
+	rebuilt, err := json.Marshal(payloadMap)
+	if err != nil {
+		return payload, false, err
+	}
+	return rebuilt, true, nil
+}
+
+// stripCodexSparkImageGenerationTools 会从 Spark 请求中移除生图声明和选择。
+// gpt-5.3-codex-spark 会拒绝这些能力，而 Codex 客户端可能默认携带它们。
+func stripCodexSparkImageGenerationTools(reqBody map[string]any) bool {
+	return stripOpenAIImageGenerationTools(reqBody)
 }
 
 func hasOpenAIInputImage(reqBody map[string]any) bool {
@@ -1252,6 +1417,16 @@ func filterCodexInputWithOptions(input []any, opts codexInputFilterOptions) []an
 		if !opts.PreserveReferences {
 			ensureCopy()
 			delete(newItem, "id")
+		} else if isCodexToolCallInputType(typ) {
+			// 续链模式下保留 id 以维持上下文引用，但 function_call 等
+			// call-input 类 item 的 id 必须以 "fc" 开头（上游校验
+			// "Expected an ID that begins with 'fc'"）。item_* 形式的 id
+			// 来自客户端回放，需要删除。
+			// 注意：function_call_output 等 output 类的 id 无此约束，不动。
+			if id, ok := m["id"].(string); ok && id != "" && !strings.HasPrefix(id, "fc") {
+				ensureCopy()
+				delete(newItem, "id")
+			}
 		}
 
 		filtered = append(filtered, newItem)
@@ -1271,6 +1446,22 @@ func isCodexToolCallItemType(typ string) bool {
 		"mcp_tool_call_output",
 		"custom_tool_call_output",
 		"tool_search_output":
+		return true
+	default:
+		return false
+	}
+}
+
+// isCodexToolCallInputType 仅匹配 call-input 类型（不含 output），这些类型的
+// id 必须以 "fc" 开头，上游会校验 "Expected an ID that begins with 'fc'."。
+func isCodexToolCallInputType(typ string) bool {
+	switch typ {
+	case "function_call",
+		"tool_call",
+		"local_shell_call",
+		"tool_search_call",
+		"custom_tool_call",
+		"mcp_tool_call":
 		return true
 	default:
 		return false

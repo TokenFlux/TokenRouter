@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 )
 
 // OAuthRefreshExecutor 各平台实现的 OAuth 刷新执行器
@@ -101,7 +103,12 @@ func (api *OAuthRefreshAPI) RefreshIfNeeded(
 			return &OAuthRefreshResult{LockHeld: true}, nil
 		} else {
 			lockAcquired = true
-			defer func() { _ = api.tokenCache.ReleaseRefreshLock(ctx, cacheKey) }()
+			defer func() {
+				if err := api.tokenCache.ReleaseRefreshLock(ctx, cacheKey); err != nil {
+					// ALERT: 锁释放失败会导致锁保持到 TTL 过期，阻塞其他 worker
+					logger.LegacyPrintf("service.oauth_refresh", "ALERT: failed to release refresh lock account=%d cache_key=%s: %v", account.ID, cacheKey, err)
+				}
+			}()
 		}
 	}
 
@@ -112,9 +119,14 @@ func (api *OAuthRefreshAPI) RefreshIfNeeded(
 			"account_id", account.ID,
 			"error", err,
 		)
-		// 降级使用传入的 account
+		// DB 读取失败：如果 refresh_token 已严重过期（轮换），使用旧 account 会导致 invalid_grant
+		// 这里保守降级，但可能在锁持有期间使用过期凭据刷新
 		freshAccount = account
 	} else if freshAccount == nil {
+		// GetByID 返回 nil 说明 account 已被删除
+		slog.Warn("oauth_refresh_account_deleted",
+			"account_id", account.ID,
+		)
 		freshAccount = account
 	}
 
@@ -146,7 +158,14 @@ func (api *OAuthRefreshAPI) RefreshIfNeeded(
 
 	// 5. 设置版本号 + 更新 DB
 	if newCredentials != nil {
-		newCredentials["_token_version"] = time.Now().UnixMilli()
+		// 克隆 map 避免修改 executor.Refresh() 返回的共享 map
+		cloned := make(map[string]any, len(newCredentials)+1)
+		for k, v := range newCredentials {
+			cloned[k] = v
+		}
+		cloned["_token_version"] = time.Now().UnixMilli()
+		newCredentials = cloned
+
 		if updateErr := persistAccountCredentials(ctx, api.accountRepo, freshAccount, newCredentials); updateErr != nil {
 			slog.Error("oauth_refresh_update_failed",
 				"account_id", freshAccount.ID,

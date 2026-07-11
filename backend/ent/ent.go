@@ -19,6 +19,9 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/apikey"
 	"github.com/TokenFlux/TokenRouter/ent/authidentity"
 	"github.com/TokenFlux/TokenRouter/ent/authidentitychannel"
+	"github.com/TokenFlux/TokenRouter/ent/batchimageevent"
+	"github.com/TokenFlux/TokenRouter/ent/batchimageitem"
+	"github.com/TokenFlux/TokenRouter/ent/batchimagejob"
 	"github.com/TokenFlux/TokenRouter/ent/datasharesession"
 	"github.com/TokenFlux/TokenRouter/ent/errorpassthroughrule"
 	"github.com/TokenFlux/TokenRouter/ent/group"
@@ -114,6 +117,9 @@ func checkColumn(t, c string) error {
 			announcementread.Table:         announcementread.ValidColumn,
 			authidentity.Table:             authidentity.ValidColumn,
 			authidentitychannel.Table:      authidentitychannel.ValidColumn,
+			batchimageevent.Table:          batchimageevent.ValidColumn,
+			batchimageitem.Table:           batchimageitem.ValidColumn,
+			batchimagejob.Table:            batchimagejob.ValidColumn,
 			datasharesession.Table:         datasharesession.ValidColumn,
 			errorpassthroughrule.Table:     errorpassthroughrule.ValidColumn,
 			group.Table:                    group.ValidColumn,

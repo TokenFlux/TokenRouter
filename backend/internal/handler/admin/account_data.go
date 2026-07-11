@@ -787,9 +787,17 @@ func validateDataAccount(item DataAccount) error {
 		return errors.New("account credentials is required")
 	}
 	switch item.Type {
-	case service.AccountTypeOAuth, service.AccountTypeSetupToken, service.AccountTypeAPIKey, service.AccountTypeUpstream:
+	case service.AccountTypeOAuth, service.AccountTypeSetupToken, service.AccountTypeAPIKey, service.AccountTypeUpstream,
+		service.AccountTypeBedrock, service.AccountTypeServiceAccount, service.AccountTypeCosy:
 	default:
 		return fmt.Errorf("account type is invalid: %s", item.Type)
+	}
+	platform := strings.ToLower(strings.TrimSpace(item.Platform))
+	if platform == service.PlatformQoder && item.Type != service.AccountTypeCosy {
+		return fmt.Errorf("qoder accounts require %s account type", service.AccountTypeCosy)
+	}
+	if platform != service.PlatformQoder && item.Type == service.AccountTypeCosy {
+		return fmt.Errorf("%s account type requires %s platform", service.AccountTypeCosy, service.PlatformQoder)
 	}
 	if item.RateMultiplier != nil && *item.RateMultiplier < 0 {
 		return errors.New("rate_multiplier must be >= 0")

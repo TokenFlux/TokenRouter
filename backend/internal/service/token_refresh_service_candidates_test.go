@@ -18,6 +18,7 @@ type tokenRefreshCandidateRepo struct {
 	updatedCredentialIDs  []int64
 	setErrorCalls         int
 	setTempUnschedCalls   int
+	clearTempCalls        int
 	lastTempUnschedReason string
 	listActiveCalls       int
 }
@@ -35,9 +36,10 @@ func (r *tokenRefreshCandidateRepo) ListOAuthRefreshCandidates(context.Context) 
 		inRetryCooldown := account.TempUnschedulableUntil != nil &&
 			account.TempUnschedulableUntil.After(now) &&
 			strings.HasPrefix(account.TempUnschedulableReason, "token refresh retry exhausted:")
+		refreshable := account.Type == AccountTypeOAuth && isOAuthRefreshPlatform(account.Platform)
+		refreshable = refreshable || account.IsQoderCosy()
 		if account.Status != StatusActive ||
-			account.Type != AccountTypeOAuth ||
-			!isOAuthRefreshPlatform(account.Platform) ||
+			!refreshable ||
 			strings.TrimSpace(refreshToken) == "" ||
 			inRetryCooldown {
 			continue
@@ -60,6 +62,11 @@ func (r *tokenRefreshCandidateRepo) SetError(context.Context, int64, string) err
 func (r *tokenRefreshCandidateRepo) SetTempUnschedulable(_ context.Context, _ int64, _ time.Time, reason string) error {
 	r.setTempUnschedCalls++
 	r.lastTempUnschedReason = reason
+	return nil
+}
+
+func (r *tokenRefreshCandidateRepo) ClearTempUnschedulable(context.Context, int64) error {
+	r.clearTempCalls++
 	return nil
 }
 
@@ -128,6 +135,23 @@ func TestTokenRefreshService_ProcessRefreshUsesOAuthRefreshCandidates(t *testing
 				Status:      StatusActive,
 				Credentials: map[string]any{"refresh_token": "refresh-token"},
 			},
+			{
+				ID:          6,
+				Platform:    PlatformQoder,
+				Type:        AccountTypeCosy,
+				Status:      StatusActive,
+				Credentials: map[string]any{"refresh_token": "refresh-token"},
+			},
+			{
+				ID:                      7,
+				Platform:                PlatformAntigravity,
+				Type:                    AccountTypeOAuth,
+				Status:                  StatusActive,
+				Credentials:             map[string]any{"refresh_token": "refresh-token"},
+				Extra:                   map[string]any{"privacy_mode": AntigravityPrivacySet},
+				TempUnschedulableUntil:  &future,
+				TempUnschedulableReason: "OAuth 401: unauthorized",
+			},
 		},
 	}
 	svc := &TokenRefreshService{
@@ -140,7 +164,8 @@ func TestTokenRefreshService_ProcessRefreshUsesOAuthRefreshCandidates(t *testing
 	svc.processRefresh()
 
 	require.Zero(t, repo.listActiveCalls, "TokenRefreshService should not use the broad active-account query")
-	require.Equal(t, []int64{1}, repo.updatedCredentialIDs)
+	require.Equal(t, []int64{1, 6, 7}, repo.updatedCredentialIDs)
+	require.Equal(t, 1, repo.clearTempCalls, "successful refresh should clear the OAuth 401 temp-unschedulable state")
 }
 
 func TestTokenRefreshService_RefreshFailureDoesNotCallPrivacy(t *testing.T) {

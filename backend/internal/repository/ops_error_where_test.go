@@ -70,6 +70,34 @@ func TestBuildOpsErrorLogsWhere_ModelFuzzy(t *testing.T) {
 	}
 }
 
+// TestBuildOpsErrorLogsWhere_CyberPolicyStatusExemption 验证流式 cyber_policy
+// 命中即使状态码为 200，也不会被客户端错误守卫从管理端和用户端列表排除。
+func TestBuildOpsErrorLogsWhere_CyberPolicyStatusExemption(t *testing.T) {
+	// 默认过滤必须保留 cyber_policy 豁免和其它错误的状态码守卫。
+	where, _ := buildOpsErrorLogsWhere(&service.OpsErrorLogFilter{})
+	if !strings.Contains(where, "e.error_type = 'cyber_policy'") {
+		t.Fatalf("default filter must exempt cyber_policy from status >= 400 guard\nfull: %s", where)
+	}
+	if !strings.Contains(where, "COALESCE(e.status_code, 0) >= 400") {
+		t.Fatalf("default filter must still include the status >= 400 guard for non-cyber rows\nfull: %s", where)
+	}
+
+	// 未显式允许 recovered upstream 时，phase=upstream 仍保留状态码守卫。
+	whereUpstream, _ := buildOpsErrorLogsWhere(&service.OpsErrorLogFilter{Phase: "upstream"})
+	if !strings.Contains(whereUpstream, "COALESCE(e.status_code, 0) >= 400") {
+		t.Fatalf("upstream phase without IncludeRecoveredUpstream must keep the status guard\nfull: %s", whereUpstream)
+	}
+	if !strings.Contains(whereUpstream, "e.error_phase = $") {
+		t.Fatalf("upstream phase filter must emit the error_phase condition\nfull: %s", whereUpstream)
+	}
+
+	// Ops 专用上游列表显式允许 recovered upstream 后才跳过状态码守卫。
+	whereRecovered, _ := buildOpsErrorLogsWhere(&service.OpsErrorLogFilter{Phase: "upstream", IncludeRecoveredUpstream: true})
+	if strings.Contains(whereRecovered, "COALESCE(e.status_code, 0) >= 400") {
+		t.Fatalf("upstream phase with IncludeRecoveredUpstream must not add the client-visible status guard\nfull: %s", whereRecovered)
+	}
+}
+
 func TestBuildOpsErrorLogsWhere_MatchDeletedKeyOwner(t *testing.T) {
 	uid := int64(42)
 

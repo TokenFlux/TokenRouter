@@ -22,6 +22,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
@@ -34,8 +35,9 @@ import (
 var sseDataPrefix = regexp.MustCompile(`^data:\s*`)
 
 const (
-	testClaudeAPIURL   = "https://api.anthropic.com/v1/messages?beta=true"
-	chatgptCodexAPIURL = "https://chatgpt.com/backend-api/codex/responses"
+	testClaudeAPIURL      = "https://api.anthropic.com/v1/messages?beta=true"
+	chatgptCodexAPIURL    = "https://chatgpt.com/backend-api/codex/responses"
+	defaultQoderTestModel = "auto"
 )
 
 type accountTestContextKey string
@@ -66,6 +68,14 @@ func applyAccountTestUserAgent(req *http.Request) {
 	if userAgent := accountTestUserAgentFromContext(req.Context()); userAgent != "" {
 		req.Header.Set("User-Agent", userAgent)
 	}
+}
+
+type qoderAccountTestSessionProvider interface {
+	GetSession(ctx context.Context, account *Account) (*qoder.SessionContext, error)
+}
+
+type qoderAccountTestOAuthClient interface {
+	GetUserInfo(ctx context.Context, token string) (*qoder.UserInfo, error)
 }
 
 // TestEvent represents a SSE event for account testing
@@ -103,6 +113,9 @@ type AccountTestService struct {
 	httpUpstream              HTTPUpstream
 	cfg                       *config.Config
 	tlsFPProfileService       *TLSFingerprintProfileService
+	qoderSessionProvider      qoderAccountTestSessionProvider
+	qoderClient               qoderStreamClient
+	qoderOAuthClient          qoderAccountTestOAuthClient
 }
 
 // NewAccountTestService creates a new AccountTestService
@@ -116,6 +129,8 @@ func NewAccountTestService(
 	cfg *config.Config,
 	tlsFPProfileService *TLSFingerprintProfileService,
 ) *AccountTestService {
+	qoderSessionProvider := NewQoderTokenProvider()
+	qoderSessionProvider.SetHTTPUpstream(httpUpstream, tlsFPProfileService)
 	return &AccountTestService{
 		accountRepo:               accountRepo,
 		geminiTokenProvider:       geminiTokenProvider,
@@ -125,6 +140,8 @@ func NewAccountTestService(
 		httpUpstream:              httpUpstream,
 		cfg:                       cfg,
 		tlsFPProfileService:       tlsFPProfileService,
+		qoderSessionProvider:      qoderSessionProvider,
+		qoderClient:               qoder.NewClient(qoder.APIBaseURL),
 	}
 }
 
@@ -243,6 +260,10 @@ func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int
 		return s.routeAntigravityTest(c, account, modelID, prompt)
 	}
 
+	if account.Platform == PlatformQoder {
+		return s.testQoderAccountConnection(c, account, modelID, prompt)
+	}
+
 	return s.testClaudeAccountConnection(c, account, modelID, prompt)
 }
 
@@ -338,6 +359,9 @@ func (s *AccountTestService) testClaudeAccountConnection(c *gin.Context, account
 		setAnthropicAPIKeyAuthHeader(req.Header, account, authToken)
 	}
 	applyAccountTestUserAgent(req)
+
+	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
+	account.ApplyHeaderOverrides(req.Header)
 
 	// Get proxy URL
 	proxyURL := ""
@@ -645,14 +669,28 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 	// Set common headers
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+authToken)
-	applyAccountTestUserAgent(req)
 
 	// Set OAuth-specific headers for ChatGPT internal API
 	if isOAuth {
 		req.Host = "chatgpt.com"
 		req.Header.Set("accept", "text/event-stream")
+		req.Header.Set("OpenAI-Beta", "responses=experimental")
+		req.Header.Set("Originator", "codex_cli_rs")
+		if customUA := strings.TrimSpace(credentialAccount.GetOpenAIUserAgent()); customUA != "" {
+			req.Header.Set("User-Agent", customUA)
+		} else {
+			req.Header.Set("User-Agent", codexCLIUserAgent)
+		}
 		setOpenAIChatGPTAccountHeaders(req.Header, credentialAccount)
 	}
+	applyAccountTestUserAgent(req)
+	if account.Type == AccountTypeOAuth {
+		// 必须在测试专用 UA 覆写之后配对身份，否则测试请求仍可能因头部错配返回 404。
+		enforceCodexIdentityHeaders(req.Header)
+	}
+
+	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
+	credentialAccount.ApplyHeaderOverrides(req.Header)
 
 	// Get proxy URL
 	proxyURL := ""
@@ -807,6 +845,9 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 	req.Header.Set("Authorization", "Bearer "+authToken)
 	applyAccountTestUserAgent(req)
 
+	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
+	account.ApplyHeaderOverrides(req.Header)
+
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
@@ -898,7 +939,12 @@ func (s *AccountTestService) testOpenAICompactConnection(c *gin.Context, account
 	if isOAuth {
 		req.Host = "chatgpt.com"
 		setOpenAIChatGPTAccountHeaders(req.Header, account)
+		// compact 探针同样访问 Codex 上游，测试 UA 覆写完成后必须重新配对身份头。
+		enforceCodexIdentityHeaders(req.Header)
 	}
+
+	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
+	account.ApplyHeaderOverrides(req.Header)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
@@ -1064,6 +1110,149 @@ func (s *AccountTestService) routeAntigravityTest(c *gin.Context, account *Accou
 		return s.testClaudeAccountConnection(c, account, modelID, prompt)
 	}
 	return s.testAntigravityAccountConnection(c, account, modelID)
+}
+
+func (s *AccountTestService) testQoderAccountConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
+	if account.Type != AccountTypeCosy {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported account type: %s", account.Type))
+	}
+
+	ctx := c.Request.Context()
+	testModelID := strings.TrimSpace(modelID)
+	if testModelID == "" {
+		testModelID = defaultQoderTestModel
+	}
+	testPrompt := strings.TrimSpace(prompt)
+	if testPrompt == "" {
+		testPrompt = "hi"
+	}
+
+	sessionProvider := s.qoderSessionProvider
+	if sessionProvider == nil {
+		sessionProvider = NewQoderTokenProvider()
+	}
+	session, err := sessionProvider.GetSession(ctx, account)
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Qoder session failed: %s", err.Error()))
+	}
+
+	requestBody, err := json.Marshal(map[string]any{
+		"model":      testModelID,
+		"messages":   []map[string]string{{"role": "user", "content": testPrompt}},
+		"max_tokens": 16,
+		"stream":     true,
+	})
+	if err != nil {
+		return s.sendErrorAndEnd(c, "Failed to encode Qoder test payload")
+	}
+	requestBody = applyQoderAccountModelMapping(account, requestBody)
+	payload, modelKey, err := BuildQoderPayloadFromChatCompletions(requestBody, qoderUserType(account))
+	if err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Failed to build Qoder test payload: %s", err.Error()))
+	}
+	payloadBody, err := json.Marshal(payload)
+	if err != nil {
+		return s.sendErrorAndEnd(c, "Failed to encode Qoder test payload")
+	}
+
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Header().Set("X-Accel-Buffering", "no")
+	c.Writer.Flush()
+
+	s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
+	if err := s.probeQoderUserInfo(ctx, account, session); err != nil {
+		return s.sendErrorAndEnd(c, err.Error())
+	}
+	s.sendEvent(c, TestEvent{Type: "status", Text: "正在通过 Qoder COSY 测试连接"})
+
+	client := s.qoderClient
+	if client == nil {
+		client = qoder.NewClient(qoder.APIBaseURL)
+	}
+	headers := map[string]string{
+		"x-model-key":    modelKey,
+		"x-model-source": "system",
+	}
+	if doer := newQoderRequestDoer(account, s.httpUpstream, s.tlsFPProfileService); doer != nil {
+		if doerClient, ok := client.(qoderStreamClientWithDoer); ok {
+			resp, err := doerClient.StreamRequestContextWithDoer(ctx, session, "", payloadBody, headers, doer)
+			if err != nil {
+				return s.sendErrorAndEnd(c, err.Error())
+			}
+			return s.processQoderStream(c, resp.Body)
+		}
+	}
+	resp, err := client.StreamRequestContext(ctx, session, "", payloadBody, headers)
+	if err != nil {
+		return s.sendErrorAndEnd(c, err.Error())
+	}
+
+	return s.processQoderStream(c, resp.Body)
+}
+
+func (s *AccountTestService) probeQoderUserInfo(ctx context.Context, account *Account, session *qoder.SessionContext) error {
+	if session == nil || session.Identity == nil {
+		return errors.New("qoder session identity is empty")
+	}
+	token := strings.TrimSpace(session.Identity.SecurityOauthToken)
+	if token == "" {
+		token = strings.TrimSpace(account.GetCredential("security_oauth_token"))
+	}
+	if token == "" {
+		return errors.New("qoder security_oauth_token is empty")
+	}
+	client := s.qoderOAuthClient
+	var userInfo *qoder.UserInfo
+	var err error
+	if client != nil {
+		userInfo, err = client.GetUserInfo(ctx, token)
+	} else {
+		userInfo, err = s.getQoderUserInfoForAccount(ctx, account, token)
+	}
+	if err != nil {
+		return fmt.Errorf("qoder userinfo probe failed: %w", err)
+	}
+	if userInfo != nil {
+		if session.Identity.UID == "" && strings.TrimSpace(userInfo.ID) != "" {
+			session.Identity.UID = strings.TrimSpace(userInfo.ID)
+		}
+		if session.Identity.Name == "" && strings.TrimSpace(userInfo.Name) != "" {
+			session.Identity.Name = strings.TrimSpace(userInfo.Name)
+		}
+	}
+	return nil
+}
+
+func (s *AccountTestService) getQoderUserInfoForAccount(ctx context.Context, account *Account, token string) (*qoder.UserInfo, error) {
+	if doer := newQoderRequestDoer(account, s.httpUpstream, s.tlsFPProfileService); doer != nil {
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, qoder.OpenAPIBaseURL+qoder.UserInfoPath, nil)
+		if err != nil {
+			return nil, fmt.Errorf("qoder: create userinfo request: %w", err)
+		}
+		req.Header.Set("Accept", "application/json")
+		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
+		req.Header.Set("User-Agent", "Go-http-client/2.0")
+
+		resp, err := doer(req)
+		if err != nil {
+			return nil, fmt.Errorf("qoder: userinfo request: %w", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+			return nil, fmt.Errorf("qoder: userinfo failed with status %d: %s", resp.StatusCode, qoder.RedactSensitiveText(string(body)))
+		}
+
+		var info qoder.UserInfo
+		if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+			return nil, fmt.Errorf("qoder: parse userinfo response: %w", err)
+		}
+		return &info, nil
+	}
+	return qoder.NewOAuthClient(qoder.OpenAPIBaseURL, nil).GetUserInfo(ctx, token)
 }
 
 // testAntigravityAccountConnection tests an Antigravity account's connection
@@ -1471,6 +1660,41 @@ func (s *AccountTestService) processClaudeStream(c *gin.Context, body io.Reader)
 	}
 }
 
+func (s *AccountTestService) processQoderStream(c *gin.Context, body io.ReadCloser) error {
+	if body == nil {
+		return s.sendErrorAndEnd(c, "Qoder response body is nil")
+	}
+	defer func() { _ = body.Close() }()
+
+	scanner := bufio.NewScanner(body)
+	scanner.Buffer(make([]byte, 0, 64*1024), defaultMaxLineSize)
+	seenEvent := false
+	for scanner.Scan() {
+		events, err := qoder.ParseSSELine(scanner.Text())
+		if err != nil {
+			return s.sendErrorAndEnd(c, err.Error())
+		}
+		for _, event := range events {
+			seenEvent = true
+			if event.Type == "text_delta" && event.Text != "" {
+				s.sendEvent(c, TestEvent{Type: "content", Text: event.Text})
+			}
+			if event.IsDone {
+				s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+				return nil
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return s.sendErrorAndEnd(c, fmt.Sprintf("Qoder stream read error: %s", err.Error()))
+	}
+	if seenEvent {
+		s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+		return nil
+	}
+	return s.sendErrorAndEnd(c, "Qoder stream ended before any response")
+}
+
 // processOpenAIChatCompletionsStream 处理 OpenAI 兼容 Chat Completions API 返回的 SSE 分片。
 func (s *AccountTestService) processOpenAIChatCompletionsStream(c *gin.Context, body io.Reader) error {
 	reader := bufio.NewReader(body)
@@ -1649,6 +1873,9 @@ func (s *AccountTestService) testOpenAIImageAPIKey(c *gin.Context, ctx context.C
 	req.Header.Set("Authorization", "Bearer "+authToken)
 	applyAccountTestUserAgent(req)
 
+	// 账号级请求头覆写：测试请求与真实转发保持一致的最终头
+	account.ApplyHeaderOverrides(req.Header)
+
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
@@ -1740,7 +1967,7 @@ func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Co
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
 	req.Header.Set("OpenAI-Beta", "responses=experimental")
-	req.Header.Set("originator", "opencode")
+	req.Header.Set("originator", "codex_cli_rs")
 	if customUA := strings.TrimSpace(account.GetOpenAIUserAgent()); customUA != "" {
 		req.Header.Set("User-Agent", customUA)
 	} else {
@@ -1748,6 +1975,8 @@ func (s *AccountTestService) testOpenAIImageOAuth(c *gin.Context, ctx context.Co
 	}
 	applyAccountTestUserAgent(req)
 	setOpenAIChatGPTAccountHeaders(req.Header, account)
+	// 与真实转发一致：originator 与最终 User-Agent 首段配套（原 opencode 与 Codex UA 错配会 404，issue #3901）。
+	enforceCodexIdentityHeaders(req.Header)
 
 	proxyURL := ""
 	if account.ProxyID != nil && account.Proxy != nil {

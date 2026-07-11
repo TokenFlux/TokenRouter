@@ -139,6 +139,7 @@ type RedeemCodeBatchUpdateResult struct {
 type RedeemService struct {
 	redeemRepo           RedeemCodeRepository
 	userRepo             UserRepository
+	redeemUserRepo       RedeemUserAdjustmentRepository
 	subscriptionService  *SubscriptionService
 	cache                RedeemCache
 	billingCacheService  *BillingCacheService
@@ -158,9 +159,11 @@ func NewRedeemService(
 	authCacheInvalidator APIKeyAuthCacheInvalidator,
 	affiliateService *AffiliateService,
 ) *RedeemService {
+	redeemUserRepo, _ := userRepo.(RedeemUserAdjustmentRepository)
 	return &RedeemService{
 		redeemRepo:           redeemRepo,
 		userRepo:             userRepo,
+		redeemUserRepo:       redeemUserRepo,
 		subscriptionService:  subscriptionService,
 		cache:                cache,
 		billingCacheService:  billingCacheService,
@@ -407,6 +410,14 @@ func (s *RedeemService) releaseRedeemLock(ctx context.Context, code string) {
 	_ = s.cache.ReleaseRedeemLock(ctx, code)
 }
 
+// unsupportedRedeemTypeError 将邀请码和未知类型统一转换为客户端可处理的请求错误。
+func unsupportedRedeemTypeError(codeType string) error {
+	if codeType == RedeemTypeInvitation {
+		return infraerrors.BadRequest("REDEEM_CODE_UNSUPPORTED_TYPE", "invitation codes can only be used during registration")
+	}
+	return infraerrors.BadRequest("REDEEM_CODE_UNSUPPORTED_TYPE", fmt.Sprintf("unsupported redeem type: %s", codeType))
+}
+
 // Redeem 使用兑换码
 func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (*RedeemCode, error) {
 	code = strings.TrimSpace(code)
@@ -424,7 +435,6 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 		return nil, ErrRedeemCodeLocked
 	}
 	defer s.releaseRedeemLock(ctx, code)
-
 	// 使用数据库事务保证兑换码标记与权益发放的原子性
 	tx, err := s.entClient.Tx(ctx)
 	if err != nil {
@@ -449,11 +459,18 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 		return nil, err
 	}
 
-	if redeemCode.Type == RedeemTypeSubscription && (redeemCode.PlanID == nil || *redeemCode.PlanID <= 0) {
-		return nil, infraerrors.BadRequest("REDEEM_CODE_INVALID", "invalid subscription redeem code: missing plan_id")
+	// 邀请码只允许在注册流程使用，普通兑换接口仅接受能直接发放权益的类型。
+	switch redeemCode.Type {
+	case RedeemTypeBalance, RedeemTypeConcurrency:
+	case RedeemTypeSubscription:
+		if redeemCode.PlanID == nil || *redeemCode.PlanID <= 0 {
+			return nil, infraerrors.BadRequest("REDEEM_CODE_INVALID", "invalid subscription redeem code: missing plan_id")
+		}
+	default:
+		return nil, unsupportedRedeemTypeError(redeemCode.Type)
 	}
 
-	user, err := s.userRepo.GetByID(ctx, userID)
+	_, err = s.userRepo.GetByID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
 	}
@@ -462,21 +479,27 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 	switch redeemCode.Type {
 	case RedeemTypeBalance:
 		amount := redeemCode.Value
-		// 负数为退款扣减，余额最低为 0
-		if amount < 0 && user.Balance+amount < 0 {
-			amount = -user.Balance
-		}
-		if err := s.userRepo.UpdateBalance(txCtx, userID, amount); err != nil {
+		if amount < 0 {
+			if s.redeemUserRepo == nil {
+				return nil, errors.New("user repository does not support atomic redeem balance adjustments")
+			}
+			if err := s.redeemUserRepo.ApplyRedeemBalanceAdjustment(txCtx, userID, amount); err != nil {
+				return nil, fmt.Errorf("update user balance: %w", err)
+			}
+		} else if err := s.userRepo.UpdateBalance(txCtx, userID, amount); err != nil {
 			return nil, fmt.Errorf("update user balance: %w", err)
 		}
 
 	case RedeemTypeConcurrency:
 		delta := int(redeemCode.Value)
-		// 负数为退款扣减，并发数最低为 0
-		if delta < 0 && user.Concurrency+delta < 0 {
-			delta = -user.Concurrency
-		}
-		if err := s.userRepo.UpdateConcurrency(txCtx, userID, delta); err != nil {
+		if delta < 0 {
+			if s.redeemUserRepo == nil {
+				return nil, errors.New("user repository does not support atomic redeem concurrency adjustments")
+			}
+			if err := s.redeemUserRepo.ApplyRedeemConcurrencyAdjustment(txCtx, userID, delta); err != nil {
+				return nil, fmt.Errorf("update user concurrency: %w", err)
+			}
+		} else if err := s.userRepo.UpdateConcurrency(txCtx, userID, delta); err != nil {
 			return nil, fmt.Errorf("update user concurrency: %w", err)
 		}
 
@@ -492,7 +515,7 @@ func (s *RedeemService) Redeem(ctx context.Context, userID int64, code string) (
 		}
 
 	default:
-		return nil, fmt.Errorf("unsupported redeem type: %s", redeemCode.Type)
+		return nil, unsupportedRedeemTypeError(redeemCode.Type)
 	}
 
 	usageTime := time.Now()

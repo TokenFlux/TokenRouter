@@ -44,6 +44,9 @@ func RegisterAdminRoutes(
 		// Antigravity OAuth 管理
 		registerAntigravityOAuthRoutes(admin, h)
 
+		// Qoder OAuth 管理
+		registerQoderOAuthRoutes(admin, h)
+
 		// Grok OAuth 管理
 		registerGrokOAuthRoutes(admin, h)
 
@@ -439,6 +442,15 @@ func registerAntigravityOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers)
 	}
 }
 
+func registerQoderOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	qoder := admin.Group("/qoder")
+	{
+		qoder.POST("/oauth/auth-url", h.Admin.QoderOAuth.GenerateAuthURL)
+		qoder.POST("/oauth/exchange-code", h.Admin.QoderOAuth.ExchangeCode)
+		qoder.POST("/oauth/poll", h.Admin.QoderOAuth.Poll)
+	}
+}
+
 func registerGrokOAuthRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	grok := admin.Group("/grok")
 	{
@@ -609,6 +621,7 @@ func registerSystemRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		system.GET("/version", h.Admin.System.GetVersion)
 		system.GET("/check-updates", h.Admin.System.CheckUpdates)
+		system.GET("/rollback-versions", h.Admin.System.GetRollbackVersions)
 		system.POST("/update", h.Admin.System.PerformUpdate)
 		system.POST("/rollback", h.Admin.System.Rollback)
 		system.POST("/restart", h.Admin.System.RestartService)

@@ -25,17 +25,17 @@ func (r *dailyResetTrackingUserSubRepo) ActivateWindows(_ context.Context, _ int
 	return nil
 }
 
-func (r *dailyResetTrackingUserSubRepo) ResetDailyUsage(context.Context, int64, time.Time) error {
+func (r *dailyResetTrackingUserSubRepo) ResetDailyUsage(context.Context, int64, *time.Time, time.Time) error {
 	r.resetDailyCalled = true
 	return nil
 }
 
-func (r *dailyResetTrackingUserSubRepo) ResetWeeklyUsage(context.Context, int64, time.Time) error {
+func (r *dailyResetTrackingUserSubRepo) ResetWeeklyUsage(context.Context, int64, *time.Time, time.Time) error {
 	r.resetWeeklyCalled = true
 	return nil
 }
 
-func (r *dailyResetTrackingUserSubRepo) ResetMonthlyUsage(context.Context, int64, time.Time) error {
+func (r *dailyResetTrackingUserSubRepo) ResetMonthlyUsage(context.Context, int64, *time.Time, time.Time) error {
 	r.resetMonthlyCalled = true
 	return nil
 }

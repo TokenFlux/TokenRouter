@@ -128,6 +128,12 @@
                   <span class="rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200">
                     {{ formatRateMultiplierLabel(group.rate_multiplier) }}
                   </span>
+                  <span
+                    v-if="hasIndependentImageRate(group)"
+                    class="rounded-full border border-fuchsia-200 bg-fuchsia-50 px-3 py-1 text-xs font-semibold text-fuchsia-700 dark:border-fuchsia-500/30 dark:bg-fuchsia-500/10 dark:text-fuchsia-200"
+                  >
+                    {{ formatImageRateMultiplierLabel(group.image_rate_multiplier) }}
+                  </span>
                   <span class="rounded-full border border-gray-200 bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200">
                     {{ group.model_count }} {{ t('marketplace.modelsStat') }}
                   </span>
@@ -183,12 +189,12 @@
               </div>
             </div>
 
-            <div class="space-y-3 p-4 md:columns-2 md:gap-3 xl:columns-3 2xl:columns-4 md:p-5">
-              <!-- 模型卡片高度不一致，用 CSS columns 自然填充，避免手动分列留下大块空白。 -->
+            <div class="grid items-start gap-3 p-4 md:grid-cols-2 lg:grid-cols-3 md:p-5">
+              <!-- 大屏固定三列展示，避免宽屏下只排两列造成右侧留白。 -->
               <article
                 v-for="model in group.models"
                 :key="`${group.id}-${model.id}`"
-                class="group mb-3 break-inside-avoid rounded-xl border border-gray-100 bg-gray-50/80 p-4 transition hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-card dark:border-dark-700 dark:bg-dark-950/80 dark:hover:border-primary-500/50"
+                class="group rounded-xl border border-gray-100 bg-gray-50/80 p-4 transition hover:-translate-y-0.5 hover:border-primary-300 hover:shadow-card dark:border-dark-700 dark:bg-dark-950/80 dark:hover:border-primary-500/50"
               >
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
@@ -233,7 +239,7 @@
             </section>
           </template>
 
-          <div v-else class="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+          <div v-else class="grid items-start gap-4 md:grid-cols-2 lg:grid-cols-3">
             <article
               v-for="model in filteredModels"
               :key="model.id"
@@ -273,6 +279,12 @@
                     <h3 class="min-w-0 shrink-0 truncate text-sm font-semibold text-gray-950 dark:text-white">{{ entry.group.name }}</h3>
                     <span class="shrink-0 whitespace-nowrap rounded-full border border-gray-200 bg-white px-2 py-0.5 text-xs font-semibold text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200">
                       {{ formatMultiplier(entry.group.rate_multiplier) }}
+                    </span>
+                    <span
+                      v-if="hasIndependentImageRate(entry.group)"
+                      class="shrink-0 whitespace-nowrap rounded-full border border-fuchsia-200 bg-fuchsia-50 px-2 py-0.5 text-xs font-semibold text-fuchsia-700 dark:border-fuchsia-500/30 dark:bg-fuchsia-500/10 dark:text-fuchsia-200"
+                    >
+                      {{ formatImageRateMultiplierLabel(entry.group.image_rate_multiplier) }}
                     </span>
                     <div
                       v-if="entry.group.capacity"
@@ -404,6 +416,7 @@ import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { initTheme } from '@/composables/useTheme'
 import { getMarketplaceModels } from '@/api/marketplace'
 import { providerBrandDisplayName, providerBrandFilterKey, resolveProviderBrand, resolveProviderBrandKey } from '@/utils/providerBrand'
+import { sanitizeUrl } from '@/utils/url'
 import type { MarketplaceGroup, MarketplaceModel, MarketplaceModelPricing, MarketplacePricingInterval } from '@/types'
 import { useAppStore, useAuthStore } from '@/stores'
 
@@ -467,8 +480,8 @@ const dashboardPath = computed(() => {
 })
 
 const siteName = computed(() => appStore.siteName || 'Sub2API')
-const siteLogo = computed(() => appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '')
-const docUrl = computed(() => appStore.cachedPublicSettings?.doc_url || appStore.docUrl || '')
+const siteLogo = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
+const docUrl = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl || ''))
 const selectedPricingTitle = computed(() => {
   if (!selectedPricing.value) {
     return t('marketplace.pricingDetail')
@@ -671,22 +684,6 @@ function hasPositiveValue(value?: number | null): value is number {
   return typeof value === 'number' && value > 0
 }
 
-function hasFlatTokenPricing(pricing: MarketplaceModelPricing): boolean {
-  return [
-    pricing.input_price_per_token,
-    pricing.output_price_per_token,
-    pricing.cache_write_price_per_token,
-    pricing.cache_read_price_per_token,
-    pricing.image_output_price_per_token,
-    pricing.fast_input_price_per_token,
-    pricing.fast_output_price_per_token,
-    pricing.fast_cache_write_price_per_token,
-    pricing.fast_cache_read_price_per_token,
-    pricing.fast_image_output_price_per_token,
-  ].some(hasPositiveValue)
-}
-
-// 区间定价没有顶层 flat 价格，需要单独参与“已定价”判断。
 function hasContextIntervalPricing(pricing: MarketplaceModelPricing): boolean {
   return pricing.context_intervals?.some((interval) => [
     interval.input_price_per_token,
@@ -700,10 +697,6 @@ function hasContextIntervalPricing(pricing: MarketplaceModelPricing): boolean {
     interval.fast_cache_read_price_per_token,
     interval.fast_image_output_price_per_token,
   ].some(hasPositiveValue)) ?? false
-}
-
-function hasTokenPricing(pricing: MarketplaceModelPricing): boolean {
-  return hasFlatTokenPricing(pricing) || hasContextIntervalPricing(pricing)
 }
 
 function hasImagePricing(pricing: MarketplaceModelPricing): boolean {
@@ -721,7 +714,7 @@ function pricingKind(pricing: MarketplaceModelPricing): Exclude<PricingFilter, '
   if (pricing.pricing_mode === 'image' && hasImagePricing(pricing)) {
     return 'image'
   }
-  if (pricing.pricing_mode === 'token' && hasTokenPricing(pricing)) {
+  if (pricing.pricing_mode === 'token') {
     return 'token'
   }
   return 'unpriced'
@@ -756,6 +749,14 @@ function formatMultiplier(multiplier: number): string {
 // 分组倍率文案交给 i18n 拼接，避免不同语言的空格规则写死在模板里。
 function formatRateMultiplierLabel(multiplier: number): string {
   return t('marketplace.rateMultiplierValue', { multiplier: formatMultiplier(multiplier) })
+}
+
+function hasIndependentImageRate(group: Pick<MarketplaceGroup, 'image_rate_independent'>): boolean {
+  return Boolean(group.image_rate_independent)
+}
+
+function formatImageRateMultiplierLabel(multiplier: number): string {
+  return t('marketplace.imageRateMultiplierValue', { multiplier: formatMultiplier(multiplier) })
 }
 
 function formatPrice(value: number): string {
@@ -935,7 +936,12 @@ function tokenPricingRowsFromValues(pricing: MarketplaceModelPricing | Marketpla
 }
 
 function tokenPricingRows(pricing: MarketplaceModelPricing): PricingRow[] {
-  return tokenPricingRowsFromValues(pricing)
+  const rows = tokenPricingRowsFromValues(pricing)
+  if (rows.length > 0) {
+    return rows
+  }
+
+  return zeroTokenPricingRows()
 }
 
 function compactTokenPricingRows(pricing: MarketplaceModelPricing | MarketplacePricingInterval): PricingRow[] {
@@ -950,9 +956,21 @@ function compactTokenPricingRows(pricing: MarketplaceModelPricing | MarketplaceP
     return primaryRows
   }
 
-  return tokenPricingRowsFromValues(pricing)
+  const rows = tokenPricingRowsFromValues(pricing)
+  if (rows.length === 0) {
+    return zeroTokenPricingRows()
+  }
+
+  return rows
     .filter((row) => !row.key.startsWith('fast_'))
     .slice(0, 2)
+}
+
+function zeroTokenPricingRows(): PricingRow[] {
+  return [
+    { key: 'input', label: t('marketplace.input'), value: formatPerMillion(0) },
+    { key: 'output', label: t('marketplace.output'), value: formatPerMillion(0) },
+  ]
 }
 
 function compactContextIntervalRows(pricing: MarketplaceModelPricing): PricingRow[] {

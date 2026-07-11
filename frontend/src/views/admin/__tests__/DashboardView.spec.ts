@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
 
 import type { DashboardStats } from '@/types'
 import DashboardView from '../DashboardView.vue'
@@ -85,8 +86,13 @@ const createDashboardStats = (): DashboardStats => ({
   tpm: 0
 })
 
+let pinia: ReturnType<typeof createPinia>
+
 describe('admin DashboardView', () => {
   beforeEach(() => {
+    pinia = createPinia()
+    setActivePinia(pinia)
+
     getSnapshotV2.mockReset()
     getUserUsageTrend.mockReset()
     getUserSpendingRanking.mockReset()
@@ -115,6 +121,7 @@ describe('admin DashboardView', () => {
   it('uses last 24 hours as default dashboard range', async () => {
     mount(DashboardView, {
       global: {
+        plugins: [pinia],
         stubs: {
           AppLayout: { template: '<div><slot /></div>' },
           LoadingSpinner: true,

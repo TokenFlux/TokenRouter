@@ -37,7 +37,7 @@ type ConcurrencyCache interface {
 	ReleaseUserSlot(ctx context.Context, userID int64, requestID string) error
 	GetUserConcurrency(ctx context.Context, userID int64) (int, error)
 
-	// 等待队列计数（只在首次创建时设置 TTL）
+	// 等待队列计数（每次入队都会刷新 TTL，避免长时间排队时计数提前过期）
 	IncrementWaitCount(ctx context.Context, userID int64, maxWait int) (bool, error)
 	DecrementWaitCount(ctx context.Context, userID int64) error
 
@@ -47,9 +47,17 @@ type ConcurrencyCache interface {
 
 	// 清理过期槽位（后台任务）
 	CleanupExpiredAccountSlots(ctx context.Context, accountID int64) error
+	CleanupExpiredAccountSlotKeys(ctx context.Context) error
 
 	// 启动时清理旧进程遗留槽位与等待计数
 	CleanupStaleProcessSlots(ctx context.Context, activeRequestPrefix string) error
+}
+
+// APIKeyConcurrencyCache 定义 API Key 实时并发统计所需的缓存能力。
+type APIKeyConcurrencyCache interface {
+	TrackAPIKeySlot(ctx context.Context, apiKeyID int64, requestID string) error
+	ReleaseAPIKeySlot(ctx context.Context, apiKeyID int64, requestID string) error
+	GetAPIKeyConcurrencyBatch(ctx context.Context, apiKeyIDs []int64) (map[int64]int, error)
 }
 
 var (
@@ -89,6 +97,8 @@ const (
 	defaultAccountLoadBatchCacheTTL = 200 * time.Millisecond
 	accountLoadBatchFetchTimeout    = 3 * time.Second
 	maxAccountLoadBatchCacheEntries = 256
+	apiKeyConcurrencyFetchTimeout   = 3 * time.Second
+	apiKeySlotTrackTimeout          = 2 * time.Second
 )
 
 // ConcurrencyService 管理账号和用户的并发限制。
@@ -235,6 +245,76 @@ func (s *ConcurrencyService) AcquireUserSlot(ctx context.Context, userID int64, 
 		Acquired:    false,
 		ReleaseFunc: nil,
 	}, nil
+}
+
+// TrackAPIKeySlot 记录一个 API Key 活跃请求槽位，但不施加 Key 级并发上限。
+// 统计采用故障放行：Redis 出错时记录日志并返回空操作释放函数。
+func (s *ConcurrencyService) TrackAPIKeySlot(ctx context.Context, apiKeyID int64) func() {
+	if s == nil || s.cache == nil || apiKeyID <= 0 {
+		return func() {}
+	}
+	cache, ok := s.cache.(APIKeyConcurrencyCache)
+	if !ok {
+		return func() {}
+	}
+
+	requestID := generateRequestID()
+	baseCtx := context.Background()
+	if ctx != nil {
+		baseCtx = context.WithoutCancel(ctx)
+	}
+	trackCtx, cancel := context.WithTimeout(baseCtx, apiKeySlotTrackTimeout)
+	err := cache.TrackAPIKeySlot(trackCtx, apiKeyID, requestID)
+	cancel()
+	if err != nil {
+		logger.LegacyPrintf("service.concurrency", "Warning: failed to track api key slot for %d (req=%s): %v", apiKeyID, requestID, err)
+		return func() {}
+	}
+
+	return func() {
+		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := cache.ReleaseAPIKeySlot(bgCtx, apiKeyID, requestID); err != nil {
+			logger.LegacyPrintf("service.concurrency", "Warning: failed to release api key slot for %d (req=%s): %v", apiKeyID, requestID, err)
+		}
+	}
+}
+
+// GetAPIKeyConcurrencyBatch 批量获取 API Key 的实时活跃请求数。
+// 统计采用尽力而为语义：缓存不支持或 Redis 出错时返回零值。
+func (s *ConcurrencyService) GetAPIKeyConcurrencyBatch(ctx context.Context, apiKeyIDs []int64) (map[int64]int, error) {
+	result := zeroAPIKeyConcurrencyMap(apiKeyIDs)
+	if len(apiKeyIDs) == 0 {
+		return result, nil
+	}
+	if s == nil || s.cache == nil {
+		return result, nil
+	}
+	cache, ok := s.cache.(APIKeyConcurrencyCache)
+	if !ok {
+		return result, nil
+	}
+
+	redisCtx, cancel := context.WithTimeout(context.Background(), apiKeyConcurrencyFetchTimeout)
+	defer cancel()
+
+	counts, err := cache.GetAPIKeyConcurrencyBatch(redisCtx, apiKeyIDs)
+	if err != nil {
+		logger.LegacyPrintf("service.concurrency", "Warning: get api key concurrency batch failed: %v", err)
+		return result, nil
+	}
+	for _, apiKeyID := range apiKeyIDs {
+		result[apiKeyID] = counts[apiKeyID]
+	}
+	return result, nil
+}
+
+func zeroAPIKeyConcurrencyMap(apiKeyIDs []int64) map[int64]int {
+	result := make(map[int64]int, len(apiKeyIDs))
+	for _, apiKeyID := range apiKeyIDs {
+		result[apiKeyID] = 0
+	}
+	return result
 }
 
 // ============================================
@@ -472,27 +552,19 @@ func (s *ConcurrencyService) CleanupExpiredAccountSlots(ctx context.Context, acc
 	return s.cache.CleanupExpiredAccountSlots(ctx, accountID)
 }
 
-// StartSlotCleanupWorker starts a background cleanup worker for expired account slots.
-func (s *ConcurrencyService) StartSlotCleanupWorker(accountRepo AccountRepository, interval time.Duration) {
-	if s == nil || s.cache == nil || accountRepo == nil || interval <= 0 {
+// StartSlotCleanupWorker 启动账号过期并发槽位的后台清理任务。
+func (s *ConcurrencyService) StartSlotCleanupWorker(_ AccountRepository, interval time.Duration) {
+	if s == nil || s.cache == nil || interval <= 0 {
 		return
 	}
 
 	runCleanup := func() {
-		listCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		accounts, err := accountRepo.ListSchedulable(listCtx)
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := s.cache.CleanupExpiredAccountSlotKeys(cleanupCtx)
 		cancel()
 		if err != nil {
-			logger.LegacyPrintf("service.concurrency", "Warning: list schedulable accounts failed: %v", err)
+			logger.LegacyPrintf("service.concurrency", "Warning: cleanup expired account slots failed: %v", err)
 			return
-		}
-		for _, account := range accounts {
-			accountCtx, accountCancel := context.WithTimeout(context.Background(), 2*time.Second)
-			err := s.cache.CleanupExpiredAccountSlots(accountCtx, account.ID)
-			accountCancel()
-			if err != nil {
-				logger.LegacyPrintf("service.concurrency", "Warning: cleanup expired slots failed for account %d: %v", account.ID, err)
-			}
 		}
 	}
 

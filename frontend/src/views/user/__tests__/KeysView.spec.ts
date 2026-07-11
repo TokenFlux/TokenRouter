@@ -46,7 +46,9 @@ const messages: Record<string, string> = {
   'keys.created': 'Created',
   'keys.expiresAt': 'Expires',
   'keys.group': 'Group',
+  'keys.currentConcurrency': 'Current Concurrency',
   'keys.lastUsedAt': 'Last Used',
+  'keys.lastUsedIP': 'Last Used IP',
   'keys.rateLimitColumn': 'Rate Limit',
   'keys.searchPlaceholder': 'Search name or key...',
   'keys.status.active': 'Active',
@@ -129,11 +131,13 @@ const createApiKey = (): ApiKey => ({
   ip_whitelist: [],
   ip_blacklist: [],
   last_used_at: null,
+  last_used_ip: null,
   quota: 0,
   quota_used: 0,
   expires_at: null,
   created_at: '2026-06-27T00:00:00Z',
   updated_at: '2026-06-27T00:00:00Z',
+  current_concurrency: 3,
   rate_limit_5h: 0,
   rate_limit_1d: 0,
   rate_limit_7d: 0,
@@ -163,13 +167,27 @@ const TablePageLayoutStub = {
 }
 
 const DataTableStub = {
+  name: 'DataTable',
   props: ['columns', 'data'],
   emits: ['sort'],
   template: `
     <div>
       <div data-test="columns">{{ columns.map((col) => col.key).join(',') }}</div>
+      <div data-test="columns-meta">{{ JSON.stringify(columns.map((col) => ({ key: col.key, sortable: !!col.sortable }))) }}</div>
+      <button data-test="sort-current-concurrency" @click="$emit('sort', 'current_concurrency', 'asc')">
+        Sort Current Concurrency
+      </button>
       <div v-for="row in data" :key="row.id">
         <slot name="cell-name" :value="row.name" :row="row" />
+        <div data-test="current-concurrency">
+          <slot name="cell-current_concurrency" :value="row.current_concurrency" :row="row" />
+        </div>
+        <div
+          v-if="columns.some((column) => column.key === 'last_used_ip')"
+          data-test="last-used-ip"
+        >
+          <slot name="cell-last_used_ip" :value="row.last_used_ip" :row="row" />
+        </div>
       </div>
       <slot name="empty" />
     </div>
@@ -177,15 +195,28 @@ const DataTableStub = {
 }
 
 const SelectStub = {
+  name: 'Select',
   props: ['modelValue', 'options'],
   emits: ['update:modelValue'],
   template: '<button type="button" @click="$emit(\'update:modelValue\', options?.[0]?.value ?? null)"></button>',
 }
 
 const SearchInputStub = {
+  name: 'SearchInput',
   props: ['modelValue'],
   emits: ['update:modelValue', 'search'],
   template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+}
+
+const PaginationStub = {
+  name: 'Pagination',
+  props: ['page', 'total', 'pageSize'],
+  emits: ['update:page', 'update:pageSize'],
+  template: `
+    <div>
+      <button data-test="page-size-50" @click="$emit('update:pageSize', 50)">50</button>
+    </div>
+  `,
 }
 
 const IconStub = {
@@ -200,7 +231,7 @@ const mountView = async () => {
         AppLayout: AppLayoutStub,
         TablePageLayout: TablePageLayoutStub,
         DataTable: DataTableStub,
-        Pagination: true,
+        Pagination: PaginationStub,
         BaseDialog: true,
         ConfirmDialog: true,
         EmptyState: true,
@@ -223,6 +254,9 @@ const mountView = async () => {
 
 const visibleColumnKeys = (wrapper: VueWrapper) =>
   wrapper.get('[data-test="columns"]').text().split(',').filter(Boolean)
+
+const visibleColumnMeta = (wrapper: VueWrapper): Array<{ key: string; sortable: boolean }> =>
+  JSON.parse(wrapper.get('[data-test="columns-meta"]').text())
 
 const getButtonByText = (wrapper: VueWrapper, text: string) => {
   const button = wrapper.findAll('button').find((item) => item.text().includes(text))
@@ -270,6 +304,7 @@ describe('user KeysView column settings', () => {
       'name',
       'key',
       'group',
+      'current_concurrency',
       'usage',
       'expires_at',
       'status',
@@ -278,6 +313,7 @@ describe('user KeysView column settings', () => {
     ])
     expect(visibleColumnKeys(wrapper)).not.toContain('rate_limit')
     expect(visibleColumnKeys(wrapper)).not.toContain('last_used_at')
+    expect(visibleColumnKeys(wrapper)).not.toContain('last_used_ip')
   })
 
   it('shows a hidden column when toggled and persists the preference', async () => {
@@ -288,8 +324,28 @@ describe('user KeysView column settings', () => {
     await nextTick()
 
     expect(visibleColumnKeys(wrapper)).toContain('rate_limit')
-    expect(localStorage.getItem('api-key-hidden-columns')).toBe(JSON.stringify(['last_used_at']))
-    expect(localStorage.getItem('api-key-column-settings-version')).toBe('1')
+    expect(localStorage.getItem('api-key-hidden-columns')).toBe(
+      JSON.stringify(['last_used_at', 'last_used_ip'])
+    )
+    expect(localStorage.getItem('api-key-column-settings-version')).toBe('2')
+  })
+
+  it('shows the last used IP column when toggled', async () => {
+    listKeys.mockResolvedValueOnce({
+      items: [{ ...createApiKey(), last_used_ip: '203.0.113.10' }],
+      total: 1,
+      page: 1,
+      page_size: 20,
+      pages: 1,
+    })
+    const wrapper = await mountView()
+
+    await wrapper.get('button[title="Column Settings"]').trigger('click')
+    await getButtonByText(wrapper, 'Last Used IP').trigger('click')
+    await nextTick()
+
+    expect(visibleColumnKeys(wrapper)).toContain('last_used_ip')
+    expect(wrapper.get('[data-test="last-used-ip"]').text()).toBe('203.0.113.10')
   })
 
   it('restores column preferences from localStorage on mount', async () => {
@@ -301,6 +357,7 @@ describe('user KeysView column settings', () => {
     expect(visibleColumnKeys(wrapper)).toEqual([
       'name',
       'key',
+      'current_concurrency',
       'usage',
       'rate_limit',
       'expires_at',
@@ -308,6 +365,23 @@ describe('user KeysView column settings', () => {
       'last_used_at',
       'actions',
     ])
+    expect(localStorage.getItem('api-key-hidden-columns')).toBe(
+      JSON.stringify(['group', 'created_at', 'last_used_ip'])
+    )
+    expect(localStorage.getItem('api-key-column-settings-version')).toBe('2')
+  })
+
+  it('treats an invalid stored column version as the oldest version', async () => {
+    localStorage.setItem('api-key-hidden-columns', JSON.stringify(['group']))
+    localStorage.setItem('api-key-column-settings-version', 'invalid')
+
+    const wrapper = await mountView()
+
+    expect(visibleColumnKeys(wrapper)).not.toContain('last_used_ip')
+    expect(localStorage.getItem('api-key-hidden-columns')).toBe(
+      JSON.stringify(['group', 'last_used_ip'])
+    )
+    expect(localStorage.getItem('api-key-column-settings-version')).toBe('2')
   })
 
   it('does not include always-visible columns in the toggleable menu', async () => {
@@ -318,8 +392,61 @@ describe('user KeysView column settings', () => {
 
     const columnMenuText = wrapper.text()
     expect(columnMenuText).toContain('API Key')
+    expect(columnMenuText).toContain('Current Concurrency')
     expect(columnMenuText).toContain('Rate Limit')
+    expect(columnMenuText).toContain('Last Used IP')
     expect(columnMenuText).not.toContain('Name')
     expect(columnMenuText).not.toContain('Actions')
+  })
+
+  it('renders the current concurrency value', async () => {
+    const wrapper = await mountView()
+
+    expect(wrapper.get('[data-test="current-concurrency"]').text()).toBe('3')
+  })
+
+  it('marks current concurrency as sortable', async () => {
+    const wrapper = await mountView()
+
+    const currentConcurrencyColumn = visibleColumnMeta(wrapper).find(
+      (column) => column.key === 'current_concurrency'
+    )
+    expect(currentConcurrencyColumn?.sortable).toBe(true)
+  })
+
+  it('keeps filters and selected page size when sorting by current concurrency', async () => {
+    getAvailableGroups.mockResolvedValue([{ id: 42, name: 'OpenAI' }])
+    const wrapper = await mountView()
+
+    await wrapper.get('[data-test="page-size-50"]').trigger('click')
+    await flushPromises()
+
+    await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('update:modelValue', 'target')
+    await wrapper.findComponent({ name: 'SearchInput' }).vm.$emit('search')
+    await flushPromises()
+
+    const selects = wrapper.findAllComponents({ name: 'Select' })
+    await selects[0].vm.$emit('update:modelValue', 42)
+    await flushPromises()
+    await selects[1].vm.$emit('update:modelValue', 'active')
+    await flushPromises()
+
+    listKeys.mockClear()
+
+    await wrapper.get('[data-test="sort-current-concurrency"]').trigger('click')
+    await flushPromises()
+
+    expect(listKeys).toHaveBeenLastCalledWith(
+      1,
+      50,
+      {
+        search: 'target',
+        status: 'active',
+        group_id: 42,
+        sort_by: 'current_concurrency',
+        sort_order: 'asc',
+      },
+      expect.objectContaining({ signal: expect.any(AbortSignal) })
+    )
   })
 })

@@ -406,6 +406,74 @@ func TestPricingRequestToService_NilPriceFields(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
+// GetModelDefaultPricing 处理器测试
+// ---------------------------------------------------------------------------
+
+func setupModelDefaultPricingRouter(billingSvc *service.BillingService) *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	h := &ChannelHandler{billingService: billingSvc}
+	router.GET("/channels/model-pricing", h.GetModelDefaultPricing)
+	return router
+}
+
+func TestGetModelDefaultPricing_QoderAliasRequiresManualPricing(t *testing.T) {
+	billingSvc := service.NewBillingService(nil, nil)
+	router := setupModelDefaultPricingRouter(billingSvc)
+
+	for _, model := range []string{"claude-opus-4-6", "CLAUDE-OPUS-4-6"} {
+		t.Run(model, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/channels/model-pricing?platform=qoder&model="+model, nil)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			require.Equal(t, http.StatusOK, w.Code)
+
+			var body struct {
+				Data struct {
+					Found           bool    `json:"found"`
+					InputPrice      float64 `json:"input_price"`
+					OutputPrice     float64 `json:"output_price"`
+					CacheWritePrice float64 `json:"cache_write_price"`
+					CacheReadPrice  float64 `json:"cache_read_price"`
+				} `json:"data"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+
+			require.False(t, body.Data.Found)
+			require.Zero(t, body.Data.InputPrice)
+			require.Zero(t, body.Data.OutputPrice)
+			require.Zero(t, body.Data.CacheWritePrice)
+			require.Zero(t, body.Data.CacheReadPrice)
+		})
+	}
+}
+
+func TestGetModelDefaultPricing_QoderRouteKeysRequireManualPricing(t *testing.T) {
+	billingSvc := service.NewBillingService(nil, nil)
+	router := setupModelDefaultPricingRouter(billingSvc)
+
+	for _, model := range []string{"qmodel", "ultimate", "q35model", "gmodel"} {
+		req := httptest.NewRequest(http.MethodGet, "/channels/model-pricing?platform=qoder&model="+model, nil)
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		require.Equal(t, http.StatusOK, w.Code)
+
+		var body struct {
+			Data struct {
+				Found      bool    `json:"found"`
+				InputPrice float64 `json:"input_price"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+
+		require.False(t, body.Data.Found, "model=%s", model)
+		require.Zero(t, body.Data.InputPrice, "model=%s", model)
+	}
+}
+
+// ---------------------------------------------------------------------------
 // SyncPricingModels 处理器测试
 // ---------------------------------------------------------------------------
 
@@ -443,7 +511,7 @@ func TestSyncPricingModels_ValidPlatform_EmptyService(t *testing.T) {
 	svc := service.NewPricingService(nil, nil)
 	router := setupSyncPricingModelsRouter(svc)
 
-	for _, platform := range []string{"anthropic", "openai", "gemini", "antigravity"} {
+	for _, platform := range []string{"anthropic", "openai", "gemini", "antigravity", "qoder"} {
 		req := httptest.NewRequest(http.MethodGet, "/channels/pricing/sync-models?platform="+platform, nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
@@ -458,4 +526,37 @@ func TestSyncPricingModels_ValidPlatform_EmptyService(t *testing.T) {
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 		require.NotNil(t, body.Data.Models, "models must not be null for platform=%s", platform)
 	}
+}
+
+func TestSyncPricingModels_QoderUsesDefaultAliases(t *testing.T) {
+	svc := service.NewPricingService(nil, nil)
+	router := setupSyncPricingModelsRouter(svc)
+
+	req := httptest.NewRequest(http.MethodGet, "/channels/pricing/sync-models?platform=qoder", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+
+	var body struct {
+		Data struct {
+			Models []string `json:"models"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	require.Equal(t, []string{
+		"claude-opus-4-6",
+		"auto",
+		"performance",
+		"efficient",
+		"lite",
+		"qwen3.7-max",
+		"qwen3.7-plus",
+		"deepseek-v4-pro",
+		"deepseek-v4-flash",
+		"glm-5.2",
+		"kimi-k2.7-code",
+		"minimax-m3",
+	}, body.Data.Models)
+	require.NotContains(t, body.Data.Models, "ultimate")
 }

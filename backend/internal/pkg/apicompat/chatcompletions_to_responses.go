@@ -16,6 +16,10 @@ type chatMessageContent struct {
 // true. store is always false and reasoning.encrypted_content is always
 // included so that the response translator has full context.
 func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest, error) {
+	if isUltraReasoningEffort(req.ReasoningEffort) {
+		return nil, fmt.Errorf("reasoning effort %q is not supported", strings.TrimSpace(req.ReasoningEffort))
+	}
+
 	input, err := convertChatMessagesToResponsesInput(req.Messages)
 	if err != nil {
 		return nil, err
@@ -27,12 +31,13 @@ func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest,
 	}
 
 	out := &ResponsesRequest{
-		Model:        req.Model,
-		Instructions: req.Instructions,
-		Input:        inputJSON,
-		Stream:       true, // upstream always streams
-		Include:      []string{"reasoning.encrypted_content"},
-		ServiceTier:  req.ServiceTier,
+		Model:             req.Model,
+		Instructions:      req.Instructions,
+		Input:             inputJSON,
+		Stream:            true, // upstream always streams
+		Include:           []string{"reasoning.encrypted_content"},
+		ServiceTier:       req.ServiceTier,
+		ParallelToolCalls: req.ParallelToolCalls,
 	}
 
 	// gpt-5.x 推理模型不接受采样参数，具体判定见 isReasoningModel。
@@ -66,6 +71,13 @@ func ChatCompletionsToResponses(req *ChatCompletionsRequest) (*ResponsesRequest,
 			Effort:  req.ReasoningEffort,
 			Summary: "auto",
 		}
+	}
+
+	if format := chatResponseFormatToResponsesTextFormat(req.ResponseFormat); len(format) > 0 {
+		if out.Text == nil {
+			out.Text = &ResponsesText{}
+		}
+		out.Text.Format = format
 	}
 
 	// tools[] and legacy functions[] → ResponsesTool[]

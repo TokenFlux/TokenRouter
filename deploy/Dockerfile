@@ -7,7 +7,7 @@
 # =============================================================================
 
 ARG NODE_IMAGE=node:24-alpine
-ARG GOLANG_IMAGE=golang:1.26.4-alpine
+ARG GOLANG_IMAGE=golang:1.26.5-alpine
 ARG ALPINE_IMAGE=alpine:3.20
 ARG GOPROXY=https://goproxy.cn,direct
 ARG GOSUMDB=sum.golang.google.cn
@@ -18,9 +18,10 @@ ARG GOSUMDB=sum.golang.google.cn
 FROM ${NODE_IMAGE} AS frontend-builder
 
 WORKDIR /app/frontend
+ENV NODE_OPTIONS=--max-old-space-size=1536
 
-# Install pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# 安装 pnpm，并固定到与 lockfile 兼容的精确版本，避免配置校验规则变化破坏构建。
+RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
 # Install dependencies first (better caching)
 COPY frontend/package.json frontend/pnpm-lock.yaml ./

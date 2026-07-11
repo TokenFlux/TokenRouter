@@ -610,6 +610,41 @@ func (s *AccountRepoSuite) TestListSchedulableByGroupID_TimeBoundaries_And_Statu
 	s.Require().Len(sched2, 2, "expected 2 schedulable accounts after ClearRateLimit")
 }
 
+func (s *AccountRepoSuite) TestListSchedulableCapacityByGroupIDs() {
+	now := time.Now()
+	group1 := mustCreateGroup(s.T(), s.client, &service.Group{Name: "g-capacity-1"})
+	group2 := mustCreateGroup(s.T(), s.client, &service.Group{Name: "g-capacity-2"})
+	shared := mustCreateAccount(s.T(), s.client, &service.Account{
+		Name:        "shared-capacity",
+		Platform:    service.PlatformOpenAI,
+		Schedulable: true,
+		Concurrency: 3,
+		Extra:       map[string]any{"base_rpm": 12},
+	})
+	mustBindAccountToGroup(s.T(), s.client, shared.ID, group1.ID, 1)
+	mustBindAccountToGroup(s.T(), s.client, shared.ID, group2.ID, 1)
+
+	future := now.Add(10 * time.Minute)
+	overloaded := mustCreateAccount(s.T(), s.client, &service.Account{
+		Name:          "overloaded-capacity",
+		Schedulable:   true,
+		OverloadUntil: &future,
+	})
+	mustBindAccountToGroup(s.T(), s.client, overloaded.ID, group1.ID, 2)
+
+	rows, err := s.repo.ListSchedulableCapacityByGroupIDs(s.ctx, []int64{group2.ID, group1.ID, group2.ID, 0})
+	s.Require().NoError(err)
+	s.Require().Len(rows, 2)
+	s.Require().Equal(group1.ID, rows[0].GroupID)
+	s.Require().Equal(group2.ID, rows[1].GroupID)
+	for _, row := range rows {
+		s.Require().Equal(shared.ID, row.AccountID)
+		s.Require().Equal(service.PlatformOpenAI, row.Platform)
+		s.Require().Equal(3, row.Concurrency)
+		s.Require().Equal(float64(12), row.Extra["base_rpm"])
+	}
+}
+
 func (s *AccountRepoSuite) TestListSchedulableByPlatform() {
 	mustCreateAccount(s.T(), s.client, &service.Account{Name: "a1", Platform: service.PlatformAnthropic, Schedulable: true})
 	mustCreateAccount(s.T(), s.client, &service.Account{Name: "a2", Platform: service.PlatformOpenAI, Schedulable: true})

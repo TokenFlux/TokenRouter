@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,6 +27,8 @@ type systemUpdateService interface {
 	CheckUpdate(ctx context.Context, force bool) (*service.UpdateInfo, error)
 	PerformUpdate(ctx context.Context) error
 	Rollback() error
+	ListRollbackVersions(ctx context.Context) ([]service.RollbackVersion, error)
+	RollbackToVersion(ctx context.Context, version string) error
 }
 
 // NewSystemHandler creates a new SystemHandler
@@ -102,11 +105,41 @@ func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 	})
 }
 
-// Rollback restores the previous version
+// GetRollbackVersions 返回允许回退的历史版本列表。
+// GET /api/v1/admin/system/rollback-versions
+func (h *SystemHandler) GetRollbackVersions(c *gin.Context) {
+	versions, err := h.updateSvc.ListRollbackVersions(c.Request.Context())
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response.Success(c, gin.H{
+		"versions": versions,
+	})
+}
+
+// Rollback 恢复历史版本。
+// 无请求体或 version 为空时恢复上次原地更新留下的 .backup；传入
+// {"version":"x.y.z"} 时下载并安装允许列表中的指定 release。
 // POST /api/v1/admin/system/rollback
 func (h *SystemHandler) Rollback(c *gin.Context) {
-	operationID := buildSystemOperationID(c, "rollback")
-	payload := gin.H{"operation_id": operationID}
+	var req struct {
+		Version string `json:"version"`
+	}
+	if c.Request.Body != nil && c.Request.ContentLength != 0 {
+		if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+			response.Error(c, http.StatusBadRequest, "invalid request body")
+			return
+		}
+	}
+	targetVersion := strings.TrimSpace(req.Version)
+
+	operation := "rollback"
+	if targetVersion != "" {
+		operation = "rollback:" + targetVersion
+	}
+	operationID := buildSystemOperationID(c, operation)
+	payload := gin.H{"operation_id": operationID, "version": targetVersion}
 	executeAdminIdempotentJSON(c, "admin.system.rollback", payload, service.DefaultSystemOperationIdempotencyTTL(), func(ctx context.Context) (any, error) {
 		lock, release, err := h.acquireSystemLock(ctx, operationID)
 		if err != nil {
@@ -118,7 +151,12 @@ func (h *SystemHandler) Rollback(c *gin.Context) {
 			release(releaseReason, succeeded)
 		}()
 
-		if err := h.updateSvc.Rollback(); err != nil {
+		if targetVersion != "" {
+			err = h.updateSvc.RollbackToVersion(ctx, targetVersion)
+		} else {
+			err = h.updateSvc.Rollback()
+		}
+		if err != nil {
 			releaseReason = "SYSTEM_ROLLBACK_FAILED"
 			return nil, err
 		}
@@ -127,6 +165,7 @@ func (h *SystemHandler) Rollback(c *gin.Context) {
 		return gin.H{
 			"message":      "Rollback completed. Please restart the service.",
 			"need_restart": true,
+			"version":      targetVersion,
 			"operation_id": lock.OperationID(),
 		}, nil
 	})

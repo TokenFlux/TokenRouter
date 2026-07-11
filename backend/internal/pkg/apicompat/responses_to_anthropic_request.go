@@ -11,7 +11,7 @@ import (
 // enables Anthropic platform groups to accept OpenAI Responses API requests
 // by converting them to the native /v1/messages format before forwarding upstream.
 func ResponsesToAnthropicRequest(req *ResponsesRequest) (*AnthropicRequest, error) {
-	system, messages, err := convertResponsesInputToAnthropic(req.Input)
+	system, messages, err := convertResponsesInputToAnthropic(req.Instructions, req.Input)
 	if err != nil {
 		return nil, err
 	}
@@ -53,6 +53,9 @@ func ResponsesToAnthropicRequest(req *ResponsesRequest) (*AnthropicRequest, erro
 
 	// reasoning.effort → output_config.effort + thinking
 	if req.Reasoning != nil && req.Reasoning.Effort != "" {
+		if isUltraReasoningEffort(req.Reasoning.Effort) {
+			return nil, fmt.Errorf("reasoning effort %q is not supported", strings.TrimSpace(req.Reasoning.Effort))
+		}
 		effort := mapResponsesEffortToAnthropic(req.Reasoning.Effort)
 		out.OutputConfig = &AnthropicOutputConfig{Effort: effort}
 		// Enable thinking for non-low efforts
@@ -91,21 +94,31 @@ func defaultThinkingBudget(effort string) int {
 //	high   → high
 //	xhigh  → max
 func mapResponsesEffortToAnthropic(effort string) string {
-	if effort == "xhigh" {
+	switch strings.ToLower(strings.TrimSpace(effort)) {
+	case "xhigh", "max":
 		return "max"
+	default:
+		return effort // low→low, medium→medium, high→high, unknown→passthrough
 	}
-	return effort // low→low, medium→medium, high→high, unknown→passthrough
 }
 
-// convertResponsesInputToAnthropic extracts system prompt and messages from
-// a Responses API input array. Returns the system as raw JSON (for Anthropic's
-// polymorphic system field) and a list of Anthropic messages.
-func convertResponsesInputToAnthropic(inputRaw json.RawMessage) (json.RawMessage, []AnthropicMessage, error) {
+// convertResponsesInputToAnthropic 从 Responses API 的 instructions 与 input 数组中
+// 提取系统提示和消息，并以原始 JSON 返回 Anthropic 多态 system 字段。
+func convertResponsesInputToAnthropic(instructions string, inputRaw json.RawMessage) (json.RawMessage, []AnthropicMessage, error) {
+	var systemParts []string
+	if strings.TrimSpace(instructions) != "" {
+		systemParts = append(systemParts, strings.TrimSpace(instructions))
+	}
+
 	// Try as plain string input.
 	var inputStr string
 	if err := json.Unmarshal(inputRaw, &inputStr); err == nil {
 		content, _ := json.Marshal(inputStr)
-		return nil, []AnthropicMessage{{Role: "user", Content: content}}, nil
+		var system json.RawMessage
+		if len(systemParts) > 0 {
+			system, _ = json.Marshal(strings.Join(systemParts, "\n\n"))
+		}
+		return system, []AnthropicMessage{{Role: "user", Content: content}}, nil
 	}
 
 	var items []ResponsesInputItem
@@ -113,16 +126,14 @@ func convertResponsesInputToAnthropic(inputRaw json.RawMessage) (json.RawMessage
 		return nil, nil, fmt.Errorf("parse responses input: %w", err)
 	}
 
-	var system json.RawMessage
 	var messages []AnthropicMessage
 
 	for _, item := range items {
 		switch {
-		case item.Role == "system":
-			// System prompt → Anthropic system field
+		case item.Role == "system" || item.Role == "developer":
 			text := extractTextFromContent(item.Content)
 			if text != "" {
-				system, _ = json.Marshal(text)
+				systemParts = append(systemParts, text)
 			}
 
 		case item.Type == "function_call":
@@ -198,6 +209,11 @@ func convertResponsesInputToAnthropic(inputRaw json.RawMessage) (json.RawMessage
 	messages = mergeConsecutiveMessages(messages)
 	messages = normalizeAnthropicToolPairing(messages)
 	messages = mergeConsecutiveMessages(messages)
+
+	var system json.RawMessage
+	if len(systemParts) > 0 {
+		system, _ = json.Marshal(strings.Join(systemParts, "\n\n"))
+	}
 
 	return system, messages, nil
 }

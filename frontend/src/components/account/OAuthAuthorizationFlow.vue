@@ -697,7 +697,7 @@
             </div>
           </div>
 
-          <!-- Step 2: Open URL and authorize -->
+          <!-- 步骤 2：打开授权地址 -->
           <div
             class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
           >
@@ -714,9 +714,9 @@
                 <p class="text-sm text-blue-700 dark:text-blue-300">
                   {{ oauthOpenUrlDesc }}
                 </p>
-                <!-- 本地回调提示 -->
+                <!-- 平台特定的重要提示和本地回调提示 -->
                 <div
-                  v-if="showLocalCallbackNotice"
+                  v-if="showLocalCallbackNotice || oauthImportantNotice"
                   class="mt-2 rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-900/30"
                 >
                   <p
@@ -724,9 +724,9 @@
                     v-text="oauthImportantNotice"
                   ></p>
                 </div>
-                <!-- Proxy Warning (for non-OpenAI) -->
+                <!-- 非 OpenAI 平台代理提示 -->
                 <div
-                  v-else-if="showProxyWarning"
+                  v-if="showProxyWarning"
                   class="mt-2 rounded border border-yellow-300 bg-yellow-50 p-3 dark:border-yellow-700 dark:bg-yellow-900/30"
                 >
                   <p
@@ -738,7 +738,7 @@
             </div>
           </div>
 
-          <!-- Step 3: Enter authorization code -->
+          <!-- 步骤 3：输入授权码 -->
           <div
             class="rounded-lg border border-blue-300 bg-white/80 p-4 dark:border-blue-600 dark:bg-gray-800/80"
           >
@@ -915,6 +915,7 @@ const getOAuthKey = (key: string) => {
   if (props.platform === 'openai') return `admin.accounts.oauth.openai.${key}`
   if (props.platform === 'gemini') return `admin.accounts.oauth.gemini.${key}`
   if (props.platform === 'antigravity') return `admin.accounts.oauth.antigravity.${key}`
+  if (props.platform === 'qoder') return `admin.accounts.oauth.qoder.${key}`
   if (props.platform === 'grok') return `admin.accounts.oauth.grok.${key}`
   return `admin.accounts.oauth.${key}`
 }
@@ -934,6 +935,7 @@ const oauthAuthCodeHint = computed(() => t(getOAuthKey('authCodeHint')))
 const oauthImportantNotice = computed(() => {
   if (props.platform === 'openai') return t('admin.accounts.oauth.openai.importantNotice')
   if (props.platform === 'antigravity') return t('admin.accounts.oauth.antigravity.importantNotice')
+  if (props.platform === 'qoder') return t('admin.accounts.oauth.qoder.importantNotice')
   if (props.platform === 'grok') return t('admin.accounts.oauth.grok.importantNotice')
   return ''
 })

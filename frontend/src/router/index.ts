@@ -225,6 +225,19 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    path: '/batch-image',
+    name: 'BatchImageGuide',
+    alias: '/docs/batch-image',
+    component: () => import('@/views/user/BatchImageGuideView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Batch Image Guide',
+      titleKey: 'batchImageGuide.title',
+      descriptionKey: 'batchImageGuide.description'
+    }
+  },
+  {
     path: '/usage',
     name: 'Usage',
     component: () => import('@/views/user/UsageView.vue'),
@@ -822,21 +835,35 @@ router.beforeEach(async (to, _from, next) => {
   }
 
 
-  // Check payment requirement (internal payment system only)
-  if (to.meta.requiresPayment) {
-    const paymentEnabled = appStore.cachedPublicSettings?.payment_enabled
-    if (!paymentEnabled) {
-      next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
-      return
+  // 公共设置可能尚未加载（App.vue 的 onMounted 异步拉取晚于首次导航，且纯静态部署
+  // 无 __APP_CONFIG__ 注入）。此时 cachedPublicSettings 为空会把 payment/risk_control
+  // 误判为“未启用”而错误拦截，故这里先确保设置加载完成。
+  if ((to.meta.requiresPayment || to.meta.requiresRiskControl) && !appStore.publicSettingsLoaded) {
+    try {
+      await appStore.fetchPublicSettings()
+    } catch (error) {
+      console.warn('Failed to load public settings in route guard', error)
     }
   }
 
-  if (to.meta.requiresRiskControl) {
-    const riskControlEnabled = appStore.cachedPublicSettings?.risk_control_enabled === true
-    if (!riskControlEnabled) {
-      next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
-      return
-    }
+  // 只有成功加载设置后的明确值才能禁用路由；临时加载失败属于未知状态，
+  // 不能据此判定功能已关闭。
+  if (
+    to.meta.requiresPayment &&
+    appStore.publicSettingsLoaded &&
+    appStore.cachedPublicSettings?.payment_enabled === false
+  ) {
+    next(authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
+    return
+  }
+
+  if (
+    to.meta.requiresRiskControl &&
+    appStore.publicSettingsLoaded &&
+    appStore.cachedPublicSettings?.risk_control_enabled === false
+  ) {
+    next(authStore.isAdmin ? '/admin/settings' : '/dashboard')
+    return
   }
 
   if (to.meta.requiresAffiliate) {

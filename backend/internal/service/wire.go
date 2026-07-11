@@ -80,6 +80,18 @@ func ProvideAuthService(
 	return svc
 }
 
+// ProvideBatchImageModelPricingResolver 创建批量图片模型定价解析器。
+func ProvideBatchImageModelPricingResolver(resolver *ModelPricingResolver) *BatchImageModelPricingResolver {
+	return &BatchImageModelPricingResolver{Resolver: resolver}
+}
+
+// ProvideBatchImageCleanupService 创建并启动批量图片清理服务。
+func ProvideBatchImageCleanupService(repo BatchImageRepository, accountRepo AccountRepository, cfg *config.Config) *BatchImageCleanupService {
+	svc := NewBatchImageCleanupService(repo, accountRepo, cfg)
+	svc.Start()
+	return svc
+}
+
 // ProvideTokenRefreshService creates and starts TokenRefreshService
 func ProvideTokenRefreshService(
 	accountRepo AccountRepository,
@@ -87,6 +99,7 @@ func ProvideTokenRefreshService(
 	openaiOAuthService *OpenAIOAuthService,
 	geminiOAuthService *GeminiOAuthService,
 	antigravityOAuthService *AntigravityOAuthService,
+	qoderOAuthService *QoderOAuthService,
 	grokOAuthService *GrokOAuthService,
 	cacheInvalidator TokenCacheInvalidator,
 	schedulerCache SchedulerCache,
@@ -96,8 +109,10 @@ func ProvideTokenRefreshService(
 	proxyRepo ProxyRepository,
 	refreshAPI *OAuthRefreshAPI,
 	runtimeBlocker AccountRuntimeBlocker,
+	httpUpstream HTTPUpstream,
+	tlsFPProfileService *TLSFingerprintProfileService,
 ) *TokenRefreshService {
-	svc := NewTokenRefreshService(accountRepo, oauthService, openaiOAuthService, geminiOAuthService, antigravityOAuthService, cacheInvalidator, schedulerCache, cfg, tempUnschedCache, grokOAuthService)
+	svc := NewTokenRefreshServiceWithHTTPUpstream(accountRepo, oauthService, openaiOAuthService, geminiOAuthService, antigravityOAuthService, cacheInvalidator, schedulerCache, cfg, tempUnschedCache, qoderOAuthService, []*GrokOAuthService{grokOAuthService}, httpUpstream, tlsFPProfileService)
 	// 注入 OpenAI privacy opt-out 依赖
 	svc.SetPrivacyDeps(privacyClientFactory, proxyRepo)
 	// 注入统一 OAuth 刷新 API（消除 TokenRefreshService 与 TokenProvider 之间的竞争条件）
@@ -577,10 +592,12 @@ func ProvideAPIKeyService(
 	cfg *config.Config,
 	billingCacheService *BillingCacheService,
 	dataSharingService *DataSharingService,
+	concurrencyService *ConcurrencyService,
 ) *APIKeyService {
 	svc := NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, userSubRepo, userGroupRateRepo, cache, cfg)
 	svc.SetRateLimitCacheInvalidator(billingCacheService)
 	svc.SetDataSharingNoticeReader(dataSharingService)
+	svc.SetConcurrencyService(concurrencyService)
 	return svc
 }
 
@@ -657,10 +674,17 @@ var ProviderSet = wire.NewSet(
 	NewAdminService,
 	NewModelMarketplaceService,
 	NewGatewayService,
+	NewQoderTokenProvider,
+	NewQoderGatewayService,
 	ProvideOpenAIGatewayTLSFingerprintRouterServices,
 	NewOpenAIGatewayService,
 	NewCodexInviteResetService,
 	NewOpenAIQuotaService,
+	ProvideBatchImageModelPricingResolver,
+	NewBatchImagePublicService,
+	NewBatchImageDownloadService,
+	ProvideBatchImageCleanupService,
+	ProvideBatchImageWorkerRuntime,
 	wire.Bind(new(AccountRuntimeBlocker), new(*OpenAIGatewayService)),
 	NewOAuthService,
 	ProvideOpenAIOAuthService,
@@ -673,6 +697,7 @@ var ProviderSet = wire.NewSet(
 	NewCompositeTokenCacheInvalidator,
 	wire.Bind(new(TokenCacheInvalidator), new(*CompositeTokenCacheInvalidator)),
 	NewAntigravityOAuthService,
+	NewQoderOAuthService,
 	ProvideOAuthRefreshAPI,
 	ProvideGeminiTokenProvider,
 	NewGeminiMessagesCompatService,

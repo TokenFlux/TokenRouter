@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/paymentproviderinstance"
@@ -36,6 +37,7 @@ func (s *PaymentConfigService) GetAvailableMethodLimits(ctx context.Context) (*M
 		}
 		ml := pcAggregateMethodLimits(pt, insts)
 		ml = pcApplyEffectiveMethodFee(cfg, ml)
+		ml.DisplayName = s.pcAggregateMethodDisplayName(pt, insts)
 		ml.Currency = currency
 		resp.Methods[ml.PaymentType] = ml
 	}
@@ -103,6 +105,7 @@ func (s *PaymentConfigService) GetMethodLimits(ctx context.Context, types []stri
 		}
 		ml := pcAggregateMethodLimits(pt, matching)
 		ml = pcApplyEffectiveMethodFee(cfg, ml)
+		ml.DisplayName = s.pcAggregateMethodDisplayName(pt, matching)
 		ml.Currency = currency
 		result = append(result, ml)
 	}
@@ -178,6 +181,53 @@ func (s *PaymentConfigService) pcInstancePaymentCurrency(inst *dbent.PaymentProv
 		}
 	}
 	return paymentProviderConfigCurrency(inst.ProviderKey, cfg)
+}
+
+type easyPayCustomMethodDisplayConfig struct {
+	Type        string `json:"type"`
+	DisplayName string `json:"displayName"`
+}
+
+func (s *PaymentConfigService) pcAggregateMethodDisplayName(pt string, instances []*dbent.PaymentProviderInstance) string {
+	pt = strings.TrimSpace(pt)
+	if pt == "" {
+		return ""
+	}
+	for _, inst := range instances {
+		displayName := s.pcInstanceEasyPayCustomMethodDisplayName(inst, pt)
+		if displayName != "" {
+			return displayName
+		}
+	}
+	return ""
+}
+
+func (s *PaymentConfigService) pcInstanceEasyPayCustomMethodDisplayName(inst *dbent.PaymentProviderInstance, pt string) string {
+	if inst == nil || inst.ProviderKey != payment.TypeEasyPay {
+		return ""
+	}
+	cfg := map[string]string{}
+	if s != nil {
+		decrypted, err := s.decryptConfig(inst.Config)
+		if err == nil && decrypted != nil {
+			cfg = decrypted
+		}
+	}
+	raw := strings.TrimSpace(cfg["customMethods"])
+	if raw == "" {
+		return ""
+	}
+
+	var methods []easyPayCustomMethodDisplayConfig
+	if err := json.Unmarshal([]byte(raw), &methods); err != nil {
+		return ""
+	}
+	for _, method := range methods {
+		if strings.TrimSpace(method.Type) == pt {
+			return strings.TrimSpace(method.DisplayName)
+		}
+	}
+	return ""
 }
 
 // pcGroupByPaymentType 按用户可见支付方式聚合服务商实例。

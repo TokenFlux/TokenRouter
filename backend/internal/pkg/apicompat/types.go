@@ -4,7 +4,10 @@
 // formats can be served through a unified gateway.
 package apicompat
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+)
 
 // ---------------------------------------------------------------------------
 // Anthropic Messages API types
@@ -214,13 +217,14 @@ type ResponsesRequest struct {
 
 // ResponsesReasoning configures reasoning effort in the Responses API.
 type ResponsesReasoning struct {
-	Effort  string `json:"effort"`            // "low" | "medium" | "high" | "xhigh"
+	Effort  string `json:"effort"`            // "low" | "medium" | "high" | "xhigh" | "max"
 	Summary string `json:"summary,omitempty"` // "auto" | "concise" | "detailed"
 }
 
 // ResponsesText configures text output options in the Responses API.
 type ResponsesText struct {
-	Verbosity string `json:"verbosity,omitempty"` // "low" | "medium" | "high"
+	Format    json.RawMessage `json:"format,omitempty"`    // Responses API 的结构化输出格式。
+	Verbosity string          `json:"verbosity,omitempty"` // "low" | "medium" | "high"
 }
 
 // ResponsesInputItem is one item in the Responses API input array.
@@ -323,9 +327,10 @@ type ResponsesSummary struct {
 
 // ResponsesUsage holds token counts in Responses API format.
 type ResponsesUsage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
-	TotalTokens  int `json:"total_tokens"`
+	InputTokens              int `json:"input_tokens"`
+	OutputTokens             int `json:"output_tokens"`
+	TotalTokens              int `json:"total_tokens"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
 
 	// Optional detailed breakdown
 	InputTokensDetails  *ResponsesInputTokensDetails  `json:"input_tokens_details,omitempty"`
@@ -335,14 +340,28 @@ type ResponsesUsage struct {
 // UnmarshalJSON 兼容 OpenAI Responses 与 Chat Completions 两种 usage 字段命名。
 func (u *ResponsesUsage) UnmarshalJSON(data []byte) error {
 	type responsesUsageAlias ResponsesUsage
+	type cacheTokenPresence struct {
+		CacheCreationTokens *int `json:"cache_creation_tokens"`
+		CacheWriteTokens    *int `json:"cache_write_tokens"`
+	}
 	var aux struct {
 		responsesUsageAlias
 		PromptTokens            int                           `json:"prompt_tokens"`
 		CompletionTokens        int                           `json:"completion_tokens"`
+		CacheCreationTokens     int                           `json:"cache_creation_tokens"`
+		CacheWriteInputTokens   int                           `json:"cache_write_input_tokens"`
+		CacheWriteTokens        int                           `json:"cache_write_tokens"`
 		PromptTokensDetails     *ResponsesInputTokensDetails  `json:"prompt_tokens_details,omitempty"`
 		CompletionTokensDetails *ResponsesOutputTokensDetails `json:"completion_tokens_details,omitempty"`
 	}
 	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+	var nestedPresence struct {
+		InputTokensDetails  *cacheTokenPresence `json:"input_tokens_details"`
+		PromptTokensDetails *cacheTokenPresence `json:"prompt_tokens_details"`
+	}
+	if err := json.Unmarshal(data, &nestedPresence); err != nil {
 		return err
 	}
 	*u = ResponsesUsage(aux.responsesUsageAlias)
@@ -352,11 +371,35 @@ func (u *ResponsesUsage) UnmarshalJSON(data []byte) error {
 	if u.OutputTokens == 0 && aux.CompletionTokens != 0 {
 		u.OutputTokens = aux.CompletionTokens
 	}
+	if u.CacheCreationInputTokens == 0 {
+		switch {
+		case aux.CacheWriteInputTokens > 0:
+			u.CacheCreationInputTokens = aux.CacheWriteInputTokens
+		case aux.CacheCreationTokens > 0:
+			u.CacheCreationInputTokens = aux.CacheCreationTokens
+		case aux.CacheWriteTokens > 0:
+			u.CacheCreationInputTokens = aux.CacheWriteTokens
+		}
+	}
 	if u.InputTokensDetails == nil && aux.PromptTokensDetails != nil {
 		u.InputTokensDetails = aux.PromptTokensDetails
 	}
 	if u.OutputTokensDetails == nil && aux.CompletionTokensDetails != nil {
 		u.OutputTokensDetails = aux.CompletionTokensDetails
+	}
+	var canonicalCacheCreationTokens *int
+	switch {
+	case nestedPresence.InputTokensDetails != nil && nestedPresence.InputTokensDetails.CacheWriteTokens != nil:
+		canonicalCacheCreationTokens = nestedPresence.InputTokensDetails.CacheWriteTokens
+	case nestedPresence.PromptTokensDetails != nil && nestedPresence.PromptTokensDetails.CacheWriteTokens != nil:
+		canonicalCacheCreationTokens = nestedPresence.PromptTokensDetails.CacheWriteTokens
+	case nestedPresence.InputTokensDetails != nil && nestedPresence.InputTokensDetails.CacheCreationTokens != nil:
+		canonicalCacheCreationTokens = nestedPresence.InputTokensDetails.CacheCreationTokens
+	case nestedPresence.PromptTokensDetails != nil && nestedPresence.PromptTokensDetails.CacheCreationTokens != nil:
+		canonicalCacheCreationTokens = nestedPresence.PromptTokensDetails.CacheCreationTokens
+	}
+	if canonicalCacheCreationTokens != nil {
+		u.CacheCreationInputTokens = max(*canonicalCacheCreationTokens, 0)
 	}
 	if u.TotalTokens == 0 && (u.InputTokens != 0 || u.OutputTokens != 0) {
 		u.TotalTokens = u.InputTokens + u.OutputTokens
@@ -366,8 +409,10 @@ func (u *ResponsesUsage) UnmarshalJSON(data []byte) error {
 
 // ResponsesInputTokensDetails breaks down input token usage.
 type ResponsesInputTokensDetails struct {
-	CachedTokens int `json:"cached_tokens,omitempty"`
-	AudioTokens  int `json:"audio_tokens,omitempty"`
+	CachedTokens        int `json:"cached_tokens,omitempty"`
+	AudioTokens         int `json:"audio_tokens,omitempty"`
+	CacheCreationTokens int `json:"cache_creation_tokens,omitempty"`
+	CacheWriteTokens    int `json:"cache_write_tokens,omitempty"`
 }
 
 // ResponsesOutputTokensDetails breaks down output token usage.
@@ -439,10 +484,12 @@ type ChatCompletionsRequest struct {
 	Stream              bool               `json:"stream,omitempty"`
 	StreamOptions       *ChatStreamOptions `json:"stream_options,omitempty"`
 	Tools               []ChatTool         `json:"tools,omitempty"`
+	ParallelToolCalls   *bool              `json:"parallel_tool_calls,omitempty"`
 	ToolChoice          json.RawMessage    `json:"tool_choice,omitempty"`
-	ReasoningEffort     string             `json:"reasoning_effort,omitempty"` // "low" | "medium" | "high" | "xhigh"
+	ReasoningEffort     string             `json:"reasoning_effort,omitempty"` // "low" | "medium" | "high" | "xhigh" | "max"
 	ServiceTier         string             `json:"service_tier,omitempty"`
-	Stop                json.RawMessage    `json:"stop,omitempty"` // string or []string
+	Stop                json.RawMessage    `json:"stop,omitempty"`            // string or []string
+	ResponseFormat      json.RawMessage    `json:"response_format,omitempty"` // Chat Completions 的结构化输出格式。
 
 	// Legacy function calling (deprecated but still supported)
 	Functions    []ChatFunction  `json:"functions,omitempty"`
@@ -509,6 +556,30 @@ type ChatFunctionCall struct {
 	Arguments string `json:"arguments"`
 }
 
+// UnmarshalJSON 同时兼容官方字符串参数，以及部分 OpenAI 兼容历史回放里的对象参数。
+func (c *ChatFunctionCall) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	c.Name = raw.Name
+	arguments := bytes.TrimSpace(raw.Arguments)
+	if len(arguments) == 0 || string(arguments) == "null" {
+		c.Arguments = ""
+		return nil
+	}
+	var text string
+	if err := json.Unmarshal(arguments, &text); err == nil {
+		c.Arguments = text
+		return nil
+	}
+	c.Arguments = string(arguments)
+	return nil
+}
+
 // ChatCompletionsResponse is the non-streaming response from POST /v1/chat/completions.
 type ChatCompletionsResponse struct {
 	ID                string       `json:"id"`
@@ -547,6 +618,8 @@ type ChatUsage struct {
 type ChatTokenDetails struct {
 	CachedTokens             int `json:"cached_tokens,omitempty"`
 	AudioTokens              int `json:"audio_tokens,omitempty"`
+	CacheCreationTokens      int `json:"cache_creation_tokens,omitempty"`
+	CacheWriteTokens         int `json:"cache_write_tokens,omitempty"`
 	ReasoningTokens          int `json:"reasoning_tokens,omitempty"`
 	AcceptedPredictionTokens int `json:"accepted_prediction_tokens,omitempty"`
 	RejectedPredictionTokens int `json:"rejected_prediction_tokens,omitempty"`

@@ -360,6 +360,47 @@ func (s *UserSubscriptionRepoSuite) TestRestore() {
 	s.Require().Nil(got.DeletedAt)
 }
 
+func (s *UserSubscriptionRepoSuite) TestResetDailyUsage_StaleResetDoesNotClearNewWindowUsage() {
+	user := s.mustCreateUser("resetd-cas@test.com", service.RoleUser)
+	plan := s.mustCreatePlan("plan-resetd-cas", 30)
+	oldWindowStart := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	sub := s.mustCreateSubscription(user.ID, plan.ID, func(c *dbent.UserSubscriptionCreate) {
+		c.SetDailyWindowStart(oldWindowStart)
+		c.SetDailyUsageUsd(10)
+	})
+
+	newWindowStart := oldWindowStart.Add(24 * time.Hour)
+	s.Require().NoError(s.repo.ResetDailyUsage(s.ctx, sub.ID, &oldWindowStart, newWindowStart))
+	s.Require().NoError(s.repo.IncrementUsage(s.ctx, sub.ID, 3))
+	// 模拟第二个请求携带旧窗口快照，确保不会清空新窗口中的用量。
+	s.Require().NoError(s.repo.ResetDailyUsage(s.ctx, sub.ID, &oldWindowStart, newWindowStart))
+
+	got, err := s.repo.GetByID(s.ctx, sub.ID)
+	s.Require().NoError(err)
+	s.Require().InDelta(3, got.DailyUsageUSD, 1e-6)
+	s.Require().WithinDuration(newWindowStart, *got.DailyWindowStart, time.Microsecond)
+}
+
+func (s *UserSubscriptionRepoSuite) TestResetUsageWindows_ClearsUsageAfterAutomaticWindowAdvance() {
+	user := s.mustCreateUser("admin-reset-current@test.com", service.RoleUser)
+	plan := s.mustCreatePlan("plan-admin-reset-current", 30)
+	oldWindowStart := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	sub := s.mustCreateSubscription(user.ID, plan.ID, func(c *dbent.UserSubscriptionCreate) {
+		c.SetDailyWindowStart(oldWindowStart)
+		c.SetDailyUsageUsd(10)
+	})
+
+	newWindowStart := oldWindowStart.Add(24 * time.Hour)
+	s.Require().NoError(s.repo.ResetDailyUsage(s.ctx, sub.ID, &oldWindowStart, newWindowStart))
+	s.Require().NoError(s.repo.IncrementUsage(s.ctx, sub.ID, 3))
+	s.Require().NoError(s.repo.ResetUsageWindows(s.ctx, sub.ID, true, false, false, newWindowStart))
+
+	got, err := s.repo.GetByID(s.ctx, sub.ID)
+	s.Require().NoError(err)
+	s.Require().InDelta(0, got.DailyUsageUSD, 1e-6)
+	s.Require().WithinDuration(newWindowStart, *got.DailyWindowStart, time.Microsecond)
+}
+
 func (s *UserSubscriptionRepoSuite) TestListBySourceOrderIDAndUsageMutations() {
 	user := s.mustCreateUser("source-order@test.com", service.RoleUser)
 	plan := s.mustCreatePlan("plan-source-order", 30)
@@ -382,9 +423,9 @@ func (s *UserSubscriptionRepoSuite) TestListBySourceOrderIDAndUsageMutations() {
 	s.Require().Equal(sub.ID, list[0].ID)
 
 	resetAt := now.Add(1 * time.Hour)
-	s.Require().NoError(s.repo.ResetDailyUsage(s.ctx, sub.ID, resetAt))
-	s.Require().NoError(s.repo.ResetWeeklyUsage(s.ctx, sub.ID, resetAt))
-	s.Require().NoError(s.repo.ResetMonthlyUsage(s.ctx, sub.ID, resetAt))
+	s.Require().NoError(s.repo.ResetDailyUsage(s.ctx, sub.ID, sub.DailyWindowStart, resetAt))
+	s.Require().NoError(s.repo.ResetWeeklyUsage(s.ctx, sub.ID, sub.WeeklyWindowStart, resetAt))
+	s.Require().NoError(s.repo.ResetMonthlyUsage(s.ctx, sub.ID, sub.MonthlyWindowStart, resetAt))
 	s.Require().NoError(s.repo.IncrementUsage(s.ctx, sub.ID, 2.5))
 
 	got, err := s.repo.GetByID(s.ctx, sub.ID)
@@ -410,7 +451,6 @@ func (s *UserSubscriptionRepoSuite) TestBatchUpdateExpiredStatus() {
 		c.SetExpiresAt(time.Now().Add(24 * time.Hour))
 		c.SetStatus(service.SubscriptionStatusActive)
 	})
-
 	updated, err := s.repo.BatchUpdateExpiredStatus(s.ctx)
 	s.Require().NoError(err)
 	s.Require().Equal(int64(1), updated)

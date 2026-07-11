@@ -1125,7 +1125,7 @@ func TestAnthropicToResponses_OutputConfigHigh(t *testing.T) {
 }
 
 func TestAnthropicToResponses_OutputConfigMax(t *testing.T) {
-	// output_config.effort="max" → mapped to OpenAI's highest supported level "xhigh".
+	// GPT-5.2 仍使用旧的最高档 xhigh。
 	req := &AnthropicRequest{
 		Model:        "gpt-5.2",
 		MaxTokens:    1024,
@@ -1138,6 +1138,39 @@ func TestAnthropicToResponses_OutputConfigMax(t *testing.T) {
 	require.NotNil(t, resp.Reasoning)
 	assert.Equal(t, "xhigh", resp.Reasoning.Effort)
 	assert.Equal(t, "auto", resp.Reasoning.Summary)
+}
+
+func TestAnthropicToResponses_OutputConfigMaxForGPT56(t *testing.T) {
+	// GPT-5.6 已有独立 max 档位，不能继续降级成 xhigh。
+	req := &AnthropicRequest{
+		Model:        "gpt-5.6-sol",
+		MaxTokens:    1024,
+		Messages:     []AnthropicMessage{{Role: "user", Content: json.RawMessage(`"Hello"`)}},
+		OutputConfig: &AnthropicOutputConfig{Effort: "max"},
+	}
+
+	resp, err := AnthropicToResponses(req)
+	require.NoError(t, err)
+	require.NotNil(t, resp.Reasoning)
+	assert.Equal(t, "max", resp.Reasoning.Effort)
+	assert.Equal(t, "auto", resp.Reasoning.Summary)
+}
+
+func TestAnthropicToResponses_RejectsUltraReasoningEffort(t *testing.T) {
+	for _, model := range []string{"gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.5"} {
+		t.Run(model, func(t *testing.T) {
+			req := &AnthropicRequest{
+				Model:        model,
+				MaxTokens:    1024,
+				Messages:     []AnthropicMessage{{Role: "user", Content: json.RawMessage(`"Hello"`)}},
+				OutputConfig: &AnthropicOutputConfig{Effort: "ultra"},
+			}
+
+			resp, err := AnthropicToResponses(req)
+			require.ErrorContains(t, err, "not supported")
+			require.Nil(t, resp)
+		})
+	}
 }
 
 func TestAnthropicToResponses_NoOutputConfig(t *testing.T) {
@@ -1254,6 +1287,18 @@ func TestResponsesToAnthropicRequest_ToolChoiceLegacyFunctionName(t *testing.T) 
 	require.NoError(t, json.Unmarshal(resp.ToolChoice, &tc))
 	assert.Equal(t, "tool", tc["type"])
 	assert.Equal(t, "get_weather", tc["name"])
+}
+
+func TestResponsesToAnthropicRequest_RejectsUltraReasoningEffort(t *testing.T) {
+	req := &ResponsesRequest{
+		Model:     "gpt-5.6-sol",
+		Input:     json.RawMessage(`"Hello"`),
+		Reasoning: &ResponsesReasoning{Effort: "ultra"},
+	}
+
+	resp, err := ResponsesToAnthropicRequest(req)
+	require.ErrorContains(t, err, "not supported")
+	require.Nil(t, resp)
 }
 
 // ---------------------------------------------------------------------------

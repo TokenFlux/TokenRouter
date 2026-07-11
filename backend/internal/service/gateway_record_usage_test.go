@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -231,6 +232,1096 @@ func TestGatewayServiceRecordUsage_PreservesRequestedAndUpstreamModels(t *testin
 	require.Equal(t, "claude-sonnet-4", usageRepo.lastLog.RequestedModel)
 	require.NotNil(t, usageRepo.lastLog.UpstreamModel)
 	require.Equal(t, mappedModel, *usageRepo.lastLog.UpstreamModel)
+}
+
+func TestGatewayServiceRecordUsage_QoderUsesStandardRequestedModelPricing(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	expectedCost, err := svc.billingService.CalculateCost("gpt-5.4", UsageTokens{
+		InputTokens:  usage.InputTokens,
+		OutputTokens: usage.OutputTokens,
+	}, 1.1)
+	require.NoError(t, err)
+
+	err = svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_standard_requested_model_pricing",
+			Usage:         usage,
+			Model:         "gpt-5.4",
+			UpstreamModel: "ultimate",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:    502,
+			Quota: 100,
+			Group: &Group{Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, "gpt-5.4", usageRepo.lastLog.Model)
+	require.Equal(t, 1200, usageRepo.lastLog.InputTokens)
+	require.Equal(t, 300, usageRepo.lastLog.OutputTokens)
+	require.InDelta(t, expectedCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expectedCost.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
+	require.True(t, usageRepo.lastLog.ActualCost > 0, "Qoder should reuse standard requested-model pricing instead of a Qoder-specific upstream/deferred branch")
+
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, expectedCost.ActualCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+	require.Zero(t, billingRepo.lastCmd.APIKeyQuotaCost)
+	require.Zero(t, billingRepo.lastCmd.APIKeyRateLimitCost)
+	require.Zero(t, billingRepo.lastCmd.AccountQuotaCost)
+}
+
+func TestGatewayServiceRecordUsage_QoderChannelMappedStandardRequestedModelUsesStandardPricing(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	expectedCost, err := svc.billingService.CalculateCost("gpt-5.4", UsageTokens{
+		InputTokens:  usage.InputTokens,
+		OutputTokens: usage.OutputTokens,
+	}, 1)
+	require.NoError(t, err)
+
+	groupID := int64(42)
+	err = svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_channel_mapped_standard_requested_model_pricing",
+			Usage:         usage,
+			Model:         "gpt-5.4",
+			UpstreamModel: "ultimate",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      502,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "gpt-5.4",
+			ChannelMappedModel: "ultimate",
+			BillingModelSource: BillingModelSourceChannelMapped,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, expectedCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expectedCost.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
+	require.True(t, usageRepo.lastLog.ActualCost > 0)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, expectedCost.ActualCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+}
+
+func TestGatewayServiceRecordUsage_QoderChannelMappedStandardRequestedImageUsesStandardPricing(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	expectedCost := svc.billingService.CalculateImageCost("gpt-image-1", ImageBillingSize1K, 2, nil, 1)
+	require.NotNil(t, expectedCost)
+	require.True(t, expectedCost.ActualCost > 0)
+
+	groupID := int64(43)
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_channel_mapped_standard_requested_image_pricing",
+			Model:         "gpt-image-1",
+			UpstreamModel: "ultimate",
+			ImageCount:    2,
+			ImageSize:     ImageBillingSize1K,
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      503,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 603},
+		Account: &Account{ID: 703, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "gpt-image-1",
+			ChannelMappedModel: "ultimate",
+			BillingModelSource: BillingModelSourceChannelMapped,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, 2, usageRepo.lastLog.ImageCount)
+	require.InDelta(t, expectedCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expectedCost.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, expectedCost.ActualCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+}
+
+func TestGatewayServiceRecordUsage_QoderChannelMappedCustomAliasImageWithoutManualPricingUsesZeroCost(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	groupID := int64(44)
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_channel_mapped_custom_alias_image_unpriced",
+			Model:         "qmodel",
+			UpstreamModel: "qmodel",
+			ImageCount:    1,
+			ImageSize:     ImageBillingSize1K,
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      504,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 604},
+		Account: &Account{ID: 704, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "my-qoder-image",
+			ChannelMappedModel: "qmodel",
+			BillingModelSource: BillingModelSourceChannelMapped,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, 1, usageRepo.lastLog.ImageCount)
+	require.Zero(t, usageRepo.lastLog.TotalCost)
+	require.Zero(t, usageRepo.lastLog.ActualCost)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+}
+
+func TestGatewayServiceRecordUsage_QoderRequestedBillingSourceFallsBackToChannelMappedManualPricing(t *testing.T) {
+	groupID := int64(45)
+	inputPrice := 0.01
+	outputPrice := 0.02
+	cache := newEmptyChannelCache()
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qmodel"}] = &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		InputPrice:  &inputPrice,
+		OutputPrice: &outputPrice,
+	}
+	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
+
+	usage := ClaudeUsage{InputTokens: 100, OutputTokens: 200}
+	expectedCost := float64(usage.InputTokens)*inputPrice + float64(usage.OutputTokens)*outputPrice
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_requested_source_channel_mapped_manual_pricing",
+			Usage:         usage,
+			Model:         "ultimate",
+			UpstreamModel: "ultimate",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      505,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 605},
+		Account: &Account{ID: 705, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "qwen3.7-plus",
+			ChannelMappedModel: "qmodel",
+			BillingModelSource: BillingModelSourceRequested,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, expectedCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expectedCost, usageRepo.lastLog.ActualCost, 1e-12)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, expectedCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+}
+
+func TestGatewayServiceRecordUsage_QoderRequestedBillingSourceCustomImageMappedRouteKeyUsesZeroCost(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	groupID := int64(46)
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_requested_source_custom_image_unpriced",
+			Model:         "ultimate",
+			UpstreamModel: "ultimate",
+			ImageCount:    1,
+			ImageSize:     ImageBillingSize1K,
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      506,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 606},
+		Account: &Account{ID: 706, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "custom-image-alias",
+			ChannelMappedModel: "qmodel",
+			BillingModelSource: BillingModelSourceRequested,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, 1, usageRepo.lastLog.ImageCount)
+	require.NotNil(t, usageRepo.lastLog.BillingMode)
+	require.Equal(t, string(BillingModeImage), *usageRepo.lastLog.BillingMode)
+	require.Zero(t, usageRepo.lastLog.TotalCost)
+	require.Zero(t, usageRepo.lastLog.ActualCost)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+}
+
+func TestGatewayServiceRecordUsage_QoderDefaultAliasesWithoutManualPricingUseZeroCost(t *testing.T) {
+	aliases := make([]string, 0, len(defaultQoderModelAliases))
+	for alias := range defaultQoderModelAliases {
+		aliases = append(aliases, alias)
+	}
+	sort.Strings(aliases)
+
+	for _, alias := range aliases {
+		t.Run(alias, func(t *testing.T) {
+			usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+			billingRepo := &openAIRecordUsageBillingRepoStub{}
+			svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+			usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300, CacheCreationInputTokens: 50, CacheReadInputTokens: 25}
+			err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+				Result: &ForwardResult{
+					RequestID:     "qoder_alias_" + alias,
+					Usage:         usage,
+					Model:         alias,
+					UpstreamModel: lookupQoderAliasKeyForTest(alias),
+					Duration:      time.Second,
+				},
+				APIKey: &APIKey{
+					ID:    502,
+					Quota: 100,
+					Group: &Group{Platform: PlatformQoder, RateMultiplier: 1},
+				},
+				User:    &User{ID: 602},
+				Account: &Account{ID: 702, Platform: PlatformQoder},
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, 1, usageRepo.calls)
+			require.NotNil(t, usageRepo.lastLog)
+			require.Equal(t, alias, usageRepo.lastLog.Model)
+			require.Zero(t, usageRepo.lastLog.TotalCost)
+			require.Zero(t, usageRepo.lastLog.ActualCost)
+
+			require.Equal(t, 1, billingRepo.calls)
+			require.NotNil(t, billingRepo.lastCmd)
+			require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+		})
+	}
+}
+
+func TestGatewayServiceRecordUsage_QoderChannelMappedRouteKeyWithoutManualPricingUsesZeroCost(t *testing.T) {
+	groupID := int64(902)
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300, CacheCreationInputTokens: 50, CacheReadInputTokens: 25}
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_channel_mapped_route_key",
+			Usage:         usage,
+			Model:         "qmodel",
+			UpstreamModel: "qmodel",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      502,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "qwen3.7-plus",
+			ChannelMappedModel: "qmodel",
+			BillingModelSource: BillingModelSourceChannelMapped,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Zero(t, usageRepo.lastLog.TotalCost)
+	require.Zero(t, usageRepo.lastLog.ActualCost)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+}
+
+func TestGatewayServiceRecordUsage_QoderChannelMappedRouteKeyUsesOriginalAliasManualPricing(t *testing.T) {
+	groupID := int64(902)
+	inputPrice := 0.01
+	outputPrice := 0.02
+	cache := newEmptyChannelCache()
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qwen3.7-plus"}] = &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		InputPrice:  &inputPrice,
+		OutputPrice: &outputPrice,
+	}
+	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
+
+	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_channel_mapped_route_key_original_alias_pricing",
+			Usage:         usage,
+			Model:         "qmodel",
+			UpstreamModel: "qmodel",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      502,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "qwen3.7-plus",
+			ChannelMappedModel: "qmodel",
+			BillingModelSource: BillingModelSourceChannelMapped,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, 18.0, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, 18.0, usageRepo.lastLog.ActualCost, 1e-12)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, 18.0, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+}
+
+func TestGatewayServiceRecordUsage_QoderRequestedAliasManualPricingOverridesRouteKeyManualPricing(t *testing.T) {
+	groupID := int64(902)
+	aliasInputPrice := 0.01
+	aliasOutputPrice := 0.02
+	routeInputPrice := 0.50
+	routeOutputPrice := 0.75
+	cache := newEmptyChannelCache()
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qmodel"}] = &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		InputPrice:  &routeInputPrice,
+		OutputPrice: &routeOutputPrice,
+	}
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qwen3.7-plus"}] = &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		InputPrice:  &aliasInputPrice,
+		OutputPrice: &aliasOutputPrice,
+	}
+	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
+
+	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_alias_price_over_route_price",
+			Usage:         usage,
+			Model:         "qmodel",
+			UpstreamModel: "qmodel",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      502,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "qwen3.7-plus",
+			ChannelMappedModel: "qmodel",
+			BillingModelSource: BillingModelSourceChannelMapped,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, 18.0, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, 18.0, usageRepo.lastLog.ActualCost, 1e-12)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, 18.0, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+}
+
+func TestGatewayServiceRecordUsage_QoderDefaultAliasFallsBackToRouteKeyManualPricing(t *testing.T) {
+	groupID := int64(902)
+	inputPrice := 0.01
+	outputPrice := 0.02
+	cache := newEmptyChannelCache()
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qmodel"}] = &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		InputPrice:  &inputPrice,
+		OutputPrice: &outputPrice,
+	}
+	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
+
+	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_default_alias_route_key_pricing",
+			Usage:         usage,
+			Model:         "qwen3.7-plus",
+			UpstreamModel: "qmodel",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      502,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, 18.0, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, 18.0, usageRepo.lastLog.ActualCost, 1e-12)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, 18.0, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+}
+
+func TestGatewayServiceRecordUsage_QoderBlankRouteKeyPricingDoesNotMaskOriginalAliasManualPricing(t *testing.T) {
+	groupID := int64(902)
+	inputPrice := 0.01
+	outputPrice := 0.02
+	cache := newEmptyChannelCache()
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qmodel"}] = &ChannelModelPricing{
+		Platform:    PlatformQoder,
+		Models:      []string{"qmodel"},
+		BillingMode: BillingModeToken,
+	}
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "qwen3.7-plus"}] = &ChannelModelPricing{
+		Platform:    PlatformQoder,
+		Models:      []string{"qwen3.7-plus"},
+		BillingMode: BillingModeToken,
+		InputPrice:  &inputPrice,
+		OutputPrice: &outputPrice,
+	}
+	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
+
+	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_blank_route_key_original_alias_pricing",
+			Usage:         usage,
+			Model:         "qmodel",
+			UpstreamModel: "qmodel",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      502,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "qwen3.7-plus",
+			ChannelMappedModel: "qmodel",
+			BillingModelSource: BillingModelSourceChannelMapped,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, 18.0, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, 18.0, usageRepo.lastLog.ActualCost, 1e-12)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, 18.0, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+}
+
+func TestGatewayServiceRecordUsage_QoderChannelMappedCustomAliasPartialManualPricingZerosMissingFields(t *testing.T) {
+	groupID := int64(902)
+	inputPrice := 0.01
+	cache := newEmptyChannelCache()
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "custom-qoder"}] = &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		InputPrice:  &inputPrice,
+	}
+	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
+
+	usage := ClaudeUsage{InputTokens: 100, OutputTokens: 100000}
+	expectedCost := float64(usage.InputTokens) * inputPrice
+
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_channel_mapped_custom_alias_partial_pricing",
+			Usage:         usage,
+			Model:         "qmodel",
+			UpstreamModel: "qmodel",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      502,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "custom-qoder",
+			ChannelMappedModel: "qmodel",
+			BillingModelSource: BillingModelSourceChannelMapped,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, expectedCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expectedCost, usageRepo.lastLog.ActualCost, 1e-12)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, expectedCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+}
+
+func TestGatewayServiceRecordUsage_QoderChannelMappedStandardModelPartialManualPricingKeepsBaseFields(t *testing.T) {
+	groupID := int64(902)
+	inputPrice := 0.01
+	cache := newEmptyChannelCache()
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "gpt-5.4"}] = &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		InputPrice:  &inputPrice,
+	}
+	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
+
+	usage := ClaudeUsage{InputTokens: 100, OutputTokens: 100000}
+	basePricing, err := svc.billingService.GetModelPricing("gpt-5.4")
+	require.NoError(t, err)
+	expectedCost := float64(usage.InputTokens)*inputPrice + float64(usage.OutputTokens)*basePricing.OutputPricePerToken
+
+	err = svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_channel_mapped_standard_model_partial_pricing",
+			Usage:         usage,
+			Model:         "qmodel",
+			UpstreamModel: "qmodel",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      502,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "gpt-5.4",
+			ChannelMappedModel: "qmodel",
+			BillingModelSource: BillingModelSourceChannelMapped,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, expectedCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expectedCost, usageRepo.lastLog.ActualCost, 1e-12)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, expectedCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+}
+
+func TestGatewayServiceRecordUsage_QoderAccountMappedCustomAliasPartialManualPricingZerosMissingFields(t *testing.T) {
+	groupID := int64(902)
+	inputPrice := 0.01
+	cache := newEmptyChannelCache()
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "custom-qoder"}] = &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		InputPrice:  &inputPrice,
+	}
+	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
+
+	usage := ClaudeUsage{InputTokens: 100, OutputTokens: 100000}
+	expectedCost := float64(usage.InputTokens) * inputPrice
+
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_account_mapped_custom_alias_partial_pricing",
+			Usage:         usage,
+			Model:         "custom-qoder",
+			UpstreamModel: "qmodel",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      502,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "custom-qoder",
+			ChannelMappedModel: "custom-qoder",
+			BillingModelSource: BillingModelSourceChannelMapped,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, expectedCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expectedCost, usageRepo.lastLog.ActualCost, 1e-12)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, expectedCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+}
+
+func TestGatewayServiceRecordUsage_QoderCustomMappedRouteKeyWithoutManualPricingUsesZeroCost(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300, CacheCreationInputTokens: 50, CacheReadInputTokens: 25}
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_custom_alias_route_key",
+			Usage:         usage,
+			Model:         "custom-qoder-model",
+			UpstreamModel: "qmodel",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:    502,
+			Quota: 100,
+			Group: &Group{Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Equal(t, "custom-qoder-model", usageRepo.lastLog.Model)
+	require.Zero(t, usageRepo.lastLog.TotalCost)
+	require.Zero(t, usageRepo.lastLog.ActualCost)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+}
+
+func TestGatewayServiceRecordUsage_QoderAccountMappedCustomImageAliasWithoutManualPricingUsesZeroCost(t *testing.T) {
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_custom_image_alias_route_key",
+			Usage:         ClaudeUsage{InputTokens: 10, OutputTokens: 5},
+			Model:         "custom-qoder-image",
+			UpstreamModel: "qmodel",
+			ImageCount:    2,
+			ImageSize:     "1K",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:    502,
+			Quota: 100,
+			Group: &Group{Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "custom-qoder-image",
+			ChannelMappedModel: "custom-qoder-image",
+			BillingModelSource: BillingModelSourceChannelMapped,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.NotNil(t, usageRepo.lastLog.BillingMode)
+	require.Equal(t, string(BillingModeImage), *usageRepo.lastLog.BillingMode)
+	require.Zero(t, usageRepo.lastLog.TotalCost)
+	require.Zero(t, usageRepo.lastLog.ActualCost)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+}
+
+func TestGatewayServiceRecordUsage_QoderUpstreamBillingSourceStandardRequestedModelUsesStandardPricing(t *testing.T) {
+	groupID := int64(902)
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	expectedCost, err := svc.billingService.CalculateCost("gpt-5.4-mini", UsageTokens{
+		InputTokens:  usage.InputTokens,
+		OutputTokens: usage.OutputTokens,
+	}, 1)
+	require.NoError(t, err)
+
+	err = svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_upstream_billing_source_route_key",
+			Usage:         usage,
+			Model:         "gpt-5.4-mini",
+			UpstreamModel: "qmodel",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      502,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "gpt-5.4-mini",
+			ChannelMappedModel: "gpt-5.4-mini",
+			BillingModelSource: BillingModelSourceUpstream,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, expectedCost.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expectedCost.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, expectedCost.ActualCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+}
+
+func TestGatewayServiceRecordUsage_QoderManualOnlyRequestedModelDoesNotUseStandardUpstreamPricing(t *testing.T) {
+	groupID := int64(902)
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_manual_only_requested_standard_upstream",
+			Usage:         ClaudeUsage{InputTokens: 1200, OutputTokens: 300},
+			Model:         "qwen3.7-plus",
+			UpstreamModel: "gpt-5.4-mini",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      502,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "qwen3.7-plus",
+			ChannelMappedModel: "qwen3.7-plus",
+			BillingModelSource: BillingModelSourceUpstream,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Zero(t, usageRepo.lastLog.TotalCost)
+	require.Zero(t, usageRepo.lastLog.ActualCost)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+}
+
+func TestGatewayServiceRecordUsage_QoderChannelMappedAccountStatsUsesOriginalAliasRule(t *testing.T) {
+	groupID := int64(902)
+	inputPrice := 0.01
+	outputPrice := 0.02
+	cache := newEmptyChannelCache()
+	cache.channelByGroupID[groupID] = &Channel{
+		ID:     groupID,
+		Status: StatusActive,
+		AccountStatsPricingRules: []AccountStatsPricingRule{
+			{
+				GroupIDs: []int64{groupID},
+				Pricing: []ChannelModelPricing{
+					{
+						Models:      []string{"qwen3.7-plus"},
+						InputPrice:  &inputPrice,
+						OutputPrice: &outputPrice,
+					},
+				},
+			},
+		},
+	}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+	svc.channelService = channelService
+
+	usage := ClaudeUsage{InputTokens: 100, OutputTokens: 50}
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_channel_mapped_account_stats_alias",
+			Usage:         usage,
+			Model:         "qmodel",
+			UpstreamModel: "qmodel",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      502,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+		ChannelUsageFields: ChannelUsageFields{
+			OriginalModel:      "qwen3.7-plus",
+			ChannelMappedModel: "qmodel",
+			BillingModelSource: BillingModelSourceChannelMapped,
+		},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.NotNil(t, usageRepo.lastLog.AccountStatsCost)
+	require.InDelta(t, 2.0, *usageRepo.lastLog.AccountStatsCost, 1e-12)
+}
+
+func TestGatewayServiceRecordUsage_QoderBlankChannelPricingUsesZeroCost(t *testing.T) {
+	groupID := int64(902)
+	cache := newEmptyChannelCache()
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "auto"}] = &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+	}
+	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
+
+	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300, CacheCreationInputTokens: 50, CacheReadInputTokens: 25}
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_alias_blank_channel_pricing",
+			Usage:         usage,
+			Model:         "auto",
+			UpstreamModel: "auto",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      502,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.Zero(t, usageRepo.lastLog.TotalCost)
+	require.Zero(t, usageRepo.lastLog.ActualCost)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+}
+
+func TestGatewayServiceRecordUsage_QoderManualChannelPricingOverridesDefaultAliasPricing(t *testing.T) {
+	groupID := int64(902)
+	inputPrice := 0.01
+	outputPrice := 0.02
+	cache := newEmptyChannelCache()
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "auto"}] = &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		InputPrice:  &inputPrice,
+		OutputPrice: &outputPrice,
+	}
+	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformQoder
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+
+	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
+	billingRepo := &openAIRecordUsageBillingRepoStub{}
+	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
+	svc.resolver = NewModelPricingResolver(channelService, svc.billingService)
+
+	usage := ClaudeUsage{InputTokens: 1200, OutputTokens: 300}
+	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
+		Result: &ForwardResult{
+			RequestID:     "qoder_alias_manual_pricing",
+			Usage:         usage,
+			Model:         "auto",
+			UpstreamModel: "auto",
+			Duration:      time.Second,
+		},
+		APIKey: &APIKey{
+			ID:      502,
+			Quota:   100,
+			GroupID: &groupID,
+			Group:   &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
+		},
+		User:    &User{ID: 602},
+		Account: &Account{ID: 702, Platform: PlatformQoder},
+	})
+
+	require.NoError(t, err)
+	require.Equal(t, 1, usageRepo.calls)
+	require.NotNil(t, usageRepo.lastLog)
+	require.InDelta(t, 18.0, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, 18.0, usageRepo.lastLog.ActualCost, 1e-12)
+	require.Equal(t, 1, billingRepo.calls)
+	require.NotNil(t, billingRepo.lastCmd)
+	require.InDelta(t, 18.0, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
+}
+
+func lookupQoderAliasKeyForTest(alias string) string {
+	if info, ok := defaultQoderModelAliases[alias]; ok {
+		return info.Key
+	}
+	return alias
+}
+
+func TestForwardResultBillingModelPrefersRequestedModel(t *testing.T) {
+	require.Equal(t, "claude-opus-4-6", forwardResultBillingModel("claude-opus-4-6", "ultimate"))
+	require.Equal(t, "ultimate", forwardResultBillingModel("", "ultimate"))
 }
 
 func TestGatewayServiceRecordUsage_ImageIndependentMultiplierUsesImageRate(t *testing.T) {
@@ -524,7 +1615,9 @@ func TestGatewayServiceRecordUsage_GeneratesRequestIDWhenAllSourcesMissing(t *te
 	require.Equal(t, billingRepo.lastCmd.RequestID, usageRepo.lastLog.RequestID)
 }
 
-func TestGatewayServiceRecordUsage_DroppedUsageLogDoesNotSyncFallback(t *testing.T) {
+func TestGatewayServiceRecordUsage_DroppedUsageLogFallsBackToSyncCreate(t *testing.T) {
+	// 计费成功后 best-effort 写入被丢弃（队列超时）时必须同步兜底，
+	// 否则出现“已扣费但无 usage_log”的对账缺口（issue #3656）。
 	usageRepo := &openAIRecordUsageBestEffortLogRepoStub{
 		bestEffortErr: MarkUsageLogCreateDropped(errors.New("usage log best-effort queue full")),
 	}
@@ -548,7 +1641,9 @@ func TestGatewayServiceRecordUsage_DroppedUsageLogDoesNotSyncFallback(t *testing
 
 	require.NoError(t, err)
 	require.Equal(t, 1, usageRepo.bestEffortCalls)
-	require.Equal(t, 0, usageRepo.createCalls)
+	require.Equal(t, 1, usageRepo.createCalls)
+	// 兜底调用使用的 ctx 必须仍然存活，不能带着已死的 ctx 走过场。
+	require.NoError(t, usageRepo.lastCtxErr)
 }
 
 func TestGatewayServiceRecordUsage_BillingErrorSkipsUsageLogWrite(t *testing.T) {
