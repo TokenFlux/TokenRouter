@@ -65,19 +65,6 @@ func subscriptionPlanGroupRateMultiplier(plan *SubscriptionPlan, groupID int64) 
 	return 0, false
 }
 
-func subscriptionHasBillableCapacity(sub *UserSubscription) bool {
-	if sub == nil {
-		return false
-	}
-	return subscriptionWindowHasCapacity(sub.DailyLimitUSD, sub.DailyUsageUSD) &&
-		subscriptionWindowHasCapacity(sub.WeeklyLimitUSD, sub.WeeklyUsageUSD) &&
-		subscriptionWindowHasCapacity(sub.MonthlyLimitUSD, sub.MonthlyUsageUSD)
-}
-
-func subscriptionWindowHasCapacity(limit *float64, used float64) bool {
-	return limit == nil || *limit <= 0 || used < *limit
-}
-
 func resolveUsageRateMultiplier(
 	ctx context.Context,
 	userID int64,

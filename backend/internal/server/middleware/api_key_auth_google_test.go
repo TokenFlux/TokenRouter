@@ -32,6 +32,10 @@ type fakeGoogleSubscriptionRepo struct {
 	resetMonthly   func(ctx context.Context, id int64, start time.Time) error
 }
 
+func (f fakeGoogleSubscriptionRepo) FilterByGroup(_ context.Context, subs []service.UserSubscription, _ int64) ([]service.UserSubscription, error) {
+	return subs, nil
+}
+
 func (f fakeAPIKeyRepo) Create(ctx context.Context, key *service.APIKey) error {
 	return errors.New("not implemented")
 }

@@ -193,6 +193,43 @@ func (s *UserSubscriptionRepoSuite) TestListActiveByUserID_OnlyReturnsEffectiveS
 	s.Require().Equal(activePlan.ID, subs[0].PlanID)
 }
 
+func (s *UserSubscriptionRepoSuite) TestFilterByGroup_KeepsGlobalAndMatchingPlans() {
+	user := s.mustCreateUser("group-filter@test.com", service.RoleUser)
+	groupA := mustCreateGroup(s.T(), s.client, &service.Group{
+		Name:     "subscription-filter-a",
+		Platform: service.PlatformAnthropic,
+	})
+	groupB := mustCreateGroup(s.T(), s.client, &service.Group{
+		Name:     "subscription-filter-b",
+		Platform: service.PlatformAnthropic,
+	})
+	globalPlan := s.mustCreatePlan("plan-global", 30)
+	planA := s.mustCreatePlan("plan-group-a", 30)
+	planB := s.mustCreatePlan("plan-group-b", 30)
+
+	_, err := s.client.ExecContext(s.ctx, `
+		INSERT INTO subscription_plan_groups (plan_id, group_id)
+		VALUES ($1, $2), ($3, $4)
+	`, planA.ID, groupA.ID, planB.ID, groupB.ID)
+	s.Require().NoError(err)
+
+	globalSub := s.mustCreateSubscription(user.ID, globalPlan.ID, nil)
+	subA := s.mustCreateSubscription(user.ID, planA.ID, nil)
+	_ = s.mustCreateSubscription(user.ID, planB.ID, nil)
+	active, err := s.repo.ListActiveByUserID(s.ctx, user.ID)
+	s.Require().NoError(err)
+
+	filtered, err := s.repo.FilterByGroup(s.ctx, active, groupA.ID)
+	s.Require().NoError(err)
+	s.Require().Len(filtered, 2)
+	ids := map[int64]struct{}{}
+	for i := range filtered {
+		ids[filtered[i].ID] = struct{}{}
+	}
+	s.Require().Contains(ids, globalSub.ID)
+	s.Require().Contains(ids, subA.ID)
+}
+
 func (s *UserSubscriptionRepoSuite) TestList_FilterByPlanAndPendingStatus() {
 	user := s.mustCreateUser("filter@test.com", service.RoleUser)
 	planA := s.mustCreatePlan("plan-filter-a", 30)

@@ -566,6 +566,8 @@ func TestAPIContracts(t *testing.T) {
 						"validity_unit": "",
 						"features": "",
 						"product_name": "",
+						"group_ids": null,
+						"group_rate_multipliers": {},
 						"for_sale": false,
 						"sort_order": 0,
 						"created_at": "0001-01-01T00:00:00Z",

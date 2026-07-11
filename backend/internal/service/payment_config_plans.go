@@ -337,13 +337,6 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 	return plan, nil
 }
 
-func (s *PaymentConfigService) syncPlanGroupMappings(ctx context.Context, planID int64, groupIDs []int64, rates map[int64]float64) error {
-	if s == nil || s.entClient == nil || planID <= 0 {
-		return nil
-	}
-	return syncPlanGroupMappings(ctx, s.entClient, planID, groupIDs, rates)
-}
-
 type planGroupMappingExecutor interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
