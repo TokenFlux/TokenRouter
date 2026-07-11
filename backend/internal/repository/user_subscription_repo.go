@@ -11,6 +11,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/lib/pq"
 )
 
 type userSubscriptionRepository struct {
@@ -222,6 +223,63 @@ func (r *userSubscriptionRepository) ListActiveByUserID(ctx context.Context, use
 		return nil, err
 	}
 	return userSubscriptionEntitiesToService(subs), nil
+}
+
+func (r *userSubscriptionRepository) FilterByGroup(ctx context.Context, subs []service.UserSubscription, groupID int64) ([]service.UserSubscription, error) {
+	if groupID <= 0 || len(subs) == 0 {
+		return subs, nil
+	}
+	planIDs := make([]int64, 0, len(subs))
+	for i := range subs {
+		planIDs = append(planIDs, subs[i].PlanID)
+	}
+	client := clientFromContext(ctx, r.client)
+	rows, err := client.QueryContext(ctx, `
+		SELECT sp.id
+		FROM subscription_plans sp
+		WHERE sp.id = ANY($1)
+			AND (
+				NOT EXISTS (
+					SELECT 1
+					FROM subscription_plan_groups spg
+					WHERE spg.plan_id = sp.id
+				)
+				OR EXISTS (
+					SELECT 1
+					FROM subscription_plan_groups spg
+					WHERE spg.plan_id = sp.id
+						AND spg.group_id = $2
+				)
+			)
+	`, pq.Array(planIDs), groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	allowed := make(map[int64]struct{}, len(planIDs))
+	for rows.Next() {
+		var planID int64
+		if err := rows.Scan(&planID); err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		allowed[planID] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		_ = rows.Close()
+		return nil, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+
+	out := make([]service.UserSubscription, 0, len(subs))
+	for i := range subs {
+		if _, ok := allowed[subs[i].PlanID]; ok {
+			out = append(out, subs[i])
+		}
+	}
+	return out, nil
 }
 
 func (r *userSubscriptionRepository) ListByPlanID(ctx context.Context, planID int64, params pagination.PaginationParams) ([]service.UserSubscription, *pagination.PaginationResult, error) {
@@ -672,23 +730,36 @@ func subscriptionPlanEntityToService(plan *dbent.SubscriptionPlan) *service.Subs
 		return nil
 	}
 	return &service.SubscriptionPlan{
-		ID:              plan.ID,
-		Name:            plan.Name,
-		Description:     plan.Description,
-		Price:           plan.Price,
-		OriginalPrice:   plan.OriginalPrice,
-		ValidityDays:    plan.ValidityDays,
-		ValidityUnit:    plan.ValidityUnit,
-		DailyLimitUSD:   plan.DailyLimitUsd,
-		WeeklyLimitUSD:  plan.WeeklyLimitUsd,
-		MonthlyLimitUSD: plan.MonthlyLimitUsd,
-		Features:        plan.Features,
-		ProductName:     plan.ProductName,
-		ForSale:         plan.ForSale,
-		SortOrder:       plan.SortOrder,
-		CreatedAt:       plan.CreatedAt,
-		UpdatedAt:       plan.UpdatedAt,
+		ID:                   plan.ID,
+		Name:                 plan.Name,
+		Description:          plan.Description,
+		Price:                plan.Price,
+		OriginalPrice:        plan.OriginalPrice,
+		ValidityDays:         plan.ValidityDays,
+		ValidityUnit:         plan.ValidityUnit,
+		GroupIDs:             append([]int64(nil), plan.GroupIds...),
+		GroupRateMultipliers: cloneInt64Float64Map(plan.GroupRateMultipliers),
+		DailyLimitUSD:        plan.DailyLimitUsd,
+		WeeklyLimitUSD:       plan.WeeklyLimitUsd,
+		MonthlyLimitUSD:      plan.MonthlyLimitUsd,
+		Features:             plan.Features,
+		ProductName:          plan.ProductName,
+		ForSale:              plan.ForSale,
+		SortOrder:            plan.SortOrder,
+		CreatedAt:            plan.CreatedAt,
+		UpdatedAt:            plan.UpdatedAt,
 	}
+}
+
+func cloneInt64Float64Map(in map[int64]float64) map[int64]float64 {
+	if len(in) == 0 {
+		return map[int64]float64{}
+	}
+	out := make(map[int64]float64, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
 }
 
 var _ service.UserSubscriptionRepository = (*userSubscriptionRepository)(nil)

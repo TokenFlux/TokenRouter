@@ -1627,6 +1627,10 @@ type stubUserSubscriptionRepo struct {
 	resetMonthly   func(ctx context.Context, id int64, start time.Time) error
 }
 
+func (r *stubUserSubscriptionRepo) FilterByGroup(_ context.Context, subs []service.UserSubscription, _ int64) ([]service.UserSubscription, error) {
+	return subs, nil
+}
+
 func (r *stubUserSubscriptionRepo) Create(ctx context.Context, sub *service.UserSubscription) error {
 	return errors.New("not implemented")
 }

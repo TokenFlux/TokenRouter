@@ -1601,6 +1601,10 @@ func applyUsageBillingResultToUsageLog(usageLog *UsageLog, result *UsageBillingA
 	usageLog.BalanceAmountUSD = result.BalanceAmountUSD
 	usageLog.BillingAllocations = cloneBillingAllocations(result.BillingAllocations)
 	usageLog.SubscriptionID = firstAllocatedSubscriptionID(result.BillingAllocations)
+	if billable := usageBillingResultBillableAmount(result); billable >= 0 && result.EffectiveRateMultiplier != nil {
+		usageLog.ActualCost = billable
+		usageLog.RateMultiplier = *result.EffectiveRateMultiplier
+	}
 	switch {
 	case result.SubscriptionAmountUSD > 0:
 		usageLog.BillingType = BillingTypeSubscription
@@ -1655,8 +1659,12 @@ func finalizeUsageBilling(p *usageBillingParams, deps *billingDeps, result *Usag
 		syncBalanceCacheAfterDeduction(context.Background(), p, deps, result)
 	}
 
-	if p.Cost.ActualCost > 0 && p.APIKey != nil && p.APIKey.HasRateLimits() {
-		deps.billingCacheService.QueueUpdateAPIKeyRateLimitUsage(p.APIKey.ID, p.Cost.ActualCost)
+	rateLimitCost := p.Cost.ActualCost
+	if result != nil {
+		rateLimitCost = usageBillingResultBillableAmount(result)
+	}
+	if rateLimitCost > 0 && p.APIKey != nil && p.APIKey.HasRateLimits() {
+		deps.billingCacheService.QueueUpdateAPIKeyRateLimitUsage(p.APIKey.ID, rateLimitCost)
 	}
 
 	deps.deferredService.ScheduleLastUsedUpdate(p.Account.ID)
@@ -1703,6 +1711,13 @@ func finalizeUsageBilling(p *usageBillingParams, deps *billingDeps, result *Usag
 	// 通知检查异步执行，所需参数已全部捕获，不依赖请求 context 或上游连接。
 	go notifyBalanceLow(p, deps, result)
 	go notifyAccountQuota(p, deps, result)
+}
+
+func usageBillingResultBillableAmount(result *UsageBillingApplyResult) float64 {
+	if result == nil {
+		return -1
+	}
+	return result.SubscriptionAmountUSD + result.BalanceAmountUSD
 }
 
 func firstAllocatedSubscriptionID(allocations []domain.BillingAllocation) *int64 {
@@ -1777,13 +1792,16 @@ type anthropicStreamResponseAccumulator struct {
 
 // usageBillingParams 统一扣费所需的参数
 type usageBillingParams struct {
-	Cost                  *CostBreakdown
-	User                  *User
-	APIKey                *APIKey
-	Account               *Account
-	Subscription          *UserSubscription
-	RequestPayloadHash    string
-	AccountRateMultiplier float64
-	APIKeyService         APIKeyQuotaUpdater
-	Platform              string // 来自 APIKey 关联 Group 的平台标识
+	Cost                            *CostBreakdown
+	User                            *User
+	APIKey                          *APIKey
+	Account                         *Account
+	Subscription                    *UserSubscription
+	RequestPayloadHash              string
+	AccountRateMultiplier           float64
+	SubscriptionRateMultiplier      float64
+	SubscriptionRateMultiplierScale float64
+	BalanceRateMultiplier           float64
+	APIKeyService                   APIKeyQuotaUpdater
+	Platform                        string // 来自 APIKey 关联 Group 的平台标识
 }

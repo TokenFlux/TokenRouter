@@ -9,11 +9,18 @@ import type { AdminPaymentConfig } from '@/api/admin/payment'
 
 const mockCreatePlan = vi.fn()
 const mockUpdatePlan = vi.fn()
+const mockGetAllIncludingInactive = vi.fn()
 
 vi.mock('@/api/admin/payment', () => ({
   adminPaymentAPI: {
     createPlan: (...args: unknown[]) => mockCreatePlan(...args),
     updatePlan: (...args: unknown[]) => mockUpdatePlan(...args)
+  }
+}))
+
+vi.mock('@/api/admin/groups', () => ({
+  groupsAPI: {
+    getAllIncludingInactive: (...args: unknown[]) => mockGetAllIncludingInactive(...args)
   }
 }))
 
@@ -48,6 +55,10 @@ function createTestI18n() {
             planNameRequired: 'Plan name is required',
             priceRequired: 'Price must be greater than 0',
             validityDaysRequired: 'Validity days must be greater than 0',
+            planGroups: 'Plan Groups',
+            planGroupsGlobalHint: 'Leave empty to make the plan available to all groups',
+            subscriptionRateMultiplier: 'Subscription Rate',
+            subscriptionRateMultiplierRequired: 'Subscription rate must be greater than 0',
             subscriptionCnyPayPreview: ({ named }: { named: (key: string) => unknown }) =>
               `CNY charge: ${named('amount')}`,
             subscriptionCnyPayPreviewWithFee: ({ named }: { named: (key: string) => unknown }) =>
@@ -56,6 +67,7 @@ function createTestI18n() {
         },
         common: {
           cancel: 'Cancel',
+          loading: 'Loading',
           save: 'Save',
           saving: 'Saving',
           saved: 'Saved',
@@ -101,6 +113,11 @@ describe('PlanEditDialog', () => {
   beforeEach(() => {
     mockCreatePlan.mockReset()
     mockUpdatePlan.mockReset()
+    mockGetAllIncludingInactive.mockReset()
+    mockGetAllIncludingInactive.mockResolvedValue([
+      { id: 1, name: 'Default', platform: 'anthropic', status: 'active', rate_multiplier: 1.5 },
+      { id: 2, name: 'OpenAI', platform: 'openai', status: 'inactive', rate_multiplier: 2 }
+    ])
   })
 
   it('submits unlimited plan when all quota limits are empty', async () => {
@@ -180,6 +197,49 @@ describe('PlanEditDialog', () => {
         daily_limit_usd: 10,
         weekly_limit_usd: 0,
         monthly_limit_usd: 100
+      })
+    )
+  })
+
+  it('allows saving a global plan without selected groups', async () => {
+    mockCreatePlan.mockResolvedValue({})
+    const wrapper = mountDialog()
+
+    const inputs = wrapper.findAll('input')
+    await inputs[0].setValue('Global')
+    await wrapper.find('textarea').setValue('Global plan')
+    await inputs[2].setValue('9.99')
+    await inputs[4].setValue('30')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(mockCreatePlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        group_ids: [],
+        group_rate_multipliers: {}
+      })
+    )
+  })
+
+  it('submits the selected group and its subscription rate multiplier', async () => {
+    mockCreatePlan.mockResolvedValue({})
+    const wrapper = mountDialog()
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    await inputs[0].setValue('Grouped')
+    await wrapper.find('textarea').setValue('Grouped plan')
+    await inputs[2].setValue('9.99')
+    await inputs[4].setValue('30')
+    await wrapper.find('input[type="checkbox"][value="1"]').setValue(true)
+    await wrapper.find('input[type="number"][placeholder="1.5x"]').setValue('1.25')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(mockCreatePlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        group_ids: [1],
+        group_rate_multipliers: { 1: 1.25 }
       })
     )
   })

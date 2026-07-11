@@ -138,6 +138,9 @@ func mustCreatePlan(t *testing.T, client *dbent.Client, p *service.SubscriptionP
 	if p.MonthlyLimitUSD != nil {
 		create.SetMonthlyLimitUsd(*p.MonthlyLimitUSD)
 	}
+	if p.GroupIDs != nil {
+		create.SetGroupIds(p.GroupIDs)
+	}
 	if !p.CreatedAt.IsZero() {
 		create.SetCreatedAt(p.CreatedAt)
 	}
@@ -147,6 +150,21 @@ func mustCreatePlan(t *testing.T, client *dbent.Client, p *service.SubscriptionP
 
 	created, err := create.Save(ctx)
 	require.NoError(t, err, "create subscription plan")
+	for _, groupID := range p.GroupIDs {
+		var rate any
+		if p.GroupRateMultipliers != nil {
+			if value, ok := p.GroupRateMultipliers[groupID]; ok && value > 0 {
+				rate = value
+			}
+		}
+		_, err := client.ExecContext(ctx, `
+			INSERT INTO subscription_plan_groups (plan_id, group_id, rate_multiplier)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (plan_id, group_id)
+			DO UPDATE SET rate_multiplier = EXCLUDED.rate_multiplier
+		`, created.ID, groupID, rate)
+		require.NoError(t, err, "create subscription plan group mapping")
+	}
 
 	p.ID = created.ID
 	p.CreatedAt = created.CreatedAt

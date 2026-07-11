@@ -661,10 +661,16 @@ func (s *SubscriptionService) GetActiveSubscription(ctx context.Context, userID,
 	return nil, ErrSubscriptionNotFound
 }
 
-func (s *SubscriptionService) GetUsableSubscription(ctx context.Context, userID int64) (*UserSubscription, bool, error) {
+func (s *SubscriptionService) GetUsableSubscription(ctx context.Context, userID int64, groupID ...int64) (*UserSubscription, bool, error) {
 	subs, err := s.userSubRepo.ListActiveByUserID(ctx, userID)
 	if err != nil {
 		return nil, false, err
+	}
+	if len(groupID) > 0 && groupID[0] > 0 {
+		subs, err = s.filterSubscriptionsByGroup(ctx, subs, groupID[0])
+		if err != nil {
+			return nil, false, err
+		}
 	}
 	sort.SliceStable(subs, func(i, j int) bool {
 		if subs[i].ExpiresAt.Equal(subs[j].ExpiresAt) {
@@ -689,6 +695,24 @@ func (s *SubscriptionService) GetUsableSubscription(ctx context.Context, userID 
 		return nil, false, validateErr
 	}
 	return nil, false, ErrSubscriptionNotFound
+}
+
+func (s *SubscriptionService) filterSubscriptionsByGroup(ctx context.Context, subs []UserSubscription, groupID int64) ([]UserSubscription, error) {
+	if groupID <= 0 || len(subs) == 0 {
+		return subs, nil
+	}
+	if s == nil || s.userSubRepo == nil {
+		return nil, fmt.Errorf("subscription plan group filter unavailable")
+	}
+	filter, ok := s.userSubRepo.(userSubscriptionGroupFilter)
+	if !ok {
+		return nil, fmt.Errorf("subscription plan group filter unavailable")
+	}
+	return filter.FilterByGroup(ctx, subs, groupID)
+}
+
+type userSubscriptionGroupFilter interface {
+	FilterByGroup(ctx context.Context, subs []UserSubscription, groupID int64) ([]UserSubscription, error)
 }
 
 func (s *SubscriptionService) ListUserSubscriptions(ctx context.Context, userID int64) ([]UserSubscription, error) {

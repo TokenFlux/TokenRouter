@@ -133,7 +133,11 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 
 		var subscription *service.UserSubscription
 		if subscriptionService != nil {
-			sub, _, err := subscriptionService.GetUsableSubscription(c.Request.Context(), apiKey.User.ID)
+			var groupID int64
+			if apiKey.GroupID != nil {
+				groupID = *apiKey.GroupID
+			}
+			sub, _, err := subscriptionService.GetUsableSubscription(c.Request.Context(), apiKey.User.ID, groupID)
 			if err != nil && !errors.Is(err, service.ErrSubscriptionNotFound) {
 				abortWithGoogleError(c, 500, "Failed to validate subscription")
 				return

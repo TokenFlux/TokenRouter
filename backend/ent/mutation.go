@@ -37215,41 +37215,44 @@ func (m *SettingMutation) ResetEdge(name string) error {
 // SubscriptionPlanMutation represents an operation that mutates the SubscriptionPlan nodes in the graph.
 type SubscriptionPlanMutation struct {
 	config
-	op                   Op
-	typ                  string
-	id                   *int64
-	name                 *string
-	description          *string
-	price                *float64
-	addprice             *float64
-	original_price       *float64
-	addoriginal_price    *float64
-	validity_days        *int
-	addvalidity_days     *int
-	daily_limit_usd      *float64
-	adddaily_limit_usd   *float64
-	weekly_limit_usd     *float64
-	addweekly_limit_usd  *float64
-	monthly_limit_usd    *float64
-	addmonthly_limit_usd *float64
-	validity_unit        *string
-	features             *string
-	product_name         *string
-	for_sale             *bool
-	sort_order           *int
-	addsort_order        *int
-	created_at           *time.Time
-	updated_at           *time.Time
-	clearedFields        map[string]struct{}
-	subscriptions        map[int64]struct{}
-	removedsubscriptions map[int64]struct{}
-	clearedsubscriptions bool
-	redeem_codes         map[int64]struct{}
-	removedredeem_codes  map[int64]struct{}
-	clearedredeem_codes  bool
-	done                 bool
-	oldValue             func(context.Context) (*SubscriptionPlan, error)
-	predicates           []predicate.SubscriptionPlan
+	op                     Op
+	typ                    string
+	id                     *int64
+	name                   *string
+	description            *string
+	price                  *float64
+	addprice               *float64
+	original_price         *float64
+	addoriginal_price      *float64
+	validity_days          *int
+	addvalidity_days       *int
+	daily_limit_usd        *float64
+	adddaily_limit_usd     *float64
+	weekly_limit_usd       *float64
+	addweekly_limit_usd    *float64
+	monthly_limit_usd      *float64
+	addmonthly_limit_usd   *float64
+	validity_unit          *string
+	group_ids              *[]int64
+	appendgroup_ids        []int64
+	group_rate_multipliers *map[int64]float64
+	features               *string
+	product_name           *string
+	for_sale               *bool
+	sort_order             *int
+	addsort_order          *int
+	created_at             *time.Time
+	updated_at             *time.Time
+	clearedFields          map[string]struct{}
+	subscriptions          map[int64]struct{}
+	removedsubscriptions   map[int64]struct{}
+	clearedsubscriptions   bool
+	redeem_codes           map[int64]struct{}
+	removedredeem_codes    map[int64]struct{}
+	clearedredeem_codes    bool
+	done                   bool
+	oldValue               func(context.Context) (*SubscriptionPlan, error)
+	predicates             []predicate.SubscriptionPlan
 }
 
 var _ ent.Mutation = (*SubscriptionPlanMutation)(nil)
@@ -37850,6 +37853,120 @@ func (m *SubscriptionPlanMutation) ResetValidityUnit() {
 	m.validity_unit = nil
 }
 
+// SetGroupIds sets the "group_ids" field.
+func (m *SubscriptionPlanMutation) SetGroupIds(i []int64) {
+	m.group_ids = &i
+	m.appendgroup_ids = nil
+}
+
+// GroupIds returns the value of the "group_ids" field in the mutation.
+func (m *SubscriptionPlanMutation) GroupIds() (r []int64, exists bool) {
+	v := m.group_ids
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGroupIds returns the old "group_ids" field's value of the SubscriptionPlan entity.
+// If the SubscriptionPlan object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SubscriptionPlanMutation) OldGroupIds(ctx context.Context) (v []int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGroupIds is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGroupIds requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGroupIds: %w", err)
+	}
+	return oldValue.GroupIds, nil
+}
+
+// AppendGroupIds adds i to the "group_ids" field.
+func (m *SubscriptionPlanMutation) AppendGroupIds(i []int64) {
+	m.appendgroup_ids = append(m.appendgroup_ids, i...)
+}
+
+// AppendedGroupIds returns the list of values that were appended to the "group_ids" field in this mutation.
+func (m *SubscriptionPlanMutation) AppendedGroupIds() ([]int64, bool) {
+	if len(m.appendgroup_ids) == 0 {
+		return nil, false
+	}
+	return m.appendgroup_ids, true
+}
+
+// ClearGroupIds clears the value of the "group_ids" field.
+func (m *SubscriptionPlanMutation) ClearGroupIds() {
+	m.group_ids = nil
+	m.appendgroup_ids = nil
+	m.clearedFields[subscriptionplan.FieldGroupIds] = struct{}{}
+}
+
+// GroupIdsCleared returns if the "group_ids" field was cleared in this mutation.
+func (m *SubscriptionPlanMutation) GroupIdsCleared() bool {
+	_, ok := m.clearedFields[subscriptionplan.FieldGroupIds]
+	return ok
+}
+
+// ResetGroupIds resets all changes to the "group_ids" field.
+func (m *SubscriptionPlanMutation) ResetGroupIds() {
+	m.group_ids = nil
+	m.appendgroup_ids = nil
+	delete(m.clearedFields, subscriptionplan.FieldGroupIds)
+}
+
+// SetGroupRateMultipliers sets the "group_rate_multipliers" field.
+func (m *SubscriptionPlanMutation) SetGroupRateMultipliers(value map[int64]float64) {
+	m.group_rate_multipliers = &value
+}
+
+// GroupRateMultipliers returns the value of the "group_rate_multipliers" field in the mutation.
+func (m *SubscriptionPlanMutation) GroupRateMultipliers() (r map[int64]float64, exists bool) {
+	v := m.group_rate_multipliers
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGroupRateMultipliers returns the old "group_rate_multipliers" field's value of the SubscriptionPlan entity.
+// If the SubscriptionPlan object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *SubscriptionPlanMutation) OldGroupRateMultipliers(ctx context.Context) (v map[int64]float64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGroupRateMultipliers is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGroupRateMultipliers requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGroupRateMultipliers: %w", err)
+	}
+	return oldValue.GroupRateMultipliers, nil
+}
+
+// ClearGroupRateMultipliers clears the value of the "group_rate_multipliers" field.
+func (m *SubscriptionPlanMutation) ClearGroupRateMultipliers() {
+	m.group_rate_multipliers = nil
+	m.clearedFields[subscriptionplan.FieldGroupRateMultipliers] = struct{}{}
+}
+
+// GroupRateMultipliersCleared returns if the "group_rate_multipliers" field was cleared in this mutation.
+func (m *SubscriptionPlanMutation) GroupRateMultipliersCleared() bool {
+	_, ok := m.clearedFields[subscriptionplan.FieldGroupRateMultipliers]
+	return ok
+}
+
+// ResetGroupRateMultipliers resets all changes to the "group_rate_multipliers" field.
+func (m *SubscriptionPlanMutation) ResetGroupRateMultipliers() {
+	m.group_rate_multipliers = nil
+	delete(m.clearedFields, subscriptionplan.FieldGroupRateMultipliers)
+}
+
 // SetFeatures sets the "features" field.
 func (m *SubscriptionPlanMutation) SetFeatures(s string) {
 	m.features = &s
@@ -38228,7 +38345,7 @@ func (m *SubscriptionPlanMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *SubscriptionPlanMutation) Fields() []string {
-	fields := make([]string, 0, 15)
+	fields := make([]string, 0, 17)
 	if m.name != nil {
 		fields = append(fields, subscriptionplan.FieldName)
 	}
@@ -38255,6 +38372,12 @@ func (m *SubscriptionPlanMutation) Fields() []string {
 	}
 	if m.validity_unit != nil {
 		fields = append(fields, subscriptionplan.FieldValidityUnit)
+	}
+	if m.group_ids != nil {
+		fields = append(fields, subscriptionplan.FieldGroupIds)
+	}
+	if m.group_rate_multipliers != nil {
+		fields = append(fields, subscriptionplan.FieldGroupRateMultipliers)
 	}
 	if m.features != nil {
 		fields = append(fields, subscriptionplan.FieldFeatures)
@@ -38300,6 +38423,10 @@ func (m *SubscriptionPlanMutation) Field(name string) (ent.Value, bool) {
 		return m.MonthlyLimitUsd()
 	case subscriptionplan.FieldValidityUnit:
 		return m.ValidityUnit()
+	case subscriptionplan.FieldGroupIds:
+		return m.GroupIds()
+	case subscriptionplan.FieldGroupRateMultipliers:
+		return m.GroupRateMultipliers()
 	case subscriptionplan.FieldFeatures:
 		return m.Features()
 	case subscriptionplan.FieldProductName:
@@ -38339,6 +38466,10 @@ func (m *SubscriptionPlanMutation) OldField(ctx context.Context, name string) (e
 		return m.OldMonthlyLimitUsd(ctx)
 	case subscriptionplan.FieldValidityUnit:
 		return m.OldValidityUnit(ctx)
+	case subscriptionplan.FieldGroupIds:
+		return m.OldGroupIds(ctx)
+	case subscriptionplan.FieldGroupRateMultipliers:
+		return m.OldGroupRateMultipliers(ctx)
 	case subscriptionplan.FieldFeatures:
 		return m.OldFeatures(ctx)
 	case subscriptionplan.FieldProductName:
@@ -38422,6 +38553,20 @@ func (m *SubscriptionPlanMutation) SetField(name string, value ent.Value) error 
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetValidityUnit(v)
+		return nil
+	case subscriptionplan.FieldGroupIds:
+		v, ok := value.([]int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGroupIds(v)
+		return nil
+	case subscriptionplan.FieldGroupRateMultipliers:
+		v, ok := value.(map[int64]float64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGroupRateMultipliers(v)
 		return nil
 	case subscriptionplan.FieldFeatures:
 		v, ok := value.(string)
@@ -38594,6 +38739,12 @@ func (m *SubscriptionPlanMutation) ClearedFields() []string {
 	if m.FieldCleared(subscriptionplan.FieldMonthlyLimitUsd) {
 		fields = append(fields, subscriptionplan.FieldMonthlyLimitUsd)
 	}
+	if m.FieldCleared(subscriptionplan.FieldGroupIds) {
+		fields = append(fields, subscriptionplan.FieldGroupIds)
+	}
+	if m.FieldCleared(subscriptionplan.FieldGroupRateMultipliers) {
+		fields = append(fields, subscriptionplan.FieldGroupRateMultipliers)
+	}
 	return fields
 }
 
@@ -38619,6 +38770,12 @@ func (m *SubscriptionPlanMutation) ClearField(name string) error {
 		return nil
 	case subscriptionplan.FieldMonthlyLimitUsd:
 		m.ClearMonthlyLimitUsd()
+		return nil
+	case subscriptionplan.FieldGroupIds:
+		m.ClearGroupIds()
+		return nil
+	case subscriptionplan.FieldGroupRateMultipliers:
+		m.ClearGroupRateMultipliers()
 		return nil
 	}
 	return fmt.Errorf("unknown SubscriptionPlan nullable field %s", name)
@@ -38654,6 +38811,12 @@ func (m *SubscriptionPlanMutation) ResetField(name string) error {
 		return nil
 	case subscriptionplan.FieldValidityUnit:
 		m.ResetValidityUnit()
+		return nil
+	case subscriptionplan.FieldGroupIds:
+		m.ResetGroupIds()
+		return nil
+	case subscriptionplan.FieldGroupRateMultipliers:
+		m.ResetGroupRateMultipliers()
 		return nil
 	case subscriptionplan.FieldFeatures:
 		m.ResetFeatures()

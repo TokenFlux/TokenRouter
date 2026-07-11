@@ -53,38 +53,42 @@ func (h *PaymentHandler) GetPlans(c *gin.Context) {
 		return
 	}
 	type planWithPlatform struct {
-		ID              int64    `json:"id"`
-		Name            string   `json:"name"`
-		Description     string   `json:"description"`
-		Price           float64  `json:"price"`
-		OriginalPrice   *float64 `json:"original_price,omitempty"`
-		ValidityDays    int      `json:"validity_days"`
-		ValidityUnit    string   `json:"validity_unit"`
-		DailyLimitUSD   *float64 `json:"daily_limit_usd,omitempty"`
-		WeeklyLimitUSD  *float64 `json:"weekly_limit_usd,omitempty"`
-		MonthlyLimitUSD *float64 `json:"monthly_limit_usd,omitempty"`
-		Features        []string `json:"features"`
-		ProductName     string   `json:"product_name"`
-		ForSale         bool     `json:"for_sale"`
-		SortOrder       int      `json:"sort_order"`
+		ID                   int64             `json:"id"`
+		Name                 string            `json:"name"`
+		Description          string            `json:"description"`
+		Price                float64           `json:"price"`
+		OriginalPrice        *float64          `json:"original_price,omitempty"`
+		ValidityDays         int               `json:"validity_days"`
+		ValidityUnit         string            `json:"validity_unit"`
+		GroupIDs             []int64           `json:"group_ids"`
+		GroupRateMultipliers map[int64]float64 `json:"group_rate_multipliers"`
+		DailyLimitUSD        *float64          `json:"daily_limit_usd,omitempty"`
+		WeeklyLimitUSD       *float64          `json:"weekly_limit_usd,omitempty"`
+		MonthlyLimitUSD      *float64          `json:"monthly_limit_usd,omitempty"`
+		Features             []string          `json:"features"`
+		ProductName          string            `json:"product_name"`
+		ForSale              bool              `json:"for_sale"`
+		SortOrder            int               `json:"sort_order"`
 	}
 	result := make([]planWithPlatform, 0, len(plans))
 	for _, p := range plans {
 		result = append(result, planWithPlatform{
-			ID:              int64(p.ID),
-			Name:            p.Name,
-			Description:     p.Description,
-			Price:           p.Price,
-			OriginalPrice:   p.OriginalPrice,
-			ValidityDays:    p.ValidityDays,
-			ValidityUnit:    p.ValidityUnit,
-			DailyLimitUSD:   p.DailyLimitUsd,
-			WeeklyLimitUSD:  p.WeeklyLimitUsd,
-			MonthlyLimitUSD: p.MonthlyLimitUsd,
-			Features:        parseFeatures(p.Features),
-			ProductName:     p.ProductName,
-			ForSale:         p.ForSale,
-			SortOrder:       p.SortOrder,
+			ID:                   int64(p.ID),
+			Name:                 p.Name,
+			Description:          p.Description,
+			Price:                p.Price,
+			OriginalPrice:        p.OriginalPrice,
+			ValidityDays:         p.ValidityDays,
+			ValidityUnit:         p.ValidityUnit,
+			GroupIDs:             append([]int64(nil), p.GroupIds...),
+			GroupRateMultipliers: cloneInt64Float64Map(p.GroupRateMultipliers),
+			DailyLimitUSD:        p.DailyLimitUsd,
+			WeeklyLimitUSD:       p.WeeklyLimitUsd,
+			MonthlyLimitUSD:      p.MonthlyLimitUsd,
+			Features:             parseFeatures(p.Features),
+			ProductName:          p.ProductName,
+			ForSale:              p.ForSale,
+			SortOrder:            p.SortOrder,
 		})
 	}
 	response.Success(c, result)
@@ -126,18 +130,20 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	planList := make([]checkoutPlan, 0, len(plans))
 	for _, p := range plans {
 		planList = append(planList, checkoutPlan{
-			ID:              int64(p.ID),
-			DailyLimitUSD:   p.DailyLimitUsd,
-			WeeklyLimitUSD:  p.WeeklyLimitUsd,
-			MonthlyLimitUSD: p.MonthlyLimitUsd,
-			Name:            p.Name,
-			Description:     p.Description,
-			Price:           p.Price,
-			OriginalPrice:   p.OriginalPrice,
-			ValidityDays:    p.ValidityDays,
-			ValidityUnit:    p.ValidityUnit,
-			Features:        parseFeatures(p.Features),
-			ProductName:     p.ProductName,
+			ID:                   int64(p.ID),
+			DailyLimitUSD:        p.DailyLimitUsd,
+			WeeklyLimitUSD:       p.WeeklyLimitUsd,
+			MonthlyLimitUSD:      p.MonthlyLimitUsd,
+			Name:                 p.Name,
+			Description:          p.Description,
+			Price:                p.Price,
+			OriginalPrice:        p.OriginalPrice,
+			ValidityDays:         p.ValidityDays,
+			ValidityUnit:         p.ValidityUnit,
+			GroupIDs:             append([]int64(nil), p.GroupIds...),
+			GroupRateMultipliers: cloneInt64Float64Map(p.GroupRateMultipliers),
+			Features:             parseFeatures(p.Features),
+			ProductName:          p.ProductName,
 		})
 	}
 
@@ -175,22 +181,24 @@ type checkoutInfoResponse struct {
 }
 
 type checkoutPlan struct {
-	ID              int64    `json:"id"`
-	GroupID         *int64   `json:"group_id,omitempty"`
-	GroupPlatform   string   `json:"group_platform,omitempty"`
-	GroupName       string   `json:"group_name,omitempty"`
-	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
-	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
-	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
-	ModelScopes     []string `json:"supported_model_scopes,omitempty"`
-	Name            string   `json:"name"`
-	Description     string   `json:"description"`
-	Price           float64  `json:"price"`
-	OriginalPrice   *float64 `json:"original_price,omitempty"`
-	ValidityDays    int      `json:"validity_days"`
-	ValidityUnit    string   `json:"validity_unit"`
-	Features        []string `json:"features"`
-	ProductName     string   `json:"product_name"`
+	ID                   int64             `json:"id"`
+	GroupID              *int64            `json:"group_id,omitempty"`
+	GroupIDs             []int64           `json:"group_ids"`
+	GroupRateMultipliers map[int64]float64 `json:"group_rate_multipliers"`
+	GroupPlatform        string            `json:"group_platform,omitempty"`
+	GroupName            string            `json:"group_name,omitempty"`
+	DailyLimitUSD        *float64          `json:"daily_limit_usd"`
+	WeeklyLimitUSD       *float64          `json:"weekly_limit_usd"`
+	MonthlyLimitUSD      *float64          `json:"monthly_limit_usd"`
+	ModelScopes          []string          `json:"supported_model_scopes,omitempty"`
+	Name                 string            `json:"name"`
+	Description          string            `json:"description"`
+	Price                float64           `json:"price"`
+	OriginalPrice        *float64          `json:"original_price,omitempty"`
+	ValidityDays         int               `json:"validity_days"`
+	ValidityUnit         string            `json:"validity_unit"`
+	Features             []string          `json:"features"`
+	ProductName          string            `json:"product_name"`
 }
 
 // parseFeatures splits a newline-separated features string into a string slice.
@@ -206,6 +214,17 @@ func parseFeatures(raw string) []string {
 	}
 	if out == nil {
 		return []string{}
+	}
+	return out
+}
+
+func cloneInt64Float64Map(in map[int64]float64) map[int64]float64 {
+	if len(in) == 0 {
+		return map[int64]float64{}
+	}
+	out := make(map[int64]float64, len(in))
+	for k, v := range in {
+		out[k] = v
 	}
 	return out
 }

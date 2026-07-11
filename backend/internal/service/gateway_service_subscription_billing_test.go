@@ -67,3 +67,28 @@ func TestBuildUsageBillingCommand_BillableAmountTracksActualCost(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildUsageBillingCommand_IncludesRequestGroupID(t *testing.T) {
+	groupID := int64(42)
+	p := &usageBillingParams{
+		Cost: &CostBreakdown{ActualCost: 1.25},
+		User: &User{ID: 10},
+		APIKey: &APIKey{
+			ID:      20,
+			GroupID: &groupID,
+		},
+		Account: &Account{ID: 30, Type: AccountTypeAPIKey},
+	}
+
+	cmd := buildUsageBillingCommand("req-group", nil, p)
+
+	if cmd == nil {
+		t.Fatal("buildUsageBillingCommand returned nil")
+	}
+	if cmd.GroupID == nil {
+		t.Fatal("GroupID is nil")
+	}
+	if *cmd.GroupID != groupID {
+		t.Fatalf("GroupID = %d, want %d", *cmd.GroupID, groupID)
+	}
+}

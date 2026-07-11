@@ -66,6 +66,50 @@
       </div>
 
       <div>
+        <label class="input-label">{{ t('payment.admin.planGroups') }}</label>
+        <p class="mb-1 text-xs text-gray-500 dark:text-gray-400">{{ t('payment.admin.planGroupsGlobalHint') }}</p>
+        <div class="max-h-40 overflow-y-auto rounded-lg border border-gray-200 bg-white p-2 dark:border-dark-600 dark:bg-dark-800">
+          <div class="mb-1 flex items-center px-2 text-xs text-gray-400">
+            <span class="flex-1">{{ t('payment.admin.planGroups') }}</span>
+            <span>{{ t('payment.admin.subscriptionRateMultiplier') }}</span>
+          </div>
+          <div
+            v-for="group in groups"
+            :key="group.id"
+            class="flex items-center gap-2 rounded px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-dark-700"
+          >
+            <label class="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
+              <input
+                v-model="planForm.group_ids"
+                type="checkbox"
+                :value="group.id"
+                class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+                @change="ensureGroupRate(group.id)"
+              />
+              <span class="flex-1 truncate">{{ group.name }}</span>
+            </label>
+            <span class="text-xs text-gray-400">{{ group.platform }}</span>
+            <input
+              v-if="isGroupSelected(group.id)"
+              :value="planForm.group_rate_multipliers[group.id] ?? ''"
+              type="number"
+              step="0.01"
+              min="0.01"
+              :placeholder="formatGroupDefaultRate(group)"
+              class="input h-8 w-24 text-right text-xs"
+              @input="setGroupRate(group.id, $event)"
+            />
+          </div>
+          <div v-if="!groupsLoading && groups.length === 0" class="px-2 py-3 text-sm text-gray-500">
+            {{ t('admin.groups.noGroups') }}
+          </div>
+          <div v-if="groupsLoading" class="px-2 py-3 text-sm text-gray-500">
+            {{ t('common.loading', 'Loading...') }}
+          </div>
+        </div>
+      </div>
+
+      <div>
         <label class="input-label">{{ t('payment.admin.features') }}</label>
         <textarea
           v-model="planFeaturesText"
@@ -117,9 +161,11 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminPaymentAPI } from '@/api/admin/payment'
 import type { AdminPaymentConfig } from '@/api/admin/payment'
+import { groupsAPI } from '@/api/admin/groups'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { formatPaymentAmount } from '@/components/payment/currency'
 import type { SubscriptionPlan } from '@/types/payment'
+import type { AdminGroup } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 
@@ -138,6 +184,8 @@ const { t } = useI18n()
 const appStore = useAppStore()
 
 const saving = ref(false)
+const groupsLoading = ref(false)
+const groups = ref<AdminGroup[]>([])
 const planFeaturesText = ref('')
 const planForm = reactive({
   name: '',
@@ -149,6 +197,8 @@ const planForm = reactive({
   daily_limit_usd: null as number | null,
   weekly_limit_usd: null as number | null,
   monthly_limit_usd: null as number | null,
+  group_ids: [] as number[],
+  group_rate_multipliers: {} as Record<number, number | null>,
   sort_order: 0,
   for_sale: true
 })
@@ -189,6 +239,7 @@ watch(
   () => props.show,
   (visible) => {
     if (!visible) return
+    loadGroups()
     if (props.plan) {
       Object.assign(planForm, {
         name: props.plan.name,
@@ -200,6 +251,8 @@ watch(
         daily_limit_usd: normalizeQuotaFormValue(props.plan.daily_limit_usd),
         weekly_limit_usd: normalizeQuotaFormValue(props.plan.weekly_limit_usd),
         monthly_limit_usd: normalizeQuotaFormValue(props.plan.monthly_limit_usd),
+        group_ids: normalizePlanGroupIDs(props.plan),
+        group_rate_multipliers: normalizePlanGroupRateMultipliers(props.plan),
         sort_order: props.plan.sort_order || 0,
         for_sale: props.plan.for_sale
       })
@@ -217,12 +270,67 @@ watch(
       daily_limit_usd: null,
       weekly_limit_usd: null,
       monthly_limit_usd: null,
+      group_ids: [],
+      group_rate_multipliers: {},
       sort_order: 0,
       for_sale: true
     })
     planFeaturesText.value = ''
-  }
+  },
+  { immediate: true }
 )
+
+async function loadGroups() {
+  groupsLoading.value = true
+  try {
+    groups.value = await groupsAPI.getAllIncludingInactive()
+  } catch (error: unknown) {
+    appStore.showError(extractApiErrorMessage(error, t('admin.groups.failedToLoad')))
+  } finally {
+    groupsLoading.value = false
+  }
+}
+
+function normalizePlanGroupIDs(plan: SubscriptionPlan): number[] {
+  if (Array.isArray(plan.group_ids) && plan.group_ids.length > 0) {
+    return plan.group_ids.filter((id) => id > 0)
+  }
+  return plan.group_id && plan.group_id > 0 ? [plan.group_id] : []
+}
+
+function normalizePlanGroupRateMultipliers(plan: SubscriptionPlan): Record<number, number | null> {
+  const rates: Record<number, number | null> = {}
+  const raw = plan.group_rate_multipliers || {}
+  for (const groupId of normalizePlanGroupIDs(plan)) {
+    const configured = (raw as Record<string, number>)[String(groupId)] ?? (raw as Record<number, number>)[groupId]
+    const rate = Number(configured)
+    if (Number.isFinite(rate) && rate > 0) rates[groupId] = rate
+  }
+  return rates
+}
+
+function isGroupSelected(groupId: number): boolean {
+  return planForm.group_ids.includes(groupId)
+}
+
+function ensureGroupRate(groupId: number) {
+  if (!isGroupSelected(groupId)) delete planForm.group_rate_multipliers[groupId]
+}
+
+function setGroupRate(groupId: number, event: Event) {
+  const value = (event.target as HTMLInputElement).value.trim()
+  if (value === '') {
+    delete planForm.group_rate_multipliers[groupId]
+    return
+  }
+  planForm.group_rate_multipliers[groupId] = Number(value)
+}
+
+function formatGroupDefaultRate(group: AdminGroup): string {
+  const rate = Number(group.rate_multiplier)
+  if (!Number.isFinite(rate) || rate <= 0) return ''
+  return `${rate}x`
+}
 
 function normalizeNullableNumber(value: number | null): number | null {
   if (value == null || Number.isNaN(value) || value <= 0) return null
@@ -240,6 +348,11 @@ function normalizeQuotaLimit(value: number | null): number | null {
 }
 
 function buildPlanPayload() {
+  const groupRateMultipliers = planForm.group_ids.reduce<Record<number, number>>((acc, groupId) => {
+    const rate = Number(planForm.group_rate_multipliers[groupId])
+    if (Number.isFinite(rate) && rate > 0) acc[groupId] = rate
+    return acc
+  }, {})
   return {
     name: planForm.name.trim(),
     description: planForm.description.trim(),
@@ -250,6 +363,8 @@ function buildPlanPayload() {
     daily_limit_usd: normalizeQuotaLimit(planForm.daily_limit_usd),
     weekly_limit_usd: normalizeQuotaLimit(planForm.weekly_limit_usd),
     monthly_limit_usd: normalizeQuotaLimit(planForm.monthly_limit_usd),
+    group_ids: [...planForm.group_ids],
+    group_rate_multipliers: groupRateMultipliers,
     sort_order: planForm.sort_order,
     for_sale: planForm.for_sale,
     features: planFeaturesText.value
@@ -272,6 +387,15 @@ async function handleSavePlan() {
   if (!planForm.validity_days || planForm.validity_days < 1) {
     appStore.showError(t('payment.admin.validityDaysRequired'))
     return
+  }
+  for (const groupId of planForm.group_ids) {
+    const value = planForm.group_rate_multipliers[groupId]
+    if (value == null) continue
+    const rate = Number(value)
+    if (!Number.isFinite(rate) || rate <= 0) {
+      appStore.showError(t('payment.admin.subscriptionRateMultiplierRequired'))
+      return
+    }
   }
   const payload = buildPlanPayload()
 

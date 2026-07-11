@@ -32,6 +32,10 @@ const (
 	FieldMonthlyLimitUsd = "monthly_limit_usd"
 	// FieldValidityUnit holds the string denoting the validity_unit field in the database.
 	FieldValidityUnit = "validity_unit"
+	// FieldGroupIds holds the string denoting the group_ids field in the database.
+	FieldGroupIds = "group_ids"
+	// FieldGroupRateMultipliers holds the string denoting the group_rate_multipliers field in the database.
+	FieldGroupRateMultipliers = "group_rate_multipliers"
 	// FieldFeatures holds the string denoting the features field in the database.
 	FieldFeatures = "features"
 	// FieldProductName holds the string denoting the product_name field in the database.
@@ -78,6 +82,8 @@ var Columns = []string{
 	FieldWeeklyLimitUsd,
 	FieldMonthlyLimitUsd,
 	FieldValidityUnit,
+	FieldGroupIds,
+	FieldGroupRateMultipliers,
 	FieldFeatures,
 	FieldProductName,
 	FieldForSale,
