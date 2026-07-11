@@ -31,10 +31,6 @@ func normalizePlanGroupIDs(groupID int64, groupIDs []int64) []int64 {
 	return out
 }
 
-func validatePlanGroupIDs(groupIDs []int64) error {
-	return nil
-}
-
 func normalizePlanGroupRateMultipliers(groupIDs []int64, rates map[int64]float64) (map[int64]float64, error) {
 	selected := make(map[int64]struct{}, len(groupIDs))
 	for _, groupID := range groupIDs {
@@ -88,7 +84,7 @@ func validatePlanQuotas(daily, weekly, monthly *float64) error {
 	return nil
 }
 
-func validatePlanRequired(name string, _ int64, price float64, validityDays int, validityUnit string, originalPrice *float64) error {
+func validatePlanRequired(name string, price float64, validityDays int, validityUnit string, originalPrice *float64) error {
 	if strings.TrimSpace(name) == "" {
 		return infraerrors.BadRequest("PLAN_NAME_REQUIRED", "plan name is required")
 	}
@@ -153,14 +149,11 @@ func (s *PaymentConfigService) ListPlansForSale(ctx context.Context) ([]*dbent.S
 
 func (s *PaymentConfigService) CreatePlan(ctx context.Context, req CreatePlanRequest) (*dbent.SubscriptionPlan, error) {
 	groupIDs := normalizePlanGroupIDs(req.GroupID, req.GroupIDs)
-	if err := validatePlanGroupIDs(groupIDs); err != nil {
-		return nil, err
-	}
 	groupRates, err := normalizePlanGroupRateMultipliers(groupIDs, req.GroupRateMultipliers)
 	if err != nil {
 		return nil, err
 	}
-	if err := validatePlanRequired(req.Name, req.GroupID, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
+	if err := validatePlanRequired(req.Name, req.Price, req.ValidityDays, req.ValidityUnit, req.OriginalPrice); err != nil {
 		return nil, err
 	}
 	if err := validatePlanQuotas(req.DailyLimitUSD, req.WeeklyLimitUSD, req.MonthlyLimitUSD); err != nil {
@@ -223,9 +216,6 @@ func (s *PaymentConfigService) UpdatePlan(ctx context.Context, id int64, req Upd
 			groupID = *req.GroupID
 		}
 		groupIDs = normalizePlanGroupIDs(groupID, *req.GroupIDs)
-		if err := validatePlanGroupIDs(groupIDs); err != nil {
-			return nil, err
-		}
 	}
 	useTx := req.GroupIDs != nil || req.GroupRateMultipliers != nil
 	client := s.entClient

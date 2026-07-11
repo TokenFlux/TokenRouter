@@ -113,6 +113,10 @@ var (
 	DefaultValidityUnit string
 	// ValidityUnitValidator is a validator for the "validity_unit" field. It is called by the builders before save.
 	ValidityUnitValidator func(string) error
+	// DefaultGroupIds holds the default value on creation for the "group_ids" field.
+	DefaultGroupIds []int64
+	// DefaultGroupRateMultipliers holds the default value on creation for the "group_rate_multipliers" field.
+	DefaultGroupRateMultipliers func() map[int64]float64
 	// DefaultFeatures holds the default value on creation for the "features" field.
 	DefaultFeatures string
 	// DefaultProductName holds the default value on creation for the "product_name" field.

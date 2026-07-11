@@ -873,9 +873,23 @@ const planTextClass = computed(() => platformTextClass(selectedPlan.value?.group
 // Renewal modal state
 const showRenewalModal = ref(false)
 const renewGroupId = ref<number | null>(null)
+
+// 空分组列表表示套餐可用于任意分组；同时兼容尚未升级的旧接口返回值。
+function isPlanAvailableForGroup(plan: SubscriptionPlan, groupId: number): boolean {
+  if (!Number.isSafeInteger(groupId) || groupId <= 0) return false
+  if (Array.isArray(plan.group_ids)) {
+    return plan.group_ids.length === 0 || plan.group_ids.includes(groupId)
+  }
+  if (typeof plan.group_id === 'number' && plan.group_id > 0) {
+    return plan.group_id === groupId
+  }
+  return true
+}
+
 const renewalPlans = computed(() => {
-  if (renewGroupId.value == null) return []
-  return checkout.value.plans.filter(p => p.group_id === renewGroupId.value)
+  const groupId = renewGroupId.value
+  if (groupId == null) return []
+  return checkout.value.plans.filter(plan => isPlanAvailableForGroup(plan, groupId))
 })
 
 const planValiditySuffix = computed(() => {
@@ -1383,7 +1397,7 @@ onMounted(async () => {
         }
       } else if (route.query.group) {
         const groupId = Number(route.query.group)
-        const groupPlans = checkout.value.plans.filter(p => p.group_id === groupId)
+        const groupPlans = checkout.value.plans.filter(plan => isPlanAvailableForGroup(plan, groupId))
         if (groupPlans.length === 1) {
           await selectPlan(groupPlans[0])
         } else if (groupPlans.length > 1) {

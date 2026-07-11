@@ -10,95 +10,85 @@ import (
 )
 
 func TestValidatePlanRequired_AllValid(t *testing.T) {
-	err := validatePlanRequired("Pro", 1, 9.99, 30, "days", nil)
+	err := validatePlanRequired("Pro", 9.99, 30, "days", nil)
 	require.NoError(t, err)
 }
 
 func TestValidatePlanRequired_EmptyName(t *testing.T) {
-	err := validatePlanRequired("", 1, 9.99, 30, "days", nil)
+	err := validatePlanRequired("", 9.99, 30, "days", nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "plan name")
 }
 
 func TestValidatePlanRequired_WhitespaceName(t *testing.T) {
-	err := validatePlanRequired("   ", 1, 9.99, 30, "days", nil)
+	err := validatePlanRequired("   ", 9.99, 30, "days", nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "plan name")
 }
 
-func TestValidatePlanRequired_GroupIDIgnoredWhenMissing(t *testing.T) {
-	err := validatePlanRequired("Pro", 0, 9.99, 30, "days", nil)
-	require.NoError(t, err)
-}
-
-func TestValidatePlanRequired_GroupIDIgnoredWhenNegative(t *testing.T) {
-	err := validatePlanRequired("Pro", -1, 9.99, 30, "days", nil)
-	require.NoError(t, err)
-}
-
 func TestValidatePlanRequired_ZeroPrice(t *testing.T) {
-	err := validatePlanRequired("Pro", 1, 0, 30, "days", nil)
+	err := validatePlanRequired("Pro", 0, 30, "days", nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "price")
 }
 
 func TestValidatePlanRequired_NegativePrice(t *testing.T) {
-	err := validatePlanRequired("Pro", 1, -5, 30, "days", nil)
+	err := validatePlanRequired("Pro", -5, 30, "days", nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "price")
 }
 
 func TestValidatePlanRequired_ZeroValidityDays(t *testing.T) {
-	err := validatePlanRequired("Pro", 1, 9.99, 0, "days", nil)
+	err := validatePlanRequired("Pro", 9.99, 0, "days", nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "validity days")
 }
 
 func TestValidatePlanRequired_NegativeValidityDays(t *testing.T) {
-	err := validatePlanRequired("Pro", 1, 9.99, -7, "days", nil)
+	err := validatePlanRequired("Pro", 9.99, -7, "days", nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "validity days")
 }
 
 func TestValidatePlanRequired_EmptyValidityUnit(t *testing.T) {
-	err := validatePlanRequired("Pro", 1, 9.99, 30, "", nil)
+	err := validatePlanRequired("Pro", 9.99, 30, "", nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "validity unit")
 }
 
 func TestValidatePlanRequired_WhitespaceValidityUnit(t *testing.T) {
-	err := validatePlanRequired("Pro", 1, 9.99, 30, "   ", nil)
+	err := validatePlanRequired("Pro", 9.99, 30, "   ", nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "validity unit")
 }
 
 func TestValidatePlanRequired_NameValidatedFirst(t *testing.T) {
-	err := validatePlanRequired("", 0, 0, 0, "", nil)
+	err := validatePlanRequired("", 0, 0, "", nil)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "plan name")
 }
 
 func TestValidatePlanRequired_TrimmedValidName(t *testing.T) {
-	err := validatePlanRequired("  Pro  ", 1, 9.99, 30, "days", nil)
+	err := validatePlanRequired("  Pro  ", 9.99, 30, "days", nil)
 	require.NoError(t, err)
 }
 
 func TestValidatePlanRequired_NegativeOriginalPrice(t *testing.T) {
 	neg := -10.0
-	err := validatePlanRequired("Pro", 1, 9.99, 30, "days", &neg)
+	err := validatePlanRequired("Pro", 9.99, 30, "days", &neg)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "original price")
 }
 
 func TestValidatePlanRequired_ZeroOriginalPrice(t *testing.T) {
 	zero := 0.0
-	err := validatePlanRequired("Pro", 1, 9.99, 30, "days", &zero)
+	err := validatePlanRequired("Pro", 9.99, 30, "days", &zero)
 	require.NoError(t, err)
 }
 
 func TestValidatePlanRequired_ValidOriginalPrice(t *testing.T) {
 	op := 19.99
-	err := validatePlanRequired("Pro", 1, 9.99, 30, "days", &op)
+	err := validatePlanRequired("Pro", 9.99, 30, "days", &op)
 	require.NoError(t, err)
 }
 

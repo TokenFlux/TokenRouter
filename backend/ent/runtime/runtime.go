@@ -1682,6 +1682,14 @@ func init() {
 	subscriptionplan.DefaultValidityUnit = subscriptionplanDescValidityUnit.Default.(string)
 	// subscriptionplan.ValidityUnitValidator is a validator for the "validity_unit" field. It is called by the builders before save.
 	subscriptionplan.ValidityUnitValidator = subscriptionplanDescValidityUnit.Validators[0].(func(string) error)
+	// subscriptionplanDescGroupIds is the schema descriptor for group_ids field.
+	subscriptionplanDescGroupIds := subscriptionplanFields[9].Descriptor()
+	// subscriptionplan.DefaultGroupIds holds the default value on creation for the group_ids field.
+	subscriptionplan.DefaultGroupIds = subscriptionplanDescGroupIds.Default.([]int64)
+	// subscriptionplanDescGroupRateMultipliers is the schema descriptor for group_rate_multipliers field.
+	subscriptionplanDescGroupRateMultipliers := subscriptionplanFields[10].Descriptor()
+	// subscriptionplan.DefaultGroupRateMultipliers holds the default value on creation for the group_rate_multipliers field.
+	subscriptionplan.DefaultGroupRateMultipliers = subscriptionplanDescGroupRateMultipliers.Default.(func() map[int64]float64)
 	// subscriptionplanDescFeatures is the schema descriptor for features field.
 	subscriptionplanDescFeatures := subscriptionplanFields[11].Descriptor()
 	// subscriptionplan.DefaultFeatures holds the default value on creation for the features field.

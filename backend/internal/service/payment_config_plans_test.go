@@ -11,12 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidatePlanGroupIDs_AllowsEmptyGlobalPlan(t *testing.T) {
-	err := validatePlanGroupIDs(nil)
-
-	require.NoError(t, err)
-}
-
 func TestNormalizePlanGroupIDs_DeduplicatesAndPreservesLegacyGroupID(t *testing.T) {
 	got := normalizePlanGroupIDs(3, []int64{2, 3, -1, 2, 4, 0})
 

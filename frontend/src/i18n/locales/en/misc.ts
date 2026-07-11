@@ -673,7 +673,6 @@ marketplace: {
       group: 'Group',
       groupId: 'Group ID',
       planGroups: 'Plan Groups',
-      planGroupsRequired: 'Select at least one group',
       planGroupsGlobalHint: 'Leave empty to make the plan available to all groups',
       subscriptionRateMultiplier: 'Subscription Rate',
       subscriptionRateMultiplierRequired: 'Subscription rate for selected groups must be greater than 0',

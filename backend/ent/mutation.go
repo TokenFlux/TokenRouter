@@ -37898,24 +37898,10 @@ func (m *SubscriptionPlanMutation) AppendedGroupIds() ([]int64, bool) {
 	return m.appendgroup_ids, true
 }
 
-// ClearGroupIds clears the value of the "group_ids" field.
-func (m *SubscriptionPlanMutation) ClearGroupIds() {
-	m.group_ids = nil
-	m.appendgroup_ids = nil
-	m.clearedFields[subscriptionplan.FieldGroupIds] = struct{}{}
-}
-
-// GroupIdsCleared returns if the "group_ids" field was cleared in this mutation.
-func (m *SubscriptionPlanMutation) GroupIdsCleared() bool {
-	_, ok := m.clearedFields[subscriptionplan.FieldGroupIds]
-	return ok
-}
-
 // ResetGroupIds resets all changes to the "group_ids" field.
 func (m *SubscriptionPlanMutation) ResetGroupIds() {
 	m.group_ids = nil
 	m.appendgroup_ids = nil
-	delete(m.clearedFields, subscriptionplan.FieldGroupIds)
 }
 
 // SetGroupRateMultipliers sets the "group_rate_multipliers" field.
@@ -37949,22 +37935,9 @@ func (m *SubscriptionPlanMutation) OldGroupRateMultipliers(ctx context.Context) 
 	return oldValue.GroupRateMultipliers, nil
 }
 
-// ClearGroupRateMultipliers clears the value of the "group_rate_multipliers" field.
-func (m *SubscriptionPlanMutation) ClearGroupRateMultipliers() {
-	m.group_rate_multipliers = nil
-	m.clearedFields[subscriptionplan.FieldGroupRateMultipliers] = struct{}{}
-}
-
-// GroupRateMultipliersCleared returns if the "group_rate_multipliers" field was cleared in this mutation.
-func (m *SubscriptionPlanMutation) GroupRateMultipliersCleared() bool {
-	_, ok := m.clearedFields[subscriptionplan.FieldGroupRateMultipliers]
-	return ok
-}
-
 // ResetGroupRateMultipliers resets all changes to the "group_rate_multipliers" field.
 func (m *SubscriptionPlanMutation) ResetGroupRateMultipliers() {
 	m.group_rate_multipliers = nil
-	delete(m.clearedFields, subscriptionplan.FieldGroupRateMultipliers)
 }
 
 // SetFeatures sets the "features" field.
@@ -38739,12 +38712,6 @@ func (m *SubscriptionPlanMutation) ClearedFields() []string {
 	if m.FieldCleared(subscriptionplan.FieldMonthlyLimitUsd) {
 		fields = append(fields, subscriptionplan.FieldMonthlyLimitUsd)
 	}
-	if m.FieldCleared(subscriptionplan.FieldGroupIds) {
-		fields = append(fields, subscriptionplan.FieldGroupIds)
-	}
-	if m.FieldCleared(subscriptionplan.FieldGroupRateMultipliers) {
-		fields = append(fields, subscriptionplan.FieldGroupRateMultipliers)
-	}
 	return fields
 }
 
@@ -38770,12 +38737,6 @@ func (m *SubscriptionPlanMutation) ClearField(name string) error {
 		return nil
 	case subscriptionplan.FieldMonthlyLimitUsd:
 		m.ClearMonthlyLimitUsd()
-		return nil
-	case subscriptionplan.FieldGroupIds:
-		m.ClearGroupIds()
-		return nil
-	case subscriptionplan.FieldGroupRateMultipliers:
-		m.ClearGroupRateMultipliers()
 		return nil
 	}
 	return fmt.Errorf("unknown SubscriptionPlan nullable field %s", name)

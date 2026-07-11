@@ -696,7 +696,6 @@ marketplace: {
       group: '分组',
       groupId: '分组 ID',
       planGroups: '适用分组',
-      planGroupsRequired: '请至少选择一个分组',
       planGroupsGlobalHint: '不选择分组时，该套餐适用于所有分组',
       subscriptionRateMultiplier: '订阅倍率',
       subscriptionRateMultiplierRequired: '所选分组的订阅倍率必须大于 0',

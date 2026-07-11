@@ -163,7 +163,7 @@ function checkoutInfoWithPlansFixture(options: {
   const base = checkoutInfoFixture(options.checkout).data
   const plan: SubscriptionPlan = {
     id: 7,
-    group_id: 3,
+    group_ids: [3],
     name: 'Starter',
     description: '',
     price: 128,
@@ -299,13 +299,13 @@ function oauthOrderFixture() {
   }
 }
 
-async function mountSubscriptionConfirm(options: Parameters<typeof checkoutInfoWithPlansFixture>[0] = {}) {
+async function mountSubscriptionConfirm(
+  options: Parameters<typeof checkoutInfoWithPlansFixture>[0] = {},
+  query: Record<string, unknown> = { tab: 'subscription', group: '3' },
+) {
   vi.useRealTimers()
   routeState.path = '/purchase'
-  routeState.query = {
-    tab: 'subscription',
-    group: '3',
-  }
+  routeState.query = query
   routerReplace.mockReset().mockResolvedValue(undefined)
   routerPush.mockReset().mockResolvedValue(undefined)
   routerResolve.mockClear()
@@ -335,6 +335,38 @@ async function mountSubscriptionConfirm(options: Parameters<typeof checkoutInfoW
   await flushPromises()
   return wrapper
 }
+
+describe('PaymentView subscription plan group matching', () => {
+  it('selects a plan when the route group is included in group_ids', async () => {
+    const wrapper = await mountSubscriptionConfirm({
+      plan: {
+        group_ids: [2, 3],
+      },
+    })
+
+    expect((wrapper.vm as unknown as { selectedPlan: SubscriptionPlan | null }).selectedPlan?.id).toBe(7)
+  })
+
+  it('treats an empty group_ids list as available to every group', async () => {
+    const wrapper = await mountSubscriptionConfirm({
+      plan: {
+        group_ids: [],
+      },
+    })
+
+    expect((wrapper.vm as unknown as { selectedPlan: SubscriptionPlan | null }).selectedPlan?.id).toBe(7)
+  })
+
+  it('does not select a global plan for an invalid route group', async () => {
+    const wrapper = await mountSubscriptionConfirm({
+      plan: {
+        group_ids: [],
+      },
+    }, { tab: 'subscription', group: 'invalid' })
+
+    expect((wrapper.vm as unknown as { selectedPlan: SubscriptionPlan | null }).selectedPlan).toBeNull()
+  })
+})
 
 describe('PaymentView subscription confirmation amounts', () => {
   it('shows converted CNY pay amount using the subscription rate, not the balance multiplier', async () => {

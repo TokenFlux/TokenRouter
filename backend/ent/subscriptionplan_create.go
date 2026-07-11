@@ -307,6 +307,14 @@ func (_c *SubscriptionPlanCreate) defaults() {
 		v := subscriptionplan.DefaultValidityUnit
 		_c.mutation.SetValidityUnit(v)
 	}
+	if _, ok := _c.mutation.GroupIds(); !ok {
+		v := subscriptionplan.DefaultGroupIds
+		_c.mutation.SetGroupIds(v)
+	}
+	if _, ok := _c.mutation.GroupRateMultipliers(); !ok {
+		v := subscriptionplan.DefaultGroupRateMultipliers()
+		_c.mutation.SetGroupRateMultipliers(v)
+	}
 	if _, ok := _c.mutation.Features(); !ok {
 		v := subscriptionplan.DefaultFeatures
 		_c.mutation.SetFeatures(v)
@@ -359,6 +367,12 @@ func (_c *SubscriptionPlanCreate) check() error {
 		if err := subscriptionplan.ValidityUnitValidator(v); err != nil {
 			return &ValidationError{Name: "validity_unit", err: fmt.Errorf(`ent: validator failed for field "SubscriptionPlan.validity_unit": %w`, err)}
 		}
+	}
+	if _, ok := _c.mutation.GroupIds(); !ok {
+		return &ValidationError{Name: "group_ids", err: errors.New(`ent: missing required field "SubscriptionPlan.group_ids"`)}
+	}
+	if _, ok := _c.mutation.GroupRateMultipliers(); !ok {
+		return &ValidationError{Name: "group_rate_multipliers", err: errors.New(`ent: missing required field "SubscriptionPlan.group_rate_multipliers"`)}
 	}
 	if _, ok := _c.mutation.Features(); !ok {
 		return &ValidationError{Name: "features", err: errors.New(`ent: missing required field "SubscriptionPlan.features"`)}
@@ -742,12 +756,6 @@ func (u *SubscriptionPlanUpsert) UpdateGroupIds() *SubscriptionPlanUpsert {
 	return u
 }
 
-// ClearGroupIds clears the value of the "group_ids" field.
-func (u *SubscriptionPlanUpsert) ClearGroupIds() *SubscriptionPlanUpsert {
-	u.SetNull(subscriptionplan.FieldGroupIds)
-	return u
-}
-
 // SetGroupRateMultipliers sets the "group_rate_multipliers" field.
 func (u *SubscriptionPlanUpsert) SetGroupRateMultipliers(v map[int64]float64) *SubscriptionPlanUpsert {
 	u.Set(subscriptionplan.FieldGroupRateMultipliers, v)
@@ -757,12 +765,6 @@ func (u *SubscriptionPlanUpsert) SetGroupRateMultipliers(v map[int64]float64) *S
 // UpdateGroupRateMultipliers sets the "group_rate_multipliers" field to the value that was provided on create.
 func (u *SubscriptionPlanUpsert) UpdateGroupRateMultipliers() *SubscriptionPlanUpsert {
 	u.SetExcluded(subscriptionplan.FieldGroupRateMultipliers)
-	return u
-}
-
-// ClearGroupRateMultipliers clears the value of the "group_rate_multipliers" field.
-func (u *SubscriptionPlanUpsert) ClearGroupRateMultipliers() *SubscriptionPlanUpsert {
-	u.SetNull(subscriptionplan.FieldGroupRateMultipliers)
 	return u
 }
 
@@ -1087,13 +1089,6 @@ func (u *SubscriptionPlanUpsertOne) UpdateGroupIds() *SubscriptionPlanUpsertOne 
 	})
 }
 
-// ClearGroupIds clears the value of the "group_ids" field.
-func (u *SubscriptionPlanUpsertOne) ClearGroupIds() *SubscriptionPlanUpsertOne {
-	return u.Update(func(s *SubscriptionPlanUpsert) {
-		s.ClearGroupIds()
-	})
-}
-
 // SetGroupRateMultipliers sets the "group_rate_multipliers" field.
 func (u *SubscriptionPlanUpsertOne) SetGroupRateMultipliers(v map[int64]float64) *SubscriptionPlanUpsertOne {
 	return u.Update(func(s *SubscriptionPlanUpsert) {
@@ -1105,13 +1100,6 @@ func (u *SubscriptionPlanUpsertOne) SetGroupRateMultipliers(v map[int64]float64)
 func (u *SubscriptionPlanUpsertOne) UpdateGroupRateMultipliers() *SubscriptionPlanUpsertOne {
 	return u.Update(func(s *SubscriptionPlanUpsert) {
 		s.UpdateGroupRateMultipliers()
-	})
-}
-
-// ClearGroupRateMultipliers clears the value of the "group_rate_multipliers" field.
-func (u *SubscriptionPlanUpsertOne) ClearGroupRateMultipliers() *SubscriptionPlanUpsertOne {
-	return u.Update(func(s *SubscriptionPlanUpsert) {
-		s.ClearGroupRateMultipliers()
 	})
 }
 
@@ -1613,13 +1601,6 @@ func (u *SubscriptionPlanUpsertBulk) UpdateGroupIds() *SubscriptionPlanUpsertBul
 	})
 }
 
-// ClearGroupIds clears the value of the "group_ids" field.
-func (u *SubscriptionPlanUpsertBulk) ClearGroupIds() *SubscriptionPlanUpsertBulk {
-	return u.Update(func(s *SubscriptionPlanUpsert) {
-		s.ClearGroupIds()
-	})
-}
-
 // SetGroupRateMultipliers sets the "group_rate_multipliers" field.
 func (u *SubscriptionPlanUpsertBulk) SetGroupRateMultipliers(v map[int64]float64) *SubscriptionPlanUpsertBulk {
 	return u.Update(func(s *SubscriptionPlanUpsert) {
@@ -1631,13 +1612,6 @@ func (u *SubscriptionPlanUpsertBulk) SetGroupRateMultipliers(v map[int64]float64
 func (u *SubscriptionPlanUpsertBulk) UpdateGroupRateMultipliers() *SubscriptionPlanUpsertBulk {
 	return u.Update(func(s *SubscriptionPlanUpsert) {
 		s.UpdateGroupRateMultipliers()
-	})
-}
-
-// ClearGroupRateMultipliers clears the value of the "group_rate_multipliers" field.
-func (u *SubscriptionPlanUpsertBulk) ClearGroupRateMultipliers() *SubscriptionPlanUpsertBulk {
-	return u.Update(func(s *SubscriptionPlanUpsert) {
-		s.ClearGroupRateMultipliers()
 	})
 }
 
