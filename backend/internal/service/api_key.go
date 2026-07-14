@@ -14,6 +14,26 @@ const (
 	StatusAPIKeyExpired        = "expired"
 )
 
+// API Key Fast 模式策略常量。
+const (
+	APIKeyFastModePolicyFollowRequest = "follow_request"
+	APIKeyFastModePolicyForceOn       = "force_on"
+	APIKeyFastModePolicyForceOff      = "force_off"
+)
+
+// NormalizeAPIKeyFastModePolicy 校验并规范化 API Key Fast 模式策略。
+// 空值用于兼容旧客户端，按跟随下游请求处理。
+func NormalizeAPIKeyFastModePolicy(value string) (string, bool) {
+	switch value {
+	case "", APIKeyFastModePolicyFollowRequest:
+		return APIKeyFastModePolicyFollowRequest, true
+	case APIKeyFastModePolicyForceOn, APIKeyFastModePolicyForceOff:
+		return value, true
+	default:
+		return "", false
+	}
+}
+
 // Rate limit window durations
 const (
 	RateLimitWindow5h = 5 * time.Hour
@@ -28,14 +48,16 @@ func IsWindowExpired(windowStart *time.Time, duration time.Duration) bool {
 }
 
 type APIKey struct {
-	ID          int64
-	UserID      int64
-	Key         string
-	Name        string
-	GroupID     *int64
-	Status      string
-	IPWhitelist []string
-	IPBlacklist []string
+	ID      int64
+	UserID  int64
+	Key     string
+	Name    string
+	GroupID *int64
+	Status  string
+	// FastModePolicy 控制该 Key 的请求级 Fast 模式，系统策略仍拥有更高优先级。
+	FastModePolicy string
+	IPWhitelist    []string
+	IPBlacklist    []string
 	// 预编译的 IP 规则，用于认证热路径避免重复 ParseIP/ParseCIDR。
 	CompiledIPWhitelist *ip.CompiledIPRules `json:"-"`
 	CompiledIPBlacklist *ip.CompiledIPRules `json:"-"`

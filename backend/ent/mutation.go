@@ -116,6 +116,7 @@ type APIKeyMutation struct {
 	key                                        *string
 	name                                       *string
 	status                                     *string
+	fast_mode_policy                           *string
 	last_used_at                               *time.Time
 	ip_whitelist                               *[]string
 	appendip_whitelist                         []string
@@ -570,6 +571,42 @@ func (m *APIKeyMutation) OldStatus(ctx context.Context) (v string, err error) {
 // ResetStatus resets all changes to the "status" field.
 func (m *APIKeyMutation) ResetStatus() {
 	m.status = nil
+}
+
+// SetFastModePolicy sets the "fast_mode_policy" field.
+func (m *APIKeyMutation) SetFastModePolicy(s string) {
+	m.fast_mode_policy = &s
+}
+
+// FastModePolicy returns the value of the "fast_mode_policy" field in the mutation.
+func (m *APIKeyMutation) FastModePolicy() (r string, exists bool) {
+	v := m.fast_mode_policy
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFastModePolicy returns the old "fast_mode_policy" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldFastModePolicy(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFastModePolicy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFastModePolicy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFastModePolicy: %w", err)
+	}
+	return oldValue.FastModePolicy, nil
+}
+
+// ResetFastModePolicy resets all changes to the "fast_mode_policy" field.
+func (m *APIKeyMutation) ResetFastModePolicy() {
+	m.fast_mode_policy = nil
 }
 
 // SetLastUsedAt sets the "last_used_at" field.
@@ -1748,7 +1785,7 @@ func (m *APIKeyMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *APIKeyMutation) Fields() []string {
-	fields := make([]string, 0, 27)
+	fields := make([]string, 0, 28)
 	if m.created_at != nil {
 		fields = append(fields, apikey.FieldCreatedAt)
 	}
@@ -1772,6 +1809,9 @@ func (m *APIKeyMutation) Fields() []string {
 	}
 	if m.status != nil {
 		fields = append(fields, apikey.FieldStatus)
+	}
+	if m.fast_mode_policy != nil {
+		fields = append(fields, apikey.FieldFastModePolicy)
 	}
 	if m.last_used_at != nil {
 		fields = append(fields, apikey.FieldLastUsedAt)
@@ -1854,6 +1894,8 @@ func (m *APIKeyMutation) Field(name string) (ent.Value, bool) {
 		return m.GroupID()
 	case apikey.FieldStatus:
 		return m.Status()
+	case apikey.FieldFastModePolicy:
+		return m.FastModePolicy()
 	case apikey.FieldLastUsedAt:
 		return m.LastUsedAt()
 	case apikey.FieldIPWhitelist:
@@ -1917,6 +1959,8 @@ func (m *APIKeyMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldGroupID(ctx)
 	case apikey.FieldStatus:
 		return m.OldStatus(ctx)
+	case apikey.FieldFastModePolicy:
+		return m.OldFastModePolicy(ctx)
 	case apikey.FieldLastUsedAt:
 		return m.OldLastUsedAt(ctx)
 	case apikey.FieldIPWhitelist:
@@ -2019,6 +2063,13 @@ func (m *APIKeyMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetStatus(v)
+		return nil
+	case apikey.FieldFastModePolicy:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFastModePolicy(v)
 		return nil
 	case apikey.FieldLastUsedAt:
 		v, ok := value.(time.Time)
@@ -2417,6 +2468,9 @@ func (m *APIKeyMutation) ResetField(name string) error {
 		return nil
 	case apikey.FieldStatus:
 		m.ResetStatus()
+		return nil
+	case apikey.FieldFastModePolicy:
+		m.ResetFastModePolicy()
 		return nil
 	case apikey.FieldLastUsedAt:
 		m.ResetLastUsedAt()

@@ -267,6 +267,12 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		}
 
 		if err != nil {
+			var betaBlockedErr *service.BetaBlockedError
+			if errors.As(err, &betaBlockedErr) {
+				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalPolicyDenied)
+				h.chatCompletionsErrorResponse(c, http.StatusBadRequest, "invalid_request_error", betaBlockedErr.Message)
+				return
+			}
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
 				if c.Writer.Size() != writerSizeBeforeForward {

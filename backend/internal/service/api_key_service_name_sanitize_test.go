@@ -162,6 +162,14 @@ func TestAPIKeyService_Create_DefaultsGroupFallbackEnabled(t *testing.T) {
 	require.True(t, created.FallbackToDefaultGroupWhenUnavailable)
 	require.Len(t, repo.created, 1)
 	require.True(t, repo.created[0].FallbackToDefaultGroupWhenUnavailable)
+	require.Equal(t, APIKeyFastModePolicyFollowRequest, created.FastModePolicy)
+}
+
+func TestAPIKeyService_CreateRejectsInvalidFastModePolicy(t *testing.T) {
+	svc := &APIKeyService{}
+
+	_, err := svc.Create(context.Background(), 7, CreateAPIKeyRequest{FastModePolicy: "invalid"})
+	require.ErrorIs(t, err, ErrInvalidAPIKeyFastModePolicy)
 }
 
 func TestAPIKeyService_Create_AllowsDisablingGroupFallback(t *testing.T) {
@@ -198,4 +206,17 @@ func TestAPIKeyService_Update_EscapesNameBeforePersist(t *testing.T) {
 	require.Equal(t, "&lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt;", updated.Name)
 	require.Len(t, repo.updated, 1)
 	require.Equal(t, "&lt;script&gt;alert(&#34;x&#34;)&lt;/script&gt;", repo.updated[0].Name)
+}
+
+func TestAPIKeyService_UpdatePersistsFastModePolicy(t *testing.T) {
+	repo := &apiKeyNameSanitizeRepoStub{
+		apiKey: &APIKey{ID: 11, UserID: 7, Key: "sk_existing_key_02", Name: "old", Status: StatusActive, FastModePolicy: APIKeyFastModePolicyFollowRequest},
+	}
+	svc := &APIKeyService{apiKeyRepo: repo}
+	policy := APIKeyFastModePolicyForceOff
+
+	updated, err := svc.Update(context.Background(), 11, 7, UpdateAPIKeyRequest{FastModePolicy: &policy})
+	require.NoError(t, err)
+	require.Equal(t, APIKeyFastModePolicyForceOff, updated.FastModePolicy)
+	require.Equal(t, APIKeyFastModePolicyForceOff, repo.updated[0].FastModePolicy)
 }

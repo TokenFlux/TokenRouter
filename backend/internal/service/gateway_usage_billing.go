@@ -769,6 +769,7 @@ func (s *GatewayService) calculateTokenCost(
 	multiplier float64,
 	opts *recordUsageOpts,
 ) *CostBreakdown {
+	serviceTier := claudeUsageServiceTier(result.Usage.Speed)
 	tokens := UsageTokens{
 		InputTokens:           result.Usage.InputTokens,
 		OutputTokens:          result.Usage.OutputTokens,
@@ -792,6 +793,7 @@ func (s *GatewayService) calculateTokenCost(
 			Tokens:         tokens,
 			RequestCount:   1,
 			RateMultiplier: multiplier,
+			ServiceTier:    serviceTier,
 			Resolver:       s.resolver,
 			Resolved:       resolved,
 		})
@@ -802,9 +804,9 @@ func (s *GatewayService) calculateTokenCost(
 			}
 			if opts.LongContextThreshold > 0 {
 				// 长上下文双倍计费（如 Gemini 200K 阈值）
-				return s.billingService.CalculateCostWithLongContext(model, tokens, multiplier, opts.LongContextThreshold, opts.LongContextMultiplier)
+				return s.billingService.CalculateCostWithLongContextAndServiceTier(model, tokens, multiplier, opts.LongContextThreshold, opts.LongContextMultiplier, serviceTier)
 			}
-			return s.billingService.CalculateCost(model, tokens, multiplier)
+			return s.billingService.CalculateCostWithServiceTier(model, tokens, multiplier, serviceTier)
 		}
 		if isQoderBillingContext(account, apiKey) {
 			for _, model := range qoderDefaultPricingCandidates(billingModel, requestedModel, billingModelSource) {
@@ -855,6 +857,7 @@ func (s *GatewayService) buildRecordUsageLog(
 		RequestedModel:        requestedModel,
 		UpstreamModel:         optionalNonEqualStringPtr(result.UpstreamModel, result.Model),
 		ReasoningEffort:       result.ReasoningEffort,
+		ServiceTier:           optionalTrimmedStringPtr(claudeUsageServiceTier(result.Usage.Speed)),
 		InboundEndpoint:       optionalTrimmedStringPtr(input.InboundEndpoint),
 		UpstreamEndpoint:      optionalTrimmedStringPtr(input.UpstreamEndpoint),
 		InputTokens:           result.Usage.InputTokens,
@@ -900,6 +903,14 @@ func (s *GatewayService) buildRecordUsageLog(
 	}
 
 	return usageLog
+}
+
+// claudeUsageServiceTier 将 Claude usage.speed 复用为内部统一的 Fast 计费层级。
+func claudeUsageServiceTier(speed string) string {
+	if strings.EqualFold(strings.TrimSpace(speed), "fast") {
+		return OpenAIFastTierPriority
+	}
+	return ""
 }
 
 // resolveBillingMode 根据计费结果和请求类型确定计费模式。

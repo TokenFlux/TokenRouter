@@ -28,6 +28,10 @@ func AnthropicToResponses(req *AnthropicRequest) (*ResponsesRequest, error) {
 		Stream:  req.Stream,
 		Include: []string{"reasoning.encrypted_content"},
 	}
+	// Claude Fast 转为 OpenAI 请求级 Priority；系统策略会在上游发送前最终裁决。
+	if strings.EqualFold(strings.TrimSpace(req.Speed), "fast") {
+		out.ServiceTier = "priority"
+	}
 
 	// Responses API 的 gpt-5.x 推理模型不接受采样参数，携带 temperature/top_p 会触发 400。
 	// 因此只有非推理模型才透传这些参数。

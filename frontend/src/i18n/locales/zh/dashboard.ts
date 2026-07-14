@@ -101,6 +101,12 @@ export default {
     namePlaceholder: '我的 API 密钥',
     groupLabel: '分组',
     selectGroup: '选择分组',
+    fastModePolicyLabel: 'Fast 模式策略',
+    fastModePolicy: {
+      followRequest: '跟随请求',
+      forceOn: '强制开启 Fast',
+      forceOff: '强制关闭 Fast'
+    },
     fallbackToDefaultGroupWhenUnavailable: '不可用时自动降级',
     statusLabel: '状态',
     selectStatus: '选择状态',

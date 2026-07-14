@@ -18,6 +18,7 @@ const {
   nextStep,
   getDataSharingNotice,
   confirmDataSharingNotice,
+  createKey,
 } = vi.hoisted(() => ({
   listKeys: vi.fn(),
   getPublicSettings: vi.fn(),
@@ -31,6 +32,7 @@ const {
   nextStep: vi.fn(),
   getDataSharingNotice: vi.fn(),
   confirmDataSharingNotice: vi.fn(),
+  createKey: vi.fn(),
 }))
 
 const messages: Record<string, string> = {
@@ -62,6 +64,7 @@ vi.mock('@/api', () => ({
   keysAPI: {
     list: listKeys,
     create: vi.fn(),
+    createWithPayload: createKey,
     update: vi.fn(),
     delete: vi.fn(),
     toggleStatus: vi.fn(),
@@ -128,6 +131,7 @@ const createApiKey = (): ApiKey => ({
   name: 'test-key',
   group_id: null,
   status: 'active',
+  fast_mode_policy: 'follow_request',
   ip_whitelist: [],
   ip_blacklist: [],
   last_used_at: null,
@@ -154,6 +158,11 @@ const createApiKey = (): ApiKey => ({
 
 const AppLayoutStub = {
   template: '<div><slot /></div>',
+}
+
+const BaseDialogStub = {
+  props: ['show'],
+  template: '<div v-if="show"><slot /><slot name="footer" /></div>',
 }
 
 const TablePageLayoutStub = {
@@ -232,7 +241,7 @@ const mountView = async () => {
         TablePageLayout: TablePageLayoutStub,
         DataTable: DataTableStub,
         Pagination: PaginationStub,
-        BaseDialog: true,
+        BaseDialog: BaseDialogStub,
         ConfirmDialog: true,
         EmptyState: true,
         Select: SelectStub,
@@ -282,6 +291,7 @@ describe('user KeysView column settings', () => {
     nextStep.mockReset()
     getDataSharingNotice.mockReset()
     confirmDataSharingNotice.mockReset()
+    createKey.mockReset()
 
     listKeys.mockResolvedValue({
       items: [createApiKey()],
@@ -295,6 +305,7 @@ describe('user KeysView column settings', () => {
     getAvailableGroups.mockResolvedValue([])
     getUserGroupRates.mockResolvedValue({})
     isCurrentStep.mockReturnValue(false)
+    createKey.mockResolvedValue(createApiKey())
   })
 
   it('uses the default API key columns with low-frequency columns hidden', async () => {
@@ -448,5 +459,42 @@ describe('user KeysView column settings', () => {
       },
       expect.objectContaining({ signal: expect.any(AbortSignal) })
     )
+  })
+
+  it('submits the selected Fast mode policy when creating a key', async () => {
+    getAvailableGroups.mockResolvedValueOnce([{
+      id: 42,
+      name: 'OpenAI',
+      description: '',
+      display_brand: '',
+      rate_multiplier: 1,
+      peak_rate_enabled: false,
+      peak_start: '',
+      peak_end: '',
+      peak_rate_multiplier: 1,
+      platform: 'openai',
+      data_sharing_enabled: false,
+    }])
+    const wrapper = await mountView()
+
+    await getButtonByText(wrapper, 'Create API Key').trigger('click')
+    await nextTick()
+    await wrapper.get('[data-tour="key-form-name"]').setValue('fast-key')
+
+    const selects = wrapper.findAllComponents({ name: 'Select' })
+    const groupSelect = selects.find((select) => select.attributes('data-tour') === 'key-form-group')
+    const fastSelect = selects.find((select) => select.attributes('data-test') === 'fast-mode-policy-select')
+    expect(groupSelect).toBeDefined()
+    expect(fastSelect).toBeDefined()
+    await groupSelect!.vm.$emit('update:modelValue', 42)
+    await fastSelect!.vm.$emit('update:modelValue', 'force_on')
+    await wrapper.get('form#key-form').trigger('submit')
+    await flushPromises()
+
+    expect(createKey).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'fast-key',
+      group_id: 42,
+      fast_mode_policy: 'force_on',
+    }))
   })
 })

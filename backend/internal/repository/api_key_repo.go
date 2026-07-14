@@ -41,12 +41,22 @@ func (r *apiKeyRepository) activeQuery() *dbent.APIKeyQuery {
 	return r.client.APIKey.Query().Where(apikey.DeletedAtIsNil())
 }
 
+// apiKeyFastModePolicyForPersistence 兼容绕过服务层的旧夹具和内部调用。
+func apiKeyFastModePolicyForPersistence(value string) string {
+	policy, ok := service.NormalizeAPIKeyFastModePolicy(value)
+	if ok {
+		return policy
+	}
+	return value
+}
+
 func (r *apiKeyRepository) Create(ctx context.Context, key *service.APIKey) error {
 	builder := r.client.APIKey.Create().
 		SetUserID(key.UserID).
 		SetKey(key.Key).
 		SetName(key.Name).
 		SetStatus(key.Status).
+		SetFastModePolicy(apiKeyFastModePolicyForPersistence(key.FastModePolicy)).
 		SetNillableGroupID(key.GroupID).
 		SetNillableLastUsedAt(key.LastUsedAt).
 		SetQuota(key.Quota).
@@ -140,6 +150,7 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 			apikey.FieldGroupID,
 			apikey.FieldName,
 			apikey.FieldStatus,
+			apikey.FieldFastModePolicy,
 			apikey.FieldIPWhitelist,
 			apikey.FieldIPBlacklist,
 			apikey.FieldQuota,
@@ -237,6 +248,7 @@ func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey) erro
 		Where(apikey.IDEQ(key.ID), apikey.DeletedAtIsNil()).
 		SetName(key.Name).
 		SetStatus(key.Status).
+		SetFastModePolicy(apiKeyFastModePolicyForPersistence(key.FastModePolicy)).
 		SetQuota(key.Quota).
 		SetQuotaUsed(key.QuotaUsed).
 		SetRateLimit5h(key.RateLimit5h).
@@ -955,6 +967,7 @@ func apiKeyEntityToService(m *dbent.APIKey) *service.APIKey {
 		Key:                                   m.Key,
 		Name:                                  m.Name,
 		Status:                                m.Status,
+		FastModePolicy:                        m.FastModePolicy,
 		IPWhitelist:                           m.IPWhitelist,
 		IPBlacklist:                           m.IPBlacklist,
 		LastUsedAt:                            m.LastUsedAt,

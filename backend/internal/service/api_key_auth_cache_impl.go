@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 20 // v20：认证快照包含分组网页搜索按次计费字段
+const apiKeyAuthSnapshotVersion = 21 // v21：认证快照包含 API Key Fast 模式策略
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -212,6 +212,7 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 		GroupID:                               apiKey.GroupID,
 		Name:                                  apiKey.Name,
 		Status:                                apiKey.Status,
+		FastModePolicy:                        apiKey.FastModePolicy,
 		IPWhitelist:                           apiKey.IPWhitelist,
 		IPBlacklist:                           apiKey.IPBlacklist,
 		Quota:                                 apiKey.Quota,
@@ -304,6 +305,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 		Key:                                   key,
 		Name:                                  snapshot.Name,
 		Status:                                snapshot.Status,
+		FastModePolicy:                        snapshot.FastModePolicy,
 		IPWhitelist:                           snapshot.IPWhitelist,
 		IPBlacklist:                           snapshot.IPBlacklist,
 		Quota:                                 snapshot.Quota,

@@ -95,6 +95,11 @@ func Status(v string) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldStatus, v))
 }
 
+// FastModePolicy applies equality check predicate on the "fast_mode_policy" field. It's identical to FastModePolicyEQ.
+func FastModePolicy(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldFastModePolicy, v))
+}
+
 // LastUsedAt applies equality check predicate on the "last_used_at" field. It's identical to LastUsedAtEQ.
 func LastUsedAt(v time.Time) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldLastUsedAt, v))
@@ -553,6 +558,71 @@ func StatusEqualFold(v string) predicate.APIKey {
 // StatusContainsFold applies the ContainsFold predicate on the "status" field.
 func StatusContainsFold(v string) predicate.APIKey {
 	return predicate.APIKey(sql.FieldContainsFold(FieldStatus, v))
+}
+
+// FastModePolicyEQ applies the EQ predicate on the "fast_mode_policy" field.
+func FastModePolicyEQ(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldFastModePolicy, v))
+}
+
+// FastModePolicyNEQ applies the NEQ predicate on the "fast_mode_policy" field.
+func FastModePolicyNEQ(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldFastModePolicy, v))
+}
+
+// FastModePolicyIn applies the In predicate on the "fast_mode_policy" field.
+func FastModePolicyIn(vs ...string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldFastModePolicy, vs...))
+}
+
+// FastModePolicyNotIn applies the NotIn predicate on the "fast_mode_policy" field.
+func FastModePolicyNotIn(vs ...string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldFastModePolicy, vs...))
+}
+
+// FastModePolicyGT applies the GT predicate on the "fast_mode_policy" field.
+func FastModePolicyGT(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldFastModePolicy, v))
+}
+
+// FastModePolicyGTE applies the GTE predicate on the "fast_mode_policy" field.
+func FastModePolicyGTE(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldFastModePolicy, v))
+}
+
+// FastModePolicyLT applies the LT predicate on the "fast_mode_policy" field.
+func FastModePolicyLT(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldFastModePolicy, v))
+}
+
+// FastModePolicyLTE applies the LTE predicate on the "fast_mode_policy" field.
+func FastModePolicyLTE(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldFastModePolicy, v))
+}
+
+// FastModePolicyContains applies the Contains predicate on the "fast_mode_policy" field.
+func FastModePolicyContains(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldContains(FieldFastModePolicy, v))
+}
+
+// FastModePolicyHasPrefix applies the HasPrefix predicate on the "fast_mode_policy" field.
+func FastModePolicyHasPrefix(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldHasPrefix(FieldFastModePolicy, v))
+}
+
+// FastModePolicyHasSuffix applies the HasSuffix predicate on the "fast_mode_policy" field.
+func FastModePolicyHasSuffix(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldHasSuffix(FieldFastModePolicy, v))
+}
+
+// FastModePolicyEqualFold applies the EqualFold predicate on the "fast_mode_policy" field.
+func FastModePolicyEqualFold(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEqualFold(FieldFastModePolicy, v))
+}
+
+// FastModePolicyContainsFold applies the ContainsFold predicate on the "fast_mode_policy" field.
+func FastModePolicyContainsFold(v string) predicate.APIKey {
+	return predicate.APIKey(sql.FieldContainsFold(FieldFastModePolicy, v))
 }
 
 // LastUsedAtEQ applies the EQ predicate on the "last_used_at" field.

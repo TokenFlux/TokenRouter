@@ -539,6 +539,8 @@ type ClaudeUsage struct {
 	CacheCreation5mTokens    int // 5分钟缓存创建token（来自嵌套 cache_creation 对象）
 	CacheCreation1hTokens    int // 1小时缓存创建token（来自嵌套 cache_creation 对象）
 	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
+	// Speed 记录 Claude 实际返回的处理速度，"fast" 会映射到内部 priority 计费。
+	Speed string `json:"speed,omitempty"`
 }
 
 // ForwardResult 转发结果

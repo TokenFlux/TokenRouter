@@ -177,6 +177,10 @@ func (r *ModelPricingResolver) resolveBasePricing(model string) (*ModelPricing, 
 
 // applyChannelOverrides 应用渠道定价覆盖
 func (r *ModelPricingResolver) applyChannelOverrides(ctx context.Context, groupID int64, model string, resolved *ResolvedPricing) {
+	// 精简构造或测试环境可能未注入渠道服务，此时只使用基础模型定价。
+	if r == nil || r.channelService == nil {
+		return
+	}
 	chPricing := r.channelService.GetEffectiveChannelModelPricing(ctx, groupID, model)
 	if chPricing == nil {
 		return

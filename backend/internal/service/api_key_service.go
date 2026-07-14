@@ -23,15 +23,16 @@ import (
 )
 
 var (
-	ErrAPIKeyNotFound             = infraerrors.NotFound("API_KEY_NOT_FOUND", "api key not found")
-	ErrGroupNotAllowed            = infraerrors.Forbidden("GROUP_NOT_ALLOWED", "user is not allowed to bind this group")
-	ErrGroupDisabledForUser       = infraerrors.Forbidden("GROUP_DISABLED_FOR_USER", "user is not allowed to use this public group")
-	ErrAPIKeyExists               = infraerrors.Conflict("API_KEY_EXISTS", "api key already exists")
-	ErrAPIKeyTooShort             = infraerrors.BadRequest("API_KEY_TOO_SHORT", "api key must be at least 16 characters")
-	ErrAPIKeyInvalidChars         = infraerrors.BadRequest("API_KEY_INVALID_CHARS", "api key can only contain letters, numbers, underscores, and hyphens")
-	ErrAPIKeyRateLimited          = infraerrors.TooManyRequests("API_KEY_RATE_LIMITED", "too many failed attempts, please try again later")
-	ErrInvalidIPPattern           = infraerrors.BadRequest("INVALID_IP_PATTERN", "invalid IP or CIDR pattern")
-	ErrDataSharingConsentRequired = infraerrors.Forbidden("DATA_SHARING_CONSENT_REQUIRED", "switching to a data sharing group requires confirmation")
+	ErrAPIKeyNotFound              = infraerrors.NotFound("API_KEY_NOT_FOUND", "api key not found")
+	ErrGroupNotAllowed             = infraerrors.Forbidden("GROUP_NOT_ALLOWED", "user is not allowed to bind this group")
+	ErrGroupDisabledForUser        = infraerrors.Forbidden("GROUP_DISABLED_FOR_USER", "user is not allowed to use this public group")
+	ErrAPIKeyExists                = infraerrors.Conflict("API_KEY_EXISTS", "api key already exists")
+	ErrAPIKeyTooShort              = infraerrors.BadRequest("API_KEY_TOO_SHORT", "api key must be at least 16 characters")
+	ErrAPIKeyInvalidChars          = infraerrors.BadRequest("API_KEY_INVALID_CHARS", "api key can only contain letters, numbers, underscores, and hyphens")
+	ErrAPIKeyRateLimited           = infraerrors.TooManyRequests("API_KEY_RATE_LIMITED", "too many failed attempts, please try again later")
+	ErrInvalidIPPattern            = infraerrors.BadRequest("INVALID_IP_PATTERN", "invalid IP or CIDR pattern")
+	ErrInvalidAPIKeyFastModePolicy = infraerrors.BadRequest("INVALID_API_KEY_FAST_MODE_POLICY", "invalid API key fast mode policy")
+	ErrDataSharingConsentRequired  = infraerrors.Forbidden("DATA_SHARING_CONSENT_REQUIRED", "switching to a data sharing group requires confirmation")
 	// ErrAPIKeyExpired        = infraerrors.Forbidden("API_KEY_EXPIRED", "api key has expired")
 	ErrAPIKeyExpired = infraerrors.Forbidden("API_KEY_EXPIRED", "api key 已过期")
 	// ErrAPIKeyQuotaExhausted = infraerrors.TooManyRequests("API_KEY_QUOTA_EXHAUSTED", "api key quota exhausted")
@@ -166,6 +167,8 @@ type CreateAPIKeyRequest struct {
 	CustomKey   *string  `json:"custom_key"`   // 可选的自定义key
 	IPWhitelist []string `json:"ip_whitelist"` // IP 白名单
 	IPBlacklist []string `json:"ip_blacklist"` // IP 黑名单
+	// FastModePolicy 为空时默认跟随下游请求。
+	FastModePolicy string `json:"fast_mode_policy"`
 
 	// Quota fields
 	Quota         float64 `json:"quota"`           // Quota limit in USD (0 = unlimited)
@@ -191,6 +194,8 @@ type UpdateAPIKeyRequest struct {
 	Status      *string  `json:"status"`
 	IPWhitelist []string `json:"ip_whitelist"` // IP 白名单（空数组清空）
 	IPBlacklist []string `json:"ip_blacklist"` // IP 黑名单（空数组清空）
+	// FastModePolicy 为 nil 时保持原值。
+	FastModePolicy *string `json:"fast_mode_policy"`
 
 	// Quota fields
 	Quota           *float64   `json:"quota"`       // Quota limit in USD (nil = no change, 0 = unlimited)
@@ -385,6 +390,11 @@ func (s *APIKeyService) canUserUseBoundGroup(ctx context.Context, apiKey *APIKey
 
 // Create 创建API Key
 func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIKeyRequest) (*APIKey, error) {
+	fastModePolicy, ok := NormalizeAPIKeyFastModePolicy(req.FastModePolicy)
+	if !ok {
+		return nil, ErrInvalidAPIKeyFastModePolicy
+	}
+
 	// 验证用户存在
 	user, err := s.userRepo.GetByID(ctx, userID)
 	if err != nil {
@@ -478,6 +488,7 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		Name:                                  html.EscapeString(req.Name),
 		GroupID:                               req.GroupID,
 		Status:                                StatusActive,
+		FastModePolicy:                        fastModePolicy,
 		IPWhitelist:                           req.IPWhitelist,
 		IPBlacklist:                           req.IPBlacklist,
 		Quota:                                 req.Quota,
@@ -883,6 +894,13 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 	// 更新字段
 	if req.Name != nil {
 		apiKey.Name = html.EscapeString(*req.Name)
+	}
+	if req.FastModePolicy != nil {
+		fastModePolicy, ok := NormalizeAPIKeyFastModePolicy(*req.FastModePolicy)
+		if !ok {
+			return nil, ErrInvalidAPIKeyFastModePolicy
+		}
+		apiKey.FastModePolicy = fastModePolicy
 	}
 
 	if req.GroupID != nil {

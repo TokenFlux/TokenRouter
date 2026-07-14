@@ -1128,6 +1128,8 @@ type sseUsagePatch struct {
 	hasCacheCreation5m       bool
 	cacheCreation1hTokens    int
 	hasCacheCreation1h       bool
+	speed                    string
+	hasSpeed                 bool
 }
 
 func (s *GatewayService) extractSSEUsagePatch(event map[string]any) *sseUsagePatch {
@@ -1145,6 +1147,10 @@ func (s *GatewayService) extractSSEUsagePatch(event map[string]any) *sseUsagePat
 		}
 
 		patch := &sseUsagePatch{}
+		if speed, ok := usageObj["speed"].(string); ok && strings.TrimSpace(speed) != "" {
+			patch.speed = speed
+			patch.hasSpeed = true
+		}
 		patch.hasInputTokens = true
 		if v, ok := parseSSEUsageInt(usageObj["input_tokens"]); ok {
 			patch.inputTokens = v
@@ -1176,6 +1182,10 @@ func (s *GatewayService) extractSSEUsagePatch(event map[string]any) *sseUsagePat
 		}
 
 		patch := &sseUsagePatch{}
+		if speed, ok := usageObj["speed"].(string); ok && strings.TrimSpace(speed) != "" {
+			patch.speed = speed
+			patch.hasSpeed = true
+		}
 		if v, ok := parseSSEUsageInt(usageObj["input_tokens"]); ok && v > 0 {
 			patch.inputTokens = v
 			patch.hasInputTokens = true
@@ -1215,6 +1225,9 @@ func mergeSSEUsagePatch(usage *ClaudeUsage, patch *sseUsagePatch) {
 
 	if patch.hasInputTokens {
 		usage.InputTokens = patch.inputTokens
+	}
+	if patch.hasSpeed {
+		usage.Speed = patch.speed
 	}
 	if patch.hasCacheCreationInput {
 		usage.CacheCreationInputTokens = patch.cacheCreationInputTokens

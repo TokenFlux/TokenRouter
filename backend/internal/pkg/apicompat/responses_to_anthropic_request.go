@@ -23,6 +23,11 @@ func ResponsesToAnthropicRequest(req *ResponsesRequest) (*AnthropicRequest, erro
 		TopP:        req.TopP,
 		Stream:      req.Stream,
 	}
+	// OpenAI Priority/Fast 转为 Claude Fast 候选，beta header 由网关统一补齐。
+	switch strings.ToLower(strings.TrimSpace(req.ServiceTier)) {
+	case "priority", "fast":
+		out.Speed = "fast"
+	}
 
 	if len(system) > 0 {
 		out.System = system

@@ -360,6 +360,7 @@ type openAIRequestView struct {
 	PromptCacheKey     string
 	PreviousResponseID string
 	ServiceTier        string
+	HasServiceTier     bool
 	ReasoningEffort    string
 	patches            []openAIRequestPatch
 	patchesDisabled    bool
@@ -375,13 +376,15 @@ func newOpenAIRequestView(body []byte) openAIRequestView {
 	if len(body) == 0 {
 		return openAIRequestView{}
 	}
+	serviceTier := gjson.GetBytes(body, "service_tier")
 	return openAIRequestView{
 		body:               body,
 		Model:              strings.TrimSpace(gjson.GetBytes(body, "model").String()),
 		Stream:             gjson.GetBytes(body, "stream").Bool(),
 		PromptCacheKey:     strings.TrimSpace(gjson.GetBytes(body, "prompt_cache_key").String()),
 		PreviousResponseID: strings.TrimSpace(gjson.GetBytes(body, "previous_response_id").String()),
-		ServiceTier:        strings.TrimSpace(gjson.GetBytes(body, "service_tier").String()),
+		ServiceTier:        strings.TrimSpace(serviceTier.String()),
+		HasServiceTier:     serviceTier.Exists(),
 		ReasoningEffort:    strings.TrimSpace(gjson.GetBytes(body, "reasoning.effort").String()),
 	}
 }
@@ -795,11 +798,77 @@ func openAIFastPolicySettingsFromContext(ctx context.Context) *OpenAIFastPolicyS
 	return nil
 }
 
-// applyOpenAIFastPolicyToBody 对原始请求体应用 OpenAI fast policy。
-// action=filter 时删除 service_tier，action=block 时返回
-// (body, *OpenAIFastBlockedError)，action=pass 时归一化 service_tier
-// （例如将客户端别名 "fast" 改为 "priority"），action=force_priority 时
-// 将所有命中的已知 tier 强制改为 "priority"。
+// openAIFastModeDecision 描述最终应写入、删除或拒绝的 OpenAI Fast 决策。
+type openAIFastModeDecision struct {
+	Tier        string
+	DeleteField bool
+	Blocked     *OpenAIFastBlockedError
+}
+
+// resolveOpenAIFastModeDecision 统一解析系统策略与单 Key 策略。
+// 系统先裁决原始 tier；Key 改写后再裁决一次，避免 force_on 绕过系统 filter/block。
+func (s *OpenAIGatewayService) resolveOpenAIFastModeDecision(
+	ctx context.Context,
+	account *Account,
+	model string,
+	rawTier string,
+	hasField bool,
+) openAIFastModeDecision {
+	normTier := normalizedOpenAIServiceTierValue(rawTier)
+	applySystemAction := func(tier string) (openAIFastModeDecision, bool) {
+		action, errMsg := s.evaluateOpenAIFastPolicy(ctx, account, model, tier)
+		switch action {
+		case BetaPolicyActionBlock:
+			if errMsg == "" {
+				errMsg = fmt.Sprintf("openai service_tier=%s is not allowed for model %s", tier, model)
+			}
+			return openAIFastModeDecision{Blocked: &OpenAIFastBlockedError{Message: errMsg}}, true
+		case BetaPolicyActionFilter:
+			return openAIFastModeDecision{DeleteField: true}, true
+		case OpenAIFastPolicyActionForcePriority:
+			return openAIFastModeDecision{Tier: OpenAIFastTierPriority}, true
+		default:
+			return openAIFastModeDecision{}, false
+		}
+	}
+
+	// 原始请求已命中的非 pass 系统动作直接生效，Key 策略不能覆盖。
+	if normTier != "" {
+		if decision, handled := applySystemAction(normTier); handled {
+			return decision
+		}
+	}
+
+	candidateTier := normTier
+	policy := apiKeyFastModePolicyFromContext(ctx)
+	keyPolicySupported := policy != APIKeyFastModePolicyFollowRequest && s.openAIAPIKeyFastModeSupported(ctx, account, model)
+	candidateChanged := false
+	if keyPolicySupported {
+		switch policy {
+		case APIKeyFastModePolicyForceOn:
+			candidateTier = OpenAIFastTierPriority
+		case APIKeyFastModePolicyForceOff:
+			candidateTier = ""
+		}
+		candidateChanged = candidateTier != normTier
+	}
+
+	// Key 注入或改写出的 tier 必须重新接受系统策略裁决。
+	if candidateTier != "" {
+		if candidateChanged {
+			if decision, handled := applySystemAction(candidateTier); handled {
+				return decision
+			}
+		}
+		return openAIFastModeDecision{Tier: candidateTier}
+	}
+	if policy == APIKeyFastModePolicyForceOff && keyPolicySupported {
+		return openAIFastModeDecision{DeleteField: hasField}
+	}
+	return openAIFastModeDecision{}
+}
+
+// applyOpenAIFastPolicyToBody 对原始请求体应用系统策略和单 Key Fast 策略。
 //
 // Rationale for normalize-on-pass: chat-completions / messages 入口在调用本
 // 函数之前已经通过 normalizeResponsesBodyServiceTier 把 service_tier 归一化
@@ -810,45 +879,26 @@ func (s *OpenAIGatewayService) applyOpenAIFastPolicyToBody(ctx context.Context, 
 	if len(body) == 0 {
 		return body, nil
 	}
-	rawTier := gjson.GetBytes(body, "service_tier").String()
-	if rawTier == "" {
-		return body, nil
+	tierResult := gjson.GetBytes(body, "service_tier")
+	decision := s.resolveOpenAIFastModeDecision(ctx, account, model, tierResult.String(), tierResult.Exists())
+	if decision.Blocked != nil {
+		return body, decision.Blocked
 	}
-	normTier := normalizedOpenAIServiceTierValue(rawTier)
-	if normTier == "" {
-		return body, nil
-	}
-	action, errMsg := s.evaluateOpenAIFastPolicy(ctx, account, model, normTier)
-	switch action {
-	case BetaPolicyActionBlock:
-		msg := errMsg
-		if msg == "" {
-			msg = fmt.Sprintf("openai service_tier=%s is not allowed for model %s", normTier, model)
-		}
-		return body, &OpenAIFastBlockedError{Message: msg}
-	case BetaPolicyActionFilter:
+	if decision.DeleteField {
 		trimmed, err := sjson.DeleteBytes(body, "service_tier")
 		if err != nil {
 			return body, fmt.Errorf("strip service_tier from body: %w", err)
 		}
 		return trimmed, nil
-	case OpenAIFastPolicyActionForcePriority:
-		updated, err := sjson.SetBytes(body, "service_tier", OpenAIFastTierPriority)
+	}
+	if decision.Tier != "" && (!tierResult.Exists() || decision.Tier != tierResult.String()) {
+		updated, err := sjson.SetBytes(body, "service_tier", decision.Tier)
 		if err != nil {
-			return body, fmt.Errorf("force service_tier priority on body: %w", err)
-		}
-		return updated, nil
-	default:
-		// pass：把别名（如 "fast"）写回为规范值（"priority"）。
-		if normTier == rawTier {
-			return body, nil
-		}
-		updated, err := sjson.SetBytes(body, "service_tier", normTier)
-		if err != nil {
-			return body, fmt.Errorf("normalize service_tier on pass: %w", err)
+			return body, fmt.Errorf("apply service_tier to body: %w", err)
 		}
 		return updated, nil
 	}
+	return body, nil
 }
 
 // writeOpenAIFastPolicyBlockedResponse writes a 403 JSON response for a
@@ -920,46 +970,26 @@ func (s *OpenAIGatewayService) applyOpenAIFastPolicyToWSResponseCreate(
 	if frameType != "response.create" {
 		return frame, nil, nil
 	}
-	rawTier := gjson.GetBytes(frame, "service_tier").String()
-	if rawTier == "" {
-		return frame, nil, nil
+	tierResult := gjson.GetBytes(frame, "service_tier")
+	decision := s.resolveOpenAIFastModeDecision(ctx, account, model, tierResult.String(), tierResult.Exists())
+	if decision.Blocked != nil {
+		return frame, decision.Blocked, nil
 	}
-	normTier := normalizedOpenAIServiceTierValue(rawTier)
-	if normTier == "" {
-		return frame, nil, nil
-	}
-	action, errMsg := s.evaluateOpenAIFastPolicy(ctx, account, model, normTier)
-	switch action {
-	case BetaPolicyActionBlock:
-		msg := errMsg
-		if msg == "" {
-			msg = fmt.Sprintf("openai service_tier=%s is not allowed for model %s", normTier, model)
-		}
-		return frame, &OpenAIFastBlockedError{Message: msg}, nil
-	case BetaPolicyActionFilter:
+	if decision.DeleteField {
 		trimmed, err := sjson.DeleteBytes(frame, "service_tier")
 		if err != nil {
 			return frame, nil, fmt.Errorf("strip service_tier from ws frame: %w", err)
 		}
 		return trimmed, nil, nil
-	case OpenAIFastPolicyActionForcePriority:
-		updated, err := sjson.SetBytes(frame, "service_tier", OpenAIFastTierPriority)
+	}
+	if decision.Tier != "" && (!tierResult.Exists() || decision.Tier != tierResult.String()) {
+		updated, err := sjson.SetBytes(frame, "service_tier", decision.Tier)
 		if err != nil {
-			return frame, nil, fmt.Errorf("force service_tier priority in ws frame: %w", err)
-		}
-		return updated, nil, nil
-	default:
-		// pass 路径也要把客户端别名 fast 归一化为上游接受的 priority，
-		// 保持 WS 与 HTTP body 入口的 service_tier 语义一致。
-		if normTier == rawTier {
-			return frame, nil, nil
-		}
-		updated, err := sjson.SetBytes(frame, "service_tier", normTier)
-		if err != nil {
-			return frame, nil, fmt.Errorf("normalize service_tier in ws frame: %w", err)
+			return frame, nil, fmt.Errorf("apply service_tier in ws frame: %w", err)
 		}
 		return updated, nil, nil
 	}
+	return frame, nil, nil
 }
 
 // newOpenAIFastPolicyWSEventID returns a Realtime-style event_id for a

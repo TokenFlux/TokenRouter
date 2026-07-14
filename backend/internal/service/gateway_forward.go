@@ -16,6 +16,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
 )
 
 // 重试相关常量
@@ -778,6 +779,12 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 			return nil, err
 		}
 		responseBody = body
+	}
+	if usage == nil {
+		usage = &ClaudeUsage{}
+	}
+	if strings.TrimSpace(usage.Speed) == "" && strings.EqualFold(strings.TrimSpace(gjson.GetBytes(lastWireBody, "speed").String()), "fast") {
+		usage.Speed = "fast"
 	}
 
 	return &ForwardResult{

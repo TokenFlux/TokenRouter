@@ -17,6 +17,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
 	"github.com/tidwall/gjson"
@@ -92,6 +93,7 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 	}
 
 	var resp *http.Response
+	lastWireBody := input.Body
 	retryStart := time.Now()
 	for attempt := 1; attempt <= maxRetryAttempts; attempt++ {
 		upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, input.RequestStream)
@@ -100,6 +102,7 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 		if err != nil {
 			return nil, err
 		}
+		lastWireBody = wireBody
 		if input.Parsed != nil && !bytes.Equal(wireBody, input.Body) {
 			// build 阶段会按 beta 能力清理 body，发送前同步到 ParsedRequest 当前视图。
 			if err := input.Parsed.ReplaceBody(wireBody); err != nil {
@@ -283,6 +286,9 @@ func (s *GatewayService) forwardAnthropicAPIKeyPassthroughWithInput(
 	if usage == nil {
 		usage = &ClaudeUsage{}
 	}
+	if strings.TrimSpace(usage.Speed) == "" && strings.EqualFold(strings.TrimSpace(gjson.GetBytes(lastWireBody, "speed").String()), "fast") {
+		usage.Speed = "fast"
+	}
 
 	return &ForwardResult{
 		RequestID:        resp.Header.Get("x-request-id"),
@@ -314,16 +320,29 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 		targetURL = validatedURL + "/v1/messages?beta=true"
 	}
 
-	// 能力维度 body sanitize：透传路径上 anthropic-beta header 原样透传客户端值，
-	// 依此决定是否保留 body 中的 context_management。避免“客户端 body 带字段但
-	// header 忘记带 beta token”的客户端 bug 在透传场景下让上游 400。
-	clientBeta := ""
+	clientHeaders := http.Header{}
 	if c != nil && c.Request != nil {
-		clientBeta = getHeaderRaw(c.Request.Header, "anthropic-beta")
+		clientHeaders = c.Request.Header
 	}
+	model := strings.TrimSpace(gjson.GetBytes(body, "model").String())
+	originalPolicy := s.evaluateBetaPolicy(ctx, getHeaderRaw(clientHeaders, "anthropic-beta"), account, model)
+	if originalPolicy.blockErr != nil {
+		return nil, nil, originalPolicy.blockErr
+	}
+	var err error
+	body, clientHeaders, err = s.applyClaudeAPIKeyFastMode(ctx, account, model, body, clientHeaders)
+	if err != nil {
+		return nil, nil, err
+	}
+	clientBeta := stripBetaTokensWithSet(getHeaderRaw(clientHeaders, "anthropic-beta"), originalPolicy.filterSet)
 	// 账号覆写了 anthropic-beta 时，覆写值即最终上游值：净化以覆写值为准
 	if beta, ok := account.HeaderOverrideValue("anthropic-beta"); ok {
 		clientBeta = beta
+	}
+	if containsBetaToken(clientBeta, claude.BetaFastMode) {
+		if blockErr := s.checkBetaPolicyBlockForTokens(ctx, []string{claude.BetaFastMode}, account, model); blockErr != nil {
+			return nil, nil, blockErr
+		}
 	}
 	if sanitized, changed := sanitizeAnthropicBodyForBetaTokens(body, clientBeta); changed {
 		body = sanitized
@@ -334,8 +353,8 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 		return nil, nil, err
 	}
 
-	if c != nil && c.Request != nil {
-		for key, values := range c.Request.Header {
+	if clientHeaders != nil {
+		for key, values := range clientHeaders {
 			lowerKey := strings.ToLower(strings.TrimSpace(key))
 			if !allowedHeaders[lowerKey] {
 				continue
@@ -345,6 +364,11 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 				addHeaderRaw(req.Header, wireKey, v)
 			}
 		}
+	}
+	// 透传白名单可能写入 Key 改写前的值，按系统策略裁决后的 beta 覆盖。
+	deleteHeaderAllForms(req.Header, "anthropic-beta")
+	if clientBeta != "" {
+		setHeaderRaw(req.Header, "anthropic-beta", clientBeta)
 	}
 
 	// 覆盖入站鉴权残留，并注入上游认证
@@ -644,6 +668,9 @@ func (s *GatewayService) parseSSEUsagePassthrough(data string, usage *ClaudeUsag
 	case "message_start":
 		msgUsage := parsed.Get("message.usage")
 		if msgUsage.Exists() {
+			if speed := strings.TrimSpace(msgUsage.Get("speed").String()); speed != "" {
+				usage.Speed = speed
+			}
 			usage.InputTokens = int(msgUsage.Get("input_tokens").Int())
 			usage.CacheCreationInputTokens = int(msgUsage.Get("cache_creation_input_tokens").Int())
 			usage.CacheReadInputTokens = int(msgUsage.Get("cache_read_input_tokens").Int())
@@ -659,6 +686,9 @@ func (s *GatewayService) parseSSEUsagePassthrough(data string, usage *ClaudeUsag
 	case "message_delta":
 		deltaUsage := parsed.Get("usage")
 		if deltaUsage.Exists() {
+			if speed := strings.TrimSpace(deltaUsage.Get("speed").String()); speed != "" {
+				usage.Speed = speed
+			}
 			if v := deltaUsage.Get("input_tokens").Int(); v > 0 {
 				usage.InputTokens = int(v)
 			}
@@ -721,6 +751,7 @@ func parseClaudeUsageFromResponseBody(body []byte) *ClaudeUsage {
 	usage.OutputTokens = int(usageNode.Get("output_tokens").Int())
 	usage.CacheCreationInputTokens = int(usageNode.Get("cache_creation_input_tokens").Int())
 	usage.CacheReadInputTokens = int(usageNode.Get("cache_read_input_tokens").Int())
+	usage.Speed = strings.TrimSpace(usageNode.Get("speed").String())
 
 	cc5m := usageNode.Get("cache_creation.ephemeral_5m_input_tokens").Int()
 	cc1h := usageNode.Get("cache_creation.ephemeral_1h_input_tokens").Int()

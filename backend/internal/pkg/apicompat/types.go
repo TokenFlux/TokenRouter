@@ -15,12 +15,14 @@ import (
 
 // AnthropicRequest is the request body for POST /v1/messages.
 type AnthropicRequest struct {
-	Model       string             `json:"model"`
-	MaxTokens   int                `json:"max_tokens"`
-	System      json.RawMessage    `json:"system,omitempty"` // string or []AnthropicContentBlock
-	Messages    []AnthropicMessage `json:"messages"`
-	Tools       []AnthropicTool    `json:"tools,omitempty"`
-	Stream      bool               `json:"stream,omitempty"`
+	Model     string             `json:"model"`
+	MaxTokens int                `json:"max_tokens"`
+	System    json.RawMessage    `json:"system,omitempty"` // string or []AnthropicContentBlock
+	Messages  []AnthropicMessage `json:"messages"`
+	Tools     []AnthropicTool    `json:"tools,omitempty"`
+	Stream    bool               `json:"stream,omitempty"`
+	// Speed 为 Claude Fast 模式字段，目前支持 "fast"。
+	Speed       string             `json:"speed,omitempty"`
 	Temperature *float64           `json:"temperature,omitempty"`
 	TopP        *float64           `json:"top_p,omitempty"`
 	StopSeqs    []string           `json:"stop_sequences,omitempty"`
@@ -145,6 +147,8 @@ type AnthropicUsage struct {
 	OutputTokens             int `json:"output_tokens"`
 	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
 	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+	// Speed 为 Claude 实际处理速度：fast 或 standard。
+	Speed string `json:"speed,omitempty"`
 }
 
 // ---------------------------------------------------------------------------

@@ -101,6 +101,12 @@ export default {
     namePlaceholder: 'My API Key',
     groupLabel: 'Group',
     selectGroup: 'Select a group',
+    fastModePolicyLabel: 'Fast mode policy',
+    fastModePolicy: {
+      followRequest: 'Follow request',
+      forceOn: 'Force Fast on',
+      forceOff: 'Force Fast off'
+    },
     fallbackToDefaultGroupWhenUnavailable: 'Auto fallback when unavailable',
     statusLabel: 'Status',
     selectStatus: 'Select status',

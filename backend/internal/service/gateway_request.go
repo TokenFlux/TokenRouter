@@ -13,6 +13,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -872,23 +873,28 @@ func sanitizeAnthropicBodyForBetaTokens(body []byte, anthropicBetaHeader string)
 	if len(body) == 0 {
 		return body, false
 	}
-	if !gjson.GetBytes(body, "context_management").Exists() {
-		return body, false
+	updated := body
+	changed := false
+	if gjson.GetBytes(updated, "context_management").Exists() &&
+		!anthropicBetaTokensContains(anthropicBetaHeader, anthropicBetaContextManagementToken) {
+		if b, err := sjson.DeleteBytes(updated, "context_management"); err == nil {
+			updated = b
+			changed = true
+		} else {
+			logger.LegacyPrintf("service.gateway", "[CtxMgmtSanitize] 删除 context_management 失败: %v (body len=%d)", err, len(body))
+		}
 	}
-	if anthropicBetaTokensContains(anthropicBetaHeader, anthropicBetaContextManagementToken) {
-		return body, false
+	// Claude Fast 要求 speed 与 beta token 同时存在；系统过滤 beta 后必须同步删除 speed。
+	if strings.EqualFold(strings.TrimSpace(gjson.GetBytes(updated, "speed").String()), "fast") &&
+		!anthropicBetaTokensContains(anthropicBetaHeader, claude.BetaFastMode) {
+		if b, err := sjson.DeleteBytes(updated, "speed"); err == nil {
+			updated = b
+			changed = true
+		} else {
+			logger.LegacyPrintf("service.gateway", "[FastModeSanitize] 删除 speed 失败: %v (body len=%d)", err, len(body))
+		}
 	}
-	if b, err := sjson.DeleteBytes(body, "context_management"); err == nil {
-		return b, true
-	} else {
-		// 不应发生：gjson 刚验证过字段存在 + body 是合法 JSON。如果 sjson 仍报错，
-		// 调用方会拿到 (body, false)，但此前 computeFinalAnthropicBeta 已按“strip 后”
-		// 计算了 finalBeta——两侧会不一致。记录 warning 最小限度提醒运维。
-		logger.LegacyPrintf("service.gateway",
-			"[CtxMgmtSanitize] sjson.DeleteBytes failed unexpectedly: %v (body len=%d). "+
-				"body and final anthropic-beta header may be out of sync.", err, len(body))
-	}
-	return body, false
+	return updated, changed
 }
 
 // anthropicBetaTokensContains 检测逗号分隔的 anthropic-beta header 是否含指定 token。

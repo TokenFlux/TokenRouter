@@ -51,6 +51,11 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 	if c != nil && c.Request != nil {
 		clientHeaders = c.Request.Header
 	}
+	var err error
+	body, clientHeaders, err = s.applyClaudeAPIKeyFastMode(ctx, account, modelID, body, clientHeaders)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	// OAuth账号：应用统一指纹和metadata重写（受设置开关控制）
 	var fingerprint *Fingerprint
@@ -107,6 +112,11 @@ func (s *GatewayService) buildUpstreamRequest(ctx context.Context, c *gin.Contex
 	// body 能力净化必须以覆写值为准，否则 header/body 不对称会被上游 400。
 	if beta, ok := account.HeaderOverrideValue("anthropic-beta"); ok {
 		finalBetaHeader, finalBetaShouldSet = beta, true
+	}
+	if containsBetaToken(finalBetaHeader, claude.BetaFastMode) {
+		if blockErr := s.checkBetaPolicyBlockForTokens(ctx, []string{claude.BetaFastMode}, account, modelID); blockErr != nil {
+			return nil, nil, blockErr
+		}
 	}
 
 	// 能力维度 body sanitize：与最终 anthropic-beta header 对称

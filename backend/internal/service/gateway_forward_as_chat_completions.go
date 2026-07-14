@@ -119,7 +119,7 @@ func (s *GatewayService) ForwardAsChatCompletions(
 
 	// 10. Build upstream request
 	upstreamCtx, releaseUpstreamCtx := detachStreamUpstreamContext(ctx, reqStream)
-	upstreamReq, _, err := s.buildUpstreamRequest(upstreamCtx, c, account, anthropicBody, token, tokenType, mappedModel, reqStream, shouldMimicClaudeCode)
+	upstreamReq, wireBody, err := s.buildUpstreamRequest(upstreamCtx, c, account, anthropicBody, token, tokenType, mappedModel, reqStream, shouldMimicClaudeCode)
 	releaseUpstreamCtx()
 	if err != nil {
 		return nil, fmt.Errorf("build upstream request: %w", err)
@@ -193,6 +193,10 @@ func (s *GatewayService) ForwardAsChatCompletions(
 		result, handleErr = s.handleCCBufferedFromAnthropic(resp, c, originalModel, mappedModel, reasoningEffort, startTime)
 	}
 
+	if result != nil && strings.TrimSpace(result.Usage.Speed) == "" &&
+		strings.EqualFold(strings.TrimSpace(gjson.GetBytes(wireBody, "speed").String()), "fast") {
+		result.Usage.Speed = "fast"
+	}
 	return result, handleErr
 }
 

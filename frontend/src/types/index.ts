@@ -710,6 +710,9 @@ export interface ModelsListConfig {
   models: string[]
 }
 
+// 单个 API Key 的 Fast 模式策略，系统级策略拥有更高优先级。
+export type ApiKeyFastModePolicy = 'follow_request' | 'force_on' | 'force_off'
+
 export interface ApiKey {
   id: number
   user_id: number
@@ -717,6 +720,7 @@ export interface ApiKey {
   name: string
   group_id: number | null
   status: 'active' | 'inactive' | 'quota_exhausted' | 'expired'
+  fast_mode_policy: ApiKeyFastModePolicy
   ip_whitelist: string[]
   ip_blacklist: string[]
   last_used_at: string | null
@@ -749,6 +753,7 @@ export interface ApiKey {
 export interface CreateApiKeyRequest {
   name: string
   group_id?: number | null
+  fast_mode_policy?: ApiKeyFastModePolicy
   custom_key?: string // Optional custom API Key
   ip_whitelist?: string[]
   ip_blacklist?: string[]
@@ -766,6 +771,7 @@ export interface UpdateApiKeyRequest {
   name?: string
   group_id?: number | null
   status?: 'active' | 'inactive'
+  fast_mode_policy?: ApiKeyFastModePolicy
   ip_whitelist?: string[]
   ip_blacklist?: string[]
   quota?: number // Quota limit in USD (null = no change, 0 = unlimited)

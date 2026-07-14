@@ -502,6 +502,17 @@
           </Select>
         </div>
 
+        <!-- 单 Key Fast 策略使用项目统一选择框，系统策略仍在服务端最终裁决。 -->
+        <div>
+          <label class="input-label">{{ t('keys.fastModePolicyLabel') }}</label>
+          <Select
+            v-model="formData.fast_mode_policy"
+            :options="fastModePolicyOptions"
+            :placeholder="t('keys.fastModePolicyLabel')"
+            data-test="fast-mode-policy-select"
+          />
+        </div>
+
         <!-- 分组停用时的请求级自动降级开关。 -->
         <div class="flex items-center justify-between">
           <label class="input-label mb-0">{{ t('keys.fallbackToDefaultGroupWhenUnavailable') }}</label>
@@ -1181,7 +1192,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
-	import type { ApiKey, Group, PublicSettings, GroupPlatform, UpdateApiKeyRequest } from '@/types'
+	import type { ApiKey, ApiKeyFastModePolicy, Group, PublicSettings, GroupPlatform, UpdateApiKeyRequest } from '@/types'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import type { DataShareNotice } from '@/api/dataSharing'
@@ -1407,6 +1418,7 @@ const formData = ref({
   name: '',
   group_id: null as number | null,
   status: 'active' as 'active' | 'inactive',
+  fast_mode_policy: 'follow_request' as ApiKeyFastModePolicy,
   use_custom_key: false,
   custom_key: '',
   enable_ip_restriction: false,
@@ -1445,6 +1457,13 @@ const customKeyError = computed(() => {
 const statusOptions = computed(() => [
   { value: 'active', label: t('common.active') },
   { value: 'inactive', label: t('common.inactive') }
+])
+
+// 单 Key Fast 策略选项；Select 组件负责键盘与弹层交互。
+const fastModePolicyOptions = computed(() => [
+  { value: 'follow_request', label: t('keys.fastModePolicy.followRequest') },
+  { value: 'force_on', label: t('keys.fastModePolicy.forceOn') },
+  { value: 'force_off', label: t('keys.fastModePolicy.forceOff') }
 ])
 
 const shouldSubmitEditStatus = (key: ApiKey, status: 'active' | 'inactive') => {
@@ -1650,6 +1669,7 @@ const editKey = (key: ApiKey) => {
     name: key.name,
     group_id: key.group_id,
     status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
+    fast_mode_policy: key.fast_mode_policy ?? 'follow_request',
     use_custom_key: false,
     custom_key: '',
     enable_ip_restriction: hasIPRestriction,
@@ -1898,6 +1918,7 @@ const submitKeyForm = async (
       const updates: UpdateApiKeyRequest = {
         name: formData.value.name,
         group_id: formData.value.group_id,
+        fast_mode_policy: formData.value.fast_mode_policy,
         ip_whitelist: ipWhitelist,
         ip_blacklist: ipBlacklist,
         quota: quota,
@@ -1918,6 +1939,7 @@ const submitKeyForm = async (
       const payload = {
         name: formData.value.name,
         group_id: formData.value.group_id,
+        fast_mode_policy: formData.value.fast_mode_policy,
         custom_key: customKey,
         ip_whitelist: ipWhitelist,
         ip_blacklist: ipBlacklist,
@@ -2003,6 +2025,7 @@ const closeModals = () => {
     name: '',
     group_id: null,
     status: 'active',
+    fast_mode_policy: 'follow_request',
     use_custom_key: false,
     custom_key: '',
     enable_ip_restriction: false,

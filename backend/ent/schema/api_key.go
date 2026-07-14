@@ -47,6 +47,11 @@ func (APIKey) Fields() []ent.Field {
 		field.String("status").
 			MaxLen(20).
 			Default(domain.StatusActive),
+		// 单个 API Key 的 Fast 模式策略，默认保持下游请求的现有行为。
+		field.String("fast_mode_policy").
+			MaxLen(32).
+			Default("follow_request").
+			Comment("API Key 的 Fast 模式策略：follow_request、force_on 或 force_off"),
 		field.Time("last_used_at").
 			Optional().
 			Nillable().
