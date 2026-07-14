@@ -69,9 +69,10 @@ func TestCodexInviteResetServiceGetStatusAggregatesDesktopEndpoints(t *testing.T
 		},
 	}
 	upstream := &codexInviteResetHTTPUpstreamStub{responses: []*http.Response{
-		codexInviteResetJSONResponse(`{"requires_explicit_confirmation":true,"should_show":false,"grant_action":"rate_limit_reset_credit","grant_amount":3}`),
+		codexInviteResetJSONResponse(`{"requires_explicit_confirmation":true,"should_show":false,"has_rewards":true,"grant_action":"rate_limit_reset_credit","grant_amount":3}`),
 		codexInviteResetJSONResponse(`{"rules":[{"text":"friend must send first Codex message"}]}`),
-		codexInviteResetJSONResponse(`{"available_count":2,"credits":[{"id":"credit-1","status":"available","title":"Reset"},{"id":"credit-2","status":"available"}]}`),
+		codexInviteResetJSONResponse(`{"rate_limit_reset_credits":{"available_count":2}}`),
+		codexInviteResetJSONResponse(`{"available_count":2,"credits":[{"id":"credit-1","status":"available","title":"Reset","reset_type":"primary","granted_at":"2026-07-01T04:05:06Z"},{"id":"credit-2","status":"available"}]}`),
 	}}
 	svc := NewCodexInviteResetService(codexInviteResetAdminServiceStub{account: account}, upstream, nil, nil, nil)
 
@@ -85,15 +86,22 @@ func TestCodexInviteResetServiceGetStatusAggregatesDesktopEndpoints(t *testing.T
 	require.Equal(t, "rate_limit_reset_credit", status.GrantAction)
 	require.NotNil(t, status.GrantAmount)
 	require.Equal(t, 3, *status.GrantAmount)
+	require.NotNil(t, status.HasRewards)
+	require.True(t, *status.HasRewards)
 	require.Equal(t, "rate_limit_reset", status.GrantType)
 	require.Len(t, status.Credits, 2)
+	require.Equal(t, "primary", status.Credits[0].ResetType)
+	require.Equal(t, "2026-07-01T04:05:06Z", status.Credits[0].GrantedAt)
 	require.Equal(t, "friend must send first Codex message", status.EligibilityRules[0])
 
-	require.Len(t, upstream.requests, 3)
+	require.Len(t, upstream.requests, 4)
 	require.Equal(t, "/backend-api/referrals/invite/eligibility", upstream.requests[0].URL.Path)
 	require.Equal(t, codexInviteResetReferralKey, upstream.requests[0].URL.Query().Get("referral_key"))
+	require.Equal(t, "true", upstream.requests[0].URL.Query().Get("supports_rewardless_invites"))
 	require.Equal(t, "/backend-api/wham/referrals/eligibility_rules", upstream.requests[1].URL.Path)
-	require.Equal(t, "/backend-api/wham/rate-limit-reset-credits", upstream.requests[2].URL.Path)
+	require.Equal(t, "/backend-api/wham/usage", upstream.requests[2].URL.Path)
+	require.Equal(t, "true", upstream.requests[2].URL.Query().Get("supports_rewardless_invites"))
+	require.Equal(t, "/backend-api/wham/rate-limit-reset-credits", upstream.requests[3].URL.Path)
 	require.Equal(t, "Bearer oauth-token", upstream.requests[0].Header.Get("Authorization"))
 	require.Equal(t, "Codex Desktop", upstream.requests[0].Header.Get("originator"))
 	require.Equal(t, codexInviteResetDefaultUserAgent, upstream.requests[0].Header.Get("User-Agent"))
@@ -107,7 +115,7 @@ func TestCodexInviteResetServiceGetStatusAggregatesDesktopEndpoints(t *testing.T
 	require.Equal(t, HTTPUpstreamProfileOpenAI, HTTPUpstreamProfileFromContext(upstream.requests[0].Context()))
 }
 
-func TestCodexInviteResetServiceGetStatusKeepsCreditsWhenInviteUnavailable(t *testing.T) {
+func TestCodexInviteResetServiceGetStatusKeepsUsageCreditsWhenEligibilityReturns422AndDetailsFail(t *testing.T) {
 	account := &Account{
 		ID:       50,
 		Platform: PlatformOpenAI,
@@ -117,9 +125,10 @@ func TestCodexInviteResetServiceGetStatusKeepsCreditsWhenInviteUnavailable(t *te
 		},
 	}
 	upstream := &codexInviteResetHTTPUpstreamStub{responses: []*http.Response{
-		codexInviteResetJSONStatusResponse(http.StatusForbidden, `{"detail":"该推荐码对应的推荐邀请不可用"}`),
-		codexInviteResetJSONStatusResponse(http.StatusForbidden, `{"detail":"\u8be5\u63a8\u8350\u7801\u5bf9\u5e94\u7684\u63a8\u8350\u9080\u8bf7\u4e0d\u53ef\u7528"}`),
-		codexInviteResetJSONResponse(`{"available_count":1,"credits":[{"id":"credit-1","status":"available"}]}`),
+		codexInviteResetJSONStatusResponse(http.StatusUnprocessableEntity, `{"detail":[{"type":"missing","loc":["query","legacy_field"],"msg":"Field required"}]}`),
+		codexInviteResetJSONResponse(`{"rules":[]}`),
+		codexInviteResetJSONResponse(`{"rate_limit_reset_credits":{"available_count":1}}`),
+		codexInviteResetJSONStatusResponse(http.StatusUnauthorized, `{"detail":"expired"}`),
 	}}
 	svc := NewCodexInviteResetService(codexInviteResetAdminServiceStub{account: account}, upstream, nil, nil, nil)
 
@@ -129,17 +138,21 @@ func TestCodexInviteResetServiceGetStatusKeepsCreditsWhenInviteUnavailable(t *te
 	require.Equal(t, codexInviteResetUnavailable, status.InviteUnavailableReason)
 	require.Equal(t, codexInviteResetUnavailableMessage, status.InviteUnavailableMessage)
 	require.Equal(t, 1, status.AvailableCount)
-	require.Len(t, status.Credits, 1)
-	require.Equal(t, "credit-1", status.Credits[0].ID)
-	require.Len(t, upstream.requests, 3)
-	require.Equal(t, "/backend-api/wham/rate-limit-reset-credits", upstream.requests[2].URL.Path)
+	require.Empty(t, status.Credits)
+	require.NotContains(t, status.InviteUnavailableMessage, "Field required")
+	require.Len(t, upstream.requests, 4)
+	require.Equal(t, "/backend-api/wham/usage", upstream.requests[2].URL.Path)
+	require.Equal(t, "/backend-api/wham/rate-limit-reset-credits", upstream.requests[3].URL.Path)
 }
 
 func TestNormalizeCodexInviteResetGrantType(t *testing.T) {
-	require.Equal(t, "rate_limit_reset", normalizeCodexInviteResetGrantType("rate_limit_reset_credit"))
-	require.Equal(t, "workspace_credits", normalizeCodexInviteResetGrantType("workspace_credits"))
-	require.Equal(t, "workspace_credits", normalizeCodexInviteResetGrantType(""))
-	require.Equal(t, "unknown", normalizeCodexInviteResetGrantType("future_reward"))
+	hasRewards := true
+	hasNoRewards := false
+	require.Equal(t, "none", normalizeCodexInviteResetGrantType(&hasNoRewards, "workspace_credits"))
+	require.Equal(t, "rate_limit_reset", normalizeCodexInviteResetGrantType(&hasRewards, "rate_limit_reset_credit"))
+	require.Equal(t, "workspace_credits", normalizeCodexInviteResetGrantType(&hasRewards, "workspace_credits"))
+	require.Equal(t, "unknown", normalizeCodexInviteResetGrantType(&hasRewards, "future_reward"))
+	require.Equal(t, "unknown", normalizeCodexInviteResetGrantType(nil, ""))
 }
 
 func TestCodexInviteResetServiceSendInviteNormalizesEmails(t *testing.T) {
@@ -195,7 +208,7 @@ func TestCodexInviteResetServiceConsumeSendsRedeemRequestID(t *testing.T) {
 		Credentials: map[string]any{"access_token": "oauth-token"},
 	}
 	upstream := &codexInviteResetHTTPUpstreamStub{responses: []*http.Response{
-		codexInviteResetJSONResponse(`{"code":"reset","available_count":0}`),
+		codexInviteResetJSONResponse(`{"code":"reset","available_count":0,"windows_reset":2}`),
 	}}
 	svc := NewCodexInviteResetService(codexInviteResetAdminServiceStub{account: account}, upstream, nil, nil, nil)
 
@@ -204,6 +217,7 @@ func TestCodexInviteResetServiceConsumeSendsRedeemRequestID(t *testing.T) {
 	require.Equal(t, "reset", result.Code)
 	require.Equal(t, "credit-1", result.CreditID)
 	require.NotEmpty(t, result.RedeemRequestID)
+	require.Equal(t, 2, result.WindowsReset)
 	require.NotNil(t, result.AvailableCount)
 	require.Equal(t, 0, *result.AvailableCount)
 
@@ -211,6 +225,29 @@ func TestCodexInviteResetServiceConsumeSendsRedeemRequestID(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(upstream.bodies[0]), &payload))
 	require.Equal(t, "credit-1", payload["credit_id"])
 	require.Equal(t, result.RedeemRequestID, payload["redeem_request_id"])
+}
+
+func TestCodexInviteResetServiceConsumeAllowsAutomaticCreditSelection(t *testing.T) {
+	account := &Account{
+		ID:          10,
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeOAuth,
+		Credentials: map[string]any{"access_token": "oauth-token"},
+	}
+	upstream := &codexInviteResetHTTPUpstreamStub{responses: []*http.Response{
+		codexInviteResetJSONResponse(`{"code":"reset","windows_reset":1}`),
+	}}
+	svc := NewCodexInviteResetService(codexInviteResetAdminServiceStub{account: account}, upstream, nil, nil, nil)
+
+	result, err := svc.Consume(context.Background(), account.ID, "")
+	require.NoError(t, err)
+	require.Empty(t, result.CreditID)
+	require.Equal(t, 1, result.WindowsReset)
+
+	var payload map[string]any
+	require.NoError(t, json.Unmarshal([]byte(upstream.bodies[0]), &payload))
+	require.NotEmpty(t, payload["redeem_request_id"])
+	require.NotContains(t, payload, "credit_id")
 }
 
 func TestCodexInviteResetServiceUsesTLSRouterInviteResetUserAgent(t *testing.T) {

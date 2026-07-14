@@ -28,6 +28,8 @@ export interface CodexInviteResetCredit {
   status?: string
   title?: string
   description?: string
+  reset_type?: string
+  granted_at?: string
   expires_at?: string
   profile_user_id?: string
   profile_image_url?: string
@@ -41,7 +43,8 @@ export interface CodexInviteResetStatus {
   should_show?: boolean | null
   grant_action?: string
   grant_amount?: number | null
-  grant_type?: 'rate_limit_reset' | 'workspace_credits' | 'unknown' | string
+  has_rewards?: boolean | null
+  grant_type?: 'none' | 'rate_limit_reset' | 'workspace_credits' | 'unknown' | string
   invite_available: boolean
   invite_unavailable_reason?: string
   invite_unavailable_message?: string
@@ -61,8 +64,9 @@ export interface CodexInviteResetInviteResult {
 
 export interface CodexInviteResetConsumeResult {
   code?: string
-  credit_id: string
+  credit_id?: string
   redeem_request_id: string
+  windows_reset: number
   available_count?: number
   remaining_credits?: Array<Record<string, unknown>>
   raw?: Record<string, unknown>
@@ -840,16 +844,18 @@ export async function sendCodexInviteResetInvite(
 /**
  * 使用一次 Codex 邀请重置机会。
  * @param id - 账号 ID
- * @param creditId - 重置机会 ID
+ * @param creditId - 可选的重置机会 ID，省略时由上游自动选择
  * @returns 使用结果
  */
 export async function consumeCodexInviteReset(
   id: number,
-  creditId: string
+  creditId?: string
 ): Promise<CodexInviteResetConsumeResult> {
+  // 只有弹窗拿到明细选择值时才发送 credit_id，否则使用上游自动选择模式。
+  const payload = creditId?.trim() ? { credit_id: creditId.trim() } : {}
   const { data } = await apiClient.post<CodexInviteResetConsumeResult>(
     `/admin/accounts/${id}/codex/invite-reset/consume`,
-    { credit_id: creditId }
+    payload
   )
   return data
 }

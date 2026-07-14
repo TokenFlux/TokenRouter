@@ -42,6 +42,7 @@ func TestOpenAIQuotaServiceQueryUsageUsesCodexHeaders(t *testing.T) {
 
 	require.Len(t, upstream.requests, 2)
 	require.Equal(t, "/backend-api/wham/usage", upstream.requests[0].URL.Path)
+	require.Equal(t, "true", upstream.requests[0].URL.Query().Get("supports_rewardless_invites"))
 	require.Equal(t, "/backend-api/wham/rate-limit-reset-credits", upstream.requests[1].URL.Path)
 	for _, req := range upstream.requests {
 		require.Equal(t, "Bearer oauth-token", req.Header.Get("Authorization"))
@@ -55,7 +56,7 @@ func TestOpenAIQuotaServiceQueryUsageUsesCodexHeaders(t *testing.T) {
 	}
 }
 
-func TestOpenAIQuotaServiceResetCreditSendsCreditIDAndRedeemRequestID(t *testing.T) {
+func TestOpenAIQuotaServiceResetCreditUsesAutomaticSelectionAndRedeemRequestID(t *testing.T) {
 	account := &Account{
 		ID:       9,
 		Platform: PlatformOpenAI,
@@ -66,7 +67,6 @@ func TestOpenAIQuotaServiceResetCreditSendsCreditIDAndRedeemRequestID(t *testing
 		},
 	}
 	upstream := &codexInviteResetHTTPUpstreamStub{responses: []*http.Response{
-		codexInviteResetJSONResponse(`{"available_count":2,"credits":[{"id":"spent","status":"redeemed"},{"id":"credit-1","status":"available"}]}`),
 		codexInviteResetJSONResponse(`{"code":"reset","windows_reset":1}`),
 	}}
 	svc := NewOpenAIQuotaService(codexInviteResetAdminServiceStub{account: account}, upstream, nil, nil, nil)
@@ -76,18 +76,17 @@ func TestOpenAIQuotaServiceResetCreditSendsCreditIDAndRedeemRequestID(t *testing
 	require.Equal(t, "reset", result.Code)
 	require.Equal(t, 1, result.WindowsReset)
 
-	require.Len(t, upstream.requests, 2)
-	require.Equal(t, "/backend-api/wham/rate-limit-reset-credits", upstream.requests[0].URL.Path)
-	require.Equal(t, "/backend-api/wham/rate-limit-reset-credits/consume", upstream.requests[1].URL.Path)
-	require.Equal(t, "application/json", upstream.requests[1].Header.Get("Content-Type"))
+	require.Len(t, upstream.requests, 1)
+	require.Equal(t, "/backend-api/wham/rate-limit-reset-credits/consume", upstream.requests[0].URL.Path)
+	require.Equal(t, "application/json", upstream.requests[0].Header.Get("Content-Type"))
 	var payload map[string]string
-	require.NoError(t, json.Unmarshal([]byte(upstream.bodies[1]), &payload))
-	require.Equal(t, "credit-1", payload["credit_id"])
+	require.NoError(t, json.Unmarshal([]byte(upstream.bodies[0]), &payload))
+	require.NotContains(t, payload, "credit_id")
 	require.NotEmpty(t, payload["redeem_request_id"])
 	require.Contains(t, payload["redeem_request_id"], "-")
 }
 
-func TestOpenAIQuotaServiceResetCreditRejectsNoAvailableCredit(t *testing.T) {
+func TestOpenAIQuotaServiceResetCreditReturnsUpstreamNoCreditResult(t *testing.T) {
 	account := &Account{
 		ID:       10,
 		Platform: PlatformOpenAI,
@@ -98,16 +97,16 @@ func TestOpenAIQuotaServiceResetCreditRejectsNoAvailableCredit(t *testing.T) {
 		},
 	}
 	upstream := &codexInviteResetHTTPUpstreamStub{responses: []*http.Response{
-		codexInviteResetJSONResponse(`{"available_count":0,"credits":[{"id":"spent","status":"redeemed"}]}`),
+		codexInviteResetJSONResponse(`{"code":"no_credit","windows_reset":0}`),
 	}}
 	svc := NewOpenAIQuotaService(codexInviteResetAdminServiceStub{account: account}, upstream, nil, nil, nil)
 
-	_, err := svc.ResetCredit(context.Background(), account.ID)
-	require.Error(t, err)
-	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
-	require.Equal(t, "OPENAI_QUOTA_NO_AVAILABLE_RESET_CREDIT", infraerrors.Reason(err))
+	result, err := svc.ResetCredit(context.Background(), account.ID)
+	require.NoError(t, err)
+	require.Equal(t, "no_credit", result.Code)
+	require.Equal(t, 0, result.WindowsReset)
 	require.Len(t, upstream.requests, 1)
-	require.Equal(t, "/backend-api/wham/rate-limit-reset-credits", upstream.requests[0].URL.Path)
+	require.Equal(t, "/backend-api/wham/rate-limit-reset-credits/consume", upstream.requests[0].URL.Path)
 }
 
 func TestOpenAIQuotaServiceUsesTLSRouterInviteResetSettings(t *testing.T) {

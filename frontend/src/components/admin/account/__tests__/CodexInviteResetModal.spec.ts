@@ -118,4 +118,84 @@ describe('CodexInviteResetModal', () => {
     await sendButton!.trigger('click')
     expect(sendInviteMock).not.toHaveBeenCalled()
   })
+
+  it('无奖励邀请显示无奖励而不是 Workspace credits', async () => {
+    getStatusMock.mockResolvedValue({
+      referral_key: 'codex_referral_persistent_invite',
+      invite_available: true,
+      requires_consent: true,
+      has_rewards: false,
+      grant_type: 'none',
+      available_count: 0,
+      credits: []
+    })
+
+    const wrapper = mountModal()
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.accounts.inviteResetGrantTypeNone')
+    expect(wrapper.text()).not.toContain('admin.accounts.inviteResetGrantTypeWorkspaceCredits')
+  })
+
+  it('按过期时间升序选择默认重置机会', async () => {
+    getStatusMock.mockResolvedValue({
+      referral_key: 'codex_referral_persistent_invite',
+      invite_available: true,
+      requires_consent: true,
+      available_count: 2,
+      credits: [
+        { id: 'credit-late', status: 'available', expires_at: '2026-07-05T04:05:06Z' },
+        { id: 'credit-early', status: 'available', expires_at: '2026-07-03T04:05:06Z' }
+      ]
+    })
+    consumeMock.mockResolvedValue({
+      code: 'reset',
+      redeem_request_id: 'redeem-1',
+      windows_reset: 1
+    })
+
+    const wrapper = mountModal()
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    const consumeButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('admin.accounts.inviteResetUseReset'))
+    await consumeButton!.trigger('click')
+    await flushPromises()
+
+    expect(consumeMock).toHaveBeenCalledWith(42, 'credit-early')
+  })
+
+  it('usage 有次数但没有明细时使用通用重置', async () => {
+    getStatusMock.mockResolvedValue({
+      referral_key: 'codex_referral_persistent_invite',
+      invite_available: false,
+      invite_unavailable_message: '邀请暂不可用',
+      requires_consent: true,
+      available_count: 1,
+      credits: []
+    })
+    consumeMock.mockResolvedValue({
+      code: 'reset',
+      redeem_request_id: 'redeem-2',
+      windows_reset: 1
+    })
+
+    const wrapper = mountModal()
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('admin.accounts.inviteResetCreditDetailsUnavailable')
+    const consumeButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('admin.accounts.inviteResetUseReset'))
+    expect(consumeButton?.attributes('disabled')).toBeUndefined()
+
+    await consumeButton!.trigger('click')
+    await flushPromises()
+
+    expect(consumeMock).toHaveBeenCalledWith(42, undefined)
+  })
 })

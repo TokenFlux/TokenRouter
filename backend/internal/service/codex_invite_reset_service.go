@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -24,6 +24,7 @@ const (
 	codexInviteResetMaxEmails          = 5
 	codexInviteResetUnavailable        = "CODEX_INVITE_RESET_REFERRAL_UNAVAILABLE"
 	codexInviteResetUnavailableMessage = "当前 Codex 推荐邀请入口暂不可用，但已有重置次数仍可使用"
+	codexInviteResetSupportsRewardless = "true"
 	// Codex Desktop 的邀请重置请求默认使用 Desktop UA；账号绑定 TLS 路由器时可配置专用 UA 覆盖。
 	codexInviteResetDefaultUserAgent = "Codex Desktop/0.0.0 (Linux; x86_64)"
 )
@@ -66,6 +67,8 @@ type CodexInviteResetStatus struct {
 	GrantAction string `json:"grant_action,omitempty"`
 	// GrantAmount 表示单次邀请达成后双方获得的奖励数量。
 	GrantAmount *int `json:"grant_amount,omitempty"`
+	// HasRewards 表示当前邀请活动是否会发放奖励，nil 表示上游没有返回该字段。
+	HasRewards *bool `json:"has_rewards,omitempty"`
 	// GrantType 是管理端使用的稳定奖励类型枚举。
 	GrantType string `json:"grant_type,omitempty"`
 	// InviteAvailable 表示当前账号是否还能继续通过推荐入口发送 Codex 邀请。
@@ -86,6 +89,8 @@ type CodexInviteResetCredit struct {
 	Status          string         `json:"status,omitempty"`
 	Title           string         `json:"title,omitempty"`
 	Description     string         `json:"description,omitempty"`
+	ResetType       string         `json:"reset_type,omitempty"`
+	GrantedAt       string         `json:"granted_at,omitempty"`
 	ExpiresAt       string         `json:"expires_at,omitempty"`
 	ProfileUserID   string         `json:"profile_user_id,omitempty"`
 	ProfileImageURL string         `json:"profile_image_url,omitempty"`
@@ -101,8 +106,9 @@ type CodexInviteResetInviteResult struct {
 
 type CodexInviteResetConsumeResult struct {
 	Code             string           `json:"code,omitempty"`
-	CreditID         string           `json:"credit_id"`
+	CreditID         string           `json:"credit_id,omitempty"`
 	RedeemRequestID  string           `json:"redeem_request_id"`
+	WindowsReset     int              `json:"windows_reset"`
 	AvailableCount   *int             `json:"available_count,omitempty"`
 	RemainingCredits []map[string]any `json:"remaining_credits,omitempty"`
 	Raw              map[string]any   `json:"raw,omitempty"`
@@ -116,6 +122,22 @@ type codexInviteResetAccountContext struct {
 	tlsProfile *tlsfingerprint.Profile
 }
 
+// codexInviteResetInviteState 保存邀请子链路的稳定结果，避免邀请错误影响重置次数查询。
+type codexInviteResetInviteState struct {
+	eligibility        map[string]any
+	rules              map[string]any
+	available          bool
+	unavailableReason  string
+	unavailableMessage string
+}
+
+// codexInviteResetCreditState 保存 usage 基础数据和尽力获取到的 credit 明细。
+type codexInviteResetCreditState struct {
+	availableCount int
+	credits        []CodexInviteResetCredit
+	rawCredits     map[string]any
+}
+
 // GetStatus 查询邀请资格和可用重置次数。
 func (s *CodexInviteResetService) GetStatus(ctx context.Context, accountID int64) (*CodexInviteResetStatus, error) {
 	accountCtx, err := s.prepareAccount(ctx, accountID)
@@ -123,68 +145,105 @@ func (s *CodexInviteResetService) GetStatus(ctx context.Context, accountID int64
 		return nil, err
 	}
 
-	eligibility, err := s.getJSON(ctx, accountCtx, "/referrals/invite/eligibility", map[string]string{
-		"referral_key": codexInviteResetReferralKey,
-	})
-	inviteUnavailable := codexInviteResetUnavailableError(err)
-	if err != nil && inviteUnavailable == nil {
-		return nil, err
-	}
-	rules, err := s.getJSON(ctx, accountCtx, "/wham/referrals/eligibility_rules", map[string]string{
-		"referral_key": codexInviteResetReferralKey,
-	})
-	if err != nil {
-		if inviteUnavailable == nil {
-			inviteUnavailable = codexInviteResetUnavailableError(err)
-		}
-		if inviteUnavailable == nil {
-			return nil, err
-		}
-		rules = nil
-	}
-	if inviteUnavailable != nil {
-		eligibility = nil
-	}
-	creditsRaw, err := s.getJSON(ctx, accountCtx, "/wham/rate-limit-reset-credits", nil)
+	inviteState := s.getInviteState(ctx, accountCtx)
+	creditState, err := s.getCreditState(ctx, accountCtx)
 	if err != nil {
 		return nil, err
 	}
 
-	inviteAvailable := inviteUnavailable == nil
-	unavailableReason := ""
-	unavailableMessage := ""
-	if inviteUnavailable != nil {
-		unavailableReason = infraerrors.Reason(inviteUnavailable)
-		unavailableMessage = infraerrors.Message(inviteUnavailable)
-	}
-
-	credits := normalizeCodexInviteResetCredits(creditsRaw)
-	availableCount := codexInviteResetIntFromMap(creditsRaw, "available_count")
-	if availableCount == 0 {
-		for _, credit := range credits {
-			if strings.EqualFold(credit.Status, "available") {
-				availableCount++
-			}
-		}
-	}
+	hasRewards := codexInviteResetOptionalBoolFromMap(inviteState.eligibility, "has_rewards")
+	grantAction := codexInviteResetStringFromMap(inviteState.eligibility, "grant_action")
 
 	return &CodexInviteResetStatus{
 		ReferralKey:              codexInviteResetReferralKey,
-		InviteEligibility:        eligibility,
-		EligibilityRules:         normalizeCodexInviteResetRules(rules),
-		ShouldShow:               codexInviteResetOptionalBoolFromMap(eligibility, "should_show"),
-		GrantAction:              codexInviteResetStringFromMap(eligibility, "grant_action"),
-		GrantAmount:              codexInviteResetOptionalIntFromMap(eligibility, "grant_amount"),
-		GrantType:                normalizeCodexInviteResetGrantType(codexInviteResetStringFromMap(eligibility, "grant_action")),
-		InviteAvailable:          inviteAvailable,
-		InviteUnavailableReason:  unavailableReason,
-		InviteUnavailableMessage: unavailableMessage,
-		RequiresConsent:          codexInviteResetBoolFromMapDefault(eligibility, "requires_explicit_confirmation", true),
-		AvailableCount:           availableCount,
-		Credits:                  credits,
-		RawEligibilityRules:      rules,
-		RawCredits:               creditsRaw,
+		InviteEligibility:        inviteState.eligibility,
+		EligibilityRules:         normalizeCodexInviteResetRules(inviteState.rules),
+		ShouldShow:               codexInviteResetOptionalBoolFromMap(inviteState.eligibility, "should_show"),
+		GrantAction:              grantAction,
+		GrantAmount:              codexInviteResetOptionalIntFromMap(inviteState.eligibility, "grant_amount"),
+		HasRewards:               hasRewards,
+		GrantType:                normalizeCodexInviteResetGrantType(hasRewards, grantAction),
+		InviteAvailable:          inviteState.available,
+		InviteUnavailableReason:  inviteState.unavailableReason,
+		InviteUnavailableMessage: inviteState.unavailableMessage,
+		RequiresConsent:          codexInviteResetBoolFromMapDefault(inviteState.eligibility, "requires_explicit_confirmation", true),
+		AvailableCount:           creditState.availableCount,
+		Credits:                  creditState.credits,
+		RawEligibilityRules:      inviteState.rules,
+		RawCredits:               creditState.rawCredits,
 	}, nil
+}
+
+// getInviteState 独立查询邀请资格和规则，任一失败时仅禁用邀请入口。
+func (s *CodexInviteResetService) getInviteState(ctx context.Context, accountCtx *codexInviteResetAccountContext) codexInviteResetInviteState {
+	eligibility, eligibilityErr := s.getJSON(ctx, accountCtx, "/referrals/invite/eligibility", map[string]string{
+		"referral_key":                codexInviteResetReferralKey,
+		"supports_rewardless_invites": codexInviteResetSupportsRewardless,
+	})
+	rules, rulesErr := s.getJSON(ctx, accountCtx, "/wham/referrals/eligibility_rules", map[string]string{
+		"referral_key": codexInviteResetReferralKey,
+	})
+
+	if eligibilityErr == nil && rulesErr == nil {
+		return codexInviteResetInviteState{
+			eligibility: eligibility,
+			rules:       rules,
+			available:   true,
+		}
+	}
+	if eligibilityErr != nil {
+		slog.Warn("codex_invite_reset_eligibility_unavailable", "account_id", accountCtx.account.ID, "error", eligibilityErr)
+		eligibility = nil
+	}
+	if rulesErr != nil {
+		slog.Warn("codex_invite_reset_rules_unavailable", "account_id", accountCtx.account.ID, "error", rulesErr)
+		rules = nil
+	}
+
+	// 上游资格校验错误只转换为稳定状态，不把 422 等原始验证信息透出给管理端。
+	return codexInviteResetInviteState{
+		eligibility:        eligibility,
+		rules:              rules,
+		available:          false,
+		unavailableReason:  codexInviteResetUnavailable,
+		unavailableMessage: codexInviteResetUnavailableMessage,
+	}
+}
+
+// getCreditState 以 usage 的可用次数为基础，明细接口失败时保留基础结果。
+func (s *CodexInviteResetService) getCreditState(ctx context.Context, accountCtx *codexInviteResetAccountContext) (codexInviteResetCreditState, error) {
+	usage, err := s.getJSON(ctx, accountCtx, "/wham/usage", map[string]string{
+		"supports_rewardless_invites": codexInviteResetSupportsRewardless,
+	})
+	if err != nil {
+		return codexInviteResetCreditState{}, err
+	}
+
+	usageCredits := codexInviteResetMapFromMap(usage, "rate_limit_reset_credits")
+	state := codexInviteResetCreditState{
+		availableCount: codexInviteResetIntFromMap(usageCredits, "available_count"),
+		credits:        normalizeCodexInviteResetCredits(usageCredits),
+		rawCredits:     usageCredits,
+	}
+	if state.availableCount == 0 {
+		state.availableCount = countAvailableCodexInviteResetCredits(state.credits)
+	}
+	if state.availableCount <= 0 && len(state.credits) == 0 {
+		return state, nil
+	}
+
+	details, detailsErr := s.getJSON(ctx, accountCtx, "/wham/rate-limit-reset-credits", nil)
+	if detailsErr != nil {
+		slog.Warn("codex_invite_reset_credit_details_unavailable", "account_id", accountCtx.account.ID, "error", detailsErr)
+		return state, nil
+	}
+
+	state.credits = normalizeCodexInviteResetCredits(details)
+	state.rawCredits = details
+	if availableCount := codexInviteResetOptionalIntFromMap(details, "available_count"); availableCount != nil {
+		state.availableCount = *availableCount
+	}
+	return state, nil
 }
 
 // SendInvite 发送 Codex 邀请邮件。
@@ -221,15 +280,16 @@ func (s *CodexInviteResetService) Consume(ctx context.Context, accountID int64, 
 		return nil, err
 	}
 	creditID = strings.TrimSpace(creditID)
-	if creditID == "" {
-		return nil, infraerrors.BadRequest("CODEX_INVITE_RESET_CREDIT_ID_REQUIRED", "credit_id is required")
-	}
 	redeemRequestID := uuid.NewString()
 
-	raw, err := s.postJSON(ctx, accountCtx, "/wham/rate-limit-reset-credits/consume", map[string]any{
-		"credit_id":         creditID,
+	payload := map[string]any{
 		"redeem_request_id": redeemRequestID,
-	})
+	}
+	// 有明细选择器时精确消费指定 credit；无明细时由新版上游自动选择可用 credit。
+	if creditID != "" {
+		payload["credit_id"] = creditID
+	}
+	raw, err := s.postJSON(ctx, accountCtx, "/wham/rate-limit-reset-credits/consume", payload)
 	if err != nil {
 		return nil, err
 	}
@@ -243,6 +303,7 @@ func (s *CodexInviteResetService) Consume(ctx context.Context, accountID int64, 
 		Code:             codexInviteResetStringFromMap(raw, "code"),
 		CreditID:         creditID,
 		RedeemRequestID:  redeemRequestID,
+		WindowsReset:     codexInviteResetIntFromMap(raw, "windows_reset"),
 		AvailableCount:   availableCount,
 		RemainingCredits: codexInviteResetMapSliceFromMap(raw, "credits"),
 		Raw:              raw,
@@ -431,17 +492,6 @@ func codexInviteResetUpstreamBusinessError(statusCode int, body string) error {
 	})
 }
 
-func codexInviteResetUnavailableError(err error) *infraerrors.ApplicationError {
-	if err == nil {
-		return nil
-	}
-	var appErr *infraerrors.ApplicationError
-	if errors.As(err, &appErr) && appErr.Reason == codexInviteResetUnavailable {
-		return appErr
-	}
-	return nil
-}
-
 func codexInviteResetUpstreamDetail(body string) string {
 	var payload map[string]any
 	if err := json.Unmarshal([]byte(body), &payload); err == nil {
@@ -512,7 +562,7 @@ func splitCodexInviteEmailInput(input string) []string {
 }
 
 func normalizeCodexInviteResetCredits(raw map[string]any) []CodexInviteResetCredit {
-	items := codexInviteResetMapSliceFromMap(raw, "credits")
+	items := firstNonEmptyCodexInviteResetMapSlice(raw, "credits", "rate_limit_reset_credits", "items", "data")
 	credits := make([]CodexInviteResetCredit, 0, len(items))
 	for _, item := range items {
 		id := codexInviteResetStringFromMap(item, "id")
@@ -524,6 +574,8 @@ func normalizeCodexInviteResetCredits(raw map[string]any) []CodexInviteResetCred
 			Status:          codexInviteResetStringFromMap(item, "status"),
 			Title:           codexInviteResetStringFromMap(item, "title"),
 			Description:     codexInviteResetStringFromMap(item, "description"),
+			ResetType:       codexInviteResetFirstStringFromMap(item, "reset_type", "resetType"),
+			GrantedAt:       codexInviteResetFirstStringFromMap(item, "granted_at", "grantedAt"),
 			ExpiresAt:       codexInviteResetFirstStringFromMap(item, "expires_at", "expiresAt"),
 			ProfileUserID:   codexInviteResetStringFromMap(item, "profile_user_id"),
 			ProfileImageURL: codexInviteResetStringFromMap(item, "profile_image_url"),
@@ -531,6 +583,27 @@ func normalizeCodexInviteResetCredits(raw map[string]any) []CodexInviteResetCred
 		})
 	}
 	return credits
+}
+
+// firstNonEmptyCodexInviteResetMapSlice 兼容不同版本的 credit 明细容器字段。
+func firstNonEmptyCodexInviteResetMapSlice(raw map[string]any, keys ...string) []map[string]any {
+	for _, key := range keys {
+		if items := codexInviteResetMapSliceFromMap(raw, key); len(items) > 0 {
+			return items
+		}
+	}
+	return nil
+}
+
+// countAvailableCodexInviteResetCredits 在 usage 只返回明细时补算可用次数。
+func countAvailableCodexInviteResetCredits(credits []CodexInviteResetCredit) int {
+	availableCount := 0
+	for _, credit := range credits {
+		if strings.EqualFold(credit.Status, "available") {
+			availableCount++
+		}
+	}
+	return availableCount
 }
 
 func normalizeCodexInviteResetRules(raw map[string]any) []string {
@@ -557,12 +630,15 @@ func normalizeCodexInviteResetRules(raw map[string]any) []string {
 	return rules
 }
 
-// normalizeCodexInviteResetGrantType 将 Codex Desktop 的原始奖励动作归一化为管理端稳定枚举。
-func normalizeCodexInviteResetGrantType(action string) string {
+// normalizeCodexInviteResetGrantType 将奖励标记和原始动作归一化为管理端稳定枚举。
+func normalizeCodexInviteResetGrantType(hasRewards *bool, action string) string {
+	if hasRewards != nil && !*hasRewards {
+		return "none"
+	}
 	switch strings.TrimSpace(action) {
 	case "rate_limit_reset_credit":
 		return "rate_limit_reset"
-	case "", "workspace_credits":
+	case "workspace_credits":
 		return "workspace_credits"
 	default:
 		return "unknown"
@@ -594,6 +670,15 @@ func codexInviteResetFirstStringFromMap(raw map[string]any, keys ...string) stri
 		}
 	}
 	return ""
+}
+
+// codexInviteResetMapFromMap 安全读取嵌套对象，上游缺失字段时返回 nil。
+func codexInviteResetMapFromMap(raw map[string]any, key string) map[string]any {
+	if raw == nil {
+		return nil
+	}
+	value, _ := raw[key].(map[string]any)
+	return value
 }
 
 func codexInviteResetIntFromMap(raw map[string]any, key string) int {

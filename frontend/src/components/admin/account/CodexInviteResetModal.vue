@@ -101,7 +101,7 @@
             </div>
 
             <div v-else class="rounded-lg border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400">
-              {{ t('admin.accounts.inviteResetNoCredits') }}
+              {{ t(availableCount > 0 ? 'admin.accounts.inviteResetCreditDetailsUnavailable' : 'admin.accounts.inviteResetNoCredits') }}
             </div>
 
             <button
@@ -228,10 +228,16 @@ const messageType = ref<'success' | 'error' | ''>('')
 const showRules = ref(false)
 
 const availableCredits = computed(() => {
-  return (status.value?.credits ?? []).filter((credit) => {
-    const state = credit.status?.toLowerCase()
-    return !state || state === 'available'
-  })
+  return (status.value?.credits ?? [])
+    .filter((credit) => {
+      const state = credit.status?.toLowerCase()
+      return !state || state === 'available'
+    })
+    .sort((a, b) => {
+      // 优先使用最早到期的重置机会，避免可用 credit 在后台过期。
+      const expiryOrder = compareCreditExpiry(a.expires_at ?? '', b.expires_at ?? '')
+      return expiryOrder !== 0 ? expiryOrder : a.id.localeCompare(b.id)
+    })
 })
 
 const availableCount = computed(() => status.value?.available_count ?? availableCredits.value.length)
@@ -240,6 +246,9 @@ const rules = computed(() => status.value?.eligibility_rules ?? [])
 
 // 管理端始终展示上游资格信息，should_show 只作为 Codex Desktop 主动展示建议。
 const rewardTypeLabel = computed(() => {
+  if (status.value?.grant_type === 'none') {
+    return t('admin.accounts.inviteResetGrantTypeNone')
+  }
   if (status.value?.grant_type === 'rate_limit_reset') {
     return t('admin.accounts.inviteResetGrantTypeRateLimitReset')
   }
@@ -293,7 +302,9 @@ const creditExpirations = computed(() => {
 })
 
 const canConsume = computed(() => {
-  return Boolean(selectedCreditId.value) && !loading.value && !consuming.value && availableCredits.value.length > 0
+  if (loading.value || consuming.value || availableCount.value <= 0) return false
+  // usage 有次数但明细不可用时，允许不带 credit_id 使用上游自动选择模式。
+  return availableCredits.value.length === 0 || Boolean(selectedCreditId.value)
 })
 
 const inviteUnavailableMessage = computed(() => {
@@ -329,8 +340,9 @@ const getCreditExpiryTime = (value: string): number => {
 }
 
 const compareCreditExpiry = (a: string, b: string): number => {
-  const diff = getCreditExpiryTime(a) - getCreditExpiryTime(b)
-  if (diff !== 0) return diff
+  const left = getCreditExpiryTime(a)
+  const right = getCreditExpiryTime(b)
+  if (left !== right) return left - right
   return a.localeCompare(b)
 }
 
@@ -443,10 +455,13 @@ const consumeSuccessMessage = (code?: string) => {
 }
 
 const handleConsume = async () => {
-  if (!props.account || !selectedCreditId.value || consuming.value) return
+  if (!props.account || !canConsume.value) return
   consuming.value = true
   try {
-    const result = await adminAPI.accounts.consumeCodexInviteReset(props.account.id, selectedCreditId.value)
+    const result = await adminAPI.accounts.consumeCodexInviteReset(
+      props.account.id,
+      selectedCreditId.value ?? undefined
+    )
     const text = consumeSuccessMessage(result.code)
     setMessage(result.code === 'reset' || !result.code ? 'success' : 'error', text)
     if (result.code === 'reset' || !result.code) {

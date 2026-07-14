@@ -23,7 +23,8 @@ type codexInviteResetInviteRequest struct {
 }
 
 type codexInviteResetConsumeRequest struct {
-	CreditID string `json:"credit_id" binding:"required"`
+	// CreditID 可选；没有 credit 明细时由上游自动选择可用的重置机会。
+	CreditID string `json:"credit_id"`
 }
 
 // GetStatus 查询当前账号的邀请资格和可用重置次数。

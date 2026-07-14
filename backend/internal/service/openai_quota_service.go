@@ -91,11 +91,6 @@ type OpenAIQuotaResetCredit struct {
 	RedeemedAt      string `json:"redeemed_at,omitempty"`
 }
 
-// openAIQuotaResetCreditsPayload 是 /wham/rate-limit-reset-credits 的最小可用结构。
-type openAIQuotaResetCreditsPayload struct {
-	Credits []OpenAIQuotaResetCredit `json:"credits"`
-}
-
 // OpenAIQuotaResetResult 是 /wham/rate-limit-reset-credits/consume 的精简结果。
 type OpenAIQuotaResetResult struct {
 	Code         string                  `json:"code"`
@@ -134,7 +129,9 @@ func (s *OpenAIQuotaService) QueryUsage(ctx context.Context, accountID int64) (*
 	if err != nil {
 		return nil, err
 	}
-	raw, err := s.getJSON(ctx, accountCtx, chatGPTUsagePath)
+	raw, err := s.getJSON(ctx, accountCtx, chatGPTUsagePath, map[string]string{
+		"supports_rewardless_invites": codexInviteResetSupportsRewardless,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -151,7 +148,7 @@ func (s *OpenAIQuotaService) QueryUsage(ctx context.Context, accountID int64) (*
 }
 
 func (s *OpenAIQuotaService) queryResetCreditDetails(ctx context.Context, accountCtx *openAIQuotaAccountContext) []OpenAIRateLimitResetCreditDetail {
-	raw, err := s.getJSON(ctx, accountCtx, chatGPTRateLimitCreditsPath)
+	raw, err := s.getJSON(ctx, accountCtx, chatGPTRateLimitCreditsPath, nil)
 	if err != nil {
 		slog.Warn("openai_quota_reset_credit_details_failed", "account_id", accountCtx.account.ID, "error", err)
 		return nil
@@ -184,17 +181,12 @@ func (s *OpenAIQuotaService) ResetCredit(ctx context.Context, accountID int64) (
 	if err != nil {
 		return nil, err
 	}
-	creditID, err := s.pickAvailableResetCreditID(ctx, accountCtx)
-	if err != nil {
-		return nil, err
-	}
 	redeemRequestID, err := generateOpenAIQuotaRedeemRequestID()
 	if err != nil {
 		return nil, infraerrors.Newf(http.StatusInternalServerError, "OPENAI_QUOTA_REDEEM_ID_FAILED", "failed to generate redeem id: %v", err)
 	}
 
 	raw, err := s.postJSON(ctx, accountCtx, chatGPTRateLimitResetPath, map[string]any{
-		"credit_id":         creditID,
 		"redeem_request_id": redeemRequestID,
 	})
 	if err != nil {
@@ -211,27 +203,6 @@ func (s *OpenAIQuotaService) ResetCredit(ctx context.Context, accountID int64) (
 		"windows_reset", result.WindowsReset,
 	)
 	return &result, nil
-}
-
-// pickAvailableResetCreditID 按 Codex Desktop 逻辑先选择可用 credit，再传给 consume 接口。
-func (s *OpenAIQuotaService) pickAvailableResetCreditID(ctx context.Context, accountCtx *openAIQuotaAccountContext) (string, error) {
-	raw, err := s.getJSON(ctx, accountCtx, chatGPTRateLimitCreditsPath)
-	if err != nil {
-		return "", err
-	}
-
-	var payload openAIQuotaResetCreditsPayload
-	if err := remarshalOpenAIQuotaPayload(raw, &payload); err != nil {
-		return "", err
-	}
-	for _, credit := range payload.Credits {
-		// Codex Desktop 只消费 available；状态缺失时保守兼容上游旧响应。
-		status := strings.TrimSpace(strings.ToLower(credit.Status))
-		if strings.TrimSpace(credit.ID) != "" && (status == "" || status == "available") {
-			return strings.TrimSpace(credit.ID), nil
-		}
-	}
-	return "", infraerrors.BadRequest("OPENAI_QUOTA_NO_AVAILABLE_RESET_CREDIT", "no available rate limit reset credit")
 }
 
 type openAIQuotaAccountContext struct {
@@ -354,8 +325,8 @@ func (s *OpenAIQuotaService) resolveTLSProfile(account *Account, router *model.T
 	return s.tlsFPProfileService.ResolveTLSProfile(account)
 }
 
-func (s *OpenAIQuotaService) getJSON(ctx context.Context, accountCtx *openAIQuotaAccountContext, path string) (map[string]any, error) {
-	target, err := buildCodexInviteResetURL(path, nil)
+func (s *OpenAIQuotaService) getJSON(ctx context.Context, accountCtx *openAIQuotaAccountContext, path string, query map[string]string) (map[string]any, error) {
+	target, err := buildCodexInviteResetURL(path, query)
 	if err != nil {
 		return nil, err
 	}
