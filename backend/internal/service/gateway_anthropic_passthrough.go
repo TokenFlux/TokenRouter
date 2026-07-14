@@ -353,16 +353,14 @@ func (s *GatewayService) buildUpstreamRequestAnthropicAPIKeyPassthrough(
 		return nil, nil, err
 	}
 
-	if clientHeaders != nil {
-		for key, values := range clientHeaders {
-			lowerKey := strings.ToLower(strings.TrimSpace(key))
-			if !allowedHeaders[lowerKey] {
-				continue
-			}
-			wireKey := resolveWireCasing(key)
-			for _, v := range values {
-				addHeaderRaw(req.Header, wireKey, v)
-			}
+	for key, values := range clientHeaders {
+		lowerKey := strings.ToLower(strings.TrimSpace(key))
+		if !allowedHeaders[lowerKey] {
+			continue
+		}
+		wireKey := resolveWireCasing(key)
+		for _, v := range values {
+			addHeaderRaw(req.Header, wireKey, v)
 		}
 	}
 	// 透传白名单可能写入 Key 改写前的值，按系统策略裁决后的 beta 覆盖。

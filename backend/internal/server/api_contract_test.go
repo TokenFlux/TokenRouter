@@ -232,6 +232,7 @@ func TestAPIContracts(t *testing.T) {
 					"name": "Key One",
 					"group_id": null,
 					"status": "active",
+					"fast_mode_policy": "follow_request",
 					"ip_whitelist": null,
 					"ip_blacklist": null,
 					"last_used_at": null,
@@ -288,6 +289,7 @@ func TestAPIContracts(t *testing.T) {
 							"name": "Key One",
 							"group_id": null,
 							"status": "active",
+							"fast_mode_policy": "follow_request",
 							"ip_whitelist": null,
 							"ip_blacklist": null,
 							"last_used_at": null,
@@ -2460,6 +2462,10 @@ func (r *stubApiKeyRepo) MustSeed(key *service.APIKey) {
 		return
 	}
 	clone := *key
+	// 合约夹具与数据库默认值保持一致，避免返回生产环境不存在的空策略。
+	if clone.FastModePolicy == "" {
+		clone.FastModePolicy = service.APIKeyFastModePolicyFollowRequest
+	}
 	r.byID[clone.ID] = &clone
 	r.byKey[clone.Key] = &clone
 }
