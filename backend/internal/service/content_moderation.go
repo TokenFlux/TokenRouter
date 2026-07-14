@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -19,6 +20,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
@@ -55,41 +57,45 @@ const (
 	ContentModerationProtocolGemini            = "gemini"
 	ContentModerationProtocolOpenAIImages      = "openai_images"
 
-	defaultContentModerationBaseURL   = "https://api.openai.com"
-	defaultContentModerationModel     = "omni-moderation-latest"
-	defaultContentModerationTimeoutMS = 3000
-	maxContentModerationTimeoutMS     = 30000
-	maxModerationInputRunes           = 12000
-	maxModerationExcerptRunes         = 240
-	maxCyberWarningPromptExcerptRunes = 1000
+	defaultContentModerationBaseURL    = "https://api.openai.com"
+	defaultContentModerationModel      = "omni-moderation-latest"
+	defaultContentModerationTimeoutMS  = 3000
+	maxContentModerationTimeoutMS      = 30000
+	maxModerationInputRunes            = 12000
+	contentModerationChunkOverlap      = 256
+	contentModerationTextBatchSize     = 16
+	contentModerationImageConcurrency  = 4
+	contentModerationAuditTotalTimeout = 30 * time.Second
+	maxModerationExcerptRunes          = 240
+	maxCyberWarningPromptExcerptRunes  = 1000
 
-	defaultContentModerationWorkerCount          = 4
-	maxContentModerationWorkerCount              = 32
-	defaultContentModerationQueueSize            = 32768
-	maxContentModerationQueueSize                = 100000
-	defaultContentModerationBanThreshold         = 10
-	defaultContentModerationViolationWindowHours = 720
-	defaultContentModerationBlockHTTPStatus      = http.StatusForbidden
-	defaultContentModerationBlockMessage         = "内容审计命中风险规则，请调整输入后重试"
-	defaultContentModerationRetryCount           = 2
-	maxContentModerationRetryCount               = 5
-	defaultContentModerationHitRetentionDays     = 180
-	defaultContentModerationNonHitRetentionDays  = 3
-	defaultContentModerationCyberBanThreshold    = 10
-	defaultContentModerationCyberWindowHours     = 720
-	maxContentModerationRetentionDays            = 3650
-	maxContentModerationNonHitRetentionDays      = 3
-	contentModerationKeyRateLimitFreezeDuration  = time.Minute
-	contentModerationKeyAuthFreezeDuration       = 10 * time.Minute
-	contentModerationKeyHTTPErrorFreezeDuration  = 10 * time.Second
-	maxContentModerationInputImages              = 1
-	maxContentModerationTestImages               = maxContentModerationInputImages
-	maxContentModerationTestImageBytes           = 8 * 1024 * 1024
-	maxContentModerationTestImageDataURLBytes    = 12 * 1024 * 1024
-	maxContentModerationBlockedKeywords          = 10000
-	maxContentModerationBlockedKeywordRunes      = 200
-	maxContentModerationModelFilterModels        = 1000
-	maxContentModerationModelFilterRunes         = 200
+	defaultContentModerationWorkerCount                = 4
+	maxContentModerationWorkerCount                    = 32
+	defaultContentModerationQueueSize                  = 32768
+	maxContentModerationQueueSize                      = 100000
+	maxContentModerationBufferedBytes            int64 = 512 * 1024 * 1024
+	defaultContentModerationBanThreshold               = 10
+	defaultContentModerationViolationWindowHours       = 720
+	defaultContentModerationBlockHTTPStatus            = http.StatusForbidden
+	defaultContentModerationBlockMessage               = "内容审计命中风险规则，请调整输入后重试"
+	defaultContentModerationRetryCount                 = 2
+	maxContentModerationRetryCount                     = 5
+	defaultContentModerationHitRetentionDays           = 180
+	defaultContentModerationNonHitRetentionDays        = 3
+	defaultContentModerationCyberBanThreshold          = 10
+	defaultContentModerationCyberWindowHours           = 720
+	maxContentModerationRetentionDays                  = 3650
+	maxContentModerationNonHitRetentionDays            = 3
+	contentModerationKeyRateLimitFreezeDuration        = time.Minute
+	contentModerationKeyAuthFreezeDuration             = 10 * time.Minute
+	contentModerationKeyHTTPErrorFreezeDuration        = 10 * time.Second
+	maxContentModerationTestImages                     = 8
+	maxContentModerationTestImageBytes                 = 8 * 1024 * 1024
+	maxContentModerationTestImageDataURLBytes          = 12 * 1024 * 1024
+	maxContentModerationBlockedKeywords                = 10000
+	maxContentModerationBlockedKeywordRunes            = 200
+	maxContentModerationModelFilterModels              = 1000
+	maxContentModerationModelFilterRunes               = 200
 
 	contentModerationCleanupInterval = 24 * time.Hour
 	contentModerationCleanupTimeout  = 30 * time.Minute
@@ -318,17 +324,59 @@ type ContentModerationCheckInput struct {
 	Body       []byte
 }
 
+const (
+	ContentModerationSourceUser  = "user"
+	ContentModerationSourceTool  = "tool"
+	ContentModerationSourceMixed = "mixed"
+
+	ContentModerationItemTypeText    = "text"
+	ContentModerationItemTypeImage   = "image"
+	ContentModerationItemTypeRequest = "request"
+)
+
+// ContentModerationInputItem 是管理员复审时展示的完整当前轮内容单元。
+type ContentModerationInputItem struct {
+	Index    int    `json:"index"`
+	Source   string `json:"source"`
+	Type     string `json:"type"`
+	Text     string `json:"text,omitempty"`
+	ImageRef string `json:"image_ref,omitempty"`
+}
+
+// ContentModerationImage 保留图片引用与其在结构化输入中的来源位置。
+type ContentModerationImage struct {
+	SourceIndex int    `json:"source_index"`
+	Source      string `json:"source"`
+	Reference   string `json:"reference"`
+}
+
 type ContentModerationInput struct {
-	Text   string
-	Images []string
+	Text       string
+	Images     []string
+	Items      []ContentModerationInputItem
+	ImageItems []ContentModerationImage
+	Source     string
 }
 
 func (in *ContentModerationInput) Normalize() {
 	if in == nil {
 		return
 	}
-	in.Text = trimRunes(normalizeContentModerationText(in.Text), maxModerationInputRunes)
+	// 完整原文用于分块审核和管理员复审，不能在这里截断或折叠空白。
 	in.Images = normalizeModerationImages(in.Images)
+	if len(in.Items) == 0 {
+		if strings.TrimSpace(in.Text) != "" {
+			in.Items = append(in.Items, ContentModerationInputItem{Index: len(in.Items), Source: ContentModerationSourceUser, Type: ContentModerationItemTypeText, Text: in.Text})
+		}
+		for _, image := range in.Images {
+			item := ContentModerationInputItem{Index: len(in.Items), Source: ContentModerationSourceUser, Type: ContentModerationItemTypeImage, ImageRef: image}
+			in.Items = append(in.Items, item)
+			in.ImageItems = append(in.ImageItems, ContentModerationImage{SourceIndex: item.Index, Source: item.Source, Reference: image})
+		}
+	}
+	if in.Source == "" {
+		in.Source = contentModerationInputSource(in.Items)
+	}
 }
 
 func (in ContentModerationInput) IsEmpty() bool {
@@ -336,21 +384,47 @@ func (in ContentModerationInput) IsEmpty() bool {
 }
 
 func (in ContentModerationInput) ModerationInput() any {
-	images := limitContentModerationImages(in.Images)
-	if len(images) == 0 {
+	if len(in.Images) == 0 {
 		return in.Text
 	}
-	parts := make([]moderationAPIInputPart, 0, len(images)+1)
+	parts := make([]moderationAPIInputPart, 0, len(in.Images)+1)
 	if strings.TrimSpace(in.Text) != "" {
 		parts = append(parts, moderationAPIInputPart{Type: "text", Text: in.Text})
 	}
-	for _, image := range images {
+	for _, image := range in.Images {
 		parts = append(parts, moderationAPIInputPart{
 			Type:     "image_url",
 			ImageURL: &moderationAPIImageURLRef{URL: image},
 		})
 	}
 	return parts
+}
+
+func normalizeContentModerationSource(source string) string {
+	if strings.EqualFold(strings.TrimSpace(source), ContentModerationSourceTool) {
+		return ContentModerationSourceTool
+	}
+	return ContentModerationSourceUser
+}
+
+func contentModerationInputSource(items []ContentModerationInputItem) string {
+	hasUser := false
+	hasTool := false
+	for _, item := range items {
+		switch normalizeContentModerationSource(item.Source) {
+		case ContentModerationSourceTool:
+			hasTool = true
+		default:
+			hasUser = true
+		}
+	}
+	if hasUser && hasTool {
+		return ContentModerationSourceMixed
+	}
+	if hasTool {
+		return ContentModerationSourceTool
+	}
+	return ContentModerationSourceUser
 }
 
 func (in ContentModerationInput) ExcerptText() string {
@@ -382,59 +456,102 @@ type ContentModerationDecision struct {
 	Action          string             `json:"action"`
 }
 
+// ContentModerationFailedUnit 记录未完成审核的单元及错误原因。
+type ContentModerationFailedUnit struct {
+	Type        string `json:"type"`
+	Index       int    `json:"index"`
+	SourceIndex int    `json:"source_index"`
+	Error       string `json:"error"`
+}
+
+// ContentModerationMedia 保存管理员复审所需的图片快照及获取状态。
+type ContentModerationMedia struct {
+	ID             int64     `json:"id"`
+	LogID          *int64    `json:"-"`
+	CyberWarningID *int64    `json:"-"`
+	SourceIndex    int       `json:"source_index"`
+	Source         string    `json:"source"`
+	MIMEType       string    `json:"mime_type"`
+	SHA256         string    `json:"sha256"`
+	ByteSize       int64     `json:"byte_size"`
+	OriginalRef    string    `json:"original_ref"`
+	SnapshotStatus string    `json:"snapshot_status"`
+	SnapshotError  string    `json:"snapshot_error"`
+	Content        []byte    `json:"-"`
+	CreatedAt      time.Time `json:"created_at"`
+}
+
 type ContentModerationLog struct {
-	ID                int64              `json:"id"`
-	RequestID         string             `json:"request_id"`
-	UserID            *int64             `json:"user_id,omitempty"`
-	UserEmail         string             `json:"user_email"`
-	APIKeyID          *int64             `json:"api_key_id,omitempty"`
-	APIKeyName        string             `json:"api_key_name"`
-	GroupID           *int64             `json:"group_id,omitempty"`
-	GroupName         string             `json:"group_name"`
-	Endpoint          string             `json:"endpoint"`
-	Provider          string             `json:"provider"`
-	Model             string             `json:"model"`
-	Mode              string             `json:"mode"`
-	Action            string             `json:"action"`
-	Flagged           bool               `json:"flagged"`
-	HighestCategory   string             `json:"highest_category"`
-	HighestScore      float64            `json:"highest_score"`
-	MatchedKeyword    string             `json:"matched_keyword"`
-	CategoryScores    map[string]float64 `json:"category_scores"`
-	ThresholdSnapshot map[string]float64 `json:"threshold_snapshot"`
-	InputExcerpt      string             `json:"input_excerpt"`
-	UpstreamLatencyMS *int               `json:"upstream_latency_ms,omitempty"`
-	Error             string             `json:"error"`
-	ViolationCount    int                `json:"violation_count"`
-	AutoBanned        bool               `json:"auto_banned"`
-	EmailSent         bool               `json:"email_sent"`
-	UserStatus        string             `json:"user_status"`
-	QueueDelayMS      *int               `json:"queue_delay_ms,omitempty"`
-	CreatedAt         time.Time          `json:"created_at"`
+	ID                int64                         `json:"id"`
+	RequestID         string                        `json:"request_id"`
+	UserID            *int64                        `json:"user_id,omitempty"`
+	UserEmail         string                        `json:"user_email"`
+	APIKeyID          *int64                        `json:"api_key_id,omitempty"`
+	APIKeyName        string                        `json:"api_key_name"`
+	GroupID           *int64                        `json:"group_id,omitempty"`
+	GroupName         string                        `json:"group_name"`
+	Endpoint          string                        `json:"endpoint"`
+	Provider          string                        `json:"provider"`
+	Model             string                        `json:"model"`
+	Mode              string                        `json:"mode"`
+	Action            string                        `json:"action"`
+	Flagged           bool                          `json:"flagged"`
+	HighestCategory   string                        `json:"highest_category"`
+	HighestScore      float64                       `json:"highest_score"`
+	MatchedKeyword    string                        `json:"matched_keyword"`
+	CategoryScores    map[string]float64            `json:"category_scores"`
+	ThresholdSnapshot map[string]float64            `json:"threshold_snapshot"`
+	InputExcerpt      string                        `json:"input_excerpt"`
+	Source            string                        `json:"source"`
+	InputItems        []ContentModerationInputItem  `json:"input_items,omitempty"`
+	ContentComplete   bool                          `json:"content_complete"`
+	AuditComplete     bool                          `json:"audit_complete"`
+	TextUnitCount     int                           `json:"text_unit_count"`
+	ImageUnitCount    int                           `json:"image_unit_count"`
+	FailedUnitCount   int                           `json:"failed_unit_count"`
+	FailedUnits       []ContentModerationFailedUnit `json:"failed_units,omitempty"`
+	Media             []ContentModerationMedia      `json:"media,omitempty"`
+	UpstreamLatencyMS *int                          `json:"upstream_latency_ms,omitempty"`
+	Error             string                        `json:"error"`
+	ViolationCount    int                           `json:"violation_count"`
+	AutoBanned        bool                          `json:"auto_banned"`
+	EmailSent         bool                          `json:"email_sent"`
+	UserStatus        string                        `json:"user_status"`
+	QueueDelayMS      *int                          `json:"queue_delay_ms,omitempty"`
+	CreatedAt         time.Time                     `json:"created_at"`
 }
 
 // ContentModerationCyberWarning 表示一次 OpenAI 上游 cyber 风控拒绝事件。
 type ContentModerationCyberWarning struct {
-	ID             int64     `json:"id"`
-	RequestID      string    `json:"request_id"`
-	UserID         *int64    `json:"user_id,omitempty"`
-	UserEmail      string    `json:"user_email"`
-	APIKeyID       *int64    `json:"api_key_id,omitempty"`
-	APIKeyName     string    `json:"api_key_name"`
-	GroupID        *int64    `json:"group_id,omitempty"`
-	GroupName      string    `json:"group_name"`
-	AccountID      *int64    `json:"account_id,omitempty"`
-	AccountName    string    `json:"account_name"`
-	Endpoint       string    `json:"endpoint"`
-	Model          string    `json:"model"`
-	UpstreamStatus int       `json:"upstream_status"`
-	WarningText    string    `json:"warning_text"`
-	PromptExcerpt  string    `json:"prompt_excerpt"`
-	ViolationCount int       `json:"violation_count"`
-	AutoBanned     bool      `json:"auto_banned"`
-	EmailSent      bool      `json:"email_sent"`
-	UserStatus     string    `json:"user_status"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID              int64                         `json:"id"`
+	RequestID       string                        `json:"request_id"`
+	UserID          *int64                        `json:"user_id,omitempty"`
+	UserEmail       string                        `json:"user_email"`
+	APIKeyID        *int64                        `json:"api_key_id,omitempty"`
+	APIKeyName      string                        `json:"api_key_name"`
+	GroupID         *int64                        `json:"group_id,omitempty"`
+	GroupName       string                        `json:"group_name"`
+	AccountID       *int64                        `json:"account_id,omitempty"`
+	AccountName     string                        `json:"account_name"`
+	Endpoint        string                        `json:"endpoint"`
+	Model           string                        `json:"model"`
+	UpstreamStatus  int                           `json:"upstream_status"`
+	WarningText     string                        `json:"warning_text"`
+	PromptExcerpt   string                        `json:"prompt_excerpt"`
+	Source          string                        `json:"source"`
+	InputItems      []ContentModerationInputItem  `json:"input_items,omitempty"`
+	ContentComplete bool                          `json:"content_complete"`
+	AuditComplete   bool                          `json:"audit_complete"`
+	TextUnitCount   int                           `json:"text_unit_count"`
+	ImageUnitCount  int                           `json:"image_unit_count"`
+	FailedUnitCount int                           `json:"failed_unit_count"`
+	FailedUnits     []ContentModerationFailedUnit `json:"failed_units,omitempty"`
+	Media           []ContentModerationMedia      `json:"media,omitempty"`
+	ViolationCount  int                           `json:"violation_count"`
+	AutoBanned      bool                          `json:"auto_banned"`
+	EmailSent       bool                          `json:"email_sent"`
+	UserStatus      string                        `json:"user_status"`
+	CreatedAt       time.Time                     `json:"created_at"`
 }
 
 // ContentModerationCyberWarningPolicy 描述 cyber 警告落库后的窗口计数和封禁策略。
@@ -461,6 +578,7 @@ type ContentModerationCyberWarningInput struct {
 	ResponseBody   []byte
 	WarningText    string
 	PromptExcerpt  string
+	Content        ContentModerationInput
 }
 
 type ContentModerationLogFilter struct {
@@ -514,6 +632,7 @@ type ContentModerationCyberAccountSummary struct {
 type ContentModerationCleanupResult struct {
 	DeletedHit    int64     `json:"deleted_hit"`
 	DeletedNonHit int64     `json:"deleted_non_hit"`
+	DeletedCyber  int64     `json:"deleted_cyber"`
 	FinishedAt    time.Time `json:"finished_at"`
 }
 
@@ -576,6 +695,13 @@ type ContentModerationRepository interface {
 	CleanupExpiredLogs(ctx context.Context, hitBefore time.Time, nonHitBefore time.Time) (*ContentModerationCleanupResult, error)
 }
 
+// ContentModerationReviewRepository 提供只用于管理员详情页的完整复审材料读取能力。
+type ContentModerationReviewRepository interface {
+	GetLog(ctx context.Context, id int64) (*ContentModerationLog, error)
+	GetCyberWarning(ctx context.Context, id int64) (*ContentModerationCyberWarning, error)
+	GetMediaContent(ctx context.Context, id int64) (*ContentModerationMedia, error)
+}
+
 type ContentModerationHashCache interface {
 	RecordFlaggedInputHash(ctx context.Context, inputHash string) error
 	HasFlaggedInputHash(ctx context.Context, inputHash string) (bool, error)
@@ -601,6 +727,7 @@ type ContentModerationService struct {
 	asyncDropped             atomic.Int64
 	asyncProcessed           atomic.Int64
 	asyncErrors              atomic.Int64
+	asyncBufferedBytes       atomic.Int64
 	preBlockActive           atomic.Int64
 	preBlockChecked          atomic.Int64
 	preBlockAllowed          atomic.Int64
@@ -622,6 +749,7 @@ type contentModerationTask struct {
 	config           *ContentModerationConfig
 	recordHash       bool
 	applySideEffects bool
+	bufferedBytes    int64
 	enqueuedAt       time.Time
 }
 
@@ -861,8 +989,8 @@ func (s *ContentModerationService) TestAPIKeys(ctx context.Context, input TestCo
 			s.markAPIKeyError(key, err.Error(), latency, httpStatus)
 		} else {
 			s.markAPIKeySuccess(key, latency, httpStatus)
-			if auditResult == nil {
-				auditResult = buildContentModerationTestAuditResult(result, cfg.Thresholds)
+			if auditResult == nil && len(result) > 0 {
+				auditResult = buildContentModerationTestAuditResult(&result[0], cfg.Thresholds)
 			}
 		}
 		status := s.apiKeyStatusForHash(idx, keyHash, maskSecretTail(key), configured)
@@ -1003,9 +1131,11 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 					"keyword_blocking_mode", cfg.KeywordBlockingMode,
 					"keyword", keyword)
 				scores := map[string]float64{contentModerationKeywordCategory: 1.0}
-				log := s.buildLog(input, cfg, ContentModerationActionKeywordBlock, true, contentModerationKeywordCategory, 1.0, scores, content.ExcerptText(), nil, nil, "")
+				log := s.buildStructuredLog(input, cfg, ContentModerationActionKeywordBlock, true, contentModerationKeywordCategory, 1.0, scores, content, nil, nil, "", nil)
 				log.MatchedKeyword = keyword
-				s.enqueueRecord(input, cfg, log, hashText, false, true)
+				if !s.enqueueRecord(input, cfg, log, hashText, false, true) {
+					s.persistContentModerationLog(ctx, cfg, log, hashText, false, true)
+				}
 				return &ContentModerationDecision{
 					Allowed:         false,
 					Blocked:         true,
@@ -1051,8 +1181,10 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 				message = fmt.Sprintf("%s（hash: %s）", message, hashText)
 			}
 			scores := map[string]float64{"hash": 1.0}
-			log := s.buildLog(input, cfg, ContentModerationActionHashBlock, true, "hash", 1.0, scores, content.ExcerptText(), nil, nil, "")
-			s.enqueueRecord(input, cfg, log, hashText, false, false)
+			log := s.buildStructuredLog(input, cfg, ContentModerationActionHashBlock, true, "hash", 1.0, scores, content, nil, nil, "", nil)
+			if !s.enqueueRecord(input, cfg, log, hashText, false, false) {
+				s.persistContentModerationLog(ctx, cfg, log, hashText, false, false)
+			}
 			return &ContentModerationDecision{
 				Allowed:    false,
 				Blocked:    true,
@@ -1077,18 +1209,6 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 			"sample_rate", cfg.SampleRate)
 		return allow, nil
 	}
-	if len(cfg.apiKeys()) == 0 {
-		if cfg.Mode == ContentModerationModePreBlock {
-			s.recordPreBlockSyncMetric(0, ContentModerationActionError)
-		}
-		slog.Warn("content_moderation.skip_no_audit_api_keys",
-			"user_id", input.UserID,
-			"api_key_id", input.APIKeyID,
-			"group_id", contentModerationLogGroupID(input.GroupID),
-			"endpoint", input.Endpoint,
-			"protocol", input.Protocol)
-		return allow, nil
-	}
 	if cfg.Mode == ContentModerationModeObserve {
 		slog.Info("content_moderation.enqueue_observe",
 			"user_id", input.UserID,
@@ -1097,7 +1217,22 @@ func (s *ContentModerationService) Check(ctx context.Context, input ContentModer
 			"endpoint", input.Endpoint,
 			"protocol", input.Protocol,
 			"queue_len", len(s.asyncQueue))
-		s.enqueueAsync(input, cfg, content, hashText)
+		if !s.enqueueAsync(input, cfg, content, hashText) {
+			queueErr := errors.New("content moderation queue capacity exceeded")
+			audit := &contentModerationAuditResult{
+				CategoryScores: make(map[string]float64),
+				FailedUnits: []ContentModerationFailedUnit{{
+					Type:  ContentModerationItemTypeRequest,
+					Index: 0,
+					Error: queueErr.Error(),
+				}},
+				TextUnitCount:  countContentModerationTextChunks(content.Text, maxModerationInputRunes, contentModerationChunkOverlap),
+				ImageUnitCount: len(content.ImageItems),
+				AuditComplete:  false,
+			}
+			log := s.buildStructuredLog(input, cfg, ContentModerationActionError, false, "", 0, nil, content, nil, nil, queueErr.Error(), audit)
+			s.persistContentModerationLog(ctx, cfg, log, hashText, false, false)
+		}
 		return allow, nil
 	}
 
@@ -1112,9 +1247,12 @@ func (s *ContentModerationService) checkSync(ctx context.Context, input ContentM
 		defer s.preBlockActive.Add(-1)
 	}
 	start := time.Now()
-	result, err := s.callModeration(ctx, cfg, content.ModerationInput(), trackPreBlock)
+	// 单次审核共享总期限，避免超长输入按批次串行累加上游超时。
+	auditCtx, cancel := context.WithTimeout(ctx, contentModerationAuditTotalTimeout)
+	result := s.auditContentModerationInput(auditCtx, cfg, content, trackPreBlock)
+	cancel()
 	latency := int(time.Since(start).Milliseconds())
-	if err != nil {
+	if result.SuccessfulUnits == 0 {
 		if trackPreBlock {
 			s.recordPreBlockSyncMetric(latency, ContentModerationActionError)
 		}
@@ -1128,14 +1266,13 @@ func (s *ContentModerationService) checkSync(ctx context.Context, input ContentM
 			"allow_block", allowBlock,
 			"queue_delay_ms", queueDelay,
 			"latency_ms", latency,
-			"error", err)
+			"error", result.ErrorText())
 		if queueDelay != nil {
 			s.asyncErrors.Add(1)
 		}
-		if cfg.RecordNonHits {
-			log := s.buildLog(input, cfg, ContentModerationActionError, false, "", 0, nil, content.ExcerptText(), &latency, queueDelay, err.Error())
-			_ = s.repo.CreateLog(ctx, log)
-		}
+		// 审核失败采用 fail-open，但必须无条件保存不完整记录供管理员排查。
+		log := s.buildStructuredLog(input, cfg, ContentModerationActionError, false, "", 0, nil, content, &latency, queueDelay, result.ErrorText(), result)
+		s.persistContentModerationLog(ctx, cfg, log, hashText, false, false)
 		return allow
 	}
 
@@ -1165,10 +1302,13 @@ func (s *ContentModerationService) checkSync(ctx context.Context, input ContentM
 		"highest_score", highestScore,
 		"latency_ms", latency,
 		"queue_delay_ms", queueDelay)
-	if flagged || cfg.RecordNonHits {
-		log := s.buildLog(input, cfg, action, flagged, highestCategory, highestScore, result.CategoryScores, content.ExcerptText(), &latency, queueDelay, "")
+	if flagged || cfg.RecordNonHits || !result.AuditComplete {
+		log := s.buildStructuredLog(input, cfg, action, flagged, highestCategory, highestScore, result.CategoryScores, content, &latency, queueDelay, result.ErrorText(), result)
+		log.Media = contentModerationHitMedia(content, result.FlaggedImageIndexes)
 		if queueDelay == nil && cfg.Mode == ContentModerationModePreBlock {
-			s.enqueueRecord(input, cfg, log, hashText, flagged, flagged)
+			if !s.enqueueRecord(input, cfg, log, hashText, flagged, flagged) {
+				s.persistContentModerationLog(ctx, cfg, log, hashText, flagged, flagged)
+			}
 		} else {
 			s.persistContentModerationLog(ctx, cfg, log, hashText, flagged, flagged)
 		}
@@ -1197,6 +1337,280 @@ func (s *ContentModerationService) checkSync(ctx context.Context, input ContentM
 	}
 }
 
+type contentModerationAuditResult struct {
+	CategoryScores      map[string]float64
+	FailedUnits         []ContentModerationFailedUnit
+	FlaggedImageIndexes []int
+	TextUnitCount       int
+	ImageUnitCount      int
+	SuccessfulUnits     int
+	AuditComplete       bool
+}
+
+func (r *contentModerationAuditResult) ErrorText() string {
+	if r == nil || len(r.FailedUnits) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(r.FailedUnits))
+	for _, unit := range r.FailedUnits {
+		parts = append(parts, fmt.Sprintf("%s[%d]: %s", unit.Type, unit.Index, unit.Error))
+	}
+	return strings.Join(parts, "; ")
+}
+
+type contentModerationUnitResult struct {
+	unitType    string
+	index       int
+	sourceIndex int
+	result      *moderationAPIResult
+	err         error
+}
+
+type contentModerationAPIError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *contentModerationAPIError) Error() string {
+	if e == nil {
+		return "moderation api error"
+	}
+	return fmt.Sprintf("moderation api status %d: %s", e.StatusCode, e.Message)
+}
+
+// auditContentModerationInput 汇总全部文本分块和图片单元，任一单元命中即可命中整个请求。
+func (s *ContentModerationService) auditContentModerationInput(ctx context.Context, cfg *ContentModerationConfig, content ContentModerationInput, trackKeyLoad bool) *contentModerationAuditResult {
+	result := &contentModerationAuditResult{
+		CategoryScores: make(map[string]float64),
+		TextUnitCount:  countContentModerationTextChunks(content.Text, maxModerationInputRunes, contentModerationChunkOverlap),
+		ImageUnitCount: len(content.ImageItems),
+	}
+	forEachContentModerationTextBatch(content.Text, maxModerationInputRunes, contentModerationChunkOverlap, contentModerationTextBatchSize, func(batchStart int, chunks []string) {
+		unitResults := s.auditTextBatch(ctx, cfg, chunks, batchStart, trackKeyLoad)
+		for _, unit := range unitResults {
+			mergeContentModerationUnitResult(result, unit, cfg.Thresholds)
+		}
+	})
+
+	if len(content.ImageItems) > 0 {
+		workerCount := min(contentModerationImageConcurrency, len(content.ImageItems))
+		results := make(chan contentModerationUnitResult, workerCount)
+		jobs := make(chan int)
+		var wg sync.WaitGroup
+		for worker := 0; worker < workerCount; worker++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for index := range jobs {
+					image := content.ImageItems[index]
+					if err := ctx.Err(); err != nil {
+						results <- contentModerationUnitResult{unitType: ContentModerationItemTypeImage, index: index, sourceIndex: image.SourceIndex, err: err}
+						continue
+					}
+					parts := []moderationAPIInputPart{{Type: "image_url", ImageURL: &moderationAPIImageURLRef{URL: image.Reference}}}
+					apiResult, err := s.callModeration(ctx, cfg, parts, trackKeyLoad)
+					results <- contentModerationUnitResult{unitType: ContentModerationItemTypeImage, index: index, sourceIndex: image.SourceIndex, result: apiResult, err: err}
+				}
+			}()
+		}
+		go func() {
+			for index := range content.ImageItems {
+				jobs <- index
+			}
+			close(jobs)
+			wg.Wait()
+			close(results)
+		}()
+		for unit := range results {
+			mergeContentModerationUnitResult(result, unit, cfg.Thresholds)
+		}
+	}
+	result.AuditComplete = len(result.FailedUnits) == 0
+	return result
+}
+
+func (s *ContentModerationService) auditTextBatch(ctx context.Context, cfg *ContentModerationConfig, chunks []string, startIndex int, trackKeyLoad bool) []contentModerationUnitResult {
+	if len(chunks) == 0 {
+		return nil
+	}
+	input := any(chunks)
+	if len(chunks) == 1 {
+		input = chunks[0]
+	}
+	results, err := s.callModerationBatch(ctx, cfg, input, trackKeyLoad)
+	if err == nil && len(results) == len(chunks) {
+		out := make([]contentModerationUnitResult, 0, len(results))
+		for index := range results {
+			item := results[index]
+			out = append(out, contentModerationUnitResult{unitType: ContentModerationItemTypeText, index: startIndex + index, result: &item})
+		}
+		return out
+	}
+	resultCountMismatch := err == nil && len(results) != len(chunks)
+	if resultCountMismatch {
+		err = fmt.Errorf("moderation api returned %d results for %d inputs", len(results), len(chunks))
+	}
+	if len(chunks) == 1 {
+		return []contentModerationUnitResult{{unitType: ContentModerationItemTypeText, index: startIndex, err: err}}
+	}
+	if !resultCountMismatch && !isContentModerationBatchUnsupportedError(err) {
+		out := make([]contentModerationUnitResult, 0, len(chunks))
+		for index := range chunks {
+			out = append(out, contentModerationUnitResult{unitType: ContentModerationItemTypeText, index: startIndex + index, err: err})
+		}
+		return out
+	}
+	// 仅在上游明确拒绝批量形态时逐条重试，避免服务故障期间放大请求量。
+	out := make([]contentModerationUnitResult, 0, len(chunks))
+	for index, chunk := range chunks {
+		item, singleErr := s.callModeration(ctx, cfg, chunk, trackKeyLoad)
+		out = append(out, contentModerationUnitResult{unitType: ContentModerationItemTypeText, index: startIndex + index, result: item, err: singleErr})
+	}
+	return out
+}
+
+func isContentModerationBatchUnsupportedError(err error) bool {
+	var apiErr *contentModerationAPIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusBadRequest {
+		return false
+	}
+	message := strings.ToLower(apiErr.Message)
+	for _, marker := range []string{"batch", "array", "must be a string", "expected string", "unsupported input"} {
+		if strings.Contains(message, marker) {
+			return true
+		}
+	}
+	return false
+}
+
+func mergeContentModerationUnitResult(target *contentModerationAuditResult, unit contentModerationUnitResult, thresholds map[string]float64) {
+	if target == nil {
+		return
+	}
+	if unit.err != nil || unit.result == nil {
+		errText := "moderation api returned no result"
+		if unit.err != nil {
+			errText = unit.err.Error()
+		}
+		target.FailedUnits = append(target.FailedUnits, ContentModerationFailedUnit{Type: unit.unitType, Index: unit.index, SourceIndex: unit.sourceIndex, Error: errText})
+		return
+	}
+	target.SuccessfulUnits++
+	for category, score := range unit.result.CategoryScores {
+		if current, ok := target.CategoryScores[category]; !ok || score > current {
+			target.CategoryScores[category] = score
+		}
+	}
+	flagged, _, _ := evaluateModerationScores(unit.result.CategoryScores, thresholds)
+	if flagged && unit.unitType == ContentModerationItemTypeImage {
+		target.FlaggedImageIndexes = append(target.FlaggedImageIndexes, unit.index)
+	}
+}
+
+func splitContentModerationText(text string, chunkSize int, overlap int) []string {
+	chunks := make([]string, 0, countContentModerationTextChunks(text, chunkSize, overlap))
+	forEachContentModerationTextBatch(text, chunkSize, overlap, contentModerationTextBatchSize, func(_ int, batch []string) {
+		chunks = append(chunks, batch...)
+	})
+	return chunks
+}
+
+func normalizeContentModerationChunkOptions(chunkSize int, overlap int) (int, int) {
+	if chunkSize <= 0 {
+		chunkSize = maxModerationInputRunes
+	}
+	if overlap < 0 {
+		overlap = 0
+	}
+	if overlap >= chunkSize {
+		overlap = chunkSize - 1
+	}
+	return chunkSize, overlap
+}
+
+func countContentModerationTextChunks(text string, chunkSize int, overlap int) int {
+	if strings.TrimSpace(text) == "" {
+		return 0
+	}
+	chunkSize, overlap = normalizeContentModerationChunkOptions(chunkSize, overlap)
+	runeCount := utf8.RuneCountInString(text)
+	if runeCount <= chunkSize {
+		return 1
+	}
+	step := chunkSize - overlap
+	return 1 + (runeCount-chunkSize+step-1)/step
+}
+
+// forEachContentModerationTextBatch 仅保留当前批次和重叠窗口，避免超长输入整体展开为 []rune。
+func forEachContentModerationTextBatch(text string, chunkSize int, overlap int, batchSize int, visit func(startIndex int, chunks []string)) {
+	if strings.TrimSpace(text) == "" || visit == nil {
+		return
+	}
+	chunkSize, overlap = normalizeContentModerationChunkOptions(chunkSize, overlap)
+	if batchSize <= 0 {
+		batchSize = contentModerationTextBatchSize
+	}
+	reader := strings.NewReader(text)
+	carry := make([]rune, 0, overlap)
+	batch := make([]string, 0, batchSize)
+	batchStart := 0
+	chunkIndex := 0
+	for {
+		chunkRunes := make([]rune, len(carry), chunkSize)
+		copy(chunkRunes, carry)
+		reachedEOF := false
+		for len(chunkRunes) < chunkSize {
+			r, _, err := reader.ReadRune()
+			if errors.Is(err, io.EOF) {
+				reachedEOF = true
+				break
+			}
+			if err != nil {
+				reachedEOF = true
+				break
+			}
+			chunkRunes = append(chunkRunes, r)
+		}
+		if len(chunkRunes) == chunkSize && reader.Len() == 0 {
+			reachedEOF = true
+		}
+		if len(chunkRunes) == 0 {
+			break
+		}
+		batch = append(batch, string(chunkRunes))
+		chunkIndex++
+		if len(batch) == batchSize {
+			visit(batchStart, batch)
+			batchStart = chunkIndex
+			batch = make([]string, 0, batchSize)
+		}
+		if reachedEOF {
+			break
+		}
+		carry = append(carry[:0], chunkRunes[len(chunkRunes)-overlap:]...)
+	}
+	if len(batch) > 0 {
+		visit(batchStart, batch)
+	}
+}
+
+func contentModerationHitMedia(content ContentModerationInput, indexes []int) []ContentModerationMedia {
+	media := make([]ContentModerationMedia, 0, len(indexes))
+	seen := make(map[int]struct{}, len(indexes))
+	for _, index := range indexes {
+		if index < 0 || index >= len(content.ImageItems) {
+			continue
+		}
+		if _, ok := seen[index]; ok {
+			continue
+		}
+		seen[index] = struct{}{}
+		image := content.ImageItems[index]
+		media = append(media, ContentModerationMedia{SourceIndex: image.SourceIndex, Source: image.Source, OriginalRef: image.Reference, SnapshotStatus: "pending"})
+	}
+	return media
+}
+
 func (s *ContentModerationService) recordPreBlockSyncMetric(latencyMS int, action string) {
 	if s == nil {
 		return
@@ -1216,9 +1630,9 @@ func (s *ContentModerationService) recordPreBlockSyncMetric(latencyMS int, actio
 	}
 }
 
-func (s *ContentModerationService) enqueueAsync(input ContentModerationCheckInput, cfg *ContentModerationConfig, content ContentModerationInput, hashText string) {
+func (s *ContentModerationService) enqueueAsync(input ContentModerationCheckInput, cfg *ContentModerationConfig, content ContentModerationInput, hashText string) bool {
 	if s == nil || s.asyncQueue == nil {
-		return
+		return false
 	}
 	queueSize := defaultContentModerationQueueSize
 	if cfg != nil && cfg.QueueSize > 0 {
@@ -1227,26 +1641,37 @@ func (s *ContentModerationService) enqueueAsync(input ContentModerationCheckInpu
 	if len(s.asyncQueue) >= queueSize {
 		slog.Warn("content_moderation.async_queue_full", "user_id", input.UserID, "endpoint", input.Endpoint, "queue_size", queueSize)
 		s.asyncDropped.Add(1)
-		return
+		return false
 	}
+	input.Body = nil
+	content = compactContentModerationInputForQueue(content)
 	task := contentModerationTask{
 		input:      input,
 		content:    content,
 		inputHash:  hashText,
 		enqueuedAt: time.Now(),
 	}
+	task.bufferedBytes = estimateContentModerationTaskBytes(task)
+	if !s.reserveContentModerationBufferedBytes(task.bufferedBytes) {
+		slog.Warn("content_moderation.async_queue_bytes_full", "user_id", input.UserID, "endpoint", input.Endpoint, "task_bytes", task.bufferedBytes, "max_bytes", maxContentModerationBufferedBytes)
+		s.asyncDropped.Add(1)
+		return false
+	}
 	select {
 	case s.asyncQueue <- task:
 		s.asyncEnqueued.Add(1)
+		return true
 	default:
+		s.releaseContentModerationBufferedBytes(task.bufferedBytes)
 		slog.Warn("content_moderation.async_queue_full", "user_id", input.UserID, "endpoint", input.Endpoint)
 		s.asyncDropped.Add(1)
+		return false
 	}
 }
 
-func (s *ContentModerationService) enqueueRecord(input ContentModerationCheckInput, cfg *ContentModerationConfig, log *ContentModerationLog, inputHash string, recordHash bool, applySideEffects bool) {
+func (s *ContentModerationService) enqueueRecord(input ContentModerationCheckInput, cfg *ContentModerationConfig, log *ContentModerationLog, inputHash string, recordHash bool, applySideEffects bool) bool {
 	if s == nil || s.asyncQueue == nil || log == nil {
-		return
+		return false
 	}
 	queueSize := defaultContentModerationQueueSize
 	if cfg != nil && cfg.QueueSize > 0 {
@@ -1259,8 +1684,9 @@ func (s *ContentModerationService) enqueueRecord(input ContentModerationCheckInp
 			"action", log.Action,
 			"queue_size", queueSize)
 		s.asyncDropped.Add(1)
-		return
+		return false
 	}
+	input.Body = nil
 	task := contentModerationTask{
 		input:            input,
 		inputHash:        inputHash,
@@ -1270,15 +1696,24 @@ func (s *ContentModerationService) enqueueRecord(input ContentModerationCheckInp
 		applySideEffects: applySideEffects,
 		enqueuedAt:       time.Now(),
 	}
+	task.bufferedBytes = estimateContentModerationTaskBytes(task)
+	if !s.reserveContentModerationBufferedBytes(task.bufferedBytes) {
+		slog.Warn("content_moderation.record_queue_bytes_full", "user_id", input.UserID, "endpoint", input.Endpoint, "action", log.Action, "task_bytes", task.bufferedBytes, "max_bytes", maxContentModerationBufferedBytes)
+		s.asyncDropped.Add(1)
+		return false
+	}
 	select {
 	case s.asyncQueue <- task:
 		s.asyncEnqueued.Add(1)
+		return true
 	default:
+		s.releaseContentModerationBufferedBytes(task.bufferedBytes)
 		slog.Warn("content_moderation.record_queue_full",
 			"user_id", input.UserID,
 			"endpoint", input.Endpoint,
 			"action", log.Action)
 		s.asyncDropped.Add(1)
+		return false
 	}
 }
 
@@ -1298,6 +1733,7 @@ func (s *ContentModerationService) worker(id int) {
 		}
 		func() {
 			defer cancel()
+			defer s.releaseContentModerationBufferedBytes(task.bufferedBytes)
 			defer func() {
 				if r := recover(); r != nil {
 					slog.Error("content_moderation.worker_panic", "worker_id", id, "recover", r)
@@ -1316,7 +1752,7 @@ func (s *ContentModerationService) worker(id int) {
 				s.asyncProcessed.Add(1)
 				return
 			}
-			if !cfg.Enabled || cfg.Mode == ContentModerationModeOff || len(cfg.apiKeys()) == 0 {
+			if !cfg.Enabled || cfg.Mode == ContentModerationModeOff {
 				return
 			}
 			if !cfg.includesGroup(task.input.GroupID) {
@@ -1325,6 +1761,7 @@ func (s *ContentModerationService) worker(id int) {
 			if !cfg.includesModel(task.input.Model) {
 				return
 			}
+			task.content.Text = contentModerationTextFromItems(task.content.Items)
 			s.asyncActive.Add(1)
 			defer s.asyncActive.Add(-1)
 			queueDelay := int(time.Since(task.enqueuedAt).Milliseconds())
@@ -1332,6 +1769,74 @@ func (s *ContentModerationService) worker(id int) {
 			s.asyncProcessed.Add(1)
 		}()
 	}
+}
+
+// compactContentModerationInputForQueue 从队列副本移除可由结构化条目恢复的聚合文本，减少重复常驻内存。
+func compactContentModerationInputForQueue(content ContentModerationInput) ContentModerationInput {
+	hasTextItem := false
+	for _, item := range content.Items {
+		if item.Type == ContentModerationItemTypeText {
+			hasTextItem = true
+			break
+		}
+	}
+	if hasTextItem || strings.TrimSpace(content.Text) == "" {
+		content.Text = ""
+	}
+	return content
+}
+
+func contentModerationTextFromItems(items []ContentModerationInputItem) string {
+	parts := make([]string, 0, len(items))
+	for _, item := range items {
+		if item.Type == ContentModerationItemTypeText && strings.TrimSpace(item.Text) != "" {
+			parts = append(parts, item.Text)
+		}
+	}
+	return strings.Join(parts, "\n")
+}
+
+func estimateContentModerationTaskBytes(task contentModerationTask) int64 {
+	size := int64(1024 + len(task.input.Endpoint) + len(task.input.Provider) + len(task.input.Model) + len(task.input.Body))
+	if task.log != nil {
+		size += int64(len(task.log.InputExcerpt) + len(task.log.Error) + len(task.log.MatchedKeyword))
+		for _, item := range task.log.InputItems {
+			size += int64(len(item.Text) + len(item.ImageRef) + 64)
+		}
+		for _, media := range task.log.Media {
+			size += int64(len(media.OriginalRef) + len(media.Content) + 128)
+		}
+		return size
+	}
+	textBytes := int64(0)
+	for _, item := range task.content.Items {
+		textBytes += int64(len(item.Text))
+		size += int64(len(item.Text) + len(item.ImageRef) + 64)
+	}
+	// 执行阶段会从条目恢复一次聚合文本，预算同时覆盖这份短期副本。
+	return size + textBytes
+}
+
+func (s *ContentModerationService) reserveContentModerationBufferedBytes(size int64) bool {
+	if s == nil || size <= 0 || size > maxContentModerationBufferedBytes {
+		return size <= 0
+	}
+	for {
+		current := s.asyncBufferedBytes.Load()
+		if current > maxContentModerationBufferedBytes-size {
+			return false
+		}
+		if s.asyncBufferedBytes.CompareAndSwap(current, current+size) {
+			return true
+		}
+	}
+}
+
+func (s *ContentModerationService) releaseContentModerationBufferedBytes(size int64) {
+	if s == nil || size <= 0 {
+		return
+	}
+	s.asyncBufferedBytes.Add(-size)
 }
 
 func (s *ContentModerationService) dequeueAsyncTask(ctx context.Context, idleWait time.Duration) (contentModerationTask, bool) {
@@ -1368,6 +1873,21 @@ func (s *ContentModerationService) ListLogs(ctx context.Context, filter ContentM
 		filter.Pagination.SortOrder = pagination.SortOrderDesc
 	}
 	return s.repo.ListLogs(ctx, filter)
+}
+
+func (s *ContentModerationService) GetLog(ctx context.Context, id int64) (*ContentModerationLog, error) {
+	if id <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_CONTENT_MODERATION_LOG_ID", "审计记录 ID 无效")
+	}
+	repo, ok := s.repo.(ContentModerationReviewRepository)
+	if !ok {
+		return nil, infraerrors.InternalServer("CONTENT_MODERATION_REVIEW_UNAVAILABLE", "完整复审材料仓储不可用")
+	}
+	item, err := repo.GetLog(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, infraerrors.NotFound("CONTENT_MODERATION_LOG_NOT_FOUND", "审计记录不存在")
+	}
+	return item, err
 }
 
 func (s *ContentModerationService) RecordCyberWarning(ctx context.Context, input ContentModerationCyberWarningInput) (*ContentModerationCyberWarning, error) {
@@ -1408,6 +1928,9 @@ func (s *ContentModerationService) RecordCyberWarning(ctx context.Context, input
 		warningText = "cyber_policy"
 	}
 	warning := s.buildCyberWarning(input, warningText)
+	if len(warning.Media) > 0 {
+		warning.Media = s.snapshotContentModerationMedia(ctx, warning.Media)
+	}
 	autoBanJustApplied, err := s.repo.CreateCyberWarningAndApplyUserBan(ctx, warning, ContentModerationCyberWarningPolicy{
 		AutoBanEnabled: cfg.CyberAutoBanEnabled,
 		BanThreshold:   cfg.CyberBanThreshold,
@@ -1484,6 +2007,42 @@ func (s *ContentModerationService) ListCyberWarnings(ctx context.Context, filter
 		filter.Pagination.SortOrder = pagination.SortOrderDesc
 	}
 	return s.repo.ListCyberWarnings(ctx, filter)
+}
+
+func (s *ContentModerationService) GetCyberWarning(ctx context.Context, id int64) (*ContentModerationCyberWarning, error) {
+	if id <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_CONTENT_MODERATION_CYBER_WARNING_ID", "Cyber 记录 ID 无效")
+	}
+	repo, ok := s.repo.(ContentModerationReviewRepository)
+	if !ok {
+		return nil, infraerrors.InternalServer("CONTENT_MODERATION_REVIEW_UNAVAILABLE", "完整复审材料仓储不可用")
+	}
+	item, err := repo.GetCyberWarning(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, infraerrors.NotFound("CONTENT_MODERATION_CYBER_WARNING_NOT_FOUND", "Cyber 记录不存在")
+	}
+	return item, err
+}
+
+func (s *ContentModerationService) GetMediaContent(ctx context.Context, id int64) (*ContentModerationMedia, error) {
+	if id <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_CONTENT_MODERATION_MEDIA_ID", "媒体 ID 无效")
+	}
+	repo, ok := s.repo.(ContentModerationReviewRepository)
+	if !ok {
+		return nil, infraerrors.InternalServer("CONTENT_MODERATION_REVIEW_UNAVAILABLE", "完整复审材料仓储不可用")
+	}
+	item, err := repo.GetMediaContent(ctx, id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, infraerrors.NotFound("CONTENT_MODERATION_MEDIA_NOT_FOUND", "媒体不存在")
+	}
+	if err != nil {
+		return nil, err
+	}
+	if item.SnapshotStatus != "ready" || len(item.Content) == 0 {
+		return nil, infraerrors.NotFound("CONTENT_MODERATION_MEDIA_NOT_READY", "媒体快照不可用")
+	}
+	return item, nil
 }
 
 func (s *ContentModerationService) GetCyberSummary(ctx context.Context, filter ContentModerationCyberWarningFilter) (*ContentModerationCyberSummary, error) {
@@ -1726,6 +2285,17 @@ func (s *ContentModerationService) validateConfig(ctx context.Context, cfg *Cont
 }
 
 func (s *ContentModerationService) callModeration(ctx context.Context, cfg *ContentModerationConfig, input any, trackKeyLoad ...bool) (*moderationAPIResult, error) {
+	results, err := s.callModerationBatch(ctx, cfg, input, trackKeyLoad...)
+	if err != nil {
+		return nil, err
+	}
+	if len(results) == 0 {
+		return nil, errors.New("moderation api returned empty results")
+	}
+	return &results[0], nil
+}
+
+func (s *ContentModerationService) callModerationBatch(ctx context.Context, cfg *ContentModerationConfig, input any, trackKeyLoad ...bool) ([]moderationAPIResult, error) {
 	attempts := cfg.RetryCount + 1
 	if attempts <= 0 {
 		attempts = 1
@@ -1776,7 +2346,7 @@ func (s *ContentModerationService) callModeration(ctx context.Context, cfg *Cont
 	return nil, lastErr
 }
 
-func (s *ContentModerationService) callModerationOnceWithInput(ctx context.Context, cfg *ContentModerationConfig, apiKey string, input any, httpStatus *int) (*moderationAPIResult, error) {
+func (s *ContentModerationService) callModerationOnceWithInput(ctx context.Context, cfg *ContentModerationConfig, apiKey string, input any, httpStatus *int) ([]moderationAPIResult, error) {
 	base := strings.TrimRight(cfg.BaseURL, "/")
 	endpoint, err := url.JoinPath(base, "/v1/moderations")
 	if err != nil {
@@ -1816,7 +2386,7 @@ func (s *ContentModerationService) callModerationOnceWithInput(ctx context.Conte
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("moderation api status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+		return nil, &contentModerationAPIError{StatusCode: resp.StatusCode, Message: strings.TrimSpace(string(body))}
 	}
 	var out moderationAPIResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
@@ -1825,10 +2395,10 @@ func (s *ContentModerationService) callModerationOnceWithInput(ctx context.Conte
 	if len(out.Results) == 0 {
 		return nil, errors.New("moderation api returned empty results")
 	}
-	return &out.Results[0], nil
+	return out.Results, nil
 }
 
-func (s *ContentModerationService) buildLog(input ContentModerationCheckInput, cfg *ContentModerationConfig, action string, flagged bool, highestCategory string, highestScore float64, scores map[string]float64, text string, latency *int, queueDelay *int, errText string) *ContentModerationLog {
+func (s *ContentModerationService) buildStructuredLog(input ContentModerationCheckInput, cfg *ContentModerationConfig, action string, flagged bool, highestCategory string, highestScore float64, scores map[string]float64, content ContentModerationInput, latency *int, queueDelay *int, errText string, audit *contentModerationAuditResult) *ContentModerationLog {
 	var userID *int64
 	if input.UserID > 0 {
 		userID = &input.UserID
@@ -1837,7 +2407,7 @@ func (s *ContentModerationService) buildLog(input ContentModerationCheckInput, c
 	if input.APIKeyID > 0 {
 		apiKeyID = &input.APIKeyID
 	}
-	return &ContentModerationLog{
+	log := &ContentModerationLog{
 		RequestID:         input.RequestID,
 		UserID:            userID,
 		UserEmail:         input.UserEmail,
@@ -1855,11 +2425,32 @@ func (s *ContentModerationService) buildLog(input ContentModerationCheckInput, c
 		HighestScore:      highestScore,
 		CategoryScores:    cloneFloatMap(scores),
 		ThresholdSnapshot: cloneFloatMap(cfg.Thresholds),
-		InputExcerpt:      sanitizeContentModerationExcerpt(text, maxModerationExcerptRunes),
+		InputExcerpt:      sanitizeContentModerationExcerpt(content.Text, maxModerationExcerptRunes),
+		Source:            content.Source,
+		InputItems:        append([]ContentModerationInputItem(nil), content.Items...),
+		ContentComplete:   true,
+		AuditComplete:     true,
+		TextUnitCount:     countContentModerationTextChunks(content.Text, maxModerationInputRunes, contentModerationChunkOverlap),
+		ImageUnitCount:    len(content.ImageItems),
 		UpstreamLatencyMS: latency,
 		QueueDelayMS:      queueDelay,
 		Error:             errText,
 	}
+	if audit != nil {
+		log.AuditComplete = audit.AuditComplete
+		log.TextUnitCount = audit.TextUnitCount
+		log.ImageUnitCount = audit.ImageUnitCount
+		log.FailedUnits = append([]ContentModerationFailedUnit(nil), audit.FailedUnits...)
+		log.FailedUnitCount = len(log.FailedUnits)
+	}
+	return log
+}
+
+// buildLog 保留旧测试和内部调用兼容，新的审核路径统一使用结构化版本。
+func (s *ContentModerationService) buildLog(input ContentModerationCheckInput, cfg *ContentModerationConfig, action string, flagged bool, highestCategory string, highestScore float64, scores map[string]float64, text string, latency *int, queueDelay *int, errText string) *ContentModerationLog {
+	content := ContentModerationInput{Text: text}
+	content.Normalize()
+	return s.buildStructuredLog(input, cfg, action, flagged, highestCategory, highestScore, scores, content, latency, queueDelay, errText, nil)
 }
 
 func (s *ContentModerationService) persistContentModerationLog(ctx context.Context, cfg *ContentModerationConfig, log *ContentModerationLog, hashText string, recordHash bool, applySideEffects bool) {
@@ -1875,6 +2466,9 @@ func (s *ContentModerationService) persistContentModerationLog(ctx context.Conte
 	if applySideEffects {
 		autoBanJustApplied = s.applyFlaggedAccountSideEffects(ctx, cfg, log)
 		s.sendFlaggedNotificationSideEffects(ctx, cfg, log, autoBanJustApplied)
+	}
+	if len(log.Media) > 0 {
+		log.Media = s.snapshotContentModerationMedia(ctx, log.Media)
 	}
 	if s.repo != nil {
 		if err := s.repo.CreateLog(ctx, log); err != nil {
@@ -1962,6 +2556,19 @@ func (s *ContentModerationService) buildCyberWarning(input ContentModerationCybe
 	if input.AccountID > 0 {
 		accountID = &input.AccountID
 	}
+	content := input.Content
+	if content.IsEmpty() && strings.TrimSpace(input.PromptExcerpt) != "" {
+		content = ContentModerationInput{Text: input.PromptExcerpt}
+	}
+	content.Normalize()
+	promptExcerpt := input.PromptExcerpt
+	if strings.TrimSpace(content.Text) != "" {
+		promptExcerpt = ExtractContentModerationPromptExcerptFromInput(content)
+	}
+	media := make([]ContentModerationMedia, 0, len(content.ImageItems))
+	for _, image := range content.ImageItems {
+		media = append(media, ContentModerationMedia{SourceIndex: image.SourceIndex, Source: image.Source, OriginalRef: image.Reference, SnapshotStatus: "pending"})
+	}
 	return &ContentModerationCyberWarning{
 		RequestID:      strings.TrimSpace(input.RequestID),
 		UserID:         userID,
@@ -1976,8 +2583,15 @@ func (s *ContentModerationService) buildCyberWarning(input ContentModerationCybe
 		Model:          strings.TrimSpace(input.Model),
 		UpstreamStatus: input.UpstreamStatus,
 		// Cyber 警告用于管理员复盘上游误杀/命中原因，需要保留原始文本；这里只做长度裁剪，避免 UI 和存储被超长内容撑爆。
-		WarningText:   trimRawContentModerationText(warningText, 1000),
-		PromptExcerpt: trimRawContentModerationText(input.PromptExcerpt, maxCyberWarningPromptExcerptRunes),
+		WarningText:     trimRawContentModerationText(warningText, 1000),
+		PromptExcerpt:   trimRawContentModerationText(promptExcerpt, maxCyberWarningPromptExcerptRunes),
+		Source:          content.Source,
+		InputItems:      append([]ContentModerationInputItem(nil), content.Items...),
+		ContentComplete: len(content.Items) > 0,
+		AuditComplete:   true,
+		TextUnitCount:   countContentModerationTextChunks(content.Text, maxModerationInputRunes, contentModerationChunkOverlap),
+		ImageUnitCount:  len(content.ImageItems),
+		Media:           media,
 	}
 }
 

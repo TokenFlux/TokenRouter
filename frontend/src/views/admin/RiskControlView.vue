@@ -378,6 +378,7 @@
                     <td class="w-[320px] max-w-sm px-5 py-4 text-sm text-gray-700 dark:text-gray-300">
                       <button
                         type="button"
+                        data-test="moderation-detail-button"
                         class="group flex w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-gray-100 dark:hover:bg-dark-700"
                         :title="inputSummaryText(row)"
                         @click="openInputDetail(row)"
@@ -1206,8 +1207,11 @@
             </div>
           </div>
 
-          <!-- 展示用户请求提示词，帮助管理员判断 Cyber 警告的触发上下文。 -->
-          <div class="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-dark-700 dark:bg-dark-800">
+          <div v-if="inputDetailLoading" class="flex min-h-40 items-center justify-center text-gray-500 dark:text-gray-400">
+            <Icon name="refresh" size="md" class="animate-spin" />
+          </div>
+
+          <div v-else class="space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.inputDetailContent') }}</p>
@@ -1219,7 +1223,44 @@
                 {{ inputDetailRow.group_name }}
               </span>
             </div>
-            <pre class="mt-4 max-h-[420px] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-gray-950 p-4 text-sm leading-6 text-gray-100 shadow-inner dark:bg-black/50">{{ inputDetailText }}</pre>
+
+            <div v-if="!inputDetailRow.content_complete" class="border-l-4 border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+              {{ t('admin.riskControl.historicalContentTruncated') }}
+            </div>
+            <div v-if="inputDetailRow.audit_complete === false" class="border-l-4 border-red-400 bg-red-50 px-4 py-3 text-sm text-red-800 dark:bg-red-900/20 dark:text-red-200">
+              {{ t('admin.riskControl.auditIncomplete', { count: inputDetailRow.failed_unit_count || 0 }) }}
+            </div>
+
+            <div v-if="inputDetailRow.input_items?.length" class="divide-y divide-gray-200 border-y border-gray-200 dark:divide-dark-700 dark:border-dark-700">
+              <section v-for="item in inputDetailRow.input_items" :key="item.index" class="py-4">
+                <div class="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                  <span>{{ detailSourceLabel(item.source) }}</span>
+                  <span>·</span>
+                  <span>{{ detailTypeLabel(item.type) }}</span>
+                </div>
+                <pre class="max-h-[420px] overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100">{{ detailItemContent(item) }}</pre>
+              </section>
+            </div>
+            <pre v-else class="max-h-[420px] overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100">{{ inputDetailText }}</pre>
+
+            <div v-if="inputDetailRow.media?.length" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <figure v-for="media in inputDetailRow.media" :key="media.id" class="overflow-hidden border border-gray-200 dark:border-dark-700">
+                <img v-if="mediaObjectURLs[media.id]" :src="mediaObjectURLs[media.id]" :alt="t('admin.riskControl.reviewImage')" class="aspect-video w-full bg-gray-100 object-contain dark:bg-dark-900" />
+                <div v-else class="flex aspect-video items-center justify-center bg-gray-100 px-4 text-center text-xs text-gray-500 dark:bg-dark-900 dark:text-gray-400">
+                  {{ media.snapshot_error || t('admin.riskControl.mediaUnavailable') }}
+                </div>
+                <figcaption class="border-t border-gray-200 px-3 py-2 text-xs text-gray-500 dark:border-dark-700 dark:text-gray-400">
+                  {{ detailSourceLabel(media.source) }} · {{ formatByteSize(media.byte_size) }}
+                </figcaption>
+              </figure>
+            </div>
+
+            <div v-if="inputDetailRow.failed_units?.length" class="space-y-2">
+              <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.failedUnits') }}</p>
+              <div v-for="unit in inputDetailRow.failed_units" :key="`${unit.type}-${unit.index}`" class="border-l-2 border-red-400 pl-3 text-sm text-gray-700 dark:text-gray-300">
+                {{ unit.type }}[{{ unit.index }}]: {{ unit.error }}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1256,7 +1297,11 @@
             </div>
           </div>
 
-          <div class="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-dark-700 dark:bg-dark-800">
+          <div v-if="cyberDetailLoading" class="flex min-h-40 items-center justify-center text-gray-500 dark:text-gray-400">
+            <Icon name="refresh" size="md" class="animate-spin" />
+          </div>
+
+          <div v-else class="space-y-4">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.cyberPrompt') }}</p>
@@ -1268,10 +1313,35 @@
                 {{ cyberDetailRow.group_name }}
               </span>
             </div>
-            <pre class="mt-4 max-h-[320px] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-gray-950 p-4 text-sm leading-6 text-gray-100 shadow-inner dark:bg-black/50">{{ cyberPromptText }}</pre>
+            <div v-if="!cyberDetailRow.content_complete" class="border-l-4 border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+              {{ t('admin.riskControl.historicalContentTruncated') }}
+            </div>
+            <div v-if="cyberDetailRow.input_items?.length" class="divide-y divide-gray-200 border-y border-gray-200 dark:divide-dark-700 dark:border-dark-700">
+              <section v-for="item in cyberDetailRow.input_items" :key="item.index" class="py-4">
+                <div class="mb-2 flex items-center gap-2 text-xs font-semibold uppercase text-gray-500 dark:text-gray-400">
+                  <span>{{ detailSourceLabel(item.source) }}</span>
+                  <span>·</span>
+                  <span>{{ detailTypeLabel(item.type) }}</span>
+                </div>
+                <pre class="max-h-[420px] overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100">{{ detailItemContent(item) }}</pre>
+              </section>
+            </div>
+            <pre v-else class="max-h-[320px] overflow-auto whitespace-pre-wrap break-words bg-gray-950 p-4 text-sm leading-6 text-gray-100">{{ cyberPromptText }}</pre>
+
+            <div v-if="cyberDetailRow.media?.length" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <figure v-for="media in cyberDetailRow.media" :key="media.id" class="overflow-hidden border border-gray-200 dark:border-dark-700">
+                <img v-if="mediaObjectURLs[media.id]" :src="mediaObjectURLs[media.id]" :alt="t('admin.riskControl.reviewImage')" class="aspect-video w-full bg-gray-100 object-contain dark:bg-dark-900" />
+                <div v-else class="flex aspect-video items-center justify-center bg-gray-100 px-4 text-center text-xs text-gray-500 dark:bg-dark-900 dark:text-gray-400">
+                  {{ media.snapshot_error || t('admin.riskControl.mediaUnavailable') }}
+                </div>
+                <figcaption class="border-t border-gray-200 px-3 py-2 text-xs text-gray-500 dark:border-dark-700 dark:text-gray-400">
+                  {{ detailSourceLabel(media.source) }} · {{ formatByteSize(media.byte_size) }}
+                </figcaption>
+              </figure>
+            </div>
           </div>
 
-          <div class="rounded-xl border border-gray-100 bg-white p-4 shadow-sm dark:border-dark-700 dark:bg-dark-800">
+          <div v-if="!cyberDetailLoading" class="border-t border-gray-200 pt-4 dark:border-dark-700">
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.riskControl.cyberWarning') }}</p>
@@ -1313,6 +1383,8 @@ import type {
   ContentModerationAPIKeyStatus,
   ContentModerationConfig,
   ContentModerationCyberWarning,
+  ContentModerationInputItem,
+  ContentModerationMedia,
   CyberSummary,
   ContentModerationLog,
   ContentModerationModelFilter,
@@ -1412,7 +1484,11 @@ const moderationTestImages = ref<string[]>([])
 const moderationTestResult = ref<ContentModerationTestAuditResult | null>(null)
 const inputDetailRow = ref<ContentModerationLog | null>(null)
 const cyberDetailRow = ref<ContentModerationCyberWarning | null>(null)
+const inputDetailLoading = ref(false)
+const cyberDetailLoading = ref(false)
+const mediaObjectURLs = ref<Record<number, string>>({})
 let statusTimer: number | null = null
+let detailLoadVersion = 0
 
 const configForm = reactive({
   enabled: false,
@@ -2129,11 +2205,29 @@ function inputSummaryText(row: ContentModerationLog): string {
   return row.input_excerpt || row.error || '-'
 }
 
-function openInputDetail(row: ContentModerationLog) {
+async function openInputDetail(row: ContentModerationLog) {
+  const version = ++detailLoadVersion
+  revokeDetailMediaURLs()
   inputDetailRow.value = row
+  inputDetailLoading.value = true
+  try {
+    const detail = await adminAPI.riskControl.getLog(row.id)
+    if (version !== detailLoadVersion) return
+    inputDetailRow.value = detail
+    await loadDetailMedia(detail.media || [], version)
+  } catch (err: unknown) {
+    if (version === detailLoadVersion) {
+      appStore.showError(extractApiErrorMessage(err, t('admin.riskControl.detailLoadFailed')))
+    }
+  } finally {
+    if (version === detailLoadVersion) inputDetailLoading.value = false
+  }
 }
 
 function closeInputDetail() {
+  detailLoadVersion++
+  revokeDetailMediaURLs()
+  inputDetailLoading.value = false
   inputDetailRow.value = null
 }
 
@@ -2141,12 +2235,79 @@ function cyberSummaryText(row: ContentModerationCyberWarning): string {
   return row.prompt_excerpt || row.warning_text || '-'
 }
 
-function openCyberDetail(row: ContentModerationCyberWarning) {
+async function openCyberDetail(row: ContentModerationCyberWarning) {
+  const version = ++detailLoadVersion
+  revokeDetailMediaURLs()
   cyberDetailRow.value = row
+  cyberDetailLoading.value = true
+  try {
+    const detail = await adminAPI.riskControl.getCyberWarning(row.id)
+    if (version !== detailLoadVersion) return
+    cyberDetailRow.value = detail
+    await loadDetailMedia(detail.media || [], version)
+  } catch (err: unknown) {
+    if (version === detailLoadVersion) {
+      appStore.showError(extractApiErrorMessage(err, t('admin.riskControl.detailLoadFailed')))
+    }
+  } finally {
+    if (version === detailLoadVersion) cyberDetailLoading.value = false
+  }
 }
 
 function closeCyberDetail() {
+  detailLoadVersion++
+  revokeDetailMediaURLs()
+  cyberDetailLoading.value = false
   cyberDetailRow.value = null
+}
+
+// 媒体必须通过管理员鉴权接口读取，不能把受保护地址直接放进 img 标签。
+async function loadDetailMedia(mediaItems: ContentModerationMedia[], version: number) {
+  const readyItems = mediaItems.filter((item) => item.snapshot_status === 'ready')
+  const entries = await Promise.all(readyItems.map(async (item) => {
+    try {
+      const blob = await adminAPI.riskControl.getMediaContent(item.id)
+      return [item.id, URL.createObjectURL(blob)] as const
+    } catch {
+      return null
+    }
+  }))
+  const urls: Record<number, string> = {}
+  for (const entry of entries) {
+    if (entry) urls[entry[0]] = entry[1]
+  }
+  if (version !== detailLoadVersion) {
+    for (const value of Object.values(urls)) URL.revokeObjectURL(value)
+    return
+  }
+  mediaObjectURLs.value = urls
+}
+
+// 关闭详情时释放 Blob URL，避免多次复审累计占用浏览器内存。
+function revokeDetailMediaURLs() {
+  for (const value of Object.values(mediaObjectURLs.value)) {
+    URL.revokeObjectURL(value)
+  }
+  mediaObjectURLs.value = {}
+}
+
+function detailSourceLabel(source: ContentModerationInputItem['source'] | ContentModerationMedia['source']): string {
+  return source === 'tool' ? t('admin.riskControl.sourceTool') : t('admin.riskControl.sourceUser')
+}
+
+function detailTypeLabel(type: ContentModerationInputItem['type']): string {
+  return type === 'image' ? t('admin.riskControl.typeImage') : t('admin.riskControl.typeText')
+}
+
+function detailItemContent(item: ContentModerationInputItem): string {
+  return item.type === 'image' ? (item.image_ref || '-') : (item.text || '-')
+}
+
+function formatByteSize(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return '0 B'
+  if (value < 1024) return `${value} B`
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`
 }
 
 async function unbanUser(row: ContentModerationLog) {
@@ -2644,6 +2805,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  detailLoadVersion++
+  revokeDetailMediaURLs()
   if (statusTimer !== null) {
     window.clearInterval(statusTimer)
     statusTimer = null

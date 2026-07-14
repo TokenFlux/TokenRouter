@@ -192,6 +192,15 @@ export interface ContentModerationLog {
   category_scores: Record<string, number>
   threshold_snapshot: Record<string, number>
   input_excerpt: string
+  source?: 'user' | 'tool' | 'mixed'
+  input_items?: ContentModerationInputItem[]
+  content_complete?: boolean
+  audit_complete?: boolean
+  text_unit_count?: number
+  image_unit_count?: number
+  failed_unit_count?: number
+  failed_units?: ContentModerationFailedUnit[]
+  media?: ContentModerationMedia[]
   upstream_latency_ms: number | null
   error: string
   violation_count: number
@@ -218,10 +227,47 @@ export interface ContentModerationCyberWarning {
   upstream_status: number
   warning_text: string
   prompt_excerpt: string
+  source?: 'user' | 'tool' | 'mixed'
+  input_items?: ContentModerationInputItem[]
+  content_complete?: boolean
+  audit_complete?: boolean
+  text_unit_count?: number
+  image_unit_count?: number
+  failed_unit_count?: number
+  failed_units?: ContentModerationFailedUnit[]
+  media?: ContentModerationMedia[]
   violation_count: number
   auto_banned: boolean
   email_sent: boolean
   user_status: string
+  created_at: string
+}
+
+export interface ContentModerationInputItem {
+  index: number
+  source: 'user' | 'tool'
+  type: 'text' | 'image'
+  text?: string
+  image_ref?: string
+}
+
+export interface ContentModerationFailedUnit {
+  type: string
+  index: number
+  source_index?: number
+  error: string
+}
+
+export interface ContentModerationMedia {
+  id: number
+  source_index: number
+  source: 'user' | 'tool'
+  mime_type: string
+  sha256: string
+  byte_size: number
+  original_ref: string
+  snapshot_status: 'pending' | 'ready' | 'error'
+  snapshot_error: string
   created_at: string
 }
 
@@ -334,11 +380,28 @@ export async function listLogs(
   return data
 }
 
+export async function getLog(id: number): Promise<ContentModerationLog> {
+  const { data } = await apiClient.get<ContentModerationLog>(`/admin/risk-control/logs/${id}`)
+  return data
+}
+
 export async function listCyberWarnings(
   params: ListCyberWarningsParams = {}
 ): Promise<CyberWarningsResponse> {
   const { data } = await apiClient.get<CyberWarningsResponse>('/admin/risk-control/cyber-warnings', {
     params,
+  })
+  return data
+}
+
+export async function getCyberWarning(id: number): Promise<ContentModerationCyberWarning> {
+  const { data } = await apiClient.get<ContentModerationCyberWarning>(`/admin/risk-control/cyber-warnings/${id}`)
+  return data
+}
+
+export async function getMediaContent(id: number): Promise<Blob> {
+  const { data } = await apiClient.get<Blob>(`/admin/risk-control/media/${id}/content`, {
+    responseType: 'blob',
   })
   return data
 }
@@ -377,7 +440,10 @@ export const riskControlAPI = {
   getStatus,
   testAPIKeys,
   listLogs,
+  getLog,
   listCyberWarnings,
+  getCyberWarning,
+  getMediaContent,
   getCyberSummary,
   unbanUser,
   deleteFlaggedHash,

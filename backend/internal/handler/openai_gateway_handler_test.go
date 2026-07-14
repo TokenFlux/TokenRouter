@@ -1194,7 +1194,7 @@ func TestOpenAIRecordCyberWarning_UsesExplicitPromptExcerpt(t *testing.T) {
 	require.Equal(t, "first turn prompt", repo.cyberWarnings[0].PromptExcerpt)
 }
 
-func TestOpenAIRecordCyberWarning_RequestSnapshotFallsBackToLatestUserPrompt(t *testing.T) {
+func TestOpenAIRecordCyberWarning_RequestSnapshotUsesCurrentToolOutput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	cfg := service.ContentModerationConfig{
@@ -1239,7 +1239,11 @@ func TestOpenAIRecordCyberWarning_RequestSnapshotFallsBackToLatestUserPrompt(t *
 	)
 
 	require.Len(t, repo.cyberWarnings, 1)
-	require.Equal(t, "latest cyber prompt", repo.cyberWarnings[0].PromptExcerpt)
+	require.Equal(t, "done", repo.cyberWarnings[0].PromptExcerpt)
+	require.Equal(t, service.ContentModerationSourceTool, repo.cyberWarnings[0].Source)
+	require.True(t, repo.cyberWarnings[0].ContentComplete)
+	require.Len(t, repo.cyberWarnings[0].InputItems, 1)
+	require.Equal(t, "done", repo.cyberWarnings[0].InputItems[0].Text)
 	require.Equal(t, http.StatusOK, repo.cyberWarnings[0].UpstreamStatus)
 }
 

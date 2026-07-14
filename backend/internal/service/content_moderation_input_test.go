@@ -6,10 +6,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// 当数组末尾不是用户消息时（典型场景：Agent 工具循环结束于 tool/assistant），
-// 应直接跳过审计——不再回溯查找历史中的某条用户消息。
+// Agent 工具循环只审核模型调用后返回的工具结果，不重复审核发起工具调用的历史用户消息。
 
-func TestExtractContentModerationInput_AnthropicAgentToolLoopSkipsAudit(t *testing.T) {
+func TestExtractContentModerationInput_AnthropicAgentToolLoopExtractsToolResult(t *testing.T) {
 	body := []byte(`{
 		"messages": [
 			{"role":"user","content":"调用一下天气工具"},
@@ -20,8 +19,9 @@ func TestExtractContentModerationInput_AnthropicAgentToolLoopSkipsAudit(t *testi
 
 	input := ExtractContentModerationInput(ContentModerationProtocolAnthropicMessages, body)
 
-	require.Empty(t, input.Text)
+	require.Equal(t, "晴 25 度", input.Text)
 	require.Empty(t, input.Images)
+	require.Equal(t, ContentModerationSourceTool, input.Source)
 }
 
 func TestExtractContentModerationInput_AnthropicFirstTurnExtractsUser(t *testing.T) {
@@ -64,7 +64,7 @@ func TestExtractContentModerationInput_AnthropicStreamResendExtractsResend(t *te
 	require.Equal(t, "重发", input.Text)
 }
 
-func TestExtractContentModerationInput_OpenAIChatAgentToolLoopSkipsAudit(t *testing.T) {
+func TestExtractContentModerationInput_OpenAIChatAgentToolLoopExtractsToolResult(t *testing.T) {
 	body := []byte(`{
 		"messages": [
 			{"role":"system","content":"sys"},
@@ -76,8 +76,9 @@ func TestExtractContentModerationInput_OpenAIChatAgentToolLoopSkipsAudit(t *test
 
 	input := ExtractContentModerationInput(ContentModerationProtocolOpenAIChat, body)
 
-	require.Empty(t, input.Text)
+	require.Equal(t, "[]", input.Text)
 	require.Empty(t, input.Images)
+	require.Equal(t, ContentModerationSourceTool, input.Source)
 }
 
 func TestExtractContentModerationInput_OpenAIChatMultiTurnExtractsLatestUser(t *testing.T) {
@@ -94,7 +95,7 @@ func TestExtractContentModerationInput_OpenAIChatMultiTurnExtractsLatestUser(t *
 	require.Equal(t, "Q2", input.Text)
 }
 
-func TestExtractContentModerationInput_GeminiAgentToolLoopSkipsAudit(t *testing.T) {
+func TestExtractContentModerationInput_GeminiAgentToolLoopExtractsFunctionResponse(t *testing.T) {
 	body := []byte(`{
 		"contents": [
 			{"role":"user","parts":[{"text":"查询天气"}]},
@@ -105,8 +106,9 @@ func TestExtractContentModerationInput_GeminiAgentToolLoopSkipsAudit(t *testing.
 
 	input := ExtractContentModerationInput(ContentModerationProtocolGemini, body)
 
-	require.Empty(t, input.Text)
+	require.JSONEq(t, `{"temp":25}`, input.Text)
 	require.Empty(t, input.Images)
+	require.Equal(t, ContentModerationSourceTool, input.Source)
 }
 
 func TestExtractContentModerationInput_GeminiFirstTurnExtractsUser(t *testing.T) {
@@ -135,7 +137,7 @@ func TestExtractContentModerationInput_GeminiMultiTurnExtractsLatestUser(t *test
 	require.Equal(t, "Q2", input.Text)
 }
 
-func TestExtractContentModerationInput_ResponsesAgentToolLoopSkipsAudit(t *testing.T) {
+func TestExtractContentModerationInput_ResponsesAgentToolLoopExtractsToolOutput(t *testing.T) {
 	body := []byte(`{
 		"input":[
 			{"type":"message","role":"user","content":[{"type":"input_text","text":"运行测试"}]},
@@ -146,11 +148,12 @@ func TestExtractContentModerationInput_ResponsesAgentToolLoopSkipsAudit(t *testi
 
 	input := ExtractContentModerationInput(ContentModerationProtocolOpenAIResponses, body)
 
-	require.Empty(t, input.Text)
+	require.Equal(t, "all passed", input.Text)
 	require.Empty(t, input.Images)
+	require.Equal(t, ContentModerationSourceTool, input.Source)
 }
 
-func TestExtractContentModerationPromptExcerpt_ResponsesFallsBackToLatestUserBeforeToolOutput(t *testing.T) {
+func TestExtractContentModerationPromptExcerpt_ResponsesUsesCurrentToolOutput(t *testing.T) {
 	body := []byte(`{
 		"input":[
 			{"type":"message","role":"user","content":[{"type":"input_text","text":"检查这段高风险请求 sk-proj-1234567890abcdef"}]},
@@ -163,8 +166,8 @@ func TestExtractContentModerationPromptExcerpt_ResponsesFallsBackToLatestUserBef
 	input := ExtractContentModerationInput(ContentModerationProtocolOpenAIResponses, body)
 	excerpt := ExtractContentModerationPromptExcerpt(ContentModerationProtocolOpenAIResponses, body)
 
-	require.Empty(t, input.Text)
-	require.Equal(t, "检查这段高风险请求 sk-proj-1234567890abcdef", excerpt)
+	require.Equal(t, "all passed", input.Text)
+	require.Equal(t, "all passed", excerpt)
 }
 
 func TestExtractContentModerationInput_ResponsesLastUserMessageExtracted(t *testing.T) {
@@ -193,4 +196,44 @@ func TestExtractContentModerationInput_ResponsesLastIsAssistantSkipped(t *testin
 
 	require.Empty(t, input.Text)
 	require.Empty(t, input.Images)
+}
+
+func TestExtractContentModerationInput_ChatCollectsParallelToolResultsAndDeduplicatesImages(t *testing.T) {
+	body := []byte(`{
+		"messages":[
+			{"role":"user","content":"old request"},
+			{"role":"assistant","tool_calls":[{"id":"one"},{"id":"two"}]},
+			{"role":"tool","tool_call_id":"one","content":{"result":"first","image_url":"https://example.com/result.png"}},
+			{"role":"tool","tool_call_id":"two","content":[{"type":"text","text":"second"},{"type":"image_url","image_url":{"url":"https://example.com/result.png"}}]}
+		]
+	}`)
+
+	input := ExtractContentModerationInput(ContentModerationProtocolOpenAIChat, body)
+
+	require.Contains(t, input.Text, `"result":"first"`)
+	require.Contains(t, input.Text, `"text":"second"`)
+	require.NotContains(t, input.Text, "old request")
+	require.Equal(t, []string{"https://example.com/result.png"}, input.Images)
+	require.Equal(t, ContentModerationSourceTool, input.Source)
+}
+
+func TestExtractContentModerationInput_ResponsesCollectsAllSupportedToolOutputs(t *testing.T) {
+	body := []byte(`{
+		"input":[
+			{"type":"function_call","call_id":"call_1","name":"run","arguments":"{}"},
+			{"type":"function_call_output","output":{"one":1}},
+			{"type":"custom_tool_call_output","output":"two"},
+			{"type":"mcp_tool_call_output","output":"three"},
+			{"type":"tool_search_output","output":"four"},
+			{"type":"computer_call_output","output":"five"}
+		]
+	}`)
+
+	input := ExtractContentModerationInput(ContentModerationProtocolOpenAIResponses, body)
+
+	require.Contains(t, input.Text, `"one":1`)
+	for _, value := range []string{"two", "three", "four", "five"} {
+		require.Contains(t, input.Text, value)
+	}
+	require.Equal(t, ContentModerationSourceTool, input.Source)
 }

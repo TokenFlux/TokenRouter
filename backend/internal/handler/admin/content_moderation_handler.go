@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -204,6 +205,20 @@ func (h *ContentModerationHandler) ListLogs(c *gin.Context) {
 	response.Paginated(c, items, pageResult.Total, pageResult.Page, pageResult.PageSize)
 }
 
+func (h *ContentModerationHandler) GetLog(c *gin.Context) {
+	id, err := strconv.ParseInt(strings.TrimSpace(c.Param("id")), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid id")
+		return
+	}
+	item, err := h.service.GetLog(c.Request.Context(), id)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, item)
+}
+
 func (h *ContentModerationHandler) ListCyberWarnings(c *gin.Context) {
 	filter, errMsg, ok := parseCyberWarningFilter(c, true)
 	if !ok {
@@ -216,6 +231,36 @@ func (h *ContentModerationHandler) ListCyberWarnings(c *gin.Context) {
 		return
 	}
 	response.Paginated(c, items, pageResult.Total, pageResult.Page, pageResult.PageSize)
+}
+
+func (h *ContentModerationHandler) GetCyberWarning(c *gin.Context) {
+	id, err := strconv.ParseInt(strings.TrimSpace(c.Param("id")), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid id")
+		return
+	}
+	item, err := h.service.GetCyberWarning(c.Request.Context(), id)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, item)
+}
+
+func (h *ContentModerationHandler) GetMediaContent(c *gin.Context) {
+	id, err := strconv.ParseInt(strings.TrimSpace(c.Param("id")), 10, 64)
+	if err != nil || id <= 0 {
+		response.BadRequest(c, "Invalid id")
+		return
+	}
+	item, err := h.service.GetMediaContent(c.Request.Context(), id)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	c.Header("Cache-Control", "private, no-store")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Data(http.StatusOK, item.MIMEType, item.Content)
 }
 
 func (h *ContentModerationHandler) GetCyberSummary(c *gin.Context) {

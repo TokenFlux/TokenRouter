@@ -43,7 +43,13 @@ func (h *OpenAIGatewayHandler) recordOpenAICyberWarning(c *gin.Context, reqLog *
 
 const openAICyberWarningRecordedKey = "openai_cyber_warning_recorded"
 
+const openAICyberWarningSnapshotKey = "openai_cyber_warning_snapshot"
+
 func (h *OpenAIGatewayHandler) recordOpenAICyberWarningWithPromptExcerpt(c *gin.Context, reqLog *zap.Logger, apiKey *service.APIKey, account *service.Account, model string, statusCode int, responseBody []byte, warningText string, promptExcerpt string) bool {
+	return h.recordOpenAICyberWarningWithSnapshot(c, reqLog, apiKey, account, model, statusCode, responseBody, warningText, promptExcerpt, currentOpenAICyberWarningSnapshot(c))
+}
+
+func (h *OpenAIGatewayHandler) recordOpenAICyberWarningWithSnapshot(c *gin.Context, reqLog *zap.Logger, apiKey *service.APIKey, account *service.Account, model string, statusCode int, responseBody []byte, warningText string, promptExcerpt string, snapshot service.ContentModerationInput) bool {
 	if h == nil || h.contentModerationService == nil || c == nil {
 		return false
 	}
@@ -52,6 +58,7 @@ func (h *OpenAIGatewayHandler) recordOpenAICyberWarningWithPromptExcerpt(c *gin.
 		return false
 	}
 	input := buildOpenAICyberWarningInput(c, apiKey, account, model, statusCode, responseBody, warningText, promptExcerpt)
+	input.Content = snapshot
 	warning, err := h.contentModerationService.RecordCyberWarning(c.Request.Context(), input)
 	if err != nil {
 		if reqLog != nil {
@@ -139,6 +146,9 @@ func currentOpenAICyberWarningPromptExcerpt(c *gin.Context) string {
 	if c == nil {
 		return ""
 	}
+	if snapshot := currentOpenAICyberWarningSnapshot(c); !snapshot.IsEmpty() {
+		return service.ExtractContentModerationPromptExcerptFromInput(snapshot)
+	}
 	if value, ok := c.Get(openAICyberWarningPromptExcerptKey); ok {
 		if excerpt, ok := value.(string); ok {
 			return strings.TrimSpace(excerpt)
@@ -147,12 +157,26 @@ func currentOpenAICyberWarningPromptExcerpt(c *gin.Context) string {
 	return ""
 }
 
+func currentOpenAICyberWarningSnapshot(c *gin.Context) service.ContentModerationInput {
+	if c == nil {
+		return service.ContentModerationInput{}
+	}
+	if value, ok := c.Get(openAICyberWarningSnapshotKey); ok {
+		if snapshot, ok := value.(service.ContentModerationInput); ok {
+			return snapshot
+		}
+	}
+	return service.ContentModerationInput{}
+}
+
 func setOpenAICyberWarningRequestSnapshot(c *gin.Context, protocol string, body []byte) {
 	if c == nil || len(body) == 0 {
 		return
 	}
-	// Cyber 警告只需要提示词摘要，立即提取可避免在上下文里复制和长期持有完整请求体。
-	excerpt := service.ExtractContentModerationPromptExcerpt(protocol, body)
+	// Cyber 与本地审核复用同一份结构化当前轮快照，确保工具输出和图片上下文不会丢失。
+	snapshot := service.ExtractContentModerationInput(protocol, body)
+	c.Set(openAICyberWarningSnapshotKey, snapshot)
+	excerpt := service.ExtractContentModerationPromptExcerptFromInput(snapshot)
 	setOpenAICyberWarningPromptExcerpt(c, excerpt)
 }
 

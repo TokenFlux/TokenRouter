@@ -1425,14 +1425,21 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	setOpenAICyberWarningRequestSnapshot(c, service.ContentModerationProtocolOpenAIResponses, firstMessage)
 	// WS passthrough 的客户端帧和上游事件可能并发回调，按 turn 保存提示词摘要需要加锁。
 	cyberPromptExcerptByTurn := map[int]string{}
+	cyberSnapshotByTurn := map[int]service.ContentModerationInput{}
 	var cyberPromptExcerptMu sync.RWMutex
-	setCyberPromptExcerpt := func(turn int, promptExcerpt string) {
+	setCyberPromptExcerpt := func(turn int, promptExcerpt string, snapshot service.ContentModerationInput) {
 		if turn <= 0 {
 			return
 		}
 		cyberPromptExcerptMu.Lock()
 		cyberPromptExcerptByTurn[turn] = strings.TrimSpace(promptExcerpt)
+		cyberSnapshotByTurn[turn] = snapshot
 		cyberPromptExcerptMu.Unlock()
+	}
+	getCyberSnapshot := func(turn int) service.ContentModerationInput {
+		cyberPromptExcerptMu.RLock()
+		defer cyberPromptExcerptMu.RUnlock()
+		return cyberSnapshotByTurn[turn]
 	}
 	getCyberPromptExcerpt := func(turn int) string {
 		cyberPromptExcerptMu.RLock()
@@ -1442,9 +1449,10 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	clearCyberPromptExcerpt := func(turn int) {
 		cyberPromptExcerptMu.Lock()
 		delete(cyberPromptExcerptByTurn, turn)
+		delete(cyberSnapshotByTurn, turn)
 		cyberPromptExcerptMu.Unlock()
 	}
-	setCyberPromptExcerpt(1, currentOpenAICyberWarningPromptExcerpt(c))
+	setCyberPromptExcerpt(1, currentOpenAICyberWarningPromptExcerpt(c), currentOpenAICyberWarningSnapshot(c))
 
 	if decision := h.checkContentModeration(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, reqModel, firstMessage); decision != nil && decision.Blocked {
 		writeContentModerationWSError(ctx, wsConn, decision)
@@ -1660,7 +1668,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					model = reqModel
 				}
 				setOpenAICyberWarningRequestSnapshot(c, service.ContentModerationProtocolOpenAIResponses, payload)
-				setCyberPromptExcerpt(turn, currentOpenAICyberWarningPromptExcerpt(c))
+				setCyberPromptExcerpt(turn, currentOpenAICyberWarningPromptExcerpt(c), currentOpenAICyberWarningSnapshot(c))
 				if decision := h.checkContentModeration(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, model, payload); decision != nil && decision.Blocked {
 					writeContentModerationWSError(ctx, wsConn, decision)
 					return payload, service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, decision.Message, nil)
@@ -1719,7 +1727,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				if model == "" {
 					model = reqModel
 				}
-				h.recordOpenAICyberWarningWithPromptExcerpt(c, reqLog, apiKey, account, model, statusCode, responseBody, warningText, getCyberPromptExcerpt(turn))
+				h.recordOpenAICyberWarningWithSnapshot(c, reqLog, apiKey, account, model, statusCode, responseBody, warningText, getCyberPromptExcerpt(turn), getCyberSnapshot(turn))
 			},
 			AfterTurn: func(capture service.OpenAIWSTurnCapture) {
 				turn := capture.Turn

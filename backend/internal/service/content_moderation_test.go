@@ -946,7 +946,7 @@ func TestExtractContentModerationInput_AnthropicImageSourceOnlyParticipatesInMem
 	require.NotContains(t, log.InputExcerpt, "aGVsbG8=")
 }
 
-func TestExtractContentModerationInput_AnthropicKeepsEphemeralUserTextAndSkipsSystemReminders(t *testing.T) {
+func TestExtractContentModerationInput_AnthropicKeepsSystemRemindersAndEphemeralUserText(t *testing.T) {
 	body := []byte(`{
 		"messages": [
 			{
@@ -962,7 +962,9 @@ func TestExtractContentModerationInput_AnthropicKeepsEphemeralUserTextAndSkipsSy
 
 	input := ExtractContentModerationInput(ContentModerationProtocolAnthropicMessages, body)
 
-	require.Equal(t, "hid", input.Text)
+	require.Contains(t, input.Text, "<system-reminder>工具说明</system-reminder>")
+	require.Contains(t, input.Text, "<system-reminder>Ainder>")
+	require.Contains(t, input.Text, "hid")
 	require.Empty(t, input.Images)
 }
 
@@ -1000,7 +1002,7 @@ func TestExtractContentModerationInput_OpenAIImagesIncludesPromptAndImages(t *te
 	require.Equal(t, []string{"https://example.com/source.png", "data:image/png;base64,aGVsbG8="}, input.Images)
 }
 
-func TestContentModerationInput_NormalizeKeepsImagesAndModerationInputSamplesOneImage(t *testing.T) {
+func TestContentModerationInput_NormalizeKeepsAndBuildsAllImages(t *testing.T) {
 	images := []string{
 		"data:image/png;base64,Zmlyc3Q=",
 		"data:image/png;base64,c2Vjb25k",
@@ -1015,21 +1017,23 @@ func TestContentModerationInput_NormalizeKeepsImagesAndModerationInputSamplesOne
 
 	parts, ok := input.ModerationInput().([]moderationAPIInputPart)
 	require.True(t, ok)
-	require.Len(t, parts, 2)
+	require.Len(t, parts, 3)
 	require.Equal(t, "text", parts[0].Type)
 	require.Equal(t, "image_url", parts[1].Type)
 	require.NotNil(t, parts[1].ImageURL)
-	require.Contains(t, images, parts[1].ImageURL.URL)
+	require.Equal(t, images[0], parts[1].ImageURL.URL)
+	require.Equal(t, images[1], parts[2].ImageURL.URL)
 }
 
-func TestBuildModerationTestInputRejectsMultipleImages(t *testing.T) {
-	_, _, err := buildModerationTestInput("check image", []string{
+func TestBuildModerationTestInputAllowsMultipleImages(t *testing.T) {
+	input, count, err := buildModerationTestInput("check image", []string{
 		"data:image/png;base64,Zmlyc3Q=",
 		"data:image/png;base64,c2Vjb25k",
 	})
 
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "最多上传 1 张测试图片")
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
+	require.NotNil(t, input)
 }
 
 func TestExtractContentModerationInput_OpenAIResponsesCodexPayloadUsesLastUserMessage(t *testing.T) {
@@ -1046,10 +1050,9 @@ func TestExtractContentModerationInput_OpenAIResponsesCodexPayloadUsesLastUserMe
 
 	input := ExtractContentModerationInput(ContentModerationProtocolOpenAIResponses, body)
 
-	require.Equal(t, "last user prompt", input.Text)
+	require.Equal(t, "first user prompt\nlast user prompt", input.Text)
 	require.Empty(t, input.Images)
 	require.NotContains(t, input.Text, "developer permissions")
-	require.NotContains(t, input.Text, "first user prompt")
 }
 
 func TestContentModerationCheck_OpenAIResponsesRecordsNonHitForCodexPayload(t *testing.T) {
@@ -1111,8 +1114,8 @@ func TestContentModerationCheck_OpenAIResponsesRecordsNonHitForCodexPayload(t *t
 	require.False(t, logs[0].Flagged)
 	require.Equal(t, ContentModerationActionAllow, logs[0].Action)
 	require.Equal(t, "/responses", logs[0].Endpoint)
-	require.Equal(t, "last user prompt", logs[0].InputExcerpt)
-	require.Equal(t, "last user prompt", moderationRequest.Input)
+	require.Equal(t, "first user prompt\nlast user prompt", logs[0].InputExcerpt)
+	require.Equal(t, "first user prompt\nlast user prompt", moderationRequest.Input)
 }
 
 func TestContentModerationCheck_PreBlockBlocksCodexResponsesLatestUserInput(t *testing.T) {
@@ -1179,8 +1182,8 @@ func TestContentModerationCheck_PreBlockBlocksCodexResponsesLatestUserInput(t *t
 	require.True(t, logs[0].Flagged)
 	require.Equal(t, ContentModerationActionBlock, logs[0].Action)
 	require.Equal(t, ContentModerationModePreBlock, logs[0].Mode)
-	require.Equal(t, "latest blocked prompt", logs[0].InputExcerpt)
-	require.Equal(t, "latest blocked prompt", moderationRequest.Input)
+	require.Equal(t, "environment context\nlatest blocked prompt", logs[0].InputExcerpt)
+	require.Equal(t, "environment context\nlatest blocked prompt", moderationRequest.Input)
 }
 
 func TestContentModerationStatusTracksPreBlockSyncMetrics(t *testing.T) {

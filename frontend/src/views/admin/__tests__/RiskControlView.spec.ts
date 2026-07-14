@@ -11,7 +11,10 @@ const {
   updateConfig,
   getStatus,
   listLogs,
+  getLog,
   listCyberWarnings,
+  getCyberWarning,
+  getMediaContent,
   getCyberSummary,
   getGroups,
   showError,
@@ -21,7 +24,10 @@ const {
   updateConfig: vi.fn(),
   getStatus: vi.fn(),
   listLogs: vi.fn(),
+  getLog: vi.fn(),
   listCyberWarnings: vi.fn(),
+  getCyberWarning: vi.fn(),
+  getMediaContent: vi.fn(),
   getCyberSummary: vi.fn(),
   getGroups: vi.fn(),
   showError: vi.fn(),
@@ -35,7 +41,10 @@ vi.mock('@/api/admin', () => ({
       updateConfig,
       getStatus,
       listLogs,
+      getLog,
       listCyberWarnings,
+      getCyberWarning,
+      getMediaContent,
       getCyberSummary,
       testAPIKeys: vi.fn(),
       deleteFlaggedHash: vi.fn(),
@@ -200,7 +209,10 @@ describe('admin RiskControlView', () => {
     updateConfig.mockReset()
     getStatus.mockReset()
     listLogs.mockReset()
+    getLog.mockReset()
     listCyberWarnings.mockReset()
+    getCyberWarning.mockReset()
+    getMediaContent.mockReset()
     getCyberSummary.mockReset()
     getGroups.mockReset()
     showError.mockReset()
@@ -209,6 +221,7 @@ describe('admin RiskControlView', () => {
     getConfig.mockResolvedValue(baseConfig())
     getStatus.mockResolvedValue(runtimeStatus())
     listLogs.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
+    getMediaContent.mockResolvedValue(new Blob(['image']))
     listCyberWarnings.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 1 })
     getCyberSummary.mockResolvedValue({
       events: 0,
@@ -281,6 +294,89 @@ describe('admin RiskControlView', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('admin.riskControl.matchedKeyword: secret-token')
+  })
+
+  it('loads full review content and releases media blob URLs when closed', async () => {
+    const log: ContentModerationLog = {
+      id: 9,
+      request_id: 'req-review',
+      user_id: 1001,
+      user_email: 'user@example.com',
+      api_key_id: 2001,
+      api_key_name: 'default-key',
+      group_id: 3001,
+      group_name: 'default',
+      endpoint: '/v1/responses',
+      provider: 'openai',
+      model: 'gpt-5.5',
+      mode: 'pre_block',
+      action: 'block',
+      flagged: true,
+      highest_category: 'sexual',
+      highest_score: 0.9,
+      matched_keyword: '',
+      category_scores: { sexual: 0.9 },
+      threshold_snapshot: { sexual: 0.65 },
+      input_excerpt: 'short excerpt',
+      upstream_latency_ms: 20,
+      error: '',
+      violation_count: 1,
+      auto_banned: false,
+      email_sent: false,
+      user_status: 'active',
+      queue_delay_ms: null,
+      created_at: '2026-01-02T03:04:05Z',
+    }
+    const detail: ContentModerationLog = {
+      ...log,
+      content_complete: true,
+      audit_complete: true,
+      input_items: [{ index: 0, source: 'tool', type: 'text', text: 'complete tool output with secret' }],
+      media: [{
+        id: 77,
+        source_index: 1,
+        source: 'tool',
+        mime_type: 'image/png',
+        sha256: 'a'.repeat(64),
+        byte_size: 5,
+        original_ref: 'data:image/png;base64,aW1hZ2U=',
+        snapshot_status: 'ready',
+        snapshot_error: '',
+        created_at: '2026-01-02T03:04:05Z',
+      }],
+    }
+    listLogs.mockResolvedValue({ items: [log], total: 1, page: 1, page_size: 20, pages: 1 })
+    getLog.mockResolvedValue(detail)
+    const createObjectURL = vi.fn(() => 'blob:review-image')
+    const revokeObjectURL = vi.fn()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: createObjectURL })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: revokeObjectURL })
+
+    const wrapper = mount(RiskControlView, {
+      global: {
+        stubs: {
+          AppLayout: AppLayoutStub,
+          BaseDialog: BaseDialogStub,
+          Icon: true,
+          Select: true,
+          Toggle: true,
+          Pagination: true,
+          ModelWhitelistSelector: ModelWhitelistSelectorStub,
+        },
+      },
+    })
+
+    await flushPromises()
+    await wrapper.get('[data-test="moderation-detail-button"]').trigger('click')
+    await flushPromises()
+
+    expect(getLog).toHaveBeenCalledWith(9)
+    expect(getMediaContent).toHaveBeenCalledWith(77)
+    expect(wrapper.text()).toContain('complete tool output with secret')
+    expect(wrapper.get('img').attributes('src')).toBe('blob:review-image')
+
+    await findButtonByText(wrapper, 'common.close').trigger('click')
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:review-image')
   })
 
   it('saves the selected model filter mode and models', async () => {
