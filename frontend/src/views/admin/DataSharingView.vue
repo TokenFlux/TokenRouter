@@ -1288,6 +1288,7 @@ const exportUploadConcurrencyDefault = 4
 const exportUploadPartSizeMBMin = 5
 const exportUploadPartSizeMBMax = 128
 const exportUploadPartSizeMBDefault = 64
+const exportArtifactUploadPollingIntervalMs = 2000
 const statsAutoRefreshDefaultSeconds = 5
 const statsAutoRefreshIntervals = [5, 10, 15, 30] as const
 const captureCompressionLevelOptions = [
@@ -2058,6 +2059,9 @@ const cancelUploadDialogMessage = computed(() => {
 
 let filterTimer: number | null = null
 let statsAutoRefreshTimer: number | null = null
+let exportArtifactUploadPollingTimer: number | null = null
+let exportArtifactUploadPollingID: number | null = null
+let exportArtifactUploadPollInFlight = false
 
 function buildFilters(): AdminDataShareSessionFilters {
   const out: AdminDataShareSessionFilters = {
@@ -2659,7 +2663,7 @@ async function loadExportArtifacts() {
     exportArtifacts.value = res.items
     exportArtifactPagination.total = res.total
     exportArtifactPagination.pages = res.pages
-    // 导出文件状态只在页面加载、手动刷新和任务操作后刷新，避免后台自动轮询。
+    syncExportArtifactUploadPolling(res.items)
   } catch (error) {
     appStore.showError('加载导出文件失败')
   } finally {
@@ -2669,6 +2673,64 @@ async function loadExportArtifacts() {
 
 async function refreshExportArtifacts() {
   await Promise.all([loadExportArtifacts(), loadStats()])
+}
+
+function syncExportArtifactUploadPolling(items: DataShareExportArtifact[]) {
+  // 后端当前只允许一个远端上传任务，因此只跟踪当前页面上的上传中任务。
+  const uploading = items.find(item => item.remote_status === 'uploading')
+  if (!uploading) {
+    stopExportArtifactUploadPolling()
+    return
+  }
+  startExportArtifactUploadPolling(uploading.id)
+}
+
+function startExportArtifactUploadPolling(id: number) {
+  if (id <= 0 || document.hidden) return
+  if (exportArtifactUploadPollingTimer && exportArtifactUploadPollingID === id) return
+  stopExportArtifactUploadPolling()
+  exportArtifactUploadPollingID = id
+  exportArtifactUploadPollingTimer = window.setInterval(
+    pollExportArtifactUpload,
+    exportArtifactUploadPollingIntervalMs
+  )
+}
+
+function stopExportArtifactUploadPolling(id?: number) {
+  if (id && exportArtifactUploadPollingID !== id) return
+  if (exportArtifactUploadPollingTimer) {
+    window.clearInterval(exportArtifactUploadPollingTimer)
+  }
+  exportArtifactUploadPollingTimer = null
+  exportArtifactUploadPollingID = null
+}
+
+async function pollExportArtifactUpload() {
+  const id = exportArtifactUploadPollingID
+  if (!exportArtifactUploadPollingTimer || !id || document.hidden || exportArtifactUploadPollInFlight) return
+  exportArtifactUploadPollInFlight = true
+  try {
+    const artifact = await adminDataSharingAPI.getExportArtifact(id)
+    // 取消、切换任务或卸载后，忽略已经在途的旧响应。
+    if (exportArtifactUploadPollingID !== id) return
+    replaceExportArtifact(artifact)
+    if (artifact.remote_status !== 'uploading') {
+      stopExportArtifactUploadPolling(id)
+    }
+  } catch {
+    // 短暂网络错误不终止轮询，管理员仍可使用手动刷新或取消上传。
+  } finally {
+    exportArtifactUploadPollInFlight = false
+  }
+}
+
+async function handleExportArtifactVisibilityChange() {
+  if (document.hidden) {
+    stopExportArtifactUploadPolling()
+    return
+  }
+  // 标签页恢复时重新读取持久化状态，再按最新状态决定是否继续轮询。
+  await loadExportArtifacts()
 }
 
 function refreshAll() {
@@ -2897,6 +2959,7 @@ async function uploadExportArtifact(row: DataShareExportArtifact) {
   try {
     const artifact = await adminDataSharingAPI.uploadExportArtifact(row.id)
     replaceExportArtifact(artifact)
+    startExportArtifactUploadPolling(artifact.id)
     appStore.showSuccess('上传任务已开始')
   } catch (error) {
     appStore.showError('启动上传到 S3/R2 失败')
@@ -2948,6 +3011,7 @@ async function confirmCancelExportArtifactUpload() {
     // 取消只中断远端上传任务，本地生成好的导出文件仍保留，可稍后重新上传。
     const artifact = await adminDataSharingAPI.cancelExportArtifactUpload(target.id)
     replaceExportArtifact(artifact)
+    stopExportArtifactUploadPolling(target.id)
     appStore.showSuccess('上传任务已取消')
   } catch (error) {
     appStore.showError('取消上传失败')
@@ -3295,6 +3359,7 @@ function formatExportUploadSpeed(bytesPerSecond?: number | null) {
 onMounted(() => {
   document.addEventListener('click', closeSkipRulePathMenuOnOutsideClick)
   document.addEventListener('click', closeStatsAutoRefreshDropdownOnOutsideClick)
+  document.addEventListener('visibilitychange', handleExportArtifactVisibilityChange)
   window.addEventListener('resize', handleStatsAutoRefreshViewportChange)
   window.addEventListener('scroll', handleStatsAutoRefreshViewportChange, true)
   loadFilterOptions()
@@ -3309,8 +3374,10 @@ onMounted(() => {
 onUnmounted(() => {
   document.removeEventListener('click', closeSkipRulePathMenuOnOutsideClick)
   document.removeEventListener('click', closeStatsAutoRefreshDropdownOnOutsideClick)
+  document.removeEventListener('visibilitychange', handleExportArtifactVisibilityChange)
   window.removeEventListener('resize', handleStatsAutoRefreshViewportChange)
   window.removeEventListener('scroll', handleStatsAutoRefreshViewportChange, true)
   stopStatsAutoRefresh()
+  stopExportArtifactUploadPolling()
 })
 </script>

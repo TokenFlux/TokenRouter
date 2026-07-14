@@ -349,6 +349,12 @@ export async function listExportArtifacts(
   return data
 }
 
+// 获取单个导出任务的最新状态，供远端上传进度轮询使用。
+export async function getExportArtifact(id: number): Promise<DataShareExportArtifact> {
+  const { data } = await apiClient.get<DataShareExportArtifact>(`/admin/data-sharing/exports/${id}`)
+  return data
+}
+
 export async function createExportArtifactDownloadTicket(id: number): Promise<DataShareExportTicket> {
   const { data } = await apiClient.post<DataShareExportTicket>(`/admin/data-sharing/exports/${id}/download-ticket`)
   return data
@@ -401,6 +407,7 @@ export const adminDataSharingAPI = {
   createExportArtifact,
   createSessionExportArtifact,
   listExportArtifacts,
+  getExportArtifact,
   createExportArtifactDownloadTicket,
   uploadExportArtifact,
   cancelExportArtifactUpload,
