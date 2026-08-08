@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func newTempUnschedCacheTest(t *testing.T) (service.TempUnschedCache, *redis.Client) {
+func newTempUnschedCacheTest(t *testing.T) (service.TempUnschedCache, *redis.Client, *miniredis.Miniredis) {
 	t.Helper()
 
 	// 每个测试使用独立 Redis 实例，避免账号键和 TTL 相互影响。
@@ -21,11 +21,11 @@ func newTempUnschedCacheTest(t *testing.T) (service.TempUnschedCache, *redis.Cli
 		_ = client.Close()
 	})
 
-	return NewTempUnschedCache(client), client
+	return NewTempUnschedCache(client), client, server
 }
 
 func TestTempUnschedCacheShorterStateDoesNotReplaceLongerState(t *testing.T) {
-	cache, _ := newTempUnschedCacheTest(t)
+	cache, _, _ := newTempUnschedCacheTest(t)
 	ctx := context.Background()
 	now := time.Now().Unix()
 	longer := &service.TempUnschedState{
@@ -53,8 +53,8 @@ func TestTempUnschedCacheShorterStateDoesNotReplaceLongerState(t *testing.T) {
 	require.Equal(t, longer, got)
 }
 
-func TestTempUnschedCacheLongerStateReplacesShorterState(t *testing.T) {
-	cache, _ := newTempUnschedCacheTest(t)
+func TestTempUnschedCacheLongerStateExtendsExpiry(t *testing.T) {
+	cache, _, server := newTempUnschedCacheTest(t)
 	ctx := context.Background()
 	now := time.Now().Unix()
 	shorter := &service.TempUnschedState{
@@ -73,13 +73,16 @@ func TestTempUnschedCacheLongerStateReplacesShorterState(t *testing.T) {
 	require.NoError(t, cache.SetTempUnsched(ctx, 102, shorter))
 	require.NoError(t, cache.SetTempUnsched(ctx, 102, longer))
 
+	// 越过旧状态的有效期，确认新状态同时延长 Redis 过期时间。
+	server.FastForward(150 * time.Second)
+
 	got, err := cache.GetTempUnsched(ctx, 102)
 	require.NoError(t, err)
 	require.Equal(t, longer, got)
 }
 
 func TestTempUnschedCacheExpiredStateIsNotStored(t *testing.T) {
-	cache, _ := newTempUnschedCacheTest(t)
+	cache, _, _ := newTempUnschedCacheTest(t)
 	ctx := context.Background()
 	expired := &service.TempUnschedState{
 		UntilUnix:       time.Now().Add(-time.Minute).Unix(),
@@ -96,7 +99,7 @@ func TestTempUnschedCacheExpiredStateIsNotStored(t *testing.T) {
 }
 
 func TestTempUnschedCacheMalformedStateReturnsClearError(t *testing.T) {
-	cache, client := newTempUnschedCacheTest(t)
+	cache, client, _ := newTempUnschedCacheTest(t)
 	ctx := context.Background()
 	require.NoError(t, client.Set(ctx, tempUnschedPrefix+"104", "{invalid-json", time.Minute).Err())
 
@@ -107,7 +110,7 @@ func TestTempUnschedCacheMalformedStateReturnsClearError(t *testing.T) {
 }
 
 func TestTempUnschedCacheDeleteIsIdempotent(t *testing.T) {
-	cache, _ := newTempUnschedCacheTest(t)
+	cache, _, _ := newTempUnschedCacheTest(t)
 	ctx := context.Background()
 	state := &service.TempUnschedState{
 		UntilUnix:       time.Now().Add(5 * time.Minute).Unix(),
