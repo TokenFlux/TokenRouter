@@ -12,3 +12,6 @@ dist/
 # 忽略缓存
 .cache/
 .vite/
+
+# 忽略 Vite/Vitest 加载配置时创建的短期模块
+*.timestamp-*.mjs
