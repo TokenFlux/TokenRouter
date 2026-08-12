@@ -59,6 +59,43 @@ describe('AppSidebar scroll position persistence', () => {
   })
 })
 
+describe('AppSidebar sliding hover indicator', () => {
+  it('uses one shared background layer for every navigation item', () => {
+    // 单一指示层应在菜单项之间移动，菜单项自身不再分别绘制悬浮背景。
+    expect(componentSource.match(/class="sidebar-hover-indicator"/g)).toHaveLength(1)
+    expect(componentSource).toContain('@pointermove="handleNavPointerMove"')
+    expect(componentSource).toContain('@pointerleave="restoreActiveIndicator"')
+    expect(componentSource).toContain('ref="sidebarNavContentRef"')
+    expect(componentSource).toContain('transform: `translate3d(')
+    expect(styleSource).not.toContain('@apply hover:bg-primary-100 dark:hover:bg-dark-950;')
+  })
+
+  it('keeps dark-mode sidebar text neutral and layered', () => {
+    expect(styleSource).toContain('@apply text-primary-900/75 dark:text-dark-200;')
+    expect(styleSource).toContain('@apply hover:text-primary-900 dark:hover:text-dark-50;')
+  })
+
+  it('animates the shared layer and respects reduced motion', () => {
+    expect(componentSource).toContain('transform 220ms cubic-bezier(0.22, 1, 0.36, 1)')
+    expect(componentSource).toContain('@media (prefers-reduced-motion: reduce)')
+    expect(styleSource).toContain('.dark .sidebar-hover-indicator')
+    expect(styleSource).toContain('@apply bg-dark-800 ring-dark-600/70;')
+    expect(componentSource).not.toContain(':global(.dark')
+  })
+
+  it('moves immediately while keeping the corrected coordinate system', () => {
+    expect(componentSource).not.toContain('HOVER_INDICATOR_DELAY_MS')
+    expect(componentSource).not.toContain('scheduleIndicatorMove')
+    expect(componentSource).not.toContain('pendingSidebarLink')
+    expect(componentSource).not.toContain('hoverMoveTimer')
+    expect(componentSource).toContain('function nearestSidebarLink(clientX: number, clientY: number)')
+    expect(componentSource).toContain('return nearestDistance <= 8 ? nearestLink : null')
+    expect(componentSource).toContain('分组间的大块空白保持滑块原位')
+    expect(componentSource).toContain('linkRect.top - contentRect.top')
+    expect(componentSource).not.toContain('linkRect.top - navRect.top + nav.scrollTop')
+  })
+})
+
 describe('AppSidebar header styles', () => {
   it('does not clip the version badge dropdown', () => {
     const sidebarHeaderBlockMatch = styleSource.match(/\.sidebar-header\s*\{[\s\S]*?\n {2}\}/)

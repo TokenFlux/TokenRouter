@@ -31,7 +31,24 @@
     </div>
 
     <!-- Navigation -->
-    <nav ref="sidebarNavRef" class="sidebar-nav scrollbar-hide">
+    <nav
+      ref="sidebarNavRef"
+      class="sidebar-nav scrollbar-hide"
+      @pointermove="handleNavPointerMove"
+      @pointerleave="restoreActiveIndicator"
+      @focusin="handleNavFocusIn"
+      @focusout="handleNavFocusOut"
+    >
+      <div ref="sidebarNavContentRef" class="sidebar-nav-content">
+        <div
+          class="sidebar-hover-indicator"
+          :class="{
+            'sidebar-hover-indicator-visible': hoverIndicator.visible,
+            'sidebar-hover-indicator-animated': hoverIndicator.animated
+          }"
+          :style="hoverIndicatorStyle"
+          aria-hidden="true"
+        ></div>
       <!-- Admin View: Admin menu first, then personal menu -->
       <template v-if="isAdmin">
         <!-- Admin Section -->
@@ -146,6 +163,7 @@
           </router-link>
         </div>
       </template>
+      </div>
     </nav>
 
   </aside>
@@ -161,7 +179,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, h, nextTick, onBeforeUnmount, onMounted, ref, watch, type CSSProperties } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAdminSettingsStore, useAppStore, useAuthStore, useOnboardingStore } from '@/stores'
@@ -194,6 +212,22 @@ const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
 const isAdmin = computed(() => authStore.isAdmin)
 const sidebarNavRef = ref<HTMLElement | null>(null)
+const sidebarNavContentRef = ref<HTMLElement | null>(null)
+const hoveredSidebarLink = ref<HTMLElement | null>(null)
+const hoverIndicator = ref({
+  top: 0,
+  left: 0,
+  width: 0,
+  height: 0,
+  visible: false,
+  animated: false
+})
+
+const hoverIndicatorStyle = computed<CSSProperties>(() => ({
+  width: `${hoverIndicator.value.width}px`,
+  height: `${hoverIndicator.value.height}px`,
+  transform: `translate3d(${hoverIndicator.value.left}px, ${hoverIndicator.value.top}px, 0)`
+}))
 
 // 品牌入口按当前身份返回对应首页。
 const homePath = computed(() => (isAdmin.value ? '/admin/dashboard' : '/dashboard'))
@@ -844,6 +878,89 @@ function toggleGroup(item: NavItem) {
   } else {
     expandedGroups.value.add(item.path)
   }
+
+  void nextTick(restoreActiveIndicator)
+}
+
+// 单一背景层在菜单项之间移动，避免相邻项各自闪烁切换背景。
+function moveIndicatorTo(link: HTMLElement | null, animate = true) {
+  const nav = sidebarNavRef.value
+  const content = sidebarNavContentRef.value
+  if (!nav || !content || !link || !content.contains(link)) {
+    hoverIndicator.value.visible = false
+    return
+  }
+
+  const contentRect = content.getBoundingClientRect()
+  const linkRect = link.getBoundingClientRect()
+  const wasVisible = hoverIndicator.value.visible
+  hoverIndicator.value = {
+    top: linkRect.top - contentRect.top,
+    left: linkRect.left - contentRect.left,
+    width: linkRect.width,
+    height: linkRect.height,
+    visible: true,
+    animated: wasVisible && animate
+  }
+}
+
+function sidebarLinkFromTarget(target: EventTarget | null): HTMLElement | null {
+  if (!(target instanceof Element)) return null
+  return target.closest<HTMLElement>('.sidebar-link')
+}
+
+// 将按钮的窄 margin 纳入相邻按钮命中区，在间隙中按距离只选择一侧。
+function nearestSidebarLink(clientX: number, clientY: number): HTMLElement | null {
+  const links = Array.from(sidebarNavContentRef.value?.querySelectorAll<HTMLElement>('.sidebar-link') ?? [])
+  let nearestLink: HTMLElement | null = null
+  let nearestDistance = Number.POSITIVE_INFINITY
+
+  for (const link of links) {
+    const rect = link.getBoundingClientRect()
+    if (clientX < rect.left || clientX > rect.right) continue
+    const distance = clientY < rect.top
+      ? rect.top - clientY
+      : clientY > rect.bottom
+        ? clientY - rect.bottom
+        : 0
+    if (distance < nearestDistance) {
+      nearestDistance = distance
+      nearestLink = link
+    }
+  }
+
+  return nearestDistance <= 8 ? nearestLink : null
+}
+
+function restoreActiveIndicator() {
+  hoveredSidebarLink.value = null
+  void nextTick(() => {
+    const activeLink = sidebarNavRef.value?.querySelector<HTMLElement>('.sidebar-link-active') ?? null
+    moveIndicatorTo(activeLink)
+  })
+}
+
+function handleNavPointerMove(event: PointerEvent) {
+  const link = sidebarLinkFromTarget(event.target) ?? nearestSidebarLink(event.clientX, event.clientY)
+  if (!link) {
+    // 分组间的大块空白保持滑块原位，不跨区吸附。
+    return
+  }
+  if (link === hoveredSidebarLink.value) return
+  hoveredSidebarLink.value = link
+  moveIndicatorTo(link)
+}
+
+function handleNavFocusIn(event: FocusEvent) {
+  const link = sidebarLinkFromTarget(event.target)
+  if (link) {
+    moveIndicatorTo(link)
+  }
+}
+
+function handleNavFocusOut(event: FocusEvent) {
+  if (sidebarLinkFromTarget(event.relatedTarget)) return
+  restoreActiveIndicator()
 }
 
 // Fetch admin settings (for feature-gated nav items like Ops).
@@ -870,7 +987,23 @@ onMounted(() => {
       }
     })
   }
+  void nextTick(() => {
+    const activeLink = sidebarNavRef.value?.querySelector<HTMLElement>('.sidebar-link-active') ?? null
+    moveIndicatorTo(activeLink, false)
+  })
 })
+
+watch(
+  [() => route.path, sidebarCollapsed],
+  () => {
+    void nextTick(() => {
+      const target = hoveredSidebarLink.value
+        ?? sidebarNavRef.value?.querySelector<HTMLElement>('.sidebar-link-active')
+        ?? null
+      moveIndicatorTo(target)
+    })
+  }
+)
 
 onBeforeUnmount(() => {
   if (sidebarNavRef.value) {
@@ -880,6 +1013,41 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.sidebar-nav-content {
+  position: relative;
+  min-height: 100%;
+}
+
+.sidebar-hover-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  border-radius: 0.75rem;
+  @apply bg-primary-100 ring-1 ring-inset ring-primary-300/40;
+  opacity: 0;
+  pointer-events: none;
+  will-change: transform, width, height;
+}
+
+.sidebar-hover-indicator-visible {
+  opacity: 1;
+}
+
+.sidebar-hover-indicator-animated {
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 120ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-hover-indicator-animated {
+    transition: opacity 120ms ease-out;
+  }
+}
+
 .sidebar-logo {
   flex: 0 0 2.25rem;
   min-width: 2.25rem;
