@@ -98,6 +98,64 @@ func TestExtractOpenAIReasoningEffortMapPreservesExplicitThirdPartyMax(t *testin
 	require.Equal(t, "max", *got)
 }
 
+func TestExtractEffectiveOpenAIReasoningEffortFromBody(t *testing.T) {
+	t.Run("记录最终上游改写值", func(t *testing.T) {
+		got := extractEffectiveOpenAIReasoningEffortFromBody(
+			[]byte(`{"model":"glm-5.2","reasoning_effort":"max"}`),
+			[]byte(`{"model":"glm-5.2","reasoning_effort":"xhigh"}`),
+			"glm-5.2",
+		)
+
+		require.NotNil(t, got)
+		require.Equal(t, "max", *got)
+	})
+
+	t.Run("显式字段被转换丢弃后不从模型后缀补值", func(t *testing.T) {
+		got := extractEffectiveOpenAIReasoningEffortFromBody(
+			[]byte(`{"model":"gpt-5.6"}`),
+			[]byte(`{"model":"gpt-5.6-max","reasoning":{"effort":"high"}}`),
+			"gpt-5.6-max",
+		)
+
+		require.Nil(t, got)
+	})
+
+	t.Run("原请求省略字段时保留模型后缀推导", func(t *testing.T) {
+		got := extractEffectiveOpenAIReasoningEffortFromBody(
+			[]byte(`{"model":"gpt-5.6"}`),
+			[]byte(`{"model":"gpt-5.6-max"}`),
+			"gpt-5.6-max",
+		)
+
+		require.NotNil(t, got)
+		require.Equal(t, "max", *got)
+	})
+
+	t.Run("空值按未提供处理并保留模型后缀推导", func(t *testing.T) {
+		tests := []struct {
+			name string
+			body []byte
+		}{
+			{name: "空字符串", body: []byte(`{"model":"gpt-5.6-max","reasoning_effort":""}`)},
+			{name: "空白字符串", body: []byte(`{"model":"gpt-5.6-max","reasoning_effort":"   "}`)},
+			{name: "null", body: []byte(`{"model":"gpt-5.6-max","reasoning_effort":null}`)},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				got := extractEffectiveOpenAIReasoningEffortFromBody(
+					[]byte(`{"model":"gpt-5.6"}`),
+					tt.body,
+					"gpt-5.6-max",
+				)
+
+				require.NotNil(t, got)
+				require.Equal(t, "max", *got)
+			})
+		}
+	})
+}
+
 // 回归：OAuth 账号请求后缀式模型（无显式 reasoning 字段）时，上游模型被
 // normalizeCodexModel 剥掉 effort 后缀，用量元数据的 effort 必须仍能从
 // 原始模型名后缀推导出来。

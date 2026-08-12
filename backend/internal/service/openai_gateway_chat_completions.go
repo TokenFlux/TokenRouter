@@ -99,10 +99,6 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	// derive a stable seed from the final upstream model family.
 	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
 	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
-	// Usage 元数据统一从生效请求体提取，避免 Chat→Responses 与其它协议分支
-	// 对同一个显式 effort 使用不同的记录规则。
-	reasoningEffort := extractOpenAIReasoningEffortFromBody(body, upstreamModel, billingModel, originalModel)
-	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, billingModel)
 
 	promptCacheKey = strings.TrimSpace(promptCacheKey)
 	compatPromptCacheInjected := false
@@ -241,6 +237,10 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		return nil, policyErr
 	}
 	responsesBody = updatedBody
+	// Usage Log 记录最终实际发送给上游的 effort，避免把转换过程中被丢弃的
+	// Chat Completions 非标准字段误记为已转发。
+	reasoningEffort := extractEffectiveOpenAIReasoningEffortFromBody(responsesBody, body, upstreamModel, billingModel, originalModel)
+	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, responsesBody, billingModel)
 	if serviceTier := extractOpenAIServiceTierFromBody(responsesBody); serviceTier != nil {
 		responsesReq.ServiceTier = *serviceTier
 	} else {

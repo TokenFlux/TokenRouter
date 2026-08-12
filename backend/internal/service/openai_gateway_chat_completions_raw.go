@@ -80,10 +80,6 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 		// 在图片桥接或其它请求体改写前解析，使回退身份始终基于客户端稳定的会话前缀。
 		grokCacheIdentity = resolveGrokCacheIdentity(c, body, "", upstreamModel)
 	}
-	reasoningEffort := extractOpenAIReasoningEffortFromBody(body, upstreamModel, billingModel, originalModel)
-	// 国产模型没有显式 effort 档位时，thinking 启用后补默认展示值。
-	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, billingModel)
-
 	// 3. Rewrite model in body (no protocol conversion)
 	upstreamBody := body
 	if upstreamModel != originalModel {
@@ -104,6 +100,10 @@ func (s *OpenAIGatewayService) forwardAsRawChatCompletions(
 		return nil, policyErr
 	}
 	upstreamBody = updatedBody
+	// GLM 归一化和 fast policy 都可能改写上游请求，Usage Log 必须读取最终值。
+	reasoningEffort := extractEffectiveOpenAIReasoningEffortFromBody(upstreamBody, body, upstreamModel, billingModel, originalModel)
+	// 国产模型没有显式 effort 档位时，thinking 启用后补默认展示值。
+	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, upstreamBody, billingModel)
 	serviceTier := extractOpenAIServiceTierFromBody(upstreamBody)
 
 	// Grok Composer 不直接接受 image_url；仅在该场景通过 Grok Build 生成图片描述后转发纯文本。

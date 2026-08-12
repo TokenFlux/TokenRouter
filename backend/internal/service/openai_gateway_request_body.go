@@ -830,6 +830,17 @@ func extractOpenAIReasoningEffortFromBody(body []byte, modelCandidates ...string
 	return &value
 }
 
+// extractEffectiveOpenAIReasoningEffortFromBody 从最终上游请求体读取实际转发档位。
+// 原请求提供非空 effort、但最终请求体已不再携带时，不允许再从模型后缀补值；
+// 空字符串、空白字符串和 null 沿用既有语义，视为未提供。
+func extractEffectiveOpenAIReasoningEffortFromBody(upstreamBody, originalBody []byte, modelCandidates ...string) *string {
+	if strings.TrimSpace(gjson.GetBytes(originalBody, "reasoning.effort").String()) != "" ||
+		strings.TrimSpace(gjson.GetBytes(originalBody, "reasoning_effort").String()) != "" {
+		return extractOpenAIReasoningEffortFromBody(upstreamBody)
+	}
+	return extractOpenAIReasoningEffortFromBody(upstreamBody, modelCandidates...)
+}
+
 func extractOpenAIServiceTier(reqBody map[string]any) *string {
 	if reqBody == nil {
 		return nil
