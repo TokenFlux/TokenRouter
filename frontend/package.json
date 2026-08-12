@@ -25,6 +25,7 @@
     "dompurify": "^3.3.1",
     "driver.js": "^1.4.0",
     "file-saver": "^2.0.5",
+    "lottie-web": "^5.13.0",
     "marked": "^17.0.1",
     "pinia": "^2.1.7",
     "qrcode": "^1.5.4",

@@ -2,6 +2,7 @@
   <div class="ba-theme-shell relative flex min-h-screen items-center justify-center overflow-hidden p-4">
     <!-- Background -->
     <div class="ba-theme-backdrop pointer-events-none fixed inset-0"></div>
+    <AuthBackground />
 
     <!-- Content Container -->
     <div class="relative z-10 w-full max-w-md">
@@ -14,7 +15,8 @@
           >
             <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
           </div>
-          <h1 class="text-gradient mb-2 text-3xl font-bold">
+          <!-- 品牌标题在浅色和深色主题下保持清晰对比。 -->
+          <h1 class="mb-2 text-3xl font-bold text-black dark:text-white">
             {{ siteName }}
           </h1>
           <p class="text-sm text-gray-500 dark:text-dark-400">
@@ -44,6 +46,7 @@
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import AuthBackground from '@/components/auth/AuthBackground.vue'
 import { useAppStore } from '@/stores'
 import { sanitizeUrl } from '@/utils/url'
 
@@ -77,9 +80,3 @@ onMounted(() => {
   appStore.fetchPublicSettings()
 })
 </script>
-
-<style scoped>
-.text-gradient {
-  @apply bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent;
-}
-</style>
