@@ -69,8 +69,10 @@ func AnthropicToChatCompletionsRequest(req *AnthropicRequest) (*ChatCompletionsR
 		}
 	}
 
+	parallelToolCalls := true
 	// 只有转换后仍存在 tools 时才转发 tool_choice；具名选择还必须指向已声明工具，
-	// 否则严格 Chat 上游会因未知工具返回 400。
+	// 否则严格 Chat 上游会因未知工具返回 400。Anthropic 的并行禁用标记需要
+	// 同时映射到 Chat Completions 顶层 parallel_tool_calls。
 	if len(out.Tools) > 0 && len(req.ToolChoice) > 0 {
 		declared := make(map[string]bool, len(out.Tools))
 		for _, tool := range out.Tools {
@@ -78,10 +80,11 @@ func AnthropicToChatCompletionsRequest(req *AnthropicRequest) (*ChatCompletionsR
 				declared[tool.Function.Name] = true
 			}
 		}
-		tc, err := convertAnthropicToolChoiceToChat(req.ToolChoice, declared)
+		tc, allowParallel, err := convertAnthropicToolChoiceToChat(req.ToolChoice, declared)
 		if err != nil {
 			return nil, fmt.Errorf("convert tool_choice: %w", err)
 		}
+		parallelToolCalls = allowParallel
 		if len(tc) > 0 {
 			out.ToolChoice = tc
 		}
@@ -97,7 +100,6 @@ func AnthropicToChatCompletionsRequest(req *AnthropicRequest) (*ChatCompletionsR
 	}
 	out.ReasoningEffort = mapAnthropicEffortToResponsesForModel(req.Model, effort)
 
-	parallelToolCalls := true
 	out.ParallelToolCalls = &parallelToolCalls
 
 	return out, nil
@@ -298,32 +300,38 @@ func anthropicToolsToChatTools(tools []AnthropicTool) []ChatTool {
 //	{"type":"any"}             → "required"
 //	{"type":"none"}            → "none"
 //	{"type":"tool","name":"X"} → {"type":"function","function":{"name":"X"}}（X 已声明）
-func convertAnthropicToolChoiceToChat(raw json.RawMessage, declared map[string]bool) (json.RawMessage, error) {
+func convertAnthropicToolChoiceToChat(raw json.RawMessage, declared map[string]bool) (json.RawMessage, bool, error) {
 	var tc struct {
-		Type string `json:"type"`
-		Name string `json:"name"`
+		Type                   string `json:"type"`
+		Name                   string `json:"name"`
+		DisableParallelToolUse bool   `json:"disable_parallel_tool_use"`
 	}
 	if err := json.Unmarshal(raw, &tc); err != nil {
-		return nil, err
+		return nil, true, err
 	}
+	allowParallel := !tc.DisableParallelToolUse
 
 	switch tc.Type {
 	case "auto":
-		return json.Marshal("auto")
+		converted, err := json.Marshal("auto")
+		return converted, allowParallel, err
 	case "any":
-		return json.Marshal("required")
+		converted, err := json.Marshal("required")
+		return converted, allowParallel, err
 	case "none":
-		return json.Marshal("none")
+		converted, err := json.Marshal("none")
+		return converted, allowParallel, err
 	case "tool":
 		if tc.Name == "" || !declared[tc.Name] {
-			return nil, nil
+			return nil, allowParallel, nil
 		}
-		return json.Marshal(map[string]any{
+		converted, err := json.Marshal(map[string]any{
 			"type":     "function",
 			"function": map[string]string{"name": tc.Name},
 		})
+		return converted, allowParallel, err
 	default:
-		return nil, nil
+		return nil, allowParallel, nil
 	}
 }
 
@@ -483,21 +491,16 @@ type ChatCompletionsToAnthropicStreamState struct {
 	MessageStartSent bool
 	MessageStopSent  bool
 
-	// 当前内容块的生命周期状态。
-	ContentBlockIndex   int
-	ContentBlockOpen    bool
-	CurrentBlockType    string // 内容块类型：text、thinking 或 tool_use。
-	CurrentToolName     string
-	CurrentToolHadDelta bool
-	HasToolCall         bool
+	// 当前文本或思考内容块的生命周期状态。
+	ContentBlockIndex int
+	ContentBlockOpen  bool
+	CurrentBlockType  string // 内容块类型：text 或 thinking。
+	HasToolCall       bool
 
-	// tool call 按上游 index 保存。等工具名到达并发出 content_block_start 时才分配 Anthropic block index；
-	// 名称前到达的 call ID 与参数片段先缓存，名称始终缺失时在 finalize 以空名称发布，避免参数丢失。
-	toolBlockIndex    map[int]int
-	toolAnnounced     map[int]bool
-	toolName          map[int]string
-	pendingToolCallID map[int]string
-	pendingToolArgs   map[int]string
+	// 工具调用按上游 index 聚合。Chat Completions 允许多个工具的参数分片交错到达，
+	// Anthropic 内容块则必须在 stop 前收到全部 delta，因此统一在流收尾时顺序输出。
+	toolCalls             map[int]*ChatToolCall
+	toolArgumentFragments map[int][]string
 
 	// DeepSeek 风格 reasoning_content 先于正文到达；内容块按顺序生成，因此复用同一个 block index 计数器。
 
@@ -516,14 +519,11 @@ type ChatCompletionsToAnthropicStreamState struct {
 // NewChatCompletionsToAnthropicStreamState 返回已初始化的直转流状态。
 func NewChatCompletionsToAnthropicStreamState(model string) *ChatCompletionsToAnthropicStreamState {
 	return &ChatCompletionsToAnthropicStreamState{
-		ResponseID:        generateResponsesID(),
-		Model:             model,
-		Created:           time.Now().Unix(),
-		toolBlockIndex:    make(map[int]int),
-		toolAnnounced:     make(map[int]bool),
-		toolName:          make(map[int]string),
-		pendingToolCallID: make(map[int]string),
-		pendingToolArgs:   make(map[int]string),
+		ResponseID:            generateResponsesID(),
+		Model:                 model,
+		Created:               time.Now().Unix(),
+		toolCalls:             make(map[int]*ChatToolCall),
+		toolArgumentFragments: make(map[int][]string),
 	}
 }
 
@@ -574,10 +574,9 @@ func ChatCompletionsChunkToAnthropicEvents(
 			})...)
 		}
 
-		// tool calls 写入 tool_use blocks。
+		// tool calls 仅按 index 聚合；等流结束后再生成完整且不交错的 tool_use blocks。
 		for _, toolCall := range choice.Delta.ToolCalls {
-			events = append(events, closeCCAnthropicBlockIfOpen(state, "thinking")...)
-			events = append(events, handleCCAnthropicToolCall(state, &toolCall)...)
+			bufferCCAnthropicToolCall(state, &toolCall)
 		}
 
 		if choice.FinishReason != nil && *choice.FinishReason != "" {
@@ -599,21 +598,8 @@ func FinalizeChatCompletionsAnthropicStream(state *ChatCompletionsToAnthropicStr
 		events = append(events, ensureCCAnthropicMessageStart(state)...)
 	}
 
-	// 名称始终未到达的工具也以空名称发布，保证缓存参数不丢失；名称正常到达时仍使用真实名称。
-	if len(state.pendingToolCallID) > 0 {
-		idxs := make([]int, 0, len(state.pendingToolCallID))
-		for idx := range state.pendingToolCallID {
-			idxs = append(idxs, idx)
-		}
-		sort.Ints(idxs)
-		for _, idx := range idxs {
-			callID := state.pendingToolCallID[idx]
-			events = append(events, closeCCAnthropicBlock(state)...)
-			events = append(events, announceCCAnthropicToolBlock(state, idx, callID, "")...)
-		}
-	}
-
 	events = append(events, closeCCAnthropicBlock(state)...)
+	events = append(events, finalizeCCAnthropicToolCalls(state)...)
 
 	stopReason := ccFinishReasonToAnthropicStopReason(state.FinishReason, state.HasToolCall)
 
@@ -696,98 +682,103 @@ func ensureCCAnthropicTextBlock(state *ChatCompletionsToAnthropicStreamState) []
 	return events
 }
 
-// handleCCAnthropicToolCall 处理一个上游 tool_call delta。部分上游先发送 ID/参数再发送名称，
-// 因此 content_block_start 延后到名称到达；此前的参数先缓存，此后的参数直接写入 input_json_delta。
-func handleCCAnthropicToolCall(state *ChatCompletionsToAnthropicStreamState, toolCall *ChatToolCall) []AnthropicStreamEvent {
+// bufferCCAnthropicToolCall 按上游 index 聚合工具 ID、名称和参数分片。
+// 首帧可能同时携带完整字段，也可能先到参数、后到名称或 ID。
+func bufferCCAnthropicToolCall(state *ChatCompletionsToAnthropicStreamState, toolCall *ChatToolCall) {
+	if state == nil || toolCall == nil {
+		return
+	}
 	idx := 0
 	if toolCall.Index != nil {
 		idx = *toolCall.Index
 	}
 
-	var events []AnthropicStreamEvent
-
-	if _, seen := state.toolAnnounced[idx]; !seen {
-		// 新 tool call 会结束当前正在流式写入的内容块。
-		events = append(events, closeCCAnthropicBlock(state)...)
-		state.HasToolCall = true
-
-		callID := toolCall.ID
-		if callID == "" {
-			callID = generateItemID()
+	stored, ok := state.toolCalls[idx]
+	if !ok {
+		copyCall := *toolCall
+		if copyCall.ID == "" {
+			copyCall.ID = generateItemID()
 		}
-		if name := toolCall.Function.Name; name != "" {
-			events = append(events, announceCCAnthropicToolBlock(state, idx, callID, name)...)
-		} else {
-			state.toolAnnounced[idx] = false
-			state.pendingToolCallID[idx] = callID
+		if copyCall.Type == "" {
+			copyCall.Type = "function"
 		}
-	} else if !state.toolAnnounced[idx] && toolCall.Function.Name != "" {
-		// 工具名到达后完成延迟发布。
-		callID := state.pendingToolCallID[idx]
+		// 参数由下方共享逻辑累加，避免首帧被重复计入。
+		copyCall.Function.Arguments = ""
+		state.toolCalls[idx] = &copyCall
+		stored = &copyCall
+	} else {
 		if toolCall.ID != "" {
-			callID = toolCall.ID
+			stored.ID = toolCall.ID
 		}
-		events = append(events, closeCCAnthropicBlock(state)...)
-		events = append(events, announceCCAnthropicToolBlock(state, idx, callID, toolCall.Function.Name)...)
+		if toolCall.Type != "" {
+			stored.Type = toolCall.Type
+		}
+		if toolCall.Function.Name != "" {
+			stored.Function.Name = toolCall.Function.Name
+		}
 	}
 
-	// 工具发布后参数片段直接生成 input_json_delta，否则先缓存到延迟发布阶段。
 	if toolCall.Function.Arguments != "" {
-		if state.toolAnnounced[idx] {
-			blockIdx := state.toolBlockIndex[idx]
-			if state.ContentBlockOpen && blockIdx == state.ContentBlockIndex {
-				state.CurrentToolHadDelta = true
-			}
-			events = append(events, AnthropicStreamEvent{
+		// 参数分片只暂存，收尾时一次拼接，避免大参数反复复制。
+		state.toolArgumentFragments[idx] = append(state.toolArgumentFragments[idx], toolCall.Function.Arguments)
+	}
+	state.HasToolCall = true
+}
+
+// finalizeCCAnthropicToolCalls 按工具 index 生成连续、闭合的 Anthropic tool_use blocks。
+// 每个工具只发送一个完整 JSON delta，确保并行参数分片不会跨越 block 生命周期。
+func finalizeCCAnthropicToolCalls(state *ChatCompletionsToAnthropicStreamState) []AnthropicStreamEvent {
+	if state == nil || len(state.toolCalls) == 0 {
+		return nil
+	}
+
+	idxs := make([]int, 0, len(state.toolCalls))
+	for idx := range state.toolCalls {
+		idxs = append(idxs, idx)
+	}
+	sort.Ints(idxs)
+
+	var events []AnthropicStreamEvent
+	for _, idx := range idxs {
+		toolCall := state.toolCalls[idx]
+		if toolCall == nil {
+			continue
+		}
+		if toolCall.ID == "" {
+			toolCall.ID = generateItemID()
+		}
+		arguments := strings.Join(state.toolArgumentFragments[idx], "")
+		if strings.TrimSpace(arguments) == "" {
+			arguments = "{}"
+		}
+		arguments = string(sanitizeAnthropicToolUseInput(toolCall.Function.Name, arguments))
+
+		blockIdx := state.ContentBlockIndex
+		events = append(events,
+			AnthropicStreamEvent{
+				Type:  "content_block_start",
+				Index: &blockIdx,
+				ContentBlock: &AnthropicContentBlock{
+					Type:  "tool_use",
+					ID:    fromResponsesCallID(toolCall.ID),
+					Name:  toolCall.Function.Name,
+					Input: json.RawMessage("{}"),
+				},
+			},
+			AnthropicStreamEvent{
 				Type:  "content_block_delta",
 				Index: &blockIdx,
 				Delta: &AnthropicDelta{
 					Type:        "input_json_delta",
-					PartialJSON: toolCall.Function.Arguments,
+					PartialJSON: arguments,
 				},
-			})
-		} else {
-			state.pendingToolArgs[idx] += toolCall.Function.Arguments
-		}
-	}
-
-	return events
-}
-
-// announceCCAnthropicToolBlock 为工具分配下一个 Anthropic block index，发出 content_block_start，
-// 并冲刷延迟发布期间缓存的参数片段。
-func announceCCAnthropicToolBlock(state *ChatCompletionsToAnthropicStreamState, idx int, callID, name string) []AnthropicStreamEvent {
-	blockIdx := state.ContentBlockIndex
-	state.toolBlockIndex[idx] = blockIdx
-	state.toolAnnounced[idx] = true
-	state.toolName[idx] = name
-	state.CurrentToolName = name
-	state.CurrentToolHadDelta = false
-	state.ContentBlockOpen = true
-	state.CurrentBlockType = "tool_use"
-	delete(state.pendingToolCallID, idx)
-
-	events := []AnthropicStreamEvent{{
-		Type:  "content_block_start",
-		Index: &blockIdx,
-		ContentBlock: &AnthropicContentBlock{
-			Type:  "tool_use",
-			ID:    fromResponsesCallID(callID),
-			Name:  name,
-			Input: json.RawMessage("{}"),
-		},
-	}}
-	if pending := state.pendingToolArgs[idx]; pending != "" {
-		delete(state.pendingToolArgs, idx)
-		state.CurrentToolHadDelta = true
-		events = append(events, AnthropicStreamEvent{
-			Type:  "content_block_delta",
-			Index: &blockIdx,
-			Delta: &AnthropicDelta{
-				Type:        "input_json_delta",
-				PartialJSON: pending,
 			},
-		})
+			AnthropicStreamEvent{
+				Type:  "content_block_stop",
+				Index: &blockIdx,
+			},
+		)
+		state.ContentBlockIndex++
 	}
 	return events
 }
@@ -813,33 +804,19 @@ func closeCCAnthropicBlockIfOpen(state *ChatCompletionsToAnthropicStreamState, b
 	return closeCCAnthropicBlock(state)
 }
 
-// closeCCAnthropicBlock 关闭当前内容块。没有参数 delta 的 tool_use 会先补一个 `{}` 占位 delta；
-// 旧桥也会把空参数归一化为 `{}`，且部分客户端只从 delta 组装工具输入。
+// closeCCAnthropicBlock 关闭当前文本或思考内容块。
 func closeCCAnthropicBlock(state *ChatCompletionsToAnthropicStreamState) []AnthropicStreamEvent {
 	if !state.ContentBlockOpen {
 		return nil
 	}
 	idx := state.ContentBlockIndex
-	var events []AnthropicStreamEvent
-	if state.CurrentBlockType == "tool_use" && !state.CurrentToolHadDelta {
-		events = append(events, AnthropicStreamEvent{
-			Type:  "content_block_delta",
-			Index: &idx,
-			Delta: &AnthropicDelta{
-				Type:        "input_json_delta",
-				PartialJSON: "{}",
-			},
-		})
-	}
 	state.ContentBlockOpen = false
 	state.ContentBlockIndex++
 	state.CurrentBlockType = ""
-	state.CurrentToolName = ""
-	state.CurrentToolHadDelta = false
-	return append(events, AnthropicStreamEvent{
+	return []AnthropicStreamEvent{{
 		Type:  "content_block_stop",
 		Index: &idx,
-	})
+	}}
 }
 
 // ccFinishReasonToAnthropicStopReason 把流中取得的 Chat finish_reason 映射为 message_delta 的 Anthropic stop_reason。

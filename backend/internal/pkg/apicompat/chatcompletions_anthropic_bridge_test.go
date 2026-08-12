@@ -161,6 +161,39 @@ func TestAnthropicToChatCompletionsRequest_ToolChoiceAuto(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, out.Tools, 1)
 	require.Equal(t, `"auto"`, string(out.ToolChoice))
+	require.NotNil(t, out.ParallelToolCalls)
+	require.True(t, *out.ParallelToolCalls)
+}
+
+func TestAnthropicToChatCompletionsRequest_ParallelToolChoiceMapping(t *testing.T) {
+	tests := []struct {
+		name       string
+		toolChoice json.RawMessage
+		want       bool
+	}{
+		{name: "省略时默认启用", want: true},
+		{name: "显式 false 时启用", toolChoice: json.RawMessage(`{"type":"auto","disable_parallel_tool_use":false}`), want: true},
+		{name: "显式 true 时禁用", toolChoice: json.RawMessage(`{"type":"auto","disable_parallel_tool_use":true}`), want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &AnthropicRequest{
+				Model:     "claude-sonnet-4-20250514",
+				MaxTokens: 100,
+				Tools: []AnthropicTool{
+					{Name: "get_weather", InputSchema: json.RawMessage(`{"type":"object","properties":{}}`)},
+				},
+				ToolChoice: tt.toolChoice,
+				Messages:   []AnthropicMessage{{Role: "user", Content: json.RawMessage(`"hi"`)}},
+			}
+
+			out, err := AnthropicToChatCompletionsRequest(req)
+			require.NoError(t, err)
+			require.NotNil(t, out.ParallelToolCalls)
+			require.Equal(t, tt.want, *out.ParallelToolCalls)
+		})
+	}
 }
 
 func TestAnthropicToChatCompletionsRequest_ToolChoiceAny(t *testing.T) {
@@ -544,11 +577,10 @@ func TestChatCompletionsChunkToAnthropicEvents_ToolCallAggregation(t *testing.T)
 	})
 
 	types := anthropicEventTypes(events)
-	// 空首段参数应跳过，其余参数在 tool_use block 中形成两个 delta。
+	// 参数分片应在流收尾时合并为一个完整 JSON delta。
 	require.Equal(t, []string{
 		"message_start",
 		"content_block_start",
-		"content_block_delta",
 		"content_block_delta",
 		"content_block_stop",
 		"message_delta",
@@ -567,14 +599,14 @@ func TestChatCompletionsChunkToAnthropicEvents_ToolCallAggregation(t *testing.T)
 		}
 	}
 
-	// 验证跳过空首段后组装出的参数。
+	// 验证跳过空首段后组装出的完整参数。
 	var partials []string
 	for _, e := range events {
 		if e.Type == "content_block_delta" && e.Delta != nil {
 			partials = append(partials, e.Delta.PartialJSON)
 		}
 	}
-	require.Equal(t, []string{`{"city":`, `"SF"}`}, partials)
+	require.Equal(t, []string{`{"city":"SF"}`}, partials)
 }
 
 func TestChatCompletionsChunkToAnthropicEvents_LengthMapsToMaxTokens(t *testing.T) {
@@ -619,25 +651,88 @@ func TestChatCompletionsChunkToAnthropicEvents_MessageStartEmittedOnce(t *testin
 
 func TestChatCompletionsChunkToAnthropicEvents_ParallelToolCalls(t *testing.T) {
 	events := collectAnthropicStreamEvents(t, []string{
-		`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"tool_a","arguments":"{}"}}]}}]}`,
-		`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"id":"call_2","type":"function","function":{"name":"tool_b","arguments":"{}"}}]}}]}`,
+		`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"id":"call_2","type":"function","function":{"name":"tool_b","arguments":"{\"b\":"}},{"index":0,"id":"call_1","type":"function","function":{"name":"tool_a","arguments":"{\"a\":"}}]}}]}`,
+		`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"1"}},{"index":1,"function":{"arguments":"2"}}]}}]}`,
+		`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"function":{"arguments":"}"}},{"index":0,"function":{"arguments":"}"}}]}}]}`,
 		`{"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}`,
 	})
 
-	// 两个并行工具各自打开一个 tool_use block。
-	var toolBlocks []string
+	// 即使声明顺序与参数分片交错，最终仍按工具 index 输出完整调用。
+	tools := assembleToolUseBlocks(events)
+	require.Len(t, tools, 2)
+	require.Equal(t, assembledToolUse{ID: "call_1", Name: "tool_a", Input: `{"a":1}`}, tools[0])
+	require.Equal(t, assembledToolUse{ID: "call_2", Name: "tool_b", Input: `{"b":2}`}, tools[1])
+
+	// 每个 block 必须严格按 start、delta、stop 顺序闭合，禁止关闭后继续写 delta。
+	blockState := make(map[int]string)
 	for _, e := range events {
-		if e.Type == "content_block_start" && e.ContentBlock != nil && e.ContentBlock.Type == "tool_use" {
-			toolBlocks = append(toolBlocks, e.ContentBlock.Name)
+		if e.Index == nil {
+			continue
+		}
+		idx := *e.Index
+		switch e.Type {
+		case "content_block_start":
+			require.Empty(t, blockState[idx], "block %d must start once", idx)
+			blockState[idx] = "open"
+		case "content_block_delta":
+			require.Equal(t, "open", blockState[idx], "block %d delta must occur while open", idx)
+		case "content_block_stop":
+			require.Equal(t, "open", blockState[idx], "block %d stop must follow start", idx)
+			blockState[idx] = "closed"
 		}
 	}
-	require.Equal(t, []string{"tool_a", "tool_b"}, toolBlocks)
+	require.Equal(t, map[int]string{0: "closed", 1: "closed"}, blockState)
 
 	for _, e := range events {
 		if e.Type == "message_delta" {
 			require.Equal(t, "tool_use", e.Delta.StopReason)
 		}
 	}
+}
+
+func TestChatCompletionsChunkToAnthropicEvents_BuffersToolArgumentFragments(t *testing.T) {
+	state := NewChatCompletionsToAnthropicStreamState("test")
+	toolIndex := 0
+
+	// 用大量小分片模拟 Write/Edit 一类大参数，状态中不得反复累加完整字符串。
+	ChatCompletionsChunkToAnthropicEvents(&ChatCompletionsChunk{
+		Choices: []ChatChunkChoice{{
+			Delta: ChatDelta{ToolCalls: []ChatToolCall{{
+				Index: &toolIndex,
+				ID:    "call_many_fragments",
+				Function: ChatFunctionCall{
+					Name:      "Write",
+					Arguments: `{"content":"`,
+				},
+			}}},
+		}},
+	}, state)
+	const fragmentCount = 1024
+	for i := 0; i < fragmentCount; i++ {
+		ChatCompletionsChunkToAnthropicEvents(&ChatCompletionsChunk{
+			Choices: []ChatChunkChoice{{
+				Delta: ChatDelta{ToolCalls: []ChatToolCall{{
+					Index:    &toolIndex,
+					Function: ChatFunctionCall{Arguments: "x"},
+				}}},
+			}},
+		}, state)
+	}
+	ChatCompletionsChunkToAnthropicEvents(&ChatCompletionsChunk{
+		Choices: []ChatChunkChoice{{
+			Delta: ChatDelta{ToolCalls: []ChatToolCall{{
+				Index:    &toolIndex,
+				Function: ChatFunctionCall{Arguments: `"}`},
+			}}},
+		}},
+	}, state)
+
+	require.Empty(t, state.toolCalls[0].Function.Arguments)
+	require.Len(t, state.toolArgumentFragments[0], fragmentCount+2)
+
+	events := FinalizeChatCompletionsAnthropicStream(state)
+	require.Len(t, events, 5)
+	require.Equal(t, `{"content":"`+strings.Repeat("x", fragmentCount)+`"}`, events[1].Delta.PartialJSON)
 }
 
 func TestFinalizeChatCompletionsAnthropicStream_NoOpAfterStop(t *testing.T) {
@@ -830,6 +925,22 @@ func TestChatCompletionsToAnthropicStreamState_ToolCallNameArrivesLate(t *testin
 		}
 	}
 	require.Equal(t, "late_tool", toolName)
+}
+
+func TestChatCompletionsToAnthropicStreamState_ToolCallIDAndNameArriveLate(t *testing.T) {
+	// 参数、名称和 ID 可以分别到达；最终必须使用上游迟到的 ID，而不是临时生成值。
+	events := collectAnthropicStreamEvents(t, []string{
+		`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"path\":"}}]}}]}`,
+		`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"name":"Read","arguments":"\"README.md\","}}]}}]}`,
+		`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_late","function":{"arguments":"\"pages\":\"\"}"}}]}}]}`,
+		`{"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`,
+	})
+
+	tools := assembleToolUseBlocks(events)
+	require.Len(t, tools, 1)
+	require.Equal(t, "call_late", tools[0].ID)
+	require.Equal(t, "Read", tools[0].Name)
+	require.JSONEq(t, `{"path":"README.md"}`, tools[0].Input)
 }
 
 // assembleToolUseBlocks 按 Anthropic 客户端语义，从 start 中读取 ID/名称并拼接参数 delta。

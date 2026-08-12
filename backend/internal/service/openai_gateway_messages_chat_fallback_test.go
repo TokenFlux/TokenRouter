@@ -202,6 +202,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamingClosesOpenBlockOnDone(t
 	require.Contains(t, out, "event: content_block_stop")
 	require.Contains(t, out, `"stop_reason":"end_turn"`)
 	require.Contains(t, out, "event: message_stop")
+	require.NotContains(t, out, "event: ping")
 
 	blockStop := strings.Index(out, "event: content_block_stop")
 	msgDelta := strings.Index(out, `"stop_reason":"end_turn"`)
@@ -220,7 +221,7 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamingClosesOpenBlockOnDone(t
 func TestForwardAsAnthropic_ForceChatCompletionsStreamingToolCallAggregation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	body := []byte(`{"model":"gpt-5.4","max_tokens":32,"messages":[{"role":"user","content":"weather in sf?"}],"stream":true}`)
+	body := []byte(`{"model":"gpt-5.4","max_tokens":32,"messages":[{"role":"user","content":"weather in sf?"}],"tools":[{"name":"get_weather","input_schema":{"type":"object","properties":{"city":{"type":"string"}}}}],"tool_choice":{"type":"auto","disable_parallel_tool_use":true},"stream":true}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
@@ -253,15 +254,122 @@ func TestForwardAsAnthropic_ForceChatCompletionsStreamingToolCallAggregation(t *
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
 	require.NoError(t, err)
 	require.NotNil(t, result)
+	parallelToolCalls := gjson.GetBytes(upstream.lastBody, "parallel_tool_calls")
+	require.True(t, parallelToolCalls.Exists())
+	require.False(t, parallelToolCalls.Bool())
 
 	out := rec.Body.String()
+	require.Contains(t, out, "event: ping")
 	require.Contains(t, out, `"type":"tool_use"`)
 	require.Contains(t, out, `"name":"get_weather"`)
 	require.Contains(t, out, `"input_json_delta"`)
 	require.Contains(t, out, `"stop_reason":"tool_use"`)
 	require.Contains(t, out, "event: message_stop")
+	require.Less(t, strings.Index(out, "event: message_start"), strings.Index(out, "event: ping"))
+	require.Less(t, strings.Index(out, "event: ping"), strings.Index(out, `"type":"tool_use"`))
 	require.Equal(t, 6, result.Usage.InputTokens)
 	require.Equal(t, 5, result.Usage.OutputTokens)
+}
+
+// 覆盖真实交错的并行工具参数分片：上游声明顺序可以与工具 index 不同，
+// 下游仍必须按 index 输出互不交错且严格闭合的 Anthropic tool_use 块。
+func TestForwardAsAnthropic_ForceChatCompletionsStreamingInterleavedParallelToolCalls(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	body := []byte(`{"model":"gpt-5.4","max_tokens":64,"messages":[{"role":"user","content":"read the file and print the directory"}],"tools":[{"name":"Read","input_schema":{"type":"object","properties":{"file_path":{"type":"string"}}}},{"name":"Bash","input_schema":{"type":"object","properties":{"command":{"type":"string"}}}}],"stream":true}`)
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+
+	upstreamBody := strings.Join([]string{
+		`data: {"id":"chatcmpl_parallel","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":1,"id":"call_bash","type":"function","function":{"name":"Bash","arguments":"{\"command\":"}},{"index":0,"id":"call_read","type":"function","function":{"name":"Read","arguments":""}}]},"finish_reason":null}]}`,
+		"",
+		`data: {"id":"chatcmpl_parallel","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\"file_path\":"}}]},"finish_reason":null}]}`,
+		"",
+		`data: {"id":"chatcmpl_parallel","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"function":{"arguments":"\"pwd\"}"}}]},"finish_reason":null}]}`,
+		"",
+		`data: {"id":"chatcmpl_parallel","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"README.md\"}"}}]},"finish_reason":null}]}`,
+		"",
+		`data: {"id":"chatcmpl_parallel","object":"chat.completion.chunk","model":"gpt-5.4","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`,
+		"",
+		`data: {"id":"chatcmpl_parallel","object":"chat.completion.chunk","model":"gpt-5.4","choices":[],"usage":{"prompt_tokens":12,"completion_tokens":9,"total_tokens":21}}`,
+		"",
+		"data: [DONE]",
+		"",
+	}, "\n")
+	upstream := &httpUpstreamRecorder{resp: &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid_msg_chat_parallel"}},
+		Body:       io.NopCloser(strings.NewReader(upstreamBody)),
+	}}
+	svc := &OpenAIGatewayService{
+		cfg:          rawChatCompletionsTestConfig(),
+		httpUpstream: upstream,
+	}
+
+	result, err := svc.ForwardAsAnthropic(context.Background(), c, forceChatMessagesFallbackAccount(), body, "", "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	parallelToolCalls := gjson.GetBytes(upstream.lastBody, "parallel_tool_calls")
+	require.True(t, parallelToolCalls.Exists())
+	require.True(t, parallelToolCalls.Bool())
+
+	type observedToolUse struct {
+		ID        string
+		Name      string
+		Arguments string
+	}
+	blockStates := make(map[int]string)
+	toolPositions := make(map[int]int)
+	var tools []observedToolUse
+	for _, line := range strings.Split(rec.Body.String(), "\n") {
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		payload := strings.TrimPrefix(line, "data: ")
+		eventType := gjson.Get(payload, "type").String()
+		indexResult := gjson.Get(payload, "index")
+		if !indexResult.Exists() {
+			continue
+		}
+		index := int(indexResult.Int())
+
+		switch eventType {
+		case "content_block_start":
+			require.Empty(t, blockStates[index], "block %d must start once", index)
+			blockStates[index] = "open"
+			if gjson.Get(payload, "content_block.type").String() == "tool_use" {
+				toolPositions[index] = len(tools)
+				tools = append(tools, observedToolUse{
+					ID:   gjson.Get(payload, "content_block.id").String(),
+					Name: gjson.Get(payload, "content_block.name").String(),
+				})
+			}
+		case "content_block_delta":
+			require.Equal(t, "open", blockStates[index], "block %d delta must occur while open", index)
+			if gjson.Get(payload, "delta.type").String() == "input_json_delta" {
+				position, ok := toolPositions[index]
+				require.True(t, ok, "tool delta must follow its tool_use start")
+				tools[position].Arguments += gjson.Get(payload, "delta.partial_json").String()
+			}
+		case "content_block_stop":
+			require.Equal(t, "open", blockStates[index], "block %d stop must follow start", index)
+			blockStates[index] = "closed"
+		}
+	}
+
+	require.Equal(t, map[int]string{0: "closed", 1: "closed"}, blockStates)
+	require.Len(t, tools, 2)
+	require.Equal(t, "call_read", tools[0].ID)
+	require.Equal(t, "Read", tools[0].Name)
+	require.JSONEq(t, `{"file_path":"README.md"}`, tools[0].Arguments)
+	require.Equal(t, "call_bash", tools[1].ID)
+	require.Equal(t, "Bash", tools[1].Name)
+	require.JSONEq(t, `{"command":"pwd"}`, tools[1].Arguments)
+	require.Contains(t, rec.Body.String(), `"stop_reason":"tool_use"`)
+	require.Equal(t, 12, result.Usage.InputTokens)
+	require.Equal(t, 9, result.Usage.OutputTokens)
 }
 
 // finish_reason=length 经 CC → Responses → Anthropic 双重转换后，

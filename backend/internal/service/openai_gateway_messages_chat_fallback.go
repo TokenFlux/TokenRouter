@@ -185,8 +185,13 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 	// 与 responses 兄弟不同：客户端断开后仍继续做事件转换（喂 anthropicState），
 	// 仅跳过写出，保证 finalize 阶段的 usage 汇总不受断开影响。
 	emitChunk := func(chunk *apicompat.ChatCompletionsChunk) {
+		hasToolCallDelta := chatCompletionsChunkHasToolCallDelta(chunk)
 		// 通过单个状态机将 CC chunk 直接转换为 Anthropic events。
 		anthropicEvents := apicompat.ChatCompletionsChunkToAnthropicEvents(chunk, anthropicState)
+		if hasToolCallDelta && len(anthropicEvents) == 0 {
+			// 工具参数聚合期间用标准事件维持下游活动，避免长参数流被误判为空闲。
+			anthropicEvents = append(anthropicEvents, apicompat.AnthropicStreamEvent{Type: "ping"})
+		}
 		if clientDisconnected {
 			return
 		}
@@ -260,4 +265,17 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 		FirstTokenMs:     scan.FirstTokenMs,
 		ClientDisconnect: clientDisconnected,
 	}, nil
+}
+
+// chatCompletionsChunkHasToolCallDelta 判断当前分片是否携带工具调用增量。
+func chatCompletionsChunkHasToolCallDelta(chunk *apicompat.ChatCompletionsChunk) bool {
+	if chunk == nil {
+		return false
+	}
+	for _, choice := range chunk.Choices {
+		if len(choice.Delta.ToolCalls) > 0 {
+			return true
+		}
+	}
+	return false
 }
