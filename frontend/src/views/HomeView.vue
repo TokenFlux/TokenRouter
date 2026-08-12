@@ -882,7 +882,7 @@ const homeProviderCloudIcons = computed<HomeProviderCloudIcon[]>(() => {
 const homeRouteProviderBrands = computed(() => homeProviderVisuals.value.slice(0, 3))
 
 const homeRouteLabel = computed(() => {
-  return 'OpenAI/GPT-5.4'
+  return 'OpenAI/GPT-5.6'
 })
 
 const homeSteps = computed<HomeStep[]>(() => [
