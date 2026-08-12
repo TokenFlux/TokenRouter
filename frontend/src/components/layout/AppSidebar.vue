@@ -35,7 +35,7 @@
       ref="sidebarNavRef"
       class="sidebar-nav scrollbar-hide"
       @pointermove="handleNavPointerMove"
-      @pointerleave="restoreActiveIndicator"
+      @pointerleave="hideHoverIndicator"
       @focusin="handleNavFocusIn"
       @focusout="handleNavFocusOut"
     >
@@ -879,7 +879,7 @@ function toggleGroup(item: NavItem) {
     expandedGroups.value.add(item.path)
   }
 
-  void nextTick(restoreActiveIndicator)
+  void nextTick(() => moveIndicatorTo(hoveredSidebarLink.value))
 }
 
 // 单一背景层在菜单项之间移动，避免相邻项各自闪烁切换背景。
@@ -932,12 +932,9 @@ function nearestSidebarLink(clientX: number, clientY: number): HTMLElement | nul
   return nearestDistance <= 8 ? nearestLink : null
 }
 
-function restoreActiveIndicator() {
+function hideHoverIndicator() {
   hoveredSidebarLink.value = null
-  void nextTick(() => {
-    const activeLink = sidebarNavRef.value?.querySelector<HTMLElement>('.sidebar-link-active') ?? null
-    moveIndicatorTo(activeLink)
-  })
+  hoverIndicator.value.visible = false
 }
 
 function handleNavPointerMove(event: PointerEvent) {
@@ -960,7 +957,7 @@ function handleNavFocusIn(event: FocusEvent) {
 
 function handleNavFocusOut(event: FocusEvent) {
   if (sidebarLinkFromTarget(event.relatedTarget)) return
-  restoreActiveIndicator()
+  hideHoverIndicator()
 }
 
 // Fetch admin settings (for feature-gated nav items like Ops).
@@ -987,20 +984,13 @@ onMounted(() => {
       }
     })
   }
-  void nextTick(() => {
-    const activeLink = sidebarNavRef.value?.querySelector<HTMLElement>('.sidebar-link-active') ?? null
-    moveIndicatorTo(activeLink, false)
-  })
 })
 
 watch(
   [() => route.path, sidebarCollapsed],
   () => {
     void nextTick(() => {
-      const target = hoveredSidebarLink.value
-        ?? sidebarNavRef.value?.querySelector<HTMLElement>('.sidebar-link-active')
-        ?? null
-      moveIndicatorTo(target)
+      moveIndicatorTo(hoveredSidebarLink.value)
     })
   }
 )
@@ -1024,7 +1014,7 @@ onBeforeUnmount(() => {
   left: 0;
   z-index: 0;
   border-radius: 0.75rem;
-  @apply bg-primary-100 ring-1 ring-inset ring-primary-300/40;
+  @apply bg-primary-100;
   opacity: 0;
   pointer-events: none;
   will-change: transform, width, height;

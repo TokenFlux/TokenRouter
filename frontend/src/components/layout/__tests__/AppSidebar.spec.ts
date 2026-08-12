@@ -64,22 +64,28 @@ describe('AppSidebar sliding hover indicator', () => {
     // 单一指示层应在菜单项之间移动，菜单项自身不再分别绘制悬浮背景。
     expect(componentSource.match(/class="sidebar-hover-indicator"/g)).toHaveLength(1)
     expect(componentSource).toContain('@pointermove="handleNavPointerMove"')
-    expect(componentSource).toContain('@pointerleave="restoreActiveIndicator"')
+    expect(componentSource).toContain('@pointerleave="hideHoverIndicator"')
     expect(componentSource).toContain('ref="sidebarNavContentRef"')
     expect(componentSource).toContain('transform: `translate3d(')
     expect(styleSource).not.toContain('@apply hover:bg-primary-100 dark:hover:bg-dark-950;')
   })
 
-  it('keeps dark-mode sidebar text neutral and layered', () => {
-    expect(styleSource).toContain('@apply text-primary-900/75 dark:text-dark-200;')
-    expect(styleSource).toContain('@apply hover:text-primary-900 dark:hover:text-dark-50;')
+  it('preserves the original selected item appearance independently', () => {
+    expect(styleSource).toContain('@apply text-primary-900/75 dark:text-dark-100;')
+    expect(styleSource).toContain('@apply hover:text-primary-900 dark:hover:text-white;')
+    expect(styleSource).toContain('@apply bg-primary-100 dark:bg-dark-950;')
+    expect(styleSource).toContain('@apply ring-1 ring-primary-300/40 dark:ring-dark-700/80;')
+    expect(styleSource).toContain('@apply hover:bg-primary-200 dark:hover:bg-dark-950;')
   })
 
-  it('animates the shared layer and respects reduced motion', () => {
+  it('animates the hover-only shared layer and respects reduced motion', () => {
     expect(componentSource).toContain('transform 220ms cubic-bezier(0.22, 1, 0.36, 1)')
     expect(componentSource).toContain('@media (prefers-reduced-motion: reduce)')
     expect(styleSource).toContain('.dark .sidebar-hover-indicator')
-    expect(styleSource).toContain('@apply bg-dark-800 ring-dark-600/70;')
+    expect(styleSource).toContain('@apply bg-dark-950;')
+    expect(componentSource).toContain('function hideHoverIndicator()')
+    expect(componentSource).toContain('hoverIndicator.value.visible = false')
+    expect(componentSource).not.toContain("querySelector<HTMLElement>('.sidebar-link-active')")
     expect(componentSource).not.toContain(':global(.dark')
   })
 
