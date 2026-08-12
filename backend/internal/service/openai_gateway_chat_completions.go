@@ -99,6 +99,10 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 	// derive a stable seed from the final upstream model family.
 	billingModel := resolveOpenAIForwardModel(account, originalModel, defaultMappedModel)
 	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
+	// Usage 元数据统一从生效请求体提取，避免 Chat→Responses 与其它协议分支
+	// 对同一个显式 effort 使用不同的记录规则。
+	reasoningEffort := extractOpenAIReasoningEffortFromBody(body, upstreamModel, billingModel, originalModel)
+	reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, billingModel)
 
 	promptCacheKey = strings.TrimSpace(promptCacheKey)
 	compatPromptCacheInjected := false
@@ -141,18 +145,15 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 				responsesBody = stripped
 			}
 		}
-		responsesBody, normalizedServiceTier, err := normalizeResponsesBodyServiceTier(responsesBody)
+		_, normalizedServiceTier, err := normalizeResponsesBodyServiceTier(responsesBody)
 		if err != nil {
 			return nil, fmt.Errorf("normalize service_tier in responses-shape body: %w", err)
 		}
-		// Minimal stub populated from the raw body so downstream billing
-		// propagation (ServiceTier, ReasoningEffort) keeps working.
+		// Minimal stub populated from the raw body so downstream ServiceTier
+		// propagation keeps working.
 		responsesReq = &apicompat.ResponsesRequest{
 			Model:       upstreamModel,
 			ServiceTier: normalizedServiceTier,
-		}
-		if effort := gjson.GetBytes(responsesBody, "reasoning.effort").String(); effort != "" {
-			responsesReq.Reasoning = &apicompat.ResponsesReasoning{Effort: effort}
 		}
 	} else {
 		// Normal path: convert Chat Completions → Responses.
@@ -320,16 +321,13 @@ func (s *OpenAIGatewayService) ForwardAsChatCompletions(
 		return nil, handleErr
 	}
 
-	// Propagate ServiceTier and ReasoningEffort to result for billing
+	// Propagate normalized request metadata to result for billing and usage logs.
 	if handleErr == nil && result != nil {
 		if responsesReq.ServiceTier != "" {
 			st := responsesReq.ServiceTier
 			result.ServiceTier = &st
 		}
-		if responsesReq.Reasoning != nil && responsesReq.Reasoning.Effort != "" {
-			re := responsesReq.Reasoning.Effort
-			result.ReasoningEffort = &re
-		}
+		result.ReasoningEffort = reasoningEffort
 	}
 
 	// Extract and save Codex usage snapshot from response headers (for OAuth accounts).

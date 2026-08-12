@@ -19,14 +19,15 @@ func TestWSPassthroughUsageMeta_InitFromFirstFrame_MappedModelCandidate(t *testi
 	require.Equal(t, "max", *got, "mapped model gpt-5.6-sol should preserve max")
 }
 
-func TestWSPassthroughUsageMeta_InitFromFirstFrame_NonGPT56RejectsMax(t *testing.T) {
-	body := []byte(`{"type":"response.create","model":"gpt-5.4","reasoning":{"effort":"max"}}`)
+func TestWSPassthroughUsageMeta_InitFromFirstFrame_NonGPT56RecordsExplicitMax(t *testing.T) {
+	body := []byte(`{"type":"response.create","model":"deepseek-v4-flash","reasoning":{"effort":"max"}}`)
 
-	meta := newOpenAIWSPassthroughUsageMeta("gpt-5.4", body)
-	meta.initFromFirstFrame(body, "gpt-5.4")
+	meta := newOpenAIWSPassthroughUsageMeta("deepseek-v4-flash", body)
+	meta.initFromFirstFrame(body, "deepseek/deepseek-v4-flash-0731")
 
 	got := meta.reasoningEffort.Load()
-	require.Nil(t, got, "non-5.6 model must not record unsupported max effort")
+	require.NotNil(t, got, "显式 max 应按实际请求记录")
+	require.Equal(t, "max", *got)
 }
 
 func TestWSPassthroughUsageMeta_UpdateFromResponseCreate_MappedModelCandidate(t *testing.T) {

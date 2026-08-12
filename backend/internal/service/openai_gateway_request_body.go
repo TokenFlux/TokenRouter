@@ -430,27 +430,24 @@ func (s *OpenAIGatewayService) replaceModelInResponseBody(body []byte, fromModel
 	return body
 }
 
-func getOpenAIReasoningEffortFromReqBody(reqBody map[string]any, requestedModel string) (value string, present bool) {
+// getOpenAIReasoningEffortFromReqBody 只提取请求中显式给出的档位。
+// 显式值代表客户端真实请求，记录时不应再按模型名称推测上游能力；模型后缀
+// 推导由 deriveOpenAIReasoningEffortFromModel 单独处理并继续保留能力门槛。
+func getOpenAIReasoningEffortFromReqBody(reqBody map[string]any) (value string, present bool) {
 	if reqBody == nil {
 		return "", false
-	}
-	model := strings.TrimSpace(requestedModel)
-	if model == "" {
-		if bodyModel, ok := reqBody["model"].(string); ok {
-			model = bodyModel
-		}
 	}
 
 	// Primary: reasoning.effort
 	if reasoning, ok := reqBody["reasoning"].(map[string]any); ok {
 		if effort, ok := reasoning["effort"].(string); ok {
-			return normalizeOpenAIReasoningEffortForModel(effort, model), true
+			return normalizeOpenAIReasoningEffort(effort), true
 		}
 	}
 
 	// Fallback: some clients may use a flat field.
 	if effort, ok := reqBody["reasoning_effort"].(string); ok {
-		return normalizeOpenAIReasoningEffortForModel(effort, model), true
+		return normalizeOpenAIReasoningEffort(effort), true
 	}
 
 	return "", false
@@ -810,21 +807,16 @@ func isOpenAICodexModel(model string) bool {
 }
 
 // extractOpenAIReasoningEffortFromBody 按优先级传入模型候选（如 upstreamModel,
-// billingModel, originalModel）：显式 effort 的模型归一化（max 保留判定）用第一个
-// 非空候选；没有有效候选时回退到 body 模型。body 未携带 effort 时的模型后缀
-// 推导依次尝试每个候选——OAuth 的 normalizeCodexModel 会剥掉 upstreamModel
-// 的 effort 后缀，只有原始模型名还留着。
+// billingModel, originalModel）。显式 effort 只做格式归一化并如实记录；body 未携带
+// effort 时才从模型后缀推导并执行模型能力判断。OAuth 的 normalizeCodexModel 会
+// 剥掉 upstreamModel 的 effort 后缀，因此推导时必须保留原始模型候选。
 func extractOpenAIReasoningEffortFromBody(body []byte, modelCandidates ...string) *string {
 	reasoningEffort := strings.TrimSpace(gjson.GetBytes(body, "reasoning.effort").String())
 	if reasoningEffort == "" {
 		reasoningEffort = strings.TrimSpace(gjson.GetBytes(body, "reasoning_effort").String())
 	}
 	if reasoningEffort != "" {
-		model := strings.TrimSpace(firstNonEmpty(modelCandidates...))
-		if model == "" {
-			model = strings.TrimSpace(gjson.GetBytes(body, "model").String())
-		}
-		normalized := normalizeOpenAIReasoningEffortForModel(reasoningEffort, model)
+		normalized := normalizeOpenAIReasoningEffort(reasoningEffort)
 		if normalized == "" {
 			return nil
 		}
@@ -1475,7 +1467,7 @@ func getOpenAIRequestBodyMap(_ *gin.Context, body []byte) (map[string]any, error
 
 // extractOpenAIReasoningEffort 的模型候选语义同 extractOpenAIReasoningEffortFromBody。
 func extractOpenAIReasoningEffort(reqBody map[string]any, modelCandidates ...string) *string {
-	if value, present := getOpenAIReasoningEffortFromReqBody(reqBody, firstNonEmpty(modelCandidates...)); present {
+	if value, present := getOpenAIReasoningEffortFromReqBody(reqBody); present {
 		if value == "" {
 			return nil
 		}

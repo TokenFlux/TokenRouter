@@ -933,10 +933,11 @@ func TestExtractOpenAIReasoningEffortFromBody(t *testing.T) {
 			wantNil: true,
 		},
 		{
-			name:    "旧模型拒绝 max 档位",
-			body:    []byte(`{"reasoning":{"effort":"max"}}`),
-			model:   "gpt-5.5",
-			wantNil: true,
+			name:      "旧模型显式 max 仍按请求值记录",
+			body:      []byte(`{"reasoning":{"effort":"max"}}`),
+			model:     "gpt-5.5",
+			wantNil:   false,
+			wantValue: "max",
 		},
 		{
 			name:    "Luna 拒绝 ultra 档位",

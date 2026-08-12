@@ -37,15 +37,21 @@ func TestExtractOpenAIReasoningEffortFromBodyModelCandidates(t *testing.T) {
 			want:       "max",
 		},
 		{
-			name:       "显式 max 用第一个非空候选（映射后模型）判定",
+			name:       "显式 max 不受映射后模型能力门槛影响",
 			body:       bodyWithMax,
-			candidates: []string{"gpt-5.6-sol", "sol"},
+			candidates: []string{"deepseek/deepseek-v4-flash-0731", "deepseek-v4-flash"},
 			want:       "max",
 		},
 		{
-			name:       "显式 max 非 5.6 首候选仍拒绝",
+			name:       "显式 max 对旧版 GPT 也按请求值记录",
 			body:       bodyWithMax,
 			candidates: []string{"gpt-5.4", "sol"},
+			want:       "max",
+		},
+		{
+			name:       "第三方模型名 max 后缀不作为显式档位推导",
+			body:       bodyWithoutEffort,
+			candidates: []string{"glm-4.6-max"},
 			want:       "",
 		},
 		{
@@ -76,6 +82,20 @@ func TestExtractOpenAIReasoningEffortModelCandidates(t *testing.T) {
 
 	require.NotNil(t, got)
 	require.Equal(t, "high", *got)
+}
+
+func TestExtractOpenAIReasoningEffortMapPreservesExplicitThirdPartyMax(t *testing.T) {
+	reqBody := map[string]any{
+		"model": "deepseek-v4-flash",
+		"reasoning": map[string]any{
+			"effort": " MAX ",
+		},
+	}
+
+	got := extractOpenAIReasoningEffort(reqBody, "deepseek/deepseek-v4-flash-0731", "deepseek-v4-flash")
+
+	require.NotNil(t, got)
+	require.Equal(t, "max", *got)
 }
 
 // 回归：OAuth 账号请求后缀式模型（无显式 reasoning 字段）时，上游模型被

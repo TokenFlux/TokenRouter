@@ -69,6 +69,13 @@ func TestForwardAsAnthropic_ForceChatCompletionsPreservesFinalModelReasoningEffo
 			wantEffort: "xhigh",
 		},
 		{
+			name:       "third party model max keeps bridge downgrade",
+			model:      "deepseek-v4-flash",
+			mapped:     "deepseek/deepseek-v4-flash-0731",
+			effortJSON: `,"output_config":{"effort":"max"}`,
+			wantEffort: "xhigh",
+		},
+		{
 			name:       "high remains high",
 			model:      "gpt-5.6-luna",
 			mapped:     "gpt-5.6-luna",

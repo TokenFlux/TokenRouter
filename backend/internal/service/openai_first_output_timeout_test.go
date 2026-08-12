@@ -162,6 +162,14 @@ func TestOpenAIFirstOutputTimeoutForReasoningEffort(t *testing.T) {
 	require.Equal(t, 300*time.Second, svc.openAIFirstOutputTimeout("high"))
 	require.Equal(t, 300*time.Second, svc.openAIFirstOutputTimeout("xhigh"))
 	require.Equal(t, 300*time.Second, svc.openAIFirstOutputTimeout("max"))
+
+	// 显式 max 已实际透传第三方上游，首输出等待应与其它高推理档位一致。
+	effort := extractOpenAIReasoningEffortFromBody(
+		[]byte(`{"model":"deepseek-v4-flash","reasoning":{"effort":"max"}}`),
+		"deepseek-v4-flash",
+	)
+	require.NotNil(t, effort)
+	require.Equal(t, 300*time.Second, svc.openAIFirstOutputTimeout(*effort))
 }
 
 func TestOpenAIFirstOutputStageDefaultLimitIsIndependentFromScannerLimit(t *testing.T) {

@@ -1099,6 +1099,12 @@ func TestPassthroughUsageMeta_TracksReasoningEffortAcrossTurns(t *testing.T) {
 	require.NotNil(t, meta.reasoningEffort.Load())
 	require.Equal(t, "xhigh", *meta.reasoningEffort.Load(), "flat reasoning_effort 必须进入 passthrough usage metadata")
 
+	_, blockedMax, errMax := process([]byte(`{"type":"response.create","model":"deepseek-v4-flash","reasoning":{"effort":"max"}}`))
+	require.NoError(t, errMax)
+	require.Nil(t, blockedMax)
+	require.NotNil(t, meta.reasoningEffort.Load())
+	require.Equal(t, "max", *meta.reasoningEffort.Load(), "第三方模型显式 max 必须进入 passthrough usage metadata")
+
 	_, blockedClear, errClear := process([]byte(`{"type":"response.create","model":"gpt-4o"}`))
 	require.NoError(t, errClear)
 	require.Nil(t, blockedClear)

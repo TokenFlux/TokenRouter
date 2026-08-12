@@ -20,7 +20,7 @@ import (
 func TestForwardResponses_ForceChatCompletionsRoutesNonStreamingToChatCompletions(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	body := []byte(`{"model":"gpt-5.4","input":"hello","stream":false}`)
+	body := []byte(`{"model":"deepseek-v4-flash","input":"hello","reasoning":{"effort":"max"},"stream":false}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
@@ -50,6 +50,9 @@ func TestForwardResponses_ForceChatCompletionsRoutesNonStreamingToChatCompletion
 	require.Equal(t, 3, result.Usage.InputTokens)
 	require.Equal(t, 2, result.Usage.OutputTokens)
 	require.Equal(t, 1, result.Usage.CacheReadInputTokens)
+	require.Equal(t, "max", gjson.GetBytes(upstream.lastBody, "reasoning_effort").String())
+	require.NotNil(t, result.ReasoningEffort)
+	require.Equal(t, "max", *result.ReasoningEffort)
 	require.False(t, result.Stream)
 }
 
@@ -144,7 +147,7 @@ func TestForwardResponses_DeepSeekReasoningOnlyStreamProducesVisibleText(t *test
 func TestForwardResponses_AutoSupportedAccountStillUsesResponsesEndpoint(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	body := []byte(`{"model":"gpt-5.4","input":"hello","stream":false}`)
+	body := []byte(`{"model":"deepseek-v4-flash","input":"hello","reasoning":{"effort":"max"},"stream":false}`)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
@@ -174,6 +177,8 @@ func TestForwardResponses_AutoSupportedAccountStillUsesResponsesEndpoint(t *test
 	require.True(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
 	require.False(t, gjson.GetBytes(upstream.lastBody, "messages").Exists())
 	require.Equal(t, "ok", gjson.Get(rec.Body.String(), "output.0.content.0.text").String())
+	require.NotNil(t, result.ReasoningEffort)
+	require.Equal(t, "max", *result.ReasoningEffort)
 }
 
 func forceChatResponsesFallbackAccount() *Account {

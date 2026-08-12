@@ -196,6 +196,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 
 	serverErrCh := make(chan error, 1)
 	turnTerminalCh := make(chan string, 2)
+	turnEffortCh := make(chan string, 1)
 	routingCalls := make([]string, 0, 2)
 	hooks := &OpenAIWSIngressHooks{
 		ResolveRoutingModel: func(turn int, requestedModel string, _ []byte) (string, error) {
@@ -214,6 +215,9 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 			turnErr := capture.Err
 			if turnErr == nil && result != nil {
 				turnTerminalCh <- result.UpstreamTerminalEvent
+				if result.ReasoningEffort != nil {
+					turnEffortCh <- *result.ReasoningEffort
+				}
 			}
 		},
 	}
@@ -274,7 +278,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 		return message
 	}
 
-	writeMessage(`{"type":"response.create","model":"client-turn-1","stream":false}`)
+	writeMessage(`{"type":"response.create","model":"client-turn-1","reasoning":{"effort":"max"},"stream":false}`)
 	firstTurnImageEvent := readMessage()
 	require.Equal(t, "response.output_item.done", gjson.GetBytes(firstTurnImageEvent, "type").String())
 	require.Equal(t, "completed", gjson.GetBytes(firstTurnImageEvent, "item.status").String())
@@ -291,6 +295,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_KeepLeaseAcrossT
 	require.Equal(t, "client-turn-2", gjson.GetBytes(secondTurnEvent, "response.model").String())
 	require.Equal(t, "response.completed", <-turnTerminalCh, "首轮 turn 应保留成功终态")
 	require.Equal(t, "response.completed", <-turnTerminalCh, "第二轮 turn 应保留成功终态")
+	require.Equal(t, "max", <-turnEffortCh, "WS v2 应记录第三方模型显式 max")
 
 	_ = clientConn.Close(coderws.StatusNormalClosure, "done")
 
@@ -1296,7 +1301,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 	}()
 
 	writeCtx, cancelWrite := context.WithTimeout(context.Background(), 3*time.Second)
-	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","model":"client-turn-1","stream":false,"service_tier":"fast","reasoning":{"effort":"HIGH"},"parallel_tool_calls":true,"client_metadata":{"ws_request_header_x_openai_internal_codex_responses_lite":"true"}}`))
+	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","model":"client-turn-1","stream":false,"service_tier":"fast","reasoning":{"effort":"max"},"parallel_tool_calls":true,"client_metadata":{"ws_request_header_x_openai_internal_codex_responses_lite":"true"}}`))
 	cancelWrite()
 	require.NoError(t, err)
 
@@ -1360,7 +1365,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughModeR
 		require.NotNil(t, result.ServiceTier)
 		require.Equal(t, "priority", *result.ServiceTier)
 		require.NotNil(t, result.ReasoningEffort)
-		require.Equal(t, "high", *result.ReasoningEffort)
+		require.Equal(t, "max", *result.ReasoningEffort)
 	case <-time.After(2 * time.Second):
 		t.Fatal("未收到 passthrough turn 结果回调")
 	}
@@ -1504,7 +1509,7 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 	}()
 
 	writeCtx, cancelWrite := context.WithTimeout(context.Background(), 3*time.Second)
-	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","model":"client-bridge-model","stream":false}`))
+	err = clientConn.Write(writeCtx, coderws.MessageText, []byte(`{"type":"response.create","model":"client-bridge-model","reasoning":{"effort":"max"},"stream":false}`))
 	cancelWrite()
 	require.NoError(t, err)
 
@@ -1544,10 +1549,13 @@ func TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_HTTPBridgeModeRe
 		require.Equal(t, 1, result.Usage.OutputTokens)
 		require.Equal(t, 1, result.Usage.CacheReadInputTokens)
 		require.NotNil(t, result.FirstTokenMs)
+		require.NotNil(t, result.ReasoningEffort)
+		require.Equal(t, "max", *result.ReasoningEffort)
 	case <-time.After(2 * time.Second):
 		t.Fatal("未收到 http_bridge turn 结果回调")
 	}
 	require.Equal(t, "upstream-bridge-model", gjson.GetBytes(upstream.lastBody, "model").String())
+	require.Equal(t, "max", gjson.GetBytes(upstream.lastBody, "reasoning.effort").String())
 	require.Equal(t, "1:client-bridge-model", <-routingCallCh)
 
 	require.NotNil(t, upstream.lastReq, "http_bridge 模式应调用 HTTP 上游")
