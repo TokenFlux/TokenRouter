@@ -1014,7 +1014,9 @@ onBeforeUnmount(() => {
   left: 0;
   z-index: 0;
   border-radius: 0.75rem;
-  @apply bg-primary-100;
+  /* 使用变量让全局明暗主题可靠接管 scoped 样式中的悬浮底色。 */
+  background-color: var(--sidebar-hover-bg, #ddf4fc);
+  box-shadow: inset 0 0 0 1px var(--sidebar-hover-ring, rgba(139, 221, 248, 0.4));
   opacity: 0;
   pointer-events: none;
   will-change: transform, width, height;

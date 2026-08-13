@@ -493,6 +493,56 @@
     @apply text-red-600 dark:text-red-400;
   }
 
+  /* ============ 仪表盘信息层级 ============ */
+  .dashboard-metric {
+    --metric-accent: #12a7e8;
+    @apply relative overflow-hidden rounded-lg border border-gray-200/90 bg-white p-4;
+    @apply transition duration-200 ease-out;
+    box-shadow: 0 1px 2px rgba(24, 24, 27, 0.04), 0 8px 24px rgba(24, 24, 27, 0.035);
+  }
+
+  .dashboard-metric::before {
+    content: '';
+    @apply absolute inset-x-0 top-0 h-0.5;
+    background: var(--metric-accent);
+  }
+
+  .dashboard-metric:hover {
+    @apply border-gray-300;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(24, 24, 27, 0.05), 0 12px 28px rgba(24, 24, 27, 0.055);
+  }
+
+  .dashboard-metric-primary { --metric-accent: #0b8fd8; }
+  .dashboard-metric-success { --metric-accent: #059669; }
+  .dashboard-metric-warning { --metric-accent: #d97706; }
+  .dashboard-metric-violet { --metric-accent: #7c3aed; }
+  .dashboard-metric-danger { --metric-accent: #e11d48; }
+
+  .dashboard-panel {
+    @apply rounded-lg border border-gray-200/90 bg-white;
+    box-shadow: 0 1px 2px rgba(24, 24, 27, 0.04), 0 10px 30px rgba(24, 24, 27, 0.035);
+  }
+
+  .dashboard-toolbar {
+    @apply flex flex-wrap items-center gap-4 border-y border-gray-200/80 bg-white/60 px-1 py-3;
+  }
+
+  .dark .dashboard-metric,
+  .dark .dashboard-panel {
+    @apply border-dark-600/80 bg-dark-900/95;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+  }
+
+  .dark .dashboard-metric:hover {
+    @apply border-dark-500;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .dark .dashboard-toolbar {
+    @apply border-dark-700 bg-transparent;
+  }
+
   /* ============ 表格样式 ============ */
   .table-container {
     @apply overflow-x-auto rounded-xl border border-primary-900/10 dark:border-dark-600;
@@ -727,7 +777,7 @@
   /* ============ 侧边栏 ============ */
   .sidebar {
     @apply fixed inset-y-0 left-0 z-40;
-    @apply w-56 bg-white dark:bg-dark-900/95;
+    @apply w-56 bg-white dark:bg-dark-900;
     @apply border-r border-primary-900/10 dark:border-dark-600;
     @apply flex flex-col;
     @apply transition-transform duration-300;
@@ -759,15 +809,16 @@
   }
 
   .sidebar-link-active {
-    @apply bg-primary-100 dark:bg-dark-950;
+    @apply bg-primary-100 dark:bg-dark-800;
     @apply text-primary-700 dark:text-white;
-    @apply ring-1 ring-primary-300/40 dark:ring-dark-700/80;
-    @apply hover:bg-primary-200 dark:hover:bg-dark-950;
+    @apply ring-1 ring-primary-300/40 dark:ring-dark-600/70;
+    @apply hover:bg-primary-200 dark:hover:bg-dark-800;
   }
 
-  /* 共享滑块只复现普通菜单项原有的悬浮背景。 */
+  /* 暗色悬浮滑块与激活项共享同一提升面，避免出现第三种深色。 */
   .dark .sidebar-hover-indicator {
-    @apply bg-dark-950;
+    --sidebar-hover-bg: #1f1f23;
+    --sidebar-hover-ring: rgba(85, 85, 92, 0.7);
   }
 
   .sidebar-section {
@@ -972,9 +1023,9 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.3) !important;
   }
 
-  /* 全局背景：浅色使用纯白，深色保留微亮到纯黑的纵向渐变。 */
+  /* 全局背景：浅色工作区使用冷灰底色，让内容表面形成稳定层级。 */
   .ba-theme-shell {
-    background: #FFFFFF;
+    background: #F6F7F9;
   }
 
   .dark .ba-theme-shell {
@@ -983,7 +1034,7 @@
 
   .ba-theme-backdrop {
     overflow: hidden;
-    background: #FFFFFF;
+    background: #F6F7F9;
   }
 
   .ba-theme-backdrop::before {

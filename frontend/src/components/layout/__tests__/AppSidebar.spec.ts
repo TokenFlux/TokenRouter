@@ -73,16 +73,16 @@ describe('AppSidebar sliding hover indicator', () => {
   it('preserves the original selected item appearance independently', () => {
     expect(styleSource).toContain('@apply text-primary-900/75 dark:text-dark-100;')
     expect(styleSource).toContain('@apply hover:text-primary-900 dark:hover:text-white;')
-    expect(styleSource).toContain('@apply bg-primary-100 dark:bg-dark-950;')
-    expect(styleSource).toContain('@apply ring-1 ring-primary-300/40 dark:ring-dark-700/80;')
-    expect(styleSource).toContain('@apply hover:bg-primary-200 dark:hover:bg-dark-950;')
+    expect(styleSource).toContain('@apply bg-primary-100 dark:bg-dark-800;')
+    expect(styleSource).toContain('@apply ring-1 ring-primary-300/40 dark:ring-dark-600/70;')
+    expect(styleSource).toContain('@apply hover:bg-primary-200 dark:hover:bg-dark-800;')
   })
 
   it('animates the hover-only shared layer and respects reduced motion', () => {
     expect(componentSource).toContain('transform 220ms cubic-bezier(0.22, 1, 0.36, 1)')
     expect(componentSource).toContain('@media (prefers-reduced-motion: reduce)')
     expect(styleSource).toContain('.dark .sidebar-hover-indicator')
-    expect(styleSource).toContain('@apply bg-dark-950;')
+    expect(styleSource).toContain('--sidebar-hover-bg: #1f1f23;')
     expect(componentSource).toContain('function hideHoverIndicator()')
     expect(componentSource).toContain('hoverIndicator.value.visible = false')
     expect(componentSource).not.toContain("querySelector<HTMLElement>('.sidebar-link-active')")
