@@ -282,7 +282,7 @@ export function formatTokensK(tokens: number): string {
 }
 
 /**
- * 格式化大数字（K/M/B，保留 1 位小数）
+ * 格式化大数字（K/M/B/T，保留 1 位小数）
  * @param num 数字
  * @param options allowBillions=false 时最高只显示到 M
  */
@@ -295,6 +295,7 @@ export function formatCompactNumber(
   const abs = Math.abs(num)
   const allowBillions = options?.allowBillions !== false
 
+  if (allowBillions && abs >= 1_000_000_000_000) return `${(num / 1_000_000_000_000).toFixed(1)}T`
   if (allowBillions && abs >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`
   if (abs >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`
   if (abs >= 1_000) return `${(num / 1_000).toFixed(1)}K`

@@ -66,7 +66,7 @@ marketplace: {
 // 用量排行
   usageRanking: {
     title: '用量排行',
-    description: '看看这段时间谁用得最猛',
+    description: '按实际消费金额查看这段时间的用量排行',
     subtitle: '默认显示今天',
     timeRange: '时间范围',
     listTitle: '排行榜',
@@ -81,7 +81,7 @@ marketplace: {
     output: '输出',
     cache: '缓存',
     emptyTitle: '当前范围暂无排行数据',
-    emptyDescription: '所选时间范围产生用量后，这里会展示 Token 用量排行。',
+    emptyDescription: '所选时间范围产生用量后，这里会按实际消费金额展示排行。',
     loadError: '加载用量排行失败'
   },
 // Subscription Progress (Header component)

@@ -275,6 +275,37 @@ func TestGetUserSpendingRankingFromAnalyticsReturnsCurrentUsername(t *testing.T)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
+// TestGetUsageRankingFromAnalyticsOrdersByActualCost 验证公开排行在预聚合路径中仍按实际消费金额排序。
+func TestGetUsageRankingFromAnalyticsOrdersByActualCost(t *testing.T) {
+	db, mock := newSQLMock(t)
+	settings := service.NewPreAggregationSettingsService(nil, &config.Config{
+		DashboardAgg: config.DashboardAggregationConfig{Enabled: true, IntervalSeconds: 60},
+	})
+	repo := &usageLogRepository{sql: db, preAggregation: settings}
+	start := time.Date(2026, 8, 1, 10, 0, 0, 0, time.UTC)
+	end := start.Add(4 * time.Hour)
+
+	mock.ExpectQuery("(?s)SELECT live_watermark, coverage_start.*usage_analytics_aggregation_state").
+		WillReturnRows(sqlmock.NewRows([]string{"live_watermark", "coverage_start"}).AddRow(end, start))
+	mock.ExpectQuery("(?s)ROW_NUMBER\\(\\) OVER \\(ORDER BY actual_cost DESC, total_tokens DESC, requests DESC, user_id ASC\\).*ORDER BY actual_cost DESC, total_tokens DESC, requests DESC, user_id ASC").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"rank", "user_id", "email", "username", "avatar_url", "requests",
+			"input_tokens", "output_tokens", "cache_creation_tokens", "cache_read_tokens",
+			"total_tokens", "actual_cost", "total_requests", "ranking_total_tokens", "total_actual_cost",
+		}).
+			AddRow(1, int64(7), "spend@example.com", "spender", "", int64(4), int64(100), int64(100), int64(0), int64(0), int64(200), 12.5, int64(13), int64(5200), 16.75).
+			AddRow(2, int64(8), "tokens@example.com", "tokens", "", int64(9), int64(2500), int64(2500), int64(0), int64(0), int64(5000), 4.25, int64(13), int64(5200), 16.75))
+
+	got, ok, err := repo.getUsageRankingFromAnalytics(context.Background(), start, end, 20)
+	require.NoError(t, err)
+	require.True(t, ok)
+	require.Len(t, got.Ranking, 2)
+	require.Equal(t, int64(7), got.Ranking[0].UserID)
+	require.Equal(t, 12.5, got.Ranking[0].ActualCost)
+	require.Equal(t, int64(5000), got.Ranking[1].TotalTokens)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 // TestGetUsageTrendFromAnalyticsUsesNamedTimezoneForDST 验证趋势分桶把命名时区交给 PostgreSQL 处理夏令时。
 func TestGetUsageTrendFromAnalyticsUsesNamedTimezoneForDST(t *testing.T) {
 	previousTimezone := timezone.Name()

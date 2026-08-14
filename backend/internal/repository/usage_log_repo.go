@@ -272,7 +272,7 @@ func (r *usageLogRepository) GetDashboardPublicStats(ctx context.Context, start,
 	return stats, nil
 }
 
-// GetUsageRanking 返回用户侧按 Token 总量排序的用量排行。
+// GetUsageRanking 返回用户侧按实际消费金额排序的用量排行。
 func (r *usageLogRepository) GetUsageRanking(ctx context.Context, startTime, endTime time.Time, limit int) (result *UsageRankingResponse, err error) {
 	if limit <= 0 {
 		limit = service.DefaultUsageRankingLimit
@@ -297,11 +297,10 @@ func (r *usageLogRepository) GetUsageRanking(ctx context.Context, startTime, end
 			FROM usage_logs u
 			WHERE u.created_at >= $1 AND u.created_at < $2
 			GROUP BY u.user_id
-			HAVING COALESCE(SUM(u.input_tokens + u.output_tokens + u.cache_creation_tokens + u.cache_read_tokens), 0) > 0
 		),
 		ranked AS (
 			SELECT
-				ROW_NUMBER() OVER (ORDER BY total_tokens DESC, requests DESC, user_id ASC) as rank,
+				ROW_NUMBER() OVER (ORDER BY actual_cost DESC, total_tokens DESC, requests DESC, user_id ASC) as rank,
 				user_id,
 				requests,
 				input_tokens,
@@ -314,7 +313,7 @@ func (r *usageLogRepository) GetUsageRanking(ctx context.Context, startTime, end
 				COALESCE(SUM(total_tokens) OVER (), 0) as ranking_total_tokens,
 				COALESCE(SUM(actual_cost) OVER (), 0) as total_actual_cost
 			FROM user_usage
-			ORDER BY total_tokens DESC, requests DESC, user_id ASC
+			ORDER BY actual_cost DESC, total_tokens DESC, requests DESC, user_id ASC
 			LIMIT $3
 		)
 		SELECT

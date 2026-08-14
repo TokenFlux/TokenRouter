@@ -283,7 +283,7 @@ export async function getById(id: number): Promise<UsageLog> {
 /**
  * 获取指定时间范围内的用户用量排行。
  * @param params - 可选时间范围，未传时后端默认使用今天
- * @returns 按 Token 总量排序的排行
+ * @returns 按实际消费金额排序的排行
  */
 export async function getRanking(params: UsageRankingParams = {}): Promise<UsageRankingResponse> {
   const { data } = await apiClient.get<UsageRankingResponse>('/usage/ranking', { params })

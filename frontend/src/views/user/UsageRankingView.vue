@@ -74,7 +74,7 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
-import { formatNumber } from '@/utils/format'
+import { formatCompactNumber, formatNumber } from '@/utils/format'
 
 const { t } = useI18n()
 const { balanceUnitName, formatBalanceAmount } = useBalanceDisplay()
@@ -232,11 +232,11 @@ const TopRankCard = defineComponent({
           h('div', { class: 'relative mt-7 flex flex-col items-center text-center' }, [
             h(UserAvatar, { item: props.item, size: 'lg' }),
             h('h3', { class: 'mt-4 max-w-full truncate text-lg font-semibold text-gray-900 dark:text-white' }, props.item.display_name),
-            h('p', { class: 'mt-2 text-3xl font-semibold text-gray-900 dark:text-white' }, formatNumber(props.item.total_tokens)),
-            h('p', { class: 'mt-1 text-xs text-gray-500 dark:text-gray-400' }, t('usageRanking.tokens')),
+            h('p', { class: 'mt-2 text-3xl font-semibold text-gray-900 dark:text-white' }, formatBalanceAmount(props.item.actual_cost, { fractionDigits: 4 })),
+            h('p', { class: 'mt-1 text-xs text-gray-500 dark:text-gray-400' }, t('usageRanking.reasoningCost', { unit: balanceUnitName.value })),
           ]),
           h('div', { class: 'relative mt-6 grid grid-cols-2 gap-2 text-center text-xs text-gray-500 dark:text-gray-400' }, [
-            h('div', [h('p', { class: 'font-medium text-gray-900 dark:text-white' }, formatBalanceAmount(props.item.actual_cost, { fractionDigits: 4 })), h('p', t('usageRanking.reasoningCost', { unit: balanceUnitName.value }))]),
+            h('div', [h('p', { class: 'font-medium text-gray-900 dark:text-white' }, formatCompactNumber(props.item.total_tokens)), h('p', t('usageRanking.tokens'))]),
             h('div', [h('p', { class: 'font-medium text-gray-900 dark:text-white' }, formatNumber(props.item.requests)), h('p', t('usageRanking.requests'))]),
           ]),
         ],
@@ -267,18 +267,18 @@ const RankingRow = defineComponent({
               h('p', { class: 'truncate text-sm font-medium text-gray-900 dark:text-white' }, props.item.display_name),
             ]),
           ]),
-          h('div', { class: 'col-span-2 grid grid-cols-3 gap-3 text-sm sm:col-span-1 sm:grid-cols-[130px_110px_140px] sm:text-right' }, [
+          h('div', { class: 'col-span-2 grid grid-cols-3 gap-3 text-sm sm:col-span-1 sm:grid-cols-[140px_130px_110px] sm:text-right' }, [
             h('div', [
-              h('p', { class: 'font-semibold text-gray-900 dark:text-white' }, formatNumber(props.item.total_tokens)),
+              h('p', { class: 'font-semibold text-gray-900 dark:text-white' }, formatBalanceAmount(props.item.actual_cost, { fractionDigits: 4 })),
+              h('p', { class: 'text-xs text-gray-500 dark:text-gray-400' }, t('usageRanking.reasoningCost', { unit: balanceUnitName.value })),
+            ]),
+            h('div', [
+              h('p', { class: 'font-semibold text-gray-900 dark:text-white' }, formatCompactNumber(props.item.total_tokens)),
               h('p', { class: 'text-xs text-gray-500 dark:text-gray-400' }, t('usageRanking.totalTokens')),
             ]),
             h('div', [
               h('p', { class: 'font-semibold text-gray-900 dark:text-white' }, formatNumber(props.item.requests)),
               h('p', { class: 'text-xs text-gray-500 dark:text-gray-400' }, t('usageRanking.requests')),
-            ]),
-            h('div', [
-              h('p', { class: 'font-semibold text-gray-900 dark:text-white' }, formatBalanceAmount(props.item.actual_cost, { fractionDigits: 4 })),
-              h('p', { class: 'text-xs text-gray-500 dark:text-gray-400' }, t('usageRanking.reasoningCost', { unit: balanceUnitName.value })),
             ]),
           ]),
         ],
