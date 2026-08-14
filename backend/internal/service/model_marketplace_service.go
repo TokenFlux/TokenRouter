@@ -429,8 +429,8 @@ func (s *ModelMarketplaceService) getRequestableModelDisplayPricing(ctx context.
 	imageRateMultiplier := marketplaceImageRateMultiplier(group)
 	if s.gatewayService != nil && s.gatewayService.resolver != nil {
 		groupID := group.ID
-		resolved := s.gatewayService.resolver.Resolve(ctx, PricingInput{Model: pricingModel, GroupID: &groupID})
-		if resolved.HasEffectiveChannelPricing() {
+		resolved := s.gatewayService.resolver.Resolve(ctx, PricingInput{Model: pricingModel, GroupID: &groupID, Group: group})
+		if resolved.HasEffectiveOverridePricing() {
 			return s.billingService.getDisplayPricingWithResolvedMultipliers(pricingModel, group.RateMultiplier, imageRateMultiplier, imageConfig, resolved)
 		}
 	}
@@ -473,6 +473,7 @@ func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Conte
 		resolved := s.gatewayService.resolver.Resolve(ctx, PricingInput{
 			Model:   model,
 			GroupID: &groupID,
+			Group:   group,
 		})
 		return s.billingService.getDisplayPricingWithResolvedMultipliers(model, group.RateMultiplier, imageRateMultiplier, imageConfig, resolved)
 	}

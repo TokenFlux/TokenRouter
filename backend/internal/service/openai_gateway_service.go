@@ -268,6 +268,10 @@ type OpenAIForwardResult struct {
 	// WebSearchCalls 是 Codex alpha/search 网页搜索调用次数（每次成功请求为 1）。
 	// 上游不返回 usage 字段，>0 时走按次计费（分组单价 × 次数 × 倍率）。
 	WebSearchCalls int
+	// SearchCount 是 Grok 原生 web_search 或工具搜索调用次数，按每千次计价。
+	SearchCount int
+	// AudioUsage 在有值时携带 Voice 计费单位。
+	AudioUsage *AudioUsage
 
 	wsReplayInput       []json.RawMessage
 	wsReplayInputExists bool

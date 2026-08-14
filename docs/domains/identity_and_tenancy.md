@@ -34,6 +34,8 @@
 
 `RegisterAuthRoutes` 拥有面板认证入口的路由边界。公开登录、注册、验证码、Passkey 登录、token 刷新、密码恢复和高风险校验分别使用服务端限流；这些入口依赖 Redis 的限流器时采用 fail-close，不能在缓存故障时自动放行。OAuth start/callback 负责建立外部身份流程，受保护的账户管理入口再叠加 JWT 中间件。
 
+邮箱域名白名单为空时，普通注册和 OAuth 邮箱补全允许所有域名。白名单非空时默认严格拒绝非白名单域名；只有显式开启数据库运行时设置 `registration_email_domain_quota_enabled`，才允许其它邮箱按公共后缀规则归一为可注册主域名（eTLD+1），且每个主域名只允许一个未删除用户，子域名共享额度，白名单域名仍不限注册数量。验证码发送前会预检额度，最终创建仍须在注册事务内重新读取开关、持有主域名锁并复查，避免设置变化或并发请求穿透；当前用户邮箱绑定/换绑与已验证邮箱 OAuth 自动建号保持严格白名单语义，不使用该额度放宽。
+
 公开认证动作通过统一验证码边界选择 Cloudflare Turnstile、腾讯天御或阿里云验证码 2.0，三个提供方不能同时启用。普通登录、注册、验证码发送和密码找回校验当前启用的提供方；腾讯天御与阿里云还保护 Passkey 登录 begin 与 OAuth 登录 start，票据只随触发动作提交且不能复用到 finish/callback。腾讯天御的 `cn` 与 `intl` 站点必须在前端 SDK 和服务端校验 endpoint 上保持一致；国际站先在当前表单容器展示 checkbox，成功票据只缓存到一次动作消费，过期、动作失败或显式重置后立即销毁并重新初始化。OAuth 当前用户绑定 start 保留既有已认证边界，不重复要求匿名登录验证码；动作验证码已启用但服务或必要凭据不完整时必须 fail-close。
 
 Google One Tap 是现有 Google 登录的浏览器凭据入口，不创建新的身份类型。前端仅在未登录、公开设置完整、非 backend mode、安全 Origin、登录协议已满足且腾讯/阿里云动作验证码关闭时请求 GIS 展示；Cloudflare Turnstile 不扩大到该入口。服务端只接受经 Google 官方验证器校验签名、`aud`、`iss` 和 `exp` 后的 ID Token，并严格要求非空 `sub`、邮箱及 `email_verified=true`。`sub` 继续作为 Google `AuthIdentity` 的稳定主体；已有用户进入统一 token pair 签发和用户状态检查，新用户写入现有 `PendingAuthSession` 后进入相同的密码、邀请码、邮箱策略、注册开关和优惠补全流程。One Tap 关闭、Google OAuth 配置不完整、动作验证码启用、backend mode、注册关闭或身份不可登录时都必须 fail-close，原始 token 与完整 claims 不得写日志。

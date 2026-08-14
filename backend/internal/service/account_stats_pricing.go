@@ -18,6 +18,7 @@ import (
 // requestedModel 是渠道映射前的请求模型 ID；channelMappedModel 是渠道映射后的 route key。
 // Qoder 这类上游 route key 与公开 alias 分离的平台会按 requested → channelMapped → upstream 尝试。
 // totalCost 是本次请求的客户计费（倍率前），用于优先级 2。
+// serviceTier 是最终参与用户计费的服务层级，仅用于优先级 3。
 //
 //nolint:unused // 兼容旧测试入口；生产路径会传入 channelMappedModel 并调用 WithMapped 版本。
 func resolveAccountStatsCost(
@@ -31,8 +32,9 @@ func resolveAccountStatsCost(
 	tokens UsageTokens,
 	requestCount int,
 	totalCost float64,
+	serviceTier string,
 ) *float64 {
-	return resolveAccountStatsCostWithMapped(ctx, channelService, billingService, accountID, groupID, upstreamModel, requestedModel, "", tokens, requestCount, totalCost)
+	return resolveAccountStatsCostWithMapped(ctx, channelService, billingService, accountID, groupID, upstreamModel, requestedModel, "", tokens, requestCount, totalCost, serviceTier)
 }
 
 func resolveAccountStatsCostWithMapped(
@@ -47,6 +49,7 @@ func resolveAccountStatsCostWithMapped(
 	tokens UsageTokens,
 	requestCount int,
 	totalCost float64,
+	serviceTier string,
 ) *float64 {
 	if channelService == nil || upstreamModel == "" {
 		return nil
@@ -84,13 +87,13 @@ func resolveAccountStatsCostWithMapped(
 				if qoderAliasRequiresManualPricingAny(model) {
 					continue
 				}
-				if cost := tryModelFilePricing(billingService, model, tokens); cost != nil {
+				if cost := tryModelFilePricing(billingService, model, tokens, serviceTier); cost != nil {
 					return cost
 				}
 			}
 			return nil
 		}
-		return tryModelFilePricing(billingService, upstreamModel, tokens)
+		return tryModelFilePricing(billingService, upstreamModel, tokens, serviceTier)
 	}
 
 	return nil
@@ -154,14 +157,16 @@ func uniqueNonEmptyAccountStatsModels(models []string) []string {
 	return out
 }
 
-// tryModelFilePricing 使用模型定价文件（LiteLLM/fallback）中的标准价格计算费用。
-func tryModelFilePricing(billingService *BillingService, model string, tokens UsageTokens) *float64 {
+// tryModelFilePricing 使用模型定价文件（LiteLLM/fallback）中的价格计算费用。
+func tryModelFilePricing(billingService *BillingService, model string, tokens UsageTokens, serviceTier string) *float64 {
 	pricing, err := billingService.GetModelPricing(model)
 	if err != nil || pricing == nil {
 		return nil
 	}
-	if billingService.shouldApplySessionLongContextPricing(tokens, pricing) {
-		breakdown, err := billingService.CalculateCost(model, tokens, 1)
+	normalizedTier := normalizeBillingServiceTier(serviceTier)
+	if normalizedTier == "priority" || normalizedTier == "flex" ||
+		billingService.shouldApplySessionLongContextPricing(tokens, pricing) {
+		breakdown, err := billingService.CalculateCostWithServiceTier(model, tokens, 1, normalizedTier)
 		if err != nil || breakdown == nil || breakdown.TotalCost <= 0 {
 			return nil
 		}
@@ -390,7 +395,11 @@ func applyAccountStatsCost(
 	if usageLog != nil && usageLog.ImageCount > 0 {
 		requestCount = usageLog.ImageCount
 	}
+	serviceTier := ""
+	if usageLog != nil && usageLog.ServiceTier != nil {
+		serviceTier = *usageLog.ServiceTier
+	}
 	usageLog.AccountStatsCost = resolveAccountStatsCostWithMapped(
-		ctx, cs, bs, accountID, groupID, model, requestedModel, channelMappedModel, tokens, requestCount, totalCost,
+		ctx, cs, bs, accountID, groupID, model, requestedModel, channelMappedModel, tokens, requestCount, totalCost, serviceTier,
 	)
 }

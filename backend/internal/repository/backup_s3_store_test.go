@@ -92,6 +92,47 @@ func TestS3BackupStoreUploadFileWithProgressUsesConcurrentMultipart(t *testing.T
 	require.Equal(t, int64(len(payload)), lastProgress.Load())
 }
 
+func TestS3BackupStoreUploadSizedUsesSinglePut(t *testing.T) {
+	payload := bytes.Repeat([]byte("part"), 1024)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, http.MethodPut, r.Method)
+		require.Equal(t, "PutObject", r.URL.Query().Get("x-id"))
+		require.Empty(t, r.URL.Query().Get("uploadId"))
+		require.Empty(t, r.URL.Query().Get("partNumber"))
+		_, hasUploads := r.URL.Query()["uploads"]
+		require.False(t, hasUploads)
+		require.Equal(t, int64(len(payload)), r.ContentLength)
+		body, err := io.ReadAll(r.Body)
+		require.NoError(t, err)
+		require.Equal(t, payload, body)
+		w.Header().Set("ETag", `"single"`)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	store, err := NewS3BackupStoreFactory()(context.Background(), &service.BackupS3Config{
+		Endpoint:        server.URL,
+		Region:          "us-east-1",
+		Bucket:          "bucket-a",
+		AccessKeyID:     "ak",
+		SecretAccessKey: "sk",
+		ForcePathStyle:  true,
+	})
+	require.NoError(t, err)
+	uploader, ok := store.(service.BackupObjectStoreSizedUploader)
+	require.True(t, ok)
+
+	size, err := uploader.UploadSized(
+		context.Background(),
+		"backups/part-1",
+		bytes.NewReader(payload),
+		"application/octet-stream",
+		int64(len(payload)),
+	)
+	require.NoError(t, err)
+	require.Equal(t, int64(len(payload)), size)
+}
+
 func hasRawQueryKey(values map[string][]string, key string) bool {
 	_, ok := values[key]
 	return ok

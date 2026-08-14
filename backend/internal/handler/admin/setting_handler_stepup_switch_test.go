@@ -135,8 +135,9 @@ func TestUpdateSettingsStepUpKeepEnabledSkipsGate(t *testing.T) {
 // 不得把已开启的安全开关静默重置，也不触发任何转换门控。
 func TestUpdateSettingsOmittedSecuritySwitchesKeepStoredValues(t *testing.T) {
 	h, repo := newStepUpSwitchTestHandler(t, map[string]string{
-		service.SettingKeyStepUpEnabled:         "true",
-		service.SettingKeySessionBindingEnabled: "true",
+		service.SettingKeyStepUpEnabled:                       "true",
+		service.SettingKeySessionBindingEnabled:               "true",
+		service.SettingKeyRegistrationEmailDomainQuotaEnabled: "true",
 	})
 
 	rec := doUpdateSettings(t, h, map[string]any{"registration_enabled": true}, nil)
@@ -144,6 +145,7 @@ func TestUpdateSettingsOmittedSecuritySwitchesKeepStoredValues(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "true", repo.values[service.SettingKeyStepUpEnabled])
 	require.Equal(t, "true", repo.values[service.SettingKeySessionBindingEnabled])
+	require.Equal(t, "true", repo.values[service.SettingKeyRegistrationEmailDomainQuotaEnabled])
 }
 
 // 省略字段在开关本就关闭时同样保持关闭（默认值路径）。
@@ -155,6 +157,7 @@ func TestUpdateSettingsOmittedSecuritySwitchesKeepDisabled(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "false", repo.values[service.SettingKeyStepUpEnabled])
 	require.Equal(t, "false", repo.values[service.SettingKeySessionBindingEnabled])
+	require.Equal(t, "false", repo.values[service.SettingKeyRegistrationEmailDomainQuotaEnabled])
 }
 
 // 旧客户端省略新字段时必须保留已有默认上限，不能把它静默改成 0。

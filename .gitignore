@@ -138,3 +138,6 @@ vite.config.js
 frontend/coverage/
 aicodex
 output/
+
+# 仓库根目录的 Vitest 与 Vite 缓存
+.vite/

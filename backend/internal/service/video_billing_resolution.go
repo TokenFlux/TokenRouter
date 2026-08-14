@@ -31,16 +31,25 @@ func NormalizeVideoBillingDurationSecondsOrDefault(durationSeconds int) int {
 	return durationSeconds
 }
 
-// NormalizeVideoBillingResolutionOrDefault 归一化常见视频分辨率别名，未知值回退到 480p。
-func NormalizeVideoBillingResolutionOrDefault(resolution string) string {
+// LookupVideoBillingResolution 识别常见视频分辨率别名，未知值由调用方决定回退策略。
+func LookupVideoBillingResolution(resolution string) (string, bool) {
 	switch strings.ToLower(strings.TrimSpace(resolution)) {
 	case "480", "480p", "sd":
-		return VideoBillingResolution480P
+		return VideoBillingResolution480P, true
 	case "720", "720p", "hd":
-		return VideoBillingResolution720P
+		return VideoBillingResolution720P, true
 	case "1080", "1080p", "full_hd", "full-hd", "fhd":
-		return VideoBillingResolution1080P
+		return VideoBillingResolution1080P, true
 	default:
-		return VideoBillingResolution480P
+		return "", false
 	}
+}
+
+// NormalizeVideoBillingResolutionOrDefault 用于运行时计费：上游回传的分辨率
+// 缺失或无法识别时按最低档兜底，保证请求仍可计费。
+func NormalizeVideoBillingResolutionOrDefault(resolution string) string {
+	if normalized, ok := LookupVideoBillingResolution(resolution); ok {
+		return normalized
+	}
+	return VideoBillingResolution480P
 }

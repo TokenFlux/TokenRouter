@@ -93,6 +93,50 @@ type UpdateAPIKeyRequest struct {
 	DataSharingNoticeVersion int  `json:"data_sharing_notice_version"`
 }
 
+type apiKeyLimitInput struct {
+	field string
+	value *float64
+}
+
+// validateAPIKeyLimitFields 对 HTTP 请求中显式提供的限额执行服务层统一校验。
+func validateAPIKeyLimitFields(limits ...apiKeyLimitInput) error {
+	for _, limit := range limits {
+		if limit.value == nil {
+			continue
+		}
+		if err := service.ValidateAPIKeyLimit(limit.field, *limit.value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateAPIKeyCreateRequest 校验创建请求中的限额与相对有效期。
+func validateAPIKeyCreateRequest(req CreateAPIKeyRequest) error {
+	if err := validateAPIKeyLimitFields(
+		apiKeyLimitInput{field: "quota", value: req.Quota},
+		apiKeyLimitInput{field: "rate_limit_5h", value: req.RateLimit5h},
+		apiKeyLimitInput{field: "rate_limit_1d", value: req.RateLimit1d},
+		apiKeyLimitInput{field: "rate_limit_7d", value: req.RateLimit7d},
+	); err != nil {
+		return err
+	}
+	if req.ExpiresInDays != nil {
+		return service.ValidateAPIKeyExpiresInDays(*req.ExpiresInDays)
+	}
+	return nil
+}
+
+// validateAPIKeyUpdateRequest 只校验更新请求中实际出现的限额字段。
+func validateAPIKeyUpdateRequest(req UpdateAPIKeyRequest) error {
+	return validateAPIKeyLimitFields(
+		apiKeyLimitInput{field: "quota", value: req.Quota},
+		apiKeyLimitInput{field: "rate_limit_5h", value: req.RateLimit5h},
+		apiKeyLimitInput{field: "rate_limit_1d", value: req.RateLimit1d},
+		apiKeyLimitInput{field: "rate_limit_7d", value: req.RateLimit7d},
+	)
+}
+
 // APIKeyBillingSubscriptionOptionResponse 是前端选择指定订阅时使用的安全摘要。
 type APIKeyBillingSubscriptionOptionResponse struct {
 	ID               int64     `json:"id"`
@@ -194,6 +238,10 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	if err := validateAPIKeyCreateRequest(req); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 
 	svcReq := service.CreateAPIKeyRequest{
 		Name:                                  req.Name,
@@ -253,6 +301,10 @@ func (h *APIKeyHandler) Update(c *gin.Context) {
 	var req UpdateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	if err := validateAPIKeyUpdateRequest(req); err != nil {
+		response.ErrorFrom(c, err)
 		return
 	}
 

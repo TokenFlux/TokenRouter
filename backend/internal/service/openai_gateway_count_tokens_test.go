@@ -311,6 +311,10 @@ func TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI(t *testing.T) {
 	if apiKey == "" {
 		t.Skip("OPENAI_API_KEY not set")
 	}
+	// 本地环境中的无效或过期密钥不得导致单元测试套件失败。
+	if strings.HasPrefix(apiKey, "sk-") && len(apiKey) < 20 {
+		t.Skip("OPENAI_API_KEY looks incomplete")
+	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	cases := []struct {
@@ -345,7 +349,13 @@ func TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI(t *testing.T) {
 			require.NoError(t, err)
 
 			actual, err := callOpenAIInputTokensAPIForTest(client, apiKey, prepared.Request)
-			require.NoError(t, err)
+			if err != nil {
+				// 此处仅用于实时 API 对比，本地密钥无效或过期时应跳过而非使 CI 失败。
+				if strings.Contains(err.Error(), "status=401") || strings.Contains(err.Error(), "invalid_api_key") {
+					t.Skipf("OPENAI_API_KEY rejected by OpenAI: %v", err)
+				}
+				require.NoError(t, err)
+			}
 
 			diff := estimated - actual
 			if diff < 0 {

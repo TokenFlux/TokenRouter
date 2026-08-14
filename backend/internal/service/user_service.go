@@ -192,6 +192,13 @@ type UserRepository interface {
 	DisableTotp(ctx context.Context, userID int64) error
 }
 
+// RegistrationEmailDomainRepository 为非白名单域名单账户策略提供原子仓储能力。
+// 独立成窄接口，避免注册专用方法扩散到所有 UserRepository 测试桩和消费者。
+type RegistrationEmailDomainRepository interface {
+	CountUsersByEmailDomain(ctx context.Context, domain string) (int, error)
+	CreateWithRegistrationEmailGuards(ctx context.Context, user *User, normalizedEmail, domain string) error
+}
+
 // RedeemUserAdjustmentRepository 为负值兑换码提供原子更新，并保证结果不低于 0。
 // 该接口刻意小于 UserRepository，因为常规用量计费允许余额透支。
 type RedeemUserAdjustmentRepository interface {

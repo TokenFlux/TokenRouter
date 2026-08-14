@@ -130,12 +130,18 @@
         :show-help="isAnthropic"
         :show-proxy-warning="isAnthropic"
         :show-cookie-option="isAnthropic"
+        :show-refresh-token-option="isOpenAI || isAntigravity || isGrok"
+        :show-sso-option="isGrok"
+        :show-email-password-option="false"
         :allow-multiple="false"
         :method-label="t('admin.accounts.inputMethod')"
         :platform="isOpenAI ? 'openai' : isGemini ? 'gemini' : isAntigravity ? 'antigravity' : isGrok ? 'grok' : 'anthropic'"
         :show-project-id="isGemini && geminiOAuthType === 'code_assist'"
+        :initial-input-method="grokInitialInputMethod"
         @generate-url="handleGenerateUrl"
         @cookie-auth="handleCookieAuth"
+        @validate-refresh-token="handleGrokValidateRefreshToken"
+        @import-sso="handleGrokImportSSO"
       />
 
     </div>
@@ -249,6 +255,21 @@ const isAnthropic = computed(() => props.account?.platform === 'anthropic')
 const isAntigravity = computed(() => props.account?.platform === 'antigravity')
 const isGrok = computed(() => props.account?.platform === 'grok')
 
+/**
+ * Grok 重新认证默认标签页，密码认证保持隐藏：
+ * - 刷新令牌可能仍有效时使用 refresh_token
+ * - 其他情况使用 SSO Cookie
+ */
+const grokInitialInputMethod = computed<AuthInputMethod>(() => {
+  if (!isGrok.value) return 'manual'
+  const creds = (props.account?.credentials || {}) as Record<string, unknown>
+  const hasRT =
+    (typeof creds.refresh_token === 'string' && creds.refresh_token.trim() !== '') ||
+    (typeof creds.has_refresh_token === 'boolean' && creds.has_refresh_token)
+  if (hasRT) return 'refresh_token'
+  return 'sso_cookie'
+})
+
 // Computed - current OAuth state based on platform
 const currentAuthUrl = computed(() => {
   if (isOpenAILike.value) return openaiOAuth.authUrl.value
@@ -279,10 +300,20 @@ const currentError = computed(() => {
   return claudeOAuth.error.value
 })
 
-// Computed
+// 页脚“完成认证”只用于授权码交换流程，不适用于 SSO、密码或刷新令牌流程。
 const isManualInputMethod = computed(() => {
-  // OpenAI/Gemini/Antigravity always use manual input (no cookie auth option)
-  return isOpenAILike.value || isGemini.value || isAntigravity.value || isGrok.value || oauthFlowRef.value?.inputMethod === 'manual'
+  const method = oauthFlowRef.value?.inputMethod
+  if (method === 'sso_cookie' || method === 'email_password' || method === 'refresh_token') {
+    return false
+  }
+  // OpenAI、Gemini、Antigravity 与 Grok 默认使用手动粘贴代码，不采用 Cookie 认证。
+  return (
+    isOpenAILike.value ||
+    isGemini.value ||
+    isAntigravity.value ||
+    isGrok.value ||
+    method === 'manual'
+  )
 })
 
 const canExchangeCode = computed(() => {
@@ -581,6 +612,81 @@ const handleCookieAuth = async (sessionKey: string) => {
       error.response?.data?.detail || t('admin.accounts.oauth.cookieAuthFailed')
   } finally {
     claudeOAuth.loading.value = false
+  }
+}
+
+/** 将 Grok Build OAuth 令牌应用到现有账号，绝不存储密码或 SSO 数据。 */
+const applyGrokReauthTokenInfo = async (tokenInfo: {
+  access_token?: string
+  refresh_token?: string
+  email?: string
+  [key: string]: unknown
+}) => {
+  if (!props.account) return
+  const credentials = grokOAuth.buildCredentials(tokenInfo as any)
+  const extra = grokOAuth.buildExtraInfo(tokenInfo as any)
+  const updatedAccount = await adminAPI.accounts.applyOAuthCredentials(props.account.id, {
+    type: 'oauth',
+    credentials,
+    extra
+  })
+  appStore.showSuccess(t('admin.accounts.reAuthorizedSuccess'))
+  emit('reauthorized', updatedAccount)
+  handleClose()
+}
+
+/** 使用单个 SSO Cookie 重新认证并转换为 Build OAuth，不执行批量创建。 */
+const handleGrokImportSSO = async (ssoInput: string) => {
+  if (!props.account || !isGrok.value) return
+  const ssoToken = ssoInput
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)[0]
+  if (!ssoToken) return
+
+  grokOAuth.loading.value = true
+  grokOAuth.error.value = ''
+  try {
+    const tokenInfo = await grokOAuth.validateSSOToken(ssoToken, props.account.proxy_id)
+    if (!tokenInfo) return
+    await applyGrokReauthTokenInfo(tokenInfo)
+  } catch (error: any) {
+    grokOAuth.error.value =
+      error.response?.data?.detail ||
+      error.message ||
+      t('admin.accounts.oauth.grok.failedToValidateSSO', 'Failed to validate Grok SSO')
+    appStore.showError(grokOAuth.error.value)
+  } finally {
+    grokOAuth.loading.value = false
+  }
+}
+
+/** 使用单个刷新令牌重新认证。 */
+const handleGrokValidateRefreshToken = async (refreshTokenInput: string) => {
+  if (!props.account || !isGrok.value) return
+  const refreshToken = refreshTokenInput
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)[0]
+  if (!refreshToken) {
+    grokOAuth.error.value = t('admin.accounts.oauth.grok.pleaseEnterRefreshToken')
+    return
+  }
+
+  grokOAuth.loading.value = true
+  grokOAuth.error.value = ''
+  try {
+    const tokenInfo = await grokOAuth.validateRefreshToken(refreshToken, props.account.proxy_id)
+    if (!tokenInfo) return
+    await applyGrokReauthTokenInfo(tokenInfo)
+  } catch (error: any) {
+    grokOAuth.error.value =
+      error.response?.data?.detail ||
+      error.message ||
+      t('admin.accounts.oauth.grok.failedToValidateRT')
+    appStore.showError(grokOAuth.error.value)
+  } finally {
+    grokOAuth.loading.value = false
   }
 }
 </script>

@@ -531,6 +531,80 @@ func TestModelMarketplaceQoderStandardModelPartialIntervalKeepsBaseDisplayFields
 	}
 }
 
+func TestModelMarketplaceGroupPricingOverridesChannelPricing(t *testing.T) {
+	groupID := int64(905)
+	channelInput := 0.5
+	channelOutput := 0.75
+	groupInput := 0.01
+	groupOutput := 0.02
+	cache := newEmptyChannelCache()
+	cache.pricingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformOpenAI, model: "gpt-5.4-mini"}] = &ChannelModelPricing{
+		BillingMode: BillingModeToken,
+		InputPrice:  &channelInput,
+		OutputPrice: &channelOutput,
+	}
+	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
+	cache.groupPlatform[groupID] = PlatformOpenAI
+	cache.loadedAt = time.Now()
+	channelService := &ChannelService{}
+	channelService.cache.Store(cache)
+
+	billingService := NewBillingService(nil, nil)
+	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
+		resolver: NewModelPricingResolver(channelService, billingService),
+	}, billingService, nil, nil, nil)
+	group := &Group{
+		ID: groupID, Platform: PlatformOpenAI, RateMultiplier: 2, LongContextPricingEnabled: true,
+		ModelPricing: []ChannelModelPricing{{
+			Models: []string{"gpt-5.4-mini"}, BillingMode: BillingModeToken,
+			InputPrice: &groupInput, OutputPrice: &groupOutput,
+		}},
+	}
+
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.4-mini", nil)
+
+	if pricing.InputPricePerToken != groupInput*group.RateMultiplier || pricing.OutputPricePerToken != groupOutput*group.RateMultiplier {
+		t.Fatalf("group display price = (%g, %g), want (%g, %g)",
+			pricing.InputPricePerToken, pricing.OutputPricePerToken,
+			groupInput*group.RateMultiplier, groupOutput*group.RateMultiplier)
+	}
+}
+
+func TestModelMarketplaceGroupExplicitZeroPricingRemainsPriced(t *testing.T) {
+	zero := 0.0
+	billingService := NewBillingService(nil, nil)
+	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
+		resolver: NewModelPricingResolver(nil, billingService),
+	}, billingService, nil, nil, nil)
+	group := &Group{
+		ID: 906, Platform: PlatformOpenAI, RateMultiplier: 1, LongContextPricingEnabled: true,
+		ModelPricing: []ChannelModelPricing{{
+			Models: []string{"gpt-5.4"}, BillingMode: BillingModeToken,
+			InputPrice: &zero, OutputPrice: &zero,
+		}},
+	}
+
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.4", nil)
+
+	if pricing.PricingMode != "token" || pricing.PriceStatus != "priced" || pricing.InputPricePerToken != 0 || pricing.OutputPricePerToken != 0 {
+		t.Fatalf("free group display pricing = %#v, want token/priced with zero prices", pricing)
+	}
+}
+
+func TestModelMarketplaceGroupCanDisableBuiltInLongContextDisplay(t *testing.T) {
+	billingService := NewBillingService(nil, nil)
+	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
+		resolver: NewModelPricingResolver(nil, billingService),
+	}, billingService, nil, nil, nil)
+	group := &Group{ID: 907, Platform: PlatformOpenAI, RateMultiplier: 1, LongContextPricingEnabled: false}
+
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.4", nil)
+
+	if pricing.PricingMode != "token" || pricing.PriceStatus != "priced" || len(pricing.ContextIntervals) != 0 {
+		t.Fatalf("long-context-disabled display pricing = %#v, want flat token pricing", pricing)
+	}
+}
+
 func TestModelMarketplaceQoderOmitsOfficialPriceDiscount(t *testing.T) {
 	settingRepo := &marketplaceSettingRepoStub{settings: map[string]string{
 		SettingKeyReasoningPointRMBUnitPrice: "1",

@@ -56,9 +56,10 @@ func (s *settingPublicRepoStub) Delete(ctx context.Context, key string) error {
 func TestSettingService_GetPublicSettings_ExposesRegistrationEmailSuffixWhitelist(t *testing.T) {
 	repo := &settingPublicRepoStub{
 		values: map[string]string{
-			SettingKeyRegistrationEnabled:              "true",
-			SettingKeyEmailVerifyEnabled:               "true",
-			SettingKeyRegistrationEmailSuffixWhitelist: `["@EXAMPLE.com"," @foo.bar ","*.EDU.CN","@invalid_domain",""]`,
+			SettingKeyRegistrationEnabled:                 "true",
+			SettingKeyEmailVerifyEnabled:                  "true",
+			SettingKeyRegistrationEmailSuffixWhitelist:    `["@EXAMPLE.com"," @foo.bar ","*.EDU.CN","@invalid_domain",""]`,
+			SettingKeyRegistrationEmailDomainQuotaEnabled: "true",
 		},
 	}
 	svc := NewSettingService(repo, &config.Config{})
@@ -66,6 +67,7 @@ func TestSettingService_GetPublicSettings_ExposesRegistrationEmailSuffixWhitelis
 	settings, err := svc.GetPublicSettings(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, []string{"@example.com", "@foo.bar", "*.edu.cn"}, settings.RegistrationEmailSuffixWhitelist)
+	require.True(t, settings.RegistrationEmailDomainQuotaEnabled)
 }
 
 func TestSettingService_GetPublicSettings_ExposesTablePreferences(t *testing.T) {
@@ -143,11 +145,12 @@ func TestSettingService_GetPublicSettings_ExposesAllowUserViewErrorRequests(t *t
 func TestSettingService_GetPublicSettingsForInjection_ExposesPublicFeatureFlags(t *testing.T) {
 	repo := &settingPublicRepoStub{
 		values: map[string]string{
-			SettingKeyAffiliateEnabled:             "true",
-			SettingKeyForceEmailOnThirdPartySignup: "true",
-			SettingKeyAllowUserViewErrorRequests:   "true",
-			SettingKeyTeamEnabled:                  "true",
-			SettingKeyDataSharingEnabled:           "false",
+			SettingKeyAffiliateEnabled:                    "true",
+			SettingKeyForceEmailOnThirdPartySignup:        "true",
+			SettingKeyRegistrationEmailDomainQuotaEnabled: "true",
+			SettingKeyAllowUserViewErrorRequests:          "true",
+			SettingKeyTeamEnabled:                         "true",
+			SettingKeyDataSharingEnabled:                  "false",
 		},
 	}
 	svc := NewSettingService(repo, &config.Config{
@@ -162,12 +165,13 @@ func TestSettingService_GetPublicSettingsForInjection_ExposesPublicFeatureFlags(
 	require.NoError(t, err)
 
 	var settings struct {
-		AffiliateEnabled             bool `json:"affiliate_enabled"`
-		ForceEmailOnThirdPartySignup bool `json:"force_email_on_third_party_signup"`
-		AllowUserViewErrorRequests   bool `json:"allow_user_view_error_requests"`
-		TeamEnabled                  bool `json:"team_enabled"`
-		DataSharingEnabled           bool `json:"data_sharing_enabled"`
-		PasskeyEnabled               bool `json:"passkey_enabled"`
+		AffiliateEnabled                    bool `json:"affiliate_enabled"`
+		ForceEmailOnThirdPartySignup        bool `json:"force_email_on_third_party_signup"`
+		AllowUserViewErrorRequests          bool `json:"allow_user_view_error_requests"`
+		TeamEnabled                         bool `json:"team_enabled"`
+		DataSharingEnabled                  bool `json:"data_sharing_enabled"`
+		PasskeyEnabled                      bool `json:"passkey_enabled"`
+		RegistrationEmailDomainQuotaEnabled bool `json:"registration_email_domain_quota_enabled"`
 	}
 	require.NoError(t, json.Unmarshal(encoded, &settings))
 	require.True(t, settings.AffiliateEnabled)
@@ -176,6 +180,7 @@ func TestSettingService_GetPublicSettingsForInjection_ExposesPublicFeatureFlags(
 	require.True(t, settings.TeamEnabled)
 	require.False(t, settings.DataSharingEnabled)
 	require.True(t, settings.PasskeyEnabled)
+	require.True(t, settings.RegistrationEmailDomainQuotaEnabled)
 }
 
 func TestSettingService_GetPublicSettings_ExposesWeChatOAuthModeCapabilities(t *testing.T) {

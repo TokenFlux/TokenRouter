@@ -225,3 +225,51 @@ func TestUserRepositoryCreateSerializesNormalizedEmailConflictsUnderConcurrency(
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 }
+
+func TestUserRepositoryCountUsersByEmailDomain(t *testing.T) {
+	repo, _ := newUserEntRepo(t)
+	ctx := context.Background()
+
+	for index, email := range []string{"first@custom.example", "second@sub.custom.example", "other@example.com"} {
+		require.NoError(t, repo.Create(ctx, &service.User{
+			Email:        email,
+			Username:     fmt.Sprintf("domain-user-%d", index),
+			PasswordHash: "hash",
+			Role:         service.RoleUser,
+			Status:       service.StatusActive,
+		}))
+	}
+
+	count, err := repo.CountUsersByEmailDomain(ctx, "sub.custom.example")
+	require.NoError(t, err)
+	require.Equal(t, 2, count)
+}
+
+func TestUserRepositoryCountUsersByEmailDomainIgnoresDeletedAndEscapesWildcards(t *testing.T) {
+	repo, _ := newUserEntRepo(t)
+	ctx := context.Background()
+
+	active := &service.User{Email: "active@foo_bar.com", Username: "active", PasswordHash: "hash", Role: service.RoleUser, Status: service.StatusActive}
+	deleted := &service.User{Email: "deleted@foo_bar.com", Username: "deleted", PasswordHash: "hash", Role: service.RoleUser, Status: service.StatusActive}
+	other := &service.User{Email: "other@fooxbar.com", Username: "other", PasswordHash: "hash", Role: service.RoleUser, Status: service.StatusActive}
+	require.NoError(t, repo.Create(ctx, active))
+	require.NoError(t, repo.Create(ctx, deleted))
+	require.NoError(t, repo.Create(ctx, other))
+	require.NoError(t, repo.Delete(ctx, deleted.ID))
+
+	count, err := repo.CountUsersByEmailDomain(ctx, "foo_bar.com")
+	require.NoError(t, err)
+	require.Equal(t, 1, count)
+}
+
+func TestUserRepositoryCreateWithRegistrationEmailGuardsRejectsSecondDomainAccount(t *testing.T) {
+	repo, _ := newUserEntRepo(t)
+	ctx := context.Background()
+
+	first := &service.User{Email: "first@custom.example.", Username: "first", PasswordHash: "hash", Role: service.RoleUser, Status: service.StatusActive}
+	second := &service.User{Email: "second@sub.custom.example", Username: "second", PasswordHash: "hash", Role: service.RoleUser, Status: service.StatusActive}
+	require.NoError(t, repo.CreateWithRegistrationEmailGuards(ctx, first, "", "custom.example"))
+
+	err := repo.CreateWithRegistrationEmailGuards(ctx, second, "", "sub.custom.example")
+	require.ErrorIs(t, err, service.ErrEmailDomainRegistrationLimit)
+}

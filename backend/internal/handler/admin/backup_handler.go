@@ -224,16 +224,16 @@ func (h *BackupHandler) GetDownloadURL(c *gin.Context) {
 		response.ErrorFrom(c, err)
 		return
 	}
-	if record.StorageType == service.BackupStorageTypeLocal || (record.StorageType == "" && record.S3Key == "") {
+	if len(record.Parts) == 0 && (record.StorageType == service.BackupStorageTypeLocal || (record.StorageType == "" && record.S3Key == "")) {
 		response.Success(c, gin.H{"url": fmt.Sprintf("/api/v1/admin/backups/%s/download", backupID)})
 		return
 	}
-	url, err := h.backupService.GetBackupDownloadURL(c.Request.Context(), backupID)
+	download, err := h.backupService.GetBackupDownloadURL(c.Request.Context(), backupID)
 	if err != nil {
 		response.ErrorFrom(c, err)
 		return
 	}
-	response.Success(c, gin.H{"url": url})
+	response.Success(c, download)
 }
 
 func (h *BackupHandler) DownloadBackup(c *gin.Context) {

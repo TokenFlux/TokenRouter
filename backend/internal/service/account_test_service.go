@@ -131,12 +131,20 @@ type AccountTestService struct {
 	openAIGatewayService      *OpenAIGatewayService
 	httpUpstream              HTTPUpstream
 	cfg                       *config.Config
+	settingService            *SettingService
 	tlsFPProfileService       *TLSFingerprintProfileService
 	qoderSessionProvider      qoderAccountTestSessionProvider
 	qoderClient               qoderStreamClient
 	qoderOAuthClient          qoderAccountTestOAuthClient
 	agentIdentityTaskMu       sync.Mutex
 	agentIdentityWS           agentIdentityWSConnectionInvalidator
+}
+
+// SetSettingService 注入 Grok 系统级默认上游策略。
+func (s *AccountTestService) SetSettingService(settingService *SettingService) {
+	if s != nil {
+		s.settingService = settingService
+	}
 }
 
 // NewAccountTestService creates a new AccountTestService
@@ -898,7 +906,7 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Unsupported Grok account type: %s", account.Type))
 	}
 
-	apiURL, err := buildGrokResponsesURL(account, s.cfg)
+	apiURL, err := buildGrokResponsesURL(account, s.cfg, s.settingService)
 	if err != nil {
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid Grok base URL: %s", err.Error()))
 	}
@@ -944,6 +952,7 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 
 	now := time.Now()
 	snapshot := parseGrokQuotaSnapshot(resp.Header, resp.StatusCode, now)
+	stampGrokQuotaSnapshotForPlan(account, snapshot, testModelID)
 	if snapshot != nil && s.accountRepo != nil {
 		resetAt, limited := grokRateLimitResetAtForAccount(account, snapshot, now)
 		if limited {
@@ -963,16 +972,25 @@ func (s *AccountTestService) testGrokAccountConnection(c *gin.Context, account *
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		if resp.StatusCode == http.StatusPaymentRequired && s.accountRepo != nil {
-			// 手动测试与实时转发保持一致：计费不可用时临时停止调度，避免账号继续被选中。
-			stateCtx, cancel := openAIAccountStateContext(ctx)
-			defer cancel()
-			_ = s.accountRepo.SetTempUnschedulable(
-				stateCtx,
-				account.ID,
-				time.Now().Add(30*time.Minute),
-				"grok payment required",
-			)
+		if s.accountRepo != nil && !isGrokContentPolicyRejection(resp.StatusCode, body) {
+			decision := classifyGrokUpstreamFailure(resp.StatusCode, body, testModelID)
+			switch {
+			case decision.Class == GrokFailureFreeUsage:
+				if resetAt, limited := grokRateLimitResetAtForAccount(account, snapshot, now); limited && resetAt.After(now) {
+					persistGrokRateLimit(ctx, s.accountRepo, account, resetAt)
+				} else {
+					stateCtx, cancel := openAIAccountStateContext(ctx)
+					_ = s.accountRepo.SetTempUnschedulable(stateCtx, account.ID, now.Add(grokFreeUsageProbeCooldown), "grok free usage exhausted")
+					cancel()
+				}
+			case decision.Class == GrokFailureBilling && (isGrokSpendingLimitError(body) || strings.Contains(strings.ToLower(decision.Reason), "credit")):
+				persistGrokRateLimit(ctx, s.accountRepo, account, grokSpendingLimitResetAt(account, now))
+			case resp.StatusCode == http.StatusPaymentRequired:
+				// 未能从正文识别可恢复消费限额时，保留既有 30 分钟计费冷却。
+				stateCtx, cancel := openAIAccountStateContext(ctx)
+				_ = s.accountRepo.SetTempUnschedulable(stateCtx, account.ID, now.Add(30*time.Minute), "grok payment required")
+				cancel()
+			}
 		}
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Grok Responses API returned %d: %s", resp.StatusCode, string(body)))
 	}

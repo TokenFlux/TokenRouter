@@ -122,7 +122,7 @@ client_model
 
 选择结果可能已经持有账号并发槽，也可能携带 WaitPlan。后一种情况由 handler 先增加有界等待计数，再在超时内获取账号槽；成功后绑定粘性会话。客户端取消、队列满或等待超时必须释放等待计数和已获取的用户/账号槽。
 
-故障转移只处理 service 明确包装为 `UpstreamFailoverError` 的可切换错误。`FailoverState` 记录切换次数、失败账号和最后错误，并根据账号 pool-mode 重试次数决定同账号重试、排除后选择下一个账号、短暂等待或耗尽。临时不可调度标记由 service 根据错误分类写入，不是所有 HTTP 非 2xx 都应封禁账号。
+故障转移只处理 service 明确包装为 `UpstreamFailoverError` 的可切换错误。`FailoverState` 记录切换次数、失败账号和最后错误，并根据账号 pool-mode 重试次数决定同账号重试、排除后选择下一个账号、短暂等待或耗尽。普通同账号重试固定等待 500ms；被标记为请求级瞬时故障的容量错误按 500ms、1s、2s、4s 指数退避，后续单次等待封顶 8s，客户端取消会立即打断等待。临时不可调度标记由 service 根据错误分类写入，不是所有 HTTP 非 2xx 都应封禁账号。
 
 粘性会话已经绑定账号时，切换账号可能要求把普通输入按缓存读取计费，以反映缓存不再命中的成本语义。选择耗尽后的单账号重试和等待有严格上限；客户端 Context 取消必须立即终止，不继续选择或休眠。
 
@@ -136,7 +136,7 @@ client_model
 
 ## 用量与结算
 
-上游转发产生可计量 usage 后，handler 把解析出的 token/图片/视频用量、客户端与上游模型、endpoint、账号、订阅快照、请求标识和渠道映射交给有界 UsageRecord worker pool。Anthropic 流在终止事件前中断时，若已观测到上游 token，部分 usage 仍与转发错误一起返回并入账；无 token 不生成记录，failover 错误不携带部分结果，避免重试成功后双重计费。worker 使用脱离已结束请求取消信号但受自身超时约束的 Context；队列策略可以同步回退或丢弃，并通过指标/日志暴露压力，不能为每个请求创建无界 goroutine。
+上游转发产生可计量 usage 后，handler 把解析出的 token/图片/视频用量、客户端与上游模型、endpoint、账号、订阅快照、请求标识和渠道映射交给有界 UsageRecord worker pool。Anthropic 流在终止事件前中断时，若已观测到上游 token，部分 usage 仍与转发错误一起返回并入账；无 token 不生成记录，failover 错误不携带部分结果，避免重试成功后双重计费。OpenAI OAuth 图片响应在 HTTP 成功后若发生上游 body 传输中断，仅在尚未向客户端写出真实图片内容时按 502 进入账号策略和 failover；JSON keepalive 空白不算真实输出，客户端取消、deadline、响应体超限以及首字节后的中断不会换号。worker 使用脱离已结束请求取消信号但受自身超时约束的 Context；队列策略可以同步回退或丢弃，并通过指标/日志暴露压力，不能为每个请求创建无界 goroutine。
 
 标准模式中的共同顺序为：
 

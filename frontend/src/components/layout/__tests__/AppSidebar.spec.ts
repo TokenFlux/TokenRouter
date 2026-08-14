@@ -152,3 +152,17 @@ describe('AppSidebar admin personal menu', () => {
     expect(componentSource.match(/path: '\/affiliate',[\s\S]{0,180}?icon: AffiliateIcon/g)).toHaveLength(2)
   })
 })
+
+describe('AppSidebar simple mode', () => {
+  it('keeps enabled risk control visible to administrators', () => {
+    // 风控路由和设置入口在简单模式下可用，侧栏不能单独隐藏同一功能。
+    const start = componentSource.indexOf("path: '/admin/risk-control'")
+    const end = componentSource.indexOf("path: '/admin/redeem'", start)
+    const riskControlItem = componentSource.slice(start, end)
+
+    expect(start).toBeGreaterThanOrEqual(0)
+    expect(end).toBeGreaterThan(start)
+    expect(riskControlItem).toContain('risk_control_enabled')
+    expect(riskControlItem).not.toContain('hideInSimpleMode')
+  })
+})

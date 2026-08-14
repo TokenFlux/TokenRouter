@@ -23,7 +23,44 @@ import (
 var (
 	// 匹配 User-Agent 版本号: xxx/x.y.z
 	userAgentVersionRegex = regexp.MustCompile(`/(\d+)\.(\d+)\.(\d+)`)
+
+	// 校验可写入账号级持久指纹的 User-Agent 形态，版本号后只允许空白或结束。
+	fingerprintUserAgentPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+/\d+\.\d+\.\d+(\s|$)`)
 )
+
+const (
+	claudeCLIUserAgentProduct = "claude-cli"
+	// 限制持久化 User-Agent 长度，避免异常客户端把超长值写入账号缓存。
+	maxFingerprintUserAgentLength = 256
+	// 为 Claude CLI 预留两个大版本升级窗口，同时拒绝 999 等哨兵版本。
+	maxClaudeCLIMajorVersionSkew = 2
+)
+
+// isAcceptableFingerprintUserAgent 判断 User-Agent 是否适合作为账号级持久身份。
+// 指纹只升不降且会随活跃请求续期，因此本地构建后缀或不可信高版本一旦写入，
+// 会长期覆盖同账号的所有后续上游请求。
+func isAcceptableFingerprintUserAgent(userAgent string) bool {
+	userAgent = strings.TrimSpace(userAgent)
+	if userAgent == "" || len(userAgent) > maxFingerprintUserAgentLength {
+		return false
+	}
+	if !fingerprintUserAgentPattern.MatchString(userAgent) {
+		return false
+	}
+	// 其它产品只校验稳定形态，避免把 Claude CLI 的版本窗口误用于第三方客户端。
+	if extractProduct(userAgent) != claudeCLIUserAgentProduct {
+		return true
+	}
+	major, _, _, ok := parseUserAgentVersion(userAgent)
+	if !ok {
+		return false
+	}
+	currentMajor, _, _, currentOK := parseUserAgentVersion(claudeCLIUserAgentProduct + "/" + claude.CLICurrentVersion)
+	if !currentOK {
+		return true
+	}
+	return major <= currentMajor+maxClaudeCLIMajorVersionSkew
+}
 
 // 默认指纹值（当客户端未提供时使用）
 var defaultFingerprint = Fingerprint{
@@ -76,20 +113,43 @@ func NewIdentityService(cache IdentityCache) *IdentityService {
 // 如果缓存存在，检测user-agent版本，新版本则更新
 // 如果缓存不存在，生成随机ClientID并从请求头创建指纹，然后缓存
 func (s *IdentityService) GetOrCreateFingerprint(ctx context.Context, accountID int64, headers http.Header) (*Fingerprint, error) {
+	// 创建、升级和历史缓存自愈必须共用同一份校验结果。
+	clientUA := strings.TrimSpace(headers.Get("User-Agent"))
+	uaAcceptable := isAcceptableFingerprintUserAgent(clientUA)
+
 	// 尝试从缓存获取指纹
 	cached, err := s.cache.GetFingerprint(ctx, accountID)
 	if err == nil && cached != nil {
 		needWrite := false
 
-		// 检查客户端的user-agent是否是更新版本
-		clientUA := headers.Get("User-Agent")
-		if clientUA != "" && isNewerVersion(clientUA, cached.UserAgent) {
+		// 仅在非法值原本会升级缓存时记录拒绝，避免异常客户端高频重试刷屏。
+		if !uaAcceptable && clientUA != "" && isNewerVersion(clientUA, cached.UserAgent) {
+			logger.LegacyPrintf("service.identity",
+				"Rejected fingerprint user-agent for account %d: %q (malformed or implausible version)",
+				accountID, clientUA)
+		}
+
+		if !isAcceptableFingerprintUserAgent(cached.UserAgent) {
+			// 历史污染指纹会被活跃账号持续续期，读取时用合法客户端值或默认值自愈。
+			poisonedUA := cached.UserAgent
+			if uaAcceptable {
+				mergeHeadersIntoFingerprint(cached, headers)
+			} else {
+				cached.UserAgent = defaultFingerprint.UserAgent
+			}
+			needWrite = true
+			logger.LegacyPrintf("service.identity",
+				"Replaced malformed cached fingerprint for account %d: %q -> %q",
+				accountID, poisonedUA, cached.UserAgent)
+		} else if uaAcceptable && isNewerVersion(clientUA, cached.UserAgent) {
 			// 版本升级：merge 语义 — 仅更新请求中实际携带的字段，保留缓存值
 			// 避免缺失的头被硬编码默认值覆盖（如新 CLI 版本 + 旧 SDK 默认值的不一致）
 			mergeHeadersIntoFingerprint(cached, headers)
 			needWrite = true
 			logger.LegacyPrintf("service.identity", "Updated fingerprint for account %d: %s (merge update)", accountID, clientUA)
-		} else if time.Since(time.Unix(cached.UpdatedAt, 0)) > 24*time.Hour {
+		}
+
+		if !needWrite && time.Since(time.Unix(cached.UpdatedAt, 0)) > 24*time.Hour {
 			// 距上次写入超过24小时，续期TTL
 			needWrite = true
 		}
@@ -103,7 +163,12 @@ func (s *IdentityService) GetOrCreateFingerprint(ctx context.Context, accountID 
 		return cached, nil
 	}
 
-	// 缓存不存在或解析失败，创建新指纹
+	// 首次创建也是持久化入口，非法值必须回退默认指纹。
+	if !uaAcceptable && clientUA != "" {
+		logger.LegacyPrintf("service.identity",
+			"Rejected fingerprint user-agent for account %d: %q (malformed or implausible version)",
+			accountID, clientUA)
+	}
 	fp := s.createFingerprintFromHeaders(headers)
 
 	// 生成随机ClientID
@@ -123,8 +188,8 @@ func (s *IdentityService) GetOrCreateFingerprint(ctx context.Context, accountID 
 func (s *IdentityService) createFingerprintFromHeaders(headers http.Header) *Fingerprint {
 	fp := &Fingerprint{}
 
-	// 获取User-Agent
-	if ua := headers.Get("User-Agent"); ua != "" {
+	// 只有稳定形态且版本合理的 User-Agent 才能成为持久账号身份。
+	if ua := strings.TrimSpace(headers.Get("User-Agent")); isAcceptableFingerprintUserAgent(ua) {
 		fp.UserAgent = ua
 	} else {
 		fp.UserAgent = defaultFingerprint.UserAgent
@@ -392,9 +457,16 @@ func parseUserAgentVersion(ua string) (major, minor, patch int, ok bool) {
 	if len(matches) != 4 {
 		return 0, 0, 0, false
 	}
-	major, _ = strconv.Atoi(matches[1])
-	minor, _ = strconv.Atoi(matches[2])
-	patch, _ = strconv.Atoi(matches[3])
+	var err error
+	if major, err = strconv.Atoi(matches[1]); err != nil {
+		return 0, 0, 0, false
+	}
+	if minor, err = strconv.Atoi(matches[2]); err != nil {
+		return 0, 0, 0, false
+	}
+	if patch, err = strconv.Atoi(matches[3]); err != nil {
+		return 0, 0, 0, false
+	}
 	return major, minor, patch, true
 }
 

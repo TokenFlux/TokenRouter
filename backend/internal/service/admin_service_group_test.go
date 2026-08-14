@@ -46,6 +46,36 @@ func TestAdminServiceCreateGroupUsesPlatformClientProtocolDefaults(t *testing.T)
 	}
 }
 
+func TestAdminServiceCreateGroupDefaultsLongContextPricingOn(t *testing.T) {
+	t.Run("omitted defaults on", func(t *testing.T) {
+		repo := &groupRepoStubForAdmin{}
+		svc := &adminServiceImpl{groupRepo: repo}
+
+		group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+			Name: "default-long-context", Platform: PlatformOpenAI, RateMultiplier: 1,
+		})
+
+		require.NoError(t, err)
+		require.True(t, group.LongContextPricingEnabled)
+		require.True(t, repo.created.LongContextPricingEnabled)
+	})
+
+	t.Run("explicit false remains off", func(t *testing.T) {
+		repo := &groupRepoStubForAdmin{}
+		svc := &adminServiceImpl{groupRepo: repo}
+		disabled := false
+
+		group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+			Name: "disabled-long-context", Platform: PlatformOpenAI, RateMultiplier: 1,
+			LongContextPricingEnabled: &disabled,
+		})
+
+		require.NoError(t, err)
+		require.False(t, group.LongContextPricingEnabled)
+		require.False(t, repo.created.LongContextPricingEnabled)
+	})
+}
+
 func TestAdminServiceGroupSchedulerTypeDefaultsValidatesAndUpdates(t *testing.T) {
 	t.Run("create defaults to basic", func(t *testing.T) {
 		repo := &groupRepoStubForAdmin{}

@@ -161,6 +161,17 @@ func (s *S3BackupStore) UploadFile(ctx context.Context, key string, body io.Read
 	return s.UploadFileWithProgress(ctx, key, body, contentType, nil)
 }
 
+// UploadSized 对已知长度的备份分卷直接执行 PutObject，避免兼容模式重复写临时文件。
+func (s *S3BackupStore) UploadSized(ctx context.Context, key string, body io.Reader, contentType string, sizeBytes int64) (int64, error) {
+	if sizeBytes < 0 {
+		return 0, fmt.Errorf("backup upload size must not be negative")
+	}
+	if err := s.putObject(ctx, key, body, contentType, sizeBytes); err != nil {
+		return 0, err
+	}
+	return sizeBytes, nil
+}
+
 // UploadFileWithProgress 面向几十 GB 级别的本地文件，使用官方 transfermanager 并发上传分片。
 func (s *S3BackupStore) UploadFileWithProgress(ctx context.Context, key string, body io.Reader, contentType string, onProgress func(uploadedBytes int64)) (int64, error) {
 	partSizeBytes := int64(normalizeS3UploadPartSizeMB(s.uploadPartSizeMB)) * 1024 * 1024

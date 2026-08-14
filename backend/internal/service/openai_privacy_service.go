@@ -15,8 +15,6 @@ import (
 type PrivacyClientFactory func(proxyURL string) (*req.Client, error)
 
 const (
-	openAISettingsURL = "https://chatgpt.com/backend-api/settings/account_user_setting"
-
 	PrivacyModeTrainingOff = "training_off"
 	PrivacyModeFailed      = "training_set_failed"
 	PrivacyModeCFBlocked   = "training_set_cf_blocked"
@@ -88,12 +86,16 @@ func disableOpenAITraining(ctx context.Context, clientFactory PrivacyClientFacto
 
 // ChatGPTAccountInfo 从 chatgpt.com/backend-api/accounts/check 获取的账号信息
 type ChatGPTAccountInfo struct {
-	PlanType              string
-	Email                 string
+	PlanType string
+	Email    string
+	// AccountID 优先取 account.account_id，缺失时使用 accounts 的 map key。
+	// accounts/check 可能同时返回个人账号与 workspace，调用方据此区分数据来源。
+	AccountID             string
 	SubscriptionExpiresAt string // entitlement.expires_at (RFC3339)
 }
 
 var (
+	openAISettingsURL       = "https://chatgpt.com/backend-api/settings/account_user_setting"
 	chatGPTAccountsCheckURL = "https://chatgpt.com/backend-api/accounts/check/v4-2023-04-27"
 	chatGPTSubscriptionsURL = "https://chatgpt.com/backend-api/subscriptions"
 )
@@ -149,7 +151,7 @@ func fetchChatGPTAccountInfo(ctx context.Context, clientFactory PrivacyClientFac
 		if acctRaw, ok := accounts[orgID]; ok {
 			if acct, ok := acctRaw.(map[string]any); ok {
 				if isUsableChatGPTAccountCandidate(acct, time.Now()) {
-					fillAccountInfo(info, acct)
+					fillAccountInfo(info, acct, orgID)
 				}
 			}
 		}
@@ -160,9 +162,10 @@ func fetchChatGPTAccountInfo(ctx context.Context, clientFactory PrivacyClientFac
 		type candidate struct {
 			planType  string
 			expiresAt string
+			accountID string
 		}
 		var defaultC, paidC, anyC candidate
-		for _, acctRaw := range accounts {
+		for key, acctRaw := range accounts {
 			acct, ok := acctRaw.(map[string]any)
 			if !ok {
 				continue
@@ -175,26 +178,27 @@ func fetchChatGPTAccountInfo(ctx context.Context, clientFactory PrivacyClientFac
 				continue
 			}
 			ea := extractEntitlementExpiresAt(acct)
+			id := chatGPTAccountObjectID(acct, key)
 			if anyC.planType == "" {
-				anyC = candidate{planType, ea}
+				anyC = candidate{planType, ea, id}
 			}
 			if account, ok := acct["account"].(map[string]any); ok {
 				if isDefault, _ := account["is_default"].(bool); isDefault {
-					defaultC = candidate{planType, ea}
+					defaultC = candidate{planType, ea, id}
 				}
 			}
 			if !strings.EqualFold(planType, "free") && paidC.planType == "" {
-				paidC = candidate{planType, ea}
+				paidC = candidate{planType, ea, id}
 			}
 		}
 		// 优先级：default > 非 free > 任意
 		switch {
 		case defaultC.planType != "":
-			info.PlanType, info.SubscriptionExpiresAt = defaultC.planType, defaultC.expiresAt
+			info.PlanType, info.SubscriptionExpiresAt, info.AccountID = defaultC.planType, defaultC.expiresAt, defaultC.accountID
 		case paidC.planType != "":
-			info.PlanType, info.SubscriptionExpiresAt = paidC.planType, paidC.expiresAt
+			info.PlanType, info.SubscriptionExpiresAt, info.AccountID = paidC.planType, paidC.expiresAt, paidC.accountID
 		default:
-			info.PlanType, info.SubscriptionExpiresAt = anyC.planType, anyC.expiresAt
+			info.PlanType, info.SubscriptionExpiresAt, info.AccountID = anyC.planType, anyC.expiresAt, anyC.accountID
 		}
 	}
 
@@ -263,10 +267,21 @@ func fetchChatGPTSubscriptionExpiresAt(ctx context.Context, clientFactory Privac
 	return activeUntil
 }
 
-// fillAccountInfo 从单个 account 对象中提取 plan_type 和 subscription_expires_at
-func fillAccountInfo(info *ChatGPTAccountInfo, acct map[string]any) {
+// fillAccountInfo 从单个 account 对象中提取套餐、到期时间和来源账号。
+func fillAccountInfo(info *ChatGPTAccountInfo, acct map[string]any, fallbackID string) {
 	info.PlanType = extractPlanType(acct)
 	info.SubscriptionExpiresAt = extractEntitlementExpiresAt(acct)
+	info.AccountID = chatGPTAccountObjectID(acct, fallbackID)
+}
+
+// chatGPTAccountObjectID 优先读取对象内的真实账号 ID；map key 仅用于缺失时兜底。
+func chatGPTAccountObjectID(acct map[string]any, fallbackID string) string {
+	if account, ok := acct["account"].(map[string]any); ok {
+		if id, ok := account["account_id"].(string); ok && strings.TrimSpace(id) != "" {
+			return strings.TrimSpace(id)
+		}
+	}
+	return strings.TrimSpace(fallbackID)
 }
 
 // extractPlanType 从单个 account 对象中提取 plan_type

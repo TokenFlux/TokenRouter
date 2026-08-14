@@ -5,8 +5,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -14,10 +16,12 @@ import (
 )
 
 const (
-	stickySessionPrefix      = "sticky_session:"
-	stickySessionOwnerPrefix = "sticky_session_owner:"
-	cyberSessionBlockPrefix  = "cyber_session_block:"
-	liveCallPrefix           = "live:call:"
+	stickySessionPrefix           = "sticky_session:"
+	stickySessionOwnerPrefix      = "sticky_session_owner:"
+	grokVideoPendingBillingPrefix = "grok_video_pending:"
+	grokVideoBilledPrefix         = "grok_video_billed:"
+	cyberSessionBlockPrefix       = "cyber_session_block:"
+	liveCallPrefix                = "live:call:"
 )
 
 type gatewayCache struct {
@@ -80,6 +84,66 @@ func (c *gatewayCache) GetSessionOwnerGroupID(ctx context.Context, userID int64,
 func (c *gatewayCache) RefreshSessionOwnerTTL(ctx context.Context, userID int64, source, sessionHash string, ttl time.Duration) error {
 	key := buildSessionOwnerKey(userID, source, sessionHash)
 	return c.rdb.Expire(ctx, key, ttl).Err()
+}
+
+var _ service.GrokVideoBillingCache = (*gatewayCache)(nil)
+
+// SetGrokVideoPendingBilling 保存视频创建成功时的计费快照，供后续状态轮询使用。
+func (c *gatewayCache) SetGrokVideoPendingBilling(ctx context.Context, key string, payload []byte, ttl time.Duration) error {
+	if c == nil || c.rdb == nil {
+		return errors.New("gateway cache unavailable")
+	}
+	key = strings.TrimSpace(key)
+	if key == "" || len(payload) == 0 {
+		return errors.New("invalid grok video pending billing payload")
+	}
+	if ttl <= 0 {
+		ttl = 24 * time.Hour
+	}
+	return c.rdb.Set(ctx, grokVideoPendingBillingPrefix+key, payload, ttl).Err()
+}
+
+// GetGrokVideoPendingBilling 读取异步视频计费快照，Redis miss 作为正常空值返回。
+func (c *gatewayCache) GetGrokVideoPendingBilling(ctx context.Context, key string) ([]byte, error) {
+	if c == nil || c.rdb == nil {
+		return nil, errors.New("gateway cache unavailable")
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return nil, errors.New("invalid grok video pending billing key")
+	}
+	payload, err := c.rdb.Get(ctx, grokVideoPendingBillingPrefix+key).Bytes()
+	if errors.Is(err, redis.Nil) {
+		return nil, nil
+	}
+	return payload, err
+}
+
+// ClaimGrokVideoBilled 使用 SET NX 让同一视频任务在多实例轮询中只有一个结算者。
+func (c *gatewayCache) ClaimGrokVideoBilled(ctx context.Context, key string, ttl time.Duration) (bool, error) {
+	if c == nil || c.rdb == nil {
+		return false, errors.New("gateway cache unavailable")
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return false, errors.New("invalid grok video billed key")
+	}
+	if ttl <= 0 {
+		ttl = 48 * time.Hour
+	}
+	return c.rdb.SetNX(ctx, grokVideoBilledPrefix+key, "1", ttl).Result()
+}
+
+// ReleaseGrokVideoBilled 在持久化结算失败时释放领取，允许后续轮询重试。
+func (c *gatewayCache) ReleaseGrokVideoBilled(ctx context.Context, key string) error {
+	if c == nil || c.rdb == nil {
+		return errors.New("gateway cache unavailable")
+	}
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return errors.New("invalid grok video billed key")
+	}
+	return c.rdb.Del(ctx, grokVideoBilledPrefix+key).Err()
 }
 
 var _ service.CyberSessionBlockStore = (*gatewayCache)(nil)

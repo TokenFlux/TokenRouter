@@ -195,6 +195,7 @@ import {
 } from '@/api/auth'
 import { apiClient } from '@/api/client'
 import { buildAuthErrorMessage } from '@/utils/authError'
+import { extractApiErrorCode } from '@/utils/apiError'
 import {
   formatRegistrationEmailSuffixWhitelistForMessage,
   isRegistrationEmailSuffixAllowed,
@@ -269,6 +270,7 @@ const aliyunCaptchaRegion = ref<string>('cn')
 const publicSettings = ref<PublicSettings | null>(null)
 const siteName = computed(() => resolveLocalizedSiteName(publicSettings.value))
 const registrationEmailSuffixWhitelist = ref<string[]>([])
+const emailDomainQuotaEnabled = ref<boolean>(false)
 
 // Turnstile for resend
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
@@ -371,6 +373,7 @@ onMounted(async () => {
     registrationEmailSuffixWhitelist.value = normalizeRegistrationEmailSuffixWhitelist(
       settings.registration_email_suffix_whitelist || []
     )
+    emailDomainQuotaEnabled.value = settings.registration_email_domain_quota_enabled === true
   } catch (error) {
     console.error('Failed to load public settings:', error)
   }
@@ -493,11 +496,16 @@ async function acquireCreateAccountActionProof(): Promise<boolean> {
 }
 
 function isPendingOAuthFlow(): boolean {
-  return Boolean(pendingProvider.value.trim())
+	return Boolean(pendingProvider.value.trim())
 }
 
+// pending OAuth 可能提交存量非白名单邮箱用于绑定已有账号，必须交由后端先解析用户。
 function shouldBypassRegistrationEmailPolicy(): boolean {
-  return isPendingOAuthFlow() || Boolean(pendingAuthToken.value.trim())
+	return (
+		emailDomainQuotaEnabled.value ||
+		isPendingOAuthFlow() ||
+		Boolean(pendingAuthToken.value.trim())
+	)
 }
 
 function resolvePendingOAuthCallbackRoute(provider: string): string {
@@ -540,14 +548,17 @@ async function sendCode(): Promise<void> {
   let requestSucceeded = false
   let captchaProofUsed = false
 
-  try {
-    if (!shouldBypassRegistrationEmailPolicy() && !isRegistrationEmailSuffixAllowed(email.value, registrationEmailSuffixWhitelist.value)) {
-      errorMessage.value = buildEmailSuffixNotAllowedMessage()
-      appStore.showError(errorMessage.value)
-      return
-    }
+	try {
+		if (
+			!shouldBypassRegistrationEmailPolicy() &&
+			!isRegistrationEmailSuffixAllowed(email.value, registrationEmailSuffixWhitelist.value)
+		) {
+			errorMessage.value = buildEmailSuffixNotAllowedMessage()
+			appStore.showError(errorMessage.value)
+			return
+		}
 
-    const requestPayload = {
+		const requestPayload = {
       email: email.value,
       [pendingAuthTokenField.value]: pendingAuthToken.value || undefined,
       // 优先使用重发时新获取的 token（因为初始 token 可能已被使用）
@@ -590,9 +601,7 @@ async function sendCode(): Promise<void> {
 
     showResendTurnstile.value = false
   } catch (error: unknown) {
-    errorMessage.value = buildAuthErrorMessage(error, {
-      fallback: t('auth.sendCodeFailed')
-    })
+    errorMessage.value = buildRegistrationErrorMessage(error, t('auth.sendCodeFailed'))
 
     appStore.showError(errorMessage.value)
   } finally {
@@ -666,15 +675,18 @@ function validateForm(): boolean {
 async function handleVerify(): Promise<void> {
   errorMessage.value = ''
 
-  if (!validateForm()) {
-    return
-  }
+	if (!validateForm()) {
+		return
+	}
 
-  if (!shouldBypassRegistrationEmailPolicy() && !isRegistrationEmailSuffixAllowed(email.value, registrationEmailSuffixWhitelist.value)) {
-    errorMessage.value = buildEmailSuffixNotAllowedMessage()
-    appStore.showError(errorMessage.value)
-    return
-  }
+	if (
+		!shouldBypassRegistrationEmailPolicy() &&
+		!isRegistrationEmailSuffixAllowed(email.value, registrationEmailSuffixWhitelist.value)
+	) {
+		errorMessage.value = buildEmailSuffixNotAllowedMessage()
+		appStore.showError(errorMessage.value)
+		return
+	}
 
   if (!(await acquireCreateAccountActionProof())) {
     return
@@ -755,9 +767,7 @@ async function handleVerify(): Promise<void> {
     // Redirect to dashboard
     await router.push(pendingRedirect.value || '/dashboard')
   } catch (error: unknown) {
-    errorMessage.value = buildAuthErrorMessage(error, {
-      fallback: t('auth.verifyFailed')
-    })
+    errorMessage.value = buildRegistrationErrorMessage(error, t('auth.verifyFailed'))
 
     appStore.showError(errorMessage.value)
   } finally {
@@ -778,20 +788,27 @@ function handleBack(): void {
   router.push('/register')
 }
 
-function buildEmailSuffixNotAllowedMessage(): string {
-  const normalizedWhitelist = normalizeRegistrationEmailSuffixWhitelist(
-    registrationEmailSuffixWhitelist.value
-  )
-  if (normalizedWhitelist.length === 0) {
-    return t('auth.emailSuffixNotAllowed')
+function buildRegistrationErrorMessage(error: unknown, fallback: string): string {
+  if (extractApiErrorCode(error) === 'EMAIL_DOMAIN_REGISTRATION_LIMIT') {
+    return t('auth.emailDomainRegistrationLimit')
   }
-  const separator = String(locale.value || '').toLowerCase().startsWith('zh') ? '、' : ', '
-  return t('auth.emailSuffixNotAllowedWithAllowed', {
-    suffixes: formatRegistrationEmailSuffixWhitelistForMessage(normalizedWhitelist, {
-      separator,
-      more: (count) => t('auth.emailSuffixAllowedMore', { count })
-    })
-  })
+	return buildAuthErrorMessage(error, { fallback })
+}
+
+function buildEmailSuffixNotAllowedMessage(): string {
+	const normalizedWhitelist = normalizeRegistrationEmailSuffixWhitelist(
+		registrationEmailSuffixWhitelist.value
+	)
+	if (normalizedWhitelist.length === 0) {
+		return t('auth.emailSuffixNotAllowed')
+	}
+	const separator = String(locale.value || '').toLowerCase().startsWith('zh') ? '、' : ', '
+	return t('auth.emailSuffixNotAllowedWithAllowed', {
+		suffixes: formatRegistrationEmailSuffixWhitelistForMessage(normalizedWhitelist, {
+			separator,
+			more: (count) => t('auth.emailSuffixAllowedMore', { count })
+		})
+	})
 }
 </script>
 

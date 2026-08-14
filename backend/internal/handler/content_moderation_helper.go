@@ -30,6 +30,30 @@ func contentModerationErrorCode(decision *service.ContentModerationDecision) str
 	return "content_policy_violation"
 }
 
+// clientRequestedModel 返回进入复合映射或 Key 重定向前的客户端模型。
+func clientRequestedModel(c *gin.Context, fallback string) string {
+	fallback = strings.TrimSpace(fallback)
+	if c == nil || c.Request == nil {
+		return fallback
+	}
+	if trace, ok := service.APIKeyModelRedirectTraceFromContext(c.Request.Context()); ok {
+		if model := strings.TrimSpace(trace.ClientModel); model != "" {
+			return model
+		}
+	}
+	if model, ok := c.Request.Context().Value(ctxkey.ClientModel).(string); ok {
+		if model = strings.TrimSpace(model); model != "" {
+			return model
+		}
+	}
+	return fallback
+}
+
+// clientRequestedUsageFields 统一生成包含客户端原始模型的渠道用量字段。
+func clientRequestedUsageFields(c *gin.Context, mapping service.ChannelMappingResult, fallbackModel, upstreamModel string) service.ChannelUsageFields {
+	return mapping.ToUsageFields(clientRequestedModel(c, fallbackModel), upstreamModel)
+}
+
 func (h *OpenAIGatewayHandler) checkContentModeration(c *gin.Context, reqLog *zap.Logger, apiKey *service.APIKey, subject middleware2.AuthSubject, protocol string, model string, body []byte) *service.ContentModerationDecision {
 	if h == nil || h.contentModerationService == nil {
 		return nil

@@ -84,9 +84,24 @@ type Group struct {
 	VideoPrice480P               *float64
 	VideoPrice720P               *float64
 	VideoPrice1080P              *float64
+	// VideoModelPrices 是按模型族和分辨率保存的可选每秒美元价格，
+	// 命中时仅对该模型优先于 VideoPrice* 平铺列。
+	VideoModelPrices map[string]map[string]float64
 	// Codex alpha/search 网页搜索单次价格（USD/次，仅 openai 平台使用）；
 	// nil 表示使用默认价 defaultWebSearchPricePerCall（官方 $10/1000 次）。
 	WebSearchPricePerCall *float64
+
+	// 搜索工具每千次调用的显式定价。
+	SearchPricePer1k *float64
+	// Grok Voice 显式定价（分组级，不按文本 RateMultiplier）。
+	AudioRealtimePricePerMin     *float64
+	AudioTTSPricePerMillionChars *float64
+	AudioSTTPricePerHour         *float64
+
+	// ModelPricing 为命中模型覆盖渠道与内置基础价格。
+	// LongContextPricingEnabled 仅控制内置长上下文倍率，不改变渠道自定义区间。
+	LongContextPricingEnabled bool
+	ModelPricing              []ChannelModelPricing
 
 	// Claude Code 客户端限制
 	ClaudeCodeOnly  bool
@@ -181,6 +196,30 @@ func (g *Group) GetVideoPrice(resolution string) *float64 {
 		return g.VideoPrice1080P
 	default:
 		return g.VideoPrice480P
+	}
+}
+
+// GetVideoPriceForModel 优先读取模型族价格，再回退到平铺分辨率列。
+func (g *Group) GetVideoPriceForModel(model, resolution string) *float64 {
+	if g == nil {
+		return nil
+	}
+	if price := LookupVideoModelPrice(g.VideoModelPrices, model, resolution); price != nil {
+		return price
+	}
+	return g.GetVideoPrice(resolution)
+}
+
+// VideoPriceConfig 构造包含可选模型价格映射的计费配置。
+func (g *Group) VideoPriceConfig() *VideoPriceConfig {
+	if g == nil {
+		return nil
+	}
+	return &VideoPriceConfig{
+		Price480P:   g.VideoPrice480P,
+		Price720P:   g.VideoPrice720P,
+		Price1080P:  g.VideoPrice1080P,
+		ModelPrices: NormalizeVideoModelPrices(g.VideoModelPrices),
 	}
 }
 
@@ -348,4 +387,12 @@ func computePeakAwareMultipliers(apiKey *APIKey, base float64, now time.Time) (t
 	}
 	text = base * peak
 	return
+}
+
+// GetSearchPricePer1k 返回分组显式配置的搜索工具每千次价格。
+func (g *Group) GetSearchPricePer1k() *float64 {
+	if g == nil {
+		return nil
+	}
+	return g.SearchPricePer1k
 }

@@ -168,8 +168,8 @@ func chatAssistantToResponses(m ChatMessage) ([]ResponsesInputItem, error) {
 	var items []ResponsesInputItem
 	content := ""
 
-	if m.ReasoningContent != "" {
-		content = "<thinking>" + m.ReasoningContent + "</thinking>"
+	if reasoning := m.ReasoningText(); reasoning != "" {
+		content = "<thinking>" + reasoning + "</thinking>"
 	}
 
 	// Emit assistant message with output_text if content is non-empty.
@@ -421,6 +421,18 @@ func convertChatToolsToResponses(tools []ChatTool, functions []ChatFunction) []R
 	var out []ResponsesTool
 
 	for _, t := range tools {
+		if strings.EqualFold(strings.TrimSpace(t.Type), "x_search") {
+			out = append(out, ResponsesTool{
+				Type:                     "x_search",
+				AllowedXHandles:          t.AllowedXHandles,
+				ExcludedXHandles:         t.ExcludedXHandles,
+				FromDate:                 t.FromDate,
+				ToDate:                   t.ToDate,
+				EnableImageUnderstanding: t.EnableImageUnderstanding,
+				EnableVideoUnderstanding: t.EnableVideoUnderstanding,
+			})
+			continue
+		}
 		if t.Type != "function" || t.Function == nil {
 			continue
 		}

@@ -226,6 +226,9 @@ type CreateGroupInput struct {
 	DataSharingEnabled bool
 	// SessionIsolationEnabled 开启后拒绝其它分组已归属的显式会话切入。
 	SessionIsolationEnabled bool
+	// LongContextPricingEnabled 为 nil 时默认开启，以兼容未发送新字段的客户端。
+	LongContextPricingEnabled *bool
+	ModelPricing              []ChannelModelPricing
 	// 图片生成计费配置（仅 antigravity 平台使用）
 	AllowImageGeneration         bool
 	AllowBatchImageGeneration    bool
@@ -246,10 +249,18 @@ type CreateGroupInput struct {
 	VideoPrice480P     *float64
 	VideoPrice720P     *float64
 	VideoPrice1080P    *float64
+	// VideoModelPrices 可选按模型族×分辨率覆盖视频每秒单价。
+	VideoModelPrices map[string]map[string]float64
 	// Codex alpha/search 网页搜索单次价格（USD/次，仅 openai 平台使用）；nil/负数按默认价 0.01 处理
 	WebSearchPricePerCall *float64
-	ClaudeCodeOnly        bool   // 仅允许 Claude Code 客户端
-	FallbackGroupID       *int64 // 降级分组 ID
+	// 搜索工具每千次单价。
+	SearchPricePer1k *float64
+	// Grok Voice 显式定价（分组级）
+	AudioRealtimePricePerMin     *float64
+	AudioTTSPricePerMillionChars *float64
+	AudioSTTPricePerHour         *float64
+	ClaudeCodeOnly               bool   // 仅允许 Claude Code 客户端
+	FallbackGroupID              *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
 	// UnavailableFallbackGroupID 当前分组不可用时 API Key 优先回退到的分组 ID。
@@ -298,8 +309,10 @@ type UpdateGroupInput struct {
 	// DataSharingEnabled 控制分组是否进入数据共享采集流程。
 	DataSharingEnabled *bool
 	// SessionIsolationEnabled 控制目标分组是否开启会话隔离。
-	SessionIsolationEnabled *bool
-	Status                  string
+	SessionIsolationEnabled   *bool
+	Status                    string
+	LongContextPricingEnabled *bool
+	ModelPricing              *[]ChannelModelPricing
 	// 图片生成计费配置（仅 antigravity 平台使用）
 	AllowImageGeneration         *bool
 	AllowBatchImageGeneration    *bool
@@ -320,10 +333,18 @@ type UpdateGroupInput struct {
 	VideoPrice480P     *float64
 	VideoPrice720P     *float64
 	VideoPrice1080P    *float64
+	// VideoModelPrices 可选按模型族×分辨率覆盖；nil 表示不修改，空 map 表示清除。
+	VideoModelPrices map[string]map[string]float64
 	// Codex alpha/search 网页搜索单次价格（USD/次）；nil 表示不修改，负数表示清除回默认价 0.01
 	WebSearchPricePerCall *float64
-	ClaudeCodeOnly        *bool  // 仅允许 Claude Code 客户端
-	FallbackGroupID       *int64 // 降级分组 ID
+	// 搜索工具单价；nil 不修改，负数清除。
+	SearchPricePer1k *float64
+	// Grok Voice 显式定价；nil 表示不修改，负数表示清除。
+	AudioRealtimePricePerMin     *float64
+	AudioTTSPricePerMillionChars *float64
+	AudioSTTPricePerHour         *float64
+	ClaudeCodeOnly               *bool  // 仅允许 Claude Code 客户端
+	FallbackGroupID              *int64 // 降级分组 ID
 	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
 	FallbackGroupIDOnInvalidRequest *int64
 	// UnavailableFallbackGroupID 当前分组不可用时 API Key 优先回退到的分组 ID。
@@ -662,6 +683,14 @@ type adminServiceImpl struct {
 	httpUpstream         HTTPUpstream
 	tlsFPProfileService  *TLSFingerprintProfileService
 	affiliateService     adminRechargeAffiliateAccruer
+	// 分组平台变更后失效渠道缓存；可为 nil，此时缓存会在 TTL 到期后自然重建。
+	channelCacheInvalidator ChannelCacheInvalidator
+}
+
+// ChannelCacheInvalidator 失效渠道缓存。
+// 使用窄接口避免管理服务依赖整个 ChannelService。
+type ChannelCacheInvalidator interface {
+	InvalidateCache()
 }
 
 // adminRechargeAffiliateAccruer 抽象管理员充值返利能力，便于隔离测试计提行为。
@@ -696,6 +725,7 @@ func NewAdminService(
 	httpUpstream HTTPUpstream,
 	tlsFPProfileService *TLSFingerprintProfileService,
 	affiliateService *AffiliateService,
+	channelCacheInvalidator ChannelCacheInvalidator,
 ) AdminService {
 	return &adminServiceImpl{
 		userRepo:             userRepo,
@@ -722,6 +752,8 @@ func NewAdminService(
 		httpUpstream:         httpUpstream,
 		tlsFPProfileService:  tlsFPProfileService,
 		affiliateService:     affiliateService,
+
+		channelCacheInvalidator: channelCacheInvalidator,
 	}
 }
 

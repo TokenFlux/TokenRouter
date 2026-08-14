@@ -602,6 +602,7 @@ describe('EditAccountModal', () => {
     const wrapper = mountModal(account)
 
     expect(wrapper.find('[data-testid="openai-plan-type-select"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="edit-codex-fingerprint-mode-select"]').exists()).toBe(false)
 
     await wrapper.get('[data-testid="set-shadow-group"]').trigger('click')
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
@@ -639,6 +640,24 @@ describe('EditAccountModal', () => {
         'gpt-5.4': 'gpt-5.4'
       }
     })
+  })
+
+  it('loads and submits the Codex fingerprint mode for OpenAI OAuth accounts', async () => {
+    const account = buildOpenAIOAuthAccount()
+    account.extra = { codex_fingerprint_mode: 'device' }
+    updateAccountMock.mockResolvedValue(account)
+
+    const wrapper = mountModal(account)
+    const modeSelect = wrapper.get<HTMLSelectElement>(
+      '[data-testid="edit-codex-fingerprint-mode-select"]'
+    )
+
+    expect(modeSelect.element.value).toBe('device')
+    await modeSelect.setValue('full')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.codex_fingerprint_mode).toBe('full')
   })
 
   it('does not show the plan type override for OpenAI API-key accounts', () => {

@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestApplyErrorPassthroughRule_NoBoundService(t *testing.T) {
@@ -137,7 +138,7 @@ func TestOpenAIHandleErrorResponse_TransientInvalidRequest400KeepsGatewayError(t
 	require.Contains(t, rec.Body.String(), "Upstream request failed")
 }
 
-func TestOpenAIHandleErrorResponse_OtherInvalidRequest400KeepsGatewayError(t *testing.T) {
+func TestOpenAIHandleErrorResponse_OtherInvalidRequest400PassesThroughDetails(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -154,8 +155,11 @@ func TestOpenAIHandleErrorResponse_OtherInvalidRequest400KeepsGatewayError(t *te
 	_, err := svc.handleErrorResponse(context.Background(), resp, c, account, nil)
 
 	require.Error(t, err)
-	require.Equal(t, http.StatusBadGateway, rec.Code)
-	require.Contains(t, rec.Body.String(), "Upstream request failed")
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, "invalid_request_error", gjson.Get(rec.Body.String(), "error.type").String())
+	require.Equal(t, "unknown_parameter", gjson.Get(rec.Body.String(), "error.code").String())
+	require.Equal(t, "input[0].namespace", gjson.Get(rec.Body.String(), "error.param").String())
+	require.Equal(t, "Unknown parameter: input[0].namespace", gjson.Get(rec.Body.String(), "error.message").String())
 }
 
 func TestOpenAIHandleErrorResponsePassthrough_InvalidRequest400PassesThrough(t *testing.T) {

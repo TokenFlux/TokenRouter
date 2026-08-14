@@ -1,6 +1,6 @@
 module github.com/TokenFlux/TokenRouter
 
-go 1.26.5
+go 1.26.6
 
 require (
 	entgo.io/ent v0.14.5

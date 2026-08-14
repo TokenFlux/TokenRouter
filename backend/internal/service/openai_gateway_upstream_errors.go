@@ -569,6 +569,18 @@ func (s *OpenAIGatewayService) handleErrorResponse(
 		return nil, fmt.Errorf("upstream error: %d (passthrough rule matched) message=%s", resp.StatusCode, upstreamMsg)
 	}
 
+	// 只有既有分类明确判定不可故障转移的 400 才属于确定性请求错误。
+	// 池模式重试状态码、server_is_overloaded 和瞬时处理错误仍保留原有重试或 502 语义。
+	if account != nil && account.Platform == PlatformOpenAI &&
+		isOpenAIDeterministicClientError(resp.StatusCode, defaultFailover) {
+		MarkResponseCommitted(c)
+		writeOpenAIUpstreamClientError(c, resp.StatusCode, body, upstreamMsg)
+		if upstreamMsg == "" {
+			return nil, fmt.Errorf("upstream error: %d", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("upstream error: %d message=%s", resp.StatusCode, upstreamMsg)
+	}
+
 	MarkResponseCommitted(c)
 
 	// Return appropriate error response

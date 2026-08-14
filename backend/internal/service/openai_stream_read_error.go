@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -31,6 +32,20 @@ func newOpenAIUpstreamStreamReadError(err error) error {
 		clientCode:    code,
 		clientMessage: message,
 	}
+}
+
+// shouldClassifyOpenAIUpstreamStreamReadError 只把真实上游传输读取失败交给重试逻辑，
+// 客户端取消、请求超时和本地响应体大小限制必须保留原始语义。
+func shouldClassifyOpenAIUpstreamStreamReadError(err error, contexts ...context.Context) bool {
+	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
+		return false
+	}
+	for _, ctx := range contexts {
+		if ctx != nil && ctx.Err() != nil {
+			return false
+		}
+	}
+	return true
 }
 
 // OpenAIUpstreamStreamReadErrorDetails 返回上游流读取失败对应的稳定、安全对客分类。

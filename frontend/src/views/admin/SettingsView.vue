@@ -1688,6 +1688,23 @@
                 </p>
               </div>
 
+              <!-- 非白名单邮箱域名额度 -->
+              <div
+                class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
+              >
+                <div>
+                  <label class="font-medium text-gray-900 dark:text-white">{{
+                    t("admin.settings.registration.emailDomainQuota")
+                  }}</label>
+                  <p class="text-sm text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.registration.emailDomainQuotaHint") }}
+                  </p>
+                </div>
+                <Toggle
+                  v-model="form.registration_email_domain_quota_enabled"
+                />
+              </div>
+
               <!-- 邮箱地址归一化 -->
               <div
                 class="flex items-center justify-between border-t border-gray-100 pt-4 dark:border-dark-700"
@@ -4621,20 +4638,92 @@
                 data-testid="gateway-scheduling-general"
               >
                 <div class="flex items-center justify-between">
-                <div>
-                  <label
-                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
-                  >
-                    {{ t("admin.settings.scheduling.allowUngroupedKey") }}
-                  </label>
-                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    {{ t("admin.settings.scheduling.allowUngroupedKeyHint") }}
-                  </p>
-                </div>
+                  <div>
+                    <label
+                      class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.scheduling.allowUngroupedKey") }}
+                    </label>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.scheduling.allowUngroupedKeyHint") }}
+                    </p>
+                  </div>
                   <Toggle
                     v-model="form.allow_ungrouped_key_scheduling"
                     data-testid="gateway-allow-ungrouped-key"
                   />
+                </div>
+
+                <div class="mt-5 border-t border-gray-100 pt-5 dark:border-dark-700">
+                  <div class="mb-3">
+                    <label class="font-medium text-gray-900 dark:text-white">
+                      {{
+                        t(
+                          "admin.settings.scheduling.accountSchedulingThresholdsTitle",
+                        )
+                      }}
+                    </label>
+                    <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      {{
+                        t(
+                          "admin.settings.scheduling.accountSchedulingThresholdsDescription",
+                        )
+                      }}
+                    </p>
+                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{
+                        t(
+                          "admin.settings.scheduling.accountSchedulingThresholdsGlobalHint",
+                        )
+                      }}
+                    </p>
+                    <p class="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
+                      {{
+                        t(
+                          "admin.settings.scheduling.accountSchedulingThresholdsDisabledHint",
+                        )
+                      }}
+                    </p>
+                  </div>
+                  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <div
+                      v-for="platform in schedulingThresholdPlatforms"
+                      :key="platform"
+                      class="rounded-lg border border-gray-200 p-4 dark:border-dark-700"
+                    >
+                      <div class="flex items-start justify-between gap-3">
+                        <div>
+                          <label
+                            class="font-mono text-sm font-medium text-gray-900 dark:text-white"
+                          >
+                            {{ platform }}
+                          </label>
+                          <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                            {{
+                              t(
+                                "admin.settings.scheduling.accountSchedulingThresholdsRangeHint",
+                              )
+                            }}
+                          </p>
+                        </div>
+                        <span
+                          class="rounded bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                        >
+                          %
+                        </span>
+                      </div>
+                      <input
+                        v-model.number="form.account_scheduling_thresholds[platform]"
+                        type="number"
+                        min="1"
+                        max="100"
+                        step="1"
+                        class="input mt-3"
+                        :data-testid="`account-scheduling-threshold-${platform}`"
+                        placeholder="100"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -4843,6 +4932,7 @@
             v-show="
               activeGatewaySection === 'anthropic' ||
               activeGatewaySection === 'openai' ||
+              activeGatewaySection === 'grok' ||
               activeGatewaySection === 'antigravity'
             "
             class="card"
@@ -4863,6 +4953,73 @@
               </p>
             </div>
             <div class="p-6">
+              <div
+                v-show="activeGatewaySection === 'grok'"
+                class="space-y-5"
+                data-testid="gateway-forwarding-grok"
+              >
+                <div class="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(18rem,auto)] md:items-end">
+                  <div>
+                    <label
+                      for="grok-default-text-model"
+                      class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                    >
+                      {{ t("admin.settings.gatewayForwarding.grokDefaultTextModel") }}
+                    </label>
+                    <input
+                      id="grok-default-text-model"
+                      v-model.trim="form.grok_default_text_model"
+                      type="text"
+                      class="input mt-2 w-full"
+                      list="grok-default-text-model-options"
+                      data-testid="grok-default-text-model"
+                      placeholder="grok-4.5"
+                    />
+                    <datalist id="grok-default-text-model-options">
+                      <option value="grok-4.5" />
+                      <option value="grok-4.3" />
+                      <option value="grok-build-0.1" />
+                    </datalist>
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.gatewayForwarding.grokDefaultTextModelHint") }}
+                    </p>
+                  </div>
+                  <div class="flex items-center justify-between gap-5">
+                    <div>
+                      <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {{ t("admin.settings.gatewayForwarding.grokCrossClientMap") }}
+                      </label>
+                      <p class="mt-0.5 max-w-sm text-xs text-gray-500 dark:text-gray-400">
+                        {{ t("admin.settings.gatewayForwarding.grokCrossClientMapHint") }}
+                      </p>
+                    </div>
+                    <Toggle
+                      v-model="form.grok_cross_client_model_map_enabled"
+                      data-testid="grok-cross-client-model-map-toggle"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label
+                    for="grok-default-base-url-mode"
+                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.gatewayForwarding.grokDefaultBaseURLMode") }}
+                  </label>
+                  <Select
+                    id="grok-default-base-url-mode"
+                    v-model="form.grok_default_base_url_mode"
+                    :options="grokDefaultBaseURLOptions"
+                    class="mt-2 w-full"
+                    data-testid="grok-default-base-url-mode"
+                  />
+                  <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.gatewayForwarding.grokDefaultBaseURLModeHint") }}
+                  </p>
+                </div>
+              </div>
+
               <div
                 v-show="activeGatewaySection === 'anthropic'"
                 class="space-y-5"
@@ -8321,8 +8478,11 @@ import { adminAPI } from "@/api";
 import {
   appendAuthSourceDefaultsToUpdateRequest,
   buildAuthSourceDefaultsState,
+  normalizeAccountSchedulingThresholdsMap,
   normalizePlatformQuotasMap,
+  sanitizeAccountSchedulingThresholdsMap,
   sanitizePlatformQuotasMap,
+  SCHEDULING_THRESHOLD_PLATFORMS,
   defaultWeChatConnectScopesForMode,
   deriveWeChatConnectStoredMode,
   normalizeDefaultSubscriptionSettings,
@@ -8438,12 +8598,14 @@ type GatewaySection =
   | "general"
   | "anthropic"
   | "openai"
+  | "grok"
   | "antigravity"
   | "ollamaCloud";
 const gatewaySections = [
   { key: "general" as GatewaySection },
   { key: "anthropic" as GatewaySection, providerBrand: "Anthropic" },
   { key: "openai" as GatewaySection, providerBrand: "OpenAI" },
+  { key: "grok" as GatewaySection, providerBrand: "Grok" },
   { key: "antigravity" as GatewaySection, providerBrand: "Google" },
   { key: "ollamaCloud" as GatewaySection, providerBrand: "Ollama" },
 ];
@@ -8453,6 +8615,7 @@ const gatewayContentStartRef = ref<HTMLElement | null>(null);
 const gatewayForwardingPlatform = computed(() => {
   if (
     activeGatewaySection.value === "openai" ||
+    activeGatewaySection.value === "grok" ||
     activeGatewaySection.value === "antigravity"
   ) {
     return activeGatewaySection.value;
@@ -8950,13 +9113,17 @@ type SettingsForm = Omit<
   openai_account_quota_auto_pause: OpenAIQuotaAutoPauseSettings;
   // 系统全局平台限额 map；form 内始终归一化为全平台对象（模板非空绑定依赖此不变量）
   default_platform_quotas: DefaultPlatformQuotasMap;
+  account_scheduling_thresholds: ReturnType<typeof normalizeAccountSchedulingThresholdsMap>;
 };
+
+const schedulingThresholdPlatforms = SCHEDULING_THRESHOLD_PLATFORMS;
 
 const form = reactive<SettingsForm>({
   registration_enabled: true,
   email_verify_enabled: false,
   registration_email_suffix_whitelist: [],
   registration_email_normalization: false,
+  registration_email_domain_quota_enabled: false,
   promo_code_enabled: true,
   invitation_code_enabled: false,
   password_reset_enabled: false,
@@ -8972,6 +9139,7 @@ const form = reactive<SettingsForm>({
   default_balance: 0,
   affiliate_enabled: false,
   default_platform_quotas: normalizePlatformQuotasMap() as DefaultPlatformQuotasMap,
+  account_scheduling_thresholds: normalizeAccountSchedulingThresholdsMap(),
   affiliate_rebate_rate: 20,
   affiliate_rebate_freeze_hours: 0,
   affiliate_rebate_duration_days: 0,
@@ -9171,6 +9339,9 @@ const form = reactive<SettingsForm>({
   fallback_model_openai: "gpt-4o",
   fallback_model_gemini: "gemini-2.5-pro",
   fallback_model_antigravity: "gemini-2.5-pro",
+  grok_default_text_model: "grok-4.5",
+  grok_cross_client_model_map_enabled: false,
+  grok_default_base_url_mode: "cli",
   // Identity patch (Claude -> Gemini)
   enable_identity_patch: true,
   identity_patch_prompt: "",
@@ -9273,6 +9444,29 @@ const oidcTokenAuthMethodOptions = [
   { value: "client_secret_basic", label: "client_secret_basic" },
   { value: "none", label: "none" },
 ];
+
+const grokDefaultBaseURLOptions = computed(() => [
+  {
+    value: "cli",
+    label: t("admin.settings.gatewayForwarding.grokBaseURLModeCLI"),
+  },
+  {
+    value: "api",
+    label: t("admin.settings.gatewayForwarding.grokBaseURLModeAPI"),
+  },
+  {
+    value: "us-east-1",
+    label: t("admin.settings.gatewayForwarding.grokBaseURLModeUSEast1"),
+  },
+  {
+    value: "us-west-2",
+    label: t("admin.settings.gatewayForwarding.grokBaseURLModeUSWest2"),
+  },
+  {
+    value: "eu-west-1",
+    label: t("admin.settings.gatewayForwarding.grokBaseURLModeEUWest1"),
+  },
+]);
 
 const customMenuVisibilityOptions = computed(() => [
   { value: "user", label: t("admin.settings.customMenu.visibilityUser") },
@@ -10758,6 +10952,8 @@ async function saveSettings() {
         ),
       registration_email_normalization:
         form.registration_email_normalization,
+      registration_email_domain_quota_enabled:
+        form.registration_email_domain_quota_enabled,
       promo_code_enabled: form.promo_code_enabled,
       invitation_code_enabled: form.invitation_code_enabled,
       password_reset_enabled: form.password_reset_enabled,
@@ -10951,6 +11147,11 @@ async function saveSettings() {
       fallback_model_openai: form.fallback_model_openai,
       fallback_model_gemini: form.fallback_model_gemini,
       fallback_model_antigravity: form.fallback_model_antigravity,
+      grok_default_text_model:
+        form.grok_default_text_model.trim() || "grok-4.5",
+      grok_cross_client_model_map_enabled:
+        form.grok_cross_client_model_map_enabled,
+      grok_default_base_url_mode: form.grok_default_base_url_mode,
       enable_identity_patch: form.enable_identity_patch,
       identity_patch_prompt: form.identity_patch_prompt,
       min_claude_code_version: form.min_claude_code_version,
@@ -11095,6 +11296,9 @@ async function saveSettings() {
     }
 
     payload.default_platform_quotas = sanitizePlatformQuotasMap(form.default_platform_quotas);
+    payload.account_scheduling_thresholds = sanitizeAccountSchedulingThresholdsMap(
+      form.account_scheduling_thresholds,
+    );
     appendAuthSourceDefaultsToUpdateRequest(payload, authSourceDefaults);
 
     const updated = await settingsStepUp.run(() =>

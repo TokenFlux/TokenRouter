@@ -407,6 +407,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		}
 	}
 
+	var fingerprintIDs *codexFingerprintIDs
 	if account.Type == AccountTypeOAuth {
 		decoded, decodeErr := ensureReqBody()
 		if decodeErr != nil {
@@ -424,8 +425,24 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			markDecodedModified()
 		}
 
-		if !isCompactRequest && applyCodexClientMetadata(decoded, account) {
-			markDecodedModified()
+		// 指纹收敛 ID 只在本次 Forward 内共享，避免跨账号 failover 复用 Gin context 中的旧值。
+		if !isCompactRequest {
+			fingerprintAccount, resolveErr := resolveCredentialAccount(ctx, s.accountRepo, account)
+			if resolveErr != nil {
+				return nil, fmt.Errorf("resolve Codex fingerprint account: %w", resolveErr)
+			}
+			// Spark 影子账号沿用父账号的 device ID 与指纹模式，和共享 OAuth 凭据保持同源。
+			if applyCodexClientMetadata(decoded, fingerprintAccount) {
+				markDecodedModified()
+			}
+			var clientHeaders http.Header
+			if c != nil && c.Request != nil {
+				clientHeaders = c.Request.Header
+			}
+			fingerprintIDs = resolveCodexFingerprintIDsFromRequest(fingerprintAccount, clientHeaders)
+			if applyCodexFingerprintClientMetadata(decoded, fingerprintIDs) {
+				markDecodedModified()
+			}
 		}
 		if codexResult.NormalizedModel != "" {
 			upstreamModel = codexResult.NormalizedModel
@@ -811,6 +828,8 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			}
 			return nil, err
 		}
+		// 内部重试每次都会重建 request，必须重复应用与 body 相同的指纹 IDs。
+		applyCodexFingerprintHeaders(upstreamReq.Header, fingerprintIDs)
 
 		proxyURL := ""
 		if account.ProxyID != nil && account.Proxy != nil {
@@ -933,6 +952,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		var firstTokenMs *int
 		responseID := ""
 		imageCount := 0
+		searchCount := 0
 		var imageOutputSizes []string
 		var responseBody []byte
 		if reqStream {
@@ -990,6 +1010,12 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			forwardResult.ImageInputSize = imageInputSize
 			forwardResult.ImageOutputSizes = imageOutputSizes
 			forwardResult.BillingModel = imageBillingModel
+		}
+		// Grok 原生 web_search、x_search 与 tool_search 工具调用按每千次计价。
+		// 响应含令牌用量时仍单独计算令牌费用，搜索费用只作叠加。
+		// 配置 search_price_per_1k 时启用；价格为 nil 时 CalculateSearchCost 返回零。
+		if searchCount > 0 && account != nil && account.IsGrok() {
+			forwardResult.SearchCount = searchCount
 		}
 		return forwardResult, nil
 	}

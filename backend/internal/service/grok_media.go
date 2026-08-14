@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -30,6 +31,9 @@ const (
 	GrokMediaEndpointVideosExtensions  GrokMediaEndpoint = "videos_extensions"
 	GrokMediaEndpointVideoStatus       GrokMediaEndpoint = "video_status"
 	GrokMediaEndpointVideoContent      GrokMediaEndpoint = "video_content"
+
+	// xAI Imagine 官方图片编辑数量上限。
+	grokMediaMaxEditSourceImages = 3
 )
 
 func (e GrokMediaEndpoint) RequiresRequestBody() bool {
@@ -152,28 +156,12 @@ func parseGrokMediaJSONRequest(body []byte, info *GrokMediaRequestInfo) {
 		switch {
 		case value.IsArray():
 			for _, item := range value.Array() {
-				if imageURL := grokMediaJSONImageURL(item); imageURL != "" {
-					info.InputImageURLs = append(info.InputImageURLs, imageURL)
-					continue
-				}
-				if item.Type == gjson.String {
-					imageURL := strings.TrimSpace(item.String())
-					if imageURL == "" {
-						continue
-					}
+				if imageURL := extractGrokMediaImageURL(item); imageURL != "" {
 					info.InputImageURLs = append(info.InputImageURLs, imageURL)
 				}
 			}
 		default:
-			if imageURL := grokMediaJSONImageURL(value); imageURL != "" {
-				info.InputImageURLs = append(info.InputImageURLs, imageURL)
-				return
-			}
-			if value.Type == gjson.String {
-				imageURL := strings.TrimSpace(value.String())
-				if imageURL == "" {
-					return
-				}
+			if imageURL := extractGrokMediaImageURL(value); imageURL != "" {
 				info.InputImageURLs = append(info.InputImageURLs, imageURL)
 			}
 		}
@@ -181,7 +169,18 @@ func parseGrokMediaJSONRequest(body []byte, info *GrokMediaRequestInfo) {
 	appendJSONImageURLs(gjson.GetBytes(body, "image"))
 	appendJSONImageURLs(gjson.GetBytes(body, "images"))
 	appendJSONImageURLs(gjson.GetBytes(body, "reference_images"))
-	info.MaskImageURL = grokMediaJSONImageURL(gjson.GetBytes(body, "mask"))
+	info.MaskImageURL = extractGrokMediaImageURL(gjson.GetBytes(body, "mask"))
+}
+
+// extractGrokMediaImageURL 优先读取 xAI 官方 url，并兼容历史字符串和 image_url 形态。
+func extractGrokMediaImageURL(value gjson.Result) string {
+	if !value.Exists() {
+		return ""
+	}
+	if value.Type == gjson.String {
+		return strings.TrimSpace(value.String())
+	}
+	return grokMediaJSONImageURL(value)
 }
 
 // grokMediaJSONImageURL 优先读取 xAI 官方 url，空白时兼容历史 image_url。
@@ -189,7 +188,19 @@ func grokMediaJSONImageURL(value gjson.Result) string {
 	if imageURL := strings.TrimSpace(value.Get("url").String()); imageURL != "" {
 		return imageURL
 	}
+	if nested := value.Get("image_url"); nested.Exists() {
+		if nested.Type == gjson.String {
+			return strings.TrimSpace(nested.String())
+		}
+		if imageURL := strings.TrimSpace(nested.Get("url").String()); imageURL != "" {
+			return imageURL
+		}
+	}
 	return strings.TrimSpace(value.Get("image_url").String())
+}
+
+func grokMediaImageObject(imageURL string) map[string]string {
+	return map[string]string{"url": imageURL, "type": "image_url"}
 }
 
 func parseGrokMediaMultipartRequest(contentType string, body []byte, info *GrokMediaRequestInfo) {
@@ -295,9 +306,13 @@ func (s *OpenAIGatewayService) BindGrokMediaVideoRequestAccount(
 	if cacheKey == "" || accountID <= 0 {
 		return fmt.Errorf("grok video request binding is invalid")
 	}
-	ttl := openaiStickySessionTTL
+	// 视频任务可能在 WebSocket 粘性 TTL（默认一小时）之后才完成。
+	// 绑定时间至少覆盖待计费快照，确保较晚的状态或内容轮询仍可解析账号。
+	ttl := grokVideoPendingBillingTTL(s.cfg)
 	if s.cfg != nil && s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds > 0 {
-		ttl = time.Duration(s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds) * time.Second
+		if sticky := time.Duration(s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds) * time.Second; sticky > ttl {
+			ttl = sticky
+		}
 	}
 	if err := s.cache.SetSessionAccountID(ctx, derefGroupID(groupID), cacheKey, accountID, ttl); err != nil {
 		return err
@@ -352,6 +367,290 @@ func (s *OpenAIGatewayService) ResolveGrokMediaVideoRequestAccount(
 		return 0, fmt.Errorf("grok video request binding is invalid")
 	}
 	return s.cache.GetSessionAccountID(ctx, derefGroupID(groupID), cacheKey)
+}
+
+// GrokVideoPendingBilling 是创建任务时保存的快照，用于状态轮询首次发现已完成视频地址时计费。
+// 状态响应可能省略模型或时长，此时先回退到该快照，再回退到默认值。
+type GrokVideoPendingBilling struct {
+	Model                string `json:"model"`
+	BillingModel         string `json:"billing_model,omitempty"`
+	UpstreamModel        string `json:"upstream_model,omitempty"`
+	VideoResolution      string `json:"video_resolution,omitempty"`
+	VideoDurationSeconds int    `json:"video_duration_seconds,omitempty"`
+	OriginalModel        string `json:"original_model,omitempty"`
+	// CreatedAt 是网关接受异步创建请求的时间，采用 RFC3339Nano UTC 格式。
+	// 延迟计费的 duration_ms 从该时刻计算到首次观测到官方 done 和 video.url，
+	// 观测来源可以是状态轮询或内容下载，而不是仅计算单次发现请求的耗时。
+	CreatedAt string `json:"created_at,omitempty"`
+}
+
+// GrokVideoPendingCreatedAtNow 为待计费记录生成任务受理时间戳。
+func GrokVideoPendingCreatedAtNow() string {
+	return time.Now().UTC().Format(time.RFC3339Nano)
+}
+
+// GrokVideoE2EDuration 返回从任务受理到发现完成的实际经过时间。
+// CreatedAt 缺失或无法解析时返回零，由调用方保留仅轮询耗时。
+func GrokVideoE2EDuration(createdAt string, discoveredAt time.Time) time.Duration {
+	createdAt = strings.TrimSpace(createdAt)
+	if createdAt == "" {
+		return 0
+	}
+	if discoveredAt.IsZero() {
+		discoveredAt = time.Now()
+	}
+	var created time.Time
+	var err error
+	if created, err = time.Parse(time.RFC3339Nano, createdAt); err != nil {
+		if created, err = time.Parse(time.RFC3339, createdAt); err != nil {
+			return 0
+		}
+	}
+	if created.IsZero() {
+		return 0
+	}
+	d := discoveredAt.Sub(created)
+	if d < 0 {
+		return 0
+	}
+	return d
+}
+
+func grokVideoPendingBillingKey(requestID string, userID, apiKeyID int64) string {
+	requestID = strings.TrimSpace(requestID)
+	if requestID == "" || userID <= 0 || apiKeyID <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d:%d:%s", userID, apiKeyID, requestID)
+}
+
+func grokVideoPendingBillingTTL(cfg *config.Config) time.Duration {
+	// 视频生成可能耗时数分钟，因此将创建时价格保留一天。
+	_ = cfg
+	return 24 * time.Hour
+}
+
+func grokVideoBilledClaimTTL(cfg *config.Config) time.Duration {
+	_ = cfg
+	return 48 * time.Hour
+}
+
+// StoreGrokVideoPendingBilling 持久化创建时计费参数，供状态轮询延迟计费。
+func (s *OpenAIGatewayService) StoreGrokVideoPendingBilling(
+	ctx context.Context,
+	requestID string,
+	userID, apiKeyID int64,
+	pending GrokVideoPendingBilling,
+) error {
+	if s == nil || s.cache == nil {
+		return fmt.Errorf("grok video pending billing cache is unavailable")
+	}
+	key := grokVideoPendingBillingKey(requestID, userID, apiKeyID)
+	if key == "" {
+		return fmt.Errorf("grok video pending billing key is invalid")
+	}
+	pending.Model = strings.TrimSpace(pending.Model)
+	pending.BillingModel = strings.TrimSpace(pending.BillingModel)
+	pending.UpstreamModel = strings.TrimSpace(pending.UpstreamModel)
+	pending.OriginalModel = strings.TrimSpace(pending.OriginalModel)
+	if pending.VideoResolution != "" {
+		pending.VideoResolution = NormalizeVideoBillingResolutionOrDefault(pending.VideoResolution)
+	}
+	if pending.VideoDurationSeconds > 0 {
+		pending.VideoDurationSeconds = NormalizeVideoBillingDurationSecondsOrDefault(pending.VideoDurationSeconds)
+	}
+	// 缺少任务受理时间时始终补写，确保延迟计费的 duration_ms 为端到端耗时。
+	if strings.TrimSpace(pending.CreatedAt) == "" {
+		pending.CreatedAt = GrokVideoPendingCreatedAtNow()
+	} else {
+		pending.CreatedAt = strings.TrimSpace(pending.CreatedAt)
+	}
+	payload, err := json.Marshal(pending)
+	if err != nil {
+		return err
+	}
+	cache, ok := s.cache.(GrokVideoBillingCache)
+	if !ok {
+		return fmt.Errorf("grok video pending billing cache is unavailable")
+	}
+	return cache.SetGrokVideoPendingBilling(ctx, key, payload, grokVideoPendingBillingTTL(s.cfg))
+}
+
+// LoadGrokVideoPendingBilling 返回创建时快照，未命中时可能为 nil。
+func (s *OpenAIGatewayService) LoadGrokVideoPendingBilling(
+	ctx context.Context,
+	requestID string,
+	userID, apiKeyID int64,
+) (*GrokVideoPendingBilling, error) {
+	if s == nil || s.cache == nil {
+		return nil, fmt.Errorf("grok video pending billing cache is unavailable")
+	}
+	key := grokVideoPendingBillingKey(requestID, userID, apiKeyID)
+	if key == "" {
+		return nil, fmt.Errorf("grok video pending billing key is invalid")
+	}
+	cache, ok := s.cache.(GrokVideoBillingCache)
+	if !ok {
+		return nil, fmt.Errorf("grok video pending billing cache is unavailable")
+	}
+	payload, err := cache.GetGrokVideoPendingBilling(ctx, key)
+	if err != nil || len(payload) == 0 {
+		return nil, err
+	}
+	var pending GrokVideoPendingBilling
+	if err := json.Unmarshal(payload, &pending); err != nil {
+		return nil, err
+	}
+	return &pending, nil
+}
+
+// ClaimGrokVideoBilling 对已完成视频请求仅返回一次 true，避免状态轮询重复计费。
+// 采用失败关闭策略，领取失败时按已计费处理。
+func (s *OpenAIGatewayService) ClaimGrokVideoBilling(
+	ctx context.Context,
+	requestID string,
+	userID, apiKeyID int64,
+) (bool, error) {
+	if s == nil || s.cache == nil {
+		return false, fmt.Errorf("grok video billing claim cache is unavailable")
+	}
+	key := grokVideoPendingBillingKey(requestID, userID, apiKeyID)
+	if key == "" {
+		return false, fmt.Errorf("grok video billing claim key is invalid")
+	}
+	cache, ok := s.cache.(GrokVideoBillingCache)
+	if !ok {
+		return false, fmt.Errorf("grok video billing claim cache is unavailable")
+	}
+	return cache.ClaimGrokVideoBilled(ctx, key, grokVideoBilledClaimTTL(s.cfg))
+}
+
+// ReleaseGrokVideoBilling 在持久化 RecordUsage 失败后释放领取记录，
+// 使后续状态或内容轮询能够重试计费。
+func (s *OpenAIGatewayService) ReleaseGrokVideoBilling(
+	ctx context.Context,
+	requestID string,
+	userID, apiKeyID int64,
+) error {
+	if s == nil || s.cache == nil {
+		return fmt.Errorf("grok video billing claim cache is unavailable")
+	}
+	key := grokVideoPendingBillingKey(requestID, userID, apiKeyID)
+	if key == "" {
+		return fmt.Errorf("grok video billing claim key is invalid")
+	}
+	cache, ok := s.cache.(GrokVideoBillingCache)
+	if !ok {
+		return fmt.Errorf("grok video billing claim cache is unavailable")
+	}
+	return cache.ReleaseGrokVideoBilled(ctx, key)
+}
+
+// StableGrokVideoBillingRequestID 为单个异步视频任务生成持久化 usage_logs 去重键，
+// 该键并非每次轮询各自的网关请求 ID。
+func StableGrokVideoBillingRequestID(taskRequestID string) string {
+	taskRequestID = strings.TrimSpace(taskRequestID)
+	if taskRequestID == "" {
+		return ""
+	}
+	if strings.HasPrefix(taskRequestID, "grok-video:") {
+		return taskRequestID
+	}
+	return "grok-video:" + taskRequestID
+}
+
+// xAI 异步视频状态的官方成功结构如下（docs.x.ai Video Generation）：
+//
+//	示例：{"status":"done","model":"grok-imagine-video-1.5","video":{"url":"...","duration":8,"respect_moderation":true}}
+//
+// 请求可以包含分辨率（"480p"、"720p" 或 "1080p"），完成状态不会返回该字段，
+// 因此计费分辨率取自创建任务时保存的请求快照。
+
+// IsGrokVideoStatusBillable 匹配官方成功条件：status 为 done 且 video.url 非空。
+// pending、expired、failed 或缺少视频地址的 done 状态均不可计费。
+func IsGrokVideoStatusBillable(statusBody []byte) bool {
+	if len(statusBody) == 0 || !gjson.ValidBytes(statusBody) {
+		return false
+	}
+	if !isOfficialGrokVideoStatusDone(statusBody) {
+		return false
+	}
+	return strings.TrimSpace(gjson.GetBytes(statusBody, "video.url").String()) != ""
+}
+
+func isOfficialGrokVideoStatusDone(statusBody []byte) bool {
+	// 官方枚举值包括 pending、done、expired 与 failed。
+	return strings.EqualFold(strings.TrimSpace(gjson.GetBytes(statusBody, "status").String()), "done")
+}
+
+// ExtractGrokVideoBillingFromStatusBody 根据官方 done 状态构建用量单位。
+// 字段优先级遵循官方文档：时长取 video.duration（秒），模型取顶层 model。
+//   - 分辨率：状态响应不提供，依次回退到创建时待计费快照和默认 480p
+func ExtractGrokVideoBillingFromStatusBody(statusBody []byte, pending *GrokVideoPendingBilling, requestID string) *OpenAIForwardResult {
+	if !IsGrokVideoStatusBillable(statusBody) {
+		return nil
+	}
+	model := ""
+	billingModel := ""
+	upstreamModel := ""
+	resolution := ""
+	durationSeconds := 0
+
+	if gjson.ValidBytes(statusBody) {
+		// 官方模型字段位于顶层。
+		model = strings.TrimSpace(gjson.GetBytes(statusBody, "model").String())
+		// 官方时长字段为 video.duration，单位是秒。
+		if v := gjson.GetBytes(statusBody, "video.duration"); v.Exists() && v.Type == gjson.Number {
+			durationSeconds = int(v.Int())
+			if durationSeconds == 0 && v.Float() > 0 {
+				// 此 API 通常不会返回不足一秒的值，仍接受上方截断后的整数结果。
+				durationSeconds = int(v.Float())
+			}
+		}
+	}
+	if pending != nil {
+		if model == "" {
+			model = firstNonEmpty(pending.BillingModel, pending.Model, pending.OriginalModel)
+		}
+		if billingModel == "" {
+			billingModel = firstNonEmpty(pending.BillingModel, pending.Model)
+		}
+		if upstreamModel == "" {
+			upstreamModel = pending.UpstreamModel
+		}
+		// 官方状态不含分辨率，因此存在创建请求值时始终采用该值。
+		resolution = pending.VideoResolution
+		if durationSeconds <= 0 {
+			durationSeconds = pending.VideoDurationSeconds
+		}
+	}
+	if model == "" {
+		// 状态省略模型时使用官方默认视频模型族。
+		model = "grok-imagine-video"
+	}
+	if billingModel == "" {
+		billingModel = model
+	}
+	// 文档约定分辨率仅来自请求；为空时由处理器应用官方默认值 480p。
+	if resolution != "" {
+		resolution = NormalizeVideoBillingResolutionOrDefault(resolution)
+	}
+	if durationSeconds > 0 {
+		durationSeconds = NormalizeVideoBillingDurationSecondsOrDefault(durationSeconds)
+	}
+	responseID := extractGrokMediaVideoRequestID(statusBody)
+	if responseID == "" {
+		responseID = strings.TrimSpace(requestID)
+	}
+	return &OpenAIForwardResult{
+		ResponseID:           responseID,
+		Model:                model,
+		BillingModel:         billingModel,
+		UpstreamModel:        upstreamModel,
+		VideoCount:           1,
+		VideoResolution:      resolution,
+		VideoDurationSeconds: durationSeconds,
+	}
 }
 
 func (s *OpenAIGatewayService) ForwardGrokMedia(
@@ -456,7 +755,7 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 		return s.handleGrokMediaErrorResponse(ctx, resp, c, account, requestIDHeader, upstreamModel)
 	}
 
-	s.updateGrokUsageFromResponse(ctx, account, resp.Header, resp.StatusCode)
+	s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, requestModel), account, resp.Header, resp.StatusCode)
 	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
 	if err != nil {
 		return nil, err
@@ -480,12 +779,23 @@ func (s *OpenAIGatewayService) ForwardGrokMedia(
 	}
 	writeGrokMediaResponse(c, resp, respBody, s.responseHeaderFilter)
 	usage := grokMediaUsageFromResponse(endpoint, requestInfo, respBody)
+	resultModel := requestModel
+	resultBillingModel := billingModel
+	if endpoint == GrokMediaEndpointVideoStatus {
+		// 状态请求不含请求体模型，满足计费条件时使用上游状态字段。
+		if m := strings.TrimSpace(usage.Model); m != "" {
+			resultModel = m
+		}
+		if m := strings.TrimSpace(usage.BillingModel); m != "" {
+			resultBillingModel = m
+		}
+	}
 	return &OpenAIForwardResult{
 		RequestID:            requestIDHeader,
 		ResponseID:           usage.ResponseID,
 		Usage:                usage.Usage,
-		Model:                requestModel,
-		BillingModel:         billingModel,
+		Model:                resultModel,
+		BillingModel:         resultBillingModel,
 		UpstreamModel:        upstreamModel,
 		ResponseHeaders:      resp.Header.Clone(),
 		Duration:             time.Since(startTime),
@@ -612,15 +922,27 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 		return s.handleGrokMediaErrorResponse(ctx, contentResp, c, account, contentRequestID, "")
 	}
 
-	s.updateGrokUsageFromResponse(ctx, account, contentResp.Header, contentResp.StatusCode)
+	s.updateGrokUsageFromResponse(withGrokTeamRateLimitModel(ctx, ""), account, contentResp.Header, contentResp.StatusCode)
 	if err := writeGrokMediaContentResponse(c, contentResp); err != nil {
 		return nil, err
 	}
-	return &OpenAIForwardResult{
+	// 内容下载也是完成观测入口：状态体满足官方 done 和 video.url 条件时附加计费单位，
+	// 使处理器能够按与状态轮询相同的路径领取一次计费；待计费快照由处理器合并。
+	result := &OpenAIForwardResult{
 		RequestID:       contentRequestID,
 		ResponseHeaders: contentResp.Header.Clone(),
 		Duration:        time.Since(startTime),
-	}, nil
+	}
+	if billed := ExtractGrokVideoBillingFromStatusBody(statusBody, nil, requestID); billed != nil {
+		result.ResponseID = firstNonEmpty(billed.ResponseID, strings.TrimSpace(requestID))
+		result.Model = billed.Model
+		result.BillingModel = billed.BillingModel
+		result.UpstreamModel = billed.UpstreamModel
+		result.VideoCount = billed.VideoCount
+		result.VideoResolution = billed.VideoResolution
+		result.VideoDurationSeconds = billed.VideoDurationSeconds
+	}
+	return result, nil
 }
 
 func grokMediaSignedVideoContentURL(body []byte, requestID string) (string, error) {
@@ -650,8 +972,12 @@ func isGrokCLIProxyTarget(rawURL string) bool {
 }
 
 func prepareGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, contentType string) ([]byte, string, error) {
-	if endpoint != GrokMediaEndpointImagesEdits || gjson.ValidBytes(body) {
+	if endpoint != GrokMediaEndpointImagesEdits {
 		return body, contentType, nil
+	}
+	if gjson.ValidBytes(body) {
+		out, err := normalizeGrokMediaJSONImageRefs(body)
+		return out, contentType, err
 	}
 	mediaType, _, err := mime.ParseMediaType(strings.TrimSpace(contentType))
 	if err != nil || !strings.EqualFold(mediaType, "multipart/form-data") {
@@ -676,7 +1002,7 @@ func prepareGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, conten
 	images := make([]map[string]string, 0, len(info.InputImageURLs)+len(info.Uploads))
 	for _, imageURL := range info.InputImageURLs {
 		if imageURL = strings.TrimSpace(imageURL); imageURL != "" {
-			images = append(images, map[string]string{"url": imageURL})
+			images = append(images, grokMediaImageObject(imageURL))
 		}
 	}
 	for _, upload := range info.Uploads {
@@ -684,7 +1010,10 @@ func prepareGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, conten
 		if err != nil {
 			return nil, "", err
 		}
-		images = append(images, map[string]string{"url": dataURL})
+		images = append(images, grokMediaImageObject(dataURL))
+	}
+	if len(images) > grokMediaMaxEditSourceImages {
+		return nil, "", fmt.Errorf("a maximum of %d source images is supported for image edits", grokMediaMaxEditSourceImages)
 	}
 	if len(images) > 0 {
 		payload["image"] = images[0]
@@ -702,7 +1031,7 @@ func prepareGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, conten
 		maskImageURL = dataURL
 	}
 	if maskImageURL != "" {
-		payload["mask"] = map[string]string{"url": maskImageURL}
+		payload["mask"] = grokMediaImageObject(maskImageURL)
 	}
 
 	out, err := marshalOpenAIUpstreamJSON(payload)
@@ -710,6 +1039,53 @@ func prepareGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, conten
 		return nil, "", err
 	}
 	return out, "application/json", nil
+}
+
+func normalizeGrokMediaJSONImageRefs(body []byte) ([]byte, error) {
+	info := ParseGrokMediaRequest("application/json", body)
+	if len(info.InputImageURLs) > grokMediaMaxEditSourceImages {
+		return nil, fmt.Errorf("a maximum of %d source images is supported for image edits", grokMediaMaxEditSourceImages)
+	}
+	out := body
+	var err error
+	for _, field := range []string{"image", "images", "mask"} {
+		out, err = rewriteGrokMediaJSONImageField(out, field)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func rewriteGrokMediaJSONImageField(body []byte, path string) ([]byte, error) {
+	value := gjson.GetBytes(body, path)
+	if !value.Exists() {
+		return body, nil
+	}
+	if value.IsArray() {
+		rewritten := make([]map[string]string, 0, len(value.Array()))
+		for _, item := range value.Array() {
+			imageURL := extractGrokMediaImageURL(item)
+			if imageURL == "" {
+				return body, nil
+			}
+			rewritten = append(rewritten, grokMediaImageObject(imageURL))
+		}
+		out, err := sjson.SetBytes(body, path, rewritten)
+		if err != nil {
+			return nil, fmt.Errorf("rewrite grok media %s: %w", path, err)
+		}
+		return out, nil
+	}
+	imageURL := extractGrokMediaImageURL(value)
+	if imageURL == "" {
+		return body, nil
+	}
+	out, err := sjson.SetBytes(body, path, grokMediaImageObject(imageURL))
+	if err != nil {
+		return nil, fmt.Errorf("rewrite grok media %s: %w", path, err)
+	}
+	return out, nil
 }
 
 func normalizeGrokMediaForwardBody(endpoint GrokMediaEndpoint, body []byte, contentType string) ([]byte, string, error) {
@@ -823,9 +1199,9 @@ func NormalizeGrokMediaModelForEndpoint(endpoint GrokMediaEndpoint, model string
 			return "grok-imagine-image-quality"
 		}
 	case GrokMediaEndpointVideosGenerations:
-		if model == "grok-imagine-video-1.5" && !hasInputImage {
-			return "grok-imagine-video"
-		}
+		// xAI 1.5 模型仅支持图生视频。缺少图片时保留请求模型不变，
+		// 让上游返回文档约定的参数错误，避免静默切换模型和计费价格。
+		_ = hasInputImage
 	}
 	return model
 }
@@ -833,6 +1209,8 @@ func NormalizeGrokMediaModelForEndpoint(endpoint GrokMediaEndpoint, model string
 type grokMediaUsageMetadata struct {
 	ResponseID           string
 	Usage                OpenAIUsage
+	Model                string
+	BillingModel         string
 	ImageCount           int
 	ImageSize            string
 	ImageInputSize       string
@@ -852,12 +1230,20 @@ func grokMediaUsageFromResponse(endpoint GrokMediaEndpoint, requestInfo GrokMedi
 		meta.ImageInputSize = requestInfo.Size
 		meta.ImageOutputSizes = collectOpenAIResponseImageOutputSizesFromJSONBytes(responseBody)
 	case GrokMediaEndpointVideosGenerations, GrokMediaEndpointVideosEdits, GrokMediaEndpointVideosExtensions:
+		// 异步视频创建阶段只保留任务 ID 和计价参数，完成轮询时再设置可计费数量。
 		meta.ResponseID = extractGrokMediaVideoRequestID(responseBody)
-		meta.VideoCount = 1
 		meta.VideoResolution = requestInfo.Resolution
 		meta.VideoDurationSeconds = requestInfo.DurationSeconds
-		// 保留旧媒体计数，兼容现有用量展示。
-		meta.ImageCount = 1
+	case GrokMediaEndpointVideoStatus:
+		// 只有官方完成状态且返回视频地址时，才生成待结算的视频用量。
+		if billed := ExtractGrokVideoBillingFromStatusBody(responseBody, nil, ""); billed != nil {
+			meta.ResponseID = billed.ResponseID
+			meta.Model = billed.Model
+			meta.BillingModel = billed.BillingModel
+			meta.VideoCount = billed.VideoCount
+			meta.VideoResolution = billed.VideoResolution
+			meta.VideoDurationSeconds = billed.VideoDurationSeconds
+		}
 	}
 	return meta
 }

@@ -940,6 +940,29 @@
         </p>
       </div>
 
+      <!-- Codex 指纹收敛模式（仅 OpenAI OAuth） -->
+      <div v-if="allOpenAIOAuth" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+        <div class="mb-3 flex items-center justify-between">
+          <label class="input-label mb-0">{{ t('admin.accounts.openai.codexFingerprintMode') }}</label>
+          <input
+            v-model="enableCodexFingerprintMode"
+            id="bulk-edit-codex-fingerprint-mode-enabled"
+            type="checkbox"
+            class="rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+        </div>
+        <div :class="!enableCodexFingerprintMode && 'pointer-events-none opacity-50'">
+          <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">
+            {{ t('admin.accounts.openai.codexFingerprintModeDesc') }}
+          </p>
+          <Select
+            v-model="codexFingerprintMode"
+            data-testid="bulk-codex-fingerprint-mode-select"
+            :options="codexFingerprintModeOptions"
+          />
+        </div>
+      </div>
+
       <!-- OpenAI OAuth: 5h/7d 配额自动暂停 -->
       <div v-if="allOpenAIOAuth" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3">
@@ -1764,6 +1787,15 @@ const autoPause5hThreshold = ref<OptionalNumberInputValue>(null)
 const autoPause7dThreshold = ref<OptionalNumberInputValue>(null)
 const autoPause5hDisabled = ref(false)
 const autoPause7dDisabled = ref(false)
+type CodexFingerprintMode = 'off' | 'device' | 'session' | 'full'
+const enableCodexFingerprintMode = ref(false)
+const codexFingerprintMode = ref<CodexFingerprintMode>('session')
+const codexFingerprintModeOptions = computed(() => [
+  { value: 'off' as CodexFingerprintMode, label: t('admin.accounts.openai.codexFingerprintOff') },
+  { value: 'device' as CodexFingerprintMode, label: t('admin.accounts.openai.codexFingerprintDevice') },
+  { value: 'session' as CodexFingerprintMode, label: t('admin.accounts.openai.codexFingerprintSession') },
+  { value: 'full' as CodexFingerprintMode, label: t('admin.accounts.openai.codexFingerprintFull') },
+])
 const openAICompactMode = ref<OpenAICompactMode>('auto')
 const openAICompactModelMappings = ref<ModelMapping[]>([])
 const rpmLimitEnabled = ref(false)
@@ -2263,6 +2295,12 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     }
   }
 
+  if (enableCodexFingerprintMode.value) {
+    const extra = ensureExtra()
+    // 批量 extra 使用 JSONB merge；默认 session 也必须显式写入，才能覆盖已有的其它档位。
+    extra.codex_fingerprint_mode = codexFingerprintMode.value
+  }
+
   if (enableOpenAICompactMode.value) {
     const extra = ensureExtra()
     extra.openai_compact_mode = openAICompactMode.value
@@ -2378,6 +2416,7 @@ const handleSubmit = async () => {
     enableAutoPause5hDisabled.value ||
     enableAutoPause7dDisabled.value ||
     enableTLSFingerprint.value ||
+    enableCodexFingerprintMode.value ||
     enableOpenAICompactMode.value ||
     enableOpenAICompactModelMapping.value ||
     enableRpmLimit.value ||
@@ -2513,6 +2552,7 @@ const resetBulkEditFormState = () => {
   enableAutoPause7dThreshold.value = false
   enableAutoPause5hDisabled.value = false
   enableAutoPause7dDisabled.value = false
+  enableCodexFingerprintMode.value = false
   enableOpenAICompactMode.value = false
   enableOpenAICompactModelMapping.value = false
   enableRpmLimit.value = false
@@ -2543,6 +2583,7 @@ const resetBulkEditFormState = () => {
   autoPause7dThreshold.value = null
   autoPause5hDisabled.value = false
   autoPause7dDisabled.value = false
+  codexFingerprintMode.value = 'session'
   openAICompactMode.value = 'auto'
   openAICompactModelMappings.value = []
   rpmLimitEnabled.value = false

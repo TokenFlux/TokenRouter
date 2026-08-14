@@ -8,6 +8,7 @@ import (
 
 // PricingSource 定价来源标识
 const (
+	PricingSourceGroup    = "group"
 	PricingSourceChannel  = "channel"
 	PricingSourceLiteLLM  = "litellm"
 	PricingSourceFallback = "fallback"
@@ -42,10 +43,12 @@ type ResolvedPricing struct {
 
 	// 渠道定价原始配置（用于区间模式下获取图片输出价格）
 	channelPricing *ChannelModelPricing
+
+	longContextPricingEnabled bool
 }
 
 // ModelPricingResolver 统一模型定价解析器。
-// 解析链：Channel → Qoder 手动价要求 → LiteLLM → Fallback。
+// 解析链：Group → Channel → Qoder 手动价要求 → LiteLLM → Fallback。
 type ModelPricingResolver struct {
 	channelService *ChannelService
 	billingService *BillingService
@@ -64,12 +67,26 @@ type PricingInput struct {
 	Model         string
 	GroupID       *int64 // nil 表示不检查渠道
 	BaseModelHint string // 可选：最终上游模型提示，用于 Qoder 自定义 alias 的部分手动价回退
+	Group         *Group
 }
 
 // Resolve 解析模型定价。
 // 1. 获取基础定价（Qoder 已知 alias 为 0 / 其他模型 LiteLLM → Fallback）
 // 2. 如果指定了 GroupID，查找渠道定价并覆盖
 func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) *ResolvedPricing {
+	longContextPricingEnabled := input.Group == nil || input.Group.LongContextPricingEnabled
+	if groupPricing := matchGroupModelPricing(input.Group, input.Model); groupPricing != nil {
+		// 分组 token 价格卡只覆盖基础价格，长上下文倍率仍使用内置模型价格并受分组开关控制。
+		if groupPricing.BillingMode == "" || groupPricing.BillingMode == BillingModeToken {
+			stripped := groupPricing.Clone()
+			stripped.Intervals = nil
+			groupPricing = &stripped
+		}
+		resolved := r.resolveConfiguredPricing(groupPricing, input.Model, PricingSourceGroup)
+		resolved.longContextPricingEnabled = longContextPricingEnabled
+		return resolved
+	}
+
 	qoderManualOnly := false
 	var chPricing *ChannelModelPricing
 	if input.GroupID != nil && r.channelService != nil {
@@ -80,7 +97,7 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 			if mode == "" {
 				mode = BillingModeToken
 			}
-			if mode == BillingModePerRequest || mode == BillingModeImage {
+			if mode == BillingModePerRequest || mode == BillingModeImage || mode == BillingModeVideo {
 				// 按次/图片渠道价不依赖基础 token 定价，直接返回可避免先触发
 				// LiteLLM/OpenAI 的全局 fallback 查询，再被渠道价覆盖。
 				resolved := &ResolvedPricing{
@@ -88,6 +105,7 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 					Source:         PricingSourceChannel,
 					channelPricing: chPricing,
 				}
+				resolved.longContextPricingEnabled = longContextPricingEnabled
 				r.applyRequestTierOverrides(chPricing, resolved)
 				applyResolvedPriceMultiplier(resolved, chPricing)
 				return resolved
@@ -113,6 +131,7 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 		SupportsCacheBreakdown: basePricing != nil && basePricing.SupportsCacheBreakdown,
 		SupportsServiceTier:    basePricing != nil && basePricing.SupportsServiceTier,
 	}
+	resolved.longContextPricingEnabled = longContextPricingEnabled
 
 	// 2. 如果有 GroupID，尝试渠道覆盖
 	if chPricing != nil {
@@ -121,7 +140,7 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 		r.applyTokenOverrides(chPricing, resolved)
 		applyResolvedPriceMultiplier(resolved, chPricing)
 		applyResolvedFastModeMultiplier(resolved, chPricing)
-	} else if input.GroupID != nil {
+	} else if input.GroupID != nil && r.channelService != nil {
 		r.applyChannelOverrides(ctx, *input.GroupID, input.Model, resolved)
 	}
 
@@ -134,6 +153,12 @@ func (r *ResolvedPricing) IsUnpriced() bool {
 
 func (r *ResolvedPricing) HasEffectiveChannelPricing() bool {
 	return r != nil && r.Source == PricingSourceChannel && r.channelPricing != nil && r.channelPricing.HasEffectivePricing()
+}
+
+// HasEffectiveOverridePricing 判断分组或渠道是否提供了显式价格，包括显式零价。
+func (r *ResolvedPricing) HasEffectiveOverridePricing() bool {
+	return r != nil && (r.Source == PricingSourceGroup || r.Source == PricingSourceChannel) &&
+		r.channelPricing != nil && r.channelPricing.HasEffectivePricing()
 }
 
 func (r *ModelPricingResolver) isQoderManualPricingOnlyModel(ctx context.Context, groupID int64, input PricingInput) bool {
@@ -165,6 +190,49 @@ func (r *ModelPricingResolver) hasDefaultPricingForModel(model string) bool {
 	}
 	pricing, err := r.billingService.GetModelPricing(model)
 	return err == nil && pricing != nil && hasAnyDisplayTokenPricing(pricing)
+}
+
+func (r *ModelPricingResolver) resolveConfiguredPricing(config *ChannelModelPricing, model, source string) *ResolvedPricing {
+	mode := config.BillingMode
+	if mode == "" {
+		mode = BillingModeToken
+	}
+	resolved := &ResolvedPricing{Mode: mode, Source: source, channelPricing: config}
+	if mode == BillingModePerRequest || mode == BillingModeImage || mode == BillingModeVideo {
+		r.applyRequestTierOverrides(config, resolved)
+		applyResolvedPriceMultiplier(resolved, config)
+		return resolved
+	}
+	resolved.BasePricing, _ = r.resolveBasePricing(model)
+	resolved.SupportsCacheBreakdown = resolved.BasePricing != nil && resolved.BasePricing.SupportsCacheBreakdown
+	resolved.SupportsServiceTier = resolved.BasePricing != nil && resolved.BasePricing.SupportsServiceTier
+	r.applyTokenOverrides(config, resolved)
+	applyResolvedPriceMultiplier(resolved, config)
+	applyResolvedFastModeMultiplier(resolved, config)
+	return resolved
+}
+
+func matchGroupModelPricing(group *Group, model string) *ChannelModelPricing {
+	if group == nil {
+		return nil
+	}
+	model = normalizeChannelPricingModelName(model)
+	var wildcard *ChannelModelPricing
+	for i := range group.ModelPricing {
+		entry := &group.ModelPricing[i]
+		for _, pattern := range entry.Models {
+			normalized := normalizeChannelPricingModelName(pattern)
+			if normalized == model {
+				cp := entry.Clone()
+				return &cp
+			}
+			if strings.HasSuffix(normalized, "*") && strings.HasPrefix(model, strings.TrimSuffix(normalized, "*")) && wildcard == nil {
+				cp := entry.Clone()
+				wildcard = &cp
+			}
+		}
+	}
+	return wildcard
 }
 
 // resolveBasePricing 从 LiteLLM 或 Fallback 获取基础定价
@@ -199,7 +267,7 @@ func (r *ModelPricingResolver) applyChannelOverrides(ctx context.Context, groupI
 	switch resolved.Mode {
 	case BillingModeToken:
 		r.applyTokenOverrides(chPricing, resolved)
-	case BillingModePerRequest, BillingModeImage:
+	case BillingModePerRequest, BillingModeImage, BillingModeVideo:
 		r.applyRequestTierOverrides(chPricing, resolved)
 	}
 	applyResolvedPriceMultiplier(resolved, chPricing)

@@ -453,6 +453,62 @@ func TestGeminiPoolMode429BypassesLocalRateLimit(t *testing.T) {
 	require.Zero(t, repo.setErrorCalls)
 }
 
+func TestHandleGeminiUpstreamError_PoolMode429SkipsAccountLimit(t *testing.T) {
+	body := []byte(`{"error":{"code":429,"message":"capacity exhausted"}}`)
+	tests := []struct {
+		name      string
+		account   *Account
+		wantCalls int
+	}{
+		{
+			name: "池模式跳过默认账号限流",
+			account: &Account{
+				ID: 530, Type: AccountTypeAPIKey, Platform: PlatformGemini,
+				Credentials: map[string]any{"pool_mode": true},
+			},
+		},
+		{
+			name: "自定义错误码命中优先于池模式",
+			account: &Account{
+				ID: 531, Type: AccountTypeAPIKey, Platform: PlatformGemini,
+				Credentials: map[string]any{
+					"pool_mode":                  true,
+					"custom_error_codes_enabled": true,
+					"custom_error_codes":         []any{float64(http.StatusTooManyRequests)},
+				},
+			},
+			wantCalls: 1,
+		},
+		{
+			name: "自定义错误码未命中跳过账号限流",
+			account: &Account{
+				ID: 532, Type: AccountTypeAPIKey, Platform: PlatformGemini,
+				Credentials: map[string]any{
+					"pool_mode":                  true,
+					"custom_error_codes_enabled": true,
+					"custom_error_codes":         []any{float64(http.StatusInternalServerError)},
+				},
+			},
+		},
+		{
+			name:      "普通账号保留默认限流",
+			account:   &Account{ID: 533, Type: AccountTypeAPIKey, Platform: PlatformGemini},
+			wantCalls: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := &rateLimit429AccountRepoStub{}
+			svc := &GeminiMessagesCompatService{accountRepo: repo}
+
+			svc.handleGeminiUpstreamError(context.Background(), tt.account, http.StatusTooManyRequests, http.Header{}, body)
+
+			require.Equal(t, tt.wantCalls, repo.rateLimitCalls)
+		})
+	}
+}
+
 // TestGeminiCustomNonFailoverStatusStopsScheduling 验证非默认故障转移状态也会执行
 // 管理员显式策略并写入账号错误。
 func TestGeminiCustomNonFailoverStatusStopsScheduling(t *testing.T) {

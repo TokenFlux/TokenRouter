@@ -24,6 +24,36 @@ func newGrokCacheTestContext(apiKeyID int64) *gin.Context {
 	return c
 }
 
+func TestGrokPreviousResponseSessionSeed(t *testing.T) {
+	require.Equal(t, "grok-prev-resp:resp_abc123", grokPreviousResponseSessionSeed([]byte(`{"previous_response_id":"resp_abc123"}`)))
+	require.Empty(t, grokPreviousResponseSessionSeed([]byte(`{"previous_response_id":"msg_abc123"}`)))
+	require.Empty(t, grokPreviousResponseSessionSeed([]byte(`{"previous_response_id":""}`)))
+	require.Empty(t, grokPreviousResponseSessionSeed([]byte(`{}`)))
+}
+
+func TestResolveGrokCacheIdentityUsesPreviousResponseIDWhenNoOtherSeed(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c := newGrokCacheTestContext(301)
+	// 不提供 prompt_cache_key、请求头或可复用前缀，只使用 previous_response_id。
+	body := []byte(`{"model":"grok","input":[{"role":"user","content":"follow up"}],"previous_response_id":"resp_chain_001"}`)
+	got := resolveGrokCacheIdentity(c, body, "", "grok-4.5")
+	require.NotEmpty(t, got)
+
+	// 相同 previous_response_id 生成相同身份，模型已经包含在隔离种子中。
+	again := resolveGrokCacheIdentity(c, body, "", "grok-4.5")
+	require.Equal(t, got, again)
+
+	// 不同模型生成不同身份，确保模型维度隔离。
+	otherModel := resolveGrokCacheIdentity(c, body, "", "grok-4.3")
+	require.NotEqual(t, got, otherModel)
+
+	// prompt_cache_key 的优先级仍高于 previous_response_id。
+	withCache := []byte(`{"model":"grok","prompt_cache_key":"client-session","previous_response_id":"resp_chain_001","input":[{"role":"user","content":"x"}]}`)
+	cacheID := resolveGrokCacheIdentity(c, withCache, "", "grok-4.5")
+	require.NotEmpty(t, cacheID)
+	require.NotEqual(t, got, cacheID)
+}
+
 func TestResolveGrokCacheIdentityStableAcrossAppendOnlyTurns(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	c := newGrokCacheTestContext(101)
@@ -884,6 +914,17 @@ func TestGrokFreeMessagesFunctionToolCacheRouteRequiresKnownFreeTier(t *testing.
 						"headers_observed": true,
 						"tokens":           map[string]any{"limit": int64(2_000_000)},
 					},
+				}
+				return a
+			}(),
+		},
+		{
+			name: "paid billing overrides stale free credentials",
+			account: func() *Account {
+				a := healthyGrokOAuthGatewayTestAccount(9123, "access-token")
+				a.Credentials["subscription_tier"] = "free"
+				a.Extra = map[string]any{
+					grokBillingExtraKey: map[string]any{"plan": "SuperGrok", "status_code": http.StatusOK},
 				}
 				return a
 			}(),

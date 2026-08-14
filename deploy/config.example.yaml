@@ -414,6 +414,21 @@ gateway:
     failure_threshold: 2
     window_seconds: 60
     ttl_seconds: 600
+  # Grok 免费层本地软性门禁，仅用于调度过滤；管理端额度查询与导入探测会绕过该门禁。
+  # 默认启用，因为免费账号识别要求 subscription_tier 或 plan_type 明确为 "free"。
+  # 统计或查询失败时采用失败开放策略，避免数据库故障阻断全部 Grok 流量。
+  grok:
+    # 邮箱密码 OAuth 默认关闭且不在管理界面显示。
+    # 设置为 true 后启用 POST /admin/grok/oauth/password（密码 → SSO → Build OAuth）。
+    # 生产环境优先使用 SSO Cookie、浏览器 OAuth 或 refresh_token 重新认证。
+    password_auth_enabled: false
+    free_quota_soft_gate_enabled: true
+    free_quota_token_limit: 500000
+    free_quota_soft_gate_percent: 95
+    free_quota_window_hours: 24
+    # 免费层软性门禁的统计缓存。热点路径不等待数据库，未命中时失败开放并在后台刷新。
+    # 生产环境建议配置为至少 60 秒。
+    free_quota_stats_cache_seconds: 60
   # HTTP upstream connection pool settings (HTTP/2 + multi-proxy scenario defaults)
   # HTTP 上游连接池配置（HTTP/2 + 多代理场景默认值）
   # Max idle connections across all hosts

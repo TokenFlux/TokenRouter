@@ -7,7 +7,30 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 )
+
+func TestGrokAccountModelMappingRemainsIndependentFromRuntimeSettings(t *testing.T) {
+	original := xai.RuntimeModelMappingOptions()
+	t.Cleanup(func() { xai.SetRuntimeModelMappingOptions(original) })
+	account := &Account{Platform: PlatformGrok, Credentials: map[string]any{}}
+
+	xai.SetRuntimeModelMappingOptions(xai.ModelMappingOptions{})
+	requireMappedModel(t, account, "claude-sonnet-4-5", "claude-sonnet-4-5")
+
+	xai.SetRuntimeModelMappingOptions(xai.ModelMappingOptions{
+		DefaultText:          "grok-build-0.1",
+		EnableCrossClientMap: true,
+	})
+	requireMappedModel(t, account, "claude-sonnet-4-5", "claude-sonnet-4-5")
+}
+
+func requireMappedModel(t *testing.T, account *Account, requested, expected string) {
+	t.Helper()
+	if actual := account.GetMappedModel(requested); actual != expected {
+		t.Fatalf("GetMappedModel(%q) = %q, want %q", requested, actual, expected)
+	}
+}
 
 func TestMatchWildcard(t *testing.T) {
 	tests := []struct {

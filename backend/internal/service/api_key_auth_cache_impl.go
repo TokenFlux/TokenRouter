@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 31 // v31：认证快照包含分组高级调度覆盖
+const apiKeyAuthSnapshotVersion = 33 // v33：认证快照包含分组逐模型定价和长上下文开关
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -464,7 +464,14 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			VideoPrice480P:                  apiKey.Group.VideoPrice480P,
 			VideoPrice720P:                  apiKey.Group.VideoPrice720P,
 			VideoPrice1080P:                 apiKey.Group.VideoPrice1080P,
+			VideoModelPrices:                NormalizeVideoModelPrices(apiKey.Group.VideoModelPrices),
 			WebSearchPricePerCall:           apiKey.Group.WebSearchPricePerCall,
+			SearchPricePer1k:                apiKey.Group.SearchPricePer1k,
+			AudioRealtimePricePerMin:        apiKey.Group.AudioRealtimePricePerMin,
+			AudioTTSPricePerMillionChars:    apiKey.Group.AudioTTSPricePerMillionChars,
+			AudioSTTPricePerHour:            apiKey.Group.AudioSTTPricePerHour,
+			LongContextPricingEnabled:       apiKey.Group.LongContextPricingEnabled,
+			ModelPricing:                    cloneChannelModelPricingEntries(apiKey.Group.ModelPricing),
 			ClaudeCodeOnly:                  apiKey.Group.ClaudeCodeOnly,
 			FallbackGroupID:                 apiKey.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: apiKey.Group.FallbackGroupIDOnInvalidRequest,
@@ -594,7 +601,14 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			VideoPrice480P:                  snapshot.Group.VideoPrice480P,
 			VideoPrice720P:                  snapshot.Group.VideoPrice720P,
 			VideoPrice1080P:                 snapshot.Group.VideoPrice1080P,
+			VideoModelPrices:                NormalizeVideoModelPrices(snapshot.Group.VideoModelPrices),
 			WebSearchPricePerCall:           snapshot.Group.WebSearchPricePerCall,
+			SearchPricePer1k:                snapshot.Group.SearchPricePer1k,
+			AudioRealtimePricePerMin:        snapshot.Group.AudioRealtimePricePerMin,
+			AudioTTSPricePerMillionChars:    snapshot.Group.AudioTTSPricePerMillionChars,
+			AudioSTTPricePerHour:            snapshot.Group.AudioSTTPricePerHour,
+			LongContextPricingEnabled:       snapshot.Group.LongContextPricingEnabled,
+			ModelPricing:                    cloneChannelModelPricingEntries(snapshot.Group.ModelPricing),
 			ClaudeCodeOnly:                  snapshot.Group.ClaudeCodeOnly,
 			FallbackGroupID:                 snapshot.Group.FallbackGroupID,
 			FallbackGroupIDOnInvalidRequest: snapshot.Group.FallbackGroupIDOnInvalidRequest,
@@ -653,7 +667,11 @@ func authGroupSnapshotFromGroup(group *Group) *APIKeyAuthGroupSnapshot {
 		ImagePrice4K: group.ImagePrice4K, VideoRateIndependent: group.VideoRateIndependent,
 		VideoRateMultiplier: group.VideoRateMultiplier, VideoPrice480P: group.VideoPrice480P,
 		VideoPrice720P: group.VideoPrice720P, VideoPrice1080P: group.VideoPrice1080P,
-		WebSearchPricePerCall: group.WebSearchPricePerCall, ClaudeCodeOnly: group.ClaudeCodeOnly,
+		VideoModelPrices: NormalizeVideoModelPrices(group.VideoModelPrices), WebSearchPricePerCall: group.WebSearchPricePerCall,
+		SearchPricePer1k: group.SearchPricePer1k, AudioRealtimePricePerMin: group.AudioRealtimePricePerMin,
+		AudioTTSPricePerMillionChars: group.AudioTTSPricePerMillionChars, AudioSTTPricePerHour: group.AudioSTTPricePerHour,
+		LongContextPricingEnabled: group.LongContextPricingEnabled, ModelPricing: cloneChannelModelPricingEntries(group.ModelPricing),
+		ClaudeCodeOnly:  group.ClaudeCodeOnly,
 		FallbackGroupID: group.FallbackGroupID, FallbackGroupIDOnInvalidRequest: group.FallbackGroupIDOnInvalidRequest,
 		UnavailableFallbackGroupID: group.UnavailableFallbackGroupID, ModelRouting: group.ModelRouting,
 		ModelRoutingEnabled: group.ModelRoutingEnabled, MCPXMLInject: group.MCPXMLInject,
@@ -681,8 +699,14 @@ func groupFromAuthSnapshot(snapshot *APIKeyAuthGroupSnapshot) *Group {
 		ImagePrice1K: snapshot.ImagePrice1K, ImagePrice2K: snapshot.ImagePrice2K, ImagePrice4K: snapshot.ImagePrice4K,
 		VideoRateIndependent: snapshot.VideoRateIndependent, VideoRateMultiplier: snapshot.VideoRateMultiplier,
 		VideoPrice480P: snapshot.VideoPrice480P, VideoPrice720P: snapshot.VideoPrice720P,
-		VideoPrice1080P: snapshot.VideoPrice1080P, WebSearchPricePerCall: snapshot.WebSearchPricePerCall,
-		ClaudeCodeOnly: snapshot.ClaudeCodeOnly, FallbackGroupID: snapshot.FallbackGroupID,
+		VideoPrice1080P: snapshot.VideoPrice1080P, VideoModelPrices: NormalizeVideoModelPrices(snapshot.VideoModelPrices),
+		WebSearchPricePerCall: snapshot.WebSearchPricePerCall, SearchPricePer1k: snapshot.SearchPricePer1k,
+		AudioRealtimePricePerMin:     snapshot.AudioRealtimePricePerMin,
+		AudioTTSPricePerMillionChars: snapshot.AudioTTSPricePerMillionChars,
+		AudioSTTPricePerHour:         snapshot.AudioSTTPricePerHour,
+		LongContextPricingEnabled:    snapshot.LongContextPricingEnabled,
+		ModelPricing:                 cloneChannelModelPricingEntries(snapshot.ModelPricing),
+		ClaudeCodeOnly:               snapshot.ClaudeCodeOnly, FallbackGroupID: snapshot.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: snapshot.FallbackGroupIDOnInvalidRequest,
 		UnavailableFallbackGroupID:      snapshot.UnavailableFallbackGroupID, ModelRouting: snapshot.ModelRouting,
 		ModelRoutingEnabled: snapshot.ModelRoutingEnabled, MCPXMLInject: snapshot.MCPXMLInject,
@@ -693,4 +717,16 @@ func groupFromAuthSnapshot(snapshot *APIKeyAuthGroupSnapshot) *Group {
 		ReasoningEffortMappings: snapshot.ReasoningEffortMappings, PeakRateEnabled: snapshot.PeakRateEnabled,
 		PeakStart: snapshot.PeakStart, PeakEnd: snapshot.PeakEnd, PeakRateMultiplier: snapshot.PeakRateMultiplier,
 	}
+}
+
+// cloneChannelModelPricingEntries 复制认证快照中的价卡切片，避免请求对象修改缓存内容。
+func cloneChannelModelPricingEntries(entries []ChannelModelPricing) []ChannelModelPricing {
+	if entries == nil {
+		return nil
+	}
+	cloned := make([]ChannelModelPricing, len(entries))
+	for i := range entries {
+		cloned[i] = entries[i].Clone()
+	}
+	return cloned
 }

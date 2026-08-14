@@ -43,6 +43,19 @@ func TestIsRegistrationEmailSuffixAllowed(t *testing.T) {
 	require.True(t, IsRegistrationEmailSuffixAllowed("user@any.com", []string{}))
 }
 
+func TestIsRegistrationEmailSuffixLimited(t *testing.T) {
+	require.False(t, IsRegistrationEmailSuffixLimited("user@custom.example", nil))
+	require.False(t, IsRegistrationEmailSuffixLimited("user@example.com", []string{"@example.com"}))
+	require.True(t, IsRegistrationEmailSuffixLimited("user@custom.example", []string{"@example.com"}))
+}
+
+func TestRegistrationEmailDomainUsesRegistrableDomain(t *testing.T) {
+	require.Equal(t, "abc.com", RegistrationEmailDomain("user@abc.com"))
+	require.Equal(t, "abc.com", RegistrationEmailDomain("user@sub.abc.com"))
+	require.Equal(t, "example.co.uk", RegistrationEmailDomain("user@team.example.co.uk"))
+	require.Equal(t, "example.com", RegistrationEmailDomain("user@team.example.com."))
+}
+
 func TestNormalizeRegistrationEmailAddress(t *testing.T) {
 	tests := []struct {
 		name  string

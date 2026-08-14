@@ -756,4 +756,95 @@ describe('EmailVerifyView', () => {
       tencent_captcha_randstr: undefined,
     }))
   })
+
+  it('submits a non-whitelist domain and localizes a send-code quota error', async () => {
+    getPublicSettingsMock.mockResolvedValue({
+      turnstile_enabled: false,
+      turnstile_site_key: '',
+      site_name: 'Sub2API',
+      registration_email_suffix_whitelist: ['@allowed.example'],
+      registration_email_domain_quota_enabled: true,
+    })
+    sendVerifyCodeMock.mockRejectedValueOnce({
+      reason: 'EMAIL_DOMAIN_REGISTRATION_LIMIT',
+      message: 'raw backend message',
+    })
+    sessionStorage.setItem(
+      'register_data',
+      JSON.stringify({ email: 'second@custom.example', password: 'secret-456' }),
+    )
+
+    mount(EmailVerifyView, {
+      global: {
+        stubs: {
+          AuthLayout: { template: '<div><slot /><slot name="footer" /></div>' },
+          Icon: true,
+          TurnstileWidget: true,
+          transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(sendVerifyCodeMock).toHaveBeenCalledWith(
+      expect.objectContaining({ email: 'second@custom.example' }),
+    )
+    expect(showErrorMock).toHaveBeenCalledWith('auth.emailDomainRegistrationLimit')
+  })
+
+  it('localizes a final registration domain quota error', async () => {
+    sessionStorage.setItem(
+      'register_data',
+      JSON.stringify({ email: 'second@custom.example', password: 'secret-456' }),
+    )
+    registerMock.mockRejectedValueOnce({
+      reason: 'EMAIL_DOMAIN_REGISTRATION_LIMIT',
+      message: 'raw backend message',
+    })
+
+    const wrapper = mount(EmailVerifyView, {
+      global: {
+        stubs: {
+          AuthLayout: { template: '<div><slot /><slot name="footer" /></div>' },
+          Icon: true,
+          TurnstileWidget: true,
+          transition: false,
+        },
+      },
+    })
+    await flushPromises()
+    await wrapper.get('#code').setValue('654321')
+    await wrapper.get('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(showErrorMock).toHaveBeenLastCalledWith('auth.emailDomainRegistrationLimit')
+  })
+
+  it('blocks sending code for a non-whitelist domain when quota is disabled', async () => {
+    getPublicSettingsMock.mockResolvedValue({
+      turnstile_enabled: false,
+      turnstile_site_key: '',
+      site_name: 'Sub2API',
+      registration_email_suffix_whitelist: ['@allowed.example'],
+    })
+    sessionStorage.setItem(
+      'register_data',
+      JSON.stringify({ email: 'first@custom.example', password: 'secret-456' }),
+    )
+
+    mount(EmailVerifyView, {
+      global: {
+        stubs: {
+          AuthLayout: { template: '<div><slot /><slot name="footer" /></div>' },
+          Icon: true,
+          TurnstileWidget: true,
+          transition: false,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(sendVerifyCodeMock).not.toHaveBeenCalled()
+    expect(showErrorMock).toHaveBeenCalledWith('auth.emailSuffixNotAllowedWithAllowed')
+  })
 })

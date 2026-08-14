@@ -337,21 +337,31 @@ func (s *OpenAIOAuthService) enrichTokenInfo(ctx context.Context, tokenInfo *Ope
 			orgID = atClaims.OpenAIAuth.POID
 		}
 	}
+	// accounts/check 命中的记录不属于个人账号时，必须改用个人订阅端点拿到期时间，
+	// 否则会把 workspace 权益的 expires_at 当成个人订阅到期日展示。
+	forcePersonalSubscriptionLookup := false
 	if info := fetchChatGPTAccountInfo(ctx, s.privacyClientFactory, tokenInfo.AccessToken, proxyURL, orgID); info != nil {
 		// ID token 里的 chatgpt_plan_type 是个人订阅的权威值。
 		// accounts/check 是多账号/工作区接口，已失效的团队或商业工作区可能会用内部计费计划名
 		// 覆盖 Pro/Free，例如 self_serve_business_usage_based。
-		if shouldApplyChatGPTAccountInfoPlanType(tokenInfo.PlanType, info.PlanType) {
+		appliedAccountInfoPlanType := shouldApplyChatGPTAccountInfoPlanType(tokenInfo.PlanType, info.PlanType)
+		if appliedAccountInfoPlanType {
 			tokenInfo.PlanType = info.PlanType
 		}
+		// 套餐与到期时间必须描述同一份订阅。套餐保留 JWT 个人值时，只有
+		// accounts/check 命中的记录属于该个人账号，才采用其 entitlement.expires_at。
 		if info.SubscriptionExpiresAt != "" {
-			tokenInfo.SubscriptionExpiresAt = info.SubscriptionExpiresAt
+			if appliedAccountInfoPlanType || chatGPTAccountInfoBelongsToTokenAccount(tokenInfo, info) {
+				tokenInfo.SubscriptionExpiresAt = info.SubscriptionExpiresAt
+			} else {
+				forcePersonalSubscriptionLookup = true
+			}
 		}
 		if tokenInfo.Email == "" && info.Email != "" {
 			tokenInfo.Email = info.Email
 		}
 	}
-	if strings.TrimSpace(tokenInfo.SubscriptionExpiresAt) == "" {
+	if forcePersonalSubscriptionLookup || strings.TrimSpace(tokenInfo.SubscriptionExpiresAt) == "" {
 		if expiresAt := fetchChatGPTSubscriptionExpiresAt(ctx, s.privacyClientFactory, tokenInfo.AccessToken, proxyURL, resolveChatGPTSubscriptionAccountID(tokenInfo, orgID)); expiresAt != "" {
 			tokenInfo.SubscriptionExpiresAt = expiresAt
 		}
@@ -363,6 +373,17 @@ func (s *OpenAIOAuthService) enrichTokenInfo(ctx context.Context, tokenInfo *Ope
 
 func shouldApplyChatGPTAccountInfoPlanType(current, candidate string) bool {
 	return strings.TrimSpace(candidate) != "" && strings.TrimSpace(current) == ""
+}
+
+// chatGPTAccountInfoBelongsToTokenAccount 判断 accounts/check 命中的记录是否属于
+// token 的个人 ChatGPT 账号。任一侧缺少 ID 时无法区分，沿用既有行为。
+func chatGPTAccountInfoBelongsToTokenAccount(tokenInfo *OpenAITokenInfo, info *ChatGPTAccountInfo) bool {
+	personalID := strings.TrimSpace(tokenInfo.ChatGPTAccountID)
+	sourceID := strings.TrimSpace(info.AccountID)
+	if personalID == "" || sourceID == "" {
+		return true
+	}
+	return strings.EqualFold(personalID, sourceID)
 }
 
 func resolveChatGPTSubscriptionAccountID(tokenInfo *OpenAITokenInfo, orgID string) string {

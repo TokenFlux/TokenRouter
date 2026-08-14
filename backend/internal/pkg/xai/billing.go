@@ -18,7 +18,9 @@ const (
 	// CLIClientVersion 是 Grok CLI 固定版本的唯一来源，repository 与 service
 	// 均基于它构造客户端身份；版本需与 https://x.ai/cli/stable 保持同步。
 	CLIClientVersion = "0.2.114"
-	CLIUserAgent     = "grok-pager/" + CLIClientVersion + " grok-shell/" + CLIClientVersion + " (macos; aarch64)"
+	// billingCLIUserAgent 是账单探测沿用的 pager/shell UA，
+	// 与 cli_identity.go 中 workspace 风格的 CLIUserAgent 不同。
+	billingCLIUserAgent = "grok-pager/" + CLIClientVersion + " grok-shell/" + CLIClientVersion + " (macos; aarch64)"
 
 	BillingWeeklyPath  = "/billing?format=credits"
 	BillingMonthlyPath = "/billing"
@@ -42,13 +44,18 @@ type BillingProductUsage struct {
 
 // BillingConfig 对应 /v1/billing 响应中的嵌套 config 对象。
 type BillingConfig struct {
-	CurrentPeriod      *BillingPeriod        `json:"currentPeriod,omitempty"`
-	CreditUsagePercent *float64              `json:"creditUsagePercent,omitempty"`
-	ProductUsage       []BillingProductUsage `json:"productUsage,omitempty"`
-	MonthlyLimit       json.RawMessage       `json:"monthlyLimit,omitempty"`
-	Used               json.RawMessage       `json:"used,omitempty"`
-	BillingPeriodStart string                `json:"billingPeriodStart,omitempty"`
-	BillingPeriodEnd   string                `json:"billingPeriodEnd,omitempty"`
+	CurrentPeriod        *BillingPeriod        `json:"currentPeriod,omitempty"`
+	CreditUsagePercent   *float64              `json:"creditUsagePercent,omitempty"`
+	ProductUsage         []BillingProductUsage `json:"productUsage,omitempty"`
+	MonthlyLimit         json.RawMessage       `json:"monthlyLimit,omitempty"`
+	Used                 json.RawMessage       `json:"used,omitempty"`
+	OnDemandCap          json.RawMessage       `json:"onDemandCap,omitempty"`
+	OnDemandUsed         json.RawMessage       `json:"onDemandUsed,omitempty"`
+	PrepaidBalance       json.RawMessage       `json:"prepaidBalance,omitempty"`
+	IsUnifiedBillingUser bool                  `json:"isUnifiedBillingUser,omitempty"`
+	TopUpMethod          string                `json:"topUpMethod,omitempty"`
+	BillingPeriodStart   string                `json:"billingPeriodStart,omitempty"`
+	BillingPeriodEnd     string                `json:"billingPeriodEnd,omitempty"`
 }
 
 // BillingPayload 对应 /v1/billing 的顶层响应体。
@@ -64,28 +71,35 @@ type BillingProductSummary struct {
 
 // BillingSummary 是合并周度和月度数据后的 billing 视图。
 type BillingSummary struct {
-	PeriodType         string                  `json:"period_type,omitempty"` // weekly、monthly 或 unknown
-	UsagePercent       *float64                `json:"usage_percent,omitempty"`
-	PeriodStart        string                  `json:"period_start,omitempty"`
-	PeriodEnd          string                  `json:"period_end,omitempty"`
-	ProductUsage       []BillingProductSummary `json:"product_usage,omitempty"`
-	MonthlyLimitCents  *float64                `json:"monthly_limit_cents,omitempty"`
-	UsedCents          *float64                `json:"used_cents,omitempty"`
-	IncludedUsedCents  *float64                `json:"included_used_cents,omitempty"`
-	BillingPeriodStart string                  `json:"billing_period_start,omitempty"`
-	BillingPeriodEnd   string                  `json:"billing_period_end,omitempty"`
-	UsedPercent        *float64                `json:"used_percent,omitempty"`
-	Plan               string                  `json:"plan,omitempty"` // SuperGrok、SuperGrok Heavy 或空字符串
-	StatusCode         int                     `json:"status_code,omitempty"`
-	WeeklyStatusCode   int                     `json:"weekly_status_code,omitempty"`
-	MonthlyStatusCode  int                     `json:"monthly_status_code,omitempty"`
-	Source             string                  `json:"source,omitempty"`
-	FetchedAt          string                  `json:"fetched_at,omitempty"`
-	UpdatedAt          string                  `json:"updated_at,omitempty"`
-	WeeklyUpdatedAt    string                  `json:"weekly_updated_at,omitempty"`
-	MonthlyUpdatedAt   string                  `json:"monthly_updated_at,omitempty"`
-	Partial            bool                    `json:"partial,omitempty"`
-	FailedWindows      []string                `json:"failed_windows,omitempty"`
+	PeriodType           string                  `json:"period_type,omitempty"` // weekly、monthly 或 unknown
+	UsagePercent         *float64                `json:"usage_percent,omitempty"`
+	PeriodStart          string                  `json:"period_start,omitempty"`
+	PeriodEnd            string                  `json:"period_end,omitempty"`
+	ProductUsage         []BillingProductSummary `json:"product_usage,omitempty"`
+	MonthlyLimitCents    *float64                `json:"monthly_limit_cents,omitempty"`
+	UsedCents            *float64                `json:"used_cents,omitempty"`
+	IncludedUsedCents    *float64                `json:"included_used_cents,omitempty"`
+	BillingPeriodStart   string                  `json:"billing_period_start,omitempty"`
+	BillingPeriodEnd     string                  `json:"billing_period_end,omitempty"`
+	UsedPercent          *float64                `json:"used_percent,omitempty"`
+	Plan                 string                  `json:"plan,omitempty"` // SuperGrok、SuperGrok Heavy 或空字符串
+	StatusCode           int                     `json:"status_code,omitempty"`
+	WeeklyStatusCode     int                     `json:"weekly_status_code,omitempty"`
+	MonthlyStatusCode    int                     `json:"monthly_status_code,omitempty"`
+	Source               string                  `json:"source,omitempty"`
+	FetchedAt            string                  `json:"fetched_at,omitempty"`
+	UpdatedAt            string                  `json:"updated_at,omitempty"`
+	WeeklyUpdatedAt      string                  `json:"weekly_updated_at,omitempty"`
+	MonthlyUpdatedAt     string                  `json:"monthly_updated_at,omitempty"`
+	Partial              bool                    `json:"partial,omitempty"`
+	FailedWindows        []string                `json:"failed_windows,omitempty"`
+	PrepaidBalance       *float64                `json:"prepaid_balance,omitempty"`
+	OnDemandCap          *float64                `json:"on_demand_cap,omitempty"`
+	OnDemandUsed         *float64                `json:"on_demand_used,omitempty"`
+	MonthlyLimit         *float64                `json:"monthly_limit,omitempty"`
+	MonthlyUsed          *float64                `json:"monthly_used,omitempty"`
+	TopUpMethod          string                  `json:"top_up_method,omitempty"`
+	IsUnifiedBillingUser bool                    `json:"is_unified_billing_user,omitempty"`
 }
 
 // BuildBillingURL 构造 CLI chat proxy 的周度或月度 billing URL。
@@ -123,7 +137,7 @@ func ApplyCLIBillingHeaders(req *http.Request, accessToken string) {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set(CLITokenAuthHeader, CLITokenAuthValue)
 	req.Header.Set(CLIClientVersionHeader, CLIClientVersion)
-	req.Header.Set("User-Agent", CLIUserAgent)
+	req.Header.Set("User-Agent", billingCLIUserAgent)
 }
 
 // ParseBillingPayload 解析 billing API 响应体。
@@ -148,17 +162,12 @@ func BuildBillingSummary(config *BillingConfig) *BillingSummary {
 	periodType := resolvePeriodType(period)
 	creditUsage := cloneFloat(config.CreditUsagePercent)
 
+	// 周度周期不能回退使用月度账单边界，否则周用量较高时会按月度截止时间停调账号。
 	periodStart := ""
 	periodEnd := ""
 	if period != nil {
 		periodStart = strings.TrimSpace(period.Start)
 		periodEnd = strings.TrimSpace(period.End)
-	}
-	if periodStart == "" {
-		periodStart = strings.TrimSpace(config.BillingPeriodStart)
-	}
-	if periodEnd == "" {
-		periodEnd = strings.TrimSpace(config.BillingPeriodEnd)
 	}
 
 	products := make([]BillingProductSummary, 0, len(config.ProductUsage))
@@ -175,6 +184,10 @@ func BuildBillingSummary(config *BillingConfig) *BillingSummary {
 
 	monthlyLimit := parseCentValue(config.MonthlyLimit)
 	used := parseCentValue(config.Used)
+	// credits 响应中的绝对金额以美元计，月度 limit/used 则以美分计。
+	prepaid := parseCentValue(config.PrepaidBalance)
+	onDemandCap := parseCentValue(config.OnDemandCap)
+	onDemandUsed := parseCentValue(config.OnDemandUsed)
 	billingStart := strings.TrimSpace(config.BillingPeriodStart)
 	billingEnd := strings.TrimSpace(config.BillingPeriodEnd)
 
@@ -194,7 +207,7 @@ func BuildBillingSummary(config *BillingConfig) *BillingSummary {
 		usedPercent = &v
 	}
 
-	hasWeekly := creditUsage != nil || periodType == "weekly" || len(products) > 0
+	hasWeekly := creditUsage != nil || periodType == "weekly" || len(products) > 0 || prepaid != nil || onDemandCap != nil || onDemandUsed != nil
 	hasMonthly := monthlyLimit != nil || used != nil || (!hasWeekly && billingEnd != "")
 	if !hasWeekly && !hasMonthly {
 		return nil
@@ -224,6 +237,24 @@ func BuildBillingSummary(config *BillingConfig) *BillingSummary {
 		summary.BillingPeriodEnd = billingEnd
 	}
 	summary.UsedPercent = usedPercent
+	summary.PrepaidBalance = prepaid
+	if onDemandCap != nil {
+		summary.OnDemandCap = onDemandCap
+	}
+	if onDemandUsed != nil {
+		summary.OnDemandUsed = onDemandUsed
+	}
+	// 管理界面的绝对金额行以美元展示月度美分值。
+	if monthlyLimit != nil {
+		v := *monthlyLimit / 100
+		summary.MonthlyLimit = &v
+	}
+	if used != nil {
+		v := *used / 100
+		summary.MonthlyUsed = &v
+	}
+	summary.TopUpMethod = strings.TrimSpace(config.TopUpMethod)
+	summary.IsUnifiedBillingUser = config.IsUnifiedBillingUser
 	summary.Plan = resolvePlan(monthlyLimit)
 	return summary
 }
@@ -252,6 +283,22 @@ func MergeBillingProbeResult(previous, weekly, monthly *BillingSummary, weeklyOK
 		out.PeriodStart = weekly.PeriodStart
 		out.PeriodEnd = weekly.PeriodEnd
 		out.ProductUsage = weekly.ProductUsage
+		// 预付和按需绝对金额通常来自 credits 周度响应。
+		if weekly.PrepaidBalance != nil {
+			out.PrepaidBalance = weekly.PrepaidBalance
+		}
+		if weekly.OnDemandCap != nil {
+			out.OnDemandCap = weekly.OnDemandCap
+		}
+		if weekly.OnDemandUsed != nil {
+			out.OnDemandUsed = weekly.OnDemandUsed
+		}
+		if weekly.TopUpMethod != "" {
+			out.TopUpMethod = weekly.TopUpMethod
+		}
+		if weekly.IsUnifiedBillingUser {
+			out.IsUnifiedBillingUser = true
+		}
 		out.WeeklyUpdatedAt = now
 	}
 	if monthlyOK && monthly != nil {
@@ -264,6 +311,15 @@ func MergeBillingProbeResult(previous, weekly, monthly *BillingSummary, weeklyOK
 		out.BillingPeriodStart = monthly.BillingPeriodStart
 		out.BillingPeriodEnd = monthly.BillingPeriodEnd
 		out.UsedPercent = monthly.UsedPercent
+		out.MonthlyLimit = monthly.MonthlyLimit
+		out.MonthlyUsed = monthly.MonthlyUsed
+		// credits 缺少按需上限时，月度探测也可能提供该值。
+		if monthly.OnDemandCap != nil && out.OnDemandCap == nil {
+			out.OnDemandCap = monthly.OnDemandCap
+		}
+		if monthly.OnDemandUsed != nil && out.OnDemandUsed == nil {
+			out.OnDemandUsed = monthly.OnDemandUsed
+		}
 		out.Plan = monthly.Plan
 		out.MonthlyUpdatedAt = now
 	}

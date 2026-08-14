@@ -80,3 +80,26 @@ describe.each(Object.keys(roots))('locale %s spread assembly', (locale) => {
     expect(collisions(admins[locale])).toEqual([])
   })
 })
+
+// 账号阈值表单直接读取 admin.accounts.*；这些键若误放进 status，
+// vue-i18n 会把键名原样显示在界面上。
+describe('account scheduling threshold locale hierarchy', () => {
+  it.each([
+    ['zh', zhAdminAccounts.accounts],
+    ['en', enAdminAccounts.accounts]
+  ] as const)('%s keeps threshold form keys outside status', (_locale, messages) => {
+    const record = messages as unknown as Record<string, unknown>
+    const status = record.status as Record<string, unknown>
+    const keys = [
+      'accountSchedulingThresholdOverride',
+      'accountSchedulingThresholdOverrideHint',
+      'accountSchedulingThresholdOverrideValue',
+      'accountSchedulingThresholdOverrideDisabledHint'
+    ]
+
+    for (const key of keys) {
+      expect(record).toHaveProperty(key)
+      expect(status).not.toHaveProperty(key)
+    }
+  })
+})

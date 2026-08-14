@@ -85,9 +85,11 @@ Usage cleanup 是管理员显式创建的持久任务，必须提供时间范围
 
 BackupService 使用 PostgreSQL dump，并把产物流式写入本地或 S3 兼容存储；配置、记录、定时调度和恢复受维护锁保护。默认内容策略会排除 `backupContentTableDataGroups` 归类的 usage records、Ops logs、专项 audit history、runtime data 和 data-share sessions，五类都必须显式选择。备份显示 completed 只证明已写出所选内容，不代表这些类别全部存在于文件中。
 
+S3 的 `multipart` 上传模式把 gzip 流作为一个对象低内存上传，适合兼容标准 multipart 签名的存储；`spooled_put` 面向只能可靠接受已知长度 `PutObject` 的兼容服务。后者超过 4 GiB 时边压缩边封装独立分卷，临时磁盘只保留当前一卷；备份记录保存每卷顺序、对象键、大小和 SHA-256。任一卷上传失败、服务重启或删除失败时，必须尝试清理全部已登记对象，并在清理不完整时保留可诊断记录。
+
 `usage_records` 备份组不只包含 `usage_logs` 和聚合表，还包含 `billing_usage_entries`、`usage_billing_dedup` 及其 archive。若恢复目标需要保留历史结算明细或请求去重证据，必须启用该组并评估体积；当前余额/订阅状态被恢复不等于这些历史证据也被恢复。
 
-恢复前读取备份记录中的 storage type/key，而不是仅使用当前存储配置；这允许切换本地/S3 后仍恢复旧记录。恢复数据库不会自动恢复 Redis 或对象存储文件。完整灾备需要分别定义 PostgreSQL、Redis、`DATA_DIR` 和外部对象的恢复点，并验证它们在同一业务时间窗口内一致。
+恢复前读取备份记录中的 storage type/key，而不是仅使用当前存储配置；这允许切换本地/S3 后仍恢复旧记录。分卷备份会先按序下载到权限受限的临时归档并校验每卷大小和 SHA-256，只有全部校验通过后才解压进入数据库，避免缺卷或坏卷造成部分恢复；旧单文件记录继续流式恢复。恢复数据库不会自动恢复 Redis 或对象存储文件。完整灾备需要分别定义 PostgreSQL、Redis、`DATA_DIR` 和外部对象的恢复点，并验证它们在同一业务时间窗口内一致。
 
 敏感 S3 配置入库前依赖稳定的加密密钥；临时生成的密钥不能用于保存新 secret。备份保留清理必须同时删除产物和记录，并在删除失败时保留可诊断状态。
 

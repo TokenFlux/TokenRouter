@@ -4,7 +4,14 @@ const ipGeoMocks = vi.hoisted(() => ({
   fetchBatch: vi.fn(),
 }))
 
+const clipboardMocks = vi.hoisted(() => ({
+  copyToClipboard: vi.fn(),
+}))
+
 vi.mock('@/utils/ipGeoLookup', () => ipGeoMocks)
+vi.mock('@/composables/useClipboard', () => ({
+  useClipboard: () => clipboardMocks,
+}))
 
 vi.mock('@/composables/useBalanceDisplay', () => ({
   useBalanceDisplay: () => ({
@@ -60,6 +67,9 @@ const messages: Record<string, string> = {
   'admin.usage.billingModeToken': 'Token',
   'admin.usage.billingModePerRequest': 'Per request',
   'admin.usage.billingModeImage': 'Image',
+  'admin.usage.requestIdCopied': 'Request ID copied',
+  'keys.copied': 'Copied',
+  'keys.copyToClipboard': 'Copy to clipboard',
 }
 
 vi.mock('vue-i18n', async () => {
@@ -81,6 +91,7 @@ const DataTableStub = {
         <slot name="cell-billing_mode" :row="row" />
         <slot name="cell-tokens" :row="row" />
         <slot name="cell-cost" :row="row" />
+        <slot name="cell-request_id" :row="row" />
       </div>
     </div>
   `,
@@ -113,6 +124,31 @@ const baseImageRow = {
   image_size_source: null,
   image_size_breakdown: null,
 }
+
+describe('admin UsageTable request ID column', () => {
+  beforeEach(() => {
+    clipboardMocks.copyToClipboard.mockReset().mockResolvedValue(true)
+  })
+
+  it('renders and copies the complete request ID', async () => {
+    const wrapper = mount(UsageTable, {
+      props: {
+        data: [{ ...baseImageRow, request_id: 'req-admin-visible-id' }],
+        loading: false,
+        columns: [{ key: 'request_id', label: 'Request ID' }],
+      },
+      global: {
+        stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true },
+      },
+    })
+
+    expect(wrapper.text()).toContain('req-admin-visible-id')
+    await wrapper.get('button[title="Copy to clipboard"]').trigger('click')
+
+    expect(clipboardMocks.copyToClipboard).toHaveBeenCalledWith('req-admin-visible-id', 'Request ID copied')
+    expect(wrapper.get('button').attributes('title')).toBe('Copied')
+  })
+})
 
 describe('admin UsageTable tooltip', () => {
   beforeEach(() => {

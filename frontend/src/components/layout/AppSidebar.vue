@@ -773,7 +773,6 @@ const adminNavItems = computed((): NavItem[] => {
       path: '/admin/risk-control',
       label: t('nav.riskControl'),
       icon: ShieldIcon,
-      hideInSimpleMode: true,
       featureFlag: () => appStore.cachedPublicSettings?.risk_control_enabled === true
     },
     { path: '/admin/redeem', label: t('nav.redeemCodes'), icon: TicketIcon, hideInSimpleMode: true },

@@ -216,6 +216,75 @@ func TestRegisterOAuthEmailAccountRollsBackCreatedUserWhenTokenPairGenerationFai
 	require.Empty(t, redeemRepo.updateCalls)
 }
 
+func TestRegisterOAuthEmailAccountRejectsExhaustedNonWhitelistDomain(t *testing.T) {
+	userRepo := &userRepoStub{domainCounts: map[string]int{"custom.example": 1}}
+	authService := newOAuthEmailFlowAuthService(
+		userRepo,
+		&redeemCodeRepoStub{},
+		&refreshTokenCacheStub{},
+		map[string]string{
+			SettingKeyRegistrationEnabled:                 "true",
+			SettingKeyRegistrationEmailSuffixWhitelist:    `["@example.com"]`,
+			SettingKeyRegistrationEmailDomainQuotaEnabled: "true",
+		},
+		&emailCacheStub{data: &VerificationCodeData{
+			Code:      "246810",
+			CreatedAt: time.Now().UTC(),
+			ExpiresAt: time.Now().UTC().Add(15 * time.Minute),
+		}},
+		nil,
+	)
+
+	_, _, err := authService.RegisterOAuthEmailAccount(
+		context.Background(),
+		"second@sub.custom.example",
+		"secret-123",
+		"246810",
+		"",
+		"oidc",
+	)
+
+	require.ErrorIs(t, err, ErrEmailDomainRegistrationLimit)
+	require.Empty(t, userRepo.created)
+}
+
+func TestSendPendingOAuthVerifyCodeRejectsExhaustedNonWhitelistDomain(t *testing.T) {
+	userRepo := &userRepoStub{domainCounts: map[string]int{"custom.example": 1}}
+	authService := newOAuthEmailFlowAuthService(
+		userRepo,
+		nil,
+		nil,
+		map[string]string{
+			SettingKeyRegistrationEnabled:                 "true",
+			SettingKeyRegistrationEmailSuffixWhitelist:    `["@example.com"]`,
+			SettingKeyRegistrationEmailDomainQuotaEnabled: "true",
+		},
+		&emailCacheStub{},
+		nil,
+	)
+
+	_, err := authService.SendPendingOAuthVerifyCode(context.Background(), "second@custom.example")
+	require.ErrorIs(t, err, ErrEmailDomainRegistrationLimit)
+}
+
+func TestSendPendingOAuthVerifyCodeRejectsNonWhitelistDomainWhenQuotaDisabled(t *testing.T) {
+	userRepo := &userRepoStub{domainCounts: map[string]int{"custom.example": 0}}
+	authService := newOAuthEmailFlowAuthService(
+		userRepo,
+		nil,
+		nil,
+		map[string]string{
+			SettingKeyRegistrationEnabled:              "true",
+			SettingKeyRegistrationEmailSuffixWhitelist: `["@example.com"]`,
+		},
+		&emailCacheStub{},
+		nil,
+	)
+
+	_, err := authService.SendPendingOAuthVerifyCode(context.Background(), "first@custom.example")
+	require.ErrorIs(t, err, ErrEmailSuffixNotAllowed)
+}
+
 func TestRegisterOAuthEmailAccountRejectsExpiredInvitation(t *testing.T) {
 	userRepo := &userRepoStub{nextID: 42}
 	expiredAt := time.Now().UTC().Add(-time.Minute)

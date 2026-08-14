@@ -13,18 +13,21 @@ import (
 )
 
 type userRepoStub struct {
-	user          *User
-	getErr        error
-	createErr     error
-	deleteErr     error
-	exists        bool
-	existsErr     error
-	nextID        int64
-	created       []*User
-	updated       []*User
-	deletedIDs    []int64
-	usersByEmail  map[string]*User
-	getByEmailErr error
+	user             *User
+	getErr           error
+	createErr        error
+	deleteErr        error
+	exists           bool
+	existsErr        error
+	nextID           int64
+	created          []*User
+	updated          []*User
+	deletedIDs       []int64
+	usersByEmail     map[string]*User
+	getByEmailErr    error
+	domainCounts     map[string]int
+	domainCountErr   error
+	domainGuardCalls []string
 }
 
 func (s *userRepoStub) Create(ctx context.Context, user *User) error {
@@ -45,6 +48,28 @@ func (s *userRepoStub) Create(ctx context.Context, user *User) error {
 
 func (s *userRepoStub) CreateWithNormalizedEmailGuard(ctx context.Context, user *User, normalizedEmail string) error {
 	return s.Create(ctx, user)
+}
+
+func (s *userRepoStub) CountUsersByEmailDomain(_ context.Context, domain string) (int, error) {
+	if s.domainCountErr != nil {
+		return 0, s.domainCountErr
+	}
+	return s.domainCounts[domain], nil
+}
+
+func (s *userRepoStub) CreateWithRegistrationEmailGuards(ctx context.Context, user *User, _ string, domain string) error {
+	s.domainGuardCalls = append(s.domainGuardCalls, domain)
+	if s.domainCounts[domain] > 0 {
+		return ErrEmailDomainRegistrationLimit
+	}
+	if err := s.Create(ctx, user); err != nil {
+		return err
+	}
+	if s.domainCounts == nil {
+		s.domainCounts = make(map[string]int)
+	}
+	s.domainCounts[domain]++
+	return nil
 }
 
 func (s *userRepoStub) GetByID(ctx context.Context, id int64) (*User, error) {

@@ -9,6 +9,8 @@ var SensitiveCredentialKeys = []string{
 	"pat", "security_oauth_token", "machine_token",
 	// API Key 类
 	"api_key", "session_key", "cookie",
+	// Grok Web SSO 与密码在兑换 Build OAuth 后不得持久化或回显。
+	"password", "sso_token", "sso", "sso-rw", "clearTextPassword",
 	// 云服务凭据
 	"aws_secret_access_key", "aws_session_token",
 	"service_account_json", "service_account", "private_key",

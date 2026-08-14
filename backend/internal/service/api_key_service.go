@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"html"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,6 +32,8 @@ var (
 	ErrAPIKeyLimitReached                = infraerrors.Conflict("API_KEY_LIMIT_REACHED", "api key limit reached")
 	ErrAPIKeyTooShort                    = infraerrors.BadRequest("API_KEY_TOO_SHORT", "api key must be at least 16 characters")
 	ErrAPIKeyInvalidChars                = infraerrors.BadRequest("API_KEY_INVALID_CHARS", "api key can only contain letters, numbers, underscores, and hyphens")
+	ErrAPIKeyLimitInvalid                = infraerrors.BadRequest("API_KEY_LIMIT_INVALID", "api key limits must be finite, non-negative, and less than 1000000000000")
+	ErrAPIKeyExpiryInvalid               = infraerrors.BadRequest("API_KEY_EXPIRY_INVALID", "expires_in_days must be greater than zero")
 	ErrAPIKeyRateLimited                 = infraerrors.TooManyRequests("API_KEY_RATE_LIMITED", "too many failed attempts, please try again later")
 	ErrAPIKeyAuthOverloaded              = infraerrors.ServiceUnavailable("API_KEY_AUTH_OVERLOADED", "api key authentication is temporarily overloaded")
 	ErrInvalidIPPattern                  = infraerrors.BadRequest("INVALID_IP_PATTERN", "invalid IP or CIDR pattern")
@@ -79,6 +82,8 @@ const (
 	apiKeyMaxErrorsPerHour       = 20
 	apiKeyLastUsedMinTouch       = 30 * time.Second
 	apiKeySortCurrentConcurrency = "current_concurrency"
+	// PostgreSQL DECIMAL(20,8) 的整数部分最多 12 位，输入必须严格小于该上界。
+	apiKeyLimitUpperBound = 1_000_000_000_000
 	// DB 写失败后的短退避，避免请求路径持续同步重试造成写风暴与高延迟。
 	apiKeyLastUsedFailBackoff = 5 * time.Second
 )
@@ -330,6 +335,67 @@ type UpdateAPIKeyRequest struct {
 	// 数据共享确认字段：用户切换到数据共享分组时必须由弹窗确认后提交。
 	DataSharingConfirmed     bool `json:"data_sharing_confirmed"`
 	DataSharingNoticeVersion int  `json:"data_sharing_notice_version"`
+}
+
+// ValidateAPIKeyLimit 校验可写入 DECIMAL(20,8) 的 API Key 配额或滚动限额。
+func ValidateAPIKeyLimit(field string, value float64) error {
+	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 || value >= apiKeyLimitUpperBound {
+		return ErrAPIKeyLimitInvalid.WithMetadata(map[string]string{
+			"field":         field,
+			"max_exclusive": strconv.FormatFloat(apiKeyLimitUpperBound, 'f', 0, 64),
+		})
+	}
+	return nil
+}
+
+// ValidateAPIKeyExpiresInDays 校验创建 API Key 时显式提供的有效天数。
+func ValidateAPIKeyExpiresInDays(days int) error {
+	if days <= 0 {
+		return ErrAPIKeyExpiryInvalid
+	}
+	return nil
+}
+
+func validateCreateAPIKeyRequest(req CreateAPIKeyRequest) error {
+	limits := []struct {
+		field string
+		value float64
+	}{
+		{field: "quota", value: req.Quota},
+		{field: "rate_limit_5h", value: req.RateLimit5h},
+		{field: "rate_limit_1d", value: req.RateLimit1d},
+		{field: "rate_limit_7d", value: req.RateLimit7d},
+	}
+	for _, limit := range limits {
+		if err := ValidateAPIKeyLimit(limit.field, limit.value); err != nil {
+			return err
+		}
+	}
+	if req.ExpiresInDays != nil {
+		return ValidateAPIKeyExpiresInDays(*req.ExpiresInDays)
+	}
+	return nil
+}
+
+func validateUpdateAPIKeyRequest(req UpdateAPIKeyRequest) error {
+	limits := []struct {
+		field string
+		value *float64
+	}{
+		{field: "quota", value: req.Quota},
+		{field: "rate_limit_5h", value: req.RateLimit5h},
+		{field: "rate_limit_1d", value: req.RateLimit1d},
+		{field: "rate_limit_7d", value: req.RateLimit7d},
+	}
+	for _, limit := range limits {
+		if limit.value == nil {
+			continue
+		}
+		if err := ValidateAPIKeyLimit(limit.field, *limit.value); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // APIKeyService API Key服务
@@ -643,6 +709,9 @@ func (s *APIKeyService) canUserUseBoundGroup(ctx context.Context, apiKey *APIKey
 
 // Create 创建API Key
 func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIKeyRequest) (*APIKey, error) {
+	if err := validateCreateAPIKeyRequest(req); err != nil {
+		return nil, err
+	}
 	fastModePolicy, ok := NormalizeAPIKeyFastModePolicy(req.FastModePolicy)
 	if !ok {
 		return nil, ErrInvalidAPIKeyFastModePolicy
@@ -1235,6 +1304,9 @@ func resolveAPIKeyFallbackPlatform(ctx context.Context) (string, bool) {
 
 // Update 更新API Key
 func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req UpdateAPIKeyRequest) (*APIKey, error) {
+	if err := validateUpdateAPIKeyRequest(req); err != nil {
+		return nil, err
+	}
 	apiKey, err := s.apiKeyRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("get api key: %w", err)

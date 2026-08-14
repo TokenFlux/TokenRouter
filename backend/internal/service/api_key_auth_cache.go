@@ -128,7 +128,14 @@ type APIKeyAuthGroupSnapshot struct {
 	VideoPrice480P                  *float64                        `json:"video_price_480p,omitempty"`
 	VideoPrice720P                  *float64                        `json:"video_price_720p,omitempty"`
 	VideoPrice1080P                 *float64                        `json:"video_price_1080p,omitempty"`
+	VideoModelPrices                map[string]map[string]float64   `json:"video_model_prices,omitempty"`
 	WebSearchPricePerCall           *float64                        `json:"web_search_price_per_call,omitempty"`
+	SearchPricePer1k                *float64                        `json:"search_price_per_1k,omitempty"`
+	AudioRealtimePricePerMin        *float64                        `json:"audio_realtime_price_per_min,omitempty"`
+	AudioTTSPricePerMillionChars    *float64                        `json:"audio_tts_price_per_million_chars,omitempty"`
+	AudioSTTPricePerHour            *float64                        `json:"audio_stt_price_per_hour,omitempty"`
+	LongContextPricingEnabled       bool                            `json:"long_context_pricing_enabled"`
+	ModelPricing                    []ChannelModelPricing           `json:"model_pricing,omitempty"`
 	ClaudeCodeOnly                  bool                            `json:"claude_code_only"`
 	FallbackGroupID                 *int64                          `json:"fallback_group_id,omitempty"`
 	FallbackGroupIDOnInvalidRequest *int64                          `json:"fallback_group_id_on_invalid_request,omitempty"`

@@ -19,6 +19,17 @@ export interface GrokAuthUrlRequest {
   redirect_uri?: string
 }
 
+export interface GrokOAuthCapabilities {
+  password_auth_enabled: boolean
+}
+
+const GROK_AUTHORIZATION_TIMEOUT_MS = 120_000
+
+export async function getCapabilities(): Promise<GrokOAuthCapabilities> {
+  const { data } = await apiClient.get<GrokOAuthCapabilities>('/admin/grok/oauth/capabilities')
+  return data
+}
+
 export interface GrokExchangeCodeRequest {
   session_id: string
   state: string
@@ -170,4 +181,48 @@ export async function createFromSSO(payload: GrokSSOToOAuthRequest): Promise<Gro
   return data
 }
 
-export default { generateAuthUrl, exchangeCode, refreshGrokToken, queryQuota, resetQuota, createFromSSO }
+/** 校验浏览器 SSO Cookie 并转换为 Build OAuth 令牌，不存储原始 SSO 数据。 */
+export async function validateSSOToken(
+  ssoToken: string,
+  proxyId?: number | null
+): Promise<GrokTokenInfo> {
+  const payload: Record<string, unknown> = { sso_token: ssoToken }
+  if (proxyId) payload.proxy_id = proxyId
+  const { data } = await apiClient.post<GrokTokenInfo>('/admin/grok/oauth/sso-token', payload, {
+    timeout: GROK_AUTHORIZATION_TIMEOUT_MS
+  })
+  return data
+}
+
+/**
+ * 密码登录先换取临时 SSO，再兑换 Build OAuth。
+ * 密码只在本次调用中通过网络发送，绝不写入持久化凭证。
+ */
+export async function authorizePassword(
+  emailAndPassword: string,
+  proxyId?: number | null
+): Promise<GrokTokenInfo> {
+  // 格式为 email----password，密码本身可以包含连字符。
+  const sep = '----'
+  const idx = emailAndPassword.indexOf(sep)
+  const email = (idx >= 0 ? emailAndPassword.slice(0, idx) : emailAndPassword).trim()
+  const password = idx >= 0 ? emailAndPassword.slice(idx + sep.length) : ''
+  const payload: Record<string, unknown> = { email, password }
+  if (proxyId) payload.proxy_id = proxyId
+  const { data } = await apiClient.post<GrokTokenInfo>('/admin/grok/oauth/password', payload, {
+    timeout: GROK_AUTHORIZATION_TIMEOUT_MS
+  })
+  return data
+}
+
+export default {
+  generateAuthUrl,
+  getCapabilities,
+  exchangeCode,
+  refreshGrokToken,
+  queryQuota,
+  resetQuota,
+  createFromSSO,
+  validateSSOToken,
+  authorizePassword,
+}

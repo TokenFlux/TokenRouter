@@ -16,6 +16,7 @@ const (
 	openAISilentRefusalErrorCode           = "openai_silent_refusal"
 	openAISilentRefusalUpstreamMessage     = "OpenAI upstream returned an empty completion stream with finish_reason=stop and no usage"
 	openAISilentRefusalClientMessage       = "Upstream returned an empty completion without usage; no fallback account was available"
+	openAIResponsesEmptyCompletedMessage   = "OpenAI upstream returned an empty response.completed stream with no output and no usage"
 )
 
 type openAIChatSilentRefusalDetector struct {
@@ -97,7 +98,7 @@ func (d *openAIChatSilentRefusalDetector) ObserveChatChunk(chunk apicompat.ChatC
 		if delta.Content != nil && *delta.Content != "" {
 			d.sawContent = true
 		}
-		if delta.ReasoningContent != nil {
+		if delta.ReasoningText() != nil {
 			d.sawReasoning = true
 		}
 		if len(delta.ToolCalls) > 0 {
@@ -253,6 +254,40 @@ func newOpenAISilentRefusalFailoverError(c *gin.Context, account *Account, upstr
 		UpstreamRequestID:  upstreamRequestID,
 		Kind:               "failover",
 		Message:            openAISilentRefusalUpstreamMessage,
+	})
+
+	headers := http.Header{}
+	if strings.TrimSpace(upstreamRequestID) != "" {
+		headers.Set("x-request-id", strings.TrimSpace(upstreamRequestID))
+	}
+	return &UpstreamFailoverError{
+		StatusCode:      http.StatusBadGateway,
+		ResponseBody:    openAISilentRefusalErrorBody(),
+		ResponseHeaders: headers,
+	}
+}
+
+// newOpenAIResponsesEmptyCompletedFailoverError 将空 Responses 终态标记为可重试的上游异常。
+// 这类响应没有任何可见输出、用量或错误，不应作为成功请求结算。
+func newOpenAIResponsesEmptyCompletedFailoverError(c *gin.Context, account *Account, upstreamRequestID string) *UpstreamFailoverError {
+	accountID := int64(0)
+	accountName := ""
+	platform := PlatformOpenAI
+	if account != nil {
+		accountID = account.ID
+		accountName = account.Name
+		platform = account.Platform
+	}
+
+	setOpsUpstreamError(c, http.StatusBadGateway, openAIResponsesEmptyCompletedMessage, "")
+	appendOpsUpstreamError(c, OpsUpstreamErrorEvent{
+		Platform:           platform,
+		AccountID:          accountID,
+		AccountName:        accountName,
+		UpstreamStatusCode: http.StatusBadGateway,
+		UpstreamRequestID:  upstreamRequestID,
+		Kind:               "failover",
+		Message:            openAIResponsesEmptyCompletedMessage,
 	})
 
 	headers := http.Header{}

@@ -324,6 +324,11 @@ interface FileConfig {
   highlighted?: string
 }
 
+// joinConfigPath 根据目标终端选择配置文件路径分隔符。
+function joinConfigPath(dir: string, file: string, windows: boolean): string {
+  return windows ? `${dir}\\${file}` : `${dir}/${file}`
+}
+
 type OpenCodeProfile = GroupPlatform | 'antigravity-claude' | 'antigravity-gemini'
 
 const props = defineProps<Props>()
@@ -702,9 +707,14 @@ const platformNote = computed(() => {
           ? t('keys.useKeyModal.grok.codexNoteWindows')
           : t('keys.useKeyModal.grok.codexNote')
       }
-      return activeTab.value === 'windows'
-        ? t('keys.useKeyModal.grok.noteWindows')
-        : t('keys.useKeyModal.grok.note')
+      // Grok CLI 根据 Shell 展示环境变量与 ~/.grok/config.toml 路径说明。
+      if (activeClientTab.value === 'grok' && (activeTab.value === 'cmd' || activeTab.value === 'powershell')) {
+        return t('keys.useKeyModal.grok.noteWindows')
+      }
+      if (activeClientTab.value === 'grok' && activeTab.value === 'windows') {
+        return t('keys.useKeyModal.grok.noteWindows')
+      }
+      return t('keys.useKeyModal.grok.note')
     default:
       return t('keys.useKeyModal.note')
   }
@@ -1118,36 +1128,172 @@ http_headers = { "x-openai-actor-authorization" = "local-image-extension" }`
   return 'requires_openai_auth = true'
 }
 
-// 生成 Grok Build CLI 使用的模型配置文件。
+// 生成 Grok Build CLI 的完整端点、认证和模型配置。
 function generateGrokFiles(baseUrl: string, apiKey: string): FileConfig[] {
-  const isWindows = activeTab.value === 'windows'
-  const configDir = isWindows ? '%userprofile%\\.grok' : '~/.grok'
-  const configContent = `[models]
-default = "grok"
-web_search = "grok"
+  // 显示 Shell 标签页时优先选择 unix、cmd 或 powershell，否则回退到 windows 标签页。
+  const shell = activeTab.value
+  const isWindowsPath = shell === 'windows' || shell === 'cmd' || shell === 'powershell'
+  const configDir = isWindowsPath ? '%userprofile%\\.grok' : '~/.grok'
 
-[model."grok"]
-model = "grok-4.5"
-base_url = "${baseUrl}"
-name = "Grok 4.5"
-api_key = "${apiKey}"
+  let envPath: string
+  let envContent: string
+  switch (shell) {
+    case 'cmd':
+      envPath = 'Command Prompt'
+      envContent = `set GROK_MODELS_BASE_URL=${baseUrl}
+set XAI_API_KEY=${apiKey}`
+      break
+    case 'powershell':
+    case 'windows':
+      envPath = 'PowerShell'
+      envContent = `$env:GROK_MODELS_BASE_URL="${baseUrl}"
+$env:XAI_API_KEY="${apiKey}"`
+      break
+    default:
+      envPath = 'Terminal'
+      envContent = `export GROK_MODELS_BASE_URL="${baseUrl}"
+export XAI_API_KEY="${apiKey}"`
+  }
+
+  // 配置结构遵循 Grok Build 用户指南中的 ~/.grok/docs 与 custom-models，并兼容生产环境设置。
+  // 此处只配置 Responses 文本模型；图片和视频使用媒体端点或功能覆盖中的 Imagine 模型 ID。
+  // 凭证优先级依次为 api_key 字段、env_key、已登录会话和全局 XAI_API_KEY 回退值。
+  const modelsListUrl = `${baseUrl.replace(/\/+$/, '')}/models`
+  const configContent = `# Grok Build CLI → Sub2API Grok group (API key auth).
+# Docs: ~/.grok/docs/user-guide/05-configuration.md + 11-custom-models.md
+# Verify after save: grok inspect
+#
+# IMPORTANT: api_backend must be "responses" for Sub2API Grok (POST /v1/responses).
+# If omitted, Grok Build defaults to chat_completions (/v1/chat/completions).
+# Keep api_backend = "responses" on every model entry.
+#
+# Prefer env_key over hardcoding api_key (never commit secrets).
+# Also export GROK_MODELS_BASE_URL + XAI_API_KEY in the shell block above.
+
+# Global inference / catalog endpoints (same role as env GROK_MODELS_BASE_URL).
+# When models_base_url is set, Grok uses API-key Bearer auth (no grok login required).
+[endpoints]
+models_base_url = "${baseUrl}"              # inference base; model list defaults to {base}/models
+models_list_url = "${modelsListUrl}"        # optional override (env: GROK_MODELS_LIST_URL)
+xai_api_base_url = "${baseUrl}"             # public xAI API base override for gateway routing
+cli_chat_proxy_base_url = "${baseUrl}"      # CLI chat-proxy base (env: GROK_CLI_CHAT_PROXY_BASE_URL)
+
+# Prefer API key when using a custom gateway (matches Sub2API).
+# Requires XAI_API_KEY env or per-model env_key / api_key.
+[auth]
+preferred_method = "api_key"
+
+[model."grok-4.5"]
+model = "grok-4.5"                          # id sent to the API
+name = "Grok 4.5"                           # shown in /model picker
+description = "Grok 4.5 via Sub2API (Responses)"
+# base_url inherits from [endpoints].models_base_url; override only if needed:
+# base_url = "${baseUrl}"
+env_key = "XAI_API_KEY"                     # or: api_key = "${apiKey}"  (not recommended)
+api_backend = "responses"                   # chat_completions | responses | messages
+context_window = 500000                     # drives auto-compaction timing
+# Optional sampling (global defaults can live under [models] instead):
+# temperature = 0.7
+# top_p = 0.95
+# max_completion_tokens = 8192
+# Server-side (backend) web_search tools — only if your gateway exposes them:
+supports_backend_search = true
+
+[model."grok-build-0.1"]
+model = "grok-build-0.1"
+name = "Grok Build"
+description = "Coding / agent sessions (xAI recommends grok-build* for coding)"
+env_key = "XAI_API_KEY"
+api_backend = "responses"
+context_window = 256000
+supports_backend_search = true
+
+# Text multi-agent / client web_search sub-agent (NOT Imagine image/video).
+[model."grok-4.20-multi-agent-0309"]
+model = "grok-4.20-multi-agent-0309"
+name = "Grok 4.20 Multi Agent (text / web_search)"
+description = "Text multi-agent; use for web_search sub-agent, not image/video"
+env_key = "XAI_API_KEY"
 api_backend = "responses"
 context_window = 1000000
-supports_backend_search = true`
+supports_backend_search = true
 
-  return [{
-    path: `${configDir}/config.toml`,
-    content: configContent,
-    hint: t('keys.useKeyModal.grok.configTomlHint')
-  }]
+[model."grok-4.3"]
+model = "grok-4.3"
+name = "Grok 4.3"
+env_key = "XAI_API_KEY"
+api_backend = "responses"
+context_window = 1000000
+supports_backend_search = true
+
+# Optional short alias for /model grok:
+# [model."grok"]
+# model = "grok-4.5"
+# name = "Grok"
+# env_key = "XAI_API_KEY"
+# api_backend = "responses"
+# context_window = 1000000
+# supports_backend_search = true
+
+[models]
+# xAI recommends grok-build* for coding/agent sessions; use grok-4.5 for general chat.
+default = "grok-4.5"
+web_search = "grok-4.5"                     # client-side web_search tool model (must exist as [model.*])
+image_description = "grok-4.5"              # vision/describe-image helper model
+# Optional environment-wide sampling defaults (per-model values win):
+# temperature = 0.7
+# top_p = 0.95
+# max_completion_tokens = 8192
+# max_retries = 8
+
+[session]
+auto_compact_threshold_percent = 80         # auto-compact at this % of context_window (default 85)
+
+# Imagine tools: model IDs go to Sub2API media endpoints (not the text [model.*] catalog).
+# Enable only if the Grok group allows image/video generation.
+[features]
+image_gen = true
+video_gen = true
+image_gen_model_override = "grok-imagine-image-quality"   # or grok-imagine-image
+image_edit_model_override = "grok-imagine-edit"
+# Optional feature flags (defaults shown in docs):
+# telemetry = false
+# remote_fetch = true                         # set false for air-gapped / pure-gateway catalogs
+# lsp_tools = false`
+
+  return [
+    { path: envPath, content: envContent },
+    {
+      path: joinConfigPath(configDir, 'config.toml', isWindowsPath),
+      content: configContent,
+      hint: t('keys.useKeyModal.grok.configTomlHint')
+    }
+  ]
 }
 
 function generateGrokCodexFiles(baseUrl: string, apiKey: string): FileConfig[] {
-  const isWindows = activeTab.value === 'windows'
-  const configPath = isWindows
-    ? '%USERPROFILE%\\.codex\\config.toml'
-    : '~/.codex/config.toml'
-  const configContent = `model_provider = "tokenrouter_grok"
+	const shell = activeTab.value
+	const isWindowsPath = shell === 'windows' || shell === 'cmd' || shell === 'powershell'
+	const configDir = isWindowsPath ? '%USERPROFILE%\\.codex' : '~/.codex'
+
+	let envPath: string
+	let envContent: string
+	switch (shell) {
+		case 'cmd':
+			envPath = 'Command Prompt'
+			envContent = `set TOKENROUTER_API_KEY=${apiKey}`
+			break
+		case 'powershell':
+		case 'windows':
+			envPath = 'PowerShell'
+			envContent = `$env:TOKENROUTER_API_KEY="${apiKey}"`
+			break
+		default:
+			envPath = 'Terminal'
+			envContent = `export TOKENROUTER_API_KEY="${apiKey}"`
+	}
+
+	const configContent = `model_provider = "tokenrouter_grok"
 model = "grok-4.5"
 review_model = "grok-4.5"
 model_reasoning_effort = "xhigh"
@@ -1158,23 +1304,20 @@ name = "TokenRouter Grok"
 base_url = "${baseUrl}"
 env_key = "TOKENROUTER_API_KEY"
 wire_api = "responses"
-supports_websockets = true
+# API-key providers: do not require ChatGPT OAuth login
+requires_openai_auth = false
+# Grok/Sub2API path is HTTP/SSE; disable WS (Codex may otherwise try WebSocket first)
+supports_websockets = false
 
 [features]
-responses_websockets_v2 = true`
-  const environmentContent = isWindows
-    ? `$env:TOKENROUTER_API_KEY="${apiKey}"`
-    : `export TOKENROUTER_API_KEY="${apiKey}"`
+responses_websockets_v2 = false`
 
-  return [
+	return [
+		{ path: envPath, content: envContent },
     {
-      path: configPath,
+      path: joinConfigPath(configDir, 'config.toml', isWindowsPath),
       content: configContent,
       hint: t('keys.useKeyModal.grok.codexConfigTomlHint')
-    },
-    {
-      path: isWindows ? 'PowerShell' : 'Terminal',
-      content: environmentContent
     }
   ]
 }
@@ -1663,22 +1806,28 @@ function generateOpenCodeConfig(
       }
     }
   }
+  // 已知模型的 context_window 与 Grok Build 官方示例 docs.x.ai/build/settings 保持一致。
+  // 图片和视频模型只用于媒体端点，不列入文本模型清单。
   const grokModels = {
     'grok-4.5': {
       name: 'Grok 4.5',
-      limit: { context: 1000000, output: 128000 }
-    },
-    'grok-4.3': {
-      name: 'Grok 4.3',
-      limit: { context: 1000000, output: 128000 }
+      limit: { context: 500000, output: 64000 }
     },
     'grok-build-0.1': {
       name: 'Grok Build 0.1',
-      limit: { context: 256000, output: 128000 }
+      limit: { context: 256000, output: 64000 }
+    },
+    'grok-4.20-multi-agent-0309': {
+      name: 'Grok 4.20 Multi Agent (text / web_search)',
+      limit: { context: 1000000, output: 64000 }
+    },
+    'grok-4.3': {
+      name: 'Grok 4.3',
+      limit: { context: 1000000, output: 64000 }
     },
     'grok-composer-2.5-fast': {
       name: 'Grok Composer 2.5 Fast',
-      limit: { context: 500000, output: 128000 }
+      limit: { context: 500000, output: 64000 }
     }
   }
 
