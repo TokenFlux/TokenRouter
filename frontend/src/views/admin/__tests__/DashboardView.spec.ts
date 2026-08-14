@@ -119,7 +119,7 @@ describe('admin DashboardView', () => {
   })
 
   it('uses last 24 hours as default dashboard range', async () => {
-    mount(DashboardView, {
+    const wrapper = mount(DashboardView, {
       global: {
         plugins: [pinia],
         stubs: {
@@ -146,5 +146,6 @@ describe('admin DashboardView', () => {
       end_date: formatLocalDate(now),
       granularity: 'hour'
     }))
+    expect(wrapper.find('.card date-range-picker-stub').exists()).toBe(true)
   })
 })

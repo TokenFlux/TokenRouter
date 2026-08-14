@@ -528,10 +528,6 @@
     box-shadow: 0 1px 2px rgba(24, 24, 27, 0.04), 0 10px 30px rgba(24, 24, 27, 0.035);
   }
 
-  .dashboard-toolbar {
-    @apply flex flex-wrap items-center gap-4 border-y border-gray-200/80 bg-white/60 px-1 py-3;
-  }
-
   .dark .dashboard-metric,
   .dark .dashboard-panel {
     @apply border-dark-600/80 bg-dark-900/95;
@@ -541,10 +537,6 @@
   .dark .dashboard-metric:hover {
     @apply border-dark-500;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  }
-
-  .dark .dashboard-toolbar {
-    @apply border-dark-700 bg-transparent;
   }
 
   /* ============ 表格样式 ============ */

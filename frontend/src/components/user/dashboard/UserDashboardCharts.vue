@@ -1,8 +1,8 @@
 <template>
   <div class="space-y-6">
-    <!-- 时间筛选属于页面工具，不使用内容卡片包裹。 -->
-    <div class="dashboard-toolbar">
-      <div class="flex w-full flex-wrap items-center gap-4">
+    <!-- 时间筛选沿用全站统一的卡片容器。 -->
+    <div class="card p-4">
+      <div class="flex flex-wrap items-center gap-4">
         <div class="flex items-center gap-2">
           <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('dashboard.timeRange') }}:</span>
           <DateRangePicker :start-date="startDate" :end-date="endDate" @update:startDate="$emit('update:startDate', $event)" @update:endDate="$emit('update:endDate', $event)" @change="$emit('dateRangeChange', $event)" />
