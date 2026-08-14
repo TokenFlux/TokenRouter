@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	infraerrors "github.com/BrandonVee/TokenRouter/internal/pkg/errors"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/logger"
 )
 
 const (

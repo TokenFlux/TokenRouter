@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/httpclient"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/geminicli"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/httpclient"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/logger"
 )
 
 const (

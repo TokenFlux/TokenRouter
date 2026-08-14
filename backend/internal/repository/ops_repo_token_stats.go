@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 )
 
 func (r *opsRepository) GetTokenStats(ctx context.Context, filter *service.OpsTokenStatsFilter) (*service.OpsTokenStatsResponse, error) {

@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )

@@ -6,9 +6,9 @@
   <p><strong>AI API gateway and subscription quota management platform</strong></p>
 
   <p>
-    <a href="https://github.com/TokenFlux/TokenRouter/actions/workflows/backend-ci.yml"><img src="https://github.com/TokenFlux/TokenRouter/actions/workflows/backend-ci.yml/badge.svg" alt="CI" /></a>
-    <a href="https://github.com/TokenFlux/TokenRouter/releases"><img src="https://img.shields.io/github/v/release/TokenFlux/TokenRouter?display_name=tag" alt="Release" /></a>
-    <a href="https://github.com/TokenFlux/TokenRouter/pkgs/container/tokenrouter"><img src="https://img.shields.io/badge/container-ghcr.io%2Ftokenflux%2Ftokenrouter-2496ED?logo=docker&logoColor=white" alt="Container" /></a>
+    <a href="https://github.com/BrandonVee/TokenRouter/actions/workflows/backend-ci.yml"><img src="https://github.com/BrandonVee/TokenRouter/actions/workflows/backend-ci.yml/badge.svg" alt="CI" /></a>
+    <a href="https://github.com/BrandonVee/TokenRouter/releases"><img src="https://img.shields.io/github/v/release/BrandonVee/TokenRouter?display_name=tag" alt="Release" /></a>
+    <a href="https://github.com/BrandonVee/TokenRouter/pkgs/container/tokenrouter"><img src="https://img.shields.io/badge/container-ghcr.io%2Fbrandonvee%2Ftokenrouter-2496ED?logo=docker&logoColor=white" alt="Container" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-LGPL--3.0--or--later-4c1.svg" alt="License: LGPL-3.0-or-later" /></a>
   </p>
 
@@ -54,4 +54,4 @@ TokenRouter can be deployed with the installation script, Docker Compose, a sour
 
 This project is distributed under the [GNU Lesser General Public License v3.0 or later](LICENSE).
 
-Copyright (c) 2026 Wesley Liddick & TokenFlux
+Copyright (c) 2026 BrandonVee

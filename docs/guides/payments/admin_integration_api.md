@@ -137,5 +137,5 @@ https://pay.example.com/pay?user_id=123&token=<jwt>&theme=light&lang=zh&ui_mode=
 
 ## `doc_url` 配置建议
 
-- 查看链接：`https://github.com/TokenFlux/TokenRouter/blob/main/docs/guides/payments/admin_integration_api.md`
-- 下载链接：`https://raw.githubusercontent.com/TokenFlux/TokenRouter/main/docs/guides/payments/admin_integration_api.md`
+- 查看链接：`https://github.com/BrandonVee/TokenRouter/blob/main/docs/guides/payments/admin_integration_api.md`
+- 下载链接：`https://raw.githubusercontent.com/BrandonVee/TokenRouter/main/docs/guides/payments/admin_integration_api.md`

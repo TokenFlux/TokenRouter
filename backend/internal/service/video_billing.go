@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/xai"
 )
 
 // 以下为 groups.video_model_prices JSONB 使用的标准视频价格族键。

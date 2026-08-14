@@ -9,9 +9,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/team"
-	"github.com/TokenFlux/TokenRouter/ent/teammembership"
-	"github.com/TokenFlux/TokenRouter/ent/user"
+	"github.com/BrandonVee/TokenRouter/ent/team"
+	"github.com/BrandonVee/TokenRouter/ent/teammembership"
+	"github.com/BrandonVee/TokenRouter/ent/user"
 )
 
 // TeamMembership is the model entity for the TeamMembership schema.

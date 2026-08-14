@@ -3,7 +3,7 @@ package service
 import (
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/timezone"
 )
 
 const (

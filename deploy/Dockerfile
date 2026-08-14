@@ -81,9 +81,9 @@ RUN VERSION_VALUE="${VERSION}" && \
 FROM ${ALPINE_IMAGE}
 
 # Labels
-LABEL maintainer="TokenFlux <github.com/TokenFlux>"
+LABEL maintainer="BrandonVee <github.com/BrandonVee>"
 LABEL description="TokenRouter - AI API Gateway Platform"
-LABEL org.opencontainers.image.source="https://github.com/TokenFlux/TokenRouter"
+LABEL org.opencontainers.image.source="https://github.com/BrandonVee/TokenRouter"
 
 # Install runtime dependencies
 RUN apk add --no-cache \

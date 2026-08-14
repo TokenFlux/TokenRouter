@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	dbmigrations "github.com/TokenFlux/TokenRouter/migrations"
+	dbmigrations "github.com/BrandonVee/TokenRouter/migrations"
 	"github.com/stretchr/testify/require"
 )
 

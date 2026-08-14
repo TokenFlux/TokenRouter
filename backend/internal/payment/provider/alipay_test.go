@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/payment"
+	"github.com/BrandonVee/TokenRouter/internal/payment"
 	"github.com/smartwalle/alipay/v3"
 )
 

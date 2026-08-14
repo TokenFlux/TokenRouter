@@ -9,7 +9,7 @@ import (
 	"testing"
 	"unicode/utf8"
 
-	"github.com/TokenFlux/TokenRouter/internal/payment"
+	"github.com/BrandonVee/TokenRouter/internal/payment"
 )
 
 func TestNormalizeEasyPayAPIBase(t *testing.T) {

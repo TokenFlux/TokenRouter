@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/config"
 )
 
 // ModelAvailabilityDiagnosis 描述请求模型是否被分组内任一持久可用账号支持。

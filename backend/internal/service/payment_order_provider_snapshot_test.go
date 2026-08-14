@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/payment"
+	"github.com/BrandonVee/TokenRouter/internal/payment"
 	"github.com/stretchr/testify/require"
 )
 

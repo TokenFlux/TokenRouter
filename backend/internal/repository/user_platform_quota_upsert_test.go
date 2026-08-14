@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/ent/userplatformquota"
+	"github.com/BrandonVee/TokenRouter/ent/userplatformquota"
 	"github.com/stretchr/testify/require"
 )
 

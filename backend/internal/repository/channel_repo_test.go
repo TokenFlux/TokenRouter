@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/pagination"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 )

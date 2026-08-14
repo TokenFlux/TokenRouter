@@ -10,7 +10,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/datasharesession"
+	"github.com/BrandonVee/TokenRouter/ent/datasharesession"
 )
 
 // DataShareSession is the model entity for the DataShareSession schema.

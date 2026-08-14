@@ -12,7 +12,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/config"
 )
 
 const liveAttestationHeader = "x-oai-attestation"

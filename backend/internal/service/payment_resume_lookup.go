@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	infraerrors "github.com/BrandonVee/TokenRouter/internal/pkg/errors"
 )
 
 func (s *PaymentService) GetPublicOrderByResumeToken(ctx context.Context, token string) (*dbent.PaymentOrder, error) {

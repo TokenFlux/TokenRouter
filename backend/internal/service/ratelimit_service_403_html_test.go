@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/config"
 	"github.com/stretchr/testify/require"
 )
 

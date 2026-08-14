@@ -8,15 +8,15 @@ package main
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/handler"
-	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
-	"github.com/TokenFlux/TokenRouter/internal/payment"
-	"github.com/TokenFlux/TokenRouter/internal/repository"
-	"github.com/TokenFlux/TokenRouter/internal/server"
-	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/handler"
+	"github.com/BrandonVee/TokenRouter/internal/handler/admin"
+	"github.com/BrandonVee/TokenRouter/internal/payment"
+	"github.com/BrandonVee/TokenRouter/internal/repository"
+	"github.com/BrandonVee/TokenRouter/internal/server"
+	"github.com/BrandonVee/TokenRouter/internal/server/middleware"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 	"github.com/redis/go-redis/v9"
 	"log"
 	"net/http"
@@ -26,7 +26,7 @@ import (
 
 import (
 	_ "embed"
-	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
+	_ "github.com/BrandonVee/TokenRouter/ent/runtime"
 )
 
 // Injectors from wire.go:

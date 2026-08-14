@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/httpclient"
-	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/httpclient"
+	"github.com/BrandonVee/TokenRouter/internal/util/urlvalidator"
 )
 
 type CRSSyncService struct {

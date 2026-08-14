@@ -12,10 +12,10 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
-	"github.com/TokenFlux/TokenRouter/ent/redeemcode"
-	"github.com/TokenFlux/TokenRouter/ent/redeemcodeusage"
-	"github.com/TokenFlux/TokenRouter/ent/user"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/redeemcode"
+	"github.com/BrandonVee/TokenRouter/ent/redeemcodeusage"
+	"github.com/BrandonVee/TokenRouter/ent/user"
 )
 
 // RedeemCodeUsageQuery is the builder for querying RedeemCodeUsage entities.

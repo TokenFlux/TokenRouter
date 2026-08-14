@@ -12,14 +12,14 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/account"
-	"github.com/TokenFlux/TokenRouter/ent/apikey"
-	"github.com/TokenFlux/TokenRouter/ent/group"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
-	"github.com/TokenFlux/TokenRouter/ent/team"
-	"github.com/TokenFlux/TokenRouter/ent/usagelog"
-	"github.com/TokenFlux/TokenRouter/ent/user"
-	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
+	"github.com/BrandonVee/TokenRouter/ent/account"
+	"github.com/BrandonVee/TokenRouter/ent/apikey"
+	"github.com/BrandonVee/TokenRouter/ent/group"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/team"
+	"github.com/BrandonVee/TokenRouter/ent/usagelog"
+	"github.com/BrandonVee/TokenRouter/ent/user"
+	"github.com/BrandonVee/TokenRouter/ent/usersubscription"
 )
 
 // UsageLogQuery is the builder for querying UsageLog entities.

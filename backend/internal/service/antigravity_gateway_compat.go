@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/antigravity"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/apicompat"
 	"github.com/gin-gonic/gin"
 )
 

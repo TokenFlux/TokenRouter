@@ -2,4 +2,4 @@
 
 package ent
 
-// The schema-stitching logic is generated in github.com/TokenFlux/TokenRouter/ent/runtime/runtime.go
+// The schema-stitching logic is generated in github.com/BrandonVee/TokenRouter/ent/runtime/runtime.go

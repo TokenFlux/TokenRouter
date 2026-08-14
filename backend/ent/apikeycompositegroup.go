@@ -9,9 +9,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/apikey"
-	"github.com/TokenFlux/TokenRouter/ent/apikeycompositegroup"
-	"github.com/TokenFlux/TokenRouter/ent/group"
+	"github.com/BrandonVee/TokenRouter/ent/apikey"
+	"github.com/BrandonVee/TokenRouter/ent/apikeycompositegroup"
+	"github.com/BrandonVee/TokenRouter/ent/group"
 )
 
 // APIKeyCompositeGroup is the model entity for the APIKeyCompositeGroup schema.

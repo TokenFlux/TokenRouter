@@ -8560,10 +8560,10 @@ const isZhLocale = computed(() => locale.value.startsWith("zh"));
 
 // 支付帮助固定指向本仓库维护的指南，避免继续引用已漂移的上游文档。
 const paymentGuideHref =
-  "https://github.com/TokenFlux/TokenRouter/blob/main/docs/guides/payments/configuration.md";
+  "https://github.com/BrandonVee/TokenRouter/blob/main/docs/guides/payments/configuration.md";
 
 const paymentMethodsHref =
-  "https://github.com/TokenFlux/TokenRouter/blob/main/docs/guides/payments/configuration.md#支持的支付方式";
+  "https://github.com/BrandonVee/TokenRouter/blob/main/docs/guides/payments/configuration.md#支持的支付方式";
 
 type SettingsTab =
   | "general"

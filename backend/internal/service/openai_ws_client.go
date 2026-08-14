@@ -13,9 +13,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/proxyurl"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
-	openaiwsv2 "github.com/TokenFlux/TokenRouter/internal/service/openai_ws_v2"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/proxyurl"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/tlsfingerprint"
+	openaiwsv2 "github.com/BrandonVee/TokenRouter/internal/service/openai_ws_v2"
 	coderws "github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )

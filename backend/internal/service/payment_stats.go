@@ -9,11 +9,11 @@ import (
 	"strconv"
 	"time"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/paymentauditlog"
-	"github.com/TokenFlux/TokenRouter/ent/paymentorder"
-	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
-	"github.com/TokenFlux/TokenRouter/internal/payment"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent/paymentauditlog"
+	"github.com/BrandonVee/TokenRouter/ent/paymentorder"
+	"github.com/BrandonVee/TokenRouter/ent/subscriptionplan"
+	"github.com/BrandonVee/TokenRouter/internal/payment"
 )
 
 // --- Dashboard & Analytics ---

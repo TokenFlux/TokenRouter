@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	_ "github.com/BrandonVee/TokenRouter/ent/runtime"
 	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"

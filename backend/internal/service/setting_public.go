@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/timezone"
 )
 
 func normalizeLoginAgreementMode(raw string) string {

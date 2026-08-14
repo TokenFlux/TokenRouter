@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	ippkg "github.com/TokenFlux/TokenRouter/internal/pkg/ip"
+	ippkg "github.com/BrandonVee/TokenRouter/internal/pkg/ip"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"

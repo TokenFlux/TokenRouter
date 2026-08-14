@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/oauth"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/oauth"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/pagination"
 )
 
 // --- mock: ClaudeOAuthClient ---

@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	_ "github.com/BrandonVee/TokenRouter/ent/runtime"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/timezone"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 

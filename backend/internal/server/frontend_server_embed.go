@@ -5,8 +5,8 @@ package server
 import (
 	"log"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
-	"github.com/TokenFlux/TokenRouter/internal/web"
+	"github.com/BrandonVee/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/web"
 	"github.com/gin-gonic/gin"
 )
 

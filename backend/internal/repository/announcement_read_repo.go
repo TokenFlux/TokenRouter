@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/announcementread"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent/announcementread"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 )
 
 type announcementReadRepository struct {

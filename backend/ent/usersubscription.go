@@ -9,9 +9,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
-	"github.com/TokenFlux/TokenRouter/ent/user"
-	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
+	"github.com/BrandonVee/TokenRouter/ent/subscriptionplan"
+	"github.com/BrandonVee/TokenRouter/ent/user"
+	"github.com/BrandonVee/TokenRouter/ent/usersubscription"
 )
 
 // UserSubscription is the model entity for the UserSubscription schema.

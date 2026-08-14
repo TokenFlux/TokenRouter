@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
 	"github.com/stretchr/testify/require"
 )
 

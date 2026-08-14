@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/model"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/BrandonVee/TokenRouter/internal/model"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/logger"
 )
 
 // TLSFingerprintRouterRepository 定义 TLS 路由器的数据访问接口。

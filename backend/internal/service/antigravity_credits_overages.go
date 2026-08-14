@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/antigravity"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/logger"
 )
 
 const (

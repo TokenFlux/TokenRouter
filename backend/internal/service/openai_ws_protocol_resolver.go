@@ -1,6 +1,6 @@
 package service
 
-import "github.com/TokenFlux/TokenRouter/internal/config"
+import "github.com/BrandonVee/TokenRouter/internal/config"
 
 // OpenAIUpstreamTransport 表示 OpenAI 上游传输协议。
 type OpenAIUpstreamTransport string

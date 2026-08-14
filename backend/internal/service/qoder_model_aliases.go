@@ -3,7 +3,7 @@ package service
 import (
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/qoder"
 )
 
 // lookupQoderModelAlias 仅解析当前公开 alias，未命中的模型由调用方原样透传。

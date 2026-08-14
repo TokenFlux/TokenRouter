@@ -1,6 +1,6 @@
 package logger
 
-import "github.com/TokenFlux/TokenRouter/internal/config"
+import "github.com/BrandonVee/TokenRouter/internal/config"
 
 func OptionsFromConfig(cfg config.LogConfig) InitOptions {
 	return InitOptions{

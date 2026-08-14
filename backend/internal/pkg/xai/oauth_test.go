@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
+	"github.com/BrandonVee/TokenRouter/internal/util/urlvalidator"
 	"github.com/stretchr/testify/require"
 )
 

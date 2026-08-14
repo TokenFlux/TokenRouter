@@ -1,6 +1,6 @@
 package service
 
-import "github.com/TokenFlux/TokenRouter/internal/domain"
+import "github.com/BrandonVee/TokenRouter/internal/domain"
 
 const (
 	GroupClientProtocolAnthropicMessages     = domain.GroupClientProtocolAnthropicMessages

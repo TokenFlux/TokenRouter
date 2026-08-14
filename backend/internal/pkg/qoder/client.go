@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/util/logredact"
+	"github.com/BrandonVee/TokenRouter/internal/util/logredact"
 )
 
 // GenerationPath 是 Qoder LLM 推理的 SSE 流式端点。

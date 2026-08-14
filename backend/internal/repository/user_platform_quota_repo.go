@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/userplatformquota"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent/userplatformquota"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/timezone"
 	"github.com/lib/pq"
 )
 

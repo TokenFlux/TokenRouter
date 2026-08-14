@@ -9,7 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/setting"
+	"github.com/BrandonVee/TokenRouter/ent/setting"
 )
 
 // Setting is the model entity for the Setting schema.

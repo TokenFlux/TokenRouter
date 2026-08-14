@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	pkghttputil "github.com/TokenFlux/TokenRouter/internal/pkg/httputil"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	pkghttputil "github.com/BrandonVee/TokenRouter/internal/pkg/httputil"
 )
 
 func extractMaxBytesError(err error) (*http.MaxBytesError, bool) {

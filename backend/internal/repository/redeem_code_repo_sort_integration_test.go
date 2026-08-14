@@ -3,8 +3,8 @@
 package repository
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/pagination"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 )
 
 func (s *RedeemCodeRepoSuite) TestListWithFilters_SortByValueAsc() {

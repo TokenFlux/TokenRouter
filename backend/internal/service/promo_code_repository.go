@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/pagination"
 )
 
 // PromoCodeRepository 优惠码仓储接口

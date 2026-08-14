@@ -9,9 +9,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/announcement"
-	"github.com/TokenFlux/TokenRouter/ent/announcementread"
-	"github.com/TokenFlux/TokenRouter/ent/user"
+	"github.com/BrandonVee/TokenRouter/ent/announcement"
+	"github.com/BrandonVee/TokenRouter/ent/announcementread"
+	"github.com/BrandonVee/TokenRouter/ent/user"
 )
 
 // AnnouncementRead is the model entity for the AnnouncementRead schema.

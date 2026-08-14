@@ -9,7 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/batchimageitem"
+	"github.com/BrandonVee/TokenRouter/ent/batchimageitem"
 )
 
 // BatchImageItem is the model entity for the BatchImageItem schema.

@@ -7,10 +7,10 @@ import (
 	"log"
 	"time"
 
-	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/repository"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	_ "github.com/BrandonVee/TokenRouter/ent/runtime"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/repository"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 )
 
 func main() {

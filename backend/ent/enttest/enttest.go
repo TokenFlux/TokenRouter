@@ -5,12 +5,12 @@ package enttest
 import (
 	"context"
 
-	"github.com/TokenFlux/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent"
 	// required by schema hooks.
-	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
+	_ "github.com/BrandonVee/TokenRouter/ent/runtime"
 
 	"entgo.io/ent/dialect/sql/schema"
-	"github.com/TokenFlux/TokenRouter/ent/migrate"
+	"github.com/BrandonVee/TokenRouter/ent/migrate"
 )
 
 type (

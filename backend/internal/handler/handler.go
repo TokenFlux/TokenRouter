@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
+	"github.com/BrandonVee/TokenRouter/internal/handler/admin"
 )
 
 // AdminHandlers contains all admin-related HTTP handlers

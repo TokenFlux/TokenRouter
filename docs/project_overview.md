@@ -38,7 +38,7 @@ TokenRouter 是基于上游 Sub2API 持续演进的 AI API 网关与管理平台
 | 对象/文件存储 | 批量图片、备份和数据共享导出等大对象 | 按功能使用本地数据目录、S3 兼容存储或供应商对象存储；生命周期由各专题拥有 |
 | 外部上游 | Anthropic、OpenAI、Gemini、Grok、Qoder 等模型或账号服务 | 通过平台适配器访问；账号能力、代理、渠道和分组共同限制可调度范围 |
 
-Go 模块路径为 `github.com/TokenFlux/TokenRouter`。后端以 `backend/go.mod` 声明的 Go 版本为准；前端使用 Vue 3、TypeScript、Vite、Pinia 和 pnpm，Node 版本由 CI workflow 固定。README 徽章或旧手册中的版本只用于展示，不能覆盖 manifest 和 CI。
+Go 模块路径为 `github.com/BrandonVee/TokenRouter`。后端以 `backend/go.mod` 声明的 Go 版本为准；前端使用 Vue 3、TypeScript、Vite、Pinia 和 pnpm，Node 版本由 CI workflow 固定。README 徽章或旧手册中的版本只用于展示，不能覆盖 manifest 和 CI。
 
 ## 仓库地图
 

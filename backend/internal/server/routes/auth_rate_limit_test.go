@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/handler"
-	servermiddleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
+	"github.com/BrandonVee/TokenRouter/internal/handler"
+	servermiddleware "github.com/BrandonVee/TokenRouter/internal/server/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"

@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/handler/dto"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/handler/dto"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/response"
+	middleware2 "github.com/BrandonVee/TokenRouter/internal/server/middleware"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

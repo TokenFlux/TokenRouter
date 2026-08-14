@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/pagination"
 )
 
 // contentModerationTestProxyRepo 仅实现审计代理路径用到的 GetByID，其余方法不应被调用。

@@ -6,8 +6,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/BrandonVee/TokenRouter/internal/domain"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/logger"
 	"go.uber.org/zap"
 )
 

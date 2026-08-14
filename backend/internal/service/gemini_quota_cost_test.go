@@ -5,7 +5,7 @@ package service
 import (
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/usagestats"
 	"github.com/stretchr/testify/require"
 )
 

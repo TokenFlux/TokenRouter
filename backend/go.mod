@@ -1,4 +1,4 @@
-module github.com/TokenFlux/TokenRouter
+module github.com/BrandonVee/TokenRouter
 
 go 1.26.6
 

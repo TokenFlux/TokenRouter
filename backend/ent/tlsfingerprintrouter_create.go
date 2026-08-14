@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter"
-	"github.com/TokenFlux/TokenRouter/internal/model"
+	"github.com/BrandonVee/TokenRouter/ent/tlsfingerprintrouter"
+	"github.com/BrandonVee/TokenRouter/internal/model"
 )
 
 // TLSFingerprintRouterCreate is the builder for creating a TLSFingerprintRouter entity.

@@ -26,14 +26,14 @@ import (
 	"golang.org/x/mod/semver"
 	"golang.org/x/net/http2"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/proxyurl"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/proxyutil"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/servertiming"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
-	"github.com/TokenFlux/TokenRouter/internal/service"
-	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/proxyurl"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/proxyutil"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/servertiming"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/xai"
+	"github.com/BrandonVee/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/util/urlvalidator"
 )
 
 // 默认配置常量

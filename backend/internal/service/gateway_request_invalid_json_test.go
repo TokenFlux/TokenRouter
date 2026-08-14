@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/BrandonVee/TokenRouter/internal/domain"
 	"github.com/stretchr/testify/require"
 )
 

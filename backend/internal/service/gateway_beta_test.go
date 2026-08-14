@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/claude"
 
 	"github.com/stretchr/testify/require"
 )

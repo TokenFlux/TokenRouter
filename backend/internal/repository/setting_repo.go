@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/setting"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent/setting"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 )
 
 type settingRepository struct {

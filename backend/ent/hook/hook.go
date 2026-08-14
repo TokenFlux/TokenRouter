@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/TokenFlux/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent"
 )
 
 // The APIKeyFunc type is an adapter to allow the use of ordinary

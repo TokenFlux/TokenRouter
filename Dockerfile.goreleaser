@@ -12,9 +12,9 @@ FROM ${POSTGRES_IMAGE} AS pg-client
 
 FROM ${ALPINE_IMAGE}
 
-LABEL maintainer="TokenFlux <github.com/TokenFlux>"
+LABEL maintainer="BrandonVee <github.com/BrandonVee>"
 LABEL description="TokenRouter - AI API Gateway Platform"
-LABEL org.opencontainers.image.source="https://github.com/TokenFlux/TokenRouter"
+LABEL org.opencontainers.image.source="https://github.com/BrandonVee/TokenRouter"
 
 # Install runtime dependencies
 RUN apk add --no-cache \

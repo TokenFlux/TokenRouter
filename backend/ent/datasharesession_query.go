@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/datasharesession"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/datasharesession"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
 )
 
 // DataShareSessionQuery is the builder for querying DataShareSession entities.
