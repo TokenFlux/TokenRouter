@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/batchimageitem"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/batchimageitem"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
 )
 
 // BatchImageItemQuery is the builder for querying BatchImageItem entities.

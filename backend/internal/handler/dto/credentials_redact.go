@@ -1,7 +1,7 @@
 // Package dto 提供 HTTP handler 使用的数据传输对象。
 package dto
 
-import "github.com/TokenFlux/TokenRouter/internal/service"
+import "github.com/BrandonVee/TokenRouter/internal/service"
 
 // RedactCredentials 复制一份 in，剥离 service.SensitiveCredentialKeys 列出的所有敏感子键，
 // 并产出一个 has_<key> 状态 map 表示哪些敏感键存在且非零值。

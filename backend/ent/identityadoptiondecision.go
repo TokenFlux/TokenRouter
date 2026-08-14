@@ -9,9 +9,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/authidentity"
-	"github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision"
-	"github.com/TokenFlux/TokenRouter/ent/pendingauthsession"
+	"github.com/BrandonVee/TokenRouter/ent/authidentity"
+	"github.com/BrandonVee/TokenRouter/ent/identityadoptiondecision"
+	"github.com/BrandonVee/TokenRouter/ent/pendingauthsession"
 )
 
 // IdentityAdoptionDecision is the model entity for the IdentityAdoptionDecision schema.

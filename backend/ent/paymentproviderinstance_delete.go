@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/paymentproviderinstance"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/paymentproviderinstance"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
 )
 
 // PaymentProviderInstanceDelete is the builder for deleting a PaymentProviderInstance entity.

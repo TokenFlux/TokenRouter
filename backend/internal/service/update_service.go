@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	infraerrors "github.com/BrandonVee/TokenRouter/internal/pkg/errors"
 )
 
 var (
@@ -30,7 +30,7 @@ var (
 const (
 	updateCacheKey = "update_check_cache"
 	updateCacheTTL = 1200 // 20 minutes
-	githubRepo     = "TokenFlux/TokenRouter"
+	githubRepo     = "BrandonVee/TokenRouter"
 
 	// Security: allowed download domains for updates
 	allowedDownloadHost = "github.com"

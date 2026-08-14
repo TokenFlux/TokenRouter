@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	infraerrors "github.com/BrandonVee/TokenRouter/internal/pkg/errors"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/xai"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

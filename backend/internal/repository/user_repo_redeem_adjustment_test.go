@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"

@@ -7,8 +7,8 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
-	"github.com/TokenFlux/TokenRouter/ent/userallowedgroup"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/userallowedgroup"
 )
 
 // UserAllowedGroupDelete is the builder for deleting a UserAllowedGroup entity.

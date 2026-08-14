@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/logger"
 	"go.uber.org/zap"
 )
 

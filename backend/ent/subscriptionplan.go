@@ -10,7 +10,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
+	"github.com/BrandonVee/TokenRouter/ent/subscriptionplan"
 )
 
 // SubscriptionPlan is the model entity for the SubscriptionPlan schema.

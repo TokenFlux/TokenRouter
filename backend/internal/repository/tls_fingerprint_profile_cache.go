@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/model"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/model"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 	"github.com/redis/go-redis/v9"
 )
 

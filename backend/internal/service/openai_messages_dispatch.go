@@ -3,7 +3,7 @@ package service
 import (
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/xai"
 )
 
 func normalizeOpenAIMessagesDispatchMappedModel(model string) string {

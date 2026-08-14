@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/timezone"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 )
 
 // TestNextMonthlyResetTimeFrom_FromStart 验证：start 已知时返回 start+30d，不随 now 漂移。

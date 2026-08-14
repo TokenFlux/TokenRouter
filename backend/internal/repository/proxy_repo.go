@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/proxy"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent/proxy"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/logger"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/pagination"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 
 	entsql "entgo.io/ent/dialect/sql"
 )

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/timezone"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 	"github.com/lib/pq"
 )
 

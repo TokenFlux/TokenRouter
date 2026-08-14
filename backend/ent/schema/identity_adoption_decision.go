@@ -3,7 +3,7 @@ package schema
 import (
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
+	"github.com/BrandonVee/TokenRouter/ent/schema/mixins"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"

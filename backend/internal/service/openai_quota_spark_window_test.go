@@ -17,8 +17,8 @@ import (
 	"testing"
 	"time"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	infraerrors "github.com/BrandonVee/TokenRouter/internal/pkg/errors"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/stretchr/testify/require"
 )
 

@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="space-y-6">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 class="text-sm font-semibold text-gray-900 dark:text-white">数据概览</h2>
@@ -1192,7 +1191,6 @@
       @confirm="confirmCancelExportArtifactUpload"
       @cancel="closeCancelExportArtifactUploadDialog"
     />
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -1211,7 +1209,6 @@ import {
 } from 'chart.js'
 import { Bar, Doughnut, Line } from 'vue-chartjs'
 import { useI18n } from 'vue-i18n'
-import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import Pagination from '@/components/common/Pagination.vue'

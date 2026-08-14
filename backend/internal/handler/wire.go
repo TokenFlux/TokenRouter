@@ -1,9 +1,9 @@
 package handler
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/handler/admin"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 
 	"github.com/google/wire"
 )

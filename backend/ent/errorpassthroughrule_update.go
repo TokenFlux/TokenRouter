@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/errorpassthroughrule"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/errorpassthroughrule"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
 )
 
 // ErrorPassthroughRuleUpdate is the builder for updating ErrorPassthroughRule entities.

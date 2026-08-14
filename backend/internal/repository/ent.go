@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	"github.com/TokenFlux/TokenRouter/migrations"
+	"github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/timezone"
+	"github.com/BrandonVee/TokenRouter/migrations"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"

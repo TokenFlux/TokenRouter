@@ -16,8 +16,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/servertiming"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/servertiming"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 )
 
 const s3UploadPartSizeMB = 64

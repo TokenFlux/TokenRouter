@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/config"
 )
 
 // httpClientSink 用于防止编译器优化掉基准测试中的赋值操作

@@ -6,11 +6,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/model"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/oauth"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	"github.com/BrandonVee/TokenRouter/internal/model"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/oauth"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/openai"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/xai"
 )
 
 // OpenAIOAuthTokenRequestOptions 定义 OpenAI OAuth token 请求的可选指纹配置。

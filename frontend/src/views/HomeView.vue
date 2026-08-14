@@ -431,7 +431,7 @@
               <div class="flex items-center gap-3 text-primary-500">
                 <Icon name="key" size="md" :stroke-width="1.8" />
                 <div class="flex-1 rounded-md bg-white/90 px-3 py-2 font-mono text-xs text-gray-600 shadow-sm ring-1 ring-gray-100 dark:bg-dark-950 dark:text-dark-300 dark:ring-dark-800">
-                  TOKENFLUX_API_KEY
+                  TOKENROUTER_API_KEY
                 </div>
               </div>
               <div class="mt-3 rounded-md bg-white/90 px-3 py-2 font-mono text-sm tracking-[0.2em] text-gray-950 shadow-sm ring-1 ring-gray-100 dark:bg-dark-950 dark:text-white dark:ring-dark-800">
@@ -882,7 +882,7 @@ const homeProviderCloudIcons = computed<HomeProviderCloudIcon[]>(() => {
 const homeRouteProviderBrands = computed(() => homeProviderVisuals.value.slice(0, 3))
 
 const homeRouteLabel = computed(() => {
-  return 'OpenAI/GPT-5.4'
+  return 'OpenAI/GPT-5.6'
 })
 
 const homeSteps = computed<HomeStep[]>(() => [

@@ -7,9 +7,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/response"
+	middleware2 "github.com/BrandonVee/TokenRouter/internal/server/middleware"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

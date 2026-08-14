@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/pagination"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/usagestats"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -855,7 +855,7 @@ func TestUsageLogRepositoryGetUsageRankingMasksEmail(t *testing.T) {
 		AddRow(1, int64(2), "beta@example.com", "beta", "https://cdn.example/beta.png", int64(9), int64(400), int64(300), int64(100), int64(100), int64(900), 1.25, int64(17), int64(1700), 2.0).
 		AddRow(2, int64(1), "alpha@example.com", "", "", int64(8), int64(300), int64(300), int64(100), int64(100), int64(800), 0.75, int64(17), int64(1700), 2.0)
 
-	mock.ExpectQuery("LEFT JOIN users us ON r\\.user_id = us\\.id").
+	mock.ExpectQuery("(?s)ROW_NUMBER\\(\\) OVER \\(ORDER BY actual_cost DESC, total_tokens DESC, requests DESC, user_id ASC\\).*ORDER BY actual_cost DESC, total_tokens DESC, requests DESC, user_id ASC.*LEFT JOIN users us ON r\\.user_id = us\\.id").
 		WithArgs(start, end, 20).
 		WillReturnRows(rows)
 

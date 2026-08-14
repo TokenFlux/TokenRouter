@@ -10,8 +10,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintrouter"
-	"github.com/TokenFlux/TokenRouter/internal/model"
+	"github.com/BrandonVee/TokenRouter/ent/tlsfingerprintrouter"
+	"github.com/BrandonVee/TokenRouter/internal/model"
 )
 
 // TLSFingerprintRouter is the model entity for the TLSFingerprintRouter schema.

@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/authidentity"
-	"github.com/TokenFlux/TokenRouter/ent/authidentitychannel"
-	"github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent/authidentity"
+	"github.com/BrandonVee/TokenRouter/ent/authidentitychannel"
+	"github.com/BrandonVee/TokenRouter/ent/identityadoptiondecision"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 

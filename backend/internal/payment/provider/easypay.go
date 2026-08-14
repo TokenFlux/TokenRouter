@@ -17,7 +17,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/TokenFlux/TokenRouter/internal/payment"
+	"github.com/BrandonVee/TokenRouter/internal/payment"
 )
 
 // EasyPay constants.

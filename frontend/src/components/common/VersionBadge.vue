@@ -667,9 +667,9 @@ import {
 import { useClipboard } from '@/composables/useClipboard'
 import Icon from '@/components/icons/Icon.vue'
 
-const GITHUB_REPO = 'TokenFlux/TokenRouter'
-// CI 发布到 GHCR 的镜像 tag 不带 v 前缀，例如 ghcr.io/tokenflux/tokenrouter:0.1.146。
-const DOCKER_IMAGE = 'ghcr.io/tokenflux/tokenrouter'
+const GITHUB_REPO = 'BrandonVee/TokenRouter'
+// CI 发布到 GHCR 的镜像 tag 不带 v 前缀，例如 ghcr.io/brandonvee/tokenrouter:0.1.146。
+const DOCKER_IMAGE = 'ghcr.io/brandonvee/tokenrouter'
 
 const { t } = useI18n()
 

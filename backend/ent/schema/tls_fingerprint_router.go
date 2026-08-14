@@ -2,8 +2,8 @@
 package schema
 
 import (
-	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
-	"github.com/TokenFlux/TokenRouter/internal/model"
+	"github.com/BrandonVee/TokenRouter/ent/schema/mixins"
+	"github.com/BrandonVee/TokenRouter/internal/model"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"

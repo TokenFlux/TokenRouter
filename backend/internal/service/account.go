@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/domain"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/openai_compat"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/qoder"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/xai"
 )
 
 type Account struct {

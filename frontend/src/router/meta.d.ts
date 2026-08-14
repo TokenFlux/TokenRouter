@@ -20,6 +20,18 @@ declare module 'vue-router' {
     requiresAdmin?: boolean
 
     /**
+     * 是否由页面自行管理应用布局，例如支持独立全屏模式的页面
+     * @default false
+     */
+    selfManagedLayout?: boolean
+
+    /**
+     * 是否使用跨认证路由常驻的背景外壳
+     * @default false
+     */
+    authShell?: boolean
+
+    /**
      * Page title for this route
      */
     title?: string

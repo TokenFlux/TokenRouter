@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/config"
 )
 
 func BenchmarkOpenAIWSPoolAcquire(b *testing.B) {

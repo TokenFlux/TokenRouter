@@ -11,9 +11,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/redeemcode"
-	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
-	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
+	"github.com/BrandonVee/TokenRouter/ent/redeemcode"
+	"github.com/BrandonVee/TokenRouter/ent/subscriptionplan"
+	"github.com/BrandonVee/TokenRouter/ent/usersubscription"
 )
 
 // SubscriptionPlanCreate is the builder for creating a SubscriptionPlan entity.

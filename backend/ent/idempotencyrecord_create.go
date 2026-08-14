@@ -11,7 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/idempotencyrecord"
+	"github.com/BrandonVee/TokenRouter/ent/idempotencyrecord"
 )
 
 // IdempotencyRecordCreate is the builder for creating a IdempotencyRecord entity.

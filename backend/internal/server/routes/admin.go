@@ -4,8 +4,8 @@ package routes
 import (
 	"net/http"
 
-	"github.com/TokenFlux/TokenRouter/internal/handler"
-	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
+	"github.com/BrandonVee/TokenRouter/internal/handler"
+	"github.com/BrandonVee/TokenRouter/internal/server/middleware"
 
 	"github.com/gin-gonic/gin"
 )

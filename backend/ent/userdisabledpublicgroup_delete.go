@@ -7,8 +7,8 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
-	"github.com/TokenFlux/TokenRouter/ent/userdisabledpublicgroup"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/userdisabledpublicgroup"
 )
 
 // UserDisabledPublicGroupDelete is the builder for deleting a UserDisabledPublicGroup entity.

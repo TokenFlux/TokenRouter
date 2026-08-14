@@ -10,8 +10,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/group"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/BrandonVee/TokenRouter/ent/group"
+	"github.com/BrandonVee/TokenRouter/internal/domain"
 )
 
 // Group is the model entity for the Group schema.

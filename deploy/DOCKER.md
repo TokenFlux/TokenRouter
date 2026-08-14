@@ -3,7 +3,7 @@
 TokenRouter 会向 GitHub Container Registry 发布多架构镜像：
 
 ```text
-ghcr.io/tokenflux/tokenrouter:latest
+ghcr.io/brandonvee/tokenrouter:latest
 ```
 
 应用依赖 PostgreSQL 和 Redis。推荐使用 Docker Compose 提供完整的运行配置、持久化存储、健康检查和依赖启动顺序。
@@ -53,5 +53,5 @@ ghcr.io/tokenflux/tokenrouter:latest
 
 ## 相关链接
 
-- [GitHub 仓库](https://github.com/TokenFlux/TokenRouter)
+- [GitHub 仓库](https://github.com/BrandonVee/TokenRouter)
 - [部署指南](../docs/guides/deployment/index.md)

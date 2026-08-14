@@ -11,7 +11,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/config"
 )
 
 const (

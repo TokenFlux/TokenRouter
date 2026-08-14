@@ -12,10 +12,10 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/apikey"
-	"github.com/TokenFlux/TokenRouter/ent/apikeycompositegroup"
-	"github.com/TokenFlux/TokenRouter/ent/group"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/apikey"
+	"github.com/BrandonVee/TokenRouter/ent/apikeycompositegroup"
+	"github.com/BrandonVee/TokenRouter/ent/group"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
 )
 
 // APIKeyCompositeGroupQuery is the builder for querying APIKeyCompositeGroup entities.

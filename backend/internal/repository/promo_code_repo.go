@@ -4,11 +4,11 @@ import (
 	"context"
 	"strings"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/promocode"
-	"github.com/TokenFlux/TokenRouter/ent/promocodeusage"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent/promocode"
+	"github.com/BrandonVee/TokenRouter/ent/promocodeusage"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/pagination"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 
 	entsql "entgo.io/ent/dialect/sql"
 )

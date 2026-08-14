@@ -6,8 +6,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	"github.com/BrandonVee/TokenRouter/ent/subscriptionplan"
+	infraerrors "github.com/BrandonVee/TokenRouter/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 

@@ -3,7 +3,7 @@ package admin
 import (
 	"net/http"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/response"
 	"github.com/gin-gonic/gin"
 )
 

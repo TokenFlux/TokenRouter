@@ -117,6 +117,10 @@ const UsageTableStub = {
   template: '<div data-test="usage-table" />',
 }
 
+// 使用与页面一致的本地日期格式校验默认筛选范围。
+const formatLocalDate = (date: Date): string =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+
 const usageLog = {
   id: 1,
   request_id: 'req-user-export',
@@ -222,13 +226,16 @@ describe('user UsageView', () => {
   })
 
   it('loads logs, stats, model stats, and snapshot on first render', async () => {
+    const today = formatLocalDate(new Date())
     mountUsageView()
     await flushPromises()
 
-    expect(query).toHaveBeenCalled()
-    expect(getStats).toHaveBeenCalled()
-    expect(getDashboardModels).toHaveBeenCalled()
+    expect(query).toHaveBeenCalledWith(expect.objectContaining({ start_date: today, end_date: today }), expect.anything())
+    expect(getStats).toHaveBeenCalledWith(expect.objectContaining({ start_date: today, end_date: today }))
+    expect(getDashboardModels).toHaveBeenCalledWith(expect.objectContaining({ start_date: today, end_date: today }))
     expect(getDashboardSnapshotV2).toHaveBeenCalledWith(expect.objectContaining({
+      start_date: today,
+      end_date: today,
       include_trend: true,
       include_model_stats: false,
       include_group_stats: true,

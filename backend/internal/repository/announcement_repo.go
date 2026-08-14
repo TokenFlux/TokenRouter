@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/announcement"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent/announcement"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/pagination"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 
 	entsql "entgo.io/ent/dialect/sql"
 )

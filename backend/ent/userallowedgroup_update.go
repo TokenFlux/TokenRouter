@@ -10,10 +10,10 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/group"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
-	"github.com/TokenFlux/TokenRouter/ent/user"
-	"github.com/TokenFlux/TokenRouter/ent/userallowedgroup"
+	"github.com/BrandonVee/TokenRouter/ent/group"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/user"
+	"github.com/BrandonVee/TokenRouter/ent/userallowedgroup"
 )
 
 // UserAllowedGroupUpdate is the builder for updating UserAllowedGroup entities.

@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/authidentitychannel"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/authidentitychannel"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
 )
 
 // AuthIdentityChannelDelete is the builder for deleting a AuthIdentityChannel entity.

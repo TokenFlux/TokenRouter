@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 
 import App from '@/App.vue'
 
@@ -10,6 +11,8 @@ const mocks = vi.hoisted(() => ({
     name: 'Home' as string | undefined,
     meta: {} as Record<string, unknown>,
   },
+  appLayoutMounts: 0,
+  authShellMounts: 0,
   router: {
     afterEach: vi.fn(),
     replace: vi.fn(),
@@ -40,9 +43,35 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('vue-router', () => ({
-  RouterView: { template: '<div data-testid="router-view"></div>' },
+  RouterView: {
+    name: 'RouterViewStub',
+    data: () => ({ component: 'section' }),
+    render() {
+      return this.$slots.default?.({ Component: this.component })
+    },
+  },
   useRoute: () => mocks.route,
   useRouter: () => mocks.router,
+}))
+
+vi.mock('@/components/layout/AppLayout.vue', () => ({
+  default: {
+    name: 'AppLayout',
+    mounted() {
+      mocks.appLayoutMounts++
+    },
+    template: '<div data-testid="app-layout"><slot /></div>',
+  },
+}))
+
+vi.mock('@/components/layout/AuthShell.vue', () => ({
+  default: {
+    name: 'AuthShell',
+    mounted() {
+      mocks.authShellMounts++
+    },
+    template: '<div data-testid="auth-shell"><slot /></div>',
+  },
 }))
 
 vi.mock('@/stores', () => ({
@@ -68,10 +97,11 @@ vi.mock('@/components/common/AnnouncementPopup.vue', () => ({
   },
 }))
 
-function mountApp(path: string, name?: string) {
+function mountApp(path: string, name?: string, meta: Record<string, unknown> = {}) {
   mocks.route.path = path
   mocks.route.fullPath = path
   mocks.route.name = name
+  mocks.route.meta = meta
 
   return mount(App, {
     global: {
@@ -87,6 +117,8 @@ describe('App announcement popup visibility', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.authStore.isAuthenticated = true
+    mocks.appLayoutMounts = 0
+    mocks.authShellMounts = 0
     mocks.getSetupStatus.mockResolvedValue({ needs_setup: false })
     mocks.appStore.fetchPublicSettings.mockResolvedValue(undefined)
     mocks.subscriptionStore.fetchActiveSubscriptions.mockResolvedValue(undefined)
@@ -109,11 +141,53 @@ describe('App announcement popup visibility', () => {
   })
 
   it('进入 dashboard 后保留公告弹窗挂载', async () => {
-    const wrapper = mountApp('/dashboard', 'Dashboard')
+    const wrapper = mountApp('/dashboard', 'Dashboard', { requiresAuth: true })
     await flushPromises()
 
     expect(wrapper.find('[data-testid="announcement-popup"]').exists()).toBe(true)
 
+    wrapper.unmount()
+  })
+
+  it('受保护页面内容切换时复用同一个应用布局实例', async () => {
+    const wrapper = mountApp('/dashboard', 'Dashboard', { requiresAuth: true })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(true)
+    expect(mocks.appLayoutMounts).toBe(1)
+
+    const routerView = wrapper.findComponent({ name: 'RouterViewStub' })
+    ;(routerView.vm as unknown as { component: string }).component = 'article'
+    await nextTick()
+
+    expect(mocks.appLayoutMounts).toBe(1)
+    wrapper.unmount()
+  })
+
+  it('自管理布局的受保护页面不重复挂载应用布局', async () => {
+    const wrapper = mountApp('/admin/ops', 'AdminOps', {
+      requiresAuth: true,
+      selfManagedLayout: true,
+    })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(false)
+    expect(mocks.appLayoutMounts).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('认证页面内容切换时复用同一个认证背景外壳实例', async () => {
+    const wrapper = mountApp('/login', 'Login', { authShell: true })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="auth-shell"]').exists()).toBe(true)
+    expect(mocks.authShellMounts).toBe(1)
+
+    const routerView = wrapper.findComponent({ name: 'RouterViewStub' })
+    ;(routerView.vm as unknown as { component: string }).component = 'article'
+    await nextTick()
+
+    expect(mocks.authShellMounts).toBe(1)
     wrapper.unmount()
   })
 })

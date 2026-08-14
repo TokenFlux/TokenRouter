@@ -10,8 +10,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/account"
-	"github.com/TokenFlux/TokenRouter/ent/proxy"
+	"github.com/BrandonVee/TokenRouter/ent/account"
+	"github.com/BrandonVee/TokenRouter/ent/proxy"
 )
 
 // Account is the model entity for the Account schema.

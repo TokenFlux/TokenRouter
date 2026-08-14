@@ -10,8 +10,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/authidentity"
-	"github.com/TokenFlux/TokenRouter/ent/authidentitychannel"
+	"github.com/BrandonVee/TokenRouter/ent/authidentity"
+	"github.com/BrandonVee/TokenRouter/ent/authidentitychannel"
 )
 
 // AuthIdentityChannel is the model entity for the AuthIdentityChannel schema.

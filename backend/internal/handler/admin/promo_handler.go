@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/handler/dto"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/handler/dto"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/pagination"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/response"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

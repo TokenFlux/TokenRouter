@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
-	"github.com/TokenFlux/TokenRouter/internal/util/logredact"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	infraerrors "github.com/BrandonVee/TokenRouter/internal/pkg/errors"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/qoder"
+	"github.com/BrandonVee/TokenRouter/internal/util/logredact"
 )
 
 // tokenRefreshTempUnschedDuration token 刷新重试耗尽后临时不可调度的持续时间

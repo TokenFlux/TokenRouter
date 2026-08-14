@@ -3,10 +3,10 @@ package routes
 import (
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/handler"
-	"github.com/TokenFlux/TokenRouter/internal/middleware"
-	servermiddleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/handler"
+	"github.com/BrandonVee/TokenRouter/internal/middleware"
+	servermiddleware "github.com/BrandonVee/TokenRouter/internal/server/middleware"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"

@@ -3,8 +3,8 @@ package schema
 import (
 	"encoding/json"
 
-	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/BrandonVee/TokenRouter/ent/schema/mixins"
+	"github.com/BrandonVee/TokenRouter/internal/domain"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"

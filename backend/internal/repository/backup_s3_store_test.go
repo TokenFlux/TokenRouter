@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
 )
 

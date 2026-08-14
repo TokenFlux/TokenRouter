@@ -10,10 +10,10 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/apikey"
-	"github.com/TokenFlux/TokenRouter/ent/group"
-	"github.com/TokenFlux/TokenRouter/ent/team"
-	"github.com/TokenFlux/TokenRouter/ent/user"
+	"github.com/BrandonVee/TokenRouter/ent/apikey"
+	"github.com/BrandonVee/TokenRouter/ent/group"
+	"github.com/BrandonVee/TokenRouter/ent/team"
+	"github.com/BrandonVee/TokenRouter/ent/user"
 )
 
 // APIKey is the model entity for the APIKey schema.

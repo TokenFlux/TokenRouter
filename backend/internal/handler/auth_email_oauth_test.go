@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/ent/authidentity"
-	"github.com/TokenFlux/TokenRouter/ent/redeemcode"
-	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/ent/authidentity"
+	"github.com/BrandonVee/TokenRouter/ent/redeemcode"
+	dbuser "github.com/BrandonVee/TokenRouter/ent/user"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

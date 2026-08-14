@@ -18,7 +18,7 @@
 #### 安装步骤
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/TokenFlux/TokenRouter/main/deploy/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/BrandonVee/TokenRouter/main/deploy/install.sh | sudo bash
 ```
 
 脚本会自动：
@@ -73,7 +73,7 @@ sudo journalctl -u sub2api -f
 sudo systemctl restart sub2api
 
 # 卸载
-curl -sSL https://raw.githubusercontent.com/TokenFlux/TokenRouter/main/deploy/install.sh | sudo bash -s -- uninstall -y
+curl -sSL https://raw.githubusercontent.com/BrandonVee/TokenRouter/main/deploy/install.sh | sudo bash -s -- uninstall -y
 ```
 
 ---
@@ -82,7 +82,7 @@ curl -sSL https://raw.githubusercontent.com/TokenFlux/TokenRouter/main/deploy/in
 
 使用 Docker Compose 部署，包含 PostgreSQL 和 Redis 容器。
 
-官方多架构镜像为 `ghcr.io/tokenflux/tokenrouter`。生产环境建议固定 `vX.Y.Z` 标签或镜像摘要；支持架构和独立容器所需变量见 [Docker 镜像说明](../../../deploy/DOCKER.md)。
+官方多架构镜像为 `ghcr.io/brandonvee/tokenrouter`。生产环境建议固定 `vX.Y.Z` 标签或镜像摘要；支持架构和独立容器所需变量见 [Docker 镜像说明](../../../deploy/DOCKER.md)。
 
 #### 前置条件
 
@@ -98,7 +98,7 @@ curl -sSL https://raw.githubusercontent.com/TokenFlux/TokenRouter/main/deploy/in
 mkdir -p sub2api-deploy && cd sub2api-deploy
 
 # 下载并运行部署准备脚本
-curl -sSL https://raw.githubusercontent.com/TokenFlux/TokenRouter/main/deploy/docker-deploy.sh | bash
+curl -sSL https://raw.githubusercontent.com/BrandonVee/TokenRouter/main/deploy/docker-deploy.sh | bash
 
 # 启动服务
 docker compose up -d
@@ -120,7 +120,7 @@ docker compose logs -f sub2api
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/TokenFlux/TokenRouter.git
+git clone https://github.com/BrandonVee/TokenRouter.git
 cd TokenRouter/deploy
 
 # 2. 复制环境配置文件
@@ -279,7 +279,7 @@ rm -rf data/ postgres_data/ redis_data/
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/TokenFlux/TokenRouter.git
+git clone https://github.com/BrandonVee/TokenRouter.git
 cd TokenRouter
 
 # 2. 安装 pnpm（如果还没有安装）

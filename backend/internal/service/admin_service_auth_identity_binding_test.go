@@ -7,11 +7,11 @@ import (
 	"database/sql"
 	"testing"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/authidentity"
-	"github.com/TokenFlux/TokenRouter/ent/authidentitychannel"
-	"github.com/TokenFlux/TokenRouter/ent/enttest"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent/authidentity"
+	"github.com/BrandonVee/TokenRouter/ent/authidentitychannel"
+	"github.com/BrandonVee/TokenRouter/ent/enttest"
+	infraerrors "github.com/BrandonVee/TokenRouter/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
 
 	"entgo.io/ent/dialect"

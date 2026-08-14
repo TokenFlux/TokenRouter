@@ -3,7 +3,7 @@ package schema
 import (
 	"fmt"
 
-	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
+	"github.com/BrandonVee/TokenRouter/ent/schema/mixins"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"

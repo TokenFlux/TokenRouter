@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <TablePageLayout>
       <template #filters>
         <div
@@ -4105,7 +4104,6 @@
       @close="closeAdvancedSchedulerOverrides"
       @save="saveAdvancedSchedulerOverrides"
     />
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -4124,7 +4122,6 @@ import type {
   GroupAdvancedSchedulerOverrides,
 } from "@/types";
 import type { Column } from "@/components/common/types";
-import AppLayout from "@/components/layout/AppLayout.vue";
 import TablePageLayout from "@/components/layout/TablePageLayout.vue";
 import DataTable from "@/components/common/DataTable.vue";
 import Pagination from "@/components/common/Pagination.vue";

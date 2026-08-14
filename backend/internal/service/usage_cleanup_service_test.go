@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	infraerrors "github.com/BrandonVee/TokenRouter/internal/pkg/errors"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/pagination"
 	"github.com/stretchr/testify/require"
 )
 

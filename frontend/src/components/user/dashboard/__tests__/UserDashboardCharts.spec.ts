@@ -46,5 +46,6 @@ describe('UserDashboardCharts', () => {
     expect(emptyState.classes()).toContain('h-48')
     expect(wrapper.find('[data-testid="model-distribution-content"]').exists()).toBe(false)
     expect(wrapper.find('table').exists()).toBe(false)
+    expect(wrapper.find('.card date-range-picker-stub').exists()).toBe(true)
   })
 })

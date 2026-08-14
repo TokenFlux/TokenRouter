@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/handler"
-	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/handler"
+	"github.com/BrandonVee/TokenRouter/internal/server/middleware"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

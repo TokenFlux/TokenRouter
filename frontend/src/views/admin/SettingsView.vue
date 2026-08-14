@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="mx-auto max-w-6xl space-y-6">
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
@@ -8469,7 +8468,6 @@
       <!-- 关闭 step-up 开关等敏感保存操作触发的 TOTP 二次验证 -->
       <TotpStepUpDialog :controller="settingsStepUp" />
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -8510,7 +8508,6 @@ import type {
 } from "@/api/admin/settings";
 import type { LoginAgreementDocument, NotifyEmailEntry, Proxy } from "@/types";
 import type { ProviderInstance, SubscriptionPlan } from "@/types/payment";
-import AppLayout from "@/components/layout/AppLayout.vue";
 import Icon from "@/components/icons/Icon.vue";
 import HelpTooltip from "@/components/common/HelpTooltip.vue";
 import ProviderIcon from "@/components/common/ProviderIcon.vue";
@@ -8563,10 +8560,10 @@ const isZhLocale = computed(() => locale.value.startsWith("zh"));
 
 // 支付帮助固定指向本仓库维护的指南，避免继续引用已漂移的上游文档。
 const paymentGuideHref =
-  "https://github.com/TokenFlux/TokenRouter/blob/main/docs/guides/payments/configuration.md";
+  "https://github.com/BrandonVee/TokenRouter/blob/main/docs/guides/payments/configuration.md";
 
 const paymentMethodsHref =
-  "https://github.com/TokenFlux/TokenRouter/blob/main/docs/guides/payments/configuration.md#支持的支付方式";
+  "https://github.com/BrandonVee/TokenRouter/blob/main/docs/guides/payments/configuration.md#支持的支付方式";
 
 type SettingsTab =
   | "general"

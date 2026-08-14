@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/proxyurl"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/proxyutil"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/servertiming"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/proxyurl"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/proxyutil"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/servertiming"
 	"github.com/golang-jwt/jwt/v5"
 )
 

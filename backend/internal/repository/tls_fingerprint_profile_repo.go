@@ -3,10 +3,10 @@ package repository
 import (
 	"context"
 
-	"github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/tlsfingerprintprofile"
-	"github.com/TokenFlux/TokenRouter/internal/model"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent/tlsfingerprintprofile"
+	"github.com/BrandonVee/TokenRouter/internal/model"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 )
 
 type tlsFingerprintProfileRepository struct {

@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/openai"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/xai"
 )
 
 var codexModelMap = map[string]string{

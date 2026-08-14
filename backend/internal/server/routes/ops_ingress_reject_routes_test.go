@@ -5,9 +5,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/handler"
-	adminhandler "github.com/TokenFlux/TokenRouter/internal/handler/admin"
-	servermiddleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
+	"github.com/BrandonVee/TokenRouter/internal/handler"
+	adminhandler "github.com/BrandonVee/TokenRouter/internal/handler/admin"
+	servermiddleware "github.com/BrandonVee/TokenRouter/internal/server/middleware"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

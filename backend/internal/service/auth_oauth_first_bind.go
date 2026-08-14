@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
 
 	entsql "entgo.io/ent/dialect/sql"
 )

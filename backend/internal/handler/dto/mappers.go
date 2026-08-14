@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/domain"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 )
 
 func UserFromServiceShallow(u *service.User) *User {

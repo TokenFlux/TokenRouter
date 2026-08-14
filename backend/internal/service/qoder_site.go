@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/qoder"
 )
 
 // qoderSiteForAccount 严格读取账号站点；旧账号缺失字段时默认国际站。

@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/batchimagejob"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/BrandonVee/TokenRouter/ent/batchimagejob"
+	"github.com/BrandonVee/TokenRouter/internal/domain"
 )
 
 // BatchImageJobCreate is the builder for creating a BatchImageJob entity.

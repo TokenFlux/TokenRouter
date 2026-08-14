@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"

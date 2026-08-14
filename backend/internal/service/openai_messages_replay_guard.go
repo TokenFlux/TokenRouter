@@ -3,7 +3,7 @@ package service
 import (
 	"encoding/json"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/apicompat"
 )
 
 const openAICompatAnthropicReplayMaxTailMessages = 12

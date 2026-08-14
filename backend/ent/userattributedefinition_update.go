@@ -12,9 +12,9 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
-	"github.com/TokenFlux/TokenRouter/ent/userattributedefinition"
-	"github.com/TokenFlux/TokenRouter/ent/userattributevalue"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/userattributedefinition"
+	"github.com/BrandonVee/TokenRouter/ent/userattributevalue"
 )
 
 // UserAttributeDefinitionUpdate is the builder for updating UserAttributeDefinition entities.

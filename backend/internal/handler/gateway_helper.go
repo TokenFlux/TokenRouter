@@ -10,8 +10,8 @@ import (
 	"sync"
 	"time"
 
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	middleware2 "github.com/BrandonVee/TokenRouter/internal/server/middleware"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
 )

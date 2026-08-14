@@ -11,10 +11,10 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
-	"github.com/TokenFlux/TokenRouter/ent/promocode"
-	"github.com/TokenFlux/TokenRouter/ent/promocodeusage"
-	"github.com/TokenFlux/TokenRouter/ent/user"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/promocode"
+	"github.com/BrandonVee/TokenRouter/ent/promocodeusage"
+	"github.com/BrandonVee/TokenRouter/ent/user"
 )
 
 // PromoCodeUsageUpdate is the builder for updating PromoCodeUsage entities.

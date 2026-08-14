@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/BrandonVee/TokenRouter/internal/domain"
 )
 
 const (

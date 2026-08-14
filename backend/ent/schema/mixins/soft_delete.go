@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/ent/intercept"
+	"github.com/BrandonVee/TokenRouter/ent/intercept"
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect"

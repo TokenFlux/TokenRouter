@@ -7,8 +7,8 @@ import (
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"github.com/TokenFlux/TokenRouter/ent/accountgroup"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/accountgroup"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
 )
 
 // AccountGroupDelete is the builder for deleting a AccountGroup entity.

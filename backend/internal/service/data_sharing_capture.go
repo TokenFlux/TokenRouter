@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/pagination"
 )
 
 // CaptureClaudeRequest 采集 Claude/Gemini 兼容协议成功请求。

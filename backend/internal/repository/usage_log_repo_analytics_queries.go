@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/usagestats"
 )
 
 type usageAnalyticsQuery struct {
@@ -486,17 +486,16 @@ func (r *usageLogRepository) getUsageRankingFromAnalytics(ctx context.Context, s
 			       COALESCE(SUM(actual_cost), 0) AS actual_cost
 			FROM combined
 			GROUP BY user_id
-			HAVING SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) > 0
 		),
 		ranked AS (
-			SELECT ROW_NUMBER() OVER (ORDER BY total_tokens DESC, requests DESC, user_id ASC) AS rank,
+			SELECT ROW_NUMBER() OVER (ORDER BY actual_cost DESC, total_tokens DESC, requests DESC, user_id ASC) AS rank,
 			       user_id, requests, input_tokens, output_tokens, cache_creation_tokens,
 			       cache_read_tokens, total_tokens, actual_cost,
 			       COALESCE(SUM(requests) OVER (), 0) AS total_requests,
 			       COALESCE(SUM(total_tokens) OVER (), 0) AS ranking_total_tokens,
 			       COALESCE(SUM(actual_cost) OVER (), 0) AS total_actual_cost
 			FROM user_usage
-			ORDER BY total_tokens DESC, requests DESC, user_id ASC
+			ORDER BY actual_cost DESC, total_tokens DESC, requests DESC, user_id ASC
 			LIMIT $%d
 		)
 		SELECT r.rank, r.user_id, COALESCE(u.email, ''), COALESCE(u.username, ''),

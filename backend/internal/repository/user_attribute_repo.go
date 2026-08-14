@@ -3,10 +3,10 @@ package repository
 import (
 	"context"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/userattributedefinition"
-	"github.com/TokenFlux/TokenRouter/ent/userattributevalue"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent/userattributedefinition"
+	"github.com/BrandonVee/TokenRouter/ent/userattributevalue"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 )
 
 // UserAttributeDefinitionRepository implementation

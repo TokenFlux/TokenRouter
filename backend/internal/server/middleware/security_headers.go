@@ -7,7 +7,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/config"
 	"github.com/gin-gonic/gin"
 )
 

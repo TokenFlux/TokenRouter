@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/googleapi"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/geminicli"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/googleapi"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 
 	"github.com/imroc/req/v3"
 )

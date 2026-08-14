@@ -11,9 +11,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/paymentorder"
-	"github.com/TokenFlux/TokenRouter/ent/user"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/BrandonVee/TokenRouter/ent/paymentorder"
+	"github.com/BrandonVee/TokenRouter/ent/user"
+	"github.com/BrandonVee/TokenRouter/internal/domain"
 )
 
 // PaymentOrderCreate is the builder for creating a PaymentOrder entity.

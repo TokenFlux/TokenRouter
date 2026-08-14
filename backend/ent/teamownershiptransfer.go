@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/team"
-	"github.com/TokenFlux/TokenRouter/ent/teamownershiptransfer"
+	"github.com/BrandonVee/TokenRouter/ent/team"
+	"github.com/BrandonVee/TokenRouter/ent/teamownershiptransfer"
 )
 
 // TeamOwnershipTransfer is the model entity for the TeamOwnershipTransfer schema.

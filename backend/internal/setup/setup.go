@@ -12,10 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/repository"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/logger"
+	"github.com/BrandonVee/TokenRouter/internal/repository"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 
 	_ "github.com/lib/pq"
 	"github.com/redis/go-redis/v9"

@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/redeemcode"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent/redeemcode"
+	infraerrors "github.com/BrandonVee/TokenRouter/internal/pkg/errors"
 )
 
 func normalizeOAuthSignupSource(signupSource string) string {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/BrandonVee/TokenRouter/internal/config"
 )
 
 // DiagnoseModelAvailabilityForPlatform 判断请求模型是否被分组内指定 OpenAI 兼容平台账号配置支持。

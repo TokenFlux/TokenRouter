@@ -11,10 +11,10 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/authidentity"
-	"github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision"
-	"github.com/TokenFlux/TokenRouter/ent/pendingauthsession"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/authidentity"
+	"github.com/BrandonVee/TokenRouter/ent/identityadoptiondecision"
+	"github.com/BrandonVee/TokenRouter/ent/pendingauthsession"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
 )
 
 // IdentityAdoptionDecisionUpdate is the builder for updating IdentityAdoptionDecision entities.

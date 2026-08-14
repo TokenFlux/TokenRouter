@@ -13,13 +13,13 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/apikey"
-	"github.com/TokenFlux/TokenRouter/ent/predicate"
-	"github.com/TokenFlux/TokenRouter/ent/team"
-	"github.com/TokenFlux/TokenRouter/ent/teaminvitation"
-	"github.com/TokenFlux/TokenRouter/ent/teammembership"
-	"github.com/TokenFlux/TokenRouter/ent/teamownershiptransfer"
-	"github.com/TokenFlux/TokenRouter/ent/usagelog"
+	"github.com/BrandonVee/TokenRouter/ent/apikey"
+	"github.com/BrandonVee/TokenRouter/ent/predicate"
+	"github.com/BrandonVee/TokenRouter/ent/team"
+	"github.com/BrandonVee/TokenRouter/ent/teaminvitation"
+	"github.com/BrandonVee/TokenRouter/ent/teammembership"
+	"github.com/BrandonVee/TokenRouter/ent/teamownershiptransfer"
+	"github.com/BrandonVee/TokenRouter/ent/usagelog"
 )
 
 // TeamQuery is the builder for querying Team entities.

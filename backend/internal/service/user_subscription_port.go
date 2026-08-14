@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/pagination"
 )
 
 type UserSubscriptionRepository interface {

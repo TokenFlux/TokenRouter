@@ -12,9 +12,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
-	openaiwsv2 "github.com/TokenFlux/TokenRouter/internal/service/openai_ws_v2"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/logger"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/openai"
+	openaiwsv2 "github.com/BrandonVee/TokenRouter/internal/service/openai_ws_v2"
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"

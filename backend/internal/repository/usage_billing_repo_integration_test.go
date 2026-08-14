@@ -15,8 +15,8 @@ import (
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/domain"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 )
 
 func float64Ptr(v float64) *float64 {

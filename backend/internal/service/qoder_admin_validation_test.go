@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/qoder"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 )

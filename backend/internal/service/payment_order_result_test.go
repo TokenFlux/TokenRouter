@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/internal/payment"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/internal/payment"
+	infraerrors "github.com/BrandonVee/TokenRouter/internal/pkg/errors"
 )
 
 func TestShouldUseAlipayMobilePrecreate(t *testing.T) {

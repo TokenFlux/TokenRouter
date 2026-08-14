@@ -1,5 +1,5 @@
 <template>
-  <div class="card overflow-hidden">
+  <div class="dashboard-panel overflow-hidden">
     <div class="flex min-h-[61px] items-center justify-between gap-3 border-b border-gray-100 px-6 py-4 dark:border-dark-700">
       <div class="flex min-w-0 items-center gap-2.5">
         <Icon name="bell" size="md" class="shrink-0 text-primary-600 dark:text-primary-400" />

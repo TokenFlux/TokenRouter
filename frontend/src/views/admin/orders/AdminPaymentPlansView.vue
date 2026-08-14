@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="space-y-4">
       <div class="flex items-center justify-end gap-2">
         <button
@@ -106,7 +105,6 @@
       @confirm="handleDeletePlan"
       @cancel="showDeletePlanDialog = false"
     />
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -118,7 +116,6 @@ import type { AdminPaymentConfig } from '@/api/admin/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import type { SubscriptionPlan } from '@/types/payment'
 import type { Column } from '@/components/common/types'
-import AppLayout from '@/components/layout/AppLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import Icon from '@/components/icons/Icon.vue'

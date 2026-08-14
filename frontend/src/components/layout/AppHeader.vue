@@ -135,7 +135,7 @@
 
                 <a
                   v-if="authStore.isAdmin"
-                  href="https://github.com/TokenFlux/TokenRouter"
+                  href="https://github.com/BrandonVee/TokenRouter"
                   target="_blank"
                   rel="noopener noreferrer"
                   @click="closeDropdown"

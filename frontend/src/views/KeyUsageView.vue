@@ -443,7 +443,7 @@ const { formatBalanceAmount } = useBalanceDisplay()
 const siteName = computed(() => appStore.siteName || 'Sub2API')
 const siteLogo = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
 const docUrl = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.doc_url || appStore.docUrl || ''))
-const githubUrl = 'https://github.com/TokenFlux/TokenRouter'
+const githubUrl = 'https://github.com/BrandonVee/TokenRouter'
 
 // ==================== Theme (same as HomeView) ====================
 

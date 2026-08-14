@@ -6,9 +6,9 @@
   <p><strong>AI API 网关与订阅配额管理平台</strong></p>
 
   <p>
-    <a href="https://github.com/TokenFlux/TokenRouter/actions/workflows/backend-ci.yml"><img src="https://github.com/TokenFlux/TokenRouter/actions/workflows/backend-ci.yml/badge.svg" alt="CI" /></a>
-    <a href="https://github.com/TokenFlux/TokenRouter/releases"><img src="https://img.shields.io/github/v/release/TokenFlux/TokenRouter?display_name=tag" alt="Release" /></a>
-    <a href="https://github.com/TokenFlux/TokenRouter/pkgs/container/tokenrouter"><img src="https://img.shields.io/badge/container-ghcr.io%2Ftokenflux%2Ftokenrouter-2496ED?logo=docker&logoColor=white" alt="Container" /></a>
+    <a href="https://github.com/BrandonVee/TokenRouter/actions/workflows/backend-ci.yml"><img src="https://github.com/BrandonVee/TokenRouter/actions/workflows/backend-ci.yml/badge.svg" alt="CI" /></a>
+    <a href="https://github.com/BrandonVee/TokenRouter/releases"><img src="https://img.shields.io/github/v/release/BrandonVee/TokenRouter?display_name=tag" alt="Release" /></a>
+    <a href="https://github.com/BrandonVee/TokenRouter/pkgs/container/tokenrouter"><img src="https://img.shields.io/badge/container-ghcr.io%2Fbrandonvee%2Ftokenrouter-2496ED?logo=docker&logoColor=white" alt="Container" /></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-LGPL--3.0--or--later-4c1.svg" alt="License: LGPL-3.0-or-later" /></a>
   </p>
 
@@ -54,4 +54,4 @@ TokenRouter 当前包含 Anthropic、OpenAI、Gemini、Antigravity、Grok / xAI 
 
 本项目依据 [GNU Lesser General Public License v3.0 或更高版本](LICENSE) 发布。
 
-Copyright (c) 2026 Wesley Liddick & TokenFlux
+Copyright (c) 2026 BrandonVee

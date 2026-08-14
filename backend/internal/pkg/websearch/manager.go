@@ -15,7 +15,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/proxyutil"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/proxyutil"
 	"github.com/redis/go-redis/v9"
 )
 

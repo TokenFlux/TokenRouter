@@ -6,8 +6,8 @@ import (
 	"errors"
 	"strings"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	infraerrors "github.com/BrandonVee/TokenRouter/internal/pkg/errors"
 	"github.com/lib/pq"
 )
 

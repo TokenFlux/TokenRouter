@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/ent/pendingauthsession"
+	"github.com/BrandonVee/TokenRouter/ent/pendingauthsession"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )

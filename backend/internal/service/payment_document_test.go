@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
 )
 
 func TestPaymentDocumentFromOrderPrefersHostedInvoiceURL(t *testing.T) {

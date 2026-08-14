@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/httpclient"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/httpclient"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 )
 
 type githubReleaseClient struct {

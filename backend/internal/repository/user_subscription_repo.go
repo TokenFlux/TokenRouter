@@ -4,13 +4,13 @@ import (
 	"context"
 	"time"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/schema/mixins"
-	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
-	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
-	"github.com/TokenFlux/TokenRouter/ent/usersubscription"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent/schema/mixins"
+	"github.com/BrandonVee/TokenRouter/ent/subscriptionplan"
+	dbuser "github.com/BrandonVee/TokenRouter/ent/user"
+	"github.com/BrandonVee/TokenRouter/ent/usersubscription"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/pagination"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 	"github.com/lib/pq"
 )
 

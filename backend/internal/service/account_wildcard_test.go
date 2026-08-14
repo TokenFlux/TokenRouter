@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	"github.com/BrandonVee/TokenRouter/internal/domain"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/xai"
 )
 
 func TestGrokAccountModelMappingRemainsIndependentFromRuntimeSettings(t *testing.T) {

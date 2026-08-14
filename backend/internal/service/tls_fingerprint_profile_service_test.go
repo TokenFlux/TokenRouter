@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/model"
+	"github.com/BrandonVee/TokenRouter/internal/model"
 	"github.com/stretchr/testify/require"
 )
 

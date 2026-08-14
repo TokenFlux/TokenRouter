@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/setting"
-	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	dbent "github.com/BrandonVee/TokenRouter/ent"
+	"github.com/BrandonVee/TokenRouter/ent/setting"
+	dbuser "github.com/BrandonVee/TokenRouter/ent/user"
+	"github.com/BrandonVee/TokenRouter/internal/service"
 )
 
 const (

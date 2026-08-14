@@ -9,9 +9,9 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/TokenFlux/TokenRouter/ent/promocode"
-	"github.com/TokenFlux/TokenRouter/ent/promocodeusage"
-	"github.com/TokenFlux/TokenRouter/ent/user"
+	"github.com/BrandonVee/TokenRouter/ent/promocode"
+	"github.com/BrandonVee/TokenRouter/ent/promocodeusage"
+	"github.com/BrandonVee/TokenRouter/ent/user"
 )
 
 // PromoCodeUsage is the model entity for the PromoCodeUsage schema.

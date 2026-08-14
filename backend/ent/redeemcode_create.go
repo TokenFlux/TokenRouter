@@ -11,10 +11,10 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/redeemcode"
-	"github.com/TokenFlux/TokenRouter/ent/redeemcodeusage"
-	"github.com/TokenFlux/TokenRouter/ent/subscriptionplan"
-	"github.com/TokenFlux/TokenRouter/ent/user"
+	"github.com/BrandonVee/TokenRouter/ent/redeemcode"
+	"github.com/BrandonVee/TokenRouter/ent/redeemcodeusage"
+	"github.com/BrandonVee/TokenRouter/ent/subscriptionplan"
+	"github.com/BrandonVee/TokenRouter/ent/user"
 )
 
 // RedeemCodeCreate is the builder for creating a RedeemCode entity.

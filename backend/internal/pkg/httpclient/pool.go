@@ -23,10 +23,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/proxyurl"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/proxyutil"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/servertiming"
-	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/proxyurl"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/proxyutil"
+	"github.com/BrandonVee/TokenRouter/internal/pkg/servertiming"
+	"github.com/BrandonVee/TokenRouter/internal/util/urlvalidator"
 )
 
 // Transport 连接池默认配置

@@ -11,7 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/TokenFlux/TokenRouter/ent/securitysecret"
+	"github.com/BrandonVee/TokenRouter/ent/securitysecret"
 )
 
 // SecuritySecretCreate is the builder for creating a SecuritySecret entity.
