@@ -26,6 +26,12 @@ declare module 'vue-router' {
     selfManagedLayout?: boolean
 
     /**
+     * 是否使用跨认证路由常驻的背景外壳
+     * @default false
+     */
+    authShell?: boolean
+
+    /**
      * Page title for this route
      */
     title?: string

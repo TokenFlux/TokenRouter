@@ -55,6 +55,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/auth/LoginView.vue'),
     meta: {
       requiresAuth: false,
+      authShell: true,
       title: 'Login',
       titleKey: 'common.login'
     }
@@ -65,6 +66,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/auth/RegisterView.vue'),
     meta: {
       requiresAuth: false,
+      authShell: true,
       title: 'Register',
       titleKey: 'auth.createAccount'
     }
@@ -75,6 +77,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/auth/EmailVerifyView.vue'),
     meta: {
       requiresAuth: false,
+      authShell: true,
       title: 'Verify Email'
     }
   },
@@ -104,6 +107,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/auth/LinuxDoCallbackView.vue'),
     meta: {
       requiresAuth: false,
+      authShell: true,
       title: 'LinuxDo OAuth Callback',
       titleKey: 'auth.linuxdoCallbackPageTitle'
     }
@@ -114,6 +118,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/auth/WechatCallbackView.vue'),
     meta: {
       requiresAuth: false,
+      authShell: true,
       title: 'WeChat OAuth Callback',
       titleKey: 'auth.wechatCallbackPageTitle'
     }
@@ -134,6 +139,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/auth/DingTalkCallbackView.vue'),
     meta: {
       requiresAuth: false,
+      authShell: true,
       title: 'DingTalk OAuth Callback',
       titleKey: 'auth.dingtalkCallbackPageTitle'
     }
@@ -144,6 +150,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/auth/DingTalkEmailCompletionView.vue'),
     meta: {
       requiresAuth: false,
+      authShell: true,
       title: 'DingTalk Email Completion'
     }
   },
@@ -153,6 +160,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/auth/OidcCallbackView.vue'),
     meta: {
       requiresAuth: false,
+      authShell: true,
       title: 'OIDC OAuth Callback',
       titleKey: 'auth.oidcCallbackPageTitle'
     }
@@ -163,6 +171,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/auth/ForgotPasswordView.vue'),
     meta: {
       requiresAuth: false,
+      authShell: true,
       title: 'Forgot Password',
       titleKey: 'auth.forgotPasswordTitle'
     }
@@ -173,6 +182,7 @@ const routes: RouteRecordRaw[] = [
     component: () => import('@/views/auth/ResetPasswordView.vue'),
     meta: {
       requiresAuth: false,
+      authShell: true,
       title: 'Reset Password'
     }
   },

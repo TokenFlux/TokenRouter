@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     meta: {} as Record<string, unknown>,
   },
   appLayoutMounts: 0,
+  authShellMounts: 0,
   router: {
     afterEach: vi.fn(),
     replace: vi.fn(),
@@ -63,6 +64,16 @@ vi.mock('@/components/layout/AppLayout.vue', () => ({
   },
 }))
 
+vi.mock('@/components/layout/AuthShell.vue', () => ({
+  default: {
+    name: 'AuthShell',
+    mounted() {
+      mocks.authShellMounts++
+    },
+    template: '<div data-testid="auth-shell"><slot /></div>',
+  },
+}))
+
 vi.mock('@/stores', () => ({
   useAppStore: () => mocks.appStore,
   useAuthStore: () => mocks.authStore,
@@ -107,6 +118,7 @@ describe('App announcement popup visibility', () => {
     vi.clearAllMocks()
     mocks.authStore.isAuthenticated = true
     mocks.appLayoutMounts = 0
+    mocks.authShellMounts = 0
     mocks.getSetupStatus.mockResolvedValue({ needs_setup: false })
     mocks.appStore.fetchPublicSettings.mockResolvedValue(undefined)
     mocks.subscriptionStore.fetchActiveSubscriptions.mockResolvedValue(undefined)
@@ -161,6 +173,21 @@ describe('App announcement popup visibility', () => {
 
     expect(wrapper.find('[data-testid="app-layout"]').exists()).toBe(false)
     expect(mocks.appLayoutMounts).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('认证页面内容切换时复用同一个认证背景外壳实例', async () => {
+    const wrapper = mountApp('/login', 'Login', { authShell: true })
+    await flushPromises()
+
+    expect(wrapper.find('[data-testid="auth-shell"]').exists()).toBe(true)
+    expect(mocks.authShellMounts).toBe(1)
+
+    const routerView = wrapper.findComponent({ name: 'RouterViewStub' })
+    ;(routerView.vm as unknown as { component: string }).component = 'article'
+    await nextTick()
+
+    expect(mocks.authShellMounts).toBe(1)
     wrapper.unmount()
   })
 })

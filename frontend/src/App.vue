@@ -4,6 +4,7 @@ import { computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import Toast from '@/components/common/Toast.vue'
 import NavigationProgress from '@/components/common/NavigationProgress.vue'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import AuthShell from '@/components/layout/AuthShell.vue'
 import { resolveRouteDocumentTitle } from '@/router/title'
 import AnnouncementPopup from '@/components/common/AnnouncementPopup.vue'
 import { useAppStore, useAuthStore, useSubscriptionStore, useAnnouncementStore, useAdminSettingsStore } from '@/stores'
@@ -23,6 +24,7 @@ const adminSettingsStore = useAdminSettingsStore()
 const shouldUseAppLayout = computed(() => (
   route.meta.requiresAuth === true && route.meta.selfManagedLayout !== true
 ))
+const shouldUseAuthShell = computed(() => route.meta.authShell === true)
 
 // 网站根目录和 Home 门面不展示新公告弹窗，进入控制台后再按原有逻辑展示。
 const shouldShowAnnouncementPopup = computed(() => (
@@ -137,6 +139,9 @@ onMounted(async () => {
     <AppLayout v-if="shouldUseAppLayout">
       <component :is="Component" />
     </AppLayout>
+    <AuthShell v-else-if="shouldUseAuthShell">
+      <component :is="Component" />
+    </AuthShell>
     <component :is="Component" v-else />
   </RouterView>
   <Toast />
