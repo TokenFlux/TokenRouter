@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	infraerrors "github.com/BrandonVee/TokenRouter/internal/pkg/errors"
 )
 
 func TestNormalizeGroupAvailabilityProbeConfig(t *testing.T) {
