@@ -686,6 +686,8 @@ export interface GroupAvailabilityProbeConfig {
   model_id?: string
   prompt?: string
   timeout_seconds?: number
+  // 首次探测失败后允许重试的最大次数，缺失时由服务端使用默认值。
+  max_retries?: number
   user_agent?: string
 }
 

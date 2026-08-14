@@ -12,11 +12,12 @@ export interface MessagesDispatchFormState {
   exact_model_mappings: MessagesDispatchMappingRow[];
 }
 
+// 系列映射默认留空，只有管理员显式输入的目标模型才会进入请求映射。
 export function createDefaultMessagesDispatchFormState(): MessagesDispatchFormState {
   return {
-    opus_mapped_model: "gpt-5.4",
-    sonnet_mapped_model: "gpt-5.3-codex",
-    haiku_mapped_model: "gpt-5.4-mini",
+    opus_mapped_model: "",
+    sonnet_mapped_model: "",
+    haiku_mapped_model: "",
     exact_model_mappings: [],
   };
 }

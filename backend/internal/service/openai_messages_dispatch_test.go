@@ -29,6 +29,23 @@ func TestNormalizeOpenAIMessagesDispatchModelConfig(t *testing.T) {
 	}, cfg.ExactModelMappings)
 }
 
+func TestGroupResolveMessagesDispatchModel_RequiresExplicitFamilyMapping(t *testing.T) {
+	t.Parallel()
+
+	group := &Group{Platform: PlatformOpenAI}
+	// 空配置不能再把 Claude 系列请求隐式改写为内置 GPT 模型。
+	require.Empty(t, group.ResolveMessagesDispatchModel("claude-opus-4-6"))
+	require.Empty(t, group.ResolveMessagesDispatchModel("claude-sonnet-4-5-20250929"))
+	require.Empty(t, group.ResolveMessagesDispatchModel("claude-haiku-4-5-20251001"))
+
+	group.MessagesDispatchModelConfig = OpenAIMessagesDispatchModelConfig{
+		SonnetMappedModel: " gpt-5.4-high ",
+	}
+	require.Empty(t, group.ResolveMessagesDispatchModel("claude-opus-4-6"))
+	require.Equal(t, "gpt-5.4", group.ResolveMessagesDispatchModel("claude-sonnet-4-5-20250929"))
+	require.Empty(t, group.ResolveMessagesDispatchModel("claude-haiku-4-5-20251001"))
+}
+
 func TestGroupResolveMessagesDispatchModel_GrokRequiresCrossClientMapping(t *testing.T) {
 	original := xai.RuntimeModelMappingOptions()
 	t.Cleanup(func() { xai.SetRuntimeModelMappingOptions(original) })

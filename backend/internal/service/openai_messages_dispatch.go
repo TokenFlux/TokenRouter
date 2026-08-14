@@ -6,12 +6,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 )
 
-const (
-	defaultOpenAIMessagesDispatchOpusMappedModel   = "gpt-5.4"
-	defaultOpenAIMessagesDispatchSonnetMappedModel = "gpt-5.3-codex"
-	defaultOpenAIMessagesDispatchHaikuMappedModel  = "gpt-5.4-mini"
-)
-
 func normalizeOpenAIMessagesDispatchMappedModel(model string) string {
 	model = NormalizeOpenAICompatRequestedModel(strings.TrimSpace(model))
 	return strings.TrimSpace(model)
@@ -84,22 +78,14 @@ func (g *Group) ResolveMessagesDispatchModel(requestedModel string) string {
 		return mappedModel
 	}
 
+	// 系列映射只在管理员显式配置非空目标时生效，空值表示保持请求模型。
 	switch claudeMessagesDispatchFamily(requestedModel) {
 	case "opus":
-		if mappedModel := strings.TrimSpace(cfg.OpusMappedModel); mappedModel != "" {
-			return mappedModel
-		}
-		return defaultOpenAIMessagesDispatchOpusMappedModel
+		return strings.TrimSpace(cfg.OpusMappedModel)
 	case "sonnet":
-		if mappedModel := strings.TrimSpace(cfg.SonnetMappedModel); mappedModel != "" {
-			return mappedModel
-		}
-		return defaultOpenAIMessagesDispatchSonnetMappedModel
+		return strings.TrimSpace(cfg.SonnetMappedModel)
 	case "haiku":
-		if mappedModel := strings.TrimSpace(cfg.HaikuMappedModel); mappedModel != "" {
-			return mappedModel
-		}
-		return defaultOpenAIMessagesDispatchHaikuMappedModel
+		return strings.TrimSpace(cfg.HaikuMappedModel)
 	default:
 		return ""
 	}

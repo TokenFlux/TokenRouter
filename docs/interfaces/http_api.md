@@ -87,7 +87,7 @@ gemini_generate_content
 
 创建分组时省略字段会使用平台默认协议；更新时省略字段保持原集合。若同一次更新切换了上游平台，服务端只保留两平台都支持的协议，不自动启用新平台默认值。显式输入会拒绝未知值、重复值和平台不支持的值并返回 `400`；默认协议不是必选项，所有平台都接受显式空数组。
 
-`allow_messages_dispatch` 是弃用兼容字段，响应值由新集合是否包含 `anthropic_messages` 派生。只有 OpenAI 分组在新字段缺省时继续接受旧字段输入；两者同时提交时以 `allowed_client_protocols` 为准。`messages_dispatch_model_config` 仅保存 OpenAI Messages 到 GPT 的模型映射，不参与协议准入。
+`allow_messages_dispatch` 是弃用兼容字段，响应值由新集合是否包含 `anthropic_messages` 派生。只有 OpenAI 分组在新字段缺省时继续接受旧字段输入；两者同时提交时以 `allowed_client_protocols` 为准。`messages_dispatch_model_config` 仅保存 OpenAI Messages 到 GPT 的模型映射，不参与协议准入；每个映射项只在目标值非空时生效，全部留空时不执行分组层模型映射。
 
 管理 Group 创建、更新和返回体额外包含 `scheduler_type`（`basic` 或 `advanced`）及 `advanced_scheduler_overrides`。后者是高级分组的稀疏参数对象：未出现字段继承网关通用设置，显式 `false`/`0` 是覆盖，更新传空对象会清除全部覆盖；省略该对象则保持现值。管理接口还接受 `long_context_pricing_enabled` 和 `model_pricing`：创建时省略长上下文开关默认开启，显式 `false` 才关闭；更新时省略两者都保持原值，`model_pricing: []` 清空分组价卡。公开 Group DTO 返回有效价格开关和价卡供模型市场投影，但不包含调度器管理配置。
 

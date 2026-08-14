@@ -31,11 +31,16 @@
 
 未知或歧义价格使用 `unpriced`/unknown 状态，不填 0。显式价格指针为 0 才表示免费。Qoder 内置别名和路由键要求手工渠道价格，不能回退通用模型价；具体优先级见[Qoder 原生上游](qoder_upstream.md)。
 
+<a id="group_availability_probe"></a>
 ## 容量与可用性
 
 市场接口可以附加 Group capacity 和历史 availability summary。容量来自当前账号/并发投影，可用性只为启用 probe 的 Group 查询；用户侧模型广场和 API Key 分组选择器不展示 capacity，管理员分组管理仍正常展示。两者都是辅助信息：读取失败时仍返回模型和价格，不把缺失观测解释为 0 容量或 0% 可用。
 
 可用性窗口和 bucket 粒度来自运行设置，并有日数、分钟数和最大 bucket 数约束，防止公开接口返回过大序列。时间桶使用配置时区；它不参与实时调度和计费。
+
+每个 Group 的 `availability_probe_config` 还控制探测模型、提示词、间隔、单次尝试超时、User-Agent 和最大重试次数。`max_retries` 表示首次失败后允许追加的尝试次数：旧配置缺失该键时默认 3，显式设为 0 时只执行首次探测，允许范围为 0 到 10。每次尝试拥有独立超时；首次或任一次重试成功后，本轮观测即记为成功并停止继续尝试。一次调度周期只保存一个最终结果，中间失败不单独进入可用率样本。
+
+每个实例的 runner 不允许分钟级 cron 轮次重叠；单轮只领取不超过实例 worker 数量的到期 Group，使每个已领取分组都能立即执行，并由 PostgreSQL 租约阻止其它实例重复领取。维护、领取和每个分组的探测分别使用独立超时预算，慢维护不能挤占合法重试窗口。管理 Group API 中不合法的 `availability_probe_config` 统一返回 HTTP `400` 和 reason `INVALID_AVAILABILITY_PROBE_CONFIG`。
 
 ## 一致性边界
 

@@ -76,6 +76,44 @@ func TestAdminServiceCreateGroupDefaultsLongContextPricingOn(t *testing.T) {
 	})
 }
 
+func TestAdminServiceGroupAvailabilityProbeConfigReturnsBadRequest(t *testing.T) {
+	invalidRetries := maxGroupAvailabilityProbeMaxRetries + 1
+	invalidConfig := GroupAvailabilityProbeConfig{
+		Enabled:    true,
+		ModelID:    "gpt-5.4",
+		Prompt:     "hi",
+		MaxRetries: &invalidRetries,
+	}
+
+	t.Run("create rejects invalid config", func(t *testing.T) {
+		repo := &groupRepoStubForAdmin{}
+		svc := &adminServiceImpl{groupRepo: repo}
+
+		_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+			Name: "invalid-probe", Platform: PlatformOpenAI, RateMultiplier: 1,
+			AvailabilityProbeConfig: invalidConfig,
+		})
+
+		require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+		require.Equal(t, invalidGroupAvailabilityProbeConfigReason, infraerrors.Reason(err))
+		require.Nil(t, repo.created)
+	})
+
+	t.Run("update rejects invalid config", func(t *testing.T) {
+		existing := &Group{ID: 7, Name: "existing", Platform: PlatformOpenAI, Status: StatusActive}
+		repo := &groupRepoStubForAdmin{getByID: existing}
+		svc := &adminServiceImpl{groupRepo: repo}
+
+		_, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
+			AvailabilityProbeConfig: &invalidConfig,
+		})
+
+		require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+		require.Equal(t, invalidGroupAvailabilityProbeConfigReason, infraerrors.Reason(err))
+		require.Nil(t, repo.updated)
+	})
+}
+
 func TestAdminServiceGroupSchedulerTypeDefaultsValidatesAndUpdates(t *testing.T) {
 	t.Run("create defaults to basic", func(t *testing.T) {
 		repo := &groupRepoStubForAdmin{}

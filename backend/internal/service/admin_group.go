@@ -289,7 +289,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 			return nil, fmt.Errorf("failed to get accounts from source groups: %w", err)
 		}
 	}
-	availabilityProbeConfig, err := normalizeGroupAvailabilityProbeConfig(input.AvailabilityProbeConfig)
+	availabilityProbeConfig, err := normalizeGroupAvailabilityProbeConfigForAdminWrite(input.AvailabilityProbeConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -793,7 +793,7 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		group.ModelsListConfig = normalizeGroupModelsListConfig(*input.ModelsListConfig)
 	}
 	if input.AvailabilityProbeConfig != nil {
-		config, err := normalizeGroupAvailabilityProbeConfig(*input.AvailabilityProbeConfig)
+		config, err := normalizeGroupAvailabilityProbeConfigForAdminWrite(*input.AvailabilityProbeConfig)
 		if err != nil {
 			return nil, err
 		}

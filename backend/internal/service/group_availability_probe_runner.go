@@ -14,9 +14,12 @@ import (
 )
 
 const (
-	groupAvailabilityProbeDefaultMaxWorkers  = 5
-	groupAvailabilityProbeDefaultClaimLimit  = 20
-	groupAvailabilityProbeLockDuration       = 5 * time.Minute
+	groupAvailabilityProbeDefaultMaxWorkers = 5
+	// 最长运行时间覆盖合法配置下的全部尝试，并为账号选择和结果保存预留一分钟。
+	groupAvailabilityProbeMaxRunDuration     = time.Duration(maxGroupAvailabilityProbeMaxRetries+1)*time.Duration(maxGroupAvailabilityProbeTimeoutSeconds)*time.Second + time.Minute
+	groupAvailabilityProbeMaintenanceTimeout = time.Minute
+	groupAvailabilityProbeClaimTimeout       = time.Minute
+	groupAvailabilityProbeLockDuration       = groupAvailabilityProbeMaxRunDuration + groupAvailabilityProbeClaimTimeout + time.Minute
 	groupAvailabilityProbeCleanupRetention   = 90 * 24 * time.Hour
 	groupAvailabilityProbeCleanupMinInterval = 12 * time.Hour
 )
@@ -33,6 +36,7 @@ type GroupAvailabilityProbeRunnerService struct {
 	instanceID    string
 	cron          *cron.Cron
 	lastCleanupAt time.Time
+	runMu         sync.Mutex
 	startOnce     sync.Once
 	stopOnce      sync.Once
 }
@@ -101,14 +105,24 @@ func (s *GroupAvailabilityProbeRunnerService) Stop() {
 	})
 }
 
+// @project-doc docs/interfaces/model_catalog_and_marketplace.md#group_availability_probe
 func (s *GroupAvailabilityProbeRunnerService) runDue() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
+	// cron 每分钟触发一次；上一轮尚未结束时跳过本轮，避免突破实例级 worker 上限。
+	if !s.runMu.TryLock() {
+		return
+	}
+	defer s.runMu.Unlock()
 
-	now := time.Now()
-	s.cleanupIfNeeded(ctx, now)
+	// 清理与领取使用独立短上下文，不能消耗分组探测本身的重试预算。
+	maintenanceCtx, maintenanceCancel := context.WithTimeout(context.Background(), groupAvailabilityProbeMaintenanceTimeout)
+	s.cleanupIfNeeded(maintenanceCtx, time.Now())
+	maintenanceCancel()
 
-	dueGroups, err := s.repo.ClaimDue(ctx, now, now.Add(groupAvailabilityProbeLockDuration), s.instanceID, groupAvailabilityProbeDefaultClaimLimit)
+	// 只领取能够立即交给 worker 的分组，确保领取租约不会在排队期间过期。
+	claimCtx, claimCancel := context.WithTimeout(context.Background(), groupAvailabilityProbeClaimTimeout)
+	claimNow := time.Now()
+	dueGroups, err := s.repo.ClaimDue(claimCtx, claimNow, claimNow.Add(groupAvailabilityProbeLockDuration), s.instanceID, groupAvailabilityProbeDefaultMaxWorkers)
+	claimCancel()
 	if err != nil {
 		logger.LegacyPrintf("service.group_availability_probe", "[GroupAvailabilityProbe] ClaimDue error: %v", err)
 		return
@@ -126,7 +140,10 @@ func (s *GroupAvailabilityProbeRunnerService) runDue() {
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			s.runOne(ctx, group)
+			// 每个分组独立计时，数据库维护和其它分组不会挤占它的合法重试窗口。
+			probeCtx, probeCancel := context.WithTimeout(context.Background(), groupAvailabilityProbeMaxRunDuration)
+			defer probeCancel()
+			s.runOne(probeCtx, group)
 		}()
 	}
 	wg.Wait()
@@ -143,45 +160,91 @@ func (s *GroupAvailabilityProbeRunnerService) cleanupIfNeeded(ctx context.Contex
 }
 
 func (s *GroupAvailabilityProbeRunnerService) runOne(ctx context.Context, due GroupAvailabilityProbeDueGroup) {
-	config, err := normalizeGroupAvailabilityProbeConfig(due.Config)
+	probeConfig, err := normalizeGroupAvailabilityProbeConfig(due.Config)
 	if err != nil {
-		s.saveFailure(ctx, due, config, fmt.Sprintf("invalid probe config: %v", err), nil)
+		s.saveFailure(ctx, due, probeConfig, fmt.Sprintf("invalid probe config: %v", err), nil)
 		return
 	}
-	if !config.Enabled {
+	if !probeConfig.Enabled {
 		return
 	}
 
-	probeCtx := ctx
-	cancel := func() {}
-	if config.TimeoutSeconds > 0 {
-		probeCtx, cancel = context.WithTimeout(ctx, time.Duration(config.TimeoutSeconds)*time.Second)
+	maxRetries := defaultGroupAvailabilityProbeMaxRetries
+	if probeConfig.MaxRetries != nil {
+		maxRetries = *probeConfig.MaxRetries
 	}
-	defer cancel()
+	probeResult := runGroupAvailabilityProbeAttempts(
+		ctx,
+		maxRetries,
+		time.Duration(probeConfig.TimeoutSeconds)*time.Second,
+		func(attemptCtx context.Context) *GroupAvailabilityProbeResult {
+			return s.runProbeAttempt(attemptCtx, due, probeConfig)
+		},
+	)
+	if probeResult == nil {
+		s.saveFailure(ctx, due, probeConfig, "probe did not produce a result", nil)
+		return
+	}
 
+	s.saveResult(ctx, due, probeConfig, probeResult)
+}
+
+// runGroupAvailabilityProbeAttempts 执行首次探测及后续重试，任一尝试成功即结束。
+// 每次尝试使用独立超时，避免前一次超时后的已取消上下文阻断后续重试。
+func runGroupAvailabilityProbeAttempts(
+	ctx context.Context,
+	maxRetries int,
+	timeout time.Duration,
+	runAttempt func(context.Context) *GroupAvailabilityProbeResult,
+) *GroupAvailabilityProbeResult {
+	if maxRetries < 0 {
+		maxRetries = 0
+	}
+
+	var lastResult *GroupAvailabilityProbeResult
+	for retryCount := 0; retryCount <= maxRetries; retryCount++ {
+		attemptCtx := ctx
+		cancel := func() {}
+		if timeout > 0 {
+			attemptCtx, cancel = context.WithTimeout(ctx, timeout)
+		}
+		lastResult = runAttempt(attemptCtx)
+		cancel()
+
+		if lastResult != nil && lastResult.Success {
+			return lastResult
+		}
+		if ctx.Err() != nil {
+			break
+		}
+	}
+	return lastResult
+}
+
+// runProbeAttempt 完成一次账号选择和真实请求，并转换为统一的分组探测结果。
+func (s *GroupAvailabilityProbeRunnerService) runProbeAttempt(ctx context.Context, due GroupAvailabilityProbeDueGroup, probeConfig GroupAvailabilityProbeConfig) *GroupAvailabilityProbeResult {
 	startedAt := time.Now()
-	account, err := s.selectProbeAccount(probeCtx, due, config.ModelID)
+	account, err := s.selectProbeAccount(ctx, due, probeConfig.ModelID)
 	if err != nil {
 		finishedAt := time.Now()
-		s.saveResult(ctx, due, config, &GroupAvailabilityProbeResult{
+		return &GroupAvailabilityProbeResult{
 			GroupID:      due.GroupID,
-			ModelID:      config.ModelID,
+			ModelID:      probeConfig.ModelID,
 			Status:       GroupAvailabilityProbeStatusFailed,
 			Success:      false,
 			LatencyMs:    finishedAt.Sub(startedAt).Milliseconds(),
 			ErrorMessage: err.Error(),
 			StartedAt:    startedAt,
 			FinishedAt:   finishedAt,
-		})
-		return
+		}
 	}
 
-	result, err := s.accountTestSvc.RunTestBackgroundWithPromptAndUserAgent(probeCtx, account.ID, config.ModelID, config.Prompt, config.UserAgent)
+	result, err := s.accountTestSvc.RunTestBackgroundWithPromptAndUserAgent(ctx, account.ID, probeConfig.ModelID, probeConfig.Prompt, probeConfig.UserAgent)
 	finishedAt := time.Now()
 	probeResult := &GroupAvailabilityProbeResult{
 		GroupID:    due.GroupID,
 		AccountID:  &account.ID,
-		ModelID:    config.ModelID,
+		ModelID:    probeConfig.ModelID,
 		Status:     GroupAvailabilityProbeStatusSuccess,
 		Success:    true,
 		LatencyMs:  finishedAt.Sub(startedAt).Milliseconds(),
@@ -203,13 +266,13 @@ func (s *GroupAvailabilityProbeRunnerService) runOne(ctx context.Context, due Gr
 			probeResult.ErrorMessage = err.Error()
 		}
 	}
-	if probeCtx.Err() != nil && probeResult.Success {
+	if ctx.Err() != nil && probeResult.Success {
 		probeResult.Status = GroupAvailabilityProbeStatusFailed
 		probeResult.Success = false
-		probeResult.ErrorMessage = probeCtx.Err().Error()
+		probeResult.ErrorMessage = ctx.Err().Error()
 	}
 
-	s.saveResult(ctx, due, config, probeResult)
+	return probeResult
 }
 
 func (s *GroupAvailabilityProbeRunnerService) saveFailure(ctx context.Context, due GroupAvailabilityProbeDueGroup, cfg GroupAvailabilityProbeConfig, message string, accountID *int64) {
