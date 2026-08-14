@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="space-y-6">
       <section class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div class="hidden lg:block"></div>
@@ -65,14 +64,12 @@
         </section>
       </template>
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
 import { computed, defineComponent, h, onMounted, ref, type PropType } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { usageAPI, type UsageRankingItem, type UsageRankingResponse } from '@/api/usage'
-import AppLayout from '@/components/layout/AppLayout.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Icon from '@/components/icons/Icon.vue'

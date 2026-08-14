@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <TablePageLayout>
       <template #filters>
         <div class="flex flex-wrap items-center justify-between gap-3">
@@ -280,7 +279,6 @@
       @confirm="dissolveTeam"
     />
     <TotpStepUpDialog :controller="stepUp" />
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -300,7 +298,6 @@ import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import Select, { type SelectOption } from '@/components/common/Select.vue'
 import Icon from '@/components/icons/Icon.vue'
-import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import type { Column } from '@/components/common/types'
 import { useStepUp, isStepUpCancelled } from '@/composables/useStepUp'

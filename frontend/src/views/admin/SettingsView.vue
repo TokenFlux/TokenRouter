@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="mx-auto max-w-6xl space-y-6">
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
@@ -8312,7 +8311,6 @@
       <!-- 关闭 step-up 开关等敏感保存操作触发的 TOTP 二次验证 -->
       <TotpStepUpDialog :controller="settingsStepUp" />
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -8350,7 +8348,6 @@ import type {
 } from "@/api/admin/settings";
 import type { LoginAgreementDocument, NotifyEmailEntry, Proxy } from "@/types";
 import type { ProviderInstance, SubscriptionPlan } from "@/types/payment";
-import AppLayout from "@/components/layout/AppLayout.vue";
 import Icon from "@/components/icons/Icon.vue";
 import HelpTooltip from "@/components/common/HelpTooltip.vue";
 import ProviderIcon from "@/components/common/ProviderIcon.vue";

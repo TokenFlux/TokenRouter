@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <TablePageLayout>
       <template #filters>
         <div class="flex flex-wrap-reverse items-start justify-between gap-3">
@@ -460,7 +459,6 @@
     <TLSFingerprintProfilesModal :show="showTLSFingerprintProfiles" @close="showTLSFingerprintProfiles = false" />
     <TLSFingerprintRoutersModal :show="showTLSFingerprintRouters" @close="showTLSFingerprintRouters = false" />
     <TotpStepUpDialog :controller="accountExportStepUp" />
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -475,7 +473,6 @@ import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/us
 import { useTableSelection } from '@/composables/useTableSelection'
 import { useStepUp, isStepUpBlocked, isStepUpCancelled, stepUpBlockReason } from '@/composables/useStepUp'
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
-import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'

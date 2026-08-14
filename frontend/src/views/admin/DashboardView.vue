@@ -1,6 +1,5 @@
 <template>
-  <AppLayout>
-    <div class="space-y-6">
+    <div class="admin-dashboard space-y-6">
       <!-- Loading State -->
       <div v-if="loading" class="flex items-center justify-center py-12">
         <LoadingSpinner />
@@ -337,7 +336,6 @@
         </div>
       </template>
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -356,7 +354,6 @@ import type {
   UserUsageTrendPoint,
   UserSpendingRankingItem
 } from '@/types'
-import AppLayout from '@/components/layout/AppLayout.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import Icon from '@/components/icons/Icon.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'

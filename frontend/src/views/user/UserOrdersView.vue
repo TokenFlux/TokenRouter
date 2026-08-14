@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <TablePageLayout>
       <!-- 筛选工具栏与其他列表页保持一致，不使用额外的卡片外框。 -->
       <template #filters>
@@ -83,7 +82,6 @@
         </div>
       </template>
     </BaseDialog>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -95,7 +93,6 @@ import { useBalanceDisplay } from '@/composables/useBalanceDisplay'
 import { paymentAPI } from '@/api/payment'
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import type { PaymentOrder } from '@/types/payment'
-import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'

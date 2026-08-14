@@ -507,6 +507,10 @@
     background: var(--metric-accent);
   }
 
+  .admin-dashboard .dashboard-metric::before {
+    content: none;
+  }
+
   .dashboard-metric:hover {
     @apply border-gray-300;
     transform: translateY(-1px);

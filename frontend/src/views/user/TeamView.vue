@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="space-y-6">
       <div v-if="transferToken" class="border-b border-gray-200 pb-6 dark:border-dark-700">
         <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
@@ -299,14 +298,12 @@
 
     <ConfirmDialog :show="Boolean(confirmAction)" :title="confirmAction?.title || ''" :message="confirmAction?.message || ''" :danger="confirmAction?.danger" @cancel="confirmAction = null" @confirm="runConfirmedAction" />
     <TotpStepUpDialog :controller="stepUp" />
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import AppLayout from '@/components/layout/AppLayout.vue'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'

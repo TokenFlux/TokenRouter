@@ -1,5 +1,4 @@
 <template>
-  <AppLayout>
     <div class="custom-page-layout">
       <div class="card flex-1 min-h-0 overflow-hidden">
         <div v-if="loading" class="flex h-full items-center justify-center py-12">
@@ -102,7 +101,6 @@
         </div>
       </div>
     </div>
-  </AppLayout>
 </template>
 
 <script setup lang="ts">
@@ -112,7 +110,6 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
 import { useAuthStore } from '@/stores/auth'
 import { useAdminSettingsStore } from '@/stores/adminSettings'
-import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { buildApiUrl } from '@/api/client'
 import { buildEmbeddedUrl, detectTheme } from '@/utils/embedded-url'
