@@ -338,11 +338,8 @@ let teamStatsReqSeq = 0
 const formatLocalDate = (date: Date): string =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 
-const getLast24HoursRangeDates = () => {
-  const end = new Date()
-  const start = new Date(end.getTime() - 24 * 60 * 60 * 1000)
-  return { start: formatLocalDate(start), end: formatLocalDate(end) }
-}
+// 用量页默认查询本地自然日，开始和结束日期都取今天。
+const getTodayDate = (): string => formatLocalDate(new Date())
 
 const getGranularityForRange = (start: string, end: string): 'day' | 'hour' => {
   const startTime = new Date(`${start}T00:00:00`).getTime()
@@ -350,9 +347,9 @@ const getGranularityForRange = (start: string, end: string): 'day' | 'hour' => {
   return Math.ceil((endTime - startTime) / (1000 * 60 * 60 * 24)) <= 1 ? 'hour' : 'day'
 }
 
-const defaultRange = getLast24HoursRangeDates()
-const startDate = ref(defaultRange.start)
-const endDate = ref(defaultRange.end)
+const defaultDate = getTodayDate()
+const startDate = ref(defaultDate)
+const endDate = ref(defaultDate)
 const granularity = ref<'day' | 'hour'>(getGranularityForRange(startDate.value, endDate.value))
 
 const modelDistributionMetric = ref<DistributionMetric>('tokens')
@@ -560,17 +557,17 @@ const refreshData = () => {
 }
 
 const resetFilters = () => {
-  const range = getLast24HoursRangeDates()
-  startDate.value = range.start
-  endDate.value = range.end
+  const today = getTodayDate()
+  startDate.value = today
+  endDate.value = today
   filters.value = {
-    start_date: range.start,
-    end_date: range.end,
+    start_date: today,
+    end_date: today,
     request_type: undefined,
     billing_type: null,
     billing_mode: null,
   }
-  granularity.value = getGranularityForRange(range.start, range.end)
+  granularity.value = getGranularityForRange(today, today)
   applyFilters()
   if (activeTab.value === 'errors') {
     errorFilter.value = { model: '', category: '', api_key_id: null, status_code: null }

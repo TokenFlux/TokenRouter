@@ -271,21 +271,15 @@ const handleRankingSelectUser = (userId: number, email: string) => {
 }
 
 const granularityOptions = computed(() => [{ value: 'day', label: t('admin.dashboard.day') }, { value: 'hour', label: t('admin.dashboard.hour') }])
-// Use local timezone to avoid UTC timezone issues
+// 使用本地时区生成日期，避免 UTC 转换导致日期偏移。
 const formatLD = (d: Date) => {
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
-const getLast24HoursRangeDates = (): { start: string; end: string } => {
-  const end = new Date()
-  const start = new Date(end.getTime() - 24 * 60 * 60 * 1000)
-  return {
-    start: formatLD(start),
-    end: formatLD(end)
-  }
-}
+// 用量页默认查询本地自然日，开始和结束日期都取今天。
+const getTodayDate = (): string => formatLD(new Date())
 const getGranularityForRange = (start: string, end: string): 'day' | 'hour' => {
   const parseRangePoint = (value: string) => {
     const timestamp = new Date(value.length === 10 ? `${value}T00:00:00` : value).getTime()
@@ -297,8 +291,8 @@ const getGranularityForRange = (start: string, end: string): 'day' | 'hour' => {
   const daysDiff = Math.ceil((endTime - startTime) / (1000 * 60 * 60 * 24))
   return daysDiff <= 1 ? 'hour' : 'day'
 }
-const defaultRange = getLast24HoursRangeDates()
-const startDate = ref(defaultRange.start); const endDate = ref(defaultRange.end)
+const defaultDate = getTodayDate()
+const startDate = ref(defaultDate); const endDate = ref(defaultDate)
 const filters = ref<AdminUsageQueryParams>({ user_id: undefined, model: undefined, group_id: undefined, request_type: undefined, billing_type: null, start_date: startDate.value, end_date: endDate.value })
 const pagination = reactive({ page: 1, page_size: getPersistedPageSize(), total: 0 })
 const sortState = reactive({
@@ -541,9 +535,9 @@ const refreshData = () => {
   if (rankingMounted.value) rankingRef.value?.reload()
 }
 const resetFilters = () => {
-  const range = getLast24HoursRangeDates()
-  startDate.value = range.start
-  endDate.value = range.end
+  const today = getTodayDate()
+  startDate.value = today
+  endDate.value = today
   filters.value = { start_date: startDate.value, end_date: endDate.value, request_type: undefined, billing_type: null, billing_mode: undefined }
   granularity.value = getGranularityForRange(startDate.value, endDate.value)
   applyFilters()
