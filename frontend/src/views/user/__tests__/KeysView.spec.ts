@@ -57,6 +57,7 @@ const messages: Record<string, string> = {
   'keys.createKey': 'Create API Key',
   'keys.disable': 'Disable',
   'keys.enable': 'Enable',
+  'keys.importToTf': 'Import to TF CLI',
   'keys.apiKeyLimitReached': 'API key limit reached',
   'keys.created': 'Created',
   'keys.expiresAt': 'Expires',
@@ -320,6 +321,19 @@ const GroupOptionItemStub = {
   template: '<span data-test="group-option-item" :data-has-capacity="capacity ? \'true\' : \'false\'">{{ name }}</span>',
 }
 
+const TfCliImportDialogStub = {
+  name: 'TfCliImportDialog',
+  props: ['show', 'apiKey'],
+  emits: ['close'],
+  template: `
+    <div
+      v-if="show"
+      data-test="tf-cli-dialog-stub"
+      :data-key-name="apiKey?.name"
+    />
+  `,
+}
+
 const mountView = async (settle = true) => {
   const wrapper = mount(KeysView, {
     global: {
@@ -336,6 +350,7 @@ const mountView = async (settle = true) => {
         SearchInput: SearchInputStub,
         Icon: IconStub,
         UseKeyModal: true,
+        TfCliImportDialog: TfCliImportDialogStub,
         EndpointPopover: true,
         GroupBadge: true,
         GroupOptionItem: GroupOptionItemStub,
@@ -471,6 +486,21 @@ describe('user KeysView column settings', () => {
     expect(actionButtons.some((button) => button.text().includes('Edit'))).toBe(true)
     expect(actionButtons.some((button) => button.text().includes('Disable'))).toBe(true)
     expect(actionButtons.some((button) => button.text().includes('More'))).toBe(true)
+  })
+
+  it('opens tf import from the More menu without a fragment session', async () => {
+    const wrapper = await mountView()
+
+    const moreButton = getButtonByText(wrapper, 'More')
+    expect(moreButton.attributes('aria-expanded')).toBe('false')
+    await moreButton.trigger('click')
+    await nextTick()
+    expect(moreButton.attributes('aria-expanded')).toBe('true')
+    expect(moreButton.attributes('aria-controls')).toBe('key-action-menu-1')
+    await getButtonByText(wrapper, 'Import to TF CLI').trigger('click')
+    await nextTick()
+
+    expect(wrapper.get('[data-test="tf-cli-dialog-stub"]').attributes('data-key-name')).toBe('test-key')
   })
 
   it('shows a hidden column when toggled and persists the preference', async () => {

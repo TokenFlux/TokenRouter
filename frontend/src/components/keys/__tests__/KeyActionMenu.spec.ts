@@ -47,7 +47,7 @@ describe('KeyActionMenu', () => {
     document.body.innerHTML = ''
   })
 
-  it('将使用、导入和删除收纳到更多菜单', async () => {
+  it('将使用、tf/CCS 导入和删除收纳到更多菜单', async () => {
     const wrapper = mount(KeyActionMenu, {
       props: {
         show: true,
@@ -58,17 +58,35 @@ describe('KeyActionMenu', () => {
       attachTo: document.body,
     })
 
+    const menu = document.body.querySelector('[role="menu"]')
+    expect(menu?.id).toBe('key-action-menu-7')
+    expect(menu?.querySelectorAll('[role="menuitem"]')).toHaveLength(4)
     expect(document.body.textContent).toContain('keys.useKey')
+    expect(document.body.textContent).toContain('keys.importToTf')
     expect(document.body.textContent).toContain('keys.importToCcSwitch')
     expect(document.body.textContent).toContain('common.delete')
 
+    const tfButton = Array.from(document.body.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('keys.importToTf'))
+    const ccsButton = Array.from(document.body.querySelectorAll('button'))
+      .find((button) => button.textContent?.includes('keys.importToCcSwitch'))
+    expect(tfButton?.querySelector('path')?.getAttribute('d'))
+      .toBe(ccsButton?.querySelector('path')?.getAttribute('d'))
+    expect(tfButton?.querySelector('svg')?.classList.contains('text-blue-500')).toBe(true)
+    tfButton?.click()
+    await wrapper.vm.$nextTick()
+
+    expect(wrapper.emitted('import-tf')?.[0]).toEqual([apiKey])
+    expect(wrapper.emitted('close')).toHaveLength(1)
+
+    await wrapper.setProps({ show: true })
     const deleteButton = Array.from(document.body.querySelectorAll('button'))
       .find((button) => button.textContent?.includes('common.delete'))
     deleteButton?.click()
     await wrapper.vm.$nextTick()
 
     expect(wrapper.emitted('delete')?.[0]).toEqual([apiKey])
-    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(wrapper.emitted('close')).toHaveLength(2)
     wrapper.unmount()
   })
 
@@ -84,6 +102,7 @@ describe('KeyActionMenu', () => {
     })
 
     expect(document.body.textContent).not.toContain('keys.importToCcSwitch')
+    expect(document.body.textContent).toContain('keys.importToTf')
     wrapper.unmount()
   })
 })

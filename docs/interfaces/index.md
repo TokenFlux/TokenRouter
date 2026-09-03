@@ -10,6 +10,7 @@
 
 - [HTTP 接口边界](http_api.md)：公共、用户、管理员、支付和网关路由族及认证/错误边界。读取时机：新增或移动路由、调整中间件、认证方式或公共响应语义时读取。
 - [配置边界](configuration.md)：默认值、YAML、环境变量、数据库运行时设置和首次初始化之间的边界。读取时机：新增配置项、修改加载优先级、设置页面或部署变量时读取。
+- [tf CLI 网页导入](tf_cli_web_import.md)：Keys 页、本机回环协议、会话证明、双重确认和浏览器安全头。读取时机：修改 Keys 导入入口、URL fragment、localhost fetch、CSP 或 tf-cli 协议时读取。
 - [上游账号能力矩阵](upstream_account_matrix.md)：九个平台、七类账号和全部公开网关协议的正式支持、兼容保留与不支持边界。读取时机：新增平台/账号类型、修改创建导入校验、路由分派或能力承诺时读取。
 - [API Key 上游用量查询](upstream_usage.md)：API Key 账号的适配器、管理员查询接口、归一化结果和浏览器缓存边界。读取时机：修改 API Key 用量查询、适配器协议、账号用量展示或查询安全策略时读取。
 - [Anthropic 上游](anthropic_upstream.md)：OAuth、Setup Token、API Key、Bedrock、Vertex，以及 Messages/OpenAI 兼容转换和缓存/限流契约。读取时机：修改 Anthropic 认证、协议、beta、thinking、缓存或错误分类时读取。

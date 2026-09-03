@@ -442,6 +442,9 @@
               <button
                 class="key-action-menu-trigger flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-dark-700 dark:hover:text-white"
                 :class="{ 'bg-gray-100 text-gray-900 dark:bg-dark-700 dark:text-white': actionMenuKey?.id === row.id }"
+                aria-haspopup="menu"
+                :aria-expanded="actionMenuKey?.id === row.id"
+                :aria-controls="actionMenuKey?.id === row.id ? `key-action-menu-${row.id}` : undefined"
                 @click="openKeyActionMenu(row, $event)"
               >
                 <Icon name="more" size="sm" />
@@ -1224,6 +1227,12 @@
       @close="closeUseKeyModal"
     />
 
+    <TfCliImportDialog
+      :show="showTfCliImportDialog"
+      :api-key="tfImportKey"
+      @close="closeTfCliImportDialog"
+    />
+
     <KeyActionMenu
       :show="Boolean(actionMenuKey)"
       :api-key="actionMenuKey"
@@ -1231,6 +1240,7 @@
       :allow-import="!publicSettings?.hide_ccs_import_button"
       @close="closeKeyActionMenu"
       @use="openUseKeyModal"
+      @import-tf="openTfCliImportDialog"
       @import="importToCcswitch"
       @delete="confirmDelete"
     />
@@ -1415,6 +1425,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 	import Icon from '@/components/icons/Icon.vue'
 	import KeyActionMenu from '@/components/keys/KeyActionMenu.vue'
 	import UseKeyModal from '@/components/keys/UseKeyModal.vue'
+	import TfCliImportDialog from '@/components/keys/TfCliImportDialog.vue'
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
@@ -1618,9 +1629,11 @@ const showDeleteDialog = ref(false)
 const showResetQuotaDialog = ref(false)
 const showResetRateLimitDialog = ref(false)
 const showUseKeyModal = ref(false)
+const showTfCliImportDialog = ref(false)
 const showCcsClientSelect = ref(false)
 const showColumnDropdown = ref(false)
 const pendingCcsRow = ref<ApiKey | null>(null)
+const tfImportKey = ref<ApiKey | null>(null)
 const selectedKey = ref<ApiKey | null>(null)
 const actionMenuKey = ref<ApiKey | null>(null)
 const actionMenuPosition = ref<{ top: number; left: number } | null>(null)
@@ -2205,6 +2218,16 @@ const closeUseKeyModal = () => {
   selectedKey.value = null
 }
 
+const openTfCliImportDialog = (key: ApiKey) => {
+  tfImportKey.value = key
+  showTfCliImportDialog.value = true
+}
+
+const closeTfCliImportDialog = () => {
+  showTfCliImportDialog.value = false
+  tfImportKey.value = null
+}
+
 const handlePageChange = (page: number) => {
   pagination.value.page = page
   loadApiKeys()
@@ -2302,7 +2325,7 @@ const openKeyActionMenu = (key: ApiKey, event: MouseEvent) => {
   if (!target) return
   const rect = target.getBoundingClientRect()
   const width = 192
-  const height = publicSettings.value?.hide_ccs_import_button ? 102 : 142
+  const height = publicSettings.value?.hide_ccs_import_button ? 138 : 178
   const padding = 8
   const left = Math.max(padding, Math.min(rect.right - width, window.innerWidth - width - padding))
   let top = rect.bottom + 4

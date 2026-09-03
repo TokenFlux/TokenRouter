@@ -12,6 +12,10 @@ import { useRoutePrefetch } from '@/composables/useRoutePrefetch'
 import { getSetupStatus } from '@/api/setup'
 import { resolveCompletedSetupRedirectPath } from './setupRedirect'
 import { resolveRouteDocumentTitle } from './title'
+import { initializeTfCliImportSession } from '@/utils/tfCliImport'
+
+// 登录守卫读取 fullPath 前先移除一次性会话 secret，避免它进入重定向参数。
+initializeTfCliImportSession()
 
 /**
  * Route definitions with lazy loading

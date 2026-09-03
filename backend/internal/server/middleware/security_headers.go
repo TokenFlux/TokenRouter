@@ -94,6 +94,17 @@ var requiredCSPDirectiveValues = []struct {
 	{"style-src", AirwallexDemoStaticDomain},
 	{"style-src", AirwallexDemoCheckoutDomain},
 	{"frame-src", AirwallexDemoCheckoutDomain},
+	// @project-doc docs/interfaces/tf_cli_web_import.md#browser_security_headers
+	{"connect-src", "http://127.0.0.1:43110"},
+	{"connect-src", "http://127.0.0.1:43111"},
+	{"connect-src", "http://127.0.0.1:43112"},
+	{"connect-src", "http://127.0.0.1:43113"},
+	{"connect-src", "http://127.0.0.1:43114"},
+	{"connect-src", "http://127.0.0.1:43115"},
+	{"connect-src", "http://127.0.0.1:43116"},
+	{"connect-src", "http://127.0.0.1:43117"},
+	{"connect-src", "http://127.0.0.1:43118"},
+	{"connect-src", "http://127.0.0.1:43119"},
 }
 
 // GenerateNonce generates a cryptographically secure random nonce.

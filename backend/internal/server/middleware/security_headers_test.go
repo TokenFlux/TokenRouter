@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -346,7 +347,19 @@ func TestEnhanceCSPPolicy(t *testing.T) {
 		assert.Equal(t, 1, countDirectiveValue(enhanced, "worker-src", TencentCaptchaWorkerSource))
 	})
 
-	t.Run("default_policy_already_carries_tencent_captcha_domains", func(t *testing.T) {
+	t.Run("adds_only_the_tf_cli_loopback_ports", func(t *testing.T) {
+		policy := "default-src 'self'; connect-src 'self'"
+		enhanced := enhanceCSPPolicy(policy)
+
+		for port := 43110; port <= 43119; port++ {
+			origin := fmt.Sprintf("http://127.0.0.1:%d", port)
+			assert.Equal(t, 1, countDirectiveValue(enhanced, "connect-src", origin))
+		}
+		assert.NotContains(t, enhanced, "http://127.0.0.1:*")
+		assert.NotContains(t, enhanced, "http://localhost")
+	})
+
+	t.Run("default_policy_already_carries_required_domains", func(t *testing.T) {
 		// 默认策略与中间件强制注入表必须同形，否则 config.example.yaml 会误导自建用户
 		for _, required := range requiredCSPDirectiveValues {
 			assert.Equal(t, 1, countDirectiveValue(config.DefaultCSPPolicy, required.directive, required.value),
