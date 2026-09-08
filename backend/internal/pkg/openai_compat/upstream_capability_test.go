@@ -8,19 +8,15 @@ func TestResolveUpstreamTextProtocol(t *testing.T) {
 		TextRouteModeForceResponses,
 		TextRouteModeForceChatCompletions,
 	}
-	statuses := []ResponsesProbeStatus{
-		ResponsesProbeStatusSupported,
-		ResponsesProbeStatusUnsupported,
-		ResponsesProbeStatusUnknown,
-	}
+	statuses := []string{"supported", "unsupported", "unknown"}
 	preferredProtocols := []TextProtocol{TextProtocolChatCompletions, TextProtocolResponses}
 
 	for _, mode := range modes {
 		for _, status := range statuses {
 			for _, preferred := range preferredProtocols {
 				extra := map[string]any{
-					ExtraKeyTextRouteMode:        string(mode),
-					ExtraKeyResponsesProbeStatus: string(status),
+					ExtraKeyTextRouteMode:           string(mode),
+					"openai_responses_probe_status": string(status),
 				}
 				want := preferred
 				switch mode {
@@ -47,8 +43,8 @@ func TestResolveUpstreamTextProtocolDefaults(t *testing.T) {
 		t.Fatalf("Responses 首选协议默认得到 %q", got)
 	}
 	if got := ResolveUpstreamTextProtocol(map[string]any{
-		ExtraKeyTextRouteMode:        "invalid",
-		ExtraKeyResponsesProbeStatus: "invalid",
+		ExtraKeyTextRouteMode:           "invalid",
+		"openai_responses_probe_status": "invalid",
 	}, TextProtocolResponses); got != TextProtocolResponses {
 		t.Fatalf("非法配置默认得到 %q", got)
 	}

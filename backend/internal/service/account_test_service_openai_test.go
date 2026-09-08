@@ -519,9 +519,7 @@ func TestAccountTestService_DeepSeekResponsesRoutesToOpenAIProbe(t *testing.T) {
 			"base_url":     "https://relay.example.com/v1",
 			"api_protocol": APIProtocolResponses,
 		},
-		Extra: map[string]any{
-			openai_compat.ExtraKeyResponsesProbeStatus: string(openai_compat.ResponsesProbeStatusSupported),
-		},
+		Extra: map[string]any{},
 	}
 	repo := &openAIAccountTestRepo{
 		mockAccountRepoForGemini: mockAccountRepoForGemini{

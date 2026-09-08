@@ -69,8 +69,8 @@ func TestAdminServiceBulkUpdateAccountsNormalizesLegacyOpenAIConfiguration(t *te
 			legacyOpenAICapabilitiesCredentialKey: []any{"chat_completions"},
 		},
 		Extra: map[string]any{
-			legacyOpenAIResponsesModeExtraKey:      "auto",
-			legacyOpenAIResponsesSupportedExtraKey: false,
+			legacyOpenAIResponsesModeExtraKey: "auto",
+			"openai_responses_supported":      false,
 		},
 	}
 
@@ -82,7 +82,7 @@ func TestAdminServiceBulkUpdateAccountsNormalizesLegacyOpenAIConfiguration(t *te
 	require.Equal(t, "preserve_client_protocol", repo.lastBulkUpdate.Extra["openai_text_route_mode"])
 	require.NotContains(t, repo.lastBulkUpdate.Extra, "openai_responses_probe_status")
 	require.NotContains(t, repo.lastBulkUpdate.Extra, legacyOpenAIResponsesModeExtraKey)
-	require.NotContains(t, repo.lastBulkUpdate.Extra, legacyOpenAIResponsesSupportedExtraKey)
+	require.NotContains(t, repo.lastBulkUpdate.Extra, "openai_responses_supported")
 }
 
 func TestAdminServiceBulkUpdateAccountsNormalizesOpenAIWorkloadAndTextRoute(t *testing.T) {

@@ -188,7 +188,7 @@ func TestForwardResponses_DeepSeekReasoningOnlyStreamProducesVisibleText(t *test
 	require.Contains(t, rec.Body.String(), "data: [DONE]")
 }
 
-func TestForwardResponses_AutoSupportedAccountStillUsesResponsesEndpoint(t *testing.T) {
+func TestForwardResponses_PreserveClientProtocolUsesResponsesEndpoint(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	body := []byte(`{"model":"deepseek-v4-flash","input":"hello","reasoning":{"effort":"max"},"stream":false}`)
@@ -211,8 +211,7 @@ func TestForwardResponses_AutoSupportedAccountStillUsesResponsesEndpoint(t *test
 	}
 	account := rawChatCompletionsTestAccount()
 	account.Extra = map[string]any{
-		openai_compat.ExtraKeyTextRouteMode:        string(openai_compat.TextRouteModePreserveClientProtocol),
-		openai_compat.ExtraKeyResponsesProbeStatus: string(openai_compat.ResponsesProbeStatusSupported),
+		openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModePreserveClientProtocol),
 	}
 
 	result, err := svc.Forward(context.Background(), c, account, body)

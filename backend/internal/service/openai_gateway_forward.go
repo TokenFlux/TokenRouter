@@ -1282,13 +1282,8 @@ func shouldForwardOpenAIResponsesViaRawChatCompletions(account *Account) bool {
 	if account == nil || account.Type != AccountTypeAPIKey {
 		return false
 	}
-	if account.Extra != nil {
-		if supported, ok := account.Extra["openai_responses_supported"].(bool); ok && !supported {
-			return true
-		}
-	}
 	if account.IsCNProvider() {
-		// CN 的显式协议配置优先于异步探针 Extra；adaptive 仅 DeepSeek / Kimi
+		// CN 直接使用显式协议配置；adaptive 仅 DeepSeek / Kimi
 		// 有原生 Responses，GLM 回退 Chat Completions。
 		switch account.GetAPIProtocol() {
 		case APIProtocolChatCompletions:

@@ -3,14 +3,52 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/stretchr/testify/require"
 )
 
+// 新旧调度器都必须复核数据库开关，缓存显示关闭也不能永久漏选已重新启用的账号。
+func TestCompactSchedulingRechecksAdministratorSwitchFromDatabase(t *testing.T) {
+	for _, advanced := range []bool{false, true} {
+		for _, enabled := range []bool{false, true} {
+			t.Run(fmt.Sprintf("advanced=%v/enabled=%v", advanced, enabled), func(t *testing.T) {
+				resetAdvancedSchedulerSettingCacheForTest()
+				groupID := int64(91090)
+				cachedMode, dbMode := "force_on", "force_off"
+				if enabled {
+					cachedMode, dbMode = dbMode, cachedMode
+				}
+				cached := &Account{ID: 71990, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive,
+					Schedulable: true, Concurrency: 1, GroupIDs: []int64{groupID}, Extra: map[string]any{"openai_compact_mode": cachedMode}}
+				fresh := *cached
+				fresh.Extra = map[string]any{"openai_compact_mode": dbMode}
+				svc := &OpenAIGatewayService{
+					accountRepo: schedulerTestOpenAIAccountRepo{accounts: []Account{fresh}},
+					cache:       &schedulerTestGatewayCache{}, cfg: &config.Config{},
+					rateLimitService:   newAdvancedSchedulerRateLimitService(fmt.Sprint(advanced)),
+					concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
+					schedulerSnapshot: &SchedulerSnapshotService{cache: &openAISnapshotCacheStub{
+						snapshotAccounts: []*Account{cached}, accountsByID: map[int64]*Account{cached.ID: cached}}},
+				}
+				selected, _, err := svc.SelectAccountWithScheduler(context.Background(), &groupID, "", "", "gpt-5.4", nil, OpenAIUpstreamTransportAny, true)
+				if enabled {
+					require.NoError(t, err)
+					require.NotNil(t, selected)
+					require.Equal(t, cached.ID, selected.Account.ID)
+				} else {
+					require.ErrorIs(t, err, ErrNoAvailableCompactAccounts)
+					require.Nil(t, selected)
+				}
+			})
+		}
+	}
+}
+
 // TestOpenAIGatewayService_SelectAccountWithScheduler_CompactSelectsEnabledAccount
-// 验证 compact 调度时显式支持 (tier=2) 优先于未探测 (tier=1)。
+// 验证 Compact 调度只选择管理员启用的账号。
 func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactSelectsEnabledAccount(t *testing.T) {
 	resetAdvancedSchedulerSettingCacheForTest()
 
@@ -35,7 +73,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactSelectsEnabledAc
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
-			Extra:       map[string]any{"openai_compact_supported": true}, // tier=2
+			Extra:       map[string]any{"openai_compact_mode": "force_on"}, // 管理员启用
 		},
 	}
 	cfg := &config.Config{}
@@ -63,9 +101,9 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactSelectsEnabledAc
 	require.Equal(t, int64(71002), selection.Account.ID, "disabled account must be excluded")
 }
 
-// TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsExplicitlyUnsupported
-// 验证 force_off / 已探测不支持 (tier=0) 的账号不会被 compact 请求选中。
-func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsExplicitlyUnsupported(t *testing.T) {
+// TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsDisabled
+// 验证管理员关闭的账号不会被 Compact 请求选中。
+func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsDisabled(t *testing.T) {
 	resetAdvancedSchedulerSettingCacheForTest()
 
 	ctx := context.Background()
@@ -117,7 +155,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsExplicitl
 }
 
 // TestOpenAIGatewayService_SelectAccountWithScheduler_CompactUsesDefaultEnabledAccount
-// 验证当没有"已知支持"账号时，compact 请求会回退到"未探测"账号。
+// 验证缺省压缩开关保持开启，显式关闭仍然排除。
 func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactUsesDefaultEnabledAccount(t *testing.T) {
 	resetAdvancedSchedulerSettingCacheForTest()
 
@@ -132,7 +170,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactUsesDefaultEnabl
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
-			Extra:       map[string]any{"openai_compact_mode": "force_off"}, // tier=0
+			Extra:       map[string]any{"openai_compact_mode": "force_off"}, // 管理员关闭
 		},
 		{
 			ID:          71021,
@@ -142,7 +180,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactUsesDefaultEnabl
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
-			Extra:       map[string]any{}, // unknown -> tier=1
+			Extra:       map[string]any{}, // 缺省开启
 		},
 	}
 	cfg := &config.Config{}
@@ -167,7 +205,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactUsesDefaultEnabl
 	require.NoError(t, err)
 	require.NotNil(t, selection)
 	require.NotNil(t, selection.Account)
-	require.Equal(t, int64(71021), selection.Account.ID, "unknown account should be picked when no supported account available")
+	require.Equal(t, int64(71021), selection.Account.ID, "default-enabled account should be selected")
 }
 
 // TestOpenAIGatewayService_SelectAccountWithScheduler_CompactAllowsGrok 验证 compact 调度允许 Grok 账号参与。
@@ -232,8 +270,8 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionSeparat
 			Concurrency: 1,
 			Priority:    10,
 			Extra: map[string]any{
-				"openai_compact_supported": true,
-				"openai_text_route_mode":   "force_chat_completions",
+				"openai_compact_mode":    "force_on",
+				"openai_text_route_mode": "force_chat_completions",
 			},
 		},
 		{
@@ -244,8 +282,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionSeparat
 			Schedulable: true,
 			Concurrency: 1,
 			Extra: map[string]any{
-				"openai_compact_mode":           OpenAICompactModeForceOff,
-				"openai_responses_probe_status": "supported",
+				"openai_compact_mode": OpenAICompactModeForceOff,
 			},
 		},
 	}
@@ -291,7 +328,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionSeparat
 }
 
 // TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionV2Mode
-// 验证原生 V2 只读取自身模式和探测结果，不借用旧版 Compact 状态。
+// 验证原生 V2 只读取自身管理员开关，忽略历史状态和旧版 Compact 开关。
 func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionV2Mode(t *testing.T) {
 	resetAdvancedSchedulerSettingCacheForTest()
 
@@ -306,9 +343,8 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionV2Mode(
 			Concurrency: 1,
 			Priority:    0,
 			Extra: map[string]any{
-				"openai_responses_probe_status":           "supported",
-				openAINativeCompactionV2ModeExtraKey:      OpenAICompactModeForceOff,
-				openAINativeCompactionV2SupportedExtraKey: true,
+				openAINativeCompactionV2ModeExtraKey:    OpenAICompactModeForceOff,
+				"openai_native_compaction_v2_supported": true,
 			},
 		},
 		{
@@ -320,9 +356,8 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionV2Mode(
 			Concurrency: 1,
 			Priority:    1,
 			Extra: map[string]any{
-				"openai_responses_probe_status":           "supported",
-				openAINativeCompactionV2SupportedExtraKey: false,
-				openAINativeCompactionV2ModeExtraKey:      OpenAICompactModeForceOff,
+				"openai_native_compaction_v2_supported": false,
+				openAINativeCompactionV2ModeExtraKey:    OpenAICompactModeForceOff,
 			},
 		},
 		{
@@ -334,9 +369,8 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionV2Mode(
 			Concurrency: 1,
 			Priority:    2,
 			Extra: map[string]any{
-				"openai_responses_probe_status":           "supported",
-				openAINativeCompactionV2ModeExtraKey:      OpenAICompactModeForceOn,
-				openAINativeCompactionV2SupportedExtraKey: false,
+				openAINativeCompactionV2ModeExtraKey:    OpenAICompactModeForceOn,
+				"openai_native_compaction_v2_supported": false,
 			},
 		},
 	}
@@ -367,26 +401,26 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionV2Mode(
 	require.Equal(t, int64(71062), selection.Account.ID)
 }
 
-// TestOpenAICompactSupportTier 验证 tier 分类逻辑。
-func TestOpenAICompactSupportTier(t *testing.T) {
+// TestAllowsOpenAICompatibleCompact 验证压缩资格开关。
+func TestAllowsOpenAICompatibleCompact(t *testing.T) {
 	tests := []struct {
 		name    string
 		account *Account
-		want    int
+		want    bool
 	}{
-		{name: "nil", account: nil, want: 0},
-		{name: "non openai", account: &Account{Platform: PlatformAnthropic}, want: 0},
-		{name: "grok", account: &Account{Platform: PlatformGrok}, want: 2},
-		{name: "openai default enabled", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{}}, want: 2},
-		{name: "openai supported", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_supported": true}}, want: 2},
-		{name: "openai unsupported", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": "force_off"}}, want: 0},
-		{name: "force on", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": OpenAICompactModeForceOn}}, want: 2},
-		{name: "force off overrides probe true", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": OpenAICompactModeForceOff, "openai_compact_supported": true}}, want: 0},
+		{name: "nil", account: nil, want: false},
+		{name: "non openai", account: &Account{Platform: PlatformAnthropic}, want: false},
+		{name: "grok", account: &Account{Platform: PlatformGrok}, want: true},
+		{name: "openai default enabled", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{}}, want: true},
+		{name: "openai enabled", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": "force_on"}}, want: true},
+		{name: "openai disabled", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": "force_off"}}, want: false},
+		{name: "force on", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": OpenAICompactModeForceOn}}, want: true},
+		{name: "force off overrides probe true", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": OpenAICompactModeForceOff, "openai_compact_supported": true}}, want: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := openAICompactSupportTier(tt.account); got != tt.want {
-				t.Fatalf("openAICompactSupportTier(...) = %d, want %d", got, tt.want)
+			if got := allowsOpenAICompatibleCompact(tt.account); got != tt.want {
+				t.Fatalf("allowsOpenAICompatibleCompact(...) = %v, want %v", got, tt.want)
 			}
 		})
 	}

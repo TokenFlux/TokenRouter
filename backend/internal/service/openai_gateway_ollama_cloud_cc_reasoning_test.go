@@ -45,8 +45,7 @@ func TestIsOllamaCloudRawChatCompletionsAccount(t *testing.T) {
 		t.Parallel()
 		account := ollamaCloudRawChatCompletionsTestAccount()
 		account.Extra = map[string]any{
-			openai_compat.ExtraKeyTextRouteMode:        string(openai_compat.TextRouteModePreserveClientProtocol),
-			openai_compat.ExtraKeyResponsesProbeStatus: string(openai_compat.ResponsesProbeStatusUnsupported),
+			openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModePreserveClientProtocol),
 		}
 		require.False(t, isOllamaCloudRawChatCompletionsAccount(account))
 	})

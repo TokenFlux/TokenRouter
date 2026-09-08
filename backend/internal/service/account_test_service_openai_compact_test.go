@@ -15,7 +15,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-const compactProbeV2SSESuccessBody = "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"compaction\",\"id\":\"cmp_probe\",\"encrypted_content\":\"blob\"}}\n\n" +
+const compactionTestV2SSESuccessBody = "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"compaction\",\"id\":\"cmp_probe\",\"encrypted_content\":\"blob\"}}\n\n" +
 	"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_probe\",\"output\":[]}}\n\n"
 
 func TestAccountTestService_TestAccountConnection_OpenAICompactOAuthUsesNativeV2AndDoesNotPersistSupport(t *testing.T) {
@@ -42,7 +42,7 @@ func TestAccountTestService_TestAccountConnection_OpenAICompactOAuthUsesNativeV2
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}, "x-request-id": []string{"rid-probe"}},
-		Body:       io.NopCloser(strings.NewReader(compactProbeV2SSESuccessBody)),
+		Body:       io.NopCloser(strings.NewReader(compactionTestV2SSESuccessBody)),
 	}}
 	svc := &AccountTestService{
 		accountRepo:  repo,
@@ -89,7 +89,7 @@ func TestAccountTestService_TestAccountConnection_OpenAICompactOAuth404DoesNotCh
 		Schedulable: true,
 		Concurrency: 1,
 		Extra: map[string]any{
-			"openai_compact_supported": true,
+			"openai_compact_mode": "force_on",
 		},
 		Credentials: map[string]any{
 			"access_token":       "oauth-token",
@@ -146,7 +146,7 @@ func TestAccountTestService_TestAccountConnection_OpenAICompactAPIKeyUsesNativeR
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-		Body:       io.NopCloser(strings.NewReader(compactProbeV2SSESuccessBody)),
+		Body:       io.NopCloser(strings.NewReader(compactionTestV2SSESuccessBody)),
 	}}
 	svc := &AccountTestService{
 		accountRepo:  repo,
@@ -191,7 +191,7 @@ func TestAccountTestService_TestAccountConnection_OpenAICompactAPIKeyDefaultBase
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-		Body:       io.NopCloser(strings.NewReader(compactProbeV2SSESuccessBody)),
+		Body:       io.NopCloser(strings.NewReader(compactionTestV2SSESuccessBody)),
 	}}
 	svc := &AccountTestService{
 		accountRepo:  repo,

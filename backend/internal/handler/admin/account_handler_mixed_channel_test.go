@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -349,7 +348,7 @@ func TestAccountHandlerBulkUpdateOpenAIAPIKeyDoesNotProbe(t *testing.T) {
 	upstream.mu.Unlock()
 
 	repo.mu.Lock()
-	require.NotContains(t, repo.accounts[account.ID].Extra, openai_compat.ExtraKeyResponsesProbeStatus)
+	require.NotContains(t, repo.accounts[account.ID].Extra, "openai_responses_probe_status")
 	repo.mu.Unlock()
 }
 
@@ -384,7 +383,7 @@ func (r *bulkUpdateProbeAccountRepo) UpdateExtra(ctx context.Context, id int64, 
 	}
 	r.mu.Unlock()
 
-	if _, ok := updates[openai_compat.ExtraKeyResponsesProbeStatus]; ok && r.done != nil {
+	if _, ok := updates["openai_responses_probe_status"]; ok && r.done != nil {
 		select {
 		case r.done <- id:
 		default:

@@ -313,6 +313,7 @@
 </template>
 
 <script setup lang="ts">
+import { normalizeLegacyOpenAIExtra, normalizeOpenAICompactMode } from '@/utils/openaiLegacyConfiguration'
 import OpenAICompactionCheckbox from '@/components/account/OpenAICompactionCheckbox.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -592,7 +593,7 @@ const hydrate = (defaults: OpenAIOAuthImportDefaults) => {
   delete credentials.model_mapping
   credentialsJson.value = stringifyJsonObject(credentials)
 
-  const extra = { ...(defaults.extra || {}) }
+  const extra = normalizeLegacyOpenAIExtra(defaults.extra || {})
   openaiPassthrough.value = extra.openai_passthrough === true || extra.openai_oauth_passthrough === true
   codexImageToolMode.value = readCodexImageToolMode(extra)
   openAIOAuthClientPolicy.value = normalizeOpenAIOAuthClientPolicy(
@@ -618,8 +619,8 @@ const hydrate = (defaults: OpenAIOAuthImportDefaults) => {
     fallbackEnabledKeys: ['responses_websockets_v2_enabled', 'openai_ws_enabled'],
     defaultMode: OPENAI_WS_MODE_OFF
   })
-  compactMode.value = extra.openai_compact_mode === 'force_off' ? 'force_off' : 'force_on'
-  nativeCompactV2Mode.value = extra.openai_native_compaction_v2_mode === 'force_off' ? 'force_off' : 'force_on'
+  compactMode.value = normalizeOpenAICompactMode(extra.openai_compact_mode)
+  nativeCompactV2Mode.value = normalizeOpenAICompactMode(extra.openai_native_compaction_v2_mode)
   tlsFingerprintEnabled.value = extra.enable_tls_fingerprint === true
   tlsFingerprintProfileId.value = tlsFingerprintEnabled.value
     ? normalizeTLSFingerprintProfileId(extra.tls_fingerprint_profile_id)
@@ -697,7 +698,7 @@ const save = async () => {
       credentialsJson.value,
       t('admin.accounts.openAIOAuthImportDefaultsCredentialsJson')
     )
-    const extra = parseJsonObject(extraJson.value, t('admin.accounts.openAIOAuthImportDefaultsExtraJson'))
+    const extra = normalizeLegacyOpenAIExtra(parseJsonObject(extraJson.value, t('admin.accounts.openAIOAuthImportDefaultsExtraJson')))
 
     delete credentials.model_whitelist
     delete credentials.model_mapping

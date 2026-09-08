@@ -368,22 +368,9 @@ func openAIAccountSupportsRoutingModel(ctx context.Context, account *Account, ro
 	return account != nil && account.IsModelSupported(routingModel)
 }
 
-// openAICompactSupportTier 按 OpenAI 兼容账号的 compact 能力分级。
-// 0 表示管理员禁用，2 表示管理员启用；不再按探测状态分层。
-func openAICompactSupportTier(account *Account) int {
-	if account == nil {
-		return 0
-	}
-	if account.IsGrok() {
-		return 2
-	}
-	if !account.IsOpenAI() {
-		return 0
-	}
-	if account.AllowsOpenAICompact() {
-		return 2
-	}
-	return 0
+// allowsOpenAICompatibleCompact 统一读取 OpenAI 管理员开关和 Grok 固有的 Compact 资格。
+func allowsOpenAICompatibleCompact(account *Account) bool {
+	return account != nil && (account.IsGrok() || account.AllowsOpenAICompact())
 }
 
 // isOpenAICompatibleAccountEligibleForRequest 判断 OpenAI 兼容账号是否满足本次请求的调度条件。
@@ -456,7 +443,7 @@ func openAICompatibleAccountEligibilityFailureReasonBeforeProfit(ctx context.Con
 		}
 		return "capability_mismatch"
 	}
-	if requireCompact && openAICompactSupportTier(account) == 0 {
+	if requireCompact && !allowsOpenAICompatibleCompact(account) {
 		return "compact_unsupported"
 	}
 	return ""
@@ -761,31 +748,22 @@ func (s *OpenAIGatewayService) withOpenAIQuotaAutoPauseContext(ctx context.Conte
 	return withOpenAIQuotaAutoPauseSettings(ctx, s.settingService.GetOpenAIQuotaAutoPauseSettings(ctx))
 }
 
-// prioritizeOpenAICompactAccounts re-orders a slice so that accounts with known
-// compact support are tried first, followed by unknown, then explicitly unsupported.
-// The relative order within each tier is preserved.
-func prioritizeOpenAICompactAccounts(accounts []*Account) []*Account {
+// prioritizeEnabledOpenAICompactAccounts 先尝试已启用的账号。
+// 快照显示关闭的账号仍保留在末尾，最终以数据库复核结果决定资格。
+func prioritizeEnabledOpenAICompactAccounts(accounts []*Account) []*Account {
 	if len(accounts) == 0 {
 		return nil
 	}
-	supported := make([]*Account, 0, len(accounts))
-	unknown := make([]*Account, 0, len(accounts))
-	unsupported := make([]*Account, 0, len(accounts))
+	enabled := make([]*Account, 0, len(accounts))
+	disabled := make([]*Account, 0, len(accounts))
 	for _, account := range accounts {
-		switch openAICompactSupportTier(account) {
-		case 2:
-			supported = append(supported, account)
-		case 1:
-			unknown = append(unknown, account)
-		default:
-			unsupported = append(unsupported, account)
+		if allowsOpenAICompatibleCompact(account) {
+			enabled = append(enabled, account)
+		} else {
+			disabled = append(disabled, account)
 		}
 	}
-	out := make([]*Account, 0, len(accounts))
-	out = append(out, supported...)
-	out = append(out, unknown...)
-	out = append(out, unsupported...)
-	return out
+	return append(enabled, disabled...)
 }
 
 type openAIHTTPPassthroughRoutingContextKey struct{}
@@ -1002,7 +980,6 @@ func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *i
 	compactBlocked := false
 	needsUpstreamCheck := s.needsUpstreamChannelRestrictionCheck(ctx, groupID)
 	eligible := make([]*Account, 0, len(accounts))
-	compactTiers := make(map[int64]int, len(accounts))
 
 	for i := range accounts {
 		acc := &accounts[i]
@@ -1027,17 +1004,12 @@ func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *i
 		if needsUpstreamCheck && s.isUpstreamRoutingModelRestrictedByChannel(ctx, *groupID, fresh, routingModel, requireCompact) {
 			continue
 		}
-		compactTier := 0
-		if requireCompact {
-			compactTier = openAICompactSupportTier(fresh)
-			if compactTier == 0 {
-				compactBlocked = true
-				continue
-			}
+		if requireCompact && !allowsOpenAICompatibleCompact(fresh) {
+			compactBlocked = true
+			continue
 		}
 
 		eligible = append(eligible, fresh)
-		compactTiers[fresh.ID] = compactTier
 	}
 
 	if len(eligible) == 0 {
@@ -1045,9 +1017,6 @@ func (s *OpenAIGatewayService) selectBestAccount(ctx context.Context, groupID *i
 	}
 	sort.SliceStable(eligible, func(i, j int) bool {
 		a, b := eligible[i], eligible[j]
-		if requireCompact && compactTiers[a.ID] != compactTiers[b.ID] {
-			return compactTiers[a.ID] > compactTiers[b.ID]
-		}
 		return s.isBetterAccount(a, b)
 	})
 	return eligible[0], compactBlocked
@@ -1324,18 +1293,17 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessForRouting(ctx cont
 		shuffleWithinSortGroups(available)
 		selectionOrder := make([]accountWithLoad, 0, len(available))
 		if requireCompact {
-			appendTier := func(out []accountWithLoad, tier int) []accountWithLoad {
+			// 先尝试快照已启用的账号，再复核可能已由管理员重新启用的旧快照。
+			appendEnabled := func(out []accountWithLoad, enabled bool) []accountWithLoad {
 				for _, item := range available {
-					if openAICompactSupportTier(item.account) == tier {
+					if allowsOpenAICompatibleCompact(item.account) == enabled {
 						out = append(out, item)
 					}
 				}
 				return out
 			}
-			selectionOrder = appendTier(selectionOrder, 2)
-			selectionOrder = appendTier(selectionOrder, 1)
-
-			selectionOrder = appendTier(selectionOrder, 0)
+			selectionOrder = appendEnabled(selectionOrder, true)
+			selectionOrder = appendEnabled(selectionOrder, false)
 		} else {
 			selectionOrder = append(selectionOrder, available...)
 		}
@@ -1372,7 +1340,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessForRouting(ctx cont
 		ordered := append([]*Account(nil), candidates...)
 		sortAccountsByPriorityAndLastUsed(ordered, false)
 		if requireCompact {
-			ordered = prioritizeOpenAICompactAccounts(ordered)
+			ordered = prioritizeEnabledOpenAICompactAccounts(ordered)
 		}
 		for _, acc := range ordered {
 			fresh := s.resolveFreshSchedulableOpenAIAccount(ctx, acc, platform, routingModel, false, requiredCapability)
@@ -1416,7 +1384,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwarenessForRouting(ctx cont
 
 	sortAccountsByPriorityAndLastUsed(candidates, false)
 	if requireCompact {
-		candidates = prioritizeOpenAICompactAccounts(candidates)
+		candidates = prioritizeEnabledOpenAICompactAccounts(candidates)
 	}
 	for _, acc := range candidates {
 		fresh := s.resolveFreshSchedulableOpenAIAccount(ctx, acc, platform, routingModel, false, requiredCapability)

@@ -9,9 +9,8 @@ import (
 )
 
 const (
-	legacyOpenAICapabilitiesCredentialKey  = "openai_capabilities"
-	legacyOpenAIResponsesModeExtraKey      = "openai_responses_mode"
-	legacyOpenAIResponsesSupportedExtraKey = "openai_responses_supported"
+	legacyOpenAICapabilitiesCredentialKey = "openai_capabilities"
+	legacyOpenAIResponsesModeExtraKey     = "openai_responses_mode"
 )
 
 func isOpenAIAPIKeyAccount(account *Account) bool {
@@ -32,10 +31,8 @@ func hasOpenAIConfigurationPatch(credentials, extra map[string]any) bool {
 	}
 	for _, key := range []string{
 		openai_compat.ExtraKeyTextRouteMode,
-		openai_compat.ExtraKeyResponsesProbeStatus,
 		openai_compat.ExtraKeyResponsesContinuationSupported,
 		legacyOpenAIResponsesModeExtraKey,
-		legacyOpenAIResponsesSupportedExtraKey,
 	} {
 		if _, ok := extra[key]; ok {
 			return true
@@ -90,9 +87,6 @@ func normalizeOpenAIAPIKeyConfigurationPatch(credentials, extra map[string]any) 
 	}
 	if _, found := extra[legacyOpenAIResponsesModeExtraKey]; found {
 		delete(extra, openai_compat.ExtraKeyTextRouteMode)
-	}
-	if _, found := extra[legacyOpenAIResponsesSupportedExtraKey]; found {
-		delete(extra, openai_compat.ExtraKeyResponsesProbeStatus)
 	}
 	if err := normalizeOpenAIWorkloadCapabilities(credentials, false); err != nil {
 		return err

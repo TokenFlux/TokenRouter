@@ -60,6 +60,7 @@ OpenAI/Composite 分组以 `openai_fast_policy` 选择 `follow_request`、`force
 
 OpenAI 分组的 `max_reasoning_effort` 是显式推理强度上限，`max_reasoning_effort_over_limit` 取 `downgrade`（默认）或 `deny`。网关只对客户端真正发送的 `reasoning.effort`、`reasoning_effort` 和 Messages `output_config.effort` 执行策略，不会因为兼容桥为缺省 Messages 请求生成的默认 `medium` 而改变行为；模型范围映射先于上限比较。`downgrade` 把超限值改写为上限，`deny` 在 HTTP 上返回 403 `permission_error`，Messages 返回 Anthropic `forbidden_error`，Responses WebSocket 以 policy-violation 关闭。复合 Key 已在鉴权中间件解析到具体 OpenAI 分组，因而使用该分组的策略；本 fork 的管理端不开放 Composite 分组推理配置，也不恢复已移除的旧复合平台处理器。该动作和上限随认证快照传递，快照版本为 v35，旧 v34 快照必须失效并从数据库重建。
 
+<a id="openai_account_configuration"></a>
 ### API Key 文本配置
 
 OpenAI API Key 的普通文本配置由管理员明确决定：
@@ -74,7 +75,9 @@ OpenAI API Key 的普通文本配置由管理员明确决定：
 | 仅 Responses | Responses | Responses | Responses |
 | 仅 Chat | Chat | Chat | Chat |
 
-OpenAI 账号创建、更新、复制和批量更新不再自动探测 Responses；历史 `openai_responses_probe_status` 不参与路由且在迁移和管理写入中清理。运行时绝不因旧探测结论把双协议账号的 Responses 请求转换为 Chat。国产供应商的显式 `api_protocol` 仍通过无网络配置同步映射为固定路由，不依赖探测字段。
+OpenAI 账号创建、更新、复制和批量更新不再自动探测 Responses；历史 `openai_responses_probe_status`、`openai_responses_supported` 不参与任何转发或调度判断。即使带有这些旧字段的账号对象直接进入网关，也必须服从管理员的文本路由配置。国产供应商的显式 `api_protocol` 仍通过无网络配置同步映射为固定路由，不依赖探测字段。
+
+历史探测字段仅由输入兼容边界静默丢弃，字段值是否合法不影响处理；账号和 OAuth 导入模板的读写共用同一清理规则。旧压缩模式 `auto` 转为明确开启，缺省保持默认开启，显式关闭保留。只有废弃键的账号 Extra 替换视为未提供更新，不能清空现有配置；显式空对象仍保留原有清空语义。业务类型和控件只使用 `force_on` / `force_off`，模板缺失的开关不因清理而补写。
 
 运行时与调度缓存只读取上述新键。账号创建、更新、批量更新和导入仍可接收旧 `openai_capabilities`、`openai_responses_mode`、`openai_responses_supported`，但必须在持久化前规范化并删除旧键；复制账号保留工作负载、路由策略和 continuation 能力开关，保留两个管理员压缩开关并丢弃历史探测状态。嵌套 Sub2API 等可能把请求转给 OAuth 上游的 API Key 账号应保持 continuation 关闭；确认直连 API Key 上游支持 HTTP continuation 后再开启。
 

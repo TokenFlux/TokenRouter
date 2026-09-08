@@ -2793,6 +2793,7 @@
 </template>
 
 <script setup lang="ts">
+import { normalizeLegacyOpenAIExtra, normalizeOpenAICompactMode } from '@/utils/openaiLegacyConfiguration'
 import OpenAITextProtocolCheckboxes from './OpenAITextProtocolCheckboxes.vue'
 import OpenAICompactionCheckbox from './OpenAICompactionCheckbox.vue'
 import { ref, reactive, computed, watch, nextTick } from 'vue'
@@ -3765,8 +3766,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     editPlanType.value = newAccount.type === 'oauth'
       ? readPlanType(newAccount.credentials as Record<string, unknown> | undefined)
       : ''
-    openAICompactMode.value = extra?.openai_compact_mode === 'force_off' ? 'force_off' : 'force_on'
-    openAINativeCompactionV2Mode.value = extra?.openai_native_compaction_v2_mode === 'force_off' ? 'force_off' : 'force_on'
+    openAICompactMode.value = normalizeOpenAICompactMode(extra?.openai_compact_mode)
+    openAINativeCompactionV2Mode.value = normalizeOpenAICompactMode(extra?.openai_native_compaction_v2_mode)
     if (newAccount.type === 'apikey') {
       openAITextRouteMode.value = normalizeOpenAITextRouteMode(
         extra?.openai_text_route_mode,
@@ -5272,7 +5273,7 @@ const handleSubmit = async () => {
     // OpenAI OAuth、SetupToken 和 API Key 账号：更新透传与计费设置。
     if (props.account.platform === 'openai' && (props.account.type === 'oauth' || props.account.type === 'setup-token' || props.account.type === 'apikey')) {
       const currentExtra = (props.account.extra as Record<string, unknown>) || {}
-      const newExtra: Record<string, unknown> = { ...currentExtra }
+      const newExtra = normalizeLegacyOpenAIExtra(currentExtra)
       const hadCodexCLIOnlyEnabled = currentExtra.codex_cli_only === true
       if (props.account.type === 'oauth' || props.account.type === 'setup-token') {
         newExtra.openai_oauth_responses_websockets_v2_mode = openaiOAuthResponsesWebSocketV2Mode.value
@@ -5283,11 +5284,6 @@ const handleSubmit = async () => {
       }
       delete newExtra.responses_websockets_v2_enabled
       delete newExtra.openai_ws_enabled
-      // 下线探测字段，旧数据不再回写。
-      for (const key of ['openai_responses_probe_status', 'openai_compact_supported', 'openai_compact_checked_at', 'openai_compact_last_status', 'openai_compact_last_error',
-        'openai_native_compaction_v2_supported', 'openai_native_compaction_v2_checked_at', 'openai_native_compaction_v2_last_status', 'openai_native_compaction_v2_last_error']) {
-        delete newExtra[key]
-      }
       delete newExtra.openai_long_context_billing_enabled
       if (openaiPassthroughEnabled.value) {
         newExtra.openai_passthrough = true
@@ -5310,7 +5306,6 @@ const handleSubmit = async () => {
       }
       if (props.account.type === 'apikey') {
 		delete newExtra.openai_responses_mode
-		delete newExtra.openai_responses_supported
 		newExtra.openai_text_route_mode = openAITextRouteMode.value
 		newExtra.openai_responses_continuation_supported = openAIResponsesContinuationSupported.value
 	  }

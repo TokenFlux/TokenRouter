@@ -565,8 +565,7 @@ func TestForwardAsAnthropic_ResponsesSupportedAccountStillUsesResponsesEndpoint(
 	}
 	account := rawChatCompletionsTestAccount()
 	account.Extra = map[string]any{
-		openai_compat.ExtraKeyTextRouteMode:        string(openai_compat.TextRouteModePreserveClientProtocol),
-		openai_compat.ExtraKeyResponsesProbeStatus: string(openai_compat.ResponsesProbeStatusSupported),
+		openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModePreserveClientProtocol),
 	}
 
 	result, err := svc.ForwardAsAnthropic(context.Background(), c, account, body, "", "")

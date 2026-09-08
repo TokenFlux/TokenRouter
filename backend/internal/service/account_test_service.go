@@ -394,12 +394,12 @@ func createTestPayloadWithPrompt(modelID string, prompt string) (map[string]any,
 // TestAccountConnection tests an account's connection by sending a test request
 // All account types use full Claude Code client characteristics, only auth header differs
 // modelID is optional - if empty, defaults to claude.DefaultTestModel
-// mode 是可选的："compact" 探测原生 V2，"legacy_compact" 仅探测旧端点兼容性。
+// mode 是可选的："compact" 测试原生 V2，"legacy_compact" 测试旧端点连接。
 // testTypes 为可选的显式测试类型；不传时保留旧版按模型名判断的兼容行为。
 func (s *AccountTestService) TestAccountConnection(c *gin.Context, accountID int64, modelID string, prompt string, mode string, testTypes ...string) error {
 	ctx := c.Request.Context()
 	mode, testType, explicitTestType := resolveAccountTestModeAndType(mode, testTypes...)
-	// 图片测试与 Compact 探测不是同一条协议；显式图片选择优先使用普通图片路径。
+	// 图片测试与 Compact 连接测试使用不同协议；显式图片选择优先使用普通图片路径。
 	if explicitTestType && testType == AccountTestTypeImage {
 		mode = AccountTestModeDefault
 	}
@@ -1432,7 +1432,7 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 	return s.processOpenAIChatCompletionsStream(c, resp.Body)
 }
 
-// testOpenAINativeCompactionV2Connection 探测原生 V2（流式 /responses +
+// testOpenAINativeCompactionV2Connection 测试原生 V2（流式 /responses +
 // compaction_trigger）。它使用普通模型映射，测试结果不改变管理员开关。
 func (s *AccountTestService) testOpenAINativeCompactionV2Connection(c *gin.Context, account *Account, testModelID string) error {
 	ctx := c.Request.Context()
@@ -1485,7 +1485,7 @@ func (s *AccountTestService) testOpenAINativeCompactionV2Connection(c *gin.Conte
 	if isOAuth {
 		testModelID = normalizeOpenAIModelForUpstream(credentialAccount, testModelID)
 	}
-	payloadBytes, _ := json.Marshal(createOpenAICompactProbePayload(testModelID, isOAuth))
+	payloadBytes, _ := json.Marshal(createOpenAICompactionTestPayload(testModelID, isOAuth))
 	if !agentIdentityTaskRecoveryWasTried(ctx) {
 		s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
 	}
@@ -1517,9 +1517,9 @@ func (s *AccountTestService) testOpenAINativeCompactionV2Connection(c *gin.Conte
 	req.Header.Set("Originator", canonical.originator)
 	req.Header.Set("User-Agent", canonical.userAgent)
 	req.Header.Set("Version", canonical.version)
-	probeSessionID := compactProbeSessionID(account.ID)
-	req.Header.Set("Session_ID", probeSessionID)
-	req.Header.Set("Conversation_ID", probeSessionID)
+	testSessionID := compactionTestSessionID(account.ID)
+	req.Header.Set("Session_ID", testSessionID)
+	req.Header.Set("Conversation_ID", testSessionID)
 	s.applyOpenAIAccountTestRouting(c, account, req, isOAuth)
 
 	if isOAuth {
@@ -1531,7 +1531,7 @@ func (s *AccountTestService) testOpenAINativeCompactionV2Connection(c *gin.Conte
 		enforceCodexIdentityHeaders(req.Header)
 	}
 
-	// 账号覆盖先执行，再补 V2 协商头，保证探测和真实转发有相同的协议契约。
+	// 账号覆盖先执行，再补 V2 协商头，保证手动测试和真实转发有相同的协议契约。
 	account.ApplyHeaderOverrides(req.Header)
 	ensureOpenAIRemoteCompactionV2BetaFeature(req.Header)
 
@@ -1557,7 +1557,7 @@ func (s *AccountTestService) testOpenAINativeCompactionV2Connection(c *gin.Conte
 		return s.testOpenAINativeCompactionV2Connection(c, account, testModelID)
 	}
 
-	compactionFound := openAICompactProbeFoundCompactionItem(body)
+	compactionFound := openAICompactionTestHasOutput(body)
 	if s.accountRepo != nil {
 		// 手动测试只保存额度观测，不修改管理员开关。
 		var updates map[string]any
@@ -1584,13 +1584,13 @@ func (s *AccountTestService) testOpenAINativeCompactionV2Connection(c *gin.Conte
 		return s.sendErrorAndEnd(c, "Upstream returned 2xx without a compaction output item (native remote compaction v2 unsupported on this chain)")
 	}
 
-	s.sendEvent(c, TestEvent{Type: "content", Text: "Native remote compaction v2 probe succeeded"})
+	s.sendEvent(c, TestEvent{Type: "content", Text: "Native remote compaction v2 test succeeded"})
 	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 	return nil
 }
 
-// testOpenAILegacyCompactConnection 仅探测旧版 /responses/compact 兼容路径，并且
-// 只更新 legacy 状态，绝不影响原生 V2 能力。
+// testOpenAILegacyCompactConnection 仅测试旧版 /responses/compact 连接。
+// 本次结果不写入能力状态或管理员开关，认证错误和限流仍按账号测试流程处理。
 func (s *AccountTestService) testOpenAILegacyCompactConnection(c *gin.Context, account *Account, testModelID string) error {
 	ctx := c.Request.Context()
 	credentialAccount := account
@@ -1640,7 +1640,7 @@ func (s *AccountTestService) testOpenAILegacyCompactConnection(c *gin.Context, a
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 	c.Writer.Flush()
 
-	payloadBytes, _ := json.Marshal(createOpenAILegacyCompactProbePayload(testModelID))
+	payloadBytes, _ := json.Marshal(createOpenAILegacyCompactionTestPayload(testModelID))
 	if !agentIdentityTaskRecoveryWasTried(ctx) {
 		s.sendEvent(c, TestEvent{Type: "test_start", Model: testModelID})
 	}
@@ -1671,15 +1671,15 @@ func (s *AccountTestService) testOpenAILegacyCompactConnection(c *gin.Context, a
 	req.Header.Set("Originator", canonical.originator)
 	req.Header.Set("User-Agent", canonical.userAgent)
 	req.Header.Set("Version", canonical.version)
-	probeSessionID := legacyCompactProbeSessionID(account.ID)
-	req.Header.Set("Session_ID", probeSessionID)
-	req.Header.Set("Conversation_ID", probeSessionID)
+	testSessionID := legacyCompactionTestSessionID(account.ID)
+	req.Header.Set("Session_ID", testSessionID)
+	req.Header.Set("Conversation_ID", testSessionID)
 	s.applyOpenAIAccountTestRouting(c, account, req, isOAuth)
 
 	if isOAuth {
 		req.Host = "chatgpt.com"
 		setOpenAIChatGPTAccountHeaders(req.Header, credentialAccount)
-		// compact 探针同样访问 Codex 上游，测试 UA 覆写完成后必须重新配对身份头。
+		// Compact 连接测试同样访问 Codex 上游，测试 UA 覆写完成后必须重新配对身份头。
 		enforceCodexIdentityHeaders(req.Header)
 	}
 
@@ -1718,7 +1718,7 @@ func (s *AccountTestService) testOpenAILegacyCompactConnection(c *gin.Context, a
 			_ = s.accountRepo.UpdateExtra(ctx, account.ID, updates)
 			mergeAccountExtra(account, updates)
 		}
-		// 探测如返回 429,主动同步限流状态,避免后续短时间内继续选中。
+		// 手动测试如返回 429，主动同步限流状态,避免后续短时间内继续选中。
 		if resp.StatusCode == http.StatusTooManyRequests {
 			s.reconcileOpenAI429State(ctx, account, resp.Header, body)
 		}
@@ -1732,7 +1732,7 @@ func (s *AccountTestService) testOpenAILegacyCompactConnection(c *gin.Context, a
 		return s.sendErrorAndEnd(c, fmt.Sprintf("API returned %d: %s", resp.StatusCode, string(body)))
 	}
 
-	s.sendEvent(c, TestEvent{Type: "content", Text: "Compact probe succeeded"})
+	s.sendEvent(c, TestEvent{Type: "content", Text: "Compact test succeeded"})
 	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
 	return nil
 }

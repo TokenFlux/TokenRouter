@@ -313,7 +313,7 @@ func TestOpenAIGatewayService_Forward_NormalizesMaxTokensAndStripsPromptCacheOpt
 				"api_key":  "sk-test",
 				"base_url": "https://example.com",
 			},
-			Extra: map[string]any{"openai_responses_probe_status": "supported"},
+			Extra: map[string]any{},
 		}
 		rec := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(rec)

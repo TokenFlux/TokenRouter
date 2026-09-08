@@ -59,8 +59,7 @@ func TestOpenAIRequestBodyLimitFailover_HTTP413SwitchesAccountsBeforeWrite(t *te
 					},
 				},
 				Extra: map[string]any{
-					"openai_passthrough":            passthrough,
-					"openai_responses_probe_status": "supported",
+					"openai_passthrough": passthrough,
 				},
 				Status:      StatusActive,
 				Schedulable: true,
@@ -115,8 +114,7 @@ func TestOpenAIRequestBodyLimitFailover_ContextWindow413DoesNotSwitchAccounts(t 
 				ID: 162, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 1,
 				Credentials: map[string]any{"api_key": "sk-test", "base_url": "https://api.example.test"},
 				Extra: map[string]any{
-					"openai_passthrough":            passthrough,
-					"openai_responses_probe_status": "supported",
+					"openai_passthrough": passthrough,
 				},
 				Status: StatusActive, Schedulable: true,
 			}

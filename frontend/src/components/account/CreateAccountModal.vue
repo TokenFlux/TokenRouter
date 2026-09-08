@@ -4138,6 +4138,7 @@
 </template>
 
 <script setup lang="ts">
+import { normalizeLegacyOpenAIExtra, normalizeOpenAICompactMode } from '@/utils/openaiLegacyConfiguration'
 import OpenAITextProtocolCheckboxes from './OpenAITextProtocolCheckboxes.vue'
 import OpenAICompactionCheckbox from './OpenAICompactionCheckbox.vue'
 import { ref, reactive, computed, watch, onBeforeUnmount } from 'vue'
@@ -4927,10 +4928,6 @@ const isOpenAIOAuthImportDefaultsTarget = computed(
   () => form.platform === 'openai' && accountCategory.value === 'oauth-based'
 )
 
-const isOpenAICompactMode = (value: unknown): value is OpenAICompactMode => {
-  return value === 'auto' || value === 'force_on' || value === 'force_off'
-}
-
 const normalizeOpenAITLSFingerprintProfileId = (value: unknown): number | null => {
   // 默认值来自 JSON 配置，兼容数字和数字字符串，非法值回落到内置默认 profile。
   if (typeof value === 'number' && Number.isInteger(value)) {
@@ -5078,11 +5075,11 @@ const applyOpenAIOAuthImportDefaultsToForm = () => {
   if (openaiOAuthResponsesWebSocketV2Mode.value === OPENAI_WS_MODE_OFF) {
     openaiOAuthResponsesWebSocketV2Mode.value = defaultWSMode
   }
-  if (isOpenAICompactMode(extra.openai_compact_mode) && openAICompactMode.value === 'force_on') {
-    openAICompactMode.value = extra.openai_compact_mode === 'force_off' ? 'force_off' : 'force_on'
+  if (openAICompactMode.value === 'force_on') {
+    openAICompactMode.value = normalizeOpenAICompactMode(extra.openai_compact_mode)
   }
-  if (isOpenAICompactMode(extra.openai_native_compaction_v2_mode) && openAINativeCompactionV2Mode.value === 'force_on') {
-    openAINativeCompactionV2Mode.value = extra.openai_native_compaction_v2_mode === 'force_off' ? 'force_off' : 'force_on'
+  if (openAINativeCompactionV2Mode.value === 'force_on') {
+    openAINativeCompactionV2Mode.value = normalizeOpenAICompactMode(extra.openai_native_compaction_v2_mode)
   }
   if (extra.enable_tls_fingerprint === true) {
     tlsFingerprintEnabled.value = true
@@ -6112,12 +6109,11 @@ const buildOpenAIExtra = (base?: Record<string, unknown>): Record<string, unknow
 
   if (accountCategory.value === 'apikey') {
     delete extra.openai_responses_mode
-    delete extra.openai_responses_supported
     extra.openai_text_route_mode = openAITextRouteMode.value
     extra.openai_responses_continuation_supported = openAIResponsesContinuationSupported.value
   }
 
-  return Object.keys(extra).length > 0 ? extra : undefined
+  return Object.keys(extra).length > 0 ? normalizeLegacyOpenAIExtra(extra) : undefined
 }
 
 const buildQoderExtra = (): Record<string, unknown> | undefined => {

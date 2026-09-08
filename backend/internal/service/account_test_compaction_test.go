@@ -50,10 +50,10 @@ func TestResolveAccountTestModeAndType(t *testing.T) {
 	}
 }
 
-func TestCreateOpenAICompactProbePayload_NativeV2Shape(t *testing.T) {
-	payload := createOpenAICompactProbePayload("gpt-5.6-sol", true)
+func TestCreateOpenAICompactionTestPayload_NativeV2Shape(t *testing.T) {
+	payload := createOpenAICompactionTestPayload("gpt-5.6-sol", true)
 	if payload["stream"] != true || payload["store"] != false {
-		t.Fatalf("OAuth V2 probe payload must be streaming with store:false: %#v", payload)
+		t.Fatalf("OAuth V2 test payload must be streaming with store:false: %#v", payload)
 	}
 	input, ok := payload["input"].([]any)
 	if !ok || len(input) != 2 {
@@ -64,19 +64,19 @@ func TestCreateOpenAICompactProbePayload_NativeV2Shape(t *testing.T) {
 		t.Fatalf("last input item must be compaction_trigger: %#v", input[len(input)-1])
 	}
 
-	legacy := createOpenAILegacyCompactProbePayload("gpt-5.6-sol")
+	legacy := createOpenAILegacyCompactionTestPayload("gpt-5.6-sol")
 	legacyInput, ok := legacy["input"].([]any)
 	if !ok || len(legacyInput) != 1 {
-		t.Fatalf("legacy probe must not inject a V2 trigger: %#v", legacyInput)
+		t.Fatalf("legacy test must not inject a V2 trigger: %#v", legacyInput)
 	}
 }
 
-func TestOpenAICompactProbeFoundCompactionItem(t *testing.T) {
+func TestOpenAICompactionTestHasOutput(t *testing.T) {
 	sse := []byte("data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"compaction\",\"id\":\"cmp_1\"}}\n\n")
-	if !openAICompactProbeFoundCompactionItem(sse) {
+	if !openAICompactionTestHasOutput(sse) {
 		t.Fatal("SSE compaction item should mark native V2 support")
 	}
-	if openAICompactProbeFoundCompactionItem([]byte(`{"output":[{"type":"message"}]}`)) {
+	if openAICompactionTestHasOutput([]byte(`{"output":[{"type":"message"}]}`)) {
 		t.Fatal("ordinary output item must not mark native V2 support")
 	}
 }

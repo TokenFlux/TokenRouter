@@ -107,15 +107,7 @@ const (
 
 // DiscardDeprecatedAccountExtra 静默移除旧客户端可能继续提交的废弃账号扩展键。
 func DiscardDeprecatedAccountExtra(extra map[string]any) {
-	for _, key := range []string{"openai_responses_probe_status", "openai_responses_supported", "openai_compact_supported", "openai_compact_checked_at", "openai_compact_last_status", "openai_compact_last_error", "openai_native_compaction_v2_supported", "openai_native_compaction_v2_checked_at", "openai_native_compaction_v2_last_status", "openai_native_compaction_v2_last_error"} {
-		delete(extra, key)
-	}
-	// auto 仅为旧客户端输入，管理写入后固定为开启。
-	for _, key := range []string{"openai_compact_mode", openAINativeCompactionV2ModeExtraKey} {
-		if mode, ok := extra[key].(string); ok && strings.EqualFold(strings.TrimSpace(mode), "auto") {
-			extra[key] = OpenAICompactModeForceOn
-		}
-	}
+	normalizeLegacyOpenAIAccountExtra(extra)
 	delete(extra, deprecatedUpstreamBillingProbeExtraKey)
 	delete(extra, deprecatedUpstreamBillingProbeEnabledExtraKey)
 	delete(extra, deprecatedOpenAILongContextBillingExtraKey)
@@ -187,16 +179,6 @@ var duplicateAccountDiscardedExtraKeys = map[string]struct{}{
 	"passive_usage_sampled_at":                    {},
 	"grok_usage_snapshot":                         {},
 	"grok_billing_snapshot":                       {},
-	"openai_responses_supported":                  {},
-	"openai_responses_probe_status":               {},
-	"openai_native_compaction_v2_supported":       {},
-	"openai_native_compaction_v2_checked_at":      {},
-	"openai_native_compaction_v2_last_status":     {},
-	"openai_native_compaction_v2_last_error":      {},
-	"openai_compact_supported":                    {},
-	"openai_compact_checked_at":                   {},
-	"openai_compact_last_status":                  {},
-	"openai_compact_last_error":                   {},
 	"qoder_quota_snapshot":                        {},
 	"qoder_quota_updated_at":                      {},
 	CNUsageMonitorSnapshotExtraKey:                {},

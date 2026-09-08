@@ -13,15 +13,6 @@ const (
 	TextRouteModeForceChatCompletions TextRouteMode = "force_chat_completions"
 )
 
-// ResponsesProbeStatus 描述最近一次 Responses 能力探测结果。
-type ResponsesProbeStatus string
-
-const (
-	ResponsesProbeStatusSupported   ResponsesProbeStatus = "supported"
-	ResponsesProbeStatusUnsupported ResponsesProbeStatus = "unsupported"
-	ResponsesProbeStatusUnknown     ResponsesProbeStatus = "unknown"
-)
-
 // TextProtocol 描述普通文本请求发往上游时使用的协议。
 type TextProtocol string
 
@@ -33,8 +24,6 @@ const (
 const (
 	// ExtraKeyTextRouteMode 是管理员控制的文本协议路由配置。
 	ExtraKeyTextRouteMode = "openai_text_route_mode"
-	// ExtraKeyResponsesProbeStatus 是已废弃的历史字段，只用于清理和回归验证。
-	ExtraKeyResponsesProbeStatus = "openai_responses_probe_status"
 	// ExtraKeyResponsesContinuationSupported 是管理员控制的 HTTP continuation 能力开关。
 	ExtraKeyResponsesContinuationSupported = "openai_responses_continuation_supported"
 )

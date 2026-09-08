@@ -308,7 +308,7 @@ const isOpenAIAPIKeyAccount = computed(() => props.account?.platform === 'openai
 const testMode = ref<'default' | 'compact' | 'legacy_compact'>('default')
 const testType = ref<'text' | 'image'>('text')
 const isOpenAIAccount = computed(() => props.account?.platform === 'openai')
-// Compact 探测使用固定探针载荷，不显示可编辑提示词输入框。
+// Compact 连接测试使用固定载荷，不显示可编辑提示词输入框。
 watch(testMode, mode => { if (mode !== 'default') testProtocol.value = 'responses' })
 const isCompactTestMode = computed(() => isOpenAIAccount.value && testMode.value !== 'default')
 const openAITestModeOptions = computed(() => [

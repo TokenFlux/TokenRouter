@@ -552,12 +552,11 @@ func parseTempUnschedInt(value any) int {
 }
 
 const (
-	// OpenAICompactModeAuto 只为历史配置兼容保留，不再参与探测。
-	OpenAICompactModeAuto = "auto"
-	// OpenAICompactModeForceOn always treats the account as compact-supported.
+	// OpenAICompactModeForceOn 表示管理员启用对应压缩能力。
 	OpenAICompactModeForceOn = "force_on"
-	// OpenAICompactModeForceOff always treats the account as compact-unsupported.
-	OpenAICompactModeForceOff = "force_off"
+	// OpenAICompactModeForceOff 表示管理员关闭对应压缩能力。
+	OpenAICompactModeForceOff            = "force_off"
+	openAINativeCompactionV2ModeExtraKey = "openai_native_compaction_v2_mode"
 )
 
 func stringMappingFromRaw(raw any) map[string]string {
@@ -1074,7 +1073,7 @@ func (a *Account) ResolveMappedModel(requestedModel string) (mappedModel string,
 }
 
 // GetOpenAICompactMode 返回管理员选择的旧版压缩开关。
-// 历史 auto/缺失值按开启兼容，探测结果不再参与资格判定。
+// 缺失配置保持默认开启；历史输入由账号写入边界规范化。
 func (a *Account) GetOpenAICompactMode() string {
 	if a == nil || !a.IsOpenAI() {
 		return OpenAICompactModeForceOff
@@ -1084,15 +1083,6 @@ func (a *Account) GetOpenAICompactMode() string {
 		return OpenAICompactModeForceOff
 	}
 	return OpenAICompactModeForceOn
-}
-
-// OpenAICompactSupportKnown reports whether compact capability is known for this
-// account and, when known, whether it is supported.
-func (a *Account) OpenAICompactSupportKnown() (supported bool, known bool) {
-	if a == nil || !a.IsOpenAI() {
-		return false, false
-	}
-	return a.GetOpenAICompactMode() == OpenAICompactModeForceOn, true
 }
 
 // AllowsOpenAICompact 判断管理员是否启用旧版压缩。
@@ -1110,15 +1100,6 @@ func (a *Account) GetOpenAINativeCompactionV2Mode() string {
 		return OpenAICompactModeForceOff
 	}
 	return OpenAICompactModeForceOn
-}
-
-// OpenAINativeCompactionV2SupportKnown 返回原生 V2 是否已具有明确的有效支持结论。
-// 管理员开关是唯一资格依据，不读取历史探测字段。
-func (a *Account) OpenAINativeCompactionV2SupportKnown() (supported bool, known bool) {
-	if a == nil || !a.IsOpenAI() {
-		return false, false
-	}
-	return a.GetOpenAINativeCompactionV2Mode() == OpenAICompactModeForceOn, true
 }
 
 // AllowsOpenAINativeCompactionV2 判断管理员是否启用原生 V2 压缩。
@@ -2035,7 +2016,7 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 		fallthrough
 	case OpenAIEndpointCapabilityResponses:
 		// 生图等原生 Responses 路径不能降级；使用 Responses 首选协议解析后，
-		// 被强制为 Chat 或探测明确不支持的 APIKey 账号必须排除。
+		// 管理员只启用 Chat 的 APIKey 账号必须排除。
 		if a.Type == AccountTypeAPIKey && openai_compat.ResolveUpstreamTextProtocol(
 			a.Extra,
 			openai_compat.TextProtocolResponses,

@@ -2,10 +2,10 @@ package repository
 
 import "testing"
 
-func TestShouldEnqueueSchedulerOutboxForExtraUpdates_CompactCapabilityKeysAreRelevant(t *testing.T) {
+func TestShouldEnqueueSchedulerOutboxForExtraUpdates_CompactConfigurationKeysAreRelevant(t *testing.T) {
 	updates := map[string]any{
-		"openai_compact_supported":  true,
-		"openai_compact_checked_at": "2026-04-10T10:00:00Z",
+		"openai_compact_mode":              "force_off",
+		"openai_native_compaction_v2_mode": "force_on",
 	}
 
 	if !shouldEnqueueSchedulerOutboxForExtraUpdates(updates) {
@@ -13,10 +13,9 @@ func TestShouldEnqueueSchedulerOutboxForExtraUpdates_CompactCapabilityKeysAreRel
 	}
 }
 
-func TestShouldEnqueueSchedulerOutboxForExtraUpdates_OpenAIResponsesCapabilityKeysAreRelevant(t *testing.T) {
+func TestShouldEnqueueSchedulerOutboxForExtraUpdates_OpenAITextRouteIsRelevant(t *testing.T) {
 	updates := map[string]any{
-		"openai_text_route_mode":        "force_chat_completions",
-		"openai_responses_probe_status": "unsupported",
+		"openai_text_route_mode": "force_chat_completions",
 	}
 
 	if !shouldEnqueueSchedulerOutboxForExtraUpdates(updates) {

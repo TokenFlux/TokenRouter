@@ -1681,34 +1681,24 @@ export interface CodexUsageSnapshot {
   codex_usage_updated_at?: string // Last update timestamp
 }
 
-export type OpenAICompactMode = 'auto' | 'force_on' | 'force_off'
+export type OpenAICompactMode = 'force_on' | 'force_off'
 export type OpenAIOAuthClientPolicy = 'any' | 'codex_only' | 'tls_router_matched_only'
 export type OpenAITextRouteMode =
   | 'preserve_client_protocol'
   | 'force_responses'
   | 'force_chat_completions'
-export type OpenAIResponsesProbeStatus = 'supported' | 'unsupported' | 'unknown'
 export type OpenAIWorkloadCapability = 'text_generation' | 'embeddings'
 
 export interface OpenAICompactState {
   openai_compact_mode?: OpenAICompactMode
-  openai_compact_supported?: boolean
-  openai_compact_checked_at?: string
-  openai_compact_last_status?: number
-  openai_compact_last_error?: string
 }
 
 export interface OpenAINativeCompactionV2State {
   openai_native_compaction_v2_mode?: OpenAICompactMode
-  openai_native_compaction_v2_supported?: boolean
-  openai_native_compaction_v2_checked_at?: string
-  openai_native_compaction_v2_last_status?: number
-  openai_native_compaction_v2_last_error?: string
 }
 
 export interface OpenAITextProtocolState {
   openai_text_route_mode?: OpenAITextRouteMode
-  openai_responses_probe_status?: OpenAIResponsesProbeStatus
   openai_responses_continuation_supported?: boolean
 }
 

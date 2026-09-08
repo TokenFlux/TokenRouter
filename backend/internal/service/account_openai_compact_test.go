@@ -4,9 +4,9 @@ import "testing"
 
 // 管理员配置覆盖历史探测结论，两种压缩能力相互独立。
 func TestAccountCompactionControlledByAdministrator(t *testing.T) {
-	for _, mode := range []string{"", "auto", "force_on", "force_off"} {
+	for _, mode := range []string{"", "force_on", "force_off"} {
 		for _, probed := range []bool{false, true} {
-			a := &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": mode, "openai_compact_supported": probed, openAINativeCompactionV2ModeExtraKey: mode, openAINativeCompactionV2SupportedExtraKey: probed}}
+			a := &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": mode, "openai_compact_supported": probed, openAINativeCompactionV2ModeExtraKey: mode, "openai_native_compaction_v2_supported": probed}}
 			want := mode != "force_off"
 			if a.AllowsOpenAICompact() != want || a.AllowsOpenAINativeCompactionV2() != want {
 				t.Fatalf("mode=%s probe=%v ignored administrator", mode, probed)

@@ -41,7 +41,7 @@ func TestAccountTestServiceOpenAICompactAgentIdentityUsesFreshAssertion(t *testi
 	upstream := &httpUpstreamRecorder{resp: &http.Response{
 		StatusCode: http.StatusOK,
 		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
-		Body:       io.NopCloser(strings.NewReader(compactProbeV2SSESuccessBody)),
+		Body:       io.NopCloser(strings.NewReader(compactionTestV2SSESuccessBody)),
 	}}
 	svc := &AccountTestService{accountRepo: repo, httpUpstream: upstream}
 
@@ -88,7 +88,7 @@ func TestAccountTestServiceOpenAICompactAgentIdentityRecoversInvalidTaskOnce(t *
 
 	upstream := &httpUpstreamRecorder{responses: []*http.Response{
 		{StatusCode: http.StatusUnauthorized, Header: http.Header{"Content-Type": []string{"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":{"code":"invalid_task_id"}}`))},
-		{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(compactProbeV2SSESuccessBody))},
+		{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": []string{"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(compactionTestV2SSESuccessBody))},
 	}}
 	invalidator := &agentIdentityWSInvalidationRecorder{}
 	svc := &AccountTestService{accountRepo: repo, httpUpstream: upstream, agentIdentityWS: invalidator}
@@ -451,7 +451,7 @@ func TestOpenAIAgentIdentityChatRecoveryKeepsAutoDerivedSessionIsolationStable(t
 			"agent_private_key": privateKey,
 			"task_id":           "task-cache-old",
 		},
-		Extra: map[string]any{"openai_responses_supported": true},
+		Extra: map[string]any{},
 	}
 	repo := &agentIdentityForwardRepo{account: account}
 	registerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

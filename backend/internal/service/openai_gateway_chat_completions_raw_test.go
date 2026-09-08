@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -214,7 +213,7 @@ func TestForwardAsChatCompletions_OpenAICompatibleRawUsageGuard(t *testing.T) {
 			service := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
 			account := rawChatCompletionsTestAccount()
 			account.Name = "openai-compatible"
-			account.Extra = map[string]any{openai_compat.ExtraKeyResponsesProbeStatus: string(openai_compat.ResponsesProbeStatusUnsupported)}
+			account.Extra = map[string]any{"openai_responses_probe_status": "unsupported"}
 			if testCase.modelMapping != nil {
 				account.Credentials["model_mapping"] = testCase.modelMapping
 			}

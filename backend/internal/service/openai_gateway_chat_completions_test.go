@@ -230,8 +230,7 @@ func TestForwardAsChatCompletions_APIKeyPropagatesPromptCacheKeyInResponsesBody(
 			"api_key": "sk-compatible",
 		},
 		Extra: map[string]any{
-			"openai_text_route_mode":        "force_responses",
-			"openai_responses_probe_status": "supported",
+			"openai_text_route_mode": "force_responses",
 		},
 	}
 
@@ -278,8 +277,7 @@ func TestForwardAsChatCompletions_APIKeyResponsesRecordsThirdPartyMaxEffort(t *t
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-compatible"},
 		Extra: map[string]any{
-			"openai_text_route_mode":        "force_responses",
-			"openai_responses_probe_status": "supported",
+			"openai_text_route_mode": "force_responses",
 		},
 	}
 
@@ -326,8 +324,7 @@ func TestForwardAsChatCompletions_APIKeyResponsesDoesNotRecordDroppedNestedEffor
 		Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-compatible"},
 		Extra: map[string]any{
-			"openai_text_route_mode":        "force_responses",
-			"openai_responses_probe_status": "supported",
+			"openai_text_route_mode": "force_responses",
 		},
 	}
 
@@ -365,8 +362,7 @@ func TestForwardAsChatCompletions_TransportErrorFailsOver(t *testing.T) {
 			"api_key": "sk-compatible",
 		},
 		Extra: map[string]any{
-			"openai_text_route_mode":        "force_responses",
-			"openai_responses_probe_status": "supported",
+			"openai_text_route_mode": "force_responses",
 		},
 	}
 
@@ -396,8 +392,7 @@ func TestForwardAsChatCompletions_APIKeyAutoDerivesStableIsolatedPromptCacheKey(
 		ID: 2, Name: "openai-compatible", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-compatible"},
 		Extra: map[string]any{
-			"openai_responses_supported": true,
-			"openai_text_route_mode":     "force_responses",
+			"openai_text_route_mode": "force_responses",
 		},
 	}
 	firstBody := []byte(`{"model":"gpt-5.4","messages":[{"role":"system","content":"be concise"},{"role":"user","content":"hello"}],"stream":false}`)
@@ -446,8 +441,7 @@ func TestForwardAsChatCompletions_ResponsesShapeDoesNotAutoDerivePromptCacheKey(
 		ID: 2, Name: "openai-compatible", Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Concurrency: 1,
 		Credentials: map[string]any{"api_key": "sk-compatible"},
 		Extra: map[string]any{
-			"openai_responses_supported": true,
-			"openai_text_route_mode":     "force_responses",
+			"openai_text_route_mode": "force_responses",
 		},
 	}
 	firstBody := []byte(`{"model":"gpt-5.4","input":[{"role":"user","content":[{"type":"input_text","text":"first unrelated input"}]}],"stream":false}`)

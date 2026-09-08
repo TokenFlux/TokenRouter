@@ -46,7 +46,7 @@ Kimi、Zhipu、DeepSeek 的连接测试按账号 `api_protocol` 选择原生 Ant
 
 OpenAI 重置次数查询把带到期时间的完整结果保存为账号展示快照；上游只返回正数次数却缺少到期明细时，实时结果仍返回给调用方，但旧快照必须保留。直接调用重置 API 成功消费次数后，服务先在脱离客户端取消信号的有界上下文中恢复账号 error、限流和临时不可调度状态，再回读额度快照与最新账号投影；恢复不修改人工 `schedulable` 开关。后续步骤部分失败时响应使用 `cache_refreshed`、`account_state_recovered` 和 `warning_code` 明确区分，调用方不得把已消费的次数当作可重试失败。
 
-OpenAI API Key 不再自动探测 Responses 能力；创建、编辑、批量更新和复制均以管理员选择的上游协议为准，历史探测字段被清理且不参与调度。两类压缩也由独立管理员开关决定，手动连接测试只报告结果，不更新能力配置。API Key 文字测试可显式选择 Responses 或 Chat Completions，OAuth 仍使用 Codex Responses。HTTP continuation 为独立开关，缺失时关闭。
+OpenAI API Key 不再自动探测 Responses 能力；创建、编辑、批量更新和复制均以管理员选择的上游协议为准，历史探测字段被清理且不参与调度。两类压缩也由独立管理员开关决定，手动连接测试不更新能力配置，但仍保留额度观测、401 认证错误记录与 429 限流处理。账号与 OAuth 导入模板共用历史输入清理边界，模板读取也不返回旧探测状态或自动模式。API Key 文字测试可显式选择 Responses 或 Chat Completions，OAuth 仍使用 Codex Responses。HTTP continuation 为独立开关，缺失时关闭。
 
 调度投影必须保留工作负载、文本路由、两类压缩开关与 continuation 设置，配置变化沿用账号投影失效机制。国产供应商继续按其 `api_protocol` 做无网络路由配置同步。Grok 计费/媒体资格、Ollama Cloud 与各平台额度探测保持各自独立流程。
 

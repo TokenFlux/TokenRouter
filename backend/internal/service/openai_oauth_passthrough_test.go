@@ -241,8 +241,7 @@ func TestOpenAIGatewayService_NativeResponsesBodyModificationPreservesHTMLChars(
 			"base_url": "http://upstream.example",
 		},
 		Extra: map[string]any{
-			openai_compat.ExtraKeyTextRouteMode:        string(openai_compat.TextRouteModePreserveClientProtocol),
-			openai_compat.ExtraKeyResponsesProbeStatus: string(openai_compat.ResponsesProbeStatusSupported),
+			openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModePreserveClientProtocol),
 		},
 		Status:      StatusActive,
 		Schedulable: true,

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -718,8 +719,12 @@ func (s *SettingService) SetOpenAIOAuthImportDefaults(ctx context.Context, setti
 	if err := validateOpenAIOAuthImportDefaults(settings); err != nil {
 		return err
 	}
+	// 模板和账号写入使用同一兼容边界，不修改调用方持有的原始对象。
+	normalized := *settings
+	normalized.Extra = maps.Clone(settings.Extra)
+	normalizeLegacyOpenAIAccountExtra(normalized.Extra)
 
-	data, err := json.Marshal(settings)
+	data, err := json.Marshal(&normalized)
 	if err != nil {
 		return fmt.Errorf("marshal openai oauth import defaults: %w", err)
 	}
@@ -843,6 +848,9 @@ func fillOpenAIOAuthImportDefaults(settings *OpenAIOAuthImportDefaults) *OpenAIO
 	}
 
 	defaults := DefaultOpenAIOAuthImportDefaults()
+	// 读取历史模板也只向调用方暴露明确配置，不再传播旧自动模式和探测字段。
+	settings.Extra = maps.Clone(settings.Extra)
+	normalizeLegacyOpenAIAccountExtra(settings.Extra)
 	if len(defaults.Credentials) > 0 {
 		if settings.Credentials == nil {
 			settings.Credentials = map[string]any{}

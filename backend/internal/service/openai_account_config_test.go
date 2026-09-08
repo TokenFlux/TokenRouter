@@ -35,12 +35,12 @@ func TestBuildAccountForCreateNormalizesLegacyOpenAIConfigurationForCreateAndImp
 	require.NoError(t, err)
 	require.Equal(t, []string{"text_generation"}, account.Credentials[openAIWorkloadCapabilitiesCredentialKey])
 	require.Equal(t, "force_responses", account.Extra[openai_compat.ExtraKeyTextRouteMode])
-	require.NotContains(t, account.Extra, openai_compat.ExtraKeyResponsesProbeStatus)
+	require.NotContains(t, account.Extra, "openai_responses_probe_status")
 	require.Equal(t, false, account.Extra[openai_compat.ExtraKeyResponsesContinuationSupported])
 	require.Equal(t, map[string]any{"keep": true}, account.Extra["unrelated"])
 	require.NotContains(t, account.Credentials, legacyOpenAICapabilitiesCredentialKey)
 	require.NotContains(t, account.Extra, legacyOpenAIResponsesModeExtraKey)
-	require.NotContains(t, account.Extra, legacyOpenAIResponsesSupportedExtraKey)
+	require.NotContains(t, account.Extra, "openai_responses_supported")
 }
 
 func TestNormalizeOpenAIAPIKeyConfigurationDefaultsAndExplicitEmpty(t *testing.T) {
@@ -50,7 +50,7 @@ func TestNormalizeOpenAIAPIKeyConfigurationDefaultsAndExplicitEmpty(t *testing.T
 		require.NoError(t, normalizeOpenAIAPIKeyConfiguration(account))
 		require.Equal(t, []string{"text_generation", "embeddings"}, account.Credentials[openAIWorkloadCapabilitiesCredentialKey])
 		require.Equal(t, "preserve_client_protocol", account.Extra[openai_compat.ExtraKeyTextRouteMode])
-		require.NotContains(t, account.Extra, openai_compat.ExtraKeyResponsesProbeStatus)
+		require.NotContains(t, account.Extra, "openai_responses_probe_status")
 		require.Equal(t, false, account.Extra[openai_compat.ExtraKeyResponsesContinuationSupported])
 	})
 
@@ -75,17 +75,17 @@ func TestNormalizeOpenAIAPIKeyConfigurationPatchSupportsLegacyBulkPayload(t *tes
 		legacyOpenAICapabilitiesCredentialKey: []any{"chat_completions", "embeddings"},
 	}
 	extra := map[string]any{
-		legacyOpenAIResponsesModeExtraKey:      "auto",
-		legacyOpenAIResponsesSupportedExtraKey: true,
+		legacyOpenAIResponsesModeExtraKey: "auto",
+		"openai_responses_supported":      true,
 	}
 
 	require.NoError(t, normalizeOpenAIAPIKeyConfigurationPatch(credentials, extra))
 	require.Equal(t, []string{"text_generation", "embeddings"}, credentials[openAIWorkloadCapabilitiesCredentialKey])
 	require.Equal(t, "preserve_client_protocol", extra[openai_compat.ExtraKeyTextRouteMode])
-	require.NotContains(t, extra, openai_compat.ExtraKeyResponsesProbeStatus)
+	require.NotContains(t, extra, "openai_responses_probe_status")
 	require.NotContains(t, credentials, legacyOpenAICapabilitiesCredentialKey)
 	require.NotContains(t, extra, legacyOpenAIResponsesModeExtraKey)
-	require.NotContains(t, extra, legacyOpenAIResponsesSupportedExtraKey)
+	require.NotContains(t, extra, "openai_responses_supported")
 }
 
 func TestNormalizeOpenAIResponsesContinuationSupported(t *testing.T) {
@@ -140,7 +140,7 @@ func TestUpdateAccountLegacyPatchOverridesEchoedNewShape(t *testing.T) {
 		},
 		Extra: map[string]any{
 			openai_compat.ExtraKeyTextRouteMode:                  "preserve_client_protocol",
-			openai_compat.ExtraKeyResponsesProbeStatus:           "supported",
+			"openai_responses_probe_status":                      "supported",
 			openai_compat.ExtraKeyResponsesContinuationSupported: true,
 		},
 	}
@@ -152,10 +152,10 @@ func TestUpdateAccountLegacyPatchOverridesEchoedNewShape(t *testing.T) {
 			legacyOpenAICapabilitiesCredentialKey: []any{"chat_completions"},
 		},
 		Extra: map[string]any{
-			openai_compat.ExtraKeyTextRouteMode:        "force_responses",
-			legacyOpenAIResponsesModeExtraKey:          "force_chat_completions",
-			openai_compat.ExtraKeyResponsesProbeStatus: "supported",
-			legacyOpenAIResponsesSupportedExtraKey:     false,
+			openai_compat.ExtraKeyTextRouteMode: "force_responses",
+			legacyOpenAIResponsesModeExtraKey:   "force_chat_completions",
+			"openai_responses_probe_status":     "supported",
+			"openai_responses_supported":        false,
 		},
 	})
 
@@ -163,8 +163,8 @@ func TestUpdateAccountLegacyPatchOverridesEchoedNewShape(t *testing.T) {
 	require.Equal(t, []string{"text_generation"}, updated.Credentials[openAIWorkloadCapabilitiesCredentialKey])
 	require.NotContains(t, updated.Credentials, legacyOpenAICapabilitiesCredentialKey)
 	require.Equal(t, "force_chat_completions", updated.Extra[openai_compat.ExtraKeyTextRouteMode])
-	require.NotContains(t, updated.Extra, openai_compat.ExtraKeyResponsesProbeStatus)
+	require.NotContains(t, updated.Extra, "openai_responses_probe_status")
 	require.Equal(t, true, updated.Extra[openai_compat.ExtraKeyResponsesContinuationSupported])
 	require.NotContains(t, updated.Extra, legacyOpenAIResponsesModeExtraKey)
-	require.NotContains(t, updated.Extra, legacyOpenAIResponsesSupportedExtraKey)
+	require.NotContains(t, updated.Extra, "openai_responses_supported")
 }
