@@ -1,5 +1,5 @@
 <template>
-  <div v-if="hasDisplayPricing">
+  <div v-if="hasDisplayPricing" class="min-w-0">
     <!-- 展开/收起触发条：右下角箭头指示面板状态，展开时向上、收起时向下。 -->
     <button
       type="button"
@@ -17,12 +17,12 @@
 
     <!-- 抽屉式定价面板：grid 行高 0fr -> 1fr 过渡实现原地展开收起。 -->
     <div
-      class="grid transition-[grid-template-rows,opacity] duration-300 ease-in-out"
+      class="grid min-w-0 grid-cols-1 transition-[grid-template-rows,opacity] duration-300 ease-in-out"
       :class="expanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 invisible'"
     >
       <!-- 抽屉内容顶部间距：仅展开时保留，收起时归零，不占卡片空间。 -->
       <div
-        class="min-h-0 overflow-hidden transition-[padding-top] duration-300 ease-in-out"
+        class="min-h-0 min-w-0 overflow-hidden transition-[padding-top] duration-300 ease-in-out"
         :class="{ 'pt-3': expanded }"
       >
         <!-- 右上角：上下文区间 / fast mode 切换，定价行随选择联动。 -->
@@ -32,7 +32,7 @@
         >
           <div
             v-if="selectableIntervals.length > 0"
-            class="inline-flex rounded-lg bg-gray-100 p-0.5 dark:bg-dark-800"
+            class="inline-flex max-w-full flex-wrap rounded-lg bg-gray-100 p-0.5 dark:bg-dark-800"
             data-testid="pricing-interval-switch"
           >
             <button
@@ -48,7 +48,7 @@
           </div>
           <div
             v-if="hasFastPricing"
-            class="inline-flex rounded-lg bg-gray-100 p-0.5 dark:bg-dark-800"
+            class="inline-flex max-w-full flex-wrap rounded-lg bg-gray-100 p-0.5 dark:bg-dark-800"
             data-testid="pricing-fast-switch"
           >
             <button
@@ -70,15 +70,15 @@
           </div>
         </div>
 
-        <!-- 完整定价：单列展示，标签与价格都不换行。 -->
+        <!-- 完整定价允许在窄卡片内换行，避免隐藏的抽屉也撑大父网格。 -->
         <div v-if="activeRows.length > 0" class="space-y-2.5" data-testid="pricing-rows">
           <div
             v-for="row in activeRows"
             :key="row.key"
             class="flex items-baseline justify-between gap-3 border-b border-gray-100 pb-2 text-sm dark:border-dark-700"
           >
-            <span class="shrink-0 whitespace-nowrap text-gray-500 dark:text-dark-400">{{ row.label }}</span>
-            <span class="whitespace-nowrap text-right font-medium tabular-nums text-gray-900 dark:text-white">{{ row.value }}</span>
+            <span class="min-w-0 max-w-[45%] shrink-0 break-words text-gray-500 dark:text-dark-400">{{ row.label }}</span>
+            <span class="min-w-0 break-words text-right font-medium [overflow-wrap:anywhere] tabular-nums text-gray-900 dark:text-white">{{ row.value }}</span>
           </div>
         </div>
         <p v-else class="text-sm text-gray-400 dark:text-dark-500">

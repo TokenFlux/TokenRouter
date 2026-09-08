@@ -4,13 +4,30 @@
     class="px-0.5"
   >
     <div class="flex items-start gap-2">
-      <input
-        id="login-agreement-consent"
-        type="checkbox"
-        :checked="accepted"
-        class="mt-[2px] h-4 w-4 flex-shrink-0 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-900"
-        @change="handleCheckboxChange"
-      />
+      <!-- 只把复选框作为锚点，长条款文案换行时箭头也不会偏移。 -->
+      <HelpTooltip
+        trigger="manual"
+        :open="hintVisible && !accepted"
+        tooltip-id="login-agreement-hint"
+        :content="t('auth.agreementRequired')"
+        :closable="false"
+        width-class="w-72"
+        class="mt-[2px] shrink-0"
+        @update:open="emit('update:hintVisible', $event)"
+      >
+        <template #trigger>
+          <input
+            id="login-agreement-consent"
+            ref="checkboxRef"
+            type="checkbox"
+            :checked="accepted"
+            :aria-describedby="hintVisible && !accepted ? 'login-agreement-hint' : undefined"
+            :aria-invalid="hintVisible && !accepted ? true : undefined"
+            class="h-4 w-4 flex-shrink-0 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-600 dark:bg-dark-900"
+            @change="handleCheckboxChange"
+          />
+        </template>
+      </HelpTooltip>
       <div class="min-w-0 flex-1">
         <p class="text-[13px] leading-5 text-gray-600 dark:text-dark-300">
           <label
@@ -139,8 +156,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
+import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import type { LoginAgreementDocument } from '@/types'
 
 const props = withDefaults(defineProps<{
@@ -149,6 +168,7 @@ const props = withDefaults(defineProps<{
   mode: 'modal' | 'checkbox' | string
   updatedAt?: string
   visible: boolean
+  hintVisible?: boolean
 }>(), {
   updatedAt: ''
 })
@@ -157,7 +177,18 @@ const emit = defineEmits<{
   accept: []
   reject: []
   open: []
+  'update:hintVisible': [value: boolean]
 }>()
+
+const { t } = useI18n()
+const checkboxRef = ref<HTMLInputElement | null>(null)
+watch(() => props.hintVisible, async (visible) => {
+  if (!visible) return
+  await nextTick()
+  // 快捷登录入口可能在较低位置，让提醒对应的复选框进入视野并支持键盘操作。
+  checkboxRef.value?.focus({ preventScroll: true })
+  checkboxRef.value?.scrollIntoView?.({ block: 'nearest' })
+})
 
 const dialogVisible = computed(() => props.visible && documents.value.length > 0)
 const documents = computed(() => props.documents.filter((doc) => doc.title.trim()))

@@ -154,6 +154,7 @@ export default {
     welcomeBack: '欢迎回来',
     signInToAccount: '登录您的账户以继续',
     signIn: '登录',
+    agreementRequired: '请先阅读并勾选同意使用政策、服务条款及支持的国家和地区后再继续。',
     signingIn: '登录中...',
     passkeySignIn: '使用 Passkey 登录',
     passkeySigningIn: '正在等待 Passkey...',

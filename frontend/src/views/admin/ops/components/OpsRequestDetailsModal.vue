@@ -21,6 +21,8 @@ export interface OpsRequestDetailsPreset {
 interface Props {
   modelValue: boolean
   timeRange: string
+  customStartTime?: string | null
+  customEndTime?: string | null
   preset: OpsRequestDetailsPreset
   platform?: string
   groupId?: number | null
@@ -48,13 +50,27 @@ const pageSize = ref(10)
 
 const close = () => emit('update:modelValue', false)
 
+// 自定义窗口的显示和查询使用相同边界；缺少任一边界时沿用统一的 1h 回退。
+const hasCustomRange = computed(() =>
+  props.timeRange === 'custom' && Boolean(props.customStartTime && props.customEndTime)
+)
+
 const rangeLabel = computed(() => {
+  if (hasCustomRange.value) {
+    return t('admin.ops.requestDetails.rangeCustom', {
+      start: formatDateTime(props.customStartTime!),
+      end: formatDateTime(props.customEndTime!)
+    })
+  }
   const minutes = parseTimeRangeMinutes(props.timeRange)
   if (minutes >= 60) return t('admin.ops.requestDetails.rangeHours', { n: Math.round(minutes / 60) })
   return t('admin.ops.requestDetails.rangeMinutes', { n: minutes })
 })
 
 function buildTimeParams(): Pick<OpsRequestDetailsParams, 'start_time' | 'end_time'> {
+  if (hasCustomRange.value) {
+    return { start_time: props.customStartTime!, end_time: props.customEndTime! }
+  }
   const minutes = parseTimeRangeMinutes(props.timeRange)
   const endTime = new Date()
   const startTime = new Date(endTime.getTime() - minutes * 60 * 1000)
@@ -112,6 +128,8 @@ watch(
 watch(
   () => [
     props.timeRange,
+    props.customStartTime,
+    props.customEndTime,
     props.platform,
     props.groupId,
     props.preset.kind,
@@ -160,13 +178,13 @@ const kindBadgeClass = (kind: string) => {
   <BaseDialog :show="modelValue" :title="props.preset.title || t('admin.ops.requestDetails.title')" width="full" @close="close">
     <template #default>
       <div class="flex h-full min-h-0 flex-col">
-        <div class="mb-4 flex flex-shrink-0 items-center justify-between">
-          <div class="text-xs text-gray-500 dark:text-gray-400">
+        <div class="mb-4 flex flex-shrink-0 items-center justify-between gap-3">
+          <div class="min-w-0 text-xs text-gray-500 dark:text-gray-400">
             {{ t('admin.ops.requestDetails.rangeLabel', { range: rangeLabel }) }}
           </div>
           <button
             type="button"
-            class="btn btn-secondary btn-sm h-9"
+            class="btn btn-secondary btn-sm h-9 shrink-0"
             @click="fetchData"
           >
             {{ t('common.refresh') }}

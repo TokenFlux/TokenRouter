@@ -136,6 +136,8 @@
         <OpsRequestDetailsModal
           v-model="showRequestDetails"
           :time-range="timeRange"
+          :custom-start-time="customStartTime"
+          :custom-end-time="customEndTime"
           :preset="requestDetailsPreset"
           :platform="platform"
           :group-id="groupId"
@@ -851,7 +853,8 @@ async function fetchData() {
 }
 
 watch(
-  () => [timeRange.value, platform.value, groupId.value] as const,
+  // 已处于 custom 时再次调整起止时间，也要刷新概览和图表。
+  () => [timeRange.value, customStartTime.value, customEndTime.value, platform.value, groupId.value] as const,
   () => {
     if (isApplyingRouteQuery.value) return
     if (opsEnabled.value) {

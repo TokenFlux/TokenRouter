@@ -21,6 +21,66 @@ type ExternalTooltipContext = {
   tooltip: TooltipModel<ChartType>
 }
 
+// 保留图表锚点与浮层的相对位置；滚动只平移，不重新贴边或播放移动动画。
+let activeTooltip: (ExternalTooltipContext & { canvasLeft: number; canvasTop: number }) | null = null
+
+function onOutsideInteraction(event: Event): void {
+  const active = activeTooltip
+  if (!active || event.target === active.chart.canvas) return
+  dismissExternalTooltip()
+}
+
+function dismissExternalTooltip(): void {
+  const chart = activeTooltip?.chart
+  hideExternalTooltip()
+  // 同时清除 Chart.js 活跃点，避免后续重绘把用户已关闭的提示重新显示。
+  chart?.setActiveElements?.([])
+  chart?.tooltip?.setActiveElements([], { x: 0, y: 0 })
+  chart?.update?.('none')
+}
+
+function onChartScroll(): void {
+  const active = activeTooltip
+  if (!active) return
+  const element = document.getElementById(TOOLTIP_ID)
+  const rect = active.chart.canvas.getBoundingClientRect()
+  if (!element || !active.chart.canvas.isConnected || rect.bottom <= 0 || rect.top >= window.innerHeight ||
+      rect.right <= 0 || rect.left >= window.innerWidth) {
+    dismissExternalTooltip()
+    return
+  }
+  // 不进行视口垂直钳制；图表滑出屏幕时提示也必须随之离开。
+  element.style.transition = `opacity ${FADE_DURATION}ms linear`
+  element.style.left = `${Number.parseFloat(element.style.left) + rect.left - active.canvasLeft}px`
+  element.style.top = `${Number.parseFloat(element.style.top) + rect.top - active.canvasTop}px`
+  active.canvasLeft = rect.left
+  active.canvasTop = rect.top
+}
+
+function onChartResize(): void {
+  if (!activeTooltip) return
+  onChartScroll()
+  if (activeTooltip) externalTooltipHandler(activeTooltip)
+}
+
+function bindTooltipEvents(): void {
+  window.addEventListener('scroll', onChartScroll, true)
+  window.addEventListener('resize', onChartResize)
+  document.addEventListener('click', onOutsideInteraction, true)
+  document.addEventListener('pointerdown', onOutsideInteraction, true)
+  document.addEventListener('touchstart', onOutsideInteraction, { capture: true, passive: true })
+  document.addEventListener('touchmove', onOutsideInteraction, { capture: true, passive: true })
+}
+
+function unbindTooltipEvents(): void {
+  window.removeEventListener('scroll', onChartScroll, true)
+  window.removeEventListener('resize', onChartResize)
+  document.removeEventListener('click', onOutsideInteraction, true)
+  document.removeEventListener('pointerdown', onOutsideInteraction, true)
+  document.removeEventListener('touchstart', onOutsideInteraction, true)
+  document.removeEventListener('touchmove', onOutsideInteraction, true)
+}
+
 type TooltipParts = {
   viewport: HTMLDivElement
   panel: HTMLDivElement
@@ -65,9 +125,13 @@ const getTooltipParts = (element: HTMLDivElement): TooltipParts => {
   return { viewport, panel, caret }
 }
 
-const getTooltipElement = (): HTMLDivElement => {
+const getTooltipElement = (canvas: HTMLCanvasElement): HTMLDivElement => {
+  // 普通图表浮层低于侧栏（40）和顶栏（50）；弹窗图表归属自己的遮罩层，避免被遮罩盖住。
+  const host = canvas.closest<HTMLElement>('.modal-overlay') ?? document.body
   const existing = document.getElementById(TOOLTIP_ID)
   if (existing instanceof HTMLDivElement) {
+    existing.style.zIndex = '30'
+    if (existing.parentElement !== host) host.appendChild(existing)
     getTooltipParts(existing)
     return existing
   }
@@ -78,7 +142,7 @@ const getTooltipElement = (): HTMLDivElement => {
   element.setAttribute('aria-hidden', 'true')
   element.className = 'hidden'
   element.style.position = 'fixed'
-  element.style.zIndex = '10000'
+  element.style.zIndex = '30'
   element.style.maxWidth = 'calc(100vw - 16px)'
   element.style.boxSizing = 'border-box'
   element.style.pointerEvents = 'none'
@@ -87,7 +151,7 @@ const getTooltipElement = (): HTMLDivElement => {
   element.style.transition = TOOLTIP_TRANSITION
   element.style.willChange = 'left, top, width, height, opacity'
   getTooltipParts(element)
-  document.body.appendChild(element)
+  host.appendChild(element)
   return element
 }
 
@@ -231,19 +295,22 @@ const renderTooltipContent = (panel: HTMLDivElement, tooltip: TooltipModel<Chart
 }
 
 export const hideExternalTooltip = (): void => {
+  activeTooltip = null
+  unbindTooltipEvents()
   const element = document.getElementById(TOOLTIP_ID)
   if (!(element instanceof HTMLDivElement)) return
   element.style.opacity = '0'
   element.setAttribute('aria-hidden', 'true')
 }
 
-// 外层在 body 中负责防裁切和动画，内层严格沿用 Chart.js 原生 tooltip 的视觉参数。
+// 外层在页面或所属弹窗中负责防裁切和动画，内层沿用 Chart.js 原生 tooltip 的视觉参数。
 export const externalTooltipHandler = ({ chart, tooltip }: ExternalTooltipContext): void => {
-  const element = getTooltipElement()
-  if (tooltip.opacity === 0) {
+  if (tooltip.opacity === 0 || tooltip.getActiveElements?.().length === 0) {
+    if (activeTooltip && activeTooltip.chart.canvas !== chart.canvas) return
     hideExternalTooltip()
     return
   }
+  const element = getTooltipElement(chart.canvas)
 
   const { viewport, panel, caret } = getTooltipParts(element)
   const previousRect = element.getBoundingClientRect()
@@ -271,8 +338,8 @@ export const externalTooltipHandler = ({ chart, tooltip }: ExternalTooltipContex
   const height = naturalRect.height
 
   const canvasRect = chart.canvas.getBoundingClientRect()
-  const anchorX = canvasRect.left + (tooltip.caretX ?? chart.width / 2)
-  const anchorY = canvasRect.top + (tooltip.caretY ?? chart.height / 2)
+  const anchorX = canvasRect.left + (tooltip.caretX ?? chart.width / 2) * (canvasRect.width / chart.width || 1)
+  const anchorY = canvasRect.top + (tooltip.caretY ?? chart.height / 2) * (canvasRect.height / chart.height || 1)
   const maxLeft = Math.max(VIEWPORT_PADDING, window.innerWidth - width - VIEWPORT_PADDING)
   const left = Math.min(Math.max(anchorX - width / 2, VIEWPORT_PADDING), maxLeft)
   const card = chart.canvas.closest<HTMLElement>('.card')
@@ -284,8 +351,6 @@ export const externalTooltipHandler = ({ chart, tooltip }: ExternalTooltipContex
     top = anchorY + offset
     caretDirection = 'up'
   }
-  const maxTop = Math.max(VIEWPORT_PADDING, window.innerHeight - height - VIEWPORT_PADDING)
-  top = Math.min(Math.max(top, VIEWPORT_PADDING), maxTop)
 
   const caretCenter = Math.min(
     Math.max(anchorX - left, style.cornerRadius + style.caretSize),
@@ -338,4 +403,6 @@ export const externalTooltipHandler = ({ chart, tooltip }: ExternalTooltipContex
   panel.style.height = `${Math.ceil(height)}px`
   element.style.opacity = '1'
   element.setAttribute('aria-hidden', 'false')
+  activeTooltip = { chart, tooltip, canvasLeft: canvasRect.left, canvasTop: canvasRect.top }
+  bindTooltipEvents()
 }

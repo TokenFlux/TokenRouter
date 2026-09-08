@@ -378,6 +378,7 @@ export default {
         rangeLabel: 'Window: {range}',
         rangeMinutes: '{n} minutes',
         rangeHours: '{n} hours',
+        rangeCustom: 'Custom ({start} ~ {end})',
         empty: 'No requests in this window.',
         emptyHint: 'Try a different time range or remove filters.',
         failedToLoad: 'Failed to load request details',

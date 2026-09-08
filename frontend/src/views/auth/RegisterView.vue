@@ -27,7 +27,7 @@
       </div>
 
       <!-- Registration Form -->
-      <form v-else @submit.prevent="handleRegister" class="space-y-5">
+      <form v-else @submit.prevent="handleRegister" :novalidate="agreementGateActive" class="space-y-5">
         <!-- Email Input -->
         <div>
           <label for="email" class="input-label">
@@ -229,6 +229,7 @@
           :mode="loginAgreementMode"
           :updated-at="loginAgreementUpdatedAt"
           :visible="showAgreementModal"
+          v-model:hint-visible="showAgreementHint"
           @accept="acceptLoginAgreement"
           @reject="rejectLoginAgreement"
           @open="showAgreementModal = true"
@@ -237,7 +238,7 @@
         <!-- 提交按钮 -->
         <button
           type="submit"
-          :disabled="registrationActionDisabled || (turnstileEnabled && !turnstileToken)"
+          :disabled="registrationActionDisabled || (!agreementGateActive && turnstileEnabled && !turnstileToken)"
           class="btn btn-primary w-full"
         >
           <svg
@@ -417,6 +418,7 @@ const loginAgreementRevision = ref<string>('')
 const loginAgreementDocuments = ref<LoginAgreementDocument[]>([])
 const agreementAccepted = ref<boolean>(false)
 const showAgreementModal = ref<boolean>(false)
+const showAgreementHint = ref(false)
 
 // Turnstile
 const turnstileRef = ref<InstanceType<typeof TurnstileWidget> | null>(null)
@@ -492,7 +494,9 @@ const agreementGateActive = computed(
 )
 
 const registrationActionDisabled = computed(
-  () => isLoading.value || !settingsLoaded.value || agreementGateActive.value
+  // 弹窗模式保持原有门禁；复选框模式允许填写，在触发认证动作时校验同意状态。
+  () => isLoading.value || !settingsLoaded.value ||
+    (agreementGateActive.value && loginAgreementMode.value !== 'checkbox')
 )
 
 watch(validationToastMessage, (value, previousValue) => {
@@ -648,6 +652,7 @@ function acceptLoginAgreement(): void {
     )
   }
   agreementAccepted.value = true
+  showAgreementHint.value = false
   showAgreementModal.value = false
 }
 
@@ -655,7 +660,8 @@ function rejectLoginAgreement(): void {
   localStorage.removeItem(LOGIN_AGREEMENT_STORAGE_KEY)
   agreementAccepted.value = false
   showAgreementModal.value = false
-  appStore.showWarning('未同意最新条款前，无法注册或使用快捷登录。')
+  showAgreementHint.value = false
+  if (loginAgreementMode.value !== 'checkbox') appStore.showWarning(t('auth.agreementRequired'))
 }
 
 // ==================== Promo Code Validation ====================
@@ -872,7 +878,7 @@ async function acquireActionProof(): Promise<boolean> {
 }
 
 async function handleOAuthStart(request: OAuthLoginStart): Promise<void> {
-  if (registrationActionDisabled.value) return
+  if (registrationActionDisabled.value || !ensureAgreementAccepted()) return
 
   if (!actionCaptchaEnabled.value) {
     window.location.href = buildOAuthLoginStartURL(request)
@@ -908,6 +914,17 @@ async function handleOAuthStart(request: OAuthLoginStart): Promise<void> {
   }
 }
 
+// 所有认证入口共享同一门禁，未同意时不能触发验证码、网络请求或第三方跳转。
+function ensureAgreementAccepted(): boolean {
+  if (!agreementGateActive.value) return true
+  if (loginAgreementMode.value === 'checkbox') {
+    showAgreementHint.value = true
+  } else {
+    showAgreementModal.value = true
+  }
+  return false
+}
+
 // ==================== Validation ====================
 
 function validateEmail(email: string): boolean {
@@ -940,13 +957,7 @@ function validateForm(): boolean {
 
   let isValid = true
 
-  if (agreementGateActive.value) {
-    appStore.showWarning('请先阅读并同意最新条款后再注册。')
-    if (loginAgreementMode.value !== 'checkbox') {
-      showAgreementModal.value = true
-    }
-    return false
-  }
+  if (!ensureAgreementAccepted()) return false
 
   // Email validation
   if (!formData.email.trim()) {
@@ -993,6 +1004,7 @@ function validateForm(): boolean {
 // ==================== Form Handlers ====================
 
 async function handleRegister(): Promise<void> {
+  if (registrationActionDisabled.value) return
   // Clear previous error
   errorMessage.value = ''
 

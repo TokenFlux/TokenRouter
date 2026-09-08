@@ -378,6 +378,7 @@ export default {
         rangeLabel: '窗口：{range}',
         rangeMinutes: '{n} 分钟',
         rangeHours: '{n} 小时',
+        rangeCustom: '自定义（{start} ~ {end}）',
         empty: '该窗口内暂无请求。',
         emptyHint: '可尝试调整时间范围或取消部分筛选。',
         failedToLoad: '加载请求明细失败',

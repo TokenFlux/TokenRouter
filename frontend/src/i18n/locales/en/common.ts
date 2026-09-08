@@ -154,6 +154,7 @@ export default {
     welcomeBack: 'Welcome Back',
     signInToAccount: 'Sign in to your account to continue',
     signIn: 'Sign In',
+    agreementRequired: 'Please read and agree to the usage policy, terms of service, and supported countries and regions before continuing.',
     signingIn: 'Signing in...',
     passkeySignIn: 'Sign in with a passkey',
     passkeySigningIn: 'Waiting for passkey...',

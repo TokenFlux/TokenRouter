@@ -17,6 +17,52 @@ describe('HelpTooltip', () => {
     document.body.innerHTML = ''
   })
 
+  it.each(['pointerdown', 'touchstart', 'click', 'Escape'])('手动提示受控显示，并通过外部 %s 关闭', async (eventName) => {
+    const wrapper = mount(HelpTooltip, {
+      attachTo: document.body,
+      props: { trigger: 'manual', open: false, closable: false, content: '请同意条款' },
+      slots: { trigger: '<input type="checkbox" />' },
+    })
+    const trigger = wrapper.get('.group')
+    await trigger.trigger('mouseenter')
+    await trigger.trigger('click')
+    expect(getTooltipElement().style.display).toBe('none')
+    await wrapper.setProps({ open: true })
+    await nextTick()
+    expect(getTooltipElement().style.display).not.toBe('none')
+    expect(getTooltipElement().querySelector('button')).toBeNull()
+    if (eventName === 'Escape') {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    } else {
+      document.body.dispatchEvent(new Event(eventName, { bubbles: true }))
+    }
+    expect(wrapper.emitted('update:open')?.at(-1)).toEqual([false])
+    await wrapper.setProps({ open: false })
+    expect(getTooltipElement().style.display).toBe('none')
+    await wrapper.setProps({ open: true })
+    expect(getTooltipElement().style.display).not.toBe('none')
+    wrapper.unmount()
+  })
+
+  it('提示框在左侧边缘避让时，箭头仍指向复选框', async () => {
+    const wrapper = mount(HelpTooltip, {
+      attachTo: document.body,
+      props: { trigger: 'manual', open: false },
+    })
+    wrapper.get('.group').element.getBoundingClientRect = vi.fn(() => ({
+      left: 30, top: 200, width: 16, height: 16, right: 46, bottom: 216,
+    } as DOMRect))
+    const tooltip = getTooltipElement()
+    tooltip.getBoundingClientRect = vi.fn(() => ({ width: 288, height: 60 } as DOMRect))
+    await wrapper.setProps({ open: true })
+    await nextTick()
+    await nextTick()
+    const center = Number.parseFloat(tooltip.style.left)
+    const arrow = tooltip.lastElementChild as HTMLElement
+    expect(center - 144 + Number.parseFloat(arrow.style.left)).toBe(38)
+    wrapper.unmount()
+  })
+
   it('keeps the existing hover interaction by default', async () => {
     const wrapper = mount(HelpTooltip, {
       attachTo: document.body,

@@ -60,6 +60,8 @@ vi.mock('@/api/admin/ops', () => ({
 }))
 
 import OpsDashboard from '../OpsDashboard.vue'
+import OpsDashboardHeader from '../components/OpsDashboardHeader.vue'
+import OpsRequestDetailsModal from '../components/OpsRequestDetailsModal.vue'
 import { LATENCY_BUCKET_STORAGE_KEY } from '../latencyBuckets'
 
 const SlotStub = defineComponent({
@@ -181,6 +183,33 @@ describe('OpsDashboard latency bucket refresh', () => {
       expect.any(Object),
     )
 
+    wrapper.unmount()
+  })
+
+  it('自定义时间边界传给请求明细，重复修改范围时概览同步刷新', async () => {
+    const wrapper = mountDashboard()
+    await flushPromises()
+    const header = wrapper.findComponent(OpsDashboardHeader)
+    header.vm.$emit('update:customTimeRange', '2026-08-25T00:00:00Z', '2026-08-28T00:00:00Z')
+    header.vm.$emit('update:timeRange', 'custom')
+    await flushPromises()
+    const details = wrapper.findComponent(OpsRequestDetailsModal)
+    expect(details.attributes('custom-start-time')).toBe('2026-08-25T00:00:00Z')
+    expect(details.attributes('custom-end-time')).toBe('2026-08-28T00:00:00Z')
+    expect(mocks.getDashboardSnapshotV2).toHaveBeenLastCalledWith(
+      expect.objectContaining({ start_time: '2026-08-25T00:00:00Z', end_time: '2026-08-28T00:00:00Z' }),
+      expect.any(Object)
+    )
+    const calls = mocks.getDashboardSnapshotV2.mock.calls.length
+    header.vm.$emit('update:customTimeRange', '2026-08-26T00:00:00Z', '2026-08-27T00:00:00Z')
+    header.vm.$emit('update:timeRange', 'custom')
+    await flushPromises()
+    expect(mocks.getDashboardSnapshotV2).toHaveBeenCalledTimes(calls + 1)
+    expect(mocks.getDashboardSnapshotV2).toHaveBeenLastCalledWith(
+      expect.objectContaining({ start_time: '2026-08-26T00:00:00Z', end_time: '2026-08-27T00:00:00Z' }),
+      expect.any(Object)
+    )
+    expect(details.attributes('custom-start-time')).toBe('2026-08-26T00:00:00Z')
     wrapper.unmount()
   })
 

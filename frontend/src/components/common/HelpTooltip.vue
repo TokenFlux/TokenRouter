@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 
 const props = withDefaults(defineProps<{
   content?: string
-  trigger?: 'hover' | 'click' | 'both'
+  trigger?: 'hover' | 'click' | 'both' | 'manual'
+  // 手动提示由调用方控制，外部关闭时同步状态，避免下次提交无法重新打开。
+  open?: boolean
+  tooltipId?: string
   placement?: 'top' | 'bottom'
   widthClass?: string
   // 是否显示右上角关闭按钮；纯说明性的短提示可以关闭，靠点击外部/Esc 关闭。
@@ -13,14 +16,22 @@ const props = withDefaults(defineProps<{
   placement: 'top',
   widthClass: 'w-64',
   closable: true,
+  open: undefined,
 })
 
-const show = ref(false)
+const emit = defineEmits<{ 'update:open': [value: boolean] }>()
+const internalShow = ref(false)
+const show = computed(() => props.open ?? internalShow.value)
 const clickPinned = ref(false)
 const resolvedPlacement = ref<'top' | 'bottom'>(props.placement)
 const triggerRef = useTemplateRef<HTMLElement>('trigger')
 const tooltipRef = useTemplateRef<HTMLElement>('tooltip')
 const tooltipStyle = ref({ top: '0px', left: '0px' })
+const caretLeft = ref('50%')
+
+watch(show, (visible) => {
+  if (visible) nextTick(updatePosition)
+})
 
 function hoverEnabled() {
   return props.trigger === 'hover' || props.trigger === 'both'
@@ -31,12 +42,14 @@ function clickEnabled() {
 }
 
 function openTooltip() {
-  show.value = true
+  internalShow.value = true
+  emit('update:open', true)
   nextTick(updatePosition)
 }
 
 function closeTooltip() {
-  show.value = false
+  internalShow.value = false
+  emit('update:open', false)
   clickPinned.value = false
 }
 
@@ -72,8 +85,8 @@ function onClick(event: MouseEvent) {
   openTooltip()
 }
 
-function onDocumentClick(event: MouseEvent) {
-  if (!clickEnabled() || !show.value) return
+function onDocumentInteraction(event: Event) {
+  if ((!clickEnabled() && props.trigger !== 'manual') || !show.value) return
   const target = event.target as Node | null
   if (!target) return
   if (triggerRef.value?.contains(target) || tooltipRef.value?.contains(target)) return
@@ -81,7 +94,7 @@ function onDocumentClick(event: MouseEvent) {
 }
 
 function onDocumentKeydown(event: KeyboardEvent) {
-  if (!clickEnabled()) return
+  if (!clickEnabled() && props.trigger !== 'manual') return
   if (event.key === 'Escape') {
     closeTooltip()
   }
@@ -136,6 +149,8 @@ function updatePosition() {
     tooltipTop = rect.top - 8
   }
   resolvedPlacement.value = placement
+  // 提示框为了避开屏幕边缘发生横移时，箭头仍对准真实触发点。
+  caretLeft.value = `${Math.max(8, Math.min(tooltipWidth - 8, centeredLeft - left + halfTooltipWidth))}px`
   tooltipStyle.value = {
     top: `${placement === 'top' ? tooltipTop + tooltipHeight + 8 : tooltipTop}px`,
     left: `${left}px`,
@@ -143,14 +158,19 @@ function updatePosition() {
 }
 
 onMounted(() => {
-  document.addEventListener('click', onDocumentClick, true)
+  document.addEventListener('click', onDocumentInteraction, true)
+  document.addEventListener('pointerdown', onDocumentInteraction, true)
+  document.addEventListener('touchstart', onDocumentInteraction, { capture: true, passive: true })
   document.addEventListener('keydown', onDocumentKeydown)
   window.addEventListener('resize', onViewportChange)
   window.addEventListener('scroll', onViewportChange, true)
+  if (show.value) nextTick(updatePosition)
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener('click', onDocumentClick, true)
+  document.removeEventListener('click', onDocumentInteraction, true)
+  document.removeEventListener('pointerdown', onDocumentInteraction, true)
+  document.removeEventListener('touchstart', onDocumentInteraction, true)
   document.removeEventListener('keydown', onDocumentKeydown)
   window.removeEventListener('resize', onViewportChange)
   window.removeEventListener('scroll', onViewportChange, true)
@@ -160,7 +180,8 @@ onBeforeUnmount(() => {
 <template>
   <div
     ref="trigger"
-    class="group relative ml-1 inline-flex items-center align-middle"
+    class="group relative inline-flex items-center align-middle"
+    :class="{ 'ml-1': trigger !== 'manual' }"
     @mouseenter="onEnter"
     @mouseleave="onLeave"
     @click="onClick"
@@ -187,6 +208,7 @@ onBeforeUnmount(() => {
       <!-- before: 伪元素向下延伸一段透明区域，盖住提示框与触发图标之间的空隙，让指针能连续移入提示框。 -->
       <div
         ref="tooltip"
+        :id="tooltipId"
         v-show="show"
         role="tooltip"
         :class="[
@@ -218,7 +240,8 @@ onBeforeUnmount(() => {
           <slot>{{ content }}</slot>
         </div>
         <div
-          class="absolute left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-gray-900 dark:bg-gray-800"
+          class="absolute h-2 w-2 -translate-x-1/2 rotate-45 bg-gray-900 dark:bg-gray-800"
+          :style="{ left: caretLeft }"
           :class="resolvedPlacement === 'top' ? '-bottom-1' : '-top-1'"
         ></div>
       </div>

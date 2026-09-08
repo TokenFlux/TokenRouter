@@ -273,15 +273,15 @@
               </div>
             </div>
 
-            <div class="grid items-start gap-3 p-4 md:grid-cols-2 lg:grid-cols-3 md:p-5">
-              <!-- 大屏固定三列展示，避免宽屏下只排两列造成右侧留白。 -->
+            <div class="grid min-w-0 grid-cols-1 items-start gap-3 p-4 md:grid-cols-2 lg:grid-cols-3 md:p-5">
+              <!-- 显式单列和可收缩卡片阻止长定价内容撑大网格；大屏保持三列。 -->
               <article
                 v-for="model in group.models"
                 :key="`${group.id}-${model.id}`"
-                class="group rounded-xl border border-gray-100 bg-gray-50/80 p-4 transition hover:-translate-y-0.5 hover:border-black/20 hover:shadow-sm dark:border-dark-700 dark:bg-dark-950/80 dark:hover:border-primary-500/50"
+                class="group min-w-0 max-w-full rounded-xl border border-gray-100 bg-gray-50/80 p-4 transition hover:-translate-y-0.5 hover:border-black/20 hover:shadow-sm dark:border-dark-700 dark:bg-dark-950/80 dark:hover:border-primary-500/50"
               >
-                <div class="flex items-start justify-between gap-3">
-                  <h3 class="min-w-0 truncate text-base font-semibold text-gray-950 dark:text-white">{{ model.display_name }}</h3>
+                <div class="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                  <h3 class="min-w-0 flex-1 basis-32 truncate text-base font-semibold text-gray-950 dark:text-white">{{ model.display_name }}</h3>
                   <ModelCapabilityTags :model="model" />
                 </div>
                 <!-- ID 独占整行，避免跟随标题列被右侧能力图标挤窄。 -->
@@ -297,7 +297,7 @@
                         class="flex items-baseline justify-between gap-3 text-sm"
                       >
                         <dt class="shrink-0 text-gray-500 dark:text-dark-400">{{ row.label }}</dt>
-                        <dd class="min-w-0 text-right font-medium tabular-nums text-gray-900 dark:text-white">{{ row.value }}</dd>
+                        <dd class="min-w-0 break-words text-right font-medium tabular-nums [overflow-wrap:anywhere] text-gray-900 dark:text-white">{{ row.value }}</dd>
                       </div>
                     </dl>
                   </template>
