@@ -55,7 +55,7 @@
 
 OpenAI 兼容 Messages 在尚未向客户端提交响应时，会把管理员临时不可调度规则命中的账号错误提升为 failover，即使上游状态码本身通常不触发切号；命中模型范围的账号先写入模型级临时排除，再选择下一账号。请求内容或 Grok 内容策略导致的拒绝不进入这条通用账号错误路径。
 
-OpenAI/Composite 分组可启用 `force_openai_fast`，使可信认证快照中的 OpenAI 请求在没有显式服务层级时也先形成 `service_tier=priority`，并覆盖客户端提交的其它合法 tier。该组级意图仍要经过全局 Fast/Flex 规则，系统过滤或阻断拥有最终裁决权；API Key 的 `force_off` 也可删除组级注入。字段仅对 OpenAI/Composite 分组生效，切换到其它平台或从不可信上下文读取时必须归零/忽略。
+OpenAI/Composite 分组通过 `openai_fast_policy` 选择跟随请求、强制 Fast、强制 Ultra Fast 或关闭两类加速。全局规则保持最高优先级，组级关闭禁止 Key 重新开启，组级强制开启仍允许 Key 关闭。详细优先级与旧布尔字段兼容见 [Fast 与 Ultra Fast 策略](../interfaces/openai_upstream.md#openai_fast_policy)。
 
 同一范围的分组还可启用 `free_openai_fast`。当最终使用的是 OpenAI 账号且计费档位为 `priority`/`fast` 时，网关保持发往上游的 Fast 档位不变，只用同一分组、渠道、长上下文和峰值规则重新计算 Standard 用户价格。Usage Log 的 `total_cost`、账号统计和账号额度继续保留 Fast 成本；`actual_cost`、余额/订阅分配和 API Key 配额使用 Standard 价格。缺少 Standard 定价时沿用既有缺价零成本记录路径，不把请求改写成普通上游请求；其它平台、普通档位和不可信认证上下文必须忽略该字段。
 

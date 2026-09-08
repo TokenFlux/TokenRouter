@@ -248,6 +248,9 @@ func (Group) Fields() []ent.Field {
 		field.Bool("allow_live").
 			Default(false).
 			Comment("是否允许此 OpenAI 分组访问 Live 接口"),
+		field.String("openai_fast_policy").
+			Default("follow_request").
+			Comment("分组加速策略：follow_request/force_priority/force_ultrafast/force_off"),
 		field.Bool("force_openai_fast").
 			Default(false).
 			Comment("是否强制此 OpenAI/Composite 分组请求使用 service_tier=priority"),

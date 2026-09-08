@@ -381,8 +381,8 @@ func TestAccountTestService_AutomaticOpenAIProbeRoutesChatCompletionsAndImages(t
 				"base_url": "https://compat-upstream.example/v1",
 			},
 			Extra: map[string]any{
-				openai_compat.ExtraKeyResponsesProbeStatus: string(openai_compat.ResponsesProbeStatusUnsupported),
-				"tls_fingerprint_router_id":                int64(9),
+				openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions),
+				"tls_fingerprint_router_id":         int64(9),
 			},
 		}
 		router := &model.TLSFingerprintRouter{

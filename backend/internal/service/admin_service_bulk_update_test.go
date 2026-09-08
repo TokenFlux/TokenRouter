@@ -80,7 +80,7 @@ func TestAdminServiceBulkUpdateAccountsNormalizesLegacyOpenAIConfiguration(t *te
 	require.Equal(t, []string{"text_generation"}, repo.lastBulkUpdate.Credentials[openAIWorkloadCapabilitiesCredentialKey])
 	require.NotContains(t, repo.lastBulkUpdate.Credentials, legacyOpenAICapabilitiesCredentialKey)
 	require.Equal(t, "preserve_client_protocol", repo.lastBulkUpdate.Extra["openai_text_route_mode"])
-	require.Equal(t, "unsupported", repo.lastBulkUpdate.Extra["openai_responses_probe_status"])
+	require.NotContains(t, repo.lastBulkUpdate.Extra, "openai_responses_probe_status")
 	require.NotContains(t, repo.lastBulkUpdate.Extra, legacyOpenAIResponsesModeExtraKey)
 	require.NotContains(t, repo.lastBulkUpdate.Extra, legacyOpenAIResponsesSupportedExtraKey)
 }

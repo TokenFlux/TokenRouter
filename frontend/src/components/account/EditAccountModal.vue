@@ -1757,7 +1757,7 @@
         </div>
       </div>
 
-      <!-- OpenAI APIKey 文本工作负载、协议路由与探测状态 -->
+      <!-- OpenAI APIKey 文本工作负载与管理员协议路由 -->
       <div
         v-if="account?.platform === 'openai' && account?.type === 'apikey'"
         class="space-y-5 border-t border-gray-200 pt-4 dark:border-dark-600"
@@ -1782,20 +1782,9 @@
           </div>
           <p class="input-hint">{{ t('admin.accounts.openai.workloadCapabilitiesDesc') }}</p>
         </div>
-        <div class="flex flex-col gap-3 border-t border-gray-200 pt-4 dark:border-dark-600 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <label class="input-label mb-0">{{ t('admin.accounts.openai.textRouteMode') }}</label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.openai.textRouteModeDesc') }}
-            </p>
-          </div>
-          <div class="w-full sm:w-64">
-            <Select
-              v-model="openAITextRouteMode"
-              :options="openAITextRouteModeOptions"
-              data-testid="openai-text-route-mode-select"
-            />
-          </div>
+        <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
+          <label class="input-label">{{ t('admin.accounts.openai.textRouteMode') }}</label>
+          <OpenAITextProtocolCheckboxes v-model="openAITextRouteMode" />
         </div>
         <div class="flex flex-col gap-3 border-t border-gray-200 pt-4 dark:border-dark-600 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -1829,20 +1818,7 @@
             :aria-label="t('admin.accounts.openai.imagesURLToB64JSON')"
           />
         </div>
-        <div
-          class="flex flex-col gap-3 border-t border-gray-200 pt-4 dark:border-dark-600 sm:flex-row sm:items-center sm:justify-between"
-          data-testid="openai-responses-probe-status"
-        >
-          <div>
-            <label class="input-label mb-0">{{ t('admin.accounts.openai.responsesProbeStatus') }}</label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.openai.responsesProbeStatusDesc') }}
-            </p>
-          </div>
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-200 sm:text-right">
-            {{ t(openAIResponsesProbeStatusKey) }}
-          </span>
-        </div>
+
       </div>
 
       <OllamaCloudUsageSettings
@@ -2171,53 +2147,11 @@
         v-if="account?.platform === 'openai' && (account?.type === 'oauth' || account?.type === 'apikey')"
         class="border-t border-gray-200 pt-4 dark:border-dark-600 space-y-4"
       >
-        <div class="flex items-center justify-between gap-4">
-          <div>
-            <label class="input-label mb-0">{{ t('admin.accounts.openai.nativeCompactV2Mode') }}</label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.openai.nativeCompactV2ModeDesc') }}
-            </p>
-          </div>
-          <div class="w-44">
-            <Select
-              v-model="openAINativeCompactionV2Mode"
-              data-testid="edit-openai-native-compaction-v2-mode"
-              :options="openAINativeCompactionV2ModeOptions"
-            />
-          </div>
-        </div>
-        <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300">
-          <span class="font-medium">{{ t(openAINativeCompactionV2StatusKey) }}</span>
-          <span
-            v-if="account?.extra?.openai_native_compaction_v2_checked_at"
-            class="ml-2 text-gray-500 dark:text-gray-400"
-          >
-            {{ t('admin.accounts.openai.nativeCompactV2LastChecked') }}:
-            {{ formatDateTime(new Date(String(account.extra.openai_native_compaction_v2_checked_at))) }}
-          </span>
-        </div>
-        <div class="flex items-center justify-between">
-          <div>
-            <label class="input-label mb-0">{{ t('admin.accounts.openai.compactMode') }}</label>
-            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {{ t('admin.accounts.openai.compactModeDesc') }}
-            </p>
-          </div>
-          <div class="w-44">
-            <Select v-model="openAICompactMode" :options="openAICompactModeOptions" />
-          </div>
-        </div>
-        <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300">
-          <span class="font-medium">{{ t(openAICompactStatusKey) }}</span>
-          <span
-            v-if="account?.extra?.openai_compact_checked_at"
-            class="ml-2 text-gray-500 dark:text-gray-400"
-          >
-            {{ t('admin.accounts.openai.compactLastChecked') }}:
-            {{ formatDateTime(new Date(String(account.extra.openai_compact_checked_at))) }}
-          </span>
-        </div>
-        <div>
+        <OpenAICompactionCheckbox v-model="openAINativeCompactionV2Mode" test-id="edit-openai-native-compaction-v2-mode"
+          :label="t('admin.accounts.openai.nativeCompactV2Mode')" :hint="t('admin.accounts.openai.nativeCompactV2ModeDesc')" />
+        <OpenAICompactionCheckbox v-model="openAICompactMode" test-id="edit-openai-compact-mode"
+          :label="t('admin.accounts.openai.compactMode')" :hint="t('admin.accounts.openai.compactModeDesc')" />
+        <div v-if="openAICompactMode !== 'force_off'">
           <label class="input-label">{{ t('admin.accounts.openai.compactModelMapping') }}</label>
           <p class="input-hint">{{ t('admin.accounts.openai.compactModelMappingDesc') }}</p>
           <div v-if="openAICompactModelMappings.length > 0" class="mb-3 space-y-2">
@@ -2859,6 +2793,8 @@
 </template>
 
 <script setup lang="ts">
+import OpenAITextProtocolCheckboxes from './OpenAITextProtocolCheckboxes.vue'
+import OpenAICompactionCheckbox from './OpenAICompactionCheckbox.vue'
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -2873,7 +2809,6 @@ import type {
   OpenAICompactMode,
   OpenAIOAuthClientPolicy,
   OpenAITextRouteMode,
-  OpenAIResponsesProbeStatus,
   OpenAIWorkloadCapability,
   OllamaCloudUsageState,
   UpstreamUsageAdapter
@@ -2917,7 +2852,7 @@ import {
   type CnNativeApiProtocol,
   type HeaderOverrideRow
 } from '@/components/account/credentialsBuilder'
-import { formatDateTime, formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
+import { formatDateTimeLocalInput, parseDateTimeLocalInput } from '@/utils/format'
 import { createStableObjectKeyResolver } from '@/utils/stableObjectKey'
 import {
   applyCodexImageToolMode,
@@ -3318,8 +3253,8 @@ const openaiPassthroughEnabled = ref(false)
 const openaiFlattenNamespacesEnabled = ref(false)
 // OpenAI 订阅档位（Plus/Pro/Free）手动覆盖值,存于 credentials.plan_type;'' 表示清空/自动识别
 const editPlanType = ref<string>('')
-const openAICompactMode = ref<OpenAICompactMode>('auto')
-const openAINativeCompactionV2Mode = ref<OpenAICompactMode>('auto')
+const openAICompactMode = ref<OpenAICompactMode>('force_on')
+const openAINativeCompactionV2Mode = ref<OpenAICompactMode>('force_on')
 const openAITextRouteMode = ref<OpenAITextRouteMode>('preserve_client_protocol')
 const openAIWorkloadCapabilities = ref<OpenAIWorkloadCapability[]>(['text_generation', 'embeddings'])
 // HTTP continuation 缺省关闭，只有管理员确认上游支持时才发送 previous_response_id。
@@ -3436,16 +3371,8 @@ const openaiResponsesWebSocketV2Mode = computed({
 const openAIWSModeConcurrencyHintKey = computed(() =>
   resolveOpenAIWSModeConcurrencyHintKey(openaiResponsesWebSocketV2Mode.value)
 )
-const openAICompactModeOptions = computed(() => [
-  { value: 'auto', label: t('admin.accounts.openai.compactModeAuto') },
-  { value: 'force_on', label: t('admin.accounts.openai.compactModeForceOn') },
-  { value: 'force_off', label: t('admin.accounts.openai.compactModeForceOff') }
-])
-const openAINativeCompactionV2ModeOptions = computed(() => [
-  { value: 'auto', label: t('admin.accounts.openai.nativeCompactV2ModeAuto') },
-  { value: 'force_on', label: t('admin.accounts.openai.nativeCompactV2ModeForceOn') },
-  { value: 'force_off', label: t('admin.accounts.openai.nativeCompactV2ModeForceOff') }
-])
+
+
 // OpenAI 订阅档位手动覆盖选项(清空 + Plus/Pro/Free;别名/自定义值友好显示且保留 canonical)
 const planTypeOptions = computed(() =>
   buildPlanTypeOptions(editPlanType.value, t('admin.accounts.openai.planTypeClear'))
@@ -3455,11 +3382,7 @@ const openAIOAuthClientPolicyOptions = computed(() => [
   { value: 'codex_only', label: t('admin.accounts.openai.clientPolicyCodexOnly') },
   { value: 'tls_router_matched_only', label: t('admin.accounts.openai.clientPolicyTLSRouterMatchedOnly') }
 ])
-const openAITextRouteModeOptions = computed(() => [
-  { value: 'preserve_client_protocol', label: t('admin.accounts.openai.textRoutePreserveClientProtocol') },
-  { value: 'force_responses', label: t('admin.accounts.openai.textRouteForceResponses') },
-  { value: 'force_chat_completions', label: t('admin.accounts.openai.textRouteForceChatCompletions') }
-])
+
 const openAIWorkloadCapabilityOptions = computed<{ value: OpenAIWorkloadCapability; label: string }[]>(() => [
   { value: 'text_generation', label: t('admin.accounts.openai.workloadTextGeneration') },
   { value: 'embeddings', label: t('admin.accounts.openai.workloadEmbeddings') }
@@ -3522,56 +3445,9 @@ const normalizeOpenAITextRouteMode = (mode: unknown, legacyMode?: unknown): Open
   }
   return 'preserve_client_protocol'
 }
-const readOpenAIResponsesProbeStatus = (extra?: Record<string, unknown>): OpenAIResponsesProbeStatus => {
-  const status = extra?.openai_responses_probe_status
-  if (status === 'supported' || status === 'unsupported' || status === 'unknown') {
-    return status
-  }
-  if (extra?.openai_responses_supported === true) return 'supported'
-  if (extra?.openai_responses_supported === false) return 'unsupported'
-  return 'unknown'
-}
 const isOpenAIModelRestrictionDisabled = computed(() =>
   props.account?.platform === 'openai' && openaiPassthroughEnabled.value
 )
-const openAIResponsesProbeStatus = computed(() => {
-  const extra = props.account?.extra as Record<string, unknown> | undefined
-  return readOpenAIResponsesProbeStatus(extra)
-})
-const openAIResponsesProbeStatusKey = computed(() => {
-  if (openAIResponsesProbeStatus.value === 'supported') return 'admin.accounts.openai.responsesProbeSupported'
-  if (openAIResponsesProbeStatus.value === 'unsupported') return 'admin.accounts.openai.responsesProbeUnsupported'
-  return 'admin.accounts.openai.responsesProbeUnknown'
-})
-const openAICompactStatusKey = computed(() => {
-  const extra = props.account?.extra as Record<string, unknown> | undefined
-  if (!props.account || props.account.platform !== 'openai') return ''
-  const mode = typeof extra?.openai_compact_mode === 'string' ? extra.openai_compact_mode : 'auto'
-  if (mode === 'force_on') return 'admin.accounts.openai.compactSupported'
-  if (mode === 'force_off') return 'admin.accounts.openai.compactUnsupported'
-  if (typeof extra?.openai_compact_supported === 'boolean') {
-    return extra.openai_compact_supported
-      ? 'admin.accounts.openai.compactSupported'
-      : 'admin.accounts.openai.compactUnsupported'
-  }
-  return 'admin.accounts.openai.compactAuto'
-})
-const openAINativeCompactionV2StatusKey = computed(() => {
-  const extra = props.account?.extra as Record<string, unknown> | undefined
-  if (!props.account || props.account.platform !== 'openai') return ''
-  const mode = typeof extra?.openai_native_compaction_v2_mode === 'string'
-    ? extra.openai_native_compaction_v2_mode
-    : 'auto'
-  if (mode === 'force_on') return 'admin.accounts.openai.nativeCompactV2Supported'
-  if (mode === 'force_off') return 'admin.accounts.openai.nativeCompactV2Unsupported'
-  if (typeof extra?.openai_native_compaction_v2_supported === 'boolean') {
-    return extra.openai_native_compaction_v2_supported
-      ? 'admin.accounts.openai.nativeCompactV2Supported'
-      : 'admin.accounts.openai.nativeCompactV2Unsupported'
-  }
-  return 'admin.accounts.openai.nativeCompactV2Unknown'
-})
-
 // Computed: current preset mappings based on platform
 const presetMappings = computed(() =>
   getPresetMappingsByPlatform(
@@ -3865,8 +3741,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   openaiPassthroughEnabled.value = false
   openaiFlattenNamespacesEnabled.value = false
   editPlanType.value = ''
-  openAICompactMode.value = 'auto'
-  openAINativeCompactionV2Mode.value = 'auto'
+  openAICompactMode.value = 'force_on'
+  openAINativeCompactionV2Mode.value = 'force_on'
   openAITextRouteMode.value = 'preserve_client_protocol'
   openAIWorkloadCapabilities.value = ['text_generation', 'embeddings']
   openAIResponsesContinuationSupported.value = false
@@ -3889,8 +3765,8 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     editPlanType.value = newAccount.type === 'oauth'
       ? readPlanType(newAccount.credentials as Record<string, unknown> | undefined)
       : ''
-    openAICompactMode.value = (extra?.openai_compact_mode as OpenAICompactMode) || 'auto'
-    openAINativeCompactionV2Mode.value = (extra?.openai_native_compaction_v2_mode as OpenAICompactMode) || 'auto'
+    openAICompactMode.value = extra?.openai_compact_mode === 'force_off' ? 'force_off' : 'force_on'
+    openAINativeCompactionV2Mode.value = extra?.openai_native_compaction_v2_mode === 'force_off' ? 'force_off' : 'force_on'
     if (newAccount.type === 'apikey') {
       openAITextRouteMode.value = normalizeOpenAITextRouteMode(
         extra?.openai_text_route_mode,
@@ -5407,6 +5283,11 @@ const handleSubmit = async () => {
       }
       delete newExtra.responses_websockets_v2_enabled
       delete newExtra.openai_ws_enabled
+      // 下线探测字段，旧数据不再回写。
+      for (const key of ['openai_responses_probe_status', 'openai_compact_supported', 'openai_compact_checked_at', 'openai_compact_last_status', 'openai_compact_last_error',
+        'openai_native_compaction_v2_supported', 'openai_native_compaction_v2_checked_at', 'openai_native_compaction_v2_last_status', 'openai_native_compaction_v2_last_error']) {
+        delete newExtra[key]
+      }
       delete newExtra.openai_long_context_billing_enabled
       if (openaiPassthroughEnabled.value) {
         newExtra.openai_passthrough = true
@@ -5420,16 +5301,8 @@ const handleSubmit = async () => {
       } else {
         delete newExtra.openai_responses_flatten_namespaces
       }
-      if (openAICompactMode.value === 'auto') {
-        delete newExtra.openai_compact_mode
-      } else {
-        newExtra.openai_compact_mode = openAICompactMode.value
-      }
-      if (openAINativeCompactionV2Mode.value === 'auto') {
-        delete newExtra.openai_native_compaction_v2_mode
-      } else {
-        newExtra.openai_native_compaction_v2_mode = openAINativeCompactionV2Mode.value
-      }
+      newExtra.openai_compact_mode = openAICompactMode.value
+      newExtra.openai_native_compaction_v2_mode = openAINativeCompactionV2Mode.value
       if (props.account.type === 'apikey' && openAIImagesURLToB64JSON.value) {
         newExtra.images_url_to_b64_json = true
       } else {
@@ -5439,7 +5312,6 @@ const handleSubmit = async () => {
 		delete newExtra.openai_responses_mode
 		delete newExtra.openai_responses_supported
 		newExtra.openai_text_route_mode = openAITextRouteMode.value
-		newExtra.openai_responses_probe_status = openAIResponsesProbeStatus.value
 		newExtra.openai_responses_continuation_supported = openAIResponsesContinuationSupported.value
 	  }
 		if (autoPause5hThreshold.value != null && autoPause5hThreshold.value > 0) {

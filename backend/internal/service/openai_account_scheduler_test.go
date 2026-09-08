@@ -818,7 +818,7 @@ func TestOpenAIGatewayService_SelectAccountForTokenCount_DoesNotAcquireGeneratio
 	require.Empty(t, acquiredIDs, "token counting must not acquire a generation slot")
 }
 
-// 生图意图的 /v1/responses 请求要求 OpenAIEndpointCapabilityResponses：探测确认
+// 生图意图的 /v1/responses 请求要求 OpenAIEndpointCapabilityResponses：管理员声明
 // 不支持 Responses API 的 APIKey 账号必须被排除，避免 forward 阶段降级为无法生图
 // 的 Chat Completions 直转（#4417）。
 func TestOpenAIGatewayService_SelectAccountWithScheduler_ResponsesCapabilityExcludesUnsupportedAPIKey(t *testing.T) {
@@ -842,11 +842,11 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_ResponsesCapabilityExcl
 		ID: 37001, Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
 		Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0,
 	}
-	// 更高优先级但探测确认不支持 Responses——若门控失效会被优先选中。
+	// 更高优先级但管理员仅允许 Chat——若门控失效会被优先选中。
 	unsupported := Account{
 		ID: 37002, Platform: PlatformOpenAI, Type: AccountTypeAPIKey,
 		Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 5,
-		Extra: map[string]any{"openai_responses_probe_status": "unsupported"},
+		Extra: map[string]any{"openai_text_route_mode": "force_chat_completions"},
 	}
 
 	t.Run("生图意图仅选中支持 responses 的账号", func(t *testing.T) {

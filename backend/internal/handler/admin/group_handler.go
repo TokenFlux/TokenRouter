@@ -101,6 +101,8 @@ type CreateGroupRequest struct {
 	AllowLive             bool `json:"allow_live"`
 	// OpenAI/Composite 分组是否强制请求使用 Fast 优先级。
 	ForceOpenAIFast bool `json:"force_openai_fast"`
+	// 新策略优先于旧布尔输入，省略时保持兼容。
+	OpenAIFastPolicy *string `json:"openai_fast_policy"`
 	// OpenAI/Composite 分组的 Fast 请求是否按 Standard 价格计费。
 	FreeOpenAIFast              bool                                      `json:"free_openai_fast"`
 	RequireOAuthOnly            bool                                      `json:"require_oauth_only"`
@@ -181,6 +183,8 @@ type UpdateGroupRequest struct {
 	AllowLive             *bool `json:"allow_live"`
 	// OpenAI/Composite 分组是否强制请求使用 Fast 优先级。
 	ForceOpenAIFast *bool `json:"force_openai_fast"`
+	// 新策略优先于旧布尔输入，省略时保持兼容。
+	OpenAIFastPolicy *string `json:"openai_fast_policy"`
 	// OpenAI/Composite 分组的 Fast 请求是否按 Standard 价格计费。
 	FreeOpenAIFast              *bool                                      `json:"free_openai_fast"`
 	RequireOAuthOnly            *bool                                      `json:"require_oauth_only"`
@@ -371,6 +375,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		AllowMessagesDispatch:           req.AllowMessagesDispatch,
 		AllowLive:                       req.AllowLive,
 		ForceOpenAIFast:                 req.ForceOpenAIFast,
+		OpenAIFastPolicy:                req.OpenAIFastPolicy,
 		FreeOpenAIFast:                  req.FreeOpenAIFast,
 		RequireOAuthOnly:                req.RequireOAuthOnly,
 		RequirePrivacySet:               req.RequirePrivacySet,
@@ -505,6 +510,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		AllowMessagesDispatch:           req.AllowMessagesDispatch,
 		AllowLive:                       req.AllowLive,
 		ForceOpenAIFast:                 req.ForceOpenAIFast,
+		OpenAIFastPolicy:                req.OpenAIFastPolicy,
 		FreeOpenAIFast:                  req.FreeOpenAIFast,
 		RequireOAuthOnly:                req.RequireOAuthOnly,
 		RequirePrivacySet:               req.RequirePrivacySet,

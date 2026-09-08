@@ -13,7 +13,7 @@
 
 ## 账号与凭据
 
-OpenAI 正式支持 `oauth` 与 `apikey`。OAuth 账号保存 access/refresh token、账号/组织上下文和 Codex 能力元数据，后台与请求路径都可触发刷新；API Key 账号保存 key、base URL、工作负载能力、文本协议路由和 Responses 探测事实。其它通用导入类型不构成 OpenAI 转发支持，详见[上游账号能力矩阵](upstream_account_matrix.md)。
+OpenAI 正式支持 `oauth` 与 `apikey`。OAuth 账号保存 access/refresh token、账号/组织上下文和 Codex 能力元数据，后台与请求路径都可触发刷新；API Key 账号保存 key、base URL、工作负载能力、文本协议路由和管理员压缩开关。其它通用导入类型不构成 OpenAI 转发支持，详见[上游账号能力矩阵](upstream_account_matrix.md)。
 
 OAuth 补全账号元数据时，ID token 中的个人 `chatgpt_plan_type` 是个人套餐的权威来源。`accounts/check` 可能按 access token 的 `poid` 命中另一个 workspace；仅当该记录的账号 ID 与个人 `chatgpt_account_id` 一致时，才能把它的 `entitlement.expires_at` 与个人套餐组合。账号不一致时，到期时间必须改从个人 `/backend-api/subscriptions` 的 `active_until` 获取；若套餐本身来自 `accounts/check`，套餐和到期时间仍保持来自同一条记录。
 
@@ -49,7 +49,12 @@ OpenAI API Key 账号可通过 `extra.images_url_to_b64_json=true` 启用图片�
 
 OpenAI 分组支持 Messages、Responses 和 Chat，新建时默认启用 Responses 与 Chat；三项都可关闭。已有分组迁移时仅在旧 `allow_messages_dispatch` 开启时加入 Messages。该旧字段只作为 Messages 的弃用兼容镜像，专用 `messages_dispatch_model_config` 仍只负责 Claude 到 GPT 模型映射；系列和精确映射都只在目标值非空时生效，全部留空时不执行分组层模型映射。Responses WebSocket 是 OpenAI/Grok 的原生传输能力，不因其它平台启用兼容 Responses 而开放。
 
-管理员可在 OpenAI/Composite 分组上设置 `force_openai_fast`。网关在 HTTP Responses、Chat/Messages 转换、passthrough 和 Responses WebSocket 的 `response.create` 中统一把组级强制意图规范化为 `service_tier=priority`，再执行全局 Fast/Flex 策略；全局 `filter`/`block` 以及 API Key `force_off` 不会被绕过。该字段随 API Key 认证快照传递，快照版本变更后旧缓存必须重建；其它平台的值由管理服务清零。
+<a id="openai_fast_policy"></a>
+### Fast 与 Ultra Fast 策略
+
+OpenAI/Composite 分组以 `openai_fast_policy` 选择 `follow_request`、`force_priority`、`force_ultrafast` 或 `force_off`。HTTP/Chat/Messages/passthrough 与 WebSocket 共用策略；强制开启可为未携带 tier 的请求注入对应档位，强制关闭移除 Fast 和 Ultra Fast 并阻止 Key 再开启，保留其它合法 tier。组级强制意图先经过全局规则；全局过滤、阻断、强制 Fast/Ultra Fast 均拥有最终优先级，Key 的 force_off 可移除全局放行的组级加速，force_on 不会把组级 Ultra Fast 降档。全局规则只匹配已有合法 tier，主动作和其它模型动作均支持 `force_ultrafast`。
+
+新字段优先于旧 `force_openai_fast`；旧 true 映射为强制 Fast，false 映射为跟随请求，更新时均省略则保留。其它平台清除策略，公开分组不返回管理策略。迁移 269 保留旧开关行为，新字段经过分组复制、仓储和认证快照传递，缓存版本 v38 强制重建旧 v37 快照。
 
 `free_openai_fast` 是同一分组的用户计费策略，不会改变出站 `service_tier`。只有 OpenAI 账号实际按 `priority`/`fast` 计费时才生效；网关使用同一模型映射、渠道价卡、峰值和长上下文时刻重新取得 Standard 价格，将其写入用户侧 `ActualCost` 和统一结算的基础金额，同时保留 Fast `TotalCost` 给 Usage Log、账号统计和账号额度。Standard 定价缺失时沿用零成本缺价记录，不能借此绕过原有定价错误边界；非 OpenAI 账号、普通 tier 和不可信认证快照均不适用。该字段也随 API Key 认证快照传递，因此快照版本为 v36，旧 v35 快照必须失效并重建。
 
@@ -57,24 +62,21 @@ OpenAI 分组的 `max_reasoning_effort` 是显式推理强度上限，`max_reaso
 
 ### API Key 文本配置
 
-OpenAI API Key 的普通文本配置把四个概念分开持久化：
+OpenAI API Key 的普通文本配置由管理员明确决定：
 
-- `credentials.openai_workload_capabilities` 是工作负载集合，只允许 `text_generation` 与 `embeddings`。缺失时写入两项默认值，显式空数组表示该账号不承接这两类工作负载。
-- `extra.openai_text_route_mode` 是管理员拥有的路由策略，只允许 `preserve_client_protocol`、`force_responses`、`force_chat_completions`。
-- `extra.openai_responses_probe_status` 是探测服务拥有的只读事实，只允许 `supported`、`unsupported`、`unknown`。探测更新不得改写管理员路由策略。
-- `extra.openai_responses_continuation_supported` 是管理员拥有的 HTTP continuation 能力开关，取值为布尔值，缺失时按 `false` 处理。只有显式为 `true` 时，Messages 转 Responses 的兼容桥才会发送和缓存 `previous_response_id`；它不改变协议路由，也不覆盖探测状态。
+- `credentials.openai_workload_capabilities` 控制 `text_generation` 与 `embeddings` 两类工作负载。
+- `extra.openai_text_route_mode` 仍以三态持久化，管理界面用 `/v1/responses`、`/v1/chat/completions` 复选框表达：两项均选为 `preserve_client_protocol`，仅 Responses 为 `force_responses`，仅 Chat 为 `force_chat_completions`。至少保留一种协议；完全停用文字请求使用工作负载开关。
+- `extra.openai_responses_continuation_supported` 是独立的 HTTP continuation 开关，缺失按关闭处理，不改变协议路由。
 
-普通文本协议按下表解析：
-
-| 路由模式 | Chat 入站 | Responses 入站 | Messages 入站 |
+| 已启用的上游协议 | Chat 入站 | Responses 入站 | Messages 入站 |
 | --- | --- | --- | --- |
-| `preserve_client_protocol` | Chat | Responses；探测为 `unsupported` 时转 Chat | Responses；探测为 `unsupported` 时转 Chat |
-| `force_responses` | Responses | Responses | Responses |
-| `force_chat_completions` | Chat | Chat | Chat |
+| Responses + Chat | Chat | Responses | Responses |
+| 仅 Responses | Responses | Responses | Responses |
+| 仅 Chat | Chat | Chat | Chat |
 
-因此 `preserve_client_protocol` 下的 Chat 请求只访问上游 `/v1/chat/completions`，请求体保持 Chat 形状，不再先尝试 `/v1/responses` 后按 404 回退。Responses 与 Messages 没有同形 Chat 首选路径，只有探测明确不支持时才在默认模式下降级。显式强制模式始终优先于探测事实。OAuth、Grok、Images、Compact 和 WebSocket 使用各自专用路由，不套用这张普通文本矩阵。
+OpenAI 账号创建、更新、复制和批量更新不再自动探测 Responses；历史 `openai_responses_probe_status` 不参与路由且在迁移和管理写入中清理。运行时绝不因旧探测结论把双协议账号的 Responses 请求转换为 Chat。国产供应商的显式 `api_protocol` 仍通过无网络配置同步映射为固定路由，不依赖探测字段。
 
-运行时与调度缓存只读取上述新键。账号创建、更新、批量更新和导入仍可接收旧 `openai_capabilities`、`openai_responses_mode`、`openai_responses_supported`，但必须在持久化前规范化并删除旧键；复制账号保留工作负载、路由策略和 continuation 能力开关，将探测状态重置为 `unknown` 后重新探测。嵌套 Sub2API 等可能把请求转给 OAuth 上游的 API Key 账号应保持 continuation 关闭；确认直连 API Key 上游支持 HTTP continuation 后再开启。
+运行时与调度缓存只读取上述新键。账号创建、更新、批量更新和导入仍可接收旧 `openai_capabilities`、`openai_responses_mode`、`openai_responses_supported`，但必须在持久化前规范化并删除旧键；复制账号保留工作负载、路由策略和 continuation 能力开关，保留两个管理员压缩开关并丢弃历史探测状态。嵌套 Sub2API 等可能把请求转给 OAuth 上游的 API Key 账号应保持 continuation 关闭；确认直连 API Key 上游支持 HTTP continuation 后再开启。
 
 OpenAI 兼容非流式响应的 usage 按 `usage`、`response.usage`、`data.usage`、`data.response.usage` 的顺序解析；前两条原生路径优先于 Cline 等兼容上游使用的 `data` envelope。同层的 hosted image usage 必须随对应路径读取，不能把不同 envelope 的 token 与图片用量混合。
 
@@ -89,15 +91,15 @@ TokenRouter 同时兼容原生 Remote Compaction V2 和旧版 Compact 端点。�
 | HTTP 识别 | 裸 `/responses` 请求同时携带 `stream=true` 且 `input` 含 `compaction_trigger`；`x-codex-beta-features` 不是识别门槛，但原生 V2 出站必保证包含 `remote_compaction_v2` | 客户端显式请求 `/responses/compact`，或带 `compaction_trigger` 但不满足原生 V2 条件的裸 `/responses` 请求被网关提升 |
 | 上游传输 | 保持普通 Responses 流式链路，由上游直接返回包含 `compaction` item 的 SSE | 走独立 Compact 子路径；body-signal 流式客户端由网关把 unary JSON 结果合成为 Responses SSE，并在长时间等待时发送注释心跳 |
 | 模型处理 | 沿用普通 Responses 的模型处理，不应用 `compact_model_mapping`，也不会因此追加 `-openai-compact` | 仅此路径在常规模型处理基础上应用账号 `credentials.compact_model_mapping` |
-| 账号设置 | `extra.openai_native_compaction_v2_mode`、`openai_native_compaction_v2_supported` 和对应 `openai_native_compaction_v2_*` 探测信息只控制此路径；不读取旧端点状态 | `extra.openai_compact_mode`、`openai_compact_supported`、`openai_compact_*` 探测信息和 Compact 专属模型映射都只控制此路径 |
+| 账号设置 | `extra.openai_native_compaction_v2_mode` 控制此路径的管理员开关 | `extra.openai_compact_mode` 与 Compact 专属模型映射只控制此路径 |
 
-账号设置页中的“原生 V2 压缩”和“旧版 Compact 端点”都是各自协议的能力覆盖，不是协议开关。两者均提供 `auto`、`force_on`、`force_off`：自动模式跟随各自独立的探测结果，未探测账号保持可选以兼容历史配置，明确不支持时排除；强制开启始终允许，强制关闭始终排除。V2 模式只筛选原生 V2 请求，旧版模式只筛选 `/responses/compact`；两者都不会把普通 Responses 或另一条压缩协议改写成自己的路径。原生 V2 即使强制开启仍须满足普通 Responses 端点能力，不能把不支持 Responses 的 API Key 上游纳入候选。旧端点的 OpenAI OAuth GPT-5.6 请求还会把 `reasoning.effort=max` 降为 `xhigh`，原生 V2 则保留常规 Responses 推理强度语义。
+账号设置页以两个独立复选框控制“原生 V2 压缩”和“旧版 Compact 端点”，持久化为 `openai_native_compaction_v2_mode`、`openai_compact_mode` 的 `force_on` / `force_off`。调度只使用管理员开关，不读取探测结果，也不按未知/已探测结果分层。迁移 270 将旧 `auto`/缺省值按升级前的有效状态冻结为显式开关：历史明确不支持转为关闭，无结论保持原有开启行为；后续旧客户端的 auto 输入按开启兼容。原生 V2 仍要求账号支持 Responses 上游路由，旧版专属模型映射仅影响 `/responses/compact`，且管理界面只在启用旧版端点时显示。
 
-管理端连接测试的 `compact` 模式是原生 V2 健康检查，使用普通账号模型映射并要求响应实际出现 compaction item；`legacy_compact` 是旧端点兼容性测试，才使用 `compact_model_mapping`。两种测试的可用状态、最后状态、错误和时间戳完全隔离，旧端点 404 不得改变 V2 能力判定。
+管理端手动连接测试可以继续选择 `compact` 或 `legacy_compact`，但结果只显示本次路径是否成功，不再写入压缩能力状态或覆盖管理员开关。OpenAI API Key 普通文字测试新增 `protocol=responses|chat_completions`，显式直连所选上游协议，不受账号保存的路由模式覆盖，也不修改该模式；省略时沿用账号配置。OAuth 测试固定使用 Codex Responses，压缩测试固定使用对应 Responses 路径。
 
 官方 Codex WebSocket v2 会先发送 `generate=false` 的预热 `response.create`，再以预热响应 ID 作为业务请求的 `previous_response_id`。严格续接比较会忽略逐请求变化的 `client_metadata`、仅用于传输的 `stream_options`，并把 `generate=false` 与后续省略该字段视为等价；`generate=true` 以及 model、instructions、tools、reasoning、store 等上下文字段仍必须保持一致，避免把无关请求错误串接。
 
-OpenAI OAuth 的 HTTP、passthrough、旧版 Compact 与 WebSocket 出站会在模型映射和本地 fast 策略处理完成后，由网关生成 `x-codex-routing-hint`。提示至少包含最终上游模型；只有有效的 `priority` 或 `flex` 才附带 tier，`fast` 先规范化为 `priority`，`default`、未知值和空值均保持 model-only。旧版 Compact 规范化必须保留 `service_tier`，否则提示会丢失已经生效的路由层级。该头由网关独占控制：所有账号类型都会先删除调用方及账号覆盖提供的任意大小写变体，只有 OpenAI OAuth 路径会重新生成；API Key 路径不得透传伪造提示。OAuth HTTP 也不再自动注入或透传旧版 `responses=experimental` beta 标记，但同一头中的其它独立 beta 项仍保留。
+OpenAI OAuth 的 HTTP、passthrough、旧版 Compact 与 WebSocket 出站会在模型映射和本地 fast 策略处理完成后，由网关生成 `x-codex-routing-hint`。提示至少包含最终上游模型；只有有效的 `priority`、`ultrafast` 或 `flex` 才附带 tier，`fast` 先规范化为 `priority`，`default`、未知值和空值均保持 model-only。旧版 Compact 规范化必须保留 `service_tier`，否则提示会丢失已经生效的路由层级。该头由网关独占控制：所有账号类型都会先删除调用方及账号覆盖提供的任意大小写变体，只有 OpenAI OAuth 路径会重新生成；API Key 路径不得透传伪造提示。OAuth HTTP 也不再自动注入或透传旧版 `responses=experimental` beta 标记，但同一头中的其它独立 beta 项仍保留。
 
 `x-codex-beta-features` 是 Codex 的会话级协商头：OAuth 普通 Responses HTTP 与 WebSocket 握手在客户端未声明时补入 `remote_compaction_v2`，客户端给出的非空值保持原样；原生 V2 请求无论账号类型都保证该 feature 存在。上游响应中的 `x-codex-turn-state` 会在 HTTP/SSE、SSE 转 JSON 与 passthrough 路径显式回传。网关按 API Key 与客户端原始 session 记录最近签发账号；故障转移后，已知由其它账号签发的客户端回带值会被剥离，未知或同账号的值保持透传。
 
@@ -141,7 +143,7 @@ OpenAI 是通用高级调度器的能力适配者之一，而不是该调度器�
 
 OpenAI 专属能力只在账号和请求具备对应条件时加入候选或分数：Responses transport、WebSocket、旧版 Compact、previous response、订阅优先和 Codex 额度余量都不会排除缺失这类可选信号的普通账号。OAuth 5 小时、7 天等上游窗口和自动暂停仍由 OpenAI 设置及账号运行状态控制，不随高级调度器通用化而迁移到其它平台。
 
-OAuth 账号的 5 小时、7 天等上游窗口和重置时间保存在账号运行状态中，可触发临时限流或自动暂停；API Key 的 Responses 探测事实继续独立于工作负载能力和管理员路由策略。OpenAI 不再采集上游站点声明倍率，也不按该值进行低倍率优先或高级评分。账户本地 `rate_multiplier` 和渠道上游计费模型来源继续用于 TokenRouter 结算，但都不是用户余额、订阅、Key 限额或用户平台额度。
+OAuth 账号的 5 小时、7 天等上游窗口和重置时间保存在账号运行状态中，可触发临时限流或自动暂停；API Key 的文本协议和压缩资格只由管理员配置决定。OpenAI 不再采集上游站点声明倍率，也不按该值进行低倍率优先或高级评分。账户本地 `rate_multiplier` 和渠道上游计费模型来源继续用于 TokenRouter 结算，但都不是用户余额、订阅、Key 限额或用户平台额度。
 
 管理 API 的 `GET /admin/openai/accounts/:id/quota` 保持只读；账号列表使用 `POST /admin/openai/accounts/:id/quota/refresh` 查询上游并把重置次数写入 `account.extra.codex_reset_credit_snapshot`。正数次数只有同时取得到期明细时才覆盖快照，前端水合时过滤已过期明细并把次数收敛到仍有效的卡片数量。该 extra 键只用于展示缓存，不触发调度 outbox；Spark 影子账号的查询可解析母账号额度，但快照仍写在被查询的行上，且列表继续只提供查询入口，不提供真实重置按钮。
 

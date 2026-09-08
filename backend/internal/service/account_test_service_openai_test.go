@@ -536,7 +536,7 @@ func TestAccountTestService_DeepSeekResponsesRoutesToOpenAIProbe(t *testing.T) {
 	require.Equal(t, "https://relay.example.com/v1/responses", upstream.requests[0].URL.String())
 }
 
-func TestAccountTestService_OpenAIAPIKeyResponsesUnsupportedUsesChatCompletionsPath(t *testing.T) {
+func TestAccountTestService_OpenAIAPIKeySelectedChatUsesChatCompletionsPath(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ctx, recorder := newTestContext()
 
@@ -566,7 +566,7 @@ func TestAccountTestService_OpenAIAPIKeyResponsesUnsupportedUsesChatCompletionsP
 			"api_key":  "sk-test",
 			"base_url": "https://compat-upstream.example/v1",
 		},
-		Extra: map[string]any{openai_compat.ExtraKeyResponsesProbeStatus: string(openai_compat.ResponsesProbeStatusUnsupported)},
+		Extra: map[string]any{openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions)},
 	}
 
 	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "hello", "")
@@ -605,7 +605,7 @@ func TestAccountTestService_OpenAIChatCompletionsPathReturns4xx(t *testing.T) {
 			"api_key":  "sk-test",
 			"base_url": "https://compat-upstream.example",
 		},
-		Extra: map[string]any{openai_compat.ExtraKeyResponsesProbeStatus: string(openai_compat.ResponsesProbeStatusUnsupported)},
+		Extra: map[string]any{openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions)},
 	}
 
 	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
@@ -634,7 +634,7 @@ func TestAccountTestService_OpenAIChatCompletionsPathTimeout(t *testing.T) {
 			"api_key":  "sk-test",
 			"base_url": "https://compat-upstream.example",
 		},
-		Extra: map[string]any{openai_compat.ExtraKeyResponsesProbeStatus: string(openai_compat.ResponsesProbeStatusUnsupported)},
+		Extra: map[string]any{openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions)},
 	}
 
 	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
@@ -668,7 +668,7 @@ func TestAccountTestService_OpenAIChatCompletionsPathRejectsNonJSONStream(t *tes
 			"api_key":  "sk-test",
 			"base_url": "https://compat-upstream.example",
 		},
-		Extra: map[string]any{openai_compat.ExtraKeyResponsesProbeStatus: string(openai_compat.ResponsesProbeStatusUnsupported)},
+		Extra: map[string]any{openai_compat.ExtraKeyTextRouteMode: string(openai_compat.TextRouteModeForceChatCompletions)},
 	}
 
 	err := svc.testOpenAIAccountConnection(ctx, account, "gpt-5.4", "", "")
@@ -677,4 +677,28 @@ func TestAccountTestService_OpenAIChatCompletionsPathRejectsNonJSONStream(t *tes
 	require.Contains(t, err.Error(), "Invalid Chat Completions response from /v1/chat/completions")
 	require.Contains(t, recorder.Body.String(), "/v1/chat/completions")
 	require.NotContains(t, recorder.Body.String(), `"success":true`)
+}
+
+// 协议选择必须覆盖当前测试路由，但不能改变账号保存的路由模式。
+func TestAccountTestServiceExplicitProtocolDoesNotMutateAccount(t *testing.T) {
+	for _, protocol := range []string{"responses", "chat_completions"} {
+		t.Run(protocol, func(t *testing.T) {
+			account := Account{ID: 901, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "sk-test", "base_url": "https://example.com/v1"}, Extra: map[string]any{"openai_text_route_mode": "force_chat_completions"}}
+			if protocol == "chat_completions" {
+				account.Extra["openai_text_route_mode"] = "force_responses"
+			}
+			original := account.Extra["openai_text_route_mode"]
+			upstream := &httpUpstreamRecorder{resp: &http.Response{StatusCode: http.StatusBadRequest, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"error":"capture"}`))}}
+			svc := &AccountTestService{accountRepo: stubOpenAIAccountRepo{accounts: []Account{account}}, httpUpstream: upstream, cfg: &config.Config{Security: config.SecurityConfig{URLAllowlist: config.URLAllowlistConfig{Enabled: false}}}}
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/test", nil)
+			require.Error(t, svc.TestAccountConnectionWithType(c, account.ID, "gpt-5.4", "hi", "text", "default", protocol))
+			path := "/v1/responses"
+			if protocol == "chat_completions" {
+				path = "/v1/chat/completions"
+			}
+			require.Equal(t, path, upstream.lastReq.URL.Path)
+			require.Equal(t, original, account.Extra["openai_text_route_mode"])
+		})
+	}
 }

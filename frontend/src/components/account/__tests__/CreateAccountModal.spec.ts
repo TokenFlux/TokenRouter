@@ -231,7 +231,7 @@ describe('CreateAccountModal OpenAI account options', () => {
     ])
     expect(payload?.credentials).not.toHaveProperty('openai_capabilities')
     expect(payload?.extra?.openai_text_route_mode).toBe('preserve_client_protocol')
-    expect(payload?.extra?.openai_responses_probe_status).toBe('unknown')
+    expect(payload?.extra?.openai_responses_probe_status).toBeUndefined()
     expect(payload?.extra?.openai_responses_continuation_supported).toBe(false)
     expect(payload?.extra).not.toHaveProperty('openai_responses_mode')
     expect(payload?.extra).not.toHaveProperty('openai_responses_supported')
@@ -285,7 +285,7 @@ describe('CreateAccountModal OpenAI account options', () => {
     expect(payload?.extra?.upstream_usage_query?.new_api_user_access_token).toBeUndefined()
   })
 
-  it('renders workload, text routing, and probe status as separate configuration sections', async () => {
+  it('renders workload and administrator protocols without probe state', async () => {
     const wrapper = mountModal()
     await selectButtonByText(wrapper, 'OpenAI')
     await selectButtonByText(wrapper, 'API Key')
@@ -293,7 +293,7 @@ describe('CreateAccountModal OpenAI account options', () => {
     expect(wrapper.text()).toContain('admin.accounts.openai.workloadCapabilities')
     expect(wrapper.text()).toContain('admin.accounts.openai.textRouteMode')
     expect(wrapper.text()).toContain('admin.accounts.openai.responsesContinuationSupported')
-    expect(wrapper.text()).toContain('admin.accounts.openai.responsesProbeStatus')
+    expect(wrapper.text()).not.toContain('admin.accounts.openai.responsesProbeStatus')
     expect(wrapper.get('[data-testid="create-openai-continuation-supported"]').attributes('role')).toBe('switch')
   })
 
@@ -319,7 +319,7 @@ describe('CreateAccountModal OpenAI account options', () => {
 
     await wrapper.get('[data-testid="openai-workload-capability-text_generation"]').setValue(false)
     await wrapper.get('[data-testid="openai-workload-capability-embeddings"]').setValue(false)
-    await wrapper.get('[data-testid="openai-text-route-mode-select"]').setValue('force_chat_completions')
+    await wrapper.get('[data-testid="openai-text-protocol-responses"]').setValue(false)
     await wrapper.get('form#create-account-form input[type="text"]').setValue('OpenAI account')
     await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
     await wrapper.get('form#create-account-form').trigger('submit.prevent')

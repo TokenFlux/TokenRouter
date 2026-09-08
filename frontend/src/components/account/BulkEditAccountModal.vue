@@ -238,11 +238,10 @@
           role="group"
           aria-labelledby="bulk-edit-openai-responses-mode-label"
         >
-          <Select
+          <OpenAITextProtocolCheckboxes
             v-model="openAITextRouteMode"
             :disabled="!enableOpenAITextRouteMode || !openAITextRouteModeApplicable"
             data-testid="bulk-edit-openai-responses-mode-select"
-            :options="openAITextRouteModeOptions"
             aria-labelledby="bulk-edit-openai-responses-mode-label"
           />
           <p
@@ -1319,10 +1318,10 @@
           id="bulk-edit-openai-native-compaction-v2-mode"
           :class="!enableOpenAINativeCompactionV2Mode && 'pointer-events-none opacity-50'"
         >
-          <Select
+          <OpenAICompactionCheckbox
             v-model="openAINativeCompactionV2Mode"
             data-testid="bulk-edit-openai-native-compaction-v2-mode-select"
-            :options="openAINativeCompactionV2ModeOptions"
+            :label="t('admin.accounts.openai.nativeCompactV2Mode')" :disabled="!enableOpenAINativeCompactionV2Mode"
             aria-labelledby="bulk-edit-openai-native-compaction-v2-mode-label"
           />
         </div>
@@ -1355,17 +1354,17 @@
           id="bulk-edit-openai-compact-mode"
           :class="!enableOpenAICompactMode && 'pointer-events-none opacity-50'"
         >
-          <Select
+          <OpenAICompactionCheckbox
             v-model="openAICompactMode"
             data-testid="bulk-edit-openai-compact-mode-select"
-            :options="openAICompactModeOptions"
+            :label="t('admin.accounts.openai.compactMode')" :disabled="!enableOpenAICompactMode"
             aria-labelledby="bulk-edit-openai-compact-mode-label"
           />
         </div>
       </div>
 
       <!-- OpenAI 旧版 Compact 专属模型映射 -->
-      <div v-if="allOpenAIPassthroughCapable" class="border-t border-gray-200 pt-4 dark:border-dark-600">
+      <div v-if="allOpenAIPassthroughCapable && enableOpenAICompactMode && openAICompactMode !== 'force_off'" class="border-t border-gray-200 pt-4 dark:border-dark-600">
         <div class="mb-3 flex items-center justify-between">
           <div class="flex-1 pr-4">
             <label
@@ -1703,6 +1702,8 @@
 </template>
 
 <script setup lang="ts">
+import OpenAITextProtocolCheckboxes from './OpenAITextProtocolCheckboxes.vue'
+import OpenAICompactionCheckbox from './OpenAICompactionCheckbox.vue'
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -1983,8 +1984,8 @@ const codexFingerprintModeOptions = computed(() => [
   { value: 'session' as CodexFingerprintMode, label: t('admin.accounts.openai.codexFingerprintSession') },
   { value: 'full' as CodexFingerprintMode, label: t('admin.accounts.openai.codexFingerprintFull') },
 ])
-const openAICompactMode = ref<OpenAICompactMode>('auto')
-const openAINativeCompactionV2Mode = ref<OpenAICompactMode>('auto')
+const openAICompactMode = ref<OpenAICompactMode>('force_on')
+const openAINativeCompactionV2Mode = ref<OpenAICompactMode>('force_on')
 const openAICompactModelMappings = ref<ModelMapping[]>([])
 const rpmLimitEnabled = ref(false)
 const bulkBaseRpm = ref<number | null>(null)
@@ -2057,31 +2058,14 @@ const openAIWorkloadCapabilityOptions = computed(() => [
     label: t('admin.accounts.openai.workloadEmbeddings')
   }
 ])
-const openAITextRouteModeOptions = computed(() => [
-  {
-    value: 'preserve_client_protocol' as OpenAITextRouteMode,
-    label: t('admin.accounts.openai.textRoutePreserveClientProtocol')
-  },
-  {
-    value: 'force_responses' as OpenAITextRouteMode,
-    label: t('admin.accounts.openai.textRouteForceResponses')
-  },
-  {
-    value: 'force_chat_completions' as OpenAITextRouteMode,
-    label: t('admin.accounts.openai.textRouteForceChatCompletions')
-  }
-])
+
 const openAITextGenerationEnabled = computed(() =>
   openAIWorkloadCapabilities.value.includes('text_generation')
 )
 const openAITextRouteModeApplicable = computed(() =>
   !enableOpenAIWorkloadCapabilities.value || openAITextGenerationEnabled.value
 )
-const openAICompactModeOptions = computed(() => [
-  { value: 'auto', label: t('admin.accounts.openai.compactModeAuto') },
-  { value: 'force_on', label: t('admin.accounts.openai.compactModeForceOn') },
-  { value: 'force_off', label: t('admin.accounts.openai.compactModeForceOff') }
-])
+
 
 const toggleOpenAIWorkloadCapability = (
   capability: OpenAIWorkloadCapability,
@@ -2109,11 +2093,7 @@ const toggleOpenAIWorkloadCapability = (
     openAITextRouteMode.value = 'preserve_client_protocol'
   }
 }
-const openAINativeCompactionV2ModeOptions = computed(() => [
-  { value: 'auto', label: t('admin.accounts.openai.nativeCompactV2ModeAuto') },
-  { value: 'force_on', label: t('admin.accounts.openai.nativeCompactV2ModeForceOn') },
-  { value: 'force_off', label: t('admin.accounts.openai.nativeCompactV2ModeForceOff') }
-])
+
 const openAIWSModeConcurrencyHintKey = computed(() =>
   resolveOpenAIWSModeConcurrencyHintKey(openaiOAuthResponsesWebSocketV2Mode.value)
 )
@@ -2589,7 +2569,7 @@ const buildUpdatePayload = (): Record<string, unknown> | null => {
     extra.openai_native_compaction_v2_mode = openAINativeCompactionV2Mode.value
   }
 
-  if (enableOpenAICompactModelMapping.value) {
+  if (enableOpenAICompactModelMapping.value && enableOpenAICompactMode.value && openAICompactMode.value !== 'force_off') {
     credentials.compact_model_mapping = buildOpenAICompactModelMapping() ?? {}
     credentialsChanged = true
   }
@@ -2878,8 +2858,8 @@ const resetBulkEditFormState = () => {
   autoPause5hDisabled.value = false
   autoPause7dDisabled.value = false
   codexFingerprintMode.value = 'off'
-  openAICompactMode.value = 'auto'
-  openAINativeCompactionV2Mode.value = 'auto'
+  openAICompactMode.value = 'force_on'
+  openAINativeCompactionV2Mode.value = 'force_on'
   openAICompactModelMappings.value = []
   rpmLimitEnabled.value = false
   bulkBaseRpm.value = null

@@ -1190,6 +1190,7 @@ export default {
         actionPass: 'Pass (keep service_tier)',
         actionFilter: 'Filter (remove service_tier)',
         actionForcePriority: 'Force priority (fast)',
+        actionForceUltrafast: 'Force Ultra Fast (ultrafast)',
         actionBlock: 'Block (reject request)',
         scope: 'Scope',
         scopeAll: 'All accounts',
@@ -1220,7 +1221,8 @@ export default {
           pass: 'Pass',
           filter: 'Filter',
           block: 'Block',
-          force_priority: 'Force priority'
+          force_priority: 'Force priority',
+          force_ultrafast: 'Force Ultra Fast'
         }
       },
       wechatConnect: {

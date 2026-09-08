@@ -124,6 +124,8 @@ type Group struct {
 	AllowedClientProtocols []domain.GroupClientProtocol `json:"allowed_client_protocols,omitempty"`
 	// 是否允许此 OpenAI 分组访问 Live 接口
 	AllowLive bool `json:"allow_live,omitempty"`
+	// 分组加速策略：follow_request/force_priority/force_ultrafast/force_off
+	OpenaiFastPolicy string `json:"openai_fast_policy,omitempty"`
 	// 是否强制此 OpenAI/Composite 分组请求使用 service_tier=priority
 	ForceOpenaiFast bool `json:"force_openai_fast,omitempty"`
 	// 是否让此 OpenAI/Composite 分组的 Fast 请求按 Standard 价格计费
@@ -275,7 +277,7 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullFloat64)
 		case group.FieldID, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldUnavailableFallbackGroupID, group.FieldSortOrder, group.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
-		case group.FieldName, group.FieldDescription, group.FieldPeakStart, group.FieldPeakEnd, group.FieldStatus, group.FieldDuplicateOperationID, group.FieldPlatform, group.FieldSchedulerType, group.FieldDisplayBrand, group.FieldDefaultMappedModel, group.FieldMaxReasoningEffort, group.FieldMaxReasoningEffortOverLimit:
+		case group.FieldName, group.FieldDescription, group.FieldPeakStart, group.FieldPeakEnd, group.FieldStatus, group.FieldDuplicateOperationID, group.FieldPlatform, group.FieldSchedulerType, group.FieldDisplayBrand, group.FieldOpenaiFastPolicy, group.FieldDefaultMappedModel, group.FieldMaxReasoningEffort, group.FieldMaxReasoningEffortOverLimit:
 			values[i] = new(sql.NullString)
 		case group.FieldCreatedAt, group.FieldUpdatedAt, group.FieldDeletedAt:
 			values[i] = new(sql.NullTime)
@@ -641,6 +643,12 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.AllowLive = value.Bool
 			}
+		case group.FieldOpenaiFastPolicy:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field openai_fast_policy", values[i])
+			} else if value.Valid {
+				_m.OpenaiFastPolicy = value.String
+			}
 		case group.FieldForceOpenaiFast:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field force_openai_fast", values[i])
@@ -997,6 +1005,9 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("allow_live=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AllowLive))
+	builder.WriteString(", ")
+	builder.WriteString("openai_fast_policy=")
+	builder.WriteString(_m.OpenaiFastPolicy)
 	builder.WriteString(", ")
 	builder.WriteString("force_openai_fast=")
 	builder.WriteString(fmt.Sprintf("%v", _m.ForceOpenaiFast))

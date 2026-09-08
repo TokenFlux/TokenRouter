@@ -918,9 +918,8 @@ func (h *AccountHandler) Create(c *gin.Context) {
 	if result != nil && result.Replayed {
 		c.Header("X-Idempotency-Replayed", "true")
 	}
-	// OpenAI APIKey 账号创建后异步探测上游 /v1/responses 能力。
-	// 探测失败不影响账号创建响应。
-	h.scheduleOpenAIResponsesProbe(createdAccount)
+	// 国产供应商同步显式协议配置。
+	h.scheduleCNProviderTextProtocolSync(createdAccount)
 	h.scheduleGrokImportProbe(createdAccount)
 	response.Success(c, result.Data)
 }
@@ -947,8 +946,8 @@ func (h *AccountHandler) Duplicate(c *gin.Context) {
 			if execErr != nil {
 				return nil, execErr
 			}
-			// 复制件不继承源账号的 Responses 探测事实，创建成功后重新探测。
-			h.scheduleOpenAIResponsesProbe(account)
+			// 国产供应商复制件同步显式协议配置。
+			h.scheduleCNProviderTextProtocolSync(account)
 			return h.buildAccountResponseWithRuntime(ctx, account), nil
 		},
 	)
@@ -959,7 +958,7 @@ func (h *AccountHandler) Duplicate(c *gin.Context) {
 			if recoverErr != nil {
 				slog.Warn("account_duplicate_recovery_failed", "account_id", accountID, "actor_scope", actorScope, "reason", reason, "error", recoverErr)
 			} else if recovered != nil {
-				h.scheduleOpenAIResponsesProbe(recovered)
+				h.scheduleCNProviderTextProtocolSync(recovered)
 				c.Header("X-Idempotency-Recovered", "true")
 				response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), recovered))
 				return
@@ -1041,30 +1040,24 @@ func (h *AccountHandler) Update(c *gin.Context) {
 		return
 	}
 
-	// OpenAI APIKey: credentials 修改后重新探测上游能力（base_url/api_key 可能变更）。
-	// 异步执行，探测失败不影响账号更新响应。
+	// 国产供应商协议修改后同步路由配置。
 	if len(req.Credentials) > 0 {
-		h.scheduleOpenAIResponsesProbe(account)
+		h.scheduleCNProviderTextProtocolSync(account)
 	}
 
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
 }
 
-// scheduleOpenAIResponsesProbe 异步触发 OpenAI APIKey 账号的 Responses API 能力探测。
-//
-// 仅对 platform=openai && type=apikey 账号生效；其他账号无操作。
-// 探测本身在 goroutine 中执行（会发一次 HTTP 请求到上游），不会阻塞
-// 当前请求。探测错误仅记录日志，不向上下文传播：探测失败时保留最近状态或
-// unknown，且不会覆盖管理员文本路由模式。
-func (h *AccountHandler) scheduleOpenAIResponsesProbe(account *service.Account) {
+// 国产供应商显式协议同步，不产生上游探测请求。
+func (h *AccountHandler) scheduleCNProviderTextProtocolSync(account *service.Account) {
 	if account == nil || account.Type != service.AccountTypeAPIKey ||
-		(account.Platform != service.PlatformOpenAI && !service.IsCNProvider(account.Platform)) {
+		!service.IsCNProvider(account.Platform) {
 		return
 	}
-	h.scheduleOpenAIResponsesProbeByID(account.ID)
+	h.scheduleCNProviderTextProtocolSyncByID(account.ID)
 }
 
-func (h *AccountHandler) scheduleOpenAIResponsesProbeByID(accountID int64) {
+func (h *AccountHandler) scheduleCNProviderTextProtocolSyncByID(accountID int64) {
 	if accountID <= 0 {
 		return
 	}
@@ -1074,32 +1067,32 @@ func (h *AccountHandler) scheduleOpenAIResponsesProbeByID(accountID int64) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				slog.Error("openai_responses_probe_panic", "account_id", accountID, "recover", r)
+				slog.Error("cn_protocol_sync_panic", "account_id", accountID, "recover", r)
 			}
 		}()
-		h.accountTestService.ProbeOpenAIAPIKeyResponsesSupport(context.Background(), accountID)
+		h.accountTestService.SyncCNProviderTextProtocol(context.Background(), accountID)
 	}()
 }
 
-func (h *AccountHandler) scheduleOpenAIResponsesProbeByIDs(accountIDs []int64) {
+func (h *AccountHandler) scheduleCNProviderTextProtocolSyncByIDs(accountIDs []int64) {
 	seen := make(map[int64]struct{}, len(accountIDs))
 	for _, accountID := range accountIDs {
 		if _, ok := seen[accountID]; ok {
 			continue
 		}
 		seen[accountID] = struct{}{}
-		h.scheduleOpenAIResponsesProbeByID(accountID)
+		h.scheduleCNProviderTextProtocolSyncByID(accountID)
 	}
 }
 
-func shouldProbeOpenAIResponsesAfterCredentialUpdate(credentials map[string]any) bool {
+func shouldSyncCNProtocolAfterCredentialUpdate(credentials map[string]any) bool {
 	if len(credentials) == 0 {
 		return false
 	}
 	if _, ok := credentials["api_key"]; ok {
 		return true
 	}
-	if _, ok := credentials["base_url"]; ok {
+	if _, ok := credentials["api_protocol"]; ok {
 		return true
 	}
 	return false
@@ -1128,6 +1121,8 @@ type TestAccountRequest struct {
 	ModelID string `json:"model_id"`
 	Prompt  string `json:"prompt"`
 	Mode    string `json:"mode"`
+	// 仅对本次 OpenAI API Key 文本测试生效。
+	Protocol string `json:"protocol"`
 	// TestType 由管理端明确指定测试文字或图片，避免服务端猜测模型能力。
 	TestType string `json:"test_type"`
 	// TestMode 兼容早期客户端使用的字段名，优先级低于 test_type。
@@ -1166,7 +1161,7 @@ func (h *AccountHandler) Test(c *gin.Context) {
 	if testType == "" {
 		testType = req.TestMode
 	}
-	if err := h.accountTestService.TestAccountConnectionWithType(c, accountID, req.ModelID, req.Prompt, testType, req.Mode); err != nil {
+	if err := h.accountTestService.TestAccountConnectionWithType(c, accountID, req.ModelID, req.Prompt, testType, req.Mode, req.Protocol); err != nil {
 		// Error already sent via SSE, just log
 		return
 	}
@@ -1997,8 +1992,8 @@ func (h *AccountHandler) BatchCreate(c *gin.Context) {
 					openaiPrivacyAccounts = append(openaiPrivacyAccounts, account)
 				}
 			}
-			// OpenAI APIKey 账号异步探测 /v1/responses 能力。
-			h.scheduleOpenAIResponsesProbe(account)
+			// 国产供应商同步显式协议配置。
+			h.scheduleCNProviderTextProtocolSync(account)
 			h.scheduleGrokImportProbe(account)
 			success++
 			results = append(results, gin.H{
@@ -2215,8 +2210,8 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		return
 	}
 
-	if shouldProbeOpenAIResponsesAfterCredentialUpdate(req.Credentials) {
-		h.scheduleOpenAIResponsesProbeByIDs(result.SuccessIDs)
+	if shouldSyncCNProtocolAfterCredentialUpdate(req.Credentials) {
+		h.scheduleCNProviderTextProtocolSyncByIDs(result.SuccessIDs)
 	}
 
 	response.Success(c, result)

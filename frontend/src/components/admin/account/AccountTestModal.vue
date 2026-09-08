@@ -67,6 +67,11 @@
         />
       </div>
 
+      <div v-if="isOpenAIAPIKeyAccount && testType === 'text'" class="space-y-1.5">
+        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('admin.accounts.openai.testProtocol') }}</label>
+        <Select v-model="testProtocol" :options="testProtocolOptions" :disabled="status === 'connecting' || isCompactTestMode" data-testid="account-test-protocol" />
+      </div>
+
       <div v-if="isOpenAIAccount" class="space-y-1.5">
         <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
           {{ t('admin.accounts.openai.testMode') }}
@@ -298,10 +303,15 @@ const loadingModels = ref(false)
 let abortController: AbortController | null = null
 const generatedImages = ref<PreviewImage[]>([])
 const previewImageUrl = ref('')
+// 仅对本次 API Key 文字测试指定协议，不改变账号配置。
+const testProtocol = ref<'responses' | 'chat_completions'>('responses')
+const testProtocolOptions = [{ value: 'responses', label: '/v1/responses' }, { value: 'chat_completions', label: '/v1/chat/completions' }]
+const isOpenAIAPIKeyAccount = computed(() => props.account?.platform === 'openai' && props.account?.type === 'apikey')
 const testMode = ref<'default' | 'compact' | 'legacy_compact'>('default')
 const testType = ref<'text' | 'image'>('text')
 const isOpenAIAccount = computed(() => props.account?.platform === 'openai')
 // Compact 探测使用固定探针载荷，不显示可编辑提示词输入框。
+watch(testMode, mode => { if (mode !== 'default') testProtocol.value = 'responses' })
 const isCompactTestMode = computed(() => isOpenAIAccount.value && testMode.value !== 'default')
 const openAITestModeOptions = computed(() => [
   { value: 'default', label: t('admin.accounts.openai.testModeDefault') },
@@ -362,6 +372,7 @@ watch(
       testPrompt.value = ''
       lastDefaultPrompt = ''
       testMode.value = 'default'
+      testProtocol.value = props.account?.extra?.openai_text_route_mode === 'force_chat_completions' ? 'chat_completions' : 'responses'
       testType.value = 'text'
       resetState()
       await loadAvailableModels()
@@ -469,6 +480,7 @@ const startTest = async () => {
       prompt: string
       test_type: 'text' | 'image'
       mode?: 'default' | 'compact' | 'legacy_compact'
+      protocol?: 'responses' | 'chat_completions'
     } = {
       model_id: selectedModelId.value,
       prompt: isCompactTestMode.value ? '' : testPrompt.value.trim(),
@@ -476,6 +488,9 @@ const startTest = async () => {
     }
     if (isOpenAIAccount.value) {
       requestBody.mode = testMode.value
+    }
+    if (isOpenAIAPIKeyAccount.value && testType.value === 'text') {
+      requestBody.protocol = isCompactTestMode.value ? 'responses' : testProtocol.value
     }
 
     // SSE 测试接口用 POST，只能走 fetch，必须显式套用配置的 API base。

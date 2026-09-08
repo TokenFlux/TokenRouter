@@ -120,6 +120,8 @@ const (
 	FieldAllowedClientProtocols = "allowed_client_protocols"
 	// FieldAllowLive holds the string denoting the allow_live field in the database.
 	FieldAllowLive = "allow_live"
+	// FieldOpenaiFastPolicy holds the string denoting the openai_fast_policy field in the database.
+	FieldOpenaiFastPolicy = "openai_fast_policy"
 	// FieldForceOpenaiFast holds the string denoting the force_openai_fast field in the database.
 	FieldForceOpenaiFast = "force_openai_fast"
 	// FieldFreeOpenaiFast holds the string denoting the free_openai_fast field in the database.
@@ -280,6 +282,7 @@ var Columns = []string{
 	FieldAllowMessagesDispatch,
 	FieldAllowedClientProtocols,
 	FieldAllowLive,
+	FieldOpenaiFastPolicy,
 	FieldForceOpenaiFast,
 	FieldFreeOpenaiFast,
 	FieldRequireOauthOnly,
@@ -413,6 +416,8 @@ var (
 	DefaultAllowedClientProtocols []domain.GroupClientProtocol
 	// DefaultAllowLive holds the default value on creation for the "allow_live" field.
 	DefaultAllowLive bool
+	// DefaultOpenaiFastPolicy holds the default value on creation for the "openai_fast_policy" field.
+	DefaultOpenaiFastPolicy string
 	// DefaultForceOpenaiFast holds the default value on creation for the "force_openai_fast" field.
 	DefaultForceOpenaiFast bool
 	// DefaultFreeOpenaiFast holds the default value on creation for the "free_openai_fast" field.
@@ -683,6 +688,11 @@ func ByAllowMessagesDispatch(opts ...sql.OrderTermOption) OrderOption {
 // ByAllowLive orders the results by the allow_live field.
 func ByAllowLive(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAllowLive, opts...).ToFunc()
+}
+
+// ByOpenaiFastPolicy orders the results by the openai_fast_policy field.
+func ByOpenaiFastPolicy(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldOpenaiFastPolicy, opts...).ToFunc()
 }
 
 // ByForceOpenaiFast orders the results by the force_openai_fast field.

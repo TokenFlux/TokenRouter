@@ -18,7 +18,7 @@ import (
 const compactProbeV2SSESuccessBody = "data: {\"type\":\"response.output_item.done\",\"item\":{\"type\":\"compaction\",\"id\":\"cmp_probe\",\"encrypted_content\":\"blob\"}}\n\n" +
 	"data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_probe\",\"output\":[]}}\n\n"
 
-func TestAccountTestService_TestAccountConnection_OpenAICompactOAuthUsesNativeV2AndPersistsSupport(t *testing.T) {
+func TestAccountTestService_TestAccountConnection_OpenAICompactOAuthUsesNativeV2AndDoesNotPersistSupport(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	updateCalls := make(chan map[string]any, 1)
@@ -72,15 +72,11 @@ func TestAccountTestService_TestAccountConnection_OpenAICompactOAuthUsesNativeV2
 	require.NotEmpty(t, input)
 	require.Equal(t, "compaction_trigger", input[len(input)-1].Get("type").String())
 
-	updates := <-updateCalls
-	require.Equal(t, true, updates[openAINativeCompactionV2SupportedExtraKey])
-	require.Equal(t, http.StatusOK, updates[openAINativeCompactionV2LastStatusExtraKey])
-	_, hasLegacyState := updates["openai_compact_supported"]
-	require.False(t, hasLegacyState)
+	require.Empty(t, updateCalls, "手动压缩测试不应写入能力状态")
 	require.Contains(t, rec.Body.String(), `"type":"test_complete"`)
 }
 
-func TestAccountTestService_TestAccountConnection_OpenAICompactOAuth404MarksOnlyNativeV2Unsupported(t *testing.T) {
+func TestAccountTestService_TestAccountConnection_OpenAICompactOAuth404DoesNotChangeCapability(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	updateCalls := make(chan map[string]any, 1)
@@ -121,11 +117,7 @@ func TestAccountTestService_TestAccountConnection_OpenAICompactOAuth404MarksOnly
 	err := svc.TestAccountConnection(c, account.ID, "gpt-5.4", "", AccountTestModeCompact)
 	require.Error(t, err)
 
-	updates := <-updateCalls
-	require.Equal(t, false, updates[openAINativeCompactionV2SupportedExtraKey])
-	require.Equal(t, http.StatusNotFound, updates[openAINativeCompactionV2LastStatusExtraKey])
-	_, hasLegacyState := updates["openai_compact_supported"]
-	require.False(t, hasLegacyState)
+	require.Empty(t, updateCalls, "手动压缩测试不应写入能力状态")
 	require.Contains(t, rec.Body.String(), `"type":"error"`)
 }
 
@@ -172,8 +164,8 @@ func TestAccountTestService_TestAccountConnection_OpenAICompactAPIKeyUsesNativeR
 	require.Equal(t, "https://example.com/v1/responses", upstream.lastReq.URL.String())
 	require.Equal(t, "gpt-5.4", gjson.GetBytes(upstream.lastBody, "model").String())
 	require.Contains(t, upstream.lastReq.Header.Get("x-codex-beta-features"), "remote_compaction_v2")
-	updates := <-updateCalls
-	require.Equal(t, true, updates[openAINativeCompactionV2SupportedExtraKey])
+	require.Empty(t, updateCalls, "手动压缩测试不应写入能力状态")
+
 }
 
 func TestAccountTestService_TestAccountConnection_OpenAICompactAPIKeyDefaultBaseURLUsesResponsesPath(t *testing.T) {
@@ -214,10 +206,10 @@ func TestAccountTestService_TestAccountConnection_OpenAICompactAPIKeyDefaultBase
 	err := svc.TestAccountConnection(c, account.ID, "gpt-5.4", "", AccountTestModeCompact)
 	require.NoError(t, err)
 	require.Equal(t, "https://api.openai.com/v1/responses", upstream.lastReq.URL.String())
-	<-updateCalls
+	require.Empty(t, updateCalls)
 }
 
-func TestAccountTestService_TestAccountConnection_OpenAILegacyCompactUsesDedicatedPathAndState(t *testing.T) {
+func TestAccountTestService_TestAccountConnection_OpenAILegacyCompactUsesDedicatedPathWithoutState(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	updateCalls := make(chan map[string]any, 1)
@@ -259,9 +251,6 @@ func TestAccountTestService_TestAccountConnection_OpenAILegacyCompactUsesDedicat
 	require.Equal(t, "https://example.com/v1/responses/compact", upstream.lastReq.URL.String())
 	require.Equal(t, "gpt-5.4-openai-compact", gjson.GetBytes(upstream.lastBody, "model").String())
 
-	updates := <-updateCalls
-	require.Equal(t, true, updates["openai_compact_supported"])
-	require.Equal(t, http.StatusOK, updates["openai_compact_last_status"])
-	_, hasNativeState := updates[openAINativeCompactionV2SupportedExtraKey]
-	require.False(t, hasNativeState)
+	require.Empty(t, updateCalls, "手动压缩测试不应写入能力状态")
+
 }

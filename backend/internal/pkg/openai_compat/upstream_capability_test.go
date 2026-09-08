@@ -28,10 +28,7 @@ func TestResolveUpstreamTextProtocol(t *testing.T) {
 					want = TextProtocolResponses
 				case TextRouteModeForceChatCompletions:
 					want = TextProtocolChatCompletions
-				case TextRouteModePreserveClientProtocol:
-					if preferred == TextProtocolResponses && status == ResponsesProbeStatusUnsupported {
-						want = TextProtocolChatCompletions
-					}
+
 				}
 
 				if got := ResolveUpstreamTextProtocol(extra, preferred); got != want {
@@ -60,9 +57,6 @@ func TestResolveUpstreamTextProtocolDefaults(t *testing.T) {
 func TestNormalizeTextProtocolConfiguration(t *testing.T) {
 	if got := NormalizeTextRouteMode("invalid"); got != TextRouteModePreserveClientProtocol {
 		t.Fatalf("非法路由模式得到 %q", got)
-	}
-	if got := NormalizeResponsesProbeStatus("invalid"); got != ResponsesProbeStatusUnknown {
-		t.Fatalf("非法探测状态得到 %q", got)
 	}
 }
 

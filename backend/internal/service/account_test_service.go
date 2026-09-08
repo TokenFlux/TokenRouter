@@ -602,8 +602,18 @@ func (s *AccountTestService) testCNProviderChatCompletionsConnection(
 	return s.testCNProviderAccountConnection(c, account, modelID, prompt)
 }
 
+// 测试协议仅在当前请求生效，不改变账号持久化配置。
+type accountTestProtocolContextKey struct{}
+
 // TestAccountConnectionWithType 提供参数顺序明确的新调用入口，旧入口继续兼容历史调用方。
-func (s *AccountTestService) TestAccountConnectionWithType(c *gin.Context, accountID int64, modelID string, prompt string, testType string, mode string) error {
+func (s *AccountTestService) TestAccountConnectionWithType(c *gin.Context, accountID int64, modelID string, prompt string, testType string, mode string, protocols ...string) error {
+	if len(protocols) > 0 && protocols[0] != "" {
+		protocol := openai_compat.TextProtocol(protocols[0])
+		if protocol != openai_compat.TextProtocolResponses && protocol != openai_compat.TextProtocolChatCompletions {
+			return s.sendErrorAndEnd(c, "Invalid test protocol")
+		}
+		c.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), accountTestProtocolContextKey{}, protocol))
+	}
 	return s.TestAccountConnection(c, accountID, modelID, prompt, mode, testType)
 }
 
@@ -985,10 +995,11 @@ func (s *AccountTestService) testOpenAIAccountConnection(c *gin.Context, account
 		if err != nil {
 			return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid base URL: %s", err.Error()))
 		}
-		if openai_compat.ResolveUpstreamTextProtocol(
-			account.Extra,
-			openai_compat.TextProtocolResponses,
-		) == openai_compat.TextProtocolChatCompletions {
+		protocol := openai_compat.ResolveUpstreamTextProtocol(account.Extra, openai_compat.TextProtocolResponses)
+		if requested, ok := ctx.Value(accountTestProtocolContextKey{}).(openai_compat.TextProtocol); ok && account.IsOpenAI() {
+			protocol = requested
+		}
+		if protocol == openai_compat.TextProtocolChatCompletions {
 			return s.testOpenAIChatCompletionsConnection(c, account, testModelID, prompt, normalizedBaseURL, authToken)
 		}
 		apiURL = buildOpenAIResponsesURL(normalizedBaseURL)
@@ -1422,7 +1433,7 @@ func (s *AccountTestService) testOpenAIChatCompletionsConnection(
 }
 
 // testOpenAINativeCompactionV2Connection 探测原生 V2（流式 /responses +
-// compaction_trigger）。它使用普通模型映射，并只写入 V2 独立能力状态。
+// compaction_trigger）。它使用普通模型映射，测试结果不改变管理员开关。
 func (s *AccountTestService) testOpenAINativeCompactionV2Connection(c *gin.Context, account *Account, testModelID string) error {
 	ctx := c.Request.Context()
 	credentialAccount := account
@@ -1531,11 +1542,6 @@ func (s *AccountTestService) testOpenAINativeCompactionV2Connection(c *gin.Conte
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.resolveOpenAIAccountTestTLSProfile(c, account))
 	if err != nil {
-		if s.accountRepo != nil {
-			updates := buildOpenAINativeCompactionV2ProbeExtraUpdates(nil, nil, err, false, time.Now())
-			_ = s.accountRepo.UpdateExtra(ctx, account.ID, updates)
-			mergeAccountExtra(account, updates)
-		}
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -1553,7 +1559,8 @@ func (s *AccountTestService) testOpenAINativeCompactionV2Connection(c *gin.Conte
 
 	compactionFound := openAICompactProbeFoundCompactionItem(body)
 	if s.accountRepo != nil {
-		updates := buildOpenAINativeCompactionV2ProbeExtraUpdates(resp, body, nil, compactionFound, time.Now())
+		// 手动测试只保存额度观测，不修改管理员开关。
+		var updates map[string]any
 		if codexUpdates, err := extractOpenAICodexProbeUpdates(resp); err == nil && len(codexUpdates) > 0 {
 			updates = mergeExtraUpdates(updates, codexUpdates)
 		}
@@ -1686,11 +1693,6 @@ func (s *AccountTestService) testOpenAILegacyCompactConnection(c *gin.Context, a
 
 	resp, err := s.httpUpstream.DoWithTLS(req, proxyURL, account.ID, account.Concurrency, s.resolveOpenAIAccountTestTLSProfile(c, account))
 	if err != nil {
-		if s.accountRepo != nil {
-			updates := buildOpenAICompactProbeExtraUpdates(nil, nil, err, time.Now())
-			_ = s.accountRepo.UpdateExtra(ctx, account.ID, updates)
-			mergeAccountExtra(account, updates)
-		}
 		return s.sendErrorAndEnd(c, fmt.Sprintf("Request failed: %s", err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
@@ -1707,7 +1709,8 @@ func (s *AccountTestService) testOpenAILegacyCompactConnection(c *gin.Context, a
 	}
 
 	if s.accountRepo != nil {
-		updates := buildOpenAICompactProbeExtraUpdates(resp, body, nil, time.Now())
+		// 手动测试只保存额度观测，不修改管理员开关。
+		var updates map[string]any
 		if codexUpdates, err := extractOpenAICodexProbeUpdates(resp); err == nil && len(codexUpdates) > 0 {
 			updates = mergeExtraUpdates(updates, codexUpdates)
 		}

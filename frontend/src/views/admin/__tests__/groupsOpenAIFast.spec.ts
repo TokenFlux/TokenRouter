@@ -23,14 +23,14 @@ describe("groupsOpenAIFast", () => {
     expect(zh.groups.openaiFast).toMatchObject({
       title: expect.any(String),
       force: expect.any(String),
-      hint: expect.stringContaining("service_tier=priority"),
+      hint: expect.stringContaining("Ultra Fast"),
       free: expect.any(String),
       freeHint: expect.stringContaining("Standard"),
     });
     expect(en.groups.openaiFast).toMatchObject({
       title: expect.any(String),
       force: expect.any(String),
-      hint: expect.stringContaining("service_tier=priority"),
+      hint: expect.stringContaining("Ultra Fast"),
       free: expect.any(String),
       freeHint: expect.stringContaining("Standard"),
     });

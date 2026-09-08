@@ -1231,8 +1231,12 @@ affiliates: {
       },
       openaiFast: {
         title: 'OpenAI Fast',
-        force: '强制使用 Fast 优先级',
-        hint: '启用后，此 OpenAI 分组的请求会使用 service_tier=priority；全局 Fast/Flex 策略和 API Key 覆盖仍然有效。',
+        policy: '请求加速策略',
+        followRequest: '跟随请求',
+        force: '强制使用 Fast',
+        forceUltrafast: '强制使用 Ultra Fast',
+        forceOff: '强制关闭 Fast / Ultra Fast',
+        hint: '强制关闭会移除 Fast 和 Ultra Fast，并禁止 API Key 重新开启。强制开启仍允许 API Key 关闭；全局过滤、拦截和强制规则具有最终优先级。',
         free: '免费 Fast',
         freeHint: '请求仍使用 priority 档位，但客户实际费用按同一请求的 Standard 价格计算。'
       },

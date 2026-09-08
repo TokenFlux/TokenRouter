@@ -1182,6 +1182,7 @@ export default {
         actionPass: '透传（保留 service_tier）',
         actionFilter: '过滤（移除 service_tier）',
         actionForcePriority: '强制设置 priority（fast）',
+        actionForceUltrafast: '强制设置 Ultra Fast（ultrafast）',
         actionBlock: '拦截（拒绝请求）',
         scope: '生效范围',
         scopeAll: '全部账号',
@@ -1212,7 +1213,8 @@ export default {
           pass: '透传',
           filter: '过滤',
           block: '拦截',
-          force_priority: '强制 priority'
+          force_priority: '强制 priority',
+          force_ultrafast: '强制 Ultra Fast'
         }
       },
       wechatConnect: {

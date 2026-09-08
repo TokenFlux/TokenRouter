@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestOpenAIGatewayService_SelectAccountWithScheduler_CompactPrefersSupportedOverUnknown
+// TestOpenAIGatewayService_SelectAccountWithScheduler_CompactSelectsEnabledAccount
 // 验证 compact 调度时显式支持 (tier=2) 优先于未探测 (tier=1)。
-func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactPrefersSupportedOverUnknown(t *testing.T) {
+func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactSelectsEnabledAccount(t *testing.T) {
 	resetAdvancedSchedulerSettingCacheForTest()
 
 	ctx := context.Background()
@@ -25,7 +25,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactPrefersSupported
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
-			Extra:       map[string]any{}, // unknown
+			Extra:       map[string]any{"openai_compact_mode": "force_off"}, // 管理员禁用
 		},
 		{
 			ID:          71002,
@@ -60,7 +60,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactPrefersSupported
 	require.NoError(t, err)
 	require.NotNil(t, selection)
 	require.NotNil(t, selection.Account)
-	require.Equal(t, int64(71002), selection.Account.ID, "compact-supported account should win over unknown")
+	require.Equal(t, int64(71002), selection.Account.ID, "disabled account must be excluded")
 }
 
 // TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsExplicitlyUnsupported
@@ -89,7 +89,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsExplicitl
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
-			Extra:       map[string]any{"openai_compact_supported": false},
+			Extra:       map[string]any{"openai_compact_mode": "force_off"},
 		},
 	}
 	cfg := &config.Config{}
@@ -116,9 +116,9 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactRejectsExplicitl
 	require.Nil(t, selection)
 }
 
-// TestOpenAIGatewayService_SelectAccountWithScheduler_CompactFallsBackToUnknown
+// TestOpenAIGatewayService_SelectAccountWithScheduler_CompactUsesDefaultEnabledAccount
 // 验证当没有"已知支持"账号时，compact 请求会回退到"未探测"账号。
-func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactFallsBackToUnknown(t *testing.T) {
+func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactUsesDefaultEnabledAccount(t *testing.T) {
 	resetAdvancedSchedulerSettingCacheForTest()
 
 	ctx := context.Background()
@@ -132,7 +132,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_CompactFallsBackToUnkno
 			Schedulable: true,
 			Concurrency: 1,
 			Priority:    0,
-			Extra:       map[string]any{"openai_compact_supported": false}, // tier=0
+			Extra:       map[string]any{"openai_compact_mode": "force_off"}, // tier=0
 		},
 		{
 			ID:          71021,
@@ -232,8 +232,8 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionSeparat
 			Concurrency: 1,
 			Priority:    10,
 			Extra: map[string]any{
-				"openai_compact_supported":      true,
-				"openai_responses_probe_status": "unsupported",
+				"openai_compact_supported": true,
+				"openai_text_route_mode":   "force_chat_completions",
 			},
 		},
 		{
@@ -322,6 +322,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_NativeCompactionV2Mode(
 			Extra: map[string]any{
 				"openai_responses_probe_status":           "supported",
 				openAINativeCompactionV2SupportedExtraKey: false,
+				openAINativeCompactionV2ModeExtraKey:      OpenAICompactModeForceOff,
 			},
 		},
 		{
@@ -376,9 +377,9 @@ func TestOpenAICompactSupportTier(t *testing.T) {
 		{name: "nil", account: nil, want: 0},
 		{name: "non openai", account: &Account{Platform: PlatformAnthropic}, want: 0},
 		{name: "grok", account: &Account{Platform: PlatformGrok}, want: 2},
-		{name: "openai unknown", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{}}, want: 1},
+		{name: "openai default enabled", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{}}, want: 2},
 		{name: "openai supported", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_supported": true}}, want: 2},
-		{name: "openai unsupported", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_supported": false}}, want: 0},
+		{name: "openai unsupported", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": "force_off"}}, want: 0},
 		{name: "force on", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": OpenAICompactModeForceOn}}, want: 2},
 		{name: "force off overrides probe true", account: &Account{Platform: PlatformOpenAI, Extra: map[string]any{"openai_compact_mode": OpenAICompactModeForceOff, "openai_compact_supported": true}}, want: 0},
 	}

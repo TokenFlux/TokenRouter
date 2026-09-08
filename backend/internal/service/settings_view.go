@@ -739,6 +739,8 @@ const (
 	// OpenAIFastPolicyActionForcePriority 会保留 service_tier 字段并强制写成
 	// priority，用于把 flex/auto/default/scale 等已识别 tier 收敛为 fast。
 	OpenAIFastPolicyActionForcePriority = "force_priority"
+	// Ultra Fast 共用既有作用域和模型回退规则。
+	OpenAIFastPolicyActionForceUltrafast = "force_ultrafast"
 )
 
 // OpenAIFastPolicyRule 单条 OpenAI fast/flex 策略规则

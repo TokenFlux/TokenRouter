@@ -735,17 +735,9 @@
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                 {{ t("admin.groups.openaiFast.title") }}
               </h4>
-              <div class="flex items-center justify-between">
-                <label class="text-sm text-gray-600 dark:text-gray-400">
-                  {{ t("admin.groups.openaiFast.force") }}
-                </label>
-                <Toggle
-                  :model-value="createForm.force_openai_fast"
-                  data-group-setting="force_openai_fast"
-                  :aria-label="t('admin.groups.openaiFast.force')"
-                  @update:model-value="createForm.force_openai_fast = !createForm.force_openai_fast"
-                />
-              </div>
+              <!-- 互斥策略防止加速与关闭配置冲突。 -->
+              <Select v-model="createForm.openai_fast_policy" data-group-setting="openai_fast_policy"
+                :aria-label="t('admin.groups.openaiFast.policy')" :options="groupOpenAIFastPolicyOptions" />
               <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {{ t("admin.groups.openaiFast.hint") }}
               </p>
@@ -2419,17 +2411,9 @@
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
                 {{ t("admin.groups.openaiFast.title") }}
               </h4>
-              <div class="flex items-center justify-between">
-                <label class="text-sm text-gray-600 dark:text-gray-400">
-                  {{ t("admin.groups.openaiFast.force") }}
-                </label>
-                <Toggle
-                  :model-value="editForm.force_openai_fast"
-                  data-group-setting="force_openai_fast"
-                  :aria-label="t('admin.groups.openaiFast.force')"
-                  @update:model-value="editForm.force_openai_fast = !editForm.force_openai_fast"
-                />
-              </div>
+              <!-- 互斥策略防止加速与关闭配置冲突。 -->
+              <Select v-model="editForm.openai_fast_policy" data-group-setting="openai_fast_policy"
+                :aria-label="t('admin.groups.openaiFast.policy')" :options="groupOpenAIFastPolicyOptions" />
               <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 {{ t("admin.groups.openaiFast.hint") }}
               </p>
@@ -3938,6 +3922,7 @@ import { createModelsListCandidatesTracker } from "./groupsModelsListCandidates"
 import { normalizeSupportedModelScopesForPlatform } from "./groupsSupportedModelScopes";
 import {
   normalizeGroupOpenAIFast,
+  normalizeGroupOpenAIFastPolicy,
   supportsGroupOpenAIFast,
 } from "./groupsOpenAIFast";
 import {
@@ -4557,6 +4542,14 @@ const editAvailabilityProbeModelOptions = computed(() =>
   buildAvailabilityProbeModelOptions(getAvailabilityProbeCandidateModels(editModelsListState)),
 );
 
+// 两个表单共用选项与翻译。
+const groupOpenAIFastPolicyOptions = computed(() => [
+ {value:"follow_request",label:t("admin.groups.openaiFast.followRequest")},
+ {value:"force_priority",label:t("admin.groups.openaiFast.force")},
+ {value:"force_ultrafast",label:t("admin.groups.openaiFast.forceUltrafast")},
+ {value:"force_off",label:t("admin.groups.openaiFast.forceOff")},
+]);
+
 const createForm = reactive({
   name: "",
   description: "",
@@ -4609,7 +4602,7 @@ const createForm = reactive({
   // OpenAI Messages 模型映射（仅 openai 平台使用）
   allow_live: false,
   // OpenAI 分组级 Fast 强制策略
-  force_openai_fast: false,
+  openai_fast_policy: "follow_request",
   // OpenAI 分组级免费 Fast 计费策略
   free_openai_fast: false,
   opus_mapped_model: createMessagesDispatchDefaults.opus_mapped_model,
@@ -5047,7 +5040,7 @@ const editForm = reactive({
   // OpenAI Messages 模型映射（仅 openai 平台使用）
   allow_live: false,
   // OpenAI 分组级 Fast 强制策略
-  force_openai_fast: false,
+  openai_fast_policy: "follow_request",
   // OpenAI 分组级免费 Fast 计费策略
   free_openai_fast: false,
   default_mapped_model: '',
@@ -5515,7 +5508,7 @@ const closeCreateModal = () => {
   createForm.unavailable_fallback_group_id = null;
   resetMessagesDispatchFormState(createForm);
   createForm.allow_live = false;
-  createForm.force_openai_fast = false;
+  createForm.openai_fast_policy = "follow_request";
   createForm.free_openai_fast = false;
   createForm.require_oauth_only = false;
   createForm.require_privacy_set = false;
@@ -5600,9 +5593,9 @@ const handleCreateGroup = async () => {
         createForm.platform,
         createForm.supported_model_scopes,
       ),
-      force_openai_fast: normalizeGroupOpenAIFast(
+      openai_fast_policy: normalizeGroupOpenAIFastPolicy(
         createForm.platform,
-        createForm.force_openai_fast,
+        createForm.openai_fast_policy,
       ),
       free_openai_fast: normalizeGroupOpenAIFast(
         createForm.platform,
@@ -5759,9 +5752,9 @@ const handleEdit = async (group: AdminGroup) => {
     group.allowed_client_protocols,
   );
   editForm.allow_live = group.allow_live ?? false;
-  editForm.force_openai_fast = normalizeGroupOpenAIFast(
+  editForm.openai_fast_policy = normalizeGroupOpenAIFastPolicy(
     group.platform,
-    group.force_openai_fast ?? false,
+    group.openai_fast_policy ?? (group.force_openai_fast ? "force_priority" : "follow_request"),
   );
   editForm.free_openai_fast = normalizeGroupOpenAIFast(
     group.platform,
@@ -5842,7 +5835,7 @@ const closeEditModal = () => {
   editForm.audio_stt_price_per_hour = null;
   resetMessagesDispatchFormState(editForm);
   editForm.allow_live = false;
-  editForm.force_openai_fast = false;
+  editForm.openai_fast_policy = "follow_request";
   editForm.free_openai_fast = false;
   resetModelsListState(editModelsListState);
 };
@@ -5883,9 +5876,9 @@ const handleUpdateGroup = async () => {
         editForm.platform,
         editForm.supported_model_scopes,
       ),
-      force_openai_fast: normalizeGroupOpenAIFast(
+      openai_fast_policy: normalizeGroupOpenAIFastPolicy(
         editForm.platform,
-        editForm.force_openai_fast,
+        editForm.openai_fast_policy,
       ),
       free_openai_fast: normalizeGroupOpenAIFast(
         editForm.platform,
@@ -6073,9 +6066,9 @@ watch(
       resetMessagesDispatchFormState(createForm);
       createForm.allow_live = false;
     }
-    createForm.force_openai_fast = normalizeGroupOpenAIFast(
+    createForm.openai_fast_policy = normalizeGroupOpenAIFastPolicy(
       newVal,
-      createForm.force_openai_fast,
+      createForm.openai_fast_policy,
     );
     createForm.free_openai_fast = normalizeGroupOpenAIFast(
       newVal,
@@ -6175,9 +6168,9 @@ watch(
       resetMessagesDispatchFormState(editForm);
       editForm.allow_live = false;
     }
-    editForm.force_openai_fast = normalizeGroupOpenAIFast(
+    editForm.openai_fast_policy = normalizeGroupOpenAIFastPolicy(
       newVal,
-      editForm.force_openai_fast,
+      editForm.openai_fast_policy,
     );
     editForm.free_openai_fast = normalizeGroupOpenAIFast(
       newVal,
@@ -6231,9 +6224,9 @@ watch(
       editForm.allow_live = false
       editForm.default_mapped_model = ''
     }
-    editForm.force_openai_fast = normalizeGroupOpenAIFast(
+    editForm.openai_fast_policy = normalizeGroupOpenAIFastPolicy(
       newVal,
-      editForm.force_openai_fast,
+      editForm.openai_fast_policy,
     )
     editForm.free_openai_fast = normalizeGroupOpenAIFast(
       newVal,

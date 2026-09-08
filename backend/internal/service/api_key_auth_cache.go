@@ -152,6 +152,8 @@ type APIKeyAuthGroupSnapshot struct {
 	AllowLive              bool                  `json:"allow_live"`
 	// ForceOpenAIFast 保留组级 OpenAI Fast 策略，供请求期无需回源即可执行。
 	ForceOpenAIFast bool `json:"force_openai_fast"`
+	// OpenAIFastPolicy 保存管理员选择的互斥加速策略。
+	OpenAIFastPolicy string `json:"openai_fast_policy"`
 	// FreeOpenAIFast 保留组级免费 Fast 计费策略，供异步计费无需回源即可执行。
 	FreeOpenAIFast              bool                              `json:"free_openai_fast"`
 	DefaultMappedModel          string                            `json:"default_mapped_model,omitempty"`

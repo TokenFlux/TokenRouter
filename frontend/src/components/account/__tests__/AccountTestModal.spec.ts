@@ -118,6 +118,22 @@ describe('AccountTestModal', () => {
     localStorage.clear()
   })
 
+  it('API Key 文字测试可选协议，OAuth 不显示协议选择', async () => {
+    const account = buildAccount()
+    account.type = 'apikey'
+    const wrapper = mount(AccountTestModal, { props: { show: true, account }, global: { stubs: {
+      BaseDialog: BaseDialogStub, Select: SelectStub, TextArea: TextAreaStub, Icon: true
+    } } })
+    await flushPromises()
+    ;(wrapper.vm as any).selectedModelId = 'gpt-5.4'
+    await wrapper.get('[data-testid="account-test-protocol"]').setValue('chat_completions')
+    await (wrapper.vm as any).startTest()
+    expect(JSON.parse((global.fetch as any).mock.calls[0][1].body).protocol).toBe('chat_completions')
+    await wrapper.setProps({ account: { ...account, type: 'oauth' } })
+    expect(wrapper.find('[data-testid="account-test-protocol"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('posts compact mode for OpenAI compact probe', async () => {
     const wrapper = mount(AccountTestModal, {
       props: {

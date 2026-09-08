@@ -46,6 +46,15 @@ func hasOpenAIConfigurationPatch(credentials, extra map[string]any) bool {
 
 // normalizeOpenAIAPIKeyConfiguration 将完整账号配置规范化为唯一的新持久化形状。
 func normalizeOpenAIAPIKeyConfiguration(account *Account) error {
+	if account != nil && account.IsOpenAI() {
+		account.Extra = maps.Clone(account.Extra)
+		if account.Extra == nil {
+			account.Extra = map[string]any{}
+		}
+		DiscardDeprecatedAccountExtra(account.Extra)
+		account.Extra["openai_compact_mode"] = account.GetOpenAICompactMode()
+		account.Extra[openAINativeCompactionV2ModeExtraKey] = account.GetOpenAINativeCompactionV2Mode()
+	}
 	if !isOpenAIAPIKeyAccount(account) {
 		return nil
 	}
@@ -65,7 +74,7 @@ func normalizeOpenAIAPIKeyConfiguration(account *Account) error {
 	if err := normalizeOpenAITextRouteMode(account.Extra, true); err != nil {
 		return err
 	}
-	normalizeOpenAIResponsesProbeStatus(account.Extra, true)
+	DiscardDeprecatedAccountExtra(account.Extra)
 	if err := normalizeOpenAIResponsesContinuationSupported(account.Extra, true); err != nil {
 		return err
 	}
@@ -91,7 +100,7 @@ func normalizeOpenAIAPIKeyConfigurationPatch(credentials, extra map[string]any) 
 	if err := normalizeOpenAITextRouteMode(extra, false); err != nil {
 		return err
 	}
-	normalizeOpenAIResponsesProbeStatus(extra, false)
+	DiscardDeprecatedAccountExtra(extra)
 	if err := normalizeOpenAIResponsesContinuationSupported(extra, false); err != nil {
 		return err
 	}
@@ -214,36 +223,6 @@ func normalizeOpenAITextRouteMode(extra map[string]any, applyDefault bool) error
 	}
 	extra[openai_compat.ExtraKeyTextRouteMode] = string(mode)
 	return nil
-}
-
-func normalizeOpenAIResponsesProbeStatus(extra map[string]any, applyDefault bool) {
-	if extra == nil {
-		return
-	}
-	raw, found := extra[openai_compat.ExtraKeyResponsesProbeStatus]
-	usingLegacy := false
-	if !found {
-		raw, found = extra[legacyOpenAIResponsesSupportedExtraKey]
-		usingLegacy = found
-	}
-	if !found && !applyDefault {
-		return
-	}
-	delete(extra, legacyOpenAIResponsesSupportedExtraKey)
-
-	status := openai_compat.ResponsesProbeStatusUnknown
-	if usingLegacy {
-		if supported, ok := raw.(bool); ok {
-			if supported {
-				status = openai_compat.ResponsesProbeStatusSupported
-			} else {
-				status = openai_compat.ResponsesProbeStatusUnsupported
-			}
-		}
-	} else if value, ok := raw.(string); ok {
-		status = openai_compat.NormalizeResponsesProbeStatus(value)
-	}
-	extra[openai_compat.ExtraKeyResponsesProbeStatus] = string(status)
 }
 
 // normalizeOpenAIResponsesContinuationSupported 规范化管理员维护的 HTTP continuation 能力开关。

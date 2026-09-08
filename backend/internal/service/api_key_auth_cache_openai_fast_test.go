@@ -35,3 +35,19 @@ func TestAPIKeyAuthSnapshotGroupForceOpenAIFastRoundtrip(t *testing.T) {
 	require.True(t, materialized.Group.FreeOpenAIFast)
 	require.Equal(t, apiKeyAuthSnapshotVersion, cached.Snapshot.Version)
 }
+
+// Ultra Fast 和关闭策略经序列化后必须恢复为相同的可信分组配置。
+func TestAuthSnapshotGroupOpenAIFastPolicy(t *testing.T) {
+	for _, policy := range []string{"force_ultrafast", "force_off"} {
+		key := &APIKey{ID: 1, UserID: 2, Status: StatusActive, User: &User{ID: 2, Status: StatusActive}, Group: &Group{ID: 3, Platform: PlatformOpenAI, Status: StatusActive, Hydrated: true, OpenAIFastPolicy: policy}}
+		svc := &APIKeyService{}
+		payload, err := json.Marshal(&APIKeyAuthCacheEntry{Snapshot: svc.snapshotFromAPIKey(context.Background(), key)})
+		require.NoError(t, err)
+		var entry APIKeyAuthCacheEntry
+		require.NoError(t, json.Unmarshal(payload, &entry))
+		result, used, err := svc.applyAuthCacheEntry("sk-test", &entry)
+		require.NoError(t, err)
+		require.True(t, used)
+		require.Equal(t, policy, result.Group.OpenAIFastPolicy)
+	}
+}

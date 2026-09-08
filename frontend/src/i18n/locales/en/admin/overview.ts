@@ -1233,8 +1233,12 @@ affiliates: {
       },
       openaiFast: {
         title: 'OpenAI Fast',
-        force: 'Force Fast priority',
-        hint: 'When enabled, requests in this OpenAI group use service_tier=priority. Global Fast/Flex policy and API-key overrides still apply.',
+        policy: 'Request acceleration policy',
+        followRequest: 'Follow request',
+        force: 'Force Fast',
+        forceUltrafast: 'Force Ultra Fast',
+        forceOff: 'Force Fast / Ultra Fast off',
+        hint: 'Force off removes Fast and Ultra Fast and prevents API keys from re-enabling them. API keys may disable a group-forced tier. Global filter, block, and force rules take precedence.',
         free: 'Free Fast',
         freeHint: 'Fast requests still use the priority tier, but customers are charged the equivalent Standard price.'
       },

@@ -129,13 +129,23 @@ func groupSupportsOpenAIFast(platform string) bool {
 
 // sanitizeGroupOpenAIFast 清除不支持平台上的组级 Fast 开关，避免无效配置持久化。
 func sanitizeGroupOpenAIFast(group *Group) {
-	if group != nil && !groupSupportsOpenAIFast(group.Platform) {
+	if group == nil {
+		return
+	}
+	group.OpenAIFastPolicy = group.EffectiveOpenAIFastPolicy()
+	group.ForceOpenAIFast = group.OpenAIFastPolicy == GroupOpenAIFastPolicyForcePriority
+	if !groupSupportsOpenAIFast(group.Platform) {
+		group.OpenAIFastPolicy = GroupOpenAIFastPolicyFollowRequest
 		group.ForceOpenAIFast = false
 		group.FreeOpenAIFast = false
 	}
 }
 
 func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupInput) (*Group, error) {
+	fastPolicy, policyErr := resolveGroupOpenAIFastPolicyInput(input.OpenAIFastPolicy, input.ForceOpenAIFast)
+	if policyErr != nil {
+		return nil, policyErr
+	}
 	if input.RateMultiplier <= 0 {
 		return nil, errors.New("rate_multiplier must be > 0")
 	}
@@ -365,6 +375,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		AllowedClientProtocols:          allowedClientProtocols,
 		AllowLive:                       input.AllowLive,
 		ForceOpenAIFast:                 input.ForceOpenAIFast,
+		OpenAIFastPolicy:                fastPolicy,
 		FreeOpenAIFast:                  input.FreeOpenAIFast,
 		RequireOAuthOnly:                input.RequireOAuthOnly,
 		RequirePrivacySet:               input.RequirePrivacySet,
@@ -795,8 +806,13 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.AllowLive != nil {
 		group.AllowLive = *input.AllowLive
 	}
-	if input.ForceOpenAIFast != nil {
-		group.ForceOpenAIFast = *input.ForceOpenAIFast
+	if input.OpenAIFastPolicy != nil || input.ForceOpenAIFast != nil {
+		legacyForce := input.ForceOpenAIFast != nil && *input.ForceOpenAIFast
+		policy, err := resolveGroupOpenAIFastPolicyInput(input.OpenAIFastPolicy, legacyForce)
+		if err != nil {
+			return nil, err
+		}
+		group.OpenAIFastPolicy = policy
 	}
 	if input.FreeOpenAIFast != nil {
 		group.FreeOpenAIFast = *input.FreeOpenAIFast

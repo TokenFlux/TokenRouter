@@ -285,6 +285,11 @@ func AllowLive(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldAllowLive, v))
 }
 
+// OpenaiFastPolicy applies equality check predicate on the "openai_fast_policy" field. It's identical to OpenaiFastPolicyEQ.
+func OpenaiFastPolicy(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldOpenaiFastPolicy, v))
+}
+
 // ForceOpenaiFast applies equality check predicate on the "force_openai_fast" field. It's identical to ForceOpenaiFastEQ.
 func ForceOpenaiFast(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldForceOpenaiFast, v))
@@ -2203,6 +2208,71 @@ func AllowLiveEQ(v bool) predicate.Group {
 // AllowLiveNEQ applies the NEQ predicate on the "allow_live" field.
 func AllowLiveNEQ(v bool) predicate.Group {
 	return predicate.Group(sql.FieldNEQ(FieldAllowLive, v))
+}
+
+// OpenaiFastPolicyEQ applies the EQ predicate on the "openai_fast_policy" field.
+func OpenaiFastPolicyEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldOpenaiFastPolicy, v))
+}
+
+// OpenaiFastPolicyNEQ applies the NEQ predicate on the "openai_fast_policy" field.
+func OpenaiFastPolicyNEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldOpenaiFastPolicy, v))
+}
+
+// OpenaiFastPolicyIn applies the In predicate on the "openai_fast_policy" field.
+func OpenaiFastPolicyIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldOpenaiFastPolicy, vs...))
+}
+
+// OpenaiFastPolicyNotIn applies the NotIn predicate on the "openai_fast_policy" field.
+func OpenaiFastPolicyNotIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldOpenaiFastPolicy, vs...))
+}
+
+// OpenaiFastPolicyGT applies the GT predicate on the "openai_fast_policy" field.
+func OpenaiFastPolicyGT(v string) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldOpenaiFastPolicy, v))
+}
+
+// OpenaiFastPolicyGTE applies the GTE predicate on the "openai_fast_policy" field.
+func OpenaiFastPolicyGTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldOpenaiFastPolicy, v))
+}
+
+// OpenaiFastPolicyLT applies the LT predicate on the "openai_fast_policy" field.
+func OpenaiFastPolicyLT(v string) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldOpenaiFastPolicy, v))
+}
+
+// OpenaiFastPolicyLTE applies the LTE predicate on the "openai_fast_policy" field.
+func OpenaiFastPolicyLTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldOpenaiFastPolicy, v))
+}
+
+// OpenaiFastPolicyContains applies the Contains predicate on the "openai_fast_policy" field.
+func OpenaiFastPolicyContains(v string) predicate.Group {
+	return predicate.Group(sql.FieldContains(FieldOpenaiFastPolicy, v))
+}
+
+// OpenaiFastPolicyHasPrefix applies the HasPrefix predicate on the "openai_fast_policy" field.
+func OpenaiFastPolicyHasPrefix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasPrefix(FieldOpenaiFastPolicy, v))
+}
+
+// OpenaiFastPolicyHasSuffix applies the HasSuffix predicate on the "openai_fast_policy" field.
+func OpenaiFastPolicyHasSuffix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasSuffix(FieldOpenaiFastPolicy, v))
+}
+
+// OpenaiFastPolicyEqualFold applies the EqualFold predicate on the "openai_fast_policy" field.
+func OpenaiFastPolicyEqualFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldEqualFold(FieldOpenaiFastPolicy, v))
+}
+
+// OpenaiFastPolicyContainsFold applies the ContainsFold predicate on the "openai_fast_policy" field.
+func OpenaiFastPolicyContainsFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldContainsFold(FieldOpenaiFastPolicy, v))
 }
 
 // ForceOpenaiFastEQ applies the EQ predicate on the "force_openai_fast" field.

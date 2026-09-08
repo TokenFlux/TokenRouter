@@ -41,14 +41,14 @@ func TestIsOllamaCloudRawChatCompletionsAccount(t *testing.T) {
 		require.True(t, isOllamaCloudRawChatCompletionsAccount(ollamaCloudRawChatCompletionsTestAccount()))
 	})
 
-	t.Run("ollama.com + unsupported probe", func(t *testing.T) {
+	t.Run("ollama.com + historical probe is ignored", func(t *testing.T) {
 		t.Parallel()
 		account := ollamaCloudRawChatCompletionsTestAccount()
 		account.Extra = map[string]any{
 			openai_compat.ExtraKeyTextRouteMode:        string(openai_compat.TextRouteModePreserveClientProtocol),
 			openai_compat.ExtraKeyResponsesProbeStatus: string(openai_compat.ResponsesProbeStatusUnsupported),
 		}
-		require.True(t, isOllamaCloudRawChatCompletionsAccount(account))
+		require.False(t, isOllamaCloudRawChatCompletionsAccount(account))
 	})
 
 	t.Run("extra usage signal without ollama host", func(t *testing.T) {

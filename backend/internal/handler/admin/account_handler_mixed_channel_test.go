@@ -287,7 +287,7 @@ func TestBulkUpdateAcceptsFilterTargetRequest(t *testing.T) {
 	require.Equal(t, float64(0), resp["code"])
 }
 
-func TestAccountHandlerBulkUpdateOpenAIAPIKeyCredentialsSchedulesResponsesProbe(t *testing.T) {
+func TestAccountHandlerBulkUpdateOpenAIAPIKeyDoesNotProbe(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	account := service.Account{
@@ -338,20 +338,18 @@ func TestAccountHandlerBulkUpdateOpenAIAPIKeyCredentialsSchedulesResponsesProbe(
 	router.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
+	// 等待异步配置同步结束，确认没有向 OpenAI 上游发探测或写回能力状态。
 	select {
-	case probedID := <-repo.done:
-		require.Equal(t, account.ID, probedID)
-	case <-time.After(2 * time.Second):
-		t.Fatal("timed out waiting for OpenAI APIKey responses probe")
+	case <-repo.done:
+		t.Fatal("OpenAI capability probe must not run")
+	case <-time.After(50 * time.Millisecond):
 	}
-
 	upstream.mu.Lock()
-	require.Len(t, upstream.urls, 1)
-	require.True(t, strings.HasSuffix(upstream.urls[0], "/v1/responses"))
+	require.Empty(t, upstream.urls)
 	upstream.mu.Unlock()
 
 	repo.mu.Lock()
-	require.Equal(t, string(openai_compat.ResponsesProbeStatusUnsupported), repo.accounts[account.ID].Extra[openai_compat.ExtraKeyResponsesProbeStatus])
+	require.NotContains(t, repo.accounts[account.ID].Extra, openai_compat.ExtraKeyResponsesProbeStatus)
 	repo.mu.Unlock()
 }
 

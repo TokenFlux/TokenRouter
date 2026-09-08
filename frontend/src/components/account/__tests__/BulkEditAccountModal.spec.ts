@@ -492,7 +492,7 @@ describe('BulkEditAccountModal', () => {
 
     await wrapper.get('#bulk-edit-openai-endpoint-capabilities-enabled').setValue(true)
     await wrapper.get('#bulk-edit-openai-responses-mode-enabled').setValue(true)
-    await wrapper.get('[data-testid="bulk-edit-openai-responses-mode-select"]').setValue('force_responses')
+    await wrapper.get('[data-testid="openai-text-protocol-chat_completions"]').setValue(false)
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
     await flushPromises()
 
@@ -531,7 +531,7 @@ describe('BulkEditAccountModal', () => {
 
     await wrapper.get('#bulk-edit-openai-endpoint-capabilities-enabled').setValue(true)
     await wrapper.get('#bulk-edit-openai-responses-mode-enabled').setValue(true)
-    await wrapper.get('[data-testid="bulk-edit-openai-responses-mode-select"]').setValue('force_chat_completions')
+    await wrapper.get('[data-testid="openai-text-protocol-responses"]').setValue(false)
     await wrapper.get('[data-testid="bulk-edit-openai-endpoint-capability-chat_completions"]').setValue(false)
 
     expect(wrapper.find('[data-testid="bulk-edit-openai-responses-mode-not-applicable"]').exists()).toBe(true)
@@ -942,9 +942,9 @@ describe('BulkEditAccountModal', () => {
     })
 
     await wrapper.get('#bulk-edit-openai-native-compaction-v2-mode-enabled').setValue(true)
-    await wrapper.get('[data-testid="bulk-edit-openai-native-compaction-v2-mode-select"]').setValue('force_on')
+    await wrapper.get('[data-testid="bulk-edit-openai-native-compaction-v2-mode-select"] input').setValue(true)
     await wrapper.get('#bulk-edit-openai-compact-mode-enabled').setValue(true)
-    await wrapper.get('[data-testid="bulk-edit-openai-compact-mode-select"]').setValue('force_on')
+    await wrapper.get('[data-testid="bulk-edit-openai-compact-mode-select"] input').setValue(true)
     await wrapper.get('#bulk-edit-openai-compact-model-mapping-enabled').setValue(true)
     await wrapper.get('[data-testid="bulk-edit-openai-compact-model-mapping-add"]').trigger('click')
     const inputs = wrapper.findAll('[data-testid="bulk-edit-openai-compact-model-mapping-input"]')

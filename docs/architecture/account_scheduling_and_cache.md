@@ -76,7 +76,7 @@ OpenAI/Grok 是通用核心的能力适配者：在高级分组中，OpenAI 额�
 
 Bedrock 账号的模型筛选包含型号、来源区域及全局推理开关的统一解析。没有已核实有效路由的账号不会进入候选；模型目录与持久可用性诊断复用同一边界，具体优先级和未知规则处理见 [Bedrock 模型与来源区域](../interfaces/anthropic_upstream.md#bedrock_region_routing)。
 
-通过硬过滤后才比较优先级、近期使用、账号负载、排队、错误率、延迟、重置窗口或配额余量。高级核心提供跨平台的固定评分与 Top-K 选择机制，OpenAI/Grok 适配器只补充其请求确实具备的 Responses transport、WebSocket、旧版 `/responses/compact`、原生 `remote_compaction_v2`、previous response、订阅和额度信号。原生 V2 继续使用普通 Responses 模型路由，但会独立读取 `openai_native_compaction_v2_mode` 与其 V2 探测状态；它从不读取旧版 Compact 端点状态。自动模式下未探测账号保持候选，明确不支持或强制关闭才被 V2 请求排除，强制开启仍不能绕过普通 Responses 端点能力。上游声明倍率、OAuth 参考倍率和 `upstream_cost` 权重不再参与候选排序或评分；账户本地 `rate_multiplier` 与渠道上游计费模型来源只属于结算。新增评分项不能绕过硬资格，也不能因缺少观测把账号永久降为不可用。
+通过硬过滤后才比较优先级、近期使用、账号负载、排队、错误率、延迟、重置窗口或配额余量。高级核心提供跨平台的固定评分与 Top-K 选择机制，OpenAI/Grok 适配器只补充其请求确实具备的 Responses transport、WebSocket、旧版 `/responses/compact`、原生 `remote_compaction_v2`、previous response、订阅和额度信号。原生 V2 继续使用普通 Responses 模型路由，独立读取管理员配置的 `openai_native_compaction_v2_mode`；它不读取任何历史探测状态或旧版 Compact 开关。管理员关闭时才排除该压缩能力，开启仍不能绕过普通 Responses 端点能力。调度元数据投影必须保留两类压缩开关与文本路由配置。上游声明倍率、OAuth 参考倍率和 `upstream_cost` 权重不再参与候选排序或评分；账户本地 `rate_multiplier` 与渠道上游计费模型来源只属于结算。新增评分项不能绕过硬资格，也不能因缺少观测把账号永久降为不可用。
 
 ## 账号自动停调阈值
 

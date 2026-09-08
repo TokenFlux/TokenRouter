@@ -156,29 +156,10 @@
                 <p class="input-hint">{{ t('admin.accounts.autoPauseThresholdHint') }}</p>
               </div>
             </div>
-            <div class="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <div class="min-w-0">
-                <label class="input-label mb-0">{{ t('admin.accounts.openai.nativeCompactV2Mode') }}</label>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {{ t('admin.accounts.openai.nativeCompactV2ModeDesc') }}
-                </p>
-              </div>
-              <Select
-                v-model="nativeCompactV2Mode"
-                :options="nativeCompactV2ModeOptions"
-                class="w-full sm:w-44"
-                data-testid="openai-oauth-default-native-compaction-v2-mode"
-              />
-            </div>
-            <div class="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-              <div class="min-w-0">
-                <label class="input-label mb-0">{{ t('admin.accounts.openai.compactMode') }}</label>
-                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {{ t('admin.accounts.openai.compactModeDesc') }}
-                </p>
-              </div>
-              <Select v-model="compactMode" :options="compactModeOptions" class="w-full sm:w-44" />
-            </div>
+            <OpenAICompactionCheckbox v-model="nativeCompactV2Mode" test-id="openai-oauth-default-native-compaction-v2-mode"
+              :label="t('admin.accounts.openai.nativeCompactV2Mode')" :hint="t('admin.accounts.openai.nativeCompactV2ModeDesc')" />
+            <OpenAICompactionCheckbox v-model="compactMode" test-id="openai-oauth-default-compact-mode"
+              :label="t('admin.accounts.openai.compactMode')" :hint="t('admin.accounts.openai.compactModeDesc')" />
             <div class="space-y-3 border-t border-gray-100 pt-4 dark:border-dark-700">
               <div class="flex items-center justify-between gap-4">
                 <div>
@@ -332,6 +313,7 @@
 </template>
 
 <script setup lang="ts">
+import OpenAICompactionCheckbox from '@/components/account/OpenAICompactionCheckbox.vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { adminAPI } from '@/api'
@@ -384,8 +366,8 @@ const codexImageToolMode = ref<CodexImageToolMode>('inherit')
 const openAIOAuthClientPolicy = ref<OpenAIOAuthClientPolicy>('any')
 const codexCLIOnlyAllowClaudeCode = ref(false)
 const wsMode = ref<OpenAIWSMode>(OPENAI_WS_MODE_OFF)
-const compactMode = ref<OpenAICompactMode>('auto')
-const nativeCompactV2Mode = ref<OpenAICompactMode>('auto')
+const compactMode = ref<OpenAICompactMode>('force_on')
+const nativeCompactV2Mode = ref<OpenAICompactMode>('force_on')
 const tlsFingerprintEnabled = ref(false)
 const tlsFingerprintProfileId = ref<number | null>(null)
 const tlsFingerprintProfiles = ref<{ id: number; name: string }[]>([])
@@ -466,16 +448,8 @@ const openAIOAuthClientPolicyOptions = computed<SelectOption[]>(() => [
   }
 ])
 
-const compactModeOptions = computed<SelectOption[]>(() => [
-  { value: 'auto', label: t('admin.accounts.openai.compactModeAuto') },
-  { value: 'force_on', label: t('admin.accounts.openai.compactModeForceOn') },
-  { value: 'force_off', label: t('admin.accounts.openai.compactModeForceOff') }
-])
-const nativeCompactV2ModeOptions = computed<SelectOption[]>(() => [
-  { value: 'auto', label: t('admin.accounts.openai.nativeCompactV2ModeAuto') },
-  { value: 'force_on', label: t('admin.accounts.openai.nativeCompactV2ModeForceOn') },
-  { value: 'force_off', label: t('admin.accounts.openai.nativeCompactV2ModeForceOff') }
-])
+
+
 
 const tlsFingerprintProfileOptions = computed<SelectOption[]>(() => [
   { value: null, label: t('admin.accounts.quotaControl.tlsFingerprint.defaultProfile') },
@@ -570,9 +544,7 @@ const addDefaultPresetMapping = (from: string, to: string) => {
   defaultModelMappings.value.push({ from, to })
 }
 
-const isCompactMode = (value: unknown): value is OpenAICompactMode => {
-  return value === 'auto' || value === 'force_on' || value === 'force_off'
-}
+
 
 const normalizeTLSFingerprintProfileId = (value: unknown): number | null => {
   // 导入模板保存为 JSON，profile_id 可能来自数字或数字字符串，这里统一归一化。
@@ -646,10 +618,8 @@ const hydrate = (defaults: OpenAIOAuthImportDefaults) => {
     fallbackEnabledKeys: ['responses_websockets_v2_enabled', 'openai_ws_enabled'],
     defaultMode: OPENAI_WS_MODE_OFF
   })
-  compactMode.value = isCompactMode(extra.openai_compact_mode) ? extra.openai_compact_mode : 'auto'
-  nativeCompactV2Mode.value = isCompactMode(extra.openai_native_compaction_v2_mode)
-    ? extra.openai_native_compaction_v2_mode
-    : 'auto'
+  compactMode.value = extra.openai_compact_mode === 'force_off' ? 'force_off' : 'force_on'
+  nativeCompactV2Mode.value = extra.openai_native_compaction_v2_mode === 'force_off' ? 'force_off' : 'force_on'
   tlsFingerprintEnabled.value = extra.enable_tls_fingerprint === true
   tlsFingerprintProfileId.value = tlsFingerprintEnabled.value
     ? normalizeTLSFingerprintProfileId(extra.tls_fingerprint_profile_id)
@@ -772,12 +742,8 @@ const save = async () => {
     if (autoPause7dDisabled.value) {
       extra.auto_pause_7d_disabled = true
     }
-    if (compactMode.value !== 'auto') {
-      extra.openai_compact_mode = compactMode.value
-    }
-    if (nativeCompactV2Mode.value !== 'auto') {
-      extra.openai_native_compaction_v2_mode = nativeCompactV2Mode.value
-    }
+    extra.openai_compact_mode = compactMode.value
+    extra.openai_native_compaction_v2_mode = nativeCompactV2Mode.value
     if (tlsFingerprintEnabled.value) {
       extra.enable_tls_fingerprint = true
       if (tlsFingerprintProfileId.value !== null) {

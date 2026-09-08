@@ -665,6 +665,23 @@ describe('EditAccountModal', () => {
     })
   })
 
+  it('压缩开关独立控制，旧版关闭时隐藏映射，协议至少保留一项', async () => {
+    const wrapper = mountModal(buildAccount())
+    const responses = wrapper.get<HTMLInputElement>('[data-testid="openai-text-protocol-responses"]')
+    const chat = wrapper.get<HTMLInputElement>('[data-testid="openai-text-protocol-chat_completions"]')
+    await chat.setValue(false)
+    expect(responses.element.checked).toBe(true)
+    expect(responses.element.disabled).toBe(true)
+    await chat.setValue(true)
+    expect(responses.element.disabled).toBe(false)
+    await wrapper.get('[data-testid="edit-openai-compact-mode"]').setValue(false)
+    expect(wrapper.text()).not.toContain('admin.accounts.openai.compactModelMapping')
+    expect(wrapper.get<HTMLInputElement>('[data-testid="edit-openai-native-compaction-v2-mode"]').element.checked).toBe(true)
+    await wrapper.get('[data-testid="edit-openai-compact-mode"]').setValue(true)
+    expect(wrapper.find('[data-testid="openai-responses-probe-status"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
   it('submits independent OpenAI native V2 and legacy compact settings', async () => {
     const account = buildAccount()
     account.extra = {
@@ -1009,7 +1026,7 @@ describe('EditAccountModal', () => {
     expect(extra.retained).toBe('value')
   })
 
-  it('submits OpenAI APIKey text route mode and keeps probe status read-only', async () => {
+  it('submits administrator text protocols and removes probe state', async () => {
     const account = buildAccount()
     account.extra = {
       openai_text_route_mode: 'force_chat_completions',
@@ -1025,12 +1042,13 @@ describe('EditAccountModal', () => {
     const wrapper = mountModal(account)
 
     expect(wrapper.get('[data-testid="edit-openai-continuation-supported"]').attributes('role')).toBe('switch')
-    await wrapper.get('[data-testid="openai-text-route-mode-select"]').setValue('force_responses')
+    await wrapper.get('[data-testid="openai-text-protocol-responses"]').setValue(true)
+    await wrapper.get('[data-testid="openai-text-protocol-chat_completions"]').setValue(false)
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_text_route_mode).toBe('force_responses')
-    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_probe_status).toBe('unsupported')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_probe_status).toBeUndefined()
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_continuation_supported).toBe(true)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.images_url_to_b64_json).toBe(true)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('openai_responses_mode')
@@ -1056,16 +1074,15 @@ describe('EditAccountModal', () => {
 
     const wrapper = mountModal(account)
 
-    const routeSelect = wrapper.get<HTMLSelectElement>('[data-testid="openai-text-route-mode-select"]')
-    expect(routeSelect.element.value).toBe('force_chat_completions')
-    expect(wrapper.get('[data-testid="openai-responses-probe-status"]').text()).toContain('Supported')
-
-    await routeSelect.setValue('preserve_client_protocol')
+    const responses = wrapper.get<HTMLInputElement>('[data-testid="openai-text-protocol-responses"]')
+    expect(responses.element.checked).toBe(false)
+    expect(wrapper.find('[data-testid="openai-responses-probe-status"]').exists()).toBe(false)
+    await responses.setValue(true)
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_text_route_mode).toBe('preserve_client_protocol')
-    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_probe_status).toBe('supported')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_probe_status).toBeUndefined()
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_continuation_supported).toBe(false)
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('openai_responses_mode')
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('openai_responses_supported')
@@ -1179,12 +1196,10 @@ describe('EditAccountModal', () => {
 
     const wrapper = mountModal(account)
 
-    const routeModeSelect = wrapper.get<HTMLSelectElement>(
-      '[data-testid="openai-text-route-mode-select"]'
-    )
-
-    expect(routeModeSelect.element.disabled).toBe(false)
-    expect(routeModeSelect.element.value).toBe('force_responses')
+    const responses = wrapper.get<HTMLInputElement>('[data-testid="openai-text-protocol-responses"]')
+    expect(responses.element.checked).toBe(true)
+    expect(responses.element.disabled).toBe(true)
+    expect(wrapper.get<HTMLInputElement>('[data-testid="openai-text-protocol-chat_completions"]').element.disabled).toBe(false)
 
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
@@ -1194,7 +1209,7 @@ describe('EditAccountModal', () => {
     ])
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('openai_capabilities')
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_text_route_mode).toBe('force_responses')
-    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_probe_status).toBe('supported')
+    expect(updateAccountMock.mock.calls[0]?.[1]?.extra?.openai_responses_probe_status).toBeUndefined()
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('openai_responses_mode')
     expect(updateAccountMock.mock.calls[0]?.[1]?.extra).not.toHaveProperty('openai_responses_supported')
   })

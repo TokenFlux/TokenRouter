@@ -2132,8 +2132,8 @@ describe("admin SettingsView payment visible method controls", () => {
     await flushPromises();
 
     const mode = wrapper.get('[data-testid="openai-oauth-default-native-compaction-v2-mode"]');
-    expect((mode.element as HTMLSelectElement).value).toBe("force_off");
-    await mode.setValue("force_on");
+    expect((mode.element as HTMLInputElement).checked).toBe(false);
+    await mode.setValue(true);
 
     const defaultsCard = wrapper.get("#openai-oauth-import-defaults");
     const saveButton = defaultsCard

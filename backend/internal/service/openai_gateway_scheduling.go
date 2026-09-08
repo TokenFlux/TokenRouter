@@ -369,7 +369,7 @@ func openAIAccountSupportsRoutingModel(ctx context.Context, account *Account, ro
 }
 
 // openAICompactSupportTier 按 OpenAI 兼容账号的 compact 能力分级。
-// 0 表示明确不支持，1 表示尚未探测，2 表示明确支持。
+// 0 表示管理员禁用，2 表示管理员启用；不再按探测状态分层。
 func openAICompactSupportTier(account *Account) int {
 	if account == nil {
 		return 0
@@ -380,11 +380,7 @@ func openAICompactSupportTier(account *Account) int {
 	if !account.IsOpenAI() {
 		return 0
 	}
-	supported, known := account.OpenAICompactSupportKnown()
-	if !known {
-		return 1
-	}
-	if supported {
+	if account.AllowsOpenAICompact() {
 		return 2
 	}
 	return 0

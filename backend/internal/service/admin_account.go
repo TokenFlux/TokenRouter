@@ -107,6 +107,15 @@ const (
 
 // DiscardDeprecatedAccountExtra 静默移除旧客户端可能继续提交的废弃账号扩展键。
 func DiscardDeprecatedAccountExtra(extra map[string]any) {
+	for _, key := range []string{"openai_responses_probe_status", "openai_responses_supported", "openai_compact_supported", "openai_compact_checked_at", "openai_compact_last_status", "openai_compact_last_error", "openai_native_compaction_v2_supported", "openai_native_compaction_v2_checked_at", "openai_native_compaction_v2_last_status", "openai_native_compaction_v2_last_error"} {
+		delete(extra, key)
+	}
+	// auto 仅为旧客户端输入，管理写入后固定为开启。
+	for _, key := range []string{"openai_compact_mode", openAINativeCompactionV2ModeExtraKey} {
+		if mode, ok := extra[key].(string); ok && strings.EqualFold(strings.TrimSpace(mode), "auto") {
+			extra[key] = OpenAICompactModeForceOn
+		}
+	}
 	delete(extra, deprecatedUpstreamBillingProbeExtraKey)
 	delete(extra, deprecatedUpstreamBillingProbeEnabledExtraKey)
 	delete(extra, deprecatedOpenAILongContextBillingExtraKey)
@@ -797,17 +806,7 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 				normalizedExtra[key] = v
 			}
 		}
-		// Responses 探测状态由探测服务维护；普通整对象编辑未携带该字段时保留现值。
 		if isOpenAIAPIKeyAccount(account) {
-			_, newProbeProvided := input.Extra[openai_compat.ExtraKeyResponsesProbeStatus]
-			_, legacyProbeProvided := input.Extra[legacyOpenAIResponsesSupportedExtraKey]
-			if !newProbeProvided && !legacyProbeProvided {
-				if value, ok := account.Extra[openai_compat.ExtraKeyResponsesProbeStatus]; ok {
-					normalizedExtra[openai_compat.ExtraKeyResponsesProbeStatus] = value
-				} else if value, ok := account.Extra[legacyOpenAIResponsesSupportedExtraKey]; ok {
-					normalizedExtra[legacyOpenAIResponsesSupportedExtraKey] = value
-				}
-			}
 			// 新增能力字段对旧版编辑器保持兼容；未回传时保留已有管理员设置。
 			_, continuationProvided := input.Extra[openai_compat.ExtraKeyResponsesContinuationSupported]
 			if !continuationProvided {

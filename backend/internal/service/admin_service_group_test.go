@@ -2430,3 +2430,34 @@ func TestAdminService_UpdateGroup_InvalidRequestFallbackAllowsAntigravity(t *tes
 	require.NotNil(t, repo.updated)
 	require.Equal(t, fallbackID, *repo.updated.FallbackGroupIDOnInvalidRequest)
 }
+
+// 新策略必须优先于旧布尔输入，并在更新、缓存失效和平台切换中完整保留。
+func TestAdminGroupOpenAIFastPolicy(t *testing.T) {
+	for _, policy := range []string{"follow_request", "force_priority", "force_ultrafast", "force_off"} {
+		t.Run(policy, func(t *testing.T) {
+			repo := &groupRepoStubForAdmin{}
+			invalidator := &authCacheInvalidatorStub{}
+			svc := &adminServiceImpl{groupRepo: repo, authCacheInvalidator: invalidator}
+			group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{Name: "fast", Platform: PlatformOpenAI, RateMultiplier: 1, ForceOpenAIFast: true, OpenAIFastPolicy: &policy})
+			require.NoError(t, err)
+			require.Equal(t, policy, group.OpenAIFastPolicy)
+			require.Equal(t, policy == "force_priority", group.ForceOpenAIFast)
+			group.ID = 1
+			repo.getByID = group
+			kept, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{})
+			require.NoError(t, err)
+			require.Equal(t, policy, kept.OpenAIFastPolicy)
+			off := false
+			changed, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{ForceOpenAIFast: &off})
+			require.NoError(t, err)
+			require.Equal(t, "follow_request", changed.OpenAIFastPolicy)
+			changed, err = svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{OpenAIFastPolicy: &policy})
+			require.NoError(t, err)
+			require.Equal(t, policy, changed.OpenAIFastPolicy)
+			require.Contains(t, invalidator.groupIDs, int64(1))
+			changed, err = svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{Platform: PlatformAnthropic})
+			require.NoError(t, err)
+			require.Equal(t, "follow_request", changed.OpenAIFastPolicy)
+		})
+	}
+}

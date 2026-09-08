@@ -552,24 +552,13 @@ func parseTempUnschedInt(value any) int {
 }
 
 const (
-	// OpenAICompactModeAuto follows compact-probe results when deciding compact eligibility.
+	// OpenAICompactModeAuto 只为历史配置兼容保留，不再参与探测。
 	OpenAICompactModeAuto = "auto"
 	// OpenAICompactModeForceOn always treats the account as compact-supported.
 	OpenAICompactModeForceOn = "force_on"
 	// OpenAICompactModeForceOff always treats the account as compact-unsupported.
 	OpenAICompactModeForceOff = "force_off"
 )
-
-func normalizeOpenAICompactMode(mode string) string {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case OpenAICompactModeForceOn:
-		return OpenAICompactModeForceOn
-	case OpenAICompactModeForceOff:
-		return OpenAICompactModeForceOff
-	default:
-		return OpenAICompactModeAuto
-	}
-}
 
 func stringMappingFromRaw(raw any) map[string]string {
 	switch mapping := raw.(type) {
@@ -1084,14 +1073,17 @@ func (a *Account) ResolveMappedModel(requestedModel string) (mappedModel string,
 	return requestedModel, false
 }
 
-// GetOpenAICompactMode returns the compact routing mode for an OpenAI account.
-// Missing or invalid values fall back to "auto".
+// GetOpenAICompactMode 返回管理员选择的旧版压缩开关。
+// 历史 auto/缺失值按开启兼容，探测结果不再参与资格判定。
 func (a *Account) GetOpenAICompactMode() string {
-	if a == nil || !a.IsOpenAI() || a.Extra == nil {
-		return OpenAICompactModeAuto
+	if a == nil || !a.IsOpenAI() {
+		return OpenAICompactModeForceOff
 	}
 	mode, _ := a.Extra["openai_compact_mode"].(string)
-	return normalizeOpenAICompactMode(mode)
+	if strings.EqualFold(strings.TrimSpace(mode), OpenAICompactModeForceOff) {
+		return OpenAICompactModeForceOff
+	}
+	return OpenAICompactModeForceOn
 }
 
 // OpenAICompactSupportKnown reports whether compact capability is known for this
@@ -1100,80 +1092,38 @@ func (a *Account) OpenAICompactSupportKnown() (supported bool, known bool) {
 	if a == nil || !a.IsOpenAI() {
 		return false, false
 	}
-
-	switch a.GetOpenAICompactMode() {
-	case OpenAICompactModeForceOn:
-		return true, true
-	case OpenAICompactModeForceOff:
-		return false, true
-	}
-
-	if a.Extra == nil {
-		return false, false
-	}
-	supported, ok := a.Extra["openai_compact_supported"].(bool)
-	if !ok {
-		return false, false
-	}
-	return supported, true
+	return a.GetOpenAICompactMode() == OpenAICompactModeForceOn, true
 }
 
-// AllowsOpenAICompact reports whether the account may be considered for compact
-// requests. Unknown capability remains allowed to avoid breaking older accounts
-// before an explicit probe has been run.
+// AllowsOpenAICompact 判断管理员是否启用旧版压缩。
 func (a *Account) AllowsOpenAICompact() bool {
-	if a == nil || !a.IsOpenAI() {
-		return false
-	}
-	supported, known := a.OpenAICompactSupportKnown()
-	if !known {
-		return true
-	}
-	return supported
+	return a != nil && a.IsOpenAI() && a.GetOpenAICompactMode() == OpenAICompactModeForceOn
 }
 
-// GetOpenAINativeCompactionV2Mode 返回原生 V2 压缩的账号级调度模式。
-// 缺失或非法值保持自动，避免历史账号因新增配置被意外排除。
+// GetOpenAINativeCompactionV2Mode 返回原生 V2 压缩的管理员开关。
 func (a *Account) GetOpenAINativeCompactionV2Mode() string {
-	if a == nil || !a.IsOpenAI() || a.Extra == nil {
-		return OpenAICompactModeAuto
+	if a == nil || !a.IsOpenAI() {
+		return OpenAICompactModeForceOff
 	}
 	mode, _ := a.Extra[openAINativeCompactionV2ModeExtraKey].(string)
-	return normalizeOpenAICompactMode(mode)
+	if strings.EqualFold(strings.TrimSpace(mode), OpenAICompactModeForceOff) {
+		return OpenAICompactModeForceOff
+	}
+	return OpenAICompactModeForceOn
 }
 
 // OpenAINativeCompactionV2SupportKnown 返回原生 V2 是否已具有明确的有效支持结论。
-// 强制模式优先于探测状态；自动模式仅使用原生 V2 的独立探测字段。
+// 管理员开关是唯一资格依据，不读取历史探测字段。
 func (a *Account) OpenAINativeCompactionV2SupportKnown() (supported bool, known bool) {
 	if a == nil || !a.IsOpenAI() {
 		return false, false
 	}
-
-	switch a.GetOpenAINativeCompactionV2Mode() {
-	case OpenAICompactModeForceOn:
-		return true, true
-	case OpenAICompactModeForceOff:
-		return false, true
-	}
-
-	if a.Extra == nil {
-		return false, false
-	}
-	supported, ok := a.Extra[openAINativeCompactionV2SupportedExtraKey].(bool)
-	if !ok {
-		return false, false
-	}
-	return supported, true
+	return a.GetOpenAINativeCompactionV2Mode() == OpenAICompactModeForceOn, true
 }
 
-// AllowsOpenAINativeCompactionV2 保留自动模式下未探测账号的既有可用性，
-// 但会排除明确不支持或被管理员强制关闭的账号。
+// AllowsOpenAINativeCompactionV2 判断管理员是否启用原生 V2 压缩。
 func (a *Account) AllowsOpenAINativeCompactionV2() bool {
-	if a == nil || !a.IsOpenAI() {
-		return false
-	}
-	supported, known := a.OpenAINativeCompactionV2SupportKnown()
-	return !known || supported
+	return a != nil && a.IsOpenAI() && a.GetOpenAINativeCompactionV2Mode() == OpenAICompactModeForceOn
 }
 
 // GetCompactModelMapping returns compact-only model remapping configuration.

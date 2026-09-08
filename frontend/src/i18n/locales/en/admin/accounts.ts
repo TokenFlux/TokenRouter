@@ -775,9 +775,11 @@ export default {
           'Controls whether this account can be scheduled for text generation and embeddings workloads.',
         workloadTextGeneration: 'Text generation',
         workloadEmbeddings: 'Embeddings',
-        textRouteMode: 'Text protocol routing',
+        textRouteMode: 'Upstream text protocols',
         textRouteModeDesc:
-          'Selects the upstream protocol for ordinary text requests. Explicit force modes override probe observations.',
+          'Select the text protocols supported by this upstream.',
+        textProtocolsHint: 'Select both to preserve the client protocol, or one to convert requests to it. At least one is required.',
+        testProtocol: 'Test protocol',
         textRoutePreserveClientProtocol: 'Preserve client protocol',
         textRouteForceResponses: 'Force Responses',
         textRouteForceChatCompletions: 'Force Chat Completions',
@@ -835,7 +837,7 @@ export default {
         codexImageToolBadgeBlock: 'Client image tools stripped',
         compactMode: 'Legacy compact endpoint',
         compactModeDesc:
-          'Controls how this account participates in legacy /responses/compact routing only. It does not affect native remote_compaction_v2 requests. Auto follows probe results, Force On always allows, and Force Off always excludes.',
+          'Enable the legacy /responses/compact endpoint, independently of native V2 compaction.',
         compactModeAuto: 'Auto',
         compactModeForceOn: 'Force On',
         compactModeForceOff: 'Force Off',
@@ -849,7 +851,7 @@ export default {
         compactLastChecked: 'Last legacy compact probe',
         nativeCompactV2Mode: 'Native V2 compact',
         nativeCompactV2ModeDesc:
-          'Controls how this account participates in native remote_compaction_v2 routing only. Auto follows native V2 probe results, Force On always allows, and Force Off always excludes.',
+          'Enable native remote_compaction_v2 for this account.',
         nativeCompactV2ModeAuto: 'Auto',
         nativeCompactV2ModeForceOn: 'Force On',
         nativeCompactV2ModeForceOff: 'Force Off',
@@ -859,8 +861,8 @@ export default {
         nativeCompactV2LastChecked: 'Last native V2 compact probe',
         testMode: 'Test mode',
         testModeDefault: 'Default request',
-        testModeCompact: 'Native V2 compact probe',
-        testModeLegacyCompact: 'Legacy compact endpoint probe',
+        testModeCompact: 'Native V2 compaction test',
+        testModeLegacyCompact: 'Legacy Compact endpoint test',
         modelRestrictionDisabledByPassthrough: 'Automatic passthrough is enabled: the final model whitelist and account model mapping will not take effect.',
       },
       grok: {

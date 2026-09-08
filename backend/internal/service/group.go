@@ -132,6 +132,8 @@ type Group struct {
 	AllowLive             bool
 	// ForceOpenAIFast 强制 OpenAI/Composite 分组请求使用 service_tier=priority。
 	ForceOpenAIFast bool
+	// OpenAIFastPolicy 保存管理员选择的互斥加速策略。
+	OpenAIFastPolicy string
 	// FreeOpenAIFast 让 OpenAI/Composite 分组的 Fast 请求按 Standard 价格向用户计费。
 	FreeOpenAIFast              bool
 	RequireOAuthOnly            bool // 仅允许非 apikey 类型账号关联（OpenAI/Antigravity/Anthropic/Gemini）

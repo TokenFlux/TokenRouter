@@ -125,6 +125,16 @@
 
 认证缓存版本由 v34 升至 v35，快照增加该动作。HTTP Responses/Chat、Messages 兼容桥和 Responses WebSocket 都在出站前执行“模型范围映射后再比较上限”的规则；拒绝请求属于本地业务限制，不应进入账号故障转移或 SLA 失败统计。Messages 只对显式 `output_config.effort` 绑定策略，避免改变缺省请求的桥接默认值。部署时先执行迁移并升级全部后端实例，确认旧快照失效、管理 API 往返字段正确，再开放 `deny` 配置。旧二进制会忽略新列，不能在混跑期间依赖拒绝语义；回退时无需删除列，但应停止写入新动作并重新构建缓存。
 
+### 分组 Fast/Ultra Fast 策略
+
+迁移 `269_group_openai_fast_policy.sql` 新增默认跟随请求的四值策略列，首次新增时把旧 OpenAI/Composite 的 `force_openai_fast=true` 回填为强制 Fast，重复执行不覆盖新值。旧列保留兼容镜像。先完成全部后端升级和认证快照 v38 重建，再开放 Ultra Fast/关闭策略；旧实例无法执行新语义，不应混跑。
+
+### OpenAI 能力探测下线
+
+迁移 `270_openai_manual_protocol_capabilities.sql` 将 OpenAI 账号原生 V2/旧版 Compact 的自动模式固定为升级前有效开关，保留人工 force_on/force_off，并清除 Responses 与压缩的历史探测字段。没有明确不支持结论的自动账号保持开启。文本路由继续使用已有管理员三态，双协议模式不再因探测结果降级为 Chat；国产供应商改用其显式协议配置生成路由。
+
+全部后端升级后再开放新的管理控件；旧实例仍可能执行探测和旧路由逻辑，不支持依赖新行为的新旧混跑。迁移更新账号 extra 后沿用调度投影失效机制。回退二进制不会恢复被清理的探测状态；需要精确回退时使用升级前数据库备份。验证时覆盖两个协议的单选/双选、两类压缩开关以及手动测试不改变配置。
+
 ### 分组 OpenAI Fast Standard 计费迁移
 
 迁移 `264_group_free_openai_fast.sql` 为 `groups` 增加默认关闭的 `free_openai_fast` 布尔列。管理 API、分组复制和认证快照只对 OpenAI/Composite 分组保留该策略；平台切换到其它类型时由服务层清零。上游请求仍使用 Fast/priority，只有用户侧结算在同一模型、渠道和计费时刻重新采用 Standard 价格。

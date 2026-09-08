@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AccountTestModal from '../AccountTestModal.vue'
+import { ADMIN_UI_REQUEST_HEADER } from '@/api/adminUIRequest'
 
 const { getAvailableModels, copyToClipboard } = vi.hoisted(() => ({
   getAvailableModels: vi.fn(),
@@ -186,6 +187,23 @@ describe('AccountTestModal', () => {
       prompt: 'hi',
       test_type: 'text'
     })
+  })
+
+  it('OpenAI API Key 显式选择测试协议，保留管理请求标记且不影响账号配置', async () => {
+    const account = { id: 42, name: 'Protocol test', platform: 'openai', type: 'apikey', status: 'active', extra: { openai_text_route_mode: 'force_responses' } }
+    const wrapper = mountModal(account)
+    await wrapper.setProps({ show: true })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="account-test-protocol"]').exists()).toBe(true)
+    ;(wrapper.vm as any).testProtocol = 'chat_completions'
+    await (wrapper.vm as any).startTest()
+    const request = (global.fetch as any).mock.calls[0][1]
+    expect(JSON.parse(request.body).protocol).toBe('chat_completions')
+    expect(request.headers[ADMIN_UI_REQUEST_HEADER]).toBe('1')
+    expect(account.extra.openai_text_route_mode).toBe('force_responses')
+    await wrapper.setProps({ account: { ...account, type: 'oauth' } } as any)
+    expect(wrapper.find('[data-testid="account-test-protocol"]').exists()).toBe(false)
+    wrapper.unmount()
   })
 
   it('OpenAI 原生 V2 压缩探测会携带 compact 测试模式', async () => {

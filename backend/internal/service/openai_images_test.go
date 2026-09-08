@@ -701,14 +701,14 @@ func TestAccountSupportsOpenAIEndpointCapability(t *testing.T) {
 		require.True(t, account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityResponses))
 	})
 
-	t.Run("responses 能力：探测确认不支持的 APIKey 被排除", func(t *testing.T) {
+	t.Run("responses 能力：历史探测不再排除 APIKey", func(t *testing.T) {
 		account := &Account{
 			Platform: PlatformOpenAI,
 			Type:     AccountTypeAPIKey,
 			Extra:    map[string]any{"openai_responses_probe_status": "unsupported"},
 		}
 
-		require.False(t, account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityResponses))
+		require.True(t, account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityResponses))
 		// 非生图路径仍可选中（只要求 chat_completions）。
 		require.True(t, account.SupportsOpenAIEndpointCapability(OpenAIEndpointCapabilityTextGeneration))
 	})

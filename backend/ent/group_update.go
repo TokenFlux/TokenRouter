@@ -967,6 +967,20 @@ func (_u *GroupUpdate) SetNillableAllowLive(v *bool) *GroupUpdate {
 	return _u
 }
 
+// SetOpenaiFastPolicy sets the "openai_fast_policy" field.
+func (_u *GroupUpdate) SetOpenaiFastPolicy(v string) *GroupUpdate {
+	_u.mutation.SetOpenaiFastPolicy(v)
+	return _u
+}
+
+// SetNillableOpenaiFastPolicy sets the "openai_fast_policy" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableOpenaiFastPolicy(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetOpenaiFastPolicy(*v)
+	}
+	return _u
+}
+
 // SetForceOpenaiFast sets the "force_openai_fast" field.
 func (_u *GroupUpdate) SetForceOpenaiFast(v bool) *GroupUpdate {
 	_u.mutation.SetForceOpenaiFast(v)
@@ -1791,6 +1805,9 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AllowLive(); ok {
 		_spec.SetField(group.FieldAllowLive, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.OpenaiFastPolicy(); ok {
+		_spec.SetField(group.FieldOpenaiFastPolicy, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.ForceOpenaiFast(); ok {
 		_spec.SetField(group.FieldForceOpenaiFast, field.TypeBool, value)
@@ -3096,6 +3113,20 @@ func (_u *GroupUpdateOne) SetNillableAllowLive(v *bool) *GroupUpdateOne {
 	return _u
 }
 
+// SetOpenaiFastPolicy sets the "openai_fast_policy" field.
+func (_u *GroupUpdateOne) SetOpenaiFastPolicy(v string) *GroupUpdateOne {
+	_u.mutation.SetOpenaiFastPolicy(v)
+	return _u
+}
+
+// SetNillableOpenaiFastPolicy sets the "openai_fast_policy" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableOpenaiFastPolicy(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetOpenaiFastPolicy(*v)
+	}
+	return _u
+}
+
 // SetForceOpenaiFast sets the "force_openai_fast" field.
 func (_u *GroupUpdateOne) SetForceOpenaiFast(v bool) *GroupUpdateOne {
 	_u.mutation.SetForceOpenaiFast(v)
@@ -3950,6 +3981,9 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.AllowLive(); ok {
 		_spec.SetField(group.FieldAllowLive, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.OpenaiFastPolicy(); ok {
+		_spec.SetField(group.FieldOpenaiFastPolicy, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.ForceOpenaiFast(); ok {
 		_spec.SetField(group.FieldForceOpenaiFast, field.TypeBool, value)

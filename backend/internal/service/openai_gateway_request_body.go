@@ -1647,14 +1647,21 @@ type openAIFastModeDecision struct {
 	Blocked     *OpenAIFastBlockedError
 }
 
-// openAIGroupForcesFast 仅信任认证链路注入的、已完整加载的分组上下文。
-// 复合分组在请求期会投影到 OpenAI 账号，因此也允许复合分组启用该策略。
-func openAIGroupForcesFast(ctx context.Context, account *Account) bool {
-	if ctx == nil || account == nil || account.Platform != PlatformOpenAI {
-		return false
+// openAIGroupFastPolicy 只信任认证链路完整加载的分组，并限于 OpenAI 账号。
+func openAIGroupFastPolicy(ctx context.Context, account *Account) string {
+	if ctx == nil || account == nil || !account.IsOpenAI() {
+		return GroupOpenAIFastPolicyFollowRequest
 	}
 	group, _ := ctx.Value(ctxkey.Group).(*Group)
-	return IsGroupContextValid(group) && groupSupportsOpenAIFast(group.Platform) && group.ForceOpenAIFast
+	if !IsGroupContextValid(group) || !groupSupportsOpenAIFast(group.Platform) {
+		return GroupOpenAIFastPolicyFollowRequest
+	}
+	return group.EffectiveOpenAIFastPolicy()
+}
+
+// isOpenAIAcceleratedTier 同时覆盖 Fast 和 Ultra Fast。
+func isOpenAIAcceleratedTier(tier string) bool {
+	return tier == OpenAIFastTierPriority || tier == OpenAIFastTierUltrafast
 }
 
 // resolveOpenAIFastModeDecision 统一解析系统策略与单 Key 策略。
@@ -1667,11 +1674,12 @@ func (s *OpenAIGatewayService) resolveOpenAIFastModeDecision(
 	hasField bool,
 ) openAIFastModeDecision {
 	normTier := normalizedOpenAIServiceTierValue(rawTier)
-	if openAIGroupForcesFast(ctx, account) {
-		// 组级强制先形成 priority，再交给全局策略裁决；这样没有显式
-		// service_tier 的请求也能覆盖，同时 ForceOff 仍可删除该字段。
-		normTier = OpenAIFastTierPriority
-		hasField = true
+	groupPolicy := openAIGroupFastPolicy(ctx, account)
+	switch groupPolicy {
+	case GroupOpenAIFastPolicyForcePriority:
+		normTier, hasField = OpenAIFastTierPriority, true
+	case GroupOpenAIFastPolicyForceUltrafast:
+		normTier, hasField = OpenAIFastTierUltrafast, true
 	}
 	applySystemAction := func(tier string) (openAIFastModeDecision, bool) {
 		action, errMsg := s.evaluateOpenAIFastPolicy(ctx, account, model, tier)
@@ -1685,6 +1693,8 @@ func (s *OpenAIGatewayService) resolveOpenAIFastModeDecision(
 			return openAIFastModeDecision{DeleteField: true}, true
 		case OpenAIFastPolicyActionForcePriority:
 			return openAIFastModeDecision{Tier: OpenAIFastTierPriority}, true
+		case OpenAIFastPolicyActionForceUltrafast:
+			return openAIFastModeDecision{Tier: OpenAIFastTierUltrafast}, true
 		default:
 			return openAIFastModeDecision{}, false
 		}
@@ -1697,6 +1707,13 @@ func (s *OpenAIGatewayService) resolveOpenAIFastModeDecision(
 		}
 	}
 
+	// 全局先裁决；分组关闭后，单 Key 不得重新开启。
+	if groupPolicy == GroupOpenAIFastPolicyForceOff {
+		if isOpenAIAcceleratedTier(normTier) {
+			return openAIFastModeDecision{DeleteField: hasField}
+		}
+		return openAIFastModeDecision{Tier: normTier}
+	}
 	candidateTier := normTier
 	policy := apiKeyFastModePolicyFromContext(ctx)
 	keyPolicyApplicable := false
@@ -1711,10 +1728,13 @@ func (s *OpenAIGatewayService) resolveOpenAIFastModeDecision(
 	if keyPolicyApplicable {
 		switch policy {
 		case APIKeyFastModePolicyForceOn:
-			candidateTier = OpenAIFastTierPriority
+			// 单 Key 开启 Fast 不降低分组强制的 Ultra Fast。
+			if groupPolicy != GroupOpenAIFastPolicyForceUltrafast {
+				candidateTier = OpenAIFastTierPriority
+			}
 		case APIKeyFastModePolicyForceOff:
 			// flex 是低优先级模式，auto/default/scale 也是官方合法 tier，均需保留。
-			if normTier == OpenAIFastTierPriority {
+			if isOpenAIAcceleratedTier(normTier) {
 				candidateTier = ""
 			}
 		}
@@ -1730,7 +1750,7 @@ func (s *OpenAIGatewayService) resolveOpenAIFastModeDecision(
 		}
 		return openAIFastModeDecision{Tier: candidateTier}
 	}
-	if policy == APIKeyFastModePolicyForceOff && keyPolicyApplicable && normTier == OpenAIFastTierPriority {
+	if policy == APIKeyFastModePolicyForceOff && keyPolicyApplicable && isOpenAIAcceleratedTier(normTier) {
 		return openAIFastModeDecision{DeleteField: hasField}
 	}
 	return openAIFastModeDecision{}

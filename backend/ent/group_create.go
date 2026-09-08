@@ -709,6 +709,20 @@ func (_c *GroupCreate) SetNillableAllowLive(v *bool) *GroupCreate {
 	return _c
 }
 
+// SetOpenaiFastPolicy sets the "openai_fast_policy" field.
+func (_c *GroupCreate) SetOpenaiFastPolicy(v string) *GroupCreate {
+	_c.mutation.SetOpenaiFastPolicy(v)
+	return _c
+}
+
+// SetNillableOpenaiFastPolicy sets the "openai_fast_policy" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableOpenaiFastPolicy(v *string) *GroupCreate {
+	if v != nil {
+		_c.SetOpenaiFastPolicy(*v)
+	}
+	return _c
+}
+
 // SetForceOpenaiFast sets the "force_openai_fast" field.
 func (_c *GroupCreate) SetForceOpenaiFast(v bool) *GroupCreate {
 	_c.mutation.SetForceOpenaiFast(v)
@@ -1140,6 +1154,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultAllowLive
 		_c.mutation.SetAllowLive(v)
 	}
+	if _, ok := _c.mutation.OpenaiFastPolicy(); !ok {
+		v := group.DefaultOpenaiFastPolicy
+		_c.mutation.SetOpenaiFastPolicy(v)
+	}
 	if _, ok := _c.mutation.ForceOpenaiFast(); !ok {
 		v := group.DefaultForceOpenaiFast
 		_c.mutation.SetForceOpenaiFast(v)
@@ -1352,6 +1370,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.AllowLive(); !ok {
 		return &ValidationError{Name: "allow_live", err: errors.New(`ent: missing required field "Group.allow_live"`)}
+	}
+	if _, ok := _c.mutation.OpenaiFastPolicy(); !ok {
+		return &ValidationError{Name: "openai_fast_policy", err: errors.New(`ent: missing required field "Group.openai_fast_policy"`)}
 	}
 	if _, ok := _c.mutation.ForceOpenaiFast(); !ok {
 		return &ValidationError{Name: "force_openai_fast", err: errors.New(`ent: missing required field "Group.force_openai_fast"`)}
@@ -1641,6 +1662,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.AllowLive(); ok {
 		_spec.SetField(group.FieldAllowLive, field.TypeBool, value)
 		_node.AllowLive = value
+	}
+	if value, ok := _c.mutation.OpenaiFastPolicy(); ok {
+		_spec.SetField(group.FieldOpenaiFastPolicy, field.TypeString, value)
+		_node.OpenaiFastPolicy = value
 	}
 	if value, ok := _c.mutation.ForceOpenaiFast(); ok {
 		_spec.SetField(group.FieldForceOpenaiFast, field.TypeBool, value)
@@ -2691,6 +2716,18 @@ func (u *GroupUpsert) SetAllowLive(v bool) *GroupUpsert {
 // UpdateAllowLive sets the "allow_live" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateAllowLive() *GroupUpsert {
 	u.SetExcluded(group.FieldAllowLive)
+	return u
+}
+
+// SetOpenaiFastPolicy sets the "openai_fast_policy" field.
+func (u *GroupUpsert) SetOpenaiFastPolicy(v string) *GroupUpsert {
+	u.Set(group.FieldOpenaiFastPolicy, v)
+	return u
+}
+
+// UpdateOpenaiFastPolicy sets the "openai_fast_policy" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateOpenaiFastPolicy() *GroupUpsert {
+	u.SetExcluded(group.FieldOpenaiFastPolicy)
 	return u
 }
 
@@ -3881,6 +3918,20 @@ func (u *GroupUpsertOne) SetAllowLive(v bool) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateAllowLive() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateAllowLive()
+	})
+}
+
+// SetOpenaiFastPolicy sets the "openai_fast_policy" field.
+func (u *GroupUpsertOne) SetOpenaiFastPolicy(v string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetOpenaiFastPolicy(v)
+	})
+}
+
+// UpdateOpenaiFastPolicy sets the "openai_fast_policy" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateOpenaiFastPolicy() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateOpenaiFastPolicy()
 	})
 }
 
@@ -5264,6 +5315,20 @@ func (u *GroupUpsertBulk) SetAllowLive(v bool) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateAllowLive() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateAllowLive()
+	})
+}
+
+// SetOpenaiFastPolicy sets the "openai_fast_policy" field.
+func (u *GroupUpsertBulk) SetOpenaiFastPolicy(v string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetOpenaiFastPolicy(v)
+	})
+}
+
+// UpdateOpenaiFastPolicy sets the "openai_fast_policy" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateOpenaiFastPolicy() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateOpenaiFastPolicy()
 	})
 }
 
