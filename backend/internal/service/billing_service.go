@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -291,7 +292,7 @@ func maxReasoningEffortBillingMultiplier(model, effort string, pricing *ModelPri
 }
 
 func resolvedChannelTimeMultiplier(resolved *ResolvedPricing, at time.Time) float64 {
-	if resolved == nil || resolved.Source != PricingSourceChannel || resolved.channelPricing == nil {
+	if resolved == nil || resolved.Mode != BillingModeToken || resolved.channelPricing == nil {
 		return 1
 	}
 	return resolved.channelPricing.TimePricing.MultiplierAt(at)
@@ -2020,41 +2021,62 @@ func withoutLongContextDisplayPricing(pricing *ModelPricing) *ModelPricing {
 	return &cloned
 }
 
+// resolvedTokenPriceRange 是正上下文范围的实际价格；nil 表示该范围缺价。
+type resolvedTokenPriceRange struct {
+	minTokens int
+	maxTokens *int
+	pricing   *ModelPricing
+}
+
+// resolvedTokenPriceRanges 补齐显式区间前后与中间的默认价范围，不修改原价卡。
+func resolvedTokenPriceRanges(resolved *ResolvedPricing) []resolvedTokenPriceRange {
+	if resolved == nil || len(resolved.Intervals) == 0 {
+		return nil
+	}
+	intervals := append([]PricingInterval(nil), resolved.Intervals...)
+	sort.Slice(intervals, func(i, j int) bool { return intervals[i].MinTokens < intervals[j].MinTokens })
+	ranges := make([]resolvedTokenPriceRange, 0, len(intervals)*2+1)
+	cursor := 0
+	for i := range intervals {
+		interval := &intervals[i]
+		if interval.MinTokens > cursor {
+			maxTokens := interval.MinTokens
+			ranges = append(ranges, resolvedTokenPriceRange{cursor, &maxTokens, withoutLongContextDisplayPricing(resolved.tokenPricingForInterval(nil))})
+		}
+		ranges = append(ranges, resolvedTokenPriceRange{interval.MinTokens, interval.MaxTokens, resolved.tokenPricingForInterval(interval)})
+		if interval.MaxTokens == nil {
+			return ranges
+		}
+		cursor = *interval.MaxTokens
+	}
+	return append(ranges, resolvedTokenPriceRange{cursor, nil, withoutLongContextDisplayPricing(resolved.tokenPricingForInterval(nil))})
+}
+
 func resolvedDisplayTokenPricing(resolved *ResolvedPricing) *ModelPricing {
 	if resolved == nil {
 		return nil
 	}
 	if len(resolved.Intervals) == 0 {
-		return resolved.BasePricing
+		return resolved.tokenPricingForInterval(nil)
 	}
-
-	pricing := intervalToModelPricingWithBase(&resolved.Intervals[0], resolved.SupportsCacheBreakdown, resolved.channelPricing, resolved.BasePricing)
-	pricing.SupportsServiceTier = resolved.SupportsServiceTier
-	for i := 1; i < len(resolved.Intervals); i++ {
-		next := intervalToModelPricingWithBase(&resolved.Intervals[i], resolved.SupportsCacheBreakdown, resolved.channelPricing, resolved.BasePricing)
-		next.SupportsServiceTier = resolved.SupportsServiceTier
-		if !sameDisplayTokenPricing(pricing, next) {
+	ranges := resolvedTokenPriceRanges(resolved)
+	pricing := ranges[0].pricing
+	// 缺价范围或不同价格不能压平成一个覆盖所有上下文的单价。
+	for _, priceRange := range ranges {
+		if priceRange.pricing == nil || !sameDisplayTokenPricing(pricing, priceRange.pricing) {
 			return nil
 		}
 	}
 	return pricing
 }
 
-// resolvedDisplayPricingIntervals 保留无法压平成单价的上下文区间价格。
+// resolvedDisplayPricingIntervals 展示全部有定价的范围，缺价范围不伪装成免费。
 func resolvedDisplayPricingIntervals(resolved *ResolvedPricing, rateMultiplier float64) []ModelDisplayPricingInterval {
-	if resolved == nil || len(resolved.Intervals) == 0 {
-		return nil
-	}
-
-	intervals := make([]ModelDisplayPricingInterval, 0, len(resolved.Intervals))
-	for i := range resolved.Intervals {
-		interval := resolved.Intervals[i]
-		pricing := intervalToModelPricingWithBase(&interval, resolved.SupportsCacheBreakdown, resolved.channelPricing, resolved.BasePricing)
-		pricing.SupportsServiceTier = resolved.SupportsServiceTier
-		if !hasAnyDisplayTokenPricing(pricing) && !pricingIntervalHasEffectiveTokenPricing(interval) {
-			continue
+	var intervals []ModelDisplayPricingInterval
+	for _, priceRange := range resolvedTokenPriceRanges(resolved) {
+		if priceRange.pricing != nil {
+			intervals = append(intervals, modelPricingDisplayInterval(priceRange.minTokens, priceRange.maxTokens, priceRange.pricing, rateMultiplier))
 		}
-		intervals = append(intervals, modelPricingDisplayInterval(interval.MinTokens, interval.MaxTokens, pricing, rateMultiplier))
 	}
 	return intervals
 }
@@ -2071,14 +2093,8 @@ func sameDisplayTokenPricing(a *ModelPricing, b *ModelPricing) bool {
 	if a == nil || b == nil {
 		return a == b
 	}
-	return a.InputPricePerToken == b.InputPricePerToken &&
-		a.ImageInputPricePerToken == b.ImageInputPricePerToken &&
-		a.OutputPricePerToken == b.OutputPricePerToken &&
-		a.CacheCreationPricePerToken == b.CacheCreationPricePerToken &&
-		a.CacheCreation5mPrice == b.CacheCreation5mPrice &&
-		a.CacheCreation1hPrice == b.CacheCreation1hPrice &&
-		a.CacheReadPricePerToken == b.CacheReadPricePerToken &&
-		a.ImageOutputPricePerToken == b.ImageOutputPricePerToken
+	// 普通价和 Fast 价都相同才能合并，避免默认段与显式段的服务层级差异被隐藏。
+	return modelPricingDisplayInterval(0, nil, a, 1) == modelPricingDisplayInterval(0, nil, b, 1)
 }
 
 func resolvedImageTierPrices(resolved *ResolvedPricing) (float64, float64, float64) {
@@ -2253,6 +2269,23 @@ func fastModeDisplayPricing(pricing *ModelPricing) (*ModelPricing, bool) {
 	fastPricing.CacheReadPricePerToken *= multiplier
 	fastPricing.ImageOutputPricePerToken *= multiplier
 	return &fastPricing, true
+}
+
+// resolvedHasFastModeDisplayPricing 同时检查默认价与有效区间，覆盖只有区间单价的自定义模型。
+func resolvedHasFastModeDisplayPricing(resolved *ResolvedPricing) bool {
+	if resolved == nil || resolved.Mode != BillingModeToken {
+		return false
+	}
+	if hasFastModeDisplayPricing(resolved.tokenPricingForInterval(nil)) {
+		return true
+	}
+	for i := range resolved.Intervals {
+		pricing := resolved.tokenPricingForInterval(&resolved.Intervals[i])
+		if hasFastModeDisplayPricing(pricing) {
+			return true
+		}
+	}
+	return false
 }
 
 func hasFastModeDisplayPricing(pricing *ModelPricing) bool {

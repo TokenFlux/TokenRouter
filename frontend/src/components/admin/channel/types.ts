@@ -388,7 +388,7 @@ function validateIntervalPrices(iv: IntervalFormEntry, idx: number, t: Translate
     ['perRequestPrice', iv.per_request_price],
   ]
   for (const [key, val] of prices) {
-    if (val != null && val !== '' && Number(val) < 0) {
+    if (val != null && val !== '' && (!Number.isFinite(Number(val)) || Number(val) < 0)) {
       const field = intervalPriceLabel(t, key)
       return intervalValidationMessage(
         t,

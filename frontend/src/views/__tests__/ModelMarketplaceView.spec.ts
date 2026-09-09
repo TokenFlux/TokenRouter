@@ -272,6 +272,20 @@ describe('ModelMarketplaceView', () => {
     expect(visibleTooltips().some((el) => el.textContent?.includes('marketplace.rateMultiplierHint'))).toBe(true)
   })
 
+  it('模型卡片摘要保留免费默认区间', async () => {
+    const fixture = marketplaceFixture()
+    fixture[0].models[0].pricing = { pricing_mode: 'token', price_status: 'priced', context_intervals: [
+      { min_tokens: 0, max_tokens: 100 },
+      { min_tokens: 100, max_tokens: null, input_price_per_token: 0.000002 },
+    ] }
+    getMarketplaceModels.mockResolvedValue(fixture)
+    const wrapper = await mountMarketplace()
+    const section = wrapper.findAll('[data-testid="marketplace-group-section"]')[0]
+    expect(section.text()).toContain('0.00')
+    expect(section.text()).toContain('0-100')
+    expect(section.text()).toContain('100+')
+  })
+
   it('模型卡片中的模型 ID 支持一键复制', async () => {
     const wrapper = await mountMarketplace()
 

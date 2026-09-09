@@ -2579,7 +2579,7 @@ func TestValidatePricingEntries_RejectsTimePricingForNonTokenMode(t *testing.T) 
 	require.Contains(t, err.Error(), "TIME_PRICING_UNSUPPORTED_MODE")
 }
 
-func TestNormalizeGroupModelPricingRejectsTimePricing(t *testing.T) {
+func TestNormalizeGroupModelPricingAcceptsTimePricing(t *testing.T) {
 	_, err := normalizeGroupModelPricing(PlatformOpenAI, []ChannelModelPricing{{
 		Models: []string{"gpt-5"},
 		TimePricing: &ChannelTimePricing{
@@ -2587,8 +2587,7 @@ func TestNormalizeGroupModelPricingRejectsTimePricing(t *testing.T) {
 			Periods:  []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}},
 		},
 	}})
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "GROUP_MODEL_TIME_PRICING_UNSUPPORTED")
+	require.NoError(t, err)
 }
 
 // ---------------------------------------------------------------------------

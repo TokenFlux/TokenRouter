@@ -286,11 +286,10 @@ function pricingKind(pricing: MarketplaceModelPricing): 'token' | 'image' | 'unp
 
 const hasDisplayPricing = computed(() => pricingKind(props.model.pricing) !== 'unpriced')
 
-// 只有真正带价的上下文区间才参与切换，避免空区间制造无意义的选项。
+// 后端仅返回有定价的区间；零价字段会被 JSON 省略，不能据此过滤免费区间。
 const selectableIntervals = computed(() =>
   (props.model.pricing.context_intervals ?? [])
     .map((interval, index) => ({ interval, key: `${interval.min_tokens}-${interval.max_tokens ?? 'up'}-${index}` }))
-    .filter((item) => tokenPricingRowsFromValues(item.interval).length > 0 || fastTokenPricingRows(item.interval).length > 0)
 )
 
 const activeIntervalIndex = computed(() =>

@@ -413,6 +413,7 @@ riskControl: {
         billingMode: 'Billing Mode',
         priceMultiplier: 'Price Multiplier',
         priceMultiplierPlaceholder: 'No adjustment',
+        invalidPrice: 'Prices and price multipliers must be finite, non-negative numbers',
         priceMultiplierRequiresPrice: 'Model {models} must have at least one explicit price before a price multiplier can be set',
         fastModeMultiplier: 'Fast Mode Multiplier',
         fastModeMultiplierPlaceholder: 'For example, 2',

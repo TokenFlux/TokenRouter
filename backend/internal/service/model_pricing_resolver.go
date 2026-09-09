@@ -46,6 +46,8 @@ type ResolvedPricing struct {
 	channelPricing *ChannelModelPricing
 
 	longContextPricingEnabled bool
+	// 空结构仍可承载倍率元数据，但不代表存在基础价；显式零单价不设置此标记。
+	basePricingUnavailable bool
 }
 
 // ModelPricingResolver 统一模型定价解析器。
@@ -71,23 +73,23 @@ type PricingInput struct {
 	Group         *Group
 }
 
-// Resolve 解析模型定价。
-// 1. 获取基础定价（Qoder 已知 alias 为 0 / 其他模型 LiteLLM → Fallback）
-// 2. 如果指定了 GroupID，查找渠道定价并覆盖
+// Resolve 按分组价卡、渠道和内置价格解析；纯倍率分组条目只覆盖继承价的对应倍率。
+// @project-doc docs/domains/routing_and_billing.md#group_model_pricing
 func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) *ResolvedPricing {
-	longContextPricingEnabled := input.Group == nil || input.Group.LongContextPricingEnabled
-	if groupPricing := matchGroupModelPricing(input.Group, input.Model); groupPricing != nil {
-		// 分组 token 价格卡只覆盖基础价格，长上下文倍率仍使用内置模型价格并受分组开关控制。
-		if groupPricing.BillingMode == "" || groupPricing.BillingMode == BillingModeToken {
-			stripped := groupPricing.Clone()
-			stripped.Intervals = nil
-			groupPricing = &stripped
-		}
+	groupPricing := matchGroupModelPricing(input.Group, input.Model)
+	if groupPricing != nil && (hasExplicitPricingPrice(*groupPricing) || len(filterValidTokenIntervals(groupPricing.Intervals)) > 0) {
 		resolved := r.resolveConfiguredPricing(groupPricing, input.Model, PricingSourceGroup)
-		resolved.longContextPricingEnabled = longContextPricingEnabled
+		resolved.longContextPricingEnabled = input.Group == nil || input.Group.LongContextPricingEnabled
 		return resolved
 	}
+	resolved := r.resolveInheritedPricing(ctx, input)
+	applyGroupPricingModifiers(resolved, groupPricing)
+	return resolved
+}
 
+// resolveInheritedPricing 保留渠道/内置价格来源和计费模式，避免纯倍率配置意外重置基础价。
+func (r *ModelPricingResolver) resolveInheritedPricing(ctx context.Context, input PricingInput) *ResolvedPricing {
+	longContextPricingEnabled := input.Group == nil || input.Group.LongContextPricingEnabled
 	qoderManualOnly := false
 	var chPricing *ChannelModelPricing
 	if input.GroupID != nil && r.channelService != nil {
@@ -133,6 +135,7 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 		SupportsServiceTier:    basePricing != nil && basePricing.SupportsServiceTier,
 	}
 	resolved.longContextPricingEnabled = longContextPricingEnabled
+	resolved.basePricingUnavailable = qoderManualOnly
 
 	// 2. 如果有 GroupID，尝试渠道覆盖
 	if chPricing != nil {
@@ -148,17 +151,90 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	return resolved
 }
 
+// applyGroupPricingModifiers 在独立副本上覆盖同名倍率；不创建基础价格，也不切换按次计费。
+func applyGroupPricingModifiers(resolved *ResolvedPricing, config *ChannelModelPricing) {
+	if resolved == nil || resolved.Mode != BillingModeToken || config == nil || resolved.BasePricing == nil {
+		return
+	}
+	if config.FastMultiplier == nil && config.FastModeMultiplier == nil && config.FlexMultiplier == nil &&
+		config.MaxReasoningEffortMultiplier == nil && config.TimePricing == nil {
+		return
+	}
+	pricing := *resolved.BasePricing
+	resolved.BasePricing = &pricing
+	merged := ChannelModelPricing{BillingMode: BillingModeToken}
+	if resolved.channelPricing != nil {
+		merged = resolved.channelPricing.Clone()
+	}
+	// 区间解析会再次读取这些元数据，因此同步覆盖其副本，避免旧渠道倍率覆盖分组值。
+	if config.FastMultiplier != nil || config.FastModeMultiplier != nil {
+		merged.FastMultiplier = config.FastMultiplier
+		merged.FastModeMultiplier = config.FastModeMultiplier
+	}
+	if config.FlexMultiplier != nil {
+		merged.FlexMultiplier = config.FlexMultiplier
+	}
+	if config.MaxReasoningEffortMultiplier != nil {
+		merged.MaxReasoningEffortMultiplier = config.MaxReasoningEffortMultiplier
+		pricing.MaxReasoningEffortMultiplier = config.MaxReasoningEffortMultiplier
+	}
+	if config.TimePricing != nil && len(config.TimePricing.Periods) > 0 {
+		merged.TimePricing = config.Clone().TimePricing
+	}
+	resolved.channelPricing = &merged
+	applyResolvedFastModeMultiplier(resolved, &merged)
+}
+
 func (r *ResolvedPricing) IsUnpriced() bool {
-	return r != nil && r.Source == PricingSourceUnpriced
+	if r == nil {
+		return false
+	}
+	if r.Source == PricingSourceUnpriced {
+		return true
+	}
+	// 没有显式价卡时保留图片等独立价格回退；这里只阻止已配置但缺少基础价的倍率条目。
+	if r.Mode != BillingModeToken || r.channelPricing == nil || r.hasBaseTokenPricing() {
+		return false
+	}
+	for _, interval := range r.Intervals {
+		if pricingIntervalHasEffectiveTokenPricing(interval) {
+			return false
+		}
+	}
+	return true
+}
+
+// hasBaseTokenPricing 区分有效基础价（包含显式免费）与仅用于保存倍率的占位结构。
+func (r *ResolvedPricing) hasBaseTokenPricing() bool {
+	return r != nil && r.BasePricing != nil && !r.basePricingUnavailable
+}
+
+// tokenPricingForInterval 同时供结算和展示使用；没有基础价的纯倍率区间保持未定价。
+func (r *ResolvedPricing) tokenPricingForInterval(interval *PricingInterval) *ModelPricing {
+	if r == nil {
+		return nil
+	}
+	if interval == nil {
+		if r.hasBaseTokenPricing() {
+			return r.BasePricing
+		}
+		return nil
+	}
+	if !r.hasBaseTokenPricing() && !pricingIntervalHasEffectiveTokenPricing(*interval) {
+		return nil
+	}
+	pricing := intervalToModelPricingWithBase(interval, r.SupportsCacheBreakdown, r.channelPricing, r.BasePricing)
+	pricing.SupportsServiceTier = r.SupportsServiceTier
+	return pricing
 }
 
 func (r *ResolvedPricing) HasEffectiveChannelPricing() bool {
-	return r != nil && r.Source == PricingSourceChannel && r.channelPricing != nil && r.channelPricing.HasEffectivePricing()
+	return r != nil && !r.IsUnpriced() && r.Source == PricingSourceChannel && r.channelPricing != nil && r.channelPricing.HasEffectivePricing()
 }
 
 // HasEffectiveOverridePricing 判断分组或渠道是否提供了显式价格，包括显式零价。
 func (r *ResolvedPricing) HasEffectiveOverridePricing() bool {
-	return r != nil && (r.Source == PricingSourceGroup || r.Source == PricingSourceChannel) &&
+	return r != nil && !r.IsUnpriced() && (r.Source == PricingSourceGroup || r.Source == PricingSourceChannel) &&
 		r.channelPricing != nil && r.channelPricing.HasEffectivePricing()
 }
 
@@ -318,35 +394,13 @@ func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricin
 		}
 	}
 
-	// 如果有有效的区间定价，使用区间
-	if len(validIntervals) > 0 {
-		resolved.Intervals = validIntervals
-		// 区间不匹配时回退到基础定价，也需要覆盖图片价格
-		if resolved.BasePricing == nil {
-			resolved.BasePricing = &ModelPricing{}
-		} else {
-			// 防止修改 fallbackPrices 中的共享指针
-			cloned := *resolved.BasePricing
-			resolved.BasePricing = &cloned
-		}
-		if chPricing.ImageOutputPrice != nil {
-			resolved.BasePricing.ImageOutputPricePerToken = *chPricing.ImageOutputPrice
-		} else {
-			resolved.BasePricing.ImageOutputPricePerToken = 0
-		}
-		resolved.BasePricing.ImageOutputPriceExplicit = true
-		if resolved.SupportsCacheBreakdown {
-			resolved.BasePricing.SupportsCacheBreakdown = true
-		}
-		applyChannelImageInputPrice(chPricing, resolved.BasePricing)
-		if chPricing.MaxReasoningEffortMultiplier != nil {
-			resolved.BasePricing.MaxReasoningEffortMultiplier = chPricing.MaxReasoningEffortMultiplier
-		}
-		return
-	}
-
-	// 否则用 flat 字段覆盖 BasePricing；未配置的 token 价格字段继续保留基础定价，
-	// 便于只手动覆盖其中一部分字段。
+	// 先把价卡默认单价覆盖到独立的基础价，再保存区间；区间留空字段、倍率及
+	// 未命中区间时都使用这份基础价，不能跳过默认单价而回退内置价或零价。
+	// 只有默认单价能建立基础价；区间单价仅在命中该区间时生效。
+	baseConfig := *chPricing
+	baseConfig.Intervals = nil
+	resolved.basePricingUnavailable = !resolved.hasBaseTokenPricing() && !hasExplicitPricingPrice(baseConfig)
+	resolved.Intervals = validIntervals
 	if resolved.BasePricing == nil {
 		resolved.BasePricing = &ModelPricing{}
 	} else {
@@ -527,16 +581,7 @@ func filterValidRequestIntervals(intervals []PricingInterval) []PricingInterval 
 // GetIntervalPricing 根据 context token 数获取区间定价。
 // 如果有区间列表，找到匹配区间并构造 ModelPricing；否则直接返回 BasePricing。
 func (r *ModelPricingResolver) GetIntervalPricing(resolved *ResolvedPricing, totalContextTokens int) *ModelPricing {
-	if len(resolved.Intervals) == 0 {
-		return resolved.BasePricing
-	}
-
-	iv := FindMatchingInterval(resolved.Intervals, totalContextTokens)
-	if iv == nil {
-		return resolved.BasePricing
-	}
-
-	return intervalToModelPricingWithBase(iv, resolved.SupportsCacheBreakdown, resolved.channelPricing, resolved.BasePricing)
+	return resolved.tokenPricingForInterval(FindMatchingInterval(resolved.Intervals, totalContextTokens))
 }
 
 // intervalToModelPricing 将区间定价转换为 ModelPricing

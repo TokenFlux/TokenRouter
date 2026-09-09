@@ -186,6 +186,23 @@ describe('ModelPricingPanel', () => {
     expect(wrapper.text()).not.toContain('1.00')
   })
 
+  it('保留省略零价格字段的免费默认区间，并允许切换到收费区间', async () => {
+    const wrapper = mountPanel(marketplaceModel('free-range', {
+      pricing_mode: 'token', price_status: 'priced', context_intervals: [
+        { min_tokens: 0, max_tokens: 100 },
+        { min_tokens: 100, max_tokens: null, input_price_per_token: 0.000002 },
+      ],
+    }))
+    await wrapper.get('[data-testid="model-pricing-toggle"]').trigger('click')
+    const buttons = wrapper.get('[data-testid="pricing-interval-switch"]').findAll('button')
+    expect(buttons).toHaveLength(2)
+    expect(wrapper.get('[data-testid="pricing-rows"]').text()).toContain('0.00')
+    await buttons[1].trigger('click')
+    expect(wrapper.get('[data-testid="pricing-rows"]').text()).toContain('2.00')
+    await buttons[0].trigger('click')
+    expect(wrapper.get('[data-testid="pricing-rows"]').text()).toContain('0.00')
+  })
+
   it('图片模型展示分档价格且不显示 fast 切换', async () => {
     const wrapper = mountPanel(marketplaceModel('m1', imagePricing))
 

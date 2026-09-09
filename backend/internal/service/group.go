@@ -97,7 +97,7 @@ type Group struct {
 	AudioSTTPricePerHour         *float64
 
 	// ModelPricing 为命中模型覆盖渠道与内置基础价格。
-	// LongContextPricingEnabled 仅控制内置长上下文倍率，不改变渠道自定义区间。
+	// LongContextPricingEnabled 仅控制内置长上下文倍率，不改变分组或渠道自定义区间。
 	LongContextPricingEnabled bool
 	ModelPricing              []ChannelModelPricing
 

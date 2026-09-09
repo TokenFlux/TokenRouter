@@ -40,7 +40,8 @@ func (r *resettingRevokeSubscriptionRepoStub) ResetMonthlyUsage(_ context.Contex
 
 func revokeSubscriptionFixture() *UserSubscription {
 	now := time.Now().UTC()
-	windowStart := now.Add(-time.Hour)
+	// 默认夹具使用当前日窗口，避免零点后一小时内意外触发额度重置。
+	windowStart := startOfDay(now)
 	return &UserSubscription{
 		ID:                 1,
 		UserID:             7,

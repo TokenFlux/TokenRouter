@@ -75,6 +75,18 @@ describe('PricingEntryCard', () => {
     })
   })
 
+  it('显示旧零倍率并在用户编辑后转换为新版字段', async () => {
+    const wrapper = mount(PricingEntryCard, {
+      props: { entry: makeEntry({ fast_mode_multiplier: 0 }), platform: 'openai', enableTierMultipliers: true },
+      global: { stubs: { Icon: true, IntervalRow: true, ModelTagInput: true, Select: true } },
+    })
+    const input = wrapper.get('[data-testid="fast-multiplier"]')
+    expect((input.element as HTMLInputElement).value).toBe('0')
+    expect((input.element as HTMLInputElement).checkValidity()).toBe(true)
+    await input.setValue('1.5')
+    expect(wrapper.emitted('update')?.[0]?.[0]).toMatchObject({ fast_multiplier: '1.5', fast_mode_multiplier: null })
+  })
+
   it('启用渠道层级倍率时展示 Fast 与 Flex 输入', () => {
     const wrapper = mount(PricingEntryCard, {
       props: {

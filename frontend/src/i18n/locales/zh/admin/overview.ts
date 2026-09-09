@@ -1131,9 +1131,9 @@ affiliates: {
       },
       modelPricing: {
         title: '分组逐模型定价',
-        description: '匹配模型后覆盖渠道和内置价格。长上下文阶梯沿用官方/预设价卡，无需再手填区间。音频可用按次层级配置 realtime、tts、stt。',
+        description: '配置基础单价或上下文区间后覆盖渠道价格；仅设置 Fast/Flex、Max 或分时倍率时继承渠道价格，无渠道价格则使用内置价格。同名倍率由分组覆盖。音频可用按次层级配置 realtime、tts、stt。',
         longContext: '启用长上下文阶梯定价',
-        longContextHint: '勾选后按官方/预设阶梯计费；关闭则始终按第一档基础价。',
+        longContextHint: '仅控制模型默认长上下文阶梯；分组或渠道手动配置的上下文区间始终生效，不重复叠加默认阶梯。',
         add: '添加模型价格'
       },
       voicePricing: {

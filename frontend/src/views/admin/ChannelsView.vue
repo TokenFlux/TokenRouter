@@ -637,7 +637,8 @@ import { extractApiErrorMessage } from '@/utils/apiError'
 import { adminAPI } from '@/api/admin'
 import type { Channel, ChannelModelPricing, CreateChannelRequest, UpdateChannelRequest, AccountStatsPricingRule } from '@/api/admin/channels'
 import type { PricingFormEntry } from '@/components/admin/channel/types'
-import { apiIntervalsToForm, apiTimePricingToForm, createDefaultTimePricingForm, findModelConflict, formIntervalsToAPI, formTimePricingToAPI, hasExplicitPricing, isValidPositiveMultiplier, mTokToPerToken, perTokenToMTok, toNullableNumber, validateIntervals, validateTimePricing } from '@/components/admin/channel/types'
+import { pricingEntryFromAPI, pricingEntryToAPI, validatePricingForm } from '@/components/admin/channel/pricingForm'
+import { apiIntervalsToForm, createDefaultTimePricingForm, findModelConflict, formIntervalsToAPI, hasExplicitPricing, mTokToPerToken, perTokenToMTok, toNullableNumber } from '@/components/admin/channel/types'
 import type { AdminGroup, GroupPlatform } from '@/types'
 import type { Column } from '@/components/common/types'
 import { platformTextClass, platformBadgeLightClass } from '@/utils/platformColors'
@@ -1176,26 +1177,7 @@ function formToAPI(): { group_ids: number[], model_pricing: ChannelModelPricing[
     // Model pricing with platform tag
     for (const entry of section.model_pricing) {
       if (entry.models.length === 0) continue
-      model_pricing.push({
-        platform: section.platform,
-        models: entry.models,
-        billing_mode: entry.billing_mode,
-        price_multiplier: toNullableNumber(entry.price_multiplier),
-        fast_mode_multiplier: toNullableNumber(entry.fast_mode_multiplier),
-        fast_multiplier: toNullableNumber(entry.fast_multiplier),
-        flex_multiplier: toNullableNumber(entry.flex_multiplier),
-        max_reasoning_effort_multiplier: toNullableNumber(entry.max_reasoning_effort_multiplier),
-        input_price: mTokToPerToken(entry.input_price),
-        output_price: mTokToPerToken(entry.output_price),
-        cache_write_price: mTokToPerToken(entry.cache_write_price),
-        cache_write_1h_price: mTokToPerToken(entry.cache_write_1h_price),
-        cache_read_price: mTokToPerToken(entry.cache_read_price),
-        image_input_price: mTokToPerToken(entry.image_input_price),
-        image_output_price: mTokToPerToken(entry.image_output_price),
-        per_request_price: entry.per_request_price != null && entry.per_request_price !== '' ? Number(entry.per_request_price) : null,
-        intervals: formIntervalsToAPI(entry.intervals || []),
-        time_pricing: formTimePricingToAPI(entry.time_pricing)
-      })
+      model_pricing.push(pricingEntryToAPI(entry, section.platform))
     }
   }
 
@@ -1274,25 +1256,7 @@ function apiToForm(channel: Channel): PlatformSection[] {
     const mapping = (channel.model_mapping || {})[platform] || {}
     const pricing = (channel.model_pricing || [])
       .filter(p => (p.platform || 'anthropic') === platform)
-      .map(p => ({
-        models: p.models || [],
-        billing_mode: p.billing_mode,
-        price_multiplier: p.price_multiplier ?? null,
-        fast_mode_multiplier: null,
-        fast_multiplier: p.fast_multiplier ?? p.fast_mode_multiplier ?? null,
-        flex_multiplier: p.flex_multiplier ?? null,
-        max_reasoning_effort_multiplier: p.max_reasoning_effort_multiplier ?? null,
-        input_price: perTokenToMTok(p.input_price),
-        output_price: perTokenToMTok(p.output_price),
-        cache_write_price: perTokenToMTok(p.cache_write_price),
-        cache_write_1h_price: perTokenToMTok(p.cache_write_1h_price),
-        cache_read_price: perTokenToMTok(p.cache_read_price),
-        image_input_price: perTokenToMTok(p.image_input_price),
-        image_output_price: perTokenToMTok(p.image_output_price),
-        per_request_price: p.per_request_price,
-        intervals: apiIntervalsToForm(p.intervals || []),
-        time_pricing: apiTimePricingToForm(p.time_pricing)
-      } as PricingFormEntry))
+      .map(pricingEntryFromAPI)
 
     // 从 features_config 读取平台级功能开关。
     const fc = channel.features_config
@@ -1553,18 +1517,9 @@ async function handleSubmit() {
 
   // 按平台检查模型模式冲突（重复或通配符范围重叠）
   for (const section of form.platforms.filter(s => s.enabled)) {
-    // 收集当前平台的全部定价模型
-    const allModels: string[] = []
-    for (const entry of section.model_pricing) {
-      allModels.push(...entry.models)
-    }
-    const pricingConflict = findModelConflict(allModels)
-    if (pricingConflict) {
-      appStore.showError(
-        t('admin.channels.modelConflict',
-          { model1: pricingConflict[0], model2: pricingConflict[1] },
-          `模型模式 '${pricingConflict[0]}' 和 '${pricingConflict[1]}' 冲突：匹配范围重叠`)
-      )
+    const pricingError = validatePricingForm(section.model_pricing, t)
+    if (pricingError) {
+      appStore.showError(pricingError)
       activeTab.value = section.platform
       return
     }
@@ -1584,23 +1539,9 @@ async function handleSubmit() {
     }
   }
 
-  // 校验 per_request/image 模式必须有价格 (只校验启用的平台)
-  for (const section of form.platforms.filter(s => s.enabled)) {
-    for (const entry of section.model_pricing) {
-      if (entry.models.length === 0) continue
-      if ((entry.billing_mode === 'per_request' || entry.billing_mode === 'image') &&
-          (entry.per_request_price == null || entry.per_request_price === '') &&
-          (!entry.intervals || entry.intervals.length === 0)) {
-        appStore.showError(t('admin.channels.form.perRequestPriceRequired', '按次/图片计费模式必须设置默认价格或至少一个计费层级'))
-        return
-      }
-    }
-  }
-
   // 倍率只能调整已配置的定价，不能单独继承系统默认价。
   for (const section of form.platforms.filter(s => s.enabled)) {
     const entries = [
-      ...section.model_pricing,
       ...section.account_stats_pricing_rules.flatMap(rule => rule.pricing),
     ]
     for (const entry of entries) {
@@ -1612,69 +1553,6 @@ async function handleSubmit() {
           { models },
           `模型 ${models} 配置定价倍率时，必须至少填写一项价格`,
         ))
-        activeTab.value = section.platform
-        return
-      }
-    }
-  }
-
-  // Fast 倍率同样必须建立在明确的渠道价格上，避免空定价行改变默认计费语义。
-  for (const section of form.platforms.filter(s => s.enabled && s.platform === 'openai')) {
-    for (const entry of section.model_pricing) {
-      if (entry.models.length === 0 || toNullableNumber(entry.fast_mode_multiplier) === null) continue
-      if (!hasExplicitPricing(entry)) {
-        const models = entry.models.join(', ')
-        appStore.showError(t(
-          'admin.channels.form.fastModeMultiplierRequiresPrice',
-          { models },
-          `模型 ${models} 配置 Fast 模式倍率时，必须至少填写一项价格`,
-        ))
-        activeTab.value = section.platform
-        return
-      }
-    }
-  }
-
-  // 新版 Fast/Flex 倍率可作用于继承的模型目录价格，只需保证倍率为正数。
-  for (const section of form.platforms.filter(s => s.enabled)) {
-    for (const entry of section.model_pricing) {
-      if (isValidPositiveMultiplier(entry.fast_multiplier) &&
-          isValidPositiveMultiplier(entry.flex_multiplier) &&
-          isValidPositiveMultiplier(entry.max_reasoning_effort_multiplier)) continue
-      const models = entry.models.join(', ')
-      appStore.showError(t(
-        'admin.channels.form.tierMultiplierMustBePositive',
-        { models },
-        `模型 ${models} 的 Fast/Flex 倍率必须大于 0`,
-      ))
-      activeTab.value = section.platform
-      return
-    }
-  }
-
-  // 校验区间合法性（范围、重叠等）
-  for (const section of form.platforms.filter(s => s.enabled)) {
-    for (const entry of section.model_pricing) {
-      if (!entry.intervals || entry.intervals.length === 0) continue
-      const intervalErr = validateIntervals(entry.intervals, entry.billing_mode, t)
-      if (intervalErr) {
-        const platformLabel = t('admin.groups.platforms.' + section.platform, section.platform)
-        const modelLabel = entry.models.join(', ') || t('admin.channels.form.unnamed')
-        appStore.showError(`${platformLabel} - ${modelLabel}: ${intervalErr}`)
-        activeTab.value = section.platform
-        return
-      }
-    }
-  }
-
-  // 校验分时倍率并切换到对应平台，方便管理员修正。
-  for (const section of form.platforms.filter(s => s.enabled)) {
-    for (const entry of section.model_pricing) {
-      const timePricingErr = validateTimePricing(entry.time_pricing, t)
-      if (timePricingErr) {
-        const platformLabel = t('admin.groups.platforms.' + section.platform, section.platform)
-        const modelLabel = entry.models.join(', ') || t('admin.channels.form.unnamed')
-        appStore.showError(`${platformLabel} - ${modelLabel}: ${timePricingErr}`)
         activeTab.value = section.platform
         return
       }

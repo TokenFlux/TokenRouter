@@ -6,6 +6,8 @@ import GroupsView from '../GroupsView.vue'
 import Select from '@/components/common/Select.vue'
 import GroupClientProtocolSelector from '@/components/admin/group/GroupClientProtocolSelector.vue'
 import PricingEntryCard from '@/components/admin/channel/PricingEntryCard.vue'
+import { pricingEntryFromAPI } from '@/components/admin/channel/pricingForm'
+import type { ChannelModelPricing } from '@/api/admin/channels'
 import type { AdminGroup, GroupPlatform } from '@/types'
 
 const { groups, showError } = vi.hoisted(() => ({
@@ -47,8 +49,8 @@ function group(platform: GroupPlatform): AdminGroup {
   } as AdminGroup
 }
 
-async function open(mode: 'create' | 'edit', platform: GroupPlatform) {
-  groups.list.mockResolvedValue({ items: [group(platform)], total: 1, pages: 1 })
+async function open(mode: 'create' | 'edit', platform: GroupPlatform, overrides: Partial<AdminGroup> = {}) {
+  groups.list.mockResolvedValue({ items: [{ ...group(platform), ...overrides }], total: 1, pages: 1 })
   const wrapper = mount(GroupsView, {
     attachTo: document.body,
     global: { plugins: [createPinia()], stubs: {
@@ -107,6 +109,53 @@ describe.each(['create', 'edit'] as const)('GroupsView %s tabs', mode => {
     expect(wrapper.getComponent(GroupClientProtocolSelector).element.closest('[data-group-tab]')?.getAttribute('data-group-tab')).toBe('protocol')
     expect(wrapper.find('[data-group-field="reasoning"]').exists()).toBe(['openai', 'anthropic'].includes(platform))
     expect(wrapper.find('[data-group-field="image-capabilities"]').exists()).toBe(['openai', 'gemini', 'antigravity', 'grok'].includes(platform))
+  })
+
+  it('完整价卡在创建和编辑中开放区间及倍率，提交后可重新回填', async () => {
+    const pricing: ChannelModelPricing = {
+      platform: 'openai', models: ['gpt-test'], billing_mode: 'token', price_multiplier: 1.2,
+      fast_multiplier: 1.5, flex_multiplier: 0.4, max_reasoning_effort_multiplier: 2,
+      input_price: 0, output_price: 0.000003, cache_write_price: null, cache_write_1h_price: 0.000005,
+      cache_read_price: null, image_input_price: null, image_output_price: null, per_request_price: null,
+      intervals: [{ min_tokens: 100000, max_tokens: null, tier_label: '', input_price: 0.000002,
+        output_price: null, cache_write_price: null, cache_read_price: null, input_multiplier: null,
+        output_multiplier: 2, cache_write_multiplier: null, cache_read_multiplier: null, per_request_price: null, sort_order: 0 }],
+      time_pricing: { timezone: 'Asia/Shanghai', weekdays_only: true, periods: [{ start_time: '09:00:00', end_time: '10:00:00', multiplier: 0.5 }] },
+    }
+    const wrapper = await open(mode, 'openai', { model_pricing: [pricing], free_openai_fast: true })
+    await tab(wrapper, 'pricing')
+    if (mode === 'create') {
+      await wrapper.findAll('button').find(button => button.text().includes('admin.groups.modelPricing.add'))!.trigger('click')
+      wrapper.getComponent(PricingEntryCard).vm.$emit('update', pricingEntryFromAPI(pricing))
+      await flushPromises()
+    }
+    const card = wrapper.getComponent(PricingEntryCard)
+    expect(card.props('hideTokenIntervals')).toBe(false)
+    expect(card.props('enableTierMultipliers')).toBe(true)
+    expect(card.props('enableTimePricing')).toBe(true)
+    expect(card.props('entry').output_price).toBe(3)
+    await wrapper.get(`#${mode}-group-form`).trigger('submit')
+    await flushPromises()
+    const payload = mode === 'create' ? groups.create.mock.calls[0]?.[0] : groups.update.mock.calls[0]?.[1]
+    expect(payload.model_pricing[0]).toMatchObject(pricing)
+    const reopened = await open('edit', 'openai', payload)
+    await tab(reopened, 'pricing')
+    expect(reopened.getComponent(PricingEntryCard).props('entry')).toEqual(pricingEntryFromAPI(payload.model_pricing[0]))
+  })
+
+  it('冲突模型阻止提交，并定位回计费页', async () => {
+    const wrapper = await open(mode, 'openai')
+    await tab(wrapper, 'pricing')
+    await wrapper.findAll('button').find(button => button.text().includes('admin.groups.modelPricing.add'))!.trigger('click')
+    const card = wrapper.getComponent(PricingEntryCard)
+    card.vm.$emit('update', { ...card.props('entry'), models: ['gpt-test', 'gpt-test'], fast_multiplier: 1.5 })
+    await tab(wrapper, 'general')
+    await wrapper.get(`#${mode}-group-form`).trigger('submit')
+    await flushPromises()
+    expect(groups.create).not.toHaveBeenCalled()
+    expect(groups.update).not.toHaveBeenCalled()
+    expect(showError).toHaveBeenCalledWith(expect.stringContaining('modelConflict'))
+    expect(wrapper.get('[data-group-tab="pricing"]').isVisible()).toBe(true)
   })
 
   it('跨页草稿一次提交，强制与免费 Fast 独立保存，重新打开回到通用', async () => {

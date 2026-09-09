@@ -484,16 +484,20 @@ func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Conte
 		}
 		return unknownDisplayPricing()
 	}
+	resolver := NewModelPricingResolver(nil, s.billingService)
 	if s.gatewayService != nil && s.gatewayService.resolver != nil {
-		groupID := group.ID
-		resolved := s.gatewayService.resolver.Resolve(ctx, PricingInput{
-			Model:   model,
-			GroupID: &groupID,
-			Group:   group,
-		})
-		return s.billingService.getDisplayPricingWithResolvedMultipliers(model, group.RateMultiplier, imageRateMultiplier, imageConfig, resolved)
+		resolver = s.gatewayService.resolver
 	}
-	return s.billingService.getDisplayPricing(model, group.RateMultiplier, imageRateMultiplier, imageConfig)
+	groupID := group.ID
+	resolved := resolver.Resolve(ctx, PricingInput{Model: model, GroupID: &groupID, Group: group})
+	// 仅调整已支持 Fast 的展示副本，避免为 Embeddings 等模型凭空增加 Fast 档。
+	if group.FreeOpenAIFast && groupSupportsOpenAIFast(group.Platform) && resolvedHasFastModeDisplayPricing(resolved) {
+		cloned := *resolved
+		standardMultiplier := 1.0
+		applyGroupPricingModifiers(&cloned, &ChannelModelPricing{FastMultiplier: &standardMultiplier})
+		resolved = &cloned
+	}
+	return s.billingService.getDisplayPricingWithResolvedMultipliers(model, group.RateMultiplier, imageRateMultiplier, imageConfig, resolved)
 }
 
 // marketplaceImageRateMultiplier 返回模型广场图片价格应使用的倍率。

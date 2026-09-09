@@ -205,9 +205,12 @@ func (s *APIKeyRepoSuite) TestGetByKey_NotFound() {
 
 func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesSelectedGroupFields() {
 	user := s.mustCreateUser("getbykey-auth-dispatch@test.com")
+	// 认证查询的列投影必须完整带回区间与倍率，不能只在管理读取中可见。
+	modelPricing := `[{"models":["gpt-test"],"billing_mode":"token","fast_multiplier":1.5,"flex_multiplier":0.4,"max_reasoning_effort_multiplier":2,"intervals":[{"min_tokens":100,"input_multiplier":2}],"time_pricing":{"timezone":"UTC","periods":[{"start_time":"09:00","end_time":"10:00","multiplier":0.5}]}}]`
 	lbTopK := 4
 	group, err := s.client.Group.Create().
 		SetName("g-auth-dispatch").
+		SetModelPricing([]byte(modelPricing)).
 		SetPlatform(service.PlatformOpenAI).
 		SetStatus(service.StatusActive).
 		SetRateMultiplier(1).
@@ -261,6 +264,13 @@ func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesSelectedGroupFields() {
 	s.Require().Equal(4, *got.Group.AdvancedSchedulerOverrides.LBTopK)
 	s.Require().True(got.Group.ForceOpenAIFast)
 	s.Require().True(got.Group.FreeOpenAIFast)
+	s.Require().Len(got.Group.ModelPricing, 1)
+	pricing := got.Group.ModelPricing[0]
+	s.Require().Equal(1.5, *pricing.FastMultiplier)
+	s.Require().Equal(0.4, *pricing.FlexMultiplier)
+	s.Require().Equal(2.0, *pricing.MaxReasoningEffortMultiplier)
+	s.Require().Equal(2.0, *pricing.Intervals[0].InputMultiplier)
+	s.Require().Equal(0.5, pricing.TimePricing.Periods[0].Multiplier)
 }
 
 // --- Update ---

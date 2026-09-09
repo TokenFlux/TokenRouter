@@ -121,3 +121,7 @@ API Key 上游用量是控制面查询，不属于调度快照。`UpstreamUsageS
 - 管理端账号测试成功不等于所有请求协议都具备 capability；调度仍按实际 endpoint 判定。
 
 相关文档：[网关请求生命周期](gateway_request_lifecycle.md)、[网关策略控制](../domains/gateway_policy_controls.md)、[账号维护](../operations/account_maintenance.md)。
+
+### 分组定价快照
+
+认证快照中的 `ModelPricing` 保存完整分组价卡，包括上下文区间、Fast/Flex、Max 推理和分时规则。普通 Key 与复合 Key 的分组投影使用独立副本；金额指针、模型列表、区间和分时段均不能被单次请求修改后污染缓存。分组更新事务提交后使用现有按分组失效机制，价格继承与展示共享相同解析规则，见[分组模型价卡与倍率继承](../domains/routing_and_billing.md#group_model_pricing)。

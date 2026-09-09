@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -254,6 +255,10 @@ func (p *ChannelModelPricing) HasEffectivePricing() bool {
 // Clone 返回 ChannelModelPricing 的拷贝；模型、区间和分时配置切片彼此独立。
 func (p ChannelModelPricing) Clone() ChannelModelPricing {
 	cp := p
+	// 金额指针也必须独立，复制分组或覆盖倍率时不能修改源价卡。
+	clonePricingAmounts(&cp.PriceMultiplier, &cp.FastModeMultiplier, &cp.FastMultiplier, &cp.FlexMultiplier,
+		&cp.MaxReasoningEffortMultiplier, &cp.InputPrice, &cp.OutputPrice, &cp.CacheWritePrice,
+		&cp.CacheWrite1hPrice, &cp.CacheReadPrice, &cp.ImageInputPrice, &cp.ImageOutputPrice, &cp.PerRequestPrice)
 	if p.Models != nil {
 		cp.Models = make([]string, len(p.Models))
 		copy(cp.Models, p.Models)
@@ -261,6 +266,16 @@ func (p ChannelModelPricing) Clone() ChannelModelPricing {
 	if p.Intervals != nil {
 		cp.Intervals = make([]PricingInterval, len(p.Intervals))
 		copy(cp.Intervals, p.Intervals)
+		for i := range cp.Intervals {
+			iv := &cp.Intervals[i]
+			clonePricingAmounts(&iv.InputPrice, &iv.OutputPrice, &iv.CacheWritePrice, &iv.CacheWrite1hPrice,
+				&iv.CacheReadPrice, &iv.InputMultiplier, &iv.OutputMultiplier, &iv.CacheWriteMultiplier,
+				&iv.CacheReadMultiplier, &iv.PerRequestPrice)
+			if iv.MaxTokens != nil {
+				maxTokens := *iv.MaxTokens
+				iv.MaxTokens = &maxTokens
+			}
+		}
 	}
 	if p.TimePricing != nil {
 		cp.TimePricing = &ChannelTimePricing{
@@ -272,6 +287,16 @@ func (p ChannelModelPricing) Clone() ChannelModelPricing {
 		}
 	}
 	return cp
+}
+
+// clonePricingAmounts 复制可空金额值，保留 nil 与显式零价的区别。
+func clonePricingAmounts(fields ...**float64) {
+	for _, field := range fields {
+		if *field != nil {
+			value := **field
+			*field = &value
+		}
+	}
 }
 
 // Clone 返回 Channel 的深拷贝
@@ -440,7 +465,7 @@ func validateIntervalPrices(iv *PricingInterval, idx int) error {
 		{"per_request_price", iv.PerRequestPrice},
 	}
 	for _, p := range prices {
-		if p.val != nil && *p.val < 0 {
+		if p.val != nil && (math.IsNaN(*p.val) || math.IsInf(*p.val, 0) || *p.val < 0) {
 			return fmt.Errorf("interval #%d: %s must be >= 0", idx+1, p.name)
 		}
 	}
@@ -454,7 +479,7 @@ func validateIntervalPrices(iv *PricingInterval, idx int) error {
 		{"cache_read_multiplier", iv.CacheReadMultiplier},
 	}
 	for _, multiplier := range multipliers {
-		if multiplier.val != nil && *multiplier.val <= 0 {
+		if multiplier.val != nil && (math.IsNaN(*multiplier.val) || math.IsInf(*multiplier.val, 0) || *multiplier.val <= 0) {
 			return fmt.Errorf("interval #%d: %s must be > 0", idx+1, multiplier.name)
 		}
 	}

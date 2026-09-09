@@ -686,7 +686,7 @@ func validatePricingEntries(pricing []ChannelModelPricing) error {
 	return validatePricingTimePricing(pricing)
 }
 
-// validatePricingTimePricing 校验每日分时倍率只能用于 token 渠道定价。
+// validatePricingTimePricing 校验渠道及分组的每日分时倍率只能用于 token 定价。
 func validatePricingTimePricing(pricing []ChannelModelPricing) error {
 	for i := range pricing {
 		config := pricing[i].TimePricing
@@ -776,8 +776,8 @@ func checkBillingModeRequirements(p ChannelModelPricing) error {
 		{"flex_multiplier", p.FlexMultiplier},
 		{"max_reasoning_effort_multiplier", p.MaxReasoningEffortMultiplier},
 	} {
-		if c.val != nil && *c.val <= 0 {
-			return infraerrors.BadRequest("INVALID_MULTIPLIER", fmt.Sprintf("%s must be > 0", c.field))
+		if c.val != nil && (math.IsNaN(*c.val) || math.IsInf(*c.val, 0) || *c.val <= 0) {
+			return infraerrors.BadRequest("INVALID_MULTIPLIER", fmt.Sprintf("%s must be finite and > 0", c.field))
 		}
 	}
 	if p.FastMultiplier != nil || p.FlexMultiplier != nil || p.MaxReasoningEffortMultiplier != nil {
@@ -842,7 +842,7 @@ func checkPricesNotNegative(p ChannelModelPricing) error {
 		{"per_request_price", p.PerRequestPrice},
 	}
 	for _, c := range checks {
-		if c.val != nil && *c.val < 0 {
+		if c.val != nil && (math.IsNaN(*c.val) || math.IsInf(*c.val, 0) || *c.val < 0) {
 			return infraerrors.BadRequest("NEGATIVE_PRICE", fmt.Sprintf("%s must be >= 0", c.field))
 		}
 	}

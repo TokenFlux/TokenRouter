@@ -102,6 +102,8 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		AdvancedSchedulerOverrides:      CloneGroupAdvancedSchedulerOverrides(source.AdvancedSchedulerOverrides),
 		DisplayBrand:                    source.DisplayBrand,
 		RateMultiplier:                  source.RateMultiplier,
+		LongContextPricingEnabled:       source.LongContextPricingEnabled,
+		ModelPricing:                    cloneGroupModelPricing(source.ModelPricing),
 		PeakRateEnabled:                 source.PeakRateEnabled,
 		PeakStart:                       source.PeakStart,
 		PeakEnd:                         source.PeakEnd,
@@ -235,4 +237,16 @@ func (s *adminServiceImpl) DuplicateGroup(ctx context.Context, id int64, actorSc
 			return recovered, nil
 		}
 	}
+}
+
+// cloneGroupModelPricing 保持复制分组的模型、区间、分时配置与源分组互相独立。
+func cloneGroupModelPricing(pricing []ChannelModelPricing) []ChannelModelPricing {
+	if pricing == nil {
+		return nil
+	}
+	cloned := make([]ChannelModelPricing, len(pricing))
+	for i := range pricing {
+		cloned[i] = pricing[i].Clone()
+	}
+	return cloned
 }

@@ -475,22 +475,8 @@ function hasPositiveValue(value?: number | null): value is number {
 }
 
 function hasContextIntervalPricing(pricing: MarketplaceModelPricing): boolean {
-  return pricing.context_intervals?.some((interval) => [
-    interval.input_price_per_token,
-    interval.image_input_price_per_token,
-    interval.output_price_per_token,
-    interval.cache_write_price_per_token,
-    interval.cache_write_1h_price_per_token,
-    interval.cache_read_price_per_token,
-    interval.image_output_price_per_token,
-    interval.fast_input_price_per_token,
-    interval.fast_image_input_price_per_token,
-    interval.fast_output_price_per_token,
-    interval.fast_cache_write_price_per_token,
-    interval.fast_cache_write_1h_price_per_token,
-    interval.fast_cache_read_price_per_token,
-    interval.fast_image_output_price_per_token,
-  ].some(hasPositiveValue)) ?? false
+  // 缺价范围由后端排除，已返回的零价区间仍需展示范围标签。
+  return (pricing.context_intervals?.length ?? 0) > 0
 }
 
 function hasImagePricing(pricing: MarketplaceModelPricing): boolean {
@@ -743,10 +729,8 @@ function zeroTokenPricingRows(): PricingRow[] {
 
 function compactContextIntervalRows(pricing: MarketplaceModelPricing): PricingRow[] {
   return pricing.context_intervals?.flatMap((interval, index) => {
-    const rows = compactIntervalTokenPricingRows(interval)
-    if (rows.length === 0) {
-      return []
-    }
+    const pricedRows = compactIntervalTokenPricingRows(interval)
+    const rows = pricedRows.length > 0 ? pricedRows : zeroTokenPricingRows()
     return [{
       key: `compact-${interval.min_tokens}-${interval.max_tokens ?? 'up'}-${index}`,
       label: formatCompactTokenRange(interval.min_tokens, interval.max_tokens),

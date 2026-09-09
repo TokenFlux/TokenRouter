@@ -1134,9 +1134,9 @@ affiliates: {
       },
       modelPricing: {
         title: 'Per-model group pricing',
-        description: 'Overrides channel and built-in prices for matching models. Long-context tiers come from official presets — do not enter custom intervals. Use per-request tiers such as realtime, tts, and stt for audio.',
+        description: 'Explicit prices or context intervals override channel pricing. Fast/Flex, Max, or time multipliers alone inherit channel prices, falling back to built-in prices. Group multipliers override the same channel settings. Audio supports realtime, tts, and stt per-request tiers.',
         longContext: 'Enable long-context tier pricing',
-        longContextHint: 'When checked, official/preset long-context tiers apply. When unchecked, token models stay on the first-tier base rate.',
+        longContextHint: 'Only controls built-in long-context tiers. Explicit group or channel intervals always apply and never stack with built-in tiers.',
         add: 'Add model price'
       },
       voicePricing: {

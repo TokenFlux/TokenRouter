@@ -58,10 +58,10 @@
           Fast {{ entry.fast_mode_multiplier }}x
         </span>
         <span
-          v-if="props.enableTierMultipliers && entry.billing_mode === 'token' && entry.fast_multiplier !== null && entry.fast_multiplier !== undefined && entry.fast_multiplier !== ''"
+          v-if="props.enableTierMultipliers && entry.billing_mode === 'token' && effectiveFastMultiplier !== null && effectiveFastMultiplier !== undefined && effectiveFastMultiplier !== ''"
           class="flex-shrink-0 rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
         >
-          Fast {{ entry.fast_multiplier }}x
+          Fast {{ effectiveFastMultiplier }}x
         </span>
         <span
           v-if="props.enableTierMultipliers && entry.billing_mode === 'token' && entry.flex_multiplier !== null && entry.flex_multiplier !== undefined && entry.flex_multiplier !== ''"
@@ -210,11 +210,11 @@
                 {{ t('admin.channels.form.fastMultiplier', 'Fast / Priority 倍率') }}
               </label>
               <input
-                :value="entry.fast_multiplier"
+                :value="effectiveFastMultiplier"
                 @input="emitField('fast_multiplier', ($event.target as HTMLInputElement).value)"
                 type="number"
                 step="any"
-                min="0.000001"
+                :min="preservingLegacyFreeFast ? 0 : 0.000001"
                 class="input mt-0.5 text-sm"
                 data-testid="fast-multiplier"
                 :placeholder="t('admin.channels.form.multiplierPlaceholder', '沿用默认')"
@@ -252,7 +252,7 @@
             </div>
           </div>
 
-          <!-- token 区间仅用于渠道；分组长上下文价格使用内置模型规则。 -->
+          <!-- 分组与渠道使用相同的上下文区间编辑器。 -->
           <div v-if="!hideTokenIntervals" class="mt-3">
             <div class="flex items-center justify-between">
               <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -415,8 +415,12 @@ const maxReasoningEffortMultiplierPlaceholder = computed(() =>
     : t('admin.channels.form.multiplierPlaceholder', '沿用默认'),
 )
 
+// 旧 Fast 倍率允许零值，未编辑时保留旧字段；用户修改后统一写新版正数倍率。
+const effectiveFastMultiplier = computed(() => props.entry.fast_multiplier ?? props.entry.fast_mode_multiplier)
+const preservingLegacyFreeFast = computed(() => props.entry.fast_multiplier == null && props.entry.fast_mode_multiplier === 0)
+
 function emitField(field: keyof PricingFormEntry, value: string) {
-  emit('update', { ...props.entry, [field]: value === '' ? null : value })
+  emit('update', { ...props.entry, ...(field === 'fast_multiplier' ? { fast_mode_multiplier: null } : {}), [field]: value === '' ? null : value })
 }
 
 // 服务层级倍率只适用于 token 计费，切换模式时清除隐藏字段，避免提交无效配置。

@@ -989,3 +989,33 @@ func (s *GroupRepoSuite) TestDelete_SoftDeletedGroup_lockForUpdate() {
 	s.Require().Error(err, "should fail to get soft-deleted group")
 	s.Require().ErrorIs(err, service.ErrGroupNotFound)
 }
+
+// TestModelPricingRoundTrip 验证分组完整价卡通过 JSONB 创建、更新和清空，不需要新增表列。
+func (s *GroupRepoSuite) TestModelPricingRoundTrip() {
+	fast, flex, max, price, outputMultiplier := 1.5, 0.4, 2.0, 0.0, 3.0
+	group := &service.Group{Name: "pricing-roundtrip", Platform: service.PlatformOpenAI, RateMultiplier: 1,
+		Status: service.StatusActive, LongContextPricingEnabled: true, FreeOpenAIFast: true,
+		ModelPricing: []service.ChannelModelPricing{{Platform: service.PlatformOpenAI, Models: []string{"gpt-test"}, BillingMode: service.BillingModeToken,
+			InputPrice: &price, FastMultiplier: &fast, FlexMultiplier: &flex, MaxReasoningEffortMultiplier: &max,
+			Intervals: []service.PricingInterval{{MinTokens: 100, OutputMultiplier: &outputMultiplier}},
+			TimePricing: &service.ChannelTimePricing{Timezone: "Asia/Tokyo", WeekdaysOnly: true,
+				Periods: []service.ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "10:00", Multiplier: 0.5}}}}},
+	}
+	s.Require().NoError(s.repo.Create(s.ctx, group))
+	got, err := s.repo.GetByID(s.ctx, group.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(group.ModelPricing, got.ModelPricing)
+	s.Require().True(got.LongContextPricingEnabled)
+	s.Require().True(got.FreeOpenAIFast)
+	got.ModelPricing[0].TimePricing.Periods[0].Multiplier = 0.25
+	*got.ModelPricing[0].FastMultiplier = 1
+	s.Require().NoError(s.repo.Update(s.ctx, got))
+	updated, err := s.repo.GetByID(s.ctx, got.ID)
+	s.Require().NoError(err)
+	s.Require().Equal(got.ModelPricing, updated.ModelPricing)
+	updated.ModelPricing = []service.ChannelModelPricing{}
+	s.Require().NoError(s.repo.Update(s.ctx, updated))
+	empty, err := s.repo.GetByID(s.ctx, updated.ID)
+	s.Require().NoError(err)
+	s.Require().Empty(empty.ModelPricing)
+}

@@ -413,6 +413,7 @@ riskControl: {
         billingMode: '计费模式',
         priceMultiplier: '定价倍率',
         priceMultiplierPlaceholder: '不调整',
+        invalidPrice: '价格和定价倍率必须为有限的非负数',
         priceMultiplierRequiresPrice: '模型 {models} 配置定价倍率时，必须至少填写一项价格',
         fastModeMultiplier: 'Fast 模式倍率',
         fastModeMultiplierPlaceholder: '例如 2',

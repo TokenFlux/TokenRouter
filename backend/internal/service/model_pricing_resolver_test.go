@@ -1520,7 +1520,7 @@ func TestResolve_GroupPricingOverridesChannel(t *testing.T) {
 	require.InDelta(t, 2e-6, resolved.BasePricing.OutputPricePerToken, 1e-12)
 }
 
-func TestResolve_GroupLongContextUsesPresetNotCustomIntervals(t *testing.T) {
+func TestResolve_GroupContextIntervalsOverridePresetRegardlessOfToggle(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
 	bs.fallbackPrices["claude-sonnet-4"].LongContextInputThreshold = 200000
 	bs.fallbackPrices["claude-sonnet-4"].LongContextThresholdInclusive = true
@@ -1538,15 +1538,15 @@ func TestResolve_GroupLongContextUsesPresetNotCustomIntervals(t *testing.T) {
 
 	resolved := r.Resolve(context.Background(), PricingInput{Model: "claude-sonnet-4", Group: group})
 	require.False(t, resolved.longContextPricingEnabled)
-	require.Empty(t, resolved.Intervals, "group token intervals are not a user-facing long-context ladder")
-	require.InDelta(t, 1e-6, r.GetIntervalPricing(resolved, 300000).InputPricePerToken, 1e-12)
+	require.Len(t, resolved.Intervals, 2)
+	require.InDelta(t, 18e-6, r.GetIntervalPricing(resolved, 300000).InputPricePerToken, 1e-12)
 	require.Equal(t, 200000, resolved.BasePricing.LongContextInputThreshold)
 
 	group.LongContextPricingEnabled = true
 	resolved = r.Resolve(context.Background(), PricingInput{Model: "claude-sonnet-4", Group: group})
 	require.True(t, resolved.longContextPricingEnabled)
-	require.Empty(t, resolved.Intervals)
-	require.InDelta(t, 1e-6, r.GetIntervalPricing(resolved, 300000).InputPricePerToken, 1e-12)
+	require.Len(t, resolved.Intervals, 2)
+	require.InDelta(t, 18e-6, r.GetIntervalPricing(resolved, 300000).InputPricePerToken, 1e-12)
 	require.Equal(t, 200000, resolved.BasePricing.LongContextInputThreshold)
 	require.InDelta(t, 2.0, resolved.BasePricing.LongContextInputMultiplier, 1e-12)
 }
