@@ -250,6 +250,52 @@ describe('admin AccountsView upstream usage', () => {
     expect(queryUpstreamUsage).toHaveBeenCalledTimes(1)
   })
 
+  // 展示和请求共用资格，批量选择不能绕过关闭状态或供应商能力限制。
+  it('混合批量选择跳过关闭查询与智谱按量账号，并查询合法国产平台账号', async () => {
+    const accounts = [
+      account(1),
+      { ...account(2), extra: { upstream_usage_query: { enabled: false } } },
+      { ...account(3), platform: 'zhipu', credentials: { account_mode: 'payg' } },
+      account(4, 'oauth'),
+      { ...account(5), platform: 'zhipu', credentials: { account_mode: 'coding' }, extra: {} },
+      { ...account(6), platform: 'deepseek', credentials: { account_mode: 'payg' }, extra: {} },
+      { ...account(7), platform: 'kimi', credentials: { account_mode: 'coding' }, extra: {} }
+    ]
+    listAccounts.mockResolvedValue({ items: accounts, total: accounts.length, page: 1, page_size: 20, pages: 1 })
+    queryBatchUpstreamUsage.mockResolvedValue({ usage: {
+      '1': result(1),
+      '5': { ...result(5), provider: 'zhipu', adapter: 'zhipu_coding' },
+      '6': { ...result(6), provider: 'deepseek', adapter: 'deepseek_balance' },
+      '7': { ...result(7), provider: 'kimi', adapter: 'kimi_coding' }
+    }, errors: {} })
+    const wrapper = mountView()
+    await flushPromises()
+    for (const checkbox of wrapper.findAll('input[type="checkbox"]')) await checkbox.setValue(true)
+    await wrapper.get('[data-test="query-upstream-batch"]').trigger('click')
+    await flushPromises()
+    expect(queryBatchUpstreamUsage).toHaveBeenCalledTimes(1)
+    expect(queryBatchUpstreamUsage).toHaveBeenCalledWith([1, 5, 6, 7])
+    expect(showError).not.toHaveBeenCalled()
+    expect(showSuccess).toHaveBeenCalledWith('admin.accounts.upstreamUsage.success')
+    wrapper.unmount()
+  })
+
+  it.each([
+    { ...account(2), extra: { upstream_usage_query: { enabled: false } } },
+    { ...account(3), platform: 'zhipu', credentials: { account_mode: 'payg' } },
+    account(4, 'oauth')
+  ])('单次查询入口也拒绝无资格账号 $id', async blocked => {
+    listAccounts.mockResolvedValue({ items: [blocked], total: 1, page: 1, page_size: 20, pages: 1 })
+    const wrapper = mountView()
+    await flushPromises()
+    // 测试桩直接调用父级回调，确认守卫不只依赖按钮是否显示。
+    await wrapper.get('[data-test="query-upstream"]').trigger('click')
+    await flushPromises()
+    expect(queryUpstreamUsage).not.toHaveBeenCalled()
+    expect(sessionStorage.length).toBe(0)
+    wrapper.unmount()
+  })
+
   it('把 API Key 批量请求按 100 个账号分块并并发执行', async () => {
     const accounts = Array.from({ length: 205 }, (_, index) => account(index + 1))
     listAccounts.mockResolvedValue({ items: accounts, total: 205, page: 1, page_size: 500, pages: 1 })

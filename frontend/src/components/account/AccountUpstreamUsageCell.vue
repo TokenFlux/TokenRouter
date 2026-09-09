@@ -84,6 +84,7 @@ import type {
 } from '@/types'
 import Icon from '@/components/icons/Icon.vue'
 import UsageProgressBar from './UsageProgressBar.vue'
+import { isUpstreamUsageQueryEnabled, supportsUpstreamUsageQuery } from '@/utils/upstreamUsage'
 
 const props = withDefaults(defineProps<{
   account: Account
@@ -104,14 +105,10 @@ const { t } = useI18n()
 
 // 查询按钮只负责发出管理员显式操作，组件挂载和滚动不会触发请求。
 const unsupportedCNQuery = computed(() =>
-  props.account.platform === 'zhipu' && props.account.credentials?.account_mode !== 'coding'
+  props.account.platform === 'zhipu' && !supportsUpstreamUsageQuery(props.account)
 )
 
-const queryEnabled = computed(() => {
-  if (unsupportedCNQuery.value) return false
-  const config = props.account.extra?.upstream_usage_query as Record<string, unknown> | undefined
-  return config?.enabled !== false
-})
+const queryEnabled = computed(() => isUpstreamUsageQueryEnabled(props.account))
 
 // 未执行本次会话的手动查询时，可展示后台监控最近一次成功快照；组件挂载不会发请求。
 const monitorResult = computed<UpstreamUsageQueryResult | null>(() => {

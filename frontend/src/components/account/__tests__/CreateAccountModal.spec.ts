@@ -356,26 +356,50 @@ describe('CreateAccountModal OpenAI account options', () => {
     expect(wrapper.find('[data-testid="create-openai-flatten-namespaces-toggle"]').exists()).toBe(false)
   })
 
-  it('submits adaptive Kimi protocol endpoints', async () => {
+  // 默认提交协议须与后端保存矩阵一致，三个平台都不能漏测。
+  it.each([
+    { label: 'Kimi', platform: 'kimi', base: 'https://api.moonshot.cn/v1', anthropic: 'https://api.moonshot.cn/anthropic', responses: 'https://api.moonshot.cn/v1' },
+    { label: 'GLM', platform: 'zhipu', base: 'https://open.bigmodel.cn/api/paas/v4', anthropic: 'https://open.bigmodel.cn/api/anthropic', responses: undefined },
+    { label: 'DeepSeek', platform: 'deepseek', base: 'https://api.deepseek.com', anthropic: 'https://api.deepseek.com/anthropic', responses: 'https://api.deepseek.com' }
+  ])('$label 默认提交完整 adaptive 端点', async ({ label, platform, base, anthropic, responses }) => {
     const wrapper = mountModal()
-    await selectButtonByText(wrapper, 'Kimi')
-    await wrapper.get('form#create-account-form input[type="text"]').setValue('Kimi adaptive')
-    await wrapper.get('form#create-account-form input[type="password"]').setValue('sk-kimi')
+    await selectButtonByText(wrapper, label)
+    await wrapper.get('form#create-account-form input[type="text"]').setValue(`${label} adaptive`)
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('sk-cn')
 
     await wrapper.get('form#create-account-form').trigger('submit.prevent')
     await flushPromises()
 
     expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]).toMatchObject({ platform, type: 'apikey' })
     expect(createAccountMock.mock.calls[0]?.[0]?.credentials).toMatchObject({
       account_mode: 'payg',
       api_protocol: 'adaptive',
-      base_url: 'https://api.moonshot.cn/v1',
-      api_base_urls: {
-        chat_completions: 'https://api.moonshot.cn/v1',
-        anthropic: 'https://api.moonshot.cn/anthropic',
-        responses: 'https://api.moonshot.cn/v1'
-      }
+      base_url: base
     })
+    expect(createAccountMock.mock.calls[0]?.[0]?.credentials.api_base_urls).toEqual({
+      chat_completions: base,
+      anthropic,
+      ...(responses ? { responses } : {})
+    })
+  })
+
+  it.each(['payg', 'coding'])('Kimi %s 可选择并提交原生 Responses', async mode => {
+    const wrapper = mountModal()
+    await selectButtonByText(wrapper, 'Kimi')
+    if (mode === 'coding') await selectButtonByText(wrapper, 'admin.accounts.cnProviders.accountMode.coding')
+    await selectButtonByText(wrapper, 'admin.accounts.cnProviders.apiProtocol.responses')
+    await wrapper.get('form#create-account-form input[type="text"]').setValue('Kimi Responses')
+    await wrapper.get('form#create-account-form input[type="password"]').setValue('sk-cn')
+    await wrapper.get('form#create-account-form').trigger('submit.prevent')
+    await flushPromises()
+    expect(createAccountMock).toHaveBeenCalledTimes(1)
+    expect(createAccountMock.mock.calls[0]?.[0]?.credentials).toMatchObject({
+      account_mode: mode,
+      api_protocol: 'responses',
+      base_url: mode === 'coding' ? 'https://api.kimi.com/coding/v1' : 'https://api.moonshot.cn/v1'
+    })
+    expect(createAccountMock.mock.calls[0]?.[0]?.credentials).not.toHaveProperty('api_base_urls')
   })
 
   it('submits adaptive Kimi Coding Plan Responses endpoint', async () => {

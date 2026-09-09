@@ -460,7 +460,7 @@ func TestCNProviderAccountModeAndCredentialValidation(t *testing.T) {
 	require.Equal(t, APIProtocolChatCompletions, created.Credentials["api_protocol"])
 
 	invalidResponses := &Account{
-		Platform: PlatformKimi, Type: AccountTypeAPIKey,
+		Platform: PlatformZhipu, Type: AccountTypeAPIKey,
 		Credentials: map[string]any{"api_protocol": APIProtocolResponses},
 	}
 	require.Error(t, normalizeCNProviderCredentials(invalidResponses, false))

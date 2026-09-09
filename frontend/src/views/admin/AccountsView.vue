@@ -471,6 +471,7 @@ import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { useAuthStore } from '@/stores/auth'
 import { adminAPI } from '@/api/admin'
+import { isUpstreamUsageQueryEnabled, supportsUpstreamUsageQuery } from '@/utils/upstreamUsage'
 import { useTableLoader } from '@/composables/useTableLoader'
 import { useSwipeSelect, type SwipeSelectVirtualContext } from '@/composables/useSwipeSelect'
 import { useTableSelection } from '@/composables/useTableSelection'
@@ -754,10 +755,6 @@ const accountSupportsBatchUsage = (account: Account) => {
   return false
 }
 
-const isUpstreamUsageAccount = (account: Account) =>
-  account.type === 'apikey' &&
-  !(account.platform === 'zhipu' && account.credentials?.account_mode !== 'coding')
-
 const effectiveUpstreamUsageAdapter = (account: Account) => {
   if (account.platform === 'kimi') {
     return account.credentials?.account_mode === 'coding' ? 'kimi_coding' : 'kimi_balance'
@@ -1009,7 +1006,7 @@ const hydrateUpstreamUsageCache = () => {
     hydratedUpstreamUsageAdminID = adminID
   }
   for (const account of accounts.value) {
-    if (!isUpstreamUsageAccount(account)) continue
+    if (!isUpstreamUsageQueryEnabled(account)) continue
     const cached = readUpstreamUsageCache(account)
     if (cached) {
       setUpstreamUsageState(account.id, cached, null, false)
@@ -1020,7 +1017,7 @@ const hydrateUpstreamUsageCache = () => {
 }
 
 const requestUpstreamUsage = async (account: Account, options?: { force?: boolean }) => {
-  if (!isUpstreamUsageAccount(account)) return
+  if (!isUpstreamUsageQueryEnabled(account)) return
   const key = String(account.id)
   const force = options?.force === true
   if (!force) {
@@ -1129,7 +1126,7 @@ const handleBulkQueryUpstreamUsage = async () => {
     const selectedAccounts = selectedAccountResults
       .filter((item): item is PromiseFulfilledResult<Account> => item.status === 'fulfilled')
       .map(item => item.value)
-      .filter(isUpstreamUsageAccount)
+      .filter(isUpstreamUsageQueryEnabled)
     if (selectedAccounts.length === 0) {
       appStore.showWarning(t('admin.accounts.upstreamUsage.noSupportedSelection'))
       return
@@ -1734,7 +1731,7 @@ const inAutoRefreshSilentWindow = () => {
 }
 
 const shouldReplaceAutoRefreshRow = (current: Account, next: Account) => {
-  const upstreamConnectionChanged = isUpstreamUsageAccount(current) || isUpstreamUsageAccount(next)
+  const upstreamConnectionChanged = supportsUpstreamUsageQuery(current) || supportsUpstreamUsageQuery(next)
     ? current.type !== next.type || current.platform !== next.platform ||
       current.proxy_id !== next.proxy_id ||
       current.proxy?.updated_at !== next.proxy?.updated_at ||
@@ -1771,7 +1768,7 @@ const mergeAccountsIncrementally = (nextRows: Account[]) => {
   const currentByID = new Map(currentRows.map(row => [row.id, row]))
   const nextIDs = new Set(nextRows.map(row => row.id))
   for (const currentRow of currentRows) {
-    if (isUpstreamUsageAccount(currentRow) && !nextIDs.has(currentRow.id)) {
+    if (supportsUpstreamUsageQuery(currentRow) && !nextIDs.has(currentRow.id)) {
       // 自动刷新发现账号已从列表消失时，立即删除对应浏览器快照。
       invalidateUpstreamUsageCache(currentRow.id)
     }
@@ -1784,7 +1781,7 @@ const mergeAccountsIncrementally = (nextRows: Account[]) => {
       return nextRow
     }
     if (shouldReplaceAutoRefreshRow(currentRow, nextRow)) {
-      if ((isUpstreamUsageAccount(currentRow) || isUpstreamUsageAccount(nextRow)) &&
+      if ((supportsUpstreamUsageQuery(currentRow) || supportsUpstreamUsageQuery(nextRow)) &&
         upstreamUsageCacheKey(currentRow) !== upstreamUsageCacheKey(nextRow)) {
         invalidateUpstreamUsageCache(nextRow.id)
       }

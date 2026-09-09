@@ -23,6 +23,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Account } from '@/types'
 import Icon from '@/components/icons/Icon.vue'
+import { isUpstreamUsageQueryEnabled } from '@/utils/upstreamUsage'
 
 const props = withDefaults(defineProps<{
   account: Account
@@ -36,10 +37,7 @@ const props = withDefaults(defineProps<{
 const { t } = useI18n()
 
 // 查询按钮只负责管理员显式操作；配置关闭时由内容组件显示关闭状态。
-const queryEnabled = computed(() => {
-  const config = props.account.extra?.upstream_usage_query as Record<string, unknown> | undefined
-  return config?.enabled !== false
-})
+const queryEnabled = computed(() => isUpstreamUsageQueryEnabled(props.account))
 
 const query = () => {
   props.request?.(props.account, { force: true })

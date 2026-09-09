@@ -430,37 +430,57 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials?.model_mapping).toBeUndefined()
   })
 
-  it('preserves adaptive Kimi Responses endpoint on submit', async () => {
+  // 回显与保存都应保留管理员配置的分协议地址，不能被默认端点覆盖。
+  it.each(['kimi', 'zhipu', 'deepseek'])('%s adaptive 账号回显并保存自定义端点', async platform => {
     const account = buildAccount()
-    account.platform = 'kimi'
+    account.platform = platform
+    const endpoints = {
+      chat_completions: 'https://relay.example.test/v1',
+      anthropic: 'https://relay.example.test/anthropic',
+      ...(platform !== 'zhipu' ? { responses: 'https://relay.example.test/responses' } : {})
+    }
     account.credentials = {
-      api_key: 'sk-kimi',
+      api_key: 'sk-cn',
       account_mode: 'payg',
       api_protocol: 'adaptive',
-      base_url: 'https://api.moonshot.cn/v1',
-      api_base_urls: {
-        chat_completions: 'https://api.moonshot.cn/v1',
-        anthropic: 'https://api.moonshot.cn/anthropic',
-        responses: 'https://api.moonshot.cn/v1'
-      }
+      base_url: endpoints.chat_completions,
+      api_base_urls: endpoints
     }
     updateAccountMock.mockReset().mockResolvedValue(account)
     checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
 
     const wrapper = mountModal(account)
+    const inputValues = wrapper.findAll<HTMLInputElement>('input[type="text"]').map(input => input.element.value)
+    for (const endpoint of Object.values(endpoints)) expect(inputValues).toContain(endpoint)
     await wrapper.get('form#edit-account-form').trigger('submit.prevent')
 
     expect(updateAccountMock).toHaveBeenCalledTimes(1)
     expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
       account_mode: 'payg',
       api_protocol: 'adaptive',
-      base_url: 'https://api.moonshot.cn/v1',
-      api_base_urls: {
-        chat_completions: 'https://api.moonshot.cn/v1',
-        anthropic: 'https://api.moonshot.cn/anthropic',
-        responses: 'https://api.moonshot.cn/v1'
-      }
+      base_url: endpoints.chat_completions,
+      api_base_urls: endpoints
     })
+  })
+
+  it.each(['payg', 'coding'])('Kimi %s 原生 Responses 回显和保存不回退协议', async mode => {
+    const account = buildAccount()
+    account.platform = 'kimi'
+    account.credentials = {
+      api_key: 'sk-cn', account_mode: mode, api_protocol: 'responses',
+      base_url: 'https://relay.example.test/responses'
+    }
+    updateAccountMock.mockReset().mockResolvedValue(account)
+    checkMixedChannelRiskMock.mockReset().mockResolvedValue({ has_risk: false })
+    const wrapper = mountModal(account)
+    expect(wrapper.findAll<HTMLInputElement>('input[type="text"]').map(input => input.element.value))
+      .toContain('https://relay.example.test/responses')
+    await wrapper.get('form#edit-account-form').trigger('submit.prevent')
+    expect(updateAccountMock).toHaveBeenCalledTimes(1)
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).toMatchObject({
+      account_mode: mode, api_protocol: 'responses', base_url: 'https://relay.example.test/responses'
+    })
+    expect(updateAccountMock.mock.calls[0]?.[1]?.credentials).not.toHaveProperty('api_base_urls')
   })
 
   it('preserves adaptive GLM endpoints on submit', async () => {

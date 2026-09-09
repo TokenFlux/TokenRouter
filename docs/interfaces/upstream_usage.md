@@ -65,7 +65,12 @@ Zhipu payg 没有公开余额协议，DeepSeek coding 也不是合法账号组�
 
 每次操作使用约 60 秒总超时、512 KiB 响应体上限、禁止重定向，并复用账号代理、TLS 指纹、Header Override 和 `HTTPUpstream`。查询前后重新读取账号；凭据、代理、Base URL、TLS 连接设置或规范化配置改变时返回 `UPSTREAM_USAGE_IDENTITY_CHANGED`。同一账号和配置指纹使用 singleflight，等待方可以独立取消。
 
+<a id="frontend_lifecycle"></a>
 ## 前端生命周期
+
+API Key 账号（含 Kimi、Zhipu、DeepSeek）统一按上游余额/周期用量、本地今日统计、本地配额、查询按钮的顺序展示。本地统计与配额只在具有相应数据或配置时显示；上游查询失败、关闭或不支持不隐藏本地数据。内容组件隐藏内部查询按钮，由用量栏底部提供唯一入口，查询中禁用，失败后通过同一按钮重试。
+
+展示、按钮及列表单次/批量查询共用资格：仅 API Key 支持，Zhipu 非 coding 模式没有余额端点，显式 `extra.upstream_usage_query.enabled=false` 时关闭，缺少配置时默认启用。不支持或关闭时显示对应提示并隐藏按钮；批量选择跳过这些账号，不把它们计为查询失败。
 
 列表加载、滚动进入视口和自动刷新不会请求上游。管理员只能通过行内刷新按钮或批量操作触发手动查询；成功结果按管理员身份、账号 ID、`updated_at`、代理/Base URL、适配器和规范化配置写入 `sessionStorage` 五分钟，失败结果不缓存。强制刷新绕过缓存；账号保存、凭据/代理/Base URL/配置变化立即失效。该缓存只保存归一化结果，不保存任何凭据。存在有效 `extra.cn_usage_monitor_snapshot` 时，列表可以直接展示最近监控结果而不触发请求。
 

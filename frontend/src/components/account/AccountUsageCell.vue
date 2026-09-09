@@ -174,22 +174,6 @@
       </div>
     </template>
 
-    <!-- 国产供应商 API Key：复用统一的显式上游用量查询与会话缓存。 -->
-    <template
-      v-else-if="
-        account.type === 'apikey' &&
-        (account.platform === 'kimi' || account.platform === 'zhipu' || account.platform === 'deepseek')
-      "
-    >
-      <AccountUpstreamUsageCell
-        :account="account"
-        :result="upstreamUsage"
-        :error="upstreamUsageError"
-        :loading="upstreamUsageLoading"
-        :request="requestUpstreamUsage"
-      />
-    </template>
-
     <!-- Antigravity OAuth accounts: fetch usage from API -->
     <template v-else-if="account.platform === 'antigravity' && account.type === 'oauth'">
       <!-- 账户类型徽章 -->
@@ -671,7 +655,7 @@
       v-else-if="account.platform === 'gemini' && account.type !== 'apikey'"
       :account="account"
     />
-    <!-- Key/Bedrock accounts: show today stats + optional quota bars -->
+    <!-- API Key（含国产平台）统一展示上游用量、本地统计和本地配额。 -->
     <div v-else class="space-y-1">
       <AccountUpstreamUsageCell
         v-if="account.type === 'apikey'"
@@ -755,7 +739,8 @@
       >-</div>
     </div>
   </div>
-  <div v-if="account.type === 'apikey'" class="mt-0.5 flex items-center gap-1.5">
+  <!-- 查询入口统一放在本地统计和配额之后，内容组件不再重复显示按钮。 -->
+  <div v-if="isUpstreamUsageQueryEnabled(account)" class="mt-0.5 flex items-center gap-1.5">
     <AccountUpstreamUsageQueryButton
       :account="account"
       :loading="upstreamUsageLoading"
@@ -778,6 +763,7 @@ import type {
   UpstreamUsageQueryResult
 } from '@/types'
 import { buildOpenAIUsageRefreshKey } from '@/utils/accountUsageRefresh'
+import { isUpstreamUsageQueryEnabled } from '@/utils/upstreamUsage'
 import { enqueueUsageRequest } from '@/utils/usageLoadQueue'
 import { formatCompactNumber } from '@/utils/format'
 import { TABLE_DESKTOP_MEDIA_QUERY } from '@/constants/layout'
@@ -866,10 +852,6 @@ const upstreamUsageDisabled = computed(() => {
 
 // Show usage windows for OAuth and Setup Token accounts
 const showUsageWindows = computed(() => {
-  if (
-    props.account.type === 'apikey' &&
-    (props.account.platform === 'kimi' || props.account.platform === 'zhipu' || props.account.platform === 'deepseek')
-  ) return true
   // API Key 的上游余额由独立子组件按需查询；不能沿用 OAuth/Gemini
   // 用量模型在列表加载或进入视口时主动请求上游。
   if (props.account.type === 'apikey') return false

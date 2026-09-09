@@ -401,6 +401,7 @@ func normalizeAccountConcurrency(platform, accountType string, concurrency int) 
 // normalizeCNProviderCredentials 校验国产供应商账号组合，并为新账号补齐历史默认值。
 // 旧记录缺少 mode/protocol 时由 Account 方法按 payg + chat_completions 读取，避免无关编辑
 // 把兼容数据强制改写；新建记录则显式保存默认值，方便前端和监控选择适配器。
+// @project-doc docs/interfaces/upstream_account_matrix.md#cn_provider_protocols
 func normalizeCNProviderCredentials(account *Account, isCreate bool) error {
 	if account == nil || !IsCNProvider(account.Platform) {
 		return nil
@@ -431,10 +432,11 @@ func normalizeCNProviderCredentials(account *Account, isCreate bool) error {
 		}
 	}
 	switch protocol {
-	case APIProtocolChatCompletions, APIProtocolAnthropic:
+	case APIProtocolAdaptive, APIProtocolChatCompletions, APIProtocolAnthropic:
 	case APIProtocolResponses:
-		if account.Platform != PlatformDeepseek {
-			return infraerrors.BadRequest("CN_PROVIDER_PROTOCOL_INVALID", "only DeepSeek supports Responses protocol")
+		// 保存校验与转发共用平台能力，避免前端可选协议被旧白名单拒绝。
+		if !account.SupportsNativeCNResponses() {
+			return infraerrors.BadRequest("CN_PROVIDER_PROTOCOL_INVALID", "only DeepSeek and Kimi support Responses protocol")
 		}
 	default:
 		return infraerrors.BadRequest("CN_PROVIDER_PROTOCOL_INVALID", "api_protocol is unsupported")

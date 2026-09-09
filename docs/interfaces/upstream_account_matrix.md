@@ -37,9 +37,22 @@
 
 API Key 账号可以在管理员列表配置并手动查询上游用量。普通兼容上游缺省使用 Sub2API 适配器，New API 和 Zivv 必须显式选择；Kimi、Zhipu、DeepSeek 则由平台与 `account_mode` 自动选择固定只读适配器，Zhipu payg 因没有公开余额协议而明确不支持。手动查询协议错误只影响展示，不改变转发资格。API Key 行同时保留 TokenRouter 本地今日统计/本地配额和上游余额/周期限额两个来源；只有显式开启的 CN 周期监控可以把同一查询结果写入统一快照并形成身份绑定的临时停调，详见[API Key 上游用量查询](upstream_usage.md)。
 
-Kimi、Zhipu 和 DeepSeek 只接受 `type=apikey`。`credentials.account_mode` 为 `payg` 或 `coding`，其中 DeepSeek 不支持 `coding`；`credentials.api_protocol` 为 `chat_completions`、`anthropic` 或 `responses`，其中 Kimi/Zhipu 不支持上游原生 `responses`。历史账号缺少这两个字段时分别按 `payg` 和 `chat_completions` 读取。自定义 `base_url`、代理、TLS 指纹与受保护的 Header Override 沿用共同传输边界，平台身份不能从中继 URL 反推。
+<a id="cn_provider_protocols"></a>
+### 国产平台账号协议
 
-平台专题：
+Kimi、Zhipu 和 DeepSeek 只接受 `type=apikey`。账号模式与上游协议彼此独立，创建、单账号编辑和涉及凭据的批量更新共用以下矩阵：
+
+| 平台 | `credentials.account_mode` | `credentials.api_protocol` |
+| --- | --- | --- |
+| DeepSeek | `payg` | `adaptive`、`chat_completions`、`anthropic`、`responses` |
+| Kimi | `payg`、`coding` | `adaptive`、`chat_completions`、`anthropic`、`responses` |
+| Zhipu | `payg`、`coding` | `adaptive`、`chat_completions`、`anthropic` |
+
+`adaptive` 按入站协议选择平台原生端点；Kimi/DeepSeek 可使用原生 Responses，Zhipu 的 Responses 入站通过 Chat 转换。保存校验与转发层共用原生 Responses 能力判定。非法协议继续返回 HTTP `400` 和 `CN_PROVIDER_PROTOCOL_INVALID`；DeepSeek coding 和非 API Key 等非法组合仍被拒绝。
+
+前端新建默认选择 `adaptive`。历史账号缺少模式或协议时分别按 `payg` 和 `chat_completions` 读取，普通编辑不强制补写；API 创建请求缺少字段时显式保存这两个历史默认值。自适应账号的 `api_base_urls` 保存分协议地址，`base_url` 兼容 Chat 地址；保存和普通编辑保留自定义端点。代理、TLS 指纹与受保护的 Header Override 沿用共同传输边界，平台身份不能从中继 URL 反推。
+
+### 平台专题
 
 - [Anthropic 上游](anthropic_upstream.md)
 - [OpenAI 上游](openai_upstream.md)
