@@ -239,12 +239,6 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		rateNow = input.PricingAt
 	}
 	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, baseMultiplier, rateNow)
-	subscriptionMultiplier, _ = computePeakAwareMultipliers(apiKey, subscriptionMultiplier, rateNow)
-	balanceMultiplier, _ = computePeakAwareMultipliers(apiKey, balanceMultiplier, rateNow)
-	subscriptionMultiplierScale := 1.0
-	if apiKey.Group != nil && apiKey.Group.RateMultiplier > 0 {
-		subscriptionMultiplierScale = subscriptionMultiplier / apiKey.Group.RateMultiplier
-	}
 	videoMultiplier := baseMultiplier
 
 	var cost *CostBreakdown
@@ -486,6 +480,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		quotaPlatform = PlatformFromAPIKey(apiKey)
 	}
 
+	subscriptionMultiplier, balanceMultiplier, subscriptionMultiplierScale := usageBillingRatesForMode(apiKey, cost, subscriptionMultiplier, balanceMultiplier, rateNow)
 	billingErr := func() error {
 		_, err := applyUsageBilling(ctx, requestID, usageLog, &usageBillingParams{
 			Cost:                            cost,

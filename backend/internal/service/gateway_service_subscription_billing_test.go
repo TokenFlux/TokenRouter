@@ -162,7 +162,7 @@ func TestBuildUsageBillingCommand_IncludesRequestGroupID(t *testing.T) {
 	}
 }
 
-func TestBuildUsageBillingCommand_NonTokenModesPreserveEffectiveRate(t *testing.T) {
+func TestBuildUsageBillingCommand_NonTokenModesKeepAllocationRates(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -172,9 +172,9 @@ func TestBuildUsageBillingCommand_NonTokenModesPreserveEffectiveRate(t *testing.
 		actualCost float64
 		wantRate   float64
 	}{
-		{name: "image independent rate", mode: BillingModeImage, totalCost: 0.2, actualCost: 0.2, wantRate: 1},
-		{name: "video independent rate", mode: BillingModeVideo, totalCost: 0.08, actualCost: 0.02, wantRate: 0.25},
-		{name: "per request rate", mode: BillingModePerRequest, totalCost: 0.4, actualCost: 0.1, wantRate: 0.25},
+		{name: "image rate", mode: BillingModeImage, totalCost: 0.2, actualCost: 0.2, wantRate: 0.15},
+		{name: "video rate", mode: BillingModeVideo, totalCost: 0.08, actualCost: 0.02, wantRate: 0.15},
+		{name: "per request rate", mode: BillingModePerRequest, totalCost: 0.4, actualCost: 0.1, wantRate: 0.15},
 	}
 
 	for _, tt := range tests {
@@ -190,8 +190,8 @@ func TestBuildUsageBillingCommand_NonTokenModesPreserveEffectiveRate(t *testing.
 				APIKey:                          &APIKey{ID: 2},
 				Account:                         &Account{ID: 3},
 				SubscriptionRateMultiplier:      0.15,
-				SubscriptionRateMultiplierScale: 2,
-				BalanceRateMultiplier:           0.15,
+				SubscriptionRateMultiplierScale: 1,
+				BalanceRateMultiplier:           2,
 			}
 
 			cmd := buildUsageBillingCommand("req-non-token", nil, p)
@@ -205,8 +205,8 @@ func TestBuildUsageBillingCommand_NonTokenModesPreserveEffectiveRate(t *testing.
 			if cmd.SubscriptionRateMultiplierScale != 1 {
 				t.Errorf("SubscriptionRateMultiplierScale = %v, want 1", cmd.SubscriptionRateMultiplierScale)
 			}
-			if cmd.BalanceRateMultiplier != tt.wantRate {
-				t.Errorf("BalanceRateMultiplier = %v, want %v", cmd.BalanceRateMultiplier, tt.wantRate)
+			if cmd.BalanceRateMultiplier != 2 {
+				t.Errorf("BalanceRateMultiplier = %v, want %v", cmd.BalanceRateMultiplier, 2.0)
 			}
 		})
 	}

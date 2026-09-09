@@ -259,13 +259,6 @@ func applyUsageBillingRateMultipliers(cmd *UsageBillingCommand, p *usageBillingP
 	}
 
 	effectiveRate := p.Cost.ActualCost / baseAmount
-	if mode := strings.TrimSpace(p.Cost.BillingMode); mode != "" && mode != string(BillingModeToken) {
-		// 非 token 模式已在 ActualCost 中应用图片、视频或按次倍率；默认 allocation 必须沿用该倍率。
-		cmd.SubscriptionRateMultiplier = effectiveRate
-		cmd.SubscriptionRateMultiplierScale = 1
-		cmd.BalanceRateMultiplier = effectiveRate
-		return
-	}
 
 	cmd.SubscriptionRateMultiplier = usageBillingRateOrFallback(p.SubscriptionRateMultiplier, effectiveRate)
 	cmd.SubscriptionRateMultiplierScale = p.SubscriptionRateMultiplierScale
@@ -273,6 +266,18 @@ func applyUsageBillingRateMultipliers(cmd *UsageBillingCommand, p *usageBillingP
 		cmd.SubscriptionRateMultiplierScale = 1
 	}
 	cmd.BalanceRateMultiplier = usageBillingRateOrFallback(p.BalanceRateMultiplier, effectiveRate)
+}
+
+// usageBillingRatesForMode 按最终计费模式决定资金分配倍率；订阅与余额各自保留基础倍率。
+// 按张、按秒和按次费用不含高峰因子，不能用首个订阅的实际倍率覆盖余额按量倍率。
+func usageBillingRatesForMode(apiKey *APIKey, cost *CostBreakdown, subscriptionBase, balanceBase float64, pricingAt time.Time) (subscriptionRate, balanceRate, scale float64) {
+	scale = 1
+	if cost == nil || cost.BillingMode == "" || cost.BillingMode == string(BillingModeToken) {
+		if apiKey != nil && apiKey.Group != nil {
+			scale = apiKey.Group.PeakMultiplierAt(pricingAt)
+		}
+	}
+	return subscriptionBase * scale, balanceBase * scale, scale
 }
 
 func usageBillingRateOrFallback(value, fallback float64) float64 {
@@ -646,12 +651,6 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	}
 	opts.PricingAt = rateNow
 	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, multiplier, rateNow)
-	subscriptionMultiplier, _ = computePeakAwareMultipliers(apiKey, subscriptionMultiplier, rateNow)
-	balanceMultiplier, _ = computePeakAwareMultipliers(apiKey, balanceMultiplier, rateNow)
-	subscriptionMultiplierScale := 1.0
-	if apiKey.Group != nil && apiKey.Group.RateMultiplier > 0 {
-		subscriptionMultiplierScale = subscriptionMultiplier / apiKey.Group.RateMultiplier
-	}
 
 	// 确定计费模型
 	billingModel := forwardResultBillingModel(result.Model, result.UpstreamModel)
@@ -717,6 +716,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	if quotaPlatform == "" {
 		quotaPlatform = PlatformFromAPIKey(apiKey)
 	}
+	subscriptionMultiplier, balanceMultiplier, subscriptionMultiplierScale := usageBillingRatesForMode(apiKey, cost, subscriptionMultiplier, balanceMultiplier, rateNow)
 	requestID := usageLog.RequestID
 	_, billingErr := applyUsageBilling(ctx, requestID, usageLog, &usageBillingParams{
 		Cost:                            cost,

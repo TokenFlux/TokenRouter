@@ -1121,6 +1121,8 @@ func (s *BatchImagePublicService) resolvePricingSnapshot(ctx context.Context, ow
 	if billingMode == APIKeyBillingModeSubscription && (owner.PreferredSubscriptionID == nil || *owner.PreferredSubscriptionID <= 0) {
 		return nil, ErrPreferredSubscriptionRequired
 	}
+	// 同一次提交复用同一份分组配置，避免并发修改时混用旧倍率与新价格。
+	var pricingGroup *Group
 	unit := -1.0
 	groupMultiplier := 1.0
 	subscriptionRateMultiplier := 1.0
@@ -1136,6 +1138,7 @@ func (s *BatchImagePublicService) resolvePricingSnapshot(ctx context.Context, ow
 		if err != nil || group == nil {
 			return nil, ErrBatchImageSettlementPricingMissing
 		}
+		pricingGroup = group
 		if !group.AllowBatchImageGeneration {
 			return nil, ErrBatchImageGroupDisabled
 		}
@@ -1206,7 +1209,7 @@ func (s *BatchImagePublicService) resolvePricingSnapshot(ctx context.Context, ow
 		if s.Pricing == nil {
 			return nil, ErrBatchImageSettlementPricingMissing
 		}
-		resolvedUnit, err := s.Pricing.BatchImageUnitPrice(ctx, BatchImagePriceInput{Model: req.Model, GroupID: owner.GroupID, ImageSize: req.ImageSize})
+		resolvedUnit, err := s.Pricing.BatchImageUnitPrice(ctx, BatchImagePriceInput{Model: req.Model, GroupID: owner.GroupID, Group: pricingGroup, ImageSize: req.ImageSize})
 		if err != nil || resolvedUnit < 0 {
 			return nil, ErrBatchImageSettlementPricingMissing
 		}
