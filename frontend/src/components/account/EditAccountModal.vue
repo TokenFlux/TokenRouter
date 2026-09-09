@@ -136,27 +136,6 @@
           </div>
           <p class="input-hint">{{ t(`admin.accounts.cnProviders.accountMode.${editAccountMode}Desc`) }}</p>
         </div>
-        <!-- 国产供应商 API 协议选择 -->
-        <div v-if="isCNApiKeyAccount">
-          <label class="input-label">{{ t('admin.accounts.cnProviders.apiProtocol.title') }}</label>
-          <div class="mt-2 flex flex-wrap gap-2">
-            <button
-              v-for="opt in cnProtocolOptions"
-              :key="opt.value"
-              type="button"
-              :class="[
-                'rounded-lg border-2 px-3 py-1.5 text-xs transition-all',
-                editApiProtocol === opt.value
-                  ? 'border-primary-500 bg-primary-50 font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-                  : 'border-gray-200 text-gray-700 hover:border-gray-400 dark:border-dark-600 dark:text-gray-300 dark:hover:border-gray-600'
-              ]"
-              @click="editApiProtocol = opt.value"
-            >
-              {{ t(`admin.accounts.cnProviders.apiProtocol.${opt.labelKey}`) }}
-            </button>
-          </div>
-          <p class="input-hint">{{ t(`admin.accounts.cnProviders.apiProtocol.${cnProtocolDescKey}Desc`) }}</p>
-        </div>
         <!-- 智谱团队版 Coding Plan：组织/项目 ID 可选，清空组织 ID 即回到个人额度端点。 -->
         <div v-if="account.platform === 'zhipu' && editAccountMode === 'coding'">
           <div class="flex items-center gap-1">
@@ -1613,6 +1592,8 @@
         <ProxySelector v-model="form.proxy_id" :proxies="proxies" />
       </div>
 
+      <AccountProtocolSelector v-if="account && !account.parent_account_id" v-model="upstreamProtocols" :platform="account.platform" :type="account.type" :auth-mode="String(account.credentials?.auth_mode ?? account.credentials?.openai_auth_mode ?? '')" />
+
       <UpstreamRequestIdHeaderField
         v-model="upstreamRequestIdHeader"
         :platform="account.platform"
@@ -1762,30 +1743,6 @@
         v-if="account?.platform === 'openai' && account?.type === 'apikey'"
         class="space-y-5 border-t border-gray-200 pt-4 dark:border-dark-600"
       >
-        <div>
-          <label class="input-label mb-2 block">{{ t('admin.accounts.openai.workloadCapabilities') }}</label>
-          <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <label
-              v-for="option in openAIWorkloadCapabilityOptions"
-              :key="option.value"
-              class="flex cursor-pointer items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm dark:border-dark-600"
-            >
-              <input
-                type="checkbox"
-                class="rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-dark-500"
-                :data-testid="`openai-workload-capability-${option.value}`"
-                :checked="openAIWorkloadCapabilities.includes(option.value)"
-                @change="toggleOpenAIWorkloadCapability(option.value)"
-              />
-              <span class="text-gray-700 dark:text-gray-200">{{ option.label }}</span>
-            </label>
-          </div>
-          <p class="input-hint">{{ t('admin.accounts.openai.workloadCapabilitiesDesc') }}</p>
-        </div>
-        <div class="border-t border-gray-200 pt-4 dark:border-dark-600">
-          <label class="input-label">{{ t('admin.accounts.openai.textRouteMode') }}</label>
-          <OpenAITextProtocolCheckboxes v-model="openAITextRouteMode" />
-        </div>
         <div class="flex flex-col gap-3 border-t border-gray-200 pt-4 dark:border-dark-600 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <label class="input-label mb-0" for="edit-openai-continuation-supported">
@@ -2793,8 +2750,13 @@
 </template>
 
 <script setup lang="ts">
+// 统一协议选择只保存原生集合，不在账号侧配置转换。
+const upstreamProtocols = ref<GroupClientProtocol[] | undefined>(undefined)
+
 import { normalizeLegacyOpenAIExtra, normalizeOpenAICompactMode } from '@/utils/openaiLegacyConfiguration'
-import OpenAITextProtocolCheckboxes from './OpenAITextProtocolCheckboxes.vue'
+import AccountProtocolSelector from './AccountProtocolSelector.vue'
+import { loadProtocolCatalog, nativeProtocolOptions } from '@/api/admin/protocolCapabilities'
+import type { GroupClientProtocol } from '@/types'
 import OpenAICompactionCheckbox from './OpenAICompactionCheckbox.vue'
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -2809,8 +2771,6 @@ import type {
   CheckMixedChannelResponse,
   OpenAICompactMode,
   OpenAIOAuthClientPolicy,
-  OpenAITextRouteMode,
-  OpenAIWorkloadCapability,
   OllamaCloudUsageState,
   UpstreamUsageAdapter
 } from '@/types'
@@ -3007,17 +2967,6 @@ const cnAccountModeOptions = computed<Array<{ value: CnAccountMode; labelKey: 'p
     ]
   }
 )
-const cnProtocolOptions = computed<Array<{ value: CnApiProtocol; labelKey: string }>>(() => {
-  const options: Array<{ value: CnApiProtocol; labelKey: string }> = [
-    { value: 'adaptive', labelKey: 'adaptive' },
-    { value: 'chat_completions', labelKey: 'chatCompletions' },
-    { value: 'anthropic', labelKey: 'anthropic' }
-  ]
-	if (cnSupportsNativeResponses(props.account?.platform ?? '')) {
-		options.push({ value: 'responses', labelKey: 'responses' })
-  }
-  return options
-})
 const editAdaptiveProtocolOptions = computed<Array<{ value: CnNativeApiProtocol; labelKey: string }>>(() => {
   const opts: Array<{ value: CnNativeApiProtocol; labelKey: string }> = [
     { value: 'chat_completions', labelKey: 'chatCompletions' },
@@ -3067,15 +3016,14 @@ watch(editAccountMode, (mode, previousMode) => {
   editBaseUrl.value = defaultCNBaseUrl(props.account!.platform, mode, editApiProtocol.value)
 })
 
-const cnProtocolDescKey = computed(
-  () => cnProtocolOptions.value.find(option => option.value === editApiProtocol.value)?.labelKey ?? 'chatCompletions'
-)
+
 
 // 端点预设同时更新模式和协议，保持表单字段一致。
 function onCnPresetSelect(preset: { mode: CnAccountMode; protocol: CnApiProtocol; url: string }) {
   editAccountMode.value = preset.mode
-  editApiProtocol.value = preset.protocol
-  editBaseUrl.value = preset.url
+  editApiProtocol.value = 'adaptive'
+  if (preset.protocol !== 'adaptive') editAdaptiveBaseUrls.value[preset.protocol] = preset.url
+  editBaseUrl.value = editAdaptiveBaseUrls.value.chat_completions
 }
 
 const isGeminiThirdPartyBaseUrl = (value: string) => {
@@ -3256,8 +3204,6 @@ const openaiFlattenNamespacesEnabled = ref(false)
 const editPlanType = ref<string>('')
 const openAICompactMode = ref<OpenAICompactMode>('force_on')
 const openAINativeCompactionV2Mode = ref<OpenAICompactMode>('force_on')
-const openAITextRouteMode = ref<OpenAITextRouteMode>('preserve_client_protocol')
-const openAIWorkloadCapabilities = ref<OpenAIWorkloadCapability[]>(['text_generation', 'embeddings'])
 // HTTP continuation 缺省关闭，只有管理员确认上游支持时才发送 previous_response_id。
 const openAIResponsesContinuationSupported = ref(false)
 // 图片回填默认关闭，只对 OpenAI API Key 账号生效。
@@ -3384,68 +3330,6 @@ const openAIOAuthClientPolicyOptions = computed(() => [
   { value: 'tls_router_matched_only', label: t('admin.accounts.openai.clientPolicyTLSRouterMatchedOnly') }
 ])
 
-const openAIWorkloadCapabilityOptions = computed<{ value: OpenAIWorkloadCapability; label: string }[]>(() => [
-  { value: 'text_generation', label: t('admin.accounts.openai.workloadTextGeneration') },
-  { value: 'embeddings', label: t('admin.accounts.openai.workloadEmbeddings') }
-])
-
-const normalizeOpenAIWorkloadCapabilities = (values: unknown[]) => {
-  const selected = new Set<OpenAIWorkloadCapability>()
-  for (const value of values) {
-    if (value === 'text_generation' || value === 'chat_completions') {
-      selected.add('text_generation')
-    } else if (value === 'embeddings') {
-      selected.add('embeddings')
-    }
-  }
-  return (['text_generation', 'embeddings'] as OpenAIWorkloadCapability[]).filter((value) => selected.has(value))
-}
-
-const readOpenAIWorkloadCapabilities = (credentials?: Record<string, unknown>): OpenAIWorkloadCapability[] => {
-  const hasNewShape = Object.prototype.hasOwnProperty.call(credentials ?? {}, 'openai_workload_capabilities')
-  const hasLegacyShape = Object.prototype.hasOwnProperty.call(credentials ?? {}, 'openai_capabilities')
-  const raw = hasNewShape ? credentials?.openai_workload_capabilities : credentials?.openai_capabilities
-  if (Array.isArray(raw)) {
-    return normalizeOpenAIWorkloadCapabilities(raw)
-  }
-  if (raw !== null && typeof raw === 'object') {
-    const capabilityMap = raw as Record<string, unknown>
-    const values: unknown[] = []
-    if (capabilityMap.text_generation === true || capabilityMap.chat_completions === true) {
-      values.push('text_generation')
-    }
-    if (capabilityMap.embeddings === true) values.push('embeddings')
-    return normalizeOpenAIWorkloadCapabilities(values)
-  }
-  return hasNewShape || hasLegacyShape ? [] : ['text_generation', 'embeddings']
-}
-
-const toggleOpenAIWorkloadCapability = (capability: OpenAIWorkloadCapability) => {
-  if (openAIWorkloadCapabilities.value.includes(capability)) {
-    openAIWorkloadCapabilities.value = openAIWorkloadCapabilities.value.filter(
-      (value) => value !== capability
-    )
-    return
-  }
-  openAIWorkloadCapabilities.value = normalizeOpenAIWorkloadCapabilities([
-    ...openAIWorkloadCapabilities.value,
-    capability
-  ])
-}
-
-const applyOpenAIWorkloadCapabilities = (credentials: Record<string, unknown>) => {
-  delete credentials.openai_capabilities
-  credentials.openai_workload_capabilities = normalizeOpenAIWorkloadCapabilities(openAIWorkloadCapabilities.value)
-}
-const normalizeOpenAITextRouteMode = (mode: unknown, legacyMode?: unknown): OpenAITextRouteMode => {
-  if (mode === 'preserve_client_protocol' || mode === 'force_responses' || mode === 'force_chat_completions') {
-    return mode
-  }
-  if (legacyMode === 'force_responses' || legacyMode === 'force_chat_completions') {
-    return legacyMode
-  }
-  return 'preserve_client_protocol'
-}
 const isOpenAIModelRestrictionDisabled = computed(() =>
   props.account?.platform === 'openai' && openaiPassthroughEnabled.value
 )
@@ -3663,6 +3547,8 @@ const applyOpenAIModelMappingCredentials = (credentials: Record<string, unknown>
 }
 
 const syncFormFromAccount = (newAccount: Account | null) => {
+  upstreamProtocols.value = Array.isArray(newAccount?.credentials?.upstream_protocols) ? [...newAccount.credentials.upstream_protocols] as GroupClientProtocol[] : undefined
+
   if (!newAccount) {
     return
   }
@@ -3744,8 +3630,6 @@ const syncFormFromAccount = (newAccount: Account | null) => {
   editPlanType.value = ''
   openAICompactMode.value = 'force_on'
   openAINativeCompactionV2Mode.value = 'force_on'
-  openAITextRouteMode.value = 'preserve_client_protocol'
-  openAIWorkloadCapabilities.value = ['text_generation', 'embeddings']
   openAIResponsesContinuationSupported.value = false
   openAIImagesURLToB64JSON.value = false
   openAICompactModelMappings.value = []
@@ -3769,13 +3653,6 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     openAICompactMode.value = normalizeOpenAICompactMode(extra?.openai_compact_mode)
     openAINativeCompactionV2Mode.value = normalizeOpenAICompactMode(extra?.openai_native_compaction_v2_mode)
     if (newAccount.type === 'apikey') {
-      openAITextRouteMode.value = normalizeOpenAITextRouteMode(
-        extra?.openai_text_route_mode,
-        extra?.openai_responses_mode
-      )
-      openAIWorkloadCapabilities.value = readOpenAIWorkloadCapabilities(
-        newAccount.credentials as Record<string, unknown> | undefined
-      )
       openAIResponsesContinuationSupported.value = extra?.openai_responses_continuation_supported === true
       openAIImagesURLToB64JSON.value = extra?.images_url_to_b64_json === true
     }
@@ -3934,7 +3811,7 @@ const syncFormFromAccount = (newAccount: Account | null) => {
     // （编辑弹窗允许修正两者，用于修复早期存错默认值的账号）。
     if (newAccount.platform === 'kimi' || newAccount.platform === 'zhipu' || newAccount.platform === 'deepseek') {
       editAccountMode.value = credentials.account_mode === 'coding' ? 'coding' : 'payg'
-      const storedProtocol = credentials.api_protocol
+      const storedProtocol = credentials.upstream_protocols !== undefined ? 'adaptive' : credentials.api_protocol
       editApiProtocol.value =
         storedProtocol === 'adaptive' ||
         storedProtocol === 'chat_completions' ||
@@ -4699,6 +4576,15 @@ const handleClose = () => {
 const submitUpdateAccount = async (accountID: number, updatePayload: Record<string, unknown>) => {
   submitting.value = true
   try {
+    if (props.account && !props.account.parent_account_id) {
+      await loadProtocolCatalog()
+      const credentials = { ...(updatePayload.credentials as Record<string, unknown> ?? props.account.credentials ?? {}), upstream_protocols: upstreamProtocols.value ?? nativeProtocolOptions(props.account.platform, props.account.type, String(props.account.credentials?.auth_mode ?? props.account.credentials?.openai_auth_mode ?? '')) } as Record<string, unknown>
+      delete credentials.api_protocol
+      delete credentials.openai_workload_capabilities
+      updatePayload.credentials = credentials
+      const extra = updatePayload.extra as Record<string, unknown> | undefined
+      if (extra) delete extra.openai_text_route_mode
+    }
     const updatedAccount = await adminAPI.accounts.update(accountID, withAntigravityConfirmFlag(updatePayload))
     appStore.showSuccess(t('admin.accounts.accountUpdated'))
     emit('updated', updatedAccount)
@@ -4845,9 +4731,6 @@ const handleSubmit = async () => {
         newCredentials.model_whitelist = currentCredentials.model_whitelist
       }
       if (props.account.platform === 'openai') {
-        if (props.account.type === 'apikey') {
-          applyOpenAIWorkloadCapabilities(newCredentials)
-        }
         const compactModelMapping = buildModelMappingObject('mapping', [], openAICompactModelMappings.value)
         if (compactModelMapping) {
           newCredentials.compact_model_mapping = compactModelMapping
@@ -5306,7 +5189,6 @@ const handleSubmit = async () => {
       }
       if (props.account.type === 'apikey') {
 		delete newExtra.openai_responses_mode
-		newExtra.openai_text_route_mode = openAITextRouteMode.value
 		newExtra.openai_responses_continuation_supported = openAIResponsesContinuationSupported.value
 	  }
 		if (autoPause5hThreshold.value != null && autoPause5hThreshold.value > 0) {

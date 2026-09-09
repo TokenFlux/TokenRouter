@@ -1,5 +1,7 @@
 # Antigravity 上游
 
+Antigravity 原生 OAuth 只显示 GenerateContent 的平台适配变体，Messages/Responses/Chat 是分组转换入口；历史 upstream 类型保留 Messages 原生直连，静态 API Key 的既有契约冲突不因目录统一而扩大支持范围。统一配置字段与入口门禁见[统一协议能力](protocol_capabilities.md)。
+
 本文描述 Antigravity 账号接入、专用 Claude/Gemini 端点、协议转换、混合调度与上游失败语义。它用于修改 Antigravity 适配器时保持平台隔离，不记录终端用户的 Claude Code 操作技巧，也不承诺上游未验证的模型能力。
 
 ## 章节导航

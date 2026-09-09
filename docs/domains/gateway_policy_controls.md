@@ -26,27 +26,11 @@
 
 ## 协议与能力准入
 
-Group 的 `platform` 表示上游平台，不再隐含客户端必须使用同形协议。文本生成准入由独立的 `allowed_client_protocols` 完整集合控制，固定顺序为 `anthropic_messages`、`openai_responses`、`openai_chat_completions`、`gemini_generate_content`。各平台策略如下：
+Group 的 `platform` 表示上游平台；`allowed_protocols` 控制客户端入口，`protocol_fallbacks` 控制账号无法原生承接时的唯一转换目标。账号 `credentials.upstream_protocols` 只勾选原生能力。完整 24 项目录、平台/认证边界和新建默认值由后端提供给前端，详见[统一协议能力](../interfaces/protocol_capabilities.md)。
 
-| 上游平台 | 支持协议 | 新建默认 |
-| --- | --- | --- |
-| Anthropic | Messages、Responses、Chat | Messages |
-| OpenAI | Messages、Responses、Chat | Responses、Chat |
-| Gemini | 四项全部 | Gemini GenerateContent |
-| Antigravity | 四项全部 | Messages、Gemini GenerateContent |
-| Qoder | Messages、Responses、Chat | 空集合 |
-| Grok | Messages、Responses、Chat | Responses、Chat |
-| Kimi | Messages、Responses、Chat | 三项全部 |
-| Zhipu | Messages、Responses、Chat | 三项全部 |
-| DeepSeek | Messages、Responses、Chat | 三项全部 |
+协议配置是硬资格：候选原生优先，没有原生或指定转换路线则不参与评分；所有旧的模型、配额、媒体资格和会话约束继续生效。切号重新解析，不根据请求失败临时挑选另一协议。分组转换目标不必作为客户端入口开放。
 
-上表默认值只决定新建分组的初始选择，不构成必选项；所有平台都允许保存空集合。显式保存时，未知、重复或不受平台支持的集合返回 `400`。创建缺省使用平台默认集合，更新缺省保持原值；更新同时切换平台时，只移除新平台不支持的协议，不自动启用任何协议。`allow_messages_dispatch` 仅作为弃用兼容字段：响应从新集合派生，新字段缺省时只有 OpenAI 分组继续接受它作为 Messages 输入，新字段与旧字段同时存在时新字段优先。`messages_dispatch_model_config` 只负责 OpenAI 的 Claude 到 GPT 模型映射，不再承担协议准入。
-
-协议门禁覆盖 Messages、支持平台的 token-count 别名、Responses HTTP/SSE 根路径和允许子路径、两个 Chat Completions 别名，以及 Gemini/Antigravity GenerateContent、StreamGenerateContent、CountTokens POST 动作；模型列表 GET 不受影响。Antigravity、Qoder 的 Anthropic token count 始终保持不支持的 `404`，不受 Messages 开关影响；Kimi、Zhipu、DeepSeek 的 token count 统一本地估算，不调用供应商原生计数端点。门禁使用复合 Key 最终选中的分组，并在 handler 解析正文、账号选择、计费、重试和 fallback 之前拒绝。Responses WebSocket 仍只属于 OpenAI/Grok 原生传输能力，兼容 Responses 开关不会为其它平台开放它。
-
-Group 还可独立限制 Live、图片、批量图片和视频等能力，并可表达 Claude Code-only、受支持模型 scope 或自定义模型列表。公开路由先存在，具体分组仍可能在本地 feature gate 拒绝；协议拒绝记录 `LocalPolicyDenied`，其它能力拒绝沿用各自本地业务限制，二者都不能伪装成上游故障。
-
-endpoint capability 还会由账号类型和探测结果继续收窄。例如 Embeddings 只允许 OpenAI，Grok OAuth 媒体需要明确资格，Realtime 需要 OpenAI 分组与支持的 transport。策略检查应在昂贵调度或上游调用前尽早执行，但不能绕过 Key、团队和计费准入。
+Images 生成/编辑独立控制，Responses 图片工具使用 `responses_image_policy` 的继承、开启桥接、关闭桥接、屏蔽四态。分组显式配置优先，继承保留既有账号/渠道/全局链；既有视频和批量作业资源操作继续按任务归属授权，不依赖新建入口开关。
 
 ## 模型路由
 

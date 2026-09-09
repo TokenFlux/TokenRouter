@@ -427,7 +427,7 @@ func normalizeCNProviderCredentials(account *Account, isCreate bool) error {
 	protocol = strings.TrimSpace(protocol)
 	if protocol == "" {
 		protocol = APIProtocolChatCompletions
-		if isCreate {
+		if _, unified := account.Credentials[upstreamProtocolsKey]; isCreate && !unified {
 			account.Credentials["api_protocol"] = protocol
 		}
 	}
@@ -532,6 +532,9 @@ func buildAccountForCreate(input *CreateAccountInput, accountExtra map[string]an
 		return nil, err
 	}
 	if err := normalizeOpenAIAPIKeyConfiguration(account); err != nil {
+		return nil, err
+	}
+	if err := NormalizeAccountProtocols(account); err != nil {
 		return nil, err
 	}
 	// 预计算固定时间重置的下次重置时间
@@ -734,7 +737,7 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if account.IsCredentialShadow() && input.Credentials != nil {
 		account.Credentials = sanitizeSparkShadowCredentials(input.Credentials)
 	} else if len(input.Credentials) > 0 {
-		incomingCredentials := maps.Clone(input.Credentials)
+		incomingCredentials := preserveProtocolCredentials(account.Credentials, input.Credentials)
 		if isOpenAIAPIKeyAccount(account) {
 			// 先规范化本次增量，确保旧客户端提交的别名能覆盖账号中已有的新键。
 			if err := normalizeOpenAIAPIKeyConfigurationPatch(incomingCredentials, nil); err != nil {
@@ -834,10 +837,14 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		account.Proxy = nil // 清除关联对象，防止 GORM Save 时根据 Proxy.ID 覆盖 ProxyID
 	}
 	DiscardDeprecatedAccountExtra(account.Extra)
+	applyLegacyProtocolPatch(account, input.Credentials, input.Extra)
 	if err := normalizeCNProviderCredentials(account, false); err != nil {
 		return nil, err
 	}
 	if err := normalizeOpenAIAPIKeyConfiguration(account); err != nil {
+		return nil, err
+	}
+	if err := NormalizeAccountProtocols(account); err != nil {
 		return nil, err
 	}
 	if account.Extra != nil {
@@ -1114,7 +1121,8 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 	if input.Credentials != nil {
 		input.Credentials = SanitizeStoredCredentials("", input.Credentials)
 	}
-	if len(input.Credentials) > 0 {
+	protocolUpdates := map[int64]map[string]any{}
+	if len(input.Credentials) > 0 || hasOpenAIConfigPatch {
 		for _, account := range cachedTargets {
 			if account == nil {
 				continue
@@ -1130,6 +1138,21 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 			if err := normalizeCNProviderCredentials(&prospective, false); err != nil {
 				return nil, err
 			}
+			prospective.Extra = maps.Clone(account.Extra)
+			if prospective.Extra == nil {
+				prospective.Extra = map[string]any{}
+			}
+			for key, value := range input.Extra {
+				prospective.Extra[key] = value
+			}
+			applyLegacyProtocolPatch(&prospective, input.Credentials, input.Extra)
+			if err := NormalizeAccountProtocols(&prospective); err != nil {
+				return nil, err
+			}
+			protocolUpdates[account.ID] = map[string]any{upstreamProtocolsKey: prospective.Credentials[upstreamProtocolsKey]}
+			if urls, exists := prospective.Credentials["api_base_urls"]; exists {
+				protocolUpdates[account.ID]["api_base_urls"] = urls
+			}
 			if err := validateGeminiThirdPartyBaseURL(&prospective); err != nil {
 				return nil, err
 			}
@@ -1138,6 +1161,7 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 
 	// Prepare bulk updates for columns and JSONB fields.
 	repoUpdates := AccountBulkUpdate{
+		ProtocolUpdates:            protocolUpdates,
 		Credentials:                input.Credentials,
 		Extra:                      input.Extra,
 		EnsureCodexFingerprintSeed: ShouldEnsureCodexFingerprintSeedForExtraUpdates(input.Extra),

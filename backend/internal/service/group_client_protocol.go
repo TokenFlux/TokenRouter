@@ -9,13 +9,13 @@ const (
 	GroupClientProtocolGeminiGenerateContent = domain.GroupClientProtocolGeminiGenerateContent
 )
 
-// EffectiveAllowedClientProtocols 返回可用于热路径判定的协议集合。
+// EffectiveAllowedProtocols 返回可用于热路径判定的协议集合。
 // 返回独立副本，并把 nil 统一表达为合法的空集合。
-func (g *Group) EffectiveAllowedClientProtocols() []GroupClientProtocol {
+func (g *Group) EffectiveAllowedProtocols() []GroupClientProtocol {
 	if g == nil {
 		return []GroupClientProtocol{}
 	}
-	return append([]GroupClientProtocol{}, g.AllowedClientProtocols...)
+	return append([]GroupClientProtocol{}, g.AllowedProtocols...)
 }
 
 // AllowsClientProtocol 判断分组是否允许指定客户端协议。
@@ -23,7 +23,7 @@ func (g *Group) AllowsClientProtocol(protocol GroupClientProtocol) bool {
 	if g == nil {
 		return false
 	}
-	return domain.HasGroupClientProtocol(g.EffectiveAllowedClientProtocols(), protocol)
+	return domain.HasGroupClientProtocol(g.EffectiveAllowedProtocols(), protocol)
 }
 
 // normalizeExplicitGroupClientProtocols 校验显式 API 输入并保持固定顺序。

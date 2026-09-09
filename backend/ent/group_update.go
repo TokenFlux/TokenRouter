@@ -697,15 +697,35 @@ func (_u *GroupUpdate) SetNillableAllowMessagesDispatch(v *bool) *GroupUpdate {
 	return _u
 }
 
-// SetAllowedClientProtocols sets the "allowed_client_protocols" field.
-func (_u *GroupUpdate) SetAllowedClientProtocols(v []domain.GroupClientProtocol) *GroupUpdate {
-	_u.mutation.SetAllowedClientProtocols(v)
+// SetAllowedProtocols sets the "allowed_protocols" field.
+func (_u *GroupUpdate) SetAllowedProtocols(v []domain.GroupClientProtocol) *GroupUpdate {
+	_u.mutation.SetAllowedProtocols(v)
 	return _u
 }
 
-// AppendAllowedClientProtocols appends value to the "allowed_client_protocols" field.
-func (_u *GroupUpdate) AppendAllowedClientProtocols(v []domain.GroupClientProtocol) *GroupUpdate {
-	_u.mutation.AppendAllowedClientProtocols(v)
+// AppendAllowedProtocols appends value to the "allowed_protocols" field.
+func (_u *GroupUpdate) AppendAllowedProtocols(v []domain.GroupClientProtocol) *GroupUpdate {
+	_u.mutation.AppendAllowedProtocols(v)
+	return _u
+}
+
+// SetProtocolFallbacks sets the "protocol_fallbacks" field.
+func (_u *GroupUpdate) SetProtocolFallbacks(v map[domain.GroupClientProtocol]domain.GroupClientProtocol) *GroupUpdate {
+	_u.mutation.SetProtocolFallbacks(v)
+	return _u
+}
+
+// SetResponsesImagePolicy sets the "responses_image_policy" field.
+func (_u *GroupUpdate) SetResponsesImagePolicy(v string) *GroupUpdate {
+	_u.mutation.SetResponsesImagePolicy(v)
+	return _u
+}
+
+// SetNillableResponsesImagePolicy sets the "responses_image_policy" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableResponsesImagePolicy(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetResponsesImagePolicy(*v)
+	}
 	return _u
 }
 
@@ -1473,13 +1493,19 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AllowMessagesDispatch(); ok {
 		_spec.SetField(group.FieldAllowMessagesDispatch, field.TypeBool, value)
 	}
-	if value, ok := _u.mutation.AllowedClientProtocols(); ok {
-		_spec.SetField(group.FieldAllowedClientProtocols, field.TypeJSON, value)
+	if value, ok := _u.mutation.AllowedProtocols(); ok {
+		_spec.SetField(group.FieldAllowedProtocols, field.TypeJSON, value)
 	}
-	if value, ok := _u.mutation.AppendedAllowedClientProtocols(); ok {
+	if value, ok := _u.mutation.AppendedAllowedProtocols(); ok {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, group.FieldAllowedClientProtocols, value)
+			sqljson.Append(u, group.FieldAllowedProtocols, value)
 		})
+	}
+	if value, ok := _u.mutation.ProtocolFallbacks(); ok {
+		_spec.SetField(group.FieldProtocolFallbacks, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.ResponsesImagePolicy(); ok {
+		_spec.SetField(group.FieldResponsesImagePolicy, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.AllowLive(); ok {
 		_spec.SetField(group.FieldAllowLive, field.TypeBool, value)
@@ -2521,15 +2547,35 @@ func (_u *GroupUpdateOne) SetNillableAllowMessagesDispatch(v *bool) *GroupUpdate
 	return _u
 }
 
-// SetAllowedClientProtocols sets the "allowed_client_protocols" field.
-func (_u *GroupUpdateOne) SetAllowedClientProtocols(v []domain.GroupClientProtocol) *GroupUpdateOne {
-	_u.mutation.SetAllowedClientProtocols(v)
+// SetAllowedProtocols sets the "allowed_protocols" field.
+func (_u *GroupUpdateOne) SetAllowedProtocols(v []domain.GroupClientProtocol) *GroupUpdateOne {
+	_u.mutation.SetAllowedProtocols(v)
 	return _u
 }
 
-// AppendAllowedClientProtocols appends value to the "allowed_client_protocols" field.
-func (_u *GroupUpdateOne) AppendAllowedClientProtocols(v []domain.GroupClientProtocol) *GroupUpdateOne {
-	_u.mutation.AppendAllowedClientProtocols(v)
+// AppendAllowedProtocols appends value to the "allowed_protocols" field.
+func (_u *GroupUpdateOne) AppendAllowedProtocols(v []domain.GroupClientProtocol) *GroupUpdateOne {
+	_u.mutation.AppendAllowedProtocols(v)
+	return _u
+}
+
+// SetProtocolFallbacks sets the "protocol_fallbacks" field.
+func (_u *GroupUpdateOne) SetProtocolFallbacks(v map[domain.GroupClientProtocol]domain.GroupClientProtocol) *GroupUpdateOne {
+	_u.mutation.SetProtocolFallbacks(v)
+	return _u
+}
+
+// SetResponsesImagePolicy sets the "responses_image_policy" field.
+func (_u *GroupUpdateOne) SetResponsesImagePolicy(v string) *GroupUpdateOne {
+	_u.mutation.SetResponsesImagePolicy(v)
+	return _u
+}
+
+// SetNillableResponsesImagePolicy sets the "responses_image_policy" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableResponsesImagePolicy(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetResponsesImagePolicy(*v)
+	}
 	return _u
 }
 
@@ -3327,13 +3373,19 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	if value, ok := _u.mutation.AllowMessagesDispatch(); ok {
 		_spec.SetField(group.FieldAllowMessagesDispatch, field.TypeBool, value)
 	}
-	if value, ok := _u.mutation.AllowedClientProtocols(); ok {
-		_spec.SetField(group.FieldAllowedClientProtocols, field.TypeJSON, value)
+	if value, ok := _u.mutation.AllowedProtocols(); ok {
+		_spec.SetField(group.FieldAllowedProtocols, field.TypeJSON, value)
 	}
-	if value, ok := _u.mutation.AppendedAllowedClientProtocols(); ok {
+	if value, ok := _u.mutation.AppendedAllowedProtocols(); ok {
 		_spec.AddModifier(func(u *sql.UpdateBuilder) {
-			sqljson.Append(u, group.FieldAllowedClientProtocols, value)
+			sqljson.Append(u, group.FieldAllowedProtocols, value)
 		})
+	}
+	if value, ok := _u.mutation.ProtocolFallbacks(); ok {
+		_spec.SetField(group.FieldProtocolFallbacks, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.ResponsesImagePolicy(); ok {
+		_spec.SetField(group.FieldResponsesImagePolicy, field.TypeString, value)
 	}
 	if value, ok := _u.mutation.AllowLive(); ok {
 		_spec.SetField(group.FieldAllowLive, field.TypeBool, value)

@@ -53,6 +53,8 @@ OpenAI/Grok 是通用核心的能力适配者：在高级分组中，OpenAI 额�
 <a id="scheduler_snapshot_consistency"></a>
 ## 快照一致性
 
+协议统一后调度 Redis 命名空间升级为 `sched:v2:`，完整与轻量账号投影均携带 `upstream_protocols` 和认证方式，分组认证快照 v40 携带准入集合、转换映射和 Responses 图片策略。协议候选过滤在评分前执行，每次切号和 fresh/DB 复核重新检查；转发目标只保存在当次账号副本，不污染共享缓存。
+
 `SchedulerSnapshotService` 在进程内保存 bucket 快照和账号投影。启动时执行初始重建，运行中消费调度 outbox，并周期性做全量重建以修复漏通知或外部写入。账号状态热更新可以先写入本地投影，再通过 outbox/失效广播传播到其它实例。
 
 一致性保护包括：

@@ -155,8 +155,16 @@ func (s *OpenAIGatewayService) openAIChatCompletionsTargetURL(account *Account) 
 }
 
 // resolveCCFallbackTarget 解析两条 CC 回退路径共用的账号凭证与上游端点
-// （回退路径仅面向 APIKey 账号，凭证恒为 openai api_key）。
-func (s *OpenAIGatewayService) resolveCCFallbackTarget(account *Account) (apiKey string, targetURL string, err error) {
+// Grok 沿用自己的 OAuth/API Key 认证和 CLI 端点。
+func (s *OpenAIGatewayService) resolveCCFallbackTarget(ctx context.Context, account *Account) (apiKey string, targetURL string, err error) {
+	if account.IsGrok() {
+		apiKey, _, err = s.GetAccessToken(ctx, account)
+		if err != nil {
+			return "", "", err
+		}
+		targetURL, err = s.rawChatCompletionsURL(account)
+		return apiKey, targetURL, err
+	}
 	apiKey = strings.TrimSpace(account.GetOpenAIProtocolAPIKey())
 	if apiKey == "" {
 		return "", "", fmt.Errorf("account %d missing api_key", account.ID)

@@ -1061,6 +1061,9 @@ func (s *BatchImagePublicService) selectProviderAndAccount(
 			if !account.IsSchedulable() || !account.IsModelSupported(routingModel) {
 				continue
 			}
+			if _, enabled := ResolveProtocolRoute(&account, nil, "image_batches"); !enabled {
+				continue
+			}
 			if !provider.SupportsAccount(&account) {
 				continue
 			}

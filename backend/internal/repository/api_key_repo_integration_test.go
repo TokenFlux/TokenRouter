@@ -219,7 +219,7 @@ func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesSelectedGroupFields() {
 		SetForceOpenaiFast(true).
 		SetFreeOpenaiFast(true).
 		SetWebSearchPricePerCall(0.008).
-		SetAllowedClientProtocols([]service.GroupClientProtocol{
+		SetAllowedProtocols([]service.GroupClientProtocol{
 			service.GroupClientProtocolAnthropicMessages,
 			service.GroupClientProtocolOpenAIResponses,
 			service.GroupClientProtocolOpenAIChatCompletions,
@@ -255,7 +255,7 @@ func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesSelectedGroupFields() {
 		service.GroupClientProtocolAnthropicMessages,
 		service.GroupClientProtocolOpenAIResponses,
 		service.GroupClientProtocolOpenAIChatCompletions,
-	}, got.Group.AllowedClientProtocols)
+	}, got.Group.AllowedProtocols)
 	s.Require().Equal("gpt-5.4", got.Group.DefaultMappedModel)
 	s.Require().Equal("gpt-5.4-nano", got.Group.MessagesDispatchModelConfig.OpusMappedModel)
 	s.Require().Equal("gpt-5.4-nano", got.Group.MessagesDispatchModelConfig.ExactModelMappings["claude-sonnet-4.5"])

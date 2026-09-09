@@ -1,5 +1,7 @@
 # Qoder 原生上游
 
+Qoder Cosy 原生集合仅含 qoder_chat；公开 Messages/Responses/Chat 由分组明确映射到此协议。统一配置字段与入口门禁见[统一协议能力](protocol_capabilities.md)。
+
 TokenRouter 通过 Qoder COSY 网关路径支持 Qoder 原生上游账号。面向请求公开的别名会映射到 Qoder 路由键，原始路由键仍可作为直接请求模型，以满足兼容和运维需要。
 
 本文拥有 Qoder 账号、站点、模型能力、请求适配、定价、配额和失败边界。TokenRouter 的共用调度与账本语义不在本文定义范围内；实现中尚不存在的 Qoder 企业登录变体也不在支持承诺内。

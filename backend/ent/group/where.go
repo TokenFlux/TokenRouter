@@ -230,6 +230,11 @@ func AllowMessagesDispatch(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldAllowMessagesDispatch, v))
 }
 
+// ResponsesImagePolicy applies equality check predicate on the "responses_image_policy" field. It's identical to ResponsesImagePolicyEQ.
+func ResponsesImagePolicy(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldResponsesImagePolicy, v))
+}
+
 // AllowLive applies equality check predicate on the "allow_live" field. It's identical to AllowLiveEQ.
 func AllowLive(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldAllowLive, v))
@@ -1738,6 +1743,71 @@ func AllowMessagesDispatchEQ(v bool) predicate.Group {
 // AllowMessagesDispatchNEQ applies the NEQ predicate on the "allow_messages_dispatch" field.
 func AllowMessagesDispatchNEQ(v bool) predicate.Group {
 	return predicate.Group(sql.FieldNEQ(FieldAllowMessagesDispatch, v))
+}
+
+// ResponsesImagePolicyEQ applies the EQ predicate on the "responses_image_policy" field.
+func ResponsesImagePolicyEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldResponsesImagePolicy, v))
+}
+
+// ResponsesImagePolicyNEQ applies the NEQ predicate on the "responses_image_policy" field.
+func ResponsesImagePolicyNEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldResponsesImagePolicy, v))
+}
+
+// ResponsesImagePolicyIn applies the In predicate on the "responses_image_policy" field.
+func ResponsesImagePolicyIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldResponsesImagePolicy, vs...))
+}
+
+// ResponsesImagePolicyNotIn applies the NotIn predicate on the "responses_image_policy" field.
+func ResponsesImagePolicyNotIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldResponsesImagePolicy, vs...))
+}
+
+// ResponsesImagePolicyGT applies the GT predicate on the "responses_image_policy" field.
+func ResponsesImagePolicyGT(v string) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldResponsesImagePolicy, v))
+}
+
+// ResponsesImagePolicyGTE applies the GTE predicate on the "responses_image_policy" field.
+func ResponsesImagePolicyGTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldResponsesImagePolicy, v))
+}
+
+// ResponsesImagePolicyLT applies the LT predicate on the "responses_image_policy" field.
+func ResponsesImagePolicyLT(v string) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldResponsesImagePolicy, v))
+}
+
+// ResponsesImagePolicyLTE applies the LTE predicate on the "responses_image_policy" field.
+func ResponsesImagePolicyLTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldResponsesImagePolicy, v))
+}
+
+// ResponsesImagePolicyContains applies the Contains predicate on the "responses_image_policy" field.
+func ResponsesImagePolicyContains(v string) predicate.Group {
+	return predicate.Group(sql.FieldContains(FieldResponsesImagePolicy, v))
+}
+
+// ResponsesImagePolicyHasPrefix applies the HasPrefix predicate on the "responses_image_policy" field.
+func ResponsesImagePolicyHasPrefix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasPrefix(FieldResponsesImagePolicy, v))
+}
+
+// ResponsesImagePolicyHasSuffix applies the HasSuffix predicate on the "responses_image_policy" field.
+func ResponsesImagePolicyHasSuffix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasSuffix(FieldResponsesImagePolicy, v))
+}
+
+// ResponsesImagePolicyEqualFold applies the EqualFold predicate on the "responses_image_policy" field.
+func ResponsesImagePolicyEqualFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldEqualFold(FieldResponsesImagePolicy, v))
+}
+
+// ResponsesImagePolicyContainsFold applies the ContainsFold predicate on the "responses_image_policy" field.
+func ResponsesImagePolicyContainsFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldContainsFold(FieldResponsesImagePolicy, v))
 }
 
 // AllowLiveEQ applies the EQ predicate on the "allow_live" field.

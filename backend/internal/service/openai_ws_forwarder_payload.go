@@ -42,7 +42,7 @@ func (s *OpenAIGatewayService) buildOpenAIResponsesWSURL(account *Account) (stri
 		}
 	case AccountTypeAPIKey:
 		baseURL := account.GetOpenAIBaseURL()
-		if account.UsesNativeCNResponses() && account.IsAdaptiveAPIProtocol() {
+		if _, unified := account.Credentials[upstreamProtocolsKey]; account.UsesNativeCNResponses() && (unified || account.IsAdaptiveAPIProtocol()) {
 			baseURL = account.GetCNProtocolBaseURL(APIProtocolResponses)
 		}
 		if baseURL == "" {

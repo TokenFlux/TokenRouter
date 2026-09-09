@@ -593,6 +593,26 @@ export type GroupClientProtocol =
   | 'openai_responses'
   | 'openai_chat_completions'
   | 'gemini_generate_content'
+  | 'openai_embeddings'
+  | 'openai_images_generations'
+  | 'openai_images_edits'
+  | 'image_batches'
+  | 'grok_videos_generations'
+  | 'grok_videos_edits'
+  | 'grok_videos_extensions'
+  | 'grok_tts'
+  | 'grok_stt'
+  | 'grok_custom_voices'
+  | 'grok_voice_realtime'
+  | 'openai_responses_websocket'
+  | 'openai_live'
+  | 'openai_responses_compact'
+  | 'openai_alpha_search'
+  | 'grok_web_search'
+  | 'grok_x_search'
+  | 'qoder_chat'
+  | 'gemini_batch_generate_content'
+  | 'vertex_batch_prediction'
 export type MarketplacePricingMode = 'token' | 'image' | 'unknown'
 export type MarketplacePriceStatus = 'priced' | 'unpriced'
 
@@ -766,8 +786,10 @@ export interface Group {
   fallback_group_id_on_invalid_request: number | null
   unavailable_fallback_group_id: number | null
   // 分组允许客户端使用的文本生成协议，顺序由服务端固定。
-  allowed_client_protocols: GroupClientProtocol[]
-  // OpenAI Messages 调度开关（弃用兼容字段，新代码读取 allowed_client_protocols）
+  protocol_fallbacks?: Partial<Record<GroupClientProtocol, GroupClientProtocol>>
+  responses_image_policy?: 'inherit' | 'enabled' | 'disabled' | 'block'
+  allowed_protocols: GroupClientProtocol[]
+  // OpenAI Messages 调度开关（弃用兼容字段，新代码读取 allowed_protocols）
   allow_messages_dispatch?: boolean
   // OpenAI Live 接口开关
   allow_live: boolean
@@ -969,7 +991,9 @@ export interface CreateGroupRequest {
   supported_model_scopes?: string[]
   models_list_config?: ModelsListConfig
   availability_probe_config?: GroupAvailabilityProbeConfig
-  allowed_client_protocols?: GroupClientProtocol[]
+  protocol_fallbacks?: Partial<Record<GroupClientProtocol, GroupClientProtocol>>
+  responses_image_policy?: 'inherit' | 'enabled' | 'disabled' | 'block'
+  allowed_protocols?: GroupClientProtocol[]
   allow_messages_dispatch?: boolean
   allow_live?: boolean
   default_mapped_model?: string
@@ -1025,7 +1049,9 @@ export interface UpdateGroupRequest {
   supported_model_scopes?: string[]
   models_list_config?: ModelsListConfig
   availability_probe_config?: GroupAvailabilityProbeConfig
-  allowed_client_protocols?: GroupClientProtocol[]
+  protocol_fallbacks?: Partial<Record<GroupClientProtocol, GroupClientProtocol>>
+  responses_image_policy?: 'inherit' | 'enabled' | 'disabled' | 'block'
+  allowed_protocols?: GroupClientProtocol[]
   allow_messages_dispatch?: boolean
   allow_live?: boolean
   default_mapped_model?: string

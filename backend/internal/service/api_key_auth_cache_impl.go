@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"math/rand/v2"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 39 // v39：移除分组独立媒体价格与倍率，强制重建旧缓存
+const apiKeyAuthSnapshotVersion = 40 // v40：统一协议配置，强制重建旧准入与转换快照
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -468,7 +469,9 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 			ModelRoutingEnabled:             apiKey.Group.ModelRoutingEnabled,
 			MCPXMLInject:                    apiKey.Group.MCPXMLInject,
 			SupportedModelScopes:            apiKey.Group.SupportedModelScopes,
-			AllowedClientProtocols:          cloneGroupClientProtocols(apiKey.Group.AllowedClientProtocols),
+			AllowedProtocols:                cloneGroupClientProtocols(apiKey.Group.AllowedProtocols),
+			ProtocolFallbacks:               maps.Clone(apiKey.Group.ProtocolFallbacks),
+			ResponsesImagePolicy:            apiKey.Group.ResponsesImagePolicy,
 			AllowLive:                       apiKey.Group.AllowLive,
 			ForceOpenAIFast:                 apiKey.Group.ForceOpenAIFast,
 			OpenAIFastPolicy:                apiKey.Group.EffectiveOpenAIFastPolicy(),
@@ -595,7 +598,9 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			ModelRoutingEnabled:             snapshot.Group.ModelRoutingEnabled,
 			MCPXMLInject:                    snapshot.Group.MCPXMLInject,
 			SupportedModelScopes:            snapshot.Group.SupportedModelScopes,
-			AllowedClientProtocols:          cloneGroupClientProtocols(snapshot.Group.AllowedClientProtocols),
+			AllowedProtocols:                cloneGroupClientProtocols(snapshot.Group.AllowedProtocols),
+			ProtocolFallbacks:               maps.Clone(snapshot.Group.ProtocolFallbacks),
+			ResponsesImagePolicy:            snapshot.Group.ResponsesImagePolicy,
 			AllowLive:                       snapshot.Group.AllowLive,
 			ForceOpenAIFast:                 snapshot.Group.ForceOpenAIFast,
 			OpenAIFastPolicy:                snapshot.Group.OpenAIFastPolicy,
@@ -651,7 +656,8 @@ func authGroupSnapshotFromGroup(group *Group) *APIKeyAuthGroupSnapshot {
 		FallbackGroupID: group.FallbackGroupID, FallbackGroupIDOnInvalidRequest: group.FallbackGroupIDOnInvalidRequest,
 		UnavailableFallbackGroupID: group.UnavailableFallbackGroupID, ModelRouting: group.ModelRouting,
 		ModelRoutingEnabled: group.ModelRoutingEnabled, MCPXMLInject: group.MCPXMLInject,
-		SupportedModelScopes: group.SupportedModelScopes, AllowedClientProtocols: cloneGroupClientProtocols(group.AllowedClientProtocols),
+		ProtocolFallbacks: maps.Clone(group.ProtocolFallbacks), ResponsesImagePolicy: group.ResponsesImagePolicy,
+		SupportedModelScopes: group.SupportedModelScopes, AllowedProtocols: cloneGroupClientProtocols(group.AllowedProtocols),
 		AllowLive: group.AllowLive, ForceOpenAIFast: group.ForceOpenAIFast, FreeOpenAIFast: group.FreeOpenAIFast, DefaultMappedModel: group.DefaultMappedModel,
 		MessagesDispatchModelConfig: group.MessagesDispatchModelConfig, ModelsListConfig: group.ModelsListConfig,
 		RPMLimit: group.RPMLimit, MaxReasoningEffort: group.MaxReasoningEffort,
@@ -682,7 +688,8 @@ func groupFromAuthSnapshot(snapshot *APIKeyAuthGroupSnapshot) *Group {
 		FallbackGroupIDOnInvalidRequest: snapshot.FallbackGroupIDOnInvalidRequest,
 		UnavailableFallbackGroupID:      snapshot.UnavailableFallbackGroupID, ModelRouting: snapshot.ModelRouting,
 		ModelRoutingEnabled: snapshot.ModelRoutingEnabled, MCPXMLInject: snapshot.MCPXMLInject,
-		SupportedModelScopes: snapshot.SupportedModelScopes, AllowedClientProtocols: cloneGroupClientProtocols(snapshot.AllowedClientProtocols),
+		ProtocolFallbacks: maps.Clone(snapshot.ProtocolFallbacks), ResponsesImagePolicy: snapshot.ResponsesImagePolicy,
+		SupportedModelScopes: snapshot.SupportedModelScopes, AllowedProtocols: cloneGroupClientProtocols(snapshot.AllowedProtocols),
 		AllowLive: snapshot.AllowLive, ForceOpenAIFast: snapshot.ForceOpenAIFast, FreeOpenAIFast: snapshot.FreeOpenAIFast, DefaultMappedModel: snapshot.DefaultMappedModel,
 		MessagesDispatchModelConfig: snapshot.MessagesDispatchModelConfig, ModelsListConfig: snapshot.ModelsListConfig,
 		RPMLimit: snapshot.RPMLimit, MaxReasoningEffort: snapshot.MaxReasoningEffort,

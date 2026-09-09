@@ -84,7 +84,10 @@ type CreateGroupRequest struct {
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes []string `json:"supported_model_scopes"`
 	// 客户端文本协议完整准入集合；nil 表示创建时采用平台默认值。
-	AllowedClientProtocols []service.GroupClientProtocol `json:"allowed_client_protocols"`
+	AllowedProtocols             []service.GroupClientProtocol                               `json:"allowed_protocols"`
+	ProtocolFallbacks            map[service.GroupClientProtocol]service.GroupClientProtocol `json:"protocol_fallbacks"`
+	ResponsesImagePolicy         string                                                      `json:"responses_image_policy"`
+	LegacyAllowedClientProtocols []service.GroupClientProtocol                               `json:"allowed_client_protocols"`
 	// OpenAI Messages 旧兼容开关。
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch"`
 	AllowLive             bool `json:"allow_live"`
@@ -155,7 +158,10 @@ type UpdateGroupRequest struct {
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes *[]string `json:"supported_model_scopes"`
 	// nil 表示不修改，空数组表示显式关闭全部文本协议（所有平台均合法）。
-	AllowedClientProtocols *[]service.GroupClientProtocol `json:"allowed_client_protocols"`
+	AllowedProtocols             *[]service.GroupClientProtocol                              `json:"allowed_protocols"`
+	ProtocolFallbacks            map[service.GroupClientProtocol]service.GroupClientProtocol `json:"protocol_fallbacks"`
+	ResponsesImagePolicy         string                                                      `json:"responses_image_policy"`
+	LegacyAllowedClientProtocols *[]service.GroupClientProtocol                              `json:"allowed_client_protocols"`
 	// OpenAI Messages 旧兼容开关。
 	AllowMessagesDispatch *bool `json:"allow_messages_dispatch"`
 	AllowLive             *bool `json:"allow_live"`
@@ -297,6 +303,10 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	legacyProtocolInput := req.AllowedProtocols == nil && req.LegacyAllowedClientProtocols != nil
+	if legacyProtocolInput {
+		req.AllowedProtocols = req.LegacyAllowedClientProtocols
+	}
 
 	if err := service.ValidatePeakRateConfig(req.PeakRateEnabled, req.PeakStart, req.PeakEnd, float64ValueOrDefault(req.PeakRateMultiplier, 1.0)); err != nil {
 		response.BadRequest(c, err.Error())
@@ -338,7 +348,10 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		ModelRoutingEnabled:             req.ModelRoutingEnabled,
 		MCPXMLInject:                    req.MCPXMLInject,
 		SupportedModelScopes:            req.SupportedModelScopes,
-		AllowedClientProtocols:          req.AllowedClientProtocols,
+		LegacyProtocolInput:             legacyProtocolInput,
+		AllowedProtocols:                req.AllowedProtocols,
+		ProtocolFallbacks:               req.ProtocolFallbacks,
+		ResponsesImagePolicy:            req.ResponsesImagePolicy,
 		AllowMessagesDispatch:           req.AllowMessagesDispatch,
 		AllowLive:                       req.AllowLive,
 		ForceOpenAIFast:                 req.ForceOpenAIFast,
@@ -425,6 +438,10 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		response.BadRequest(c, "Invalid request: "+err.Error())
 		return
 	}
+	legacyProtocolInput := req.AllowedProtocols == nil && req.LegacyAllowedClientProtocols != nil
+	if legacyProtocolInput {
+		req.AllowedProtocols = req.LegacyAllowedClientProtocols
+	}
 
 	group, err := h.adminService.UpdateGroup(c.Request.Context(), groupID, &service.UpdateGroupInput{
 		Name:                            req.Name,
@@ -462,7 +479,10 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		ModelRoutingEnabled:             req.ModelRoutingEnabled,
 		MCPXMLInject:                    req.MCPXMLInject,
 		SupportedModelScopes:            req.SupportedModelScopes,
-		AllowedClientProtocols:          req.AllowedClientProtocols,
+		LegacyProtocolInput:             legacyProtocolInput,
+		AllowedProtocols:                req.AllowedProtocols,
+		ProtocolFallbacks:               req.ProtocolFallbacks,
+		ResponsesImagePolicy:            req.ResponsesImagePolicy,
 		AllowMessagesDispatch:           req.AllowMessagesDispatch,
 		AllowLive:                       req.AllowLive,
 		ForceOpenAIFast:                 req.ForceOpenAIFast,

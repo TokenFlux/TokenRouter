@@ -102,7 +102,7 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	SetOpsUpstreamModel(c, upstreamModel)
 
 	// 通过共享 CC 管线构造并发送上游请求。
-	apiKey, targetURL, err := s.resolveCCFallbackTarget(account)
+	apiKey, targetURL, err := s.resolveCCFallbackTarget(ctx, account)
 	if err != nil {
 		return nil, err
 	}

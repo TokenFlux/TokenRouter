@@ -147,6 +147,9 @@ type AdminAccountRepository interface {
 // AccountBulkUpdate describes the fields that can be updated in a bulk operation.
 // Nil pointers mean "do not change".
 type AccountBulkUpdate struct {
+	// ProtocolUpdates 是校验后的逐账号非敏感协议补丁，同一 SQL 原子合并。
+	ProtocolUpdates map[int64]map[string]any
+
 	Name           *string
 	ProxyID        *int64
 	Concurrency    *int
@@ -242,6 +245,15 @@ func (s *AccountService) Create(ctx context.Context, req CreateAccountRequest) (
 		return nil, err
 	}
 
+	if err := normalizeCNProviderCredentials(account, true); err != nil {
+		return nil, err
+	}
+	if err := normalizeOpenAIAPIKeyConfiguration(account); err != nil {
+		return nil, err
+	}
+	if err := NormalizeAccountProtocols(account); err != nil {
+		return nil, err
+	}
 	if err := s.accountRepo.Create(ctx, account); err != nil {
 		return nil, fmt.Errorf("create account: %w", err)
 	}
@@ -321,7 +333,7 @@ func (s *AccountService) Update(ctx context.Context, id int64, req UpdateAccount
 	}
 
 	if req.Credentials != nil {
-		account.Credentials = SanitizeStoredCredentials(account.Platform, *req.Credentials)
+		account.Credentials = SanitizeStoredCredentials(account.Platform, preserveProtocolCredentials(account.Credentials, *req.Credentials))
 	}
 
 	if req.Extra != nil {
@@ -376,6 +388,23 @@ func (s *AccountService) Update(ctx context.Context, id int64, req UpdateAccount
 		}
 	}
 
+	if err := normalizeCNProviderCredentials(account, false); err != nil {
+		return nil, err
+	}
+	if err := normalizeOpenAIAPIKeyConfiguration(account); err != nil {
+		return nil, err
+	}
+	var credentialPatch, extraPatch map[string]any
+	if req.Credentials != nil {
+		credentialPatch = *req.Credentials
+	}
+	if req.Extra != nil {
+		extraPatch = *req.Extra
+	}
+	applyLegacyProtocolPatch(account, credentialPatch, extraPatch)
+	if err := NormalizeAccountProtocols(account); err != nil {
+		return nil, err
+	}
 	// 执行更新
 	if err := s.accountRepo.Update(ctx, account); err != nil {
 		return nil, fmt.Errorf("update account: %w", err)

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"io"
 	"net/http"
 	"strings"
@@ -109,6 +110,10 @@ func (e *CreativeExecutor) Prepare(ctx context.Context, run CreativeRun) (*Creat
 	platform, err := e.resolveGroupPlatform(ctx, run.GroupID)
 	if err != nil {
 		return nil, err
+	}
+	// 新调度仍使用该操作的协议资格；任务资源管理不受创建入口开关影响。
+	if group, loadErr := e.groupRepo.GetByIDLite(ctx, run.GroupID); loadErr == nil && group != nil && (group.ResponsesImagePolicy != "" || group.ProtocolFallbacks != nil) {
+		ctx = WithClientProtocol(context.WithValue(ctx, ctxkey.Group, group), creativeOperationProtocol(platform, run.Operation))
 	}
 	groupID := run.GroupID
 	var selection *AccountSelectionResult

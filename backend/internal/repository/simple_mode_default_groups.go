@@ -79,7 +79,9 @@ func createGroupIfNotExists(ctx context.Context, client *dbent.Client, name, pla
 		SetRateMultiplier(1.0).
 		SetIsExclusive(false).
 		SetAllowImageGeneration(platform == service.PlatformGrok).
-		SetAllowedClientProtocols(domain.DefaultGroupClientProtocols(platform)).
+		SetAllowedProtocols(domain.DefaultGroupClientProtocols(platform)).
+		SetProtocolFallbacks(service.DefaultProtocolFallbacks(platform)).
+		SetResponsesImagePolicy("inherit").
 		Save(ctx)
 	if err != nil {
 		if dbent.IsConstraintError(err) {

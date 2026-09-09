@@ -2,7 +2,7 @@ package domain
 
 import "fmt"
 
-// GroupClientProtocol 表示客户端调用分组时使用的公开文本协议。
+// GroupClientProtocol 表示客户端调用分组时使用的公开协议与业务入口。
 type GroupClientProtocol string
 
 const (
@@ -12,27 +12,32 @@ const (
 	GroupClientProtocolGeminiGenerateContent GroupClientProtocol = "gemini_generate_content"
 )
 
-var canonicalGroupClientProtocols = []GroupClientProtocol{
-	GroupClientProtocolAnthropicMessages,
-	GroupClientProtocolOpenAIResponses,
-	GroupClientProtocolOpenAIChatCompletions,
-	GroupClientProtocolGeminiGenerateContent,
-}
-
-// SupportedGroupClientProtocols 返回平台实际实现的客户端协议集合。
-func SupportedGroupClientProtocols(platform string) []GroupClientProtocol {
-	switch platform {
-	case PlatformAnthropic, PlatformOpenAI, PlatformQoder, PlatformGrok, PlatformKimi, PlatformZhipu, PlatformDeepseek:
-		return []GroupClientProtocol{
-			GroupClientProtocolAnthropicMessages,
-			GroupClientProtocolOpenAIResponses,
-			GroupClientProtocolOpenAIChatCompletions,
+// canonicalGroupClientProtocols 从唯一目录派生顺序，避免新增协议遗漏校验。
+var canonicalGroupClientProtocols = func() []GroupClientProtocol {
+	out := []GroupClientProtocol{}
+	for _, protocol := range protocolCatalog {
+		if !protocol.UpstreamOnly {
+			out = append(out, protocol.ID)
 		}
-	case PlatformGemini, PlatformAntigravity:
-		return append([]GroupClientProtocol{}, canonicalGroupClientProtocols...)
-	default:
-		return []GroupClientProtocol{}
 	}
+	return out
+}()
+
+// SupportedGroupClientProtocols 返回平台实际实现的客户端入口。
+func SupportedGroupClientProtocols(platform string) []GroupClientProtocol {
+	out := []GroupClientProtocol{}
+	for _, protocol := range protocolCatalog {
+		if protocol.UpstreamOnly {
+			continue
+		}
+		for _, candidate := range protocol.Platforms {
+			if platform == candidate {
+				out = append(out, protocol.ID)
+				break
+			}
+		}
+	}
+	return out
 }
 
 // DefaultGroupClientProtocols 返回新建分组的协议默认值。
@@ -41,7 +46,9 @@ func DefaultGroupClientProtocols(platform string) []GroupClientProtocol {
 	switch platform {
 	case PlatformAnthropic:
 		return []GroupClientProtocol{GroupClientProtocolAnthropicMessages}
-	case PlatformOpenAI, PlatformGrok:
+	case PlatformGrok:
+		return []GroupClientProtocol{GroupClientProtocolOpenAIResponses, GroupClientProtocolOpenAIChatCompletions, ProtocolImagesGenerations, ProtocolImagesEdits}
+	case PlatformOpenAI:
 		return []GroupClientProtocol{
 			GroupClientProtocolOpenAIResponses,
 			GroupClientProtocolOpenAIChatCompletions,
@@ -78,7 +85,7 @@ func ValidateGroupClientProtocols(platform string, protocols []GroupClientProtoc
 	seen := make(map[GroupClientProtocol]struct{}, len(protocols))
 	for i, protocol := range protocols {
 		if _, ok := known[protocol]; !ok {
-			return nil, fmt.Errorf("allowed_client_protocols[%d] contains unknown protocol %q", i, protocol)
+			return nil, fmt.Errorf("allowed_protocols[%d] contains unknown protocol %q", i, protocol)
 		}
 		if _, ok := supported[protocol]; !ok {
 			return nil, fmt.Errorf("protocol %q is not supported by platform %q", protocol, platform)

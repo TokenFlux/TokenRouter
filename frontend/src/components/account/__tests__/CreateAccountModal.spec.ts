@@ -225,12 +225,9 @@ describe('CreateAccountModal OpenAI account options', () => {
 
     expect(createAccountMock).toHaveBeenCalledTimes(1)
     const payload = createAccountMock.mock.calls[0]?.[0]
-    expect(payload?.credentials?.openai_workload_capabilities).toEqual([
-      'text_generation',
-      'embeddings',
-    ])
+    expect(payload?.credentials?.upstream_protocols).toEqual(['openai_responses','openai_chat_completions','openai_embeddings','openai_images_generations','openai_images_edits','openai_responses_websocket','openai_responses_compact','openai_alpha_search'])
     expect(payload?.credentials).not.toHaveProperty('openai_capabilities')
-    expect(payload?.extra?.openai_text_route_mode).toBe('preserve_client_protocol')
+    expect(payload?.extra?.openai_text_route_mode).toBeUndefined()
     expect(payload?.extra?.openai_responses_probe_status).toBeUndefined()
     expect(payload?.extra?.openai_responses_continuation_supported).toBe(false)
     expect(payload?.extra).not.toHaveProperty('openai_responses_mode')
@@ -290,8 +287,8 @@ describe('CreateAccountModal OpenAI account options', () => {
     await selectButtonByText(wrapper, 'OpenAI')
     await selectButtonByText(wrapper, 'API Key')
 
-    expect(wrapper.text()).toContain('admin.accounts.openai.workloadCapabilities')
-    expect(wrapper.text()).toContain('admin.accounts.openai.textRouteMode')
+    expect(wrapper.text()).toContain('admin.protocols.nativeTitle')
+    expect(wrapper.find('[data-native-protocol="anthropic_messages"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('admin.accounts.openai.responsesContinuationSupported')
     expect(wrapper.text()).not.toContain('admin.accounts.openai.responsesProbeStatus')
     expect(wrapper.get('[data-testid="create-openai-continuation-supported"]').attributes('role')).toBe('switch')
@@ -312,22 +309,16 @@ describe('CreateAccountModal OpenAI account options', () => {
     expect(createAccountMock.mock.calls[0]?.[0]?.extra?.images_url_to_b64_json).toBe(true)
   })
 
-  it('allows an explicit empty workload capability set independently from text routing', async () => {
+  it('allows an explicitly empty native protocol set', async () => {
     const wrapper = mountModal()
     await selectButtonByText(wrapper, 'OpenAI')
     await selectButtonByText(wrapper, 'API Key')
-
-    await wrapper.get('[data-testid="openai-workload-capability-text_generation"]').setValue(false)
-    await wrapper.get('[data-testid="openai-workload-capability-embeddings"]').setValue(false)
-    await wrapper.get('[data-testid="openai-text-protocol-responses"]').setValue(false)
+    for (const checkbox of wrapper.findAll('[data-native-protocol]')) await checkbox.setValue(false)
     await wrapper.get('form#create-account-form input[type="text"]').setValue('OpenAI account')
     await wrapper.get('form#create-account-form input[type="password"]').setValue('test-api-key')
     await wrapper.get('form#create-account-form').trigger('submit.prevent')
     await flushPromises()
-
-    const payload = createAccountMock.mock.calls[0]?.[0]
-    expect(payload?.credentials?.openai_workload_capabilities).toEqual([])
-    expect(payload?.extra?.openai_text_route_mode).toBe('force_chat_completions')
+    expect(createAccountMock.mock.calls[0]?.[0]?.credentials?.upstream_protocols).toEqual([])
   })
 
   it('does not render or submit the removed account-level long-context setting', async () => {
@@ -374,7 +365,7 @@ describe('CreateAccountModal OpenAI account options', () => {
     expect(createAccountMock.mock.calls[0]?.[0]).toMatchObject({ platform, type: 'apikey' })
     expect(createAccountMock.mock.calls[0]?.[0]?.credentials).toMatchObject({
       account_mode: 'payg',
-      api_protocol: 'adaptive',
+      upstream_protocols: expect.arrayContaining(['anthropic_messages', 'openai_chat_completions']),
       base_url: base
     })
     expect(createAccountMock.mock.calls[0]?.[0]?.credentials.api_base_urls).toEqual({
@@ -388,7 +379,7 @@ describe('CreateAccountModal OpenAI account options', () => {
     const wrapper = mountModal()
     await selectButtonByText(wrapper, 'Kimi')
     if (mode === 'coding') await selectButtonByText(wrapper, 'admin.accounts.cnProviders.accountMode.coding')
-    await selectButtonByText(wrapper, 'admin.accounts.cnProviders.apiProtocol.responses')
+    for (const checkbox of wrapper.findAll('[data-native-protocol]')) { if (checkbox.attributes('data-native-protocol') !== 'openai_responses') await checkbox.setValue(false) }
     await wrapper.get('form#create-account-form input[type="text"]').setValue('Kimi Responses')
     await wrapper.get('form#create-account-form input[type="password"]').setValue('sk-cn')
     await wrapper.get('form#create-account-form').trigger('submit.prevent')
@@ -396,10 +387,10 @@ describe('CreateAccountModal OpenAI account options', () => {
     expect(createAccountMock).toHaveBeenCalledTimes(1)
     expect(createAccountMock.mock.calls[0]?.[0]?.credentials).toMatchObject({
       account_mode: mode,
-      api_protocol: 'responses',
+      upstream_protocols: ['openai_responses'],
       base_url: mode === 'coding' ? 'https://api.kimi.com/coding/v1' : 'https://api.moonshot.cn/v1'
     })
-    expect(createAccountMock.mock.calls[0]?.[0]?.credentials).not.toHaveProperty('api_base_urls')
+    expect(createAccountMock.mock.calls[0]?.[0]?.credentials).toHaveProperty('api_base_urls')
   })
 
   it('submits adaptive Kimi Coding Plan Responses endpoint', async () => {
@@ -415,7 +406,7 @@ describe('CreateAccountModal OpenAI account options', () => {
     expect(createAccountMock).toHaveBeenCalledTimes(1)
     expect(createAccountMock.mock.calls[0]?.[0]?.credentials).toMatchObject({
       account_mode: 'coding',
-      api_protocol: 'adaptive',
+      upstream_protocols: expect.arrayContaining(['anthropic_messages', 'openai_chat_completions']),
       base_url: 'https://api.kimi.com/coding/v1',
       api_base_urls: {
         chat_completions: 'https://api.kimi.com/coding/v1',

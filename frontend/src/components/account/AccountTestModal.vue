@@ -371,7 +371,7 @@ watch(
       testPrompt.value = ''
       lastDefaultPrompt = ''
       testMode.value = 'default'
-      testProtocol.value = props.account?.extra?.openai_text_route_mode === 'force_chat_completions' ? 'chat_completions' : 'responses'
+      testProtocol.value = Array.isArray(props.account?.credentials?.upstream_protocols) && !props.account.credentials.upstream_protocols.includes('openai_responses') && props.account.credentials.upstream_protocols.includes('openai_chat_completions') ? 'chat_completions' : 'responses'
       testType.value = 'text'
       resetState()
       await loadAvailableModels()

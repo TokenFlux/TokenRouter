@@ -1,5 +1,7 @@
 # Grok / xAI 上游
 
+Grok 原生集合包含 HTTP Responses、Chat、Images、视频与 Voice；Responses WebSocket、Compact、网页/X 搜索是分组到 Responses 的转换入口，不显示为原生账号选项。统一配置字段与入口门禁见[统一协议能力](protocol_capabilities.md)。
+
 TokenRouter 支持 Grok OAuth 订阅账号和标准 xAI API Key 账号，并通过 OpenAI 兼容的 Responses、Chat Completions、Messages 和 WebSocket 入口转发请求。Grok 分组还支持图片生成/编辑、视频生成/编辑/扩展、视频状态查询、原生搜索和 Voice API。
 
 本文覆盖账号凭据、聊天/媒体转发、媒体资格、异步视频归属、模型目录和运行时变量，不定义 xAI 套餐价格，也不把上游当前返回的所有动态模型固化为兼容承诺。

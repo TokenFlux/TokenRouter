@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
@@ -34,15 +35,25 @@ func (s *AccountTestService) testCNProviderAdaptiveConnection(c *gin.Context, ac
 	// Chat 探测负责开启 SSE 生命周期；全部原生端点通过前抑制中间完成事件。
 	c.Set(accountTestSuppressCompletionContextKey, true)
 	defer c.Set(accountTestSuppressCompletionContextKey, false)
-	if err := s.testCNProviderChatCompletionsConnection(c, account, modelID, prompt); err != nil {
-		return err
+	enabled := account.UpstreamProtocols()
+	if len(enabled) == 0 {
+		return s.sendErrorAndEnd(c, "No upstream protocols enabled")
+	}
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	if slices.Contains(enabled, GroupClientProtocolOpenAIChatCompletions) {
+		if err := s.testCNProviderChatCompletionsConnection(c, account, modelID, prompt); err != nil {
+			return err
+		}
 	}
 
-	if err := s.testCNProviderAdaptiveAnthropicConnection(c, account, testModelID, prompt, authToken); err != nil {
-		return err
+	if slices.Contains(enabled, GroupClientProtocolAnthropicMessages) {
+		if err := s.testCNProviderAdaptiveAnthropicConnection(c, account, testModelID, prompt, authToken); err != nil {
+			return err
+		}
 	}
 
-	if account.SupportsNativeCNResponses() {
+	if slices.Contains(enabled, GroupClientProtocolOpenAIResponses) {
 		if err := s.testCNProviderAdaptiveResponsesConnection(c, account, testModelID, prompt, authToken); err != nil {
 			return err
 		}

@@ -1260,6 +1260,12 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatible(ctx context.C
 
 // isAccountRequestCompatibleReason 返回账号是否兼容，并在拒绝时标明具体门禁原因。
 func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx context.Context, account *Account, req OpenAIAccountScheduleRequest) (bool, string) {
+	if s != nil && s.service != nil && !s.service.shadowProtocolsAllowed(ctx, account) {
+		return false, "parent_protocol_unavailable"
+	}
+	if !account.allowsProtocolRequest(ctx) {
+		return false, "protocol_unavailable"
+	}
 	if account == nil {
 		return false, "account_nil"
 	}
@@ -1298,7 +1304,7 @@ func (s *defaultOpenAIAccountScheduler) isAccountRequestCompatibleReason(ctx con
 		s.service.isUpstreamRoutingModelRestrictedByChannel(ctx, *req.GroupID, account, req.routingModel(), req.RequireCompact) {
 		return false, "channel_upstream_restricted"
 	}
-	if !accountSupportsOpenAICapabilities(account, req.RequiredCapability, req.RequiredImageCapability) {
+	if !accountSupportsOpenAICapabilities(ctx, account, req.RequiredCapability, req.RequiredImageCapability) {
 		return false, "capability_mismatch"
 	}
 	return true, ""
@@ -1990,7 +1996,7 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerForRoutingOnce(
 				if selection == nil || selection.Account == nil {
 					return selection, decision, nil
 				}
-				if accountSupportsOpenAICapabilities(selection.Account, requiredCapability, requiredImageCapability) {
+				if accountSupportsOpenAICapabilities(ctx, selection.Account, requiredCapability, requiredImageCapability) {
 					return selection, decision, nil
 				}
 				if selection.ReleaseFunc != nil {
@@ -2016,7 +2022,7 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerForRoutingOnce(
 				return selection, decision, nil
 			}
 			if s.isOpenAIAccountTransportCompatible(selection.Account, requiredTransport) &&
-				accountSupportsOpenAICapabilities(selection.Account, requiredCapability, requiredImageCapability) {
+				accountSupportsOpenAICapabilities(ctx, selection.Account, requiredCapability, requiredImageCapability) {
 				return selection, decision, nil
 			}
 			if selection.ReleaseFunc != nil {
@@ -2083,11 +2089,11 @@ func (s *OpenAIGatewayService) selectAccountWithSchedulerForRoutingOnce(
 	return selection, decision, selectErr
 }
 
-func accountSupportsOpenAICapabilities(account *Account, requiredCapability OpenAIEndpointCapability, requiredImageCapability OpenAIImagesCapability) bool {
+func accountSupportsOpenAICapabilities(ctx context.Context, account *Account, requiredCapability OpenAIEndpointCapability, requiredImageCapability OpenAIImagesCapability) bool {
 	if account == nil {
 		return false
 	}
-	return account.SupportsOpenAIEndpointCapability(requiredCapability) &&
+	return supportsOpenAIRequestCapability(ctx, account, requiredCapability) &&
 		account.SupportsOpenAIImageCapability(requiredImageCapability)
 }
 

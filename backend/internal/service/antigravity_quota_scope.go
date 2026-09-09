@@ -38,7 +38,7 @@ func (a *Account) IsSchedulableForModelWithContext(ctx context.Context, requeste
 	if a == nil {
 		return false
 	}
-	if !a.IsSchedulable() {
+	if !a.allowsProtocolRequest(ctx) || !a.IsSchedulable() {
 		return false
 	}
 	return a.modelRateLimitAllowsScheduling(ctx, requestedModel)

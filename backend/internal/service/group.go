@@ -112,8 +112,10 @@ type Group struct {
 	// 分组排序
 	SortOrder int
 
-	// AllowedClientProtocols 是分组允许的完整客户端文本协议集合，空集合表示全部关闭。
-	AllowedClientProtocols []GroupClientProtocol
+	// AllowedProtocols 是分组允许的完整客户端协议与业务入口集合，空集合表示全部关闭。
+	AllowedProtocols     []GroupClientProtocol
+	ProtocolFallbacks    map[GroupClientProtocol]GroupClientProtocol
+	ResponsesImagePolicy string
 	// AllowMessagesDispatch 是从协议集合派生并持久化的弃用兼容镜像。
 	AllowMessagesDispatch bool
 	AllowLive             bool

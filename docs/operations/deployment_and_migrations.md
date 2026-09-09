@@ -219,3 +219,9 @@
 升级完成后至少检查 `/health`、登录/API Key 鉴权、一个非流和流式网关请求、用量结算、关键后台任务及迁移表。保留旧产物和升级前备份，直到这些检查完成。
 
 相关文档：[系统架构](../architecture/system_architecture.md)、[配置边界](../interfaces/configuration.md)、[运维目录](index.md)。
+
+### 统一协议能力切换
+
+迁移 `273_unify_protocol_capabilities.sql` 将旧账号文本路由/工作负载转为 `credentials.upstream_protocols`，把分组文本集合改名为 `allowed_protocols`，回填已有媒体、Live、Voice、搜索入口和显式转换映射，并保留 CN 分协议地址。原图片开关关闭的 OpenAI/Grok 分组迁移为 Responses 图片 `block`，开启的为 `inherit`。旧内部布尔列保留为派生镜像；新管理响应只提供统一配置。
+
+此次升级按一次切换执行：先备份并验证恢复，停止全部旧实例，再启动一个新实例完成迁移，重建认证缓存 v40 和 `sched:v2:` 调度缓存，抽样确认 CN 自定义地址、OpenAI/PAT 原生边界、分组转换、媒体入口和既有任务管理后再扩容。迁移可重放，不覆盖已保存的新空集合或转换配置。旧固定 CN 协议及 OpenAI 强制协议只迁移真实存在的字段；混合账号在同一分组中共享同一个显式转换目标，应抽样确认目标账号已启用该协议。回退必须恢复升级前数据库，不能只回退二进制。

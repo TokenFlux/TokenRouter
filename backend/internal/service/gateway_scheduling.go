@@ -1341,6 +1341,9 @@ func (s *GatewayService) shouldClearStickySessionForAccountLayer(ctx context.Con
 
 // isAccountEligibleExceptModelSupport 判断账号除模型白名单/映射外是否具备本次请求资格。
 func (s *GatewayService) isAccountEligibleExceptModelSupport(ctx context.Context, account *Account, requestedModel string, platform string, excludedIDs map[int64]struct{}, useMixed bool, groupID *int64, schedGroup *Group) bool {
+	if !account.allowsProtocolRequest(ctx) {
+		return false
+	}
 	if account == nil {
 		return false
 	}

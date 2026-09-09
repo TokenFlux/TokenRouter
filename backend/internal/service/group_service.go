@@ -110,15 +110,17 @@ func (s *GroupService) Create(ctx context.Context, req CreateGroupRequest) (*Gro
 
 	// 创建分组
 	group := &Group{
-		Name:                   req.Name,
-		Description:            req.Description,
-		Platform:               PlatformAnthropic,
-		SchedulerType:          GroupSchedulerTypeBasic,
-		AllowedClientProtocols: defaultGroupClientProtocols(PlatformAnthropic),
-		RateMultiplier:         req.RateMultiplier,
-		IsExclusive:            req.IsExclusive,
-		Status:                 StatusActive,
-		AllowImageGeneration:   req.AllowImageGeneration,
+		Name:                 req.Name,
+		Description:          req.Description,
+		Platform:             PlatformAnthropic,
+		SchedulerType:        GroupSchedulerTypeBasic,
+		AllowedProtocols:     defaultGroupClientProtocols(PlatformAnthropic),
+		ProtocolFallbacks:    DefaultProtocolFallbacks(PlatformAnthropic),
+		ResponsesImagePolicy: "inherit",
+		RateMultiplier:       req.RateMultiplier,
+		IsExclusive:          req.IsExclusive,
+		Status:               StatusActive,
+		AllowImageGeneration: req.AllowImageGeneration,
 	}
 
 	if err := s.groupRepo.Create(ctx, group); err != nil {

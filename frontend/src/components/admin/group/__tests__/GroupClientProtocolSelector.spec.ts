@@ -29,16 +29,16 @@ describe('GroupClientProtocolSelector', () => {
       }
     })
 
-    expect(wrapper.get('[data-protocol-endpoint="anthropic_messages"]').text()).toBe(
+    expect(wrapper.get('[data-protocol-endpoint="anthropic_messages"]').text()).toContain(
       '/v1/messages'
     )
-    expect(wrapper.get('[data-protocol-endpoint="openai_responses"]').text()).toBe(
+    expect(wrapper.get('[data-protocol-endpoint="openai_responses"]').text()).toContain(
       '/v1/responses'
     )
-    expect(wrapper.get('[data-protocol-endpoint="openai_chat_completions"]').text()).toBe(
+    expect(wrapper.get('[data-protocol-endpoint="openai_chat_completions"]').text()).toContain(
       '/v1/chat/completions'
     )
-    expect(wrapper.get('[data-protocol-endpoint="gemini_generate_content"]').text()).toBe(
+    expect(wrapper.get('[data-protocol-endpoint="gemini_generate_content"]').text()).toContain(
       '/v1beta/models/{model}:generateContent'
     )
   })
@@ -85,4 +85,15 @@ describe('GroupClientProtocolSelector', () => {
     await wrapper.get('[data-protocol="anthropic_messages"]').trigger('click')
     expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toEqual([])
   })
+})
+
+it('转换目标与客户端入口开关独立，并使用项目 Select', async () => {
+  const wrapper = mount(GroupClientProtocolSelector, { props: { platform: 'openai', modelValue: ['anthropic_messages'], fallbacks: { anthropic_messages: 'openai_responses' } } })
+  const selects = wrapper.findAllComponents({ name: 'Select' })
+  expect(selects.length).toBeGreaterThan(0)
+  const messages = selects.find(select => select.props('modelValue') === 'openai_responses')!
+  expect(messages.props('options')).toEqual(expect.arrayContaining([{ value: 'openai_responses', label: 'OpenAI Responses' }]))
+  messages.vm.$emit('update:modelValue', 'openai_chat_completions')
+  expect(wrapper.emitted('update:fallbacks')?.at(-1)?.[0]).toEqual({ anthropic_messages: 'openai_chat_completions' })
+  expect(wrapper.emitted('update:modelValue')).toBeUndefined()
 })

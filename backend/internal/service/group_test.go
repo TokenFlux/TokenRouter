@@ -15,7 +15,7 @@ func TestGroupClientProtocolsDoNotRecoverLegacyPolicy(t *testing.T) {
 		AllowMessagesDispatch: true,
 	}
 
-	require.NotNil(t, group.EffectiveAllowedClientProtocols())
-	require.Empty(t, group.EffectiveAllowedClientProtocols())
+	require.NotNil(t, group.EffectiveAllowedProtocols())
+	require.Empty(t, group.EffectiveAllowedProtocols())
 	require.False(t, group.AllowsClientProtocol(GroupClientProtocolAnthropicMessages))
 }

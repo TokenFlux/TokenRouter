@@ -23,6 +23,9 @@ import (
 )
 
 type Account struct {
+	// resolvedProtocol 仅属于本次转发副本，不能写入共享快照。
+	resolvedProtocol GroupClientProtocol
+
 	ID                      int64
 	Name                    string
 	Notes                   *string
@@ -1514,7 +1517,7 @@ func (a *Account) GetOpenAIBaseURL() string {
 	if !a.IsOpenAI() && !a.IsCNProvider() {
 		return ""
 	}
-	if a.IsCNProvider() && a.IsAdaptiveAPIProtocol() {
+	if _, unified := a.Credentials[upstreamProtocolsKey]; a.IsCNProvider() && (unified || a.IsAdaptiveAPIProtocol()) {
 		if baseURLs, ok := a.Credentials["api_base_urls"].(map[string]any); ok {
 			if baseURL, ok := baseURLs[APIProtocolChatCompletions].(string); ok && strings.TrimSpace(baseURL) != "" {
 				return strings.TrimSpace(baseURL)
@@ -1563,13 +1566,25 @@ func (a *Account) IsCodingPlan() bool {
 	return a.GetAccountMode() == AccountModeCoding
 }
 
-// GetAPIProtocol 返回国产供应商账号的上游 API 协议。存储于
-// credentials["api_protocol"]；缺失或与平台不匹配时回退 chat_completions
-// （与既有行为完全一致）。responses 协议仅 deepseek / kimi 支持（官方原生
-// Responses 端点，适配 Codex）；zhipu 无此端点。
+// GetAPIProtocol 为原有平台适配器提供协议变体：请求副本使用已解析目标，
+// 统一账号的地址/维护流程使用分协议模式，旧对象继续保留历史读取默认值。
 func (a *Account) GetAPIProtocol() string {
+	if a != nil && a.resolvedProtocol != "" {
+		switch a.resolvedProtocol {
+		case GroupClientProtocolAnthropicMessages:
+			return APIProtocolAnthropic
+		case GroupClientProtocolOpenAIResponses:
+			return APIProtocolResponses
+		case GroupClientProtocolOpenAIChatCompletions:
+			return APIProtocolChatCompletions
+		}
+	}
+
 	if a == nil || !a.IsCNProvider() {
 		return APIProtocolChatCompletions
+	}
+	if _, unified := a.Credentials[upstreamProtocolsKey]; unified {
+		return APIProtocolAdaptive
 	}
 	switch strings.TrimSpace(a.GetCredential("api_protocol")) {
 	case APIProtocolAdaptive:
@@ -1627,7 +1642,7 @@ func (a *Account) GetCNProtocolBaseURL(protocol string) string {
 	if a == nil || !a.IsCNProvider() {
 		return ""
 	}
-	if a.IsAdaptiveAPIProtocol() {
+	if _, unified := a.Credentials[upstreamProtocolsKey]; unified || a.IsAdaptiveAPIProtocol() {
 		if baseURLs, ok := a.Credentials["api_base_urls"].(map[string]any); ok {
 			if baseURL, ok := baseURLs[protocol].(string); ok && strings.TrimSpace(baseURL) != "" {
 				return strings.TrimSpace(baseURL)
@@ -1688,7 +1703,7 @@ func (a *Account) GetAnthropicProtocolBaseURL() string {
 	if a == nil || (!a.IsAnthropicProtocol() && !a.IsAdaptiveAPIProtocol()) {
 		return ""
 	}
-	if a.IsAdaptiveAPIProtocol() {
+	if _, unified := a.Credentials[upstreamProtocolsKey]; unified || a.IsAdaptiveAPIProtocol() {
 		return a.GetCNProtocolBaseURL(APIProtocolAnthropic)
 	}
 	if a.Type == AccountTypeAPIKey || a.Type == AccountTypeUpstream {
@@ -1719,9 +1734,18 @@ func (a *Account) GetOpenAIFormatBaseURL() string {
 	if a == nil {
 		return ""
 	}
-	if !a.IsAnthropicProtocol() {
+	// 迁移后的固定 Messages 账号通过地址槽识别模型同步根，不能丢失中继前缀。
+	anthropicBase := a.IsAnthropicProtocol()
+	if _, unified := a.Credentials[upstreamProtocolsKey]; unified && a.IsCNProvider() {
+		urls, _ := a.Credentials["api_base_urls"].(map[string]any)
+		chat, _ := urls[APIProtocolChatCompletions].(string)
+		messages, _ := urls[APIProtocolAnthropic].(string)
+		anthropicBase = chat == "" && messages != "" && messages == a.GetCredential("base_url")
+	}
+	if !anthropicBase {
 		return a.GetOpenAIBaseURL()
 	}
+
 	if baseURL := strings.TrimSpace(a.GetCredential("base_url")); baseURL != "" {
 		if !isDefaultCNAnthropicBaseURL(baseURL) {
 			return stripCNAnthropicPathSuffix(baseURL)
@@ -1988,6 +2012,32 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 	}
 	if !a.IsOpenAICompatible() {
 		return false
+	}
+	if _, unified := a.Credentials[upstreamProtocolsKey]; unified && !a.IsGrok() {
+		enabled := a.UpstreamProtocols()
+		has := func(p GroupClientProtocol) bool { return domain.HasGroupClientProtocol(enabled, p) }
+		switch capability {
+		case OpenAIEndpointCapabilityTextGeneration:
+			if !has(GroupClientProtocolOpenAIResponses) && !has(GroupClientProtocolOpenAIChatCompletions) && !has(GroupClientProtocolAnthropicMessages) {
+				return false
+			}
+		case OpenAIEndpointCapabilityResponses, OpenAIEndpointCapabilityRemoteCompactionV2:
+			if !has(GroupClientProtocolOpenAIResponses) {
+				return false
+			}
+		case OpenAIEndpointCapabilityEmbeddings:
+			if !has(domain.ProtocolEmbeddings) {
+				return false
+			}
+		case OpenAIEndpointCapabilityLive:
+			if !has(domain.ProtocolLive) {
+				return false
+			}
+		case OpenAIEndpointCapabilityAlphaSearch:
+			if !has(domain.ProtocolAlphaSearch) && !(a.IsOpenAIPersonalAccessToken() && has(GroupClientProtocolOpenAIResponses)) {
+				return false
+			}
+		}
 	}
 	if a.IsGrok() {
 		switch capability {

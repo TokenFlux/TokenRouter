@@ -16,7 +16,7 @@ func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T)
 		Platform:       service.PlatformOpenAI,
 		Status:         service.StatusActive,
 		RateMultiplier: 1,
-		AllowedClientProtocols: []service.GroupClientProtocol{
+		AllowedProtocols: []service.GroupClientProtocol{
 			service.GroupClientProtocolAnthropicMessages,
 			service.GroupClientProtocolOpenAIResponses,
 			service.GroupClientProtocolOpenAIChatCompletions,
@@ -35,7 +35,7 @@ func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T)
 
 	got := groupEntityToService(group)
 	require.NotNil(t, got)
-	require.Equal(t, group.AllowedClientProtocols, got.AllowedClientProtocols)
+	require.Equal(t, group.AllowedProtocols, got.AllowedProtocols)
 	require.Equal(t, group.MessagesDispatchModelConfig, got.MessagesDispatchModelConfig)
 }
 
@@ -67,7 +67,7 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_S
 		SetRateMultiplier(1).
 		SetSchedulerType(string(service.GroupSchedulerTypeAdvanced)).
 		SetAdvancedSchedulerOverrides(service.GroupAdvancedSchedulerOverrides{LBTopK: &lbTopK}).
-		SetAllowedClientProtocols([]service.GroupClientProtocol{
+		SetAllowedProtocols([]service.GroupClientProtocol{
 			service.GroupClientProtocolAnthropicMessages,
 			service.GroupClientProtocolOpenAIResponses,
 			service.GroupClientProtocolOpenAIChatCompletions,
@@ -98,7 +98,7 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_S
 	require.NoError(t, err)
 	require.Equal(t, key.Name, got.Name)
 	require.NotNil(t, got.Group)
-	require.Equal(t, group.AllowedClientProtocols, got.Group.AllowedClientProtocols)
+	require.Equal(t, group.AllowedProtocols, got.Group.AllowedProtocols)
 	require.Equal(t, group.MessagesDispatchModelConfig, got.Group.MessagesDispatchModelConfig)
 	require.Equal(t, service.GroupSchedulerTypeAdvanced, got.Group.SchedulerType)
 	require.NotNil(t, got.Group.AdvancedSchedulerOverrides.LBTopK)

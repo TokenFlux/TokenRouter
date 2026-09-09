@@ -2714,7 +2714,28 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 			return 0, err
 		}
 		credentialPlaceholder = "$" + itoa(idx)
-		setClauses = append(setClauses, "credentials = COALESCE(credentials, '{}'::jsonb) || "+credentialPlaceholder+"::jsonb")
+		credentialExpression := "COALESCE(credentials, '{}'::jsonb) || " + credentialPlaceholder + "::jsonb"
+		if len(updates.ProtocolUpdates) > 0 {
+			encoded, encodeErr := json.Marshal(updates.ProtocolUpdates)
+			if encodeErr != nil {
+				return 0, encodeErr
+			}
+			credentialExpression = "(" + credentialExpression + " || COALESCE($" + itoa(idx+1) + "::jsonb -> id::text, '{}'::jsonb)) - 'api_protocol' - 'openai_workload_capabilities' - 'openai_capabilities'"
+			args = append(args, payload, encoded)
+			idx += 2
+		} else {
+			args = append(args, payload)
+			idx++
+		}
+		setClauses = append(setClauses, "credentials = "+credentialExpression)
+	}
+
+	if len(updates.Credentials) == 0 && len(updates.ProtocolUpdates) > 0 {
+		payload, err := json.Marshal(updates.ProtocolUpdates)
+		if err != nil {
+			return 0, err
+		}
+		setClauses = append(setClauses, "credentials = (COALESCE(credentials, '{}'::jsonb) || COALESCE($"+itoa(idx)+"::jsonb -> id::text, '{}'::jsonb)) - 'api_protocol' - 'openai_workload_capabilities' - 'openai_capabilities'")
 		args = append(args, payload)
 		idx++
 	}
@@ -2772,6 +2793,9 @@ func (r *accountRepository) BulkUpdate(ctx context.Context, ids []int64, updates
 		}
 		if updates.EnsureCodexFingerprintSeed {
 			extraExpression = ensureCodexFingerprintSeedSQL(extraExpression)
+		}
+		if len(updates.ProtocolUpdates) > 0 {
+			extraExpression = "(" + extraExpression + ") - 'openai_text_route_mode' - 'openai_responses_mode'"
 		}
 		setClauses = append(setClauses, "extra = "+extraExpression)
 	}

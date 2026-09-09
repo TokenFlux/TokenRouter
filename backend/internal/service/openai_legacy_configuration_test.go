@@ -79,7 +79,8 @@ func TestUpdateAccountDeprecatedProbeOnlyPreservesConfiguration(t *testing.T) {
 	svc := &adminServiceImpl{accountRepo: repo}
 	updated, err := svc.UpdateAccount(ctx, account.ID, &UpdateAccountInput{Extra: map[string]any{"openai_responses_supported": false}})
 	require.NoError(t, err)
-	require.Equal(t, "force_responses", updated.Extra["openai_text_route_mode"])
+	require.Contains(t, updated.UpstreamProtocols(), GroupClientProtocolOpenAIResponses)
+	require.NotContains(t, updated.UpstreamProtocols(), GroupClientProtocolOpenAIChatCompletions)
 	require.Equal(t, "force_off", updated.Extra["openai_compact_mode"])
 	require.Equal(t, "force_on", updated.Extra[openAINativeCompactionV2ModeExtraKey])
 	require.Equal(t, true, updated.Extra["keep"])

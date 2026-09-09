@@ -126,8 +126,8 @@ type Group struct {
 	LongContextPricingEnabled bool `json:"long_context_pricing_enabled"`
 
 	// 图片生成权限与批量图片策略，价格统一由模型价卡提供。
-	AllowImageGeneration         bool    `json:"allow_image_generation"`
-	AllowBatchImageGeneration    bool    `json:"allow_batch_image_generation"`
+	AllowImageGeneration         bool    `json:"-"`
+	AllowBatchImageGeneration    bool    `json:"-"`
 	BatchImageDiscountMultiplier float64 `json:"batch_image_discount_multiplier"`
 	BatchImageHoldMultiplier     float64 `json:"batch_image_hold_multiplier"`
 	// 高峰时段倍率配置
@@ -150,12 +150,14 @@ type Group struct {
 	// 当前分组不可用时 API Key 优先回退到的分组。
 	UnavailableFallbackGroupID *int64 `json:"unavailable_fallback_group_id"`
 
-	// AllowedClientProtocols 是分组允许的完整客户端文本协议集合。
-	AllowedClientProtocols []domain.GroupClientProtocol `json:"allowed_client_protocols"`
+	// AllowedProtocols 是分组允许的完整客户端协议与业务入口集合。
+	AllowedProtocols     []domain.GroupClientProtocol                              `json:"allowed_protocols"`
+	ProtocolFallbacks    map[domain.GroupClientProtocol]domain.GroupClientProtocol `json:"protocol_fallbacks"`
+	ResponsesImagePolicy string                                                    `json:"responses_image_policy"`
 	// AllowMessagesDispatch 是从协议集合派生的弃用兼容字段。
-	AllowMessagesDispatch bool `json:"allow_messages_dispatch"`
+	AllowMessagesDispatch bool `json:"-"`
 	// OpenAI Live 接口开关
-	AllowLive bool `json:"allow_live"`
+	AllowLive bool `json:"-"`
 
 	// 账号过滤控制（仅 OpenAI/Antigravity 平台有效）
 	RequireOAuthOnly  bool `json:"require_oauth_only"`

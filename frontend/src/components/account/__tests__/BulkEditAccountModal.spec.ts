@@ -484,22 +484,16 @@ describe('BulkEditAccountModal', () => {
     expect(wrapper.find('#bulk-edit-openai-flatten-namespaces-enabled').exists()).toBe(false)
   })
 
-  it('OpenAI API Key 批量编辑提交默认工作负载能力与文本路由', async () => {
-    const wrapper = mountModal({
-      selectedPlatforms: ['openai'],
-      selectedTypes: ['apikey']
-    })
-
-    await wrapper.get('#bulk-edit-openai-endpoint-capabilities-enabled').setValue(true)
-    await wrapper.get('#bulk-edit-openai-responses-mode-enabled').setValue(true)
-    await wrapper.get('[data-testid="openai-text-protocol-chat_completions"]').setValue(false)
+  it('批量编辑保存统一原生协议集合', async () => {
+    const wrapper = mountModal({ selectedPlatforms: ['openai'], selectedTypes: ['apikey'] })
+    await wrapper.get('#bulk-native-protocols-enabled').setValue(true)
+    await flushPromises()
+    for (const checkbox of wrapper.findAll('[data-native-protocol]')) {
+      if (checkbox.attributes('data-native-protocol') !== 'openai_embeddings') await checkbox.setValue(false)
+    }
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
     await flushPromises()
-
-    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
-      credentials: { openai_workload_capabilities: null },
-      extra: { openai_text_route_mode: 'force_responses' }
-    })
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], { credentials: { upstream_protocols: ['openai_embeddings'] } })
   })
 
   it('OpenAI API Key 批量编辑可显式开启 HTTP continuation', async () => {
@@ -523,59 +517,24 @@ describe('BulkEditAccountModal', () => {
     })
   })
 
-  it('仅保留 embeddings 时自动清除强制文本路由', async () => {
-    const wrapper = mountModal({
-      selectedPlatforms: ['openai'],
-      selectedTypes: ['apikey']
-    })
-
-    await wrapper.get('#bulk-edit-openai-endpoint-capabilities-enabled').setValue(true)
-    await wrapper.get('#bulk-edit-openai-responses-mode-enabled').setValue(true)
-    await wrapper.get('[data-testid="openai-text-protocol-responses"]').setValue(false)
-    await wrapper.get('[data-testid="bulk-edit-openai-endpoint-capability-chat_completions"]').setValue(false)
-
-    expect(wrapper.find('[data-testid="bulk-edit-openai-responses-mode-not-applicable"]').exists()).toBe(true)
+  it('原生协议全部关闭后提交显式空数组', async () => {
+    const wrapper = mountModal({ selectedPlatforms: ['openai'], selectedTypes: ['apikey'] })
+    await wrapper.get('#bulk-native-protocols-enabled').setValue(true)
+    await flushPromises()
+    for (const checkbox of wrapper.findAll('[data-native-protocol]')) await checkbox.setValue(false)
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
     await flushPromises()
-
-    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
-      credentials: { openai_workload_capabilities: ['embeddings'] },
-      extra: { openai_text_route_mode: null }
-    })
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], { credentials: { upstream_protocols: [] } })
   })
 
-  it('至少保留一个 OpenAI 工作负载能力', async () => {
-    const wrapper = mountModal({
-      selectedPlatforms: ['openai'],
-      selectedTypes: ['apikey']
-    })
-
-    await wrapper.get('#bulk-edit-openai-endpoint-capabilities-enabled').setValue(true)
-    await wrapper.get('[data-testid="bulk-edit-openai-endpoint-capability-chat_completions"]').setValue(false)
-    await wrapper.get('[data-testid="bulk-edit-openai-endpoint-capability-embeddings"]').setValue(false)
-
-    expect(
-      (wrapper.get('[data-testid="bulk-edit-openai-endpoint-capability-embeddings"]').element as HTMLInputElement)
-        .checked
-    ).toBe(true)
-  })
-
-  it('工作负载设置隐藏后不随其他批量字段提交', async () => {
-    const wrapper = mountModal({
-      selectedPlatforms: ['openai'],
-      selectedTypes: ['apikey']
-    })
-
-    await wrapper.get('#bulk-edit-openai-endpoint-capabilities-enabled').setValue(true)
-    await wrapper.get('#bulk-edit-openai-responses-mode-enabled').setValue(true)
+  it('切换批量目标后不提交旧协议配置', async () => {
+    const wrapper = mountModal({ selectedPlatforms: ['openai'], selectedTypes: ['apikey'] })
+    await wrapper.get('#bulk-native-protocols-enabled').setValue(true)
     await wrapper.setProps({ selectedPlatforms: ['anthropic'], selectedTypes: ['apikey'] })
     await wrapper.get('#bulk-edit-status-enabled').setValue(true)
     await wrapper.get('#bulk-edit-account-form').trigger('submit.prevent')
     await flushPromises()
-
-    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], {
-      status: 'active'
-    })
+    expect(adminAPI.accounts.bulkUpdate).toHaveBeenCalledWith([1, 2], { status: 'active' })
   })
 
   it.each([

@@ -953,7 +953,7 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGateway
 			Platform:             service.PlatformGrok,
 			Status:               service.StatusActive,
 			AllowImageGeneration: true,
-			AllowedClientProtocols: []service.GroupClientProtocol{
+			AllowedProtocols: []service.GroupClientProtocol{
 				service.GroupClientProtocolAnthropicMessages,
 				service.GroupClientProtocolOpenAIResponses,
 				service.GroupClientProtocolOpenAIChatCompletions,

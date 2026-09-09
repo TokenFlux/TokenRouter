@@ -543,9 +543,29 @@ func (_c *GroupCreate) SetNillableAllowMessagesDispatch(v *bool) *GroupCreate {
 	return _c
 }
 
-// SetAllowedClientProtocols sets the "allowed_client_protocols" field.
-func (_c *GroupCreate) SetAllowedClientProtocols(v []domain.GroupClientProtocol) *GroupCreate {
-	_c.mutation.SetAllowedClientProtocols(v)
+// SetAllowedProtocols sets the "allowed_protocols" field.
+func (_c *GroupCreate) SetAllowedProtocols(v []domain.GroupClientProtocol) *GroupCreate {
+	_c.mutation.SetAllowedProtocols(v)
+	return _c
+}
+
+// SetProtocolFallbacks sets the "protocol_fallbacks" field.
+func (_c *GroupCreate) SetProtocolFallbacks(v map[domain.GroupClientProtocol]domain.GroupClientProtocol) *GroupCreate {
+	_c.mutation.SetProtocolFallbacks(v)
+	return _c
+}
+
+// SetResponsesImagePolicy sets the "responses_image_policy" field.
+func (_c *GroupCreate) SetResponsesImagePolicy(v string) *GroupCreate {
+	_c.mutation.SetResponsesImagePolicy(v)
+	return _c
+}
+
+// SetNillableResponsesImagePolicy sets the "responses_image_policy" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableResponsesImagePolicy(v *string) *GroupCreate {
+	if v != nil {
+		_c.SetResponsesImagePolicy(*v)
+	}
 	return _c
 }
 
@@ -984,9 +1004,17 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultAllowMessagesDispatch
 		_c.mutation.SetAllowMessagesDispatch(v)
 	}
-	if _, ok := _c.mutation.AllowedClientProtocols(); !ok {
-		v := group.DefaultAllowedClientProtocols
-		_c.mutation.SetAllowedClientProtocols(v)
+	if _, ok := _c.mutation.AllowedProtocols(); !ok {
+		v := group.DefaultAllowedProtocols
+		_c.mutation.SetAllowedProtocols(v)
+	}
+	if _, ok := _c.mutation.ProtocolFallbacks(); !ok {
+		v := group.DefaultProtocolFallbacks
+		_c.mutation.SetProtocolFallbacks(v)
+	}
+	if _, ok := _c.mutation.ResponsesImagePolicy(); !ok {
+		v := group.DefaultResponsesImagePolicy
+		_c.mutation.SetResponsesImagePolicy(v)
 	}
 	if _, ok := _c.mutation.AllowLive(); !ok {
 		v := group.DefaultAllowLive
@@ -1191,8 +1219,14 @@ func (_c *GroupCreate) check() error {
 	if _, ok := _c.mutation.AllowMessagesDispatch(); !ok {
 		return &ValidationError{Name: "allow_messages_dispatch", err: errors.New(`ent: missing required field "Group.allow_messages_dispatch"`)}
 	}
-	if _, ok := _c.mutation.AllowedClientProtocols(); !ok {
-		return &ValidationError{Name: "allowed_client_protocols", err: errors.New(`ent: missing required field "Group.allowed_client_protocols"`)}
+	if _, ok := _c.mutation.AllowedProtocols(); !ok {
+		return &ValidationError{Name: "allowed_protocols", err: errors.New(`ent: missing required field "Group.allowed_protocols"`)}
+	}
+	if _, ok := _c.mutation.ProtocolFallbacks(); !ok {
+		return &ValidationError{Name: "protocol_fallbacks", err: errors.New(`ent: missing required field "Group.protocol_fallbacks"`)}
+	}
+	if _, ok := _c.mutation.ResponsesImagePolicy(); !ok {
+		return &ValidationError{Name: "responses_image_policy", err: errors.New(`ent: missing required field "Group.responses_image_policy"`)}
 	}
 	if _, ok := _c.mutation.AllowLive(); !ok {
 		return &ValidationError{Name: "allow_live", err: errors.New(`ent: missing required field "Group.allow_live"`)}
@@ -1437,9 +1471,17 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldAllowMessagesDispatch, field.TypeBool, value)
 		_node.AllowMessagesDispatch = value
 	}
-	if value, ok := _c.mutation.AllowedClientProtocols(); ok {
-		_spec.SetField(group.FieldAllowedClientProtocols, field.TypeJSON, value)
-		_node.AllowedClientProtocols = value
+	if value, ok := _c.mutation.AllowedProtocols(); ok {
+		_spec.SetField(group.FieldAllowedProtocols, field.TypeJSON, value)
+		_node.AllowedProtocols = value
+	}
+	if value, ok := _c.mutation.ProtocolFallbacks(); ok {
+		_spec.SetField(group.FieldProtocolFallbacks, field.TypeJSON, value)
+		_node.ProtocolFallbacks = value
+	}
+	if value, ok := _c.mutation.ResponsesImagePolicy(); ok {
+		_spec.SetField(group.FieldResponsesImagePolicy, field.TypeString, value)
+		_node.ResponsesImagePolicy = value
 	}
 	if value, ok := _c.mutation.AllowLive(); ok {
 		_spec.SetField(group.FieldAllowLive, field.TypeBool, value)
@@ -2255,15 +2297,39 @@ func (u *GroupUpsert) UpdateAllowMessagesDispatch() *GroupUpsert {
 	return u
 }
 
-// SetAllowedClientProtocols sets the "allowed_client_protocols" field.
-func (u *GroupUpsert) SetAllowedClientProtocols(v []domain.GroupClientProtocol) *GroupUpsert {
-	u.Set(group.FieldAllowedClientProtocols, v)
+// SetAllowedProtocols sets the "allowed_protocols" field.
+func (u *GroupUpsert) SetAllowedProtocols(v []domain.GroupClientProtocol) *GroupUpsert {
+	u.Set(group.FieldAllowedProtocols, v)
 	return u
 }
 
-// UpdateAllowedClientProtocols sets the "allowed_client_protocols" field to the value that was provided on create.
-func (u *GroupUpsert) UpdateAllowedClientProtocols() *GroupUpsert {
-	u.SetExcluded(group.FieldAllowedClientProtocols)
+// UpdateAllowedProtocols sets the "allowed_protocols" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateAllowedProtocols() *GroupUpsert {
+	u.SetExcluded(group.FieldAllowedProtocols)
+	return u
+}
+
+// SetProtocolFallbacks sets the "protocol_fallbacks" field.
+func (u *GroupUpsert) SetProtocolFallbacks(v map[domain.GroupClientProtocol]domain.GroupClientProtocol) *GroupUpsert {
+	u.Set(group.FieldProtocolFallbacks, v)
+	return u
+}
+
+// UpdateProtocolFallbacks sets the "protocol_fallbacks" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateProtocolFallbacks() *GroupUpsert {
+	u.SetExcluded(group.FieldProtocolFallbacks)
+	return u
+}
+
+// SetResponsesImagePolicy sets the "responses_image_policy" field.
+func (u *GroupUpsert) SetResponsesImagePolicy(v string) *GroupUpsert {
+	u.Set(group.FieldResponsesImagePolicy, v)
+	return u
+}
+
+// UpdateResponsesImagePolicy sets the "responses_image_policy" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateResponsesImagePolicy() *GroupUpsert {
+	u.SetExcluded(group.FieldResponsesImagePolicy)
 	return u
 }
 
@@ -3194,17 +3260,45 @@ func (u *GroupUpsertOne) UpdateAllowMessagesDispatch() *GroupUpsertOne {
 	})
 }
 
-// SetAllowedClientProtocols sets the "allowed_client_protocols" field.
-func (u *GroupUpsertOne) SetAllowedClientProtocols(v []domain.GroupClientProtocol) *GroupUpsertOne {
+// SetAllowedProtocols sets the "allowed_protocols" field.
+func (u *GroupUpsertOne) SetAllowedProtocols(v []domain.GroupClientProtocol) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
-		s.SetAllowedClientProtocols(v)
+		s.SetAllowedProtocols(v)
 	})
 }
 
-// UpdateAllowedClientProtocols sets the "allowed_client_protocols" field to the value that was provided on create.
-func (u *GroupUpsertOne) UpdateAllowedClientProtocols() *GroupUpsertOne {
+// UpdateAllowedProtocols sets the "allowed_protocols" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateAllowedProtocols() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
-		s.UpdateAllowedClientProtocols()
+		s.UpdateAllowedProtocols()
+	})
+}
+
+// SetProtocolFallbacks sets the "protocol_fallbacks" field.
+func (u *GroupUpsertOne) SetProtocolFallbacks(v map[domain.GroupClientProtocol]domain.GroupClientProtocol) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetProtocolFallbacks(v)
+	})
+}
+
+// UpdateProtocolFallbacks sets the "protocol_fallbacks" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateProtocolFallbacks() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateProtocolFallbacks()
+	})
+}
+
+// SetResponsesImagePolicy sets the "responses_image_policy" field.
+func (u *GroupUpsertOne) SetResponsesImagePolicy(v string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetResponsesImagePolicy(v)
+	})
+}
+
+// UpdateResponsesImagePolicy sets the "responses_image_policy" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateResponsesImagePolicy() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateResponsesImagePolicy()
 	})
 }
 
@@ -4332,17 +4426,45 @@ func (u *GroupUpsertBulk) UpdateAllowMessagesDispatch() *GroupUpsertBulk {
 	})
 }
 
-// SetAllowedClientProtocols sets the "allowed_client_protocols" field.
-func (u *GroupUpsertBulk) SetAllowedClientProtocols(v []domain.GroupClientProtocol) *GroupUpsertBulk {
+// SetAllowedProtocols sets the "allowed_protocols" field.
+func (u *GroupUpsertBulk) SetAllowedProtocols(v []domain.GroupClientProtocol) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
-		s.SetAllowedClientProtocols(v)
+		s.SetAllowedProtocols(v)
 	})
 }
 
-// UpdateAllowedClientProtocols sets the "allowed_client_protocols" field to the value that was provided on create.
-func (u *GroupUpsertBulk) UpdateAllowedClientProtocols() *GroupUpsertBulk {
+// UpdateAllowedProtocols sets the "allowed_protocols" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateAllowedProtocols() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
-		s.UpdateAllowedClientProtocols()
+		s.UpdateAllowedProtocols()
+	})
+}
+
+// SetProtocolFallbacks sets the "protocol_fallbacks" field.
+func (u *GroupUpsertBulk) SetProtocolFallbacks(v map[domain.GroupClientProtocol]domain.GroupClientProtocol) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetProtocolFallbacks(v)
+	})
+}
+
+// UpdateProtocolFallbacks sets the "protocol_fallbacks" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateProtocolFallbacks() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateProtocolFallbacks()
+	})
+}
+
+// SetResponsesImagePolicy sets the "responses_image_policy" field.
+func (u *GroupUpsertBulk) SetResponsesImagePolicy(v string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetResponsesImagePolicy(v)
+	})
+}
+
+// UpdateResponsesImagePolicy sets the "responses_image_policy" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateResponsesImagePolicy() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateResponsesImagePolicy()
 	})
 }
 

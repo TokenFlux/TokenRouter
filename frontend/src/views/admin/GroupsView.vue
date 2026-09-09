@@ -1224,13 +1224,13 @@
                 {{ t("admin.groups.openaiFast.freeHint") }}
               </p>
             </div>
-            <div v-if="createForm.platform === 'gemini' && createForm.allow_image_generation" class="border-t border-gray-200 pt-4 dark:border-dark-700">
+            <div v-if="createForm.platform === 'gemini' && createForm.allowed_protocols.includes('image_batches')" class="border-t border-gray-200 pt-4 dark:border-dark-700">
                 <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.groups.tabs.batchPricing') }}</h4>
                 <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                   {{ t("admin.groups.imagePricing.batchSectionHint") }}
                 </p>
                 <div
-                  v-if="createForm.allow_batch_image_generation"
+                  v-if="createForm.allowed_protocols.includes('image_batches')"
                   class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2"
                 >
                   <div>
@@ -1359,7 +1359,9 @@
           </template>
           <template #protocol>
             <GroupClientProtocolSelector
-              v-model="createForm.allowed_client_protocols"
+              v-model="createForm.allowed_protocols"
+              v-model:fallbacks="createForm.protocol_fallbacks"
+              v-model:image-policy="createForm.responses_image_policy"
               :platform="createForm.platform"
               class="mt-4"
             />
@@ -1550,55 +1552,6 @@
                 </div>
               </div>
             </div>
-            <div
-              v-if="createForm.platform === 'openai'"
-              class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
-            >
-              <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                {{ t("admin.groups.openaiLive.title") }}
-              </h4>
-              <div class="flex items-center justify-between gap-4">
-                <label for="create-group-live" class="text-sm text-gray-600 dark:text-gray-400">{{
-                  t("admin.groups.openaiLive.allow")
-                }}</label>
-                <!-- 受控开关保留 Live 能力检查，不能直接用双向绑定绕过确认。 -->
-                <Toggle
-                  id="create-group-live"
-                  :model-value="createForm.allow_live"
-                  :aria-label="t('admin.groups.openaiLive.allow')"
-                  @update:model-value="toggleLive('create')"
-                />
-              </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {{ t("admin.groups.openaiLive.hint") }}
-              </p>
-            </div>
-            <div v-if="supportsImageGenerationPlatform(createForm.platform)" class="border-t pt-4" data-group-field="image-capabilities">
-              <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.groups.tabs.imageCapabilities') }}</h4>
-              <div class="mt-3 flex items-center justify-between gap-4">
-                <label for="create-group-image-generation" class="text-sm text-gray-700 dark:text-gray-300">
-                  {{ t("admin.groups.imagePricing.allowImageGeneration") }}
-                </label>
-                <Toggle
-                  id="create-group-image-generation"
-                  v-model="createForm.allow_image_generation"
-                  :aria-label="t('admin.groups.imagePricing.allowImageGeneration')"
-                />
-              </div>
-              <div v-if="createForm.platform === 'gemini' && createForm.allow_image_generation" class="mt-3 flex items-center justify-between gap-4">
-                <label
-                  for="create-group-batch-image-generation"
-                  class="text-sm text-gray-700 dark:text-gray-300"
-                >
-                  {{ t("admin.groups.imagePricing.allowBatchImageGeneration") }}
-                </label>
-                <Toggle
-                  id="create-group-batch-image-generation"
-                  v-model="createForm.allow_batch_image_generation"
-                  :aria-label="t('admin.groups.imagePricing.allowBatchImageGeneration')"
-                />
-              </div>
-            </div>
             <div v-if="createForm.platform === 'anthropic'" class="border-t pt-4">
               <div class="relative mb-1.5 flex items-center gap-1">
                 <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -1773,7 +1726,7 @@
           <button
             type="submit"
             form="create-group-form"
-            :disabled="submitting"
+            :disabled="submitting || !protocolCatalog"
             class="btn btn-primary"
             data-tour="group-form-submit"
           >
@@ -2683,13 +2636,13 @@
                 {{ t("admin.groups.openaiFast.freeHint") }}
               </p>
             </div>
-            <div v-if="editForm.platform === 'gemini' && editForm.allow_image_generation" class="border-t border-gray-200 pt-4 dark:border-dark-700">
+            <div v-if="editForm.platform === 'gemini' && editForm.allowed_protocols.includes('image_batches')" class="border-t border-gray-200 pt-4 dark:border-dark-700">
                 <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.groups.tabs.batchPricing') }}</h4>
                 <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
                   {{ t("admin.groups.imagePricing.batchSectionHint") }}
                 </p>
                 <div
-                  v-if="editForm.allow_batch_image_generation"
+                  v-if="editForm.allowed_protocols.includes('image_batches')"
                   class="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2"
                 >
                   <div>
@@ -2818,7 +2771,9 @@
           </template>
           <template #protocol>
             <GroupClientProtocolSelector
-              v-model="editForm.allowed_client_protocols"
+              v-model="editForm.allowed_protocols"
+              v-model:fallbacks="editForm.protocol_fallbacks"
+              v-model:image-policy="editForm.responses_image_policy"
               :platform="editForm.platform"
               class="mt-4"
             />
@@ -3009,55 +2964,6 @@
                 </div>
               </div>
             </div>
-            <div
-              v-if="editForm.platform === 'openai'"
-              class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
-            >
-              <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                {{ t("admin.groups.openaiLive.title") }}
-              </h4>
-              <div class="flex items-center justify-between gap-4">
-                <label for="edit-group-live" class="text-sm text-gray-600 dark:text-gray-400">{{
-                  t("admin.groups.openaiLive.allow")
-                }}</label>
-                <!-- 受控开关保留 Live 能力检查，不能直接用双向绑定绕过确认。 -->
-                <Toggle
-                  id="edit-group-live"
-                  :model-value="editForm.allow_live"
-                  :aria-label="t('admin.groups.openaiLive.allow')"
-                  @update:model-value="toggleLive('edit')"
-                />
-              </div>
-              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {{ t("admin.groups.openaiLive.hint") }}
-              </p>
-            </div>
-            <div v-if="supportsImageGenerationPlatform(editForm.platform)" class="border-t pt-4" data-group-field="image-capabilities">
-              <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('admin.groups.tabs.imageCapabilities') }}</h4>
-              <div class="mt-3 flex items-center justify-between gap-4">
-                <label for="edit-group-image-generation" class="text-sm text-gray-700 dark:text-gray-300">
-                  {{ t("admin.groups.imagePricing.allowImageGeneration") }}
-                </label>
-                <Toggle
-                  id="edit-group-image-generation"
-                  v-model="editForm.allow_image_generation"
-                  :aria-label="t('admin.groups.imagePricing.allowImageGeneration')"
-                />
-              </div>
-              <div v-if="editForm.platform === 'gemini' && editForm.allow_image_generation" class="mt-3 flex items-center justify-between gap-4">
-                <label
-                  for="edit-group-batch-image-generation"
-                  class="text-sm text-gray-700 dark:text-gray-300"
-                >
-                  {{ t("admin.groups.imagePricing.allowBatchImageGeneration") }}
-                </label>
-                <Toggle
-                  id="edit-group-batch-image-generation"
-                  v-model="editForm.allow_batch_image_generation"
-                  :aria-label="t('admin.groups.imagePricing.allowBatchImageGeneration')"
-                />
-              </div>
-            </div>
             <div v-if="editForm.platform === 'anthropic'" class="border-t pt-4">
               <div class="relative mb-1.5 flex items-center gap-1">
                 <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -3232,7 +3138,7 @@
           <button
             type="submit"
             form="edit-group-form"
-            :disabled="submitting"
+            :disabled="submitting || !protocolCatalog"
             class="btn btn-primary"
             data-tour="group-form-submit"
           >
@@ -3441,6 +3347,7 @@ import GroupActionMenu from "@/components/admin/group/GroupActionMenu.vue";
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import ReasoningEffortPolicyFields from "@/components/admin/group/ReasoningEffortPolicyFields.vue";
+import { loadProtocolCatalog, protocolCatalog } from '@/api/admin/protocolCapabilities';
 import GroupClientProtocolSelector from "@/components/admin/group/GroupClientProtocolSelector.vue";
 import GroupAdvancedSchedulerOverridesModal from "@/components/admin/group/GroupAdvancedSchedulerOverridesModal.vue";
 import GroupFormTabs from "@/components/admin/group/GroupFormTabs.vue";
@@ -3498,7 +3405,6 @@ import {
   reasoningEffortOverLimitDowngrade,
   type ReasoningEffortMappingRow,
 } from "./groupsReasoningEffort";
-import { supportsImageGenerationPlatform } from "./groupsImagePricing";
 
 // 分组与渠道共享完整价卡，空值表示继承，不隐式写入 1 倍。
 const emptyGroupPricing = (): PricingFormEntry => ({
@@ -4051,7 +3957,9 @@ const createForm = reactive({
   platform: "anthropic" as GroupPlatform,
   scheduler_type: "basic" as GroupSchedulerType,
   advanced_scheduler_overrides: {} as GroupAdvancedSchedulerOverrides,
-  allowed_client_protocols: defaultGroupClientProtocols("anthropic") as GroupClientProtocol[],
+  protocol_fallbacks: {} as Partial<Record<GroupClientProtocol, GroupClientProtocol>>,
+  responses_image_policy: "inherit" as "inherit" | "enabled" | "disabled" | "block",
+  allowed_protocols: defaultGroupClientProtocols("anthropic") as GroupClientProtocol[],
   rate_multiplier: 1.0,
   is_exclusive: false,
   is_default: false,
@@ -4477,7 +4385,9 @@ const editForm = reactive({
   platform: "anthropic" as GroupPlatform,
   scheduler_type: "basic" as GroupSchedulerType,
   advanced_scheduler_overrides: {} as GroupAdvancedSchedulerOverrides,
-  allowed_client_protocols: defaultGroupClientProtocols("anthropic") as GroupClientProtocol[],
+  protocol_fallbacks: {} as Partial<Record<GroupClientProtocol, GroupClientProtocol>>,
+  responses_image_policy: "inherit" as "inherit" | "enabled" | "disabled" | "block",
+  allowed_protocols: defaultGroupClientProtocols("anthropic") as GroupClientProtocol[],
   rate_multiplier: 1.0,
   is_exclusive: false,
   is_default: false,
@@ -4548,19 +4458,20 @@ const editForm = reactive({
 
 const createMessagesDispatchEnabled = computed(() =>
   hasGroupClientProtocol(
-    createForm.allowed_client_protocols,
+    createForm.allowed_protocols,
     "anthropic_messages",
   ),
 );
 const editMessagesDispatchEnabled = computed(() =>
   hasGroupClientProtocol(
-    editForm.allowed_client_protocols,
+    editForm.allowed_protocols,
     "anthropic_messages",
   ),
 );
 
 type BatchImagePricingFormState = {
   platform: GroupPlatform;
+  allowed_protocols: GroupClientProtocol[];
   allow_image_generation: boolean;
   allow_batch_image_generation: boolean;
   rate_multiplier: number;
@@ -4623,13 +4534,10 @@ const editWebSearchFinalPricePreview = computed(() =>
 const resetDisabledBatchImagePricing = (
   form: Pick<
     BatchImagePricingFormState,
-    "platform" | "allow_image_generation" | "allow_batch_image_generation" | "batch_image_discount_multiplier" | "batch_image_hold_multiplier"
+    "platform" | "allowed_protocols" | "batch_image_discount_multiplier" | "batch_image_hold_multiplier"
   >,
 ) => {
-  if (form.platform !== "gemini" || !form.allow_image_generation) {
-    form.allow_batch_image_generation = false;
-  }
-  if (!form.allow_batch_image_generation) {
+  if (form.platform !== "gemini" || !form.allowed_protocols.includes("image_batches")) {
     form.batch_image_discount_multiplier = 0.5;
     form.batch_image_hold_multiplier = 0.6;
   }
@@ -4657,19 +4565,7 @@ const loadLiveCapability = async () => {
   return liveCapability.value ?? { supported: false };
 };
 
-const toggleLive = async (target: "create" | "edit") => {
-  const form = target === "create" ? createForm : editForm;
-  if (form.allow_live) {
-    form.allow_live = false;
-    return;
-  }
-  const capability = await loadLiveCapability();
-  if (capability.supported) {
-    form.allow_live = true;
-    return;
-  }
-  pendingLiveForm.value = target;
-};
+
 
 const confirmUnsupportedLive = () => {
   if (pendingLiveForm.value === "create") createForm.allow_live = true;
@@ -4855,7 +4751,9 @@ const closeCreateModal = () => {
   createForm.platform = "anthropic";
   createForm.scheduler_type = "basic";
   createForm.advanced_scheduler_overrides = {};
-  createForm.allowed_client_protocols = defaultGroupClientProtocols("anthropic");
+  createForm.allowed_protocols = defaultGroupClientProtocols("anthropic");
+  createForm.protocol_fallbacks = { ...protocolCatalog.value?.groups.find(group => group.platform === "anthropic")?.default_fallbacks };
+  createForm.responses_image_policy = "inherit";
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
   createForm.is_default = false;
@@ -4957,7 +4855,12 @@ const handleCreateGroup = async () => {
     // 构建请求数据，包含模型路由配置
     const requestData = {
       ...createForm,
-      allowed_client_protocols: [...createForm.allowed_client_protocols],
+      allow_image_generation: undefined,
+      allow_batch_image_generation: undefined,
+      allow_live: undefined,
+      allowed_protocols: [...createForm.allowed_protocols],
+      protocol_fallbacks: { ...createForm.protocol_fallbacks },
+      responses_image_policy: createForm.responses_image_policy,
       display_brand: normalizeDisplayBrand(createForm.display_brand),
       model_pricing: groupPricingToAPI(
         createForm.model_pricing,
@@ -5074,9 +4977,9 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.long_context_pricing_enabled =
     group.long_context_pricing_enabled ?? true;
   editForm.model_pricing = groupPricingFromAPI(group.model_pricing);
-  editForm.allow_image_generation = group.allow_image_generation ?? false;
+  editForm.allow_image_generation = group.allowed_protocols?.some(id => ['openai_images_generations','openai_images_edits','image_batches'].includes(id)) ?? false;
   editForm.allow_batch_image_generation =
-    group.allow_batch_image_generation ?? false;
+    group.allowed_protocols?.includes('image_batches') ?? false;
   editForm.batch_image_discount_multiplier =
     group.batch_image_discount_multiplier ?? 0.5;
   editForm.batch_image_hold_multiplier = group.batch_image_hold_multiplier ?? 0.6;
@@ -5099,11 +5002,13 @@ const handleEdit = async (group: AdminGroup) => {
   const messagesDispatchFormState = messagesDispatchConfigToFormState(
     group.messages_dispatch_model_config,
   );
-  editForm.allowed_client_protocols = effectiveGroupClientProtocols(
+  editForm.allowed_protocols = effectiveGroupClientProtocols(
     group.platform,
-    group.allowed_client_protocols,
+    group.allowed_protocols,
   );
-  editForm.allow_live = group.allow_live ?? false;
+  editForm.protocol_fallbacks = { ...group.protocol_fallbacks };
+  editForm.responses_image_policy = group.responses_image_policy ?? "inherit";
+  editForm.allow_live = group.allowed_protocols?.includes('openai_live') ?? false;
   editForm.openai_fast_policy = normalizeGroupOpenAIFastPolicy(
     group.platform,
     group.openai_fast_policy ?? (group.force_openai_fast ? "force_priority" : "follow_request"),
@@ -5198,7 +5103,12 @@ const handleUpdateGroup = async () => {
     // 转换 fallback_group_id: null -> 0 (后端使用 0 表示清除)
     const payload = {
       ...editForm,
-      allowed_client_protocols: [...editForm.allowed_client_protocols],
+      allow_image_generation: undefined,
+      allow_batch_image_generation: undefined,
+      allow_live: undefined,
+      allowed_protocols: [...editForm.allowed_protocols],
+      protocol_fallbacks: { ...editForm.protocol_fallbacks },
+      responses_image_policy: editForm.responses_image_policy,
       display_brand: normalizeDisplayBrand(editForm.display_brand),
       model_pricing: groupPricingToAPI(
         editForm.model_pricing,
@@ -5391,7 +5301,8 @@ watch(
 watch(
   () => createForm.platform,
   (newVal) => {
-    createForm.allowed_client_protocols = defaultGroupClientProtocols(newVal);
+    createForm.allowed_protocols = defaultGroupClientProtocols(newVal);
+    createForm.protocol_fallbacks = { ...protocolCatalog.value?.groups.find(group => group.platform === newVal)?.default_fallbacks };
     createForm.unavailable_fallback_group_id = null;
     if (!["anthropic", "antigravity"].includes(newVal)) {
       createForm.fallback_group_id_on_invalid_request = null;
@@ -5434,7 +5345,8 @@ watch(
 watch(
   () => editForm.platform,
   (newVal) => {
-    editForm.allowed_client_protocols = defaultGroupClientProtocols(newVal);
+    editForm.allowed_protocols = defaultGroupClientProtocols(newVal);
+    editForm.protocol_fallbacks = { ...protocolCatalog.value?.groups.find(group => group.platform === newVal)?.default_fallbacks };
   },
   { flush: "sync" },
 );
@@ -5475,7 +5387,7 @@ watch(
 );
 
 watch(
-  () => createForm.allow_batch_image_generation,
+  () => createForm.allowed_protocols.join(","),
   () => {
     resetDisabledBatchImagePricing(createForm);
   },
@@ -5542,7 +5454,7 @@ watch(
 );
 
 watch(
-  () => editForm.allow_batch_image_generation,
+  () => editForm.allowed_protocols.join(","),
   () => {
     resetDisabledBatchImagePricing(editForm);
   },
@@ -5631,7 +5543,8 @@ const saveSortOrder = async () => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
+  try { await loadProtocolCatalog(); } catch { appStore.showError(t("admin.protocols.loadError")); }
   loadGroups();
   loadUnavailableFallbackGroups();
   void loadLiveCapability();

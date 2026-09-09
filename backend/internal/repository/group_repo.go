@@ -121,7 +121,9 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetNillableUnavailableFallbackGroupID(groupIn.UnavailableFallbackGroupID).
 		SetModelRoutingEnabled(groupIn.ModelRoutingEnabled).
 		SetMcpXMLInject(groupIn.MCPXMLInject).
-		SetAllowedClientProtocols(groupIn.AllowedClientProtocols).
+		SetAllowedProtocols(groupIn.AllowedProtocols).
+		SetProtocolFallbacks(groupIn.ProtocolFallbacks).
+		SetResponsesImagePolicy(groupIn.ResponsesImagePolicy).
 		SetAllowMessagesDispatch(groupIn.AllowMessagesDispatch).
 		SetAllowLive(groupIn.AllowLive).
 		SetForceOpenaiFast(groupIn.ForceOpenAIFast).
@@ -304,7 +306,9 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetClaudeCodeOnly(groupIn.ClaudeCodeOnly).
 		SetModelRoutingEnabled(groupIn.ModelRoutingEnabled).
 		SetMcpXMLInject(groupIn.MCPXMLInject).
-		SetAllowedClientProtocols(groupIn.AllowedClientProtocols).
+		SetAllowedProtocols(groupIn.AllowedProtocols).
+		SetProtocolFallbacks(groupIn.ProtocolFallbacks).
+		SetResponsesImagePolicy(groupIn.ResponsesImagePolicy).
 		SetAllowMessagesDispatch(groupIn.AllowMessagesDispatch).
 		SetAllowLive(groupIn.AllowLive).
 		SetForceOpenaiFast(groupIn.ForceOpenAIFast).

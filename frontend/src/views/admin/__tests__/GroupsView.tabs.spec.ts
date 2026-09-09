@@ -107,7 +107,7 @@ describe.each(['create', 'edit'] as const)('GroupsView %s tabs', mode => {
     expect(wrapper.get('[data-tour="group-form-multiplier"]').element.closest('[data-group-tab]')?.getAttribute('data-group-tab')).toBe('pricing')
     expect(wrapper.getComponent(GroupClientProtocolSelector).element.closest('[data-group-tab]')?.getAttribute('data-group-tab')).toBe('protocol')
     expect(wrapper.find('[data-group-field="reasoning"]').exists()).toBe(['openai', 'anthropic'].includes(platform))
-    expect(wrapper.find('[data-group-field="image-capabilities"]').exists()).toBe(['openai', 'gemini', 'antigravity', 'grok'].includes(platform))
+    expect(wrapper.find('[data-group-field="image-capabilities"]').exists()).toBe(false)
   })
 
   it('完整价卡在创建和编辑中开放区间及倍率，提交后可重新回填', async () => {
@@ -178,7 +178,7 @@ describe.each(['create', 'edit'] as const)('GroupsView %s tabs', mode => {
     await wrapper.get(`#${mode}-group-form`).trigger('submit')
     await flushPromises()
     const payload = mode === 'create' ? groups.create.mock.calls[0]?.[0] : groups.update.mock.calls[0]?.[1]
-    expect(payload).toMatchObject({ rate_multiplier: 1.5, openai_fast_policy: 'force_ultrafast', free_openai_fast: true, allowed_client_protocols: ['anthropic_messages'] })
+    expect(payload).toMatchObject({ rate_multiplier: 1.5, openai_fast_policy: 'force_ultrafast', free_openai_fast: true, allowed_protocols: ['anthropic_messages'] })
     expect(JSON.stringify(payload.messages_dispatch_model_config)).toContain('gpt-test')
     expect(wrapper.find(`#${mode}-group-form`).exists()).toBe(false)
     await wrapper.get('[data-tour="groups-create-btn"]').trigger('click')
@@ -228,24 +228,24 @@ describe.each(['create', 'edit'] as const)('GroupsView %s tabs', mode => {
     expect(groups[mode === 'create' ? 'create' : 'update']).not.toHaveBeenCalled()
   })
 
-  it('批量图片能力在协议页控制价格字段，关闭图片能力沿用原清理规则', async () => {
-    const wrapper = await open(mode, 'gemini')
+  it('批量图片协议独立控制价格字段，关闭后保留其它入口', async () => {
+    const wrapper = await open(mode, 'gemini', { allowed_protocols: ['gemini_generate_content'] })
     await tab(wrapper, 'protocol')
-    const capabilities = wrapper.get('[data-group-field="image-capabilities"]')
-    await capabilities.get('[role="switch"]').trigger('click')
-    await capabilities.findAll('[role="switch"]')[1]!.trigger('click')
+    const protocols = wrapper.getComponent(GroupClientProtocolSelector)
+    protocols.vm.$emit('update:modelValue', ['gemini_generate_content','image_batches'])
+    await flushPromises()
     await tab(wrapper, 'pricing')
     const batch = wrapper.findAll('input').find(input => input.attributes('placeholder') === '0.5')!
     expect(batch.isVisible()).toBe(true)
     await batch.setValue('0.4')
-    await tab(wrapper, 'protocol')
-    await capabilities.get('[role="switch"]').trigger('click')
-    await tab(wrapper, 'pricing')
+    protocols.vm.$emit('update:modelValue', ['gemini_generate_content'])
+    await flushPromises()
     expect(wrapper.findAll('input').some(input => input.attributes('placeholder') === '0.5')).toBe(false)
     await wrapper.get(`#${mode}-group-form`).trigger('submit')
     await flushPromises()
     const payload = mode === 'create' ? groups.create.mock.calls[0]?.[0] : groups.update.mock.calls[0]?.[1]
-    expect(payload).toMatchObject({ allow_image_generation: false, allow_batch_image_generation: false })
+    expect(payload.allowed_protocols).toEqual(['gemini_generate_content'])
+    expect(payload.allow_image_generation).toBeUndefined()
   })
 
   it('关闭再开启 Messages 保留映射草稿，价格组件切页保持展开状态', async () => {

@@ -195,7 +195,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		IsImageGenerationIntent,
 	)
 	explicitImageIntent := IsExplicitImageGenerationIntent(openAIResponsesEndpoint, policyModel, body)
-	if explicitImageIntent && !GroupAllowsImageGeneration(apiKeyGroup(apiKey)) {
+	if explicitImageIntent && !GroupAllowsResponsesImages(apiKeyGroup(apiKey)) {
 		MarkOpsClientBusinessLimited(c, OpsClientBusinessLimitedReasonLocalFeatureGate)
 		c.JSON(http.StatusForbidden, gin.H{
 			"error": gin.H{
@@ -500,7 +500,7 @@ func (s *OpenAIGatewayService) buildUpstreamRequestOpenAIPassthrough(
 		}
 	case AccountTypeAPIKey:
 		baseURL := account.GetOpenAIBaseURL()
-		if account.UsesNativeCNResponses() && account.IsAdaptiveAPIProtocol() {
+		if _, unified := account.Credentials[upstreamProtocolsKey]; account.UsesNativeCNResponses() && (unified || account.IsAdaptiveAPIProtocol()) {
 			baseURL = account.GetCNProtocolBaseURL(APIProtocolResponses)
 		}
 		if baseURL != "" {

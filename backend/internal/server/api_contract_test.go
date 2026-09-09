@@ -370,7 +370,7 @@ func TestAPIContracts(t *testing.T) {
 						Platform:           service.PlatformAnthropic,
 						RateMultiplier:     1.5,
 						PeakRateMultiplier: 1.0,
-						AllowedClientProtocols: []service.GroupClientProtocol{
+						AllowedProtocols: []service.GroupClientProtocol{
 							service.GroupClientProtocolAnthropicMessages,
 							service.GroupClientProtocolOpenAIResponses,
 							service.GroupClientProtocolOpenAIChatCompletions,
@@ -414,19 +414,15 @@ func TestAPIContracts(t *testing.T) {
 						"audio_tts_price_per_million_chars": null,
 						"audio_stt_price_per_hour": null,
 						"audio_realtime_price_per_min": null,
-						"allow_image_generation": false,
-						"allow_batch_image_generation": false,
 						"batch_image_discount_multiplier": 0,
 						"batch_image_hold_multiplier": 0,
 						"is_default": false,
 						"claude_code_only": false,
-						"allowed_client_protocols": [
+						"protocol_fallbacks": null, "responses_image_policy": "", "allowed_protocols": [
 							"anthropic_messages",
 							"openai_responses",
 							"openai_chat_completions"
 						],
-						"allow_messages_dispatch": true,
-						"allow_live": false,
 						"session_isolation_enabled": false,
 						"fallback_group_id": null,
 						"fallback_group_id_on_invalid_request": null,

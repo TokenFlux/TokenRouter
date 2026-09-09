@@ -530,7 +530,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 	// 转发给非 Composer 模型的 Grok 原生视觉能力，否则图片会被静默丢弃；
 	// 因此即使没有 prompt-cache 身份也要路由到 Responses。
 	hasImageInput := openAIJSONValueMayContainImageInput(gjson.GetBytes(body, "messages"))
-	if !grokChatResponsesRuntimeEligible(upstreamModel, cacheIdentity) && (!hasImageInput || !grokChatResponsesBridgeModel(upstreamModel)) {
+	if account.resolvedProtocol == "" && !grokChatResponsesRuntimeEligible(upstreamModel, cacheIdentity) && (!hasImageInput || !grokChatResponsesBridgeModel(upstreamModel)) {
 		return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel, tlsRouterMatch...)
 	}
 

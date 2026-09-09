@@ -918,8 +918,6 @@ func (h *AccountHandler) Create(c *gin.Context) {
 	if result != nil && result.Replayed {
 		c.Header("X-Idempotency-Replayed", "true")
 	}
-	// 国产供应商同步显式协议配置。
-	h.scheduleCNProviderTextProtocolSync(createdAccount)
 	h.scheduleGrokImportProbe(createdAccount)
 	response.Success(c, result.Data)
 }
@@ -946,8 +944,6 @@ func (h *AccountHandler) Duplicate(c *gin.Context) {
 			if execErr != nil {
 				return nil, execErr
 			}
-			// 国产供应商复制件同步显式协议配置。
-			h.scheduleCNProviderTextProtocolSync(account)
 			return h.buildAccountResponseWithRuntime(ctx, account), nil
 		},
 	)
@@ -958,7 +954,6 @@ func (h *AccountHandler) Duplicate(c *gin.Context) {
 			if recoverErr != nil {
 				slog.Warn("account_duplicate_recovery_failed", "account_id", accountID, "actor_scope", actorScope, "reason", reason, "error", recoverErr)
 			} else if recovered != nil {
-				h.scheduleCNProviderTextProtocolSync(recovered)
 				c.Header("X-Idempotency-Recovered", "true")
 				response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), recovered))
 				return
@@ -1040,62 +1035,7 @@ func (h *AccountHandler) Update(c *gin.Context) {
 		return
 	}
 
-	// 国产供应商协议修改后同步路由配置。
-	if len(req.Credentials) > 0 {
-		h.scheduleCNProviderTextProtocolSync(account)
-	}
-
 	response.Success(c, h.buildAccountResponseWithRuntime(c.Request.Context(), account))
-}
-
-// 国产供应商显式协议同步，不产生上游探测请求。
-func (h *AccountHandler) scheduleCNProviderTextProtocolSync(account *service.Account) {
-	if account == nil || account.Type != service.AccountTypeAPIKey ||
-		!service.IsCNProvider(account.Platform) {
-		return
-	}
-	h.scheduleCNProviderTextProtocolSyncByID(account.ID)
-}
-
-func (h *AccountHandler) scheduleCNProviderTextProtocolSyncByID(accountID int64) {
-	if accountID <= 0 {
-		return
-	}
-	if h.accountTestService == nil {
-		return
-	}
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				slog.Error("cn_protocol_sync_panic", "account_id", accountID, "recover", r)
-			}
-		}()
-		h.accountTestService.SyncCNProviderTextProtocol(context.Background(), accountID)
-	}()
-}
-
-func (h *AccountHandler) scheduleCNProviderTextProtocolSyncByIDs(accountIDs []int64) {
-	seen := make(map[int64]struct{}, len(accountIDs))
-	for _, accountID := range accountIDs {
-		if _, ok := seen[accountID]; ok {
-			continue
-		}
-		seen[accountID] = struct{}{}
-		h.scheduleCNProviderTextProtocolSyncByID(accountID)
-	}
-}
-
-func shouldSyncCNProtocolAfterCredentialUpdate(credentials map[string]any) bool {
-	if len(credentials) == 0 {
-		return false
-	}
-	if _, ok := credentials["api_key"]; ok {
-		return true
-	}
-	if _, ok := credentials["api_protocol"]; ok {
-		return true
-	}
-	return false
 }
 
 // Delete handles deleting an account
@@ -1992,8 +1932,6 @@ func (h *AccountHandler) BatchCreate(c *gin.Context) {
 					openaiPrivacyAccounts = append(openaiPrivacyAccounts, account)
 				}
 			}
-			// 国产供应商同步显式协议配置。
-			h.scheduleCNProviderTextProtocolSync(account)
 			h.scheduleGrokImportProbe(account)
 			success++
 			results = append(results, gin.H{
@@ -2208,10 +2146,6 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		}
 		response.ErrorFrom(c, err)
 		return
-	}
-
-	if shouldSyncCNProtocolAfterCredentialUpdate(req.Credentials) {
-		h.scheduleCNProviderTextProtocolSyncByIDs(result.SuccessIDs)
 	}
 
 	response.Success(c, result)

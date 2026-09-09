@@ -136,9 +136,11 @@ type APIKeyAuthGroupSnapshot struct {
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes []string `json:"supported_model_scopes,omitempty"`
 
-	// AllowedClientProtocols 不使用 omitempty，确保空集合按 [] 写入快照。
-	AllowedClientProtocols []GroupClientProtocol `json:"allowed_client_protocols"`
-	AllowLive              bool                  `json:"allow_live"`
+	// AllowedProtocols 不使用 omitempty，确保空集合按 [] 写入快照。
+	AllowedProtocols     []GroupClientProtocol                       `json:"allowed_protocols"`
+	ProtocolFallbacks    map[GroupClientProtocol]GroupClientProtocol `json:"protocol_fallbacks"`
+	ResponsesImagePolicy string                                      `json:"responses_image_policy"`
+	AllowLive            bool                                        `json:"allow_live"`
 	// ForceOpenAIFast 保留组级 OpenAI Fast 策略，供请求期无需回源即可执行。
 	ForceOpenAIFast bool `json:"force_openai_fast"`
 	// OpenAIFastPolicy 保存管理员选择的互斥加速策略。

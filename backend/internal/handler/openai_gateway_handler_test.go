@@ -928,7 +928,7 @@ func TestOpenAIGatewayMessagesProtocolPolicyAllowsGrokGroups(t *testing.T) {
 			Group: &service.Group{
 				ID:       groupID,
 				Platform: service.PlatformOpenAI,
-				AllowedClientProtocols: []service.GroupClientProtocol{
+				AllowedProtocols: []service.GroupClientProtocol{
 					service.GroupClientProtocolOpenAIResponses,
 					service.GroupClientProtocolOpenAIChatCompletions,
 				},
@@ -956,7 +956,7 @@ func TestOpenAIGatewayMessagesProtocolPolicyAllowsGrokGroups(t *testing.T) {
 			Group: &service.Group{
 				ID:       groupID,
 				Platform: service.PlatformGrok,
-				AllowedClientProtocols: []service.GroupClientProtocol{
+				AllowedProtocols: []service.GroupClientProtocol{
 					service.GroupClientProtocolAnthropicMessages,
 					service.GroupClientProtocolOpenAIResponses,
 					service.GroupClientProtocolOpenAIChatCompletions,

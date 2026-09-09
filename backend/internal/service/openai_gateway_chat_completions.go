@@ -71,6 +71,11 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	compatPromptCacheTenantIsolated bool,
 	tlsRouterMatch ...TLSFingerprintRouterMatchResult,
 ) (*OpenAIForwardResult, error) {
+	var routeErr error
+	account, routeErr = accountForProtocolAttempt(ctx, account)
+	if routeErr != nil {
+		return nil, routeErr
+	}
 	beginUpstreamResponseModelObservation(c)
 	ClearActualOpenAIUpstreamEndpoint(c)
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {
@@ -99,7 +104,30 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 		})
 		return nil, errors.New("codex_cli_only restriction: only codex official clients are allowed")
 	}
+	if account.resolvedProtocol != "" && account.resolvedProtocol != GroupClientProtocolOpenAIResponses && !gjson.GetBytes(body, "messages").Exists() && gjson.GetBytes(body, "input").Exists() {
+		var request apicompat.ResponsesRequest
+		if err := json.Unmarshal(body, &request); err != nil {
+			return nil, err
+		}
+		converted, err := apicompat.ResponsesToChatCompletionsRequestWithOptions(&request, &apicompat.ResponsesToChatOptions{ReasoningContentByID: s.reasoningContentByID})
+		if err != nil {
+			return nil, err
+		}
+		body, err = json.Marshal(converted)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if account.Platform == PlatformGrok {
+		if account.resolvedProtocol == GroupClientProtocolOpenAIChatCompletions {
+			return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel, tlsRouterMatch...)
+		}
+		if account.resolvedProtocol == GroupClientProtocolOpenAIResponses {
+			if eligible, reason := grokChatResponsesBridgeEligibility(body); !eligible {
+				return nil, fmt.Errorf("configured Grok Responses conversion cannot preserve request: %s", reason)
+			}
+			return s.forwardGrokChatCompletionsViaResponses(ctx, c, account, body, promptCacheKey, defaultMappedModel, tlsRouterMatch...)
+		}
 		if account.IsGrokOAuth() {
 			if eligible, reason := grokChatResponsesBridgeEligibility(body); eligible {
 				return s.forwardGrokChatCompletionsViaResponses(ctx, c, account, body, promptCacheKey, defaultMappedModel, tlsRouterMatch...)

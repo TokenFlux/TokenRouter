@@ -175,6 +175,9 @@ func (p *VertexBatchImageProvider) SupportsAccount(account *Account) bool {
 }
 
 func (p *VertexBatchImageProvider) Submit(ctx context.Context, job *BatchImageJob, account *Account, input BatchImageInput) (*BatchProviderJob, error) {
+	if _, enabled := ResolveProtocolRoute(account, nil, "image_batches"); !enabled {
+		return nil, ErrBatchImageProviderUnsupportedAccount
+	}
 	if err := p.validateAccount(account); err != nil {
 		return nil, err
 	}

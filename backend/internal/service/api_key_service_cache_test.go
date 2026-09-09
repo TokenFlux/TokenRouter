@@ -21,17 +21,17 @@ import (
 
 func TestAPIKeyAuthGroupSnapshotPreservesExplicitEmptyClientProtocols(t *testing.T) {
 	emptySnapshot := authGroupSnapshotFromGroup(&Group{
-		ID:                     1,
-		Platform:               PlatformOpenAI,
-		AllowedClientProtocols: []GroupClientProtocol{},
+		ID:               1,
+		Platform:         PlatformOpenAI,
+		AllowedProtocols: []GroupClientProtocol{},
 	})
 	payload, err := json.Marshal(emptySnapshot)
 	require.NoError(t, err)
 
 	var decodedEmpty APIKeyAuthGroupSnapshot
 	require.NoError(t, json.Unmarshal(payload, &decodedEmpty))
-	require.NotNil(t, decodedEmpty.AllowedClientProtocols)
-	require.Empty(t, decodedEmpty.AllowedClientProtocols)
+	require.NotNil(t, decodedEmpty.AllowedProtocols)
+	require.Empty(t, decodedEmpty.AllowedProtocols)
 	require.False(t, groupFromAuthSnapshot(&decodedEmpty).AllowsClientProtocol(GroupClientProtocolAnthropicMessages))
 }
 

@@ -13,7 +13,7 @@ function keyAllowsBatchImage(key: ApiKey): boolean {
   return (
     key.status === 'active' &&
     key.group?.platform === 'gemini' &&
-    key.group?.allow_batch_image_generation === true
+    key.group?.allowed_protocols?.includes('image_batches') === true
   )
 }
 

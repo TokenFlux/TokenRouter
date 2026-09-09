@@ -36,7 +36,7 @@
 
 测试本身应使用受控超时、代理/TLS 路由和脱敏日志。一个模型测试成功只证明该路径当时可用，不证明所有 endpoint capability 或媒体资格。失败结果需区分认证、模型、配额、代理、TLS 和上游容量，以免自动恢复形成启停抖动。
 
-Kimi、Zhipu、DeepSeek 的连接测试按账号 `api_protocol` 选择原生 Anthropic Messages、OpenAI Chat Completions 或 DeepSeek Responses 端点，不得始终假设 Chat 形状。测试复用账号自定义 Base URL、代理、TLS 指纹和受保护 Header Override；Anthropic 协议的自定义中继在模型同步等 OpenAI 格式请求中只移除末尾 `/anthropic`，不能改回官方 host 或丢弃此前的路径前缀。
+Kimi、Zhipu、DeepSeek 的连接测试仅测试账号 `upstream_protocols` 中启用的原生端点；空集合直接报告未启用协议，不发起上游请求。测试复用账号自定义 Base URL、代理、TLS 指纹和受保护 Header Override；Anthropic 协议的自定义中继在模型同步等 OpenAI 格式请求中只移除末尾 `/anthropic`，不能改回官方 host 或丢弃此前的路径前缀。
 
 管理端连接测试请求必须显式选择 `test_type=text|image` 并传入同一字段的自定义 `prompt`。文字测试不再因为模型名称包含图片标记而切换端点；图片测试也不再依赖模型名称命中规则，而是由 OpenAI、Gemini 或 Grok 账号的平台图片端点执行。OpenAI 的 `compact` 与 `legacy_compact` 仅执行固定载荷的连接测试，不显示或使用自定义提示词。未携带 `test_type` 的历史调用才允许回退到旧模型名判断。图片和文字的结果分别通过 SSE 图片事件和内容事件返回；不支持图片端点的平台应直接返回可诊断的错误，不得静默改成文字测试。
 
@@ -48,7 +48,7 @@ OpenAI 重置次数查询把带到期时间的完整结果保存为账号展示�
 
 OpenAI API Key 不再自动探测 Responses 能力；创建、编辑、批量更新和复制均以管理员选择的上游协议为准，历史探测字段被清理且不参与调度。两类压缩也由独立管理员开关决定，手动连接测试不更新能力配置，但仍保留额度观测、401 认证错误记录与 429 限流处理。账号与 OAuth 导入模板共用历史输入清理边界，模板读取也不返回旧探测状态或自动模式。API Key 文字测试可显式选择 Responses 或 Chat Completions，OAuth 仍使用 Codex Responses。HTTP continuation 为独立开关，缺失时关闭。
 
-调度投影必须保留工作负载、文本路由、两类压缩开关与 continuation 设置，配置变化沿用账号投影失效机制。国产供应商继续按其 `api_protocol` 做无网络路由配置同步。Grok 计费/媒体资格、Ollama Cloud 与各平台额度探测保持各自独立流程。
+调度投影必须保留原生集合、认证方式、两类压缩开关与 continuation 设置，配置变化沿用账号投影失效机制。国产供应商不再异步写回旧 OpenAI 文本路由镜像。Grok 计费/媒体资格、Ollama Cloud 与各平台额度探测保持各自独立流程。
 
 通用的上游声明倍率探测已移除，不再有定时任务、手动操作、快照或公开账单自省接口。账号创建、编辑、批量更新、复制、CRS 同步和仓储写入都会丢弃历史 `upstream_billing_probe` 与 `upstream_billing_probe_enabled` 键；这项清理不得影响 Ollama Cloud 会话/用量、endpoint capability 或其它额度状态。
 
@@ -70,6 +70,6 @@ CN 周期监控默认关闭；启用后只把统一快照写入 `extra.cn_usage_
 - 关联账号测试、刷新、quota probe、代理健康和调度过滤原因，区分凭据故障与出站网络故障。
 - 检查账号数据库状态、当前进程投影和跨实例失效是否一致；手工改数据库后等待周期重建不等于即时生效。
 - 自动恢复或批量导入后抽查实际协议，避免仅凭 token endpoint 成功误判推理可用。
-- OpenAI Chat 排障应同时核对入站协议、`openai_text_route_mode` 和 Usage Log 的 `upstream_endpoint`；默认模式应记录 `/v1/chat/completions`，不能因历史探测状态改变上游协议。
+- OpenAI Chat 排障应同时核对入站协议、`upstream_protocols` 与分组 `protocol_fallbacks` 和 Usage Log 的 `upstream_endpoint`；默认模式应记录 `/v1/chat/completions`，不能因历史探测状态改变上游协议。
 
 相关文档：[上游账号能力矩阵](../interfaces/upstream_account_matrix.md)、[账号调度与缓存一致性](../architecture/account_scheduling_and_cache.md)、[上游传输安全](upstream_transport_security.md)。

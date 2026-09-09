@@ -944,7 +944,9 @@ var (
 		{Name: "supported_model_scopes", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
 		{Name: "sort_order", Type: field.TypeInt, Default: 0},
 		{Name: "allow_messages_dispatch", Type: field.TypeBool, Default: false},
-		{Name: "allowed_client_protocols", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "allowed_protocols", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "protocol_fallbacks", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "responses_image_policy", Type: field.TypeString, Default: "inherit"},
 		{Name: "allow_live", Type: field.TypeBool, Default: false},
 		{Name: "openai_fast_policy", Type: field.TypeString, Default: "follow_request"},
 		{Name: "force_openai_fast", Type: field.TypeBool, Default: false},
@@ -1000,7 +1002,7 @@ var (
 			{
 				Name:    "group_session_isolation_enabled",
 				Unique:  false,
-				Columns: []*schema.Column{GroupsColumns[55]},
+				Columns: []*schema.Column{GroupsColumns[57]},
 			},
 			{
 				Name:    "idx_groups_duplicate_operation_id_active",

@@ -15,18 +15,18 @@ import (
 )
 
 const (
-	schedulerBucketSetKey          = "sched:buckets"
-	schedulerOutboxWatermarkKey    = "sched:outbox:watermark"
-	schedulerAccountPrefix         = "sched:acc:"
-	schedulerAccountMetaPrefix     = "sched:meta:"
-	schedulerAccountLastUsedPrefix = "sched:acc:last_used:"
-	schedulerActivePrefix          = "sched:active:"
-	schedulerReadyPrefix           = "sched:ready:"
-	schedulerVersionPrefix         = "sched:ver:"
-	schedulerEpochPrefix           = "sched:epoch:"
-	schedulerRetiredPrefix         = "sched:retired:"
-	schedulerSnapshotPrefix        = "sched:"
-	schedulerLockPrefix            = "sched:lock:"
+	schedulerBucketSetKey          = "sched:v2:buckets"
+	schedulerOutboxWatermarkKey    = "sched:v2:outbox:watermark"
+	schedulerAccountPrefix         = "sched:v2:acc:"
+	schedulerAccountMetaPrefix     = "sched:v2:meta:"
+	schedulerAccountLastUsedPrefix = "sched:v2:acc:last_used:"
+	schedulerActivePrefix          = "sched:v2:active:"
+	schedulerReadyPrefix           = "sched:v2:ready:"
+	schedulerVersionPrefix         = "sched:v2:ver:"
+	schedulerEpochPrefix           = "sched:v2:epoch:"
+	schedulerRetiredPrefix         = "sched:v2:retired:"
+	schedulerSnapshotPrefix        = "sched:v2:"
+	schedulerLockPrefix            = "sched:v2:lock:"
 
 	defaultSchedulerSnapshotMGetChunkSize  = 128
 	defaultSchedulerSnapshotWriteChunkSize = 256
@@ -38,7 +38,7 @@ const (
 )
 
 const (
-	schedulerGroupLifecycleLockPrefix      = "sched:group:lifecycle-lock:"
+	schedulerGroupLifecycleLockPrefix      = "sched:v2:group:lifecycle-lock:"
 	schedulerGroupLifecycleOwnerTokenBytes = 16
 )
 
@@ -952,7 +952,7 @@ func filterSchedulerCredentials(credentials map[string]any) map[string]any {
 	if len(credentials) == 0 {
 		return nil
 	}
-	keys := []string{"model_mapping", "compact_model_mapping", "model_whitelist", "openai_workload_capabilities", "api_key", "project_id", "oauth_type", "plan_type"}
+	keys := []string{"model_mapping", "compact_model_mapping", "model_whitelist", "upstream_protocols", "auth_mode", "openai_auth_mode", "account_mode", "api_protocol", "openai_workload_capabilities", "api_key", "project_id", "oauth_type", "plan_type"}
 	filtered := make(map[string]any)
 	for _, key := range keys {
 		if value, ok := credentials[key]; ok && value != nil {

@@ -257,8 +257,11 @@ type CreateGroupInput struct {
 	MCPXMLInject        *bool
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes []string
-	// AllowedClientProtocols 为 nil 时使用平台默认值；显式空数组对所有平台都合法。
-	AllowedClientProtocols []GroupClientProtocol
+	// AllowedProtocols 为 nil 时使用平台默认值；显式空数组对所有平台都合法。
+	LegacyProtocolInput  bool
+	AllowedProtocols     []GroupClientProtocol
+	ProtocolFallbacks    map[GroupClientProtocol]GroupClientProtocol
+	ResponsesImagePolicy string
 	// AllowMessagesDispatch 仅在 OpenAI 分组且新字段缺省时作为兼容输入。
 	AllowMessagesDispatch bool
 	AllowLive             bool
@@ -335,8 +338,11 @@ type UpdateGroupInput struct {
 	MCPXMLInject        *bool
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes *[]string
-	// AllowedClientProtocols 为 nil 时保留原值；非 nil 表示显式替换完整集合。
-	AllowedClientProtocols *[]GroupClientProtocol
+	// AllowedProtocols 为 nil 时保留原值；非 nil 表示显式替换完整集合。
+	LegacyProtocolInput  bool
+	AllowedProtocols     *[]GroupClientProtocol
+	ProtocolFallbacks    map[GroupClientProtocol]GroupClientProtocol
+	ResponsesImagePolicy string
 	// AllowMessagesDispatch 仅在 OpenAI 分组且新字段缺省时作为兼容输入。
 	AllowMessagesDispatch *bool
 	AllowLive             *bool

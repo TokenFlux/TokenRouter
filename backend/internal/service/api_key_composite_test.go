@@ -109,7 +109,7 @@ func TestCompositeAPIKeyAuthSnapshotRoundTrip(t *testing.T) {
 					ModelPricing: []ChannelModelPricing{{
 						Models: []string{"gpt-5.4"}, BillingMode: BillingModeToken,
 					}},
-					AllowedClientProtocols: []GroupClientProtocol{
+					AllowedProtocols: []GroupClientProtocol{
 						GroupClientProtocolOpenAIResponses,
 						GroupClientProtocolOpenAIChatCompletions,
 					},
@@ -139,7 +139,7 @@ func TestCompositeAPIKeyAuthSnapshotRoundTrip(t *testing.T) {
 	require.Equal(t, []GroupClientProtocol{
 		GroupClientProtocolOpenAIResponses,
 		GroupClientProtocolOpenAIChatCompletions,
-	}, restored.CompositeGroups[0].Group.AllowedClientProtocols)
+	}, restored.CompositeGroups[0].Group.AllowedProtocols)
 
 	binding, model, err := restored.ResolveCompositeModel("gpt/gpt-5")
 	require.NoError(t, err)

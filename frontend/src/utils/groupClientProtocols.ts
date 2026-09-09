@@ -1,67 +1,18 @@
 import type { GroupClientProtocol, GroupPlatform } from '@/types'
 
-export const GROUP_CLIENT_PROTOCOL_ORDER: readonly GroupClientProtocol[] = [
-  'anthropic_messages',
-  'openai_responses',
-  'openai_chat_completions',
-  'gemini_generate_content'
-]
-
-interface GroupClientProtocolPolicy {
-  supported: readonly GroupClientProtocol[]
-  defaults: readonly GroupClientProtocol[]
-}
-
-const GROUP_CLIENT_PROTOCOL_POLICIES: Record<GroupPlatform, GroupClientProtocolPolicy> = {
-  anthropic: {
-    supported: ['anthropic_messages', 'openai_responses', 'openai_chat_completions'],
-    defaults: ['anthropic_messages']
-  },
-  openai: {
-    supported: ['anthropic_messages', 'openai_responses', 'openai_chat_completions'],
-    defaults: ['openai_responses', 'openai_chat_completions']
-  },
-  gemini: {
-    supported: GROUP_CLIENT_PROTOCOL_ORDER,
-    defaults: ['gemini_generate_content']
-  },
-  antigravity: {
-    supported: GROUP_CLIENT_PROTOCOL_ORDER,
-    defaults: ['anthropic_messages', 'gemini_generate_content']
-  },
-  qoder: {
-    supported: ['anthropic_messages', 'openai_responses', 'openai_chat_completions'],
-    defaults: []
-  },
-  grok: {
-    supported: ['anthropic_messages', 'openai_responses', 'openai_chat_completions'],
-    defaults: ['openai_responses', 'openai_chat_completions']
-  },
-  kimi: {
-    supported: ['anthropic_messages', 'openai_responses', 'openai_chat_completions'],
-    defaults: ['anthropic_messages', 'openai_responses', 'openai_chat_completions']
-  },
-  zhipu: {
-    supported: ['anthropic_messages', 'openai_responses', 'openai_chat_completions'],
-    defaults: ['anthropic_messages', 'openai_responses', 'openai_chat_completions']
-  },
-  deepseek: {
-    supported: ['anthropic_messages', 'openai_responses', 'openai_chat_completions'],
-    defaults: ['anthropic_messages', 'openai_responses', 'openai_chat_completions']
-  }
-}
+import { protocolCatalog } from '@/api/admin/protocolCapabilities'
 
 function orderedProtocols(protocols: Iterable<GroupClientProtocol>): GroupClientProtocol[] {
   const selected = new Set(protocols)
-  return GROUP_CLIENT_PROTOCOL_ORDER.filter((protocol) => selected.has(protocol))
+  return (protocolCatalog.value?.protocols ?? []).filter(protocol => !protocol.upstream_only && selected.has(protocol.id)).map(protocol => protocol.id)
 }
 
 export function supportedGroupClientProtocols(platform: GroupPlatform): GroupClientProtocol[] {
-  return orderedProtocols(GROUP_CLIENT_PROTOCOL_POLICIES[platform].supported)
+  return orderedProtocols((protocolCatalog.value?.groups.find(group => group.platform === platform)?.protocols ?? []))
 }
 
 export function defaultGroupClientProtocols(platform: GroupPlatform): GroupClientProtocol[] {
-  return orderedProtocols(GROUP_CLIENT_PROTOCOL_POLICIES[platform].defaults)
+  return orderedProtocols((protocolCatalog.value?.groups.find(group => group.platform === platform)?.defaults ?? []))
 }
 
 // 过滤不受平台支持的值，并保持公共契约规定的固定顺序。
@@ -69,7 +20,9 @@ export function effectiveGroupClientProtocols(
   platform: GroupPlatform,
   protocols: readonly GroupClientProtocol[] | null | undefined
 ): GroupClientProtocol[] {
-  const supported = new Set(GROUP_CLIENT_PROTOCOL_POLICIES[platform].supported)
+  // 用户使用说明直接消费后端已校验的集合，不需要访问管理员目录接口。
+  if (!protocolCatalog.value) return [...(protocols ?? [])]
+  const supported = new Set((protocolCatalog.value?.groups.find(group => group.platform === platform)?.protocols ?? []))
   return orderedProtocols((protocols ?? []).filter((protocol) => supported.has(protocol)))
 }
 
@@ -86,8 +39,8 @@ export function setGroupClientProtocol(
   protocol: GroupClientProtocol,
   enabled: boolean
 ): GroupClientProtocol[] {
-  const policy = GROUP_CLIENT_PROTOCOL_POLICIES[platform]
-  if (!policy.supported.includes(protocol)) {
+  const supported = supportedGroupClientProtocols(platform)
+  if (!supported.includes(protocol)) {
     return effectiveGroupClientProtocols(platform, [...protocols])
   }
 

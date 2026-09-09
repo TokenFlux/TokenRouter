@@ -106,8 +106,13 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		}()
 	}
 
+	var routeErr error
+	account, routeErr = accountForProtocolAttempt(ctx, account)
+	if routeErr != nil {
+		return routeErr
+	}
 	wsDecision := s.getOpenAIWSProtocolResolver().Resolve(account)
-	forceHTTPBridge := account.Platform == PlatformGrok
+	forceHTTPBridge := account.Platform == PlatformGrok || account.resolvedProtocol == GroupClientProtocolOpenAIResponses
 	modeRouterV2Enabled := s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.ModeRouterV2Enabled
 	ingressMode := OpenAIWSIngressModeCtxPool
 	if modeRouterV2Enabled && !forceHTTPBridge {
@@ -345,11 +350,12 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			normalized = litePayload
 		}
 		apiKey := getAPIKeyFromContext(c)
-		imageGenerationAllowed := GroupAllowsImageGeneration(apiKeyGroup(apiKey))
+		imageGenerationAllowed := GroupAllowsResponsesImages(apiKeyGroup(apiKey))
 		codexImageGenerationExplicitToolPolicy := codexImageGenerationExplicitToolPolicyAllow
 		if isCodexCLI {
 			codexImageGenerationExplicitToolPolicy = account.CodexImageGenerationExplicitToolPolicy()
 		}
+		codexImageGenerationExplicitToolPolicy = groupResponsesExplicitToolPolicy(responsesPolicyGroup(ctx, apiKeyGroup(apiKey)), codexImageGenerationExplicitToolPolicy)
 		codexBridgeEnabled := isCodexCLI &&
 			!isOpenAIResponsesLiteWebSocketPayload(normalized) &&
 			imageGenerationAllowed &&
@@ -391,7 +397,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 			}
 			normalized = next
 		}
-		if isCodexCLI && codexImageGenerationExplicitToolPolicy == codexImageGenerationExplicitToolPolicyStrip {
+		if codexImageGenerationExplicitToolPolicy == codexImageGenerationExplicitToolPolicyStrip {
 			if stripped, changed, stripErr := stripOpenAIImageGenerationToolsFromRawPayload(normalized); stripErr != nil {
 				return openAIWSClientPayload{}, NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "invalid websocket request payload", stripErr)
 			} else if changed {

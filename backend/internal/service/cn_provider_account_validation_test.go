@@ -56,12 +56,30 @@ func TestCNProviderAccountProtocolPersistence(t *testing.T) {
 				svc := &adminServiceImpl{accountRepo: repo}
 				credentials := cnAccountTestCredentials(tc.platform, tc.mode, protocol)
 				wantCredentials := cnAccountTestCredentials(tc.platform, tc.mode, protocol)
+				delete(wantCredentials, "api_protocol")
+				wantProtocols := []GroupClientProtocol{GroupClientProtocolOpenAIChatCompletions}
+				switch protocol {
+				case APIProtocolAnthropic:
+					wantProtocols = []GroupClientProtocol{GroupClientProtocolAnthropicMessages}
+				case APIProtocolResponses:
+					wantProtocols = []GroupClientProtocol{GroupClientProtocolOpenAIResponses}
+				case APIProtocolAdaptive:
+					wantProtocols = []GroupClientProtocol{GroupClientProtocolAnthropicMessages, GroupClientProtocolOpenAIResponses, GroupClientProtocolOpenAIChatCompletions}
+					if tc.platform == PlatformZhipu {
+						wantProtocols = []GroupClientProtocol{GroupClientProtocolAnthropicMessages, GroupClientProtocolOpenAIChatCompletions}
+					}
+				}
+				wantCredentials[upstreamProtocolsKey] = wantProtocols
+				if protocol != APIProtocolAdaptive {
+					wantCredentials["api_base_urls"] = map[string]any{protocol: "https://relay.example.test/v1"}
+				}
+
 				created, err := svc.CreateAccount(ctx, &CreateAccountInput{
 					Name: "国产平台账号", Platform: tc.platform, Type: AccountTypeAPIKey,
 					Credentials: credentials, SkipDefaultGroupBind: true,
 				})
 				require.NoError(t, err)
-				require.Equal(t, protocol, created.GetAPIProtocol())
+				require.Equal(t, wantProtocols, created.UpstreamProtocols())
 				require.Equal(t, wantCredentials, repo.accounts[created.ID].Credentials)
 
 				// 普通字段编辑也会重新校验账号，必须允许已有自适应账号正常保存。
@@ -82,7 +100,7 @@ func TestCNProviderAccountProtocolPersistence(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, 1, result.Success)
 				require.Len(t, repo.bulkUpdates, 1)
-				require.Equal(t, wantCredentials, repo.bulkUpdates[0].Credentials)
+				require.Equal(t, wantProtocols, repo.bulkUpdates[0].ProtocolUpdates[created.ID][upstreamProtocolsKey])
 			})
 		}
 	}
@@ -149,7 +167,7 @@ func TestCNProviderLegacyCredentialDefaults(t *testing.T) {
 			updated, err := svc.UpdateAccount(ctx, 1, &UpdateAccountInput{Name: "历史账号"})
 			require.NoError(t, err)
 			require.Equal(t, AccountModePayG, updated.GetAccountMode())
-			require.Equal(t, APIProtocolChatCompletions, updated.GetAPIProtocol())
+			require.Equal(t, []GroupClientProtocol{GroupClientProtocolOpenAIChatCompletions}, updated.UpstreamProtocols())
 			require.NotContains(t, updated.Credentials, "account_mode")
 			require.NotContains(t, updated.Credentials, "api_protocol")
 			created, err := svc.CreateAccount(ctx, &CreateAccountInput{
@@ -158,7 +176,7 @@ func TestCNProviderLegacyCredentialDefaults(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, AccountModePayG, created.Credentials["account_mode"])
-			require.Equal(t, APIProtocolChatCompletions, created.Credentials["api_protocol"])
+			require.Equal(t, []GroupClientProtocol{GroupClientProtocolOpenAIChatCompletions}, created.UpstreamProtocols())
 		})
 	}
 }

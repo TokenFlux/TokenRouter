@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"maps"
 	"strconv"
 	"strings"
 	"time"
@@ -115,7 +116,9 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		MCPXMLInject:                    source.MCPXMLInject,
 		SupportedModelScopes:            append([]string(nil), source.SupportedModelScopes...),
 		SortOrder:                       source.SortOrder,
-		AllowedClientProtocols:          cloneGroupClientProtocols(source.AllowedClientProtocols),
+		AllowedProtocols:                cloneGroupClientProtocols(source.AllowedProtocols),
+		ProtocolFallbacks:               maps.Clone(source.ProtocolFallbacks),
+		ResponsesImagePolicy:            source.ResponsesImagePolicy,
 		AllowMessagesDispatch:           source.Platform == PlatformOpenAI && source.AllowsClientProtocol(GroupClientProtocolAnthropicMessages),
 		AllowLive:                       source.AllowLive,
 		ForceOpenAIFast:                 source.ForceOpenAIFast,

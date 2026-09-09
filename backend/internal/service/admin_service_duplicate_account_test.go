@@ -167,14 +167,14 @@ func TestDuplicateAccountCopiesConfigurationAndResetsRuntimeState(t *testing.T) 
 	require.Equal(t, source.GroupIDs, duplicate.GroupIDs)
 	require.Equal(t, "secret", duplicate.Credentials["api_key"])
 	require.Equal(t, map[string]any{"token": "source-token"}, duplicate.Credentials["nested"])
-	require.Equal(t, []string{"text_generation"}, duplicate.Credentials["openai_workload_capabilities"])
+	require.Contains(t, duplicate.UpstreamProtocols(), GroupClientProtocolOpenAIResponses)
+	require.NotContains(t, duplicate.UpstreamProtocols(), GroupClientProtocolOpenAIChatCompletions)
 	require.Equal(t, map[string]any{
-		"config":                 map[string]any{"region": "us-east-1"},
-		"items":                  []any{map[string]any{"enabled": true}},
-		"quota_limit":            float64(1000),
-		"codex_cli_only":         true,
-		"openai_text_route_mode": "force_responses",
-		"openai_compact_mode":    "force_on",
+		"config":              map[string]any{"region": "us-east-1"},
+		"items":               []any{map[string]any{"enabled": true}},
+		"quota_limit":         float64(1000),
+		"codex_cli_only":      true,
+		"openai_compact_mode": "force_on",
 		"openai_responses_continuation_supported": true,
 		"openai_native_compaction_v2_mode":        OpenAICompactModeForceOn,
 	}, duplicate.Extra)

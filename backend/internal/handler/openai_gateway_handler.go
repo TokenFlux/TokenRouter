@@ -576,7 +576,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		// 生图家族限流依赖上下文标记，必须使用渠道映射后的显式意图结果。
 		selectionCtx = service.WithOpenAIImageGenerationIntent(selectionCtx)
 	}
-	if imageIntent && !service.GroupAllowsImageGeneration(apiKey.Group) {
+	if imageIntent && !service.GroupAllowsResponsesImages(apiKey.Group) {
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 		h.errorResponse(c, http.StatusForbidden, "permission_error", service.ImageGenerationPermissionMessage())
 		return
@@ -2384,7 +2384,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		// 首轮账号选择也要遵守显式生图请求的模型级限流。
 		initialSchedulingCtx = service.WithOpenAIImageGenerationIntent(initialSchedulingCtx)
 	}
-	if imageIntent && !service.GroupAllowsImageGeneration(apiKey.Group) {
+	if imageIntent && !service.GroupAllowsResponsesImages(apiKey.Group) {
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, service.ImageGenerationPermissionMessage())
 		return
@@ -2669,7 +2669,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					"/v1/responses", redirectedModel, payload, turnMapping, requestPlatform, h.gatewayService.ReplaceModelInBody,
 				)
 				turnImageIntent := service.IsExplicitImageGenerationIntent("/v1/responses", turnRoutingModel, mappedPayload)
-				if turnImageIntent && !service.GroupAllowsImageGeneration(apiKey.Group) {
+				if turnImageIntent && !service.GroupAllowsResponsesImages(apiKey.Group) {
 					service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalFeatureGate)
 					return "", service.NewOpenAIWSClientCloseError(
 						coderws.StatusPolicyViolation,

@@ -1,5 +1,7 @@
 # Gemini 上游
 
+Gemini 账号原生集合为 GenerateContent；API Key 另有 Gemini Batch，Vertex Service Account 另有 Vertex Batch。分组公开 image_batches 经 provider 绑定使用对应专用协议。统一配置字段与入口门禁见[统一协议能力](protocol_capabilities.md)。
+
 创作台 Gemini 图片请求统一使用 `generateContent` 的 inlineData。自定义 base URL 校验失败会直接 fail-closed，不会回退到 Google 官方地址；本地按 base64 编码后的 JSON 请求总大小估算并限制在 20 MiB 以内，超限应在提交前返回输入过大错误。本轮不使用 File API。
 
 本文描述 Gemini OAuth、API Key 和 Service Account 账号，Gemini v1beta 原生入口，以及 Anthropic/OpenAI 兼容转换的当前边界。它不固化上游动态模型清单，也不把 Antigravity 混合账号等同于 Gemini 原生账号。

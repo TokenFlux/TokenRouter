@@ -1,81 +1,56 @@
 <template>
-  <section class="border-t border-gray-200 pt-4 dark:border-dark-400">
-    <div class="mb-3">
-      <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">
-        {{ t('admin.groups.clientProtocols.title') }}
-      </h4>
-      <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        {{ t('admin.groups.clientProtocols.hint') }}
-      </p>
-    </div>
-
-    <div
-      data-testid="client-protocol-list"
-      class="divide-y divide-gray-100 dark:divide-dark-700"
-    >
-      <div
-        v-for="protocol in protocols"
-        :key="protocol"
-        class="flex min-h-14 items-center justify-between gap-4 py-2.5"
-      >
-        <div class="min-w-0">
-          <span class="block text-sm font-medium text-gray-800 dark:text-gray-200">
-            {{ t(`admin.groups.clientProtocols.labels.${protocol}`) }}
-          </span>
-          <code
-            :data-protocol-endpoint="protocol"
-            class="mt-0.5 block break-all font-mono text-xs text-gray-500 dark:text-gray-400"
-          >{{ protocolEndpoints[protocol] }}</code>
+  <section class="space-y-3 border-t border-gray-200 pt-4 dark:border-dark-400">
+    <h4 class="text-sm font-medium">{{ t('admin.protocols.groupTitle') }}</h4>
+    <p class="input-hint">{{ t('admin.protocols.groupHint') }}</p>
+    <p v-if="error" class="text-sm text-red-500">{{ t('admin.protocols.loadError') }}</p>
+    <div data-testid="client-protocol-list" class="divide-y divide-gray-100 dark:divide-dark-700">
+      <div v-for="protocol in protocols" :key="protocol.id" class="grid items-center gap-3 py-3 sm:grid-cols-2">
+        <div class="flex items-center justify-between gap-3">
+          <div><span class="block text-sm font-medium">{{ protocol.name }}</span><code class="block break-all text-xs text-gray-500" :data-protocol-endpoint="protocol.id">{{ protocol.endpoint }}</code></div>
+          <Toggle :model-value="modelValue.includes(protocol.id)" :data-protocol="protocol.id" :aria-label="protocol.name" @update:model-value="toggle(protocol.id)" />
         </div>
-
-        <Toggle
-          :model-value="isEnabled(protocol)"
-          :data-protocol="protocol"
-          :aria-label="t(`admin.groups.clientProtocols.labels.${protocol}`)"
-          @update:model-value="toggle(protocol)"
-        />
+        <div v-if="profile?.fallback_targets[protocol.id]?.length">
+          <label class="input-label text-xs">{{ t('admin.protocols.fallback') }}</label>
+          <Select :model-value="fallbacks?.[protocol.id] ?? ''" :options="targetOptions(protocol.id)" @update:model-value="setFallback(protocol.id, String($event))" />
+        </div>
       </div>
+    </div>
+    <div v-if="platform === 'openai' || platform === 'grok'" class="space-y-2">
+      <label class="input-label">{{ t('admin.protocols.imagePolicy') }}</label>
+      <CodexImageToolModeSelector :model-value="imagePolicy ?? 'inherit'" @update:model-value="emit('update:imagePolicy', $event)" />
     </div>
   </section>
 </template>
-
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Toggle from '@/components/common/Toggle.vue'
+import Select from '@/components/common/Select.vue'
+import CodexImageToolModeSelector from '@/components/account/CodexImageToolModeSelector.vue'
+import { loadProtocolCatalog, protocolCatalog } from '@/api/admin/protocolCapabilities'
 import type { GroupClientProtocol, GroupPlatform } from '@/types'
-import {
-  hasGroupClientProtocol,
-  setGroupClientProtocol,
-  supportedGroupClientProtocols
-} from '@/utils/groupClientProtocols'
-
-const props = defineProps<{
-  modelValue: GroupClientProtocol[]
-  platform: GroupPlatform
-}>()
-
+import type { CodexImageToolMode } from '@/utils/codexImageToolMode'
+import { setGroupClientProtocol } from '@/utils/groupClientProtocols'
+const props = defineProps<{ modelValue: GroupClientProtocol[]; platform: GroupPlatform; fallbacks?: Partial<Record<GroupClientProtocol, GroupClientProtocol>>; imagePolicy?: CodexImageToolMode }>()
 const emit = defineEmits<{
-  (event: 'update:modelValue', value: GroupClientProtocol[]): void
+  'update:modelValue': [value: GroupClientProtocol[]]
+  'update:fallbacks': [value: Partial<Record<GroupClientProtocol, GroupClientProtocol>>]
+  'update:imagePolicy': [value: CodexImageToolMode]
 }>()
-
 const { t } = useI18n()
-const protocols = computed(() => supportedGroupClientProtocols(props.platform))
-
-// 展示各协议最常用的标准入口，兼容别名仍由网关路由处理。
-const protocolEndpoints: Record<GroupClientProtocol, string> = {
-  anthropic_messages: '/v1/messages',
-  openai_responses: '/v1/responses',
-  openai_chat_completions: '/v1/chat/completions',
-  gemini_generate_content: '/v1beta/models/{model}:generateContent'
+const error = ref(false)
+void loadProtocolCatalog().catch(() => { error.value = true })
+const profile = computed(() => protocolCatalog.value?.groups.find(group => group.platform === props.platform))
+const protocols = computed(() => protocolCatalog.value?.protocols.filter(protocol => profile.value?.protocols.includes(protocol.id)) ?? [])
+function targetOptions(source: GroupClientProtocol) {
+  return [{ value: '', label: t('admin.protocols.nativeOnly') }, ...(profile.value?.fallback_targets[source] ?? []).map(id => ({ value: id, label: protocolCatalog.value?.protocols.find(protocol => protocol.id === id)?.name ?? id }))]
 }
-
-const isEnabled = (protocol: GroupClientProtocol) => hasGroupClientProtocol(props.modelValue, protocol)
-
-const toggle = (protocol: GroupClientProtocol) => {
-  emit(
-    'update:modelValue',
-    setGroupClientProtocol(props.platform, props.modelValue, protocol, !isEnabled(protocol))
-  )
+function toggle(id: GroupClientProtocol) { emit('update:modelValue', setGroupClientProtocol(props.platform, props.modelValue, id, !props.modelValue.includes(id))) }
+// 空选择删除该源的转换目标，目标不受客户端入口开关影响。
+function setFallback(source: GroupClientProtocol, target: string) {
+  const next = { ...props.fallbacks }
+  if (target) next[source] = target as GroupClientProtocol
+  else delete next[source]
+  emit('update:fallbacks', next)
 }
 </script>

@@ -40,17 +40,9 @@ API Key 账号可以在管理员列表配置并手动查询上游用量。普通
 <a id="cn_provider_protocols"></a>
 ### 国产平台账号协议
 
-Kimi、Zhipu 和 DeepSeek 只接受 `type=apikey`。账号模式与上游协议彼此独立，创建、单账号编辑和涉及凭据的批量更新共用以下矩阵：
+Kimi、Zhipu 和 DeepSeek 只接受 `type=apikey`。账号模式独立于原生协议集合：DeepSeek 仅 `payg`，Kimi/Zhipu 支持 `payg` 和 `coding`。DeepSeek/Kimi 原生集合包含 Messages、Responses、Chat；Zhipu 仅 Messages、Chat。原生集合统一保存为 `credentials.upstream_protocols`，可全部关闭；非法组合保持拒绝。
 
-| 平台 | `credentials.account_mode` | `credentials.api_protocol` |
-| --- | --- | --- |
-| DeepSeek | `payg` | `adaptive`、`chat_completions`、`anthropic`、`responses` |
-| Kimi | `payg`、`coding` | `adaptive`、`chat_completions`、`anthropic`、`responses` |
-| Zhipu | `payg`、`coding` | `adaptive`、`chat_completions`、`anthropic` |
-
-`adaptive` 按入站协议选择平台原生端点；Kimi/DeepSeek 可使用原生 Responses，Zhipu 的 Responses 入站通过 Chat 转换。保存校验与转发层共用原生 Responses 能力判定。非法协议继续返回 HTTP `400` 和 `CN_PROVIDER_PROTOCOL_INVALID`；DeepSeek coding 和非 API Key 等非法组合仍被拒绝。
-
-前端新建默认选择 `adaptive`。历史账号缺少模式或协议时分别按 `payg` 和 `chat_completions` 读取，普通编辑不强制补写；API 创建请求缺少字段时显式保存这两个历史默认值。自适应账号的 `api_base_urls` 保存分协议地址，`base_url` 兼容 Chat 地址；保存和普通编辑保留自定义端点。代理、TLS 指纹与受保护的 Header Override 沿用共同传输边界，平台身份不能从中继 URL 反推。
+新建 CN 表单默认启用全部原生项。旧输入缺省仍按 `payg + chat_completions` 转换；旧 `adaptive` 转全部原生项，其余转对应单项。旧协议错误继续使用 HTTP 400 / `CN_PROVIDER_PROTOCOL_INVALID`。`api_base_urls` 保留自定义地址，详见[统一协议能力](protocol_capabilities.md#account_native_protocols)。用量查询和模型同步保持独立地址语义。
 
 ### 平台专题
 
@@ -66,21 +58,7 @@ Kimi、Zhipu、DeepSeek 的账号类型、模式与协议矩阵暂由本页和[A
 <a id="public_gateway_protocols"></a>
 ## 公开网关协议
 
-文本生成协议是否可进入处理器由分组的 `allowed_client_protocols` 控制。支持集合、新建默认值和迁移值如下；默认值只决定初始选择，所有协议都可关闭：
-
-| 上游平台 | 支持协议 | 新建默认 | 已有分组迁移值 |
-| --- | --- | --- | --- |
-| Anthropic | Messages、Responses、Chat | Messages | 三项全部启用 |
-| OpenAI | Messages、Responses、Chat | Responses、Chat | Responses、Chat，加上旧开关允许的 Messages |
-| Gemini | Messages、Responses、Chat、Gemini GenerateContent | Gemini GenerateContent | 四项全部启用 |
-| Antigravity | Messages、Responses、Chat、Gemini GenerateContent | Messages、Gemini GenerateContent | 四项全部启用 |
-| Qoder | Messages、Responses、Chat | 空集合 | 三项全部启用 |
-| Grok | Messages、Responses、Chat | Responses、Chat | 三项全部启用 |
-| Kimi | Messages、Responses、Chat | 三项全部启用 | 不适用，新增平台 |
-| Zhipu | Messages、Responses、Chat | 三项全部启用 | 不适用，新增平台 |
-| DeepSeek | Messages、Responses、Chat | 三项全部启用 | 不适用，新增平台 |
-
-集合顺序固定为 Messages、Responses、Chat、Gemini，空集合对所有平台都合法。准入只控制文本生成协议；Live、WebSocket、Embedding、图片和视频继续使用独立能力规则。
+所有 21 个客户端业务入口使用分组 `allowed_protocols` 控制；另外 3 个上游专用项仅在账号集合中显示。完整清单和认证边界见[统一协议能力](protocol_capabilities.md#protocol_catalog)。原生优先，无法原生承接时只使用分组明确指定的转换目标；HTTP/SSE 共用项，Responses WebSocket 独立。
 
 | 协议族或入口 | 当前平台边界 | 专题路由 |
 | --- | --- | --- |
@@ -91,7 +69,7 @@ Kimi、Zhipu、DeepSeek 的账号类型、模式与协议矩阵暂由本页和[A
 | 模型与用量：`/v1/models`、`/models`、`/v1/usage` | 按 Key、分组、账号和渠道解析可请求模型与本地额度；不是上游模型列表或账单的原样代理 | [模型目录与市场](model_catalog_and_marketplace.md)及各平台专题 |
 | Embeddings：`/v1/embeddings`、`/embeddings` | 仅 OpenAI 分组 | [OpenAI 上游](openai_upstream.md) |
 | Realtime、Live 与 Alpha Search | Live/sideband、Codex realtime 和 alpha search 仅 OpenAI 平台；是否可用还受分组和账号能力限制 | [OpenAI 上游](openai_upstream.md) |
-| 同步图片生成/编辑 | 仅 OpenAI 与 Grok；分组图片开关和账号能力继续收窄范围 | [OpenAI 上游](openai_upstream.md)、[Grok / xAI 上游](grok_upstream.md) |
+| 同步图片生成/编辑 | 仅 OpenAI 与 Grok；对应 Images 生成/编辑入口和账号能力继续收窄范围 | [OpenAI 上游](openai_upstream.md)、[Grok / xAI 上游](grok_upstream.md) |
 | 批量图片作业 | Gemini/Vertex 使用独立任务生命周期；供应商范围由批量图片领域契约定义 | [批量图片作业](../domains/batch_image_jobs.md) |
 | 视频生成、编辑、扩展、查询和下载 | 新任务仅 Grok；复合 Key 可凭持久任务绑定查询既有任务 | [Grok / xAI 上游](grok_upstream.md) |
 | Gemini v1beta：`/v1beta/models/*` | Gemini/Antigravity 分组允许 Gemini 协议时承接生成、流式生成和 token 统计；模型列表 GET 不受开关影响 | [Gemini 上游](gemini_upstream.md)、[Antigravity 上游](antigravity_upstream.md) |

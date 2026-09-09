@@ -61,25 +61,13 @@ OpenAI 分组以 `openai_fast_policy` 选择 `follow_request`、`force_priority`
 OpenAI 分组的 `max_reasoning_effort` 是显式推理强度上限，`max_reasoning_effort_over_limit` 取 `downgrade`（默认）或 `deny`。网关只对客户端真正发送的 `reasoning.effort`、`reasoning_effort` 和 Messages `output_config.effort` 执行策略，不会因为兼容桥为缺省 Messages 请求生成的默认 `medium` 而改变行为；模型范围映射先于上限比较。`downgrade` 把超限值改写为上限，`deny` 在 HTTP 上返回 403 `permission_error`，Messages 返回 Anthropic `forbidden_error`，Responses WebSocket 以 policy-violation 关闭。复合 Key 已在鉴权中间件解析到具体 OpenAI 分组，因而使用该分组的策略。该动作和上限随认证快照传递，快照版本为 v35，旧 v34 快照必须失效并从数据库重建。
 
 <a id="openai_account_configuration"></a>
-### API Key 文本配置
+### 原生协议配置
 
-OpenAI API Key 的普通文本配置由管理员明确决定：
+OpenAI 与其它平台统一保存 `credentials.upstream_protocols`。API Key 可以独立启用 Responses、Chat、Embeddings、Images 生成/编辑、Responses WebSocket、Compact 和 Alpha Search；OAuth 原生选项依据 PAT/Agent Identity 认证能力收窄，不显示 Messages/Chat/Images 原生复选框。完整矩阵见[统一协议能力](protocol_capabilities.md#account_native_protocols)。
 
-- `credentials.openai_workload_capabilities` 控制 `text_generation` 与 `embeddings` 两类工作负载。
-- `extra.openai_text_route_mode` 仍以三态持久化，管理界面用 `/v1/responses`、`/v1/chat/completions` 复选框表达：两项均选为 `preserve_client_protocol`，仅 Responses 为 `force_responses`，仅 Chat 为 `force_chat_completions`。至少保留一种协议；完全停用文字请求使用工作负载开关。
-- `extra.openai_responses_continuation_supported` 是独立的 HTTP continuation 开关，缺失按关闭处理，不改变协议路由。
+分组 `allowed_protocols` 控制客户端入口，`protocol_fallbacks` 为每个源指定单步目标。账号已启用原协议时直通，否则仅使用分组目标；不再由 `openai_text_route_mode` 在运行时选择目标。OAuth Images、PAT Alpha Search 和 WebSocket HTTP bridge 继续沿现有适用条件执行。`extra.openai_responses_continuation_supported` 和两个压缩开关保持独立，不把会话能力视为文本协议。
 
-| 已启用的上游协议 | Chat 入站 | Responses 入站 | Messages 入站 |
-| --- | --- | --- | --- |
-| Responses + Chat | Chat | Responses | Responses |
-| 仅 Responses | Responses | Responses | Responses |
-| 仅 Chat | Chat | Chat | Chat |
-
-OpenAI 账号创建、更新、复制和批量更新不再自动探测 Responses；历史 `openai_responses_probe_status`、`openai_responses_supported` 不参与任何转发或调度判断。即使带有这些旧字段的账号对象直接进入网关，也必须服从管理员的文本路由配置。国产供应商的显式 `api_protocol` 仍通过无网络配置同步映射为固定路由，不依赖探测字段。
-
-历史探测字段仅由输入兼容边界静默丢弃，字段值是否合法不影响处理；账号和 OAuth 导入模板的读写共用同一清理规则。旧压缩模式 `auto` 转为明确开启，缺省保持默认开启，显式关闭保留。只有废弃键的账号 Extra 替换视为未提供更新，不能清空现有配置；显式空对象仍保留原有清空语义。业务类型和控件只使用 `force_on` / `force_off`，模板缺失的开关不因清理而补写。
-
-运行时与调度缓存只读取上述新键。账号创建、更新、批量更新和导入仍可接收旧 `openai_capabilities`、`openai_responses_mode`、`openai_responses_supported`，但必须在持久化前规范化并删除旧键；复制账号保留工作负载、路由策略和 continuation 能力开关，保留两个管理员压缩开关并丢弃历史探测状态。嵌套 Sub2API 等可能把请求转给 OAuth 上游的 API Key 账号应保持 continuation 关闭；确认直连 API Key 上游支持 HTTP continuation 后再开启。
+账号创建、更新、复制和批量更新不自动探测协议。旧工作负载/路由字段在输入边界转换并清除，历史探测状态继续丢弃；CN 不再异步镜像写回 OpenAI 路由字段。Responses 图片工具使用独立分组四态策略，优先于账号、渠道与全局，独立 Images 入口不受该分组策略影响。
 
 OpenAI 兼容非流式响应的 usage 按 `usage`、`response.usage`、`data.usage`、`data.response.usage` 的顺序解析；前两条原生路径优先于 Cline 等兼容上游使用的 `data` envelope。同层的 hosted image usage 必须随对应路径读取，不能把不同 envelope 的 token 与图片用量混合。
 

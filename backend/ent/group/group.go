@@ -94,8 +94,12 @@ const (
 	FieldSortOrder = "sort_order"
 	// FieldAllowMessagesDispatch holds the string denoting the allow_messages_dispatch field in the database.
 	FieldAllowMessagesDispatch = "allow_messages_dispatch"
-	// FieldAllowedClientProtocols holds the string denoting the allowed_client_protocols field in the database.
-	FieldAllowedClientProtocols = "allowed_client_protocols"
+	// FieldAllowedProtocols holds the string denoting the allowed_protocols field in the database.
+	FieldAllowedProtocols = "allowed_protocols"
+	// FieldProtocolFallbacks holds the string denoting the protocol_fallbacks field in the database.
+	FieldProtocolFallbacks = "protocol_fallbacks"
+	// FieldResponsesImagePolicy holds the string denoting the responses_image_policy field in the database.
+	FieldResponsesImagePolicy = "responses_image_policy"
 	// FieldAllowLive holds the string denoting the allow_live field in the database.
 	FieldAllowLive = "allow_live"
 	// FieldOpenaiFastPolicy holds the string denoting the openai_fast_policy field in the database.
@@ -247,7 +251,9 @@ var Columns = []string{
 	FieldSupportedModelScopes,
 	FieldSortOrder,
 	FieldAllowMessagesDispatch,
-	FieldAllowedClientProtocols,
+	FieldAllowedProtocols,
+	FieldProtocolFallbacks,
+	FieldResponsesImagePolicy,
 	FieldAllowLive,
 	FieldOpenaiFastPolicy,
 	FieldForceOpenaiFast,
@@ -371,8 +377,12 @@ var (
 	DefaultSortOrder int
 	// DefaultAllowMessagesDispatch holds the default value on creation for the "allow_messages_dispatch" field.
 	DefaultAllowMessagesDispatch bool
-	// DefaultAllowedClientProtocols holds the default value on creation for the "allowed_client_protocols" field.
-	DefaultAllowedClientProtocols []domain.GroupClientProtocol
+	// DefaultAllowedProtocols holds the default value on creation for the "allowed_protocols" field.
+	DefaultAllowedProtocols []domain.GroupClientProtocol
+	// DefaultProtocolFallbacks holds the default value on creation for the "protocol_fallbacks" field.
+	DefaultProtocolFallbacks map[domain.GroupClientProtocol]domain.GroupClientProtocol
+	// DefaultResponsesImagePolicy holds the default value on creation for the "responses_image_policy" field.
+	DefaultResponsesImagePolicy string
 	// DefaultAllowLive holds the default value on creation for the "allow_live" field.
 	DefaultAllowLive bool
 	// DefaultOpenaiFastPolicy holds the default value on creation for the "openai_fast_policy" field.
@@ -592,6 +602,11 @@ func BySortOrder(opts ...sql.OrderTermOption) OrderOption {
 // ByAllowMessagesDispatch orders the results by the allow_messages_dispatch field.
 func ByAllowMessagesDispatch(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAllowMessagesDispatch, opts...).ToFunc()
+}
+
+// ByResponsesImagePolicy orders the results by the responses_image_policy field.
+func ByResponsesImagePolicy(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldResponsesImagePolicy, opts...).ToFunc()
 }
 
 // ByAllowLive orders the results by the allow_live field.

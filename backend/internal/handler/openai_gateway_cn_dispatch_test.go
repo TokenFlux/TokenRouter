@@ -30,8 +30,8 @@ func TestAllowOpenAICompatibleMessagesDispatchUsesProtocolCollectionForCN(t *tes
 		require.False(t, allowOpenAICompatibleMessagesDispatch(disabled), platform)
 
 		enabled := &service.APIKey{Group: &service.Group{
-			Platform:               platform,
-			AllowedClientProtocols: []service.GroupClientProtocol{service.GroupClientProtocolAnthropicMessages},
+			Platform:         platform,
+			AllowedProtocols: []service.GroupClientProtocol{service.GroupClientProtocolAnthropicMessages},
 		}}
 		require.True(t, allowOpenAICompatibleMessagesDispatch(enabled), platform)
 	}

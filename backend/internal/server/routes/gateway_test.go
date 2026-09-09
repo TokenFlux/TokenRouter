@@ -46,9 +46,9 @@ func newGatewayRoutesTestRouterWithOptions(cfg *config.Config, gatewayHandler *h
 		protocols = append(protocols, service.GroupClientProtocolGeminiGenerateContent)
 	}
 	return newGatewayRoutesTestRouterWithGroup(cfg, gatewayHandler, &service.Group{
-		ID:                     groupID,
-		Platform:               groupPlatform,
-		AllowedClientProtocols: protocols,
+		ID:               groupID,
+		Platform:         groupPlatform,
+		AllowedProtocols: protocols,
 	})
 }
 
@@ -132,9 +132,9 @@ func TestGatewayRoutesClientProtocolGateRejectsAliasesBeforeReadingBody(t *testi
 		t.Run(tt.name, func(t *testing.T) {
 			groupID := int64(1)
 			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &service.Group{
-				ID:                     groupID,
-				Platform:               tt.platform,
-				AllowedClientProtocols: tt.protocols,
+				ID:               groupID,
+				Platform:         tt.platform,
+				AllowedProtocols: tt.protocols,
 			})
 			for _, path := range tt.paths {
 				reader := &protocolGateTrackingReader{}
@@ -170,9 +170,9 @@ func TestGatewayRoutesUnsupportedCountTokensBypassesProtocolGate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			groupID := int64(1)
 			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &service.Group{
-				ID:                     groupID,
-				Platform:               tt.platform,
-				AllowedClientProtocols: []service.GroupClientProtocol{},
+				ID:               groupID,
+				Platform:         tt.platform,
+				AllowedProtocols: []service.GroupClientProtocol{},
 			})
 			reader := &protocolGateTrackingReader{}
 			req := httptest.NewRequest(http.MethodPost, tt.path, reader)
@@ -194,7 +194,7 @@ func TestGatewayRoutesResponsesSubpathGuardRunsBeforeProtocolGate(t *testing.T) 
 	router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &service.Group{
 		ID:       groupID,
 		Platform: service.PlatformQoder,
-		AllowedClientProtocols: []service.GroupClientProtocol{
+		AllowedProtocols: []service.GroupClientProtocol{
 			service.GroupClientProtocolAnthropicMessages,
 			service.GroupClientProtocolOpenAIChatCompletions,
 		},
@@ -227,7 +227,7 @@ func TestRequireGroupClientProtocolUsesNativeErrorEnvelopes(t *testing.T) {
 			router := gin.New()
 			var deniedReason string
 			router.Use(func(c *gin.Context) {
-				c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{Group: &service.Group{AllowedClientProtocols: []service.GroupClientProtocol{}}})
+				c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{Group: &service.Group{AllowedProtocols: []service.GroupClientProtocol{}}})
 				c.Next()
 				deniedReason = c.GetString(service.OpsClientBusinessLimitedReasonKey)
 			})
@@ -251,7 +251,7 @@ func TestRequireGeminiGenerateContentProtocolOnlyGatesTextActions(t *testing.T) 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
-			Group: &service.Group{Platform: service.PlatformQoder, AllowedClientProtocols: []service.GroupClientProtocol{}},
+			Group: &service.Group{Platform: service.PlatformQoder, AllowedProtocols: []service.GroupClientProtocol{}},
 		})
 		c.Next()
 	})

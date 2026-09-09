@@ -24,6 +24,8 @@ API 用户不会看到 Gemini 文件名、Vertex 作业名、GCS 路径、签名
 
 ## API 路由
 
+创建入口由分组 `allowed_protocols` 的 `image_batches` 控制，API Key/Vertex 账号须分别启用 `gemini_batch_generate_content`/`vertex_batch_prediction`。提交执行器再次检查协议；已有作业的查询、下载、取消和清理由原 provider 与资源绑定处理，不依赖新建入口开关。
+
 ```text
 POST   /v1/images/batches
 GET    /v1/images/batches/{id}

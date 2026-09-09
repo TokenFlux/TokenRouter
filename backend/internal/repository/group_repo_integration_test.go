@@ -199,7 +199,7 @@ func (s *GroupRepoSuite) TestGetByID_PreservesMessagesDispatchModelConfig() {
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
 		Status:         service.StatusActive,
-		AllowedClientProtocols: []service.GroupClientProtocol{
+		AllowedProtocols: []service.GroupClientProtocol{
 			service.GroupClientProtocolAnthropicMessages,
 			service.GroupClientProtocolOpenAIResponses,
 			service.GroupClientProtocolOpenAIChatCompletions,
@@ -220,7 +220,7 @@ func (s *GroupRepoSuite) TestGetByID_PreservesMessagesDispatchModelConfig() {
 
 	got, err := s.repo.GetByID(s.ctx, group.ID)
 	s.Require().NoError(err)
-	s.Require().Equal(group.AllowedClientProtocols, got.AllowedClientProtocols)
+	s.Require().Equal(group.AllowedProtocols, got.AllowedProtocols)
 	s.Require().Equal(group.MessagesDispatchModelConfig, got.MessagesDispatchModelConfig)
 }
 

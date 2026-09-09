@@ -160,7 +160,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	if err := s.validateGroupAdvancedSchedulerOverridesForWrite(ctx, input.AdvancedSchedulerOverrides); err != nil {
 		return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_ADVANCED_SCHEDULER_OVERRIDES", "%v", err)
 	}
-	allowedClientProtocols := input.AllowedClientProtocols
+	allowedClientProtocols := input.AllowedProtocols
 	if allowedClientProtocols == nil {
 		allowedClientProtocols = defaultGroupClientProtocols(platform)
 		if platform == PlatformOpenAI {
@@ -340,7 +340,9 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		ModelRouting:                    input.ModelRouting,
 		MCPXMLInject:                    mcpXMLInject,
 		SupportedModelScopes:            input.SupportedModelScopes,
-		AllowedClientProtocols:          allowedClientProtocols,
+		AllowedProtocols:                allowedClientProtocols,
+		ProtocolFallbacks:               input.ProtocolFallbacks,
+		ResponsesImagePolicy:            input.ResponsesImagePolicy,
 		AllowLive:                       input.AllowLive,
 		ForceOpenAIFast:                 input.ForceOpenAIFast,
 		OpenAIFastPolicy:                fastPolicy,
@@ -363,6 +365,15 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	}
 	sanitizeGroupReasoningEffortPolicy(group)
 	normalizeGroupDefaultState(group)
+	if group.ProtocolFallbacks == nil {
+		group.ProtocolFallbacks = DefaultProtocolFallbacks(platform)
+	}
+	if input.AllowedProtocols == nil || input.LegacyProtocolInput {
+		applyLegacyGroupMediaProtocols(group)
+	}
+	if err := normalizeGroupProtocolPolicy(group); err != nil {
+		return nil, err
+	}
 
 	// require_oauth_only: 过滤掉 apikey 类型账号
 	if group.RequireOAuthOnly && (group.Platform == PlatformOpenAI || group.Platform == PlatformAntigravity || group.Platform == PlatformAnthropic || group.Platform == PlatformGemini || group.Platform == PlatformGrok) && len(accountIDsToCopy) > 0 {
@@ -529,7 +540,7 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		return nil, err
 	}
 	previousPlatform := group.Platform
-	previousAllowedClientProtocols := group.EffectiveAllowedClientProtocols()
+	previousAllowedProtocols := group.EffectiveAllowedProtocols()
 
 	if input.Name != "" {
 		group.Name = input.Name
@@ -553,21 +564,21 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		}
 		group.AdvancedSchedulerOverrides = CloneGroupAdvancedSchedulerOverrides(*input.AdvancedSchedulerOverrides)
 	}
-	if input.AllowedClientProtocols != nil {
-		group.AllowedClientProtocols, err = normalizeExplicitGroupClientProtocols(group.Platform, *input.AllowedClientProtocols)
+	if input.AllowedProtocols != nil {
+		group.AllowedProtocols, err = normalizeExplicitGroupClientProtocols(group.Platform, *input.AllowedProtocols)
 		if err != nil {
 			return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_ALLOWED_CLIENT_PROTOCOLS", "%v", err)
 		}
 	} else {
 		// 字段缺省时保留原集合；切换平台只移除新平台不支持的协议。
-		group.AllowedClientProtocols = previousAllowedClientProtocols
+		group.AllowedProtocols = previousAllowedProtocols
 		if input.Platform != "" && group.Platform != previousPlatform {
-			group.AllowedClientProtocols = filterGroupClientProtocolsForPlatform(group.Platform, group.AllowedClientProtocols)
+			group.AllowedProtocols = filterGroupClientProtocolsForPlatform(group.Platform, group.AllowedProtocols)
 		}
 		if group.Platform == PlatformOpenAI && input.AllowMessagesDispatch != nil {
-			group.AllowedClientProtocols = setGroupClientProtocol(group.AllowedClientProtocols, GroupClientProtocolAnthropicMessages, *input.AllowMessagesDispatch)
+			group.AllowedProtocols = setGroupClientProtocol(group.AllowedProtocols, GroupClientProtocolAnthropicMessages, *input.AllowMessagesDispatch)
 		}
-		group.AllowedClientProtocols, err = normalizeExplicitGroupClientProtocols(group.Platform, group.AllowedClientProtocols)
+		group.AllowedProtocols, err = normalizeExplicitGroupClientProtocols(group.Platform, group.AllowedProtocols)
 		if err != nil {
 			return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_ALLOWED_CLIENT_PROTOCOLS", "%v", err)
 		}
@@ -798,6 +809,45 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	sanitizeGroupReasoningEffortPolicy(group)
 	normalizeGroupDefaultState(group)
+	if input.LegacyProtocolInput {
+		for _, protocol := range previousAllowedProtocols {
+			if protocol != GroupClientProtocolAnthropicMessages && protocol != GroupClientProtocolOpenAIResponses && protocol != GroupClientProtocolOpenAIChatCompletions && protocol != GroupClientProtocolGeminiGenerateContent {
+				group.AllowedProtocols = append(group.AllowedProtocols, protocol)
+			}
+		}
+	}
+	if input.ProtocolFallbacks != nil {
+		group.ProtocolFallbacks = input.ProtocolFallbacks
+	} else if input.Platform != "" && input.Platform != previousPlatform {
+		group.ProtocolFallbacks = DefaultProtocolFallbacks(group.Platform)
+	}
+	if input.ResponsesImagePolicy != "" {
+		group.ResponsesImagePolicy = input.ResponsesImagePolicy
+	}
+	if input.AllowedProtocols == nil || input.LegacyProtocolInput {
+		// 旧布尔字段只在明确提交时改变对应入口，普通编辑不能把仅编辑权限扩成生成权限。
+		patch := func(protocol GroupClientProtocol, enabled bool) {
+			if len(filterGroupClientProtocolsForPlatform(group.Platform, []GroupClientProtocol{protocol})) > 0 {
+				group.AllowedProtocols = setGroupClientProtocol(group.AllowedProtocols, protocol, enabled)
+			}
+		}
+		if input.AllowImageGeneration != nil {
+			patch("openai_images_generations", *input.AllowImageGeneration)
+			patch("openai_images_edits", *input.AllowImageGeneration)
+			if !*input.AllowImageGeneration {
+				patch("image_batches", false)
+			}
+		}
+		if input.AllowBatchImageGeneration != nil {
+			patch("image_batches", group.AllowBatchImageGeneration)
+		}
+		if input.AllowLive != nil {
+			patch("openai_live", *input.AllowLive)
+		}
+	}
+	if err := normalizeGroupProtocolPolicy(group); err != nil {
+		return nil, err
+	}
 
 	// 如果指定了复制账号的源分组，同步绑定（替换当前分组的账号）
 	var accountIDsToCopy []int64

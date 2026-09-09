@@ -116,24 +116,9 @@ POST /api/v1/creative/runs/{id}/outputs/{index}/ack
 
 ## 分组客户端协议
 
-Group 的 `platform` 表示上游平台，客户端文本协议由 `allowed_client_protocols` 独立准入。管理接口和公开 Group DTO 返回完整有效集合，并固定按以下顺序排列：
+Group 使用 `allowed_protocols`、`protocol_fallbacks`、`responses_image_policy` 返回统一配置；账号使用 `credentials.upstream_protocols`。管理员只读 `GET /api/v1/admin/protocol-capabilities` 提供全部协议、原生账号 profile、分组可用入口及转换目标。完整字段语义见[统一协议能力](protocol_capabilities.md)。
 
-```text
-anthropic_messages
-openai_responses
-openai_chat_completions
-gemini_generate_content
-```
-
-创建分组时省略字段会使用平台默认协议；更新时省略字段保持原集合。若同一次更新切换了上游平台，服务端只保留两平台都支持的协议，不自动启用新平台默认值。显式输入会拒绝未知值、重复值和平台不支持的值并返回 `400`；默认协议不是必选项，所有平台都接受显式空数组。
-
-`allow_messages_dispatch` 是弃用兼容字段，响应值由新集合是否包含 `anthropic_messages` 派生。只有 OpenAI 分组在新字段缺省时继续接受旧字段输入；两者同时提交时以 `allowed_client_protocols` 为准。`messages_dispatch_model_config` 仅保存 OpenAI Messages 到 GPT 的模型映射，不参与协议准入；每个映射项只在目标值非空时生效，全部留空时不执行分组层模型映射。
-
-分组接口已移除独立图片/视频价格和独立倍率字段（`image_price_*`、`video_price_*`、`video_model_prices`、`image_rate_independent`、`image_rate_multiplier`、`video_rate_independent`、`video_rate_multiplier`），旧字段不再绑定或返回。图片、视频使用 `model_pricing` 配置，`image` 的单价单位为 USD/张，`video` 为 USD/秒。公开模型市场的最终图片价格投影 `image_price_1k/2k/4k` 继续保留，它们不属于分组配置。
-
-管理 Group 创建、更新和返回体额外包含 `scheduler_type`（`basic` 或 `advanced`）及 `advanced_scheduler_overrides`。后者是高级分组的稀疏参数对象，可覆盖 Top-K、评分权重、粘性/订阅开关、两个 EWMA alpha 以及 sticky escape 开关和阈值；未出现字段继承网关通用设置，显式 `false`/`0` 是覆盖，更新传空对象会清除全部覆盖；省略该对象则保持现值。管理接口还接受 `long_context_pricing_enabled` 和 `model_pricing`：创建时省略长上下文开关默认开启，显式 `false` 才关闭；更新时省略两者都保持原值，`model_pricing: []` 清空分组价卡。管理 Group DTO 返回完整价卡；公开模型市场通过共享解析器返回有效展示价格。`model_pricing` 条目与渠道共用 `intervals`、`fast_multiplier`、`flex_multiplier`、`max_reasoning_effort_multiplier` 和 `time_pricing` 字段及校验，旧 `fast_mode_multiplier` 继续兼容；新版服务层级倍率必须为有限正数，显式单价允许零。分组仅含倍率的条目继承渠道/内置价格，渠道仅含倍率（包括单独分时配置）的条目继承内置价格，空条目不阻断继承。分组与渠道共享模型别名查价顺序。默认价格填充接口对 Qoder 使用通用模型查询，不再强制返回未定价。复制分组保留并独立复制价卡及长上下文开关。公开 Group DTO 不包含调度器管理配置。
-
-准入使用认证后最终选中的分组。普通 Key 在读取正文和调度前检查；复合 Key 需要先读取并恢复正文以解析目标分组，再按该最终分组检查。文本协议开关不扩展 Live、WebSocket、Embedding、图片或视频能力，也不会绕过账号 endpoint capability 等更窄限制。
+旧 `allowed_client_protocols`、媒体/Live 开关和账号文本路由只作为输入兼容，新响应与导出使用统一结构。`messages_dispatch_model_config` 仍只处理模型映射，不参与协议准入。门禁拒绝在上游调用前返回对应协议的 403 错误；平台没有实现的入口保留 404 边界。
 
 ## 认证方式
 

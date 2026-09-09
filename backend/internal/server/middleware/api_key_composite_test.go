@@ -17,7 +17,7 @@ import (
 func compositeMiddlewareTestKey() *service.APIKey {
 	group := &service.Group{
 		ID: 7, Name: "OpenAI", Platform: service.PlatformOpenAI, Status: service.StatusActive, IsExclusive: true,
-		AllowedClientProtocols: []service.GroupClientProtocol{
+		AllowedProtocols: []service.GroupClientProtocol{
 			service.GroupClientProtocolOpenAIResponses,
 			service.GroupClientProtocolOpenAIChatCompletions,
 		},

@@ -368,6 +368,12 @@ func resolveOpenAITextProtocolForAttempt(
 		protocol = openai_compat.ResolveUpstreamTextProtocol(account.Extra, preferred)
 	}
 
+	if account != nil && account.resolvedProtocol == GroupClientProtocolOpenAIChatCompletions {
+		protocol = openai_compat.TextProtocolChatCompletions
+	}
+	if account != nil && account.resolvedProtocol == GroupClientProtocolOpenAIResponses {
+		protocol = openai_compat.TextProtocolResponses
+	}
 	endpoint := "/v1/responses"
 	if protocol == openai_compat.TextProtocolChatCompletions {
 		endpoint = "/v1/chat/completions"
@@ -626,6 +632,15 @@ func (s *OpenAIGatewayService) ResolveChannelMappingAndRestrict(ctx context.Cont
 }
 
 func (s *OpenAIGatewayService) isCodexImageGenerationBridgeEnabled(ctx context.Context, account *Account, apiKey *APIKey) bool {
+	if group := responsesPolicyGroup(ctx, apiKeyGroup(apiKey)); group != nil {
+		switch group.ResponsesImagePolicy {
+		case "enabled":
+			return true
+		case "disabled", "block":
+			return false
+		}
+	}
+
 	if override := account.CodexImageGenerationBridgeOverride(); override != nil {
 		return *override
 	}

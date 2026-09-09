@@ -711,7 +711,7 @@ func (s *OpenAIGatewayService) resolveAccountByPreviousResponseIDForCapability(
 	if (hasOpenAIAccountGroupMetadata(account) && !s.openAIAccountMatchesSchedulingGroup(account, groupID)) || !s.openAIAccountPassesPrivacyRequirement(ctx, groupID, account) {
 		return 0, nil, "", nil
 	}
-	if !parentHealthyForShadow(account, s.parentAccountLookup(ctx)) {
+	if !s.shadowProtocolsAllowed(ctx, account) || !parentHealthyForShadow(account, s.parentAccountLookup(ctx)) {
 		_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
 		return 0, nil, "", nil
 	}
@@ -739,7 +739,7 @@ func (s *OpenAIGatewayService) resolveAccountByPreviousResponseIDForCapability(
 		if (hasOpenAIAccountGroupMetadata(latest) && !s.openAIAccountMatchesSchedulingGroup(latest, groupID)) || !s.openAIAccountPassesPrivacyRequirement(ctx, groupID, latest) {
 			return 0, nil, "", nil
 		}
-		if !parentHealthyForShadow(latest, s.parentAccountLookup(ctx)) {
+		if !s.shadowProtocolsAllowed(ctx, latest) || !parentHealthyForShadow(latest, s.parentAccountLookup(ctx)) {
 			_ = store.DeleteResponseAccount(ctx, derefGroupID(groupID), responseID)
 			return 0, nil, "", nil
 		}

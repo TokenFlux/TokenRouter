@@ -26,7 +26,7 @@ func TestEnsureSimpleModeDefaultGroups_CreatesMissingDefaults(t *testing.T) {
 	assertGroupExists := func(name, platform string) {
 		created, err := client.Group.Query().Where(group.NameEQ(name), group.DeletedAtIsNil()).Only(seedCtx)
 		require.NoError(t, err)
-		require.Equal(t, domain.DefaultGroupClientProtocols(platform), created.AllowedClientProtocols)
+		require.Equal(t, domain.DefaultGroupClientProtocols(platform), created.AllowedProtocols)
 	}
 
 	assertGroupExists(service.PlatformAnthropic+"-default", service.PlatformAnthropic)

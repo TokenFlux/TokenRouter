@@ -20,6 +20,21 @@ import (
 
 // Forward forwards request to OpenAI API
 func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, account *Account, body []byte) (*OpenAIForwardResult, error) {
+	var routeErr error
+	account, routeErr = accountForProtocolAttempt(ctx, account)
+	if routeErr != nil {
+		return nil, routeErr
+	}
+	// 在任何平台分支或透传前应用分组屏蔽，内部 Images 适配不受此策略影响。
+	if source, _ := ctx.Value(clientProtocolContextKey{}).(GroupClientProtocol); source == GroupClientProtocolOpenAIResponses {
+		if key := getAPIKeyFromContext(c); key != nil && key.Group != nil && key.Group.ResponsesImagePolicy == "block" {
+			stripped, _, stripErr := stripOpenAIImageGenerationToolsFromRawPayload(body)
+			if stripErr != nil {
+				return nil, stripErr
+			}
+			body = stripped
+		}
+	}
 	beginUpstreamResponseModelObservation(c)
 	ClearActualOpenAIUpstreamEndpoint(c)
 	if shouldForwardOpenAIResponsesViaRawChatCompletions(account) {
@@ -160,6 +175,9 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	reqModel, reqStream, promptCacheKey := requestView.Model, requestView.Stream, requestView.PromptCacheKey
 	originalModel := reqModel
 
+	if account.Platform == PlatformGrok && account.resolvedProtocol == GroupClientProtocolOpenAIChatCompletions {
+		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body, tlsRouterMatch)
+	}
 	if account.Platform == PlatformGrok {
 		return s.forwardGrokResponses(ctx, c, account, body, originalModel, reqStream, startTime)
 	}
@@ -246,7 +264,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	}
 	if passthroughEnabled {
 		attemptImageIntentInvalidated := false
-		if isCodexCLI && codexImageGenerationExplicitToolPolicy == codexImageGenerationExplicitToolPolicyStrip {
+		if codexImageGenerationExplicitToolPolicy == codexImageGenerationExplicitToolPolicyStrip {
 			strippedBody, changed, stripErr := stripOpenAIImageGenerationToolsFromRawPayload(body)
 			if stripErr != nil {
 				return nil, stripErr
@@ -330,9 +348,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	}
 
 	apiKey := getAPIKeyFromContext(c)
-	imageGenerationAllowed := GroupAllowsImageGeneration(nil)
+	codexImageGenerationExplicitToolPolicy = groupResponsesExplicitToolPolicy(responsesPolicyGroup(ctx, apiKeyGroup(apiKey)), codexImageGenerationExplicitToolPolicy)
+	imageGenerationAllowed := GroupAllowsResponsesImages(nil)
 	if apiKey != nil {
-		imageGenerationAllowed = GroupAllowsImageGeneration(apiKey.Group)
+		imageGenerationAllowed = GroupAllowsResponsesImages(apiKey.Group)
 	}
 	codexImageGenerationBridgeEnabled := isCodexCLI &&
 		!isOpenAIResponsesLiteHeader(c.GetHeader(responsesLiteHeader)) &&
@@ -343,7 +362,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	canonicalImageIntent := resolveOpenAIImageIntentHint(c, reqModel, canonicalImageIntentBody, IsImageGenerationIntent)
 	// 显式意图只负责权限门禁；宽泛意图仍负责 namespace 工具处理和图片计费。
 	explicitImageIntent := IsExplicitImageGenerationIntent(openAIResponsesEndpoint, reqModel, canonicalImageIntentBody)
-	if isCodexCLI && codexImageGenerationExplicitToolPolicy == codexImageGenerationExplicitToolPolicyStrip {
+	if codexImageGenerationExplicitToolPolicy == codexImageGenerationExplicitToolPolicyStrip {
 		decoded, decodeErr := ensureReqBody()
 		if decodeErr != nil {
 			return nil, decodeErr
@@ -1279,6 +1298,9 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 }
 
 func shouldForwardOpenAIResponsesViaRawChatCompletions(account *Account) bool {
+	if account != nil && account.resolvedProtocol != "" {
+		return account.resolvedProtocol == GroupClientProtocolOpenAIChatCompletions
+	}
 	if account == nil || account.Type != AccountTypeAPIKey {
 		return false
 	}
@@ -1307,7 +1329,7 @@ func (s *OpenAIGatewayService) buildUpstreamRequest(ctx context.Context, c *gin.
 	case AccountTypeAPIKey:
 		// API Key accounts use Platform API or custom base URL
 		baseURL := account.GetOpenAIBaseURL()
-		if account.UsesNativeCNResponses() && account.IsAdaptiveAPIProtocol() {
+		if _, unified := account.Credentials[upstreamProtocolsKey]; account.UsesNativeCNResponses() && (unified || account.IsAdaptiveAPIProtocol()) {
 			baseURL = account.GetCNProtocolBaseURL(APIProtocolResponses)
 		}
 		if baseURL == "" {

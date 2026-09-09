@@ -5,7 +5,9 @@ import (
 	"net/http"
 
 	"github.com/TokenFlux/TokenRouter/internal/handler"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
+	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -26,6 +28,8 @@ func RegisterAdminRoutes(
 	// 审计中间件挂在认证之后：所有管理面变更类操作 + 敏感读取入审计日志
 	admin.Use(gin.HandlerFunc(auditLog))
 	{
+		// 只读能力目录：账号与分组表单共用后端定义。
+		admin.GET("/protocol-capabilities", func(c *gin.Context) { response.Success(c, service.AdminProtocolCatalog()) })
 		// 仪表盘
 		registerDashboardRoutes(admin, h)
 

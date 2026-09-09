@@ -65,10 +65,11 @@ func normalizeOpenAIAPIKeyConfiguration(account *Account) error {
 		account.Extra = make(map[string]any)
 	}
 
-	if err := normalizeOpenAIWorkloadCapabilities(account.Credentials, true); err != nil {
+	_, unified := account.Credentials[upstreamProtocolsKey]
+	if err := normalizeOpenAIWorkloadCapabilities(account.Credentials, !unified); err != nil {
 		return err
 	}
-	if err := normalizeOpenAITextRouteMode(account.Extra, true); err != nil {
+	if err := normalizeOpenAITextRouteMode(account.Extra, !unified); err != nil {
 		return err
 	}
 	DiscardDeprecatedAccountExtra(account.Extra)

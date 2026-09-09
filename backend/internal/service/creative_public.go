@@ -201,7 +201,7 @@ func (s *CreativePublicService) ListModels(ctx context.Context, userID int64) (*
 		if !group.AllowImageGeneration || !group.IsActive() {
 			continue
 		}
-		platformOperations := creativeOperationsForPlatform(group.Platform)
+		platformOperations := creativeOperationsForGroup(group)
 		if len(platformOperations) == 0 {
 			continue
 		}
@@ -273,7 +273,7 @@ func (s *CreativePublicService) ListCreativeModelCandidates(ctx context.Context)
 		if !group.IsActive() || !group.AllowImageGeneration {
 			continue
 		}
-		operations := creativeOperationsForPlatform(group.Platform)
+		operations := creativeOperationsForGroup(group)
 		if len(operations) == 0 {
 			continue
 		}
@@ -1001,7 +1001,7 @@ func (s *CreativePublicService) validateCreateParams(ctx context.Context, userID
 	if !group.AllowImageGeneration {
 		return nil, ErrCreativeGroupImageDisabled
 	}
-	operations := creativeOperationsForPlatform(group.Platform)
+	operations := creativeOperationsForGroup(group)
 	if len(operations) == 0 {
 		return nil, ErrCreativeGroupImageDisabled
 	}

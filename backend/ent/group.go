@@ -98,8 +98,12 @@ type Group struct {
 	SortOrder int `json:"sort_order,omitempty"`
 	// 是否允许 /v1/messages 调度到此 OpenAI 分组
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch,omitempty"`
-	// 允许客户端调用分组的文本协议完整集合
-	AllowedClientProtocols []domain.GroupClientProtocol `json:"allowed_client_protocols,omitempty"`
+	// 允许客户端调用分组的协议与业务入口完整集合
+	AllowedProtocols []domain.GroupClientProtocol `json:"allowed_protocols,omitempty"`
+	// ProtocolFallbacks holds the value of the "protocol_fallbacks" field.
+	ProtocolFallbacks map[domain.GroupClientProtocol]domain.GroupClientProtocol `json:"protocol_fallbacks,omitempty"`
+	// ResponsesImagePolicy holds the value of the "responses_image_policy" field.
+	ResponsesImagePolicy string `json:"responses_image_policy,omitempty"`
 	// 是否允许此 OpenAI 分组访问 Live 接口
 	AllowLive bool `json:"allow_live,omitempty"`
 	// 分组加速策略：follow_request/force_priority/force_ultrafast/force_off
@@ -247,7 +251,7 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case group.FieldAdvancedSchedulerOverrides, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldAllowedClientProtocols, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig, group.FieldAvailabilityProbeConfig, group.FieldReasoningEffortMappings:
+		case group.FieldAdvancedSchedulerOverrides, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldAllowedProtocols, group.FieldProtocolFallbacks, group.FieldMessagesDispatchModelConfig, group.FieldModelsListConfig, group.FieldAvailabilityProbeConfig, group.FieldReasoningEffortMappings:
 			values[i] = new([]byte)
 		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldIsDefault, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldLongContextPricingEnabled, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldForceOpenaiFast, group.FieldFreeOpenaiFast, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldSessionIsolationEnabled:
 			values[i] = new(sql.NullBool)
@@ -255,7 +259,7 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullFloat64)
 		case group.FieldID, group.FieldFallbackGroupID, group.FieldFallbackGroupIDOnInvalidRequest, group.FieldUnavailableFallbackGroupID, group.FieldSortOrder, group.FieldRpmLimit:
 			values[i] = new(sql.NullInt64)
-		case group.FieldName, group.FieldDescription, group.FieldPeakStart, group.FieldPeakEnd, group.FieldStatus, group.FieldDuplicateOperationID, group.FieldPlatform, group.FieldSchedulerType, group.FieldDisplayBrand, group.FieldOpenaiFastPolicy, group.FieldDefaultMappedModel, group.FieldMaxReasoningEffort, group.FieldMaxReasoningEffortOverLimit:
+		case group.FieldName, group.FieldDescription, group.FieldPeakStart, group.FieldPeakEnd, group.FieldStatus, group.FieldDuplicateOperationID, group.FieldPlatform, group.FieldSchedulerType, group.FieldDisplayBrand, group.FieldResponsesImagePolicy, group.FieldOpenaiFastPolicy, group.FieldDefaultMappedModel, group.FieldMaxReasoningEffort, group.FieldMaxReasoningEffortOverLimit:
 			values[i] = new(sql.NullString)
 		case group.FieldCreatedAt, group.FieldUpdatedAt, group.FieldDeletedAt:
 			values[i] = new(sql.NullTime)
@@ -533,13 +537,27 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				_m.AllowMessagesDispatch = value.Bool
 			}
-		case group.FieldAllowedClientProtocols:
+		case group.FieldAllowedProtocols:
 			if value, ok := values[i].(*[]byte); !ok {
-				return fmt.Errorf("unexpected type %T for field allowed_client_protocols", values[i])
+				return fmt.Errorf("unexpected type %T for field allowed_protocols", values[i])
 			} else if value != nil && len(*value) > 0 {
-				if err := json.Unmarshal(*value, &_m.AllowedClientProtocols); err != nil {
-					return fmt.Errorf("unmarshal field allowed_client_protocols: %w", err)
+				if err := json.Unmarshal(*value, &_m.AllowedProtocols); err != nil {
+					return fmt.Errorf("unmarshal field allowed_protocols: %w", err)
 				}
+			}
+		case group.FieldProtocolFallbacks:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field protocol_fallbacks", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.ProtocolFallbacks); err != nil {
+					return fmt.Errorf("unmarshal field protocol_fallbacks: %w", err)
+				}
+			}
+		case group.FieldResponsesImagePolicy:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field responses_image_policy", values[i])
+			} else if value.Valid {
+				_m.ResponsesImagePolicy = value.String
 			}
 		case group.FieldAllowLive:
 			if value, ok := values[i].(*sql.NullBool); !ok {
@@ -859,8 +877,14 @@ func (_m *Group) String() string {
 	builder.WriteString("allow_messages_dispatch=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AllowMessagesDispatch))
 	builder.WriteString(", ")
-	builder.WriteString("allowed_client_protocols=")
-	builder.WriteString(fmt.Sprintf("%v", _m.AllowedClientProtocols))
+	builder.WriteString("allowed_protocols=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AllowedProtocols))
+	builder.WriteString(", ")
+	builder.WriteString("protocol_fallbacks=")
+	builder.WriteString(fmt.Sprintf("%v", _m.ProtocolFallbacks))
+	builder.WriteString(", ")
+	builder.WriteString("responses_image_policy=")
+	builder.WriteString(_m.ResponsesImagePolicy)
 	builder.WriteString(", ")
 	builder.WriteString("allow_live=")
 	builder.WriteString(fmt.Sprintf("%v", _m.AllowLive))
