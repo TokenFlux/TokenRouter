@@ -229,6 +229,10 @@ func (s *CreativePublicService) ListModels(ctx context.Context, userID int64) (*
 				continue
 			}
 			capabilities := creativeCapabilitiesForModel(group.Platform, finalModel)
+			pricingModel := s.creativeBillingModel(ctx, group, model, finalModel)
+			if _, ok := s.creativeResolvedImageUnitPrice(ctx, group, pricingModel, imageSizes[0]); !ok {
+				continue
+			}
 			out.Data = append(out.Data, CreativeModelPublic{
 				GroupID:            group.ID,
 				GroupName:          group.Name,
@@ -243,10 +247,10 @@ func (s *CreativePublicService) ListModels(ctx context.Context, userID int64) (*
 				ThinkingLevels:     capabilities.thinkingLevels,
 				MaxOutputCount:     capabilities.maxOutputCount,
 				MaxReferenceImages: capabilities.maxReferenceImages,
-				Price512:           s.creativePrice(ctx, group, finalModel, "512"),
-				Price1K:            s.creativePrice(ctx, group, finalModel, "1K"),
-				Price2K:            s.creativePrice(ctx, group, finalModel, "2K"),
-				Price4K:            s.creativePrice(ctx, group, finalModel, "4K"),
+				Price512:           s.creativePrice(ctx, group, pricingModel, "512"),
+				Price1K:            s.creativePrice(ctx, group, pricingModel, "1K"),
+				Price2K:            s.creativePrice(ctx, group, pricingModel, "2K"),
+				Price4K:            s.creativePrice(ctx, group, pricingModel, "4K"),
 			})
 		}
 	}
@@ -308,43 +312,48 @@ func (s *CreativePublicService) creativeModelSettings(ctx context.Context) []Cre
 	return s.Settings.GetCreativeModelSettings(ctx)
 }
 
-// creativePrice 返回指定尺寸的展示单价：统一定价优先，并乘模型广场使用的分组图片倍率。
+// creativeBillingModel 保留无渠道时的既有上游模型口径；渠道存在时尊重其计费模型来源。
+func (s *CreativePublicService) creativeBillingModel(ctx context.Context, group *Group, requested, upstream string) string {
+	if upstream == "" {
+		upstream = requested
+	}
+	if s.PricingResolver == nil || s.PricingResolver.channelService == nil || group == nil {
+		return upstream
+	}
+	mapping := s.PricingResolver.channelService.ResolveChannelMapping(ctx, group.ID, requested)
+	if mapping.ChannelID == 0 {
+		return upstream
+	}
+	mapped := mapping.MappedModel
+	if mapped == "" {
+		mapped = requested
+	}
+	return batchImagePricingModel(mapping, requested, mapped, upstream)
+}
+
+// creativePrice 展示固定单张价，分组倍率与模型广场一致。
 func (s *CreativePublicService) creativePrice(ctx context.Context, group *Group, model, imageSize string) float64 {
-	if unitPrice, ok := s.creativeResolvedImageUnitPrice(ctx, group, model, imageSize); ok {
-		return unitPrice * marketplaceImageRateMultiplier(group)
-	}
-	if group != nil {
-		if price := group.GetImagePrice(imageSize); price != nil {
-			return *price * marketplaceImageRateMultiplier(group)
-		}
-	}
-	if s.Pricing == nil {
+	unit, ok := s.creativeResolvedImageUnitPrice(ctx, group, model, imageSize)
+	if !ok {
 		return 0
 	}
-	return s.Pricing.CalculateImageCost(model, imageSize, 1, nil, 1).TotalCost * marketplaceImageRateMultiplier(group)
+	return unit * group.RateMultiplier
 }
 
-// creativeResolvedImageUnitPrice 从统一定价解析器读取渠道或分组的图片单价。
+// creativeResolvedImageUnitPrice 与批量图片共享按张价解析，token 价卡回退内置单张价。
 func (s *CreativePublicService) creativeResolvedImageUnitPrice(ctx context.Context, group *Group, model, imageSize string) (float64, bool) {
-	if s == nil || s.PricingResolver == nil || group == nil {
+	if s == nil || group == nil {
 		return 0, false
 	}
-	groupID := group.ID
-	resolved := s.PricingResolver.Resolve(ctx, PricingInput{Model: model, GroupID: &groupID, Group: group})
-	if resolved == nil || (resolved.Mode != BillingModeImage && resolved.Mode != BillingModePerRequest) {
-		return 0, false
+	resolver := s.PricingResolver
+	if resolver == nil && s.Pricing != nil {
+		resolver = NewModelPricingResolver(nil, s.Pricing)
 	}
-	if price, ok := s.PricingResolver.GetRequestTierPriceValue(resolved, imageSize); ok {
-		return price, true
-	}
-	if resolved.DefaultPerRequestPrice > 0 || (resolved.channelPricing != nil && resolved.channelPricing.PerRequestPrice != nil) {
-		return resolved.DefaultPerRequestPrice, true
-	}
-	return 0, false
+	price, err := resolver.ResolveImageUnitPrice(ctx, PricingInput{Model: model, GroupID: &group.ID, Group: group}, imageSize)
+	return price, err == nil
 }
 
-// creativeOperationsForPlatform 返回分组平台支持的操作集合。
-// OpenAI 保留 mask inpaint；Gemini 使用普通参考图 edit；Grok 使用 xAI 图片编辑端点。
+// creativeOperationsForPlatform 保留各平台已支持的生成、编辑与局部重绘能力。
 func creativeOperationsForPlatform(platform string) []string {
 	switch strings.TrimSpace(platform) {
 	case PlatformOpenAI:
@@ -356,25 +365,7 @@ func creativeOperationsForPlatform(platform string) []string {
 	}
 }
 
-// creativeImageSizesForGroup 返回分组显式配置了价格的尺寸列表。
-func creativeImageSizesForGroup(group *Group) []string {
-	if group == nil {
-		return nil
-	}
-	sizes := make([]string, 0, 3)
-	if group.ImagePrice1K != nil {
-		sizes = append(sizes, "1K")
-	}
-	if group.ImagePrice2K != nil {
-		sizes = append(sizes, "2K")
-	}
-	if group.ImagePrice4K != nil {
-		sizes = append(sizes, "4K")
-	}
-	return sizes
-}
-
-// creativeDefaultImageSizesForPlatform 返回分组未配置图片价时的平台默认尺寸档位，
+// creativeDefaultImageSizesForPlatform 返回平台默认尺寸档位，
 // 与网关按默认价计费的口径一致：OpenAI GPT Image 2 支持 1K/2K/4K 三档，
 // grok 支持 1K/2K，Gemini 先按平台默认开放三档，再由模型能力过滤。
 func creativeDefaultImageSizesForPlatform(platform string) []string {
@@ -478,15 +469,8 @@ func creativeGeminiMaxReferenceImages(model string) int {
 }
 
 // creativeImageSizesForGroupModel 返回分组内某模型可用的尺寸档位。
-// 分组显式配置了图片价时按配置返回；最终结果会按已知模型能力过滤。
+// 尺寸由平台与模型能力决定，不依赖是否填写价格。
 func creativeImageSizesForGroupModel(group *Group, model string) []string {
-	if explicitSizes := creativeImageSizesForGroup(group); len(explicitSizes) > 0 {
-		if group != nil && group.Platform == PlatformOpenAI && isCreativeGPTImage2Model(model) && !containsCreativeImageSize(explicitSizes, "4K") {
-			// GPT Image 2 支持 4K；分组未填写 4K 价格时沿用模型默认价，不因缺少覆盖值隐藏能力。
-			explicitSizes = append(explicitSizes, "4K")
-		}
-		return creativeFilterImageSizesForModel(group.Platform, model, explicitSizes)
-	}
 	if group == nil {
 		return nil
 	}
@@ -1420,37 +1404,14 @@ func (s *CreativePublicService) resolveCreativePricing(ctx context.Context, user
 	if subscription := resolveUsageSubscription(ctx, nil, nil, usageSubscriptionResolverFrom(s.BillingRepo), userID, &groupID); subscription != nil {
 		effective = resolveUsageRateMultiplier(ctx, userID, &groupID, group, groupDefault, subscription, nil)
 	}
-	if group.ImageRateIndependent {
-		effective = group.ImageRateMultiplier
-		subscriptionRate = group.ImageRateMultiplier
-		balanceRate = group.ImageRateMultiplier
-		planGroupRateEnabled = false
-	}
-	imagePriceConfig := &ImagePriceConfig{
-		Price1K: group.ImagePrice1K,
-		Price2K: group.ImagePrice2K,
-		Price4K: group.ImagePrice4K,
-	}
 	baseUnitPrice := 0.0
 	estimatedCost := 0.0
-	pricingModel := validated.finalModel
-	if pricingModel == "" {
-		pricingModel = validated.model
-	}
+	pricingModel := s.creativeBillingModel(ctx, group, validated.model, validated.finalModel)
 	if resolvedUnitPrice, ok := s.creativeResolvedImageUnitPrice(ctx, group, pricingModel, validated.imageSize); ok {
 		baseUnitPrice = resolvedUnitPrice
 		estimatedCost = resolvedUnitPrice * float64(validated.outputCount) * effective
-	} else if unit := group.GetImagePrice(validated.imageSize); unit != nil && *unit >= 0 {
-		baseUnitPrice = *unit
-		estimatedCost = baseUnitPrice * float64(validated.outputCount) * effective
-	} else if s.Pricing != nil {
-		breakdown := s.Pricing.CalculateImageCost(pricingModel, validated.imageSize, validated.outputCount, imagePriceConfig, effective)
-		estimatedCost = breakdown.ActualCost
-		if validated.outputCount > 0 {
-			baseUnitPrice = breakdown.TotalCost / float64(validated.outputCount)
-		}
 	} else {
-		estimatedCost = baseUnitPrice * float64(validated.outputCount) * effective
+		return nil, ErrBatchImageSettlementPricingMissing
 	}
 	return &CreativePricingSnapshot{
 		BaseUnitPrice:              baseUnitPrice,

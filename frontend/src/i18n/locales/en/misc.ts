@@ -33,7 +33,6 @@ marketplace: {
     availabilityHintNoData: 'No active probe data in the last {days} days',
     rateMultiplier: 'Group Multiplier',
     rateMultiplierValue: 'Group Multiplier {multiplier}',
-    imageRateMultiplierValue: 'Image Multiplier {multiplier}',
     maxDiscountHint: 'The maximum discount versus official API pricing when calling this group via this site',
     rateMultiplierHint: 'A reference value for comparing the same model across groups. Prices shown on model cards are final — no need to multiply by the group multiplier. Feel free to ignore it.',
     officialPriceDiscount: 'As low as {discount}/10 of official price',

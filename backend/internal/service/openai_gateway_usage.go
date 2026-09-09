@@ -245,7 +245,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if apiKey.Group != nil && apiKey.Group.RateMultiplier > 0 {
 		subscriptionMultiplierScale = subscriptionMultiplier / apiKey.Group.RateMultiplier
 	}
-	videoMultiplier := resolveVideoRateMultiplier(apiKey, baseMultiplier)
+	videoMultiplier := baseMultiplier
 
 	var cost *CostBreakdown
 	billingModel := openAIUsageBillingModel(result, input.ChannelUsageFields)
@@ -722,68 +722,27 @@ func forwardResultReasoningEffort(result *OpenAIForwardResult) string {
 	return *result.ReasoningEffort
 }
 
-func (s *OpenAIGatewayService) calculateOpenAIImageCost(
-	ctx context.Context,
-	billingModel string,
-	apiKey *APIKey,
-	result *OpenAIForwardResult,
-	multiplier float64,
-) *CostBreakdown {
+// calculateOpenAIImageCost 对分组和渠道使用同一按张价卡路径，未配置时使用内置单价。
+func (s *OpenAIGatewayService) calculateOpenAIImageCost(ctx context.Context, billingModel string, apiKey *APIKey, result *OpenAIForwardResult, multiplier float64) *CostBreakdown {
 	sizeTier := NormalizeImageBillingTierOrDefault(result.ImageSize)
 	resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey)
-	if resolved != nil && resolved.Source == PricingSourceGroup &&
-		(resolved.Mode == BillingModePerRequest || resolved.Mode == BillingModeImage) {
-		gid := apiKey.Group.ID
+	if resolved != nil {
 		cost, err := s.billingService.CalculateCostUnified(CostInput{
-			Ctx: ctx, Model: billingModel, GroupID: &gid, Group: apiKey.Group,
-			RequestCount: result.ImageCount, SizeTier: sizeTier,
-			RateMultiplier: multiplier, Resolver: s.resolver, Resolved: resolved,
+			Ctx: ctx, Model: billingModel, GroupID: apiKey.GroupID, Group: apiKey.Group,
+			RequestCount: result.ImageCount, SizeTier: sizeTier, RateMultiplier: multiplier,
+			Resolver: s.resolver, Resolved: resolved,
 		})
-		if err == nil {
-			return cost
+		if err != nil {
+			logger.LegacyPrintf("service.openai_gateway", "Calculate image model card cost failed: %v", err)
+			return &CostBreakdown{}
 		}
+		return cost
 	}
-	groupConfig := imagePriceConfigFromAPIKey(apiKey)
-	if apiKeyHasConfiguredImagePrice(apiKey, sizeTier) {
-		return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
-	}
-	if refreshed := s.apiKeyWithFreshGroupMediaPricing(ctx, apiKey); refreshed != apiKey {
-		apiKey = refreshed
-		groupConfig = imagePriceConfigFromAPIKey(apiKey)
-		if apiKeyHasConfiguredImagePrice(apiKey, sizeTier) {
-			return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
-		}
-	}
-	if resolved != nil && resolved.Source == PricingSourceChannel &&
-		(resolved.Mode == BillingModePerRequest || resolved.Mode == BillingModeImage) {
-		gid := apiKey.Group.ID
-		cost, err := s.billingService.CalculateCostUnified(CostInput{
-			Ctx:            ctx,
-			Model:          billingModel,
-			GroupID:        &gid,
-			Group:          apiKey.Group,
-			RequestCount:   result.ImageCount,
-			SizeTier:       sizeTier,
-			RateMultiplier: multiplier,
-			Resolver:       s.resolver,
-			Resolved:       resolved,
-		})
-		if err == nil {
-			return cost
-		}
-		logger.LegacyPrintf("service.openai_gateway", "Calculate image channel cost failed: %v", err)
-	}
-
-	return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
+	return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, multiplier)
 }
 
-func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
-	ctx context.Context,
-	billingModel string,
-	apiKey *APIKey,
-	result *OpenAIForwardResult,
-	multiplier float64,
-) *CostBreakdown {
+// calculateOpenAIVideoCost 的 video 价卡按总秒数计费，按次价卡按输出数量计费。
+func (s *OpenAIGatewayService) calculateOpenAIVideoCost(ctx context.Context, billingModel string, apiKey *APIKey, result *OpenAIForwardResult, multiplier float64) *CostBreakdown {
 	videoCount := result.VideoCount
 	if videoCount <= 0 {
 		videoCount = 1
@@ -791,105 +750,23 @@ func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
 	resolution := NormalizeVideoBillingResolutionOrDefault(result.VideoResolution)
 	durationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(result.VideoDurationSeconds)
 	resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey)
-	if resolved != nil && resolved.Source == PricingSourceGroup && resolved.Mode == BillingModeVideo {
-		gid := apiKey.Group.ID
-		cost, err := s.billingService.CalculateCostUnified(CostInput{
-			Ctx: ctx, Model: billingModel, GroupID: &gid, Group: apiKey.Group,
-			UsageUnits: float64(videoCount * durationSeconds), SizeTier: resolution,
-			RateMultiplier: multiplier, Resolver: s.resolver, Resolved: resolved,
-		})
-		if err == nil {
-			return cost
-		}
-	}
-	groupConfig := videoPriceConfigFromAPIKey(apiKey)
-	if apiKeyHasConfiguredVideoPrice(apiKey, billingModel, resolution) {
-		return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier)
-	}
-	if refreshed := s.apiKeyWithFreshGroupMediaPricing(ctx, apiKey); refreshed != apiKey {
-		apiKey = refreshed
-		groupConfig = videoPriceConfigFromAPIKey(apiKey)
-		if apiKeyHasConfiguredVideoPrice(apiKey, billingModel, resolution) {
-			return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier)
-		}
-	}
-	if resolved != nil && resolved.Source == PricingSourceChannel &&
-		(resolved.Mode == BillingModePerRequest || resolved.Mode == BillingModeImage || resolved.Mode == BillingModeVideo) {
-		// 渠道 per_request/image 定价保持"按请求次数"口径（价格由管理员按次配置），不乘视频时长。
-		gid := apiKey.Group.ID
+	if resolved != nil {
 		units := float64(videoCount)
 		if resolved.Mode == BillingModeVideo {
-			units = float64(videoCount * durationSeconds)
+			units *= float64(durationSeconds)
 		}
 		cost, err := s.billingService.CalculateCostUnified(CostInput{
-			Ctx:            ctx,
-			Model:          billingModel,
-			GroupID:        &gid,
-			Group:          apiKey.Group,
-			RequestCount:   videoCount,
-			UsageUnits:     units,
-			SizeTier:       resolution,
-			RateMultiplier: multiplier,
-			Resolver:       s.resolver,
-			Resolved:       resolved,
+			Ctx: ctx, Model: billingModel, GroupID: apiKey.GroupID, Group: apiKey.Group,
+			RequestCount: videoCount, UsageUnits: units, SizeTier: resolution, RateMultiplier: multiplier,
+			Resolver: s.resolver, Resolved: resolved,
 		})
-		if err == nil {
-			cost.BillingMode = string(BillingModeVideo)
-			return cost
+		if err != nil {
+			logger.LegacyPrintf("service.openai_gateway", "Calculate video model card cost failed: %v", err)
+			return &CostBreakdown{}
 		}
-		logger.LegacyPrintf("service.openai_gateway", "Calculate video channel cost failed: %v", err)
+		return cost
 	}
-
-	return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier)
-}
-
-// apiKeyWithFreshGroupMediaPricing 在认证快照可能缺少新增价格字段时，从数据库回源完整分组。
-func (s *OpenAIGatewayService) apiKeyWithFreshGroupMediaPricing(ctx context.Context, apiKey *APIKey) *APIKey {
-	if apiKey == nil || apiKey.GroupID == nil || *apiKey.GroupID <= 0 {
-		return apiKey
-	}
-	if !groupMediaPricingLooksIncomplete(apiKey.Group) {
-		return apiKey
-	}
-	if s == nil || s.schedulerSnapshot == nil || s.schedulerSnapshot.groupRepo == nil {
-		return apiKey
-	}
-	group, err := s.schedulerSnapshot.groupRepo.GetByIDLite(ctx, *apiKey.GroupID)
-	if err != nil || group == nil {
-		return apiKey
-	}
-	clone := *apiKey
-	clone.Group = group
-	return &clone
-}
-
-// groupMediaPricingLooksIncomplete 判断分组对象是否可能来自缺少新增价格字段的旧快照。
-// 正常加载的分组会包含独立倍率或至少一个媒体、搜索、语音价格字段；空壳对象需要回源。
-func groupMediaPricingLooksIncomplete(group *Group) bool {
-	if group == nil {
-		return true
-	}
-	if group.ImageRateIndependent || group.VideoRateIndependent {
-		return false
-	}
-	if group.ImageRateMultiplier != 0 || group.VideoRateMultiplier != 0 {
-		return false
-	}
-	if len(group.VideoModelPrices) > 0 {
-		return false
-	}
-	if len(group.ModelPricing) > 0 || group.LongContextPricingEnabled {
-		return false
-	}
-	if group.SearchPricePer1k != nil ||
-		group.AudioRealtimePricePerMin != nil ||
-		group.AudioTTSPricePerMillionChars != nil ||
-		group.AudioSTTPricePerHour != nil ||
-		group.WebSearchPricePerCall != nil {
-		return false
-	}
-	return group.ImagePrice1K == nil && group.ImagePrice2K == nil && group.ImagePrice4K == nil &&
-		group.VideoPrice480P == nil && group.VideoPrice720P == nil && group.VideoPrice1080P == nil
+	return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, multiplier)
 }
 
 // filterCNProviderBillingModelCandidates 防止国产供应商把客户端 claude 模型名

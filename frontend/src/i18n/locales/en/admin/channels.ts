@@ -371,7 +371,9 @@ riskControl: {
           outputMultiplier: 'output multiplier',
           cacheWriteMultiplier: 'cache write multiplier',
           cacheReadMultiplier: 'cache read multiplier',
-          perRequestPrice: 'per-request price'
+          imageUnitPrice: 'Price per image',
+        videoUnitPrice: 'Price per second',
+        perRequestPrice: 'per-request price'
         }
       },
       timePricingValidation: {
@@ -484,7 +486,7 @@ riskControl: {
         restrictModels: 'Only Allow Models in Channel Pricing',
         restrictModelsHint: 'When enabled, the model must match channel pricing using the current pricing and restriction basis.',
         defaultPerRequestPrice: 'Default per-request price (fallback when no tier matches)',
-        defaultImagePrice: 'Default image price (fallback when no tier matches)',
+        defaultImagePrice: 'Default price per image (fallback when no tier matches)',
         defaultVideoPrice: 'Default video price per second (fallback when no tier matches)',
         platformConfig: 'Platform Configuration',
         webSearchEmulation: 'Web Search Emulation',

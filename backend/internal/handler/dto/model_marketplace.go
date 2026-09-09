@@ -98,8 +98,6 @@ type ModelMarketplaceGroup struct {
 	DisplayBrand               string                        `json:"display_brand"`
 	SortOrder                  int                           `json:"sort_order"`
 	RateMultiplier             float64                       `json:"rate_multiplier"`
-	ImageRateIndependent       bool                          `json:"image_rate_independent"`
-	ImageRateMultiplier        float64                       `json:"image_rate_multiplier"`
 	OfficialPriceRatio         *float64                      `json:"official_price_ratio,omitempty"`
 	OfficialPriceRMBEquivalent *float64                      `json:"official_price_rmb_equivalent,omitempty"`
 	Capacity                   *ModelMarketplaceCapacity     `json:"capacity,omitempty"`
@@ -130,8 +128,6 @@ func ModelMarketplaceGroupsFromService(groups []service.ModelMarketplaceGroup) [
 			DisplayBrand:               group.DisplayBrand,
 			SortOrder:                  group.SortOrder,
 			RateMultiplier:             group.RateMultiplier,
-			ImageRateIndependent:       group.ImageRateIndependent,
-			ImageRateMultiplier:        group.ImageRateMultiplier,
 			OfficialPriceRatio:         group.OfficialPriceRatio,
 			OfficialPriceRMBEquivalent: group.OfficialPriceRMBEquivalent,
 			Capacity:                   modelMarketplaceCapacityFromService(group.Capacity),

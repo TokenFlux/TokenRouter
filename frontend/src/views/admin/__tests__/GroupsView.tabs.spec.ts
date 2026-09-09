@@ -44,8 +44,7 @@ function group(platform: GroupPlatform): AdminGroup {
     id: 42, name: 'Existing', platform, rate_multiplier: 1, status: 'active',
     scheduler_type: 'basic', is_exclusive: false, model_routing: null,
     supported_model_scopes: ['claude', 'gemini_text', 'gemini_image'],
-    image_price_1k: null, image_price_2k: null, image_price_4k: null,
-    video_price_480p: null, video_price_720p: null, video_price_1080p: null,
+
   } as AdminGroup
 }
 
@@ -277,19 +276,19 @@ describe.each(['create', 'edit'] as const)('GroupsView %s tabs', mode => {
     const wrapper = await open(mode, 'grok')
     await tab(wrapper, 'pricing')
     expect(wrapper.find('input[type="checkbox"]').exists()).toBe(false)
-    for (const field of ['peak_rate_enabled', 'image_rate_independent', 'video_rate_independent', 'long_context_pricing_enabled']) {
+    for (const field of ['peak_rate_enabled', 'long_context_pricing_enabled']) {
       await wrapper.get(`[data-group-setting="${field}"]`).trigger('click')
     }
     const times = wrapper.findAll('input[type="time"]')
     expect(times).toHaveLength(2)
     await times[0]!.setValue('09:00')
     await times[1]!.setValue('10:00')
-    expect(wrapper.get('[data-group-setting="image_rate_independent"]').attributes('aria-checked')).toBe('true')
-    expect(wrapper.get('[data-group-setting="video_rate_independent"]').attributes('aria-checked')).toBe('true')
+    expect(wrapper.find('[data-group-setting=\"image_rate_independent\"]').exists()).toBe(false)
+    expect(wrapper.find('[data-group-setting=\"video_rate_independent\"]').exists()).toBe(false)
     await wrapper.get(`#${mode}-group-form`).trigger('submit')
     await flushPromises()
     const payload = mode === 'create' ? groups.create.mock.calls[0]?.[0] : groups.update.mock.calls[0]?.[1]
-    expect(payload).toMatchObject({ peak_rate_enabled: true, image_rate_independent: true, video_rate_independent: true, long_context_pricing_enabled: false })
+    expect(payload).toMatchObject({ peak_rate_enabled: true, long_context_pricing_enabled: false })
   })
 
   it('模型系列与模型列表开关保留展示选择结果', async () => {

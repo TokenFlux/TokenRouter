@@ -347,7 +347,7 @@ func (r *smokeFakeGroupRepo) GetByIDLite(ctx context.Context, id int64) (*servic
 		Status:               service.StatusActive,
 		AllowImageGeneration: true,
 		RateMultiplier:       1,
-		ImagePrice1K:         &price,
+		ModelPricing:         []service.ChannelModelPricing{{Models: []string{"*"}, BillingMode: service.BillingModeImage, PerRequestPrice: &price}},
 	}, nil
 }
 
@@ -434,6 +434,7 @@ func TestCreativeFullChainSmoke(t *testing.T) {
 		smokeCreativeSettingReader{},
 		cfg,
 	)
+	svc.Pricing = service.NewBillingService(nil, nil)
 	worker := service.NewCreativeRunWorker(queue, repo, store, &smokeFakeExecutor{}, svc, service.CreativeWorkerOptions{
 		ReserveBlockTimeout: time.Second,
 		JobLockTTL:          time.Minute,

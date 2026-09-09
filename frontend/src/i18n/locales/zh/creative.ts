@@ -13,7 +13,7 @@ export default {
       quality: '画质',
       background: '背景',
       thinkingLevel: '思考强度',
-      estimatedCost: '{cost}',
+      estimatedCost: '{cost} / 张',
       uploadSource: '上传图片',
       promptPlaceholder: '描述想要生成的画面...',
       // 模型目录为空时的空态提示：区分功能被管理员关闭与分组未配置图片生成。

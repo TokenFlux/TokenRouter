@@ -591,8 +591,7 @@ func newCreativeTestGroup() *Group {
 		Status:               StatusActive,
 		AllowImageGeneration: true,
 		RateMultiplier:       1,
-		ImagePrice1K:         &price1k,
-		ImagePrice2K:         &price2k,
+		ModelPricing:         testImageModelPricing(map[string]*float64{"1K": &price1k, "2K": &price2k}),
 	}
 }
 
@@ -618,6 +617,7 @@ func newCreativeTestAccountRepo() *creativeFakeAccountRepo {
 func newCreativeTestService() *CreativePublicService {
 	group := newCreativeTestGroup()
 	return &CreativePublicService{
+		Pricing:           NewBillingService(nil, nil),
 		Repo:              newCreativeFakeRunRepo(),
 		ApiKeyRepo:        &creativeFakeManagedKeyRepo{},
 		UserRepo:          &creativeFakeUserRepo{user: &User{ID: 7}},

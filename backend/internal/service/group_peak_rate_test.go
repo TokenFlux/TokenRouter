@@ -215,21 +215,6 @@ func TestPeakMultiplier_GatewayBillingSequence(t *testing.T) {
 		}
 	})
 
-	t.Run("image independent mode decoupled from peak", func(t *testing.T) {
-		indGroup := newPeakGroup(true, "14:00", "18:00", 3.0)
-		indGroup.ImageRateIndependent = true
-		indGroup.ImageRateMultiplier = 0.5
-		indKey := &APIKey{Group: indGroup}
-		now := at(15, 30)
-		tokenMultiplier, imageMultiplier := computePeakAwareMultipliers(indKey, baseMultiplier, now)
-		if !approxEq(imageMultiplier, 0.5) {
-			t.Fatalf("independent image multiplier: got %v, want 0.5", imageMultiplier)
-		}
-		if want := baseMultiplier * 3.0; !approxEq(tokenMultiplier, want) {
-			t.Fatalf("token multiplier should include peak factor: got %v, want %v", tokenMultiplier, want)
-		}
-	})
-
 	t.Run("nil api key degrades to base multipliers", func(t *testing.T) {
 		now := at(15, 30)
 		tokenMultiplier, imageMultiplier := computePeakAwareMultipliers(nil, baseMultiplier, now)

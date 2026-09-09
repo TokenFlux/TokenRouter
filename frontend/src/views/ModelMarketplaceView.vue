@@ -240,12 +240,6 @@
                       </span>
                     </template>
                   </HelpTooltip>
-                  <span
-                    v-if="hasIndependentImageRate(group)"
-                    class="rounded-full border border-fuchsia-200 bg-fuchsia-50 px-3 py-1 text-xs font-semibold text-fuchsia-700 dark:border-fuchsia-500/30 dark:bg-fuchsia-500/10 dark:text-fuchsia-200"
-                  >
-                    {{ formatImageRateMultiplierLabel(group.image_rate_multiplier) }}
-                  </span>
                 </div>
 
                 <div class="flex items-start gap-3">
@@ -524,9 +518,6 @@ function formatRateMultiplierLabel(multiplier: number): string {
   return t('marketplace.rateMultiplierValue', { multiplier: formatMultiplier(multiplier) })
 }
 
-function hasIndependentImageRate(group: Pick<MarketplaceGroup, 'image_rate_independent'>): boolean {
-  return Boolean(group.image_rate_independent)
-}
 
 // 相对官方价的最高优惠文案（分组级），口径与首页精选卡片一致：比例缺失、非法或不低于 1（无折扣）时返回 null。
 function formatMaxDiscountOff(ratio?: number): string | null {
@@ -539,9 +530,6 @@ function formatMaxDiscountOff(ratio?: number): string | null {
   return t('marketplace.maxDiscountOff', { percent })
 }
 
-function formatImageRateMultiplierLabel(multiplier: number): string {
-  return t('marketplace.imageRateMultiplierValue', { multiplier: formatMultiplier(multiplier) })
-}
 
 function formatPrice(value: number): string {
   return `${formatPriceNumber(value)} ${balanceUnitName.value}`

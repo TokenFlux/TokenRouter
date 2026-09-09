@@ -703,7 +703,13 @@ func (s *BatchImagePublicService) ListModels(ctx context.Context, owner BatchIma
 				continue
 			}
 			for _, model := range batchImageModelsFromAccountMapping(&account) {
-				if _, err := s.Pricing.BatchImageUnitPrice(ctx, &BatchImageJob{Provider: providerName, Model: model}); err != nil {
+				mapping, routingModel, err := s.resolveBatchImageChannelModel(ctx, owner.GroupID, model)
+				if err != nil {
+					continue
+				}
+				upstreamModel := resolveAccountMappedModelForForward(&account, routingModel)
+				pricingModel := batchImagePricingModel(mapping, model, routingModel, upstreamModel)
+				if _, err := s.Pricing.BatchImageUnitPrice(ctx, BatchImagePriceInput{Model: pricingModel, GroupID: owner.GroupID, ImageSize: ImageBillingSize1K}); err != nil {
 					continue
 				}
 				if !account.IsModelSupported(model) {
@@ -1185,12 +1191,6 @@ func (s *BatchImagePublicService) resolvePricingSnapshot(ctx context.Context, ow
 			)
 		}
 		groupMultiplier = effectiveGroupMultiplier
-		if group.ImageRateIndependent {
-			groupMultiplier = group.ImageRateMultiplier
-			subscriptionRateMultiplier = group.ImageRateMultiplier
-			balanceRateMultiplier = group.ImageRateMultiplier
-			planGroupRateEnabled = false
-		}
 		if groupMultiplier < 0 {
 			groupMultiplier = 0
 		}
@@ -1201,15 +1201,12 @@ func (s *BatchImagePublicService) resolvePricingSnapshot(ctx context.Context, ow
 		if group.BatchImageHoldMultiplier >= 0 {
 			holdMultiplier = group.BatchImageHoldMultiplier
 		}
-		if configuredUnit := group.GetImagePrice(req.ImageSize); configuredUnit != nil && *configuredUnit >= 0 {
-			unit = *configuredUnit
-		}
 	}
 	if unit < 0 {
 		if s.Pricing == nil {
 			return nil, ErrBatchImageSettlementPricingMissing
 		}
-		resolvedUnit, err := s.Pricing.BatchImageUnitPrice(ctx, &BatchImageJob{Provider: provider, Model: req.Model})
+		resolvedUnit, err := s.Pricing.BatchImageUnitPrice(ctx, BatchImagePriceInput{Model: req.Model, GroupID: owner.GroupID, ImageSize: req.ImageSize})
 		if err != nil || resolvedUnit < 0 {
 			return nil, ErrBatchImageSettlementPricingMissing
 		}

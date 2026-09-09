@@ -92,8 +92,8 @@ func ProvideAuthService(
 }
 
 // ProvideBatchImageModelPricingResolver 创建批量图片模型定价解析器。
-func ProvideBatchImageModelPricingResolver(resolver *ModelPricingResolver) *BatchImageModelPricingResolver {
-	return &BatchImageModelPricingResolver{Resolver: resolver}
+func ProvideBatchImageModelPricingResolver(resolver *ModelPricingResolver, groupRepo GroupRepository) *BatchImageModelPricingResolver {
+	return &BatchImageModelPricingResolver{Resolver: resolver, GroupRepo: groupRepo}
 }
 
 // 以下四个 provider 把现有宽接口仓储以创作台窄接口注入，保持服务可测试性。

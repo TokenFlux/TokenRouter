@@ -23,36 +23,40 @@ const (
 	batchImageCostEpsilon             = 0.00000001
 )
 
+// BatchImagePriceInput 明确传递计费模型、分组和尺寸；不依赖供应商模型名猜价格。
+type BatchImagePriceInput struct {
+	Model     string
+	GroupID   *int64
+	Group     *Group
+	ImageSize string
+}
+
 type BatchImagePricingResolver interface {
-	BatchImageUnitPrice(ctx context.Context, job *BatchImageJob) (float64, error)
+	BatchImageUnitPrice(ctx context.Context, input BatchImagePriceInput) (float64, error)
 }
 
 type BatchImageModelPricingResolver struct {
-	Resolver *ModelPricingResolver
+	Resolver  *ModelPricingResolver
+	GroupRepo BatchImageGroupPricingRepository
 }
 
-func (r *BatchImageModelPricingResolver) BatchImageUnitPrice(ctx context.Context, job *BatchImageJob) (float64, error) {
-	if r == nil || r.Resolver == nil || job == nil || strings.TrimSpace(job.Model) == "" {
+func (r *BatchImageModelPricingResolver) BatchImageUnitPrice(ctx context.Context, input BatchImagePriceInput) (float64, error) {
+	if r == nil || r.Resolver == nil {
 		return 0, ErrBatchImageSettlementPricingMissing
 	}
-	resolved := r.Resolver.Resolve(ctx, PricingInput{Model: job.Model})
-	if resolved == nil {
-		return 0, ErrBatchImageSettlementPricingMissing
-	}
-	switch resolved.Mode {
-	case BillingModeImage, BillingModePerRequest:
-		if resolved.DefaultPerRequestPrice > 0 {
-			return resolved.DefaultPerRequestPrice, nil
-		}
-		if len(resolved.RequestTiers) == 1 && resolved.RequestTiers[0].PerRequestPrice != nil && *resolved.RequestTiers[0].PerRequestPrice >= 0 {
-			return *resolved.RequestTiers[0].PerRequestPrice, nil
-		}
-	case BillingModeToken:
-		if resolved.BasePricing != nil && (resolved.BasePricing.ImageOutputPriceExplicit || resolved.BasePricing.ImageOutputPricePerToken > 0) {
-			return resolved.BasePricing.ImageOutputPricePerToken, nil
+	group := input.Group
+	if group == nil && input.GroupID != nil && r.GroupRepo != nil {
+		var err error
+		group, err = r.GroupRepo.GetByIDLite(ctx, *input.GroupID)
+		if err != nil {
+			return 0, err
 		}
 	}
-	return 0, ErrBatchImageSettlementPricingMissing
+	price, err := r.Resolver.ResolveImageUnitPrice(ctx, PricingInput{Model: input.Model, GroupID: input.GroupID, Group: group}, input.ImageSize)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %v", ErrBatchImageSettlementPricingMissing, err)
+	}
+	return price, nil
 }
 
 type BatchImageSettlementService struct {
@@ -346,7 +350,7 @@ func (s *BatchImageSettlementService) settlementUnitPrice(ctx context.Context, j
 		}
 		return job.BillableUnitPrice, nil
 	}
-	unitPrice, err := s.Pricing.BatchImageUnitPrice(ctx, job)
+	unitPrice, err := s.Pricing.BatchImageUnitPrice(ctx, BatchImagePriceInput{Model: job.Model, GroupID: job.GroupID, ImageSize: ImageBillingSize1K})
 	if err != nil {
 		return 0, err
 	}

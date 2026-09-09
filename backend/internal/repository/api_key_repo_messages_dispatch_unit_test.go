@@ -23,9 +23,6 @@ func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T)
 		},
 		AllowMessagesDispatch: true,
 		DefaultMappedModel:    "gpt-5.4",
-		VideoModelPrices: map[string]map[string]float64{
-			service.VideoPriceFamilyGrokImagineVideo15: {service.VideoBillingResolution720P: 0.14},
-		},
 		MessagesDispatchModelConfig: service.OpenAIMessagesDispatchModelConfig{
 			OpusMappedModel:   "gpt-5.4-nano",
 			SonnetMappedModel: "gpt-5.3-codex",
@@ -40,7 +37,6 @@ func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T)
 	require.NotNil(t, got)
 	require.Equal(t, group.AllowedClientProtocols, got.AllowedClientProtocols)
 	require.Equal(t, group.MessagesDispatchModelConfig, got.MessagesDispatchModelConfig)
-	require.Equal(t, group.VideoModelPrices, got.VideoModelPrices)
 }
 
 func TestGroupEntityToService_PreservesImageGenerationControls(t *testing.T) {
@@ -51,15 +47,11 @@ func TestGroupEntityToService_PreservesImageGenerationControls(t *testing.T) {
 		Status:               service.StatusActive,
 		RateMultiplier:       1,
 		AllowImageGeneration: true,
-		ImageRateIndependent: true,
-		ImageRateMultiplier:  0.5,
 	}
 
 	got := groupEntityToService(group)
 	require.NotNil(t, got)
 	require.True(t, got.AllowImageGeneration)
-	require.True(t, got.ImageRateIndependent)
-	require.InDelta(t, 0.5, got.ImageRateMultiplier, 1e-12)
 }
 
 func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_SQLite(t *testing.T) {
@@ -124,8 +116,6 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesImageGenerationControls_SQLit
 		SetStatus(service.StatusActive).
 		SetRateMultiplier(1).
 		SetAllowImageGeneration(true).
-		SetImageRateIndependent(true).
-		SetImageRateMultiplier(0.5).
 		Save(ctx)
 	require.NoError(t, err)
 
@@ -142,8 +132,6 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesImageGenerationControls_SQLit
 	require.NoError(t, err)
 	require.NotNil(t, got.Group)
 	require.True(t, got.Group.AllowImageGeneration)
-	require.True(t, got.Group.ImageRateIndependent)
-	require.InDelta(t, 0.5, got.Group.ImageRateMultiplier, 1e-12)
 }
 
 func TestAPIKeyRepository_GetByKeyForAuth_PreservesSessionIsolation_SQLite(t *testing.T) {

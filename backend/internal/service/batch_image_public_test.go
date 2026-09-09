@@ -183,13 +183,11 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 		accountRepo := svc.AccountRepo.(*publicBatchImageAccountRepo)
 		accountRepo.accounts[1].RateMultiplier = &accountMultiplier
 		svc.GroupRepo = &publicBatchImageGroupRepo{groups: map[int64]*Group{
-			groupID: {
-				ID:                           groupID,
+			groupID: {ID: groupID,
 				Platform:                     PlatformGemini,
 				RateMultiplier:               2.0,
 				AllowImageGeneration:         true,
 				AllowBatchImageGeneration:    true,
-				ImageRateIndependent:         false,
 				BatchImageDiscountMultiplier: 0.8,
 				BatchImageHoldMultiplier:     0.6,
 			},
@@ -267,17 +265,18 @@ func TestBatchImagePublicService_Submit(t *testing.T) {
 		groupID := int64(7)
 		imagePrice := 0.134
 		svc.GroupRepo = &publicBatchImageGroupRepo{groups: map[int64]*Group{
-			groupID: {
-				ID:                           groupID,
+			groupID: {ID: groupID,
 				Platform:                     PlatformGemini,
 				RateMultiplier:               1.0,
 				AllowImageGeneration:         true,
 				AllowBatchImageGeneration:    true,
-				ImagePrice1K:                 &imagePrice,
 				BatchImageDiscountMultiplier: 0.5,
 				BatchImageHoldMultiplier:     0.6,
+				ModelPricing:                 testImageModelPricing(map[string]*float64{"1K": &imagePrice}),
 			},
 		}}
+
+		svc.Pricing = &BatchImageModelPricingResolver{Resolver: NewModelPricingResolver(nil, NewBillingService(nil, nil)), GroupRepo: svc.GroupRepo}
 
 		got, err := svc.Submit(ctx, BatchImageOwner{UserID: 11, APIKeyID: 22, GroupID: &groupID}, validBatchImageSubmitRequest(), "")
 		require.NoError(t, err)

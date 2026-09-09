@@ -46,12 +46,6 @@ func cloneGroupForDuplicateTest(group *Group) *Group {
 		return nil
 	}
 	cloned := *group
-	cloned.ImagePrice1K = cloneGroupValuePointer(group.ImagePrice1K)
-	cloned.ImagePrice2K = cloneGroupValuePointer(group.ImagePrice2K)
-	cloned.ImagePrice4K = cloneGroupValuePointer(group.ImagePrice4K)
-	cloned.VideoPrice480P = cloneGroupValuePointer(group.VideoPrice480P)
-	cloned.VideoPrice720P = cloneGroupValuePointer(group.VideoPrice720P)
-	cloned.VideoPrice1080P = cloneGroupValuePointer(group.VideoPrice1080P)
 	cloned.WebSearchPricePerCall = cloneGroupValuePointer(group.WebSearchPricePerCall)
 	cloned.FallbackGroupID = cloneGroupValuePointer(group.FallbackGroupID)
 	cloned.FallbackGroupIDOnInvalidRequest = cloneGroupValuePointer(group.FallbackGroupIDOnInvalidRequest)
@@ -131,34 +125,21 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 			LBTopK:                groupDuplicateTestPointer(3),
 			WeightPriority:        groupDuplicateTestPointer(4.5),
 		},
-		DisplayBrand:                 "OpenAI",
-		RateMultiplier:               1.75,
-		PeakRateEnabled:              true,
-		PeakStart:                    "09:00",
-		PeakEnd:                      "18:00",
-		PeakRateMultiplier:           1.2,
-		IsExclusive:                  true,
-		IsDefault:                    true,
-		Status:                       StatusActive,
-		Hydrated:                     true,
-		SessionIsolationEnabled:      true,
-		AllowImageGeneration:         true,
-		AllowBatchImageGeneration:    true,
-		ImageRateIndependent:         true,
-		ImageRateMultiplier:          1.4,
-		ImagePrice1K:                 groupDuplicateTestPointer(0.01),
-		ImagePrice2K:                 groupDuplicateTestPointer(0.02),
-		ImagePrice4K:                 groupDuplicateTestPointer(0.04),
-		BatchImageDiscountMultiplier: 0.4,
-		BatchImageHoldMultiplier:     0.7,
-		VideoRateIndependent:         true,
-		VideoRateMultiplier:          2.1,
-		VideoPrice480P:               groupDuplicateTestPointer(0.1),
-		VideoPrice720P:               groupDuplicateTestPointer(0.2),
-		VideoPrice1080P:              groupDuplicateTestPointer(0.3),
-		VideoModelPrices: map[string]map[string]float64{
-			VideoPriceFamilyGrokImagineVideo15: {VideoBillingResolution720P: 0.14},
-		},
+		DisplayBrand:                    "OpenAI",
+		RateMultiplier:                  1.75,
+		PeakRateEnabled:                 true,
+		PeakStart:                       "09:00",
+		PeakEnd:                         "18:00",
+		PeakRateMultiplier:              1.2,
+		IsExclusive:                     true,
+		IsDefault:                       true,
+		Status:                          StatusActive,
+		Hydrated:                        true,
+		SessionIsolationEnabled:         true,
+		AllowImageGeneration:            true,
+		AllowBatchImageGeneration:       true,
+		BatchImageDiscountMultiplier:    0.4,
+		BatchImageHoldMultiplier:        0.7,
 		WebSearchPricePerCall:           groupDuplicateTestPointer(0.005),
 		ClaudeCodeOnly:                  true,
 		FallbackGroupID:                 groupDuplicateTestPointer(int64(7)),
@@ -200,6 +181,7 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 		RateLimitedAccountCount:     2,
 		DuplicateOperationID:        "old-operation-must-not-copy",
 		AccountGroups:               []AccountGroup{{AccountID: 13, GroupID: 41}},
+		ModelPricing:                testImageModelPricing(map[string]*float64{"1K": groupDuplicateTestPointer(0.01), "2K": groupDuplicateTestPointer(0.02), "4K": groupDuplicateTestPointer(0.04)}),
 	}
 	repo := newDuplicateGroupRepoStub(source)
 	repo.sourceBindings[source.ID] = []AccountGroup{
@@ -225,8 +207,6 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 	require.Equal(t, source.SessionIsolationEnabled, duplicate.SessionIsolationEnabled)
 	require.Equal(t, source.RateMultiplier, duplicate.RateMultiplier)
 	require.Equal(t, source.PeakRateMultiplier, duplicate.PeakRateMultiplier)
-	require.Equal(t, source.ImagePrice4K, duplicate.ImagePrice4K)
-	require.Equal(t, source.VideoModelPrices, duplicate.VideoModelPrices)
 	require.Equal(t, source.WebSearchPricePerCall, duplicate.WebSearchPricePerCall)
 	require.Equal(t, source.ForceOpenAIFast, duplicate.ForceOpenAIFast)
 	require.Equal(t, source.FreeOpenAIFast, duplicate.FreeOpenAIFast)
@@ -251,24 +231,20 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 	}, repo.createdBindings[duplicate.ID])
 
 	duplicate.ModelRouting["gpt-*"][0] = 999
-	duplicate.VideoModelPrices[VideoPriceFamilyGrokImagineVideo15][VideoBillingResolution720P] = 999
 	duplicate.SupportedModelScopes[0] = "changed"
 	duplicate.AllowedClientProtocols[0] = GroupClientProtocolOpenAIResponses
 	duplicate.MessagesDispatchModelConfig.ExactModelMappings["claude-special"] = "changed"
 	duplicate.ModelsListConfig.Models[0] = "changed"
 	duplicate.ReasoningEffortMappings[0].To = "changed"
-	*duplicate.ImagePrice1K = 999
 	*duplicate.UnavailableFallbackGroupID = 999
 	*duplicate.AdvancedSchedulerOverrides.LBTopK = 99
 	*duplicate.AdvancedSchedulerOverrides.WeightPriority = 99
 	require.Equal(t, int64(13), source.ModelRouting["gpt-*"][0])
-	require.Equal(t, 0.14, source.VideoModelPrices[VideoPriceFamilyGrokImagineVideo15][VideoBillingResolution720P])
 	require.Equal(t, "claude", source.SupportedModelScopes[0])
 	require.Equal(t, GroupClientProtocolAnthropicMessages, source.AllowedClientProtocols[0])
 	require.Equal(t, "gpt-special", source.MessagesDispatchModelConfig.ExactModelMappings["claude-special"])
 	require.Equal(t, "gpt-5.4", source.ModelsListConfig.Models[0])
 	require.Equal(t, "xhigh", source.ReasoningEffortMappings[0].To)
-	require.Equal(t, 0.01, *source.ImagePrice1K)
 	require.Equal(t, int64(9), *source.UnavailableFallbackGroupID)
 	require.Equal(t, 3, *source.AdvancedSchedulerOverrides.LBTopK)
 	require.Equal(t, 4.5, *source.AdvancedSchedulerOverrides.WeightPriority)

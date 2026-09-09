@@ -208,7 +208,7 @@ func TestGroupPricingFreeFastWithIntervalsAndTurnTime(t *testing.T) {
 			require.InDelta(t, wantBase*0.5, cmd.BillableAmountUSD, 1e-12)
 			// 展示复用解析器，但免费 Fast 不得污染随后计算的 Fast 成本。
 			market := NewModelMarketplaceService(nil, nil, &GatewayService{resolver: svc.resolver}, svc.billingService, nil, nil, nil)
-			display := market.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.6-sol", nil)
+			display := market.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.6-sol")
 			require.Len(t, display.ContextIntervals, 2)
 			ratio := 3.0
 			if free {
@@ -228,12 +228,12 @@ func TestGroupPricingFreeFastDisplayRespectsModelSupport(t *testing.T) {
 	group := &Group{ID: 1, Platform: PlatformOpenAI, RateMultiplier: 1, FreeOpenAIFast: true,
 		ModelPricing: []ChannelModelPricing{{Models: []string{"embedding-parity"}, InputPrice: testPtrFloat64(0.01)}},
 	}
-	display := svc.getPublicModelDisplayPricing(context.Background(), group, "embedding-parity", nil)
+	display := svc.getPublicModelDisplayPricing(context.Background(), group, "embedding-parity")
 	require.Equal(t, 0.01, display.InputPricePerToken)
 	require.Zero(t, display.FastInputPricePerToken)
 	// 旧零倍率仍是明确的 Fast 配置，启用免费 Fast 后展示实际收取的 Standard 价格。
 	group.ModelPricing = []ChannelModelPricing{{Models: []string{"embedding-parity"}, InputPrice: testPtrFloat64(0.02), FastModeMultiplier: testPtrFloat64(0)}}
-	display = svc.getPublicModelDisplayPricing(context.Background(), group, "embedding-parity", nil)
+	display = svc.getPublicModelDisplayPricing(context.Background(), group, "embedding-parity")
 	require.Equal(t, 0.02, display.FastInputPricePerToken)
 }
 
@@ -303,7 +303,7 @@ func TestFreeFastIntervalOnlyDisplayMatchesStandard(t *testing.T) {
 						group.ModelPricing = nil
 					}
 					svc := NewModelMarketplaceService(nil, nil, &GatewayService{resolver: r}, r.billingService, nil, nil, nil)
-					display := svc.getPublicModelDisplayPricing(context.Background(), group, "custom-priced", nil)
+					display := svc.getPublicModelDisplayPricing(context.Background(), group, "custom-priced")
 					require.Equal(t, "priced", display.PriceStatus)
 					ratio := 3.0
 					if free {
@@ -476,7 +476,7 @@ func TestQoderPricingMatchesOtherPlatforms(t *testing.T) {
 					r := newResolverWithBillingService(t, bs, []ChannelModelPricing{card})
 					gateway := &GatewayService{resolver: r, billingService: bs}
 					market := NewModelMarketplaceService(nil, nil, gateway, bs, nil, nil, nil)
-					prices = append(prices, market.getRequestableModelDisplayPricing(context.Background(), group, marketplaceModelDef{ID: model, PricingModel: model}, nil))
+					prices = append(prices, market.getRequestableModelDisplayPricing(context.Background(), group, marketplaceModelDef{ID: model, PricingModel: model}))
 					result := &ForwardResult{Usage: ClaudeUsage{InputTokens: 100, OutputTokens: 10}, ServiceTier: testPtrString("priority")}
 					if looksLikeImageModel(model) {
 						result.ImageCount = 1

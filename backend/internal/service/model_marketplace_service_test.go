@@ -64,7 +64,7 @@ func TestModelMarketplaceQoderModelUsesStandardPricing(t *testing.T) {
 	svc := NewModelMarketplaceService(nil, nil, nil, NewBillingService(nil, nil), nil, nil, nil)
 	group := &Group{ID: 1, Platform: PlatformQoder, RateMultiplier: 1}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "claude-sonnet-4", nil)
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "claude-sonnet-4")
 
 	if pricing.PricingMode != "token" || pricing.PriceStatus != "priced" || pricing.InputPricePerToken <= 0 || pricing.OutputPricePerToken <= 0 {
 		t.Fatalf("Qoder model pricing = (%q, %q, %g, %g), want token/priced with standard prices",
@@ -89,7 +89,7 @@ func TestModelMarketplaceQoderChannelMappedBasisDoesNotUseRequestedStandardPrici
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
 
-	pricing := svc.getRequestableModelDisplayPricing(context.Background(), group, marketplaceModelDef{ID: "gpt-5.4", PricingModel: "qmodel"}, nil)
+	pricing := svc.getRequestableModelDisplayPricing(context.Background(), group, marketplaceModelDef{ID: "gpt-5.4", PricingModel: "qmodel"})
 
 	if pricing.PricingMode != "unknown" || pricing.PriceStatus != "unpriced" {
 		t.Fatalf("Qoder channel-mapped pricing = (%q, %q, intervals=%d), want unknown/unpriced",
@@ -114,7 +114,7 @@ func TestModelMarketplaceQoderUpstreamBasisDoesNotUseRequestedStandardPricing(t 
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
 
-	pricing := svc.getRequestableModelDisplayPricing(context.Background(), group, marketplaceModelDef{ID: "gpt-5.4-mini", PricingModel: "qmodel"}, nil)
+	pricing := svc.getRequestableModelDisplayPricing(context.Background(), group, marketplaceModelDef{ID: "gpt-5.4-mini", PricingModel: "qmodel"})
 
 	if pricing.PricingMode != "unknown" || pricing.PriceStatus != "unpriced" {
 		t.Fatalf("Qoder upstream route-key source pricing = (%q, %q, %g, %g), want unknown/unpriced",
@@ -139,7 +139,7 @@ func TestModelMarketplaceQoderCustomImageAliasWithoutManualPricingRemainsUnknown
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
 
-	pricing := svc.getRequestableModelDisplayPricing(context.Background(), group, marketplaceModelDef{ID: "custom-image-alias", PricingModel: "qmodel"}, nil)
+	pricing := svc.getRequestableModelDisplayPricing(context.Background(), group, marketplaceModelDef{ID: "custom-image-alias", PricingModel: "qmodel"})
 
 	if pricing.PricingMode != "unknown" || pricing.PriceStatus != "unpriced" {
 		t.Fatalf("Qoder custom image alias pricing = (%q, %q), want unknown/unpriced", pricing.PricingMode, pricing.PriceStatus)
@@ -153,7 +153,7 @@ func TestModelMarketplaceQoderAliasesWithoutAnyBasePricingRemainUnknown(t *testi
 
 	// 缺少内置价的公开名和路由键仍显示未定价。
 	for _, model := range []string{"auto", "qwen3.8-max", "qmodel_38max"} {
-		pricing := svc.getPublicModelDisplayPricing(context.Background(), group, model, nil)
+		pricing := svc.getPublicModelDisplayPricing(context.Background(), group, model)
 		if pricing.PricingMode != "unknown" || pricing.PriceStatus != "unpriced" {
 			t.Fatalf("Qoder model %s pricing = (%q, %q), want unknown/unpriced", model, pricing.PricingMode, pricing.PriceStatus)
 		}
@@ -182,7 +182,7 @@ func TestModelMarketplaceQoderManualChannelPricingOverridesDefaultAliasDisplayPr
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "auto", nil)
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "auto")
 
 	if pricing.InputPricePerToken != inputPrice || pricing.OutputPricePerToken != outputPrice {
 		t.Fatalf("Qoder manual alias price = (%g, %g), want (%g, %g)", pricing.InputPricePerToken, pricing.OutputPricePerToken, inputPrice, outputPrice)
@@ -213,7 +213,7 @@ func TestModelMarketplaceChannelImageInputPricingIsDisplayed(t *testing.T) {
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: groupID, Platform: PlatformOpenAI, RateMultiplier: 1.5}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-image-edit", nil)
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-image-edit")
 
 	if pricing.PricingMode != "token" || pricing.PriceStatus != "priced" {
 		t.Fatalf("image edit pricing = (%q, %q), want token/priced", pricing.PricingMode, pricing.PriceStatus)
@@ -295,7 +295,7 @@ func TestModelMarketplaceQoderBlankChannelPricingRemainsUnknown(t *testing.T) {
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "auto", nil)
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "auto")
 
 	if pricing.PricingMode != "unknown" || pricing.PriceStatus != "unpriced" {
 		t.Fatalf("Qoder blank channel alias pricing = (%q, %q), want unknown/unpriced", pricing.PricingMode, pricing.PriceStatus)
@@ -328,7 +328,7 @@ func TestModelMarketplaceQoderBlankRouteKeyPricingShowsAliasManualPricing(t *tes
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "qwen3.7-plus", nil)
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "qwen3.7-plus")
 
 	if pricing.InputPricePerToken != aliasInputPrice || pricing.OutputPricePerToken != aliasOutputPrice {
 		t.Fatalf("Qoder alias display price = (%g, %g), want (%g, %g)", pricing.InputPricePerToken, pricing.OutputPricePerToken, aliasInputPrice, aliasOutputPrice)
@@ -358,7 +358,7 @@ func TestModelMarketplaceQoderRequestedBasisDoesNotInferRouteKeyPricing(t *testi
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "qwen3.7-plus", nil)
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "qwen3.7-plus")
 
 	if pricing.PricingMode != "unknown" || pricing.PriceStatus != "unpriced" {
 		t.Fatalf("Qoder requested-basis display price = (%q, %q), want unknown/unpriced", pricing.PricingMode, pricing.PriceStatus)
@@ -450,7 +450,7 @@ func TestModelMarketplaceQoderAliasManualPricingOverridesRouteKeyManualPricing(t
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "qwen3.7-plus", nil)
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "qwen3.7-plus")
 
 	if pricing.InputPricePerToken != aliasInputPrice || pricing.OutputPricePerToken != aliasOutputPrice {
 		t.Fatalf("Qoder alias display price = (%g, %g), want (%g, %g)", pricing.InputPricePerToken, pricing.OutputPricePerToken, aliasInputPrice, aliasOutputPrice)
@@ -485,7 +485,7 @@ func TestModelMarketplaceQoderNonUniformIntervalsDisplayAsContextIntervals(t *te
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "qwen3.7-plus", nil)
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "qwen3.7-plus")
 
 	if pricing.PricingMode != "token" || pricing.PriceStatus != "priced" {
 		t.Fatalf("Qoder interval display pricing = (%q, %q), want token/priced", pricing.PricingMode, pricing.PriceStatus)
@@ -525,7 +525,7 @@ func TestModelMarketplaceQoderStandardModelPartialIntervalKeepsBaseDisplayFields
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.4", nil)
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.4")
 
 	if pricing.InputPricePerToken != inputPrice || pricing.OutputPricePerToken != basePricing.OutputPricePerToken {
 		t.Fatalf("Qoder standard partial interval display price = (%g, %g), want (%g, %g)",
@@ -563,7 +563,7 @@ func TestModelMarketplaceGroupPricingOverridesChannelPricing(t *testing.T) {
 		}},
 	}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.4-mini", nil)
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.4-mini")
 
 	if pricing.InputPricePerToken != groupInput*group.RateMultiplier || pricing.OutputPricePerToken != groupOutput*group.RateMultiplier {
 		t.Fatalf("group display price = (%g, %g), want (%g, %g)",
@@ -586,7 +586,7 @@ func TestModelMarketplaceGroupExplicitZeroPricingRemainsPriced(t *testing.T) {
 		}},
 	}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.4", nil)
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.4")
 
 	if pricing.PricingMode != "token" || pricing.PriceStatus != "priced" || pricing.InputPricePerToken != 0 || pricing.OutputPricePerToken != 0 {
 		t.Fatalf("free group display pricing = %#v, want token/priced with zero prices", pricing)
@@ -600,7 +600,7 @@ func TestModelMarketplaceGroupCanDisableBuiltInLongContextDisplay(t *testing.T) 
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: 907, Platform: PlatformOpenAI, RateMultiplier: 1, LongContextPricingEnabled: false}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.4", nil)
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.4")
 
 	if pricing.PricingMode != "token" || pricing.PriceStatus != "priced" || len(pricing.ContextIntervals) != 0 {
 		t.Fatalf("long-context-disabled display pricing = %#v, want flat token pricing", pricing)
@@ -776,47 +776,19 @@ func (s *marketplaceSettingRepoStub) GetMultiple(_ context.Context, keys []strin
 	}
 	return out, nil
 }
-func TestModelMarketplaceDisplayPricing_UsesIndependentImageRateMultiplier(t *testing.T) {
-	image1K := 10.0
-	group := &Group{
-		ID:                   1,
-		RateMultiplier:       2.0,
-		ImageRateIndependent: true,
-		ImageRateMultiplier:  0.5,
-		ImagePrice1K:         &image1K,
-	}
-	svc := &ModelMarketplaceService{
-		billingService: &BillingService{},
-	}
-
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-image-1", &ImagePriceConfig{
-		Price1K: group.ImagePrice1K,
-	})
-
-	if pricing.PricingMode != "image" {
-		t.Fatalf("pricing mode = %q, want image", pricing.PricingMode)
-	}
-	if pricing.ImagePrice1K != 5 {
-		t.Fatalf("image 1K price = %v, want 5", pricing.ImagePrice1K)
-	}
-}
 
 func TestModelMarketplaceDisplayPricing_SharedImageRateUsesGroupMultiplier(t *testing.T) {
 	image1K := 10.0
 	group := &Group{
-		ID:                   1,
-		RateMultiplier:       2.0,
-		ImageRateIndependent: false,
-		ImageRateMultiplier:  0.5,
-		ImagePrice1K:         &image1K,
+		ID:             1,
+		RateMultiplier: 2.0,
+		ModelPricing:   testImageModelPricing(map[string]*float64{"1K": &image1K}),
 	}
 	svc := &ModelMarketplaceService{
 		billingService: &BillingService{},
 	}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-image-1", &ImagePriceConfig{
-		Price1K: group.ImagePrice1K,
-	})
+	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-image-1")
 
 	if pricing.PricingMode != "image" {
 		t.Fatalf("pricing mode = %q, want image", pricing.PricingMode)

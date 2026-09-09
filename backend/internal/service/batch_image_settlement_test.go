@@ -509,14 +509,14 @@ type fakeBatchImagePricingResolver struct {
 	models        []string
 }
 
-func (r *fakeBatchImagePricingResolver) BatchImageUnitPrice(_ context.Context, job *BatchImageJob) (float64, error) {
-	if job != nil {
-		r.models = append(r.models, job.Model)
+func (r *fakeBatchImagePricingResolver) BatchImageUnitPrice(_ context.Context, input BatchImagePriceInput) (float64, error) {
+	if input.Model != "" {
+		r.models = append(r.models, input.Model)
 	}
 	if r.err != nil {
 		return 0, r.err
 	}
-	if job != nil && r.missingModels[job.Model] {
+	if input.Model != "" && r.missingModels[input.Model] {
 		return 0, ErrBatchImageSettlementPricingMissing
 	}
 	return r.unitPrice, nil

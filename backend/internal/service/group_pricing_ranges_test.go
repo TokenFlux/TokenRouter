@@ -28,7 +28,7 @@ func TestPricingDisplayPreservesDefaultRanges(t *testing.T) {
 					group.ModelPricing = nil
 				}
 				market := NewModelMarketplaceService(nil, nil, &GatewayService{resolver: r}, r.billingService, nil, nil, nil)
-				display := market.getPublicModelDisplayPricing(context.Background(), group, "custom-ranges", nil)
+				display := market.getPublicModelDisplayPricing(context.Background(), group, "custom-ranges")
 				require.Len(t, display.ContextIntervals, 5)
 				require.Equal(t, 200, card.Intervals[0].MinTokens)
 				fastRatio := 3.0
@@ -74,7 +74,7 @@ func TestPricingDisplayOnlyFlattensCompleteUniformRanges(t *testing.T) {
 		}
 		group := &Group{ID: 1, Platform: PlatformOpenAI, RateMultiplier: 1, ModelPricing: []ChannelModelPricing{card}}
 		market := NewModelMarketplaceService(nil, nil, &GatewayService{resolver: r}, r.billingService, nil, nil, nil)
-		display := market.getPublicModelDisplayPricing(context.Background(), group, "custom-uniform", nil)
+		display := market.getPublicModelDisplayPricing(context.Background(), group, "custom-uniform")
 		if pricedBase {
 			require.Empty(t, display.ContextIntervals)
 			require.Equal(t, 0.001, display.InputPricePerToken)
@@ -115,7 +115,7 @@ func TestPricingIntervalsDistinguishMissingBaseFromExplicitZero(t *testing.T) {
 				cost, err := r.billingService.CalculateCostUnified(CostInput{Ctx: context.Background(), Model: model, Group: group, GroupID: &group.ID,
 					Tokens: UsageTokens{InputTokens: 50}, RateMultiplier: 1, Resolver: r})
 				market := NewModelMarketplaceService(nil, nil, &GatewayService{resolver: r}, r.billingService, nil, nil, nil)
-				display := market.getPublicModelDisplayPricing(context.Background(), group, model, nil)
+				display := market.getPublicModelDisplayPricing(context.Background(), group, model)
 				if kind == "missing" {
 					require.ErrorIs(t, err, ErrModelPricingUnavailable)
 					require.Nil(t, cost)
@@ -151,7 +151,7 @@ func TestPricingMissingMultiplierRangeDoesNotBorrowOtherIntervalPrice(t *testing
 		}
 	}
 	market := NewModelMarketplaceService(nil, nil, &GatewayService{resolver: r}, r.billingService, nil, nil, nil)
-	display := market.getPublicModelDisplayPricing(context.Background(), group, "custom-partial", nil)
+	display := market.getPublicModelDisplayPricing(context.Background(), group, "custom-partial")
 	require.Len(t, display.ContextIntervals, 1)
 	require.Equal(t, 100, display.ContextIntervals[0].MinTokens)
 }

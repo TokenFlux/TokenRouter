@@ -462,14 +462,14 @@ func TestBillingService_GetDisplayPricing_ChatImageMetadataKeepsTokenMode(t *tes
 	billingSvc := NewBillingService(&config.Config{}, pricingSvc)
 
 	// 聊天模型必须优先展示 token 价格，不能被辅助的按图字段覆盖。
-	chatPricing := billingSvc.GetDisplayPricing("gemini-3.1-pro-high", 8, nil)
+	chatPricing := billingSvc.GetDisplayPricing("gemini-3.1-pro-high", 8)
 	require.Equal(t, "token", chatPricing.PricingMode)
 	require.Equal(t, "priced", chatPricing.PriceStatus)
 	require.InDelta(t, 16e-6, chatPricing.InputPricePerToken, 1e-12)
 	require.InDelta(t, 96e-6, chatPricing.OutputPricePerToken, 1e-12)
 
 	// 明确标记为图片生成的模型仍须沿用按图展示路径。
-	imagePricing := billingSvc.GetDisplayPricing("gemini-3.1-flash-image", 2, nil)
+	imagePricing := billingSvc.GetDisplayPricing("gemini-3.1-flash-image", 2)
 	require.Equal(t, "image", imagePricing.PricingMode)
 	require.Equal(t, "priced", imagePricing.PriceStatus)
 	require.InDelta(t, 0.1344, imagePricing.ImagePrice1K, 1e-12)

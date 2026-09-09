@@ -356,7 +356,7 @@ func TestCreativeListModelsFiltersAndContent(t *testing.T) {
 	for _, item := range got.Data {
 		require.Equal(t, int64(12), item.GroupID, "无图片权限或不受支持的分组不得进入模型列表")
 		require.Equal(t, []string{"generate", "edit"}, item.Operations)
-		require.Equal(t, []string{"512", "1K", "2K"}, item.ImageSizes)
+		require.Equal(t, []string{"512", "1K", "2K", "4K"}, item.ImageSizes)
 		require.InDelta(t, 0.02, item.Price1K, 1e-9)
 		require.InDelta(t, 0.04, item.Price2K, 1e-9)
 		require.Equal(t, "gemini-3.1-flash-image", item.Model)
@@ -382,8 +382,7 @@ func TestCreativeListModelsFallbacks(t *testing.T) {
 	openaiGroup.ID = 21
 	openaiGroup.Name = "ChatGPT Image"
 	openaiGroup.Platform = PlatformOpenAI
-	openaiGroup.ImagePrice1K = nil
-	openaiGroup.ImagePrice2K = nil
+	openaiGroup.ModelPricing = nil
 	groupRepo.byID[21] = openaiGroup
 	groupRepo.active = append(groupRepo.active, *openaiGroup)
 	accountRepo.byGroup[21] = []Account{{
@@ -399,8 +398,7 @@ func TestCreativeListModelsFallbacks(t *testing.T) {
 	// gemini 分组：无显式图片价、账号无映射 → 默认候选 + 尺寸回退 ["1K","2K","4K"]。
 	geminiGroup := newCreativeTestGroup()
 	geminiGroup.ID = 22
-	geminiGroup.ImagePrice1K = nil
-	geminiGroup.ImagePrice2K = nil
+	geminiGroup.ModelPricing = nil
 	groupRepo.byID[22] = geminiGroup
 	groupRepo.active = append(groupRepo.active, *geminiGroup)
 	accountRepo.byGroup[22] = []Account{{
@@ -418,8 +416,7 @@ func TestCreativeListModelsFallbacks(t *testing.T) {
 	grokGroup.ID = 23
 	grokGroup.Name = "Grok Imagine"
 	grokGroup.Platform = PlatformGrok
-	grokGroup.ImagePrice1K = nil
-	grokGroup.ImagePrice2K = nil
+	grokGroup.ModelPricing = nil
 	groupRepo.byID[23] = grokGroup
 	groupRepo.active = append(groupRepo.active, *grokGroup)
 	accountRepo.byGroup[23] = []Account{{
@@ -438,8 +435,7 @@ func TestCreativeListModelsFallbacks(t *testing.T) {
 	pricedGroup.Name = "GPT Image Priced"
 	pricedGroup.Platform = PlatformOpenAI
 	price1k := 0.02
-	pricedGroup.ImagePrice1K = &price1k
-	pricedGroup.ImagePrice2K = nil
+	pricedGroup.ModelPricing = testImageModelPricing(map[string]*float64{"1K": &price1k})
 	groupRepo.byID[24] = pricedGroup
 	groupRepo.active = append(groupRepo.active, *pricedGroup)
 	accountRepo.byGroup[24] = []Account{{
@@ -519,7 +515,7 @@ func TestCreativeListModelsFallbacks(t *testing.T) {
 	// GPT Image 2 即使未配置 4K 覆盖价，也开放 4K 并回退默认价格。
 	require.Len(t, byGroup[24], 1)
 	require.Equal(t, "gpt-image-2", byGroup[24][0].Model)
-	require.Equal(t, []string{"1K", "4K"}, byGroup[24][0].ImageSizes)
+	require.Equal(t, []string{"1K", "2K", "4K"}, byGroup[24][0].ImageSizes)
 	require.InDelta(t, 0.02, byGroup[24][0].Price1K, 1e-9)
 }
 
@@ -619,9 +615,7 @@ func TestCreativePricingUsesResolvedChannelPrice(t *testing.T) {
 	group := newCreativeTestGroup()
 	group.ID = 100
 	group.Platform = PlatformOpenAI
-	group.ImagePrice1K = nil
-	group.ImagePrice2K = nil
-	group.ImagePrice4K = nil
+	group.ModelPricing = nil
 
 	require.InDelta(t, 1, svc.creativePrice(context.Background(), group, "gpt-image-2", "1K"), 1e-9)
 	require.InDelta(t, 1, svc.creativePrice(context.Background(), group, "gpt-image-2", "2K"), 1e-9)
@@ -643,6 +637,7 @@ func TestCreativePricingUsesResolvedChannelPrice(t *testing.T) {
 	svc.PricingResolver = resolver
 	geminiGroup := newCreativeTestGroup()
 	geminiGroup.ID = 100
+	geminiGroup.ModelPricing = nil
 	require.InDelta(t, price512, svc.creativePrice(context.Background(), geminiGroup, "gemini-3.1-flash-image", "512"), 1e-9)
 	resolver = newResolverWithChannel(t, []ChannelModelPricing{{
 		Platform:        PlatformGemini,

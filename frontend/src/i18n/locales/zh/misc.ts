@@ -33,7 +33,6 @@ marketplace: {
     availabilityHintNoData: '近 {days} 天暂无主动探测数据',
     rateMultiplier: '分组倍率',
     rateMultiplierValue: '分组倍率{multiplier}',
-    imageRateMultiplierValue: '生图倍率{multiplier}',
     maxDiscountHint: '指相比官方 API 定价，通过本站调用该分组模型可获得的最高优惠',
     rateMultiplierHint: '用于对比不同分组中相同模型的相对价格，仅供参考。模型卡片展示的价格已是最终价格，无需再乘分组倍率；不理解该概念可直接忽略。',
     officialPriceDiscount: '最低至官方价格的{discount}折',

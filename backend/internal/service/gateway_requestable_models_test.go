@@ -728,12 +728,7 @@ func TestModelMarketplaceQoderUsesResolvedRequestedPricingModelWithoutRemapping(
 		resolver:       NewModelPricingResolver(channelService, billingService),
 	}, billingService, nil, nil, nil)
 
-	pricing := marketplace.getRequestableModelDisplayPricing(
-		context.Background(),
-		&Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1},
-		marketplaceModelDef{ID: "client-model", PricingModel: "client-model"},
-		nil,
-	)
+	pricing := marketplace.getRequestableModelDisplayPricing(context.Background(), &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}, marketplaceModelDef{ID: "client-model", PricingModel: "client-model"})
 
 	require.Equal(t, "unpriced", pricing.PriceStatus)
 	require.Equal(t, "unknown", pricing.PricingMode)

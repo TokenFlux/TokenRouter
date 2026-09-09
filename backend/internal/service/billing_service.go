@@ -1866,13 +1866,6 @@ func (s *BillingService) ForceUpdatePricing() error {
 	return fmt.Errorf("pricing service not initialized")
 }
 
-// ImagePriceConfig 图片计费配置
-type ImagePriceConfig struct {
-	Price1K *float64 // 1K 尺寸价格（nil 表示使用默认值）
-	Price2K *float64 // 2K 尺寸价格（nil 表示使用默认值）
-	Price4K *float64 // 4K 尺寸价格（nil 表示使用默认值）
-}
-
 // ModelDisplayPricing 是面向前端展示的模型价格快照。
 // 所有价格都已经应用了分组倍率，直接表示实际扣费单价。
 type ModelDisplayPricing struct {
@@ -1921,25 +1914,22 @@ type ModelDisplayPricingInterval struct {
 
 // GetDisplayPricing 返回用于模型广场展示的价格信息。
 // 它会优先识别图片模型并展示按图计费，否则展示按 token 计费。
-func (s *BillingService) GetDisplayPricing(model string, rateMultiplier float64, groupConfig *ImagePriceConfig) ModelDisplayPricing {
-	return s.getDisplayPricing(model, rateMultiplier, rateMultiplier, groupConfig)
+func (s *BillingService) GetDisplayPricing(model string, rateMultiplier float64) ModelDisplayPricing {
+	return s.getDisplayPricing(model, rateMultiplier)
 }
 
-// getDisplayPricing 按普通倍率和图片独立倍率计算模型广场展示价格。
-func (s *BillingService) getDisplayPricing(model string, rateMultiplier float64, imageRateMultiplier float64, groupConfig *ImagePriceConfig) ModelDisplayPricing {
+// getDisplayPricing 使用分组倍率计算模型广场展示价格。
+func (s *BillingService) getDisplayPricing(model string, rateMultiplier float64) ModelDisplayPricing {
 	if rateMultiplier < 0 {
 		rateMultiplier = 0
-	}
-	if imageRateMultiplier < 0 {
-		imageRateMultiplier = 0
 	}
 
 	rawPricing := s.getRawModelPricing(model)
 	if hasExplicitImageGenerationPricing(rawPricing) || looksLikeImageModel(model) {
 		return buildImageDisplayPricing(
-			s.getImageUnitPrice(model, "1K", groupConfig)*imageRateMultiplier,
-			s.getImageUnitPrice(model, "2K", groupConfig)*imageRateMultiplier,
-			s.getImageUnitPrice(model, "4K", groupConfig)*imageRateMultiplier,
+			s.getDefaultImagePrice(model, "1K")*rateMultiplier,
+			s.getDefaultImagePrice(model, "2K")*rateMultiplier,
+			s.getDefaultImagePrice(model, "4K")*rateMultiplier,
 		)
 	}
 
@@ -1952,24 +1942,21 @@ func (s *BillingService) getDisplayPricing(model string, rateMultiplier float64,
 }
 
 // getDisplayPricingWithResolvedMultipliers 优先使用已解析的渠道价格计算展示价格。
-func (s *BillingService) getDisplayPricingWithResolvedMultipliers(model string, rateMultiplier float64, imageRateMultiplier float64, groupConfig *ImagePriceConfig, resolved *ResolvedPricing) ModelDisplayPricing {
+func (s *BillingService) getDisplayPricingWithResolvedMultipliers(model string, rateMultiplier float64, resolved *ResolvedPricing) ModelDisplayPricing {
 	if rateMultiplier < 0 {
 		rateMultiplier = 0
-	}
-	if imageRateMultiplier < 0 {
-		imageRateMultiplier = 0
 	}
 	if resolved.IsUnpriced() {
 		return unknownDisplayPricing()
 	}
-	if pricing, ok := displayPricingFromResolved(model, rateMultiplier, imageRateMultiplier, resolved); ok {
+	if pricing, ok := displayPricingFromResolved(model, rateMultiplier, resolved); ok {
 		return pricing
 	}
-	return s.getDisplayPricing(model, rateMultiplier, imageRateMultiplier, groupConfig)
+	return s.getDisplayPricing(model, rateMultiplier)
 }
 
 // displayPricingFromResolved 将已解析的计费配置转换成模型广场展示价格。
-func displayPricingFromResolved(model string, rateMultiplier float64, imageRateMultiplier float64, resolved *ResolvedPricing) (ModelDisplayPricing, bool) {
+func displayPricingFromResolved(model string, rateMultiplier float64, resolved *ResolvedPricing) (ModelDisplayPricing, bool) {
 	if resolved == nil {
 		return ModelDisplayPricing{}, false
 	}
@@ -2000,9 +1987,9 @@ func displayPricingFromResolved(model string, rateMultiplier float64, imageRateM
 			return ModelDisplayPricing{}, false
 		}
 		return buildImageDisplayPricing(
-			price1K*imageRateMultiplier,
-			price2K*imageRateMultiplier,
-			price4K*imageRateMultiplier,
+			price1K*rateMultiplier,
+			price2K*rateMultiplier,
+			price4K*rateMultiplier,
 		), true
 	default:
 		return ModelDisplayPricing{}, false
@@ -2324,15 +2311,6 @@ func unknownDisplayPricing() ModelDisplayPricing {
 	}
 }
 
-// VideoPriceConfig 视频生成计费配置。所有价格均为**每秒**单价（USD/s），与 xAI 官方计费口径一致。
-type VideoPriceConfig struct {
-	Price480P  *float64 // 480p 每秒价格（nil 表示使用默认值）
-	Price720P  *float64 // 720p 每秒价格（nil 表示使用默认值）
-	Price1080P *float64 // 1080p 每秒价格（nil 表示使用默认值）
-	// ModelPrices 可按模型族和分辨率覆盖每秒美元价格，仅对命中的模型优先于 Price* 平铺列。
-	ModelPrices map[string]map[string]float64
-}
-
 const (
 	defaultImageGenerationPrice = 0.134
 
@@ -2465,16 +2443,15 @@ func (s *BillingService) CalculateAudioCost(mode string, durationOrUnits float64
 // model: 请求的模型名称（用于获取 LiteLLM 默认价格）
 // imageSize: 图片尺寸 "1K", "2K", "4K"
 // imageCount: 生成的图片数量
-// groupConfig: 分组配置的价格（可能为 nil，表示使用默认值）
 // rateMultiplier: 费率倍数
-func (s *BillingService) CalculateImageCost(model string, imageSize string, imageCount int, groupConfig *ImagePriceConfig, rateMultiplier float64) *CostBreakdown {
+func (s *BillingService) CalculateImageCost(model string, imageSize string, imageCount int, rateMultiplier float64) *CostBreakdown {
 	if imageCount <= 0 {
 		return &CostBreakdown{}
 	}
 	imageSize = NormalizeImageBillingTierOrDefault(imageSize)
 
 	// 获取单价
-	unitPrice := s.getImageUnitPrice(model, imageSize, groupConfig)
+	unitPrice := s.getDefaultImagePrice(model, imageSize)
 
 	// 计算总费用
 	totalCost := unitPrice * float64(imageCount)
@@ -2497,16 +2474,15 @@ func (s *BillingService) CalculateImageCost(model string, imageSize string, imag
 // resolution: 视频分辨率 "480p", "720p", "1080p"
 // videoCount: 生成的视频数量
 // durationSeconds: 单个视频时长（秒），<=0 时按上游默认时长计
-// groupConfig: 分组配置的每秒价格（可能为 nil，表示使用默认值）
 // rateMultiplier: 费率倍数
-func (s *BillingService) CalculateVideoCost(model string, resolution string, videoCount int, durationSeconds int, groupConfig *VideoPriceConfig, rateMultiplier float64) *CostBreakdown {
+func (s *BillingService) CalculateVideoCost(model string, resolution string, videoCount int, durationSeconds int, rateMultiplier float64) *CostBreakdown {
 	if videoCount <= 0 {
 		return &CostBreakdown{}
 	}
 	resolution = NormalizeVideoBillingResolutionOrDefault(resolution)
 	durationSeconds = NormalizeVideoBillingDurationSecondsOrDefault(durationSeconds)
 
-	perSecondPrice := s.getVideoUnitPrice(model, resolution, groupConfig)
+	perSecondPrice := s.getDefaultVideoPrice(model, resolution)
 	totalCost := perSecondPrice * float64(durationSeconds) * float64(videoCount)
 
 	if rateMultiplier < 0 {
@@ -2519,55 +2495,6 @@ func (s *BillingService) CalculateVideoCost(model string, resolution string, vid
 		ActualCost:  actualCost,
 		BillingMode: string(BillingModeVideo),
 	}
-}
-
-// getImageUnitPrice 获取图片单价
-func (s *BillingService) getImageUnitPrice(model string, imageSize string, groupConfig *ImagePriceConfig) float64 {
-	// 优先使用分组配置的价格
-	if groupConfig != nil {
-		switch imageSize {
-		case "1K":
-			if groupConfig.Price1K != nil {
-				return *groupConfig.Price1K
-			}
-		case "2K":
-			if groupConfig.Price2K != nil {
-				return *groupConfig.Price2K
-			}
-		case "4K":
-			if groupConfig.Price4K != nil {
-				return *groupConfig.Price4K
-			}
-		}
-	}
-
-	// 回退到 LiteLLM 默认价格
-	return s.getDefaultImagePrice(model, imageSize)
-}
-
-func (s *BillingService) getVideoUnitPrice(model string, resolution string, groupConfig *VideoPriceConfig) float64 {
-	// 价格优先级依次为按模型映射、分组 video_price_* 平铺列、模型感知的代码默认值。
-	if groupConfig != nil {
-		if price := LookupVideoModelPrice(groupConfig.ModelPrices, model, resolution); price != nil {
-			return *price
-		}
-		switch NormalizeVideoBillingResolutionOrDefault(resolution) {
-		case VideoBillingResolution480P:
-			if groupConfig.Price480P != nil {
-				return *groupConfig.Price480P
-			}
-		case VideoBillingResolution720P:
-			if groupConfig.Price720P != nil {
-				return *groupConfig.Price720P
-			}
-		case VideoBillingResolution1080P:
-			if groupConfig.Price1080P != nil {
-				return *groupConfig.Price1080P
-			}
-		}
-	}
-
-	return s.getDefaultVideoPrice(model, resolution)
 }
 
 // getDefaultImagePrice 获取 LiteLLM 默认图片价格

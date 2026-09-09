@@ -39,8 +39,6 @@ func TestCalculateCost_RateMultiplier_NegativeClampedToZero(t *testing.T) {
 // 同样遵循"负数 → 0"语义。
 func TestCalculateImageCost_RateMultiplier_NegativeClampedToZero(t *testing.T) {
 	svc := newTestBillingService()
-	price := 0.04
-	cfg := &ImagePriceConfig{Price1K: &price}
 
 	tests := []struct {
 		name       string
@@ -54,7 +52,7 @@ func TestCalculateImageCost_RateMultiplier_NegativeClampedToZero(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cost := svc.CalculateImageCost("imagen-3", "1K", 2, cfg, tt.multiplier)
+			cost := svc.CalculateImageCost("imagen-3", "1K", 2, tt.multiplier)
 			require.NotNil(t, cost)
 			require.Greater(t, cost.TotalCost, 0.0)
 			require.InDelta(t, tt.wantRatio*cost.TotalCost, cost.ActualCost, 1e-9)

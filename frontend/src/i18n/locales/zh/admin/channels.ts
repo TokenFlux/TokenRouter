@@ -371,7 +371,9 @@ riskControl: {
           outputMultiplier: '输出倍率',
           cacheWriteMultiplier: '缓存写入倍率',
           cacheReadMultiplier: '缓存读取倍率',
-          perRequestPrice: '单次价格'
+          imageUnitPrice: '每张价格',
+        videoUnitPrice: '每秒价格',
+        perRequestPrice: '单次价格'
         }
       },
       timePricingValidation: {
@@ -484,7 +486,7 @@ riskControl: {
         restrictModels: '仅允许渠道定价表中的模型',
         restrictModelsHint: '开启后，模型必须按当前“定价与限制依据”命中渠道定价表。',
         defaultPerRequestPrice: '默认单次价格（未命中层级时使用）',
-        defaultImagePrice: '默认图片价格（未命中层级时使用）',
+        defaultImagePrice: '默认每张图片价格（未命中层级时使用）',
         defaultVideoPrice: '默认视频每秒价格（未命中层级时使用）',
         platformConfig: '平台配置',
         webSearchEmulation: 'Web Search 模拟',

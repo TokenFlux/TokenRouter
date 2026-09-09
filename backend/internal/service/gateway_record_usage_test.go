@@ -19,7 +19,7 @@ func newGatewayRecordUsageServiceForTest(usageRepo UsageLogRepository, userRepo 
 	cfg := &config.Config{}
 	cfg.Default.RateMultiplier = 1.1
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
-	return NewGatewayService(
+	svc := NewGatewayService(
 		nil,
 		nil,
 		usageRepo,
@@ -48,6 +48,8 @@ func newGatewayRecordUsageServiceForTest(usageRepo UsageLogRepository, userRepo 
 		nil,
 		nil, // 用户平台配额仓库
 	)
+	svc.resolver = NewModelPricingResolver(nil, svc.billingService)
+	return svc
 }
 
 func requireGatewayRecordUsageBillingRepoStub(t *testing.T, svc *GatewayService) *openAIRecordUsageBillingRepoStub {
@@ -412,7 +414,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedImageBasisUsesGlobalFallbac
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, 2, usageRepo.lastLog.ImageCount)
 	// 与其他平台一样按所选计费模型使用通用图片回退价。
-	expected := svc.billingService.CalculateImageCost("ultimate", ImageBillingSize1K, 2, nil, 1)
+	expected := svc.billingService.CalculateImageCost("ultimate", ImageBillingSize1K, 2, 1)
 	require.Positive(t, expected.TotalCost)
 	require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
@@ -456,7 +458,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedImageUsesGlobalFallback(t *
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, 1, usageRepo.lastLog.ImageCount)
 	// 与其他平台一样按所选计费模型使用通用图片回退价。
-	expected := svc.billingService.CalculateImageCost("qmodel", ImageBillingSize1K, 1, nil, 1)
+	expected := svc.billingService.CalculateImageCost("qmodel", ImageBillingSize1K, 1, 1)
 	require.Positive(t, expected.TotalCost)
 	require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
@@ -557,7 +559,7 @@ func TestGatewayServiceRecordUsage_QoderRequestedImageUsesGlobalFallback(t *test
 	require.NotNil(t, usageRepo.lastLog.BillingMode)
 	require.Equal(t, string(BillingModeImage), *usageRepo.lastLog.BillingMode)
 	// 与其他平台一样按所选计费模型使用通用图片回退价。
-	expected := svc.billingService.CalculateImageCost("custom-image-alias", ImageBillingSize1K, 1, nil, 1)
+	expected := svc.billingService.CalculateImageCost("custom-image-alias", ImageBillingSize1K, 1, 1)
 	require.Positive(t, expected.TotalCost)
 	require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
@@ -1117,7 +1119,7 @@ func TestGatewayServiceRecordUsage_QoderAccountMappedImageUsesGlobalFallback(t *
 	require.NotNil(t, usageRepo.lastLog.BillingMode)
 	require.Equal(t, string(BillingModeImage), *usageRepo.lastLog.BillingMode)
 	// 与其他平台一样按所选计费模型使用通用图片回退价。
-	expected := svc.billingService.CalculateImageCost("custom-qoder-image", ImageBillingSize1K, 2, nil, usageRepo.lastLog.RateMultiplier)
+	expected := svc.billingService.CalculateImageCost("custom-qoder-image", ImageBillingSize1K, 2, usageRepo.lastLog.RateMultiplier)
 	require.Positive(t, expected.TotalCost)
 	require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
 	require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
@@ -1382,45 +1384,6 @@ func TestForwardResultBillingModelPrefersRequestedModel(t *testing.T) {
 	require.Equal(t, "ultimate", forwardResultBillingModel("", "ultimate"))
 }
 
-func TestGatewayServiceRecordUsage_ImageIndependentMultiplierUsesImageRate(t *testing.T) {
-	imagePrice := 0.2
-	groupID := int64(711)
-	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
-	svc := newGatewayRecordUsageServiceForTest(usageRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
-
-	err := svc.RecordUsage(context.Background(), &RecordUsageInput{
-		Result: &ForwardResult{
-			RequestID:  "gateway_image_independent_multiplier",
-			Model:      "gemini-image",
-			ImageCount: 2,
-			ImageSize:  "1K",
-			Duration:   time.Second,
-		},
-		APIKey: &APIKey{
-			ID:      511,
-			GroupID: i64p(groupID),
-			Group: &Group{
-				ID:                   groupID,
-				RateMultiplier:       0.15,
-				ImageRateIndependent: true,
-				ImageRateMultiplier:  0.5,
-				ImagePrice1K:         &imagePrice,
-			},
-		},
-		User:    &User{ID: 611},
-		Account: &Account{ID: 711},
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, usageRepo.lastLog)
-	require.Equal(t, 2, usageRepo.lastLog.ImageCount)
-	require.InDelta(t, 0.4, usageRepo.lastLog.TotalCost, 1e-12)
-	require.InDelta(t, 0.2, usageRepo.lastLog.ActualCost, 1e-12)
-	require.InDelta(t, 0.5, usageRepo.lastLog.RateMultiplier, 1e-12)
-	require.NotNil(t, usageRepo.lastLog.BillingMode)
-	require.Equal(t, string(BillingModeImage), *usageRepo.lastLog.BillingMode)
-}
-
 func TestGatewayServiceRecordUsage_EmptyImageSizeDefaultsBeforeBillingAndPersistence(t *testing.T) {
 	imagePrice2K := 0.19
 	groupID := int64(901)
@@ -1441,7 +1404,7 @@ func TestGatewayServiceRecordUsage_EmptyImageSizeDefaultsBeforeBillingAndPersist
 			Group: &Group{
 				ID:             groupID,
 				RateMultiplier: 1.0,
-				ImagePrice2K:   &imagePrice2K,
+				ModelPricing:   testImageModelPricing(map[string]*float64{"2K": &imagePrice2K}),
 			},
 		},
 		User:    &User{ID: 601},

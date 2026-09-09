@@ -129,6 +129,8 @@ gemini_generate_content
 
 `allow_messages_dispatch` 是弃用兼容字段，响应值由新集合是否包含 `anthropic_messages` 派生。只有 OpenAI 分组在新字段缺省时继续接受旧字段输入；两者同时提交时以 `allowed_client_protocols` 为准。`messages_dispatch_model_config` 仅保存 OpenAI Messages 到 GPT 的模型映射，不参与协议准入；每个映射项只在目标值非空时生效，全部留空时不执行分组层模型映射。
 
+分组接口已移除独立图片/视频价格和独立倍率字段（`image_price_*`、`video_price_*`、`video_model_prices`、`image_rate_independent`、`image_rate_multiplier`、`video_rate_independent`、`video_rate_multiplier`），旧字段不再绑定或返回。图片、视频使用 `model_pricing` 配置，`image` 的单价单位为 USD/张，`video` 为 USD/秒。公开模型市场的最终图片价格投影 `image_price_1k/2k/4k` 继续保留，它们不属于分组配置。
+
 管理 Group 创建、更新和返回体额外包含 `scheduler_type`（`basic` 或 `advanced`）及 `advanced_scheduler_overrides`。后者是高级分组的稀疏参数对象，可覆盖 Top-K、评分权重、粘性/订阅开关、两个 EWMA alpha 以及 sticky escape 开关和阈值；未出现字段继承网关通用设置，显式 `false`/`0` 是覆盖，更新传空对象会清除全部覆盖；省略该对象则保持现值。管理接口还接受 `long_context_pricing_enabled` 和 `model_pricing`：创建时省略长上下文开关默认开启，显式 `false` 才关闭；更新时省略两者都保持原值，`model_pricing: []` 清空分组价卡。管理 Group DTO 返回完整价卡；公开模型市场通过共享解析器返回有效展示价格。`model_pricing` 条目与渠道共用 `intervals`、`fast_multiplier`、`flex_multiplier`、`max_reasoning_effort_multiplier` 和 `time_pricing` 字段及校验，旧 `fast_mode_multiplier` 继续兼容；新版服务层级倍率必须为有限正数，显式单价允许零。分组仅含倍率的条目继承渠道/内置价格，渠道仅含倍率（包括单独分时配置）的条目继承内置价格，空条目不阻断继承。分组与渠道共享模型别名查价顺序。默认价格填充接口对 Qoder 使用通用模型查询，不再强制返回未定价。复制分组保留并独立复制价卡及长上下文开关。公开 Group DTO 不包含调度器管理配置。
 
 准入使用认证后最终选中的分组。普通 Key 在读取正文和调度前检查；复合 Key 需要先读取并恢复正文以解析目标分组，再按该最终分组检查。文本协议开关不扩展 Live、WebSocket、Embedding、图片或视频能力，也不会绕过账号 endpoint capability 等更窄限制。

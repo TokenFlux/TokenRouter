@@ -67,21 +67,6 @@ func cloneGroupModelRouting(value map[string][]int64) map[string][]int64 {
 	return cloned
 }
 
-func cloneGroupVideoModelPrices(value map[string]map[string]float64) map[string]map[string]float64 {
-	if value == nil {
-		return nil
-	}
-	cloned := make(map[string]map[string]float64, len(value))
-	for model, prices := range value {
-		clonedPrices := make(map[string]float64, len(prices))
-		for resolution, price := range prices {
-			clonedPrices[resolution] = price
-		}
-		cloned[model] = clonedPrices
-	}
-	return cloned
-}
-
 func cloneGroupMessagesDispatchModelConfig(value OpenAIMessagesDispatchModelConfig) OpenAIMessagesDispatchModelConfig {
 	cloned := value
 	if value.ExactModelMappings != nil {
@@ -114,19 +99,8 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		SessionIsolationEnabled:         source.SessionIsolationEnabled,
 		AllowImageGeneration:            source.AllowImageGeneration,
 		AllowBatchImageGeneration:       source.AllowBatchImageGeneration,
-		ImageRateIndependent:            source.ImageRateIndependent,
-		ImageRateMultiplier:             source.ImageRateMultiplier,
-		ImagePrice1K:                    cloneGroupValuePointer(source.ImagePrice1K),
-		ImagePrice2K:                    cloneGroupValuePointer(source.ImagePrice2K),
-		ImagePrice4K:                    cloneGroupValuePointer(source.ImagePrice4K),
 		BatchImageDiscountMultiplier:    source.BatchImageDiscountMultiplier,
 		BatchImageHoldMultiplier:        source.BatchImageHoldMultiplier,
-		VideoRateIndependent:            source.VideoRateIndependent,
-		VideoRateMultiplier:             source.VideoRateMultiplier,
-		VideoPrice480P:                  cloneGroupValuePointer(source.VideoPrice480P),
-		VideoPrice720P:                  cloneGroupValuePointer(source.VideoPrice720P),
-		VideoPrice1080P:                 cloneGroupValuePointer(source.VideoPrice1080P),
-		VideoModelPrices:                cloneGroupVideoModelPrices(source.VideoModelPrices),
 		WebSearchPricePerCall:           cloneGroupValuePointer(source.WebSearchPricePerCall),
 		SearchPricePer1k:                cloneGroupValuePointer(source.SearchPricePer1k),
 		AudioRealtimePricePerMin:        cloneGroupValuePointer(source.AudioRealtimePricePerMin),

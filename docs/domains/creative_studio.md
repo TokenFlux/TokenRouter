@@ -142,7 +142,7 @@ creative_settle:{run_id}    写 usage_logs 的结算记录 ID
 - provider 已成功但结果丢失（`result_lost` 且已捕获）时保持计费；payload 过期导致 provider 未执行的 `result_lost` 释放预占。
 - 任务执行期间进入 `cancelled` 但 provider 已成功：费用按实际成功输出捕获、用量照写，终态保持 `cancelled`。
 
-生产准确价格由分组图片定价配置解析，本文不定义价格数值。
+单张价格按分组模型价卡、渠道模型价卡、内置按张价格解析；图片/按次价卡使用尺寸分档与显式默认单价；未匹配尺寸且缺少默认单价时回退内置按张价，显式零价保留。token 价卡回退内置按张价格，不按实际 token 结算。资金分配采用普通分组、用户及订阅倍率；既有任务保留创建时快照。本文不定义价格数值。
 
 ## Redis 临时数据
 
@@ -180,7 +180,7 @@ creative_settle:{run_id}    写 usage_logs 的结算记录 ID
 
 当前不暴露无法与异步任务、存储或计费边界稳定对应的上游参数：OpenAI `moderation`、`input_fidelity`、`stream`、`partial_images`，Gemini `includeThoughts`、`temperature`、`topP`、`topK`、`seed`、Google Search grounding 和通用 `candidateCount`，以及任意自定义 OpenAI `WxH` 尺寸。审核策略由服务端统一控制，`gpt-image-2` 固定高保真，Gemini 中间 thought image 固定不返回。
 
-模型候选：Gemini 复用批量图片的账号模型映射展开（含 Vertex），并额外内置 `nano-banana-pro`/`nano-banana-2` 两个代理别名；`nano-banana-*` 别名族按 Gemini 图片模型处理；OpenAI 候选为 `gpt-image-1`/`gpt-image-2`；Grok 候选为 `grok-imagine` 系列。账号未配置模型映射时等价于网关全量透传语义，按平台默认候选回退，并额外纳入账号显式 `model_whitelist` 中匹配图片模型谓词的变体，再执行账号最终模型白名单过滤。尺寸档位：分组显式配置 `image_price_*` 时按配置返回并按已知模型能力收窄；GPT Image 2 即使分组未填写 4K 覆盖价也会开放 `4K` 并沿用默认价；Gemini 3.1 Flash Image 额外开放 `512`，该档位优先使用渠道自定义 `512` 分层价格，未配置时回退渠道默认价格；`gemini-2.5-flash-image` 与 `gemini-3.1-flash-lite-image` 固定为 `1K`。接口同时返回按模型广场分组倍率计算的各尺寸展示单价，创作台预估费用按所选尺寸单价计算，每次任务固定单张输出。
+模型候选：Gemini 复用批量图片的账号模型映射展开（含 Vertex），并额外内置 `nano-banana-pro`/`nano-banana-2` 两个代理别名；`nano-banana-*` 别名族按 Gemini 图片模型处理；OpenAI 候选为 `gpt-image-1`/`gpt-image-2`；Grok 候选为 `grok-imagine` 系列。账号未配置模型映射时等价于网关全量透传语义，按平台默认候选回退，并额外纳入账号显式 `model_whitelist` 中匹配图片模型谓词的变体，再执行账号最终模型白名单过滤。尺寸档位只由平台与模型能力决定，不以是否填写单价限制能力；GPT Image 2 开放 `4K`；Gemini 3.1 Flash Image 额外开放 `512`，该档位优先使用分组或渠道价卡的 `512` 分层价格，未配置时回退价卡默认价格；`gemini-2.5-flash-image` 与 `gemini-3.1-flash-lite-image` 固定为 `1K`。接口同时返回按模型广场分组倍率计算的各尺寸展示单价，创作台预估费用按所选尺寸单价计算，每次任务固定单张输出。
 
 管理员候选接口 `GET /api/v1/admin/settings/creative-model-candidates` 返回当前 active、启用图片生成且存在可调度图片模型的全部分组和模型，不按管理员用户分组权限过滤，因此可以配置 exclusive 分组。OpenAI 候选返回 `generate`/`edit`/`inpaint`，Gemini/Grok 候选返回 `generate`/`edit`。
 
@@ -238,7 +238,7 @@ creative:
 - 确认 `creative.enabled`、数据库运行时开关 `creative_enabled` 与 `creative.queue_enabled`。
 - 确认目标分组启用图片生成；未配置图片尺寸价格或账号模型映射时会按平台默认值回退，GPT Image 2 缺少 4K 覆盖价时仍使用默认价开放 4K。
 - 确认上游账号凭据有效（Gemini apikey/Vertex/OAuth、OpenAI、xAI）。
-- 确认分组图片定价与倍率，验证估价的 hold/capture/release 行为。
+- 确认分组模型价卡与有效倍率，验证估价的 hold/capture/release 行为。
 - 明白临时输出默认 30 分钟过期：通知用户及时取回，或按需调大 `transient_ttl_seconds`。
 - 排查 `result_lost` 时先检查客户端是否在 TTL 内完成取回与 ack，再检查 worker 日志。
 

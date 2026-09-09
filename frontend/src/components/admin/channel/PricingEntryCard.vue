@@ -326,7 +326,7 @@
             {{ entry.billing_mode === 'video'
               ? t('admin.channels.form.defaultVideoPrice', '默认视频价格（未命中层级时使用）')
               : t('admin.channels.form.defaultImagePrice', '默认图片价格（未命中层级时使用）') }}
-            <span class="ml-1 font-normal text-gray-400">$</span>
+            <span class="ml-1 font-normal text-gray-400">{{ entry.billing_mode === 'video' ? '$/s' : '$/image' }}</span>
           </label>
           <div class="mt-1 w-48">
             <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"

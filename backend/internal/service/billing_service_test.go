@@ -324,7 +324,7 @@ func TestCalculateCost_GPT56SolMarketplaceIntervalsMatchSettlement(t *testing.T)
 	svc := NewBillingService(&config.Config{}, newStubPricingServiceFromJSON(t, gpt56LadderCatalogJSON))
 	const groupRate = 3.0
 
-	display := svc.GetDisplayPricing("gpt-5.6-sol", groupRate, nil)
+	display := svc.GetDisplayPricing("gpt-5.6-sol", groupRate)
 	require.Equal(t, "token", display.PricingMode)
 	require.Len(t, display.ContextIntervals, 2)
 	baseInterval := display.ContextIntervals[0]
@@ -488,7 +488,7 @@ func TestCalculateCostUnified_ExplicitIntervalsDoNotReapplyLongContextMultiplier
 		float64(tokens.CacheReadTokens)*longCacheRead) * groupRate
 	require.InDelta(t, wantActualCost, cost.ActualCost, 1e-10)
 
-	display, ok := displayPricingFromResolved("gpt-5.6-sol", groupRate, groupRate, resolved)
+	display, ok := displayPricingFromResolved("gpt-5.6-sol", groupRate, resolved)
 	require.True(t, ok)
 	require.Len(t, display.ContextIntervals, 2)
 	displayLong := display.ContextIntervals[1]
@@ -942,36 +942,20 @@ func TestCalculateCostWithLongContext_ExtraMultiplierLessEqualOne(t *testing.T) 
 func TestCalculateImageCost(t *testing.T) {
 	svc := newTestBillingService()
 
-	price := 0.134
-	cfg := &ImagePriceConfig{Price1K: &price}
-	cost := svc.CalculateImageCost("gpt-image-1", "1K", 3, cfg, 1.0)
+	cost := svc.CalculateImageCost("gpt-image-1", "1K", 3, 1.0)
 
 	require.InDelta(t, 0.134*3, cost.TotalCost, 1e-10)
 	require.InDelta(t, 0.134*3, cost.ActualCost, 1e-10)
 }
 
-func TestCalculateVideoCostUsesSeparateConfig(t *testing.T) {
-	svc := newTestBillingService()
-
-	imagePrice := 0.4
-	videoPrice := 0.08
-	imageCost := svc.CalculateImageCost("grok-imagine-video", "2K", 1, &ImagePriceConfig{Price2K: &imagePrice}, 1.0)
-	videoCost := svc.CalculateVideoCost("grok-imagine-video", "480p", 1, 10, &VideoPriceConfig{Price480P: &videoPrice}, 0.5)
-
-	require.InDelta(t, 0.4, imageCost.TotalCost, 1e-10)
-	require.InDelta(t, 0.8, videoCost.TotalCost, 1e-10)
-	require.InDelta(t, 0.4, videoCost.ActualCost, 1e-10)
-	require.Equal(t, string(BillingModeVideo), videoCost.BillingMode)
-}
-
 func TestCalculateVideoCostBillsPerSecond(t *testing.T) {
 	svc := newTestBillingService()
 
-	oneSecond := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 1, nil, 1.0)
-	fifteenSeconds := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 15, nil, 1.0)
+	oneSecond := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 1, 1.0)
+	fifteenSeconds := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 15, 1.0)
 	// duration <=0 时按上游默认 8 秒计费，超出上限按 15 秒收敛。
-	defaultDuration := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 0, nil, 1.0)
-	clampedDuration := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 999, nil, 1.0)
+	defaultDuration := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 0, 1.0)
+	clampedDuration := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 999, 1.0)
 
 	require.InDelta(t, 0.07, oneSecond.TotalCost, 1e-10)
 	require.InDelta(t, 0.07*15, fifteenSeconds.TotalCost, 1e-10)
@@ -982,10 +966,10 @@ func TestCalculateVideoCostBillsPerSecond(t *testing.T) {
 func TestCalculateGrokImagineImageCostUsesDefaultRateCard(t *testing.T) {
 	svc := newTestBillingService()
 
-	standard1K := svc.CalculateImageCost("grok-imagine-image", "1K", 1, nil, 1.0)
-	standard2K := svc.CalculateImageCost("grok-imagine-image", "2K", 1, nil, 1.0)
-	quality1K := svc.CalculateImageCost("grok-imagine-image-quality", "1K", 1, nil, 1.0)
-	quality2K := svc.CalculateImageCost("grok-imagine-image-quality", "2K", 1, nil, 1.0)
+	standard1K := svc.CalculateImageCost("grok-imagine-image", "1K", 1, 1.0)
+	standard2K := svc.CalculateImageCost("grok-imagine-image", "2K", 1, 1.0)
+	quality1K := svc.CalculateImageCost("grok-imagine-image-quality", "1K", 1, 1.0)
+	quality2K := svc.CalculateImageCost("grok-imagine-image-quality", "2K", 1, 1.0)
 
 	require.InDelta(t, 0.02, standard1K.TotalCost, 1e-10)
 	require.InDelta(t, 0.02, standard2K.TotalCost, 1e-10)
@@ -997,11 +981,11 @@ func TestCalculateGrokImagineVideoCostUsesDefaultRateCard(t *testing.T) {
 	svc := newTestBillingService()
 
 	// 默认价目为 xAI 官方每秒价格，按 1 秒时长验证每秒单价。
-	standard480P := svc.CalculateVideoCost("grok-imagine-video", "480p", 1, 1, nil, 1.0)
-	standard720P := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 1, nil, 1.0)
-	video15_480P := svc.CalculateVideoCost("grok-imagine-video-1.5", "480p", 1, 1, nil, 1.0)
-	video15_720P := svc.CalculateVideoCost("grok-imagine-video-1.5", "720p", 1, 1, nil, 1.0)
-	video15_1080P := svc.CalculateVideoCost("grok-imagine-video-1.5", "1080p", 1, 1, nil, 1.0)
+	standard480P := svc.CalculateVideoCost("grok-imagine-video", "480p", 1, 1, 1.0)
+	standard720P := svc.CalculateVideoCost("grok-imagine-video", "720p", 1, 1, 1.0)
+	video15_480P := svc.CalculateVideoCost("grok-imagine-video-1.5", "480p", 1, 1, 1.0)
+	video15_720P := svc.CalculateVideoCost("grok-imagine-video-1.5", "720p", 1, 1, 1.0)
+	video15_1080P := svc.CalculateVideoCost("grok-imagine-video-1.5", "1080p", 1, 1, 1.0)
 
 	require.InDelta(t, 0.05, standard480P.TotalCost, 1e-10)
 	require.InDelta(t, 0.07, standard720P.TotalCost, 1e-10)

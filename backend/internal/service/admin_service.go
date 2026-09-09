@@ -227,28 +227,16 @@ type CreateGroupInput struct {
 	// LongContextPricingEnabled 为 nil 时默认开启，以兼容未发送新字段的客户端。
 	LongContextPricingEnabled *bool
 	ModelPricing              []ChannelModelPricing
-	// 图片生成计费配置（仅 antigravity 平台使用）
+	// 图片生成权限与批量图片策略，价格统一由模型价卡提供。
 	AllowImageGeneration         bool
 	AllowBatchImageGeneration    bool
-	ImageRateIndependent         bool
-	ImageRateMultiplier          *float64
 	BatchImageDiscountMultiplier *float64
 	BatchImageHoldMultiplier     *float64
-	VideoRateIndependent         bool
-	VideoRateMultiplier          *float64
 	// 高峰时段倍率配置（PeakRateMultiplier 为 nil 时按 1.0 处理）
 	PeakRateEnabled    bool
 	PeakStart          string
 	PeakEnd            string
 	PeakRateMultiplier *float64
-	ImagePrice1K       *float64
-	ImagePrice2K       *float64
-	ImagePrice4K       *float64
-	VideoPrice480P     *float64
-	VideoPrice720P     *float64
-	VideoPrice1080P    *float64
-	// VideoModelPrices 可选按模型族×分辨率覆盖视频每秒单价。
-	VideoModelPrices map[string]map[string]float64
 	// Codex alpha/search 网页搜索单次价格（USD/次，仅 openai 平台使用）；nil/负数按默认价 0.01 处理
 	WebSearchPricePerCall *float64
 	// 搜索工具每千次单价。
@@ -317,28 +305,16 @@ type UpdateGroupInput struct {
 	Status                    string
 	LongContextPricingEnabled *bool
 	ModelPricing              *[]ChannelModelPricing
-	// 图片生成计费配置（仅 antigravity 平台使用）
+	// 图片生成权限与批量图片策略，价格统一由模型价卡提供。
 	AllowImageGeneration         *bool
 	AllowBatchImageGeneration    *bool
-	ImageRateIndependent         *bool
-	ImageRateMultiplier          *float64
 	BatchImageDiscountMultiplier *float64
 	BatchImageHoldMultiplier     *float64
-	VideoRateIndependent         *bool
-	VideoRateMultiplier          *float64
 	// 高峰时段倍率配置（nil 表示不修改）
 	PeakRateEnabled    *bool
 	PeakStart          *string
 	PeakEnd            *string
 	PeakRateMultiplier *float64
-	ImagePrice1K       *float64
-	ImagePrice2K       *float64
-	ImagePrice4K       *float64
-	VideoPrice480P     *float64
-	VideoPrice720P     *float64
-	VideoPrice1080P    *float64
-	// VideoModelPrices 可选按模型族×分辨率覆盖；nil 表示不修改，空 map 表示清除。
-	VideoModelPrices map[string]map[string]float64
 	// Codex alpha/search 网页搜索单次价格（USD/次）；nil 表示不修改，负数表示清除回默认价 0.01
 	WebSearchPricePerCall *float64
 	// 搜索工具单价；nil 不修改，负数清除。

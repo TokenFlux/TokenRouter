@@ -159,8 +159,7 @@ function marketplaceGroup(id: number, name: string, models: MarketplaceGroup['mo
     display_brand: 'OpenAI',
     sort_order: id,
     rate_multiplier: id,
-    image_rate_independent: false,
-    image_rate_multiplier: 1,
+
     official_price_ratio: id / 10,
     official_price_rmb_equivalent: id,
     capacity: {
@@ -363,12 +362,11 @@ describe('ModelMarketplaceView', () => {
     expect(grokGroup?.find('.model-icon-fallback').exists()).toBe(false)
   })
 
-  it('展示开启独立配置的生图倍率', async () => {
+  it('只展示统一分组倍率', async () => {
     const fixture = marketplaceFixture()
     fixture[0] = {
       ...fixture[0],
-      image_rate_independent: true,
-      image_rate_multiplier: 0.5,
+
       models: [
         marketplaceModel('gpt-image-1', 'GPT Image', imagePricing),
       ],
@@ -377,7 +375,7 @@ describe('ModelMarketplaceView', () => {
 
     const wrapper = await mountMarketplace()
 
-    expect(wrapper.findAll('[data-testid="marketplace-group-section"]').map((section) => section.text()).join('\n')).toContain('marketplace.imageRateMultiplierValue x0.50')
+    expect(wrapper.findAll('[data-testid="marketplace-group-section"]').map((section) => section.text()).join('\n')).not.toContain('marketplace.imageRateMultiplierValue')
   })
 
   it('模型卡片可展开抽屉式定价面板并切换 fast mode', async () => {

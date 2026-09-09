@@ -56,32 +56,10 @@ const (
 	FieldAllowImageGeneration = "allow_image_generation"
 	// FieldAllowBatchImageGeneration holds the string denoting the allow_batch_image_generation field in the database.
 	FieldAllowBatchImageGeneration = "allow_batch_image_generation"
-	// FieldImageRateIndependent holds the string denoting the image_rate_independent field in the database.
-	FieldImageRateIndependent = "image_rate_independent"
-	// FieldImageRateMultiplier holds the string denoting the image_rate_multiplier field in the database.
-	FieldImageRateMultiplier = "image_rate_multiplier"
-	// FieldImagePrice1k holds the string denoting the image_price_1k field in the database.
-	FieldImagePrice1k = "image_price_1k"
-	// FieldImagePrice2k holds the string denoting the image_price_2k field in the database.
-	FieldImagePrice2k = "image_price_2k"
-	// FieldImagePrice4k holds the string denoting the image_price_4k field in the database.
-	FieldImagePrice4k = "image_price_4k"
 	// FieldBatchImageDiscountMultiplier holds the string denoting the batch_image_discount_multiplier field in the database.
 	FieldBatchImageDiscountMultiplier = "batch_image_discount_multiplier"
 	// FieldBatchImageHoldMultiplier holds the string denoting the batch_image_hold_multiplier field in the database.
 	FieldBatchImageHoldMultiplier = "batch_image_hold_multiplier"
-	// FieldVideoRateIndependent holds the string denoting the video_rate_independent field in the database.
-	FieldVideoRateIndependent = "video_rate_independent"
-	// FieldVideoRateMultiplier holds the string denoting the video_rate_multiplier field in the database.
-	FieldVideoRateMultiplier = "video_rate_multiplier"
-	// FieldVideoPrice480p holds the string denoting the video_price_480p field in the database.
-	FieldVideoPrice480p = "video_price_480p"
-	// FieldVideoPrice720p holds the string denoting the video_price_720p field in the database.
-	FieldVideoPrice720p = "video_price_720p"
-	// FieldVideoPrice1080p holds the string denoting the video_price_1080p field in the database.
-	FieldVideoPrice1080p = "video_price_1080p"
-	// FieldVideoModelPrices holds the string denoting the video_model_prices field in the database.
-	FieldVideoModelPrices = "video_model_prices"
 	// FieldWebSearchPricePerCall holds the string denoting the web_search_price_per_call field in the database.
 	FieldWebSearchPricePerCall = "web_search_price_per_call"
 	// FieldSearchPricePer1k holds the string denoting the search_price_per_1k field in the database.
@@ -250,19 +228,8 @@ var Columns = []string{
 	FieldDisplayBrand,
 	FieldAllowImageGeneration,
 	FieldAllowBatchImageGeneration,
-	FieldImageRateIndependent,
-	FieldImageRateMultiplier,
-	FieldImagePrice1k,
-	FieldImagePrice2k,
-	FieldImagePrice4k,
 	FieldBatchImageDiscountMultiplier,
 	FieldBatchImageHoldMultiplier,
-	FieldVideoRateIndependent,
-	FieldVideoRateMultiplier,
-	FieldVideoPrice480p,
-	FieldVideoPrice720p,
-	FieldVideoPrice1080p,
-	FieldVideoModelPrices,
 	FieldWebSearchPricePerCall,
 	FieldSearchPricePer1k,
 	FieldAudioRealtimePricePerMin,
@@ -378,18 +345,10 @@ var (
 	DefaultAllowImageGeneration bool
 	// DefaultAllowBatchImageGeneration holds the default value on creation for the "allow_batch_image_generation" field.
 	DefaultAllowBatchImageGeneration bool
-	// DefaultImageRateIndependent holds the default value on creation for the "image_rate_independent" field.
-	DefaultImageRateIndependent bool
-	// DefaultImageRateMultiplier holds the default value on creation for the "image_rate_multiplier" field.
-	DefaultImageRateMultiplier float64
 	// DefaultBatchImageDiscountMultiplier holds the default value on creation for the "batch_image_discount_multiplier" field.
 	DefaultBatchImageDiscountMultiplier float64
 	// DefaultBatchImageHoldMultiplier holds the default value on creation for the "batch_image_hold_multiplier" field.
 	DefaultBatchImageHoldMultiplier float64
-	// DefaultVideoRateIndependent holds the default value on creation for the "video_rate_independent" field.
-	DefaultVideoRateIndependent bool
-	// DefaultVideoRateMultiplier holds the default value on creation for the "video_rate_multiplier" field.
-	DefaultVideoRateMultiplier float64
 	// SearchPricePer1kValidator is a validator for the "search_price_per_1k" field. It is called by the builders before save.
 	SearchPricePer1kValidator func(float64) error
 	// AudioRealtimePricePerMinValidator is a validator for the "audio_realtime_price_per_min" field. It is called by the builders before save.
@@ -555,31 +514,6 @@ func ByAllowBatchImageGeneration(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldAllowBatchImageGeneration, opts...).ToFunc()
 }
 
-// ByImageRateIndependent orders the results by the image_rate_independent field.
-func ByImageRateIndependent(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldImageRateIndependent, opts...).ToFunc()
-}
-
-// ByImageRateMultiplier orders the results by the image_rate_multiplier field.
-func ByImageRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldImageRateMultiplier, opts...).ToFunc()
-}
-
-// ByImagePrice1k orders the results by the image_price_1k field.
-func ByImagePrice1k(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldImagePrice1k, opts...).ToFunc()
-}
-
-// ByImagePrice2k orders the results by the image_price_2k field.
-func ByImagePrice2k(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldImagePrice2k, opts...).ToFunc()
-}
-
-// ByImagePrice4k orders the results by the image_price_4k field.
-func ByImagePrice4k(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldImagePrice4k, opts...).ToFunc()
-}
-
 // ByBatchImageDiscountMultiplier orders the results by the batch_image_discount_multiplier field.
 func ByBatchImageDiscountMultiplier(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBatchImageDiscountMultiplier, opts...).ToFunc()
@@ -588,31 +522,6 @@ func ByBatchImageDiscountMultiplier(opts ...sql.OrderTermOption) OrderOption {
 // ByBatchImageHoldMultiplier orders the results by the batch_image_hold_multiplier field.
 func ByBatchImageHoldMultiplier(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldBatchImageHoldMultiplier, opts...).ToFunc()
-}
-
-// ByVideoRateIndependent orders the results by the video_rate_independent field.
-func ByVideoRateIndependent(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldVideoRateIndependent, opts...).ToFunc()
-}
-
-// ByVideoRateMultiplier orders the results by the video_rate_multiplier field.
-func ByVideoRateMultiplier(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldVideoRateMultiplier, opts...).ToFunc()
-}
-
-// ByVideoPrice480p orders the results by the video_price_480p field.
-func ByVideoPrice480p(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldVideoPrice480p, opts...).ToFunc()
-}
-
-// ByVideoPrice720p orders the results by the video_price_720p field.
-func ByVideoPrice720p(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldVideoPrice720p, opts...).ToFunc()
-}
-
-// ByVideoPrice1080p orders the results by the video_price_1080p field.
-func ByVideoPrice1080p(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldVideoPrice1080p, opts...).ToFunc()
 }
 
 // ByWebSearchPricePerCall orders the results by the web_search_price_per_call field.

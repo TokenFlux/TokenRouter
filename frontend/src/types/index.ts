@@ -567,7 +567,6 @@ export type GroupPlatform =
   | 'zhipu'
   | 'deepseek'
 export type GroupSchedulerType = 'basic' | 'advanced'
-export type VideoModelPrices = Record<string, Record<string, number>>
 
 // 分组高级调度器的稀疏覆盖；未出现的字段继承网关通用设置。
 export interface GroupAdvancedSchedulerOverrides {
@@ -686,8 +685,6 @@ export interface MarketplaceGroup {
   display_brand: string
   sort_order: number
   rate_multiplier: number
-  image_rate_independent: boolean
-  image_rate_multiplier: number
   official_price_ratio?: number
   official_price_rmb_equivalent?: number
   capacity?: MarketplaceGroupCapacity
@@ -748,20 +745,9 @@ export interface Group {
   // 图片生成计费配置
   allow_image_generation: boolean
   allow_batch_image_generation: boolean
-  image_rate_independent: boolean
-  image_rate_multiplier: number
   batch_image_discount_multiplier: number
   batch_image_hold_multiplier: number
-  image_price_1k: number | null
-  image_price_2k: number | null
-  image_price_4k: number | null
-  video_rate_independent: boolean
-  video_rate_multiplier: number
-  video_price_480p: number | null
-  video_price_720p: number | null
-  video_price_1080p: number | null
   // 可选的 Grok 视频模型族与分辨率价格覆盖。
-  video_model_prices?: VideoModelPrices
   // Codex 网页搜索单次价格（USD/次）；null 表示使用默认价 0.01
   web_search_price_per_call: number | null
   // Grok Voice 显式定价（分组级）
@@ -964,19 +950,8 @@ export interface CreateGroupRequest {
   model_pricing?: import('@/api/admin/channels').ChannelModelPricing[]
   allow_image_generation?: boolean
   allow_batch_image_generation?: boolean
-  image_rate_independent?: boolean
-  image_rate_multiplier?: number
   batch_image_discount_multiplier?: number
   batch_image_hold_multiplier?: number
-  image_price_1k?: number | null
-  image_price_2k?: number | null
-  image_price_4k?: number | null
-  video_rate_independent?: boolean
-  video_rate_multiplier?: number
-  video_price_480p?: number | null
-  video_price_720p?: number | null
-  video_price_1080p?: number | null
-  video_model_prices?: VideoModelPrices
   web_search_price_per_call?: number | null
   search_price_per_1k?: number | null
   audio_realtime_price_per_min?: number | null
@@ -1031,19 +1006,8 @@ export interface UpdateGroupRequest {
   model_pricing?: import('@/api/admin/channels').ChannelModelPricing[]
   allow_image_generation?: boolean
   allow_batch_image_generation?: boolean
-  image_rate_independent?: boolean
-  image_rate_multiplier?: number
   batch_image_discount_multiplier?: number
   batch_image_hold_multiplier?: number
-  image_price_1k?: number | null
-  image_price_2k?: number | null
-  image_price_4k?: number | null
-  video_rate_independent?: boolean
-  video_rate_multiplier?: number
-  video_price_480p?: number | null
-  video_price_720p?: number | null
-  video_price_1080p?: number | null
-  video_model_prices?: VideoModelPrices
   web_search_price_per_call?: number | null
   search_price_per_1k?: number | null
   audio_realtime_price_per_min?: number | null

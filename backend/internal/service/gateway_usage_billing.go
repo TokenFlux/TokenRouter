@@ -829,7 +829,7 @@ func (s *GatewayService) resolveChannelPricing(ctx context.Context, billingModel
 	return nil
 }
 
-// calculateImageCost 计算图片生成费用：渠道级别定价优先，否则走按次计费。
+// calculateImageCost 使用分组或渠道价卡，未配置时按内置图片单价计费。
 func (s *GatewayService) calculateImageCost(
 	ctx context.Context,
 	result *ForwardResult,
@@ -847,30 +847,6 @@ func (s *GatewayService) calculateImageCost(
 	sizeTier := NormalizeImageBillingTierOrDefault(result.ImageSize)
 	if resolved == nil {
 		resolved, resolvedModel = s.resolveChannelPricingForUsage(ctx, billingModel, apiKey)
-	}
-	if resolved != nil && resolved.Source == PricingSourceGroup {
-		gid := apiKey.Group.ID
-		cost, err := s.billingService.CalculateCostUnified(CostInput{
-			Ctx:            ctx,
-			Model:          resolvedModel,
-			GroupID:        &gid,
-			Group:          apiKey.Group,
-			RequestCount:   result.ImageCount,
-			SizeTier:       sizeTier,
-			RateMultiplier: multiplier,
-			PricingAt:      pricingAt,
-			Resolver:       s.resolver,
-			Resolved:       resolved,
-		})
-		if err == nil {
-			return cost
-		}
-		logger.LegacyPrintf("service.gateway", "Calculate group image cost failed: %v", err)
-		return &CostBreakdown{ActualCost: 0}
-	}
-	groupConfig := imagePriceConfigFromAPIKey(apiKey)
-	if apiKeyHasConfiguredImagePrice(apiKey, sizeTier) {
-		return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
 	}
 	if resolved != nil {
 		tokens := UsageTokens{
@@ -899,7 +875,7 @@ func (s *GatewayService) calculateImageCost(
 		return cost
 	}
 
-	return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
+	return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, multiplier)
 }
 
 // calculateTokenCost 计算 Token 计费：根据 opts 决定走普通/长上下文/渠道统一计费。

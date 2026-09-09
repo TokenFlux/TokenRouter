@@ -70,22 +70,6 @@ func TestCalculateOpenAIRecordUsageCost_SearchOnlyWhenNoTokenPricing(t *testing.
 	require.InDelta(t, 1.0, cost.ActualCost, 1e-9)
 }
 
-func TestGroupMediaPricingLooksIncomplete_VideoModelPricesComplete(t *testing.T) {
-	t.Parallel()
-	require.True(t, groupMediaPricingLooksIncomplete(nil))
-	require.True(t, groupMediaPricingLooksIncomplete(&Group{}))
-	require.False(t, groupMediaPricingLooksIncomplete(&Group{
-		VideoModelPrices: map[string]map[string]float64{
-			"grok-imagine-video": {"720p": 0.1},
-		},
-	}))
-	price := 10.0
-	require.False(t, groupMediaPricingLooksIncomplete(&Group{SearchPricePer1k: &price}))
-	require.False(t, groupMediaPricingLooksIncomplete(&Group{AudioRealtimePricePerMin: &price}))
-	// 只有旧版视频价格时仍应标记完成，以保持现有路径行为。
-	require.False(t, groupMediaPricingLooksIncomplete(&Group{VideoPrice720P: &price}))
-}
-
 func TestCalculateOpenAIRecordUsageCost_TokenPricingErrorNotSwallowedBySearch(t *testing.T) {
 	t.Parallel()
 

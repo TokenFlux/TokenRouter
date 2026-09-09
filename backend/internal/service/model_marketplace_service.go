@@ -36,8 +36,6 @@ type ModelMarketplaceGroup struct {
 	DisplayBrand               string
 	SortOrder                  int
 	RateMultiplier             float64
-	ImageRateIndependent       bool
-	ImageRateMultiplier        float64
 	OfficialPriceRatio         *float64
 	OfficialPriceRMBEquivalent *float64
 	Capacity                   *GroupCapacitySummary
@@ -128,8 +126,6 @@ func (s *ModelMarketplaceService) ListPublic(ctx context.Context) ([]ModelMarket
 			DisplayBrand:               marketplaceGroupDisplayBrand(group),
 			SortOrder:                  group.SortOrder,
 			RateMultiplier:             group.RateMultiplier,
-			ImageRateIndependent:       group.ImageRateIndependent,
-			ImageRateMultiplier:        group.ImageRateMultiplier,
 			OfficialPriceRatio:         officialPriceRatio,
 			OfficialPriceRMBEquivalent: officialPriceRMBEquivalent,
 			Capacity:                   marketplaceGroupCapacity(capacityMap, group.ID),
@@ -394,17 +390,11 @@ func (s *ModelMarketplaceService) buildPublicModelsForGroup(ctx context.Context,
 		return nil
 	}
 
-	imageConfig := &ImagePriceConfig{
-		Price1K: group.ImagePrice1K,
-		Price2K: group.ImagePrice2K,
-		Price4K: group.ImagePrice4K,
-	}
-
 	models := make([]ModelMarketplaceModel, 0, len(modelDefs))
 	for _, modelDef := range modelDefs {
 		pricing := unknownDisplayPricing()
 		if s.billingService != nil && !modelDef.PricingAmbiguous {
-			pricing = s.getRequestableModelDisplayPricing(ctx, group, modelDef, imageConfig)
+			pricing = s.getRequestableModelDisplayPricing(ctx, group, modelDef)
 		}
 		inputModalities, outputModalities := s.marketplaceModelModalities(modelDef)
 
@@ -433,19 +423,18 @@ func (s *ModelMarketplaceService) marketplaceModelModalities(modelDef marketplac
 }
 
 // getRequestableModelDisplayPricing 使用共享解析器确定的定价模型，避免展示层再次推导映射链。
-func (s *ModelMarketplaceService) getRequestableModelDisplayPricing(ctx context.Context, group *Group, model marketplaceModelDef, imageConfig *ImagePriceConfig) ModelDisplayPricing {
+func (s *ModelMarketplaceService) getRequestableModelDisplayPricing(ctx context.Context, group *Group, model marketplaceModelDef) ModelDisplayPricing {
 	pricingModel := strings.TrimSpace(model.PricingModel)
 	if pricingModel == "" {
 		pricingModel = model.ID
 	}
-	return s.getPublicModelDisplayPricing(ctx, group, pricingModel, imageConfig)
+	return s.getPublicModelDisplayPricing(ctx, group, pricingModel)
 }
 
-func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Context, group *Group, model string, imageConfig *ImagePriceConfig) ModelDisplayPricing {
+func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Context, group *Group, model string) ModelDisplayPricing {
 	if s.billingService == nil {
 		return unknownDisplayPricing()
 	}
-	imageRateMultiplier := marketplaceImageRateMultiplier(group)
 	resolver := NewModelPricingResolver(nil, s.billingService)
 	if s.gatewayService != nil && s.gatewayService.resolver != nil {
 		resolver = s.gatewayService.resolver
@@ -459,21 +448,7 @@ func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Conte
 		applyPricingModifiers(&cloned, &ChannelModelPricing{FastMultiplier: &standardMultiplier})
 		resolved = &cloned
 	}
-	return s.billingService.getDisplayPricingWithResolvedMultipliers(model, group.RateMultiplier, imageRateMultiplier, imageConfig, resolved)
-}
-
-// marketplaceImageRateMultiplier 返回模型广场图片价格应使用的倍率。
-func marketplaceImageRateMultiplier(group *Group) float64 {
-	if group == nil {
-		return 1
-	}
-	if !group.ImageRateIndependent {
-		return group.RateMultiplier
-	}
-	if group.ImageRateMultiplier < 0 {
-		return 0
-	}
-	return group.ImageRateMultiplier
+	return s.billingService.getDisplayPricingWithResolvedMultipliers(model, group.RateMultiplier, resolved)
 }
 
 func (s *ModelMarketplaceService) resolveGroupModels(ctx context.Context, group *Group) []marketplaceModelDef {

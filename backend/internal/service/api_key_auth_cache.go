@@ -115,17 +115,6 @@ type APIKeyAuthGroupSnapshot struct {
 	SessionIsolationEnabled         bool                            `json:"session_isolation_enabled"`
 	AllowImageGeneration            bool                            `json:"allow_image_generation"`
 	AllowBatchImageGeneration       bool                            `json:"allow_batch_image_generation"`
-	ImageRateIndependent            bool                            `json:"image_rate_independent"`
-	ImageRateMultiplier             float64                         `json:"image_rate_multiplier"`
-	ImagePrice1K                    *float64                        `json:"image_price_1k,omitempty"`
-	ImagePrice2K                    *float64                        `json:"image_price_2k,omitempty"`
-	ImagePrice4K                    *float64                        `json:"image_price_4k,omitempty"`
-	VideoRateIndependent            bool                            `json:"video_rate_independent"`
-	VideoRateMultiplier             float64                         `json:"video_rate_multiplier"`
-	VideoPrice480P                  *float64                        `json:"video_price_480p,omitempty"`
-	VideoPrice720P                  *float64                        `json:"video_price_720p,omitempty"`
-	VideoPrice1080P                 *float64                        `json:"video_price_1080p,omitempty"`
-	VideoModelPrices                map[string]map[string]float64   `json:"video_model_prices,omitempty"`
 	WebSearchPricePerCall           *float64                        `json:"web_search_price_per_call,omitempty"`
 	SearchPricePer1k                *float64                        `json:"search_price_per_1k,omitempty"`
 	AudioRealtimePricePerMin        *float64                        `json:"audio_realtime_price_per_min,omitempty"`
