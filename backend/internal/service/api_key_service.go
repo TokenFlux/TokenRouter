@@ -99,7 +99,7 @@ type APIKeyUpdateFields struct {
 	Quota     bool
 	GroupID   bool
 	ExpiresAt bool
-	// CompositeConfiguration 覆盖 is_composite 与复合分组映射表，二者必须同事务更新。
+	// CompositeConfiguration 覆盖 is_composite 与复合 Key 的分组映射表，二者必须同事务更新。
 	CompositeConfiguration bool
 	// FastModePolicy 覆盖 fork 的快速模式策略。
 	FastModePolicy bool
@@ -766,7 +766,7 @@ func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIK
 		}
 	}
 
-	// 验证普通分组或复合分组权限。
+	// 验证普通 Key 的分组权限及复合 Key 各映射分组的权限。
 	var compositeGroups []APIKeyCompositeGroup
 	if req.IsComposite {
 		if req.GroupID != nil {
@@ -1321,7 +1321,7 @@ func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req 
 	originalStatus := apiKey.Status
 	originalIsComposite := apiKey.IsComposite
 
-	// 更新指定订阅时先确定最终配置，后续普通分组和复合分组都要按它校验。
+	// 更新指定订阅时先确定最终配置，后续普通 Key 的分组和复合 Key 的各映射分组都要按它校验。
 	targetBillingMode := APIKeyEffectiveBillingMode(apiKey)
 	targetPreferredSubscriptionID := apiKey.PreferredSubscriptionID
 	billingConfigurationRequested := req.BillingMode != nil || req.PreferredSubscriptionID != nil

@@ -34,7 +34,6 @@ const (
 	PlatformKimi        = "kimi"
 	PlatformZhipu       = "zhipu"
 	PlatformDeepseek    = "deepseek"
-	PlatformComposite   = "composite"
 )
 
 // 国产供应商账号模式决定默认端点与主动用量适配器。

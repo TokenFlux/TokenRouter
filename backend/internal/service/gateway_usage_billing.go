@@ -823,7 +823,7 @@ func (s *GatewayService) resolveChannelPricing(ctx context.Context, billingModel
 	}
 	gid := apiKey.Group.ID
 	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, Group: apiKey.Group})
-	if resolved.channelPricing != nil {
+	if resolved.HasConfiguredPricing() {
 		return resolved
 	}
 	return nil

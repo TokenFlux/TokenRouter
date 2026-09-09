@@ -1085,7 +1085,7 @@ func TestAdminService_CreateGroup_DisablesBatchImageForNonGeminiPlatform(t *test
 }
 
 // TestAdminService_CreateGroup_NormalizesOpenAIFastByPlatform 验证两个组级 Fast
-// 开关只在 OpenAI/Composite 分组中保留。
+// 开关只在 OpenAI 分组中保留。
 func TestAdminService_CreateGroup_NormalizesOpenAIFastByPlatform(t *testing.T) {
 	for _, tt := range []struct {
 		name     string
@@ -1093,7 +1093,6 @@ func TestAdminService_CreateGroup_NormalizesOpenAIFastByPlatform(t *testing.T) {
 		want     bool
 	}{
 		{name: "openai", platform: PlatformOpenAI, want: true},
-		{name: "composite", platform: PlatformComposite, want: true},
 		{name: "anthropic", platform: PlatformAnthropic, want: false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

@@ -54,7 +54,6 @@ const (
 	PlatformKimi        = domain.PlatformKimi
 	PlatformZhipu       = domain.PlatformZhipu
 	PlatformDeepseek    = domain.PlatformDeepseek
-	PlatformComposite   = domain.PlatformComposite
 )
 
 // 账号接入模式（国产供应商）：按量付费 vs Coding Plan。

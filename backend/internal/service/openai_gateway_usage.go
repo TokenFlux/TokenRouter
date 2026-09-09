@@ -909,9 +909,12 @@ func (s *OpenAIGatewayService) filterCNProviderBillingModelCandidates(
 		if candidate == "" {
 			continue
 		}
-		if isCNProviderClaudeFallbackCandidate(candidate) &&
-			s.resolveOpenAIChannelPricing(ctx, candidate, apiKey) == nil {
-			continue
+		if isCNProviderClaudeFallbackCandidate(candidate) {
+			// 纯倍率可以参与媒体计费，但不能替国产模型建立 Claude 的显式基础价。
+			resolved := s.resolveOpenAIChannelPricing(ctx, candidate, apiKey)
+			if !resolved.HasEffectiveOverridePricing() {
+				continue
+			}
 		}
 		filtered = append(filtered, candidate)
 	}
@@ -934,7 +937,7 @@ func (s *OpenAIGatewayService) resolveOpenAIChannelPricing(ctx context.Context, 
 	}
 	gid := apiKey.Group.ID
 	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, Group: apiKey.Group})
-	if resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel {
+	if resolved.HasConfiguredPricing() {
 		return resolved
 	}
 	return nil

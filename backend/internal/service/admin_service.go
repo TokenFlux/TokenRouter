@@ -274,11 +274,11 @@ type CreateGroupInput struct {
 	// AllowMessagesDispatch 仅在 OpenAI 分组且新字段缺省时作为兼容输入。
 	AllowMessagesDispatch bool
 	AllowLive             bool
-	// ForceOpenAIFast 仅对 OpenAI/Composite 分组启用组级 Fast 强制策略。
+	// ForceOpenAIFast 仅对 OpenAI 分组启用组级 Fast 强制策略。
 	ForceOpenAIFast bool
 	// 新策略优先于旧布尔输入，省略时保持兼容。
 	OpenAIFastPolicy *string
-	// FreeOpenAIFast 仅对 OpenAI/Composite 分组启用 Standard 计费策略。
+	// FreeOpenAIFast 仅对 OpenAI 分组启用 Standard 计费策略。
 	FreeOpenAIFast              bool
 	DefaultMappedModel          string
 	RequireOAuthOnly            bool
@@ -364,11 +364,11 @@ type UpdateGroupInput struct {
 	// AllowMessagesDispatch 仅在 OpenAI 分组且新字段缺省时作为兼容输入。
 	AllowMessagesDispatch *bool
 	AllowLive             *bool
-	// ForceOpenAIFast 为 nil 时保留原值；仅对 OpenAI/Composite 分组生效。
+	// ForceOpenAIFast 为 nil 时保留原值；仅对 OpenAI 分组生效。
 	ForceOpenAIFast *bool
 	// 新策略优先于旧布尔输入，省略时保持兼容。
 	OpenAIFastPolicy *string
-	// FreeOpenAIFast 为 nil 时保留原值；仅对 OpenAI/Composite 分组生效。
+	// FreeOpenAIFast 为 nil 时保留原值；仅对 OpenAI 分组生效。
 	FreeOpenAIFast              *bool
 	DefaultMappedModel          *string
 	RequireOAuthOnly            *bool

@@ -19,5 +19,5 @@ export const CONCRETE_PLATFORM_OPTIONS = [
   { value: 'deepseek', label: 'DeepSeek' }
 ] as const satisfies readonly PlatformOption<AccountPlatform>[]
 
-// fork 尚未引入 Composite 分组，分组选项与具体平台目录保持一致。
+// 分组只绑定具体平台，选项与账号平台目录保持一致。
 export const GROUP_PLATFORM_OPTIONS = CONCRETE_PLATFORM_OPTIONS as readonly PlatformOption<GroupPlatform>[]

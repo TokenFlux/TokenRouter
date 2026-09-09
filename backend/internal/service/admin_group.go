@@ -122,9 +122,8 @@ func defaultAllowImageGenerationForPlatform(platform string) bool {
 }
 
 // groupSupportsOpenAIFast 判断分组是否允许配置 OpenAI Fast 强制策略。
-// Composite 分组由复合路由在请求期投影到 OpenAI 账号，因此与 OpenAI 分组共享该开关。
 func groupSupportsOpenAIFast(platform string) bool {
-	return platform == PlatformOpenAI || platform == PlatformComposite
+	return platform == PlatformOpenAI
 }
 
 // sanitizeGroupOpenAIFast 清除不支持平台上的组级 Fast 开关，避免无效配置持久化。

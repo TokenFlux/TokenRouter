@@ -191,6 +191,12 @@ func (r *ResolvedPricing) HasEffectiveChannelPricing() bool {
 	return r != nil && !r.IsUnpriced() && r.Source == PricingSourceChannel && r.channelPricing != nil && r.channelPricing.HasEffectivePricing()
 }
 
+// HasConfiguredPricing 识别实际参与解析的价卡，包括保留内置来源的纯倍率配置。
+// 媒体计费按此结果分流，不能把基础价格来源当成“是否配置价卡”的标志。
+func (r *ResolvedPricing) HasConfiguredPricing() bool {
+	return r != nil && r.channelPricing != nil
+}
+
 // HasEffectiveOverridePricing 判断分组或渠道是否提供了显式价格，包括显式零价。
 func (r *ResolvedPricing) HasEffectiveOverridePricing() bool {
 	return r != nil && !r.IsUnpriced() && (r.Source == PricingSourceGroup || r.Source == PricingSourceChannel) &&

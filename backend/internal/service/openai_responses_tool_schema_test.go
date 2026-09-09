@@ -253,7 +253,7 @@ func TestOpenAIResponsesToolSchemaCapabilities_PlatformBoundary(t *testing.T) {
 		{PlatformGrok, true, false},
 		{PlatformGemini, false, false},
 		{PlatformAntigravity, false, false},
-		{PlatformComposite, false, false},
+		{PlatformQoder, false, false},
 		{"", false, false},
 	}
 	for _, tt := range tests {

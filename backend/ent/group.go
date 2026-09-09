@@ -126,9 +126,9 @@ type Group struct {
 	AllowLive bool `json:"allow_live,omitempty"`
 	// 分组加速策略：follow_request/force_priority/force_ultrafast/force_off
 	OpenaiFastPolicy string `json:"openai_fast_policy,omitempty"`
-	// 是否强制此 OpenAI/Composite 分组请求使用 service_tier=priority
+	// 是否强制此 OpenAI 分组请求使用 service_tier=priority
 	ForceOpenaiFast bool `json:"force_openai_fast,omitempty"`
-	// 是否让此 OpenAI/Composite 分组的 Fast 请求按 Standard 价格计费
+	// 是否让此 OpenAI 分组的 Fast 请求按 Standard 价格计费
 	FreeOpenaiFast bool `json:"free_openai_fast,omitempty"`
 	// 仅允许非 apikey 类型账号关联到此分组
 	RequireOauthOnly bool `json:"require_oauth_only,omitempty"`

@@ -97,7 +97,7 @@
 
 迁移 `242_group_video_model_prices.sql` 为分组增加可空 JSONB `video_model_prices`，按 Grok 视频模型族和分辨率保存每秒价格；`243_group_audio_voice_pricing.sql` 增加 Realtime 每分钟、TTS 每百万字符和 STT 每小时价格；`244_group_search_price_per_1k.sql` 增加搜索每千次价格。三类价格均以 `NULL` 表示使用代码默认值，显式 `0` 表示免费。管理端和服务层会规范化模型族、拒绝负价，并保持旧 `video_price_*` 作为视频回退层。
 
-迁移 `245_clear_non_grok_video_generation_config.sql` 清除非 Grok、非 Composite 分组的旧视频价格，避免其它平台误宣称视频能力。清理前会一次性创建 `groups_video_price_backup_245`，保存受影响分组的旧列和 JSONB；`CREATE TABLE IF NOT EXISTS` 保证重放不会覆盖首次快照。Composite 可能最终路由到 Grok，因此保留其配置。确认无需恢复后可手工删除备份表；需要恢复时按 `group_id` 从该表回填价格，不能通过删除 `schema_migrations` 记录触发逆向迁移。
+迁移 `245_clear_non_grok_video_generation_config.sql` 清除非 Grok 分组的旧视频价格（原 SQL 保留了未启用平台值 `composite` 的历史例外），避免其它平台误宣称视频能力。清理前会一次性创建 `groups_video_price_backup_245`，保存受影响分组的旧列和 JSONB；`CREATE TABLE IF NOT EXISTS` 保证重放不会覆盖首次快照。该历史例外不代表本分支支持该平台；原迁移保留不变以满足校验和约束。确认无需恢复后可手工删除备份表；需要恢复时按 `group_id` 从该表回填价格，不能通过删除 `schema_migrations` 记录触发逆向迁移。
 
 这四个文件由上游迁移 217-220 按 fork 当前最大编号重新编号为 242-245。部署后应验证 Grok 分组的模型级视频价、搜索与三类音频价往返，非 Grok 清理范围和备份表内容，以及异步视频在首次完成轮询时只结算一次。
 
@@ -117,7 +117,7 @@
 
 ### 分组 OpenAI Fast 强制策略迁移
 
-迁移 `262_group_force_openai_fast.sql` 为 `groups` 增加默认关闭的 `force_openai_fast` 布尔列。管理端只允许 OpenAI/Composite 分组写入；认证快照升级到 v34 后会携带该字段，网关再把它投影到 HTTP、Responses 和 WebSocket 请求的 `service_tier=priority`。组级强制不是绕过策略的旁路：全局 Fast/Flex 过滤或阻断，以及 API Key 的 `force_off`，仍然在最终请求体上生效。
+迁移 `262_group_force_openai_fast.sql` 为 `groups` 增加默认关闭的 `force_openai_fast` 布尔列。管理端只允许 OpenAI 分组写入；认证快照升级到 v34 后会携带该字段，网关再把它投影到 HTTP、Responses 和 WebSocket 请求的 `service_tier=priority`。组级强制不是绕过策略的旁路：全局 Fast/Flex 过滤或阻断，以及 API Key 的 `force_off`，仍然在最终请求体上生效。
 
 该迁移仅新增列，可重复执行，但旧后端不会读取该策略。发布时应先完成数据库迁移和全部后端实例升级，确认旧 v33 快照被拒绝并重建，再开放管理端开关；回退旧二进制不会删除列，但会忽略新配置，不能在混跑期间依赖组级 Fast 语义。
 
@@ -129,7 +129,7 @@
 
 ### 分组 Fast/Ultra Fast 策略
 
-迁移 `269_group_openai_fast_policy.sql` 新增默认跟随请求的四值策略列，首次新增时把旧 OpenAI/Composite 的 `force_openai_fast=true` 回填为强制 Fast，重复执行不覆盖新值。旧列保留兼容镜像。先完成全部后端升级和认证快照 v38 重建，再开放 Ultra Fast/关闭策略；旧实例无法执行新语义，不应混跑。
+迁移 `269_group_openai_fast_policy.sql` 新增默认跟随请求的四值策略列，首次新增时把旧 OpenAI 的 `force_openai_fast=true` 回填为强制 Fast（原 SQL 也包含未启用平台值 `composite` 的历史兼容判断），重复执行不覆盖新值。旧列保留兼容镜像。先完成全部后端升级和认证快照 v38 重建，再开放 Ultra Fast/关闭策略；旧实例无法执行新语义，不应混跑。
 
 ### OpenAI 能力探测下线
 
@@ -141,7 +141,7 @@
 
 ### 分组 OpenAI Fast Standard 计费迁移
 
-迁移 `264_group_free_openai_fast.sql` 为 `groups` 增加默认关闭的 `free_openai_fast` 布尔列。管理 API、分组复制和认证快照只对 OpenAI/Composite 分组保留该策略；平台切换到其它类型时由服务层清零。上游请求仍使用 Fast/priority，只有用户侧结算在同一模型、渠道和计费时刻重新采用 Standard 价格。
+迁移 `264_group_free_openai_fast.sql` 为 `groups` 增加默认关闭的 `free_openai_fast` 布尔列。管理 API、分组复制和认证快照只对 OpenAI 分组保留该策略；平台切换到其它类型时由服务层清零。上游请求仍使用 Fast/priority，只有用户侧结算在同一模型、渠道和计费时刻重新采用 Standard 价格。
 
 认证缓存版本由 v35 升至 v36，快照新增免费 Fast 字段。Usage Log 的 Fast `total_cost` 继续作为账号统计和账号额度的成本基数，Standard `actual_cost` 与统一结算基础金额用于余额、订阅和 API Key 配额。迁移是幂等新增列，但旧后端不会读取该策略；发布时先执行迁移并升级全部后端实例，确认旧 v35 快照失效、管理 API 往返字段正确，再开放开关。回退旧二进制不会删除列，且不能在混跑期间依赖免费 Fast 价格语义。
 

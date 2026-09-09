@@ -99,11 +99,11 @@ type CreateGroupRequest struct {
 	// OpenAI Messages 旧兼容开关。
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch"`
 	AllowLive             bool `json:"allow_live"`
-	// OpenAI/Composite 分组是否强制请求使用 Fast 优先级。
+	// OpenAI 分组是否强制请求使用 Fast 优先级。
 	ForceOpenAIFast bool `json:"force_openai_fast"`
 	// 新策略优先于旧布尔输入，省略时保持兼容。
 	OpenAIFastPolicy *string `json:"openai_fast_policy"`
-	// OpenAI/Composite 分组的 Fast 请求是否按 Standard 价格计费。
+	// OpenAI 分组的 Fast 请求是否按 Standard 价格计费。
 	FreeOpenAIFast              bool                                      `json:"free_openai_fast"`
 	RequireOAuthOnly            bool                                      `json:"require_oauth_only"`
 	RequirePrivacySet           bool                                      `json:"require_privacy_set"`
@@ -181,11 +181,11 @@ type UpdateGroupRequest struct {
 	// OpenAI Messages 旧兼容开关。
 	AllowMessagesDispatch *bool `json:"allow_messages_dispatch"`
 	AllowLive             *bool `json:"allow_live"`
-	// OpenAI/Composite 分组是否强制请求使用 Fast 优先级。
+	// OpenAI 分组是否强制请求使用 Fast 优先级。
 	ForceOpenAIFast *bool `json:"force_openai_fast"`
 	// 新策略优先于旧布尔输入，省略时保持兼容。
 	OpenAIFastPolicy *string `json:"openai_fast_policy"`
-	// OpenAI/Composite 分组的 Fast 请求是否按 Standard 价格计费。
+	// OpenAI 分组的 Fast 请求是否按 Standard 价格计费。
 	FreeOpenAIFast              *bool                                      `json:"free_openai_fast"`
 	RequireOAuthOnly            *bool                                      `json:"require_oauth_only"`
 	RequirePrivacySet           *bool                                      `json:"require_privacy_set"`

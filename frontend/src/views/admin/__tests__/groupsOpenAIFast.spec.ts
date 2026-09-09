@@ -7,15 +7,15 @@ import en from "@/i18n/locales/en/admin/overview";
 import zh from "@/i18n/locales/zh/admin/overview";
 
 describe("groupsOpenAIFast", () => {
-  it("只允许 OpenAI 和 Composite 分组启用", () => {
+  it("只允许 OpenAI 分组启用", () => {
     expect(supportsGroupOpenAIFast("openai")).toBe(true);
-    expect(supportsGroupOpenAIFast("composite")).toBe(true);
+    expect(supportsGroupOpenAIFast("qoder")).toBe(false);
     expect(supportsGroupOpenAIFast("anthropic")).toBe(false);
   });
 
   it("在不支持的平台上归零开关", () => {
     expect(normalizeGroupOpenAIFast("openai", true)).toBe(true);
-    expect(normalizeGroupOpenAIFast("composite", true)).toBe(true);
+    expect(normalizeGroupOpenAIFast("qoder", true)).toBe(false);
     expect(normalizeGroupOpenAIFast("anthropic", true)).toBe(false);
   });
 

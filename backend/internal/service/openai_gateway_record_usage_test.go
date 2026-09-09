@@ -3269,7 +3269,7 @@ func TestOpenAIGatewayServiceRecordUsage_FreeOpenAIFastChargesStandard(t *testin
 
 // TestGroupBillsOpenAIFastAtStandardRequiresOpenAIAccount 锁定平台、账号和档位三重边界。
 func TestGroupBillsOpenAIFastAtStandardRequiresOpenAIAccount(t *testing.T) {
-	apiKey := &APIKey{Group: &Group{Platform: PlatformComposite, FreeOpenAIFast: true}}
+	apiKey := &APIKey{Group: &Group{Platform: PlatformOpenAI, FreeOpenAIFast: true}}
 
 	require.True(t, groupBillsOpenAIFastAtStandard(
 		apiKey,
