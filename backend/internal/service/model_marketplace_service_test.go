@@ -60,14 +60,14 @@ func TestParseMarketplaceAvailabilityWindowSettings(t *testing.T) {
 	}
 }
 
-func TestModelMarketplaceQoderNonManualOnlyModelUsesStandardPricing(t *testing.T) {
+func TestModelMarketplaceQoderModelUsesStandardPricing(t *testing.T) {
 	svc := NewModelMarketplaceService(nil, nil, nil, NewBillingService(nil, nil), nil, nil, nil)
 	group := &Group{ID: 1, Platform: PlatformQoder, RateMultiplier: 1}
 
 	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "claude-sonnet-4", nil)
 
 	if pricing.PricingMode != "token" || pricing.PriceStatus != "priced" || pricing.InputPricePerToken <= 0 || pricing.OutputPricePerToken <= 0 {
-		t.Fatalf("Qoder non-manual-only model pricing = (%q, %q, %g, %g), want token/priced with standard prices",
+		t.Fatalf("Qoder model pricing = (%q, %q, %g, %g), want token/priced with standard prices",
 			pricing.PricingMode, pricing.PriceStatus, pricing.InputPricePerToken, pricing.OutputPricePerToken)
 	}
 }
@@ -89,7 +89,7 @@ func TestModelMarketplaceQoderChannelMappedBasisDoesNotUseRequestedStandardPrici
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.4", nil)
+	pricing := svc.getRequestableModelDisplayPricing(context.Background(), group, marketplaceModelDef{ID: "gpt-5.4", PricingModel: "qmodel"}, nil)
 
 	if pricing.PricingMode != "unknown" || pricing.PriceStatus != "unpriced" {
 		t.Fatalf("Qoder channel-mapped pricing = (%q, %q, intervals=%d), want unknown/unpriced",
@@ -114,7 +114,7 @@ func TestModelMarketplaceQoderUpstreamBasisDoesNotUseRequestedStandardPricing(t 
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-5.4-mini", nil)
+	pricing := svc.getRequestableModelDisplayPricing(context.Background(), group, marketplaceModelDef{ID: "gpt-5.4-mini", PricingModel: "qmodel"}, nil)
 
 	if pricing.PricingMode != "unknown" || pricing.PriceStatus != "unpriced" {
 		t.Fatalf("Qoder upstream route-key source pricing = (%q, %q, %g, %g), want unknown/unpriced",
@@ -139,19 +139,19 @@ func TestModelMarketplaceQoderCustomImageAliasWithoutManualPricingRemainsUnknown
 	}, billingService, nil, nil, nil)
 	group := &Group{ID: groupID, Platform: PlatformQoder, RateMultiplier: 1}
 
-	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "custom-image-alias", nil)
+	pricing := svc.getRequestableModelDisplayPricing(context.Background(), group, marketplaceModelDef{ID: "custom-image-alias", PricingModel: "qmodel"}, nil)
 
 	if pricing.PricingMode != "unknown" || pricing.PriceStatus != "unpriced" {
 		t.Fatalf("Qoder custom image alias pricing = (%q, %q), want unknown/unpriced", pricing.PricingMode, pricing.PriceStatus)
 	}
 }
 
-func TestModelMarketplaceQoderDefaultAliasesWithoutManualPricingRemainUnknown(t *testing.T) {
+func TestModelMarketplaceQoderAliasesWithoutAnyBasePricingRemainUnknown(t *testing.T) {
 	billingService := NewBillingService(nil, nil)
 	svc := NewModelMarketplaceService(nil, nil, nil, billingService, nil, nil, nil)
 	group := &Group{ID: 1, Platform: PlatformQoder, RateMultiplier: 1.25}
 
-	// 正式公开名和 raw route 都不能从通用模型价格推断计费。
+	// 缺少内置价的公开名和路由键仍显示未定价。
 	for _, model := range []string{"auto", "qwen3.8-max", "qmodel_38max"} {
 		pricing := svc.getPublicModelDisplayPricing(context.Background(), group, model, nil)
 		if pricing.PricingMode != "unknown" || pricing.PriceStatus != "unpriced" {
@@ -643,8 +643,9 @@ func TestModelMarketplaceQoderOmitsOfficialPriceDiscount(t *testing.T) {
 		t.Fatal("Qoder marketplace should still list public models")
 	}
 	for _, model := range groups[0].Models {
-		if model.Pricing.PriceStatus != "unpriced" {
-			t.Fatalf("Qoder model %s price status = %q, want unpriced", model.ID, model.Pricing.PriceStatus)
+		if model.ID == "claude-opus-4-6" {
+			require.Equal(t, "priced", model.Pricing.PriceStatus)
+			require.Positive(t, model.Pricing.InputPricePerToken)
 		}
 	}
 }

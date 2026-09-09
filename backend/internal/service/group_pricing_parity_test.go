@@ -332,3 +332,169 @@ func TestFreeFastIntervalOnlyDisplayMatchesStandard(t *testing.T) {
 		}
 	}
 }
+
+// 分时配置独立生效，渠道不能忽略没有填写单价的有效价卡。
+func TestTimeOnlyPricingGroupChannelParity(t *testing.T) {
+	card := ChannelModelPricing{Platform: PlatformAnthropic, Models: []string{"claude-sonnet-4"}, BillingMode: BillingModeToken,
+		TimePricing: &ChannelTimePricing{Timezone: "UTC", Periods: []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "10:00", Multiplier: 2}}},
+	}
+	require.NoError(t, validatePricingEntries([]ChannelModelPricing{card}))
+	var costs []float64
+	for _, source := range []string{"group", "channel"} {
+		group := &Group{ID: 100, Platform: PlatformAnthropic, ModelPricing: []ChannelModelPricing{card}}
+		r := newResolverWithChannel(t, nil)
+		if source == "channel" {
+			r = newResolverWithChannel(t, []ChannelModelPricing{card})
+			group.ModelPricing = nil
+		}
+		cost, err := r.billingService.CalculateCostUnified(CostInput{Ctx: context.Background(), Model: "claude-sonnet-4", Group: group, GroupID: &group.ID,
+			Tokens: UsageTokens{InputTokens: 100}, RateMultiplier: 1, PricingAt: time.Date(2026, 9, 9, 9, 30, 0, 0, time.UTC), Resolver: r})
+		require.NoError(t, err)
+		costs = append(costs, cost.ActualCost)
+	}
+	require.Equal(t, costs[0], costs[1])
+	require.InDelta(t, 0.0006, costs[0], 1e-12)
+}
+
+// Fast 只改变倍率，不能清空内置的图片输入和输出价格桶。
+func TestTierOnlyPricingPreservesImagePricesEqually(t *testing.T) {
+	card := ChannelModelPricing{Platform: PlatformAnthropic, Models: []string{"claude-sonnet-4"}, BillingMode: BillingModeToken, FastMultiplier: testPtrFloat64(2)}
+	var costs []float64
+	for _, source := range []string{"group", "channel"} {
+		bs := newTestBillingServiceForResolver()
+		bs.fallbackPrices["claude-sonnet-4"].InputPricePerToken = 0.001
+		bs.fallbackPrices["claude-sonnet-4"].ImageInputPricePerToken = 0.003
+		bs.fallbackPrices["claude-sonnet-4"].ImageOutputPricePerToken = 0.004
+		group := &Group{ID: 100, Platform: PlatformAnthropic, ModelPricing: []ChannelModelPricing{card}}
+		r := newResolverWithBillingService(t, bs, nil)
+		if source == "channel" {
+			r = newResolverWithBillingService(t, bs, []ChannelModelPricing{card})
+			group.ModelPricing = nil
+		}
+		cost, err := bs.CalculateCostUnified(CostInput{Ctx: context.Background(), Model: "claude-sonnet-4", Group: group, GroupID: &group.ID,
+			Tokens: UsageTokens{InputTokens: 200, ImageInputTokens: 100, OutputTokens: 50, ImageOutputTokens: 50}, RateMultiplier: 1, ServiceTier: "priority", Resolver: r})
+		require.NoError(t, err)
+		costs = append(costs, cost.ActualCost)
+	}
+	require.Equal(t, costs[0], costs[1])
+	require.InDelta(t, 1.2, costs[0], 1e-12)
+}
+
+// 分组与渠道按同一个身份候选匹配型号档位别名。
+func TestGroupChannelAliasMatchingParity(t *testing.T) {
+	card := ChannelModelPricing{Platform: PlatformOpenAI, Models: []string{"gpt-5.6-luna"}, BillingMode: BillingModeToken, InputPrice: testPtrFloat64(0.001)}
+	bs := NewBillingService(nil, nil)
+	group := &Group{ID: 100, Platform: PlatformOpenAI, ModelPricing: []ChannelModelPricing{card}}
+	groupResolver := NewModelPricingResolver(nil, bs)
+	channelResolver := newResolverWithBillingService(t, bs, []ChannelModelPricing{card})
+	groupPrice := groupResolver.Resolve(context.Background(), PricingInput{Model: "gpt-5.6-luna-high", Group: group, GroupID: &group.ID})
+	channelPrice := channelResolver.Resolve(context.Background(), PricingInput{Model: "gpt-5.6-luna-high", GroupID: &group.ID})
+	require.Equal(t, channelPrice.BasePricing.InputPricePerToken, groupPrice.BasePricing.InputPricePerToken)
+	require.Equal(t, 0.001, groupPrice.BasePricing.InputPricePerToken)
+}
+
+// Qoder 与其他平台一样继承未填的基础价格桶，不再强制手工价。
+func TestQoderGroupChannelBlankPricesParity(t *testing.T) {
+	card := ChannelModelPricing{Platform: PlatformQoder, Models: []string{"claude-opus-4-6"}, BillingMode: BillingModeToken, InputPrice: testPtrFloat64(0.001)}
+	var costs []float64
+	for _, source := range []string{"group", "channel"} {
+		bs := NewBillingService(nil, nil)
+		group := &Group{ID: 100, Platform: PlatformQoder, ModelPricing: []ChannelModelPricing{card}}
+		r := newResolverWithBillingService(t, bs, nil)
+		if source == "channel" {
+			r = newResolverWithBillingService(t, bs, []ChannelModelPricing{card})
+			group.ModelPricing = nil
+		}
+		gateway := &GatewayService{resolver: r, billingService: bs}
+		resolved, model := gateway.resolveChannelPricingForUsage(context.Background(), "claude-opus-4-6", &APIKey{Group: group, GroupID: &group.ID})
+		require.NotNil(t, resolved)
+		cost, err := bs.CalculateCostUnified(CostInput{Ctx: context.Background(), Model: model, Group: group, GroupID: &group.ID, Tokens: UsageTokens{OutputTokens: 100}, RateMultiplier: 1, Resolver: r, Resolved: resolved})
+		require.NoError(t, err)
+		costs = append(costs, cost.ActualCost)
+	}
+	require.Equal(t, costs[1], costs[0])
+	require.InDelta(t, 0.0025, costs[0], 1e-12)
+}
+
+// 保留内置来源，确保纯倍率不会意外禁用内置峰值定价；渠道和分组只覆盖同名倍率。
+func TestModifierCardsPreserveBuiltinPricingPolicy(t *testing.T) {
+	model := "deepseek-v4-flash"
+	card := ChannelModelPricing{Platform: PlatformDeepseek, Models: []string{model}, FastMultiplier: testPtrFloat64(3),
+		TimePricing: &ChannelTimePricing{Timezone: "UTC", Periods: []ChannelTimePricingPeriod{{StartTime: "01:00", EndTime: "04:00", Multiplier: 2}}}}
+	for _, scope := range []string{"group", "channel", "both"} {
+		t.Run(scope, func(t *testing.T) {
+			bs := NewBillingService(nil, nil)
+			group := &Group{ID: 100, Platform: PlatformDeepseek, LongContextPricingEnabled: true}
+			var channelCards []ChannelModelPricing
+			if scope != "group" {
+				channelCards = []ChannelModelPricing{card}
+			} else {
+				group.ModelPricing = []ChannelModelPricing{card}
+			}
+			if scope == "both" {
+				group.ModelPricing = []ChannelModelPricing{{Models: []string{model}, FastMultiplier: testPtrFloat64(1.5)}}
+			}
+			r := newResolverWithBillingService(t, bs, channelCards)
+			for _, hour := range []int{0, 1, 3, 4} {
+				at := time.Date(2026, 9, 9, hour, 0, 0, 0, time.UTC)
+				resolved := r.Resolve(context.Background(), PricingInput{Model: model, GroupID: &group.ID, Group: group})
+				require.Equal(t, PricingSourceLiteLLM, resolved.Source)
+				cost, err := bs.CalculateCostUnified(CostInput{Model: model, GroupID: &group.ID, Group: group, Resolver: r,
+					Tokens: UsageTokens{InputTokens: 100}, RateMultiplier: 1, PricingAt: at, ServiceTier: "priority"})
+				require.NoError(t, err)
+				expected := 100 * deepseekFlashOffPeakInputPrice * 3
+				if scope == "both" {
+					expected /= 2
+				}
+				if hour >= 1 && hour < 4 {
+					expected *= 2 * 2 // 内置峰值与价卡分时各生效一次。
+				}
+				require.InDelta(t, expected, cost.TotalCost, 1e-12)
+			}
+		})
+	}
+}
+
+// Qoder 的服务层级、分时、零价及图片默认价与其他平台共用结算和展示入口。
+func TestQoderPricingMatchesOtherPlatforms(t *testing.T) {
+	for _, model := range []string{"claude-opus-4-6", "gpt-image-1", "custom-image", "qmodel"} {
+		for _, kind := range []string{"default", "modifiers", "free"} {
+			t.Run(model+"/"+kind, func(t *testing.T) {
+				var prices []ModelDisplayPricing
+				var costs []*CostBreakdown
+				for _, platform := range []string{PlatformQoder, PlatformOpenAI} {
+					group := &Group{ID: 100, Platform: platform, RateMultiplier: 1}
+					card := ChannelModelPricing{Models: []string{model}, Platform: platform}
+					switch kind {
+					case "modifiers":
+						card.FastMultiplier = testPtrFloat64(2)
+						card.TimePricing = &ChannelTimePricing{Timezone: "UTC", Periods: []ChannelTimePricingPeriod{{StartTime: "00:00", EndTime: "12:00", Multiplier: 2}}}
+					case "free":
+						card.InputPrice, card.OutputPrice = testPtrFloat64(0), testPtrFloat64(0)
+					}
+					bs := NewBillingService(nil, nil)
+					r := newResolverWithBillingService(t, bs, []ChannelModelPricing{card})
+					gateway := &GatewayService{resolver: r, billingService: bs}
+					market := NewModelMarketplaceService(nil, nil, gateway, bs, nil, nil, nil)
+					prices = append(prices, market.getRequestableModelDisplayPricing(context.Background(), group, marketplaceModelDef{ID: model, PricingModel: model}, nil))
+					result := &ForwardResult{Usage: ClaudeUsage{InputTokens: 100, OutputTokens: 10}, ServiceTier: testPtrString("priority")}
+					if looksLikeImageModel(model) {
+						result.ImageCount = 1
+					}
+					costs = append(costs, gateway.calculateRecordUsageCost(context.Background(), result, &APIKey{Group: group}, &Account{Platform: platform},
+						model, model, BillingModelSourceRequested, model, 1, 1, &recordUsageOpts{PricingAt: time.Date(2026, 9, 9, 9, 0, 0, 0, time.UTC)}))
+				}
+				require.Equal(t, prices[0], prices[1])
+				require.Equal(t, costs[0], costs[1])
+				if model == "claude-opus-4-6" && kind != "free" {
+					require.Positive(t, costs[0].TotalCost)
+					require.Equal(t, "priced", prices[0].PriceStatus)
+				}
+				if kind == "free" {
+					require.Zero(t, costs[0].TotalCost)
+					require.Equal(t, "priced", prices[0].PriceStatus)
+				}
+			})
+		}
+	}
+}

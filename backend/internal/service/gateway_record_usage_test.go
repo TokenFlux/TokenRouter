@@ -377,7 +377,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisDoesNotUseRequestedSta
 	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
 }
 
-func TestGatewayServiceRecordUsage_QoderChannelMappedImageBasisDoesNotUseRequestedStandardPricing(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderChannelMappedImageBasisUsesGlobalFallback(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
@@ -411,14 +411,17 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedImageBasisDoesNotUseRequest
 	require.Equal(t, 1, usageRepo.calls)
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, 2, usageRepo.lastLog.ImageCount)
-	require.Zero(t, usageRepo.lastLog.TotalCost)
-	require.Zero(t, usageRepo.lastLog.ActualCost)
+	// 与其他平台一样按所选计费模型使用通用图片回退价。
+	expected := svc.billingService.CalculateImageCost("ultimate", ImageBillingSize1K, 2, nil, 1)
+	require.Positive(t, expected.TotalCost)
+	require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
 	require.Equal(t, 1, billingRepo.calls)
 	require.NotNil(t, billingRepo.lastCmd)
-	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+	require.InDelta(t, expected.ActualCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
 }
 
-func TestGatewayServiceRecordUsage_QoderChannelMappedCustomAliasImageWithoutManualPricingUsesZeroCost(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderChannelMappedImageUsesGlobalFallback(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
@@ -452,11 +455,14 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedCustomAliasImageWithoutManu
 	require.Equal(t, 1, usageRepo.calls)
 	require.NotNil(t, usageRepo.lastLog)
 	require.Equal(t, 1, usageRepo.lastLog.ImageCount)
-	require.Zero(t, usageRepo.lastLog.TotalCost)
-	require.Zero(t, usageRepo.lastLog.ActualCost)
+	// 与其他平台一样按所选计费模型使用通用图片回退价。
+	expected := svc.billingService.CalculateImageCost("qmodel", ImageBillingSize1K, 1, nil, 1)
+	require.Positive(t, expected.TotalCost)
+	require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
 	require.Equal(t, 1, billingRepo.calls)
 	require.NotNil(t, billingRepo.lastCmd)
-	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+	require.InDelta(t, expected.ActualCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
 }
 
 func TestGatewayServiceRecordUsage_QoderRequestedBasisDoesNotFallBackToChannelMappedPricing(t *testing.T) {
@@ -514,7 +520,7 @@ func TestGatewayServiceRecordUsage_QoderRequestedBasisDoesNotFallBackToChannelMa
 	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
 }
 
-func TestGatewayServiceRecordUsage_QoderRequestedBillingSourceCustomImageMappedRouteKeyUsesZeroCost(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderRequestedImageUsesGlobalFallback(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
@@ -550,14 +556,17 @@ func TestGatewayServiceRecordUsage_QoderRequestedBillingSourceCustomImageMappedR
 	require.Equal(t, 1, usageRepo.lastLog.ImageCount)
 	require.NotNil(t, usageRepo.lastLog.BillingMode)
 	require.Equal(t, string(BillingModeImage), *usageRepo.lastLog.BillingMode)
-	require.Zero(t, usageRepo.lastLog.TotalCost)
-	require.Zero(t, usageRepo.lastLog.ActualCost)
+	// 与其他平台一样按所选计费模型使用通用图片回退价。
+	expected := svc.billingService.CalculateImageCost("custom-image-alias", ImageBillingSize1K, 1, nil, 1)
+	require.Positive(t, expected.TotalCost)
+	require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
 	require.Equal(t, 1, billingRepo.calls)
 	require.NotNil(t, billingRepo.lastCmd)
-	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+	require.InDelta(t, expected.ActualCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
 }
 
-func TestGatewayServiceRecordUsage_QoderDefaultAliasesWithoutManualPricingUseZeroCost(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderAliasesInheritAvailableBuiltinPrices(t *testing.T) {
 	aliases := make([]string, 0, len(defaultQoderModelAliases))
 	for alias := range defaultQoderModelAliases {
 		aliases = append(aliases, alias)
@@ -592,12 +601,17 @@ func TestGatewayServiceRecordUsage_QoderDefaultAliasesWithoutManualPricingUseZer
 			require.Equal(t, 1, usageRepo.calls)
 			require.NotNil(t, usageRepo.lastLog)
 			require.Equal(t, alias, usageRepo.lastLog.Model)
-			require.Zero(t, usageRepo.lastLog.TotalCost)
-			require.Zero(t, usageRepo.lastLog.ActualCost)
+			// 有内置价的别名正常扣费；未知路由保持未定价记录。
+			if _, pricingErr := svc.billingService.GetModelPricing(alias); pricingErr == nil {
+				require.Positive(t, usageRepo.lastLog.TotalCost)
+			} else {
+				require.Zero(t, usageRepo.lastLog.TotalCost)
+			}
+			require.InDelta(t, usageRepo.lastLog.TotalCost*usageRepo.lastLog.RateMultiplier, usageRepo.lastLog.ActualCost, 1e-12)
 
 			require.Equal(t, 1, billingRepo.calls)
 			require.NotNil(t, billingRepo.lastCmd)
-			require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+			require.Equal(t, usageRepo.lastLog.ActualCost, billingRepo.lastCmd.BillableAmountUSD)
 		})
 	}
 }
@@ -1068,7 +1082,7 @@ func TestGatewayServiceRecordUsage_QoderCustomMappedRouteKeyWithoutManualPricing
 	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
 }
 
-func TestGatewayServiceRecordUsage_QoderAccountMappedCustomImageAliasWithoutManualPricingUsesZeroCost(t *testing.T) {
+func TestGatewayServiceRecordUsage_QoderAccountMappedImageUsesGlobalFallback(t *testing.T) {
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
 	svc := newGatewayRecordUsageServiceWithBillingRepoForTest(usageRepo, billingRepo, &openAIRecordUsageUserRepoStub{}, &openAIRecordUsageSubRepoStub{})
@@ -1102,11 +1116,14 @@ func TestGatewayServiceRecordUsage_QoderAccountMappedCustomImageAliasWithoutManu
 	require.NotNil(t, usageRepo.lastLog)
 	require.NotNil(t, usageRepo.lastLog.BillingMode)
 	require.Equal(t, string(BillingModeImage), *usageRepo.lastLog.BillingMode)
-	require.Zero(t, usageRepo.lastLog.TotalCost)
-	require.Zero(t, usageRepo.lastLog.ActualCost)
+	// 与其他平台一样按所选计费模型使用通用图片回退价。
+	expected := svc.billingService.CalculateImageCost("custom-qoder-image", ImageBillingSize1K, 2, nil, usageRepo.lastLog.RateMultiplier)
+	require.Positive(t, expected.TotalCost)
+	require.InDelta(t, expected.TotalCost, usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, expected.ActualCost, usageRepo.lastLog.ActualCost, 1e-12)
 	require.Equal(t, 1, billingRepo.calls)
 	require.NotNil(t, billingRepo.lastCmd)
-	require.Zero(t, billingRepo.lastCmd.BillableAmountUSD)
+	require.InDelta(t, expected.ActualCost, billingRepo.lastCmd.BillableAmountUSD, 1e-12)
 }
 
 func TestGatewayServiceRecordUsage_QoderUpstreamBasisDoesNotUseRequestedStandardPricing(t *testing.T) {

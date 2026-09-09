@@ -762,7 +762,7 @@ func (s *GatewayService) calculateRecordUsageCost(
 	}
 	// 图片生成：渠道定价为令牌计费时走令牌路径，否则走图片计费
 	if result.ImageCount > 0 {
-		if resolved, pricingModel := s.resolveChannelPricingForUsage(ctx, billingModel, requestedModel, billingModelSource, channelMappedModel, result.UpstreamModel, apiKey, account); resolved != nil && resolved.Mode == BillingModeToken {
+		if resolved, pricingModel := s.resolveChannelPricingForUsage(ctx, billingModel, apiKey); resolved != nil && resolved.Mode == BillingModeToken {
 			return s.calculateTokenCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, channelMappedModel, multiplier, opts)
 		} else if resolved != nil {
 			return s.calculateImageCost(ctx, result, apiKey, account, billingModel, requestedModel, billingModelSource, channelMappedModel, pricingModel, resolved, imageMultiplier, opts.PricingAt)
@@ -773,8 +773,7 @@ func (s *GatewayService) calculateRecordUsageCost(
 	// 语音用量优先按分组模型的连续单位价格结算，未配置时沿用分组通用音频价。
 	if result.AudioUsage != nil {
 		resolved, pricingModel := s.resolveChannelPricingForUsage(
-			ctx, billingModel, requestedModel, billingModelSource, channelMappedModel,
-			result.UpstreamModel, apiKey, account,
+			ctx, billingModel, apiKey,
 		)
 		if resolved != nil && resolved.Mode == BillingModePerRequest {
 			gid := apiKey.Group.ID
@@ -817,12 +816,17 @@ func (s *GatewayService) calculateRecordUsageCost(
 	return tokenCost
 }
 
-// resolveChannelPricing 检查指定模型是否存在渠道级别定价。
-// 返回非 nil 的 ResolvedPricing 表示有渠道定价，nil 表示走默认定价路径。
-//
-//nolint:unused // 保留旧调用入口；当前生产路径需要 baseModelHint 并调用 WithBaseHint 版本。
+// resolveChannelPricing 返回分组或渠道配置参与解析的价格，纯倍率保留内置价格来源。
 func (s *GatewayService) resolveChannelPricing(ctx context.Context, billingModel string, apiKey *APIKey) *ResolvedPricing {
-	return s.resolveChannelPricingWithBaseHint(ctx, billingModel, "", apiKey)
+	if s.resolver == nil || apiKey == nil || apiKey.Group == nil {
+		return nil
+	}
+	gid := apiKey.Group.ID
+	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, Group: apiKey.Group})
+	if resolved.channelPricing != nil {
+		return resolved
+	}
+	return nil
 }
 
 // calculateImageCost 计算图片生成费用：渠道级别定价优先，否则走按次计费。
@@ -842,7 +846,7 @@ func (s *GatewayService) calculateImageCost(
 ) *CostBreakdown {
 	sizeTier := NormalizeImageBillingTierOrDefault(result.ImageSize)
 	if resolved == nil {
-		resolved, resolvedModel = s.resolveChannelPricingForUsage(ctx, billingModel, requestedModel, billingModelSource, channelMappedModel, result.UpstreamModel, apiKey, account)
+		resolved, resolvedModel = s.resolveChannelPricingForUsage(ctx, billingModel, apiKey)
 	}
 	if resolved != nil && resolved.Source == PricingSourceGroup {
 		gid := apiKey.Group.ID
@@ -895,14 +899,6 @@ func (s *GatewayService) calculateImageCost(
 		return cost
 	}
 
-	if isQoderBillingContext(account, apiKey) {
-		// Qoder 默认价格也只能使用当前计费依据选中的模型。
-		if s.qoderCanUseDefaultImagePricing(billingModel) {
-			return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
-		}
-		// 未知 Qoder 图片模型没有可验证的默认价格，不能套用全局图片兜底价。
-		return zeroCostBreakdown(BillingModeImage)
-	}
 	return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
 }
 
@@ -936,8 +932,8 @@ func (s *GatewayService) calculateTokenCost(
 		opts = &recordUsageOpts{}
 	}
 
-	// 分组或渠道显式价格优先，并保留 fork 的计费模型来源选择与 Qoder 约束。
-	if resolved, resolvedModel := s.resolveChannelPricingForUsage(ctx, billingModel, requestedModel, billingModelSource, channelMappedModel, result.UpstreamModel, apiKey, account); resolved != nil {
+	// 分组或渠道显式价格优先，并保留渠道选定的计费模型来源。
+	if resolved, resolvedModel := s.resolveChannelPricingForUsage(ctx, billingModel, apiKey); resolved != nil {
 		gid := apiKey.Group.ID
 		cost, err = s.billingService.CalculateCostUnified(CostInput{
 			Ctx:             ctx,
@@ -954,12 +950,6 @@ func (s *GatewayService) calculateTokenCost(
 			Resolved:        resolved,
 		})
 	} else {
-		if isQoderBillingContext(account, apiKey) {
-			// Qoder 手工定价与默认价格都严格使用当前计费依据选中的模型。
-			if qoderAliasRequiresManualPricingAny(billingModel) {
-				return zeroCostBreakdown(BillingModeToken)
-			}
-		}
 		switch {
 		case s.resolver != nil && apiKey.Group != nil:
 			gid := apiKey.Group.ID

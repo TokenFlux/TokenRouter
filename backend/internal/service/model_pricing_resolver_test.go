@@ -25,22 +25,6 @@ func newTestBillingServiceForResolver() *BillingService {
 	return bs
 }
 
-func TestQoderAliasRequiresManualPricingIsCaseInsensitive(t *testing.T) {
-	require.True(t, QoderAliasRequiresManualPricing("CLAUDE-OPUS-4-6"))
-	// 当前公开 alias 对应的原始 route key 仍必须使用 Qoder 手工定价。
-	require.True(t, QoderAliasRequiresManualPricing("ULTIMATE"))
-	require.True(t, QoderAliasRequiresManualPricing("QMODEL"))
-	require.True(t, QoderAliasRequiresManualPricing("QWEN3.8-MAX"))
-	require.True(t, QoderAliasRequiresManualPricing("QMODEL_38MAX"))
-	require.True(t, QoderAliasRequiresManualPricing("GM51MODEL"))
-	// GLM-5.3 已将 gmodel 纳入当前公开 alias 对应的 route key。
-	require.True(t, QoderAliasRequiresManualPricing("GMODEL"))
-	// 已移除兼容表中的历史 route key 不再按当前 Qoder alias 处理。
-	require.False(t, QoderAliasRequiresManualPricing("QWEN3.8-MAX-PREVIEW"))
-	require.False(t, QoderAliasRequiresManualPricing("QMODEL_PREVIEW"))
-	require.False(t, QoderAliasRequiresManualPricing("Q35MODEL"))
-}
-
 func TestResolve_NoGroupID(t *testing.T) {
 	bs := newTestBillingServiceForResolver()
 	r := NewModelPricingResolver(&ChannelService{}, bs)
@@ -449,9 +433,8 @@ func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialChannelPri
 	require.NotZero(t, basePricing.OutputPricePerToken)
 
 	resolved := r.Resolve(context.Background(), PricingInput{
-		Model:         "gpt-5.4",
-		GroupID:       &groupID,
-		BaseModelHint: "qmodel",
+		Model:   "gpt-5.4",
+		GroupID: &groupID,
 	})
 
 	require.NotNil(t, resolved)
@@ -488,9 +471,8 @@ func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialIntervalPr
 	require.NotZero(t, basePricing.OutputPricePerToken)
 
 	resolved := r.Resolve(context.Background(), PricingInput{
-		Model:         "gpt-5.4",
-		GroupID:       &groupID,
-		BaseModelHint: "qmodel",
+		Model:   "gpt-5.4",
+		GroupID: &groupID,
 	})
 	require.NotNil(t, resolved)
 	require.Equal(t, PricingSourceChannel, resolved.Source)
@@ -501,7 +483,7 @@ func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialIntervalPr
 	require.InDelta(t, basePricing.OutputPricePerToken, intervalPricing.OutputPricePerToken, 1e-12)
 }
 
-func TestResolve_QoderCustomAliasUsesBaseModelHintZerosMissingPartialChannelPricing(t *testing.T) {
+func TestResolve_QoderCustomAliasUnknownBaseZerosMissingPartialChannelPricing(t *testing.T) {
 	groupID := int64(100)
 	inputPrice := 20e-6
 	cache := newEmptyChannelCache()
@@ -520,9 +502,8 @@ func TestResolve_QoderCustomAliasUsesBaseModelHintZerosMissingPartialChannelPric
 	r := NewModelPricingResolver(channelService, billingService)
 
 	resolved := r.Resolve(context.Background(), PricingInput{
-		Model:         "custom-qoder",
-		GroupID:       &groupID,
-		BaseModelHint: "qmodel",
+		Model:   "custom-qoder",
+		GroupID: &groupID,
 	})
 
 	require.NotNil(t, resolved)
@@ -532,7 +513,7 @@ func TestResolve_QoderCustomAliasUsesBaseModelHintZerosMissingPartialChannelPric
 	require.Zero(t, resolved.BasePricing.OutputPricePerToken)
 }
 
-func TestResolve_QoderCustomAliasUsesBaseModelHintZerosMissingPartialIntervalPricing(t *testing.T) {
+func TestResolve_QoderCustomAliasUnknownBaseZerosMissingPartialIntervalPricing(t *testing.T) {
 	groupID := int64(100)
 	inputPrice := 20e-6
 	maxTokens := 1000
@@ -554,9 +535,8 @@ func TestResolve_QoderCustomAliasUsesBaseModelHintZerosMissingPartialIntervalPri
 	r := NewModelPricingResolver(channelService, billingService)
 
 	resolved := r.Resolve(context.Background(), PricingInput{
-		Model:         "custom-qoder",
-		GroupID:       &groupID,
-		BaseModelHint: "qmodel",
+		Model:   "custom-qoder",
+		GroupID: &groupID,
 	})
 	require.NotNil(t, resolved)
 	require.Equal(t, PricingSourceChannel, resolved.Source)
@@ -595,13 +575,13 @@ func TestResolve_QoderBlankRouteKeyPricingIsUnpricedButAliasManualPricingWorks(t
 		GroupID: &groupID,
 	})
 	require.NotNil(t, routeResolved)
-	require.Equal(t, PricingSourceUnpriced, routeResolved.Source)
+	require.Equal(t, PricingSourceFallback, routeResolved.Source)
+	require.Nil(t, routeResolved.BasePricing)
 	require.False(t, routeResolved.HasEffectiveChannelPricing())
 
 	aliasResolved := r.Resolve(context.Background(), PricingInput{
-		Model:         "qwen3.7-plus",
-		GroupID:       &groupID,
-		BaseModelHint: "qmodel",
+		Model:   "qwen3.7-plus",
+		GroupID: &groupID,
 	})
 	require.NotNil(t, aliasResolved)
 	require.Equal(t, PricingSourceChannel, aliasResolved.Source)
@@ -685,13 +665,13 @@ func TestResolve_QoderPerRequestRouteKeyTokenOnlyIntervalIsUnpriced(t *testing.T
 		GroupID: &groupID,
 	})
 	require.NotNil(t, routeResolved)
-	require.Equal(t, PricingSourceUnpriced, routeResolved.Source)
+	require.Equal(t, PricingSourceFallback, routeResolved.Source)
+	require.Nil(t, routeResolved.BasePricing)
 	require.False(t, routeResolved.HasEffectiveChannelPricing())
 
 	aliasResolved := r.Resolve(context.Background(), PricingInput{
-		Model:         "qwen3.7-plus",
-		GroupID:       &groupID,
-		BaseModelHint: "qmodel",
+		Model:   "qwen3.7-plus",
+		GroupID: &groupID,
 	})
 	require.NotNil(t, aliasResolved)
 	require.Equal(t, PricingSourceChannel, aliasResolved.Source)

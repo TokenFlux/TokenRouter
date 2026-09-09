@@ -82,3 +82,46 @@ func TestResolveCatalogAliasesKeepChannelPlatformBoundary(t *testing.T) {
 	require.False(t, resolved.HasEffectiveChannelPricing())
 	require.InDelta(t, 1e-6, resolved.BasePricing.InputPricePerToken, 1e-12)
 }
+
+// 两类价卡共用身份候选，空完整名条目不遮蔽基础价，完整名零价和通配价仍优先。
+func TestGroupAndChannelCatalogAliasPrecedence(t *testing.T) {
+	for _, tc := range []struct{ platform, base, alias string }{
+		{PlatformOpenAI, "gpt-5.6-luna", "gpt-5.6-luna-high"},
+		{PlatformGemini, "gemini-3.8-flash", "models/gemini-3.8-flash-tiered"},
+		{PlatformGrok, "grok-4.6", "grok-4.6-latest"},
+		{PlatformAnthropic, "claude-opus-4-6", "claude-opus-4.6"},
+	} {
+		t.Run(tc.alias, func(t *testing.T) {
+			price, zero := 9e-6, 0.0
+			card := ChannelModelPricing{Platform: tc.platform, Models: []string{tc.base}, InputPrice: &price}
+			for _, scope := range []string{PricingSourceGroup, PricingSourceChannel} {
+				group := &Group{ID: 990, Platform: tc.platform, LongContextPricingEnabled: true}
+				channels := &ChannelService{}
+				resolver := NewModelPricingResolver(channels, NewBillingService(&config.Config{}, nil))
+				resolve := func(cards []ChannelModelPricing) *ResolvedPricing {
+					group.ModelPricing = nil
+					channel := Channel{ID: 990, Status: StatusActive, GroupIDs: []int64{group.ID}}
+					if scope == PricingSourceGroup {
+						group.ModelPricing = cards
+					} else {
+						channel.ModelPricing = cards
+					}
+					channels.cache.Store(populateChannelCache([]Channel{channel}, map[int64]string{group.ID: tc.platform}))
+					return resolver.Resolve(context.Background(), PricingInput{Model: tc.alias, GroupID: &group.ID, Group: group})
+				}
+				base := resolve([]ChannelModelPricing{card})
+				require.Equal(t, scope, base.Source)
+				require.Equal(t, price, base.BasePricing.InputPricePerToken)
+				if normalizeChannelPricingModelName(tc.base) == normalizeChannelPricingModelName(tc.alias) {
+					continue
+				}
+				exact := ChannelModelPricing{Platform: tc.platform, Models: []string{tc.alias}}
+				require.Equal(t, price, resolve([]ChannelModelPricing{exact, card}).BasePricing.InputPricePerToken)
+				exact.InputPrice = &zero
+				require.Zero(t, resolve([]ChannelModelPricing{card, exact}).BasePricing.InputPricePerToken)
+				wildcard := ChannelModelPricing{Platform: tc.platform, Models: []string{tc.alias + "*"}, InputPrice: &zero}
+				require.Zero(t, resolve([]ChannelModelPricing{card, wildcard}).BasePricing.InputPricePerToken)
+			}
+		})
+	}
+}

@@ -856,7 +856,7 @@ func TestResolveAccountStatsCost_QoderRouteKeyWithoutManualPricingReturnsNil(t *
 	require.Nil(t, result)
 }
 
-func TestResolveAccountStatsCost_QoderManualOnlyRequestedModelDoesNotUseStandardUpstreamPricing(t *testing.T) {
+func TestResolveAccountStatsCost_QoderAliasUsesStandardUpstreamPricing(t *testing.T) {
 	channel := &Channel{
 		ID:                         1,
 		Status:                     StatusActive,
@@ -876,7 +876,8 @@ func TestResolveAccountStatsCost_QoderManualOnlyRequestedModelDoesNotUseStandard
 		1, 10, "gpt-5.4-mini", "qwen3.7-plus",
 		UsageTokens{InputTokens: 100, OutputTokens: 50}, 1, 999.0, "",
 	)
-	require.Nil(t, result)
+	require.NotNil(t, result)
+	require.InDelta(t, 0.2, *result, 1e-12)
 }
 
 func TestResolveAccountStatsCost_QoderCustomRuleCanMatchRequestedAliasAfterRouteKeyMiss(t *testing.T) {
@@ -1079,7 +1080,7 @@ func TestResolveAccountStatsCost_CustomRuleExplicitZeroOverridesTotalCost(t *tes
 	require.Zero(t, *result)
 }
 
-func TestResolveAccountStatsCost_QoderStandardRequestedModelCanUseLiteLLMBeforeRouteKey(t *testing.T) {
+func TestResolveAccountStatsCost_QoderUnknownUpstreamDoesNotUseRequestedPrice(t *testing.T) {
 	channel := &Channel{
 		ID:                         1,
 		Status:                     StatusActive,
@@ -1104,8 +1105,7 @@ func TestResolveAccountStatsCost_QoderStandardRequestedModelCanUseLiteLLMBeforeR
 		UsageTokens{InputTokens: 100, OutputTokens: 50}, 1, 999.0, "",
 	)
 
-	require.NotNil(t, result)
-	require.InDelta(t, 0.2, *result, 1e-12)
+	require.Nil(t, result)
 }
 
 func TestResolveAccountStatsCost_Gemini36FlashTierUsesFallbackPricing(t *testing.T) {

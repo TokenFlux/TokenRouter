@@ -623,13 +623,7 @@ func checkRestricted(lk *channelLookup, groupID int64, model string) bool {
 	modelLower := strings.ToLower(model)
 	// 使用与查找定价相同的跨平台逻辑
 	pricing := lookupPricingAcrossPlatforms(lk.cache, groupID, lk.platform, modelLower)
-	if pricing == nil {
-		return true
-	}
-	if lk.platform == PlatformQoder && !pricing.HasEffectivePricing() {
-		return lookupEffectivePricingAcrossPlatforms(lk.cache, groupID, lk.platform, modelLower) == nil
-	}
-	return false
+	return pricing == nil
 }
 
 // ReplaceModelInBody 替换请求体 JSON 中的 model 字段。

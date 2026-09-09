@@ -438,52 +438,14 @@ func (s *ModelMarketplaceService) getRequestableModelDisplayPricing(ctx context.
 	if pricingModel == "" {
 		pricingModel = model.ID
 	}
-	if group == nil || group.Platform != PlatformQoder {
-		return s.getPublicModelDisplayPricing(ctx, group, pricingModel, imageConfig)
-	}
-
-	imageRateMultiplier := marketplaceImageRateMultiplier(group)
-	if s.gatewayService != nil && s.gatewayService.resolver != nil {
-		groupID := group.ID
-		resolved := s.gatewayService.resolver.Resolve(ctx, PricingInput{Model: pricingModel, GroupID: &groupID, Group: group})
-		if resolved.HasEffectiveOverridePricing() {
-			return s.billingService.getDisplayPricingWithResolvedMultipliers(pricingModel, group.RateMultiplier, imageRateMultiplier, imageConfig, resolved)
-		}
-	}
-	// Qoder 内置别名和路由键必须由渠道手工定价，不能回退到默认模型价格。
-	if qoderAliasRequiresManualPricingAny(pricingModel) {
-		return unknownDisplayPricing()
-	}
-	if qoderCanUseDefaultDisplayPricing(s.billingService, pricingModel) {
-		return s.billingService.getDisplayPricing(pricingModel, group.RateMultiplier, imageRateMultiplier, imageConfig)
-	}
-	return unknownDisplayPricing()
+	return s.getPublicModelDisplayPricing(ctx, group, pricingModel, imageConfig)
 }
 
-func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Context, group *Group, model string, imageConfig *ImagePriceConfig, baseModelHints ...string) ModelDisplayPricing {
+func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Context, group *Group, model string, imageConfig *ImagePriceConfig) ModelDisplayPricing {
 	if s.billingService == nil {
 		return unknownDisplayPricing()
 	}
 	imageRateMultiplier := marketplaceImageRateMultiplier(group)
-	if group != nil && group.Platform == PlatformQoder {
-		billingModel := strings.TrimSpace(model)
-		baseHint := firstNonEmptyMarketplaceHint(baseModelHints...)
-		if s.gatewayService != nil && s.gatewayService.resolver != nil {
-			billingModel, _, _ = s.qoderMarketplacePricingModels(ctx, group, model, baseHint)
-			resolved, pricingModel := s.gatewayService.resolveQoderChannelPricingForUsage(ctx, billingModel, &APIKey{Group: group})
-			if resolved != nil && resolved.HasEffectiveChannelPricing() {
-				return s.billingService.getDisplayPricingWithResolvedMultipliers(pricingModel, group.RateMultiplier, imageRateMultiplier, imageConfig, resolved)
-			}
-		}
-		if qoderAliasRequiresManualPricingAny(billingModel) || !qoderCanUseDefaultDisplayPricing(s.billingService, billingModel) {
-			return unknownDisplayPricing()
-		}
-		pricing := s.billingService.getDisplayPricing(billingModel, group.RateMultiplier, imageRateMultiplier, imageConfig)
-		if pricing.PriceStatus != "unpriced" {
-			return pricing
-		}
-		return unknownDisplayPricing()
-	}
 	resolver := NewModelPricingResolver(nil, s.billingService)
 	if s.gatewayService != nil && s.gatewayService.resolver != nil {
 		resolver = s.gatewayService.resolver
@@ -494,7 +456,7 @@ func (s *ModelMarketplaceService) getPublicModelDisplayPricing(ctx context.Conte
 	if group.FreeOpenAIFast && groupSupportsOpenAIFast(group.Platform) && resolvedHasFastModeDisplayPricing(resolved) {
 		cloned := *resolved
 		standardMultiplier := 1.0
-		applyGroupPricingModifiers(&cloned, &ChannelModelPricing{FastMultiplier: &standardMultiplier})
+		applyPricingModifiers(&cloned, &ChannelModelPricing{FastMultiplier: &standardMultiplier})
 		resolved = &cloned
 	}
 	return s.billingService.getDisplayPricingWithResolvedMultipliers(model, group.RateMultiplier, imageRateMultiplier, imageConfig, resolved)
@@ -512,55 +474,6 @@ func marketplaceImageRateMultiplier(group *Group) float64 {
 		return 0
 	}
 	return group.ImageRateMultiplier
-}
-
-func qoderCanUseDefaultDisplayPricing(billingService *BillingService, model string) bool {
-	if !looksLikeImageModel(model) {
-		return true
-	}
-	if qoderKnownDefaultImagePricingModel(model) {
-		return true
-	}
-	return billingService != nil && hasExplicitImageGenerationPricing(billingService.getRawModelPricing(model))
-}
-
-func firstNonEmptyMarketplaceHint(hints ...string) string {
-	for _, hint := range hints {
-		if trimmed := strings.TrimSpace(hint); trimmed != "" {
-			return trimmed
-		}
-	}
-	return ""
-}
-
-func (s *ModelMarketplaceService) qoderMarketplacePricingModels(ctx context.Context, group *Group, model string, baseHintOverride string) (billingModel, billingSource, baseHint string) {
-	billingModel = strings.TrimSpace(model)
-	billingSource = BillingModelSourceRequested
-	if trimmed := strings.TrimSpace(baseHintOverride); trimmed != "" {
-		baseHint = trimmed
-	} else if info, ok := lookupQoderModelAlias(billingModel); ok {
-		baseHint = strings.TrimSpace(info.Key)
-	}
-	if s == nil || s.gatewayService == nil || s.gatewayService.channelService == nil || group == nil {
-		return billingModel, billingSource, baseHint
-	}
-
-	mapping := s.gatewayService.channelService.ResolveChannelMapping(ctx, group.ID, billingModel)
-	if mapping.BillingModelSource != "" {
-		billingSource = mapping.BillingModelSource
-	}
-	if !mapping.Mapped {
-		return billingModel, billingSource, baseHint
-	}
-	baseHint = strings.TrimSpace(mapping.MappedModel)
-	switch billingSource {
-	case BillingModelSourceRequested:
-		return billingModel, billingSource, baseHint
-	case BillingModelSourceUpstream, BillingModelSourceChannelMapped:
-		return baseHint, billingSource, baseHint
-	default:
-		return baseHint, BillingModelSourceChannelMapped, baseHint
-	}
 }
 
 func (s *ModelMarketplaceService) resolveGroupModels(ctx context.Context, group *Group) []marketplaceModelDef {
@@ -597,7 +510,6 @@ func (s *ModelMarketplaceService) resolveGroupModelsWithAccounts(ctx context.Con
 type marketplaceModelDef struct {
 	ID               string
 	DisplayName      string
-	BaseModelHint    string
 	PricingModel     string
 	PricingAmbiguous bool
 }

@@ -51,7 +51,7 @@ type ResolvedPricing struct {
 }
 
 // ModelPricingResolver 统一模型定价解析器。
-// 解析链：Group → Channel → Qoder 手动价要求 → LiteLLM → Fallback。
+// 解析链：分组 → 渠道 → 内置目录 → 默认回退，各平台使用相同规则。
 type ModelPricingResolver struct {
 	channelService *ChannelService
 	billingService *BillingService
@@ -67,13 +67,12 @@ func NewModelPricingResolver(channelService *ChannelService, billingService *Bil
 
 // PricingInput 定价解析输入
 type PricingInput struct {
-	Model         string
-	GroupID       *int64 // nil 表示不检查渠道
-	BaseModelHint string // 可选：最终上游模型提示，用于 Qoder 自定义 alias 的部分手动价回退
-	Group         *Group
+	Model   string
+	GroupID *int64 // nil 表示不检查渠道
+	Group   *Group
 }
 
-// Resolve 按分组价卡、渠道和内置价格解析；纯倍率分组条目只覆盖继承价的对应倍率。
+// Resolve 按分组价卡、渠道和内置价格解析；纯倍率价卡只覆盖继承价的对应倍率。
 // @project-doc docs/domains/routing_and_billing.md#group_model_pricing
 func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) *ResolvedPricing {
 	groupPricing := matchGroupModelPricing(input.Group, input.Model)
@@ -83,76 +82,36 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 		return resolved
 	}
 	resolved := r.resolveInheritedPricing(ctx, input)
-	applyGroupPricingModifiers(resolved, groupPricing)
+	applyPricingModifiers(resolved, groupPricing)
 	return resolved
 }
 
 // resolveInheritedPricing 保留渠道/内置价格来源和计费模式，避免纯倍率配置意外重置基础价。
 func (r *ModelPricingResolver) resolveInheritedPricing(ctx context.Context, input PricingInput) *ResolvedPricing {
-	longContextPricingEnabled := input.Group == nil || input.Group.LongContextPricingEnabled
-	qoderManualOnly := false
-	var chPricing *ChannelModelPricing
+	var config *ChannelModelPricing
 	if input.GroupID != nil && r.channelService != nil {
-		qoderManualOnly = r.isQoderManualPricingOnlyModel(ctx, *input.GroupID, input)
-		chPricing = r.lookupChannelPricingNormalized(ctx, *input.GroupID, input.Model)
-		if chPricing != nil {
-			mode := chPricing.BillingMode
-			if mode == "" {
-				mode = BillingModeToken
-			}
-			if mode == BillingModePerRequest || mode == BillingModeImage || mode == BillingModeVideo {
-				// 按次/图片渠道价不依赖基础 token 定价，直接返回可避免先触发
-				// LiteLLM/OpenAI 的全局 fallback 查询，再被渠道价覆盖。
-				resolved := &ResolvedPricing{
-					Mode:           mode,
-					Source:         PricingSourceChannel,
-					channelPricing: chPricing,
-				}
-				resolved.longContextPricingEnabled = longContextPricingEnabled
-				r.applyRequestTierOverrides(chPricing, resolved)
-				applyResolvedPriceMultiplier(resolved, chPricing)
-				return resolved
-			}
-		}
+		config = r.lookupChannelPricingNormalized(ctx, *input.GroupID, input.Model)
+	}
+	if config != nil && (hasExplicitPricingPrice(*config) || len(filterValidTokenIntervals(config.Intervals)) > 0) {
+		resolved := r.resolveConfiguredPricing(config, input.Model, PricingSourceChannel)
+		resolved.longContextPricingEnabled = input.Group == nil || input.Group.LongContextPricingEnabled
+		return resolved
 	}
 
-	// 1. 获取基础定价
-	var basePricing *ModelPricing
-	source := PricingSourceUnpriced
-	if qoderManualOnly {
-		// Qoder 的内置 alias/route key 必须通过渠道定价手动设价；
-		// 未配置字段保持 0，避免回退到 Opus 或模型文件价格造成误扣。
-		basePricing = &ModelPricing{}
-	} else {
-		basePricing, source = r.resolveBasePricing(input.Model)
-	}
-
+	// 纯倍率价卡保留内置价格的全部价格桶和来源，内置模型规则也继续生效。
+	basePricing, source := r.resolveBasePricing(input.Model)
 	resolved := &ResolvedPricing{
-		Mode:                   BillingModeToken,
-		BasePricing:            basePricing,
-		Source:                 source,
-		SupportsCacheBreakdown: basePricing != nil && basePricing.SupportsCacheBreakdown,
-		SupportsServiceTier:    basePricing != nil && basePricing.SupportsServiceTier,
+		Mode: BillingModeToken, BasePricing: basePricing, Source: source,
+		SupportsCacheBreakdown:    basePricing != nil && basePricing.SupportsCacheBreakdown,
+		SupportsServiceTier:       basePricing != nil && basePricing.SupportsServiceTier,
+		longContextPricingEnabled: input.Group == nil || input.Group.LongContextPricingEnabled,
 	}
-	resolved.longContextPricingEnabled = longContextPricingEnabled
-	resolved.basePricingUnavailable = qoderManualOnly
-
-	// 2. 如果有 GroupID，尝试渠道覆盖
-	if chPricing != nil {
-		resolved.Source = PricingSourceChannel
-		resolved.channelPricing = chPricing
-		r.applyTokenOverrides(chPricing, resolved)
-		applyResolvedPriceMultiplier(resolved, chPricing)
-		applyResolvedFastModeMultiplier(resolved, chPricing)
-	} else if input.GroupID != nil && r.channelService != nil {
-		r.applyChannelOverrides(ctx, *input.GroupID, input.Model, resolved)
-	}
-
+	applyPricingModifiers(resolved, config)
 	return resolved
 }
 
-// applyGroupPricingModifiers 在独立副本上覆盖同名倍率；不创建基础价格，也不切换按次计费。
-func applyGroupPricingModifiers(resolved *ResolvedPricing, config *ChannelModelPricing) {
+// applyPricingModifiers 在独立副本上覆盖同名倍率；不创建基础价格，也不切换按次计费。
+func applyPricingModifiers(resolved *ResolvedPricing, config *ChannelModelPricing) {
 	if resolved == nil || resolved.Mode != BillingModeToken || config == nil || resolved.BasePricing == nil {
 		return
 	}
@@ -238,37 +197,6 @@ func (r *ResolvedPricing) HasEffectiveOverridePricing() bool {
 		r.channelPricing != nil && r.channelPricing.HasEffectivePricing()
 }
 
-func (r *ModelPricingResolver) isQoderManualPricingOnlyModel(ctx context.Context, groupID int64, input PricingInput) bool {
-	if r.channelService.GetGroupPlatform(ctx, groupID) != PlatformQoder {
-		return false
-	}
-	model := strings.TrimSpace(input.Model)
-	if qoderAliasRequiresManualPricingAny(model) {
-		return true
-	}
-	if r.hasDefaultPricingForModel(model) {
-		return false
-	}
-	if hint := strings.TrimSpace(input.BaseModelHint); hint != "" && hint != model {
-		if qoderAliasRequiresManualPricingAny(hint) {
-			return true
-		}
-	}
-	if mapping := r.channelService.ResolveChannelMapping(ctx, groupID, input.Model); mapping.Mapped {
-		return qoderAliasRequiresManualPricingAny(mapping.MappedModel)
-	}
-	return false
-}
-
-func (r *ModelPricingResolver) hasDefaultPricingForModel(model string) bool {
-	model = strings.TrimSpace(model)
-	if model == "" || r == nil || r.billingService == nil {
-		return false
-	}
-	pricing, err := r.billingService.GetModelPricing(model)
-	return err == nil && pricing != nil && hasAnyDisplayTokenPricing(pricing)
-}
-
 func (r *ModelPricingResolver) resolveConfiguredPricing(config *ChannelModelPricing, model, source string) *ResolvedPricing {
 	mode := config.BillingMode
 	if mode == "" {
@@ -293,23 +221,28 @@ func matchGroupModelPricing(group *Group, model string) *ChannelModelPricing {
 	if group == nil {
 		return nil
 	}
-	model = normalizeChannelPricingModelName(model)
-	var wildcard *ChannelModelPricing
-	for i := range group.ModelPricing {
-		entry := &group.ModelPricing[i]
-		for _, pattern := range entry.Models {
-			normalized := normalizeChannelPricingModelName(pattern)
-			if normalized == model {
-				cp := entry.Clone()
-				return &cp
+	return lookupPricingForModel(model, func(candidate string) *ChannelModelPricing {
+		candidate = normalizeChannelPricingModelName(candidate)
+		var wildcard *ChannelModelPricing
+		for i := range group.ModelPricing {
+			entry := &group.ModelPricing[i]
+			if !entry.HasEffectivePricing() {
+				continue
 			}
-			if strings.HasSuffix(normalized, "*") && strings.HasPrefix(model, strings.TrimSuffix(normalized, "*")) && wildcard == nil {
-				cp := entry.Clone()
-				wildcard = &cp
+			for _, pattern := range entry.Models {
+				normalized := normalizeChannelPricingModelName(pattern)
+				if normalized == candidate {
+					cp := entry.Clone()
+					return &cp
+				}
+				if strings.HasSuffix(normalized, "*") && strings.HasPrefix(candidate, strings.TrimSuffix(normalized, "*")) && wildcard == nil {
+					cp := entry.Clone()
+					wildcard = &cp
+				}
 			}
 		}
-	}
-	return wildcard
+		return wildcard
+	})
 }
 
 // resolveBasePricing 从 LiteLLM 或 Fallback 获取基础定价
@@ -330,7 +263,14 @@ func (r *ModelPricingResolver) lookupChannelPricingNormalized(ctx context.Contex
 	if r == nil || r.channelService == nil {
 		return nil
 	}
-	if pricing := r.channelService.GetEffectiveChannelModelPricing(ctx, groupID, model); pricing != nil {
+	return lookupPricingForModel(model, func(candidate string) *ChannelModelPricing {
+		return r.channelService.GetEffectiveChannelModelPricing(ctx, groupID, candidate)
+	})
+}
+
+// lookupPricingForModel 统一分组与渠道的候选顺序，完整请求名的精确/通配价卡优先。
+func lookupPricingForModel(model string, lookup func(string) *ChannelModelPricing) *ChannelModelPricing {
+	if pricing := lookup(model); pricing != nil {
 		return pricing
 	}
 	candidates := buildModelLookupCandidates(model)
@@ -338,45 +278,16 @@ func (r *ModelPricingResolver) lookupChannelPricingNormalized(ctx context.Contex
 		if strings.EqualFold(candidate, strings.TrimSpace(model)) {
 			continue
 		}
-		if pricing := r.channelService.GetEffectiveChannelModelPricing(ctx, groupID, candidate); pricing != nil {
+		if pricing := lookup(candidate); pricing != nil {
 			return pricing
 		}
 	}
-
-	// 保留原有 OpenAI 日期和兼容路由名称的渠道匹配，明确的同型号候选始终优先。
+	// 同型号候选均未命中后，再兼容既有 OpenAI 日期和路由名称。
 	normalized := normalizeKnownOpenAICodexModel(model)
 	if normalized == "" || slices.Contains(candidates, normalized) {
 		return nil
 	}
-	return r.channelService.GetEffectiveChannelModelPricing(ctx, groupID, normalized)
-}
-
-// applyChannelOverrides 应用渠道定价覆盖
-func (r *ModelPricingResolver) applyChannelOverrides(ctx context.Context, groupID int64, model string, resolved *ResolvedPricing) {
-	// 精简构造或测试环境可能未注入渠道服务，此时只使用基础模型定价。
-	if r == nil || r.channelService == nil {
-		return
-	}
-	chPricing := r.lookupChannelPricingNormalized(ctx, groupID, model)
-	if chPricing == nil {
-		return
-	}
-
-	resolved.Source = PricingSourceChannel
-	resolved.channelPricing = chPricing
-	resolved.Mode = chPricing.BillingMode
-	if resolved.Mode == "" {
-		resolved.Mode = BillingModeToken
-	}
-
-	switch resolved.Mode {
-	case BillingModeToken:
-		r.applyTokenOverrides(chPricing, resolved)
-	case BillingModePerRequest, BillingModeImage, BillingModeVideo:
-		r.applyRequestTierOverrides(chPricing, resolved)
-	}
-	applyResolvedPriceMultiplier(resolved, chPricing)
-	applyResolvedFastModeMultiplier(resolved, chPricing)
+	return lookup(normalized)
 }
 
 // applyTokenOverrides 应用 token 模式的渠道覆盖

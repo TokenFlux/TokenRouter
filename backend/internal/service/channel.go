@@ -200,7 +200,7 @@ func (p *ChannelModelPricing) GetTierByLabel(label string) *PricingInterval {
 	return nil
 }
 
-// HasEffectivePricing 判断该行是否配置了明确价格。
+// HasEffectivePricing 判断该行是否配置了价格或可继承基础价的倍率。
 // nil 价格指针表示“未配置”；指向 0 的指针表示显式免费价格，因此仍然有效。
 func (p *ChannelModelPricing) HasEffectivePricing() bool {
 	if p == nil {
@@ -231,7 +231,8 @@ func (p *ChannelModelPricing) HasEffectivePricing() bool {
 			p.ImageOutputPrice != nil ||
 			p.FastMultiplier != nil ||
 			p.FlexMultiplier != nil ||
-			p.MaxReasoningEffortMultiplier != nil {
+			p.MaxReasoningEffortMultiplier != nil ||
+			(p.TimePricing != nil && len(p.TimePricing.Periods) > 0) {
 			return true
 		}
 		for i := range p.Intervals {

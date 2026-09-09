@@ -85,20 +85,6 @@ func resolveAccountStatsCostWithMapped(
 
 	// 优先级 3：模型定价文件（LiteLLM）默认价格
 	if billingService != nil {
-		if platform == PlatformQoder {
-			if qoderAliasRequiresManualPricingAny(requestedModel) {
-				return nil
-			}
-			for _, model := range accountStatsModelFilePricingModels(platform, upstreamModel, requestedModel, channelMappedModel) {
-				if qoderAliasRequiresManualPricingAny(model) {
-					continue
-				}
-				if cost := tryModelFilePricing(billingService, model, tokens, serviceTier, reasoningEffort); cost != nil {
-					return cost
-				}
-			}
-			return nil
-		}
 		return tryModelFilePricing(billingService, upstreamModel, tokens, serviceTier, reasoningEffort)
 	}
 
@@ -106,26 +92,6 @@ func resolveAccountStatsCostWithMapped(
 }
 
 func accountStatsCustomRuleModels(platform, upstreamModel, requestedModel string, channelMappedModel ...string) []string {
-	upstreamModel = strings.TrimSpace(upstreamModel)
-	requestedModel = strings.TrimSpace(requestedModel)
-	mappedModel := ""
-	if len(channelMappedModel) > 0 {
-		mappedModel = strings.TrimSpace(channelMappedModel[0])
-	}
-	if platform != PlatformQoder || requestedModel == "" ||
-		(requestedModel == upstreamModel && (mappedModel == "" || mappedModel == requestedModel)) {
-		if upstreamModel == "" {
-			return nil
-		}
-		return []string{upstreamModel}
-	}
-	models := []string{requestedModel}
-	models = append(models, mappedModel)
-	models = append(models, upstreamModel)
-	return uniqueNonEmptyAccountStatsModels(models)
-}
-
-func accountStatsModelFilePricingModels(platform, upstreamModel, requestedModel string, channelMappedModel ...string) []string {
 	upstreamModel = strings.TrimSpace(upstreamModel)
 	requestedModel = strings.TrimSpace(requestedModel)
 	mappedModel := ""

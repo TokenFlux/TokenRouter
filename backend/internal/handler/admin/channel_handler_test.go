@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -503,34 +504,22 @@ func setupModelDefaultPricingRouter(billingSvc *service.BillingService) *gin.Eng
 	return router
 }
 
-func TestGetModelDefaultPricing_QoderAliasRequiresManualPricing(t *testing.T) {
-	billingSvc := service.NewBillingService(nil, nil)
-	router := setupModelDefaultPricingRouter(billingSvc)
-
-	for _, model := range []string{"claude-opus-4-6", "CLAUDE-OPUS-4-6", "qwen3.8-max", "QWEN3.8-MAX"} {
+// 同一模型的默认价不受平台影响，Qoder 别名也可以读取内置价。
+func TestGetModelDefaultPricing_QoderMatchesOtherPlatforms(t *testing.T) {
+	router := setupModelDefaultPricingRouter(service.NewBillingService(nil, nil))
+	for _, model := range []string{"claude-opus-4-6", "CLAUDE-OPUS-4-6", "qwen3.8-max", "qmodel"} {
 		t.Run(model, func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/channels/model-pricing?platform=qoder&model="+model, nil)
-			w := httptest.NewRecorder()
-			router.ServeHTTP(w, req)
-
-			require.Equal(t, http.StatusOK, w.Code)
-
-			var body struct {
-				Data struct {
-					Found           bool    `json:"found"`
-					InputPrice      float64 `json:"input_price"`
-					OutputPrice     float64 `json:"output_price"`
-					CacheWritePrice float64 `json:"cache_write_price"`
-					CacheReadPrice  float64 `json:"cache_read_price"`
-				} `json:"data"`
+			var responses []string
+			for _, platform := range []string{"qoder", "anthropic"} {
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/channels/model-pricing?platform="+platform+"&model="+model, nil))
+				require.Equal(t, http.StatusOK, w.Code)
+				responses = append(responses, w.Body.String())
 			}
-			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
-
-			require.False(t, body.Data.Found)
-			require.Zero(t, body.Data.InputPrice)
-			require.Zero(t, body.Data.OutputPrice)
-			require.Zero(t, body.Data.CacheWritePrice)
-			require.Zero(t, body.Data.CacheReadPrice)
+			require.JSONEq(t, responses[0], responses[1])
+			if strings.Contains(strings.ToLower(model), "claude-opus") {
+				require.Contains(t, responses[0], `"found":true`)
+			}
 		})
 	}
 }
@@ -557,7 +546,7 @@ func TestGetModelDefaultPricing_Fable51ReturnsCacheTTLs(t *testing.T) {
 	require.InDelta(t, 20e-6, *body.Data.CacheWrite1hPrice, 1e-12)
 }
 
-func TestGetModelDefaultPricing_QoderRouteKeysRequireManualPricing(t *testing.T) {
+func TestGetModelDefaultPricing_UnknownQoderRouteKeysRemainUnpriced(t *testing.T) {
 	billingSvc := service.NewBillingService(nil, nil)
 	router := setupModelDefaultPricingRouter(billingSvc)
 

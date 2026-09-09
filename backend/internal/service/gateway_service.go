@@ -1492,65 +1492,9 @@ func (s *GatewayService) debugLogGatewaySnapshot(tag string, headers http.Header
 	_, _ = f.WriteString(buf.String())
 }
 
-func (s *GatewayService) qoderCanUseDefaultImagePricing(model string) bool {
-	model = strings.TrimSpace(model)
-	if model == "" || qoderAliasRequiresManualPricingAny(model) {
-		return false
-	}
-	if qoderKnownDefaultImagePricingModel(model) {
-		return true
-	}
-	return s != nil && s.billingService != nil && hasExplicitImageGenerationPricing(s.billingService.getRawModelPricing(model))
-}
-
-func (s *GatewayService) resolveChannelPricingForUsage(
-	ctx context.Context,
-	billingModel string,
-	requestedModel string,
-	billingModelSource string,
-	channelMappedModel string,
-	baseModelHint string,
-	apiKey *APIKey,
-	account *Account,
-) (*ResolvedPricing, string) {
-	if isQoderBillingContext(account, apiKey) {
-		return s.resolveQoderChannelPricingForUsage(ctx, billingModel, apiKey)
-	}
-	if resolved := s.resolveChannelPricingWithBaseHint(ctx, billingModel, baseModelHint, apiKey); resolved != nil {
-		return resolved, billingModel
-	}
-	return nil, billingModel
-}
-
-func (s *GatewayService) resolveChannelPricingWithBaseHint(ctx context.Context, billingModel string, baseModelHint string, apiKey *APIKey) *ResolvedPricing {
-	if s.resolver == nil || apiKey == nil || apiKey.Group == nil {
-		return nil
-	}
-	gid := apiKey.Group.ID
-	resolved := s.resolver.Resolve(ctx, PricingInput{
-		Model:         billingModel,
-		GroupID:       &gid,
-		BaseModelHint: baseModelHint,
-		Group:         apiKey.Group,
-	})
-	if resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel {
-		return resolved
-	}
-	return nil
-}
-
-func (s *GatewayService) resolveQoderChannelPricingForUsage(
-	ctx context.Context,
-	billingModel string,
-	apiKey *APIKey,
-) (*ResolvedPricing, string) {
-	// Qoder 必须严格按渠道选定的计费模型匹配，不能跨 R/C/U 寻找其他价格行。
-	billingModel = strings.TrimSpace(billingModel)
-	resolved := s.resolveChannelPricingWithBaseHint(ctx, billingModel, "", apiKey)
-	if resolved != nil && (resolved.Source == PricingSourceGroup || resolved.HasEffectiveChannelPricing()) {
-		return resolved, billingModel
-	}
-	return nil, billingModel
+// resolveChannelPricingForUsage 按已选定的计费模型统一解析，所有平台使用相同价格回退规则。
+func (s *GatewayService) resolveChannelPricingForUsage(ctx context.Context, billingModel string, apiKey *APIKey) (*ResolvedPricing, string) {
+	return s.resolveChannelPricing(ctx, billingModel, apiKey), billingModel
 }
 
 func (p *usageBillingParams) shouldDeductAPIKeyQuota() bool {
@@ -1686,38 +1630,6 @@ func firstAllocatedSubscriptionID(allocations []domain.BillingAllocation) *int64
 		return &subscriptionID
 	}
 	return nil
-}
-
-func isQoderBillingContext(account *Account, apiKey *APIKey) bool {
-	if account != nil && account.Platform == PlatformQoder {
-		return true
-	}
-	return apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == PlatformQoder
-}
-
-// qoderAliasRequiresManualPricingInContext 在 Qoder 账号上下文中判断 alias 是否必须使用手工定价。
-//
-//nolint:unused // 保留语义化判断入口；当前生产路径已在各调用点直接判断 Qoder 上下文。
-func qoderAliasRequiresManualPricingInContext(account *Account, apiKey *APIKey, models ...string) bool {
-	if !isQoderBillingContext(account, apiKey) {
-		return false
-	}
-	return qoderAliasRequiresManualPricingAny(models...)
-}
-
-func qoderKnownDefaultImagePricingModel(model string) bool {
-	model = strings.ToLower(strings.TrimSpace(model))
-	return strings.HasPrefix(model, "gpt-image-") ||
-		strings.HasPrefix(model, "dall-e") ||
-		strings.HasPrefix(model, "imagen-")
-}
-
-func zeroCostBreakdown(mode BillingMode) *CostBreakdown {
-	modeString := string(mode)
-	if modeString == "" {
-		modeString = string(BillingModeToken)
-	}
-	return &CostBreakdown{BillingMode: modeString}
 }
 
 // usageBillingParams 统一扣费所需的参数

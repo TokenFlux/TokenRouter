@@ -1090,7 +1090,7 @@ func TestIsModelRestricted_ModelInPricing(t *testing.T) {
 	require.False(t, restricted)
 }
 
-func TestIsModelRestricted_QoderBlankPricingIsNotAllowlist(t *testing.T) {
+func TestIsModelRestricted_QoderBlankPricingIsAllowlist(t *testing.T) {
 	zero := 0.0
 	ch := Channel{
 		ID:             1,
@@ -1105,7 +1105,7 @@ func TestIsModelRestricted_QoderBlankPricingIsNotAllowlist(t *testing.T) {
 	repo := makeStandardRepo(ch, map[int64]string{10: PlatformQoder})
 	svc := newTestChannelService(repo)
 
-	require.True(t, svc.IsModelRestricted(context.Background(), 10, "qmodel"))
+	require.False(t, svc.IsModelRestricted(context.Background(), 10, "qmodel"))
 	require.False(t, svc.IsModelRestricted(context.Background(), 10, "free-model"))
 }
 
@@ -1125,7 +1125,7 @@ func TestIsModelRestricted_QoderBlankWildcardDoesNotMaskEffectiveWildcard(t *tes
 	svc := newTestChannelService(repo)
 
 	require.False(t, svc.IsModelRestricted(context.Background(), 10, "qwen3.7-plus"))
-	require.True(t, svc.IsModelRestricted(context.Background(), 10, "qwen3.6-plus"))
+	require.False(t, svc.IsModelRestricted(context.Background(), 10, "qwen3.6-plus"))
 }
 
 func TestIsModelRestricted_ModelInWildcard(t *testing.T) {
