@@ -4,7 +4,9 @@
 >
 > 清点基线：2026-09-10，当前 `main`，HEAD `536407323f3be74020a972ee32576677e9d6829d`。基于工作区实际文件清点，包含当时尚未提交的内容。
 >
-> 范围：后端全部现有 Go 包的最终归属、混合包内部职责拆解、模块之间的 Interface，以及可以逐步执行的迁移步骤。本文是用户指定的实施计划，保存在仓库根目录，不作为 Project Doc 的当前架构事实。
+> 范围：后端全部现有 Go 包的目标归属、混合包内部职责拆解、模块之间的 Interface，以及分阶段迁移安排。本文是重构总计划，保存在 `refactor/BACKEND_PACKAGE_TARGET.md`，不作为 Project Doc 的当前架构事实。
+>
+> 执行方式：每个阶段开始实施前，先用计划模式生成当前阶段的迁移子计划，原样保存到 `refactor/` 下的独立文件。具体接口、事务参与、兼容方式和阶段内顺序在子计划中决策；总计划末尾的 roadmap 只追踪阶段进度和子计划入口。
 
 ## 导航
 
@@ -15,7 +17,8 @@
 - [5. 混合包的内部拆分](#5-混合包的内部拆分)：service、repository、handler、domain 等如何具体迁移。
 - [6. 多步迁移计划](#6-多步迁移计划)：S00—S16 的前置条件、处理范围、代码重构和验收。
 - [7. 每次实施的方法与验收](#7-每次实施的方法与验收)：提交、兼容、测试、回退和同步上游。
-- [8. 完成标准与进度](#8-完成标准与进度)：何时能够删除旧包，如何接续下一次工作。
+- [8. 最终完成标准](#8-最终完成标准)：何时能够删除旧包并认定重构完成。
+- [9. Roadmap](#9-roadmap)：各阶段状态及其子计划入口。
 
 ## 1. 目标与约束
 
@@ -249,7 +252,15 @@ pkg → 标准库或明确必要的纯计算库
 7. 允许单向依赖另一个模块稳定的纯契约，不强制所有调用都绕 Interface。若出现 A→B→A，应重新确定规则所有者、合并内聚逻辑或用外部 Adapter 装配，不用反射或 `any` 绕过。
 8. `billing/pricing`、`routing/capability`、`scheduler/policy` 是明确的低层叶子契约；所属根模块可 import 它们，它们不能 import 根模块。纯价格结构统一在 pricing，由 routing 保存价卡、billing 计算使用；评分参数定义在 policy，由 routing 保存配置、scheduler 执行，避免根模块之间反向引用。
 
-这些约束从 **S01.0** 开始生效，不能等到 S15 才加入检查。S01 先在现有 `.golangci.yml` 中建立目标目录的规则；每个模块第一次创建源文件时，在同一提交中确认匹配范围，并运行检查。业务根包与 `httpapi/postgres/rediscache/provider/testkit` 子包分别匹配，不能用覆盖整个 `internal/**` 的禁令误伤合法 Adapter，也不能整体豁免一个业务目录。
+这些约束从 **S01.0** 开始建立并约束新增代码，不能等到 S15 才加入检查。规则启用以源文件的迁移状态为依据，不能仅凭目录已经采用目标名称就认定整个包已完成重构。业务根包与 `httpapi/postgres/rediscache/provider/testkit` 子包分别匹配，不能用覆盖整个 `internal/**` 的禁令误伤合法 Adapter，也不能整体豁免一个业务目录。
+
+| 路径状态 | S01.0 起的门禁方式 | 例外退出条件 |
+| --- | --- | --- |
+| 新建目标包、已有目标包中的新增文件 | 首次提交即匹配最终职责规则；不继承同目录旧文件的例外 | 始终适用，无历史豁免 |
+| 原路径保留但尚未完成重构，例如 `internal/payment` | 默认应用核心规则；仅给 S00 已确认的旧文件登记仍需保留的具体 import。当前 `load_balancer.go` 及相关测试依赖 Ent，`wire.go` 含 Ent/config/Wire 装配，必须逐项核对 | S12.2 将数据库选择移入存储 Adapter、装配移入 app，同批删除原文件例外；其余保留路径按第 4 节所属阶段处理 |
+| 仍待迁移的 `internal/pkg` 能力，例如 `websearch`、`xai` | 纯工具规则只匹配最终保留或新建的具体纯包，不能对整个 `internal/pkg/**` 立即应用纯包规则。旧文件的 Redis、Gin、config 等依赖按 S00 基线登记并受增量约束，不能自动吸收新增依赖 | `websearch` 的 Redis 协作在 S10 拆分，`xai` 的 Redis 协作在 S09.7 拆分；其余按第 4 节阶段迁移并清理旧路径 |
+
+S00 清点所有与目标路径重合的旧包，不限于上表举例；S01.0 将记录落实为可检查的规则。每条例外记录准确源文件、允许的 import、保留原因和退出子步骤，规则旁用中文注释说明，并在对应阶段子计划中记录进度。不能只把旧文件从规则中排除而放过其全部依赖，也不能用目录通配符给新增文件放行。迁出文件按目标职责重新匹配，不能沿用原路径例外；旧文件改动也不得借既有 import 继续添加待拆的耦合逻辑。
 
 旧 service/handler 的现有规则继续保留。`app/legacybridge` 的旧依赖、存储 Adapter 的同事务协作必须逐项登记允许的源、目标、用途和退出阶段；新核心不继承旧包的历史豁免。首次配置及新增规则范围时，用可丢弃的最小违规夹具确认规则确实会拒绝非法 import，再删除夹具；正常和适用构建标签下都检查。S15 仅收尾删除旧规则与过渡例外。
 
@@ -308,13 +319,14 @@ pkg → 标准库或明确必要的纯计算库
 
 - `AccountSnapshot` 是配置/资格投影，CredentialLease 或等价接口仅在需要调用上游时提供必要凭据。凭据刷新 singleflight/锁、影子父子绑定、失效和重建在 account 中集中处理。
 - scheduler 的 Lease 包含账号选择、模型/协议解析结果、取消关联和幂等 Release。用户槽、账号槽、等待计数、串行队列可能内部独立，但调用者不承担部分成功后的组合回滚。
+- 客户端取消、上游执行结束和清理完成是不同信号，不能统一绑定到 HTTP 请求 Context。等待/非流请求沿用既有取消传播；Qoder 已进入上游转发的流式请求在客户端断开后停止下游写入，仍在既有 `qoderStreamTimeout` 内收集尾部 usage，按原有完成顺序显式释放槽位。Lease 必须支持这种完成时释放的方式，不能由客户端取消提前触发；上游结束、错误或执行超时仍必须收尾，重复 Release 安全。断开后不得继续选账号或启动新的推理。其它平台/传输分别保留已有策略，不统一套用立即取消或脱离取消。
 - 不能把当前所有平台调度分支硬压成一个评分器：公共评分/快照负责共享规则，OpenAI previous-response、媒体、混合池等资格通过候选策略输入或注入的窄接口扩展。
 - gateway 统一记录 `NotCommitted / PreludeOnly / Committed` 或等价输出状态；协议 Adapter 报告真实业务输出的不可逆边界。只在尚未提交真实输出时允许换号；取消、上下游关闭和部分用量必须显式返回。
 - 用量从平台原生解析结果转换为计费输入；用户价格与账号成本分别传递，不从一个聚合金额反推另一个。HTTP/SSE/WS 每 turn 保留既有定价时刻语义。
 - 同协议直接透传应保留。跨协议转换保留 `json.RawMessage` 等未知字段承载方式，避免为了通用结构发生反复 JSON 编解码和整流缓冲。
 - `/models`、`/usage`、已有任务读/取消/下载、自定义声音、Live sideband 等不能机械套用生成请求准入；保留各自的协议/资源归属规则。
 
-这些契约在 S09.0 和 S09.1 的首条真实请求链中验证，再推广到其它平台。首条链至少明确：输入/原始报文所有权、响应输出与 Flush 的控制者、首个真实输出的报告方式、部分用量与错误如何同时返回、取消传递、响应体/连接/Lease 的释放责任。`AccessSnapshot`、`RoutePlan` 沿用 S05/S06 的所有者，gateway 不再定义一套同名实体。非流、SSE、WebSocket 可有不同能力接口；S09 不提前假设 WS 与 HTTP 生命周期相同，S11.5 增加 WS 能力时再验证扩展。
+这些契约在 S09.0 和 S09.1 的首条真实请求链中验证，再推广到其它平台。首条链至少明确：输入/原始报文所有权、响应输出与 Flush 的控制者、首个真实输出的报告方式、部分用量与错误如何同时返回、客户端取消与上游执行的关联策略、响应体/连接/Lease 的释放责任。`AccessSnapshot`、`RoutePlan` 沿用 S05/S06 的所有者，gateway 不再定义一套同名实体。非流、SSE、WebSocket 可有不同能力接口；S09 不提前假设 WS 与 HTTP 生命周期相同，S11.5 增加 WS 能力时再验证扩展。
 
 ### 3.5 设置、缓存、后台与错误
 
@@ -684,7 +696,7 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 
 ### 6.1 阶段依赖与执行粒度
 
-建议按 S00 → S16 的编号顺序执行。编号是能力完成顺序，不是“一次提交迁一个大阶段”的要求。含多个子步骤的阶段必须按子步骤交付；每个子步骤都要编译、验证、接入运行路径并更新进度。
+建议按 S00 → S16 的编号顺序执行。每个阶段先按 7.1 生成并持久化独立子计划，再进入实施；不提前为全部阶段生成空计划。编号是能力完成顺序，不是“一次提交迁一个大阶段”的要求。含多个子步骤的阶段按子计划逐步交付、验证和记录，阶段状态汇总到末尾 roadmap。
 
 | 阶段 | 本阶段交付 | 最少前置 | 暂未迁移的依赖如何满足 |
 | --- | --- | --- | --- |
@@ -715,7 +727,8 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 1. 确认工作区用户改动，记录本次 HEAD；重新枚举所有含 Go 文件目录，与第 4 节比较新增/删除项。对新增 service/repository/handler 文件补上模块和阶段归属。
 2. 记录当前构建、普通/unit/integration 测试和 lint 结果。原有失败独立记录，不混成重构导致，也不能悄悄扩大忽略规则。
 3. 为待迁能力定位现有契约测试；优先复用。只有缺少会暴露行为回归的测试时补充 Interface 测试，不为单纯移动代码复制一套测试。
-4. 建立本次子步骤的源文件、目标包、调用者、测试及其构建标签、Wire/文档引用清单，追加在第 8 节。将 3.3 的资金写入组展开到方法，记录外层事务拥有者、提交后副作用与迁移阶段。
+4. 在 S00 子计划中建立源文件、目标包、调用者、测试及其构建标签、Wire/文档引用清单，后续阶段按最新代码补充各自范围。将 3.3 的资金写入组展开到方法，记录外层事务拥有者、提交后副作用与迁移阶段。
+5. 按 3.2 区分新建目标路径、原路径保留旧包和待迁 pkg，列出实际源文件/import 与退出子步骤。此清单用于 S01.0 的精确过渡规则，不把 payment 等既有目录当作已迁核心，也不把整个 pkg 当作纯工具。
 
 **验收**：不存在无人负责的旧包；能够解释 baseline 的构建/测试限制。此阶段不宣布任何业务模块已迁完。
 
@@ -725,7 +738,7 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 
 **子步骤**：
 
-- S01.0：按 3.2 在现有 depguard 建立新核心、协议、上游、技术实现与 Adapter 的路径规则。先保留旧规则，登记精确的过渡例外；用最小违规夹具验证规则命中。后续每个新包的首次提交必须同时证明被规则覆盖。
+- S01.0：按 3.2 在现有 depguard 建立新核心、协议、上游、技术实现与 Adapter 的规则，落实 S00 的路径分类与逐文件/import 例外。保留旧规则，验证原路径旧文件的已登记依赖可通过；再用可丢弃夹具验证同目录新增文件的非法依赖、旧文件新增的禁止依赖都被拒绝。后续每个新包或新增文件的首次提交必须同时证明被规则覆盖；payment 等旧包的重构仍按所属阶段完成。
 - S01.1：保留 pagination；将通用脱敏迁 `pkg/logredact`；提取纯 IP 匹配和 PKCE。日期运算先迁接口，继续兼容当前项目日界与全局初始化。
 - S01.2：建立 `pkg/apperror`、`server/httpx` 与 `server/clientip`。先保证旧错误类别、reason、脱敏和响应结果相等，再逐调用方去除 HTTPCode 依赖。请求体上限/解压/原始报文保留原契约。
 - S01.3：建立 logging/timing、Redis session、HTTP 连接池、proxy、TLS、crypto 实现。按现有隔离 key、配置和取消测试接入；暂不改变连接池策略。
@@ -733,7 +746,7 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 
 **代码重构**：清除工具包对整个 config/业务 service 的反向依赖，构造接受小型 Options。通用工具之间避免新的双向依赖，不要求把私有小函数逐个建包。
 
-**验收**：新路径的 depguard 已生效并验证违规可被拒绝；受影响基础包按 7.3 运行普通及适用标签测试，所有旧调用者继续构建；Header/脱敏/错误/代理/DNS/取消契约一致。旧 pkg 错误包装暂存时必须登记消费者，不能复制维护两份错误实现。
+**验收**：新路径和已有目标目录中新增文件的 depguard 已生效；已登记旧依赖可通过，新增禁止依赖可被拒绝，例外有明确退出子步骤；受影响基础包按 7.3 运行普通及适用标签测试，所有旧调用者继续构建；Header/脱敏/错误/代理/DNS/取消契约一致。旧 pkg 错误包装暂存时必须登记消费者，不能复制维护两份错误实现。
 
 ### S02：建立组合根与可独立迁移的用例
 
@@ -821,7 +834,7 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 - S07.1：迁候选快照/outbox/epoch/tombstone 和受控 DB fallback，实现独立可读的候选投影。
 - S07.2：迁 basic/advanced 评分与平台资格 Interface；平台特有资格先注入旧 Adapter，后续 S09 替换。
 - S07.3：将用户并发、账号并发、等待计数和串行队列的生命周期放入调度用例，返回 Lease/WaitResult；保持先用户槽、再账号槽与等待后二次权益校验的责任分工。
-- S07.4：迁粘性选号与平台连续性约束输入，诊断调用同一核心；旧 handler 获取新 Lease 后只负责 defer Release 与明确的取消传递。
+- S07.4：迁粘性选号与平台连续性约束输入，诊断调用同一核心；旧 handler 获取新 Lease 后按 3.4 的生命周期完成释放。等待/非流取消与 Qoder 流式完成释放分别保留，不能把全部 Lease 自动挂到客户端取消信号上；此阶段即回归既有取消与释放测试。
 
 **解耦重点**：减少调用方需要知道的获取顺序和补偿步骤；Lease 只能释放自己持有的资源，重复释放安全。用户登录 session、平台 OAuth 授权 session、调度粘性和上游会话分别归属。
 
@@ -850,7 +863,7 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 **S09.0：确定首条链的契约和测试入口**
 
 - 选用当前已支持的 Qoder Chat Completions 分支，分别覆盖 `stream=false` 与 `stream=true`；Qoder 原生流的非流聚合仍沿用现有行为。明确旧 handler、QoderGatewayService、调度/资金调用及测试夹具的具体迁移清单，不新增公网 URL 或扩大支持范围。
-- 沿用 S05/S06/S07 的 AccessSnapshot、RoutePlan、AccountSnapshot 和 Lease；在 gateway/upstream 的各自契约中确定单次 attempt 输入、输出提交状态、部分 usage、错误、取消、响应体及连接释放责任。只定义首条链实际消费的能力，避免强制所有供应商实现一个万能接口。
+- 沿用 S05/S06/S07 的 AccessSnapshot、RoutePlan、AccountSnapshot 和 Lease；在 gateway/upstream 的各自契约中确定单次 attempt 输入、输出提交状态、部分 usage、错误、取消、响应体及连接释放责任。按 3.4 区分客户端断开与上游执行终止，明确 Qoder 非流传播取消、流式有界收集尾部用量及显式完成释放的策略。只定义首条链实际消费的能力，避免强制所有供应商实现一个万能接口。
 - 将尚未迁移的 moderation、错误改写和完成处理通过 app/legacybridge 的窄接口注入。每项适配写明由 S10 或 S11 删除；共享 worker/缓存保持唯一实例。依赖是新 gateway 的接口指向适配实现，不允许 gateway import 旧 service。
 - 建立以本地供应商 Adapter/脱敏事件夹具驱动的完整请求测试，连接实际新模块和适用的 PostgreSQL/Redis 测试依赖。S09.0 的输出是可用于 S09.1 的契约与夹具，不能单凭接口声明宣布链路验证通过。
 
@@ -864,10 +877,18 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 | SSE 正常输出 | 保留事件顺序、工具 ID、结束事件和渐进输出；不能为了统一结果而缓存完整响应。 |
 | 前导事件后失败 | 按既有规则判断是否可切换；等待心跳与协议前导不能误判成真实输出。 |
 | 真实输出后失败 | 明确禁止换号或重新推理，返回可用部分 usage，沿原规则结算和记录。 |
-| 取消、断开、超时及慢客户端 | 取消到达上游，响应体/连接/用户槽/账号槽/等待计数按责任释放；重复 Release 安全，不留下无界缓冲或 goroutine。 |
+| 等待中取消与非流取消 | 停止等待/重试；非流取消传到上游，按既有责任释放等待计数和已获取的资源。 |
+| Qoder SSE 客户端断开 | 停止下游写入，继续在既有执行超时内读出尾部 usage；不能因客户端取消提前释放用户/账号槽，也不新开 attempt。 |
+| 上游结束、错误或执行超时 | 返回已观测的可用 usage，按既有完成次序结束读取、关闭响应体并显式释放槽位；重复 Release 安全，释放后不残留等待计数。 |
+| 慢客户端 | 保留流式渐进输出与有界缓冲；写失败后按上述流式断开策略完成，不增加无界 goroutine 或无限排水。 |
 | 结算或记录失败 | 重试不能重新调用供应商，也不能重复扣款；保持现有资金失败恢复与记录队列语义。 |
 
 验收记录中列出新接口、实际调用者、上述场景结果和剩余旧 Adapter。后续平台需要扩展契约时，保持已迁调用者兼容并回归这组公共场景；某能力确实只适用于一个传输时采用独立接口，不反复推倒全部已迁平台。
+
+**S09.1 必须保留并迁移的生命周期回归**：以下为当前测试位置，迁移后更新路径并按 7.3 确认测试实际入选；上游结束/错误/超时及完整链资源释放还须由上表场景验证，不能只测 Context 或包装函数。
+
+- [qoder_gateway_service_test.go](../backend/internal/service/qoder_gateway_service_test.go)：`TestQoderGatewayStreamClientDisconnectStillCollectsUsage` 验证断开后仍收集 usage；`TestQoderForwardContextDetachesStreamingFromClientCancellation` 同时保护流式脱离客户端取消与非流传播取消。
+- [qoder_gateway_handler_test.go](../backend/internal/handler/qoder_gateway_handler_test.go)：`TestQoderStreamReleaseDoesNotFireOnClientCancel` 验证槽位等显式完成才释放且仅释放一次；`TestQoderNonStreamReleaseStillFiresOnClientCancel` 保护非流取消释放。S07 若先替换 Lease，必须提前执行这组释放回归。
 
 | 子步骤 | 源包/文件范围 | 目标与专属验收 |
 | --- | --- | --- |
@@ -905,7 +926,7 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 
 - S11.1：复用并收紧 S09 已验证的请求元数据、执行/输出结果与部分用量契约，移除其它链的 Gin Context 业务依赖；AccessSnapshot、RoutePlan 继续由原所有者提供。客户端识别收敛到 clientmeta，策略裁决留 gateway/routing。
 - S11.2：将其余 HTTP 非流分支接入已验证的共同执行流程，通过新 Key/路由/资金/调度/审核/上游接口执行。删除各旧链的重复编排和已完成依赖的 legacybridge，不重新设计首条链。
-- S11.3：推广 S09 验证过的 SSE 输出状态、前导缓冲、可重试错误、取消、部分 usage 与 release 契约，逐个替换其余 SSE 分支；不同协议的真实输出边界仍由其 Adapter 判断。
+- S11.3：推广 S09 验证过的 SSE 输出状态、前导缓冲、可重试错误、部分 usage 与 release 契约，逐个替换其余 SSE 分支；不同协议的真实输出边界仍由其 Adapter 判断。逐平台核对取消与收尾策略，不把 Qoder 的断开后继续读用量套用到全部平台，也不因统一编排改成所有流都立即取消。
 - S11.4：逐条迁 Messages、Responses、Chat、Gemini、count/input tokens、模型/用量、图像、视频、搜索和 Voice。每条原生/转换路线分别验证，不能用一个平台的测试代表所有路线。
 - S11.5：迁 Responses WebSocket、Live 与 sideband。平台帧实现继续留 upstream；每 turn 路由、资金时刻、硬会话绑定、连接终止由明确 Interface 协作。
 - S11.6：迁完成处理 worker、错误透传和 Ops 观测；区分已结算、待对账记录、失败无用量与部分成功，不新建无界 goroutine。
@@ -921,7 +942,7 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 **子步骤**：
 
 - S12.1：promotion 的邀请/促销/返利状态与规则。Promo 的锁码、加款、usage、次数，以及返利认领、主余额、累计充值和转账记录，分别由 promotion 的事务 Adapter 同事务组合 billing 存储操作；不调用会独立提交的加款入口。补验加款后业务记录失败的整体回滚，再销项 3.3 的旧写入；注册默认赠送与兑换联动移除旧具体服务引用。
-- S12.2：保留现有 internal/payment 及 provider 子包路径，合入旧 service 的支付用例，重构金额/币种/手续费、provider registry、实例选择、下单与订单/商品快照；从 core 抽出 Ent 查询和 provider 构造。
+- S12.2：保留现有 internal/payment 及 provider 子包路径，合入旧 service 的支付用例，重构金额/币种/手续费、provider registry、实例选择、下单与订单/商品快照；从 core 抽出 Ent 查询和 provider 构造，将跨 Adapter 的 Wire 装配移 app。同批删除 S01.0 为旧 payment 文件登记的临时例外，验证全体核心文件适用最终规则。
 - S12.3：统一 webhook/查单/人工恢复/超时回收的状态迁移与履约 Interface，保留 lease、source_order_id、内部 recharge code 和返利审计去重。
 - S12.4：退款和查单恢复，按 3.3 的闭合事务 Adapter 原子完成资金回收/订单/审计；验证外层失败回滚后删除旧退款资金写入，销项清单。HTTP 原始签名内容不能被通用解析提前消费。
 
@@ -980,7 +1001,35 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 
 ## 7. 每次实施的方法与验收
 
-### 7.1 一个可交付子步骤的固定流程
+### 7.1 阶段子计划与实施流程
+
+所有后端包重构计划统一放在仓库根目录的 `refactor/` 下：
+
+```text
+refactor/
+├── BACKEND_PACKAGE_TARGET.md   总目标、包映射、阶段安排与 roadmap
+├── STAGE_PLAN_TEMPLATE.md      阶段子计划模板
+├── S00-baseline.md             示例命名，进入 S00 计划模式时才创建
+└── S01-foundation.md           示例命名，进入 S01 计划模式时才创建
+```
+
+阶段子计划使用 `Sxx-<主题>.md` 命名，如 `S05-identity-team-apikey.md`；路径在 roadmap 中登记，文件未创建前使用 `—`，不放失效链接。续做阶段时读取已有子计划和末尾执行记录，不重新生成一份互相矛盾的计划。
+
+**开始阶段前**：使用计划模式，基于最新 HEAD、当前代码、总计划和已完成阶段的结果，生成完整的当前阶段迁移计划。参考 [阶段子计划模板](STAGE_PLAN_TEMPLATE.md)，明确本阶段的实际包/文件/符号映射、依赖、尚待决策的问题与结论、事务和缓存边界、过渡代码退出条件、子步骤及验收/回退方式。影响本阶段实施的决策应在子计划中解决；无关后续阶段的问题记录归属阶段即可。
+
+计划模式形成的完整阶段计划必须在开始实施前原样保存到独立文件，不以摘要或模板占位替代；本次重构按用户约定统一使用 `refactor/`，不再另存到 `.agents/plans/`。保存后保留计划正文，执行进度和调整理由追加到文件末尾。若范围变化需要重新规划，回到计划模式形成新的完整版本（如 `S05-identity-team-apikey-v2.md`），保留旧版并更新 roadmap 的有效计划链接。
+
+总计划中的接口形状和阶段内方案是子计划的设计输入，遇到不完整或冲突时以代码证据在子计划中明确结论。以下已识别事项留到对应阶段决策：
+
+| 阶段 | 子计划需要明确的事项 |
+| --- | --- |
+| S04—S06 | `AdminService` 的接口、输入类型、共享接收者与构造器如何拆分；兑换、用户/Key、分组/账号/代理操作分别何时迁移，旧管理入口如何逐步退出。 |
+| S05—S06 | 成员移除与 Key 禁用、用户专属分组替换等非资金跨模块写入的事务所有者、参与接口、过渡方式、失败回滚与缓存失效。 |
+| S02、S14 | setup、app、cmd 的调用与装配方向；S02 明确可持续迁移的边界，S14 细化并完成精简初始化链。 |
+
+这些事项不要求现在确定实现。子计划不得静默改变第 1.2 节的行为契约；如果结论改变总目标、包映射或阶段依赖，同步修订总计划的相关条目，并在子计划末尾记录理由和后续影响。总计划不重复保存阶段执行日志。
+
+**实施阶段时**，按已保存子计划中的可交付子步骤推进：
 
 1. **确认范围**：先读/复用 project-doc 路由到的相关契约，记录源包/文件、调用者和本次需要改变的 Interface。仅声明“迁账号包”仍太大，应缩小到例如“账号凭据持久化与刷新入口”。
 2. **先设计调用形状**：写出调用前后输入、输出、失败与顺序。检验调用方是否少知道了内部细节；若只是套一层长参数构造器，重新设计。
@@ -988,9 +1037,7 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 4. **移动并解耦**：先完成可编译的机械移动，再单独收紧职责/替换实现。大型步骤用独立 Conventional Commit 分开“移位置”和“改协作方式”，避免一个 diff 同时混淆两者。
 5. **接入唯一运行路径**：更新 app/Wire、所有直接调用者及测试。同一能力不能继续在新旧包各有一份 Implementation；临时保留的旧入口只转发到新实现。
 6. **验证与删除**：按 7.3 运行受影响包及直接调用者的普通、unit 和适用 integration 测试，并在对应标签下运行 depguard；并发变更增加适用标签的 race 检查。清理不再使用的包装、旧测试和私有暴露，迁移旧测试的语义，不机械保留只验证转发次数或私有结构的测试。
-7. **更新文档和进度**：更新受影响 Project Doc 的真实状态与代码锚点，把本次完成内容、兼容 Adapter、未跑的测试及下一步骤追加到第 8 节。
-
-在实际计划模式中实施时，仍按 AGENTS.md 将当次执行计划原样保存到 `.agents/plans/`，进度追加在末尾；本文是整体方案，不替代该约束。常规模式直接执行已授权子步骤，不需要为目录移动重复请求权限。
+7. **更新文档和进度**：更新受影响 Project Doc 的真实状态与代码锚点，把本次完成内容、提交/验证证据、兼容 Adapter、未跑项及下一步骤追加到当前阶段子计划末尾；总计划只更新 roadmap 的状态与链接。阶段全部子步骤和必要验收通过后才标为已完成，生成或保存计划不等于完成迁移。
 
 ### 7.2 新旧共存的三种许可方式
 
@@ -1016,7 +1063,7 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 | PostgreSQL/Redis/事务/缓存 Adapter 或其调用关系变化 | 上述检查 + 受影响 integration 测试；资金必须包含外层事务回滚，不以 mock 替代。 |
 | 并发、队列、缓存、取消与释放变化 | 普通及 unit 集合的针对性 race；涉及真实存储竞争时对相关 integration 场景也运行 race。 |
 | 路由/鉴权/协议或流生命周期变化 | 模块测试 + 对应请求链契约测试；已有 e2e 场景受影响时在该子步骤执行，不等 S16。 |
-| 新目录或 depguard 规则变化 | 检查新路径确实命中规则，验证非法依赖可被拒绝；在受影响的普通/unit/integration 集合下 lint。 |
+| 新目录、同目录新增文件或 depguard 规则变化 | 检查目标文件确实命中规则；对保留路径同时验证“已登记旧依赖可通过、同目录新增文件的非法依赖和旧文件新增禁止依赖被拒绝”；在受影响的普通/unit/integration 集合下 lint。 |
 
 ```bash
 # 当前子步骤：在 backend 下运行；用真实包名替换占位符，并加入直接调用者
@@ -1095,88 +1142,63 @@ git diff --check
 - 纯移动/内部重构默认不改数据库和 Redis 格式，可通过经过审查的代码 revert 回退；不得用 `git reset --hard` 清掉用户工作区，也不能声称任何中间版本都可无条件部署。
 - 如果子步骤必须改持久化或缓存契约，先给出旧版本读新数据、新版本读旧数据、混部以及回退支持范围；SQL 只新增前向迁移。迁移文件已应用后不改写，不把回退代码等同数据库降级。
 - 同一上游/资金/任务能力只启用一条写入和执行路径。需要比较时用只读规则或脱敏夹具差分，不能双发外部推理、付款、退款、邮件或扣款。
-- 持续同步 upstream 时，旧文件位置变化会降低自动合并效果。每个迁移提交在本计划进度中保留“旧路径/符号 → 新模块”的定位；上游修改应根据语义移植到新所有者，不把旧 service 包重新加回来。
+- 持续同步 upstream 时，旧文件位置变化会降低自动合并效果。每个迁移提交在对应阶段子计划的执行记录中保留“旧路径/符号 → 新模块”的定位；上游修改应根据语义移植到新所有者，不把旧 service 包重新加回来。
 - 上游新增 SQL 按 fork 最新迁移 ID 递增重编号；README 工程知识归 docs。`SYNC.md` 仍不提交。
 - 在 git 历史中保留清晰的移动提交与行为重构提交，便于追踪、上游比对和回退。不要顺手全仓格式化、改品牌标识或改无关函数名。
 
 ### 7.6 Project Doc 的维护
 
-本文是未来计划，当前只更新本文。实施后才按真实结果修改现有文档，不提前把目标结构写成“当前架构”。重点路由：
+总计划和阶段子计划描述待实施方案，不提前把目标结构写成 Project Doc 的“当前架构”。本次计划整理只维护 `refactor/`，不修改 AGENTS.md 或文档库；实施时由用户明确文档位置，再按真实代码变更维护对应文档。当前可参考的文档路由：
 
-- [系统架构](docs/architecture/system_architecture.md)：装配、模块依赖和 lifecycle。
-- [网关生命周期](docs/architecture/gateway_request_lifecycle.md)、[调度与缓存](docs/architecture/account_scheduling_and_cache.md)：请求顺序、重试、快照和多实例一致性。
-- [统一协议能力](docs/interfaces/protocol_capabilities.md)、[上游能力矩阵](docs/interfaces/upstream_account_matrix.md)：协议目录与平台支持；原生转换以各平台专题为准。
-- [身份与租户](docs/domains/identity_and_tenancy.md)、[路由与结算](docs/domains/routing_and_billing.md)、[支付与权益](docs/domains/payments_and_entitlements.md)：授权与原子状态规则。
-- [创作台](docs/domains/creative_studio.md)、[批量图片](docs/domains/batch_image_jobs.md)：任务/资金/素材生命周期。
-- [开发流程](docs/operations/development_workflow.md)、[部署迁移](docs/operations/deployment_and_migrations.md)：生成、测试、迁移与发布入口。
+- [系统架构](../docs/architecture/system_architecture.md)：装配、模块依赖和 lifecycle。
+- [网关生命周期](../docs/architecture/gateway_request_lifecycle.md)、[调度与缓存](../docs/architecture/account_scheduling_and_cache.md)：请求顺序、重试、快照和多实例一致性。
+- [统一协议能力](../docs/interfaces/protocol_capabilities.md)、[上游能力矩阵](../docs/interfaces/upstream_account_matrix.md)：协议目录与平台支持；原生转换以各平台专题为准。
+- [身份与租户](../docs/domains/identity_and_tenancy.md)、[路由与结算](../docs/domains/routing_and_billing.md)、[支付与权益](../docs/domains/payments_and_entitlements.md)：授权与原子状态规则。
+- [创作台](../docs/domains/creative_studio.md)、[批量图片](../docs/domains/batch_image_jobs.md)：任务/资金/素材生命周期。
+- [开发流程](../docs/operations/development_workflow.md)、[部署迁移](../docs/operations/deployment_and_migrations.md)：生成、测试、迁移与发布入口。
 
 移动代码时同步普通路径引用与 `@project-doc` 锚点；章节语义未变则保留稳定 ID。架构决策被实施并成为持久事实时，按 project-doc 协议维护已有架构文档或必要 ADR，不为每次机械搬文件单独生成决策文档。
 
-## 8. 完成标准与进度
-
-### 8.1 最终完成标准
+## 8. 最终完成标准
 
 - [ ] 第 4 节 112 个旧目录全部核对；新增包/文件增量也已登记，迁移/合并/保留均有实际结果。
 - [ ] service/repository/handler/admin/dto/domain/model/第二处 middleware/util/旧 platform/routes 不再作为运行依赖；允许保留的目录只具有约定职责。
 - [ ] app/legacybridge、旧类型 alias、旧函数转接和临时财务任务耦合全部清理。
 - [ ] 每个业务模块拥有自己的用例、数据投影、必要 Adapter 和 Interface 测试；不存在把旧大包整体改名的模块。
 - [ ] 核心不依赖 Gin/Ent/Redis/SQL/具体 provider；protocol 不依赖业务和 I/O；depguard 覆盖新路径和允许的精确例外。
-- [ ] 新包从首次引入即受 depguard 检查；普通及适用构建标签均有实际命中证据，S15 只清理过渡规则。
+- [ ] 新包及已有目标目录中新增文件从首次引入即受 depguard 检查；原路径旧文件的临时例外按所属子步骤清除，普通及适用构建标签均有实际命中证据，S15 只清理剩余过渡规则。
 - [ ] 资金、退款、团队所有权和任务投影原子性保持；没有因包拆分新增半提交状态或无保证事件。
 - [ ] 第 3.3 节资金写入逐项销项，外层事务回滚已验证；长期初始化/恢复权限有明确操作范围，不残留未登记的旧资金入口。
 - [ ] Key、routing、scheduler、upstream、gateway、billing、usage 各自职责明确，重复的准入/选路/结算实现已移除。
-- [ ] S09.1 的非流/SSE 完整链先于其余平台通过；后续接口扩展保持已迁调用者兼容，并回归共同生命周期场景。
+- [ ] S09.1 的非流/SSE 完整链先于其余平台通过，Qoder 断开后用量收集及完成释放有回归证据；后续接口扩展保持已迁调用者兼容，并按各平台既有策略回归生命周期场景。
 - [ ] 全部 HTTP/协议/配置/缓存/数据库契约、standard/simple/setup/embed 与生命周期验证完成；环境限制明确列出且不冒充通过。
 - [ ] Ent/SQL 迁移和构建生成流程保持有效；手写源与生成物一致；没有改写已发布迁移。
 - [ ] 测试目录、构建标签、CI/脚本路径、Project Doc 与锚点完成同步。
 - [ ] 每个子步骤记录测试标签、关键测试入选及结果；必要测试未因缺标签、无匹配或环境 Skip 被误报通过。
-- [ ] 各阶段均有可审查的 Conventional Commit 或用户要求的等价变更记录；不提交 SYNC.md、计划模式临时计划或无关文件。
+- [ ] 各阶段均有持久化子计划、验收证据及可审查的 Conventional Commit 或用户要求的等价变更记录；不提交 SYNC.md、其它任务的临时计划或无关文件。
 
-### 8.2 当前阶段状态
+## 9. Roadmap
 
-本次交付仅为方案。下表全部保持未实施；未来每个子步骤验收后再更新。
+当前 **1 / 17 个阶段完成**。下一步：进入计划模式，基于 S00 基线编制 S01 阶段子计划。
 
-| 阶段 | 状态 | 完成提交 / 证据 | 下一动作 |
+状态使用：未实施、规划中、计划就绪、实施中、待验、已完成。详细决策、执行记录和完成证据保存在子计划；文件创建后再补链接，必要验收通过后才更新为已完成。
+
+| 阶段 | 范围 | 状态 | 子计划 |
 | --- | --- | --- | --- |
-| S00 | 未实施 | — | 以实际实施时 HEAD 复核目录/文件增量与测试基线。 |
-| S01 | 未实施 | — | S01.0 先启用新路径 depguard，再拆通用基础与 HTTP 技术。 |
-| S02 | 未实施 | — | app/lifecycle、settings/idempotency、公告试点。 |
-| S03 | 未实施 | — | 协议/能力目录与纯定价。 |
-| S04 | 未实施 | — | 结算/权益与事务参与能力，登记其余资金写入的退出阶段。 |
-| S05 | 未实施 | — | identity → team → apikey。 |
-| S06 | 未实施 | — | egress → routing → account。 |
-| S07 | 未实施 | — | scheduler/Lease/快照。 |
-| S08 | 未实施 | — | usage → audit → ops。 |
-| S09 | 未实施 | — | S09.0 定契约，S09.1 先验非流/SSE 完整链，再迁其余平台。 |
-| S10 | 未实施 | — | notification/site/moderation/search。 |
-| S11 | 未实施 | — | 将已验证的 gateway 扩展到其余协议/传输，清理旧编排。 |
-| S12 | 未实施 | — | promotion → payment。 |
-| S13 | 未实施 | — | creative → batchimage 与任务资金去耦。 |
-| S14 | 未实施 | — | backup/setup/维护命令。 |
-| S15 | 未实施 | — | HTTP/DTO/设置聚合收尾，清理旧 depguard 规则与例外。 |
-| S16 | 未实施 | — | 旧包删除与全量验收。 |
-
-### 8.3 实施记录模板
-
-每完成一个可独立验证的子步骤，追加一条记录，不能仅写“已完成 Sxx”。
-
-```text
-日期 / 子步骤：
-开始时 HEAD / 完成提交：
-旧包与源文件 → 新包与目标文件：
-本次 Interface 改变及调用者减少了解的内部规则：
-保留的事务、幂等、缓存、协议契约：
-资金写入清单变更 / 外层事务拥有者 / 提交后副作用 / 剩余例外：
-新包适用的 depguard 规则 / 允许的依赖 / 违规命中验证：
-实际测试/构建/lint 命令、标签、关键测试入选与结果：
-未运行项及补验条件：
-临时 Adapter / alias / 剩余消费者 / 删除阶段：
-请求链迁移时的生命周期场景与已迁调用者兼容验证：
-Project Doc 与代码锚点变更：
-本次发现的新增代码归属或计划调整及原因：
-下一次可直接执行的子步骤：
-```
-
-2026-09-10：完成目标结构、112 个旧目录映射、repository 128 个源文件责任登记和 S00—S16 迁移设计；尚未执行任何代码迁移。
-
-2026-09-10：根据计划审查补全资金写入与事务参与清单，收紧 S04 的完成范围；增加 S09.0/S09.1 首条非流与 SSE 请求链门禁；将新路径 depguard 前置至 S01.0，并把构建标签测试及 lint 纳入每个子步骤。此次仅优化计划，阶段状态仍为未实施。
+| S00 | 基线与迁移清点 | 已完成 | [S00-baseline.md](S00-baseline.md) |
+| S01 | 依赖门禁与通用基础 | 未实施 | — |
+| S02 | app、生命周期与公告试点 | 未实施 | — |
+| S03 | 协议、能力与纯定价 | 未实施 | — |
+| S04 | billing 与资金事务 | 未实施 | — |
+| S05 | identity、team、apikey | 未实施 | — |
+| S06 | egress、routing、account | 未实施 | — |
+| S07 | scheduler 与 Lease | 未实施 | — |
+| S08 | usage、audit、ops | 未实施 | — |
+| S09 | 首条请求链与上游迁移 | 未实施 | — |
+| S10 | 通知、站点、审核、搜索 | 未实施 | — |
+| S11 | gateway 协议与传输收敛 | 未实施 | — |
+| S12 | promotion、payment | 未实施 | — |
+| S13 | creative、batchimage | 未实施 | — |
+| S14 | backup、setup、维护入口 | 未实施 | — |
+| S15 | HTTP、DTO、设置聚合收尾 | 未实施 | — |
+| S16 | 旧包删除与全量验收 | 未实施 | — |

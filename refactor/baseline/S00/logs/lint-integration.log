@@ -1,0 +1,34 @@
+internal/pkg/tlsfingerprint/dialer_capture_test.go:218:23: Error return value of `(io.Closer).Close` is not checked (errcheck)
+	defer resp.Body.Close()
+	                     ^
+internal/repository/account_repo_ollama_cloud_usage_integration_test.go:280:3: Error return value is not checked (errcheck)
+		secondLoaded.Extra[service.OllamaCloudUsageSnapshotExtraKey].(map[string]any)["status"])
+		^
+internal/repository/api_key_repo_integration_test.go:658:10: Error return value is not checked (errcheck)
+	repo := NewAPIKeyRepository(client, integrationDB).(*apiKeyRepository)
+	        ^
+internal/repository/concurrency_cache_integration_test.go:37:15: Error return value is not checked (errcheck)
+	s.rawCache = NewConcurrencyCache(s.rdb, testSlotTTLMinutes, int(testSlotTTL.Seconds())).(*concurrencyCache)
+	             ^
+internal/repository/usage_billing_repo_integration_test.go:715:18: Error return value of `(*database/sql.Rows).Close` is not checked (errcheck)
+	defer rows.Close()
+	                ^
+internal/domain/protocol_catalog.go:131:3: QF1003: could use tagged switch on accountType (staticcheck)
+		if accountType == AccountTypeAPIKey [REDACTED]
+		^
+internal/service/account.go:2038:43: QF1001: could apply De Morgan's law (staticcheck)
+			if !has(domain.ProtocolAlphaSearch) && !(a.IsOpenAIPersonalAccessToken() && has(domain.ProtocolOpenAIResponses)) {
+			                                       ^
+internal/repository/fixtures_integration_test.go:386:6: func mustCreateRedeemCode is unused (unused)
+func mustCreateRedeemCode(t *testing.T, client *dbent.Client, c *service.RedeemCode) *service.RedeemCode {
+     ^
+internal/repository/integration_harness_test.go:244:6: func testEntSQLTx is unused (unused)
+func testEntSQLTx(t *testing.T) (*dbent.Client, *sql.Tx) {
+     ^
+internal/repository/redeem_code_repo_integration_test.go:44:31: func (*RedeemCodeRepoSuite).createGroup is unused (unused)
+func (s *RedeemCodeRepoSuite) createGroup(name string) *dbent.Group {
+                              ^
+10 issues:
+* errcheck: 5
+* staticcheck: 2
+* unused: 3

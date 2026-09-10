@@ -1,0 +1,18 @@
+{
+  "checked_at": "2026-09-10T16:49:05.308171+08:00",
+  "head_unchanged": true,
+  "index_unchanged": true,
+  "original_backend_changed": [],
+  "original_backend_missing": [],
+  "plan_body_hash_matches_snapshot": true,
+  "unregistered_go_files": [],
+  "missing_registered_go_files": [],
+  "markdown_link_errors": [],
+  "archive_checksum_errors": [],
+  "invalid_import_ledger_rows": 0,
+  "invalid_funding_symbols": 0,
+  "baseline_go_files": 2666,
+  "final_go_files": 2667,
+  "directory_count": 112,
+  "migration_checksums_unchanged": true
+}

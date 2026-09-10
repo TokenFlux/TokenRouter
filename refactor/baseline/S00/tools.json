@@ -1,0 +1,59 @@
+{
+  "before": {
+    "golangci_lint": "2.12.2 built with go1.26.2",
+    "system_go": "1.26.2",
+    "project_go": "1.27.0"
+  },
+  "after": [
+    {
+      "command": [
+        "which",
+        "golangci-lint"
+      ],
+      "output": "/opt/homebrew/bin/golangci-lint"
+    },
+    {
+      "command": [
+        "golangci-lint",
+        "version"
+      ],
+      "output": "golangci-lint has version 2.13.2 built with go1.27.0 from 27774aa on 2026-08-27T22:52:01Z"
+    },
+    {
+      "command": [
+        "go",
+        "version"
+      ],
+      "output": "go version go1.27.1 darwin/arm64"
+    },
+    {
+      "command": [
+        "brew",
+        "list",
+        "--versions",
+        "go",
+        "golangci-lint"
+      ],
+      "output": "go 1.26.2 1.27.1\ngolangci-lint 2.12.2 2.13.2"
+    },
+    {
+      "command": [
+        "docker",
+        "version",
+        "--format",
+        "{{.Server.Version}}"
+      ],
+      "output": "29.5.2"
+    },
+    {
+      "command": [
+        "go",
+        "version"
+      ],
+      "environment": {
+        "GOTOOLCHAIN": "go1.27.0"
+      },
+      "output": "go version go1.27.0 darwin/arm64"
+    }
+  ]
+}

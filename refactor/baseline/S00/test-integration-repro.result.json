@@ -1,0 +1,41 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "TestCreateGroupFromSourceRollsBackWhenOutboxInsertFails|TestGroupRepoSuite/TestCreate$"
+  ],
+  "working_directory": "backend",
+  "environment": {
+    "GOTOOLCHAIN": "go1.27.0"
+  },
+  "started_at": "2026-09-10T16:30:39.641523+08:00",
+  "finished_at": "2026-09-10T16:30:46.094608+08:00",
+  "duration_seconds": 6.45,
+  "exit_code": 1,
+  "log": "logs/test-integration-repro.log",
+  "package_results": [
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/repository",
+      "Elapsed": 3.585
+    }
+  ],
+  "test_run_count": 3,
+  "test_pass_count": 0,
+  "failed_tests": [
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestCreateGroupFromSourceRollsBackWhenOutboxInsertFails",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestCreate"
+  ],
+  "skipped_tests": [],
+  "executed_tests": [
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestCreateGroupFromSourceRollsBackWhenOutboxInsertFails",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestCreate"
+  ]
+}

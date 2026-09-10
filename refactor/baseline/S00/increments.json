@@ -1,0 +1,23 @@
+{
+  "captured_at": "2026-09-10T16:42:41.567429+08:00",
+  "baseline_go_files": 2666,
+  "current_go_files": 2667,
+  "added": [
+    {
+      "source": "backend/internal/repository/payment_refund_atomicity_integration_test.go",
+      "sha256": "3dbe4eece010f1ec2864c1812dba5e6cf8aa6ac0982abeb6e9de3d2709e16765",
+      "build": "integration",
+      "target_packages": [
+        "tests/integration",
+        "internal/payment/postgres",
+        "internal/billing/postgres"
+      ],
+      "exit_stage": "S12.4；跨模块测试目录 S16 第3项",
+      "tests": [
+        "TestPaymentRefundPostgresAtomicity/audit_failure_rolls_back_then_retry",
+        "TestPaymentRefundPostgresAtomicity/concurrent_confirmation_deducts_once"
+      ],
+      "purpose": "通过公开退款确认入口与真实仓储验证资金/订单/审计同事务、重试和并发认领；仅供应商 HTTP 为本地替身。"
+    }
+  ]
+}

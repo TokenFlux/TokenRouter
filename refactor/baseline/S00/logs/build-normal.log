@@ -1,0 +1,1 @@
+CGO_ENABLED=0 go build -ldflags="-s -w -X main.Version=0.1.278" -trimpath -o bin/server ./cmd/server

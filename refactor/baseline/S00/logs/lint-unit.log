@@ -1,0 +1,212 @@
+internal/handler/auth_wechat_oauth_test.go:25:2: import 'github.com/TokenFlux/TokenRouter/internal/repository' is not allowed from list 'handler-no-repository': handler must not import repository (depguard)
+	"github.com/TokenFlux/TokenRouter/internal/repository"
+	^
+internal/service/api_key_service_cache_test.go:19:2: import 'github.com/redis/go-redis/v9' is not allowed from list 'service-no-repository': service must not import redis (depguard)
+	"github.com/redis/go-redis/v9"
+	^
+internal/service/auth_service_email_bind_test.go:20:2: import 'github.com/TokenFlux/TokenRouter/internal/repository' is not allowed from list 'service-no-repository': service must not import repository (depguard)
+	"github.com/TokenFlux/TokenRouter/internal/repository"
+	^
+internal/service/auth_service_identity_sync_test.go:16:2: import 'github.com/TokenFlux/TokenRouter/internal/repository' is not allowed from list 'service-no-repository': service must not import repository (depguard)
+	"github.com/TokenFlux/TokenRouter/internal/repository"
+	^
+internal/service/batch_image_worker_runtime_redis_test.go:12:2: import 'github.com/TokenFlux/TokenRouter/internal/repository' is not allowed from list 'service-no-repository': service must not import repository (depguard)
+	"github.com/TokenFlux/TokenRouter/internal/repository"
+	^
+internal/service/batch_image_worker_runtime_redis_test.go:15:2: import 'github.com/redis/go-redis/v9' is not allowed from list 'service-no-repository': service must not import redis (depguard)
+	"github.com/redis/go-redis/v9"
+	^
+internal/handler/admin/batch_update_credentials_test.go:87:10: Error return value is not checked (errcheck)
+	data := resp["data"].(map[string]any)
+	        ^
+internal/handler/auth_wechat_oauth_test.go:46:20: Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked (errcheck)
+	defer client.Close()
+	                  ^
+internal/handler/auth_wechat_oauth_test.go:81:20: Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked (errcheck)
+	defer client.Close()
+	                  ^
+internal/payment/provider/stripe_test.go:24:30: Error return value is not checked (errcheck)
+	b.params = append(b.params, params.(*stripe.RefundCreateParams))
+	                            ^
+internal/payment/provider/stripe_test.go:25:12: Error return value is not checked (errcheck)
+	refund := v.(*stripe.Refund)
+	          ^
+internal/repository/creative_run_repo_workspace_test.go:34:15: Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked (errcheck)
+		client.Close()
+		            ^
+internal/repository/team_repo_test.go:18:16: Error return value of `(*database/sql.DB).Close` is not checked (errcheck)
+	defer db.Close()
+	              ^
+internal/service/auth_service_identity_sync_test.go:477:18: Error return value of `(*database/sql.Rows).Close` is not checked (errcheck)
+	defer rows.Close()
+	                ^
+internal/service/backup_archive_test.go:29:12: Error return value of `(*bytes.Buffer).Write` is not checked (errcheck)
+		got.Write(data)
+		         ^
+internal/service/backup_service_test.go:503:19: Error return value of `(*bytes.Buffer).Write` is not checked (errcheck)
+		compressed.Write(data)
+		                ^
+internal/service/batch_image_download_test.go:27:28: Error return value of `(io.Closer).Close` is not checked (errcheck)
+		defer stream.Reader.Close()
+		                         ^
+internal/service/batch_image_provider_gemini_test.go:186:15: Error return value of `(io.Closer).Close` is not checked (errcheck)
+	defer r.Close()
+	             ^
+internal/service/batch_image_provider_vertex_test.go:191:15: Error return value of `(io.Closer).Close` is not checked (errcheck)
+	defer r.Close()
+	             ^
+internal/service/gateway_request_test.go:1145:15: Error return value of `(*strings.Builder).WriteString` is not checked (errcheck)
+	b.WriteString(`{"model":"claude-sonnet-4-5","stream":true,"max_tokens":8192,"metadata":{"user_id":"user-xyz789"},"system":[{"type":"text","text":"You are a detailed assistant.","cache_control":{"type":"ephemeral"}}],"messages":[`)
+	             ^
+internal/service/gateway_request_test.go:1150:15: Error return value of `(*strings.Builder).WriteByte` is not checked (errcheck)
+			b.WriteByte(',')
+			           ^
+internal/service/gateway_request_test.go:1153:17: Error return value of `(*strings.Builder).WriteString` is not checked (errcheck)
+			b.WriteString(fmt.Sprintf(`{"role":"user","content":"This is user message number %d with some extra padding text to make the message reasonably long for benchmarking purposes. Lorem ipsum dolor sit amet."}`, i))
+			             ^
+internal/service/gateway_request_test.go:1155:17: Error return value of `(*strings.Builder).WriteString` is not checked (errcheck)
+			b.WriteString(fmt.Sprintf(`{"role":"assistant","content":[{"type":"text","text":"This is assistant response number %d. I will provide a detailed answer with multiple sentences to simulate real conversation content for benchmark testing."}]}`, i))
+			             ^
+internal/service/payment_stats_test.go:317:1: File is not properly formatted (gofmt)
+		ProviderSnapshot: map[string]interface{}{"currency": currency},
+^
+internal/pkg/tlsfingerprint/dialer_test.go:232:61: G402: TLS InsecureSkipVerify set to true. (gosec)
+	dialer.proxyTLSConfig = &stdtls.Config{InsecureSkipVerify: true}
+	                                                           ^
+internal/config/env_reachability_test.go:35:20: inline: Constant reflect.Ptr should be inlined (govet)
+		for ft.Kind() == reflect.Ptr {
+		                 ^
+internal/config/env_reachability_test.go:48:23: inline: Constant reflect.Ptr should be inlined (govet)
+			for elem.Kind() == reflect.Ptr {
+			                   ^
+internal/service/admin_service_bulk_update_test.go:409:19: inline: Constant reflect.Ptr should be inlined (govet)
+	require.Equal(t, reflect.Ptr, filtersField.Kind(), "BulkUpdateAccountsInput.Filters should be a pointer field")
+	                 ^
+internal/domain/protocol_catalog.go:131:3: QF1003: could use tagged switch on accountType (staticcheck)
+		if accountType == AccountTypeAPIKey [REDACTED]
+		^
+internal/handler/user_platform_quotas_handler_test.go:55:2: SA9003: empty branch (staticcheck)
+	if body.Data.PlatformQuotas == nil {
+	^
+internal/service/account.go:2038:43: QF1001: could apply De Morgan's law (staticcheck)
+			if !has(domain.ProtocolAlphaSearch) && !(a.IsOpenAIPersonalAccessToken() && has(domain.ProtocolOpenAIResponses)) {
+			                                       ^
+internal/service/account_header_override_test.go:149:46: SA1008: keys in http.Header are canonicalized, "anthropic-beta" is not canonical; fix the constant or use http.CanonicalHeaderKey (staticcheck)
+	require.Equal(t, []string{"custom-beta-1"}, h["anthropic-beta"])
+	                                            ^
+internal/service/account_header_override_test.go:152:45: SA1008: keys in http.Header are canonicalized, "x-custom" is not canonical; fix the constant or use http.CanonicalHeaderKey (staticcheck)
+	require.Equal(t, []string{"custom-value"}, h["x-custom"])
+	                                           ^
+internal/service/admin_service_duplicate_account_test.go:56:4: QF1008: could remove embedded field "mockAccountRepoForGemini" from selector (staticcheck)
+	s.mockAccountRepoForGemini.accountsByID[account.ID] = &stored
+	  ^
+internal/service/admin_service_spark_shadow_test.go:44:4: QF1008: could remove embedded field "mockAccountRepoForGemini" from selector (staticcheck)
+	s.mockAccountRepoForGemini.accountsByID[account.ID] = &cp
+	  ^
+internal/service/admin_service_spark_shadow_test.go:101:4: QF1008: could remove embedded field "mockAccountRepoForGemini" from selector (staticcheck)
+	s.mockAccountRepoForGemini.accountsByID[account.ID] = &cp
+	  ^
+internal/service/admin_service_spark_shadow_test.go:708:5: QF1008: could remove embedded field "sparkShadowRepoStub" from selector (staticcheck)
+		s.sparkShadowRepoStub.nextID++
+		  ^
+internal/service/admin_service_spark_shadow_test.go:710:18: QF1008: could remove embedded field "sparkShadowRepoStub" from selector (staticcheck)
+		phantom.ID = s.sparkShadowRepoStub.nextID
+		               ^
+internal/service/admin_service_spark_shadow_test.go:711:5: QF1008: could remove embedded field "sparkShadowRepoStub" from selector (staticcheck)
+		s.sparkShadowRepoStub.accounts[phantom.ID] = &phantom
+		  ^
+internal/service/admin_service_update_balance_test.go:32:32: QF1008: could remove embedded field "userRepoStub" from selector (staticcheck)
+	if s.userRepoStub == nil || s.userRepoStub.user == nil {
+	                              ^
+internal/service/admin_service_update_balance_test.go:35:33: QF1008: could remove embedded field "userRepoStub" from selector (staticcheck)
+	change := BalanceChange{Old: s.userRepoStub.user.Balance}
+	                               ^
+internal/service/admin_service_update_balance_test.go:40:4: QF1008: could remove embedded field "userRepoStub" from selector (staticcheck)
+	s.userRepoStub.user.Balance = change.New
+	  ^
+internal/service/api_key_service_validation_test.go:84:33: SA1012: do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use (staticcheck)
+	_, createErr := service.Create(nil, 1, CreateAPIKeyRequest{Quota: -1})
+	                               ^
+internal/service/api_key_service_validation_test.go:88:33: SA1012: do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use (staticcheck)
+	_, updateErr := service.Update(nil, 1, 1, UpdateAPIKeyRequest{RateLimit5h: &invalid})
+	                               ^
+internal/service/auth_service_register_test.go:679:44: QF1008: could remove embedded field "Time" from selector (staticcheck)
+	require.WithinDuration(t, claims.IssuedAt.Time.Add(24*time.Hour), claims.ExpiresAt.Time, 2*time.Second)
+	                                          ^
+internal/service/auth_service_register_test.go:704:44: QF1008: could remove embedded field "Time" from selector (staticcheck)
+	require.WithinDuration(t, claims.IssuedAt.Time.Add(90*time.Minute), claims.ExpiresAt.Time, 2*time.Second)
+	                                          ^
+internal/service/concurrency_service_test.go:336:84: SA1012: do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use (staticcheck)
+		lease, acquired, err := NewConcurrencyService(cache).AcquireOpenAIWSIngressLease(nil, 1, 0)
+		                                                                                 ^
+internal/service/email_service_smtp_test.go:157:7: QF1001: could apply De Morgan's law (staticcheck)
+			if !(ok && writeLine("250-AUTH PLAIN LOGIN") && writeLine("250 8BITMIME")) {
+			   ^
+internal/service/email_service_smtp_test.go:230:7: QF1001: could apply De Morgan's law (staticcheck)
+			if !(writeLine("250-fake.test") && writeLine("250-AUTH PLAIN LOGIN") && writeLine("250 8BITMIME")) {
+			   ^
+internal/service/grok_credential_failure_test.go:1133:34: QF1008: could remove embedded field "tokenRefreshAccountRepo" from selector (staticcheck)
+				require.Zero(t, countingRepo.tokenRefreshAccountRepo.setErrorCalls)
+				                             ^
+internal/service/grok_credential_failure_test.go:1134:34: QF1008: could remove embedded field "tokenRefreshAccountRepo" from selector (staticcheck)
+				require.Zero(t, countingRepo.tokenRefreshAccountRepo.setTempUnschedCalls)
+				                             ^
+internal/service/openai_gateway_grok_test.go:1028:38: SA1008: keys in http.Header are canonicalized, "x-grok-client-version" is not canonical; fix the constant or use http.CanonicalHeaderKey (staticcheck)
+	require.Equal(t, []string{"9.9.9"}, req.Header["x-grok-client-version"])
+	                                    ^
+internal/service/openai_gateway_grok_test.go:1030:45: SA1008: keys in http.Header are canonicalized, "x-relay-token" is not canonical; fix the constant or use http.CanonicalHeaderKey (staticcheck)
+	require.Equal(t, []string{"relay-secret"}, req.Header["x-relay-token"])
+	                                           ^
+internal/service/payment_webhook_provider_test.go:50:20: SA1019: github.com/TokenFlux/TokenRouter/internal/payment.Encrypt is deprecated: payment provider configs are now stored as plaintext JSON. This function is kept only for seeding legacy ciphertext in tests and for the transitional Decrypt fallback. Scheduled for removal after all live deployments complete migration by re-saving their configs. (staticcheck)
+	encrypted, err := payment.Encrypt(string(data), []byte(webhookProviderTestEncryptionKey))
+	                  ^
+internal/service/scheduler_snapshot_batch_query_test.go:148:14: QF1008: could remove embedded field "batchSnapshotCache" from selector (staticcheck)
+	if err := c.batchSnapshotCache.SetSnapshot(ctx, bucket, token, accounts); err != nil {
+	            ^
+internal/service/scheduler_snapshot_batch_query_test.go:180:11: QF1008: could remove embedded field "batchSnapshotCache" from selector (staticcheck)
+	return c.batchSnapshotCache.SetSnapshot(ctx, bucket, token, accounts)
+	         ^
+internal/service/scheduler_snapshot_full_rebuild_lifecycle_test.go:55:9: QF1008: could remove embedded field "retirementRaceCache" from selector (staticcheck)
+		if !c.retirementRaceCache.retired[bucket.String()] {
+		      ^
+internal/service/scheduler_snapshot_full_rebuild_lifecycle_test.go:105:29: QF1008: could remove embedded field "retirementRaceCache" from selector (staticcheck)
+	for _, attempts := range c.retirementRaceCache.setAttempts {
+	                           ^
+internal/service/setting_service_oidc_config_test.go:65:10: QF1012: Use fmt.Fprintf(...) instead of Write([]byte(fmt.Sprintf(...))) (staticcheck)
+		_, _ = w.Write([]byte(fmt.Sprintf(`{
+		       ^
+internal/pkg/antigravity/client_test.go:826:6: type roundTripperFunc is unused (unused)
+type roundTripperFunc func(*http.Request) (*http.Response, error)
+     ^
+internal/pkg/antigravity/client_test.go:828:27: func roundTripperFunc.RoundTrip is unused (unused)
+func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {
+                          ^
+internal/service/admin_service_group_test.go:480:6: func ptrString is unused (unused)
+func ptrString[T ~string](v T) *string {
+     ^
+internal/service/billing_cache_service_user_platform_quota_test.go:112:25: func (*fakeFullCache).getDeleteCalls is unused (unused)
+func (f *fakeFullCache) getDeleteCalls() int {
+                        ^
+internal/service/creative_public_test.go:433:2: field reserveFailed is unused (unused)
+	reserveFailed bool
+	^
+internal/service/gateway_multiplatform_test.go:2071:6: type mockConcurrencyService is unused (unused)
+type mockConcurrencyService struct {
+     ^
+internal/service/gateway_multiplatform_test.go:2077:34: func (*mockConcurrencyService).GetAccountsLoadBatch is unused (unused)
+func (m *mockConcurrencyService) GetAccountsLoadBatch(ctx context.Context, accounts []AccountWithConcurrency) (map[int64]*AccountLoadInfo, error) {
+                                 ^
+internal/service/gateway_multiplatform_test.go:2097:34: func (*mockConcurrencyService).GetAccountWaitingCount is unused (unused)
+func (m *mockConcurrencyService) GetAccountWaitingCount(ctx context.Context, accountID int64) (int, error) {
+                                 ^
+internal/service/testhelpers_test.go:15:6: func testPtrBool is unused (unused)
+func testPtrBool(v bool) *bool { return &v }
+     ^
+68 issues:
+* depguard: 6
+* errcheck: 17
+* gofmt: 1
+* gosec: 1
+* govet: 3
+* staticcheck: 31
+* unused: 9

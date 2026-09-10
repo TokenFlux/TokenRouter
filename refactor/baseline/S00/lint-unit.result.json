@@ -1,0 +1,24 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--build-tags=unit",
+    "./..."
+  ],
+  "working_directory": "backend",
+  "environment": {
+    "GOTOOLCHAIN": "go1.27.0"
+  },
+  "started_at": "2026-09-10T16:27:39.993442+08:00",
+  "finished_at": "2026-09-10T16:28:42.953443+08:00",
+  "duration_seconds": 62.96,
+  "exit_code": 1,
+  "log": "logs/lint-unit.log",
+  "package_results": [],
+  "test_run_count": 0,
+  "test_pass_count": 0,
+  "failed_tests": [],
+  "skipped_tests": [],
+  "executed_tests": []
+}
