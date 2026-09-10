@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -17,9 +18,9 @@ import (
 func compositeMiddlewareTestKey() *service.APIKey {
 	group := &service.Group{
 		ID: 7, Name: "OpenAI", Platform: service.PlatformOpenAI, Status: service.StatusActive, IsExclusive: true,
-		AllowedProtocols: []service.GroupClientProtocol{
-			service.ProtocolOpenAIResponses,
-			service.ProtocolOpenAIChatCompletions,
+		AllowedProtocols: []domain.ProtocolID{
+			domain.ProtocolOpenAIResponses,
+			domain.ProtocolOpenAIChatCompletions,
 		},
 	}
 	return &service.APIKey{
@@ -51,8 +52,8 @@ func TestResolveCompositeAPIKeyRequestJSON(t *testing.T) {
 	require.Equal(t, int64(7), *selected.GroupID)
 	// 后续路由门禁必须读取复合 Key 最终选中分组的协议策略。
 	require.NotNil(t, selected.Group)
-	require.True(t, selected.Group.AllowsClientProtocol(service.ProtocolOpenAIResponses))
-	require.False(t, selected.Group.AllowsClientProtocol(service.ProtocolAnthropicMessages))
+	require.True(t, selected.Group.AllowsClientProtocol(domain.ProtocolOpenAIResponses))
+	require.False(t, selected.Group.AllowsClientProtocol(domain.ProtocolAnthropicMessages))
 	body, err := io.ReadAll(c.Request.Body)
 	require.NoError(t, err)
 	require.Equal(t, "vendor/model", gjson.GetBytes(body, "model").String())

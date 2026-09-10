@@ -3,6 +3,7 @@
 package service
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -17,5 +18,5 @@ func TestGroupClientProtocolsDoNotRecoverLegacyPolicy(t *testing.T) {
 
 	require.NotNil(t, group.EffectiveAllowedProtocols())
 	require.Empty(t, group.EffectiveAllowedProtocols())
-	require.False(t, group.AllowsClientProtocol(ProtocolAnthropicMessages))
+	require.False(t, group.AllowsClientProtocol(domain.ProtocolAnthropicMessages))
 }

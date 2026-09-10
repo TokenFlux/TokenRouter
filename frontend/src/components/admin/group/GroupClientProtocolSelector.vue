@@ -28,13 +28,13 @@ import Toggle from '@/components/common/Toggle.vue'
 import Select from '@/components/common/Select.vue'
 import CodexImageToolModeSelector from '@/components/account/CodexImageToolModeSelector.vue'
 import { loadProtocolCatalog, protocolCatalog } from '@/api/admin/protocolCapabilities'
-import type { GroupClientProtocol, GroupPlatform } from '@/types'
+import type { ProtocolID, GroupPlatform } from '@/types'
 import type { CodexImageToolMode } from '@/utils/codexImageToolMode'
 import { setGroupClientProtocol } from '@/utils/groupClientProtocols'
-const props = defineProps<{ modelValue: GroupClientProtocol[]; platform: GroupPlatform; fallbacks?: Partial<Record<GroupClientProtocol, GroupClientProtocol>>; imagePolicy?: CodexImageToolMode }>()
+const props = defineProps<{ modelValue: ProtocolID[]; platform: GroupPlatform; fallbacks?: Partial<Record<ProtocolID, ProtocolID>>; imagePolicy?: CodexImageToolMode }>()
 const emit = defineEmits<{
-  'update:modelValue': [value: GroupClientProtocol[]]
-  'update:fallbacks': [value: Partial<Record<GroupClientProtocol, GroupClientProtocol>>]
+  'update:modelValue': [value: ProtocolID[]]
+  'update:fallbacks': [value: Partial<Record<ProtocolID, ProtocolID>>]
   'update:imagePolicy': [value: CodexImageToolMode]
 }>()
 const { t } = useI18n()
@@ -42,14 +42,14 @@ const error = ref(false)
 void loadProtocolCatalog().catch(() => { error.value = true })
 const profile = computed(() => protocolCatalog.value?.groups.find(group => group.platform === props.platform))
 const protocols = computed(() => protocolCatalog.value?.protocols.filter(protocol => profile.value?.protocols.includes(protocol.id)) ?? [])
-function targetOptions(source: GroupClientProtocol) {
+function targetOptions(source: ProtocolID) {
   return [{ value: '', label: t('admin.protocols.nativeOnly') }, ...(profile.value?.fallback_targets[source] ?? []).map(id => ({ value: id, label: protocolCatalog.value?.protocols.find(protocol => protocol.id === id)?.name ?? id }))]
 }
-function toggle(id: GroupClientProtocol) { emit('update:modelValue', setGroupClientProtocol(props.platform, props.modelValue, id, !props.modelValue.includes(id))) }
+function toggle(id: ProtocolID) { emit('update:modelValue', setGroupClientProtocol(props.platform, props.modelValue, id, !props.modelValue.includes(id))) }
 // 空选择删除该源的转换目标，目标不受客户端入口开关影响。
-function setFallback(source: GroupClientProtocol, target: string) {
+function setFallback(source: ProtocolID, target: string) {
   const next = { ...props.fallbacks }
-  if (target) next[source] = target as GroupClientProtocol
+  if (target) next[source] = target as ProtocolID
   else delete next[source]
   emit('update:fallbacks', next)
 }

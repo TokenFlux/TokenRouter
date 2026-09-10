@@ -698,19 +698,19 @@ func (_u *GroupUpdate) SetNillableAllowMessagesDispatch(v *bool) *GroupUpdate {
 }
 
 // SetAllowedProtocols sets the "allowed_protocols" field.
-func (_u *GroupUpdate) SetAllowedProtocols(v []domain.GroupClientProtocol) *GroupUpdate {
+func (_u *GroupUpdate) SetAllowedProtocols(v []domain.ProtocolID) *GroupUpdate {
 	_u.mutation.SetAllowedProtocols(v)
 	return _u
 }
 
 // AppendAllowedProtocols appends value to the "allowed_protocols" field.
-func (_u *GroupUpdate) AppendAllowedProtocols(v []domain.GroupClientProtocol) *GroupUpdate {
+func (_u *GroupUpdate) AppendAllowedProtocols(v []domain.ProtocolID) *GroupUpdate {
 	_u.mutation.AppendAllowedProtocols(v)
 	return _u
 }
 
 // SetProtocolFallbacks sets the "protocol_fallbacks" field.
-func (_u *GroupUpdate) SetProtocolFallbacks(v map[domain.GroupClientProtocol]domain.GroupClientProtocol) *GroupUpdate {
+func (_u *GroupUpdate) SetProtocolFallbacks(v map[domain.ProtocolID]domain.ProtocolID) *GroupUpdate {
 	_u.mutation.SetProtocolFallbacks(v)
 	return _u
 }
@@ -2548,19 +2548,19 @@ func (_u *GroupUpdateOne) SetNillableAllowMessagesDispatch(v *bool) *GroupUpdate
 }
 
 // SetAllowedProtocols sets the "allowed_protocols" field.
-func (_u *GroupUpdateOne) SetAllowedProtocols(v []domain.GroupClientProtocol) *GroupUpdateOne {
+func (_u *GroupUpdateOne) SetAllowedProtocols(v []domain.ProtocolID) *GroupUpdateOne {
 	_u.mutation.SetAllowedProtocols(v)
 	return _u
 }
 
 // AppendAllowedProtocols appends value to the "allowed_protocols" field.
-func (_u *GroupUpdateOne) AppendAllowedProtocols(v []domain.GroupClientProtocol) *GroupUpdateOne {
+func (_u *GroupUpdateOne) AppendAllowedProtocols(v []domain.ProtocolID) *GroupUpdateOne {
 	_u.mutation.AppendAllowedProtocols(v)
 	return _u
 }
 
 // SetProtocolFallbacks sets the "protocol_fallbacks" field.
-func (_u *GroupUpdateOne) SetProtocolFallbacks(v map[domain.GroupClientProtocol]domain.GroupClientProtocol) *GroupUpdateOne {
+func (_u *GroupUpdateOne) SetProtocolFallbacks(v map[domain.ProtocolID]domain.ProtocolID) *GroupUpdateOne {
 	_u.mutation.SetProtocolFallbacks(v)
 	return _u
 }

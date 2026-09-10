@@ -2,6 +2,7 @@ package routes
 
 import (
 	"encoding/json"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -37,13 +38,13 @@ func newGatewayRoutesTestRouterWithOptions(cfg *config.Config, gatewayHandler *h
 	}
 	groupID := int64(1)
 	// 普通路由测试模拟已开启全部受支持协议；空集合由专门的门禁测试覆盖。
-	protocols := []service.GroupClientProtocol{
-		service.ProtocolAnthropicMessages,
-		service.ProtocolOpenAIResponses,
-		service.ProtocolOpenAIChatCompletions,
+	protocols := []domain.ProtocolID{
+		domain.ProtocolAnthropicMessages,
+		domain.ProtocolOpenAIResponses,
+		domain.ProtocolOpenAIChatCompletions,
 	}
 	if groupPlatform == service.PlatformGemini || groupPlatform == service.PlatformAntigravity {
-		protocols = append(protocols, service.ProtocolGeminiGenerateContent)
+		protocols = append(protocols, domain.ProtocolGeminiGenerateContent)
 	}
 	return newGatewayRoutesTestRouterWithGroup(cfg, gatewayHandler, &service.Group{
 		ID:               groupID,
@@ -101,28 +102,28 @@ func TestGatewayRoutesClientProtocolGateRejectsAliasesBeforeReadingBody(t *testi
 	tests := []struct {
 		name      string
 		platform  string
-		protocols []service.GroupClientProtocol
+		protocols []domain.ProtocolID
 		paths     []string
 		code      string
 	}{
 		{
 			name:      "messages",
 			platform:  service.PlatformOpenAI,
-			protocols: []service.GroupClientProtocol{service.ProtocolOpenAIResponses, service.ProtocolOpenAIChatCompletions},
+			protocols: []domain.ProtocolID{domain.ProtocolOpenAIResponses, domain.ProtocolOpenAIChatCompletions},
 			paths:     []string{"/v1/messages", "/v1/messages/count_tokens", "/messages/count_tokens", "/antigravity/v1/messages"},
 			code:      "permission_error",
 		},
 		{
 			name:      "responses",
 			platform:  service.PlatformQoder,
-			protocols: []service.GroupClientProtocol{service.ProtocolAnthropicMessages, service.ProtocolOpenAIChatCompletions},
+			protocols: []domain.ProtocolID{domain.ProtocolAnthropicMessages, domain.ProtocolOpenAIChatCompletions},
 			paths:     []string{"/v1/responses", "/v1/responses/compact", "/responses", "/responses/compact", "/backend-api/codex/responses", "/backend-api/codex/responses/compact"},
 			code:      "protocol_not_allowed",
 		},
 		{
 			name:      "chat_completions",
 			platform:  service.PlatformQoder,
-			protocols: []service.GroupClientProtocol{service.ProtocolAnthropicMessages, service.ProtocolOpenAIResponses},
+			protocols: []domain.ProtocolID{domain.ProtocolAnthropicMessages, domain.ProtocolOpenAIResponses},
 			paths:     []string{"/v1/chat/completions", "/chat/completions"},
 			code:      "protocol_not_allowed",
 		},
@@ -172,7 +173,7 @@ func TestGatewayRoutesUnsupportedCountTokensBypassesProtocolGate(t *testing.T) {
 			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &service.Group{
 				ID:               groupID,
 				Platform:         tt.platform,
-				AllowedProtocols: []service.GroupClientProtocol{},
+				AllowedProtocols: []domain.ProtocolID{},
 			})
 			reader := &protocolGateTrackingReader{}
 			req := httptest.NewRequest(http.MethodPost, tt.path, reader)
@@ -194,9 +195,9 @@ func TestGatewayRoutesResponsesSubpathGuardRunsBeforeProtocolGate(t *testing.T) 
 	router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &service.Group{
 		ID:       groupID,
 		Platform: service.PlatformQoder,
-		AllowedProtocols: []service.GroupClientProtocol{
-			service.ProtocolAnthropicMessages,
-			service.ProtocolOpenAIChatCompletions,
+		AllowedProtocols: []domain.ProtocolID{
+			domain.ProtocolAnthropicMessages,
+			domain.ProtocolOpenAIChatCompletions,
 		},
 	})
 
@@ -213,13 +214,13 @@ func TestGatewayRoutesResponsesSubpathGuardRunsBeforeProtocolGate(t *testing.T) 
 func TestRequireGroupClientProtocolUsesNativeErrorEnvelopes(t *testing.T) {
 	tests := []struct {
 		name     string
-		protocol service.GroupClientProtocol
+		protocol domain.ProtocolID
 		format   groupClientProtocolErrorFormat
 		contains []string
 	}{
-		{"anthropic", service.ProtocolAnthropicMessages, groupClientProtocolErrorAnthropic, []string{"permission_error", "Anthropic Messages"}},
-		{"openai", service.ProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, []string{"protocol_not_allowed", "OpenAI Responses"}},
-		{"google", service.ProtocolGeminiGenerateContent, groupClientProtocolErrorGoogle, []string{"PERMISSION_DENIED", "Gemini GenerateContent"}},
+		{"anthropic", domain.ProtocolAnthropicMessages, groupClientProtocolErrorAnthropic, []string{"permission_error", "Anthropic Messages"}},
+		{"openai", domain.ProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, []string{"protocol_not_allowed", "OpenAI Responses"}},
+		{"google", domain.ProtocolGeminiGenerateContent, groupClientProtocolErrorGoogle, []string{"PERMISSION_DENIED", "Gemini GenerateContent"}},
 	}
 
 	for _, tt := range tests {
@@ -227,7 +228,7 @@ func TestRequireGroupClientProtocolUsesNativeErrorEnvelopes(t *testing.T) {
 			router := gin.New()
 			var deniedReason string
 			router.Use(func(c *gin.Context) {
-				c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{Group: &service.Group{AllowedProtocols: []service.GroupClientProtocol{}}})
+				c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{Group: &service.Group{AllowedProtocols: []domain.ProtocolID{}}})
 				c.Next()
 				deniedReason = c.GetString(service.OpsClientBusinessLimitedReasonKey)
 			})
@@ -251,7 +252,7 @@ func TestRequireGeminiGenerateContentProtocolOnlyGatesTextActions(t *testing.T) 
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
 		c.Set(string(servermiddleware.ContextKeyAPIKey), &service.APIKey{
-			Group: &service.Group{Platform: service.PlatformQoder, AllowedProtocols: []service.GroupClientProtocol{}},
+			Group: &service.Group{Platform: service.PlatformQoder, AllowedProtocols: []domain.ProtocolID{}},
 		})
 		c.Next()
 	})

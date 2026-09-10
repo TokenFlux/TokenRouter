@@ -23584,9 +23584,9 @@ type GroupMutation struct {
 	sort_order                              *int
 	addsort_order                           *int
 	allow_messages_dispatch                 *bool
-	allowed_protocols                       *[]domain.GroupClientProtocol
-	appendallowed_protocols                 []domain.GroupClientProtocol
-	protocol_fallbacks                      *map[domain.GroupClientProtocol]domain.GroupClientProtocol
+	allowed_protocols                       *[]domain.ProtocolID
+	appendallowed_protocols                 []domain.ProtocolID
+	protocol_fallbacks                      *map[domain.ProtocolID]domain.ProtocolID
 	responses_image_policy                  *string
 	allow_live                              *bool
 	openai_fast_policy                      *string
@@ -25600,13 +25600,13 @@ func (m *GroupMutation) ResetAllowMessagesDispatch() {
 }
 
 // SetAllowedProtocols sets the "allowed_protocols" field.
-func (m *GroupMutation) SetAllowedProtocols(dcp []domain.GroupClientProtocol) {
-	m.allowed_protocols = &dcp
+func (m *GroupMutation) SetAllowedProtocols(di []domain.ProtocolID) {
+	m.allowed_protocols = &di
 	m.appendallowed_protocols = nil
 }
 
 // AllowedProtocols returns the value of the "allowed_protocols" field in the mutation.
-func (m *GroupMutation) AllowedProtocols() (r []domain.GroupClientProtocol, exists bool) {
+func (m *GroupMutation) AllowedProtocols() (r []domain.ProtocolID, exists bool) {
 	v := m.allowed_protocols
 	if v == nil {
 		return
@@ -25617,7 +25617,7 @@ func (m *GroupMutation) AllowedProtocols() (r []domain.GroupClientProtocol, exis
 // OldAllowedProtocols returns the old "allowed_protocols" field's value of the Group entity.
 // If the Group object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldAllowedProtocols(ctx context.Context) (v []domain.GroupClientProtocol, err error) {
+func (m *GroupMutation) OldAllowedProtocols(ctx context.Context) (v []domain.ProtocolID, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldAllowedProtocols is only allowed on UpdateOne operations")
 	}
@@ -25631,13 +25631,13 @@ func (m *GroupMutation) OldAllowedProtocols(ctx context.Context) (v []domain.Gro
 	return oldValue.AllowedProtocols, nil
 }
 
-// AppendAllowedProtocols adds dcp to the "allowed_protocols" field.
-func (m *GroupMutation) AppendAllowedProtocols(dcp []domain.GroupClientProtocol) {
-	m.appendallowed_protocols = append(m.appendallowed_protocols, dcp...)
+// AppendAllowedProtocols adds di to the "allowed_protocols" field.
+func (m *GroupMutation) AppendAllowedProtocols(di []domain.ProtocolID) {
+	m.appendallowed_protocols = append(m.appendallowed_protocols, di...)
 }
 
 // AppendedAllowedProtocols returns the list of values that were appended to the "allowed_protocols" field in this mutation.
-func (m *GroupMutation) AppendedAllowedProtocols() ([]domain.GroupClientProtocol, bool) {
+func (m *GroupMutation) AppendedAllowedProtocols() ([]domain.ProtocolID, bool) {
 	if len(m.appendallowed_protocols) == 0 {
 		return nil, false
 	}
@@ -25651,12 +25651,12 @@ func (m *GroupMutation) ResetAllowedProtocols() {
 }
 
 // SetProtocolFallbacks sets the "protocol_fallbacks" field.
-func (m *GroupMutation) SetProtocolFallbacks(mcpcp map[domain.GroupClientProtocol]domain.GroupClientProtocol) {
-	m.protocol_fallbacks = &mcpcp
+func (m *GroupMutation) SetProtocolFallbacks(mii map[domain.ProtocolID]domain.ProtocolID) {
+	m.protocol_fallbacks = &mii
 }
 
 // ProtocolFallbacks returns the value of the "protocol_fallbacks" field in the mutation.
-func (m *GroupMutation) ProtocolFallbacks() (r map[domain.GroupClientProtocol]domain.GroupClientProtocol, exists bool) {
+func (m *GroupMutation) ProtocolFallbacks() (r map[domain.ProtocolID]domain.ProtocolID, exists bool) {
 	v := m.protocol_fallbacks
 	if v == nil {
 		return
@@ -25667,7 +25667,7 @@ func (m *GroupMutation) ProtocolFallbacks() (r map[domain.GroupClientProtocol]do
 // OldProtocolFallbacks returns the old "protocol_fallbacks" field's value of the Group entity.
 // If the Group object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *GroupMutation) OldProtocolFallbacks(ctx context.Context) (v map[domain.GroupClientProtocol]domain.GroupClientProtocol, err error) {
+func (m *GroupMutation) OldProtocolFallbacks(ctx context.Context) (v map[domain.ProtocolID]domain.ProtocolID, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldProtocolFallbacks is only allowed on UpdateOne operations")
 	}
@@ -27355,14 +27355,14 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 		m.SetAllowMessagesDispatch(v)
 		return nil
 	case group.FieldAllowedProtocols:
-		v, ok := value.([]domain.GroupClientProtocol)
+		v, ok := value.([]domain.ProtocolID)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetAllowedProtocols(v)
 		return nil
 	case group.FieldProtocolFallbacks:
-		v, ok := value.(map[domain.GroupClientProtocol]domain.GroupClientProtocol)
+		v, ok := value.(map[domain.ProtocolID]domain.ProtocolID)
 		if !ok {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}

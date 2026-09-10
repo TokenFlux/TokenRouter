@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"maps"
 	"strconv"
 	"strings"
@@ -119,7 +120,7 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		AllowedProtocols:                cloneGroupClientProtocols(source.AllowedProtocols),
 		ProtocolFallbacks:               maps.Clone(source.ProtocolFallbacks),
 		ResponsesImagePolicy:            source.ResponsesImagePolicy,
-		AllowMessagesDispatch:           source.Platform == PlatformOpenAI && source.AllowsClientProtocol(ProtocolAnthropicMessages),
+		AllowMessagesDispatch:           source.Platform == PlatformOpenAI && source.AllowsClientProtocol(domain.ProtocolAnthropicMessages),
 		AllowLive:                       source.AllowLive,
 		ForceOpenAIFast:                 source.ForceOpenAIFast,
 		OpenAIFastPolicy:                source.EffectiveOpenAIFastPolicy(),
@@ -141,8 +142,8 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 }
 
 // cloneGroupClientProtocols 返回独立且非 nil 的协议集合副本。
-func cloneGroupClientProtocols(protocols []GroupClientProtocol) []GroupClientProtocol {
-	return append([]GroupClientProtocol{}, protocols...)
+func cloneGroupClientProtocols(protocols []domain.ProtocolID) []domain.ProtocolID {
+	return append([]domain.ProtocolID{}, protocols...)
 }
 
 // RecoverDuplicateGroup 只读查找同一操作者、源分组和幂等键已提交的副本。

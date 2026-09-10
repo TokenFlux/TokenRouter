@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"strconv"
 	"strings"
 	"testing"
@@ -1128,10 +1129,10 @@ func TestBuildSchedulerMetadataAccount_KeepsOpenAIPassthroughForModelGate(t *tes
 func TestSchedulerProtocolProjection(t *testing.T) {
 	account := service.Account{ID: 72, Platform: service.PlatformOpenAI, Type: service.AccountTypeOAuth, Credentials: map[string]any{"upstream_protocols": []string{"openai_responses_websocket"}, "auth_mode": "personalAccessToken", "access_token": "hidden"}}
 	metadata := buildSchedulerMetadataAccount(account)
-	require.Equal(t, []service.GroupClientProtocol{"openai_responses_websocket"}, metadata.UpstreamProtocols())
+	require.Equal(t, []domain.ProtocolID{"openai_responses_websocket"}, metadata.UpstreamProtocols())
 	require.True(t, metadata.IsOpenAIPersonalAccessToken())
 	require.NotContains(t, metadata.Credentials, "access_token")
-	require.NotContains(t, metadata.NativeProtocolOptions(), service.GroupClientProtocol("openai_live"))
+	require.NotContains(t, metadata.NativeProtocolOptions(), domain.ProtocolID("openai_live"))
 	account.Credentials["upstream_protocols"] = []string{}
 	metadata = buildSchedulerMetadataAccount(account)
 	require.Empty(t, metadata.UpstreamProtocols())

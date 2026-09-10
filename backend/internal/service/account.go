@@ -24,7 +24,7 @@ import (
 
 type Account struct {
 	// resolvedProtocol 仅属于本次转发副本，不能写入共享快照。
-	resolvedProtocol GroupClientProtocol
+	resolvedProtocol domain.ProtocolID
 
 	ID                      int64
 	Name                    string
@@ -1571,11 +1571,11 @@ func (a *Account) IsCodingPlan() bool {
 func (a *Account) GetAPIProtocol() string {
 	if a != nil && a.resolvedProtocol != "" {
 		switch a.resolvedProtocol {
-		case ProtocolAnthropicMessages:
+		case domain.ProtocolAnthropicMessages:
 			return APIProtocolAnthropic
-		case ProtocolOpenAIResponses:
+		case domain.ProtocolOpenAIResponses:
 			return APIProtocolResponses
-		case ProtocolOpenAIChatCompletions:
+		case domain.ProtocolOpenAIChatCompletions:
 			return APIProtocolChatCompletions
 		}
 	}
@@ -2015,14 +2015,14 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 	}
 	if _, unified := a.Credentials[upstreamProtocolsKey]; unified && !a.IsGrok() {
 		enabled := a.UpstreamProtocols()
-		has := func(p GroupClientProtocol) bool { return domain.HasGroupClientProtocol(enabled, p) }
+		has := func(p domain.ProtocolID) bool { return domain.HasGroupClientProtocol(enabled, p) }
 		switch capability {
 		case OpenAIEndpointCapabilityTextGeneration:
-			if !has(ProtocolOpenAIResponses) && !has(ProtocolOpenAIChatCompletions) && !has(ProtocolAnthropicMessages) {
+			if !has(domain.ProtocolOpenAIResponses) && !has(domain.ProtocolOpenAIChatCompletions) && !has(domain.ProtocolAnthropicMessages) {
 				return false
 			}
 		case OpenAIEndpointCapabilityResponses, OpenAIEndpointCapabilityRemoteCompactionV2:
-			if !has(ProtocolOpenAIResponses) {
+			if !has(domain.ProtocolOpenAIResponses) {
 				return false
 			}
 		case OpenAIEndpointCapabilityEmbeddings:
@@ -2034,7 +2034,7 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 				return false
 			}
 		case OpenAIEndpointCapabilityAlphaSearch:
-			if !has(domain.ProtocolAlphaSearch) && !(a.IsOpenAIPersonalAccessToken() && has(ProtocolOpenAIResponses)) {
+			if !has(domain.ProtocolAlphaSearch) && !(a.IsOpenAIPersonalAccessToken() && has(domain.ProtocolOpenAIResponses)) {
 				return false
 			}
 		}

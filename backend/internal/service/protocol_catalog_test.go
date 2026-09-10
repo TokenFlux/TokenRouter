@@ -11,7 +11,7 @@ import (
 func TestProtocolCatalogFixture(t *testing.T) {
 	catalog := domain.ProtocolCatalog()
 	require.Len(t, catalog, 24)
-	ids := map[GroupClientProtocol]bool{}
+	ids := map[domain.ProtocolID]bool{}
 	public := 0
 	for _, p := range catalog {
 		require.False(t, ids[p.ID])

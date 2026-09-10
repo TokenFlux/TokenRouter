@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"strings"
 	"testing"
 	"time"
@@ -150,10 +151,10 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 		MCPXMLInject:                    true,
 		SupportedModelScopes:            []string{"claude", "gemini_text"},
 		SortOrder:                       9,
-		AllowedProtocols: []GroupClientProtocol{
-			ProtocolAnthropicMessages,
-			ProtocolOpenAIResponses,
-			ProtocolOpenAIChatCompletions,
+		AllowedProtocols: []domain.ProtocolID{
+			domain.ProtocolAnthropicMessages,
+			domain.ProtocolOpenAIResponses,
+			domain.ProtocolOpenAIChatCompletions,
 		},
 		AllowMessagesDispatch: true,
 		AllowLive:             true,
@@ -232,7 +233,7 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 
 	duplicate.ModelRouting["gpt-*"][0] = 999
 	duplicate.SupportedModelScopes[0] = "changed"
-	duplicate.AllowedProtocols[0] = ProtocolOpenAIResponses
+	duplicate.AllowedProtocols[0] = domain.ProtocolOpenAIResponses
 	duplicate.MessagesDispatchModelConfig.ExactModelMappings["claude-special"] = "changed"
 	duplicate.ModelsListConfig.Models[0] = "changed"
 	duplicate.ReasoningEffortMappings[0].To = "changed"
@@ -241,7 +242,7 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 	*duplicate.AdvancedSchedulerOverrides.WeightPriority = 99
 	require.Equal(t, int64(13), source.ModelRouting["gpt-*"][0])
 	require.Equal(t, "claude", source.SupportedModelScopes[0])
-	require.Equal(t, ProtocolAnthropicMessages, source.AllowedProtocols[0])
+	require.Equal(t, domain.ProtocolAnthropicMessages, source.AllowedProtocols[0])
 	require.Equal(t, "gpt-special", source.MessagesDispatchModelConfig.ExactModelMappings["claude-special"])
 	require.Equal(t, "gpt-5.4", source.ModelsListConfig.Models[0])
 	require.Equal(t, "xhigh", source.ReasoningEffortMappings[0].To)

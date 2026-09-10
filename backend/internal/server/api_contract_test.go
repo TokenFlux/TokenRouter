@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"math"
 	"net/http"
@@ -370,10 +371,10 @@ func TestAPIContracts(t *testing.T) {
 						Platform:           service.PlatformAnthropic,
 						RateMultiplier:     1.5,
 						PeakRateMultiplier: 1.0,
-						AllowedProtocols: []service.GroupClientProtocol{
-							service.ProtocolAnthropicMessages,
-							service.ProtocolOpenAIResponses,
-							service.ProtocolOpenAIChatCompletions,
+						AllowedProtocols: []domain.ProtocolID{
+							domain.ProtocolAnthropicMessages,
+							domain.ProtocolOpenAIResponses,
+							domain.ProtocolOpenAIChatCompletions,
 						},
 						IsExclusive:         false,
 						Status:              service.StatusActive,

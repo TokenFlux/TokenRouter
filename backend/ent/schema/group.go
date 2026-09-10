@@ -199,13 +199,13 @@ func (Group) Fields() []ent.Field {
 		field.Bool("allow_messages_dispatch").
 			Default(false).
 			Comment("是否允许 /v1/messages 调度到此 OpenAI 分组"),
-		field.JSON("allowed_protocols", []domain.GroupClientProtocol{}).
-			Default([]domain.GroupClientProtocol{}).
+		field.JSON("allowed_protocols", []domain.ProtocolID{}).
+			Default([]domain.ProtocolID{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("允许客户端调用分组的协议与业务入口完整集合"),
 		// 协议转换与 Responses 图片策略是独立的分组控制项。
-		field.JSON("protocol_fallbacks", map[domain.GroupClientProtocol]domain.GroupClientProtocol{}).
-			Default(map[domain.GroupClientProtocol]domain.GroupClientProtocol{}).
+		field.JSON("protocol_fallbacks", map[domain.ProtocolID]domain.ProtocolID{}).
+			Default(map[domain.ProtocolID]domain.ProtocolID{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}),
 		field.String("responses_image_policy").Default("inherit"),
 		field.Bool("allow_live").

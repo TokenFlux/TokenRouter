@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -31,7 +32,7 @@ func TestAllowOpenAICompatibleMessagesDispatchUsesProtocolCollectionForCN(t *tes
 
 		enabled := &service.APIKey{Group: &service.Group{
 			Platform:         platform,
-			AllowedProtocols: []service.GroupClientProtocol{service.ProtocolAnthropicMessages},
+			AllowedProtocols: []domain.ProtocolID{domain.ProtocolAnthropicMessages},
 		}}
 		require.True(t, allowOpenAICompatibleMessagesDispatch(enabled), platform)
 	}

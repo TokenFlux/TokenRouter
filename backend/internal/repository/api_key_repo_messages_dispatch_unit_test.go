@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"testing"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
@@ -16,10 +17,10 @@ func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T)
 		Platform:       service.PlatformOpenAI,
 		Status:         service.StatusActive,
 		RateMultiplier: 1,
-		AllowedProtocols: []service.GroupClientProtocol{
-			service.ProtocolAnthropicMessages,
-			service.ProtocolOpenAIResponses,
-			service.ProtocolOpenAIChatCompletions,
+		AllowedProtocols: []domain.ProtocolID{
+			domain.ProtocolAnthropicMessages,
+			domain.ProtocolOpenAIResponses,
+			domain.ProtocolOpenAIChatCompletions,
 		},
 		AllowMessagesDispatch: true,
 		DefaultMappedModel:    "gpt-5.4",
@@ -67,10 +68,10 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_S
 		SetRateMultiplier(1).
 		SetSchedulerType(string(service.GroupSchedulerTypeAdvanced)).
 		SetAdvancedSchedulerOverrides(service.GroupAdvancedSchedulerOverrides{LBTopK: &lbTopK}).
-		SetAllowedProtocols([]service.GroupClientProtocol{
-			service.ProtocolAnthropicMessages,
-			service.ProtocolOpenAIResponses,
-			service.ProtocolOpenAIChatCompletions,
+		SetAllowedProtocols([]domain.ProtocolID{
+			domain.ProtocolAnthropicMessages,
+			domain.ProtocolOpenAIResponses,
+			domain.ProtocolOpenAIChatCompletions,
 		}).
 		SetAllowMessagesDispatch(true).
 		SetDefaultMappedModel("gpt-5.4").

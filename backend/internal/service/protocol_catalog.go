@@ -2,27 +2,20 @@ package service
 
 import "github.com/TokenFlux/TokenRouter/internal/domain"
 
-const (
-	ProtocolAnthropicMessages     = domain.ProtocolAnthropicMessages
-	ProtocolOpenAIResponses       = domain.ProtocolOpenAIResponses
-	ProtocolOpenAIChatCompletions = domain.ProtocolOpenAIChatCompletions
-	ProtocolGeminiGenerateContent = domain.ProtocolGeminiGenerateContent
-)
-
 // ProtocolAccountProfile 描述可展示的原生选项，不包含令牌或账号标识。
 type ProtocolAccountProfile struct {
-	Platform  string                `json:"platform"`
-	Type      string                `json:"type"`
-	AuthMode  string                `json:"auth_mode"`
-	Protocols []GroupClientProtocol `json:"protocols"`
+	Platform  string              `json:"platform"`
+	Type      string              `json:"type"`
+	AuthMode  string              `json:"auth_mode"`
+	Protocols []domain.ProtocolID `json:"protocols"`
 }
 
 type ProtocolGroupProfile struct {
-	Platform         string                                        `json:"platform"`
-	Protocols        []GroupClientProtocol                         `json:"protocols"`
-	Defaults         []GroupClientProtocol                         `json:"defaults"`
-	FallbackTargets  map[GroupClientProtocol][]GroupClientProtocol `json:"fallback_targets"`
-	DefaultFallbacks map[GroupClientProtocol]GroupClientProtocol   `json:"default_fallbacks"`
+	Platform         string                                    `json:"platform"`
+	Protocols        []domain.ProtocolID                       `json:"protocols"`
+	Defaults         []domain.ProtocolID                       `json:"defaults"`
+	FallbackTargets  map[domain.ProtocolID][]domain.ProtocolID `json:"fallback_targets"`
+	DefaultFallbacks map[domain.ProtocolID]domain.ProtocolID   `json:"default_fallbacks"`
 }
 
 // AdminProtocolCatalog 是前后端共用的唯一目录投影。
@@ -40,7 +33,7 @@ func AdminProtocolCatalog() any {
 			}
 		}
 		supported := domain.SupportedGroupClientProtocols(platform)
-		targets := map[GroupClientProtocol][]GroupClientProtocol{}
+		targets := map[domain.ProtocolID][]domain.ProtocolID{}
 		for _, source := range supported {
 			targets[source] = domain.ProtocolFallbackTargets(platform, source)
 		}

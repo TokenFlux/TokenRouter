@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"strings"
 	"testing"
 
@@ -199,10 +200,10 @@ func (s *GroupRepoSuite) TestGetByID_PreservesMessagesDispatchModelConfig() {
 		RateMultiplier: 1.0,
 		IsExclusive:    false,
 		Status:         service.StatusActive,
-		AllowedProtocols: []service.GroupClientProtocol{
-			service.ProtocolAnthropicMessages,
-			service.ProtocolOpenAIResponses,
-			service.ProtocolOpenAIChatCompletions,
+		AllowedProtocols: []domain.ProtocolID{
+			domain.ProtocolAnthropicMessages,
+			domain.ProtocolOpenAIResponses,
+			domain.ProtocolOpenAIChatCompletions,
 		},
 		AllowMessagesDispatch: true,
 		DefaultMappedModel:    "gpt-5.4",

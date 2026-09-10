@@ -296,7 +296,7 @@ func groupFromServiceBase(g *service.Group) Group {
 		AllowedProtocols:                g.EffectiveAllowedProtocols(),
 		ProtocolFallbacks:               g.ProtocolFallbacks,
 		ResponsesImagePolicy:            g.ResponsesImagePolicy,
-		AllowMessagesDispatch:           g.AllowsClientProtocol(service.ProtocolAnthropicMessages),
+		AllowMessagesDispatch:           g.AllowsClientProtocol(domain.ProtocolAnthropicMessages),
 		AllowLive:                       g.AllowLive,
 		RequireOAuthOnly:                g.RequireOAuthOnly,
 		RequirePrivacySet:               g.RequirePrivacySet,

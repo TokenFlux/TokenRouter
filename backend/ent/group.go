@@ -99,9 +99,9 @@ type Group struct {
 	// 是否允许 /v1/messages 调度到此 OpenAI 分组
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch,omitempty"`
 	// 允许客户端调用分组的协议与业务入口完整集合
-	AllowedProtocols []domain.GroupClientProtocol `json:"allowed_protocols,omitempty"`
+	AllowedProtocols []domain.ProtocolID `json:"allowed_protocols,omitempty"`
 	// ProtocolFallbacks holds the value of the "protocol_fallbacks" field.
-	ProtocolFallbacks map[domain.GroupClientProtocol]domain.GroupClientProtocol `json:"protocol_fallbacks,omitempty"`
+	ProtocolFallbacks map[domain.ProtocolID]domain.ProtocolID `json:"protocol_fallbacks,omitempty"`
 	// ResponsesImagePolicy holds the value of the "responses_image_policy" field.
 	ResponsesImagePolicy string `json:"responses_image_policy,omitempty"`
 	// 是否允许此 OpenAI 分组访问 Live 接口

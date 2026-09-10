@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"math"
 	"net/http"
 	"testing"
@@ -14,21 +15,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func ptrGroupClientProtocols(value []GroupClientProtocol) *[]GroupClientProtocol {
+func ptrGroupClientProtocols(value []domain.ProtocolID) *[]domain.ProtocolID {
 	return &value
 }
 
 func TestAdminServiceCreateGroupUsesPlatformClientProtocolDefaults(t *testing.T) {
 	tests := []struct {
 		platform string
-		want     []GroupClientProtocol
+		want     []domain.ProtocolID
 	}{
-		{PlatformAnthropic, []GroupClientProtocol{ProtocolAnthropicMessages}},
-		{PlatformOpenAI, []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions}},
-		{PlatformGemini, []GroupClientProtocol{ProtocolGeminiGenerateContent}},
-		{PlatformAntigravity, []GroupClientProtocol{ProtocolAnthropicMessages, ProtocolGeminiGenerateContent}},
-		{PlatformQoder, []GroupClientProtocol{}},
-		{PlatformGrok, []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions, "openai_images_generations", "openai_images_edits"}},
+		{PlatformAnthropic, []domain.ProtocolID{domain.ProtocolAnthropicMessages}},
+		{PlatformOpenAI, []domain.ProtocolID{domain.ProtocolOpenAIResponses, domain.ProtocolOpenAIChatCompletions}},
+		{PlatformGemini, []domain.ProtocolID{domain.ProtocolGeminiGenerateContent}},
+		{PlatformAntigravity, []domain.ProtocolID{domain.ProtocolAnthropicMessages, domain.ProtocolGeminiGenerateContent}},
+		{PlatformQoder, []domain.ProtocolID{}},
+		{PlatformGrok, []domain.ProtocolID{domain.ProtocolOpenAIResponses, domain.ProtocolOpenAIChatCompletions, "openai_images_generations", "openai_images_edits"}},
 	}
 
 	for _, tt := range tests {
@@ -300,10 +301,10 @@ func TestAdminServiceCreateGroupClientProtocolCompatibilityPrecedence(t *testing
 		})
 
 		require.NoError(t, err)
-		require.Equal(t, []GroupClientProtocol{
-			ProtocolAnthropicMessages,
-			ProtocolOpenAIResponses,
-			ProtocolOpenAIChatCompletions,
+		require.Equal(t, []domain.ProtocolID{
+			domain.ProtocolAnthropicMessages,
+			domain.ProtocolOpenAIResponses,
+			domain.ProtocolOpenAIChatCompletions,
 		}, group.AllowedProtocols)
 		require.True(t, group.AllowMessagesDispatch)
 	})
@@ -317,16 +318,16 @@ func TestAdminServiceCreateGroupClientProtocolCompatibilityPrecedence(t *testing
 			Platform:              PlatformOpenAI,
 			RateMultiplier:        1,
 			AllowMessagesDispatch: true,
-			AllowedProtocols: []GroupClientProtocol{
-				ProtocolOpenAIChatCompletions,
-				ProtocolOpenAIResponses,
+			AllowedProtocols: []domain.ProtocolID{
+				domain.ProtocolOpenAIChatCompletions,
+				domain.ProtocolOpenAIResponses,
 			},
 		})
 
 		require.NoError(t, err)
-		require.Equal(t, []GroupClientProtocol{
-			ProtocolOpenAIResponses,
-			ProtocolOpenAIChatCompletions,
+		require.Equal(t, []domain.ProtocolID{
+			domain.ProtocolOpenAIResponses,
+			domain.ProtocolOpenAIChatCompletions,
 		}, group.AllowedProtocols)
 		require.False(t, group.AllowMessagesDispatch)
 	})
@@ -336,11 +337,11 @@ func TestAdminServiceRejectsInvalidGroupClientProtocols(t *testing.T) {
 	tests := []struct {
 		name      string
 		platform  string
-		protocols []GroupClientProtocol
+		protocols []domain.ProtocolID
 	}{
-		{"unknown", PlatformQoder, []GroupClientProtocol{"unknown"}},
-		{"duplicate", PlatformQoder, []GroupClientProtocol{ProtocolAnthropicMessages, ProtocolAnthropicMessages}},
-		{"unsupported", PlatformOpenAI, []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions, ProtocolGeminiGenerateContent}},
+		{"unknown", PlatformQoder, []domain.ProtocolID{"unknown"}},
+		{"duplicate", PlatformQoder, []domain.ProtocolID{domain.ProtocolAnthropicMessages, domain.ProtocolAnthropicMessages}},
+		{"unsupported", PlatformOpenAI, []domain.ProtocolID{domain.ProtocolOpenAIResponses, domain.ProtocolOpenAIChatCompletions, domain.ProtocolGeminiGenerateContent}},
 	}
 
 	for _, tt := range tests {
@@ -371,7 +372,7 @@ func TestAdminServiceAllowsEmptyGroupClientProtocolsForEveryPlatform(t *testing.
 			svc := &adminServiceImpl{groupRepo: &groupRepoStubForAdmin{}}
 
 			group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
-				Name: platform, Platform: platform, RateMultiplier: 1, AllowedProtocols: []GroupClientProtocol{},
+				Name: platform, Platform: platform, RateMultiplier: 1, AllowedProtocols: []domain.ProtocolID{},
 			})
 
 			require.NoError(t, err)
@@ -382,7 +383,7 @@ func TestAdminServiceAllowsEmptyGroupClientProtocolsForEveryPlatform(t *testing.
 }
 
 func TestAdminServiceUpdateGroupPreservesExplicitEmptyClientProtocols(t *testing.T) {
-	existing := &Group{ID: 1, Name: "openai", Platform: PlatformOpenAI, Status: StatusActive, AllowedProtocols: []GroupClientProtocol{}}
+	existing := &Group{ID: 1, Name: "openai", Platform: PlatformOpenAI, Status: StatusActive, AllowedProtocols: []domain.ProtocolID{}}
 	repo := &groupRepoStubForAdmin{getByID: existing}
 	svc := &adminServiceImpl{groupRepo: repo}
 
@@ -398,41 +399,41 @@ func TestAdminServiceUpdateGroupFiltersUnsupportedProtocolsWhenPlatformChanges(t
 		name     string
 		from     string
 		to       string
-		initial  []GroupClientProtocol
-		expected []GroupClientProtocol
+		initial  []domain.ProtocolID
+		expected []domain.ProtocolID
 	}{
 		{
 			name: "Gemini to OpenAI",
 			from: PlatformGemini,
 			to:   PlatformOpenAI,
-			initial: []GroupClientProtocol{
-				ProtocolAnthropicMessages,
-				ProtocolOpenAIResponses,
-				ProtocolOpenAIChatCompletions,
-				ProtocolGeminiGenerateContent,
+			initial: []domain.ProtocolID{
+				domain.ProtocolAnthropicMessages,
+				domain.ProtocolOpenAIResponses,
+				domain.ProtocolOpenAIChatCompletions,
+				domain.ProtocolGeminiGenerateContent,
 			},
-			expected: []GroupClientProtocol{
-				ProtocolAnthropicMessages,
-				ProtocolOpenAIResponses,
-				ProtocolOpenAIChatCompletions,
+			expected: []domain.ProtocolID{
+				domain.ProtocolAnthropicMessages,
+				domain.ProtocolOpenAIResponses,
+				domain.ProtocolOpenAIChatCompletions,
 			},
 		},
 		{
 			name:    "OpenAI to Anthropic",
 			from:    PlatformOpenAI,
 			to:      PlatformAnthropic,
-			initial: []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions},
-			expected: []GroupClientProtocol{
-				ProtocolOpenAIResponses,
-				ProtocolOpenAIChatCompletions,
+			initial: []domain.ProtocolID{domain.ProtocolOpenAIResponses, domain.ProtocolOpenAIChatCompletions},
+			expected: []domain.ProtocolID{
+				domain.ProtocolOpenAIResponses,
+				domain.ProtocolOpenAIChatCompletions,
 			},
 		},
 		{
 			name:     "Qoder empty to Grok",
 			from:     PlatformQoder,
 			to:       PlatformGrok,
-			initial:  []GroupClientProtocol{},
-			expected: []GroupClientProtocol{},
+			initial:  []domain.ProtocolID{},
+			expected: []domain.ProtocolID{},
 		},
 	}
 
@@ -456,24 +457,24 @@ func TestAdminServiceUpdateGroupFiltersUnsupportedProtocolsWhenPlatformChanges(t
 func TestAdminServiceUpdateGroupNewClientProtocolsOverrideLegacySwitch(t *testing.T) {
 	existing := &Group{
 		ID: 1, Name: "openai", Platform: PlatformOpenAI, Status: StatusActive,
-		AllowedProtocols: []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions},
+		AllowedProtocols: []domain.ProtocolID{domain.ProtocolOpenAIResponses, domain.ProtocolOpenAIChatCompletions},
 	}
 	repo := &groupRepoStubForAdmin{getByID: existing}
 	svc := &adminServiceImpl{groupRepo: repo}
 	legacyEnabled := false
 
 	group, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
-		AllowedProtocols: ptrGroupClientProtocols([]GroupClientProtocol{
-			ProtocolAnthropicMessages,
-			ProtocolOpenAIResponses,
-			ProtocolOpenAIChatCompletions,
+		AllowedProtocols: ptrGroupClientProtocols([]domain.ProtocolID{
+			domain.ProtocolAnthropicMessages,
+			domain.ProtocolOpenAIResponses,
+			domain.ProtocolOpenAIChatCompletions,
 		}),
 		AllowMessagesDispatch: &legacyEnabled,
 	})
 
 	require.NoError(t, err)
 	require.True(t, group.AllowMessagesDispatch)
-	require.True(t, group.AllowsClientProtocol(ProtocolAnthropicMessages))
+	require.True(t, group.AllowsClientProtocol(domain.ProtocolAnthropicMessages))
 }
 
 func ptrString[T ~string](v T) *string {
@@ -1067,8 +1068,8 @@ func TestAdminService_UpdateGroup_PreservesImageGenerationControlsWhenOmitted(t 
 		Platform:             PlatformOpenAI,
 		Status:               StatusActive,
 		AllowImageGeneration: true,
-		AllowedProtocols:     []GroupClientProtocol{"openai_images_generations", "openai_images_edits"},
-		ProtocolFallbacks:    map[GroupClientProtocol]GroupClientProtocol{},
+		AllowedProtocols:     []domain.ProtocolID{"openai_images_generations", "openai_images_edits"},
+		ProtocolFallbacks:    map[domain.ProtocolID]domain.ProtocolID{},
 		ResponsesImagePolicy: "inherit",
 	}
 	repo := &groupRepoStubForAdmin{getByID: existingGroup}

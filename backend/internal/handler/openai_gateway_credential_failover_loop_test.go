@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -953,10 +954,10 @@ func newGrokCredentialFailoverHandler(t *testing.T, mode string) (*OpenAIGateway
 			Platform:             service.PlatformGrok,
 			Status:               service.StatusActive,
 			AllowImageGeneration: true,
-			AllowedProtocols: []service.GroupClientProtocol{
-				service.ProtocolAnthropicMessages,
-				service.ProtocolOpenAIResponses,
-				service.ProtocolOpenAIChatCompletions,
+			AllowedProtocols: []domain.ProtocolID{
+				domain.ProtocolAnthropicMessages,
+				domain.ProtocolOpenAIResponses,
+				domain.ProtocolOpenAIChatCompletions,
 			},
 		},
 	}

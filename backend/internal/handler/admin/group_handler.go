@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -84,10 +85,10 @@ type CreateGroupRequest struct {
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes []string `json:"supported_model_scopes"`
 	// 客户端文本协议完整准入集合；nil 表示创建时采用平台默认值。
-	AllowedProtocols             []service.GroupClientProtocol                               `json:"allowed_protocols"`
-	ProtocolFallbacks            map[service.GroupClientProtocol]service.GroupClientProtocol `json:"protocol_fallbacks"`
-	ResponsesImagePolicy         string                                                      `json:"responses_image_policy"`
-	LegacyAllowedClientProtocols []service.GroupClientProtocol                               `json:"allowed_client_protocols"`
+	AllowedProtocols             []domain.ProtocolID                     `json:"allowed_protocols"`
+	ProtocolFallbacks            map[domain.ProtocolID]domain.ProtocolID `json:"protocol_fallbacks"`
+	ResponsesImagePolicy         string                                  `json:"responses_image_policy"`
+	LegacyAllowedClientProtocols []domain.ProtocolID                     `json:"allowed_client_protocols"`
 	// OpenAI Messages 旧兼容开关。
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch"`
 	AllowLive             bool `json:"allow_live"`
@@ -158,10 +159,10 @@ type UpdateGroupRequest struct {
 	// 支持的模型系列（仅 antigravity 平台使用）
 	SupportedModelScopes *[]string `json:"supported_model_scopes"`
 	// nil 表示不修改，空数组表示显式关闭全部文本协议（所有平台均合法）。
-	AllowedProtocols             *[]service.GroupClientProtocol                              `json:"allowed_protocols"`
-	ProtocolFallbacks            map[service.GroupClientProtocol]service.GroupClientProtocol `json:"protocol_fallbacks"`
-	ResponsesImagePolicy         string                                                      `json:"responses_image_policy"`
-	LegacyAllowedClientProtocols *[]service.GroupClientProtocol                              `json:"allowed_client_protocols"`
+	AllowedProtocols             *[]domain.ProtocolID                    `json:"allowed_protocols"`
+	ProtocolFallbacks            map[domain.ProtocolID]domain.ProtocolID `json:"protocol_fallbacks"`
+	ResponsesImagePolicy         string                                  `json:"responses_image_policy"`
+	LegacyAllowedClientProtocols *[]domain.ProtocolID                    `json:"allowed_client_protocols"`
 	// OpenAI Messages 旧兼容开关。
 	AllowMessagesDispatch *bool `json:"allow_messages_dispatch"`
 	AllowLive             *bool `json:"allow_live"`

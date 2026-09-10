@@ -29,12 +29,12 @@ func TestProtocolAllPublicRoutesDeniedBeforeUpstream(t *testing.T) {
 	}
 	for _, tc := range paths {
 		t.Run(tc.method+tc.path, func(t *testing.T) {
-			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &service.Group{ID: 1, Platform: tc.platform, AllowedProtocols: []service.GroupClientProtocol{}})
+			router := newGatewayRoutesTestRouterWithGroup(&config.Config{}, nil, &service.Group{ID: 1, Platform: tc.platform, AllowedProtocols: []domain.ProtocolID{}})
 			if strings.HasPrefix(tc.path, "/v1beta/") {
 				// Gemini 鉴权使用单独中间件；此处在鉴权后注入分组，独立验证动作分派。
 				router = gin.New()
 				router.Use(func(c *gin.Context) {
-					c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{Group: &service.Group{Platform: "gemini", AllowedProtocols: []service.GroupClientProtocol{}}})
+					c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{Group: &service.Group{Platform: "gemini", AllowedProtocols: []domain.ProtocolID{}}})
 				})
 				router.POST("/v1beta/models/*modelAction", requireGeminiGenerateContentProtocol, func(c *gin.Context) { t.Fatal("disabled protocol reached handler") })
 			}
@@ -54,4 +54,44 @@ func TestProtocolAuxiliaryAndExistingJobs(t *testing.T) {
 		require.Empty(t, extendedRouteProtocol(http.MethodDelete, path), path)
 	}
 	require.Equal(t, domain.ProtocolCustomVoices, extendedRouteProtocol(http.MethodDelete, "/v1/custom-voices/id"))
+}
+
+// 别名复用相同协议；相似前缀和错误方法不能命中合法入口。
+func TestProtocolRouteAliases(t *testing.T) {
+	for _, tc := range []struct {
+		method, path string
+		want         domain.ProtocolID
+	}{
+		{http.MethodPost, "/embeddings", domain.ProtocolEmbeddings},
+		{http.MethodPost, "/images/generations", domain.ProtocolImagesGenerations},
+		{http.MethodPost, "/images/edits", domain.ProtocolImagesEdits},
+		{http.MethodPost, "/images/batches", domain.ProtocolImageBatches},
+		{http.MethodPost, "/videos", domain.ProtocolVideosGenerations},
+		{http.MethodPost, "/videos/generations", domain.ProtocolVideosGenerations},
+		{http.MethodPost, "/videos/edits", domain.ProtocolVideosEdits},
+		{http.MethodPost, "/videos/extensions", domain.ProtocolVideosExtensions},
+		{http.MethodPost, "/tts", domain.ProtocolTTS},
+		{http.MethodPost, "/stt", domain.ProtocolSTT},
+		{http.MethodPost, "/custom-voices", domain.ProtocolCustomVoices},
+		{http.MethodGet, "/realtime", domain.ProtocolVoiceRealtime},
+		{http.MethodGet, "/responses", domain.ProtocolResponsesWebSocket},
+		{http.MethodPost, "/live", domain.ProtocolLive},
+		{http.MethodPost, "/realtime/calls", domain.ProtocolLive},
+		{http.MethodPost, "/responses/compact", domain.ProtocolResponsesCompact},
+		{http.MethodPost, "/alpha/search", domain.ProtocolAlphaSearch},
+		{http.MethodPost, "/web_search", domain.ProtocolWebSearch},
+		{http.MethodPost, "/x_search", domain.ProtocolXSearch},
+	} {
+		for _, prefix := range []string{"", "/v1", "/backend-api/codex"} {
+			t.Run(tc.method+prefix+tc.path, func(t *testing.T) {
+				require.Equal(t, tc.want, routeProtocol(tc.method, prefix+tc.path))
+			})
+		}
+	}
+	for _, path := range []string{"/v10/responses", "/v1responses", "/backend-api/codexresponses"} {
+		require.Empty(t, routeProtocol(http.MethodGet, path), path)
+	}
+	require.Empty(t, routeProtocol(http.MethodGet, "/v1/embeddings"))
+	// Compact 只由完成路径校验后的 Responses 门禁负责，避免重复检查。
+	require.Empty(t, extendedRouteProtocol(http.MethodPost, "/v1/responses/compact"))
 }

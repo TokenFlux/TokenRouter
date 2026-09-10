@@ -151,9 +151,9 @@ type Group struct {
 	UnavailableFallbackGroupID *int64 `json:"unavailable_fallback_group_id"`
 
 	// AllowedProtocols 是分组允许的完整客户端协议与业务入口集合。
-	AllowedProtocols     []domain.GroupClientProtocol                              `json:"allowed_protocols"`
-	ProtocolFallbacks    map[domain.GroupClientProtocol]domain.GroupClientProtocol `json:"protocol_fallbacks"`
-	ResponsesImagePolicy string                                                    `json:"responses_image_policy"`
+	AllowedProtocols     []domain.ProtocolID                     `json:"allowed_protocols"`
+	ProtocolFallbacks    map[domain.ProtocolID]domain.ProtocolID `json:"protocol_fallbacks"`
+	ResponsesImagePolicy string                                  `json:"responses_image_policy"`
 	// AllowMessagesDispatch 是从协议集合派生的弃用兼容字段。
 	AllowMessagesDispatch bool `json:"-"`
 	// OpenAI Live 接口开关

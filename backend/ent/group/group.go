@@ -378,9 +378,9 @@ var (
 	// DefaultAllowMessagesDispatch holds the default value on creation for the "allow_messages_dispatch" field.
 	DefaultAllowMessagesDispatch bool
 	// DefaultAllowedProtocols holds the default value on creation for the "allowed_protocols" field.
-	DefaultAllowedProtocols []domain.GroupClientProtocol
+	DefaultAllowedProtocols []domain.ProtocolID
 	// DefaultProtocolFallbacks holds the default value on creation for the "protocol_fallbacks" field.
-	DefaultProtocolFallbacks map[domain.GroupClientProtocol]domain.GroupClientProtocol
+	DefaultProtocolFallbacks map[domain.ProtocolID]domain.ProtocolID
 	// DefaultResponsesImagePolicy holds the default value on creation for the "responses_image_policy" field.
 	DefaultResponsesImagePolicy string
 	// DefaultAllowLive holds the default value on creation for the "allow_live" field.

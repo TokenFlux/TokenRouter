@@ -1,62 +1,33 @@
 package routes
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"net/http"
 	"slices"
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/gin-gonic/gin"
 )
 
 // extendedRouteProtocol 为非文本入口及别名统一命名；已有任务操作不受新建开关影响。
-func extendedRouteProtocol(method, path string) domain.GroupClientProtocol {
-	path = strings.TrimPrefix(path, "/backend-api/codex")
-	path = strings.TrimPrefix(path, "/v1")
-	if method == http.MethodGet {
-		switch path {
-		case "/responses":
-			return domain.ProtocolResponsesWebSocket
-		case "/realtime":
-			return domain.ProtocolVoiceRealtime
-		}
-	}
-	if path == "/custom-voices" || strings.HasPrefix(path, "/custom-voices/") {
-		return domain.ProtocolCustomVoices
-	}
-	if method != http.MethodPost {
+func extendedRouteProtocol(method, path string) domain.ProtocolID {
+	protocol := routeProtocol(method, path)
+	// Compact 由 Responses 通配路由完成路径校验后检查，保留无效路径的错误语义。
+	if protocol == domain.ProtocolResponsesCompact {
 		return ""
 	}
-	switch path {
-	case "/embeddings":
-		return domain.ProtocolEmbeddings
-	case "/images/generations":
-		return domain.ProtocolImagesGenerations
-	case "/images/edits":
-		return domain.ProtocolImagesEdits
-	case "/images/batches":
-		return domain.ProtocolImageBatches
-	case "/videos", "/videos/generations":
-		return domain.ProtocolVideosGenerations
-	case "/videos/edits":
-		return domain.ProtocolVideosEdits
-	case "/videos/extensions":
-		return domain.ProtocolVideosExtensions
-	case "/tts":
-		return domain.ProtocolTTS
-	case "/stt":
-		return domain.ProtocolSTT
-	case "/live", "/realtime/calls":
-		return domain.ProtocolLive
-	case "/alpha/search":
-		return domain.ProtocolAlphaSearch
-	case "/web_search":
-		return domain.ProtocolWebSearch
-	case "/x_search":
-		return domain.ProtocolXSearch
+	return protocol
+}
+
+// routeProtocol 仅移除完整的别名前缀，避免相似路径被误归为已知入口。
+func routeProtocol(method, path string) domain.ProtocolID {
+	for _, prefix := range []string{"/backend-api/codex", "/v1"} {
+		if strings.HasPrefix(path, prefix+"/") {
+			path = strings.TrimPrefix(path, prefix)
+		}
 	}
-	return ""
+	protocol, _ := domain.ProtocolForRoute(method, path)
+	return protocol
 }
 
 func requireExtendedProtocol(c *gin.Context) {

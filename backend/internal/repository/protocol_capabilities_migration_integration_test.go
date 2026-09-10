@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -62,10 +63,10 @@ func (s *AccountRepoSuite) TestUnifiedProtocolBulkUpdate() {
 	got, err := s.repo.GetByID(s.ctx, first.ID)
 	s.Require().NoError(err)
 	s.Require().Equal("after", got.GetCredential("api_key"))
-	s.Require().Equal([]service.GroupClientProtocol{service.ProtocolOpenAIChatCompletions}, got.UpstreamProtocols())
+	s.Require().Equal([]domain.ProtocolID{domain.ProtocolOpenAIChatCompletions}, got.UpstreamProtocols())
 	got, err = s.repo.GetByID(s.ctx, second.ID)
 	s.Require().NoError(err)
-	s.Require().Equal([]service.GroupClientProtocol{"openai_embeddings"}, got.UpstreamProtocols())
+	s.Require().Equal([]domain.ProtocolID{"openai_embeddings"}, got.UpstreamProtocols())
 	s.Require().Equal(true, got.Extra["keep"])
 	_, err = s.repo.BulkUpdate(s.ctx, []int64{first.ID}, service.AccountBulkUpdate{ProtocolUpdates: map[int64]map[string]any{first.ID: {"upstream_protocols": []string{}}}, Extra: map[string]any{"openai_text_route_mode": "force_responses"}})
 	s.Require().NoError(err)
@@ -76,15 +77,15 @@ func (s *AccountRepoSuite) TestUnifiedProtocolBulkUpdate() {
 }
 
 func (s *GroupRepoSuite) TestUnifiedProtocolRoundTrip() {
-	original := &service.Group{Name: "protocol-group", Platform: service.PlatformOpenAI, Status: service.StatusActive, RateMultiplier: 1, AllowedProtocols: []service.GroupClientProtocol{service.ProtocolAnthropicMessages}, ProtocolFallbacks: map[service.GroupClientProtocol]service.GroupClientProtocol{service.ProtocolAnthropicMessages: service.ProtocolOpenAIResponses}, ResponsesImagePolicy: "disabled"}
+	original := &service.Group{Name: "protocol-group", Platform: service.PlatformOpenAI, Status: service.StatusActive, RateMultiplier: 1, AllowedProtocols: []domain.ProtocolID{domain.ProtocolAnthropicMessages}, ProtocolFallbacks: map[domain.ProtocolID]domain.ProtocolID{domain.ProtocolAnthropicMessages: domain.ProtocolOpenAIResponses}, ResponsesImagePolicy: "disabled"}
 	s.Require().NoError(s.repo.Create(s.ctx, original))
 	got, err := s.repo.GetByIDLite(s.ctx, original.ID)
 	s.Require().NoError(err)
 	s.Require().Equal(original.AllowedProtocols, got.AllowedProtocols)
 	s.Require().Equal(original.ProtocolFallbacks, got.ProtocolFallbacks)
 	s.Require().Equal("disabled", got.ResponsesImagePolicy)
-	got.AllowedProtocols = []service.GroupClientProtocol{}
-	got.ProtocolFallbacks = map[service.GroupClientProtocol]service.GroupClientProtocol{}
+	got.AllowedProtocols = []domain.ProtocolID{}
+	got.ProtocolFallbacks = map[domain.ProtocolID]domain.ProtocolID{}
 	got.ResponsesImagePolicy = "block"
 	s.Require().NoError(s.repo.Update(s.ctx, got))
 	got, err = s.repo.GetByID(s.ctx, original.ID)

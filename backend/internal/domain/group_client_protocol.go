@@ -2,12 +2,9 @@ package domain
 
 import "fmt"
 
-// GroupClientProtocol 表示客户端调用分组时使用的公开协议与业务入口。
-type GroupClientProtocol string
-
 // canonicalGroupClientProtocols 从唯一目录派生顺序，避免新增协议遗漏校验。
-var canonicalGroupClientProtocols = func() []GroupClientProtocol {
-	out := []GroupClientProtocol{}
+var canonicalGroupClientProtocols = func() []ProtocolID {
+	out := []ProtocolID{}
 	for _, protocol := range protocolCatalog {
 		if !protocol.UpstreamOnly {
 			out = append(out, protocol.ID)
@@ -17,8 +14,8 @@ var canonicalGroupClientProtocols = func() []GroupClientProtocol {
 }()
 
 // SupportedGroupClientProtocols 返回平台实际实现的客户端入口。
-func SupportedGroupClientProtocols(platform string) []GroupClientProtocol {
-	out := []GroupClientProtocol{}
+func SupportedGroupClientProtocols(platform string) []ProtocolID {
+	out := []ProtocolID{}
 	for _, protocol := range protocolCatalog {
 		if protocol.UpstreamOnly {
 			continue
@@ -35,47 +32,47 @@ func SupportedGroupClientProtocols(platform string) []GroupClientProtocol {
 
 // DefaultGroupClientProtocols 返回新建分组的协议默认值。
 // 默认值只决定初始选择，管理员可以在保存时关闭任意协议。
-func DefaultGroupClientProtocols(platform string) []GroupClientProtocol {
+func DefaultGroupClientProtocols(platform string) []ProtocolID {
 	switch platform {
 	case PlatformAnthropic:
-		return []GroupClientProtocol{ProtocolAnthropicMessages}
+		return []ProtocolID{ProtocolAnthropicMessages}
 	case PlatformGrok:
-		return []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions, ProtocolImagesGenerations, ProtocolImagesEdits}
+		return []ProtocolID{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions, ProtocolImagesGenerations, ProtocolImagesEdits}
 	case PlatformOpenAI:
-		return []GroupClientProtocol{
+		return []ProtocolID{
 			ProtocolOpenAIResponses,
 			ProtocolOpenAIChatCompletions,
 		}
 	case PlatformKimi, PlatformZhipu, PlatformDeepseek:
-		return []GroupClientProtocol{
+		return []ProtocolID{
 			ProtocolAnthropicMessages,
 			ProtocolOpenAIResponses,
 			ProtocolOpenAIChatCompletions,
 		}
 	case PlatformGemini:
-		return []GroupClientProtocol{ProtocolGeminiGenerateContent}
+		return []ProtocolID{ProtocolGeminiGenerateContent}
 	case PlatformAntigravity:
-		return []GroupClientProtocol{
+		return []ProtocolID{
 			ProtocolAnthropicMessages,
 			ProtocolGeminiGenerateContent,
 		}
 	default:
-		return []GroupClientProtocol{}
+		return []ProtocolID{}
 	}
 }
 
 // ValidateGroupClientProtocols 校验完整协议集合并返回固定顺序的副本。
-func ValidateGroupClientProtocols(platform string, protocols []GroupClientProtocol) ([]GroupClientProtocol, error) {
-	supported := make(map[GroupClientProtocol]struct{})
+func ValidateGroupClientProtocols(platform string, protocols []ProtocolID) ([]ProtocolID, error) {
+	supported := make(map[ProtocolID]struct{})
 	for _, protocol := range SupportedGroupClientProtocols(platform) {
 		supported[protocol] = struct{}{}
 	}
-	known := make(map[GroupClientProtocol]struct{}, len(canonicalGroupClientProtocols))
+	known := make(map[ProtocolID]struct{}, len(canonicalGroupClientProtocols))
 	for _, protocol := range canonicalGroupClientProtocols {
 		known[protocol] = struct{}{}
 	}
 
-	seen := make(map[GroupClientProtocol]struct{}, len(protocols))
+	seen := make(map[ProtocolID]struct{}, len(protocols))
 	for i, protocol := range protocols {
 		if _, ok := known[protocol]; !ok {
 			return nil, fmt.Errorf("allowed_protocols[%d] contains unknown protocol %q", i, protocol)
@@ -88,7 +85,7 @@ func ValidateGroupClientProtocols(platform string, protocols []GroupClientProtoc
 		}
 		seen[protocol] = struct{}{}
 	}
-	out := make([]GroupClientProtocol, 0, len(seen))
+	out := make([]ProtocolID, 0, len(seen))
 	for _, protocol := range canonicalGroupClientProtocols {
 		if _, ok := seen[protocol]; ok {
 			out = append(out, protocol)
@@ -98,7 +95,7 @@ func ValidateGroupClientProtocols(platform string, protocols []GroupClientProtoc
 }
 
 // HasGroupClientProtocol 判断集合是否包含指定协议。
-func HasGroupClientProtocol(protocols []GroupClientProtocol, target GroupClientProtocol) bool {
+func HasGroupClientProtocol(protocols []ProtocolID, target ProtocolID) bool {
 	for _, protocol := range protocols {
 		if protocol == target {
 			return true
@@ -108,8 +105,8 @@ func HasGroupClientProtocol(protocols []GroupClientProtocol, target GroupClientP
 }
 
 // SetGroupClientProtocol 更新单个协议并保持公共契约规定的顺序。
-func SetGroupClientProtocol(protocols []GroupClientProtocol, target GroupClientProtocol, enabled bool) []GroupClientProtocol {
-	selected := make(map[GroupClientProtocol]struct{}, len(protocols)+1)
+func SetGroupClientProtocol(protocols []ProtocolID, target ProtocolID, enabled bool) []ProtocolID {
+	selected := make(map[ProtocolID]struct{}, len(protocols)+1)
 	for _, protocol := range protocols {
 		selected[protocol] = struct{}{}
 	}
@@ -118,7 +115,7 @@ func SetGroupClientProtocol(protocols []GroupClientProtocol, target GroupClientP
 	} else {
 		delete(selected, target)
 	}
-	out := make([]GroupClientProtocol, 0, len(selected))
+	out := make([]ProtocolID, 0, len(selected))
 	for _, protocol := range canonicalGroupClientProtocols {
 		if _, ok := selected[protocol]; ok {
 			out = append(out, protocol)

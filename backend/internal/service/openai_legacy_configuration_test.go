@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"maps"
 	"testing"
 
@@ -79,8 +80,8 @@ func TestUpdateAccountDeprecatedProbeOnlyPreservesConfiguration(t *testing.T) {
 	svc := &adminServiceImpl{accountRepo: repo}
 	updated, err := svc.UpdateAccount(ctx, account.ID, &UpdateAccountInput{Extra: map[string]any{"openai_responses_supported": false}})
 	require.NoError(t, err)
-	require.Contains(t, updated.UpstreamProtocols(), ProtocolOpenAIResponses)
-	require.NotContains(t, updated.UpstreamProtocols(), ProtocolOpenAIChatCompletions)
+	require.Contains(t, updated.UpstreamProtocols(), domain.ProtocolOpenAIResponses)
+	require.NotContains(t, updated.UpstreamProtocols(), domain.ProtocolOpenAIChatCompletions)
 	require.Equal(t, "force_off", updated.Extra["openai_compact_mode"])
 	require.Equal(t, "force_on", updated.Extra[openAINativeCompactionV2ModeExtraKey])
 	require.Equal(t, true, updated.Extra["keep"])

@@ -14,7 +14,6 @@ type OpenAIMessagesDispatchModelConfig = domain.OpenAIMessagesDispatchModelConfi
 type GroupModelsListConfig = domain.GroupModelsListConfig
 type GroupAvailabilityProbeConfig = domain.GroupAvailabilityProbeConfig
 type ReasoningEffortMapping = domain.ReasoningEffortMapping
-type GroupClientProtocol = domain.GroupClientProtocol
 type GroupAdvancedSchedulerOverrides = domain.GroupAdvancedSchedulerOverrides
 
 // GroupSchedulerType 表示分组使用的账号调度器类型。
@@ -113,8 +112,8 @@ type Group struct {
 	SortOrder int
 
 	// AllowedProtocols 是分组允许的完整客户端协议与业务入口集合，空集合表示全部关闭。
-	AllowedProtocols     []GroupClientProtocol
-	ProtocolFallbacks    map[GroupClientProtocol]GroupClientProtocol
+	AllowedProtocols     []domain.ProtocolID
+	ProtocolFallbacks    map[domain.ProtocolID]domain.ProtocolID
 	ResponsesImagePolicy string
 	// AllowMessagesDispatch 是从协议集合派生并持久化的弃用兼容镜像。
 	AllowMessagesDispatch bool

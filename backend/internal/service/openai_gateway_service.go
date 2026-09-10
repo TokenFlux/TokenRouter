@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"log/slog"
 	"math/rand"
 	"net/http"
@@ -368,10 +369,10 @@ func resolveOpenAITextProtocolForAttempt(
 		protocol = openai_compat.ResolveUpstreamTextProtocol(account.Extra, preferred)
 	}
 
-	if account != nil && account.resolvedProtocol == ProtocolOpenAIChatCompletions {
+	if account != nil && account.resolvedProtocol == domain.ProtocolOpenAIChatCompletions {
 		protocol = openai_compat.TextProtocolChatCompletions
 	}
-	if account != nil && account.resolvedProtocol == ProtocolOpenAIResponses {
+	if account != nil && account.resolvedProtocol == domain.ProtocolOpenAIResponses {
 		protocol = openai_compat.TextProtocolResponses
 	}
 	endpoint := "/v1/responses"

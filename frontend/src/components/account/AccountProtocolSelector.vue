@@ -15,10 +15,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { GroupClientProtocol } from '@/types'
+import type { ProtocolID } from '@/types'
 import { loadProtocolCatalog, nativeProtocolOptions, protocolCatalog } from '@/api/admin/protocolCapabilities'
-const props = defineProps<{ modelValue?: GroupClientProtocol[]; platform: string; type: string; authMode?: string }>()
-const emit = defineEmits<{ 'update:modelValue': [value: GroupClientProtocol[]] }>()
+const props = defineProps<{ modelValue?: ProtocolID[]; platform: string; type: string; authMode?: string }>()
+const emit = defineEmits<{ 'update:modelValue': [value: ProtocolID[]] }>()
 const { t } = useI18n()
 const error = ref(false)
 const options = computed(() => nativeProtocolOptions(props.platform, props.type, props.authMode))
@@ -29,7 +29,7 @@ watch(() => [props.platform, props.type, props.authMode, protocolCatalog.value],
   const changed = previous && (previous[0] !== props.platform || previous[1] !== props.type || previous[2] !== props.authMode)
   if (props.modelValue === undefined || changed) emit('update:modelValue', [...options.value])
 }, { immediate: true })
-function toggle(id: GroupClientProtocol) {
+function toggle(id: ProtocolID) {
   const selected = new Set(props.modelValue ?? [])
   if (selected.has(id)) selected.delete(id)
   else selected.add(id)

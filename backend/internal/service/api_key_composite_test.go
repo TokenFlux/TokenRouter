@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -109,9 +110,9 @@ func TestCompositeAPIKeyAuthSnapshotRoundTrip(t *testing.T) {
 					ModelPricing: []ChannelModelPricing{{
 						Models: []string{"gpt-5.4"}, BillingMode: BillingModeToken,
 					}},
-					AllowedProtocols: []GroupClientProtocol{
-						ProtocolOpenAIResponses,
-						ProtocolOpenAIChatCompletions,
+					AllowedProtocols: []domain.ProtocolID{
+						domain.ProtocolOpenAIResponses,
+						domain.ProtocolOpenAIChatCompletions,
 					},
 				},
 			},
@@ -136,9 +137,9 @@ func TestCompositeAPIKeyAuthSnapshotRoundTrip(t *testing.T) {
 	require.True(t, restored.CompositeGroups[0].Group.AllowImageGeneration)
 	require.True(t, restored.CompositeGroups[0].Group.LongContextPricingEnabled)
 	require.Equal(t, key.CompositeGroups[0].Group.ModelPricing, restored.CompositeGroups[0].Group.ModelPricing)
-	require.Equal(t, []GroupClientProtocol{
-		ProtocolOpenAIResponses,
-		ProtocolOpenAIChatCompletions,
+	require.Equal(t, []domain.ProtocolID{
+		domain.ProtocolOpenAIResponses,
+		domain.ProtocolOpenAIChatCompletions,
 	}, restored.CompositeGroups[0].Group.AllowedProtocols)
 
 	binding, model, err := restored.ResolveCompositeModel("gpt/gpt-5")

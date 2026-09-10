@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"net/http"
 	"net/url"
 	"strings"
@@ -112,7 +113,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		return routeErr
 	}
 	wsDecision := s.getOpenAIWSProtocolResolver().Resolve(account)
-	forceHTTPBridge := account.Platform == PlatformGrok || account.resolvedProtocol == ProtocolOpenAIResponses
+	forceHTTPBridge := account.Platform == PlatformGrok || account.resolvedProtocol == domain.ProtocolOpenAIResponses
 	modeRouterV2Enabled := s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.ModeRouterV2Enabled
 	ingressMode := OpenAIWSIngressModeCtxPool
 	if modeRouterV2Enabled && !forceHTTPBridge {

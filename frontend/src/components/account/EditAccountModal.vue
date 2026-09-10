@@ -2751,12 +2751,12 @@
 
 <script setup lang="ts">
 // 统一协议选择只保存原生集合，不在账号侧配置转换。
-const upstreamProtocols = ref<GroupClientProtocol[] | undefined>(undefined)
+const upstreamProtocols = ref<ProtocolID[] | undefined>(undefined)
 
 import { normalizeLegacyOpenAIExtra, normalizeOpenAICompactMode } from '@/utils/openaiLegacyConfiguration'
 import AccountProtocolSelector from './AccountProtocolSelector.vue'
 import { loadProtocolCatalog, nativeProtocolOptions } from '@/api/admin/protocolCapabilities'
-import type { GroupClientProtocol } from '@/types'
+import type { ProtocolID } from '@/types'
 import OpenAICompactionCheckbox from './OpenAICompactionCheckbox.vue'
 import { ref, reactive, computed, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -3547,7 +3547,7 @@ const applyOpenAIModelMappingCredentials = (credentials: Record<string, unknown>
 }
 
 const syncFormFromAccount = (newAccount: Account | null) => {
-  upstreamProtocols.value = Array.isArray(newAccount?.credentials?.upstream_protocols) ? [...newAccount.credentials.upstream_protocols] as GroupClientProtocol[] : undefined
+  upstreamProtocols.value = Array.isArray(newAccount?.credentials?.upstream_protocols) ? [...newAccount.credentials.upstream_protocols] as ProtocolID[] : undefined
 
   if (!newAccount) {
     return

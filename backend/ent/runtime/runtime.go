@@ -1156,11 +1156,11 @@ func init() {
 	// groupDescAllowedProtocols is the schema descriptor for allowed_protocols field.
 	groupDescAllowedProtocols := groupFields[36].Descriptor()
 	// group.DefaultAllowedProtocols holds the default value on creation for the allowed_protocols field.
-	group.DefaultAllowedProtocols = groupDescAllowedProtocols.Default.([]domain.GroupClientProtocol)
+	group.DefaultAllowedProtocols = groupDescAllowedProtocols.Default.([]domain.ProtocolID)
 	// groupDescProtocolFallbacks is the schema descriptor for protocol_fallbacks field.
 	groupDescProtocolFallbacks := groupFields[37].Descriptor()
 	// group.DefaultProtocolFallbacks holds the default value on creation for the protocol_fallbacks field.
-	group.DefaultProtocolFallbacks = groupDescProtocolFallbacks.Default.(map[domain.GroupClientProtocol]domain.GroupClientProtocol)
+	group.DefaultProtocolFallbacks = groupDescProtocolFallbacks.Default.(map[domain.ProtocolID]domain.ProtocolID)
 	// groupDescResponsesImagePolicy is the schema descriptor for responses_image_policy field.
 	groupDescResponsesImagePolicy := groupFields[38].Descriptor()
 	// group.DefaultResponsesImagePolicy holds the default value on creation for the responses_image_policy field.

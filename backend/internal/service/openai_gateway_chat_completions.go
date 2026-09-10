@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"net/http"
 	"strings"
@@ -104,7 +105,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 		})
 		return nil, errors.New("codex_cli_only restriction: only codex official clients are allowed")
 	}
-	if account.resolvedProtocol != "" && account.resolvedProtocol != ProtocolOpenAIResponses && !gjson.GetBytes(body, "messages").Exists() && gjson.GetBytes(body, "input").Exists() {
+	if account.resolvedProtocol != "" && account.resolvedProtocol != domain.ProtocolOpenAIResponses && !gjson.GetBytes(body, "messages").Exists() && gjson.GetBytes(body, "input").Exists() {
 		var request apicompat.ResponsesRequest
 		if err := json.Unmarshal(body, &request); err != nil {
 			return nil, err
@@ -119,10 +120,10 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 		}
 	}
 	if account.Platform == PlatformGrok {
-		if account.resolvedProtocol == ProtocolOpenAIChatCompletions {
+		if account.resolvedProtocol == domain.ProtocolOpenAIChatCompletions {
 			return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel, tlsRouterMatch...)
 		}
-		if account.resolvedProtocol == ProtocolOpenAIResponses {
+		if account.resolvedProtocol == domain.ProtocolOpenAIResponses {
 			if eligible, reason := grokChatResponsesBridgeEligibility(body); !eligible {
 				return nil, fmt.Errorf("configured Grok Responses conversion cannot preserve request: %s", reason)
 			}

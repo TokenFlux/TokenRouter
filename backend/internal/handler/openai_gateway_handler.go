@@ -7,6 +7,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"net/http"
 	"runtime/debug"
@@ -361,7 +362,7 @@ func allowOpenAICompatibleMessagesDispatch(apiKey *service.APIKey) bool {
 	if apiKey == nil || apiKey.Group == nil {
 		return true
 	}
-	return apiKey.Group.AllowsClientProtocol(service.ProtocolAnthropicMessages)
+	return apiKey.Group.AllowsClientProtocol(domain.ProtocolAnthropicMessages)
 }
 
 // NewOpenAIGatewayHandler creates a new OpenAIGatewayHandler

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"net/http"
 	"net/url"
@@ -26,7 +27,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 		return nil, routeErr
 	}
 	// 在任何平台分支或透传前应用分组屏蔽，内部 Images 适配不受此策略影响。
-	if source, _ := ctx.Value(clientProtocolContextKey{}).(GroupClientProtocol); source == ProtocolOpenAIResponses {
+	if source, _ := ctx.Value(clientProtocolContextKey{}).(domain.ProtocolID); source == domain.ProtocolOpenAIResponses {
 		if key := getAPIKeyFromContext(c); key != nil && key.Group != nil && key.Group.ResponsesImagePolicy == "block" {
 			stripped, _, stripErr := stripOpenAIImageGenerationToolsFromRawPayload(body)
 			if stripErr != nil {
@@ -175,7 +176,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	reqModel, reqStream, promptCacheKey := requestView.Model, requestView.Stream, requestView.PromptCacheKey
 	originalModel := reqModel
 
-	if account.Platform == PlatformGrok && account.resolvedProtocol == ProtocolOpenAIChatCompletions {
+	if account.Platform == PlatformGrok && account.resolvedProtocol == domain.ProtocolOpenAIChatCompletions {
 		return s.forwardResponsesViaRawChatCompletions(ctx, c, account, body, tlsRouterMatch)
 	}
 	if account.Platform == PlatformGrok {
@@ -1299,7 +1300,7 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 
 func shouldForwardOpenAIResponsesViaRawChatCompletions(account *Account) bool {
 	if account != nil && account.resolvedProtocol != "" {
-		return account.resolvedProtocol == ProtocolOpenAIChatCompletions
+		return account.resolvedProtocol == domain.ProtocolOpenAIChatCompletions
 	}
 	if account == nil || account.Type != AccountTypeAPIKey {
 		return false

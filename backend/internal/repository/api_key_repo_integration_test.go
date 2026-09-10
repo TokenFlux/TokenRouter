@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"sync"
 	"testing"
 	"time"
@@ -219,10 +220,10 @@ func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesSelectedGroupFields() {
 		SetForceOpenaiFast(true).
 		SetFreeOpenaiFast(true).
 		SetWebSearchPricePerCall(0.008).
-		SetAllowedProtocols([]service.GroupClientProtocol{
-			service.ProtocolAnthropicMessages,
-			service.ProtocolOpenAIResponses,
-			service.ProtocolOpenAIChatCompletions,
+		SetAllowedProtocols([]domain.ProtocolID{
+			domain.ProtocolAnthropicMessages,
+			domain.ProtocolOpenAIResponses,
+			domain.ProtocolOpenAIChatCompletions,
 		}).
 		SetAllowMessagesDispatch(true).
 		SetDefaultMappedModel("gpt-5.4").
@@ -251,10 +252,10 @@ func (s *APIKeyRepoSuite) TestGetByKeyForAuth_PreservesSelectedGroupFields() {
 	s.Require().NotNil(got.Group)
 	s.Require().NotNil(got.Group.WebSearchPricePerCall)
 	s.Require().InDelta(0.008, *got.Group.WebSearchPricePerCall, 1e-12)
-	s.Require().Equal([]service.GroupClientProtocol{
-		service.ProtocolAnthropicMessages,
-		service.ProtocolOpenAIResponses,
-		service.ProtocolOpenAIChatCompletions,
+	s.Require().Equal([]domain.ProtocolID{
+		domain.ProtocolAnthropicMessages,
+		domain.ProtocolOpenAIResponses,
+		domain.ProtocolOpenAIChatCompletions,
 	}, got.Group.AllowedProtocols)
 	s.Require().Equal("gpt-5.4", got.Group.DefaultMappedModel)
 	s.Require().Equal("gpt-5.4-nano", got.Group.MessagesDispatchModelConfig.OpusMappedModel)

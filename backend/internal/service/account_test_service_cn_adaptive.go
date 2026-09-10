@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"net/http"
 	"net/url"
@@ -41,19 +42,19 @@ func (s *AccountTestService) testCNProviderAdaptiveConnection(c *gin.Context, ac
 	}
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
-	if slices.Contains(enabled, ProtocolOpenAIChatCompletions) {
+	if slices.Contains(enabled, domain.ProtocolOpenAIChatCompletions) {
 		if err := s.testCNProviderChatCompletionsConnection(c, account, modelID, prompt); err != nil {
 			return err
 		}
 	}
 
-	if slices.Contains(enabled, ProtocolAnthropicMessages) {
+	if slices.Contains(enabled, domain.ProtocolAnthropicMessages) {
 		if err := s.testCNProviderAdaptiveAnthropicConnection(c, account, testModelID, prompt, authToken); err != nil {
 			return err
 		}
 	}
 
-	if slices.Contains(enabled, ProtocolOpenAIResponses) {
+	if slices.Contains(enabled, domain.ProtocolOpenAIResponses) {
 		if err := s.testCNProviderAdaptiveResponsesConnection(c, account, testModelID, prompt, authToken); err != nil {
 			return err
 		}

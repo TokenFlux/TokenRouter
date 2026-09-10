@@ -3324,7 +3324,7 @@ import { useBalanceDisplay } from "@/composables/useBalanceDisplay";
 import type {
   AdminGroup,
   GroupAvailabilityProbeConfig,
-  GroupClientProtocol,
+  ProtocolID,
   GroupPlatform,
   GroupSchedulerType,
   GroupAdvancedSchedulerOverrides,
@@ -3957,9 +3957,9 @@ const createForm = reactive({
   platform: "anthropic" as GroupPlatform,
   scheduler_type: "basic" as GroupSchedulerType,
   advanced_scheduler_overrides: {} as GroupAdvancedSchedulerOverrides,
-  protocol_fallbacks: {} as Partial<Record<GroupClientProtocol, GroupClientProtocol>>,
+  protocol_fallbacks: {} as Partial<Record<ProtocolID, ProtocolID>>,
   responses_image_policy: "inherit" as "inherit" | "enabled" | "disabled" | "block",
-  allowed_protocols: defaultGroupClientProtocols("anthropic") as GroupClientProtocol[],
+  allowed_protocols: defaultGroupClientProtocols("anthropic") as ProtocolID[],
   rate_multiplier: 1.0,
   is_exclusive: false,
   is_default: false,
@@ -4385,9 +4385,9 @@ const editForm = reactive({
   platform: "anthropic" as GroupPlatform,
   scheduler_type: "basic" as GroupSchedulerType,
   advanced_scheduler_overrides: {} as GroupAdvancedSchedulerOverrides,
-  protocol_fallbacks: {} as Partial<Record<GroupClientProtocol, GroupClientProtocol>>,
+  protocol_fallbacks: {} as Partial<Record<ProtocolID, ProtocolID>>,
   responses_image_policy: "inherit" as "inherit" | "enabled" | "disabled" | "block",
-  allowed_protocols: defaultGroupClientProtocols("anthropic") as GroupClientProtocol[],
+  allowed_protocols: defaultGroupClientProtocols("anthropic") as ProtocolID[],
   rate_multiplier: 1.0,
   is_exclusive: false,
   is_default: false,
@@ -4471,7 +4471,7 @@ const editMessagesDispatchEnabled = computed(() =>
 
 type BatchImagePricingFormState = {
   platform: GroupPlatform;
-  allowed_protocols: GroupClientProtocol[];
+  allowed_protocols: ProtocolID[];
   allow_image_generation: boolean;
   allow_batch_image_generation: boolean;
   rate_multiplier: number;

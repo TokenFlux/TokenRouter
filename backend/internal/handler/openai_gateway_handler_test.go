@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -928,9 +929,9 @@ func TestOpenAIGatewayMessagesProtocolPolicyAllowsGrokGroups(t *testing.T) {
 			Group: &service.Group{
 				ID:       groupID,
 				Platform: service.PlatformOpenAI,
-				AllowedProtocols: []service.GroupClientProtocol{
-					service.ProtocolOpenAIResponses,
-					service.ProtocolOpenAIChatCompletions,
+				AllowedProtocols: []domain.ProtocolID{
+					domain.ProtocolOpenAIResponses,
+					domain.ProtocolOpenAIChatCompletions,
 				},
 			},
 		})
@@ -956,10 +957,10 @@ func TestOpenAIGatewayMessagesProtocolPolicyAllowsGrokGroups(t *testing.T) {
 			Group: &service.Group{
 				ID:       groupID,
 				Platform: service.PlatformGrok,
-				AllowedProtocols: []service.GroupClientProtocol{
-					service.ProtocolAnthropicMessages,
-					service.ProtocolOpenAIResponses,
-					service.ProtocolOpenAIChatCompletions,
+				AllowedProtocols: []domain.ProtocolID{
+					domain.ProtocolAnthropicMessages,
+					domain.ProtocolOpenAIResponses,
+					domain.ProtocolOpenAIChatCompletions,
 				},
 			},
 		})

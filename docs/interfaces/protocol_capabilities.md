@@ -7,6 +7,8 @@
 
 后端 `domain.ProtocolCatalog` 维护 24 项目录。管理员 `GET /api/v1/admin/protocol-capabilities` 返回 `protocols`、`accounts`、`groups` 和 `auxiliary_operations`；账号 profile 按平台、类型、认证方式提供原生选项，分组 profile 提供可用入口、默认集合、转换目标及默认映射。目录不包含凭据，前端共享只读结果，不维护平台白名单。
 
+账号与分组共用 `ProtocolID` 类型，后端协议常量由 domain 统一定义。扩展 HTTP 入口的展示地址和门禁映射由目录中的方法、路径及子资源元数据共同派生，路由层只规范化别名前缀；文本入口沿用各自的原生错误格式与动作校验，Compact 在 Responses 子路径校验后检查。内部路由元数据不进入管理员 API 响应，协议 ID、JSON 字段和持久化格式保持稳定。
+
 | ID | 界面名称 | 主要入口 | 分组可用平台 |
 | --- | --- | --- | --- |
 | `anthropic_messages` | Anthropic Messages | `POST /v1/messages` | 现有九个平台 |

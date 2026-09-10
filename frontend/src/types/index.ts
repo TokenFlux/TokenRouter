@@ -588,7 +588,8 @@ export interface GroupAdvancedSchedulerOverrides {
   weight_previous_response?: number
   weight_session_sticky?: number
 }
-export type GroupClientProtocol =
+// 账号原生能力和分组客户端入口共用完整协议标识。
+export type ProtocolID =
   | 'anthropic_messages'
   | 'openai_responses'
   | 'openai_chat_completions'
@@ -786,9 +787,9 @@ export interface Group {
   fallback_group_id_on_invalid_request: number | null
   unavailable_fallback_group_id: number | null
   // 分组允许客户端使用的文本生成协议，顺序由服务端固定。
-  protocol_fallbacks?: Partial<Record<GroupClientProtocol, GroupClientProtocol>>
+  protocol_fallbacks?: Partial<Record<ProtocolID, ProtocolID>>
   responses_image_policy?: 'inherit' | 'enabled' | 'disabled' | 'block'
-  allowed_protocols: GroupClientProtocol[]
+  allowed_protocols: ProtocolID[]
   // OpenAI Messages 调度开关（弃用兼容字段，新代码读取 allowed_protocols）
   allow_messages_dispatch?: boolean
   // OpenAI Live 接口开关
@@ -991,9 +992,9 @@ export interface CreateGroupRequest {
   supported_model_scopes?: string[]
   models_list_config?: ModelsListConfig
   availability_probe_config?: GroupAvailabilityProbeConfig
-  protocol_fallbacks?: Partial<Record<GroupClientProtocol, GroupClientProtocol>>
+  protocol_fallbacks?: Partial<Record<ProtocolID, ProtocolID>>
   responses_image_policy?: 'inherit' | 'enabled' | 'disabled' | 'block'
-  allowed_protocols?: GroupClientProtocol[]
+  allowed_protocols?: ProtocolID[]
   allow_messages_dispatch?: boolean
   allow_live?: boolean
   default_mapped_model?: string
@@ -1049,9 +1050,9 @@ export interface UpdateGroupRequest {
   supported_model_scopes?: string[]
   models_list_config?: ModelsListConfig
   availability_probe_config?: GroupAvailabilityProbeConfig
-  protocol_fallbacks?: Partial<Record<GroupClientProtocol, GroupClientProtocol>>
+  protocol_fallbacks?: Partial<Record<ProtocolID, ProtocolID>>
   responses_image_policy?: 'inherit' | 'enabled' | 'disabled' | 'block'
-  allowed_protocols?: GroupClientProtocol[]
+  allowed_protocols?: ProtocolID[]
   allow_messages_dispatch?: boolean
   allow_live?: boolean
   default_mapped_model?: string

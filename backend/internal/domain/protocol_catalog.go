@@ -1,42 +1,59 @@
 package domain
 
-import "slices"
+import (
+	"net/http"
+	"slices"
+	"strings"
+)
+
+// ProtocolID 统一标识账号原生能力和分组客户端入口。
+type ProtocolID string
 
 // Protocol 描述公开入口或上游协议；账号能力与分组控制共用同一目录。
 // @project-doc docs/interfaces/protocol_capabilities.md#protocol_catalog
 type Protocol struct {
-	ID           GroupClientProtocol `json:"id"`
-	Name         string              `json:"name"`
-	Endpoint     string              `json:"endpoint"`
-	UpstreamOnly bool                `json:"upstream_only"`
-	Platforms    []string            `json:"platforms"`
+	ID           ProtocolID      `json:"id"`
+	Name         string          `json:"name"`
+	Endpoint     string          `json:"endpoint"`
+	UpstreamOnly bool            `json:"upstream_only"`
+	Platforms    []string        `json:"platforms"`
+	Routes       []ProtocolRoute `json:"-"`
+}
+
+// ProtocolRoute 描述需要分组准入的标准化入口；别名在路由层统一去除前缀。
+type ProtocolRoute struct {
+	// 空方法表示所有方法；子资源匹配以完整路径段为边界。
+	Method    string
+	Path      string
+	Prefix    bool
+	WebSocket bool
 }
 
 const (
-	ProtocolAnthropicMessages     GroupClientProtocol = "anthropic_messages"
-	ProtocolOpenAIResponses       GroupClientProtocol = "openai_responses"
-	ProtocolOpenAIChatCompletions GroupClientProtocol = "openai_chat_completions"
-	ProtocolGeminiGenerateContent GroupClientProtocol = "gemini_generate_content"
-	ProtocolEmbeddings            GroupClientProtocol = "openai_embeddings"
-	ProtocolImagesGenerations     GroupClientProtocol = "openai_images_generations"
-	ProtocolImagesEdits           GroupClientProtocol = "openai_images_edits"
-	ProtocolImageBatches          GroupClientProtocol = "image_batches"
-	ProtocolVideosGenerations     GroupClientProtocol = "grok_videos_generations"
-	ProtocolVideosEdits           GroupClientProtocol = "grok_videos_edits"
-	ProtocolVideosExtensions      GroupClientProtocol = "grok_videos_extensions"
-	ProtocolTTS                   GroupClientProtocol = "grok_tts"
-	ProtocolSTT                   GroupClientProtocol = "grok_stt"
-	ProtocolCustomVoices          GroupClientProtocol = "grok_custom_voices"
-	ProtocolVoiceRealtime         GroupClientProtocol = "grok_voice_realtime"
-	ProtocolResponsesWebSocket    GroupClientProtocol = "openai_responses_websocket"
-	ProtocolLive                  GroupClientProtocol = "openai_live"
-	ProtocolResponsesCompact      GroupClientProtocol = "openai_responses_compact"
-	ProtocolAlphaSearch           GroupClientProtocol = "openai_alpha_search"
-	ProtocolWebSearch             GroupClientProtocol = "grok_web_search"
-	ProtocolXSearch               GroupClientProtocol = "grok_x_search"
-	ProtocolQoderChat             GroupClientProtocol = "qoder_chat"
-	ProtocolGeminiBatch           GroupClientProtocol = "gemini_batch_generate_content"
-	ProtocolVertexBatch           GroupClientProtocol = "vertex_batch_prediction"
+	ProtocolAnthropicMessages     ProtocolID = "anthropic_messages"
+	ProtocolOpenAIResponses       ProtocolID = "openai_responses"
+	ProtocolOpenAIChatCompletions ProtocolID = "openai_chat_completions"
+	ProtocolGeminiGenerateContent ProtocolID = "gemini_generate_content"
+	ProtocolEmbeddings            ProtocolID = "openai_embeddings"
+	ProtocolImagesGenerations     ProtocolID = "openai_images_generations"
+	ProtocolImagesEdits           ProtocolID = "openai_images_edits"
+	ProtocolImageBatches          ProtocolID = "image_batches"
+	ProtocolVideosGenerations     ProtocolID = "grok_videos_generations"
+	ProtocolVideosEdits           ProtocolID = "grok_videos_edits"
+	ProtocolVideosExtensions      ProtocolID = "grok_videos_extensions"
+	ProtocolTTS                   ProtocolID = "grok_tts"
+	ProtocolSTT                   ProtocolID = "grok_stt"
+	ProtocolCustomVoices          ProtocolID = "grok_custom_voices"
+	ProtocolVoiceRealtime         ProtocolID = "grok_voice_realtime"
+	ProtocolResponsesWebSocket    ProtocolID = "openai_responses_websocket"
+	ProtocolLive                  ProtocolID = "openai_live"
+	ProtocolResponsesCompact      ProtocolID = "openai_responses_compact"
+	ProtocolAlphaSearch           ProtocolID = "openai_alpha_search"
+	ProtocolWebSearch             ProtocolID = "grok_web_search"
+	ProtocolXSearch               ProtocolID = "grok_x_search"
+	ProtocolQoderChat             ProtocolID = "qoder_chat"
+	ProtocolGeminiBatch           ProtocolID = "gemini_batch_generate_content"
+	ProtocolVertexBatch           ProtocolID = "vertex_batch_prediction"
 )
 
 // 协议定义只初始化一次，候选过滤不反复分配整个目录。
@@ -48,46 +65,73 @@ func buildProtocolCatalog() []Protocol {
 	grok := []string{PlatformGrok}
 	both := []string{PlatformOpenAI, PlatformGrok}
 	return []Protocol{
-		{ProtocolAnthropicMessages, "Anthropic Messages", "POST /v1/messages", false, all},
-		{ProtocolOpenAIResponses, "OpenAI Responses", "POST /v1/responses", false, all},
-		{ProtocolOpenAIChatCompletions, "Chat Completions", "POST /v1/chat/completions", false, all},
-		{ProtocolGeminiGenerateContent, "Gemini GenerateContent", "POST /v1beta/models/{model}:generateContent / :streamGenerateContent", false, []string{PlatformGemini, PlatformAntigravity}},
-		{ProtocolEmbeddings, "Embeddings", "POST /v1/embeddings", false, openai},
-		{ProtocolImagesGenerations, "Images Generations", "POST /v1/images/generations", false, both},
-		{ProtocolImagesEdits, "Images Edits", "POST /v1/images/edits", false, both},
-		{ProtocolImageBatches, "Image Batches", "POST /v1/images/batches", false, []string{PlatformGemini}},
-		{ProtocolVideosGenerations, "Video Generations", "POST /v1/videos/generations", false, grok},
-		{ProtocolVideosEdits, "Video Edits", "POST /v1/videos/edits", false, grok},
-		{ProtocolVideosExtensions, "Video Extensions", "POST /v1/videos/extensions", false, grok},
-		{ProtocolTTS, "TTS", "POST /v1/tts", false, grok},
-		{ProtocolSTT, "STT", "POST /v1/stt", false, grok},
-		{ProtocolCustomVoices, "Custom Voices", "/v1/custom-voices", false, grok},
-		{ProtocolVoiceRealtime, "Voice Realtime", "GET /v1/realtime (WebSocket)", false, grok},
-		{ProtocolResponsesWebSocket, "Responses WebSocket", "GET /v1/responses (WebSocket)", false, both},
-		{ProtocolLive, "OpenAI Live", "POST /v1/live", false, openai},
-		{ProtocolResponsesCompact, "Responses Compact", "POST /v1/responses/compact", false, both},
-		{ProtocolAlphaSearch, "Alpha Search", "POST /v1/alpha/search", false, openai},
-		{ProtocolWebSearch, "Web Search", "POST /v1/web_search", false, grok},
-		{ProtocolXSearch, "X Search", "POST /v1/x_search", false, grok},
-		{ProtocolQoderChat, "Qoder Chat", "agent_chat_generation (SSE)", true, []string{PlatformQoder}},
-		{ProtocolGeminiBatch, "Gemini Batch GenerateContent", "POST /v1beta/models/{model}:batchGenerateContent", true, []string{PlatformGemini}},
-		{ProtocolVertexBatch, "Vertex Batch Prediction", "POST /v1/projects/{project}/locations/{location}/batchPredictionJobs", true, []string{PlatformGemini}},
+		{ID: ProtocolAnthropicMessages, Name: "Anthropic Messages", Endpoint: "POST /v1/messages", Platforms: all},
+		{ID: ProtocolOpenAIResponses, Name: "OpenAI Responses", Endpoint: "POST /v1/responses", Platforms: all},
+		{ID: ProtocolOpenAIChatCompletions, Name: "Chat Completions", Endpoint: "POST /v1/chat/completions", Platforms: all},
+		{ID: ProtocolGeminiGenerateContent, Name: "Gemini GenerateContent", Endpoint: "POST /v1beta/models/{model}:generateContent / :streamGenerateContent", Platforms: []string{PlatformGemini, PlatformAntigravity}},
+		httpProtocol(ProtocolEmbeddings, "Embeddings", openai, ProtocolRoute{Method: http.MethodPost, Path: "/embeddings"}),
+		httpProtocol(ProtocolImagesGenerations, "Images Generations", both, ProtocolRoute{Method: http.MethodPost, Path: "/images/generations"}),
+		httpProtocol(ProtocolImagesEdits, "Images Edits", both, ProtocolRoute{Method: http.MethodPost, Path: "/images/edits"}),
+		httpProtocol(ProtocolImageBatches, "Image Batches", []string{PlatformGemini}, ProtocolRoute{Method: http.MethodPost, Path: "/images/batches"}),
+		httpProtocol(ProtocolVideosGenerations, "Video Generations", grok, ProtocolRoute{Method: http.MethodPost, Path: "/videos/generations"}, ProtocolRoute{Method: http.MethodPost, Path: "/videos"}),
+		httpProtocol(ProtocolVideosEdits, "Video Edits", grok, ProtocolRoute{Method: http.MethodPost, Path: "/videos/edits"}),
+		httpProtocol(ProtocolVideosExtensions, "Video Extensions", grok, ProtocolRoute{Method: http.MethodPost, Path: "/videos/extensions"}),
+		httpProtocol(ProtocolTTS, "TTS", grok, ProtocolRoute{Method: http.MethodPost, Path: "/tts"}),
+		httpProtocol(ProtocolSTT, "STT", grok, ProtocolRoute{Method: http.MethodPost, Path: "/stt"}),
+		httpProtocol(ProtocolCustomVoices, "Custom Voices", grok, ProtocolRoute{Path: "/custom-voices", Prefix: true}),
+		httpProtocol(ProtocolVoiceRealtime, "Voice Realtime", grok, ProtocolRoute{Method: http.MethodGet, Path: "/realtime", WebSocket: true}),
+		httpProtocol(ProtocolResponsesWebSocket, "Responses WebSocket", both, ProtocolRoute{Method: http.MethodGet, Path: "/responses", WebSocket: true}),
+		httpProtocol(ProtocolLive, "OpenAI Live", openai, ProtocolRoute{Method: http.MethodPost, Path: "/live"}, ProtocolRoute{Method: http.MethodPost, Path: "/realtime/calls"}),
+		httpProtocol(ProtocolResponsesCompact, "Responses Compact", both, ProtocolRoute{Method: http.MethodPost, Path: "/responses/compact"}),
+		httpProtocol(ProtocolAlphaSearch, "Alpha Search", openai, ProtocolRoute{Method: http.MethodPost, Path: "/alpha/search"}),
+		httpProtocol(ProtocolWebSearch, "Web Search", grok, ProtocolRoute{Method: http.MethodPost, Path: "/web_search"}),
+		httpProtocol(ProtocolXSearch, "X Search", grok, ProtocolRoute{Method: http.MethodPost, Path: "/x_search"}),
+		{ID: ProtocolQoderChat, Name: "Qoder Chat", Endpoint: "agent_chat_generation (SSE)", Platforms: []string{PlatformQoder}, UpstreamOnly: true},
+		{ID: ProtocolGeminiBatch, Name: "Gemini Batch GenerateContent", Endpoint: "POST /v1beta/models/{model}:batchGenerateContent", Platforms: []string{PlatformGemini}, UpstreamOnly: true},
+		{ID: ProtocolVertexBatch, Name: "Vertex Batch Prediction", Endpoint: "POST /v1/projects/{project}/locations/{location}/batchPredictionJobs", Platforms: []string{PlatformGemini}, UpstreamOnly: true},
 	}
 }
 
+// httpProtocol 从同一份路径元数据派生目录展示，避免入口描述与门禁映射漂移。
+func httpProtocol(id ProtocolID, name string, platforms []string, primary ProtocolRoute, aliases ...ProtocolRoute) Protocol {
+	endpoint := "/v1" + primary.Path
+	if primary.Method != "" {
+		endpoint = primary.Method + " " + endpoint
+	}
+	if primary.WebSocket {
+		endpoint += " (WebSocket)"
+	}
+	return Protocol{ID: id, Name: name, Endpoint: endpoint, Platforms: platforms, Routes: append([]ProtocolRoute{primary}, aliases...)}
+}
+
+// ProtocolForRoute 根据目录中的入口元数据解析扩展路由归属。
+func ProtocolForRoute(method, path string) (ProtocolID, bool) {
+	for _, protocol := range protocolCatalog {
+		for _, route := range protocol.Routes {
+			if route.Method != "" && route.Method != method {
+				continue
+			}
+			if path == route.Path || (route.Prefix && strings.HasPrefix(path, route.Path+"/")) {
+				return protocol.ID, true
+			}
+		}
+	}
+	return "", false
+}
+
 // NativeProtocolOptions 只表达认证方式具备的原生协议，不包含兼容转换入口。
-func NativeProtocolOptions(platform, accountType, authMode string) []GroupClientProtocol {
-	var selected []GroupClientProtocol
+func NativeProtocolOptions(platform, accountType, authMode string) []ProtocolID {
+	var selected []ProtocolID
 	switch platform {
 	case PlatformAnthropic:
 		if slices.Contains([]string{AccountTypeOAuth, AccountTypeSetupToken, AccountTypeAPIKey, AccountTypeBedrock, AccountTypeServiceAccount}, accountType) {
-			selected = []GroupClientProtocol{ProtocolAnthropicMessages}
+			selected = []ProtocolID{ProtocolAnthropicMessages}
 		}
 	case PlatformOpenAI:
 		if accountType == AccountTypeAPIKey {
-			selected = []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions, ProtocolEmbeddings, ProtocolImagesGenerations, ProtocolImagesEdits, ProtocolResponsesWebSocket, ProtocolResponsesCompact, ProtocolAlphaSearch}
+			selected = []ProtocolID{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions, ProtocolEmbeddings, ProtocolImagesGenerations, ProtocolImagesEdits, ProtocolResponsesWebSocket, ProtocolResponsesCompact, ProtocolAlphaSearch}
 		} else if accountType == AccountTypeOAuth {
-			selected = []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolResponsesWebSocket, ProtocolResponsesCompact}
+			selected = []ProtocolID{ProtocolOpenAIResponses, ProtocolResponsesWebSocket, ProtocolResponsesCompact}
 			if authMode != "personalAccessToken" {
 				selected = append(selected, ProtocolAlphaSearch)
 			}
@@ -97,7 +141,7 @@ func NativeProtocolOptions(platform, accountType, authMode string) []GroupClient
 		}
 	case PlatformKimi, PlatformDeepseek, PlatformZhipu:
 		if accountType == AccountTypeAPIKey {
-			selected = []GroupClientProtocol{ProtocolAnthropicMessages, ProtocolOpenAIChatCompletions}
+			selected = []ProtocolID{ProtocolAnthropicMessages, ProtocolOpenAIChatCompletions}
 			if platform != PlatformZhipu {
 				selected = append(selected, ProtocolOpenAIResponses)
 			}
@@ -105,29 +149,29 @@ func NativeProtocolOptions(platform, accountType, authMode string) []GroupClient
 	case PlatformGemini:
 		switch accountType {
 		case AccountTypeOAuth:
-			selected = []GroupClientProtocol{ProtocolGeminiGenerateContent}
+			selected = []ProtocolID{ProtocolGeminiGenerateContent}
 		case AccountTypeAPIKey:
-			selected = []GroupClientProtocol{ProtocolGeminiGenerateContent, ProtocolGeminiBatch}
+			selected = []ProtocolID{ProtocolGeminiGenerateContent, ProtocolGeminiBatch}
 		case AccountTypeServiceAccount:
-			selected = []GroupClientProtocol{ProtocolGeminiGenerateContent, ProtocolVertexBatch}
+			selected = []ProtocolID{ProtocolGeminiGenerateContent, ProtocolVertexBatch}
 		}
 	case PlatformAntigravity:
 		if accountType == AccountTypeUpstream {
-			selected = []GroupClientProtocol{ProtocolAnthropicMessages}
+			selected = []ProtocolID{ProtocolAnthropicMessages}
 		}
 		if accountType == AccountTypeOAuth {
-			selected = []GroupClientProtocol{ProtocolGeminiGenerateContent}
+			selected = []ProtocolID{ProtocolGeminiGenerateContent}
 		}
 	case PlatformQoder:
 		if accountType == AccountTypeCosy {
-			selected = []GroupClientProtocol{ProtocolQoderChat}
+			selected = []ProtocolID{ProtocolQoderChat}
 		}
 	case PlatformGrok:
 		if accountType == AccountTypeAPIKey || accountType == AccountTypeOAuth {
-			selected = []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions, ProtocolImagesGenerations, ProtocolImagesEdits, ProtocolVideosGenerations, ProtocolVideosEdits, ProtocolVideosExtensions, ProtocolTTS, ProtocolSTT, ProtocolCustomVoices, ProtocolVoiceRealtime}
+			selected = []ProtocolID{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions, ProtocolImagesGenerations, ProtocolImagesEdits, ProtocolVideosGenerations, ProtocolVideosEdits, ProtocolVideosExtensions, ProtocolTTS, ProtocolSTT, ProtocolCustomVoices, ProtocolVoiceRealtime}
 		}
 	}
-	out := []GroupClientProtocol{}
+	out := []ProtocolID{}
 	for _, protocol := range protocolCatalog {
 		if slices.Contains(selected, protocol.ID) {
 			out = append(out, protocol.ID)
@@ -137,39 +181,39 @@ func NativeProtocolOptions(platform, accountType, authMode string) []GroupClient
 }
 
 // ProtocolFallbackTargets 仅列出已有适配器支持的单步目标；原生直通不作为转换项。
-func ProtocolFallbackTargets(platform string, source GroupClientProtocol) []GroupClientProtocol {
+func ProtocolFallbackTargets(platform string, source ProtocolID) []ProtocolID {
 	if !slices.Contains(SupportedGroupClientProtocols(platform), source) {
-		return []GroupClientProtocol{}
+		return []ProtocolID{}
 	}
-	var targets []GroupClientProtocol
+	var targets []ProtocolID
 	switch source {
 	case ProtocolAnthropicMessages, ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions:
 		switch platform {
 		case PlatformAnthropic:
-			targets = []GroupClientProtocol{ProtocolAnthropicMessages, ProtocolGeminiGenerateContent}
+			targets = []ProtocolID{ProtocolAnthropicMessages, ProtocolGeminiGenerateContent}
 		case PlatformOpenAI, PlatformGrok:
-			targets = []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions}
+			targets = []ProtocolID{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions}
 		case PlatformKimi, PlatformDeepseek:
-			targets = []GroupClientProtocol{ProtocolAnthropicMessages, ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions}
+			targets = []ProtocolID{ProtocolAnthropicMessages, ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions}
 		case PlatformZhipu:
-			targets = []GroupClientProtocol{ProtocolAnthropicMessages, ProtocolOpenAIChatCompletions}
+			targets = []ProtocolID{ProtocolAnthropicMessages, ProtocolOpenAIChatCompletions}
 		case PlatformGemini, PlatformAntigravity:
-			targets = []GroupClientProtocol{ProtocolGeminiGenerateContent}
+			targets = []ProtocolID{ProtocolGeminiGenerateContent}
 		case PlatformQoder:
-			targets = []GroupClientProtocol{ProtocolQoderChat}
+			targets = []ProtocolID{ProtocolQoderChat}
 		}
 	case ProtocolImagesGenerations, ProtocolImagesEdits:
 		if platform == PlatformOpenAI {
-			targets = []GroupClientProtocol{ProtocolOpenAIResponses}
+			targets = []ProtocolID{ProtocolOpenAIResponses}
 		}
 	case ProtocolResponsesWebSocket, ProtocolAlphaSearch, ProtocolWebSearch, ProtocolXSearch:
-		targets = []GroupClientProtocol{ProtocolOpenAIResponses}
+		targets = []ProtocolID{ProtocolOpenAIResponses}
 	case ProtocolResponsesCompact:
 		if platform == PlatformGrok {
-			targets = []GroupClientProtocol{ProtocolOpenAIResponses}
+			targets = []ProtocolID{ProtocolOpenAIResponses}
 		}
 	}
-	out := []GroupClientProtocol{}
+	out := []ProtocolID{}
 	for _, target := range targets {
 		if target != source {
 			out = append(out, target)
@@ -179,7 +223,7 @@ func ProtocolFallbackTargets(platform string, source GroupClientProtocol) []Grou
 }
 
 // SupportsProtocolConversion 在候选账号层收窄转换边，禁止把 OAuth 专属适配套用到 API Key。
-func SupportsProtocolConversion(platform, accountType, authMode string, source, target GroupClientProtocol) bool {
+func SupportsProtocolConversion(platform, accountType, authMode string, source, target ProtocolID) bool {
 	if !slices.Contains(ProtocolFallbackTargets(platform, source), target) {
 		return false
 	}
@@ -197,15 +241,16 @@ func ProtocolCatalog() []Protocol {
 	out := slices.Clone(protocolCatalog)
 	for i := range out {
 		out[i].Platforms = slices.Clone(out[i].Platforms)
+		out[i].Routes = slices.Clone(out[i].Routes)
 	}
 	return out
 }
 
 // AuxiliaryOperation 登记主协议的辅助操作；资源生命周期不会生成新的协议复选框。
 type AuxiliaryOperation struct {
-	Operation     string              `json:"operation"`
-	Protocol      GroupClientProtocol `json:"protocol,omitempty"`
-	Authorization string              `json:"authorization"`
+	Operation     string     `json:"operation"`
+	Protocol      ProtocolID `json:"protocol,omitempty"`
+	Authorization string     `json:"authorization"`
 }
 
 func AuxiliaryOperations() []AuxiliaryOperation {

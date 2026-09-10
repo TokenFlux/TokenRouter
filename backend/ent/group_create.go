@@ -544,13 +544,13 @@ func (_c *GroupCreate) SetNillableAllowMessagesDispatch(v *bool) *GroupCreate {
 }
 
 // SetAllowedProtocols sets the "allowed_protocols" field.
-func (_c *GroupCreate) SetAllowedProtocols(v []domain.GroupClientProtocol) *GroupCreate {
+func (_c *GroupCreate) SetAllowedProtocols(v []domain.ProtocolID) *GroupCreate {
 	_c.mutation.SetAllowedProtocols(v)
 	return _c
 }
 
 // SetProtocolFallbacks sets the "protocol_fallbacks" field.
-func (_c *GroupCreate) SetProtocolFallbacks(v map[domain.GroupClientProtocol]domain.GroupClientProtocol) *GroupCreate {
+func (_c *GroupCreate) SetProtocolFallbacks(v map[domain.ProtocolID]domain.ProtocolID) *GroupCreate {
 	_c.mutation.SetProtocolFallbacks(v)
 	return _c
 }
@@ -2298,7 +2298,7 @@ func (u *GroupUpsert) UpdateAllowMessagesDispatch() *GroupUpsert {
 }
 
 // SetAllowedProtocols sets the "allowed_protocols" field.
-func (u *GroupUpsert) SetAllowedProtocols(v []domain.GroupClientProtocol) *GroupUpsert {
+func (u *GroupUpsert) SetAllowedProtocols(v []domain.ProtocolID) *GroupUpsert {
 	u.Set(group.FieldAllowedProtocols, v)
 	return u
 }
@@ -2310,7 +2310,7 @@ func (u *GroupUpsert) UpdateAllowedProtocols() *GroupUpsert {
 }
 
 // SetProtocolFallbacks sets the "protocol_fallbacks" field.
-func (u *GroupUpsert) SetProtocolFallbacks(v map[domain.GroupClientProtocol]domain.GroupClientProtocol) *GroupUpsert {
+func (u *GroupUpsert) SetProtocolFallbacks(v map[domain.ProtocolID]domain.ProtocolID) *GroupUpsert {
 	u.Set(group.FieldProtocolFallbacks, v)
 	return u
 }
@@ -3261,7 +3261,7 @@ func (u *GroupUpsertOne) UpdateAllowMessagesDispatch() *GroupUpsertOne {
 }
 
 // SetAllowedProtocols sets the "allowed_protocols" field.
-func (u *GroupUpsertOne) SetAllowedProtocols(v []domain.GroupClientProtocol) *GroupUpsertOne {
+func (u *GroupUpsertOne) SetAllowedProtocols(v []domain.ProtocolID) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetAllowedProtocols(v)
 	})
@@ -3275,7 +3275,7 @@ func (u *GroupUpsertOne) UpdateAllowedProtocols() *GroupUpsertOne {
 }
 
 // SetProtocolFallbacks sets the "protocol_fallbacks" field.
-func (u *GroupUpsertOne) SetProtocolFallbacks(v map[domain.GroupClientProtocol]domain.GroupClientProtocol) *GroupUpsertOne {
+func (u *GroupUpsertOne) SetProtocolFallbacks(v map[domain.ProtocolID]domain.ProtocolID) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetProtocolFallbacks(v)
 	})
@@ -4427,7 +4427,7 @@ func (u *GroupUpsertBulk) UpdateAllowMessagesDispatch() *GroupUpsertBulk {
 }
 
 // SetAllowedProtocols sets the "allowed_protocols" field.
-func (u *GroupUpsertBulk) SetAllowedProtocols(v []domain.GroupClientProtocol) *GroupUpsertBulk {
+func (u *GroupUpsertBulk) SetAllowedProtocols(v []domain.ProtocolID) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetAllowedProtocols(v)
 	})
@@ -4441,7 +4441,7 @@ func (u *GroupUpsertBulk) UpdateAllowedProtocols() *GroupUpsertBulk {
 }
 
 // SetProtocolFallbacks sets the "protocol_fallbacks" field.
-func (u *GroupUpsertBulk) SetProtocolFallbacks(v map[domain.GroupClientProtocol]domain.GroupClientProtocol) *GroupUpsertBulk {
+func (u *GroupUpsertBulk) SetProtocolFallbacks(v map[domain.ProtocolID]domain.ProtocolID) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.SetProtocolFallbacks(v)
 	})

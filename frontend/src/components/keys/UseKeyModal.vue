@@ -292,7 +292,7 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
 import { OPENAI_CODEX_DEFAULT_MODEL } from '@/constants/openai'
-import type { ApiKeyCompositeGroup, GroupClientProtocol, GroupPlatform } from '@/types'
+import type { ApiKeyCompositeGroup, ProtocolID, GroupPlatform } from '@/types'
 import {
   effectiveGroupClientProtocols,
   hasGroupClientProtocol
@@ -303,7 +303,7 @@ interface Props {
   apiKey: string
   baseUrl: string
   platform: GroupPlatform | null
-  allowedClientProtocols?: GroupClientProtocol[] | null
+  allowedClientProtocols?: ProtocolID[] | null
   compositeGroups?: ApiKeyCompositeGroup[]
 }
 
@@ -369,11 +369,11 @@ const allowedProtocols = computed(() => {
   return effectiveGroupClientProtocols(props.platform, props.allowedClientProtocols)
 })
 
-const allowsProtocol = (protocol: GroupClientProtocol) =>
+const allowsProtocol = (protocol: ProtocolID) =>
   hasGroupClientProtocol(allowedProtocols.value, protocol)
 
 // 保留各平台原有 OpenCode 体验，同时保证最终选择的传输协议已经显式启用。
-const openCodeProtocolPriority: Record<GroupPlatform, readonly GroupClientProtocol[]> = {
+const openCodeProtocolPriority: Record<GroupPlatform, readonly ProtocolID[]> = {
   anthropic: ['anthropic_messages', 'openai_responses', 'openai_chat_completions'],
   openai: ['openai_responses', 'openai_chat_completions', 'anthropic_messages'],
   gemini: ['gemini_generate_content', 'openai_responses', 'openai_chat_completions', 'anthropic_messages'],
@@ -387,8 +387,8 @@ const openCodeProtocolPriority: Record<GroupPlatform, readonly GroupClientProtoc
 
 function preferredOpenCodeProtocol(
   platform: GroupPlatform,
-  protocols: readonly GroupClientProtocol[]
-): GroupClientProtocol | null {
+  protocols: readonly ProtocolID[]
+): ProtocolID | null {
   return openCodeProtocolPriority[platform].find((protocol) => protocols.includes(protocol)) ?? null
 }
 
@@ -1351,7 +1351,7 @@ responses_websockets_v2 = false`
 
 function generateOpenCodeConfig(
   profile: OpenCodeProfile,
-  protocol: GroupClientProtocol,
+  protocol: ProtocolID,
   baseUrl: string,
   apiKey: string,
   pathLabel?: string

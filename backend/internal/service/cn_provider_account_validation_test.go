@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"net/http"
 	"testing"
 
@@ -57,16 +58,16 @@ func TestCNProviderAccountProtocolPersistence(t *testing.T) {
 				credentials := cnAccountTestCredentials(tc.platform, tc.mode, protocol)
 				wantCredentials := cnAccountTestCredentials(tc.platform, tc.mode, protocol)
 				delete(wantCredentials, "api_protocol")
-				wantProtocols := []GroupClientProtocol{ProtocolOpenAIChatCompletions}
+				wantProtocols := []domain.ProtocolID{domain.ProtocolOpenAIChatCompletions}
 				switch protocol {
 				case APIProtocolAnthropic:
-					wantProtocols = []GroupClientProtocol{ProtocolAnthropicMessages}
+					wantProtocols = []domain.ProtocolID{domain.ProtocolAnthropicMessages}
 				case APIProtocolResponses:
-					wantProtocols = []GroupClientProtocol{ProtocolOpenAIResponses}
+					wantProtocols = []domain.ProtocolID{domain.ProtocolOpenAIResponses}
 				case APIProtocolAdaptive:
-					wantProtocols = []GroupClientProtocol{ProtocolAnthropicMessages, ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions}
+					wantProtocols = []domain.ProtocolID{domain.ProtocolAnthropicMessages, domain.ProtocolOpenAIResponses, domain.ProtocolOpenAIChatCompletions}
 					if tc.platform == PlatformZhipu {
-						wantProtocols = []GroupClientProtocol{ProtocolAnthropicMessages, ProtocolOpenAIChatCompletions}
+						wantProtocols = []domain.ProtocolID{domain.ProtocolAnthropicMessages, domain.ProtocolOpenAIChatCompletions}
 					}
 				}
 				wantCredentials[upstreamProtocolsKey] = wantProtocols
@@ -167,7 +168,7 @@ func TestCNProviderLegacyCredentialDefaults(t *testing.T) {
 			updated, err := svc.UpdateAccount(ctx, 1, &UpdateAccountInput{Name: "历史账号"})
 			require.NoError(t, err)
 			require.Equal(t, AccountModePayG, updated.GetAccountMode())
-			require.Equal(t, []GroupClientProtocol{ProtocolOpenAIChatCompletions}, updated.UpstreamProtocols())
+			require.Equal(t, []domain.ProtocolID{domain.ProtocolOpenAIChatCompletions}, updated.UpstreamProtocols())
 			require.NotContains(t, updated.Credentials, "account_mode")
 			require.NotContains(t, updated.Credentials, "api_protocol")
 			created, err := svc.CreateAccount(ctx, &CreateAccountInput{
@@ -176,7 +177,7 @@ func TestCNProviderLegacyCredentialDefaults(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.Equal(t, AccountModePayG, created.Credentials["account_mode"])
-			require.Equal(t, []GroupClientProtocol{ProtocolOpenAIChatCompletions}, created.UpstreamProtocols())
+			require.Equal(t, []domain.ProtocolID{domain.ProtocolOpenAIChatCompletions}, created.UpstreamProtocols())
 		})
 	}
 }

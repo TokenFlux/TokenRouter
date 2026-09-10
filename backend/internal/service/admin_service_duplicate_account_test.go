@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"net/http"
 	"strings"
 	"testing"
@@ -167,8 +168,8 @@ func TestDuplicateAccountCopiesConfigurationAndResetsRuntimeState(t *testing.T) 
 	require.Equal(t, source.GroupIDs, duplicate.GroupIDs)
 	require.Equal(t, "secret", duplicate.Credentials["api_key"])
 	require.Equal(t, map[string]any{"token": "source-token"}, duplicate.Credentials["nested"])
-	require.Contains(t, duplicate.UpstreamProtocols(), ProtocolOpenAIResponses)
-	require.NotContains(t, duplicate.UpstreamProtocols(), ProtocolOpenAIChatCompletions)
+	require.Contains(t, duplicate.UpstreamProtocols(), domain.ProtocolOpenAIResponses)
+	require.NotContains(t, duplicate.UpstreamProtocols(), domain.ProtocolOpenAIChatCompletions)
 	require.Equal(t, map[string]any{
 		"config":              map[string]any{"region": "us-east-1"},
 		"items":               []any{map[string]any{"enabled": true}},

@@ -1,5 +1,7 @@
 package service
 
+import "github.com/TokenFlux/TokenRouter/internal/domain"
+
 import "time"
 
 // APIKeyAuthSnapshot API Key 认证缓存快照（仅包含认证所需字段）
@@ -137,10 +139,10 @@ type APIKeyAuthGroupSnapshot struct {
 	SupportedModelScopes []string `json:"supported_model_scopes,omitempty"`
 
 	// AllowedProtocols 不使用 omitempty，确保空集合按 [] 写入快照。
-	AllowedProtocols     []GroupClientProtocol                       `json:"allowed_protocols"`
-	ProtocolFallbacks    map[GroupClientProtocol]GroupClientProtocol `json:"protocol_fallbacks"`
-	ResponsesImagePolicy string                                      `json:"responses_image_policy"`
-	AllowLive            bool                                        `json:"allow_live"`
+	AllowedProtocols     []domain.ProtocolID                     `json:"allowed_protocols"`
+	ProtocolFallbacks    map[domain.ProtocolID]domain.ProtocolID `json:"protocol_fallbacks"`
+	ResponsesImagePolicy string                                  `json:"responses_image_policy"`
+	AllowLive            bool                                    `json:"allow_live"`
 	// ForceOpenAIFast 保留组级 OpenAI Fast 策略，供请求期无需回源即可执行。
 	ForceOpenAIFast bool `json:"force_openai_fast"`
 	// OpenAIFastPolicy 保存管理员选择的互斥加速策略。

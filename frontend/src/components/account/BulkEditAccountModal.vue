@@ -1614,7 +1614,7 @@
 
 <script setup lang="ts">
 import AccountProtocolSelector from './AccountProtocolSelector.vue'
-import type { GroupClientProtocol } from '@/types'
+import type { ProtocolID } from '@/types'
 import OpenAICompactionCheckbox from './OpenAICompactionCheckbox.vue'
 import { ref, watch, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -1829,7 +1829,7 @@ const enableOpenAIPassthrough = ref(false)
 const enableOpenAIFlattenNamespaces = ref(false)
 const enableCodexImageToolMode = ref(false)
 const enableUpstreamProtocols = ref(false)
-const upstreamProtocols = ref<GroupClientProtocol[] | undefined>(undefined)
+const upstreamProtocols = ref<ProtocolID[] | undefined>(undefined)
 watch(() => [targetSelectedPlatforms.value.join(','), targetSelectedTypes.value.join(',')], () => { enableUpstreamProtocols.value = false; upstreamProtocols.value = undefined })
 const enableOpenAIResponsesContinuationSupported = ref(false)
 const enableOpenAIWSMode = ref(false)

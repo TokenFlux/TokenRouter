@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"net/http"
 	"strings"
 
@@ -164,7 +165,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	if allowedClientProtocols == nil {
 		allowedClientProtocols = defaultGroupClientProtocols(platform)
 		if platform == PlatformOpenAI {
-			allowedClientProtocols = setGroupClientProtocol(allowedClientProtocols, ProtocolAnthropicMessages, input.AllowMessagesDispatch)
+			allowedClientProtocols = setGroupClientProtocol(allowedClientProtocols, domain.ProtocolAnthropicMessages, input.AllowMessagesDispatch)
 		}
 	} else {
 		normalizedProtocols, validationErr := normalizeExplicitGroupClientProtocols(platform, allowedClientProtocols)
@@ -576,7 +577,7 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 			group.AllowedProtocols = filterGroupClientProtocolsForPlatform(group.Platform, group.AllowedProtocols)
 		}
 		if group.Platform == PlatformOpenAI && input.AllowMessagesDispatch != nil {
-			group.AllowedProtocols = setGroupClientProtocol(group.AllowedProtocols, ProtocolAnthropicMessages, *input.AllowMessagesDispatch)
+			group.AllowedProtocols = setGroupClientProtocol(group.AllowedProtocols, domain.ProtocolAnthropicMessages, *input.AllowMessagesDispatch)
 		}
 		group.AllowedProtocols, err = normalizeExplicitGroupClientProtocols(group.Platform, group.AllowedProtocols)
 		if err != nil {
@@ -811,7 +812,7 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	normalizeGroupDefaultState(group)
 	if input.LegacyProtocolInput {
 		for _, protocol := range previousAllowedProtocols {
-			if protocol != ProtocolAnthropicMessages && protocol != ProtocolOpenAIResponses && protocol != ProtocolOpenAIChatCompletions && protocol != ProtocolGeminiGenerateContent {
+			if protocol != domain.ProtocolAnthropicMessages && protocol != domain.ProtocolOpenAIResponses && protocol != domain.ProtocolOpenAIChatCompletions && protocol != domain.ProtocolGeminiGenerateContent {
 				group.AllowedProtocols = append(group.AllowedProtocols, protocol)
 			}
 		}
@@ -826,8 +827,8 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	}
 	if input.AllowedProtocols == nil || input.LegacyProtocolInput {
 		// 旧布尔字段只在明确提交时改变对应入口，普通编辑不能把仅编辑权限扩成生成权限。
-		patch := func(protocol GroupClientProtocol, enabled bool) {
-			if len(filterGroupClientProtocolsForPlatform(group.Platform, []GroupClientProtocol{protocol})) > 0 {
+		patch := func(protocol domain.ProtocolID, enabled bool) {
+			if len(filterGroupClientProtocolsForPlatform(group.Platform, []domain.ProtocolID{protocol})) > 0 {
 				group.AllowedProtocols = setGroupClientProtocol(group.AllowedProtocols, protocol, enabled)
 			}
 		}

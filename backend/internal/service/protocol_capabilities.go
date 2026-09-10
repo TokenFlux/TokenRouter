@@ -18,7 +18,7 @@ const upstreamProtocolsKey = "upstream_protocols"
 type clientProtocolContextKey struct{}
 
 // WithClientProtocol 标记客户端业务入口；内部转换不能覆盖此标记。
-func WithClientProtocol(ctx context.Context, protocol GroupClientProtocol) context.Context {
+func WithClientProtocol(ctx context.Context, protocol domain.ProtocolID) context.Context {
 	return context.WithValue(ctx, clientProtocolContextKey{}, protocol)
 }
 
@@ -33,21 +33,21 @@ func protocolAuthMode(account *Account) string {
 }
 
 // NativeProtocolOptions 复用认证模式判定，目录接口不接收任何实际凭据。
-func (a *Account) NativeProtocolOptions() []GroupClientProtocol {
+func (a *Account) NativeProtocolOptions() []domain.ProtocolID {
 	if a == nil {
-		return []GroupClientProtocol{}
+		return []domain.ProtocolID{}
 	}
 	return domain.NativeProtocolOptions(a.Platform, a.Type, protocolAuthMode(a))
 }
 
-func parseProtocolSet(raw any) ([]GroupClientProtocol, error) {
-	out := []GroupClientProtocol{}
+func parseProtocolSet(raw any) ([]domain.ProtocolID, error) {
+	out := []domain.ProtocolID{}
 	switch value := raw.(type) {
-	case []GroupClientProtocol:
+	case []domain.ProtocolID:
 		out = append(out, value...)
 	case []string:
 		for _, item := range value {
-			out = append(out, GroupClientProtocol(item))
+			out = append(out, domain.ProtocolID(item))
 		}
 	case []any:
 		for _, item := range value {
@@ -55,7 +55,7 @@ func parseProtocolSet(raw any) ([]GroupClientProtocol, error) {
 			if !ok {
 				return nil, fmt.Errorf("upstream_protocols must contain strings")
 			}
-			out = append(out, GroupClientProtocol(text))
+			out = append(out, domain.ProtocolID(text))
 		}
 	default:
 		return nil, fmt.Errorf("upstream_protocols must be an array")
@@ -64,50 +64,50 @@ func parseProtocolSet(raw any) ([]GroupClientProtocol, error) {
 }
 
 // UpstreamProtocols 读取统一结构；缺字段的旧记录只在兼容边界推导默认值。
-func (a *Account) UpstreamProtocols() []GroupClientProtocol {
+func (a *Account) UpstreamProtocols() []domain.ProtocolID {
 	if a == nil {
-		return []GroupClientProtocol{}
+		return []domain.ProtocolID{}
 	}
 	if raw, exists := a.Credentials[upstreamProtocolsKey]; exists {
 		protocols, err := parseProtocolSet(raw)
 		if err != nil {
-			return []GroupClientProtocol{}
+			return []domain.ProtocolID{}
 		}
 		return protocols
 	}
 	return a.legacyUpstreamProtocols()
 }
 
-func (a *Account) legacyUpstreamProtocols() []GroupClientProtocol {
+func (a *Account) legacyUpstreamProtocols() []domain.ProtocolID {
 	options := a.NativeProtocolOptions()
 	if a.IsCNProvider() {
 		switch a.GetAPIProtocol() {
 		case APIProtocolAdaptive:
 			return options
 		case APIProtocolAnthropic:
-			return []GroupClientProtocol{ProtocolAnthropicMessages}
+			return []domain.ProtocolID{domain.ProtocolAnthropicMessages}
 		case APIProtocolResponses:
-			return []GroupClientProtocol{ProtocolOpenAIResponses}
+			return []domain.ProtocolID{domain.ProtocolOpenAIResponses}
 		default:
-			return []GroupClientProtocol{ProtocolOpenAIChatCompletions}
+			return []domain.ProtocolID{domain.ProtocolOpenAIChatCompletions}
 		}
 	}
 	if a.IsOpenAIApiKey() {
 		workloads, found := a.openAIWorkloadCapabilitySet()
 		if found && !workloads["text_generation"] {
-			options = slices.DeleteFunc(options, func(p GroupClientProtocol) bool {
+			options = slices.DeleteFunc(options, func(p domain.ProtocolID) bool {
 				return p != domain.ProtocolEmbeddings && p != domain.ProtocolImagesGenerations && p != domain.ProtocolImagesEdits
 			})
 		}
 		if found && !workloads["embeddings"] {
-			options = slices.DeleteFunc(options, func(p GroupClientProtocol) bool { return p == domain.ProtocolEmbeddings })
+			options = slices.DeleteFunc(options, func(p domain.ProtocolID) bool { return p == domain.ProtocolEmbeddings })
 		}
 		mode := openai_compat.ResolveUpstreamTextProtocol(a.Extra, openai_compat.TextProtocolResponses)
 		if mode == openai_compat.TextProtocolChatCompletions {
-			options = slices.DeleteFunc(options, func(p GroupClientProtocol) bool { return p == ProtocolOpenAIResponses })
+			options = slices.DeleteFunc(options, func(p domain.ProtocolID) bool { return p == domain.ProtocolOpenAIResponses })
 		}
 		if openai_compat.ResolveUpstreamTextProtocol(a.Extra, openai_compat.TextProtocolChatCompletions) == openai_compat.TextProtocolResponses {
-			options = slices.DeleteFunc(options, func(p GroupClientProtocol) bool { return p == ProtocolOpenAIChatCompletions })
+			options = slices.DeleteFunc(options, func(p domain.ProtocolID) bool { return p == domain.ProtocolOpenAIChatCompletions })
 		}
 	}
 	return options
@@ -127,14 +127,14 @@ func NormalizeAccountProtocols(account *Account) error {
 		}
 	}
 	options := account.NativeProtocolOptions()
-	seen := map[GroupClientProtocol]bool{}
+	seen := map[domain.ProtocolID]bool{}
 	for _, protocol := range protocols {
 		if !slices.Contains(options, protocol) || seen[protocol] {
 			return infraerrors.BadRequest("UPSTREAM_PROTOCOLS_INVALID", fmt.Sprintf("unsupported or duplicated native protocol %q", protocol))
 		}
 		seen[protocol] = true
 	}
-	normalized := []GroupClientProtocol{}
+	normalized := []domain.ProtocolID{}
 	for _, protocol := range options {
 		if seen[protocol] {
 			normalized = append(normalized, protocol)
@@ -172,7 +172,7 @@ func NormalizeAccountProtocols(account *Account) error {
 }
 
 // ResolveProtocolRoute 对每个候选独立解析，不产生隐式优先级或多级转换。
-func ResolveProtocolRoute(account *Account, group *Group, source GroupClientProtocol) (GroupClientProtocol, bool) {
+func ResolveProtocolRoute(account *Account, group *Group, source domain.ProtocolID) (domain.ProtocolID, bool) {
 	if account == nil {
 		return "", false
 	}
@@ -199,7 +199,7 @@ func ResolveProtocolRoute(account *Account, group *Group, source GroupClientProt
 }
 
 func (a *Account) allowsProtocolRequest(ctx context.Context) bool {
-	source, _ := ctx.Value(clientProtocolContextKey{}).(GroupClientProtocol)
+	source, _ := ctx.Value(clientProtocolContextKey{}).(domain.ProtocolID)
 	if source == "" {
 		return true
 	}
@@ -220,7 +220,7 @@ func normalizeGroupProtocolPolicy(group *Group) error {
 		}
 	}
 	if group.ProtocolFallbacks == nil {
-		group.ProtocolFallbacks = map[GroupClientProtocol]GroupClientProtocol{}
+		group.ProtocolFallbacks = map[domain.ProtocolID]domain.ProtocolID{}
 	}
 	switch group.ResponsesImagePolicy {
 	case "":
@@ -230,26 +230,26 @@ func normalizeGroupProtocolPolicy(group *Group) error {
 		return infraerrors.BadRequest("GROUP_RESPONSES_IMAGE_POLICY_INVALID", "invalid Responses image policy")
 	}
 	// 旧服务仍读取这些派生值；它们不再作为独立配置写入。
-	group.AllowMessagesDispatch = group.Platform == PlatformOpenAI && slices.Contains(normalized, ProtocolAnthropicMessages)
-	group.AllowImageGeneration = slices.Contains(normalized, domain.ProtocolImagesGenerations) || slices.Contains(normalized, domain.ProtocolImagesEdits) || slices.Contains(normalized, domain.ProtocolImageBatches) || slices.Contains(normalized, ProtocolGeminiGenerateContent)
+	group.AllowMessagesDispatch = group.Platform == PlatformOpenAI && slices.Contains(normalized, domain.ProtocolAnthropicMessages)
+	group.AllowImageGeneration = slices.Contains(normalized, domain.ProtocolImagesGenerations) || slices.Contains(normalized, domain.ProtocolImagesEdits) || slices.Contains(normalized, domain.ProtocolImageBatches) || slices.Contains(normalized, domain.ProtocolGeminiGenerateContent)
 	group.AllowBatchImageGeneration = slices.Contains(normalized, domain.ProtocolImageBatches)
 	group.AllowLive = slices.Contains(normalized, domain.ProtocolLive)
 	return nil
 }
 
 // DefaultProtocolFallbacks 固化历史平台适配，管理员可显式清空映射改为仅原生。
-func DefaultProtocolFallbacks(platform string) map[GroupClientProtocol]GroupClientProtocol {
-	result := map[GroupClientProtocol]GroupClientProtocol{}
-	target := ProtocolOpenAIResponses
+func DefaultProtocolFallbacks(platform string) map[domain.ProtocolID]domain.ProtocolID {
+	result := map[domain.ProtocolID]domain.ProtocolID{}
+	target := domain.ProtocolOpenAIResponses
 	switch platform {
 	case PlatformAnthropic:
-		target = ProtocolAnthropicMessages
+		target = domain.ProtocolAnthropicMessages
 	case PlatformGemini, PlatformAntigravity:
-		target = ProtocolGeminiGenerateContent
+		target = domain.ProtocolGeminiGenerateContent
 	case PlatformQoder:
 		target = domain.ProtocolQoderChat
 	case PlatformZhipu:
-		target = ProtocolOpenAIChatCompletions
+		target = domain.ProtocolOpenAIChatCompletions
 	}
 	for _, source := range domain.SupportedGroupClientProtocols(platform) {
 		if slices.Contains(domain.ProtocolFallbackTargets(platform, source), target) {
@@ -257,16 +257,16 @@ func DefaultProtocolFallbacks(platform string) map[GroupClientProtocol]GroupClie
 		}
 	}
 	if platform == PlatformAnthropic {
-		result[ProtocolAnthropicMessages] = ProtocolGeminiGenerateContent
+		result[domain.ProtocolAnthropicMessages] = domain.ProtocolGeminiGenerateContent
 	}
-	if slices.Contains(domain.ProtocolFallbackTargets(platform, ProtocolOpenAIResponses), ProtocolOpenAIChatCompletions) {
-		result[ProtocolOpenAIResponses] = ProtocolOpenAIChatCompletions
+	if slices.Contains(domain.ProtocolFallbackTargets(platform, domain.ProtocolOpenAIResponses), domain.ProtocolOpenAIChatCompletions) {
+		result[domain.ProtocolOpenAIResponses] = domain.ProtocolOpenAIChatCompletions
 	}
 	return result
 }
 
 func applyLegacyGroupMediaProtocols(group *Group) {
-	for protocol, enabled := range map[GroupClientProtocol]bool{
+	for protocol, enabled := range map[domain.ProtocolID]bool{
 		domain.ProtocolImagesGenerations: group.AllowImageGeneration,
 		domain.ProtocolImagesEdits:       group.AllowImageGeneration,
 		domain.ProtocolImageBatches:      group.AllowBatchImageGeneration,
@@ -286,7 +286,7 @@ func accountForProtocolAttempt(ctx context.Context, account *Account) (*Account,
 	if account.resolvedProtocol != "" {
 		return account, nil
 	}
-	source, _ := ctx.Value(clientProtocolContextKey{}).(GroupClientProtocol)
+	source, _ := ctx.Value(clientProtocolContextKey{}).(domain.ProtocolID)
 	if source == "" {
 		return account, nil
 	}
@@ -346,8 +346,8 @@ func applyLegacyProtocolPatch(account *Account, credentials, extra map[string]an
 	legacy.Credentials = maps.Clone(account.Credentials)
 	delete(legacy.Credentials, upstreamProtocolsKey)
 	legacyProtocols := legacy.legacyUpstreamProtocols()
-	isText := func(p GroupClientProtocol) bool {
-		return p == ProtocolAnthropicMessages || p == ProtocolOpenAIResponses || p == ProtocolOpenAIChatCompletions
+	isText := func(p domain.ProtocolID) bool {
+		return p == domain.ProtocolAnthropicMessages || p == domain.ProtocolOpenAIResponses || p == domain.ProtocolOpenAIChatCompletions
 	}
 	hasWorkload := false
 	for _, key := range []string{openAIWorkloadCapabilitiesCredentialKey, legacyOpenAICapabilitiesCredentialKey} {
@@ -355,7 +355,7 @@ func applyLegacyProtocolPatch(account *Account, credentials, extra map[string]an
 			hasWorkload = true
 		}
 	}
-	selected = slices.DeleteFunc(selected, func(p GroupClientProtocol) bool { return isText(p) || (hasWorkload && p == domain.ProtocolEmbeddings) })
+	selected = slices.DeleteFunc(selected, func(p domain.ProtocolID) bool { return isText(p) || (hasWorkload && p == domain.ProtocolEmbeddings) })
 	for _, p := range legacyProtocols {
 		if isText(p) || (hasWorkload && p == domain.ProtocolEmbeddings) {
 			selected = append(selected, p)
@@ -366,8 +366,8 @@ func applyLegacyProtocolPatch(account *Account, credentials, extra map[string]an
 }
 
 func responsesPolicyGroup(ctx context.Context, group *Group) *Group {
-	source, _ := ctx.Value(clientProtocolContextKey{}).(GroupClientProtocol)
-	if source != "" && source != ProtocolOpenAIResponses && source != domain.ProtocolResponsesWebSocket {
+	source, _ := ctx.Value(clientProtocolContextKey{}).(domain.ProtocolID)
+	if source != "" && source != domain.ProtocolOpenAIResponses && source != domain.ProtocolResponsesWebSocket {
 		return nil
 	}
 	return group
@@ -377,7 +377,7 @@ func (s *OpenAIGatewayService) shadowProtocolsAllowed(ctx context.Context, accou
 	if account == nil || !account.IsShadow() {
 		return true
 	}
-	if source, _ := ctx.Value(clientProtocolContextKey{}).(GroupClientProtocol); source == "" {
+	if source, _ := ctx.Value(clientProtocolContextKey{}).(domain.ProtocolID); source == "" {
 		return true
 	}
 	parent := s.parentAccountLookup(ctx)(*account.ParentAccountID)
@@ -388,7 +388,7 @@ func supportsOpenAIRequestCapability(ctx context.Context, account *Account, capa
 	if account == nil {
 		return false
 	}
-	source, _ := ctx.Value(clientProtocolContextKey{}).(GroupClientProtocol)
+	source, _ := ctx.Value(clientProtocolContextKey{}).(domain.ProtocolID)
 	if source == domain.ProtocolResponsesWebSocket || source == domain.ProtocolResponsesCompact {
 		if capability == OpenAIEndpointCapabilityTextGeneration || capability == OpenAIEndpointCapabilityResponses {
 			return account.allowsProtocolRequest(ctx)
@@ -401,9 +401,9 @@ func supportsOpenAIRequestCapability(ctx context.Context, account *Account, capa
 }
 
 // 创作台复用相同业务协议；已创建任务的读取与清理不经过此准入。
-func creativeOperationProtocol(platform, operation string) GroupClientProtocol {
+func creativeOperationProtocol(platform, operation string) domain.ProtocolID {
 	if platform == PlatformGemini {
-		return ProtocolGeminiGenerateContent
+		return domain.ProtocolGeminiGenerateContent
 	}
 	if operation == CreativeOperationGenerate {
 		return domain.ProtocolImagesGenerations

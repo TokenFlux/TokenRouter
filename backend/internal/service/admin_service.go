@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"net/http"
 	"sort"
 	"strings"
@@ -259,8 +260,8 @@ type CreateGroupInput struct {
 	SupportedModelScopes []string
 	// AllowedProtocols 为 nil 时使用平台默认值；显式空数组对所有平台都合法。
 	LegacyProtocolInput  bool
-	AllowedProtocols     []GroupClientProtocol
-	ProtocolFallbacks    map[GroupClientProtocol]GroupClientProtocol
+	AllowedProtocols     []domain.ProtocolID
+	ProtocolFallbacks    map[domain.ProtocolID]domain.ProtocolID
 	ResponsesImagePolicy string
 	// AllowMessagesDispatch 仅在 OpenAI 分组且新字段缺省时作为兼容输入。
 	AllowMessagesDispatch bool
@@ -340,8 +341,8 @@ type UpdateGroupInput struct {
 	SupportedModelScopes *[]string
 	// AllowedProtocols 为 nil 时保留原值；非 nil 表示显式替换完整集合。
 	LegacyProtocolInput  bool
-	AllowedProtocols     *[]GroupClientProtocol
-	ProtocolFallbacks    map[GroupClientProtocol]GroupClientProtocol
+	AllowedProtocols     *[]domain.ProtocolID
+	ProtocolFallbacks    map[domain.ProtocolID]domain.ProtocolID
 	ResponsesImagePolicy string
 	// AllowMessagesDispatch 仅在 OpenAI 分组且新字段缺省时作为兼容输入。
 	AllowMessagesDispatch *bool

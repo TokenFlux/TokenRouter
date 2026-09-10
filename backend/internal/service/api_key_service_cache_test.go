@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -23,7 +24,7 @@ func TestAPIKeyAuthGroupSnapshotPreservesExplicitEmptyClientProtocols(t *testing
 	emptySnapshot := authGroupSnapshotFromGroup(&Group{
 		ID:               1,
 		Platform:         PlatformOpenAI,
-		AllowedProtocols: []GroupClientProtocol{},
+		AllowedProtocols: []domain.ProtocolID{},
 	})
 	payload, err := json.Marshal(emptySnapshot)
 	require.NoError(t, err)
@@ -32,7 +33,7 @@ func TestAPIKeyAuthGroupSnapshotPreservesExplicitEmptyClientProtocols(t *testing
 	require.NoError(t, json.Unmarshal(payload, &decodedEmpty))
 	require.NotNil(t, decodedEmpty.AllowedProtocols)
 	require.Empty(t, decodedEmpty.AllowedProtocols)
-	require.False(t, groupFromAuthSnapshot(&decodedEmpty).AllowsClientProtocol(ProtocolAnthropicMessages))
+	require.False(t, groupFromAuthSnapshot(&decodedEmpty).AllowsClientProtocol(domain.ProtocolAnthropicMessages))
 }
 
 type authRepoStub struct {

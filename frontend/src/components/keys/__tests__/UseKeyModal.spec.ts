@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
-import type { GroupClientProtocol, GroupPlatform } from '@/types'
+import type { ProtocolID, GroupPlatform } from '@/types'
 
 const { copyToClipboardMock } = vi.hoisted(() => ({
   copyToClipboardMock: vi.fn().mockResolvedValue(true)
@@ -735,7 +735,7 @@ describe('UseKeyModal', () => {
   const compatibilityProtocolCases: Array<{
     name: string
     platform: GroupPlatform
-    protocols: GroupClientProtocol[]
+    protocols: ProtocolID[]
     provider: string
     npm: string
   }> = [
