@@ -1571,11 +1571,11 @@ func (a *Account) IsCodingPlan() bool {
 func (a *Account) GetAPIProtocol() string {
 	if a != nil && a.resolvedProtocol != "" {
 		switch a.resolvedProtocol {
-		case GroupClientProtocolAnthropicMessages:
+		case ProtocolAnthropicMessages:
 			return APIProtocolAnthropic
-		case GroupClientProtocolOpenAIResponses:
+		case ProtocolOpenAIResponses:
 			return APIProtocolResponses
-		case GroupClientProtocolOpenAIChatCompletions:
+		case ProtocolOpenAIChatCompletions:
 			return APIProtocolChatCompletions
 		}
 	}
@@ -2018,11 +2018,11 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 		has := func(p GroupClientProtocol) bool { return domain.HasGroupClientProtocol(enabled, p) }
 		switch capability {
 		case OpenAIEndpointCapabilityTextGeneration:
-			if !has(GroupClientProtocolOpenAIResponses) && !has(GroupClientProtocolOpenAIChatCompletions) && !has(GroupClientProtocolAnthropicMessages) {
+			if !has(ProtocolOpenAIResponses) && !has(ProtocolOpenAIChatCompletions) && !has(ProtocolAnthropicMessages) {
 				return false
 			}
 		case OpenAIEndpointCapabilityResponses, OpenAIEndpointCapabilityRemoteCompactionV2:
-			if !has(GroupClientProtocolOpenAIResponses) {
+			if !has(ProtocolOpenAIResponses) {
 				return false
 			}
 		case OpenAIEndpointCapabilityEmbeddings:
@@ -2034,7 +2034,7 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 				return false
 			}
 		case OpenAIEndpointCapabilityAlphaSearch:
-			if !has(domain.ProtocolAlphaSearch) && !(a.IsOpenAIPersonalAccessToken() && has(GroupClientProtocolOpenAIResponses)) {
+			if !has(domain.ProtocolAlphaSearch) && !(a.IsOpenAIPersonalAccessToken() && has(ProtocolOpenAIResponses)) {
 				return false
 			}
 		}

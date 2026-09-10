@@ -33,8 +33,8 @@ func TestBuildAccountForCreateNormalizesLegacyOpenAIConfigurationForCreateAndImp
 	account, err := buildAccountForCreate(input, extra)
 
 	require.NoError(t, err)
-	require.Contains(t, account.UpstreamProtocols(), GroupClientProtocolOpenAIResponses)
-	require.NotContains(t, account.UpstreamProtocols(), GroupClientProtocolOpenAIChatCompletions)
+	require.Contains(t, account.UpstreamProtocols(), ProtocolOpenAIResponses)
+	require.NotContains(t, account.UpstreamProtocols(), ProtocolOpenAIChatCompletions)
 	require.NotContains(t, account.Extra, openai_compat.ExtraKeyTextRouteMode)
 	require.NotContains(t, account.Extra, "openai_responses_probe_status")
 	require.Equal(t, false, account.Extra[openai_compat.ExtraKeyResponsesContinuationSupported])
@@ -161,8 +161,8 @@ func TestUpdateAccountLegacyPatchOverridesEchoedNewShape(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	require.Contains(t, updated.UpstreamProtocols(), GroupClientProtocolOpenAIChatCompletions)
-	require.NotContains(t, updated.UpstreamProtocols(), GroupClientProtocolOpenAIResponses)
+	require.Contains(t, updated.UpstreamProtocols(), ProtocolOpenAIChatCompletions)
+	require.NotContains(t, updated.UpstreamProtocols(), ProtocolOpenAIResponses)
 	require.NotContains(t, updated.Credentials, legacyOpenAICapabilitiesCredentialKey)
 	require.NotContains(t, updated.Extra, openai_compat.ExtraKeyTextRouteMode)
 	require.NotContains(t, updated.Extra, "openai_responses_probe_status")

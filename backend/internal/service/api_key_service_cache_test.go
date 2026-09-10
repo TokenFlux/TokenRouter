@@ -32,7 +32,7 @@ func TestAPIKeyAuthGroupSnapshotPreservesExplicitEmptyClientProtocols(t *testing
 	require.NoError(t, json.Unmarshal(payload, &decodedEmpty))
 	require.NotNil(t, decodedEmpty.AllowedProtocols)
 	require.Empty(t, decodedEmpty.AllowedProtocols)
-	require.False(t, groupFromAuthSnapshot(&decodedEmpty).AllowsClientProtocol(GroupClientProtocolAnthropicMessages))
+	require.False(t, groupFromAuthSnapshot(&decodedEmpty).AllowsClientProtocol(ProtocolAnthropicMessages))
 }
 
 type authRepoStub struct {

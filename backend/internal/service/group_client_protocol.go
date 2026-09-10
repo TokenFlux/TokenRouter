@@ -2,13 +2,6 @@ package service
 
 import "github.com/TokenFlux/TokenRouter/internal/domain"
 
-const (
-	GroupClientProtocolAnthropicMessages     = domain.GroupClientProtocolAnthropicMessages
-	GroupClientProtocolOpenAIResponses       = domain.GroupClientProtocolOpenAIResponses
-	GroupClientProtocolOpenAIChatCompletions = domain.GroupClientProtocolOpenAIChatCompletions
-	GroupClientProtocolGeminiGenerateContent = domain.GroupClientProtocolGeminiGenerateContent
-)
-
 // EffectiveAllowedProtocols 返回可用于热路径判定的协议集合。
 // 返回独立副本，并把 nil 统一表达为合法的空集合。
 func (g *Group) EffectiveAllowedProtocols() []GroupClientProtocol {

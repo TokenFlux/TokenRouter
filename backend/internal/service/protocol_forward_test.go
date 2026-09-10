@@ -25,16 +25,16 @@ func TestProtocolForwardUsesConfiguredTarget(t *testing.T) {
 			if platform == PlatformGrok {
 				ingress.body = bytes.ReplaceAll(ingress.body, []byte("deepseek-chat"), []byte("grok-4.5"))
 			}
-			source := GroupClientProtocolOpenAIResponses
+			source := ProtocolOpenAIResponses
 			if ingress.name == "messages" {
-				source = GroupClientProtocolAnthropicMessages
+				source = ProtocolAnthropicMessages
 			}
 			if ingress.name == "chat completions" {
-				source = GroupClientProtocolOpenAIChatCompletions
+				source = ProtocolOpenAIChatCompletions
 			}
 			a := adaptiveProtocolTestAccount(platform, map[string]any{APIProtocolChatCompletions: "http://chat.example", APIProtocolAnthropic: "http://anthropic.example", APIProtocolResponses: "http://responses.example"})
 			for _, target := range a.NativeProtocolOptions() {
-				if target != GroupClientProtocolAnthropicMessages && target != GroupClientProtocolOpenAIResponses && target != GroupClientProtocolOpenAIChatCompletions {
+				if target != ProtocolAnthropicMessages && target != ProtocolOpenAIResponses && target != ProtocolOpenAIChatCompletions {
 					continue
 				}
 				t.Run(platform+"/"+string(source)+"/"+string(target), func(t *testing.T) {
@@ -48,9 +48,9 @@ func TestProtocolForwardUsesConfiguredTarget(t *testing.T) {
 					svc := &OpenAIGatewayService{cfg: rawChatCompletionsTestConfig(), httpUpstream: upstream}
 					var err error
 					switch source {
-					case GroupClientProtocolAnthropicMessages:
+					case ProtocolAnthropicMessages:
 						_, err = svc.ForwardAsAnthropic(ctx, c, &account, ingress.body, "", "")
-					case GroupClientProtocolOpenAIChatCompletions:
+					case ProtocolOpenAIChatCompletions:
 						_, err = svc.ForwardAsChatCompletions(ctx, c, &account, ingress.body, "", "")
 					default:
 						_, err = svc.Forward(ctx, c, &account, ingress.body)
@@ -58,11 +58,11 @@ func TestProtocolForwardUsesConfiguredTarget(t *testing.T) {
 					require.Error(t, err)
 					require.NotNil(t, upstream.lastReq, err)
 					switch target {
-					case GroupClientProtocolAnthropicMessages:
+					case ProtocolAnthropicMessages:
 						require.Equal(t, "http://anthropic.example/v1/messages", upstream.lastReq.URL.String())
 						require.True(t, gjson.GetBytes(upstream.lastBody, "messages").IsArray())
 						require.False(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
-					case GroupClientProtocolOpenAIChatCompletions:
+					case ProtocolOpenAIChatCompletions:
 						endpoint := "http://chat.example/v1/chat/completions"
 						if platform == PlatformGrok {
 							endpoint = "http://grok.example/v1/chat/completions"
@@ -70,7 +70,7 @@ func TestProtocolForwardUsesConfiguredTarget(t *testing.T) {
 						require.Equal(t, endpoint, upstream.lastReq.URL.String())
 						require.True(t, gjson.GetBytes(upstream.lastBody, "messages").IsArray())
 						require.False(t, gjson.GetBytes(upstream.lastBody, "input").Exists())
-					case GroupClientProtocolOpenAIResponses:
+					case ProtocolOpenAIResponses:
 						endpoint := "http://responses.example/v1/responses"
 						if platform == PlatformGrok {
 							endpoint = "http://grok.example/v1/responses"
@@ -101,8 +101,8 @@ func TestProtocolForwardConvertedResponsesRetainsWireContract(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			account := &Account{ID: 1, Platform: PlatformOpenAI, Type: AccountTypeAPIKey, Credentials: map[string]any{"api_key": "test", "base_url": "http://upstream.example", upstreamProtocolsKey: []string{"openai_chat_completions"}}}
-			group := &Group{Platform: PlatformOpenAI, ProtocolFallbacks: map[GroupClientProtocol]GroupClientProtocol{GroupClientProtocolOpenAIResponses: GroupClientProtocolOpenAIChatCompletions}}
-			ctx := WithClientProtocol(context.WithValue(context.Background(), ctxkey.Group, group), GroupClientProtocolOpenAIResponses)
+			group := &Group{Platform: PlatformOpenAI, ProtocolFallbacks: map[GroupClientProtocol]GroupClientProtocol{ProtocolOpenAIResponses: ProtocolOpenAIChatCompletions}}
+			ctx := WithClientProtocol(context.WithValue(context.Background(), ctxkey.Group, group), ProtocolOpenAIResponses)
 			recorder := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(recorder)
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(tc.body)).WithContext(ctx)

@@ -48,8 +48,8 @@ func TestProtocolNativeMatrixAndSave(t *testing.T) {
 
 func TestProtocolRouteNativeFirstAndExplicitFallback(t *testing.T) {
 	account := &Account{ID: 1, Platform: PlatformDeepseek, Type: AccountTypeAPIKey, Credentials: map[string]any{upstreamProtocolsKey: []string{"anthropic_messages", "openai_responses"}, "api_base_urls": map[string]any{"anthropic": "https://relay.example/messages", "responses": "https://relay.example/responses"}}}
-	group := &Group{Platform: PlatformDeepseek, AllowedProtocols: []GroupClientProtocol{GroupClientProtocolAnthropicMessages}, ProtocolFallbacks: map[GroupClientProtocol]GroupClientProtocol{GroupClientProtocolAnthropicMessages: GroupClientProtocolOpenAIResponses}}
-	ctx := WithClientProtocol(context.WithValue(context.Background(), ctxkey.Group, group), GroupClientProtocolAnthropicMessages)
+	group := &Group{Platform: PlatformDeepseek, AllowedProtocols: []GroupClientProtocol{ProtocolAnthropicMessages}, ProtocolFallbacks: map[GroupClientProtocol]GroupClientProtocol{ProtocolAnthropicMessages: ProtocolOpenAIResponses}}
+	ctx := WithClientProtocol(context.WithValue(context.Background(), ctxkey.Group, group), ProtocolAnthropicMessages)
 	selected, err := accountForProtocolAttempt(ctx, account)
 	require.NoError(t, err)
 	require.Equal(t, APIProtocolAnthropic, selected.GetAPIProtocol())
@@ -61,11 +61,11 @@ func TestProtocolRouteNativeFirstAndExplicitFallback(t *testing.T) {
 	require.Equal(t, APIProtocolResponses, selected.GetAPIProtocol())
 	require.Equal(t, "https://relay.example/responses", selected.GetCNProtocolBaseURL(APIProtocolResponses))
 	// 转换目标无需向客户端开放；下一次切号重新使用该候选的集合。
-	require.False(t, group.AllowsClientProtocol(GroupClientProtocolOpenAIResponses))
+	require.False(t, group.AllowsClientProtocol(ProtocolOpenAIResponses))
 	next := *account
 	next.Credentials = map[string]any{upstreamProtocolsKey: []string{"openai_chat_completions"}}
 	require.False(t, next.allowsProtocolRequest(ctx))
-	delete(group.ProtocolFallbacks, GroupClientProtocolAnthropicMessages)
+	delete(group.ProtocolFallbacks, ProtocolAnthropicMessages)
 	require.False(t, account.allowsProtocolRequest(ctx))
 }
 
@@ -75,14 +75,14 @@ func TestProtocolConversionAccountConstraints(t *testing.T) {
 		source, target       GroupClientProtocol
 		want                 bool
 	}{
-		{PlatformOpenAI, AccountTypeOAuth, "", domain.ProtocolImagesEdits, GroupClientProtocolOpenAIResponses, true},
-		{PlatformOpenAI, AccountTypeAPIKey, "", domain.ProtocolImagesEdits, GroupClientProtocolOpenAIResponses, false},
-		{PlatformGrok, AccountTypeAPIKey, "", domain.ProtocolResponsesWebSocket, GroupClientProtocolOpenAIResponses, true},
-		{PlatformGrok, AccountTypeOAuth, "", domain.ProtocolWebSearch, GroupClientProtocolOpenAIResponses, true},
-		{PlatformOpenAI, AccountTypeOAuth, OpenAIAuthModePersonalAccessToken, domain.ProtocolAlphaSearch, GroupClientProtocolOpenAIResponses, true},
-		{PlatformOpenAI, AccountTypeOAuth, "", domain.ProtocolAlphaSearch, GroupClientProtocolOpenAIResponses, false},
-		{PlatformOpenAI, AccountTypeAPIKey, "", domain.ProtocolEmbeddings, GroupClientProtocolOpenAIResponses, false},
-		{PlatformGrok, AccountTypeAPIKey, "", domain.ProtocolTTS, GroupClientProtocolOpenAIResponses, false},
+		{PlatformOpenAI, AccountTypeOAuth, "", domain.ProtocolImagesEdits, ProtocolOpenAIResponses, true},
+		{PlatformOpenAI, AccountTypeAPIKey, "", domain.ProtocolImagesEdits, ProtocolOpenAIResponses, false},
+		{PlatformGrok, AccountTypeAPIKey, "", domain.ProtocolResponsesWebSocket, ProtocolOpenAIResponses, true},
+		{PlatformGrok, AccountTypeOAuth, "", domain.ProtocolWebSearch, ProtocolOpenAIResponses, true},
+		{PlatformOpenAI, AccountTypeOAuth, OpenAIAuthModePersonalAccessToken, domain.ProtocolAlphaSearch, ProtocolOpenAIResponses, true},
+		{PlatformOpenAI, AccountTypeOAuth, "", domain.ProtocolAlphaSearch, ProtocolOpenAIResponses, false},
+		{PlatformOpenAI, AccountTypeAPIKey, "", domain.ProtocolEmbeddings, ProtocolOpenAIResponses, false},
+		{PlatformGrok, AccountTypeAPIKey, "", domain.ProtocolTTS, ProtocolOpenAIResponses, false},
 	} {
 		t.Run(string(tc.source)+"/"+tc.platform+"/"+tc.kind+"/"+tc.auth, func(t *testing.T) {
 			require.Equal(t, tc.want, domain.SupportsProtocolConversion(tc.platform, tc.kind, tc.auth, tc.source, tc.target))

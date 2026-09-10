@@ -371,9 +371,9 @@ func TestAPIContracts(t *testing.T) {
 						RateMultiplier:     1.5,
 						PeakRateMultiplier: 1.0,
 						AllowedProtocols: []service.GroupClientProtocol{
-							service.GroupClientProtocolAnthropicMessages,
-							service.GroupClientProtocolOpenAIResponses,
-							service.GroupClientProtocolOpenAIChatCompletions,
+							service.ProtocolAnthropicMessages,
+							service.ProtocolOpenAIResponses,
+							service.ProtocolOpenAIChatCompletions,
 						},
 						IsExclusive:         false,
 						Status:              service.StatusActive,

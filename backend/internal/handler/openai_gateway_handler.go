@@ -361,7 +361,7 @@ func allowOpenAICompatibleMessagesDispatch(apiKey *service.APIKey) bool {
 	if apiKey == nil || apiKey.Group == nil {
 		return true
 	}
-	return apiKey.Group.AllowsClientProtocol(service.GroupClientProtocolAnthropicMessages)
+	return apiKey.Group.AllowsClientProtocol(service.ProtocolAnthropicMessages)
 }
 
 // NewOpenAIGatewayHandler creates a new OpenAIGatewayHandler

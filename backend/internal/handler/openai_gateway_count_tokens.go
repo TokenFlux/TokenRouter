@@ -78,7 +78,7 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 		zap.Any("group_id", apiKey.GroupID),
 	)
 
-	if apiKey.Group != nil && !apiKey.Group.AllowsClientProtocol(service.GroupClientProtocolAnthropicMessages) {
+	if apiKey.Group != nil && !apiKey.Group.AllowsClientProtocol(service.ProtocolAnthropicMessages) {
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 		h.anthropicErrorResponse(c, http.StatusForbidden, "permission_error",
 			"This group does not allow Anthropic Messages requests")

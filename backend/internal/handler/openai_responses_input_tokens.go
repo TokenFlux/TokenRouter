@@ -32,7 +32,7 @@ func (h *OpenAIGatewayHandler) ResponsesInputTokens(c *gin.Context) {
 		zap.Int64("user_id", subject.UserID),
 		zap.Int64("api_key_id", apiKey.ID),
 		zap.Any("group_id", apiKey.GroupID))
-	if apiKey.Group != nil && !apiKey.Group.AllowsClientProtocol(service.GroupClientProtocolOpenAIResponses) {
+	if apiKey.Group != nil && !apiKey.Group.AllowsClientProtocol(service.ProtocolOpenAIResponses) {
 		service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonLocalPolicyDenied)
 		h.errorResponse(c, http.StatusForbidden, "permission_error", "This group does not allow OpenAI Responses requests")
 		return

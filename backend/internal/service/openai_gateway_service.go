@@ -368,10 +368,10 @@ func resolveOpenAITextProtocolForAttempt(
 		protocol = openai_compat.ResolveUpstreamTextProtocol(account.Extra, preferred)
 	}
 
-	if account != nil && account.resolvedProtocol == GroupClientProtocolOpenAIChatCompletions {
+	if account != nil && account.resolvedProtocol == ProtocolOpenAIChatCompletions {
 		protocol = openai_compat.TextProtocolChatCompletions
 	}
-	if account != nil && account.resolvedProtocol == GroupClientProtocolOpenAIResponses {
+	if account != nil && account.resolvedProtocol == ProtocolOpenAIResponses {
 		protocol = openai_compat.TextProtocolResponses
 	}
 	endpoint := "/v1/responses"

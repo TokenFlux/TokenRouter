@@ -38,12 +38,12 @@ func newGatewayRoutesTestRouterWithOptions(cfg *config.Config, gatewayHandler *h
 	groupID := int64(1)
 	// 普通路由测试模拟已开启全部受支持协议；空集合由专门的门禁测试覆盖。
 	protocols := []service.GroupClientProtocol{
-		service.GroupClientProtocolAnthropicMessages,
-		service.GroupClientProtocolOpenAIResponses,
-		service.GroupClientProtocolOpenAIChatCompletions,
+		service.ProtocolAnthropicMessages,
+		service.ProtocolOpenAIResponses,
+		service.ProtocolOpenAIChatCompletions,
 	}
 	if groupPlatform == service.PlatformGemini || groupPlatform == service.PlatformAntigravity {
-		protocols = append(protocols, service.GroupClientProtocolGeminiGenerateContent)
+		protocols = append(protocols, service.ProtocolGeminiGenerateContent)
 	}
 	return newGatewayRoutesTestRouterWithGroup(cfg, gatewayHandler, &service.Group{
 		ID:               groupID,
@@ -108,21 +108,21 @@ func TestGatewayRoutesClientProtocolGateRejectsAliasesBeforeReadingBody(t *testi
 		{
 			name:      "messages",
 			platform:  service.PlatformOpenAI,
-			protocols: []service.GroupClientProtocol{service.GroupClientProtocolOpenAIResponses, service.GroupClientProtocolOpenAIChatCompletions},
+			protocols: []service.GroupClientProtocol{service.ProtocolOpenAIResponses, service.ProtocolOpenAIChatCompletions},
 			paths:     []string{"/v1/messages", "/v1/messages/count_tokens", "/messages/count_tokens", "/antigravity/v1/messages"},
 			code:      "permission_error",
 		},
 		{
 			name:      "responses",
 			platform:  service.PlatformQoder,
-			protocols: []service.GroupClientProtocol{service.GroupClientProtocolAnthropicMessages, service.GroupClientProtocolOpenAIChatCompletions},
+			protocols: []service.GroupClientProtocol{service.ProtocolAnthropicMessages, service.ProtocolOpenAIChatCompletions},
 			paths:     []string{"/v1/responses", "/v1/responses/compact", "/responses", "/responses/compact", "/backend-api/codex/responses", "/backend-api/codex/responses/compact"},
 			code:      "protocol_not_allowed",
 		},
 		{
 			name:      "chat_completions",
 			platform:  service.PlatformQoder,
-			protocols: []service.GroupClientProtocol{service.GroupClientProtocolAnthropicMessages, service.GroupClientProtocolOpenAIResponses},
+			protocols: []service.GroupClientProtocol{service.ProtocolAnthropicMessages, service.ProtocolOpenAIResponses},
 			paths:     []string{"/v1/chat/completions", "/chat/completions"},
 			code:      "protocol_not_allowed",
 		},
@@ -195,8 +195,8 @@ func TestGatewayRoutesResponsesSubpathGuardRunsBeforeProtocolGate(t *testing.T) 
 		ID:       groupID,
 		Platform: service.PlatformQoder,
 		AllowedProtocols: []service.GroupClientProtocol{
-			service.GroupClientProtocolAnthropicMessages,
-			service.GroupClientProtocolOpenAIChatCompletions,
+			service.ProtocolAnthropicMessages,
+			service.ProtocolOpenAIChatCompletions,
 		},
 	})
 
@@ -217,9 +217,9 @@ func TestRequireGroupClientProtocolUsesNativeErrorEnvelopes(t *testing.T) {
 		format   groupClientProtocolErrorFormat
 		contains []string
 	}{
-		{"anthropic", service.GroupClientProtocolAnthropicMessages, groupClientProtocolErrorAnthropic, []string{"permission_error", "Anthropic Messages"}},
-		{"openai", service.GroupClientProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, []string{"protocol_not_allowed", "OpenAI Responses"}},
-		{"google", service.GroupClientProtocolGeminiGenerateContent, groupClientProtocolErrorGoogle, []string{"PERMISSION_DENIED", "Gemini GenerateContent"}},
+		{"anthropic", service.ProtocolAnthropicMessages, groupClientProtocolErrorAnthropic, []string{"permission_error", "Anthropic Messages"}},
+		{"openai", service.ProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, []string{"protocol_not_allowed", "OpenAI Responses"}},
+		{"google", service.ProtocolGeminiGenerateContent, groupClientProtocolErrorGoogle, []string{"PERMISSION_DENIED", "Gemini GenerateContent"}},
 	}
 
 	for _, tt := range tests {

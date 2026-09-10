@@ -17,5 +17,5 @@ func TestGroupClientProtocolsDoNotRecoverLegacyPolicy(t *testing.T) {
 
 	require.NotNil(t, group.EffectiveAllowedProtocols())
 	require.Empty(t, group.EffectiveAllowedProtocols())
-	require.False(t, group.AllowsClientProtocol(GroupClientProtocolAnthropicMessages))
+	require.False(t, group.AllowsClientProtocol(ProtocolAnthropicMessages))
 }

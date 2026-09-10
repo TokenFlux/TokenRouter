@@ -200,9 +200,9 @@ func (s *GroupRepoSuite) TestGetByID_PreservesMessagesDispatchModelConfig() {
 		IsExclusive:    false,
 		Status:         service.StatusActive,
 		AllowedProtocols: []service.GroupClientProtocol{
-			service.GroupClientProtocolAnthropicMessages,
-			service.GroupClientProtocolOpenAIResponses,
-			service.GroupClientProtocolOpenAIChatCompletions,
+			service.ProtocolAnthropicMessages,
+			service.ProtocolOpenAIResponses,
+			service.ProtocolOpenAIChatCompletions,
 		},
 		AllowMessagesDispatch: true,
 		DefaultMappedModel:    "gpt-5.4",

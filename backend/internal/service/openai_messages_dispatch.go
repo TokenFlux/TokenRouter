@@ -102,7 +102,7 @@ func sanitizeGroupMessagesDispatchFields(g *Group) {
 		return
 	}
 	// 弃用列只镜像 OpenAI 分组的 Messages 准入，供旧管理 API 字段保持一致。
-	g.AllowMessagesDispatch = g.Platform == PlatformOpenAI && g.AllowsClientProtocol(GroupClientProtocolAnthropicMessages)
+	g.AllowMessagesDispatch = g.Platform == PlatformOpenAI && g.AllowsClientProtocol(ProtocolAnthropicMessages)
 	if g.Platform == PlatformOpenAI {
 		return
 	}

@@ -17,9 +17,9 @@ func TestGroupEntityToService_PreservesMessagesDispatchModelConfig(t *testing.T)
 		Status:         service.StatusActive,
 		RateMultiplier: 1,
 		AllowedProtocols: []service.GroupClientProtocol{
-			service.GroupClientProtocolAnthropicMessages,
-			service.GroupClientProtocolOpenAIResponses,
-			service.GroupClientProtocolOpenAIChatCompletions,
+			service.ProtocolAnthropicMessages,
+			service.ProtocolOpenAIResponses,
+			service.ProtocolOpenAIChatCompletions,
 		},
 		AllowMessagesDispatch: true,
 		DefaultMappedModel:    "gpt-5.4",
@@ -68,9 +68,9 @@ func TestAPIKeyRepository_GetByKeyForAuth_PreservesMessagesDispatchModelConfig_S
 		SetSchedulerType(string(service.GroupSchedulerTypeAdvanced)).
 		SetAdvancedSchedulerOverrides(service.GroupAdvancedSchedulerOverrides{LBTopK: &lbTopK}).
 		SetAllowedProtocols([]service.GroupClientProtocol{
-			service.GroupClientProtocolAnthropicMessages,
-			service.GroupClientProtocolOpenAIResponses,
-			service.GroupClientProtocolOpenAIChatCompletions,
+			service.ProtocolAnthropicMessages,
+			service.ProtocolOpenAIResponses,
+			service.ProtocolOpenAIChatCompletions,
 		}).
 		SetAllowMessagesDispatch(true).
 		SetDefaultMappedModel("gpt-5.4").

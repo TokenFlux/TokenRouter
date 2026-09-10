@@ -62,7 +62,7 @@ func (s *AccountRepoSuite) TestUnifiedProtocolBulkUpdate() {
 	got, err := s.repo.GetByID(s.ctx, first.ID)
 	s.Require().NoError(err)
 	s.Require().Equal("after", got.GetCredential("api_key"))
-	s.Require().Equal([]service.GroupClientProtocol{service.GroupClientProtocolOpenAIChatCompletions}, got.UpstreamProtocols())
+	s.Require().Equal([]service.GroupClientProtocol{service.ProtocolOpenAIChatCompletions}, got.UpstreamProtocols())
 	got, err = s.repo.GetByID(s.ctx, second.ID)
 	s.Require().NoError(err)
 	s.Require().Equal([]service.GroupClientProtocol{"openai_embeddings"}, got.UpstreamProtocols())
@@ -76,7 +76,7 @@ func (s *AccountRepoSuite) TestUnifiedProtocolBulkUpdate() {
 }
 
 func (s *GroupRepoSuite) TestUnifiedProtocolRoundTrip() {
-	original := &service.Group{Name: "protocol-group", Platform: service.PlatformOpenAI, Status: service.StatusActive, RateMultiplier: 1, AllowedProtocols: []service.GroupClientProtocol{service.GroupClientProtocolAnthropicMessages}, ProtocolFallbacks: map[service.GroupClientProtocol]service.GroupClientProtocol{service.GroupClientProtocolAnthropicMessages: service.GroupClientProtocolOpenAIResponses}, ResponsesImagePolicy: "disabled"}
+	original := &service.Group{Name: "protocol-group", Platform: service.PlatformOpenAI, Status: service.StatusActive, RateMultiplier: 1, AllowedProtocols: []service.GroupClientProtocol{service.ProtocolAnthropicMessages}, ProtocolFallbacks: map[service.GroupClientProtocol]service.GroupClientProtocol{service.ProtocolAnthropicMessages: service.ProtocolOpenAIResponses}, ResponsesImagePolicy: "disabled"}
 	s.Require().NoError(s.repo.Create(s.ctx, original))
 	got, err := s.repo.GetByIDLite(s.ctx, original.ID)
 	s.Require().NoError(err)

@@ -5,13 +5,6 @@ import "fmt"
 // GroupClientProtocol 表示客户端调用分组时使用的公开协议与业务入口。
 type GroupClientProtocol string
 
-const (
-	GroupClientProtocolAnthropicMessages     GroupClientProtocol = "anthropic_messages"
-	GroupClientProtocolOpenAIResponses       GroupClientProtocol = "openai_responses"
-	GroupClientProtocolOpenAIChatCompletions GroupClientProtocol = "openai_chat_completions"
-	GroupClientProtocolGeminiGenerateContent GroupClientProtocol = "gemini_generate_content"
-)
-
 // canonicalGroupClientProtocols 从唯一目录派生顺序，避免新增协议遗漏校验。
 var canonicalGroupClientProtocols = func() []GroupClientProtocol {
 	out := []GroupClientProtocol{}
@@ -45,26 +38,26 @@ func SupportedGroupClientProtocols(platform string) []GroupClientProtocol {
 func DefaultGroupClientProtocols(platform string) []GroupClientProtocol {
 	switch platform {
 	case PlatformAnthropic:
-		return []GroupClientProtocol{GroupClientProtocolAnthropicMessages}
+		return []GroupClientProtocol{ProtocolAnthropicMessages}
 	case PlatformGrok:
-		return []GroupClientProtocol{GroupClientProtocolOpenAIResponses, GroupClientProtocolOpenAIChatCompletions, ProtocolImagesGenerations, ProtocolImagesEdits}
+		return []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions, ProtocolImagesGenerations, ProtocolImagesEdits}
 	case PlatformOpenAI:
 		return []GroupClientProtocol{
-			GroupClientProtocolOpenAIResponses,
-			GroupClientProtocolOpenAIChatCompletions,
+			ProtocolOpenAIResponses,
+			ProtocolOpenAIChatCompletions,
 		}
 	case PlatformKimi, PlatformZhipu, PlatformDeepseek:
 		return []GroupClientProtocol{
-			GroupClientProtocolAnthropicMessages,
-			GroupClientProtocolOpenAIResponses,
-			GroupClientProtocolOpenAIChatCompletions,
+			ProtocolAnthropicMessages,
+			ProtocolOpenAIResponses,
+			ProtocolOpenAIChatCompletions,
 		}
 	case PlatformGemini:
-		return []GroupClientProtocol{GroupClientProtocolGeminiGenerateContent}
+		return []GroupClientProtocol{ProtocolGeminiGenerateContent}
 	case PlatformAntigravity:
 		return []GroupClientProtocol{
-			GroupClientProtocolAnthropicMessages,
-			GroupClientProtocolGeminiGenerateContent,
+			ProtocolAnthropicMessages,
+			ProtocolGeminiGenerateContent,
 		}
 	default:
 		return []GroupClientProtocol{}

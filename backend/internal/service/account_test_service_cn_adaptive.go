@@ -41,19 +41,19 @@ func (s *AccountTestService) testCNProviderAdaptiveConnection(c *gin.Context, ac
 	}
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
-	if slices.Contains(enabled, GroupClientProtocolOpenAIChatCompletions) {
+	if slices.Contains(enabled, ProtocolOpenAIChatCompletions) {
 		if err := s.testCNProviderChatCompletionsConnection(c, account, modelID, prompt); err != nil {
 			return err
 		}
 	}
 
-	if slices.Contains(enabled, GroupClientProtocolAnthropicMessages) {
+	if slices.Contains(enabled, ProtocolAnthropicMessages) {
 		if err := s.testCNProviderAdaptiveAnthropicConnection(c, account, testModelID, prompt, authToken); err != nil {
 			return err
 		}
 	}
 
-	if slices.Contains(enabled, GroupClientProtocolOpenAIResponses) {
+	if slices.Contains(enabled, ProtocolOpenAIResponses) {
 		if err := s.testCNProviderAdaptiveResponsesConnection(c, account, testModelID, prompt, authToken); err != nil {
 			return err
 		}

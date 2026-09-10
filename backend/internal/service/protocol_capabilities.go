@@ -85,11 +85,11 @@ func (a *Account) legacyUpstreamProtocols() []GroupClientProtocol {
 		case APIProtocolAdaptive:
 			return options
 		case APIProtocolAnthropic:
-			return []GroupClientProtocol{GroupClientProtocolAnthropicMessages}
+			return []GroupClientProtocol{ProtocolAnthropicMessages}
 		case APIProtocolResponses:
-			return []GroupClientProtocol{GroupClientProtocolOpenAIResponses}
+			return []GroupClientProtocol{ProtocolOpenAIResponses}
 		default:
-			return []GroupClientProtocol{GroupClientProtocolOpenAIChatCompletions}
+			return []GroupClientProtocol{ProtocolOpenAIChatCompletions}
 		}
 	}
 	if a.IsOpenAIApiKey() {
@@ -104,10 +104,10 @@ func (a *Account) legacyUpstreamProtocols() []GroupClientProtocol {
 		}
 		mode := openai_compat.ResolveUpstreamTextProtocol(a.Extra, openai_compat.TextProtocolResponses)
 		if mode == openai_compat.TextProtocolChatCompletions {
-			options = slices.DeleteFunc(options, func(p GroupClientProtocol) bool { return p == GroupClientProtocolOpenAIResponses })
+			options = slices.DeleteFunc(options, func(p GroupClientProtocol) bool { return p == ProtocolOpenAIResponses })
 		}
 		if openai_compat.ResolveUpstreamTextProtocol(a.Extra, openai_compat.TextProtocolChatCompletions) == openai_compat.TextProtocolResponses {
-			options = slices.DeleteFunc(options, func(p GroupClientProtocol) bool { return p == GroupClientProtocolOpenAIChatCompletions })
+			options = slices.DeleteFunc(options, func(p GroupClientProtocol) bool { return p == ProtocolOpenAIChatCompletions })
 		}
 	}
 	return options
@@ -230,8 +230,8 @@ func normalizeGroupProtocolPolicy(group *Group) error {
 		return infraerrors.BadRequest("GROUP_RESPONSES_IMAGE_POLICY_INVALID", "invalid Responses image policy")
 	}
 	// 旧服务仍读取这些派生值；它们不再作为独立配置写入。
-	group.AllowMessagesDispatch = group.Platform == PlatformOpenAI && slices.Contains(normalized, GroupClientProtocolAnthropicMessages)
-	group.AllowImageGeneration = slices.Contains(normalized, domain.ProtocolImagesGenerations) || slices.Contains(normalized, domain.ProtocolImagesEdits) || slices.Contains(normalized, domain.ProtocolImageBatches) || slices.Contains(normalized, GroupClientProtocolGeminiGenerateContent)
+	group.AllowMessagesDispatch = group.Platform == PlatformOpenAI && slices.Contains(normalized, ProtocolAnthropicMessages)
+	group.AllowImageGeneration = slices.Contains(normalized, domain.ProtocolImagesGenerations) || slices.Contains(normalized, domain.ProtocolImagesEdits) || slices.Contains(normalized, domain.ProtocolImageBatches) || slices.Contains(normalized, ProtocolGeminiGenerateContent)
 	group.AllowBatchImageGeneration = slices.Contains(normalized, domain.ProtocolImageBatches)
 	group.AllowLive = slices.Contains(normalized, domain.ProtocolLive)
 	return nil
@@ -240,16 +240,16 @@ func normalizeGroupProtocolPolicy(group *Group) error {
 // DefaultProtocolFallbacks 固化历史平台适配，管理员可显式清空映射改为仅原生。
 func DefaultProtocolFallbacks(platform string) map[GroupClientProtocol]GroupClientProtocol {
 	result := map[GroupClientProtocol]GroupClientProtocol{}
-	target := GroupClientProtocolOpenAIResponses
+	target := ProtocolOpenAIResponses
 	switch platform {
 	case PlatformAnthropic:
-		target = GroupClientProtocolAnthropicMessages
+		target = ProtocolAnthropicMessages
 	case PlatformGemini, PlatformAntigravity:
-		target = GroupClientProtocolGeminiGenerateContent
+		target = ProtocolGeminiGenerateContent
 	case PlatformQoder:
 		target = domain.ProtocolQoderChat
 	case PlatformZhipu:
-		target = GroupClientProtocolOpenAIChatCompletions
+		target = ProtocolOpenAIChatCompletions
 	}
 	for _, source := range domain.SupportedGroupClientProtocols(platform) {
 		if slices.Contains(domain.ProtocolFallbackTargets(platform, source), target) {
@@ -257,10 +257,10 @@ func DefaultProtocolFallbacks(platform string) map[GroupClientProtocol]GroupClie
 		}
 	}
 	if platform == PlatformAnthropic {
-		result[GroupClientProtocolAnthropicMessages] = GroupClientProtocolGeminiGenerateContent
+		result[ProtocolAnthropicMessages] = ProtocolGeminiGenerateContent
 	}
-	if slices.Contains(domain.ProtocolFallbackTargets(platform, GroupClientProtocolOpenAIResponses), GroupClientProtocolOpenAIChatCompletions) {
-		result[GroupClientProtocolOpenAIResponses] = GroupClientProtocolOpenAIChatCompletions
+	if slices.Contains(domain.ProtocolFallbackTargets(platform, ProtocolOpenAIResponses), ProtocolOpenAIChatCompletions) {
+		result[ProtocolOpenAIResponses] = ProtocolOpenAIChatCompletions
 	}
 	return result
 }
@@ -347,7 +347,7 @@ func applyLegacyProtocolPatch(account *Account, credentials, extra map[string]an
 	delete(legacy.Credentials, upstreamProtocolsKey)
 	legacyProtocols := legacy.legacyUpstreamProtocols()
 	isText := func(p GroupClientProtocol) bool {
-		return p == GroupClientProtocolAnthropicMessages || p == GroupClientProtocolOpenAIResponses || p == GroupClientProtocolOpenAIChatCompletions
+		return p == ProtocolAnthropicMessages || p == ProtocolOpenAIResponses || p == ProtocolOpenAIChatCompletions
 	}
 	hasWorkload := false
 	for _, key := range []string{openAIWorkloadCapabilitiesCredentialKey, legacyOpenAICapabilitiesCredentialKey} {
@@ -367,7 +367,7 @@ func applyLegacyProtocolPatch(account *Account, credentials, extra map[string]an
 
 func responsesPolicyGroup(ctx context.Context, group *Group) *Group {
 	source, _ := ctx.Value(clientProtocolContextKey{}).(GroupClientProtocol)
-	if source != "" && source != GroupClientProtocolOpenAIResponses && source != domain.ProtocolResponsesWebSocket {
+	if source != "" && source != ProtocolOpenAIResponses && source != domain.ProtocolResponsesWebSocket {
 		return nil
 	}
 	return group
@@ -403,7 +403,7 @@ func supportsOpenAIRequestCapability(ctx context.Context, account *Account, capa
 // 创作台复用相同业务协议；已创建任务的读取与清理不经过此准入。
 func creativeOperationProtocol(platform, operation string) GroupClientProtocol {
 	if platform == PlatformGemini {
-		return GroupClientProtocolGeminiGenerateContent
+		return ProtocolGeminiGenerateContent
 	}
 	if operation == CreativeOperationGenerate {
 		return domain.ProtocolImagesGenerations

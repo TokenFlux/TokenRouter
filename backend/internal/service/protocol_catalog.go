@@ -2,6 +2,13 @@ package service
 
 import "github.com/TokenFlux/TokenRouter/internal/domain"
 
+const (
+	ProtocolAnthropicMessages     = domain.ProtocolAnthropicMessages
+	ProtocolOpenAIResponses       = domain.ProtocolOpenAIResponses
+	ProtocolOpenAIChatCompletions = domain.ProtocolOpenAIChatCompletions
+	ProtocolGeminiGenerateContent = domain.ProtocolGeminiGenerateContent
+)
+
 // ProtocolAccountProfile 描述可展示的原生选项，不包含令牌或账号标识。
 type ProtocolAccountProfile struct {
 	Platform  string                `json:"platform"`

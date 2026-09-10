@@ -13,26 +13,30 @@ type Protocol struct {
 }
 
 const (
-	ProtocolEmbeddings         GroupClientProtocol = "openai_embeddings"
-	ProtocolImagesGenerations  GroupClientProtocol = "openai_images_generations"
-	ProtocolImagesEdits        GroupClientProtocol = "openai_images_edits"
-	ProtocolImageBatches       GroupClientProtocol = "image_batches"
-	ProtocolVideosGenerations  GroupClientProtocol = "grok_videos_generations"
-	ProtocolVideosEdits        GroupClientProtocol = "grok_videos_edits"
-	ProtocolVideosExtensions   GroupClientProtocol = "grok_videos_extensions"
-	ProtocolTTS                GroupClientProtocol = "grok_tts"
-	ProtocolSTT                GroupClientProtocol = "grok_stt"
-	ProtocolCustomVoices       GroupClientProtocol = "grok_custom_voices"
-	ProtocolVoiceRealtime      GroupClientProtocol = "grok_voice_realtime"
-	ProtocolResponsesWebSocket GroupClientProtocol = "openai_responses_websocket"
-	ProtocolLive               GroupClientProtocol = "openai_live"
-	ProtocolResponsesCompact   GroupClientProtocol = "openai_responses_compact"
-	ProtocolAlphaSearch        GroupClientProtocol = "openai_alpha_search"
-	ProtocolWebSearch          GroupClientProtocol = "grok_web_search"
-	ProtocolXSearch            GroupClientProtocol = "grok_x_search"
-	ProtocolQoderChat          GroupClientProtocol = "qoder_chat"
-	ProtocolGeminiBatch        GroupClientProtocol = "gemini_batch_generate_content"
-	ProtocolVertexBatch        GroupClientProtocol = "vertex_batch_prediction"
+	ProtocolAnthropicMessages     GroupClientProtocol = "anthropic_messages"
+	ProtocolOpenAIResponses       GroupClientProtocol = "openai_responses"
+	ProtocolOpenAIChatCompletions GroupClientProtocol = "openai_chat_completions"
+	ProtocolGeminiGenerateContent GroupClientProtocol = "gemini_generate_content"
+	ProtocolEmbeddings            GroupClientProtocol = "openai_embeddings"
+	ProtocolImagesGenerations     GroupClientProtocol = "openai_images_generations"
+	ProtocolImagesEdits           GroupClientProtocol = "openai_images_edits"
+	ProtocolImageBatches          GroupClientProtocol = "image_batches"
+	ProtocolVideosGenerations     GroupClientProtocol = "grok_videos_generations"
+	ProtocolVideosEdits           GroupClientProtocol = "grok_videos_edits"
+	ProtocolVideosExtensions      GroupClientProtocol = "grok_videos_extensions"
+	ProtocolTTS                   GroupClientProtocol = "grok_tts"
+	ProtocolSTT                   GroupClientProtocol = "grok_stt"
+	ProtocolCustomVoices          GroupClientProtocol = "grok_custom_voices"
+	ProtocolVoiceRealtime         GroupClientProtocol = "grok_voice_realtime"
+	ProtocolResponsesWebSocket    GroupClientProtocol = "openai_responses_websocket"
+	ProtocolLive                  GroupClientProtocol = "openai_live"
+	ProtocolResponsesCompact      GroupClientProtocol = "openai_responses_compact"
+	ProtocolAlphaSearch           GroupClientProtocol = "openai_alpha_search"
+	ProtocolWebSearch             GroupClientProtocol = "grok_web_search"
+	ProtocolXSearch               GroupClientProtocol = "grok_x_search"
+	ProtocolQoderChat             GroupClientProtocol = "qoder_chat"
+	ProtocolGeminiBatch           GroupClientProtocol = "gemini_batch_generate_content"
+	ProtocolVertexBatch           GroupClientProtocol = "vertex_batch_prediction"
 )
 
 // 协议定义只初始化一次，候选过滤不反复分配整个目录。
@@ -44,10 +48,10 @@ func buildProtocolCatalog() []Protocol {
 	grok := []string{PlatformGrok}
 	both := []string{PlatformOpenAI, PlatformGrok}
 	return []Protocol{
-		{GroupClientProtocolAnthropicMessages, "Anthropic Messages", "POST /v1/messages", false, all},
-		{GroupClientProtocolOpenAIResponses, "OpenAI Responses", "POST /v1/responses", false, all},
-		{GroupClientProtocolOpenAIChatCompletions, "Chat Completions", "POST /v1/chat/completions", false, all},
-		{GroupClientProtocolGeminiGenerateContent, "Gemini GenerateContent", "POST /v1beta/models/{model}:generateContent / :streamGenerateContent", false, []string{PlatformGemini, PlatformAntigravity}},
+		{ProtocolAnthropicMessages, "Anthropic Messages", "POST /v1/messages", false, all},
+		{ProtocolOpenAIResponses, "OpenAI Responses", "POST /v1/responses", false, all},
+		{ProtocolOpenAIChatCompletions, "Chat Completions", "POST /v1/chat/completions", false, all},
+		{ProtocolGeminiGenerateContent, "Gemini GenerateContent", "POST /v1beta/models/{model}:generateContent / :streamGenerateContent", false, []string{PlatformGemini, PlatformAntigravity}},
 		{ProtocolEmbeddings, "Embeddings", "POST /v1/embeddings", false, openai},
 		{ProtocolImagesGenerations, "Images Generations", "POST /v1/images/generations", false, both},
 		{ProtocolImagesEdits, "Images Edits", "POST /v1/images/edits", false, both},
@@ -77,13 +81,13 @@ func NativeProtocolOptions(platform, accountType, authMode string) []GroupClient
 	switch platform {
 	case PlatformAnthropic:
 		if slices.Contains([]string{AccountTypeOAuth, AccountTypeSetupToken, AccountTypeAPIKey, AccountTypeBedrock, AccountTypeServiceAccount}, accountType) {
-			selected = []GroupClientProtocol{GroupClientProtocolAnthropicMessages}
+			selected = []GroupClientProtocol{ProtocolAnthropicMessages}
 		}
 	case PlatformOpenAI:
 		if accountType == AccountTypeAPIKey {
-			selected = []GroupClientProtocol{GroupClientProtocolOpenAIResponses, GroupClientProtocolOpenAIChatCompletions, ProtocolEmbeddings, ProtocolImagesGenerations, ProtocolImagesEdits, ProtocolResponsesWebSocket, ProtocolResponsesCompact, ProtocolAlphaSearch}
+			selected = []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions, ProtocolEmbeddings, ProtocolImagesGenerations, ProtocolImagesEdits, ProtocolResponsesWebSocket, ProtocolResponsesCompact, ProtocolAlphaSearch}
 		} else if accountType == AccountTypeOAuth {
-			selected = []GroupClientProtocol{GroupClientProtocolOpenAIResponses, ProtocolResponsesWebSocket, ProtocolResponsesCompact}
+			selected = []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolResponsesWebSocket, ProtocolResponsesCompact}
 			if authMode != "personalAccessToken" {
 				selected = append(selected, ProtocolAlphaSearch)
 			}
@@ -93,26 +97,26 @@ func NativeProtocolOptions(platform, accountType, authMode string) []GroupClient
 		}
 	case PlatformKimi, PlatformDeepseek, PlatformZhipu:
 		if accountType == AccountTypeAPIKey {
-			selected = []GroupClientProtocol{GroupClientProtocolAnthropicMessages, GroupClientProtocolOpenAIChatCompletions}
+			selected = []GroupClientProtocol{ProtocolAnthropicMessages, ProtocolOpenAIChatCompletions}
 			if platform != PlatformZhipu {
-				selected = append(selected, GroupClientProtocolOpenAIResponses)
+				selected = append(selected, ProtocolOpenAIResponses)
 			}
 		}
 	case PlatformGemini:
 		switch accountType {
 		case AccountTypeOAuth:
-			selected = []GroupClientProtocol{GroupClientProtocolGeminiGenerateContent}
+			selected = []GroupClientProtocol{ProtocolGeminiGenerateContent}
 		case AccountTypeAPIKey:
-			selected = []GroupClientProtocol{GroupClientProtocolGeminiGenerateContent, ProtocolGeminiBatch}
+			selected = []GroupClientProtocol{ProtocolGeminiGenerateContent, ProtocolGeminiBatch}
 		case AccountTypeServiceAccount:
-			selected = []GroupClientProtocol{GroupClientProtocolGeminiGenerateContent, ProtocolVertexBatch}
+			selected = []GroupClientProtocol{ProtocolGeminiGenerateContent, ProtocolVertexBatch}
 		}
 	case PlatformAntigravity:
 		if accountType == AccountTypeUpstream {
-			selected = []GroupClientProtocol{GroupClientProtocolAnthropicMessages}
+			selected = []GroupClientProtocol{ProtocolAnthropicMessages}
 		}
 		if accountType == AccountTypeOAuth {
-			selected = []GroupClientProtocol{GroupClientProtocolGeminiGenerateContent}
+			selected = []GroupClientProtocol{ProtocolGeminiGenerateContent}
 		}
 	case PlatformQoder:
 		if accountType == AccountTypeCosy {
@@ -120,7 +124,7 @@ func NativeProtocolOptions(platform, accountType, authMode string) []GroupClient
 		}
 	case PlatformGrok:
 		if accountType == AccountTypeAPIKey || accountType == AccountTypeOAuth {
-			selected = []GroupClientProtocol{GroupClientProtocolOpenAIResponses, GroupClientProtocolOpenAIChatCompletions, ProtocolImagesGenerations, ProtocolImagesEdits, ProtocolVideosGenerations, ProtocolVideosEdits, ProtocolVideosExtensions, ProtocolTTS, ProtocolSTT, ProtocolCustomVoices, ProtocolVoiceRealtime}
+			selected = []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions, ProtocolImagesGenerations, ProtocolImagesEdits, ProtocolVideosGenerations, ProtocolVideosEdits, ProtocolVideosExtensions, ProtocolTTS, ProtocolSTT, ProtocolCustomVoices, ProtocolVoiceRealtime}
 		}
 	}
 	out := []GroupClientProtocol{}
@@ -139,30 +143,30 @@ func ProtocolFallbackTargets(platform string, source GroupClientProtocol) []Grou
 	}
 	var targets []GroupClientProtocol
 	switch source {
-	case GroupClientProtocolAnthropicMessages, GroupClientProtocolOpenAIResponses, GroupClientProtocolOpenAIChatCompletions:
+	case ProtocolAnthropicMessages, ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions:
 		switch platform {
 		case PlatformAnthropic:
-			targets = []GroupClientProtocol{GroupClientProtocolAnthropicMessages, GroupClientProtocolGeminiGenerateContent}
+			targets = []GroupClientProtocol{ProtocolAnthropicMessages, ProtocolGeminiGenerateContent}
 		case PlatformOpenAI, PlatformGrok:
-			targets = []GroupClientProtocol{GroupClientProtocolOpenAIResponses, GroupClientProtocolOpenAIChatCompletions}
+			targets = []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions}
 		case PlatformKimi, PlatformDeepseek:
-			targets = []GroupClientProtocol{GroupClientProtocolAnthropicMessages, GroupClientProtocolOpenAIResponses, GroupClientProtocolOpenAIChatCompletions}
+			targets = []GroupClientProtocol{ProtocolAnthropicMessages, ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions}
 		case PlatformZhipu:
-			targets = []GroupClientProtocol{GroupClientProtocolAnthropicMessages, GroupClientProtocolOpenAIChatCompletions}
+			targets = []GroupClientProtocol{ProtocolAnthropicMessages, ProtocolOpenAIChatCompletions}
 		case PlatformGemini, PlatformAntigravity:
-			targets = []GroupClientProtocol{GroupClientProtocolGeminiGenerateContent}
+			targets = []GroupClientProtocol{ProtocolGeminiGenerateContent}
 		case PlatformQoder:
 			targets = []GroupClientProtocol{ProtocolQoderChat}
 		}
 	case ProtocolImagesGenerations, ProtocolImagesEdits:
 		if platform == PlatformOpenAI {
-			targets = []GroupClientProtocol{GroupClientProtocolOpenAIResponses}
+			targets = []GroupClientProtocol{ProtocolOpenAIResponses}
 		}
 	case ProtocolResponsesWebSocket, ProtocolAlphaSearch, ProtocolWebSearch, ProtocolXSearch:
-		targets = []GroupClientProtocol{GroupClientProtocolOpenAIResponses}
+		targets = []GroupClientProtocol{ProtocolOpenAIResponses}
 	case ProtocolResponsesCompact:
 		if platform == PlatformGrok {
-			targets = []GroupClientProtocol{GroupClientProtocolOpenAIResponses}
+			targets = []GroupClientProtocol{ProtocolOpenAIResponses}
 		}
 	}
 	out := []GroupClientProtocol{}
@@ -206,12 +210,12 @@ type AuxiliaryOperation struct {
 
 func AuxiliaryOperations() []AuxiliaryOperation {
 	return []AuxiliaryOperation{
-		{"/messages/count_tokens", GroupClientProtocolAnthropicMessages, "protocol"},
-		{"/responses/input_tokens", GroupClientProtocolOpenAIResponses, "protocol"},
-		{"Gemini :countTokens", GroupClientProtocolGeminiGenerateContent, "protocol"},
-		{"native_compaction_v2", GroupClientProtocolOpenAIResponses, "capability"},
-		{"http_continuation", GroupClientProtocolOpenAIResponses, "capability"},
-		{"responses_image_tools", GroupClientProtocolOpenAIResponses, "image_policy"},
+		{"/messages/count_tokens", ProtocolAnthropicMessages, "protocol"},
+		{"/responses/input_tokens", ProtocolOpenAIResponses, "protocol"},
+		{"Gemini :countTokens", ProtocolGeminiGenerateContent, "protocol"},
+		{"native_compaction_v2", ProtocolOpenAIResponses, "capability"},
+		{"http_continuation", ProtocolOpenAIResponses, "capability"},
+		{"responses_image_tools", ProtocolOpenAIResponses, "image_policy"},
 		{"/models, /usage", "", "local"},
 		{"video status/content", ProtocolVideosGenerations, "resource"},
 		{"batch status/download/cancel/delete", ProtocolImageBatches, "resource"},

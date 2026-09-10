@@ -23,12 +23,12 @@ func TestAdminServiceCreateGroupUsesPlatformClientProtocolDefaults(t *testing.T)
 		platform string
 		want     []GroupClientProtocol
 	}{
-		{PlatformAnthropic, []GroupClientProtocol{GroupClientProtocolAnthropicMessages}},
-		{PlatformOpenAI, []GroupClientProtocol{GroupClientProtocolOpenAIResponses, GroupClientProtocolOpenAIChatCompletions}},
-		{PlatformGemini, []GroupClientProtocol{GroupClientProtocolGeminiGenerateContent}},
-		{PlatformAntigravity, []GroupClientProtocol{GroupClientProtocolAnthropicMessages, GroupClientProtocolGeminiGenerateContent}},
+		{PlatformAnthropic, []GroupClientProtocol{ProtocolAnthropicMessages}},
+		{PlatformOpenAI, []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions}},
+		{PlatformGemini, []GroupClientProtocol{ProtocolGeminiGenerateContent}},
+		{PlatformAntigravity, []GroupClientProtocol{ProtocolAnthropicMessages, ProtocolGeminiGenerateContent}},
 		{PlatformQoder, []GroupClientProtocol{}},
-		{PlatformGrok, []GroupClientProtocol{GroupClientProtocolOpenAIResponses, GroupClientProtocolOpenAIChatCompletions, "openai_images_generations", "openai_images_edits"}},
+		{PlatformGrok, []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions, "openai_images_generations", "openai_images_edits"}},
 	}
 
 	for _, tt := range tests {
@@ -301,9 +301,9 @@ func TestAdminServiceCreateGroupClientProtocolCompatibilityPrecedence(t *testing
 
 		require.NoError(t, err)
 		require.Equal(t, []GroupClientProtocol{
-			GroupClientProtocolAnthropicMessages,
-			GroupClientProtocolOpenAIResponses,
-			GroupClientProtocolOpenAIChatCompletions,
+			ProtocolAnthropicMessages,
+			ProtocolOpenAIResponses,
+			ProtocolOpenAIChatCompletions,
 		}, group.AllowedProtocols)
 		require.True(t, group.AllowMessagesDispatch)
 	})
@@ -318,15 +318,15 @@ func TestAdminServiceCreateGroupClientProtocolCompatibilityPrecedence(t *testing
 			RateMultiplier:        1,
 			AllowMessagesDispatch: true,
 			AllowedProtocols: []GroupClientProtocol{
-				GroupClientProtocolOpenAIChatCompletions,
-				GroupClientProtocolOpenAIResponses,
+				ProtocolOpenAIChatCompletions,
+				ProtocolOpenAIResponses,
 			},
 		})
 
 		require.NoError(t, err)
 		require.Equal(t, []GroupClientProtocol{
-			GroupClientProtocolOpenAIResponses,
-			GroupClientProtocolOpenAIChatCompletions,
+			ProtocolOpenAIResponses,
+			ProtocolOpenAIChatCompletions,
 		}, group.AllowedProtocols)
 		require.False(t, group.AllowMessagesDispatch)
 	})
@@ -339,8 +339,8 @@ func TestAdminServiceRejectsInvalidGroupClientProtocols(t *testing.T) {
 		protocols []GroupClientProtocol
 	}{
 		{"unknown", PlatformQoder, []GroupClientProtocol{"unknown"}},
-		{"duplicate", PlatformQoder, []GroupClientProtocol{GroupClientProtocolAnthropicMessages, GroupClientProtocolAnthropicMessages}},
-		{"unsupported", PlatformOpenAI, []GroupClientProtocol{GroupClientProtocolOpenAIResponses, GroupClientProtocolOpenAIChatCompletions, GroupClientProtocolGeminiGenerateContent}},
+		{"duplicate", PlatformQoder, []GroupClientProtocol{ProtocolAnthropicMessages, ProtocolAnthropicMessages}},
+		{"unsupported", PlatformOpenAI, []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions, ProtocolGeminiGenerateContent}},
 	}
 
 	for _, tt := range tests {
@@ -406,25 +406,25 @@ func TestAdminServiceUpdateGroupFiltersUnsupportedProtocolsWhenPlatformChanges(t
 			from: PlatformGemini,
 			to:   PlatformOpenAI,
 			initial: []GroupClientProtocol{
-				GroupClientProtocolAnthropicMessages,
-				GroupClientProtocolOpenAIResponses,
-				GroupClientProtocolOpenAIChatCompletions,
-				GroupClientProtocolGeminiGenerateContent,
+				ProtocolAnthropicMessages,
+				ProtocolOpenAIResponses,
+				ProtocolOpenAIChatCompletions,
+				ProtocolGeminiGenerateContent,
 			},
 			expected: []GroupClientProtocol{
-				GroupClientProtocolAnthropicMessages,
-				GroupClientProtocolOpenAIResponses,
-				GroupClientProtocolOpenAIChatCompletions,
+				ProtocolAnthropicMessages,
+				ProtocolOpenAIResponses,
+				ProtocolOpenAIChatCompletions,
 			},
 		},
 		{
 			name:    "OpenAI to Anthropic",
 			from:    PlatformOpenAI,
 			to:      PlatformAnthropic,
-			initial: []GroupClientProtocol{GroupClientProtocolOpenAIResponses, GroupClientProtocolOpenAIChatCompletions},
+			initial: []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions},
 			expected: []GroupClientProtocol{
-				GroupClientProtocolOpenAIResponses,
-				GroupClientProtocolOpenAIChatCompletions,
+				ProtocolOpenAIResponses,
+				ProtocolOpenAIChatCompletions,
 			},
 		},
 		{
@@ -456,7 +456,7 @@ func TestAdminServiceUpdateGroupFiltersUnsupportedProtocolsWhenPlatformChanges(t
 func TestAdminServiceUpdateGroupNewClientProtocolsOverrideLegacySwitch(t *testing.T) {
 	existing := &Group{
 		ID: 1, Name: "openai", Platform: PlatformOpenAI, Status: StatusActive,
-		AllowedProtocols: []GroupClientProtocol{GroupClientProtocolOpenAIResponses, GroupClientProtocolOpenAIChatCompletions},
+		AllowedProtocols: []GroupClientProtocol{ProtocolOpenAIResponses, ProtocolOpenAIChatCompletions},
 	}
 	repo := &groupRepoStubForAdmin{getByID: existing}
 	svc := &adminServiceImpl{groupRepo: repo}
@@ -464,16 +464,16 @@ func TestAdminServiceUpdateGroupNewClientProtocolsOverrideLegacySwitch(t *testin
 
 	group, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
 		AllowedProtocols: ptrGroupClientProtocols([]GroupClientProtocol{
-			GroupClientProtocolAnthropicMessages,
-			GroupClientProtocolOpenAIResponses,
-			GroupClientProtocolOpenAIChatCompletions,
+			ProtocolAnthropicMessages,
+			ProtocolOpenAIResponses,
+			ProtocolOpenAIChatCompletions,
 		}),
 		AllowMessagesDispatch: &legacyEnabled,
 	})
 
 	require.NoError(t, err)
 	require.True(t, group.AllowMessagesDispatch)
-	require.True(t, group.AllowsClientProtocol(GroupClientProtocolAnthropicMessages))
+	require.True(t, group.AllowsClientProtocol(ProtocolAnthropicMessages))
 }
 
 func ptrString[T ~string](v T) *string {

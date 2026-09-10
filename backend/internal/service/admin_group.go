@@ -164,7 +164,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	if allowedClientProtocols == nil {
 		allowedClientProtocols = defaultGroupClientProtocols(platform)
 		if platform == PlatformOpenAI {
-			allowedClientProtocols = setGroupClientProtocol(allowedClientProtocols, GroupClientProtocolAnthropicMessages, input.AllowMessagesDispatch)
+			allowedClientProtocols = setGroupClientProtocol(allowedClientProtocols, ProtocolAnthropicMessages, input.AllowMessagesDispatch)
 		}
 	} else {
 		normalizedProtocols, validationErr := normalizeExplicitGroupClientProtocols(platform, allowedClientProtocols)
@@ -576,7 +576,7 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 			group.AllowedProtocols = filterGroupClientProtocolsForPlatform(group.Platform, group.AllowedProtocols)
 		}
 		if group.Platform == PlatformOpenAI && input.AllowMessagesDispatch != nil {
-			group.AllowedProtocols = setGroupClientProtocol(group.AllowedProtocols, GroupClientProtocolAnthropicMessages, *input.AllowMessagesDispatch)
+			group.AllowedProtocols = setGroupClientProtocol(group.AllowedProtocols, ProtocolAnthropicMessages, *input.AllowMessagesDispatch)
 		}
 		group.AllowedProtocols, err = normalizeExplicitGroupClientProtocols(group.Platform, group.AllowedProtocols)
 		if err != nil {
@@ -811,7 +811,7 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	normalizeGroupDefaultState(group)
 	if input.LegacyProtocolInput {
 		for _, protocol := range previousAllowedProtocols {
-			if protocol != GroupClientProtocolAnthropicMessages && protocol != GroupClientProtocolOpenAIResponses && protocol != GroupClientProtocolOpenAIChatCompletions && protocol != GroupClientProtocolGeminiGenerateContent {
+			if protocol != ProtocolAnthropicMessages && protocol != ProtocolOpenAIResponses && protocol != ProtocolOpenAIChatCompletions && protocol != ProtocolGeminiGenerateContent {
 				group.AllowedProtocols = append(group.AllowedProtocols, protocol)
 			}
 		}

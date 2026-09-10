@@ -14,18 +14,18 @@ import (
 func TestProtocolGroupPersistenceAndCacheIsolation(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
 	svc := &adminServiceImpl{groupRepo: repo}
-	created, err := svc.CreateGroup(context.Background(), &CreateGroupInput{Name: "protocol", Platform: PlatformOpenAI, RateMultiplier: 1, AllowedProtocols: []GroupClientProtocol{GroupClientProtocolAnthropicMessages, domain.ProtocolImagesEdits}, ProtocolFallbacks: map[GroupClientProtocol]GroupClientProtocol{GroupClientProtocolAnthropicMessages: GroupClientProtocolOpenAIResponses}, ResponsesImagePolicy: "disabled"})
+	created, err := svc.CreateGroup(context.Background(), &CreateGroupInput{Name: "protocol", Platform: PlatformOpenAI, RateMultiplier: 1, AllowedProtocols: []GroupClientProtocol{ProtocolAnthropicMessages, domain.ProtocolImagesEdits}, ProtocolFallbacks: map[GroupClientProtocol]GroupClientProtocol{ProtocolAnthropicMessages: ProtocolOpenAIResponses}, ResponsesImagePolicy: "disabled"})
 	require.NoError(t, err)
-	require.False(t, created.AllowsClientProtocol(GroupClientProtocolOpenAIResponses))
+	require.False(t, created.AllowsClientProtocol(ProtocolOpenAIResponses))
 	require.True(t, created.AllowImageGeneration)
 	repo.getByID = created
 	created.ID = 1
 	snapshot := authGroupSnapshotFromGroup(created)
 	restored := groupFromAuthSnapshot(snapshot)
-	restored.ProtocolFallbacks[GroupClientProtocolAnthropicMessages] = GroupClientProtocolOpenAIChatCompletions
-	require.Equal(t, GroupClientProtocolOpenAIResponses, snapshot.ProtocolFallbacks[GroupClientProtocolAnthropicMessages])
+	restored.ProtocolFallbacks[ProtocolAnthropicMessages] = ProtocolOpenAIChatCompletions
+	require.Equal(t, ProtocolOpenAIResponses, snapshot.ProtocolFallbacks[ProtocolAnthropicMessages])
 	require.Equal(t, "disabled", restored.ResponsesImagePolicy)
-	protocols := []GroupClientProtocol{GroupClientProtocolOpenAIChatCompletions}
+	protocols := []GroupClientProtocol{ProtocolOpenAIChatCompletions}
 	updated, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{AllowedProtocols: &protocols, LegacyProtocolInput: true})
 	require.NoError(t, err)
 	require.Contains(t, updated.AllowedProtocols, domain.ProtocolImagesEdits)
@@ -38,6 +38,6 @@ func TestProtocolGroupPersistenceAndCacheIsolation(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, updated.AllowedProtocols)
 	require.Empty(t, updated.ProtocolFallbacks)
-	_, err = svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{ProtocolFallbacks: map[GroupClientProtocol]GroupClientProtocol{domain.ProtocolEmbeddings: GroupClientProtocolOpenAIResponses}})
+	_, err = svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{ProtocolFallbacks: map[GroupClientProtocol]GroupClientProtocol{domain.ProtocolEmbeddings: ProtocolOpenAIResponses}})
 	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
 }

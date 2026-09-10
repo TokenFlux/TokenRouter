@@ -119,7 +119,7 @@ func cloneGroupForDuplicate(source *Group, operationID string) *Group {
 		AllowedProtocols:                cloneGroupClientProtocols(source.AllowedProtocols),
 		ProtocolFallbacks:               maps.Clone(source.ProtocolFallbacks),
 		ResponsesImagePolicy:            source.ResponsesImagePolicy,
-		AllowMessagesDispatch:           source.Platform == PlatformOpenAI && source.AllowsClientProtocol(GroupClientProtocolAnthropicMessages),
+		AllowMessagesDispatch:           source.Platform == PlatformOpenAI && source.AllowsClientProtocol(ProtocolAnthropicMessages),
 		AllowLive:                       source.AllowLive,
 		ForceOpenAIFast:                 source.ForceOpenAIFast,
 		OpenAIFastPolicy:                source.EffectiveOpenAIFastPolicy(),

@@ -44,7 +44,7 @@ func withGroupClientProtocol(protocol service.GroupClientProtocol, format groupC
 // enforceGroupClientProtocol 执行检查并在拒绝时写入协议原生错误。
 func enforceGroupClientProtocol(c *gin.Context, protocol service.GroupClientProtocol, format groupClientProtocolErrorFormat) bool {
 	apiKey, ok := middleware.GetAPIKeyFromContext(c)
-	if protocol == service.GroupClientProtocolOpenAIResponses && strings.HasSuffix(c.Request.URL.Path, "/responses/compact") && (getGroupPlatform(c) == service.PlatformOpenAI || getGroupPlatform(c) == service.PlatformGrok) {
+	if protocol == service.ProtocolOpenAIResponses && strings.HasSuffix(c.Request.URL.Path, "/responses/compact") && (getGroupPlatform(c) == service.PlatformOpenAI || getGroupPlatform(c) == service.PlatformGrok) {
 		protocol = domain.ProtocolResponsesCompact
 	}
 	ctx := service.WithClientProtocol(c.Request.Context(), protocol)
@@ -90,13 +90,13 @@ func enforceGroupClientProtocol(c *gin.Context, protocol service.GroupClientProt
 
 func groupClientProtocolDeniedMessage(protocol service.GroupClientProtocol) string {
 	switch protocol {
-	case service.GroupClientProtocolAnthropicMessages:
+	case service.ProtocolAnthropicMessages:
 		return "This group does not allow Anthropic Messages requests"
-	case service.GroupClientProtocolOpenAIResponses:
+	case service.ProtocolOpenAIResponses:
 		return "This group does not allow OpenAI Responses requests"
-	case service.GroupClientProtocolOpenAIChatCompletions:
+	case service.ProtocolOpenAIChatCompletions:
 		return "This group does not allow OpenAI Chat Completions requests"
-	case service.GroupClientProtocolGeminiGenerateContent:
+	case service.ProtocolGeminiGenerateContent:
 		return "This group does not allow Gemini GenerateContent requests"
 	default:
 		return "This group does not allow the requested client protocol"
@@ -113,7 +113,7 @@ func requireGeminiGenerateContentProtocol(c *gin.Context) {
 	}
 	switch rest[separator+1:] {
 	case "generateContent", "streamGenerateContent", "countTokens":
-		requireGroupClientProtocol(service.GroupClientProtocolGeminiGenerateContent, groupClientProtocolErrorGoogle)(c)
+		requireGroupClientProtocol(service.ProtocolGeminiGenerateContent, groupClientProtocolErrorGoogle)(c)
 	default:
 		c.Next()
 	}
@@ -137,9 +137,9 @@ func RegisterGatewayRoutes(
 	clientRequestID := middleware.ClientRequestID()
 	opsErrorLogger := handler.OpsErrorLoggerMiddleware(opsService)
 	endpointNorm := handler.InboundEndpointMiddleware()
-	messagesProtocolGate := requireGroupClientProtocol(service.GroupClientProtocolAnthropicMessages, groupClientProtocolErrorAnthropic)
-	responsesProtocolGate := requireGroupClientProtocol(service.GroupClientProtocolOpenAIResponses, groupClientProtocolErrorOpenAI)
-	chatCompletionsProtocolGate := requireGroupClientProtocol(service.GroupClientProtocolOpenAIChatCompletions, groupClientProtocolErrorOpenAI)
+	messagesProtocolGate := requireGroupClientProtocol(service.ProtocolAnthropicMessages, groupClientProtocolErrorAnthropic)
+	responsesProtocolGate := requireGroupClientProtocol(service.ProtocolOpenAIResponses, groupClientProtocolErrorOpenAI)
+	chatCompletionsProtocolGate := requireGroupClientProtocol(service.ProtocolOpenAIChatCompletions, groupClientProtocolErrorOpenAI)
 
 	// 未分组 Key 拦截中间件（按协议格式区分错误响应）
 	requireGroupAnthropic := middleware.RequireGroupAssignment(settingService, middleware.AnthropicErrorWriter)
@@ -382,7 +382,7 @@ func RegisterGatewayRoutes(
 			}
 			h.Gateway.Responses(c)
 		})
-		gateway.POST("/responses/*subpath", guardResponsesSubpath(withGroupClientProtocol(service.GroupClientProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, func(c *gin.Context) {
+		gateway.POST("/responses/*subpath", guardResponsesSubpath(withGroupClientProtocol(service.ProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, func(c *gin.Context) {
 			if service.IsOpenAIResponsesInputTokensRequestPath(c) {
 				responsesInputTokensHandler(c)
 				return
@@ -541,7 +541,7 @@ func RegisterGatewayRoutes(
 		h.Gateway.Responses(c)
 	}
 	r.POST("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, responsesProtocolGate, responsesHandler)
-	r.POST("/responses/*subpath", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, guardResponsesSubpath(withGroupClientProtocol(service.GroupClientProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, responsesHandler)))
+	r.POST("/responses/*subpath", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, guardResponsesSubpath(withGroupClientProtocol(service.ProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, responsesHandler)))
 	r.POST("/alpha/search", textBodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, h.OpenAIGateway.AlphaSearch)
 	r.GET("/responses", bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), requireGroupAnthropic, requireExtendedProtocol, responsesWebSocketHandler)
 	// Codex 客户端会访问不带 v1 前缀的模型列表，保持与 /v1/models 相同的本地模型语义。
@@ -563,7 +563,7 @@ func RegisterGatewayRoutes(
 	{
 		codexDirect.POST("/realtime/calls", h.OpenAIGateway.Live)
 		codexDirect.POST("/responses", responsesProtocolGate, responsesHandler)
-		codexDirect.POST("/responses/*subpath", guardResponsesSubpath(withGroupClientProtocol(service.GroupClientProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, responsesHandler)))
+		codexDirect.POST("/responses/*subpath", guardResponsesSubpath(withGroupClientProtocol(service.ProtocolOpenAIResponses, groupClientProtocolErrorOpenAI, responsesHandler)))
 		codexDirect.POST("/alpha/search", textBodyLimit, h.OpenAIGateway.AlphaSearch)
 		codexDirect.GET("/responses", responsesWebSocketHandler)
 	}
