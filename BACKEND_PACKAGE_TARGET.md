@@ -249,18 +249,46 @@ pkg → 标准库或明确必要的纯计算库
 7. 允许单向依赖另一个模块稳定的纯契约，不强制所有调用都绕 Interface。若出现 A→B→A，应重新确定规则所有者、合并内聚逻辑或用外部 Adapter 装配，不用反射或 `any` 绕过。
 8. `billing/pricing`、`routing/capability`、`scheduler/policy` 是明确的低层叶子契约；所属根模块可 import 它们，它们不能 import 根模块。纯价格结构统一在 pricing，由 routing 保存价卡、billing 计算使用；评分参数定义在 policy，由 routing 保存配置、scheduler 执行，避免根模块之间反向引用。
 
+这些约束从 **S01.0** 开始生效，不能等到 S15 才加入检查。S01 先在现有 `.golangci.yml` 中建立目标目录的规则；每个模块第一次创建源文件时，在同一提交中确认匹配范围，并运行检查。业务根包与 `httpapi/postgres/rediscache/provider/testkit` 子包分别匹配，不能用覆盖整个 `internal/**` 的禁令误伤合法 Adapter，也不能整体豁免一个业务目录。
+
+旧 service/handler 的现有规则继续保留。`app/legacybridge` 的旧依赖、存储 Adapter 的同事务协作必须逐项登记允许的源、目标、用途和退出阶段；新核心不继承旧包的历史豁免。首次配置及新增规则范围时，用可丢弃的最小违规夹具确认规则确实会拒绝非法 import，再删除夹具；正常和适用构建标签下都检查。S15 仅收尾删除旧规则与过渡例外。
+
 ### 3.3 资金与跨模块事务
 
 资金上的解耦指让调用者不需要知道实现细节，并不意味着把原子事务拆开。
 
-- 普通结算由 billing 拥有闭合资金命令。一次事务认领 `(request_id, api_key_id)`，锁付款主体和订阅，再更新余额/订阅、Key 配额、团队成员用量和账号额度。相关表即使被多个模块读取，资金字段只有这一受控写入入口。
+- 普通结算由 billing 拥有闭合资金命令。一次事务认领 `(request_id, api_key_id)`，锁付款主体和订阅，再更新余额/订阅、Key 配额、团队成员用量和账号额度。最终运行态的资金调整由 billing 的受控命令负责；重构期间尚未迁移的写入必须列在下面的清单中，不能提前宣布所有资金写入已收敛。
 - 资料字段仍由 identity/team/account/apikey 管理。明确到字段/操作的写权限；用户仍可以存储在同一张表，不为了目录美观提前迁表。快照的费用和限额由事务中最新状态复核，不能把调用方的预检当最终授权。
 - `payment → billing` 发放/撤销权益，billing 不反向调用 payment。保留订单来源幂等、recharge code、审计去重和履约 lease 的当前行为，先迁移再单独评估业务简化。
-- 退款的订单认领、资金回收、最终状态和成功审计需要同一事务。允许命名明确的事务 Adapter 将本次订单操作与 billing 的事务内操作组合，所有写入使用同一个 `*sql.Tx` 或同一 Ent Tx 对应连接；这个对象只在存储 Adapter 内可见，不能传入核心或 HTTP。
+- 退款的订单认领、资金回收、最终状态和成功审计需要同一事务。允许命名明确的事务 Adapter 将本次订单操作与 billing 的事务内操作组合，所有写入使用同一个 `*sql.Tx` 或同一 Ent Tx 对应连接；这个对象不能传入新的业务核心或 HTTP。旧 service 中已存在的外层事务可按清单暂留，不能把这一过渡许可扩展到新核心。
 - 对上述闭合流程，可给存储 Adapter 一条精确的跨模块依赖例外，例如 `payment/postgres → billing/postgres` 的事务内操作。必须单向、限定包/用途、通过真实事务测试；普通仓储不能跨模块任意修改表。若无法形成单向关系，组合提升到专用事务 Adapter，由 app 注入。
 - creative/batchimage 的资金预占、分配快照和任务预占标记同样不能先后独立提交。过渡期先保留完整 SQL 事务；最终由 billing 的任务资金 Interface 配合两种任务投影 Adapter 完成。任务 Adapter 接收同一事务写回本模块资金投影，billing 核心不认识 `creative_runs`、`batch_image_jobs` 或 `CreativeEntity`。
 - 最终 `Reserve/Capture/Release` 使用资金动作 ID、主体、金额、定价快照和受控任务引用。删除 `BatchImageBalanceHoldCommand` 的跨业务命名与 `CreativeEntity` 布尔分支，但保留原始持久化幂等键与指纹兼容。
 - 数据库和 Redis、供应商之间不伪造原子性。保留 durable outbox/租约/对账与补偿；通知或监控可采用现有异步方式，授权拒绝、扣款和关键审计不能因为引入事件而变成无保证的最终一致。
+
+**资金写入与过渡清单**：源路径相对 `backend/internal/`。S00 必须把每组展开为实际方法和调用者；新增写入归入本表并指定退出阶段。这里区分资金增减、额度配置和历史数据恢复的权限，不把普通资料更新当作资金入口。
+
+| 写入动作 / 当前入口 | 最终责任与原子范围 | S04 后的过渡状态 | 完成阶段 |
+| --- | --- | --- | --- |
+| 普通请求结算：service/usage_billing、gateway_usage_billing；repository/usage_billing_repo | billing；去重、余额/订阅、Key/成员/账号用量沿用同一事务 | 资金实现唯一迁入 billing，旧网关仅转接；完成处理 worker 随网关后迁 | S04；调用编排 S09/S11 |
+| 订阅发放、排队、撤销/恢复、额度重置及兑换：service/subscription*、redeem*；对应仓储 | billing；保持用户锁、来源订单、兑换次数及订阅链/Key 改绑的既有原子范围 | 完整用例及事务一起迁；外部调用存在已有事务时，通过事务 Adapter 参与，不另行提交 | S04；外部调用者 S05/S12 |
+| 管理员余额 set/add/subtract：service/admin_user；repository/user_repo 的 SetBalance/AdjustBalance 等 | billing 负责调账，identity 负责用户资料；保留余额上下限、累计充值、审计与返利的原有失败语义 | 原子资金操作提取到 billing 存储实现，旧管理入口通过适配调用；不把 set 改成读后覆盖，也不把现有尽力返利改成回滚充值 | 资金操作 S04；管理用例/HTTP S05 |
+| 注册、首次身份绑定和渠道默认赠送：service/auth_*、身份绑定用例及 repository/user_repo 创建路径 | identity 决定授予时机，billing 负责权益；保持原用户/身份事务、默认赠送及 savepoint/fail-open 规则 | 保留尚未拆开的初始化写入，逐方法登记；已迁订阅发放通过事务适配使用，不能改变注册失败/成功边界 | S05 |
+| Key/成员/账号限额配置、手动清零与周期维护：service/api_key*、team、admin_account、账号额度维护及对应仓储 | 配置归 apikey/team/account；消费累计与资金窗口归 billing。逐字段标明配置、重置、累计分别允许谁写 | 结算累计随 S04 迁移；旧配置/维护入口暂留，禁止普通实体更新覆盖并发累计值 | S05—S07 |
+| 用户平台额度：service/user_platform_quota*、billing_cache；对应仓储 | billing；保持 Redis-first 执法、dirty set、批量数据库镜像和已有降级语义 | 核心、缓存与 flusher 一起迁；不因统一资金归属而强行并入普通 SQL 扣款事务 | S04；管理入口随所属模块 |
+| Promo Code：service/promo_service.ApplyPromoCode、repository/promo_code_repo、user_repo.UpdateBalance | promotion 的事务 Adapter 组合 billing 事务内加款；锁码、加款、usage 和次数一起提交 | 整体保留旧事务和其资金写入至 S12；不得单独替换成会自行提交的 billing 加款调用 | S12.1 |
+| 返利冻结/解冻与转余额：service/affiliate_service；repository/affiliate_repo.TransferQuotaToBalance 等 | promotion 拥有返利状态；转主余额时同事务组合 billing，保持返利认领、余额/累计充值和转账记录原子性 | 旧闭合事务作为明确例外保留；不复制资金实现、不提前清零返利后再独立加款 | S12.1 |
+| 支付余额/订阅履约：service/payment_*；内部充值码和来源订单发放 | payment 拥有订单与 lease，billing 拥有权益发放；沿用原有多步恢复与幂等，不虚构整笔外部支付的事务 | 已迁兑换/订阅通过适配使用新 billing；订单、返利与恢复编排暂留旧实现 | S12.3 |
+| 支付退款：service/payment_* 中退款认领、扣减、状态和审计 | payment/postgres 单向组合 billing/postgres；本地最终确认完整事务提交，外部退款调用不放入数据库事务 | 保留旧退款完整事务及其资金写入至 S12；不能只抽走其中的扣减语句后独立提交 | S12.4 |
+| creative/batchimage 预占、捕获和释放：repository/usage_billing_repo 与任务投影写入 | billing 的资金动作 + 各任务存储投影，同事务更新 | S04 保留完整任务资金 SQL；旧命令名、任务表投影和 CreativeEntity 耦合单独登记 | 资金实现 S04；去耦 S13 |
+| setup/simple 默认数据、备份恢复与已发布 SQL 数据修正 | app/setup/backup 的受控初始化或恢复流程；运行态资金用例仍归 billing | 保留现有初始化/恢复权限及迁移 checksum，登记必要的直接写入；不把数据恢复伪装成用户充值 | S14；S16 核验长期例外 |
+
+**事务参与的具体约束**：
+
+1. billing 对普通调用者提供完整命令；`billing/postgres` 另为存储协作提供命名明确的事务内操作。后者必须使用调用方给定的现有事务，不得自行 Begin/Commit/Rollback，也不得提前失效缓存、发送通知或宣布成功。
+2. 旧外层事务暂留时，过渡 Adapter 转接旧 `TxFromContext/clientFromContext` 语义，确认使用同一事务连接。未迁整条流程前保留完整旧事务；不能依赖普通 context 里“可能有事务”就假设新实现已参与。
+3. 外层事务的拥有者负责提交及提交后的失效/通知。迁移每条写入都用真实 PostgreSQL 验证“资金写入后，业务记录或审计失败”的整体回滚，并检查重复请求和并发；不只测试 billing 自己能提交。
+4. S04 的完成范围是普通结算、权益用例及已列明的资金操作。只有对应 S05—S07/S12/S13/S14 记录逐项销项后，才能确认运行态资金写入已收敛；S16 明确保留初始化/恢复等有理由的操作级例外。
 
 ### 3.4 请求、调度和平台协作
 
@@ -286,6 +314,8 @@ pkg → 标准库或明确必要的纯计算库
 - 同协议直接透传应保留。跨协议转换保留 `json.RawMessage` 等未知字段承载方式，避免为了通用结构发生反复 JSON 编解码和整流缓冲。
 - `/models`、`/usage`、已有任务读/取消/下载、自定义声音、Live sideband 等不能机械套用生成请求准入；保留各自的协议/资源归属规则。
 
+这些契约在 S09.0 和 S09.1 的首条真实请求链中验证，再推广到其它平台。首条链至少明确：输入/原始报文所有权、响应输出与 Flush 的控制者、首个真实输出的报告方式、部分用量与错误如何同时返回、取消传递、响应体/连接/Lease 的释放责任。`AccessSnapshot`、`RoutePlan` 沿用 S05/S06 的所有者，gateway 不再定义一套同名实体。非流、SSE、WebSocket 可有不同能力接口；S09 不提前假设 WS 与 HTTP 生命周期相同，S11.5 增加 WS 能力时再验证扩展。
+
 ### 3.5 设置、缓存、后台与错误
 
 - config 只管启动配置；settings 只管运行时值、版本和更新传播。支付配置归 payment、网关配置归 gateway/routing/scheduler，校验在所属模块；设置页面可聚合展示，不能出现一个注入所有具体服务的 SettingService。
@@ -308,7 +338,7 @@ pkg → 标准库或明确必要的纯计算库
 | `cmd/server` | 保留入口；Wire 应用图与资源持有移至 internal/app，版本变量留入口 | S02、S14 |
 | `internal/config` | 保留；Wire 组合移 app，各模块接受所需 Options | S02、S15 |
 | `internal/domain` | 拆至 protocol、routing/capability、routing、scheduler/policy、identity、billing、site；端点展示元数据由 HTTP Adapter 组织；逐文件见 5.4，最终删除 | S02.4、S03—S07、S11、S16 |
-| `internal/handler` | 各模块/httpapi；网关编排移 gateway 核心；通用输入输出移 server/httpx；最终删除 | S04—S15 |
+| `internal/handler` | 各模块/httpapi；网关编排移 gateway 核心，首条链在 S09.1 接入；通用输入输出移 server/httpx；最终删除 | S04—S15 |
 | `internal/handler/admin` | 管理员方法归各模块/httpapi/admin_*.go；Dashboard → usage、诊断 → ops；最终删除 | S04—S15 |
 | `internal/handler/dto` | 各模块/httpapi 的 DTO；协议 DTO → protocol；凭据投影由 account 生成；最终删除 | S03—S15 |
 | `internal/handler/quotaview` | 限额展示规则 → billing 的只读投影；JSON 输出 → billing/httpapi；最终删除 | S04 |
@@ -341,7 +371,7 @@ pkg → 标准库或明确必要的纯计算库
 | `internal/pkg/antigravity` | upstream/antigravity；通用协议 DTO/纯转换抽至 protocol，专有封装留平台 | S03、S09.5 |
 | `internal/pkg/apicompat` | protocol/anthropic、protocol/openai、protocol/bridge；不复制转换实现 | S03、S11 |
 | `internal/pkg/claude` | upstream/anthropic；纯 wire 常量 → protocol/anthropic，入站版本识别 → gateway/clientmeta | S03、S09.2、S11 |
-| `internal/pkg/ctxkey` | 按身份、网关执行参数和 infra/telemetry 拆分；显式投影替代业务键，最终删除 | S01、S05、S07、S11 |
+| `internal/pkg/ctxkey` | 按身份、网关执行参数和 infra/telemetry 拆分；显式投影替代业务键，最终删除 | S01、S05、S07、S09.1、S11 |
 | `internal/pkg/errors` | pkg/apperror；HTTPCode/响应映射 → server/httpx 和各协议 Adapter，兼容期保留旧错误比较 | S01、S15、S16 |
 | `internal/pkg/gemini` | 协议类型 → protocol/gemini；默认模型与能力资料 → upstream/gemini，展示由 routing 组装 | S03、S09.3 |
 | `internal/pkg/geminicli` | upstream/gemini/codeassist；与 Gemini/Vertex 共用部分提取为无反向引用的低层能力 | S09.3 |
@@ -441,7 +471,7 @@ Ent 各包全部保持原路径。schema/mixins/generate.go 等手写源仍按�
 | 现有文件/职责组 | 最终所有者 | 必须同时做的代码重构 | 阶段 |
 | --- | --- | --- | --- |
 | `wire.go`、BuildInfo 与生命周期装配 | app | 拆按模块的构造绑定；从构造函数移除自动 Start；保留失败清理。 | S02、S16 |
-| `user.go`、`user_service.go`、`admin_user.go`、`user_attribute*`、`notify_email_entry.go` | identity | 资料、绑定和授权投影分开；余额/冻结/倍率不再通过普通用户更新写回。 | S05 |
+| `user.go`、`user_service.go`、`admin_user.go`、`user_attribute*`、`notify_email_entry.go` | identity；调账与资金操作 → billing | 资料、绑定和授权投影分开；余额/冻结/倍率不再通过普通用户更新写回，资金过渡见 3.3。 | 资金操作 S04；其余 S05 |
 | `auth_*`、`registration_email_*`、`passkey.go`、`totp_service.go`、`session_binding.go`、`refresh_token_cache.go` | identity | 提取完整登录/绑定流程；同邮箱互斥、token 撤销、pending session 原子消费与 step-up 保持。 | S05 |
 | `aliyun_captcha_service.go`、`tencent_captcha_service.go`、`turnstile_service.go` | identity + identity/provider | 保留提供方互斥和 fail-close，外部校验通过可替换 Adapter。 | S05 |
 | `team.go` | team | 成员变化/owner 转移保持原子性；输出明确付款与行为主体，主动失效 Key。 | S05 |
@@ -482,7 +512,7 @@ Ent 各包全部保持原路径。schema/mixins/generate.go 等手写源仍按�
 | `bedrock_*`、`gateway_bedrock.go`、`vertex_service_account.go` | upstream/bedrock、upstream/vertex | 认证/区域/帧转换保留平台所有权，调度与计费抽离。 | S09.2、S09.4 |
 | `gemini_*`、`geminicli_*` 的转发/兼容部分 | upstream/gemini/codeassist + protocol/bridge | 账号选择交 scheduler；平台 signature/隐私/凭据仍留上游实现。 | S03、S09.3 |
 | `antigravity_*` 的转发/额度部分 | upstream/antigravity；维护编排归 account | 保留混合池资格与 QuotaPlatform，不能因协议形状改变计费归属。 | S09.5 |
-| `qoder_*` | upstream/qoder + account 的账号管理输入 | 站点/思考/上下文/签名和流解析内聚，剥离网关重试和资金动作。 | S09.1 |
+| `qoder_*` | upstream/qoder + account 的账号管理输入；请求编排 → gateway | 站点/思考/上下文/签名和流解析内聚；S09.1 同时验证第一条非流/SSE 完整链，平台不持有重试和资金规则。 | S09.1 |
 | `grok_*`、`openai_gateway_grok_*`、`openai_x_search` 相关调用 | upstream/grok + gateway | Grok 媒体、Voice、配额/错误与 OpenAI 适配分开。 | S09.7、S11 |
 | `cn_provider_*`、`upstream_usage_cn_adapters.go`、`account_test_service_cn_adaptive.go` | account 的探测编排 + upstream/kimi/zhipu/deepseek | 共用 wire 不能合并平台能力；管理员选择与当前协议集合保持。 | S06、S09.6 |
 | `ollama_cloud_usage*`、`openai_gateway_ollama_cloud_*` | upstream/ollama + account 观测 | 仅迁移已有用量/兼容能力，不新增独立平台支持承诺。 | S09.6 |
@@ -490,7 +520,7 @@ Ent 各包全部保持原路径。schema/mixins/generate.go 等手写源仍按�
 | `gateway_service.go`、`gateway_request.go`、`gateway_forward*`、`gateway_count_tokens.go`、`gateway_upstream_*`、`gateway_anthropic_passthrough.go` | gateway 编排 + upstream/anthropic + protocol | 按语义拆当前 GatewayService，避免将其整个搬成 gateway.Service。 | S09.2、S11 |
 | `gateway_billing_*`、`gateway_messages_cache.go`、`gateway_tool_rewrite.go`、`user_prompt_replacement.go` | gateway 策略与会话；平台改写归 upstream | 管理策略显式传入，保留用户提示替换和缓存计费约束。 | S11 |
 | `session_id.go`、`session_isolation.go`、`digest_session_store.go` | gateway 会话协调；粘性选号归 scheduler；平台连续性归 upstream | 浏览器登录会话完全独立；previous-response 与不可迁移会话显式表达。 | S07、S09、S11 |
-| `request_metadata.go`、`model_response_restore.go`、`upstream_response_model.go`、`upstream_request_id.go` | gateway 显式请求投影 + protocol + telemetry | 保留模型链，只改响应元数据，禁止正文字符串替换；请求 ID 不改变幂等来源。 | S03、S11 |
+| `request_metadata.go`、`model_response_restore.go`、`upstream_response_model.go`、`upstream_request_id.go` | gateway 显式请求投影 + protocol + telemetry | 首条链在 S09 验证输入/输出契约；保留模型链，只改响应元数据，禁止正文字符串替换；请求 ID 不改变幂等来源。 | S03、S09.0—S09.1、S11 |
 | `context_error.go`、`model_not_found_error.go`、`group_model_unsupported.go`、`models_list_response_limit.go`、`image_generation_intent.go`、`thinking_protocol.go` | 对应 gateway/routing/protocol 的语义所有者 | 错误/意图/响应限制按实际责任迁移，不新建泛化 helpers 包。 | S03、S06、S11 |
 | `slice_helpers.go`、`value_helpers.go`、`parse_integral_number_unit.go`、`sse_scanner_buffer_pool.go` 等局部辅助 | 随调用者内聚；S16 清点逐个决定 | 单调用族留私有函数；确有跨模块纯复用才进入 pkg；SSE 缓冲不得混入普通业务工具。 | 随所属阶段、S16 |
 
@@ -659,17 +689,17 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 | 阶段 | 本阶段交付 | 最少前置 | 暂未迁移的依赖如何满足 |
 | --- | --- | --- | --- |
 | S00 | 清点、契约基线、增量跟踪 | 无 | 不改运行代码。 |
-| S01 | 通用包、HTTP/技术基础设施 | S00 | 旧包用薄包装调用新实现。 |
+| S01 | 新依赖门禁、通用包、HTTP/技术基础设施 | S00 | 先启用新路径规则，旧包用薄包装调用新实现。 |
 | S02 | app/生命周期、settings/idempotency、小模块试点 | S01 | app 仍装配旧图，逐项替换 provider。 |
 | S03 | 协议、能力目录、纯定价 | S01—S02 | 新纯模块不需要旧业务；旧调用者转接新实现。 |
-| S04 | billing 完整资金核心与持久 Adapter | S02—S03 | 付款/Key/账号投影由旧调用者转换；暂时保留完整任务资金 SQL。 |
+| S04 | 普通结算、权益用例及明确资金操作迁入 billing | S02—S03 | 同事务转接；其它资金写入按 3.3 保留完整旧事务并登记，后续分阶段收敛。 |
 | S05 | identity → team → apikey | S04 | 通知/促销/路由状态通过 app/legacybridge 提供，不反向导入旧包。 |
 | S06 | egress → routing → account | S03—S05 | 供应商维护能力和旧调度失效通过旧 Adapter 注入。 |
 | S07 | scheduler | S05—S06 | 平台资格/连续性使用旧适配实现，统一选择结果和 Lease。 |
 | S08 | usage → audit → ops | S04—S07 | 通知、备份只提供窄调用接口；原有日志队列语义保留。 |
-| S09 | 各上游逐平台迁移 | S03、S06—S08 | 旧 gateway 调新平台 Adapter，热路径不双发请求。 |
+| S09 | 首条网关链验证 + 各上游逐平台迁移 | S03—S08 | S09.1 先验证新 gateway 的非流/SSE 分支；未迁审核/完成处理通过旧 Adapter 提供，其余分支逐个切换。 |
 | S10 | notification、site 收尾、moderation、search | S05—S09 | 旧 gateway 可先消费这些新能力。 |
-| S11 | gateway 请求生命周期 | S04—S10 | 支付/任务等面板能力仍使用旧入口，与网关切换解耦。 |
+| S11 | 扩展已验证的 gateway 至其余协议/传输 | S04—S10，含 S09.1 验证通过 | 复用首条链契约；支付/任务等面板能力仍使用旧入口。 |
 | S12 | promotion → payment | S04、S05、S08、S10 | 旧 handler 可以先调用新商业用例，随后迁 HTTP Adapter。 |
 | S13 | creative → batchimage | S04、S05—S11 | 共享新资金/调度/上游能力；任务状态与资金投影一起替换。 |
 | S14 | backup、setup、维护命令 | S02、S06、S08、S10 | 不再需要业务旧依赖；保留部署兼容。 |
@@ -685,16 +715,17 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 1. 确认工作区用户改动，记录本次 HEAD；重新枚举所有含 Go 文件目录，与第 4 节比较新增/删除项。对新增 service/repository/handler 文件补上模块和阶段归属。
 2. 记录当前构建、普通/unit/integration 测试和 lint 结果。原有失败独立记录，不混成重构导致，也不能悄悄扩大忽略规则。
 3. 为待迁能力定位现有契约测试；优先复用。只有缺少会暴露行为回归的测试时补充 Interface 测试，不为单纯移动代码复制一套测试。
-4. 建立本次子步骤的源文件、目标包、调用者、测试、Wire/文档引用清单，追加在第 8 节。
+4. 建立本次子步骤的源文件、目标包、调用者、测试及其构建标签、Wire/文档引用清单，追加在第 8 节。将 3.3 的资金写入组展开到方法，记录外层事务拥有者、提交后副作用与迁移阶段。
 
 **验收**：不存在无人负责的旧包；能够解释 baseline 的构建/测试限制。此阶段不宣布任何业务模块已迁完。
 
-### S01：提取通用技术与 HTTP 基础能力
+### S01：启用依赖门禁并提取通用技术与 HTTP 基础能力
 
-**处理旧包**：pkg 的 `pagination/errors/response/httputil/ip/logger/servertiming/httpclient/proxyurl/proxyutil/tlsfingerprint/redissession/timezone`；oauth 的重复 PKCE 原语；util 的 `logredact/urlvalidator`；第二处 middleware；repository 的纯连接/HTTP/crypto 实现。
+**处理范围**：现有 `.golangci.yml`；pkg 的 `pagination/errors/response/httputil/ip/logger/servertiming/httpclient/proxyurl/proxyutil/tlsfingerprint/redissession/timezone`；oauth 的重复 PKCE 原语；util 的 `logredact/urlvalidator`；第二处 middleware；repository 的纯连接/HTTP/crypto 实现。
 
 **子步骤**：
 
+- S01.0：按 3.2 在现有 depguard 建立新核心、协议、上游、技术实现与 Adapter 的路径规则。先保留旧规则，登记精确的过渡例外；用最小违规夹具验证规则命中。后续每个新包的首次提交必须同时证明被规则覆盖。
 - S01.1：保留 pagination；将通用脱敏迁 `pkg/logredact`；提取纯 IP 匹配和 PKCE。日期运算先迁接口，继续兼容当前项目日界与全局初始化。
 - S01.2：建立 `pkg/apperror`、`server/httpx` 与 `server/clientip`。先保证旧错误类别、reason、脱敏和响应结果相等，再逐调用方去除 HTTPCode 依赖。请求体上限/解压/原始报文保留原契约。
 - S01.3：建立 logging/timing、Redis session、HTTP 连接池、proxy、TLS、crypto 实现。按现有隔离 key、配置和取消测试接入；暂不改变连接池策略。
@@ -702,7 +733,7 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 
 **代码重构**：清除工具包对整个 config/业务 service 的反向依赖，构造接受小型 Options。通用工具之间避免新的双向依赖，不要求把私有小函数逐个建包。
 
-**验收**：受影响基础包测试通过；所有旧调用者继续构建；Header/脱敏/错误/代理/DNS/取消契约一致。旧 pkg 错误包装暂存时必须登记消费者，不能复制维护两份错误实现。
+**验收**：新路径的 depguard 已生效并验证违规可被拒绝；受影响基础包按 7.3 运行普通及适用标签测试，所有旧调用者继续构建；Header/脱敏/错误/代理/DNS/取消契约一致。旧 pkg 错误包装暂存时必须登记消费者，不能复制维护两份错误实现。
 
 ### S02：建立组合根与可独立迁移的用例
 
@@ -734,21 +765,22 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 
 **验收**：转换非流/流、未知字段、工具 ID、reasoning、部分 usage 的契约测试；价卡优先级、显式零价、缺价、长上下文、分时和账号成本口径测试。业务目录、HTTP 路由与协议转换没有反向依赖。
 
-### S04：抽出 billing 与完整资金事务
+### S04：抽出 billing 的结算、权益和事务参与能力
 
-**处理旧包**：service 的 billing/pricing 使用方、usage_billing、subscription、redeem、user_group_rate、user_platform_quota、account_stats_pricing、video/image 计费；repository 对应资金/权益/缓存组；domain/subscription；handler/quotaview、订阅/兑换/额度相关 DTO/handler。
+**处理旧包**：service 的 billing/pricing 使用方、usage_billing、subscription、redeem、user_group_rate、user_platform_quota、account_stats_pricing、video/image 计费；repository 对应资金/权益/缓存组，以及 user_repo 中已经确认可独立提取的原子调账操作；domain/subscription；handler/quotaview、订阅/兑换/额度相关 DTO/handler。其余写入逐项按 3.3 登记，不在此阶段拆散它们的外层事务。
 
 **子步骤**：
 
-- S04.1：提取资金主体、定价快照、分配和结果类型，明确 payer/actor/team/Key/account。旧 User/Account 的输入在桥接侧投影，不反向导入旧类型。
+- S04.1：提取资金主体、定价快照、分配和结果类型，明确 payer/actor/team/Key/account。旧 User/Account 的输入在桥接侧投影，不反向导入旧类型；确认每条当前写入是否属于本阶段范围、是否参与外层事务。
 - S04.2：原样迁移闭合 `Apply` 事务与去重/死锁重试，再在测试保护下把复杂计算移到 pricing/资金规则中。普通结算一次提交的原子范围不变。
-- S04.3：迁订阅创建/延长/排队/撤销、额度窗口、用户平台额度、兑换权益与缓存更新。身份资料更新失去余额等资金字段写权限。
+- S04.3：迁订阅创建/延长/排队/撤销、额度窗口、用户平台额度、兑换权益与缓存更新，并提取原子调账操作。新增普通资料更新接口不接受余额等资金字段；旧创建/默认赠送等写入按 3.3 保留到其所属阶段，不因移除字段破坏现有功能。
 - S04.4：建立任务资金 Interface，并以旧 BatchImage 命令适配接入。此时允许 SQL 内仍显式认识两个旧任务投影，但不得扩展新布尔分支；将删除条件绑定 S13。
-- S04.5：旧网关/支付/任务调用新 billing；迁订阅、兑换、额度展示的 HTTP Adapter。公共 usage 查询返回的权益投影不能混淆绑定订阅和余额。
+- S04.5：建立并测试 3.3 的事务内 Adapter。对本阶段已迁用例，将旧网关、管理、支付和任务调用者转接到新 billing；已有外层事务必须沿用同一事务，退回/审计/次数记录失败时整体回滚。退款、Promo 和返利等未迁闭合事务继续使用原实现并明确登记。
+- S04.6：迁订阅、兑换、额度展示的 HTTP Adapter；公共 usage 查询返回的权益投影不能混淆绑定订阅和余额。更新资金写入清单及例外，分别记录“资金操作已迁”和“业务编排尚未迁”。
 
-**验收**：同 ID 重放/指纹冲突、并发扣款、付款 owner/actor、指定订阅准入与已放行请求溢出、金额 8/10 位精度、不同定价时刻、日志失败不重复扣款、任务严格预占与释放；真实 PostgreSQL 锁/事务与 Redis 缓存测试通过。simple 模式仍仅写适用记录。
+**验收**：同 ID 重放/指纹冲突、并发扣款与调账、付款 owner/actor、指定订阅准入与已放行请求溢出、金额 8/10 位精度、不同定价时刻、日志失败不重复扣款、任务严格预占与释放；真实 PostgreSQL 验证新操作参与旧外层事务的回滚，确认提交前不发布成功副作用。普通/unit/integration 测试及相关 Redis 测试通过；原 Promo/返利/退款流程回归保持。simple 模式仍仅写适用记录。
 
-**停点**：S04 结束可继续使用旧网关和旧任务 UI，资金 Implementation 已唯一归 billing；任务持久 Adapter 耦合必须在进度中明确列为 S13 剩余工作，不能宣称已经完全解耦。
+**停点**：S04 结束可继续使用旧网关和旧任务 UI；本阶段迁移的普通结算和权益能力只有一份 Implementation。尚未迁移的注册/管理写入、Promo/返利/退款、任务投影和初始化/恢复按 3.3 分别保留到 S05—S07、S12、S13、S14；这些例外未清理前，不把 billing 标记为全项目资金写入的唯一实现。
 
 ### S05：依次迁移用户身份、团队和 API Key
 
@@ -759,7 +791,7 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 - S05.1：identity 的资料/登录身份/会话核心及 PostgreSQL/Redis/登录与 captcha Adapter；安全身份只携带验证后的用户/会话/角色。通知和默认赠送仍通过 legacybridge 的窄接口完成。
 - S05.2：team 的成员、邀请、owner 转移与资源归属，保留同一事务内维护唯一 owner 和成员关系；billing 通过付款/行为投影消费。
 - S05.3：apikey 生命周期、复合 Key、访问策略及缓存/outbox。Key 拥有模型改写配置和前缀解析规则，routing 消费规范化规则完成请求的一跳改写，不复制两套映射算法。认证产出 AccessSnapshot，资金消费能力通过 billing 检查。
-- S05.4：迁 HTTP JWT/admin/step-up/Key Adapter，保留 route 原鉴权顺序和入口错误形状，所有资源操作仍复核归属。
+- S05.4：迁 HTTP JWT/admin/step-up/Key Adapter，保留 route 原鉴权顺序和入口错误形状，所有资源操作仍复核归属；管理员调账改用 billing 用例，注册/身份默认权益通过同事务 Adapter 配合，销项 3.3 中对应的旧写入例外。
 
 **解耦重点**：identity、team、apikey 不相互持有具体 Service。必要读取通过消费者 Interface，在 app/bridges 绑定；缓存变化通过明确失效命令/现有 outbox，不靠导出可变对象。订阅限制对 Key 可选分组的校验用只读权益投影。
 
@@ -809,15 +841,37 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 
 **验收**：总额/账号成本/用户成本、聚合水位与回退、删除用量不退款、敏感字段脱敏、日志过载/退避/丢弃与停机、必需审计失败回滚、实时连接关闭。查询重构核对 SQL 数量和原 Explain/性能夹具，防止 N+1。
 
-### S09：上游逐个平台迁移
+### S09：先验证完整请求链，再逐个平台迁移上游
 
-**共同处理范围**：第 5.1 节对应平台族、pkg 平台包、repository 外部 HTTP 客户端、service/openai_ws_v2、platform/liveattestation、util/httputil。
+**共同处理范围**：第 5.1 节对应平台族、pkg 平台包、repository 外部 HTTP 客户端、service/openai_ws_v2、platform/liveattestation、util/httputil；同时提前迁移首条请求所需的 gateway/httpapi、最小执行编排、流输出状态和完成处理接口。
 
-每个平台独立作为可交付子步骤，先提取原生客户端/类型，再提取转换/流/错误/用量，最后通过 app 替换旧网关的调用。平台不接管账号选择、用户计费或全局重试。
+先完成 S09.0 和 S09.1 的首条链验收，再推广至其它平台。每个平台独立作为可交付子步骤，提取原生客户端/类型、转换/流/错误/用量，并通过 app 替换调用；平台不接管账号选择、用户计费或全局重试。S09.2 起既要保持旧入口兼容，也要验证它满足首条链已经确定的新 Interface，不能只提供适配旧 Gin handler 的接口。
+
+**S09.0：确定首条链的契约和测试入口**
+
+- 选用当前已支持的 Qoder Chat Completions 分支，分别覆盖 `stream=false` 与 `stream=true`；Qoder 原生流的非流聚合仍沿用现有行为。明确旧 handler、QoderGatewayService、调度/资金调用及测试夹具的具体迁移清单，不新增公网 URL 或扩大支持范围。
+- 沿用 S05/S06/S07 的 AccessSnapshot、RoutePlan、AccountSnapshot 和 Lease；在 gateway/upstream 的各自契约中确定单次 attempt 输入、输出提交状态、部分 usage、错误、取消、响应体及连接释放责任。只定义首条链实际消费的能力，避免强制所有供应商实现一个万能接口。
+- 将尚未迁移的 moderation、错误改写和完成处理通过 app/legacybridge 的窄接口注入。每项适配写明由 S10 或 S11 删除；共享 worker/缓存保持唯一实例。依赖是新 gateway 的接口指向适配实现，不允许 gateway import 旧 service。
+- 建立以本地供应商 Adapter/脱敏事件夹具驱动的完整请求测试，连接实际新模块和适用的 PostgreSQL/Redis 测试依赖。S09.0 的输出是可用于 S09.1 的契约与夹具，不能单凭接口声明宣布链路验证通过。
+
+**S09.1 的执行顺序与门禁**：先提取 Qoder 调用 Adapter，再把选定非流分支接入新 gateway，随后接入同一分支的 SSE。两条链都必须贯通 HTTP → 鉴权/路由 → 资金预检 → 调度 → 上游 → 完成处理，并接入既有路由的唯一执行路径；同一次请求只有一个 attempt/重试循环，不能在新 gateway 外面继续包一层旧 failover。未迁协议分支可继续使用旧入口，但不得复制结算、槽位或输出状态实现。
+
+首条链必须通过以下情形，才允许开始 S09.2—S09.8：
+
+| 情形 | 必须验证的协作结果 |
+| --- | --- |
+| 非流成功及重放 | 原状态/报文与模型恢复保持，用户价格/账号成本正确，同请求幂等结算、单次写事实。 |
+| SSE 正常输出 | 保留事件顺序、工具 ID、结束事件和渐进输出；不能为了统一结果而缓存完整响应。 |
+| 前导事件后失败 | 按既有规则判断是否可切换；等待心跳与协议前导不能误判成真实输出。 |
+| 真实输出后失败 | 明确禁止换号或重新推理，返回可用部分 usage，沿原规则结算和记录。 |
+| 取消、断开、超时及慢客户端 | 取消到达上游，响应体/连接/用户槽/账号槽/等待计数按责任释放；重复 Release 安全，不留下无界缓冲或 goroutine。 |
+| 结算或记录失败 | 重试不能重新调用供应商，也不能重复扣款；保持现有资金失败恢复与记录队列语义。 |
+
+验收记录中列出新接口、实际调用者、上述场景结果和剩余旧 Adapter。后续平台需要扩展契约时，保持已迁调用者兼容并回归这组公共场景；某能力确实只适用于一个传输时采用独立接口，不反复推倒全部已迁平台。
 
 | 子步骤 | 源包/文件范围 | 目标与专属验收 |
 | --- | --- | --- |
-| S09.1 Qoder | pkg/qoder、service/qoder_*、Qoder handler 中平台转换部分 | upstream/qoder；站点/PAT/Cosy、签名、思考/上下文、模型别名、流与部分用量。 |
+| S09.1 Qoder 与首条链 | pkg/qoder、service/qoder_*、Qoder handler 的平台转换与选定 Chat 分支编排 | upstream/qoder + gateway/httpapi 与核心；先完成上述非流/SSE 纵向验收，再覆盖其余 Qoder 协议，保留站点/PAT/Cosy、签名、思考/上下文、模型别名与部分用量。 |
 | S09.2 Anthropic/Bedrock | pkg/claude/oauth/anthropicfp、repository/claude_* 与 identity_cache、service/identity_service、Claude token、gateway Anthropic/Bedrock 与 bedrock_* | upstream/anthropic、bedrock；OAuth/Header、请求指纹、缓存桶、区域签名、流事件、转换和可切换错误。 |
 | S09.3 Gemini/Code Assist | pkg/gemini/geminicli/googleapi 的平台部分、repository/gemini_*、service/gemini*/geminicli*、batch/creative 的 Gemini 调用 | upstream/gemini 及其 codeassist 子包；OAuth/project、thought signature、工具 schema、原生/兼容流与批量原语。 |
 | S09.4 Vertex | service/vertex_service_account、batch_image_provider_vertex、Gemini/Claude 中 Vertex 分支 | upstream/vertex；Service Account/project/location、签名/端点、GCS/JSONL 与既有 Batch 操作。 |
@@ -843,15 +897,15 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 
 **验收**：模板不泄露凭据、发送失败不回滚既有权益；审核 sync/async/fail-open/fail-close 按已有场景保持；创作台无留存；搜索耗尽/失败/代理不可用的配额回滚与降级；移除对应 legacybridge。
 
-### S11：迁移网关的共同执行流程
+### S11：扩展并收敛网关的共同执行流程
 
 **处理旧包**：剩余 gateway/openai_gateway 服务的请求编排、handler 内 failover/并发/stream/usage helpers、ctxkey/request_metadata、错误透传 model/repository、所有网关 HTTP 族。
 
 **子步骤**：
 
-- S11.1：定义有类型的请求元数据、AccessSnapshot、RoutePlan、执行/输出结果与部分用量，跨模块不再传 Gin Context。客户端识别提取到 clientmeta，策略裁决留 gateway/routing。
-- S11.2：选择一条 HTTP 非流请求链迁移，通过已完成的 Key/路由/资金/调度/审核/上游接口执行。删掉旧链的重复编排，只保留旧入口转接。
-- S11.3：迁 SSE。统一真实输出提交状态、前导缓冲、可重试错误、上下游取消、部分 usage 与 release，保持等待心跳不误判真实输出。
+- S11.1：复用并收紧 S09 已验证的请求元数据、执行/输出结果与部分用量契约，移除其它链的 Gin Context 业务依赖；AccessSnapshot、RoutePlan 继续由原所有者提供。客户端识别收敛到 clientmeta，策略裁决留 gateway/routing。
+- S11.2：将其余 HTTP 非流分支接入已验证的共同执行流程，通过新 Key/路由/资金/调度/审核/上游接口执行。删除各旧链的重复编排和已完成依赖的 legacybridge，不重新设计首条链。
+- S11.3：推广 S09 验证过的 SSE 输出状态、前导缓冲、可重试错误、取消、部分 usage 与 release 契约，逐个替换其余 SSE 分支；不同协议的真实输出边界仍由其 Adapter 判断。
 - S11.4：逐条迁 Messages、Responses、Chat、Gemini、count/input tokens、模型/用量、图像、视频、搜索和 Voice。每条原生/转换路线分别验证，不能用一个平台的测试代表所有路线。
 - S11.5：迁 Responses WebSocket、Live 与 sideband。平台帧实现继续留 upstream；每 turn 路由、资金时刻、硬会话绑定、连接终止由明确 Interface 协作。
 - S11.6：迁完成处理 worker、错误透传和 Ops 观测；区分已结算、待对账记录、失败无用量与部分成功，不新建无界 goroutine。
@@ -866,10 +920,10 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 
 **子步骤**：
 
-- S12.1：promotion 的邀请/促销/返利状态与规则，使用 billing 幂等发放/转入余额；注册默认赠送与兑换联动移除旧具体服务引用。
+- S12.1：promotion 的邀请/促销/返利状态与规则。Promo 的锁码、加款、usage、次数，以及返利认领、主余额、累计充值和转账记录，分别由 promotion 的事务 Adapter 同事务组合 billing 存储操作；不调用会独立提交的加款入口。补验加款后业务记录失败的整体回滚，再销项 3.3 的旧写入；注册默认赠送与兑换联动移除旧具体服务引用。
 - S12.2：保留现有 internal/payment 及 provider 子包路径，合入旧 service 的支付用例，重构金额/币种/手续费、provider registry、实例选择、下单与订单/商品快照；从 core 抽出 Ent 查询和 provider 构造。
 - S12.3：统一 webhook/查单/人工恢复/超时回收的状态迁移与履约 Interface，保留 lease、source_order_id、内部 recharge code 和返利审计去重。
-- S12.4：退款和查单恢复，按 3.3 的闭合事务 Adapter 原子完成资金回收/订单/审计；HTTP 原始签名内容不能被通用解析提前消费。
+- S12.4：退款和查单恢复，按 3.3 的闭合事务 Adapter 原子完成资金回收/订单/审计；验证外层失败回滚后删除旧退款资金写入，销项清单。HTTP 原始签名内容不能被通用解析提前消费。
 
 **验收**：重复/迟到回调、取消与成功竞争、履约失败接管、来源订单重复发放、pending/partial/refunded、金额币种与 provider 快照、强制退款实际扣减、审计失败回滚、通知重复。真实支付服务使用受控 fixture/测试 Adapter，不执行真实付款退款。
 
@@ -895,7 +949,7 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 **子步骤**：
 
 - S14.1：backup 完整模块及 dump/S3/local Adapter，保持运行时凭据读取、数据重维护锁、导出/恢复和旧 data management 响应。
-- S14.2：setup 精简装配、自动初始化、密钥补齐、迁移与 simple 默认数据。避免 setup 先构造全部业务 worker；已有初始化锁与校验顺序保留。
+- S14.2：setup 精简装配、自动初始化、密钥补齐、迁移与 simple 默认数据。避免 setup 先构造全部业务 worker；已有初始化锁与校验顺序保留。核对 3.3 中的初始化/恢复写入，只保留有明确入口与作用域的必要权限，不改写已发布 SQL。
 - S14.3：清理命令与 JWT 命令只装配所需能力；重启请求通过 lifecycle 执行，不由 handler/os.Exit 绕过 Cleanup。命令参数、二进制名和输出兼容。
 
 **验收**：空库初始化、已配置启动、自动设置、simple、迁移 advisory lock、初始化失败释放、备份/恢复的受控环境演练、Linux/Darwin 差异与手动重启请求的响应/关闭顺序。
@@ -907,7 +961,7 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 1. 检查每条既有路由都由目标模块注册，server 只汇总和挂全局 middleware。对相同 URL/method 的注册、裸路径别名、embed SPA fallback 和 `/models` 内容协商做契约对照。
 2. 删除全局 Handlers/AdminHandlers 与 dto/mappers 聚合；跨模块页面只消费明确查询/配置 Interface，普通/管理员输出字段仍分开。
 3. 完成 settings 对校验/应用能力的注册，移除持有所有模块具体 Service 的结构。业务更新失败不得写成“设置成功”。
-4. 清空错误 HTTPCode 转接、剩余 Gin Context 业务依赖、两处 middleware/util 重复入口。完成新 depguard 规则和文档路由/锚点修复。
+4. 清空错误 HTTPCode 转接、剩余 Gin Context 业务依赖、两处 middleware/util 重复入口。收尾 S01 起已生效的 depguard，删除不再需要的旧路径规则与过渡例外，并修复文档路由/锚点；新模块的规则不能拖到这里首次添加。
 
 **验收**：路由和 JSON/错误契约、认证/权限/审计顺序、公开设置/CSP、embed/noembed、设置热更新；旧 handler/domain/model 最后引用有精确清单，不能用全局 alias 文件拖延。
 
@@ -920,7 +974,7 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 3. 移动 integration 到 tests/integration，业务 testutil 随模块，通用设施保留；同步 e2e 脚本、Makefile、CI 与 testdata 的相对路径，保留构建标签。
 4. 检查 Ent schema 对旧 domain/service 的引用并按需生成；无 schema 行为变化时不产生数据库迁移。保留所有已有 SQL 文件 checksum。
 5. 运行第 7 节全量门禁，核对正常/简化/初始化模式和平台构建；同步当前 Project Doc 的新所有者、架构图与路径。
-6. 最终报告实际完成模块、删除的过渡代码、测试结果、仍然存在的有理由的跨模块事务依赖和运维限制。
+6. 按 3.3 的资金写入清单逐项复查代码，确认旧运行态写入已销项、初始化/恢复等长期例外有明确范围。最终报告实际完成模块、删除的过渡代码、测试结果、仍然存在的有理由的跨模块事务依赖和运维限制。
 
 **验收**：达到第 8 节全部完成标准后才把本方案标记为已实施。执行困难或上下文不足时记录未完成项，下次继续；不能因为停止本次任务就把整个阶段勾选完成。
 
@@ -930,10 +984,10 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 
 1. **确认范围**：先读/复用 project-doc 路由到的相关契约，记录源包/文件、调用者和本次需要改变的 Interface。仅声明“迁账号包”仍太大，应缩小到例如“账号凭据持久化与刷新入口”。
 2. **先设计调用形状**：写出调用前后输入、输出、失败与顺序。检验调用方是否少知道了内部细节；若只是套一层长参数构造器，重新设计。
-3. **建立替换位置**：纯计算直接提取；有外部差异/I/O 才定义 Seam。预先明确生产和测试如何替换，不为了数量增加浅层 interface。
+3. **建立替换位置**：纯计算直接提取；有外部差异/I/O 才定义 Seam。预先明确生产和测试如何替换，不为了数量增加浅层 interface；确认新包由 S01 的哪条 depguard 规则覆盖，新增路径与必要例外同批更新。
 4. **移动并解耦**：先完成可编译的机械移动，再单独收紧职责/替换实现。大型步骤用独立 Conventional Commit 分开“移位置”和“改协作方式”，避免一个 diff 同时混淆两者。
 5. **接入唯一运行路径**：更新 app/Wire、所有直接调用者及测试。同一能力不能继续在新旧包各有一份 Implementation；临时保留的旧入口只转发到新实现。
-6. **验证与删除**：运行受影响测试/构建和 depguard，清理不再使用的包装、旧测试和私有暴露。迁移旧测试的语义，不机械保留只验证转发次数或私有结构的测试。
+6. **验证与删除**：按 7.3 运行受影响包及直接调用者的普通、unit 和适用 integration 测试，并在对应标签下运行 depguard；并发变更增加适用标签的 race 检查。清理不再使用的包装、旧测试和私有暴露，迁移旧测试的语义，不机械保留只验证转发次数或私有结构的测试。
 7. **更新文档和进度**：更新受影响 Project Doc 的真实状态与代码锚点，把本次完成内容、兼容 Adapter、未跑的测试及下一步骤追加到第 8 节。
 
 在实际计划模式中实施时，仍按 AGENTS.md 将当次执行计划原样保存到 `.agents/plans/`，进度追加在末尾；本文是整体方案，不替代该约束。常规模式直接执行已授权子步骤，不需要为目录移动重复请求权限。
@@ -952,14 +1006,39 @@ DTO 逐文件归属：`announcement.go → site/httpapi`、`model_marketplace.go
 
 ### 7.3 测试范围与执行命令
 
-以下命令是未来实施步骤的验收入口，编写本文时不宣称已经运行这些代码测试。具体模块路径按已存在的新包替换，不对尚未创建的包执行命令。
+以下命令是未来实施步骤的验收入口，编写本文时不宣称已经运行这些代码测试。具体模块路径按已存在的新包替换，并加入本次直接调用者；不对尚未创建的包执行命令。
+
+每个子步骤都要按构建标签选择测试，不能只在大阶段结束时补跑。审查基线中，service 有 332 个测试文件受 `unit` 标签控制，repository 有 79 个受 `integration` 标签控制；普通 `go test` 与无标签 race 都不会执行它们。普通、unit、integration 分别运行，不能默认合并标签以免改变 `!unit` 等文件的编译集合。
+
+| 本次变更 | 子步骤必须覆盖的验证 |
+| --- | --- |
+| 任意包迁移/代码重构 | 新包与直接调用者的普通测试、unit 测试和对应 lint；核对迁移前后的关键测试实际入选。 |
+| PostgreSQL/Redis/事务/缓存 Adapter 或其调用关系变化 | 上述检查 + 受影响 integration 测试；资金必须包含外层事务回滚，不以 mock 替代。 |
+| 并发、队列、缓存、取消与释放变化 | 普通及 unit 集合的针对性 race；涉及真实存储竞争时对相关 integration 场景也运行 race。 |
+| 路由/鉴权/协议或流生命周期变化 | 模块测试 + 对应请求链契约测试；已有 e2e 场景受影响时在该子步骤执行，不等 S16。 |
+| 新目录或 depguard 规则变化 | 检查新路径确实命中规则，验证非法依赖可被拒绝；在受影响的普通/unit/integration 集合下 lint。 |
 
 ```bash
-# 当前子步骤：在 backend 下运行，替换为本次实际迁移及其直接调用方
+# 当前子步骤：在 backend 下运行；用真实包名替换占位符，并加入直接调用者
 go test ./internal/<module>/...
+go test -tags=unit ./internal/<module>/...
+
+# 涉及存储/缓存/事务时，在准备好真实测试依赖后执行
+go test -tags=integration ./internal/<module>/...
 
 # 同时覆盖旧桥接消费者（仅迁移期间仍存在这些包时）
-go test ./internal/service ./internal/handler ./internal/repository
+go test ./internal/service/... ./internal/handler/... ./internal/repository/...
+go test -tags=unit ./internal/service/... ./internal/handler/... ./internal/repository/...
+
+# 旧仓储或它与新模块的事务/缓存协作受影响时执行
+go test -tags=integration ./internal/repository/...
+
+# 每个子步骤检查已启用的新路径规则；范围也加入本次直接调用者
+golangci-lint run ./internal/<module>/...
+golangci-lint run --build-tags=unit ./internal/<module>/...
+
+# 涉及 integration 集合时执行对应标签的 lint
+golangci-lint run --build-tags=integration ./internal/<module>/...
 
 # 依赖注入修改时，保持现有生成入口
 go generate ./cmd/server
@@ -973,6 +1052,10 @@ go build -tags=embed ./cmd/server
 
 # 并发/队列/缓存迁移的针对性竞争测试
 go test -race ./internal/<module>/...
+go test -race -tags=unit ./internal/<module>/...
+
+# 真实存储并发语义受影响时，缩小到相关场景后执行
+go test -race -tags=integration ./internal/<module>/... -run '<相关测试名>'
 ```
 
 完整阶段/S16 在仓库根使用已有入口：
@@ -985,8 +1068,9 @@ make -C backend test-e2e-local
 git diff --check
 ```
 
-- `test` 包含普通 `go test ./...` 与 golangci-lint。unit/integration/e2e 标签不能因为移动文件被丢弃；测试只在特定标签下编译的旧 testutil 不得被普通生产包引用。
-- integration/e2e 需要实际 PostgreSQL/Redis/服务依赖，缺少环境应明确记录未运行及补验条件，不能用 mock 结果声称锁/事务正确。
+- `test` 包含普通 `go test ./...` 与无标签 golangci-lint，不能替代子步骤中对应标签的检查。unit/integration/e2e 标签不能因为移动文件被丢弃；测试只在特定标签下编译的旧 testutil 不得被普通生产包引用。
+- 通过 `go test -list .` 配合相同的 `-tags`/包范围核对关键测试入选；若显示 `[no test files]`、没有匹配的测试或测试被环境条件 Skip，不能把它作为已覆盖的证据。范围不变且已确认入选后无需重复清点。
+- integration/e2e 需要实际 PostgreSQL/Redis/服务依赖，缺少环境应明确记录未运行及补验条件，不能用 mock 结果声称锁/事务正确。必要验证未完成的子步骤保持待验，可以继续不依赖该结果的工作。
 - `test-e2e-local` 当前指向 `internal/integration`，S16 移动后必须同步成 `tests/integration`；`scripts/e2e-test.sh` 和 CI 的直接路径也一起改。
 - embed 构建依赖 frontend 构建产物。使用仓库既有完整构建路径准备产物，不能提交占位 dist 来骗过编译。
 - 协议目录/DTO/公开配置变化影响前端时，运行 `make test-frontend` 及相关 Vitest；需要时运行前端 build。纯 Go 路径移动且 API 不变不需要改前端。
@@ -1037,11 +1121,15 @@ git diff --check
 - [ ] app/legacybridge、旧类型 alias、旧函数转接和临时财务任务耦合全部清理。
 - [ ] 每个业务模块拥有自己的用例、数据投影、必要 Adapter 和 Interface 测试；不存在把旧大包整体改名的模块。
 - [ ] 核心不依赖 Gin/Ent/Redis/SQL/具体 provider；protocol 不依赖业务和 I/O；depguard 覆盖新路径和允许的精确例外。
+- [ ] 新包从首次引入即受 depguard 检查；普通及适用构建标签均有实际命中证据，S15 只清理过渡规则。
 - [ ] 资金、退款、团队所有权和任务投影原子性保持；没有因包拆分新增半提交状态或无保证事件。
+- [ ] 第 3.3 节资金写入逐项销项，外层事务回滚已验证；长期初始化/恢复权限有明确操作范围，不残留未登记的旧资金入口。
 - [ ] Key、routing、scheduler、upstream、gateway、billing、usage 各自职责明确，重复的准入/选路/结算实现已移除。
+- [ ] S09.1 的非流/SSE 完整链先于其余平台通过；后续接口扩展保持已迁调用者兼容，并回归共同生命周期场景。
 - [ ] 全部 HTTP/协议/配置/缓存/数据库契约、standard/simple/setup/embed 与生命周期验证完成；环境限制明确列出且不冒充通过。
 - [ ] Ent/SQL 迁移和构建生成流程保持有效；手写源与生成物一致；没有改写已发布迁移。
 - [ ] 测试目录、构建标签、CI/脚本路径、Project Doc 与锚点完成同步。
+- [ ] 每个子步骤记录测试标签、关键测试入选及结果；必要测试未因缺标签、无匹配或环境 Skip 被误报通过。
 - [ ] 各阶段均有可审查的 Conventional Commit 或用户要求的等价变更记录；不提交 SYNC.md、计划模式临时计划或无关文件。
 
 ### 8.2 当前阶段状态
@@ -1051,21 +1139,21 @@ git diff --check
 | 阶段 | 状态 | 完成提交 / 证据 | 下一动作 |
 | --- | --- | --- | --- |
 | S00 | 未实施 | — | 以实际实施时 HEAD 复核目录/文件增量与测试基线。 |
-| S01 | 未实施 | — | 通用基础与 HTTP 技术拆分。 |
+| S01 | 未实施 | — | S01.0 先启用新路径 depguard，再拆通用基础与 HTTP 技术。 |
 | S02 | 未实施 | — | app/lifecycle、settings/idempotency、公告试点。 |
 | S03 | 未实施 | — | 协议/能力目录与纯定价。 |
-| S04 | 未实施 | — | billing 与原子资金事务。 |
+| S04 | 未实施 | — | 结算/权益与事务参与能力，登记其余资金写入的退出阶段。 |
 | S05 | 未实施 | — | identity → team → apikey。 |
 | S06 | 未实施 | — | egress → routing → account。 |
 | S07 | 未实施 | — | scheduler/Lease/快照。 |
 | S08 | 未实施 | — | usage → audit → ops。 |
-| S09 | 未实施 | — | 按 S09.1—S09.8 单平台迁移。 |
+| S09 | 未实施 | — | S09.0 定契约，S09.1 先验非流/SSE 完整链，再迁其余平台。 |
 | S10 | 未实施 | — | notification/site/moderation/search。 |
-| S11 | 未实施 | — | gateway 按协议及传输逐条接入。 |
+| S11 | 未实施 | — | 将已验证的 gateway 扩展到其余协议/传输，清理旧编排。 |
 | S12 | 未实施 | — | promotion → payment。 |
 | S13 | 未实施 | — | creative → batchimage 与任务资金去耦。 |
 | S14 | 未实施 | — | backup/setup/维护命令。 |
-| S15 | 未实施 | — | HTTP/DTO/设置聚合收尾。 |
+| S15 | 未实施 | — | HTTP/DTO/设置聚合收尾，清理旧 depguard 规则与例外。 |
 | S16 | 未实施 | — | 旧包删除与全量验收。 |
 
 ### 8.3 实施记录模板
@@ -1078,12 +1166,17 @@ git diff --check
 旧包与源文件 → 新包与目标文件：
 本次 Interface 改变及调用者减少了解的内部规则：
 保留的事务、幂等、缓存、协议契约：
-实际测试/构建命令与结果：
+资金写入清单变更 / 外层事务拥有者 / 提交后副作用 / 剩余例外：
+新包适用的 depguard 规则 / 允许的依赖 / 违规命中验证：
+实际测试/构建/lint 命令、标签、关键测试入选与结果：
 未运行项及补验条件：
 临时 Adapter / alias / 剩余消费者 / 删除阶段：
+请求链迁移时的生命周期场景与已迁调用者兼容验证：
 Project Doc 与代码锚点变更：
 本次发现的新增代码归属或计划调整及原因：
 下一次可直接执行的子步骤：
 ```
 
 2026-09-10：完成目标结构、112 个旧目录映射、repository 128 个源文件责任登记和 S00—S16 迁移设计；尚未执行任何代码迁移。
+
+2026-09-10：根据计划审查补全资金写入与事务参与清单，收紧 S04 的完成范围；增加 S09.0/S09.1 首条非流与 SSE 请求链门禁；将新路径 depguard 前置至 S01.0，并把构建标签测试及 lint 纳入每个子步骤。此次仅优化计划，阶段状态仍为未实施。
