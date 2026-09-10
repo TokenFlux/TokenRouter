@@ -1,6 +1,7 @@
 export default {
 // Common
   common: {
+    retry: '重试',
     loading: '加载中...',
     justNow: '刚刚',
     peakRateTooltip: '高峰倍率：{window}',

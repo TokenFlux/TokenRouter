@@ -2,7 +2,11 @@
   <section class="space-y-3 border-t border-gray-200 pt-4 dark:border-dark-400">
     <h4 class="text-sm font-medium">{{ t('admin.protocols.groupTitle') }}</h4>
     <p class="input-hint">{{ t('admin.protocols.groupHint') }}</p>
-    <p v-if="error" class="text-sm text-red-500">{{ t('admin.protocols.loadError') }}</p>
+    <div v-if="protocolCatalogError" class="flex items-center gap-2 text-sm text-red-500" role="alert">
+      <span>{{ t('admin.protocols.loadError') }}</span>
+      <button type="button" class="underline" data-testid="protocol-catalog-retry" :disabled="protocolCatalogLoading" @click="retryCatalog">{{ t('common.retry') }}</button>
+    </div>
+    <p v-else-if="!protocolCatalog" class="input-hint">{{ t('common.loading') }}</p>
     <div data-testid="client-protocol-list" class="divide-y divide-gray-100 dark:divide-dark-700">
       <div v-for="protocol in protocols" :key="protocol.id" class="grid items-center gap-3 py-3 sm:grid-cols-2">
         <div class="flex items-center justify-between gap-3">
@@ -22,12 +26,12 @@
   </section>
 </template>
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Toggle from '@/components/common/Toggle.vue'
 import Select from '@/components/common/Select.vue'
 import CodexImageToolModeSelector from '@/components/account/CodexImageToolModeSelector.vue'
-import { loadProtocolCatalog, protocolCatalog } from '@/api/admin/protocolCapabilities'
+import { loadProtocolCatalog, protocolCatalog, protocolCatalogError, protocolCatalogLoading } from '@/api/admin/protocolCapabilities'
 import type { ProtocolID, GroupPlatform } from '@/types'
 import type { CodexImageToolMode } from '@/utils/codexImageToolMode'
 import { setGroupClientProtocol } from '@/utils/groupClientProtocols'
@@ -38,8 +42,9 @@ const emit = defineEmits<{
   'update:imagePolicy': [value: CodexImageToolMode]
 }>()
 const { t } = useI18n()
-const error = ref(false)
-void loadProtocolCatalog().catch(() => { error.value = true })
+// 所有表单共享加载状态；任一入口重试成功后同时恢复。
+function retryCatalog() { void loadProtocolCatalog().catch(() => {}) }
+retryCatalog()
 const profile = computed(() => protocolCatalog.value?.groups.find(group => group.platform === props.platform))
 const protocols = computed(() => protocolCatalog.value?.protocols.filter(protocol => profile.value?.protocols.includes(protocol.id)) ?? [])
 function targetOptions(source: ProtocolID) {

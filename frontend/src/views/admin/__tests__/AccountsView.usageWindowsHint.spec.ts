@@ -1,3 +1,4 @@
+import { useProtocolCatalogFixture } from '@/__tests__/helpers/protocolCatalog'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
@@ -194,3 +195,5 @@ describe('admin AccountsView usage windows hint', () => {
     expect(columns.some(column => column.key === 'upstream_billing_rate')).toBe(false)
   })
 })
+
+useProtocolCatalogFixture()

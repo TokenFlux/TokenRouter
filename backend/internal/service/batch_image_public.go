@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"sort"
 	"strconv"
 	"strings"
@@ -1061,7 +1062,7 @@ func (s *BatchImagePublicService) selectProviderAndAccount(
 			if !account.IsSchedulable() || !account.IsModelSupported(routingModel) {
 				continue
 			}
-			if _, enabled := ResolveProtocolRoute(&account, nil, "image_batches"); !enabled {
+			if _, enabled := ResolveProtocolRoute(&account, nil, domain.ProtocolImageBatches); !enabled {
 				continue
 			}
 			if !provider.SupportsAccount(&account) {

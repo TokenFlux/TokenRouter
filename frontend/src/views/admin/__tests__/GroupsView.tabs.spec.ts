@@ -1,3 +1,4 @@
+import { useProtocolCatalogFixture } from '@/__tests__/helpers/protocolCatalog'
 import { defineComponent } from 'vue'
 import { createPinia } from 'pinia'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
@@ -328,4 +329,57 @@ describe.each(['create', 'edit'] as const)('GroupsView %s tabs', mode => {
     expect(document.activeElement).toBe(card.get('input[type="number"]').element)
     expect(groups[mode === 'create' ? 'create' : 'update']).not.toHaveBeenCalled()
   })
+})
+
+useProtocolCatalogFixture()
+
+it('首次加载目录后初始化创建默认值，清空后提交不恢复默认值', async () => {
+  const { protocolCatalog } = await import('@/api/admin/protocolCapabilities')
+  const { default: client } = await import('@/api/client')
+  const { default: fixture } = await import('@/__tests__/fixtures/protocol-catalog.json')
+  protocolCatalog.value = null
+  const request = vi.spyOn(client, 'get').mockResolvedValue({ data: structuredClone(fixture) })
+  try {
+    const wrapper = await open('create', 'anthropic')
+    const selector = wrapper.getComponent(GroupClientProtocolSelector)
+    const defaults = fixture.groups.find(group => group.platform === 'anthropic')!
+    expect(selector.props('modelValue')).toEqual(defaults.defaults)
+    expect(selector.props('fallbacks')).toEqual(defaults.default_fallbacks)
+    selector.vm.$emit('update:modelValue', [])
+    selector.vm.$emit('update:fallbacks', {})
+    await flushPromises()
+    expect(selector.props('modelValue')).toEqual([])
+    await wrapper.get('#create-group-form').trigger('submit')
+    await flushPromises()
+    expect(groups.create.mock.calls[0]?.[0]).toMatchObject({ allowed_protocols: [], protocol_fallbacks: {} })
+    await wrapper.get('[data-tour="groups-create-btn"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.getComponent(GroupClientProtocolSelector).props('modelValue')).toEqual(defaults.defaults)
+    expect(wrapper.getComponent(GroupClientProtocolSelector).props('fallbacks')).toEqual(defaults.default_fallbacks)
+  } finally { request.mockRestore() }
+})
+
+it.each(['create', 'edit'] as const)('目录失败时阻止 %s 提交，重试恢复且保留编辑的空配置', async mode => {
+  const { protocolCatalog } = await import('@/api/admin/protocolCapabilities')
+  const { default: client } = await import('@/api/client')
+  const { default: fixture } = await import('@/__tests__/fixtures/protocol-catalog.json')
+  protocolCatalog.value = null
+  const request = vi.spyOn(client, 'get').mockRejectedValue(new Error('offline'))
+  try {
+    const wrapper = await open(mode, 'anthropic', { allowed_protocols: [], protocol_fallbacks: {} })
+    await wrapper.get(`#${mode}-group-form`).trigger('submit')
+    await flushPromises()
+    expect(groups.create).not.toHaveBeenCalled()
+    expect(groups.update).not.toHaveBeenCalled()
+    expect(wrapper.getComponent(GroupClientProtocolSelector).find('[role="alert"]').exists()).toBe(true)
+    request.mockResolvedValue({ data: structuredClone(fixture) })
+    await wrapper.get('[data-testid="protocol-catalog-retry"]').trigger('click')
+    await flushPromises()
+    const selector = wrapper.getComponent(GroupClientProtocolSelector)
+    expect(selector.find('[role="alert"]').exists()).toBe(false)
+    expect(selector.props('modelValue')).toEqual(mode === 'create' ? ['anthropic_messages'] : [])
+    await wrapper.get(`#${mode}-group-form`).trigger('submit')
+    await flushPromises()
+    expect(groups[mode === 'create' ? 'create' : 'update']).toHaveBeenCalledTimes(1)
+  } finally { request.mockRestore() }
 })

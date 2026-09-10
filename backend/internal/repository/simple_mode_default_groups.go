@@ -80,7 +80,7 @@ func createGroupIfNotExists(ctx context.Context, client *dbent.Client, name, pla
 		SetIsExclusive(false).
 		SetAllowImageGeneration(platform == service.PlatformGrok).
 		SetAllowedProtocols(domain.DefaultGroupClientProtocols(platform)).
-		SetProtocolFallbacks(service.DefaultProtocolFallbacks(platform)).
+		SetProtocolFallbacks(domain.DefaultProtocolFallbacks(platform)).
 		SetResponsesImagePolicy("inherit").
 		Save(ctx)
 	if err != nil {

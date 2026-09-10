@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
@@ -114,8 +115,8 @@ func (s *GroupService) Create(ctx context.Context, req CreateGroupRequest) (*Gro
 		Description:          req.Description,
 		Platform:             PlatformAnthropic,
 		SchedulerType:        GroupSchedulerTypeBasic,
-		AllowedProtocols:     defaultGroupClientProtocols(PlatformAnthropic),
-		ProtocolFallbacks:    DefaultProtocolFallbacks(PlatformAnthropic),
+		AllowedProtocols:     domain.DefaultGroupClientProtocols(PlatformAnthropic),
+		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(PlatformAnthropic),
 		ResponsesImagePolicy: "inherit",
 		RateMultiplier:       req.RateMultiplier,
 		IsExclusive:          req.IsExclusive,

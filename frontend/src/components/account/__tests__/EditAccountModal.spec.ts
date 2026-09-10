@@ -1,3 +1,4 @@
+import { useProtocolCatalogFixture } from '@/__tests__/helpers/protocolCatalog'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
@@ -1625,3 +1626,5 @@ describe('EditAccountModal', () => {
     expect(updateAccountMock).not.toHaveBeenCalled()
   })
 })
+
+useProtocolCatalogFixture()

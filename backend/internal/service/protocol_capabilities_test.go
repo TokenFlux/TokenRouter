@@ -113,7 +113,7 @@ func TestProtocolSaveEntrypointsAndBulkRejectBeforeWrite(t *testing.T) {
 
 func TestProtocolImagePolicyAndBatchBinding(t *testing.T) {
 	group := &Group{Platform: PlatformOpenAI, AllowedProtocols: []domain.ProtocolID{}, ResponsesImagePolicy: "enabled"}
-	require.NoError(t, normalizeGroupProtocolPolicy(group))
+	require.NoError(t, normalizeGroupProtocolPolicy(group, nil))
 	require.False(t, GroupAllowsImageGeneration(group))
 	require.True(t, GroupAllowsResponsesImages(group))
 	require.Equal(t, codexImageGenerationExplicitToolPolicyAllow, groupResponsesExplicitToolPolicy(group, codexImageGenerationExplicitToolPolicyStrip))

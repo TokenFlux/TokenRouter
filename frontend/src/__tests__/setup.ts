@@ -3,9 +3,7 @@
  * 提供全局 mock 和测试工具
  */
 import { config } from '@vue/test-utils'
-import { vi, beforeEach } from 'vitest'
-import { protocolCatalog, type ProtocolCatalog } from '@/api/admin/protocolCapabilities'
-import protocolFixture from './fixtures/protocol-catalog.json'
+import { vi } from 'vitest'
 
 function createMemoryStorage(): Storage {
   const values = new Map<string, string>()
@@ -98,6 +96,3 @@ config.global.stubs = {
 
 // 设置全局测试超时
 vi.setConfig({ testTimeout: 10000 })
-
-// 管理端协议表单使用后端导出的目录夹具，避免组件测试真实访问管理 API。
-beforeEach(() => { protocolCatalog.value = protocolFixture as ProtocolCatalog })

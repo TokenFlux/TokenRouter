@@ -1,3 +1,4 @@
+import { useProtocolCatalogFixture } from '@/__tests__/helpers/protocolCatalog'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
@@ -153,3 +154,5 @@ describe('admin AccountsView priority column preferences', () => {
     expect(JSON.parse(localStorage.getItem('account-hidden-columns') || '[]')).not.toContain('priority')
   })
 })
+
+useProtocolCatalogFixture()

@@ -1,3 +1,4 @@
+import { useProtocolCatalogFixture } from '@/__tests__/helpers/protocolCatalog'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount } from '@vue/test-utils'
@@ -324,3 +325,5 @@ describe('EditAccountModal Grok OAuth upstream config', () => {
     ).toBe('false')
   })
 })
+
+useProtocolCatalogFixture()

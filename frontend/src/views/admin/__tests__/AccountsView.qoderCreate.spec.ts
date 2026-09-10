@@ -1,3 +1,4 @@
+import { useProtocolCatalogFixture } from '@/__tests__/helpers/protocolCatalog'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
@@ -166,3 +167,5 @@ describe('admin AccountsView Qoder create entry', () => {
     expect(modal.attributes('data-initial-platform')).toBe('')
   })
 })
+
+useProtocolCatalogFixture()

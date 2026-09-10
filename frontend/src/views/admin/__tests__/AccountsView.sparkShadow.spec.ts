@@ -1,3 +1,4 @@
+import { useProtocolCatalogFixture } from '@/__tests__/helpers/protocolCatalog'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
@@ -589,3 +590,5 @@ describe('admin AccountsView — 账号行展示', () => {
     wrapper.unmount()
   })
 })
+
+useProtocolCatalogFixture()

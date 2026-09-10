@@ -1,6 +1,7 @@
 export default {
 // Common
   common: {
+    retry: 'Retry',
     loading: 'Loading...',
     justNow: 'just now',
     peakRateTooltip: 'Peak rate: {window}',

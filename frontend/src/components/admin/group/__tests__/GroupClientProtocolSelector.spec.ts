@@ -1,8 +1,10 @@
+import { useProtocolCatalogFixture } from '@/__tests__/helpers/protocolCatalog'
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import GroupClientProtocolSelector from '../GroupClientProtocolSelector.vue'
 
-vi.mock('vue-i18n', () => ({
+vi.mock('vue-i18n', async () => ({
+  ...await vi.importActual('vue-i18n'),
   useI18n: () => ({ t: (key: string) => key })
 }))
 
@@ -97,3 +99,5 @@ it('转换目标与客户端入口开关独立，并使用项目 Select', async 
   expect(wrapper.emitted('update:fallbacks')?.at(-1)?.[0]).toEqual({ anthropic_messages: 'openai_chat_completions' })
   expect(wrapper.emitted('update:modelValue')).toBeUndefined()
 })
+
+useProtocolCatalogFixture()

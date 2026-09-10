@@ -163,17 +163,12 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	}
 	allowedClientProtocols := input.AllowedProtocols
 	if allowedClientProtocols == nil {
-		allowedClientProtocols = defaultGroupClientProtocols(platform)
+		allowedClientProtocols = domain.DefaultGroupClientProtocols(platform)
 		if platform == PlatformOpenAI {
-			allowedClientProtocols = setGroupClientProtocol(allowedClientProtocols, domain.ProtocolAnthropicMessages, input.AllowMessagesDispatch)
+			allowedClientProtocols = domain.SetGroupClientProtocol(allowedClientProtocols, domain.ProtocolAnthropicMessages, input.AllowMessagesDispatch)
 		}
-	} else {
-		normalizedProtocols, validationErr := normalizeExplicitGroupClientProtocols(platform, allowedClientProtocols)
-		if validationErr != nil {
-			return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_ALLOWED_CLIENT_PROTOCOLS", "%v", validationErr)
-		}
-		allowedClientProtocols = normalizedProtocols
 	}
+
 	modelPricing, err := normalizeGroupModelPricing(platform, input.ModelPricing)
 	if err != nil {
 		return nil, err
@@ -367,12 +362,13 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	sanitizeGroupReasoningEffortPolicy(group)
 	normalizeGroupDefaultState(group)
 	if group.ProtocolFallbacks == nil {
-		group.ProtocolFallbacks = DefaultProtocolFallbacks(platform)
+		group.ProtocolFallbacks = domain.DefaultProtocolFallbacks(platform)
 	}
+	var legacy *legacyGroupProtocolPatch
 	if input.AllowedProtocols == nil || input.LegacyProtocolInput {
-		applyLegacyGroupMediaProtocols(group)
+		legacy = &legacyGroupProtocolPatch{image: &group.AllowImageGeneration, batch: &group.AllowBatchImageGeneration, live: &group.AllowLive}
 	}
-	if err := normalizeGroupProtocolPolicy(group); err != nil {
+	if err := normalizeGroupProtocolPolicy(group, legacy); err != nil {
 		return nil, err
 	}
 
@@ -566,22 +562,12 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		group.AdvancedSchedulerOverrides = CloneGroupAdvancedSchedulerOverrides(*input.AdvancedSchedulerOverrides)
 	}
 	if input.AllowedProtocols != nil {
-		group.AllowedProtocols, err = normalizeExplicitGroupClientProtocols(group.Platform, *input.AllowedProtocols)
-		if err != nil {
-			return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_ALLOWED_CLIENT_PROTOCOLS", "%v", err)
-		}
+		group.AllowedProtocols = append([]domain.ProtocolID{}, (*input.AllowedProtocols)...)
 	} else {
 		// 字段缺省时保留原集合；切换平台只移除新平台不支持的协议。
 		group.AllowedProtocols = previousAllowedProtocols
 		if input.Platform != "" && group.Platform != previousPlatform {
 			group.AllowedProtocols = filterGroupClientProtocolsForPlatform(group.Platform, group.AllowedProtocols)
-		}
-		if group.Platform == PlatformOpenAI && input.AllowMessagesDispatch != nil {
-			group.AllowedProtocols = setGroupClientProtocol(group.AllowedProtocols, domain.ProtocolAnthropicMessages, *input.AllowMessagesDispatch)
-		}
-		group.AllowedProtocols, err = normalizeExplicitGroupClientProtocols(group.Platform, group.AllowedProtocols)
-		if err != nil {
-			return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_ALLOWED_CLIENT_PROTOCOLS", "%v", err)
 		}
 	}
 	if input.DisplayBrand != nil {
@@ -820,33 +806,22 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.ProtocolFallbacks != nil {
 		group.ProtocolFallbacks = input.ProtocolFallbacks
 	} else if input.Platform != "" && input.Platform != previousPlatform {
-		group.ProtocolFallbacks = DefaultProtocolFallbacks(group.Platform)
+		group.ProtocolFallbacks = domain.DefaultProtocolFallbacks(group.Platform)
 	}
 	if input.ResponsesImagePolicy != "" {
 		group.ResponsesImagePolicy = input.ResponsesImagePolicy
 	}
+	var legacy *legacyGroupProtocolPatch
 	if input.AllowedProtocols == nil || input.LegacyProtocolInput {
-		// 旧布尔字段只在明确提交时改变对应入口，普通编辑不能把仅编辑权限扩成生成权限。
-		patch := func(protocol domain.ProtocolID, enabled bool) {
-			if len(filterGroupClientProtocolsForPlatform(group.Platform, []domain.ProtocolID{protocol})) > 0 {
-				group.AllowedProtocols = setGroupClientProtocol(group.AllowedProtocols, protocol, enabled)
-			}
-		}
-		if input.AllowImageGeneration != nil {
-			patch("openai_images_generations", *input.AllowImageGeneration)
-			patch("openai_images_edits", *input.AllowImageGeneration)
-			if !*input.AllowImageGeneration {
-				patch("image_batches", false)
-			}
-		}
+		legacy = &legacyGroupProtocolPatch{image: input.AllowImageGeneration, live: input.AllowLive}
 		if input.AllowBatchImageGeneration != nil {
-			patch("image_batches", group.AllowBatchImageGeneration)
+			legacy.batch = &group.AllowBatchImageGeneration
 		}
-		if input.AllowLive != nil {
-			patch("openai_live", *input.AllowLive)
+		if input.AllowedProtocols == nil && group.Platform == PlatformOpenAI {
+			legacy.messages = input.AllowMessagesDispatch
 		}
 	}
-	if err := normalizeGroupProtocolPolicy(group); err != nil {
+	if err := normalizeGroupProtocolPolicy(group, legacy); err != nil {
 		return nil, err
 	}
 

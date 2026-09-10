@@ -1,7 +1,8 @@
+import { useProtocolCatalogFixture } from '@/__tests__/helpers/protocolCatalog'
 import { describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import AccountProtocolSelector from '../AccountProtocolSelector.vue'
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('vue-i18n', async () => ({ ...await vi.importActual('vue-i18n'), useI18n: () => ({ t: (key: string) => key }) }))
 
 // 原生能力和客户端转换入口必须分开，特别覆盖认证方式与空集合。
 describe('AccountProtocolSelector', () => {
@@ -23,4 +24,37 @@ describe('AccountProtocolSelector', () => {
     await flushPromises()
     expect(wrapper.emitted('update:modelValue')?.at(-1)?.[0]).toEqual(['openai_responses','openai_responses_websocket','openai_responses_compact'])
   })
+})
+
+useProtocolCatalogFixture()
+
+it('账号与分组选项共享错误恢复，保留显式关闭的账号集合', async () => {
+  const { protocolCatalog } = await import('@/api/admin/protocolCapabilities')
+  const { default: client } = await import('@/api/client')
+  const { default: fixture } = await import('@/__tests__/fixtures/protocol-catalog.json')
+  const { default: GroupSelector } = await import('@/components/admin/group/GroupClientProtocolSelector.vue')
+  protocolCatalog.value = null
+  const request = vi.spyOn(client, 'get').mockRejectedValue(new Error('offline'))
+  const account = mount(AccountProtocolSelector, { props: { platform: 'openai', type: 'apikey', modelValue: [] } })
+  const group = mount(GroupSelector, { props: { platform: 'openai', modelValue: [] } })
+  try {
+    await flushPromises()
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(account.find('[role="alert"]').exists()).toBe(true)
+    expect(group.find('[role="alert"]').exists()).toBe(true)
+    request.mockResolvedValue({ data: structuredClone(fixture) })
+    await account.get('[data-testid="protocol-catalog-retry"]').trigger('click')
+    await flushPromises()
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(account.find('[role="alert"]').exists()).toBe(false)
+    expect(group.find('[role="alert"]').exists()).toBe(false)
+    expect(account.find('[data-native-protocol="openai_responses"]').exists()).toBe(true)
+    expect(group.find('[data-protocol="openai_responses"]').exists()).toBe(true)
+    expect(account.emitted('update:modelValue')).toBeUndefined()
+    expect(group.emitted('update:modelValue')).toBeUndefined()
+  } finally {
+    request.mockRestore()
+    account.unmount()
+    group.unmount()
+  }
 })

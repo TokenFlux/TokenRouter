@@ -7,7 +7,8 @@ const { copyToClipboardMock } = vi.hoisted(() => ({
   copyToClipboardMock: vi.fn().mockResolvedValue(true)
 }))
 
-vi.mock('vue-i18n', () => ({
+vi.mock('vue-i18n', async () => ({
+  ...await vi.importActual('vue-i18n'),
   useI18n: () => ({
     t: (key: string) => key
   })

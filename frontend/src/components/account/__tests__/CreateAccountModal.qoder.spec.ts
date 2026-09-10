@@ -1,3 +1,4 @@
+import { useProtocolCatalogFixture } from '@/__tests__/helpers/protocolCatalog'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
@@ -677,3 +678,5 @@ describe('CreateAccountModal Qoder model restriction', () => {
     wrapper.unmount()
   })
 })
+
+useProtocolCatalogFixture()

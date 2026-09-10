@@ -41,3 +41,32 @@ func TestProtocolGroupPersistenceAndCacheIsolation(t *testing.T) {
 	_, err = svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{ProtocolFallbacks: map[domain.ProtocolID]domain.ProtocolID{domain.ProtocolEmbeddings: domain.ProtocolOpenAIResponses}})
 	require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
 }
+
+// 显式集合必须先接受校验，旧媒体补丁不能吞掉重复、未知或不支持的项。
+func TestGroupProtocolLegacyPatchDoesNotHideInvalidInput(t *testing.T) {
+	for _, protocols := range [][]domain.ProtocolID{
+		{"unknown"},
+		{domain.ProtocolImagesEdits, domain.ProtocolImagesEdits},
+		{domain.ProtocolGeminiGenerateContent},
+	} {
+		t.Run(string(protocols[0]), func(t *testing.T) {
+			enabled := true
+			repo := &groupRepoStubForAdmin{}
+			svc := &adminServiceImpl{groupRepo: repo}
+			_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
+				Name: "invalid", Platform: PlatformOpenAI, RateMultiplier: 1,
+				AllowedProtocols: protocols, LegacyProtocolInput: true, AllowImageGeneration: enabled,
+			})
+			require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+			require.Equal(t, "INVALID_ALLOWED_CLIENT_PROTOCOLS", infraerrors.Reason(err))
+			require.Nil(t, repo.created)
+			repo.getByID = &Group{ID: 1, Platform: PlatformOpenAI, RateMultiplier: 1, AllowedProtocols: []domain.ProtocolID{domain.ProtocolOpenAIResponses}}
+			_, err = svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
+				AllowedProtocols: &protocols, LegacyProtocolInput: true, AllowImageGeneration: &enabled,
+			})
+			require.Equal(t, http.StatusBadRequest, infraerrors.Code(err))
+			require.Equal(t, "INVALID_ALLOWED_CLIENT_PROTOCOLS", infraerrors.Reason(err))
+			require.Nil(t, repo.updated)
+		})
+	}
+}

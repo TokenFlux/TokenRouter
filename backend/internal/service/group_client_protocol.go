@@ -1,8 +1,14 @@
 package service
 
-import "github.com/TokenFlux/TokenRouter/internal/domain"
+import (
+	"fmt"
+	"slices"
 
-// EffectiveAllowedProtocols 返回可用于热路径判定的协议集合。
+	"github.com/TokenFlux/TokenRouter/internal/domain"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+)
+
+// EffectiveAllowedProtocols 为响应映射和编辑快照返回独立协议集合。
 // 返回独立副本，并把 nil 统一表达为合法的空集合。
 func (g *Group) EffectiveAllowedProtocols() []domain.ProtocolID {
 	if g == nil {
@@ -16,12 +22,7 @@ func (g *Group) AllowsClientProtocol(protocol domain.ProtocolID) bool {
 	if g == nil {
 		return false
 	}
-	return domain.HasGroupClientProtocol(g.EffectiveAllowedProtocols(), protocol)
-}
-
-// normalizeExplicitGroupClientProtocols 校验显式 API 输入并保持固定顺序。
-func normalizeExplicitGroupClientProtocols(platform string, protocols []domain.ProtocolID) ([]domain.ProtocolID, error) {
-	return domain.ValidateGroupClientProtocols(platform, protocols)
+	return slices.Contains(g.AllowedProtocols, protocol)
 }
 
 // filterGroupClientProtocolsForPlatform 在平台切换时只保留新平台支持的协议。
@@ -40,12 +41,34 @@ func filterGroupClientProtocolsForPlatform(platform string, protocols []domain.P
 	return selected
 }
 
-// defaultGroupClientProtocols 返回新建分组的默认协议集合。
-func defaultGroupClientProtocols(platform string) []domain.ProtocolID {
-	return domain.DefaultGroupClientProtocols(platform)
-}
-
-// setGroupClientProtocol 更新兼容字段对应的单个协议。
-func setGroupClientProtocol(protocols []domain.ProtocolID, protocol domain.ProtocolID, enabled bool) []domain.ProtocolID {
-	return domain.SetGroupClientProtocol(protocols, protocol, enabled)
+// normalizeGroupProtocolPolicy 校验一次原始集合，再应用兼容输入并生成旧字段镜像。
+// @project-doc docs/interfaces/protocol_capabilities.md#group_protocol_routes
+func normalizeGroupProtocolPolicy(group *Group, legacy *legacyGroupProtocolPatch) error {
+	normalized, err := domain.ValidateGroupClientProtocols(group.Platform, group.AllowedProtocols)
+	if err != nil {
+		return infraerrors.BadRequest("INVALID_ALLOWED_CLIENT_PROTOCOLS", err.Error())
+	}
+	group.AllowedProtocols = normalized
+	applyLegacyGroupProtocolPatch(group, legacy)
+	for source, target := range group.ProtocolFallbacks {
+		if !slices.Contains(domain.ProtocolFallbackTargets(group.Platform, source), target) {
+			return infraerrors.BadRequest("GROUP_PROTOCOL_FALLBACK_INVALID", fmt.Sprintf("unsupported conversion %s -> %s", source, target))
+		}
+	}
+	if group.ProtocolFallbacks == nil {
+		group.ProtocolFallbacks = map[domain.ProtocolID]domain.ProtocolID{}
+	}
+	switch group.ResponsesImagePolicy {
+	case "":
+		group.ResponsesImagePolicy = "inherit"
+	case "inherit", "enabled", "disabled", "block":
+	default:
+		return infraerrors.BadRequest("GROUP_RESPONSES_IMAGE_POLICY_INVALID", "invalid Responses image policy")
+	}
+	// 旧服务仍读取这些派生值；它们不再作为独立配置写入。
+	group.AllowMessagesDispatch = group.Platform == PlatformOpenAI && slices.Contains(group.AllowedProtocols, domain.ProtocolAnthropicMessages)
+	group.AllowImageGeneration = slices.Contains(group.AllowedProtocols, domain.ProtocolImagesGenerations) || slices.Contains(group.AllowedProtocols, domain.ProtocolImagesEdits) || slices.Contains(group.AllowedProtocols, domain.ProtocolImageBatches) || slices.Contains(group.AllowedProtocols, domain.ProtocolGeminiGenerateContent)
+	group.AllowBatchImageGeneration = slices.Contains(group.AllowedProtocols, domain.ProtocolImageBatches)
+	group.AllowLive = slices.Contains(group.AllowedProtocols, domain.ProtocolLive)
+	return nil
 }

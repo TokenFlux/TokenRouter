@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -88,7 +89,7 @@ func (p *GeminiAPIBatchImageProvider) SupportsAccount(account *Account) bool {
 }
 
 func (p *GeminiAPIBatchImageProvider) Submit(ctx context.Context, job *BatchImageJob, account *Account, input BatchImageInput) (*BatchProviderJob, error) {
-	if _, enabled := ResolveProtocolRoute(account, nil, "image_batches"); !enabled {
+	if _, enabled := ResolveProtocolRoute(account, nil, domain.ProtocolImageBatches); !enabled {
 		return nil, ErrBatchImageProviderUnsupportedAccount
 	}
 	if account == nil || account.Platform != PlatformGemini || account.Type != AccountTypeAPIKey {

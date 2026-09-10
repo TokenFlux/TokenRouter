@@ -1,3 +1,4 @@
+import { useProtocolCatalogFixture } from '@/__tests__/helpers/protocolCatalog'
 import { describe, expect, it } from 'vitest'
 import { protocolCatalog } from '@/api/admin/protocolCapabilities'
 import type { GroupPlatform } from '@/types'
@@ -41,3 +42,5 @@ it('用户侧直接读取后端集合，不依赖管理员目录', () => {
   protocolCatalog.value = null
   expect(effectiveGroupClientProtocols('openai', ['openai_responses','openai_images_edits'])).toEqual(['openai_responses','openai_images_edits'])
 })
+
+useProtocolCatalogFixture()

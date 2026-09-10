@@ -1,3 +1,4 @@
+import { useProtocolCatalogFixture } from '@/__tests__/helpers/protocolCatalog'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
@@ -677,3 +678,5 @@ describe('admin AccountsView bulk edit scope', () => {
     expect(wrapper.find('[data-test="probe-upstream-billing"]').exists()).toBe(false)
   })
 })
+
+useProtocolCatalogFixture()

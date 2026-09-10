@@ -3365,7 +3365,6 @@ import {
 } from "@/utils/providerBrand";
 import { extractApiErrorMessage } from "@/utils/apiError";
 import {
-  defaultGroupClientProtocols,
   effectiveGroupClientProtocols,
   hasGroupClientProtocol,
 } from "@/utils/groupClientProtocols";
@@ -3959,7 +3958,7 @@ const createForm = reactive({
   advanced_scheduler_overrides: {} as GroupAdvancedSchedulerOverrides,
   protocol_fallbacks: {} as Partial<Record<ProtocolID, ProtocolID>>,
   responses_image_policy: "inherit" as "inherit" | "enabled" | "disabled" | "block",
-  allowed_protocols: defaultGroupClientProtocols("anthropic") as ProtocolID[],
+  allowed_protocols: [] as ProtocolID[],
   rate_multiplier: 1.0,
   is_exclusive: false,
   is_default: false,
@@ -4387,7 +4386,7 @@ const editForm = reactive({
   advanced_scheduler_overrides: {} as GroupAdvancedSchedulerOverrides,
   protocol_fallbacks: {} as Partial<Record<ProtocolID, ProtocolID>>,
   responses_image_policy: "inherit" as "inherit" | "enabled" | "disabled" | "block",
-  allowed_protocols: defaultGroupClientProtocols("anthropic") as ProtocolID[],
+  allowed_protocols: [] as ProtocolID[],
   rate_multiplier: 1.0,
   is_exclusive: false,
   is_default: false,
@@ -4454,6 +4453,37 @@ const editForm = reactive({
   availability_probe_timeout_seconds: 30,
   availability_probe_max_retries: 3,
   availability_probe_user_agent: "",
+});
+
+// 草稿默认值必须在目录就绪后建立；空集合是用户配置，不能作为“未初始化”的标记。
+function initializeGroupProtocolDefaults(form: {
+  platform: GroupPlatform;
+  allowed_protocols: ProtocolID[];
+  protocol_fallbacks: Partial<Record<ProtocolID, ProtocolID>>;
+}) {
+  const profile = protocolCatalog.value?.groups.find(group => group.platform === form.platform);
+  if (!profile) return;
+  form.allowed_protocols = [...profile.defaults];
+  form.protocol_fallbacks = { ...profile.default_fallbacks };
+}
+
+watch(
+  [() => createForm.platform, () => protocolCatalog.value],
+  ([platform, catalog], [previousPlatform, previousCatalog]) => {
+    if (catalog && (!previousCatalog || platform !== previousPlatform)) {
+      initializeGroupProtocolDefaults(createForm);
+    }
+  },
+  { immediate: true, flush: "sync" },
+);
+
+// 编辑回显保留服务器配置；只有目录未就绪时的主动平台切换需要延后初始化。
+const editProtocolDefaultsPending = ref(false);
+watch(protocolCatalog, (catalog) => {
+  if (catalog && editProtocolDefaultsPending.value) {
+    initializeGroupProtocolDefaults(editForm);
+    editProtocolDefaultsPending.value = false;
+  }
 });
 
 const createMessagesDispatchEnabled = computed(() =>
@@ -4751,8 +4781,7 @@ const closeCreateModal = () => {
   createForm.platform = "anthropic";
   createForm.scheduler_type = "basic";
   createForm.advanced_scheduler_overrides = {};
-  createForm.allowed_protocols = defaultGroupClientProtocols("anthropic");
-  createForm.protocol_fallbacks = { ...protocolCatalog.value?.groups.find(group => group.platform === "anthropic")?.default_fallbacks };
+  initializeGroupProtocolDefaults(createForm);
   createForm.responses_image_policy = "inherit";
   createForm.rate_multiplier = 1.0;
   createForm.is_exclusive = false;
@@ -4847,7 +4876,7 @@ const validateGroupForm = async (target: "create" | "edit"): Promise<boolean> =>
 };
 
 const handleCreateGroup = async () => {
-  if (submitting.value || !(await validateGroupForm("create"))) return;
+  if (!protocolCatalog.value || submitting.value || !(await validateGroupForm("create"))) return;
   if (submitting.value || !showCreateModal.value) return;
   submitting.value = true;
   try {
@@ -5007,6 +5036,7 @@ const handleEdit = async (group: AdminGroup) => {
     group.allowed_protocols,
   );
   editForm.protocol_fallbacks = { ...group.protocol_fallbacks };
+  editProtocolDefaultsPending.value = false;
   editForm.responses_image_policy = group.responses_image_policy ?? "inherit";
   editForm.allow_live = group.allowed_protocols?.includes('openai_live') ?? false;
   editForm.openai_fast_policy = normalizeGroupOpenAIFastPolicy(
@@ -5094,7 +5124,7 @@ const closeEditModal = () => {
 
 const handleUpdateGroup = async () => {
   if (!editingGroup.value) return;
-  if (submitting.value || !(await validateGroupForm("edit"))) return;
+  if (!protocolCatalog.value || submitting.value || !(await validateGroupForm("edit"))) return;
   if (submitting.value || !showEditModal.value || !editingGroup.value) return;
 
   submitting.value = true;
@@ -5301,8 +5331,6 @@ watch(
 watch(
   () => createForm.platform,
   (newVal) => {
-    createForm.allowed_protocols = defaultGroupClientProtocols(newVal);
-    createForm.protocol_fallbacks = { ...protocolCatalog.value?.groups.find(group => group.platform === newVal)?.default_fallbacks };
     createForm.unavailable_fallback_group_id = null;
     if (!["anthropic", "antigravity"].includes(newVal)) {
       createForm.fallback_group_id_on_invalid_request = null;
@@ -5344,9 +5372,9 @@ watch(
 // 编辑加载会在设置平台后覆盖服务端值；用户切换平台时先使用新平台默认协议。
 watch(
   () => editForm.platform,
-  (newVal) => {
-    editForm.allowed_protocols = defaultGroupClientProtocols(newVal);
-    editForm.protocol_fallbacks = { ...protocolCatalog.value?.groups.find(group => group.platform === newVal)?.default_fallbacks };
+  () => {
+    editProtocolDefaultsPending.value = !protocolCatalog.value;
+    initializeGroupProtocolDefaults(editForm);
   },
   { flush: "sync" },
 );

@@ -18,8 +18,16 @@ type ProtocolGroupProfile struct {
 	DefaultFallbacks map[domain.ProtocolID]domain.ProtocolID   `json:"default_fallbacks"`
 }
 
+// ProtocolCatalogResponse 显式描述目录响应，便于调用方和契约测试检查完整结构。
+type ProtocolCatalogResponse struct {
+	Protocols           []domain.Protocol           `json:"protocols"`
+	Accounts            []ProtocolAccountProfile    `json:"accounts"`
+	Groups              []ProtocolGroupProfile      `json:"groups"`
+	AuxiliaryOperations []domain.AuxiliaryOperation `json:"auxiliary_operations"`
+}
+
 // AdminProtocolCatalog 是前后端共用的唯一目录投影。
-func AdminProtocolCatalog() any {
+func AdminProtocolCatalog() ProtocolCatalogResponse {
 	accounts := []ProtocolAccountProfile{}
 	groups := []ProtocolGroupProfile{}
 	for _, platform := range []string{PlatformAnthropic, PlatformOpenAI, PlatformGemini, PlatformAntigravity, PlatformGrok, PlatformQoder, PlatformKimi, PlatformZhipu, PlatformDeepseek} {
@@ -37,12 +45,10 @@ func AdminProtocolCatalog() any {
 		for _, source := range supported {
 			targets[source] = domain.ProtocolFallbackTargets(platform, source)
 		}
-		groups = append(groups, ProtocolGroupProfile{platform, supported, domain.DefaultGroupClientProtocols(platform), targets, DefaultProtocolFallbacks(platform)})
+		groups = append(groups, ProtocolGroupProfile{platform, supported, domain.DefaultGroupClientProtocols(platform), targets, domain.DefaultProtocolFallbacks(platform)})
 	}
-	return struct {
-		Protocols           []domain.Protocol           `json:"protocols"`
-		Accounts            []ProtocolAccountProfile    `json:"accounts"`
-		Groups              []ProtocolGroupProfile      `json:"groups"`
-		AuxiliaryOperations []domain.AuxiliaryOperation `json:"auxiliary_operations"`
-	}{domain.ProtocolCatalog(), accounts, groups, domain.AuxiliaryOperations()}
+	return ProtocolCatalogResponse{
+		Protocols: domain.ProtocolCatalog(), Accounts: accounts, Groups: groups,
+		AuxiliaryOperations: domain.AuxiliaryOperations(),
+	}
 }

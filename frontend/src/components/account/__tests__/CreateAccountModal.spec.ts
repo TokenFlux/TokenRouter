@@ -1,3 +1,4 @@
+import { useProtocolCatalogFixture } from '@/__tests__/helpers/protocolCatalog'
 import { defineComponent } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -609,3 +610,5 @@ describe('CreateAccountModal Gemini API Key provider source', () => {
     expect(createAccountMock.mock.calls[0]?.[0]?.credentials).not.toHaveProperty('tier_id')
   })
 })
+
+useProtocolCatalogFixture()

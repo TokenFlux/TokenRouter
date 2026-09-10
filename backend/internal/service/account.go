@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/url"
 	"reflect"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -2015,7 +2016,7 @@ func (a *Account) SupportsOpenAIEndpointCapability(capability OpenAIEndpointCapa
 	}
 	if _, unified := a.Credentials[upstreamProtocolsKey]; unified && !a.IsGrok() {
 		enabled := a.UpstreamProtocols()
-		has := func(p domain.ProtocolID) bool { return domain.HasGroupClientProtocol(enabled, p) }
+		has := func(p domain.ProtocolID) bool { return slices.Contains(enabled, p) }
 		switch capability {
 		case OpenAIEndpointCapabilityTextGeneration:
 			if !has(domain.ProtocolOpenAIResponses) && !has(domain.ProtocolOpenAIChatCompletions) && !has(domain.ProtocolAnthropicMessages) {

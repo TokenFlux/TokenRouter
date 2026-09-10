@@ -18,13 +18,25 @@ export interface ProtocolCatalog {
 
 // 能力目录不含用户配置，整个管理会话共享一次只读请求；失败后允许重试。
 export const protocolCatalog = shallowRef<ProtocolCatalog | null>(null)
+export const protocolCatalogLoading = shallowRef(false)
+export const protocolCatalogError = shallowRef(false)
 let pending: Promise<ProtocolCatalog> | undefined
 export function loadProtocolCatalog(): Promise<ProtocolCatalog> {
   if (protocolCatalog.value) return Promise.resolve(protocolCatalog.value)
-  if (!pending) pending = apiClient.get<ProtocolCatalog>('/admin/protocol-capabilities').then(({ data }) => {
-    protocolCatalog.value = data
-    return data
-  }).finally(() => { pending = undefined })
+  if (!pending) {
+    protocolCatalogLoading.value = true
+    protocolCatalogError.value = false
+    pending = apiClient.get<ProtocolCatalog>('/admin/protocol-capabilities').then(({ data }) => {
+      protocolCatalog.value = data
+      return data
+    }).catch((error: unknown) => {
+      protocolCatalogError.value = true
+      throw error
+    }).finally(() => {
+      pending = undefined
+      protocolCatalogLoading.value = false
+    })
+  }
   return pending
 }
 

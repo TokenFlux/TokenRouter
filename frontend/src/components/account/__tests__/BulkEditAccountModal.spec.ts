@@ -1,3 +1,4 @@
+import { useProtocolCatalogFixture } from '@/__tests__/helpers/protocolCatalog'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import BulkEditAccountModal from '../BulkEditAccountModal.vue'
@@ -1073,3 +1074,5 @@ describe('BulkEditAccountModal', () => {
     expect(payload.extra).not.toHaveProperty('codex_fingerprint_mode')
   })
 })
+
+useProtocolCatalogFixture()
