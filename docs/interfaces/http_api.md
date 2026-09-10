@@ -152,6 +152,7 @@ Group 使用 `allowed_protocols`、`protocol_fallbacks`、`responses_image_polic
 
 查询不会写账号、Extra、调度快照或计费记录，也不会把 API Key 放入响应或审计 body。前端只在行内按钮或批量操作触发请求，成功结果在管理员隔离的 `sessionStorage` 中缓存五分钟。
 
+<a id="response_errors"></a>
 ## 响应与错误
 
 面板和内部 REST 接口通常使用统一 envelope：
@@ -165,6 +166,8 @@ Group 使用 `allowed_protocols`、`protocol_fallbacks`、`responses_image_polic
 ```
 
 业务错误由 `ApplicationError` 映射为 HTTP status，并可返回 `reason` 和字符串 `metadata`。未知错误按 500 处理并只在服务端记录脱敏详情。分页数据使用 `items`、`total`、`page`、`page_size` 和 `pages`；创建与异步接受分别可以返回 201/202。
+
+唯一错误实体位于 `pkg/apperror`，HTTP 映射和面板 envelope 位于 `server/httpx`。旧 `pkg/errors` 和 `pkg/response` 保留兼容入口；错误类型别名维持 `errors.Is/As`、cause 和 metadata 复制语义。新核心使用具名类别；兼容期仍保留旧 code 数值和字段，自定义状态码也不能因提取而归并成另一类错误。
 
 管理员 `GET /api/v1/admin/usage` 的每条记录可包含 `detailed_timing`。该对象由同一内部请求 ID 关联 `http.access` 日志得到，字段是相对于 Sub2API 入口的毫秒时间点，包括账号槽位、上游连接/写入、首字节、首个 SSE、首个可见输出和首次下游 Flush；历史记录或观测日志缺失时省略该对象。
 

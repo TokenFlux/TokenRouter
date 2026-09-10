@@ -4,11 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"strings"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/lib/pq"
 )
 
 // clientFromContext 从 context 中获取事务 client，如果不存在则返回默认 client。
@@ -76,39 +75,15 @@ func translatePersistenceError(err error, notFound, conflict *infraerrors.Applic
 //
 // 这种多层次的检测确保了对不同数据库驱动和 ORM 的兼容性。
 func isUniqueConstraintViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	// 优先检测 PostgreSQL 特定错误码（最精确）。
-	// 错误码 23505 对应 unique_violation。
-	// 参考：https://www.postgresql.org/docs/current/errcodes-appendix.html
-	var pgErr *pq.Error
-	if errors.As(err, &pgErr) {
-		return pgErr.Code == "23505"
-	}
-
-	// 回退到错误消息检测（兼容其他场景）。
-	// 这些关键词覆盖了 PostgreSQL、MySQL 等主流数据库的错误消息。
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "duplicate key") ||
-		strings.Contains(msg, "unique constraint") ||
-		strings.Contains(msg, "duplicate entry")
+	return postgresinfra.IsUniqueConstraintViolation(err)
 }
 
 // isPostgresDeadlock 仅通过 PostgreSQL SQLSTATE 识别死锁，避免错误文本变化导致误判。
 func isPostgresDeadlock(err error) bool {
-	return postgresSQLState(err) == "40P01"
+	return postgresinfra.IsDeadlock(err)
 }
 
 // postgresSQLState 提取可被包装的 lib/pq 错误码；非 PostgreSQL 错误返回空字符串。
 func postgresSQLState(err error) string {
-	if err == nil {
-		return ""
-	}
-	var pgErr *pq.Error
-	if !errors.As(err, &pgErr) || pgErr == nil {
-		return ""
-	}
-	return string(pgErr.Code)
+	return postgresinfra.SQLState(err)
 }

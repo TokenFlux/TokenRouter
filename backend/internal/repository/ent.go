@@ -13,6 +13,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/migrations"
 
@@ -113,20 +114,11 @@ func InitEnt(cfg *config.Config) (*ent.Client, *sql.DB, error) {
 
 	// 使用 Ent 的 SQL 驱动打开 PostgreSQL 连接。
 	// dialect.Postgres 指定使用 PostgreSQL 方言进行 SQL 生成。
-	var drv *entsql.Driver
-	if cfg.Server.EnableServerTiming {
-		connector, err := pq.NewConnector(dsn)
-		if err != nil {
-			return nil, nil, err
-		}
-		drv = entsql.OpenDB(dialect.Postgres, sql.OpenDB(newServerTimingConnector(connector)))
-	} else {
-		var err error
-		drv, err = entsql.Open(dialect.Postgres, dsn)
-		if err != nil {
-			return nil, nil, err
-		}
+	db, err := postgresinfra.Open(dsn, cfg.Server.EnableServerTiming)
+	if err != nil {
+		return nil, nil, err
 	}
+	drv := entsql.OpenDB(dialect.Postgres, db)
 	applyDBPoolSettings(drv.DB(), cfg)
 
 	// 确保数据库 schema 已准备就绪。

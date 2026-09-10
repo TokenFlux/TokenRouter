@@ -1,0 +1,4028 @@
+[
+  {
+    "rule": "core-identity",
+    "files": [
+      "**/internal/identity/**/*.go",
+      "**/internal/identity/*.go",
+      "!**/internal/identity/httpapi/**",
+      "!**/internal/identity/postgres/**",
+      "!**/internal/identity/rediscache/**",
+      "!**/internal/identity/provider/**",
+      "!**/internal/identity/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-identity"
+  },
+  {
+    "rule": "core-identity-tests",
+    "files": [
+      "**/internal/identity/**/*_test.go",
+      "**/internal/identity/*_test.go",
+      "!**/internal/identity/httpapi/**",
+      "!**/internal/identity/postgres/**",
+      "!**/internal/identity/rediscache/**",
+      "!**/internal/identity/provider/**",
+      "!**/internal/identity/testkit/**"
+    ],
+    "role": "core-identity"
+  },
+  {
+    "rule": "identity-httpapi",
+    "files": [
+      "**/internal/identity/httpapi/**/*.go",
+      "**/internal/identity/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "identity-httpapi"
+  },
+  {
+    "rule": "identity-httpapi-tests",
+    "files": [
+      "**/internal/identity/httpapi/**/*_test.go",
+      "**/internal/identity/httpapi/*_test.go"
+    ],
+    "role": "identity-httpapi"
+  },
+  {
+    "rule": "identity-postgres",
+    "files": [
+      "**/internal/identity/postgres/**/*.go",
+      "**/internal/identity/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "identity-postgres"
+  },
+  {
+    "rule": "identity-postgres-tests",
+    "files": [
+      "**/internal/identity/postgres/**/*_test.go",
+      "**/internal/identity/postgres/*_test.go"
+    ],
+    "role": "identity-postgres"
+  },
+  {
+    "rule": "identity-rediscache",
+    "files": [
+      "**/internal/identity/rediscache/**/*.go",
+      "**/internal/identity/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "identity-rediscache"
+  },
+  {
+    "rule": "identity-rediscache-tests",
+    "files": [
+      "**/internal/identity/rediscache/**/*_test.go",
+      "**/internal/identity/rediscache/*_test.go"
+    ],
+    "role": "identity-rediscache"
+  },
+  {
+    "rule": "identity-provider",
+    "files": [
+      "**/internal/identity/provider/**/*.go",
+      "**/internal/identity/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "identity-provider"
+  },
+  {
+    "rule": "identity-provider-tests",
+    "files": [
+      "**/internal/identity/provider/**/*_test.go",
+      "**/internal/identity/provider/*_test.go"
+    ],
+    "role": "identity-provider"
+  },
+  {
+    "rule": "identity-testkit",
+    "files": [
+      "**/internal/identity/testkit/**/*.go",
+      "**/internal/identity/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "identity-testkit"
+  },
+  {
+    "rule": "identity-testkit-tests",
+    "files": [
+      "**/internal/identity/testkit/**/*_test.go",
+      "**/internal/identity/testkit/*_test.go"
+    ],
+    "role": "identity-testkit"
+  },
+  {
+    "rule": "core-team",
+    "files": [
+      "**/internal/team/**/*.go",
+      "**/internal/team/*.go",
+      "!**/internal/team/httpapi/**",
+      "!**/internal/team/postgres/**",
+      "!**/internal/team/rediscache/**",
+      "!**/internal/team/provider/**",
+      "!**/internal/team/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-team"
+  },
+  {
+    "rule": "core-team-tests",
+    "files": [
+      "**/internal/team/**/*_test.go",
+      "**/internal/team/*_test.go",
+      "!**/internal/team/httpapi/**",
+      "!**/internal/team/postgres/**",
+      "!**/internal/team/rediscache/**",
+      "!**/internal/team/provider/**",
+      "!**/internal/team/testkit/**"
+    ],
+    "role": "core-team"
+  },
+  {
+    "rule": "team-httpapi",
+    "files": [
+      "**/internal/team/httpapi/**/*.go",
+      "**/internal/team/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "team-httpapi"
+  },
+  {
+    "rule": "team-httpapi-tests",
+    "files": [
+      "**/internal/team/httpapi/**/*_test.go",
+      "**/internal/team/httpapi/*_test.go"
+    ],
+    "role": "team-httpapi"
+  },
+  {
+    "rule": "team-postgres",
+    "files": [
+      "**/internal/team/postgres/**/*.go",
+      "**/internal/team/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "team-postgres"
+  },
+  {
+    "rule": "team-postgres-tests",
+    "files": [
+      "**/internal/team/postgres/**/*_test.go",
+      "**/internal/team/postgres/*_test.go"
+    ],
+    "role": "team-postgres"
+  },
+  {
+    "rule": "team-rediscache",
+    "files": [
+      "**/internal/team/rediscache/**/*.go",
+      "**/internal/team/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "team-rediscache"
+  },
+  {
+    "rule": "team-rediscache-tests",
+    "files": [
+      "**/internal/team/rediscache/**/*_test.go",
+      "**/internal/team/rediscache/*_test.go"
+    ],
+    "role": "team-rediscache"
+  },
+  {
+    "rule": "team-provider",
+    "files": [
+      "**/internal/team/provider/**/*.go",
+      "**/internal/team/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "team-provider"
+  },
+  {
+    "rule": "team-provider-tests",
+    "files": [
+      "**/internal/team/provider/**/*_test.go",
+      "**/internal/team/provider/*_test.go"
+    ],
+    "role": "team-provider"
+  },
+  {
+    "rule": "team-testkit",
+    "files": [
+      "**/internal/team/testkit/**/*.go",
+      "**/internal/team/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "team-testkit"
+  },
+  {
+    "rule": "team-testkit-tests",
+    "files": [
+      "**/internal/team/testkit/**/*_test.go",
+      "**/internal/team/testkit/*_test.go"
+    ],
+    "role": "team-testkit"
+  },
+  {
+    "rule": "core-apikey",
+    "files": [
+      "**/internal/apikey/**/*.go",
+      "**/internal/apikey/*.go",
+      "!**/internal/apikey/httpapi/**",
+      "!**/internal/apikey/postgres/**",
+      "!**/internal/apikey/rediscache/**",
+      "!**/internal/apikey/provider/**",
+      "!**/internal/apikey/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-apikey"
+  },
+  {
+    "rule": "core-apikey-tests",
+    "files": [
+      "**/internal/apikey/**/*_test.go",
+      "**/internal/apikey/*_test.go",
+      "!**/internal/apikey/httpapi/**",
+      "!**/internal/apikey/postgres/**",
+      "!**/internal/apikey/rediscache/**",
+      "!**/internal/apikey/provider/**",
+      "!**/internal/apikey/testkit/**"
+    ],
+    "role": "core-apikey"
+  },
+  {
+    "rule": "apikey-httpapi",
+    "files": [
+      "**/internal/apikey/httpapi/**/*.go",
+      "**/internal/apikey/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "apikey-httpapi"
+  },
+  {
+    "rule": "apikey-httpapi-tests",
+    "files": [
+      "**/internal/apikey/httpapi/**/*_test.go",
+      "**/internal/apikey/httpapi/*_test.go"
+    ],
+    "role": "apikey-httpapi"
+  },
+  {
+    "rule": "apikey-postgres",
+    "files": [
+      "**/internal/apikey/postgres/**/*.go",
+      "**/internal/apikey/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "apikey-postgres"
+  },
+  {
+    "rule": "apikey-postgres-tests",
+    "files": [
+      "**/internal/apikey/postgres/**/*_test.go",
+      "**/internal/apikey/postgres/*_test.go"
+    ],
+    "role": "apikey-postgres"
+  },
+  {
+    "rule": "apikey-rediscache",
+    "files": [
+      "**/internal/apikey/rediscache/**/*.go",
+      "**/internal/apikey/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "apikey-rediscache"
+  },
+  {
+    "rule": "apikey-rediscache-tests",
+    "files": [
+      "**/internal/apikey/rediscache/**/*_test.go",
+      "**/internal/apikey/rediscache/*_test.go"
+    ],
+    "role": "apikey-rediscache"
+  },
+  {
+    "rule": "apikey-provider",
+    "files": [
+      "**/internal/apikey/provider/**/*.go",
+      "**/internal/apikey/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "apikey-provider"
+  },
+  {
+    "rule": "apikey-provider-tests",
+    "files": [
+      "**/internal/apikey/provider/**/*_test.go",
+      "**/internal/apikey/provider/*_test.go"
+    ],
+    "role": "apikey-provider"
+  },
+  {
+    "rule": "apikey-testkit",
+    "files": [
+      "**/internal/apikey/testkit/**/*.go",
+      "**/internal/apikey/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "apikey-testkit"
+  },
+  {
+    "rule": "apikey-testkit-tests",
+    "files": [
+      "**/internal/apikey/testkit/**/*_test.go",
+      "**/internal/apikey/testkit/*_test.go"
+    ],
+    "role": "apikey-testkit"
+  },
+  {
+    "rule": "core-routing",
+    "files": [
+      "**/internal/routing/**/*.go",
+      "**/internal/routing/*.go",
+      "!**/internal/routing/httpapi/**",
+      "!**/internal/routing/postgres/**",
+      "!**/internal/routing/rediscache/**",
+      "!**/internal/routing/provider/**",
+      "!**/internal/routing/testkit/**",
+      "!**/internal/routing/capability/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-routing"
+  },
+  {
+    "rule": "core-routing-tests",
+    "files": [
+      "**/internal/routing/**/*_test.go",
+      "**/internal/routing/*_test.go",
+      "!**/internal/routing/httpapi/**",
+      "!**/internal/routing/postgres/**",
+      "!**/internal/routing/rediscache/**",
+      "!**/internal/routing/provider/**",
+      "!**/internal/routing/testkit/**",
+      "!**/internal/routing/capability/**"
+    ],
+    "role": "core-routing"
+  },
+  {
+    "rule": "routing-httpapi",
+    "files": [
+      "**/internal/routing/httpapi/**/*.go",
+      "**/internal/routing/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "routing-httpapi"
+  },
+  {
+    "rule": "routing-httpapi-tests",
+    "files": [
+      "**/internal/routing/httpapi/**/*_test.go",
+      "**/internal/routing/httpapi/*_test.go"
+    ],
+    "role": "routing-httpapi"
+  },
+  {
+    "rule": "routing-postgres",
+    "files": [
+      "**/internal/routing/postgres/**/*.go",
+      "**/internal/routing/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "routing-postgres"
+  },
+  {
+    "rule": "routing-postgres-tests",
+    "files": [
+      "**/internal/routing/postgres/**/*_test.go",
+      "**/internal/routing/postgres/*_test.go"
+    ],
+    "role": "routing-postgres"
+  },
+  {
+    "rule": "routing-rediscache",
+    "files": [
+      "**/internal/routing/rediscache/**/*.go",
+      "**/internal/routing/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "routing-rediscache"
+  },
+  {
+    "rule": "routing-rediscache-tests",
+    "files": [
+      "**/internal/routing/rediscache/**/*_test.go",
+      "**/internal/routing/rediscache/*_test.go"
+    ],
+    "role": "routing-rediscache"
+  },
+  {
+    "rule": "routing-provider",
+    "files": [
+      "**/internal/routing/provider/**/*.go",
+      "**/internal/routing/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "routing-provider"
+  },
+  {
+    "rule": "routing-provider-tests",
+    "files": [
+      "**/internal/routing/provider/**/*_test.go",
+      "**/internal/routing/provider/*_test.go"
+    ],
+    "role": "routing-provider"
+  },
+  {
+    "rule": "routing-testkit",
+    "files": [
+      "**/internal/routing/testkit/**/*.go",
+      "**/internal/routing/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "routing-testkit"
+  },
+  {
+    "rule": "routing-testkit-tests",
+    "files": [
+      "**/internal/routing/testkit/**/*_test.go",
+      "**/internal/routing/testkit/*_test.go"
+    ],
+    "role": "routing-testkit"
+  },
+  {
+    "rule": "core-account",
+    "files": [
+      "**/internal/account/**/*.go",
+      "**/internal/account/*.go",
+      "!**/internal/account/httpapi/**",
+      "!**/internal/account/postgres/**",
+      "!**/internal/account/rediscache/**",
+      "!**/internal/account/provider/**",
+      "!**/internal/account/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-account"
+  },
+  {
+    "rule": "core-account-tests",
+    "files": [
+      "**/internal/account/**/*_test.go",
+      "**/internal/account/*_test.go",
+      "!**/internal/account/httpapi/**",
+      "!**/internal/account/postgres/**",
+      "!**/internal/account/rediscache/**",
+      "!**/internal/account/provider/**",
+      "!**/internal/account/testkit/**"
+    ],
+    "role": "core-account"
+  },
+  {
+    "rule": "account-httpapi",
+    "files": [
+      "**/internal/account/httpapi/**/*.go",
+      "**/internal/account/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "account-httpapi"
+  },
+  {
+    "rule": "account-httpapi-tests",
+    "files": [
+      "**/internal/account/httpapi/**/*_test.go",
+      "**/internal/account/httpapi/*_test.go"
+    ],
+    "role": "account-httpapi"
+  },
+  {
+    "rule": "account-postgres",
+    "files": [
+      "**/internal/account/postgres/**/*.go",
+      "**/internal/account/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "account-postgres"
+  },
+  {
+    "rule": "account-postgres-tests",
+    "files": [
+      "**/internal/account/postgres/**/*_test.go",
+      "**/internal/account/postgres/*_test.go"
+    ],
+    "role": "account-postgres"
+  },
+  {
+    "rule": "account-rediscache",
+    "files": [
+      "**/internal/account/rediscache/**/*.go",
+      "**/internal/account/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "account-rediscache"
+  },
+  {
+    "rule": "account-rediscache-tests",
+    "files": [
+      "**/internal/account/rediscache/**/*_test.go",
+      "**/internal/account/rediscache/*_test.go"
+    ],
+    "role": "account-rediscache"
+  },
+  {
+    "rule": "account-provider",
+    "files": [
+      "**/internal/account/provider/**/*.go",
+      "**/internal/account/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "account-provider"
+  },
+  {
+    "rule": "account-provider-tests",
+    "files": [
+      "**/internal/account/provider/**/*_test.go",
+      "**/internal/account/provider/*_test.go"
+    ],
+    "role": "account-provider"
+  },
+  {
+    "rule": "account-testkit",
+    "files": [
+      "**/internal/account/testkit/**/*.go",
+      "**/internal/account/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "account-testkit"
+  },
+  {
+    "rule": "account-testkit-tests",
+    "files": [
+      "**/internal/account/testkit/**/*_test.go",
+      "**/internal/account/testkit/*_test.go"
+    ],
+    "role": "account-testkit"
+  },
+  {
+    "rule": "core-scheduler",
+    "files": [
+      "**/internal/scheduler/**/*.go",
+      "**/internal/scheduler/*.go",
+      "!**/internal/scheduler/httpapi/**",
+      "!**/internal/scheduler/postgres/**",
+      "!**/internal/scheduler/rediscache/**",
+      "!**/internal/scheduler/provider/**",
+      "!**/internal/scheduler/testkit/**",
+      "!**/internal/scheduler/policy/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-scheduler"
+  },
+  {
+    "rule": "core-scheduler-tests",
+    "files": [
+      "**/internal/scheduler/**/*_test.go",
+      "**/internal/scheduler/*_test.go",
+      "!**/internal/scheduler/httpapi/**",
+      "!**/internal/scheduler/postgres/**",
+      "!**/internal/scheduler/rediscache/**",
+      "!**/internal/scheduler/provider/**",
+      "!**/internal/scheduler/testkit/**",
+      "!**/internal/scheduler/policy/**"
+    ],
+    "role": "core-scheduler"
+  },
+  {
+    "rule": "scheduler-httpapi",
+    "files": [
+      "**/internal/scheduler/httpapi/**/*.go",
+      "**/internal/scheduler/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "scheduler-httpapi"
+  },
+  {
+    "rule": "scheduler-httpapi-tests",
+    "files": [
+      "**/internal/scheduler/httpapi/**/*_test.go",
+      "**/internal/scheduler/httpapi/*_test.go"
+    ],
+    "role": "scheduler-httpapi"
+  },
+  {
+    "rule": "scheduler-postgres",
+    "files": [
+      "**/internal/scheduler/postgres/**/*.go",
+      "**/internal/scheduler/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "scheduler-postgres"
+  },
+  {
+    "rule": "scheduler-postgres-tests",
+    "files": [
+      "**/internal/scheduler/postgres/**/*_test.go",
+      "**/internal/scheduler/postgres/*_test.go"
+    ],
+    "role": "scheduler-postgres"
+  },
+  {
+    "rule": "scheduler-rediscache",
+    "files": [
+      "**/internal/scheduler/rediscache/**/*.go",
+      "**/internal/scheduler/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "scheduler-rediscache"
+  },
+  {
+    "rule": "scheduler-rediscache-tests",
+    "files": [
+      "**/internal/scheduler/rediscache/**/*_test.go",
+      "**/internal/scheduler/rediscache/*_test.go"
+    ],
+    "role": "scheduler-rediscache"
+  },
+  {
+    "rule": "scheduler-provider",
+    "files": [
+      "**/internal/scheduler/provider/**/*.go",
+      "**/internal/scheduler/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "scheduler-provider"
+  },
+  {
+    "rule": "scheduler-provider-tests",
+    "files": [
+      "**/internal/scheduler/provider/**/*_test.go",
+      "**/internal/scheduler/provider/*_test.go"
+    ],
+    "role": "scheduler-provider"
+  },
+  {
+    "rule": "scheduler-testkit",
+    "files": [
+      "**/internal/scheduler/testkit/**/*.go",
+      "**/internal/scheduler/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "scheduler-testkit"
+  },
+  {
+    "rule": "scheduler-testkit-tests",
+    "files": [
+      "**/internal/scheduler/testkit/**/*_test.go",
+      "**/internal/scheduler/testkit/*_test.go"
+    ],
+    "role": "scheduler-testkit"
+  },
+  {
+    "rule": "core-gateway",
+    "files": [
+      "**/internal/gateway/**/*.go",
+      "**/internal/gateway/*.go",
+      "!**/internal/gateway/httpapi/**",
+      "!**/internal/gateway/postgres/**",
+      "!**/internal/gateway/rediscache/**",
+      "!**/internal/gateway/provider/**",
+      "!**/internal/gateway/testkit/**",
+      "!**/internal/gateway/clientmeta/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-gateway"
+  },
+  {
+    "rule": "core-gateway-tests",
+    "files": [
+      "**/internal/gateway/**/*_test.go",
+      "**/internal/gateway/*_test.go",
+      "!**/internal/gateway/httpapi/**",
+      "!**/internal/gateway/postgres/**",
+      "!**/internal/gateway/rediscache/**",
+      "!**/internal/gateway/provider/**",
+      "!**/internal/gateway/testkit/**",
+      "!**/internal/gateway/clientmeta/**"
+    ],
+    "role": "core-gateway"
+  },
+  {
+    "rule": "gateway-httpapi",
+    "files": [
+      "**/internal/gateway/httpapi/**/*.go",
+      "**/internal/gateway/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "gateway-httpapi"
+  },
+  {
+    "rule": "gateway-httpapi-tests",
+    "files": [
+      "**/internal/gateway/httpapi/**/*_test.go",
+      "**/internal/gateway/httpapi/*_test.go"
+    ],
+    "role": "gateway-httpapi"
+  },
+  {
+    "rule": "gateway-postgres",
+    "files": [
+      "**/internal/gateway/postgres/**/*.go",
+      "**/internal/gateway/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "gateway-postgres"
+  },
+  {
+    "rule": "gateway-postgres-tests",
+    "files": [
+      "**/internal/gateway/postgres/**/*_test.go",
+      "**/internal/gateway/postgres/*_test.go"
+    ],
+    "role": "gateway-postgres"
+  },
+  {
+    "rule": "gateway-rediscache",
+    "files": [
+      "**/internal/gateway/rediscache/**/*.go",
+      "**/internal/gateway/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "gateway-rediscache"
+  },
+  {
+    "rule": "gateway-rediscache-tests",
+    "files": [
+      "**/internal/gateway/rediscache/**/*_test.go",
+      "**/internal/gateway/rediscache/*_test.go"
+    ],
+    "role": "gateway-rediscache"
+  },
+  {
+    "rule": "gateway-provider",
+    "files": [
+      "**/internal/gateway/provider/**/*.go",
+      "**/internal/gateway/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "gateway-provider"
+  },
+  {
+    "rule": "gateway-provider-tests",
+    "files": [
+      "**/internal/gateway/provider/**/*_test.go",
+      "**/internal/gateway/provider/*_test.go"
+    ],
+    "role": "gateway-provider"
+  },
+  {
+    "rule": "gateway-testkit",
+    "files": [
+      "**/internal/gateway/testkit/**/*.go",
+      "**/internal/gateway/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "gateway-testkit"
+  },
+  {
+    "rule": "gateway-testkit-tests",
+    "files": [
+      "**/internal/gateway/testkit/**/*_test.go",
+      "**/internal/gateway/testkit/*_test.go"
+    ],
+    "role": "gateway-testkit"
+  },
+  {
+    "rule": "core-egress",
+    "files": [
+      "**/internal/egress/**/*.go",
+      "**/internal/egress/*.go",
+      "!**/internal/egress/httpapi/**",
+      "!**/internal/egress/postgres/**",
+      "!**/internal/egress/rediscache/**",
+      "!**/internal/egress/provider/**",
+      "!**/internal/egress/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-egress"
+  },
+  {
+    "rule": "core-egress-tests",
+    "files": [
+      "**/internal/egress/**/*_test.go",
+      "**/internal/egress/*_test.go",
+      "!**/internal/egress/httpapi/**",
+      "!**/internal/egress/postgres/**",
+      "!**/internal/egress/rediscache/**",
+      "!**/internal/egress/provider/**",
+      "!**/internal/egress/testkit/**"
+    ],
+    "role": "core-egress"
+  },
+  {
+    "rule": "egress-httpapi",
+    "files": [
+      "**/internal/egress/httpapi/**/*.go",
+      "**/internal/egress/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "egress-httpapi"
+  },
+  {
+    "rule": "egress-httpapi-tests",
+    "files": [
+      "**/internal/egress/httpapi/**/*_test.go",
+      "**/internal/egress/httpapi/*_test.go"
+    ],
+    "role": "egress-httpapi"
+  },
+  {
+    "rule": "egress-postgres",
+    "files": [
+      "**/internal/egress/postgres/**/*.go",
+      "**/internal/egress/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "egress-postgres"
+  },
+  {
+    "rule": "egress-postgres-tests",
+    "files": [
+      "**/internal/egress/postgres/**/*_test.go",
+      "**/internal/egress/postgres/*_test.go"
+    ],
+    "role": "egress-postgres"
+  },
+  {
+    "rule": "egress-rediscache",
+    "files": [
+      "**/internal/egress/rediscache/**/*.go",
+      "**/internal/egress/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "egress-rediscache"
+  },
+  {
+    "rule": "egress-rediscache-tests",
+    "files": [
+      "**/internal/egress/rediscache/**/*_test.go",
+      "**/internal/egress/rediscache/*_test.go"
+    ],
+    "role": "egress-rediscache"
+  },
+  {
+    "rule": "egress-provider",
+    "files": [
+      "**/internal/egress/provider/**/*.go",
+      "**/internal/egress/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "egress-provider"
+  },
+  {
+    "rule": "egress-provider-tests",
+    "files": [
+      "**/internal/egress/provider/**/*_test.go",
+      "**/internal/egress/provider/*_test.go"
+    ],
+    "role": "egress-provider"
+  },
+  {
+    "rule": "egress-testkit",
+    "files": [
+      "**/internal/egress/testkit/**/*.go",
+      "**/internal/egress/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "egress-testkit"
+  },
+  {
+    "rule": "egress-testkit-tests",
+    "files": [
+      "**/internal/egress/testkit/**/*_test.go",
+      "**/internal/egress/testkit/*_test.go"
+    ],
+    "role": "egress-testkit"
+  },
+  {
+    "rule": "core-billing",
+    "files": [
+      "**/internal/billing/**/*.go",
+      "**/internal/billing/*.go",
+      "!**/internal/billing/httpapi/**",
+      "!**/internal/billing/postgres/**",
+      "!**/internal/billing/rediscache/**",
+      "!**/internal/billing/provider/**",
+      "!**/internal/billing/testkit/**",
+      "!**/internal/billing/pricing/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-billing"
+  },
+  {
+    "rule": "core-billing-tests",
+    "files": [
+      "**/internal/billing/**/*_test.go",
+      "**/internal/billing/*_test.go",
+      "!**/internal/billing/httpapi/**",
+      "!**/internal/billing/postgres/**",
+      "!**/internal/billing/rediscache/**",
+      "!**/internal/billing/provider/**",
+      "!**/internal/billing/testkit/**",
+      "!**/internal/billing/pricing/**"
+    ],
+    "role": "core-billing"
+  },
+  {
+    "rule": "billing-httpapi",
+    "files": [
+      "**/internal/billing/httpapi/**/*.go",
+      "**/internal/billing/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "billing-httpapi"
+  },
+  {
+    "rule": "billing-httpapi-tests",
+    "files": [
+      "**/internal/billing/httpapi/**/*_test.go",
+      "**/internal/billing/httpapi/*_test.go"
+    ],
+    "role": "billing-httpapi"
+  },
+  {
+    "rule": "billing-postgres",
+    "files": [
+      "**/internal/billing/postgres/**/*.go",
+      "**/internal/billing/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "billing-postgres"
+  },
+  {
+    "rule": "billing-postgres-tests",
+    "files": [
+      "**/internal/billing/postgres/**/*_test.go",
+      "**/internal/billing/postgres/*_test.go"
+    ],
+    "role": "billing-postgres"
+  },
+  {
+    "rule": "billing-rediscache",
+    "files": [
+      "**/internal/billing/rediscache/**/*.go",
+      "**/internal/billing/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "billing-rediscache"
+  },
+  {
+    "rule": "billing-rediscache-tests",
+    "files": [
+      "**/internal/billing/rediscache/**/*_test.go",
+      "**/internal/billing/rediscache/*_test.go"
+    ],
+    "role": "billing-rediscache"
+  },
+  {
+    "rule": "billing-provider",
+    "files": [
+      "**/internal/billing/provider/**/*.go",
+      "**/internal/billing/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "billing-provider"
+  },
+  {
+    "rule": "billing-provider-tests",
+    "files": [
+      "**/internal/billing/provider/**/*_test.go",
+      "**/internal/billing/provider/*_test.go"
+    ],
+    "role": "billing-provider"
+  },
+  {
+    "rule": "billing-testkit",
+    "files": [
+      "**/internal/billing/testkit/**/*.go",
+      "**/internal/billing/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "billing-testkit"
+  },
+  {
+    "rule": "billing-testkit-tests",
+    "files": [
+      "**/internal/billing/testkit/**/*_test.go",
+      "**/internal/billing/testkit/*_test.go"
+    ],
+    "role": "billing-testkit"
+  },
+  {
+    "rule": "core-payment",
+    "files": [
+      "**/internal/payment/**/*.go",
+      "**/internal/payment/*.go",
+      "!**/internal/payment/httpapi/**",
+      "!**/internal/payment/postgres/**",
+      "!**/internal/payment/rediscache/**",
+      "!**/internal/payment/provider/**",
+      "!**/internal/payment/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-payment"
+  },
+  {
+    "rule": "core-payment-tests",
+    "files": [
+      "**/internal/payment/**/*_test.go",
+      "**/internal/payment/*_test.go",
+      "!**/internal/payment/httpapi/**",
+      "!**/internal/payment/postgres/**",
+      "!**/internal/payment/rediscache/**",
+      "!**/internal/payment/provider/**",
+      "!**/internal/payment/testkit/**"
+    ],
+    "role": "core-payment"
+  },
+  {
+    "rule": "payment-httpapi",
+    "files": [
+      "**/internal/payment/httpapi/**/*.go",
+      "**/internal/payment/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "payment-httpapi"
+  },
+  {
+    "rule": "payment-httpapi-tests",
+    "files": [
+      "**/internal/payment/httpapi/**/*_test.go",
+      "**/internal/payment/httpapi/*_test.go"
+    ],
+    "role": "payment-httpapi"
+  },
+  {
+    "rule": "payment-postgres",
+    "files": [
+      "**/internal/payment/postgres/**/*.go",
+      "**/internal/payment/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "payment-postgres"
+  },
+  {
+    "rule": "payment-postgres-tests",
+    "files": [
+      "**/internal/payment/postgres/**/*_test.go",
+      "**/internal/payment/postgres/*_test.go"
+    ],
+    "role": "payment-postgres"
+  },
+  {
+    "rule": "payment-rediscache",
+    "files": [
+      "**/internal/payment/rediscache/**/*.go",
+      "**/internal/payment/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "payment-rediscache"
+  },
+  {
+    "rule": "payment-rediscache-tests",
+    "files": [
+      "**/internal/payment/rediscache/**/*_test.go",
+      "**/internal/payment/rediscache/*_test.go"
+    ],
+    "role": "payment-rediscache"
+  },
+  {
+    "rule": "payment-provider",
+    "files": [
+      "**/internal/payment/provider/**/*.go",
+      "**/internal/payment/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "payment-provider"
+  },
+  {
+    "rule": "payment-provider-tests",
+    "files": [
+      "**/internal/payment/provider/**/*_test.go",
+      "**/internal/payment/provider/*_test.go"
+    ],
+    "role": "payment-provider"
+  },
+  {
+    "rule": "payment-testkit",
+    "files": [
+      "**/internal/payment/testkit/**/*.go",
+      "**/internal/payment/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "payment-testkit"
+  },
+  {
+    "rule": "payment-testkit-tests",
+    "files": [
+      "**/internal/payment/testkit/**/*_test.go",
+      "**/internal/payment/testkit/*_test.go"
+    ],
+    "role": "payment-testkit"
+  },
+  {
+    "rule": "core-usage",
+    "files": [
+      "**/internal/usage/**/*.go",
+      "**/internal/usage/*.go",
+      "!**/internal/usage/httpapi/**",
+      "!**/internal/usage/postgres/**",
+      "!**/internal/usage/rediscache/**",
+      "!**/internal/usage/provider/**",
+      "!**/internal/usage/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-usage"
+  },
+  {
+    "rule": "core-usage-tests",
+    "files": [
+      "**/internal/usage/**/*_test.go",
+      "**/internal/usage/*_test.go",
+      "!**/internal/usage/httpapi/**",
+      "!**/internal/usage/postgres/**",
+      "!**/internal/usage/rediscache/**",
+      "!**/internal/usage/provider/**",
+      "!**/internal/usage/testkit/**"
+    ],
+    "role": "core-usage"
+  },
+  {
+    "rule": "usage-httpapi",
+    "files": [
+      "**/internal/usage/httpapi/**/*.go",
+      "**/internal/usage/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "usage-httpapi"
+  },
+  {
+    "rule": "usage-httpapi-tests",
+    "files": [
+      "**/internal/usage/httpapi/**/*_test.go",
+      "**/internal/usage/httpapi/*_test.go"
+    ],
+    "role": "usage-httpapi"
+  },
+  {
+    "rule": "usage-postgres",
+    "files": [
+      "**/internal/usage/postgres/**/*.go",
+      "**/internal/usage/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "usage-postgres"
+  },
+  {
+    "rule": "usage-postgres-tests",
+    "files": [
+      "**/internal/usage/postgres/**/*_test.go",
+      "**/internal/usage/postgres/*_test.go"
+    ],
+    "role": "usage-postgres"
+  },
+  {
+    "rule": "usage-rediscache",
+    "files": [
+      "**/internal/usage/rediscache/**/*.go",
+      "**/internal/usage/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "usage-rediscache"
+  },
+  {
+    "rule": "usage-rediscache-tests",
+    "files": [
+      "**/internal/usage/rediscache/**/*_test.go",
+      "**/internal/usage/rediscache/*_test.go"
+    ],
+    "role": "usage-rediscache"
+  },
+  {
+    "rule": "usage-provider",
+    "files": [
+      "**/internal/usage/provider/**/*.go",
+      "**/internal/usage/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "usage-provider"
+  },
+  {
+    "rule": "usage-provider-tests",
+    "files": [
+      "**/internal/usage/provider/**/*_test.go",
+      "**/internal/usage/provider/*_test.go"
+    ],
+    "role": "usage-provider"
+  },
+  {
+    "rule": "usage-testkit",
+    "files": [
+      "**/internal/usage/testkit/**/*.go",
+      "**/internal/usage/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "usage-testkit"
+  },
+  {
+    "rule": "usage-testkit-tests",
+    "files": [
+      "**/internal/usage/testkit/**/*_test.go",
+      "**/internal/usage/testkit/*_test.go"
+    ],
+    "role": "usage-testkit"
+  },
+  {
+    "rule": "core-promotion",
+    "files": [
+      "**/internal/promotion/**/*.go",
+      "**/internal/promotion/*.go",
+      "!**/internal/promotion/httpapi/**",
+      "!**/internal/promotion/postgres/**",
+      "!**/internal/promotion/rediscache/**",
+      "!**/internal/promotion/provider/**",
+      "!**/internal/promotion/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-promotion"
+  },
+  {
+    "rule": "core-promotion-tests",
+    "files": [
+      "**/internal/promotion/**/*_test.go",
+      "**/internal/promotion/*_test.go",
+      "!**/internal/promotion/httpapi/**",
+      "!**/internal/promotion/postgres/**",
+      "!**/internal/promotion/rediscache/**",
+      "!**/internal/promotion/provider/**",
+      "!**/internal/promotion/testkit/**"
+    ],
+    "role": "core-promotion"
+  },
+  {
+    "rule": "promotion-httpapi",
+    "files": [
+      "**/internal/promotion/httpapi/**/*.go",
+      "**/internal/promotion/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "promotion-httpapi"
+  },
+  {
+    "rule": "promotion-httpapi-tests",
+    "files": [
+      "**/internal/promotion/httpapi/**/*_test.go",
+      "**/internal/promotion/httpapi/*_test.go"
+    ],
+    "role": "promotion-httpapi"
+  },
+  {
+    "rule": "promotion-postgres",
+    "files": [
+      "**/internal/promotion/postgres/**/*.go",
+      "**/internal/promotion/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "promotion-postgres"
+  },
+  {
+    "rule": "promotion-postgres-tests",
+    "files": [
+      "**/internal/promotion/postgres/**/*_test.go",
+      "**/internal/promotion/postgres/*_test.go"
+    ],
+    "role": "promotion-postgres"
+  },
+  {
+    "rule": "promotion-rediscache",
+    "files": [
+      "**/internal/promotion/rediscache/**/*.go",
+      "**/internal/promotion/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "promotion-rediscache"
+  },
+  {
+    "rule": "promotion-rediscache-tests",
+    "files": [
+      "**/internal/promotion/rediscache/**/*_test.go",
+      "**/internal/promotion/rediscache/*_test.go"
+    ],
+    "role": "promotion-rediscache"
+  },
+  {
+    "rule": "promotion-provider",
+    "files": [
+      "**/internal/promotion/provider/**/*.go",
+      "**/internal/promotion/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "promotion-provider"
+  },
+  {
+    "rule": "promotion-provider-tests",
+    "files": [
+      "**/internal/promotion/provider/**/*_test.go",
+      "**/internal/promotion/provider/*_test.go"
+    ],
+    "role": "promotion-provider"
+  },
+  {
+    "rule": "promotion-testkit",
+    "files": [
+      "**/internal/promotion/testkit/**/*.go",
+      "**/internal/promotion/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "promotion-testkit"
+  },
+  {
+    "rule": "promotion-testkit-tests",
+    "files": [
+      "**/internal/promotion/testkit/**/*_test.go",
+      "**/internal/promotion/testkit/*_test.go"
+    ],
+    "role": "promotion-testkit"
+  },
+  {
+    "rule": "core-creative",
+    "files": [
+      "**/internal/creative/**/*.go",
+      "**/internal/creative/*.go",
+      "!**/internal/creative/httpapi/**",
+      "!**/internal/creative/postgres/**",
+      "!**/internal/creative/rediscache/**",
+      "!**/internal/creative/provider/**",
+      "!**/internal/creative/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-creative"
+  },
+  {
+    "rule": "core-creative-tests",
+    "files": [
+      "**/internal/creative/**/*_test.go",
+      "**/internal/creative/*_test.go",
+      "!**/internal/creative/httpapi/**",
+      "!**/internal/creative/postgres/**",
+      "!**/internal/creative/rediscache/**",
+      "!**/internal/creative/provider/**",
+      "!**/internal/creative/testkit/**"
+    ],
+    "role": "core-creative"
+  },
+  {
+    "rule": "creative-httpapi",
+    "files": [
+      "**/internal/creative/httpapi/**/*.go",
+      "**/internal/creative/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "creative-httpapi"
+  },
+  {
+    "rule": "creative-httpapi-tests",
+    "files": [
+      "**/internal/creative/httpapi/**/*_test.go",
+      "**/internal/creative/httpapi/*_test.go"
+    ],
+    "role": "creative-httpapi"
+  },
+  {
+    "rule": "creative-postgres",
+    "files": [
+      "**/internal/creative/postgres/**/*.go",
+      "**/internal/creative/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "creative-postgres"
+  },
+  {
+    "rule": "creative-postgres-tests",
+    "files": [
+      "**/internal/creative/postgres/**/*_test.go",
+      "**/internal/creative/postgres/*_test.go"
+    ],
+    "role": "creative-postgres"
+  },
+  {
+    "rule": "creative-rediscache",
+    "files": [
+      "**/internal/creative/rediscache/**/*.go",
+      "**/internal/creative/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "creative-rediscache"
+  },
+  {
+    "rule": "creative-rediscache-tests",
+    "files": [
+      "**/internal/creative/rediscache/**/*_test.go",
+      "**/internal/creative/rediscache/*_test.go"
+    ],
+    "role": "creative-rediscache"
+  },
+  {
+    "rule": "creative-provider",
+    "files": [
+      "**/internal/creative/provider/**/*.go",
+      "**/internal/creative/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "creative-provider"
+  },
+  {
+    "rule": "creative-provider-tests",
+    "files": [
+      "**/internal/creative/provider/**/*_test.go",
+      "**/internal/creative/provider/*_test.go"
+    ],
+    "role": "creative-provider"
+  },
+  {
+    "rule": "creative-testkit",
+    "files": [
+      "**/internal/creative/testkit/**/*.go",
+      "**/internal/creative/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "creative-testkit"
+  },
+  {
+    "rule": "creative-testkit-tests",
+    "files": [
+      "**/internal/creative/testkit/**/*_test.go",
+      "**/internal/creative/testkit/*_test.go"
+    ],
+    "role": "creative-testkit"
+  },
+  {
+    "rule": "core-batchimage",
+    "files": [
+      "**/internal/batchimage/**/*.go",
+      "**/internal/batchimage/*.go",
+      "!**/internal/batchimage/httpapi/**",
+      "!**/internal/batchimage/postgres/**",
+      "!**/internal/batchimage/rediscache/**",
+      "!**/internal/batchimage/provider/**",
+      "!**/internal/batchimage/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-batchimage"
+  },
+  {
+    "rule": "core-batchimage-tests",
+    "files": [
+      "**/internal/batchimage/**/*_test.go",
+      "**/internal/batchimage/*_test.go",
+      "!**/internal/batchimage/httpapi/**",
+      "!**/internal/batchimage/postgres/**",
+      "!**/internal/batchimage/rediscache/**",
+      "!**/internal/batchimage/provider/**",
+      "!**/internal/batchimage/testkit/**"
+    ],
+    "role": "core-batchimage"
+  },
+  {
+    "rule": "batchimage-httpapi",
+    "files": [
+      "**/internal/batchimage/httpapi/**/*.go",
+      "**/internal/batchimage/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "batchimage-httpapi"
+  },
+  {
+    "rule": "batchimage-httpapi-tests",
+    "files": [
+      "**/internal/batchimage/httpapi/**/*_test.go",
+      "**/internal/batchimage/httpapi/*_test.go"
+    ],
+    "role": "batchimage-httpapi"
+  },
+  {
+    "rule": "batchimage-postgres",
+    "files": [
+      "**/internal/batchimage/postgres/**/*.go",
+      "**/internal/batchimage/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "batchimage-postgres"
+  },
+  {
+    "rule": "batchimage-postgres-tests",
+    "files": [
+      "**/internal/batchimage/postgres/**/*_test.go",
+      "**/internal/batchimage/postgres/*_test.go"
+    ],
+    "role": "batchimage-postgres"
+  },
+  {
+    "rule": "batchimage-rediscache",
+    "files": [
+      "**/internal/batchimage/rediscache/**/*.go",
+      "**/internal/batchimage/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "batchimage-rediscache"
+  },
+  {
+    "rule": "batchimage-rediscache-tests",
+    "files": [
+      "**/internal/batchimage/rediscache/**/*_test.go",
+      "**/internal/batchimage/rediscache/*_test.go"
+    ],
+    "role": "batchimage-rediscache"
+  },
+  {
+    "rule": "batchimage-provider",
+    "files": [
+      "**/internal/batchimage/provider/**/*.go",
+      "**/internal/batchimage/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "batchimage-provider"
+  },
+  {
+    "rule": "batchimage-provider-tests",
+    "files": [
+      "**/internal/batchimage/provider/**/*_test.go",
+      "**/internal/batchimage/provider/*_test.go"
+    ],
+    "role": "batchimage-provider"
+  },
+  {
+    "rule": "batchimage-testkit",
+    "files": [
+      "**/internal/batchimage/testkit/**/*.go",
+      "**/internal/batchimage/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "batchimage-testkit"
+  },
+  {
+    "rule": "batchimage-testkit-tests",
+    "files": [
+      "**/internal/batchimage/testkit/**/*_test.go",
+      "**/internal/batchimage/testkit/*_test.go"
+    ],
+    "role": "batchimage-testkit"
+  },
+  {
+    "rule": "core-moderation",
+    "files": [
+      "**/internal/moderation/**/*.go",
+      "**/internal/moderation/*.go",
+      "!**/internal/moderation/httpapi/**",
+      "!**/internal/moderation/postgres/**",
+      "!**/internal/moderation/rediscache/**",
+      "!**/internal/moderation/provider/**",
+      "!**/internal/moderation/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-moderation"
+  },
+  {
+    "rule": "core-moderation-tests",
+    "files": [
+      "**/internal/moderation/**/*_test.go",
+      "**/internal/moderation/*_test.go",
+      "!**/internal/moderation/httpapi/**",
+      "!**/internal/moderation/postgres/**",
+      "!**/internal/moderation/rediscache/**",
+      "!**/internal/moderation/provider/**",
+      "!**/internal/moderation/testkit/**"
+    ],
+    "role": "core-moderation"
+  },
+  {
+    "rule": "moderation-httpapi",
+    "files": [
+      "**/internal/moderation/httpapi/**/*.go",
+      "**/internal/moderation/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "moderation-httpapi"
+  },
+  {
+    "rule": "moderation-httpapi-tests",
+    "files": [
+      "**/internal/moderation/httpapi/**/*_test.go",
+      "**/internal/moderation/httpapi/*_test.go"
+    ],
+    "role": "moderation-httpapi"
+  },
+  {
+    "rule": "moderation-postgres",
+    "files": [
+      "**/internal/moderation/postgres/**/*.go",
+      "**/internal/moderation/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "moderation-postgres"
+  },
+  {
+    "rule": "moderation-postgres-tests",
+    "files": [
+      "**/internal/moderation/postgres/**/*_test.go",
+      "**/internal/moderation/postgres/*_test.go"
+    ],
+    "role": "moderation-postgres"
+  },
+  {
+    "rule": "moderation-rediscache",
+    "files": [
+      "**/internal/moderation/rediscache/**/*.go",
+      "**/internal/moderation/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "moderation-rediscache"
+  },
+  {
+    "rule": "moderation-rediscache-tests",
+    "files": [
+      "**/internal/moderation/rediscache/**/*_test.go",
+      "**/internal/moderation/rediscache/*_test.go"
+    ],
+    "role": "moderation-rediscache"
+  },
+  {
+    "rule": "moderation-provider",
+    "files": [
+      "**/internal/moderation/provider/**/*.go",
+      "**/internal/moderation/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "moderation-provider"
+  },
+  {
+    "rule": "moderation-provider-tests",
+    "files": [
+      "**/internal/moderation/provider/**/*_test.go",
+      "**/internal/moderation/provider/*_test.go"
+    ],
+    "role": "moderation-provider"
+  },
+  {
+    "rule": "moderation-testkit",
+    "files": [
+      "**/internal/moderation/testkit/**/*.go",
+      "**/internal/moderation/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "moderation-testkit"
+  },
+  {
+    "rule": "moderation-testkit-tests",
+    "files": [
+      "**/internal/moderation/testkit/**/*_test.go",
+      "**/internal/moderation/testkit/*_test.go"
+    ],
+    "role": "moderation-testkit"
+  },
+  {
+    "rule": "core-search",
+    "files": [
+      "**/internal/search/**/*.go",
+      "**/internal/search/*.go",
+      "!**/internal/search/httpapi/**",
+      "!**/internal/search/postgres/**",
+      "!**/internal/search/rediscache/**",
+      "!**/internal/search/provider/**",
+      "!**/internal/search/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-search"
+  },
+  {
+    "rule": "core-search-tests",
+    "files": [
+      "**/internal/search/**/*_test.go",
+      "**/internal/search/*_test.go",
+      "!**/internal/search/httpapi/**",
+      "!**/internal/search/postgres/**",
+      "!**/internal/search/rediscache/**",
+      "!**/internal/search/provider/**",
+      "!**/internal/search/testkit/**"
+    ],
+    "role": "core-search"
+  },
+  {
+    "rule": "search-httpapi",
+    "files": [
+      "**/internal/search/httpapi/**/*.go",
+      "**/internal/search/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "search-httpapi"
+  },
+  {
+    "rule": "search-httpapi-tests",
+    "files": [
+      "**/internal/search/httpapi/**/*_test.go",
+      "**/internal/search/httpapi/*_test.go"
+    ],
+    "role": "search-httpapi"
+  },
+  {
+    "rule": "search-postgres",
+    "files": [
+      "**/internal/search/postgres/**/*.go",
+      "**/internal/search/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "search-postgres"
+  },
+  {
+    "rule": "search-postgres-tests",
+    "files": [
+      "**/internal/search/postgres/**/*_test.go",
+      "**/internal/search/postgres/*_test.go"
+    ],
+    "role": "search-postgres"
+  },
+  {
+    "rule": "search-rediscache",
+    "files": [
+      "**/internal/search/rediscache/**/*.go",
+      "**/internal/search/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "search-rediscache"
+  },
+  {
+    "rule": "search-rediscache-tests",
+    "files": [
+      "**/internal/search/rediscache/**/*_test.go",
+      "**/internal/search/rediscache/*_test.go"
+    ],
+    "role": "search-rediscache"
+  },
+  {
+    "rule": "search-provider",
+    "files": [
+      "**/internal/search/provider/**/*.go",
+      "**/internal/search/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "search-provider"
+  },
+  {
+    "rule": "search-provider-tests",
+    "files": [
+      "**/internal/search/provider/**/*_test.go",
+      "**/internal/search/provider/*_test.go"
+    ],
+    "role": "search-provider"
+  },
+  {
+    "rule": "search-testkit",
+    "files": [
+      "**/internal/search/testkit/**/*.go",
+      "**/internal/search/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "search-testkit"
+  },
+  {
+    "rule": "search-testkit-tests",
+    "files": [
+      "**/internal/search/testkit/**/*_test.go",
+      "**/internal/search/testkit/*_test.go"
+    ],
+    "role": "search-testkit"
+  },
+  {
+    "rule": "core-notification",
+    "files": [
+      "**/internal/notification/**/*.go",
+      "**/internal/notification/*.go",
+      "!**/internal/notification/httpapi/**",
+      "!**/internal/notification/postgres/**",
+      "!**/internal/notification/rediscache/**",
+      "!**/internal/notification/provider/**",
+      "!**/internal/notification/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-notification"
+  },
+  {
+    "rule": "core-notification-tests",
+    "files": [
+      "**/internal/notification/**/*_test.go",
+      "**/internal/notification/*_test.go",
+      "!**/internal/notification/httpapi/**",
+      "!**/internal/notification/postgres/**",
+      "!**/internal/notification/rediscache/**",
+      "!**/internal/notification/provider/**",
+      "!**/internal/notification/testkit/**"
+    ],
+    "role": "core-notification"
+  },
+  {
+    "rule": "notification-httpapi",
+    "files": [
+      "**/internal/notification/httpapi/**/*.go",
+      "**/internal/notification/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "notification-httpapi"
+  },
+  {
+    "rule": "notification-httpapi-tests",
+    "files": [
+      "**/internal/notification/httpapi/**/*_test.go",
+      "**/internal/notification/httpapi/*_test.go"
+    ],
+    "role": "notification-httpapi"
+  },
+  {
+    "rule": "notification-postgres",
+    "files": [
+      "**/internal/notification/postgres/**/*.go",
+      "**/internal/notification/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "notification-postgres"
+  },
+  {
+    "rule": "notification-postgres-tests",
+    "files": [
+      "**/internal/notification/postgres/**/*_test.go",
+      "**/internal/notification/postgres/*_test.go"
+    ],
+    "role": "notification-postgres"
+  },
+  {
+    "rule": "notification-rediscache",
+    "files": [
+      "**/internal/notification/rediscache/**/*.go",
+      "**/internal/notification/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "notification-rediscache"
+  },
+  {
+    "rule": "notification-rediscache-tests",
+    "files": [
+      "**/internal/notification/rediscache/**/*_test.go",
+      "**/internal/notification/rediscache/*_test.go"
+    ],
+    "role": "notification-rediscache"
+  },
+  {
+    "rule": "notification-provider",
+    "files": [
+      "**/internal/notification/provider/**/*.go",
+      "**/internal/notification/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "notification-provider"
+  },
+  {
+    "rule": "notification-provider-tests",
+    "files": [
+      "**/internal/notification/provider/**/*_test.go",
+      "**/internal/notification/provider/*_test.go"
+    ],
+    "role": "notification-provider"
+  },
+  {
+    "rule": "notification-testkit",
+    "files": [
+      "**/internal/notification/testkit/**/*.go",
+      "**/internal/notification/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "notification-testkit"
+  },
+  {
+    "rule": "notification-testkit-tests",
+    "files": [
+      "**/internal/notification/testkit/**/*_test.go",
+      "**/internal/notification/testkit/*_test.go"
+    ],
+    "role": "notification-testkit"
+  },
+  {
+    "rule": "core-ops",
+    "files": [
+      "**/internal/ops/**/*.go",
+      "**/internal/ops/*.go",
+      "!**/internal/ops/httpapi/**",
+      "!**/internal/ops/postgres/**",
+      "!**/internal/ops/rediscache/**",
+      "!**/internal/ops/provider/**",
+      "!**/internal/ops/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-ops"
+  },
+  {
+    "rule": "core-ops-tests",
+    "files": [
+      "**/internal/ops/**/*_test.go",
+      "**/internal/ops/*_test.go",
+      "!**/internal/ops/httpapi/**",
+      "!**/internal/ops/postgres/**",
+      "!**/internal/ops/rediscache/**",
+      "!**/internal/ops/provider/**",
+      "!**/internal/ops/testkit/**"
+    ],
+    "role": "core-ops"
+  },
+  {
+    "rule": "ops-httpapi",
+    "files": [
+      "**/internal/ops/httpapi/**/*.go",
+      "**/internal/ops/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "ops-httpapi"
+  },
+  {
+    "rule": "ops-httpapi-tests",
+    "files": [
+      "**/internal/ops/httpapi/**/*_test.go",
+      "**/internal/ops/httpapi/*_test.go"
+    ],
+    "role": "ops-httpapi"
+  },
+  {
+    "rule": "ops-postgres",
+    "files": [
+      "**/internal/ops/postgres/**/*.go",
+      "**/internal/ops/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "ops-postgres"
+  },
+  {
+    "rule": "ops-postgres-tests",
+    "files": [
+      "**/internal/ops/postgres/**/*_test.go",
+      "**/internal/ops/postgres/*_test.go"
+    ],
+    "role": "ops-postgres"
+  },
+  {
+    "rule": "ops-rediscache",
+    "files": [
+      "**/internal/ops/rediscache/**/*.go",
+      "**/internal/ops/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "ops-rediscache"
+  },
+  {
+    "rule": "ops-rediscache-tests",
+    "files": [
+      "**/internal/ops/rediscache/**/*_test.go",
+      "**/internal/ops/rediscache/*_test.go"
+    ],
+    "role": "ops-rediscache"
+  },
+  {
+    "rule": "ops-provider",
+    "files": [
+      "**/internal/ops/provider/**/*.go",
+      "**/internal/ops/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "ops-provider"
+  },
+  {
+    "rule": "ops-provider-tests",
+    "files": [
+      "**/internal/ops/provider/**/*_test.go",
+      "**/internal/ops/provider/*_test.go"
+    ],
+    "role": "ops-provider"
+  },
+  {
+    "rule": "ops-testkit",
+    "files": [
+      "**/internal/ops/testkit/**/*.go",
+      "**/internal/ops/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "ops-testkit"
+  },
+  {
+    "rule": "ops-testkit-tests",
+    "files": [
+      "**/internal/ops/testkit/**/*_test.go",
+      "**/internal/ops/testkit/*_test.go"
+    ],
+    "role": "ops-testkit"
+  },
+  {
+    "rule": "core-audit",
+    "files": [
+      "**/internal/audit/**/*.go",
+      "**/internal/audit/*.go",
+      "!**/internal/audit/httpapi/**",
+      "!**/internal/audit/postgres/**",
+      "!**/internal/audit/rediscache/**",
+      "!**/internal/audit/provider/**",
+      "!**/internal/audit/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-audit"
+  },
+  {
+    "rule": "core-audit-tests",
+    "files": [
+      "**/internal/audit/**/*_test.go",
+      "**/internal/audit/*_test.go",
+      "!**/internal/audit/httpapi/**",
+      "!**/internal/audit/postgres/**",
+      "!**/internal/audit/rediscache/**",
+      "!**/internal/audit/provider/**",
+      "!**/internal/audit/testkit/**"
+    ],
+    "role": "core-audit"
+  },
+  {
+    "rule": "audit-httpapi",
+    "files": [
+      "**/internal/audit/httpapi/**/*.go",
+      "**/internal/audit/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "audit-httpapi"
+  },
+  {
+    "rule": "audit-httpapi-tests",
+    "files": [
+      "**/internal/audit/httpapi/**/*_test.go",
+      "**/internal/audit/httpapi/*_test.go"
+    ],
+    "role": "audit-httpapi"
+  },
+  {
+    "rule": "audit-postgres",
+    "files": [
+      "**/internal/audit/postgres/**/*.go",
+      "**/internal/audit/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "audit-postgres"
+  },
+  {
+    "rule": "audit-postgres-tests",
+    "files": [
+      "**/internal/audit/postgres/**/*_test.go",
+      "**/internal/audit/postgres/*_test.go"
+    ],
+    "role": "audit-postgres"
+  },
+  {
+    "rule": "audit-rediscache",
+    "files": [
+      "**/internal/audit/rediscache/**/*.go",
+      "**/internal/audit/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "audit-rediscache"
+  },
+  {
+    "rule": "audit-rediscache-tests",
+    "files": [
+      "**/internal/audit/rediscache/**/*_test.go",
+      "**/internal/audit/rediscache/*_test.go"
+    ],
+    "role": "audit-rediscache"
+  },
+  {
+    "rule": "audit-provider",
+    "files": [
+      "**/internal/audit/provider/**/*.go",
+      "**/internal/audit/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "audit-provider"
+  },
+  {
+    "rule": "audit-provider-tests",
+    "files": [
+      "**/internal/audit/provider/**/*_test.go",
+      "**/internal/audit/provider/*_test.go"
+    ],
+    "role": "audit-provider"
+  },
+  {
+    "rule": "audit-testkit",
+    "files": [
+      "**/internal/audit/testkit/**/*.go",
+      "**/internal/audit/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "audit-testkit"
+  },
+  {
+    "rule": "audit-testkit-tests",
+    "files": [
+      "**/internal/audit/testkit/**/*_test.go",
+      "**/internal/audit/testkit/*_test.go"
+    ],
+    "role": "audit-testkit"
+  },
+  {
+    "rule": "core-backup",
+    "files": [
+      "**/internal/backup/**/*.go",
+      "**/internal/backup/*.go",
+      "!**/internal/backup/httpapi/**",
+      "!**/internal/backup/postgres/**",
+      "!**/internal/backup/rediscache/**",
+      "!**/internal/backup/provider/**",
+      "!**/internal/backup/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-backup"
+  },
+  {
+    "rule": "core-backup-tests",
+    "files": [
+      "**/internal/backup/**/*_test.go",
+      "**/internal/backup/*_test.go",
+      "!**/internal/backup/httpapi/**",
+      "!**/internal/backup/postgres/**",
+      "!**/internal/backup/rediscache/**",
+      "!**/internal/backup/provider/**",
+      "!**/internal/backup/testkit/**"
+    ],
+    "role": "core-backup"
+  },
+  {
+    "rule": "backup-httpapi",
+    "files": [
+      "**/internal/backup/httpapi/**/*.go",
+      "**/internal/backup/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "backup-httpapi"
+  },
+  {
+    "rule": "backup-httpapi-tests",
+    "files": [
+      "**/internal/backup/httpapi/**/*_test.go",
+      "**/internal/backup/httpapi/*_test.go"
+    ],
+    "role": "backup-httpapi"
+  },
+  {
+    "rule": "backup-postgres",
+    "files": [
+      "**/internal/backup/postgres/**/*.go",
+      "**/internal/backup/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "backup-postgres"
+  },
+  {
+    "rule": "backup-postgres-tests",
+    "files": [
+      "**/internal/backup/postgres/**/*_test.go",
+      "**/internal/backup/postgres/*_test.go"
+    ],
+    "role": "backup-postgres"
+  },
+  {
+    "rule": "backup-rediscache",
+    "files": [
+      "**/internal/backup/rediscache/**/*.go",
+      "**/internal/backup/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "backup-rediscache"
+  },
+  {
+    "rule": "backup-rediscache-tests",
+    "files": [
+      "**/internal/backup/rediscache/**/*_test.go",
+      "**/internal/backup/rediscache/*_test.go"
+    ],
+    "role": "backup-rediscache"
+  },
+  {
+    "rule": "backup-provider",
+    "files": [
+      "**/internal/backup/provider/**/*.go",
+      "**/internal/backup/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "backup-provider"
+  },
+  {
+    "rule": "backup-provider-tests",
+    "files": [
+      "**/internal/backup/provider/**/*_test.go",
+      "**/internal/backup/provider/*_test.go"
+    ],
+    "role": "backup-provider"
+  },
+  {
+    "rule": "backup-testkit",
+    "files": [
+      "**/internal/backup/testkit/**/*.go",
+      "**/internal/backup/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "backup-testkit"
+  },
+  {
+    "rule": "backup-testkit-tests",
+    "files": [
+      "**/internal/backup/testkit/**/*_test.go",
+      "**/internal/backup/testkit/*_test.go"
+    ],
+    "role": "backup-testkit"
+  },
+  {
+    "rule": "core-site",
+    "files": [
+      "**/internal/site/**/*.go",
+      "**/internal/site/*.go",
+      "!**/internal/site/httpapi/**",
+      "!**/internal/site/postgres/**",
+      "!**/internal/site/rediscache/**",
+      "!**/internal/site/provider/**",
+      "!**/internal/site/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-site"
+  },
+  {
+    "rule": "core-site-tests",
+    "files": [
+      "**/internal/site/**/*_test.go",
+      "**/internal/site/*_test.go",
+      "!**/internal/site/httpapi/**",
+      "!**/internal/site/postgres/**",
+      "!**/internal/site/rediscache/**",
+      "!**/internal/site/provider/**",
+      "!**/internal/site/testkit/**"
+    ],
+    "role": "core-site"
+  },
+  {
+    "rule": "site-httpapi",
+    "files": [
+      "**/internal/site/httpapi/**/*.go",
+      "**/internal/site/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "site-httpapi"
+  },
+  {
+    "rule": "site-httpapi-tests",
+    "files": [
+      "**/internal/site/httpapi/**/*_test.go",
+      "**/internal/site/httpapi/*_test.go"
+    ],
+    "role": "site-httpapi"
+  },
+  {
+    "rule": "site-postgres",
+    "files": [
+      "**/internal/site/postgres/**/*.go",
+      "**/internal/site/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "site-postgres"
+  },
+  {
+    "rule": "site-postgres-tests",
+    "files": [
+      "**/internal/site/postgres/**/*_test.go",
+      "**/internal/site/postgres/*_test.go"
+    ],
+    "role": "site-postgres"
+  },
+  {
+    "rule": "site-rediscache",
+    "files": [
+      "**/internal/site/rediscache/**/*.go",
+      "**/internal/site/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "site-rediscache"
+  },
+  {
+    "rule": "site-rediscache-tests",
+    "files": [
+      "**/internal/site/rediscache/**/*_test.go",
+      "**/internal/site/rediscache/*_test.go"
+    ],
+    "role": "site-rediscache"
+  },
+  {
+    "rule": "site-provider",
+    "files": [
+      "**/internal/site/provider/**/*.go",
+      "**/internal/site/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "site-provider"
+  },
+  {
+    "rule": "site-provider-tests",
+    "files": [
+      "**/internal/site/provider/**/*_test.go",
+      "**/internal/site/provider/*_test.go"
+    ],
+    "role": "site-provider"
+  },
+  {
+    "rule": "site-testkit",
+    "files": [
+      "**/internal/site/testkit/**/*.go",
+      "**/internal/site/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "site-testkit"
+  },
+  {
+    "rule": "site-testkit-tests",
+    "files": [
+      "**/internal/site/testkit/**/*_test.go",
+      "**/internal/site/testkit/*_test.go"
+    ],
+    "role": "site-testkit"
+  },
+  {
+    "rule": "core-settings",
+    "files": [
+      "**/internal/settings/**/*.go",
+      "**/internal/settings/*.go",
+      "!**/internal/settings/httpapi/**",
+      "!**/internal/settings/postgres/**",
+      "!**/internal/settings/rediscache/**",
+      "!**/internal/settings/provider/**",
+      "!**/internal/settings/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-settings"
+  },
+  {
+    "rule": "core-settings-tests",
+    "files": [
+      "**/internal/settings/**/*_test.go",
+      "**/internal/settings/*_test.go",
+      "!**/internal/settings/httpapi/**",
+      "!**/internal/settings/postgres/**",
+      "!**/internal/settings/rediscache/**",
+      "!**/internal/settings/provider/**",
+      "!**/internal/settings/testkit/**"
+    ],
+    "role": "core-settings"
+  },
+  {
+    "rule": "settings-httpapi",
+    "files": [
+      "**/internal/settings/httpapi/**/*.go",
+      "**/internal/settings/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "settings-httpapi"
+  },
+  {
+    "rule": "settings-httpapi-tests",
+    "files": [
+      "**/internal/settings/httpapi/**/*_test.go",
+      "**/internal/settings/httpapi/*_test.go"
+    ],
+    "role": "settings-httpapi"
+  },
+  {
+    "rule": "settings-postgres",
+    "files": [
+      "**/internal/settings/postgres/**/*.go",
+      "**/internal/settings/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "settings-postgres"
+  },
+  {
+    "rule": "settings-postgres-tests",
+    "files": [
+      "**/internal/settings/postgres/**/*_test.go",
+      "**/internal/settings/postgres/*_test.go"
+    ],
+    "role": "settings-postgres"
+  },
+  {
+    "rule": "settings-rediscache",
+    "files": [
+      "**/internal/settings/rediscache/**/*.go",
+      "**/internal/settings/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "settings-rediscache"
+  },
+  {
+    "rule": "settings-rediscache-tests",
+    "files": [
+      "**/internal/settings/rediscache/**/*_test.go",
+      "**/internal/settings/rediscache/*_test.go"
+    ],
+    "role": "settings-rediscache"
+  },
+  {
+    "rule": "settings-provider",
+    "files": [
+      "**/internal/settings/provider/**/*.go",
+      "**/internal/settings/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "settings-provider"
+  },
+  {
+    "rule": "settings-provider-tests",
+    "files": [
+      "**/internal/settings/provider/**/*_test.go",
+      "**/internal/settings/provider/*_test.go"
+    ],
+    "role": "settings-provider"
+  },
+  {
+    "rule": "settings-testkit",
+    "files": [
+      "**/internal/settings/testkit/**/*.go",
+      "**/internal/settings/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "settings-testkit"
+  },
+  {
+    "rule": "settings-testkit-tests",
+    "files": [
+      "**/internal/settings/testkit/**/*_test.go",
+      "**/internal/settings/testkit/*_test.go"
+    ],
+    "role": "settings-testkit"
+  },
+  {
+    "rule": "core-idempotency",
+    "files": [
+      "**/internal/idempotency/**/*.go",
+      "**/internal/idempotency/*.go",
+      "!**/internal/idempotency/httpapi/**",
+      "!**/internal/idempotency/postgres/**",
+      "!**/internal/idempotency/rediscache/**",
+      "!**/internal/idempotency/provider/**",
+      "!**/internal/idempotency/testkit/**",
+      "!**/*_test.go"
+    ],
+    "role": "core-idempotency"
+  },
+  {
+    "rule": "core-idempotency-tests",
+    "files": [
+      "**/internal/idempotency/**/*_test.go",
+      "**/internal/idempotency/*_test.go",
+      "!**/internal/idempotency/httpapi/**",
+      "!**/internal/idempotency/postgres/**",
+      "!**/internal/idempotency/rediscache/**",
+      "!**/internal/idempotency/provider/**",
+      "!**/internal/idempotency/testkit/**"
+    ],
+    "role": "core-idempotency"
+  },
+  {
+    "rule": "idempotency-httpapi",
+    "files": [
+      "**/internal/idempotency/httpapi/**/*.go",
+      "**/internal/idempotency/httpapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "idempotency-httpapi"
+  },
+  {
+    "rule": "idempotency-httpapi-tests",
+    "files": [
+      "**/internal/idempotency/httpapi/**/*_test.go",
+      "**/internal/idempotency/httpapi/*_test.go"
+    ],
+    "role": "idempotency-httpapi"
+  },
+  {
+    "rule": "idempotency-postgres",
+    "files": [
+      "**/internal/idempotency/postgres/**/*.go",
+      "**/internal/idempotency/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "idempotency-postgres"
+  },
+  {
+    "rule": "idempotency-postgres-tests",
+    "files": [
+      "**/internal/idempotency/postgres/**/*_test.go",
+      "**/internal/idempotency/postgres/*_test.go"
+    ],
+    "role": "idempotency-postgres"
+  },
+  {
+    "rule": "idempotency-rediscache",
+    "files": [
+      "**/internal/idempotency/rediscache/**/*.go",
+      "**/internal/idempotency/rediscache/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "idempotency-rediscache"
+  },
+  {
+    "rule": "idempotency-rediscache-tests",
+    "files": [
+      "**/internal/idempotency/rediscache/**/*_test.go",
+      "**/internal/idempotency/rediscache/*_test.go"
+    ],
+    "role": "idempotency-rediscache"
+  },
+  {
+    "rule": "idempotency-provider",
+    "files": [
+      "**/internal/idempotency/provider/**/*.go",
+      "**/internal/idempotency/provider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "idempotency-provider"
+  },
+  {
+    "rule": "idempotency-provider-tests",
+    "files": [
+      "**/internal/idempotency/provider/**/*_test.go",
+      "**/internal/idempotency/provider/*_test.go"
+    ],
+    "role": "idempotency-provider"
+  },
+  {
+    "rule": "idempotency-testkit",
+    "files": [
+      "**/internal/idempotency/testkit/**/*.go",
+      "**/internal/idempotency/testkit/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "idempotency-testkit"
+  },
+  {
+    "rule": "idempotency-testkit-tests",
+    "files": [
+      "**/internal/idempotency/testkit/**/*_test.go",
+      "**/internal/idempotency/testkit/*_test.go"
+    ],
+    "role": "idempotency-testkit"
+  },
+  {
+    "rule": "leaf-billing-pricing",
+    "files": [
+      "**/internal/billing/pricing/**/*.go",
+      "**/internal/billing/pricing/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "leaf-billing-pricing"
+  },
+  {
+    "rule": "leaf-billing-pricing-tests",
+    "files": [
+      "**/internal/billing/pricing/**/*_test.go",
+      "**/internal/billing/pricing/*_test.go"
+    ],
+    "role": "leaf-billing-pricing"
+  },
+  {
+    "rule": "leaf-routing-capability",
+    "files": [
+      "**/internal/routing/capability/**/*.go",
+      "**/internal/routing/capability/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "leaf-routing-capability"
+  },
+  {
+    "rule": "leaf-routing-capability-tests",
+    "files": [
+      "**/internal/routing/capability/**/*_test.go",
+      "**/internal/routing/capability/*_test.go"
+    ],
+    "role": "leaf-routing-capability"
+  },
+  {
+    "rule": "leaf-scheduler-policy",
+    "files": [
+      "**/internal/scheduler/policy/**/*.go",
+      "**/internal/scheduler/policy/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "leaf-scheduler-policy"
+  },
+  {
+    "rule": "leaf-scheduler-policy-tests",
+    "files": [
+      "**/internal/scheduler/policy/**/*_test.go",
+      "**/internal/scheduler/policy/*_test.go"
+    ],
+    "role": "leaf-scheduler-policy"
+  },
+  {
+    "rule": "leaf-gateway-clientmeta",
+    "files": [
+      "**/internal/gateway/clientmeta/**/*.go",
+      "**/internal/gateway/clientmeta/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "leaf-gateway-clientmeta"
+  },
+  {
+    "rule": "leaf-gateway-clientmeta-tests",
+    "files": [
+      "**/internal/gateway/clientmeta/**/*_test.go",
+      "**/internal/gateway/clientmeta/*_test.go"
+    ],
+    "role": "leaf-gateway-clientmeta"
+  },
+  {
+    "rule": "pure-apperror",
+    "files": [
+      "**/internal/pkg/apperror/**/*.go",
+      "**/internal/pkg/apperror/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "pure-apperror"
+  },
+  {
+    "rule": "pure-apperror-tests",
+    "files": [
+      "**/internal/pkg/apperror/**/*_test.go",
+      "**/internal/pkg/apperror/*_test.go"
+    ],
+    "role": "pure-apperror"
+  },
+  {
+    "rule": "pure-pagination",
+    "files": [
+      "**/internal/pkg/pagination/**/*.go",
+      "**/internal/pkg/pagination/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "pure-pagination"
+  },
+  {
+    "rule": "pure-pagination-tests",
+    "files": [
+      "**/internal/pkg/pagination/**/*_test.go",
+      "**/internal/pkg/pagination/*_test.go"
+    ],
+    "role": "pure-pagination"
+  },
+  {
+    "rule": "pure-timezone",
+    "files": [
+      "**/internal/pkg/timezone/**/*.go",
+      "**/internal/pkg/timezone/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "pure-timezone"
+  },
+  {
+    "rule": "pure-timezone-tests",
+    "files": [
+      "**/internal/pkg/timezone/**/*_test.go",
+      "**/internal/pkg/timezone/*_test.go"
+    ],
+    "role": "pure-timezone"
+  },
+  {
+    "rule": "pure-ipmatch",
+    "files": [
+      "**/internal/pkg/ipmatch/**/*.go",
+      "**/internal/pkg/ipmatch/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "pure-ipmatch"
+  },
+  {
+    "rule": "pure-ipmatch-tests",
+    "files": [
+      "**/internal/pkg/ipmatch/**/*_test.go",
+      "**/internal/pkg/ipmatch/*_test.go"
+    ],
+    "role": "pure-ipmatch"
+  },
+  {
+    "rule": "pure-oauthpkce",
+    "files": [
+      "**/internal/pkg/oauthpkce/**/*.go",
+      "**/internal/pkg/oauthpkce/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "pure-oauthpkce"
+  },
+  {
+    "rule": "pure-oauthpkce-tests",
+    "files": [
+      "**/internal/pkg/oauthpkce/**/*_test.go",
+      "**/internal/pkg/oauthpkce/*_test.go"
+    ],
+    "role": "pure-oauthpkce"
+  },
+  {
+    "rule": "pure-logredact",
+    "files": [
+      "**/internal/pkg/logredact/**/*.go",
+      "**/internal/pkg/logredact/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "pure-logredact"
+  },
+  {
+    "rule": "pure-logredact-tests",
+    "files": [
+      "**/internal/pkg/logredact/**/*_test.go",
+      "**/internal/pkg/logredact/*_test.go"
+    ],
+    "role": "pure-logredact"
+  },
+  {
+    "rule": "protocol-root",
+    "files": [
+      "**/internal/protocol/**/*.go",
+      "**/internal/protocol/*.go",
+      "!**/internal/protocol/anthropic/**",
+      "!**/internal/protocol/openai/**",
+      "!**/internal/protocol/gemini/**",
+      "!**/internal/protocol/google/**",
+      "!**/internal/protocol/bridge/**",
+      "!**/*_test.go"
+    ],
+    "role": "protocol-root"
+  },
+  {
+    "rule": "protocol-root-tests",
+    "files": [
+      "**/internal/protocol/**/*_test.go",
+      "**/internal/protocol/*_test.go",
+      "!**/internal/protocol/anthropic/**",
+      "!**/internal/protocol/openai/**",
+      "!**/internal/protocol/gemini/**",
+      "!**/internal/protocol/google/**",
+      "!**/internal/protocol/bridge/**"
+    ],
+    "role": "protocol-root"
+  },
+  {
+    "rule": "protocol-anthropic",
+    "files": [
+      "**/internal/protocol/anthropic/**/*.go",
+      "**/internal/protocol/anthropic/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "protocol-anthropic"
+  },
+  {
+    "rule": "protocol-anthropic-tests",
+    "files": [
+      "**/internal/protocol/anthropic/**/*_test.go",
+      "**/internal/protocol/anthropic/*_test.go"
+    ],
+    "role": "protocol-anthropic"
+  },
+  {
+    "rule": "protocol-openai",
+    "files": [
+      "**/internal/protocol/openai/**/*.go",
+      "**/internal/protocol/openai/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "protocol-openai"
+  },
+  {
+    "rule": "protocol-openai-tests",
+    "files": [
+      "**/internal/protocol/openai/**/*_test.go",
+      "**/internal/protocol/openai/*_test.go"
+    ],
+    "role": "protocol-openai"
+  },
+  {
+    "rule": "protocol-gemini",
+    "files": [
+      "**/internal/protocol/gemini/**/*.go",
+      "**/internal/protocol/gemini/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "protocol-gemini"
+  },
+  {
+    "rule": "protocol-gemini-tests",
+    "files": [
+      "**/internal/protocol/gemini/**/*_test.go",
+      "**/internal/protocol/gemini/*_test.go"
+    ],
+    "role": "protocol-gemini"
+  },
+  {
+    "rule": "protocol-google",
+    "files": [
+      "**/internal/protocol/google/**/*.go",
+      "**/internal/protocol/google/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "protocol-google"
+  },
+  {
+    "rule": "protocol-google-tests",
+    "files": [
+      "**/internal/protocol/google/**/*_test.go",
+      "**/internal/protocol/google/*_test.go"
+    ],
+    "role": "protocol-google"
+  },
+  {
+    "rule": "protocol-bridge",
+    "files": [
+      "**/internal/protocol/bridge/**/*.go",
+      "**/internal/protocol/bridge/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "protocol-bridge"
+  },
+  {
+    "rule": "protocol-bridge-tests",
+    "files": [
+      "**/internal/protocol/bridge/**/*_test.go",
+      "**/internal/protocol/bridge/*_test.go"
+    ],
+    "role": "protocol-bridge"
+  },
+  {
+    "rule": "upstream-root",
+    "files": [
+      "**/internal/upstream/**/*.go",
+      "**/internal/upstream/*.go",
+      "!**/internal/upstream/anthropic/**",
+      "!**/internal/upstream/openai/**",
+      "!**/internal/upstream/gemini/**",
+      "!**/internal/upstream/antigravity/**",
+      "!**/internal/upstream/grok/**",
+      "!**/internal/upstream/qoder/**",
+      "!**/internal/upstream/bedrock/**",
+      "!**/internal/upstream/vertex/**",
+      "!**/internal/upstream/kimi/**",
+      "!**/internal/upstream/zhipu/**",
+      "!**/internal/upstream/deepseek/**",
+      "!**/internal/upstream/ollama/**",
+      "!**/internal/upstream/usageprovider/**",
+      "!**/*_test.go"
+    ],
+    "role": "upstream-root"
+  },
+  {
+    "rule": "upstream-root-tests",
+    "files": [
+      "**/internal/upstream/**/*_test.go",
+      "**/internal/upstream/*_test.go",
+      "!**/internal/upstream/anthropic/**",
+      "!**/internal/upstream/openai/**",
+      "!**/internal/upstream/gemini/**",
+      "!**/internal/upstream/antigravity/**",
+      "!**/internal/upstream/grok/**",
+      "!**/internal/upstream/qoder/**",
+      "!**/internal/upstream/bedrock/**",
+      "!**/internal/upstream/vertex/**",
+      "!**/internal/upstream/kimi/**",
+      "!**/internal/upstream/zhipu/**",
+      "!**/internal/upstream/deepseek/**",
+      "!**/internal/upstream/ollama/**",
+      "!**/internal/upstream/usageprovider/**"
+    ],
+    "role": "upstream-root"
+  },
+  {
+    "rule": "upstream-anthropic",
+    "files": [
+      "**/internal/upstream/anthropic/**/*.go",
+      "**/internal/upstream/anthropic/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "upstream-anthropic"
+  },
+  {
+    "rule": "upstream-anthropic-tests",
+    "files": [
+      "**/internal/upstream/anthropic/**/*_test.go",
+      "**/internal/upstream/anthropic/*_test.go"
+    ],
+    "role": "upstream-anthropic"
+  },
+  {
+    "rule": "upstream-openai",
+    "files": [
+      "**/internal/upstream/openai/**/*.go",
+      "**/internal/upstream/openai/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "upstream-openai"
+  },
+  {
+    "rule": "upstream-openai-tests",
+    "files": [
+      "**/internal/upstream/openai/**/*_test.go",
+      "**/internal/upstream/openai/*_test.go"
+    ],
+    "role": "upstream-openai"
+  },
+  {
+    "rule": "upstream-gemini",
+    "files": [
+      "**/internal/upstream/gemini/**/*.go",
+      "**/internal/upstream/gemini/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "upstream-gemini"
+  },
+  {
+    "rule": "upstream-gemini-tests",
+    "files": [
+      "**/internal/upstream/gemini/**/*_test.go",
+      "**/internal/upstream/gemini/*_test.go"
+    ],
+    "role": "upstream-gemini"
+  },
+  {
+    "rule": "upstream-antigravity",
+    "files": [
+      "**/internal/upstream/antigravity/**/*.go",
+      "**/internal/upstream/antigravity/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "upstream-antigravity"
+  },
+  {
+    "rule": "upstream-antigravity-tests",
+    "files": [
+      "**/internal/upstream/antigravity/**/*_test.go",
+      "**/internal/upstream/antigravity/*_test.go"
+    ],
+    "role": "upstream-antigravity"
+  },
+  {
+    "rule": "upstream-grok",
+    "files": [
+      "**/internal/upstream/grok/**/*.go",
+      "**/internal/upstream/grok/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "upstream-grok"
+  },
+  {
+    "rule": "upstream-grok-tests",
+    "files": [
+      "**/internal/upstream/grok/**/*_test.go",
+      "**/internal/upstream/grok/*_test.go"
+    ],
+    "role": "upstream-grok"
+  },
+  {
+    "rule": "upstream-qoder",
+    "files": [
+      "**/internal/upstream/qoder/**/*.go",
+      "**/internal/upstream/qoder/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "upstream-qoder"
+  },
+  {
+    "rule": "upstream-qoder-tests",
+    "files": [
+      "**/internal/upstream/qoder/**/*_test.go",
+      "**/internal/upstream/qoder/*_test.go"
+    ],
+    "role": "upstream-qoder"
+  },
+  {
+    "rule": "upstream-bedrock",
+    "files": [
+      "**/internal/upstream/bedrock/**/*.go",
+      "**/internal/upstream/bedrock/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "upstream-bedrock"
+  },
+  {
+    "rule": "upstream-bedrock-tests",
+    "files": [
+      "**/internal/upstream/bedrock/**/*_test.go",
+      "**/internal/upstream/bedrock/*_test.go"
+    ],
+    "role": "upstream-bedrock"
+  },
+  {
+    "rule": "upstream-vertex",
+    "files": [
+      "**/internal/upstream/vertex/**/*.go",
+      "**/internal/upstream/vertex/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "upstream-vertex"
+  },
+  {
+    "rule": "upstream-vertex-tests",
+    "files": [
+      "**/internal/upstream/vertex/**/*_test.go",
+      "**/internal/upstream/vertex/*_test.go"
+    ],
+    "role": "upstream-vertex"
+  },
+  {
+    "rule": "upstream-kimi",
+    "files": [
+      "**/internal/upstream/kimi/**/*.go",
+      "**/internal/upstream/kimi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "upstream-kimi"
+  },
+  {
+    "rule": "upstream-kimi-tests",
+    "files": [
+      "**/internal/upstream/kimi/**/*_test.go",
+      "**/internal/upstream/kimi/*_test.go"
+    ],
+    "role": "upstream-kimi"
+  },
+  {
+    "rule": "upstream-zhipu",
+    "files": [
+      "**/internal/upstream/zhipu/**/*.go",
+      "**/internal/upstream/zhipu/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "upstream-zhipu"
+  },
+  {
+    "rule": "upstream-zhipu-tests",
+    "files": [
+      "**/internal/upstream/zhipu/**/*_test.go",
+      "**/internal/upstream/zhipu/*_test.go"
+    ],
+    "role": "upstream-zhipu"
+  },
+  {
+    "rule": "upstream-deepseek",
+    "files": [
+      "**/internal/upstream/deepseek/**/*.go",
+      "**/internal/upstream/deepseek/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "upstream-deepseek"
+  },
+  {
+    "rule": "upstream-deepseek-tests",
+    "files": [
+      "**/internal/upstream/deepseek/**/*_test.go",
+      "**/internal/upstream/deepseek/*_test.go"
+    ],
+    "role": "upstream-deepseek"
+  },
+  {
+    "rule": "upstream-ollama",
+    "files": [
+      "**/internal/upstream/ollama/**/*.go",
+      "**/internal/upstream/ollama/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "upstream-ollama"
+  },
+  {
+    "rule": "upstream-ollama-tests",
+    "files": [
+      "**/internal/upstream/ollama/**/*_test.go",
+      "**/internal/upstream/ollama/*_test.go"
+    ],
+    "role": "upstream-ollama"
+  },
+  {
+    "rule": "upstream-usageprovider",
+    "files": [
+      "**/internal/upstream/usageprovider/**/*.go",
+      "**/internal/upstream/usageprovider/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "upstream-usageprovider"
+  },
+  {
+    "rule": "upstream-usageprovider-tests",
+    "files": [
+      "**/internal/upstream/usageprovider/**/*_test.go",
+      "**/internal/upstream/usageprovider/*_test.go"
+    ],
+    "role": "upstream-usageprovider"
+  },
+  {
+    "rule": "infra-unclassified",
+    "files": [
+      "**/internal/infra/**/*.go",
+      "**/internal/infra/*.go",
+      "!**/internal/infra/httpclient/**",
+      "!**/internal/infra/postgres/**",
+      "!**/internal/infra/redis/**",
+      "!**/internal/infra/crypto/**",
+      "!**/internal/infra/telemetry/**",
+      "!**/internal/infra/storage/**",
+      "!**/internal/infra/timingwheel/**",
+      "!**/*_test.go"
+    ],
+    "role": "infra-unclassified"
+  },
+  {
+    "rule": "infra-unclassified-tests",
+    "files": [
+      "**/internal/infra/**/*_test.go",
+      "**/internal/infra/*_test.go",
+      "!**/internal/infra/httpclient/**",
+      "!**/internal/infra/postgres/**",
+      "!**/internal/infra/redis/**",
+      "!**/internal/infra/crypto/**",
+      "!**/internal/infra/telemetry/**",
+      "!**/internal/infra/storage/**",
+      "!**/internal/infra/timingwheel/**"
+    ],
+    "role": "infra-unclassified"
+  },
+  {
+    "rule": "infra-httpclient",
+    "files": [
+      "**/internal/infra/httpclient/**/*.go",
+      "**/internal/infra/httpclient/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "infra-httpclient"
+  },
+  {
+    "rule": "infra-httpclient-tests",
+    "files": [
+      "**/internal/infra/httpclient/**/*_test.go",
+      "**/internal/infra/httpclient/*_test.go"
+    ],
+    "role": "infra-httpclient"
+  },
+  {
+    "rule": "infra-postgres",
+    "files": [
+      "**/internal/infra/postgres/**/*.go",
+      "**/internal/infra/postgres/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "infra-postgres"
+  },
+  {
+    "rule": "infra-postgres-tests",
+    "files": [
+      "**/internal/infra/postgres/**/*_test.go",
+      "**/internal/infra/postgres/*_test.go"
+    ],
+    "role": "infra-postgres"
+  },
+  {
+    "rule": "infra-redis",
+    "files": [
+      "**/internal/infra/redis/**/*.go",
+      "**/internal/infra/redis/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "infra-redis"
+  },
+  {
+    "rule": "infra-redis-tests",
+    "files": [
+      "**/internal/infra/redis/**/*_test.go",
+      "**/internal/infra/redis/*_test.go"
+    ],
+    "role": "infra-redis"
+  },
+  {
+    "rule": "infra-crypto",
+    "files": [
+      "**/internal/infra/crypto/**/*.go",
+      "**/internal/infra/crypto/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "infra-crypto"
+  },
+  {
+    "rule": "infra-crypto-tests",
+    "files": [
+      "**/internal/infra/crypto/**/*_test.go",
+      "**/internal/infra/crypto/*_test.go"
+    ],
+    "role": "infra-crypto"
+  },
+  {
+    "rule": "infra-telemetry",
+    "files": [
+      "**/internal/infra/telemetry/**/*.go",
+      "**/internal/infra/telemetry/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "infra-telemetry"
+  },
+  {
+    "rule": "infra-telemetry-tests",
+    "files": [
+      "**/internal/infra/telemetry/**/*_test.go",
+      "**/internal/infra/telemetry/*_test.go"
+    ],
+    "role": "infra-telemetry"
+  },
+  {
+    "rule": "infra-storage",
+    "files": [
+      "**/internal/infra/storage/**/*.go",
+      "**/internal/infra/storage/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "infra-storage"
+  },
+  {
+    "rule": "infra-storage-tests",
+    "files": [
+      "**/internal/infra/storage/**/*_test.go",
+      "**/internal/infra/storage/*_test.go"
+    ],
+    "role": "infra-storage"
+  },
+  {
+    "rule": "infra-timingwheel",
+    "files": [
+      "**/internal/infra/timingwheel/**/*.go",
+      "**/internal/infra/timingwheel/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "infra-timingwheel"
+  },
+  {
+    "rule": "infra-timingwheel-tests",
+    "files": [
+      "**/internal/infra/timingwheel/**/*_test.go",
+      "**/internal/infra/timingwheel/*_test.go"
+    ],
+    "role": "infra-timingwheel"
+  },
+  {
+    "rule": "server-httpx",
+    "files": [
+      "**/internal/server/httpx/**/*.go",
+      "**/internal/server/httpx/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "server-httpx"
+  },
+  {
+    "rule": "server-httpx-tests",
+    "files": [
+      "**/internal/server/httpx/**/*_test.go",
+      "**/internal/server/httpx/*_test.go"
+    ],
+    "role": "server-httpx"
+  },
+  {
+    "rule": "server-clientip",
+    "files": [
+      "**/internal/server/clientip/**/*.go",
+      "**/internal/server/clientip/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "server-clientip"
+  },
+  {
+    "rule": "server-clientip-tests",
+    "files": [
+      "**/internal/server/clientip/**/*_test.go",
+      "**/internal/server/clientip/*_test.go"
+    ],
+    "role": "server-clientip"
+  },
+  {
+    "rule": "retained-server",
+    "files": [
+      "**/internal/server/**/*.go",
+      "**/internal/server/*.go",
+      "!**/internal/server/httpx/**",
+      "!**/internal/server/clientip/**",
+      "!**/internal/server/middleware/**",
+      "!**/internal/server/routes/**",
+      "!**/*_test.go"
+    ],
+    "role": "retained-server"
+  },
+  {
+    "rule": "retained-server-tests",
+    "files": [
+      "**/internal/server/**/*_test.go",
+      "**/internal/server/*_test.go",
+      "!**/internal/server/httpx/**",
+      "!**/internal/server/clientip/**",
+      "!**/internal/server/middleware/**",
+      "!**/internal/server/routes/**"
+    ],
+    "role": "retained-server"
+  },
+  {
+    "rule": "retained-server-middleware",
+    "files": [
+      "**/internal/server/middleware/**/*.go",
+      "**/internal/server/middleware/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "retained-server-middleware"
+  },
+  {
+    "rule": "retained-server-middleware-tests",
+    "files": [
+      "**/internal/server/middleware/**/*_test.go",
+      "**/internal/server/middleware/*_test.go"
+    ],
+    "role": "retained-server-middleware"
+  },
+  {
+    "rule": "retained-server-routes",
+    "files": [
+      "**/internal/server/routes/**/*.go",
+      "**/internal/server/routes/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "retained-server-routes"
+  },
+  {
+    "rule": "retained-server-routes-tests",
+    "files": [
+      "**/internal/server/routes/**/*_test.go",
+      "**/internal/server/routes/*_test.go"
+    ],
+    "role": "retained-server-routes"
+  },
+  {
+    "rule": "retained-config",
+    "files": [
+      "**/internal/config/**/*.go",
+      "**/internal/config/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "retained-config"
+  },
+  {
+    "rule": "retained-config-tests",
+    "files": [
+      "**/internal/config/**/*_test.go",
+      "**/internal/config/*_test.go"
+    ],
+    "role": "retained-config"
+  },
+  {
+    "rule": "retained-setup",
+    "files": [
+      "**/internal/setup/**/*.go",
+      "**/internal/setup/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "retained-setup"
+  },
+  {
+    "rule": "retained-setup-tests",
+    "files": [
+      "**/internal/setup/**/*_test.go",
+      "**/internal/setup/*_test.go"
+    ],
+    "role": "retained-setup"
+  },
+  {
+    "rule": "retained-web",
+    "files": [
+      "**/internal/web/**/*.go",
+      "**/internal/web/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "retained-web"
+  },
+  {
+    "rule": "retained-web-tests",
+    "files": [
+      "**/internal/web/**/*_test.go",
+      "**/internal/web/*_test.go"
+    ],
+    "role": "retained-web"
+  },
+  {
+    "rule": "retained-testutil",
+    "files": [
+      "**/internal/testutil/**/*.go",
+      "**/internal/testutil/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "retained-testutil"
+  },
+  {
+    "rule": "retained-testutil-tests",
+    "files": [
+      "**/internal/testutil/**/*_test.go",
+      "**/internal/testutil/*_test.go"
+    ],
+    "role": "retained-testutil"
+  },
+  {
+    "rule": "pkg-unclassified",
+    "files": [
+      "**/internal/pkg/**/*.go",
+      "**/internal/pkg/*.go",
+      "!**/internal/pkg/apperror/**",
+      "!**/internal/pkg/pagination/**",
+      "!**/internal/pkg/timezone/**",
+      "!**/internal/pkg/ipmatch/**",
+      "!**/internal/pkg/oauthpkce/**",
+      "!**/internal/pkg/logredact/**",
+      "!**/internal/pkg/anthropicfp/**",
+      "!**/internal/pkg/antigravity/**",
+      "!**/internal/pkg/apicompat/**",
+      "!**/internal/pkg/claude/**",
+      "!**/internal/pkg/ctxkey/**",
+      "!**/internal/pkg/errors/**",
+      "!**/internal/pkg/gemini/**",
+      "!**/internal/pkg/geminicli/**",
+      "!**/internal/pkg/googleapi/**",
+      "!**/internal/pkg/httpclient/**",
+      "!**/internal/pkg/httputil/**",
+      "!**/internal/pkg/ip/**",
+      "!**/internal/pkg/logger/**",
+      "!**/internal/pkg/oauth/**",
+      "!**/internal/pkg/openai/**",
+      "!**/internal/pkg/openai_compat/**",
+      "!**/internal/pkg/proxyurl/**",
+      "!**/internal/pkg/proxyutil/**",
+      "!**/internal/pkg/qoder/**",
+      "!**/internal/pkg/redissession/**",
+      "!**/internal/pkg/response/**",
+      "!**/internal/pkg/servertiming/**",
+      "!**/internal/pkg/sysutil/**",
+      "!**/internal/pkg/tlsfingerprint/**",
+      "!**/internal/pkg/usagestats/**",
+      "!**/internal/pkg/websearch/**",
+      "!**/internal/pkg/xai/**",
+      "!**/*_test.go"
+    ],
+    "role": "pkg-unclassified"
+  },
+  {
+    "rule": "pkg-unclassified-tests",
+    "files": [
+      "**/internal/pkg/**/*_test.go",
+      "**/internal/pkg/*_test.go",
+      "!**/internal/pkg/apperror/**",
+      "!**/internal/pkg/pagination/**",
+      "!**/internal/pkg/timezone/**",
+      "!**/internal/pkg/ipmatch/**",
+      "!**/internal/pkg/oauthpkce/**",
+      "!**/internal/pkg/logredact/**",
+      "!**/internal/pkg/anthropicfp/**",
+      "!**/internal/pkg/antigravity/**",
+      "!**/internal/pkg/apicompat/**",
+      "!**/internal/pkg/claude/**",
+      "!**/internal/pkg/ctxkey/**",
+      "!**/internal/pkg/errors/**",
+      "!**/internal/pkg/gemini/**",
+      "!**/internal/pkg/geminicli/**",
+      "!**/internal/pkg/googleapi/**",
+      "!**/internal/pkg/httpclient/**",
+      "!**/internal/pkg/httputil/**",
+      "!**/internal/pkg/ip/**",
+      "!**/internal/pkg/logger/**",
+      "!**/internal/pkg/oauth/**",
+      "!**/internal/pkg/openai/**",
+      "!**/internal/pkg/openai_compat/**",
+      "!**/internal/pkg/proxyurl/**",
+      "!**/internal/pkg/proxyutil/**",
+      "!**/internal/pkg/qoder/**",
+      "!**/internal/pkg/redissession/**",
+      "!**/internal/pkg/response/**",
+      "!**/internal/pkg/servertiming/**",
+      "!**/internal/pkg/sysutil/**",
+      "!**/internal/pkg/tlsfingerprint/**",
+      "!**/internal/pkg/usagestats/**",
+      "!**/internal/pkg/websearch/**",
+      "!**/internal/pkg/xai/**"
+    ],
+    "role": "pkg-unclassified"
+  },
+  {
+    "rule": "legacy-pkg-anthropicfp",
+    "files": [
+      "**/internal/pkg/anthropicfp/**/*.go",
+      "**/internal/pkg/anthropicfp/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-anthropicfp"
+  },
+  {
+    "rule": "legacy-pkg-anthropicfp-tests",
+    "files": [
+      "**/internal/pkg/anthropicfp/**/*_test.go",
+      "**/internal/pkg/anthropicfp/*_test.go"
+    ],
+    "role": "legacy-pkg-anthropicfp"
+  },
+  {
+    "rule": "legacy-pkg-antigravity",
+    "files": [
+      "**/internal/pkg/antigravity/**/*.go",
+      "**/internal/pkg/antigravity/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-antigravity"
+  },
+  {
+    "rule": "legacy-pkg-antigravity-tests",
+    "files": [
+      "**/internal/pkg/antigravity/**/*_test.go",
+      "**/internal/pkg/antigravity/*_test.go"
+    ],
+    "role": "legacy-pkg-antigravity"
+  },
+  {
+    "rule": "legacy-pkg-apicompat",
+    "files": [
+      "**/internal/pkg/apicompat/**/*.go",
+      "**/internal/pkg/apicompat/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-apicompat"
+  },
+  {
+    "rule": "legacy-pkg-apicompat-tests",
+    "files": [
+      "**/internal/pkg/apicompat/**/*_test.go",
+      "**/internal/pkg/apicompat/*_test.go"
+    ],
+    "role": "legacy-pkg-apicompat"
+  },
+  {
+    "rule": "legacy-pkg-claude",
+    "files": [
+      "**/internal/pkg/claude/**/*.go",
+      "**/internal/pkg/claude/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-claude"
+  },
+  {
+    "rule": "legacy-pkg-claude-tests",
+    "files": [
+      "**/internal/pkg/claude/**/*_test.go",
+      "**/internal/pkg/claude/*_test.go"
+    ],
+    "role": "legacy-pkg-claude"
+  },
+  {
+    "rule": "legacy-pkg-ctxkey",
+    "files": [
+      "**/internal/pkg/ctxkey/**/*.go",
+      "**/internal/pkg/ctxkey/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-ctxkey"
+  },
+  {
+    "rule": "legacy-pkg-ctxkey-tests",
+    "files": [
+      "**/internal/pkg/ctxkey/**/*_test.go",
+      "**/internal/pkg/ctxkey/*_test.go"
+    ],
+    "role": "legacy-pkg-ctxkey"
+  },
+  {
+    "rule": "legacy-pkg-errors",
+    "files": [
+      "**/internal/pkg/errors/**/*.go",
+      "**/internal/pkg/errors/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-errors"
+  },
+  {
+    "rule": "legacy-pkg-errors-tests",
+    "files": [
+      "**/internal/pkg/errors/**/*_test.go",
+      "**/internal/pkg/errors/*_test.go"
+    ],
+    "role": "legacy-pkg-errors"
+  },
+  {
+    "rule": "legacy-pkg-gemini",
+    "files": [
+      "**/internal/pkg/gemini/**/*.go",
+      "**/internal/pkg/gemini/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-gemini"
+  },
+  {
+    "rule": "legacy-pkg-gemini-tests",
+    "files": [
+      "**/internal/pkg/gemini/**/*_test.go",
+      "**/internal/pkg/gemini/*_test.go"
+    ],
+    "role": "legacy-pkg-gemini"
+  },
+  {
+    "rule": "legacy-pkg-geminicli",
+    "files": [
+      "**/internal/pkg/geminicli/**/*.go",
+      "**/internal/pkg/geminicli/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-geminicli"
+  },
+  {
+    "rule": "legacy-pkg-geminicli-tests",
+    "files": [
+      "**/internal/pkg/geminicli/**/*_test.go",
+      "**/internal/pkg/geminicli/*_test.go"
+    ],
+    "role": "legacy-pkg-geminicli"
+  },
+  {
+    "rule": "legacy-pkg-googleapi",
+    "files": [
+      "**/internal/pkg/googleapi/**/*.go",
+      "**/internal/pkg/googleapi/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-googleapi"
+  },
+  {
+    "rule": "legacy-pkg-googleapi-tests",
+    "files": [
+      "**/internal/pkg/googleapi/**/*_test.go",
+      "**/internal/pkg/googleapi/*_test.go"
+    ],
+    "role": "legacy-pkg-googleapi"
+  },
+  {
+    "rule": "legacy-pkg-httpclient",
+    "files": [
+      "**/internal/pkg/httpclient/**/*.go",
+      "**/internal/pkg/httpclient/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-httpclient"
+  },
+  {
+    "rule": "legacy-pkg-httpclient-tests",
+    "files": [
+      "**/internal/pkg/httpclient/**/*_test.go",
+      "**/internal/pkg/httpclient/*_test.go"
+    ],
+    "role": "legacy-pkg-httpclient"
+  },
+  {
+    "rule": "legacy-pkg-httputil",
+    "files": [
+      "**/internal/pkg/httputil/**/*.go",
+      "**/internal/pkg/httputil/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-httputil"
+  },
+  {
+    "rule": "legacy-pkg-httputil-tests",
+    "files": [
+      "**/internal/pkg/httputil/**/*_test.go",
+      "**/internal/pkg/httputil/*_test.go"
+    ],
+    "role": "legacy-pkg-httputil"
+  },
+  {
+    "rule": "legacy-pkg-ip",
+    "files": [
+      "**/internal/pkg/ip/**/*.go",
+      "**/internal/pkg/ip/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-ip"
+  },
+  {
+    "rule": "legacy-pkg-ip-tests",
+    "files": [
+      "**/internal/pkg/ip/**/*_test.go",
+      "**/internal/pkg/ip/*_test.go"
+    ],
+    "role": "legacy-pkg-ip"
+  },
+  {
+    "rule": "legacy-pkg-logger",
+    "files": [
+      "**/internal/pkg/logger/**/*.go",
+      "**/internal/pkg/logger/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-logger"
+  },
+  {
+    "rule": "legacy-pkg-logger-tests",
+    "files": [
+      "**/internal/pkg/logger/**/*_test.go",
+      "**/internal/pkg/logger/*_test.go"
+    ],
+    "role": "legacy-pkg-logger"
+  },
+  {
+    "rule": "legacy-pkg-oauth",
+    "files": [
+      "**/internal/pkg/oauth/**/*.go",
+      "**/internal/pkg/oauth/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-oauth"
+  },
+  {
+    "rule": "legacy-pkg-oauth-tests",
+    "files": [
+      "**/internal/pkg/oauth/**/*_test.go",
+      "**/internal/pkg/oauth/*_test.go"
+    ],
+    "role": "legacy-pkg-oauth"
+  },
+  {
+    "rule": "legacy-pkg-openai",
+    "files": [
+      "**/internal/pkg/openai/**/*.go",
+      "**/internal/pkg/openai/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-openai"
+  },
+  {
+    "rule": "legacy-pkg-openai-tests",
+    "files": [
+      "**/internal/pkg/openai/**/*_test.go",
+      "**/internal/pkg/openai/*_test.go"
+    ],
+    "role": "legacy-pkg-openai"
+  },
+  {
+    "rule": "legacy-pkg-openai_compat",
+    "files": [
+      "**/internal/pkg/openai_compat/**/*.go",
+      "**/internal/pkg/openai_compat/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-openai_compat"
+  },
+  {
+    "rule": "legacy-pkg-openai_compat-tests",
+    "files": [
+      "**/internal/pkg/openai_compat/**/*_test.go",
+      "**/internal/pkg/openai_compat/*_test.go"
+    ],
+    "role": "legacy-pkg-openai_compat"
+  },
+  {
+    "rule": "legacy-pkg-proxyurl",
+    "files": [
+      "**/internal/pkg/proxyurl/**/*.go",
+      "**/internal/pkg/proxyurl/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-proxyurl"
+  },
+  {
+    "rule": "legacy-pkg-proxyurl-tests",
+    "files": [
+      "**/internal/pkg/proxyurl/**/*_test.go",
+      "**/internal/pkg/proxyurl/*_test.go"
+    ],
+    "role": "legacy-pkg-proxyurl"
+  },
+  {
+    "rule": "legacy-pkg-proxyutil",
+    "files": [
+      "**/internal/pkg/proxyutil/**/*.go",
+      "**/internal/pkg/proxyutil/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-proxyutil"
+  },
+  {
+    "rule": "legacy-pkg-proxyutil-tests",
+    "files": [
+      "**/internal/pkg/proxyutil/**/*_test.go",
+      "**/internal/pkg/proxyutil/*_test.go"
+    ],
+    "role": "legacy-pkg-proxyutil"
+  },
+  {
+    "rule": "legacy-pkg-qoder",
+    "files": [
+      "**/internal/pkg/qoder/**/*.go",
+      "**/internal/pkg/qoder/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-qoder"
+  },
+  {
+    "rule": "legacy-pkg-qoder-tests",
+    "files": [
+      "**/internal/pkg/qoder/**/*_test.go",
+      "**/internal/pkg/qoder/*_test.go"
+    ],
+    "role": "legacy-pkg-qoder"
+  },
+  {
+    "rule": "legacy-pkg-redissession",
+    "files": [
+      "**/internal/pkg/redissession/**/*.go",
+      "**/internal/pkg/redissession/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-redissession"
+  },
+  {
+    "rule": "legacy-pkg-redissession-tests",
+    "files": [
+      "**/internal/pkg/redissession/**/*_test.go",
+      "**/internal/pkg/redissession/*_test.go"
+    ],
+    "role": "legacy-pkg-redissession"
+  },
+  {
+    "rule": "legacy-pkg-response",
+    "files": [
+      "**/internal/pkg/response/**/*.go",
+      "**/internal/pkg/response/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-response"
+  },
+  {
+    "rule": "legacy-pkg-response-tests",
+    "files": [
+      "**/internal/pkg/response/**/*_test.go",
+      "**/internal/pkg/response/*_test.go"
+    ],
+    "role": "legacy-pkg-response"
+  },
+  {
+    "rule": "legacy-pkg-servertiming",
+    "files": [
+      "**/internal/pkg/servertiming/**/*.go",
+      "**/internal/pkg/servertiming/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-servertiming"
+  },
+  {
+    "rule": "legacy-pkg-servertiming-tests",
+    "files": [
+      "**/internal/pkg/servertiming/**/*_test.go",
+      "**/internal/pkg/servertiming/*_test.go"
+    ],
+    "role": "legacy-pkg-servertiming"
+  },
+  {
+    "rule": "legacy-pkg-sysutil",
+    "files": [
+      "**/internal/pkg/sysutil/**/*.go",
+      "**/internal/pkg/sysutil/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-sysutil"
+  },
+  {
+    "rule": "legacy-pkg-sysutil-tests",
+    "files": [
+      "**/internal/pkg/sysutil/**/*_test.go",
+      "**/internal/pkg/sysutil/*_test.go"
+    ],
+    "role": "legacy-pkg-sysutil"
+  },
+  {
+    "rule": "legacy-pkg-tlsfingerprint",
+    "files": [
+      "**/internal/pkg/tlsfingerprint/**/*.go",
+      "**/internal/pkg/tlsfingerprint/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-tlsfingerprint"
+  },
+  {
+    "rule": "legacy-pkg-tlsfingerprint-tests",
+    "files": [
+      "**/internal/pkg/tlsfingerprint/**/*_test.go",
+      "**/internal/pkg/tlsfingerprint/*_test.go"
+    ],
+    "role": "legacy-pkg-tlsfingerprint"
+  },
+  {
+    "rule": "legacy-pkg-usagestats",
+    "files": [
+      "**/internal/pkg/usagestats/**/*.go",
+      "**/internal/pkg/usagestats/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-usagestats"
+  },
+  {
+    "rule": "legacy-pkg-usagestats-tests",
+    "files": [
+      "**/internal/pkg/usagestats/**/*_test.go",
+      "**/internal/pkg/usagestats/*_test.go"
+    ],
+    "role": "legacy-pkg-usagestats"
+  },
+  {
+    "rule": "legacy-pkg-websearch",
+    "files": [
+      "**/internal/pkg/websearch/**/*.go",
+      "**/internal/pkg/websearch/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-websearch"
+  },
+  {
+    "rule": "legacy-pkg-websearch-tests",
+    "files": [
+      "**/internal/pkg/websearch/**/*_test.go",
+      "**/internal/pkg/websearch/*_test.go"
+    ],
+    "role": "legacy-pkg-websearch"
+  },
+  {
+    "rule": "legacy-pkg-xai",
+    "files": [
+      "**/internal/pkg/xai/**/*.go",
+      "**/internal/pkg/xai/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacy-pkg-xai"
+  },
+  {
+    "rule": "legacy-pkg-xai-tests",
+    "files": [
+      "**/internal/pkg/xai/**/*_test.go",
+      "**/internal/pkg/xai/*_test.go"
+    ],
+    "role": "legacy-pkg-xai"
+  },
+  {
+    "rule": "app",
+    "files": [
+      "**/internal/app/**/*.go",
+      "**/internal/app/*.go",
+      "!**/internal/app/legacybridge/**",
+      "!**/*_test.go"
+    ],
+    "role": "app"
+  },
+  {
+    "rule": "app-tests",
+    "files": [
+      "**/internal/app/**/*_test.go",
+      "**/internal/app/*_test.go",
+      "!**/internal/app/legacybridge/**"
+    ],
+    "role": "app"
+  },
+  {
+    "rule": "legacybridge",
+    "files": [
+      "**/internal/app/legacybridge/**/*.go",
+      "**/internal/app/legacybridge/*.go",
+      "!**/*_test.go"
+    ],
+    "role": "legacybridge"
+  },
+  {
+    "rule": "legacybridge-tests",
+    "files": [
+      "**/internal/app/legacybridge/**/*_test.go",
+      "**/internal/app/legacybridge/*_test.go"
+    ],
+    "role": "legacybridge"
+  },
+  {
+    "rule": "legacy-upstream-contract-tests",
+    "files": [
+      "**/internal/repository/http_upstream_pool_test.go"
+    ],
+    "role": "旧平台适配契约测试；精确准入，S06/S09 迁出"
+  }
+]

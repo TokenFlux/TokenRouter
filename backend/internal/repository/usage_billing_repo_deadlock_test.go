@@ -5,8 +5,9 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 )
@@ -22,7 +23,9 @@ const (
 func TestUsageBillingRepositoryApply_DeadlockRestartsWholeTransaction(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	cmd := &service.UsageBillingCommand{
 		RequestID:          "req-deadlock-retry",
@@ -30,7 +33,7 @@ func TestUsageBillingRepositoryApply_DeadlockRestartsWholeTransaction(t *testing
 		APIKeyID:           7,
 		UserID:             42,
 	}
-	for attempt := 1; attempt <= postgresDeadlockMaxAttempts; attempt++ {
+	for attempt := 1; attempt <= 3; attempt++ {
 		mock.ExpectBegin()
 		mock.ExpectQuery(usageBillingClaimSQL).
 			WithArgs(cmd.RequestID, cmd.APIKeyID, cmd.RequestFingerprint).
@@ -39,7 +42,7 @@ func TestUsageBillingRepositoryApply_DeadlockRestartsWholeTransaction(t *testing
 			WithArgs(cmd.RequestID, cmd.APIKeyID).
 			WillReturnError(sql.ErrNoRows)
 		userLock := mock.ExpectQuery(usageBillingUserLockSQL).WithArgs(cmd.UserID)
-		if attempt < postgresDeadlockMaxAttempts {
+		if attempt < 3 {
 			userLock.WillReturnError(&pq.Error{Code: "40P01"})
 			mock.ExpectRollback()
 			continue
@@ -60,7 +63,9 @@ func TestUsageBillingRepositoryApply_DeadlockRestartsWholeTransaction(t *testing
 func TestLockUsageBillingUser_ReturnsUserNotFound(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	mock.ExpectBegin()
 	tx, err := db.BeginTx(context.Background(), nil)
@@ -79,7 +84,9 @@ func TestLockUsageBillingUser_ReturnsUserNotFound(t *testing.T) {
 func TestDeductUsageBillingBalance_KeepsForeignKeyCompatibleUserLock(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	mock.ExpectBegin()
 	tx, err := db.BeginTx(context.Background(), nil)
@@ -103,7 +110,9 @@ func TestUsageBillingMonetaryEffectsQuantizeBeforeSQL(t *testing.T) {
 
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	mock.ExpectBegin()
 	tx, err := db.BeginTx(context.Background(), nil)

@@ -1,79 +1,23 @@
+// 本文件为阶段迁移兼容入口；剩余消费者和退出阶段见 refactor/S01-foundation.md。
 package tlsfingerprint
 
 import (
-	"net"
-	"strings"
+	net "net"
 
-	utls "github.com/refraction-networking/utls"
+	foundation "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
 )
 
-// SupportsHTTP2 返回模板是否会通过 ALPN 声明 h2。
+// SupportsHTTP2 兼容旧入口；仅转发到目标实现。
 func SupportsHTTP2(profile *Profile) bool {
-	if !profileHasALPNExtension(profile) {
-		return false
-	}
-	for _, protocol := range effectiveALPNProtocols(profile) {
-		if strings.EqualFold(strings.TrimSpace(protocol), "h2") {
-			return true
-		}
-	}
-	return false
+	return foundation.SupportsHTTP2(profile)
 }
 
-// HTTP1OnlyProfile 返回移除 h2 ALPN 后的模板副本，用于显式 HTTP/1.1 回退。
+// HTTP1OnlyProfile 兼容旧入口；仅转发到目标实现。
 func HTTP1OnlyProfile(profile *Profile) *Profile {
-	if profile == nil || !SupportsHTTP2(profile) {
-		return profile
-	}
-	cloned := *profile
-	protocols := make([]string, 0, len(effectiveALPNProtocols(profile)))
-	hasHTTP1 := false
-	for _, protocol := range effectiveALPNProtocols(profile) {
-		trimmed := strings.TrimSpace(protocol)
-		if trimmed == "" || strings.EqualFold(trimmed, "h2") {
-			continue
-		}
-		if strings.EqualFold(trimmed, "http/1.1") {
-			hasHTTP1 = true
-		}
-		protocols = append(protocols, protocol)
-	}
-	if !hasHTTP1 {
-		protocols = append(protocols, "http/1.1")
-	}
-	cloned.ALPNProtocols = protocols
-	return &cloned
+	return foundation.HTTP1OnlyProfile(profile)
 }
 
-// NegotiatedProtocol 从 uTLS 连接中取出实际协商到的 ALPN 协议。
+// NegotiatedProtocol 兼容旧入口；仅转发到目标实现。
 func NegotiatedProtocol(conn net.Conn) string {
-	if conn == nil {
-		return ""
-	}
-	type negotiatedProtocolConn interface {
-		ConnectionState() utls.ConnectionState
-	}
-	if stateConn, ok := conn.(negotiatedProtocolConn); ok {
-		return strings.TrimSpace(stateConn.ConnectionState().NegotiatedProtocol)
-	}
-	return ""
-}
-
-func effectiveALPNProtocols(profile *Profile) []string {
-	if profile != nil && len(profile.ALPNProtocols) > 0 {
-		return profile.ALPNProtocols
-	}
-	return []string{"http/1.1"}
-}
-
-func profileHasALPNExtension(profile *Profile) bool {
-	if profile == nil || len(profile.Extensions) == 0 {
-		return true
-	}
-	for _, extensionID := range profile.Extensions {
-		if extensionID == 16 {
-			return true
-		}
-	}
-	return false
+	return foundation.NegotiatedProtocol(conn)
 }

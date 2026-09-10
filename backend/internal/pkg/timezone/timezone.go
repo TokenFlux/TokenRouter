@@ -6,7 +6,6 @@ package timezone
 import (
 	"fmt"
 	"log"
-	"strings"
 	"time"
 )
 
@@ -60,10 +59,7 @@ func getUTCOffset(loc *time.Location) string {
 // This is equivalent to time.Now() after Init() is called,
 // but provided for explicit timezone-aware code.
 func Now() time.Time {
-	if location == nil {
-		return time.Now()
-	}
-	return time.Now().In(location)
+	return NewCalendar(location).Now()
 }
 
 // Location returns the configured timezone location.
@@ -89,117 +85,54 @@ func UTCOffset() string {
 
 // StartOfDay returns the start of the given day (00:00:00) in the configured timezone.
 func StartOfDay(t time.Time) time.Time {
-	loc := Location()
-	t = t.In(loc)
-	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
+	return NewCalendar(Location()).StartOfDay(t)
 }
 
 // Today returns the start of today (00:00:00) in the configured timezone.
 func Today() time.Time {
-	return StartOfDay(Now())
+	return NewCalendar(Location()).Today()
 }
 
 // EndOfDay returns the end of the given day (23:59:59.999999999) in the configured timezone.
 func EndOfDay(t time.Time) time.Time {
-	loc := Location()
-	t = t.In(loc)
-	return time.Date(t.Year(), t.Month(), t.Day(), 23, 59, 59, 999999999, loc)
+	return NewCalendar(Location()).EndOfDay(t)
 }
 
 // StartOfWeek returns the start of the week (Monday 00:00:00) for the given time.
 func StartOfWeek(t time.Time) time.Time {
-	loc := Location()
-	t = t.In(loc)
-	weekday := int(t.Weekday())
-	if weekday == 0 {
-		weekday = 7 // Sunday is day 7
-	}
-	return time.Date(t.Year(), t.Month(), t.Day()-weekday+1, 0, 0, 0, 0, loc)
+	return NewCalendar(Location()).StartOfWeek(t)
 }
 
 // StartOfMonth returns the start of the month (1st day 00:00:00) for the given time.
 func StartOfMonth(t time.Time) time.Time {
-	loc := Location()
-	t = t.In(loc)
-	return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, loc)
+	return NewCalendar(Location()).StartOfMonth(t)
 }
 
 // ParseInLocation parses a time string in the configured timezone.
 func ParseInLocation(layout, value string) (time.Time, error) {
-	return time.ParseInLocation(layout, value, Location())
+	return NewCalendar(Location()).ParseInLocation(layout, value)
 }
 
 // ParseInUserLocation parses a time string in the user's timezone.
 // If userTZ is empty or invalid, falls back to the configured server timezone.
 func ParseInUserLocation(layout, value, userTZ string) (time.Time, error) {
-	loc := Location() // default to server timezone
-	if userTZ != "" {
-		if userLoc, err := time.LoadLocation(userTZ); err == nil {
-			loc = userLoc
-		}
-	}
-	return time.ParseInLocation(layout, value, loc)
+	return NewCalendar(Location()).ParseInUserLocation(layout, value, userTZ)
 }
 
 // ParseDateTimeInUserLocation 解析用户时区下的日期或日期时间。
 // 返回值 dateOnly 表示输入是否为 YYYY-MM-DD，调用方可据此决定结束边界是否需要顺延一天。
 func ParseDateTimeInUserLocation(value, userTZ string) (parsed time.Time, dateOnly bool, err error) {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return time.Time{}, false, fmt.Errorf("empty datetime")
-	}
-
-	if t, parseErr := time.Parse(time.RFC3339Nano, value); parseErr == nil {
-		return t, false, nil
-	}
-
-	loc := Location()
-	if userTZ != "" {
-		if userLoc, loadErr := time.LoadLocation(userTZ); loadErr == nil {
-			loc = userLoc
-		}
-	}
-
-	layouts := []struct {
-		layout   string
-		dateOnly bool
-	}{
-		{layout: "2006-01-02", dateOnly: true},
-		{layout: "2006-01-02T15:04:05", dateOnly: false},
-		{layout: "2006-01-02T15:04", dateOnly: false},
-		{layout: "2006-01-02 15:04:05", dateOnly: false},
-		{layout: "2006-01-02 15:04", dateOnly: false},
-	}
-	for _, candidate := range layouts {
-		if t, parseErr := time.ParseInLocation(candidate.layout, value, loc); parseErr == nil {
-			return t, candidate.dateOnly, nil
-		}
-	}
-
-	return time.Time{}, false, fmt.Errorf("invalid datetime %q", value)
+	return NewCalendar(Location()).ParseDateTimeInUserLocation(value, userTZ)
 }
 
 // NowInUserLocation returns the current time in the user's timezone.
 // If userTZ is empty or invalid, falls back to the configured server timezone.
 func NowInUserLocation(userTZ string) time.Time {
-	if userTZ == "" {
-		return Now()
-	}
-	if userLoc, err := time.LoadLocation(userTZ); err == nil {
-		return time.Now().In(userLoc)
-	}
-	return Now()
+	return NewCalendar(location).NowInUserLocation(userTZ)
 }
 
 // StartOfDayInUserLocation returns the start of the given day in the user's timezone.
 // If userTZ is empty or invalid, falls back to the configured server timezone.
 func StartOfDayInUserLocation(t time.Time, userTZ string) time.Time {
-	loc := Location()
-	if userTZ != "" {
-		if userLoc, err := time.LoadLocation(userTZ); err == nil {
-			loc = userLoc
-		}
-	}
-	t = t.In(loc)
-	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, loc)
+	return NewCalendar(Location()).StartOfDayInUserLocation(t, userTZ)
 }

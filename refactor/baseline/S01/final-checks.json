@@ -1,0 +1,26 @@
+{
+  "head_unchanged": true,
+  "index_unchanged": true,
+  "plan_body_unchanged": true,
+  "migration_changes": [],
+  "generated_changes": [],
+  "missing_exception_imports": [],
+  "invalid_code_anchors": [],
+  "selection_errors": [],
+  "new_lint_issues": {
+    "normal": [],
+    "unit": [],
+    "integration": []
+  },
+  "new_integration_failures": [],
+  "sql_file_count": 309,
+  "stale_ast_files": [],
+  "timestamp": "2026-09-11T01:29:21.583916+08:00",
+  "new_files_without_role_rule": [],
+  "rule_count": 521,
+  "exception_count": 164,
+  "broken_document_links": [],
+  "bad_log_archives": [],
+  "diff_check_exit_code": 0,
+  "finished_at": "2026-09-11T01:31:25.085385+08:00"
+}

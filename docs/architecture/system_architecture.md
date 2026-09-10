@@ -42,9 +42,14 @@
 | --- | --- | --- |
 | 配置 | `internal/config` | 读取启动配置、设置默认值、归一化并校验；向后续层提供不可变启动快照 |
 | 基础设施与仓储 | `internal/repository`、`ent/schema` | PostgreSQL/Ent、Redis、缓存、对象存储、上游基础客户端和 repository 接口实现 |
+| 通用技术实现 | `internal/infra` 下的各技术包 | HTTP/req 客户端池、proxy/TLS、PostgreSQL 连接与重试、Redis 会话和固定窗口计数、日志/timing、AES |
 | 领域与应用服务 | `internal/service`、`internal/payment` | 业务不变量、跨仓储事务、调度、计费、协议转换、后台任务和支付 provider 选择 |
 | 接口适配 | `internal/handler`、`internal/server/middleware` | HTTP 输入输出、认证上下文、协议错误、请求 attempt 编排和审计 |
 | 服务器 | `internal/server` | Gin engine、全局中间件、路由族、前端 middleware 和 `http.Server` 参数 |
+
+通用技术实现接收必要的参数或 Options，不读取完整启动配置，也不导入业务 service。旧 `repository.InitEnt` 仍编排时区、迁移、密钥补齐和 simple 初始化；它委托 `infra/postgres` 打开连接、配置连接池和记录 SQL timing。旧 `repository.NewHTTPUpstream` 仍解释平台策略和请求标记，`infra/httpclient.UpstreamPool` 闭合获取、请求执行、解压与响应体关闭后的释放。OpenAI HTTP/2 回退状态和 Grok CLI 策略仍由旧适配层持有。
+
+`pkg/apperror`、`pagination`、`timezone`、`ipmatch`、`oauthpkce`、`logredact` 提供通用值类型和计算；`server/httpx` 与 `server/clientip` 拥有 HTTP 响应、请求体和客户端地址适配。旧 pkg/util 的兼容入口采用类型别名或委托，日志后端、timing context、会话和各客户端池都只有一份运行状态。日期计算可以显式持有时区，旧全局初始化仍维持现有日界。
 
 这不是由 Go import 强制的纯单向分层。`repository` 会实现 `service` 中定义的端口，handler 也会协调多个 service；判断所有权应看不变量落在哪里，而不是只看包名。禁止把 Wire 生成文件当作编辑源：新增 provider 或修改依赖时改各层 `wire.go`，再执行 `go generate ./cmd/server`。
 

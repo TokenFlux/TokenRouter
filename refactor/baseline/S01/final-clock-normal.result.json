@@ -1,0 +1,30 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/pkg/timezone"
+  ],
+  "working_directory": "backend",
+  "environment": {
+    "GOTOOLCHAIN": "go1.27.0"
+  },
+  "started_at": "2026-09-10T23:56:37.382937+08:00",
+  "finished_at": "2026-09-10T23:56:38.249547+08:00",
+  "duration_seconds": 0.87,
+  "exit_code": 0,
+  "log": "logs/final-clock-normal.log.gz",
+  "package_results": [
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone",
+      "Elapsed": 0.699
+    }
+  ],
+  "test_run_count": 13,
+  "test_pass_count": 13,
+  "failed_tests": [],
+  "skipped_tests": [],
+  "execution_evidence": "logs/final-clock-normal.log.gz"
+}

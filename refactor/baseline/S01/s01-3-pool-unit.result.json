@@ -1,0 +1,81 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/infra/...",
+    "./internal/repository",
+    "-run",
+    "TestHTTPUpstream|TestTLSFingerprintHTTPSProxy|TestResponseHeaderTimeout|TestBuildUpstreamTransport|TestNewUpstreamDialer|TestUpstreamDialer|TestEnableOpenAIHTTP2KeepAlive|TestDecompress"
+  ],
+  "working_directory": "backend",
+  "environment": {
+    "GOTOOLCHAIN": "go1.27.0"
+  },
+  "started_at": "2026-09-10T22:36:40.093482+08:00",
+  "finished_at": "2026-09-10T22:36:45.559386+08:00",
+  "duration_seconds": 5.47,
+  "exit_code": 1,
+  "log": "logs/s01-3-pool-unit.log.gz",
+  "package_results": [
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/crypto",
+      "Elapsed": 0.001
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient [github.com/TokenFlux/TokenRouter/internal/infra/httpclient.test]"
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/proxy",
+      "Elapsed": 0.93
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+      "Elapsed": 1.342
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/redis",
+      "Elapsed": 1.7469999999999999
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/postgres",
+      "Elapsed": 2.143
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/redis/session",
+      "Elapsed": 2.516
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing",
+      "Elapsed": 2.927
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/repository",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/repository [github.com/TokenFlux/TokenRouter/internal/repository.test]"
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging",
+      "Elapsed": 4.754
+    }
+  ],
+  "test_run_count": 0,
+  "test_pass_count": 0,
+  "failed_tests": [],
+  "skipped_tests": [],
+  "execution_evidence": "logs/s01-3-pool-unit.log.gz"
+}

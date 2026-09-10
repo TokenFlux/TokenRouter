@@ -1,16 +1,9 @@
 package httputil
 
 import (
-	"bytes"
-	"compress/gzip"
-	"compress/zlib"
-	"errors"
-	"fmt"
-	"io"
 	"net/http"
-	"strings"
 
-	"github.com/klauspost/compress/zstd"
+	"github.com/TokenFlux/TokenRouter/internal/server/httpx"
 )
 
 const (
@@ -25,45 +18,6 @@ const (
 // ReadRequestBodyWithPrealloc reads request body with preallocated buffer based
 // on content length, transparently decoding any Content-Encoding the upstream
 // client used to compress the body (zstd, gzip, deflate).
-func ReadRequestBodyWithPrealloc(req *http.Request) ([]byte, error) {
-	if req == nil || req.Body == nil {
-		return nil, nil
-	}
-
-	capHint := requestBodyReadInitCap
-	if req.ContentLength > 0 {
-		switch {
-		case req.ContentLength < int64(requestBodyReadInitCap):
-			capHint = requestBodyReadInitCap
-		case req.ContentLength > int64(requestBodyReadMaxInitCap):
-			capHint = requestBodyReadMaxInitCap
-		default:
-			capHint = int(req.ContentLength)
-		}
-	}
-
-	buf := bytes.NewBuffer(make([]byte, 0, capHint))
-	if _, err := io.Copy(buf, req.Body); err != nil {
-		return nil, err
-	}
-	raw := buf.Bytes()
-
-	enc := strings.ToLower(strings.TrimSpace(req.Header.Get("Content-Encoding")))
-	if enc == "" || enc == "identity" {
-		return raw, nil
-	}
-
-	decoded, err := decompressRequestBody(enc, raw)
-	if err != nil {
-		return nil, fmt.Errorf("decode Content-Encoding %q: %w", enc, err)
-	}
-
-	req.Header.Del("Content-Encoding")
-	req.Header.Del("Content-Length")
-	req.ContentLength = int64(len(decoded))
-
-	return decoded, nil
-}
 
 // ReadLenientJSONRequestBodyWithPrealloc 读取请求体，并在严格 JSON
 // 校验前转义字符串中的原始控制字节。
@@ -73,34 +27,6 @@ func ReadLenientJSONRequestBodyWithPrealloc(req *http.Request, maxNormalizedByte
 		return nil, err
 	}
 	return NormalizeLenientJSONRequestBody(body, maxNormalizedBytes)
-}
-
-func decompressRequestBody(encoding string, raw []byte) ([]byte, error) {
-	switch encoding {
-	case "zstd":
-		dec, err := zstd.NewReader(bytes.NewReader(raw))
-		if err != nil {
-			return nil, err
-		}
-		defer dec.Close()
-		return io.ReadAll(io.LimitReader(dec, maxDecompressedBodySize))
-	case "gzip", "x-gzip":
-		gr, err := gzip.NewReader(bytes.NewReader(raw))
-		if err != nil {
-			return nil, err
-		}
-		defer func() { _ = gr.Close() }()
-		return io.ReadAll(io.LimitReader(gr, maxDecompressedBodySize))
-	case "deflate":
-		zr, err := zlib.NewReader(bytes.NewReader(raw))
-		if err != nil {
-			return nil, err
-		}
-		defer func() { _ = zr.Close() }()
-		return io.ReadAll(io.LimitReader(zr, maxDecompressedBodySize))
-	default:
-		return nil, errors.New("unsupported Content-Encoding")
-	}
 }
 
 // NormalizeLenientJSONRequestBody 转义部分异常 OpenAI 兼容客户端
@@ -178,4 +104,9 @@ func isJSONControlByte(b byte) bool {
 func appendJSONUnicodeEscape(dst []byte, b byte) []byte {
 	const hex = "0123456789abcdef"
 	return append(dst, '\\', 'u', '0', '0', hex[b>>4], hex[b&0x0f])
+}
+
+// ReadRequestBodyWithPrealloc 兼容旧调用方，读取与解压由 httpx 唯一实现。
+func ReadRequestBodyWithPrealloc(req *http.Request) ([]byte, error) {
+	return httpx.ReadRequestBodyWithPrealloc(req)
 }

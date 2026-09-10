@@ -7,6 +7,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/handler"
+	redisinfra "github.com/TokenFlux/TokenRouter/internal/infra/redis"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/server/routes"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -99,7 +100,11 @@ func registerRoutes(
 
 	// 面板 API 限流器：认证接口按用户 ID、公开接口按安全客户端 IP，
 	// 防止高频刷管理面接口打爆数据库（阈值可在系统设置中调整）。
-	panelRateLimiter := middleware2.NewPanelRateLimiter(redisClient, settingService)
+	var panelCounter *middleware2.RateLimiter
+	if redisClient != nil {
+		panelCounter = middleware2.NewRateLimiter(redisinfra.NewFixedWindowLimiter(redisClient, "rate_limit:"))
+	}
+	panelRateLimiter := middleware2.NewPanelRateLimiter(panelCounter, settingService)
 
 	// 注册各模块路由
 	routes.RegisterAuthRoutes(v1, h, jwtAuth, auditLog, redisClient, settingService, panelRateLimiter)

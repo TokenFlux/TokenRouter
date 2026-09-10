@@ -1,0 +1,25 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--enable-only=depguard",
+    "--timeout=30m",
+    "--build-tags=unit",
+    "./internal/repository"
+  ],
+  "working_directory": "backend",
+  "environment": {
+    "GOTOOLCHAIN": "go1.27.0"
+  },
+  "started_at": "2026-09-11T01:26:15.028591+08:00",
+  "finished_at": "2026-09-11T01:26:15.749448+08:00",
+  "duration_seconds": 0.72,
+  "exit_code": 0,
+  "log": "logs/final-legacy-pool-gate.log.gz",
+  "package_results": [],
+  "test_run_count": 0,
+  "test_pass_count": 0,
+  "failed_tests": [],
+  "skipped_tests": [],
+  "execution_evidence": "logs/final-legacy-pool-gate.log.gz"
+}

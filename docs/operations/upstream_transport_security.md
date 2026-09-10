@@ -24,7 +24,12 @@
 
 fallback 链循环、全部过期或目标缺失时保留可诊断失败，不能无限递归。代理替换或解绑后必须失效受影响账号的调度快照和 HTTP client 缓存；`direct` 是明确配置的降级，不是任意代理错误后的自动绕过。
 
+<a id="upstream_client_pool"></a>
 ## 连接池隔离
+
+普通共享 HTTP 客户端、req 客户端和按账号隔离的上游池都由 `infra/httpclient` 实现，但保留各自的缓存命名空间与 key，不合并复用策略。proxy 解析与拨号、TLS 握手位于其技术子包。旧 `repository.NewHTTPUpstream` 将配置、平台和请求标记投影为每请求技术参数；OpenAI 的 H2 代理回退状态、Grok CLI 身份与窄范围 403 回退仍由这个旧适配层拥有。
+
+`UpstreamPool.Do` 在请求失败时释放占用，在成功时将释放绑定到响应体关闭；重复关闭不会重复减少计数。每请求的重定向或 transport 包装通过客户端派生完成，不能修改缓存客户端。调用方仍必须关闭响应体，才能释放在途占用。
 
 HTTP client 池可按 `proxy`、`account` 或 `account_proxy` 隔离，并有最大条目、空闲过期和逐出策略。隔离键还包含 TLS profile 等传输身份，防止不同账号或指纹错误复用连接。池配置变化要关闭/逐出旧 transport，不能只修改后续 key。
 
@@ -40,6 +45,8 @@ TLS fingerprint profile 描述 ClientHello/HTTP 行为，账号可以直接绑�
 TLS collector 可采集受控会话以建立或检查 profile。采集入口是管理员诊断面，不允许接收任意公网目标或把捕获的 Authorization/Cookie 作为普通样本保存。OAuth token/reset 等特殊请求可以使用专用 profile/UA，但仍遵守目标和代理校验。
 
 ## 目标与重定向校验
+
+URL 格式、scheme、allowlist 与字面量地址策略由 `egress` 的纯校验实现拥有；DNS 查询由 `infra/httpclient` 执行，旧 urlvalidator 入口只做委托。策略与执行分开，不改变原先的解析时机或代理行为。
 
 自定义 base URL 在转发和账号测试等使用入口至少经过格式与 scheme 校验。启用 `security.url_allowlist` 后，入口还要求目标命中对应 host allowlist，并按 `allow_private_hosts` 决定是否允许本地或私网字面量地址；关闭 allowlist 时只保留最小格式校验，HTTP 还必须由 `allow_insecure_http` 显式放行，启动日志会提示 SSRF 检查已关闭。
 

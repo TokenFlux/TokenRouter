@@ -1,0 +1,42 @@
+[
+  {
+    "tag": "normal",
+    "exit_code": 0,
+    "scopes": [
+      "./..."
+    ],
+    "log": "logs/depguard-fixture-positive.log.gz"
+  },
+  {
+    "tag": "unit",
+    "exit_code": 0,
+    "scopes": [
+      "./internal/payment/...",
+      "./internal/pkg/...",
+      "./internal/config",
+      "./internal/server/...",
+      "./internal/setup",
+      "./internal/web",
+      "./internal/testutil",
+      "./internal/identity/...",
+      "./internal/upstream/openai/..."
+    ],
+    "log": "logs/depguard-fixture-positive-unit.log.gz"
+  },
+  {
+    "tag": "integration",
+    "exit_code": 0,
+    "scopes": [
+      "./internal/payment/...",
+      "./internal/pkg/...",
+      "./internal/config",
+      "./internal/server/...",
+      "./internal/setup",
+      "./internal/web",
+      "./internal/testutil",
+      "./internal/identity/...",
+      "./internal/upstream/openai/..."
+    ],
+    "log": "logs/depguard-fixture-positive-integration.log.gz"
+  }
+]

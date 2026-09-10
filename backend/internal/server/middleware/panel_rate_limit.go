@@ -8,11 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 )
 
 // panelRateLimitWindow 面板限流固定窗口时长（所有档位均按每分钟计数）。
@@ -20,7 +18,7 @@ const panelRateLimitWindow = time.Minute
 
 // panelRateLimitAllower 抽象底层限流原语，便于单测注入。
 type panelRateLimitAllower interface {
-	Allow(ctx context.Context, key string, limit int, window time.Duration) (middleware.AllowResult, error)
+	Allow(ctx context.Context, key string, limit int, window time.Duration) (AllowResult, error)
 }
 
 // PanelRateLimiter 面板（管理面 /api/v1）API 限流器。
@@ -38,10 +36,10 @@ type PanelRateLimiter struct {
 }
 
 // NewPanelRateLimiter 创建面板限流器。
-func NewPanelRateLimiter(redisClient *redis.Client, settingService *service.SettingService) *PanelRateLimiter {
+func NewPanelRateLimiter(counter *RateLimiter, settingService *service.SettingService) *PanelRateLimiter {
 	limiter := &PanelRateLimiter{settingService: settingService}
-	if redisClient != nil {
-		limiter.limiter = middleware.NewRateLimiter(redisClient)
+	if counter != nil {
+		limiter.limiter = counter
 	}
 	// Redis 未初始化时保持 fail-open，避免可选依赖缺失导致面板请求空指针崩溃。
 	return limiter
@@ -49,13 +47,17 @@ func NewPanelRateLimiter(redisClient *redis.Client, settingService *service.Sett
 
 // Global 认证面板接口的全局按用户限流（宽松档，覆盖所有登录后端点）。
 func (p *PanelRateLimiter) Global() gin.HandlerFunc {
-	return p.userScoped("global", func(s service.PanelRateLimitSettings) int { return s.UserRPM })
+	return p.userScoped("global", func(s service.PanelRateLimitSettings) int {
+		return s.UserRPM
+	})
 }
 
 // Heavy 重查询接口的按用户限流（严格档，覆盖 usage/dashboard 等聚合统计端点）。
 // 与 Global 叠加计数：一次重查询同时消耗两档额度。
 func (p *PanelRateLimiter) Heavy() gin.HandlerFunc {
-	return p.userScoped("heavy", func(s service.PanelRateLimitSettings) int { return s.HeavyRPM })
+	return p.userScoped("heavy", func(s service.PanelRateLimitSettings) int {
+		return s.HeavyRPM
+	})
 }
 
 func (p *PanelRateLimiter) userScoped(scope string, limitOf func(service.PanelRateLimitSettings) int) gin.HandlerFunc {

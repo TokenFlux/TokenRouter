@@ -2,9 +2,6 @@ package xai
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -15,11 +12,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/redis/go-redis/v9"
-
+	"github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/redissession"
 	"github.com/TokenFlux/TokenRouter/internal/util/logredact"
 	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
+
+	"github.com/redis/go-redis/v9"
 )
 
 const (
@@ -321,9 +319,13 @@ type RuntimeSanityReport struct {
 
 func RuntimeSanity() RuntimeSanityReport {
 	return RuntimeSanityReport{
-		BaseURL:               runtimeSanityCheck(EffectiveBaseURL(""), EnvBaseURL, ValidatedBaseURL),
-		OAuthAuthorizeURL:     runtimeSanityCheck(EffectiveAuthorizeURL(), EnvAuthorizeURL, func(string) (string, error) { return ValidatedAuthorizeURL() }),
-		OAuthTokenURL:         runtimeSanityCheck(EffectiveTokenURL(), EnvTokenURL, func(string) (string, error) { return ValidatedTokenURL() }),
+		BaseURL: runtimeSanityCheck(EffectiveBaseURL(""), EnvBaseURL, ValidatedBaseURL),
+		OAuthAuthorizeURL: runtimeSanityCheck(EffectiveAuthorizeURL(), EnvAuthorizeURL, func(string) (string, error) {
+			return ValidatedAuthorizeURL()
+		}),
+		OAuthTokenURL: runtimeSanityCheck(EffectiveTokenURL(), EnvTokenURL, func(string) (string, error) {
+			return ValidatedTokenURL()
+		}),
 		OAuthRedirectURI:      runtimeSanityCheck(EffectiveRedirectURI(""), EnvRedirectURI, validateRedirectURI),
 		UnsafeURLOverrides:    AllowUnsafeURLOverrides(),
 		UnsafeHighConcurrency: AllowUnsafeHighConcurrency(),
@@ -519,11 +521,7 @@ func envBool(key string) bool {
 }
 
 func GenerateRandomBytes(n int) ([]byte, error) {
-	b := make([]byte, n)
-	if _, err := rand.Read(b); err != nil {
-		return nil, err
-	}
-	return b, nil
+	return oauthpkce.RandomBytes(n)
 }
 
 func GenerateState() (string, error) {
@@ -551,20 +549,11 @@ func GenerateSessionID() (string, error) {
 }
 
 func GenerateCodeVerifier() (string, error) {
-	bytes, err := GenerateRandomBytes(32)
-	if err != nil {
-		return "", err
-	}
-	return base64URLEncode(bytes), nil
+	return oauthpkce.Verifier()
 }
 
 func GenerateCodeChallenge(verifier string) string {
-	hash := sha256.Sum256([]byte(verifier))
-	return base64URLEncode(hash[:])
-}
-
-func base64URLEncode(data []byte) string {
-	return strings.TrimRight(base64.URLEncoding.EncodeToString(data), "=")
+	return oauthpkce.Challenge(verifier)
 }
 
 func BuildAuthorizationURL(state, codeChallenge, redirectURI, nonce string) (string, error) {

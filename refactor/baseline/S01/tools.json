@@ -1,0 +1,6 @@
+{
+  "project_toolchain": "go1.27.0",
+  "go_version": "go version go1.27.0 darwin/arm64",
+  "lint_version": "golangci-lint has version 2.13.2 built with go1.27.0 from 27774aa on 2026-08-27T22:52:01Z",
+  "stage_tool_upgrade": false
+}

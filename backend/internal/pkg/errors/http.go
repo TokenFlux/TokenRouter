@@ -1,31 +1,11 @@
+// 本文件为阶段迁移兼容入口；剩余消费者和退出阶段见 refactor/S01-foundation.md。
 package errors
 
-import "net/http"
+import (
+	foundation "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+)
 
-// ToHTTP converts an error into an HTTP status code and a JSON-serializable body.
-//
-// The returned body matches the project's Status shape:
-// { code, reason, message, metadata }.
+// ToHTTP 兼容旧入口；仅转发到目标实现。
 func ToHTTP(err error) (statusCode int, body Status) {
-	if err == nil {
-		return http.StatusOK, Status{Code: int32(http.StatusOK)}
-	}
-
-	appErr := FromError(err)
-	if appErr == nil {
-		return http.StatusOK, Status{Code: int32(http.StatusOK)}
-	}
-
-	body = Status{
-		Code:    appErr.Code,
-		Reason:  appErr.Reason,
-		Message: appErr.Message,
-	}
-	if appErr.Metadata != nil {
-		body.Metadata = make(map[string]string, len(appErr.Metadata))
-		for k, v := range appErr.Metadata {
-			body.Metadata[k] = v
-		}
-	}
-	return int(appErr.Code), body
+	return foundation.ToHTTP(err)
 }

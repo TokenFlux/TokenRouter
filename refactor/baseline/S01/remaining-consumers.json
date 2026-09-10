@@ -1,0 +1,3711 @@
+[
+  {
+    "old_package": "internal/util/logredact",
+    "implementation": "internal/pkg/logredact",
+    "exit_step": "随消费者迁移，最迟 S16",
+    "consumers": [
+      {
+        "source": "backend/internal/pkg/qoder/client.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.1"
+      },
+      {
+        "source": "backend/internal/pkg/xai/oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.7"
+      },
+      {
+        "source": "backend/internal/repository/claude_oauth_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2"
+      },
+      {
+        "source": "backend/internal/repository/grok_oauth_client.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.7"
+      },
+      {
+        "source": "backend/internal/service/audit_log.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/service/idempotency.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02"
+      },
+      {
+        "source": "backend/internal/service/ops_system_log_sink.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/token_refresh_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      }
+    ]
+  },
+  {
+    "old_package": "internal/pkg/errors",
+    "implementation": "internal/pkg/apperror + server/httpx",
+    "exit_step": "S15/S16；新增核心不能使用数值 HTTP 错误入口",
+    "consumers": [
+      {
+        "source": "backend/internal/domain/announcement.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02.4"
+      },
+      {
+        "source": "backend/internal/handler/admin/account_data.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/account_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/account_handler_spark_shadow_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/apikey_handler_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/admin/channel_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S06"
+      },
+      {
+        "source": "backend/internal/handler/admin/data_management_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S14"
+      },
+      {
+        "source": "backend/internal/handler/admin/grok_import_probe.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/grok_import_probe_handler_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/grok_import_probe_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/grok_oauth_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/group_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S06"
+      },
+      {
+        "source": "backend/internal/handler/admin/idempotency_helper.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/admin/redeem_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04"
+      },
+      {
+        "source": "backend/internal/handler/admin/user_platform_quotas_handler_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_email_oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_google_one_tap.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_oidc_oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_wechat_oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/batch_image_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S13"
+      },
+      {
+        "source": "backend/internal/handler/gateway_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/idempotency_helper.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/openai_gateway_credential_failover_loop_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/passkey_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/payment_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/payment/provider/wxpay.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/payment/registry.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/pkg/antigravity/oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S09.5"
+      },
+      {
+        "source": "backend/internal/pkg/errors/compatibility_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S01 新文件"
+      },
+      {
+        "source": "backend/internal/pkg/geminicli/oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.3"
+      },
+      {
+        "source": "backend/internal/repository/api_key_repo_limit_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S02.4、S04、S05、S06、S09、S11、S12、S13"
+      },
+      {
+        "source": "backend/internal/repository/claude_usage_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2"
+      },
+      {
+        "source": "backend/internal/repository/error_translate.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S02"
+      },
+      {
+        "source": "backend/internal/repository/grok_oauth_client.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.7"
+      },
+      {
+        "source": "backend/internal/repository/openai_oauth_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8"
+      },
+      {
+        "source": "backend/internal/repository/openai_oauth_service_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8"
+      },
+      {
+        "source": "backend/internal/repository/user_profile_identity_repo.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/server/middleware/api_key_composite.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04、S05、S06、S11"
+      },
+      {
+        "source": "backend/internal/server/middleware/recovery.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/server/middleware/recovery_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/service/account_base_url_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S03、S06、S09、S09.2、S09.5、S09.6、S09.8、S10、S11、S12、S16"
+      },
+      {
+        "source": "backend/internal/service/account_grok_media_eligibility_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S03、S06、S07、S09、S09.2、S09.5、S09.6、S09.8、S10、S11、S12、S16"
+      },
+      {
+        "source": "backend/internal/service/account_header_override.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S06"
+      },
+      {
+        "source": "backend/internal/service/account_protocols.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S06"
+      },
+      {
+        "source": "backend/internal/service/account_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/service/admin_account.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/service/admin_group.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/service/admin_proxy.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S06"
+      },
+      {
+        "source": "backend/internal/service/admin_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04、S05、S06、S16"
+      },
+      {
+        "source": "backend/internal/service/admin_service_apikey_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S01、S02.4、S04、S05、S06、S09.8、S11、S12"
+      },
+      {
+        "source": "backend/internal/service/admin_service_auth_identity_binding_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S04、S05、S06、S09、S09.6、S09.7、S09.8、S10、S11、S13、S16"
+      },
+      {
+        "source": "backend/internal/service/admin_service_bulk_update_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S03、S04、S05、S06、S09、S09.2、S09.5、S09.6、S09.8、S10、S11、S12、S16"
+      },
+      {
+        "source": "backend/internal/service/admin_service_duplicate_account_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S02.4、S03、S06、S09、S09.2、S09.5、S09.6、S09.8、S10、S11、S12、S16"
+      },
+      {
+        "source": "backend/internal/service/admin_service_group_rate_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S04、S06、S09、S09.2、S09.5、S09.8、S10、S11"
+      },
+      {
+        "source": "backend/internal/service/admin_service_group_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S01、S02.4、S03、S05、S06、S09.6、S09.8、S11、S12、S16"
+      },
+      {
+        "source": "backend/internal/service/admin_service_spark_shadow_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S01、S02.4、S03、S04、S05、S06、S09.6、S09.8、S11、S12、S16"
+      },
+      {
+        "source": "backend/internal/service/admin_user.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "资金操作 S04；其余 S05"
+      },
+      {
+        "source": "backend/internal/service/affiliate_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/aliyun_captcha_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/announcement.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02.4"
+      },
+      {
+        "source": "backend/internal/service/api_key_model_mapping.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/api_key_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/api_key_service_validation_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/audit_log.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/service/auth_email_binding.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/auth_email_oauth_auto.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/auth_oauth_email_flow.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/auth_pending_identity_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/auth_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/auth_service_register_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/backup_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S14"
+      },
+      {
+        "source": "backend/internal/service/batch_image.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_cleanup.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_cleanup_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_download.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_processor.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_processor_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_provider.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_provider_gemini.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_provider_gemini_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_provider_vertex.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_provider_vertex_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_public.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_public_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_queue.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/billing_cache_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04"
+      },
+      {
+        "source": "backend/internal/service/channel_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/service/cn_provider_account_validation_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S06、S09.6"
+      },
+      {
+        "source": "backend/internal/service/cn_provider_balance_check_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09.6"
+      },
+      {
+        "source": "backend/internal/service/codex_invite_reset_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/codex_invite_reset_service_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/content_moderation.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S10"
+      },
+      {
+        "source": "backend/internal/service/creative_public.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/creative_queue.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/creative_run.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/data_management_grpc_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S14"
+      },
+      {
+        "source": "backend/internal/service/data_management_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S14"
+      },
+      {
+        "source": "backend/internal/service/data_management_service_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S14"
+      },
+      {
+        "source": "backend/internal/service/email_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S10"
+      },
+      {
+        "source": "backend/internal/service/gateway_claude_oauth_body.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2"
+      },
+      {
+        "source": "backend/internal/service/grok_credential_failure.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.7、S11"
+      },
+      {
+        "source": "backend/internal/service/grok_credential_failure_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09.7、S11"
+      },
+      {
+        "source": "backend/internal/service/grok_oauth_reconciliation.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.7、S11"
+      },
+      {
+        "source": "backend/internal/service/grok_oauth_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09 各平台"
+      },
+      {
+        "source": "backend/internal/service/grok_quota_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.7、S11"
+      },
+      {
+        "source": "backend/internal/service/grok_quota_service_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09.7、S11"
+      },
+      {
+        "source": "backend/internal/service/group_availability_probe_config.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/service/group_availability_probe_config_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/service/group_client_protocol.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/service/group_openai_fast_policy.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/service/group_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/service/idempotency.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02"
+      },
+      {
+        "source": "backend/internal/service/idempotency_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S02"
+      },
+      {
+        "source": "backend/internal/service/ollama_cloud_usage.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.6"
+      },
+      {
+        "source": "backend/internal/service/openai_account_config.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_bulk_account_settings.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_codex_pat_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_oauth_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09 各平台"
+      },
+      {
+        "source": "backend/internal/service/openai_quota_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_quota_service_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_quota_spark_window_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/ops_alerts.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_dashboard.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_errors.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_histograms.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_histograms_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_realtime_traffic.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_service_user_error_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_system_log_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_token_stats.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_token_stats_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_trends.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_window_stats.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/passkey.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/payment_billing_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_config_limits.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_config_limits_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_config_plans.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_config_plans_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_config_providers.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_config_providers_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_config_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_document.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_fulfillment.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_fulfillment_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_order.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_order_lifecycle.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_order_lifecycle_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_order_result_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_refund.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_refund_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_resume_lookup.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_resume_lookup_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_resume_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_resume_service_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_visible_method_instances.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/promo_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/protocol_capabilities_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S03、S04、S05、S06、S09、S09.6、S09.8、S11、S12、S13、S16"
+      },
+      {
+        "source": "backend/internal/service/protocol_group_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S04、S05、S06、S16"
+      },
+      {
+        "source": "backend/internal/service/proxy_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S06"
+      },
+      {
+        "source": "backend/internal/service/redeem_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04"
+      },
+      {
+        "source": "backend/internal/service/redeem_service_batch_update_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S04、S06、S09、S09.2、S09.5、S09.8、S10、S11"
+      },
+      {
+        "source": "backend/internal/service/redeem_service_redeem_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S03、S04、S06、S09、S09.2、S09.5、S09.6、S09.8、S10、S11、S12、S16"
+      },
+      {
+        "source": "backend/internal/service/session_binding.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/session_isolation.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S07、S09、S11"
+      },
+      {
+        "source": "backend/internal/service/setting_oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S04—S15"
+      },
+      {
+        "source": "backend/internal/service/setting_parse.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S04—S15"
+      },
+      {
+        "source": "backend/internal/service/setting_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S04—S15"
+      },
+      {
+        "source": "backend/internal/service/setting_service_platform_quota_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S02、S04—S15"
+      },
+      {
+        "source": "backend/internal/service/setting_service_update_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S02、S04—S15"
+      },
+      {
+        "source": "backend/internal/service/setting_update.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S04—S15"
+      },
+      {
+        "source": "backend/internal/service/subscription_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04"
+      },
+      {
+        "source": "backend/internal/service/system_operation_lock_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/system_operation_lock_service_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/team.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/team_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/tencent_captcha_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/token_refresh_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/service/totp_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/turnstile_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/update_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/upstream_request_id.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S09.0—S09.1、S11"
+      },
+      {
+        "source": "backend/internal/service/upstream_usage_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/service/usage_cleanup_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/service/usage_cleanup_service_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/service/usage_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/service/user_api_key_limit_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S03、S05、S06、S09.6、S12、S16"
+      },
+      {
+        "source": "backend/internal/service/user_attribute.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "资金操作 S04；其余 S05"
+      },
+      {
+        "source": "backend/internal/service/user_attribute_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "资金操作 S04；其余 S05"
+      },
+      {
+        "source": "backend/internal/service/user_prompt_replacement.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S11"
+      },
+      {
+        "source": "backend/internal/service/user_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "资金操作 S04；其余 S05"
+      },
+      {
+        "source": "backend/internal/service/websearch_config.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S10、S11"
+      }
+    ]
+  },
+  {
+    "old_package": "internal/pkg/response",
+    "implementation": "internal/server/httpx",
+    "exit_step": "随 HTTP 消费者迁移，S15/S16 清理",
+    "consumers": [
+      {
+        "source": "backend/internal/handler/admin/account_advanced_scheduler_score.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/account_codex_import.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/account_data.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/account_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/account_ollama_cloud_usage.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/affiliate_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/handler/admin/announcement_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02.4、S10"
+      },
+      {
+        "source": "backend/internal/handler/admin/antigravity_oauth_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/apikey_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/admin/audit_log_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/backup_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S14"
+      },
+      {
+        "source": "backend/internal/handler/admin/channel_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S06"
+      },
+      {
+        "source": "backend/internal/handler/admin/codex_invite_reset_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/content_moderation_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S10"
+      },
+      {
+        "source": "backend/internal/handler/admin/dashboard_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/dashboard_snapshot_v2_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/data_management_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S14"
+      },
+      {
+        "source": "backend/internal/handler/admin/error_passthrough_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/admin/gemini_oauth_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/grok_oauth_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/group_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S06"
+      },
+      {
+        "source": "backend/internal/handler/admin/idempotency_helper.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/admin/openai_oauth_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/ops_alerts_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/ops_auth_cache_health_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/ops_dashboard_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/ops_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/ops_ingress_reject_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/ops_realtime_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/ops_settings_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/ops_snapshot_v2_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/ops_system_log_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/payment_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/handler/admin/promo_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/handler/admin/proxy_data.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/handler/admin/proxy_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/handler/admin/qoder_oauth_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/redeem_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04"
+      },
+      {
+        "source": "backend/internal/handler/admin/scheduled_test_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/setting_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/admin/setting_handler_auth_source_defaults_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/admin/setting_handler_dingtalk_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/admin/setting_handler_email.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/admin/setting_handler_platform_quota_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/admin/setting_handler_pre_aggregation.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/admin/setting_handler_runtime.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/admin/setting_handler_update.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/admin/subscription_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04"
+      },
+      {
+        "source": "backend/internal/handler/admin/system_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/handler/admin/team_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/admin/tls_fingerprint_profile_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/handler/admin/tls_fingerprint_router_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/handler/admin/usage_cleanup_handler_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/usage_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/user_attribute_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/admin/user_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/announcement_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02.4、S10"
+      },
+      {
+        "source": "backend/internal/handler/api_key_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/api_key_handler_security_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_email_oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_google_one_tap.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_oauth_captcha_start.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_oidc_oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_wechat_oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/creative_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S13"
+      },
+      {
+        "source": "backend/internal/handler/idempotency_helper.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/model_marketplace_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S06"
+      },
+      {
+        "source": "backend/internal/handler/page_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02.4、S10"
+      },
+      {
+        "source": "backend/internal/handler/passkey_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/payment_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/handler/redeem_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04"
+      },
+      {
+        "source": "backend/internal/handler/setting_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/subscription_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04"
+      },
+      {
+        "source": "backend/internal/handler/team_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/totp_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/usage_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/user_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/server/middleware/backend_mode_guard.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/server/middleware/recovery.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/server/middleware/recovery_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/server/routes/admin.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04—S15"
+      },
+      {
+        "source": "backend/internal/setup/handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S14"
+      }
+    ]
+  },
+  {
+    "old_package": "internal/pkg/httputil",
+    "implementation": "internal/server/httpx；JSON 宽容修复仍在旧包",
+    "exit_step": "S03 迁移协议规范化，S15/S16 清理转接",
+    "consumers": [
+      {
+        "source": "backend/internal/handler/gemini_v1beta_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/grok_media.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_alpha_search.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_embeddings.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_gateway_handler_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_images.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/qoder_gateway_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/request_body_limit.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S11"
+      },
+      {
+        "source": "backend/internal/server/middleware/api_key_composite.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04、S05、S06、S11"
+      }
+    ]
+  },
+  {
+    "old_package": "internal/pkg/ip",
+    "implementation": "internal/pkg/ipmatch + server/clientip；ACL 裁决仍在旧包",
+    "exit_step": "S05 归入 apikey，HTTP 转接最迟 S15/S16 清理",
+    "consumers": [
+      {
+        "source": "backend/internal/handler/auth_google_one_tap.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_oauth_captcha_start.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/gateway_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/gateway_handler_chat_completions.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/gateway_handler_responses.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/gateway_web_search.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/gemini_v1beta_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/grok_audio.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/grok_media.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_alpha_search.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_chat_completions.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_embeddings.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_gateway_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_images.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_live.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/ops_error_logger.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/passkey_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/handler/qoder_gateway_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/server/middleware/api_key_auth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04、S05、S06、S11"
+      },
+      {
+        "source": "backend/internal/server/middleware/api_key_auth_google.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04、S05、S06、S11"
+      },
+      {
+        "source": "backend/internal/server/middleware/logger.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/server/middleware/session_binding.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/server/middleware/session_binding_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/api_key.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/api_key_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      }
+    ]
+  },
+  {
+    "old_package": "internal/pkg/logger",
+    "implementation": "internal/infra/telemetry/logging",
+    "exit_step": "S02 迁配置转换；其余转接随消费者迁移，最迟 S16",
+    "consumers": [
+      {
+        "source": "backend/cmd/server/main.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S14"
+      },
+      {
+        "source": "backend/internal/handler/admin/idempotency_helper.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/admin/ops_runtime_logging_handler_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/ops_ws_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/admin/usage_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/handler/batch_image_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S13"
+      },
+      {
+        "source": "backend/internal/handler/failover_loop.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S07、S11"
+      },
+      {
+        "source": "backend/internal/handler/gateway_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/gateway_web_search.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/gemini_v1beta_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/grok_audio.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/grok_media.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/idempotency_helper.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S15"
+      },
+      {
+        "source": "backend/internal/handler/logging.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_alpha_search.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_chat_completions.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_embeddings.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_gateway_compact_log_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_gateway_handler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_images.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_images_failover_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/pkg/logger/compatibility_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S01 新文件"
+      },
+      {
+        "source": "backend/internal/repository/account_repo.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/repository/claude_oauth_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2"
+      },
+      {
+        "source": "backend/internal/repository/concurrency_cache.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S07"
+      },
+      {
+        "source": "backend/internal/repository/group_repo.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/repository/proxy_repo.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/repository/usage_billing_repo.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04、S13"
+      },
+      {
+        "source": "backend/internal/repository/usage_log_repo_insert.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/repository/usage_log_repo_stats.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/repository/user_msg_queue_cache.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S07"
+      },
+      {
+        "source": "backend/internal/server/middleware/client_request_id.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/server/middleware/ingress_reject_access_sampler_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/server/middleware/logger.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/server/middleware/request_access_logger_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/server/middleware/request_logger.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/service/admin_account.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/service/admin_group.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/service/admin_proxy.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S06"
+      },
+      {
+        "source": "backend/internal/service/admin_user.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "资金操作 S04；其余 S05"
+      },
+      {
+        "source": "backend/internal/service/affiliate_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/aliyun_captcha_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/antigravity_credits_overages.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.5"
+      },
+      {
+        "source": "backend/internal/service/antigravity_gateway_claude.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.5"
+      },
+      {
+        "source": "backend/internal/service/antigravity_gateway_compat_stream.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.5"
+      },
+      {
+        "source": "backend/internal/service/antigravity_gateway_gemini.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.5"
+      },
+      {
+        "source": "backend/internal/service/antigravity_gateway_retry.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.5"
+      },
+      {
+        "source": "backend/internal/service/antigravity_gateway_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.5"
+      },
+      {
+        "source": "backend/internal/service/antigravity_gateway_streaming.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.5"
+      },
+      {
+        "source": "backend/internal/service/antigravity_gateway_upstream.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.5"
+      },
+      {
+        "source": "backend/internal/service/auth_email_binding.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/auth_email_oauth_auto.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/auth_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/backup_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S14"
+      },
+      {
+        "source": "backend/internal/service/batch_image_billing_hold.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_billing_recovery.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_cleanup.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_processor.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_public.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_settlement.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/batch_image_worker.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/bedrock_request.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S09.4"
+      },
+      {
+        "source": "backend/internal/service/bedrock_stream.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S09.4"
+      },
+      {
+        "source": "backend/internal/service/billing_cache_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04"
+      },
+      {
+        "source": "backend/internal/service/concurrency_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S07、S09"
+      },
+      {
+        "source": "backend/internal/service/creative_billing.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/creative_outbox_reconciler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/creative_public.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/creative_transient_reconciler.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/creative_worker.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/dashboard_aggregation_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/service/dashboard_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/service/email_queue_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S10"
+      },
+      {
+        "source": "backend/internal/service/error_passthrough_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S11"
+      },
+      {
+        "source": "backend/internal/service/gateway_anthropic_passthrough.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S11"
+      },
+      {
+        "source": "backend/internal/service/gateway_bedrock.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S09.4"
+      },
+      {
+        "source": "backend/internal/service/gateway_claude_oauth_body.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2"
+      },
+      {
+        "source": "backend/internal/service/gateway_count_tokens.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S11"
+      },
+      {
+        "source": "backend/internal/service/gateway_forward.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S11"
+      },
+      {
+        "source": "backend/internal/service/gateway_forward_as_chat_completions.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S11"
+      },
+      {
+        "source": "backend/internal/service/gateway_forward_as_responses.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S11"
+      },
+      {
+        "source": "backend/internal/service/gateway_request.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S11"
+      },
+      {
+        "source": "backend/internal/service/gateway_scheduling.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S07"
+      },
+      {
+        "source": "backend/internal/service/gateway_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S11"
+      },
+      {
+        "source": "backend/internal/service/gateway_upstream_request.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S11"
+      },
+      {
+        "source": "backend/internal/service/gateway_upstream_response.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S11"
+      },
+      {
+        "source": "backend/internal/service/gateway_upstream_transport_error.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S11"
+      },
+      {
+        "source": "backend/internal/service/gateway_usage_billing.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04、S08、S11"
+      },
+      {
+        "source": "backend/internal/service/gemini_chat_completions_compat_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S09.3"
+      },
+      {
+        "source": "backend/internal/service/gemini_messages_compat_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S09.3"
+      },
+      {
+        "source": "backend/internal/service/gemini_oauth_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09 各平台"
+      },
+      {
+        "source": "backend/internal/service/group_availability_probe_runner.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/service/idempotency_cleanup_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02"
+      },
+      {
+        "source": "backend/internal/service/idempotency_observability.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02"
+      },
+      {
+        "source": "backend/internal/service/identity_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2"
+      },
+      {
+        "source": "backend/internal/service/ollama_cloud_usage.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.6"
+      },
+      {
+        "source": "backend/internal/service/openai_apikey_health_breaker.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_compact_fallback.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_cyber_session_block.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_embeddings.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_first_output_timeout.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_cc_pipeline.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_chat_completions.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_chat_completions_anthropic_native.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_chat_completions_raw.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_count_tokens.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_forward.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_messages.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_messages_anthropic_native.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_messages_chat_fallback.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_ollama_cloud_max_tokens.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.6"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_passthrough.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_response_handling.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_responses_anthropic_native.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_responses_chat_fallback.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_responses_input_tokens.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_upstream_errors.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_usage.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04、S08、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_images.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_images_b64_backfill.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_images_responses.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_live.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_oauth_passthrough_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_proxy_stream_circuit.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_routing_hint.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_stream_compat_helpers.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_tool_corrector.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_upstream_transport_error.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_ws_forwarder.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_ws_forwarder_logutil.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_ws_forwarder_v2.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_ws_v2_passthrough_adapter.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/ops_aggregation_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_alert_evaluator_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_cleanup_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_log_runtime.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_log_runtime_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_settings.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_system_log_sink.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_system_log_sink_backoff_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/ops_system_log_sink_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/pre_aggregation_settings.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S04—S15"
+      },
+      {
+        "source": "backend/internal/service/pricing_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S04"
+      },
+      {
+        "source": "backend/internal/service/qoder_gateway_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.1"
+      },
+      {
+        "source": "backend/internal/service/ratelimit_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S07、S09"
+      },
+      {
+        "source": "backend/internal/service/redeem_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04"
+      },
+      {
+        "source": "backend/internal/service/scheduled_test_runner_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/service/scheduler_snapshot_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S07"
+      },
+      {
+        "source": "backend/internal/service/system_operation_lock_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08、S14"
+      },
+      {
+        "source": "backend/internal/service/tencent_captcha_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/timing_wheel_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S06"
+      },
+      {
+        "source": "backend/internal/service/tls_fingerprint_collector_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S06"
+      },
+      {
+        "source": "backend/internal/service/tls_fingerprint_profile_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S06"
+      },
+      {
+        "source": "backend/internal/service/tls_fingerprint_router_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S06"
+      },
+      {
+        "source": "backend/internal/service/turnstile_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/usage_cleanup_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/service/usage_record_worker_pool.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04、S08、S11"
+      },
+      {
+        "source": "backend/internal/service/user_group_rate_resolver.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04"
+      },
+      {
+        "source": "backend/internal/service/user_msg_queue_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S07、S09"
+      },
+      {
+        "source": "backend/internal/service/user_platform_quota_flusher.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S04"
+      },
+      {
+        "source": "backend/internal/service/wire.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S02、S16"
+      },
+      {
+        "source": "backend/internal/setup/setup.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S14"
+      }
+    ]
+  },
+  {
+    "old_package": "internal/pkg/servertiming",
+    "implementation": "internal/infra/telemetry/timing",
+    "exit_step": "随消费者迁移，最迟 S16",
+    "consumers": [
+      {
+        "source": "backend/internal/pkg/antigravity/client.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S09.5"
+      },
+      {
+        "source": "backend/internal/repository/backup_s3_store.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S14"
+      },
+      {
+        "source": "backend/internal/server/middleware/client_request_id.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/server/middleware/logger.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/server/middleware/server_timing.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/server/middleware/server_timing_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/service/content_moderation.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S10"
+      },
+      {
+        "source": "backend/internal/service/payment_order.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_order_lifecycle.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/payment_refund.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S12"
+      },
+      {
+        "source": "backend/internal/service/vertex_service_account.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S09.4"
+      },
+      {
+        "source": "backend/internal/service/vertex_service_account_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.2、S09.4"
+      }
+    ]
+  },
+  {
+    "old_package": "internal/pkg/httpclient",
+    "implementation": "internal/infra/httpclient",
+    "exit_step": "S06/S09 消费者迁移，最迟 S16",
+    "consumers": [
+      {
+        "source": "backend/internal/pkg/geminicli/drive_client.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.3"
+      },
+      {
+        "source": "backend/internal/repository/claude_usage_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2"
+      },
+      {
+        "source": "backend/internal/repository/github_release_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S08"
+      },
+      {
+        "source": "backend/internal/repository/grok_oauth_client.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.7"
+      },
+      {
+        "source": "backend/internal/repository/pricing_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03"
+      },
+      {
+        "source": "backend/internal/repository/proxy_probe_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/repository/turnstile_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S05"
+      },
+      {
+        "source": "backend/internal/service/account_usage_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/service/admin_proxy.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S06"
+      },
+      {
+        "source": "backend/internal/service/batch_image_provider_gemini.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09、S13"
+      },
+      {
+        "source": "backend/internal/service/content_moderation.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S10"
+      },
+      {
+        "source": "backend/internal/service/crs_sync_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/service/gemini_oauth_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09 各平台"
+      },
+      {
+        "source": "backend/internal/service/openai_agent_identity.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_codex_pat_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/qoder_oauth_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09 各平台"
+      }
+    ]
+  },
+  {
+    "old_package": "internal/pkg/proxyurl",
+    "implementation": "internal/infra/httpclient/proxy",
+    "exit_step": "S06/S09 消费者迁移，最迟 S16",
+    "consumers": [
+      {
+        "source": "backend/internal/pkg/antigravity/client.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S09.5"
+      },
+      {
+        "source": "backend/internal/repository/claude_oauth_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2"
+      },
+      {
+        "source": "backend/internal/service/openai_ws_client.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/vertex_service_account.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S09.4"
+      }
+    ]
+  },
+  {
+    "old_package": "internal/pkg/proxyutil",
+    "implementation": "internal/infra/httpclient/proxy",
+    "exit_step": "S06/S09 消费者迁移，最迟 S16",
+    "consumers": [
+      {
+        "source": "backend/internal/pkg/antigravity/client.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S09.5"
+      },
+      {
+        "source": "backend/internal/pkg/websearch/manager.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S10"
+      },
+      {
+        "source": "backend/internal/service/vertex_service_account.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S09.4"
+      }
+    ]
+  },
+  {
+    "old_package": "internal/pkg/tlsfingerprint",
+    "implementation": "internal/infra/httpclient/tlsfingerprint",
+    "exit_step": "S06/S09 消费者迁移，最迟 S16",
+    "consumers": [
+      {
+        "source": "backend/internal/handler/admin/account_handler_available_models_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/account_handler_mixed_channel_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/account_upstream_usage_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/admin/grok_oauth_handler_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/handler/gateway_handler_session_limit_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_gateway_credential_failover_loop_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_gateway_handler_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_images_failover_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/handler/openai_responses_failover_cancel_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09、S11"
+      },
+      {
+        "source": "backend/internal/model/tls_fingerprint_profile.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06"
+      },
+      {
+        "source": "backend/internal/repository/http_upstream.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S06、S09"
+      },
+      {
+        "source": "backend/internal/repository/http_upstream_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S01、S06、S09"
+      },
+      {
+        "source": "backend/internal/repository/openai_oauth_service_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8"
+      },
+      {
+        "source": "backend/internal/server/middleware/openai_fast_policy_forwarding_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S01、S15"
+      },
+      {
+        "source": "backend/internal/service/account_test_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/service/account_test_service_cn_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/service/account_test_service_openai_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/service/account_test_service_qoder_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/service/account_usage_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/service/account_usage_service_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/service/antigravity_gateway_service_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.5"
+      },
+      {
+        "source": "backend/internal/service/antigravity_rate_limit_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09.5"
+      },
+      {
+        "source": "backend/internal/service/antigravity_smart_retry_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09.5"
+      },
+      {
+        "source": "backend/internal/service/cn_provider_balance_check_service_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S06、S09.6"
+      },
+      {
+        "source": "backend/internal/service/codex_invite_reset_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/codex_invite_reset_service_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/error_policy_integration_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S03、S06、S09、S09.5、S09.6、S09.7、S09.8、S10、S11、S12、S13、S16"
+      },
+      {
+        "source": "backend/internal/service/gateway_anthropic_apikey_passthrough_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S01、S03、S06、S09、S09.2、S09.6、S09.8、S11、S12、S16"
+      },
+      {
+        "source": "backend/internal/service/gemini_messages_compat_service_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S03、S09.3"
+      },
+      {
+        "source": "backend/internal/service/grok_media_content_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09.7、S11"
+      },
+      {
+        "source": "backend/internal/service/grok_upstream_headers.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.7、S11"
+      },
+      {
+        "source": "backend/internal/service/grok_upstream_headers_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.7、S11"
+      },
+      {
+        "source": "backend/internal/service/http_upstream_port.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S06、S09"
+      },
+      {
+        "source": "backend/internal/service/oauth_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09.2、S09.7、S09.8"
+      },
+      {
+        "source": "backend/internal/service/ollama_cloud_usage_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.6"
+      },
+      {
+        "source": "backend/internal/service/openai_first_output_timeout_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_live_lifecycle_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_live_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_oauth_passthrough_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_oauth_service_refresh_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_oauth_service_state_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_opencode_session_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_quota_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_quota_spark_window_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_ws_client.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_ws_client_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_ws_forwarder_ingress_session_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_ws_forwarder_success_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_ws_pool.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_ws_pool_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_ws_protocol_forward_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_ws_ratelimit_signal_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_ws_v2_passthrough_lifecycle_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/qoder_admin_validation_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09.1"
+      },
+      {
+        "source": "backend/internal/service/qoder_gateway_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.1"
+      },
+      {
+        "source": "backend/internal/service/qoder_token_provider_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09 各平台"
+      },
+      {
+        "source": "backend/internal/service/qoder_token_refresher_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S09 各平台"
+      },
+      {
+        "source": "backend/internal/service/tls_fingerprint_collector_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S06"
+      },
+      {
+        "source": "backend/internal/service/tls_fingerprint_profile_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S06"
+      },
+      {
+        "source": "backend/internal/service/upstream_usage_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/service/upstream_usage_service_test.go",
+        "build": "(none)",
+        "test": true,
+        "owner_stage": "S06、S09"
+      }
+    ]
+  },
+  {
+    "old_package": "internal/pkg/redissession",
+    "implementation": "internal/infra/redis/session",
+    "exit_step": "S09 授权用例迁移，最迟 S16",
+    "consumers": [
+      {
+        "source": "backend/internal/pkg/xai/oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.7"
+      }
+    ]
+  },
+  {
+    "old_package": "internal/util/urlvalidator",
+    "implementation": "internal/egress + infra/httpclient",
+    "exit_step": "S06/S09 替换使用方，最迟 S16",
+    "consumers": [
+      {
+        "source": "backend/internal/pkg/xai/oauth.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.7"
+      },
+      {
+        "source": "backend/internal/pkg/xai/oauth_test.go",
+        "build": "unit",
+        "test": true,
+        "owner_stage": "S09.7"
+      },
+      {
+        "source": "backend/internal/repository/http_upstream.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S01、S06、S09"
+      },
+      {
+        "source": "backend/internal/service/account_test_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/service/cn_provider_balance_check_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09.6"
+      },
+      {
+        "source": "backend/internal/service/crs_sync_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      },
+      {
+        "source": "backend/internal/service/gateway_upstream_request.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.2、S11"
+      },
+      {
+        "source": "backend/internal/service/gemini_messages_compat_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S09.3"
+      },
+      {
+        "source": "backend/internal/service/grok_upstream_url.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.7、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_gateway_request_body.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/openai_images_b64_backfill.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S09.8、S11"
+      },
+      {
+        "source": "backend/internal/service/pricing_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S03、S04"
+      },
+      {
+        "source": "backend/internal/service/upstream_usage_service.go",
+        "build": "(none)",
+        "test": false,
+        "owner_stage": "S06、S09"
+      }
+    ]
+  }
+]

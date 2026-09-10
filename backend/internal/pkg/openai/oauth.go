@@ -1,8 +1,6 @@
 package openai
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -11,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
 )
 
 // OpenAI OAuth Constants (from CRS project - Codex CLI client)
@@ -126,12 +126,7 @@ func (s *SessionStore) cleanup() {
 
 // GenerateRandomBytes generates cryptographically secure random bytes
 func GenerateRandomBytes(n int) ([]byte, error) {
-	b := make([]byte, n)
-	_, err := rand.Read(b)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
+	return oauthpkce.RandomBytes(n)
 }
 
 // GenerateState generates a random state string for OAuth
@@ -155,25 +150,13 @@ func GenerateSessionID() (string, error) {
 // GenerateCodeVerifier generates a PKCE code verifier (64 bytes -> hex for OpenAI)
 // OpenAI uses hex encoding instead of base64url
 func GenerateCodeVerifier() (string, error) {
-	bytes, err := GenerateRandomBytes(64)
-	if err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(bytes), nil
+	return oauthpkce.HexVerifier()
 }
 
 // GenerateCodeChallenge generates a PKCE code challenge using S256 method
 // Uses base64url encoding as per RFC 7636
 func GenerateCodeChallenge(verifier string) string {
-	hash := sha256.Sum256([]byte(verifier))
-	return base64URLEncode(hash[:])
-}
-
-// base64URLEncode encodes bytes to base64url without padding
-func base64URLEncode(data []byte) string {
-	encoded := base64.URLEncoding.EncodeToString(data)
-	// Remove padding
-	return strings.TrimRight(encoded, "=")
+	return oauthpkce.Challenge(verifier)
 }
 
 // BuildAuthorizationURL builds the OpenAI OAuth authorization URL

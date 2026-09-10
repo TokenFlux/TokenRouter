@@ -3,9 +3,6 @@ package qoder
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
 
 	"github.com/google/uuid"
 )
@@ -336,16 +335,11 @@ func (r *DeviceAuthRequest) AuthorizationURL() string {
 }
 
 func GenerateCodeVerifier() (string, error) {
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	return base64.RawURLEncoding.EncodeToString(b), nil
+	return oauthpkce.Verifier()
 }
 
 func GenerateCodeChallenge(verifier string) string {
-	sum := sha256.Sum256([]byte(verifier))
-	return base64.RawURLEncoding.EncodeToString(sum[:])
+	return oauthpkce.Challenge(verifier)
 }
 
 // RandomUUIDLike 生成官方客户端使用的 UUID v4 字符串。
@@ -373,7 +367,9 @@ func (c *OAuthClient) PollDeviceToken(ctx context.Context, nonce, verifier strin
 	if err != nil {
 		return nil, false, fmt.Errorf("qoder: device token poll request: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode == http.StatusNotFound {
 		return nil, false, nil
@@ -409,7 +405,9 @@ func (c *OAuthClient) GetUserInfo(ctx context.Context, token string) (*UserInfo,
 	if err != nil {
 		return nil, fmt.Errorf("qoder: userinfo request: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
@@ -443,7 +441,9 @@ func (c *OAuthClient) GetOrganizationTags(ctx context.Context, token, uid string
 	if err != nil {
 		return nil, fmt.Errorf("qoder: organization tags request: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
@@ -511,7 +511,9 @@ func (c *OAuthClient) postTokenRequest(ctx context.Context, path string, body []
 	if err != nil {
 		return nil, fmt.Errorf("qoder: %s request: %w", operation, err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode != http.StatusOK {
 		responseBody, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return nil, &OpenAPIError{

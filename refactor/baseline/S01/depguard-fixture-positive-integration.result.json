@@ -1,0 +1,33 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--enable-only=depguard",
+    "--timeout=30m",
+    "--build-tags=integration",
+    "./internal/payment/...",
+    "./internal/pkg/...",
+    "./internal/config",
+    "./internal/server/...",
+    "./internal/setup",
+    "./internal/web",
+    "./internal/testutil",
+    "./internal/identity/...",
+    "./internal/upstream/openai/..."
+  ],
+  "working_directory": "backend",
+  "environment": {
+    "GOTOOLCHAIN": "go1.27.0"
+  },
+  "started_at": "2026-09-10T23:48:31.423655+08:00",
+  "finished_at": "2026-09-10T23:48:31.939034+08:00",
+  "duration_seconds": 0.52,
+  "exit_code": 0,
+  "log": "logs/depguard-fixture-positive-integration.log.gz",
+  "package_results": [],
+  "test_run_count": 0,
+  "test_pass_count": 0,
+  "failed_tests": [],
+  "skipped_tests": [],
+  "execution_evidence": "logs/depguard-fixture-positive-integration.log.gz"
+}

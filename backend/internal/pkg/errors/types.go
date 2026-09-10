@@ -1,115 +1,106 @@
-// Package errors provides application error types and helpers.
-// nolint:mnd
+// 本文件为阶段迁移兼容入口；剩余消费者和退出阶段见 refactor/S01-foundation.md。
 package errors
 
-import "net/http"
+import (
+	foundation "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+)
 
-// BadRequest new BadRequest error that is mapped to a 400 response.
+// BadRequest 兼容旧入口；仅转发到目标实现。
 func BadRequest(reason, message string) *ApplicationError {
-	return New(http.StatusBadRequest, reason, message)
+	return foundation.BadRequest(reason, message)
 }
 
-// IsBadRequest determines if err is an error which indicates a BadRequest error.
-// It supports wrapped errors.
+// IsBadRequest 兼容旧入口；仅转发到目标实现。
 func IsBadRequest(err error) bool {
-	return Code(err) == http.StatusBadRequest
+	return foundation.IsBadRequest(err)
 }
 
-// TooManyRequests new TooManyRequests error that is mapped to a 429 response.
+// TooManyRequests 兼容旧入口；仅转发到目标实现。
 func TooManyRequests(reason, message string) *ApplicationError {
-	return New(http.StatusTooManyRequests, reason, message)
+	return foundation.TooManyRequests(reason, message)
 }
 
-// IsTooManyRequests determines if err is an error which indicates a TooManyRequests error.
-// It supports wrapped errors.
+// IsTooManyRequests 兼容旧入口；仅转发到目标实现。
 func IsTooManyRequests(err error) bool {
-	return Code(err) == http.StatusTooManyRequests
+	return foundation.IsTooManyRequests(err)
 }
 
-// Unauthorized new Unauthorized error that is mapped to a 401 response.
+// Unauthorized 兼容旧入口；仅转发到目标实现。
 func Unauthorized(reason, message string) *ApplicationError {
-	return New(http.StatusUnauthorized, reason, message)
+	return foundation.Unauthorized(reason, message)
 }
 
-// IsUnauthorized determines if err is an error which indicates an Unauthorized error.
-// It supports wrapped errors.
+// IsUnauthorized 兼容旧入口；仅转发到目标实现。
 func IsUnauthorized(err error) bool {
-	return Code(err) == http.StatusUnauthorized
+	return foundation.IsUnauthorized(err)
 }
 
-// Forbidden new Forbidden error that is mapped to a 403 response.
+// Forbidden 兼容旧入口；仅转发到目标实现。
 func Forbidden(reason, message string) *ApplicationError {
-	return New(http.StatusForbidden, reason, message)
+	return foundation.Forbidden(reason, message)
 }
 
-// IsForbidden determines if err is an error which indicates a Forbidden error.
-// It supports wrapped errors.
+// IsForbidden 兼容旧入口；仅转发到目标实现。
 func IsForbidden(err error) bool {
-	return Code(err) == http.StatusForbidden
+	return foundation.IsForbidden(err)
 }
 
-// NotFound new NotFound error that is mapped to a 404 response.
+// NotFound 兼容旧入口；仅转发到目标实现。
 func NotFound(reason, message string) *ApplicationError {
-	return New(http.StatusNotFound, reason, message)
+	return foundation.NotFound(reason, message)
 }
 
-// IsNotFound determines if err is an error which indicates an NotFound error.
-// It supports wrapped errors.
+// IsNotFound 兼容旧入口；仅转发到目标实现。
 func IsNotFound(err error) bool {
-	return Code(err) == http.StatusNotFound
+	return foundation.IsNotFound(err)
 }
 
-// Conflict new Conflict error that is mapped to a 409 response.
+// Conflict 兼容旧入口；仅转发到目标实现。
 func Conflict(reason, message string) *ApplicationError {
-	return New(http.StatusConflict, reason, message)
+	return foundation.Conflict(reason, message)
 }
 
-// IsConflict determines if err is an error which indicates a Conflict error.
-// It supports wrapped errors.
+// IsConflict 兼容旧入口；仅转发到目标实现。
 func IsConflict(err error) bool {
-	return Code(err) == http.StatusConflict
+	return foundation.IsConflict(err)
 }
 
-// InternalServer new InternalServer error that is mapped to a 500 response.
+// InternalServer 兼容旧入口；仅转发到目标实现。
 func InternalServer(reason, message string) *ApplicationError {
-	return New(http.StatusInternalServerError, reason, message)
+	return foundation.InternalServer(reason, message)
 }
 
-// IsInternalServer determines if err is an error which indicates an Internal error.
-// It supports wrapped errors.
+// IsInternalServer 兼容旧入口；仅转发到目标实现。
 func IsInternalServer(err error) bool {
-	return Code(err) == http.StatusInternalServerError
+	return foundation.IsInternalServer(err)
 }
 
-// ServiceUnavailable new ServiceUnavailable error that is mapped to an HTTP 503 response.
+// ServiceUnavailable 兼容旧入口；仅转发到目标实现。
 func ServiceUnavailable(reason, message string) *ApplicationError {
-	return New(http.StatusServiceUnavailable, reason, message)
+	return foundation.ServiceUnavailable(reason, message)
 }
 
-// IsServiceUnavailable determines if err is an error which indicates an Unavailable error.
-// It supports wrapped errors.
+// IsServiceUnavailable 兼容旧入口；仅转发到目标实现。
 func IsServiceUnavailable(err error) bool {
-	return Code(err) == http.StatusServiceUnavailable
+	return foundation.IsServiceUnavailable(err)
 }
 
-// GatewayTimeout new GatewayTimeout error that is mapped to an HTTP 504 response.
+// GatewayTimeout 兼容旧入口；仅转发到目标实现。
 func GatewayTimeout(reason, message string) *ApplicationError {
-	return New(http.StatusGatewayTimeout, reason, message)
+	return foundation.GatewayTimeout(reason, message)
 }
 
-// IsGatewayTimeout determines if err is an error which indicates a GatewayTimeout error.
-// It supports wrapped errors.
+// IsGatewayTimeout 兼容旧入口；仅转发到目标实现。
 func IsGatewayTimeout(err error) bool {
-	return Code(err) == http.StatusGatewayTimeout
+	return foundation.IsGatewayTimeout(err)
 }
 
-// ClientClosed new ClientClosed error that is mapped to an HTTP 499 response.
+// ClientClosed 兼容旧入口；仅转发到目标实现。
 func ClientClosed(reason, message string) *ApplicationError {
-	return New(499, reason, message)
+	return foundation.ClientClosed(reason, message)
 }
 
-// IsClientClosed determines if err is an error which indicates a IsClientClosed error.
-// It supports wrapped errors.
+// IsClientClosed 兼容旧入口；仅转发到目标实现。
 func IsClientClosed(err error) bool {
-	return Code(err) == 499
+	return foundation.IsClientClosed(err)
 }

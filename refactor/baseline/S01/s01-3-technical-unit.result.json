@@ -1,0 +1,123 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/infra/...",
+    "./internal/egress",
+    "./internal/pkg/logger",
+    "./internal/pkg/redissession",
+    "./internal/pkg/proxyurl",
+    "./internal/pkg/proxyutil",
+    "./internal/pkg/tlsfingerprint",
+    "./internal/pkg/servertiming",
+    "./internal/pkg/httpclient"
+  ],
+  "working_directory": "backend",
+  "environment": {
+    "GOTOOLCHAIN": "go1.27.0"
+  },
+  "started_at": "2026-09-10T21:31:46.083735+08:00",
+  "finished_at": "2026-09-10T21:31:51.043714+08:00",
+  "duration_seconds": 4.96,
+  "exit_code": 0,
+  "log": "logs/s01-3-technical-unit.log.gz",
+  "package_results": [
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/crypto",
+      "Elapsed": 0
+    },
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/logger",
+      "Elapsed": 0.002
+    },
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/redissession",
+      "Elapsed": 0.003
+    },
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/proxyurl",
+      "Elapsed": 0.001
+    },
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/proxyutil",
+      "Elapsed": 0
+    },
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint",
+      "Elapsed": 0
+    },
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/servertiming",
+      "Elapsed": 0
+    },
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/httpclient",
+      "Elapsed": 0
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/redis/session",
+      "Elapsed": 0.468
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient",
+      "Elapsed": 0.967
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging",
+      "Elapsed": 1.412
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing",
+      "Elapsed": 1.863
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+      "Elapsed": 2.35
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/proxy",
+      "Elapsed": 2.789
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/egress",
+      "Elapsed": 3.213
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/postgres",
+      "Elapsed": 3.944
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/redis",
+      "Elapsed": 4.117
+    }
+  ],
+  "test_run_count": 125,
+  "test_pass_count": 122,
+  "failed_tests": [],
+  "skipped_tests": [
+    "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint::TestAllProfiles",
+    "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint::TestDialerBasicConnection",
+    "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint::TestJA3Fingerprint"
+  ],
+  "execution_evidence": "logs/s01-3-technical-unit.log.gz"
+}

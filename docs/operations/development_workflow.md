@@ -50,9 +50,14 @@ docker compose -f deploy/docker-compose.dev.yml up --build
 
 根 Makefile 中保留 `build-datamanagementd`/`test-datamanagementd` 目标，但当前仓库没有 `datamanagement/` 源树；不要把这些目标纳入默认通过条件，除非该可选源码已随工作范围提供。
 
+<a id="backend_dependency_rules"></a>
 ## 代码边界
 
-后端依赖方向是 `handler/server -> service -> repository`，repository 实现 service 定义的接口；`.golangci.yml` 阻止普通 handler/service 直接依赖 repository、Redis 或 GORM，只有列出的运维装配例外。新增外部协议时把 wire format 放在 handler/pkg 适配层，领域状态与幂等规则留在 service，存储细节留在 repository。
+现有 handler/server 仍调用 service，repository 实现 service 定义的接口；通用技术实现已分布在 `internal/infra`，HTTP 工具在 `server/httpx`、`server/clientip`，纯工具在明确列出的 pkg 包中。旧目录里的兼容入口不代表其中所有能力仍拥有独立实现。
+
+`.golangci.yml` 保留普通 handler/service 对 repository、Redis、GORM 的原有限制，并按职责约束新业务核心、纯叶子契约、protocol、upstream、infra 和具体 Adapter。核心不依赖旧业务或框架/存储实现，HTTP Adapter 不直接访问数据库；具体上游不能依赖其他平台实现，技术包不反向读取完整 config 或业务 service。规则同时匹配目录直属文件和嵌套文件；新增的未分类路径也有默认约束。
+
+保留路径的旧依赖按准确源文件和 import 登记，许可不覆盖同目录新文件，也不覆盖允许包的其他子包。每次添加路径或修改规则，要分别用普通、unit、integration 集合验证合法依赖与违规夹具；已有失败不能自动转成白名单。角色检查不能识别“通过接口绕过业务用例”或“借现有 import 增加耦合”，这两项仍需代码审查。
 
 所有手写代码都要写必要注释，注释使用中文；生成文件不手改。注释应解释约束、失败语义或非显然原因，不复述语句。跨模块不变量应同步到 Project Doc，并在关键手写入口添加唯一 `@project-doc` 锚点。
 
@@ -110,7 +115,7 @@ npx --yes pnpm@9 --dir frontend run build
 
 提交信息遵循 Conventional Commits，例如 `feat(gateway): ...`、`fix(billing): ...`、`docs(project): ...`。一次提交应围绕一个可验证目的，生成文件、迁移和契约测试与其源变更一起提交。
 
-`SYNC.md` 是本地同步进度，受 `.gitignore` 保护，永远不要提交。使用 Codex 计划模式时，实施前把计划保存到 `.agents/plans/`。不要覆盖工作区中来源不明的修改；提交前按文件核对 staging 范围。
+`SYNC.md` 是本地同步进度，受 `.gitignore` 保护，永远不要提交。使用 Codex 计划模式时，实施前按项目指令保存完整计划；本次后端包重构按用户约定统一使用 `refactor/`，其他任务仍遵循 `AGENTS.md`。不要覆盖工作区中来源不明的修改；提交前按文件核对 staging 范围。
 
 每次代码变更都依据 [工程文档目录](../index.md) 判断相关专题；已读取且仍保留足够内容的索引和章节按 `project-doc` 的“读取与上下文复用”规则复用，无须在每次改文件或收尾前重读。如果持久架构、领域不变量、外部契约或运维流程变化，同步正文、分类目录和代码锚点；局部实现细节不应无条件扩写成新文档。README 保持项目入口简洁，工程细节放入 `docs/`。
 

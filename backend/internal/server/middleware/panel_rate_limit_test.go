@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -101,18 +100,18 @@ type fakePanelAllower struct {
 	err    error
 }
 
-func (f *fakePanelAllower) Allow(_ context.Context, key string, limit int, window time.Duration) (middleware.AllowResult, error) {
+func (f *fakePanelAllower) Allow(_ context.Context, key string, limit int, window time.Duration) (AllowResult, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.err != nil {
-		return middleware.AllowResult{}, f.err
+		return AllowResult{}, f.err
 	}
 	if f.counts == nil {
 		f.counts = make(map[string]int64)
 	}
 	f.counts[key]++
 	count := f.counts[key]
-	result := middleware.AllowResult{Allowed: count <= int64(limit), Count: count}
+	result := AllowResult{Allowed: count <= int64(limit), Count: count}
 	if !result.Allowed {
 		result.RetryAfter = window
 	}

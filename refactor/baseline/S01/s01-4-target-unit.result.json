@@ -1,0 +1,56 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/infra/redis/...",
+    "./internal/server/middleware",
+    "./internal/server/routes",
+    "./internal/server",
+    "-run",
+    "TestWindow|TestRateLimiter|TestPanelRateLimiter|TestAuth.*RateLimit"
+  ],
+  "working_directory": "backend",
+  "environment": {
+    "GOTOOLCHAIN": "go1.27.0"
+  },
+  "started_at": "2026-09-10T23:04:19.048062+08:00",
+  "finished_at": "2026-09-10T23:04:26.378057+08:00",
+  "duration_seconds": 7.33,
+  "exit_code": 0,
+  "log": "logs/s01-4-target-unit.log.gz",
+  "package_results": [
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/redis",
+      "Elapsed": 0.524
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/redis/session",
+      "Elapsed": 0.96
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/server/middleware",
+      "Elapsed": 0.555
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/server",
+      "Elapsed": 1.681
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/server/routes",
+      "Elapsed": 3.309
+    }
+  ],
+  "test_run_count": 12,
+  "test_pass_count": 12,
+  "failed_tests": [],
+  "skipped_tests": [],
+  "execution_evidence": "logs/s01-4-target-unit.log.gz"
+}

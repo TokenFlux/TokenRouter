@@ -1,0 +1,302 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/pkg/...",
+    "./internal/util/logredact",
+    "./internal/service",
+    "./internal/handler/...",
+    "./internal/server/...",
+    "./internal/repository",
+    "./internal/config",
+    "./internal/payment/...",
+    "./internal/setup",
+    "./internal/web",
+    "./cmd/..."
+  ],
+  "working_directory": "backend",
+  "environment": {
+    "GOTOOLCHAIN": "go1.27.0"
+  },
+  "started_at": "2026-09-10T20:58:01.360355+08:00",
+  "finished_at": "2026-09-10T20:58:12.586785+08:00",
+  "duration_seconds": 11.23,
+  "exit_code": 1,
+  "log": "logs/s01-1-normal.log.gz",
+  "package_results": [
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+      "Elapsed": 0
+    },
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/errors",
+      "Elapsed": 0
+    },
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/ip",
+      "Elapsed": 0
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/anthropicfp",
+      "Elapsed": 0.484
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/antigravity",
+      "Elapsed": 0.736
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/apicompat",
+      "Elapsed": 1.067
+    },
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/redissession",
+      "Elapsed": 0
+    },
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/response",
+      "Elapsed": 0
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/claude",
+      "Elapsed": 1.412
+    },
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/sysutil",
+      "Elapsed": 0
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/gemini",
+      "Elapsed": 1.771
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/geminicli",
+      "Elapsed": 2.088
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch",
+      "Elapsed": 2.488
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/googleapi",
+      "Elapsed": 2.855
+    },
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/util/logredact",
+      "Elapsed": 0
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/httpclient",
+      "Elapsed": 3.228
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/handler",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/handler/dto",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/handler/quotaview",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/server",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/server/middleware",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/server/routes",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/repository",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/httputil",
+      "Elapsed": 3.606
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/logger",
+      "Elapsed": 3.973
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/setup",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+    },
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/web",
+      "Elapsed": 0
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/cmd/cleanup-ingress-reject-logs",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/cmd/jwtgen",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+    },
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/cmd/server",
+      "Elapsed": 0,
+      "FailedBuild": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/logredact",
+      "Elapsed": 4.322
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/oauth",
+      "Elapsed": 4.668
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce",
+      "Elapsed": 5.015
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/openai",
+      "Elapsed": 5.381
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat",
+      "Elapsed": 5.6850000000000005
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/pagination",
+      "Elapsed": 6.01
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/proxyurl",
+      "Elapsed": 6.369
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/proxyutil",
+      "Elapsed": 6.622
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+      "Elapsed": 6.482
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/servertiming",
+      "Elapsed": 6.636
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint",
+      "Elapsed": 6.686
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/usagestats",
+      "Elapsed": 6.672
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/websearch",
+      "Elapsed": 6.697
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/xai",
+      "Elapsed": 6.434
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/config",
+      "Elapsed": 6.381
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/payment",
+      "Elapsed": 6.323
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/payment/provider",
+      "Elapsed": 6.448
+    }
+  ],
+  "test_run_count": 1551,
+  "test_pass_count": 1549,
+  "failed_tests": [],
+  "skipped_tests": [
+    "github.com/TokenFlux/TokenRouter/internal/pkg/qoder::TestReadLocalAuthFromDisk",
+    "github.com/TokenFlux/TokenRouter/internal/pkg/qoder::TestRealAPI"
+  ],
+  "execution_evidence": "logs/s01-1-normal.log.gz"
+}

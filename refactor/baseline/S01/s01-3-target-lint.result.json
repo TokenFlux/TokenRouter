@@ -1,0 +1,27 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--build-tags=unit",
+    "./internal/infra/...",
+    "./internal/egress",
+    "./internal/pkg/logger",
+    "./internal/repository"
+  ],
+  "working_directory": "backend",
+  "environment": {
+    "GOTOOLCHAIN": "go1.27.0"
+  },
+  "started_at": "2026-09-10T22:44:25.369141+08:00",
+  "finished_at": "2026-09-10T22:44:34.224632+08:00",
+  "duration_seconds": 8.86,
+  "exit_code": 1,
+  "log": "logs/s01-3-target-lint.log.gz",
+  "package_results": [],
+  "test_run_count": 0,
+  "test_pass_count": 0,
+  "failed_tests": [],
+  "skipped_tests": [],
+  "execution_evidence": "logs/s01-3-target-lint.log.gz"
+}

@@ -1,9 +1,6 @@
 package geminicli
 
 import (
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -14,6 +11,7 @@ import (
 	"time"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce"
 )
 
 type OAuthConfig struct {
@@ -105,12 +103,7 @@ func (s *SessionStore) cleanup() {
 }
 
 func GenerateRandomBytes(n int) ([]byte, error) {
-	b := make([]byte, n)
-	_, err := rand.Read(b)
-	if err != nil {
-		return nil, err
-	}
-	return b, nil
+	return oauthpkce.RandomBytes(n)
 }
 
 func GenerateState() (string, error) {
@@ -131,20 +124,15 @@ func GenerateSessionID() (string, error) {
 
 // GenerateCodeVerifier returns an RFC 7636 compatible code verifier (43+ chars).
 func GenerateCodeVerifier() (string, error) {
-	bytes, err := GenerateRandomBytes(32)
-	if err != nil {
-		return "", err
-	}
-	return base64URLEncode(bytes), nil
+	return oauthpkce.Verifier()
 }
 
 func GenerateCodeChallenge(verifier string) string {
-	hash := sha256.Sum256([]byte(verifier))
-	return base64URLEncode(hash[:])
+	return oauthpkce.Challenge(verifier)
 }
 
 func base64URLEncode(data []byte) string {
-	return strings.TrimRight(base64.URLEncoding.EncodeToString(data), "=")
+	return oauthpkce.Base64URL(data)
 }
 
 // EffectiveOAuthConfig returns the effective OAuth configuration.

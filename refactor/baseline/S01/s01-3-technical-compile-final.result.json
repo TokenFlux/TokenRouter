@@ -1,0 +1,35 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-run=^$",
+    "-tags=unit",
+    "./internal/infra/...",
+    "./internal/egress",
+    "./internal/repository",
+    "./internal/pkg/...",
+    "./internal/server/...",
+    "./internal/service",
+    "./internal/handler/...",
+    "./internal/config",
+    "./internal/payment/...",
+    "./internal/setup",
+    "./internal/web",
+    "./cmd/..."
+  ],
+  "working_directory": "backend",
+  "environment": {
+    "GOTOOLCHAIN": "go1.27.0"
+  },
+  "started_at": "2026-09-10T21:26:40.962889+08:00",
+  "finished_at": "2026-09-10T21:26:58.707859+08:00",
+  "duration_seconds": 17.75,
+  "exit_code": 1,
+  "log": "logs/s01-3-technical-compile-final.log.gz",
+  "package_results": [],
+  "test_run_count": 0,
+  "test_pass_count": 0,
+  "failed_tests": [],
+  "skipped_tests": [],
+  "execution_evidence": "logs/s01-3-technical-compile-final.log.gz"
+}

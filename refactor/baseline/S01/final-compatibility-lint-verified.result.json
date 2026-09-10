@@ -1,0 +1,30 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--build-tags=unit",
+    "./internal/pkg/timezone",
+    "./internal/pkg/oauthpkce",
+    "./internal/pkg/oauth",
+    "./internal/pkg/openai",
+    "./internal/pkg/geminicli",
+    "./internal/pkg/xai",
+    "./internal/pkg/qoder"
+  ],
+  "working_directory": "backend",
+  "environment": {
+    "GOTOOLCHAIN": "go1.27.0"
+  },
+  "started_at": "2026-09-10T23:56:39.046363+08:00",
+  "finished_at": "2026-09-10T23:56:39.572836+08:00",
+  "duration_seconds": 0.53,
+  "exit_code": 0,
+  "log": "logs/final-compatibility-lint-verified.log.gz",
+  "package_results": [],
+  "test_run_count": 0,
+  "test_pass_count": 0,
+  "failed_tests": [],
+  "skipped_tests": [],
+  "execution_evidence": "logs/final-compatibility-lint-verified.log.gz"
+}

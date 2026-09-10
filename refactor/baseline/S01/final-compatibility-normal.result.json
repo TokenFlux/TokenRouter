@@ -1,0 +1,69 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/pkg/timezone",
+    "./internal/pkg/oauthpkce",
+    "./internal/pkg/oauth",
+    "./internal/pkg/openai",
+    "./internal/pkg/geminicli",
+    "./internal/pkg/xai",
+    "./internal/pkg/qoder"
+  ],
+  "working_directory": "backend",
+  "environment": {
+    "GOTOOLCHAIN": "go1.27.0"
+  },
+  "started_at": "2026-09-10T23:53:10.982802+08:00",
+  "finished_at": "2026-09-10T23:53:14.244814+08:00",
+  "duration_seconds": 3.26,
+  "exit_code": 0,
+  "log": "logs/final-compatibility-normal.log.gz",
+  "package_results": [
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/timezone",
+      "Elapsed": 0.492
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce",
+      "Elapsed": 0.856
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/oauth",
+      "Elapsed": 1.23
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/openai",
+      "Elapsed": 1.564
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/geminicli",
+      "Elapsed": 1.786
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/xai",
+      "Elapsed": 2.174
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+      "Elapsed": 2.568
+    }
+  ],
+  "test_run_count": 370,
+  "test_pass_count": 368,
+  "failed_tests": [],
+  "skipped_tests": [
+    "github.com/TokenFlux/TokenRouter/internal/pkg/qoder::TestReadLocalAuthFromDisk",
+    "github.com/TokenFlux/TokenRouter/internal/pkg/qoder::TestRealAPI"
+  ],
+  "execution_evidence": "logs/final-compatibility-normal.log.gz"
+}

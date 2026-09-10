@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	redisinfra "github.com/TokenFlux/TokenRouter/internal/infra/redis"
 
 	"github.com/redis/go-redis/v9"
 )
@@ -21,11 +22,7 @@ import (
 // 2. MinIdleConns: 保持最小空闲连接，减少冷启动延迟（默认 10）
 // 3. DialTimeout/ReadTimeout/WriteTimeout: 精确控制各阶段超时
 func InitRedis(cfg *config.Config) *redis.Client {
-	client := redis.NewClient(buildRedisOptions(cfg))
-	if cfg.Server.EnableServerTiming {
-		client.AddHook(serverTimingRedisHook{})
-	}
-	return client
+	return redisinfra.NewClient(buildRedisOptions(cfg), cfg.Server.EnableServerTiming)
 }
 
 // buildRedisOptions 构建 Redis 连接选项

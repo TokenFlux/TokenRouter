@@ -1,0 +1,82 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/infra/...",
+    "./internal/pkg/logger"
+  ],
+  "working_directory": "backend",
+  "environment": {
+    "GOTOOLCHAIN": "go1.27.0"
+  },
+  "started_at": "2026-09-10T22:54:44.842345+08:00",
+  "finished_at": "2026-09-10T22:54:51.280488+08:00",
+  "duration_seconds": 6.44,
+  "exit_code": 0,
+  "log": "logs/s01-3-race-unit.log.gz",
+  "package_results": [
+    {
+      "Action": "skip",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/crypto",
+      "Elapsed": 0
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/timing",
+      "Elapsed": 1.717
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient",
+      "Elapsed": 2.251
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/logger",
+      "Elapsed": 2.654
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+      "Elapsed": 3.116
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/redis",
+      "Elapsed": 3.521
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/proxy",
+      "Elapsed": 3.947
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/postgres",
+      "Elapsed": 4.66
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging",
+      "Elapsed": 4.796
+    },
+    {
+      "Action": "pass",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/infra/redis/session",
+      "Elapsed": 5.258
+    }
+  ],
+  "test_run_count": 153,
+  "test_pass_count": 150,
+  "failed_tests": [],
+  "skipped_tests": [
+    "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint::TestAllProfiles",
+    "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint::TestDialerBasicConnection",
+    "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint::TestJA3Fingerprint"
+  ],
+  "execution_evidence": "logs/s01-3-race-unit.log.gz"
+}

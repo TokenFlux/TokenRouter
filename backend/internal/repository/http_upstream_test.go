@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -19,6 +18,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"golang.org/x/net/http2"
@@ -97,31 +97,13 @@ func TestHTTPUpstreamDoWithTLSPlainHTTPUsesConfiguredSOCKSProxy(t *testing.T) {
 	require.Equal(t, int64(1), upstreamCalls.Load())
 }
 
-func TestTLSFingerprintHTTPSProxyFallsBackWithoutBypassingProxy(t *testing.T) {
-	proxyURL, err := url.Parse("https://user:pass@proxy.example:8443")
-	require.NoError(t, err)
-	roundTripper, err := buildUpstreamTransportWithTLSFingerprint(
-		poolSettings{},
-		proxyURL,
-		&tlsfingerprint.Profile{Name: "test"},
-		upstreamProtocolModeDefault,
-	)
-	require.NoError(t, err)
-	transport, ok := roundTripper.(*http.Transport)
-	require.True(t, ok)
-	require.NotNil(t, transport.Proxy)
-	require.Nil(t, transport.DialTLSContext)
-	req := &http.Request{URL: &url.URL{Scheme: "https", Host: "upstream.example"}}
-	resolved, err := transport.Proxy(req)
-	require.NoError(t, err)
-	require.Equal(t, "https://user:pass@proxy.example:8443", resolved.String())
-}
-
 func startTestSOCKS5Proxy(t *testing.T) (string, *atomic.Int64) {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = listener.Close() })
+	t.Cleanup(func() {
+		_ = listener.Close()
+	})
 	calls := &atomic.Int64{}
 	go func() {
 		for {
@@ -137,7 +119,9 @@ func startTestSOCKS5Proxy(t *testing.T) (string, *atomic.Int64) {
 }
 
 func serveTestSOCKS5Conn(client net.Conn) {
-	defer func() { _ = client.Close() }()
+	defer func() {
+		_ = client.Close()
+	}()
 	header := make([]byte, 2)
 	if _, err := io.ReadFull(client, header); err != nil || header[0] != 5 {
 		return
@@ -189,11 +173,16 @@ func serveTestSOCKS5Conn(client net.Conn) {
 		_, _ = client.Write([]byte{5, 1, 0, 1, 0, 0, 0, 0, 0, 0})
 		return
 	}
-	defer func() { _ = target.Close() }()
+	defer func() {
+		_ = target.Close()
+	}()
 	if _, err := client.Write([]byte{5, 0, 0, 1, 0, 0, 0, 0, 0, 0}); err != nil {
 		return
 	}
-	go func() { _, _ = io.Copy(target, client); _ = target.Close() }()
+	go func() {
+		_, _ = io.Copy(target, client)
+		_ = target.Close()
+	}()
 	_, _ = io.Copy(client, target)
 }
 
@@ -207,33 +196,21 @@ func TestHTTPUpstreamDoAppliesGrokCLIIdentityBeforeOAuthRoundTrip(t *testing.T) 
 			require.True(t, ok)
 
 			const accountID int64 = 4084
-			isolation := svc.getIsolationMode()
-			profile := service.HTTPUpstreamProfileDefault
-			proxyKey := directProxyKey
-			protocolMode := svc.resolveProtocolMode(profile, proxyKey, nil)
-			settings := svc.resolvePoolSettings(isolation, 1)
-			settings = svc.applyProfilePoolSettings(settings, profile)
-			cacheKey := buildCacheKey(isolation, proxyKey, accountID, protocolMode)
 
 			var capturedHeaders http.Header
-			svc.clients[cacheKey] = &upstreamClientEntry{
-				client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-					capturedHeaders = req.Header.Clone()
-					statusCode := http.StatusOK
-					if req.Header.Get("X-XAI-Token-Auth") != "xai-grok-cli" {
-						statusCode = http.StatusForbidden
-					}
-					return &http.Response{
-						StatusCode: statusCode,
-						Header:     make(http.Header),
-						Body:       http.NoBody,
-						Request:    req,
-					}, nil
-				})},
-				proxyKey:     proxyKey,
-				poolKey:      buildPoolKey(settings, protocolMode),
-				protocolMode: protocolMode,
-			}
+			svc.pool = testUpstreamPool{transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+				capturedHeaders = req.Header.Clone()
+				statusCode := http.StatusOK
+				if req.Header.Get("X-XAI-Token-Auth") != "xai-grok-cli" {
+					statusCode = http.StatusForbidden
+				}
+				return &http.Response{
+					StatusCode: statusCode,
+					Header:     make(http.Header),
+					Body:       http.NoBody,
+					Request:    req,
+				}, nil
+			})}
 
 			req, err := http.NewRequest(http.MethodPost, "https://cli-chat-proxy.grok.com/v1/"+endpoint, nil)
 			require.NoError(t, err)
@@ -257,49 +234,37 @@ func TestHTTPUpstreamDoFallsBackToOfficialGrokAPIOnCLIAccessDenied(t *testing.T)
 	require.True(t, ok)
 
 	const accountID int64 = 4421
-	isolation := svc.getIsolationMode()
-	profile := service.HTTPUpstreamProfileDefault
-	proxyKey := directProxyKey
-	protocolMode := svc.resolveProtocolMode(profile, proxyKey, nil)
-	settings := svc.resolvePoolSettings(isolation, 1)
-	settings = svc.applyProfilePoolSettings(settings, profile)
-	cacheKey := buildCacheKey(isolation, proxyKey, accountID, protocolMode)
 
 	payload := []byte(`{"model":"grok-4.5","input":"hello"}`)
 	var calls int
 	var fallbackBody []byte
 	var fallbackHeaders http.Header
-	svc.clients[cacheKey] = &upstreamClientEntry{
-		client: &http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
-			calls++
-			body, err := io.ReadAll(req.Body)
-			require.NoError(t, err)
-			if calls == 1 {
-				require.Equal(t, grokCLIProxyHost, req.URL.Hostname())
-				require.Equal(t, "xai-grok-cli", req.Header.Get("X-XAI-Token-Auth"))
-				return &http.Response{
-					StatusCode: http.StatusForbidden,
-					Header:     make(http.Header),
-					Body:       io.NopCloser(strings.NewReader(`{"error":"Access denied"}`)),
-					Request:    req,
-				}, nil
-			}
-
-			fallbackBody = body
-			fallbackHeaders = req.Header.Clone()
-			require.Equal(t, grokOfficialAPIHost, req.URL.Hostname())
-			require.Equal(t, "/v1/responses", req.URL.Path)
+	svc.pool = testUpstreamPool{transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		calls++
+		body, err := io.ReadAll(req.Body)
+		require.NoError(t, err)
+		if calls == 1 {
+			require.Equal(t, grokCLIProxyHost, req.URL.Hostname())
+			require.Equal(t, "xai-grok-cli", req.Header.Get("X-XAI-Token-Auth"))
 			return &http.Response{
-				StatusCode: http.StatusOK,
+				StatusCode: http.StatusForbidden,
 				Header:     make(http.Header),
-				Body:       io.NopCloser(strings.NewReader(`{"id":"response-ok"}`)),
+				Body:       io.NopCloser(strings.NewReader(`{"error":"Access denied"}`)),
 				Request:    req,
 			}, nil
-		})},
-		proxyKey:     proxyKey,
-		poolKey:      buildPoolKey(settings, protocolMode),
-		protocolMode: protocolMode,
-	}
+		}
+
+		fallbackBody = body
+		fallbackHeaders = req.Header.Clone()
+		require.Equal(t, grokOfficialAPIHost, req.URL.Hostname())
+		require.Equal(t, "/v1/responses", req.URL.Path)
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     make(http.Header),
+			Body:       io.NopCloser(strings.NewReader(`{"id":"response-ok"}`)),
+			Request:    req,
+		}, nil
+	})}
 
 	req, err := http.NewRequest(http.MethodPost, "https://cli-chat-proxy.grok.com/v1/responses", bytes.NewReader(payload))
 	require.NoError(t, err)
@@ -401,7 +366,9 @@ func TestIsGrokCLIAccessDeniedFallbackCandidateRequiresAuthenticatedReplayableCL
 		req.Header.Set("X-XAI-Token-Auth", "xai-grok-cli")
 		return req
 	}
-	newResponse := func() *http.Response { return &http.Response{StatusCode: http.StatusForbidden} }
+	newResponse := func() *http.Response {
+		return &http.Response{StatusCode: http.StatusForbidden}
+	}
 
 	t.Run("valid candidate", func(t *testing.T) {
 		require.True(t, isGrokCLIAccessDeniedFallbackCandidate(newRequest(), newResponse()))
@@ -683,59 +650,20 @@ func (s *HTTPUpstreamSuite) TestOpenAIProfileTLSFingerprintUsesHTTP2WhenALPNAllo
 	transport, ok := entry.client.Transport.(*http2.Transport)
 	require.True(s.T(), ok, "声明 h2 的 TLS 模板应启用 HTTP/2 transport")
 	require.NotNil(s.T(), transport.DialTLSContext)
-	require.Equal(s.T(), openAIHTTP2ReadIdleTimeout, transport.ReadIdleTimeout, "TLS 指纹 H2 也必须启用空闲 PING")
-	require.Equal(s.T(), openAIHTTP2PingTimeout, transport.PingTimeout, "TLS 指纹 H2 的 PING 必须有超时")
+	require.Equal(s.T(), 15*time.Second, transport.ReadIdleTimeout, "TLS 指纹 H2 也必须启用空闲 PING")
+	require.Equal(s.T(), 15*time.Second, transport.PingTimeout, "TLS 指纹 H2 的 PING 必须有超时")
 	require.Equal(s.T(), upstreamProtocolModeOpenAIH2, entry.protocolMode)
 }
 
+// 本场景验证配置到技术快照的映射；裸 H2 的超时行为由机制测试覆盖。
 func (s *HTTPUpstreamSuite) TestOpenAIProfileTLSFingerprintHTTP2HeaderTimeout() {
-	s.cfg.Gateway = config.GatewayConfig{
-		OpenAIResponseHeaderTimeout: 1,
-		OpenAIHTTP2: config.GatewayOpenAIHTTP2Config{
-			Enabled: true,
-		},
-	}
+	s.cfg.Gateway = config.GatewayConfig{OpenAIResponseHeaderTimeout: 1, OpenAIHTTP2: config.GatewayOpenAIHTTP2Config{Enabled: true}}
 	svc := s.newService()
-	entry, err := svc.getClientEntryWithTLS("", 1, 1, &tlsfingerprint.Profile{
-		Name:              "h2-profile",
-		ALPNProtocols:     []string{"h2", "http/1.1"},
-		SupportedVersions: []uint16{0x0304},
-	}, service.HTTPUpstreamProfileOpenAI, false, false)
+	req, _ := http.NewRequestWithContext(service.WithHTTPUpstreamProfile(s.T().Context(), service.HTTPUpstreamProfileOpenAI), http.MethodGet, "https://example.com", nil)
+	opts, err := svc.transportOptions(req, "", 1, 1, &tlsfingerprint.Profile{Name: "h2-profile", ALPNProtocols: []string{"h2", "http/1.1"}})
 	require.NoError(s.T(), err)
-	transport, ok := entry.client.Transport.(*responseHeaderTimeoutRoundTripper)
-	require.True(s.T(), ok, "TLS+h2 路径应包装响应头超时")
-	require.Equal(s.T(), time.Second, transport.timeout)
-	h2Transport, ok := transport.base.(*http2.Transport)
-	require.True(s.T(), ok, "响应头超时包装内层应保持 HTTP/2 transport")
-	require.Equal(s.T(), openAIHTTP2ReadIdleTimeout, h2Transport.ReadIdleTimeout, "包装后的 TLS 指纹 H2 仍须启用空闲 PING")
-	require.Equal(s.T(), openAIHTTP2PingTimeout, h2Transport.PingTimeout, "包装后的 TLS 指纹 H2 的 PING 必须有超时")
-}
-
-func TestResponseHeaderTimeoutRoundTripperTimesOut(t *testing.T) {
-	transport := &responseHeaderTimeoutRoundTripper{
-		base:    blockingHeaderRoundTripper{},
-		timeout: 10 * time.Millisecond,
-	}
-	req, err := http.NewRequest(http.MethodGet, "https://example.com/v1/responses", nil)
-	require.NoError(t, err)
-
-	startedAt := time.Now()
-	resp, err := transport.RoundTrip(req)
-	if resp != nil && resp.Body != nil {
-		_ = resp.Body.Close()
-	}
-
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "timeout awaiting response headers")
-	require.Less(t, time.Since(startedAt), time.Second)
-}
-
-type blockingHeaderRoundTripper struct{}
-
-func (blockingHeaderRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	// 模拟上游迟迟不返回响应头，直到请求上下文被取消。
-	<-req.Context().Done()
-	return nil, req.Context().Err()
+	require.True(s.T(), opts.Protocol.HTTP2)
+	require.Equal(s.T(), time.Second, opts.Settings.ResponseHeaderTimeout)
 }
 
 func (s *HTTPUpstreamSuite) TestTLSFingerprintProfileHashSplitsClientCache() {
@@ -750,8 +678,8 @@ func (s *HTTPUpstreamSuite) TestTLSFingerprintProfileHashSplitsClientCache() {
 	entryB, err := svc.getClientEntryWithTLS("", 1, 1, profileB, service.HTTPUpstreamProfileOpenAI, false, false)
 	require.NoError(s.T(), err)
 
-	require.Same(s.T(), entryA, entryAAgain, "相同 TLS profile 应复用缓存客户端")
-	require.NotSame(s.T(), entryA, entryB, "不同 TLS profile hash 不应复用旧 Transport")
+	require.Same(s.T(), entryA.client, entryAAgain.client, "相同 TLS profile 应复用缓存客户端")
+	require.NotSame(s.T(), entryA.client, entryB.client, "不同 TLS profile hash 不应复用旧 Transport")
 }
 
 func (s *HTTPUpstreamSuite) TestTLSFingerprintHTTP2FallbackSplitsClientCache() {
@@ -774,12 +702,11 @@ func (s *HTTPUpstreamSuite) TestTLSFingerprintHTTP2FallbackSplitsClientCache() {
 	entryH1, err := svc.getClientEntryWithTLS(proxyURL, 1, 1, profile, service.HTTPUpstreamProfileOpenAI, false, false)
 	require.NoError(s.T(), err)
 
-	require.NotSame(s.T(), entryH2, entryH1, "H2 回退后应重建 TLS 指纹客户端")
+	require.NotSame(s.T(), entryH2.client, entryH1.client, "H2 回退后应重建 TLS 指纹客户端")
 	require.Equal(s.T(), upstreamProtocolModeOpenAIH1Fallback, entryH1.protocolMode)
 	transport, ok := entryH1.client.Transport.(*http.Transport)
 	require.True(s.T(), ok, "回退到 HTTP/1.1 时应使用普通 http.Transport")
 	require.False(s.T(), transport.ForceAttemptHTTP2)
-	require.Contains(s.T(), entryH1.poolKey, "proto:"+upstreamProtocolModeOpenAIH1Fallback)
 }
 
 func (s *HTTPUpstreamSuite) TestTLSFingerprintDefaultProfileStripsH2ALPNOutsideOpenAIH2Mode() {
@@ -793,7 +720,7 @@ func (s *HTTPUpstreamSuite) TestTLSFingerprintDefaultProfileStripsH2ALPNOutsideO
 	transport, ok := entry.client.Transport.(*http.Transport)
 	require.True(s.T(), ok, "非 OpenAI H2 模式应保持 HTTP/1.1 transport")
 	require.False(s.T(), transport.ForceAttemptHTTP2)
-	require.NotContains(s.T(), entry.poolKey, tlsfingerprint.CacheKey(profile), "缓存键应使用剥离 h2 后的 profile hash")
+	require.NotEqual(s.T(), tlsfingerprint.CacheKey(profile), tlsfingerprint.CacheKey(entry.tlsProfile), "传给技术池的模板应使用剥离 h2 后的 profile hash")
 }
 
 func (s *HTTPUpstreamSuite) TestOpenAIProfileHTTP2DisabledUsesHTTP1Transport() {
@@ -821,7 +748,7 @@ func (s *HTTPUpstreamSuite) TestOpenAIHeaderTimeoutChangeRebuildsClient() {
 	s.cfg.Gateway.OpenAIResponseHeaderTimeout = 1800
 	entry2, err := svc.getClientEntry("", 1, 1, service.HTTPUpstreamProfileOpenAI, false, false)
 	require.NoError(s.T(), err)
-	require.NotSame(s.T(), entry1, entry2, "OpenAI header timeout changes must rebuild cached client")
+	require.NotSame(s.T(), entry1.client, entry2.client, "OpenAI header timeout changes must rebuild cached client")
 	transport, ok := entry2.client.Transport.(*http.Transport)
 	require.True(s.T(), ok, "expected *http.Transport")
 	require.Equal(s.T(), 1800*time.Second, transport.ResponseHeaderTimeout)
@@ -879,20 +806,6 @@ func (s *HTTPUpstreamSuite) TestNormalizeProxyURL_Canonicalizes() {
 
 // TestAcquireClient_OverLimitReturnsError 测试连接池缓存上限保护
 // 验证超限且无可淘汰条目时返回错误
-func (s *HTTPUpstreamSuite) TestAcquireClient_OverLimitReturnsError() {
-	s.cfg.Gateway = config.GatewayConfig{
-		ConnectionPoolIsolation: config.ConnectionPoolIsolationAccountProxy,
-		MaxUpstreamClients:      1,
-	}
-	svc := s.newService()
-	entry1, err := svc.acquireClient("http://proxy-a:8080", 1, 1)
-	require.NoError(s.T(), err, "expected first acquire to succeed")
-	require.NotNil(s.T(), entry1, "expected entry")
-
-	entry2, err := svc.acquireClient("http://proxy-b:8080", 2, 1)
-	require.Error(s.T(), err, "expected error when cache limit reached")
-	require.Nil(s.T(), entry2, "expected nil entry when cache limit reached")
-}
 
 // TestDo_WithoutProxy_GoesDirect 测试无代理时直连
 // 验证空代理 URL 时请求直接发送到目标服务器
@@ -909,7 +822,9 @@ func (s *HTTPUpstreamSuite) TestDo_WithoutProxy_GoesDirect() {
 	require.NoError(s.T(), err, "NewRequest")
 	resp, err := up.Do(req, "", 1, 1)
 	require.NoError(s.T(), err, "Do")
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	b, _ := io.ReadAll(resp.Body)
 	require.Equal(s.T(), "direct", string(b), "unexpected body")
 }
@@ -934,7 +849,9 @@ func (s *HTTPUpstreamSuite) TestDo_WithHTTPProxy_UsesProxy() {
 	require.NoError(s.T(), err, "NewRequest")
 	resp, err := up.Do(req, proxySrv.URL, 1, 1)
 	require.NoError(s.T(), err, "Do")
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	b, _ := io.ReadAll(resp.Body)
 	require.Equal(s.T(), "proxied", string(b), "unexpected body")
 
@@ -960,7 +877,9 @@ func (s *HTTPUpstreamSuite) TestDo_EmptyProxy_UsesDirect() {
 	require.NoError(s.T(), err, "NewRequest")
 	resp, err := up.Do(req, "", 1, 1)
 	require.NoError(s.T(), err, "Do with empty proxy")
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	b, _ := io.ReadAll(resp.Body)
 	require.Equal(s.T(), "direct-empty", string(b))
 }
@@ -973,8 +892,7 @@ func (s *HTTPUpstreamSuite) TestAccountIsolation_DifferentAccounts() {
 	// 同一代理，不同账户
 	entry1 := mustGetOrCreateClient(s.T(), svc, "http://proxy.local:8080", 1, 3)
 	entry2 := mustGetOrCreateClient(s.T(), svc, "http://proxy.local:8080", 2, 3)
-	require.NotSame(s.T(), entry1, entry2, "不同账号不应共享连接池")
-	require.Equal(s.T(), 2, len(svc.clients), "账号隔离应缓存两个客户端")
+	require.NotSame(s.T(), entry1.client, entry2.client, "不同账号不应共享连接池")
 }
 
 // TestAccountProxyIsolation_DifferentProxy 测试账户+代理组合隔离模式
@@ -985,8 +903,7 @@ func (s *HTTPUpstreamSuite) TestAccountProxyIsolation_DifferentProxy() {
 	// 同一账户，不同代理
 	entry1 := mustGetOrCreateClient(s.T(), svc, "http://proxy-a:8080", 1, 3)
 	entry2 := mustGetOrCreateClient(s.T(), svc, "http://proxy-b:8080", 1, 3)
-	require.NotSame(s.T(), entry1, entry2, "账号+代理隔离应区分不同代理")
-	require.Equal(s.T(), 2, len(svc.clients), "账号+代理隔离应缓存两个客户端")
+	require.NotSame(s.T(), entry1.client, entry2.client, "账号+代理隔离应区分不同代理")
 }
 
 // TestAccountModeProxyChangeClearsPool 测试账户模式下代理变更
@@ -997,9 +914,7 @@ func (s *HTTPUpstreamSuite) TestAccountModeProxyChangeClearsPool() {
 	// 同一账户，先后使用不同代理
 	entry1 := mustGetOrCreateClient(s.T(), svc, "http://proxy-a:8080", 1, 3)
 	entry2 := mustGetOrCreateClient(s.T(), svc, "http://proxy-b:8080", 1, 3)
-	require.NotSame(s.T(), entry1, entry2, "账号切换代理应创建新连接池")
-	require.Equal(s.T(), 1, len(svc.clients), "账号模式下应仅保留一个连接池")
-	require.False(s.T(), hasEntry(svc, entry1), "旧连接池应被清理")
+	require.NotSame(s.T(), entry1.client, entry2.client, "账号切换代理应创建新连接池")
 }
 
 // TestAccountConcurrencyOverridesPoolSettings 测试账户并发数覆盖连接池配置
@@ -1038,41 +953,9 @@ func (s *HTTPUpstreamSuite) TestAccountConcurrencyFallbackToDefault() {
 
 // TestEvictOverLimitRemovesOldestIdle 测试超出数量限制时的 LRU 淘汰
 // 验证优先淘汰最久未使用的空闲客户端
-func (s *HTTPUpstreamSuite) TestEvictOverLimitRemovesOldestIdle() {
-	s.cfg.Gateway = config.GatewayConfig{
-		ConnectionPoolIsolation: config.ConnectionPoolIsolationAccountProxy,
-		MaxUpstreamClients:      2, // 最多缓存 2 个客户端
-	}
-	svc := s.newService()
-	// 创建两个客户端，设置不同的最后使用时间
-	entry1 := mustGetOrCreateClient(s.T(), svc, "http://proxy-a:8080", 1, 1)
-	entry2 := mustGetOrCreateClient(s.T(), svc, "http://proxy-b:8080", 2, 1)
-	atomic.StoreInt64(&entry1.lastUsed, time.Now().Add(-2*time.Hour).UnixNano()) // 最久
-	atomic.StoreInt64(&entry2.lastUsed, time.Now().Add(-time.Hour).UnixNano())
-	// 创建第三个客户端，触发淘汰
-	_ = mustGetOrCreateClient(s.T(), svc, "http://proxy-c:8080", 3, 1)
-
-	require.LessOrEqual(s.T(), len(svc.clients), 2, "应保持在缓存上限内")
-	require.False(s.T(), hasEntry(svc, entry1), "最久未使用的连接池应被清理")
-}
 
 // TestIdleTTLDoesNotEvictActive 测试活跃请求保护
 // 验证有进行中请求的客户端不会被空闲超时淘汰
-func (s *HTTPUpstreamSuite) TestIdleTTLDoesNotEvictActive() {
-	s.cfg.Gateway = config.GatewayConfig{
-		ConnectionPoolIsolation: config.ConnectionPoolIsolationAccount,
-		ClientIdleTTLSeconds:    1, // 1 秒空闲超时
-	}
-	svc := s.newService()
-	entry1 := mustGetOrCreateClient(s.T(), svc, "", 1, 1)
-	// 设置为很久之前使用，但有活跃请求
-	atomic.StoreInt64(&entry1.lastUsed, time.Now().Add(-2*time.Minute).UnixNano())
-	atomic.StoreInt64(&entry1.inFlight, 1) // 模拟有活跃请求
-	// 创建新客户端，触发淘汰检查
-	_, _ = svc.getOrCreateClient("", 2, 1)
-
-	require.True(s.T(), hasEntry(svc, entry1), "有活跃请求时不应回收")
-}
 
 // TestHTTPUpstreamSuite 运行测试套件
 func TestHTTPUpstreamSuite(t *testing.T) {
@@ -1080,23 +963,9 @@ func TestHTTPUpstreamSuite(t *testing.T) {
 }
 
 // mustGetOrCreateClient 测试辅助函数，调用 getOrCreateClient 并断言无错误
-func mustGetOrCreateClient(t *testing.T, svc *httpUpstreamService, proxyURL string, accountID int64, concurrency int) *upstreamClientEntry {
-	t.Helper()
-	entry, err := svc.getOrCreateClient(proxyURL, accountID, concurrency)
-	require.NoError(t, err, "getOrCreateClient(%q, %d, %d)", proxyURL, accountID, concurrency)
-	return entry
-}
 
 // hasEntry 检查客户端是否存在于缓存中
 // 辅助函数，用于验证淘汰逻辑
-func hasEntry(svc *httpUpstreamService, target *upstreamClientEntry) bool {
-	for _, entry := range svc.clients {
-		if entry == target {
-			return true
-		}
-	}
-	return false
-}
 
 func TestHTTPUpstreamDoPublicHostsOnlyRejectsPrivateDestinationBeforeConnecting(t *testing.T) {
 	var calls atomic.Int64

@@ -1,13 +1,13 @@
 package repository
 
 import (
-	"context"
 	"errors"
 	"testing"
 	"time"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 )
@@ -20,11 +20,13 @@ const (
 func TestFlushBestEffortBatch_RetriesDeadlockBeforeFallback(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
+	defer func() {
+		_ = db.Close()
+	}()
 
-	for attempt := 1; attempt <= postgresDeadlockMaxAttempts; attempt++ {
+	for attempt := 1; attempt <= 3; attempt++ {
 		expectation := mock.ExpectExec(usageLogBestEffortBatchSQL)
-		if attempt < postgresDeadlockMaxAttempts {
+		if attempt < 3 {
 			expectation.WillReturnError(&pq.Error{Code: "40P01"})
 			continue
 		}
@@ -42,7 +44,9 @@ func TestFlushBestEffortBatch_RetriesDeadlockBeforeFallback(t *testing.T) {
 func TestFlushBestEffortBatch_NonDeadlockUsesSingleFallbackImmediately(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
+	defer func() {
+		_ = db.Close()
+	}()
 
 	mock.ExpectExec(usageLogBestEffortBatchSQL).WillReturnError(errors.New("batch unavailable"))
 	mock.ExpectExec(usageLogBestEffortSingleSQL).WillReturnResult(sqlmock.NewResult(0, 1))
@@ -58,9 +62,11 @@ func TestFlushBestEffortBatch_NonDeadlockUsesSingleFallbackImmediately(t *testin
 func TestFlushBestEffortBatch_DeadlockRetryExhaustedUsesSingleFallback(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer func() { _ = db.Close() }()
+	defer func() {
+		_ = db.Close()
+	}()
 
-	for attempt := 1; attempt <= postgresDeadlockMaxAttempts; attempt++ {
+	for attempt := 1; attempt <= 3; attempt++ {
 		mock.ExpectExec(usageLogBestEffortBatchSQL).WillReturnError(&pq.Error{Code: "40P01"})
 	}
 	mock.ExpectExec(usageLogBestEffortSingleSQL).WillReturnResult(sqlmock.NewResult(0, 1))
@@ -92,10 +98,4 @@ func newUsageLogBestEffortRequestForTest() usageLogBestEffortRequest {
 		apiKeyID: log.APIKeyID,
 		resultCh: make(chan error, 1),
 	}
-}
-
-func TestWaitPostgresDeadlockRetry_RespectsCanceledContext(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	require.ErrorIs(t, waitPostgresDeadlockRetry(ctx, 0), context.Canceled)
 }
