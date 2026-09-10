@@ -31,6 +31,8 @@ fallback 链循环、全部过期或目标缺失时保留可诊断失败，不�
 
 `UpstreamPool.Do` 在请求失败时释放占用，在成功时将释放绑定到响应体关闭；重复关闭不会重复减少计数。每请求的重定向或 transport 包装通过客户端派生完成，不能修改缓存客户端。调用方仍必须关闭响应体，才能释放在途占用。
 
+每次执行先复制客户端并设置本次 `CheckRedirect`，再交给 `PrepareClient` 做平台适配；适配器可以覆盖当前请求的重定向规则，但不能修改共享 transport。回调不进入缓存，传入 nil 时恢复默认重定向行为。因此，同一池中禁止重定向、公网逐跳校验和普通请求可以并发使用，各自策略不会随缓存预热顺序改变，底层连接仍按原隔离键复用。
+
 HTTP client 池可按 `proxy`、`account` 或 `account_proxy` 隔离，并有最大条目、空闲过期和逐出策略。隔离键还包含 TLS profile 等传输身份，防止不同账号或指纹错误复用连接。池配置变化要关闭/逐出旧 transport，不能只修改后续 key。
 
 普通与 TLS 指纹上游传输都显式限制 DNS/TCP 建连和 TLS 握手阶段，当前默认各为 10 秒；TCP keepalive 探测间隔为 30 秒。HTTP 代理保留调用方的建连拨号器，SOCKS5/SOCKS5H 因会覆盖 `Transport.DialContext`，其 forward dialer 必须自行携带同等上限并响应请求 context。`ResponseHeaderTimeout` 只约束建连后的响应头等待，不能替代这些阶段超时。

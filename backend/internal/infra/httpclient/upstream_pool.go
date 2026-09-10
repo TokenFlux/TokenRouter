@@ -48,16 +48,18 @@ type TransportProtocol struct {
 
 // UpstreamRequestOptions 是一次执行使用的技术参数快照，不持有全局配置或业务实体。
 type UpstreamRequestOptions struct {
-	ProxyURL      string
-	AccountID     int64
-	Isolation     string
-	MaxClients    int
-	IdleTTL       time.Duration
-	Settings      UpstreamSettings
-	Protocol      TransportProtocol
-	TLSProfile    *tlsfingerprint.Profile
+	ProxyURL   string
+	AccountID  int64
+	Isolation  string
+	MaxClients int
+	IdleTTL    time.Duration
+	Settings   UpstreamSettings
+	Protocol   TransportProtocol
+	TLSProfile *tlsfingerprint.Profile
+	// CheckRedirect 仅用于本次请求；nil 使用 net/http 的默认重定向策略。
 	CheckRedirect func(*http.Request, []*http.Request) error
-	// PrepareClient 仅派生当前请求使用的客户端，不修改缓存客户端。
+	// PrepareClient 接收已设置 CheckRedirect 的请求级副本，可覆盖策略或包装共享 transport。
+	// 不得直接修改共享 transport 本身。
 	PrepareClient func(*http.Client) *http.Client
 	// ObserveResult 在拿到响应头或执行失败时通知外层，早于释放或响应体处理。
 	ObserveResult func(error)
@@ -85,7 +87,10 @@ func (s *UpstreamPool) Do(req *http.Request, opts UpstreamRequestOptions) (*http
 		atomic.AddInt64(&entry.inFlight, -1)
 		atomic.StoreInt64(&entry.lastUsed, time.Now().UnixNano())
 	}
-	client := entry.client
+	// 只共享 transport；请求回调不进入缓存，避免预热顺序或并发请求改变当前策略。
+	requestClient := *entry.client
+	requestClient.CheckRedirect = opts.CheckRedirect
+	client := &requestClient
 	if opts.PrepareClient != nil {
 		client = opts.PrepareClient(client)
 	}
@@ -196,7 +201,6 @@ func (s *UpstreamPool) acquire(opts UpstreamRequestOptions) (*upstreamClientEntr
 		return nil, fmt.Errorf("build transport: %w", err)
 	}
 	client := &http.Client{Transport: transport}
-	client.CheckRedirect = opts.CheckRedirect
 	entry := &upstreamClientEntry{
 		client:       client,
 		proxyKey:     proxyKey,

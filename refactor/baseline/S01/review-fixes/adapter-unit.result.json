@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/repository",
+    "-run",
+    "TestHTTPUpstream|TestGrok|TestIsGrok|TestApplyGrok"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 7.44,
+  "tests": {
+    "pass": 71,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "adapter-unit.log.gz",
+  "sha256": "a87e7b2a99977eb93cbad6c0ee82820021f56050226751e45e99b631789b9855",
+  "timestamp": "2026-09-11T02:13:15.804688+08:00"
+}

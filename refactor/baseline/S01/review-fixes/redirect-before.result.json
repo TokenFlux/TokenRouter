@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/infra/httpclient",
+    "-run",
+    "TestUpstreamPool(RedirectPolicyIsPerRequest|PrepareClientOverridesRequestPolicy|ConcurrentRedirectPolicies)$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 1.01,
+  "tests": {
+    "pass": 1,
+    "fail": 6,
+    "skip": 0
+  },
+  "log": "redirect-before.log.gz",
+  "sha256": "5633f32a3d3022f031052a4d5da1c1205889f18eccba3e6d83f2f61a533af6dd",
+  "timestamp": "2026-09-11T02:10:15.668603+08:00"
+}

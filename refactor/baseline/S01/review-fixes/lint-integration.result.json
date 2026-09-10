@@ -1,0 +1,22 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--build-tags=integration",
+    "--output.json.path=../refactor/baseline/S01/review-fixes/lint-integration.json",
+    "./..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 41.82,
+  "tests": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "lint-integration.log.gz",
+  "sha256": "d7003c27d7dfb091153f42e9a92f6389963774c4b9dd71b60387bb7e23b015eb",
+  "timestamp": "2026-09-11T02:18:04.989553+08:00"
+}

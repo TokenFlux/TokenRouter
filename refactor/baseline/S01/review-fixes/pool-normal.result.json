@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/infra/httpclient"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 0.82,
+  "tests": {
+    "pass": 46,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "pool-normal.log.gz",
+  "sha256": "19590b3584e776e8f44d96a02532486bba2b4fc8826e2ec576ecb6394a1577a6",
+  "timestamp": "2026-09-11T02:13:01.116315+08:00"
+}

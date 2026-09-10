@@ -122,15 +122,15 @@ func TestUpstreamPoolIsolationAndConfigurationChange(t *testing.T) {
 			}
 			run(1, "http://proxy-a:8080", &first)
 			run(1, "http://proxy-a:8080/", &again)
-			require.Same(t, first, again)
+			require.Same(t, first.Transport, again.Transport)
 			run(2, "http://proxy-a:8080", &other)
 			if isolation == "proxy" {
-				require.Same(t, first, other)
+				require.Same(t, first.Transport, other.Transport)
 			} else {
-				require.NotSame(t, first, other)
+				require.NotSame(t, first.Transport, other.Transport)
 			}
 			run(1, "http://proxy-b:8080", &other)
-			require.NotSame(t, first, other)
+			require.NotSame(t, first.Transport, other.Transport)
 		})
 	}
 	pool := NewUpstreamPool()
@@ -144,7 +144,7 @@ func TestUpstreamPoolIsolationAndConfigurationChange(t *testing.T) {
 	resp, err = pool.Do(poolTestRequest(t), opts)
 	require.NoError(t, err)
 	require.NoError(t, resp.Body.Close())
-	require.NotSame(t, first, second)
+	require.NotSame(t, first.Transport, second.Transport)
 }
 
 // TestUpstreamPoolEvictsOldestIdle 保留旧机制测试的确定性时间设置，避免依赖 sleep 验证 LRU。

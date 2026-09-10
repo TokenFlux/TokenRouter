@@ -1,0 +1,26 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "./internal/infra/httpclient",
+    "./internal/repository",
+    "-run",
+    "TestUpstreamPool|TestHTTPUpstream|TestGrok|TestIsGrok|TestApplyGrok"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 45.58,
+  "tests": {
+    "pass": 87,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "pool-adapter-race.log.gz",
+  "sha256": "8191887c471fb4b8d64833c17f5a9db33e9a39a9ea8bec7e6fbbcae4e029b06e",
+  "timestamp": "2026-09-11T02:15:39.583439+08:00"
+}

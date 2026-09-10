@@ -678,8 +678,8 @@ func (s *HTTPUpstreamSuite) TestTLSFingerprintProfileHashSplitsClientCache() {
 	entryB, err := svc.getClientEntryWithTLS("", 1, 1, profileB, service.HTTPUpstreamProfileOpenAI, false, false)
 	require.NoError(s.T(), err)
 
-	require.Same(s.T(), entryA.client, entryAAgain.client, "相同 TLS profile 应复用缓存客户端")
-	require.NotSame(s.T(), entryA.client, entryB.client, "不同 TLS profile hash 不应复用旧 Transport")
+	require.Same(s.T(), entryA.client.Transport, entryAAgain.client.Transport, "相同 TLS profile 应复用 transport")
+	require.NotSame(s.T(), entryA.client.Transport, entryB.client.Transport, "不同 TLS profile hash 不应复用旧 Transport")
 }
 
 func (s *HTTPUpstreamSuite) TestTLSFingerprintHTTP2FallbackSplitsClientCache() {
@@ -702,7 +702,7 @@ func (s *HTTPUpstreamSuite) TestTLSFingerprintHTTP2FallbackSplitsClientCache() {
 	entryH1, err := svc.getClientEntryWithTLS(proxyURL, 1, 1, profile, service.HTTPUpstreamProfileOpenAI, false, false)
 	require.NoError(s.T(), err)
 
-	require.NotSame(s.T(), entryH2.client, entryH1.client, "H2 回退后应重建 TLS 指纹客户端")
+	require.NotSame(s.T(), entryH2.client.Transport, entryH1.client.Transport, "H2 回退后应重建 TLS 指纹 transport")
 	require.Equal(s.T(), upstreamProtocolModeOpenAIH1Fallback, entryH1.protocolMode)
 	transport, ok := entryH1.client.Transport.(*http.Transport)
 	require.True(s.T(), ok, "回退到 HTTP/1.1 时应使用普通 http.Transport")
@@ -748,7 +748,7 @@ func (s *HTTPUpstreamSuite) TestOpenAIHeaderTimeoutChangeRebuildsClient() {
 	s.cfg.Gateway.OpenAIResponseHeaderTimeout = 1800
 	entry2, err := svc.getClientEntry("", 1, 1, service.HTTPUpstreamProfileOpenAI, false, false)
 	require.NoError(s.T(), err)
-	require.NotSame(s.T(), entry1.client, entry2.client, "OpenAI header timeout changes must rebuild cached client")
+	require.NotSame(s.T(), entry1.client.Transport, entry2.client.Transport, "OpenAI header timeout 变化后应重建 transport")
 	transport, ok := entry2.client.Transport.(*http.Transport)
 	require.True(s.T(), ok, "expected *http.Transport")
 	require.Equal(s.T(), 1800*time.Second, transport.ResponseHeaderTimeout)
@@ -892,7 +892,7 @@ func (s *HTTPUpstreamSuite) TestAccountIsolation_DifferentAccounts() {
 	// 同一代理，不同账户
 	entry1 := mustGetOrCreateClient(s.T(), svc, "http://proxy.local:8080", 1, 3)
 	entry2 := mustGetOrCreateClient(s.T(), svc, "http://proxy.local:8080", 2, 3)
-	require.NotSame(s.T(), entry1.client, entry2.client, "不同账号不应共享连接池")
+	require.NotSame(s.T(), entry1.client.Transport, entry2.client.Transport, "不同账号不应共享连接池")
 }
 
 // TestAccountProxyIsolation_DifferentProxy 测试账户+代理组合隔离模式
@@ -903,7 +903,7 @@ func (s *HTTPUpstreamSuite) TestAccountProxyIsolation_DifferentProxy() {
 	// 同一账户，不同代理
 	entry1 := mustGetOrCreateClient(s.T(), svc, "http://proxy-a:8080", 1, 3)
 	entry2 := mustGetOrCreateClient(s.T(), svc, "http://proxy-b:8080", 1, 3)
-	require.NotSame(s.T(), entry1.client, entry2.client, "账号+代理隔离应区分不同代理")
+	require.NotSame(s.T(), entry1.client.Transport, entry2.client.Transport, "账号+代理隔离应区分不同代理")
 }
 
 // TestAccountModeProxyChangeClearsPool 测试账户模式下代理变更
@@ -914,7 +914,7 @@ func (s *HTTPUpstreamSuite) TestAccountModeProxyChangeClearsPool() {
 	// 同一账户，先后使用不同代理
 	entry1 := mustGetOrCreateClient(s.T(), svc, "http://proxy-a:8080", 1, 3)
 	entry2 := mustGetOrCreateClient(s.T(), svc, "http://proxy-b:8080", 1, 3)
-	require.NotSame(s.T(), entry1.client, entry2.client, "账号切换代理应创建新连接池")
+	require.NotSame(s.T(), entry1.client.Transport, entry2.client.Transport, "账号切换代理应创建新连接池")
 }
 
 // TestAccountConcurrencyOverridesPoolSettings 测试账户并发数覆盖连接池配置

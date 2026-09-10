@@ -12409,6 +12409,8 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: net/rpc
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # protocol 只准入内存解析、编码和流接口所需的标准库，新增 import 必须精确审核。
+        # 测试仅额外准入 testing；文件、网络和进程 I/O 不通过 $gostd 隐式继承，S03 持续维护。
         protocol-root:
           list-mode: strict
           files:
@@ -12421,7 +12423,30 @@ linters:
           - '!**/internal/protocol/bridge/**'
           - '!**/*_test.go'
           allow:
-          - $gostd
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
           - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
@@ -12451,7 +12476,31 @@ linters:
           - '!**/internal/protocol/google/**'
           - '!**/internal/protocol/bridge/**'
           allow:
-          - $gostd
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
+          - testing$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
           - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
@@ -12480,7 +12529,30 @@ linters:
           - '**/internal/protocol/anthropic/*.go'
           - '!**/*_test.go'
           allow:
-          - $gostd
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
           - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
@@ -12506,7 +12578,31 @@ linters:
           - '**/internal/protocol/anthropic/**/*_test.go'
           - '**/internal/protocol/anthropic/*_test.go'
           allow:
-          - $gostd
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
+          - testing$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
           - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
@@ -12536,7 +12632,30 @@ linters:
           - '**/internal/protocol/openai/*.go'
           - '!**/*_test.go'
           allow:
-          - $gostd
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
           - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
@@ -12562,7 +12681,31 @@ linters:
           - '**/internal/protocol/openai/**/*_test.go'
           - '**/internal/protocol/openai/*_test.go'
           allow:
-          - $gostd
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
+          - testing$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
           - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
@@ -12592,7 +12735,30 @@ linters:
           - '**/internal/protocol/gemini/*.go'
           - '!**/*_test.go'
           allow:
-          - $gostd
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
           - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
@@ -12618,7 +12784,31 @@ linters:
           - '**/internal/protocol/gemini/**/*_test.go'
           - '**/internal/protocol/gemini/*_test.go'
           allow:
-          - $gostd
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
+          - testing$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
           - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
@@ -12648,7 +12838,30 @@ linters:
           - '**/internal/protocol/google/*.go'
           - '!**/*_test.go'
           allow:
-          - $gostd
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
           - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
@@ -12674,7 +12887,31 @@ linters:
           - '**/internal/protocol/google/**/*_test.go'
           - '**/internal/protocol/google/*_test.go'
           allow:
-          - $gostd
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
+          - testing$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
           - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
@@ -12704,7 +12941,30 @@ linters:
           - '**/internal/protocol/bridge/*.go'
           - '!**/*_test.go'
           allow:
-          - $gostd
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
           - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
@@ -12734,7 +12994,31 @@ linters:
           - '**/internal/protocol/bridge/**/*_test.go'
           - '**/internal/protocol/bridge/*_test.go'
           allow:
-          - $gostd
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
+          - testing$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
           - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$

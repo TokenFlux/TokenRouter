@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/infra/httpclient"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 0.86,
+  "tests": {
+    "pass": 46,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "pool-integration.log.gz",
+  "sha256": "205eb5f34e29d4e5582fe4a375b5ec474b5d08d97059c37665eee6fde10e2c3f",
+  "timestamp": "2026-09-11T02:13:03.008825+08:00"
+}
