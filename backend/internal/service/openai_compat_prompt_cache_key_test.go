@@ -5,7 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,16 +55,16 @@ func TestShouldAutoInjectPromptCacheKeyForCompat_GPT6AstraForms(t *testing.T) {
 }
 
 func TestDeriveCompatPromptCacheKey_StableAcrossLaterTurns(t *testing.T) {
-	base := &apicompat.ChatCompletionsRequest{
+	base := &protocolopenai.ChatCompletionsRequest{
 		Model: "gpt-5.4",
-		Messages: []apicompat.ChatMessage{
+		Messages: []protocolopenai.ChatMessage{
 			{Role: "system", Content: mustRawJSON(t, `"You are helpful."`)},
 			{Role: "user", Content: mustRawJSON(t, `"Hello"`)},
 		},
 	}
-	extended := &apicompat.ChatCompletionsRequest{
+	extended := &protocolopenai.ChatCompletionsRequest{
 		Model: "gpt-5.4",
-		Messages: []apicompat.ChatMessage{
+		Messages: []protocolopenai.ChatMessage{
 			{Role: "system", Content: mustRawJSON(t, `"You are helpful."`)},
 			{Role: "user", Content: mustRawJSON(t, `"Hello"`)},
 			{Role: "assistant", Content: mustRawJSON(t, `"Hi there!"`)},
@@ -77,15 +79,15 @@ func TestDeriveCompatPromptCacheKey_StableAcrossLaterTurns(t *testing.T) {
 }
 
 func TestDeriveCompatPromptCacheKey_DiffersAcrossSessions(t *testing.T) {
-	req1 := &apicompat.ChatCompletionsRequest{
+	req1 := &protocolopenai.ChatCompletionsRequest{
 		Model: "gpt-5.4",
-		Messages: []apicompat.ChatMessage{
+		Messages: []protocolopenai.ChatMessage{
 			{Role: "user", Content: mustRawJSON(t, `"Question A"`)},
 		},
 	}
-	req2 := &apicompat.ChatCompletionsRequest{
+	req2 := &protocolopenai.ChatCompletionsRequest{
 		Model: "gpt-5.4",
-		Messages: []apicompat.ChatMessage{
+		Messages: []protocolopenai.ChatMessage{
 			{Role: "user", Content: mustRawJSON(t, `"Question B"`)},
 		},
 	}
@@ -96,9 +98,9 @@ func TestDeriveCompatPromptCacheKey_DiffersAcrossSessions(t *testing.T) {
 }
 
 func TestDeriveCompatPromptCacheKey_UsesResolvedSparkFamily(t *testing.T) {
-	req := &apicompat.ChatCompletionsRequest{
+	req := &protocolopenai.ChatCompletionsRequest{
 		Model: "gpt-5.3-codex-spark",
-		Messages: []apicompat.ChatMessage{
+		Messages: []protocolopenai.ChatMessage{
 			{Role: "user", Content: mustRawJSON(t, `"Question A"`)},
 		},
 	}
@@ -110,17 +112,17 @@ func TestDeriveCompatPromptCacheKey_UsesResolvedSparkFamily(t *testing.T) {
 }
 
 func TestDeriveAnthropicCompatPromptCacheKey_StableAcrossLaterTurns(t *testing.T) {
-	base := &apicompat.AnthropicRequest{
+	base := &protocolanthropic.AnthropicRequest{
 		Model:  "claude-sonnet-4-5",
 		System: mustRawJSON(t, `"You are helpful."`),
-		Messages: []apicompat.AnthropicMessage{
+		Messages: []protocolanthropic.AnthropicMessage{
 			{Role: "user", Content: mustRawJSON(t, `"Open repo"`)},
 		},
 	}
-	extended := &apicompat.AnthropicRequest{
+	extended := &protocolanthropic.AnthropicRequest{
 		Model:  "claude-sonnet-4-5",
 		System: mustRawJSON(t, `"You are helpful."`),
-		Messages: []apicompat.AnthropicMessage{
+		Messages: []protocolanthropic.AnthropicMessage{
 			{Role: "user", Content: mustRawJSON(t, `"Open repo"`)},
 			{Role: "assistant", Content: mustRawJSON(t, `"Opened."`)},
 			{Role: "user", Content: mustRawJSON(t, `"Run tests"`)},
@@ -134,21 +136,21 @@ func TestDeriveAnthropicCompatPromptCacheKey_StableAcrossLaterTurns(t *testing.T
 }
 
 func TestDeriveAnthropicCompatPromptCacheKey_UsesCacheControlAnchors(t *testing.T) {
-	base := &apicompat.AnthropicRequest{
+	base := &protocolanthropic.AnthropicRequest{
 		Model: "claude-sonnet-4-5",
 		System: mustRawJSON(t, `[
 			{"type":"text","text":"project instructions","cache_control":{"type":"ephemeral"}}
 		]`),
-		Messages: []apicompat.AnthropicMessage{
+		Messages: []protocolanthropic.AnthropicMessage{
 			{Role: "user", Content: mustRawJSON(t, `[
 				{"type":"text","text":"repo anchor","cache_control":{"type":"ephemeral"}}
 			]`)},
 		},
 	}
-	extended := &apicompat.AnthropicRequest{
+	extended := &protocolanthropic.AnthropicRequest{
 		Model:  base.Model,
 		System: base.System,
-		Messages: []apicompat.AnthropicMessage{
+		Messages: []protocolanthropic.AnthropicMessage{
 			base.Messages[0],
 			{Role: "assistant", Content: mustRawJSON(t, `[{"type":"text","text":"Opened."}]`)},
 			{Role: "user", Content: mustRawJSON(t, `[{"type":"text","text":"Run tests"}]`)},

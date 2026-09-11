@@ -799,10 +799,10 @@ func TestModelMarketplaceDisplayPricing_SharedImageRateUsesGroupMultiplier(t *te
 }
 
 func TestModelMarketplaceModelModalitiesComeFromPricingMetadata(t *testing.T) {
-	pricingSvc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+	pricingSvc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 		"gpt-image-2": {Mode: "image_generation", InputCostPerImageToken: 8e-6},
 		"gpt-5.5":     {Mode: "chat", SupportsVision: true},
-	}}
+	}})
 	billingService := NewBillingService(nil, pricingSvc)
 	svc := NewModelMarketplaceService(nil, nil, nil, billingService, nil, nil, nil)
 
@@ -821,9 +821,9 @@ func TestModelMarketplaceModelModalitiesComeFromPricingMetadata(t *testing.T) {
 }
 
 func TestModelMarketplacePublicModelsIncludeModalities(t *testing.T) {
-	pricingSvc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+	pricingSvc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 		"gpt-image-2": {Mode: "image_generation", InputCostPerImageToken: 8e-6},
-	}}
+	}})
 	billingService := NewBillingService(nil, pricingSvc)
 	svc := NewModelMarketplaceService(nil, nil, nil, billingService, nil, nil, nil)
 	group := &Group{ID: 1, Platform: PlatformOpenAI, RateMultiplier: 1}
@@ -843,9 +843,9 @@ func TestModelMarketplacePublicModelsIncludeModalities(t *testing.T) {
 // 市场使用解析后的 PricingModel 查询能力，保留公开 ID 和完整音视频输入标记。
 func TestModelMarketplaceGeminiTierModalitiesPreservePublicIDs(t *testing.T) {
 	pricing := catalogLookupTestPricing(2e-6, "text", "image", "audio", "video")
-	pricingSvc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+	pricingSvc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 		"gemini-3.7-flash": pricing, "gemini-3.8-flash": pricing,
-	}}
+	}})
 	svc := NewModelMarketplaceService(nil, nil, nil, NewBillingService(nil, pricingSvc), nil, nil, nil)
 	defs := []marketplaceModelDef{
 		{ID: "gemini-3.7-flash-tiered"},

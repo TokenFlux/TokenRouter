@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,7 +16,11 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/geminicli"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
@@ -42,7 +47,7 @@ func (s *GeminiMessagesCompatService) ForwardAsResponses(
 	if err != nil {
 		return nil, s.writeGeminiOpenAICompatError(c, geminiOpenAICompatResponses, http.StatusBadRequest, "invalid_request_error", "Failed to adapt client tools")
 	}
-	var responsesReq apicompat.ResponsesRequest
+	var responsesReq protocolopenai.ResponsesRequest
 	if err := json.Unmarshal(adaptedBody, &responsesReq); err != nil {
 		return nil, s.writeGeminiOpenAICompatError(c, geminiOpenAICompatResponses, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 	}
@@ -85,7 +90,7 @@ func (s *GeminiMessagesCompatService) ForwardAsChatCompletions(
 ) (*ForwardResult, error) {
 	startTime := time.Now()
 
-	var ccReq apicompat.ChatCompletionsRequest
+	var ccReq protocolopenai.ChatCompletionsRequest
 	if err := json.Unmarshal(body, &ccReq); err != nil {
 		return nil, s.writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 	}
@@ -578,47 +583,35 @@ func (s *GeminiMessagesCompatService) handleChatCompletionsNonStreamingResponseF
 	return usage, nil
 }
 
-func geminiResponseToChatCompletions(
-	geminiResp map[string]any,
-	originalModel string,
-	rawData []byte,
-	usageOverride *ClaudeUsage,
-) (*apicompat.ChatCompletionsResponse, *ClaudeUsage, error) {
-	responsesResp, usage, err := geminiResponseToResponses(geminiResp, originalModel, rawData, usageOverride)
+func geminiResponseToChatCompletions(geminiResp map[string]any, originalModel string, rawData []byte, usageOverride *ClaudeUsage) (*protocolopenai.ChatCompletionsResponse, *ClaudeUsage, error) {
+	var override *bridge.NativeGeminiUsage
+	if usageOverride != nil {
+		override = &bridge.NativeGeminiUsage{InputTokens: usageOverride.InputTokens, OutputTokens: usageOverride.OutputTokens, CacheReadInputTokens: usageOverride.CacheReadInputTokens, ImageOutputTokens: usageOverride.ImageOutputTokens}
+	}
+	result, usage, usedOverride, err := bridge.NativeGeminiResponseToChatCompletions(bridge.Runtime{Now: time.Now, ReadRandom: rand.Read}, bridge.NativeGeminiRuntime{MessageID: generateAnthropicMsgID, RandomHex: randomHex}, geminiResp, originalModel, rawData, override)
 	if err != nil {
 		return nil, nil, err
 	}
-	return apicompat.ResponsesToChatCompletions(responsesResp, originalModel), usage, nil
+	if usedOverride {
+		return result, usageOverride, nil
+	}
+	return result, legacyNativeGeminiUsage(usage), nil
 }
 
 // geminiResponseToResponses 统一完成 Gemini -> Anthropic -> Responses 的响应转换。
-func geminiResponseToResponses(
-	geminiResp map[string]any,
-	originalModel string,
-	rawData []byte,
-	usageOverride *ClaudeUsage,
-) (*apicompat.ResponsesResponse, *ClaudeUsage, error) {
-	claudeRespMap, usage := convertGeminiToClaudeMessage(geminiResp, originalModel, rawData, true)
-	if usageOverride != nil && (usageOverride.InputTokens > 0 || usageOverride.OutputTokens > 0 || usageOverride.CacheReadInputTokens > 0) {
-		usage = usageOverride
-		if usageMap, ok := claudeRespMap["usage"].(map[string]any); ok {
-			usageMap["input_tokens"] = usage.InputTokens
-			usageMap["output_tokens"] = usage.OutputTokens
-			usageMap["cache_read_input_tokens"] = usage.CacheReadInputTokens
-		}
+func geminiResponseToResponses(geminiResp map[string]any, originalModel string, rawData []byte, usageOverride *ClaudeUsage) (*protocolopenai.ResponsesResponse, *ClaudeUsage, error) {
+	var override *bridge.NativeGeminiUsage
+	if usageOverride != nil {
+		override = &bridge.NativeGeminiUsage{InputTokens: usageOverride.InputTokens, OutputTokens: usageOverride.OutputTokens, CacheReadInputTokens: usageOverride.CacheReadInputTokens, ImageOutputTokens: usageOverride.ImageOutputTokens}
 	}
-
-	claudeBytes, err := json.Marshal(claudeRespMap)
+	result, usage, usedOverride, err := bridge.NativeGeminiResponseToResponses(bridge.Runtime{Now: time.Now, ReadRandom: rand.Read}, bridge.NativeGeminiRuntime{MessageID: generateAnthropicMsgID, RandomHex: randomHex}, geminiResp, originalModel, rawData, override)
 	if err != nil {
 		return nil, nil, err
 	}
-	var anthropicResp apicompat.AnthropicResponse
-	if err := json.Unmarshal(claudeBytes, &anthropicResp); err != nil {
-		return nil, nil, err
+	if usedOverride {
+		return result, usageOverride, nil
 	}
-	responsesResp := apicompat.AnthropicToResponsesResponse(&anthropicResp)
-	responsesResp.Model = originalModel
-	return responsesResp, usage, nil
+	return result, legacyNativeGeminiUsage(usage), nil
 }
 
 func (s *GeminiMessagesCompatService) handleResponsesNonStreamingResponseFromGemini(
@@ -655,7 +648,7 @@ func (s *GeminiMessagesCompatService) handleResponsesNonStreamingResponseFromGem
 func (s *GeminiMessagesCompatService) writeGeminiResponsesResponse(
 	c *gin.Context,
 	resp *http.Response,
-	responsesResp *apicompat.ResponsesResponse,
+	responsesResp *protocolopenai.ResponsesResponse,
 	clientToolMapping apicompat.ResponsesClientToolMapping,
 ) error {
 	if resp != nil {
@@ -706,11 +699,11 @@ func (s *GeminiMessagesCompatService) handleOpenAICompatStreamingResponseFromGem
 	ccState.IncludeUsage = includeUsage
 	clientToolRestorer := apicompat.NewResponsesClientToolStreamRestorer(clientToolMapping)
 
-	var usage ClaudeUsage
+	state := bridge.NewNativeGeminiCompatStream(bridge.NativeGeminiRuntime{RandomHex: randomHex, MessageID: generateAnthropicMsgID})
 	var firstTokenMs *int
 	firstChunk := true
 
-	writeChatChunk := func(chunk apicompat.ChatCompletionsChunk) bool {
+	writeChatChunk := func(chunk protocolopenai.ChatCompletionsChunk) bool {
 		payload, err := json.Marshal(chunk)
 		if err != nil {
 			return false
@@ -720,7 +713,7 @@ func (s *GeminiMessagesCompatService) handleOpenAICompatStreamingResponseFromGem
 		}
 		return false
 	}
-	writeResponsesEvent := func(event apicompat.ResponsesStreamEvent) bool {
+	writeResponsesEvent := func(event protocolopenai.ResponsesStreamEvent) bool {
 		payload, err := json.Marshal(event)
 		if err != nil {
 			return false
@@ -741,12 +734,12 @@ func (s *GeminiMessagesCompatService) handleOpenAICompatStreamingResponseFromGem
 
 	resultSnapshot := func() *geminiStreamResult {
 		return &geminiStreamResult{
-			usage:        &usage,
+			usage:        legacyNativeGeminiUsage(state.Usage()),
 			firstTokenMs: firstTokenMs,
 		}
 	}
 
-	emitAnthropicEvent := func(evt *apicompat.AnthropicStreamEvent) bool {
+	emitAnthropicEvent := func(evt *protocolanthropic.AnthropicStreamEvent) bool {
 		responsesEvents := apicompat.AnthropicEventToResponsesEvents(evt, anthState)
 		for _, resEvt := range responsesEvents {
 			if protocol == geminiOpenAICompatResponses {
@@ -767,52 +760,11 @@ func (s *GeminiMessagesCompatService) handleOpenAICompatStreamingResponseFromGem
 	}
 
 	messageID := generateAnthropicMsgID()
-	if emitAnthropicEvent(&apicompat.AnthropicStreamEvent{
-		Type: "message_start",
-		Message: &apicompat.AnthropicResponse{
-			ID:         messageID,
-			Type:       "message",
-			Role:       "assistant",
-			Model:      originalModel,
-			Content:    []apicompat.AnthropicContentBlock{},
-			StopReason: nil, // 序列化为 JSON null。
-			Usage:      apicompat.AnthropicUsage{},
-		},
-	}) {
-		return resultSnapshot(), nil
-	}
-
-	finishReason := ""
-	sawToolUse := false
-	nextBlockIndex := 0
-	openBlockIndex := -1
-	openBlockType := ""
-	seenText := ""
-	seenThinking := ""
-	openToolIndex := -1
-	openToolName := ""
-	seenToolJSON := ""
-
-	closeOpenBlock := func() bool {
-		if openBlockIndex < 0 {
-			return false
+	for event := range state.Begin(messageID, originalModel) {
+		if emitAnthropicEvent(event) {
+			return resultSnapshot(), nil
 		}
-		disconnected := emitAnthropicEvent(&apicompat.AnthropicStreamEvent{Type: "content_block_stop"})
-		openBlockIndex = -1
-		openBlockType = ""
-		return disconnected
 	}
-	closeOpenTool := func() bool {
-		if openToolIndex < 0 {
-			return false
-		}
-		disconnected := emitAnthropicEvent(&apicompat.AnthropicStreamEvent{Type: "content_block_stop"})
-		openToolIndex = -1
-		openToolName = ""
-		seenToolJSON = ""
-		return disconnected
-	}
-
 	reader := bufio.NewReader(resp.Body)
 	for {
 		line, err := reader.ReadString('\n')
@@ -835,130 +787,9 @@ func (s *GeminiMessagesCompatService) handleOpenAICompatStreamingResponseFromGem
 							ms := int(time.Since(startTime).Milliseconds())
 							firstTokenMs = &ms
 						}
-						if fr := extractGeminiFinishReason(geminiResp); fr != "" {
-							finishReason = fr
-						}
-						if u := extractGeminiUsage(rawBytes); u != nil {
-							usage = *u
-						}
-
-						for _, part := range extractGeminiParts(geminiResp) {
-							if text, ok := part["text"].(string); ok && text != "" {
-								if openToolIndex >= 0 {
-									if closeOpenTool() {
-										return resultSnapshot(), nil
-									}
-								}
-								thought, _ := part["thought"].(bool)
-								blockType := "text"
-								deltaType := "text_delta"
-								seen := seenText
-								if thought {
-									blockType = "thinking"
-									deltaType = "thinking_delta"
-									seen = seenThinking
-								}
-								delta, newSeen := computeGeminiTextDelta(seen, text)
-								if thought {
-									seenThinking = newSeen
-								} else {
-									seenText = newSeen
-								}
-								if delta == "" {
-									continue
-								}
-								if openBlockType != blockType {
-									if closeOpenBlock() {
-										return resultSnapshot(), nil
-									}
-									idx := nextBlockIndex
-									nextBlockIndex++
-									openBlockIndex = idx
-									openBlockType = blockType
-									contentBlock := &apicompat.AnthropicContentBlock{Type: "text", Text: ""}
-									if thought {
-										contentBlock = &apicompat.AnthropicContentBlock{Type: "thinking", Thinking: ""}
-									}
-									if emitAnthropicEvent(&apicompat.AnthropicStreamEvent{
-										Type:         "content_block_start",
-										Index:        &idx,
-										ContentBlock: contentBlock,
-									}) {
-										return resultSnapshot(), nil
-									}
-								}
-								deltaEvent := &apicompat.AnthropicDelta{Type: deltaType, Text: delta}
-								if thought {
-									deltaEvent.Text = ""
-									deltaEvent.Thinking = delta
-								}
-								if emitAnthropicEvent(&apicompat.AnthropicStreamEvent{
-									Type:  "content_block_delta",
-									Delta: deltaEvent,
-								}) {
-									return resultSnapshot(), nil
-								}
-								continue
-							}
-
-							if fc, ok := part["functionCall"].(map[string]any); ok && fc != nil {
-								name, _ := fc["name"].(string)
-								if strings.TrimSpace(name) == "" {
-									name = "tool"
-								}
-								if closeOpenBlock() {
-									return resultSnapshot(), nil
-								}
-								if openToolIndex >= 0 && openToolName != name {
-									if closeOpenTool() {
-										return resultSnapshot(), nil
-									}
-								}
-								if openToolIndex < 0 {
-									idx := nextBlockIndex
-									nextBlockIndex++
-									openToolIndex = idx
-									openToolName = name
-									sawToolUse = true
-									if emitAnthropicEvent(&apicompat.AnthropicStreamEvent{
-										Type:  "content_block_start",
-										Index: &idx,
-										ContentBlock: &apicompat.AnthropicContentBlock{
-											Type:  "tool_use",
-											ID:    "toolu_" + randomHex(8),
-											Name:  name,
-											Input: json.RawMessage(`{}`),
-										},
-									}) {
-										return resultSnapshot(), nil
-									}
-								}
-
-								argsJSONText := "{}"
-								switch v := fc["args"].(type) {
-								case nil:
-								case string:
-									if strings.TrimSpace(v) != "" {
-										argsJSONText = v
-									}
-								default:
-									if b, err := json.Marshal(v); err == nil && len(b) > 0 {
-										argsJSONText = string(b)
-									}
-								}
-								delta, newSeen := computeGeminiTextDelta(seenToolJSON, argsJSONText)
-								seenToolJSON = newSeen
-								if delta != "" {
-									if emitAnthropicEvent(&apicompat.AnthropicStreamEvent{
-										Type: "content_block_delta",
-										Delta: &apicompat.AnthropicDelta{
-											Type:        "input_json_delta",
-											PartialJSON: delta,
-										},
-									}) {
-										return resultSnapshot(), nil
-									}
-								}
+						for event := range state.Process(geminiResp, rawBytes) {
+							if emitAnthropicEvent(event) {
+								return resultSnapshot(), nil
 							}
 						}
 					}
@@ -974,35 +805,15 @@ func (s *GeminiMessagesCompatService) handleOpenAICompatStreamingResponseFromGem
 		}
 	}
 
-	if closeOpenBlock() {
-		return resultSnapshot(), nil
-	}
-	if closeOpenTool() {
-		return resultSnapshot(), nil
-	}
-
-	stopReason := mapGeminiFinishReasonToClaudeStopReason(finishReason)
-	if sawToolUse {
-		stopReason = "tool_use"
-	}
-	anthState.InputTokens = usage.InputTokens
-	anthState.CacheReadInputTokens = usage.CacheReadInputTokens
-	if emitAnthropicEvent(&apicompat.AnthropicStreamEvent{
-		Type: "message_delta",
-		Delta: &apicompat.AnthropicDelta{
-			Type:       "message_delta",
-			StopReason: stopReason,
-		},
-		Usage: &apicompat.AnthropicUsage{
-			InputTokens:          usage.InputTokens,
-			OutputTokens:         usage.OutputTokens,
-			CacheReadInputTokens: usage.CacheReadInputTokens,
-		},
-	}) {
-		return resultSnapshot(), nil
-	}
-	if emitAnthropicEvent(&apicompat.AnthropicStreamEvent{Type: "message_stop"}) {
-		return resultSnapshot(), nil
+	for event := range state.Finish() {
+		if event.Type == "message_delta" {
+			usage := state.Usage()
+			anthState.InputTokens = usage.InputTokens
+			anthState.CacheReadInputTokens = usage.CacheReadInputTokens
+		}
+		if emitAnthropicEvent(event) {
+			return resultSnapshot(), nil
+		}
 	}
 
 	for _, resEvt := range apicompat.FinalizeAnthropicResponsesStream(anthState) {

@@ -24,7 +24,7 @@ func TestCalculateCostUnifiedAppliesChannelTimeMultiplierToTokenBuckets(t *testi
 		Mode:           BillingModeToken,
 		Source:         PricingSourceChannel,
 		BasePricing:    &ModelPricing{InputPricePerToken: 5e-6, OutputPricePerToken: 15e-6},
-		channelPricing: pricing,
+		ChannelPricing: pricing,
 	}
 	service := newTestBillingService()
 	resolver := NewModelPricingResolver(nil, service)
@@ -55,7 +55,7 @@ func TestCalculateCostUnifiedDoesNotApplyChannelTimeMultiplierToPerRequest(t *te
 			Periods:  []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}},
 		},
 	}
-	resolved := &ResolvedPricing{Mode: BillingModePerRequest, Source: PricingSourceChannel, channelPricing: pricing, DefaultPerRequestPrice: 0.05}
+	resolved := &ResolvedPricing{Mode: BillingModePerRequest, Source: PricingSourceChannel, ChannelPricing: pricing, DefaultPerRequestPrice: 0.05}
 	service := newTestBillingService()
 	resolver := NewModelPricingResolver(nil, service)
 

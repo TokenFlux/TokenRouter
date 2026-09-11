@@ -12,7 +12,9 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -28,7 +30,7 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 ) (*OpenAIForwardResult, error) {
 	startTime := time.Now()
 
-	var responsesReq apicompat.ResponsesRequest
+	var responsesReq protocolopenai.ResponsesRequest
 	if err := json.Unmarshal(body, &responsesReq); err != nil {
 		writeOpenAIResponsesFallbackError(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return nil, fmt.Errorf("parse responses request: %w", err)
@@ -69,7 +71,7 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
 	chatReq.Model = upstreamModel
 	if clientStream {
-		chatReq.StreamOptions = &apicompat.ChatStreamOptions{IncludeUsage: true}
+		chatReq.StreamOptions = &protocolopenai.ChatStreamOptions{IncludeUsage: true}
 	}
 
 	chatBody, err := json.Marshal(chatReq)
@@ -193,7 +195,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	state.NamespaceTools = namespaceTools
 	clientDisconnected := false
 
-	writeEvents := func(events []apicompat.ResponsesStreamEvent) {
+	writeEvents := func(events []protocolopenai.ResponsesStreamEvent) {
 		if clientDisconnected || len(events) == 0 {
 			return
 		}
@@ -219,7 +221,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 		c.Writer.Flush()
 	}
 
-	scan := s.scanCCStream(c, resp, "openai responses chat fallback", requestID, startTime, func(chunk *apicompat.ChatCompletionsChunk) {
+	scan := s.scanCCStream(c, resp, "openai responses chat fallback", requestID, startTime, func(chunk *protocolopenai.ChatCompletionsChunk) {
 		events := apicompat.ChatCompletionsChunkToResponsesEvents(chunk, state)
 		s.cacheReasoningItemsFromEvents(events)
 		writeEvents(events)
@@ -290,7 +292,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsResponses(
 	}, nil
 }
 
-func chatChunkStartsResponsesOutput(chunk *apicompat.ChatCompletionsChunk) bool {
+func chatChunkStartsResponsesOutput(chunk *protocolopenai.ChatCompletionsChunk) bool {
 	if chunk == nil {
 		return false
 	}
@@ -349,7 +351,7 @@ func (s *OpenAIGatewayService) recacheReasoningItemsFromInput(inputRaw json.RawM
 }
 
 // cacheReasoningItemsFromEvents 从 Responses 流事件里提取已完成的 reasoning item。
-func (s *OpenAIGatewayService) cacheReasoningItemsFromEvents(events []apicompat.ResponsesStreamEvent) {
+func (s *OpenAIGatewayService) cacheReasoningItemsFromEvents(events []protocolopenai.ResponsesStreamEvent) {
 	for _, event := range events {
 		if event.Type == "response.output_item.done" && event.Item != nil {
 			s.cacheReasoningItem(event.Item)
@@ -358,13 +360,13 @@ func (s *OpenAIGatewayService) cacheReasoningItemsFromEvents(events []apicompat.
 }
 
 // cacheReasoningItemsFromOutput 从非流式 Responses 输出中提取 reasoning item。
-func (s *OpenAIGatewayService) cacheReasoningItemsFromOutput(output []apicompat.ResponsesOutput) {
+func (s *OpenAIGatewayService) cacheReasoningItemsFromOutput(output []protocolopenai.ResponsesOutput) {
 	for i := range output {
 		s.cacheReasoningItem(&output[i])
 	}
 }
 
-func (s *OpenAIGatewayService) cacheReasoningItem(item *apicompat.ResponsesOutput) {
+func (s *OpenAIGatewayService) cacheReasoningItem(item *protocolopenai.ResponsesOutput) {
 	if item == nil || item.Type != "reasoning" || item.ID == "" {
 		return
 	}

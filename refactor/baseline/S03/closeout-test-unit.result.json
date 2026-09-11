@@ -1,0 +1,59 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 196.698,
+  "log": "logs/closeout-test-unit.log.gz",
+  "test_events": {
+    "pass": 19046,
+    "fail": 0,
+    "skip": 9
+  },
+  "failed_tests": [],
+  "skipped_tests": [
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/handler",
+      "test": "TestDingTalkOAuthStart_Disabled"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+      "test": "TestDialerBasicConnection"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+      "test": "TestJA3Fingerprint"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+      "test": "TestAllProfiles"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+      "test": "TestRealAPI"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+      "test": "TestReadLocalAuthFromDisk"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "test": "TestAuthPendingIdentityService_UpsertAdoptionDecision_ClearsLegacyNullSessionReference"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+    }
+  ]
+}

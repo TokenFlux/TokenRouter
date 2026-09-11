@@ -21,7 +21,10 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
@@ -51,7 +54,7 @@ func (s *OpenAIGatewayService) forwardResponsesViaNativeAnthropic(
 	}
 
 	// 2. 解析 Responses 请求。
-	var responsesReq apicompat.ResponsesRequest
+	var responsesReq protocolopenai.ResponsesRequest
 	if err := json.Unmarshal(adaptedBody, &responsesReq); err != nil {
 		writeResponsesError(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return nil, fmt.Errorf("parse responses request: %w", err)
@@ -164,7 +167,7 @@ func (s *OpenAIGatewayService) handleResponsesBufferedFromNativeAnthropic(
 	}
 	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
 
-	var finalResp *apicompat.AnthropicResponse
+	var finalResp *protocolanthropic.AnthropicResponse
 	var usage ClaudeUsage
 
 	// 读间隔上限：上游挂住 SSE 时中止组装（缓冲路径尚未提交响应头，可回 502）。
@@ -217,7 +220,7 @@ func (s *OpenAIGatewayService) handleResponsesBufferedFromNativeAnthropic(
 			continue
 		}
 
-		var event apicompat.AnthropicStreamEvent
+		var event protocolanthropic.AnthropicStreamEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			continue
 		}
@@ -258,7 +261,7 @@ func (s *OpenAIGatewayService) handleResponsesBufferedFromNativeAnthropic(
 	}
 
 	if usage.InputTokens > 0 || usage.OutputTokens > 0 {
-		finalResp.Usage = apicompat.AnthropicUsage{
+		finalResp.Usage = protocolanthropic.AnthropicUsage{
 			InputTokens:              usage.InputTokens,
 			OutputTokens:             usage.OutputTokens,
 			CacheCreationInputTokens: usage.CacheCreationInputTokens,
@@ -381,7 +384,7 @@ func (s *OpenAIGatewayService) handleResponsesStreamingFromNativeAnthropic(
 
 	// 客户端断开后不再写出，但继续推进状态机并排水上游；最终 output_tokens
 	// 位于末尾 message_delta，提前退出会漏记上游已经产生的用量。
-	processAnthropicEvent := func(event *apicompat.AnthropicStreamEvent) {
+	processAnthropicEvent := func(event *protocolanthropic.AnthropicStreamEvent) {
 		if firstChunk {
 			firstChunk = false
 			ms := int(time.Since(startTime).Milliseconds())
@@ -448,7 +451,7 @@ func (s *OpenAIGatewayService) handleResponsesStreamingFromNativeAnthropic(
 			continue
 		}
 
-		var event apicompat.AnthropicStreamEvent
+		var event protocolanthropic.AnthropicStreamEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			continue
 		}

@@ -15,6 +15,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+
 	coderws "github.com/coder/websocket"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -739,7 +741,7 @@ func TestForwardAsAnthropicMessages_BetaFastModePassesOpenAIFastPolicyByDefault(
 
 	// Step 1: parse Anthropic request (mirrors openai_gateway_messages.go:38-50).
 	anthropicBody := []byte(`{"model":"gpt-5.5","max_tokens":64,"messages":[{"role":"user","content":"hi"}]}`)
-	var anthropicReq apicompat.AnthropicRequest
+	var anthropicReq protocolanthropic.AnthropicRequest
 	require.NoError(t, json.Unmarshal(anthropicBody, &anthropicReq))
 	responsesReq, err := apicompat.AnthropicToResponses(&anthropicReq)
 	require.NoError(t, err)

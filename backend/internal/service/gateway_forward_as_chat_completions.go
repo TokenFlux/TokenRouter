@@ -14,7 +14,10 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
@@ -35,7 +38,7 @@ func (s *GatewayService) ForwardAsChatCompletions(
 	startTime := time.Now()
 
 	// 1. Parse Chat Completions request
-	var ccReq apicompat.ChatCompletionsRequest
+	var ccReq protocolopenai.ChatCompletionsRequest
 	if err := json.Unmarshal(body, &ccReq); err != nil {
 		return nil, fmt.Errorf("parse chat completions request: %w", err)
 	}
@@ -230,7 +233,7 @@ func (s *GatewayService) handleCCBufferedFromAnthropic(
 	}
 	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
 
-	var finalResp *apicompat.AnthropicResponse
+	var finalResp *protocolanthropic.AnthropicResponse
 	var usage ClaudeUsage
 
 	for scanner.Scan() {
@@ -248,7 +251,7 @@ func (s *GatewayService) handleCCBufferedFromAnthropic(
 			continue
 		}
 
-		var event apicompat.AnthropicStreamEvent
+		var event protocolanthropic.AnthropicStreamEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			continue
 		}
@@ -302,7 +305,7 @@ func (s *GatewayService) handleCCBufferedFromAnthropic(
 
 	// Update usage from accumulated delta
 	if usage.InputTokens > 0 || usage.OutputTokens > 0 {
-		finalResp.Usage = apicompat.AnthropicUsage{
+		finalResp.Usage = protocolanthropic.AnthropicUsage{
 			InputTokens:              usage.InputTokens,
 			OutputTokens:             usage.OutputTokens,
 			CacheCreationInputTokens: usage.CacheCreationInputTokens,
@@ -398,7 +401,7 @@ func (s *GatewayService) handleCCStreamingFromAnthropic(
 		}
 	}
 
-	writeChunk := func(chunk apicompat.ChatCompletionsChunk) bool {
+	writeChunk := func(chunk protocolopenai.ChatCompletionsChunk) bool {
 		payload, err := json.Marshal(chunk)
 		if err != nil {
 			return false
@@ -412,7 +415,7 @@ func (s *GatewayService) handleCCStreamingFromAnthropic(
 		return false
 	}
 
-	processAnthropicEvent := func(event *apicompat.AnthropicStreamEvent) bool {
+	processAnthropicEvent := func(event *protocolanthropic.AnthropicStreamEvent) bool {
 		if firstChunk {
 			firstChunk = false
 			ms := int(time.Since(startTime).Milliseconds())
@@ -457,7 +460,7 @@ func (s *GatewayService) handleCCStreamingFromAnthropic(
 			continue
 		}
 
-		var event apicompat.AnthropicStreamEvent
+		var event protocolanthropic.AnthropicStreamEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			continue
 		}

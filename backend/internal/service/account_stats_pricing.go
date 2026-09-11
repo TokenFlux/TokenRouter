@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"strings"
+
+	purepricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 )
 
 // resolveAccountStatsCost 计算账号统计定价费用。
@@ -67,20 +69,13 @@ func resolveAccountStatsCostWithMapped(
 
 	platform := channelService.GetGroupPlatform(ctx, groupID)
 
-	// 优先级 1：自定义规则（始终尝试）
-	for _, customRuleModel := range accountStatsCustomRuleModels(platform, upstreamModel, requestedModel, channelMappedModel) {
-		if cost := tryCustomRules(channel, accountID, groupID, platform, customRuleModel, tokens, requestCount); cost != nil {
-			return cost
-		}
-	}
-
-	// 优先级 2：渠道开启"应用模型定价到账号统计"时，直接使用客户计费（倍率前）
-	if channel.ApplyPricingToAccountStats {
-		cost := totalCost
-		if cost <= 0 {
-			return nil
-		}
-		return &cost
+	// 渠道查询结束后，纯规则决定自定义价/用户价是否已经处理。
+	if cost, handled := purepricing.ResolveAccountStatsOverride(purepricing.AccountStatsInput{
+		Rules: channel.AccountStatsPricingRules, AccountID: accountID, GroupID: groupID, Platform: platform,
+		Models: accountStatsCustomRuleModels(platform, upstreamModel, requestedModel, channelMappedModel),
+		Tokens: tokens, RequestCount: requestCount, UserTotalCost: totalCost, ApplyUserPrice: channel.ApplyPricingToAccountStats,
+	}); handled {
+		return cost
 	}
 
 	// 优先级 3：模型定价文件（LiteLLM）默认价格
@@ -111,22 +106,9 @@ func accountStatsCustomRuleModels(platform, upstreamModel, requestedModel string
 	return uniqueNonEmptyAccountStatsModels(models)
 }
 
+// uniqueNonEmptyAccountStatsModels 委托唯一账号统计定价规则。
 func uniqueNonEmptyAccountStatsModels(models []string) []string {
-	out := make([]string, 0, len(models))
-	seen := make(map[string]struct{}, len(models))
-	for _, model := range models {
-		model = strings.TrimSpace(model)
-		if model == "" {
-			continue
-		}
-		key := strings.ToLower(model)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		out = append(out, model)
-	}
-	return out
+	return purepricing.UniqueNonEmptyAccountStatsModels(models)
 }
 
 // tryModelFilePricing 使用模型定价文件（LiteLLM/fallback）中的价格计算费用。
@@ -146,209 +128,6 @@ func tryModelFilePricing(billingService *BillingService, model string, tokens Us
 		return nil
 	}
 	return &breakdown.TotalCost
-}
-
-// tryCustomRules 遍历自定义规则，按数组顺序先命中为准。
-func tryCustomRules(
-	channel *Channel, accountID, groupID int64,
-	platform, model string, tokens UsageTokens, requestCount int,
-) *float64 {
-	modelLower := strings.ToLower(model)
-	for _, rule := range channel.AccountStatsPricingRules {
-		if !matchAccountStatsRule(&rule, accountID, groupID) {
-			continue
-		}
-		pricing := findEffectivePricingForModel(rule.Pricing, platform, modelLower)
-		if pricing == nil {
-			continue // 规则匹配但模型不在规则定价中，继续下一条
-		}
-		// 自定义统计价是独立的最终成本基数，不继承用户侧的模型/推理倍率。
-		if cost := calculateStatsCost(pricing, tokens, requestCount); cost != nil {
-			return cost
-		}
-	}
-	return nil
-}
-
-// matchAccountStatsRule 检查规则是否匹配指定的 accountID 和 groupID。
-// 匹配条件：accountID ∈ rule.AccountIDs 或 groupID ∈ rule.GroupIDs。
-// 如果规则的 AccountIDs 和 GroupIDs 都为空，视为不匹配。
-func matchAccountStatsRule(rule *AccountStatsPricingRule, accountID, groupID int64) bool {
-	if len(rule.AccountIDs) == 0 && len(rule.GroupIDs) == 0 {
-		return false
-	}
-	for _, id := range rule.AccountIDs {
-		if id == accountID {
-			return true
-		}
-	}
-	for _, id := range rule.GroupIDs {
-		if id == groupID {
-			return true
-		}
-	}
-	return false
-}
-
-// findPricingForModel 在定价列表中查找匹配的模型定价。
-// 先精确匹配，再通配符匹配（按配置顺序，先匹配先使用）。
-//
-//nolint:unused // 兼容旧测试入口；生产路径需要过滤空定价行并调用 findEffectivePricingForModel。
-func findPricingForModel(pricingList []ChannelModelPricing, platform, modelLower string) *ChannelModelPricing {
-	return findPricingForModelByPredicate(pricingList, platform, modelLower, nil)
-}
-
-// findEffectivePricingForModel 用于账号统计成本规则。
-// 空定价行只是配置占位，不是成本规则；显式 0 指针仍视为有效，返回 0 成本覆盖。
-func findEffectivePricingForModel(pricingList []ChannelModelPricing, platform, modelLower string) *ChannelModelPricing {
-	return findPricingForModelByPredicate(pricingList, platform, modelLower, func(p *ChannelModelPricing) bool {
-		return p != nil && p.HasEffectivePricing()
-	})
-}
-
-func findPricingForModelByPredicate(pricingList []ChannelModelPricing, platform, modelLower string, include func(*ChannelModelPricing) bool) *ChannelModelPricing {
-	if include == nil {
-		include = func(*ChannelModelPricing) bool { return true }
-	}
-	// 精确匹配优先
-	for i := range pricingList {
-		p := &pricingList[i]
-		if !include(p) || !isPlatformMatch(platform, p.Platform) {
-			continue
-		}
-		for _, m := range p.Models {
-			if strings.ToLower(m) == modelLower {
-				return p
-			}
-		}
-	}
-	// 通配符匹配：按配置顺序，先匹配先使用
-	for i := range pricingList {
-		p := &pricingList[i]
-		if !include(p) || !isPlatformMatch(platform, p.Platform) {
-			continue
-		}
-		for _, m := range p.Models {
-			ml := strings.ToLower(m)
-			if !strings.HasSuffix(ml, "*") {
-				continue
-			}
-			prefix := strings.TrimSuffix(ml, "*")
-			if strings.HasPrefix(modelLower, prefix) {
-				return p
-			}
-		}
-	}
-	return nil
-}
-
-// isPlatformMatch 判断平台是否匹配（空平台视为不限平台）。
-func isPlatformMatch(queryPlatform, pricingPlatform string) bool {
-	if queryPlatform == "" || pricingPlatform == "" {
-		return true
-	}
-	return queryPlatform == pricingPlatform
-}
-
-// calculateStatsCost 使用给定的定价计算费用，并在最后应用可选的定价倍率。
-func calculateStatsCost(pricing *ChannelModelPricing, tokens UsageTokens, requestCount int) *float64 {
-	if pricing == nil {
-		return nil
-	}
-	var cost *float64
-	switch pricing.BillingMode {
-	case BillingModePerRequest, BillingModeImage:
-		cost = calculatePerRequestStatsCost(pricing, requestCount)
-	default:
-		cost = calculateTokenStatsCost(pricing, tokens)
-	}
-	if cost == nil {
-		return nil
-	}
-	// 账号统计规则与实际渠道计费共用同一倍率语义。
-	if multiplier, configured := normalizedPriceMultiplier(pricing); configured {
-		scaled := *cost * multiplier
-		cost = &scaled
-	}
-	return cost
-}
-
-// calculatePerRequestStatsCost 按次/图片计费。
-func calculatePerRequestStatsCost(pricing *ChannelModelPricing, requestCount int) *float64 {
-	if pricing.PerRequestPrice == nil {
-		return nil
-	}
-	if requestCount <= 0 {
-		requestCount = 1
-	}
-	cost := *pricing.PerRequestPrice * float64(requestCount)
-	if cost < 0 {
-		return nil
-	}
-	return &cost
-}
-
-// calculateTokenStatsCost Token 计费。
-// If the pricing has intervals, find the matching interval by total token count
-// and use its prices instead of the flat pricing fields.
-func calculateTokenStatsCost(pricing *ChannelModelPricing, tokens UsageTokens) *float64 {
-	p := pricing
-	if validIntervals := filterValidTokenIntervals(pricing.Intervals); len(validIntervals) > 0 {
-		totalTokens := tokens.InputTokens + tokens.OutputTokens + tokens.CacheCreationTokens + tokens.CacheReadTokens
-		if iv := FindMatchingInterval(validIntervals, totalTokens); iv != nil {
-			p = &ChannelModelPricing{
-				InputPrice:        iv.InputPrice,
-				OutputPrice:       iv.OutputPrice,
-				CacheWritePrice:   iv.CacheWritePrice,
-				CacheWrite1hPrice: iv.CacheWrite1hPrice,
-				CacheReadPrice:    iv.CacheReadPrice,
-				ImageOutputPrice:  pricing.ImageOutputPrice,
-			}
-		}
-	}
-	if !hasAnyTokenStatsPrice(p) || !hasAnyStatsTokenUsage(tokens) {
-		return nil
-	}
-	deref := func(ptr *float64) float64 {
-		if ptr == nil {
-			return 0
-		}
-		return *ptr
-	}
-	cacheCreationCost := float64(tokens.CacheCreationTokens) * deref(p.CacheWritePrice)
-	if p.CacheWrite1hPrice != nil {
-		cache5m, cache1h := normalizeCacheCreationBreakdown(tokens)
-		if cache5m > 0 || cache1h > 0 {
-			cacheCreationCost = float64(cache5m)*deref(p.CacheWritePrice) +
-				float64(cache1h)*deref(p.CacheWrite1hPrice)
-		}
-	}
-	cost := float64(tokens.InputTokens)*deref(p.InputPrice) +
-		float64(tokens.OutputTokens)*deref(p.OutputPrice) +
-		cacheCreationCost +
-		float64(tokens.CacheReadTokens)*deref(p.CacheReadPrice) +
-		float64(tokens.ImageOutputTokens)*deref(p.ImageOutputPrice)
-	if cost < 0 {
-		return nil
-	}
-	return &cost
-}
-
-func hasAnyTokenStatsPrice(pricing *ChannelModelPricing) bool {
-	return pricing != nil && (pricing.InputPrice != nil ||
-		pricing.OutputPrice != nil ||
-		pricing.CacheWritePrice != nil ||
-		pricing.CacheWrite1hPrice != nil ||
-		pricing.CacheReadPrice != nil ||
-		pricing.ImageOutputPrice != nil)
-}
-
-func hasAnyStatsTokenUsage(tokens UsageTokens) bool {
-	return tokens.InputTokens > 0 ||
-		tokens.OutputTokens > 0 ||
-		tokens.CacheCreationTokens > 0 ||
-		tokens.CacheReadTokens > 0 ||
-		tokens.ImageOutputTokens > 0
 }
 
 // applyAccountStatsCost resolves the account stats cost for a usage log entry.

@@ -11,6 +11,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+
 	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
 )
@@ -28,11 +29,6 @@ func ProvideGrokOAuthService(proxyRepo ProxyRepository, oauthClient GrokOAuthCli
 type BuildInfo struct {
 	Version   string
 	BuildType string
-}
-
-// ProvidePricingService creates and initializes PricingService
-func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient) (*PricingService, error) {
-	return NewPricingService(cfg, remoteClient), nil
 }
 
 // ProvideUpdateService creates UpdateService with BuildInfo
@@ -783,7 +779,6 @@ var ProviderSet = wire.NewSet(
 	NewPromoService,
 	NewUsageService,
 	ProvideDashboardService,
-	ProvidePricingService,
 	NewBillingService,
 	ProvideBillingCacheService,
 	NewAdminService,

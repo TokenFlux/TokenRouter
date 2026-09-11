@@ -3,7 +3,7 @@ package service
 import (
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
+	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 )
 
 // TestGeminiSessionContinuousConversation 测试连续会话的摘要链匹配
@@ -15,12 +15,12 @@ func TestGeminiSessionContinuousConversation(t *testing.T) {
 	accountID := int64(100)
 
 	// 模拟第一轮对话
-	req1 := &antigravity.GeminiRequest{
-		SystemInstruction: &antigravity.GeminiContent{
-			Parts: []antigravity.GeminiPart{{Text: "You are a helpful assistant"}},
+	req1 := &protocolgemini.GeminiRequest{
+		SystemInstruction: &protocolgemini.GeminiContent{
+			Parts: []protocolgemini.GeminiPart{{Text: "You are a helpful assistant"}},
 		},
-		Contents: []antigravity.GeminiContent{
-			{Role: "user", Parts: []antigravity.GeminiPart{{Text: "Hello, what's your name?"}}},
+		Contents: []protocolgemini.GeminiContent{
+			{Role: "user", Parts: []protocolgemini.GeminiPart{{Text: "Hello, what's your name?"}}},
 		},
 	}
 	chain1 := BuildGeminiDigestChain(req1)
@@ -36,14 +36,14 @@ func TestGeminiSessionContinuousConversation(t *testing.T) {
 	store.Save(groupID, prefixHash, chain1, sessionUUID, accountID, "")
 
 	// 模拟第二轮对话（用户继续对话）
-	req2 := &antigravity.GeminiRequest{
-		SystemInstruction: &antigravity.GeminiContent{
-			Parts: []antigravity.GeminiPart{{Text: "You are a helpful assistant"}},
+	req2 := &protocolgemini.GeminiRequest{
+		SystemInstruction: &protocolgemini.GeminiContent{
+			Parts: []protocolgemini.GeminiPart{{Text: "You are a helpful assistant"}},
 		},
-		Contents: []antigravity.GeminiContent{
-			{Role: "user", Parts: []antigravity.GeminiPart{{Text: "Hello, what's your name?"}}},
-			{Role: "model", Parts: []antigravity.GeminiPart{{Text: "I'm Claude, nice to meet you!"}}},
-			{Role: "user", Parts: []antigravity.GeminiPart{{Text: "What can you do?"}}},
+		Contents: []protocolgemini.GeminiContent{
+			{Role: "user", Parts: []protocolgemini.GeminiPart{{Text: "Hello, what's your name?"}}},
+			{Role: "model", Parts: []protocolgemini.GeminiPart{{Text: "I'm Claude, nice to meet you!"}}},
+			{Role: "user", Parts: []protocolgemini.GeminiPart{{Text: "What can you do?"}}},
 		},
 	}
 	chain2 := BuildGeminiDigestChain(req2)
@@ -65,16 +65,16 @@ func TestGeminiSessionContinuousConversation(t *testing.T) {
 	store.Save(groupID, prefixHash, chain2, sessionUUID, accountID, matchedChain)
 
 	// 模拟第三轮对话
-	req3 := &antigravity.GeminiRequest{
-		SystemInstruction: &antigravity.GeminiContent{
-			Parts: []antigravity.GeminiPart{{Text: "You are a helpful assistant"}},
+	req3 := &protocolgemini.GeminiRequest{
+		SystemInstruction: &protocolgemini.GeminiContent{
+			Parts: []protocolgemini.GeminiPart{{Text: "You are a helpful assistant"}},
 		},
-		Contents: []antigravity.GeminiContent{
-			{Role: "user", Parts: []antigravity.GeminiPart{{Text: "Hello, what's your name?"}}},
-			{Role: "model", Parts: []antigravity.GeminiPart{{Text: "I'm Claude, nice to meet you!"}}},
-			{Role: "user", Parts: []antigravity.GeminiPart{{Text: "What can you do?"}}},
-			{Role: "model", Parts: []antigravity.GeminiPart{{Text: "I can help with coding, writing, and more!"}}},
-			{Role: "user", Parts: []antigravity.GeminiPart{{Text: "Great, help me write some Go code"}}},
+		Contents: []protocolgemini.GeminiContent{
+			{Role: "user", Parts: []protocolgemini.GeminiPart{{Text: "Hello, what's your name?"}}},
+			{Role: "model", Parts: []protocolgemini.GeminiPart{{Text: "I'm Claude, nice to meet you!"}}},
+			{Role: "user", Parts: []protocolgemini.GeminiPart{{Text: "What can you do?"}}},
+			{Role: "model", Parts: []protocolgemini.GeminiPart{{Text: "I can help with coding, writing, and more!"}}},
+			{Role: "user", Parts: []protocolgemini.GeminiPart{{Text: "Great, help me write some Go code"}}},
 		},
 	}
 	chain3 := BuildGeminiDigestChain(req3)
@@ -100,18 +100,18 @@ func TestGeminiSessionDifferentConversations(t *testing.T) {
 	prefixHash := "test_prefix_hash"
 
 	// 第一个会话
-	req1 := &antigravity.GeminiRequest{
-		Contents: []antigravity.GeminiContent{
-			{Role: "user", Parts: []antigravity.GeminiPart{{Text: "Tell me about Go programming"}}},
+	req1 := &protocolgemini.GeminiRequest{
+		Contents: []protocolgemini.GeminiContent{
+			{Role: "user", Parts: []protocolgemini.GeminiPart{{Text: "Tell me about Go programming"}}},
 		},
 	}
 	chain1 := BuildGeminiDigestChain(req1)
 	store.Save(groupID, prefixHash, chain1, "session-1", 100, "")
 
 	// 第二个完全不同的会话
-	req2 := &antigravity.GeminiRequest{
-		Contents: []antigravity.GeminiContent{
-			{Role: "user", Parts: []antigravity.GeminiPart{{Text: "What's the weather today?"}}},
+	req2 := &protocolgemini.GeminiRequest{
+		Contents: []protocolgemini.GeminiContent{
+			{Role: "user", Parts: []protocolgemini.GeminiPart{{Text: "What's the weather today?"}}},
 		},
 	}
 	chain2 := BuildGeminiDigestChain(req2)

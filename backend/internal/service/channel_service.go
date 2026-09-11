@@ -9,8 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 	"golang.org/x/sync/singleflight"
@@ -60,13 +62,9 @@ type channelModelKey struct {
 	model    string // lowercase
 }
 
-// normalizeChannelPricingModelName 统一 Anthropic 模型名的点号与连字符写法。
+// normalizeChannelPricingModelName 委托纯价卡匹配规则。
 func normalizeChannelPricingModelName(model string) string {
-	model = strings.ToLower(strings.TrimSpace(model))
-	if strings.HasPrefix(model, "claude-") {
-		model = strings.ReplaceAll(model, ".", "-")
-	}
-	return model
+	return pricing.NormalizeChannelPricingModelName(model)
 }
 
 // channelGroupPlatformKey 通配符定价缓存键
@@ -789,35 +787,8 @@ func checkBillingModeRequirements(p ChannelModelPricing) error {
 	return nil
 }
 
-// hasExplicitPricingPrice 判断是否配置了实际价格，不把层级倍率当作基础价格。
-// 这样 price_multiplier 与旧版 fast_mode_multiplier 仍不能单独改变默认定价。
-func hasExplicitPricingPrice(p ChannelModelPricing) bool {
-	mode := p.BillingMode
-	if mode == "" {
-		mode = BillingModeToken
-	}
-	if mode == BillingModePerRequest || mode == BillingModeImage || mode == BillingModeVideo {
-		if p.PerRequestPrice != nil {
-			return true
-		}
-		for _, iv := range p.Intervals {
-			if iv.PerRequestPrice != nil {
-				return true
-			}
-		}
-		return false
-	}
-	if p.InputPrice != nil || p.OutputPrice != nil || p.CacheWritePrice != nil || p.CacheWrite1hPrice != nil ||
-		p.CacheReadPrice != nil || p.ImageInputPrice != nil || p.ImageOutputPrice != nil {
-		return true
-	}
-	for _, iv := range p.Intervals {
-		if iv.InputPrice != nil || iv.OutputPrice != nil || iv.CacheWritePrice != nil || iv.CacheWrite1hPrice != nil || iv.CacheReadPrice != nil {
-			return true
-		}
-	}
-	return false
-}
+// hasExplicitPricingPrice 委托纯价卡匹配规则。
+func hasExplicitPricingPrice(p ChannelModelPricing) bool { return pricing.HasExplicitPricingPrice(p) }
 
 func checkPricesNotNegative(p ChannelModelPricing) error {
 	checks := []struct {

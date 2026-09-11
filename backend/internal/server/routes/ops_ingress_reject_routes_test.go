@@ -8,6 +8,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/handler"
 	adminhandler "github.com/TokenFlux/TokenRouter/internal/handler/admin"
 	servermiddleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +26,7 @@ func TestOpsAdminRoutesRequireAdminAuthentication(t *testing.T) {
 	})
 	auditLog := servermiddleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() })
 	stepUp := servermiddleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() })
-	RegisterAdminRoutes(router.Group("/api/v1"), handlers, adminAuth, auditLog, stepUp, nil)
+	RegisterAdminRoutes(router.Group("/api/v1"), handlers, adminAuth, auditLog, stepUp, nil, func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	for _, path := range []string{
 		"/api/v1/admin/ops/ingress-rejections",

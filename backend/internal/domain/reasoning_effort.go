@@ -1,16 +1,10 @@
 package domain
 
-// ReasoningEffortMapping 在应用分组上限前，将一个显式的 OpenAI/Codex
-// 推理强度值改写为另一个值。
-const (
-	ReasoningEffortMatchExact  = "exact"
-	ReasoningEffortMatchPrefix = "prefix"
-	ReasoningEffortMatchSuffix = "suffix"
-)
+import "github.com/TokenFlux/TokenRouter/internal/routing"
 
-type ReasoningEffortMapping struct {
-	From      string `json:"from"`
-	To        string `json:"to"`
-	MatchType string `json:"match_type,omitempty"`
-	Model     string `json:"model,omitempty"`
-}
+// 旧实体与 schema 使用类型别名，纯管理员规则由 routing 拥有。
+type ReasoningEffortMapping = routing.ReasoningEffortMapping
+
+const ReasoningEffortMatchExact = routing.ReasoningEffortMatchExact
+const ReasoningEffortMatchPrefix = routing.ReasoningEffortMatchPrefix
+const ReasoningEffortMatchSuffix = routing.ReasoningEffortMatchSuffix

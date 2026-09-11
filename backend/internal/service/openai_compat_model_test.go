@@ -17,9 +17,10 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -100,7 +101,7 @@ func TestApplyOpenAICompatModelNormalization(t *testing.T) {
 	t.Parallel()
 
 	t.Run("derives xhigh from model suffix when output config missing", func(t *testing.T) {
-		req := &apicompat.AnthropicRequest{Model: "gpt-5.4-xhigh"}
+		req := &protocolanthropic.AnthropicRequest{Model: "gpt-5.4-xhigh"}
 
 		applyOpenAICompatModelNormalization(req)
 
@@ -110,7 +111,7 @@ func TestApplyOpenAICompatModelNormalization(t *testing.T) {
 	})
 
 	t.Run("does not derive unsupported ultra suffix", func(t *testing.T) {
-		req := &apicompat.AnthropicRequest{Model: "gpt-5.6-terra-ultra"}
+		req := &protocolanthropic.AnthropicRequest{Model: "gpt-5.6-terra-ultra"}
 
 		applyOpenAICompatModelNormalization(req)
 
@@ -119,9 +120,9 @@ func TestApplyOpenAICompatModelNormalization(t *testing.T) {
 	})
 
 	t.Run("explicit output config wins over model suffix", func(t *testing.T) {
-		req := &apicompat.AnthropicRequest{
+		req := &protocolanthropic.AnthropicRequest{
 			Model:        "gpt-5.4-xhigh",
-			OutputConfig: &apicompat.AnthropicOutputConfig{Effort: "low"},
+			OutputConfig: &protocolanthropic.AnthropicOutputConfig{Effort: "low"},
 		}
 
 		applyOpenAICompatModelNormalization(req)
@@ -132,7 +133,7 @@ func TestApplyOpenAICompatModelNormalization(t *testing.T) {
 	})
 
 	t.Run("non openai model is untouched", func(t *testing.T) {
-		req := &apicompat.AnthropicRequest{Model: "claude-opus-4-6"}
+		req := &protocolanthropic.AnthropicRequest{Model: "claude-opus-4-6"}
 
 		applyOpenAICompatModelNormalization(req)
 
@@ -2119,7 +2120,7 @@ func TestHandleAnthropicBufferedStreamingResponse_OverridesUpstreamContentType(t
 	require.Equal(t, "application/json; charset=utf-8", rec.Header().Get("Content-Type"))
 	require.NotContains(t, rec.Header().Get("Content-Type"), "text/event-stream")
 
-	var message apicompat.AnthropicResponse
+	var message protocolanthropic.AnthropicResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &message))
 	require.Equal(t, "message", message.Type)
 	require.Equal(t, "resp_buffered_json", message.ID)

@@ -1,0 +1,25 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/routing/...",
+    "./internal/service",
+    "-run",
+    "Protocol|ReasoningEffort"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 19.415,
+  "log": "logs/capability-validation-unit.log.gz",
+  "test_events": {
+    "pass": 444,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

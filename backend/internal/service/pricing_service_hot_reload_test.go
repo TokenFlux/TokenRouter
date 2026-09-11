@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,7 +32,7 @@ func formatFloat(v float64) string {
 func newHotReloadPricingService(t *testing.T, fallbackJSON, overrideJSON string) *PricingService {
 	t.Helper()
 	dir := t.TempDir()
-	svc := &PricingService{cfg: &config.Config{}}
+	svc := newPricingServiceFixture(pricingServiceFixture{cfg: &config.Config{}})
 	svc.cfg.Pricing.DataDir = dir
 	require.NoError(t, os.WriteFile(svc.getPricingFilePath(), []byte(hotReloadCatalogJSON), 0644))
 	if fallbackJSON != "" {
@@ -47,7 +48,7 @@ func newHotReloadPricingService(t *testing.T, fallbackJSON, overrideJSON string)
 }
 
 func TestPricingCustomFilesFingerprint(t *testing.T) {
-	svc := &PricingService{cfg: &config.Config{}}
+	svc := newPricingServiceFixture(pricingServiceFixture{cfg: &config.Config{}})
 	require.Empty(t, svc.customPricingFilesFingerprint(), "未配置文件返回空串")
 
 	dir := t.TempDir()
@@ -67,69 +68,69 @@ func TestPricingCustomFilesFingerprint(t *testing.T) {
 
 func TestPricingHotReload_FallbackChangeRebuildsWithoutTouchingSyncAnchor(t *testing.T) {
 	svc := newHotReloadPricingService(t, `{`+hotReloadModelJSON("custom-a", 4e-6, 8e-6)+`}`, "")
-	require.InDelta(t, 4e-6, svc.pricingData["custom-a"].InputCostPerToken, 1e-12)
-	require.Nil(t, svc.pricingData["custom-b"])
-	require.NotEmpty(t, svc.customFilesHash)
-	anchor, updated := svc.localHash, svc.lastUpdated
+	require.InDelta(t, 4e-6, svc.runtime.Snapshot().Data["custom-a"].InputCostPerToken, 1e-12)
+	require.Nil(t, svc.runtime.Snapshot().Data["custom-b"])
+	require.NotEmpty(t, svc.runtime.Snapshot().CustomFilesHash)
+	anchor, updated := svc.runtime.Snapshot().LocalHash, svc.runtime.Snapshot().LastUpdated
 
 	require.NoError(t, os.WriteFile(svc.cfg.Pricing.FallbackFile, []byte(`{`+
 		hotReloadModelJSON("custom-a", 5e-6, 8e-6)+`,`+
 		hotReloadModelJSON("custom-b", 1e-6, 3e-6)+`}`), 0644))
 	svc.reloadIfCustomFilesChanged()
 
-	require.InDelta(t, 5e-6, svc.pricingData["custom-a"].InputCostPerToken, 1e-12, "改价即时生效")
-	require.NotNil(t, svc.pricingData["custom-b"], "新模型即时并入")
-	require.InDelta(t, 1e-6, svc.pricingData["remote-model"].InputCostPerToken, 1e-12, "目录条目不受影响")
-	require.Equal(t, anchor, svc.localHash, "热重载不得改动远程同步锚点")
-	require.Equal(t, updated, svc.lastUpdated)
-	require.Equal(t, svc.customPricingFilesFingerprint(), svc.customFilesHash)
+	require.InDelta(t, 5e-6, svc.runtime.Snapshot().Data["custom-a"].InputCostPerToken, 1e-12, "改价即时生效")
+	require.NotNil(t, svc.runtime.Snapshot().Data["custom-b"], "新模型即时并入")
+	require.InDelta(t, 1e-6, svc.runtime.Snapshot().Data["remote-model"].InputCostPerToken, 1e-12, "目录条目不受影响")
+	require.Equal(t, anchor, svc.runtime.Snapshot().LocalHash, "热重载不得改动远程同步锚点")
+	require.Equal(t, updated, svc.runtime.Snapshot().LastUpdated)
+	require.Equal(t, svc.customPricingFilesFingerprint(), svc.runtime.Snapshot().CustomFilesHash)
 }
 
 func TestPricingHotReload_UnchangedFilesSkipRebuild(t *testing.T) {
 	svc := newHotReloadPricingService(t,
 		`{`+hotReloadModelJSON("custom-a", 4e-6, 8e-6)+`}`,
 		`{"remote-model": {"input_cost_per_token": 7e-06}}`)
-	svc.pricingData["sentinel"] = &LiteLLMModelPricing{}
+	mutatePricingFixture(svc, func(data map[string]*LiteLLMModelPricing) { data["sentinel"] = &LiteLLMModelPricing{} })
 
 	svc.reloadIfCustomFilesChanged()
 
-	require.Contains(t, svc.pricingData, "sentinel", "指纹未变时不得重建")
+	require.Contains(t, svc.runtime.Snapshot().Data, "sentinel", "指纹未变时不得重建")
 }
 
 func TestPricingHotReload_OverrideChangePatchesCatalogAndAddsModels(t *testing.T) {
 	svc := newHotReloadPricingService(t, "", `{"remote-model": {"input_cost_per_token": 7e-06}}`)
-	require.InDelta(t, 7e-6, svc.pricingData["remote-model"].InputCostPerToken, 1e-12)
+	require.InDelta(t, 7e-6, svc.runtime.Snapshot().Data["remote-model"].InputCostPerToken, 1e-12)
 
 	require.NoError(t, os.WriteFile(svc.cfg.Pricing.OverrideFile, []byte(`{
 		"remote-model": {"input_cost_per_token": 9e-06},
 		`+hotReloadModelJSON("override-new-model", 5e-6, 1e-5)+`}`), 0644))
 	svc.reloadIfCustomFilesChanged()
 
-	require.InDelta(t, 9e-6, svc.pricingData["remote-model"].InputCostPerToken, 1e-12)
-	require.InDelta(t, 2e-6, svc.pricingData["remote-model"].OutputCostPerToken, 1e-12, "未覆盖字段保持目录值")
-	require.NotNil(t, svc.pricingData["override-new-model"])
+	require.InDelta(t, 9e-6, svc.runtime.Snapshot().Data["remote-model"].InputCostPerToken, 1e-12)
+	require.InDelta(t, 2e-6, svc.runtime.Snapshot().Data["remote-model"].OutputCostPerToken, 1e-12, "未覆盖字段保持目录值")
+	require.NotNil(t, svc.runtime.Snapshot().Data["override-new-model"])
 
 	// 清空补丁：目录条目回到原价，补丁新增的模型随之消失。
 	require.NoError(t, os.WriteFile(svc.cfg.Pricing.OverrideFile, []byte(`{}`), 0644))
 	svc.reloadIfCustomFilesChanged()
 
-	require.InDelta(t, 1e-6, svc.pricingData["remote-model"].InputCostPerToken, 1e-12)
-	require.Nil(t, svc.pricingData["override-new-model"])
+	require.InDelta(t, 1e-6, svc.runtime.Snapshot().Data["remote-model"].InputCostPerToken, 1e-12)
+	require.Nil(t, svc.runtime.Snapshot().Data["override-new-model"])
 }
 
 func TestPricingHotReload_InvalidFileKeepsCurrentDataUntilFixed(t *testing.T) {
 	svc := newHotReloadPricingService(t, `{`+hotReloadModelJSON("custom-a", 4e-6, 8e-6)+`}`, "")
-	before := svc.customFilesHash
+	before := svc.runtime.Snapshot().CustomFilesHash
 
 	require.NoError(t, os.WriteFile(svc.cfg.Pricing.FallbackFile, []byte(`{"custom-a": {"input_cost_per_token": `), 0644))
 	svc.reloadIfCustomFilesChanged()
-	require.InDelta(t, 4e-6, svc.pricingData["custom-a"].InputCostPerToken, 1e-12, "半写文件不得替换数据")
-	require.Equal(t, before, svc.customFilesHash, "指纹不更新，下一轮继续尝试")
+	require.InDelta(t, 4e-6, svc.runtime.Snapshot().Data["custom-a"].InputCostPerToken, 1e-12, "半写文件不得替换数据")
+	require.Equal(t, before, svc.runtime.Snapshot().CustomFilesHash, "指纹不更新，下一轮继续尝试")
 
 	require.NoError(t, os.WriteFile(svc.cfg.Pricing.FallbackFile, []byte(`{`+hotReloadModelJSON("custom-a", 6e-6, 8e-6)+`}`), 0644))
 	svc.reloadIfCustomFilesChanged()
-	require.InDelta(t, 6e-6, svc.pricingData["custom-a"].InputCostPerToken, 1e-12, "文件修好后正常重建")
-	require.NotEqual(t, before, svc.customFilesHash)
+	require.InDelta(t, 6e-6, svc.runtime.Snapshot().Data["custom-a"].InputCostPerToken, 1e-12, "文件修好后正常重建")
+	require.NotEqual(t, before, svc.runtime.Snapshot().CustomFilesHash)
 }
 
 // 删除文件等于清空该层：override 补丁撤销、fallback 独有模型消失，都在下一轮比对时生效，
@@ -138,26 +139,26 @@ func TestPricingHotReload_DeletedFileDropsItsLayer(t *testing.T) {
 	svc := newHotReloadPricingService(t,
 		`{`+hotReloadModelJSON("custom-a", 4e-6, 8e-6)+`}`,
 		`{"remote-model": {"input_cost_per_token": 7e-06}}`)
-	require.NotNil(t, svc.pricingData["custom-a"])
-	require.InDelta(t, 7e-6, svc.pricingData["remote-model"].InputCostPerToken, 1e-12)
+	require.NotNil(t, svc.runtime.Snapshot().Data["custom-a"])
+	require.InDelta(t, 7e-6, svc.runtime.Snapshot().Data["remote-model"].InputCostPerToken, 1e-12)
 
 	require.NoError(t, os.Remove(svc.cfg.Pricing.OverrideFile))
 	svc.reloadIfCustomFilesChanged()
-	require.InDelta(t, 1e-6, svc.pricingData["remote-model"].InputCostPerToken, 1e-12, "删除 override 后目录条目回到原价")
-	require.NotNil(t, svc.pricingData["custom-a"], "fallback 层不受影响")
+	require.InDelta(t, 1e-6, svc.runtime.Snapshot().Data["remote-model"].InputCostPerToken, 1e-12, "删除 override 后目录条目回到原价")
+	require.NotNil(t, svc.runtime.Snapshot().Data["custom-a"], "fallback 层不受影响")
 
 	require.NoError(t, os.Remove(svc.cfg.Pricing.FallbackFile))
 	svc.reloadIfCustomFilesChanged()
-	require.Nil(t, svc.pricingData["custom-a"], "删除 fallback 后其独有模型消失")
-	require.InDelta(t, 1e-6, svc.pricingData["remote-model"].InputCostPerToken, 1e-12, "目录条目不受影响")
+	require.Nil(t, svc.runtime.Snapshot().Data["custom-a"], "删除 fallback 后其独有模型消失")
+	require.InDelta(t, 1e-6, svc.runtime.Snapshot().Data["remote-model"].InputCostPerToken, 1e-12, "目录条目不受影响")
 
-	svc.pricingData["sentinel"] = &LiteLLMModelPricing{}
+	mutatePricingFixture(svc, func(data map[string]*LiteLLMModelPricing) { data["sentinel"] = &LiteLLMModelPricing{} })
 	svc.reloadIfCustomFilesChanged()
-	require.Contains(t, svc.pricingData, "sentinel", "缺失状态已记录，不得每轮重建")
+	require.Contains(t, svc.runtime.Snapshot().Data, "sentinel", "缺失状态已记录，不得每轮重建")
 
 	require.NoError(t, os.WriteFile(svc.cfg.Pricing.FallbackFile, []byte(`{`+hotReloadModelJSON("custom-a", 4e-6, 8e-6)+`}`), 0644))
 	svc.reloadIfCustomFilesChanged()
-	require.NotNil(t, svc.pricingData["custom-a"], "文件重新出现即恢复")
+	require.NotNil(t, svc.runtime.Snapshot().Data["custom-a"], "文件重新出现即恢复")
 }
 
 type stubPricingRemoteClient struct{ body string }
@@ -174,18 +175,18 @@ func (c stubPricingRemoteClient) FetchHashText(context.Context, string) (string,
 func TestPricingHotReload_DownloadRefreshesFingerprint(t *testing.T) {
 	svc := newHotReloadPricingService(t, `{`+hotReloadModelJSON("custom-a", 4e-6, 8e-6)+`}`, "")
 	svc.cfg.Pricing.RemoteURL = "https://example.com/pricing.json"
-	svc.remoteClient = stubPricingRemoteClient{body: hotReloadCatalogJSON}
+	setPricingFixtureRemote(svc, stubPricingRemoteClient{body: hotReloadCatalogJSON})
 	require.NoError(t, os.WriteFile(svc.cfg.Pricing.FallbackFile, []byte(`{`+hotReloadModelJSON("custom-b", 1e-6, 3e-6)+`}`), 0644))
 
 	require.NoError(t, svc.downloadPricingData())
 
-	require.NotNil(t, svc.pricingData["custom-b"])
-	require.Nil(t, svc.pricingData["custom-a"])
-	require.Equal(t, svc.customPricingFilesFingerprint(), svc.customFilesHash)
+	require.NotNil(t, svc.runtime.Snapshot().Data["custom-b"])
+	require.Nil(t, svc.runtime.Snapshot().Data["custom-a"])
+	require.Equal(t, svc.customPricingFilesFingerprint(), svc.runtime.Snapshot().CustomFilesHash)
 
-	svc.pricingData["sentinel"] = &LiteLLMModelPricing{}
+	mutatePricingFixture(svc, func(data map[string]*LiteLLMModelPricing) { data["sentinel"] = &LiteLLMModelPricing{} })
 	svc.reloadIfCustomFilesChanged()
-	require.Contains(t, svc.pricingData, "sentinel", "下载已消化文件变化，不得再次重建")
+	require.Contains(t, svc.runtime.Snapshot().Data, "sentinel", "下载已消化文件变化，不得再次重建")
 }
 
 // 只配置了 fallback/override 而没有 remote_url 时调度器也要运行，否则文件改动无人比对。
@@ -198,7 +199,7 @@ func TestPricingSchedulerStartsForCustomFilesWithoutRemoteURL(t *testing.T) {
 	svc.startUpdateScheduler()
 	done := make(chan struct{})
 	go func() {
-		svc.wg.Wait()
+		svc.runtime.Wait()
 		close(done)
 	}()
 

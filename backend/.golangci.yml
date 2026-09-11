@@ -4422,6 +4422,7 @@ linters:
           - '**/internal/billing/provider/*.go'
           - '!**/*_test.go'
           allow:
+          - github.com/TokenFlux/TokenRouter/internal/egress$
           - $gostd
           - entgo.io/ent
           - github.com/TokenFlux/TokenRouter/ent
@@ -11890,7 +11891,33 @@ linters:
           - '**/internal/billing/pricing/*.go'
           - '!**/*_test.go'
           allow:
-          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
           - github.com/TokenFlux/TokenRouter/internal/billing/pricing
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
@@ -11944,7 +11971,31 @@ linters:
           - '**/internal/routing/capability/*.go'
           - '!**/*_test.go'
           allow:
-          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
           - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
@@ -12048,11 +12099,84 @@ linters:
         leaf-gateway-clientmeta:
           list-mode: strict
           files:
+          - "!**/internal/gateway/clientmeta/claude_version.go"
           - '**/internal/gateway/clientmeta/**/*.go'
           - '**/internal/gateway/clientmeta/*.go'
           - '!**/*_test.go'
           allow:
-          - $gostd
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S03：internal/gateway/clientmeta/claude_version.go 的纯计算/测试依赖，沿用基础方向限制；来源为迁移前实现，随所属文件退出。
+        leaf-gateway-clientmeta-claude-version:
+          list-mode: strict
+          files:
+          - "**/internal/gateway/clientmeta/claude_version.go"
+          allow:
+          - golang.org/x/mod/semver$
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
           - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
@@ -12939,6 +13063,9 @@ linters:
         protocol-bridge:
           list-mode: strict
           files:
+          - "!**/internal/protocol/bridge/gemini_compat_stream.go"
+          - "!**/internal/protocol/bridge/gemini_messages_stream.go"
+          - "!**/internal/protocol/bridge/chatcompletions_responses_bridge.go"
           - '**/internal/protocol/bridge/**/*.go'
           - '**/internal/protocol/bridge/*.go'
           - '!**/*_test.go'
@@ -12990,12 +13117,236 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: net/rpc
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S03：internal/protocol/bridge/chatcompletions_responses_bridge.go 的纯计算/测试依赖，沿用基础方向限制；来源为迁移前实现，随所属文件退出。
+        # S03：internal/protocol/bridge/gemini_messages_stream.go 的纯计算/测试依赖，沿用基础方向限制；来源为迁移前实现，随所属文件退出。
+        # S03：internal/protocol/bridge/gemini_compat_stream.go 的纯计算/测试依赖，沿用基础方向限制；来源为迁移前实现，随所属文件退出。
+        s03-protocol-gemini-compat-iterator:
+          list-mode: strict
+          files:
+          - "**/internal/protocol/bridge/gemini_compat_stream.go"
+          allow:
+          - iter$
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/anthropic
+          - github.com/TokenFlux/TokenRouter/internal/protocol/bridge
+          - github.com/TokenFlux/TokenRouter/internal/protocol/gemini
+          - github.com/TokenFlux/TokenRouter/internal/protocol/google
+          - github.com/TokenFlux/TokenRouter/internal/protocol/openai
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S03：internal/protocol/bridge/chatcompletions_responses_bridge.go 的纯计算/测试依赖，沿用基础方向限制；来源为迁移前实现，随所属文件退出。
+        # S03：internal/protocol/bridge/gemini_messages_stream.go 的纯计算/测试依赖，沿用基础方向限制；来源为迁移前实现，随所属文件退出。
+        s03-protocol-gemini-messages-iterator:
+          list-mode: strict
+          files:
+          - "**/internal/protocol/bridge/gemini_messages_stream.go"
+          allow:
+          - iter$
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/anthropic
+          - github.com/TokenFlux/TokenRouter/internal/protocol/bridge
+          - github.com/TokenFlux/TokenRouter/internal/protocol/gemini
+          - github.com/TokenFlux/TokenRouter/internal/protocol/google
+          - github.com/TokenFlux/TokenRouter/internal/protocol/openai
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S03：internal/protocol/bridge/chatcompletions_responses_bridge.go 的纯计算/测试依赖，沿用基础方向限制；来源为迁移前实现，随所属文件退出。
+        protocol-bridge-response-hash:
+          list-mode: strict
+          files:
+          - "**/internal/protocol/bridge/chatcompletions_responses_bridge.go"
+          allow:
+          - crypto/sha256$
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/anthropic
+          - github.com/TokenFlux/TokenRouter/internal/protocol/bridge
+          - github.com/TokenFlux/TokenRouter/internal/protocol/gemini
+          - github.com/TokenFlux/TokenRouter/internal/protocol/google
+          - github.com/TokenFlux/TokenRouter/internal/protocol/openai
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
         protocol-bridge-tests:
           list-mode: strict
           files:
+          - "!**/internal/protocol/bridge/runtime_test.go"
           - '**/internal/protocol/bridge/**/*_test.go'
           - '**/internal/protocol/bridge/*_test.go'
           allow:
+          - bufio$
+          - bytes$
+          - context$
+          - encoding/base64$
+          - encoding/binary$
+          - encoding/hex$
+          - encoding/json$
+          - errors$
+          - fmt$
+          - io$
+          - maps$
+          - math$
+          - net/url$
+          - reflect$
+          - regexp$
+          - slices$
+          - sort$
+          - strconv$
+          - strings$
+          - sync$
+          - sync/atomic$
+          - time$
+          - unicode$
+          - unicode/utf8$
+          - testing$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/anthropic
+          - github.com/TokenFlux/TokenRouter/internal/protocol/bridge
+          - github.com/TokenFlux/TokenRouter/internal/protocol/gemini
+          - github.com/TokenFlux/TokenRouter/internal/protocol/google
+          - github.com/TokenFlux/TokenRouter/internal/protocol/openai
+          - github.com/google/go-cmp/
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/stretchr/testify/
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/goleak$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S03：internal/protocol/bridge/runtime_test.go 的纯计算/测试依赖，沿用基础方向限制；来源为迁移前实现，随所属文件退出。
+        protocol-bridge-test-runtime:
+          list-mode: strict
+          files:
+          - "**/internal/protocol/bridge/runtime_test.go"
+          allow:
+          - crypto/rand$
           - bufio$
           - bytes$
           - context$
@@ -17900,6 +18251,9 @@ linters:
           - '!**/internal/pkg/antigravity/client.go'
           - '!**/internal/pkg/antigravity/oauth.go'
           allow:
+          - github.com/TokenFlux/TokenRouter/internal/protocol/bridge$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/gemini$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/anthropic$
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/pkg/antigravity$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
@@ -17952,6 +18306,10 @@ linters:
           - '**/internal/pkg/apicompat/*.go'
           - '!**/*_test.go'
           allow:
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/bridge$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/anthropic$
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/pkg/apicompat$
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
@@ -18008,6 +18366,7 @@ linters:
           files:
           - '**/internal/pkg/claude/cli_version.go'
           allow:
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/claude$
@@ -18020,7 +18379,6 @@ linters:
           - github.com/shopspring/decimal$
           - github.com/tidwall/gjson$
           - github.com/tidwall/sjson$
-          - golang.org/x/mod/semver$
           - golang.org/x/net/
           deny:
           - pkg: database/sql
@@ -18035,6 +18393,7 @@ linters:
           - '!**/*_test.go'
           - '!**/internal/pkg/claude/cli_version.go'
           allow:
+          - github.com/TokenFlux/TokenRouter/internal/protocol/anthropic$
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/claude$
@@ -18347,10 +18706,38 @@ linters:
         legacy-pkg-googleapi:
           list-mode: strict
           files:
+          - "!**/internal/pkg/googleapi/status.go"
           - '**/internal/pkg/googleapi/**/*.go'
           - '**/internal/pkg/googleapi/*.go'
           - '!**/*_test.go'
           allow:
+          - github.com/TokenFlux/TokenRouter/internal/protocol/google$
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/googleapi$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - golang.org/x/net/
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S03：internal/pkg/googleapi/status.go 的纯计算/测试依赖，沿用基础方向限制；来源为迁移前实现，随所属文件退出。
+        legacy-pkg-googleapi-http-compat:
+          list-mode: strict
+          files:
+          - "**/internal/pkg/googleapi/status.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/google$
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/googleapi$
@@ -18473,6 +18860,7 @@ linters:
           - '**/internal/pkg/httputil/*.go'
           - '!**/*_test.go'
           allow:
+          - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/httputil$
@@ -18723,6 +19111,7 @@ linters:
           - '**/internal/pkg/openai/*.go'
           - '!**/*_test.go'
           allow:
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
@@ -18775,6 +19164,7 @@ linters:
           - '**/internal/pkg/openai_compat/*.go'
           - '!**/*_test.go'
           allow:
+          - github.com/TokenFlux/TokenRouter/internal/protocol/openai$
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
           - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
@@ -19671,6 +20061,7 @@ linters:
         app:
           list-mode: strict
           files:
+          - "!**/internal/app/pricing.go"
           - '**/internal/app/**/*.go'
           - '**/internal/app/*.go'
           - '!**/internal/app/legacybridge/**'
@@ -19717,9 +20108,45 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: github.com/TokenFlux/TokenRouter/internal/model
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S03：internal/app/pricing.go 的纯计算/测试依赖，沿用基础方向限制；来源为迁移前实现，随所属文件退出。
+        s03-app-pricing:
+          list-mode: strict
+          files:
+          - "**/internal/app/pricing.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/service$
+          - github.com/TokenFlux/TokenRouter/migrations$
+          - $gostd
+          - entgo.io/ent
+          - github.com/TokenFlux/TokenRouter/ent
+          - github.com/TokenFlux/TokenRouter/internal/
+          - github.com/andybalholm/brotli$
+          - github.com/google/wire$
+          - github.com/imroc/req/v3$
+          - github.com/klauspost/compress/
+          - github.com/lib/pq
+          - github.com/natefinch/lumberjack$
+          - github.com/redis/go-redis/v9
+          - github.com/refraction-networking/utls$
+          - go.uber.org/zap
+          - golang.org/x/mod/semver$
+          - golang.org/x/net/
+          - gopkg.in/natefinch/lumberjack.v2$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/service/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
         app-tests:
           list-mode: strict
           files:
+          - "!**/internal/app/protocol_catalog_http_test.go"
           - '**/internal/app/**/*_test.go'
           - '**/internal/app/*_test.go'
           - '!**/internal/app/legacybridge/**'
@@ -19761,14 +20188,84 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: github.com/TokenFlux/TokenRouter/internal/model
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S03：目录 HTTP 装配契约测试仅许可当前旧 handler 根包与 Gin；保留其它方向限制，S11/S16 清理。
+        s03-app-catalog-http-test:
+          list-mode: strict
+          files:
+          - "**/internal/app/protocol_catalog_http_test.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/server/routes$
+          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
+          - github.com/TokenFlux/TokenRouter/internal/routing/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/gin-gonic/gin$
+          - github.com/TokenFlux/TokenRouter/internal/handler$
+          # S02 进程测试生成隔离配置，不继承用户环境。
+          - gopkg.in/yaml.v3$
+          - $gostd
+          - entgo.io/ent
+          - github.com/TokenFlux/TokenRouter/ent
+          - github.com/TokenFlux/TokenRouter/internal/
+          - github.com/andybalholm/brotli$
+          - github.com/google/go-cmp/
+          - github.com/google/wire$
+          - github.com/imroc/req/v3$
+          - github.com/klauspost/compress/
+          - github.com/lib/pq
+          - github.com/natefinch/lumberjack$
+          - github.com/redis/go-redis/v9
+          - github.com/refraction-networking/utls$
+          - github.com/stretchr/testify/
+          - go.uber.org/goleak$
+          - go.uber.org/zap
+          - golang.org/x/mod/semver$
+          - golang.org/x/net/
+          - gopkg.in/natefinch/lumberjack.v2$
+          - github.com/DATA-DOG/go-sqlmock$
+          - modernc.org/sqlite$
+          - github.com/testcontainers/testcontainers-go
+          - github.com/TokenFlux/TokenRouter/migrations$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/service
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
         legacybridge:
           list-mode: strict
           files:
+          - "!**/internal/app/legacybridge/pricing.go"
           - '**/internal/app/legacybridge/**/*.go'
           - '**/internal/app/legacybridge/*.go'
           - '!**/*_test.go'
           - '!**/internal/app/legacybridge/announcement.go'
           allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+        # S03：internal/app/legacybridge/pricing.go 的纯计算/测试依赖，沿用基础方向限制；来源为迁移前实现，随所属文件退出。
+        s03-legacybridge-pricing:
+          list-mode: strict
+          files:
+          - "**/internal/app/legacybridge/pricing.go"
+          allow:
+          - github.com/TokenFlux/TokenRouter/internal/service$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/openai$
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
           - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
@@ -19938,6 +20435,9 @@ linters:
           files:
           - '**/internal/app/http_bindings.go'
           allow:
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/routing/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
           - github.com/TokenFlux/TokenRouter/migrations$
           - $gostd
           - entgo.io/ent

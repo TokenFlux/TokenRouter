@@ -1,0 +1,126 @@
+[
+  {
+    "name": "normal",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "./..."
+    ],
+    "platform": "darwin",
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 0.431,
+    "packages": 150,
+    "errors": [],
+    "selection": "selection-normal.json"
+  },
+  {
+    "name": "unit",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-tags=unit",
+      "./..."
+    ],
+    "platform": "darwin",
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 0.438,
+    "packages": 150,
+    "errors": [],
+    "selection": "selection-unit.json"
+  },
+  {
+    "name": "integration",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-tags=integration",
+      "./..."
+    ],
+    "platform": "darwin",
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 0.44,
+    "packages": 150,
+    "errors": [],
+    "selection": "selection-integration.json"
+  },
+  {
+    "name": "wireinject",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-tags=wireinject",
+      "./..."
+    ],
+    "platform": "darwin",
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 0.445,
+    "packages": 150,
+    "errors": [],
+    "selection": "selection-wireinject.json"
+  },
+  {
+    "name": "embed",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-tags=embed",
+      "./..."
+    ],
+    "platform": "darwin",
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 0.439,
+    "packages": 150,
+    "errors": [],
+    "selection": "selection-embed.json"
+  },
+  {
+    "name": "e2e",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-tags=e2e",
+      "./..."
+    ],
+    "platform": "darwin",
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 0.444,
+    "packages": 151,
+    "errors": [],
+    "selection": "selection-e2e.json"
+  },
+  {
+    "name": "linux",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "./..."
+    ],
+    "platform": "linux",
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 0.435,
+    "packages": 150,
+    "errors": [],
+    "selection": "selection-linux.json"
+  }
+]

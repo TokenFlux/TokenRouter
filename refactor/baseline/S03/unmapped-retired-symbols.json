@@ -1,0 +1,12 @@
+[
+  [
+    "backend/internal/pkg/httputil/body.go",
+    "requestBodyReadInitCap",
+    ""
+  ],
+  [
+    "backend/internal/pkg/httputil/body.go",
+    "requestBodyReadMaxInitCap",
+    ""
+  ]
+]

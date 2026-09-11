@@ -1,0 +1,16 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "--output.json.path=../refactor/baseline/S03/closeout-lint-normal.json",
+    "./..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 32.038,
+  "log": "logs/closeout-lint-normal.log.gz"
+}

@@ -7,11 +7,12 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+
 	"github.com/stretchr/testify/require"
 )
 
 func TestParsePricingData_DerivesLongContextFromAboveTierFields(t *testing.T) {
-	service := &PricingService{}
+	service := newPricingServiceFixture(pricingServiceFixture{})
 	data, err := service.parsePricingData([]byte(`{
 		"gpt-above": {"litellm_provider": "openai", "mode": "chat",
 			"input_cost_per_token": 5e-06, "output_cost_per_token": 3e-05,
@@ -61,7 +62,7 @@ func TestGetModelPricing_XAIThresholdInclusive(t *testing.T) {
 }
 
 func TestParsePricingData_ExplicitZeroThresholdDisablesLadder(t *testing.T) {
-	service := &PricingService{}
+	service := newPricingServiceFixture(pricingServiceFixture{})
 	data, err := service.parsePricingData([]byte(`{
 		"gpt-5.5": {"litellm_provider": "openai", "mode": "chat",
 			"input_cost_per_token": 5e-06, "output_cost_per_token": 3e-05,
@@ -78,7 +79,7 @@ func TestParsePricingData_WarnsOrphanCacheTierFields(t *testing.T) {
 	logSink, restore := captureStructuredLog(t)
 	defer restore()
 
-	service := &PricingService{}
+	service := newPricingServiceFixture(pricingServiceFixture{})
 	data, err := service.parsePricingData([]byte(`{
 		"gemini-orphan": {"litellm_provider": "vertex_ai-language-models", "mode": "chat",
 			"input_cost_per_token": 1.25e-06, "output_cost_per_token": 1e-05,
@@ -106,7 +107,7 @@ func TestParsePricingData_WarnsLopsidedLongContextLadder(t *testing.T) {
 	logSink, restore := captureStructuredLog(t)
 	defer restore()
 
-	service := &PricingService{}
+	service := newPricingServiceFixture(pricingServiceFixture{})
 	data, err := service.parsePricingData([]byte(`{
 		"mixed-versions": {"litellm_provider": "openai", "mode": "chat",
 			"input_cost_per_token": 5e-06, "output_cost_per_token": 3e-05,
@@ -135,7 +136,7 @@ func TestDefaultCatalogSnapshot_CacheTierContract(t *testing.T) {
 		require.Empty(t, orphanCacheTierFields(raw), "快照条目 %s 带孤儿 cache above 字段", name)
 	}
 
-	service := &PricingService{}
+	service := newPricingServiceFixture(pricingServiceFixture{})
 	data, err := service.parsePricingData(body)
 	require.NoError(t, err)
 	require.False(t, logSink.ContainsMessage("carry cache above-tier prices"))

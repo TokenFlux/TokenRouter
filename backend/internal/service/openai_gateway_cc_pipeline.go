@@ -12,9 +12,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -281,7 +282,7 @@ func (s *OpenAIGatewayService) scanCCStream(
 	logPrefix string,
 	requestID string,
 	startTime time.Time,
-	emit func(*apicompat.ChatCompletionsChunk),
+	emit func(*protocolopenai.ChatCompletionsChunk),
 ) ccStreamScanState {
 	var st ccStreamScanState
 	tierObserver := &upstreamResponseModelObserver{}
@@ -313,7 +314,7 @@ func (s *OpenAIGatewayService) scanCCStream(
 			st.Usage = *u
 		}
 
-		var chunk apicompat.ChatCompletionsChunk
+		var chunk protocolopenai.ChatCompletionsChunk
 		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
 			logger.L().Warn(logPrefix+": failed to parse chat stream chunk",
 				zap.Error(err),
@@ -356,7 +357,7 @@ func (s *OpenAIGatewayService) readCCUpstreamJSONResponse(
 	c *gin.Context,
 	resp *http.Response,
 	writeError compatErrorWriter,
-) (*apicompat.ChatCompletionsResponse, OpenAIUsage, error) {
+) (*protocolopenai.ChatCompletionsResponse, OpenAIUsage, error) {
 	respBody, err := ReadUpstreamResponseBody(resp.Body, s.cfg, c, openAITooLargeError)
 	if err != nil {
 		if !errors.Is(err, ErrUpstreamResponseBodyTooLarge) {
@@ -365,7 +366,7 @@ func (s *OpenAIGatewayService) readCCUpstreamJSONResponse(
 		return nil, OpenAIUsage{}, fmt.Errorf("read upstream body: %w", err)
 	}
 
-	var ccResp apicompat.ChatCompletionsResponse
+	var ccResp protocolopenai.ChatCompletionsResponse
 	if err := json.Unmarshal(respBody, &ccResp); err != nil {
 		writeError(c, http.StatusBadGateway, "api_error", "Failed to parse upstream response")
 		return nil, OpenAIUsage{}, fmt.Errorf("parse chat completions response: %w", err)

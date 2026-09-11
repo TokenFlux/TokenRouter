@@ -29,6 +29,8 @@ Code Assist/Google One 需要有效 project；AI Studio 的 project 可选并使
 <a id="gemini_protocol_dispatch"></a>
 ## 协议分派
 
+Gemini 通用 wire 与 Google 错误结构分别在 `protocol/gemini`、`protocol/google`；Google HTTP 状态映射在 `gateway/httpapi`，激活诊断仍在旧适配。纯 Anthropic ↔ Gemini 转换位于 `protocol/bridge`，原生与内部方言分别接收显式选项，保留 schema、工具配对、签名和预算差异；HTTP 读写、模型判断、重试及取消由旧执行服务负责。
+
 Gemini SDK/CLI 使用 `/v1beta/models`、`/v1beta/models/{model}` 和 `{model}:{action}` 形状，保持 Google 请求、流和错误语义。Anthropic Messages、Count Tokens、OpenAI Responses 与 Chat Completions 入口则先归一化，再由 Gemini 兼容服务转换为上游请求，响应恢复为原客户端协议。
 
 Gemini 分组支持 Messages、Responses、Chat 和 Gemini GenerateContent，新建时默认只启用 GenerateContent；四项都可关闭，迁移前已有分组启用四项。GenerateContent、StreamGenerateContent 和 CountTokens 的 POST 动作受 Gemini 协议开关控制，模型列表 GET 不受影响。

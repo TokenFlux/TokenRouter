@@ -49,6 +49,8 @@
 
 settings 的通用实现位于 `settings` 与 `settings/postgres`；旧 `SettingService` 继续解释业务设置和维护领域缓存。idempotency 的核心、观察出口与 SQL Adapter 已独立，旧默认入口只委托唯一实例。site 拥有公告实体、targeting、用例和到期 worker，HTTP 与 PostgreSQL Adapter 分开；旧 domain 公告类型只作为 Ent 生成代码引用的别名。
 
+`protocol` 拥有协议值、各方言报文和 `bridge` 转换状态；`routing/capability` 拥有原生集合、准入及单步 fallback，`routing` 拥有 effort 映射规则。`billing/pricing` 拥有价卡、目录解析、费用与展示计算，`billing/provider` 拥有目录加载、热更新及唯一运行缓存。旧 apicompat/domain/PricingService 保留必要转接；账号选择、平台传输、资金事务仍在旧业务图。纯模块不读取配置、网络、文件或业务实体。
+
 公告需要的用户与有效订阅信息通过 `app/legacybridge` 转成窄投影，匹配规则仍由 site 执行。模块不导入 app。旧图的跨层构造暂留原 provider，应用级启停和新旧模块绑定由 app 管理，不能通过搬动目录给新代码继承历史依赖许可。
 
 `pkg/apperror`、`pagination`、`timezone`、`ipmatch`、`oauthpkce`、`logredact` 提供通用值类型与计算；`server/httpx`、`server/clientip` 拥有 HTTP 适配。旧 pkg/util 入口保留必要的类型别名和委托，不复制实现或状态。
@@ -63,6 +65,8 @@ settings 的通用实现位于 `settings` 与 `settings/postgres`；旧 `Setting
 完整应用先初始化日志，再由 bootstrap 初始化时区和 PostgreSQL，在原十分钟迁移预算内执行迁移与暂时错误重试，补齐持久 JWT secret、完整校验配置，并在 simple 模式补齐默认分组和管理员并发。Ent 与原生 SQL 共享连接，只有一个关闭拥有者。
 
 Wire 构造对象并登记资源后，lifecycle 才启动后台工作。时间轮和设置/定价预热先完成，再启动缓存订阅及消费队列，最后启动周期生产者、任务拉取和 HTTP。原有首次执行、预热降级、功能开关和动态 worker 数量保持各模块语义。构造或部分启动失败时回收已取得及已尝试启动的资源，错误链保留原始原因。
+
+定价 provider 由 `app/pricing.go` 投影独立 Options，继续走原 PricingInitialization 与 PricingService hook 的 Initialize → Start → Stop 顺序。旧远端 repository 客户端委托 provider；旧 PricingService 不再持有目录锁、ticker 或第二份缓存。平台模型别名和动态 Grok 默认值通过 `app/legacybridge` 注入，每次查价只取得一次快照。
 
 SIGINT、SIGTERM、监听失败和 Linux 手动重启进入同一关闭流程。HTTP 有独立五秒优雅关闭预算，随后后台清理使用独立三十秒总预算：先关闭额外监听、Live 本地观察与 hijack 连接，等待完整 handler 返回，再停止周期生产者和任务拉取，逐层排空用量、缓存写入、额度镜像、延迟写回、通知和审计，最后关闭订阅、时间轮、空闲 HTTP 连接、Redis、Ent/SQL 和日志文件。
 

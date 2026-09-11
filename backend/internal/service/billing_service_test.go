@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -1566,7 +1567,7 @@ func TestCalculateCostWithServiceTier_ClaudeOpus48FastUsesDoublePricing(t *testi
 }
 
 func TestBillingServiceGetModelPricing_UsesDynamicPriorityFields(t *testing.T) {
-	pricingSvc := &PricingService{
+	pricingSvc := newPricingServiceFixture(pricingServiceFixture{
 		pricingData: map[string]*LiteLLMModelPricing{
 			"gpt-5.4": {
 				InputCostPerToken:               2.5e-6,
@@ -1581,7 +1582,7 @@ func TestBillingServiceGetModelPricing_UsesDynamicPriorityFields(t *testing.T) {
 				LongContextOutputCostMultiplier: 1.5,
 			},
 		},
-	}
+	})
 	svc := NewBillingService(&config.Config{}, pricingSvc)
 
 	pricing, err := svc.GetModelPricing("gpt-5.4")
@@ -1615,7 +1616,7 @@ func TestBillingServiceGetModelPricing_OpenAIFallbackGpt52Variants(t *testing.T)
 }
 
 func TestCalculateCostWithServiceTier_PriorityFallsBackToTierMultiplierWhenExplicitPriceMissing(t *testing.T) {
-	svc := NewBillingService(&config.Config{}, &PricingService{
+	svc := NewBillingService(&config.Config{}, newPricingServiceFixture(pricingServiceFixture{
 		pricingData: map[string]*LiteLLMModelPricing{
 			"custom-no-priority": {
 				InputCostPerToken:           1e-6,
@@ -1624,7 +1625,7 @@ func TestCalculateCostWithServiceTier_PriorityFallsBackToTierMultiplierWhenExpli
 				CacheReadInputTokenCost:     0.25e-6,
 			},
 		},
-	})
+	}))
 	tokens := UsageTokens{InputTokens: 100, OutputTokens: 50, CacheCreationTokens: 40, CacheReadTokens: 20}
 
 	baseCost, err := svc.CalculateCost("custom-no-priority", tokens, 1.0)
@@ -1659,7 +1660,7 @@ func TestGetModelPricing_OpenAIGpt52FallbacksExposePriorityPrices(t *testing.T) 
 }
 
 func TestGetModelPricing_MapsDynamicPriorityFieldsIntoBillingPricing(t *testing.T) {
-	svc := NewBillingService(&config.Config{}, &PricingService{
+	svc := NewBillingService(&config.Config{}, newPricingServiceFixture(pricingServiceFixture{
 		pricingData: map[string]*LiteLLMModelPricing{
 			"dynamic-tier-model": {
 				InputCostPerToken:                   1e-6,
@@ -1675,7 +1676,7 @@ func TestGetModelPricing_MapsDynamicPriorityFieldsIntoBillingPricing(t *testing.
 				LongContextOutputCostMultiplier:     1.25,
 			},
 		},
-	})
+	}))
 
 	pricing, err := svc.GetModelPricing("dynamic-tier-model")
 	require.NoError(t, err)

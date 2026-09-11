@@ -1,0 +1,25 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/protocol/...",
+    "./internal/service",
+    "-run",
+    "Gemini|ThinkingProtocol"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 15.025,
+  "log": "logs/gemini-all-unit-second.log.gz",
+  "test_events": {
+    "pass": 487,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

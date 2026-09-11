@@ -24,9 +24,9 @@ const openAILadderCatalogJSON = `{
 // newStubPricingServiceFromJSON 通过与生产相同的解析路径创建价格目录 stub。
 func newStubPricingServiceFromJSON(t *testing.T, body string) *PricingService {
 	t.Helper()
-	service := &PricingService{}
+	service := newPricingServiceFixture(pricingServiceFixture{})
 	data, err := service.parsePricingData([]byte(body))
 	require.NoError(t, err)
-	service.pricingData = data
+	setPricingFixtureData(service, data)
 	return service
 }

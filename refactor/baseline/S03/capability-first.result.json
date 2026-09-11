@@ -1,0 +1,25 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/routing/...",
+    "./internal/gateway/...",
+    "./internal/domain",
+    "./internal/pkg/httputil",
+    "./internal/pkg/openai"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 2.917,
+  "log": "logs/capability-first.log.gz",
+  "test_events": {
+    "pass": 156,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

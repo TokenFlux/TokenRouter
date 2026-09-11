@@ -6,7 +6,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
@@ -83,7 +84,7 @@ func (d *openAIChatSilentRefusalDetector) ObservePayload(payload []byte) {
 	d.observeResponsesPayload(payload, eventType)
 }
 
-func (d *openAIChatSilentRefusalDetector) ObserveChatChunk(chunk apicompat.ChatCompletionsChunk) {
+func (d *openAIChatSilentRefusalDetector) ObserveChatChunk(chunk protocolopenai.ChatCompletionsChunk) {
 	if d == nil || !d.enabled {
 		return
 	}

@@ -3,12 +3,12 @@ package service
 import (
 	"encoding/json"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 )
 
 const openAICompatAnthropicReplayMaxTailMessages = 12
 
-func applyAnthropicCompatFullReplayGuard(req *apicompat.AnthropicRequest) bool {
+func applyAnthropicCompatFullReplayGuard(req *protocolanthropic.AnthropicRequest) bool {
 	if req == nil || len(req.Messages) <= openAICompatAnthropicReplayMaxTailMessages {
 		return false
 	}
@@ -19,11 +19,11 @@ func applyAnthropicCompatFullReplayGuard(req *apicompat.AnthropicRequest) bool {
 		return false
 	}
 
-	req.Messages = append([]apicompat.AnthropicMessage(nil), req.Messages[start:]...)
+	req.Messages = append([]protocolanthropic.AnthropicMessage(nil), req.Messages[start:]...)
 	return true
 }
 
-func expandAnthropicCompatTrimBoundary(messages []apicompat.AnthropicMessage, start int) int {
+func expandAnthropicCompatTrimBoundary(messages []protocolanthropic.AnthropicMessage, start int) int {
 	if start <= 0 || start >= len(messages) {
 		return start
 	}
@@ -66,8 +66,8 @@ func expandAnthropicCompatTrimBoundary(messages []apicompat.AnthropicMessage, st
 	}
 }
 
-func anthropicCompatMessageToolIDs(msg apicompat.AnthropicMessage) ([]string, []string) {
-	var blocks []apicompat.AnthropicContentBlock
+func anthropicCompatMessageToolIDs(msg protocolanthropic.AnthropicMessage) ([]string, []string) {
+	var blocks []protocolanthropic.AnthropicContentBlock
 	if err := json.Unmarshal(msg.Content, &blocks); err != nil {
 		return nil, nil
 	}

@@ -21,6 +21,9 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
@@ -723,7 +726,7 @@ func BuildQoderPayloadFromChatCompletionsForSite(body []byte, userType string, s
 }
 
 func parseQoderChatCompletionsPayload(body []byte) (qoderPayloadRequest, error) {
-	var req apicompat.ChatCompletionsRequest
+	var req protocolopenai.ChatCompletionsRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		return qoderPayloadRequest{}, fmt.Errorf("parse chat completions request: %w", err)
 	}
@@ -769,7 +772,7 @@ func BuildQoderPayloadFromAnthropicMessages(body []byte, userType string) (map[s
 }
 
 func parseQoderResponsesPayload(body []byte) (qoderPayloadRequest, error) {
-	var req apicompat.ResponsesRequest
+	var req protocolopenai.ResponsesRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		return qoderPayloadRequest{}, fmt.Errorf("parse responses request: %w", err)
 	}
@@ -789,7 +792,7 @@ func parseQoderResponsesPayload(body []byte) (qoderPayloadRequest, error) {
 	}
 	// 从 input 中提取 developer/system 消息
 	if len(req.Input) > 0 {
-		var items []apicompat.ResponsesInputItem
+		var items []protocolopenai.ResponsesInputItem
 		if err := json.Unmarshal(req.Input, &items); err == nil {
 			for _, item := range items {
 				if item.Role == "developer" || item.Role == "system" {
@@ -834,7 +837,7 @@ func parseQoderResponsesPayload(body []byte) (qoderPayloadRequest, error) {
 }
 
 func parseQoderAnthropicMessagesPayload(body []byte) (qoderPayloadRequest, error) {
-	var req apicompat.AnthropicRequest
+	var req protocolanthropic.AnthropicRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		return qoderPayloadRequest{}, fmt.Errorf("parse anthropic messages request: %w", err)
 	}
@@ -1958,7 +1961,7 @@ func qoderRequestMap(body []byte) map[string]any {
 	return req
 }
 
-func qoderChatSystemText(messages []apicompat.ChatMessage) string {
+func qoderChatSystemText(messages []protocolopenai.ChatMessage) string {
 	parts := make([]string, 0)
 	for _, message := range messages {
 		// system 和 developer 消息都应该合并到 system prompt
@@ -1982,7 +1985,7 @@ func qoderChatContentText(raw json.RawMessage) string {
 	if err := json.Unmarshal(raw, &text); err == nil {
 		return text
 	}
-	var parts []apicompat.ChatContentPart
+	var parts []protocolopenai.ChatContentPart
 	if err := json.Unmarshal(raw, &parts); err == nil {
 		out := make([]string, 0, len(parts))
 		for _, part := range parts {
@@ -1995,7 +1998,7 @@ func qoderChatContentText(raw json.RawMessage) string {
 	return ""
 }
 
-func qoderMessagesFromChatCompletions(messages []apicompat.ChatMessage) ([]qoderMessage, error) {
+func qoderMessagesFromChatCompletions(messages []protocolopenai.ChatMessage) ([]qoderMessage, error) {
 	out := make([]qoderMessage, 0, len(messages))
 	for _, message := range messages {
 		converted, err := qoderMessageFromChatCompletionsMessage(message)
@@ -2009,7 +2012,7 @@ func qoderMessagesFromChatCompletions(messages []apicompat.ChatMessage) ([]qoder
 	return out, nil
 }
 
-func qoderMessageFromChatCompletionsMessage(message apicompat.ChatMessage) (qoderMessage, error) {
+func qoderMessageFromChatCompletionsMessage(message protocolopenai.ChatMessage) (qoderMessage, error) {
 	role := strings.TrimSpace(message.Role)
 	switch role {
 	case "", "user":
@@ -2060,7 +2063,7 @@ func qoderMessageFromChatCompletionsMessage(message apicompat.ChatMessage) (qode
 	}
 }
 
-func qoderChatToolCalls(toolCalls []apicompat.ChatToolCall) []any {
+func qoderChatToolCalls(toolCalls []protocolopenai.ChatToolCall) []any {
 	if len(toolCalls) == 0 {
 		return nil
 	}
@@ -2086,7 +2089,7 @@ func qoderChatToolCalls(toolCalls []apicompat.ChatToolCall) []any {
 	return out
 }
 
-func qoderLegacyChatFunctionCall(functionCall *apicompat.ChatFunctionCall) []any {
+func qoderLegacyChatFunctionCall(functionCall *protocolopenai.ChatFunctionCall) []any {
 	if functionCall == nil {
 		return nil
 	}
@@ -2107,7 +2110,7 @@ func qoderAnthropicSystemText(raw json.RawMessage) (string, error) {
 	if err := json.Unmarshal(raw, &text); err == nil {
 		return qoderStripVolatileSystemText(text), nil
 	}
-	var blocks []apicompat.AnthropicContentBlock
+	var blocks []protocolanthropic.AnthropicContentBlock
 	if err := json.Unmarshal(raw, &blocks); err != nil {
 		return "", errors.New("unsupported system field")
 	}
@@ -2139,7 +2142,7 @@ func qoderMessagesFromResponsesInput(raw json.RawMessage) ([]qoderMessage, error
 		}
 		return []qoderMessage{{Role: "user", Text: text, Raw: map[string]any{"role": "user", "content": text}}}, nil
 	}
-	var items []apicompat.ResponsesInputItem
+	var items []protocolopenai.ResponsesInputItem
 	if err := json.Unmarshal(raw, &items); err != nil {
 		return nil, fmt.Errorf("parse canonical responses input: %w", err)
 	}
@@ -2173,7 +2176,7 @@ func qoderMessagesFromResponsesInput(raw json.RawMessage) ([]qoderMessage, error
 	return normalizeQoderResponsesToolPairing(messages), nil
 }
 
-func qoderMessageFromResponsesInputItem(item apicompat.ResponsesInputItem) qoderMessage {
+func qoderMessageFromResponsesInputItem(item protocolopenai.ResponsesInputItem) qoderMessage {
 	switch item.Type {
 	case "function_call":
 		raw := map[string]any{
@@ -2301,7 +2304,7 @@ func qoderResponsesContentText(raw json.RawMessage) string {
 	if err := json.Unmarshal(raw, &text); err == nil {
 		return text
 	}
-	var parts []apicompat.ResponsesContentPart
+	var parts []protocolopenai.ResponsesContentPart
 	if err := json.Unmarshal(raw, &parts); err == nil {
 		out := make([]string, 0, len(parts))
 		for _, part := range parts {
@@ -2317,7 +2320,7 @@ func qoderResponsesContentText(raw json.RawMessage) string {
 	return ""
 }
 
-func qoderMessagesFromAnthropicMessages(messages []apicompat.AnthropicMessage) ([]qoderMessage, error) {
+func qoderMessagesFromAnthropicMessages(messages []protocolanthropic.AnthropicMessage) ([]qoderMessage, error) {
 	out := make([]qoderMessage, 0, len(messages))
 	for _, message := range messages {
 		converted, err := qoderMessagesFromAnthropicMessage(message)
@@ -2329,7 +2332,7 @@ func qoderMessagesFromAnthropicMessages(messages []apicompat.AnthropicMessage) (
 	return out, nil
 }
 
-func qoderMessagesFromAnthropicMessage(message apicompat.AnthropicMessage) ([]qoderMessage, error) {
+func qoderMessagesFromAnthropicMessage(message protocolanthropic.AnthropicMessage) ([]qoderMessage, error) {
 	if message.Role != "user" {
 		text, raw, err := qoderAnthropicMessageTextAndRaw(message)
 		if err != nil {
@@ -2406,7 +2409,7 @@ func qoderMessagesFromAnthropicMessage(message apicompat.AnthropicMessage) ([]qo
 	return out, nil
 }
 
-func qoderAnthropicMessageTextAndRaw(message apicompat.AnthropicMessage) (string, map[string]any, error) {
+func qoderAnthropicMessageTextAndRaw(message protocolanthropic.AnthropicMessage) (string, map[string]any, error) {
 	blocks, ok, err := qoderAnthropicContentBlocks(message.Content)
 	if err != nil {
 		return "", nil, err
@@ -2438,7 +2441,7 @@ func qoderAnthropicMessageTextAndRaw(message apicompat.AnthropicMessage) (string
 	return strings.Join(nonEmptyStrings(textParts), "\n"), map[string]any{"role": message.Role, "content": rawBlocks}, nil
 }
 
-func qoderAnthropicContentBlocks(raw json.RawMessage) ([]apicompat.AnthropicContentBlock, bool, error) {
+func qoderAnthropicContentBlocks(raw json.RawMessage) ([]protocolanthropic.AnthropicContentBlock, bool, error) {
 	raw = bytes.TrimSpace(raw)
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil, false, nil
@@ -2447,7 +2450,7 @@ func qoderAnthropicContentBlocks(raw json.RawMessage) ([]apicompat.AnthropicCont
 	if err := json.Unmarshal(raw, &text); err == nil {
 		return nil, false, nil
 	}
-	var blocks []apicompat.AnthropicContentBlock
+	var blocks []protocolanthropic.AnthropicContentBlock
 	if err := json.Unmarshal(raw, &blocks); err != nil {
 		return nil, false, err
 	}
@@ -2488,7 +2491,7 @@ func qoderAnthropicToolResultText(raw json.RawMessage) string {
 	if err := json.Unmarshal(raw, &text); err == nil {
 		return text
 	}
-	var blocks []apicompat.AnthropicContentBlock
+	var blocks []protocolanthropic.AnthropicContentBlock
 	if err := json.Unmarshal(raw, &blocks); err != nil {
 		return ""
 	}
@@ -2530,7 +2533,7 @@ func qoderToolCallMap(id, name, arguments string) map[string]any {
 	}
 }
 
-func qoderChatCompletionsTools(req apicompat.ChatCompletionsRequest, rawReq map[string]any) []any {
+func qoderChatCompletionsTools(req protocolopenai.ChatCompletionsRequest, rawReq map[string]any) []any {
 	tools := append([]any(nil), qoderAnySlice(rawReq["tools"])...)
 	for _, fn := range req.Functions {
 		if tool, ok := qoderChatFunctionToQoderTool(fn); ok {
@@ -2540,7 +2543,7 @@ func qoderChatCompletionsTools(req apicompat.ChatCompletionsRequest, rawReq map[
 	return qoderApplyChatToolChoice(tools, req.ToolChoice, req.FunctionCall)
 }
 
-func qoderChatFunctionToQoderTool(fn apicompat.ChatFunction) (map[string]any, bool) {
+func qoderChatFunctionToQoderTool(fn protocolopenai.ChatFunction) (map[string]any, bool) {
 	name := strings.TrimSpace(fn.Name)
 	if name == "" {
 		return nil, false
@@ -2630,7 +2633,7 @@ func qoderParseChatToolChoice(raw json.RawMessage, modern bool) (string, bool, b
 	return "", false, true
 }
 
-func qoderResponsesToolsToQoderTools(tools []apicompat.ResponsesTool) []any {
+func qoderResponsesToolsToQoderTools(tools []protocolopenai.ResponsesTool) []any {
 	if len(tools) == 0 {
 		return []any{}
 	}
@@ -2782,7 +2785,7 @@ func qoderPayloadMessageFromMessage(message qoderMessage) map[string]any {
 	return msg
 }
 
-func qoderTextContentBlock(text string, cacheControl *apicompat.AnthropicCacheControl) map[string]any {
+func qoderTextContentBlock(text string, cacheControl *protocolanthropic.AnthropicCacheControl) map[string]any {
 	block := map[string]any{"type": "text", "text": text}
 	if cacheControl != nil {
 		block["cache_control"] = map[string]any{"type": cacheControl.Type}
@@ -4242,7 +4245,7 @@ func BuildQoderResponsesResponseWithID(model, responseID string, events []qoder.
 	if err != nil {
 		return nil, err
 	}
-	var anthropicResp apicompat.AnthropicResponse
+	var anthropicResp protocolanthropic.AnthropicResponse
 	if err := json.Unmarshal(anthropicBody, &anthropicResp); err != nil {
 		return nil, fmt.Errorf("parse qoder anthropic response: %w", err)
 	}
@@ -4268,7 +4271,7 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 	}
 	sequence := 0
 	clientDisconnected := false
-	writeEventFrame := func(evt apicompat.ResponsesStreamEvent) error {
+	writeEventFrame := func(evt protocolopenai.ResponsesStreamEvent) error {
 		if clientDisconnected {
 			return nil
 		}
@@ -4294,18 +4297,18 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 		}
 		started = true
 		c.Writer.WriteHeader(http.StatusOK)
-		return writeEventFrame(apicompat.ResponsesStreamEvent{
+		return writeEventFrame(protocolopenai.ResponsesStreamEvent{
 			Type: "response.created",
-			Response: &apicompat.ResponsesResponse{
+			Response: &protocolopenai.ResponsesResponse{
 				ID:     responseID,
 				Object: "response",
 				Model:  model,
 				Status: "in_progress",
-				Output: []apicompat.ResponsesOutput{},
+				Output: []protocolopenai.ResponsesOutput{},
 			},
 		})
 	}
-	writeEvent := func(evt apicompat.ResponsesStreamEvent) error {
+	writeEvent := func(evt protocolopenai.ResponsesStreamEvent) error {
 		if err := ensureStarted(); err != nil {
 			return err
 		}
@@ -4318,17 +4321,17 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 	messageOpen := false
 	messageDone := false
 	var messageText strings.Builder
-	completedOutputs := map[int]apicompat.ResponsesOutput{}
-	completedOutputList := func() []apicompat.ResponsesOutput {
+	completedOutputs := map[int]protocolopenai.ResponsesOutput{}
+	completedOutputList := func() []protocolopenai.ResponsesOutput {
 		if len(completedOutputs) == 0 {
-			return []apicompat.ResponsesOutput{}
+			return []protocolopenai.ResponsesOutput{}
 		}
 		indexes := make([]int, 0, len(completedOutputs))
 		for index := range completedOutputs {
 			indexes = append(indexes, index)
 		}
 		sort.Ints(indexes)
-		outputs := make([]apicompat.ResponsesOutput, 0, len(indexes))
+		outputs := make([]protocolopenai.ResponsesOutput, 0, len(indexes))
 		for _, index := range indexes {
 			outputs = append(outputs, completedOutputs[index])
 		}
@@ -4348,10 +4351,10 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 		reasoningOutputIndex = nextOutputIndex
 		nextOutputIndex++
 		reasoningOpen = true
-		if err := writeEvent(apicompat.ResponsesStreamEvent{
+		if err := writeEvent(protocolopenai.ResponsesStreamEvent{
 			Type:        "response.output_item.added",
 			OutputIndex: reasoningOutputIndex,
-			Item: &apicompat.ResponsesOutput{
+			Item: &protocolopenai.ResponsesOutput{
 				Type:   "reasoning",
 				ID:     reasoningItemID,
 				Status: "in_progress",
@@ -4359,12 +4362,12 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 		}); err != nil {
 			return err
 		}
-		return writeEvent(apicompat.ResponsesStreamEvent{
+		return writeEvent(protocolopenai.ResponsesStreamEvent{
 			Type:         "response.reasoning_summary_part.added",
 			OutputIndex:  reasoningOutputIndex,
 			SummaryIndex: 0,
 			ItemID:       reasoningItemID,
-			Part:         &apicompat.ResponsesContentPart{Type: "summary_text"},
+			Part:         &protocolopenai.ResponsesContentPart{Type: "summary_text"},
 		})
 	}
 	closeReasoning := func() error {
@@ -4372,7 +4375,7 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 			return nil
 		}
 		text := reasoningText.String()
-		if err := writeEvent(apicompat.ResponsesStreamEvent{
+		if err := writeEvent(protocolopenai.ResponsesStreamEvent{
 			Type:         "response.reasoning_summary_text.done",
 			OutputIndex:  reasoningOutputIndex,
 			SummaryIndex: 0,
@@ -4381,22 +4384,22 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 		}); err != nil {
 			return err
 		}
-		if err := writeEvent(apicompat.ResponsesStreamEvent{
+		if err := writeEvent(protocolopenai.ResponsesStreamEvent{
 			Type:         "response.reasoning_summary_part.done",
 			OutputIndex:  reasoningOutputIndex,
 			SummaryIndex: 0,
 			ItemID:       reasoningItemID,
-			Part:         &apicompat.ResponsesContentPart{Type: "summary_text", Text: text},
+			Part:         &protocolopenai.ResponsesContentPart{Type: "summary_text", Text: text},
 		}); err != nil {
 			return err
 		}
-		item := apicompat.ResponsesOutput{
+		item := protocolopenai.ResponsesOutput{
 			Type:    "reasoning",
 			ID:      reasoningItemID,
 			Status:  "completed",
-			Summary: []apicompat.ResponsesSummary{{Type: "summary_text", Text: text}},
+			Summary: []protocolopenai.ResponsesSummary{{Type: "summary_text", Text: text}},
 		}
-		if err := writeEvent(apicompat.ResponsesStreamEvent{
+		if err := writeEvent(protocolopenai.ResponsesStreamEvent{
 			Type:        "response.output_item.done",
 			OutputIndex: reasoningOutputIndex,
 			Item:        &item,
@@ -4420,10 +4423,10 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 		nextOutputIndex++
 		messageOpen = true
 		messageDone = false
-		return writeEvent(apicompat.ResponsesStreamEvent{
+		return writeEvent(protocolopenai.ResponsesStreamEvent{
 			Type:        "response.output_item.added",
 			OutputIndex: messageOutputIndex,
-			Item: &apicompat.ResponsesOutput{
+			Item: &protocolopenai.ResponsesOutput{
 				Type:   "message",
 				ID:     messageItemID,
 				Role:   "assistant",
@@ -4435,7 +4438,7 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 		if !messageOpen || messageDone {
 			return nil
 		}
-		if err := writeEvent(apicompat.ResponsesStreamEvent{
+		if err := writeEvent(protocolopenai.ResponsesStreamEvent{
 			Type:         "response.output_text.done",
 			OutputIndex:  messageOutputIndex,
 			ContentIndex: 0,
@@ -4444,14 +4447,14 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 		}); err != nil {
 			return err
 		}
-		item := apicompat.ResponsesOutput{
+		item := protocolopenai.ResponsesOutput{
 			Type:    "message",
 			ID:      messageItemID,
 			Role:    "assistant",
-			Content: []apicompat.ResponsesContentPart{{Type: "output_text", Text: messageText.String()}},
+			Content: []protocolopenai.ResponsesContentPart{{Type: "output_text", Text: messageText.String()}},
 			Status:  "completed",
 		}
-		if err := writeEvent(apicompat.ResponsesStreamEvent{
+		if err := writeEvent(protocolopenai.ResponsesStreamEvent{
 			Type:        "response.output_item.done",
 			OutputIndex: messageOutputIndex,
 			Item:        &item,
@@ -4506,10 +4509,10 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 			return state, err
 		}
 		state.added = true
-		return state, writeEvent(apicompat.ResponsesStreamEvent{
+		return state, writeEvent(protocolopenai.ResponsesStreamEvent{
 			Type:        "response.output_item.added",
 			OutputIndex: state.outputIndex,
-			Item: &apicompat.ResponsesOutput{
+			Item: &protocolopenai.ResponsesOutput{
 				Type:   "function_call",
 				ID:     state.itemID,
 				CallID: state.callID,
@@ -4538,7 +4541,7 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 			if arguments == "" || qoderToolArgumentDeltaIsEmptyPlaceholder(event) || !state.added {
 				continue
 			}
-			if err := writeEvent(apicompat.ResponsesStreamEvent{
+			if err := writeEvent(protocolopenai.ResponsesStreamEvent{
 				Type:        "response.function_call_arguments.delta",
 				OutputIndex: state.outputIndex,
 				ItemID:      state.itemID,
@@ -4568,7 +4571,7 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 			if !state.added || state.done {
 				continue
 			}
-			if err := writeEvent(apicompat.ResponsesStreamEvent{
+			if err := writeEvent(protocolopenai.ResponsesStreamEvent{
 				Type:        "response.function_call_arguments.done",
 				OutputIndex: state.outputIndex,
 				ItemID:      state.itemID,
@@ -4578,7 +4581,7 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 			}); err != nil {
 				return err
 			}
-			item := apicompat.ResponsesOutput{
+			item := protocolopenai.ResponsesOutput{
 				Type:      "function_call",
 				ID:        state.itemID,
 				CallID:    state.callID,
@@ -4586,7 +4589,7 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 				Arguments: firstNonEmptyQoder(state.arguments, "{}"),
 				Status:    "completed",
 			}
-			if err := writeEvent(apicompat.ResponsesStreamEvent{
+			if err := writeEvent(protocolopenai.ResponsesStreamEvent{
 				Type:        "response.output_item.done",
 				OutputIndex: state.outputIndex,
 				Item:        &item,
@@ -4617,9 +4620,9 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 		if usageMapper != nil {
 			finalUsage = usageMapper(finalUsage)
 		}
-		return writeEvent(apicompat.ResponsesStreamEvent{
+		return writeEvent(protocolopenai.ResponsesStreamEvent{
 			Type: "response.completed",
-			Response: &apicompat.ResponsesResponse{
+			Response: &protocolopenai.ResponsesResponse{
 				ID:     responseID,
 				Object: "response",
 				Model:  model,
@@ -4647,7 +4650,7 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 					return err
 				}
 				_, _ = messageText.WriteString(event.Text)
-				return writeEvent(apicompat.ResponsesStreamEvent{
+				return writeEvent(protocolopenai.ResponsesStreamEvent{
 					Type:         "response.output_text.delta",
 					OutputIndex:  messageOutputIndex,
 					ContentIndex: 0,
@@ -4665,7 +4668,7 @@ func WriteQoderResponsesStreamResponse(ctx context.Context, c *gin.Context, mode
 					return err
 				}
 				_, _ = reasoningText.WriteString(event.Text)
-				return writeEvent(apicompat.ResponsesStreamEvent{
+				return writeEvent(protocolopenai.ResponsesStreamEvent{
 					Type:         "response.reasoning_summary_text.delta",
 					OutputIndex:  reasoningOutputIndex,
 					SummaryIndex: 0,
@@ -4720,15 +4723,15 @@ func qoderResponsesID() string {
 	return "resp_" + strings.ReplaceAll(uuid.NewString(), "-", "")
 }
 
-func qoderResponsesUsage(usage ClaudeUsage) *apicompat.ResponsesUsage {
+func qoderResponsesUsage(usage ClaudeUsage) *protocolopenai.ResponsesUsage {
 	inputTokens := usage.InputTokens + usage.CacheReadInputTokens + usage.CacheCreationInputTokens
-	out := &apicompat.ResponsesUsage{
+	out := &protocolopenai.ResponsesUsage{
 		InputTokens:  inputTokens,
 		OutputTokens: usage.OutputTokens,
 		TotalTokens:  inputTokens + usage.OutputTokens,
 	}
 	if usage.CacheReadInputTokens > 0 {
-		out.InputTokensDetails = &apicompat.ResponsesInputTokensDetails{CachedTokens: usage.CacheReadInputTokens}
+		out.InputTokensDetails = &protocolopenai.ResponsesInputTokensDetails{CachedTokens: usage.CacheReadInputTokens}
 	}
 	return out
 }

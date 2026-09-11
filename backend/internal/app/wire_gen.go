@@ -105,7 +105,7 @@ func initializeApplication(ctx context.Context, cfg *config.Config, info BuildIn
 	schedulerOutboxRepository := repository.NewSchedulerOutboxRepository(db)
 	schedulerSnapshotService := service.ProvideSchedulerSnapshotService(schedulerCache, schedulerOutboxRepository, accountRepository, groupRepository, cfg)
 	pricingRemoteClient := repository.ProvidePricingRemoteClient(cfg)
-	pricingService, err := service.ProvidePricingService(cfg, pricingRemoteClient)
+	pricingService, err := providePricingService(cfg, pricingRemoteClient)
 	if err != nil {
 		return nil, err
 	}

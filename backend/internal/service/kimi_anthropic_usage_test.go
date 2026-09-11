@@ -7,7 +7,8 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -108,9 +109,9 @@ func TestParseSSEUsagePassthroughNormalizesGLMAndDeepSeekAliases(t *testing.T) {
 }
 
 func TestMergeAnthropicUsageNormalizesKimiStreamForOpenAIBilling(t *testing.T) {
-	var start apicompat.AnthropicStreamEvent
+	var start protocolanthropic.AnthropicStreamEvent
 	require.NoError(t, json.Unmarshal([]byte(`{"type":"message_start","message":{"usage":{"input_tokens":173306,"prompt_tokens":173306,"cached_tokens":0}}}`), &start))
-	var delta apicompat.AnthropicStreamEvent
+	var delta protocolanthropic.AnthropicStreamEvent
 	require.NoError(t, json.Unmarshal([]byte(`{"type":"message_delta","usage":{"input_tokens":250,"cache_read_input_tokens":173056,"output_tokens":166,"prompt_tokens":173306,"cached_tokens":173056}}`), &delta))
 
 	usage := &ClaudeUsage{}
@@ -142,7 +143,7 @@ func TestMergeAnthropicUsageNormalizesGLMAndDeepSeekAliases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var src apicompat.AnthropicUsage
+			var src protocolanthropic.AnthropicUsage
 			require.NoError(t, json.Unmarshal([]byte(tt.raw), &src))
 
 			usage := &ClaudeUsage{}

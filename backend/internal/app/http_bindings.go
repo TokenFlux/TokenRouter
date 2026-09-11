@@ -2,18 +2,23 @@ package app
 
 import (
 	"context"
+	"log/slog"
+	"sync/atomic"
+	"time"
+
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+	gatewayhttpapi "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	redisinfra "github.com/TokenFlux/TokenRouter/internal/infra/redis"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/websearch"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+	routinghttpapi "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/server"
 	middleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/TokenFlux/TokenRouter/internal/web"
+
 	"github.com/redis/go-redis/v9"
-	"log/slog"
-	"sync/atomic"
-	"time"
 )
 
 // provideRouterRuntime 只装配旧业务的公开投影与 HTTP 能力，业务解释留 S10/S15。
@@ -31,6 +36,11 @@ func provideRouterRuntime(settingService *service.SettingService, store *setting
 		}
 	}
 	rt := &server.RouterRuntime{FrameOrigins: func() []string { return *origins.Load() }}
+	endpoints := make(map[protocol.ProtocolID]string)
+	for _, entry := range gatewayhttpapi.ProtocolEndpoints() {
+		endpoints[entry.ID] = entry.Endpoint
+	}
+	rt.ProtocolCatalog = routinghttpapi.NewProtocolCatalogHandler(endpoints)
 	notify := refresh
 	if web.HasEmbeddedFrontend() {
 		frontend, err := web.NewFrontendServer(settingService)

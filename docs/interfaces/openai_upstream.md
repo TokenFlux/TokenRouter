@@ -26,6 +26,8 @@ OpenAI 兼容请求的显式粘性会话头按 `session-id`、`session_id`、`co
 <a id="openai_protocol_dispatch"></a>
 ## 协议与传输
 
+`protocol/openai` 拥有 Responses/Chat 报文、自定义编解码、服务层级值与宽容 JSON 字节修复；`protocol/bridge` 拥有跨协议转换和每条流的状态。旧 apicompat 委托它们并提供时刻/随机源。BOM、控制字节、原文与大小限制保持原行为；纯 `BodyLimitError` 在旧 httputil 的 HTTP 边界转回 `http.MaxBytesError`，请求读取和解压仍由 `server/httpx` 执行，原先未使用宽容修复的入口不会自动启用。UA/originator 字符串识别在 `gateway/clientmeta`，平台策略与请求字段改写时机仍在旧网关。
+
 OpenAI 平台拥有以下正式协议族：
 
 | 协议 | 处理边界 |

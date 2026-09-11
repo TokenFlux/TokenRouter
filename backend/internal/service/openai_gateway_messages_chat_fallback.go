@@ -11,7 +11,10 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
@@ -38,7 +41,7 @@ func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 	startTime := time.Now()
 
 	// 1. 解析 Anthropic 请求。
-	var anthropicReq apicompat.AnthropicRequest
+	var anthropicReq protocolanthropic.AnthropicRequest
 	if err := json.Unmarshal(body, &anthropicReq); err != nil {
 		writeAnthropicError(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return nil, fmt.Errorf("parse anthropic request: %w", err)
@@ -68,7 +71,7 @@ func (s *OpenAIGatewayService) forwardAnthropicViaRawChatCompletions(
 	chatReq.ReasoningEffort = openAICompatAnthropicReasoningEffort(&anthropicReq, upstreamModel, chatReq.ReasoningEffort)
 	chatReq.Stream = clientStream
 	if clientStream {
-		chatReq.StreamOptions = &apicompat.ChatStreamOptions{IncludeUsage: true}
+		chatReq.StreamOptions = &protocolopenai.ChatStreamOptions{IncludeUsage: true}
 	}
 
 	convertedEffort := chatReq.ReasoningEffort
@@ -206,13 +209,13 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 
 	// 与 responses 兄弟不同：客户端断开后仍继续做事件转换（喂 anthropicState），
 	// 仅跳过写出，保证 finalize 阶段的 usage 汇总不受断开影响。
-	emitChunk := func(chunk *apicompat.ChatCompletionsChunk) {
+	emitChunk := func(chunk *protocolopenai.ChatCompletionsChunk) {
 		hasToolCallDelta := chatCompletionsChunkHasToolCallDelta(chunk)
 		// 通过单个状态机将 CC chunk 直接转换为 Anthropic events。
 		anthropicEvents := apicompat.ChatCompletionsChunkToAnthropicEvents(chunk, anthropicState)
 		if hasToolCallDelta && len(anthropicEvents) == 0 {
 			// 工具参数聚合期间用标准事件维持下游活动，避免长参数流被误判为空闲。
-			anthropicEvents = append(anthropicEvents, apicompat.AnthropicStreamEvent{Type: "ping"})
+			anthropicEvents = append(anthropicEvents, protocolanthropic.AnthropicStreamEvent{Type: "ping"})
 		}
 		if clientDisconnected {
 			return
@@ -294,7 +297,7 @@ func (s *OpenAIGatewayService) streamChatCompletionsAsAnthropic(
 }
 
 // chatCompletionsChunkHasToolCallDelta 判断当前分片是否携带工具调用增量。
-func chatCompletionsChunkHasToolCallDelta(chunk *apicompat.ChatCompletionsChunk) bool {
+func chatCompletionsChunkHasToolCallDelta(chunk *protocolopenai.ChatCompletionsChunk) bool {
 	if chunk == nil {
 		return false
 	}

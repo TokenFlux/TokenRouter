@@ -5,9 +5,9 @@
 <a id="protocol_catalog"></a>
 ## 唯一能力目录
 
-后端 `domain.ProtocolCatalog` 维护 24 项目录。管理员 `GET /api/v1/admin/protocol-capabilities` 返回 `protocols`、`accounts`、`groups` 和 `auxiliary_operations`；账号 profile 按平台、类型、认证方式提供原生选项，分组 profile 提供可用入口、默认集合、转换目标及默认映射。目录不包含凭据，前端共享只读结果，不维护平台白名单。
+后端 `routing/capability.ProtocolCatalog` 唯一维护 24 项纯能力目录，旧 domain 入口只作委托。管理员 `GET /api/v1/admin/protocol-capabilities` 返回 `protocols`、`accounts`、`groups` 和 `auxiliary_operations`；账号 profile 按平台、类型、认证方式提供原生选项，分组 profile 提供可用入口、默认集合、转换目标及默认映射。目录不包含凭据，前端共享只读结果，不维护平台白名单。
 
-账号与分组共用 `ProtocolID` 类型，后端协议常量由 domain 统一定义。扩展 HTTP 入口的展示地址和门禁映射由目录中的方法、路径及子资源元数据共同派生，路由层只规范化别名前缀；文本入口沿用各自的原生错误格式与动作校验，Compact 在 Responses 子路径校验后检查。内部路由元数据不进入管理员 API 响应，协议 ID、JSON 字段和持久化格式保持稳定。
+账号与分组共用 `protocol.ProtocolID`，平台与账号类型常量由 `routing/capability` 定义，domain 保留兼容别名。HTTP 方法、路径、别名和 WebSocket 标记在 `gateway/httpapi` 声明，实际路由门禁读取同一声明；app 将展示地址投影注入 `routing/httpapi` 的目录 handler，纯目录不依赖 HTTP Adapter。路由层只规范化别名前缀；文本入口沿用各自的原生错误格式与动作校验，Compact 在 Responses 子路径校验后检查。内部路由元数据不进入管理员 API 响应，协议 ID、JSON 字段和持久化格式保持稳定。
 
 前端表单共用目录的加载、错误和重试状态。创建分组的默认准入集合与转换映射在目录就绪后一起初始化；编辑回显和管理员显式清空的集合不会因加载完成而恢复默认值。目录不可用时禁止提交分组，任一协议选择器重试成功后恢复共享状态。目录测试在普通运行中同时核对前端 JSON 夹具与 `ProtocolID` 联合类型；表单测试按需准备目录，不依赖全局预热。
 
@@ -60,6 +60,8 @@ Antigravity 的 Google 内部封装归入 `gemini_generate_content` 的平台适
 
 <a id="account_native_protocols"></a>
 ## 账号原生集合
+
+旧 Account/Group 入口解析历史字段、缺省值与错误 reason，再将平台、账号类型、认证方式、启用协议和 fallback 映射投影到 `capability.AccountProtocols`。纯判断不读取凭据、配置或请求 Context；每次候选判断重新计算，显式空集合不会被默认补全。
 
 `credentials.upstream_protocols` 是原生协议 ID 数组，显式空数组表示不承接新调用。创建、编辑、复制、导入与批量编辑共享校验，不允许重复、未知或账号认证方式不支持的项；错误为 HTTP 400 / `UPSTREAM_PROTOCOLS_INVALID`。批量更新先验证全部账号，再由同一 SQL 原子写入逐账号协议补丁。
 

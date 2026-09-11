@@ -7,7 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
 )
@@ -74,7 +75,7 @@ func TestOpenAICompatTerminalResponseSynthesizesBareError(t *testing.T) {
 	t.Parallel()
 
 	payload := []byte(`{"type":"error","code":"upstream_error","error":{"message":"provider failed"}}`)
-	event := &apicompat.ResponsesStreamEvent{Type: "error", Code: "upstream_error"}
+	event := &protocolopenai.ResponsesStreamEvent{Type: "error", Code: "upstream_error"}
 	response := openAICompatTerminalResponse(event, payload)
 	require.NotNil(t, response)
 	require.Equal(t, "failed", response.Status)

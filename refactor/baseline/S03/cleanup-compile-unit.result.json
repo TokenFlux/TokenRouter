@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "-run",
+    "Pricing|Billing|Cost|Protocol|Gemini|Thinking"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 1.192,
+  "log": "logs/cleanup-compile-unit.log.gz"
+}

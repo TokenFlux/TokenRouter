@@ -12,8 +12,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -32,7 +33,7 @@ func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.
 	baseURL = strings.TrimSuffix(baseURL, "/")
 
 	// 解析请求获取模型信息
-	var claudeReq antigravity.ClaudeRequest
+	var claudeReq protocolanthropic.ClaudeRequest
 	if err := json.Unmarshal(body, &claudeReq); err != nil {
 		return nil, fmt.Errorf("parse claude request: %w", err)
 	}

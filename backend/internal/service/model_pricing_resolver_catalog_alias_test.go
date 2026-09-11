@@ -6,6 +6,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,9 +34,9 @@ func TestResolveCatalogAliasesPreserveChannelPricing(t *testing.T) {
 				channels.cache.Store(populateChannelCache([]Channel{channel}, map[int64]string{groupID: tc.platform}))
 				var catalog *PricingService
 				if hasCatalog {
-					catalog = &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+					catalog = newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 						tc.base: {Mode: "chat", InputCostPerToken: 1e-6, OutputCostPerToken: 2e-6},
-					}}
+					}})
 				}
 				resolver := NewModelPricingResolver(channels, NewBillingService(&config.Config{}, catalog))
 				input := PricingInput{Model: tc.alias, GroupID: &groupID}
@@ -74,9 +75,9 @@ func TestResolveCatalogAliasesKeepChannelPlatformBoundary(t *testing.T) {
 			{Platform: PlatformGemini, Models: []string{"gemini-3.7-flash"}, BillingMode: BillingModeToken, InputPrice: &price},
 		},
 	}}, map[int64]string{groupID: PlatformGemini}))
-	catalog := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+	catalog := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 		"gemini-3.8-flash": {Mode: "chat", InputCostPerToken: 1e-6},
-	}}
+	}})
 	resolver := NewModelPricingResolver(channels, NewBillingService(&config.Config{}, catalog))
 	resolved := resolver.Resolve(context.Background(), PricingInput{Model: "gemini-3.8-flash-tiered", GroupID: &groupID})
 	require.False(t, resolved.HasEffectiveChannelPricing())

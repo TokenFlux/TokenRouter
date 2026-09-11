@@ -14,8 +14,9 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -52,13 +53,13 @@ func TestAntigravityUpstreamErrorBodyReadLimit_RespectsDiagnosticLimit(t *testin
 }
 
 func TestStripSignatureSensitiveBlocksFromClaudeRequest(t *testing.T) {
-	req := &antigravity.ClaudeRequest{
+	req := &protocolanthropic.ClaudeRequest{
 		Model: "claude-sonnet-4-5",
-		Thinking: &antigravity.ThinkingConfig{
+		Thinking: &protocolanthropic.ThinkingConfig{
 			Type:         "enabled",
 			BudgetTokens: 1024,
 		},
-		Messages: []antigravity.ClaudeMessage{
+		Messages: []protocolanthropic.ClaudeMessage{
 			{
 				Role: "assistant",
 				Content: json.RawMessage(`[
@@ -98,13 +99,13 @@ func TestStripSignatureSensitiveBlocksFromClaudeRequest(t *testing.T) {
 }
 
 func TestStripThinkingFromClaudeRequest_DoesNotDowngradeTools(t *testing.T) {
-	req := &antigravity.ClaudeRequest{
+	req := &protocolanthropic.ClaudeRequest{
 		Model: "claude-sonnet-4-5",
-		Thinking: &antigravity.ThinkingConfig{
+		Thinking: &protocolanthropic.ThinkingConfig{
 			Type:         "enabled",
 			BudgetTokens: 1024,
 		},
-		Messages: []antigravity.ClaudeMessage{
+		Messages: []protocolanthropic.ClaudeMessage{
 			{
 				Role:    "assistant",
 				Content: json.RawMessage(`[{"type":"thinking","thinking":"secret plan"},{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"ls"}}]`),

@@ -12,7 +12,8 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -92,7 +93,7 @@ func TestHandleChatStreamingResponse_ClassifiesHTTP2ReadError(t *testing.T) {
 func TestNormalizeResponsesRequestServiceTier(t *testing.T) {
 	t.Parallel()
 
-	req := &apicompat.ResponsesRequest{ServiceTier: " fast "}
+	req := &protocolopenai.ResponsesRequest{ServiceTier: " fast "}
 	normalizeResponsesRequestServiceTier(req)
 	require.Equal(t, "priority", req.ServiceTier)
 

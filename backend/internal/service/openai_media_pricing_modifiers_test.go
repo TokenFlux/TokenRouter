@@ -40,9 +40,9 @@ func TestOpenAIMediaPricingUsesModifierOnlyCards(t *testing.T) {
 					}
 					require.NoError(t, validatePricingEntries([]ChannelModelPricing{card}))
 					billing := NewBillingService(nil, nil)
-					billing.pricingService = &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+					billing.pricingService = newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 						model: {Mode: media, InputCostPerToken: 0.001, OutputCostPerToken: 0.002, OutputCostPerImageToken: 0.004},
-					}}
+					}})
 					group := &Group{ID: 100, Platform: platform}
 					var channelCards []ChannelModelPricing
 					if scope == "group" {

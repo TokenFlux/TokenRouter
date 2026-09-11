@@ -1,0 +1,25 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/billing/...",
+    "./internal/service",
+    "-run",
+    "Pricing|Billing|Cost|ChannelTime|Intervals"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 1.378,
+  "log": "logs/pricing-media-unit.log.gz",
+  "test_events": {
+    "pass": 11,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

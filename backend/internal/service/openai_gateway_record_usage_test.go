@@ -10,6 +10,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -1213,13 +1214,13 @@ func TestOpenAIGatewayServiceRecordUsage_GPT56SeparatesCacheWriteForBillingAndSt
 	userRepo := &openAIRecordUsageUserRepoStub{}
 	subRepo := &openAIRecordUsageSubRepoStub{}
 	svc := newOpenAIRecordUsageServiceForTest(usageRepo, userRepo, subRepo, nil)
-	svc.billingService = NewBillingService(svc.cfg, &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+	svc.billingService = NewBillingService(svc.cfg, newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 		"gpt-5.6-sol": {
 			InputCostPerToken:       5e-6,
 			OutputCostPerToken:      30e-6,
 			CacheReadInputTokenCost: 0.5e-6,
 		},
-	}})
+	}}))
 
 	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{
 		Result: &OpenAIForwardResult{

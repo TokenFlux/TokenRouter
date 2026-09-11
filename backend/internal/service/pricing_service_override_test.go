@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,7 +30,7 @@ func newPricingServiceWithOverride(t *testing.T, overrideJSON string) *PricingSe
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "overrides.json")
 	require.NoError(t, os.WriteFile(path, []byte(overrideJSON), 0644))
-	service := &PricingService{cfg: &config.Config{}}
+	service := newPricingServiceFixture(pricingServiceFixture{cfg: &config.Config{}})
 	service.cfg.Pricing.OverrideFile = path
 	return service
 }
@@ -90,21 +91,21 @@ func TestPricingOverride_LoadPipelineAddsNewModelAndPatchesFallbackOnly(t *testi
 			"input_cost_per_token": 5e-06, "output_cost_per_token": 1e-05}
 	}`), 0644))
 
-	service := &PricingService{cfg: &config.Config{}}
+	service := newPricingServiceFixture(pricingServiceFixture{cfg: &config.Config{}})
 	service.cfg.Pricing.FallbackFile = fallbackPath
 	service.cfg.Pricing.OverrideFile = overridePath
 	require.NoError(t, service.loadPricingData(catalogPath))
 
-	patched := service.pricingData["fallback-only-model"]
+	patched := service.runtime.Snapshot().Data["fallback-only-model"]
 	require.NotNil(t, patched)
 	require.InDelta(t, 9e-6, patched.InputCostPerToken, 1e-12)
 	require.InDelta(t, 8e-6, patched.OutputCostPerToken, 1e-12)
 	require.InDelta(t, 4e-7, patched.CacheReadInputTokenCost, 1e-12)
-	added := service.pricingData["override-new-model"]
+	added := service.runtime.Snapshot().Data["override-new-model"]
 	require.NotNil(t, added)
 	require.InDelta(t, 5e-6, added.InputCostPerToken, 1e-12)
 	require.InDelta(t, 1e-5, added.OutputCostPerToken, 1e-12)
-	require.InDelta(t, 1e-6, service.pricingData["remote-model"].InputCostPerToken, 1e-12)
+	require.InDelta(t, 1e-6, service.runtime.Snapshot().Data["remote-model"].InputCostPerToken, 1e-12)
 }
 
 func TestPricingOverride_IneffectiveEntryWarns(t *testing.T) {
@@ -121,10 +122,10 @@ func TestPricingOverride_IneffectiveEntryWarns(t *testing.T) {
 		"typo-model": {"long_context_input_token_threshold": 0}
 	}`), 0644))
 
-	service := &PricingService{cfg: &config.Config{}}
+	service := newPricingServiceFixture(pricingServiceFixture{cfg: &config.Config{}})
 	service.cfg.Pricing.OverrideFile = overridePath
 	require.NoError(t, service.loadPricingData(catalogPath))
-	require.NotContains(t, service.pricingData, "typo-model")
+	require.NotContains(t, service.runtime.Snapshot().Data, "typo-model")
 	require.True(t, logSink.ContainsMessageAtLevel("override had no effect for 1 model(s): typo-model", "warn"))
 }
 
@@ -137,7 +138,7 @@ func TestPricingOverride_NonObjectEntryKeepsCatalogEntry(t *testing.T) {
 
 func TestPricingOverride_MissingOrInvalidFileIsIgnored(t *testing.T) {
 	t.Run("missing file", func(t *testing.T) {
-		service := &PricingService{cfg: &config.Config{}}
+		service := newPricingServiceFixture(pricingServiceFixture{cfg: &config.Config{}})
 		service.cfg.Pricing.OverrideFile = filepath.Join(t.TempDir(), "absent.json")
 		data, err := service.parsePricingData([]byte(gpt55OverrideCatalogJSON))
 		require.NoError(t, err)
@@ -162,7 +163,7 @@ func TestPricingOverride_DisablesGPT55LadderOnDefaultCatalog(t *testing.T) {
 	}`)
 	data, err := service.parsePricingData(body)
 	require.NoError(t, err)
-	service.pricingData = data
+	setPricingFixtureData(service, data)
 	billing := NewBillingService(&config.Config{}, service)
 
 	for _, model := range []string{"gpt-5.5", "gpt-5.5-2026-04-23"} {

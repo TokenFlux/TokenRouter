@@ -1,11 +1,11 @@
 package service
 
 import (
-	"fmt"
 	"slices"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 // EffectiveAllowedProtocols 为响应映射和编辑快照返回独立协议集合。
@@ -50,21 +50,17 @@ func normalizeGroupProtocolPolicy(group *Group, legacy *legacyGroupProtocolPatch
 	}
 	group.AllowedProtocols = normalized
 	applyLegacyGroupProtocolPatch(group, legacy)
-	for source, target := range group.ProtocolFallbacks {
-		if !slices.Contains(domain.ProtocolFallbackTargets(group.Platform, source), target) {
-			return infraerrors.BadRequest("GROUP_PROTOCOL_FALLBACK_INVALID", fmt.Sprintf("unsupported conversion %s -> %s", source, target))
-		}
+	if err := capability.ValidateProtocolFallbacks(group.Platform, group.ProtocolFallbacks); err != nil {
+		return infraerrors.BadRequest("GROUP_PROTOCOL_FALLBACK_INVALID", err.Error())
 	}
 	if group.ProtocolFallbacks == nil {
 		group.ProtocolFallbacks = map[domain.ProtocolID]domain.ProtocolID{}
 	}
-	switch group.ResponsesImagePolicy {
-	case "":
-		group.ResponsesImagePolicy = "inherit"
-	case "inherit", "enabled", "disabled", "block":
-	default:
-		return infraerrors.BadRequest("GROUP_RESPONSES_IMAGE_POLICY_INVALID", "invalid Responses image policy")
+	policy, err := capability.NormalizeResponsesImagePolicy(group.ResponsesImagePolicy)
+	if err != nil {
+		return infraerrors.BadRequest("GROUP_RESPONSES_IMAGE_POLICY_INVALID", err.Error())
 	}
+	group.ResponsesImagePolicy = policy
 	// 旧服务仍读取这些派生值；它们不再作为独立配置写入。
 	group.AllowMessagesDispatch = group.Platform == PlatformOpenAI && slices.Contains(group.AllowedProtocols, domain.ProtocolAnthropicMessages)
 	group.AllowImageGeneration = slices.Contains(group.AllowedProtocols, domain.ProtocolImagesGenerations) || slices.Contains(group.AllowedProtocols, domain.ProtocolImagesEdits) || slices.Contains(group.AllowedProtocols, domain.ProtocolImageBatches) || slices.Contains(group.AllowedProtocols, domain.ProtocolGeminiGenerateContent)

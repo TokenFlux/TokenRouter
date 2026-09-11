@@ -3,7 +3,7 @@ package service
 import (
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 )
 
 func NormalizeOpenAICompatRequestedModel(model string) string {
@@ -19,7 +19,7 @@ func NormalizeOpenAICompatRequestedModel(model string) string {
 	return normalized
 }
 
-func applyOpenAICompatModelNormalization(req *apicompat.AnthropicRequest) {
+func applyOpenAICompatModelNormalization(req *protocolanthropic.AnthropicRequest) {
 	if req == nil {
 		return
 	}
@@ -44,7 +44,7 @@ func applyOpenAICompatModelNormalization(req *apicompat.AnthropicRequest) {
 	}
 
 	if req.OutputConfig == nil {
-		req.OutputConfig = &apicompat.AnthropicOutputConfig{}
+		req.OutputConfig = &protocolanthropic.AnthropicOutputConfig{}
 	}
 	req.OutputConfig.Effort = claudeEffort
 }
@@ -113,7 +113,7 @@ func openAIReasoningEffortToClaudeOutputEffort(effort string) string {
 
 // openAICompatAnthropicReasoningEffort 在最终上游模型确定后重新裁定 Messages 桥接的推理强度。
 // Anthropic 的 max 通常转换为 OpenAI xhigh，但 GPT-5.6 支持原生 max，不能因客户端别名而降级。
-func openAICompatAnthropicReasoningEffort(req *apicompat.AnthropicRequest, upstreamModel, convertedEffort string) string {
+func openAICompatAnthropicReasoningEffort(req *protocolanthropic.AnthropicRequest, upstreamModel, convertedEffort string) string {
 	if req == nil || req.OutputConfig == nil || !strings.EqualFold(strings.TrimSpace(req.OutputConfig.Effort), "max") {
 		return convertedEffort
 	}

@@ -13,6 +13,8 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -39,7 +41,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 	prefix := logPrefix(sessionID, account.Name)
 
 	// 解析 Claude 请求
-	var claudeReq antigravity.ClaudeRequest
+	var claudeReq protocolanthropic.ClaudeRequest
 	if err := json.Unmarshal(body, &claudeReq); err != nil {
 		return nil, s.writeClaudeError(c, http.StatusBadRequest, "invalid_request_error", "Invalid request body")
 	}
@@ -161,7 +163,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 
 			retryStages := []struct {
 				name  string
-				strip func(*antigravity.ClaudeRequest) (bool, error)
+				strip func(*protocolanthropic.ClaudeRequest) (bool, error)
 			}{
 				{name: "thinking-only", strip: stripThinkingFromClaudeRequest},
 				{name: "thinking+tools", strip: stripSignatureSensitiveBlocksFromClaudeRequest},
@@ -169,7 +171,7 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 
 			for _, stage := range retryStages {
 				retryClaudeReq := claudeReq
-				retryClaudeReq.Messages = append([]antigravity.ClaudeMessage(nil), claudeReq.Messages...)
+				retryClaudeReq.Messages = append([]protocolanthropic.ClaudeMessage(nil), claudeReq.Messages...)
 
 				stripped, stripErr := stage.strip(&retryClaudeReq)
 				if stripErr != nil || !stripped {
@@ -290,9 +292,9 @@ func (s *AntigravityGatewayService) Forward(ctx context.Context, c *gin.Context,
 				// 修正 claudeReq 的 thinking 参数（adaptive 模式不修正）
 				if claudeReq.Thinking == nil || claudeReq.Thinking.Type != "adaptive" {
 					retryClaudeReq := claudeReq
-					retryClaudeReq.Messages = append([]antigravity.ClaudeMessage(nil), claudeReq.Messages...)
+					retryClaudeReq.Messages = append([]protocolanthropic.ClaudeMessage(nil), claudeReq.Messages...)
 					// 创建新的 ThinkingConfig 避免修改原始 claudeReq.Thinking 指针
-					retryClaudeReq.Thinking = &antigravity.ThinkingConfig{
+					retryClaudeReq.Thinking = &protocolanthropic.ThinkingConfig{
 						Type:         "enabled",
 						BudgetTokens: BudgetRectifyBudgetTokens,
 					}
@@ -537,7 +539,7 @@ func extractAntigravityErrorMessage(body []byte) string {
 // This preserves the thinking content while avoiding signature validation errors.
 // Note: redacted_thinking blocks are removed because they cannot be converted to text.
 // It also disables top-level `thinking` to avoid upstream structural constraints for thinking mode.
-func stripThinkingFromClaudeRequest(req *antigravity.ClaudeRequest) (bool, error) {
+func stripThinkingFromClaudeRequest(req *protocolanthropic.ClaudeRequest) (bool, error) {
 	if req == nil {
 		return false, nil
 	}
@@ -623,7 +625,7 @@ func stripThinkingFromClaudeRequest(req *antigravity.ClaudeRequest) (bool, error
 
 // stripSignatureSensitiveBlocksFromClaudeRequest is a stronger retry degradation that additionally converts
 // tool blocks to plain text. Use this only after a thinking-only retry still fails with signature errors.
-func stripSignatureSensitiveBlocksFromClaudeRequest(req *antigravity.ClaudeRequest) (bool, error) {
+func stripSignatureSensitiveBlocksFromClaudeRequest(req *protocolanthropic.ClaudeRequest) (bool, error) {
 	if req == nil {
 		return false, nil
 	}

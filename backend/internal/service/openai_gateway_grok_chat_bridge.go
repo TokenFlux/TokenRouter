@@ -11,6 +11,8 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 )
@@ -517,7 +519,7 @@ func (s *OpenAIGatewayService) forwardGrokChatCompletionsViaResponses(
 ) (*OpenAIForwardResult, error) {
 	startTime := time.Now()
 
-	var chatReq apicompat.ChatCompletionsRequest
+	var chatReq protocolopenai.ChatCompletionsRequest
 	if err := json.Unmarshal(body, &chatReq); err != nil {
 		return nil, fmt.Errorf("parse grok chat completions request: %w", err)
 	}

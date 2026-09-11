@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/protocol/bridge"
+
 	"github.com/google/uuid"
 )
 
@@ -67,16 +69,6 @@ const Gemini25FlashThinkingBudgetLimit = 24576
 // 对于 Antigravity 的 Claude（budget-only）模型，该语义最终等价为 thinkingBudget=24576。
 // 这里复用相同数值以保持行为一致。
 const ClaudeAdaptiveHighThinkingBudgetTokens = Gemini25FlashThinkingBudgetLimit
-
-// ensureMaxTokensGreaterThanBudget 确保 max_tokens > budget_tokens
-// Claude API 要求启用 thinking 时，max_tokens 必须大于 thinking.budget_tokens
-// 返回调整后的 maxTokens 和是否进行了调整
-func ensureMaxTokensGreaterThanBudget(maxTokens, budgetTokens int) (int, bool) {
-	if budgetTokens > 0 && maxTokens <= budgetTokens {
-		return budgetTokens + MaxTokensBudgetPadding, true
-	}
-	return maxTokens, false
-}
 
 // TransformClaudeToGemini 将 Claude 请求转换为 v1internal Gemini 格式
 func TransformClaudeToGemini(claudeReq *ClaudeRequest, projectID, mappedModel string) ([]byte, error) {
@@ -373,226 +365,17 @@ func buildSystemInstruction(system json.RawMessage, modelName string, opts Trans
 	}
 }
 
-// buildContents 构建 contents
+// buildContents 传递平台已选定的签名策略。
 func buildContents(messages []ClaudeMessage, toolIDToName map[string]string, isThinkingEnabled, allowDummyThought bool) ([]GeminiContent, []GeminiPart, bool, error) {
-	var contents []GeminiContent
-	var systemParts []GeminiPart
-	strippedThinking := false
-
-	for i, msg := range messages {
-		role := msg.Role
-		if role == "assistant" {
-			role = "model"
-		}
-
-		parts, strippedThisMsg, err := buildParts(msg.Content, toolIDToName, allowDummyThought)
-		if err != nil {
-			return nil, nil, false, fmt.Errorf("build parts for message %d: %w", i, err)
-		}
-		if strippedThisMsg {
-			strippedThinking = true
-		}
-
-		// Claude Code 可能把 system prompt 放进 messages，需并入 Gemini systemInstruction。
-		if role == "system" {
-			systemParts = append(systemParts, parts...)
-			continue
-		}
-
-		// 只有 Gemini 模型支持 dummy thinking block workaround
-		// 只对最后一条 assistant 消息添加（Pre-fill 场景）
-		// 历史 assistant 消息不能添加没有 signature 的 dummy thinking block
-		if allowDummyThought && role == "model" && isThinkingEnabled && i == len(messages)-1 {
-			hasThoughtPart := false
-			for _, p := range parts {
-				if p.Thought {
-					hasThoughtPart = true
-					break
-				}
-			}
-			if !hasThoughtPart && len(parts) > 0 {
-				// 在开头添加 dummy thinking block
-				parts = append([]GeminiPart{{
-					Text:             "Thinking...",
-					Thought:          true,
-					ThoughtSignature: DummyThoughtSignature,
-				}}, parts...)
-			}
-		}
-
-		if len(parts) == 0 {
-			continue
-		}
-
-		contents = append(contents, GeminiContent{
-			Role:  role,
-			Parts: parts,
-		})
-	}
-
-	return contents, systemParts, strippedThinking, nil
+	return bridge.BuildContents(messages, toolIDToName, isThinkingEnabled, allowDummyThought)
 }
 
-// DummyThoughtSignature 用于跳过 Gemini 3 thought_signature 验证
-// 参考: https://ai.google.dev/gemini-api/docs/thought-signatures
-// 导出供跨包使用（如 gemini_native_signature_cleaner 跨账号修复）
-const DummyThoughtSignature = "skip_thought_signature_validator"
+// DummyThoughtSignature 保留 wire 常量的旧入口。
+const DummyThoughtSignature = bridge.DummyThoughtSignature
 
-// buildParts 构建消息的 parts
-// allowDummyThought: 只有 Gemini 模型支持 dummy thought signature
+// buildParts 传递平台已选定的签名策略。
 func buildParts(content json.RawMessage, toolIDToName map[string]string, allowDummyThought bool) ([]GeminiPart, bool, error) {
-	var parts []GeminiPart
-	strippedThinking := false
-
-	// 尝试解析为字符串
-	var textContent string
-	if err := json.Unmarshal(content, &textContent); err == nil {
-		if textContent != "(no content)" && strings.TrimSpace(textContent) != "" {
-			parts = append(parts, GeminiPart{Text: strings.TrimSpace(textContent)})
-		}
-		return parts, false, nil
-	}
-
-	// 解析为内容块数组
-	var blocks []ContentBlock
-	if err := json.Unmarshal(content, &blocks); err != nil {
-		return nil, false, fmt.Errorf("parse content blocks: %w", err)
-	}
-
-	for _, block := range blocks {
-		switch block.Type {
-		case "text":
-			if block.Text != "(no content)" && strings.TrimSpace(block.Text) != "" {
-				parts = append(parts, GeminiPart{Text: block.Text})
-			}
-
-		case "thinking":
-			part := GeminiPart{
-				Text:    block.Thinking,
-				Thought: true,
-			}
-			// signature 处理：
-			// - Claude 模型（allowDummyThought=false）：必须是上游返回的真实 signature（dummy 视为缺失）
-			// - Gemini 模型（allowDummyThought=true）：优先透传真实 signature，缺失时使用 dummy signature
-			if block.Signature != "" && (allowDummyThought || block.Signature != DummyThoughtSignature) {
-				part.ThoughtSignature = block.Signature
-			} else if !allowDummyThought {
-				// Claude 模型需要有效 signature；在缺失时降级为普通文本，并在上层禁用 thinking mode。
-				if strings.TrimSpace(block.Thinking) != "" {
-					parts = append(parts, GeminiPart{Text: block.Thinking})
-				}
-				strippedThinking = true
-				continue
-			} else {
-				// Gemini 模型使用 dummy signature
-				part.ThoughtSignature = DummyThoughtSignature
-			}
-			parts = append(parts, part)
-
-		case "image":
-			if block.Source != nil && block.Source.Type == "base64" {
-				parts = append(parts, GeminiPart{
-					InlineData: &GeminiInlineData{
-						MimeType: block.Source.MediaType,
-						Data:     block.Source.Data,
-					},
-				})
-			}
-
-		case "tool_use":
-			// 存储 id -> name 映射
-			if block.ID != "" && block.Name != "" {
-				toolIDToName[block.ID] = block.Name
-			}
-
-			part := GeminiPart{
-				FunctionCall: &GeminiFunctionCall{
-					Name: block.Name,
-					Args: block.Input,
-					ID:   block.ID,
-				},
-			}
-			// tool_use 的 signature 处理：
-			// - Claude 模型（allowDummyThought=false）：必须是上游返回的真实 signature（dummy 视为缺失）
-			// - Gemini 模型（allowDummyThought=true）：优先透传真实 signature，缺失时使用 dummy signature
-			if block.Signature != "" && (allowDummyThought || block.Signature != DummyThoughtSignature) {
-				part.ThoughtSignature = block.Signature
-			} else if allowDummyThought {
-				part.ThoughtSignature = DummyThoughtSignature
-			}
-			parts = append(parts, part)
-
-		case "tool_result":
-			// 获取函数名
-			funcName := block.Name
-			if funcName == "" {
-				if name, ok := toolIDToName[block.ToolUseID]; ok {
-					funcName = name
-				} else {
-					funcName = block.ToolUseID
-				}
-			}
-
-			// 解析 content
-			resultContent := parseToolResultContent(block.Content, block.IsError)
-
-			parts = append(parts, GeminiPart{
-				FunctionResponse: &GeminiFunctionResponse{
-					Name: funcName,
-					Response: map[string]any{
-						"result": resultContent,
-					},
-					ID: block.ToolUseID,
-				},
-			})
-		}
-	}
-
-	return parts, strippedThinking, nil
-}
-
-// parseToolResultContent 解析 tool_result 的 content
-func parseToolResultContent(content json.RawMessage, isError bool) string {
-	if len(content) == 0 {
-		if isError {
-			return "Tool execution failed with no output."
-		}
-		return "Command executed successfully."
-	}
-
-	// 尝试解析为字符串
-	var str string
-	if err := json.Unmarshal(content, &str); err == nil {
-		if strings.TrimSpace(str) == "" {
-			if isError {
-				return "Tool execution failed with no output."
-			}
-			return "Command executed successfully."
-		}
-		return str
-	}
-
-	// 尝试解析为数组
-	var arr []map[string]any
-	if err := json.Unmarshal(content, &arr); err == nil {
-		var texts []string
-		for _, item := range arr {
-			if text, ok := item["text"].(string); ok {
-				texts = append(texts, text)
-			}
-		}
-		result := strings.Join(texts, "\n")
-		if strings.TrimSpace(result) == "" {
-			if isError {
-				return "Tool execution failed with no output."
-			}
-			return "Command executed successfully."
-		}
-		return result
-	}
-
-	// 返回原始 JSON
-	return string(content)
+	return bridge.BuildParts(content, toolIDToName, allowDummyThought)
 }
 
 // buildGenerationConfig 构建 generationConfig
@@ -618,207 +401,38 @@ func isAntigravityOpusHighTierModel(model string) bool {
 		strings.HasPrefix(lower, "claude-opus-4-8")
 }
 
+// buildGenerationConfig 将平台/模型策略投影为纯转换选项。
 func buildGenerationConfig(req *ClaudeRequest) *GeminiGenerationConfig {
-	maxLimit := maxOutputTokensLimit(req.Model)
-	config := &GeminiGenerationConfig{
-		MaxOutputTokens: defaultMaxOutputTokens, // 默认最大输出
+	options := bridge.InternalGeminiGenerationOptions{
+		DefaultOutputTokens: defaultMaxOutputTokens, MaxOutputTokens: maxOutputTokensLimit(req.Model),
+		ReasoningModel: IsGeminiReasoningModel(req.Model), StopSequences: DefaultStopSequences, BudgetPadding: MaxTokensBudgetPadding,
 	}
-
-	isReasoning := IsGeminiReasoningModel(req.Model)
-	if !isReasoning {
-		config.StopSequences = DefaultStopSequences
+	if isAntigravityOpusHighTierModel(req.Model) {
+		options.AdaptiveThinkingBudget = ClaudeAdaptiveHighThinkingBudgetTokens
 	}
-
-	// 如果请求中指定了 MaxTokens，使用请求值
-	if req.MaxTokens > 0 {
-		config.MaxOutputTokens = req.MaxTokens
+	if strings.Contains(req.Model, "gemini-2.5-flash") {
+		options.ThinkingBudgetLimit = Gemini25FlashThinkingBudgetLimit
 	}
-
-	// Thinking 配置
-	if req.Thinking != nil && (req.Thinking.Type == "enabled" || req.Thinking.Type == "adaptive") {
-		config.ThinkingConfig = &GeminiThinkingConfig{
-			IncludeThoughts: true,
-		}
-
-		// - thinking.type=enabled：budget_tokens>0 用显式预算
-		// - thinking.type=adaptive：在 Antigravity 的高阶 Opus（4.6+）上覆写为 （24576）
-		budget := -1
-		if req.Thinking.BudgetTokens > 0 {
-			budget = req.Thinking.BudgetTokens
-		}
-		if req.Thinking.Type == "adaptive" && isAntigravityOpusHighTierModel(req.Model) {
-			budget = ClaudeAdaptiveHighThinkingBudgetTokens
-		}
-
-		// 正预算需要做上限与 max_tokens 约束；动态预算（-1）直接透传给上游。
-		if budget > 0 {
-			// gemini-2.5-flash 上限
-			if strings.Contains(req.Model, "gemini-2.5-flash") && budget > Gemini25FlashThinkingBudgetLimit {
-				budget = Gemini25FlashThinkingBudgetLimit
-			}
-
-			// 自动修正：max_tokens 必须大于 budget_tokens（Claude 上游要求）
-			if adjusted, ok := ensureMaxTokensGreaterThanBudget(config.MaxOutputTokens, budget); ok {
-				log.Printf("[Antigravity] Auto-adjusted max_tokens from %d to %d (must be > budget_tokens=%d)",
-					config.MaxOutputTokens, adjusted, budget)
-				config.MaxOutputTokens = adjusted
-			}
-		}
-		config.ThinkingConfig.ThinkingBudget = budget
+	result, diagnostics := bridge.BuildInternalGeminiGenerationConfig(req, options)
+	for _, message := range diagnostics {
+		log.Printf("%s", message)
 	}
-
-	if config.MaxOutputTokens > maxLimit {
-		config.MaxOutputTokens = maxLimit
-	}
-
-	// 其他参数
-	if !isReasoning {
-		if req.Temperature != nil {
-			config.Temperature = req.Temperature
-		}
-		if req.TopP != nil {
-			config.TopP = req.TopP
-		}
-		if req.TopK != nil {
-			config.TopK = req.TopK
-		}
-	}
-
-	return config
+	return result
 }
 
-func hasWebSearchTool(tools []ClaudeTool) bool {
-	for _, tool := range tools {
-		if isWebSearchTool(tool) {
-			return true
-		}
-	}
-	return false
-}
+// hasWebSearchTool 委托显式选用的内部 Gemini 工具方言。
+func hasWebSearchTool(tools []ClaudeTool) bool { return bridge.InternalHasWebSearchTool(tools) }
 
-func isWebSearchTool(tool ClaudeTool) bool {
-	if strings.HasPrefix(tool.Type, "web_search") || tool.Type == "google_search" {
-		return true
-	}
-
-	name := strings.TrimSpace(tool.Name)
-	switch name {
-	case "web_search", "google_search", "web_search_20250305":
-		return true
-	default:
-		return false
-	}
-}
-
-func isCodeExecutionTool(tool ClaudeTool) bool {
-	return strings.TrimSpace(tool.Type) == "code_execution"
-}
-
-// hasMixedToolInvocations 判断构建后的工具声明是否同时包含函数声明与内置工具
-// （googleSearch/codeExecution）。仅在两者并存时需要开启 includeServerSideToolInvocations。
+// hasMixedToolInvocations 委托显式选用的内部 Gemini 工具方言。
 func hasMixedToolInvocations(declarations []GeminiToolDeclaration) bool {
-	hasFunctions, hasBuiltin := false, false
-	for _, declaration := range declarations {
-		if len(declaration.FunctionDeclarations) > 0 {
-			hasFunctions = true
-		}
-		if declaration.GoogleSearch != nil || declaration.CodeExecution != nil {
-			hasBuiltin = true
-		}
-	}
-	return hasFunctions && hasBuiltin
+	return bridge.InternalHasMixedToolInvocations(declarations)
 }
 
-// buildTools 构建 tools
+// buildTools 输出纯转换产生的诊断，保持原有工具处理行为。
 func buildTools(tools []ClaudeTool) []GeminiToolDeclaration {
-	if len(tools) == 0 {
-		return nil
+	result, diagnostics := bridge.BuildInternalGeminiTools(tools)
+	for _, message := range diagnostics {
+		log.Printf("%s", message)
 	}
-
-	hasWebSearch := hasWebSearchTool(tools)
-	hasCodeExecution := false
-	for _, tool := range tools {
-		if isCodeExecutionTool(tool) {
-			hasCodeExecution = true
-			break
-		}
-	}
-
-	// 普通工具
-	var funcDecls []GeminiFunctionDecl
-	for _, tool := range tools {
-		if isWebSearchTool(tool) || isCodeExecutionTool(tool) {
-			continue
-		}
-		// 跳过无效工具名称
-		if strings.TrimSpace(tool.Name) == "" {
-			log.Printf("Warning: skipping tool with empty name")
-			continue
-		}
-
-		var description string
-		var inputSchema map[string]any
-
-		// 检查是否为 custom 类型工具 (MCP)
-		if tool.Type == "custom" {
-			if tool.Custom == nil || tool.Custom.InputSchema == nil {
-				log.Printf("[Warning] Skipping invalid custom tool '%s': missing custom spec or input_schema", tool.Name)
-				continue
-			}
-			description = tool.Custom.Description
-			inputSchema = tool.Custom.InputSchema
-
-		} else {
-			// 标准格式: 从顶层字段获取
-			description = tool.Description
-			inputSchema = tool.InputSchema
-		}
-
-		// 清理 JSON Schema
-		// 1. 深度清理 [undefined] 值
-		DeepCleanUndefined(inputSchema)
-		// 2. 转换为符合 Gemini v1internal 的 schema
-		params := CleanJSONSchema(inputSchema)
-		// 为 nil schema 提供默认值
-		if params == nil {
-			params = map[string]any{
-				"type":       "object", // lowercase type
-				"properties": map[string]any{},
-			}
-		}
-
-		funcDecls = append(funcDecls, GeminiFunctionDecl{
-			Name:        tool.Name,
-			Description: description,
-			Parameters:  params,
-		})
-	}
-
-	var declarations []GeminiToolDeclaration
-	if len(funcDecls) > 0 {
-		declarations = append(declarations, GeminiToolDeclaration{
-			FunctionDeclarations: funcDecls,
-		})
-	}
-	if hasWebSearch {
-		declarations = append(declarations, GeminiToolDeclaration{
-			GoogleSearch: &GeminiGoogleSearch{
-				EnhancedContent: &GeminiEnhancedContent{
-					ImageSearch: &GeminiImageSearch{
-						MaxResultCount: 5,
-					},
-				},
-			},
-		})
-	}
-	if hasCodeExecution {
-		declarations = append(declarations, GeminiToolDeclaration{
-			CodeExecution: &GeminiCodeExecution{},
-		})
-	}
-	if len(declarations) == 0 {
-		return nil
-	}
-
-	return declarations
+	return result
 }

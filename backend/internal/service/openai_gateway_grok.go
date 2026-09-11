@@ -14,6 +14,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -1438,7 +1440,7 @@ func (s *OpenAIGatewayService) describeGrokComposerImage(
 		return "", OpenAIUsage{}, fmt.Errorf("read grok composer image bridge response: %w", err)
 	}
 
-	var parsed apicompat.ResponsesResponse
+	var parsed protocolopenai.ResponsesResponse
 	if err := json.Unmarshal(respBody, &parsed); err != nil {
 		return "", OpenAIUsage{}, fmt.Errorf("parse grok composer image bridge response: %w", err)
 	}
@@ -1470,7 +1472,7 @@ func buildGrokComposerImageDescriptionBody(imageURL string, index int) ([]byte, 
 	return marshalOpenAIUpstreamJSON(req)
 }
 
-func grokResponsesOutputText(resp *apicompat.ResponsesResponse) string {
+func grokResponsesOutputText(resp *protocolopenai.ResponsesResponse) string {
 	if resp == nil {
 		return ""
 	}

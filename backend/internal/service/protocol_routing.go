@@ -7,6 +7,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 type clientProtocolContextKey struct{}
@@ -16,32 +17,17 @@ func WithClientProtocol(ctx context.Context, protocol domain.ProtocolID) context
 	return context.WithValue(ctx, clientProtocolContextKey{}, protocol)
 }
 
-// ResolveProtocolRoute 对每个候选独立解析，不产生隐式优先级或多级转换。
+// ResolveProtocolRoute 对每个候选提取独立能力快照，旧上下文与账号归属留 S06。
 // @project-doc docs/interfaces/protocol_capabilities.md#group_protocol_routes
 func ResolveProtocolRoute(account *Account, group *Group, source domain.ProtocolID) (domain.ProtocolID, bool) {
 	if account == nil {
 		return "", false
 	}
-	enabled := account.UpstreamProtocols()
-	if slices.Contains(enabled, source) && slices.Contains(account.NativeProtocolOptions(), source) {
-		return source, true
+	var fallbacks map[domain.ProtocolID]domain.ProtocolID
+	if group != nil {
+		fallbacks = group.ProtocolFallbacks
 	}
-	if source == domain.ProtocolImageBatches {
-		// 批量作业沿用 provider 绑定，仅检查该 provider 的专用上游协议。
-		target := domain.ProtocolGeminiBatch
-		if account.Type == AccountTypeServiceAccount {
-			target = domain.ProtocolVertexBatch
-		}
-		return target, account.Platform == PlatformGemini && slices.Contains(enabled, target)
-	}
-	if group == nil {
-		return "", false
-	}
-	target := group.ProtocolFallbacks[source]
-	if slices.Contains(enabled, target) && domain.SupportsProtocolConversion(account.Platform, account.Type, protocolAuthMode(account), source, target) {
-		return target, true
-	}
-	return "", false
+	return capability.ResolveRoute(capability.AccountProtocols{Platform: account.Platform, Type: account.Type, AuthMode: protocolAuthMode(account), Enabled: account.UpstreamProtocols()}, source, fallbacks)
 }
 
 func (a *Account) allowsProtocolRequest(ctx context.Context) bool {

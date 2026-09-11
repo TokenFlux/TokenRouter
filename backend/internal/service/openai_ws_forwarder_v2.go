@@ -13,7 +13,9 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -616,7 +618,7 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		if eventType == "error" || eventType == "response.failed" {
 			markOpenAICyberPolicyEvent(c, message, http.StatusOK, usage)
 		}
-		var responseEvent apicompat.ResponsesStreamEvent
+		var responseEvent protocolopenai.ResponsesStreamEvent
 		if err := json.Unmarshal(message, &responseEvent); err == nil {
 			responseAccumulator.ProcessEvent(&responseEvent)
 		}

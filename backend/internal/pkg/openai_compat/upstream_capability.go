@@ -1,6 +1,8 @@
 // Package openai_compat 提供 OpenAI 协议族在不同上游间的兼容判定工具。
 package openai_compat
 
+import "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 // TextRouteMode 描述普通文本请求的上游协议路由策略。
 type TextRouteMode string
 
@@ -13,13 +15,11 @@ const (
 	TextRouteModeForceChatCompletions TextRouteMode = "force_chat_completions"
 )
 
-// TextProtocol 描述普通文本请求发往上游时使用的协议。
-type TextProtocol string
+// TextProtocol 的 wire 值由新协议包唯一拥有，旧账号字段留 S06。
+type TextProtocol = openai.TextProtocol
 
-const (
-	TextProtocolChatCompletions TextProtocol = "chat_completions"
-	TextProtocolResponses       TextProtocol = "responses"
-)
+const TextProtocolChatCompletions = openai.TextProtocolChatCompletions
+const TextProtocolResponses = openai.TextProtocolResponses
 
 const (
 	// ExtraKeyTextRouteMode 是管理员控制的文本协议路由配置。

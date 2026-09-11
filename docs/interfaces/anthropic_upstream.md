@@ -29,6 +29,8 @@ Claude 浏览器 OAuth 固定从 `https://claude.com/cai/oauth/authorize` 发起
 
 ## 协议分派
 
+Anthropic wire 类型与纯 Beta 常量由 `protocol/anthropic` 拥有，跨 Responses/Chat 的转换由 `protocol/bridge` 唯一实现，旧 apicompat 只保留兼容入口。`gateway/clientmeta` 只解析客户端字符串与版本；CLI 环境变量、最小版本选择、默认 Header 和许可裁决继续由原平台入口执行。
+
 Anthropic 原生入口是 `POST /v1/messages` 和 `POST /v1/messages/count_tokens`。同一 Anthropic 分组还可从 OpenAI Chat Completions 和 Responses 入口进入：处理器先把客户端形状归一化为 Anthropic 请求，按 attempt 选账号并转发，再把非流或 SSE 结果恢复成原协议。
 
 Anthropic 分组支持 Messages、Responses 和 Chat，新建时默认只启用 Messages；三项都可关闭，迁移前已有分组按旧行为启用三项。被关闭的协议会在读取正文和账号调度前返回对应客户端形状的 `403`，不会产生上游 attempt 或结算。

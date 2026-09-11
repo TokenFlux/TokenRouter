@@ -12,10 +12,11 @@ import (
 
 // RouterRuntime 仅包含由应用装配好的 HTTP 行为。
 type RouterRuntime struct {
-	FrameOrigins func() []string
-	Frontend     gin.HandlerFunc
-	AuthLimiter  *middleware2.RateLimiter
-	PanelLimiter *middleware2.PanelRateLimiter
+	ProtocolCatalog gin.HandlerFunc
+	FrameOrigins    func() []string
+	Frontend        gin.HandlerFunc
+	AuthLimiter     *middleware2.RateLimiter
+	PanelLimiter    *middleware2.PanelRateLimiter
 }
 
 // SetupRouter 配置路由器中间件和路由
@@ -85,7 +86,7 @@ func registerRoutes(
 	// 注册各模块路由
 	routes.RegisterAuthRoutes(v1, h, jwtAuth, auditLog, runtime.AuthLimiter, settingService, panelRateLimiter)
 	routes.RegisterUserRoutes(v1, h, jwtAuth, auditLog, stepUpAuth, settingService, panelRateLimiter)
-	routes.RegisterAdminRoutes(v1, h, adminAuth, auditLog, stepUpAuth, panelRateLimiter)
+	routes.RegisterAdminRoutes(v1, h, adminAuth, auditLog, stepUpAuth, panelRateLimiter, runtime.ProtocolCatalog)
 	routes.RegisterGatewayRoutes(r, h, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg)
 	routes.RegisterPaymentRoutes(v1, h.Payment, h.PaymentWebhook, h.Admin.Payment, jwtAuth, adminAuth, auditLog, settingService, panelRateLimiter)
 	handler.RegisterPageRoutes(v1, cfg.Pricing.DataDir, gin.HandlerFunc(jwtAuth), gin.HandlerFunc(adminAuth), settingService)

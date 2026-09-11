@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 // normalizeOpenAIResponsesLegacyIngress accepts the Chat Completions-shaped
@@ -90,7 +91,7 @@ type convertedLegacyResponsesMessages struct {
 
 func convertLegacyResponsesMessages(body []byte) (convertedLegacyResponsesMessages, error) {
 	var converted convertedLegacyResponsesMessages
-	var chatRequest apicompat.ChatCompletionsRequest
+	var chatRequest protocolopenai.ChatCompletionsRequest
 	if err := json.Unmarshal(body, &chatRequest); err != nil {
 		return converted, fmt.Errorf("normalize legacy Responses messages: %w", err)
 	}

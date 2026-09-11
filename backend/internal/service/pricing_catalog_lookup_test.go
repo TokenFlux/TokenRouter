@@ -4,8 +4,10 @@ import (
 	"strings"
 	"testing"
 
+	purepricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +29,7 @@ func TestCatalogLookupGeminiThinkingTiers(t *testing.T) {
 	} {
 		t.Run(base, func(t *testing.T) {
 			pricing := catalogLookupTestPricing(2e-6, "text", "image", "audio", "video")
-			svc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{base: pricing}}
+			svc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{base: pricing}})
 			for _, suffix := range []string{"", "-high", "-low", "-medium", "-tiered"} {
 				for _, prefix := range []string{"", "models/", "publishers/google/models/", "projects/demo/locations/global/publishers/google/models/"} {
 					model := " " + strings.ToUpper(prefix+base+suffix) + " "
@@ -46,9 +48,9 @@ func TestCatalogLookupExactEntryWinsWithoutMerging(t *testing.T) {
 		t.Run(base, func(t *testing.T) {
 			basePricing := catalogLookupTestPricing(1e-6, "text", "image", "audio", "video")
 			tierPricing := &LiteLLMModelPricing{InputCostPerToken: 9e-6, Mode: "chat"}
-			svc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+			svc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 				base: basePricing, base + "-high": tierPricing,
-			}}
+			}})
 			for _, model := range []string{base + "-high", "models/" + base + "-high"} {
 				require.Same(t, tierPricing, svc.GetModelPricing(model))
 				input, output := svc.GetModelModalities(model)
@@ -60,12 +62,12 @@ func TestCatalogLookupExactEntryWinsWithoutMerging(t *testing.T) {
 }
 
 func TestCatalogLookupGeminiRejectsUnknownAliases(t *testing.T) {
-	svc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+	svc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 		"gemini-3.8-flash":       catalogLookupTestPricing(1e-6, "text", "video"),
 		"gemini-3.8-flash-image": catalogLookupTestPricing(2e-6, "image"),
 		"gemini-3.8-flash-lite":  catalogLookupTestPricing(3e-6, "text"),
 		"gemini-3.1-pro-high":    catalogLookupTestPricing(4e-6, "text"),
-	}}
+	}})
 	for _, model := range []string{
 		"gemini-3.9-flash-tiered", "gemini-3.8-flash-high-high", "gemini-3.8-flash-ultra",
 		"gemini-3.8-flash-image-high", "gemini-3.8-flash-lite-high", "gemini-3.1-pro-low", "gemini-3.1-pro",
@@ -86,23 +88,23 @@ func TestCatalogLookupClaudeEquivalentVersions(t *testing.T) {
 	} {
 		for i := range names {
 			pricing := catalogLookupTestPricing(3e-6, "text", "image")
-			svc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{names[i]: pricing}}
+			svc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{names[i]: pricing}})
 			model := "models/" + names[1-i]
 			require.Same(t, pricing, svc.GetModelPricing(model))
 			input, _ := svc.GetModelModalities(model)
 			require.Equal(t, []string{"text", "image"}, input)
 			exact := catalogLookupTestPricing(9e-6, "text")
-			svc.pricingData[names[1-i]] = exact
+			mutatePricingFixture(svc, func(data map[string]*LiteLLMModelPricing) { data[names[1-i]] = exact })
 			require.Same(t, exact, svc.GetModelPricing(model))
 			input, _ = svc.GetModelModalities(model)
 			require.Equal(t, []string{"text"}, input)
 		}
 	}
 	// 不把日期当作次版本，也不让能力查询跨版本回退。
-	svc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+	svc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 		"claude-sonnet-4.20250514": catalogLookupTestPricing(1e-6, "video"),
 		"claude-opus-4-6":          catalogLookupTestPricing(2e-6, "image"),
-	}}
+	}})
 	for _, model := range []string{"claude-sonnet-4-20250514", "claude-opus-4.7"} {
 		input, output := svc.GetModelModalities(model)
 		require.Nil(t, input)
@@ -117,12 +119,12 @@ func TestCatalogLookupOpenAIProductIdentity(t *testing.T) {
 	} {
 		t.Run(model, func(t *testing.T) {
 			own := catalogLookupTestPricing(7e-6, "text", "image")
-			svc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+			svc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 				"gpt-5.4":       catalogLookupTestPricing(1e-6, "text"),
 				"gpt-5.6":       catalogLookupTestPricing(2e-6, "text"),
 				"gpt-5.1-codex": catalogLookupTestPricing(3e-6, "text"),
-			}}
-			svc.pricingData[model] = own
+			}})
+			mutatePricingFixture(svc, func(data map[string]*LiteLLMModelPricing) { data[model] = own })
 			for _, effort := range []string{"none", "minimal", "low", "medium", "high", "xhigh", "max"} {
 				if !openAIModelSupportsReasoningEffort(model, effort) {
 					continue
@@ -143,17 +145,17 @@ func TestCatalogLookupOpenAIProductIdentity(t *testing.T) {
 }
 
 func TestCatalogLookupOpenAIDedicatedFallbackBeforeGenericBase(t *testing.T) {
-	svc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+	svc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 		"gpt-5.4": catalogLookupTestPricing(99e-6, "text"),
 		"gpt-5.5": catalogLookupTestPricing(99e-6, "text"),
 		"gpt-5.6": catalogLookupTestPricing(99e-6, "text"),
 		"gpt-6":   catalogLookupTestPricing(99e-6, "text"),
-	}}
+	}})
 	for model, want := range map[string]*LiteLLMModelPricing{
-		"gpt-5.4-mini": openAIGPT54MiniFallbackPricing, "gpt-5.4-nano": openAIGPT54NanoFallbackPricing,
-		"gpt-5.5-pro": openAIGPT55ProFallbackPricing, "gpt-5.6-sol": openAIGPT56SolPricing,
-		"gpt-5.6-terra": openAIGPT56TerraPricing, "gpt-5.6-luna": openAIGPT56LunaPricing,
-		"gpt-6-astra": openAIGPT6AstraPricing,
+		"gpt-5.4-mini": purepricing.OpenAIGPT54MiniFallbackPricing, "gpt-5.4-nano": purepricing.OpenAIGPT54NanoFallbackPricing,
+		"gpt-5.5-pro": purepricing.OpenAIGPT55ProFallbackPricing, "gpt-5.6-sol": purepricing.OpenAIGPT56SolPricing,
+		"gpt-5.6-terra": purepricing.OpenAIGPT56TerraPricing, "gpt-5.6-luna": purepricing.OpenAIGPT56LunaPricing,
+		"gpt-6-astra": purepricing.OpenAIGPT6AstraPricing,
 	} {
 		for _, suffix := range []string{"", "-high", "-20260905", "-2026-09-05"} {
 			require.Same(t, want, svc.GetModelPricing(model+suffix), model+suffix)
@@ -168,7 +170,7 @@ func TestCatalogLookupOpenAIDedicatedFallbackBeforeGenericBase(t *testing.T) {
 func TestCatalogLookupOpenAIPriceFallbackKeepsDynamicProduct(t *testing.T) {
 	for _, model := range []string{"gpt-5.4", "gpt-5.5", "gpt-5.5-pro", "gpt-5.6-terra", "gpt-6-astra"} {
 		pricing := catalogLookupTestPricing(17e-6, "text", "image")
-		svc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{model: pricing}}
+		svc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{model: pricing}})
 		for _, suffix := range []string{"-preview", "-chat-latest"} {
 			require.Same(t, pricing, svc.GetModelPricing(model+suffix), model+suffix)
 			input, output := svc.GetModelModalities(model + suffix)
@@ -179,11 +181,11 @@ func TestCatalogLookupOpenAIPriceFallbackKeepsDynamicProduct(t *testing.T) {
 }
 
 func TestCatalogLookupBareGPT56DoesNotBorrowOtherPrices(t *testing.T) {
-	svc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+	svc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 		"gpt-5.6-sol":   catalogLookupTestPricing(5e-6, "text", "image"),
 		"gpt-5.4":       catalogLookupTestPricing(2.5e-6, "text"),
 		"gpt-5.1-codex": catalogLookupTestPricing(1.25e-6, "text"),
-	}}
+	}})
 	for _, pricingSvc := range []*PricingService{svc, nil} {
 		billing := NewBillingService(&config.Config{}, pricingSvc)
 		for _, model := range []string{"gpt-5.6", "gpt5.6", "openai/gpt-5.6-high", "gpt-5.6-max", "gpt-5.6-20260905", "gpt-5.6-2026-09-05", "gpt-5.6-openai-compact"} {
@@ -200,9 +202,9 @@ func TestCatalogLookupBareGPT56DoesNotBorrowOtherPrices(t *testing.T) {
 func TestCatalogLookupSparkBillingPolicyDoesNotSupplyCapabilities(t *testing.T) {
 	legacy := catalogLookupTestPricing(1e-6, "audio")
 	spark := catalogLookupTestPricing(9e-6, "text")
-	svc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+	svc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 		"gpt-5.1-codex": legacy, "gpt-5.3-codex-spark": spark,
-	}}
+	}})
 	require.Same(t, spark, svc.GetModelPricing("gpt-5.3-codex-spark"))
 	require.Same(t, legacy, svc.GetModelPricing("gpt-5.3-codex-spark-high"))
 	input, output := svc.GetModelModalities("gpt-5.3-codex-spark-high")
@@ -215,9 +217,9 @@ func TestCatalogLookupGrokUsesKnownRuntimeAliases(t *testing.T) {
 	t.Cleanup(func() { xai.SetRuntimeModelMappingOptions(previous) })
 	text := catalogLookupTestPricing(1e-6, "text")
 	vision := catalogLookupTestPricing(2e-6, "text", "image")
-	svc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+	svc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 		"grok-4.5": text, "grok-4.6": vision, "grok-4.20-0309-reasoning": vision,
-	}}
+	}})
 	xai.SetRuntimeModelMappingOptions(xai.ModelMappingOptions{DefaultText: "grok-4.5", EnableCrossClientMap: true})
 	require.Same(t, text, svc.GetModelPricing("x-ai/grok-latest"))
 	xai.SetRuntimeModelMappingOptions(xai.ModelMappingOptions{})
@@ -236,7 +238,7 @@ func TestCatalogLookupGrokUsesKnownRuntimeAliases(t *testing.T) {
 		}
 	}
 	// 完整别名条目仍可独立配价，未知模型和跨客户端名称不会继承 Grok 能力。
-	svc.pricingData["grok-latest"] = text
+	mutatePricingFixture(svc, func(data map[string]*LiteLLMModelPricing) { data["grok-latest"] = text })
 	require.Same(t, text, svc.GetModelPricing("grok-latest"))
 	for _, model := range []string{"grok-unknown", "gpt-5.4", "claude-sonnet-4"} {
 		input, output := svc.GetModelModalities(model)
@@ -249,7 +251,7 @@ func TestCatalogLookupGrokUsesKnownRuntimeAliases(t *testing.T) {
 func TestCatalogLookupGrokDefaultAliasCycle(t *testing.T) {
 	previous := xai.RuntimeModelMappingOptions()
 	t.Cleanup(func() { xai.SetRuntimeModelMappingOptions(previous) })
-	svc := &PricingService{pricingData: map[string]*LiteLLMModelPricing{}}
+	svc := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{}})
 	for _, target := range []string{"grok", "grok-latest", "xai/grok-latest"} {
 		xai.SetRuntimeModelMappingOptions(xai.ModelMappingOptions{DefaultText: target})
 		require.Nil(t, svc.GetModelPricing("grok"))
@@ -276,5 +278,5 @@ func TestCatalogLookupModalityFieldCompatibility(t *testing.T) {
 			require.Equal(t, []string{"text"}, output)
 		}
 	}
-	require.Equal(t, []string{"audio", "text", "audio", "file"}, svc.pricingData["legacy-input"].SupportedModalities)
+	require.Equal(t, []string{"audio", "text", "audio", "file"}, svc.runtime.Snapshot().Data["legacy-input"].SupportedModalities)
 }

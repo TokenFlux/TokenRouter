@@ -3,6 +3,7 @@
 package repository
 
 import (
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 )
@@ -12,9 +13,17 @@ import (
 // 且排序基于 total 账号数而非 active 账号数。
 func (s *GroupRepoSuite) TestListWithAccountCountSort_AttachesActiveCount() {
 	// 分组 A：total=2，active=1（包含 1 个 disabled 账号）。
-	gA := &service.Group{Name: "sort-count-a", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive}
+	gA := &service.Group{Name: "sort-count-a", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive,
+		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
+		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		ResponsesImagePolicy: "inherit",
+	}
 	// 分组 B：total=1，active=1。
-	gB := &service.Group{Name: "sort-count-b", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive}
+	gB := &service.Group{Name: "sort-count-b", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive,
+		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
+		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		ResponsesImagePolicy: "inherit",
+	}
 	s.Require().NoError(s.repo.Create(s.ctx, gA))
 	s.Require().NoError(s.repo.Create(s.ctx, gB))
 
@@ -69,8 +78,16 @@ func (s *GroupRepoSuite) TestListWithAccountCountSort_AttachesActiveCount() {
 }
 
 func (s *GroupRepoSuite) TestList_DefaultSortBySortOrderAsc() {
-	g1 := &service.Group{Name: "g1", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive, SortOrder: 20}
-	g2 := &service.Group{Name: "g2", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive, SortOrder: 10}
+	g1 := &service.Group{Name: "g1", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive, SortOrder: 20,
+		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
+		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		ResponsesImagePolicy: "inherit",
+	}
+	g2 := &service.Group{Name: "g2", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive, SortOrder: 10,
+		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
+		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		ResponsesImagePolicy: "inherit",
+	}
 	s.Require().NoError(s.repo.Create(s.ctx, g1))
 	s.Require().NoError(s.repo.Create(s.ctx, g2))
 
@@ -88,8 +105,16 @@ func (s *GroupRepoSuite) TestList_DefaultSortBySortOrderAsc() {
 }
 
 func (s *GroupRepoSuite) TestList_SortBySortOrderDesc() {
-	g1 := &service.Group{Name: "g1", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive, SortOrder: 40}
-	g2 := &service.Group{Name: "g2", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive, SortOrder: 50}
+	g1 := &service.Group{Name: "g1", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive, SortOrder: 40,
+		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
+		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		ResponsesImagePolicy: "inherit",
+	}
+	g2 := &service.Group{Name: "g2", Platform: service.PlatformAnthropic, RateMultiplier: 1, Status: service.StatusActive, SortOrder: 50,
+		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformAnthropic),
+		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformAnthropic),
+		ResponsesImagePolicy: "inherit",
+	}
 	s.Require().NoError(s.repo.Create(s.ctx, g1))
 	s.Require().NoError(s.repo.Create(s.ctx, g2))
 

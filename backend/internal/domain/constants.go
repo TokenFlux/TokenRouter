@@ -1,5 +1,7 @@
 package domain
 
+import "github.com/TokenFlux/TokenRouter/internal/routing/capability"
+
 // Status constants
 const (
 	StatusActive   = "active"
@@ -23,18 +25,15 @@ const (
 	MaxUserAPIKeyLimit = 2_147_483_647
 )
 
-// Platform constants
-const (
-	PlatformAnthropic   = "anthropic"
-	PlatformOpenAI      = "openai"
-	PlatformGemini      = "gemini"
-	PlatformAntigravity = "antigravity"
-	PlatformGrok        = "grok"
-	PlatformQoder       = "qoder"
-	PlatformKimi        = "kimi"
-	PlatformZhipu       = "zhipu"
-	PlatformDeepseek    = "deepseek"
-)
+const PlatformAnthropic = capability.PlatformAnthropic
+const PlatformOpenAI = capability.PlatformOpenAI
+const PlatformGemini = capability.PlatformGemini
+const PlatformAntigravity = capability.PlatformAntigravity
+const PlatformGrok = capability.PlatformGrok
+const PlatformQoder = capability.PlatformQoder
+const PlatformKimi = capability.PlatformKimi
+const PlatformZhipu = capability.PlatformZhipu
+const PlatformDeepseek = capability.PlatformDeepseek
 
 // 国产供应商账号模式决定默认端点与主动用量适配器。
 const (
@@ -50,16 +49,13 @@ const (
 	APIProtocolAdaptive        = "adaptive"         // 按入站协议优先选择供应商原生端点
 )
 
-// Account type constants
-const (
-	AccountTypeOAuth          = "oauth"           // OAuth类型账号（full scope: profile + inference）
-	AccountTypeSetupToken     = "setup-token"     // Setup Token类型账号（inference only scope）
-	AccountTypeAPIKey         = "apikey"          // API Key类型账号
-	AccountTypeUpstream       = "upstream"        // 上游透传类型账号（通过 Base URL + API Key 连接上游）
-	AccountTypeBedrock        = "bedrock"         // AWS Bedrock 类型账号（通过 SigV4 签名或 API Key 连接 Bedrock，由 credentials.auth_mode 区分）
-	AccountTypeServiceAccount = "service_account" // Google Service Account 类型账号（用于 Vertex AI）
-	AccountTypeCosy           = "cosy"            // Qoder COSY 协议账号
-)
+const AccountTypeOAuth = capability.AccountTypeOAuth
+const AccountTypeSetupToken = capability.AccountTypeSetupToken
+const AccountTypeAPIKey = capability.AccountTypeAPIKey
+const AccountTypeUpstream = capability.AccountTypeUpstream
+const AccountTypeBedrock = capability.AccountTypeBedrock
+const AccountTypeServiceAccount = capability.AccountTypeServiceAccount
+const AccountTypeCosy = capability.AccountTypeCosy
 
 // Redeem type constants
 const (

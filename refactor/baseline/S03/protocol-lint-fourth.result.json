@@ -1,0 +1,25 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=5m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "./internal/protocol/...",
+    "./internal/pkg/apicompat",
+    "./internal/pkg/googleapi",
+    "./internal/pkg/httputil",
+    "./internal/pkg/openai",
+    "./internal/pkg/openai_compat",
+    "./internal/pkg/claude",
+    "./internal/pkg/antigravity",
+    "./internal/gateway/...",
+    "./internal/routing/...",
+    "./internal/domain"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 2.235,
+  "log": "logs/protocol-lint-fourth.log.gz"
+}

@@ -7,7 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
+	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
+
 	"github.com/cespare/xxhash/v2"
 )
 
@@ -21,7 +22,7 @@ func shortHash(data []byte) string {
 // BuildGeminiDigestChain 根据 Gemini 请求生成摘要链
 // 格式: s:<hash>-u:<hash>-m:<hash>-u:<hash>-...
 // s = systemInstruction, u = user, m = model
-func BuildGeminiDigestChain(req *antigravity.GeminiRequest) string {
+func BuildGeminiDigestChain(req *protocolgemini.GeminiRequest) string {
 	if req == nil {
 		return ""
 	}

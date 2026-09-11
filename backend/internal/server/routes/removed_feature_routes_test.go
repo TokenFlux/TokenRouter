@@ -7,6 +7,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/handler"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -31,8 +32,7 @@ func TestRemovedFeatureRoutesReturnNotFound(t *testing.T) {
 		middleware.AdminAuthMiddleware(func(c *gin.Context) { c.Next() }),
 		middleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() }),
 		middleware.StepUpAuthMiddleware(func(c *gin.Context) { c.Next() }),
-		nil,
-	)
+		nil, func(c *gin.Context) { c.Status(http.StatusOK) })
 
 	removedPath := "/api/v1/" + "data" + "-sharing"
 	for _, path := range []string{

@@ -17,7 +17,8 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -260,7 +261,7 @@ func TestEstimateOpenAIInputTokens_RequestSamples(t *testing.T) {
 				Model:        "gpt-5",
 				Instructions: "You are helpful.",
 				Input:        json.RawMessage(`[{"role":"user","content":"lookup weather in shanghai"}]`),
-				Tools: []apicompat.ResponsesTool{
+				Tools: []protocolopenai.ResponsesTool{
 					{
 						Type:        "function",
 						Name:        "lookup_weather",

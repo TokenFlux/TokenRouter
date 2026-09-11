@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "-run",
+    "ReasoningEffort|ThinkingProtocol|Protocol"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 21.099,
+  "log": "logs/reasoning-unit.log.gz",
+  "test_events": {
+    "pass": 433,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

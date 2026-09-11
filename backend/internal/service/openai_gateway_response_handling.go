@@ -18,7 +18,9 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -633,7 +635,7 @@ func (s *OpenAIGatewayService) handleStreamingResponseWithReasoning(ctx context.
 			}
 			streamDoneItems.Observe(dataBytes)
 			if responsesStreamEventMayContributeToOutput(eventType) {
-				var streamEvent apicompat.ResponsesStreamEvent
+				var streamEvent protocolopenai.ResponsesStreamEvent
 				if err := json.Unmarshal(dataBytes, &streamEvent); err == nil {
 					responseAccumulator.ProcessEvent(&streamEvent)
 				}
@@ -2179,7 +2181,7 @@ func reconstructResponseOutputFromSSE(bodyText string) ([]byte, bool) {
 		}
 		eventType := strings.TrimSpace(gjson.GetBytes(data, "type").String())
 		if responsesStreamEventMayContributeToOutput(eventType) {
-			var event apicompat.ResponsesStreamEvent
+			var event protocolopenai.ResponsesStreamEvent
 			if err := json.Unmarshal(data, &event); err == nil {
 				acc.ProcessEvent(&event)
 			}

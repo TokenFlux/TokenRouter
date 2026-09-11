@@ -5,16 +5,17 @@ package service
 import (
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/stretchr/testify/require"
 )
 
 func TestCopyOpenAIUsageFromResponsesUsageTrustsCanonicalCacheCreationValue(t *testing.T) {
-	usage := &apicompat.ResponsesUsage{
+	usage := &protocolopenai.ResponsesUsage{
 		InputTokens:              20,
 		OutputTokens:             2,
 		CacheCreationInputTokens: 0,
-		InputTokensDetails: &apicompat.ResponsesInputTokensDetails{
+		InputTokensDetails: &protocolopenai.ResponsesInputTokensDetails{
 			CachedTokens:     3,
 			CacheWriteTokens: 19,
 		},

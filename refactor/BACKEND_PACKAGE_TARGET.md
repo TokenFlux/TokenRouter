@@ -1179,7 +1179,7 @@ git diff --check
 
 ## 9. Roadmap
 
-当前 **3 / 17 个阶段完成**。下一步：编写 S03 子计划，迁移协议、能力目录与纯定价。
+当前 **4 / 17 个阶段完成**。下一步：编写 S04 子计划，迁移 billing 结算、权益与资金事务。
 
 状态使用：未实施、规划中、计划就绪、实施中、待验、已完成。详细决策、执行记录和完成证据保存在子计划；文件创建后再补链接，必要验收通过后才更新为已完成。
 
@@ -1188,7 +1188,7 @@ git diff --check
 | S00 | 基线与迁移清点 | 已完成 | [S00-baseline.md](S00-baseline.md) |
 | S01 | 依赖门禁与通用基础 | 已完成 | [S01-foundation.md](S01-foundation.md) |
 | S02 | app、生命周期与公告试点 | 已完成 | [阶段计划与执行记录](S02-app-lifecycle.md) |
-| S03 | 协议、能力与纯定价 | 未实施 | — |
+| S03 | 协议、能力与纯定价 | 已完成 | [S03 子计划](S03-protocol-capability-pricing.md) |
 | S04 | billing 与资金事务 | 未实施 | — |
 | S05 | identity、team、apikey | 未实施 | — |
 | S06 | egress、routing、account | 未实施 | — |

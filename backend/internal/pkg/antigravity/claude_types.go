@@ -1,147 +1,43 @@
 package antigravity
 
 import (
-	"encoding/json"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	"github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 )
 
-// Claude 请求/响应类型定义
+// 通用 wire 类型只保留别名；默认模型、安全配置及 v1internal 包装仍由平台拥有。
 
-// ClaudeRequest Claude Messages API 请求
-type ClaudeRequest struct {
-	Model       string          `json:"model"`
-	Messages    []ClaudeMessage `json:"messages"`
-	MaxTokens   int             `json:"max_tokens,omitempty"`
-	System      json.RawMessage `json:"system,omitempty"` // string 或 []SystemBlock
-	Stream      bool            `json:"stream,omitempty"`
-	Temperature *float64        `json:"temperature,omitempty"`
-	TopP        *float64        `json:"top_p,omitempty"`
-	TopK        *int            `json:"top_k,omitempty"`
-	Tools       []ClaudeTool    `json:"tools,omitempty"`
-	Thinking    *ThinkingConfig `json:"thinking,omitempty"`
-	Metadata    *ClaudeMetadata `json:"metadata,omitempty"`
-}
+type ClaudeRequest = anthropic.ClaudeRequest
 
-// ClaudeMessage Claude 消息
-type ClaudeMessage struct {
-	Role    string          `json:"role"` // user, assistant
-	Content json.RawMessage `json:"content"`
-}
+type ClaudeMessage = anthropic.ClaudeMessage
 
-// ThinkingConfig Thinking 配置
-type ThinkingConfig struct {
-	Type         string `json:"type"`                    // "enabled" / "adaptive" / "disabled"
-	BudgetTokens int    `json:"budget_tokens,omitempty"` // thinking budget
-}
+type ThinkingConfig = anthropic.ThinkingConfig
 
-// ClaudeMetadata 请求元数据
-type ClaudeMetadata struct {
-	UserID string `json:"user_id,omitempty"`
-}
+type ClaudeMetadata = anthropic.ClaudeMetadata
 
-// ClaudeTool Claude 工具定义
-// 支持两种格式：
-// 1. 标准格式: { "name": "...", "description": "...", "input_schema": {...} }
-// 2. Custom 格式 (MCP): { "type": "custom", "name": "...", "custom": { "description": "...", "input_schema": {...} } }
-type ClaudeTool struct {
-	Type        string          `json:"type,omitempty"` // "custom" 或空（标准格式）
-	Name        string          `json:"name"`
-	Description string          `json:"description,omitempty"`  // 标准格式使用
-	InputSchema map[string]any  `json:"input_schema,omitempty"` // 标准格式使用
-	Custom      *CustomToolSpec `json:"custom,omitempty"`       // custom 格式使用
-}
+type ClaudeTool = anthropic.ClaudeTool
 
-// CustomToolSpec MCP custom 工具规格
-type CustomToolSpec struct {
-	Description string         `json:"description,omitempty"`
-	InputSchema map[string]any `json:"input_schema"`
-}
+type CustomToolSpec = anthropic.CustomToolSpec
 
-// ClaudeCustomToolSpec 兼容旧命名（MCP custom 工具规格）
-type ClaudeCustomToolSpec = CustomToolSpec
+type ClaudeCustomToolSpec = anthropic.ClaudeCustomToolSpec
 
-// SystemBlock system prompt 数组形式的元素
-type SystemBlock struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
-}
+type SystemBlock = anthropic.SystemBlock
 
-// ContentBlock Claude 消息内容块（解析后）
-type ContentBlock struct {
-	Type string `json:"type"`
-	// text
-	Text string `json:"text,omitempty"`
-	// thinking
-	Thinking  string `json:"thinking,omitempty"`
-	Signature string `json:"signature,omitempty"`
-	// tool_use
-	ID    string `json:"id,omitempty"`
-	Name  string `json:"name,omitempty"`
-	Input any    `json:"input,omitempty"`
-	// tool_result
-	ToolUseID string          `json:"tool_use_id,omitempty"`
-	Content   json.RawMessage `json:"content,omitempty"`
-	IsError   bool            `json:"is_error,omitempty"`
-	// image
-	Source *ImageSource `json:"source,omitempty"`
-}
+type ContentBlock = anthropic.ContentBlock
 
-// ImageSource Claude 图片来源
-type ImageSource struct {
-	Type      string `json:"type"`       // "base64"
-	MediaType string `json:"media_type"` // "image/png", "image/jpeg" 等
-	Data      string `json:"data"`
-}
+type ImageSource = anthropic.ImageSource
 
-// ClaudeResponse Claude Messages API 响应
-type ClaudeResponse struct {
-	ID           string              `json:"id"`
-	Type         string              `json:"type"` // "message"
-	Role         string              `json:"role"` // "assistant"
-	Model        string              `json:"model"`
-	Content      []ClaudeContentItem `json:"content"`
-	StopReason   string              `json:"stop_reason,omitempty"`   // end_turn, tool_use, max_tokens
-	StopSequence *string             `json:"stop_sequence,omitempty"` // null 或具体值
-	Usage        ClaudeUsage         `json:"usage"`
-}
+type ClaudeResponse = anthropic.ClaudeResponse
 
-// ClaudeContentItem Claude 响应内容项
-type ClaudeContentItem struct {
-	Type string `json:"type"` // text, thinking, tool_use
+type ClaudeContentItem = anthropic.ClaudeContentItem
 
-	// text
-	Text string `json:"text,omitempty"`
+type ClaudeUsage = anthropic.ClaudeUsage
 
-	// thinking
-	Thinking  string `json:"thinking,omitempty"`
-	Signature string `json:"signature,omitempty"`
+type ClaudeError = anthropic.ClaudeError
 
-	// tool_use
-	ID    string `json:"id,omitempty"`
-	Name  string `json:"name,omitempty"`
-	Input any    `json:"input,omitempty"`
-}
-
-// ClaudeUsage Claude 用量统计
-type ClaudeUsage struct {
-	InputTokens              int `json:"input_tokens"`
-	OutputTokens             int `json:"output_tokens"`
-	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
-	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
-	ImageOutputTokens        int `json:"image_output_tokens,omitempty"`
-}
-
-// ClaudeError Claude 错误响应
-type ClaudeError struct {
-	Type  string      `json:"type"` // "error"
-	Error ErrorDetail `json:"error"`
-}
-
-// ErrorDetail 错误详情
-type ErrorDetail struct {
-	Type    string `json:"type"`
-	Message string `json:"message"`
-}
+type ErrorDetail = anthropic.ErrorDetail
 
 // modelDef Antigravity 模型定义（内部使用）
 type modelDef struct {
@@ -188,15 +84,7 @@ var geminiModels = []modelDef{
 	{ID: "gemini-3-pro-image", DisplayName: "Gemini 3 Pro Image", CreatedAt: "2025-06-01T00:00:00Z"},
 }
 
-// ========== Claude API 格式 (/v1/models) ==========
-
-// ClaudeModel Claude API 模型格式
-type ClaudeModel struct {
-	ID          string `json:"id"`
-	Type        string `json:"type"`
-	DisplayName string `json:"display_name"`
-	CreatedAt   string `json:"created_at"`
-}
+type ClaudeModel = anthropic.ClaudeModel
 
 // DefaultModels 返回 Claude API 格式的模型列表（Claude + Gemini）
 func DefaultModels() []ClaudeModel {
@@ -208,19 +96,9 @@ func DefaultModels() []ClaudeModel {
 	return result
 }
 
-// ========== Gemini v1beta 格式 (/v1beta/models) ==========
+type GeminiModel = gemini.GeminiModel
 
-// GeminiModel Gemini v1beta 模型格式
-type GeminiModel struct {
-	Name                       string   `json:"name"`
-	DisplayName                string   `json:"displayName,omitempty"`
-	SupportedGenerationMethods []string `json:"supportedGenerationMethods,omitempty"`
-}
-
-// GeminiModelsListResponse Gemini v1beta 模型列表响应
-type GeminiModelsListResponse struct {
-	Models []GeminiModel `json:"models"`
-}
+type GeminiModelsListResponse = gemini.GeminiModelsListResponse
 
 var defaultGeminiMethods = []string{"generateContent", "streamGenerateContent"}
 

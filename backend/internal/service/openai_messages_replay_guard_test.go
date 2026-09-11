@@ -5,16 +5,17 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+
 	"github.com/stretchr/testify/require"
 )
 
 func TestApplyAnthropicCompatFullReplayGuard_TrimsOldMessages(t *testing.T) {
 	t.Parallel()
 
-	req := &apicompat.AnthropicRequest{Messages: make([]apicompat.AnthropicMessage, 0, openAICompatAnthropicReplayMaxTailMessages+3)}
+	req := &protocolanthropic.AnthropicRequest{Messages: make([]protocolanthropic.AnthropicMessage, 0, openAICompatAnthropicReplayMaxTailMessages+3)}
 	for i := 0; i < openAICompatAnthropicReplayMaxTailMessages+3; i++ {
-		req.Messages = append(req.Messages, apicompat.AnthropicMessage{
+		req.Messages = append(req.Messages, protocolanthropic.AnthropicMessage{
 			Role:    "user",
 			Content: json.RawMessage(fmt.Sprintf(`"message-%02d"`, i)),
 		})
@@ -31,7 +32,7 @@ func TestApplyAnthropicCompatFullReplayGuard_TrimsOldMessages(t *testing.T) {
 func TestApplyAnthropicCompatFullReplayGuard_KeepsToolBoundaryIntact(t *testing.T) {
 	t.Parallel()
 
-	req := &apicompat.AnthropicRequest{Messages: make([]apicompat.AnthropicMessage, 0, openAICompatAnthropicReplayMaxTailMessages+3)}
+	req := &protocolanthropic.AnthropicRequest{Messages: make([]protocolanthropic.AnthropicMessage, 0, openAICompatAnthropicReplayMaxTailMessages+3)}
 	for i := 0; i < openAICompatAnthropicReplayMaxTailMessages+3; i++ {
 		role := "user"
 		content := json.RawMessage(fmt.Sprintf(`"message-%02d"`, i))
@@ -42,7 +43,7 @@ func TestApplyAnthropicCompatFullReplayGuard_KeepsToolBoundaryIntact(t *testing.
 		if i == 3 {
 			content = json.RawMessage(`[{"type":"tool_result","tool_use_id":"toolu_keep","content":"ok"}]`)
 		}
-		req.Messages = append(req.Messages, apicompat.AnthropicMessage{
+		req.Messages = append(req.Messages, protocolanthropic.AnthropicMessage{
 			Role:    role,
 			Content: content,
 		})

@@ -14,7 +14,10 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
@@ -51,7 +54,7 @@ func (s *GatewayService) ForwardAsResponses(
 	}
 
 	// 1. Parse Responses request
-	var responsesReq apicompat.ResponsesRequest
+	var responsesReq protocolopenai.ResponsesRequest
 	if err := json.Unmarshal(adaptedBody, &responsesReq); err != nil {
 		return nil, fmt.Errorf("parse responses request: %w", err)
 	}
@@ -275,7 +278,7 @@ func ExtractResponsesReasoningEffortFromBody(body []byte, modelCandidates ...str
 	return &normalized
 }
 
-func mergeAnthropicUsage(dst *ClaudeUsage, src apicompat.AnthropicUsage) {
+func mergeAnthropicUsage(dst *ClaudeUsage, src protocolanthropic.AnthropicUsage) {
 	if dst == nil {
 		return
 	}
@@ -351,7 +354,7 @@ func (s *GatewayService) handleResponsesBufferedStreamingResponse(
 	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
 
 	// Accumulate the final Anthropic response from streaming events
-	var finalResp *apicompat.AnthropicResponse
+	var finalResp *protocolanthropic.AnthropicResponse
 	var usage ClaudeUsage
 
 	for scanner.Scan() {
@@ -370,7 +373,7 @@ func (s *GatewayService) handleResponsesBufferedStreamingResponse(
 			continue
 		}
 
-		var event apicompat.AnthropicStreamEvent
+		var event protocolanthropic.AnthropicStreamEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			logger.L().Warn("forward_as_responses buffered: failed to parse event",
 				zap.Error(err),
@@ -431,7 +434,7 @@ func (s *GatewayService) handleResponsesBufferedStreamingResponse(
 
 	// Update usage from accumulated delta
 	if usage.InputTokens > 0 || usage.OutputTokens > 0 {
-		finalResp.Usage = apicompat.AnthropicUsage{
+		finalResp.Usage = protocolanthropic.AnthropicUsage{
 			InputTokens:              usage.InputTokens,
 			OutputTokens:             usage.OutputTokens,
 			CacheCreationInputTokens: usage.CacheCreationInputTokens,
@@ -526,7 +529,7 @@ func (s *GatewayService) handleResponsesStreamingResponse(
 	}
 
 	// writeEvent 统一完成名称反转、客户端工具还原与 SSE 写出，尾部事件也复用此路径。
-	writeEvent := func(evt apicompat.ResponsesStreamEvent) bool {
+	writeEvent := func(evt protocolopenai.ResponsesStreamEvent) bool {
 		payload, err := json.Marshal(evt)
 		if err != nil {
 			logger.L().Warn("forward_as_responses stream: failed to marshal event",
@@ -557,7 +560,7 @@ func (s *GatewayService) handleResponsesStreamingResponse(
 	}
 
 	// processEvent handles a single parsed Anthropic SSE event.
-	processEvent := func(event *apicompat.AnthropicStreamEvent) bool {
+	processEvent := func(event *protocolanthropic.AnthropicStreamEvent) bool {
 		if firstChunk {
 			firstChunk = false
 			ms := int(time.Since(startTime).Milliseconds())
@@ -615,7 +618,7 @@ func (s *GatewayService) handleResponsesStreamingResponse(
 			continue
 		}
 
-		var event apicompat.AnthropicStreamEvent
+		var event protocolanthropic.AnthropicStreamEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			logger.L().Warn("forward_as_responses stream: failed to parse event",
 				zap.Error(err),

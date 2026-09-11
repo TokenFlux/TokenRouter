@@ -126,9 +126,12 @@ client_model
 
 粘性会话已经绑定账号时，切换账号可能要求把普通输入按缓存读取计费，以反映缓存不再命中的成本语义。选择耗尽后的单账号重试和等待有严格上限；客户端 Context 取消必须立即终止，不继续选择或休眠。
 
+<a id="protocol_conversion_boundary"></a>
 ## 转发与流式边界
 
 每次 attempt 都以原始/规范化请求和本次账号重新构造供应商请求，注入凭据、代理、TLS 指纹、客户端标识、Thinking/工具配置及上游模型。平台适配器负责协议转换、上游响应限制和供应商错误解析，handler 负责在客户端协议中返回最终结果。
+
+通用报文与转换算法位于 `protocol/{anthropic,openai,gemini,google,bridge}`。旧入口选择采样/Max effort、schema、thinking、签名与工具选项，并注入时刻和 ID 生成器；每请求/attempt 创建独立转换状态。Gemini 的 Messages 与 OpenAI 兼容流保留各自的 thinking、index 和 usage 观测顺序，以逐事件迭代返回输出；HTTP 读取、Flush、首次输出判定、取消、失败后排水和重试仍由旧执行层拥有。不得因提取纯状态机而整流缓冲或改变真实输出后的重试边界。
 
 流式响应有不可逆边界：在调用上游前记录 `ResponseWriter` 已写字节数；如果 attempt 已向客户端写出真实业务输出，就不能再选择账号，否则会把两个上游响应拼接为损坏的单流。旧版 Compact 桥接心跳、Responses 的 `response.created` / `response.in_progress` 前导事件，以及等待终态判定的可重试 `error` 帧不算业务输出，可以留在 attempt 缓冲中为 pre-output failover 保留空间；不可重试错误仍按事件边界及时转发。真实输出开始后，错误只能按当前协议追加允许的流错误事件或结束连接。非流式且尚未写响应时，才可以安全地进入下一次 failover。
 

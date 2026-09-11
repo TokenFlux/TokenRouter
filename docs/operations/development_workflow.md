@@ -72,6 +72,8 @@ protocol 的六组生产与测试规则使用精确的标准库白名单，允�
 
 app 的旧图绑定和 legacybridge 许可精确到源文件与 import。setup 只有实际入口文件可以引用精简 bootstrap；模块仍禁止反向依赖 app。迁出文件恢复目标角色规则，新增同目录文件不得继承例外。验证要覆盖普通/unit/integration，以及 wireinject、embed 和 OS 文件选择，不能仅以 lint 没有报错推断规则命中。
 
+协议哈希和 Gemini 迭代器的 `crypto/sha256`、`iter` 许可只匹配实际文件；clientmeta 的版本库、app 定价装配及目录 HTTP 契约测试也按文件许可。pricing、capability、clientmeta 使用明确标准库集合，不能增加文件/网络读取。纯规则的测试应直接传入值；平台选择、HTTP 失败/取消和目录热更新还要验证旧消费者。管理员目录的完整 JSON、24 项顺序及 TypeScript 类型由 app 组合测试对照前端 fixture，不能通过修改夹具掩盖输出差异。
+
 ## 生成代码与迁移
 
 `backend/ent/` 大部分文件由 Ent 生成，`backend/internal/app/wire_gen.go` 由 Wire 生成。统一使用：

@@ -11,6 +11,9 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tiktoken-go/tokenizer"
@@ -24,11 +27,11 @@ const (
 )
 
 type openAIInputTokensCountRequest struct {
-	Model        string                    `json:"model"`
-	Instructions string                    `json:"instructions,omitempty"`
-	Input        json.RawMessage           `json:"input,omitempty"`
-	Tools        []apicompat.ResponsesTool `json:"tools,omitempty"`
-	ToolChoice   json.RawMessage           `json:"tool_choice,omitempty"`
+	Model        string                         `json:"model"`
+	Instructions string                         `json:"instructions,omitempty"`
+	Input        json.RawMessage                `json:"input,omitempty"`
+	Tools        []protocolopenai.ResponsesTool `json:"tools,omitempty"`
+	ToolChoice   json.RawMessage                `json:"tool_choice,omitempty"`
 }
 
 type openAIInputTokensCountPrepared struct {
@@ -48,7 +51,7 @@ func EstimateGrokCountTokens(body []byte) (int, error) {
 // estimateAnthropicCountTokensLocally 走 Anthropic→Responses→tiktoken 链本地估算
 // count_tokens，不发任何上游请求（上游无兼容端点的平台使用）。
 func estimateAnthropicCountTokensLocally(body []byte) (int, error) {
-	var anthropicReq apicompat.AnthropicRequest
+	var anthropicReq protocolanthropic.AnthropicRequest
 	if err := json.Unmarshal(body, &anthropicReq); err != nil {
 		return 0, fmt.Errorf("parse anthropic count_tokens request: %w", err)
 	}
@@ -252,7 +255,7 @@ func prepareOpenAIInputTokensCountRequest(
 	account *Account,
 	defaultMappedModel string,
 ) (*openAIInputTokensCountPrepared, error) {
-	var anthropicReq apicompat.AnthropicRequest
+	var anthropicReq protocolanthropic.AnthropicRequest
 	if err := json.Unmarshal(body, &anthropicReq); err != nil {
 		return nil, fmt.Errorf("parse anthropic count_tokens request: %w", err)
 	}
@@ -488,7 +491,7 @@ func estimateOpenAIInputTokensForInput(codec tokenizer.Codec, raw json.RawMessag
 		return codec.Count(plainText)
 	}
 
-	var items []apicompat.ResponsesInputItem
+	var items []protocolopenai.ResponsesInputItem
 	if err := json.Unmarshal(raw, &items); err == nil {
 		return estimateOpenAIInputTokensForInputItems(codec, items)
 	}
@@ -500,7 +503,7 @@ func estimateOpenAIInputTokensForInput(codec tokenizer.Codec, raw json.RawMessag
 	return codec.Count(compacted)
 }
 
-func estimateOpenAIInputTokensForInputItems(codec tokenizer.Codec, items []apicompat.ResponsesInputItem) (int, error) {
+func estimateOpenAIInputTokensForInputItems(codec tokenizer.Codec, items []protocolopenai.ResponsesInputItem) (int, error) {
 	total := 0
 	countText := func(text string) error {
 		text = strings.TrimSpace(text)
@@ -553,7 +556,7 @@ func estimateOpenAIInputTokensForInputItems(codec tokenizer.Codec, items []apico
 			continue
 		}
 
-		var parts []apicompat.ResponsesContentPart
+		var parts []protocolopenai.ResponsesContentPart
 		if err := json.Unmarshal(item.Content, &parts); err == nil {
 			for _, part := range parts {
 				total += openAIResponsesContentPartOverhead

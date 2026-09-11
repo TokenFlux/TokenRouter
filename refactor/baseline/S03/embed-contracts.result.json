@@ -1,0 +1,25 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=embed",
+    "./internal/web",
+    "./internal/app",
+    "-run",
+    "Frontend|Embed|Inject|ProtocolCatalog"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 2.889,
+  "log": "logs/embed-contracts.log.gz",
+  "test_events": {
+    "pass": 86,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

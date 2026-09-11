@@ -12,6 +12,9 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -67,7 +70,7 @@ func (s *AntigravityGatewayService) ForwardAsChatCompletions(
 		return nil, err
 	}
 
-	var request apicompat.ChatCompletionsRequest
+	var request protocolopenai.ChatCompletionsRequest
 	if json.Unmarshal(body, &request) != nil {
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 	}
@@ -120,7 +123,7 @@ func (s *AntigravityGatewayService) ForwardAsResponses(
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 	}
 
-	var request apicompat.ResponsesRequest
+	var request protocolopenai.ResponsesRequest
 	if json.Unmarshal(adaptedBody, &request) != nil {
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 	}
@@ -163,7 +166,7 @@ func (s *AntigravityGatewayService) validateAntigravityCompatAccount(c *gin.Cont
 	)
 }
 
-func preserveChatCompletionTokenLimit(request *apicompat.ChatCompletionsRequest, claudeRequest *apicompat.AnthropicRequest) {
+func preserveChatCompletionTokenLimit(request *protocolopenai.ChatCompletionsRequest, claudeRequest *protocolanthropic.AnthropicRequest) {
 	if request == nil || claudeRequest == nil {
 		return
 	}
@@ -228,7 +231,7 @@ func (s *AntigravityGatewayService) prepareAntigravityCompatCall(
 	account *Account,
 	request antigravityCompatRequest,
 ) (*antigravityCompatUpstreamCall, error) {
-	var claudeRequest antigravity.ClaudeRequest
+	var claudeRequest protocolanthropic.ClaudeRequest
 	if json.Unmarshal(request.claudeBody, &claudeRequest) != nil {
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadRequest, "invalid_request_error", "Invalid request body")
 	}
@@ -278,7 +281,7 @@ func (s *AntigravityGatewayService) prepareAntigravityCompatCall(
 func (s *AntigravityGatewayService) buildAntigravityCompatGeminiBody(
 	ctx context.Context,
 	claudeBody []byte,
-	claudeRequest *antigravity.ClaudeRequest,
+	claudeRequest *protocolanthropic.ClaudeRequest,
 	projectID string,
 	mappedModel string,
 ) ([]byte, error) {
@@ -554,7 +557,7 @@ func (s *AntigravityGatewayService) handleChatCompletionsNonStreamingFromAntigra
 	if err != nil {
 		return nil, s.mapAntigravityCompatCollectionError(c, err)
 	}
-	var anthropicResponse apicompat.AnthropicResponse
+	var anthropicResponse protocolanthropic.AnthropicResponse
 	if json.Unmarshal(claudeResponse, &anthropicResponse) != nil {
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}
@@ -580,7 +583,7 @@ func (s *AntigravityGatewayService) handleResponsesNonStreamingFromAntigravity(
 	if err != nil {
 		return nil, s.mapAntigravityCompatCollectionError(c, err)
 	}
-	var anthropicResponse apicompat.AnthropicResponse
+	var anthropicResponse protocolanthropic.AnthropicResponse
 	if json.Unmarshal(claudeResponse, &anthropicResponse) != nil {
 		return nil, s.writeAntigravityCompatError(c, http.StatusBadGateway, "upstream_error", "Failed to parse upstream response")
 	}

@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
+	gatewayhttpapi "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,7 +28,7 @@ func routeProtocol(method, path string) domain.ProtocolID {
 			path = strings.TrimPrefix(path, prefix)
 		}
 	}
-	protocol, _ := domain.ProtocolForRoute(method, path)
+	protocol, _ := gatewayhttpapi.ProtocolForRoute(method, path)
 	return protocol
 }
 

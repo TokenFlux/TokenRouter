@@ -19,11 +19,12 @@ import (
 	pkghttputil "github.com/TokenFlux/TokenRouter/internal/pkg/httputil"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
-	"github.com/google/uuid"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -402,7 +403,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 
 	if useDigestFallback {
 		// 解析 Gemini 请求体
-		var geminiReq antigravity.GeminiRequest
+		var geminiReq protocolgemini.GeminiRequest
 		if err := json.Unmarshal(body, &geminiReq); err == nil && len(geminiReq.Contents) > 0 {
 			// 生成摘要链
 			geminiDigestChain = service.BuildGeminiDigestChain(&geminiReq)

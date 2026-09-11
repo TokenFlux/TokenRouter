@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -75,6 +77,10 @@ func TestCreateGroupFromSourceRollsBackWhenOutboxInsertFails(t *testing.T) {
 		RateMultiplier:       1,
 		Status:               "inactive",
 		DuplicateOperationID: operationID,
+
+		AllowedProtocols:     domain.DefaultGroupClientProtocols(source.Platform),
+		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(source.Platform),
+		ResponsesImagePolicy: "inherit",
 	}
 	err = repo.CreateFromSource(ctx, duplicate, source.ID)
 	require.ErrorContains(t, err, "forced duplicate outbox failure")

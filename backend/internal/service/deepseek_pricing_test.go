@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,11 +39,11 @@ func TestDeepseekPeakMultiplierAt(t *testing.T) {
 }
 
 func TestGetModelPricing_DeepseekUsesOfficialRatesForStaleEntries(t *testing.T) {
-	pricingService := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+	pricingService := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 		"deepseek-v4-pro":      {InputCostPerToken: 1e-6, OutputCostPerToken: 2e-6, CacheReadInputTokenCost: 3e-8},
 		"deepseek-v4-flash":    {InputCostPerToken: 1e-6, OutputCostPerToken: 2e-6, CacheReadInputTokenCost: 3e-8},
 		"deepseek-v3-2-251201": {InputCostPerToken: 0, OutputCostPerToken: 0},
-	}}
+	}})
 	bs := NewBillingService(&config.Config{}, pricingService)
 
 	tests := []struct {
@@ -97,7 +98,7 @@ func TestCalculateCostUnified_DeepseekPeakDoesNotOverrideGroupPricing(t *testing
 func TestDeepseekPricingFileContainsOnlyCurrentCatalogEntries(t *testing.T) {
 	data, err := os.ReadFile(filepath.Join("..", "..", "resources", "model-pricing", "model_prices_and_context_window.json"))
 	require.NoError(t, err)
-	pricingService := &PricingService{}
+	pricingService := newPricingServiceFixture(pricingServiceFixture{})
 	pricingData, err := pricingService.parsePricingData(data)
 	require.NoError(t, err)
 

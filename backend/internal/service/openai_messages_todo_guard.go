@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 const (
@@ -12,12 +12,12 @@ const (
 	openAICompatClaudeCodeTodoGuardText   = openAICompatClaudeCodeTodoGuardMarker + "\nWhen using Claude Code todo or task tracking tools, keep the visible task list consistent. Do not send final or summary text while any item remains in_progress. Before finishing, asking the user to choose, or reporting a blocker, update the todo list so completed work is completed and deferred work is pending/open; leave an item in_progress only when active work will continue in the same turn.\n</sub2api-claude-code-todo-guard>"
 )
 
-func appendOpenAICompatClaudeCodeTodoGuard(req *apicompat.ResponsesRequest) bool {
+func appendOpenAICompatClaudeCodeTodoGuard(req *protocolopenai.ResponsesRequest) bool {
 	if req == nil || len(req.Input) == 0 {
 		return false
 	}
 
-	var items []apicompat.ResponsesInputItem
+	var items []protocolopenai.ResponsesInputItem
 	if err := json.Unmarshal(req.Input, &items); err != nil {
 		return false
 	}
@@ -25,7 +25,7 @@ func appendOpenAICompatClaudeCodeTodoGuard(req *apicompat.ResponsesRequest) bool
 		return false
 	}
 
-	content, err := json.Marshal([]apicompat.ResponsesContentPart{{
+	content, err := json.Marshal([]protocolopenai.ResponsesContentPart{{
 		Type: "input_text",
 		Text: openAICompatClaudeCodeTodoGuardText,
 	}})
@@ -33,7 +33,7 @@ func appendOpenAICompatClaudeCodeTodoGuard(req *apicompat.ResponsesRequest) bool
 		return false
 	}
 
-	guard := apicompat.ResponsesInputItem{
+	guard := protocolopenai.ResponsesInputItem{
 		Type:    "message",
 		Role:    "developer",
 		Content: content,
@@ -44,7 +44,7 @@ func appendOpenAICompatClaudeCodeTodoGuard(req *apicompat.ResponsesRequest) bool
 		insertAt++
 	}
 
-	items = append(items, apicompat.ResponsesInputItem{})
+	items = append(items, protocolopenai.ResponsesInputItem{})
 	copy(items[insertAt+1:], items[insertAt:])
 	items[insertAt] = guard
 
@@ -93,7 +93,7 @@ func appendOpenAICompatClaudeCodeTodoGuardToRequestBody(reqBody map[string]any) 
 	return true
 }
 
-func responsesInputItemsContainText(items []apicompat.ResponsesInputItem, needle string) bool {
+func responsesInputItemsContainText(items []protocolopenai.ResponsesInputItem, needle string) bool {
 	needle = strings.TrimSpace(needle)
 	if needle == "" {
 		return false

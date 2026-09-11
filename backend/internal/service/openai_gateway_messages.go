@@ -16,7 +16,10 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
@@ -73,7 +76,7 @@ func (s *OpenAIGatewayService) ForwardAsAnthropic(
 	startTime := time.Now()
 
 	// 1. Parse Anthropic request
-	var anthropicReq apicompat.AnthropicRequest
+	var anthropicReq protocolanthropic.AnthropicRequest
 	if err := json.Unmarshal(body, &anthropicReq); err != nil {
 		return nil, fmt.Errorf("parse anthropic request: %w", err)
 	}
@@ -752,7 +755,7 @@ type openAICompatBufferedReadError struct {
 func (e *openAICompatBufferedReadError) Error() string { return e.cause.Error() }
 func (e *openAICompatBufferedReadError) Unwrap() error { return e.cause }
 
-func openAICompatTerminalResponse(event *apicompat.ResponsesStreamEvent, payload []byte) *apicompat.ResponsesResponse {
+func openAICompatTerminalResponse(event *protocolopenai.ResponsesStreamEvent, payload []byte) *protocolopenai.ResponsesResponse {
 	if event == nil {
 		return nil
 	}
@@ -765,9 +768,9 @@ func openAICompatTerminalResponse(event *apicompat.ResponsesStreamEvent, payload
 		if message == "" {
 			message = "Upstream response failed"
 		}
-		return &apicompat.ResponsesResponse{
+		return &protocolopenai.ResponsesResponse{
 			Status: "failed",
-			Error:  &apicompat.ResponsesError{Code: event.Code, Message: message},
+			Error:  &protocolopenai.ResponsesError{Code: event.Code, Message: message},
 		}
 	default:
 		return nil
@@ -779,7 +782,7 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 	c *gin.Context,
 	logPrefix string,
 	requestID string,
-) (*apicompat.ResponsesResponse, OpenAIUsage, *apicompat.BufferedResponseAccumulator, error) {
+) (*protocolopenai.ResponsesResponse, OpenAIUsage, *apicompat.BufferedResponseAccumulator, error) {
 	acc := apicompat.NewBufferedResponseAccumulator()
 	var usage OpenAIUsage
 	if resp == nil || resp.Body == nil {
@@ -857,7 +860,7 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 				if frame, ok := parser.Finish(); ok {
 					payload := openAICompatPayloadWithEventType(frame.Data, frame.EventType)
 					payload = string(restoreCodexToolNamesFromContext(c, []byte(payload)))
-					var event apicompat.ResponsesStreamEvent
+					var event protocolopenai.ResponsesStreamEvent
 					if err := json.Unmarshal([]byte(payload), &event); err == nil {
 						observeOpenAIServiceTierInContext(c, []byte(payload), event.Type)
 						s.parseSSEUsageBytesWithType([]byte(payload), event.Type, &usage)
@@ -899,7 +902,7 @@ func (s *OpenAIGatewayService) readOpenAICompatBufferedTerminal(
 			payload := openAICompatPayloadWithEventType(frame.Data, frame.EventType)
 			payload = string(restoreCodexToolNamesFromContext(c, []byte(payload)))
 
-			var event apicompat.ResponsesStreamEvent
+			var event protocolopenai.ResponsesStreamEvent
 			if err := json.Unmarshal([]byte(payload), &event); err != nil {
 				logger.L().Warn(logPrefix+": failed to parse event",
 					zap.Error(err),
@@ -1019,7 +1022,7 @@ func (s *OpenAIGatewayService) handleAnthropicStreamingResponse(
 			searchCount += countGrokNativeSearchCallsInSSEDataDedup([]byte(payload), streamSearchSeen)
 		}
 
-		var event apicompat.ResponsesStreamEvent
+		var event protocolopenai.ResponsesStreamEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			logger.L().Warn("openai messages stream: failed to parse event",
 				zap.Error(err),
@@ -1387,7 +1390,7 @@ func writeAnthropicErrorBody(c *gin.Context, statusCode int, body []byte) {
 	c.Data(statusCode, "application/json; charset=utf-8", wrapped)
 }
 
-func copyOpenAIUsageFromResponsesUsage(usage *apicompat.ResponsesUsage) OpenAIUsage {
+func copyOpenAIUsageFromResponsesUsage(usage *protocolopenai.ResponsesUsage) OpenAIUsage {
 	if usage == nil {
 		return OpenAIUsage{}
 	}

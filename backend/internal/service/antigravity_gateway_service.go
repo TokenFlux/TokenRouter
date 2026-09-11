@@ -15,6 +15,8 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
 )
@@ -484,9 +486,9 @@ func (s *AntigravityGatewayService) buildClaudeTestRequest(projectID, mappedMode
 		prompt = strings.TrimSpace(prompts[0])
 	}
 	promptJSON, _ := json.Marshal(prompt)
-	claudeReq := &antigravity.ClaudeRequest{
+	claudeReq := &protocolanthropic.ClaudeRequest{
 		Model: mappedModel,
-		Messages: []antigravity.ClaudeMessage{
+		Messages: []protocolanthropic.ClaudeMessage{
 			{
 				Role:    "user",
 				Content: json.RawMessage(promptJSON),

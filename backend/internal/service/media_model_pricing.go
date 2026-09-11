@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
-	"fmt"
-	"math"
 	"strings"
+
+	purepricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
 )
 
 // ResolveImageUnitPrice 为创作台和批量图片解析固定单张价。
@@ -14,20 +14,10 @@ func (r *ModelPricingResolver) ResolveImageUnitPrice(ctx context.Context, input 
 		return 0, ErrModelPricingUnavailable
 	}
 	resolved := r.Resolve(ctx, input)
-	var price float64
-	var found bool
-	if resolved != nil && (resolved.Mode == BillingModeImage || resolved.Mode == BillingModePerRequest) {
-		price, found = r.GetRequestTierPriceValue(resolved, strings.TrimSpace(size))
-		if !found && resolved.channelPricing != nil && resolved.channelPricing.PerRequestPrice != nil {
-			price, found = resolved.DefaultPerRequestPrice, true
-		}
-	}
+	price, found := purepricing.ConfiguredImageUnitPrice(resolved, size)
 	if !found {
 		// 未匹配到图片价时保留内置按张回退，空默认价不能误作免费；显式零价已在上面命中。
 		price = r.billingService.getDefaultImagePrice(input.Model, NormalizeImageBillingTierOrDefault(size))
 	}
-	if math.IsNaN(price) || math.IsInf(price, 0) || price < 0 {
-		return 0, fmt.Errorf("invalid image unit price: %w", ErrModelPricingUnavailable)
-	}
-	return price, nil
+	return purepricing.ValidateImageUnitPrice(price)
 }

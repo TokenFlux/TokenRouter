@@ -1517,14 +1517,14 @@ func TestResolve_GroupContextIntervalsOverridePresetRegardlessOfToggle(t *testin
 	}}}
 
 	resolved := r.Resolve(context.Background(), PricingInput{Model: "claude-sonnet-4", Group: group})
-	require.False(t, resolved.longContextPricingEnabled)
+	require.False(t, resolved.LongContextPricingEnabled)
 	require.Len(t, resolved.Intervals, 2)
 	require.InDelta(t, 18e-6, r.GetIntervalPricing(resolved, 300000).InputPricePerToken, 1e-12)
 	require.Equal(t, 200000, resolved.BasePricing.LongContextInputThreshold)
 
 	group.LongContextPricingEnabled = true
 	resolved = r.Resolve(context.Background(), PricingInput{Model: "claude-sonnet-4", Group: group})
-	require.True(t, resolved.longContextPricingEnabled)
+	require.True(t, resolved.LongContextPricingEnabled)
 	require.Len(t, resolved.Intervals, 2)
 	require.InDelta(t, 18e-6, r.GetIntervalPricing(resolved, 300000).InputPricePerToken, 1e-12)
 	require.Equal(t, 200000, resolved.BasePricing.LongContextInputThreshold)

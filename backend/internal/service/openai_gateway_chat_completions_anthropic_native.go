@@ -21,7 +21,10 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -43,7 +46,7 @@ func (s *OpenAIGatewayService) forwardChatCompletionsViaNativeAnthropic(
 	startTime := time.Now()
 
 	// 1. 解析 Chat Completions 请求。
-	var ccReq apicompat.ChatCompletionsRequest
+	var ccReq protocolopenai.ChatCompletionsRequest
 	if err := json.Unmarshal(body, &ccReq); err != nil {
 		writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", "Failed to parse request body")
 		return nil, fmt.Errorf("parse chat completions request: %w", err)
@@ -161,7 +164,7 @@ func (s *OpenAIGatewayService) handleCCBufferedFromNativeAnthropic(
 	}
 	scanner.Buffer(make([]byte, 0, 64*1024), maxLineSize)
 
-	var finalResp *apicompat.AnthropicResponse
+	var finalResp *protocolanthropic.AnthropicResponse
 	var usage ClaudeUsage
 
 	// 读间隔上限：上游挂住 SSE 时中止组装（缓冲路径尚未提交响应头，可回 502）。
@@ -215,7 +218,7 @@ func (s *OpenAIGatewayService) handleCCBufferedFromNativeAnthropic(
 			continue
 		}
 
-		var event apicompat.AnthropicStreamEvent
+		var event protocolanthropic.AnthropicStreamEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			continue
 		}
@@ -256,7 +259,7 @@ func (s *OpenAIGatewayService) handleCCBufferedFromNativeAnthropic(
 	}
 
 	if usage.InputTokens > 0 || usage.OutputTokens > 0 {
-		finalResp.Usage = apicompat.AnthropicUsage{
+		finalResp.Usage = protocolanthropic.AnthropicUsage{
 			InputTokens:              usage.InputTokens,
 			OutputTokens:             usage.OutputTokens,
 			CacheCreationInputTokens: usage.CacheCreationInputTokens,
@@ -379,7 +382,7 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 		return resultWithUsage(), fmt.Errorf("stream data interval timeout")
 	}
 
-	writeChunk := func(chunk apicompat.ChatCompletionsChunk) bool {
+	writeChunk := func(chunk protocolopenai.ChatCompletionsChunk) bool {
 		if clientDisconnected {
 			return false // 已断开：不再写客户端，只排水上游累计 usage
 		}
@@ -395,7 +398,7 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 		return false
 	}
 
-	processAnthropicEvent := func(event *apicompat.AnthropicStreamEvent) bool {
+	processAnthropicEvent := func(event *protocolanthropic.AnthropicStreamEvent) bool {
 		if firstChunk {
 			firstChunk = false
 			ms := int(time.Since(startTime).Milliseconds())
@@ -456,7 +459,7 @@ func (s *OpenAIGatewayService) handleCCStreamingFromNativeAnthropic(
 			continue
 		}
 
-		var event apicompat.AnthropicStreamEvent
+		var event protocolanthropic.AnthropicStreamEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			continue
 		}

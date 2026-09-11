@@ -9,6 +9,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -21,7 +22,7 @@ func fastModeTestContext(policy, model string) context.Context {
 }
 
 func fastModeTestResolver() *ModelPricingResolver {
-	pricing := &PricingService{pricingData: map[string]*LiteLLMModelPricing{
+	pricing := newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
 		"gpt-5.5": {
 			InputCostPerToken:     5e-6,
 			OutputCostPerToken:    30e-6,
@@ -34,7 +35,7 @@ func fastModeTestResolver() *ModelPricingResolver {
 			SupportsServiceTier:   true,
 			SupportsPromptCaching: true,
 		},
-	}}
+	}})
 	billing := NewBillingService(&config.Config{}, pricing)
 	return NewModelPricingResolver(nil, billing)
 }

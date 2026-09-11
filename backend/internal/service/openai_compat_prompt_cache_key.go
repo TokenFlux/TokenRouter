@@ -6,7 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 )
 
 const compatPromptCacheKeyPrefix = "compat_cc_"
@@ -28,7 +29,7 @@ func shouldAutoInjectPromptCacheKeyForCompat(model string) bool {
 	return strings.HasPrefix(normalized, "gpt-5") || strings.Contains(normalized, "codex")
 }
 
-func deriveCompatPromptCacheKey(req *apicompat.ChatCompletionsRequest, mappedModel string) string {
+func deriveCompatPromptCacheKey(req *protocolopenai.ChatCompletionsRequest, mappedModel string) string {
 	if req == nil {
 		return ""
 	}
@@ -75,7 +76,7 @@ func deriveCompatPromptCacheKey(req *apicompat.ChatCompletionsRequest, mappedMod
 	return compatPromptCacheKeyPrefix + hashSensitiveValueForLog(strings.Join(seedParts, "|"))
 }
 
-func deriveAnthropicCompatPromptCacheKey(req *apicompat.AnthropicRequest, mappedModel string) string {
+func deriveAnthropicCompatPromptCacheKey(req *protocolanthropic.AnthropicRequest, mappedModel string) string {
 	if req == nil {
 		return ""
 	}
@@ -119,13 +120,13 @@ func deriveAnthropicCompatPromptCacheKey(req *apicompat.AnthropicRequest, mapped
 	return compatPromptCacheKeyPrefix + hashSensitiveValueForLog(strings.Join(seedParts, "|"))
 }
 
-func deriveAnthropicCacheControlPromptCacheKey(req *apicompat.AnthropicRequest) string {
+func deriveAnthropicCacheControlPromptCacheKey(req *protocolanthropic.AnthropicRequest) string {
 	if req == nil {
 		return ""
 	}
 
 	var parts []string
-	var systemBlocks []apicompat.AnthropicContentBlock
+	var systemBlocks []protocolanthropic.AnthropicContentBlock
 	if len(req.System) > 0 && json.Unmarshal(req.System, &systemBlocks) == nil {
 		for _, block := range systemBlocks {
 			if block.Type == "text" &&
@@ -139,7 +140,7 @@ func deriveAnthropicCacheControlPromptCacheKey(req *apicompat.AnthropicRequest) 
 
 	firstUserAnchor := ""
 	for _, msg := range req.Messages {
-		var blocks []apicompat.AnthropicContentBlock
+		var blocks []protocolanthropic.AnthropicContentBlock
 		if len(msg.Content) == 0 || json.Unmarshal(msg.Content, &blocks) != nil {
 			continue
 		}

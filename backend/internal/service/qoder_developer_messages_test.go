@@ -3,13 +3,14 @@ package service
 import (
 	"testing"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/stretchr/testify/require"
 )
 
 // TestQoderChatSystemTextPreservesDeveloperMessages 验证 developer 消息被合并到 system prompt
 func TestQoderChatSystemTextPreservesDeveloperMessages(t *testing.T) {
-	messages := []apicompat.ChatMessage{
+	messages := []protocolopenai.ChatMessage{
 		{Role: "system", Content: []byte(`"You are helpful"`)},
 		{Role: "developer", Content: []byte(`"Be concise"`)},
 		{Role: "user", Content: []byte(`"Hello"`)},
@@ -24,7 +25,7 @@ func TestQoderChatSystemTextPreservesDeveloperMessages(t *testing.T) {
 
 // TestQoderChatSystemTextOnlySystemMessages 验证只有 system 消息时正常工作
 func TestQoderChatSystemTextOnlySystemMessages(t *testing.T) {
-	messages := []apicompat.ChatMessage{
+	messages := []protocolopenai.ChatMessage{
 		{Role: "system", Content: []byte(`"You are helpful"`)},
 		{Role: "user", Content: []byte(`"Hello"`)},
 	}
@@ -36,7 +37,7 @@ func TestQoderChatSystemTextOnlySystemMessages(t *testing.T) {
 
 // TestQoderChatSystemTextOnlyDeveloperMessages 验证只有 developer 消息时正常工作
 func TestQoderChatSystemTextOnlyDeveloperMessages(t *testing.T) {
-	messages := []apicompat.ChatMessage{
+	messages := []protocolopenai.ChatMessage{
 		{Role: "developer", Content: []byte(`"Be concise"`)},
 		{Role: "user", Content: []byte(`"Hello"`)},
 	}
@@ -48,7 +49,7 @@ func TestQoderChatSystemTextOnlyDeveloperMessages(t *testing.T) {
 
 // TestQoderChatSystemTextEmptyWhenNoSystemOrDeveloper 验证无 system/developer 时返回空
 func TestQoderChatSystemTextEmptyWhenNoSystemOrDeveloper(t *testing.T) {
-	messages := []apicompat.ChatMessage{
+	messages := []protocolopenai.ChatMessage{
 		{Role: "user", Content: []byte(`"Hello"`)},
 		{Role: "assistant", Content: []byte(`"Hi"`)},
 	}
@@ -60,7 +61,7 @@ func TestQoderChatSystemTextEmptyWhenNoSystemOrDeveloper(t *testing.T) {
 
 // TestQoderChatSystemTextMultipleDeveloperMessages 验证多个 developer 消息都被保留
 func TestQoderChatSystemTextMultipleDeveloperMessages(t *testing.T) {
-	messages := []apicompat.ChatMessage{
+	messages := []protocolopenai.ChatMessage{
 		{Role: "system", Content: []byte(`"You are helpful"`)},
 		{Role: "developer", Content: []byte(`"Be concise"`)},
 		{Role: "developer", Content: []byte(`"Use examples"`)},

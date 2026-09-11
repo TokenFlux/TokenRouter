@@ -6,8 +6,10 @@ import (
 	"context"
 	"testing"
 
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/migrations"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,6 +51,10 @@ func (s *GroupRepoSuite) TestMediaCardsRoundTrip() {
 			{Models: []string{"grok-imagine-image"}, Platform: service.PlatformGrok, BillingMode: service.BillingModeImage, PerRequestPrice: &zero},
 			{Models: []string{"grok-imagine-video"}, Platform: service.PlatformGrok, BillingMode: service.BillingModeVideo, PerRequestPrice: &price, Intervals: []service.PricingInterval{{TierLabel: "720p", PerRequestPrice: &zero}}},
 		},
+
+		AllowedProtocols:     domain.DefaultGroupClientProtocols(service.PlatformGrok),
+		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(service.PlatformGrok),
+		ResponsesImagePolicy: "inherit",
 	}
 	s.Require().NoError(s.repo.Create(s.ctx, group))
 	got, err := s.repo.GetByIDLite(s.ctx, group.ID)

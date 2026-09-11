@@ -27,7 +27,7 @@ func TestGroupPricingModifiersInheritChannel(t *testing.T) {
 	resolved := r.Resolve(context.Background(), input)
 	require.Equal(t, PricingSourceChannel, resolved.Source)
 	require.Len(t, resolved.Intervals, 2)
-	require.Equal(t, channel.TimePricing, resolved.channelPricing.TimePricing)
+	require.Equal(t, channel.TimePricing, resolved.ChannelPricing.TimePricing)
 	for _, tier := range []struct {
 		name       string
 		multiplier float64

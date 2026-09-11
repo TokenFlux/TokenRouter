@@ -15,6 +15,8 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	"github.com/TokenFlux/TokenRouter/internal/protocol"
+
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -1269,19 +1271,9 @@ func filterThinkingBlocksInternal(body []byte, _ bool) []byte {
 	return newBody
 }
 
-// NormalizeClaudeOutputEffort normalizes Claude's output_config.effort value.
-// Returns nil for empty or unrecognized values.
+// NormalizeClaudeOutputEffort 委托 wire 档位解析，字段读取时机保持在旧网关。
 func NormalizeClaudeOutputEffort(raw string) *string {
-	value := strings.ToLower(strings.TrimSpace(raw))
-	if value == "" {
-		return nil
-	}
-	switch value {
-	case "low", "medium", "high", "xhigh", "max":
-		return &value
-	default:
-		return nil
-	}
+	return protocol.NormalizeClaudeOutputEffort(raw)
 }
 
 // DefaultEffortForThinkingEnabled 给"开启 thinking 但协议层没有 effort 档位概念"

@@ -1,5 +1,7 @@
 package service
 
+import protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 import "strings"
 
 func firstNonEmpty(values ...string) string {
@@ -731,10 +733,10 @@ func DefaultBetaPolicySettings() *BetaPolicySettings {
 // 本策略复用 BetaPolicyAction*/BetaPolicyScope* 常量语义，只是匹配键从
 // anthropic-beta header 换成 body 的 service_tier 字段。
 const (
-	OpenAIFastTierAny       = "all"       // 匹配任意已识别的 service_tier
-	OpenAIFastTierPriority  = "priority"  // 仅匹配 fast（priority）
-	OpenAIFastTierUltrafast = "ultrafast" // 仅匹配 ultrafast
-	OpenAIFastTierFlex      = "flex"      // 仅匹配 flex
+	OpenAIFastTierAny       = "all"                               // 匹配任意已识别的 service_tier
+	OpenAIFastTierPriority  = protocolopenai.ServiceTierPriority  // 仅匹配 fast（priority）
+	OpenAIFastTierUltrafast = protocolopenai.ServiceTierUltrafast // 仅匹配 ultrafast
+	OpenAIFastTierFlex      = protocolopenai.ServiceTierFlex      // 仅匹配 flex
 
 	// OpenAIFastPolicyActionForcePriority 会保留 service_tier 字段并强制写成
 	// priority，用于把 flex/auto/default/scale 等已识别 tier 收敛为 fast。

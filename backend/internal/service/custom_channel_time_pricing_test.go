@@ -60,12 +60,12 @@ func TestValidateChannelTimePricing(t *testing.T) {
 
 func TestChannelTimePricingMultiplierAt(t *testing.T) {
 	config := channelTimePricingTestConfig(ChannelTimePricingPeriod{StartTime: "09:00", EndTime: "12:00", Multiplier: 2})
-	require.Equal(t, 1.0, config.MultiplierAt(time.Date(2026, 6, 29, 0, 59, 0, 0, time.UTC)))
-	require.Equal(t, 2.0, config.MultiplierAt(time.Date(2026, 6, 29, 1, 0, 0, 0, time.UTC)))
-	require.Equal(t, 1.0, config.MultiplierAt(time.Date(2026, 6, 29, 4, 0, 0, 0, time.UTC)))
+	require.Equal(t, 1.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 29, 0, 59, 0, 0, time.UTC)))
+	require.Equal(t, 2.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 29, 1, 0, 0, 0, time.UTC)))
+	require.Equal(t, 1.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 29, 4, 0, 0, 0, time.UTC)))
 
 	newYork := &ChannelTimePricing{Timezone: "America/New_York", Periods: []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}
-	require.Equal(t, 2.0, newYork.MultiplierAt(time.Date(2026, 6, 29, 14, 0, 0, 0, time.UTC)))
+	require.Equal(t, 2.0, channelTimeMultiplierAt(newYork, time.Date(2026, 6, 29, 14, 0, 0, 0, time.UTC)))
 }
 
 func TestChannelTimePricingMultiplierAtWeekdaysOnly(t *testing.T) {
@@ -88,7 +88,7 @@ func TestChannelTimePricingMultiplierAtWeekdaysOnly(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			require.Equal(t, tt.want, config.MultiplierAt(tt.at))
+			require.Equal(t, tt.want, channelTimeMultiplierAt(config, tt.at))
 		})
 	}
 }
@@ -100,17 +100,17 @@ func TestChannelTimePricingMultiplierAtMidnightSplit(t *testing.T) {
 	)
 	location, err := time.LoadLocation("Asia/Shanghai")
 	require.NoError(t, err)
-	require.Equal(t, 2.0, config.MultiplierAt(time.Date(2026, 6, 29, 23, 59, 0, 0, location)))
-	require.Equal(t, 3.0, config.MultiplierAt(time.Date(2026, 6, 30, 0, 0, 0, 0, location)))
-	require.Equal(t, 1.0, config.MultiplierAt(time.Date(2026, 6, 30, 2, 0, 0, 0, location)))
+	require.Equal(t, 2.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 29, 23, 59, 0, 0, location)))
+	require.Equal(t, 3.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 30, 0, 0, 0, 0, location)))
+	require.Equal(t, 1.0, channelTimeMultiplierAt(config, time.Date(2026, 6, 30, 2, 0, 0, 0, location)))
 }
 
 func TestChannelTimePricingMultiplierAtDegradesForInvalidConfiguration(t *testing.T) {
 	var nilConfig *ChannelTimePricing
 	validAt := time.Date(2026, 6, 29, 1, 0, 0, 0, time.UTC)
-	require.Equal(t, 1.0, nilConfig.MultiplierAt(validAt))
-	require.Equal(t, 1.0, (&ChannelTimePricing{Periods: []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}).MultiplierAt(validAt))
-	require.Equal(t, 1.0, (&ChannelTimePricing{Timezone: "UTC+8", Periods: []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}).MultiplierAt(validAt))
+	require.Equal(t, 1.0, channelTimeMultiplierAt(nilConfig, validAt))
+	require.Equal(t, 1.0, channelTimeMultiplierAt(&ChannelTimePricing{Periods: []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}, validAt))
+	require.Equal(t, 1.0, channelTimeMultiplierAt(&ChannelTimePricing{Timezone: "UTC+8", Periods: []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}}, validAt))
 
 	err := validateChannelTimePricing(&ChannelTimePricing{Timezone: "Local", Periods: []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "12:00", Multiplier: 2}}})
 	require.Error(t, err)

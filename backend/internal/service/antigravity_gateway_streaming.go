@@ -13,6 +13,9 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolgemini "github.com/TokenFlux/TokenRouter/internal/protocol/gemini"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -992,8 +995,8 @@ func (s *AntigravityGatewayService) handleClaudeStreamingResponse(c *gin.Context
 	scanBuf := getSSEScannerBuf64K()
 	scanner.Buffer(scanBuf[:0], maxLineSize)
 
-	// 辅助函数：转换 antigravity.ClaudeUsage 到 service.ClaudeUsage
-	convertUsage := func(agUsage *antigravity.ClaudeUsage) *ClaudeUsage {
+	// 辅助函数：转换 protocolanthropic.ClaudeUsage 到 service.ClaudeUsage
+	convertUsage := func(agUsage *protocolanthropic.ClaudeUsage) *ClaudeUsage {
 		if agUsage == nil {
 			return &ClaudeUsage{}
 		}
@@ -1162,7 +1165,7 @@ func (s *AntigravityGatewayService) handleClaudeStreamingResponse(c *gin.Context
 }
 
 func (s *AntigravityGatewayService) extractImageInputSize(body []byte) string {
-	var req antigravity.GeminiRequest
+	var req protocolgemini.GeminiRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		return ""
 	}

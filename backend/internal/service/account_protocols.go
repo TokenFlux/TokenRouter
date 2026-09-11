@@ -3,10 +3,10 @@ package service
 import (
 	"fmt"
 	"maps"
-	"slices"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
 const upstreamProtocolsKey = "upstream_protocols"
@@ -81,19 +81,9 @@ func NormalizeAccountProtocols(account *Account) error {
 			return infraerrors.BadRequest("UPSTREAM_PROTOCOLS_INVALID", err.Error())
 		}
 	}
-	options := account.NativeProtocolOptions()
-	seen := map[domain.ProtocolID]bool{}
-	for _, protocol := range protocols {
-		if !slices.Contains(options, protocol) || seen[protocol] {
-			return infraerrors.BadRequest("UPSTREAM_PROTOCOLS_INVALID", fmt.Sprintf("unsupported or duplicated native protocol %q", protocol))
-		}
-		seen[protocol] = true
-	}
-	normalized := []domain.ProtocolID{}
-	for _, protocol := range options {
-		if seen[protocol] {
-			normalized = append(normalized, protocol)
-		}
+	normalized, err := capability.NormalizeNativeProtocols(capability.AccountProtocols{Platform: account.Platform, Type: account.Type, AuthMode: protocolAuthMode(account), Enabled: protocols})
+	if err != nil {
+		return infraerrors.BadRequest("UPSTREAM_PROTOCOLS_INVALID", err.Error())
 	}
 	account.Credentials = maps.Clone(account.Credentials)
 	if account.Credentials == nil {

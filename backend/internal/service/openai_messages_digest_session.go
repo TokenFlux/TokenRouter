@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
 )
 
 type openAICompatAnthropicDigestBinding struct {
@@ -14,7 +14,7 @@ type openAICompatAnthropicDigestBinding struct {
 	ExpiresAt      time.Time
 }
 
-func buildOpenAICompatAnthropicDigestChain(req *apicompat.AnthropicRequest) string {
+func buildOpenAICompatAnthropicDigestChain(req *protocolanthropic.AnthropicRequest) string {
 	if req == nil {
 		return ""
 	}
@@ -97,7 +97,7 @@ func promptCacheKeyFromAnthropicDigest(digestChain string) string {
 	return "anthropic-digest-" + hashSensitiveValueForLog(digestChain)
 }
 
-func promptCacheKeyFromAnthropicMetadataSession(req *apicompat.AnthropicRequest) string {
+func promptCacheKeyFromAnthropicMetadataSession(req *protocolanthropic.AnthropicRequest) string {
 	if req == nil || len(req.Metadata) == 0 {
 		return ""
 	}
@@ -120,7 +120,7 @@ func promptCacheKeyFromAnthropicMetadataSession(req *apicompat.AnthropicRequest)
 	return "anthropic-metadata-" + hashSensitiveValueForLog(seed)
 }
 
-func cloneAnthropicRequestForDigest(req *apicompat.AnthropicRequest) *apicompat.AnthropicRequest {
+func cloneAnthropicRequestForDigest(req *protocolanthropic.AnthropicRequest) *protocolanthropic.AnthropicRequest {
 	if req == nil {
 		return nil
 	}
@@ -129,7 +129,7 @@ func cloneAnthropicRequestForDigest(req *apicompat.AnthropicRequest) *apicompat.
 		cp.System = append(json.RawMessage(nil), req.System...)
 	}
 	if len(req.Messages) > 0 {
-		cp.Messages = append([]apicompat.AnthropicMessage(nil), req.Messages...)
+		cp.Messages = append([]protocolanthropic.AnthropicMessage(nil), req.Messages...)
 	}
 	return &cp
 }

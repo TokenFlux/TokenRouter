@@ -19,7 +19,9 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -2179,7 +2181,7 @@ func (s *OpenAIGatewayService) handleStreamingResponsePassthrough(
 			if responseID == "" {
 				responseID = extractOpenAIResponseIDFromJSONBytes(dataBytes)
 			}
-			var responseEvent apicompat.ResponsesStreamEvent
+			var responseEvent protocolopenai.ResponsesStreamEvent
 			if err := json.Unmarshal(dataBytes, &responseEvent); err == nil {
 				responseAccumulator.ProcessEvent(&responseEvent)
 			}

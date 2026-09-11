@@ -13,6 +13,9 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -459,16 +462,16 @@ func TestAntigravityCompatPreservesChatTokenLimit(t *testing.T) {
 func TestPreserveChatCompletionTokenLimitIgnoresAbsentAndNonPositiveValues(t *testing.T) {
 	tests := []struct {
 		name    string
-		request apicompat.ChatCompletionsRequest
+		request protocolopenai.ChatCompletionsRequest
 	}{
 		{name: "absent"},
-		{name: "zero max_tokens", request: apicompat.ChatCompletionsRequest{MaxTokens: antigravityCompatIntPtr(0)}},
-		{name: "negative max_completion_tokens takes precedence", request: apicompat.ChatCompletionsRequest{MaxTokens: antigravityCompatIntPtr(12), MaxCompletionTokens: antigravityCompatIntPtr(-1)}},
+		{name: "zero max_tokens", request: protocolopenai.ChatCompletionsRequest{MaxTokens: antigravityCompatIntPtr(0)}},
+		{name: "negative max_completion_tokens takes precedence", request: protocolopenai.ChatCompletionsRequest{MaxTokens: antigravityCompatIntPtr(12), MaxCompletionTokens: antigravityCompatIntPtr(-1)}},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			claudeRequest := &apicompat.AnthropicRequest{MaxTokens: 99}
+			claudeRequest := &protocolanthropic.AnthropicRequest{MaxTokens: 99}
 			preserveChatCompletionTokenLimit(&tt.request, claudeRequest)
 			require.Equal(t, 99, claudeRequest.MaxTokens)
 		})

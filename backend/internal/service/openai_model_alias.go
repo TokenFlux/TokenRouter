@@ -1,148 +1,27 @@
 package service
 
 import (
-	"strconv"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
 )
 
-func lastOpenAIModelSegment(model string) string {
-	model = strings.TrimSpace(model)
-	if model == "" {
-		return ""
-	}
-	if strings.Contains(model, "/") {
-		parts := strings.Split(model, "/")
-		model = parts[len(parts)-1]
-	}
-	return strings.TrimSpace(model)
-}
+// lastOpenAIModelSegment 委托纯模型身份与档位能力规则。
+func lastOpenAIModelSegment(model string) string { return capability.LastOpenAIModelSegment(model) }
 
+// canonicalizeOpenAIModelAliasSpelling 委托纯模型身份与档位能力规则。
 func canonicalizeOpenAIModelAliasSpelling(model string) string {
-	model = strings.ToLower(lastOpenAIModelSegment(model))
-	if model == "" {
-		return ""
-	}
-
-	normalized := strings.ReplaceAll(model, "_", "-")
-	normalized = strings.Join(strings.Fields(normalized), "-")
-	for strings.Contains(normalized, "--") {
-		normalized = strings.ReplaceAll(normalized, "--", "-")
-	}
-
-	if strings.HasPrefix(normalized, "gpt5") {
-		normalized = "gpt-5" + strings.TrimPrefix(normalized, "gpt5")
-	}
-	if !strings.HasPrefix(normalized, "gpt-") && !strings.Contains(normalized, "codex") {
-		return ""
-	}
-
-	replacements := []struct {
-		from string
-		to   string
-	}{
-		{"gpt-5.6sol", "gpt-5.6-sol"},
-		{"gpt-5.6terra", "gpt-5.6-terra"},
-		{"gpt-5.6luna", "gpt-5.6-luna"},
-		{"gpt-5.5pro", "gpt-5.5-pro"},
-		{"gpt-5.4mini", "gpt-5.4-mini"},
-		{"gpt-5.4nano", "gpt-5.4-nano"},
-		{"gpt-5.3-codexspark", "gpt-5.3-codex-spark"},
-		{"gpt-5.3codexspark", "gpt-5.3-codex-spark"},
-		{"gpt-5.3codex", "gpt-5.3-codex"},
-	}
-	for _, replacement := range replacements {
-		normalized = strings.ReplaceAll(normalized, replacement.from, replacement.to)
-	}
-	return normalized
+	return capability.CanonicalizeOpenAIModelAliasSpelling(model)
 }
 
+// openAIModelSupportsReasoningEffort 委托纯模型身份与档位能力规则。
 func openAIModelSupportsReasoningEffort(model string, effort string) bool {
-	value := strings.ToLower(strings.TrimSpace(effort))
-	if value == "" {
-		return false
-	}
-	value = strings.NewReplacer("-", "", "_", "", " ", "").Replace(value)
-	switch value {
-	case "max":
-		return openAIModelSupportsMaxReasoningEffort(model)
-	case "ultra":
-		// Ultra 不是上游 reasoning effort，任何模型都不应声明支持。
-		return false
-	default:
-		return true
-	}
+	return capability.OpenAIModelSupportsReasoningEffort(model, effort)
 }
 
-func openAIModelSupportsMaxReasoningEffort(model string) bool {
-	if isOpenAIModelAtLeastVersion(model, 5, 6) {
-		return true
-	}
-
-	// 国产模型的原生 max 档位与 GPT-5.6 使用同一 usage 语义。
-	normalized := strings.ToLower(lastOpenAIModelSegment(model))
-	normalized = strings.ReplaceAll(normalized, "_", "-")
-	switch {
-	case strings.HasPrefix(normalized, "deepseek-v4"):
-		return true
-	case strings.HasPrefix(normalized, "glm-"):
-		return true
-	case strings.HasPrefix(normalized, "kimi-"), strings.HasPrefix(normalized, "moonshot-"):
-		return true
-	case normalized == "k3" || strings.HasPrefix(normalized, "k3-"):
-		return true
-	default:
-		return false
-	}
-}
-
+// isOpenAIModelAtLeastVersion 委托纯模型身份与档位能力规则。
 func isOpenAIModelAtLeastVersion(model string, minMajor, minMinor int) bool {
-	major, minor, ok := parseOpenAIModelVersion(model)
-	if !ok {
-		return false
-	}
-	if major != minMajor {
-		return major > minMajor
-	}
-	return minor >= minMinor
-}
-
-func parseOpenAIModelVersion(model string) (major int, minor int, ok bool) {
-	normalized := canonicalizeOpenAIModelAliasSpelling(model)
-	if normalized == "" || !strings.HasPrefix(normalized, "gpt-") {
-		return 0, 0, false
-	}
-
-	rest := strings.TrimPrefix(normalized, "gpt-")
-	majorEnd := 0
-	for majorEnd < len(rest) && rest[majorEnd] >= '0' && rest[majorEnd] <= '9' {
-		majorEnd++
-	}
-	if majorEnd == 0 {
-		return 0, 0, false
-	}
-
-	major, err := strconv.Atoi(rest[:majorEnd])
-	if err != nil {
-		return 0, 0, false
-	}
-
-	minor = 0
-	if majorEnd < len(rest) && rest[majorEnd] == '.' {
-		minorStart := majorEnd + 1
-		minorEnd := minorStart
-		for minorEnd < len(rest) && rest[minorEnd] >= '0' && rest[minorEnd] <= '9' {
-			minorEnd++
-		}
-		if minorEnd == minorStart {
-			return 0, 0, false
-		}
-		minor, err = strconv.Atoi(rest[minorStart:minorEnd])
-		if err != nil {
-			return 0, 0, false
-		}
-	}
-
-	return major, minor, true
+	return capability.IsOpenAIModelAtLeastVersion(model, minMajor, minMinor)
 }
 
 func normalizeKnownOpenAICodexModel(model string) string {
@@ -211,11 +90,8 @@ func isOpenAIGPT56Model(model string) bool {
 	return false
 }
 
-// isOpenAIGPT6AstraModel 判断是否 GPT-6 Astra 模型；支持带渠道前缀和版本后缀的名称。
-func isOpenAIGPT6AstraModel(model string) bool {
-	normalized := canonicalizeOpenAIModelAliasSpelling(model)
-	return normalized == "gpt-6-astra" || strings.HasPrefix(normalized, "gpt-6-astra-")
-}
+// isOpenAIGPT6AstraModel 委托共享的纯型号识别。
+func isOpenAIGPT6AstraModel(model string) bool { return capability.IsOpenAIGPT6AstraModel(model) }
 
 func appendUsageBillingModelCandidate(candidates []string, seen map[string]struct{}, model string) []string {
 	trimmed := strings.TrimSpace(model)

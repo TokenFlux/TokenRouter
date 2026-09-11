@@ -5,9 +5,7 @@ import (
 	"net/http"
 
 	"github.com/TokenFlux/TokenRouter/internal/handler"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -20,6 +18,7 @@ func RegisterAdminRoutes(
 	auditLog middleware.AuditLogMiddleware,
 	stepUpAuth middleware.StepUpAuthMiddleware,
 	panelRateLimiter *middleware.PanelRateLimiter,
+	protocolCatalog gin.HandlerFunc,
 ) {
 	admin := v1.Group("/admin")
 	admin.Use(gin.HandlerFunc(adminAuth))
@@ -29,7 +28,7 @@ func RegisterAdminRoutes(
 	admin.Use(gin.HandlerFunc(auditLog))
 	{
 		// 只读能力目录：账号与分组表单共用后端定义。
-		admin.GET("/protocol-capabilities", func(c *gin.Context) { response.Success(c, service.AdminProtocolCatalog()) })
+		admin.GET("/protocol-capabilities", protocolCatalog)
 		// 仪表盘
 		registerDashboardRoutes(admin, h)
 

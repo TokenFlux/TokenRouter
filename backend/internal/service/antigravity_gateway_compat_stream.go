@@ -13,11 +13,14 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
+	protocolanthropic "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
+
 	"github.com/gin-gonic/gin"
 )
 
 type antigravityCompatStreamAdapter interface {
-	Emit(*apicompat.AnthropicStreamEvent, *antigravityClientWriter)
+	Emit(*protocolanthropic.AnthropicStreamEvent, *antigravityClientWriter)
 	Finalize(*antigravityClientWriter)
 	WriteError(*antigravityClientWriter, string)
 }
@@ -41,7 +44,7 @@ func newAntigravityChatStreamAdapter(c *gin.Context, model string, includeUsage 
 	}
 }
 
-func (a *antigravityChatStreamAdapter) Emit(event *apicompat.AnthropicStreamEvent, writer *antigravityClientWriter) {
+func (a *antigravityChatStreamAdapter) Emit(event *protocolanthropic.AnthropicStreamEvent, writer *antigravityClientWriter) {
 	for _, responseEvent := range apicompat.AnthropicEventToResponsesEvents(event, a.anthropicState) {
 		a.emitResponseEvent(&responseEvent, writer)
 	}
@@ -61,14 +64,14 @@ func (a *antigravityChatStreamAdapter) WriteError(writer *antigravityClientWrite
 	writer.Fprintf("data: {\"error\":{\"message\":%q,\"type\":\"upstream_error\"}}\n\n", reason)
 }
 
-func (a *antigravityChatStreamAdapter) emitResponseEvent(event *apicompat.ResponsesStreamEvent, writer *antigravityClientWriter) {
+func (a *antigravityChatStreamAdapter) emitResponseEvent(event *protocolopenai.ResponsesStreamEvent, writer *antigravityClientWriter) {
 	for _, chunk := range apicompat.ResponsesEventToChatChunks(event, a.chatState) {
 		a.writeChunk(chunk, writer)
 	}
 }
 
 // writeChunk 在输出前恢复工具名。
-func (a *antigravityChatStreamAdapter) writeChunk(chunk apicompat.ChatCompletionsChunk, writer *antigravityClientWriter) {
+func (a *antigravityChatStreamAdapter) writeChunk(chunk protocolopenai.ChatCompletionsChunk, writer *antigravityClientWriter) {
 	payload, err := json.Marshal(chunk)
 	if err != nil {
 		logger.LegacyPrintf("service.antigravity_gateway", "Failed to marshal Antigravity chat chunk: %v", err)
@@ -98,7 +101,7 @@ func newAntigravityResponsesStreamAdapter(
 	}
 }
 
-func (a *antigravityResponsesStreamAdapter) Emit(event *apicompat.AnthropicStreamEvent, writer *antigravityClientWriter) {
+func (a *antigravityResponsesStreamAdapter) Emit(event *protocolanthropic.AnthropicStreamEvent, writer *antigravityClientWriter) {
 	for _, responseEvent := range apicompat.AnthropicEventToResponsesEvents(event, a.anthropicState) {
 		a.emitResponseEvent(responseEvent, writer)
 	}
@@ -114,7 +117,7 @@ func (a *antigravityResponsesStreamAdapter) WriteError(writer *antigravityClient
 	writer.Fprintf("event: error\ndata: {\"type\":\"error\",\"error\":{\"type\":\"upstream_error\",\"message\":%q}}\n\n", reason)
 }
 
-func (a *antigravityResponsesStreamAdapter) emitResponseEvent(event apicompat.ResponsesStreamEvent, writer *antigravityClientWriter) {
+func (a *antigravityResponsesStreamAdapter) emitResponseEvent(event protocolopenai.ResponsesStreamEvent, writer *antigravityClientWriter) {
 	payload, err := json.Marshal(event)
 	if err != nil {
 		logger.LegacyPrintf("service.antigravity_gateway", "Failed to marshal Antigravity Responses event: %v", err)
@@ -148,7 +151,7 @@ type antigravityCompatStreamSession struct {
 	adapter        antigravityCompatStreamAdapter
 	writer         *antigravityClientWriter
 	usage          *ClaudeUsage
-	pendingEvents  []apicompat.AnthropicStreamEvent
+	pendingEvents  []protocolanthropic.AnthropicStreamEvent
 	firstTokenMs   *int
 	startTime      time.Time
 	meaningfulData bool
@@ -217,7 +220,7 @@ func (s *antigravityCompatStreamSession) consumeClaudeEvents(data []byte) {
 }
 
 func (s *antigravityCompatStreamSession) consumeClaudeData(eventType, payload string) {
-	var event apicompat.AnthropicStreamEvent
+	var event protocolanthropic.AnthropicStreamEvent
 	if json.Unmarshal([]byte(payload), &event) != nil {
 		return
 	}
@@ -233,7 +236,7 @@ func (s *antigravityCompatStreamSession) consumeClaudeData(eventType, payload st
 	s.emitOrBuffer(event)
 }
 
-func (s *antigravityCompatStreamSession) emitOrBuffer(event apicompat.AnthropicStreamEvent) {
+func (s *antigravityCompatStreamSession) emitOrBuffer(event protocolanthropic.AnthropicStreamEvent) {
 	if s.meaningfulData {
 		s.adapter.Emit(&event, s.writer)
 		return
@@ -253,7 +256,7 @@ func (s *antigravityCompatStreamSession) emitOrBuffer(event apicompat.AnthropicS
 	s.pendingEvents = nil
 }
 
-func isMeaningfulAntigravityCompatEvent(event *apicompat.AnthropicStreamEvent) bool {
+func isMeaningfulAntigravityCompatEvent(event *protocolanthropic.AnthropicStreamEvent) bool {
 	if event == nil {
 		return false
 	}
@@ -279,7 +282,7 @@ func isMeaningfulAntigravityCompatEvent(event *apicompat.AnthropicStreamEvent) b
 	return false
 }
 
-func mergeAntigravityCompatUsage(dst *ClaudeUsage, src *antigravity.ClaudeUsage) {
+func mergeAntigravityCompatUsage(dst *ClaudeUsage, src *protocolanthropic.ClaudeUsage) {
 	if dst == nil || src == nil {
 		return
 	}

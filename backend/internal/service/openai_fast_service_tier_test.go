@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
+
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -241,7 +242,7 @@ func TestOpenAIFastBillingMultiplier_2xAnd25x(t *testing.T) {
 			CacheReadInputTokenCostPriority: 1e-6,
 		},
 	}
-	billing := NewBillingService(&config.Config{}, &PricingService{pricingData: catalog})
+	billing := NewBillingService(&config.Config{}, newPricingServiceFixture(pricingServiceFixture{pricingData: catalog}))
 	tokens := UsageTokens{InputTokens: 1_000_000, OutputTokens: 1_000_000}
 
 	standard := func(model string) *CostBreakdown {

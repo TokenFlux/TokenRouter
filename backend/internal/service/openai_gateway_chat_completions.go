@@ -7,17 +7,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"net/http"
 	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/apicompat"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai_compat"
+	protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 	"github.com/TokenFlux/TokenRouter/internal/util/responseheaders"
+
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
@@ -106,7 +108,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 		return nil, errors.New("codex_cli_only restriction: only codex official clients are allowed")
 	}
 	if account.resolvedProtocol != "" && account.resolvedProtocol != domain.ProtocolOpenAIResponses && !gjson.GetBytes(body, "messages").Exists() && gjson.GetBytes(body, "input").Exists() {
-		var request apicompat.ResponsesRequest
+		var request protocolopenai.ResponsesRequest
 		if err := json.Unmarshal(body, &request); err != nil {
 			return nil, err
 		}
@@ -157,7 +159,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 			return s.forwardAsRawChatCompletions(ctx, c, account, body, defaultMappedModel, tlsRouterMatch...)
 		}
 		if !account.SupportsNativeCNResponses() {
-			var responsesReq apicompat.ResponsesRequest
+			var responsesReq protocolopenai.ResponsesRequest
 			if err := json.Unmarshal(body, &responsesReq); err != nil {
 				return nil, fmt.Errorf("parse responses-shaped chat completions request: %w", err)
 			}
@@ -198,7 +200,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	startTime := time.Now()
 
 	// 1. Parse Chat Completions request
-	var chatReq apicompat.ChatCompletionsRequest
+	var chatReq protocolopenai.ChatCompletionsRequest
 	if err := json.Unmarshal(body, &chatReq); err != nil {
 		return nil, fmt.Errorf("parse chat completions request: %w", err)
 	}
@@ -234,7 +236,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	// to the resolved upstream model. The downstream codex OAuth transform will
 	// still normalize store/stream/instructions/etc.
 	var (
-		responsesReq  *apicompat.ResponsesRequest
+		responsesReq  *protocolopenai.ResponsesRequest
 		responsesBody []byte
 		err           error
 	)
@@ -260,7 +262,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 		}
 		// Minimal stub populated from the raw body so downstream ServiceTier
 		// propagation keeps working.
-		responsesReq = &apicompat.ResponsesRequest{
+		responsesReq = &protocolopenai.ResponsesRequest{
 			Model:       upstreamModel,
 			ServiceTier: normalizedServiceTier,
 		}
@@ -456,7 +458,7 @@ func (s *OpenAIGatewayService) forwardAsChatCompletions(
 	return result, handleErr
 }
 
-func normalizeResponsesRequestServiceTier(req *apicompat.ResponsesRequest) {
+func normalizeResponsesRequestServiceTier(req *protocolopenai.ResponsesRequest) {
 	if req == nil {
 		return
 	}
@@ -491,7 +493,7 @@ func normalizedOpenAIServiceTierValue(raw string) string {
 	return *normalized
 }
 
-func openAICompatFailedResponseMessage(resp *apicompat.ResponsesResponse) string {
+func openAICompatFailedResponseMessage(resp *protocolopenai.ResponsesResponse) string {
 	if resp == nil || resp.Error == nil {
 		return ""
 	}
@@ -756,7 +758,7 @@ func (s *OpenAIGatewayService) handleChatStreamingResponse(
 			searchCount += countGrokNativeSearchCallsInSSEDataDedup([]byte(payload), streamSearchSeen)
 		}
 
-		var event apicompat.ResponsesStreamEvent
+		var event protocolopenai.ResponsesStreamEvent
 		if err := json.Unmarshal([]byte(payload), &event); err != nil {
 			logger.L().Warn("openai chat_completions stream: failed to parse event",
 				zap.Error(err),
