@@ -349,6 +349,24 @@ describe('ModelMarketplaceView', () => {
     expect(grokGroup?.find('.model-icon-fallback').exists()).toBe(false)
   })
 
+  it('智谱品牌在分组模式下展示 Logo 图标而不是智字占位', async () => {
+    const fixture = marketplaceFixture()
+    fixture[0] = {
+      ...fixture[0],
+      name: 'zai',
+      display_brand: '智谱',
+    }
+    getMarketplaceModels.mockResolvedValue(fixture)
+
+    const wrapper = await mountMarketplace()
+
+    // 品牌名智谱应映射到现有智谱 SVG，不能退回紫色智字。
+    const zhipuGroup = wrapper.findAll('[data-testid="marketplace-group-section"]')
+      .find((section) => section.get('h2').text() === 'zai')
+    expect(zhipuGroup?.find('.model-icon').exists()).toBe(true)
+    expect(zhipuGroup?.find('.model-icon-fallback').exists()).toBe(false)
+  })
+
   it('展示开启独立配置的生图倍率', async () => {
     const fixture = marketplaceFixture()
     fixture[0] = {
