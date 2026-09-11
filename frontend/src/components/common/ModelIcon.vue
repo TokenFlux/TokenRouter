@@ -50,9 +50,10 @@ const iconKey = computed(() => {
       modelLower.includes('learnlm') || modelLower.includes('imagen-') ||
       modelLower.includes('veo-') || modelLower.includes('nano-banana')) return 'gemini'
 
-  // 智谱 GLM 模型
+  // 智谱 GLM 模型与品牌词（模型 ID 用 glm，品牌展示用智谱/zhipu）
   if (modelLower.includes('glm') || modelLower.includes('chatglm') ||
-      modelLower.includes('cogview') || modelLower.includes('cogvideo')) return 'zhipu'
+      modelLower.includes('cogview') || modelLower.includes('cogvideo') ||
+      modelLower.includes('zhipu') || modelLower.includes('智谱')) return 'zhipu'
 
   // 阿里 Qwen 模型
   if (modelLower.includes('qwen') || modelLower.includes('qwq')) return 'qwen'

@@ -29,6 +29,15 @@ describe('ModelIcon', () => {
     expect(wrapper.find('svg').exists()).toBe(true)
     expect(wrapper.find('.model-icon-fallback').exists()).toBe(false)
   })
+
+  it.each(['glm-4.6', 'zhipu', '智谱'])('%s 显示智谱图标而不是首字母回退', (model) => {
+    const wrapper = mount(ModelIcon, {
+      props: { model },
+    })
+
+    expect(wrapper.find('svg').exists()).toBe(true)
+    expect(wrapper.find('.model-icon-fallback').exists()).toBe(false)
+  })
 })
 
 describe('ProviderIcon', () => {

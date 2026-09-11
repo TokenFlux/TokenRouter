@@ -645,6 +645,9 @@ function groupBrandIconModel(group: MarketplaceGroup): string {
       return 'gemini'
     case 'alibaba':
       return 'qwen'
+    // 智谱是品牌名，需转换为 ModelIcon 能识别的 GLM 模型标识。
+    case 'zhipu':
+      return 'glm'
     // xAI 是品牌名，需转换为 ModelIcon 能识别的 Grok 模型标识。
     case 'xai':
       return 'grok'
