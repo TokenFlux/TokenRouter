@@ -1,0 +1,262 @@
+{
+  "baseline": "../S01/logs/final-integration.log.gz",
+  "current": "logs/closeout-integration.log.gz",
+  "added_failures": [],
+  "removed_failures": [],
+  "failed_tests": [
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestCreateGroupFromSourceRollsBackWhenOutboxInsertFails",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestCreate",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestCreateFromSourcePreservesPriorityAndFiltersIneligibleAccounts",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDelete",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDeleteAccountGroupsByGroupID",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDeleteAccountGroupsByGroupID_MultipleAccounts",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDelete_SoftDelete_NotVisibleInList",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDelete_SoftDeletedGroup_lockForUpdate",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestExistsByName",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestGetAccountCount",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestGetAccountCount_Empty",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestGetByIDLite_DoesNotUseAccountCount",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestGetByID_PreservesMessagesDispatchModelConfig",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestList",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListActive",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListActiveByPlatform",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithAccountCountSort_AttachesActiveCount",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_AccountCount",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_ActiveAccountCount_LessThanTotal",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_IsExclusive",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Platform",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_RateLimitedAccountCount",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_description_should_match",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_name_should_match",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_nonexistent_should_return_empty",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_should_be_case_insensitive",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_should_escape_like_wildcards",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Status",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestList_DefaultSortBySortOrderAsc",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestList_SortBySortOrderDesc",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestMediaCardsRoundTrip",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestModelPricingRoundTrip",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestUpdate",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestUpdateSortOrders_BatchCaseWhen",
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestUpdateSortOrders_MissingGroupNoPartialUpdate"
+  ],
+  "baseline_messages": {
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDelete": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Status": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDeleteAccountGroupsByGroupID_MultipleAccounts": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_RateLimitedAccountCount": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDelete_SoftDeletedGroup_lockForUpdate": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestList_SortBySortOrderDesc": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_should_escape_like_wildcards": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestUpdate": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestUpdateSortOrders_BatchCaseWhen": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestExistsByName": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestGetByID_PreservesMessagesDispatchModelConfig": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite": [],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestCreateGroupFromSourceRollsBackWhenOutboxInsertFails": [],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestList_DefaultSortBySortOrderAsc": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_description_should_match": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestGetByIDLite_DoesNotUseAccountCount": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestGetAccountCount": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestModelPricingRoundTrip": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestList": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDelete_SoftDelete_NotVisibleInList": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListActiveByPlatform": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestUpdateSortOrders_MissingGroupNoPartialUpdate": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestCreate": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_name_should_match": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Platform": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListActive": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_IsExclusive": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestCreateFromSourcePreservesPriorityAndFiltersIneligibleAccounts": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_should_be_case_insensitive": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDeleteAccountGroupsByGroupID": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_ActiveAccountCount_LessThanTotal": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestMediaCardsRoundTrip": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_AccountCount": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search": [],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_nonexistent_should_return_empty": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestGetAccountCount_Empty": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithAccountCountSort_AttachesActiveCount": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ]
+  },
+  "current_messages": {
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDelete": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Status": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDeleteAccountGroupsByGroupID_MultipleAccounts": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_RateLimitedAccountCount": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDelete_SoftDeletedGroup_lockForUpdate": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestList_SortBySortOrderDesc": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_should_escape_like_wildcards": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestUpdate": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestUpdateSortOrders_BatchCaseWhen": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestExistsByName": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestGetByID_PreservesMessagesDispatchModelConfig": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite": [],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestCreateGroupFromSourceRollsBackWhenOutboxInsertFails": [],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestList_DefaultSortBySortOrderAsc": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_description_should_match": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestGetByIDLite_DoesNotUseAccountCount": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestGetAccountCount": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestModelPricingRoundTrip": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestList": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDelete_SoftDelete_NotVisibleInList": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListActiveByPlatform": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestUpdateSortOrders_MissingGroupNoPartialUpdate": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestCreate": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_name_should_match": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Platform": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListActive": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_IsExclusive": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestCreateFromSourcePreservesPriorityAndFiltersIneligibleAccounts": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_should_be_case_insensitive": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestDeleteAccountGroupsByGroupID": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_ActiveAccountCount_LessThanTotal": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestMediaCardsRoundTrip": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_AccountCount": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search": [],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithFilters_Search/search_nonexistent_should_return_empty": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestGetAccountCount_Empty": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ],
+    "github.com/TokenFlux/TokenRouter/internal/repository::TestGroupRepoSuite/TestListWithAccountCountSort_AttachesActiveCount": [
+      "new row for relation \"groups\" violates check constraint \"groups_protocol_policy_v1\""
+    ]
+  },
+  "same_error_messages": true,
+  "cause": "groups_protocol_policy_v1；分组测试零值协议字段违反既有迁移约束",
+  "follow_up": "S03/S06"
+}

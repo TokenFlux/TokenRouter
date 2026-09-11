@@ -300,6 +300,7 @@ func TestURLAvailability_GetAvailableURLsWithBase_LastSuccess不在列表中(t *
 
 func TestNewSessionStore(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 	defer store.Stop()
 
 	if store == nil {
@@ -312,6 +313,7 @@ func TestNewSessionStore(t *testing.T) {
 
 func TestSessionStore_SetAndGet(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 	defer store.Stop()
 
 	session := &OAuthSession{
@@ -340,6 +342,7 @@ func TestSessionStore_SetAndGet(t *testing.T) {
 
 func TestSessionStore_Get_不存在(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 	defer store.Stop()
 
 	_, ok := store.Get("nonexistent")
@@ -350,6 +353,7 @@ func TestSessionStore_Get_不存在(t *testing.T) {
 
 func TestSessionStore_Get_过期(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 	defer store.Stop()
 
 	session := &OAuthSession{
@@ -367,6 +371,7 @@ func TestSessionStore_Get_过期(t *testing.T) {
 
 func TestSessionStore_Delete(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 	defer store.Stop()
 
 	session := &OAuthSession{
@@ -385,6 +390,7 @@ func TestSessionStore_Delete(t *testing.T) {
 
 func TestSessionStore_Delete_不存在(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 	defer store.Stop()
 
 	// 删除不存在的 session 不应 panic
@@ -393,6 +399,7 @@ func TestSessionStore_Delete_不存在(t *testing.T) {
 
 func TestSessionStore_Stop(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 	store.Stop()
 
 	// 多次 Stop 不应 panic
@@ -401,6 +408,7 @@ func TestSessionStore_Stop(t *testing.T) {
 
 func TestSessionStore_多个Session(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 	defer store.Stop()
 
 	for i := 0; i < 10; i++ {

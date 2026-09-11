@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/site/...",
+    "./internal/idempotency/..."
+  ],
+  "date": "2026-09-11T02:53:07.745193+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "duration_seconds": 11.726,
+  "test_events": {
+    "pass": 16,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/site-first.log.gz"
+}

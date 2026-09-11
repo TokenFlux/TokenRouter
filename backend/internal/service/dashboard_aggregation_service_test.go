@@ -192,6 +192,8 @@ func TestDashboardAggregationServiceRuntimeEnableTriggersImmediately(t *testing.
 	settings := NewPreAggregationSettingsService(settingRepo, cfg)
 	svc := NewDashboardAggregationService(repo, nil, cfg)
 	svc.SetPreAggregationSettings(settings)
+	svc.Start()
+	t.Cleanup(svc.Stop)
 
 	_, err := settings.Update(context.Background(), PreAggregationSettings{
 		Usage: PreAggregationUsageSettings{Enabled: true, IntervalSeconds: 60},
@@ -233,6 +235,8 @@ func TestDashboardAggregationServiceRecomputeRunsWhileRuntimeDisabled(t *testing
 	settings := NewPreAggregationSettingsService(settingRepo, cfg)
 	svc := NewDashboardAggregationService(repo, nil, cfg)
 	svc.SetPreAggregationSettings(settings)
+	svc.Start()
+	t.Cleanup(svc.Stop)
 
 	end := time.Now().UTC()
 	require.NoError(t, svc.TriggerRecomputeRange(end.Add(-time.Hour), end))

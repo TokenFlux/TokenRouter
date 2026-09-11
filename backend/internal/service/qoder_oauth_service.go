@@ -52,6 +52,11 @@ type qoderOAuthSession struct {
 }
 
 type qoderOAuthSessionStore struct {
+	runtimeMu      sync.Mutex
+	runtimeStarted bool
+	runtimeStopped bool
+	runtimeWG      sync.WaitGroup
+
 	mu       sync.RWMutex
 	sessions map[string]*qoderOAuthSession
 	stopCh   chan struct{}
@@ -62,7 +67,7 @@ func newQoderOAuthSessionStore() *qoderOAuthSessionStore {
 		sessions: make(map[string]*qoderOAuthSession),
 		stopCh:   make(chan struct{}),
 	}
-	go store.cleanup()
+
 	return store
 }
 
@@ -136,13 +141,27 @@ func (s *qoderOAuthSessionStore) FinishCompletion(sessionID string, tokenInfo *Q
 	}
 }
 
-func (s *qoderOAuthSessionStore) Stop() {
-	select {
-	case <-s.stopCh:
+// Start 显式启动当前会话实例的清理循环。
+func (s *qoderOAuthSessionStore) Start() {
+	s.runtimeMu.Lock()
+	defer s.runtimeMu.Unlock()
+	if s.runtimeStarted || s.runtimeStopped {
 		return
-	default:
+	}
+	s.runtimeStarted = true
+	s.runtimeWG.Add(1)
+	go func() { defer s.runtimeWG.Done(); s.cleanup() }()
+}
+
+// Stop 幂等停止并等待清理循环，未启动实例也可安全关闭。
+func (s *qoderOAuthSessionStore) Stop() {
+	s.runtimeMu.Lock()
+	if !s.runtimeStopped {
+		s.runtimeStopped = true
 		close(s.stopCh)
 	}
+	s.runtimeMu.Unlock()
+	s.runtimeWG.Wait()
 }
 
 func (s *qoderOAuthSessionStore) cleanup() {
@@ -604,5 +623,12 @@ func sanitizedQoderOAuthWarning(code, message string) map[string]string {
 func (s *QoderOAuthService) Stop() {
 	if s != nil && s.sessionStore != nil {
 		s.sessionStore.Stop()
+	}
+}
+
+// Start 由应用统一启动最终注入的会话实现。
+func (s *QoderOAuthService) Start() {
+	if starter, ok := any(s.sessionStore).(interface{ Start() }); ok {
+		starter.Start()
 	}
 }

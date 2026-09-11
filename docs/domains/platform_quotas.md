@@ -40,7 +40,7 @@ Redis 用 Lua 同步累加三个窗口并标记脏 key，使下一次预检查�
 - Flusher 关闭：成功结算后异步调用 `IncrementUsageWithReset`，数据库原子重置过期窗口并累加。
 - Flusher 开启：Redis 为执法热状态，dirty set 由 `UserPlatformQuotaUsageFlusher` 分批读取绝对快照并 UPSERT 到数据库镜像。
 
-Flusher 每批 Pop dirty key、批量读取 Redis、写入绝对 usage/window snapshot。普通写失败会把 key 加回 dirty set；外键违反表示用户已删除，整批数据库镜像可能暂时缺失，但 Redis 执法状态不受影响。停止服务时会尝试最后一次 flush。Flusher 是异步镜像优化，不改变 Redis 预检查和成功结算的先后关系。
+Flusher 每批 Pop dirty key、批量读取 Redis、写入绝对 usage/window snapshot。普通写失败会把 key 加回 dirty set；外键违反表示用户已删除，整批数据库镜像可能暂时缺失，但 Redis 执法状态不受影响。停止服务时先取消并等待周期回调，再在清理预算内继续写回积压，不受周期单轮 16 批上限限制；失败仍按原规则回填并报告未排空。应用在停止计费写入及其异步副作用后才推进到该步骤。Flusher 是异步镜像优化，不改变 Redis 预检查和成功结算的先后关系。
 
 ## 默认值与管理操作
 

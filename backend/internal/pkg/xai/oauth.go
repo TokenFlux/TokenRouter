@@ -83,12 +83,17 @@ func (s *OAuthSession) TryConsume() bool {
 
 // SessionStore 以 Redis 共享 xAI OAuth 会话，并在 Redis 写入失败时使用进程内回退。
 type SessionStore struct {
+	runtimeMu      sync.Mutex
+	runtimeStarted bool
+	runtimeStopped bool
+	runtimeWG      sync.WaitGroup
+
 	mu        sync.RWMutex
 	sessions  map[string]*OAuthSession
 	localOnly map[string]struct{}
-	stopOnce  sync.Once
-	stopCh    chan struct{}
-	remote    *redissession.Store
+
+	stopCh chan struct{}
+	remote *redissession.Store
 }
 
 type oauthSessionDTO struct {
@@ -108,7 +113,7 @@ func NewSessionStore() *SessionStore {
 		localOnly: make(map[string]struct{}),
 		stopCh:    make(chan struct{}),
 	}
-	go store.cleanup()
+
 	return store
 }
 
@@ -215,10 +220,27 @@ func (s *SessionStore) tryConsumeMemory(sessionID string) bool {
 	return ok && session.TryConsume()
 }
 
+// Start 显式启动当前会话实例的清理循环。
+func (s *SessionStore) Start() {
+	s.runtimeMu.Lock()
+	defer s.runtimeMu.Unlock()
+	if s.runtimeStarted || s.runtimeStopped {
+		return
+	}
+	s.runtimeStarted = true
+	s.runtimeWG.Add(1)
+	go func() { defer s.runtimeWG.Done(); s.cleanup() }()
+}
+
+// Stop 幂等停止并等待清理循环，未启动实例也可安全关闭。
 func (s *SessionStore) Stop() {
-	s.stopOnce.Do(func() {
+	s.runtimeMu.Lock()
+	if !s.runtimeStopped {
+		s.runtimeStopped = true
 		close(s.stopCh)
-	})
+	}
+	s.runtimeMu.Unlock()
+	s.runtimeWG.Wait()
 }
 
 func (s *SessionStore) cleanup() {

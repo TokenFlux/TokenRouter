@@ -35,14 +35,14 @@
 
 进程入口先判断是否需要 setup。未安装时可使用 Web setup、`--setup` CLI 或容器的 `AUTO_SETUP`；setup 测试 PostgreSQL/Redis，执行迁移，创建首个管理员，写入配置，最后创建只读安装锁。安装锁用于阻止重新初始化攻击，不能用删除它的方式修复普通配置问题。
 
-正常启动在依赖注入创建 Ent 客户端时再次运行同一套嵌入迁移，因此每个新版本在监听 HTTP 前完成 schema 对齐。迁移或安全密钥初始化失败会使应用初始化失败，不允许带着部分 schema 提供流量。默认的兼容迁移允许多实例滚动启动，并由迁移锁保证只有一个实例执行 SQL；“升级与恢复”中标记为一次性或破坏性的变更优先于该默认规则，必须按专题停机顺序执行。
+正常启动由 `app/bootstrap` 在构造业务图前运行同一套嵌入迁移，因此每个新版本在监听 HTTP 前完成 schema 对齐。迁移或安全密钥初始化失败会使应用初始化失败，不允许带着部分 schema 提供流量。默认的兼容迁移允许多实例滚动启动，并由迁移锁保证只有一个实例执行 SQL；“升级与恢复”中标记为一次性或破坏性的变更优先于该默认规则，必须按专题停机顺序执行。
 
 `GET /health` 是容器健康检查入口。健康响应只能说明当前进程可服务，不能替代升级后的业务抽样、账本核对或后台任务检查。
 
 <a id="migration_execution"></a>
 ## 迁移执行
 
-`backend/migrations/*.sql` 通过 `go:embed` 编入二进制，文件名是迁移身份并按字典序决定顺序。执行器使用固定 PostgreSQL advisory lock 串行化多实例迁移；`schema_migrations` 记录文件名、去除首尾空白后的 SHA-256 和应用时间。已有文件校验和不匹配时启动失败，只有 runner 中逐文件列出的历史兼容集合可以放行。
+迁移执行机制位于 `infra/postgres`，由 bootstrap 传入连接和迁移 FS；setup 与两个维护命令只调用所需的精简初始化能力。`backend/migrations/*.sql` 通过 `go:embed` 编入二进制，文件名是迁移身份并按字典序决定顺序。执行器使用固定 PostgreSQL advisory lock 串行化多实例迁移；`schema_migrations` 记录文件名、去除首尾空白后的 SHA-256 和应用时间。已有文件校验和不匹配时启动失败，只有 runner 中逐文件列出的历史兼容集合可以放行。
 
 普通 `*.sql` 在单个事务中执行，SQL 与迁移记录一起提交或回滚。包含 `CREATE INDEX CONCURRENTLY` 或 `DROP INDEX CONCURRENTLY` 的文件必须以 `_notx.sql` 结尾；该模式逐语句在事务外执行，只接受带 `IF NOT EXISTS`/`IF EXISTS` 的并发索引语句，也禁止 `BEGIN`、`COMMIT` 和 `ROLLBACK`。非事务迁移可能在 SQL 成功但记录写入前中断，因此每条语句必须可安全重放。
 

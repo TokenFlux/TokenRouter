@@ -1,0 +1,34 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-mod=mod",
+    "-race",
+    "-count=1",
+    "-json",
+    "."
+  ],
+  "cwd": "可丢弃 lifecycle 原文件副本",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "test_events": {
+    "pass": 19,
+    "fail": 0,
+    "skip": 0
+  },
+  "source_hashes": {
+    "backend/internal/app/lifecycle/requests_test.go": "dd623e725863798bf9f6209a33fb2db6b7ad3b828b41d864e56c1d4e7ee9c10b",
+    "backend/internal/app/lifecycle/tasks.go": "4db58be9572e1f474329b7d5dad0b7fdf9a6debbec92066ecc848233cae2cf49",
+    "backend/internal/app/lifecycle/manager_test.go": "43e2272173369fd18d474b39e90159c8d9bcd869731d74dc63839bb249b17703",
+    "backend/internal/app/lifecycle/http.go": "aa010da29c2c8d7656cf9f68974184804cdb0c0a95f2f6f2ddb77ae063ba33e5",
+    "backend/internal/app/lifecycle/restart_test.go": "2a482c0cbbadaab0b4d1698a4928822c92b6583c7624096a50eb9da0f8bea95f",
+    "backend/internal/app/lifecycle/tasks_test.go": "2cd72d4b3206fe803e1a4877bead3ecc2000b7aa990fb08fdc84069ac1c8f4d4",
+    "backend/internal/app/lifecycle/restart.go": "8b340bfaa20fc36023fffb11d53f6000eccecb0a4556b7b2c56ba54be96286d6",
+    "backend/internal/app/lifecycle/manager.go": "48ae787b695df0100ecb5abad402dde62db193b946cdd8e76ff85d21c6358890",
+    "backend/internal/app/lifecycle/requests.go": "6addd65eadd66b853e90a7afacf498d6dff26ae94c6ae91d300aa7ee3409f3c4"
+  },
+  "extra_test": "package lifecycle\n\nimport (\n\t\"go.uber.org/goleak\"\n\t\"testing\"\n)\n\n// 所有生命周期契约完成后，等待器、超时报错器、重启定时器和 HTTP 协程不得泄漏。\nfunc TestMain(m *testing.M) { goleak.VerifyTestMain(m) }\n",
+  "note": "副本中启用既有传递依赖 goleak.VerifyTestMain，不修改仓库 go.mod/go.sum；所有原始 Go 文件 SHA256 相同。",
+  "fixture_removed": true,
+  "log": "logs/lifecycle-goleak-fixture.log.gz"
+}

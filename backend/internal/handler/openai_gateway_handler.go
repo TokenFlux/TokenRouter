@@ -3736,8 +3736,7 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 	if len(nativeCompaction) > 0 {
 		nativeCompactionV2 = nativeCompaction[0]
 	}
-
-	go func() {
+	service.RunBackgroundTask("handler/openai_gateway_handler.go:recordCyberPolicyIfMarked", service.BackgroundCall0(func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		if forwardErrored && h.gatewayService != nil {
@@ -3768,7 +3767,7 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 		if h.opsService != nil {
 			enqueueOpsErrorLog(h.opsService, buildCyberPolicyOpsErrorEntry(meta, mark))
 		}
-	}()
+	}))
 	return true
 }
 

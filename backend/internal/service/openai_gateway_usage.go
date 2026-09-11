@@ -993,12 +993,11 @@ func (s *OpenAIGatewayService) updateCodexUsageSnapshot(ctx context.Context, acc
 	if !s.getCodexSnapshotThrottle().Allow(accountID, now) {
 		return
 	}
-
-	go func() {
+	RunBackgroundTask("service/openai_gateway_usage.go:updateCodexUsageSnapshot", BackgroundCall0(func() {
 		updateCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = s.accountRepo.UpdateExtra(updateCtx, accountID, updates)
-	}()
+	}))
 }
 
 func (s *OpenAIGatewayService) UpdateCodexUsageSnapshotFromHeaders(ctx context.Context, accountID int64, headers http.Header) {

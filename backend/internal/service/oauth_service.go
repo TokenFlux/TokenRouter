@@ -344,3 +344,10 @@ func (s *OAuthService) RefreshAccountToken(ctx context.Context, account *Account
 func (s *OAuthService) Stop() {
 	s.sessionStore.Stop()
 }
+
+// Start 由应用统一启动最终注入的会话实现。
+func (s *OAuthService) Start() {
+	if starter, ok := any(s.sessionStore).(interface{ Start() }); ok {
+		starter.Start()
+	}
+}

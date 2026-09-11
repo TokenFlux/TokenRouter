@@ -87,3 +87,6 @@ func isPostgresDeadlock(err error) bool {
 func postgresSQLState(err error) string {
 	return postgresinfra.SQLState(err)
 }
+
+// isSQLNoRowsError 委托通用 SQL 错误识别，保留旧 upsert 语义。
+func isSQLNoRowsError(err error) bool { return postgresinfra.IsNoRows(err) }

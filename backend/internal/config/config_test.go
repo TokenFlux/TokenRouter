@@ -1486,8 +1486,8 @@ func TestValidateConcurrencyPingInterval(t *testing.T) {
 
 func TestProvideConfig(t *testing.T) {
 	resetViperWithJWTSecret(t)
-	if _, err := ProvideConfig(); err != nil {
-		t.Fatalf("ProvideConfig() error: %v", err)
+	if _, err := LoadForBootstrap(); err != nil {
+		t.Fatalf("LoadForBootstrap() error: %v", err)
 	}
 }
 

@@ -1,6 +1,7 @@
 package routes
 
 import (
+	redisinfra "github.com/TokenFlux/TokenRouter/internal/infra/redis"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -32,7 +33,7 @@ func newAuthRoutesTestRouter(redisClient *redis.Client) *gin.Engine {
 		servermiddleware.AuditLogMiddleware(func(c *gin.Context) {
 			c.Next()
 		}),
-		redisClient,
+		servermiddleware.NewRateLimiter(redisinfra.NewFixedWindowLimiter(redisClient, "rate_limit:")),
 		nil,
 		nil,
 	)

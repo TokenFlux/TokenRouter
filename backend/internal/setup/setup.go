@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/app/bootstrap"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/repository"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	_ "github.com/lib/pq"
@@ -368,7 +368,7 @@ func initializeDatabase(cfg *SetupConfig) error {
 
 	migrationCtx, cancel := context.WithTimeout(context.Background(), cfg.migrationTimeout())
 	defer cancel()
-	return repository.ApplyMigrations(migrationCtx, db)
+	return bootstrap.ApplyMigrations(migrationCtx, db)
 }
 
 func (cfg *SetupConfig) migrationTimeout() time.Duration {

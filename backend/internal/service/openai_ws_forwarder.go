@@ -325,6 +325,11 @@ func (s *OpenAIGatewayService) getOpenAIWSConnPool() *openAIWSConnPool {
 	if s == nil {
 		return nil
 	}
+	s.openaiWSPoolMu.Lock()
+	defer s.openaiWSPoolMu.Unlock()
+	if s.openaiWSPoolClosed {
+		return s.openaiWSPool
+	}
 	s.openaiWSPoolOnce.Do(func() {
 		if s.openaiWSPool == nil {
 			s.openaiWSPool = newOpenAIWSConnPool(s.cfg)

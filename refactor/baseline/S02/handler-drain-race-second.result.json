@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "./internal/handler",
+    "./internal/handler/admin",
+    "-run",
+    "Test(OpsErrorLogShutdownDrainsCapturedQueue|OpsWSShutdownCancelsIdleTimer)"
+  ],
+  "date": "2026-09-11T05:47:33.516375+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "duration_seconds": 7.773,
+  "test_events": {
+    "pass": 2,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/handler-drain-race-second.log.gz"
+}

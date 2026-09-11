@@ -46,6 +46,7 @@ func TestCheckBillingEligibilityRejectsBalanceBelowMinimumReserve(t *testing.T) 
 	cfg := &config.Config{}
 	cfg.Billing.MinimumBalanceReserve = 0.01
 	svc := NewBillingCacheService(cache, nil, nil, nil, nil, nil, cfg, nil)
+	svc.Start()
 	t.Cleanup(svc.Stop)
 
 	err := svc.CheckBillingEligibility(context.Background(), &User{ID: 1}, nil, nil, nil, "")
@@ -57,6 +58,7 @@ func TestCheckBillingEligibilityAllowsBalanceAtMinimumReserve(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Billing.MinimumBalanceReserve = 0.01
 	svc := NewBillingCacheService(cache, nil, nil, nil, nil, nil, cfg, nil)
+	svc.Start()
 	t.Cleanup(svc.Stop)
 
 	err := svc.CheckBillingEligibility(context.Background(), &User{ID: 1}, nil, nil, nil, "")
@@ -72,6 +74,7 @@ func TestSyncBalanceCacheAfterDeductionInvalidatesExhaustedBalance(t *testing.T)
 	cfg := &config.Config{}
 	cfg.Billing.MinimumBalanceReserve = 0.01
 	svc := NewBillingCacheService(cache, userRepo, nil, nil, nil, nil, cfg, nil)
+	svc.Start()
 	t.Cleanup(svc.Stop)
 
 	newBalance := -0.25
@@ -96,6 +99,7 @@ func TestSyncBalanceCacheAfterDeductionInvalidatesWhenBalanceFallsBelowReserve(t
 	cfg := &config.Config{}
 	cfg.Billing.MinimumBalanceReserve = 0.01
 	svc := NewBillingCacheService(cache, nil, nil, nil, nil, nil, cfg, nil)
+	svc.Start()
 	t.Cleanup(svc.Stop)
 
 	newBalance := 0.005
@@ -116,6 +120,7 @@ func TestSyncBalanceCacheAfterDeductionQueuesDeductWhenBalanceStillEligible(t *t
 	cfg := &config.Config{}
 	cfg.Billing.MinimumBalanceReserve = 0.01
 	svc := NewBillingCacheService(cache, nil, nil, nil, nil, nil, cfg, nil)
+	svc.Start()
 	t.Cleanup(svc.Stop)
 
 	newBalance := 0.75

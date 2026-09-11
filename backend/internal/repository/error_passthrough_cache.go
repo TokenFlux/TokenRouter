@@ -19,9 +19,13 @@ const (
 )
 
 type errorPassthroughCache struct {
-	rdb        *redis.Client
-	localCache []*model.ErrorPassthroughRule
-	localMu    sync.RWMutex
+	subscriptionMu      sync.Mutex
+	subscriptionCancel  context.CancelFunc
+	subscriptionStopped bool
+	subscriptionWG      sync.WaitGroup
+	rdb                 *redis.Client
+	localCache          []*model.ErrorPassthroughRule
+	localMu             sync.RWMutex
 }
 
 // NewErrorPassthroughCache 创建错误透传规则缓存
@@ -102,14 +106,25 @@ func (c *errorPassthroughCache) NotifyUpdate(ctx context.Context) error {
 
 // SubscribeUpdates 订阅缓存更新通知
 func (c *errorPassthroughCache) SubscribeUpdates(ctx context.Context, handler func()) {
+	subscriberCtx, cancel := context.WithCancel(ctx)
+	c.subscriptionMu.Lock()
+	if c.subscriptionCancel != nil || c.subscriptionStopped {
+		c.subscriptionMu.Unlock()
+		cancel()
+		return
+	}
+	c.subscriptionCancel = cancel
+	c.subscriptionWG.Add(1)
+	c.subscriptionMu.Unlock()
 	go func() {
-		sub := c.rdb.Subscribe(ctx, errorPassthroughPubSubKey)
+		defer c.subscriptionWG.Done()
+		sub := c.rdb.Subscribe(subscriberCtx, errorPassthroughPubSubKey)
 		defer func() { _ = sub.Close() }()
 
 		ch := sub.Channel()
 		for {
 			select {
-			case <-ctx.Done():
+			case <-subscriberCtx.Done():
 				return
 			case msg := <-ch:
 				if msg == nil {
@@ -125,4 +140,16 @@ func (c *errorPassthroughCache) SubscribeUpdates(ctx context.Context, handler fu
 			}
 		}
 	}()
+}
+
+// StopSubscription 主动取消并等待最后一次回调，保持原订阅频道与故障语义。
+func (c *errorPassthroughCache) StopSubscription() {
+	c.subscriptionMu.Lock()
+	c.subscriptionStopped = true
+	cancel := c.subscriptionCancel
+	c.subscriptionMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	c.subscriptionWG.Wait()
 }

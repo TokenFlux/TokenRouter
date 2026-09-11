@@ -35,6 +35,11 @@ type OAuthSession struct {
 }
 
 type SessionStore struct {
+	runtimeMu      sync.Mutex
+	runtimeStarted bool
+	runtimeStopped bool
+	runtimeWG      sync.WaitGroup
+
 	mu       sync.RWMutex
 	sessions map[string]*OAuthSession
 	stopCh   chan struct{}
@@ -45,7 +50,7 @@ func NewSessionStore() *SessionStore {
 		sessions: make(map[string]*OAuthSession),
 		stopCh:   make(chan struct{}),
 	}
-	go store.cleanup()
+
 	return store
 }
 
@@ -74,13 +79,27 @@ func (s *SessionStore) Delete(sessionID string) {
 	delete(s.sessions, sessionID)
 }
 
-func (s *SessionStore) Stop() {
-	select {
-	case <-s.stopCh:
+// Start 显式启动当前会话实例的清理循环。
+func (s *SessionStore) Start() {
+	s.runtimeMu.Lock()
+	defer s.runtimeMu.Unlock()
+	if s.runtimeStarted || s.runtimeStopped {
 		return
-	default:
+	}
+	s.runtimeStarted = true
+	s.runtimeWG.Add(1)
+	go func() { defer s.runtimeWG.Done(); s.cleanup() }()
+}
+
+// Stop 幂等停止并等待清理循环，未启动实例也可安全关闭。
+func (s *SessionStore) Stop() {
+	s.runtimeMu.Lock()
+	if !s.runtimeStopped {
+		s.runtimeStopped = true
 		close(s.stopCh)
 	}
+	s.runtimeMu.Unlock()
+	s.runtimeWG.Wait()
 }
 
 func (s *SessionStore) cleanup() {

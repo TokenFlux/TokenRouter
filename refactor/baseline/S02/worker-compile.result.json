@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-run",
+    "^$",
+    "./internal/service",
+    "./internal/site/...",
+    "./internal/idempotency/..."
+  ],
+  "date": "2026-09-11T03:03:08.542254+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "duration_seconds": 12.172,
+  "test_events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/worker-compile.log.gz"
+}

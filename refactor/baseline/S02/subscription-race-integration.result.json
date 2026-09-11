@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "TestSubscriptionsWaitForInFlightCallback"
+  ],
+  "date": "2026-09-11T05:34:23.941502+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "duration_seconds": 25.693,
+  "test_events": {
+    "pass": 4,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/subscription-race-integration.log.gz"
+}

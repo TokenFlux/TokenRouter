@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=20",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "TestUsageBillingRepositoryBatchImageUnlimitedKeyReleaseKeepsExistingUsage"
+  ],
+  "date": "2026-09-11T05:58:44.627526+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "duration_seconds": 5.106,
+  "test_events": {
+    "pass": 20,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/billing-unlimited-repro.log.gz"
+}

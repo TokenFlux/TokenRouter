@@ -52,6 +52,7 @@ func TestGrokOAuthServiceRefreshTokenPreservesOriginalRefreshTokenWhenNotRotated
 			ExpiresIn:   3600,
 		},
 	})
+	svc.Start()
 	defer svc.Stop()
 
 	info, err := svc.RefreshToken(context.Background(), "original-refresh-token", "", "client-id")
@@ -63,6 +64,7 @@ func TestGrokOAuthServiceRefreshTokenPreservesOriginalRefreshTokenWhenNotRotated
 
 func TestGrokOAuthServiceRefreshTokenRejectsEmptyUpstreamResponse(t *testing.T) {
 	svc := NewGrokOAuthService(nil, &grokOAuthClientStub{})
+	svc.Start()
 	defer svc.Stop()
 
 	require.NotPanics(t, func() {
@@ -76,6 +78,7 @@ func TestGrokOAuthServiceRefreshTokenRejectsEmptyUpstreamResponse(t *testing.T) 
 func TestGrokOAuthServiceExchangeCodeConsumesOnlyAfterValidation(t *testing.T) {
 	client := &grokOAuthClientStub{}
 	svc := NewGrokOAuthService(nil, client)
+	svc.Start()
 	defer svc.Stop()
 
 	auth, err := svc.GenerateAuthURL(context.Background(), nil, "")
@@ -109,6 +112,7 @@ func TestGrokOAuthServiceExchangeCodeConsumesOnlyAfterValidation(t *testing.T) {
 
 func TestGrokOAuthServiceExchangeCodeRejectsMissingClientWithoutConsumingSession(t *testing.T) {
 	svc := NewGrokOAuthService(nil, nil)
+	svc.Start()
 	defer svc.Stop()
 	auth, err := svc.GenerateAuthURL(context.Background(), nil, "")
 	require.NoError(t, err)
@@ -127,6 +131,7 @@ func TestGrokOAuthServiceExchangeCodeRejectsMissingClientWithoutConsumingSession
 func TestGrokOAuthServiceExchangeCodeRequiresStateForBareCode(t *testing.T) {
 	client := &grokOAuthClientStub{}
 	svc := NewGrokOAuthService(nil, client)
+	svc.Start()
 	defer svc.Stop()
 	auth, err := svc.GenerateAuthURL(context.Background(), nil, "")
 	require.NoError(t, err)
@@ -145,6 +150,7 @@ func TestGrokOAuthServiceExchangeCodeRequiresStateForBareCode(t *testing.T) {
 func TestGrokOAuthServiceExchangeCodeRejectsRedirectURIOverride(t *testing.T) {
 	client := &grokOAuthClientStub{}
 	svc := NewGrokOAuthService(nil, client)
+	svc.Start()
 	defer svc.Stop()
 	auth, err := svc.GenerateAuthURL(context.Background(), nil, "")
 	require.NoError(t, err)
@@ -171,6 +177,7 @@ func TestGrokOAuthServiceExchangeCodeRejectsRedirectURIOverride(t *testing.T) {
 
 func TestGrokOAuthServiceExternalFlowsRejectMissingClient(t *testing.T) {
 	svc := NewGrokOAuthService(nil, nil)
+	svc.Start()
 	defer svc.Stop()
 
 	_, err := svc.RefreshToken(context.Background(), "refresh-token", "", "")
@@ -184,6 +191,7 @@ func TestGrokOAuthServiceExternalFlowsRejectMissingClient(t *testing.T) {
 
 func TestGrokOAuthServiceBuildAccountCredentialsDefaultsToSubscriptionProxy(t *testing.T) {
 	svc := NewGrokOAuthService(nil, &grokOAuthClientStub{})
+	svc.Start()
 	defer svc.Stop()
 
 	credentials := svc.BuildAccountCredentials(&GrokTokenInfo{
@@ -203,6 +211,7 @@ func TestGrokOAuthServiceConvertFromSSOExtractsBuildClaims(t *testing.T) {
 			ExpiresIn:    3600,
 		},
 	})
+	svc.Start()
 	defer svc.Stop()
 
 	info, err := svc.ConvertFromSSO(context.Background(), "sso-token", nil)
@@ -228,6 +237,7 @@ func TestGrokOAuthServiceRefreshAccountTokenOverwritesStaleTierFromNewJWT(t *tes
 			ExpiresIn:   3600,
 		},
 	})
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -257,6 +267,7 @@ func TestGrokOAuthServiceRefreshAccountTokenIgnoresIDTokenTierWhenAccessTokenHas
 			ExpiresIn:   3600,
 		},
 	})
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -281,6 +292,7 @@ func TestGrokOAuthServiceRefreshAccountTokenKeepsStoredTierWhenJWTHasNoClaim(t *
 			ExpiresIn:   3600,
 		},
 	})
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -306,6 +318,7 @@ func TestGrokOAuthServiceValidateSSOTokenReturnsOAuthTokensWithoutPersistingSSO(
 			ExpiresIn:    3600,
 		},
 	})
+	svc.Start()
 	defer svc.Stop()
 
 	info, err := svc.ValidateSSOToken(context.Background(), "sso-token", nil)
@@ -333,6 +346,7 @@ func TestGrokOAuthServiceAuthorizePasswordUsesLoginThenSSOAuthorize(t *testing.T
 	cfg := &config.Config{}
 	cfg.Gateway.Grok.PasswordAuthEnabled = true
 	svc := NewGrokOAuthService(nil, client, cfg)
+	svc.Start()
 	defer svc.Stop()
 
 	require.True(t, svc.GetCapabilities().PasswordAuthEnabled)
@@ -350,6 +364,7 @@ func TestGrokOAuthServiceAuthorizePasswordUsesLoginThenSSOAuthorize(t *testing.T
 func TestGrokOAuthServiceAuthorizePasswordDisabledByDefault(t *testing.T) {
 	client := &grokOAuthClientStub{}
 	svc := NewGrokOAuthService(nil, client)
+	svc.Start()
 	defer svc.Stop()
 
 	require.False(t, svc.GetCapabilities().PasswordAuthEnabled)

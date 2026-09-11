@@ -1,0 +1,1981 @@
+{
+  "Issues": [
+    {
+      "FromLinter": "depguard",
+      "Text": "import 'github.com/TokenFlux/TokenRouter/internal/repository' is not allowed from list 'handler-no-repository': handler must not import repository",
+      "Severity": "",
+      "SourceLines": [
+        "\t\"github.com/TokenFlux/TokenRouter/internal/repository\""
+      ],
+      "Pos": {
+        "Filename": "internal/handler/auth_wechat_oauth_test.go",
+        "Offset": 643,
+        "Line": 25,
+        "Column": 2
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "handler must not import repository",
+          "TextEdits": null
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "depguard",
+      "Text": "import 'github.com/redis/go-redis/v9' is not allowed from list 'service-no-repository': service must not import redis",
+      "Severity": "",
+      "SourceLines": [
+        "\t\"github.com/redis/go-redis/v9\""
+      ],
+      "Pos": {
+        "Filename": "internal/service/api_key_service_cache_test.go",
+        "Offset": 356,
+        "Line": 19,
+        "Column": 2
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "service must not import redis",
+          "TextEdits": null
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "depguard",
+      "Text": "import 'github.com/TokenFlux/TokenRouter/internal/repository' is not allowed from list 'service-no-repository': service must not import repository",
+      "Severity": "",
+      "SourceLines": [
+        "\t\"github.com/TokenFlux/TokenRouter/internal/repository\""
+      ],
+      "Pos": {
+        "Filename": "internal/service/auth_service_email_bind_test.go",
+        "Offset": 432,
+        "Line": 20,
+        "Column": 2
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "service must not import repository",
+          "TextEdits": null
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "depguard",
+      "Text": "import 'github.com/TokenFlux/TokenRouter/internal/repository' is not allowed from list 'service-no-repository': service must not import repository",
+      "Severity": "",
+      "SourceLines": [
+        "\t\"github.com/TokenFlux/TokenRouter/internal/repository\""
+      ],
+      "Pos": {
+        "Filename": "internal/service/auth_service_identity_sync_test.go",
+        "Offset": 305,
+        "Line": 16,
+        "Column": 2
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "service must not import repository",
+          "TextEdits": null
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "depguard",
+      "Text": "import 'github.com/TokenFlux/TokenRouter/internal/repository' is not allowed from list 'service-no-repository': service must not import repository",
+      "Severity": "",
+      "SourceLines": [
+        "\t\"github.com/TokenFlux/TokenRouter/internal/repository\""
+      ],
+      "Pos": {
+        "Filename": "internal/service/batch_image_worker_runtime_redis_test.go",
+        "Offset": 143,
+        "Line": 12,
+        "Column": 2
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "service must not import repository",
+          "TextEdits": null
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "depguard",
+      "Text": "import 'github.com/redis/go-redis/v9' is not allowed from list 'service-no-repository': service must not import redis",
+      "Severity": "",
+      "SourceLines": [
+        "\t\"github.com/redis/go-redis/v9\""
+      ],
+      "Pos": {
+        "Filename": "internal/service/batch_image_worker_runtime_redis_test.go",
+        "Offset": 288,
+        "Line": 15,
+        "Column": 2
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "service must not import redis",
+          "TextEdits": null
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\tdata := resp[\"data\"].(map[string]any)"
+      ],
+      "Pos": {
+        "Filename": "internal/handler/admin/batch_update_credentials_test.go",
+        "Offset": 2752,
+        "Line": 87,
+        "Column": 10
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\tdefer client.Close()"
+      ],
+      "Pos": {
+        "Filename": "internal/handler/auth_wechat_oauth_test.go",
+        "Offset": 1643,
+        "Line": 46,
+        "Column": 20
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\tdefer client.Close()"
+      ],
+      "Pos": {
+        "Filename": "internal/handler/auth_wechat_oauth_test.go",
+        "Offset": 3398,
+        "Line": 81,
+        "Column": 20
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\tb.params = append(b.params, params.(*stripe.RefundCreateParams))"
+      ],
+      "Pos": {
+        "Filename": "internal/payment/provider/stripe_test.go",
+        "Offset": 578,
+        "Line": 24,
+        "Column": 30
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\trefund := v.(*stripe.Refund)"
+      ],
+      "Pos": {
+        "Filename": "internal/payment/provider/stripe_test.go",
+        "Offset": 626,
+        "Line": 25,
+        "Column": 12
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\t\tclient.Close()"
+      ],
+      "Pos": {
+        "Filename": "internal/repository/creative_run_repo_workspace_test.go",
+        "Offset": 1071,
+        "Line": 34,
+        "Column": 15
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value of `(*database/sql.DB).Close` is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\tdefer db.Close()"
+      ],
+      "Pos": {
+        "Filename": "internal/repository/team_repo_test.go",
+        "Offset": 303,
+        "Line": 18,
+        "Column": 16
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value of `(*database/sql.Rows).Close` is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\tdefer rows.Close()"
+      ],
+      "Pos": {
+        "Filename": "internal/service/auth_service_identity_sync_test.go",
+        "Offset": 15400,
+        "Line": 477,
+        "Column": 18
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value of `(*bytes.Buffer).Write` is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\t\tgot.Write(data)"
+      ],
+      "Pos": {
+        "Filename": "internal/service/backup_archive_test.go",
+        "Offset": 745,
+        "Line": 29,
+        "Column": 12
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value of `(*bytes.Buffer).Write` is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\t\tcompressed.Write(data)"
+      ],
+      "Pos": {
+        "Filename": "internal/service/backup_service_test.go",
+        "Offset": 14276,
+        "Line": 503,
+        "Column": 19
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value of `(io.Closer).Close` is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\t\tdefer stream.Reader.Close()"
+      ],
+      "Pos": {
+        "Filename": "internal/service/batch_image_download_test.go",
+        "Offset": 612,
+        "Line": 27,
+        "Column": 28
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value of `(io.Closer).Close` is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\tdefer r.Close()"
+      ],
+      "Pos": {
+        "Filename": "internal/service/batch_image_provider_gemini_test.go",
+        "Offset": 8171,
+        "Line": 186,
+        "Column": 15
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value of `(io.Closer).Close` is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\tdefer r.Close()"
+      ],
+      "Pos": {
+        "Filename": "internal/service/batch_image_provider_vertex_test.go",
+        "Offset": 9658,
+        "Line": 191,
+        "Column": 15
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value of `(*strings.Builder).WriteString` is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\tb.WriteString(`{\"model\":\"claude-sonnet-4-5\",\"stream\":true,\"max_tokens\":8192,\"metadata\":{\"user_id\":\"user-xyz789\"},\"system\":[{\"type\":\"text\",\"text\":\"You are a detailed assistant.\",\"cache_control\":{\"type\":\"ephemeral\"}}],\"messages\":[`)"
+      ],
+      "Pos": {
+        "Filename": "internal/service/gateway_request_test.go",
+        "Offset": 39113,
+        "Line": 1145,
+        "Column": 15
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value of `(*strings.Builder).WriteByte` is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\t\t\tb.WriteByte(',')"
+      ],
+      "Pos": {
+        "Filename": "internal/service/gateway_request_test.go",
+        "Offset": 39409,
+        "Line": 1150,
+        "Column": 15
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value of `(*strings.Builder).WriteString` is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\t\t\tb.WriteString(fmt.Sprintf(`{\"role\":\"user\",\"content\":\"This is user message number %d with some extra padding text to make the message reasonably long for benchmarking purposes. Lorem ipsum dolor sit amet.\"}`, i))"
+      ],
+      "Pos": {
+        "Filename": "internal/service/gateway_request_test.go",
+        "Offset": 39451,
+        "Line": 1153,
+        "Column": 17
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "errcheck",
+      "Text": "Error return value of `(*strings.Builder).WriteString` is not checked",
+      "Severity": "",
+      "SourceLines": [
+        "\t\t\tb.WriteString(fmt.Sprintf(`{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"This is assistant response number %d. I will provide a detailed answer with multiple sentences to simulate real conversation content for benchmark testing.\"}]}`, i))"
+      ],
+      "Pos": {
+        "Filename": "internal/service/gateway_request_test.go",
+        "Offset": 39677,
+        "Line": 1155,
+        "Column": 17
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "gofmt",
+      "Text": "File is not properly formatted",
+      "Severity": "",
+      "SourceLines": [
+        "\tmu             sync.Mutex"
+      ],
+      "Pos": {
+        "Filename": "internal/app/lifecycle/requests.go",
+        "Offset": 288,
+        "Line": 13,
+        "Column": 1
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "",
+          "TextEdits": [
+            {
+              "Pos": 288,
+              "End": 404,
+              "NewText": "CW11ICAgICAgICAgICAgIHN5bmMuTXV0ZXgKCXNlYWxlZCAgICAgICAgIGJvb2wKCXdnICAgICAgICAgICAgIHN5bmMuV2FpdEdyb3VwCglkb25lICAgICAgICAgICBjaGFuIHN0cnVjdHt9CgloaWphY2tlZCAgICAgICBtYXBbbmV0LkNvbm5dc3RydWN0e30="
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "gofmt",
+      "Text": "File is not properly formatted",
+      "Severity": "",
+      "SourceLines": [
+        "\t\tProviderSnapshot: map[string]interface{}{\"currency\": currency},"
+      ],
+      "Pos": {
+        "Filename": "internal/service/payment_stats_test.go",
+        "Offset": 10372,
+        "Line": 317,
+        "Column": 1
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "",
+          "TextEdits": [
+            {
+              "Pos": 10372,
+              "End": 10437,
+              "NewText": "CQlQcm92aWRlclNuYXBzaG90OiBtYXBbc3RyaW5nXWFueXsiY3VycmVuY3kiOiBjdXJyZW5jeX0s"
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "gosec",
+      "Text": "G402: TLS InsecureSkipVerify set to true.",
+      "Severity": "high",
+      "SourceLines": [
+        "\tdialer.proxyTLSConfig = &stdtls.Config{InsecureSkipVerify: true}"
+      ],
+      "Pos": {
+        "Filename": "internal/infra/httpclient/tlsfingerprint/dialer_test.go",
+        "Offset": 0,
+        "Line": 236,
+        "Column": 61
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "govet",
+      "Text": "inline: Constant reflect.Ptr should be inlined",
+      "Severity": "",
+      "SourceLines": [
+        "\t\tfor ft.Kind() == reflect.Ptr {"
+      ],
+      "Pos": {
+        "Filename": "internal/config/env_reachability_test.go",
+        "Offset": 704,
+        "Line": 35,
+        "Column": 20
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Inline constant reflect.Ptr",
+          "TextEdits": [
+            {
+              "Pos": 704,
+              "End": 715,
+              "NewText": "cmVmbGVjdC5Qb2ludGVy"
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "govet",
+      "Text": "inline: Constant reflect.Ptr should be inlined",
+      "Severity": "",
+      "SourceLines": [
+        "\t\t\tfor elem.Kind() == reflect.Ptr {"
+      ],
+      "Pos": {
+        "Filename": "internal/config/env_reachability_test.go",
+        "Offset": 1070,
+        "Line": 48,
+        "Column": 23
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Inline constant reflect.Ptr",
+          "TextEdits": [
+            {
+              "Pos": 1070,
+              "End": 1081,
+              "NewText": "cmVmbGVjdC5Qb2ludGVy"
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "govet",
+      "Text": "inline: Constant reflect.Ptr should be inlined",
+      "Severity": "",
+      "SourceLines": [
+        "\trequire.Equal(t, reflect.Ptr, filtersField.Kind(), \"BulkUpdateAccountsInput.Filters should be a pointer field\")"
+      ],
+      "Pos": {
+        "Filename": "internal/service/admin_service_bulk_update_test.go",
+        "Offset": 13741,
+        "Line": 409,
+        "Column": 19
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Inline constant reflect.Ptr",
+          "TextEdits": [
+            {
+              "Pos": 13741,
+              "End": 13752,
+              "NewText": "cmVmbGVjdC5Qb2ludGVy"
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1003: could use tagged switch on accountType",
+      "Severity": "",
+      "SourceLines": [
+        "\t\tif accountType == AccountTypeAPIKey {"
+      ],
+      "Pos": {
+        "Filename": "internal/domain/protocol_catalog.go",
+        "Offset": 7750,
+        "Line": 131,
+        "Column": 3
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Replace with tagged switch",
+          "TextEdits": [
+            {
+              "Pos": 7750,
+              "End": 7750,
+              "NewText": "c3dpdGNoIGFjY291bnRUeXBlIHsK"
+            },
+            {
+              "Pos": 7750,
+              "End": 7787,
+              "NewText": "Y2FzZSBBY2NvdW50VHlwZUFQSUtleTo="
+            },
+            {
+              "Pos": 8016,
+              "End": 8023,
+              "NewText": null
+            },
+            {
+              "Pos": 8023,
+              "End": 8059,
+              "NewText": "Y2FzZSBBY2NvdW50VHlwZU9BdXRoOg=="
+            },
+            {
+              "Pos": 8392,
+              "End": 8392,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "SA9003: empty branch",
+      "Severity": "",
+      "SourceLines": [
+        "\tif body.Data.PlatformQuotas == nil {"
+      ],
+      "Pos": {
+        "Filename": "internal/handler/user_platform_quotas_handler_test.go",
+        "Offset": 1654,
+        "Line": 55,
+        "Column": 2
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1001: could apply De Morgan's law",
+      "Severity": "",
+      "SourceLines": [
+        "\t\t\tif !has(domain.ProtocolAlphaSearch) && !(a.IsOpenAIPersonalAccessToken() && has(domain.ProtocolOpenAIResponses)) {"
+      ],
+      "Pos": {
+        "Filename": "internal/service/account.go",
+        "Offset": 61059,
+        "Line": 2038,
+        "Column": 43
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Apply De Morgan's law",
+          "TextEdits": [
+            {
+              "Pos": 61059,
+              "End": 61132,
+              "NewText": "KCFhLklzT3BlbkFJUGVyc29uYWxBY2Nlc3NUb2tlbigpIHx8ICFoYXMoZG9tYWluLlByb3RvY29sT3BlbkFJUmVzcG9uc2VzKSk="
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "SA1008: keys in http.Header are canonicalized, \"anthropic-beta\" is not canonical; fix the constant or use http.CanonicalHeaderKey",
+      "Severity": "",
+      "SourceLines": [
+        "\trequire.Equal(t, []string{\"custom-beta-1\"}, h[\"anthropic-beta\"])"
+      ],
+      "Pos": {
+        "Filename": "internal/service/account_header_override_test.go",
+        "Offset": 5885,
+        "Line": 149,
+        "Column": 46
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Canonicalize header key",
+          "TextEdits": [
+            {
+              "Pos": 5887,
+              "End": 5903,
+              "NewText": "IkFudGhyb3BpYy1CZXRhIg=="
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "SA1008: keys in http.Header are canonicalized, \"x-custom\" is not canonical; fix the constant or use http.CanonicalHeaderKey",
+      "Severity": "",
+      "SourceLines": [
+        "\trequire.Equal(t, []string{\"custom-value\"}, h[\"x-custom\"])"
+      ],
+      "Pos": {
+        "Filename": "internal/service/account_header_override_test.go",
+        "Offset": 6085,
+        "Line": 152,
+        "Column": 45
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Canonicalize header key",
+          "TextEdits": [
+            {
+              "Pos": 6087,
+              "End": 6097,
+              "NewText": "IlgtQ3VzdG9tIg=="
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"mockAccountRepoForGemini\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\ts.mockAccountRepoForGemini.accountsByID[account.ID] = &stored"
+      ],
+      "Pos": {
+        "Filename": "internal/service/admin_service_duplicate_account_test.go",
+        "Offset": 1411,
+        "Line": 56,
+        "Column": 4
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"mockAccountRepoForGemini\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 1411,
+              "End": 1436,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"mockAccountRepoForGemini\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\ts.mockAccountRepoForGemini.accountsByID[account.ID] = &cp"
+      ],
+      "Pos": {
+        "Filename": "internal/service/admin_service_spark_shadow_test.go",
+        "Offset": 1133,
+        "Line": 44,
+        "Column": 4
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"mockAccountRepoForGemini\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 1133,
+              "End": 1158,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"mockAccountRepoForGemini\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\ts.mockAccountRepoForGemini.accountsByID[account.ID] = &cp"
+      ],
+      "Pos": {
+        "Filename": "internal/service/admin_service_spark_shadow_test.go",
+        "Offset": 2947,
+        "Line": 101,
+        "Column": 4
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"mockAccountRepoForGemini\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 2947,
+              "End": 2972,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"sparkShadowRepoStub\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\t\ts.sparkShadowRepoStub.nextID++"
+      ],
+      "Pos": {
+        "Filename": "internal/service/admin_service_spark_shadow_test.go",
+        "Offset": 28977,
+        "Line": 708,
+        "Column": 5
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"sparkShadowRepoStub\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 28977,
+              "End": 28997,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"sparkShadowRepoStub\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\t\tphantom.ID = s.sparkShadowRepoStub.nextID"
+      ],
+      "Pos": {
+        "Filename": "internal/service/admin_service_spark_shadow_test.go",
+        "Offset": 29045,
+        "Line": 710,
+        "Column": 18
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"sparkShadowRepoStub\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 29045,
+              "End": 29065,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"sparkShadowRepoStub\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\t\ts.sparkShadowRepoStub.accounts[phantom.ID] = &phantom"
+      ],
+      "Pos": {
+        "Filename": "internal/service/admin_service_spark_shadow_test.go",
+        "Offset": 29076,
+        "Line": 711,
+        "Column": 5
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"sparkShadowRepoStub\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 29076,
+              "End": 29096,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"userRepoStub\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\tif s.userRepoStub == nil || s.userRepoStub.user == nil {"
+      ],
+      "Pos": {
+        "Filename": "internal/service/admin_service_update_balance_test.go",
+        "Offset": 845,
+        "Line": 32,
+        "Column": 32
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"userRepoStub\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 845,
+              "End": 858,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"userRepoStub\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\tchange := BalanceChange{Old: s.userRepoStub.user.Balance}"
+      ],
+      "Pos": {
+        "Filename": "internal/service/admin_service_update_balance_test.go",
+        "Offset": 949,
+        "Line": 35,
+        "Column": 33
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"userRepoStub\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 949,
+              "End": 962,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"userRepoStub\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\ts.userRepoStub.user.Balance = change.New"
+      ],
+      "Pos": {
+        "Filename": "internal/service/admin_service_update_balance_test.go",
+        "Offset": 1070,
+        "Line": 40,
+        "Column": 4
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"userRepoStub\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 1070,
+              "End": 1083,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "SA1012: do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use",
+      "Severity": "",
+      "SourceLines": [
+        "\t_, createErr := service.Create(nil, 1, CreateAPIKeyRequest{Quota: -1})"
+      ],
+      "Pos": {
+        "Filename": "internal/service/api_key_service_validation_test.go",
+        "Offset": 2280,
+        "Line": 84,
+        "Column": 33
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Use context.TODO",
+          "TextEdits": [
+            {
+              "Pos": 2280,
+              "End": 2283,
+              "NewText": "Y29udGV4dC5UT0RPKCk="
+            }
+          ]
+        },
+        {
+          "Message": "Use context.Background",
+          "TextEdits": [
+            {
+              "Pos": 2280,
+              "End": 2283,
+              "NewText": "Y29udGV4dC5CYWNrZ3JvdW5kKCk="
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "SA1012: do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use",
+      "Severity": "",
+      "SourceLines": [
+        "\t_, updateErr := service.Update(nil, 1, 1, UpdateAPIKeyRequest{RateLimit5h: &invalid})"
+      ],
+      "Pos": {
+        "Filename": "internal/service/api_key_service_validation_test.go",
+        "Offset": 2431,
+        "Line": 88,
+        "Column": 33
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Use context.TODO",
+          "TextEdits": [
+            {
+              "Pos": 2431,
+              "End": 2434,
+              "NewText": "Y29udGV4dC5UT0RPKCk="
+            }
+          ]
+        },
+        {
+          "Message": "Use context.Background",
+          "TextEdits": [
+            {
+              "Pos": 2431,
+              "End": 2434,
+              "NewText": "Y29udGV4dC5CYWNrZ3JvdW5kKCk="
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"Time\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\trequire.WithinDuration(t, claims.IssuedAt.Time.Add(24*time.Hour), claims.ExpiresAt.Time, 2*time.Second)"
+      ],
+      "Pos": {
+        "Filename": "internal/service/auth_service_register_test.go",
+        "Offset": 22607,
+        "Line": 679,
+        "Column": 44
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"Time\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 22607,
+              "End": 22612,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"Time\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\trequire.WithinDuration(t, claims.IssuedAt.Time.Add(90*time.Minute), claims.ExpiresAt.Time, 2*time.Second)"
+      ],
+      "Pos": {
+        "Filename": "internal/service/auth_service_register_test.go",
+        "Offset": 23342,
+        "Line": 704,
+        "Column": 44
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"Time\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 23342,
+              "End": 23347,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "SA1012: do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use",
+      "Severity": "",
+      "SourceLines": [
+        "\t\tlease, acquired, err := NewConcurrencyService(cache).AcquireOpenAIWSIngressLease(nil, 1, 0)"
+      ],
+      "Pos": {
+        "Filename": "internal/service/concurrency_service_test.go",
+        "Offset": 11872,
+        "Line": 336,
+        "Column": 84
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Use context.TODO",
+          "TextEdits": [
+            {
+              "Pos": 11872,
+              "End": 11875,
+              "NewText": "Y29udGV4dC5UT0RPKCk="
+            }
+          ]
+        },
+        {
+          "Message": "Use context.Background",
+          "TextEdits": [
+            {
+              "Pos": 11872,
+              "End": 11875,
+              "NewText": "Y29udGV4dC5CYWNrZ3JvdW5kKCk="
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1001: could apply De Morgan's law",
+      "Severity": "",
+      "SourceLines": [
+        "\t\t\tif !(ok && writeLine(\"250-AUTH PLAIN LOGIN\") && writeLine(\"250 8BITMIME\")) {"
+      ],
+      "Pos": {
+        "Filename": "internal/service/email_service_smtp_test.go",
+        "Offset": 4015,
+        "Line": 157,
+        "Column": 7
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Apply De Morgan's law",
+          "TextEdits": [
+            {
+              "Pos": 4015,
+              "End": 4086,
+              "NewText": "KCFvayB8fCAhd3JpdGVMaW5lKCIyNTAtQVVUSCBQTEFJTiBMT0dJTiIpIHx8ICF3cml0ZUxpbmUoIjI1MCA4QklUTUlNRSIpKQ=="
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1001: could apply De Morgan's law",
+      "Severity": "",
+      "SourceLines": [
+        "\t\t\tif !(writeLine(\"250-fake.test\") && writeLine(\"250-AUTH PLAIN LOGIN\") && writeLine(\"250 8BITMIME\")) {"
+      ],
+      "Pos": {
+        "Filename": "internal/service/email_service_smtp_test.go",
+        "Offset": 5888,
+        "Line": 230,
+        "Column": 7
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Apply De Morgan's law",
+          "TextEdits": [
+            {
+              "Pos": 5888,
+              "End": 5983,
+              "NewText": "KCF3cml0ZUxpbmUoIjI1MC1mYWtlLnRlc3QiKSB8fCAhd3JpdGVMaW5lKCIyNTAtQVVUSCBQTEFJTiBMT0dJTiIpIHx8ICF3cml0ZUxpbmUoIjI1MCA4QklUTUlNRSIpKQ=="
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"tokenRefreshAccountRepo\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\t\t\t\trequire.Zero(t, countingRepo.tokenRefreshAccountRepo.setErrorCalls)"
+      ],
+      "Pos": {
+        "Filename": "internal/service/grok_credential_failure_test.go",
+        "Offset": 46194,
+        "Line": 1135,
+        "Column": 34
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"tokenRefreshAccountRepo\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 46194,
+              "End": 46218,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"tokenRefreshAccountRepo\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\t\t\t\trequire.Zero(t, countingRepo.tokenRefreshAccountRepo.setTempUnschedCalls)"
+      ],
+      "Pos": {
+        "Filename": "internal/service/grok_credential_failure_test.go",
+        "Offset": 46266,
+        "Line": 1136,
+        "Column": 34
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"tokenRefreshAccountRepo\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 46266,
+              "End": 46290,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "SA1008: keys in http.Header are canonicalized, \"x-grok-client-version\" is not canonical; fix the constant or use http.CanonicalHeaderKey",
+      "Severity": "",
+      "SourceLines": [
+        "\trequire.Equal(t, []string{\"9.9.9\"}, req.Header[\"x-grok-client-version\"])"
+      ],
+      "Pos": {
+        "Filename": "internal/service/openai_gateway_grok_test.go",
+        "Offset": 43004,
+        "Line": 1028,
+        "Column": 38
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Canonicalize header key",
+          "TextEdits": [
+            {
+              "Pos": 43015,
+              "End": 43038,
+              "NewText": "IlgtR3Jvay1DbGllbnQtVmVyc2lvbiI="
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "SA1008: keys in http.Header are canonicalized, \"x-relay-token\" is not canonical; fix the constant or use http.CanonicalHeaderKey",
+      "Severity": "",
+      "SourceLines": [
+        "\trequire.Equal(t, []string{\"relay-secret\"}, req.Header[\"x-relay-token\"])"
+      ],
+      "Pos": {
+        "Filename": "internal/service/openai_gateway_grok_test.go",
+        "Offset": 43144,
+        "Line": 1030,
+        "Column": 45
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Canonicalize header key",
+          "TextEdits": [
+            {
+              "Pos": 43155,
+              "End": 43170,
+              "NewText": "IlgtUmVsYXktVG9rZW4i"
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "SA1019: github.com/TokenFlux/TokenRouter/internal/payment.Encrypt is deprecated: payment provider configs are now stored as plaintext JSON. This function is kept only for seeding legacy ciphertext in tests and for the transitional Decrypt fallback. Scheduled for removal after all live deployments complete migration by re-saving their configs. ",
+      "Severity": "",
+      "SourceLines": [
+        "\tencrypted, err := payment.Encrypt(string(data), []byte(webhookProviderTestEncryptionKey))"
+      ],
+      "Pos": {
+        "Filename": "internal/service/payment_webhook_provider_test.go",
+        "Offset": 1533,
+        "Line": 50,
+        "Column": 20
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"batchSnapshotCache\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\tif err := c.batchSnapshotCache.SetSnapshot(ctx, bucket, token, accounts); err != nil {"
+      ],
+      "Pos": {
+        "Filename": "internal/service/scheduler_snapshot_batch_query_test.go",
+        "Offset": 4319,
+        "Line": 148,
+        "Column": 14
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"batchSnapshotCache\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 4319,
+              "End": 4338,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"batchSnapshotCache\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\treturn c.batchSnapshotCache.SetSnapshot(ctx, bucket, token, accounts)"
+      ],
+      "Pos": {
+        "Filename": "internal/service/scheduler_snapshot_batch_query_test.go",
+        "Offset": 5175,
+        "Line": 180,
+        "Column": 11
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"batchSnapshotCache\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 5175,
+              "End": 5194,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"retirementRaceCache\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\t\tif !c.retirementRaceCache.retired[bucket.String()] {"
+      ],
+      "Pos": {
+        "Filename": "internal/service/scheduler_snapshot_full_rebuild_lifecycle_test.go",
+        "Offset": 1501,
+        "Line": 55,
+        "Column": 9
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"retirementRaceCache\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 1501,
+              "End": 1521,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1008: could remove embedded field \"retirementRaceCache\" from selector",
+      "Severity": "",
+      "SourceLines": [
+        "\tfor _, attempts := range c.retirementRaceCache.setAttempts {"
+      ],
+      "Pos": {
+        "Filename": "internal/service/scheduler_snapshot_full_rebuild_lifecycle_test.go",
+        "Offset": 2774,
+        "Line": 105,
+        "Column": 29
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Remove embedded field \"retirementRaceCache\" from selector",
+          "TextEdits": [
+            {
+              "Pos": 2774,
+              "End": 2794,
+              "NewText": null
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "staticcheck",
+      "Text": "QF1012: Use fmt.Fprintf(...) instead of Write([]byte(fmt.Sprintf(...)))",
+      "Severity": "",
+      "SourceLines": [
+        "\t\t_, _ = w.Write([]byte(fmt.Sprintf(`{"
+      ],
+      "Pos": {
+        "Filename": "internal/service/setting_service_oidc_config_test.go",
+        "Offset": 1670,
+        "Line": 65,
+        "Column": 10
+      },
+      "SuggestedFixes": [
+        {
+          "Message": "Use fmt.Fprintf(...) instead of Write([]byte(fmt.Sprintf(...)))",
+          "TextEdits": [
+            {
+              "Pos": 1670,
+              "End": 2001,
+              "NewText": "Zm10LkZwcmludGYodywgYHsKCQkJImF1dGhvcml6YXRpb25fZW5kcG9pbnQiOiIlcy9pc3N1ZXIvcHJvdG9jb2wvb3BlbmlkLWNvbm5lY3QvYXV0aCIsCgkJCSJ0b2tlbl9lbmRwb2ludCI6IiVzL2lzc3Vlci9wcm90b2NvbC9vcGVuaWQtY29ubmVjdC90b2tlbiIsCgkJCSJ1c2VyaW5mb19lbmRwb2ludCI6IiVzL2lzc3Vlci9wcm90b2NvbC9vcGVuaWQtY29ubmVjdC91c2VyaW5mbyIsCgkJCSJqd2tzX3VyaSI6IiVzL2lzc3Vlci9wcm90b2NvbC9vcGVuaWQtY29ubmVjdC9jZXJ0cyIKCQl9YCwgYmFzZVVSTCwgYmFzZVVSTCwgYmFzZVVSTCwgYmFzZVVSTCk="
+            }
+          ]
+        }
+      ],
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "unused",
+      "Text": "type roundTripperFunc is unused",
+      "Severity": "",
+      "SourceLines": [
+        "type roundTripperFunc func(*http.Request) (*http.Response, error)"
+      ],
+      "Pos": {
+        "Filename": "internal/pkg/antigravity/client_test.go",
+        "Offset": 25616,
+        "Line": 826,
+        "Column": 6
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "unused",
+      "Text": "func roundTripperFunc.RoundTrip is unused",
+      "Severity": "",
+      "SourceLines": [
+        "func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {"
+      ],
+      "Pos": {
+        "Filename": "internal/pkg/antigravity/client_test.go",
+        "Offset": 25704,
+        "Line": 828,
+        "Column": 27
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "unused",
+      "Text": "func ptrString is unused",
+      "Severity": "",
+      "SourceLines": [
+        "func ptrString[T ~string](v T) *string {"
+      ],
+      "Pos": {
+        "Filename": "internal/service/admin_service_group_test.go",
+        "Offset": 17214,
+        "Line": 480,
+        "Column": 6
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "unused",
+      "Text": "func (*fakeFullCache).getDeleteCalls is unused",
+      "Severity": "",
+      "SourceLines": [
+        "func (f *fakeFullCache) getDeleteCalls() int {"
+      ],
+      "Pos": {
+        "Filename": "internal/service/billing_cache_service_user_platform_quota_test.go",
+        "Offset": 3594,
+        "Line": 112,
+        "Column": 25
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "unused",
+      "Text": "field reserveFailed is unused",
+      "Severity": "",
+      "SourceLines": [
+        "\treserveFailed bool"
+      ],
+      "Pos": {
+        "Filename": "internal/service/creative_public_test.go",
+        "Offset": 12998,
+        "Line": 433,
+        "Column": 2
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "unused",
+      "Text": "type mockConcurrencyService is unused",
+      "Severity": "",
+      "SourceLines": [
+        "type mockConcurrencyService struct {"
+      ],
+      "Pos": {
+        "Filename": "internal/service/gateway_multiplatform_test.go",
+        "Offset": 68821,
+        "Line": 2071,
+        "Column": 6
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "unused",
+      "Text": "func (*mockConcurrencyService).GetAccountsLoadBatch is unused",
+      "Severity": "",
+      "SourceLines": [
+        "func (m *mockConcurrencyService) GetAccountsLoadBatch(ctx context.Context, accounts []AccountWithConcurrency) (map[int64]*AccountLoadInfo, error) {"
+      ],
+      "Pos": {
+        "Filename": "internal/service/gateway_multiplatform_test.go",
+        "Offset": 69002,
+        "Line": 2077,
+        "Column": 34
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "unused",
+      "Text": "func (*mockConcurrencyService).GetAccountWaitingCount is unused",
+      "Severity": "",
+      "SourceLines": [
+        "func (m *mockConcurrencyService) GetAccountWaitingCount(ctx context.Context, accountID int64) (int, error) {"
+      ],
+      "Pos": {
+        "Filename": "internal/service/gateway_multiplatform_test.go",
+        "Offset": 69568,
+        "Line": 2097,
+        "Column": 34
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    },
+    {
+      "FromLinter": "unused",
+      "Text": "func testPtrBool is unused",
+      "Severity": "",
+      "SourceLines": [
+        "func testPtrBool(v bool) *bool { return &v }"
+      ],
+      "Pos": {
+        "Filename": "internal/service/testhelpers_test.go",
+        "Offset": 429,
+        "Line": 15,
+        "Column": 6
+      },
+      "ExpectNoLint": false,
+      "ExpectedNoLintLinter": ""
+    }
+  ],
+  "Report": {
+    "Linters": [
+      {
+        "Name": "arangolint"
+      },
+      {
+        "Name": "asasalint"
+      },
+      {
+        "Name": "asciicheck"
+      },
+      {
+        "Name": "bidichk"
+      },
+      {
+        "Name": "bodyclose"
+      },
+      {
+        "Name": "canonicalheader"
+      },
+      {
+        "Name": "clickhouselint"
+      },
+      {
+        "Name": "containedctx"
+      },
+      {
+        "Name": "contextcheck"
+      },
+      {
+        "Name": "copyloopvar"
+      },
+      {
+        "Name": "cyclop"
+      },
+      {
+        "Name": "decorder"
+      },
+      {
+        "Name": "depguard",
+        "Enabled": true
+      },
+      {
+        "Name": "dogsled"
+      },
+      {
+        "Name": "dupl"
+      },
+      {
+        "Name": "dupword"
+      },
+      {
+        "Name": "durationcheck"
+      },
+      {
+        "Name": "embeddedstructfieldcheck"
+      },
+      {
+        "Name": "errcheck",
+        "Enabled": true
+      },
+      {
+        "Name": "errchkjson"
+      },
+      {
+        "Name": "errname"
+      },
+      {
+        "Name": "errorlint"
+      },
+      {
+        "Name": "exhaustive"
+      },
+      {
+        "Name": "exhaustruct"
+      },
+      {
+        "Name": "exhaustruct_v5"
+      },
+      {
+        "Name": "exptostd"
+      },
+      {
+        "Name": "forbidigo"
+      },
+      {
+        "Name": "forcetypeassert"
+      },
+      {
+        "Name": "funcorder"
+      },
+      {
+        "Name": "fatcontext"
+      },
+      {
+        "Name": "funlen"
+      },
+      {
+        "Name": "gci"
+      },
+      {
+        "Name": "ginkgolinter"
+      },
+      {
+        "Name": "gocheckcompilerdirectives"
+      },
+      {
+        "Name": "gochecknoglobals"
+      },
+      {
+        "Name": "gochecknoinits"
+      },
+      {
+        "Name": "gochecksumtype"
+      },
+      {
+        "Name": "gocognit"
+      },
+      {
+        "Name": "goconst"
+      },
+      {
+        "Name": "gocritic"
+      },
+      {
+        "Name": "gocyclo"
+      },
+      {
+        "Name": "godoclint"
+      },
+      {
+        "Name": "godot"
+      },
+      {
+        "Name": "godox"
+      },
+      {
+        "Name": "err113"
+      },
+      {
+        "Name": "gofmt",
+        "Enabled": true
+      },
+      {
+        "Name": "gofumpt"
+      },
+      {
+        "Name": "golines"
+      },
+      {
+        "Name": "goheader"
+      },
+      {
+        "Name": "goimports"
+      },
+      {
+        "Name": "mnd"
+      },
+      {
+        "Name": "modernize"
+      },
+      {
+        "Name": "gomoddirectives"
+      },
+      {
+        "Name": "gomodguard"
+      },
+      {
+        "Name": "gomodguard_v2"
+      },
+      {
+        "Name": "goprintffuncname"
+      },
+      {
+        "Name": "gosec",
+        "Enabled": true
+      },
+      {
+        "Name": "gosmopolitan"
+      },
+      {
+        "Name": "govet",
+        "Enabled": true
+      },
+      {
+        "Name": "grouper"
+      },
+      {
+        "Name": "iface"
+      },
+      {
+        "Name": "importas"
+      },
+      {
+        "Name": "inamedparam"
+      },
+      {
+        "Name": "ineffassign",
+        "Enabled": true
+      },
+      {
+        "Name": "interfacebloat"
+      },
+      {
+        "Name": "intrange"
+      },
+      {
+        "Name": "iotamixing"
+      },
+      {
+        "Name": "ireturn"
+      },
+      {
+        "Name": "lll"
+      },
+      {
+        "Name": "loggercheck"
+      },
+      {
+        "Name": "maintidx"
+      },
+      {
+        "Name": "makezero"
+      },
+      {
+        "Name": "mirror"
+      },
+      {
+        "Name": "misspell"
+      },
+      {
+        "Name": "musttag"
+      },
+      {
+        "Name": "nakedret"
+      },
+      {
+        "Name": "nestif"
+      },
+      {
+        "Name": "nilerr"
+      },
+      {
+        "Name": "nilnesserr"
+      },
+      {
+        "Name": "nilnil"
+      },
+      {
+        "Name": "nlreturn"
+      },
+      {
+        "Name": "noctx"
+      },
+      {
+        "Name": "noinlineerr"
+      },
+      {
+        "Name": "nonamedreturns"
+      },
+      {
+        "Name": "nosprintfhostport"
+      },
+      {
+        "Name": "paralleltest"
+      },
+      {
+        "Name": "perfsprint"
+      },
+      {
+        "Name": "prealloc"
+      },
+      {
+        "Name": "predeclared"
+      },
+      {
+        "Name": "promlinter"
+      },
+      {
+        "Name": "protogetter"
+      },
+      {
+        "Name": "reassign"
+      },
+      {
+        "Name": "recvcheck"
+      },
+      {
+        "Name": "revive"
+      },
+      {
+        "Name": "rowserrcheck"
+      },
+      {
+        "Name": "sloglint"
+      },
+      {
+        "Name": "sqlclosecheck"
+      },
+      {
+        "Name": "spancheck"
+      },
+      {
+        "Name": "staticcheck",
+        "Enabled": true
+      },
+      {
+        "Name": "swaggo"
+      },
+      {
+        "Name": "tagalign"
+      },
+      {
+        "Name": "tagliatelle"
+      },
+      {
+        "Name": "testableexamples"
+      },
+      {
+        "Name": "testifylint"
+      },
+      {
+        "Name": "testpackage"
+      },
+      {
+        "Name": "thelper"
+      },
+      {
+        "Name": "tparallel"
+      },
+      {
+        "Name": "typecheck",
+        "Enabled": true
+      },
+      {
+        "Name": "unconvert"
+      },
+      {
+        "Name": "unparam"
+      },
+      {
+        "Name": "unqueryvet"
+      },
+      {
+        "Name": "unused",
+        "Enabled": true
+      },
+      {
+        "Name": "usestdlibvars"
+      },
+      {
+        "Name": "usetesting"
+      },
+      {
+        "Name": "varnamelen"
+      },
+      {
+        "Name": "wastedassign"
+      },
+      {
+        "Name": "whitespace"
+      },
+      {
+        "Name": "wrapcheck"
+      },
+      {
+        "Name": "wsl"
+      },
+      {
+        "Name": "wsl_v5"
+      },
+      {
+        "Name": "zerologlint"
+      },
+      {
+        "Name": "nolintlint"
+      }
+    ]
+  }
+}

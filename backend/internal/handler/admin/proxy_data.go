@@ -278,11 +278,11 @@ func (h *ProxyHandler) ImportData(c *gin.Context) {
 
 	if len(latencyProbeIDs) > 0 {
 		ids := append([]int64(nil), latencyProbeIDs...)
-		go func() {
+		service.RunBackgroundTask("handler/admin/proxy_data.go:ImportData", service.BackgroundCall0(func() {
 			for _, id := range ids {
 				_, _ = h.adminService.TestProxy(context.Background(), id)
 			}
-		}()
+		}))
 	}
 
 	response.Success(c, result)

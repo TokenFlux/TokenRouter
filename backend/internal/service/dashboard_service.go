@@ -123,13 +123,15 @@ func (s *DashboardService) SetPreAggregationSettings(settings *PreAggregationSet
 	if settings != nil {
 		settings.RegisterListener(func(previous, next PreAggregationSettings) {
 			if previous.Usage != next.Usage {
-				go s.evictDashboardStatsCache(nil)
+				RunBackgroundTask("service/dashboard_service.go:SetPreAggregationSettings",
+
+					// ProvideDashboardService 创建读取统一预聚合配置的仪表盘服务。
+					BackgroundCall1(s.evictDashboardStatsCache, nil))
 			}
 		})
 	}
 }
 
-// ProvideDashboardService 创建读取统一预聚合配置的仪表盘服务。
 func ProvideDashboardService(usageRepo UsageLogRepository, aggRepo DashboardAggregationRepository, cache DashboardStatsCache, cfg *config.Config, settings *PreAggregationSettingsService) *DashboardService {
 	service := NewDashboardService(usageRepo, aggRepo, cache, cfg)
 	service.SetPreAggregationSettings(settings)
@@ -319,8 +321,7 @@ func (s *DashboardService) refreshDashboardStatsAsync() {
 	if !atomic.CompareAndSwapInt32(&s.refreshing, 0, 1) {
 		return
 	}
-
-	go func() {
+	RunBackgroundTask("service/dashboard_service.go:refreshDashboardStatsAsync", BackgroundCall0(func() {
 		defer atomic.StoreInt32(&s.refreshing, 0)
 
 		ctx, cancel := context.WithTimeout(context.Background(), s.refreshTimeout)
@@ -335,7 +336,7 @@ func (s *DashboardService) refreshDashboardStatsAsync() {
 		cacheCtx, cancel := s.cacheOperationContext()
 		defer cancel()
 		s.saveDashboardStatsCache(cacheCtx, stats)
-	}()
+	}))
 }
 
 func (s *DashboardService) fetchDashboardStats(ctx context.Context) (*usagestats.DashboardStats, error) {

@@ -458,6 +458,10 @@ var ErrNoAvailableCompactAccounts = errors.New("no available accounts support /r
 
 // OpenAIGatewayService handles OpenAI API gateway operations
 type OpenAIGatewayService struct {
+	liveObserverMu        sync.Mutex
+	liveObserverStopped   bool
+	liveObserverCancels   map[string]context.CancelFunc
+	liveObserverWG        sync.WaitGroup
 	accountRepo           AccountRepository
 	usageLogRepo          UsageLogRepository
 	usageBillingRepo      UsageBillingRepository
@@ -490,6 +494,8 @@ type OpenAIGatewayService struct {
 	liveAttestationCipher SecretEncryptor
 
 	openaiWSPoolOnce               sync.Once
+	openaiWSPoolMu                 sync.Mutex
+	openaiWSPoolClosed             bool
 	openaiWSStateStoreOnce         sync.Once
 	openaiSchedulerOnce            sync.Once
 	openaiProxyStreamCircuitOnce   sync.Once
@@ -788,8 +794,15 @@ func (s *OpenAIGatewayService) billingDeps() *billingDeps {
 // CloseOpenAIWSPool 关闭 OpenAI WebSocket 连接池的后台 worker 和空闲连接。
 // 应在应用优雅关闭时调用。
 func (s *OpenAIGatewayService) CloseOpenAIWSPool() {
-	if s != nil && s.openaiWSPool != nil {
-		s.openaiWSPool.Close()
+	if s == nil {
+		return
+	}
+	s.openaiWSPoolMu.Lock()
+	s.openaiWSPoolClosed = true
+	pool := s.openaiWSPool
+	s.openaiWSPoolMu.Unlock()
+	if pool != nil {
+		pool.Close()
 	}
 }
 
@@ -1671,4 +1684,13 @@ type OpenAIUpstreamWarningCarrier interface {
 type openAIUpstreamWarningError struct {
 	warning *OpenAIUpstreamWarning
 	err     error
+}
+
+// ExpireRuntimeCaches 由应用拥有的时间轮调用，保留原缓存到期清理频率。
+func (s *OpenAIGatewayService) ExpireRuntimeCaches() {
+	if s != nil {
+		if s.userGroupRateResolver != nil && s.userGroupRateResolver.cache != nil {
+			s.userGroupRateResolver.cache.DeleteExpired()
+		}
+	}
 }

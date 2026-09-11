@@ -1,87 +1,48 @@
 package service
 
 import (
-	"context"
+	"github.com/TokenFlux/TokenRouter/internal/site"
 	"time"
-
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 )
 
-const (
-	AnnouncementStatusDraft    = domain.AnnouncementStatusDraft
-	AnnouncementStatusActive   = domain.AnnouncementStatusActive
-	AnnouncementStatusArchived = domain.AnnouncementStatusArchived
-)
+// 以下别名仅兼容尚未迁出的消费者，S15/S16 删除。
+type AnnouncementTargeting = site.AnnouncementTargeting
+type AnnouncementConditionGroup = site.AnnouncementConditionGroup
+type AnnouncementCondition = site.AnnouncementCondition
+type Announcement = site.Announcement
+type AnnouncementListFilters = site.AnnouncementListFilters
+type AnnouncementRepository = site.AnnouncementRepository
+type AnnouncementReadRepository = site.AnnouncementReadRepository
+type AnnouncementService = site.AnnouncementService
+type CreateAnnouncementInput = site.CreateAnnouncementInput
+type UpdateAnnouncementInput = site.UpdateAnnouncementInput
+type UserAnnouncement = site.UserAnnouncement
+type AnnouncementUserReadStatus = site.AnnouncementUserReadStatus
+type AnnouncementExpiryService = site.AnnouncementExpiryService
 
-const (
-	AnnouncementNotifyModeSilent = domain.AnnouncementNotifyModeSilent
-	AnnouncementNotifyModePopup  = domain.AnnouncementNotifyModePopup
-)
+const AnnouncementStatusDraft = site.AnnouncementStatusDraft
+const AnnouncementStatusActive = site.AnnouncementStatusActive
+const AnnouncementStatusArchived = site.AnnouncementStatusArchived
+const AnnouncementNotifyModeSilent = site.AnnouncementNotifyModeSilent
+const AnnouncementNotifyModePopup = site.AnnouncementNotifyModePopup
+const AnnouncementConditionTypeSubscription = site.AnnouncementConditionTypeSubscription
+const AnnouncementConditionTypeBalance = site.AnnouncementConditionTypeBalance
+const AnnouncementOperatorIn = site.AnnouncementOperatorIn
+const AnnouncementOperatorGT = site.AnnouncementOperatorGT
+const AnnouncementOperatorGTE = site.AnnouncementOperatorGTE
+const AnnouncementOperatorLT = site.AnnouncementOperatorLT
+const AnnouncementOperatorLTE = site.AnnouncementOperatorLTE
+const AnnouncementOperatorEQ = site.AnnouncementOperatorEQ
 
-const (
-	AnnouncementConditionTypeSubscription = domain.AnnouncementConditionTypeSubscription
-	AnnouncementConditionTypeBalance      = domain.AnnouncementConditionTypeBalance
-)
+var ErrAnnouncementNotFound = site.ErrAnnouncementNotFound
+var ErrAnnouncementInvalidTarget = site.ErrAnnouncementInvalidTarget
+var ErrAnnouncementNilInput = site.ErrAnnouncementNilInput
+var ErrAnnouncementInvalidTitle = site.ErrAnnouncementInvalidTitle
+var ErrAnnouncementContentRequired = site.ErrAnnouncementContentRequired
+var ErrAnnouncementInvalidStatus = site.ErrAnnouncementInvalidStatus
+var ErrAnnouncementInvalidNotifyMode = site.ErrAnnouncementInvalidNotifyMode
+var ErrAnnouncementInvalidSchedule = site.ErrAnnouncementInvalidSchedule
 
-const (
-	AnnouncementOperatorIn  = domain.AnnouncementOperatorIn
-	AnnouncementOperatorGT  = domain.AnnouncementOperatorGT
-	AnnouncementOperatorGTE = domain.AnnouncementOperatorGTE
-	AnnouncementOperatorLT  = domain.AnnouncementOperatorLT
-	AnnouncementOperatorLTE = domain.AnnouncementOperatorLTE
-	AnnouncementOperatorEQ  = domain.AnnouncementOperatorEQ
-)
-
-var (
-	ErrAnnouncementNotFound        = domain.ErrAnnouncementNotFound
-	ErrAnnouncementInvalidTarget   = domain.ErrAnnouncementInvalidTarget
-	ErrAnnouncementNilInput        = infraerrors.BadRequest("ANNOUNCEMENT_INPUT_REQUIRED", "announcement input is required")
-	ErrAnnouncementInvalidTitle    = infraerrors.BadRequest("ANNOUNCEMENT_TITLE_INVALID", "announcement title is invalid")
-	ErrAnnouncementContentRequired = infraerrors.BadRequest(
-		"ANNOUNCEMENT_CONTENT_REQUIRED",
-		"announcement content is required",
-	)
-	ErrAnnouncementInvalidStatus     = infraerrors.BadRequest("ANNOUNCEMENT_STATUS_INVALID", "announcement status is invalid")
-	ErrAnnouncementInvalidNotifyMode = infraerrors.BadRequest(
-		"ANNOUNCEMENT_NOTIFY_MODE_INVALID",
-		"announcement notify_mode is invalid",
-	)
-	ErrAnnouncementInvalidSchedule = infraerrors.BadRequest(
-		"ANNOUNCEMENT_TIME_RANGE_INVALID",
-		"starts_at must be before ends_at",
-	)
-)
-
-type AnnouncementTargeting = domain.AnnouncementTargeting
-
-type AnnouncementConditionGroup = domain.AnnouncementConditionGroup
-
-type AnnouncementCondition = domain.AnnouncementCondition
-
-type Announcement = domain.Announcement
-
-type AnnouncementListFilters struct {
-	Status string
-	Search string
-}
-
-type AnnouncementRepository interface {
-	Create(ctx context.Context, a *Announcement) error
-	GetByID(ctx context.Context, id int64) (*Announcement, error)
-	Update(ctx context.Context, a *Announcement) error
-	Delete(ctx context.Context, id int64) error
-	// ArchiveExpired 将已超过结束时间的展示中公告批量归档。
-	ArchiveExpired(ctx context.Context, now time.Time) (int64, error)
-
-	List(ctx context.Context, params pagination.PaginationParams, filters AnnouncementListFilters) ([]Announcement, *pagination.PaginationResult, error)
-	ListActive(ctx context.Context, now time.Time) ([]Announcement, error)
-}
-
-type AnnouncementReadRepository interface {
-	MarkRead(ctx context.Context, announcementID, userID int64, readAt time.Time) error
-	GetReadMapByUser(ctx context.Context, userID int64, announcementIDs []int64) (map[int64]time.Time, error)
-	GetReadMapByUsers(ctx context.Context, announcementID int64, userIDs []int64) (map[int64]time.Time, error)
-	CountByAnnouncementID(ctx context.Context, announcementID int64) (int64, error)
+func NewAnnouncementExpiryService(repo AnnouncementRepository, interval time.Duration) *AnnouncementExpiryService {
+	return site.NewAnnouncementExpiryService(repo, interval)
 }

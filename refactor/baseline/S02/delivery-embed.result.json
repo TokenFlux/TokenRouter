@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "build",
+    "-tags=embed",
+    "-o",
+    "bin/server-embed",
+    "./cmd/server"
+  ],
+  "date": "2026-09-11T05:56:24.761008+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "duration_seconds": 2.328,
+  "test_events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/delivery-embed.log.gz"
+}

@@ -337,6 +337,7 @@ func buildFileCore(enc zapcore.Encoder, atomic zap.AtomicLevel, options InitOpti
 		Compress:   options.Rotation.Compress,
 		LocalTime:  options.Rotation.LocalTime,
 	}
+	ownFileWriter(lj)
 	return zapcore.NewCore(enc, zapcore.AddSync(lj), atomic), filePath, nil
 }
 

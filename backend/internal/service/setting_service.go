@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"log/slog"
 	"maps"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -168,7 +170,7 @@ func (s *SettingService) ResolveGrokBaseURL(ctx context.Context, account *Accoun
 
 var (
 	ErrRegistrationDisabled  = infraerrors.Forbidden("REGISTRATION_DISABLED", "registration is currently disabled")
-	ErrSettingNotFound       = infraerrors.NotFound("SETTING_NOT_FOUND", "setting not found")
+	ErrSettingNotFound       = settings.ErrSettingNotFound
 	ErrDefaultSubPlanInvalid = infraerrors.BadRequest(
 		"DEFAULT_SUBSCRIPTION_PLAN_INVALID",
 		"default subscription plan must exist",
@@ -179,30 +181,20 @@ var (
 	)
 )
 
-type SettingRepository interface {
-	Get(ctx context.Context, key string) (*Setting, error)
-	GetValue(ctx context.Context, key string) (string, error)
-	Set(ctx context.Context, key, value string) error
-	GetMultiple(ctx context.Context, keys []string) (map[string]string, error)
-	SetMultiple(ctx context.Context, settings map[string]string) error
-	GetAll(ctx context.Context) (map[string]string, error)
-	Delete(ctx context.Context, key string) error
-}
-
 // WebSearchManagerBuilder creates a websearch.Manager from config (injected by infra layer).
 // proxyURLs maps proxy ID to resolved URL for provider-level proxy support.
 type WebSearchManagerBuilder func(cfg *WebSearchEmulationConfig, proxyURLs map[int64]string)
 
 // SettingService 系统设置服务
 type SettingService struct {
+	runtimeSettingsMu            sync.Mutex
 	settingRepo                  SettingRepository
 	defaultSubPlanReader         DefaultSubscriptionPlanReader
 	proxyRepo                    ProxyRepository // for resolving websearch provider proxy URLs
 	cfg                          *config.Config
-	onUpdate                     func() // Callback when settings are updated (for cache invalidation)
+	runtimeSettings              *settings.Store
 	creativeWorkerCountCallback  func(int)
 	creativeWorkerStatusCallback func() CreativeWorkerStatus
-	version                      string // Application version
 	webSearchManagerBuilder      WebSearchManagerBuilder
 	antigravityUAVersionCache    atomic.Value // *cachedAntigravityUserAgentVersion
 	antigravityUAVersionSF       singleflight.Group
@@ -357,9 +349,14 @@ const (
 
 // NewSettingService 创建系统设置服务实例
 func NewSettingService(settingRepo SettingRepository, cfg *config.Config) *SettingService {
+	store := settings.New(settingRepo)
+	if settingRepo != nil {
+		settingRepo = store
+	}
 	return &SettingService{
-		settingRepo: settingRepo,
-		cfg:         cfg,
+		runtimeSettings: store,
+		settingRepo:     settingRepo,
+		cfg:             cfg,
 	}
 }
 
@@ -442,7 +439,7 @@ func (s *SettingService) GetAllSettings(ctx context.Context) (*SystemSettings, e
 // SetOnUpdateCallback sets a callback function to be called when settings are updated
 // This is used for cache invalidation (e.g., HTML cache in frontend server)
 func (s *SettingService) SetOnUpdateCallback(callback func()) {
-	s.onUpdate = callback
+	s.settingRuntime().SetOnUpdateCallback(callback)
 }
 
 // SetCreativeWorkerCountCallback 设置创作台 worker 数量热更新回调。
@@ -471,7 +468,7 @@ func (s *SettingService) CreativeWorkerStatus() CreativeWorkerStatus {
 
 // SetVersion sets the application version for injection into public settings
 func (s *SettingService) SetVersion(version string) {
-	s.version = version
+	s.settingRuntime().SetVersion(version)
 }
 
 // getStringOrDefault 获取字符串值或默认值
@@ -969,4 +966,14 @@ type DefaultSubscriptionPlanReader interface {
 type cachedOpenAIAllowCodexPlugin struct {
 	value     bool
 	expiresAt int64 // unix nano
+}
+
+// settingRuntime 同时兼容旧测试和少数零值组装入口，运行态始终复用同一存取实例。
+func (s *SettingService) settingRuntime() *settings.Store {
+	s.runtimeSettingsMu.Lock()
+	defer s.runtimeSettingsMu.Unlock()
+	if s.runtimeSettings == nil {
+		s.runtimeSettings = settings.New(s.settingRepo)
+	}
+	return s.runtimeSettings
 }

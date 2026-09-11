@@ -1,0 +1,25 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/handler",
+    "./internal/handler/admin",
+    "-run",
+    "Test(Ops|EnqueueOps|QPS|QoderGatewayError)"
+  ],
+  "date": "2026-09-11T05:45:41.486456+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "duration_seconds": 20.657,
+  "test_events": {
+    "pass": 66,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/handler-owner-race.log.gz"
+}

@@ -185,6 +185,7 @@ func TestTLSFingerprintRouterService_Create_NormalizesChatGPTOAuthTokenConfig(t 
 	profileID := int64(-1)
 	repo := &tlsFingerprintRouterRepoStub{}
 	svc := NewTLSFingerprintRouterService(repo, nil)
+	svc.Start()
 
 	created, err := svc.Create(context.Background(), &model.TLSFingerprintRouter{
 		Name:                                     "  token router  ",

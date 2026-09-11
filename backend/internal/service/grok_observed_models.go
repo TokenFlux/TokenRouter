@@ -40,14 +40,14 @@ func (s *GrokQuotaService) scheduleGrokObservedModelsSync(account *Account) {
 	}
 	// 复制账号快照供后台任务使用。
 	acc := *account
-	go func() {
+	RunBackgroundTask("service/grok_observed_models.go:scheduleGrokObservedModelsSync", BackgroundCall0(func() {
 		defer grokObservedModelsFlight.Delete(id)
 		ctx, cancel := context.WithTimeout(context.Background(), grokObservedModelsTimeout)
 		defer cancel()
 		if err := s.syncGrokObservedModels(ctx, &acc); err != nil {
 			slog.Debug("grok_observed_models_sync_failed", "account_id", id, "error", err)
 		}
-	}()
+	}))
 }
 
 func (s *GrokQuotaService) syncGrokObservedModels(ctx context.Context, account *Account) error {

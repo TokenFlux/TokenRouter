@@ -26,6 +26,7 @@ func (s *openaiOAuthClientAuthURLStub) RefreshTokenWithClientID(ctx context.Cont
 
 func TestOpenAIOAuthService_GenerateAuthURL_OpenAIKeepsCodexFlow(t *testing.T) {
 	svc := NewOpenAIOAuthService(nil, &openaiOAuthClientAuthURLStub{})
+	svc.Start()
 	defer svc.Stop()
 
 	result, err := svc.GenerateAuthURL(context.Background(), nil, "", PlatformOpenAI)

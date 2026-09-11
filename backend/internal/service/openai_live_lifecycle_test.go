@@ -663,3 +663,29 @@ func TestFinalizeLiveCallUsageLogFallsBackToSyncCreate(t *testing.T) {
 	require.Len(t, usageRepo.logs, 1, "best-effort 失败后必须同步兜底落库")
 	require.Equal(t, record.CallHash, usageRepo.logs[0].RequestID)
 }
+
+// 进程停止只结束本地观察，不得将远端会话提前结算或释放其租约。
+func TestStopLiveObserversPreservesRemoteCall(t *testing.T) {
+	record := &LiveCallRecord{CallHash: "s02-shutdown", Controller: LiveControllerPending, ExpiresAt: time.Now().Add(time.Hour)}
+	store := &liveTestStore{record: record, claimErr: errors.New("temporary store failure")}
+	svc := &OpenAIGatewayService{cache: store}
+	done := make(chan struct{})
+	go func() { svc.observeLiveCall(record); close(done) }()
+	require.Eventually(t, func() bool {
+		svc.liveObserverMu.Lock()
+		defer svc.liveObserverMu.Unlock()
+		return len(svc.liveObserverCancels) == 1
+	}, time.Second, time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, svc.StopLiveObservers(ctx))
+	<-done
+	require.NoError(t, svc.StopLiveObservers(ctx))
+	stored, err := store.GetLiveCall(context.Background(), record.CallHash)
+	require.NoError(t, err)
+	require.Equal(t, LiveControllerPending, stored.Controller)
+	svc.observeLiveCall(record)
+	svc.liveObserverMu.Lock()
+	require.Empty(t, svc.liveObserverCancels)
+	svc.liveObserverMu.Unlock()
+}

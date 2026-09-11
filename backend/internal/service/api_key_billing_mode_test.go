@@ -88,6 +88,7 @@ func TestAPIKeyService_CreateBillingModeValidatesPreferredSubscriptionGroups(t *
 		nil,
 		nil,
 	)
+	svc.Start()
 
 	t.Run("指定订阅保留合法分组", func(t *testing.T) {
 		customKey := "sk_billing_mode_allowed_group"
@@ -153,6 +154,7 @@ func TestAPIKeyService_UpdateBillingModeRejectsRestrictedSubscriptionWithoutGrou
 		nil,
 		nil,
 	)
+	svc.Start()
 	billingMode := APIKeyBillingModeSubscription
 
 	_, err := svc.Update(context.Background(), apiKey.ID, userID, UpdateAPIKeyRequest{
@@ -190,6 +192,7 @@ func TestAPIKeyService_UpdateBillingModeClearsPreferredSubscription(t *testing.T
 		nil,
 		nil,
 	)
+	svc.Start()
 	billingMode := APIKeyBillingModeBalance
 
 	updated, err := svc.Update(context.Background(), repo.apiKey.ID, userID, UpdateAPIKeyRequest{BillingMode: &billingMode})
@@ -220,6 +223,7 @@ func TestAPIKeyService_ListBillingSubscriptionsUsesTeamOwner(t *testing.T) {
 		nil,
 		&config.Config{Team: config.TeamConfig{Enabled: true}},
 	)
+	svc.Start()
 	svc.SetTeamRepository(&fakeTeamRepository{teamContext: &TeamContext{
 		Team:       &Team{ID: 11, Status: TeamStatusActive},
 		Membership: &TeamMembership{TeamID: 11, UserID: memberID, Role: TeamRoleMember},
@@ -269,6 +273,7 @@ func TestAPIKeyService_UpdateInactiveTeamKeyBillingModeUsesTeamOwner(t *testing.
 		nil,
 		&config.Config{Team: config.TeamConfig{Enabled: true}},
 	)
+	svc.Start()
 	svc.SetTeamRepository(&fakeTeamRepository{teamContext: &TeamContext{
 		Team:       &Team{ID: teamID, Status: TeamStatusActive},
 		Membership: &TeamMembership{TeamID: teamID, UserID: memberID, Role: TeamRoleMember, JoinedAt: createdAt.Add(-time.Minute)},
@@ -301,6 +306,7 @@ func TestAPIKeyAuthSnapshotRoundTripPreservesBillingMode(t *testing.T) {
 		User:                    &User{ID: 7, Status: StatusActive, Role: RoleUser},
 	}
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	svc.Start()
 
 	snapshot := svc.snapshotFromAPIKey(context.Background(), key)
 	restored := svc.snapshotToAPIKey(key.Key, snapshot)

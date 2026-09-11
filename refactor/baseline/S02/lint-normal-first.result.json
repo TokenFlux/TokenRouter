@@ -1,0 +1,19 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "./..."
+  ],
+  "date": "2026-09-11T05:01:20.569442+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "duration_seconds": 48.096,
+  "test_events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/lint-normal-first.log.gz"
+}

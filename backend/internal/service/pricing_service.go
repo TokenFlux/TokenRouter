@@ -246,8 +246,10 @@ type PricingService struct {
 	customFilesHash string
 
 	// 停止信号
-	stopCh chan struct{}
-	wg     sync.WaitGroup
+	stopCh    chan struct{}
+	wg        sync.WaitGroup
+	startOnce sync.Once
+	stopOnce  sync.Once
 }
 
 // NewPricingService 创建价格服务
@@ -277,7 +279,6 @@ func (s *PricingService) Initialize() error {
 	}
 
 	// 启动定时更新
-	s.startUpdateScheduler()
 
 	logger.LegacyPrintf("service.pricing", "[Pricing] Service initialized with %d models", len(s.pricingData))
 	return nil
@@ -285,7 +286,7 @@ func (s *PricingService) Initialize() error {
 
 // Stop 停止价格服务
 func (s *PricingService) Stop() {
-	close(s.stopCh)
+	s.stopOnce.Do(func() { close(s.stopCh) })
 	s.wg.Wait()
 	logger.LegacyPrintf("service.pricing", "%s", "[Pricing] Service stopped")
 }
@@ -1763,3 +1764,6 @@ func isNumeric(s string) bool {
 	}
 	return true
 }
+
+// Start 在初始化和所有绑定完成后启动更新调度。
+func (s *PricingService) Start() { s.startOnce.Do(s.startUpdateScheduler) }

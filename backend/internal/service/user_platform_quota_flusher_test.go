@@ -509,3 +509,30 @@ func TestScenario_NinetyPercentCompany(t *testing.T) {
 		t.Errorf("90%% company: Readd should not be called, got %d calls", len(cache.readdCalled))
 	}
 }
+
+// 退出时不能把超过单 tick 上限的持久化积压遗留给不存在的下一轮。
+func TestFlusherShutdownDrainsBeyondTickLimit(t *testing.T) {
+	cache := &mockQuotaDirtyCache{getEntries: []*UserPlatformQuotaCacheEntry{makeEntry(1, 1, 1)}}
+	for range flusherMaxBatchesPerTick + 2 {
+		cache.popSequence = append(cache.popSequence, []UserPlatformQuotaKey{{UserID: 1, Platform: "openai"}})
+	}
+	writer := &mockQuotaSnapshotWriter{}
+	f := newTestFlusher(cache, writer)
+	f.batchSize = 1
+	if err := f.Shutdown(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if len(writer.receivedSnaps) != flusherMaxBatchesPerTick+2 {
+		t.Fatalf("只写回 %d 批", len(writer.receivedSnaps))
+	}
+}
+func TestFlusherShutdownReportsRetainedDirtyKeys(t *testing.T) {
+	cache := &mockQuotaDirtyCache{popSequence: [][]UserPlatformQuotaKey{{{UserID: 1, Platform: "openai"}}}, getErr: errors.New("redis unavailable")}
+	f := newTestFlusher(cache, &mockQuotaSnapshotWriter{})
+	if err := f.Shutdown(context.Background()); err == nil {
+		t.Fatal("写回失败却报告已排空")
+	}
+	if len(cache.readdCalled) != 1 {
+		t.Fatal("没有保留失败回填")
+	}
+}

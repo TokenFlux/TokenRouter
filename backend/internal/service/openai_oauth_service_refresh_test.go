@@ -98,6 +98,7 @@ func (s *openAIOAuthSettingRepoStub) Delete(context.Context, string) error {
 func TestOpenAIOAuthService_RefreshAccountToken_NoRefreshTokenUsesExistingAccessToken(t *testing.T) {
 	client := &openaiOAuthClientRefreshStub{}
 	svc := NewOpenAIOAuthService(nil, client)
+	svc.Start()
 	var privacyClientCalls int32
 	svc.SetPrivacyClientFactory(func(proxyURL string) (*req.Client, error) {
 		atomic.AddInt32(&privacyClientCalls, 1)
@@ -174,6 +175,7 @@ func TestOpenAIOAuthService_RefreshAccountToken_UsesAccountTLSRouterConfig(t *te
 	profileID := int64(55)
 	client := &openaiOAuthClientRefreshStub{}
 	svc := NewOpenAIOAuthService(nil, client)
+	svc.Start()
 	svc.SetTokenTLSRouterDeps(nil, &openAIOAuthTokenRouterReaderStub{routers: map[int64]*model.TLSFingerprintRouter{
 		9: {
 			ID:                                       9,
@@ -211,6 +213,7 @@ func TestOpenAIOAuthService_RefreshAccountToken_UsesAccountTLSRouterConfig(t *te
 func TestOpenAIOAuthService_RefreshAccountToken_EmptyRouterTokenConfigKeepsOldPath(t *testing.T) {
 	client := &openaiOAuthClientRefreshStub{}
 	svc := NewOpenAIOAuthService(nil, client)
+	svc.Start()
 	svc.SetTokenTLSRouterDeps(nil, &openAIOAuthTokenRouterReaderStub{routers: map[int64]*model.TLSFingerprintRouter{
 		9: {
 			ID:      9,
@@ -240,6 +243,7 @@ func TestOpenAIOAuthService_RefreshTokenWithClientIDAndRouter_UsesCodexUAFallbac
 	profileID := int64(0)
 	client := &openaiOAuthClientRefreshStub{}
 	svc := NewOpenAIOAuthService(nil, client)
+	svc.Start()
 	settingService := NewSettingService(&openAIOAuthSettingRepoStub{values: map[string]string{
 		SettingKeyOpenAICodexUserAgent: " codex-custom ",
 	}}, nil)

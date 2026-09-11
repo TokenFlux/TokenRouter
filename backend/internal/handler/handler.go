@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
+	sitehttpapi "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 )
 
 // AdminHandlers contains all admin-related HTTP handlers
@@ -10,7 +11,7 @@ type AdminHandlers struct {
 	User                  *admin.UserHandler
 	Group                 *admin.GroupHandler
 	Account               *admin.AccountHandler
-	Announcement          *admin.AnnouncementHandler
+	Announcement          *sitehttpapi.AdminAnnouncementHandler
 	DataManagement        *admin.DataManagementHandler
 	Backup                *admin.BackupHandler
 	OAuth                 *admin.OAuthHandler
@@ -50,7 +51,7 @@ type Handlers struct {
 	Usage            *UsageHandler
 	Redeem           *RedeemHandler
 	Subscription     *SubscriptionHandler
-	Announcement     *AnnouncementHandler
+	Announcement     *sitehttpapi.AnnouncementHandler
 	ModelMarketplace *ModelMarketplaceHandler
 	Admin            *AdminHandlers
 	Gateway          *GatewayHandler

@@ -31,6 +31,7 @@ func (s *apiKeyHandlerSecurityRepoStub) GetByID(ctx context.Context, id int64) (
 func newAPIKeyHandlerSecurityRouter(repo *apiKeyHandlerSecurityRepoStub, userID int64) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	apiKeySvc := service.NewAPIKeyService(repo, nil, nil, nil, nil, nil, nil)
+	apiKeySvc.Start()
 	handler := NewAPIKeyHandler(apiKeySvc)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {

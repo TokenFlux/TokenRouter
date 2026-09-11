@@ -474,3 +474,10 @@ func applyGrokTokenClaims(info *GrokTokenInfo, token string, includeTier bool) {
 		}
 	}
 }
+
+// Start 由应用统一启动最终注入的会话实现。
+func (s *GrokOAuthService) Start() {
+	if starter, ok := any(s.sessionStore).(interface{ Start() }); ok {
+		starter.Start()
+	}
+}

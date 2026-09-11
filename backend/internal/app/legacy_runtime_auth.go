@@ -1,0 +1,133 @@
+// 本文件登记旧认证与会话资源；业务迁移后删除对应绑定，S16 清零。
+// 启动按停止依赖的逆序排列，纯预热在消费者启动前完成。
+package app
+
+import (
+	"context"
+
+	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+	"github.com/TokenFlux/TokenRouter/internal/service"
+)
+
+type authRuntimeReady struct{}
+
+func provideAuthRuntime(
+	apiKeyService *service.APIKeyService,
+	errorPassthrough *service.ErrorPassthroughService,
+	oauth *service.OAuthService,
+	openaiOAuth *service.OpenAIOAuthService,
+	geminiOAuth *service.GeminiOAuthService,
+	antigravityOAuth *service.AntigravityOAuthService,
+	qoderOAuth *service.QoderOAuthService,
+	grokOAuth *service.GrokOAuthService,
+	tlsFingerprintProfile *service.TLSFingerprintProfileService,
+	tlsFingerprintRouter *service.TLSFingerprintRouterService,
+	manager *lifecycle.Manager,
+) *authRuntimeReady {
+	manager.Register(lifecycle.Hook{Name: "APIKeyService", StartOrder: 195, StopOrder: 805, Start: func(ctx context.Context) error {
+		if apiKeyService != nil {
+			apiKeyService.Start()
+		}
+		return nil
+	}, Stop: func(ctx context.Context) error {
+		if apiKeyService != nil {
+			apiKeyService.Stop()
+		}
+		return nil
+	}})
+
+	manager.Register(lifecycle.Hook{Name: "OAuthService", StartOrder: 190, StopOrder: 810, Start: func(ctx context.Context) error {
+		if oauth != nil {
+			oauth.Start()
+		}
+		return nil
+	}, Stop: func(ctx context.Context) error {
+		if oauth != nil {
+			oauth.Stop()
+		}
+		return nil
+	}})
+	manager.Register(lifecycle.Hook{Name: "OpenAIOAuthService", StartOrder: 190, StopOrder: 810, Start: func(ctx context.Context) error {
+		if openaiOAuth != nil {
+			openaiOAuth.Start()
+		}
+		return nil
+	}, Stop: func(ctx context.Context) error {
+		if openaiOAuth != nil {
+			openaiOAuth.Stop()
+		}
+		return nil
+	}})
+	manager.Register(lifecycle.Hook{Name: "GeminiOAuthService", StartOrder: 190, StopOrder: 810, Start: func(ctx context.Context) error {
+		if geminiOAuth != nil {
+			geminiOAuth.Start()
+		}
+		return nil
+	}, Stop: func(ctx context.Context) error {
+		if geminiOAuth != nil {
+			geminiOAuth.Stop()
+		}
+		return nil
+	}})
+	manager.Register(lifecycle.Hook{Name: "AntigravityOAuthService", StartOrder: 190, StopOrder: 810, Start: func(ctx context.Context) error {
+		if antigravityOAuth != nil {
+			antigravityOAuth.Start()
+		}
+		return nil
+	}, Stop: func(ctx context.Context) error {
+		if antigravityOAuth != nil {
+			antigravityOAuth.Stop()
+		}
+		return nil
+	}})
+	manager.Register(lifecycle.Hook{Name: "QoderOAuthService", StartOrder: 190, StopOrder: 810, Start: func(ctx context.Context) error {
+		if qoderOAuth != nil {
+			qoderOAuth.Start()
+		}
+		return nil
+	}, Stop: func(ctx context.Context) error {
+		if qoderOAuth != nil {
+			qoderOAuth.Stop()
+		}
+		return nil
+	}})
+	manager.Register(lifecycle.Hook{Name: "GrokOAuthService", StartOrder: 190, StopOrder: 810, Start: func(ctx context.Context) error {
+		if grokOAuth != nil {
+			grokOAuth.Start()
+		}
+		return nil
+	}, Stop: func(ctx context.Context) error {
+		if grokOAuth != nil {
+			grokOAuth.Stop()
+		}
+		return nil
+	}})
+
+	manager.Register(lifecycle.Hook{Name: "TLSFingerprintProfileService", StartOrder: 190, StopOrder: 810, Start: func(ctx context.Context) error {
+		if tlsFingerprintProfile != nil {
+			tlsFingerprintProfile.Start()
+		}
+		return nil
+	}, Stop: func(ctx context.Context) error {
+		if tlsFingerprintProfile != nil {
+			tlsFingerprintProfile.Stop()
+		}
+		return nil
+	}})
+	manager.Register(lifecycle.Hook{Name: "TLSFingerprintRouterService", StartOrder: 190, StopOrder: 810, Start: func(ctx context.Context) error {
+		if tlsFingerprintRouter != nil {
+			tlsFingerprintRouter.Start()
+		}
+		return nil
+	}, Stop: func(ctx context.Context) error {
+		if tlsFingerprintRouter != nil {
+			tlsFingerprintRouter.Stop()
+		}
+		return nil
+	}})
+
+	manager.Register(lifecycle.Hook{Name: "ErrorPassthroughService", StartOrder: 190, StopOrder: 810,
+		Start: func(context.Context) error { errorPassthrough.Start(); return nil },
+		Stop:  func(context.Context) error { errorPassthrough.Stop(); return nil }})
+	return &authRuntimeReady{}
+}

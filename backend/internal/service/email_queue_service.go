@@ -31,6 +31,9 @@ type EmailQueueService struct {
 	wg           sync.WaitGroup
 	stopChan     chan struct{}
 	workers      int
+	lifecycleMu  sync.RWMutex
+	started      bool
+	stopped      bool
 }
 
 // NewEmailQueueService 创建邮件队列服务
@@ -47,13 +50,18 @@ func NewEmailQueueService(emailService *EmailService, workers int) *EmailQueueSe
 	}
 
 	// 启动工作协程
-	service.start()
 
 	return service
 }
 
 // start 启动工作协程
-func (s *EmailQueueService) start() {
+func (s *EmailQueueService) Start() {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.started || s.stopped {
+		return
+	}
+	s.started = true
 	for i := 0; i < s.workers; i++ {
 		s.wg.Add(1)
 		go s.worker(i)
@@ -65,15 +73,10 @@ func (s *EmailQueueService) start() {
 func (s *EmailQueueService) worker(id int) {
 	defer s.wg.Done()
 
-	for {
-		select {
-		case task := <-s.taskChan:
-			s.processTask(id, task)
-		case <-s.stopChan:
-			logger.LegacyPrintf("service.email_queue", "[EmailQueue] Worker %d stopping", id)
-			return
-		}
+	for task := range s.taskChan {
+		s.processTask(id, task)
 	}
+
 }
 
 // processTask 处理任务
@@ -101,6 +104,12 @@ func (s *EmailQueueService) processTask(workerID int, task EmailTask) {
 
 // EnqueueVerifyCode 将验证码发送任务加入队列
 func (s *EmailQueueService) EnqueueVerifyCode(email, siteName string, locale ...string) error {
+	s.lifecycleMu.RLock()
+	defer s.lifecycleMu.RUnlock()
+	if s.stopped {
+		return fmt.Errorf("email queue is stopped")
+	}
+
 	task := EmailTask{
 		Email:    email,
 		SiteName: siteName,
@@ -119,6 +128,12 @@ func (s *EmailQueueService) EnqueueVerifyCode(email, siteName string, locale ...
 
 // EnqueuePasswordReset 将密码重置邮件任务加入队列
 func (s *EmailQueueService) EnqueuePasswordReset(email, siteName, resetURL string, locale ...string) error {
+	s.lifecycleMu.RLock()
+	defer s.lifecycleMu.RUnlock()
+	if s.stopped {
+		return fmt.Errorf("email queue is stopped")
+	}
+
 	task := EmailTask{
 		Email:    email,
 		SiteName: siteName,
@@ -137,8 +152,15 @@ func (s *EmailQueueService) EnqueuePasswordReset(email, siteName, resetURL strin
 }
 
 // Stop 停止队列服务
+// Stop 先封闭接收，再等待已有邮件任务处理完成。
 func (s *EmailQueueService) Stop() {
-	close(s.stopChan)
+	s.lifecycleMu.Lock()
+	if !s.stopped {
+		s.stopped = true
+		close(s.taskChan)
+		close(s.stopChan)
+	}
+	s.lifecycleMu.Unlock()
 	s.wg.Wait()
 	logger.LegacyPrintf("service.email_queue", "%s", "[EmailQueue] All workers stopped")
 }

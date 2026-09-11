@@ -85,8 +85,9 @@ func (s *adminServiceImpl) CreateProxy(ctx context.Context, input *CreateProxyIn
 	if err := s.proxyRepo.Create(ctx, proxy); err != nil {
 		return nil, err
 	}
-	// Probe latency asynchronously so creation isn't blocked by network timeout.
-	go s.probeProxyLatency(context.Background(), proxy)
+	RunBackgroundTask(
+		// Probe latency asynchronously so creation isn't blocked by network timeout.
+		"service/admin_proxy.go:CreateProxy", BackgroundCall2(s.probeProxyLatency, context.Background(), proxy))
 	return proxy, nil
 }
 

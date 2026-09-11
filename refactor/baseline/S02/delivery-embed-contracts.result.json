@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=embed",
+    "./internal/app",
+    "./internal/web",
+    "./internal/server"
+  ],
+  "date": "2026-09-11T05:59:56.257329+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "duration_seconds": 1.528,
+  "test_events": {
+    "pass": 101,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/delivery-embed-contracts.log.gz"
+}

@@ -119,6 +119,7 @@ func TestCompositeAPIKeyAuthSnapshotRoundTrip(t *testing.T) {
 		},
 	}
 	service := NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	service.Start()
 
 	// 复合映射必须连同完整分组鉴权信息一起写入并还原，不能依赖额外数据库查询。
 	snapshot := service.snapshotFromAPIKey(context.Background(), key)
@@ -163,6 +164,7 @@ func TestAPIKeyUpdateConvertsBetweenOrdinaryAndComposite(t *testing.T) {
 		&compositeGroupRepoStub{groups: map[int64]*Group{1: groupOne, 2: groupTwo}},
 		nil, nil, nil, nil,
 	)
+	service.Start()
 
 	toComposite := true
 	inputs := []APIKeyCompositeGroupInput{{GroupID: 1, Prefix: "GPT"}, {GroupID: 2, Prefix: "Claude"}}
@@ -203,6 +205,7 @@ func TestCompositeAPIKeyUpdateAddsMappingsWithoutConfirmation(t *testing.T) {
 		&compositeGroupRepoStub{groups: map[int64]*Group{1: groupOne, 2: groupTwo}},
 		nil, nil, nil, nil,
 	)
+	service.Start()
 	toComposite := true
 	inputs := []APIKeyCompositeGroupInput{{GroupID: 1, Prefix: "One"}, {GroupID: 2, Prefix: "Two"}}
 	updated, err := service.Update(context.Background(), 10, user.ID, UpdateAPIKeyRequest{

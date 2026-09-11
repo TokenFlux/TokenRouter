@@ -2330,3 +2330,15 @@ func TestOpenAIWSConnPool_SnapshotTransportMetrics(t *testing.T) {
 	require.Equal(t, int64(2), snapshot.ProxyClientCacheMisses)
 	require.InDelta(t, 1.0/3.0, snapshot.TransportReuseRatio, 0.0001)
 }
+
+// 应用关闭后不得通过按需入口创建第二个池，既有池也不得再次发起获取。
+func TestOpenAIWSConnPoolShutdownSealsLazyCreation(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	svc.CloseOpenAIWSPool()
+	require.Nil(t, svc.getOpenAIWSConnPool())
+	pool := newOpenAIWSConnPool(nil)
+	pool.Close()
+	_, err := pool.Acquire(context.Background(), openAIWSAcquireRequest{Account: &Account{ID: 1}, WSURL: "wss://example.test"})
+	require.ErrorIs(t, err, errOpenAIWSConnClosed)
+	pool.Close()
+}

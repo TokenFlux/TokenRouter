@@ -17,6 +17,7 @@ func TestAdminRoutesQoderOAuthPathsAreRegistered(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	qoderOAuthService := service.NewQoderOAuthService(nil)
+	qoderOAuthService.Start()
 	defer qoderOAuthService.Stop()
 
 	registerQoderOAuthRoutes(

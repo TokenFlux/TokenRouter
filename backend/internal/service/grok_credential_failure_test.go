@@ -719,6 +719,7 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		repo.accountsByID = map[int64]*Account{account.ID: account}
 		cache := &grokTokenCacheForProviderTest{lockResult: true}
 		oauthSvc := NewGrokOAuthService(&grokCredentialProxyRepoStub{err: errors.New("database temporarily unavailable")}, &grokOAuthClientStub{})
+		oauthSvc.Start()
 		defer oauthSvc.Stop()
 		provider := NewGrokTokenProvider(repo, cache)
 		provider.SetRefreshAPI(NewOAuthRefreshAPI(repo, cache), NewGrokTokenRefresher(oauthSvc))
@@ -748,6 +749,7 @@ func TestGetRequestCredentialMapsTransientAndProviderFailuresSeparately(t *testi
 		repo := &grokCredentialPersistingRepo{tokenRefreshAccountRepo: baseRepo}
 		cache := &grokTokenCacheForProviderTest{lockResult: true}
 		oauthSvc := NewGrokOAuthService(&grokCredentialProxyRepoStub{err: ErrProxyNotFound}, &grokOAuthClientStub{})
+		oauthSvc.Start()
 		defer oauthSvc.Stop()
 		provider := NewGrokTokenProvider(repo, cache)
 		provider.SetRefreshAPI(NewOAuthRefreshAPI(repo, cache), NewGrokTokenRefresher(oauthSvc))

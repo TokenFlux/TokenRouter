@@ -29,6 +29,7 @@ func TestGoogleAPIKeyAuthRejectsOversizedCredentialsBeforeLookup(t *testing.T) {
 	}}
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	svc := service.NewAPIKeyService(repo, nil, nil, nil, nil, nil, cfg)
+	svc.Start()
 	r := gin.New()
 	var reason IngressRejectReason
 	var rejected bool
@@ -55,6 +56,7 @@ func TestGoogleAPIKeyAuthMarksLookupBulkheadRejection(t *testing.T) {
 	}}
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	svc := service.NewAPIKeyService(repo, nil, nil, nil, nil, nil, cfg)
+	svc.Start()
 	r := gin.New()
 	var reason IngressRejectReason
 	var rejected bool
@@ -91,6 +93,7 @@ func TestGoogleAPIKeyAuthCompositeModelListStillChecksQuota(t *testing.T) {
 	}}
 	cfg := &config.Config{RunMode: config.RunModeStandard}
 	svc := service.NewAPIKeyService(repo, nil, nil, nil, nil, nil, cfg)
+	svc.Start()
 	router := gin.New()
 	router.Use(APIKeyAuthWithSubscriptionGoogle(svc, nil, cfg))
 	router.GET("/v1beta/models", func(c *gin.Context) { c.Status(http.StatusOK) })
@@ -141,6 +144,7 @@ func TestAPIKeyAuthWithSubscriptionGoogle_UsageKeepsUnavailablePreferredSubscrip
 			return &clone, nil
 		},
 	}, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeStandard})
+	apiKeyService.Start()
 	subscriptionService := service.NewSubscriptionService(nil, fakeGoogleSubscriptionRepo{
 		getByID: func(_ context.Context, id int64) (*service.UserSubscription, error) {
 			if id != preferredID {
@@ -495,6 +499,7 @@ func TestApiKeyAuthWithSubscriptionGoogleSetsGroupContext(t *testing.T) {
 		nil,
 		&config.Config{RunMode: config.RunModeSimple},
 	)
+	apiKeyService.Start()
 
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	r := gin.New()

@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./..."
+  ],
+  "date": "2026-09-11T06:07:51.566476+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "duration_seconds": 192.296,
+  "test_events": {
+    "pass": 19034,
+    "fail": 0,
+    "skip": 9
+  },
+  "log": "logs/closeout-unit.log.gz"
+}

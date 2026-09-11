@@ -14,6 +14,7 @@ import (
 
 func TestSessionStore_SetAndGet(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 	defer store.Stop()
 
 	session := &OAuthSession{
@@ -34,6 +35,7 @@ func TestSessionStore_SetAndGet(t *testing.T) {
 
 func TestSessionStore_GetNotFound(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 	defer store.Stop()
 
 	_, ok := store.Get("不存在的ID")
@@ -44,6 +46,7 @@ func TestSessionStore_GetNotFound(t *testing.T) {
 
 func TestSessionStore_GetExpired(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 	defer store.Stop()
 
 	// 创建一个已过期的 session（CreatedAt 设置为 SessionTTL+1 分钟之前）
@@ -62,6 +65,7 @@ func TestSessionStore_GetExpired(t *testing.T) {
 
 func TestSessionStore_Delete(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 	defer store.Stop()
 
 	session := &OAuthSession{
@@ -85,6 +89,7 @@ func TestSessionStore_Delete(t *testing.T) {
 
 func TestSessionStore_Stop_Idempotent(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 
 	// 多次调用 Stop 不应 panic
 	store.Stop()
@@ -94,6 +99,7 @@ func TestSessionStore_Stop_Idempotent(t *testing.T) {
 
 func TestSessionStore_ConcurrentAccess(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 	defer store.Stop()
 
 	const goroutines = 50

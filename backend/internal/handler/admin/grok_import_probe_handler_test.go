@@ -75,6 +75,7 @@ func TestGrokSSOBatchImportKeepsCreatedAccountsWhenOneAutomaticProbeFails(t *tes
 	gin.SetMode(gin.TestMode)
 	adminService := newGrokImportAdminService()
 	oauthService := service.NewGrokOAuthService(nil, grokImportOAuthClientStub{})
+	oauthService.Start()
 	defer oauthService.Stop()
 	prober := newGrokImportProbeStub(3)
 	prober.failures[502] = infraerrors.New(502, "GROK_TEST_PROBE_FAILED", "sensitive-upstream-body")

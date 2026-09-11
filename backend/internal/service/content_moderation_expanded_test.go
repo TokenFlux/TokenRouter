@@ -106,6 +106,7 @@ func TestContentModerationAuditScopeLimitsUpstreamButStoresFullInput(t *testing.
 		&contentModerationTestHashCache{},
 		nil, nil, nil, nil,
 	)
+	svc.Start()
 	body := []byte(`{"messages":[{"role":"user","content":"old"},{"role":"assistant","content":"answer"},{"role":"tool","content":"tool-output"},{"role":"user","content":"user-content"}]}`)
 
 	decision, err := svc.Check(context.Background(), ContentModerationCheckInput{Protocol: ContentModerationProtocolOpenAIChat, Body: body})
@@ -155,6 +156,7 @@ func TestContentModerationWeightedAPIKeySelectionHonorsPriorityAndFreeze(t *test
 	}
 	cfg.normalize()
 	svc := NewContentModerationService(nil, nil, nil, nil, nil, nil, nil)
+	svc.Start()
 	counts := map[string]int{}
 	for index := 0; index < 60; index++ {
 		key, ok := svc.nextUsableAPIKey(cfg)
@@ -181,6 +183,7 @@ func TestContentModerationUpdateConfigPersistsKeyMetadataAndAuditScope(t *testin
 	require.NoError(t, err)
 	repo := &contentModerationTestSettingRepo{values: map[string]string{SettingKeyContentModerationConfig: string(rawCfg)}}
 	svc := NewContentModerationService(repo, nil, nil, nil, nil, nil, nil)
+	svc.Start()
 	updates := []ContentModerationAPIKeyMetadata{
 		{KeyHash: moderationAPIKeyHash("sk-high"), Priority: 100, Note: "Tier 5"},
 		{KeyHash: moderationAPIKeyHash("sk-low"), Priority: 20, Note: "Tier 1"},
@@ -218,6 +221,7 @@ func TestContentModerationUpdateConfigAddsKeyWithPriorityAndNote(t *testing.T) {
 	require.NoError(t, err)
 	repo := &contentModerationTestSettingRepo{values: map[string]string{SettingKeyContentModerationConfig: string(rawCfg)}}
 	svc := NewContentModerationService(repo, nil, nil, nil, nil, nil, nil)
+	svc.Start()
 	entries := []ContentModerationAPIKeyEntryInput{{APIKey: "sk-tier-five", Priority: 250, Note: "Tier 5 primary"}}
 
 	view, err := svc.UpdateConfig(context.Background(), UpdateContentModerationConfigInput{APIKeyEntries: &entries})
@@ -551,6 +555,7 @@ func newExpandedModerationTestService(t *testing.T, baseURL string, recordNonHit
 		nil,
 		nil,
 	)
+	service.Start()
 	return service, repo
 }
 

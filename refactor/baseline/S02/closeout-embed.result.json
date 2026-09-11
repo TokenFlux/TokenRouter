@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "build",
+    "-tags=embed",
+    "-o",
+    "bin/server-embed",
+    "./cmd/server"
+  ],
+  "date": "2026-09-11T06:13:37.005058+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "duration_seconds": 2.389,
+  "test_events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/closeout-embed.log.gz"
+}

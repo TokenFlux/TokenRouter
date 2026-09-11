@@ -1,37 +1,12 @@
 package service
 
-import (
-	"errors"
-	"testing"
-	"time"
+import "testing"
 
-	"github.com/zeromicro/go-zero/core/collection"
-)
-
-func TestProvideTimingWheelService_ReturnsError(t *testing.T) {
-	original := newTimingWheel
-	t.Cleanup(func() { newTimingWheel = original })
-
-	newTimingWheel = func(_ time.Duration, _ int, _ collection.Execute) (*collection.TimingWheel, error) {
-		return nil, errors.New("boom")
-	}
-
-	svc, err := ProvideTimingWheelService()
-	if err == nil {
-		t.Fatalf("期望返回 error，但得到 nil")
-	}
-	if svc != nil {
-		t.Fatalf("期望返回 nil svc，但得到非空")
-	}
-}
-
+// 时间轮初始化失败已在目标包 Start 契约与 lifecycle 回收测试覆盖。
 func TestProvideTimingWheelService_Success(t *testing.T) {
 	svc, err := ProvideTimingWheelService()
-	if err != nil {
-		t.Fatalf("期望 err 为 nil，但得到: %v", err)
-	}
-	if svc == nil {
-		t.Fatalf("期望 svc 非空，但得到 nil")
+	if err != nil || svc == nil {
+		t.Fatalf("构造失败：%v", err)
 	}
 	svc.Stop()
 }

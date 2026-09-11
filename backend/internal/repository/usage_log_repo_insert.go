@@ -172,6 +172,12 @@ func (r *usageLogRepository) Create(ctx context.Context, log *service.UsageLog) 
 }
 
 func (r *usageLogRepository) CreateBestEffort(ctx context.Context, log *service.UsageLog) error {
+	r.batchLifecycleMu.RLock()
+	defer r.batchLifecycleMu.RUnlock()
+	if r.batchStopped {
+		return service.MarkUsageLogCreateDropped(fmt.Errorf("usage log batcher stopped"))
+	}
+
 	if log == nil {
 		return nil
 	}
@@ -335,6 +341,12 @@ func (r *usageLogRepository) createSingle(ctx context.Context, sqlq sqlExecutor,
 }
 
 func (r *usageLogRepository) createBatched(ctx context.Context, log *service.UsageLog) (bool, error) {
+	r.batchLifecycleMu.RLock()
+	defer r.batchLifecycleMu.RUnlock()
+	if r.batchStopped {
+		return false, service.MarkUsageLogCreateNotPersisted(fmt.Errorf("usage log batcher stopped"))
+	}
+
 	if r.db == nil {
 		return r.createSingle(ctx, r.sql, log)
 	}
@@ -384,7 +396,8 @@ func (r *usageLogRepository) ensureCreateBatcher() {
 	r.createBatchOnce.Do(func() {
 		if r.createBatchCh == nil {
 			r.createBatchCh = make(chan usageLogCreateRequest, usageLogCreateBatchQueueCap)
-			go r.runCreateBatcher(r.db)
+			r.batchWG.Add(1)
+			go func() { defer r.batchWG.Done(); r.runCreateBatcher(r.db) }()
 		}
 	})
 }
@@ -397,7 +410,8 @@ func (r *usageLogRepository) ensureBestEffortBatcher() {
 	r.bestEffortBatchOnce.Do(func() {
 		if r.bestEffortBatchCh == nil {
 			r.bestEffortBatchCh = make(chan usageLogBestEffortRequest, usageLogBestEffortBatchQueueCap)
-			go r.runBestEffortBatcher(r.db)
+			r.batchWG.Add(1)
+			go func() { defer r.batchWG.Done(); r.runBestEffortBatcher(r.db) }()
 		}
 	})
 }

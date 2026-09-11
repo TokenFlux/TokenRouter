@@ -45,10 +45,15 @@ type OAuthSession struct {
 
 // SessionStore manages OAuth sessions in memory
 type SessionStore struct {
+	runtimeMu      sync.Mutex
+	runtimeStarted bool
+	runtimeStopped bool
+	runtimeWG      sync.WaitGroup
+
 	mu       sync.RWMutex
 	sessions map[string]*OAuthSession
-	stopOnce sync.Once
-	stopCh   chan struct{}
+
+	stopCh chan struct{}
 }
 
 // NewSessionStore creates a new session store
@@ -57,18 +62,34 @@ func NewSessionStore() *SessionStore {
 		sessions: make(map[string]*OAuthSession),
 		stopCh:   make(chan struct{}),
 	}
-	go store.cleanup()
+
 	return store
 }
 
 // Stop stops the cleanup goroutine
-func (s *SessionStore) Stop() {
-	s.stopOnce.Do(func() {
-		close(s.stopCh)
-	})
+// Start 显式启动当前会话实例的清理循环。
+func (s *SessionStore) Start() {
+	s.runtimeMu.Lock()
+	defer s.runtimeMu.Unlock()
+	if s.runtimeStarted || s.runtimeStopped {
+		return
+	}
+	s.runtimeStarted = true
+	s.runtimeWG.Add(1)
+	go func() { defer s.runtimeWG.Done(); s.cleanup() }()
 }
 
-// Set stores a session
+// Stop 幂等停止并等待清理循环，未启动实例也可安全关闭。
+func (s *SessionStore) Stop() {
+	s.runtimeMu.Lock()
+	if !s.runtimeStopped {
+		s.runtimeStopped = true
+		close(s.stopCh)
+	}
+	s.runtimeMu.Unlock()
+	s.runtimeWG.Wait()
+}
+
 func (s *SessionStore) Set(sessionID string, session *OAuthSession) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

@@ -246,6 +246,13 @@ func (l *openAIWSConnLease) Release() {
 	}
 	l.conn.release()
 	if l.pool != nil {
+		l.pool.runtimeMu.Lock()
+		closed := l.pool.closed
+		l.pool.runtimeMu.Unlock()
+		if closed {
+			l.pool.evictConn(l.accountID, l.conn.id)
+			return
+		}
 		l.pool.notifyAccountPoolChanged(l.accountID)
 	}
 }
@@ -643,7 +650,13 @@ type openAIWSPoolMetrics struct {
 }
 
 type openAIWSConnPool struct {
-	cfg *config.Config
+	runtimeMu     sync.Mutex
+	closed        bool
+	acquireWG     sync.WaitGroup
+	prewarmWG     sync.WaitGroup
+	prewarmCtx    context.Context
+	prewarmCancel context.CancelFunc
+	cfg           *config.Config
 	// 通过接口解耦底层 WS 客户端实现，默认使用 coder/websocket。
 	clientDialer openAIWSClientDialer
 
@@ -663,6 +676,7 @@ func newOpenAIWSConnPool(cfg *config.Config) *openAIWSConnPool {
 		clientDialer: newDefaultOpenAIWSClientDialer(),
 		workerStopCh: make(chan struct{}),
 	}
+	pool.prewarmCtx, pool.prewarmCancel = context.WithCancel(context.Background())
 	pool.startBackgroundWorkers()
 	return pool
 }
@@ -706,26 +720,40 @@ func (p *openAIWSConnPool) Close() {
 	if p == nil {
 		return
 	}
+
 	p.closeOnce.Do(func() {
+		p.runtimeMu.Lock()
+		p.closed = true
+		if p.prewarmCancel != nil {
+			p.prewarmCancel()
+		}
 		if p.workerStopCh != nil {
 			close(p.workerStopCh)
 		}
-		p.workerWg.Wait()
-		// 遍历所有账户池，关闭全部空闲连接。
-		p.accounts.Range(func(key, value any) bool {
-			ap, ok := value.(*openAIWSAccountPool)
-			if !ok || ap == nil {
-				return true
-			}
-			ap.mu.Lock()
-			for _, conn := range ap.conns {
-				if conn != nil && !conn.isLeased() {
-					conn.close()
+		p.runtimeMu.Unlock()
+		closeConnections := func() {
+			p.accounts.Range(func(_, value any) bool {
+				ap, ok := value.(*openAIWSAccountPool)
+				if !ok || ap == nil {
+					return true
 				}
-			}
-			ap.mu.Unlock()
-			return true
-		})
+				ap.mu.Lock()
+				for _, conn := range ap.conns {
+					if conn != nil && !conn.isLeased() {
+						conn.close()
+					}
+				}
+				ap.signalChangedLocked()
+				ap.mu.Unlock()
+				return true
+			})
+		}
+		// 保留在途租约的原请求取消策略；租约返回时再关闭，空闲和迟到连接在这里回收。
+		closeConnections()
+		p.workerWg.Wait()
+		p.acquireWG.Wait()
+		p.prewarmWG.Wait()
+		closeConnections()
 	})
 }
 
@@ -866,6 +894,16 @@ func (p *openAIWSConnPool) runBackgroundCleanupSweep(now time.Time) {
 
 func (p *openAIWSConnPool) Acquire(ctx context.Context, req openAIWSAcquireRequest) (*openAIWSConnLease, error) {
 	if p != nil {
+		p.runtimeMu.Lock()
+		if p.closed {
+			p.runtimeMu.Unlock()
+			return nil, errOpenAIWSConnClosed
+		}
+		p.acquireWG.Add(1)
+		p.runtimeMu.Unlock()
+		defer p.acquireWG.Done()
+	}
+	if p != nil {
 		p.metrics.acquireTotal.Add(1)
 	}
 	return p.acquire(ctx, cloneOpenAIWSAcquireRequest(req), 0)
@@ -880,6 +918,12 @@ func (p *openAIWSConnPool) acquire(ctx context.Context, req openAIWSAcquireReque
 	}
 
 retryAcquire:
+	p.runtimeMu.Lock()
+	closed := p.closed
+	p.runtimeMu.Unlock()
+	if closed {
+		return nil, errOpenAIWSConnClosed
+	}
 	accountID := req.Account.ID
 	compatibility := normalizeOpenAIWSHandshakeCompatibility(req.Account, req.Headers)
 	routingAffinity := normalizeOpenAIWSRoutingAffinity(req.Headers)
@@ -1601,6 +1645,12 @@ func (p *openAIWSConnPool) ensureTargetIdleAsync(accountID int64) {
 		return
 	}
 
+	p.runtimeMu.Lock()
+	defer p.runtimeMu.Unlock()
+	if p.closed {
+		return
+	}
+
 	var req openAIWSAcquireRequest
 	generation := uint64(0)
 	need := 0
@@ -1645,7 +1695,8 @@ func (p *openAIWSConnPool) ensureTargetIdleAsync(accountID int64) {
 	ap.creating += need
 	p.metrics.scaleUpTotal.Add(int64(need))
 
-	go p.prewarmConns(accountID, req, need, generation)
+	p.prewarmWG.Add(1)
+	go func() { defer p.prewarmWG.Done(); p.prewarmConns(accountID, req, need, generation) }()
 }
 
 func (p *openAIWSConnPool) targetConnCountLocked(ap *openAIWSAccountPool, maxConns int) int {
@@ -1709,7 +1760,11 @@ func (p *openAIWSConnPool) prewarmConns(accountID int64, req openAIWSAcquireRequ
 	}()
 
 	for i := 0; i < total; i++ {
-		ctx, cancel := context.WithTimeout(context.Background(), p.dialTimeout()+openAIWSConnPrewarmExtraDelay)
+		parent := p.prewarmCtx
+		if parent == nil {
+			parent = context.Background()
+		}
+		ctx, cancel := context.WithTimeout(parent, p.dialTimeout()+openAIWSConnPrewarmExtraDelay)
 		conn, err := p.dialConn(ctx, req)
 		cancel()
 

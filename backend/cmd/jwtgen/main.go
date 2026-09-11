@@ -8,6 +8,7 @@ import (
 	"time"
 
 	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
+	"github.com/TokenFlux/TokenRouter/internal/app/bootstrap"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/repository"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -22,7 +23,7 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	client, sqlDB, err := repository.InitEnt(cfg)
+	client, sqlDB, err := bootstrap.InitEnt(context.Background(), cfg)
 	if err != nil {
 		log.Fatalf("failed to init db: %v", err)
 	}

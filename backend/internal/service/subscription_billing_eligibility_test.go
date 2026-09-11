@@ -37,6 +37,7 @@ func newBillingEligibilityService(t *testing.T, balance float64) *BillingCacheSe
 	svc := NewBillingCacheService(nil, &mockUserRepo{
 		getByIDUser: &User{ID: 1, Balance: balance},
 	}, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeStandard}, nil)
+	svc.Start()
 	t.Cleanup(svc.Stop)
 	return svc
 }
@@ -139,6 +140,7 @@ func TestBillingEligibility_BalanceModeIgnoresProvidedSubscription(t *testing.T)
 func TestBillingEligibility_UnlimitedSubscriptionDoesNotRequireBalance(t *testing.T) {
 	now := time.Now()
 	svc := NewBillingCacheService(nil, nil, nil, nil, nil, nil, &config.Config{RunMode: config.RunModeStandard}, nil)
+	svc.Start()
 	t.Cleanup(svc.Stop)
 
 	err := svc.CheckBillingEligibility(

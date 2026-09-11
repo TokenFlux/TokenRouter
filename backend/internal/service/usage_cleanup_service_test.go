@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,7 +58,7 @@ type cleanupRepoStub struct {
 
 type dashboardRepoStub struct {
 	recomputeErr   error
-	recomputeCalls int
+	recomputeCalls atomic.Int64
 }
 
 func (s *dashboardRepoStub) AggregateRange(ctx context.Context, start, end time.Time) error {
@@ -65,7 +66,7 @@ func (s *dashboardRepoStub) AggregateRange(ctx context.Context, start, end time.
 }
 
 func (s *dashboardRepoStub) RecomputeRange(ctx context.Context, start, end time.Time) error {
-	s.recomputeCalls++
+	s.recomputeCalls.Add(1)
 	return s.recomputeErr
 }
 
@@ -565,6 +566,9 @@ func TestUsageCleanupServiceExecuteTaskDashboardRecomputeError(t *testing.T) {
 	dashboard := NewDashboardAggregationService(dashboardRepo, nil, &config.Config{
 		DashboardAgg: config.DashboardAggregationConfig{Enabled: true},
 	})
+	dashboard.Start()
+	t.Cleanup(dashboard.Stop)
+
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, BatchSize: 2}}
 	svc := NewUsageCleanupService(repo, nil, dashboard, cfg)
 	task := &UsageCleanupTask{
@@ -580,7 +584,7 @@ func TestUsageCleanupServiceExecuteTaskDashboardRecomputeError(t *testing.T) {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	require.Len(t, repo.markSucceeded, 1)
-	require.Eventually(t, func() bool { return dashboardRepo.recomputeCalls == 1 }, time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return dashboardRepo.recomputeCalls.Load() == 1 }, time.Second, 10*time.Millisecond)
 }
 
 func TestUsageCleanupServiceExecuteTaskDashboardRecomputeSuccess(t *testing.T) {
@@ -593,6 +597,9 @@ func TestUsageCleanupServiceExecuteTaskDashboardRecomputeSuccess(t *testing.T) {
 	dashboard := NewDashboardAggregationService(dashboardRepo, nil, &config.Config{
 		DashboardAgg: config.DashboardAggregationConfig{Enabled: true},
 	})
+	dashboard.Start()
+	t.Cleanup(dashboard.Stop)
+
 	cfg := &config.Config{UsageCleanup: config.UsageCleanupConfig{Enabled: true, BatchSize: 2}}
 	svc := NewUsageCleanupService(repo, nil, dashboard, cfg)
 	task := &UsageCleanupTask{
@@ -608,7 +615,7 @@ func TestUsageCleanupServiceExecuteTaskDashboardRecomputeSuccess(t *testing.T) {
 	repo.mu.Lock()
 	defer repo.mu.Unlock()
 	require.Len(t, repo.markSucceeded, 1)
-	require.Eventually(t, func() bool { return dashboardRepo.recomputeCalls == 1 }, time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return dashboardRepo.recomputeCalls.Load() == 1 }, time.Second, 10*time.Millisecond)
 }
 
 func TestUsageCleanupServiceExecuteTaskCanceled(t *testing.T) {
@@ -889,4 +896,38 @@ func TestUsageCleanupServiceIsTaskCanceledError(t *testing.T) {
 	_, err := svc.isTaskCanceled(context.Background(), 9)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "status err")
+}
+
+// 手动创建任务立即派发的执行不能只依赖时间轮取消，Stop 要等待它观察到取消并返回。
+type blockingCleanupClaimRepo struct {
+	UsageCleanupRepository
+	entered, canceled, release chan struct{}
+}
+
+func (r *blockingCleanupClaimRepo) ClaimNextPendingTask(ctx context.Context, _ int64) (*UsageCleanupTask, error) {
+	close(r.entered)
+	<-ctx.Done()
+	close(r.canceled)
+	<-r.release
+	return nil, ctx.Err()
+}
+func TestUsageCleanupStopWaitsForManualDispatch(t *testing.T) {
+	repo := &blockingCleanupClaimRepo{entered: make(chan struct{}), canceled: make(chan struct{}), release: make(chan struct{})}
+	svc := NewUsageCleanupService(repo, nil, nil, nil)
+	done := make(chan struct{})
+	go func() { svc.runOnce(); close(done) }()
+	<-repo.entered
+	stopped := make(chan struct{})
+	go func() { svc.Stop(); close(stopped) }()
+	<-repo.canceled
+	select {
+	case <-stopped:
+		t.Fatal("手动任务尚未返回")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(repo.release)
+	<-done
+	<-stopped
+	svc.runOnce()
+	svc.Stop()
 }

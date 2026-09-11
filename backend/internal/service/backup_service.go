@@ -222,9 +222,10 @@ type BackupDownloadResponse struct {
 
 // BackupService 数据库备份恢复服务
 type BackupService struct {
-	settingRepo SettingRepository
-	dbCfg       *config.DatabaseConfig
-	encryptor   SecretEncryptor
+	operationLifecycleMu sync.RWMutex
+	settingRepo          SettingRepository
+	dbCfg                *config.DatabaseConfig
+	encryptor            SecretEncryptor
 	// encryptionKeyConfigured 标记加密密钥是否由部署显式配置；临时密钥不能用于持久化新凭证。
 	encryptionKeyConfigured bool
 	storeFactory            BackupObjectStoreFactory
@@ -358,7 +359,9 @@ func (s *BackupService) cleanupStaleBackupObjects(record *BackupRecord) error {
 
 // Stop 停止定时备份并等待活跃操作完成
 func (s *BackupService) Stop() {
+	s.operationLifecycleMu.Lock()
 	s.shuttingDown.Store(true)
+	s.operationLifecycleMu.Unlock()
 
 	s.cronMu.Lock()
 	if s.cronSched != nil {
@@ -772,6 +775,9 @@ func (s *BackupService) CreateBackup(ctx context.Context, triggeredBy string, ex
 
 // StartBackup 异步创建备份，立即返回 running 状态的记录
 func (s *BackupService) StartBackup(ctx context.Context, triggeredBy string, expireDays int) (*BackupRecord, error) {
+	s.operationLifecycleMu.RLock()
+	defer s.operationLifecycleMu.RUnlock()
+
 	if s.shuttingDown.Load() {
 		return nil, infraerrors.ServiceUnavailable("SERVER_SHUTTING_DOWN", "server is shutting down")
 	}
@@ -1112,6 +1118,9 @@ func (s *BackupService) RestoreBackup(ctx context.Context, backupID string) erro
 
 // StartRestore 异步恢复备份，立即返回
 func (s *BackupService) StartRestore(ctx context.Context, backupID string) (*BackupRecord, error) {
+	s.operationLifecycleMu.RLock()
+	defer s.operationLifecycleMu.RUnlock()
+
 	if s.shuttingDown.Load() {
 		return nil, infraerrors.ServiceUnavailable("SERVER_SHUTTING_DOWN", "server is shutting down")
 	}

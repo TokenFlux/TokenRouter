@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -51,6 +52,10 @@ type DashboardAggregationRepository interface {
 
 // DashboardAggregationService 负责定时聚合与回填。
 type DashboardAggregationService struct {
+	runtimeMu            sync.Mutex
+	runtimeStarted       bool
+	runtimeStopped       bool
+	runtimeWG            sync.WaitGroup
 	repo                 DashboardAggregationRepository
 	analyticsRepo        UsageAnalyticsAggregationRepository
 	timingWheel          *TimingWheelService
@@ -80,7 +85,7 @@ func (s *DashboardAggregationService) SetPreAggregationSettings(settings *PreAgg
 		settings.RegisterListener(func(previous, next PreAggregationSettings) {
 			if (!previous.Usage.Enabled && next.Usage.Enabled) || previous.Usage.IntervalSeconds != next.Usage.IntervalSeconds {
 				s.lastScheduledAt.Store(0)
-				go s.runScheduledAggregation()
+				s.runBackground(s.runScheduledAggregation)
 			}
 		})
 	}
@@ -111,6 +116,14 @@ func (s *DashboardAggregationService) SetLeaderLock(lockCache LeaderLockCache, d
 
 // Start 启动定时聚合作业；实际启停和周期由统一运行时配置决定。
 func (s *DashboardAggregationService) Start() {
+	s.runtimeMu.Lock()
+	if s.runtimeStarted || s.runtimeStopped {
+		s.runtimeMu.Unlock()
+		return
+	}
+	s.runtimeStarted = true
+	s.runtimeMu.Unlock()
+
 	if s == nil || s.repo == nil || s.timingWheel == nil {
 		return
 	}
@@ -120,13 +133,13 @@ func (s *DashboardAggregationService) Start() {
 	}
 
 	if s.cfg.RecomputeDays > 0 && s.analyticsRepo == nil {
-		go s.recomputeRecentDays()
+		s.runBackground(s.recomputeRecentDays)
 	}
 
 	s.timingWheel.ScheduleRecurring("dashboard:aggregation", dashboardAggregationSchedulerTick, func() {
 		s.runScheduledAggregation()
 	})
-	go s.runScheduledAggregation()
+	s.runBackground(s.runScheduledAggregation)
 	logger.LegacyPrintf("service.dashboard_aggregation", "[DashboardAggregation] 聚合作业启动 (scheduler_tick=%v, lookback=%ds)", dashboardAggregationSchedulerTick, s.cfg.LookbackSeconds)
 	if !s.cfg.BackfillEnabled {
 		logger.LegacyPrintf("service.dashboard_aggregation", "[DashboardAggregation] 回填已禁用，如需补齐保留窗口以外历史数据请手动回填")
@@ -188,7 +201,7 @@ func (s *DashboardAggregationService) TriggerRecomputeRange(start, end time.Time
 		return errors.New("重新计算时间范围无效")
 	}
 
-	go func() {
+	s.runBackground(func() {
 		const maxRetries = 3
 		for i := 0; i < maxRetries; i++ {
 			ctx, cancel := context.WithTimeout(context.Background(), defaultDashboardAggregationBackfillTimeout)
@@ -204,7 +217,7 @@ func (s *DashboardAggregationService) TriggerRecomputeRange(start, end time.Time
 			time.Sleep(5 * time.Second)
 		}
 		logger.LegacyPrintf("service.dashboard_aggregation", "[DashboardAggregation] 重新计算放弃: 聚合作业持续占用")
-	}()
+	})
 	return nil
 }
 
@@ -452,7 +465,7 @@ func (s *DashboardAggregationService) TriggerNow() {
 		return
 	}
 	s.lastScheduledAt.Store(0)
-	go s.runScheduledAggregation()
+	s.runBackground(s.runScheduledAggregation)
 }
 
 // RuntimeStatus 返回设置页面所需的多维聚合状态。
@@ -793,4 +806,26 @@ func maxInt64(a, b int64) int64 {
 func truncateToDayUTC(t time.Time) time.Time {
 	t = t.UTC()
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
+}
+
+// runBackground 将启动和设置更新触发的工作纳入同一停止屏障。
+func (s *DashboardAggregationService) runBackground(fn func()) {
+	s.runtimeMu.Lock()
+	defer s.runtimeMu.Unlock()
+	if !s.runtimeStarted || s.runtimeStopped {
+		return
+	}
+	s.runtimeWG.Add(1)
+	go func() { defer s.runtimeWG.Done(); fn() }()
+}
+
+// Stop 先停止产生新聚合工作，再等待时间轮回调与已唤醒的任务。
+func (s *DashboardAggregationService) Stop() {
+	s.runtimeMu.Lock()
+	s.runtimeStopped = true
+	s.runtimeMu.Unlock()
+	if s.timingWheel != nil {
+		s.timingWheel.CancelAndWait("dashboard:aggregation")
+	}
+	s.runtimeWG.Wait()
 }

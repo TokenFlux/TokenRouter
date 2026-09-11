@@ -4,6 +4,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	sitehttpapi "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 
 	"github.com/google/wire"
 )
@@ -14,7 +15,7 @@ func ProvideAdminHandlers(
 	userHandler *admin.UserHandler,
 	groupHandler *admin.GroupHandler,
 	accountHandler *admin.AccountHandler,
-	announcementHandler *admin.AnnouncementHandler,
+	announcementHandler *sitehttpapi.AdminAnnouncementHandler,
 	dataManagementHandler *admin.DataManagementHandler,
 	backupHandler *admin.BackupHandler,
 	oauthHandler *admin.OAuthHandler,
@@ -105,8 +106,8 @@ func ProvideOpenAIGatewayHandler(
 }
 
 // ProvideSystemHandler creates admin.SystemHandler with UpdateService
-func ProvideSystemHandler(updateService *service.UpdateService, lockService *service.SystemOperationLockService) *admin.SystemHandler {
-	return admin.NewSystemHandler(updateService, lockService)
+func ProvideSystemHandler(updateService *service.UpdateService, lockService *service.SystemOperationLockService, restarter admin.RestartRequester) *admin.SystemHandler {
+	return admin.NewSystemHandler(updateService, lockService, restarter)
 }
 
 // ProvideSettingHandler creates SettingHandler with version from BuildInfo
@@ -147,7 +148,7 @@ func ProvideHandlers(
 	usageHandler *UsageHandler,
 	redeemHandler *RedeemHandler,
 	subscriptionHandler *SubscriptionHandler,
-	announcementHandler *AnnouncementHandler,
+	announcementHandler *sitehttpapi.AnnouncementHandler,
 	modelMarketplaceHandler *ModelMarketplaceHandler,
 	adminHandlers *AdminHandlers,
 	gatewayHandler *GatewayHandler,
@@ -197,7 +198,7 @@ var ProviderSet = wire.NewSet(
 	NewUsageHandler,
 	NewRedeemHandler,
 	NewSubscriptionHandler,
-	NewAnnouncementHandler,
+	sitehttpapi.NewAnnouncementHandler,
 	NewModelMarketplaceHandler,
 	NewGatewayHandler,
 	ProvideOpenAIGatewayHandler,
@@ -216,7 +217,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewUserHandler,
 	admin.NewGroupHandler,
 	admin.ProvideAccountHandler,
-	admin.NewAnnouncementHandler,
+	sitehttpapi.NewAdminAnnouncementHandler,
 	admin.NewDataManagementHandler,
 	admin.NewBackupHandler,
 	admin.NewOAuthHandler,

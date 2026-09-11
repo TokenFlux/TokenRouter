@@ -90,6 +90,8 @@ func TestQoderGatewayErrorDetailsAppliesPassthroughRule(t *testing.T) {
 			},
 		},
 	}, nil)
+	svc.Start()
+	t.Cleanup(svc.Stop)
 	h := &QoderGatewayHandler{errorPassthroughService: svc}
 
 	gin.SetMode(gin.TestMode)

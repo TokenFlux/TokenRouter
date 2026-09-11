@@ -26,6 +26,7 @@ func TestAPIKeyServiceManagedKeyHidden(t *testing.T) {
 	}
 	repo := &apiKeyRepoStub{apiKey: managed}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, nil, nil)
+	svc.Start()
 
 	// 详情：managed key 返回 404 语义错误，不泄露任何字段。
 	got, err := svc.GetByID(ctx, 42)

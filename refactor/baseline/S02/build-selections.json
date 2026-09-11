@@ -1,0 +1,133 @@
+[
+  {
+    "label": "normal",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "./..."
+    ],
+    "GOOS": "darwin",
+    "exit_code": 0,
+    "packages": 137,
+    "errors": [],
+    "duration_seconds": 0.563,
+    "data": "selection-normal.json",
+    "stderr": ""
+  },
+  {
+    "label": "unit",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=unit",
+      "./..."
+    ],
+    "GOOS": "darwin",
+    "exit_code": 0,
+    "packages": 137,
+    "errors": [],
+    "duration_seconds": 0.624,
+    "data": "selection-unit.json",
+    "stderr": ""
+  },
+  {
+    "label": "integration",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=integration",
+      "./..."
+    ],
+    "GOOS": "darwin",
+    "exit_code": 0,
+    "packages": 137,
+    "errors": [],
+    "duration_seconds": 0.665,
+    "data": "selection-integration.json",
+    "stderr": ""
+  },
+  {
+    "label": "e2e",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=e2e",
+      "./..."
+    ],
+    "GOOS": "darwin",
+    "exit_code": 0,
+    "packages": 138,
+    "errors": [],
+    "duration_seconds": 0.642,
+    "data": "selection-e2e.json",
+    "stderr": ""
+  },
+  {
+    "label": "embed",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=embed",
+      "./..."
+    ],
+    "GOOS": "darwin",
+    "exit_code": 0,
+    "packages": 137,
+    "errors": [],
+    "duration_seconds": 0.675,
+    "data": "selection-embed.json",
+    "stderr": ""
+  },
+  {
+    "label": "wireinject",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "-tags=wireinject",
+      "./..."
+    ],
+    "GOOS": "darwin",
+    "exit_code": 0,
+    "packages": 137,
+    "errors": [],
+    "duration_seconds": 0.661,
+    "data": "selection-wireinject.json",
+    "stderr": ""
+  },
+  {
+    "label": "linux",
+    "command": [
+      "go",
+      "list",
+      "-e",
+      "-json",
+      "-test",
+      "./..."
+    ],
+    "GOOS": "linux",
+    "exit_code": 0,
+    "packages": 137,
+    "errors": [],
+    "duration_seconds": 0.656,
+    "data": "selection-linux.json",
+    "stderr": ""
+  }
+]

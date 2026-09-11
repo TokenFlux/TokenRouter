@@ -1,0 +1,17 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "--build-tags=integration",
+    "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S02/uncapped-lint-current-integration.json",
+    "./..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "duration_seconds": 28.389,
+  "log": "logs/uncapped-lint-current-integration.log.gz"
+}

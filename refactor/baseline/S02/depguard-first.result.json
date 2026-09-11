@@ -1,0 +1,20 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--enable-only=depguard",
+    "--timeout=10m",
+    "./..."
+  ],
+  "date": "2026-09-11T03:33:36.751633+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "duration_seconds": 1.409,
+  "test_events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/depguard-first.log.gz"
+}

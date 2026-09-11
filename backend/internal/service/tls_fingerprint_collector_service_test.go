@@ -224,3 +224,12 @@ func appendUint16(dst []byte, v uint16) []byte {
 	binary.BigEndian.PutUint16(buf[:], v)
 	return append(dst, buf[:]...)
 }
+
+// 进程退出封闭按需监听入口，不能在服务关闭后再次启动捕获器。
+func TestTLSFingerprintCollectorShutdownSealsStart(t *testing.T) {
+	svc := NewTLSFingerprintCollectorService(&config.Config{})
+	require.NoError(t, svc.Shutdown(context.Background()))
+	_, err := svc.Start(context.Background())
+	require.ErrorContains(t, err, "shutting down")
+	require.NoError(t, svc.Shutdown(context.Background()))
+}

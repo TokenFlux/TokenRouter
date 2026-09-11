@@ -68,11 +68,6 @@ func ProvideCreativeWorkerRuntime(
 ) *CreativeWorkerRuntime {
 	worker := NewCreativeRunWorker(queue, repo, store, executor, creativeService, NewCreativeWorkerOptionsFromConfig(cfg), concurrencyService)
 	runtime := NewCreativeWorkerRuntime(worker, cfg, settingService)
-	if settingService != nil {
-		settingService.SetCreativeWorkerCountCallback(runtime.SetWorkerCount)
-		settingService.SetCreativeWorkerStatusCallback(runtime.Status)
-	}
-	runtime.Start()
 	return runtime
 }
 

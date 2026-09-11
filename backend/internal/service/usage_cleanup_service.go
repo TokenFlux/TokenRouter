@@ -29,9 +29,12 @@ type UsageCleanupService struct {
 	dashboard   *DashboardAggregationService
 	cfg         *config.Config
 
-	running   int32
-	startOnce sync.Once
-	stopOnce  sync.Once
+	running     int32
+	startOnce   sync.Once
+	stopOnce    sync.Once
+	lifecycleMu sync.Mutex
+	stopped     bool
+	workWG      sync.WaitGroup
 
 	workerCtx    context.Context
 	workerCancel context.CancelFunc
@@ -87,6 +90,11 @@ func (s *UsageCleanupService) Start() {
 	if s == nil {
 		return
 	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.stopped {
+		return
+	}
 	if s.cfg != nil && !s.cfg.UsageCleanup.Enabled {
 		logger.LegacyPrintf("service.usage_cleanup", "[UsageCleanup] not started (disabled)")
 		return
@@ -108,12 +116,17 @@ func (s *UsageCleanupService) Stop() {
 		return
 	}
 	s.stopOnce.Do(func() {
+		s.lifecycleMu.Lock()
+		s.stopped = true
 		if s.workerCancel != nil {
 			s.workerCancel()
 		}
+		s.lifecycleMu.Unlock()
 		if s.timingWheel != nil {
-			s.timingWheel.Cancel(usageCleanupWorkerName)
+			s.timingWheel.CancelAndWait(usageCleanupWorkerName)
 		}
+		// CreateTask 也会立即派发 runOnce，必须与时间轮路径一起等待。
+		s.workWG.Wait()
 		logger.LegacyPrintf("service.usage_cleanup", "[UsageCleanup] stopped")
 	})
 }
@@ -158,6 +171,17 @@ func (s *UsageCleanupService) CreateTask(ctx context.Context, filters UsageClean
 }
 
 func (s *UsageCleanupService) runOnce() {
+	if s == nil {
+		return
+	}
+	s.lifecycleMu.Lock()
+	if s.stopped {
+		s.lifecycleMu.Unlock()
+		return
+	}
+	s.workWG.Add(1)
+	s.lifecycleMu.Unlock()
+	defer s.workWG.Done()
 	svc := s
 	if svc == nil {
 		return

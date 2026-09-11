@@ -98,6 +98,7 @@ var (
 	opsErrorLogQueue chan opsErrorLogJob
 
 	opsErrorLogStopOnce   sync.Once
+	opsErrorLogStopDone   chan struct{}
 	opsErrorLogWorkersWg  sync.WaitGroup
 	opsErrorLogMu         sync.RWMutex
 	opsErrorLogStopping   bool
@@ -128,12 +129,13 @@ func startOpsErrorLogWorkers() {
 	opsErrorLogQueueLen.Store(0)
 	opsErrorLogQueueBytes.Store(0)
 
+	queue := opsErrorLogQueue
 	opsErrorLogWorkersWg.Add(workerCount)
 	for i := 0; i < workerCount; i++ {
 		go func() {
 			defer opsErrorLogWorkersWg.Done()
 			for {
-				job, ok := <-opsErrorLogQueue
+				job, ok := <-queue
 				if !ok {
 					return
 				}
@@ -146,7 +148,7 @@ func startOpsErrorLogWorkers() {
 			batchLoop:
 				for len(batch) < opsErrorLogBatchSize {
 					select {
-					case nextJob, ok := <-opsErrorLogQueue:
+					case nextJob, ok := <-queue:
 						if !ok {
 							if !timer.Stop() {
 								select {
@@ -271,45 +273,39 @@ func normalizeOpsPersistentUserAgent(value string) string {
 	return truncateString(strings.TrimSpace(strings.ToValidUTF8(value, "")), opsErrorLogMaxUserAgentBytes)
 }
 
+// StopOpsErrorLogWorkers 保留旧十秒调用约定，实际关闭只执行一次。
 func StopOpsErrorLogWorkers() bool {
-	opsErrorLogStopOnce.Do(func() {
-		opsErrorLogShutdownOnce.Do(func() {
-			close(opsErrorLogShutdownCh)
-		})
-		opsErrorLogDrained.Store(stopOpsErrorLogWorkers())
-	})
-	return opsErrorLogDrained.Load()
+	ctx, cancel := context.WithTimeout(context.Background(), opsErrorLogDrainTimeout)
+	defer cancel()
+	return ShutdownOpsErrorLogWorkers(ctx) == nil
 }
 
-func stopOpsErrorLogWorkers() bool {
-	opsErrorLogMu.Lock()
-	opsErrorLogStopping = true
-	ch := opsErrorLogQueue
-	if ch != nil {
-		close(ch)
-	}
-	opsErrorLogQueue = nil
-	opsErrorLogMu.Unlock()
-
-	if ch == nil {
-		opsErrorLogQueueLen.Store(0)
-		opsErrorLogQueueBytes.Store(0)
-		return true
-	}
-
-	done := make(chan struct{})
-	go func() {
-		opsErrorLogWorkersWg.Wait()
-		close(done)
-	}()
-
+// ShutdownOpsErrorLogWorkers 封闭入队并等待批次真正处理完毕，由组合根提供总预算。
+func ShutdownOpsErrorLogWorkers(ctx context.Context) error {
+	opsErrorLogStopOnce.Do(func() {
+		opsErrorLogShutdownOnce.Do(func() { close(opsErrorLogShutdownCh) })
+		opsErrorLogMu.Lock()
+		opsErrorLogStopping = true
+		queue := opsErrorLogQueue
+		opsErrorLogQueue = nil
+		opsErrorLogStopDone = make(chan struct{})
+		if queue != nil {
+			close(queue)
+		}
+		opsErrorLogMu.Unlock()
+		go func() {
+			opsErrorLogWorkersWg.Wait()
+			opsErrorLogQueueLen.Store(0)
+			opsErrorLogQueueBytes.Store(0)
+			opsErrorLogDrained.Store(true)
+			close(opsErrorLogStopDone)
+		}()
+	})
 	select {
-	case <-done:
-		opsErrorLogQueueLen.Store(0)
-		opsErrorLogQueueBytes.Store(0)
-		return true
-	case <-time.After(opsErrorLogDrainTimeout):
-		return false
+	case <-opsErrorLogStopDone:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 

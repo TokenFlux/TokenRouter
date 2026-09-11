@@ -396,7 +396,7 @@ func (s *BatchImagePublicService) Submit(ctx context.Context, owner BatchImageOw
 
 	hbCtx, hbCancel := context.WithCancel(ctx)
 	hbDone := make(chan struct{})
-	go s.runSubmitHeartbeat(hbCtx, job.BatchID, hbDone)
+	RunBackgroundTask("service/batch_image_public.go:Submit", BackgroundCall3(s.runSubmitHeartbeat, hbCtx, job.BatchID, hbDone))
 	providerJob, err := provider.Submit(ctx, job, account, input)
 	hbCancel()
 	<-hbDone

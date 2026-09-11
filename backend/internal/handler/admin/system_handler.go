@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/sysutil"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
@@ -18,7 +17,10 @@ import (
 )
 
 // SystemHandler handles system-related operations
+// RestartRequester 只请求进程关闭，不授予 handler 直接退出进程的能力。
+type RestartRequester interface{ RequestRestart() error }
 type SystemHandler struct {
+	restarter RestartRequester
 	updateSvc systemUpdateService
 	lockSvc   *service.SystemOperationLockService
 }
@@ -48,8 +50,13 @@ type systemUpdateService interface {
 }
 
 // NewSystemHandler creates a new SystemHandler
-func NewSystemHandler(updateSvc systemUpdateService, lockSvc *service.SystemOperationLockService) *SystemHandler {
+func NewSystemHandler(updateSvc systemUpdateService, lockSvc *service.SystemOperationLockService, restarters ...RestartRequester) *SystemHandler {
+	var restarter RestartRequester
+	if len(restarters) > 0 {
+		restarter = restarters[0]
+	}
 	return &SystemHandler{
+		restarter: restarter,
 		updateSvc: updateSvc,
 		lockSvc:   lockSvc,
 	}
@@ -208,13 +215,12 @@ func (h *SystemHandler) RestartService(c *gin.Context) {
 			release("", succeeded)
 		}()
 
-		// Schedule service restart in background after sending response
-		// This ensures the client receives the success response before the service restarts
-		go func() {
-			// Wait a moment to ensure the response is sent
-			time.Sleep(500 * time.Millisecond)
-			sysutil.RestartServiceAsync()
-		}()
+		if h.restarter != nil {
+			if err := h.restarter.RequestRestart(); err != nil {
+				return nil, err
+			}
+		}
+
 		succeeded = true
 		return gin.H{
 			"message":      "Service restart initiated",

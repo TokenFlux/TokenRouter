@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -50,6 +52,11 @@ const defaultFlushBatchSize = 1000
 // UserPlatformQuotaUsageFlusher 将 Redis 脏集快照定期批量写入 DB。
 // 不维护任何 delta/in-process 状态；每批读取 Redis 当前绝对值覆盖写入。
 type UserPlatformQuotaUsageFlusher struct {
+	flushMu     sync.Mutex
+	stopOnce    sync.Once
+	lifecycleMu sync.Mutex
+	started     bool
+	stopErr     error
 	cache       quotaDirtyCache
 	quotaRepo   quotaSnapshotWriter
 	timingWheel *TimingWheelService
@@ -226,6 +233,8 @@ func (s *UserPlatformQuotaUsageFlusher) flush() {
 	if s == nil {
 		return
 	}
+	s.flushMu.Lock()
+	defer s.flushMu.Unlock()
 	parentCtx := context.Background()
 	for b := 0; b < flusherMaxBatchesPerTick; b++ {
 		if !s.flushOneBatch(parentCtx) {
@@ -253,21 +262,54 @@ func (s *UserPlatformQuotaUsageFlusher) Start() {
 	if s == nil || !s.enabled {
 		return
 	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.started || s.stopped.Load() {
+		return
+	}
 	if s.timingWheel == nil {
 		logger.LegacyPrintf("quota_flusher", "[QuotaFlusher] timing wheel 为空,跳过启动")
 		return
 	}
+	s.started = true
 	s.timingWheel.ScheduleRecurring("deferred:platform_quota", s.interval, s.tick)
 }
 
 // Stop 停止 flusher：标记 stopped → Cancel 定时器 → 执行最后一次 flush。
 func (s *UserPlatformQuotaUsageFlusher) Stop() {
+	_ = s.Shutdown(context.Background())
+}
+
+// Shutdown 保持单批写回及失败回填策略，退出时继续处理超过周期上限的积压。
+// 数据库失败或预算到期必须报告未排空，不能把停止周期任务当作 drain 成功。
+func (s *UserPlatformQuotaUsageFlusher) Shutdown(ctx context.Context) error {
 	if s == nil {
-		return
+		return nil
 	}
-	s.stopped.Store(true)
-	if s.timingWheel != nil {
-		s.timingWheel.Cancel("deferred:platform_quota")
-	}
-	s.flush()
+	s.stopOnce.Do(func() {
+		s.lifecycleMu.Lock()
+		s.stopped.Store(true)
+		s.lifecycleMu.Unlock()
+		if s.timingWheel != nil {
+			s.timingWheel.CancelAndWait("deferred:platform_quota")
+		}
+		s.flushMu.Lock()
+		defer s.flushMu.Unlock()
+		for {
+			if err := ctx.Err(); err != nil {
+				s.stopErr = err
+				return
+			}
+			errorsBefore := s.metrics.FlushErrorTotal.Load()
+			more := s.flushOneBatch(ctx)
+			if s.metrics.FlushErrorTotal.Load() != errorsBefore {
+				s.stopErr = fmt.Errorf("platform quota final flush incomplete: inspect quota_flusher errors")
+				return
+			}
+			if !more {
+				return
+			}
+		}
+	})
+	return s.stopErr
 }

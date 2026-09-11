@@ -40,11 +40,12 @@ return 0
 // - Multi-instance: best-effort Redis leader lock so only one node runs cleanup.
 // - Safety: deletes in batches to avoid long transactions.
 type OpsCleanupService struct {
-	opsRepo     OpsRepository
-	db          *sql.DB
-	redisClient *redis.Client
-	cfg         *config.Config
-	settingRepo SettingRepository
+	drainingCrons []context.Context
+	opsRepo       OpsRepository
+	db            *sql.DB
+	redisClient   *redis.Client
+	cfg           *config.Config
+	settingRepo   SettingRepository
 
 	instanceID string
 
@@ -103,17 +104,22 @@ func (s *OpsCleanupService) Start() {
 }
 
 // Stop 关闭 cron。幂等。
+// Stop 在锁外等待所有已退出调度的 cron，包括此前 Reload 留下的在途作业。
 func (s *OpsCleanupService) Stop() {
 	if s == nil {
 		return
 	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.stopped {
-		return
-	}
 	s.stopped = true
-	s.stopCronLocked()
+	if s.cron != nil {
+		s.drainingCrons = append(s.drainingCrons, s.cron.Stop())
+		s.cron = nil
+	}
+	pending := append([]context.Context(nil), s.drainingCrons...)
+	s.mu.Unlock()
+	for _, ctx := range pending {
+		<-ctx.Done()
+	}
 }
 
 // stopCronLocked 停掉当前 cron 实例（带 3s 超时）。调用方持锁。
@@ -122,6 +128,15 @@ func (s *OpsCleanupService) stopCronLocked() {
 		return
 	}
 	ctx := s.cron.Stop()
+	pending := s.drainingCrons[:0]
+	for _, previous := range s.drainingCrons {
+		select {
+		case <-previous.Done():
+		default:
+			pending = append(pending, previous)
+		}
+	}
+	s.drainingCrons = append(pending, ctx)
 	select {
 	case <-ctx.Done():
 	case <-time.After(opsCleanupCronStopTimeout):

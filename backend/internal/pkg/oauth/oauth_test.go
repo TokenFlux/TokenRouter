@@ -41,6 +41,7 @@ func TestAuthorizeURLMatchesClaudeCodeCLI(t *testing.T) {
 
 func TestSessionStore_Stop_Idempotent(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 
 	store.Stop()
 	store.Stop()
@@ -55,6 +56,7 @@ func TestSessionStore_Stop_Idempotent(t *testing.T) {
 
 func TestSessionStore_Stop_Concurrent(t *testing.T) {
 	store := NewSessionStore()
+	store.Start()
 
 	var wg sync.WaitGroup
 	for range 50 {

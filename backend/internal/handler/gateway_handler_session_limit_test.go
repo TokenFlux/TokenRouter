@@ -90,6 +90,7 @@ func newGatewaySessionLimitFixture(t *testing.T, accountType string, failover bo
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	snapshots := service.NewSchedulerSnapshotService(&fakeSchedulerCache{accounts: accounts}, nil, nil, nil, nil)
 	billingCache := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingCache.Start()
 	t.Cleanup(billingCache.Stop)
 	gateway := service.NewGatewayService(
 		nil, &fakeGroupRepo{group: group}, nil, nil, nil, nil, nil, nil, cfg, snapshots, nil,

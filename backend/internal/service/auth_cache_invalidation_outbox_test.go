@@ -228,6 +228,7 @@ func TestAuthCacheInvalidationSubscriber_RetriesInitialFailureAndStops(t *testin
 		return ctx.Err()
 	}}
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, cache, nil)
+	svc.Start()
 	localCache, err := ristretto.NewCache(&ristretto.Config{NumCounters: 10, MaxCost: 1, BufferItems: 64})
 	require.NoError(t, err)
 	defer localCache.Close()
@@ -257,6 +258,7 @@ func TestAuthCacheInvalidationSubscriber_ReconnectsAfterRuntimeDisconnect(t *tes
 		return ctx.Err()
 	}}
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, cache, nil)
+	svc.Start()
 	localCache, err := ristretto.NewCache(&ristretto.Config{NumCounters: 10, MaxCost: 1, BufferItems: 64})
 	require.NoError(t, err)
 	defer localCache.Close()

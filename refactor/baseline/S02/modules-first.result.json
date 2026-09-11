@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/idempotency/...",
+    "./internal/settings/...",
+    "./internal/service",
+    "-run",
+    "Test.*(Idempotency|Setting|Settings)"
+  ],
+  "date": "2026-09-11T02:50:26.084073+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "duration_seconds": 1.09,
+  "test_events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/modules-first.log.gz"
+}

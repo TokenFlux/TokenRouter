@@ -129,6 +129,7 @@ func TestContentModerationCallRoutesThroughProxy(t *testing.T) {
 		7: {ID: 7, Name: "audit-proxy", Protocol: "http", Host: host, Port: port, Status: StatusActive},
 	}}
 	svc := NewContentModerationService(nil, nil, nil, nil, nil, nil, nil)
+	svc.Start()
 	svc.SetProxyRepository(proxyRepo)
 
 	cfg := defaultContentModerationConfig()
@@ -157,6 +158,7 @@ func TestContentModerationProxyResolveFailureDoesNotFallBackToDirect(t *testing.
 
 	proxyRepo := &contentModerationTestProxyRepo{getByIDErr: errors.New("proxy deleted")}
 	svc := NewContentModerationService(nil, nil, nil, nil, nil, nil, nil)
+	svc.Start()
 	svc.SetProxyRepository(proxyRepo)
 
 	cfg := defaultContentModerationConfig()
@@ -180,6 +182,7 @@ func TestContentModerationProxyURLResolutionCached(t *testing.T) {
 		3: {ID: 3, Name: "p", Protocol: "http", Host: "127.0.0.1", Port: 8080, Status: StatusActive},
 	}}
 	svc := NewContentModerationService(nil, nil, nil, nil, nil, nil, nil)
+	svc.Start()
 	svc.SetProxyRepository(proxyRepo)
 
 	for i := 0; i < 5; i++ {
@@ -199,6 +202,7 @@ func TestContentModerationUpdateConfigProxyIDSemantics(t *testing.T) {
 		5: {ID: 5, Name: "p", Protocol: "http", Host: "127.0.0.1", Port: 8080, Status: StatusActive},
 	}}
 	svc := NewContentModerationService(settingRepo, nil, nil, nil, nil, nil, nil)
+	svc.Start()
 	svc.SetProxyRepository(proxyRepo)
 	ctx := context.Background()
 
@@ -264,6 +268,7 @@ func TestContentModerationTestAPIKeysProxySemantics(t *testing.T) {
 		7: {ID: 7, Name: "audit-proxy", Protocol: "http", Host: host, Port: port, Status: StatusActive},
 	}}
 	svc := NewContentModerationService(settingRepo, nil, nil, nil, nil, nil, nil)
+	svc.Start()
 	svc.SetProxyRepository(proxyRepo)
 
 	// nil：沿用已保存配置的代理，测试请求应经过代理成功。

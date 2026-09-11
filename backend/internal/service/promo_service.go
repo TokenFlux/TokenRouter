@@ -152,11 +152,11 @@ func (s *PromoService) ApplyPromoCode(ctx context.Context, userID int64, code st
 
 	// 失效余额缓存
 	if s.billingCacheService != nil {
-		go func() {
+		RunBackgroundTask("service/promo_service.go:ApplyPromoCode", BackgroundCall0(func() {
 			cacheCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
 			_ = s.billingCacheService.InvalidateUserBalance(cacheCtx, userID)
-		}()
+		}))
 	}
 
 	return nil

@@ -227,6 +227,12 @@ const (
 
 // ConcurrencyService 管理账号和用户的并发限制。
 type ConcurrencyService struct {
+	cleanupMu      sync.Mutex
+	cleanupStarted bool
+	cleanupStopped bool
+	cleanupDone    chan struct{}
+	cleanupWG      sync.WaitGroup
+
 	cache ConcurrencyCache
 
 	accountLoadCacheTTL atomic.Int64
@@ -722,6 +728,15 @@ func (s *ConcurrencyService) StartSlotCleanupWorker(_ AccountRepository, interva
 		return
 	}
 
+	s.cleanupMu.Lock()
+	defer s.cleanupMu.Unlock()
+	if s.cleanupStarted || s.cleanupStopped {
+		return
+	}
+	s.cleanupStarted = true
+	s.cleanupDone = make(chan struct{})
+	s.cleanupWG.Add(1)
+
 	runCleanup := func() {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		err := s.cache.CleanupExpiredAccountSlotKeys(cleanupCtx)
@@ -733,14 +748,33 @@ func (s *ConcurrencyService) StartSlotCleanupWorker(_ AccountRepository, interva
 	}
 
 	go func() {
+		defer s.cleanupWG.Done()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 
 		runCleanup()
-		for range ticker.C {
-			runCleanup()
+		for {
+			select {
+			case <-ticker.C:
+				runCleanup()
+			case <-s.cleanupDone:
+				return
+			}
 		}
 	}()
+}
+
+// Stop 等待当前槽清理完成，随后才允许关闭 Redis。
+func (s *ConcurrencyService) Stop() {
+	s.cleanupMu.Lock()
+	if !s.cleanupStopped {
+		s.cleanupStopped = true
+		if s.cleanupDone != nil {
+			close(s.cleanupDone)
+		}
+	}
+	s.cleanupMu.Unlock()
+	s.cleanupWG.Wait()
 }
 
 // GetAccountConcurrencyBatch gets current concurrency counts for multiple accounts.

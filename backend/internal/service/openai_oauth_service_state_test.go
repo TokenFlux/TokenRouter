@@ -41,6 +41,7 @@ func (s *openaiOAuthClientStateStub) RefreshTokenWithClientID(ctx context.Contex
 func TestOpenAIOAuthService_ExchangeCode_StateRequired(t *testing.T) {
 	client := &openaiOAuthClientStateStub{}
 	svc := NewOpenAIOAuthService(nil, client)
+	svc.Start()
 	defer svc.Stop()
 
 	svc.sessionStore.Set("sid", &openai.OAuthSession{
@@ -62,6 +63,7 @@ func TestOpenAIOAuthService_ExchangeCode_StateRequired(t *testing.T) {
 func TestOpenAIOAuthService_ExchangeCode_StateMismatch(t *testing.T) {
 	client := &openaiOAuthClientStateStub{}
 	svc := NewOpenAIOAuthService(nil, client)
+	svc.Start()
 	defer svc.Stop()
 
 	svc.sessionStore.Set("sid", &openai.OAuthSession{
@@ -84,6 +86,7 @@ func TestOpenAIOAuthService_ExchangeCode_StateMismatch(t *testing.T) {
 func TestOpenAIOAuthService_ExchangeCode_StateMatch(t *testing.T) {
 	client := &openaiOAuthClientStateStub{}
 	svc := NewOpenAIOAuthService(nil, client)
+	svc.Start()
 	defer svc.Stop()
 
 	svc.sessionStore.Set("sid", &openai.OAuthSession{
@@ -114,6 +117,7 @@ func TestOpenAIOAuthService_ExchangeCode_UsesRequestTLSRouterConfig(t *testing.T
 	profileID := int64(42)
 	client := &openaiOAuthClientStateStub{}
 	svc := NewOpenAIOAuthService(nil, client)
+	svc.Start()
 	defer svc.Stop()
 	svc.SetTokenTLSRouterDeps(nil, &openAIOAuthTokenRouterReaderStub{routers: map[int64]*model.TLSFingerprintRouter{
 		7: {

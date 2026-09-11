@@ -774,6 +774,11 @@ type ContentModerationHashCache interface {
 }
 
 type ContentModerationService struct {
+	runtimeMu                sync.RWMutex
+	runtimeStarted           bool
+	runtimeStopped           bool
+	runtimeDone              chan struct{}
+	runtimeWG                sync.WaitGroup
 	settingRepo              SettingRepository
 	repo                     ContentModerationRepository
 	hashCache                ContentModerationHashCache
@@ -871,12 +876,6 @@ func NewContentModerationService(
 		asyncQueue:           make(chan contentModerationTask, maxContentModerationQueueSize),
 		keyHealth:            make(map[string]*contentModerationKeyHealth),
 		keySchedule:          make(map[string]int64),
-	}
-	if settingRepo != nil && repo != nil {
-		for i := 0; i < svc.workerCount; i++ {
-			go svc.worker(i)
-		}
-		go svc.cleanupWorker()
 	}
 	return svc
 }
@@ -1825,6 +1824,12 @@ func (s *ContentModerationService) enqueueAsync(input ContentModerationCheckInpu
 	if s == nil || s.asyncQueue == nil {
 		return false
 	}
+	s.runtimeMu.RLock()
+	defer s.runtimeMu.RUnlock()
+	if s.runtimeStopped {
+		return false
+	}
+
 	queueSize := defaultContentModerationQueueSize
 	if cfg != nil && cfg.QueueSize > 0 {
 		queueSize = cfg.QueueSize
@@ -1864,6 +1869,12 @@ func (s *ContentModerationService) enqueueRecord(input ContentModerationCheckInp
 	if s == nil || s.asyncQueue == nil || log == nil {
 		return false
 	}
+	s.runtimeMu.RLock()
+	defer s.runtimeMu.RUnlock()
+	if s.runtimeStopped {
+		return false
+	}
+
 	queueSize := defaultContentModerationQueueSize
 	if cfg != nil && cfg.QueueSize > 0 {
 		queueSize = cfg.QueueSize
@@ -1910,11 +1921,23 @@ func (s *ContentModerationService) enqueueRecord(input ContentModerationCheckInp
 
 func (s *ContentModerationService) worker(id int) {
 	for {
+		select {
+		case <-s.runtimeDone:
+			if len(s.asyncQueue) == 0 {
+				return
+			}
+		default:
+		}
+
 		ctx, cancel := context.WithTimeout(context.Background(), maxContentModerationTimeoutMS*time.Millisecond+10*time.Second)
 		runtimeSnapshot, err := s.loadRuntimeSnapshot(ctx)
 		if err != nil || runtimeSnapshot == nil || runtimeSnapshot.config == nil || id >= runtimeSnapshot.config.WorkerCount {
 			cancel()
-			time.Sleep(time.Second)
+			select {
+			case <-s.runtimeDone:
+				return
+			case <-time.After(time.Second):
+			}
 			continue
 		}
 		cfg := runtimeSnapshot.config
@@ -2400,7 +2423,11 @@ func (s *ContentModerationService) cleanupWorker() {
 	timer := time.NewTimer(contentModerationCleanupDelay)
 	defer timer.Stop()
 	for {
-		<-timer.C
+		select {
+		case <-s.runtimeDone:
+			return
+		case <-timer.C:
+		}
 		s.runCleanupOnce()
 		timer.Reset(contentModerationCleanupInterval)
 	}
@@ -2496,7 +2523,7 @@ func (s *ContentModerationService) triggerRuntimeSnapshotRefresh() {
 		s.runtimeRefreshMu.Unlock()
 		return
 	}
-	go func() {
+	RunBackgroundTask("service/content_moderation.go:triggerRuntimeSnapshotRefresh", BackgroundCall0(func() {
 		defer s.runtimeRefreshMu.Unlock()
 		ctx, cancel := context.WithTimeout(context.Background(), contentModerationRuntimeRefreshTimeout)
 		defer cancel()
@@ -2504,7 +2531,7 @@ func (s *ContentModerationService) triggerRuntimeSnapshotRefresh() {
 			s.runtimeRefreshRetryAt.Store(time.Now().Add(s.runtimeSnapshotTTL()).UnixNano())
 			slog.Warn("content_moderation.runtime_snapshot_refresh_failed", "error", err)
 		}
-	}()
+	}))
 }
 
 func (s *ContentModerationService) runtimeRefreshDeferred() bool {
@@ -4401,4 +4428,41 @@ func maskSecretTail(secret string) string {
 		return "****"
 	}
 	return strings.Repeat("*", 8) + secret[len(secret)-4:]
+}
+
+// Start 在所有依赖与运行参数绑定后启动后台审核。
+func (s *ContentModerationService) Start() {
+	s.runtimeMu.Lock()
+	defer s.runtimeMu.Unlock()
+	if s.runtimeStarted || s.runtimeStopped || s.settingRepo == nil || s.repo == nil {
+		return
+	}
+	s.runtimeStarted = true
+	s.runtimeDone = make(chan struct{})
+	for i := 0; i < s.workerCount; i++ {
+		s.runtimeWG.Add(1)
+		go func() { defer s.runtimeWG.Done(); s.worker(i) }()
+	}
+	s.runtimeWG.Add(1)
+	go func() { defer s.runtimeWG.Done(); s.cleanupWorker() }()
+}
+
+// Stop 返回未排空任务的数量，不能把读取配置失败造成的剩余任务当作成功。
+func (s *ContentModerationService) Stop() error {
+	s.runtimeMu.Lock()
+	if !s.runtimeStopped {
+		s.runtimeStopped = true
+		if s.runtimeDone != nil {
+			close(s.runtimeDone)
+		}
+		if s.asyncQueue != nil {
+			close(s.asyncQueue)
+		}
+	}
+	s.runtimeMu.Unlock()
+	s.runtimeWG.Wait()
+	if n := len(s.asyncQueue); n > 0 {
+		return fmt.Errorf("content moderation drain incomplete: %d tasks", n)
+	}
+	return nil
 }

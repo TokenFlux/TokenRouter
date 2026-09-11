@@ -1,0 +1,27 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/idempotency/...",
+    "./internal/site/...",
+    "./internal/settings/...",
+    "./internal/infra/timingwheel",
+    "./internal/app/lifecycle",
+    "./internal/service",
+    "-run",
+    "Test.*(Setting|Settings|Idempotency|Announcement|TimingWheel|SystemOperation|Deferred|EmailQueue|BillingCache|UsageRecordWorkerPool|ContentModeration|TLSFingerprint|SessionStore|OAuth|DashboardAggregation|Concurrency|APIKey)"
+  ],
+  "date": "2026-09-11T03:34:47.903253+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "duration_seconds": 25.19,
+  "test_events": {
+    "pass": 867,
+    "fail": 2,
+    "skip": 0
+  },
+  "log": "logs/affected-normal-first.log.gz"
+}

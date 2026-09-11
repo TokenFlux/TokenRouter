@@ -295,7 +295,7 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 			return nil, fmt.Errorf("save live call mapping: %w", saveErr)
 		}
 		created.Account = account
-		go s.observeLiveCall(record)
+		RunBackgroundTask("service/openai_live.go:CreateLiveCall", BackgroundCall1(s.observeLiveCall, record))
 		return created, nil
 	}
 	if lastErr != nil {
@@ -900,15 +900,24 @@ func (s *OpenAIGatewayService) observeLiveCall(record *LiveCallRecord) {
 	if record == nil {
 		return
 	}
+	owner := uuid.NewString()
+	ctx, finish, ok := s.beginLiveObserver(owner)
+	if !ok {
+		return
+	}
+	defer finish()
+
 	store, err := s.liveStore()
 	if err != nil {
 		return
 	}
-	owner := uuid.NewString()
-	claimed, claimErr := store.ClaimLiveController(context.Background(), record.CallHash, LiveControllerObserver, owner)
+	claimed, claimErr := store.ClaimLiveController(ctx, record.CallHash, LiveControllerObserver, owner)
+	if ctx.Err() != nil {
+		return
+	}
 	if claimErr != nil {
 		// 无法确认控制权时保留会话快照，到期后幂等 finalize，避免租约和用量记录静默丢失。
-		s.finalizeLiveCallAfterExpiry(record)
+		s.finalizeLiveCallAfterExpiryContext(ctx, record)
 		return
 	}
 	if !claimed {
@@ -916,7 +925,13 @@ func (s *OpenAIGatewayService) observeLiveCall(record *LiveCallRecord) {
 	}
 	storeErrStreak := 0
 	for {
-		latest, getErr := store.GetLiveCall(context.Background(), record.CallHash)
+		if ctx.Err() != nil {
+			return
+		}
+		latest, getErr := store.GetLiveCall(ctx, record.CallHash)
+		if ctx.Err() != nil {
+			return
+		}
 		if getErr != nil {
 			if errors.Is(getErr, ErrLiveCallNotFound) {
 				return
@@ -924,10 +939,12 @@ func (s *OpenAIGatewayService) observeLiveCall(record *LiveCallRecord) {
 			// Redis 抖动不表示控制权已变化；有限重试后按会话到期时间兜底 finalize。
 			storeErrStreak++
 			if storeErrStreak >= liveObserverStoreRetryLimit {
-				s.finalizeLiveCallAfterExpiry(record)
+				s.finalizeLiveCallAfterExpiryContext(ctx, record)
 				return
 			}
-			time.Sleep(liveObserverStoreRetryInterval)
+			if !waitLiveObserver(ctx, liveObserverStoreRetryInterval) {
+				return
+			}
 			continue
 		}
 		storeErrStreak = 0
@@ -939,15 +956,24 @@ func (s *OpenAIGatewayService) observeLiveCall(record *LiveCallRecord) {
 			s.finalizeLiveCall(record)
 			return
 		}
-		upstream, dialErr := s.dialLiveSideband(context.Background(), record)
+		upstream, dialErr := s.dialLiveSideband(ctx, record)
+		if ctx.Err() != nil {
+			if upstream != nil {
+				_ = upstream.Close()
+			}
+			return
+		}
 		if dialErr != nil {
-			if !s.waitForLiveObserverRetry(record) {
+			if !s.waitForLiveObserverRetryContext(ctx, record) {
 				return
 			}
 			continue
 		}
-		runErr := s.runLiveObserverConnection(record, upstream)
+		runErr := s.runLiveObserverConnectionContext(ctx, record, upstream)
 		_ = upstream.Close()
+		if ctx.Err() != nil {
+			return
+		}
 		if errors.Is(runErr, ErrLiveControllerChanged) {
 			return
 		}
@@ -955,14 +981,14 @@ func (s *OpenAIGatewayService) observeLiveCall(record *LiveCallRecord) {
 			s.finalizeLiveCall(record)
 			return
 		}
-		if !s.waitForLiveObserverRetry(record) {
+		if !s.waitForLiveObserverRetryContext(ctx, record) {
 			return
 		}
 	}
 }
 
-func (s *OpenAIGatewayService) runLiveObserverConnection(record *LiveCallRecord, upstream liveFrameConn) error {
-	ctx, cancel := context.WithCancel(context.Background())
+func (s *OpenAIGatewayService) runLiveObserverConnectionContext(parent context.Context, record *LiveCallRecord, upstream liveFrameConn) error {
+	ctx, cancel := context.WithCancel(parent)
 	defer cancel()
 	frameCh := make(chan []byte, 1)
 	errCh := make(chan error, 1)
@@ -994,6 +1020,8 @@ func (s *OpenAIGatewayService) runLiveObserverConnection(record *LiveCallRecord,
 	store, _ := s.liveStore()
 	for {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case payload := <-frameCh:
 			eventType := strings.TrimSpace(gjson.GetBytes(payload, "type").String())
 			if eventType == "session.closed" || eventType == "session.ended" {
@@ -1023,9 +1051,16 @@ func (s *OpenAIGatewayService) runLiveObserverConnection(record *LiveCallRecord,
 }
 
 func (s *OpenAIGatewayService) waitForLiveObserverRetry(record *LiveCallRecord) bool {
+	return s.waitForLiveObserverRetryContext(context.Background(), record)
+}
+func (s *OpenAIGatewayService) waitForLiveObserverRetryContext(ctx context.Context, record *LiveCallRecord) bool {
 	timer := time.NewTimer(time.Second)
 	defer timer.Stop()
-	<-timer.C
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+	}
 	store, err := s.liveStore()
 	if err != nil {
 		return false
@@ -1042,12 +1077,14 @@ func (s *OpenAIGatewayService) waitForLiveObserverRetry(record *LiveCallRecord) 
 
 // finalizeLiveCallAfterExpiry 在 observer 无法读取 store 时保留最后快照，最迟在会话到期后
 // finalize；MarkLiveCallClosed 的 first 语义负责与其他恢复路径去重。
-func (s *OpenAIGatewayService) finalizeLiveCallAfterExpiry(record *LiveCallRecord) {
+func (s *OpenAIGatewayService) finalizeLiveCallAfterExpiryContext(ctx context.Context, record *LiveCallRecord) {
 	if record == nil {
 		return
 	}
 	if wait := time.Until(record.ExpiresAt); wait > 0 {
-		time.Sleep(wait)
+		if !waitLiveObserver(ctx, wait) {
+			return
+		}
 	}
 	s.finalizeLiveCall(record)
 }
@@ -1133,4 +1170,54 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 		UpstreamEndpoint:  &upstreamEndpoint,
 		CreatedAt:         record.CreatedAt,
 	}, "service.openai_live")
+}
+
+// beginLiveObserver 登记本进程观察循环，关闭后不再接受新的观察者。
+func (s *OpenAIGatewayService) beginLiveObserver(owner string) (context.Context, func(), bool) {
+	s.liveObserverMu.Lock()
+	defer s.liveObserverMu.Unlock()
+	if s.liveObserverStopped {
+		return nil, nil, false
+	}
+	if s.liveObserverCancels == nil {
+		s.liveObserverCancels = make(map[string]context.CancelFunc)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	s.liveObserverCancels[owner] = cancel
+	s.liveObserverWG.Add(1)
+	return ctx, func() {
+		cancel()
+		s.liveObserverMu.Lock()
+		delete(s.liveObserverCancels, owner)
+		s.liveObserverMu.Unlock()
+		s.liveObserverWG.Done()
+	}, true
+}
+
+// StopLiveObservers 只关闭本地观察资源，保留 Redis 会话及既有接管/到期语义。
+func (s *OpenAIGatewayService) StopLiveObservers(ctx context.Context) error {
+	s.liveObserverMu.Lock()
+	s.liveObserverStopped = true
+	for _, cancel := range s.liveObserverCancels {
+		cancel()
+	}
+	s.liveObserverMu.Unlock()
+	done := make(chan struct{})
+	go func() { s.liveObserverWG.Wait(); close(done) }()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+func waitLiveObserver(ctx context.Context, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-timer.C:
+		return true
+	}
 }

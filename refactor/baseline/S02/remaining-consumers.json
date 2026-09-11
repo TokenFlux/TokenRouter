@@ -1,0 +1,3296 @@
+[
+  {
+    "source": "backend/internal/service/setting.go",
+    "role": "settings 值类型/端口别名",
+    "exit_step": "S10/S15",
+    "reason": "旧 SettingService 的业务解释、敏感值、页面聚合与领域缓存继续保留，存取进入唯一 Store",
+    "build": "",
+    "symbols": [
+      {
+        "name": "Setting",
+        "kind": "type",
+        "line": 6,
+        "end": 6
+      },
+      {
+        "name": "SettingRepository",
+        "kind": "type",
+        "line": 7,
+        "end": 7
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/service"
+  },
+  {
+    "source": "backend/internal/service/setting_service.go",
+    "role": "业务设置服务",
+    "exit_step": "S04—S14/S16",
+    "reason": "各领域逐批收回配置解释；通用存取、版本、通知已唯一实现，不整体搬迁旧大服务",
+    "build": "",
+    "symbols": [
+      {
+        "name": "GrokDefaultBaseURLModeAPI",
+        "kind": "const",
+        "line": 24,
+        "end": 24
+      },
+      {
+        "name": "GrokDefaultBaseURLModeUSEast1",
+        "kind": "const",
+        "line": 25,
+        "end": 25
+      },
+      {
+        "name": "GrokDefaultBaseURLModeUSWest2",
+        "kind": "const",
+        "line": 26,
+        "end": 26
+      },
+      {
+        "name": "GrokDefaultBaseURLModeEUWest1",
+        "kind": "const",
+        "line": 27,
+        "end": 27
+      },
+      {
+        "name": "GrokDefaultBaseURLModeCLI",
+        "kind": "const",
+        "line": 28,
+        "end": 28
+      },
+      {
+        "name": "UsageRankingSortBy",
+        "kind": "type",
+        "line": 32,
+        "end": 32
+      },
+      {
+        "name": "UsageRankingSortByTotalTokens",
+        "kind": "const",
+        "line": 35,
+        "end": 35
+      },
+      {
+        "name": "UsageRankingSortByRequests",
+        "kind": "const",
+        "line": 36,
+        "end": 36
+      },
+      {
+        "name": "UsageRankingSortByActualCost",
+        "kind": "const",
+        "line": 37,
+        "end": 37
+      },
+      {
+        "name": "UsageRankingSettings",
+        "kind": "type",
+        "line": 41,
+        "end": 48
+      },
+      {
+        "name": "IsValidUsageRankingSortBy",
+        "kind": "func",
+        "line": 50,
+        "end": 57
+      },
+      {
+        "name": "normalizeUsageRankingSortBy",
+        "kind": "func",
+        "line": 59,
+        "end": 64
+      },
+      {
+        "name": "NormalizeUsageRankingSortBy",
+        "kind": "func",
+        "line": 67,
+        "end": 69
+      },
+      {
+        "name": "defaultUsageRankingSettings",
+        "kind": "func",
+        "line": 71,
+        "end": 80
+      },
+      {
+        "name": "NormalizeUsageRankingSettings",
+        "kind": "func",
+        "line": 83,
+        "end": 95
+      },
+      {
+        "name": "parseUsageRankingSettings",
+        "kind": "func",
+        "line": 97,
+        "end": 109
+      },
+      {
+        "name": "normalizeGrokDefaultBaseURLMode",
+        "kind": "func",
+        "line": 111,
+        "end": 126
+      },
+      {
+        "name": "GrokBaseURLForMode",
+        "kind": "func",
+        "line": 128,
+        "end": 141
+      },
+      {
+        "name": "GetGrokDefaultBaseURLMode",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 143,
+        "end": 154
+      },
+      {
+        "name": "GetGrokDefaultBaseURL",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 156,
+        "end": 158
+      },
+      {
+        "name": "ResolveGrokBaseURL",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 160,
+        "end": 169
+      },
+      {
+        "name": "ErrRegistrationDisabled",
+        "kind": "var",
+        "line": 172,
+        "end": 172
+      },
+      {
+        "name": "ErrSettingNotFound",
+        "kind": "var",
+        "line": 173,
+        "end": 173
+      },
+      {
+        "name": "ErrDefaultSubPlanInvalid",
+        "kind": "var",
+        "line": 174,
+        "end": 177
+      },
+      {
+        "name": "ErrDefaultSubPlanDuplicate",
+        "kind": "var",
+        "line": 178,
+        "end": 181
+      },
+      {
+        "name": "WebSearchManagerBuilder",
+        "kind": "type",
+        "line": 186,
+        "end": 186
+      },
+      {
+        "name": "SettingService",
+        "kind": "type",
+        "line": 189,
+        "end": 222
+      },
+      {
+        "name": "DefaultPlatformQuotaSetting",
+        "kind": "type",
+        "line": 225,
+        "end": 229
+      },
+      {
+        "name": "ProviderDefaultGrantSettings",
+        "kind": "type",
+        "line": 231,
+        "end": 238
+      },
+      {
+        "name": "AuthSourceDefaultSettings",
+        "kind": "type",
+        "line": 240,
+        "end": 249
+      },
+      {
+        "name": "authSourceDefaultKeySet",
+        "kind": "type",
+        "line": 251,
+        "end": 261
+      },
+      {
+        "name": "emailAuthSourceDefaultKeys",
+        "kind": "var",
+        "line": 264,
+        "end": 272
+      },
+      {
+        "name": "linuxDoAuthSourceDefaultKeys",
+        "kind": "var",
+        "line": 273,
+        "end": 281
+      },
+      {
+        "name": "oidcAuthSourceDefaultKeys",
+        "kind": "var",
+        "line": 282,
+        "end": 290
+      },
+      {
+        "name": "weChatAuthSourceDefaultKeys",
+        "kind": "var",
+        "line": 291,
+        "end": 299
+      },
+      {
+        "name": "gitHubAuthSourceDefaultKeys",
+        "kind": "var",
+        "line": 300,
+        "end": 308
+      },
+      {
+        "name": "googleAuthSourceDefaultKeys",
+        "kind": "var",
+        "line": 309,
+        "end": 317
+      },
+      {
+        "name": "dingTalkAuthSourceDefaultKeys",
+        "kind": "var",
+        "line": 318,
+        "end": 326
+      },
+      {
+        "name": "defaultAuthSourceBalance",
+        "kind": "const",
+        "line": 330,
+        "end": 330
+      },
+      {
+        "name": "defaultAuthSourceConcurrency",
+        "kind": "const",
+        "line": 331,
+        "end": 331
+      },
+      {
+        "name": "defaultWeChatConnectMode",
+        "kind": "const",
+        "line": 332,
+        "end": 332
+      },
+      {
+        "name": "defaultWeChatConnectScopes",
+        "kind": "const",
+        "line": 333,
+        "end": 333
+      },
+      {
+        "name": "defaultWeChatConnectFrontend",
+        "kind": "const",
+        "line": 334,
+        "end": 334
+      },
+      {
+        "name": "defaultGitHubOAuthAuthorize",
+        "kind": "const",
+        "line": 335,
+        "end": 335
+      },
+      {
+        "name": "defaultGitHubOAuthToken",
+        "kind": "const",
+        "line": 336,
+        "end": 336
+      },
+      {
+        "name": "defaultGitHubOAuthUserInfo",
+        "kind": "const",
+        "line": 337,
+        "end": 337
+      },
+      {
+        "name": "defaultGitHubOAuthEmails",
+        "kind": "const",
+        "line": 338,
+        "end": 338
+      },
+      {
+        "name": "defaultGitHubOAuthScopes",
+        "kind": "const",
+        "line": 339,
+        "end": 339
+      },
+      {
+        "name": "defaultGitHubOAuthFrontend",
+        "kind": "const",
+        "line": 340,
+        "end": 340
+      },
+      {
+        "name": "defaultGoogleOAuthAuthorize",
+        "kind": "const",
+        "line": 341,
+        "end": 341
+      },
+      {
+        "name": "defaultGoogleOAuthToken",
+        "kind": "const",
+        "line": 342,
+        "end": 342
+      },
+      {
+        "name": "defaultGoogleOAuthUserInfo",
+        "kind": "const",
+        "line": 343,
+        "end": 343
+      },
+      {
+        "name": "defaultGoogleOAuthScopes",
+        "kind": "const",
+        "line": 344,
+        "end": 344
+      },
+      {
+        "name": "defaultGoogleOAuthFrontend",
+        "kind": "const",
+        "line": 345,
+        "end": 345
+      },
+      {
+        "name": "defaultLoginAgreementMode",
+        "kind": "const",
+        "line": 346,
+        "end": 346
+      },
+      {
+        "name": "defaultLoginAgreementDate",
+        "kind": "const",
+        "line": 347,
+        "end": 347
+      },
+      {
+        "name": "NewSettingService",
+        "kind": "func",
+        "line": 351,
+        "end": 361
+      },
+      {
+        "name": "SetProxyRepository",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 364,
+        "end": 366
+      },
+      {
+        "name": "LoadForwardedClientIPSettings",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 368,
+        "end": 427
+      },
+      {
+        "name": "GetAllSettings",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 430,
+        "end": 437
+      },
+      {
+        "name": "SetOnUpdateCallback",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 441,
+        "end": 443
+      },
+      {
+        "name": "SetCreativeWorkerCountCallback",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 446,
+        "end": 451
+      },
+      {
+        "name": "SetCreativeWorkerStatusCallback",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 454,
+        "end": 459
+      },
+      {
+        "name": "CreativeWorkerStatus",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 462,
+        "end": 467
+      },
+      {
+        "name": "SetVersion",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 470,
+        "end": 472
+      },
+      {
+        "name": "getStringOrDefault",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 475,
+        "end": 480
+      },
+      {
+        "name": "GetBalanceUnitName",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 483,
+        "end": 493
+      },
+      {
+        "name": "GetOpenAI403CooldownSettings",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 496,
+        "end": 533
+      },
+      {
+        "name": "GetOpenAIOAuthImportDefaults",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 536,
+        "end": 557
+      },
+      {
+        "name": "GetUsageRankingSettings",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 560,
+        "end": 576
+      },
+      {
+        "name": "GetUsageRankingLimit",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 579,
+        "end": 585
+      },
+      {
+        "name": "IsOpenAIAllowClaudeCodeCodexPluginEnabled",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 590,
+        "end": 633
+      },
+      {
+        "name": "IsRegistrationEmailNormalizationEnabled",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 635,
+        "end": 641
+      },
+      {
+        "name": "IsCreativeEnabled",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 645,
+        "end": 654
+      },
+      {
+        "name": "GetCreativeModelSettings",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 658,
+        "end": 670
+      },
+      {
+        "name": "SetDefaultSubscriptionPlanReader",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 673,
+        "end": 675
+      },
+      {
+        "name": "SetOpenAI403CooldownSettings",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 678,
+        "end": 709
+      },
+      {
+        "name": "SetOpenAIOAuthImportDefaults",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 712,
+        "end": 730
+      },
+      {
+        "name": "baseEmailOAuthConfig",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 732,
+        "end": 762
+      },
+      {
+        "name": "buildOpsAdvancedSettingsWithQuotaAutoPause",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 764,
+        "end": 782
+      },
+      {
+        "name": "validateDefaultSubscriptionPlans",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 784,
+        "end": 821
+      },
+      {
+        "name": "emailOAuthSettingKeys",
+        "kind": "func",
+        "line": 823,
+        "end": 840
+      },
+      {
+        "name": "fillOpenAIOAuthImportDefaults",
+        "kind": "func",
+        "line": 842,
+        "end": 863
+      },
+      {
+        "name": "findForbiddenImportField",
+        "kind": "func",
+        "line": 865,
+        "end": 873
+      },
+      {
+        "name": "normalizeUsageRankingLimit",
+        "kind": "func",
+        "line": 875,
+        "end": 883
+      },
+      {
+        "name": "normalizeUsageRankingLimitString",
+        "kind": "func",
+        "line": 885,
+        "end": 891
+      },
+      {
+        "name": "parseOpenAIQuotaAutoPauseSettingsFromRaw",
+        "kind": "func",
+        "line": 893,
+        "end": 902
+      },
+      {
+        "name": "validateOpenAIOAuthImportDefaults",
+        "kind": "func",
+        "line": 904,
+        "end": 944
+      },
+      {
+        "name": "DefaultUsageRankingLimit",
+        "kind": "const",
+        "line": 948,
+        "end": 948
+      },
+      {
+        "name": "MaxUsageRankingLimit",
+        "kind": "const",
+        "line": 950,
+        "end": 950
+      },
+      {
+        "name": "openAIAllowCodexPluginCacheTTL",
+        "kind": "const",
+        "line": 953,
+        "end": 953
+      },
+      {
+        "name": "openAIAllowCodexPluginDBTimeout",
+        "kind": "const",
+        "line": 955,
+        "end": 955
+      },
+      {
+        "name": "openAIAllowCodexPluginErrorTTL",
+        "kind": "const",
+        "line": 957,
+        "end": 957
+      },
+      {
+        "name": "DefaultSubscriptionPlanReader",
+        "kind": "type",
+        "line": 960,
+        "end": 962
+      },
+      {
+        "name": "cachedOpenAIAllowCodexPlugin",
+        "kind": "type",
+        "line": 966,
+        "end": 969
+      },
+      {
+        "name": "settingRuntime",
+        "receiver": "SettingService",
+        "kind": "func",
+        "line": 972,
+        "end": 979
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/service"
+  },
+  {
+    "source": "backend/internal/repository/setting_repo.go",
+    "role": "settings PostgreSQL 构造转接",
+    "exit_step": "S15/S16",
+    "reason": "旧 provider set 仍构造新 Store；消费者清零后移除",
+    "build": "",
+    "symbols": [
+      {
+        "name": "NewSettingRepository",
+        "kind": "func",
+        "line": 10,
+        "end": 12
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/repository"
+  },
+  {
+    "source": "backend/internal/service/idempotency_compat.go",
+    "role": "幂等类型/默认状态/构造转接",
+    "exit_step": "S14/S15/S16",
+    "reason": "旧用户、管理员 helper 和系统维护命令仍经此唯一委托",
+    "build": "",
+    "symbols": [
+      {
+        "name": "IdempotencyRecord",
+        "kind": "type",
+        "line": 10,
+        "end": 10
+      },
+      {
+        "name": "IdempotencyRepository",
+        "kind": "type",
+        "line": 11,
+        "end": 11
+      },
+      {
+        "name": "IdempotencyConfig",
+        "kind": "type",
+        "line": 12,
+        "end": 12
+      },
+      {
+        "name": "IdempotencyExecuteOptions",
+        "kind": "type",
+        "line": 13,
+        "end": 13
+      },
+      {
+        "name": "IdempotencyExecuteResult",
+        "kind": "type",
+        "line": 14,
+        "end": 14
+      },
+      {
+        "name": "IdempotencyCoordinator",
+        "kind": "type",
+        "line": 15,
+        "end": 15
+      },
+      {
+        "name": "IdempotencyCleanupService",
+        "kind": "type",
+        "line": 16,
+        "end": 16
+      },
+      {
+        "name": "IdempotencyMetricsSnapshot",
+        "kind": "type",
+        "line": 17,
+        "end": 17
+      },
+      {
+        "name": "IdempotencyStatusProcessing",
+        "kind": "const",
+        "line": 19,
+        "end": 19
+      },
+      {
+        "name": "IdempotencyStatusSucceeded",
+        "kind": "const",
+        "line": 20,
+        "end": 20
+      },
+      {
+        "name": "IdempotencyStatusFailedRetryable",
+        "kind": "const",
+        "line": 21,
+        "end": 21
+      },
+      {
+        "name": "ErrIdempotencyKeyRequired",
+        "kind": "var",
+        "line": 23,
+        "end": 23
+      },
+      {
+        "name": "ErrIdempotencyKeyInvalid",
+        "kind": "var",
+        "line": 24,
+        "end": 24
+      },
+      {
+        "name": "ErrIdempotencyKeyConflict",
+        "kind": "var",
+        "line": 25,
+        "end": 25
+      },
+      {
+        "name": "ErrIdempotencyInProgress",
+        "kind": "var",
+        "line": 26,
+        "end": 26
+      },
+      {
+        "name": "ErrIdempotencyRetryBackoff",
+        "kind": "var",
+        "line": 27,
+        "end": 27
+      },
+      {
+        "name": "ErrIdempotencyStoreUnavail",
+        "kind": "var",
+        "line": 28,
+        "end": 28
+      },
+      {
+        "name": "ErrIdempotencyInvalidPayload",
+        "kind": "var",
+        "line": 29,
+        "end": 29
+      },
+      {
+        "name": "DefaultIdempotencyConfig",
+        "kind": "func",
+        "line": 31,
+        "end": 31
+      },
+      {
+        "name": "SetDefaultIdempotencyCoordinator",
+        "kind": "func",
+        "line": 32,
+        "end": 34
+      },
+      {
+        "name": "DefaultIdempotencyCoordinator",
+        "kind": "func",
+        "line": 35,
+        "end": 37
+      },
+      {
+        "name": "DefaultWriteIdempotencyTTL",
+        "kind": "func",
+        "line": 38,
+        "end": 38
+      },
+      {
+        "name": "DefaultSystemOperationIdempotencyTTL",
+        "kind": "func",
+        "line": 39,
+        "end": 41
+      },
+      {
+        "name": "NewIdempotencyCoordinator",
+        "kind": "func",
+        "line": 42,
+        "end": 44
+      },
+      {
+        "name": "NormalizeIdempotencyKey",
+        "kind": "func",
+        "line": 45,
+        "end": 47
+      },
+      {
+        "name": "HashIdempotencyKey",
+        "kind": "func",
+        "line": 48,
+        "end": 48
+      },
+      {
+        "name": "BuildIdempotencyFingerprint",
+        "kind": "func",
+        "line": 49,
+        "end": 51
+      },
+      {
+        "name": "RetryAfterSecondsFromError",
+        "kind": "func",
+        "line": 52,
+        "end": 52
+      },
+      {
+        "name": "GetIdempotencyMetricsSnapshot",
+        "kind": "func",
+        "line": 53,
+        "end": 55
+      },
+      {
+        "name": "RecordIdempotencyStoreUnavailable",
+        "kind": "func",
+        "line": 56,
+        "end": 58
+      },
+      {
+        "name": "NewIdempotencyCleanupService",
+        "kind": "func",
+        "line": 59,
+        "end": 66
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/service"
+  },
+  {
+    "source": "backend/internal/repository/idempotency_repo.go",
+    "role": "幂等 SQL 构造转接",
+    "exit_step": "S14/S15/S16",
+    "reason": "生产与维护测试共用新 PostgreSQL Adapter",
+    "build": "",
+    "symbols": [
+      {
+        "name": "NewIdempotencyRepository",
+        "kind": "func",
+        "line": 11,
+        "end": 13
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/repository"
+  },
+  {
+    "source": "backend/internal/service/announcement.go",
+    "role": "公告服务及请求类型别名",
+    "exit_step": "S15/S16",
+    "reason": "旧聚合类型的兼容入口；路由 handler 已直接接入 site/httpapi",
+    "build": "",
+    "symbols": [
+      {
+        "name": "AnnouncementTargeting",
+        "kind": "type",
+        "line": 9,
+        "end": 9
+      },
+      {
+        "name": "AnnouncementConditionGroup",
+        "kind": "type",
+        "line": 10,
+        "end": 10
+      },
+      {
+        "name": "AnnouncementCondition",
+        "kind": "type",
+        "line": 11,
+        "end": 11
+      },
+      {
+        "name": "Announcement",
+        "kind": "type",
+        "line": 12,
+        "end": 12
+      },
+      {
+        "name": "AnnouncementListFilters",
+        "kind": "type",
+        "line": 13,
+        "end": 13
+      },
+      {
+        "name": "AnnouncementRepository",
+        "kind": "type",
+        "line": 14,
+        "end": 14
+      },
+      {
+        "name": "AnnouncementReadRepository",
+        "kind": "type",
+        "line": 15,
+        "end": 15
+      },
+      {
+        "name": "AnnouncementService",
+        "kind": "type",
+        "line": 16,
+        "end": 16
+      },
+      {
+        "name": "CreateAnnouncementInput",
+        "kind": "type",
+        "line": 17,
+        "end": 17
+      },
+      {
+        "name": "UpdateAnnouncementInput",
+        "kind": "type",
+        "line": 18,
+        "end": 18
+      },
+      {
+        "name": "UserAnnouncement",
+        "kind": "type",
+        "line": 19,
+        "end": 19
+      },
+      {
+        "name": "AnnouncementUserReadStatus",
+        "kind": "type",
+        "line": 20,
+        "end": 20
+      },
+      {
+        "name": "AnnouncementExpiryService",
+        "kind": "type",
+        "line": 21,
+        "end": 21
+      },
+      {
+        "name": "AnnouncementStatusDraft",
+        "kind": "const",
+        "line": 23,
+        "end": 23
+      },
+      {
+        "name": "AnnouncementStatusActive",
+        "kind": "const",
+        "line": 24,
+        "end": 24
+      },
+      {
+        "name": "AnnouncementStatusArchived",
+        "kind": "const",
+        "line": 25,
+        "end": 25
+      },
+      {
+        "name": "AnnouncementNotifyModeSilent",
+        "kind": "const",
+        "line": 26,
+        "end": 26
+      },
+      {
+        "name": "AnnouncementNotifyModePopup",
+        "kind": "const",
+        "line": 27,
+        "end": 27
+      },
+      {
+        "name": "AnnouncementConditionTypeSubscription",
+        "kind": "const",
+        "line": 28,
+        "end": 28
+      },
+      {
+        "name": "AnnouncementConditionTypeBalance",
+        "kind": "const",
+        "line": 29,
+        "end": 29
+      },
+      {
+        "name": "AnnouncementOperatorIn",
+        "kind": "const",
+        "line": 30,
+        "end": 30
+      },
+      {
+        "name": "AnnouncementOperatorGT",
+        "kind": "const",
+        "line": 31,
+        "end": 31
+      },
+      {
+        "name": "AnnouncementOperatorGTE",
+        "kind": "const",
+        "line": 32,
+        "end": 32
+      },
+      {
+        "name": "AnnouncementOperatorLT",
+        "kind": "const",
+        "line": 33,
+        "end": 33
+      },
+      {
+        "name": "AnnouncementOperatorLTE",
+        "kind": "const",
+        "line": 34,
+        "end": 34
+      },
+      {
+        "name": "AnnouncementOperatorEQ",
+        "kind": "const",
+        "line": 35,
+        "end": 35
+      },
+      {
+        "name": "ErrAnnouncementNotFound",
+        "kind": "var",
+        "line": 37,
+        "end": 37
+      },
+      {
+        "name": "ErrAnnouncementInvalidTarget",
+        "kind": "var",
+        "line": 38,
+        "end": 38
+      },
+      {
+        "name": "ErrAnnouncementNilInput",
+        "kind": "var",
+        "line": 39,
+        "end": 39
+      },
+      {
+        "name": "ErrAnnouncementInvalidTitle",
+        "kind": "var",
+        "line": 40,
+        "end": 40
+      },
+      {
+        "name": "ErrAnnouncementContentRequired",
+        "kind": "var",
+        "line": 41,
+        "end": 41
+      },
+      {
+        "name": "ErrAnnouncementInvalidStatus",
+        "kind": "var",
+        "line": 42,
+        "end": 42
+      },
+      {
+        "name": "ErrAnnouncementInvalidNotifyMode",
+        "kind": "var",
+        "line": 43,
+        "end": 43
+      },
+      {
+        "name": "ErrAnnouncementInvalidSchedule",
+        "kind": "var",
+        "line": 44,
+        "end": 44
+      },
+      {
+        "name": "NewAnnouncementExpiryService",
+        "kind": "func",
+        "line": 46,
+        "end": 48
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/service"
+  },
+  {
+    "source": "backend/internal/domain/announcement.go",
+    "role": "Ent schema/生成代码公告类型别名",
+    "exit_step": "S15/S16",
+    "reason": "保留生成代码来源类型身份；本阶段不生成 Ent",
+    "build": "",
+    "symbols": [
+      {
+        "name": "AnnouncementTargeting",
+        "kind": "type",
+        "line": 6,
+        "end": 6
+      },
+      {
+        "name": "AnnouncementConditionGroup",
+        "kind": "type",
+        "line": 7,
+        "end": 7
+      },
+      {
+        "name": "AnnouncementCondition",
+        "kind": "type",
+        "line": 8,
+        "end": 8
+      },
+      {
+        "name": "Announcement",
+        "kind": "type",
+        "line": 9,
+        "end": 9
+      },
+      {
+        "name": "AnnouncementStatusDraft",
+        "kind": "const",
+        "line": 11,
+        "end": 11
+      },
+      {
+        "name": "AnnouncementStatusActive",
+        "kind": "const",
+        "line": 12,
+        "end": 12
+      },
+      {
+        "name": "AnnouncementStatusArchived",
+        "kind": "const",
+        "line": 13,
+        "end": 13
+      },
+      {
+        "name": "AnnouncementNotifyModeSilent",
+        "kind": "const",
+        "line": 14,
+        "end": 14
+      },
+      {
+        "name": "AnnouncementNotifyModePopup",
+        "kind": "const",
+        "line": 15,
+        "end": 15
+      },
+      {
+        "name": "AnnouncementConditionTypeSubscription",
+        "kind": "const",
+        "line": 16,
+        "end": 16
+      },
+      {
+        "name": "AnnouncementConditionTypeBalance",
+        "kind": "const",
+        "line": 17,
+        "end": 17
+      },
+      {
+        "name": "AnnouncementOperatorIn",
+        "kind": "const",
+        "line": 18,
+        "end": 18
+      },
+      {
+        "name": "AnnouncementOperatorGT",
+        "kind": "const",
+        "line": 19,
+        "end": 19
+      },
+      {
+        "name": "AnnouncementOperatorGTE",
+        "kind": "const",
+        "line": 20,
+        "end": 20
+      },
+      {
+        "name": "AnnouncementOperatorLT",
+        "kind": "const",
+        "line": 21,
+        "end": 21
+      },
+      {
+        "name": "AnnouncementOperatorLTE",
+        "kind": "const",
+        "line": 22,
+        "end": 22
+      },
+      {
+        "name": "AnnouncementOperatorEQ",
+        "kind": "const",
+        "line": 23,
+        "end": 23
+      },
+      {
+        "name": "ErrAnnouncementNotFound",
+        "kind": "var",
+        "line": 25,
+        "end": 25
+      },
+      {
+        "name": "ErrAnnouncementInvalidTarget",
+        "kind": "var",
+        "line": 26,
+        "end": 26
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/domain"
+  },
+  {
+    "source": "backend/internal/app/legacybridge/announcement.go",
+    "role": "用户/订阅只读投影",
+    "exit_step": "S04/S05",
+    "reason": "billing 与 identity 能直接提供窄读接口后删除相应桥接",
+    "build": "",
+    "symbols": [
+      {
+        "name": "AnnouncementUsers",
+        "kind": "type",
+        "line": 11,
+        "end": 11
+      },
+      {
+        "name": "GetByID",
+        "receiver": "AnnouncementUsers",
+        "kind": "func",
+        "line": 13,
+        "end": 22
+      },
+      {
+        "name": "ListWithFilters",
+        "receiver": "AnnouncementUsers",
+        "kind": "func",
+        "line": 23,
+        "end": 33
+      },
+      {
+        "name": "AnnouncementSubscriptions",
+        "kind": "type",
+        "line": 36,
+        "end": 38
+      },
+      {
+        "name": "ListActiveByUserID",
+        "receiver": "AnnouncementSubscriptions",
+        "kind": "func",
+        "line": 40,
+        "end": 50
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/app/legacybridge"
+  },
+  {
+    "source": "backend/internal/service/timing_wheel_service.go",
+    "role": "时间轮构造/类型兼容",
+    "exit_step": "S06/S16",
+    "reason": "调度技术唯一位于 infra/timingwheel，旧任务 key 与周期留在所属业务",
+    "build": "",
+    "symbols": [
+      {
+        "name": "TimingWheelService",
+        "kind": "type",
+        "line": 6,
+        "end": 6
+      },
+      {
+        "name": "NewTimingWheelService",
+        "kind": "func",
+        "line": 9,
+        "end": 9
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/service"
+  },
+  {
+    "source": "backend/internal/service/deferred_service.go",
+    "role": "账号 last-used 延迟写回",
+    "exit_step": "S06",
+    "reason": "本阶段仅处理停止、串行最后 flush 及失败报告",
+    "build": "",
+    "symbols": [
+      {
+        "name": "DeferredService",
+        "kind": "type",
+        "line": 11,
+        "end": 23
+      },
+      {
+        "name": "NewDeferredService",
+        "kind": "func",
+        "line": 26,
+        "end": 32
+      },
+      {
+        "name": "Start",
+        "receiver": "DeferredService",
+        "kind": "func",
+        "line": 36,
+        "end": 43
+      },
+      {
+        "name": "Stop",
+        "receiver": "DeferredService",
+        "kind": "func",
+        "line": 46,
+        "end": 56
+      },
+      {
+        "name": "ScheduleLastUsedUpdate",
+        "receiver": "DeferredService",
+        "kind": "func",
+        "line": 58,
+        "end": 65
+      },
+      {
+        "name": "flushLastUsed",
+        "receiver": "DeferredService",
+        "kind": "func",
+        "line": 67,
+        "end": 69
+      },
+      {
+        "name": "flushLastUsedErr",
+        "receiver": "DeferredService",
+        "kind": "func",
+        "line": 72,
+        "end": 107
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/service"
+  },
+  {
+    "source": "backend/internal/repository/leader_lock_cache.go",
+    "role": "Redis leader lock 旧端口构造",
+    "exit_step": "S08/S14/S16",
+    "reason": "技术算法已移 infra/redis，锁名、TTL、owner 和故障回退由旧调用者决定",
+    "build": "",
+    "symbols": [
+      {
+        "name": "NewLeaderLockCache",
+        "kind": "func",
+        "line": 10,
+        "end": 12
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/repository"
+  },
+  {
+    "source": "backend/internal/service/ops_advisory_lock.go",
+    "role": "数据库 advisory lock 旧入口",
+    "exit_step": "S08/S16",
+    "reason": "只委托 infra/postgres；策略与竞争语义留使用方",
+    "build": "",
+    "symbols": [
+      {
+        "name": "hashAdvisoryLockID",
+        "kind": "func",
+        "line": 10,
+        "end": 10
+      },
+      {
+        "name": "tryAcquireDBAdvisoryLock",
+        "kind": "func",
+        "line": 11,
+        "end": 13
+      },
+      {
+        "name": "tryAcquireDBAdvisoryLockWithError",
+        "kind": "func",
+        "line": 14,
+        "end": 16
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/service"
+  },
+  {
+    "source": "backend/internal/repository/migrations_compat.go",
+    "role": "旧集成测试迁移入口",
+    "exit_step": "S16",
+    "reason": "只委托 infra 的嵌入迁移调用，不反向依赖 app",
+    "build": "",
+    "symbols": [
+      {
+        "name": "ApplyMigrations",
+        "kind": "func",
+        "line": 11,
+        "end": 13
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/repository"
+  },
+  {
+    "source": "backend/internal/app/bootstrap/simple_mode_default_groups.go",
+    "role": "simple 默认数据编排",
+    "exit_step": "S14",
+    "reason": "仍投影旧 group/domain，精确文件许可随维护用例迁移退出",
+    "build": "",
+    "symbols": [
+      {
+        "name": "simpleModeDefaultGroupDescription",
+        "kind": "const",
+        "line": 14,
+        "end": 14
+      },
+      {
+        "name": "EnsureSimpleModeDefaultGroups",
+        "kind": "func",
+        "line": 16,
+        "end": 61
+      },
+      {
+        "name": "createGroupIfNotExists",
+        "kind": "func",
+        "line": 63,
+        "end": 94
+      },
+      {
+        "name": "backfillSimpleModeGrokDefaultImageGeneration",
+        "kind": "func",
+        "line": 97,
+        "end": 113
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/app/bootstrap"
+  },
+  {
+    "source": "backend/internal/setup/setup.go",
+    "role": "精简 bootstrap 迁移入口",
+    "exit_step": "S14",
+    "reason": "管理员、配置文件、安装锁流程保持；不构造完整 worker",
+    "build": "",
+    "symbols": [
+      {
+        "name": "ConfigFileName",
+        "kind": "const",
+        "line": 28,
+        "end": 28
+      },
+      {
+        "name": "InstallLockFile",
+        "kind": "const",
+        "line": 29,
+        "end": 29
+      },
+      {
+        "name": "defaultUserConcurrency",
+        "kind": "const",
+        "line": 30,
+        "end": 30
+      },
+      {
+        "name": "simpleModeAdminConcurrency",
+        "kind": "const",
+        "line": 31,
+        "end": 31
+      },
+      {
+        "name": "defaultMigrationTimeout",
+        "kind": "const",
+        "line": 32,
+        "end": 32
+      },
+      {
+        "name": "setupDefaultAdminConcurrency",
+        "kind": "func",
+        "line": 35,
+        "end": 40
+      },
+      {
+        "name": "GetDataDir",
+        "kind": "func",
+        "line": 44,
+        "end": 64
+      },
+      {
+        "name": "GetConfigFilePath",
+        "kind": "func",
+        "line": 67,
+        "end": 69
+      },
+      {
+        "name": "GetInstallLockPath",
+        "kind": "func",
+        "line": 72,
+        "end": 74
+      },
+      {
+        "name": "SetupConfig",
+        "kind": "type",
+        "line": 77,
+        "end": 85
+      },
+      {
+        "name": "DatabaseConfig",
+        "kind": "type",
+        "line": 87,
+        "end": 94
+      },
+      {
+        "name": "RedisConfig",
+        "kind": "type",
+        "line": 96,
+        "end": 103
+      },
+      {
+        "name": "AdminConfig",
+        "kind": "type",
+        "line": 105,
+        "end": 108
+      },
+      {
+        "name": "ServerConfig",
+        "kind": "type",
+        "line": 110,
+        "end": 114
+      },
+      {
+        "name": "JWTConfig",
+        "kind": "type",
+        "line": 116,
+        "end": 119
+      },
+      {
+        "name": "adminBootstrapReasonEmptyDatabase",
+        "kind": "const",
+        "line": 122,
+        "end": 122
+      },
+      {
+        "name": "adminBootstrapReasonAdminExists",
+        "kind": "const",
+        "line": 123,
+        "end": 123
+      },
+      {
+        "name": "adminBootstrapReasonUsersExistWithoutAdmin",
+        "kind": "const",
+        "line": 124,
+        "end": 124
+      },
+      {
+        "name": "adminBootstrapDecision",
+        "kind": "type",
+        "line": 127,
+        "end": 130
+      },
+      {
+        "name": "decideAdminBootstrap",
+        "kind": "func",
+        "line": 132,
+        "end": 149
+      },
+      {
+        "name": "skipSetupEnabled",
+        "kind": "func",
+        "line": 152,
+        "end": 159
+      },
+      {
+        "name": "NeedsSetup",
+        "kind": "func",
+        "line": 163,
+        "end": 180
+      },
+      {
+        "name": "buildPostgresDSN",
+        "kind": "func",
+        "line": 182,
+        "end": 187
+      },
+      {
+        "name": "buildDatabaseConnectionDSNs",
+        "kind": "func",
+        "line": 189,
+        "end": 191
+      },
+      {
+        "name": "TestDatabaseConnection",
+        "kind": "func",
+        "line": 194,
+        "end": 261
+      },
+      {
+        "name": "TestRedisConnection",
+        "kind": "func",
+        "line": 264,
+        "end": 294
+      },
+      {
+        "name": "Install",
+        "kind": "func",
+        "line": 297,
+        "end": 343
+      },
+      {
+        "name": "createInstallLock",
+        "kind": "func",
+        "line": 346,
+        "end": 349
+      },
+      {
+        "name": "initializeDatabase",
+        "kind": "func",
+        "line": 351,
+        "end": 372
+      },
+      {
+        "name": "migrationTimeout",
+        "receiver": "SetupConfig",
+        "kind": "func",
+        "line": 374,
+        "end": 379
+      },
+      {
+        "name": "createAdminUser",
+        "kind": "func",
+        "line": 381,
+        "end": 457
+      },
+      {
+        "name": "writeConfigFile",
+        "kind": "func",
+        "line": 459,
+        "end": 524
+      },
+      {
+        "name": "generateSecret",
+        "kind": "func",
+        "line": 526,
+        "end": 532
+      },
+      {
+        "name": "AutoSetupEnabled",
+        "kind": "func",
+        "line": 539,
+        "end": 542
+      },
+      {
+        "name": "getEnvOrDefault",
+        "kind": "func",
+        "line": 545,
+        "end": 550
+      },
+      {
+        "name": "getEnvIntOrDefault",
+        "kind": "func",
+        "line": 553,
+        "end": 560
+      },
+      {
+        "name": "AutoSetupFromEnv",
+        "kind": "func",
+        "line": 564,
+        "end": 674
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/setup"
+  },
+  {
+    "source": "backend/internal/service/system_operation_lock_service.go",
+    "role": "系统维护操作锁策略",
+    "exit_step": "S14",
+    "reason": "新幂等契约承载认领/续租；全局 scope 与释放规则未变",
+    "build": "",
+    "symbols": [
+      {
+        "name": "systemOperationLockScope",
+        "kind": "const",
+        "line": 15,
+        "end": 15
+      },
+      {
+        "name": "systemOperationLockKey",
+        "kind": "const",
+        "line": 16,
+        "end": 16
+      },
+      {
+        "name": "ErrSystemOperationBusy",
+        "kind": "var",
+        "line": 20,
+        "end": 20
+      },
+      {
+        "name": "SystemOperationLock",
+        "kind": "type",
+        "line": 23,
+        "end": 29
+      },
+      {
+        "name": "OperationID",
+        "receiver": "SystemOperationLock",
+        "kind": "func",
+        "line": 31,
+        "end": 36
+      },
+      {
+        "name": "SystemOperationLockService",
+        "kind": "type",
+        "line": 38,
+        "end": 44
+      },
+      {
+        "name": "NewSystemOperationLockService",
+        "kind": "func",
+        "line": 46,
+        "end": 66
+      },
+      {
+        "name": "Acquire",
+        "receiver": "SystemOperationLockService",
+        "kind": "func",
+        "line": 68,
+        "end": 138
+      },
+      {
+        "name": "Release",
+        "receiver": "SystemOperationLockService",
+        "kind": "func",
+        "line": 140,
+        "end": 164
+      },
+      {
+        "name": "renewLoop",
+        "receiver": "SystemOperationLockService",
+        "kind": "func",
+        "line": 166,
+        "end": 196
+      },
+      {
+        "name": "busyError",
+        "receiver": "SystemOperationLockService",
+        "kind": "func",
+        "line": 198,
+        "end": 214
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/service"
+  },
+  {
+    "source": "backend/internal/service/background_tasks.go",
+    "role": "旧后台任务完成端口",
+    "exit_step": "S04—S14/S16",
+    "reason": "逐个拥有者迁移后删除；参数求值、context 和并发策略保持",
+    "build": "",
+    "symbols": [
+      {
+        "name": "BackgroundTaskRunner",
+        "kind": "type",
+        "line": 7,
+        "end": 7
+      },
+      {
+        "name": "backgroundRunner",
+        "kind": "var",
+        "line": 9,
+        "end": 12
+      },
+      {
+        "name": "SetBackgroundTaskRunner",
+        "kind": "func",
+        "line": 15,
+        "end": 21
+      },
+      {
+        "name": "RunBackgroundTask",
+        "kind": "func",
+        "line": 24,
+        "end": 33
+      },
+      {
+        "name": "BackgroundCall0",
+        "kind": "func",
+        "line": 36,
+        "end": 36
+      },
+      {
+        "name": "BackgroundCall1",
+        "kind": "func",
+        "line": 37,
+        "end": 37
+      },
+      {
+        "name": "BackgroundCall2",
+        "kind": "func",
+        "line": 38,
+        "end": 38
+      },
+      {
+        "name": "BackgroundCall3",
+        "kind": "func",
+        "line": 39,
+        "end": 41
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/service"
+  },
+  {
+    "source": "backend/internal/app/legacy_providers.go",
+    "role": "旧图与运行时端口装配",
+    "exit_step": "S04—S14/S16",
+    "reason": "逐模块替换 provider set；app 只调用与投影",
+    "build": "",
+    "symbols": [
+      {
+        "name": "providePrivacyClientFactory",
+        "kind": "func",
+        "line": 20,
+        "end": 22
+      },
+      {
+        "name": "provideServiceBuildInfo",
+        "kind": "func",
+        "line": 23,
+        "end": 25
+      },
+      {
+        "name": "provideHandlerBuildInfo",
+        "kind": "func",
+        "line": 26,
+        "end": 28
+      },
+      {
+        "name": "provideSecretEncryptor",
+        "kind": "func",
+        "line": 29,
+        "end": 31
+      },
+      {
+        "name": "provideSettingsStore",
+        "kind": "func",
+        "line": 32,
+        "end": 32
+      },
+      {
+        "name": "provideAnnouncementUsers",
+        "kind": "func",
+        "line": 33,
+        "end": 35
+      },
+      {
+        "name": "provideAnnouncementSubscriptions",
+        "kind": "func",
+        "line": 36,
+        "end": 38
+      },
+      {
+        "name": "provideAnnouncementExpiry",
+        "kind": "func",
+        "line": 39,
+        "end": 41
+      },
+      {
+        "name": "provideRestartRequester",
+        "kind": "func",
+        "line": 42,
+        "end": 42
+      },
+      {
+        "name": "provideApplication",
+        "kind": "func",
+        "line": 43,
+        "end": 48
+      },
+      {
+        "name": "installLegacyBackground",
+        "kind": "func",
+        "line": 51,
+        "end": 57
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/app"
+  },
+  {
+    "source": "backend/internal/app/http_bindings.go",
+    "role": "公开设置/CSP/websearch/限流绑定",
+    "exit_step": "S10/S15",
+    "reason": "业务设置解释仍属旧服务；server 只接收 RouterRuntime",
+    "build": "",
+    "symbols": [
+      {
+        "name": "provideRouterRuntime",
+        "kind": "func",
+        "line": 20,
+        "end": 95
+      },
+      {
+        "name": "derefInt64",
+        "kind": "func",
+        "line": 97,
+        "end": 102
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/app"
+  },
+  {
+    "source": "backend/internal/handler/ops_error_logger.go",
+    "role": "按需运维错误日志队列",
+    "exit_step": "S08/S15",
+    "reason": "队列实现仍在 HTTP 旧层，本阶段接入共享预算下的实际 drain",
+    "build": "",
+    "symbols": [
+      {
+        "name": "opsModelKey",
+        "kind": "const",
+        "line": 29,
+        "end": 29
+      },
+      {
+        "name": "opsStreamKey",
+        "kind": "const",
+        "line": 30,
+        "end": 30
+      },
+      {
+        "name": "opsAccountIDKey",
+        "kind": "const",
+        "line": 31,
+        "end": 31
+      },
+      {
+        "name": "opsRoutingCapacityLimitedKey",
+        "kind": "const",
+        "line": 32,
+        "end": 32
+      },
+      {
+        "name": "opsDedicatedErrorRecordedKey",
+        "kind": "const",
+        "line": 33,
+        "end": 33
+      },
+      {
+        "name": "opsUpstreamModelKey",
+        "kind": "const",
+        "line": 35,
+        "end": 35
+      },
+      {
+        "name": "opsRequestTypeKey",
+        "kind": "const",
+        "line": 36,
+        "end": 36
+      },
+      {
+        "name": "openAICyberWarningPromptExcerptKey",
+        "kind": "const",
+        "line": 38,
+        "end": 38
+      },
+      {
+        "name": "opsErrContextCanceled",
+        "kind": "const",
+        "line": 41,
+        "end": 41
+      },
+      {
+        "name": "opsErrNoAvailableAccounts",
+        "kind": "const",
+        "line": 42,
+        "end": 42
+      },
+      {
+        "name": "opsErrInvalidAPIKey",
+        "kind": "const",
+        "line": 43,
+        "end": 43
+      },
+      {
+        "name": "opsErrAPIKeyRequired",
+        "kind": "const",
+        "line": 44,
+        "end": 44
+      },
+      {
+        "name": "opsErrInsufficientBalance",
+        "kind": "const",
+        "line": 45,
+        "end": 45
+      },
+      {
+        "name": "opsErrInsufficientAccountBalance",
+        "kind": "const",
+        "line": 46,
+        "end": 46
+      },
+      {
+        "name": "opsErrInsufficientQuota",
+        "kind": "const",
+        "line": 47,
+        "end": 47
+      },
+      {
+        "name": "opsCodeInsufficientBalance",
+        "kind": "const",
+        "line": 50,
+        "end": 50
+      },
+      {
+        "name": "opsCodeUsageLimitExceeded",
+        "kind": "const",
+        "line": 51,
+        "end": 51
+      },
+      {
+        "name": "opsCodeSubscriptionNotFound",
+        "kind": "const",
+        "line": 52,
+        "end": 52
+      },
+      {
+        "name": "opsCodeSubscriptionInvalid",
+        "kind": "const",
+        "line": 53,
+        "end": 53
+      },
+      {
+        "name": "opsCodeUserInactive",
+        "kind": "const",
+        "line": 54,
+        "end": 54
+      },
+      {
+        "name": "opsCodeInvalidAPIKey",
+        "kind": "const",
+        "line": 55,
+        "end": 55
+      },
+      {
+        "name": "opsCodeAPIKeyRequired",
+        "kind": "const",
+        "line": 56,
+        "end": 56
+      },
+      {
+        "name": "opsCodeAPIKeyExpired",
+        "kind": "const",
+        "line": 57,
+        "end": 57
+      },
+      {
+        "name": "opsCodeAPIKeyDisabled",
+        "kind": "const",
+        "line": 58,
+        "end": 58
+      },
+      {
+        "name": "opsCodeUserNotFound",
+        "kind": "const",
+        "line": 59,
+        "end": 59
+      },
+      {
+        "name": "opsCodeAPIKeyQuotaExhausted",
+        "kind": "const",
+        "line": 60,
+        "end": 60
+      },
+      {
+        "name": "opsCodeAPIKeyQueryDeprecated",
+        "kind": "const",
+        "line": 61,
+        "end": 61
+      },
+      {
+        "name": "opsCodeGroupDeleted",
+        "kind": "const",
+        "line": 62,
+        "end": 62
+      },
+      {
+        "name": "opsCodeGroupDisabled",
+        "kind": "const",
+        "line": 63,
+        "end": 63
+      },
+      {
+        "name": "opsErrorLogTimeout",
+        "kind": "const",
+        "line": 67,
+        "end": 67
+      },
+      {
+        "name": "opsErrorLogDrainTimeout",
+        "kind": "const",
+        "line": 68,
+        "end": 68
+      },
+      {
+        "name": "opsErrorLogBatchWindow",
+        "kind": "const",
+        "line": 69,
+        "end": 69
+      },
+      {
+        "name": "opsErrorLogMinWorkerCount",
+        "kind": "const",
+        "line": 71,
+        "end": 71
+      },
+      {
+        "name": "opsErrorLogMaxWorkerCount",
+        "kind": "const",
+        "line": 72,
+        "end": 72
+      },
+      {
+        "name": "opsErrorLogQueueSizePerWorker",
+        "kind": "const",
+        "line": 74,
+        "end": 74
+      },
+      {
+        "name": "opsErrorLogMinQueueSize",
+        "kind": "const",
+        "line": 75,
+        "end": 75
+      },
+      {
+        "name": "opsErrorLogMaxQueueSize",
+        "kind": "const",
+        "line": 76,
+        "end": 76
+      },
+      {
+        "name": "opsErrorLogBatchSize",
+        "kind": "const",
+        "line": 77,
+        "end": 77
+      },
+      {
+        "name": "opsErrorLogMaxQueueBytes",
+        "kind": "const",
+        "line": 78,
+        "end": 78
+      },
+      {
+        "name": "opsErrorLogMaxUserAgentBytes",
+        "kind": "const",
+        "line": 79,
+        "end": 79
+      },
+      {
+        "name": "keyPrefix",
+        "kind": "func",
+        "line": 83,
+        "end": 88
+      },
+      {
+        "name": "opsErrorLogJob",
+        "kind": "type",
+        "line": 90,
+        "end": 94
+      },
+      {
+        "name": "opsErrorLogOnce",
+        "kind": "var",
+        "line": 97,
+        "end": 97
+      },
+      {
+        "name": "opsErrorLogQueue",
+        "kind": "var",
+        "line": 98,
+        "end": 98
+      },
+      {
+        "name": "opsErrorLogStopOnce",
+        "kind": "var",
+        "line": 100,
+        "end": 100
+      },
+      {
+        "name": "opsErrorLogStopDone",
+        "kind": "var",
+        "line": 101,
+        "end": 101
+      },
+      {
+        "name": "opsErrorLogWorkersWg",
+        "kind": "var",
+        "line": 102,
+        "end": 102
+      },
+      {
+        "name": "opsErrorLogMu",
+        "kind": "var",
+        "line": 103,
+        "end": 103
+      },
+      {
+        "name": "opsErrorLogStopping",
+        "kind": "var",
+        "line": 104,
+        "end": 104
+      },
+      {
+        "name": "opsErrorLogQueueLen",
+        "kind": "var",
+        "line": 105,
+        "end": 105
+      },
+      {
+        "name": "opsErrorLogQueueBytes",
+        "kind": "var",
+        "line": 106,
+        "end": 106
+      },
+      {
+        "name": "opsErrorLogEnqueued",
+        "kind": "var",
+        "line": 107,
+        "end": 107
+      },
+      {
+        "name": "opsErrorLogDropped",
+        "kind": "var",
+        "line": 108,
+        "end": 108
+      },
+      {
+        "name": "opsErrorLogProcessed",
+        "kind": "var",
+        "line": 109,
+        "end": 109
+      },
+      {
+        "name": "opsErrorLogSanitized",
+        "kind": "var",
+        "line": 110,
+        "end": 110
+      },
+      {
+        "name": "opsErrorLogLastDropLogAt",
+        "kind": "var",
+        "line": 112,
+        "end": 112
+      },
+      {
+        "name": "opsErrorLogShutdownCh",
+        "kind": "var",
+        "line": 114,
+        "end": 114
+      },
+      {
+        "name": "opsErrorLogShutdownOnce",
+        "kind": "var",
+        "line": 115,
+        "end": 115
+      },
+      {
+        "name": "opsErrorLogDrained",
+        "kind": "var",
+        "line": 116,
+        "end": 116
+      },
+      {
+        "name": "startOpsErrorLogWorkers",
+        "kind": "func",
+        "line": 119,
+        "end": 179
+      },
+      {
+        "name": "flushOpsErrorLogBatch",
+        "kind": "func",
+        "line": 181,
+        "end": 213
+      },
+      {
+        "name": "enqueueOpsErrorLog",
+        "kind": "func",
+        "line": 215,
+        "end": 270
+      },
+      {
+        "name": "normalizeOpsPersistentUserAgent",
+        "kind": "func",
+        "line": 272,
+        "end": 274
+      },
+      {
+        "name": "StopOpsErrorLogWorkers",
+        "kind": "func",
+        "line": 277,
+        "end": 281
+      },
+      {
+        "name": "ShutdownOpsErrorLogWorkers",
+        "kind": "func",
+        "line": 284,
+        "end": 310
+      },
+      {
+        "name": "OpsErrorLogQueueLength",
+        "kind": "func",
+        "line": 312,
+        "end": 314
+      },
+      {
+        "name": "OpsErrorLogQueueBytes",
+        "kind": "func",
+        "line": 316,
+        "end": 318
+      },
+      {
+        "name": "OpsErrorLogQueueBytesCapacity",
+        "kind": "func",
+        "line": 320,
+        "end": 322
+      },
+      {
+        "name": "OpsErrorLogQueueCapacity",
+        "kind": "func",
+        "line": 324,
+        "end": 332
+      },
+      {
+        "name": "OpsErrorLogDroppedTotal",
+        "kind": "func",
+        "line": 334,
+        "end": 336
+      },
+      {
+        "name": "OpsErrorLogEnqueuedTotal",
+        "kind": "func",
+        "line": 338,
+        "end": 340
+      },
+      {
+        "name": "OpsErrorLogProcessedTotal",
+        "kind": "func",
+        "line": 342,
+        "end": 344
+      },
+      {
+        "name": "OpsErrorLogSanitizedTotal",
+        "kind": "func",
+        "line": 346,
+        "end": 348
+      },
+      {
+        "name": "maybeLogOpsErrorLogDrop",
+        "kind": "func",
+        "line": 350,
+        "end": 378
+      },
+      {
+        "name": "reserveOpsErrorLogQueueBytes",
+        "kind": "func",
+        "line": 380,
+        "end": 394
+      },
+      {
+        "name": "estimateOpsErrorLogJobBytes",
+        "kind": "func",
+        "line": 396,
+        "end": 418
+      },
+      {
+        "name": "opsErrorLogConfig",
+        "kind": "func",
+        "line": 420,
+        "end": 438
+      },
+      {
+        "name": "setOpsRequestContext",
+        "kind": "func",
+        "line": 440,
+        "end": 461
+      },
+      {
+        "name": "setOpsEndpointContext",
+        "kind": "func",
+        "line": 465,
+        "end": 473
+      },
+      {
+        "name": "setOpsSelectedAccount",
+        "kind": "func",
+        "line": 475,
+        "end": 491
+      },
+      {
+        "name": "markOpsRoutingCapacityLimited",
+        "kind": "func",
+        "line": 494,
+        "end": 499
+      },
+      {
+        "name": "markOpsRoutingCapacityLimitedIfNoAvailable",
+        "kind": "func",
+        "line": 502,
+        "end": 507
+      },
+      {
+        "name": "isOpsRoutingCapacityLimited",
+        "kind": "func",
+        "line": 509,
+        "end": 519
+      },
+      {
+        "name": "isOpsNoAvailableAccountError",
+        "kind": "func",
+        "line": 521,
+        "end": 529
+      },
+      {
+        "name": "opsCaptureWriter",
+        "kind": "type",
+        "line": 531,
+        "end": 537
+      },
+      {
+        "name": "opsCaptureWriterState",
+        "kind": "type",
+        "line": 539,
+        "end": 556
+      },
+      {
+        "name": "opsCaptureWriterLimit",
+        "kind": "const",
+        "line": 559,
+        "end": 559
+      },
+      {
+        "name": "opsTerminalSSEFrameProbeLimit",
+        "kind": "const",
+        "line": 560,
+        "end": 560
+      },
+      {
+        "name": "opsCaptureWriterPoolMaxRetainedCapacity",
+        "kind": "const",
+        "line": 563,
+        "end": 563
+      },
+      {
+        "name": "opsCaptureWriterStatePool",
+        "kind": "type",
+        "line": 565,
+        "end": 568
+      },
+      {
+        "name": "opsCaptureWriterPool",
+        "kind": "var",
+        "line": 570,
+        "end": 574
+      },
+      {
+        "name": "acquireOpsCaptureWriter",
+        "kind": "func",
+        "line": 576,
+        "end": 578
+      },
+      {
+        "name": "acquireOpsCaptureWriterFromPool",
+        "kind": "func",
+        "line": 580,
+        "end": 607
+      },
+      {
+        "name": "releaseOpsCaptureWriter",
+        "kind": "func",
+        "line": 609,
+        "end": 644
+      },
+      {
+        "name": "shouldPoolOpsCaptureWriterState",
+        "kind": "func",
+        "line": 646,
+        "end": 649
+      },
+      {
+        "name": "lockActive",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 651,
+        "end": 662
+      },
+      {
+        "name": "lockActiveWrite",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 664,
+        "end": 675
+      },
+      {
+        "name": "beginDelegatedCall",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 677,
+        "end": 690
+      },
+      {
+        "name": "finishDelegatedCall",
+        "kind": "func",
+        "line": 692,
+        "end": 696
+      },
+      {
+        "name": "setContext",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 698,
+        "end": 705
+      },
+      {
+        "name": "capturedBytes",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 707,
+        "end": 714
+      },
+      {
+        "name": "capturedTerminalError",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 716,
+        "end": 723
+      },
+      {
+        "name": "finalizeCapture",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 725,
+        "end": 732
+      },
+      {
+        "name": "Header",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 734,
+        "end": 741
+      },
+      {
+        "name": "WriteHeader",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 742,
+        "end": 750
+      },
+      {
+        "name": "WriteHeaderNow",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 751,
+        "end": 759
+      },
+      {
+        "name": "Status",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 760,
+        "end": 767
+      },
+      {
+        "name": "Size",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 768,
+        "end": 775
+      },
+      {
+        "name": "Written",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 776,
+        "end": 783
+      },
+      {
+        "name": "Flush",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 784,
+        "end": 792
+      },
+      {
+        "name": "Hijack",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 793,
+        "end": 801
+      },
+      {
+        "name": "CloseNotify",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 802,
+        "end": 811
+      },
+      {
+        "name": "Pusher",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 812,
+        "end": 819
+      },
+      {
+        "name": "Write",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 821,
+        "end": 832
+      },
+      {
+        "name": "WriteString",
+        "receiver": "opsCaptureWriter",
+        "kind": "func",
+        "line": 834,
+        "end": 845
+      },
+      {
+        "name": "_",
+        "kind": "var",
+        "line": 847,
+        "end": 847
+      },
+      {
+        "name": "isOpsTerminalSSEFrame",
+        "kind": "func",
+        "line": 849,
+        "end": 867
+      },
+      {
+        "name": "parseOpsSSEFrameEnvelope",
+        "kind": "func",
+        "line": 869,
+        "end": 919
+      },
+      {
+        "name": "captureResponseChunk",
+        "receiver": "opsCaptureWriterState",
+        "kind": "func",
+        "line": 921,
+        "end": 1004
+      },
+      {
+        "name": "endsAtOpsSSEFrameBoundary",
+        "kind": "func",
+        "line": 1006,
+        "end": 1010
+      },
+      {
+        "name": "mayContainOpsTerminalSSE",
+        "kind": "func",
+        "line": 1012,
+        "end": 1018
+      },
+      {
+        "name": "isOpsTerminalSSEEventLine",
+        "kind": "func",
+        "line": 1020,
+        "end": 1026
+      },
+      {
+        "name": "appendTerminalProbe",
+        "receiver": "opsCaptureWriterState",
+        "kind": "func",
+        "line": 1028,
+        "end": 1039
+      },
+      {
+        "name": "finalizeResponseCapture",
+        "receiver": "opsCaptureWriterState",
+        "kind": "func",
+        "line": 1041,
+        "end": 1061
+      },
+      {
+        "name": "appendCapturedResponse",
+        "receiver": "opsCaptureWriterState",
+        "kind": "func",
+        "line": 1063,
+        "end": 1072
+      },
+      {
+        "name": "shouldCapture",
+        "receiver": "opsCaptureWriterState",
+        "kind": "func",
+        "line": 1074,
+        "end": 1080
+      },
+      {
+        "name": "OpsErrorLoggerMiddleware",
+        "kind": "func",
+        "line": 1087,
+        "end": 1279
+      },
+      {
+        "name": "logOpsRecoveredUpstream",
+        "kind": "func",
+        "line": 1281,
+        "end": 1390
+      },
+      {
+        "name": "opsRequestTypeFromContext",
+        "kind": "func",
+        "line": 1392,
+        "end": 1407
+      },
+      {
+        "name": "logOpsStreamError",
+        "kind": "func",
+        "line": 1416,
+        "end": 1420
+      },
+      {
+        "name": "logOpsStreamErrorValue",
+        "kind": "func",
+        "line": 1422,
+        "end": 1558
+      },
+      {
+        "name": "applyOpsStreamErrorSnapshot",
+        "kind": "func",
+        "line": 1560,
+        "end": 1601
+      },
+      {
+        "name": "shouldSkipFinalOpsFailure",
+        "kind": "func",
+        "line": 1603,
+        "end": 1622
+      },
+      {
+        "name": "isCountTokensRequest",
+        "kind": "func",
+        "line": 1625,
+        "end": 1631
+      },
+      {
+        "name": "applyOpsLatencyFieldsFromContext",
+        "kind": "func",
+        "line": 1633,
+        "end": 1642
+      },
+      {
+        "name": "applyOpsUpstreamFieldsFromContext",
+        "kind": "func",
+        "line": 1646,
+        "end": 1683
+      },
+      {
+        "name": "applyOpsUpstreamErrorEvents",
+        "kind": "func",
+        "line": 1685,
+        "end": 1714
+      },
+      {
+        "name": "suppressOpsUpstreamAttributionForLocalModelConfiguration",
+        "kind": "func",
+        "line": 1716,
+        "end": 1727
+      },
+      {
+        "name": "getContextLatencyMs",
+        "kind": "func",
+        "line": 1729,
+        "end": 1754
+      },
+      {
+        "name": "parsedOpsError",
+        "kind": "type",
+        "line": 1756,
+        "end": 1762
+      },
+      {
+        "name": "parseOpsErrorResponse",
+        "kind": "func",
+        "line": 1764,
+        "end": 1808
+      },
+      {
+        "name": "opsJSONScalarString",
+        "kind": "func",
+        "line": 1810,
+        "end": 1825
+      },
+      {
+        "name": "opsJSONInt",
+        "kind": "func",
+        "line": 1827,
+        "end": 1844
+      },
+      {
+        "name": "parseOpsSSEFailure",
+        "kind": "func",
+        "line": 1846,
+        "end": 1931
+      },
+      {
+        "name": "opsSSEErrorObject",
+        "kind": "func",
+        "line": 1933,
+        "end": 1951
+      },
+      {
+        "name": "sanitizeOpsSSEDataForPersistence",
+        "kind": "func",
+        "line": 1953,
+        "end": 1999
+      },
+      {
+        "name": "inferResponsesFailedOpsErrorType",
+        "kind": "func",
+        "line": 2001,
+        "end": 2018
+      },
+      {
+        "name": "inferStreamFailureStatus",
+        "kind": "func",
+        "line": 2020,
+        "end": 2053
+      },
+      {
+        "name": "getOpsAPIKey",
+        "kind": "func",
+        "line": 2059,
+        "end": 2067
+      },
+      {
+        "name": "resolveOpsPlatform",
+        "kind": "func",
+        "line": 2069,
+        "end": 2074
+      },
+      {
+        "name": "guessPlatformFromPath",
+        "kind": "func",
+        "line": 2076,
+        "end": 2088
+      },
+      {
+        "name": "isKnownOpsErrorType",
+        "kind": "func",
+        "line": 2094,
+        "end": 2113
+      },
+      {
+        "name": "normalizeOpsErrorType",
+        "kind": "func",
+        "line": 2115,
+        "end": 2138
+      },
+      {
+        "name": "classifyOpsPhase",
+        "kind": "func",
+        "line": 2140,
+        "end": 2173
+      },
+      {
+        "name": "classifyOpsSeverity",
+        "kind": "func",
+        "line": 2175,
+        "end": 2190
+      },
+      {
+        "name": "classifyOpsErrorLog",
+        "kind": "func",
+        "line": 2193,
+        "end": 2225
+      },
+      {
+        "name": "isOpsUpstreamClientInvalidRequest",
+        "kind": "func",
+        "line": 2229,
+        "end": 2246
+      },
+      {
+        "name": "classifyOpsIsBusinessLimited",
+        "kind": "func",
+        "line": 2248,
+        "end": 2265
+      },
+      {
+        "name": "isOpsClientAuthError",
+        "kind": "func",
+        "line": 2267,
+        "end": 2287
+      },
+      {
+        "name": "isOpsLocalBusinessLimitError",
+        "kind": "func",
+        "line": 2289,
+        "end": 2335
+      },
+      {
+        "name": "hasOpsUpstreamErrorContext",
+        "kind": "func",
+        "line": 2338,
+        "end": 2360
+      },
+      {
+        "name": "hasOpsAccountAuthFailure",
+        "kind": "func",
+        "line": 2362,
+        "end": 2376
+      },
+      {
+        "name": "isOpsNoAvailableAccountMessage",
+        "kind": "func",
+        "line": 2378,
+        "end": 2385
+      },
+      {
+        "name": "classifyOpsErrorOwner",
+        "kind": "func",
+        "line": 2387,
+        "end": 2404
+      },
+      {
+        "name": "classifyOpsErrorSource",
+        "kind": "func",
+        "line": 2406,
+        "end": 2425
+      },
+      {
+        "name": "truncateString",
+        "kind": "func",
+        "line": 2427,
+        "end": 2440
+      },
+      {
+        "name": "strconvItoa",
+        "kind": "func",
+        "line": 2442,
+        "end": 2444
+      },
+      {
+        "name": "shouldSkipOpsErrorLog",
+        "kind": "func",
+        "line": 2448,
+        "end": 2496
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/handler"
+  },
+  {
+    "source": "backend/internal/handler/admin/ops_ws_handler.go",
+    "role": "按需 QPS 刷新与空闲定时器",
+    "exit_step": "S08/S15",
+    "reason": "启动时机不变；应用关闭时封闭重启与等待完成",
+    "build": "",
+    "symbols": [
+      {
+        "name": "OpsWSProxyConfig",
+        "kind": "type",
+        "line": 25,
+        "end": 29
+      },
+      {
+        "name": "envOpsWSTrustProxy",
+        "kind": "const",
+        "line": 32,
+        "end": 32
+      },
+      {
+        "name": "envOpsWSTrustedProxies",
+        "kind": "const",
+        "line": 33,
+        "end": 33
+      },
+      {
+        "name": "envOpsWSOriginPolicy",
+        "kind": "const",
+        "line": 34,
+        "end": 34
+      },
+      {
+        "name": "envOpsWSMaxConns",
+        "kind": "const",
+        "line": 35,
+        "end": 35
+      },
+      {
+        "name": "envOpsWSMaxConnsPerIP",
+        "kind": "const",
+        "line": 36,
+        "end": 36
+      },
+      {
+        "name": "OriginPolicyStrict",
+        "kind": "const",
+        "line": 40,
+        "end": 40
+      },
+      {
+        "name": "OriginPolicyPermissive",
+        "kind": "const",
+        "line": 41,
+        "end": 41
+      },
+      {
+        "name": "opsWSProxyConfig",
+        "kind": "var",
+        "line": 44,
+        "end": 44
+      },
+      {
+        "name": "upgrader",
+        "kind": "var",
+        "line": 46,
+        "end": 54
+      },
+      {
+        "name": "qpsWSPushInterval",
+        "kind": "const",
+        "line": 57,
+        "end": 57
+      },
+      {
+        "name": "qpsWSRefreshInterval",
+        "kind": "const",
+        "line": 58,
+        "end": 58
+      },
+      {
+        "name": "qpsWSRequestCountWindow",
+        "kind": "const",
+        "line": 59,
+        "end": 59
+      },
+      {
+        "name": "defaultMaxWSConns",
+        "kind": "const",
+        "line": 61,
+        "end": 61
+      },
+      {
+        "name": "defaultMaxWSConnsPerIP",
+        "kind": "const",
+        "line": 62,
+        "end": 62
+      },
+      {
+        "name": "wsConnCount",
+        "kind": "var",
+        "line": 65,
+        "end": 65
+      },
+      {
+        "name": "wsConnCountByIPMu",
+        "kind": "var",
+        "line": 66,
+        "end": 66
+      },
+      {
+        "name": "wsConnCountByIP",
+        "kind": "var",
+        "line": 67,
+        "end": 67
+      },
+      {
+        "name": "qpsWSIdleStopDelay",
+        "kind": "const",
+        "line": 69,
+        "end": 69
+      },
+      {
+        "name": "opsWSCloseRealtimeDisabled",
+        "kind": "const",
+        "line": 72,
+        "end": 72
+      },
+      {
+        "name": "qpsWSIdleStopMu",
+        "kind": "var",
+        "line": 75,
+        "end": 75
+      },
+      {
+        "name": "qpsWSIdleStopTimer",
+        "kind": "var",
+        "line": 76,
+        "end": 76
+      },
+      {
+        "name": "qpsWSIdleStopWG",
+        "kind": "var",
+        "line": 77,
+        "end": 77
+      },
+      {
+        "name": "qpsWSRuntimeClosed",
+        "kind": "var",
+        "line": 78,
+        "end": 78
+      },
+      {
+        "name": "cancelQPSWSIdleStop",
+        "kind": "func",
+        "line": 80,
+        "end": 89
+      },
+      {
+        "name": "scheduleQPSWSIdleStop",
+        "kind": "func",
+        "line": 91,
+        "end": 113
+      },
+      {
+        "name": "opsWSRuntimeLimits",
+        "kind": "type",
+        "line": 115,
+        "end": 118
+      },
+      {
+        "name": "opsWSLimits",
+        "kind": "var",
+        "line": 120,
+        "end": 120
+      },
+      {
+        "name": "qpsWSWriteTimeout",
+        "kind": "const",
+        "line": 123,
+        "end": 123
+      },
+      {
+        "name": "qpsWSPongWait",
+        "kind": "const",
+        "line": 124,
+        "end": 124
+      },
+      {
+        "name": "qpsWSPingInterval",
+        "kind": "const",
+        "line": 125,
+        "end": 125
+      },
+      {
+        "name": "qpsWSMaxReadBytes",
+        "kind": "const",
+        "line": 128,
+        "end": 128
+      },
+      {
+        "name": "opsWSQPSCache",
+        "kind": "type",
+        "line": 131,
+        "end": 145
+      },
+      {
+        "name": "qpsWSCache",
+        "kind": "var",
+        "line": 147,
+        "end": 150
+      },
+      {
+        "name": "start",
+        "receiver": "opsWSQPSCache",
+        "kind": "func",
+        "line": 152,
+        "end": 192
+      },
+      {
+        "name": "Stop",
+        "receiver": "opsWSQPSCache",
+        "kind": "func",
+        "line": 196,
+        "end": 229
+      },
+      {
+        "name": "refreshLoop",
+        "receiver": "opsWSQPSCache",
+        "kind": "func",
+        "line": 231,
+        "end": 244
+      },
+      {
+        "name": "refresh",
+        "receiver": "opsWSQPSCache",
+        "kind": "func",
+        "line": 246,
+        "end": 300
+      },
+      {
+        "name": "roundTo1DP",
+        "kind": "func",
+        "line": 302,
+        "end": 304
+      },
+      {
+        "name": "getPayload",
+        "receiver": "opsWSQPSCache",
+        "kind": "func",
+        "line": 306,
+        "end": 314
+      },
+      {
+        "name": "closeWS",
+        "kind": "func",
+        "line": 316,
+        "end": 323
+      },
+      {
+        "name": "QPSWSHandler",
+        "receiver": "OpsHandler",
+        "kind": "func",
+        "line": 327,
+        "end": 384
+      },
+      {
+        "name": "tryAcquireOpsWSTotalSlot",
+        "kind": "func",
+        "line": 386,
+        "end": 399
+      },
+      {
+        "name": "tryAcquireOpsWSIPSlot",
+        "kind": "func",
+        "line": 401,
+        "end": 413
+      },
+      {
+        "name": "releaseOpsWSIPSlot",
+        "kind": "func",
+        "line": 415,
+        "end": 430
+      },
+      {
+        "name": "handleQPSWebSocket",
+        "kind": "func",
+        "line": 432,
+        "end": 548
+      },
+      {
+        "name": "isAllowedOpsWSOrigin",
+        "kind": "func",
+        "line": 550,
+        "end": 587
+      },
+      {
+        "name": "shouldTrustOpsWSProxyHeaders",
+        "kind": "func",
+        "line": 589,
+        "end": 601
+      },
+      {
+        "name": "requestPeerIP",
+        "kind": "func",
+        "line": 603,
+        "end": 621
+      },
+      {
+        "name": "requestClientIP",
+        "kind": "func",
+        "line": 623,
+        "end": 646
+      },
+      {
+        "name": "isAddrInTrustedProxies",
+        "kind": "func",
+        "line": 648,
+        "end": 658
+      },
+      {
+        "name": "loadOpsWSProxyConfigFromEnv",
+        "kind": "func",
+        "line": 660,
+        "end": 694
+      },
+      {
+        "name": "loadOpsWSRuntimeLimitsFromEnv",
+        "kind": "func",
+        "line": 696,
+        "end": 717
+      },
+      {
+        "name": "defaultTrustedProxies",
+        "kind": "func",
+        "line": 719,
+        "end": 722
+      },
+      {
+        "name": "parseTrustedProxyList",
+        "kind": "func",
+        "line": 724,
+        "end": 758
+      },
+      {
+        "name": "hostWithoutPort",
+        "kind": "func",
+        "line": 760,
+        "end": 773
+      },
+      {
+        "name": "StopOpsWSRuntime",
+        "kind": "func",
+        "line": 776,
+        "end": 791
+      }
+    ],
+    "direct_consumers_ref": "package-consumers.json#backend/internal/handler/admin"
+  }
+]

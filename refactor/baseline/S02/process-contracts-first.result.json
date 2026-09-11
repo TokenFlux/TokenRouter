@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/app",
+    "-run",
+    "TestS02ProcessModes"
+  ],
+  "date": "2026-09-11T04:43:09.792564+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "duration_seconds": 21.001,
+  "test_events": {
+    "pass": 8,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/process-contracts-first.log.gz"
+}

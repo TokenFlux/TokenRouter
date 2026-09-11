@@ -1,10 +1,7 @@
 package service
 
-import "time"
+import "github.com/TokenFlux/TokenRouter/internal/settings"
 
-type Setting struct {
-	ID        int64
-	Key       string
-	Value     string
-	UpdatedAt time.Time
-}
+// Setting 保留旧消费者的类型身份，S15/S16 清理。
+type Setting = settings.Setting
+type SettingRepository = settings.Repository

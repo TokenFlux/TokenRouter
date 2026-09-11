@@ -394,6 +394,8 @@ type RateLimitCacheInvalidator interface {
 }
 
 type APIKeyService struct {
+	runtimeStart              sync.Once
+	runtimeStop               sync.Once
 	apiKeyRepo                APIKeyRepository
 	userRepo                  UserRepository
 	groupRepo                 GroupRepository
@@ -461,7 +463,7 @@ func NewAPIKeyService(
 		cache:             cache,
 		cfg:               cfg,
 	}
-	svc.initAuthCache(cfg)
+	svc.authCfg = newAPIKeyAuthCacheConfig(cfg)
 	lookupConcurrency := defaultAuthLookupConcurrency
 	if cfg != nil && cfg.APIKeyAuth.LookupConcurrency > 0 {
 		lookupConcurrency = cfg.APIKeyAuth.LookupConcurrency
@@ -1972,4 +1974,22 @@ func (s *APIKeyService) UpdateRateLimitUsage(ctx context.Context, apiKeyID int64
 		return nil
 	}
 	return s.apiKeyRepo.IncrementRateLimitUsage(ctx, apiKeyID, cost)
+}
+
+// Start 初始化唯一认证缓存并启动跨实例失效订阅。
+func (s *APIKeyService) Start() {
+	s.runtimeStart.Do(func() { s.initAuthCache(s.cfg); s.StartAuthCacheInvalidationSubscriber(context.Background()) })
+}
+
+// Stop 在请求与后台消费者停止后释放认证缓存的内部任务。
+func (s *APIKeyService) Stop() {
+	s.runtimeStop.Do(func() {
+		s.StopAuthCacheInvalidationSubscriber()
+		if s.authCacheL1 != nil {
+			s.authCacheL1.Close()
+		}
+		if s.authNegativeCacheL1 != nil {
+			s.authNegativeCacheL1.Close()
+		}
+	})
 }

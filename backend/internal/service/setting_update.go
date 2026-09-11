@@ -904,8 +904,8 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		value:     settings.OpenAIAllowClaudeCodeCodexPlugin,
 		expiresAt: time.Now().Add(openAIAllowCodexPluginCacheTTL).UnixNano(),
 	})
-	if s.onUpdate != nil {
-		s.onUpdate() // Invalidate cache after settings update
+	if s.runtimeSettings != nil {
+		s.runtimeSettings.NotifyUpdated()
 	}
 	if s.creativeWorkerCountCallback != nil {
 		s.creativeWorkerCountCallback(settings.CreativeWorkerCount)

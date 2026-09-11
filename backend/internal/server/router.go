@@ -1,22 +1,22 @@
 package server
 
 import (
-	"context"
-	"sync/atomic"
-	"time"
-
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/handler"
-	redisinfra "github.com/TokenFlux/TokenRouter/internal/infra/redis"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/server/routes"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 )
 
-const frameSrcRefreshTimeout = 5 * time.Second
+// RouterRuntime 仅包含由应用装配好的 HTTP 行为。
+type RouterRuntime struct {
+	FrameOrigins func() []string
+	Frontend     gin.HandlerFunc
+	AuthLimiter  *middleware2.RateLimiter
+	PanelLimiter *middleware2.PanelRateLimiter
+}
 
 // SetupRouter 配置路由器中间件和路由
 func SetupRouter(
@@ -32,26 +32,9 @@ func SetupRouter(
 	opsService *service.OpsService,
 	settingService *service.SettingService,
 	cfg *config.Config,
-	redisClient *redis.Client,
+	runtime *RouterRuntime,
 ) *gin.Engine {
 	middleware2.SetIngressRejectRecorder(opsService)
-	// 缓存 iframe 页面的 origin 列表，用于动态注入 CSP frame-src
-	var cachedFrameOrigins atomic.Pointer[[]string]
-	emptyOrigins := []string{}
-	cachedFrameOrigins.Store(&emptyOrigins)
-
-	refreshFrameOrigins := func() {
-		ctx, cancel := context.WithTimeout(context.Background(), frameSrcRefreshTimeout)
-		defer cancel()
-		origins, err := settingService.GetFrameSrcOrigins(ctx)
-		if err != nil {
-			// 获取失败时保留已有缓存，避免 frame-src 被意外清空
-			return
-		}
-		cachedFrameOrigins.Store(&origins)
-	}
-	refreshFrameOrigins() // 启动时初始化
-
 	// 应用中间件
 	r.Use(middleware2.RequestLogger())
 	// 将客户端 IP + UA 注入 request context，供 token 签发/会话绑定/审计日志统一读取。
@@ -59,19 +42,16 @@ func SetupRouter(
 	r.Use(middleware2.SessionBindingContext(cfg))
 	r.Use(middleware2.Logger())
 	r.Use(middleware2.CORS(cfg.CORS))
-	r.Use(middleware2.SecurityHeaders(cfg.Security.CSP, func() []string {
-		if p := cachedFrameOrigins.Load(); p != nil {
-			return *p
-		}
-		return nil
-	}))
+	r.Use(middleware2.SecurityHeaders(cfg.Security.CSP, runtime.FrameOrigins))
 	r.Use(middleware2.ServerTiming(cfg.Server.EnableServerTiming))
 
 	// Serve embedded frontend with settings injection if available
-	registerFrontendMiddleware(r, settingService, refreshFrameOrigins)
+	if runtime.Frontend != nil {
+		r.Use(runtime.Frontend)
+	}
 
 	// 注册路由
-	registerRoutes(r, handlers, jwtAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, cfg, redisClient)
+	registerRoutes(r, handlers, jwtAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, cfg, runtime)
 
 	return r
 }
@@ -90,7 +70,7 @@ func registerRoutes(
 	opsService *service.OpsService,
 	settingService *service.SettingService,
 	cfg *config.Config,
-	redisClient *redis.Client,
+	runtime *RouterRuntime,
 ) {
 	// 通用路由（健康检查、状态等）
 	routes.RegisterCommonRoutes(r)
@@ -100,14 +80,10 @@ func registerRoutes(
 
 	// 面板 API 限流器：认证接口按用户 ID、公开接口按安全客户端 IP，
 	// 防止高频刷管理面接口打爆数据库（阈值可在系统设置中调整）。
-	var panelCounter *middleware2.RateLimiter
-	if redisClient != nil {
-		panelCounter = middleware2.NewRateLimiter(redisinfra.NewFixedWindowLimiter(redisClient, "rate_limit:"))
-	}
-	panelRateLimiter := middleware2.NewPanelRateLimiter(panelCounter, settingService)
+	panelRateLimiter := runtime.PanelLimiter
 
 	// 注册各模块路由
-	routes.RegisterAuthRoutes(v1, h, jwtAuth, auditLog, redisClient, settingService, panelRateLimiter)
+	routes.RegisterAuthRoutes(v1, h, jwtAuth, auditLog, runtime.AuthLimiter, settingService, panelRateLimiter)
 	routes.RegisterUserRoutes(v1, h, jwtAuth, auditLog, stepUpAuth, settingService, panelRateLimiter)
 	routes.RegisterAdminRoutes(v1, h, adminAuth, auditLog, stepUpAuth, panelRateLimiter)
 	routes.RegisterGatewayRoutes(r, h, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg)

@@ -1,0 +1,21 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--build-tags=unit",
+    "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S02/final-lint-unit.json",
+    "./..."
+  ],
+  "date": "2026-09-11T05:35:50.329214+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "duration_seconds": 66.875,
+  "test_events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/final-lint-unit.log.gz"
+}

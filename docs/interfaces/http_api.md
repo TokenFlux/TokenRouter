@@ -152,6 +152,20 @@ Group 使用 `allowed_protocols`、`protocol_fallbacks`、`responses_image_polic
 
 查询不会写账号、Extra、调度快照或计费记录，也不会把 API Key 放入响应或审计 body。前端只在行内按钮或批量操作触发请求，成功结果在管理员隔离的 `sessionStorage` 中缓存五分钟。
 
+<a id="announcement_api"></a>
+## 公告接口
+
+公告的用户与管理员 handler/DTO 位于 `site/httpapi`，由原路由族接入相同的认证、审计和限流。用户入口保持 `GET /api/v1/announcements` 与 `POST /api/v1/announcements/:id/read`；管理员 CRUD 和 read-status 保持 `/api/v1/admin/announcements` 路径。
+
+site 拥有 targeting 校验、余额/有效订阅匹配、开始结束边界、已读与到期归档。用户和订阅只读投影由应用桥接提供；HTTP Adapter 不直接访问数据库。开始/结束字段的省略、零值清空、分页排序和 JSON 形状保持原契约。重复已读保留第一次读取时间；管理员查询仍先归档过期公告，归档失败不能伪装成成功列表。
+
+<a id="write_idempotency"></a>
+## 面板命令幂等
+
+`idempotency` 拥有命令认领、指纹、重放、冲突、退避、响应存储、指标和到期清理，PostgreSQL Adapter 负责原表读写。用户/管理员 helper 保留既有 scope、observe-only、缺省 coordinator、存储故障策略、`Retry-After` 与 `X-Idempotency-Replayed`。响应截断仍保持 UTF-8 和脱敏，默认 coordinator 与指标只有一份状态。
+
+维护操作锁继续拥有自己的全局作用域、续租与成功/失败语义；它只复用新存取契约，不与资金去重合并。清理 worker 由 app 启动并等待停止，不能在数据库关闭后继续删除记录。
+
 <a id="response_errors"></a>
 ## 响应与错误
 

@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	idempotencypostgres "github.com/TokenFlux/TokenRouter/internal/idempotency/postgres"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ func hashedTestValue(t *testing.T, prefix string) string {
 
 func TestIdempotencyRepo_CreateProcessing_CompeteSameKey(t *testing.T) {
 	tx := testTx(t)
-	repo := &idempotencyRepository{sql: tx}
+	repo := idempotencypostgres.NewIdempotencyRepository(tx)
 	ctx := context.Background()
 
 	now := time.Now().UTC()
@@ -54,7 +55,7 @@ func TestIdempotencyRepo_CreateProcessing_CompeteSameKey(t *testing.T) {
 
 func TestIdempotencyRepo_TryReclaim_StatusAndLockWindow(t *testing.T) {
 	tx := testTx(t)
-	repo := &idempotencyRepository{sql: tx}
+	repo := idempotencypostgres.NewIdempotencyRepository(tx)
 	ctx := context.Background()
 
 	now := time.Now().UTC()
@@ -119,7 +120,7 @@ func TestIdempotencyRepo_TryReclaim_StatusAndLockWindow(t *testing.T) {
 
 func TestIdempotencyRepo_StatusTransition_ToSucceeded(t *testing.T) {
 	tx := testTx(t)
-	repo := &idempotencyRepository{sql: tx}
+	repo := idempotencypostgres.NewIdempotencyRepository(tx)
 	ctx := context.Background()
 
 	now := time.Now().UTC()

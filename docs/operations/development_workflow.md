@@ -70,15 +70,17 @@ protocol 的六组生产与测试规则使用精确的标准库白名单，允�
 - API 类型和调用放在 `src/api/`，跨页面状态进入 store/composable，避免在 view 复制协议。
 - 修改依赖必须同步 `frontend/pnpm-lock.yaml`，CI 使用 frozen lockfile。
 
+app 的旧图绑定和 legacybridge 许可精确到源文件与 import。setup 只有实际入口文件可以引用精简 bootstrap；模块仍禁止反向依赖 app。迁出文件恢复目标角色规则，新增同目录文件不得继承例外。验证要覆盖普通/unit/integration，以及 wireinject、embed 和 OS 文件选择，不能仅以 lint 没有报错推断规则命中。
+
 ## 生成代码与迁移
 
-`backend/ent/` 大部分文件由 Ent 生成，`backend/cmd/server/wire_gen.go` 由 Wire 生成。统一使用：
+`backend/ent/` 大部分文件由 Ent 生成，`backend/internal/app/wire_gen.go` 由 Wire 生成。统一使用：
 
 ```bash
 make -C backend generate
 ```
 
-该目标依次执行 `go generate ./ent` 和 `go generate ./cmd/server`。修改 `backend/ent/schema/`、生成 feature 或 Wire provider 后，提交对应生成差异，并检查差异只包含预期 schema/依赖变化。Go 1.27 的 jsonv2 生成代码可能把 Ent 的 JSON 字段表示为 `encoding/json/jsontext.Value`，这是预期的生成结果。
+该目标依次执行 `go generate ./ent` 和 `go generate ./cmd/server`。纯 Wire 装配变更只运行 `(cd backend && go generate ./cmd/server)`；原入口委托 app 的生成位置，构建版本仍通过 `-X main.Version` 等变量注入。修改 `backend/ent/schema/`、生成 feature 或 Wire provider 后，提交对应生成差异，并检查差异只包含预期 schema/依赖变化。Go 1.27 的 jsonv2 生成代码可能把 Ent 的 JSON 字段表示为 `encoding/json/jsontext.Value`，这是预期的生成结果。
 
 Ent schema 不是生产迁移器。数据库权威变更仍须新增 `backend/migrations/*.sql`，不能依赖 Ent auto-migrate，也不能修改既有迁移。编号、`_notx.sql`、checksum 和 fork 上游重编号规则见 [部署与数据库迁移](deployment_and_migrations.md)。
 

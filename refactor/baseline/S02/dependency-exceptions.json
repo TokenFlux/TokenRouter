@@ -1,0 +1,1426 @@
+[
+  {
+    "source": "backend/internal/payment/load_balancer.go",
+    "import": "github.com/TokenFlux/TokenRouter/ent",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12.2",
+    "rule": "core-payment-legacy-internal-payment-load_balancer-go"
+  },
+  {
+    "source": "backend/internal/payment/load_balancer.go",
+    "import": "github.com/TokenFlux/TokenRouter/ent/paymentorder",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12.2",
+    "rule": "core-payment-legacy-internal-payment-load_balancer-go"
+  },
+  {
+    "source": "backend/internal/payment/load_balancer.go",
+    "import": "github.com/TokenFlux/TokenRouter/ent/paymentproviderinstance",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12.2",
+    "rule": "core-payment-legacy-internal-payment-load_balancer-go"
+  },
+  {
+    "source": "backend/internal/payment/registry.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/errors",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12.2",
+    "rule": "core-payment-legacy-internal-payment-registry-go"
+  },
+  {
+    "source": "backend/internal/payment/wire.go",
+    "import": "github.com/TokenFlux/TokenRouter/ent",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12.2",
+    "rule": "core-payment-legacy-internal-payment-wire-go"
+  },
+  {
+    "source": "backend/internal/payment/wire.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/config",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12.2",
+    "rule": "core-payment-legacy-internal-payment-wire-go"
+  },
+  {
+    "source": "backend/internal/payment/wire.go",
+    "import": "github.com/google/wire",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12.2",
+    "rule": "core-payment-legacy-internal-payment-wire-go"
+  },
+  {
+    "source": "backend/internal/payment/load_balancer_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/ent",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12.2",
+    "rule": "core-payment-legacy-internal-payment-load_balancer_test-go"
+  },
+  {
+    "source": "backend/internal/payment/wire_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/config",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12.2",
+    "rule": "core-payment-legacy-internal-payment-wire_test-go"
+  },
+  {
+    "source": "backend/internal/payment/provider/wxpay.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/errors",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12",
+    "rule": "payment-provider-legacy-internal-payment-provider-wxpay-go"
+  },
+  {
+    "source": "backend/internal/server/http.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S02、S15",
+    "rule": "retained-server-legacy-internal-server-http-go"
+  },
+  {
+    "source": "backend/internal/server/http.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S02、S15",
+    "rule": "retained-server-legacy-internal-server-http-go"
+  },
+  {
+    "source": "backend/internal/server/router.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S02、S15",
+    "rule": "retained-server-legacy-internal-server-router-go"
+  },
+  {
+    "source": "backend/internal/server/router.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S02、S15",
+    "rule": "retained-server-legacy-internal-server-router-go"
+  },
+  {
+    "source": "backend/internal/server/api_contract_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/domain",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S02、S15",
+    "rule": "retained-server-legacy-internal-server-api_contract_test-go"
+  },
+  {
+    "source": "backend/internal/server/api_contract_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S02、S15",
+    "rule": "retained-server-legacy-internal-server-api_contract_test-go"
+  },
+  {
+    "source": "backend/internal/server/api_contract_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S02、S15",
+    "rule": "retained-server-legacy-internal-server-api_contract_test-go"
+  },
+  {
+    "source": "backend/internal/server/api_contract_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/usagestats",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S02、S15",
+    "rule": "retained-server-legacy-internal-server-api_contract_test-go"
+  },
+  {
+    "source": "backend/internal/server/api_contract_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S02、S15",
+    "rule": "retained-server-legacy-internal-server-api_contract_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/admin_auth.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-admin_auth-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/admin_only.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-admin_only-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ip",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth_google.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/googleapi",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth_google-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth_google.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ip",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth_google-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth_google.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth_google-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_billing.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_billing-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_composite.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_composite-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_composite.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/errors",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_composite-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_composite.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/httputil",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_composite-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_composite.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_composite-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_model_mapping.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_model_mapping-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_model_mapping.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_model_mapping-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/audit_log.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S08",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-audit_log-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/audit_log.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S08",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-audit_log-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/backend_mode_guard.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/response",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-backend_mode_guard-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/backend_mode_guard.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-backend_mode_guard-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/client_request_id.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-client_request_id-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/client_request_id.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/logger",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-client_request_id-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/client_request_id.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/servertiming",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-client_request_id-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/jwt_auth.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-jwt_auth-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/logger.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-logger-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/logger.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ip",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-logger-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/logger.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/logger",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-logger-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/logger.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/servertiming",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-logger-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/middleware.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-middleware-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/middleware.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/googleapi",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-middleware-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/middleware.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-middleware-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/panel_rate_limit.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-panel_rate_limit-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/recovery.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/errors",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-recovery-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/recovery.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/response",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-recovery-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/request_logger.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-request_logger-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/request_logger.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/logger",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-request_logger-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/server_timing.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/servertiming",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-server_timing-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/session_binding.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ip",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-session_binding-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/session_binding.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-session_binding-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/step_up.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-step_up-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/wire.go",
+    "import": "github.com/google/wire",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S02、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-wire-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/admin_auth_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-admin_auth_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth_google_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth_google_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth_google_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth_google_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth_team_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth_team_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_auth_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_composite_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/domain",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_composite_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_composite_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_composite_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_model_mapping_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_model_mapping_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_model_mapping_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04、S05、S06、S11",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-api_key_model_mapping_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/audit_log_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S08",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-audit_log_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/backend_mode_guard_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-backend_mode_guard_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/ingress_reject_access_sampler_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/logger",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-ingress_reject_access_sampler_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/invalid_auth_abuse_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-invalid_auth_abuse_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/jwt_auth_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-jwt_auth_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/misc_coverage_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-misc_coverage_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/misc_coverage_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-misc_coverage_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/openai_fast_policy_forwarding_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-openai_fast_policy_forwarding_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/openai_fast_policy_forwarding_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-openai_fast_policy_forwarding_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/panel_rate_limit_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-panel_rate_limit_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/recovery_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/errors",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-recovery_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/recovery_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/response",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-recovery_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/request_access_logger_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-request_access_logger_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/request_access_logger_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/logger",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-request_access_logger_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/server_timing_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/servertiming",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-server_timing_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/session_binding_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ip",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-session_binding_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/session_binding_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-session_binding_test-go"
+  },
+  {
+    "source": "backend/internal/server/middleware/step_up_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-step_up_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/admin.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04—S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-admin-go"
+  },
+  {
+    "source": "backend/internal/server/routes/admin.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/response",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04—S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-admin-go"
+  },
+  {
+    "source": "backend/internal/server/routes/admin.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04—S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-admin-go"
+  },
+  {
+    "source": "backend/internal/server/routes/auth.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-routes-legacy-internal-server-routes-auth-go"
+  },
+  {
+    "source": "backend/internal/server/routes/auth.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-routes-legacy-internal-server-routes-auth-go"
+  },
+  {
+    "source": "backend/internal/server/routes/gateway.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/domain",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09、S11、S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-gateway-go"
+  },
+  {
+    "source": "backend/internal/server/routes/gateway.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09、S11、S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-gateway-go"
+  },
+  {
+    "source": "backend/internal/server/routes/gateway.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09、S11、S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-gateway-go"
+  },
+  {
+    "source": "backend/internal/server/routes/gateway.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09、S11、S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-gateway-go"
+  },
+  {
+    "source": "backend/internal/server/routes/payment.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12",
+    "rule": "retained-server-routes-legacy-internal-server-routes-payment-go"
+  },
+  {
+    "source": "backend/internal/server/routes/payment.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12",
+    "rule": "retained-server-routes-legacy-internal-server-routes-payment-go"
+  },
+  {
+    "source": "backend/internal/server/routes/payment.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12",
+    "rule": "retained-server-routes-legacy-internal-server-routes-payment-go"
+  },
+  {
+    "source": "backend/internal/server/routes/protocol_capabilities.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/domain",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S03、S06",
+    "rule": "retained-server-routes-legacy-internal-server-routes-protocol_capabilities-go"
+  },
+  {
+    "source": "backend/internal/server/routes/user.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04—S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-user-go"
+  },
+  {
+    "source": "backend/internal/server/routes/user.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04—S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-user-go"
+  },
+  {
+    "source": "backend/internal/server/routes/admin_qoder_oauth_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04—S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-admin_qoder_oauth_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/admin_qoder_oauth_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04—S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-admin_qoder_oauth_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/admin_qoder_oauth_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04—S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-admin_qoder_oauth_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/admin_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04—S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-admin_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/admin_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S04—S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-admin_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/auth_rate_limit_integration_test.go",
+    "import": "github.com/redis/go-redis/v9",
+    "build": "integration",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-routes-legacy-internal-server-routes-auth_rate_limit_integration_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/auth_rate_limit_integration_test.go",
+    "import": "github.com/testcontainers/testcontainers-go/modules/redis",
+    "build": "integration",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-routes-legacy-internal-server-routes-auth_rate_limit_integration_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/auth_rate_limit_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-routes-legacy-internal-server-routes-auth_rate_limit_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/auth_rate_limit_test.go",
+    "import": "github.com/redis/go-redis/v9",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S05",
+    "rule": "retained-server-routes-legacy-internal-server-routes-auth_rate_limit_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/gateway_codex_models_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09、S11",
+    "rule": "retained-server-routes-legacy-internal-server-routes-gateway_codex_models_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/gateway_codex_models_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09、S11",
+    "rule": "retained-server-routes-legacy-internal-server-routes-gateway_codex_models_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/gateway_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/domain",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09、S11、S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-gateway_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/gateway_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09、S11、S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-gateway_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/gateway_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09、S11、S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-gateway_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/ops_ingress_reject_routes_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S08",
+    "rule": "retained-server-routes-legacy-internal-server-routes-ops_ingress_reject_routes_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/ops_ingress_reject_routes_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S08",
+    "rule": "retained-server-routes-legacy-internal-server-routes-ops_ingress_reject_routes_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/payment_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12",
+    "rule": "retained-server-routes-legacy-internal-server-routes-payment_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/payment_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S12",
+    "rule": "retained-server-routes-legacy-internal-server-routes-payment_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/protocol_capabilities_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/domain",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S03、S06",
+    "rule": "retained-server-routes-legacy-internal-server-routes-protocol_capabilities_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/protocol_capabilities_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S03、S06",
+    "rule": "retained-server-routes-legacy-internal-server-routes-protocol_capabilities_test-go"
+  },
+  {
+    "source": "backend/internal/server/routes/removed_feature_routes_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S14、S15",
+    "rule": "retained-server-routes-legacy-internal-server-routes-removed_feature_routes_test-go"
+  },
+  {
+    "source": "backend/internal/setup/handler.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/response",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S14",
+    "rule": "retained-setup-legacy-internal-setup-handler-go"
+  },
+  {
+    "source": "backend/internal/setup/setup.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/logger",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S14",
+    "rule": "retained-setup-legacy-internal-setup-setup-go"
+  },
+  {
+    "source": "backend/internal/setup/setup.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S14",
+    "rule": "retained-setup-legacy-internal-setup-setup-go"
+  },
+  {
+    "source": "backend/internal/web/embed_on.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/server/middleware",
+    "build": "embed",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S02、S15",
+    "rule": "retained-web-legacy-internal-web-embed_on-go"
+  },
+  {
+    "source": "backend/internal/web/embed_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/server/middleware",
+    "build": "embed",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S02、S15",
+    "rule": "retained-web-legacy-internal-web-embed_test-go"
+  },
+  {
+    "source": "backend/internal/testutil/fixtures.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "随 S03—S15、S16",
+    "rule": "retained-testutil-legacy-internal-testutil-fixtures-go"
+  },
+  {
+    "source": "backend/internal/testutil/redis.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/repository",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "随 S03—S15、S16",
+    "rule": "retained-testutil-legacy-internal-testutil-redis-go"
+  },
+  {
+    "source": "backend/internal/testutil/redis.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "随 S03—S15、S16",
+    "rule": "retained-testutil-legacy-internal-testutil-redis-go"
+  },
+  {
+    "source": "backend/internal/testutil/stubs.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "随 S03—S15、S16",
+    "rule": "retained-testutil-legacy-internal-testutil-stubs-go"
+  },
+  {
+    "source": "backend/internal/pkg/antigravity/client.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/proxyurl",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S03、S09.5",
+    "rule": "legacy-pkg-antigravity-legacy-internal-pkg-antigravity-client-go"
+  },
+  {
+    "source": "backend/internal/pkg/antigravity/client.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/proxyutil",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S03、S09.5",
+    "rule": "legacy-pkg-antigravity-legacy-internal-pkg-antigravity-client-go"
+  },
+  {
+    "source": "backend/internal/pkg/antigravity/client.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/servertiming",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S03、S09.5",
+    "rule": "legacy-pkg-antigravity-legacy-internal-pkg-antigravity-client-go"
+  },
+  {
+    "source": "backend/internal/pkg/antigravity/oauth.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/errors",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S03、S09.5",
+    "rule": "legacy-pkg-antigravity-legacy-internal-pkg-antigravity-oauth-go"
+  },
+  {
+    "source": "backend/internal/pkg/claude/cli_version.go",
+    "import": "golang.org/x/mod/semver",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S03、S09.2、S11",
+    "rule": "legacy-pkg-claude-legacy-internal-pkg-claude-cli_version-go"
+  },
+  {
+    "source": "backend/internal/pkg/geminicli/drive_client.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/httpclient",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09.3",
+    "rule": "legacy-pkg-geminicli-legacy-internal-pkg-geminicli-drive_client-go"
+  },
+  {
+    "source": "backend/internal/pkg/geminicli/oauth.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/errors",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09.3",
+    "rule": "legacy-pkg-geminicli-legacy-internal-pkg-geminicli-oauth-go"
+  },
+  {
+    "source": "backend/internal/pkg/ip/ip.go",
+    "import": "github.com/gin-gonic/gin",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S05",
+    "rule": "legacy-pkg-ip-legacy-internal-pkg-ip-ip-go"
+  },
+  {
+    "source": "backend/internal/pkg/qoder/client.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/util/logredact",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09.1",
+    "rule": "legacy-pkg-qoder-legacy-internal-pkg-qoder-client-go"
+  },
+  {
+    "source": "backend/internal/pkg/response/response.go",
+    "import": "github.com/gin-gonic/gin",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S01、S15",
+    "rule": "legacy-pkg-response-legacy-internal-pkg-response-response-go"
+  },
+  {
+    "source": "backend/internal/pkg/websearch/manager.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/proxyutil",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S10",
+    "rule": "legacy-pkg-websearch-legacy-internal-pkg-websearch-manager-go"
+  },
+  {
+    "source": "backend/internal/pkg/websearch/manager.go",
+    "import": "github.com/redis/go-redis/v9",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S10",
+    "rule": "legacy-pkg-websearch-legacy-internal-pkg-websearch-manager-go"
+  },
+  {
+    "source": "backend/internal/pkg/xai/cli_identity.go",
+    "import": "golang.org/x/mod/semver",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09.7",
+    "rule": "legacy-pkg-xai-legacy-internal-pkg-xai-cli_identity-go"
+  },
+  {
+    "source": "backend/internal/pkg/xai/oauth.go",
+    "import": "github.com/redis/go-redis/v9",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09.7",
+    "rule": "legacy-pkg-xai-legacy-internal-pkg-xai-oauth-go"
+  },
+  {
+    "source": "backend/internal/pkg/xai/oauth.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/pkg/redissession",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09.7",
+    "rule": "legacy-pkg-xai-legacy-internal-pkg-xai-oauth-go"
+  },
+  {
+    "source": "backend/internal/pkg/xai/oauth.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/util/logredact",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09.7",
+    "rule": "legacy-pkg-xai-legacy-internal-pkg-xai-oauth-go"
+  },
+  {
+    "source": "backend/internal/pkg/xai/oauth.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/util/urlvalidator",
+    "build": "(none)",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09.7",
+    "rule": "legacy-pkg-xai-legacy-internal-pkg-xai-oauth-go"
+  },
+  {
+    "source": "backend/internal/pkg/xai/oauth_redis_fallback_test.go",
+    "import": "github.com/alicebob/miniredis/v2",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09.7",
+    "rule": "legacy-pkg-xai-legacy-internal-pkg-xai-oauth_redis_fallback_test-go"
+  },
+  {
+    "source": "backend/internal/pkg/xai/oauth_redis_fallback_test.go",
+    "import": "github.com/redis/go-redis/v9",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09.7",
+    "rule": "legacy-pkg-xai-legacy-internal-pkg-xai-oauth_redis_fallback_test-go"
+  },
+  {
+    "source": "backend/internal/pkg/xai/oauth_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/util/urlvalidator",
+    "build": "unit",
+    "reason": "S00 已有依赖；只允许该文件的准确 import，新增文件不继承",
+    "exit_step": "S09.7",
+    "rule": "legacy-pkg-xai-legacy-internal-pkg-xai-oauth_test-go"
+  },
+  {
+    "source": "backend/internal/repository/http_upstream_pool_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "本阶段新增的旧适配契约测试只引用既有 HTTPUpstreamProfile；不获得其他旧业务依赖许可",
+    "exit_step": "S06/S09",
+    "rule": "legacy-upstream-contract-tests"
+  },
+  {
+    "source": "backend/internal/app/bootstrap/simple_mode_admin_concurrency.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S14",
+    "rule": "s02-internal-app-bootstrap-simple_mode_admin_concurrency-go"
+  },
+  {
+    "source": "backend/internal/app/bootstrap/simple_mode_default_groups.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/domain",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S14",
+    "rule": "s02-internal-app-bootstrap-simple_mode_default_groups-go"
+  },
+  {
+    "source": "backend/internal/app/bootstrap/simple_mode_default_groups.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S14",
+    "rule": "s02-internal-app-bootstrap-simple_mode_default_groups-go"
+  },
+  {
+    "source": "backend/internal/app/bootstrap/simple_mode_integration_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/domain",
+    "build": "integration",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S14",
+    "rule": "s02-internal-app-bootstrap-simple_mode_integration_test-go"
+  },
+  {
+    "source": "backend/internal/app/bootstrap/simple_mode_integration_test.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "integration",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S14",
+    "rule": "s02-internal-app-bootstrap-simple_mode_integration_test-go"
+  },
+  {
+    "source": "backend/internal/app/http_bindings.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S10/S15",
+    "rule": "s02-internal-app-http_bindings-go"
+  },
+  {
+    "source": "backend/internal/app/legacy_providers.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-legacy_providers-go"
+  },
+  {
+    "source": "backend/internal/app/legacy_providers.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-legacy_providers-go"
+  },
+  {
+    "source": "backend/internal/app/legacy_providers.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/repository",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-legacy_providers-go"
+  },
+  {
+    "source": "backend/internal/app/legacy_providers.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-legacy_providers-go"
+  },
+  {
+    "source": "backend/internal/app/legacybridge/announcement.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S04/S05",
+    "rule": "s02-internal-app-legacybridge-announcement-go"
+  },
+  {
+    "source": "backend/internal/app/wire.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "wireinject",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-wire-go"
+  },
+  {
+    "source": "backend/internal/app/wire.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/repository",
+    "build": "wireinject",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-wire-go"
+  },
+  {
+    "source": "backend/internal/app/wire.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "wireinject",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-wire-go"
+  },
+  {
+    "source": "backend/internal/app/wire_gen.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler",
+    "build": "!wireinject",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-wire_gen-go"
+  },
+  {
+    "source": "backend/internal/app/wire_gen.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/handler/admin",
+    "build": "!wireinject",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-wire_gen-go"
+  },
+  {
+    "source": "backend/internal/app/wire_gen.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/repository",
+    "build": "!wireinject",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-wire_gen-go"
+  },
+  {
+    "source": "backend/internal/app/wire_gen.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "!wireinject",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-wire_gen-go"
+  },
+  {
+    "source": "backend/internal/app/legacy_runtime_auth.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-legacy_runtime_auth-go"
+  },
+  {
+    "source": "backend/internal/app/legacy_runtime_boot.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-legacy_runtime_boot-go"
+  },
+  {
+    "source": "backend/internal/app/legacy_runtime_core.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-legacy_runtime_core-go"
+  },
+  {
+    "source": "backend/internal/app/legacy_runtime_jobs.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-legacy_runtime_jobs-go"
+  },
+  {
+    "source": "backend/internal/app/legacy_runtime_maintenance.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-legacy_runtime_maintenance-go"
+  },
+  {
+    "source": "backend/internal/app/legacy_runtime_ops.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-legacy_runtime_ops-go"
+  },
+  {
+    "source": "backend/internal/app/legacy_runtime_queues.go",
+    "import": "github.com/TokenFlux/TokenRouter/internal/service",
+    "build": "(none)",
+    "reason": "组合根装配/投影；同等基础限制，只准入实际旧 import",
+    "exit_step": "S16",
+    "rule": "s02-internal-app-legacy_runtime_queues-go"
+  }
+]

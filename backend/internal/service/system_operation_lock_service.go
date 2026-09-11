@@ -132,7 +132,7 @@ func (s *SystemOperationLockService) Acquire(ctx context.Context, operationID st
 		operationID: operationID,
 		stopCh:      make(chan struct{}),
 	}
-	go s.renewLoop(lock)
+	RunBackgroundTask("service/system_operation_lock_service.go:Acquire", BackgroundCall1(s.renewLoop, lock))
 
 	return lock, nil
 }

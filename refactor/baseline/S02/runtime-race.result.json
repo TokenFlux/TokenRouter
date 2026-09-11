@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "-run",
+    "Test(Deferred|Flusher|UsageRecordWorkerPool|BillingCacheService|ContentModerationRuntimeSnapshotConcurrent|StopLiveObservers|ObserveLiveCall|WaitForLiveObserverRetry|TLSFingerprint|EmailQueue|OpsCleanup)"
+  ],
+  "date": "2026-09-11T05:24:36.541142+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "duration_seconds": 21.317,
+  "test_events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/runtime-race.log.gz"
+}

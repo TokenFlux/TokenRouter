@@ -46,6 +46,7 @@ func TestResolveCompositeAPIKeyRequestJSON(t *testing.T) {
 	c.Request.Header.Set("Content-Type", "application/json")
 
 	apiKeyService := service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	apiKeyService.Start()
 	selected, err := resolveCompositeAPIKeyRequest(c, apiKeyService, compositeMiddlewareTestKey())
 	require.NoError(t, err)
 	require.NotNil(t, selected.GroupID)
@@ -77,6 +78,7 @@ func TestResolveCompositeAPIKeyRequestMultipart(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
 	c.Request.Header.Set("Content-Type", writer.FormDataContentType())
 	apiKeyService := service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	apiKeyService.Start()
 	_, err = resolveCompositeAPIKeyRequest(c, apiKeyService, compositeMiddlewareTestKey())
 	require.NoError(t, err)
 	require.NoError(t, c.Request.ParseMultipartForm(1024))
@@ -98,6 +100,7 @@ func TestResolveCompositeAPIKeyRequestGeminiURL(t *testing.T) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/GPT/vendor/model:generateContent", bytes.NewBufferString(`{}`))
 	c.Params = gin.Params{{Key: "modelAction", Value: "/GPT/vendor/model:generateContent"}}
 	apiKeyService := service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	apiKeyService.Start()
 	selected, err := resolveCompositeAPIKeyRequest(c, apiKeyService, compositeMiddlewareTestKey())
 	require.NoError(t, err)
 	require.Equal(t, int64(7), *selected.GroupID)
@@ -106,6 +109,7 @@ func TestResolveCompositeAPIKeyRequestGeminiURL(t *testing.T) {
 
 func TestResolveCompositeAPIKeyRequestAdditionalModels(t *testing.T) {
 	apiKeyService := service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	apiKeyService.Start()
 
 	t.Run("rewrites additional model from selected group", func(t *testing.T) {
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -136,6 +140,7 @@ func TestResolveCompositeAPIKeyRequestAdditionalModels(t *testing.T) {
 
 func TestResolveCompositeAPIKeyRequestSpecialEndpoints(t *testing.T) {
 	apiKeyService := service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	apiKeyService.Start()
 
 	listContext, _ := gin.CreateTestContext(httptest.NewRecorder())
 	listContext.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)

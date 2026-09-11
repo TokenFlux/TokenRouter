@@ -41,8 +41,10 @@ type ErrorPassthroughCache interface {
 
 // ErrorPassthroughService 错误透传规则服务
 type ErrorPassthroughService struct {
-	repo  ErrorPassthroughRepository
-	cache ErrorPassthroughCache
+	lifecycleMu      sync.Mutex
+	started, stopped bool
+	repo             ErrorPassthroughRepository
+	cache            ErrorPassthroughCache
 
 	// 本地内存缓存，用于快速匹配
 	localCache   []*cachedPassthroughRule
@@ -69,25 +71,45 @@ func NewErrorPassthroughService(
 		cache: cache,
 	}
 
+	return svc
+}
+
+// Start 将原有同步预热和更新订阅推迟到完整图构造后。
+func (s *ErrorPassthroughService) Start() {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.started || s.stopped {
+		return
+	}
+	s.started = true
 	// 启动时加载规则到本地缓存
 	ctx := context.Background()
-	if err := svc.reloadRulesFromDB(ctx); err != nil {
+	if err := s.reloadRulesFromDB(ctx); err != nil {
 		logger.LegacyPrintf("service.error_passthrough", "[ErrorPassthroughService] Failed to load rules from DB on startup: %v", err)
-		if fallbackErr := svc.refreshLocalCache(ctx); fallbackErr != nil {
+		if fallbackErr := s.refreshLocalCache(ctx); fallbackErr != nil {
 			logger.LegacyPrintf("service.error_passthrough", "[ErrorPassthroughService] Failed to load rules from cache fallback on startup: %v", fallbackErr)
 		}
 	}
 
 	// 订阅缓存更新通知
-	if cache != nil {
-		cache.SubscribeUpdates(ctx, func() {
-			if err := svc.refreshLocalCache(context.Background()); err != nil {
+	if s.cache != nil {
+		s.cache.SubscribeUpdates(ctx, func() {
+			if err := s.refreshLocalCache(context.Background()); err != nil {
 				logger.LegacyPrintf("service.error_passthrough", "[ErrorPassthroughService] Failed to refresh cache on notification: %v", err)
 			}
 		})
 	}
 
-	return svc
+}
+
+// Stop 由应用在数据库与 Redis 关闭前等待订阅退出。
+func (s *ErrorPassthroughService) Stop() {
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	s.stopped = true
+	if stopper, ok := s.cache.(interface{ StopSubscription() }); ok {
+		stopper.StopSubscription()
+	}
 }
 
 // List 获取所有规则

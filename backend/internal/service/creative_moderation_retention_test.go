@@ -63,6 +63,7 @@ func newCreativeNoMediaRetentionModerationService(t *testing.T) (*ContentModerat
 		nil,
 		nil,
 	)
+	svc.Start()
 	return svc, repo, hashCache, imageDataURL
 }
 

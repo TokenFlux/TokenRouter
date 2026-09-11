@@ -832,7 +832,7 @@ func (h *AuthHandler) BindDingTalkOAuthLogin(c *gin.Context) {
 // 固定 30s 超时上限，防止 goroutine 因上游卡顿无限挂起。
 func runDingTalkSyncAsync(parent context.Context, fn func(ctx context.Context)) {
 	base := context.WithoutCancel(parent)
-	go func() {
+	service.RunBackgroundTask("handler/auth_dingtalk_oauth.go:runDingTalkSyncAsync", service.BackgroundCall0(func() {
 		defer func() {
 			if r := recover(); r != nil {
 				slog.Error("dingtalk sync: panic recovered", "panic", r)
@@ -841,7 +841,7 @@ func runDingTalkSyncAsync(parent context.Context, fn func(ctx context.Context)) 
 		ctx, cancel := context.WithTimeout(base, 30*time.Second)
 		defer cancel()
 		fn(ctx)
-	}()
+	}))
 }
 
 // syncDingTalkIdentity 在 internal_only 模式下，按三个 sync 开关把钉钉身份信息

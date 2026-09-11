@@ -1,0 +1,16 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S02/uncapped-lint-head-normal.json",
+    "./..."
+  ],
+  "cwd": "HEAD 隔离副本/backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "duration_seconds": 12.305,
+  "log": "logs/uncapped-lint-head-normal.log.gz"
+}

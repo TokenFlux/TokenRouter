@@ -61,11 +61,14 @@ setup 使用 `DATA_DIR > 可写 /app/data > 当前目录` 选择 `config.yaml` �
 
 交互或 `AUTO_SETUP` 流程测试 PostgreSQL/Redis、执行迁移、只在空数据库中创建初始管理员、以 `0600` 写入配置并创建安装锁。已有管理员或已有普通用户时不会覆盖密码。自动 setup 的 `DATABASE_*`、`REDIS_*`、`ADMIN_*`、`SERVER_*`、`JWT_*` 和时区变量是生成初始文件的输入；生成后常规启动仍走统一 config loader。
 
-主服务使用 `LoadForBootstrap`，只在引导阶段允许 `jwt.secret` 暂时为空。数据库 repository 初始化会从 `security_secrets` 读取既有 JWT secret，或原子生成并持久化一个新 secret，然后重新执行完整配置校验。多个实例不能各自使用临时随机 JWT key；显式配置与数据库已有 secret 不一致时，以已持久化的安全边界处理，避免滚动部署让会话随机失效。
+主服务使用 `LoadForBootstrap`，只在引导阶段允许 `jwt.secret` 暂时为空。`app/bootstrap` 初始化会从 `security_secrets` 读取既有 JWT secret，或原子生成并持久化一个新 secret，然后重新执行完整配置校验。多个实例不能各自使用临时随机 JWT key；显式配置与数据库已有 secret 不一致时，以已持久化的安全边界处理，避免滚动部署让会话随机失效。
 
+<a id="runtime_settings"></a>
 ## 数据库运行时设置
 
-`settings` 是 `key/value/updated_at` 表，删除键表示恢复该 getter 的默认语义。`SettingService` 负责类型解析、范围/组合校验、敏感值保留、批量原子写入和更新后的缓存通知；handler 只负责 HTTP binding、权限、审计和响应。
+`settings` 是 `key/value/updated_at` 表，删除键表示恢复该 getter 的默认语义。`settings.Store` 与其 PostgreSQL Adapter 拥有通用存取、现有版本字段和更新通知；旧 `SettingService` 继续负责业务解析、范围/组合校验、敏感值保留、页面聚合和领域缓存。handler 负责 HTTP binding、权限、审计和响应。
+
+业务更新保持校验、批量原子写入、原有缓存刷新、原有通知的顺序。Store 写方法不自动广播，单键更新不会获得原先没有的通知；旧单回调接口保留替换语义，应用订阅可以注销。这里的版本字段保留原应用版本赋值和 JSON 省略语义，没有新增持久 revision 或跨实例消息协议。公开设置、CSP、websearch 与动态 worker 回调由 app 装配；web 只消费公开投影。
 
 运行时设置包括注册与邮件验证、第三方登录、SMTP、TOTP/session binding/step-up、登录协议、面板限流、部分冷却与流超时、支付展示以及各类功能开关。不同 getter 的回退可能来自代码常量或 `config.Config`，不能假设所有缺失键都等价于 `false`。
 

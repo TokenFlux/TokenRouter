@@ -13,6 +13,7 @@ import (
 
 func TestSubscriptionMaintenanceQueue_TryEnqueue_QueueFull(t *testing.T) {
 	q := NewSubscriptionMaintenanceQueue(1, 1)
+	q.Start()
 	t.Cleanup(q.Stop)
 
 	block := make(chan struct{})
@@ -39,6 +40,7 @@ func TestSubscriptionMaintenanceQueue_TryEnqueue_QueueFull(t *testing.T) {
 
 func TestSubscriptionMaintenanceQueue_TryEnqueue_PanicDoesNotKillWorker(t *testing.T) {
 	q := NewSubscriptionMaintenanceQueue(1, 8)
+	q.Start()
 	t.Cleanup(q.Stop)
 
 	require.NoError(t, q.TryEnqueue(func() { panic("boom") }))
@@ -56,6 +58,7 @@ func TestSubscriptionMaintenanceQueue_TryEnqueue_PanicDoesNotKillWorker(t *testi
 
 func TestSubscriptionMaintenanceQueue_TryEnqueue_AfterStop(t *testing.T) {
 	q := NewSubscriptionMaintenanceQueue(1, 8)
+	q.Start()
 	q.Stop()
 
 	err := q.TryEnqueue(func() {})
@@ -72,6 +75,7 @@ func TestSubscriptionMaintenanceQueue_TryEnqueue_NilReceiver(t *testing.T) {
 
 func TestSubscriptionMaintenanceQueue_TryEnqueue_NilTask(t *testing.T) {
 	q := NewSubscriptionMaintenanceQueue(1, 8)
+	q.Start()
 	t.Cleanup(q.Stop)
 
 	err := q.TryEnqueue(nil)
@@ -87,12 +91,14 @@ func TestSubscriptionMaintenanceQueue_Stop_NilReceiver(t *testing.T) {
 
 func TestSubscriptionMaintenanceQueue_Stop_Idempotent(t *testing.T) {
 	q := NewSubscriptionMaintenanceQueue(1, 4)
+	q.Start()
 	q.Stop()
 	q.Stop() // 第二次调用不应 panic
 }
 
 func TestNewSubscriptionMaintenanceQueue_ZeroParams(t *testing.T) {
 	q := NewSubscriptionMaintenanceQueue(0, 0)
+	q.Start()
 	t.Cleanup(q.Stop)
 
 	// workerCount/queueSize 应被修正为 1
@@ -102,6 +108,7 @@ func TestNewSubscriptionMaintenanceQueue_ZeroParams(t *testing.T) {
 
 func TestNewSubscriptionMaintenanceQueue_NegativeParams(t *testing.T) {
 	q := NewSubscriptionMaintenanceQueue(-1, -1)
+	q.Start()
 	t.Cleanup(q.Stop)
 
 	err := q.TryEnqueue(func() {})
@@ -112,6 +119,7 @@ func TestSubscriptionMaintenanceQueue_ConcurrentEnqueueAndStop(t *testing.T) {
 	// 并发调用 TryEnqueue 和 Stop 不应 panic
 	for i := 0; i < 100; i++ {
 		q := NewSubscriptionMaintenanceQueue(2, 4)
+		q.Start()
 		var wg sync.WaitGroup
 		wg.Add(2)
 

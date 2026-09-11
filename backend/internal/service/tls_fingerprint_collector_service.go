@@ -77,7 +77,9 @@ type TLSFingerprintCaptureRecord struct {
 
 // TLSFingerprintCollectorService 管理运行时 TLS 指纹收集器。
 type TLSFingerprintCollectorService struct {
-	cfg *config.Config
+	closed    bool
+	serveDone chan struct{}
+	cfg       *config.Config
 
 	mu            sync.Mutex
 	server        *http.Server
@@ -123,6 +125,9 @@ func (s *TLSFingerprintCollectorService) Status() TLSFingerprintCollectorStatus 
 func (s *TLSFingerprintCollectorService) Start(ctx context.Context) (TLSFingerprintCollectorStatus, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.closed {
+		return s.statusLocked(), errors.New("TLS fingerprint collector is shutting down")
+	}
 	if s.running {
 		return s.statusLocked(), nil
 	}
@@ -147,7 +152,8 @@ func (s *TLSFingerprintCollectorService) Start(ctx context.Context) (TLSFingerpr
 	s.startedAt = &now
 	s.lastError = ""
 	s.sessions = make(map[string]*tlsFingerprintCollectorSessionState)
-	s.listener = newTLSFingerprintCaptureListener(ln, &s.cert)
+	certificate := s.cert
+	s.listener = newTLSFingerprintCaptureListener(ln, &certificate)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleCaptureRequest)
@@ -171,10 +177,17 @@ func (s *TLSFingerprintCollectorService) Start(ctx context.Context) (TLSFingerpr
 
 	server := s.server
 	listener := s.listener
+	done := make(chan struct{})
+	s.serveDone = done
 	go func() {
+		defer close(done)
 		if serveErr := server.Serve(listener); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			logger.LegacyPrintf("service.tls_fp_collector", "[TLSFPCollector] serve failed: %v", serveErr)
 			s.mu.Lock()
+			if s.server != server {
+				s.mu.Unlock()
+				return
+			}
 			s.running = false
 			s.lastError = serveErr.Error()
 			s.server = nil
@@ -189,6 +202,8 @@ func (s *TLSFingerprintCollectorService) Start(ctx context.Context) (TLSFingerpr
 func (s *TLSFingerprintCollectorService) Stop(ctx context.Context) error {
 	s.mu.Lock()
 	server := s.server
+	done := s.serveDone
+	s.serveDone = nil
 	s.running = false
 	s.server = nil
 	s.listener = nil
@@ -208,7 +223,23 @@ func (s *TLSFingerprintCollectorService) Stop(ctx context.Context) error {
 		_ = server.Close()
 		return err
 	}
+
+	if done != nil {
+		select {
+		case <-done:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	return nil
+}
+
+// Shutdown 封闭按需启动入口，再停止当前监听；管理员普通 Stop 仍可再次启动。
+func (s *TLSFingerprintCollectorService) Shutdown(ctx context.Context) error {
+	s.mu.Lock()
+	s.closed = true
+	s.mu.Unlock()
+	return s.Stop(ctx)
 }
 
 // CreateSession 创建短期采集会话。

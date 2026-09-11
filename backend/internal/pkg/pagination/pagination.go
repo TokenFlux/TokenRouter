@@ -75,3 +75,17 @@ func NormalizeSortOrder(order string, defaultOrder string) string {
 func (p PaginationParams) NormalizedSortOrder(defaultOrder string) string {
 	return NormalizeSortOrder(p.SortOrder, defaultOrder)
 }
+
+// ResultFromTotal 保留存储分页的总页数计算。
+func ResultFromTotal(total int64, params PaginationParams) *PaginationResult {
+	pages := int(total) / params.Limit()
+	if int(total)%params.Limit() > 0 {
+		pages++
+	}
+	return &PaginationResult{
+		Total:    total,
+		Page:     params.Page,
+		PageSize: params.Limit(),
+		Pages:    pages,
+	}
+}

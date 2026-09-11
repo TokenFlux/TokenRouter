@@ -85,7 +85,7 @@ func (s *grokImportProbeScheduler) schedule(prober grokImportProber, account *se
 		if s.workers > s.maxWorkers {
 			s.maxWorkers = s.workers
 		}
-		go s.worker()
+		service.RunBackgroundTask("handler/admin/grok_import_probe.go:schedule", service.BackgroundCall0(s.worker))
 	}
 	s.mu.Unlock()
 }

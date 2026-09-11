@@ -103,13 +103,14 @@ type BillingCacheService struct {
 	circuitBreaker        *billingCircuitBreaker
 	userPlatformQuotaRepo UserPlatformQuotaRepository
 
-	cacheWriteChan     chan cacheWriteTask
-	cacheWriteWg       sync.WaitGroup
-	cacheWriteStopOnce sync.Once
-	cacheWriteMu       sync.RWMutex
-	stopped            atomic.Bool
-	balanceLoadSF      singleflight.Group
-	quotaLoadSF        singleflight.Group
+	cacheWriteChan      chan cacheWriteTask
+	cacheWriteStartOnce sync.Once
+	cacheWriteWg        sync.WaitGroup
+	cacheWriteStopOnce  sync.Once
+	cacheWriteMu        sync.RWMutex
+	stopped             atomic.Bool
+	balanceLoadSF       singleflight.Group
+	quotaLoadSF         singleflight.Group
 	// 丢弃日志节流计数器（减少高负载下日志噪音）
 	cacheWriteDropFullCount     uint64
 	cacheWriteDropFullLastLog   int64
@@ -137,8 +138,18 @@ func NewBillingCacheService(
 		userPlatformQuotaRepo: userPlatformQuotaRepo,
 	}
 	svc.circuitBreaker = newBillingCircuitBreaker(cfg.Billing.CircuitBreaker)
-	svc.startCacheWriteWorkers()
 	return svc
+}
+
+// Start 在应用完成绑定后启动缓存写入 worker。
+func (s *BillingCacheService) Start() {
+	s.cacheWriteStartOnce.Do(func() {
+		s.cacheWriteMu.Lock()
+		defer s.cacheWriteMu.Unlock()
+		if !s.stopped.Load() {
+			s.startCacheWriteWorkers()
+		}
+	})
 }
 
 // Stop 关闭缓存写入工作池
@@ -495,7 +506,7 @@ func (s *BillingCacheService) evaluateRateLimits(ctx context.Context, apiKey *AP
 	// Trigger async DB reset if any window expired
 	if needsReset {
 		keyID := apiKey.ID
-		go func() {
+		RunBackgroundTask("service/billing_cache_service.go:evaluateRateLimits", BackgroundCall0(func() {
 			resetCtx, cancel := context.WithTimeout(context.Background(), cacheWriteTimeout)
 			defer cancel()
 			if s.apiKeyRateLimitLoader != nil {
@@ -514,7 +525,7 @@ func (s *BillingCacheService) evaluateRateLimits(ctx context.Context, apiKey *AP
 					logger.LegacyPrintf("service.billing_cache", "Warning: invalidate rate limit cache failed for api key %d: %v", keyID, err)
 				}
 			}
-		}()
+		}))
 	}
 
 	// Check limits

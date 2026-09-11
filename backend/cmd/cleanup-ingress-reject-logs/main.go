@@ -14,8 +14,8 @@ import (
 	"time"
 
 	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
+	"github.com/TokenFlux/TokenRouter/internal/app/bootstrap"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/repository"
 	"github.com/lib/pq"
 )
 
@@ -49,7 +49,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("load config: %v", err)
 	}
-	client, db, err := repository.InitEnt(cfg)
+	client, db, err := bootstrap.InitEnt(context.Background(), cfg)
 	if err != nil {
 		log.Fatalf("initialize database: %v", err)
 	}

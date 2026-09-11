@@ -424,14 +424,15 @@ func TestUsageBillingRepositoryBatchImageUnlimitedKeyReleaseKeepsExistingUsage(t
 		Key:    "sk-batch-unlimited-" + uuid.NewString(),
 		Name:   "batch-unlimited",
 	})
-	_, err := integrationDB.ExecContext(ctx, `
+	// 预占时间与窗口使用同一数据库时钟，避免主机/容器微小时差破坏本用例的窗口内前提。
+	var reservedAt time.Time
+	err := integrationDB.QueryRowContext(ctx, `
 		UPDATE api_keys SET quota_used = 1, usage_5h = 1, usage_1d = 1, usage_7d = 1,
 		       window_5h_start = NOW(), window_1d_start = date_trunc('day', NOW()), window_7d_start = date_trunc('day', NOW())
-		WHERE id = $1`, apiKey.ID)
+		WHERE id = $1 RETURNING window_5h_start`, apiKey.ID).Scan(&reservedAt)
 	require.NoError(t, err)
 
 	batchID := "imgbatch_" + strings.ReplaceAll(uuid.NewString(), "-", "")
-	reservedAt := time.Now().UTC()
 	insertBatchImageAllowanceTestJob(t, batchID, user.ID, user.ID, apiKey.ID, nil, reservedAt)
 	reserveCommand := &service.BatchImageBalanceHoldCommand{
 		RequestID:   service.BatchImageHoldRequestID(batchID),

@@ -45,6 +45,7 @@ func TestGatewayHandlerPreCancelledCompatibleRequestsDoNotSelectAccount(t *testi
 	)
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	billingCacheService := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingCacheService.Start()
 	t.Cleanup(billingCacheService.Stop)
 	h := &GatewayHandler{
 		gatewayService:      gatewayService,

@@ -255,6 +255,7 @@ func TestForwardAlphaSearchPATBackfillsMissingChatGPTAccountMetadata(t *testing.
 		Body:       io.NopCloser(strings.NewReader(`{"output":"search result"}`)),
 	}}
 	oauthService := NewOpenAIOAuthService(nil, nil)
+	oauthService.Start()
 	repo := &alphaSearchAccountStateRepo{}
 	service := &OpenAIGatewayService{
 		cfg:                 &config.Config{},

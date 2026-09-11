@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/infra/postgres",
+    "./internal/app/bootstrap"
+  ],
+  "date": "2026-09-11T02:43:40.966297+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "duration_seconds": 7.135,
+  "test_events": {
+    "pass": 106,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/bootstrap-first.log.gz"
+}

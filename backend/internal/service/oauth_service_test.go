@@ -120,6 +120,7 @@ func TestNewOAuthService(t *testing.T) {
 	proxyRepo := &mockProxyRepoForOAuth{}
 	client := &mockClaudeOAuthClient{}
 	svc := NewOAuthService(proxyRepo, client)
+	svc.Start()
 
 	if svc == nil {
 		t.Fatal("NewOAuthService 返回 nil")
@@ -142,6 +143,7 @@ func TestOAuthService_GenerateAuthURL(t *testing.T) {
 	t.Parallel()
 
 	svc := NewOAuthService(&mockProxyRepoForOAuth{}, &mockClaudeOAuthClient{})
+	svc.Start()
 	defer svc.Stop()
 
 	result, err := svc.GenerateAuthURL(context.Background(), nil)
@@ -182,6 +184,7 @@ func TestOAuthService_GenerateAuthURL_WithProxy(t *testing.T) {
 		},
 	}
 	svc := NewOAuthService(proxyRepo, &mockClaudeOAuthClient{})
+	svc.Start()
 	defer svc.Stop()
 
 	proxyID := int64(1)
@@ -203,6 +206,7 @@ func TestOAuthService_GenerateSetupTokenURL(t *testing.T) {
 	t.Parallel()
 
 	svc := NewOAuthService(&mockProxyRepoForOAuth{}, &mockClaudeOAuthClient{})
+	svc.Start()
 	defer svc.Stop()
 
 	result, err := svc.GenerateSetupTokenURL(context.Background(), nil)
@@ -227,6 +231,7 @@ func TestOAuthService_ExchangeCode_SessionNotFound(t *testing.T) {
 	t.Parallel()
 
 	svc := NewOAuthService(&mockProxyRepoForOAuth{}, &mockClaudeOAuthClient{})
+	svc.Start()
 	defer svc.Stop()
 
 	_, err := svc.ExchangeCode(context.Background(), &ExchangeCodeInput{
@@ -267,6 +272,7 @@ func TestOAuthService_ExchangeCode_Success(t *testing.T) {
 	}
 
 	svc := NewOAuthService(&mockProxyRepoForOAuth{}, client)
+	svc.Start()
 	defer svc.Stop()
 
 	// 先生成 URL 以创建 session
@@ -337,6 +343,7 @@ func TestOAuthService_ExchangeCode_SetupToken(t *testing.T) {
 	}
 
 	svc := NewOAuthService(&mockProxyRepoForOAuth{}, client)
+	svc.Start()
 	defer svc.Stop()
 
 	// 使用 SetupToken URL（inference scope）
@@ -367,6 +374,7 @@ func TestOAuthService_ExchangeCode_ClientError(t *testing.T) {
 	}
 
 	svc := NewOAuthService(&mockProxyRepoForOAuth{}, client)
+	svc.Start()
 	defer svc.Stop()
 
 	result, _ := svc.GenerateAuthURL(context.Background(), nil)
@@ -404,6 +412,7 @@ func TestOAuthService_RefreshToken(t *testing.T) {
 	}
 
 	svc := NewOAuthService(&mockProxyRepoForOAuth{}, client)
+	svc.Start()
 	defer svc.Stop()
 
 	tokenInfo, err := svc.RefreshToken(context.Background(), "my-refresh-token", "")
@@ -434,6 +443,7 @@ func TestOAuthService_RefreshToken_Error(t *testing.T) {
 	}
 
 	svc := NewOAuthService(&mockProxyRepoForOAuth{}, client)
+	svc.Start()
 	defer svc.Stop()
 
 	_, err := svc.RefreshToken(context.Background(), "expired-token", "")
@@ -446,6 +456,7 @@ func TestOAuthService_RefreshAccountToken_NoRefreshToken(t *testing.T) {
 	t.Parallel()
 
 	svc := NewOAuthService(&mockProxyRepoForOAuth{}, &mockClaudeOAuthClient{})
+	svc.Start()
 	defer svc.Stop()
 
 	// 无 refresh_token 的账号
@@ -470,6 +481,7 @@ func TestOAuthService_RefreshAccountToken_EmptyRefreshToken(t *testing.T) {
 	t.Parallel()
 
 	svc := NewOAuthService(&mockProxyRepoForOAuth{}, &mockClaudeOAuthClient{})
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -505,6 +517,7 @@ func TestOAuthService_RefreshAccountToken_Success(t *testing.T) {
 	}
 
 	svc := NewOAuthService(&mockProxyRepoForOAuth{}, client)
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -554,6 +567,7 @@ func TestOAuthService_RefreshAccountToken_WithProxy(t *testing.T) {
 	}
 
 	svc := NewOAuthService(proxyRepo, client)
+	svc.Start()
 	defer svc.Stop()
 
 	proxyID := int64(10)
@@ -589,6 +603,7 @@ func TestOAuthService_ExchangeCode_NilOrg(t *testing.T) {
 	}
 
 	svc := NewOAuthService(&mockProxyRepoForOAuth{}, client)
+	svc.Start()
 	defer svc.Stop()
 
 	result, _ := svc.GenerateAuthURL(context.Background(), nil)
@@ -611,6 +626,7 @@ func TestOAuthService_Stop_NoPanic(t *testing.T) {
 	t.Parallel()
 
 	svc := NewOAuthService(&mockProxyRepoForOAuth{}, &mockClaudeOAuthClient{})
+	svc.Start()
 
 	// 调用 Stop 不应 panic
 	svc.Stop()

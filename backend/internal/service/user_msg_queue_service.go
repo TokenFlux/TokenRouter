@@ -38,11 +38,15 @@ type QueueLockResult struct {
 // UserMessageQueueService 用户消息串行队列服务
 // 对真实用户消息实施账号级串行化 + RPM 自适应延迟
 type UserMessageQueueService struct {
-	cache    UserMsgQueueCache
-	rpmCache RPMCache
-	cfg      *config.UserMessageQueueConfig
-	stopCh   chan struct{} // graceful shutdown
-	stopOnce sync.Once     // 确保 Stop() 并发安全
+	lifecycleMu      sync.Mutex
+	lifecycleStarted bool
+	lifecycleStopped bool
+	loopWG           sync.WaitGroup
+	cache            UserMsgQueueCache
+	rpmCache         RPMCache
+	cfg              *config.UserMessageQueueConfig
+	stopCh           chan struct{} // graceful shutdown
+	stopOnce         sync.Once     // 确保 Stop() 并发安全
 }
 
 // NewUserMessageQueueService 创建用户消息串行队列服务
@@ -250,6 +254,16 @@ func (s *UserMessageQueueService) StartCleanupWorker(interval time.Duration) {
 	if s == nil || s.cache == nil || interval <= 0 {
 		return
 	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.lifecycleStarted || s.lifecycleStopped {
+		return
+	}
+	s.lifecycleStarted = true
+	if s.stopCh == nil {
+		s.stopCh = make(chan struct{})
+	}
+	s.loopWG.Add(1)
 
 	runCleanup := func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -268,6 +282,7 @@ func (s *UserMessageQueueService) StartCleanupWorker(interval time.Duration) {
 	}
 
 	go func() {
+		defer s.loopWG.Done()
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
 		for {
@@ -283,16 +298,18 @@ func (s *UserMessageQueueService) StartCleanupWorker(interval time.Duration) {
 
 // Stop 停止后台 cleanup worker
 func (s *UserMessageQueueService) Stop() {
-	if s != nil && s.stopCh != nil {
-		s.stopOnce.Do(func() {
-			close(s.stopCh)
-		})
+	if s == nil {
+		return
 	}
+	s.lifecycleMu.Lock()
+	s.lifecycleStopped = true
+	if s.stopCh != nil {
+		s.stopOnce.Do(func() { close(s.stopCh) })
+	}
+	s.lifecycleMu.Unlock()
+	s.loopWG.Wait()
 }
 
-// applyJitter 对延迟值施加 ±jitterPct 的随机抖动
-// 使用 math/rand/v2（Go 1.22+ 自动使用 crypto/rand 种子），与 nextBackoff 一致
-// 例如 applyJitter(200ms, 0.15) 返回 170ms ~ 230ms
 func applyJitter(d time.Duration, jitterPct float64) time.Duration {
 	if d <= 0 || jitterPct <= 0 {
 		return d

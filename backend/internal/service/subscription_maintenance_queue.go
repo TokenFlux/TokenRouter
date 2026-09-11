@@ -9,11 +9,13 @@ import (
 // SubscriptionMaintenanceQueue 提供"有界队列 + 固定 worker"的后台执行器。
 // 用于从请求热路径触发维护动作时，避免无限 goroutine 膨胀。
 type SubscriptionMaintenanceQueue struct {
-	queue  chan func()
-	wg     sync.WaitGroup
-	stop   sync.Once
-	mu     sync.RWMutex // 保护 closed 标志与 channel 操作的原子性
-	closed bool
+	queue       chan func()
+	wg          sync.WaitGroup
+	stop        sync.Once
+	mu          sync.RWMutex // 保护 closed 标志与 channel 操作的原子性
+	closed      bool
+	started     bool
+	workerCount int
 }
 
 func NewSubscriptionMaintenanceQueue(workerCount, queueSize int) *SubscriptionMaintenanceQueue {
@@ -25,24 +27,8 @@ func NewSubscriptionMaintenanceQueue(workerCount, queueSize int) *SubscriptionMa
 	}
 
 	q := &SubscriptionMaintenanceQueue{
-		queue: make(chan func(), queueSize),
-	}
-
-	q.wg.Add(workerCount)
-	for i := 0; i < workerCount; i++ {
-		go func(workerID int) {
-			defer q.wg.Done()
-			for fn := range q.queue {
-				func() {
-					defer func() {
-						if r := recover(); r != nil {
-							log.Printf("SubscriptionMaintenance worker panic: %v", r)
-						}
-					}()
-					fn()
-				}()
-			}
-		}(i)
+		queue:       make(chan func(), queueSize),
+		workerCount: workerCount,
 	}
 
 	return q
@@ -85,4 +71,32 @@ func (q *SubscriptionMaintenanceQueue) Stop() {
 		q.mu.Unlock()
 		q.wg.Wait()
 	})
+}
+
+// Start 在接收任务前显式启动维护队列。
+func (q *SubscriptionMaintenanceQueue) Start() {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if q.started || q.closed {
+		return
+	}
+	q.started = true
+
+	q.wg.Add(q.workerCount)
+	for i := 0; i < q.workerCount; i++ {
+		go func(workerID int) {
+			defer q.wg.Done()
+			for fn := range q.queue {
+				func() {
+					defer func() {
+						if r := recover(); r != nil {
+							log.Printf("SubscriptionMaintenance worker panic: %v", r)
+						}
+					}()
+					fn()
+				}()
+			}
+		}(i)
+	}
+
 }

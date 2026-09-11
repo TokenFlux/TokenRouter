@@ -510,3 +510,10 @@ func (s *OpenAIOAuthService) Stop() {
 func normalizeOpenAIOAuthPlatform(platform string) string {
 	return openai.OAuthPlatformOpenAI
 }
+
+// Start 由应用统一启动最终注入的会话实现。
+func (s *OpenAIOAuthService) Start() {
+	if starter, ok := any(s.sessionStore).(interface{ Start() }); ok {
+		starter.Start()
+	}
+}

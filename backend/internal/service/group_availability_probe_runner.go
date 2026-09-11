@@ -97,11 +97,7 @@ func (s *GroupAvailabilityProbeRunnerService) Stop() {
 			return
 		}
 		ctx := s.cron.Stop()
-		select {
-		case <-ctx.Done():
-		case <-time.After(3 * time.Second):
-			logger.LegacyPrintf("service.group_availability_probe", "[GroupAvailabilityProbe] cron stop timed out")
-		}
+		<-ctx.Done()
 	})
 }
 

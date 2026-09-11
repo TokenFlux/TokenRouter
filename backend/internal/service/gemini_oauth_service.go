@@ -1097,3 +1097,10 @@ func fetchProjectIDFromResourceManager(ctx context.Context, accessToken, proxyUR
 
 	return strings.TrimSpace(active[0].ProjectID), nil
 }
+
+// Start 由应用统一启动最终注入的会话实现。
+func (s *GeminiOAuthService) Start() {
+	if starter, ok := any(s.sessionStore).(interface{ Start() }); ok {
+		starter.Start()
+	}
+}

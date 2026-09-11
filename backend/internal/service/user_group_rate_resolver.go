@@ -23,7 +23,7 @@ func newUserGroupRateResolver(repo UserGroupRateRepository, cache *gocache.Cache
 		cacheTTL = defaultUserGroupRateCacheTTL
 	}
 	if cache == nil {
-		cache = gocache.New(cacheTTL, time.Minute)
+		cache = gocache.New(cacheTTL, 0)
 	}
 	if logComponent == "" {
 		logComponent = "service.gateway"

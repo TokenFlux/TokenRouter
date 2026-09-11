@@ -9,6 +9,7 @@ import (
 
 func TestAPIKeyService_SnapshotRoundTrip_PreservesGroupCaptureControls(t *testing.T) {
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, nil)
+	svc.Start()
 	groupID := int64(9)
 	videoPrice480P := 0.08
 	videoPrice720P := 0.14

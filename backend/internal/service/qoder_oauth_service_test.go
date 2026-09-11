@@ -106,6 +106,7 @@ func (f *blockingQoderOAuthClient) GetOrganizationTags(ctx context.Context, toke
 
 func TestQoderOAuthServiceGenerateAuthURLCreatesSession(t *testing.T) {
 	svc := NewQoderOAuthService(nil)
+	svc.Start()
 	defer svc.Stop()
 
 	result, err := svc.GenerateAuthURL(context.Background(), nil)
@@ -130,6 +131,7 @@ func TestQoderOAuthServiceGenerateAuthURLCreatesSession(t *testing.T) {
 
 func TestQoderOAuthServiceCNFreezesSiteAndIgnoresPollProxyOverride(t *testing.T) {
 	svc := NewQoderOAuthService(nil)
+	svc.Start()
 	defer svc.Stop()
 	expiresAt := time.Now().Add(time.Hour).UTC().Truncate(time.Second)
 	client := &fakeQoderOAuthClient{
@@ -209,6 +211,7 @@ func TestQoderOAuthServiceCNFreezesSiteAndIgnoresPollProxyOverride(t *testing.T)
 
 func TestQoderOAuthServiceCNUsesOrganizationTagsAsStatusFallback(t *testing.T) {
 	svc := NewQoderOAuthService(nil)
+	svc.Start()
 	defer svc.Stop()
 	client := &fakeQoderOAuthClient{
 		ready: true,
@@ -247,6 +250,7 @@ func TestQoderOAuthServiceCNUsesOrganizationTagsAsStatusFallback(t *testing.T) {
 
 func TestQoderOAuthServiceExchangeRejectsInvalidSessionState(t *testing.T) {
 	svc := NewQoderOAuthService(nil)
+	svc.Start()
 	defer svc.Stop()
 
 	_, err := svc.ExchangeCode(context.Background(), &QoderExchangeCodeInput{
@@ -266,6 +270,7 @@ func TestQoderOAuthServiceExchangeRejectsInvalidSessionState(t *testing.T) {
 
 func TestQoderOAuthServiceExchangePendingKeepsSession(t *testing.T) {
 	svc := NewQoderOAuthService(nil)
+	svc.Start()
 	defer svc.Stop()
 	client := &fakeQoderOAuthClient{ready: false}
 	svc.clientFactory = func(_ qoder.Profile, proxyURL string) (qoderOAuthClient, error) {
@@ -290,6 +295,7 @@ func TestQoderOAuthServiceExchangePendingKeepsSession(t *testing.T) {
 
 func TestQoderOAuthServiceExchangeParsesCallbackURLAndBuildsUsableCredentials(t *testing.T) {
 	svc := NewQoderOAuthService(nil)
+	svc.Start()
 	defer svc.Stop()
 	expiresAt := time.Unix(1_893_456_000, 0).UTC()
 	svc.clientFactory = func(_ qoder.Profile, proxyURL string) (qoderOAuthClient, error) {
@@ -368,6 +374,7 @@ func TestQoderOAuthServiceExchangeParsesCallbackURLAndBuildsUsableCredentials(t 
 
 func TestQoderOAuthServicePollReturnsPendingAndCompleted(t *testing.T) {
 	svc := NewQoderOAuthService(nil)
+	svc.Start()
 	defer svc.Stop()
 	client := &fakeQoderOAuthClient{ready: false}
 	svc.clientFactory = func(_ qoder.Profile, proxyURL string) (qoderOAuthClient, error) {
@@ -405,6 +412,7 @@ func TestQoderOAuthServicePollReturnsPendingAndCompleted(t *testing.T) {
 
 func TestQoderOAuthServiceCompletedSessionIsIdempotent(t *testing.T) {
 	svc := NewQoderOAuthService(nil)
+	svc.Start()
 	defer svc.Stop()
 	client := &fakeQoderOAuthClient{
 		ready: true,
@@ -438,6 +446,7 @@ func TestQoderOAuthServiceCompletedSessionIsIdempotent(t *testing.T) {
 
 func TestQoderOAuthServiceConcurrentCompletionReusesSingleResult(t *testing.T) {
 	svc := NewQoderOAuthService(nil)
+	svc.Start()
 	defer svc.Stop()
 	client := &blockingQoderOAuthClient{
 		started: make(chan struct{}),

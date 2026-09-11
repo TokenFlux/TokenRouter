@@ -13,13 +13,13 @@ import (
 type SettingRepoSuite struct {
 	suite.Suite
 	ctx  context.Context
-	repo *settingRepository
+	repo service.SettingRepository
 }
 
 func (s *SettingRepoSuite) SetupTest() {
 	s.ctx = context.Background()
 	tx := testEntTx(s.T())
-	s.repo = NewSettingRepository(tx.Client()).(*settingRepository)
+	s.repo = NewSettingRepository(tx.Client())
 }
 
 func TestSettingRepoSuite(t *testing.T) {

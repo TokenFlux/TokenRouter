@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "-run",
+    "Test(OpenAIWSConnPool|ErrorPassthrough|StopLiveObservers|Deferred|Flusher|OpsIngressReject)"
+  ],
+  "date": "2026-09-11T05:32:43.681852+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "duration_seconds": 31.445,
+  "test_events": {
+    "pass": 80,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/owned-resources-race-second.log.gz"
+}

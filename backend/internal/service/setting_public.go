@@ -590,7 +590,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		GoogleOAuthEnabled:                  settings.GoogleOAuthEnabled,
 		GoogleOneTapEnabled:                 settings.GoogleOneTapEnabled,
 		GoogleOAuthClientID:                 settings.GoogleOAuthClientID,
-		Version:                             s.version,
+		Version:                             s.settingRuntime().Version(),
 		ServerTimezone:                      timezone.Name(),
 		ServerUTCOffset:                     timezone.UTCOffset(),
 		BalanceUnitName:                     settings.BalanceUnitName,

@@ -75,11 +75,7 @@ func (s *ScheduledTestRunnerService) Stop() {
 	s.stopOnce.Do(func() {
 		if s.cron != nil {
 			ctx := s.cron.Stop()
-			select {
-			case <-ctx.Done():
-			case <-time.After(3 * time.Second):
-				logger.LegacyPrintf("service.scheduled_test_runner", "[ScheduledTestRunner] cron stop timed out")
-			}
+			<-ctx.Done()
 		}
 	})
 }

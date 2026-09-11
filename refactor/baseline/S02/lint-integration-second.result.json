@@ -1,0 +1,21 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--build-tags=integration",
+    "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S02/lint-integration-second.json",
+    "./..."
+  ],
+  "date": "2026-09-11T05:22:37.802562+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "duration_seconds": 46.892,
+  "test_events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/lint-integration-second.log.gz"
+}

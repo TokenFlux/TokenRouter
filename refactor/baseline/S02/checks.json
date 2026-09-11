@@ -1,0 +1,743 @@
+{
+  "head": "5d3717f09ea5efcf4ae6e9c708031b51de1c668b",
+  "branch": "main",
+  "index_unchanged": true,
+  "plan_body_sha256": "7bebd5924984308d58d6ea4e0a90cab614ce5022db705b4563d8aa54870a96e9",
+  "plan_body_unchanged": true,
+  "sql_files": 309,
+  "sql_unchanged": true,
+  "sql_changed": [],
+  "sql_new": [],
+  "ent_files": 379,
+  "ent_unchanged": true,
+  "ent_changed": [],
+  "module_files_unchanged": {
+    "backend/go.mod": true,
+    "backend/go.sum": true
+  },
+  "other_files_count": 49,
+  "other_files_unchanged": true,
+  "other_changed": [],
+  "s00_s01_changed": [],
+  "protocol_rules_unchanged": {
+    "protocol-root": true,
+    "protocol-root-tests": true,
+    "protocol-anthropic": true,
+    "protocol-anthropic-tests": true,
+    "protocol-openai": true,
+    "protocol-openai-tests": true,
+    "protocol-gemini": true,
+    "protocol-gemini-tests": true,
+    "protocol-google": true,
+    "protocol-google-tests": true,
+    "protocol-bridge": true,
+    "protocol-bridge-tests": true
+  },
+  "original_depguard_rules_unchanged": {
+    "service-no-repository": true,
+    "handler-no-repository": true
+  },
+  "doc_anchors": [
+    {
+      "source": "backend/cmd/server/main.go",
+      "target": "docs/architecture/system_architecture.md#startup_and_shutdown",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/app/application.go",
+      "target": "docs/architecture/system_architecture.md#dependency_layers",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/app/application.go",
+      "target": "docs/architecture/system_architecture.md#startup_and_shutdown",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/handler/openai_gateway_handler.go",
+      "target": "docs/interfaces/openai_upstream.md#openai_protocol_dispatch",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/idempotency/idempotency.go",
+      "target": "docs/interfaces/http_api.md#write_idempotency",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/server/http.go",
+      "target": "docs/operations/edge_security.md#http_ingress_limits",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/server/routes/auth.go",
+      "target": "docs/domains/identity_and_tenancy.md#authentication_boundaries",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/service/admin_account.go",
+      "target": "docs/interfaces/upstream_account_matrix.md#cn_provider_protocols",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/service/batch_image_public.go",
+      "target": "docs/domains/batch_image_jobs.md#job_lifecycle",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/service/content_moderation.go",
+      "target": "docs/domains/content_moderation.md#content_moderation_decision_pipeline",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/service/error_passthrough_service.go",
+      "target": "docs/interfaces/gateway_error_policy.md#error_passthrough_rule_matching",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/service/gateway_service.go",
+      "target": "docs/interfaces/anthropic_upstream.md#anthropic_account_and_transport",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/service/gateway_service.go",
+      "target": "docs/domains/platform_quotas.md#platform_quota_settlement_and_flush",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/service/group_availability_probe_runner.go",
+      "target": "docs/interfaces/model_catalog_and_marketplace.md#group_availability_probe",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/service/ops_metrics_collector.go",
+      "target": "docs/operations/ops_monitoring_and_alerting.md#ops_signal_pipeline",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/service/pricing_service.go",
+      "target": "docs/interfaces/model_catalog_and_marketplace.md#model_catalog_metadata_lookup",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/service/tls_fingerprint_router_service.go",
+      "target": "docs/operations/upstream_transport_security.md#upstream_tls_routing",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/settings/store.go",
+      "target": "docs/interfaces/configuration.md#runtime_settings",
+      "valid": true
+    },
+    {
+      "source": "backend/internal/site/service.go",
+      "target": "docs/interfaces/http_api.md#announcement_api",
+      "valid": true
+    }
+  ],
+  "local_links": [
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "target": "../project_overview.md",
+      "exists": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "target": "index.md",
+      "exists": true
+    },
+    {
+      "source": "docs/architecture/system_architecture.md",
+      "target": "../operations/index.md",
+      "exists": true
+    },
+    {
+      "source": "docs/domains/content_moderation.md",
+      "target": "creative_studio.md",
+      "exists": true
+    },
+    {
+      "source": "docs/domains/content_moderation.md",
+      "target": "gateway_policy_controls.md",
+      "exists": true
+    },
+    {
+      "source": "docs/domains/content_moderation.md",
+      "target": "../interfaces/gateway_error_policy.md",
+      "exists": true
+    },
+    {
+      "source": "docs/domains/content_moderation.md",
+      "target": "../operations/observability_and_data_lifecycle.md",
+      "exists": true
+    },
+    {
+      "source": "docs/domains/platform_quotas.md",
+      "target": "routing_and_billing.md",
+      "exists": true
+    },
+    {
+      "source": "docs/domains/platform_quotas.md",
+      "target": "payments_and_entitlements.md",
+      "exists": true
+    },
+    {
+      "source": "docs/domains/platform_quotas.md",
+      "target": "../operations/account_maintenance.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "target": "../domains/creative_studio.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "target": "tf_cli_web_import.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "target": "http_api.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "target": "../architecture/system_architecture.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "target": "../operations/index.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/configuration.md",
+      "target": "index.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "target": "../domains/creative_studio.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "target": "../domains/creative_studio.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "target": "protocol_capabilities.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "target": "../guides/payments/admin_integration_api.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "target": "upstream_account_matrix.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "target": "gateway_error_policy.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "target": "../domains/identity_and_tenancy.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "target": "../architecture/gateway_request_lifecycle.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "target": "../domains/payments_and_entitlements.md",
+      "exists": true
+    },
+    {
+      "source": "docs/interfaces/http_api.md",
+      "target": "index.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "target": "../../.github/workflows/release.yml",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "target": "../guides/deployment/index.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "target": "../../deploy/DOCKER.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "target": "../guides/deployment/apple_container.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "target": "../guides/deployment/datamanagementd.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "target": "../architecture/system_architecture.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "target": "../interfaces/configuration.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/deployment_and_migrations.md",
+      "target": "index.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "target": "deployment_and_migrations.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "target": "../index.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "target": "../project_overview.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "target": "../architecture/system_architecture.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "target": "../interfaces/configuration.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "target": "deployment_and_migrations.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/development_workflow.md",
+      "target": "index.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "target": "observability_and_data_lifecycle.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "target": "pre_aggregation.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "target": "../interfaces/gateway_error_policy.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "target": "../architecture/system_architecture.md#startup_and_shutdown",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "target": "observability_and_data_lifecycle.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "target": "pre_aggregation.md",
+      "exists": true
+    },
+    {
+      "source": "docs/operations/ops_monitoring_and_alerting.md",
+      "target": "account_maintenance.md",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/lifecycle.md",
+      "target": "lifecycle-hooks.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/lifecycle.md",
+      "target": "background-ownership.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/lifecycle.md",
+      "target": "construction-audit.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/lifecycle.md",
+      "target": "linux-process.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/lifecycle.md",
+      "target": "verification.md",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/contracts.md",
+      "target": "contract-events.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/contracts.md",
+      "target": "dependency-fixtures.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/contracts.md",
+      "target": "lifecycle-goleak-fixture.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/clock-fixture.md",
+      "target": "billing-original-head.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/clock-fixture.md",
+      "target": "billing-clock-skew.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/clock-fixture.md",
+      "target": "clock-skew-fixture.patch",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/clock-fixture.md",
+      "target": "billing-clock-fixture-fixed.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/migration.md",
+      "target": "migration-files.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/migration.md",
+      "target": "package-consumers.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/migration.md",
+      "target": "path-mapping.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/migration.md",
+      "target": "remaining-consumers.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/migration.md",
+      "target": "wire-reproducibility.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/migration.md",
+      "target": "checks.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "closeout-normal.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "closeout-unit.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "closeout-integration.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "delivery-lint-normal.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "delivery-lint-unit.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "delivery-lint-integration.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "uncapped-lint-current-normal.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "uncapped-lint-current-unit.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "uncapped-lint-current-integration.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "lifecycle-contract-race-final2.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "runtime-race-second.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "owned-resources-race-second.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "handler-owner-race.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "handler-drain-race-second.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "usage-cleanup-race-second.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "infra-race.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "redis-race-integration.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "subscription-race-integration.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "lifecycle-goleak-fixture.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "process-storage-final.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "final-process-observability.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "delivery-embed-contracts.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "frontend-build.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "closeout-build.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "closeout-embed.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "closeout-linux.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "closeout-linux-arm64.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "delivery-maintenance.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "delivery-wire-repeat.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "linux-process.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "integration-comparison.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "clock-fixture.md",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "uncapped-lint-comparison.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "linux-process.py",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "linux-process.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "build-selections.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "contracts.md",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "contract-events.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "migration.md",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "lifecycle.md",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "dependency-exceptions.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "checks.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/baseline/S02/verification.md",
+      "target": "log-manifest.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/S02-app-lifecycle.md",
+      "target": "baseline/S02/start.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/S02-app-lifecycle.md",
+      "target": "baseline/S02/bootstrap-first.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/S02-app-lifecycle.md",
+      "target": "baseline/S02/lifecycle-contract-race.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/S02-app-lifecycle.md",
+      "target": "baseline/S02/compile-unit-second.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/S02-app-lifecycle.md",
+      "target": "baseline/S02/depguard-second.result.json",
+      "exists": true
+    },
+    {
+      "source": "refactor/S02-app-lifecycle.md",
+      "target": "baseline/S02/clock-fixture.md",
+      "exists": true
+    },
+    {
+      "source": "refactor/S02-app-lifecycle.md",
+      "target": "baseline/S02/verification.md",
+      "exists": true
+    },
+    {
+      "source": "refactor/S02-app-lifecycle.md",
+      "target": "baseline/S02/contracts.md",
+      "exists": true
+    },
+    {
+      "source": "refactor/S02-app-lifecycle.md",
+      "target": "baseline/S02/migration.md",
+      "exists": true
+    },
+    {
+      "source": "refactor/S02-app-lifecycle.md",
+      "target": "baseline/S02/lifecycle.md",
+      "exists": true
+    },
+    {
+      "source": "refactor/S02-app-lifecycle.md",
+      "target": "baseline/S02/checks.json",
+      "exists": true
+    }
+  ],
+  "git_diff_check": {
+    "exit_code": 0,
+    "output": ""
+  }
+}

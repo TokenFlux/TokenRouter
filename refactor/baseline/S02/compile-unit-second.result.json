@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-tags=unit",
+    "-run",
+    "^$",
+    "./..."
+  ],
+  "date": "2026-09-11T04:07:28.266596+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "duration_seconds": 20.061,
+  "test_events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/compile-unit-second.log.gz"
+}

@@ -483,3 +483,10 @@ func (s *AntigravityOAuthService) BuildAccountCredentials(tokenInfo *Antigravity
 func (s *AntigravityOAuthService) Stop() {
 	s.sessionStore.Stop()
 }
+
+// Start 由应用统一启动最终注入的会话实现。
+func (s *AntigravityOAuthService) Start() {
+	if starter, ok := any(s.sessionStore).(interface{ Start() }); ok {
+		starter.Start()
+	}
+}

@@ -58,6 +58,7 @@ type TLSFingerprintRouterService struct {
 
 	localCache map[int64]*cachedTLSFingerprintRouter
 	localMu    sync.RWMutex
+	startOnce  sync.Once
 }
 
 // NewTLSFingerprintRouterService 创建 TLS 路由器服务。
@@ -69,22 +70,6 @@ func NewTLSFingerprintRouterService(
 		repo:       repo,
 		cache:      cache,
 		localCache: make(map[int64]*cachedTLSFingerprintRouter),
-	}
-
-	ctx := context.Background()
-	if err := svc.reloadFromDB(ctx); err != nil {
-		logger.LegacyPrintf("service.tls_fp_router", "[TLSFPRouterService] Failed to load routers from DB on startup: %v", err)
-		if fallbackErr := svc.refreshLocalCache(ctx); fallbackErr != nil {
-			logger.LegacyPrintf("service.tls_fp_router", "[TLSFPRouterService] Failed to load routers from cache fallback on startup: %v", fallbackErr)
-		}
-	}
-
-	if cache != nil {
-		cache.SubscribeUpdates(ctx, func() {
-			if err := svc.refreshLocalCache(context.Background()); err != nil {
-				logger.LegacyPrintf("service.tls_fp_router", "[TLSFPRouterService] Failed to refresh cache on notification: %v", err)
-			}
-		})
 	}
 
 	return svc
@@ -343,4 +328,25 @@ func tlsRouterRuleMatches(rule cachedTLSFingerprintRouterRule, userAgent string)
 	default:
 		return strings.Contains(value, pattern)
 	}
+}
+
+// Start 在预热与装配完成后安装缓存订阅。
+func (s *TLSFingerprintRouterService) Start() {
+	s.startOnce.Do(func() {
+		ctx := context.Background()
+		if err := s.reloadFromDB(ctx); err != nil {
+			logger.LegacyPrintf("service.tls_fp_router", "[TLSFPRouterService] Failed to load routers from DB on startup: %v", err)
+			if fallbackErr := s.refreshLocalCache(ctx); fallbackErr != nil {
+				logger.LegacyPrintf("service.tls_fp_router", "[TLSFPRouterService] Failed to load routers from cache fallback on startup: %v", fallbackErr)
+			}
+		}
+
+		if s.cache != nil {
+			s.cache.SubscribeUpdates(ctx, func() {
+				if err := s.refreshLocalCache(context.Background()); err != nil {
+					logger.LegacyPrintf("service.tls_fp_router", "[TLSFPRouterService] Failed to refresh cache on notification: %v", err)
+				}
+			})
+		}
+	})
 }

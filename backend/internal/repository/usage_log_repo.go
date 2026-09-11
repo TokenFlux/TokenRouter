@@ -166,10 +166,13 @@ func appendUsageLogModelQueryFilter(query string, args []any, model string, sour
 }
 
 type usageLogRepository struct {
-	client         *dbent.Client
-	sql            sqlExecutor
-	db             *sql.DB
-	preAggregation *service.PreAggregationSettingsService
+	batchLifecycleMu sync.RWMutex
+	batchStopped     bool
+	batchWG          sync.WaitGroup
+	client           *dbent.Client
+	sql              sqlExecutor
+	db               *sql.DB
+	preAggregation   *service.PreAggregationSettingsService
 
 	createBatchOnce     sync.Once
 	createBatchCh       chan usageLogCreateRequest
@@ -190,7 +193,7 @@ func newUsageLogRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor) *usage
 	if db, ok := sqlq.(*sql.DB); ok {
 		repo.db = db
 	}
-	repo.bestEffortRecent = gocache.New(usageLogBestEffortRecentTTL, time.Minute)
+	repo.bestEffortRecent = gocache.New(usageLogBestEffortRecentTTL, 0)
 	return repo
 }
 
@@ -483,3 +486,26 @@ func rankingDisplayName(username, email string, userID int64) string {
 type UsageRankingItem = usagestats.UsageRankingItem
 
 type UsageRankingResponse = usagestats.UsageRankingResponse
+
+// ExpireRuntimeCaches 不再隐式启动无法关闭的 janitor。
+func (r *usageLogRepository) ExpireRuntimeCaches() {
+	if r.bestEffortRecent != nil {
+		r.bestEffortRecent.DeleteExpired()
+	}
+}
+
+// StopUsageBatchers 在使用量任务停止提交后封闭并排空两个独立批处理队列。
+func (r *usageLogRepository) StopUsageBatchers() {
+	r.batchLifecycleMu.Lock()
+	if !r.batchStopped {
+		r.batchStopped = true
+		if r.createBatchCh != nil {
+			close(r.createBatchCh)
+		}
+		if r.bestEffortBatchCh != nil {
+			close(r.bestEffortBatchCh)
+		}
+	}
+	r.batchLifecycleMu.Unlock()
+	r.batchWG.Wait()
+}

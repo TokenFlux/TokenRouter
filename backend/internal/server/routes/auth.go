@@ -4,12 +4,10 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/handler"
-	redisinfra "github.com/TokenFlux/TokenRouter/internal/infra/redis"
 	servermiddleware "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 )
 
 // 认证路由的主体、会话和权限边界由对应工程文档维护。
@@ -20,12 +18,11 @@ func RegisterAuthRoutes(
 	h *handler.Handlers,
 	jwtAuth servermiddleware.JWTAuthMiddleware,
 	auditLog servermiddleware.AuditLogMiddleware,
-	redisClient *redis.Client,
+	rateLimiter *servermiddleware.RateLimiter,
 	settingService *service.SettingService,
 	panelRateLimiter *servermiddleware.PanelRateLimiter,
 ) {
 	// 创建速率限制器
-	rateLimiter := servermiddleware.NewRateLimiter(redisinfra.NewFixedWindowLimiter(redisClient, "rate_limit:"))
 
 	// 公开接口
 	auth := v1.Group("/auth")

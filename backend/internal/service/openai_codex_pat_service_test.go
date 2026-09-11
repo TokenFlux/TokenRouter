@@ -35,6 +35,7 @@ func TestOpenAIOAuthService_ValidateCodexPersonalAccessToken(t *testing.T) {
 	defer func() { openAICodexPATWhoamiURL = originalURL }()
 
 	svc := NewOpenAIOAuthService(nil, nil)
+	svc.Start()
 	defer svc.Stop()
 
 	info, err := svc.ValidateCodexPersonalAccessToken(context.Background(), " at-test-token ", "")
@@ -54,6 +55,7 @@ func TestOpenAIOAuthService_ValidateCodexPersonalAccessToken(t *testing.T) {
 
 func TestOpenAIOAuthService_ValidateCodexPersonalAccessTokenRequiresATPrefix(t *testing.T) {
 	svc := NewOpenAIOAuthService(nil, nil)
+	svc.Start()
 	defer svc.Stop()
 
 	_, err := svc.ValidateCodexPersonalAccessToken(context.Background(), "eyJ.jwt", "")
@@ -63,6 +65,7 @@ func TestOpenAIOAuthService_ValidateCodexPersonalAccessTokenRequiresATPrefix(t *
 
 func TestOpenAIOAuthService_BuildAccountCredentialsForPAT(t *testing.T) {
 	svc := NewOpenAIOAuthService(nil, nil)
+	svc.Start()
 	defer svc.Stop()
 
 	credentials := svc.BuildAccountCredentials(&OpenAITokenInfo{

@@ -1,0 +1,25 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "./internal/app/lifecycle",
+    "./internal/infra/timingwheel",
+    "./internal/settings",
+    "./internal/idempotency",
+    "./internal/site"
+  ],
+  "date": "2026-09-11T05:21:24.115077+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "duration_seconds": 4.136,
+  "test_events": {
+    "pass": 66,
+    "fail": 1,
+    "skip": 0
+  },
+  "log": "logs/lifecycle-contract-race-final.log.gz"
+}

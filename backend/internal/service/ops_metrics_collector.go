@@ -46,9 +46,12 @@ type opsSchedulableAccountLoadRepository interface {
 }
 
 type OpsMetricsCollector struct {
-	opsRepo     OpsRepository
-	settingRepo SettingRepository
-	cfg         *config.Config
+	lifecycleMu      sync.Mutex
+	lifecycleStopped bool
+	loopWG           sync.WaitGroup
+	opsRepo          OpsRepository
+	settingRepo      SettingRepository
+	cfg              *config.Config
 
 	accountRepo        AccountRepository
 	concurrencyService *ConcurrencyService
@@ -94,11 +97,18 @@ func (c *OpsMetricsCollector) Start() {
 	if c == nil {
 		return
 	}
+	c.lifecycleMu.Lock()
+	defer c.lifecycleMu.Unlock()
+	if c.lifecycleStopped {
+		return
+	}
+
 	c.startOnce.Do(func() {
 		if c.stopCh == nil {
 			c.stopCh = make(chan struct{})
 		}
-		go c.run()
+		c.loopWG.Add(1)
+		go func() { defer c.loopWG.Done(); c.run() }()
 	})
 }
 
@@ -106,11 +116,17 @@ func (c *OpsMetricsCollector) Stop() {
 	if c == nil {
 		return
 	}
+	c.lifecycleMu.Lock()
+	c.lifecycleStopped = true
+
 	c.stopOnce.Do(func() {
 		if c.stopCh != nil {
 			close(c.stopCh)
 		}
 	})
+	c.lifecycleMu.Unlock()
+	c.loopWG.Wait()
+
 }
 
 func (c *OpsMetricsCollector) run() {

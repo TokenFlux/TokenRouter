@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./..."
+  ],
+  "date": "2026-09-11T05:53:45.316259+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "duration_seconds": 145.521,
+  "test_events": {
+    "pass": 11696,
+    "fail": 38,
+    "skip": 6
+  },
+  "log": "logs/delivery-integration.log.gz"
+}

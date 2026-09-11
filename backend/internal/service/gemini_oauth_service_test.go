@@ -102,6 +102,7 @@ func TestGeminiOAuthService_GenerateAuthURL_RedirectURIStrategy(t *testing.T) {
 			t.Parallel()
 
 			svc := NewGeminiOAuthService(nil, nil, nil, nil, tt.cfg)
+			svc.Start()
 			got, err := svc.GenerateAuthURL(context.Background(), nil, "https://example.com/auth/callback", tt.projectID, tt.oauthType, "")
 			if tt.wantErrSubstr != "" {
 				if err == nil {
@@ -488,6 +489,7 @@ func TestGeminiOAuthService_BuildAccountCredentials(t *testing.T) {
 	t.Parallel()
 
 	svc := NewGeminiOAuthService(nil, nil, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	t.Run("完整字段", func(t *testing.T) {
@@ -688,6 +690,7 @@ func TestGeminiOAuthService_GetOAuthConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			svc := NewGeminiOAuthService(nil, nil, nil, nil, tt.cfg)
+			svc.Start()
 			defer svc.Stop()
 
 			result := svc.GetOAuthConfig()
@@ -710,6 +713,7 @@ func TestGeminiOAuthService_Stop_NoPanic(t *testing.T) {
 	t.Parallel()
 
 	svc := NewGeminiOAuthService(nil, nil, nil, nil, &config.Config{})
+	svc.Start()
 
 	// 调用 Stop 不应 panic
 	svc.Stop()
@@ -850,6 +854,7 @@ func TestGeminiOAuthService_RefreshToken_Success(t *testing.T) {
 	}
 
 	svc := NewGeminiOAuthService(nil, client, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	info, err := svc.RefreshToken(context.Background(), "code_assist", "old-refresh", "")
@@ -877,6 +882,7 @@ func TestGeminiOAuthService_RefreshToken_NonRetryableError(t *testing.T) {
 	}
 
 	svc := NewGeminiOAuthService(nil, client, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	_, err := svc.RefreshToken(context.Background(), "code_assist", "revoked-token", "")
@@ -906,6 +912,7 @@ func TestGeminiOAuthService_RefreshToken_RetryableError(t *testing.T) {
 	}
 
 	svc := NewGeminiOAuthService(nil, client, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	info, err := svc.RefreshToken(context.Background(), "code_assist", "rt", "")
@@ -928,6 +935,7 @@ func TestGeminiOAuthService_RefreshAccountToken_NotGeminiOAuth(t *testing.T) {
 	t.Parallel()
 
 	svc := NewGeminiOAuthService(nil, nil, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -948,6 +956,7 @@ func TestGeminiOAuthService_RefreshAccountToken_NoRefreshToken(t *testing.T) {
 	t.Parallel()
 
 	svc := NewGeminiOAuthService(nil, nil, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -983,6 +992,7 @@ func TestGeminiOAuthService_RefreshAccountToken_AIStudio(t *testing.T) {
 	}
 
 	svc := NewGeminiOAuthService(&mockGeminiProxyRepo{}, client, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -1022,6 +1032,7 @@ func TestGeminiOAuthService_RefreshAccountToken_CodeAssist_WithProjectID(t *test
 	}
 
 	svc := NewGeminiOAuthService(&mockGeminiProxyRepo{}, client, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -1067,6 +1078,7 @@ func TestGeminiOAuthService_RefreshAccountToken_DefaultOAuthType(t *testing.T) {
 	}
 
 	svc := NewGeminiOAuthService(&mockGeminiProxyRepo{}, client, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	// 无 oauth_type 凭据的旧账号
@@ -1115,6 +1127,7 @@ func TestGeminiOAuthService_RefreshAccountToken_WithProxy(t *testing.T) {
 	}
 
 	svc := NewGeminiOAuthService(proxyRepo, client, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	proxyID := int64(5)
@@ -1157,6 +1170,7 @@ func TestGeminiOAuthService_RefreshAccountToken_CodeAssist_NoProjectID_AutoDetec
 	}
 
 	svc := NewGeminiOAuthService(&mockGeminiProxyRepo{}, client, codeAssist, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -1206,6 +1220,7 @@ func TestGeminiOAuthService_RefreshAccountToken_CodeAssist_NoProjectID_FailsEmpt
 	}
 
 	svc := NewGeminiOAuthService(&mockGeminiProxyRepo{}, client, codeAssist, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -1239,6 +1254,7 @@ func TestGeminiOAuthService_RefreshAccountToken_GoogleOne_FreshCache(t *testing.
 	}
 
 	svc := NewGeminiOAuthService(&mockGeminiProxyRepo{}, client, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -1279,6 +1295,7 @@ func TestGeminiOAuthService_RefreshAccountToken_GoogleOne_NoTierID_DefaultsFree(
 	}
 
 	svc := NewGeminiOAuthService(&mockGeminiProxyRepo{}, client, nil, &mockDriveClient{}, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -1333,6 +1350,7 @@ func TestGeminiOAuthService_RefreshAccountToken_UnauthorizedClient_Fallback(t *t
 	}
 
 	svc := NewGeminiOAuthService(&mockGeminiProxyRepo{}, client, nil, nil, cfg)
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -1366,6 +1384,7 @@ func TestGeminiOAuthService_RefreshAccountToken_UnauthorizedClient_NoFallback(t 
 
 	// 无自定义 OAuth 客户端，无法 fallback
 	svc := NewGeminiOAuthService(&mockGeminiProxyRepo{}, client, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	account := &Account{
@@ -1395,6 +1414,7 @@ func TestGeminiOAuthService_ExchangeCode_SessionNotFound(t *testing.T) {
 	t.Parallel()
 
 	svc := NewGeminiOAuthService(nil, nil, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	_, err := svc.ExchangeCode(context.Background(), &GeminiExchangeCodeInput{
@@ -1414,6 +1434,7 @@ func TestGeminiOAuthService_ExchangeCode_InvalidState(t *testing.T) {
 	t.Parallel()
 
 	svc := NewGeminiOAuthService(nil, nil, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	// 手动创建 session（必须设置 CreatedAt，否则会因 TTL 过期被拒绝）
@@ -1441,6 +1462,7 @@ func TestGeminiOAuthService_ExchangeCode_EmptyState(t *testing.T) {
 	t.Parallel()
 
 	svc := NewGeminiOAuthService(nil, nil, nil, nil, &config.Config{})
+	svc.Start()
 	defer svc.Stop()
 
 	svc.sessionStore.Set("test-session", &geminicli.OAuthSession{

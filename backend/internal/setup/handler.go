@@ -7,10 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/sysutil"
 
 	"github.com/gin-gonic/gin"
 )
@@ -19,7 +17,14 @@ import (
 var installMutex sync.Mutex
 
 // RegisterRoutes registers setup wizard routes
-func RegisterRoutes(r *gin.Engine) {
+// RestartRequester 由 CLI 入口注入，setup 不依赖完整应用图。
+type RestartRequester interface{ RequestRestart() error }
+
+func RegisterRoutes(r *gin.Engine, restarters ...RestartRequester) {
+	var restarter RestartRequester
+	if len(restarters) > 0 {
+		restarter = restarters[0]
+	}
 	setup := r.Group("/setup")
 	{
 		// Status endpoint is always accessible (read-only)
@@ -31,7 +36,7 @@ func RegisterRoutes(r *gin.Engine) {
 		{
 			protected.POST("/test-db", testDatabase)
 			protected.POST("/test-redis", testRedis)
-			protected.POST("/install", install)
+			protected.POST("/install", func(c *gin.Context) { installWithRestart(c, restarter) })
 		}
 	}
 }
@@ -237,7 +242,7 @@ type InstallRequest struct {
 }
 
 // install performs the installation
-func install(c *gin.Context) {
+func installWithRestart(c *gin.Context, restarter RestartRequester) {
 	// TOCTOU Protection: Acquire mutex to prevent concurrent installation
 	installMutex.Lock()
 	defer installMutex.Unlock()
@@ -352,13 +357,9 @@ func install(c *gin.Context) {
 		return
 	}
 
-	// Schedule service restart in background after sending response
-	// This ensures the client receives the success response before the service restarts
-	go func() {
-		// Wait a moment to ensure the response is sent
-		time.Sleep(500 * time.Millisecond)
-		sysutil.RestartServiceAsync()
-	}()
+	if restarter != nil {
+		_ = restarter.RequestRestart()
+	}
 
 	response.Success(c, gin.H{
 		"message": "Installation completed successfully. Service will restart automatically.",

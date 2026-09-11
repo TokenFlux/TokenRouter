@@ -831,9 +831,9 @@ func NewGatewayService(
 		claudeTokenProvider:   claudeTokenProvider,
 		sessionLimitCache:     sessionLimitCache,
 		rpmCache:              rpmCache,
-		userGroupRateCache:    gocache.New(userGroupRateTTL, time.Minute),
+		userGroupRateCache:    gocache.New(userGroupRateTTL, 0),
 		settingService:        settingService,
-		modelsListCache:       gocache.New(modelsListTTL, time.Minute),
+		modelsListCache:       gocache.New(modelsListTTL, 0),
 		modelsListCacheTTL:    modelsListTTL,
 		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
 		tlsFPProfileService:   tlsFPProfileService,
@@ -1590,7 +1590,7 @@ func finalizeUsageBilling(p *usageBillingParams, deps *billingDeps, result *Usag
 			if deps.cfg == nil || !deps.cfg.Database.UserPlatformQuotaFlusherEnabled {
 				dbCtx, dbCancel := detachUpstreamContext(context.Background())
 				userID, platform, cost := p.User.ID, p.Platform, balanceCost
-				go func() {
+				RunBackgroundTask("service/gateway_service.go:finalizeUsageBilling", BackgroundCall0(func() {
 					defer func() {
 						if r := recover(); r != nil {
 							logger.LegacyPrintf("service.gateway", "ALERT: panic in user platform quota incr goroutine user=%d platform=%s: %v", userID, platform, r)
@@ -1604,14 +1604,15 @@ func finalizeUsageBilling(p *usageBillingParams, deps *billingDeps, result *Usag
 						// 用户配额视图与实际消费会偏差，oncall 需要据此对账或人工补录。
 						logger.LegacyPrintf("service.gateway", "ALERT: incr user platform quota DB failed user=%d platform=%s cost=%f: %v", userID, platform, cost, err)
 					}
-				}()
+				}))
 			}
 		}
 	}
+	RunBackgroundTask(
 
-	// 通知检查异步执行，所需参数已全部捕获，不依赖请求 context 或上游连接。
-	go notifyBalanceLow(p, deps, result)
-	go notifyAccountQuota(p, deps, result)
+		// 通知检查异步执行，所需参数已全部捕获，不依赖请求 context 或上游连接。
+		"service/gateway_service.go:finalizeUsageBilling", BackgroundCall3(notifyBalanceLow, p, deps, result))
+	RunBackgroundTask("service/gateway_service.go:finalizeUsageBilling", BackgroundCall3(notifyAccountQuota, p, deps, result))
 }
 
 func usageBillingResultBillableAmount(result *UsageBillingApplyResult) float64 {
@@ -1649,4 +1650,16 @@ type usageBillingParams struct {
 	// BillingBaseAmountUSD 是用户资金分配使用的未倍率基础金额；nil 时沿用 Cost.TotalCost。
 	// 免费 Fast 需要把用户基础价切换为 Standard，同时保留 Fast 的账号统计基础成本。
 	BillingBaseAmountUSD *float64
+}
+
+// ExpireRuntimeCaches 由应用拥有的时间轮调用，保留原缓存到期清理频率。
+func (s *GatewayService) ExpireRuntimeCaches() {
+	if s != nil {
+		if s.userGroupRateCache != nil {
+			s.userGroupRateCache.DeleteExpired()
+		}
+		if s.modelsListCache != nil {
+			s.modelsListCache.DeleteExpired()
+		}
+	}
 }

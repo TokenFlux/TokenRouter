@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "-run",
+    "TestUsageCleanup"
+  ],
+  "date": "2026-09-11T06:04:40.384063+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "duration_seconds": 35.916,
+  "test_events": {
+    "pass": 32,
+    "fail": 0,
+    "skip": 0
+  },
+  "log": "logs/usage-cleanup-race-second.log.gz"
+}

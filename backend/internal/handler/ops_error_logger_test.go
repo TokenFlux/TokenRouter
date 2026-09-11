@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 	"unicode/utf8"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
@@ -2111,4 +2112,23 @@ func TestGetOpsAPIKeyPrefersPrimaryContextKey(t *testing.T) {
 	got := getOpsAPIKey(c)
 	require.NotNil(t, got)
 	require.Equal(t, int64(1), got.ID, "已鉴权请求应优先使用正式 api key")
+}
+
+// 关闭清空全局队列引用后，worker 仍须继续消费自己已经取得的队列。
+func TestOpsErrorLogShutdownDrainsCapturedQueue(t *testing.T) {
+	resetOpsErrorLoggerStateForTest(t)
+	t.Cleanup(func() { resetOpsErrorLoggerStateForTest(t) })
+	opsErrorLogOnce.Do(startOpsErrorLogWorkers)
+	opsErrorLogMu.RLock()
+	queue := opsErrorLogQueue
+	for range 64 {
+		queue <- opsErrorLogJob{}
+	}
+	opsErrorLogMu.RUnlock()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, ShutdownOpsErrorLogWorkers(ctx))
+	require.NoError(t, ShutdownOpsErrorLogWorkers(ctx))
+	require.Zero(t, OpsErrorLogQueueLength())
+	require.True(t, opsErrorLogDrained.Load())
 }

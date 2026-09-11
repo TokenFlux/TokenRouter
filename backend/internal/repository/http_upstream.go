@@ -805,3 +805,10 @@ func (s *httpUpstreamService) DoWithTLS(req *http.Request, proxyURL string, acco
 	}
 	return s.pool.Do(req, opts)
 }
+
+// CloseIdleConnections 由应用在所有请求和后台副作用完成后调用。
+func (s *httpUpstreamService) CloseIdleConnections() {
+	if closer, ok := s.pool.(interface{ CloseIdleConnections() }); ok {
+		closer.CloseIdleConnections()
+	}
+}

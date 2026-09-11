@@ -23,6 +23,7 @@ func newUsageRecordTestPool(t *testing.T) *service.UsageRecordWorkerPool {
 		OverflowSamplePercent: 0,
 		AutoScaleEnabled:      false,
 	})
+	pool.Start()
 	t.Cleanup(pool.Stop)
 	return pool
 }
@@ -34,6 +35,7 @@ func newStoppedUsageRecordPoolForTest() *service.UsageRecordWorkerPool {
 		TaskTimeout:    time.Second,
 		OverflowPolicy: "sync",
 	})
+	pool.Start()
 	pool.Stop()
 	return pool
 }
@@ -85,6 +87,7 @@ func TestGatewayHandlerSubmitUsageRecordTask_DropPolicyOverflowStillDrops(t *tes
 		TaskTimeout:    time.Minute,
 		OverflowPolicy: "drop",
 	})
+	pool.Start()
 	t.Cleanup(pool.Stop)
 	h := &GatewayHandler{usageRecordWorkerPool: pool}
 
@@ -203,6 +206,7 @@ func TestOpenAIGatewayHandlerSubmitMandatoryUsageRecordTask_DroppedTaskSyncFallb
 		OverflowSamplePercent: 0,
 		AutoScaleEnabled:      false,
 	})
+	pool.Start()
 	t.Cleanup(pool.Stop)
 	h := &OpenAIGatewayHandler{usageRecordWorkerPool: pool}
 
@@ -233,6 +237,7 @@ func TestOpenAIGatewayHandlerSubmitOpenAIUsageRecordTask_ImageResultUsesMandator
 		OverflowSamplePercent: 0,
 		AutoScaleEnabled:      false,
 	})
+	pool.Start()
 	t.Cleanup(pool.Stop)
 	h := &OpenAIGatewayHandler{usageRecordWorkerPool: pool}
 

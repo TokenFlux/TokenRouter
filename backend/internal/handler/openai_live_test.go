@@ -122,6 +122,7 @@ func TestLiveContentModerationBlocksBeforeBilling(t *testing.T) {
 		nil,
 		nil,
 	)
+	moderationSvc.Start()
 
 	groupID := int64(2)
 	group := &service.Group{ID: groupID, Name: "openai", Platform: service.PlatformOpenAI, AllowLive: true}

@@ -230,6 +230,7 @@ func TestGrokOAuthHandlerValidateSSOTokenReturnsTokenInfo(t *testing.T) {
 
 	oauthClient := &grokOAuthHandlerClient{}
 	oauthService := service.NewGrokOAuthService(nil, oauthClient)
+	oauthService.Start()
 	defer oauthService.Stop()
 	handler := NewGrokOAuthHandler(oauthService, nil, nil, nil)
 
@@ -252,6 +253,7 @@ func TestGrokOAuthHandlerAuthorizePasswordReturnsTokenInfoWithoutPassword(t *tes
 	cfg := &config.Config{}
 	cfg.Gateway.Grok.PasswordAuthEnabled = true
 	oauthService := service.NewGrokOAuthService(nil, oauthClient, cfg)
+	oauthService.Start()
 	defer oauthService.Stop()
 	handler := NewGrokOAuthHandler(oauthService, nil, nil, nil)
 
@@ -270,6 +272,7 @@ func TestGrokOAuthHandlerAuthorizePasswordReturnsTokenInfoWithoutPassword(t *tes
 func TestGrokOAuthHandlerPasswordCapabilityDefaultsToDisabled(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	oauthService := service.NewGrokOAuthService(nil, &grokOAuthHandlerClient{})
+	oauthService.Start()
 	defer oauthService.Stop()
 	handler := NewGrokOAuthHandler(oauthService, nil, nil, nil)
 
@@ -380,6 +383,7 @@ func (grokSSOPanicClient) ConvertSSOToBuild(_ context.Context, ssoToken, _ strin
 func TestGrokSSOImportWorkerRecoversPanicWithoutExposingToken(t *testing.T) {
 	const sensitiveToken = "sensitive-sso-token"
 	oauthService := service.NewGrokOAuthService(nil, grokSSOPanicClient{})
+	oauthService.Start()
 	defer oauthService.Stop()
 	h := &GrokOAuthHandler{grokOAuthService: oauthService}
 

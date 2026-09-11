@@ -64,6 +64,7 @@ func newDailyUsageTestRouter(usageRepo *dailyUsageRepoStub, apiKeyRepo *dailyUsa
 	gin.SetMode(gin.TestMode)
 	usageSvc := service.NewUsageService(usageRepo)
 	apiKeySvc := service.NewAPIKeyService(apiKeyRepo, nil, nil, nil, nil, nil, nil)
+	apiKeySvc.Start()
 	handler := NewUsageHandler(usageSvc, apiKeySvc, nil, nil)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {

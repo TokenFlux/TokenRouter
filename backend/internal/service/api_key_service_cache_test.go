@@ -337,6 +337,7 @@ func TestAPIKeyService_GetByKey_UsesL2Cache(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	svc.Start()
 
 	groupID := int64(9)
 	cacheEntry := &APIKeyAuthCacheEntry{
@@ -429,6 +430,7 @@ func TestAPIKeyService_GetByKey_FallsBackDisabledBoundGroupToPlatformDefaultFrom
 	}
 	rateRepo := &authUserGroupRateRepoStub{overrides: map[int64]*int{defaultGroupID: &defaultRPM}}
 	svc := NewAPIKeyService(repo, nil, groupRepo, nil, rateRepo, nil, &config.Config{})
+	svc.Start()
 
 	apiKey, err := svc.GetByKey(context.Background(), "k-disabled")
 	require.NoError(t, err)
@@ -500,6 +502,7 @@ func TestAPIKeyService_GetByKey_FallsBackDisabledBoundGroupToConfiguredGroup(t *
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, groupRepo, nil, nil, nil, &config.Config{})
+	svc.Start()
 
 	apiKey, err := svc.GetByKey(context.Background(), "k-disabled")
 	require.NoError(t, err)
@@ -565,6 +568,7 @@ func TestAPIKeyService_GetByKey_InvalidConfiguredUnavailableFallbackUsesPlatform
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, groupRepo, nil, nil, nil, &config.Config{})
+	svc.Start()
 
 	apiKey, err := svc.GetByKey(context.Background(), "k-disabled")
 	require.NoError(t, err)
@@ -628,6 +632,7 @@ func TestAPIKeyService_GetByKey_FallsBackDisabledBoundGroupToPlatformDefaultFrom
 	}
 	cfg := &config.Config{APIKeyAuth: config.APIKeyAuthCacheConfig{L2TTLSeconds: 60}}
 	svc := NewAPIKeyService(repo, nil, groupRepo, nil, nil, cache, cfg)
+	svc.Start()
 
 	apiKey, err := svc.GetByKey(context.Background(), "k-cached-disabled")
 	require.NoError(t, err)
@@ -673,6 +678,7 @@ func TestAPIKeyService_GetByKey_DoesNotFallbackDeletedOrMissingBoundGroup(t *tes
 		}
 		ctx := context.WithValue(context.Background(), ctxkey.InboundEndpoint, "/v1/images/generations")
 		svc := NewAPIKeyService(repo, nil, groupRepo, nil, nil, nil, &config.Config{})
+		svc.Start()
 
 		apiKey, err := svc.GetByKey(ctx, "k-deleted")
 		require.NoError(t, err)
@@ -708,6 +714,7 @@ func TestAPIKeyService_GetByKey_DoesNotFallbackDeletedOrMissingBoundGroup(t *tes
 		}
 		ctx := context.WithValue(context.Background(), ctxkey.InboundEndpoint, "/v1/messages")
 		svc := NewAPIKeyService(repo, nil, groupRepo, nil, nil, nil, &config.Config{})
+		svc.Start()
 
 		apiKey, err := svc.GetByKey(ctx, "k-missing-group")
 		require.NoError(t, err)
@@ -719,6 +726,7 @@ func TestAPIKeyService_GetByKey_DoesNotFallbackDeletedOrMissingBoundGroup(t *tes
 
 func TestAPIKeyService_SnapshotRoundTrip_PreservesMessagesDispatchModelConfig(t *testing.T) {
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
+	svc.Start()
 	groupID := int64(9)
 	apiKey := &APIKey{
 		ID:             1,
@@ -765,6 +773,7 @@ func TestAPIKeyService_SnapshotRoundTrip_PreservesMessagesDispatchModelConfig(t 
 
 func TestAPIKeyServiceSnapshotRoundTripPreservesIndependentModelMapping(t *testing.T) {
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
+	svc.Start()
 	apiKey := &APIKey{
 		ID:           1,
 		UserID:       2,
@@ -785,6 +794,7 @@ func TestAPIKeyServiceSnapshotRoundTripPreservesIndependentModelMapping(t *testi
 
 func TestAPIKeyServiceSnapshotRoundTripPreservesGroupModelPricing(t *testing.T) {
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
+	svc.Start()
 	groupID := int64(9)
 	inputPrice := 1e-6
 	apiKey := &APIKey{
@@ -810,6 +820,7 @@ func TestAPIKeyServiceSnapshotRoundTripPreservesGroupModelPricing(t *testing.T) 
 
 func TestAPIKeyService_SnapshotRoundTrip_PreservesReasoningEffortPolicy(t *testing.T) {
 	svc := NewAPIKeyService(nil, nil, nil, nil, nil, nil, &config.Config{})
+	svc.Start()
 	groupID := int64(9)
 	apiKey := &APIKey{
 		ID:      1,
@@ -889,6 +900,7 @@ func TestAPIKeyService_GetByKey_IgnoresLegacyAuthCacheSnapshotWithoutMessagesDis
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	svc.Start()
 
 	groupID := int64(9)
 	cache.getAuthCache = func(ctx context.Context, key string) (*APIKeyAuthCacheEntry, error) {
@@ -938,6 +950,7 @@ func TestAPIKeyService_GetByKey_NegativeCache(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	svc.Start()
 	cache.getAuthCache = func(ctx context.Context, key string) (*APIKeyAuthCacheEntry, error) {
 		return &APIKeyAuthCacheEntry{NotFound: true}, nil
 	}
@@ -971,6 +984,7 @@ func TestAPIKeyService_GetByKey_CacheMissStoresL2(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	svc.Start()
 	cache.getAuthCache = func(ctx context.Context, key string) (*APIKeyAuthCacheEntry, error) {
 		return nil, redis.Nil
 	}
@@ -1008,6 +1022,7 @@ func TestAPIKeyService_GetByKey_UsesL1Cache(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	svc.Start()
 	require.NotNil(t, svc.authCacheL1)
 
 	_, err := svc.GetByKey(context.Background(), "k-l1")
@@ -1035,6 +1050,7 @@ func TestAPIKeyService_InvalidateAuthCacheByUserID(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	svc.Start()
 
 	svc.InvalidateAuthCacheByUserID(context.Background(), 7)
 	require.Len(t, cache.deleteAuthKeys, 2)
@@ -1053,6 +1069,7 @@ func TestAPIKeyService_InvalidateAuthCacheByGroupID(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	svc.Start()
 
 	svc.InvalidateAuthCacheByGroupID(context.Background(), 9)
 	require.Len(t, cache.deleteAuthKeys, 2)
@@ -1071,6 +1088,7 @@ func TestAPIKeyService_InvalidateAuthCacheByKey(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	svc.Start()
 
 	svc.InvalidateAuthCacheByKey(context.Background(), "k1")
 	require.Len(t, cache.deleteAuthKeys, 1)
@@ -1094,6 +1112,7 @@ func TestAPIKeyService_GetByKey_CachesNegativeOnRepoMiss(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	svc.Start()
 	cache.getAuthCache = func(ctx context.Context, key string) (*APIKeyAuthCacheEntry, error) {
 		return nil, redis.Nil
 	}
@@ -1118,6 +1137,7 @@ func TestAPIKeyService_GetByKeyRejectsInvalidLengthBeforeCaches(t *testing.T) {
 		return nil, nil
 	}}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, &config.Config{APIKeyAuth: config.APIKeyAuthCacheConfig{L2TTLSeconds: 60}})
+	svc.Start()
 
 	for _, key := range []string{"", strings.Repeat("x", MaxAPIKeyCredentialBytes+1)} {
 		_, err := svc.GetByKey(context.Background(), key)
@@ -1135,6 +1155,7 @@ func TestAPIKeyService_GetByKeyAllowsMaximumLength(t *testing.T) {
 		return nil, ErrAPIKeyNotFound
 	}}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, nil, &config.Config{})
+	svc.Start()
 	_, err := svc.GetByKey(context.Background(), key)
 	require.ErrorIs(t, err, ErrAPIKeyNotFound)
 	require.Equal(t, int32(1), repoCalls.Load())
@@ -1149,6 +1170,7 @@ func TestAPIKeyService_AuthLookupBulkheadRejectsExcessMisses(t *testing.T) {
 		return nil, ErrAPIKeyNotFound
 	}}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, nil, &config.Config{APIKeyAuth: config.APIKeyAuthCacheConfig{LookupConcurrency: 1}})
+	svc.Start()
 
 	done := make(chan error, 1)
 	go func() {
@@ -1196,6 +1218,7 @@ func TestAPIKeyService_GetByKey_SingleflightCollapses(t *testing.T) {
 		},
 	}
 	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
+	svc.Start()
 
 	start := make(chan struct{})
 	wg := sync.WaitGroup{}

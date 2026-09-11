@@ -1,0 +1,10 @@
+--- HEAD/usage_billing_repo_integration_test.go
++++ disposable-fixture/usage_billing_repo_integration_test.go
+@@ -434 +434,2 @@
+-	reservedAt := time.Now().UTC()
++	var reservedAt time.Time
++ require.NoError(t, integrationDB.QueryRowContext(ctx, `SELECT window_5h_start - INTERVAL '1 millisecond' FROM api_keys WHERE id=$1`, apiKey.ID).Scan(&reservedAt))
+@@ -463 +464,2 @@
+-	for _, usage := range []float64{quotaUsed, usage5h, usage1d, usage7d} {
++	t.Logf("clock-skew fixture: quota=%v 5h=%v 1d=%v 7d=%v", quotaUsed, usage5h, usage1d, usage7d)
++ for _, usage := range []float64{quotaUsed, usage5h, usage1d, usage7d} {

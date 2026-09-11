@@ -1651,6 +1651,7 @@ func TestOpenAIResponsesWebSocket_ContentModerationBlocksFirstFrame(t *testing.T
 		nil,
 		nil,
 	)
+	moderationSvc.Start()
 	decision, err := moderationSvc.Check(context.Background(), service.ContentModerationCheckInput{
 		UserID:   1,
 		Endpoint: "/v1/responses",
@@ -1730,6 +1731,7 @@ func TestOpenAIRecordCyberWarning_RecordsStructuredResponseBody(t *testing.T) {
 		service.SettingKeyContentModerationConfig: string(rawCfg),
 	}}
 	moderationSvc := service.NewContentModerationService(settingRepo, repo, nil, nil, nil, nil, nil)
+	moderationSvc.Start()
 	h := &OpenAIGatewayHandler{contentModerationService: moderationSvc}
 
 	w := httptest.NewRecorder()
@@ -1783,6 +1785,7 @@ func TestOpenAIRecordCyberWarning_UsesExplicitPromptExcerpt(t *testing.T) {
 		service.SettingKeyContentModerationConfig: string(rawCfg),
 	}}
 	moderationSvc := service.NewContentModerationService(settingRepo, repo, nil, nil, nil, nil, nil)
+	moderationSvc.Start()
 	h := &OpenAIGatewayHandler{contentModerationService: moderationSvc}
 
 	w := httptest.NewRecorder()
@@ -1825,6 +1828,7 @@ func TestOpenAIRecordCyberWarning_RequestSnapshotUsesCurrentToolOutput(t *testin
 		service.SettingKeyContentModerationConfig: string(rawCfg),
 	}}
 	moderationSvc := service.NewContentModerationService(settingRepo, repo, nil, nil, nil, nil, nil)
+	moderationSvc.Start()
 	h := &OpenAIGatewayHandler{contentModerationService: moderationSvc}
 
 	w := httptest.NewRecorder()
@@ -1878,6 +1882,7 @@ func TestOpenAIRecordForwardResultCyberWarning_RecordsWSV2TerminalWarning(t *tes
 		service.SettingKeyContentModerationConfig: string(rawCfg),
 	}}
 	moderationSvc := service.NewContentModerationService(settingRepo, repo, nil, nil, nil, nil, nil)
+	moderationSvc.Start()
 	h := &OpenAIGatewayHandler{contentModerationService: moderationSvc}
 
 	w := httptest.NewRecorder()
@@ -1953,6 +1958,7 @@ func TestOpenAIRecordForwardErrorCyberWarning_RecordsWSV2TerminalWarning(t *test
 		service.SettingKeyContentModerationConfig: string(rawCfg),
 	}}
 	moderationSvc := service.NewContentModerationService(settingRepo, repo, nil, nil, nil, nil, nil)
+	moderationSvc.Start()
 	h := &OpenAIGatewayHandler{contentModerationService: moderationSvc}
 
 	w := httptest.NewRecorder()
@@ -2005,6 +2011,7 @@ func TestOpenAIRecordCyberPolicyIfMarked_SkipsSideEffectsOutOfScope(t *testing.T
 		service.SettingKeyContentModerationConfig: string(rawCfg),
 	}}
 	moderationSvc := service.NewContentModerationService(settingRepo, repo, nil, nil, nil, nil, nil)
+	moderationSvc.Start()
 	h := &OpenAIGatewayHandler{contentModerationService: moderationSvc}
 
 	w := httptest.NewRecorder()
@@ -2056,6 +2063,7 @@ func TestOpenAIRejectCyberSessionBlocked_OnlyChecksRiskControlGroups(t *testing.
 		nil, nil, nil, nil, nil, nil, nil, nil, nil, service.NewSettingService(settingRepo, nil), nil,
 	)
 	moderationSvc := service.NewContentModerationService(settingRepo, nil, nil, nil, nil, nil, nil)
+	moderationSvc.Start()
 	h := &OpenAIGatewayHandler{
 		gatewayService:           gatewaySvc,
 		contentModerationService: moderationSvc,
@@ -2549,6 +2557,7 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
 	upstream := &openAIHTTPPassthroughFailoverUpstream{}
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingCacheSvc.Start()
 	t.Cleanup(billingCacheSvc.Stop)
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
@@ -2652,6 +2661,7 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 			upstream := &openAIHTTPPassthroughAuthFailoverUpstream{statusCode: tt.statusCode}
 			rateLimitSvc := service.NewRateLimitService(accountRepo, nil, cfg, nil, nil)
 			billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+			billingCacheSvc.Start()
 			t.Cleanup(billingCacheSvc.Stop)
 			gatewaySvc := service.NewOpenAIGatewayService(
 				accountRepo,
@@ -2735,6 +2745,7 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
 	upstream := &openAIHTTPPassthroughSSERateLimitUpstream{}
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingCacheSvc.Start()
 	t.Cleanup(billingCacheSvc.Stop)
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
@@ -2898,6 +2909,7 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
 	rateLimitSvc := service.NewRateLimitService(accountRepo, nil, cfg, nil, nil)
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingCacheSvc.Start()
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
 		nil,
@@ -3107,6 +3119,7 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
 	rateLimitSvc := service.NewRateLimitService(accountRepo, nil, cfg, nil, nil)
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingCacheSvc.Start()
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo, nil, nil, nil, nil, nil, nil, cfg, nil, nil,
 		service.NewBillingService(cfg, nil), rateLimitSvc, billingCacheSvc,
@@ -3292,6 +3305,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	}
 
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	billingCacheSvc.Start()
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
 		usageRepo,

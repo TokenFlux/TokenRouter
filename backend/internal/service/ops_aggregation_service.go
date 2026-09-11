@@ -52,6 +52,9 @@ const (
 //
 // It is safe to run in multi-replica deployments when Redis is available (leader lock).
 type OpsAggregationService struct {
+	lifecycleMu            sync.Mutex
+	lifecycleStopped       bool
+	loopWG                 sync.WaitGroup
 	opsRepo                OpsRepository
 	settingRepo            SettingRepository
 	cfg                    *config.Config
@@ -161,12 +164,20 @@ func (s *OpsAggregationService) Start() {
 	if s == nil {
 		return
 	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.lifecycleStopped {
+		return
+	}
+
 	s.startOnce.Do(func() {
 		if s.stopCh == nil {
 			s.stopCh = make(chan struct{})
 		}
-		go s.hourlyLoop()
-		go s.dailyLoop()
+		s.loopWG.Add(1)
+		go func() { defer s.loopWG.Done(); s.hourlyLoop() }()
+		s.loopWG.Add(1)
+		go func() { defer s.loopWG.Done(); s.dailyLoop() }()
 	})
 }
 
@@ -174,11 +185,17 @@ func (s *OpsAggregationService) Stop() {
 	if s == nil {
 		return
 	}
+	s.lifecycleMu.Lock()
+	s.lifecycleStopped = true
+
 	s.stopOnce.Do(func() {
 		if s.stopCh != nil {
 			close(s.stopCh)
 		}
 	})
+	s.lifecycleMu.Unlock()
+	s.loopWG.Wait()
+
 }
 
 func (s *OpsAggregationService) hourlyLoop() {

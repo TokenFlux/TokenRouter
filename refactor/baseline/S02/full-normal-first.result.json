@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./..."
+  ],
+  "date": "2026-09-11T04:51:11.442048+08:00",
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "duration_seconds": 203.88,
+  "test_events": {
+    "pass": 11026,
+    "fail": 2,
+    "skip": 5
+  },
+  "log": "logs/full-normal-first.log.gz"
+}

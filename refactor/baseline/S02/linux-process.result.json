@@ -1,0 +1,28 @@
+{
+  "command": [
+    "python3",
+    "refactor/baseline/S02/linux-process.py"
+  ],
+  "image": "redis:8.4-alpine",
+  "platform": "linux/arm64",
+  "steps": [
+    {
+      "contract": "linux-admin-restart-and-replay",
+      "http_status": 200,
+      "exit_code": 0,
+      "seconds_after_request": 0.825,
+      "replay_headers": {
+        "X-Idempotency-Replayed": "true"
+      }
+    },
+    {
+      "contract": "linux-sigterm-existing-install",
+      "exit_code": 0
+    }
+  ],
+  "exit_code": 0,
+  "duration_seconds": 3.95,
+  "error": null,
+  "resources_removed": true,
+  "log": "logs/linux-process.log.gz"
+}

@@ -83,8 +83,6 @@ var ProviderSet = wire.NewSet(
 	NewProxyRepository,
 	NewRedeemCodeRepository,
 	NewPromoCodeRepository,
-	NewAnnouncementRepository,
-	NewAnnouncementReadRepository,
 	NewUsageLogRepository,
 	NewUsageBillingRepository,
 	NewBatchImageRepository,
@@ -148,7 +146,6 @@ var ProviderSet = wire.NewSet(
 	NewContentModerationHashCache,
 
 	// Encryptors
-	NewAESEncryptor,
 
 	// Backup infrastructure
 	NewPgDumper,
@@ -170,22 +167,8 @@ var ProviderSet = wire.NewSet(
 	NewGeminiCliCodeAssistClient,
 	NewGeminiDriveClient,
 
-	ProvideEnt,
 	ProvideSQLDB,
-	ProvideRedis,
 )
-
-// ProvideEnt 为依赖注入提供 Ent 客户端。
-//
-// 该函数是 InitEnt 的包装器，符合 Wire 的依赖提供函数签名要求。
-// Wire 会在编译时分析依赖关系，自动生成初始化代码。
-//
-// 依赖：config.Config
-// 提供：*ent.Client
-func ProvideEnt(cfg *config.Config) (*ent.Client, error) {
-	client, _, err := InitEnt(cfg)
-	return client, err
-}
 
 // ProvideSQLDB 从 Ent 客户端提取底层的 *sql.DB 连接。
 //
@@ -209,18 +192,4 @@ func ProvideSQLDB(client *ent.Client) (*sql.DB, error) {
 	}
 	// 返回驱动持有的 sql.DB 实例
 	return drv.DB(), nil
-}
-
-// ProvideRedis 为依赖注入提供 Redis 客户端。
-//
-// Redis 用于：
-//   - 分布式锁（如并发控制）
-//   - 缓存（如用户会话、API 响应缓存）
-//   - 速率限制
-//   - 实时统计数据
-//
-// 依赖：config.Config
-// 提供：*redis.Client
-func ProvideRedis(cfg *config.Config) *redis.Client {
-	return InitRedis(cfg)
 }

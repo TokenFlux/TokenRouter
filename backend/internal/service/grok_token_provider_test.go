@@ -106,6 +106,7 @@ func TestGrokTokenProviderRefreshesExpiredTokenOnRequestPath(t *testing.T) {
 			ExpiresIn:   3600,
 		},
 	})
+	oauthSvc.Start()
 	defer oauthSvc.Stop()
 
 	provider := NewGrokTokenProvider(repo, cache)
@@ -351,6 +352,7 @@ func TestGrokTokenProviderManualTestRefreshesExpiredTokenWhileUnschedulable(t *t
 			ExpiresIn:   3600,
 		},
 	})
+	oauthSvc.Start()
 	defer oauthSvc.Stop()
 
 	provider := NewGrokTokenProvider(repo, cache)

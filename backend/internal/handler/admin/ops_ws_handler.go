@@ -74,11 +74,15 @@ const (
 
 var qpsWSIdleStopMu sync.Mutex
 var qpsWSIdleStopTimer *time.Timer
+var qpsWSIdleStopWG sync.WaitGroup
+var qpsWSRuntimeClosed bool
 
 func cancelQPSWSIdleStop() {
 	qpsWSIdleStopMu.Lock()
 	if qpsWSIdleStopTimer != nil {
-		qpsWSIdleStopTimer.Stop()
+		if qpsWSIdleStopTimer.Stop() {
+			qpsWSIdleStopWG.Done()
+		}
 		qpsWSIdleStopTimer = nil
 	}
 	qpsWSIdleStopMu.Unlock()
@@ -86,19 +90,25 @@ func cancelQPSWSIdleStop() {
 
 func scheduleQPSWSIdleStop() {
 	qpsWSIdleStopMu.Lock()
-	if qpsWSIdleStopTimer != nil {
+	if qpsWSIdleStopTimer != nil || qpsWSRuntimeClosed {
 		qpsWSIdleStopMu.Unlock()
 		return
 	}
-	qpsWSIdleStopTimer = time.AfterFunc(qpsWSIdleStopDelay, func() {
+	qpsWSIdleStopWG.Add(1)
+	var timer *time.Timer
+	timer = time.AfterFunc(qpsWSIdleStopDelay, func() {
+		defer qpsWSIdleStopWG.Done()
 		// Only stop if truly idle at fire time.
 		if wsConnCount.Load() == 0 {
 			qpsWSCache.Stop()
 		}
 		qpsWSIdleStopMu.Lock()
-		qpsWSIdleStopTimer = nil
+		if qpsWSIdleStopTimer == timer {
+			qpsWSIdleStopTimer = nil
+		}
 		qpsWSIdleStopMu.Unlock()
 	})
+	qpsWSIdleStopTimer = timer
 	qpsWSIdleStopMu.Unlock()
 }
 
@@ -131,6 +141,7 @@ type opsWSQPSCache struct {
 
 	mu      sync.Mutex
 	running bool
+	closed  bool
 }
 
 var qpsWSCache = &opsWSQPSCache{
@@ -145,7 +156,7 @@ func (c *opsWSQPSCache) start(opsService *service.OpsService) {
 
 	for {
 		c.mu.Lock()
-		if c.running {
+		if c.running || c.closed {
 			c.mu.Unlock()
 			return
 		}
@@ -759,4 +770,22 @@ func hostWithoutPort(hostport string) string {
 	}
 	parts := strings.Split(hostport, ":")
 	return parts[0]
+}
+
+// StopOpsWSRuntime 由组合根在 HTTP 请求完成后取消延迟停机并等待按需刷新退出。
+func StopOpsWSRuntime() {
+	qpsWSIdleStopMu.Lock()
+	qpsWSRuntimeClosed = true
+	if qpsWSIdleStopTimer != nil {
+		if qpsWSIdleStopTimer.Stop() {
+			qpsWSIdleStopWG.Done()
+		}
+		qpsWSIdleStopTimer = nil
+	}
+	qpsWSIdleStopMu.Unlock()
+	qpsWSIdleStopWG.Wait()
+	qpsWSCache.mu.Lock()
+	qpsWSCache.closed = true
+	qpsWSCache.mu.Unlock()
+	qpsWSCache.Stop()
 }

@@ -1777,6 +1777,7 @@ func newContractDeps(t *testing.T) *contractDeps {
 
 	userService := service.NewUserService(userRepo, nil, nil, nil)
 	apiKeyService := service.NewAPIKeyService(apiKeyRepo, userRepo, groupRepo, userSubRepo, nil, apiKeyCache, cfg)
+	apiKeyService.Start()
 
 	usageRepo := newStubUsageLogRepo()
 	usageService := service.NewUsageService(usageRepo)

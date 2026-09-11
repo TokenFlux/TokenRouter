@@ -24,7 +24,7 @@
        /        |          \
 面板/API    网关处理器    后台运行时
        \        |          /
-       service / payment 领域编排
+       service / payment 与已迁用例
           |             |
  repository/基础设施   上游供应商
        |       |        |
@@ -36,47 +36,41 @@
 <a id="dependency_layers"></a>
 ## 依赖层次
 
-`backend/cmd/server/wire.go` 是完整应用依赖图的手写入口，`wire_gen.go` 是生成结果。装配顺序由依赖关系决定，概念上的所有权如下：
+`backend/internal/app/wire.go` 是完整应用依赖图的手写入口，旁边的 `wire_gen.go` 是生成结果。`cmd/server` 保留参数解析、构建版本变量和原 `go generate ./cmd/server` 入口。配置只加载一次，日志、数据库引导和应用图共用该配置；JWT secret 在数据库引导完成后补齐并重新校验。
 
-| 层 | 主要路径 | 责任 |
+| 层 | 主要路径 | 当前责任 |
 | --- | --- | --- |
-| 配置 | `internal/config` | 读取启动配置、设置默认值、归一化并校验；向后续层提供不可变启动快照 |
-| 基础设施与仓储 | `internal/repository`、`ent/schema` | PostgreSQL/Ent、Redis、缓存、对象存储、上游基础客户端和 repository 接口实现 |
-| 通用技术实现 | `internal/infra` 下的各技术包 | HTTP/req 客户端池、proxy/TLS、PostgreSQL 连接与重试、Redis 会话和固定窗口计数、日志/timing、AES |
-| 领域与应用服务 | `internal/service`、`internal/payment` | 业务不变量、跨仓储事务、调度、计费、协议转换、后台任务和支付 provider 选择 |
-| 接口适配 | `internal/handler`、`internal/server/middleware` | HTTP 输入输出、认证上下文、协议错误、请求 attempt 编排和审计 |
-| 服务器 | `internal/server` | Gin engine、全局中间件、路由族、前端 middleware 和 `http.Server` 参数 |
+| 组合根 | `internal/app`、`app/bootstrap`、`app/lifecycle` | 配置投影、Wire 绑定、初始化、统一启停、失败回收和重启请求 |
+| 配置 | `internal/config` | 默认值、YAML/环境变量加载、归一化与启动校验 |
+| 已迁用例 | `internal/settings`、`idempotency`、`site` | 通用设置存取/通知、面板命令幂等、公告/已读/到期归档 |
+| 旧业务图 | `internal/service`、`payment`、`repository` | 尚未迁移的业务规则、事务和适配实现；原 provider set 继续参与构造 |
+| 通用技术实现 | `internal/infra` | PostgreSQL/迁移、Redis/会话/限流/锁、HTTP 池、proxy/TLS、时间轮、日志/timing 和 AES |
+| HTTP 适配与服务器 | `internal/handler`、`site/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
 
-通用技术实现接收必要的参数或 Options，不读取完整启动配置，也不导入业务 service。旧 `repository.InitEnt` 仍编排时区、迁移、密钥补齐和 simple 初始化；它委托 `infra/postgres` 打开连接、配置连接池和记录 SQL timing。旧 `repository.NewHTTPUpstream` 仍解释平台策略和请求标记，`infra/httpclient.UpstreamPool` 闭合获取、请求执行、解压与响应体关闭后的释放。OpenAI HTTP/2 回退状态和 Grok CLI 策略仍由旧适配层持有。
+settings 的通用实现位于 `settings` 与 `settings/postgres`；旧 `SettingService` 继续解释业务设置和维护领域缓存。idempotency 的核心、观察出口与 SQL Adapter 已独立，旧默认入口只委托唯一实例。site 拥有公告实体、targeting、用例和到期 worker，HTTP 与 PostgreSQL Adapter 分开；旧 domain 公告类型只作为 Ent 生成代码引用的别名。
 
-`pkg/apperror`、`pagination`、`timezone`、`ipmatch`、`oauthpkce`、`logredact` 提供通用值类型和计算；`server/httpx` 与 `server/clientip` 拥有 HTTP 响应、请求体和客户端地址适配。旧 pkg/util 的兼容入口采用类型别名或委托，日志后端、timing context、会话和各客户端池都只有一份运行状态。日期计算可以显式持有时区，旧全局初始化仍维持现有日界。
+公告需要的用户与有效订阅信息通过 `app/legacybridge` 转成窄投影，匹配规则仍由 site 执行。模块不导入 app。旧图的跨层构造暂留原 provider，应用级启停和新旧模块绑定由 app 管理，不能通过搬动目录给新代码继承历史依赖许可。
 
-这不是由 Go import 强制的纯单向分层。`repository` 会实现 `service` 中定义的端口，handler 也会协调多个 service；判断所有权应看不变量落在哪里，而不是只看包名。禁止把 Wire 生成文件当作编辑源：新增 provider 或修改依赖时改各层 `wire.go`，再执行 `go generate ./cmd/server`。
+`pkg/apperror`、`pagination`、`timezone`、`ipmatch`、`oauthpkce`、`logredact` 提供通用值类型与计算；`server/httpx`、`server/clientip` 拥有 HTTP 适配。旧 pkg/util 入口保留必要的类型别名和委托，不复制实现或状态。
 
-应用级 Wire provider set 依次包含配置、repository、service、payment、middleware、handler 和 server。`Application` 最终只暴露 `*http.Server` 与 `Cleanup`，其余服务通过依赖图被实例化并由关闭函数持有。
+`repository.NewHTTPUpstream` 仍解释配置与平台策略，`infra/httpclient.UpstreamPool` 拥有客户端缓存和请求释放。OpenAI HTTP/2 回退及 Grok CLI 策略尚未迁出旧适配层。修改 provider 后运行保留的 Wire 生成命令，不编辑生成文件，也不因纯装配变化运行 Ent 生成。
 
 <a id="startup_and_shutdown"></a>
 ## 启动与关闭
 
-主入口有三条互斥路径：
+主入口保持三条互斥路径：`-version` 只输出构建信息，`-setup` 执行 CLI 安装；未安装时执行 AUTO_SETUP 或启动独立 setup server；已配置时构造完整应用。setup 的迁移调用精简 bootstrap，不构造业务 worker。
 
-1. `-version` 仅输出构建信息后退出；`-setup` 运行 CLI 设置流程。
-2. 未完成设置时，若启用容器自动设置就从环境生成配置并迁移；否则只启动 setup server 和可用的嵌入前端。
-3. 已配置时进入完整应用路径。
+完整应用先初始化日志，再由 bootstrap 初始化时区和 PostgreSQL，在原十分钟迁移预算内执行迁移与暂时错误重试，补齐持久 JWT secret、完整校验配置，并在 simple 模式补齐默认分组和管理员并发。Ent 与原生 SQL 共享连接，只有一个关闭拥有者。
 
-完整应用启动顺序为：
+Wire 构造对象并登记资源后，lifecycle 才启动后台工作。时间轮和设置/定价预热先完成，再启动缓存订阅及消费队列，最后启动周期生产者、任务拉取和 HTTP。原有首次执行、预热降级、功能开关和动态 worker 数量保持各模块语义。构造或部分启动失败时回收已取得及已尝试启动的资源，错误链保留原始原因。
 
-1. 初始化 bootstrap 日志并用 `LoadForBootstrap` 读取配置。启动阶段允许 JWT secret 暂空，但会使用临时值完成初次结构校验。
-2. 初始化正式日志；`simple` 模式在此明确发出跳过计费和配额的警告。
-3. Wire 构建依赖图。`repository.InitEnt` 先初始化时区和 PostgreSQL 连接池，在十分钟超时内执行嵌入式 SQL 迁移，再从配置或数据库补齐系统密钥并执行完整配置校验。`simple` 模式还会补齐默认分组与管理员并发值。
-4. 创建 Redis 客户端、仓储、服务、handler、中间件和 Gin server。多个 provider 会在构造后立即启动各自 worker，例如 token 刷新、到期处理、调度快照、用量记录、聚合、清理、备份、批量图片作业、创作台队列（`CreativeWorkerRuntime`，`creative.queue_enabled` 时运行数据库设置 `creative_worker_count` 指定数量的任务 worker、一个 delayed mover、一个 stale active recovery、outbox reconciler 和 transient cleanup reconciler）和支付订单过期处理。
-5. 在 goroutine 中调用 `ListenAndServe`，主 goroutine 等待 `SIGINT` 或 `SIGTERM`。
+SIGINT、SIGTERM、监听失败和 Linux 手动重启进入同一关闭流程。HTTP 有独立五秒优雅关闭预算，随后后台清理使用独立三十秒总预算：先关闭额外监听、Live 本地观察与 hijack 连接，等待完整 handler 返回，再停止周期生产者和任务拉取，逐层排空用量、缓存写入、额度镜像、延迟写回、通知和审计，最后关闭订阅、时间轮、空闲 HTTP 连接、Redis、Ent/SQL 和日志文件。
 
-收到终止信号后先给 HTTP server 五秒完成优雅关闭，停止接收新请求；函数返回时执行应用 `Cleanup`。关闭过程有独立三十秒上下文：大部分互不依赖的 worker 并行停止，然后按顺序停止配额等需要 drain 或 flush 的服务，最后关闭 Redis 和 Ent/PostgreSQL。单个关闭步骤失败会记录日志并继续，超时会告警而不会无限阻塞进程退出。
+请求跟踪只包装 Handler，保留原 ResponseWriter 的 Flush/Hijack 能力；客户端断开后仍按原策略收集用量的 handler 必须先完成，不能直接以连接断开替代请求清理完成。现有异步额度写入、通知、探针和快照任务通过消费者侧的完成接口登记，保留其 context、并发和参数求值语义；每层关闭后等待该层派生的副作用，再关闭下层依赖。Live 观察停止只关闭本地资源，不因进程退出提前把远端会话判定为已结束。错误透传、TLS profile/router 和鉴权缓存订阅会等待最后一次回调结束。运维错误日志队列会处理完已入队批次；QPS WS 缓存的空闲定时器和按需刷新也在 HTTP 收尾后停止。WS 池关闭后禁止按需重建或重新预热，已租赁连接保留原请求收尾策略，在租约归还时释放。
 
-依赖 Redis Pub/Sub 的 TLS 指纹 Profile/Router 缓存订阅由对应服务在 Redis 关闭前主动取消并等待退出；Redis 被动关闭导致的 channel 结束只作为异常路径记录告警。
+Stop 和 Cleanup 共享一次执行结果。超时报告未完成任务，停止推进依赖资源的关闭并以失败状态结束进程；进程退出不代表 drain 成功。旧单步 Stop 的无界等待以及日志报告都受应用总预算约束。日志轮转仍使用原 lumberjack 算法，文件句柄由应用最终关闭；该库内部维护循环保留其既有进程生命周期，不把它宣称为可单独停止的应用 worker。
 
-新增有 goroutine、定时器、缓冲写或外部连接的服务时，必须同时回答三个问题：由哪个 provider 启动、停止方法是否幂等、在 Redis/PostgreSQL 关闭前需要完成什么 drain/flush。只加入 Wire provider set 而不加入 `provideCleanup` 会留下关闭竞态。
+新增 goroutine、定时器、队列或连接时，必须登记实际拥有者、启动点、接收封闭方式和完成等待。按需资源由已有拥有者管理，不能在运行时从业务模块反向调用 app 注册新组件。应用清理表按职责拆在 app 的运行时绑定文件中，并与 Wire 图一起验证。
 
 ## 数据所有权
 
