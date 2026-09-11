@@ -16,7 +16,7 @@ func TestRedeemService_BatchUpdate_PartialFields(t *testing.T) {
 	notes := "maintenance window"
 	expiresAt := time.Now().UTC().Add(24 * time.Hour)
 	repo := &redeemRepoStub{}
-	svc := &RedeemService{redeemRepo: repo}
+	svc := NewRedeemService(repo, nil, nil, nil, nil, nil, nil, nil)
 
 	result, err := svc.BatchUpdate(context.Background(), &RedeemCodeBatchUpdateInput{
 		IDs: []int64{1, 2, 2},
@@ -43,7 +43,7 @@ func TestRedeemService_BatchUpdate_PartialFields(t *testing.T) {
 
 func TestRedeemService_BatchUpdate_RejectsInvalidID(t *testing.T) {
 	repo := &redeemRepoStub{}
-	svc := &RedeemService{redeemRepo: repo}
+	svc := NewRedeemService(repo, nil, nil, nil, nil, nil, nil, nil)
 	notes := "bad id"
 
 	result, err := svc.BatchUpdate(context.Background(), &RedeemCodeBatchUpdateInput{
@@ -59,7 +59,7 @@ func TestRedeemService_BatchUpdate_RejectsInvalidID(t *testing.T) {
 
 func TestRedeemService_BatchUpdate_RejectsCoreFields(t *testing.T) {
 	repo := &redeemRepoStub{}
-	svc := &RedeemService{redeemRepo: repo}
+	svc := NewRedeemService(repo, nil, nil, nil, nil, nil, nil, nil)
 	newValue := 100.0
 
 	result, err := svc.BatchUpdate(context.Background(), &RedeemCodeBatchUpdateInput{

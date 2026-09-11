@@ -372,7 +372,7 @@ func TestCreativeListModelsFiltersAndContent(t *testing.T) {
 // 2) 分组未显式配置 image_price_* 时应回退平台默认尺寸档位（按默认价计费）。
 func TestCreativeListModelsFallbacks(t *testing.T) {
 	svc := newCreativeTestService()
-	svc.Pricing = &BillingService{}
+	svc.Pricing = newBillingServiceWithPrices(nil, nil, map[string]*ModelPricing{})
 	ctx := context.Background()
 	groupRepo := svc.GroupRepo.(*creativeFakeGroupRepo)
 	accountRepo := svc.AccountRepo.(*creativeFakeAccountRepo)

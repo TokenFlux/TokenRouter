@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 func resolveUsageSubscription(
@@ -94,13 +95,8 @@ func subscriptionPlanIncludesGroup(plan *SubscriptionPlan, groupID int64) bool {
 	return false
 }
 
-// SubscriptionAllowsGroup 返回订阅套餐是否覆盖目标分组。
-// 未配置套餐分组代表套餐不限制分组；缺失套餐或未知分组不应被指定订阅模式放行。
 func SubscriptionAllowsGroup(subscription *UserSubscription, groupID int64) bool {
-	if subscription == nil || subscription.Plan == nil || groupID <= 0 {
-		return false
-	}
-	return subscriptionPlanIncludesGroup(subscription.Plan, groupID)
+	return billing.SubscriptionAllowsGroup(subscription, groupID)
 }
 
 func subscriptionPlanGroupRateMultiplier(plan *SubscriptionPlan, groupID int64) (float64, bool) {

@@ -4,6 +4,8 @@ package app
 
 import (
 	"context"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -21,7 +23,7 @@ import (
 
 // initializeApplication 只构造和登记资源；运行由 Application.Run 统一启动。
 func initializeApplication(ctx context.Context, cfg *config.Config, info BuildInfo, manager *lifecycle.Manager, restarter *lifecycle.Restarter, tasks *lifecycle.Tasks) (*Application, error) {
-	wire.Build(repository.ProviderSet, service.ProviderSet, payment.ProviderSet, middleware.ProviderSet, handler.ProviderSet, server.ProviderSet,
+	wire.Build(provideBillingCalculator, provideBillingPriceResolver, provideSubscriptionExpiry, provideBillingPlans, wire.Bind(new(billinghttpapi.RedeemAdministrator), new(*billing.RedeemAdmin)), provideRedeemAdministration, provideBalanceAdjuster, provideBillingRedeem, providePlatformQuotas, provideQuotaHTTP, wire.Bind(new(service.DefaultSubscriptionAssigner), new(*billing.SubscriptionService)), billing.NewQuotaCoordinator, provideBillingEligibility, provideLegacyBillingEligibility, providePlatformQuotaFlusher, provideBillingSubscriptions, provideSettlementStore, provideBillingFunds, repository.NewUsageBillingAdapter, repository.ProviderSet, service.ProviderSet, payment.ProviderSet, middleware.ProviderSet, handler.ProviderSet, server.ProviderSet,
 		provideEnt, provideRedis, providePrivacyClientFactory, provideServiceBuildInfo, provideHandlerBuildInfo, provideSecretEncryptor, provideSettingsStore, provideRouterRuntime, providePricingService,
 		site.NewAnnouncementService, sitepostgres.NewAnnouncementRepository, sitepostgres.NewAnnouncementReadRepository, provideAnnouncementUsers, provideAnnouncementSubscriptions, provideAnnouncementExpiry,
 		provideRestartRequester, provideBootRuntime, provideAuthRuntime, provideMaintenanceRuntime, provideOpsRuntime, provideQueuesRuntime, provideJobsRuntime, provideCoreRuntime, provideRuntime, provideApplication)

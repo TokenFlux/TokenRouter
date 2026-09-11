@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/billing/...",
+    "./internal/repository",
+    "-run",
+    "UsageBilling|BatchImageBilling|UserSubscription"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 2.204,
+  "log": "logs/settlement-build-2.log.gz",
+  "test_events": {
+    "pass": 11,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

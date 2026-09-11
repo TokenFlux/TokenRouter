@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"net/http"
 	"sort"
@@ -522,15 +524,7 @@ type UpdateProxyInput struct {
 	ExpiryWarnDays int
 }
 
-type GenerateRedeemCodesInput struct {
-	Code      string
-	Count     int
-	Type      string
-	Value     float64
-	MaxUses   *int
-	ExpiresAt *time.Time
-	PlanID    *int64 // 订阅类型专用：关联的套餐ID
-}
+type GenerateRedeemCodesInput = billing.GenerateRedeemCodesInput
 
 type ProxyBatchDeleteResult struct {
 	DeletedIDs []int64                   `json:"deleted_ids"`
@@ -654,6 +648,8 @@ var ErrRPMStatusUnavailable = infraerrors.New(http.StatusNotImplemented, "RPM_ST
 
 // adminServiceImpl implements AdminService
 type adminServiceImpl struct {
+	billingRedeem        *billing.RedeemAdmin
+	billingBalance       billing.BalanceAdjuster
 	userRepo             UserRepository
 	groupRepo            GroupRepository
 	groupDuplicateRepo   GroupDuplicateRepository
@@ -721,8 +717,11 @@ func NewAdminService(
 	tlsFPProfileService *TLSFingerprintProfileService,
 	affiliateService *AffiliateService,
 	channelCacheInvalidator ChannelCacheInvalidator,
+	billingRedeem *billing.RedeemAdmin,
+	billingBalance billing.BalanceAdjuster,
 ) AdminService {
 	return &adminServiceImpl{
+		billingRedeem: billingRedeem, billingBalance: billingBalance,
 		userRepo:             userRepo,
 		groupRepo:            groupRepo,
 		groupDuplicateRepo:   groupRepo,
@@ -753,99 +752,7 @@ func NewAdminService(
 }
 
 func (s *adminServiceImpl) UpdateRedeemCode(ctx context.Context, id int64, input *UpdateRedeemCodeInput) (*RedeemCode, error) {
-	if input == nil {
-		return nil, infraerrors.BadRequest("REDEEM_CODE_UPDATE_REQUIRED", "update payload is required")
-	}
-	err := s.runRedeemCodeMutationTx(ctx, func(opCtx context.Context) error {
-		code, err := s.redeemCodeRepo.GetByIDForUpdate(opCtx, id)
-		if err != nil {
-			return err
-		}
-		if !isEditableRedeemCodeType(code.Type) {
-			return infraerrors.Conflict("REDEEM_CODE_SYSTEM_RECORD", "system redeem records cannot be updated")
-		}
-
-		if input.MaxUses != nil {
-			if *input.MaxUses < 0 {
-				return infraerrors.BadRequest("REDEEM_CODE_MAX_USES_INVALID", "max_uses must be greater than or equal to 0")
-			}
-			if *input.MaxUses > 0 && *input.MaxUses < code.UsedCount {
-				return infraerrors.BadRequest("REDEEM_CODE_MAX_USES_BELOW_USED", "max_uses cannot be less than used_count")
-			}
-			code.MaxUses = *input.MaxUses
-		}
-
-		if input.ExpiresAtSet {
-			code.ExpiresAt = input.ExpiresAt
-		}
-
-		if input.Value != nil || input.PlanID != nil {
-			// 已兑换记录没有面值快照，修改面值或套餐会让历史展示与实际发放权益不一致。
-			if code.UsedCount > 0 {
-				return infraerrors.Conflict("REDEEM_CODE_VALUE_LOCKED", "value or plan cannot be updated after the code has been redeemed")
-			}
-			if err := s.applyRedeemCodeValueUpdate(opCtx, code, input); err != nil {
-				return err
-			}
-		}
-
-		if code.Type == RedeemTypeInvitation {
-			code.MaxUses = 1
-		}
-		if code.Status == StatusExpired && !code.IsNaturallyExpired() {
-			// 更新次数或过期时间后，允许管理员把手动过期的普通兑换码恢复为可兑换状态。
-			code.Status = StatusUnused
-		}
-		code.Status = code.PersistedStatus()
-		if err := s.redeemCodeRepo.Update(opCtx, code); err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return s.redeemCodeRepo.GetByID(ctx, id)
-}
-
-func (s *adminServiceImpl) applyRedeemCodeValueUpdate(ctx context.Context, code *RedeemCode, input *UpdateRedeemCodeInput) error {
-	switch code.Type {
-	case RedeemTypeBalance:
-		if input.PlanID != nil {
-			return infraerrors.BadRequest("REDEEM_CODE_PLAN_UNSUPPORTED", "plan_id is only supported for subscription redeem codes")
-		}
-		if input.Value != nil {
-			code.Value = *input.Value
-		}
-	case RedeemTypeConcurrency:
-		if input.PlanID != nil {
-			return infraerrors.BadRequest("REDEEM_CODE_PLAN_UNSUPPORTED", "plan_id is only supported for subscription redeem codes")
-		}
-		if input.Value != nil {
-			if *input.Value == 0 || *input.Value != float64(int(*input.Value)) {
-				return infraerrors.BadRequest("REDEEM_CODE_VALUE_INVALID", "concurrency value must be a non-zero integer")
-			}
-			code.Value = *input.Value
-		}
-	case RedeemTypeSubscription:
-		if input.Value != nil {
-			return infraerrors.BadRequest("REDEEM_CODE_VALUE_UNSUPPORTED", "value is not editable for subscription redeem codes")
-		}
-		if input.PlanID != nil {
-			if *input.PlanID <= 0 {
-				return infraerrors.BadRequest("REDEEM_CODE_PLAN_REQUIRED", "plan_id is required for subscription type")
-			}
-			if _, err := s.entClient.SubscriptionPlan.Get(ctx, *input.PlanID); err != nil {
-				return fmt.Errorf("plan not found: %w", err)
-			}
-			code.PlanID = input.PlanID
-		}
-	case RedeemTypeInvitation:
-		if input.Value != nil || input.PlanID != nil {
-			return infraerrors.BadRequest("REDEEM_CODE_VALUE_UNSUPPORTED", "invitation code value cannot be updated")
-		}
-	}
-	return nil
+	return s.redeemAdministration().UpdateRedeemCode(ctx, id, input)
 }
 
 func (s *adminServiceImpl) attachAccountProxyForValidation(ctx context.Context, account *Account) {
@@ -882,59 +789,7 @@ func (s *adminServiceImpl) clearOtherPlatformDefaultGroups(ctx context.Context, 
 }
 
 func (s *adminServiceImpl) createAppliedAdjustmentRedeemRecord(ctx context.Context, userID int64, codeType string, value float64, notes string) error {
-	code, err := GenerateRedeemCode()
-	if err != nil {
-		return fmt.Errorf("generate adjustment redeem code: %w", err)
-	}
-
-	usedAt := time.Now()
-	record := &RedeemCode{
-		Code:      code,
-		Type:      codeType,
-		Value:     value,
-		Status:    StatusUsed,
-		MaxUses:   1,
-		UsedCount: 1,
-		UsedBy:    &userID,
-		UsedAt:    &usedAt,
-		Notes:     notes,
-	}
-
-	if s.entClient == nil {
-		if err := s.redeemCodeRepo.Create(ctx, record); err != nil {
-			return fmt.Errorf("create adjustment redeem code: %w", err)
-		}
-		if err := s.redeemCodeRepo.CreateUsage(ctx, &RedeemCodeUsage{
-			RedeemCodeID: record.ID,
-			UserID:       userID,
-			UsedAt:       usedAt,
-		}); err != nil {
-			return fmt.Errorf("create adjustment redeem usage: %w", err)
-		}
-		return nil
-	}
-
-	tx, err := s.entClient.Tx(ctx)
-	if err != nil {
-		return fmt.Errorf("begin adjustment redeem transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	txCtx := dbent.NewTxContext(ctx, tx)
-	if err := s.redeemCodeRepo.Create(txCtx, record); err != nil {
-		return fmt.Errorf("create adjustment redeem code: %w", err)
-	}
-	if err := s.redeemCodeRepo.CreateUsage(txCtx, &RedeemCodeUsage{
-		RedeemCodeID: record.ID,
-		UserID:       userID,
-		UsedAt:       usedAt,
-	}); err != nil {
-		return fmt.Errorf("create adjustment redeem usage: %w", err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit adjustment redeem transaction: %w", err)
-	}
-	return nil
+	return s.redeemAdministration().RecordAdjustment(ctx, userID, codeType, value, notes)
 }
 
 func (s *adminServiceImpl) qoderRefreshHTTPUpstream() HTTPUpstream {
@@ -969,28 +824,6 @@ func (s *adminServiceImpl) runGroupMutationTx(ctx context.Context, fn func(conte
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit group mutation transaction: %w", err)
-	}
-	return nil
-}
-
-// runRedeemCodeMutationTx 在可用时为兑换码变更开启事务，保证行锁校验和写入使用同一个快照。
-func (s *adminServiceImpl) runRedeemCodeMutationTx(ctx context.Context, fn func(context.Context) error) error {
-	if dbent.TxFromContext(ctx) != nil || s.entClient == nil {
-		return fn(ctx)
-	}
-
-	tx, err := s.entClient.Tx(ctx)
-	if err != nil {
-		return fmt.Errorf("begin redeem code mutation transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	txCtx := dbent.NewTxContext(ctx, tx)
-	if err := fn(txCtx); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit redeem code mutation transaction: %w", err)
 	}
 	return nil
 }
@@ -1078,15 +911,6 @@ func filterModelsListCandidates(candidates []string, selectedModels []string) []
 	return filtered
 }
 
-func isEditableRedeemCodeType(codeType string) bool {
-	switch codeType {
-	case RedeemTypeBalance, RedeemTypeConcurrency, RedeemTypeSubscription, RedeemTypeInvitation:
-		return true
-	default:
-		return false
-	}
-}
-
 func modelsListCandidateAllowsModel(availablePatterns []string, model string) bool {
 	for _, pattern := range availablePatterns {
 		if pattern == model {
@@ -1120,10 +944,18 @@ func translateGroupDefaultConflict(err error) error {
 	return err
 }
 
-type UpdateRedeemCodeInput struct {
-	Value        *float64
-	MaxUses      *int
-	ExpiresAt    *time.Time
-	ExpiresAtSet bool
-	PlanID       *int64 // 订阅类型专用：关联的套餐ID
+type UpdateRedeemCodeInput = billing.UpdateRedeemCodeInput
+
+// redeemAdministration 兼容尚未使用构造器的旧测试；生产由 app 注入唯一用例。
+func (s *adminServiceImpl) redeemAdministration() *billing.RedeemAdmin {
+	if s.billingRedeem != nil {
+		return s.billingRedeem
+	}
+	return billing.NewRedeemAdmin(s.redeemCodeRepo, billingpostgres.NewRedeemAdministrationMutations(s.entClient), time.Now)
+}
+func (s *adminServiceImpl) balanceAdjuster() billing.BalanceAdjuster {
+	if s.billingBalance != nil {
+		return s.billingBalance
+	}
+	return s.userRepo
 }

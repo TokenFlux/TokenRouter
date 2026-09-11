@@ -8,7 +8,7 @@ import (
 
 func TestCalculateSearchCost(t *testing.T) {
 	t.Parallel()
-	s := &BillingService{}
+	s := newBillingServiceWithPrices(nil, nil, map[string]*ModelPricing{})
 	require.Equal(t, 0.0, s.CalculateSearchCost(0, floatPtr(10), 1).ActualCost)
 	// 价格为 nil 时采用 xAI 官方默认每千次 5 美元，5 次调用费用为 0.025 美元。
 	require.InDelta(t, 0.025, s.CalculateSearchCost(5, nil, 1).ActualCost, 1e-9)
@@ -23,7 +23,7 @@ func TestCalculateSearchCost(t *testing.T) {
 
 func TestCalculateAudioCost(t *testing.T) {
 	t.Parallel()
-	s := &BillingService{}
+	s := newBillingServiceWithPrices(nil, nil, map[string]*ModelPricing{})
 	rt, tts, stt := 0.10, 15.0, 0.50
 	cfg := &audioPriceConfig{RealtimePerMin: &rt, TTSPerMChars: &tts, STTPerHour: &stt}
 	require.InDelta(t, 0.20, s.CalculateAudioCost("realtime", 2, cfg, 1).ActualCost, 1e-9)

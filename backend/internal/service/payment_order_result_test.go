@@ -447,7 +447,7 @@ func TestBuildPaymentSubjectAppliesAffixToSubscriptionPlanProductName(t *testing
 		ProductNamePrefix: "PRE",
 		ProductNameSuffix: "SUF",
 	}
-	plan := &dbent.SubscriptionPlan{
+	plan := &SubscriptionPlan{
 		Name:        "Pro Monthly",
 		ProductName: "Claude Pro",
 	}
@@ -466,7 +466,7 @@ func TestBuildPaymentSubjectAppliesAffixToSubscriptionPlanDefaultName(t *testing
 		ProductNamePrefix: "PRE",
 		ProductNameSuffix: "SUF",
 	}
-	plan := &dbent.SubscriptionPlan{Name: "Team Monthly"}
+	plan := &SubscriptionPlan{Name: "Team Monthly"}
 
 	got := svc.buildPaymentSubject(plan, 0, cfg, nil)
 	if got != "PRE Sub2API Subscription Team Monthly SUF" {

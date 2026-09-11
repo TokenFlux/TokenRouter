@@ -1,6 +1,7 @@
 package admin
 
 import (
+	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 	"strconv"
 	"time"
 
@@ -375,65 +376,20 @@ func (h *PaymentHandler) QueryAndFinalizeRefund(c *gin.Context) {
 
 // --- Subscription Plans ---
 
-// ListPlans returns all subscription plans.
-// GET /api/v1/admin/payment/plans
 func (h *PaymentHandler) ListPlans(c *gin.Context) {
-	plans, err := h.configService.ListPlans(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Success(c, plans)
+	billinghttpapi.NewPlanHandler(h.configService.Plans()).ListPlans(c)
 }
 
-// CreatePlan creates a new subscription plan.
-// POST /api/v1/admin/payment/plans
 func (h *PaymentHandler) CreatePlan(c *gin.Context) {
-	var req service.CreatePlanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-	plan, err := h.configService.CreatePlan(c.Request.Context(), req)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Created(c, plan)
+	billinghttpapi.NewPlanHandler(h.configService.Plans()).CreatePlan(c)
 }
 
-// UpdatePlan updates an existing subscription plan.
-// PUT /api/v1/admin/payment/plans/:id
 func (h *PaymentHandler) UpdatePlan(c *gin.Context) {
-	id, ok := parseIDParam(c, "id")
-	if !ok {
-		return
-	}
-	var req service.UpdatePlanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-	plan, err := h.configService.UpdatePlan(c.Request.Context(), id, req)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Success(c, plan)
+	billinghttpapi.NewPlanHandler(h.configService.Plans()).UpdatePlan(c)
 }
 
-// DeletePlan deletes a subscription plan.
-// DELETE /api/v1/admin/payment/plans/:id
 func (h *PaymentHandler) DeletePlan(c *gin.Context) {
-	id, ok := parseIDParam(c, "id")
-	if !ok {
-		return
-	}
-	if err := h.configService.DeletePlan(c.Request.Context(), id); err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Success(c, gin.H{"message": "deleted"})
+	billinghttpapi.NewPlanHandler(h.configService.Plans()).DeletePlan(c)
 }
 
 // --- Provider Instances ---

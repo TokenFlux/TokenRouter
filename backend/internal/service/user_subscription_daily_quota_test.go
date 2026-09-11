@@ -352,7 +352,7 @@ func TestCheckAndResetWindows_LegacyDailyAnchorHealsToMidnight(t *testing.T) {
 		DailyWindowStart: &legacyWindowStart,
 	}
 
-	err := svc.checkAndResetWindowsAt(context.Background(), sub, now)
+	err := svc.CheckAndResetWindowsAt(context.Background(), sub, now)
 
 	require.NoError(t, err)
 	require.True(t, repo.resetDailyCalled, "跨零点后应重置旧的非零点日窗口")
@@ -396,7 +396,7 @@ func TestValidateAndCheckLimits_ExpiryTailMissingWindowDoesNotNeedActivation(t *
 	}
 	svc := NewSubscriptionService(groupRepoNoop{}, userSubRepoNoop{}, nil, nil, nil)
 
-	needsMaintenance, err := svc.ValidateAndCheckLimits(sub, nil)
+	needsMaintenance, err := svc.ValidateAndCheckLimits(sub)
 
 	require.NoError(t, err)
 	require.False(t, needsMaintenance, "到期尾段不足完整月窗口时不应激活空窗口")
@@ -517,7 +517,7 @@ func TestValidateAndCheckLimits_DailyCardDoesNotAllowSecondQuotaAfterMidnight(t 
 	}
 	svc := NewSubscriptionService(groupRepoNoop{}, userSubRepoNoop{}, nil, nil, nil)
 
-	needsMaintenance, err := svc.ValidateAndCheckLimits(sub, nil)
+	needsMaintenance, err := svc.ValidateAndCheckLimits(sub)
 
 	require.False(t, needsMaintenance, "日卡跨过日窗口后不应触发 daily reset 维护")
 	require.True(t, errors.Is(err, ErrDailyLimitExceeded))

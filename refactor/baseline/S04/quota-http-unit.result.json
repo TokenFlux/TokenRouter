@@ -1,0 +1,26 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/billing/...",
+    "./internal/handler/...",
+    "./internal/server/...",
+    "-run",
+    "Quota|Subscription|BillingCache"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 15.579,
+  "log": "logs/quota-http-unit.log.gz",
+  "test_events": {
+    "pass": 91,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

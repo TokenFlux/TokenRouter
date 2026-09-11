@@ -171,8 +171,8 @@ func (s *PaymentConfigService) countPendingOrders(ctx context.Context, providerI
 		).Count(ctx)
 }
 
-func (s *PaymentConfigService) countPendingOrdersByPlan(ctx context.Context, planID int64) (int, error) {
-	return s.entClient.PaymentOrder.Query().
+func CountPendingPlanOrders(ctx context.Context, client *dbent.Client, planID int64) (int, error) {
+	return client.PaymentOrder.Query().
 		Where(
 			paymentorder.PlanIDEQ(planID),
 			paymentorder.StatusIn(pendingOrderStatuses...),

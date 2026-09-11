@@ -1,19 +1,19 @@
 package service
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent/paymentproviderinstance"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/payment"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"math"
 	"os"
 	"strconv"
 	"strings"
-
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/paymentproviderinstance"
-	"github.com/TokenFlux/TokenRouter/internal/payment"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 )
 
 const (
@@ -192,69 +192,14 @@ type ProviderDraftTestResult struct {
 	Reachable bool `json:"reachable"`
 }
 
-type nullableFloat64Patch struct {
-	present bool
-	value   *float64
-}
+type CreatePlanRequest = billing.CreatePlanRequest
 
-func (p *nullableFloat64Patch) UnmarshalJSON(data []byte) error {
-	p.present = true
-	p.value = nil
-	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
-		return nil
-	}
-
-	var value float64
-	if err := json.Unmarshal(data, &value); err != nil {
-		return err
-	}
-	p.value = &value
-	return nil
-}
-
-type CreatePlanRequest struct {
-	GroupID              int64             `json:"group_id"`
-	GroupIDs             []int64           `json:"group_ids"`
-	GroupRateMultipliers map[int64]float64 `json:"group_rate_multipliers"`
-	Name                 string            `json:"name"`
-	Description          string            `json:"description"`
-	Price                float64           `json:"price"`
-	OriginalPrice        *float64          `json:"original_price"`
-	Currency             string            `json:"currency"`
-	ValidityDays         int               `json:"validity_days"`
-	ValidityUnit         string            `json:"validity_unit"`
-	DailyLimitUSD        *float64          `json:"daily_limit_usd"`
-	WeeklyLimitUSD       *float64          `json:"weekly_limit_usd"`
-	MonthlyLimitUSD      *float64          `json:"monthly_limit_usd"`
-	Features             string            `json:"features"`
-	ProductName          string            `json:"product_name"`
-	ForSale              bool              `json:"for_sale"`
-	SortOrder            int               `json:"sort_order"`
-}
-
-type UpdatePlanRequest struct {
-	GroupID              *int64               `json:"group_id"`
-	GroupIDs             *[]int64             `json:"group_ids"`
-	GroupRateMultipliers *map[int64]float64   `json:"group_rate_multipliers"`
-	Name                 *string              `json:"name"`
-	Description          *string              `json:"description"`
-	Price                *float64             `json:"price"`
-	OriginalPrice        nullableFloat64Patch `json:"original_price"`
-	Currency             *string              `json:"currency"`
-	ValidityDays         *int                 `json:"validity_days"`
-	ValidityUnit         *string              `json:"validity_unit"`
-	DailyLimitUSD        nullableFloat64Patch `json:"daily_limit_usd"`
-	WeeklyLimitUSD       nullableFloat64Patch `json:"weekly_limit_usd"`
-	MonthlyLimitUSD      nullableFloat64Patch `json:"monthly_limit_usd"`
-	Features             *string              `json:"features"`
-	ProductName          *string              `json:"product_name"`
-	ForSale              *bool                `json:"for_sale"`
-	SortOrder            *int                 `json:"sort_order"`
-}
+type UpdatePlanRequest = billing.UpdatePlanRequest
 
 // PaymentConfigService manages payment configuration and CRUD for
 // provider instances, channels, and subscription plans.
 type PaymentConfigService struct {
+	plans         *billing.Plans
 	entClient     *dbent.Client
 	settingRepo   SettingRepository
 	encryptionKey []byte
@@ -266,31 +211,7 @@ func NewPaymentConfigService(entClient *dbent.Client, settingRepo SettingReposit
 }
 
 func (s *PaymentConfigService) GetByID(ctx context.Context, id int64) (*SubscriptionPlan, error) {
-	plan, err := s.entClient.SubscriptionPlan.Get(ctx, id)
-	if err != nil {
-		return nil, infraerrors.NotFound("PLAN_NOT_FOUND", "subscription plan not found")
-	}
-	return &SubscriptionPlan{
-		ID:                   plan.ID,
-		Name:                 plan.Name,
-		Description:          plan.Description,
-		Price:                plan.Price,
-		OriginalPrice:        plan.OriginalPrice,
-		Currency:             plan.Currency,
-		ValidityDays:         plan.ValidityDays,
-		ValidityUnit:         plan.ValidityUnit,
-		DailyLimitUSD:        plan.DailyLimitUsd,
-		WeeklyLimitUSD:       plan.WeeklyLimitUsd,
-		MonthlyLimitUSD:      plan.MonthlyLimitUsd,
-		GroupIDs:             append([]int64(nil), plan.GroupIds...),
-		GroupRateMultipliers: cloneInt64Float64Map(plan.GroupRateMultipliers),
-		Features:             plan.Features,
-		ProductName:          plan.ProductName,
-		ForSale:              plan.ForSale,
-		SortOrder:            plan.SortOrder,
-		CreatedAt:            plan.CreatedAt,
-		UpdatedAt:            plan.UpdatedAt,
-	}, nil
+	return s.billingPlans().GetPlan(ctx, id)
 }
 
 // IsPaymentEnabled returns whether the payment system is enabled.
@@ -789,3 +710,25 @@ func visibleMethodShouldBeExposed(method string, vals map[string]string, availab
 	source := NormalizeVisibleMethodSource(method, vals[sourceKey])
 	return source != "" && available[source]
 }
+
+// billingPlans 只兼容旧手工构造；生产由 app 显式注入。
+func (s *PaymentConfigService) billingPlans() *billing.Plans {
+	if s.plans != nil {
+		return s.plans
+	}
+	return billing.NewPlans(billingpostgres.NewPlanStore(s.entClient), legacyPendingPlanOrders{s.entClient})
+}
+
+type legacyPendingPlanOrders struct{ client *dbent.Client }
+
+func (r legacyPendingPlanOrders) CountInProgressByPlan(ctx context.Context, id int64) (int, error) {
+	return CountPendingPlanOrders(ctx, r.client, id)
+}
+func NewPaymentConfigServiceWithPlans(client *dbent.Client, settings SettingRepository, key []byte, plans *billing.Plans) *PaymentConfigService {
+	s := NewPaymentConfigService(client, settings, key)
+	s.plans = plans
+	return s
+}
+
+// Plans 供旧 HTTP 兼容入口取得 app 注入的权益用例，S12 删除该转接。
+func (s *PaymentConfigService) Plans() *billing.Plans { return s.billingPlans() }

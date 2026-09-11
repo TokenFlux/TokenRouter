@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "TestS04SetBalanceReturnsLockedOldValue|TestUsageBillingRepository"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 3.462,
+  "log": "logs/balance-regression.log.gz"
+}

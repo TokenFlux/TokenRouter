@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	"strconv"
 	"testing"
 
@@ -140,7 +141,7 @@ func TestCreateOrderInTx_WritesSubscriptionPlanCurrencySnapshot(t *testing.T) {
 			SrcHost:     "app.example.com",
 		},
 		&User{ID: user.ID, Email: user.Email, Username: user.Username},
-		plan,
+		billingpostgres.PlanFromEntity(plan),
 		&PaymentConfig{MaxPendingOrders: 3, OrderTimeoutMin: 30},
 		10,
 		10,

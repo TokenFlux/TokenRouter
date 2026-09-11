@@ -135,7 +135,7 @@ func TestValidateOpenAIServiceTierField(t *testing.T) {
 func TestApplyModelSpecificPricingPolicy_EnforcesOpenAIFastRatios(t *testing.T) {
 	t.Parallel()
 
-	svc := &BillingService{}
+	svc := newBillingServiceWithPrices(nil, nil, map[string]*ModelPricing{})
 
 	t.Run("gpt-5.5 catalog 2x priority is corrected to 2.5x", func(t *testing.T) {
 		// 模拟本地 LiteLLM 目录仍携带官方旧口径（gpt-5.5 priority = 2x）。
@@ -301,7 +301,7 @@ func TestOpenAIFastBillingMultiplier_2xAnd25x(t *testing.T) {
 func TestOpenAIFastBilling_FastMultiplierOverridesEnforcedRatio(t *testing.T) {
 	t.Parallel()
 
-	svc := &BillingService{}
+	svc := newBillingServiceWithPrices(nil, nil, map[string]*ModelPricing{})
 	catalog := &ModelPricing{
 		InputPricePerToken:             5e-6,
 		InputPricePerTokenPriority:     10e-6,

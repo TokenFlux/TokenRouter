@@ -21,10 +21,7 @@ import (
 // RedeemService so that CreateAndRedeem's nil guard passes and we can test the
 // parameter-validation layer that runs before any service call.
 func newCreateAndRedeemHandler() *RedeemHandler {
-	return &RedeemHandler{
-		adminService:  newStubAdminService(),
-		redeemService: &service.RedeemService{}, // non-nil to pass nil guard
-	}
+	return NewRedeemHandler(newStubAdminService(), &service.RedeemService{})
 }
 
 // postCreateAndRedeemValidation calls CreateAndRedeem and returns the response

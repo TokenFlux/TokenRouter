@@ -1160,8 +1160,8 @@ func (s *adminServiceImpl) AdminResetAPIKeyRateLimitUsage(ctx context.Context, k
 	if s.authCacheInvalidator != nil {
 		s.authCacheInvalidator.InvalidateAuthCacheByKey(ctx, apiKey.Key)
 	}
-	if s.billingCacheService != nil && s.billingCacheService.cache != nil {
-		_ = s.billingCacheService.cache.InvalidateAPIKeyRateLimit(ctx, apiKey.ID)
+	if s.billingCacheService != nil {
+		_ = s.billingCacheService.InvalidateAPIKeyRateLimit(ctx, apiKey.ID)
 	}
 
 	return apiKey, nil

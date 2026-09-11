@@ -1,0 +1,27 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/billing/...",
+    "./internal/service",
+    "./internal/handler/...",
+    "./internal/server/...",
+    "-run",
+    "Plan|Redeem|Subscription|TestHTTPAPI|PaymentRoutes"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 8.802,
+  "log": "logs/plan-contracts.log.gz",
+  "test_events": {
+    "pass": 40,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

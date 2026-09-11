@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
@@ -17,7 +18,7 @@ func provideMaintenanceRuntime(
 	tokenRefresh *service.TokenRefreshService,
 	accountExpiry *service.AccountExpiryService,
 	proxyExpiry *service.ProxyExpiryService,
-	subscriptionExpiry *service.SubscriptionExpiryService,
+	subscriptionExpiry *billing.SubscriptionExpiryService,
 	announcementExpiry *service.AnnouncementExpiryService,
 	scheduledTestRunner *service.ScheduledTestRunnerService,
 	groupAvailabilityProbeRunner *service.GroupAvailabilityProbeRunnerService,
@@ -66,7 +67,7 @@ func provideMaintenanceRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if subscriptionExpiry != nil {
-			subscriptionExpiry.Stop()
+			return subscriptionExpiry.StopContext(ctx)
 		}
 		return nil
 	}})

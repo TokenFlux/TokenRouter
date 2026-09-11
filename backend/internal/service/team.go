@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	"html"
 	"log/slog"
 	"net/mail"
@@ -29,7 +30,7 @@ var (
 	ErrTeamFeatureDisabled        = infraerrors.Forbidden("TEAM_FEATURE_DISABLED", "团队功能未启用")
 	ErrTeamSelfServiceDisabled    = infraerrors.Forbidden("TEAM_SELF_SERVICE_DISABLED", "暂不允许用户自助创建团队")
 	ErrTeamNotFound               = infraerrors.NotFound("TEAM_NOT_FOUND", "团队不存在")
-	ErrTeamMembershipRequired     = infraerrors.Forbidden("TEAM_MEMBERSHIP_REQUIRED", "需要先加入团队")
+	ErrTeamMembershipRequired     = billing.ErrTeamMembershipRequired
 	ErrTeamOwnerRequired          = infraerrors.Forbidden("TEAM_OWNER_REQUIRED", "仅团队所有者可执行此操作")
 	ErrTeamAlreadyJoined          = infraerrors.Conflict("TEAM_ALREADY_JOINED", "用户已经属于一个团队")
 	ErrTeamMemberLimitReached     = infraerrors.Conflict("TEAM_MEMBER_LIMIT_REACHED", "团队成员数量已达上限")
@@ -44,9 +45,9 @@ var (
 	ErrTeamTransferInvalid        = infraerrors.BadRequest("TEAM_TRANSFER_INVALID", "所有权转让无效")
 	ErrTeamTransferExpired        = infraerrors.BadRequest("TEAM_TRANSFER_EXPIRED", "所有权转让已过期")
 	ErrTeamSuspended              = infraerrors.Forbidden("TEAM_SUSPENDED", "团队已暂停")
-	ErrTeamMemberDailyExceeded    = infraerrors.TooManyRequests("TEAM_MEMBER_DAILY_LIMIT_EXCEEDED", "团队成员日限额已用完")
-	ErrTeamMemberWeeklyExceeded   = infraerrors.TooManyRequests("TEAM_MEMBER_WEEKLY_LIMIT_EXCEEDED", "团队成员周限额已用完")
-	ErrTeamMemberMonthlyExceeded  = infraerrors.TooManyRequests("TEAM_MEMBER_MONTHLY_LIMIT_EXCEEDED", "团队成员月限额已用完")
+	ErrTeamMemberDailyExceeded    = billing.ErrTeamMemberDailyExceeded
+	ErrTeamMemberWeeklyExceeded   = billing.ErrTeamMemberWeeklyExceeded
+	ErrTeamMemberMonthlyExceeded  = billing.ErrTeamMemberMonthlyExceeded
 )
 
 // Team 表示团队的公开基础信息。

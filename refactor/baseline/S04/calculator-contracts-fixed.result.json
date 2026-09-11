@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-tags=unit",
+    "./internal/billing/...",
+    "./internal/service",
+    "-run",
+    "Pricing|CalculateCost|BillingService|ImageCost|VideoCost|GroupRate|GroupModel|ModelMarketplace"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 18.229,
+  "log": "logs/calculator-contracts-fixed.log.gz"
+}

@@ -12,7 +12,7 @@ import (
 
 func TestCalculateWebSearchCostDefaultAndOverride(t *testing.T) {
 	t.Parallel()
-	s := &BillingService{}
+	s := newBillingServiceWithPrices(nil, nil, map[string]*ModelPricing{})
 
 	// 默认价：官方 $10/1000 次 = 0.01/次
 	cost := s.CalculateWebSearchCost(1, nil, 1.0)
@@ -43,7 +43,7 @@ func TestCalculateWebSearchCostDefaultAndOverride(t *testing.T) {
 
 func TestCalculateOpenAIRecordUsageCostWebSearchPerCall(t *testing.T) {
 	t.Parallel()
-	svc := &OpenAIGatewayService{billingService: &BillingService{}}
+	svc := &OpenAIGatewayService{billingService: newBillingServiceWithPrices(nil, nil, map[string]*ModelPricing{})}
 	groupID := int64(11)
 
 	// 分组未配置单价：默认 0.01。按次搜索使用不含高峰因子的基础倍率（第 4 个倍率参数 2.0），

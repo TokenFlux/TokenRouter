@@ -510,10 +510,7 @@ func TestOpenAIGatewayServiceRecordUsage_UsesQuotaPlatformForPlatformQuota(t *te
 		&openAIRecordUsageSubRepoStub{},
 		nil,
 	)
-	svc.billingCacheService = &BillingCacheService{
-		cache: quotaCache,
-		cfg:   &config.Config{},
-	}
+	svc.billingCacheService = NewBillingCacheService(quotaCache, nil, nil, nil, nil, nil, &config.Config{}, nil)
 	svc.userPlatformQuotaRepo = &openAIRecordUsagePlatformQuotaRepoStub{}
 
 	err := svc.RecordUsage(context.Background(), &OpenAIRecordUsageInput{

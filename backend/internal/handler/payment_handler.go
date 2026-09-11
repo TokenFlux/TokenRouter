@@ -2,6 +2,7 @@ package handler
 
 import (
 	"fmt"
+	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 	"strconv"
 	"strings"
 	"time"
@@ -41,56 +42,8 @@ func (h *PaymentHandler) GetPaymentConfig(c *gin.Context) {
 	response.Success(c, cfg)
 }
 
-// GetPlans returns subscription plans available for sale.
-// GET /api/v1/payment/plans
 func (h *PaymentHandler) GetPlans(c *gin.Context) {
-	plans, err := h.configService.ListPlansForSale(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	type planWithPlatform struct {
-		ID                   int64             `json:"id"`
-		Name                 string            `json:"name"`
-		Description          string            `json:"description"`
-		Price                float64           `json:"price"`
-		OriginalPrice        *float64          `json:"original_price,omitempty"`
-		Currency             string            `json:"currency,omitempty"`
-		ValidityDays         int               `json:"validity_days"`
-		ValidityUnit         string            `json:"validity_unit"`
-		GroupIDs             []int64           `json:"group_ids"`
-		GroupRateMultipliers map[int64]float64 `json:"group_rate_multipliers"`
-		DailyLimitUSD        *float64          `json:"daily_limit_usd,omitempty"`
-		WeeklyLimitUSD       *float64          `json:"weekly_limit_usd,omitempty"`
-		MonthlyLimitUSD      *float64          `json:"monthly_limit_usd,omitempty"`
-		Features             []string          `json:"features"`
-		ProductName          string            `json:"product_name"`
-		ForSale              bool              `json:"for_sale"`
-		SortOrder            int               `json:"sort_order"`
-	}
-	result := make([]planWithPlatform, 0, len(plans))
-	for _, p := range plans {
-		result = append(result, planWithPlatform{
-			ID:                   int64(p.ID),
-			Name:                 p.Name,
-			Description:          p.Description,
-			Price:                p.Price,
-			OriginalPrice:        p.OriginalPrice,
-			Currency:             p.Currency,
-			ValidityDays:         p.ValidityDays,
-			ValidityUnit:         p.ValidityUnit,
-			GroupIDs:             append([]int64(nil), p.GroupIds...),
-			GroupRateMultipliers: cloneInt64Float64Map(p.GroupRateMultipliers),
-			DailyLimitUSD:        p.DailyLimitUsd,
-			WeeklyLimitUSD:       p.WeeklyLimitUsd,
-			MonthlyLimitUSD:      p.MonthlyLimitUsd,
-			Features:             parseFeatures(p.Features),
-			ProductName:          p.ProductName,
-			ForSale:              p.ForSale,
-			SortOrder:            p.SortOrder,
-		})
-	}
-	response.Success(c, result)
+	billinghttpapi.NewPlanHandler(h.configService.Plans()).GetPlans(c)
 }
 
 // GetCheckoutInfo returns all data the payment page needs in a single call:
@@ -127,9 +80,9 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 	for _, p := range plans {
 		planList = append(planList, checkoutPlan{
 			ID:                   int64(p.ID),
-			DailyLimitUSD:        p.DailyLimitUsd,
-			WeeklyLimitUSD:       p.WeeklyLimitUsd,
-			MonthlyLimitUSD:      p.MonthlyLimitUsd,
+			DailyLimitUSD:        p.DailyLimitUSD,
+			WeeklyLimitUSD:       p.WeeklyLimitUSD,
+			MonthlyLimitUSD:      p.MonthlyLimitUSD,
 			Name:                 p.Name,
 			Description:          p.Description,
 			Price:                p.Price,
@@ -137,7 +90,7 @@ func (h *PaymentHandler) GetCheckoutInfo(c *gin.Context) {
 			Currency:             p.Currency,
 			ValidityDays:         p.ValidityDays,
 			ValidityUnit:         p.ValidityUnit,
-			GroupIDs:             append([]int64(nil), p.GroupIds...),
+			GroupIDs:             append([]int64(nil), p.GroupIDs...),
 			GroupRateMultipliers: cloneInt64Float64Map(p.GroupRateMultipliers),
 			Features:             parseFeatures(p.Features),
 			ProductName:          p.ProductName,
@@ -201,32 +154,10 @@ type checkoutPlan struct {
 	ProductName          string            `json:"product_name"`
 }
 
-// parseFeatures splits a newline-separated features string into a string slice.
-func parseFeatures(raw string) []string {
-	if raw == "" {
-		return []string{}
-	}
-	var out []string
-	for _, line := range strings.Split(raw, "\n") {
-		if s := strings.TrimSpace(line); s != "" {
-			out = append(out, s)
-		}
-	}
-	if out == nil {
-		return []string{}
-	}
-	return out
-}
+func parseFeatures(raw string) []string { return billinghttpapi.ParsePlanFeatures(raw) }
 
 func cloneInt64Float64Map(in map[int64]float64) map[int64]float64 {
-	if len(in) == 0 {
-		return map[int64]float64{}
-	}
-	out := make(map[int64]float64, len(in))
-	for k, v := range in {
-		out[k] = v
-	}
-	return out
+	return billinghttpapi.ClonePlanOfferRates(in)
 }
 
 // GetLimits returns per-payment-type limits derived from enabled provider instances.

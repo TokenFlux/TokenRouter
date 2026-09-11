@@ -1,0 +1,14 @@
+{
+  "command": [
+    "go",
+    "build",
+    "./internal/billing/...",
+    "./internal/service",
+    "./internal/app"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.263,
+  "log": "logs/calculator-build.log.gz"
+}

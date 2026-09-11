@@ -1,0 +1,14 @@
+{
+  "command": [
+    "go",
+    "build",
+    "./internal/billing/...",
+    "./internal/repository",
+    "./internal/service"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 4.227,
+  "log": "logs/ent-store-build-2.log.gz"
+}

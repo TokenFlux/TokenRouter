@@ -33,9 +33,6 @@ func provideSettingsStore(repo service.SettingRepository) *settings.Store { retu
 func provideAnnouncementUsers(repo service.UserRepository) site.UserReader {
 	return &legacybridge.AnnouncementUsers{Repository: repo}
 }
-func provideAnnouncementSubscriptions(repo service.UserSubscriptionRepository) site.SubscriptionReader {
-	return &legacybridge.AnnouncementSubscriptions{Repository: repo}
-}
 func provideAnnouncementExpiry(repo site.AnnouncementRepository) *site.AnnouncementExpiryService {
 	return site.NewAnnouncementExpiryService(repo, time.Minute)
 }

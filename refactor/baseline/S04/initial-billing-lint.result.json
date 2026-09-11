@@ -1,0 +1,15 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=10m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "./internal/billing/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 0.923,
+  "log": "logs/initial-billing-lint.log.gz"
+}

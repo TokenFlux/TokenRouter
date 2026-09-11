@@ -1,0 +1,28 @@
+{
+  "head": "8b93af63aa15c668b94cd4b8dee9e02384b6aa23",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "TestS04QuotaIncrementAfterResetKeepsUsage"
+  ],
+  "exit_code": 1,
+  "seconds": 6.454,
+  "log": "logs/original-quota-after-reset.log.gz",
+  "test_events": {
+    "pass": 0,
+    "fail": 1,
+    "skip": 0
+  },
+  "failed_tests": [
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/repository",
+      "test": "TestS04QuotaIncrementAfterResetKeepsUsage"
+    }
+  ],
+  "skipped_tests": []
+}

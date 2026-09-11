@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-tags=unit",
+    "./internal/billing/...",
+    "./internal/service",
+    "./internal/handler/...",
+    "-run",
+    "Billing|Subscription|Redeem|Plan|Quota|Pricing|RecordUsage"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 14.265,
+  "log": "logs/billing-cleanup-tests.log.gz"
+}

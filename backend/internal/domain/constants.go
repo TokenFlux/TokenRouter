@@ -1,5 +1,7 @@
 package domain
 
+import "github.com/TokenFlux/TokenRouter/internal/billing"
+
 import "github.com/TokenFlux/TokenRouter/internal/routing/capability"
 
 // Status constants
@@ -57,13 +59,10 @@ const AccountTypeBedrock = capability.AccountTypeBedrock
 const AccountTypeServiceAccount = capability.AccountTypeServiceAccount
 const AccountTypeCosy = capability.AccountTypeCosy
 
-// Redeem type constants
-const (
-	RedeemTypeBalance      = "balance"
-	RedeemTypeConcurrency  = "concurrency"
-	RedeemTypeSubscription = "subscription"
-	RedeemTypeInvitation   = "invitation"
-)
+const RedeemTypeBalance = billing.RedeemTypeBalance
+const RedeemTypeConcurrency = billing.RedeemTypeConcurrency
+const RedeemTypeSubscription = billing.RedeemTypeSubscription
+const RedeemTypeInvitation = billing.RedeemTypeInvitation
 
 // PromoCode status constants
 const (
@@ -71,11 +70,8 @@ const (
 	PromoCodeStatusDisabled = "disabled"
 )
 
-// Admin adjustment type constants
-const (
-	AdjustmentTypeAdminBalance     = "admin_balance"     // 管理员调整余额
-	AdjustmentTypeAdminConcurrency = "admin_concurrency" // 管理员调整并发数
-)
+const AdjustmentTypeAdminBalance = billing.AdjustmentTypeAdminBalance
+const AdjustmentTypeAdminConcurrency = billing.AdjustmentTypeAdminConcurrency
 
 // Group subscription type constants
 const (
@@ -83,13 +79,10 @@ const (
 	SubscriptionTypeSubscription = "subscription" // 订阅模式（按限额控制）
 )
 
-// Subscription status constants
-const (
-	SubscriptionStatusActive    = "active"
-	SubscriptionStatusPending   = "pending"
-	SubscriptionStatusExpired   = "expired"
-	SubscriptionStatusSuspended = "suspended"
-)
+const SubscriptionStatusActive = billing.SubscriptionStatusActive
+const SubscriptionStatusPending = billing.SubscriptionStatusPending
+const SubscriptionStatusExpired = billing.SubscriptionStatusExpired
+const SubscriptionStatusSuspended = billing.SubscriptionStatusSuspended
 
 // AntigravityGemini31ProAgentModel 是 Gemini 3.1 Pro High 的实际上游路由模型。
 const AntigravityGemini31ProAgentModel = "gemini-pro-agent"

@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	"image"
 	"image/color"
 	stddraw "image/draw"
@@ -29,9 +30,9 @@ import (
 )
 
 var (
-	ErrUserNotFound                = infraerrors.NotFound("USER_NOT_FOUND", "user not found")
+	ErrUserNotFound                = billing.ErrUserNotFound
 	ErrPasswordIncorrect           = infraerrors.BadRequest("PASSWORD_INCORRECT", "current password is incorrect")
-	ErrBalanceNegative             = infraerrors.BadRequest("BALANCE_NEGATIVE", "balance cannot be negative")
+	ErrBalanceNegative             = billing.ErrBalanceNegative
 	ErrInsufficientPerms           = infraerrors.Forbidden("INSUFFICIENT_PERMISSIONS", "insufficient permissions")
 	ErrNotifyCodeUserRateLimit     = infraerrors.TooManyRequests("NOTIFY_CODE_USER_RATE_LIMIT", "too many verification codes requested, please try again later")
 	ErrAvatarInvalid               = infraerrors.BadRequest("AVATAR_INVALID", "avatar must be a valid image data URL or http(s) URL")
@@ -125,11 +126,8 @@ type UserUpdateFields struct {
 	DisabledPublicGroups bool
 }
 
-// BalanceChange 记录一次余额变更前后的值。
-type BalanceChange struct {
-	Old float64
-	New float64
-}
+// BalanceChange 保留旧资金结果类型名。
+type BalanceChange = billing.BalanceChange
 
 // IsEmpty 报告该次 Update 是否不写任何列（此时仓储直接返回，不产生写操作）。
 func (f UserUpdateFields) IsEmpty() bool {

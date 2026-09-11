@@ -22,6 +22,7 @@ func TestPaymentRoutesDoNotExposeAIChannels(t *testing.T) {
 		&handler.PaymentHandler{},
 		&handler.PaymentWebhookHandler{},
 		&adminhandler.PaymentHandler{},
+		nil,
 		middleware.JWTAuthMiddleware(passThrough),
 		middleware.AdminAuthMiddleware(passThrough),
 		middleware.AuditLogMiddleware(passThrough),

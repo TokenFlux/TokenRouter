@@ -34,7 +34,7 @@ func (s *BillingCacheSuite) TestUserBalance() {
 			name: "deduct_on_nonexistent_is_noop",
 			fn: func(ctx context.Context, rdb *redis.Client, cache service.BillingCache) {
 				userID := int64(1)
-				balanceKey := fmt.Sprintf("%s%d", billingBalanceKeyPrefix, userID)
+				balanceKey := fmt.Sprintf("%s%d", "billing:balance:", userID)
 
 				require.NoError(s.T(), cache.DeductUserBalance(ctx, userID, 1), "DeductUserBalance should not error")
 
@@ -46,7 +46,7 @@ func (s *BillingCacheSuite) TestUserBalance() {
 			name: "set_and_get_with_ttl",
 			fn: func(ctx context.Context, rdb *redis.Client, cache service.BillingCache) {
 				userID := int64(2)
-				balanceKey := fmt.Sprintf("%s%d", billingBalanceKeyPrefix, userID)
+				balanceKey := fmt.Sprintf("%s%d", "billing:balance:", userID)
 
 				require.NoError(s.T(), cache.SetUserBalance(ctx, userID, 10.5), "SetUserBalance")
 
@@ -56,7 +56,7 @@ func (s *BillingCacheSuite) TestUserBalance() {
 
 				ttl, err := rdb.TTL(ctx, balanceKey).Result()
 				require.NoError(s.T(), err, "TTL")
-				s.AssertTTLWithin(ttl, 1*time.Second, billingCacheTTL)
+				s.AssertTTLWithin(ttl, 1*time.Second, (5 * time.Minute))
 			},
 		},
 		{
@@ -76,7 +76,7 @@ func (s *BillingCacheSuite) TestUserBalance() {
 			name: "invalidate_removes_key",
 			fn: func(ctx context.Context, rdb *redis.Client, cache service.BillingCache) {
 				userID := int64(100)
-				balanceKey := fmt.Sprintf("%s%d", billingBalanceKeyPrefix, userID)
+				balanceKey := fmt.Sprintf("%s%d", "billing:balance:", userID)
 
 				require.NoError(s.T(), cache.SetUserBalance(ctx, userID, 50.0), "SetUserBalance")
 
@@ -98,13 +98,13 @@ func (s *BillingCacheSuite) TestUserBalance() {
 			name: "deduct_refreshes_ttl",
 			fn: func(ctx context.Context, rdb *redis.Client, cache service.BillingCache) {
 				userID := int64(103)
-				balanceKey := fmt.Sprintf("%s%d", billingBalanceKeyPrefix, userID)
+				balanceKey := fmt.Sprintf("%s%d", "billing:balance:", userID)
 
 				require.NoError(s.T(), cache.SetUserBalance(ctx, userID, 100.0), "SetUserBalance")
 
 				ttl1, err := rdb.TTL(ctx, balanceKey).Result()
 				require.NoError(s.T(), err, "TTL before deduct")
-				s.AssertTTLWithin(ttl1, 1*time.Second, billingCacheTTL)
+				s.AssertTTLWithin(ttl1, 1*time.Second, (5 * time.Minute))
 
 				require.NoError(s.T(), cache.DeductUserBalance(ctx, userID, 25.0), "DeductUserBalance")
 
@@ -114,7 +114,7 @@ func (s *BillingCacheSuite) TestUserBalance() {
 
 				ttl2, err := rdb.TTL(ctx, balanceKey).Result()
 				require.NoError(s.T(), err, "TTL after deduct")
-				s.AssertTTLWithin(ttl2, 1*time.Second, billingCacheTTL)
+				s.AssertTTLWithin(ttl2, 1*time.Second, (5 * time.Minute))
 			},
 		},
 	}

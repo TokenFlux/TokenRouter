@@ -236,3 +236,8 @@ func schedulerOutboxEventSupportsDedup(eventType string) bool {
 		return false
 	}
 }
+
+// EnqueueAccountQuotaChangedInTx 只写调用者给定事务；资金提交失败时不发布账号变更。
+func EnqueueAccountQuotaChangedInTx(ctx context.Context, tx *sql.Tx, accountID int64) error {
+	return enqueueSchedulerOutbox(ctx, tx, service.SchedulerOutboxEventAccountChanged, &accountID, nil, nil)
+}

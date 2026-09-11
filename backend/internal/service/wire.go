@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 	"database/sql"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/google/uuid"
+	"log"
 	"time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
@@ -392,14 +395,11 @@ func ProvideProxyExpiryService(proxyRepo ProxyRepository) *ProxyExpiryService {
 	return svc
 }
 
-// ProvideSubscriptionExpiryService 创建并启动订阅过期服务。
-func ProvideSubscriptionExpiryService(userSubRepo UserSubscriptionRepository, settingRepo SettingRepository, notificationEmailService *NotificationEmailService, lockCache LeaderLockCache, db *sql.DB) *SubscriptionExpiryService {
-	svc := NewSubscriptionExpiryService(userSubRepo, time.Minute)
-	svc.SetSettingRepository(settingRepo)
-	svc.SetNotificationEmailService(notificationEmailService)
-	svc.SetLeaderLock(lockCache, db)
-
-	return svc
+// ProvideSubscriptionExpiryService 保留旧装配入口；生产改由 app 构造。
+func ProvideSubscriptionExpiryService(repo UserSubscriptionRepository, settings SettingRepository, notifications *NotificationEmailService, lock LeaderLockCache, db *sql.DB) *SubscriptionExpiryService {
+	return billing.NewSubscriptionExpiryService(repo, billing.ExpiryOptions{Interval: time.Minute, Owner: uuid.NewString(), Observe: log.Printf, Settings: settings, Notifier: LegacyExpiryNotifier{Service: notifications}, Lease: func(ctx context.Context, key, owner string, ttl time.Duration) (func(), bool) {
+		return tryAcquireSingletonLeaderLock(ctx, lock, db, key, owner, ttl)
+	}})
 }
 
 // ProvideTimingWheelService creates and starts TimingWheelService
@@ -774,13 +774,10 @@ var ProviderSet = wire.NewSet(
 	NewGroupService,
 	NewAccountService,
 	NewProxyService,
-	NewRedeemService,
 	NewAffiliateService,
 	NewPromoService,
 	NewUsageService,
 	ProvideDashboardService,
-	NewBillingService,
-	ProvideBillingCacheService,
 	NewAdminService,
 	NewModelMarketplaceService,
 	NewGatewayService,
@@ -853,8 +850,6 @@ var ProviderSet = wire.NewSet(
 	NewTurnstileService,
 	NewTencentCaptchaService,
 	NewAliyunCaptchaService,
-	NewSubscriptionService,
-	wire.Bind(new(DefaultSubscriptionAssigner), new(*SubscriptionService)),
 	ProvideConcurrencyService,
 	ProvideUserMessageQueueService,
 	NewUsageRecordWorkerPool,
@@ -866,7 +861,6 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(GrokOAuthReconciler), new(*TokenRefreshService)),
 	ProvideAccountExpiryService,
 	ProvideProxyExpiryService,
-	ProvideSubscriptionExpiryService,
 	ProvideTimingWheelService,
 	ProvideDashboardAggregationService,
 	ProvideUsageCleanupService,
@@ -890,12 +884,10 @@ var ProviderSet = wire.NewSet(
 	NewGroupCapacityService,
 	NewChannelService,
 	wire.Bind(new(ChannelCacheInvalidator), new(*ChannelService)),
-	NewModelPricingResolver,
 	ProvideContentModerationService,
 	ProvidePaymentConfigService,
 	ProvidePaymentService,
 	ProvidePaymentOrderExpiryService,
-	ProvideUserPlatformQuotaUsageFlusher,
 	ProvideBalanceNotifyService,
 )
 
@@ -924,8 +916,8 @@ func ProvideUserPlatformQuotaUsageFlusher(cfg *config.Config, cache BillingCache
 
 // ProvidePaymentConfigService wraps NewPaymentConfigService to accept the named
 // payment.EncryptionKey type instead of raw []byte, avoiding Wire ambiguity.
-func ProvidePaymentConfigService(entClient *dbent.Client, settingRepo SettingRepository, key payment.EncryptionKey) *PaymentConfigService {
-	return NewPaymentConfigService(entClient, settingRepo, []byte(key))
+func ProvidePaymentConfigService(entClient *dbent.Client, settingRepo SettingRepository, key payment.EncryptionKey, plans *billing.Plans) *PaymentConfigService {
+	return NewPaymentConfigServiceWithPlans(entClient, settingRepo, []byte(key), plans)
 }
 
 // ProvideBalanceNotifyService creates BalanceNotifyService

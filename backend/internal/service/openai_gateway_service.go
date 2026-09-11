@@ -1689,8 +1689,8 @@ type openAIUpstreamWarningError struct {
 // ExpireRuntimeCaches 由应用拥有的时间轮调用，保留原缓存到期清理频率。
 func (s *OpenAIGatewayService) ExpireRuntimeCaches() {
 	if s != nil {
-		if s.userGroupRateResolver != nil && s.userGroupRateResolver.cache != nil {
-			s.userGroupRateResolver.cache.DeleteExpired()
+		if s.userGroupRateResolver != nil {
+			s.userGroupRateResolver.DeleteExpired()
 		}
 	}
 }

@@ -468,7 +468,7 @@ func TestShiftLaterChain_ShiftsOnlyLaterSubscriptions(t *testing.T) {
 	subRepo.seed(later)
 
 	svc := NewSubscriptionService(groupRepoNoop{}, subRepo, nil, nil, nil)
-	err := svc.shiftLaterChain(context.Background(), []UserSubscription{*anchor, *overlap, *later}, anchor, 48*time.Hour)
+	err := svc.ShiftLaterChain(context.Background(), []UserSubscription{*anchor, *overlap, *later}, anchor, 48*time.Hour)
 	require.NoError(t, err)
 
 	unchangedOverlap, err := subRepo.GetByID(context.Background(), overlap.ID)

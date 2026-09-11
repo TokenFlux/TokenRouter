@@ -28,7 +28,7 @@ func TestCalculateProgress_BasicFields(t *testing.T) {
 		Plan:      &SubscriptionPlan{Name: "Premium"},
 	}
 
-	progress := svc.calculateProgress(sub)
+	progress := svc.CalculateProgress(sub)
 
 	assert.Equal(t, int64(100), progress.ID)
 	assert.Equal(t, int64(8), progress.PlanID)
@@ -53,7 +53,7 @@ func TestCalculateProgress_DailyUsage(t *testing.T) {
 		DailyWindowStart: ptrTime(dailyStart),
 	}
 
-	progress := svc.calculateProgress(sub)
+	progress := svc.CalculateProgress(sub)
 
 	require.NotNil(t, progress.Daily, "有日限额和窗口时 Daily 不应为 nil")
 	assert.Equal(t, 10.0, progress.Daily.LimitUSD)
@@ -78,7 +78,7 @@ func TestCalculateProgress_DailyCardUsesExpiryAsDailyResetTime(t *testing.T) {
 		DailyWindowStart: ptrTime(dailyStart),
 	}
 
-	progress := svc.calculateProgress(sub)
+	progress := svc.CalculateProgress(sub)
 
 	require.NotNil(t, progress.Daily, "日卡有日限额和窗口时 Daily 不应为 nil")
 	assert.Equal(t, expiresAt, progress.Daily.ResetsAt, "日卡的一次性日额度结束时间应为订阅过期时间")
@@ -97,7 +97,7 @@ func TestCalculateProgress_WeeklyUsage(t *testing.T) {
 		WeeklyWindowStart: ptrTime(weeklyStart),
 	}
 
-	progress := svc.calculateProgress(sub)
+	progress := svc.CalculateProgress(sub)
 
 	require.NotNil(t, progress.Weekly, "有周限额和窗口时 Weekly 不应为 nil")
 	assert.Equal(t, 50.0, progress.Weekly.LimitUSD)
@@ -119,7 +119,7 @@ func TestCalculateProgress_MonthlyUsage(t *testing.T) {
 		MonthlyWindowStart: ptrTime(monthlyStart),
 	}
 
-	progress := svc.calculateProgress(sub)
+	progress := svc.CalculateProgress(sub)
 
 	require.NotNil(t, progress.Monthly, "有月限额和窗口时 Monthly 不应为 nil")
 	assert.Equal(t, 100.0, progress.Monthly.LimitUSD)
@@ -143,7 +143,7 @@ func TestCalculateProgress_MonthlyTailWindowUsesExpiryAsResetTime(t *testing.T) 
 		MonthlyWindowStart: ptrTime(monthlyStart),
 	}
 
-	progress := svc.calculateProgress(sub)
+	progress := svc.CalculateProgress(sub)
 
 	require.NotNil(t, progress.Monthly, "月限额尾段仍应返回进度")
 	assert.Equal(t, expiresAt, progress.Monthly.ResetsAt, "到期尾段月额度结束时间应显示订阅过期时间")
@@ -165,7 +165,7 @@ func TestCalculateProgress_DailyTailWithMonthlyLimitUsesDailyResetTime(t *testin
 		DailyWindowStart: ptrTime(dailyStart),
 	}
 
-	progress := svc.calculateProgress(sub)
+	progress := svc.CalculateProgress(sub)
 
 	require.NotNil(t, progress.Daily, "有限月额度保护下仍应返回日额度进度")
 	assert.Equal(t, dailyStart.Add(subscriptionDailyWindow), progress.Daily.ResetsAt, "尾段日额度应显示实际刷新时间")
@@ -183,7 +183,7 @@ func TestCalculateProgress_OverLimit_ClampedTo100Percent(t *testing.T) {
 		DailyWindowStart: ptrTime(now.Add(-1 * time.Hour)),
 	}
 
-	progress := svc.calculateProgress(sub)
+	progress := svc.CalculateProgress(sub)
 
 	require.NotNil(t, progress.Daily)
 	assert.Equal(t, 100.0, progress.Daily.Percentage, "超额使用应被截断为 100%")
@@ -204,7 +204,7 @@ func TestCalculateProgress_NoWindowStart_NoProgress(t *testing.T) {
 		WeeklyUsageUSD: 0,
 	}
 
-	progress := svc.calculateProgress(sub)
+	progress := svc.CalculateProgress(sub)
 
 	assert.Nil(t, progress.Daily, "无 DailyWindowStart 时 Daily 应为 nil")
 	assert.Nil(t, progress.Weekly, "无 WeeklyWindowStart 时 Weekly 应为 nil")
@@ -228,7 +228,7 @@ func TestCalculateProgress_AllLimits(t *testing.T) {
 		MonthlyWindowStart: ptrTime(now.Add(-15 * 24 * time.Hour)),
 	}
 
-	progress := svc.calculateProgress(sub)
+	progress := svc.CalculateProgress(sub)
 
 	require.NotNil(t, progress.Daily)
 	require.NotNil(t, progress.Weekly)
@@ -247,7 +247,7 @@ func TestCalculateProgress_ExpiredSubscription(t *testing.T) {
 		ExpiresAt: time.Now().Add(-24 * time.Hour), // 已过期
 	}
 
-	progress := svc.calculateProgress(sub)
+	progress := svc.CalculateProgress(sub)
 
 	assert.Equal(t, 0, progress.ExpiresInDays, "过期订阅的剩余天数应为 0")
 }
@@ -265,7 +265,7 @@ func TestCalculateProgress_ResetsInSeconds_NotNegative(t *testing.T) {
 		DailyWindowStart: ptrTime(pastStart),
 	}
 
-	progress := svc.calculateProgress(sub)
+	progress := svc.CalculateProgress(sub)
 
 	require.NotNil(t, progress.Daily)
 	assert.GreaterOrEqual(t, progress.Daily.ResetsInSeconds, int64(0),

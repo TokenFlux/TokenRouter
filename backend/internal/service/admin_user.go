@@ -583,11 +583,11 @@ func (s *adminServiceImpl) UpdateUserBalance(ctx context.Context, userID int64, 
 	)
 	switch operation {
 	case "set":
-		change, err = s.userRepo.SetBalance(ctx, userID, balance)
+		change, err = s.balanceAdjuster().SetBalance(ctx, userID, balance)
 	case "add":
-		change, err = s.userRepo.AdjustBalance(ctx, userID, balance)
+		change, err = s.balanceAdjuster().AdjustBalance(ctx, userID, balance)
 	case "subtract":
-		change, err = s.userRepo.AdjustBalance(ctx, userID, -balance)
+		change, err = s.balanceAdjuster().AdjustBalance(ctx, userID, -balance)
 	default:
 		return nil, fmt.Errorf("unsupported balance operation: %q", operation)
 	}
@@ -742,19 +742,8 @@ func (s *adminServiceImpl) GetUserUsageStats(ctx context.Context, userID int64, 
 	}, nil
 }
 
-// GetUserBalanceHistory returns paginated balance/concurrency change records for a user.
 func (s *adminServiceImpl) GetUserBalanceHistory(ctx context.Context, userID int64, page, pageSize int, codeType string) ([]RedeemCode, int64, float64, error) {
-	params := pagination.PaginationParams{Page: page, PageSize: pageSize}
-	codes, result, err := s.redeemCodeRepo.ListByUserPaginated(ctx, userID, params, codeType)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	// Aggregate total recharged amount (only once, regardless of type filter)
-	totalRecharged, err := s.redeemCodeRepo.SumPositiveBalanceByUser(ctx, userID)
-	if err != nil {
-		return nil, 0, 0, err
-	}
-	return codes, result.Total, totalRecharged, nil
+	return s.redeemAdministration().GetUserBalanceHistory(ctx, userID, page, pageSize, codeType)
 }
 
 func (s *adminServiceImpl) BindUserAuthIdentity(ctx context.Context, userID int64, input AdminBindAuthIdentityInput) (*AdminBoundAuthIdentity, error) {
@@ -1087,114 +1076,26 @@ func cloneAdminAuthIdentityMetadata(input map[string]any) map[string]any {
 	return out
 }
 
-// Redeem code management implementations
 func (s *adminServiceImpl) ListRedeemCodes(ctx context.Context, page, pageSize int, codeType, status, search string, sortBy, sortOrder string) ([]RedeemCode, int64, error) {
-	params := pagination.PaginationParams{Page: page, PageSize: pageSize, SortBy: sortBy, SortOrder: sortOrder}
-	codes, result, err := s.redeemCodeRepo.ListWithFilters(ctx, params, codeType, status, search)
-	if err != nil {
-		return nil, 0, err
-	}
-	return codes, result.Total, nil
+	return s.redeemAdministration().ListRedeemCodes(ctx, page, pageSize, codeType, status, search, sortBy, sortOrder)
 }
 
 func (s *adminServiceImpl) GetRedeemCode(ctx context.Context, id int64) (*RedeemCode, error) {
-	return s.redeemCodeRepo.GetByID(ctx, id)
+	return s.redeemAdministration().GetRedeemCode(ctx, id)
 }
 
 func (s *adminServiceImpl) GenerateRedeemCodes(ctx context.Context, input *GenerateRedeemCodesInput) ([]RedeemCode, error) {
-	maxUses := 1
-	if input.MaxUses != nil {
-		if *input.MaxUses < 0 {
-			return nil, infraerrors.BadRequest("REDEEM_CODE_MAX_USES_INVALID", "max_uses must be greater than or equal to 0")
-		}
-		maxUses = *input.MaxUses
-	}
-
-	customCode := strings.TrimSpace(input.Code)
-	if customCode != "" {
-		if input.Count != 1 {
-			return nil, infraerrors.BadRequest("REDEEM_CODE_CUSTOM_COUNT_INVALID", "count must be 1 when code is provided")
-		}
-		if len(customCode) > 32 {
-			return nil, infraerrors.BadRequest("REDEEM_CODE_TOO_LONG", "code must be at most 32 characters")
-		}
-	}
-
-	// 如果是订阅类型，验证必须有 plan_id
-	if input.Type == RedeemTypeSubscription {
-		if input.PlanID == nil || *input.PlanID <= 0 {
-			return nil, infraerrors.BadRequest("REDEEM_CODE_PLAN_REQUIRED", "plan_id is required for subscription type")
-		}
-		if _, err := s.entClient.SubscriptionPlan.Get(ctx, *input.PlanID); err != nil {
-			return nil, fmt.Errorf("plan not found: %w", err)
-		}
-	}
-	if input.Type == RedeemTypeInvitation {
-		maxUses = 1
-	}
-
-	codes := make([]RedeemCode, 0, input.Count)
-	for i := 0; i < input.Count; i++ {
-		codeValue := customCode
-		if codeValue == "" {
-			generatedCode, err := GenerateRedeemCode()
-			if err != nil {
-				return nil, err
-			}
-			codeValue = generatedCode
-		}
-		code := RedeemCode{
-			Code:      codeValue,
-			Type:      input.Type,
-			Value:     input.Value,
-			Status:    StatusUnused,
-			MaxUses:   maxUses,
-			ExpiresAt: input.ExpiresAt,
-		}
-		if input.Type == RedeemTypeSubscription {
-			code.PlanID = input.PlanID
-		}
-		if err := s.redeemCodeRepo.Create(ctx, &code); err != nil {
-			return nil, err
-		}
-		codes = append(codes, code)
-	}
-	return codes, nil
+	return s.redeemAdministration().GenerateRedeemCodes(ctx, input)
 }
 
 func (s *adminServiceImpl) DeleteRedeemCode(ctx context.Context, id int64) error {
-	code, err := s.redeemCodeRepo.GetByID(ctx, id)
-	if err != nil {
-		return err
-	}
-	if !code.CanDelete() {
-		return infraerrors.Conflict("REDEEM_CODE_DELETE_USED", "cannot delete redeem code that has usage records")
-	}
-	return s.redeemCodeRepo.Delete(ctx, id)
+	return s.redeemAdministration().DeleteRedeemCode(ctx, id)
 }
 
 func (s *adminServiceImpl) BatchDeleteRedeemCodes(ctx context.Context, ids []int64) (int64, error) {
-	var deleted int64
-	for _, id := range ids {
-		code, err := s.redeemCodeRepo.GetByID(ctx, id)
-		if err != nil || !code.CanDelete() {
-			continue
-		}
-		if err := s.redeemCodeRepo.Delete(ctx, id); err == nil {
-			deleted++
-		}
-	}
-	return deleted, nil
+	return s.redeemAdministration().BatchDeleteRedeemCodes(ctx, ids)
 }
 
 func (s *adminServiceImpl) ExpireRedeemCode(ctx context.Context, id int64) (*RedeemCode, error) {
-	code, err := s.redeemCodeRepo.GetByID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	code.Status = StatusExpired
-	if err := s.redeemCodeRepo.Update(ctx, code); err != nil {
-		return nil, err
-	}
-	return code, nil
+	return s.redeemAdministration().ExpireRedeemCode(ctx, id)
 }

@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	"time"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
@@ -10,7 +11,7 @@ import (
 )
 
 var (
-	ErrAccountNotFound      = infraerrors.NotFound("ACCOUNT_NOT_FOUND", "account not found")
+	ErrAccountNotFound      = billing.ErrAccountNotFound
 	ErrAccountNilInput      = infraerrors.BadRequest("ACCOUNT_NIL_INPUT", "account input cannot be nil")
 	ErrAccountNotInFallback = infraerrors.BadRequest("ACCOUNT_NOT_IN_FALLBACK", "account is not in proxy fallback state")
 )

@@ -2,9 +2,7 @@ package service
 
 import (
 	"context"
-	"strings"
-
-	purepricing "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 )
 
 // resolveAccountStatsCost 计算账号统计定价费用。
@@ -40,6 +38,7 @@ func resolveAccountStatsCost(
 	return resolveAccountStatsCostWithMapped(ctx, channelService, billingService, accountID, groupID, upstreamModel, requestedModel, "", tokens, requestCount, totalCost, serviceTier, reasoningEfforts...)
 }
 
+// resolveAccountStatsCostWithMapped 委托 billing 的唯一账号统计规则。
 func resolveAccountStatsCostWithMapped(
 	ctx context.Context,
 	channelService *ChannelService,
@@ -55,79 +54,20 @@ func resolveAccountStatsCostWithMapped(
 	serviceTier string,
 	reasoningEfforts ...string,
 ) *float64 {
-	reasoningEffort := ""
+	effort := ""
 	if len(reasoningEfforts) > 0 {
-		reasoningEffort = reasoningEfforts[0]
+		effort = reasoningEfforts[0]
 	}
-	if channelService == nil || upstreamModel == "" {
-		return nil
+	var source billing.AccountStatsSource
+	if channelService != nil {
+		source = LegacyAccountStatsSource{Service: channelService}
 	}
-	channel, err := channelService.GetChannelForGroup(ctx, groupID)
-	if err != nil || channel == nil {
-		return nil
-	}
-
-	platform := channelService.GetGroupPlatform(ctx, groupID)
-
-	// 渠道查询结束后，纯规则决定自定义价/用户价是否已经处理。
-	if cost, handled := purepricing.ResolveAccountStatsOverride(purepricing.AccountStatsInput{
-		Rules: channel.AccountStatsPricingRules, AccountID: accountID, GroupID: groupID, Platform: platform,
-		Models: accountStatsCustomRuleModels(platform, upstreamModel, requestedModel, channelMappedModel),
-		Tokens: tokens, RequestCount: requestCount, UserTotalCost: totalCost, ApplyUserPrice: channel.ApplyPricingToAccountStats,
-	}); handled {
-		return cost
-	}
-
-	// 优先级 3：模型定价文件（LiteLLM）默认价格
+	var calculator *billing.Calculator
 	if billingService != nil {
-		return tryModelFilePricing(billingService, upstreamModel, tokens, serviceTier, reasoningEffort)
+		calculator = billingService.Calculator
 	}
-
-	return nil
-}
-
-func accountStatsCustomRuleModels(platform, upstreamModel, requestedModel string, channelMappedModel ...string) []string {
-	upstreamModel = strings.TrimSpace(upstreamModel)
-	requestedModel = strings.TrimSpace(requestedModel)
-	mappedModel := ""
-	if len(channelMappedModel) > 0 {
-		mappedModel = strings.TrimSpace(channelMappedModel[0])
-	}
-	if platform != PlatformQoder || requestedModel == "" ||
-		(requestedModel == upstreamModel && (mappedModel == "" || mappedModel == requestedModel)) {
-		if upstreamModel == "" {
-			return nil
-		}
-		return []string{upstreamModel}
-	}
-	models := []string{requestedModel}
-	models = append(models, mappedModel)
-	models = append(models, upstreamModel)
-	return uniqueNonEmptyAccountStatsModels(models)
-}
-
-// uniqueNonEmptyAccountStatsModels 委托唯一账号统计定价规则。
-func uniqueNonEmptyAccountStatsModels(models []string) []string {
-	return purepricing.UniqueNonEmptyAccountStatsModels(models)
-}
-
-// tryModelFilePricing 使用模型定价文件（LiteLLM/fallback）中的价格计算费用。
-// 与用户计费共用同一条定价管线，避免这里维护第二份"单价 × token 数"实现后，
-// 每加一个定价特性都要手工镜像一次。channelPricing 为 nil，保持优先级 3 的
-// 语义：只取模型定价文件，不引入渠道自定义定价。
-func tryModelFilePricing(billingService *BillingService, model string, tokens UsageTokens, serviceTier string, reasoningEfforts ...string) *float64 {
-	reasoningEffort := ""
-	if len(reasoningEfforts) > 0 {
-		reasoningEffort = reasoningEfforts[0]
-	}
-	breakdown, err := billingService.CalculateCostUnified(CostInput{
-		Model: model, Tokens: tokens, RateMultiplier: 1,
-		ServiceTier: normalizeBillingServiceTier(serviceTier), ReasoningEffort: reasoningEffort,
-	})
-	if err != nil || breakdown == nil || breakdown.TotalCost <= 0 {
-		return nil
-	}
-	return &breakdown.TotalCost
+	resolver := billing.NewPriceResolver(nil, calculator, nil, nil, source)
+	return resolver.ResolveAccountStats(ctx, billing.AccountStatsCostInput{AccountID: accountID, GroupID: groupID, UpstreamModel: upstreamModel, RequestedModel: requestedModel, MappedModel: channelMappedModel, Tokens: tokens, RequestCount: requestCount, UserTotalCost: totalCost, ServiceTier: serviceTier, ReasoningEffort: effort})
 }
 
 // applyAccountStatsCost resolves the account stats cost for a usage log entry.
@@ -141,6 +81,7 @@ func applyAccountStatsCost(
 	upstreamModel, requestedModel, channelMappedModel string,
 	tokens UsageTokens,
 	totalCost float64,
+	resolvers ...*ModelPricingResolver,
 ) {
 	model := upstreamModel
 	if model == "" {
@@ -158,8 +99,27 @@ func applyAccountStatsCost(
 	if usageLog != nil && usageLog.ReasoningEffort != nil {
 		reasoningEffort = *usageLog.ReasoningEffort
 	}
+	if len(resolvers) > 0 && resolvers[0] != nil {
+		usageLog.AccountStatsCost = resolvers[0].ResolveAccountStats(ctx, billing.AccountStatsCostInput{AccountID: accountID, GroupID: groupID, UpstreamModel: model, RequestedModel: requestedModel, MappedModel: channelMappedModel, Tokens: tokens, RequestCount: requestCount, UserTotalCost: totalCost, ServiceTier: serviceTier, ReasoningEffort: reasoningEffort})
+		return
+	}
 	usageLog.AccountStatsCost = resolveAccountStatsCostWithMapped(
 		ctx, cs, bs, accountID, groupID, model, requestedModel, channelMappedModel, tokens, requestCount, totalCost, serviceTier,
 		reasoningEffort,
 	)
+}
+
+// LegacyAccountStatsSource 只投影旧渠道读取，规则由 billing 决定；S06 退出。
+type LegacyAccountStatsSource struct{ Service *ChannelService }
+
+func (s LegacyAccountStatsSource) AccountStatsGroup(ctx context.Context, id int64) (*billing.AccountStatsChannel, error) {
+	channel, err := s.Service.GetChannelForGroup(ctx, id)
+	if err != nil || channel == nil {
+		return nil, err
+	}
+	return &billing.AccountStatsChannel{Rules: channel.AccountStatsPricingRules, ApplyUserPrice: channel.ApplyPricingToAccountStats}, nil
+}
+func (s LegacyAccountStatsSource) AccountStatsPlatform(ctx context.Context, id int64) billing.AccountStatsPlatform {
+	platform := s.Service.GetGroupPlatform(ctx, id)
+	return billing.AccountStatsPlatform{ID: platform, PreferRequestedModel: platform == PlatformQoder}
 }

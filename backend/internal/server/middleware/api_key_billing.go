@@ -81,7 +81,7 @@ func resolveAPIKeyBillingContext(ctx context.Context, apiKey *service.APIKey, su
 			return result, nil
 		}
 		if subscription.IsEffective() {
-			_, validateErr := subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
+			_, validateErr := subscriptionService.ValidateAndCheckLimits(subscription)
 			result.Available = validateErr == nil
 		}
 		return result, nil

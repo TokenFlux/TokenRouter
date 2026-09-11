@@ -1,6 +1,7 @@
 package handler
 
 import (
+	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -25,12 +26,12 @@ func ProvideAdminHandlers(
 	grokOAuthHandler *admin.GrokOAuthHandler,
 	qoderOAuthHandler *admin.QoderOAuthHandler,
 	proxyHandler *admin.ProxyHandler,
-	redeemHandler *admin.RedeemHandler,
+	redeemHandler *billinghttpapi.AdminRedeemHandler,
 	promoHandler *admin.PromoHandler,
 	settingHandler *admin.SettingHandler,
 	opsHandler *admin.OpsHandler,
 	systemHandler *admin.SystemHandler,
-	subscriptionHandler *admin.SubscriptionHandler,
+	subscriptionHandler *billinghttpapi.AdminSubscriptionHandler,
 	usageHandler *admin.UsageHandler,
 	userAttributeHandler *admin.UserAttributeHandler,
 	errorPassthroughHandler *admin.ErrorPassthroughHandler,
@@ -142,12 +143,14 @@ func ProvideAPIKeyHandler(apiKeyService *service.APIKeyService, groupCapacitySer
 
 // ProvideHandlers creates the Handlers struct
 func ProvideHandlers(
+	plans *billinghttpapi.PlanHandler,
+	quotaHandler *billinghttpapi.QuotaHandler,
 	authHandler *AuthHandler,
 	userHandler *UserHandler,
 	apiKeyHandler *APIKeyHandler,
 	usageHandler *UsageHandler,
-	redeemHandler *RedeemHandler,
-	subscriptionHandler *SubscriptionHandler,
+	redeemHandler *billinghttpapi.RedeemHandler,
+	subscriptionHandler *billinghttpapi.SubscriptionHandler,
 	announcementHandler *sitehttpapi.AnnouncementHandler,
 	modelMarketplaceHandler *ModelMarketplaceHandler,
 	adminHandlers *AdminHandlers,
@@ -166,6 +169,8 @@ func ProvideHandlers(
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
 	return &Handlers{
+		Plans:            plans,
+		PlatformQuota:    quotaHandler,
 		Auth:             authHandler,
 		User:             userHandler,
 		APIKey:           apiKeyHandler,
@@ -191,13 +196,14 @@ func ProvideHandlers(
 
 // ProviderSet is the Wire provider set for all handlers
 var ProviderSet = wire.NewSet(
+	billinghttpapi.NewPlanHandler,
 	// Top-level handlers
 	NewAuthHandler,
 	NewUserHandler,
 	ProvideAPIKeyHandler,
 	NewUsageHandler,
-	NewRedeemHandler,
-	NewSubscriptionHandler,
+	billinghttpapi.NewRedeemHandler,
+	billinghttpapi.NewSubscriptionHandler,
 	sitehttpapi.NewAnnouncementHandler,
 	NewModelMarketplaceHandler,
 	NewGatewayHandler,
@@ -227,12 +233,12 @@ var ProviderSet = wire.NewSet(
 	admin.NewGrokOAuthHandler,
 	admin.NewQoderOAuthHandler,
 	admin.NewProxyHandler,
-	admin.NewRedeemHandler,
+	billinghttpapi.NewAdminRedeemHandler,
 	admin.NewPromoHandler,
 	ProvideAdminSettingHandler,
 	admin.NewOpsHandler,
 	ProvideSystemHandler,
-	admin.NewSubscriptionHandler,
+	billinghttpapi.NewAdminSubscriptionHandler,
 	admin.NewUsageHandler,
 	admin.NewUserAttributeHandler,
 	admin.NewErrorPassthroughHandler,

@@ -269,7 +269,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			}
 
 			if subscription != nil {
-				needsMaintenance, validateErr := subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
+				needsMaintenance, validateErr := subscriptionService.ValidateAndCheckLimits(subscription)
 				if needsMaintenance {
 					refreshed, maintenanceErr := subscriptionService.EnsureWindowMaintenance(c.Request.Context(), subscription)
 					if maintenanceErr != nil {
@@ -277,7 +277,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 						return
 					}
 					subscription = refreshed
-					_, validateErr = subscriptionService.ValidateAndCheckLimits(subscription, apiKey.Group)
+					_, validateErr = subscriptionService.ValidateAndCheckLimits(subscription)
 				}
 				if validateErr != nil {
 					code := "SUBSCRIPTION_INVALID"

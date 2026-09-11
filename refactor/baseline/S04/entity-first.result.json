@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-run",
+    "^$",
+    "./internal/service",
+    "./internal/repository",
+    "./internal/handler/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.603,
+  "log": "logs/entity-first.log.gz"
+}

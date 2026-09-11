@@ -26,6 +26,8 @@ limit 的三态语义是领域不变量：
 
 用户平台额度只在 `standard` 的余额结算路径生效；仍由有效订阅承接的请求豁免。订阅额度耗尽并回退余额后，重新进入平台额度检查。API Key 限速和用户/分组 RPM 在其后继续独立生效。
 
+管理规则、准入、倍率和镜像生命周期由 billing 持有；PostgreSQL 与 Redis Adapter 分别位于 billing/postgres、billing/rediscache。
+
 检查采用 Redis-first：当前 schema 的缓存命中直接判断；MISS 或旧缓存用 singleflight 合并数据库回源并回填。Redis 故障时仍查询数据库做一次性检查；数据库也失败或请求上下文取消时当前实现 fail-open 并记录 warning，避免额度基础设施故障阻断全部网关流量。
 
 额度耗尽返回 HTTP 429 和日/周/月专用错误码，并附 `window_resets_at`。客户端 `Retry-After` 从相同窗口口径计算，不能使用服务器 UTC 日界替代配置时区。
@@ -40,7 +42,11 @@ Redis 用 Lua 同步累加三个窗口并标记脏 key，使下一次预检查�
 - Flusher 关闭：成功结算后异步调用 `IncrementUsageWithReset`，数据库原子重置过期窗口并累加。
 - Flusher 开启：Redis 为执法热状态，dirty set 由 `UserPlatformQuotaUsageFlusher` 分批读取绝对快照并 UPSERT 到数据库镜像。
 
+app 只构造一个按用户协调器。管理替换/重置、singleflight 回源与回填、跨窗口刷新、累计和 flusher 共用它。Flusher 可以先 Pop dirty key，但必须按用户 ID 升序取得锁后才读取 Redis，持锁到整批 SQL 写回结束，再逆序释放；锁等待计入操作预算，取消不能绕过锁写旧值。管理锁覆盖必要读取、数据库提交及缓存失效。
+
 Flusher 每批 Pop dirty key、批量读取 Redis、写入绝对 usage/window snapshot。普通写失败会把 key 加回 dirty set；外键违反表示用户已删除，整批数据库镜像可能暂时缺失，但 Redis 执法状态不受影响。停止服务时先取消并等待周期回调，再在清理预算内继续写回积压，不受周期单轮 16 批上限限制；失败仍按原规则回填并报告未排空。应用在停止计费写入及其异步副作用后才推进到该步骤。Flusher 是异步镜像优化，不改变 Redis 预检查和成功结算的先后关系。
+
+重置失效缓存后，已放行请求的累计会在锁内重新读取并回填最新窗口，再调用 Lua，避免缺失 key 静默吞掉新用量。有效缓存命中不增加数据库查询。Flusher 关闭时，进程内锁保持到该次异步数据库增量结束，管理重置不会插入 Redis 累计与 SQL 镜像之间。
 
 ## 默认值与管理操作
 
@@ -52,7 +58,7 @@ Flusher 每批 Pop dirty key、批量读取 Redis、写入绝对 usage/window sn
 
 - Redis usage 是当前执法视图，数据库 usage 在异步模式下可能滞后；管理端展示要注明读取来源或刷新状态。
 - Flusher 写绝对值而非 delta，重试不会重复累加；dirty key 丢失可由后续活跃请求重新标记，但低活跃用户的数据库镜像可能长期偏低。
-- 管理重置与正在执行的 flusher 存在已记录竞态；强制重置未过期窗口时应检查随后的 Redis/DB 值。
+- 管理重置与 flusher/回源/累计的旧快照覆盖已在单实例内通过共享用户锁串行化。该锁不协调多个服务进程，也不把 Redis 和 PostgreSQL 变成原子提交；Redis 失效或写回故障仍可能造成 TTL 范围内的滞后，应结合告警核对。
 - 用户平台额度与账号上游 quota、订阅窗口、团队成员限额、Key 5h/1d/7d 限额分别排查，不能只看一个 “quota exhausted”。
 
 相关文档：[路由与结算](routing_and_billing.md)、[支付与权益](payments_and_entitlements.md)、[账号维护](../operations/account_maintenance.md)。

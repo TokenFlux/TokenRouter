@@ -1,0 +1,15 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-run",
+    "^$",
+    "-tags=unit",
+    "./..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 10.867,
+  "log": "logs/billing-cleanup-compile.log.gz"
+}

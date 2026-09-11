@@ -4,6 +4,8 @@ package service
 
 import (
 	"context"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	"testing"
 	"time"
 
@@ -58,7 +60,7 @@ func TestExtendSubscriptionReusesCallerTransaction(t *testing.T) {
 		ID: 1, UserID: 7, PlanID: 9, StartsAt: now.Add(-24 * time.Hour),
 		ExpiresAt: now.Add(10 * 24 * time.Hour), Status: SubscriptionStatusActive,
 	})
-	svc := NewSubscriptionService(groupRepoNoop{}, repo, nil, nil, nil)
+	svc := billing.NewSubscriptionService(nil, repo, &subscriptionContextTransactions{SubscriptionMutations: billingpostgres.NewSubscriptionMutations(nil), t: t, tx: tx})
 
 	_, err = svc.ExtendSubscription(txCtx, 1, -1)
 	require.NoError(t, err)
@@ -82,10 +84,22 @@ func TestRevokeSubscriptionReusesCallerTransaction(t *testing.T) {
 		ID: 2, UserID: 8, PlanID: 10, StartsAt: now.Add(-24 * time.Hour),
 		ExpiresAt: now.Add(10 * 24 * time.Hour), Status: SubscriptionStatusActive,
 	})
-	svc := NewSubscriptionService(groupRepoNoop{}, repo, nil, nil, nil)
+	svc := billing.NewSubscriptionService(nil, repo, &subscriptionContextTransactions{SubscriptionMutations: billingpostgres.NewSubscriptionMutations(nil), t: t, tx: tx})
 
 	err = svc.RevokeSubscription(txCtx, 2)
 	require.NoError(t, err)
 	require.Len(t, repo.writeContexts, 1)
 	require.Same(t, tx, dbent.TxFromContext(repo.writeContexts[0]))
+}
+
+// SQLite 仅用于此测试的事务身份断言；真实锁与回滚由 S04 PostgreSQL 集成测试验收。
+type subscriptionContextTransactions struct {
+	*billingpostgres.SubscriptionMutations
+	t  *testing.T
+	tx *dbent.Tx
+}
+
+func (s *subscriptionContextTransactions) LockSubscription(ctx context.Context, _ int64) error {
+	require.Same(s.t, s.tx, dbent.TxFromContext(ctx))
+	return nil
 }

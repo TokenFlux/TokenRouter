@@ -615,22 +615,19 @@ func TestCalculateCost_OpenAIGPT54NoLongContextKeepsCacheCreationAtBasePrice(t *
 // 使用手工构造的 pricing（参考 TestCalculateCost_SupportsCacheBreakdown 的写法）
 // 以便同时控制 SupportsCacheBreakdown + 长上下文阈值。
 func TestCalculateCost_LongContextAppliesMultiplierToCacheCreation5mAnd1h(t *testing.T) {
-	svc := &BillingService{
-		cfg: &config.Config{},
-		fallbackPrices: map[string]*ModelPricing{
-			"claude-sonnet-4": {
-				InputPricePerToken:          3e-6,
-				OutputPricePerToken:         15e-6,
-				CacheReadPricePerToken:      0.3e-6,
-				SupportsCacheBreakdown:      true,
-				CacheCreation5mPrice:        4e-6,
-				CacheCreation1hPrice:        5e-6,
-				LongContextInputThreshold:   272000,
-				LongContextInputMultiplier:  2.0,
-				LongContextOutputMultiplier: 1.5,
-			},
+	svc := newBillingServiceWithPrices(&config.Config{}, nil, map[string]*ModelPricing{
+		"claude-sonnet-4": {
+			InputPricePerToken:          3e-6,
+			OutputPricePerToken:         15e-6,
+			CacheReadPricePerToken:      0.3e-6,
+			SupportsCacheBreakdown:      true,
+			CacheCreation5mPrice:        4e-6,
+			CacheCreation1hPrice:        5e-6,
+			LongContextInputThreshold:   272000,
+			LongContextInputMultiplier:  2.0,
+			LongContextOutputMultiplier: 1.5,
 		},
-	}
+	})
 
 	// InputTokens + CacheReadTokens = 1000 + 300000 = 301000 > 272000 阈值
 	tokens := UsageTokens{
@@ -1075,10 +1072,7 @@ func TestForceUpdatePricing_NilService(t *testing.T) {
 
 func TestCalculateCostWithLongContext_PropagatesError(t *testing.T) {
 	// 使用空的 fallback prices 让 GetModelPricing 失败
-	svc := &BillingService{
-		cfg:            &config.Config{},
-		fallbackPrices: make(map[string]*ModelPricing),
-	}
+	svc := newBillingServiceWithPrices(&config.Config{}, nil, make(map[string]*ModelPricing))
 
 	tokens := UsageTokens{InputTokens: 300000, CacheReadTokens: 0}
 	_, err := svc.CalculateCostWithLongContext("unknown-model", tokens, 1.0, 200000, 2.0)
@@ -1263,18 +1257,15 @@ func TestGetModelPricing_GrokCatalogFallbacks(t *testing.T) {
 }
 
 func TestCalculateCost_SupportsCacheBreakdown(t *testing.T) {
-	svc := &BillingService{
-		cfg: &config.Config{},
-		fallbackPrices: map[string]*ModelPricing{
-			"claude-sonnet-4": {
-				InputPricePerToken:     3e-6,
-				OutputPricePerToken:    15e-6,
-				SupportsCacheBreakdown: true,
-				CacheCreation5mPrice:   4e-6, // per token
-				CacheCreation1hPrice:   5e-6, // per token
-			},
+	svc := newBillingServiceWithPrices(&config.Config{}, nil, map[string]*ModelPricing{
+		"claude-sonnet-4": {
+			InputPricePerToken:     3e-6,
+			OutputPricePerToken:    15e-6,
+			SupportsCacheBreakdown: true,
+			CacheCreation5mPrice:   4e-6,
+			CacheCreation1hPrice:   5e-6,
 		},
-	}
+	})
 
 	tokens := UsageTokens{
 		InputTokens:           1000,
@@ -1291,7 +1282,7 @@ func TestCalculateCost_SupportsCacheBreakdown(t *testing.T) {
 }
 
 func TestComputeCacheCreationCost_CapsContradictoryBreakdownAtAggregate(t *testing.T) {
-	svc := &BillingService{}
+	svc := newBillingServiceWithPrices(nil, nil, map[string]*ModelPricing{})
 	pricing := &ModelPricing{
 		SupportsCacheBreakdown: true,
 		CacheCreation5mPrice:   1,
@@ -1382,7 +1373,7 @@ func TestNormalizeCacheCreationBreakdown_BillingSafetyInvariant(t *testing.T) {
 }
 
 func TestComputeCacheCreationCost_PreservesZeroDetailFallback(t *testing.T) {
-	svc := &BillingService{}
+	svc := newBillingServiceWithPrices(nil, nil, map[string]*ModelPricing{})
 	pricing := &ModelPricing{
 		SupportsCacheBreakdown: true,
 		CacheCreation5mPrice:   4e-6,

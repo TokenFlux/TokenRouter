@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	"html"
 	"math"
 	"sort"
@@ -25,7 +26,7 @@ import (
 )
 
 var (
-	ErrAPIKeyNotFound                    = infraerrors.NotFound("API_KEY_NOT_FOUND", "api key not found")
+	ErrAPIKeyNotFound                    = billing.ErrAPIKeyNotFound
 	ErrGroupNotAllowed                   = infraerrors.Forbidden("GROUP_NOT_ALLOWED", "user is not allowed to bind this group")
 	ErrGroupDisabledForUser              = infraerrors.Forbidden("GROUP_DISABLED_FOR_USER", "user is not allowed to use this public group")
 	ErrAPIKeyExists                      = infraerrors.Conflict("API_KEY_EXISTS", "api key already exists")
@@ -40,9 +41,9 @@ var (
 	ErrInvalidAPIKeyFastModePolicy       = infraerrors.BadRequest("INVALID_API_KEY_FAST_MODE_POLICY", "invalid API key fast mode policy")
 	ErrInvalidAPIKeyBillingMode          = infraerrors.BadRequest("INVALID_API_KEY_BILLING_MODE", "invalid API key billing mode")
 	ErrPreferredSubscriptionRequired     = infraerrors.BadRequest("PREFERRED_SUBSCRIPTION_REQUIRED", "subscription billing mode requires a subscription")
-	ErrPreferredSubscriptionInvalid      = infraerrors.Forbidden("PREFERRED_SUBSCRIPTION_INVALID", "preferred subscription is unavailable")
-	ErrPreferredSubscriptionGroup        = infraerrors.Forbidden("PREFERRED_SUBSCRIPTION_GROUP_NOT_ALLOWED", "preferred subscription does not allow this group")
-	ErrPreferredSubscriptionInsufficient = infraerrors.TooManyRequests("PREFERRED_SUBSCRIPTION_EXHAUSTED", "preferred subscription has insufficient remaining quota")
+	ErrPreferredSubscriptionInvalid      = billing.ErrPreferredSubscriptionInvalid
+	ErrPreferredSubscriptionGroup        = billing.ErrPreferredSubscriptionGroup
+	ErrPreferredSubscriptionInsufficient = billing.ErrPreferredSubscriptionInsufficient
 	ErrCompositeKeyGroupsRequired        = infraerrors.BadRequest("COMPOSITE_KEY_GROUPS_REQUIRED", "composite api key requires at least one group")
 	ErrCompositeKeyTooManyGroups         = infraerrors.BadRequest("COMPOSITE_KEY_TOO_MANY_GROUPS", "composite api key supports at most 20 groups")
 	ErrCompositeKeyPrefixInvalid         = infraerrors.BadRequest("COMPOSITE_KEY_PREFIX_INVALID", "composite api key prefix is invalid")
@@ -55,13 +56,13 @@ var (
 	ErrCompositeKeyUnsupported           = infraerrors.BadRequest("COMPOSITE_KEY_ENDPOINT_UNSUPPORTED", "composite api key is not supported for this endpoint")
 	// ErrAPIKeyExpired        = infraerrors.Forbidden("API_KEY_EXPIRED", "api key has expired")
 	ErrAPIKeyExpired = infraerrors.Forbidden("API_KEY_EXPIRED", "api key 已过期")
-	// ErrAPIKeyQuotaExhausted = infraerrors.TooManyRequests("API_KEY_QUOTA_EXHAUSTED", "api key quota exhausted")
+	// ErrAPIKeyQuotaExhausted = billing.ErrAPIKeyQuotaExhausted
 	ErrAPIKeyQuotaExhausted = infraerrors.TooManyRequests("API_KEY_QUOTA_EXHAUSTED", "api key 额度已用完")
 
 	// Rate limit errors
-	ErrAPIKeyRateLimit5hExceeded = infraerrors.TooManyRequests("API_KEY_RATE_5H_EXCEEDED", "api key 5小时限额已用完")
-	ErrAPIKeyRateLimit1dExceeded = infraerrors.TooManyRequests("API_KEY_RATE_1D_EXCEEDED", "api key 日限额已用完")
-	ErrAPIKeyRateLimit7dExceeded = infraerrors.TooManyRequests("API_KEY_RATE_7D_EXCEEDED", "api key 7天限额已用完")
+	ErrAPIKeyRateLimit5hExceeded = billing.ErrAPIKeyRateLimit5hExceeded
+	ErrAPIKeyRateLimit1dExceeded = billing.ErrAPIKeyRateLimit1dExceeded
+	ErrAPIKeyRateLimit7dExceeded = billing.ErrAPIKeyRateLimit7dExceeded
 	ErrTeamActorInactive         = infraerrors.Forbidden("TEAM_ACTOR_INACTIVE", "团队密钥所属成员已停用")
 	ErrTeamBillingOwnerInactive  = infraerrors.Forbidden("TEAM_BILLING_OWNER_INACTIVE", "团队付款所有者已停用")
 )
@@ -167,39 +168,7 @@ type apiKeyAllByUserIDLister interface {
 	ListAllByUserID(ctx context.Context, userID int64, filters APIKeyListFilters) ([]APIKey, error)
 }
 
-// APIKeyRateLimitData holds rate limit usage and window state for an API key.
-type APIKeyRateLimitData struct {
-	Usage5h       float64
-	Usage1d       float64
-	Usage7d       float64
-	Window5hStart *time.Time
-	Window1dStart *time.Time
-	Window7dStart *time.Time
-}
-
-// EffectiveUsage5h returns the 5h window usage, or 0 if the window has expired.
-func (d *APIKeyRateLimitData) EffectiveUsage5h() float64 {
-	if IsWindowExpired(d.Window5hStart, RateLimitWindow5h) {
-		return 0
-	}
-	return d.Usage5h
-}
-
-// EffectiveUsage1d returns the 1d window usage, or 0 if the window has expired.
-func (d *APIKeyRateLimitData) EffectiveUsage1d() float64 {
-	if IsWindowExpired(d.Window1dStart, RateLimitWindow1d) {
-		return 0
-	}
-	return d.Usage1d
-}
-
-// EffectiveUsage7d returns the 7d window usage, or 0 if the window has expired.
-func (d *APIKeyRateLimitData) EffectiveUsage7d() float64 {
-	if IsWindowExpired(d.Window7dStart, RateLimitWindow7d) {
-		return 0
-	}
-	return d.Usage7d
-}
+type APIKeyRateLimitData = billing.APIKeyRateLimitData
 
 // APIKeyQuotaUsageState captures the latest quota fields after an atomic quota update.
 // It is intentionally small so repositories can return it from a single SQL statement.

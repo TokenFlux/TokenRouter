@@ -1,6 +1,7 @@
 package routes
 
 import (
+	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/handler"
 	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
@@ -16,6 +17,7 @@ func RegisterPaymentRoutes(
 	paymentHandler *handler.PaymentHandler,
 	webhookHandler *handler.PaymentWebhookHandler,
 	adminPaymentHandler *admin.PaymentHandler,
+	planHandler *billinghttpapi.PlanHandler,
 	jwtAuth middleware.JWTAuthMiddleware,
 	adminAuth middleware.AdminAuthMiddleware,
 	auditLog middleware.AuditLogMiddleware,
@@ -31,7 +33,7 @@ func RegisterPaymentRoutes(
 	{
 		authenticated.GET("/config", paymentHandler.GetPaymentConfig)
 		authenticated.GET("/checkout-info", paymentHandler.GetCheckoutInfo)
-		authenticated.GET("/plans", paymentHandler.GetPlans)
+		authenticated.GET("/plans", planHandler.GetPlans)
 		authenticated.GET("/limits", paymentHandler.GetLimits)
 
 		orders := authenticated.Group("/orders")
@@ -99,10 +101,10 @@ func RegisterPaymentRoutes(
 		// Subscription Plans
 		plans := adminGroup.Group("/plans")
 		{
-			plans.GET("", adminPaymentHandler.ListPlans)
-			plans.POST("", adminPaymentHandler.CreatePlan)
-			plans.PUT("/:id", adminPaymentHandler.UpdatePlan)
-			plans.DELETE("/:id", adminPaymentHandler.DeletePlan)
+			plans.GET("", planHandler.ListPlans)
+			plans.POST("", planHandler.CreatePlan)
+			plans.PUT("/:id", planHandler.UpdatePlan)
+			plans.DELETE("/:id", planHandler.DeletePlan)
 		}
 
 		// Provider Instances

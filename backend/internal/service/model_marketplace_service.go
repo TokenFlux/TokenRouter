@@ -412,14 +412,14 @@ func (s *ModelMarketplaceService) buildPublicModelsForGroup(ctx context.Context,
 
 // marketplaceModelModalities 用共享定价服务解析模型能力元数据；解析不到时返回 nil。
 func (s *ModelMarketplaceService) marketplaceModelModalities(modelDef marketplaceModelDef) ([]string, []string) {
-	if s.billingService == nil || s.billingService.pricingService == nil {
+	if s.billingService == nil {
 		return nil, nil
 	}
 	pricingModel := strings.TrimSpace(modelDef.PricingModel)
 	if pricingModel == "" {
 		pricingModel = modelDef.ID
 	}
-	return s.billingService.pricingService.GetModelModalities(pricingModel)
+	return s.billingService.GetModelModalities(pricingModel)
 }
 
 // getRequestableModelDisplayPricing 使用共享解析器确定的定价模型，避免展示层再次推导映射链。

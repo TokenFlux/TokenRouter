@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"sync"
 	"testing"
 	"time"
@@ -39,10 +40,7 @@ func TestIncrementUserPlatformQuotaUsage_SyncCallsCache(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Billing.UserPlatformQuotaCacheTTLSeconds = 120
 
-	s := &BillingCacheService{
-		cache: fake,
-		cfg:   cfg,
-	}
+	s := NewBillingCacheService(fake, nil, nil, nil, nil, nil, cfg, nil)
 
 	s.IncrementUserPlatformQuotaUsage(101, "anthropic", 0.25)
 	s.IncrementUserPlatformQuotaUsage(101, "openai", 0.50)
@@ -214,11 +212,7 @@ func newServiceForPreflight(t *testing.T, repo UserPlatformQuotaRepository, cach
 	t.Helper()
 	cfg := &config.Config{}
 	cfg.Billing.UserPlatformQuotaCacheTTLSeconds = 60
-	return &BillingCacheService{
-		cache:                 cache,
-		cfg:                   cfg,
-		userPlatformQuotaRepo: repo,
-	}
+	return NewBillingCacheService(cache, nil, nil, nil, nil, nil, cfg, repo)
 }
 
 // currentDayStart 返回全局时区当天 0 点（与生产 timezone.StartOfDay 同口径，确保窗口有效）。
@@ -475,10 +469,7 @@ func TestIncrementUserPlatformQuotaUsage_GuardsAgainstEmpty(t *testing.T) {
 	fake := &fakeIncrCache{}
 	cfg := &config.Config{}
 	cfg.Billing.UserPlatformQuotaCacheTTLSeconds = 60
-	s := &BillingCacheService{
-		cache: fake,
-		cfg:   cfg,
-	}
+	s := NewBillingCacheService(fake, nil, nil, nil, nil, nil, cfg, nil)
 
 	s.IncrementUserPlatformQuotaUsage(1, "", 0.5)        // empty platform → noop
 	s.IncrementUserPlatformQuotaUsage(1, "openai", 0)    // zero cost → noop
@@ -530,11 +521,7 @@ func TestCheckUserPlatformQuotaEligibility_StandardMode_BlocksWhenLimitZero(t *t
 	fake := &fakeZeroQuotaCache{}
 	cfg := &config.Config{}
 	cfg.Billing.UserPlatformQuotaCacheTTLSeconds = 60
-	s := &BillingCacheService{
-		cache:                 fake,
-		cfg:                   cfg,
-		userPlatformQuotaRepo: &fakeQuotaRepo{},
-	}
+	s := NewBillingCacheService(fake, nil, nil, nil, nil, nil, cfg, &fakeQuotaRepo{})
 	err := s.checkUserPlatformQuotaEligibility(context.Background(), 1, "anthropic")
 	if !errors.Is(err, ErrUserPlatformDailyQuotaExhausted) {
 		t.Errorf("standard mode with limit=0 should return ErrUserPlatformDailyQuotaExhausted, got: %v", err)
@@ -550,11 +537,7 @@ func TestCheckBillingEligibility_SubscriptionMode_BypassesPlatformQuota(t *testi
 	fake := &fakeZeroQuotaCache{} // GetUserPlatformQuotaCache 返回 limit=0，若被调用则拦截
 	cfg := &config.Config{}
 	cfg.Billing.UserPlatformQuotaCacheTTLSeconds = 60
-	s := &BillingCacheService{
-		cache:                 fake,
-		cfg:                   cfg,
-		userPlatformQuotaRepo: &fakeQuotaRepo{},
-	}
+	s := NewBillingCacheService(fake, nil, nil, nil, nil, nil, cfg, &fakeQuotaRepo{})
 
 	subGroup := &Group{ID: 10, Status: "active"}
 	now := time.Now()
@@ -584,11 +567,7 @@ func TestCheckBillingEligibility_NonSubscriptionGroup_AppliesQuota(t *testing.T)
 	called := &fakeZeroQuotaCache{}
 	cfg := &config.Config{}
 	cfg.Billing.UserPlatformQuotaCacheTTLSeconds = 60
-	s := &BillingCacheService{
-		cache:                 called,
-		cfg:                   cfg,
-		userPlatformQuotaRepo: &fakeQuotaRepo{},
-	}
+	s := NewBillingCacheService(called, nil, nil, nil, nil, nil, cfg, &fakeQuotaRepo{})
 	err := s.checkUserPlatformQuotaEligibility(context.Background(), 99, "openai")
 	if !errors.Is(err, ErrUserPlatformDailyQuotaExhausted) {
 		t.Errorf("non-subscription mode quota check should block, got: %v", err)
@@ -705,7 +684,7 @@ func TestCheckUserPlatformQuotaEligibility_RedisGetError_NoSentinelBackfill(t *t
 // TestCheckUserPlatformQuotaEligibility_NoRow_SentinelSetFailsFailOpen 验证:
 // sentinel SET 失败时 fail-open(返回 nil)且计 metric。
 func TestCheckUserPlatformQuotaEligibility_NoRow_SentinelSetFailsFailOpen(t *testing.T) {
-	before := userPlatformQuotaSentinelSetCacheErrorTotal.Load()
+	before := billing.SentinelCacheWriteErrors()
 	repo := &fakeQuotaRepo{rec: nil}
 	cache := &fakeFullCache{setErr: errors.New("redis set timeout")}
 	svc := newServiceForPreflight(t, repo, cache)
@@ -717,7 +696,7 @@ func TestCheckUserPlatformQuotaEligibility_NoRow_SentinelSetFailsFailOpen(t *tes
 	if cache.getSetCalls() != 1 {
 		t.Errorf("应尝试 set sentinel 恰好一次, got %d", cache.getSetCalls())
 	}
-	if got := userPlatformQuotaSentinelSetCacheErrorTotal.Load() - before; got != 1 {
+	if got := billing.SentinelCacheWriteErrors() - before; got != 1 {
 		t.Errorf("set 失败应使 metric +1, got delta %d", got)
 	}
 }

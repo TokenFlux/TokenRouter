@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
@@ -99,20 +100,8 @@ func IsCNProvider(platform string) bool {
 	}
 }
 
-// AllowedQuotaPlatforms 是允许设置 user × platform quota 的平台列表（单一权威来源）。
-// ent/schema/user_platform_quota.go 的 Validate 函数独立维护（构建期约束），
-// 若新增平台需同步修改该 schema。
-var AllowedQuotaPlatforms = []string{
-	PlatformAnthropic,
-	PlatformOpenAI,
-	PlatformGemini,
-	PlatformAntigravity,
-	PlatformQoder,
-	PlatformGrok,
-	PlatformKimi,
-	PlatformZhipu,
-	PlatformDeepseek,
-}
+// AllowedQuotaPlatforms 委托唯一平台额度目录。
+var AllowedQuotaPlatforms = billing.AllowedQuotaPlatforms
 
 // AllowedSchedulingThresholdPlatforms 是允许设置账号自动停调阈值的平台列表。
 // openai/anthropic/grok 有原生用量窗口；kimi/zhipu 的 Coding Plan 同样暴露 5h/weekly
@@ -125,15 +114,7 @@ var AllowedSchedulingThresholdPlatforms = []string{
 	PlatformZhipu,
 }
 
-// IsAllowedQuotaPlatform 报告 s 是否为合法的 quota platform 标识。
-func IsAllowedQuotaPlatform(s string) bool {
-	for _, p := range AllowedQuotaPlatforms {
-		if p == s {
-			return true
-		}
-	}
-	return false
-}
+func IsAllowedQuotaPlatform(s string) bool { return billing.IsAllowedQuotaPlatform(s) }
 
 // Account type constants
 const (

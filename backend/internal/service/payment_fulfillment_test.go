@@ -804,7 +804,7 @@ func TestExecuteBalanceFulfillmentRecoversAfterRedeemWithoutCreditingAgain(t *te
 	}}, nil)
 	svc := &PaymentService{
 		entClient:        client,
-		redeemService:    &RedeemService{redeemRepo: redeemRepo},
+		redeemService:    NewRedeemService(redeemRepo, nil, nil, nil, nil, nil, nil, nil),
 		affiliateService: NewAffiliateService(affiliateRepo, settingSvc, nil, nil),
 	}
 
@@ -844,7 +844,7 @@ func TestDuplicatePaymentNotificationDoesNotReprocessCompletedBalanceOrder(t *te
 	}}
 	svc := &PaymentService{
 		entClient:     client,
-		redeemService: &RedeemService{redeemRepo: redeemRepo},
+		redeemService: NewRedeemService(redeemRepo, nil, nil, nil, nil, nil, nil, nil),
 	}
 	notification := &payment.PaymentNotification{
 		TradeNo: "alipay-trade-replayed",

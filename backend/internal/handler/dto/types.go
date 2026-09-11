@@ -1,8 +1,7 @@
 package dto
 
 import (
-	"bytes"
-	"encoding/json"
+	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
@@ -185,34 +184,9 @@ type GroupCapacity struct {
 	RPMMax          int `json:"rpm_max"`
 }
 
-type SubscriptionPlan struct {
-	ID                   int64                   `json:"id"`
-	Name                 string                  `json:"name"`
-	Description          string                  `json:"description"`
-	Price                float64                 `json:"price"`
-	OriginalPrice        *float64                `json:"original_price,omitempty"`
-	Currency             string                  `json:"currency,omitempty"`
-	ValidityDays         int                     `json:"validity_days"`
-	ValidityUnit         string                  `json:"validity_unit"`
-	GroupIDs             []int64                 `json:"group_ids"`
-	GroupRateMultipliers map[int64]float64       `json:"group_rate_multipliers"`
-	GroupsRestricted     bool                    `json:"groups_restricted"`
-	ApplicableGroups     []SubscriptionPlanGroup `json:"applicable_groups"`
-	DailyLimitUSD        *float64                `json:"daily_limit_usd"`
-	WeeklyLimitUSD       *float64                `json:"weekly_limit_usd"`
-	MonthlyLimitUSD      *float64                `json:"monthly_limit_usd"`
-	Features             string                  `json:"features"`
-	ProductName          string                  `json:"product_name"`
-	ForSale              bool                    `json:"for_sale"`
-	SortOrder            int                     `json:"sort_order"`
-	CreatedAt            time.Time               `json:"created_at"`
-	UpdatedAt            time.Time               `json:"updated_at"`
-}
+type SubscriptionPlan = billinghttpapi.SubscriptionPlan
 
-type SubscriptionPlanGroup struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-}
+type SubscriptionPlanGroup = billinghttpapi.SubscriptionPlanGroup
 
 // AdminGroup 是管理员接口使用的 group DTO（包含敏感/内部字段）。
 // 注意：普通用户接口不得返回 model_routing/account_count/account_groups 等内部信息。
@@ -462,71 +436,15 @@ type ProxyAccountSummary struct {
 	Notes    *string `json:"notes,omitempty"`
 }
 
-type RedeemCode struct {
-	ID        int64      `json:"id"`
-	Code      string     `json:"code"`
-	Type      string     `json:"type"`
-	Value     float64    `json:"value"`
-	Status    string     `json:"status"`
-	MaxUses   int        `json:"max_uses"`
-	UsedCount int        `json:"used_count"`
-	ExpiresAt *time.Time `json:"expires_at"`
-	UsedBy    *int64     `json:"used_by"` // 最后一次成功兑换的用户
-	UsedAt    *time.Time `json:"used_at"` // 最后一次成功兑换的时间
-	CreatedAt time.Time  `json:"created_at"`
+type RedeemCode = billinghttpapi.RedeemCode
 
-	PlanID *int64 `json:"plan_id"`
+type AdminRedeemCode = billinghttpapi.AdminRedeemCode
 
-	// Notes is only populated for admin_balance/admin_concurrency types
-	// so users can see why they were charged or credited
-	Notes *string `json:"notes,omitempty"`
+type NullableTimeField = billinghttpapi.NullableTimeField
 
-	User *User `json:"user,omitempty"`
-}
+type BatchUpdateRedeemCodeFields = billinghttpapi.BatchUpdateRedeemCodeFields
 
-// AdminRedeemCode 是管理员接口使用的 redeem code DTO（包含 notes 等字段）。
-// 注意：普通用户接口不得返回 notes 等内部信息。
-type AdminRedeemCode struct {
-	RedeemCode
-
-	Notes string `json:"notes"`
-}
-
-// NullableTimeField 用于区分 JSON 字段缺失、传入 null 和传入具体时间。
-type NullableTimeField struct {
-	Set   bool
-	Value *time.Time
-}
-
-func (f *NullableTimeField) UnmarshalJSON(data []byte) error {
-	f.Set = true
-	if bytes.Equal(bytes.TrimSpace(data), []byte("null")) {
-		f.Value = nil
-		return nil
-	}
-	var value time.Time
-	if err := json.Unmarshal(data, &value); err != nil {
-		return err
-	}
-	f.Value = &value
-	return nil
-}
-
-type BatchUpdateRedeemCodeFields struct {
-	Status    *string           `json:"status,omitempty"`
-	ExpiresAt NullableTimeField `json:"expires_at,omitempty"`
-	Notes     *string           `json:"notes,omitempty"`
-
-	Type    *string  `json:"type,omitempty"`
-	Value   *float64 `json:"value,omitempty"`
-	MaxUses *int     `json:"max_uses,omitempty"`
-	PlanID  *int64   `json:"plan_id,omitempty"`
-}
-
-type BatchUpdateRedeemCodesRequest struct {
-	IDs    []int64                     `json:"ids" binding:"required,min=1"`
-	Fields BatchUpdateRedeemCodeFields `json:"fields" binding:"required"`
-}
+type BatchUpdateRedeemCodesRequest = billinghttpapi.BatchUpdateRedeemCodesRequest
 
 // UsageLog 是普通用户接口使用的 usage log DTO（不包含管理员字段）。
 type UsageLog struct {
@@ -708,56 +626,11 @@ type Setting struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-type UserSubscription struct {
-	ID     int64 `json:"id"`
-	UserID int64 `json:"user_id"`
-	PlanID int64 `json:"plan_id"`
+type UserSubscription = billinghttpapi.UserSubscription
 
-	StartsAt  time.Time `json:"starts_at"`
-	ExpiresAt time.Time `json:"expires_at"`
-	Status    string    `json:"status"`
+type AdminUserSubscription = billinghttpapi.AdminUserSubscription
 
-	DailyWindowStart   *time.Time `json:"daily_window_start"`
-	WeeklyWindowStart  *time.Time `json:"weekly_window_start"`
-	MonthlyWindowStart *time.Time `json:"monthly_window_start"`
-
-	DailyLimitUSD   *float64 `json:"daily_limit_usd"`
-	WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
-	MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
-
-	DailyUsageUSD   float64 `json:"daily_usage_usd"`
-	WeeklyUsageUSD  float64 `json:"weekly_usage_usd"`
-	MonthlyUsageUSD float64 `json:"monthly_usage_usd"`
-
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	RevokedAt *time.Time `json:"revoked_at,omitempty"`
-
-	User *User             `json:"user,omitempty"`
-	Plan *SubscriptionPlan `json:"plan,omitempty"`
-}
-
-// AdminUserSubscription 是管理员接口使用的订阅 DTO（包含分配信息/备注等字段）。
-// 注意：普通用户接口不得返回 assigned_by/assigned_at/notes/assigned_by_user 等管理员字段。
-type AdminUserSubscription struct {
-	UserSubscription
-
-	AssignedBy *int64    `json:"assigned_by"`
-	AssignedAt time.Time `json:"assigned_at"`
-	Notes      string    `json:"notes"`
-
-	AssignedByUser *User `json:"assigned_by_user,omitempty"`
-}
-
-type BulkAssignResult struct {
-	SuccessCount  int                     `json:"success_count"`
-	CreatedCount  int                     `json:"created_count"`
-	ReusedCount   int                     `json:"reused_count"`
-	FailedCount   int                     `json:"failed_count"`
-	Subscriptions []AdminUserSubscription `json:"subscriptions"`
-	Errors        []string                `json:"errors"`
-	Statuses      map[string]string       `json:"statuses,omitempty"`
-}
+type BulkAssignResult = billinghttpapi.BulkAssignResult
 
 // PromoCode 注册优惠码
 type PromoCode struct {

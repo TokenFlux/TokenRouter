@@ -1,0 +1,26 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/billing/...",
+    "./internal/service",
+    "./internal/repository",
+    "-run",
+    "BillingCache|Subscription|QuotaCoordinator|Redeem|Billing.*Eligibility"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 14.155,
+  "log": "logs/eligibility-contracts-fixed.log.gz",
+  "test_events": {
+    "pass": 250,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

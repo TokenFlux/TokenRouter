@@ -1,0 +1,12 @@
+{
+  "command": [
+    "go",
+    "build",
+    "./cmd/server"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 14.484,
+  "log": "logs/app-billing-build.log.gz"
+}

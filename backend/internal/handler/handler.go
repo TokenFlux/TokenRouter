@@ -1,6 +1,7 @@
 package handler
 
 import (
+	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
 	sitehttpapi "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 )
@@ -21,12 +22,12 @@ type AdminHandlers struct {
 	QoderOAuth            *admin.QoderOAuthHandler
 	GrokOAuth             *admin.GrokOAuthHandler
 	Proxy                 *admin.ProxyHandler
-	Redeem                *admin.RedeemHandler
+	Redeem                *billinghttpapi.AdminRedeemHandler
 	Promo                 *admin.PromoHandler
 	Setting               *admin.SettingHandler
 	Ops                   *admin.OpsHandler
 	System                *admin.SystemHandler
-	Subscription          *admin.SubscriptionHandler
+	Subscription          *billinghttpapi.AdminSubscriptionHandler
 	Usage                 *admin.UsageHandler
 	UserAttribute         *admin.UserAttributeHandler
 	ErrorPassthrough      *admin.ErrorPassthroughHandler
@@ -45,12 +46,14 @@ type AdminHandlers struct {
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
+	Plans            *billinghttpapi.PlanHandler
+	PlatformQuota    *billinghttpapi.QuotaHandler
 	Auth             *AuthHandler
 	User             *UserHandler
 	APIKey           *APIKeyHandler
 	Usage            *UsageHandler
-	Redeem           *RedeemHandler
-	Subscription     *SubscriptionHandler
+	Redeem           *billinghttpapi.RedeemHandler
+	Subscription     *billinghttpapi.SubscriptionHandler
 	Announcement     *sitehttpapi.AnnouncementHandler
 	ModelMarketplace *ModelMarketplaceHandler
 	Admin            *AdminHandlers

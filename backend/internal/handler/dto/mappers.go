@@ -3,13 +3,12 @@ package dto
 
 import (
 	"encoding/json"
-	"net/url"
-	"strconv"
-	"strings"
-	"time"
-
+	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	"net/url"
+	"strings"
+	"time"
 )
 
 func UserFromServiceShallow(u *service.User) *User {
@@ -180,50 +179,7 @@ func GroupCapacityFromService(capacity *service.GroupCapacitySummary) *GroupCapa
 }
 
 func SubscriptionPlanFromServiceShallow(plan *service.SubscriptionPlan) *SubscriptionPlan {
-	if plan == nil {
-		return nil
-	}
-	out := &SubscriptionPlan{
-		ID:                   plan.ID,
-		Name:                 plan.Name,
-		Description:          plan.Description,
-		Price:                plan.Price,
-		OriginalPrice:        plan.OriginalPrice,
-		Currency:             plan.Currency,
-		ValidityDays:         plan.ValidityDays,
-		ValidityUnit:         plan.ValidityUnit,
-		GroupIDs:             append([]int64(nil), plan.GroupIDs...),
-		GroupRateMultipliers: cloneInt64Float64Map(plan.GroupRateMultipliers),
-		GroupsRestricted:     plan.GroupsRestricted || len(plan.GroupIDs) > 0,
-		DailyLimitUSD:        plan.DailyLimitUSD,
-		WeeklyLimitUSD:       plan.WeeklyLimitUSD,
-		MonthlyLimitUSD:      plan.MonthlyLimitUSD,
-		Features:             plan.Features,
-		ProductName:          plan.ProductName,
-		ForSale:              plan.ForSale,
-		SortOrder:            plan.SortOrder,
-		CreatedAt:            plan.CreatedAt,
-		UpdatedAt:            plan.UpdatedAt,
-	}
-	out.ApplicableGroups = make([]SubscriptionPlanGroup, 0, len(plan.ApplicableGroups))
-	for _, group := range plan.ApplicableGroups {
-		out.ApplicableGroups = append(out.ApplicableGroups, SubscriptionPlanGroup{ID: group.ID, Name: group.Name})
-	}
-	if out.ApplicableGroups == nil {
-		out.ApplicableGroups = []SubscriptionPlanGroup{}
-	}
-	return out
-}
-
-func cloneInt64Float64Map(in map[int64]float64) map[int64]float64 {
-	if len(in) == 0 {
-		return map[int64]float64{}
-	}
-	out := make(map[int64]float64, len(in))
-	for k, v := range in {
-		out[k] = v
-	}
-	return out
+	return billinghttpapi.SubscriptionPlanFromServiceShallow(plan)
 }
 
 // GroupFromServiceAdmin converts a service Group to DTO for admin users.
@@ -696,49 +652,11 @@ func ProxyAccountSummaryFromService(a *service.ProxyAccountSummary) *ProxyAccoun
 }
 
 func RedeemCodeFromService(rc *service.RedeemCode) *RedeemCode {
-	if rc == nil {
-		return nil
-	}
-	out := redeemCodeFromServiceBase(rc)
-	return &out
+	return billinghttpapi.RedeemCodeFromService(rc)
 }
 
-// RedeemCodeFromServiceAdmin converts a service RedeemCode to DTO for admin users.
-// It includes notes - user-facing endpoints must not use this.
 func RedeemCodeFromServiceAdmin(rc *service.RedeemCode) *AdminRedeemCode {
-	if rc == nil {
-		return nil
-	}
-	return &AdminRedeemCode{
-		RedeemCode: redeemCodeFromServiceBase(rc),
-		Notes:      rc.Notes,
-	}
-}
-
-func redeemCodeFromServiceBase(rc *service.RedeemCode) RedeemCode {
-	out := RedeemCode{
-		ID:        rc.ID,
-		Code:      rc.Code,
-		Type:      rc.Type,
-		Value:     rc.Value,
-		Status:    rc.Status,
-		MaxUses:   rc.MaxUses,
-		UsedCount: rc.UsedCount,
-		ExpiresAt: rc.ExpiresAt,
-		UsedBy:    rc.UsedBy,
-		UsedAt:    rc.UsedAt,
-		CreatedAt: rc.CreatedAt,
-		PlanID:    rc.PlanID,
-		User:      UserFromServiceShallow(rc.User),
-	}
-
-	// For admin_balance/admin_concurrency types, include notes so users can see
-	// why they were charged or credited by admin
-	if (rc.Type == "admin_balance" || rc.Type == "admin_concurrency") && rc.Notes != "" {
-		out.Notes = &rc.Notes
-	}
-
-	return out
+	return billinghttpapi.RedeemCodeFromServiceAdmin(rc)
 }
 
 // AccountSummaryFromService returns a minimal AccountSummary for usage log display.
@@ -952,74 +870,15 @@ func SettingFromService(s *service.Setting) *Setting {
 }
 
 func UserSubscriptionFromService(sub *service.UserSubscription) *UserSubscription {
-	if sub == nil {
-		return nil
-	}
-	out := userSubscriptionFromServiceBase(sub)
-	return &out
+	return billinghttpapi.UserSubscriptionFromService(sub)
 }
 
-// UserSubscriptionFromServiceAdmin 将 service.UserSubscription 转换为管理员 DTO。
-// 管理员接口会额外返回分配人、分配时间和备注。
 func UserSubscriptionFromServiceAdmin(sub *service.UserSubscription) *AdminUserSubscription {
-	if sub == nil {
-		return nil
-	}
-	return &AdminUserSubscription{
-		UserSubscription: userSubscriptionFromServiceBase(sub),
-		AssignedBy:       sub.AssignedBy,
-		AssignedAt:       sub.AssignedAt,
-		Notes:            sub.Notes,
-		AssignedByUser:   UserFromServiceShallow(sub.AssignedByUser),
-	}
-}
-
-func userSubscriptionFromServiceBase(sub *service.UserSubscription) UserSubscription {
-	return UserSubscription{
-		ID:                 sub.ID,
-		UserID:             sub.UserID,
-		PlanID:             sub.PlanID,
-		StartsAt:           sub.StartsAt,
-		ExpiresAt:          sub.ExpiresAt,
-		Status:             sub.Status,
-		DailyWindowStart:   sub.DailyWindowStart,
-		WeeklyWindowStart:  sub.WeeklyWindowStart,
-		MonthlyWindowStart: sub.MonthlyWindowStart,
-		DailyLimitUSD:      sub.DailyLimitUSD,
-		WeeklyLimitUSD:     sub.WeeklyLimitUSD,
-		MonthlyLimitUSD:    sub.MonthlyLimitUSD,
-		DailyUsageUSD:      sub.DailyUsageUSD,
-		WeeklyUsageUSD:     sub.WeeklyUsageUSD,
-		MonthlyUsageUSD:    sub.MonthlyUsageUSD,
-		CreatedAt:          sub.CreatedAt,
-		UpdatedAt:          sub.UpdatedAt,
-		RevokedAt:          sub.DeletedAt,
-		User:               UserFromServiceShallow(sub.User),
-		Plan:               SubscriptionPlanFromServiceShallow(sub.Plan),
-	}
+	return billinghttpapi.UserSubscriptionFromServiceAdmin(sub)
 }
 
 func BulkAssignResultFromService(r *service.BulkAssignResult) *BulkAssignResult {
-	if r == nil {
-		return nil
-	}
-	subs := make([]AdminUserSubscription, 0, len(r.Subscriptions))
-	for i := range r.Subscriptions {
-		subs = append(subs, *UserSubscriptionFromServiceAdmin(&r.Subscriptions[i]))
-	}
-	statuses := make(map[string]string, len(r.Statuses))
-	for userID, status := range r.Statuses {
-		statuses[strconv.FormatInt(userID, 10)] = status
-	}
-	return &BulkAssignResult{
-		SuccessCount:  r.SuccessCount,
-		CreatedCount:  r.CreatedCount,
-		ReusedCount:   r.ReusedCount,
-		FailedCount:   r.FailedCount,
-		Subscriptions: subs,
-		Errors:        r.Errors,
-		Statuses:      statuses,
-	}
+	return billinghttpapi.BulkAssignResultFromService(r)
 }
 
 func PromoCodeFromService(pc *service.PromoCode) *PromoCode {

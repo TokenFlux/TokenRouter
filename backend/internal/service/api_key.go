@@ -1,7 +1,7 @@
 package service
 
 import (
-	"strings"
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
@@ -42,18 +42,9 @@ func NormalizeAPIKeyFastModePolicy(value string) (string, bool) {
 	}
 }
 
-// NormalizeAPIKeyBillingMode 校验并规范化 API Key 结算模式。
-// 空值兼容旧客户端，按自动选择处理。
+// NormalizeAPIKeyBillingMode 委托唯一资金来源规则。
 func NormalizeAPIKeyBillingMode(value string) (string, bool) {
-	normalized := strings.ToLower(strings.TrimSpace(value))
-	switch normalized {
-	case "", APIKeyBillingModeAuto:
-		return APIKeyBillingModeAuto, true
-	case APIKeyBillingModeSubscription, APIKeyBillingModeBalance:
-		return normalized, true
-	default:
-		return "", false
-	}
+	return billing.NormalizeAPIKeyBillingMode(value)
 }
 
 // APIKeyEffectiveBillingMode 返回 Key 实际生效的结算模式。

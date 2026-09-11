@@ -42,16 +42,16 @@
 | --- | --- | --- |
 | 组合根 | `internal/app`、`app/bootstrap`、`app/lifecycle` | 配置投影、Wire 绑定、初始化、统一启停、失败回收和重启请求 |
 | 配置 | `internal/config` | 默认值、YAML/环境变量加载、归一化与启动校验 |
-| 已迁用例 | `internal/settings`、`idempotency`、`site` | 通用设置存取/通知、面板命令幂等、公告/已读/到期归档 |
+| 已迁用例 | `internal/settings`、`idempotency`、`site`、`billing` | 通用设置、面板幂等、公告及资金结算、订阅/套餐/兑换、额度与倍率 |
 | 旧业务图 | `internal/service`、`payment`、`repository` | 尚未迁移的业务规则、事务和适配实现；原 provider set 继续参与构造 |
 | 通用技术实现 | `internal/infra` | PostgreSQL/迁移、Redis/会话/限流/锁、HTTP 池、proxy/TLS、时间轮、日志/timing 和 AES |
-| HTTP 适配与服务器 | `internal/handler`、`site/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
+| HTTP 适配与服务器 | `internal/handler`、`site/httpapi`、`billing/httpapi`、`idempotency/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
 
 settings 的通用实现位于 `settings` 与 `settings/postgres`；旧 `SettingService` 继续解释业务设置和维护领域缓存。idempotency 的核心、观察出口与 SQL Adapter 已独立，旧默认入口只委托唯一实例。site 拥有公告实体、targeting、用例和到期 worker，HTTP 与 PostgreSQL Adapter 分开；旧 domain 公告类型只作为 Ent 生成代码引用的别名。
 
-`protocol` 拥有协议值、各方言报文和 `bridge` 转换状态；`routing/capability` 拥有原生集合、准入及单步 fallback，`routing` 拥有 effort 映射规则。`billing/pricing` 拥有价卡、目录解析、费用与展示计算，`billing/provider` 拥有目录加载、热更新及唯一运行缓存。旧 apicompat/domain/PricingService 保留必要转接；账号选择、平台传输、资金事务仍在旧业务图。纯模块不读取配置、网络、文件或业务实体。
+`protocol` 拥有协议值、各方言报文和 `bridge` 转换状态；`routing/capability` 拥有原生集合、准入及单步 fallback，`routing` 拥有 effort 映射规则。`billing/pricing` 拥有价卡、目录解析、费用与展示计算，`billing/provider` 拥有目录加载、热更新及唯一运行缓存。旧 apicompat/domain/PricingService 保留必要转接。billing 的 Calculator、PriceResolver 和资金分配规则接收显式投影；普通结算与任务资金由 Funds 进入 billing/postgres 的闭合事务，Redis 缓存位于 billing/rediscache。账号选择、平台传输、用量记录和支付订单编排仍在旧图，纯定价和协议不读取配置或 I/O。
 
-公告需要的用户与有效订阅信息通过 `app/legacybridge` 转成窄投影，匹配规则仍由 site 执行。模块不导入 app。旧图的跨层构造暂留原 provider，应用级启停和新旧模块绑定由 app 管理，不能通过搬动目录给新代码继承历史依赖许可。
+公告用户信息仍通过 `app/legacybridge` 转成窄投影；有效订阅由 app 直接适配新 billing 存取接口，匹配规则仍由 site 执行。模块不导入 app。旧图的跨层构造暂留原 provider，应用级启停和新旧模块绑定由 app 管理，不能通过搬动目录给新代码继承历史依赖许可。
 
 `pkg/apperror`、`pagination`、`timezone`、`ipmatch`、`oauthpkce`、`logredact` 提供通用值类型与计算；`server/httpx`、`server/clientip` 拥有 HTTP 适配。旧 pkg/util 入口保留必要的类型别名和委托，不复制实现或状态。
 
@@ -67,6 +67,8 @@ settings 的通用实现位于 `settings` 与 `settings/postgres`；旧 `Setting
 Wire 构造对象并登记资源后，lifecycle 才启动后台工作。时间轮和设置/定价预热先完成，再启动缓存订阅及消费队列，最后启动周期生产者、任务拉取和 HTTP。原有首次执行、预热降级、功能开关和动态 worker 数量保持各模块语义。构造或部分启动失败时回收已取得及已尝试启动的资源，错误链保留原始原因。
 
 定价 provider 由 `app/pricing.go` 投影独立 Options，继续走原 PricingInitialization 与 PricingService hook 的 Initialize → Start → Stop 顺序。旧远端 repository 客户端委托 provider；旧 PricingService 不再持有目录锁、ticker 或第二份缓存。平台模型别名和动态 Grok 默认值通过 `app/legacybridge` 注入，每次查价只取得一次快照。
+
+billing 的余额/Key 缓存队列、平台额度 flusher 和订阅过期提醒由 app 绑定到现有生命周期。提醒保留立即首轮、每分钟扫描和既有 Redis/数据库 leader 策略，停止时取消并等待在途操作。没有生产消费者的订阅维护队列不会因迁包自动启动。
 
 SIGINT、SIGTERM、监听失败和 Linux 手动重启进入同一关闭流程。HTTP 有独立五秒优雅关闭预算，随后后台清理使用独立三十秒总预算：先关闭额外监听、Live 本地观察与 hijack 连接，等待完整 handler 返回，再停止周期生产者和任务拉取，逐层排空用量、缓存写入、额度镜像、延迟写回、通知和审计，最后关闭订阅、时间轮、空闲 HTTP 连接、Redis、Ent/SQL 和日志文件。
 
@@ -104,6 +106,6 @@ Gin engine 的顺序为 Recovery、可信代理设置、全局日志/客户端�
 - 调度快照、认证缓存失效、限流、并发槽和许多 leader job 依赖 Redis 协调。修改 key 命名、TTL 或 Lua 原子操作等同于修改跨实例契约。
 - repository 缓存命中不能跳过必要的运行时资格检查；调度缓存未就绪或不可信时只能按对应服务定义的受控回源策略处理。
 - 初始化失败分硬失败和可降级失败。数据库、迁移、最终配置校验和 HTTP server 构造属于硬门槛；例如远程定价初始化失败会记录警告并使用本地回退。新增降级必须明确是否会放宽认证、计费或 SSRF 等安全边界。
-- 每个实例都会构造完整后台服务集合。需要单执行者的任务必须使用数据库/Redis 锁或幂等持久化，不能依赖“生产只有一个副本”的假设。
+- 每个实例都会构造完整后台服务集合；已有单执行者任务继续使用各自的数据库/Redis 锁。用户平台额度的管理、回源、累计与镜像写回采用共享进程内用户锁，当前修复边界是单服务进程，不提供多个实例之间的重置协调。
 
 相关入口：[项目总览](../project_overview.md)、[架构目录](index.md)、[运维目录](../operations/index.md)。

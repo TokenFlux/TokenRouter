@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "./internal/billing",
+    "-run",
+    "QuotaCoordinator|Flusher|BillingCache"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 2.592,
+  "log": "logs/billing-core-race.log.gz",
+  "test_events": {
+    "pass": 27,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

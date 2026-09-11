@@ -30,7 +30,7 @@ func (s *RedeemCacheSuite) TestGetRedeemAttemptCount_Missing() {
 
 func (s *RedeemCacheSuite) TestIncrementAndGetRedeemAttemptCount() {
 	userID := int64(1)
-	key := fmt.Sprintf("%s%d", redeemRateLimitKeyPrefix, userID)
+	key := fmt.Sprintf("%s%d", "redeem:ratelimit:", userID)
 
 	require.NoError(s.T(), s.cache.IncrementRedeemAttemptCount(s.ctx, userID), "IncrementRedeemAttemptCount")
 	count, err := s.cache.GetRedeemAttemptCount(s.ctx, userID)
@@ -39,7 +39,7 @@ func (s *RedeemCacheSuite) TestIncrementAndGetRedeemAttemptCount() {
 
 	ttl, err := s.rdb.TTL(s.ctx, key).Result()
 	require.NoError(s.T(), err, "TTL")
-	s.AssertTTLWithin(ttl, 1*time.Second, redeemRateLimitDuration)
+	s.AssertTTLWithin(ttl, 1*time.Second, (24 * time.Hour))
 }
 
 func (s *RedeemCacheSuite) TestMultipleIncrements() {
@@ -74,7 +74,7 @@ func (s *RedeemCacheSuite) TestAcquireAndReleaseRedeemLock() {
 }
 
 func (s *RedeemCacheSuite) TestAcquireRedeemLock_TTL() {
-	lockKey := redeemLockKeyPrefix + "CODE2"
+	lockKey := "redeem:lock:" + "CODE2"
 	lockTTL := 15 * time.Second
 
 	ok, err := s.cache.AcquireRedeemLock(s.ctx, "CODE2", lockTTL)

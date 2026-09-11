@@ -60,8 +60,7 @@ func TestMediaPricingCardsHaveSameGroupAndChannelSemantics(t *testing.T) {
 func TestAsyncImageUnitPricingUsesCardsAndPerImageFallback(t *testing.T) {
 	ctx := context.Background()
 	model := "gemini-3.1-flash-image"
-	billing := NewBillingService(nil, nil)
-	billing.pricingService = newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{model: {OutputCostPerToken: 0.000001, OutputCostPerImageToken: 0.000002, OutputCostPerImage: 0.2}}})
+	billing := NewBillingService(nil, newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{model: {OutputCostPerToken: 0.000001, OutputCostPerImageToken: 0.000002, OutputCostPerImage: 0.2}}}))
 	channel := ChannelModelPricing{Platform: PlatformGemini, Models: []string{model}, BillingMode: BillingModeImage, PerRequestPrice: testPtrFloat64(0.4), Intervals: []PricingInterval{{TierLabel: "512", PerRequestPrice: testPtrFloat64(0)}}}
 	resolver := newResolverWithBillingService(t, billing, []ChannelModelPricing{channel})
 	group := &Group{ID: 100, Platform: PlatformGemini}

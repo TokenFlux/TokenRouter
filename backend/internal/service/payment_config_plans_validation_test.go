@@ -103,7 +103,7 @@ func TestValidatePlanPatch_NegativeOriginalPrice(t *testing.T) {
 
 func TestValidatePlanPatch_ZeroOriginalPrice(t *testing.T) {
 	zero := 0.0
-	err := validatePlanPatch(UpdatePlanRequest{OriginalPrice: nullableFloat64Patch{present: true, value: &zero}})
+	err := validatePlanPatch(UpdatePlanRequest{OriginalPrice: nullableFloat64Patch{Present: true, Value: &zero}})
 	require.NoError(t, err)
 }
 
@@ -114,7 +114,7 @@ func TestValidatePlanPatch_ValidOriginalPrice(t *testing.T) {
 }
 
 func TestValidatePlanPatch_NilOriginalPrice(t *testing.T) {
-	err := validatePlanPatch(UpdatePlanRequest{OriginalPrice: nullableFloat64Patch{present: true}})
+	err := validatePlanPatch(UpdatePlanRequest{OriginalPrice: nullableFloat64Patch{Present: true}})
 	require.NoError(t, err)
 }
 
@@ -125,16 +125,16 @@ func ptrInt(i int) *int           { return &i }
 func ptrInt64(i int64) *int64     { return &i }
 func ptrFloat(f float64) *float64 { return &f }
 func nullablePatchFloat(f float64) nullableFloat64Patch {
-	return nullableFloat64Patch{present: true, value: &f}
+	return nullableFloat64Patch{Present: true, Value: &f}
 }
 
 func TestUpdatePlanRequest_UnmarshalNullablePatchFields(t *testing.T) {
 	var omitted UpdatePlanRequest
 	require.NoError(t, json.Unmarshal([]byte(`{"name":"Basic"}`), &omitted))
-	require.False(t, omitted.OriginalPrice.present)
-	require.False(t, omitted.DailyLimitUSD.present)
-	require.False(t, omitted.WeeklyLimitUSD.present)
-	require.False(t, omitted.MonthlyLimitUSD.present)
+	require.False(t, omitted.OriginalPrice.Present)
+	require.False(t, omitted.DailyLimitUSD.Present)
+	require.False(t, omitted.WeeklyLimitUSD.Present)
+	require.False(t, omitted.MonthlyLimitUSD.Present)
 
 	var patched UpdatePlanRequest
 	require.NoError(t, json.Unmarshal([]byte(`{
@@ -143,16 +143,16 @@ func TestUpdatePlanRequest_UnmarshalNullablePatchFields(t *testing.T) {
 		"weekly_limit_usd": 0,
 		"monthly_limit_usd": 12.5
 	}`), &patched))
-	require.True(t, patched.OriginalPrice.present)
-	require.Nil(t, patched.OriginalPrice.value)
-	require.True(t, patched.DailyLimitUSD.present)
-	require.Nil(t, patched.DailyLimitUSD.value)
-	require.True(t, patched.WeeklyLimitUSD.present)
-	require.NotNil(t, patched.WeeklyLimitUSD.value)
-	require.Equal(t, 0.0, *patched.WeeklyLimitUSD.value)
-	require.True(t, patched.MonthlyLimitUSD.present)
-	require.NotNil(t, patched.MonthlyLimitUSD.value)
-	require.Equal(t, 12.5, *patched.MonthlyLimitUSD.value)
+	require.True(t, patched.OriginalPrice.Present)
+	require.Nil(t, patched.OriginalPrice.Value)
+	require.True(t, patched.DailyLimitUSD.Present)
+	require.Nil(t, patched.DailyLimitUSD.Value)
+	require.True(t, patched.WeeklyLimitUSD.Present)
+	require.NotNil(t, patched.WeeklyLimitUSD.Value)
+	require.Equal(t, 0.0, *patched.WeeklyLimitUSD.Value)
+	require.True(t, patched.MonthlyLimitUSD.Present)
+	require.NotNil(t, patched.MonthlyLimitUSD.Value)
+	require.Equal(t, 12.5, *patched.MonthlyLimitUSD.Value)
 }
 
 func TestValidatePlanPatch_NegativeQuotaLimit(t *testing.T) {

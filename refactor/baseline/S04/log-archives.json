@@ -1,0 +1,809 @@
+{
+  "redaction": "仓库绝对路径、Bearer/JWT、常见凭据字段及 URL 凭据/查询令牌；保留命令、退出码、测试事件、诊断和镜像信息。",
+  "archives": [
+    {
+      "source": "admin-entitlement-contracts.log",
+      "archive": "logs/admin-entitlement-contracts.log.gz",
+      "redacted": false,
+      "sha256": "8908431894ab54abb6387110c37095ac46e1f4fd72d9396039e63a2ff95def97"
+    },
+    {
+      "source": "admin-redeem-build.log",
+      "archive": "logs/admin-redeem-build.log.gz",
+      "redacted": false,
+      "sha256": "77545997b23ecff6e5dec32a02049e9352ad872c5bb9d8da4e04cdcb9a012821"
+    },
+    {
+      "source": "allocation-real-transactions.log",
+      "archive": "logs/allocation-real-transactions.log.gz",
+      "redacted": false,
+      "sha256": "8816e6db6761df02e2cc7065e685f6dd1fb1d0b180bb26db8d4ea3e188b75d15"
+    },
+    {
+      "source": "allocation-rules-contracts.log",
+      "archive": "logs/allocation-rules-contracts.log.gz",
+      "redacted": true,
+      "sha256": "68cfa5450aeaf83394e077cc2dd853c8d52a7bb3a2ca8568997bd1613c7f15a3"
+    },
+    {
+      "source": "app-billing-build.log",
+      "archive": "logs/app-billing-build.log.gz",
+      "redacted": false,
+      "sha256": "e95a1694e7b0318a0b090cf5384f965cd2180279882c9bafdeec36753e48f30e"
+    },
+    {
+      "source": "balance-build.log",
+      "archive": "logs/balance-build.log.gz",
+      "redacted": false,
+      "sha256": "b922c558a07d3439d2d599b50d37cc403fcdea76b8756ae373321402d7be70d5"
+    },
+    {
+      "source": "balance-regression-fixed.log",
+      "archive": "logs/balance-regression-fixed.log.gz",
+      "redacted": false,
+      "sha256": "fd9cb5f3bf8687fae89931d9f181e2082480af8f9b8d26e4db04880d0fc90193"
+    },
+    {
+      "source": "balance-regression.log",
+      "archive": "logs/balance-regression.log.gz",
+      "redacted": false,
+      "sha256": "24e5f200daca24de0b0f6e22d1128398377609c948a4ed4442b3b84eebd13a75"
+    },
+    {
+      "source": "billing-account-stats-fixed.log",
+      "archive": "logs/billing-account-stats-fixed.log.gz",
+      "redacted": false,
+      "sha256": "611311841fb50ba9d08efcdfadd8563dafe7403ff1ae55bd145db2acd4bfe271"
+    },
+    {
+      "source": "billing-account-stats.log",
+      "archive": "logs/billing-account-stats.log.gz",
+      "redacted": false,
+      "sha256": "97eca9da76ba6ee094777af9c48b3c611e4cbbc09556688b0b4824823fff7fc7"
+    },
+    {
+      "source": "billing-cleanup-compile-fixed.log",
+      "archive": "logs/billing-cleanup-compile-fixed.log.gz",
+      "redacted": false,
+      "sha256": "3a57cb1004fe0e5ebf853ecf0911a2d3f8d86800a772b869bfb95369bf4303e5"
+    },
+    {
+      "source": "billing-cleanup-compile.log",
+      "archive": "logs/billing-cleanup-compile.log.gz",
+      "redacted": false,
+      "sha256": "3dd5547307e2fce445ffcdaba4a04cac1d006598eb01117fbee2543556e205fb"
+    },
+    {
+      "source": "billing-cleanup-tests.log",
+      "archive": "logs/billing-cleanup-tests.log.gz",
+      "redacted": false,
+      "sha256": "de6d797d586e0c6d0f687e4dd08fb2671587d375f59bbd3e3c9e593967288883"
+    },
+    {
+      "source": "billing-compile-all-fixed.log",
+      "archive": "logs/billing-compile-all-fixed.log.gz",
+      "redacted": false,
+      "sha256": "0207dc576e587eba7bf5054d302a0b8ac63ffb6a464bde229eba7158d53b1327"
+    },
+    {
+      "source": "billing-compile-all.log",
+      "archive": "logs/billing-compile-all.log.gz",
+      "redacted": false,
+      "sha256": "5077d38180d2009142d7bb1981e402e6032573bb6e162452d4699abd01adfa7a"
+    },
+    {
+      "source": "billing-core-race.log",
+      "archive": "logs/billing-core-race.log.gz",
+      "redacted": false,
+      "sha256": "d1981396f2e6ed92b16b5a944f3742fa0a9618e19b4399181dd1bf45efaa7cd1"
+    },
+    {
+      "source": "billing-lint-cleanup.log",
+      "archive": "logs/billing-lint-cleanup.log.gz",
+      "redacted": false,
+      "sha256": "f2d84d1fde34bd769464c65b4e3bcb82772de258f249f2416a64dc65e9e17461"
+    },
+    {
+      "source": "billing-lint-preflight.log",
+      "archive": "logs/billing-lint-preflight.log.gz",
+      "redacted": false,
+      "sha256": "b4f53b7c51ac977993423de4884f4d9bbb314d39ef2a02d953928761f9c208f1"
+    },
+    {
+      "source": "billing-normal-preflight.log",
+      "archive": "logs/billing-normal-preflight.log.gz",
+      "redacted": true,
+      "sha256": "e53468a0cbd5ea14fbcc5bf3876fb842891751681c6a514b38a42e5a92cafccd"
+    },
+    {
+      "source": "billing-runtime-wire.log",
+      "archive": "logs/billing-runtime-wire.log.gz",
+      "redacted": true,
+      "sha256": "7300113c34e468f2526c00d52eb386f6cecf62f3c01a400358b3074deb5b79f8"
+    },
+    {
+      "source": "billing-wire-fixed.log",
+      "archive": "logs/billing-wire-fixed.log.gz",
+      "redacted": true,
+      "sha256": "283a2e6d6e88d69c33561068fe168b5fd7f1e4fbde42f3ec13051da07d397796"
+    },
+    {
+      "source": "billing-wire.log",
+      "archive": "logs/billing-wire.log.gz",
+      "redacted": true,
+      "sha256": "850e0cf980690e6e43d3ae8847da22d245b06df478b4433637108fd472eb71fc"
+    },
+    {
+      "source": "cache-compile.log",
+      "archive": "logs/cache-compile.log.gz",
+      "redacted": false,
+      "sha256": "3f7896518d7fca29440bfbb0226f22b82696564a3d62f14abfb137e8e31ec16a"
+    },
+    {
+      "source": "calculator-build.log",
+      "archive": "logs/calculator-build.log.gz",
+      "redacted": false,
+      "sha256": "540eed0973bb7b3fc8ea7693ec322c18fee103d98a17a3f4ed91ae1c6046e6a4"
+    },
+    {
+      "source": "calculator-contracts-fixed.log",
+      "archive": "logs/calculator-contracts-fixed.log.gz",
+      "redacted": true,
+      "sha256": "4b73197a9fcd22509cdf14291c3e6668730ae2d1bbd8ed834843bba5f492ab07"
+    },
+    {
+      "source": "calculator-contracts.log",
+      "archive": "logs/calculator-contracts.log.gz",
+      "redacted": false,
+      "sha256": "ee0c724ef11b60088cbe9e62fc5bf2ed11e618ea92dd40ead7002272d08c1663"
+    },
+    {
+      "source": "core-contracts.log",
+      "archive": "logs/core-contracts.log.gz",
+      "redacted": false,
+      "sha256": "b5df7e6feb468892ed90c47d7bcbff711fe2b6cf51048238ad3eb88d75e4e234"
+    },
+    {
+      "source": "core-first.log",
+      "archive": "logs/core-first.log.gz",
+      "redacted": false,
+      "sha256": "f1c7308d14cfe8572c0c3a7059d44a5ae7e8a32ccc4e879decb6ec2821720774"
+    },
+    {
+      "source": "delivery-lint-integration.log",
+      "archive": "logs/delivery-lint-integration.log.gz",
+      "redacted": false,
+      "sha256": "78c737f12546731719905dd5bdff4aecae86c43e4df7b147752cfd6e933d9da7"
+    },
+    {
+      "source": "delivery-lint-normal.log",
+      "archive": "logs/delivery-lint-normal.log.gz",
+      "redacted": false,
+      "sha256": "c2a60fc42aea2024951e8d3d88f1d9e6bdc3f4f93e7110f95c849b712c448a0a"
+    },
+    {
+      "source": "delivery-lint-unit.log",
+      "archive": "logs/delivery-lint-unit.log.gz",
+      "redacted": false,
+      "sha256": "ebfd28fe5dfb3fa719eee608b84f09314f2a7adec9c6849973b21ccc3562d8f4"
+    },
+    {
+      "source": "eligibility-build-2.log",
+      "archive": "logs/eligibility-build-2.log.gz",
+      "redacted": false,
+      "sha256": "8c0b119b940f2226b9df7e118d80945d33f87f61e6c59d2a5a1fd916125559a3"
+    },
+    {
+      "source": "eligibility-build-3.log",
+      "archive": "logs/eligibility-build-3.log.gz",
+      "redacted": false,
+      "sha256": "29ff536c405b33e82df5a4342555c77e2c89d8a8fdc5d4645516a0b58fe424eb"
+    },
+    {
+      "source": "eligibility-build.log",
+      "archive": "logs/eligibility-build.log.gz",
+      "redacted": false,
+      "sha256": "026053c655aa4964a4aa96f481661caad8169564b92b5e9b42ec874e3fcd7cb1"
+    },
+    {
+      "source": "eligibility-contracts-fixed.log",
+      "archive": "logs/eligibility-contracts-fixed.log.gz",
+      "redacted": false,
+      "sha256": "0c2988d2a9877e5596e52c8e53c5c4a8fa170ae126b73600ccd840bffd75571b"
+    },
+    {
+      "source": "eligibility-contracts.log",
+      "archive": "logs/eligibility-contracts.log.gz",
+      "redacted": false,
+      "sha256": "7c06386f65ea9386a74acb2001cc35da3593d814b208c12d1cdeeaf56b75626a"
+    },
+    {
+      "source": "ent-store-build-2.log",
+      "archive": "logs/ent-store-build-2.log.gz",
+      "redacted": false,
+      "sha256": "66de6917e9ed018fb52d56983080fcf506b75c12dc91f1f2999ba3186b91b9c0"
+    },
+    {
+      "source": "ent-store-build-3.log",
+      "archive": "logs/ent-store-build-3.log.gz",
+      "redacted": false,
+      "sha256": "50a653062d21764c5f102d5680ec8cfd0664fd527148e80e3d7646b3f136cb03"
+    },
+    {
+      "source": "ent-store-build.log",
+      "archive": "logs/ent-store-build.log.gz",
+      "redacted": false,
+      "sha256": "6c34b854fa567d2a8fe5abd2356fbee7d233c94e32d43a1bf1b9e18dd49dd03b"
+    },
+    {
+      "source": "entities-contracts.log",
+      "archive": "logs/entities-contracts.log.gz",
+      "redacted": false,
+      "sha256": "1dc89c9a46955e43d21941054f32e4dfd940a9853fb27e9bdf50a3fd814a390a"
+    },
+    {
+      "source": "entitlement-concurrency-fixed.log",
+      "archive": "logs/entitlement-concurrency-fixed.log.gz",
+      "redacted": false,
+      "sha256": "7fd3f4487f7e847b696d3ddbcca84b7bdd3113aa89c4da13d62f99a62dab30d2"
+    },
+    {
+      "source": "entitlement-real-transactions-fixed.log",
+      "archive": "logs/entitlement-real-transactions-fixed.log.gz",
+      "redacted": false,
+      "sha256": "1ab10ec39b48fb97e1772236a40e7a6a748cb16d6a5119d5ff7c027c803f96b4"
+    },
+    {
+      "source": "entitlement-real-transactions.log",
+      "archive": "logs/entitlement-real-transactions.log.gz",
+      "redacted": true,
+      "sha256": "f369250f8c45a7f0a59d81629dfd63a247997fb43102fac397d5d2b487c30026"
+    },
+    {
+      "source": "entity-compile-2.log",
+      "archive": "logs/entity-compile-2.log.gz",
+      "redacted": false,
+      "sha256": "ea6c28068ce0c723e96f68977823138d3fde1b1777263bb553a390100333b03a"
+    },
+    {
+      "source": "entity-compile-3.log",
+      "archive": "logs/entity-compile-3.log.gz",
+      "redacted": false,
+      "sha256": "def56b2aad53abf92dbd8987c113c6ec19db0499164cc4b4b27fd3f8e3297f03"
+    },
+    {
+      "source": "entity-compile-4.log",
+      "archive": "logs/entity-compile-4.log.gz",
+      "redacted": false,
+      "sha256": "2d84007ce9a2091e4c805b4ef03bbf2c1d7f9386e04c18fd299dca235eb7817f"
+    },
+    {
+      "source": "entity-compile.log",
+      "archive": "logs/entity-compile.log.gz",
+      "redacted": false,
+      "sha256": "3f945fbd3cfd906b7d4b16c72c6b2ce81e24b105d8537252dbcf0b5ae509fa9b"
+    },
+    {
+      "source": "entity-first.log",
+      "archive": "logs/entity-first.log.gz",
+      "redacted": false,
+      "sha256": "25e92cd31c4cc5cd13af1bd9efd74f1fa66b09b2e5ce4d2f5a53f9e8930813bb"
+    },
+    {
+      "source": "expiry-contracts.log",
+      "archive": "logs/expiry-contracts.log.gz",
+      "redacted": false,
+      "sha256": "4cdb2cb8334553403d8ea67842481cddfe850d4d37fa0462037a31650fe7c743"
+    },
+    {
+      "source": "final-app-lint.log",
+      "archive": "logs/final-app-lint.log.gz",
+      "redacted": false,
+      "sha256": "c18406fad12c4f1013fdc855468f215673bada8dbb2172cdacd33cc564445339"
+    },
+    {
+      "source": "final-billing-http-json.log",
+      "archive": "logs/final-billing-http-json.log.gz",
+      "redacted": false,
+      "sha256": "ed2434858b43dd07fc51b1029c7a837e710c8db73737689ed7453a356ca57596"
+    },
+    {
+      "source": "final-build-embed.log",
+      "archive": "logs/final-build-embed.log.gz",
+      "redacted": false,
+      "sha256": "c9f84e760743c676122f7e7c1a67121ba456d345c77f21eeb18405f97a386b90"
+    },
+    {
+      "source": "final-build-frontend.log",
+      "archive": "logs/final-build-frontend.log.gz",
+      "redacted": true,
+      "sha256": "0c31b4883961ad48f3c835aa9503af65ca3a3ba2a2724d7f0eed28249e2f9af5"
+    },
+    {
+      "source": "final-build-linux.log",
+      "archive": "logs/final-build-linux.log.gz",
+      "redacted": false,
+      "sha256": "b927fdc16a4428a36056b9fdcda04297dbd5b7d4e22639b7496793f7f123204e"
+    },
+    {
+      "source": "final-build-maintenance.log",
+      "archive": "logs/final-build-maintenance.log.gz",
+      "redacted": false,
+      "sha256": "a3932e42db013acb47801ae1ebbb3c6e63475ccbff5d1af34fcb38b7962aeec7"
+    },
+    {
+      "source": "final-build.log",
+      "archive": "logs/final-build.log.gz",
+      "redacted": false,
+      "sha256": "e3a0eb4020d70b96e44d2ec0c466896509e1260e173df17bf4fffe33dbd358de"
+    },
+    {
+      "source": "final-compat-race.log",
+      "archive": "logs/final-compat-race.log.gz",
+      "redacted": false,
+      "sha256": "e6d360333690eae869cc91cbcc3f1ce5cd0a1ef6e2f833ad786aba13f250dea4"
+    },
+    {
+      "source": "final-core-race.log",
+      "archive": "logs/final-core-race.log.gz",
+      "redacted": false,
+      "sha256": "814e0bbbee9adddc519ad2e3b4f3fdbc7227b68209cfda407b7d88c12bf605fa"
+    },
+    {
+      "source": "final-lint-integration.log",
+      "archive": "logs/final-lint-integration.log.gz",
+      "redacted": false,
+      "sha256": "cebc5664f0c0d45488659c28e03f4093df4e976b7adbc686a0dcdb7f6cbd61e0"
+    },
+    {
+      "source": "final-lint-normal.log",
+      "archive": "logs/final-lint-normal.log.gz",
+      "redacted": false,
+      "sha256": "9a43b8b9aeada1e44beb5751eeee0763a3a414e7e98b509f5aebe552e39821ce"
+    },
+    {
+      "source": "final-lint-unit-clean.log",
+      "archive": "logs/final-lint-unit-clean.log.gz",
+      "redacted": false,
+      "sha256": "7db4af1a5e5dd3b67da09e8c2e43b9b97b96178357435b70f09bedc5e242e21d"
+    },
+    {
+      "source": "final-lint-unit-verified.log",
+      "archive": "logs/final-lint-unit-verified.log.gz",
+      "redacted": false,
+      "sha256": "5fdf80d45d4ad52601479a5535c9324a84150e62a9382ff9b7e4bd57ea5c4eae"
+    },
+    {
+      "source": "final-lint-unit.log",
+      "archive": "logs/final-lint-unit.log.gz",
+      "redacted": false,
+      "sha256": "357379fe1b9be790570ffb817b72d8f4b62662186c2a7d16761c5f25b060fb1b"
+    },
+    {
+      "source": "final-storage-race.log",
+      "archive": "logs/final-storage-race.log.gz",
+      "redacted": false,
+      "sha256": "67b58c1fb187990d6f00118cd24cfcf66e6a309b5138ff09210eab9dc7281692"
+    },
+    {
+      "source": "final-test-embed.log",
+      "archive": "logs/final-test-embed.log.gz",
+      "redacted": true,
+      "sha256": "d86f6619310b1e3ffa5640bcd42ab91323e678f646b5dbe1997be6e38fbdf65b"
+    },
+    {
+      "source": "final-test-frontend.log",
+      "archive": "logs/final-test-frontend.log.gz",
+      "redacted": true,
+      "sha256": "fe8abd3e454d6d4b507bfa507cf3b79a64341b926993b8f155434d24a41cfb76"
+    },
+    {
+      "source": "final-test-normal.log",
+      "archive": "logs/final-test-normal.log.gz",
+      "redacted": true,
+      "sha256": "60ae2e8d714e7028f5e100108bc0eafd4fc4739b720b4c23af9d2bb8e19f7966"
+    },
+    {
+      "source": "final-test-process.log",
+      "archive": "logs/final-test-process.log.gz",
+      "redacted": false,
+      "sha256": "d6c853d5cd2572e06dd3472b765b37fcf652d629f36af5b6121ae867ff964a29"
+    },
+    {
+      "source": "final-test-unit-serial.log",
+      "archive": "logs/final-test-unit-serial.log.gz",
+      "redacted": true,
+      "sha256": "bfcb34be541e3b516010d2681d5b56f41ff3e428ea845f9826c664202e359b8d"
+    },
+    {
+      "source": "final-test-unit.log",
+      "archive": "logs/final-test-unit.log.gz",
+      "redacted": true,
+      "sha256": "d02313a68119b85aa986f44c3725ad980516e386237ef4eec53552f0093ddab3"
+    },
+    {
+      "source": "final-wire-reproducible.log",
+      "archive": "logs/final-wire-reproducible.log.gz",
+      "redacted": true,
+      "sha256": "e551eaa2222b54fc002bd73a7701f7923a3089f45ee514a2dd508625ad68fc50"
+    },
+    {
+      "source": "final-wire.log",
+      "archive": "logs/final-wire.log.gz",
+      "redacted": true,
+      "sha256": "13e1b533709dc841f6adf9339047c9459a69e62f4fee42e8797b3035b6e14d38"
+    },
+    {
+      "source": "flusher-build.log",
+      "archive": "logs/flusher-build.log.gz",
+      "redacted": false,
+      "sha256": "020919eb5f6f38e71feff4cb97f5068cdcc151dc4decd5bc3adf364fcd8176dc"
+    },
+    {
+      "source": "funds-effects-contracts.log",
+      "archive": "logs/funds-effects-contracts.log.gz",
+      "redacted": false,
+      "sha256": "2c1c826e2db819cb72915776d61c54fca7dd27873bad30b767ceac936159118c"
+    },
+    {
+      "source": "gate-current.log",
+      "archive": "logs/gate-current.log.gz",
+      "redacted": false,
+      "sha256": "28812e6ddeb5290ac8bf05077ed3b73a13ee14583d510ec9daede4b6ffd843c7"
+    },
+    {
+      "source": "gate-negative-embed-darwin.log",
+      "archive": "logs/gate-negative-embed-darwin.log.gz",
+      "redacted": false,
+      "sha256": "6381613652a6922bdbce7a3ec0a344427d3415a3dd6739f9a34f2ee0487038b9"
+    },
+    {
+      "source": "gate-negative-integration-darwin.log",
+      "archive": "logs/gate-negative-integration-darwin.log.gz",
+      "redacted": false,
+      "sha256": "9ae3af0c638caee58ea10545ee18cc40cb134b1b00c2d4be834567a21ba69402"
+    },
+    {
+      "source": "gate-negative-normal-darwin.log",
+      "archive": "logs/gate-negative-normal-darwin.log.gz",
+      "redacted": false,
+      "sha256": "072c1ab5beee02a8f8d42f3a73de7952f1ce119e2d09c7daed39dec9ea707add"
+    },
+    {
+      "source": "gate-negative-normal-linux.log",
+      "archive": "logs/gate-negative-normal-linux.log.gz",
+      "redacted": false,
+      "sha256": "d11f2d3aeeb7c5bda502ba294a25959039a3057dffacdaea46c58dc766f42795"
+    },
+    {
+      "source": "gate-negative-unit-darwin.log",
+      "archive": "logs/gate-negative-unit-darwin.log.gz",
+      "redacted": false,
+      "sha256": "11b321b2d72446244ef7364314b9902be9535f08c58cf87e5847b3e21a87738c"
+    },
+    {
+      "source": "gate-negative-wireinject-darwin.log",
+      "archive": "logs/gate-negative-wireinject-darwin.log.gz",
+      "redacted": false,
+      "sha256": "c9b6457eddb1788daaf084dacf931e95c50477302748e2259e8fdcdae26a2767"
+    },
+    {
+      "source": "gate-positive-embed-darwin.log",
+      "archive": "logs/gate-positive-embed-darwin.log.gz",
+      "redacted": false,
+      "sha256": "39566b1d010e61e7980c6364e1b4690c474703fa322fafea3526666e18dd1fc6"
+    },
+    {
+      "source": "gate-positive-integration-darwin.log",
+      "archive": "logs/gate-positive-integration-darwin.log.gz",
+      "redacted": false,
+      "sha256": "c0920c73a4acecea65095ee3d6404fdd127c8a619d127a39fd10892230be6378"
+    },
+    {
+      "source": "gate-positive-normal-darwin.log",
+      "archive": "logs/gate-positive-normal-darwin.log.gz",
+      "redacted": false,
+      "sha256": "a97d10ca188e72bd5b5d047b865b632213cd08c0a6be6faf55e82e2da260d7fe"
+    },
+    {
+      "source": "gate-positive-normal-linux.log",
+      "archive": "logs/gate-positive-normal-linux.log.gz",
+      "redacted": false,
+      "sha256": "eeb3b3bb37a8880f32f7d7d0caf8f648d813ee11543c8675981a5f00d7a424f6"
+    },
+    {
+      "source": "gate-positive-unit-darwin.log",
+      "archive": "logs/gate-positive-unit-darwin.log.gz",
+      "redacted": false,
+      "sha256": "bc7dc157567cc2fa138d85d3f7a090ded2c91355b37b85694183e1c02494e590"
+    },
+    {
+      "source": "gate-positive-wireinject-darwin.log",
+      "archive": "logs/gate-positive-wireinject-darwin.log.gz",
+      "redacted": false,
+      "sha256": "7cdb1a3305e46b0a424d57e3a96d4d75ba58e7f5c5fb75ddc1086d28e4235a84"
+    },
+    {
+      "source": "gate-updated-unit.log",
+      "archive": "logs/gate-updated-unit.log.gz",
+      "redacted": false,
+      "sha256": "d33ec413ef8bee11834fd47aed2d16d206746c963d2563bcfd2c3c9dabbb372b"
+    },
+    {
+      "source": "http-idempotency-contracts.log",
+      "archive": "logs/http-idempotency-contracts.log.gz",
+      "redacted": false,
+      "sha256": "f593d0fa531e5b8627cb92ed89bd2a9f61a89eaf646061c3e5cb23dc75ff6a2a"
+    },
+    {
+      "source": "initial-billing-lint.log",
+      "archive": "logs/initial-billing-lint.log.gz",
+      "redacted": false,
+      "sha256": "5d22e06d891a55ae1e2cb45b625a776875ea9b69213a838d88b24453f14e4dd3"
+    },
+    {
+      "source": "original-defects.log",
+      "archive": "logs/original-defects.log.gz",
+      "redacted": true,
+      "sha256": "0fcc76efc1f4a5a359195882ebe7d0582afe1845d48215e4d25795addccad997"
+    },
+    {
+      "source": "original-quota-after-reset.log",
+      "archive": "logs/original-quota-after-reset.log.gz",
+      "redacted": false,
+      "sha256": "274156074c821ae019f815c27755429cec07cc22ed3ef7ce7b3b2ece4daae41f"
+    },
+    {
+      "source": "original-subscription-concurrency.log",
+      "archive": "logs/original-subscription-concurrency.log.gz",
+      "redacted": false,
+      "sha256": "cd81d8f9eb10d32283462c64cc70903624953429741b38318062fe5d2f8980b7"
+    },
+    {
+      "source": "original-validity-fixture-setup.log",
+      "archive": "logs/original-validity-fixture-setup.log.gz",
+      "redacted": false,
+      "sha256": "4f5ec29730946fec27c4f8c34cf8a664dc1e61790f85df7751e302316a9a679f"
+    },
+    {
+      "source": "original-validity.log",
+      "archive": "logs/original-validity.log.gz",
+      "redacted": false,
+      "sha256": "1ceae9fe8caa26e175e49550c57b2fda8a08a8474e44b293f36692f9aac06670"
+    },
+    {
+      "source": "plan-contracts-fixed.log",
+      "archive": "logs/plan-contracts-fixed.log.gz",
+      "redacted": false,
+      "sha256": "d7e80e3c74664ce64b026eae52c5f9c8f3ec32a76c5886789f6300736666d3ba"
+    },
+    {
+      "source": "plan-contracts.log",
+      "archive": "logs/plan-contracts.log.gz",
+      "redacted": false,
+      "sha256": "01308780cf399e88b825405240bad01465719e53d340582fd4411c15ad3a0ec4"
+    },
+    {
+      "source": "plans-build.log",
+      "archive": "logs/plans-build.log.gz",
+      "redacted": false,
+      "sha256": "a5453e51cd64fc61ee7d3994f8061e8ccc07dcaf294030565e5e547f3653754b"
+    },
+    {
+      "source": "plans-wire.log",
+      "archive": "logs/plans-wire.log.gz",
+      "redacted": true,
+      "sha256": "4acc99b4b1c6dda6395e0781621d580a14c0c7d8baddd7627e65c43347f77e7e"
+    },
+    {
+      "source": "quota-after-reset-fixed.log",
+      "archive": "logs/quota-after-reset-fixed.log.gz",
+      "redacted": false,
+      "sha256": "397cc1487b2db2dc720a9086923102851808c64b18e01b715ed8a249dec07f24"
+    },
+    {
+      "source": "quota-coordination-expanded.log",
+      "archive": "logs/quota-coordination-expanded.log.gz",
+      "redacted": false,
+      "sha256": "9b0edc9d831854435b1470416d093ac2980c400c77ad9d285cbfd7ff4d60b46d"
+    },
+    {
+      "source": "quota-coordination-tests.log",
+      "archive": "logs/quota-coordination-tests.log.gz",
+      "redacted": false,
+      "sha256": "5893be149bf226a6a12e2755958d320ed04befd67ae626852d09219843504302"
+    },
+    {
+      "source": "quota-http-unit-fixed.log",
+      "archive": "logs/quota-http-unit-fixed.log.gz",
+      "redacted": false,
+      "sha256": "c2db5d80d62876affe85367f416df927d7c315597a9839cf33ae36b358be4ff7"
+    },
+    {
+      "source": "quota-http-unit.log",
+      "archive": "logs/quota-http-unit.log.gz",
+      "redacted": false,
+      "sha256": "71347165fa192ab22028709ba1c37ecceb37528ebf43a1d2fafd0ec16809edb9"
+    },
+    {
+      "source": "quota-http-wire.log",
+      "archive": "logs/quota-http-wire.log.gz",
+      "redacted": true,
+      "sha256": "4535f2f27230a9bdf2973012dc3d6451358871114d93c6baeadcec79815c27c6"
+    },
+    {
+      "source": "quota-real-coordination.log",
+      "archive": "logs/quota-real-coordination.log.gz",
+      "redacted": false,
+      "sha256": "1afdefba2bec68cadef561bf0ebc97f04ce22f92b1fc737cc7dc739235f060dd"
+    },
+    {
+      "source": "redeem-build.log",
+      "archive": "logs/redeem-build.log.gz",
+      "redacted": false,
+      "sha256": "35d807fbdce345e58f8f5c390ec867b1a7d782054af31686d221656f816427e9"
+    },
+    {
+      "source": "redeem-contracts-fixed.log",
+      "archive": "logs/redeem-contracts-fixed.log.gz",
+      "redacted": false,
+      "sha256": "4dab9a2bf94a27d806181f7b397c6cd78a36914bf3a3d7178e08e3c5e75c5c18"
+    },
+    {
+      "source": "redeem-contracts.log",
+      "archive": "logs/redeem-contracts.log.gz",
+      "redacted": false,
+      "sha256": "6cdf5f3a9f06451345b7a6944871763e9e8689c443e852be6f44620fcf2892b3"
+    },
+    {
+      "source": "redeem-http-wire.log",
+      "archive": "logs/redeem-http-wire.log.gz",
+      "redacted": true,
+      "sha256": "dd0dc6b4e0c1c0320a87b079813ad46aa35450fddc6da0b6e090e7a366938d11"
+    },
+    {
+      "source": "redeem-wire.log",
+      "archive": "logs/redeem-wire.log.gz",
+      "redacted": true,
+      "sha256": "2dc22079804ee5104a6e7c711ae0b0042b6957e7817cf44e470c866d98d9e9e6"
+    },
+    {
+      "source": "runtime-wire.log",
+      "archive": "logs/runtime-wire.log.gz",
+      "redacted": true,
+      "sha256": "846d960f8f0757ec58eb9df83f8395de84e5d81c8acbf581dfc0bbd69226424d"
+    },
+    {
+      "source": "settlement-build-2.log",
+      "archive": "logs/settlement-build-2.log.gz",
+      "redacted": false,
+      "sha256": "1967892405512840a615c3fefe5194a758e3a8688bf648440bb04568f3a75dd0"
+    },
+    {
+      "source": "settlement-build.log",
+      "archive": "logs/settlement-build.log.gz",
+      "redacted": false,
+      "sha256": "7c6fcb69eee973d06f76b039f63bccb554fbe7f1bfa6e6d9b5d99b988d533b7e"
+    },
+    {
+      "source": "settlement-compile.log",
+      "archive": "logs/settlement-compile.log.gz",
+      "redacted": false,
+      "sha256": "d2b67eda9e5261ef173d620d08548da6fd6190711fcbd6d1d7bf9054cd1056c0"
+    },
+    {
+      "source": "settlement-core-tests.log",
+      "archive": "logs/settlement-core-tests.log.gz",
+      "redacted": false,
+      "sha256": "b6c6f17582f2f4fcd4f2b5ae503309da574497a33a71c7561cb6316fc30b1474"
+    },
+    {
+      "source": "settlement-integration.log",
+      "archive": "logs/settlement-integration.log.gz",
+      "redacted": false,
+      "sha256": "26d6a3a7ad02ba1907f14326c9e5f8bdf918c1590250b55c3afc47adbf8bc9eb"
+    },
+    {
+      "source": "settlement-unit-fixed.log",
+      "archive": "logs/settlement-unit-fixed.log.gz",
+      "redacted": false,
+      "sha256": "fa11aca4b4236064d6a26531f38ca086fddd8ebc829920fea4306a75b40360b7"
+    },
+    {
+      "source": "settlement-unit.log",
+      "archive": "logs/settlement-unit.log.gz",
+      "redacted": false,
+      "sha256": "e22a991aaf38677b17d790c0393470e1cca9d0ba3aac82399d543a32fe3a82e1"
+    },
+    {
+      "source": "stores-compile.log",
+      "archive": "logs/stores-compile.log.gz",
+      "redacted": false,
+      "sha256": "2a388b9b8fe5e39f8d31167223b61020935954e18bcc44867d775b6a04cd8a8d"
+    },
+    {
+      "source": "stores-unit-compile.log",
+      "archive": "logs/stores-unit-compile.log.gz",
+      "redacted": false,
+      "sha256": "0607f6776288a9a07087cb51d9e491195cab396feb3edbd237f442c53074a130"
+    },
+    {
+      "source": "subscription-build-2.log",
+      "archive": "logs/subscription-build-2.log.gz",
+      "redacted": false,
+      "sha256": "68bfcfd2d15d1e323f48d5928ebbda1c471d70ff92ab087404e402bc3a12b155"
+    },
+    {
+      "source": "subscription-build-3.log",
+      "archive": "logs/subscription-build-3.log.gz",
+      "redacted": false,
+      "sha256": "b848a6cb57036f8b25a731229b147bd79374b439d93f1058660f4ab351e5027f"
+    },
+    {
+      "source": "subscription-caller-unit-fixed.log",
+      "archive": "logs/subscription-caller-unit-fixed.log.gz",
+      "redacted": false,
+      "sha256": "838e922a00197d53e43358105f717d6df37346d199b9ac2f41c0b4cdd9017b01"
+    },
+    {
+      "source": "subscription-caller-unit.log",
+      "archive": "logs/subscription-caller-unit.log.gz",
+      "redacted": true,
+      "sha256": "0cdc54d9b9ade9e38f9cb7b984f13471d656ef61c6b235a6cf68df8a927053aa"
+    },
+    {
+      "source": "subscription-contracts-fixed.log",
+      "archive": "logs/subscription-contracts-fixed.log.gz",
+      "redacted": false,
+      "sha256": "d665ce54640c0ca50ebb747216b725f3f6412dcadeb8fc7d796ec40ee9656a52"
+    },
+    {
+      "source": "subscription-contracts.log",
+      "archive": "logs/subscription-contracts.log.gz",
+      "redacted": false,
+      "sha256": "04922870d9fcd4e0d81d431df19c53c9c6265cf292f98076339a05d9808b499f"
+    },
+    {
+      "source": "subscription-http-build-2.log",
+      "archive": "logs/subscription-http-build-2.log.gz",
+      "redacted": false,
+      "sha256": "9dcb49d05ee65976bcd9821180be22e89c53e7bf536d0e1d4a9079269d75370b"
+    },
+    {
+      "source": "subscription-http-build.log",
+      "archive": "logs/subscription-http-build.log.gz",
+      "redacted": false,
+      "sha256": "5d24086baf2d0e4fe5c0fad8dab975613cc77efb66da4fc35e0da81cf83b105c"
+    },
+    {
+      "source": "subscription-http-wire.log",
+      "archive": "logs/subscription-http-wire.log.gz",
+      "redacted": true,
+      "sha256": "e29664ae1fc48e4edba9986a693766bc06faa29e956e3e4a08fc660b2b5e4b69"
+    },
+    {
+      "source": "subscriptions-build.log",
+      "archive": "logs/subscriptions-build.log.gz",
+      "redacted": false,
+      "sha256": "39fd554710c047e13f821baa092a2a9e9ea6830686bb48a355862ad692914419"
+    },
+    {
+      "source": "validation-integration.log",
+      "archive": "logs/validation-integration.log.gz",
+      "redacted": true,
+      "sha256": "07fd48bcee8ad1958ca4697aa704c997fbef49fa2c1f8873ef34ecab42f5432e"
+    },
+    {
+      "source": "validation-lint-normal.log",
+      "archive": "logs/validation-lint-normal.log.gz",
+      "redacted": false,
+      "sha256": "8cf0be7a3011b61b5d34c288eedda5297e8d1dec991ca522a541b5aca167ffef"
+    },
+    {
+      "source": "validation-unit.log",
+      "archive": "logs/validation-unit.log.gz",
+      "redacted": true,
+      "sha256": "f86148aac3314b4b045214f9bfb2fad009b179c19e5b66c69cd408759416d397"
+    }
+  ]
+}

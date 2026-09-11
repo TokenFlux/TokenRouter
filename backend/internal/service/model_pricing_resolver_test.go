@@ -12,9 +12,7 @@ import (
 )
 
 func newTestBillingServiceForResolver() *BillingService {
-	bs := &BillingService{
-		fallbackPrices: make(map[string]*ModelPricing),
-	}
+	bs := newBillingServiceWithPrices(nil, nil, make(map[string]*ModelPricing))
 	bs.fallbackPrices["claude-sonnet-4"] = &ModelPricing{
 		InputPricePerToken:         3e-6,
 		OutputPricePerToken:        15e-6,
@@ -116,7 +114,7 @@ func TestGetIntervalPricing_NoMatch_FallsBackToBase(t *testing.T) {
 }
 
 func TestGPT56ExplicitZeroCacheWritePriceIsPreserved(t *testing.T) {
-	bs := &BillingService{}
+	bs := newBillingServiceWithPrices(nil, nil, map[string]*ModelPricing{})
 	resolver := NewModelPricingResolver(nil, bs)
 	zero := 0.0
 

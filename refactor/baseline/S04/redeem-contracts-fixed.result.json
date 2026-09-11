@@ -1,0 +1,26 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/billing/...",
+    "./internal/service",
+    "./internal/repository",
+    "-run",
+    "Redeem|Subscription|Payment.*(Fulfill|Refund)|BillingCache|QuotaCoordinator"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 12.439,
+  "log": "logs/redeem-contracts-fixed.log.gz",
+  "test_events": {
+    "pass": 247,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

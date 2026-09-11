@@ -1,0 +1,25 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "-run",
+    "TestBillingCache|TestGatewayService_GetUserGroupRate|TestOpenAIGateway.*GroupRate|TestUserGroupRate"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 72.29,
+  "log": "logs/final-compat-race.log.gz",
+  "test_events": {
+    "pass": 15,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

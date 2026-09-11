@@ -1,6 +1,10 @@
 package app
 
 import (
+	"context"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"log/slog"
 	"slices"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
@@ -29,4 +33,16 @@ func providePricingService(cfg *config.Config, remote provider.PricingRemoteClie
 		IsImageModel:             legacybridge.PricingImageModel,
 	}
 	return service.WrapPricingService(provider.NewPricingService(options, remote)), nil
+}
+
+// provideBillingCalculator 用显式配置投影构造唯一计费实例。
+func provideBillingCalculator(cfg *config.Config, catalog *service.PricingService) *service.BillingService {
+	warnings := &provider.PricingWarnings{}
+	return service.WrapBillingCalculator(billing.NewCalculator(legacybridge.BillingCatalog{Service: catalog}, billing.CalculatorOptions{DefaultRateMultiplier: cfg.Default.RateMultiplier, ModelPolicy: legacybridge.BillingModelPolicy, Now: timezone.Now, LoadLocation: provider.LoadPricingLocation, FallbackWarning: warnings.Fallback}))
+}
+func provideBillingPriceResolver(channels *service.ChannelService, calculator *service.BillingService) *service.ModelPricingResolver {
+	core := billing.NewPriceResolver(legacybridge.BillingChannelPrices{Service: channels}, calculator.Calculator, legacybridge.BillingModelIdentity, func(model string, err error) {
+		slog.DebugContext(context.Background(), "failed to get model pricing from LiteLLM, using fallback", "model", model, "error", err)
+	}, legacybridge.BillingAccountStats{Service: channels})
+	return service.WrapPriceResolver(core, calculator, channels)
 }

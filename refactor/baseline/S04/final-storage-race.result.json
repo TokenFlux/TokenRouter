@@ -1,0 +1,25 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "TestS04|TestUsageBillingRepository|TestRedeemCacheSuite|TestBillingCache"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 69.97,
+  "log": "logs/final-storage-race.log.gz",
+  "test_events": {
+    "pass": 67,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

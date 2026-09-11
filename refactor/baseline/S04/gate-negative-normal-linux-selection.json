@@ -1,0 +1,1020 @@
+[
+  {
+    "Dir": "/private<fixture>/internal/app",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/app",
+    "Name": "app",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+    "GoFiles": [
+      "billing.go",
+      "moved_billing.go",
+      "new_same_dir.go"
+    ],
+    "IgnoredGoFiles": [
+      "wire.go",
+      "wire_extra.go"
+    ],
+    "Imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing",
+      "github.com/TokenFlux/TokenRouter/internal/service",
+      "github.com/TokenFlux/TokenRouter/internal/service/rogue"
+    ],
+    "Deps": [
+      "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+      "github.com/TokenFlux/TokenRouter/internal/billing",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/billing/rediscache/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/config",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+      "github.com/TokenFlux/TokenRouter/internal/repository",
+      "github.com/TokenFlux/TokenRouter/internal/service",
+      "github.com/TokenFlux/TokenRouter/internal/service/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "TestGoFiles": [
+      "billing_http_contract_test.go",
+      "new_http_contract_test.go"
+    ],
+    "TestImports": [
+      "github.com/TokenFlux/TokenRouter/internal/service",
+      "github.com/gin-gonic/gin"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/app/legacybridge",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/app/legacybridge",
+    "Name": "legacybridge",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+    "GoFiles": [
+      "billing.go",
+      "new_same_dir.go"
+    ],
+    "Imports": [
+      "github.com/TokenFlux/TokenRouter/ent",
+      "github.com/TokenFlux/TokenRouter/internal/billing",
+      "github.com/TokenFlux/TokenRouter/internal/repository",
+      "github.com/TokenFlux/TokenRouter/internal/service"
+    ],
+    "Deps": [
+      "github.com/TokenFlux/TokenRouter/ent",
+      "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+      "github.com/TokenFlux/TokenRouter/internal/billing",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/billing/rediscache/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/config",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+      "github.com/TokenFlux/TokenRouter/internal/repository",
+      "github.com/TokenFlux/TokenRouter/internal/service",
+      "github.com/TokenFlux/TokenRouter/internal/service/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/app/lifecycle",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+    "Name": "lifecycle",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/billing",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/billing",
+    "Name": "billing",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+    "GoFiles": [
+      "adapter_child.go",
+      "illegal_child.go",
+      "legal.go",
+      "moved_expiry.go",
+      "new_same_dir.go",
+      "probe_linux.go",
+      "reverse_app.go",
+      "stub.go",
+      "subscription_expiry.go",
+      "violation.go"
+    ],
+    "IgnoredGoFiles": [
+      "probe_darwin.go",
+      "probe_embed.go",
+      "probe_integration.go",
+      "probe_unit.go"
+    ],
+    "Imports": [
+      "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/billing/rediscache/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/config",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+      "github.com/TokenFlux/TokenRouter/internal/service/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ],
+    "Deps": [
+      "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/billing/rediscache/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/config",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+      "github.com/TokenFlux/TokenRouter/internal/service/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/billing/httpapi",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/billing/httpapi",
+    "Name": "httpapi",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+    "GoFiles": [
+      "legal.go",
+      "repository_violation.go"
+    ],
+    "Imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing",
+      "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi",
+      "github.com/TokenFlux/TokenRouter/internal/repository",
+      "github.com/TokenFlux/TokenRouter/internal/server/middleware"
+    ],
+    "Deps": [
+      "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+      "github.com/TokenFlux/TokenRouter/internal/billing",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/billing/rediscache/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/config",
+      "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+      "github.com/TokenFlux/TokenRouter/internal/repository",
+      "github.com/TokenFlux/TokenRouter/internal/server/middleware",
+      "github.com/TokenFlux/TokenRouter/internal/service/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/billing/postgres",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/billing/postgres",
+    "Name": "postgres",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+    "GoFiles": [
+      "legal.go"
+    ],
+    "Imports": [
+      "database/sql",
+      "github.com/TokenFlux/TokenRouter/internal/billing",
+      "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
+    ],
+    "Deps": [
+      "bytes",
+      "cmp",
+      "context",
+      "crypto",
+      "crypto/cipher",
+      "crypto/fips140",
+      "crypto/internal/boring",
+      "crypto/internal/boring/sig",
+      "crypto/internal/constanttime",
+      "crypto/internal/entropy/v1.0.0",
+      "crypto/internal/fips140",
+      "crypto/internal/fips140/aes",
+      "crypto/internal/fips140/aes/gcm",
+      "crypto/internal/fips140/alias",
+      "crypto/internal/fips140/check",
+      "crypto/internal/fips140/drbg",
+      "crypto/internal/fips140/hmac",
+      "crypto/internal/fips140/sha256",
+      "crypto/internal/fips140/sha3",
+      "crypto/internal/fips140/sha512",
+      "crypto/internal/fips140/subtle",
+      "crypto/internal/fips140deps/byteorder",
+      "crypto/internal/fips140deps/cpu",
+      "crypto/internal/fips140deps/godebug",
+      "crypto/internal/fips140deps/time",
+      "crypto/internal/fips140only",
+      "crypto/internal/impl",
+      "crypto/internal/rand",
+      "crypto/internal/randutil",
+      "crypto/internal/sysrand",
+      "crypto/rand",
+      "crypto/subtle",
+      "database/sql",
+      "database/sql/driver",
+      "database/sql/internal",
+      "encoding/binary",
+      "encoding/hex",
+      "errors",
+      "fmt",
+      "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+      "github.com/TokenFlux/TokenRouter/internal/billing",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/billing/rediscache/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/config",
+      "github.com/TokenFlux/TokenRouter/internal/infra/postgres",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+      "github.com/TokenFlux/TokenRouter/internal/service/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/settings",
+      "hash",
+      "internal/abi",
+      "internal/asan",
+      "internal/bisect",
+      "internal/bytealg",
+      "internal/byteorder",
+      "internal/chacha8rand",
+      "internal/coverage/rtcov",
+      "internal/cpu",
+      "internal/filepathlite",
+      "internal/fmtsort",
+      "internal/goarch",
+      "internal/godebug",
+      "internal/godebugs",
+      "internal/goexperiment",
+      "internal/goos",
+      "internal/msan",
+      "internal/oserror",
+      "internal/poll",
+      "internal/profilerecord",
+      "internal/race",
+      "internal/reflectlite",
+      "internal/runtime/atomic",
+      "internal/runtime/cgroup",
+      "internal/runtime/exithook",
+      "internal/runtime/gc",
+      "internal/runtime/gc/scan",
+      "internal/runtime/maps",
+      "internal/runtime/math",
+      "internal/runtime/pprof/label",
+      "internal/runtime/sys",
+      "internal/runtime/syscall/linux",
+      "internal/strconv",
+      "internal/stringslite",
+      "internal/sync",
+      "internal/synctest",
+      "internal/syscall/execenv",
+      "internal/syscall/unix",
+      "internal/testlog",
+      "internal/trace/tracev2",
+      "internal/unsafeheader",
+      "io",
+      "io/fs",
+      "iter",
+      "maps",
+      "math",
+      "math/big",
+      "math/bits",
+      "math/rand",
+      "math/rand/v2",
+      "os",
+      "path",
+      "reflect",
+      "runtime",
+      "slices",
+      "strconv",
+      "strings",
+      "sync",
+      "sync/atomic",
+      "syscall",
+      "time",
+      "unicode",
+      "unicode/utf8",
+      "unsafe",
+      "uuid"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/billing/pricing",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/billing/pricing",
+    "Name": "pricing",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/billing/pricing/rogue",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/billing/pricing/rogue",
+    "Name": "rogue",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/billing/rediscache",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/billing/rediscache",
+    "Name": "rediscache",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+    "GoFiles": [
+      "legal.go",
+      "sql_violation.go"
+    ],
+    "Imports": [
+      "database/sql",
+      "github.com/TokenFlux/TokenRouter/internal/billing"
+    ],
+    "Deps": [
+      "bytes",
+      "cmp",
+      "context",
+      "crypto",
+      "crypto/cipher",
+      "crypto/fips140",
+      "crypto/internal/boring",
+      "crypto/internal/boring/sig",
+      "crypto/internal/constanttime",
+      "crypto/internal/entropy/v1.0.0",
+      "crypto/internal/fips140",
+      "crypto/internal/fips140/aes",
+      "crypto/internal/fips140/aes/gcm",
+      "crypto/internal/fips140/alias",
+      "crypto/internal/fips140/check",
+      "crypto/internal/fips140/drbg",
+      "crypto/internal/fips140/hmac",
+      "crypto/internal/fips140/sha256",
+      "crypto/internal/fips140/sha3",
+      "crypto/internal/fips140/sha512",
+      "crypto/internal/fips140/subtle",
+      "crypto/internal/fips140deps/byteorder",
+      "crypto/internal/fips140deps/cpu",
+      "crypto/internal/fips140deps/godebug",
+      "crypto/internal/fips140deps/time",
+      "crypto/internal/fips140only",
+      "crypto/internal/impl",
+      "crypto/internal/rand",
+      "crypto/internal/randutil",
+      "crypto/internal/sysrand",
+      "crypto/rand",
+      "crypto/subtle",
+      "database/sql",
+      "database/sql/driver",
+      "database/sql/internal",
+      "encoding/binary",
+      "encoding/hex",
+      "errors",
+      "fmt",
+      "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+      "github.com/TokenFlux/TokenRouter/internal/billing",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/billing/rediscache/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/config",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+      "github.com/TokenFlux/TokenRouter/internal/service/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/settings",
+      "hash",
+      "internal/abi",
+      "internal/asan",
+      "internal/bisect",
+      "internal/bytealg",
+      "internal/byteorder",
+      "internal/chacha8rand",
+      "internal/coverage/rtcov",
+      "internal/cpu",
+      "internal/filepathlite",
+      "internal/fmtsort",
+      "internal/goarch",
+      "internal/godebug",
+      "internal/godebugs",
+      "internal/goexperiment",
+      "internal/goos",
+      "internal/msan",
+      "internal/oserror",
+      "internal/poll",
+      "internal/profilerecord",
+      "internal/race",
+      "internal/reflectlite",
+      "internal/runtime/atomic",
+      "internal/runtime/cgroup",
+      "internal/runtime/exithook",
+      "internal/runtime/gc",
+      "internal/runtime/gc/scan",
+      "internal/runtime/maps",
+      "internal/runtime/math",
+      "internal/runtime/pprof/label",
+      "internal/runtime/sys",
+      "internal/runtime/syscall/linux",
+      "internal/strconv",
+      "internal/stringslite",
+      "internal/sync",
+      "internal/synctest",
+      "internal/syscall/execenv",
+      "internal/syscall/unix",
+      "internal/testlog",
+      "internal/trace/tracev2",
+      "internal/unsafeheader",
+      "io",
+      "io/fs",
+      "iter",
+      "maps",
+      "math",
+      "math/big",
+      "math/bits",
+      "math/rand",
+      "math/rand/v2",
+      "os",
+      "path",
+      "reflect",
+      "runtime",
+      "slices",
+      "strconv",
+      "strings",
+      "sync",
+      "sync/atomic",
+      "syscall",
+      "time",
+      "unicode",
+      "unicode/utf8",
+      "unsafe",
+      "uuid"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/billing/rediscache/rogue",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/billing/rediscache/rogue",
+    "Name": "rogue",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/config",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/config",
+    "Name": "config",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/idempotency",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/idempotency",
+    "Name": "idempotency",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/idempotency/httpapi",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi",
+    "Name": "httpapi",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/infra/postgres",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/infra/postgres",
+    "Name": "postgres",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/infra/telemetry/logging",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging",
+    "Name": "logging",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/pkg/apperror",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+    "Name": "apperror",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/protocol",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/protocol",
+    "Name": "protocol",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/protocol/anthropic",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/protocol/anthropic",
+    "Name": "anthropic",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/protocol/bridge",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/protocol/bridge",
+    "Name": "bridge",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/billing/pricing",
+    "GoFiles": [
+      "chatcompletions_responses_bridge.go"
+    ],
+    "Imports": [
+      "crypto/sha256",
+      "github.com/TokenFlux/TokenRouter/internal/protocol/openai",
+      "os"
+    ],
+    "Deps": [
+      "bytes",
+      "cmp",
+      "crypto",
+      "crypto/cipher",
+      "crypto/fips140",
+      "crypto/internal/boring",
+      "crypto/internal/boring/sig",
+      "crypto/internal/constanttime",
+      "crypto/internal/entropy/v1.0.0",
+      "crypto/internal/fips140",
+      "crypto/internal/fips140/aes",
+      "crypto/internal/fips140/aes/gcm",
+      "crypto/internal/fips140/alias",
+      "crypto/internal/fips140/check",
+      "crypto/internal/fips140/drbg",
+      "crypto/internal/fips140/hmac",
+      "crypto/internal/fips140/sha256",
+      "crypto/internal/fips140/sha3",
+      "crypto/internal/fips140/sha512",
+      "crypto/internal/fips140/subtle",
+      "crypto/internal/fips140deps/byteorder",
+      "crypto/internal/fips140deps/cpu",
+      "crypto/internal/fips140deps/godebug",
+      "crypto/internal/fips140deps/time",
+      "crypto/internal/fips140only",
+      "crypto/internal/impl",
+      "crypto/internal/sysrand",
+      "crypto/sha256",
+      "crypto/subtle",
+      "errors",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing",
+      "github.com/TokenFlux/TokenRouter/internal/protocol/openai",
+      "hash",
+      "internal/abi",
+      "internal/asan",
+      "internal/bisect",
+      "internal/bytealg",
+      "internal/byteorder",
+      "internal/chacha8rand",
+      "internal/coverage/rtcov",
+      "internal/cpu",
+      "internal/filepathlite",
+      "internal/goarch",
+      "internal/godebug",
+      "internal/godebugs",
+      "internal/goexperiment",
+      "internal/goos",
+      "internal/msan",
+      "internal/oserror",
+      "internal/poll",
+      "internal/profilerecord",
+      "internal/race",
+      "internal/reflectlite",
+      "internal/runtime/atomic",
+      "internal/runtime/cgroup",
+      "internal/runtime/exithook",
+      "internal/runtime/gc",
+      "internal/runtime/gc/scan",
+      "internal/runtime/maps",
+      "internal/runtime/math",
+      "internal/runtime/pprof/label",
+      "internal/runtime/sys",
+      "internal/runtime/syscall/linux",
+      "internal/strconv",
+      "internal/stringslite",
+      "internal/sync",
+      "internal/synctest",
+      "internal/syscall/execenv",
+      "internal/syscall/unix",
+      "internal/testlog",
+      "internal/trace/tracev2",
+      "internal/unsafeheader",
+      "io",
+      "io/fs",
+      "iter",
+      "math",
+      "math/bits",
+      "os",
+      "path",
+      "runtime",
+      "slices",
+      "strconv",
+      "strings",
+      "sync",
+      "sync/atomic",
+      "syscall",
+      "time",
+      "unicode",
+      "unicode/utf8",
+      "unsafe"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/protocol/openai",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/protocol/openai",
+    "Name": "openai",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/billing/pricing",
+    "GoFiles": [
+      "reverse_billing.go",
+      "stub.go"
+    ],
+    "Imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+    ],
+    "Deps": [
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/repository",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/repository",
+    "Name": "repository",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/server/httpx",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/server/httpx",
+    "Name": "httpx",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/server/middleware",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/server/middleware",
+    "Name": "middleware",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/service",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/service",
+    "Name": "service",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+    "GoFiles": [
+      "billing_service.go",
+      "new_repository_violation.go",
+      "stub.go"
+    ],
+    "Imports": [
+      "github.com/TokenFlux/TokenRouter/internal/billing",
+      "github.com/TokenFlux/TokenRouter/internal/repository"
+    ],
+    "Deps": [
+      "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+      "github.com/TokenFlux/TokenRouter/internal/billing",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing",
+      "github.com/TokenFlux/TokenRouter/internal/billing/pricing/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/billing/rediscache/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/config",
+      "github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+      "github.com/TokenFlux/TokenRouter/internal/repository",
+      "github.com/TokenFlux/TokenRouter/internal/service/rogue",
+      "github.com/TokenFlux/TokenRouter/internal/settings"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/service/rogue",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/service/rogue",
+    "Name": "rogue",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  },
+  {
+    "Dir": "/private<fixture>/internal/settings",
+    "ImportPath": "github.com/TokenFlux/TokenRouter/internal/settings",
+    "Name": "settings",
+    "Root": "/private<fixture>",
+    "Module": {
+      "Path": "github.com/TokenFlux/TokenRouter",
+      "Main": true,
+      "Dir": "/private<fixture>",
+      "GoMod": "/private<fixture>/go.mod",
+      "GoVersion": "1.27.0"
+    },
+    "Match": [
+      "./internal/..."
+    ],
+    "Stale": true,
+    "StaleReason": "build ID mismatch",
+    "GoFiles": [
+      "stub.go"
+    ]
+  }
+]

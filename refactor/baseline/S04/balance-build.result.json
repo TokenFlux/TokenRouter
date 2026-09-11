@@ -1,0 +1,14 @@
+{
+  "command": [
+    "go",
+    "build",
+    "./internal/billing/...",
+    "./internal/repository",
+    "./internal/service"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 10.818,
+  "log": "logs/balance-build.log.gz"
+}

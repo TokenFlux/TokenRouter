@@ -3,14 +3,14 @@ package service
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"strings"
-	"time"
-
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	"log/slog"
+	"strings"
+	"time"
 )
 
 func (s *GatewayService) getUserGroupRateMultiplier(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) float64 {
@@ -324,21 +324,15 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 	return true, nil
 }
 
-func syncBalanceCacheAfterDeduction(ctx context.Context, p *usageBillingParams, deps *billingDeps, result *UsageBillingApplyResult) {
-	if p == nil || p.User == nil || deps == nil || deps.billingCacheService == nil || result == nil || result.BalanceAmountUSD <= 0 {
-		return
+// settlementEffects 只投影旧请求完成入口需要的资金端口，不持有额外缓存或队列。
+func settlementEffects(deps *billingDeps) billing.SettlementEffects {
+	var cache *billing.Eligibility
+	if deps.billingCacheService != nil {
+		cache = deps.billingCacheService.Eligibility
 	}
-	if result.NewBalance != nil && deps.billingCacheService.balanceBelowEligibilityThreshold(*result.NewBalance) {
-		if err := deps.billingCacheService.InvalidateUserBalance(ctx, p.User.ID); err != nil {
-			slog.Warn("invalidate balance cache after exhausted deduction failed",
-				"user_id", p.User.ID,
-				"new_balance", *result.NewBalance,
-				"error", err,
-			)
-		}
-		return
-	}
-	deps.billingCacheService.QueueDeductBalance(p.User.ID, result.BalanceAmountUSD)
+	return billing.SettlementEffects{Cache: cache, Quotas: deps.userPlatformQuotaRepo, FlusherEnabled: deps.cfg != nil && deps.cfg.Database.UserPlatformQuotaFlusherEnabled, Background: RunBackgroundTask, Observe: logger.LegacyPrintf, BalanceWarning: func(id int64, balance float64, err error) {
+		slog.Warn("invalidate balance cache after exhausted deduction failed", "user_id", id, "new_balance", balance, "error", err)
+	}}
 }
 
 // notifyBalanceLow 在扣费后发送余额不足通知。
@@ -377,11 +371,7 @@ func notifyBalanceLow(p *usageBillingParams, deps *billingDeps, result *UsageBil
 // resolveOldBalance returns the pre-deduction balance.
 // Prefers the DB transaction result (newBalance + cost) over snapshot.
 func resolveOldBalance(p *usageBillingParams, result *UsageBillingApplyResult) float64 {
-	if result != nil && result.NewBalance != nil {
-		return *result.NewBalance + result.BalanceAmountUSD
-	}
-	// Legacy fallback: snapshot balance from request context
-	return p.User.Balance
+	return billing.BalanceBeforeSettlement(p.User.Balance, result)
 }
 
 // notifyAccountQuota sends account quota threshold notification after increment.
@@ -698,7 +688,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 				CacheReadTokens:     result.Usage.CacheReadInputTokens,
 				ImageOutputTokens:   result.Usage.ImageOutputTokens,
 			},
-			cost.TotalCost,
+			cost.TotalCost, s.resolver,
 		)
 	}
 

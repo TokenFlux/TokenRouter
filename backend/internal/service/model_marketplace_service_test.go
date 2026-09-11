@@ -785,7 +785,7 @@ func TestModelMarketplaceDisplayPricing_SharedImageRateUsesGroupMultiplier(t *te
 		ModelPricing:   testImageModelPricing(map[string]*float64{"1K": &image1K}),
 	}
 	svc := &ModelMarketplaceService{
-		billingService: &BillingService{},
+		billingService: newBillingServiceWithPrices(nil, nil, map[string]*ModelPricing{}),
 	}
 
 	pricing := svc.getPublicModelDisplayPricing(context.Background(), group, "gpt-image-1")

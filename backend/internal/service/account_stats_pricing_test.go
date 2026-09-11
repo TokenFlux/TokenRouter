@@ -502,9 +502,7 @@ func TestTryCustomRules_RuleMatchesButModelNot_ContinuesToNext(t *testing.T) {
 // The key must match what getFallbackPricing resolves to for a given model name.
 // E.g., model "claude-sonnet-4" resolves to key "claude-sonnet-4".
 func newTestBillingServiceWithPrices(prices map[string]*ModelPricing) *BillingService {
-	return &BillingService{
-		fallbackPrices: prices,
-	}
+	return newBillingServiceWithPrices(nil, nil, prices)
 }
 
 func TestTryModelFilePricing_Success(t *testing.T) {

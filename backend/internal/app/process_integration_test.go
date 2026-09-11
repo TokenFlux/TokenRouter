@@ -199,6 +199,12 @@ func TestS02ProcessModes(t *testing.T) {
 			for _, name := range []string{"HTTPRequests", "DeferredService", "TimingWheelService", "UsageLogBatchers", "Redis", "Ent"} {
 				require.Contains(t, logs, "[Lifecycle] stopped "+name)
 			}
+			// S04 的资金运行组件各启动一次，所有资金队列完成后才关闭 Redis。
+			for _, name := range []string{"BillingCacheService", "UserPlatformQuotaUsageFlusher", "SubscriptionExpiryService"} {
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name))
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name))
+				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"))
+			}
 			require.Less(t, strings.Index(logs, "stopped BillingCacheService"), strings.Index(logs, "stopped UserPlatformQuotaUsageFlusher"))
 			require.Less(t, strings.Index(logs, "stopped TimingWheelService"), strings.Index(logs, "stopped Redis"))
 			require.Less(t, strings.Index(logs, "stopped Redis"), strings.Index(logs, "stopped Ent"))

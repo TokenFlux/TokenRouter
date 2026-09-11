@@ -15,6 +15,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	"strconv"
 	"strings"
 	"time"
@@ -3308,95 +3309,20 @@ func (r *accountRepository) FindByExtraField(ctx context.Context, key string, va
 	return r.accountsToService(ctx, accounts)
 }
 
-// nowUTC is a SQL expression to generate a UTC RFC3339 timestamp string.
-const nowUTC = `to_char(NOW() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`
+// nowUTC 复用资金窗口 SQL，账号维护在 S06 继续拆分。
+const nowUTC = billingpostgres.NowUTC
 
-// dailyExpiredExpr is a SQL expression that evaluates to TRUE when daily quota period has expired.
-// Supports both rolling (24h from start) and fixed (pre-computed reset_at) modes.
-const dailyExpiredExpr = `(
-	CASE WHEN COALESCE(extra->>'quota_daily_reset_mode', 'rolling') = 'fixed'
-	THEN NOW() >= COALESCE((extra->>'quota_daily_reset_at')::timestamptz, '1970-01-01'::timestamptz)
-	ELSE COALESCE((extra->>'quota_daily_start')::timestamptz, '1970-01-01'::timestamptz)
-		+ '24 hours'::interval <= NOW()
-	END
-)`
+// dailyExpiredExpr 复用资金窗口 SQL，账号维护在 S06 继续拆分。
+const dailyExpiredExpr = billingpostgres.DailyExpiredExpr
 
-// weeklyExpiredExpr is a SQL expression that evaluates to TRUE when weekly quota period has expired.
-const weeklyExpiredExpr = `(
-	CASE WHEN COALESCE(extra->>'quota_weekly_reset_mode', 'rolling') = 'fixed'
-	THEN NOW() >= COALESCE((extra->>'quota_weekly_reset_at')::timestamptz, '1970-01-01'::timestamptz)
-	ELSE COALESCE((extra->>'quota_weekly_start')::timestamptz, '1970-01-01'::timestamptz)
-		+ '168 hours'::interval <= NOW()
-	END
-)`
+// weeklyExpiredExpr 复用资金窗口 SQL，账号维护在 S06 继续拆分。
+const weeklyExpiredExpr = billingpostgres.WeeklyExpiredExpr
 
-// nextDailyResetAtExpr is a SQL expression to compute the next daily reset_at when a reset occurs.
-// For fixed mode: computes the next future reset time based on NOW(), timezone, and configured hour.
-// This correctly handles long-inactive accounts by jumping directly to the next valid reset point.
-const nextDailyResetAtExpr = `(
-	CASE WHEN COALESCE(extra->>'quota_daily_reset_mode', 'rolling') = 'fixed'
-	THEN to_char((
-		-- Compute today's reset point in the configured timezone, then pick next future one
-		CASE WHEN NOW() >= (
-			date_trunc('day', NOW() AT TIME ZONE COALESCE(extra->>'quota_reset_timezone', 'UTC'))
-			+ (COALESCE((extra->>'quota_daily_reset_hour')::int, 0) || ' hours')::interval
-		) AT TIME ZONE COALESCE(extra->>'quota_reset_timezone', 'UTC')
-		-- NOW() is at or past today's reset point → next reset is tomorrow
-		THEN (
-			date_trunc('day', NOW() AT TIME ZONE COALESCE(extra->>'quota_reset_timezone', 'UTC'))
-			+ (COALESCE((extra->>'quota_daily_reset_hour')::int, 0) || ' hours')::interval
-			+ '1 day'::interval
-		) AT TIME ZONE COALESCE(extra->>'quota_reset_timezone', 'UTC')
-		-- NOW() is before today's reset point → next reset is today
-		ELSE (
-			date_trunc('day', NOW() AT TIME ZONE COALESCE(extra->>'quota_reset_timezone', 'UTC'))
-			+ (COALESCE((extra->>'quota_daily_reset_hour')::int, 0) || ' hours')::interval
-		) AT TIME ZONE COALESCE(extra->>'quota_reset_timezone', 'UTC')
-		END
-	) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
-	ELSE NULL END
-)`
+// nextDailyResetAtExpr 复用资金窗口 SQL，账号维护在 S06 继续拆分。
+const nextDailyResetAtExpr = billingpostgres.NextDailyResetAtExpr
 
-// nextWeeklyResetAtExpr is a SQL expression to compute the next weekly reset_at when a reset occurs.
-// For fixed mode: computes the next future reset time based on NOW(), timezone, configured day and hour.
-// This correctly handles long-inactive accounts by jumping directly to the next valid reset point.
-const nextWeeklyResetAtExpr = `(
-	CASE WHEN COALESCE(extra->>'quota_weekly_reset_mode', 'rolling') = 'fixed'
-	THEN to_char((
-		-- Compute this week's reset point in the configured timezone
-		-- Step 1: get today's date at reset hour in configured tz
-		-- Step 2: compute days forward to target weekday
-		-- Step 3: if same day but past reset hour, advance 7 days
-		CASE
-		WHEN (
-			-- days_forward = (target_day - current_day + 7) % 7
-			(COALESCE((extra->>'quota_weekly_reset_day')::int, 1)
-			 - EXTRACT(DOW FROM NOW() AT TIME ZONE COALESCE(extra->>'quota_reset_timezone', 'UTC'))::int
-			 + 7) % 7
-		) = 0 AND NOW() >= (
-			date_trunc('day', NOW() AT TIME ZONE COALESCE(extra->>'quota_reset_timezone', 'UTC'))
-			+ (COALESCE((extra->>'quota_weekly_reset_hour')::int, 0) || ' hours')::interval
-		) AT TIME ZONE COALESCE(extra->>'quota_reset_timezone', 'UTC')
-		-- Same weekday and past reset hour → next week
-		THEN (
-			date_trunc('day', NOW() AT TIME ZONE COALESCE(extra->>'quota_reset_timezone', 'UTC'))
-			+ (COALESCE((extra->>'quota_weekly_reset_hour')::int, 0) || ' hours')::interval
-			+ '7 days'::interval
-		) AT TIME ZONE COALESCE(extra->>'quota_reset_timezone', 'UTC')
-		ELSE (
-			-- Advance to target weekday this week (or next if days_forward > 0)
-			date_trunc('day', NOW() AT TIME ZONE COALESCE(extra->>'quota_reset_timezone', 'UTC'))
-			+ (COALESCE((extra->>'quota_weekly_reset_hour')::int, 0) || ' hours')::interval
-			+ ((
-				(COALESCE((extra->>'quota_weekly_reset_day')::int, 1)
-				 - EXTRACT(DOW FROM NOW() AT TIME ZONE COALESCE(extra->>'quota_reset_timezone', 'UTC'))::int
-				 + 7) % 7
-			) || ' days')::interval
-		) AT TIME ZONE COALESCE(extra->>'quota_reset_timezone', 'UTC')
-		END
-	) AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"')
-	ELSE NULL END
-)`
+// nextWeeklyResetAtExpr 复用资金窗口 SQL，账号维护在 S06 继续拆分。
+const nextWeeklyResetAtExpr = billingpostgres.NextWeeklyResetAtExpr
 
 // IncrementQuotaUsed 原子递增账号的配额用量（总/日/周三个维度）
 // 日/周额度在周期过期时自动重置为 0 再递增。

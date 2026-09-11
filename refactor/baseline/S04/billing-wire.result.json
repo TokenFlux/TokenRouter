@@ -1,0 +1,12 @@
+{
+  "command": [
+    "go",
+    "generate",
+    "./cmd/server"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 2.383,
+  "log": "logs/billing-wire.log.gz"
+}

@@ -31,20 +31,3 @@ func (a *AnnouncementUsers) ListWithFilters(ctx context.Context, params paginati
 	}
 	return out, page, nil
 }
-
-// AnnouncementSubscriptions 在 S04 的 billing 提供只读权益接口后退出。
-type AnnouncementSubscriptions struct {
-	Repository service.UserSubscriptionRepository
-}
-
-func (a *AnnouncementSubscriptions) ListActiveByUserID(ctx context.Context, id int64) ([]site.SubscriptionSnapshot, error) {
-	subs, err := a.Repository.ListActiveByUserID(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]site.SubscriptionSnapshot, len(subs))
-	for i, sub := range subs {
-		out[i] = site.SubscriptionSnapshot{PlanID: sub.PlanID}
-	}
-	return out, nil
-}

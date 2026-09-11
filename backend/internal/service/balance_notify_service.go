@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"html"
 	"log/slog"
 	"strconv"
@@ -58,15 +59,6 @@ func (s *BalanceNotifyService) SetNotificationEmailService(notificationEmailServ
 	s.notificationEmailService = notificationEmailService
 }
 
-// resolveBalanceThreshold returns the effective balance threshold.
-// For percentage type, it computes threshold = totalRecharged * percentage / 100.
-func resolveBalanceThreshold(threshold float64, thresholdType string, totalRecharged float64) float64 {
-	if thresholdType == thresholdTypePercentage && totalRecharged > 0 {
-		return totalRecharged * threshold / 100
-	}
-	return threshold
-}
-
 // CheckBalanceAfterDeduction checks if balance crossed below threshold after deduction.
 // Notification is sent only on first crossing: oldBalance >= threshold && newBalance < threshold.
 func (s *BalanceNotifyService) CheckBalanceAfterDeduction(ctx context.Context, user *User, oldBalance, cost float64) {
@@ -92,30 +84,19 @@ func (s *BalanceNotifyService) canNotifyBalance(user *User) bool {
 	return user.BalanceNotifyEnabled
 }
 
-// resolveUserEffectiveThreshold reads global + user config, returns the effective threshold.
-// Returns ok=false when notifications should be skipped.
+// resolveUserEffectiveThreshold 委托 billing 的唯一阈值规则。
 func (s *BalanceNotifyService) resolveUserEffectiveThreshold(ctx context.Context, user *User) (effectiveThreshold float64, rechargeURL string, ok bool) {
 	globalEnabled, globalThreshold, rechargeURL := s.getBalanceNotifyConfig(ctx)
-	if !globalEnabled {
+	effective, ok := billing.EffectiveBalanceThreshold(globalEnabled, globalThreshold, user.BalanceNotifyThreshold, user.BalanceNotifyThresholdType, user.TotalRecharged)
+	if !ok {
 		return 0, "", false
 	}
-	threshold := globalThreshold
-	if user.BalanceNotifyThreshold != nil {
-		threshold = *user.BalanceNotifyThreshold
-	}
-	if threshold <= 0 {
-		return 0, "", false
-	}
-	effectiveThreshold = resolveBalanceThreshold(threshold, user.BalanceNotifyThresholdType, user.TotalRecharged)
-	if effectiveThreshold <= 0 {
-		return 0, "", false
-	}
-	return effectiveThreshold, rechargeURL, true
+	return effective, rechargeURL, true
 }
 
-// crossedDownward returns true when oldV was at-or-above threshold but newV dropped below it.
+// crossedDownward 委托 billing 的唯一阈值规则。
 func crossedDownward(oldV, newV, threshold float64) bool {
-	return oldV >= threshold && newV < threshold
+	return billing.CrossedDownward(oldV, newV, threshold)
 }
 
 // dispatchBalanceLowEmail collects recipients and sends the alert in a goroutine.
@@ -142,20 +123,6 @@ type quotaDim struct {
 	thresholdType string // "fixed" (default) or "percentage"
 	currentUsed   float64
 	limit         float64
-}
-
-// resolvedThreshold converts the user-facing "remaining" threshold into a usage-based trigger point.
-// The threshold represents how much quota REMAINS when the alert fires:
-//   - Fixed ($): threshold=400, limit=1000 → fires when usage reaches 600 (remaining drops to 400)
-//   - Percentage (%): threshold=30, limit=1000 → fires when usage reaches 700 (remaining drops to 30%)
-func (d quotaDim) resolvedThreshold() float64 {
-	if d.limit <= 0 {
-		return 0
-	}
-	if d.thresholdType == thresholdTypePercentage {
-		return d.limit * (1 - d.threshold/100)
-	}
-	return d.limit - d.threshold
 }
 
 // buildQuotaDims returns the three quota dimensions for notification checking.
@@ -218,21 +185,11 @@ func (s *BalanceNotifyService) fetchFreshAccount(ctx context.Context, snapshot *
 	return fresh
 }
 
-// checkQuotaDimCrossings iterates pre-built quota dimensions and sends alerts for threshold crossings.
-// Pre-increment value is reconstructed as currentUsed - cost to detect the crossing moment.
+// checkQuotaDimCrossings 委托 billing 的唯一阈值规则。
 func (s *BalanceNotifyService) checkQuotaDimCrossings(account *Account, dims []quotaDim, cost float64, adminEmails []string, siteName string) {
 	for _, dim := range dims {
-		if !dim.enabled || dim.threshold <= 0 {
-			continue
-		}
-		effectiveThreshold := dim.resolvedThreshold()
-		if effectiveThreshold <= 0 {
-			continue
-		}
-		newUsed := dim.currentUsed
-		oldUsed := dim.currentUsed - cost
-		if oldUsed < effectiveThreshold && newUsed >= effectiveThreshold {
-			s.asyncSendQuotaAlert(adminEmails, account.ID, account.Name, account.Platform, dim, newUsed, effectiveThreshold, siteName)
+		if threshold, ok := dim.billingDimension().Crossing(cost); ok {
+			s.asyncSendQuotaAlert(adminEmails, account.ID, account.Name, account.Platform, dim, dim.currentUsed, threshold, siteName)
 		}
 	}
 }
@@ -552,4 +509,9 @@ func (s *BalanceNotifyService) buildQuotaAlertEmailBody(accountID int64, account
 		limitStr = "无限制 / Unlimited"
 	}
 	return fmt.Sprintf(quotaAlertEmailTemplate, siteName, accountID, accountName, platform, dimLabel, used, limitStr, remaining, thresholdDisplay)
+}
+
+// billingDimension 只投影通知配置和已经取得的事务状态。
+func (d quotaDim) billingDimension() billing.QuotaNotifyDimension {
+	return billing.QuotaNotifyDimension{Name: d.name, Enabled: d.enabled, Threshold: d.threshold, ThresholdType: d.thresholdType, CurrentUsed: d.currentUsed, Limit: d.limit}
 }

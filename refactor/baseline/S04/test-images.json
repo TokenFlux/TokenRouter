@@ -1,0 +1,34 @@
+{
+  "repository_postgres_override": null,
+  "repository_postgres_selected": "postgres:18.1-alpine3.23",
+  "app_bootstrap_postgres": "postgres:18.1-alpine3.23",
+  "redis": "redis:8.4-alpine",
+  "selection_evidence": [
+    "backend/internal/repository/integration_harness_test.go:TestMain/selectDockerImage",
+    "backend/internal/app/bootstrap/integration_test.go:testEntTx",
+    "backend/internal/app/process_integration_test.go:TestS02ProcessModes"
+  ],
+  "isolation": "Testcontainers 创建独立容器；连接信息由容器生成，不读取生产数据库地址。",
+  "images": [
+    {
+      "tag": "postgres:18.1-alpine3.23",
+      "inspect_exit": 0,
+      "id": "sha256:aa6eb304ddb6dd26df23d05db4e5cb05af8951cda3e0dc57731b771e0ef4ab29",
+      "digests": [
+        "postgres@sha256:aa6eb304ddb6dd26df23d05db4e5cb05af8951cda3e0dc57731b771e0ef4ab29"
+      ],
+      "architecture": "arm64",
+      "os": "linux"
+    },
+    {
+      "tag": "redis:8.4-alpine",
+      "inspect_exit": 0,
+      "id": "sha256:12da49daa000c2be4d55118574f889c8cc298140ecf343d04f345c818f227823",
+      "digests": [
+        "redis@sha256:12da49daa000c2be4d55118574f889c8cc298140ecf343d04f345c818f227823"
+      ],
+      "architecture": "arm64",
+      "os": "linux"
+    }
+  ]
+}

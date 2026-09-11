@@ -5,6 +5,12 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	dbent "github.com/TokenFlux/TokenRouter/ent"
+	"github.com/TokenFlux/TokenRouter/ent/paymentproviderinstance"
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/payment"
+	"github.com/TokenFlux/TokenRouter/internal/payment/provider"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"log/slog"
 	"math/rand/v2"
 	"net/mail"
@@ -12,12 +18,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/ent/paymentproviderinstance"
-	"github.com/TokenFlux/TokenRouter/internal/payment"
-	"github.com/TokenFlux/TokenRouter/internal/payment/provider"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 )
 
 // --- Order Status Constants ---
@@ -467,23 +467,9 @@ func psSliceContains(sl []string, s string) bool {
 }
 
 // 订阅有效期单位常量。
-const (
-	validityUnitWeek   = "week"
-	validityUnitWeeks  = "weeks"
-	validityUnitMonth  = "month"
-	validityUnitMonths = "months"
-)
+const ()
 
-func psComputeValidityDays(days int, unit string) int {
-	switch unit {
-	case validityUnitWeek, validityUnitWeeks:
-		return days * 7
-	case validityUnitMonth, validityUnitMonths:
-		return days * 30
-	default:
-		return days
-	}
-}
+func psComputeValidityDays(days int, unit string) int { return billing.ComputeValidityDays(days, unit) }
 
 func psStartOfDayUTC(t time.Time) time.Time {
 	y, m, d := t.UTC().Date()
