@@ -1,0 +1,14 @@
+{
+  "command": [
+    "go",
+    "test",
+    "./internal/apikey/...",
+    "-run",
+    "^$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 0.245,
+  "log": "logs/apikey-core-build-2.log.gz"
+}

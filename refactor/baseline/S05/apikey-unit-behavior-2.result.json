@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-tags=unit",
+    "./internal/apikey/...",
+    "./internal/service",
+    "./internal/server/middleware",
+    "./internal/handler/...",
+    "-run",
+    "Test(APIKey|ApiKey|AuthCache|AuthSnapshot|InvalidAuth|Composite|Team)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 20.26,
+  "log": "logs/apikey-unit-behavior-2.log.gz"
+}

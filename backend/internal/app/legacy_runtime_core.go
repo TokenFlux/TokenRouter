@@ -37,7 +37,7 @@ func provideCoreRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if authCacheInvalidationWorker != nil {
-			authCacheInvalidationWorker.Stop()
+			return authCacheInvalidationWorker.StopContext(ctx)
 		}
 		return nil
 	}})

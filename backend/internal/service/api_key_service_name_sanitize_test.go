@@ -128,10 +128,10 @@ func (s *apiKeyNameSanitizeRepoStub) GetRateLimitData(ctx context.Context, id in
 
 func TestAPIKeyService_Create_EscapesNameBeforePersist(t *testing.T) {
 	repo := &apiKeyNameSanitizeRepoStub{}
-	svc := &APIKeyService{
+	svc := newAPIKeyTestService(apiKeyTestDependencies{
 		apiKeyRepo: repo,
 		userRepo:   &userRepoStub{user: &User{ID: 7, Status: StatusActive, Role: RoleUser}},
-	}
+	})
 	customKey := "sk_valid_xss_key_1"
 
 	created, err := svc.Create(context.Background(), 7, CreateAPIKeyRequest{
@@ -147,10 +147,10 @@ func TestAPIKeyService_Create_EscapesNameBeforePersist(t *testing.T) {
 
 func TestAPIKeyService_Create_DefaultsGroupFallbackEnabled(t *testing.T) {
 	repo := &apiKeyNameSanitizeRepoStub{}
-	svc := &APIKeyService{
+	svc := newAPIKeyTestService(apiKeyTestDependencies{
 		apiKeyRepo: repo,
 		userRepo:   &userRepoStub{user: &User{ID: 7, Status: StatusActive, Role: RoleUser}},
-	}
+	})
 	customKey := "sk_valid_default_fallback"
 
 	created, err := svc.Create(context.Background(), 7, CreateAPIKeyRequest{
@@ -166,7 +166,7 @@ func TestAPIKeyService_Create_DefaultsGroupFallbackEnabled(t *testing.T) {
 }
 
 func TestAPIKeyService_CreateRejectsInvalidFastModePolicy(t *testing.T) {
-	svc := &APIKeyService{}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
 
 	_, err := svc.Create(context.Background(), 7, CreateAPIKeyRequest{FastModePolicy: "invalid"})
 	require.ErrorIs(t, err, ErrInvalidAPIKeyFastModePolicy)
@@ -174,10 +174,10 @@ func TestAPIKeyService_CreateRejectsInvalidFastModePolicy(t *testing.T) {
 
 func TestAPIKeyService_Create_AllowsDisablingGroupFallback(t *testing.T) {
 	repo := &apiKeyNameSanitizeRepoStub{}
-	svc := &APIKeyService{
+	svc := newAPIKeyTestService(apiKeyTestDependencies{
 		apiKeyRepo: repo,
 		userRepo:   &userRepoStub{user: &User{ID: 7, Status: StatusActive, Role: RoleUser}},
-	}
+	})
 	customKey := "sk_valid_disabled_fallback"
 	fallback := false
 
@@ -197,7 +197,7 @@ func TestAPIKeyService_Update_EscapesNameBeforePersist(t *testing.T) {
 	repo := &apiKeyNameSanitizeRepoStub{
 		apiKey: &APIKey{ID: 11, UserID: 7, Key: "sk_existing_key_01", Name: "old", Status: StatusActive},
 	}
-	svc := &APIKeyService{apiKeyRepo: repo}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo})
 	name := `<script>alert("x")</script>`
 
 	updated, err := svc.Update(context.Background(), 11, 7, UpdateAPIKeyRequest{Name: &name})
@@ -212,7 +212,7 @@ func TestAPIKeyService_UpdatePersistsFastModePolicy(t *testing.T) {
 	repo := &apiKeyNameSanitizeRepoStub{
 		apiKey: &APIKey{ID: 11, UserID: 7, Key: "sk_existing_key_02", Name: "old", Status: StatusActive, FastModePolicy: APIKeyFastModePolicyFollowRequest},
 	}
-	svc := &APIKeyService{apiKeyRepo: repo}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo})
 	policy := APIKeyFastModePolicyForceOff
 
 	updated, err := svc.Update(context.Background(), 11, 7, UpdateAPIKeyRequest{FastModePolicy: &policy})
@@ -233,7 +233,7 @@ func TestAPIKeyService_UpdatePreservesOmittedIPRestrictions(t *testing.T) {
 			IPBlacklist: []string{"198.51.100.0/24"},
 		},
 	}
-	svc := &APIKeyService{apiKeyRepo: repo}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo})
 
 	updated, err := svc.Update(context.Background(), 11, 7, UpdateAPIKeyRequest{})
 
@@ -254,7 +254,7 @@ func TestAPIKeyService_UpdateClearsExplicitEmptyIPRestriction(t *testing.T) {
 			IPBlacklist: []string{"198.51.100.0/24"},
 		},
 	}
-	svc := &APIKeyService{apiKeyRepo: repo}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo})
 	emptyWhitelist := []string{}
 
 	updated, err := svc.Update(context.Background(), 11, 7, UpdateAPIKeyRequest{IPWhitelist: &emptyWhitelist})
@@ -269,7 +269,7 @@ func TestAPIKeyService_UpdateRejectsInvalidIPRestriction(t *testing.T) {
 	repo := &apiKeyNameSanitizeRepoStub{
 		apiKey: &APIKey{ID: 11, UserID: 7, Key: "sk_existing_ip_key_03", Status: StatusActive},
 	}
-	svc := &APIKeyService{apiKeyRepo: repo}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo})
 	invalidBlacklist := []string{"not-an-ip"}
 
 	_, err := svc.Update(context.Background(), 11, 7, UpdateAPIKeyRequest{IPBlacklist: &invalidBlacklist})

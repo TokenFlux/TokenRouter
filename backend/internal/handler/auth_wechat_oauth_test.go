@@ -1497,3 +1497,8 @@ func (s *wechatOAuthRefreshTokenCacheStub) GetFamilyTokenHashes(context.Context,
 func (s *wechatOAuthRefreshTokenCacheStub) IsTokenInFamily(context.Context, string, string) (bool, error) {
 	return false, nil
 }
+
+// ConsumeRefreshToken 与此桩始终未找到凭据的读取行为一致。
+func (s *wechatOAuthRefreshTokenCacheStub) ConsumeRefreshToken(context.Context, string) (bool, error) {
+	return false, nil
+}

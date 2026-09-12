@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "./internal/service",
+    "./internal/repository",
+    "./internal/handler/...",
+    "./internal/app",
+    "-run",
+    "^$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.901,
+  "log": "logs/auth-facade-build-2.log.gz"
+}

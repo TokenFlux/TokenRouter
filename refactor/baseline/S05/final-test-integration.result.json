@@ -1,0 +1,51 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 163.333,
+  "log": "logs/final-test-integration.log.gz",
+  "test_events": {
+    "pass": 11846,
+    "fail": 0,
+    "skip": 7
+  },
+  "failed_tests": [],
+  "skipped_tests": [
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/handler",
+      "test": "TestDingTalkOAuthStart_Disabled"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+      "test": "TestRealAPI"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+      "test": "TestReadLocalAuthFromDisk"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+      "test": "TestAllProfiles/default_node_v24"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/repository",
+      "test": "TestConcurrencyCacheSuite/TestGetAccountsLoadBatch"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+    }
+  ]
+}

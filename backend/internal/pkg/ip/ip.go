@@ -2,11 +2,9 @@
 package ip
 
 import (
-	"net"
-
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch"
 	foundation "github.com/TokenFlux/TokenRouter/internal/server/clientip"
-
 	gin "github.com/gin-gonic/gin"
 )
 
@@ -35,43 +33,14 @@ func GetSecurityClientIP(c *gin.Context, trustForwarded bool) string {
 	return foundation.GetSecurityClientIP(c, trustForwarded)
 }
 
-// CheckIPRestriction 检查 IP 是否被 API Key 的 IP 限制允许。
-// 返回值：(是否允许, 拒绝原因)
-// 逻辑：
-// 1. 先检查黑名单，如果在黑名单中则直接拒绝
-// 2. 如果白名单不为空，IP 必须在白名单中
-// 3. 如果白名单为空，允许访问（除非被黑名单拒绝）
+// CheckIPRestriction 委托 Key 访问策略。
 func CheckIPRestriction(clientIP string, whitelist, blacklist []string) (bool, string) {
-	return CheckIPRestrictionWithCompiledRules(
-		clientIP,
-		CompileIPRules(whitelist),
-		CompileIPRules(blacklist),
-	)
+	return apikey.CheckIPRestriction(clientIP, whitelist, blacklist)
 }
 
-// CheckIPRestrictionWithCompiledRules 使用预编译规则检查 IP 是否允许访问。
+// CheckIPRestrictionWithCompiledRules 委托 Key 访问策略。
 func CheckIPRestrictionWithCompiledRules(clientIP string, whitelist, blacklist *CompiledIPRules) (bool, string) {
-	// 规范化 IP
-	clientIP = normalizeIP(clientIP)
-	if clientIP == "" {
-		return false, "access denied"
-	}
-	parsedIP := net.ParseIP(clientIP)
-	if parsedIP == nil {
-		return false, "access denied"
-	}
-
-	// 1. 检查黑名单
-	if blacklist != nil && blacklist.PatternCount > 0 && matchesCompiledRules(parsedIP, blacklist) {
-		return false, "access denied"
-	}
-
-	// 2. 检查白名单（如果设置了白名单，IP 必须在其中）
-	if whitelist != nil && whitelist.PatternCount > 0 && !matchesCompiledRules(parsedIP, whitelist) {
-		return false, "access denied"
-	}
-
-	return true, ""
+	return apikey.CheckIPRestrictionWithCompiledRules(clientIP, whitelist, blacklist)
 }
 
 // CompiledIPRules 兼容旧 ACL 调用方，纯匹配实现由 ipmatch 拥有。
@@ -80,11 +49,6 @@ type CompiledIPRules = ipmatch.CompiledIPRules
 // CompileIPRules 兼容旧入口，调用纯匹配实现。
 func CompileIPRules(patterns []string) *CompiledIPRules {
 	return ipmatch.CompileIPRules(patterns)
-}
-
-// matchesCompiledRules 兼容旧入口，调用纯匹配实现。
-func matchesCompiledRules(ip net.IP, rules *CompiledIPRules) bool {
-	return ipmatch.MatchesCompiledRules(ip, rules)
 }
 
 // MatchesPattern 兼容旧入口，调用纯匹配实现。
@@ -105,9 +69,4 @@ func ValidateIPPattern(pattern string) bool {
 // ValidateIPPatterns 兼容旧入口，调用纯匹配实现。
 func ValidateIPPatterns(patterns []string) []string {
 	return ipmatch.ValidateIPPatterns(patterns)
-}
-
-// normalizeIP 兼容 ACL 中的地址规范化，纯实现归 ipmatch。
-func normalizeIP(value string) string {
-	return ipmatch.NormalizeIP(value)
 }

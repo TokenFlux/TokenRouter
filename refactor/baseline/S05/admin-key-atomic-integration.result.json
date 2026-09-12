@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "^TestS05Admin(KeyResetAndInvalidGroupAreAtomic|KeyCombinedWriteRollsBackOnDatabaseFailure|DeleteRollsBackKeyParticipant|KeyGrantRollsBackIdentityParticipant)$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 5.344,
+  "log": "logs/admin-key-atomic-integration.log.gz"
+}

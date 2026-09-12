@@ -1,0 +1,14 @@
+{
+  "command": [
+    "go",
+    "test",
+    "./internal/identity/...",
+    "-run",
+    "^$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 1.127,
+  "log": "logs/linuxdo-http-build-2.log.gz"
+}

@@ -1,0 +1,30 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/identity/...",
+    "./internal/handler",
+    "-run",
+    "OAuth|GoogleOneTap|Pending|Bind"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 5.271,
+  "log": "logs/email-http-unit.log.gz",
+  "test_events": {
+    "pass": 9,
+    "fail": 0,
+    "skip": 1
+  },
+  "failed_tests": [],
+  "skipped_tests": [
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/identity/postgres",
+      "test": "TestAuthPendingIdentityService_UpsertAdoptionDecision_ClearsLegacyNullSessionReference"
+    }
+  ]
+}

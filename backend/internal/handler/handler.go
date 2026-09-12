@@ -48,7 +48,7 @@ type AdminHandlers struct {
 type Handlers struct {
 	Plans            *billinghttpapi.PlanHandler
 	PlatformQuota    *billinghttpapi.QuotaHandler
-	Auth             *AuthHandler
+	Auth             AuthEndpoints
 	User             *UserHandler
 	APIKey           *APIKeyHandler
 	Usage            *UsageHandler

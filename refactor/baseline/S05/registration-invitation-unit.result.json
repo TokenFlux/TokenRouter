@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-tags=unit",
+    "./internal/identity/...",
+    "./internal/billing/...",
+    "./internal/service",
+    "./internal/handler",
+    "-run",
+    "Test(Auth|OAuth|Pending|Redeem|Registration|User|WeChat|LinuxDo|OIDC|DingTalk)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 22.566,
+  "log": "logs/registration-invitation-unit.log.gz"
+}

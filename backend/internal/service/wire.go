@@ -82,6 +82,7 @@ func ProvideAuthService(
 	svc.SetTencentCaptchaService(tencentCaptchaService)
 	svc.SetAliyunCaptchaService(aliyunCaptchaService)
 	svc.SetRuntimeCaches(authCacheInvalidator, billingCache)
+	svc.PinIdentityCore()
 	return svc
 }
 
@@ -764,13 +765,6 @@ func ProvideAPIKeyService(
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
 	// 核心服务
-	ProvideAuthService,
-	NewPasskeyService,
-	NewUserService,
-	NewTeamService,
-	ProvideAPIKeyService,
-	ProvideAPIKeyAuthCacheInvalidator,
-	ProvideAuthCacheInvalidationWorker,
 	NewGroupService,
 	NewAccountService,
 	NewProxyService,
@@ -778,7 +772,6 @@ var ProviderSet = wire.NewSet(
 	NewPromoService,
 	NewUsageService,
 	ProvideDashboardService,
-	NewAdminService,
 	NewModelMarketplaceService,
 	NewGatewayService,
 	NewQoderTokenProvider,
@@ -847,9 +840,6 @@ var ProviderSet = wire.NewSet(
 	NewEmailService,
 	NewNotificationEmailService,
 	ProvideEmailQueueService,
-	NewTurnstileService,
-	NewTencentCaptchaService,
-	NewAliyunCaptchaService,
 	ProvideConcurrencyService,
 	ProvideUserMessageQueueService,
 	NewUsageRecordWorkerPool,
@@ -867,9 +857,7 @@ var ProviderSet = wire.NewSet(
 	ProvideDeferredService,
 	NewAntigravityQuotaFetcher,
 	NewGrokQuotaFetcher,
-	NewUserAttributeService,
 	NewUsageCache,
-	NewTotpService,
 	NewErrorPassthroughService,
 	NewTLSFingerprintProfileService,
 	NewTLSFingerprintRouterService,

@@ -1,113 +1,22 @@
 package dto
 
 import (
+	keydto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
 	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
+	identitydto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
-type User struct {
-	ID            int64   `json:"id"`
-	Email         string  `json:"email"`
-	Username      string  `json:"username"`
-	Role          string  `json:"role"`
-	Balance       float64 `json:"balance"`
-	FrozenBalance float64 `json:"frozen_balance"`
-	Concurrency   int     `json:"concurrency"`
-	Status        string  `json:"status"`
-	AllowedGroups []int64 `json:"allowed_groups"`
-	// DisabledPublicGroups 为管理员显式禁止该用户使用的公开分组 ID。
-	DisabledPublicGroups []int64    `json:"disabled_public_groups"`
-	LastActiveAt         *time.Time `json:"last_active_at,omitempty"`
-	CreatedAt            time.Time  `json:"created_at"`
-	UpdatedAt            time.Time  `json:"updated_at"`
-	DeletedAt            *time.Time `json:"deleted_at,omitempty"`
+type User = identitydto.User[APIKey]
 
-	// 余额不足通知
-	BalanceNotifyEnabled       bool               `json:"balance_notify_enabled"`
-	BalanceNotifyThresholdType string             `json:"balance_notify_threshold_type"`
-	BalanceNotifyThreshold     *float64           `json:"balance_notify_threshold"`
-	BalanceNotifyExtraEmails   []NotifyEmailEntry `json:"balance_notify_extra_emails"`
-	TotalRecharged             float64            `json:"total_recharged"`
+type AdminUser = identitydto.AdminUser[APIKey]
 
-	// RPMLimit 用户级每分钟请求数上限（0 = 不限制），仅在所用分组未设置 rpm_limit 时作为兜底生效。
-	RPMLimit int `json:"rpm_limit"`
-	// APIKeyLimit 用户可创建的 API Key 数量上限，0 表示不限制。
-	APIKeyLimit int `json:"api_key_limit"`
+type APIKey = keydto.APIKey[Group]
 
-	APIKeys       []APIKey           `json:"api_keys,omitempty"`
-	Subscriptions []UserSubscription `json:"subscriptions,omitempty"`
-}
-
-// AdminUser 是管理员接口使用的 user DTO（包含敏感/内部字段）。
-// 注意：普通用户接口不得返回 notes 等管理员备注信息。
-type AdminUser struct {
-	User
-
-	Notes      string     `json:"notes"`
-	LastUsedAt *time.Time `json:"last_used_at"`
-	// GroupRates 用户专属分组倍率配置
-	// map[groupID]rateMultiplier
-	GroupRates map[int64]float64 `json:"group_rates,omitempty"`
-}
-
-type APIKey struct {
-	ID                int64  `json:"id"`
-	UserID            int64  `json:"user_id"`
-	TeamID            *int64 `json:"team_id"`
-	Scope             string `json:"scope"`
-	TeamOwnerDisabled bool   `json:"team_owner_disabled"` // 告知成员该团队 Key 只能由 Owner 恢复。
-	Key               string `json:"key"`
-	Name              string `json:"name"`
-	GroupID           *int64 `json:"group_id"`
-	IsComposite       bool   `json:"is_composite"`
-	// CompositeGroups 按用户设置顺序返回复合 Key 的分组映射。
-	CompositeGroups         []APIKeyCompositeGroup `json:"composite_groups"`
-	Status                  string                 `json:"status"`
-	FastModePolicy          string                 `json:"fast_mode_policy"`
-	BillingMode             string                 `json:"billing_mode"`
-	PreferredSubscriptionID *int64                 `json:"preferred_subscription_id"`
-	ModelMapping            map[string]string      `json:"model_mapping"`
-	IPWhitelist             []string               `json:"ip_whitelist"`
-	IPBlacklist             []string               `json:"ip_blacklist"`
-	LastUsedAt              *time.Time             `json:"last_used_at"`
-	LastUsedIP              *string                `json:"last_used_ip"` // 最近一条带 IP 的用量日志。
-	Quota                   float64                `json:"quota"`        // Quota limit in USD (0 = unlimited)
-	QuotaUsed               float64                `json:"quota_used"`   // Used quota amount in USD
-	ExpiresAt               *time.Time             `json:"expires_at"`   // Expiration time (nil = never expires)
-	CreatedAt               time.Time              `json:"created_at"`
-	UpdatedAt               time.Time              `json:"updated_at"`
-	// 绑定分组不可用时是否自动回退到同平台默认分组。
-	FallbackToDefaultGroupWhenUnavailable bool `json:"fallback_to_default_group_when_unavailable"`
-	// CurrentConcurrency 表示当前 API Key 的实时活跃请求数。
-	CurrentConcurrency int `json:"current_concurrency"`
-
-	// Rate limit fields
-	RateLimit5h   float64    `json:"rate_limit_5h"`
-	RateLimit1d   float64    `json:"rate_limit_1d"`
-	RateLimit7d   float64    `json:"rate_limit_7d"`
-	Usage5h       float64    `json:"usage_5h"`
-	Usage1d       float64    `json:"usage_1d"`
-	Usage7d       float64    `json:"usage_7d"`
-	Window5hStart *time.Time `json:"window_5h_start"`
-	Window1dStart *time.Time `json:"window_1d_start"`
-	Window7dStart *time.Time `json:"window_7d_start"`
-	Reset5hAt     *time.Time `json:"reset_5h_at,omitempty"`
-	Reset1dAt     *time.Time `json:"reset_1d_at,omitempty"`
-	Reset7dAt     *time.Time `json:"reset_7d_at,omitempty"`
-
-	// API Key 响应不能携带用户对象，避免团队 Key 暴露付款 Owner 的资产信息。
-	Group *Group `json:"group,omitempty"`
-}
-
-// APIKeyCompositeGroup 是复合 API Key 的公开映射结构。
-type APIKeyCompositeGroup struct {
-	GroupID int64  `json:"group_id"`
-	Prefix  string `json:"prefix"`
-	Group   *Group `json:"group,omitempty"`
-}
+type APIKeyCompositeGroup = keydto.APIKeyCompositeGroup[Group]
 
 type Group struct {
 	ID             int64          `json:"id"`

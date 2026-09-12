@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "./internal/identity/...",
+    "./internal/apikey/...",
+    "./internal/service",
+    "./internal/repository",
+    "./internal/handler/...",
+    "./internal/app",
+    "-run",
+    "^$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 17.879,
+  "log": "logs/identity-admin-build-5.log.gz"
+}

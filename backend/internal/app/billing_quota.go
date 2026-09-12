@@ -2,11 +2,10 @@
 package app
 
 import (
-	legacybridge "github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
+	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
 	slog "log/slog"
 	time "time"
 )
@@ -74,8 +73,8 @@ func observePlatformQuota(event billing.QuotaEvent) {
 		}
 	}
 }
-func providePlatformQuotas(repo billing.UserPlatformQuotaRepository, cache billing.BillingCache, users service.UserRepository, coordinator *billing.QuotaCoordinator) *billing.PlatformQuotas {
-	return billing.NewPlatformQuotas(repo, cache, legacybridge.BillingUsers{Repository: users}, coordinator, time.Now, observePlatformQuota)
+func providePlatformQuotas(repo billing.UserPlatformQuotaRepository, cache billing.BillingCache, users *identitypostgres.UserStore, coordinator *billing.QuotaCoordinator) *billing.PlatformQuotas {
+	return billing.NewPlatformQuotas(repo, cache, billingIdentityUsers{Repository: users}, coordinator, time.Now, observePlatformQuota)
 }
 func provideQuotaHTTP(quotas *billing.PlatformQuotas) *billinghttpapi.QuotaHandler {
 	return billinghttpapi.NewQuotaHandler(quotas, timezone.NewCalendar(timezone.Location()), time.Now)

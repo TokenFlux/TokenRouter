@@ -1,0 +1,29 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/identity/...",
+    "./internal/apikey/...",
+    "./internal/team/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 7.327,
+  "log": "logs/clock-contracts-unit.log.gz",
+  "test_events": {
+    "pass": 81,
+    "fail": 0,
+    "skip": 1
+  },
+  "failed_tests": [],
+  "skipped_tests": [
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/identity/postgres",
+      "test": "TestAuthPendingIdentityService_UpsertAdoptionDecision_ClearsLegacyNullSessionReference"
+    }
+  ]
+}

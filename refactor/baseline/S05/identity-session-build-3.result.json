@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "./internal/identity/...",
+    "./internal/service",
+    "./internal/repository",
+    "-run",
+    "^$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 14.103,
+  "log": "logs/identity-session-build-3.log.gz"
+}

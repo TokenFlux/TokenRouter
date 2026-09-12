@@ -1,76 +1,59 @@
+// 本文件维护 service 的所属能力；兼容入口复用唯一实现。
 package service
 
 import (
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	"time"
-
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	ip "github.com/TokenFlux/TokenRouter/internal/pkg/ip"
+	time "time"
 )
 
-// API Key status constants
-const (
-	StatusAPIKeyActive         = "active"
-	StatusAPIKeyDisabled       = "disabled"
-	StatusAPIKeyQuotaExhausted = "quota_exhausted"
-	StatusAPIKeyExpired        = "expired"
-)
+const StatusAPIKeyActive = apikey.StatusAPIKeyActive
 
-// API Key Fast 模式策略常量。
-const (
-	APIKeyFastModePolicyFollowRequest = "follow_request"
-	APIKeyFastModePolicyForceOn       = "force_on"
-	APIKeyFastModePolicyForceOff      = "force_off"
-)
+const StatusAPIKeyDisabled = apikey.StatusAPIKeyDisabled
 
-// API Key 结算模式常量。auto 保持存量 Key 的订阅优先、余额补足行为。
-const (
-	APIKeyBillingModeAuto         = "auto"
-	APIKeyBillingModeSubscription = "subscription"
-	APIKeyBillingModeBalance      = "balance"
-)
+const StatusAPIKeyQuotaExhausted = apikey.StatusAPIKeyQuotaExhausted
 
-// NormalizeAPIKeyFastModePolicy 校验并规范化 API Key Fast 模式策略。
-// 空值用于兼容旧客户端，按跟随下游请求处理。
+const StatusAPIKeyExpired = apikey.StatusAPIKeyExpired
+
+const APIKeyFastModePolicyFollowRequest = apikey.APIKeyFastModePolicyFollowRequest
+
+const APIKeyFastModePolicyForceOn = apikey.APIKeyFastModePolicyForceOn
+
+const APIKeyFastModePolicyForceOff = apikey.APIKeyFastModePolicyForceOff
+
+const APIKeyBillingModeAuto = apikey.APIKeyBillingModeAuto
+
+const APIKeyBillingModeSubscription = apikey.APIKeyBillingModeSubscription
+
+const APIKeyBillingModeBalance = apikey.APIKeyBillingModeBalance
+
+// NormalizeAPIKeyFastModePolicy 委托 Key 模块的唯一实现。
 func NormalizeAPIKeyFastModePolicy(value string) (string, bool) {
-	switch value {
-	case "", APIKeyFastModePolicyFollowRequest:
-		return APIKeyFastModePolicyFollowRequest, true
-	case APIKeyFastModePolicyForceOn, APIKeyFastModePolicyForceOff:
-		return value, true
-	default:
-		return "", false
-	}
+	return apikey.NormalizeAPIKeyFastModePolicy(value)
 }
 
-// NormalizeAPIKeyBillingMode 委托唯一资金来源规则。
+// NormalizeAPIKeyBillingMode 委托 Key 模块的唯一实现。
 func NormalizeAPIKeyBillingMode(value string) (string, bool) {
-	return billing.NormalizeAPIKeyBillingMode(value)
+	return apikey.NormalizeAPIKeyBillingMode(value)
 }
 
-// APIKeyEffectiveBillingMode 返回 Key 实际生效的结算模式。
-// 历史记录在迁移前没有该字段时按 auto 处理，避免滚动升级期间错误拒绝请求。
+// APIKeyEffectiveBillingMode 委托 Key 模块的唯一实现。
 func APIKeyEffectiveBillingMode(key *APIKey) string {
-	if key == nil {
-		return APIKeyBillingModeAuto
-	}
-	mode, ok := NormalizeAPIKeyBillingMode(key.BillingMode)
-	if !ok {
-		return APIKeyBillingModeAuto
-	}
-	return mode
+	keyView := APIKeyView(key)
+	result0 := apikey.APIKeyEffectiveBillingMode(keyView)
+	ApplyAPIKeyView(key, keyView)
+	return result0
 }
 
-// Rate limit window durations
-const (
-	RateLimitWindow5h = 5 * time.Hour
-	RateLimitWindow1d = 24 * time.Hour
-	RateLimitWindow7d = 7 * 24 * time.Hour
-)
+const RateLimitWindow5h = apikey.RateLimitWindow5h
 
-// IsWindowExpired returns true if the window starting at windowStart has exceeded the given duration.
-// A nil windowStart is treated as expired — no initialized window means any accumulated usage is stale.
+const RateLimitWindow1d = apikey.RateLimitWindow1d
+
+const RateLimitWindow7d = apikey.RateLimitWindow7d
+
+// IsWindowExpired 委托 Key 模块的唯一实现。
 func IsWindowExpired(windowStart *time.Time, duration time.Duration) bool {
-	return windowStart == nil || time.Since(*windowStart) >= duration
+	return apikey.IsWindowExpired(windowStart, duration)
 }
 
 type APIKey struct {
@@ -148,83 +131,94 @@ type APIKeyCompositeGroup struct {
 	Group                *Group
 }
 
+// IsActive 委托 Key 模块的唯一实现。
 func (k *APIKey) IsActive() bool {
-	return k.Status == StatusActive && !k.TeamOwnerDisabled
+	coreKey := APIKeyView(k)
+	kView := APIKeyView(k)
+	result0 := coreKey.IsActive()
+	ApplyAPIKeyView(k, coreKey)
+	ApplyAPIKeyView(k, kView)
+	return result0
 }
 
-// HasRateLimits returns true if any rate limit window is configured
+// HasRateLimits 委托 Key 模块的唯一实现。
 func (k *APIKey) HasRateLimits() bool {
-	return k.RateLimit5h > 0 || k.RateLimit1d > 0 || k.RateLimit7d > 0
+	coreKey := APIKeyView(k)
+	kView := APIKeyView(k)
+	result0 := coreKey.HasRateLimits()
+	ApplyAPIKeyView(k, coreKey)
+	ApplyAPIKeyView(k, kView)
+	return result0
 }
 
-// IsExpired checks if the API key has expired
+// IsExpired 委托 Key 模块的唯一实现。
 func (k *APIKey) IsExpired() bool {
-	if k.ExpiresAt == nil {
-		return false
-	}
-	return time.Now().After(*k.ExpiresAt)
+	coreKey := APIKeyView(k)
+	kView := APIKeyView(k)
+	result0 := coreKey.IsExpired()
+	ApplyAPIKeyView(k, coreKey)
+	ApplyAPIKeyView(k, kView)
+	return result0
 }
 
-// IsQuotaExhausted checks if the API key quota is exhausted
+// IsQuotaExhausted 委托 Key 模块的唯一实现。
 func (k *APIKey) IsQuotaExhausted() bool {
-	if k.Quota <= 0 {
-		return false // unlimited
-	}
-	return k.QuotaUsed >= k.Quota
+	coreKey := APIKeyView(k)
+	kView := APIKeyView(k)
+	result0 := coreKey.IsQuotaExhausted()
+	ApplyAPIKeyView(k, coreKey)
+	ApplyAPIKeyView(k, kView)
+	return result0
 }
 
-// GetQuotaRemaining returns remaining quota (-1 for unlimited)
+// GetQuotaRemaining 委托 Key 模块的唯一实现。
 func (k *APIKey) GetQuotaRemaining() float64 {
-	if k.Quota <= 0 {
-		return -1 // unlimited
-	}
-	remaining := k.Quota - k.QuotaUsed
-	if remaining < 0 {
-		return 0
-	}
-	return remaining
+	coreKey := APIKeyView(k)
+	kView := APIKeyView(k)
+	result0 := coreKey.GetQuotaRemaining()
+	ApplyAPIKeyView(k, coreKey)
+	ApplyAPIKeyView(k, kView)
+	return result0
 }
 
-// GetDaysUntilExpiry returns days until expiry (-1 for never expires)
+// GetDaysUntilExpiry 委托 Key 模块的唯一实现。
 func (k *APIKey) GetDaysUntilExpiry() int {
-	if k.ExpiresAt == nil {
-		return -1 // never expires
-	}
-	duration := time.Until(*k.ExpiresAt)
-	if duration < 0 {
-		return 0
-	}
-	return int(duration.Hours() / 24)
+	coreKey := APIKeyView(k)
+	kView := APIKeyView(k)
+	result0 := coreKey.GetDaysUntilExpiry()
+	ApplyAPIKeyView(k, coreKey)
+	ApplyAPIKeyView(k, kView)
+	return result0
 }
 
-// EffectiveUsage5h returns the 5h window usage, or 0 if the window has expired.
+// EffectiveUsage5h 委托 Key 模块的唯一实现。
 func (k *APIKey) EffectiveUsage5h() float64 {
-	if IsWindowExpired(k.Window5hStart, RateLimitWindow5h) {
-		return 0
-	}
-	return k.Usage5h
+	coreKey := APIKeyView(k)
+	kView := APIKeyView(k)
+	result0 := coreKey.EffectiveUsage5h()
+	ApplyAPIKeyView(k, coreKey)
+	ApplyAPIKeyView(k, kView)
+	return result0
 }
 
-// EffectiveUsage1d returns the 1d window usage, or 0 if the window has expired.
+// EffectiveUsage1d 委托 Key 模块的唯一实现。
 func (k *APIKey) EffectiveUsage1d() float64 {
-	if IsWindowExpired(k.Window1dStart, RateLimitWindow1d) {
-		return 0
-	}
-	return k.Usage1d
+	coreKey := APIKeyView(k)
+	kView := APIKeyView(k)
+	result0 := coreKey.EffectiveUsage1d()
+	ApplyAPIKeyView(k, coreKey)
+	ApplyAPIKeyView(k, kView)
+	return result0
 }
 
-// EffectiveUsage7d returns the 7d window usage, or 0 if the window has expired.
+// EffectiveUsage7d 委托 Key 模块的唯一实现。
 func (k *APIKey) EffectiveUsage7d() float64 {
-	if IsWindowExpired(k.Window7dStart, RateLimitWindow7d) {
-		return 0
-	}
-	return k.Usage7d
+	coreKey := APIKeyView(k)
+	kView := APIKeyView(k)
+	result0 := coreKey.EffectiveUsage7d()
+	ApplyAPIKeyView(k, coreKey)
+	ApplyAPIKeyView(k, kView)
+	return result0
 }
 
-// APIKeyListFilters holds optional filtering parameters for listing API keys.
-type APIKeyListFilters struct {
-	Search  string
-	Status  string
-	GroupID *int64 // nil=不筛选, 0=无分组, >0=指定分组
-	Scope   string // personal 或 team；空值兼容历史调用并返回全部
-}
+type APIKeyListFilters = apikey.APIKeyListFilters

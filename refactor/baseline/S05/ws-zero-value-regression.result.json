@@ -1,0 +1,25 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/handler",
+    "-run",
+    "TestAPIKeyServiceZeroValueLookup|TestOpenAIResponsesWebSocketV2Passthrough(CyberMarkIsConsumedAfterTurn|NonCyberTurnAllowsFollowup)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 20.67,
+  "log": "logs/ws-zero-value-regression.log.gz",
+  "test_events": {
+    "pass": 3,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

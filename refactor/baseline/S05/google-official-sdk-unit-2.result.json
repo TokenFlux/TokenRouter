@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/identity/provider",
+    "-run",
+    "^TestGoogleOfficialValidatorWithLocalJWKS$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 1.306,
+  "log": "logs/google-official-sdk-unit-2.log.gz",
+  "test_events": {
+    "pass": 8,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"github.com/TokenFlux/TokenRouter/internal/app/bootstrap"
-	"github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/handler"
@@ -30,9 +29,7 @@ func provideSecretEncryptor(cfg *config.Config) (service.SecretEncryptor, error)
 	return bootstrap.NewAESEncryptor(cfg)
 }
 func provideSettingsStore(repo service.SettingRepository) *settings.Store { return settings.New(repo) }
-func provideAnnouncementUsers(repo service.UserRepository) site.UserReader {
-	return &legacybridge.AnnouncementUsers{Repository: repo}
-}
+
 func provideAnnouncementExpiry(repo site.AnnouncementRepository) *site.AnnouncementExpiryService {
 	return site.NewAnnouncementExpiryService(repo, time.Minute)
 }

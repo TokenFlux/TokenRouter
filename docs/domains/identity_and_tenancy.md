@@ -17,6 +17,10 @@
 
 ## 核心实体
 
+用户资料、注册/绑定规则、会话、强认证和属性用例由 `internal/identity` 实现，团队用例由 `internal/team` 实现，Key 生命周期和认证缓存由 `internal/apikey` 实现。各自的 `postgres`、`rediscache`、`provider` 与 `httpapi` 按实际需要承接存储、外部验证和 HTTP；旧 service/repository 入口保留模型投影与委托。app 构造身份核心和用户存储，公告及 billing 直接消费 identity 的只读投影。七类身份、通用 pending 和 OAuth 回调的生产 HTTP 由 app 一次性组合，旧 AuthHandler 仅保留兼容入口；微信支付 OAuth 独立保留在支付授权适配中，不构造登录身份图。
+
+`Principal` 表达已验证的身份和凭据种类；`AccessSnapshot` 分别记录 Key owner、付款用户、行为成员和团队。身份核心的 `User` 不递归持有 API Key，旧 HTTP 的关联形状由 DTO 投影恢复。资金消费、调账及注册赠送的写入仍由 billing 负责，身份与团队事务通过同连接参与能力组合，提交前不发布成功失效。
+
 | 实体 | 身份与所有权含义 | 关键约束 |
 | --- | --- | --- |
 | `User` | 本地账户和最终授权主体，拥有角色、状态、余额、并发与安全版本 | 软删除；登录和请求都必须重新确认启用状态；`token_version` 变化使旧 JWT 失效 |
@@ -51,7 +55,7 @@ Google One Tap 是现有 Google 登录的浏览器凭据入口，不创建新的
 
 ## 会话生命周期
 
-登录成功签发 access/refresh token 对。refresh token 原文只交给客户端，服务端保存摘要并按用户和 `sid` 维护会话族。刷新时验证摘要、用户状态和 token version，删除已使用的 refresh token，再在同一会话族签发新的一对 token；因此客户端必须把刷新视为轮换，不能并发复用旧 token。
+登录成功签发 access/refresh token 对。refresh token 原文只交给客户端，服务端保存摘要并按用户和 `sid` 维护会话族。刷新时先验证摘要、用户状态、token version 和适用的绑定摘要，再以 Redis 原 key 的原子删除结果取得唯一消费权，成功后才在同一会话族签发新的一对 token。并发请求只有实际消费凭据的一方可以继续；消费失败返回服务不可用，不能保留旧凭据同时签发新凭据。用户读取等校验阶段的暂时错误不会提前消费 token，后继凭据生成失败则继续保持旧 token 已失效的原语义。客户端仍须把刷新视为轮换，不能并发复用旧 token。
 
 浏览器内同一文档的刷新调用共享一个进行中的 Promise；支持 Web Locks 的浏览器还按固定锁名串行化同源标签页。取得锁后必须重新读取持久 token，并优先采用同一用户由其他标签页刚完成的轮换结果；不支持 Web Locks 时，竞争失败方在有界窗口内等待新 token 发布。刷新响应落盘前要再次核对 refresh token 和用户快照，轮换 token 最后写入作为提交标记；刷新期间发生登出或换号时，旧请求既不能恢复旧会话，也不能清除新会话。
 
@@ -68,6 +72,8 @@ Google One Tap 是现有 Google 登录的浏览器凭据入口，不创建新的
 TOTP 密钥以加密形式持久化，设置和登录挑战使用有过期时间的缓存状态。管理员敏感设置要求近期 TOTP step-up grant，grant 绑定 JWT 的 `sid`；TOTP 未启用、会话 ID 缺失、grant 过期或 grant 服务不可用都应拒绝操作。该检查开启后按 fail-close 工作。
 
 Passkey 使用 WebAuthn 的注册和登录 ceremony：持久凭据与短期 challenge/session 分离，finish 只能消费匹配的 ceremony 状态。启用腾讯天御或阿里云验证码时，匿名登录 begin 必须先消费验证码票据，finish 不再携带或重复校验该票据。注册入口必须先有已认证用户，登录 finish 最终仍签发标准 token 对并进入相同的用户状态、版本和会话约束，不能创建一条旁路授权体系。
+
+Passkey 核心通过验证端口接收响应内容，先消费 session，再由 provider 中的 WebAuthn SDK 解析和验证；损坏的 credential 响应同样不能重放已消费的挑战。
 
 ## 外部身份接入
 

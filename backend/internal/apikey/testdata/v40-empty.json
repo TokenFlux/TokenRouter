@@ -1,0 +1,34 @@
+{
+  "not_found": false,
+  "snapshot": {
+    "version": 40,
+    "api_key_id": 0,
+    "user_id": 0,
+    "team_owner_disabled": false,
+    "created_at": "0001-01-01T00:00:00Z",
+    "is_composite": false,
+    "name": "",
+    "status": "",
+    "fast_mode_policy": "",
+    "billing_mode": "",
+    "user": {
+      "id": 0,
+      "status": "",
+      "role": "",
+      "balance": 0,
+      "concurrency": 0,
+      "email": "",
+      "username": "",
+      "balance_notify_enabled": false,
+      "balance_notify_threshold_type": "",
+      "total_recharged": 0,
+      "rpm_limit": 0
+    },
+    "quota": 0,
+    "quota_used": 0,
+    "rate_limit_5h": 0,
+    "rate_limit_1d": 0,
+    "rate_limit_7d": 0,
+    "fallback_to_default_group_when_unavailable": false
+  }
+}

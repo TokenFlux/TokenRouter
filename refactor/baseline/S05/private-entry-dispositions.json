@@ -1,0 +1,4280 @@
+[
+  {
+    "source": "backend/internal/apikey/postgres/helpers.go",
+    "symbol": "isPostgresDeadlock",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/apikey/postgres/helpers.go",
+    "symbol": "postgresSQLState",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/apikey/postgres/helpers.go",
+    "symbol": "isSQLNoRowsError",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/billing/httpapi/redeem_mappers.go",
+    "symbol": "redeemCodeFromServiceBase",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/billing/httpapi/subscription_mappers.go",
+    "symbol": "userSubscriptionFromServiceBase",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/billing/httpapi/subscription_mappers.go",
+    "symbol": "cloneInt64Float64Map",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/billing/httpapi/subscription_mappers.go",
+    "symbol": "userSummaryResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/billing/httpapi/subscription_mappers.go",
+    "symbol": "cloneNotifyEmailEntries",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/admin/snapshot_cache.go",
+    "symbol": "snapshotCacheEntry",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/admin/snapshot_cache.go",
+    "symbol": "snapshotCacheLoadResult",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/admin/snapshot_cache.go",
+    "symbol": "buildETagFromAny",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/admin/subscription_handler.go",
+    "symbol": "getAdminIDFromContext",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/admin/user_attribute_handler.go",
+    "symbol": "userAttributesBatchCache",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/admin/user_attribute_handler.go",
+    "symbol": "defToResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/admin/user_attribute_handler.go",
+    "symbol": "valueToResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/admin/user_handler.go",
+    "symbol": "parseAttributeFilters",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/api_key_handler.go",
+    "symbol": "apiKeyLimitInput",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/api_key_handler.go",
+    "symbol": "validateAPIKeyLimitFields",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/api_key_handler.go",
+    "symbol": "validateAPIKeyCreateRequest",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/handler/api_key_handler_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/handler/api_key_handler.go",
+    "symbol": "validateAPIKeyUpdateRequest",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/handler/api_key_handler_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_client.go",
+    "symbol": "parseDingTalkErr",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "dingTalkUpstreamRedirect",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "dingTalkOAuthCookiePath",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "dingTalkOAuthStateCookieName",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "dingTalkOAuthRedirectCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "dingTalkOAuthIntentCookieName",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "dingTalkOAuthBindUserCookieName",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "dingTalkOAuthCookieMaxAgeSec",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "dingTalkOAuthDefaultRedirectTo",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "dingTalkOAuthDefaultFrontendCB",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "dingTalkLevelThreeEnabled",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "setDingTalkCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "clearDingTalkCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "(*AuthHandler).findDingTalkCompatEmailUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "(*AuthHandler).createDingTalkOAuthChoicePendingSession",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "(*AuthHandler).isDingTalkSignupBlocked",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "dingTalkBindLoginCompletionResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "mapDingTalkErrorCode",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "buildDingTalkAuthorizeURL",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "completeDingTalkOAuthRequest",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "runDingTalkSyncAsync",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "(*AuthHandler).syncDingTalkIdentityFromClaims",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_dingtalk_oauth.go",
+    "symbol": "(*AuthHandler).resolveDingTalkDeptPath",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "emailOAuthTokenResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "(*AuthHandler).emailOAuthStart",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "(*AuthHandler).emailOAuthCallback",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "newEmailOAuthIdentityInput",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "(*AuthHandler).emailOAuthShouldCreatePendingRegistration",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "(*AuthHandler).emailOAuthAffCode",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "(*AuthHandler).createEmailOAuthRegistrationPendingSession",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "completeEmailOAuthRequest",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "buildEmailOAuthAuthorizeURL",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "exchangeEmailOAuthCode",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "fetchEmailOAuthProfile",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "parseGitHubOAuthProfile",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "fetchGitHubPrimaryVerifiedEmail",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "parseGoogleOAuthProfile",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "emailOAuthSetCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_email_oauth.go",
+    "symbol": "emailOAuthClearCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_google_one_tap.go",
+    "symbol": "googleOneTapRequest",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_google_one_tap.go",
+    "symbol": "googleOneTapResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_google_one_tap.go",
+    "symbol": "googleIDTokenStringClaim",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_google_one_tap.go",
+    "symbol": "(*AuthHandler).verifyGoogleOneTapCredential",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_google_one_tap.go",
+    "symbol": "writeGoogleOneTapResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_handler.go",
+    "symbol": "captchaProof",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/handler/auth_handler_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/handler/auth_handler.go",
+    "symbol": "ensureLoginUserActive",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_handler.go",
+    "symbol": "(*AuthHandler).respondWithTokenPair",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_handler.go",
+    "symbol": "respondWithTokenPair",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_handler.go",
+    "symbol": "(*AuthHandler).ensureBackendModeAllowsUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_handler.go",
+    "symbol": "(*AuthHandler).ensureBackendModeAllowsNewUserLogin",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "linuxDoTokenExchangeError",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "(*AuthHandler).findLinuxDoCompatEmailUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "(*AuthHandler).createLinuxDoOAuthChoicePendingSession",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "completeLinuxDoOAuthRequest",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "linuxDoExchangeCode",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "linuxDoFetchUserInfo",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "buildLinuxDoAuthorizeURL",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "redirectOAuthTokenPair",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "getGJSON",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "truncateLogValue",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "setCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "clearCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "clearOAuthBindAccessTokenCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "setOAuthBindAccessTokenCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "truncateFragmentValue",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "isSafeLinuxDoSubject",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "normalizeOAuthIntent",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "(*AuthHandler).buildOAuthBindUserCookieFromContext",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "(*AuthHandler).resolveOAuthBindTargetUserID",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_linuxdo_oauth.go",
+    "symbol": "(*AuthHandler).readOAuthBindUserIDFromCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_captcha_start.go",
+    "symbol": "oauthStartCaptchaRequest",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/handler/auth_oauth_captcha_start_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_captcha_start.go",
+    "symbol": "oauthStartResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_captcha_start.go",
+    "symbol": "(*AuthHandler).requireActionCaptchaForOAuthLoginStart",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/handler/auth_oauth_captcha_start_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_captcha_start.go",
+    "symbol": "respondOAuthStart",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/handler/auth_oauth_captcha_start_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "oauthPendingSessionPayload",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "oauthAdoptionDecisionRequest",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "bindPendingOAuthLoginRequest",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "createPendingOAuthAccountRequest",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/handler/auth_oauth_pending_flow_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "sendPendingOAuthVerifyCodeRequest",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/handler/auth_oauth_pending_flow_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "bindPendingOAuthLoginRequest.adoptionDecision",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "createPendingOAuthAccountRequest.adoptionDecision",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "(*AuthHandler).pendingIdentityService",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "generateOAuthPendingBrowserSession",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "setOAuthPendingBrowserCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "readOAuthPendingBrowserCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "readOAuthPendingSessionCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "captureOAuthPromoCode",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "clearOAuthPromoCodeCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "readOAuthPromoCode",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "redirectToFrontendCallback",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "(*AuthHandler).createOAuthPendingSession",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "clonePendingMap",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "mergePendingCompletionResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "pendingSessionWantsInvitation",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "pendingSessionRequiresEmailCompletion",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "pendingSessionRequiresBindLogin",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "pendingOAuthCompletionCanIssueTokenPair",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "ensurePendingOAuthCompleteRegistrationSession",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "buildLegacyCompleteRegistrationPendingResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "(*AuthHandler).legacyCompleteRegistrationSessionStatus",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "oauthAdoptionDecisionRequest.hasDecision",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "bindOptionalOAuthAdoptionDecision",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "cloneOAuthMetadata",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "mergeOAuthMetadata",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "normalizeAdoptedOAuthDisplayName",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "(*AuthHandler).findOAuthIdentityUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "(*AuthHandler).upsertPendingOAuthAdoptionDecision",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "(*AuthHandler).ensurePendingOAuthAdoptionDecision",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "updatePendingOAuthSessionProgress",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "userNormalizedEmailPredicate",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "findUserByNormalizedEmail",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "ensurePendingOAuthRegistrationIdentityAvailable",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "oauthIdentityIssuer",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "ensurePendingOAuthIdentityForUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "ensurePendingWeChatOAuthIdentityForUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "chooseWeChatIdentityForUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "chooseWeChatChannelForUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "findActiveUserByID",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "channelRecordMetadata",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "shouldBindPendingOAuthIdentity",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "shouldSkipAvatarAdoption",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "applyPendingOAuthBinding",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "applyPendingOAuthBindingTx",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "consumePendingOAuthBrowserSessionTx",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "applyPendingOAuthAdoptionAndConsumeSession",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "applyPendingOAuthAdoption",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "pendingOAuthIdentityExistsForUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "(*AuthHandler).shouldSkipPendingOAuthAdoptionPrompt",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "readPendingOAuthBrowserSession",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "buildPendingOAuthSessionStatusPayload",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "pendingOAuthChoiceCompletionResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "(*AuthHandler).transitionPendingOAuthAccountToChoiceState",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "writeOAuthTokenPairResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "(*AuthHandler).bindPendingOAuthLogin",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "respondPendingOAuthBindingApplyError",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oauth_pending_flow.go",
+    "symbol": "(*AuthHandler).createPendingOAuthAccount",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "oidcTokenExchangeError",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "(*AuthHandler).findOIDCCompatEmailUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "(*AuthHandler).createOIDCOAuthChoicePendingSession",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "completeOIDCOAuthRequest",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "oidcExchangeCode",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "oidcParseTokenResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "oidcFetchUserInfo",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "getGJSONBool",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "oidcAllowedSigningAlgs",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "oidcFetchJWKSet",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "oidcFindPublicKey",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "decodeBase64URLBigInt",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "containsString",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "oidcFallbackUsername",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "oidcSetCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_oidc_oauth.go",
+    "symbol": "oidcClearCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_provider_options.go",
+    "symbol": "emailProviderOptions",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatOAuthIntentLogin",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatOAuthIntentBind",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/handler/auth_wechat_oauth_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatOAuthIntentAdoptEmail",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatOAuthConfig",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除；正常测试中的同名局部 options 不是方法消费者"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatOAuthTokenResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatOAuthUserInfoResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "completeWeChatOAuthRequest",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "(*AuthHandler).createWeChatPendingSession",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "(*AuthHandler).createWeChatChoicePendingSession",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "(*AuthHandler).createWeChatBindPendingSession",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "(*AuthHandler).readOAuthBindTargetUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "(*AuthHandler).ensureWeChatBindOwnership",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "(*AuthHandler).findWeChatUserByLegacyOpenID",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatCompatibleProviderKeys",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "singleWeChatIdentityUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "singleWeChatChannelUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "(*AuthHandler).ensureWeChatRuntimeIdentityBinding",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "(*AuthHandler).getWeChatOAuthConfig",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatOAuthConfig.requiresUnionID",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "resolveWeChatOAuthMode",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "isWeChatBrowserRequest",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "normalizeWeChatOAuthIntent",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "buildWeChatAuthorizeURL",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "fetchWeChatOAuthIdentity",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "exchangeWeChatOAuthCode",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "fetchWeChatUserInfo",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatSyntheticEmail",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/handler/auth_wechat_oauth_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatFallbackUsername",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatSetCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatClearCookie",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/auth_wechat_oauth.go",
+    "symbol": "wechatOAuthConfig.options",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除；正常测试中的同名局部 options 不是方法消费者"
+  },
+  {
+    "source": "backend/internal/handler/passkey_handler.go",
+    "symbol": "passkeyOptionsResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/passkey_handler.go",
+    "symbol": "passkeyFinishRequest",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/passkey_handler.go",
+    "symbol": "passkeyBeginLoginRequest",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/handler/passkey_handler_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/handler/passkey_handler.go",
+    "symbol": "passkeyRenameRequest",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/passkey_handler.go",
+    "symbol": "bindPasskeyFinishRequest",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/passkey_handler.go",
+    "symbol": "passkeyMutationTarget",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/user_handler.go",
+    "symbol": "userProfileResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/user_handler.go",
+    "symbol": "userProfileSourceContext",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/user_handler.go",
+    "symbol": "(*UserHandler).buildUserProfileResponse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/user_handler.go",
+    "symbol": "userProfileResponseFromService",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/user_handler.go",
+    "symbol": "userProfileBindingMap",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/user_handler.go",
+    "symbol": "inferUserProfileSources",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/user_handler.go",
+    "symbol": "thirdPartyIdentityProviders",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/handler/user_handler.go",
+    "symbol": "buildUserProfileSourceContext",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/identity/httpapi/pending_handler.go",
+    "symbol": "CreatePendingOAuthAccountRequest.adoptionDecision",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/identity/postgres/helpers.go",
+    "symbol": "isPostgresDeadlock",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/identity/postgres/helpers.go",
+    "symbol": "postgresSQLState",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/identity/provider/inprocess_transport_test.go",
+    "symbol": "canListenOnce",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/identity/provider/inprocess_transport_test.go",
+    "symbol": "canListen",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/identity/provider/inprocess_transport_test.go",
+    "symbol": "canListenErr",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/identity/provider/inprocess_transport_test.go",
+    "symbol": "localListenerAvailable",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/identity/provider/inprocess_transport_test.go",
+    "symbol": "newLocalTestServer",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/pkg/ip/ip.go",
+    "symbol": "matchesCompiledRules",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/pkg/ip/ip.go",
+    "symbol": "normalizeIP",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_cache.go",
+    "symbol": "apiKeyRateLimitKeyPrefix",
+    "test_conditions": [
+      "integration"
+    ],
+    "target": "backend/internal/repository/api_key_cache_s05_compat_integration_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/repository/api_key_cache.go",
+    "symbol": "apiKeyRateLimitDuration",
+    "test_conditions": [
+      "integration"
+    ],
+    "target": "backend/internal/repository/api_key_cache_s05_compat_integration_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/repository/api_key_cache.go",
+    "symbol": "apiKeyAuthCachePrefix",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_cache.go",
+    "symbol": "apiKeyRateLimitKey",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/repository/api_key_cache_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/repository/api_key_cache.go",
+    "symbol": "apiKeyAuthCacheKey",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_cache.go",
+    "symbol": "apiKeyCache",
+    "test_conditions": [
+      "integration"
+    ],
+    "target": "backend/internal/repository/api_key_cache_s05_compat_integration_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "(*apiKeyRepository).activeQuery",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "apiKeyFastModePolicyForPersistence",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "apiKeyBillingModeForPersistence",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "(*apiKeyRepository).beginAPIKeyCreateTransaction",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "(*apiKeyRepository).lockAPIKeyOwnerAndCount",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "createAPIKeyRecord",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "replaceCompositeGroupRecords",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "withAPIKeyCompositeGroups",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "(*apiKeyRepository).deleteWithTombstone",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "(*apiKeyRepository).apiKeyListByUserIDQuery",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "(*apiKeyRepository).attachLastUsedIPs",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "(*apiKeyRepository).latestUsageLogIPs",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "(*apiKeyRepository).listByUserIDWithUsageSort",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "(*apiKeyRepository).loadAPIKeyUsageTotals",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "apiKeyListOrder",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "repositoryKeyViews",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/api_key_repo.go",
+    "symbol": "repositoryBindingViews",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/auth_cache_invalidation_outbox_repo.go",
+    "symbol": "authCacheInvalidationOutboxRepository",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/error_translate.go",
+    "symbol": "isSQLNoRowsError",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/team_invitation_limiter.go",
+    "symbol": "teamInvitationRecipientCooldown",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/repository/team_invitation_limiter_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/repository/team_invitation_limiter.go",
+    "symbol": "teamInvitationHourlyWindow",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/repository/team_invitation_limiter_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/repository/team_invitation_limiter.go",
+    "symbol": "teamInvitationHourlyLimit",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/repository/team_invitation_limiter_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/repository/team_invitation_limiter.go",
+    "symbol": "teamInvitationRateScript",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/team_invitation_limiter.go",
+    "symbol": "teamInvitationLimiter",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/team_invitation_limiter.go",
+    "symbol": "redisInt64",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/team_repo.go",
+    "symbol": "teamRepository",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/team_repo.go",
+    "symbol": "transferTeamOwnership",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/repository/team_repo_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/repository/team_repo.go",
+    "symbol": "teamUsageWhere",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/team_repo.go",
+    "symbol": "teamKeyActorCondition",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/team_repo.go",
+    "symbol": "normalizeTeamMembershipWindows",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/team_repo.go",
+    "symbol": "teamRowScanner",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/team_repo.go",
+    "symbol": "scanTeamMembership",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/team_repo.go",
+    "symbol": "requireTeamAffected",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/team_repo.go",
+    "symbol": "mapTeamConstraintError",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "sqlQueryExecutor",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "repositoryScopedKeyLocks",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "scopedKeyLockRegistry",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "scopedKeyLockEntry",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "newScopedKeyLockRegistry",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "normalizeLockKeys",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "advisoryLockHash",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "lockRepositoryScopedKeys",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "compatibleIdentityProviderKeys",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "canonicalizeCompatibleIdentityProviderKey",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "compatibleIdentityProviderKeyRank",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "selectOwnedCompatibleIdentity",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "hasCompatibleIdentityConflict",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "selectOwnedCompatibleChannel",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "hasCompatibleChannelConflict",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "identityAdoptionDecisionLockKeys",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "copyMetadata",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "validateAuthIdentityChannelProviderMatch",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "txAwareSQLExecutor",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "(*userRepository).userProfileIdentitySQL",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_profile_identity_repo.go",
+    "symbol": "sqlExecutorFromEntClient",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "normalizedUserEmailValueSQL",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "normalizedUserEmailLocalSQL",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "normalizedUserEmailDomainSQL",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "normalizedUserEmailBaseLocalSQL",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "registrationEmailLockNamespace",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "(*userRepository).createWithNormalizationGuard",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "(*userRepository).updateWithNormalizationGuard",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "ensureEmailAuthIdentityWithClient",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "replaceEmailAuthIdentityWithClient",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "normalizeEmailAuthIdentitySubject",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "(*userRepository).deleteUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "userListOrder",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "userLastUsedAtOrder",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "(*userRepository).filterUsersByAttributes",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "emailAliasCandidateLimit",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "emailAliasOwnerIDWithClient",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "dotStrippedEmailExpr",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "dotStrippedEmailEQ",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "dotStrippedEmailLike",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "likeWildcardEscaper",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "escapeLikeWildcards",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "(*userRepository).existsByNormalizedEmail",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "ensureNormalizedEmailAvailableWithClient",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "normalizeEmailLookupValue",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "normalizedEmailUniquenessLockKey",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "emailAliasUniquenessLockKey",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "registrationEmailDomainLockKey",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "normalizeEmailDomain",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "countUsersByEmailDomainWithClient",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "userEmailDomainPredicate",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "(*userRepository).loadAllowedGroups",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "(*userRepository).loadDisabledPublicGroups",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "(*userRepository).syncUserAllowedGroupsWithClient",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "(*userRepository).syncUserDisabledPublicGroupsWithClient",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "applyUserEntityToService",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "(*userRepository).sqlExecutorFromContext",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "deductUserBalance",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "(*userRepository).updateWithClient",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "(*userRepository).createWithClient",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "userSignupSourceOrDefault",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "marshalExtraEmails",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/repository/user_repo.go",
+    "symbol": "(*userRepository).billingBalance",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/server/middleware/admin_auth.go",
+    "symbol": "isWebSocketUpgradeRequest",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/server/middleware/admin_auth.go",
+    "symbol": "extractJWTFromWebSocketSubprotocol",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/server/middleware/admin_auth.go",
+    "symbol": "validateAdminAPIKey",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/server/middleware/admin_auth.go",
+    "symbol": "validateJWTForAdmin",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth.go",
+    "symbol": "maxAPIKeyAuthorizationHeaderBytes",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/server/middleware/api_key_auth_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth.go",
+    "symbol": "apiKeyHeadersTooLarge",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth.go",
+    "symbol": "hasAPIKeyCredentialInput",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth.go",
+    "symbol": "abortTeamAPIKeyError",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/server/middleware/api_key_auth_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth_google.go",
+    "symbol": "extractAPIKeyForGoogle",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth_google.go",
+    "symbol": "allowGoogleQueryKey",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/server/middleware/api_key_auth_google.go",
+    "symbol": "googleTeamAPIKeyError",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/server/middleware/api_key_auth_google_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/server/middleware/ingress_reject.go",
+    "symbol": "rejectInvalidAuthAbuse",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/server/middleware/ingress_reject.go",
+    "symbol": "recordInvalidAuthFailure",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/server/middleware/request_metadata.go",
+    "symbol": "normalizePersistentText",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/server/middleware/session_binding.go",
+    "symbol": "requestSessionBinding",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/server/middleware/session_binding_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/server/middleware/session_binding.go",
+    "symbol": "enforceSessionBinding",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/account.go",
+    "symbol": "matchAntigravityWildcard",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/account.go",
+    "symbol": "matchWildcardMappingResult",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/account_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/admin_service.go",
+    "symbol": "userGroupRateBatchReader",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_service.go",
+    "symbol": "(*adminServiceImpl).createAppliedAdjustmentRedeemRecord",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "(*adminServiceImpl).loadUserGroupRatesOneByOne",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "normalizeUserRole",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "(*adminServiceImpl).ensureNotLastAdmin",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "(*adminServiceImpl).assignDefaultSubscriptions",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "sameInt64Set",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "(*adminServiceImpl).listUserAPIKeysForDeletion",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "(*adminServiceImpl).deleteUserWithAPIKeys",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "(*adminServiceImpl).tryAccrueAffiliateRebateForAdminRecharge",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "compatibleAdminAuthIdentityProviderKeys",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "canonicalAdminAuthIdentityProviderKey",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "adminAuthIdentityProviderKeyRank",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "selectOwnedAdminAuthIdentity",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "hasAdminAuthIdentityOwnershipConflict",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "selectOwnedAdminAuthIdentityChannel",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "hasAdminAuthIdentityChannelOwnershipConflict",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "normalizeAdminBindChannelInput",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "normalizeAdminAuthIdentityProviderType",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "buildAdminBoundAuthIdentity",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/admin_user.go",
+    "symbol": "cloneAdminAuthIdentityMetadata",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/aliyun_captcha_service.go",
+    "symbol": "aliyunCaptchaEndpointCN",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/aliyun_captcha_service.go",
+    "symbol": "aliyunCaptchaEndpointSGP",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/aliyun_captcha_service.go",
+    "symbol": "aliyunCaptchaEndpoint",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/aliyun_captcha_service.go",
+    "symbol": "aliyunCredentialValidationParam",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/aliyun_captcha_service.go",
+    "symbol": "aliyunInvalidCredentialCodes",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/aliyun_captcha_service.go",
+    "symbol": "aliyunCaptchaCredentials",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_impl.go",
+    "symbol": "apiKeyAuthCacheConfig",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_impl.go",
+    "symbol": "newAPIKeyAuthCacheConfig",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_impl.go",
+    "symbol": "(*APIKeyService).invalidateLocalAuthCache",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_impl.go",
+    "symbol": "(*APIKeyService).authCacheKey",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/api_key_auth_cache_impl_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_impl.go",
+    "symbol": "(*APIKeyService).getAuthCacheEntry",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_impl.go",
+    "symbol": "(*APIKeyService).setAuthCacheL1",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_impl.go",
+    "symbol": "(*APIKeyService).setAuthCacheEntry",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_impl.go",
+    "symbol": "(*APIKeyService).deleteAuthCache",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_impl.go",
+    "symbol": "(*APIKeyService).loadAuthCacheEntry",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_impl.go",
+    "symbol": "(*APIKeyService).lookupAPIKeyForAuth",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_impl.go",
+    "symbol": "(*APIKeyService).hydrateTeamAPIKey",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/api_key_auth_cache_impl_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_impl.go",
+    "symbol": "authGroupSnapshotFromGroup",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/api_key_auth_cache_impl_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_impl.go",
+    "symbol": "groupFromAuthSnapshot",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/api_key_auth_cache_impl_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_impl.go",
+    "symbol": "cloneChannelModelPricingEntries",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_auth_cache_invalidate.go",
+    "symbol": "(*APIKeyService).deleteAuthCacheByKeys",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_composite.go",
+    "symbol": "compositeKeyPrefixPattern",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_composite.go",
+    "symbol": "(*APIKeyService).prepareCompositeGroups",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "defaultAuthLookupConcurrency",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "defaultNegativeAuthCacheSize",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "apiKeyMaxErrorsPerHour",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "apiKeyLastUsedMinTouch",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "apiKeySortCurrentConcurrency",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "apiKeyLimitUpperBound",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/api_key_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "apiKeyLastUsedFailBackoff",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "apiKeyAllByUserIDLister",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "authCacheSubscriptionReadyKey",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "withAuthCacheSubscriptionReady",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "validateCreateAPIKeyRequest",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/api_key_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "validateUpdateAPIKeyRequest",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/api_key_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).compileAPIKeyIPRules",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).checkAPIKeyRateLimit",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).incrementAPIKeyErrorCount",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).canUserBindGroup",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).resolveAPIKeyBillingConfiguration",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "validatePreferredSubscriptionGroups",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).billingUserIDForScope",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).billingUserForAPIKey",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).canUserUseBoundGroup",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).listByCurrentConcurrency",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "normalizedAPIKeySortBy",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "sortAPIKeysByCurrentConcurrency",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "paginateAPIKeys",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "apiKeyPaginationResult",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).fillCurrentConcurrency",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).currentConcurrencyForAPIKey",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).applyDefaultGroupFallback",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).applyUnavailableFallbackGroup",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "fallbackPlatformFromBoundGroup",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).applyDefaultGroupByPlatform",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).refreshFallbackUserGroupRPMOverride",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "resolveAPIKeyFallbackPlatform",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "checkTeamMemberLimitSnapshot",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/api_key_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/api_key_service.go",
+    "symbol": "(*APIKeyService).canUserBindGroupInternal",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/apikey_projection.go",
+    "symbol": "keyRowsToView",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_cache_invalidation_outbox.go",
+    "symbol": "authInvalidationBatchSize",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_cache_invalidation_outbox.go",
+    "symbol": "authInvalidationPollInterval",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_cache_invalidation_outbox.go",
+    "symbol": "authInvalidationLease",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_cache_invalidation_outbox.go",
+    "symbol": "authInvalidationRedisTimeout",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_cache_invalidation_outbox.go",
+    "symbol": "authInvalidationSafetyDelay",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_cache_invalidation_outbox.go",
+    "symbol": "authInvalidationConcurrency",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_cache_invalidation_outbox.go",
+    "symbol": "authInvalidationRetryDelay",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_cache_invalidation_outbox.go",
+    "symbol": "boundedAuthInvalidationError",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "normalizedEmailBindingConflictChecker",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "emailIdentityAliasGuardRepository",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "(*AuthService).ensureUserEmailChangeAllowed",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "normalizeEmailForIdentityBinding",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "hasBindableEmailIdentitySubject",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "(*AuthService).normalizeRegistrationEmailForBinding",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "(*AuthService).ensureEmailBindingTargetAvailable",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "(*AuthService).ensureEmailAliasTargetAvailable",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "(*AuthService).hasNormalizedEmailBindingConflict",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "(*AuthService).updateBoundEmailIdentityTx",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "(*AuthService).updateBoundEmailIdentityWithClient",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "(*AuthService).revokeEmailIdentitySessions",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "replaceBoundEmailAuthIdentityWithClient",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "ensureBoundEmailAuthIdentityWithClient",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_binding.go",
+    "symbol": "normalizeBoundEmailAuthIdentitySubject",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_oauth_auto.go",
+    "symbol": "(*AuthService).loginOrRegisterVerifiedEmailOAuth",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_oauth_auto.go",
+    "symbol": "(*AuthService).createEmailOAuthUser",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/auth_email_oauth_auto_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/auth_email_oauth_auto.go",
+    "symbol": "(*AuthService).findEmailOAuthIdentityOwner",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_email_oauth_auto.go",
+    "symbol": "(*AuthService).ensureEmailOAuthIdentity",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_oauth_email_flow.go",
+    "symbol": "normalizeOAuthSignupSource",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_oauth_email_flow.go",
+    "symbol": "(*AuthService).validateOAuthRegistrationInvitation",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_oauth_email_flow.go",
+    "symbol": "(*AuthService).createOAuthEmailAccountUser",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_oauth_email_flow.go",
+    "symbol": "(*AuthService).restoreOAuthRegistrationInvitation",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_oauth_email_flow.go",
+    "symbol": "(*AuthService).oauthEmailFlowClient",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_oauth_email_flow.go",
+    "symbol": "(*AuthService).loadOAuthRegistrationInvitation",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_oauth_email_flow.go",
+    "symbol": "(*AuthService).useOAuthRegistrationInvitation",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_oauth_email_flow.go",
+    "symbol": "(*AuthService).updateOAuthRegistrationInvitation",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_oauth_email_flow.go",
+    "symbol": "(*AuthService).updateOAuthSignupSource",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_oauth_email_flow.go",
+    "symbol": "oauthEmailFlowStringValue",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_oauth_first_bind.go",
+    "symbol": "(*AuthService).applyProviderDefaultSettingsOnFirstBind",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_pending_identity_service.go",
+    "symbol": "defaultPendingAuthTTL",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_pending_identity_service.go",
+    "symbol": "defaultPendingAuthCompletionTTL",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_pending_identity_service.go",
+    "symbol": "sanitizePendingAuthLocalFlowState",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_pending_identity_service.go",
+    "symbol": "validatePendingSessionState",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_pending_identity_service.go",
+    "symbol": "copyPendingMap",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_pending_identity_service.go",
+    "symbol": "randomOpaqueToken",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_pending_identity_service.go",
+    "symbol": "hashPendingAuthCode",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "maxTokenLength",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/auth_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "refreshTokenPrefix",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "signupGrantPlan",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/auth_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "captchaProvidersConflict",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).canBypassRegistrationDisabledForOAuth",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/auth_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).loginOrRegisterOAuthWithTokenPair",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).applyOAuthSignupPromoCode",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "pendingOAuthTokenTTL",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "pendingOAuthPurpose",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/auth_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "pendingOAuthClaims",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/auth_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).assignSubscriptions",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).runFailOpenDBStep",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "registrationArtifacts",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/auth_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).resolveRegistrationArtifacts",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).bindRegistrationAffiliate",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).createRegisteredUser",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/auth_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).resolveSignupGrantPlan",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/auth_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).postAuthUserBootstrap",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).updateUserSignupSource",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).touchUserLogin",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).backfillEmailIdentityOnSuccessfulLogin",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).shouldApplyEmailFirstBindDefaults",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "emailAuthIdentitySource",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).hasProviderGrantRecord",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).ensureEmailAuthIdentity",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "inferLegacySignupSource",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).validateRegistrationEmailPolicy",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).validateRegistrationEmailQuota",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/auth_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).registrationEmailDomainLimit",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).registrationEmailExists",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "buildEmailSuffixNotAllowedError",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "randomHexString",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).generateAccessToken",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).preparePasswordReset",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).generateRefreshToken",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "hashToken",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "resolvedTokenVersion",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/auth_service.go",
+    "symbol": "(*AuthService).snapshotPlatformQuotaDefaults",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/auth_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/identity_auth_bridge.go",
+    "symbol": "(*AuthService).identityState",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/identity_projection.go",
+    "symbol": "usersToIdentity",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/invalid_auth_abuse_limiter.go",
+    "symbol": "invalidAuthAbuseShardCount",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/invalid_auth_abuse_limiter.go",
+    "symbol": "invalidAuthAbuseEntry",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/invalid_auth_abuse_limiter.go",
+    "symbol": "invalidAuthAbuseShard",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/invalid_auth_abuse_limiter.go",
+    "symbol": "invalidAuthOverflow",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/invalid_auth_abuse_limiter.go",
+    "symbol": "invalidAuthAbuseLimiter",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/invalid_auth_abuse_limiter.go",
+    "symbol": "newInvalidAuthAbuseLimiter",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/registration_email_alias.go",
+    "symbol": "gmailFamilyDomains",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/registration_email_alias.go",
+    "symbol": "splitEmailForAliasDedup",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/registration_email_alias.go",
+    "symbol": "stripEmailPlusSuffix",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/registration_email_alias.go",
+    "symbol": "stripEmailLocalDots",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/registration_email_alias.go",
+    "symbol": "isGmailFamilyDomain",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/registration_email_alias.go",
+    "symbol": "emailAliasLookupRepository",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/registration_email_alias.go",
+    "symbol": "emailAliasOwnerLookupRepository",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/registration_email_policy.go",
+    "symbol": "registrationEmailDomainPattern",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/registration_email_policy.go",
+    "symbol": "normalizeRegistrationEmailSuffixWhitelist",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/registration_email_policy.go",
+    "symbol": "normalizeRegistrationEmailSuffix",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/registration_email_policy.go",
+    "symbol": "isValidRegistrationEmailDomain",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/registration_email_policy.go",
+    "symbol": "registrationEmailDomainMatchesWildcard",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/registration_email_policy.go",
+    "symbol": "splitEmailForPolicy",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/session_binding.go",
+    "symbol": "sessionBindingCtxKey",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/session_binding.go",
+    "symbol": "sessionBindingHashFromContext",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/setting_features.go",
+    "symbol": "mergePlatformQuotaDefaults",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/setting_features_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/sql_errors.go",
+    "symbol": "isSQLNoRowsError",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/team.go",
+    "symbol": "teamKeyActorFilter",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/team.go",
+    "symbol": "normalizeTeamUsageQuery",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/team.go",
+    "symbol": "teamAPIKeyAuthCacheKey",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/team.go",
+    "symbol": "normalizeTeamName",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/team.go",
+    "symbol": "normalizeTeamEmail",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/team.go",
+    "symbol": "newTeamToken",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/team.go",
+    "symbol": "hashTeamToken",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/team_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/tencent_captcha_service.go",
+    "symbol": "tencentCaptchaEndpointCN",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/tencent_captcha_service.go",
+    "symbol": "tencentCaptchaEndpointINTL",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/tencent_captcha_service.go",
+    "symbol": "tencentCaptchaEndpoint",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/tencent_captcha_service.go",
+    "symbol": "parseTencentCaptchaCredentials",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/totp_service.go",
+    "symbol": "generateRandomToken",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_attribute_service.go",
+    "symbol": "validationError",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_attribute_service.go",
+    "symbol": "isValidAttributeType",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_attribute_service.go",
+    "symbol": "validateDefinitionPattern",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "maxNotifyEmails",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "maxInlineAvatarBytes",
+    "test_conditions": [
+      "unit"
+    ],
+    "target": "backend/internal/service/user_service_s05_compat_unit_test.go",
+    "disposition": "仅测试转接"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "targetAvatarBytes",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "notifyCodeUserRateLimit",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "notifyCodeUserRateWindow",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "defaultUserIdentityRedirect",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "userLastActiveMinTouch",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "userLastActiveFailBackoff",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "avatarScaleSteps",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "avatarQualitySteps",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "userIdentityNoteEmailManagedByBinding",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "userIdentityNoteCanUnbind",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "userIdentityNoteBindAnotherBeforeUnbind",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "userProfileIdentityTxRunner",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "(*UserService).applyExplicitProviderAvailability",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "disableIdentityBindAction",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "(*UserService).updateProfile",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "applyUserAvatar",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "normalizeUserAvatarInput",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "normalizeInlineUserAvatarInput",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "compressInlineAvatar",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "(*UserService).buildEmailIdentitySummary",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "(*UserService).buildProviderIdentitySummary",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "(*UserService).canUnbindProvider",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "(*UserService).canUseEmailAsSignInMethod",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "emailSignupSourceAllowsLogin",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "emailIdentitySupportsSignIn",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "(*UserService).listUserAuthIdentities",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "buildUserIdentityBindAuthorizeURL",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "normalizeUserIdentityProvider",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "normalizeUserIdentityRedirect",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "filterUserAuthIdentities",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "selectPrimaryUserAuthIdentity",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "userAuthIdentitySortTime",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "userAuthIdentityDisplayName",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "firstStringIdentityValue",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "maskEmailIdentity",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "maskOpaqueIdentity",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "normalizeLoadedUserTokenVersion",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "userLastActiveFresh",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "(*UserService).hydrateUserAvatar",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "checkNotifyCodeRateLimit",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "saveNotifyVerifyCode",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "verifyNotifyCode",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  },
+  {
+    "source": "backend/internal/service/user_service.go",
+    "symbol": "(*UserService).addOrVerifyNotifyEmail",
+    "test_conditions": [],
+    "target": null,
+    "disposition": "消费者清零删除"
+  }
+]

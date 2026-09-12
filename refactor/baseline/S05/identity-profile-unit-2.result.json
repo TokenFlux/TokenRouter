@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-tags=unit",
+    "./internal/identity/...",
+    "./internal/service",
+    "./internal/repository",
+    "-run",
+    "Test(UserService|UserRepository|AuthService|GetVerificationMethod|Totp|Passkey|Registration|Session)|TestNewUserService|TestTouchLastActive|TestUpdateProfile|UserRepositorySuite"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 19.853,
+  "log": "logs/identity-profile-unit-2.log.gz"
+}

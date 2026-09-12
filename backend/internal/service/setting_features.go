@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"log/slog"
 	"math"
 	"strconv"
@@ -438,31 +439,11 @@ func (s *SettingService) GetTurnstileSecretKey(ctx context.Context) string {
 	return value
 }
 
-// TencentCaptchaConfig 保存腾讯云票据校验接口所需凭据，禁止通过公开接口返回。
-type TencentCaptchaConfig struct {
-	Enabled        bool
-	AppID          string
-	AppSecretKey   string
-	CloudSecretID  string
-	CloudSecretKey string
-	Region         string
-}
+type TencentCaptchaConfig = identity.TencentCaptchaConfig
 
-// AliyunCaptchaConfig 保存阿里云验证码 2.0 服务端校验所需凭据，公开接口不得返回该结构。
-type AliyunCaptchaConfig struct {
-	Enabled         bool
-	AccessKeyID     string
-	AccessKeySecret string
-	SceneID         string
-	Region          string
-}
+type AliyunCaptchaConfig = identity.AliyunCaptchaConfig
 
-type CaptchaProviderConfig struct {
-	TurnstileEnabled   bool
-	TurnstileSecretKey string
-	Tencent            TencentCaptchaConfig
-	Aliyun             AliyunCaptchaConfig
-}
+type CaptchaProviderConfig = identity.CaptchaProviderConfig
 
 func (s *SettingService) GetCaptchaProviderConfig(ctx context.Context) (CaptchaProviderConfig, error) {
 	values, err := s.settingRepo.GetMultiple(ctx, []string{
@@ -1168,21 +1149,4 @@ func (s *SettingService) GetAuthSourcePlatformQuotas(ctx context.Context, source
 		return map[string]*DefaultPlatformQuotaSetting{}
 	}
 	return out // 仅含已配置平台，保持 override 语义
-}
-
-// mergePlatformQuotaDefaults 按字段级 patch：src 中非 nil 字段覆盖 dst。
-// 区分 nil（"未配置"，保留 dst）vs &0.0（"显式禁用"，覆盖 dst 为 0）
-func mergePlatformQuotaDefaults(dst, src *DefaultPlatformQuotaSetting) {
-	if src == nil || dst == nil {
-		return
-	}
-	if src.DailyLimitUSD != nil {
-		dst.DailyLimitUSD = src.DailyLimitUSD
-	}
-	if src.WeeklyLimitUSD != nil {
-		dst.WeeklyLimitUSD = src.WeeklyLimitUSD
-	}
-	if src.MonthlyLimitUSD != nil {
-		dst.MonthlyLimitUSD = src.MonthlyLimitUSD
-	}
 }

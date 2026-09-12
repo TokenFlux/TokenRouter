@@ -742,16 +742,14 @@ func TestUpdateBalance_WithAuthCacheInvalidator(t *testing.T) {
 	}, 2*time.Second, 10*time.Millisecond)
 }
 
-func TestNewUserService_FieldsAssignment(t *testing.T) {
-	repo := &mockUserRepo{}
-	auth := &mockAuthCacheInvalidator{}
-	cache := &mockBillingCache{}
-
-	svc := NewUserService(repo, nil, auth, cache)
-	require.NotNil(t, svc)
-	require.Equal(t, repo, svc.userRepo)
-	require.Equal(t, auth, svc.authCacheInvalidator)
-	require.Equal(t, cache, svc.billingCache)
+// 新旧入口必须共享活动时间节流状态，不能各自构造一份缓存。
+func TestNewUserServiceSharesActivityTracker(t *testing.T) {
+	user := &User{ID: 77}
+	repo := &mockUserRepo{getByIDUser: user}
+	svc := NewUserService(repo, nil, nil, nil)
+	svc.UserService.TouchLastActiveForUser(context.Background(), IdentityUser(user))
+	svc.TouchLastActiveForUser(context.Background(), user)
+	require.Equal(t, []int64{77}, repo.updateLastActiveUserIDs)
 }
 
 func TestUpdateProfile_RejectsEmailChange(t *testing.T) {

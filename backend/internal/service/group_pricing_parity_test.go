@@ -155,7 +155,7 @@ func TestGroupPricingAuthSnapshotRoundTrip(t *testing.T) {
 			Intervals:   []PricingInterval{{MinTokens: 100, InputMultiplier: testPtrFloat64(2)}},
 			TimePricing: &ChannelTimePricing{Timezone: "UTC", Periods: []ChannelTimePricingPeriod{{StartTime: "09:00", EndTime: "10:00", Multiplier: 0.5}}}}},
 	}
-	svc := &APIKeyService{}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
 	apiKey := &APIKey{GroupID: &source.ID, Group: source, User: &User{ID: 1}}
 	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
 	data, err := json.Marshal(snapshot)

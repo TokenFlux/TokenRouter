@@ -797,3 +797,19 @@ func (s *stubAdminService) CreateShadow(ctx context.Context, parentID int64, opt
 
 // Ensure stub implements interface.
 var _ service.AdminService = (*stubAdminService)(nil)
+
+// AdminUpdateAPIKeyFields 模拟原子管理用例返回；此替身不作为事务正确性证据。
+func (s *stubAdminService) AdminUpdateAPIKeyFields(ctx context.Context, id int64, gid *int64, reset bool) (*service.AdminUpdateAPIKeyGroupIDResult, error) {
+	result, err := s.AdminUpdateAPIKeyGroupID(ctx, id, gid)
+	if err != nil {
+		return nil, err
+	}
+	if reset {
+		key, err := s.AdminResetAPIKeyRateLimitUsage(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		result.APIKey = key
+	}
+	return result, nil
+}

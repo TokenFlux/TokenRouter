@@ -1,0 +1,17 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "--build-tags=unit",
+    "--output.json.path=../refactor/baseline/S05/final-handler-lint-unit.json",
+    "./internal/handler/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 2.33,
+  "log": "logs/final-handler-lint-unit.log.gz"
+}

@@ -1,0 +1,14 @@
+{
+  "head": "ed5380db2fa48f173746315679d6a2238208cb7a",
+  "branch": "main",
+  "unchanged_groups": {
+    "sql": 342,
+    "ent": 379,
+    "frozen": 1098,
+    "other_tasks": 50
+  },
+  "unexpected_changes": [],
+  "index_unchanged": true,
+  "plan_prefix_sha256": "b35167d920ed02a9e5c12baaadecf6904ca090fb304053b12557bba5f061c2d9",
+  "expected_plan_sha256": "b35167d920ed02a9e5c12baaadecf6904ca090fb304053b12557bba5f061c2d9"
+}

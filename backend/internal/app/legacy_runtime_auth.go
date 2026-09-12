@@ -31,7 +31,7 @@ func provideAuthRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if apiKeyService != nil {
-			apiKeyService.Stop()
+			return apiKeyService.StopContext(ctx)
 		}
 		return nil
 	}})

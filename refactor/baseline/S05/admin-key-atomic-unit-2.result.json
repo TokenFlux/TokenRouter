@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-tags=unit",
+    "./internal/apikey/...",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/server/middleware",
+    "-run",
+    "Test(Admin|APIKey|User)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 10.05,
+  "log": "logs/admin-key-atomic-unit-2.log.gz"
+}

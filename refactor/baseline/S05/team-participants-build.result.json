@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "./internal/team/...",
+    "./internal/apikey/...",
+    "./internal/billing/postgres",
+    "./internal/repository",
+    "./internal/service",
+    "./internal/app",
+    "-run",
+    "^$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 14.995,
+  "log": "logs/team-participants-build.log.gz"
+}

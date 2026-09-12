@@ -1,0 +1,28 @@
+{
+  "go": {
+    "command": [
+      "go",
+      "version"
+    ],
+    "exit_code": 0,
+    "output": "go version go1.27.0 darwin/arm64\n"
+  },
+  "lint": {
+    "command": [
+      "golangci-lint",
+      "version"
+    ],
+    "exit_code": 0,
+    "output": "golangci-lint has version 2.13.2 built with go1.27.0 from 27774aa on 2026-08-27T22:52:01Z\n"
+  },
+  "docker": {
+    "command": [
+      "docker",
+      "version",
+      "--format",
+      "{{.Server.Version}}"
+    ],
+    "exit_code": 0,
+    "output": "29.5.2\n"
+  }
+}

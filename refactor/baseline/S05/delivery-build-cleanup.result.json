@@ -1,0 +1,14 @@
+{
+  "command": [
+    "go",
+    "build",
+    "-o",
+    "bin/cleanup-ingress-reject-logs",
+    "./cmd/cleanup-ingress-reject-logs"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 1.526,
+  "log": "logs/delivery-build-cleanup.log.gz"
+}

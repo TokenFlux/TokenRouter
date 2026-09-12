@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 	"math"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
@@ -117,48 +118,8 @@ func hasGroupAdvancedSchedulerWeightOverrides(overrides GroupAdvancedSchedulerOv
 		overrides.WeightSessionSticky != nil
 }
 
-// CloneGroupAdvancedSchedulerOverrides 返回覆盖对象及其指针字段的独立副本。
 func CloneGroupAdvancedSchedulerOverrides(overrides GroupAdvancedSchedulerOverrides) GroupAdvancedSchedulerOverrides {
-	cloneBool := func(value *bool) *bool {
-		if value == nil {
-			return nil
-		}
-		cloned := *value
-		return &cloned
-	}
-	cloneInt := func(value *int) *int {
-		if value == nil {
-			return nil
-		}
-		cloned := *value
-		return &cloned
-	}
-	cloneFloat := func(value *float64) *float64 {
-		if value == nil {
-			return nil
-		}
-		cloned := *value
-		return &cloned
-	}
-	return GroupAdvancedSchedulerOverrides{
-		StickyWeightedEnabled:       cloneBool(overrides.StickyWeightedEnabled),
-		SubscriptionPriorityEnabled: cloneBool(overrides.SubscriptionPriorityEnabled),
-		EWMAErrorRateAlpha:          cloneFloat(overrides.EWMAErrorRateAlpha),
-		EWMATTFTAlpha:               cloneFloat(overrides.EWMATTFTAlpha),
-		StickyEscapeEnabled:         cloneBool(overrides.StickyEscapeEnabled),
-		StickyEscapeTTFTMs:          cloneInt(overrides.StickyEscapeTTFTMs),
-		StickyEscapeErrorRate:       cloneFloat(overrides.StickyEscapeErrorRate),
-		LBTopK:                      cloneInt(overrides.LBTopK),
-		WeightPriority:              cloneFloat(overrides.WeightPriority),
-		WeightLoad:                  cloneFloat(overrides.WeightLoad),
-		WeightQueue:                 cloneFloat(overrides.WeightQueue),
-		WeightErrorRate:             cloneFloat(overrides.WeightErrorRate),
-		WeightTTFT:                  cloneFloat(overrides.WeightTTFT),
-		WeightReset:                 cloneFloat(overrides.WeightReset),
-		WeightQuotaHeadroom:         cloneFloat(overrides.WeightQuotaHeadroom),
-		WeightPreviousResponse:      cloneFloat(overrides.WeightPreviousResponse),
-		WeightSessionSticky:         cloneFloat(overrides.WeightSessionSticky),
-	}
+	return accessview.CloneGroupAdvancedSchedulerOverrides(overrides)
 }
 
 // applyGroupAdvancedSchedulerWeightOverrides 只替换分组显式提供的权重字段。

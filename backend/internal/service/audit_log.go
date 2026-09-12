@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 	"encoding/json"
+	logredact "github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
 	"strconv"
 	"strings"
 	"time"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/util/logredact"
 )
 
 // ErrAuditLogNotFound 审计日志不存在。
@@ -235,18 +235,7 @@ func redactAuditValue(value any, depth int) any {
 	}
 }
 
-// MaskAuditCredential 对请求头中的凭证做首尾保留掩码：
-// 保留前 6 位与后 4 位，中间以 **** 表示；过短的凭证整体掩码。
-func MaskAuditCredential(credential string) string {
-	credential = strings.TrimSpace(credential)
-	if credential == "" {
-		return ""
-	}
-	if len(credential) <= 14 {
-		return "****"
-	}
-	return credential[:6] + "****" + credential[len(credential)-4:]
-}
+func MaskAuditCredential(credential string) string { return logredact.MaskCredential(credential) }
 
 // RedactAuditQuery 对 URL query 做轻量脱敏后返回。
 func RedactAuditQuery(rawQuery string) string {

@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/server/routes",
+    "-run",
+    "^TestRemovedFeatureRoutesReturnNotFound$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 4.62,
+  "log": "logs/s05-removed-routes-fixture.log.gz",
+  "test_events": {
+    "pass": 1,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

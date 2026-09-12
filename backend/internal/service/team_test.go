@@ -356,9 +356,9 @@ func TestTeamServiceInvitationEmailUsesCustomNotificationTemplate(t *testing.T) 
 	settingService := NewSettingService(settingRepo, cfg)
 	svc := NewTeamService(nil, nil, emailService, nil, nil, settingService, cfg)
 	expiresAt := time.Date(2026, 8, 3, 12, 0, 0, 0, time.FixedZone("JST", 9*60*60))
-	link, err := svc.frontendLink(ctx, "/team", "invitation", "test-token")
+	link, err := svc.FrontendLink(ctx, "/team", "invitation", "test-token")
 	require.NoError(t, err)
-	require.NoError(t, svc.sendInvitationEmail(ctx, "member@example.com", "Platform Team", link, expiresAt))
+	require.NoError(t, svc.SendInvitationEmail(ctx, "member@example.com", "Platform Team", link, expiresAt))
 
 	require.Equal(t, int64(1), smtpServer.messageCount())
 	message := smtpServer.lastMessage()
@@ -377,7 +377,7 @@ func TestTeamServiceFrontendLinkFallsBackToConfig(t *testing.T) {
 	settingService := NewSettingService(newNotificationEmailMemorySettingRepo(), cfg)
 	svc := NewTeamService(nil, nil, nil, nil, nil, settingService, cfg)
 
-	link, err := svc.frontendLink(ctx, "/team", "invitation", "test-token")
+	link, err := svc.FrontendLink(ctx, "/team", "invitation", "test-token")
 
 	require.NoError(t, err)
 	require.Equal(t, "https://config.example/team?invitation=test-token", link)
@@ -389,7 +389,7 @@ func TestTeamServiceFrontendLinkRejectsMissingBaseURL(t *testing.T) {
 	settingService := NewSettingService(newNotificationEmailMemorySettingRepo(), cfg)
 	svc := NewTeamService(nil, nil, nil, nil, nil, settingService, cfg)
 
-	link, err := svc.frontendLink(ctx, "/team", "invitation", "test-token")
+	link, err := svc.FrontendLink(ctx, "/team", "invitation", "test-token")
 
 	require.ErrorIs(t, err, ErrTeamFrontendURLUnavailable)
 	require.Empty(t, link)
@@ -434,7 +434,7 @@ func TestTeamServicePreviewInvitationUsesTokenHashAndCurrentUserEmail(t *testing
 func TestTeamServiceInvitationLimitReturnsRetryAfter(t *testing.T) {
 	svc := NewTeamService(nil, nil, nil, nil, &fakeTeamInvitationLimiter{retryAfter: 1500 * time.Millisecond}, nil, nil)
 
-	err := svc.checkInvitationRate(context.Background(), 11, "member@example.com")
+	err := svc.CheckInvitationRate(context.Background(), 11, "member@example.com")
 	require.ErrorIs(t, err, ErrTeamInvitationRateLimited)
 	var appErr *infraerrors.ApplicationError
 	require.True(t, errors.As(err, &appErr))
@@ -444,6 +444,6 @@ func TestTeamServiceInvitationLimitReturnsRetryAfter(t *testing.T) {
 func TestTeamServiceInvitationLimitFailsClosedWhenRedisUnavailable(t *testing.T) {
 	svc := NewTeamService(nil, nil, nil, nil, &fakeTeamInvitationLimiter{err: errors.New("redis unavailable")}, nil, nil)
 
-	err := svc.checkInvitationRate(context.Background(), 11, "member@example.com")
+	err := svc.CheckInvitationRate(context.Background(), 11, "member@example.com")
 	require.ErrorIs(t, err, ErrTeamInvitationUnavailable)
 }

@@ -61,7 +61,9 @@ protocol 的六组生产与测试规则使用精确的标准库白名单，允�
 
 保留路径的旧依赖按准确源文件和 import 登记，许可不覆盖同目录新文件，也不覆盖允许包的其他子包。每次添加路径或修改规则，要分别用普通、unit、integration 集合验证合法依赖与违规夹具；已有失败不能自动转成白名单。角色检查不能识别“通过接口绕过业务用例”或“借现有 import 增加耦合”，这两项仍需代码审查。
 
-billing 的 singleflight、隔离倍率缓存和提醒设置读取按实际文件许可；app 的旧身份、渠道、通知、账号 outbox 和支付桥接同样精确到文件/import。PostgreSQL 与 Redis Adapter 不互相继承存储客户端许可，新增核心文件不继承这些专用依赖。资金测试必须确认真实 PostgreSQL 事务回滚、持久去重、8/10 位精度及 Redis 用户锁交错；SQLite 和 mock 不能替代这些行为证据。
+billing 的 singleflight、隔离倍率缓存和提醒设置读取按实际文件许可；app 的动态设置、渠道、通知、推广、账号 outbox 和支付桥接同样精确到文件/import。公告和 billing 的用户读取直接投影 identity，不再经旧身份仓储桥接。PostgreSQL 与 Redis Adapter 不互相继承存储客户端许可，新增核心文件不继承这些专用依赖。资金测试必须确认真实 PostgreSQL 事务回滚、持久去重、8/10 位精度及 Redis 用户锁交错；SQLite 和 mock 不能替代这些行为证据。
+
+identity、team、apikey 的生产实例和同连接事务参与工厂由 app 固定；旧资料、Key 和管理接口只作投影与委托。身份 SDK 验证、令牌消费和认证缓存需要分别覆盖普通/unit 构建选择及真实 PostgreSQL/Redis；只剩测试消费者的私有转接放入对应标签的 `_test.go`，不保留生产算法副本。
 
 所有手写代码都要写必要注释，注释使用中文；生成文件不手改。注释应解释约束、失败语义或非显然原因，不复述语句。跨模块不变量应同步到 Project Doc，并在关键手写入口添加唯一 `@project-doc` 锚点。
 

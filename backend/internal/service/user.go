@@ -2,8 +2,6 @@ package service
 
 import (
 	"time"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
@@ -70,47 +68,19 @@ type User struct {
 	Subscriptions []UserSubscription
 }
 
-func (u *User) IsAdmin() bool {
-	return u.Role == RoleAdmin
-}
+func (u *User) IsAdmin() bool { return IdentityUser(u).IsAdmin() }
 
-func (u *User) IsActive() bool {
-	return u.Status == StatusActive
-}
+func (u *User) IsActive() bool { return IdentityUser(u).IsActive() }
 
-// CanBindGroup 检查用户是否可以绑定指定分组。
-// 公开分组默认可用，但如果出现在 DisabledPublicGroups 中则禁止；专属分组必须在 AllowedGroups 中。
 func (u *User) CanBindGroup(groupID int64, isExclusive bool) bool {
-	if u == nil || groupID <= 0 {
-		return false
-	}
-	if !isExclusive {
-		// 公开分组默认可用，只按用户级禁用列表做排除。
-		for _, id := range u.DisabledPublicGroups {
-			if id == groupID {
-				return false
-			}
-		}
-		return true
-	}
-	// 专属分组：需要在 AllowedGroups 中
-	for _, id := range u.AllowedGroups {
-		if id == groupID {
-			return true
-		}
-	}
-	return false
+	return IdentityUser(u).CanBindGroup(groupID, isExclusive)
 }
 
 func (u *User) SetPassword(password string) error {
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return err
-	}
-	u.PasswordHash = string(hash)
-	return nil
+	value := IdentityUser(u)
+	err := value.SetPassword(password)
+	u.PasswordHash = value.PasswordHash
+	return err
 }
 
-func (u *User) CheckPassword(password string) bool {
-	return bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password)) == nil
-}
+func (u *User) CheckPassword(password string) bool { return IdentityUser(u).CheckPassword(password) }

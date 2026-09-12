@@ -1,0 +1,30 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "./internal/apikey",
+    "-run",
+    "Authentication.*Stop|OutboxStop|AuthCache|LastUsed|Snapshot"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 6.523,
+  "log": "logs/apikey-lifecycle-race.log.gz",
+  "test_events": {
+    "pass": 20,
+    "fail": 1,
+    "skip": 0
+  },
+  "failed_tests": [
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/apikey",
+      "test": "TestAuthenticationStopWaitsBeforeClosingCaches"
+    }
+  ],
+  "skipped_tests": []
+}

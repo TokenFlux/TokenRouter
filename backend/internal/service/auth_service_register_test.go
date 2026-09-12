@@ -480,7 +480,7 @@ func TestAuthService_CreateRegisteredUser_RechecksDomainQuotaSwitch(t *testing.T
 	settings[SettingKeyRegistrationEmailDomainQuotaEnabled] = "false"
 
 	err := service.createRegisteredUser(ctx, &User{Email: "first@custom.example"}, &registrationArtifacts{
-		enforceEmailDomainQuota: true,
+		EnforceEmailDomainQuota: true,
 	})
 	require.ErrorIs(t, err, ErrEmailSuffixNotAllowed)
 	require.Empty(t, repo.created)
@@ -942,4 +942,9 @@ func TestCanBypassRegistrationDisabledForOAuth(t *testing.T) {
 			require.Equal(t, tc.want, got)
 		})
 	}
+}
+
+// ConsumeRefreshToken 与此桩始终未找到凭据的读取行为一致。
+func (s *refreshTokenCacheStub) ConsumeRefreshToken(context.Context, string) (bool, error) {
+	return false, nil
 }

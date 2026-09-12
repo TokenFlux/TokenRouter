@@ -1,0 +1,404 @@
+{
+  "not_found": false,
+  "snapshot": {
+    "version": 40,
+    "api_key_id": 7,
+    "user_id": 7,
+    "team_id": 7,
+    "team_owner_disabled": true,
+    "created_at": "2026-01-02T03:04:05Z",
+    "group_id": 7,
+    "is_composite": true,
+    "composite_groups": [
+      {
+        "id": 7,
+        "group_id": 7,
+        "prefix": "fixture",
+        "normalized_prefix": "fixture",
+        "sort_order": 7,
+        "user_group_rpm_override": 7,
+        "group": {
+          "id": 7,
+          "name": "fixture",
+          "platform": "fixture",
+          "scheduler_type": "fixture",
+          "advanced_scheduler_overrides": {
+            "sticky_weighted_enabled": true,
+            "subscription_priority_enabled": true,
+            "ewma_error_rate_alpha": 1.25,
+            "ewma_ttft_alpha": 1.25,
+            "sticky_escape_enabled": true,
+            "sticky_escape_ttft_ms": 7,
+            "sticky_escape_error_rate": 1.25,
+            "lb_top_k": 7,
+            "weight_priority": 1.25,
+            "weight_load": 1.25,
+            "weight_queue": 1.25,
+            "weight_error_rate": 1.25,
+            "weight_ttft": 1.25,
+            "weight_reset": 1.25,
+            "weight_quota_headroom": 1.25,
+            "weight_previous_response": 1.25,
+            "weight_session_sticky": 1.25
+          },
+          "is_exclusive": true,
+          "status": "fixture",
+          "rate_multiplier": 1.25,
+          "session_isolation_enabled": true,
+          "allow_image_generation": true,
+          "allow_batch_image_generation": true,
+          "web_search_price_per_call": 1.25,
+          "search_price_per_1k": 1.25,
+          "audio_realtime_price_per_min": 1.25,
+          "audio_tts_price_per_million_chars": 1.25,
+          "audio_stt_price_per_hour": 1.25,
+          "long_context_pricing_enabled": true,
+          "model_pricing": [
+            {
+              "id": 7,
+              "channel_id": 7,
+              "platform": "fixture",
+              "models": [
+                "fixture"
+              ],
+              "billing_mode": "fixture",
+              "price_multiplier": 1.25,
+              "fast_mode_multiplier": 1.25,
+              "fast_multiplier": 1.25,
+              "flex_multiplier": 1.25,
+              "max_reasoning_effort_multiplier": 1.25,
+              "input_price": 1.25,
+              "output_price": 1.25,
+              "cache_write_price": 1.25,
+              "cache_write_1h_price": 1.25,
+              "cache_read_price": 1.25,
+              "image_input_price": 1.25,
+              "image_output_price": 1.25,
+              "per_request_price": 1.25,
+              "intervals": [
+                {
+                  "id": 7,
+                  "pricing_id": 7,
+                  "min_tokens": 7,
+                  "max_tokens": 7,
+                  "tier_label": "fixture",
+                  "input_price": 1.25,
+                  "output_price": 1.25,
+                  "cache_write_price": 1.25,
+                  "cache_write_1h_price": 1.25,
+                  "cache_read_price": 1.25,
+                  "input_multiplier": 1.25,
+                  "output_multiplier": 1.25,
+                  "cache_write_multiplier": 1.25,
+                  "cache_read_multiplier": 1.25,
+                  "per_request_price": 1.25,
+                  "sort_order": 7,
+                  "created_at": "2026-01-02T03:04:05Z",
+                  "updated_at": "2026-01-02T03:04:05Z"
+                }
+              ],
+              "time_pricing": {
+                "timezone": "fixture",
+                "weekdays_only": true,
+                "periods": [
+                  {
+                    "start_time": "fixture",
+                    "end_time": "fixture",
+                    "multiplier": 1.25
+                  }
+                ]
+              },
+              "created_at": "2026-01-02T03:04:05Z",
+              "updated_at": "2026-01-02T03:04:05Z"
+            }
+          ],
+          "claude_code_only": true,
+          "fallback_group_id": 7,
+          "fallback_group_id_on_invalid_request": 7,
+          "unavailable_fallback_group_id": 7,
+          "model_routing": {
+            "fixture": [
+              7
+            ]
+          },
+          "model_routing_enabled": true,
+          "mcp_xml_inject": true,
+          "supported_model_scopes": [
+            "fixture"
+          ],
+          "allowed_protocols": [
+            "fixture"
+          ],
+          "protocol_fallbacks": {
+            "fixture": "fixture"
+          },
+          "responses_image_policy": "fixture",
+          "allow_live": true,
+          "force_openai_fast": true,
+          "openai_fast_policy": "fixture",
+          "free_openai_fast": true,
+          "default_mapped_model": "fixture",
+          "messages_dispatch_model_config": {
+            "opus_mapped_model": "fixture",
+            "sonnet_mapped_model": "fixture",
+            "haiku_mapped_model": "fixture",
+            "exact_model_mappings": {
+              "fixture": "fixture"
+            }
+          },
+          "models_list_config": {
+            "enabled": true,
+            "models": [
+              "fixture"
+            ]
+          },
+          "rpm_limit": 7,
+          "max_reasoning_effort": "fixture",
+          "max_reasoning_effort_over_limit": "fixture",
+          "reasoning_effort_mappings": [
+            {
+              "from": "fixture",
+              "to": "fixture",
+              "match_type": "fixture",
+              "model": "fixture"
+            }
+          ],
+          "peak_rate_enabled": true,
+          "peak_start": "fixture",
+          "peak_end": "fixture",
+          "peak_rate_multiplier": 1.25
+        }
+      }
+    ],
+    "name": "fixture",
+    "status": "fixture",
+    "fast_mode_policy": "fixture",
+    "billing_mode": "fixture",
+    "preferred_subscription_id": 7,
+    "model_mapping": {
+      "fixture": "fixture"
+    },
+    "ip_whitelist": [
+      "fixture"
+    ],
+    "ip_blacklist": [
+      "fixture"
+    ],
+    "user": {
+      "id": 7,
+      "status": "fixture",
+      "role": "fixture",
+      "balance": 1.25,
+      "concurrency": 7,
+      "allowed_groups": [
+        7
+      ],
+      "email": "fixture",
+      "username": "fixture",
+      "balance_notify_enabled": true,
+      "balance_notify_threshold_type": "fixture",
+      "balance_notify_threshold": 1.25,
+      "balance_notify_extra_emails": [
+        {
+          "email": "fixture",
+          "disabled": true,
+          "verified": true
+        }
+      ],
+      "total_recharged": 1.25,
+      "rpm_limit": 7,
+      "user_group_rpm_override": 7,
+      "disabled_public_groups": [
+        7
+      ]
+    },
+    "actor_user": {
+      "id": 7,
+      "status": "fixture",
+      "email": "fixture",
+      "username": "fixture"
+    },
+    "team": {
+      "id": 7,
+      "name": "fixture",
+      "status": "fixture"
+    },
+    "team_membership": {
+      "id": 7,
+      "team_id": 7,
+      "user_id": 7,
+      "email": "fixture",
+      "username": "fixture",
+      "role": "fixture",
+      "daily_limit_usd": 1.25,
+      "weekly_limit_usd": 1.25,
+      "monthly_limit_usd": 1.25,
+      "daily_usage_usd": 1.25,
+      "weekly_usage_usd": 1.25,
+      "monthly_usage_usd": 1.25,
+      "daily_window_start": "2026-01-02T03:04:05Z",
+      "weekly_window_start": "2026-01-02T03:04:05Z",
+      "monthly_window_start": "2026-01-02T03:04:05Z",
+      "joined_at": "2026-01-02T03:04:05Z",
+      "last_active_at": "2026-01-02T03:04:05Z"
+    },
+    "group": {
+      "id": 7,
+      "name": "fixture",
+      "platform": "fixture",
+      "scheduler_type": "fixture",
+      "advanced_scheduler_overrides": {
+        "sticky_weighted_enabled": true,
+        "subscription_priority_enabled": true,
+        "ewma_error_rate_alpha": 1.25,
+        "ewma_ttft_alpha": 1.25,
+        "sticky_escape_enabled": true,
+        "sticky_escape_ttft_ms": 7,
+        "sticky_escape_error_rate": 1.25,
+        "lb_top_k": 7,
+        "weight_priority": 1.25,
+        "weight_load": 1.25,
+        "weight_queue": 1.25,
+        "weight_error_rate": 1.25,
+        "weight_ttft": 1.25,
+        "weight_reset": 1.25,
+        "weight_quota_headroom": 1.25,
+        "weight_previous_response": 1.25,
+        "weight_session_sticky": 1.25
+      },
+      "is_exclusive": true,
+      "status": "fixture",
+      "rate_multiplier": 1.25,
+      "session_isolation_enabled": true,
+      "allow_image_generation": true,
+      "allow_batch_image_generation": true,
+      "web_search_price_per_call": 1.25,
+      "search_price_per_1k": 1.25,
+      "audio_realtime_price_per_min": 1.25,
+      "audio_tts_price_per_million_chars": 1.25,
+      "audio_stt_price_per_hour": 1.25,
+      "long_context_pricing_enabled": true,
+      "model_pricing": [
+        {
+          "id": 7,
+          "channel_id": 7,
+          "platform": "fixture",
+          "models": [
+            "fixture"
+          ],
+          "billing_mode": "fixture",
+          "price_multiplier": 1.25,
+          "fast_mode_multiplier": 1.25,
+          "fast_multiplier": 1.25,
+          "flex_multiplier": 1.25,
+          "max_reasoning_effort_multiplier": 1.25,
+          "input_price": 1.25,
+          "output_price": 1.25,
+          "cache_write_price": 1.25,
+          "cache_write_1h_price": 1.25,
+          "cache_read_price": 1.25,
+          "image_input_price": 1.25,
+          "image_output_price": 1.25,
+          "per_request_price": 1.25,
+          "intervals": [
+            {
+              "id": 7,
+              "pricing_id": 7,
+              "min_tokens": 7,
+              "max_tokens": 7,
+              "tier_label": "fixture",
+              "input_price": 1.25,
+              "output_price": 1.25,
+              "cache_write_price": 1.25,
+              "cache_write_1h_price": 1.25,
+              "cache_read_price": 1.25,
+              "input_multiplier": 1.25,
+              "output_multiplier": 1.25,
+              "cache_write_multiplier": 1.25,
+              "cache_read_multiplier": 1.25,
+              "per_request_price": 1.25,
+              "sort_order": 7,
+              "created_at": "2026-01-02T03:04:05Z",
+              "updated_at": "2026-01-02T03:04:05Z"
+            }
+          ],
+          "time_pricing": {
+            "timezone": "fixture",
+            "weekdays_only": true,
+            "periods": [
+              {
+                "start_time": "fixture",
+                "end_time": "fixture",
+                "multiplier": 1.25
+              }
+            ]
+          },
+          "created_at": "2026-01-02T03:04:05Z",
+          "updated_at": "2026-01-02T03:04:05Z"
+        }
+      ],
+      "claude_code_only": true,
+      "fallback_group_id": 7,
+      "fallback_group_id_on_invalid_request": 7,
+      "unavailable_fallback_group_id": 7,
+      "model_routing": {
+        "fixture": [
+          7
+        ]
+      },
+      "model_routing_enabled": true,
+      "mcp_xml_inject": true,
+      "supported_model_scopes": [
+        "fixture"
+      ],
+      "allowed_protocols": [
+        "fixture"
+      ],
+      "protocol_fallbacks": {
+        "fixture": "fixture"
+      },
+      "responses_image_policy": "fixture",
+      "allow_live": true,
+      "force_openai_fast": true,
+      "openai_fast_policy": "fixture",
+      "free_openai_fast": true,
+      "default_mapped_model": "fixture",
+      "messages_dispatch_model_config": {
+        "opus_mapped_model": "fixture",
+        "sonnet_mapped_model": "fixture",
+        "haiku_mapped_model": "fixture",
+        "exact_model_mappings": {
+          "fixture": "fixture"
+        }
+      },
+      "models_list_config": {
+        "enabled": true,
+        "models": [
+          "fixture"
+        ]
+      },
+      "rpm_limit": 7,
+      "max_reasoning_effort": "fixture",
+      "max_reasoning_effort_over_limit": "fixture",
+      "reasoning_effort_mappings": [
+        {
+          "from": "fixture",
+          "to": "fixture",
+          "match_type": "fixture",
+          "model": "fixture"
+        }
+      ],
+      "peak_rate_enabled": true,
+      "peak_start": "fixture",
+      "peak_end": "fixture",
+      "peak_rate_multiplier": 1.25
+    },
+    "quota": 1.25,
+    "quota_used": 1.25,
+    "expires_at": "2026-01-02T03:04:05Z",
+    "rate_limit_5h": 1.25,
+    "rate_limit_1d": 1.25,
+    "rate_limit_7d": 1.25,
+    "fallback_to_default_group_when_unavailable": true
+  }
+}

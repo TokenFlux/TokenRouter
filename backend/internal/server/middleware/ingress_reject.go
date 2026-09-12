@@ -1,14 +1,10 @@
 package middleware
 
 import (
-	"math"
+	"github.com/gin-gonic/gin"
 	"net/netip"
-	"strconv"
 	"strings"
 	"sync/atomic"
-	"time"
-
-	"github.com/gin-gonic/gin"
 )
 
 // IngressRejectReason 标识预期的网关准入失败，此类失败不能视为运维请求错误。
@@ -37,34 +33,6 @@ type IngressRejectRecorder interface {
 
 func invalidAuthClientKey(c *gin.Context) string {
 	return normalizeIngressRejectIP(SecurityClientIP(c))
-}
-
-func rejectInvalidAuthAbuse(c *gin.Context, apiKeyService interface {
-	CheckInvalidAuthAbuse(string) (time.Duration, bool)
-}) bool {
-	if c == nil || apiKeyService == nil {
-		return false
-	}
-	retry, blocked := apiKeyService.CheckInvalidAuthAbuse(invalidAuthClientKey(c))
-	if !blocked {
-		return false
-	}
-	retrySeconds := int(math.Ceil(retry.Seconds()))
-	if retrySeconds < 1 {
-		retrySeconds = 1
-	}
-	c.Header("Retry-After", strconv.Itoa(retrySeconds))
-	MarkIngressRejected(c, IngressRejectInvalidAuthRateLimited)
-	return true
-}
-
-func recordInvalidAuthFailure(c *gin.Context, apiKeyService interface {
-	RecordInvalidAuthFailure(string)
-}) {
-	if c == nil || apiKeyService == nil {
-		return
-	}
-	apiKeyService.RecordInvalidAuthFailure(invalidAuthClientKey(c))
 }
 
 type ingressRejectRecorderHolder struct{ recorder IngressRejectRecorder }

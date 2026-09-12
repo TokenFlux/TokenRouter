@@ -50,6 +50,8 @@ API Key 查询与列表响应会返回完整的 `model_mapping` 对象。
 <a id="redirect_order"></a>
 ## 匹配顺序
 
+`internal/routing/modelmap` 是 Key 与账号共同使用的纯匹配实现。Key 的配置校验和别名展示由 apikey 拥有；旧网关继续负责请求字段读取、改写时机和响应恢复，纯匹配包不接收账号、Key 或请求对象。
+
 每个模型在一次请求中只匹配一次，不会对映射结果继续执行下一条规则：
 
 1. 精确规则优先。

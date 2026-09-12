@@ -72,7 +72,7 @@ func TestValidateTeamKeyLifecycle(t *testing.T) {
 			if test.mutate != nil {
 				test.mutate(key)
 			}
-			err := (&APIKeyService{cfg: test.cfg}).ValidateTeamKeyLifecycle(key)
+			err := (newAPIKeyTestService(apiKeyTestDependencies{cfg: test.cfg})).ValidateTeamKeyLifecycle(key)
 			if test.want == nil {
 				require.NoError(t, err)
 				return
@@ -100,10 +100,10 @@ func TestHydrateTeamAPIKeyOnlyMapsMissingContextToMembershipError(t *testing.T) 
 			key.TeamMembership = nil
 			key.ActorUser = nil
 			key.User = nil
-			service := &APIKeyService{
+			service := newAPIKeyTestService(apiKeyTestDependencies{
 				teamRepo: &teamContextErrorRepository{err: test.repoErr},
 				cfg:      &config.Config{Team: config.TeamConfig{Enabled: true}},
-			}
+			})
 
 			_, err := service.hydrateTeamAPIKey(context.Background(), key, nil)
 			require.ErrorIs(t, err, test.want)

@@ -1,28 +1,17 @@
+// 本文件维护 middleware 的所属能力；兼容入口复用唯一实现。
 package middleware
 
-import "github.com/gin-gonic/gin"
+import (
+	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+	gin "github.com/gin-gonic/gin"
+)
 
-// AuthSubject is the minimal authenticated identity stored in gin context.
-// Decision: {UserID int64, Concurrency int}
-type AuthSubject struct {
-	UserID      int64
-	Concurrency int
-}
+// AuthSubject 是旧 context 读取投影，新认证主体由 identity.Principal 提供。
+type AuthSubject = identityhttp.AuthSubject
 
 func GetAuthSubjectFromContext(c *gin.Context) (AuthSubject, bool) {
-	value, exists := c.Get(string(ContextKeyUser))
-	if !exists {
-		return AuthSubject{}, false
-	}
-	subject, ok := value.(AuthSubject)
-	return subject, ok
+	return identityhttp.GetAuthSubjectFromContext(c)
 }
-
 func GetUserRoleFromContext(c *gin.Context) (string, bool) {
-	value, exists := c.Get(string(ContextKeyUserRole))
-	if !exists {
-		return "", false
-	}
-	role, ok := value.(string)
-	return role, ok
+	return identityhttp.GetUserRoleFromContext(c)
 }

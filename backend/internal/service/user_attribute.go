@@ -1,125 +1,50 @@
+// 本文件维护 service 的所属能力；兼容入口复用唯一实现。
 package service
 
 import (
-	"context"
-	"time"
-
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
-// Error definitions for user attribute operations
-var (
-	ErrAttributeDefinitionNotFound = infraerrors.NotFound("ATTRIBUTE_DEFINITION_NOT_FOUND", "attribute definition not found")
-	ErrAttributeKeyExists          = infraerrors.Conflict("ATTRIBUTE_KEY_EXISTS", "attribute key already exists")
-	ErrInvalidAttributeType        = infraerrors.BadRequest("INVALID_ATTRIBUTE_TYPE", "invalid attribute type")
-	ErrAttributeValidationFailed   = infraerrors.BadRequest("ATTRIBUTE_VALIDATION_FAILED", "attribute value validation failed")
-)
+var ErrAttributeDefinitionNotFound = identity.ErrAttributeDefinitionNotFound
 
-// UserAttributeType represents supported attribute types
-type UserAttributeType string
+var ErrAttributeKeyExists = identity.ErrAttributeKeyExists
 
-const (
-	AttributeTypeText        UserAttributeType = "text"
-	AttributeTypeTextarea    UserAttributeType = "textarea"
-	AttributeTypeNumber      UserAttributeType = "number"
-	AttributeTypeEmail       UserAttributeType = "email"
-	AttributeTypeURL         UserAttributeType = "url"
-	AttributeTypeDate        UserAttributeType = "date"
-	AttributeTypeSelect      UserAttributeType = "select"
-	AttributeTypeMultiSelect UserAttributeType = "multi_select"
-)
+var ErrInvalidAttributeType = identity.ErrInvalidAttributeType
 
-// UserAttributeOption represents a select option for select/multi_select types
-type UserAttributeOption struct {
-	Value string `json:"value"`
-	Label string `json:"label"`
-}
+var ErrAttributeValidationFailed = identity.ErrAttributeValidationFailed
 
-// UserAttributeValidation represents validation rules for an attribute
-type UserAttributeValidation struct {
-	MinLength *int    `json:"min_length,omitempty"`
-	MaxLength *int    `json:"max_length,omitempty"`
-	Min       *int    `json:"min,omitempty"`
-	Max       *int    `json:"max,omitempty"`
-	Pattern   *string `json:"pattern,omitempty"`
-	Message   *string `json:"message,omitempty"`
-}
+type UserAttributeType = identity.UserAttributeType
 
-// UserAttributeDefinition represents a custom attribute definition
-type UserAttributeDefinition struct {
-	ID           int64
-	Key          string
-	Name         string
-	Description  string
-	Type         UserAttributeType
-	Options      []UserAttributeOption
-	Required     bool
-	Validation   UserAttributeValidation
-	Placeholder  string
-	DisplayOrder int
-	Enabled      bool
-	CreatedAt    time.Time
-	UpdatedAt    time.Time
-}
+const AttributeTypeText = identity.AttributeTypeText
 
-// UserAttributeValue represents a user's attribute value
-type UserAttributeValue struct {
-	ID          int64
-	UserID      int64
-	AttributeID int64
-	Value       string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-}
+const AttributeTypeTextarea = identity.AttributeTypeTextarea
 
-// CreateAttributeDefinitionInput for creating new definition
-type CreateAttributeDefinitionInput struct {
-	Key         string
-	Name        string
-	Description string
-	Type        UserAttributeType
-	Options     []UserAttributeOption
-	Required    bool
-	Validation  UserAttributeValidation
-	Placeholder string
-	Enabled     bool
-}
+const AttributeTypeNumber = identity.AttributeTypeNumber
 
-// UpdateAttributeDefinitionInput for updating definition
-type UpdateAttributeDefinitionInput struct {
-	Name        *string
-	Description *string
-	Type        *UserAttributeType
-	Options     *[]UserAttributeOption
-	Required    *bool
-	Validation  *UserAttributeValidation
-	Placeholder *string
-	Enabled     *bool
-}
+const AttributeTypeEmail = identity.AttributeTypeEmail
 
-// UpdateUserAttributeInput for updating a single attribute value
-type UpdateUserAttributeInput struct {
-	AttributeID int64
-	Value       string
-}
+const AttributeTypeURL = identity.AttributeTypeURL
 
-// UserAttributeDefinitionRepository interface for attribute definition persistence
-type UserAttributeDefinitionRepository interface {
-	Create(ctx context.Context, def *UserAttributeDefinition) error
-	GetByID(ctx context.Context, id int64) (*UserAttributeDefinition, error)
-	GetByKey(ctx context.Context, key string) (*UserAttributeDefinition, error)
-	Update(ctx context.Context, def *UserAttributeDefinition) error
-	Delete(ctx context.Context, id int64) error
-	List(ctx context.Context, enabledOnly bool) ([]UserAttributeDefinition, error)
-	UpdateDisplayOrders(ctx context.Context, orders map[int64]int) error
-	ExistsByKey(ctx context.Context, key string) (bool, error)
-}
+const AttributeTypeDate = identity.AttributeTypeDate
 
-// UserAttributeValueRepository interface for user attribute value persistence
-type UserAttributeValueRepository interface {
-	GetByUserID(ctx context.Context, userID int64) ([]UserAttributeValue, error)
-	GetByUserIDs(ctx context.Context, userIDs []int64) ([]UserAttributeValue, error)
-	UpsertBatch(ctx context.Context, userID int64, values []UpdateUserAttributeInput) error
-	DeleteByAttributeID(ctx context.Context, attributeID int64) error
-	DeleteByUserID(ctx context.Context, userID int64) error
-}
+const AttributeTypeSelect = identity.AttributeTypeSelect
+
+const AttributeTypeMultiSelect = identity.AttributeTypeMultiSelect
+
+type UserAttributeOption = identity.UserAttributeOption
+
+type UserAttributeValidation = identity.UserAttributeValidation
+
+type UserAttributeDefinition = identity.UserAttributeDefinition
+
+type UserAttributeValue = identity.UserAttributeValue
+
+type CreateAttributeDefinitionInput = identity.CreateAttributeDefinitionInput
+
+type UpdateAttributeDefinitionInput = identity.UpdateAttributeDefinitionInput
+
+type UpdateUserAttributeInput = identity.UpdateUserAttributeInput
+
+type UserAttributeDefinitionRepository = identity.UserAttributeDefinitionRepository
+
+type UserAttributeValueRepository = identity.UserAttributeValueRepository

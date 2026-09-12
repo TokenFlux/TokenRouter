@@ -1,43 +1,17 @@
+// 本文件维护 dto 的所属能力；兼容入口复用唯一实现。
 package dto
 
-import "github.com/TokenFlux/TokenRouter/internal/service"
+import (
+	identitydto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
+	service "github.com/TokenFlux/TokenRouter/internal/service"
+)
 
-// NotifyEmailEntry represents a notification email with enable/disable and verification state.
-// All emails are user-managed; maximum 3 entries per user.
-type NotifyEmailEntry struct {
-	Email    string `json:"email"`
-	Disabled bool   `json:"disabled"`
-	Verified bool   `json:"verified"`
-}
+type NotifyEmailEntry = identitydto.NotifyEmailEntry
 
-// NotifyEmailEntriesFromService converts service entries to DTO entries.
 func NotifyEmailEntriesFromService(entries []service.NotifyEmailEntry) []NotifyEmailEntry {
-	if entries == nil {
-		return nil
-	}
-	result := make([]NotifyEmailEntry, len(entries))
-	for i, e := range entries {
-		result[i] = NotifyEmailEntry{
-			Email:    e.Email,
-			Disabled: e.Disabled,
-			Verified: e.Verified,
-		}
-	}
-	return result
+	return identitydto.NotifyEmailEntriesFromIdentity(entries)
 }
 
-// NotifyEmailEntriesToService converts DTO entries to service entries.
 func NotifyEmailEntriesToService(entries []NotifyEmailEntry) []service.NotifyEmailEntry {
-	if entries == nil {
-		return nil
-	}
-	result := make([]service.NotifyEmailEntry, len(entries))
-	for i, e := range entries {
-		result[i] = service.NotifyEmailEntry{
-			Email:    e.Email,
-			Disabled: e.Disabled,
-			Verified: e.Verified,
-		}
-	}
-	return result
+	return identitydto.NotifyEmailEntriesToIdentity(entries)
 }

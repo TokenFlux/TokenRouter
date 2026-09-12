@@ -4,9 +4,9 @@ package httpapi
 import (
 	context "context"
 	idempotency "github.com/TokenFlux/TokenRouter/internal/idempotency"
+	middleware2 "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx"
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
-	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	gin "github.com/gin-gonic/gin"
 	strconv "strconv"
 	time "time"

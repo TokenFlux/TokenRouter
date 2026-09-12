@@ -64,3 +64,8 @@ func defaultGroupNamesByPlatform(platform string) []string {
 		return nil
 	}
 }
+
+// FindPlatformDefaultGroup 为过渡装配提供原选择结果，规则仍归分组用例，S06 改绑。
+func FindPlatformDefaultGroup(ctx context.Context, repo GroupRepository, platform string) (*Group, error) {
+	return findPlatformDefaultGroup(ctx, repo, platform)
+}

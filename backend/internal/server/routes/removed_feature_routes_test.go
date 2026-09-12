@@ -16,7 +16,8 @@ import (
 func TestRemovedFeatureRoutesReturnNotFound(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	allHandlers := &handler.Handlers{Admin: &handler.AdminHandlers{}}
+	// 身份处理器已通过模块嵌入组合，夹具需提供外层接收者后才能登记方法值。
+	allHandlers := &handler.Handlers{User: &handler.UserHandler{}, Admin: &handler.AdminHandlers{}}
 	RegisterUserRoutes(
 		router.Group("/api/v1"),
 		allHandlers,

@@ -10,8 +10,7 @@ import (
 	_ "github.com/TokenFlux/TokenRouter/ent/runtime"
 	"github.com/TokenFlux/TokenRouter/internal/app/bootstrap"
 	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/repository"
-	"github.com/TokenFlux/TokenRouter/internal/service"
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 )
 
 func main() {
@@ -33,23 +32,22 @@ func main() {
 		}
 	}()
 
-	userRepo := repository.NewUserRepository(client, sqlDB)
-	authService := service.NewAuthService(client, userRepo, nil, nil, cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+	access := bootstrap.NewJWTIdentity(client, sqlDB, cfg)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	var user *service.User
+	var user *identity.User
 	if *email != "" {
-		user, err = userRepo.GetByEmail(ctx, *email)
+		user, err = access.Users.GetByEmail(ctx, *email)
 	} else {
-		user, err = userRepo.GetFirstAdmin(ctx)
+		user, err = access.Users.GetFirstAdmin(ctx)
 	}
 	if err != nil {
 		log.Fatalf("failed to resolve admin user: %v", err)
 	}
 
-	token, err := authService.GenerateToken(ctx, user)
+	token, err := access.Tokens.GenerateToken(ctx, user)
 	if err != nil {
 		log.Fatalf("failed to generate token: %v", err)
 	}

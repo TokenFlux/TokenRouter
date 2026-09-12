@@ -3,19 +3,14 @@ package middleware
 import (
 	"context"
 	"errors"
-	"fmt"
-	"net/http"
-	"strings"
-
+	keyhttp "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
 	"github.com/TokenFlux/TokenRouter/internal/service"
-
 	"github.com/gin-gonic/gin"
+	"net/http"
+	"strings"
 )
-
-const maxAPIKeyAuthorizationHeaderBytes = service.MaxAPIKeyCredentialBytes + 128
 
 // NewAPIKeyAuthMiddleware 创建 API Key 认证中间件
 func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) APIKeyAuthMiddleware {
@@ -33,154 +28,13 @@ func NewAPIKeyAuthMiddleware(apiKeyService *service.APIKeyService, subscriptionS
 // 批任务管理允许已耗尽额度的 Key 取回或清理自己的既有任务。
 func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService, cfg *config.Config) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// ── 1. 提取 API Key ──────────────────────────────────────────
-		if rejectInvalidAuthAbuse(c, apiKeyService) {
-			AbortWithError(c, http.StatusTooManyRequests, "INVALID_AUTH_RATE_LIMITED", "Too many invalid authentication attempts; retry later")
+		access, ok := authenticateAPIKeyRequest(c, apiKeyService, cfg, false)
+		if !ok {
 			return
 		}
+		apiKey := service.APIKeyFromView(access.KeyView())
+		var err error
 
-		if apiKeyHeadersTooLarge(c) {
-			recordInvalidAuthFailure(c, apiKeyService)
-			MarkIngressRejected(c, IngressRejectInvalidAPIKey)
-			AbortWithError(c, http.StatusUnauthorized, "INVALID_API_KEY", "Invalid API key")
-			return
-		}
-
-		queryKey := strings.TrimSpace(c.Query("key"))
-		queryApiKey := strings.TrimSpace(c.Query("api_key"))
-		if queryKey != "" || queryApiKey != "" {
-			recordInvalidAuthFailure(c, apiKeyService)
-			MarkIngressRejected(c, IngressRejectQueryAPIKeyDeprecated)
-			AbortWithError(c, 400, "api_key_in_query_deprecated", "API key in query parameter is deprecated. Please use Authorization header instead.")
-			return
-		}
-
-		// 尝试从Authorization header中提取API key (Bearer scheme)
-		authHeader := c.GetHeader("Authorization")
-		var apiKeyString string
-
-		if authHeader != "" {
-			// 验证Bearer scheme
-			parts := strings.SplitN(authHeader, " ", 2)
-			if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") {
-				apiKeyString = strings.TrimSpace(parts[1])
-			}
-		}
-
-		// 如果Authorization header中没有，尝试从x-api-key header中提取
-		if apiKeyString == "" {
-			apiKeyString = c.GetHeader("x-api-key")
-		}
-		if len(apiKeyString) > service.MaxAPIKeyCredentialBytes {
-			recordInvalidAuthFailure(c, apiKeyService)
-			MarkIngressRejected(c, IngressRejectInvalidAPIKey)
-			AbortWithError(c, http.StatusUnauthorized, "INVALID_API_KEY", "Invalid API key")
-			return
-		}
-
-		// 如果x-api-key header中没有，尝试从x-goog-api-key header中提取（Gemini CLI兼容）
-		if apiKeyString == "" {
-			apiKeyString = c.GetHeader("x-goog-api-key")
-		}
-
-		// 如果所有header都没有API key
-		if apiKeyString == "" {
-			recordInvalidAuthFailure(c, apiKeyService)
-			if hasAPIKeyCredentialInput(c) {
-				MarkIngressRejected(c, IngressRejectInvalidAPIKey)
-			} else {
-				MarkIngressRejected(c, IngressRejectAPIKeyRequired)
-			}
-			AbortWithError(c, 401, "API_KEY_REQUIRED", "API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header")
-			return
-		}
-
-		// ── 2. 验证 Key 存在 ─────────────────────────────────────────
-
-		apiKey, err := apiKeyService.GetByKey(c.Request.Context(), apiKeyString)
-		if err != nil {
-			if errors.Is(err, service.ErrAPIKeyNotFound) {
-				recordInvalidAuthFailure(c, apiKeyService)
-				MarkIngressRejected(c, IngressRejectInvalidAPIKey)
-				AbortWithError(c, 401, "INVALID_API_KEY", "Invalid API key")
-				return
-			}
-			if errors.Is(err, service.ErrGroupDisabledForUser) {
-				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonAPIKeyGroupUnavailable)
-				AbortWithError(c, 403, "GROUP_DISABLED_FOR_USER", "API Key 所属公开分组已被禁用")
-				return
-			}
-			if errors.Is(err, service.ErrAPIKeyAuthOverloaded) {
-				MarkIngressRejected(c, IngressRejectAPIKeyAuthOverloaded)
-				AbortWithError(c, http.StatusServiceUnavailable, "API_KEY_AUTH_OVERLOADED", "API key authentication is temporarily unavailable")
-				return
-			}
-			if abortTeamAPIKeyError(c, err) {
-				return
-			}
-			AbortWithError(c, 500, "INTERNAL_ERROR", "Failed to validate API key")
-			return
-		}
-
-		// apiKey 已加载（含 User/Group）。即便后续因分组停用/Key 停用/用户停用/
-		// IP 限制等早退中断，也让 Ops 错误日志能回退取到 user/group/platform。
-		SetOpsFallbackAPIKey(c, apiKey)
-
-		// ── 3. 基础鉴权（始终执行） ─────────────────────────────────
-
-		// disabled / 未知状态 → 无条件拦截（expired 和 quota_exhausted 留给计费阶段）
-		if !apiKey.IsActive() &&
-			apiKey.Status != service.StatusAPIKeyExpired &&
-			apiKey.Status != service.StatusAPIKeyQuotaExhausted {
-			MarkIngressRejected(c, IngressRejectAPIKeyDisabled)
-			AbortWithError(c, 401, "API_KEY_DISABLED", "API key is disabled")
-			return
-		}
-		if err := apiKeyService.ValidateTeamKeyLifecycle(apiKey); err != nil {
-			if abortTeamAPIKeyError(c, err) {
-				return
-			}
-			AbortWithError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to validate team API key")
-			return
-		}
-		if !isAPIKeyNonConsumingRequest(c.Request.Method, c.Request.URL.Path) {
-			if err := apiKeyService.CheckTeamMemberLimits(apiKey); err != nil {
-				if abortTeamAPIKeyError(c, err) {
-					return
-				}
-				AbortWithError(c, http.StatusInternalServerError, "INTERNAL_ERROR", "Failed to validate team member limits")
-				return
-			}
-		}
-
-		// 检查 IP 限制（白名单/黑名单）
-		// 注意：错误信息故意模糊，避免暴露具体的 IP 限制机制
-		if len(apiKey.IPWhitelist) > 0 || len(apiKey.IPBlacklist) > 0 {
-			clientIP := ip.GetSecurityClientIP(c, cfg.TrustForwardedIPForAPIKeyACL())
-			allowed, _ := ip.CheckIPRestrictionWithCompiledRules(clientIP, apiKey.CompiledIPWhitelist, apiKey.CompiledIPBlacklist)
-			if !allowed {
-				if clientIP == "" {
-					clientIP = "unknown"
-				}
-				service.MarkOpsClientBusinessLimited(c, service.OpsClientBusinessLimitedReasonIPRestriction)
-				MarkIngressRejected(c, IngressRejectIPRestricted)
-				AbortWithError(c, 403, "ACCESS_DENIED", fmt.Sprintf("Access denied. Your IP is %s", clientIP))
-				return
-			}
-		}
-
-		// 检查关联的用户
-		if apiKey.User == nil {
-			AbortWithError(c, 401, "USER_NOT_FOUND", "User associated with API key not found")
-			return
-		}
-
-		// 检查用户状态
-		if !apiKey.User.IsActive() {
-			MarkIngressRejected(c, IngressRejectUserInactive)
-			AbortWithError(c, 401, "USER_INACTIVE", "User account is not active")
-			return
-		}
 		apiKey, err = resolveCompositeAPIKeyRequest(c, apiKeyService, apiKey)
 		if err != nil {
 			abortCompositeKeyError(c, err)
@@ -222,6 +76,7 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 			c.Set(string(ContextKeyUserRole), apiKey.User.Role)
 			setGroupContext(c, apiKey.Group)
 			_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
+			keyhttp.SetAccessPrincipal(c, access)
 			c.Next()
 			return
 		}
@@ -321,26 +176,9 @@ func apiKeyAuthWithSubscription(apiKeyService *service.APIKeyService, subscripti
 		setGroupContext(c, apiKey.Group)
 		_ = apiKeyService.TouchLastUsed(c.Request.Context(), apiKey.ID)
 
+		keyhttp.SetAccessPrincipal(c, access)
 		c.Next()
 	}
-}
-
-func apiKeyHeadersTooLarge(c *gin.Context) bool {
-	if c == nil {
-		return false
-	}
-	return len(c.GetHeader("Authorization")) > maxAPIKeyAuthorizationHeaderBytes ||
-		len(c.GetHeader("x-api-key")) > service.MaxAPIKeyCredentialBytes ||
-		len(c.GetHeader("x-goog-api-key")) > service.MaxAPIKeyCredentialBytes
-}
-
-func hasAPIKeyCredentialInput(c *gin.Context) bool {
-	if c == nil {
-		return false
-	}
-	return c.GetHeader("Authorization") != "" ||
-		c.GetHeader("x-api-key") != "" ||
-		c.GetHeader("x-goog-api-key") != ""
 }
 
 func abortWithAPIKeyQuotaError(c *gin.Context) {
@@ -435,31 +273,6 @@ func shouldResolveAPIKeyBillingInSimpleMode(apiKey *service.APIKey, method, path
 		apiKey.IsComposite &&
 		service.APIKeyEffectiveBillingMode(apiKey) == service.APIKeyBillingModeSubscription &&
 		isCompositeKeyModelListEndpoint(method, path)
-}
-
-// abortTeamAPIKeyError 将团队生命周期与成员限额错误映射为稳定的网关响应。
-func abortTeamAPIKeyError(c *gin.Context, err error) bool {
-	switch {
-	case errors.Is(err, service.ErrTeamMemberDailyExceeded):
-		AbortWithError(c, http.StatusTooManyRequests, "TEAM_MEMBER_DAILY_LIMIT_EXCEEDED", "团队成员日限额已用完")
-	case errors.Is(err, service.ErrTeamMemberWeeklyExceeded):
-		AbortWithError(c, http.StatusTooManyRequests, "TEAM_MEMBER_WEEKLY_LIMIT_EXCEEDED", "团队成员周限额已用完")
-	case errors.Is(err, service.ErrTeamMemberMonthlyExceeded):
-		AbortWithError(c, http.StatusTooManyRequests, "TEAM_MEMBER_MONTHLY_LIMIT_EXCEEDED", "团队成员月限额已用完")
-	case errors.Is(err, service.ErrTeamFeatureDisabled):
-		AbortWithError(c, http.StatusForbidden, "TEAM_FEATURE_DISABLED", "团队功能未启用")
-	case errors.Is(err, service.ErrTeamSuspended):
-		AbortWithError(c, http.StatusForbidden, "TEAM_SUSPENDED", "团队已暂停")
-	case errors.Is(err, service.ErrTeamMembershipRequired):
-		AbortWithError(c, http.StatusForbidden, "TEAM_MEMBERSHIP_REQUIRED", "团队成员关系已失效")
-	case errors.Is(err, service.ErrTeamActorInactive):
-		AbortWithError(c, http.StatusForbidden, "TEAM_ACTOR_INACTIVE", "团队密钥所属成员已停用")
-	case errors.Is(err, service.ErrTeamBillingOwnerInactive):
-		AbortWithError(c, http.StatusForbidden, "TEAM_BILLING_OWNER_INACTIVE", "团队付款所有者已停用")
-	default:
-		return false
-	}
-	return true
 }
 
 // GetAPIKeyFromContext 从上下文中获取API key

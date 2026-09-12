@@ -302,37 +302,13 @@ func TestApiKeyService_Delete_OwnerMismatch(t *testing.T) {
 		apiKey: &APIKey{ID: 10, UserID: 1, Key: "k"},
 	}
 	cache := &apiKeyCacheStub{}
-	svc := &APIKeyService{apiKeyRepo: repo, cache: cache}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo, cache: cache})
 
 	err := svc.Delete(context.Background(), 10, 2) // API Key ID=10, 调用者 userID=2
 	require.ErrorIs(t, err, ErrInsufficientPerms)
 	require.Empty(t, repo.deletedIDs)   // 验证删除操作未被调用
 	require.Empty(t, cache.invalidated) // 验证缓存未被清除
 	require.Empty(t, cache.deleteAuthKeys)
-}
-
-// TestApiKeyService_Delete_Success 测试所有者成功删除 API Key 的场景。
-// 预期行为：
-//   - GetKeyAndOwnerID 返回所有者 ID 为 7
-//   - 调用者 userID 为 7（匹配）
-//   - Delete 成功执行
-//   - 缓存被正确清除（使用 ownerID）
-//   - 返回 nil 错误
-func TestApiKeyService_Delete_Success(t *testing.T) {
-	repo := &apiKeyRepoStub{
-		apiKey: &APIKey{ID: 42, UserID: 7, Key: "k"},
-	}
-	cache := &apiKeyCacheStub{}
-	svc := &APIKeyService{apiKeyRepo: repo, cache: cache}
-	svc.lastUsedTouchL1.Store(int64(42), time.Now())
-
-	err := svc.Delete(context.Background(), 42, 7) // API Key ID=42, 调用者 userID=7
-	require.NoError(t, err)
-	require.Equal(t, []int64{42}, repo.deletedIDs)  // 验证正确的 API Key 被删除
-	require.Equal(t, []int64{7}, cache.invalidated) // 验证所有者的缓存被清除
-	require.Equal(t, []string{svc.authCacheKey("k")}, cache.deleteAuthKeys)
-	_, exists := svc.lastUsedTouchL1.Load(int64(42))
-	require.False(t, exists, "delete should clear touch debounce cache")
 }
 
 // TestApiKeyService_Delete_NotFound 测试删除不存在的 API Key 时返回正确的错误。
@@ -344,7 +320,7 @@ func TestApiKeyService_Delete_Success(t *testing.T) {
 func TestApiKeyService_Delete_NotFound(t *testing.T) {
 	repo := &apiKeyRepoStub{getByIDErr: ErrAPIKeyNotFound}
 	cache := &apiKeyCacheStub{}
-	svc := &APIKeyService{apiKeyRepo: repo, cache: cache}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo, cache: cache})
 
 	err := svc.Delete(context.Background(), 99, 1)
 	require.ErrorIs(t, err, ErrAPIKeyNotFound)
@@ -364,7 +340,7 @@ func TestAPIKeyService_List_FillsCurrentConcurrency(t *testing.T) {
 	concurrency := NewConcurrencyService(&stubConcurrencyCacheForTest{
 		apiKeyConcurrency: map[int64]int{10: 2, 11: 0},
 	})
-	svc := &APIKeyService{apiKeyRepo: repo, concurrencyService: concurrency}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo, concurrencyService: concurrency})
 
 	keys, _, err := svc.List(context.Background(), 7, pagination.PaginationParams{Page: 1, PageSize: 20}, APIKeyListFilters{})
 	require.NoError(t, err)
@@ -406,7 +382,7 @@ func TestAPIKeyService_List_SortByCurrentConcurrency(t *testing.T) {
 			12: 99,
 		},
 	})
-	svc := &APIKeyService{apiKeyRepo: repo, concurrencyService: concurrency}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo, concurrencyService: concurrency})
 
 	got, page, err := svc.List(context.Background(), 7, pagination.PaginationParams{
 		Page:      2,
@@ -442,7 +418,7 @@ func TestAPIKeyService_List_SortByCurrentConcurrencyAscTiesByID(t *testing.T) {
 	concurrency := NewConcurrencyService(&stubConcurrencyCacheForTest{
 		apiKeyConcurrency: map[int64]int{1: 5, 2: 5, 3: 2, 4: 8},
 	})
-	svc := &APIKeyService{apiKeyRepo: repo, concurrencyService: concurrency}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo, concurrencyService: concurrency})
 
 	got, page, err := svc.List(context.Background(), 7, pagination.PaginationParams{
 		Page:      1,
@@ -470,7 +446,7 @@ func TestAPIKeyService_GetByID_FillsCurrentConcurrency(t *testing.T) {
 	concurrency := NewConcurrencyService(&stubConcurrencyCacheForTest{
 		apiKeyConcurrency: map[int64]int{10: 4},
 	})
-	svc := &APIKeyService{apiKeyRepo: repo, concurrencyService: concurrency}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo, concurrencyService: concurrency})
 
 	key, err := svc.GetByID(context.Background(), 10)
 	require.NoError(t, err)
@@ -490,7 +466,7 @@ func TestApiKeyService_Delete_DeleteFails(t *testing.T) {
 		deleteErr: errors.New("delete failed"),
 	}
 	cache := &apiKeyCacheStub{}
-	svc := &APIKeyService{apiKeyRepo: repo, cache: cache}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo, cache: cache})
 
 	err := svc.Delete(context.Background(), 3, 3) // API Key ID=3, 调用者 userID=3
 	require.Error(t, err)

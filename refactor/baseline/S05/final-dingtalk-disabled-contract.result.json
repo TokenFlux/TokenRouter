@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/handler",
+    "-run",
+    "^TestDingTalkOAuthStart_Disabled$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.792,
+  "log": "logs/final-dingtalk-disabled-contract.log.gz"
+}

@@ -3,8 +3,11 @@ package dto
 
 import (
 	"encoding/json"
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	keydto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
 	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
+	identitydto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"net/url"
 	"strings"
@@ -12,32 +15,7 @@ import (
 )
 
 func UserFromServiceShallow(u *service.User) *User {
-	if u == nil {
-		return nil
-	}
-	return &User{
-		ID:                         u.ID,
-		Email:                      u.Email,
-		Username:                   u.Username,
-		Role:                       u.Role,
-		Balance:                    u.Balance,
-		FrozenBalance:              u.FrozenBalance,
-		Concurrency:                u.Concurrency,
-		Status:                     u.Status,
-		AllowedGroups:              u.AllowedGroups,
-		DisabledPublicGroups:       u.DisabledPublicGroups,
-		LastActiveAt:               u.LastActiveAt,
-		CreatedAt:                  u.CreatedAt,
-		UpdatedAt:                  u.UpdatedAt,
-		BalanceNotifyEnabled:       u.BalanceNotifyEnabled,
-		BalanceNotifyThresholdType: u.BalanceNotifyThresholdType,
-		BalanceNotifyThreshold:     u.BalanceNotifyThreshold,
-		BalanceNotifyExtraEmails:   NotifyEmailEntriesFromService(u.BalanceNotifyExtraEmails),
-		TotalRecharged:             u.TotalRecharged,
-		RPMLimit:                   u.RPMLimit,
-		APIKeyLimit:                u.APIKeyLimit,
-		DeletedAt:                  u.DeletedAt,
-	}
+	return identitydto.UserFromIdentityShallow[APIKey](service.IdentityUser(u))
 }
 
 func UserFromService(u *service.User) *User {
@@ -81,71 +59,7 @@ func UserFromServiceAdmin(u *service.User) *AdminUser {
 }
 
 func APIKeyFromService(k *service.APIKey) *APIKey {
-	if k == nil {
-		return nil
-	}
-	out := &APIKey{
-		ID:                                    k.ID,
-		UserID:                                k.UserID,
-		TeamID:                                k.TeamID,
-		TeamOwnerDisabled:                     k.TeamOwnerDisabled,
-		Key:                                   k.Key,
-		Name:                                  k.Name,
-		GroupID:                               k.GroupID,
-		IsComposite:                           k.IsComposite,
-		Status:                                k.Status,
-		FastModePolicy:                        k.FastModePolicy,
-		BillingMode:                           k.BillingMode,
-		PreferredSubscriptionID:               k.PreferredSubscriptionID,
-		ModelMapping:                          service.CloneModelMapping(k.ModelMapping),
-		IPWhitelist:                           k.IPWhitelist,
-		IPBlacklist:                           k.IPBlacklist,
-		LastUsedAt:                            k.LastUsedAt,
-		LastUsedIP:                            k.LastUsedIP,
-		Quota:                                 k.Quota,
-		QuotaUsed:                             k.QuotaUsed,
-		ExpiresAt:                             k.ExpiresAt,
-		CreatedAt:                             k.CreatedAt,
-		UpdatedAt:                             k.UpdatedAt,
-		RateLimit5h:                           k.RateLimit5h,
-		RateLimit1d:                           k.RateLimit1d,
-		RateLimit7d:                           k.RateLimit7d,
-		Usage5h:                               k.EffectiveUsage5h(),
-		Usage1d:                               k.EffectiveUsage1d(),
-		Usage7d:                               k.EffectiveUsage7d(),
-		Window5hStart:                         k.Window5hStart,
-		Window1dStart:                         k.Window1dStart,
-		Window7dStart:                         k.Window7dStart,
-		FallbackToDefaultGroupWhenUnavailable: k.FallbackToDefaultGroupWhenUnavailable,
-		CurrentConcurrency:                    k.CurrentConcurrency,
-		Group:                                 GroupFromServiceShallow(k.Group),
-	}
-	out.CompositeGroups = make([]APIKeyCompositeGroup, 0, len(k.CompositeGroups))
-	for _, binding := range k.CompositeGroups {
-		out.CompositeGroups = append(out.CompositeGroups, APIKeyCompositeGroup{
-			GroupID: binding.GroupID,
-			Prefix:  binding.Prefix,
-			Group:   GroupFromServiceShallow(binding.Group),
-		})
-	}
-	if k.TeamID != nil {
-		out.Scope = "team"
-	} else {
-		out.Scope = "personal"
-	}
-	if k.Window5hStart != nil && !service.IsWindowExpired(k.Window5hStart, service.RateLimitWindow5h) {
-		t := k.Window5hStart.Add(service.RateLimitWindow5h)
-		out.Reset5hAt = &t
-	}
-	if k.Window1dStart != nil && !service.IsWindowExpired(k.Window1dStart, service.RateLimitWindow1d) {
-		t := k.Window1dStart.Add(service.RateLimitWindow1d)
-		out.Reset1dAt = &t
-	}
-	if k.Window7dStart != nil && !service.IsWindowExpired(k.Window7dStart, service.RateLimitWindow7d) {
-		t := k.Window7dStart.Add(service.RateLimitWindow7d)
-		out.Reset7dAt = &t
-	}
-	return out
+	return keydto.APIKeyFromKey(service.APIKeyView(k), func(g *apikey.Group) *Group { return GroupFromServiceShallow(service.GroupFromAPIKeyView(g)) })
 }
 
 func GroupFromServiceShallow(g *service.Group) *Group {

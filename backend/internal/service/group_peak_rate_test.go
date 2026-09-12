@@ -235,7 +235,7 @@ func TestPeakMultiplier_SnapshotRoundTrip(t *testing.T) {
 		User:  &User{ID: 1, Status: StatusActive, Role: RoleUser},
 		Group: newPeakGroup(true, "14:00", "18:00", 3.0),
 	}
-	svc := &APIKeyService{}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
 
 	snapshot := svc.snapshotFromAPIKey(context.Background(), apiKey)
 	if snapshot == nil || snapshot.Group == nil {

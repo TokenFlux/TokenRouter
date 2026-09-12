@@ -4,7 +4,7 @@ import "testing"
 
 func TestAPIKeyService_RejectsV13AuthSnapshotWithoutSessionIsolationFlag(t *testing.T) {
 	groupID := int64(9)
-	svc := &APIKeyService{}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
 
 	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-models-list", &APIKeyAuthCacheEntry{
 		Snapshot: &APIKeyAuthSnapshot{
@@ -42,7 +42,7 @@ func TestAPIKeyService_RejectsV13AuthSnapshotWithoutSessionIsolationFlag(t *test
 }
 
 func TestAPIKeyService_RejectsV21AuthSnapshotWithoutReasoningEffortPolicy(t *testing.T) {
-	svc := &APIKeyService{}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
 
 	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-reasoning-mappings", &APIKeyAuthCacheEntry{
 		Snapshot: &APIKeyAuthSnapshot{Version: 21},
@@ -60,7 +60,7 @@ func TestAPIKeyService_RejectsV21AuthSnapshotWithoutReasoningEffortPolicy(t *tes
 }
 
 func TestAPIKeyServiceRejectsV26AuthSnapshotWithoutModelMapping(t *testing.T) {
-	svc := &APIKeyService{}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
 
 	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-model-mapping", &APIKeyAuthCacheEntry{
 		Snapshot: &APIKeyAuthSnapshot{Version: 26},
@@ -75,7 +75,7 @@ func TestAPIKeyServiceRejectsV26AuthSnapshotWithoutModelMapping(t *testing.T) {
 }
 
 func TestAPIKeyServiceRejectsV29AuthSnapshotWithoutSchedulerType(t *testing.T) {
-	svc := &APIKeyService{}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
 
 	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-scheduler-type", &APIKeyAuthCacheEntry{
 		Snapshot: &APIKeyAuthSnapshot{Version: 29},
@@ -90,7 +90,7 @@ func TestAPIKeyServiceRejectsV29AuthSnapshotWithoutSchedulerType(t *testing.T) {
 }
 
 func TestAPIKeyServiceRejectsV30AuthSnapshotWithoutAdvancedSchedulerOverrides(t *testing.T) {
-	svc := &APIKeyService{}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
 	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-advanced-overrides", &APIKeyAuthCacheEntry{
 		Snapshot: &APIKeyAuthSnapshot{Version: 30},
 	})
@@ -103,7 +103,7 @@ func TestAPIKeyServiceRejectsV30AuthSnapshotWithoutAdvancedSchedulerOverrides(t 
 }
 
 func TestAPIKeyServiceRejectsV32AuthSnapshotWithoutGroupModelPricing(t *testing.T) {
-	svc := &APIKeyService{}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
 	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-group-pricing", &APIKeyAuthCacheEntry{
 		Snapshot: &APIKeyAuthSnapshot{Version: 32},
 	})
@@ -118,7 +118,7 @@ func TestAPIKeyServiceRejectsV32AuthSnapshotWithoutGroupModelPricing(t *testing.
 // TestAPIKeyServiceRejectsV33AuthSnapshotWithoutGroupOpenAIFast ensures old
 // snapshots cannot silently omit the group-level Fast policy.
 func TestAPIKeyServiceRejectsV33AuthSnapshotWithoutGroupOpenAIFast(t *testing.T) {
-	svc := &APIKeyService{}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
 	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-group-openai-fast", &APIKeyAuthCacheEntry{
 		Snapshot: &APIKeyAuthSnapshot{Version: 33},
 	})
@@ -132,7 +132,7 @@ func TestAPIKeyServiceRejectsV33AuthSnapshotWithoutGroupOpenAIFast(t *testing.T)
 
 // TestAPIKeyServiceRejectsV34AuthSnapshotWithoutReasoningEffortOverLimit 验证旧快照不会缺少超限动作。
 func TestAPIKeyServiceRejectsV34AuthSnapshotWithoutReasoningEffortOverLimit(t *testing.T) {
-	svc := &APIKeyService{}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
 	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-reasoning-over-limit", &APIKeyAuthCacheEntry{
 		Snapshot: &APIKeyAuthSnapshot{Version: 34},
 	})
@@ -146,7 +146,7 @@ func TestAPIKeyServiceRejectsV34AuthSnapshotWithoutReasoningEffortOverLimit(t *t
 
 // TestAPIKeyServiceRejectsV35AuthSnapshotWithoutFreeOpenAIFast 验证旧快照不会缺少免费 Fast 策略。
 func TestAPIKeyServiceRejectsV35AuthSnapshotWithoutFreeOpenAIFast(t *testing.T) {
-	svc := &APIKeyService{}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
 	apiKey, ok, err := svc.applyAuthCacheEntry("k-legacy-free-openai-fast", &APIKeyAuthCacheEntry{
 		Snapshot: &APIKeyAuthSnapshot{Version: 35},
 	})

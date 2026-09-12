@@ -10,6 +10,7 @@ import (
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	config "github.com/TokenFlux/TokenRouter/internal/config"
+	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	timingwheel "github.com/TokenFlux/TokenRouter/internal/infra/timingwheel"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
@@ -24,9 +25,9 @@ func billingEligibilityOptions(c *config.Config) billing.EligibilityOptions {
 }
 
 // provideBillingEligibility 与管理及镜像写回共享同一个按用户协调器。
-func provideBillingEligibility(cache billing.BillingCache, users service.UserRepository, keys service.APIKeyRepository, quotas billing.UserPlatformQuotaRepository, cfg *config.Config, coordinator *billing.QuotaCoordinator, tasks *lifecycle.Tasks) *billing.Eligibility {
+func provideBillingEligibility(cache billing.BillingCache, users *identitypostgres.UserStore, keys service.APIKeyRepository, quotas billing.UserPlatformQuotaRepository, cfg *config.Config, coordinator *billing.QuotaCoordinator, tasks *lifecycle.Tasks) *billing.Eligibility {
 	options := billingEligibilityOptions(cfg)
-	return billing.NewEligibility(cache, legacybridge.BillingUsers{Repository: users}, keys, quotas, func() billing.EligibilityOptions { return options }, logging.LegacyPrintf, coordinator, func(name string, fn func()) { tasks.Go(name, fn) })
+	return billing.NewEligibility(cache, billingIdentityUsers{Repository: users}, keys, quotas, func() billing.EligibilityOptions { return options }, logging.LegacyPrintf, coordinator, func(name string, fn func()) { tasks.Go(name, fn) })
 }
 func provideLegacyBillingEligibility(core *billing.Eligibility, cfg *config.Config, rpm service.UserRPMCache, rates billing.UserGroupRateRepository) *service.BillingCacheService {
 	return service.WrapBillingEligibility(core, cfg, rpm, rates)
@@ -46,8 +47,8 @@ func provideBillingFunds(store *billingpostgres.SettlementStore) *billing.Funds 
 	return billing.NewFunds(store)
 }
 
-func provideBillingRedeem(repo billing.RedeemCodeRepository, users service.UserRepository, subs *billing.SubscriptionService, cache billing.RedeemCache, eligibility *billing.Eligibility, client *dbent.Client, auth service.APIKeyAuthCacheInvalidator, affiliate *service.AffiliateService, tasks *lifecycle.Tasks) *billing.RedeemService {
-	return billing.NewRedeemService(repo, legacybridge.BillingUsers{Repository: users}, subs, cache, eligibility, billingpostgres.NewRedeemMutations(client, billingpostgres.NewBalanceStore(client)), auth, legacybridge.RedeemAffiliate{Service: affiliate}, billing.RedeemRuntime{Now: time.Now, Observe: logging.LegacyPrintf, Background: func(name string, fn func()) { tasks.Go(name, fn) }})
+func provideBillingRedeem(repo billing.RedeemCodeRepository, users *identitypostgres.UserStore, subs *billing.SubscriptionService, cache billing.RedeemCache, eligibility *billing.Eligibility, client *dbent.Client, auth service.APIKeyAuthCacheInvalidator, affiliate *service.AffiliateService, tasks *lifecycle.Tasks) *billing.RedeemService {
+	return billing.NewRedeemService(repo, billingIdentityUsers{Repository: users}, subs, cache, eligibility, billingpostgres.NewRedeemMutations(client, billingpostgres.RedeemWriters{Balances: billingpostgres.NewBalanceStore(client), Concurrency: identitypostgres.NewConcurrencyStore(client)}), auth, legacybridge.RedeemAffiliate{Service: affiliate}, billing.RedeemRuntime{Now: time.Now, Observe: logging.LegacyPrintf, Background: func(name string, fn func()) { tasks.Go(name, fn) }})
 }
 
 func provideRedeemAdministration(repo billing.RedeemCodeRepository, client *dbent.Client) *billing.RedeemAdmin {

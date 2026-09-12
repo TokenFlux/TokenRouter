@@ -1,0 +1,642 @@
+// 本文件维护 httpapi 的所属能力；兼容入口复用唯一实现。
+package httpapi
+
+import (
+	context "context"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	clientip "github.com/TokenFlux/TokenRouter/internal/server/clientip"
+	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+	gin "github.com/gin-gonic/gin"
+	slog "log/slog"
+	strings "strings"
+)
+
+// SessionHTTPSettings 每次操作读取动态开关，保持各入口原有生效时机。
+type SessionHTTPSettings interface {
+	IsBackendModeEnabled(context.Context) bool
+	IsTotpEnabled(context.Context) bool
+	IsPromoCodeEnabled(context.Context) bool
+	IsInvitationCodeEnabled(context.Context) bool
+	GetFrontendURL(context.Context) string
+}
+type InvitationReader interface {
+	GetByCode(context.Context, string) (*identity.RedeemCode, error)
+}
+
+// PromotionPreview 是未迁推广用例给出的展示投影，不持有推广规则。
+type PromotionPreview struct {
+	Valid       bool
+	BonusAmount float64
+	ErrorCode   string
+}
+
+// SessionHTTPOptions 注入 HTTP 观察、Cookie 操作和启动参数，不接受整份 config。
+type SessionHTTPOptions struct {
+	RunMode             string
+	BackendMode         func(context.Context) bool
+	AuditActor          func(*gin.Context, int64, string)
+	ClearPendingCookies func(*gin.Context)
+	LogoutPending       func(*gin.Context)
+	PreviewPromotion    func(context.Context, string) PromotionPreview
+}
+type SessionHandler struct {
+	authService   *identity.AuthService
+	userService   *identity.UserService
+	settingSvc    SessionHTTPSettings
+	redeemService InvitationReader
+	totpService   *identity.TotpService
+	pending       *identity.PendingFlow
+	options       SessionHTTPOptions
+}
+
+func NewSessionHandler(auth *identity.AuthService, users *identity.UserService, settings SessionHTTPSettings, redeems InvitationReader, totp *identity.TotpService, pending *identity.PendingFlow, options SessionHTTPOptions) *SessionHandler {
+	return &SessionHandler{auth, users, settings, redeems, totp, pending, options}
+}
+func (h *SessionHandler) respondWithTokenPair(c *gin.Context, u *identity.User) {
+	RespondWithTokenPair(c, h.authService, u)
+}
+func (h *SessionHandler) auditActor(c *gin.Context, id int64, email string) {
+	if h.options.AuditActor != nil {
+		h.options.AuditActor(c, id, email)
+	}
+}
+func (h *SessionHandler) isBackendModeEnabled(ctx context.Context) bool {
+	if h == nil || h.options.BackendMode == nil {
+		return false
+	}
+	return h.options.BackendMode(ctx)
+}
+
+// RegisterRequest represents the registration request payload
+type RegisterRequest struct {
+	Email                 string `json:"email" binding:"required,email"`
+	Password              string `json:"password" binding:"required,min=6"`
+	VerifyCode            string `json:"verify_code"`
+	TurnstileToken        string `json:"turnstile_token"`
+	TencentCaptchaTicket  string `json:"tencent_captcha_ticket"`
+	TencentCaptchaRandstr string `json:"tencent_captcha_randstr"`
+	PromoCode             string `json:"promo_code"`      // 注册优惠码
+	InvitationCode        string `json:"invitation_code"` // 邀请码
+	AffCode               string `json:"aff_code"`        // 邀请返利码
+}
+
+// SendVerifyCodeRequest 发送验证码请求
+type SendVerifyCodeRequest struct {
+	Email                 string `json:"email" binding:"required,email"`
+	TurnstileToken        string `json:"turnstile_token"`
+	TencentCaptchaTicket  string `json:"tencent_captcha_ticket"`
+	TencentCaptchaRandstr string `json:"tencent_captcha_randstr"`
+}
+
+// SendVerifyCodeResponse 发送验证码响应
+type SendVerifyCodeResponse struct {
+	Message   string `json:"message"`
+	Countdown int    `json:"countdown"` // 倒计时秒数
+}
+
+// LoginRequest represents the login request payload
+type LoginRequest struct {
+	Email                 string `json:"email" binding:"required,email"`
+	Password              string `json:"password" binding:"required"`
+	TurnstileToken        string `json:"turnstile_token"`
+	TencentCaptchaTicket  string `json:"tencent_captcha_ticket"`
+	TencentCaptchaRandstr string `json:"tencent_captcha_randstr"`
+}
+
+func captchaProof(turnstileToken, tencentTicket, tencentRandstr string) identity.CaptchaProof {
+	return identity.CaptchaProof{
+		TurnstileToken: turnstileToken,
+		TencentTicket:  tencentTicket,
+		TencentRandstr: tencentRandstr,
+	}
+}
+
+func (h *SessionHandler) ensureBackendModeAllowsUser(ctx context.Context, user *identity.User) error {
+	if user == nil {
+		return infraerrors.Unauthorized("INVALID_USER", "user not found")
+	}
+	if h == nil || !h.isBackendModeEnabled(ctx) || user.IsAdmin() {
+		return nil
+	}
+	return infraerrors.Forbidden("BACKEND_MODE_ADMIN_ONLY", "Backend mode is active. Only admin login is allowed.")
+}
+
+func (h *SessionHandler) ensureBackendModeAllowsNewUserLogin(ctx context.Context) error {
+	if h == nil || !h.isBackendModeEnabled(ctx) {
+		return nil
+	}
+	return infraerrors.Forbidden("BACKEND_MODE_ADMIN_ONLY", "Backend mode is active. Only admin login is allowed.")
+}
+
+// Register handles user registration
+// POST /api/v1/auth/register
+func (h *SessionHandler) Register(c *gin.Context) {
+	var req RegisterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	h.auditActor(c, 0, strings.TrimSpace(req.Email))
+
+	// 验证当前启用的验证码（邮箱验证码注册场景避免重复校验一次性票据）
+	proof := captchaProof(req.TurnstileToken, req.TencentCaptchaTicket, req.TencentCaptchaRandstr)
+	if err := h.authService.VerifyCaptchaForRegister(c.Request.Context(), proof, clientip.GetClientIP(c), req.VerifyCode); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	_, user, err := h.authService.RegisterWithVerification(c.Request.Context(), req.Email, req.Password, req.VerifyCode, req.PromoCode, req.InvitationCode, req.AffCode)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	h.auditActor(c, user.ID, user.Email)
+
+	h.respondWithTokenPair(c, user)
+}
+
+// SendVerifyCode 发送邮箱验证码
+// POST /api/v1/auth/send-verify-code
+func (h *SessionHandler) SendVerifyCode(c *gin.Context) {
+	var req SendVerifyCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	proof := captchaProof(req.TurnstileToken, req.TencentCaptchaTicket, req.TencentCaptchaRandstr)
+	if err := h.authService.VerifyCaptcha(c.Request.Context(), proof, clientip.GetClientIP(c)); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	result, err := h.authService.SendVerifyCodeAsync(c.Request.Context(), req.Email, c.GetHeader("Accept-Language"))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, SendVerifyCodeResponse{
+		Message:   "Verification code sent successfully",
+		Countdown: result.Countdown,
+	})
+}
+
+// Login handles user login
+// POST /api/v1/auth/login
+func (h *SessionHandler) Login(c *gin.Context) {
+	var req LoginRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+	h.auditActor(c, 0, strings.TrimSpace(req.Email))
+
+	proof := captchaProof(req.TurnstileToken, req.TencentCaptchaTicket, req.TencentCaptchaRandstr)
+	if err := h.authService.VerifyCaptcha(c.Request.Context(), proof, clientip.GetClientIP(c)); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	token, user, err := h.authService.Login(c.Request.Context(), req.Email, req.Password)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	h.auditActor(c, user.ID, user.Email)
+	_ = token // token 由 authService.Login 返回但此处由 respondWithTokenPair 重新生成
+
+	if err := h.ensureBackendModeAllowsUser(c.Request.Context(), user); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	// Check if TOTP 2FA is enabled for this user
+	if h.totpService != nil && h.settingSvc.IsTotpEnabled(c.Request.Context()) && user.TotpEnabled {
+		// Create a temporary login session for 2FA
+		tempToken, err := h.totpService.CreateLoginSession(c.Request.Context(), user.ID, user.Email)
+		if err != nil {
+			response.InternalError(c, "Failed to create 2FA session")
+			return
+		}
+
+		response.Success(c, TotpLoginResponse{
+			Requires2FA:     true,
+			TempToken:       tempToken,
+			UserEmailMasked: identity.MaskEmail(user.Email),
+		})
+		return
+	}
+
+	h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
+
+	h.respondWithTokenPair(c, user)
+}
+
+// TotpLoginResponse represents the response when 2FA is required
+type TotpLoginResponse struct {
+	Requires2FA     bool   `json:"requires_2fa"`
+	TempToken       string `json:"temp_token,omitempty"`
+	UserEmailMasked string `json:"user_email_masked,omitempty"`
+}
+
+// Login2FARequest represents the 2FA login request
+type Login2FARequest struct {
+	TempToken string `json:"temp_token" binding:"required"`
+	TotpCode  string `json:"totp_code" binding:"required,len=6"`
+}
+
+// Login2FA completes the login with 2FA verification
+// POST /api/v1/auth/login/2fa
+func (h *SessionHandler) Login2FA(c *gin.Context) {
+	var req Login2FARequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	slog.Debug("login_2fa_request",
+		"temp_token_len", len(req.TempToken),
+		"totp_code_len", len(req.TotpCode))
+
+	// Get the login session
+	session, err := h.totpService.GetLoginSession(c.Request.Context(), req.TempToken)
+	if err != nil || session == nil {
+		tokenPrefix := ""
+		if len(req.TempToken) >= 8 {
+			tokenPrefix = req.TempToken[:8]
+		}
+		slog.Debug("login_2fa_session_invalid",
+			"temp_token_prefix", tokenPrefix,
+			"error", err)
+		response.BadRequest(c, "Invalid or expired 2FA session")
+		return
+	}
+	h.auditActor(c, session.UserID, session.Email)
+
+	slog.Debug("login_2fa_session_found",
+		"user_id", session.UserID,
+		"email", session.Email)
+
+	// Verify the TOTP code
+	if err := h.totpService.VerifyCode(c.Request.Context(), session.UserID, req.TotpCode); err != nil {
+		slog.Debug("login_2fa_verify_failed",
+			"user_id", session.UserID,
+			"error", err)
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	// Get the user (before session deletion so we can check backend mode)
+	user, err := h.userService.GetByID(c.Request.Context(), session.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	if err := EnsureLoginUserActive(user); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	if err := h.ensureBackendModeAllowsUser(c.Request.Context(), user); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	if session.PendingOAuthBind != nil {
+		if err := h.pending.CompleteSecondFactorBinding(c.Request.Context(), session.PendingOAuthBind, user.ID); err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		if h.options.ClearPendingCookies != nil {
+			h.options.ClearPendingCookies(c)
+		}
+
+		h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
+
+		user, err = h.userService.GetByID(c.Request.Context(), session.UserID)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+	}
+
+	// Delete the login session (only after all checks pass)
+	_ = h.totpService.DeleteLoginSession(c.Request.Context(), req.TempToken)
+
+	if session.PendingOAuthBind == nil {
+		h.authService.RecordSuccessfulLogin(c.Request.Context(), user.ID)
+	}
+
+	h.respondWithTokenPair(c, user)
+}
+
+// GetCurrentUser handles getting current authenticated user
+// GET /api/v1/auth/me
+func (h *SessionHandler) GetCurrentUser(c *gin.Context) {
+	subject, ok := GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	user, err := h.userService.GetByID(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	identities, err := h.userService.GetProfileIdentitySummaries(c.Request.Context(), subject.UserID, user)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	type UserResponse struct {
+		UserProfileResponse
+		RunMode string `json:"run_mode"`
+	}
+
+	runMode := h.options.RunMode
+
+	response.Success(c, UserResponse{
+		UserProfileResponse: UserProfileResponseFromService(user, identities),
+		RunMode:             runMode,
+	})
+}
+
+// ValidatePromoCodeRequest 验证优惠码请求
+type ValidatePromoCodeRequest struct {
+	Code string `json:"code" binding:"required"`
+}
+
+// ValidatePromoCodeResponse 验证优惠码响应
+type ValidatePromoCodeResponse struct {
+	Valid       bool    `json:"valid"`
+	BonusAmount float64 `json:"bonus_amount,omitempty"`
+	ErrorCode   string  `json:"error_code,omitempty"`
+	Message     string  `json:"message,omitempty"`
+}
+
+// ValidatePromoCode 验证优惠码（公开接口，注册前调用）
+// POST /api/v1/auth/validate-promo-code
+func (h *SessionHandler) ValidatePromoCode(c *gin.Context) {
+	// 检查优惠码功能是否启用
+	if h.settingSvc != nil && !h.settingSvc.IsPromoCodeEnabled(c.Request.Context()) {
+		response.Success(c, ValidatePromoCodeResponse{
+			Valid:     false,
+			ErrorCode: "PROMO_CODE_DISABLED",
+		})
+		return
+	}
+
+	var req ValidatePromoCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	preview := h.options.PreviewPromotion(c.Request.Context(), req.Code)
+	response.Success(c, ValidatePromoCodeResponse{Valid: preview.Valid, BonusAmount: preview.BonusAmount, ErrorCode: preview.ErrorCode})
+}
+
+// ValidateInvitationCodeRequest 验证邀请码请求
+type ValidateInvitationCodeRequest struct {
+	Code string `json:"code" binding:"required"`
+}
+
+// ValidateInvitationCodeResponse 验证邀请码响应
+type ValidateInvitationCodeResponse struct {
+	Valid     bool   `json:"valid"`
+	ErrorCode string `json:"error_code,omitempty"`
+}
+
+// ValidateInvitationCode 验证邀请码（公开接口，注册前调用）
+// POST /api/v1/auth/validate-invitation-code
+func (h *SessionHandler) ValidateInvitationCode(c *gin.Context) {
+	// 检查邀请码功能是否启用
+	if h.settingSvc == nil || !h.settingSvc.IsInvitationCodeEnabled(c.Request.Context()) {
+		response.Success(c, ValidateInvitationCodeResponse{
+			Valid:     false,
+			ErrorCode: "INVITATION_CODE_DISABLED",
+		})
+		return
+	}
+
+	var req ValidateInvitationCodeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	// 验证邀请码
+	redeemCode, err := h.redeemService.GetByCode(c.Request.Context(), req.Code)
+	if err != nil {
+		response.Success(c, ValidateInvitationCodeResponse{
+			Valid:     false,
+			ErrorCode: "INVITATION_CODE_NOT_FOUND",
+		})
+		return
+	}
+
+	// 检查类型和状态
+	if redeemCode.Type != identity.RedeemTypeInvitation {
+		response.Success(c, ValidateInvitationCodeResponse{
+			Valid:     false,
+			ErrorCode: "INVITATION_CODE_INVALID",
+		})
+		return
+	}
+
+	if redeemCode.Status != identity.StatusUnused {
+		response.Success(c, ValidateInvitationCodeResponse{
+			Valid:     false,
+			ErrorCode: "INVITATION_CODE_USED",
+		})
+		return
+	}
+
+	response.Success(c, ValidateInvitationCodeResponse{
+		Valid: true,
+	})
+}
+
+// ForgotPasswordRequest 忘记密码请求
+type ForgotPasswordRequest struct {
+	Email                 string `json:"email" binding:"required,email"`
+	TurnstileToken        string `json:"turnstile_token"`
+	TencentCaptchaTicket  string `json:"tencent_captcha_ticket"`
+	TencentCaptchaRandstr string `json:"tencent_captcha_randstr"`
+}
+
+// ForgotPasswordResponse 忘记密码响应
+type ForgotPasswordResponse struct {
+	Message string `json:"message"`
+}
+
+// ForgotPassword 请求密码重置
+// POST /api/v1/auth/forgot-password
+func (h *SessionHandler) ForgotPassword(c *gin.Context) {
+	var req ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	proof := captchaProof(req.TurnstileToken, req.TencentCaptchaTicket, req.TencentCaptchaRandstr)
+	if err := h.authService.VerifyCaptcha(c.Request.Context(), proof, clientip.GetClientIP(c)); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	frontendBaseURL := strings.TrimSpace(h.settingSvc.GetFrontendURL(c.Request.Context()))
+	if frontendBaseURL == "" {
+		slog.Error("frontend_url not configured in settings or config; cannot build password reset link")
+		response.InternalError(c, "Password reset is not configured")
+		return
+	}
+
+	// Request password reset (async)
+	// Note: This returns success even if email doesn't exist (to prevent enumeration)
+	if err := h.authService.RequestPasswordResetAsync(c.Request.Context(), req.Email, frontendBaseURL, c.GetHeader("Accept-Language")); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, ForgotPasswordResponse{
+		Message: "If your email is registered, you will receive a password reset link shortly.",
+	})
+}
+
+// ResetPasswordRequest 重置密码请求
+type ResetPasswordRequest struct {
+	Email       string `json:"email" binding:"required,email"`
+	Token       string `json:"token" binding:"required"`
+	NewPassword string `json:"new_password" binding:"required,min=6"`
+}
+
+// ResetPasswordResponse 重置密码响应
+type ResetPasswordResponse struct {
+	Message string `json:"message"`
+}
+
+// ResetPassword 重置密码
+// POST /api/v1/auth/reset-password
+func (h *SessionHandler) ResetPassword(c *gin.Context) {
+	var req ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	// Reset password
+	if err := h.authService.ResetPassword(c.Request.Context(), req.Email, req.Token, req.NewPassword); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, ResetPasswordResponse{
+		Message: "Your password has been reset successfully. You can now log in with your new password.",
+	})
+}
+
+// RefreshTokenRequest 刷新Token请求
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+// RefreshTokenResponse 刷新Token响应
+type RefreshTokenResponse struct {
+	AccessToken  string `json:"access_token"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"` // Access Token有效期（秒）
+	TokenType    string `json:"token_type"`
+}
+
+// RefreshToken 刷新Token
+// POST /api/v1/auth/refresh
+func (h *SessionHandler) RefreshToken(c *gin.Context) {
+	var req RefreshTokenRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	result, err := h.authService.RefreshTokenPair(c.Request.Context(), req.RefreshToken)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	// Backend mode: block non-admin token refresh
+	if h.settingSvc.IsBackendModeEnabled(c.Request.Context()) && result.UserRole != "admin" {
+		response.Forbidden(c, "Backend mode is active. Only admin login is allowed.")
+		return
+	}
+
+	response.Success(c, RefreshTokenResponse{
+		AccessToken:  result.AccessToken,
+		RefreshToken: result.RefreshToken,
+		ExpiresIn:    result.ExpiresIn,
+		TokenType:    "Bearer",
+	})
+}
+
+// LogoutRequest 登出请求
+type LogoutRequest struct {
+	RefreshToken string `json:"refresh_token,omitempty"` // 可选：撤销指定的Refresh Token
+}
+
+// LogoutResponse 登出响应
+type LogoutResponse struct {
+	Message string `json:"message"`
+}
+
+// Logout 用户登出
+// POST /api/v1/auth/logout
+func (h *SessionHandler) Logout(c *gin.Context) {
+	var req LogoutRequest
+	// 允许空请求体（向后兼容）
+	_ = c.ShouldBindJSON(&req)
+
+	// 如果提供了Refresh Token，撤销它
+	if req.RefreshToken != "" {
+		if err := h.authService.RevokeRefreshToken(c.Request.Context(), req.RefreshToken); err != nil {
+			slog.Debug("failed to revoke refresh token", "error", err)
+			// 不影响登出流程
+		}
+	}
+	if h.options.LogoutPending != nil {
+		h.options.LogoutPending(c)
+	}
+
+	response.Success(c, LogoutResponse{
+		Message: "Logged out successfully",
+	})
+}
+
+// RevokeAllSessionsResponse 撤销所有会话响应
+type RevokeAllSessionsResponse struct {
+	Message string `json:"message"`
+}
+
+// RevokeAllSessions 撤销当前用户的所有会话
+// POST /api/v1/auth/revoke-all-sessions
+func (h *SessionHandler) RevokeAllSessions(c *gin.Context) {
+	subject, ok := GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	if err := h.authService.RevokeAllUserTokens(c.Request.Context(), subject.UserID); err != nil {
+		slog.Error("failed to revoke all sessions", "user_id", subject.UserID, "error", err)
+		response.InternalError(c, "Failed to revoke sessions")
+		return
+	}
+
+	response.Success(c, RevokeAllSessionsResponse{
+		Message: "All sessions have been revoked. Please log in again.",
+	})
+}

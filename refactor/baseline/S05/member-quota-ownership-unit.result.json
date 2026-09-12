@@ -1,0 +1,28 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/billing/...",
+    "./internal/team/...",
+    "./internal/apikey",
+    "./internal/service",
+    "./internal/server/middleware",
+    "-run",
+    "Member|Team|Quota|Window"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 25.25,
+  "log": "logs/member-quota-ownership-unit.log.gz",
+  "test_events": {
+    "pass": 574,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

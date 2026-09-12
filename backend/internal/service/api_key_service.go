@@ -1,130 +1,92 @@
+// 本文件维护 service 的所属能力；兼容入口复用唯一实现。
 package service
 
 import (
-	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
-	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	"html"
-	"math"
-	"sort"
-	"strconv"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
-
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	"github.com/dgraph-io/ristretto"
-	"golang.org/x/sync/singleflight"
+	context "context"
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
+	config "github.com/TokenFlux/TokenRouter/internal/config"
+	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	time "time"
 )
 
-var (
-	ErrAPIKeyNotFound                    = billing.ErrAPIKeyNotFound
-	ErrGroupNotAllowed                   = infraerrors.Forbidden("GROUP_NOT_ALLOWED", "user is not allowed to bind this group")
-	ErrGroupDisabledForUser              = infraerrors.Forbidden("GROUP_DISABLED_FOR_USER", "user is not allowed to use this public group")
-	ErrAPIKeyExists                      = infraerrors.Conflict("API_KEY_EXISTS", "api key already exists")
-	ErrAPIKeyLimitReached                = infraerrors.Conflict("API_KEY_LIMIT_REACHED", "api key limit reached")
-	ErrAPIKeyTooShort                    = infraerrors.BadRequest("API_KEY_TOO_SHORT", "api key must be at least 16 characters")
-	ErrAPIKeyInvalidChars                = infraerrors.BadRequest("API_KEY_INVALID_CHARS", "api key can only contain letters, numbers, underscores, and hyphens")
-	ErrAPIKeyLimitInvalid                = infraerrors.BadRequest("API_KEY_LIMIT_INVALID", "api key limits must be finite, non-negative, and less than 1000000000000")
-	ErrAPIKeyExpiryInvalid               = infraerrors.BadRequest("API_KEY_EXPIRY_INVALID", "expires_in_days must be greater than zero")
-	ErrAPIKeyRateLimited                 = infraerrors.TooManyRequests("API_KEY_RATE_LIMITED", "too many failed attempts, please try again later")
-	ErrAPIKeyAuthOverloaded              = infraerrors.ServiceUnavailable("API_KEY_AUTH_OVERLOADED", "api key authentication is temporarily overloaded")
-	ErrInvalidIPPattern                  = infraerrors.BadRequest("INVALID_IP_PATTERN", "invalid IP or CIDR pattern")
-	ErrInvalidAPIKeyFastModePolicy       = infraerrors.BadRequest("INVALID_API_KEY_FAST_MODE_POLICY", "invalid API key fast mode policy")
-	ErrInvalidAPIKeyBillingMode          = infraerrors.BadRequest("INVALID_API_KEY_BILLING_MODE", "invalid API key billing mode")
-	ErrPreferredSubscriptionRequired     = infraerrors.BadRequest("PREFERRED_SUBSCRIPTION_REQUIRED", "subscription billing mode requires a subscription")
-	ErrPreferredSubscriptionInvalid      = billing.ErrPreferredSubscriptionInvalid
-	ErrPreferredSubscriptionGroup        = billing.ErrPreferredSubscriptionGroup
-	ErrPreferredSubscriptionInsufficient = billing.ErrPreferredSubscriptionInsufficient
-	ErrCompositeKeyGroupsRequired        = infraerrors.BadRequest("COMPOSITE_KEY_GROUPS_REQUIRED", "composite api key requires at least one group")
-	ErrCompositeKeyTooManyGroups         = infraerrors.BadRequest("COMPOSITE_KEY_TOO_MANY_GROUPS", "composite api key supports at most 20 groups")
-	ErrCompositeKeyPrefixInvalid         = infraerrors.BadRequest("COMPOSITE_KEY_PREFIX_INVALID", "composite api key prefix is invalid")
-	ErrCompositeKeyPrefixDuplicate       = infraerrors.BadRequest("COMPOSITE_KEY_PREFIX_DUPLICATE", "composite api key prefixes must be unique")
-	ErrCompositeKeyGroupDuplicate        = infraerrors.BadRequest("COMPOSITE_KEY_GROUP_DUPLICATE", "composite api key groups must be unique")
-	ErrCompositeKeyGroupConflict         = infraerrors.BadRequest("COMPOSITE_KEY_GROUP_CONFLICT", "composite api key cannot use group_id")
-	ErrCompositeKeyTargetRequired        = infraerrors.BadRequest("COMPOSITE_KEY_TARGET_GROUP_REQUIRED", "converting a composite api key requires a target group")
-	ErrCompositeKeyPrefixRequired        = infraerrors.BadRequest("COMPOSITE_KEY_MODEL_PREFIX_REQUIRED", "composite api key model must use prefix/model_id")
-	ErrCompositeKeyPrefixNotFound        = infraerrors.BadRequest("COMPOSITE_KEY_PREFIX_NOT_FOUND", "composite api key model prefix was not found")
-	ErrCompositeKeyUnsupported           = infraerrors.BadRequest("COMPOSITE_KEY_ENDPOINT_UNSUPPORTED", "composite api key is not supported for this endpoint")
-	// ErrAPIKeyExpired        = infraerrors.Forbidden("API_KEY_EXPIRED", "api key has expired")
-	ErrAPIKeyExpired = infraerrors.Forbidden("API_KEY_EXPIRED", "api key 已过期")
-	// ErrAPIKeyQuotaExhausted = billing.ErrAPIKeyQuotaExhausted
-	ErrAPIKeyQuotaExhausted = infraerrors.TooManyRequests("API_KEY_QUOTA_EXHAUSTED", "api key 额度已用完")
+var ErrAPIKeyNotFound = apikey.ErrAPIKeyNotFound
 
-	// Rate limit errors
-	ErrAPIKeyRateLimit5hExceeded = billing.ErrAPIKeyRateLimit5hExceeded
-	ErrAPIKeyRateLimit1dExceeded = billing.ErrAPIKeyRateLimit1dExceeded
-	ErrAPIKeyRateLimit7dExceeded = billing.ErrAPIKeyRateLimit7dExceeded
-	ErrTeamActorInactive         = infraerrors.Forbidden("TEAM_ACTOR_INACTIVE", "团队密钥所属成员已停用")
-	ErrTeamBillingOwnerInactive  = infraerrors.Forbidden("TEAM_BILLING_OWNER_INACTIVE", "团队付款所有者已停用")
-)
+var ErrGroupNotAllowed = apikey.ErrGroupNotAllowed
 
-// NewAPIKeyLimitReachedError 返回包含当前数量和上限的结构化冲突错误。
+var ErrGroupDisabledForUser = apikey.ErrGroupDisabledForUser
+
+var ErrAPIKeyExists = apikey.ErrAPIKeyExists
+
+var ErrAPIKeyLimitReached = apikey.ErrAPIKeyLimitReached
+
+var ErrAPIKeyTooShort = apikey.ErrAPIKeyTooShort
+
+var ErrAPIKeyInvalidChars = apikey.ErrAPIKeyInvalidChars
+
+var ErrAPIKeyLimitInvalid = apikey.ErrAPIKeyLimitInvalid
+
+var ErrAPIKeyExpiryInvalid = apikey.ErrAPIKeyExpiryInvalid
+
+var ErrAPIKeyRateLimited = apikey.ErrAPIKeyRateLimited
+
+var ErrAPIKeyAuthOverloaded = apikey.ErrAPIKeyAuthOverloaded
+
+var ErrInvalidIPPattern = apikey.ErrInvalidIPPattern
+
+var ErrInvalidAPIKeyFastModePolicy = apikey.ErrInvalidAPIKeyFastModePolicy
+
+var ErrInvalidAPIKeyBillingMode = apikey.ErrInvalidAPIKeyBillingMode
+
+var ErrPreferredSubscriptionRequired = apikey.ErrPreferredSubscriptionRequired
+
+var ErrPreferredSubscriptionInvalid = apikey.ErrPreferredSubscriptionInvalid
+
+var ErrPreferredSubscriptionGroup = apikey.ErrPreferredSubscriptionGroup
+
+var ErrPreferredSubscriptionInsufficient = apikey.ErrPreferredSubscriptionInsufficient
+
+var ErrCompositeKeyGroupsRequired = apikey.ErrCompositeKeyGroupsRequired
+
+var ErrCompositeKeyTooManyGroups = apikey.ErrCompositeKeyTooManyGroups
+
+var ErrCompositeKeyPrefixInvalid = apikey.ErrCompositeKeyPrefixInvalid
+
+var ErrCompositeKeyPrefixDuplicate = apikey.ErrCompositeKeyPrefixDuplicate
+
+var ErrCompositeKeyGroupDuplicate = apikey.ErrCompositeKeyGroupDuplicate
+
+var ErrCompositeKeyGroupConflict = apikey.ErrCompositeKeyGroupConflict
+
+var ErrCompositeKeyTargetRequired = apikey.ErrCompositeKeyTargetRequired
+
+var ErrCompositeKeyPrefixRequired = apikey.ErrCompositeKeyPrefixRequired
+
+var ErrCompositeKeyPrefixNotFound = apikey.ErrCompositeKeyPrefixNotFound
+
+var ErrCompositeKeyUnsupported = apikey.ErrCompositeKeyUnsupported
+
+var ErrAPIKeyExpired = apikey.ErrAPIKeyExpired
+
+var ErrAPIKeyQuotaExhausted = apikey.ErrAPIKeyQuotaExhausted
+
+var ErrAPIKeyRateLimit5hExceeded = apikey.ErrAPIKeyRateLimit5hExceeded
+
+var ErrAPIKeyRateLimit1dExceeded = apikey.ErrAPIKeyRateLimit1dExceeded
+
+var ErrAPIKeyRateLimit7dExceeded = apikey.ErrAPIKeyRateLimit7dExceeded
+
+var ErrTeamActorInactive = apikey.ErrTeamActorInactive
+
+var ErrTeamBillingOwnerInactive = apikey.ErrTeamBillingOwnerInactive
+
+// NewAPIKeyLimitReachedError 委托 Key 模块的唯一实现。
 func NewAPIKeyLimitReachedError(current int64, limit int) error {
-	return ErrAPIKeyLimitReached.WithMetadata(map[string]string{
-		"current": strconv.FormatInt(current, 10),
-		"limit":   strconv.Itoa(limit),
-	})
+	return apikey.NewAPIKeyLimitReachedError(current, limit)
 }
 
-const (
-	MaxAPIKeyCredentialBytes     = 128
-	defaultAuthLookupConcurrency = 64
-	defaultNegativeAuthCacheSize = 16384
-	apiKeyMaxErrorsPerHour       = 20
-	apiKeyLastUsedMinTouch       = 30 * time.Second
-	apiKeySortCurrentConcurrency = "current_concurrency"
-	// PostgreSQL DECIMAL(20,8) 的整数部分最多 12 位，输入必须严格小于该上界。
-	apiKeyLimitUpperBound = 1_000_000_000_000
-	// DB 写失败后的短退避，避免请求路径持续同步重试造成写风暴与高延迟。
-	apiKeyLastUsedFailBackoff = 5 * time.Second
-)
+const MaxAPIKeyCredentialBytes = apikey.MaxAPIKeyCredentialBytes
 
-// APIKeyUpdateFields 声明 APIKeyRepository.Update 允许写回的列。
-//
-// 与 UserUpdateFields 同理：api_keys 的用量列由计费热路径原子递增
-// （IncrementQuotaUsed / IncrementRateLimitUsage 的 quota_used、usage_5h/1d/7d），
-// 若编辑 Key 时无条件整行回写，并发累计的配额与限流计数就会被旧快照覆盖。
-// 因此调用方必须显式声明要改的列。
-type APIKeyUpdateFields struct {
-	Name      bool
-	Status    bool
-	Quota     bool
-	GroupID   bool
-	ExpiresAt bool
-	// CompositeConfiguration 覆盖 is_composite 与复合 Key 的分组映射表，二者必须同事务更新。
-	CompositeConfiguration bool
-	// FastModePolicy 覆盖 fork 的快速模式策略。
-	FastModePolicy bool
-	// BillingConfiguration 覆盖结算模式和指定订阅，二者必须一起写入。
-	BillingConfiguration bool
-	// ModelMapping 覆盖当前 API Key 的整份模型重定向规则。
-	ModelMapping bool
-	// FallbackToDefaultGroupWhenUnavailable 覆盖绑定分组不可用时的回退策略。
-	FallbackToDefaultGroupWhenUnavailable bool
-	// QuotaUsed 仅供"重置配额用量"路径声明；常规计费走 IncrementQuotaUsed。
-	QuotaUsed bool
-	// RateLimits 覆盖 rate_limit_5h / _1d / _7d 三个阈值。
-	RateLimits bool
-	// RateLimitUsage 覆盖 usage_5h/_1d/_7d 与三个窗口起点，
-	// 仅供"重置限流用量"路径声明；常规计费走 IncrementRateLimitUsage。
-	RateLimitUsage bool
-	// IPRules 覆盖 ip_whitelist 与 ip_blacklist。
-	IPRules bool
-}
-
-// IsEmpty 报告该次 Update 是否不写任何列。
-func (f APIKeyUpdateFields) IsEmpty() bool {
-	return f == APIKeyUpdateFields{}
-}
+type APIKeyUpdateFields = apikey.APIKeyUpdateFields
 
 type APIKeyRepository interface {
 	Create(ctx context.Context, key *APIKey) error
@@ -164,256 +126,44 @@ type APIKeyRepository interface {
 	GetRateLimitData(ctx context.Context, id int64) (*APIKeyRateLimitData, error)
 }
 
-type apiKeyAllByUserIDLister interface {
-	ListAllByUserID(ctx context.Context, userID int64, filters APIKeyListFilters) ([]APIKey, error)
-}
+type APIKeyRateLimitData = apikey.APIKeyRateLimitData
 
-type APIKeyRateLimitData = billing.APIKeyRateLimitData
+type APIKeyQuotaUsageState = apikey.APIKeyQuotaUsageState
 
-// APIKeyQuotaUsageState captures the latest quota fields after an atomic quota update.
-// It is intentionally small so repositories can return it from a single SQL statement.
-type APIKeyQuotaUsageState struct {
-	QuotaUsed float64
-	Quota     float64
-	Key       string
-	Status    string
-}
+type APIKeyCache = apikey.APIKeyCache
 
-// APIKeyCache defines cache operations for API key service
-type APIKeyCache interface {
-	GetCreateAttemptCount(ctx context.Context, userID int64) (int, error)
-	IncrementCreateAttemptCount(ctx context.Context, userID int64) error
-	DeleteCreateAttemptCount(ctx context.Context, userID int64) error
-
-	IncrementDailyUsage(ctx context.Context, apiKey string) error
-	SetDailyUsageExpiry(ctx context.Context, apiKey string, ttl time.Duration) error
-
-	GetAuthCache(ctx context.Context, key string) (*APIKeyAuthCacheEntry, error)
-	SetAuthCache(ctx context.Context, key string, entry *APIKeyAuthCacheEntry, ttl time.Duration) error
-	DeleteAuthCache(ctx context.Context, key string) error
-
-	// Pub/Sub for L1 cache invalidation across instances
-	PublishAuthCacheInvalidation(ctx context.Context, cacheKey string) error
-	SubscribeAuthCacheInvalidation(ctx context.Context, handler func(cacheKey string)) error
-}
-
-type authCacheSubscriptionReadyKey struct{}
-
-func withAuthCacheSubscriptionReady(ctx context.Context, ready func()) context.Context {
-	return context.WithValue(ctx, authCacheSubscriptionReadyKey{}, ready)
-}
-
-// NotifyAuthCacheSubscriptionReady 允许缓存实现报告服务端已确认订阅，且无需扩展公开缓存接口。
+// NotifyAuthCacheSubscriptionReady 委托 Key 模块的唯一实现。
 func NotifyAuthCacheSubscriptionReady(ctx context.Context) {
-	if ready, ok := ctx.Value(authCacheSubscriptionReadyKey{}).(func()); ok && ready != nil {
-		ready()
-	}
+	apikey.NotifyAuthCacheSubscriptionReady(KeyRequestContext(ctx))
 }
 
-// APIKeyAuthCacheInvalidator 提供认证缓存失效能力
-type APIKeyAuthCacheInvalidator interface {
-	InvalidateAuthCacheByKey(ctx context.Context, key string)
-	InvalidateAuthCacheByUserID(ctx context.Context, userID int64)
-	InvalidateAuthCacheByGroupID(ctx context.Context, groupID int64)
-}
+type APIKeyAuthCacheInvalidator = apikey.APIKeyAuthCacheInvalidator
 
-// CreateAPIKeyRequest 创建API Key请求
-type CreateAPIKeyRequest struct {
-	Name        string `json:"name"`
-	Scope       string `json:"scope"`
-	GroupID     *int64 `json:"group_id"`
-	IsComposite bool   `json:"is_composite"`
-	// CompositeGroups 是复合 Key 的完整分组映射列表。
-	CompositeGroups []APIKeyCompositeGroupInput `json:"composite_groups"`
-	CustomKey       *string                     `json:"custom_key"`   // 可选的自定义key
-	IPWhitelist     []string                    `json:"ip_whitelist"` // IP 白名单
-	IPBlacklist     []string                    `json:"ip_blacklist"` // IP 黑名单
-	// FastModePolicy 为空时默认跟随下游请求。
-	FastModePolicy string `json:"fast_mode_policy"`
-	// BillingMode 为空时兼容存量行为，按自动选择处理。
-	BillingMode string `json:"billing_mode"`
-	// PreferredSubscriptionID 仅在 BillingMode 为 subscription 时生效。
-	PreferredSubscriptionID *int64 `json:"preferred_subscription_id"`
-	// ModelMapping 是当前 Key 的完整模型重定向规则。
-	ModelMapping map[string]string `json:"model_mapping"`
+type CreateAPIKeyRequest = apikey.CreateAPIKeyRequest
 
-	// Quota fields
-	Quota         float64 `json:"quota"`           // Quota limit in USD (0 = unlimited)
-	ExpiresInDays *int    `json:"expires_in_days"` // Days until expiry (nil = never expires)
+type APIKeyBillingSubscriptionOption = apikey.APIKeyBillingSubscriptionOption
 
-	// Rate limit fields (0 = unlimited)
-	RateLimit5h float64 `json:"rate_limit_5h"`
-	RateLimit1d float64 `json:"rate_limit_1d"`
-	RateLimit7d float64 `json:"rate_limit_7d"`
+type UpdateAPIKeyRequest = apikey.UpdateAPIKeyRequest
 
-	// FallbackToDefaultGroupWhenUnavailable 表示绑定分组停用时是否允许回退到同平台默认分组，nil 时默认开启。
-	FallbackToDefaultGroupWhenUnavailable *bool `json:"fallback_to_default_group_when_unavailable"`
-}
-
-// APIKeyBillingSubscriptionOption 是配置 API Key 时可选择的有效订阅。
-// 分组信息仅用于前端提前收窄选项，服务端仍会在创建、鉴权和结算时重复校验。
-type APIKeyBillingSubscriptionOption struct {
-	ID               int64
-	PlanID           int64
-	PlanName         string
-	ExpiresAt        time.Time
-	GroupsRestricted bool
-	ApplicableGroups []int64
-}
-
-// UpdateAPIKeyRequest 更新API Key请求
-type UpdateAPIKeyRequest struct {
-	Name        *string `json:"name"`
-	GroupID     *int64  `json:"group_id"`
-	IsComposite *bool   `json:"is_composite"`
-	// CompositeGroups 非 nil 时完整替换当前复合映射。
-	CompositeGroups *[]APIKeyCompositeGroupInput `json:"composite_groups"`
-	Status          *string                      `json:"status"`
-	IPWhitelist     *[]string                    `json:"ip_whitelist"` // IP 白名单（nil 不修改，空数组清空）
-	IPBlacklist     *[]string                    `json:"ip_blacklist"` // IP 黑名单（nil 不修改，空数组清空）
-	// FastModePolicy 为 nil 时保持原值。
-	FastModePolicy *string `json:"fast_mode_policy"`
-	// BillingMode 为 nil 时保持原值；指定订阅模式必须同时传入订阅 ID。
-	BillingMode             *string `json:"billing_mode"`
-	PreferredSubscriptionID *int64  `json:"preferred_subscription_id"`
-	// ModelMapping 为 nil 时保持原值，空对象表示清空规则。
-	ModelMapping *map[string]string `json:"model_mapping"`
-
-	// Quota fields
-	Quota           *float64   `json:"quota"`       // Quota limit in USD (nil = no change, 0 = unlimited)
-	ExpiresAt       *time.Time `json:"expires_at"`  // Expiration time (nil = no change)
-	ClearExpiration bool       `json:"-"`           // Clear expiration (internal use)
-	ResetQuota      *bool      `json:"reset_quota"` // Reset quota_used to 0
-
-	// Rate limit fields (nil = no change, 0 = unlimited)
-	RateLimit5h         *float64 `json:"rate_limit_5h"`
-	RateLimit1d         *float64 `json:"rate_limit_1d"`
-	RateLimit7d         *float64 `json:"rate_limit_7d"`
-	ResetRateLimitUsage *bool    `json:"reset_rate_limit_usage"` // Reset all usage counters to 0
-
-	// FallbackToDefaultGroupWhenUnavailable 为 nil 时保持原值。
-	FallbackToDefaultGroupWhenUnavailable *bool `json:"fallback_to_default_group_when_unavailable"`
-}
-
-// ValidateAPIKeyLimit 校验可写入 DECIMAL(20,8) 的 API Key 配额或滚动限额。
+// ValidateAPIKeyLimit 委托 Key 模块的唯一实现。
 func ValidateAPIKeyLimit(field string, value float64) error {
-	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 || value >= apiKeyLimitUpperBound {
-		return ErrAPIKeyLimitInvalid.WithMetadata(map[string]string{
-			"field":         field,
-			"max_exclusive": strconv.FormatFloat(apiKeyLimitUpperBound, 'f', 0, 64),
-		})
-	}
-	return nil
+	return apikey.ValidateAPIKeyLimit(field, value)
 }
 
-// ValidateAPIKeyExpiresInDays 校验创建 API Key 时显式提供的有效天数。
-func ValidateAPIKeyExpiresInDays(days int) error {
-	if days <= 0 {
-		return ErrAPIKeyExpiryInvalid
-	}
-	return nil
-}
+// ValidateAPIKeyExpiresInDays 委托 Key 模块的唯一实现。
+func ValidateAPIKeyExpiresInDays(days int) error { return apikey.ValidateAPIKeyExpiresInDays(days) }
 
-func validateCreateAPIKeyRequest(req CreateAPIKeyRequest) error {
-	limits := []struct {
-		field string
-		value float64
-	}{
-		{field: "quota", value: req.Quota},
-		{field: "rate_limit_5h", value: req.RateLimit5h},
-		{field: "rate_limit_1d", value: req.RateLimit1d},
-		{field: "rate_limit_7d", value: req.RateLimit7d},
-	}
-	for _, limit := range limits {
-		if err := ValidateAPIKeyLimit(limit.field, limit.value); err != nil {
-			return err
-		}
-	}
-	if req.ExpiresInDays != nil {
-		return ValidateAPIKeyExpiresInDays(*req.ExpiresInDays)
-	}
-	return nil
-}
+type RateLimitCacheInvalidator = apikey.RateLimitCacheInvalidator
 
-func validateUpdateAPIKeyRequest(req UpdateAPIKeyRequest) error {
-	limits := []struct {
-		field string
-		value *float64
-	}{
-		{field: "quota", value: req.Quota},
-		{field: "rate_limit_5h", value: req.RateLimit5h},
-		{field: "rate_limit_1d", value: req.RateLimit1d},
-		{field: "rate_limit_7d", value: req.RateLimit7d},
-	}
-	for _, limit := range limits {
-		if limit.value == nil {
-			continue
-		}
-		if err := ValidateAPIKeyLimit(limit.field, *limit.value); err != nil {
-			return err
-		}
-	}
-	return nil
-}
+type APIKeyService struct{ *apikey.APIKeyService }
 
-// APIKeyService API Key服务
-// RateLimitCacheInvalidator invalidates rate limit cache entries on manual reset.
-type RateLimitCacheInvalidator interface {
-	InvalidateAPIKeyRateLimit(ctx context.Context, keyID int64) error
-}
+type APIKeyAuthLookupMetrics = apikey.APIKeyAuthLookupMetrics
 
-type APIKeyService struct {
-	runtimeStart              sync.Once
-	runtimeStop               sync.Once
-	apiKeyRepo                APIKeyRepository
-	userRepo                  UserRepository
-	groupRepo                 GroupRepository
-	userSubRepo               UserSubscriptionRepository
-	userGroupRateRepo         UserGroupRateRepository
-	cache                     APIKeyCache
-	rateLimitCacheInvalid     RateLimitCacheInvalidator // optional: invalidate Redis rate limit cache
-	concurrencyService        *ConcurrencyService
-	teamRepo                  TeamRepository
-	cfg                       *config.Config
-	authCacheL1               *ristretto.Cache
-	authNegativeCacheL1       *ristretto.Cache
-	authCfg                   apiKeyAuthCacheConfig
-	authGroup                 singleflight.Group
-	authLookupSlots           chan struct{}
-	authLookupTotal           atomic.Uint64
-	authLookupRejected        atomic.Uint64
-	authLookupInFlight        atomic.Int64
-	invalidAuthAbuse          *invalidAuthAbuseLimiter
-	authInvalidationStart     sync.Once
-	authInvalidationStop      sync.Once
-	authInvalidationCancel    context.CancelFunc
-	authInvalidationWG        sync.WaitGroup
-	authInvalidationConnected atomic.Bool
-	authInvalidationFailures  atomic.Uint64
-	lastUsedTouchL1           sync.Map // keyID -> nextAllowedAt(time.Time)
-	lastUsedTouchSF           singleflight.Group
-}
-
-type APIKeyAuthLookupMetrics struct {
-	Total    uint64 `json:"total"`
-	Rejected uint64 `json:"rejected"`
-	InFlight int64  `json:"in_flight"`
-	Capacity int    `json:"capacity"`
-}
-
+// AuthLookupMetrics 委托 Key 模块的唯一实现。
 func (s *APIKeyService) AuthLookupMetrics() APIKeyAuthLookupMetrics {
-	if s == nil {
-		return APIKeyAuthLookupMetrics{}
-	}
-	return APIKeyAuthLookupMetrics{
-		Total:    s.authLookupTotal.Load(),
-		Rejected: s.authLookupRejected.Load(),
-		InFlight: s.authLookupInFlight.Load(),
-		Capacity: cap(s.authLookupSlots),
-	}
+	return s.APIKeyService.AuthLookupMetrics()
 }
 
-// NewAPIKeyService 创建API Key服务实例
 func NewAPIKeyService(
 	apiKeyRepo APIKeyRepository,
 	userRepo UserRepository,
@@ -423,1542 +173,189 @@ func NewAPIKeyService(
 	cache APIKeyCache,
 	cfg *config.Config,
 ) *APIKeyService {
-	svc := &APIKeyService{
-		apiKeyRepo:        apiKeyRepo,
-		userRepo:          userRepo,
-		groupRepo:         groupRepo,
-		userSubRepo:       userSubRepo,
-		userGroupRateRepo: userGroupRateRepo,
-		cache:             cache,
-		cfg:               cfg,
+	var groups apikey.GroupRepository
+	if groupRepo != nil {
+		groups = legacyKeyGroups{groupRepo}
 	}
-	svc.authCfg = newAPIKeyAuthCacheConfig(cfg)
-	lookupConcurrency := defaultAuthLookupConcurrency
-	if cfg != nil && cfg.APIKeyAuth.LookupConcurrency > 0 {
-		lookupConcurrency = cfg.APIKeyAuth.LookupConcurrency
-	}
-	svc.authLookupSlots = make(chan struct{}, lookupConcurrency)
-	svc.invalidAuthAbuse = newInvalidAuthAbuseLimiter(cfg)
-	return svc
+	core := apikey.NewAPIKeyService(KeyRepositoryView(apiKeyRepo), IdentityRepository(userRepo), groups, userSubRepo, userGroupRateRepo, cache, KeyOptionsFromConfig(cfg))
+	core.SetGroupFastPolicy(func(raw string, force bool) string {
+		return (&Group{OpenAIFastPolicy: raw, ForceOpenAIFast: force}).EffectiveOpenAIFastPolicy()
+	})
+	return &APIKeyService{APIKeyService: core}
 }
 
-// SetRateLimitCacheInvalidator sets the optional rate limit cache invalidator.
-// Called after construction (e.g. in wire) to avoid circular dependencies.
+// SetRateLimitCacheInvalidator 委托 Key 模块的唯一实现。
 func (s *APIKeyService) SetRateLimitCacheInvalidator(inv RateLimitCacheInvalidator) {
-	s.rateLimitCacheInvalid = inv
+	s.APIKeyService.SetRateLimitCacheInvalidator(inv)
 }
 
-// SetConcurrencyService 注入 API Key 实时并发统计服务。
+// SetConcurrencyService 委托 Key 模块的唯一实现。
 func (s *APIKeyService) SetConcurrencyService(concurrencyService *ConcurrencyService) {
-	s.concurrencyService = concurrencyService
+	s.APIKeyService.SetConcurrencyService(concurrencyService)
 }
 
-// SetTeamRepository 注入团队解析能力，避免 Key 服务依赖团队 HTTP 服务。
+// SetTeamRepository 委托 Key 模块的唯一实现。
 func (s *APIKeyService) SetTeamRepository(repo TeamRepository) {
-	s.teamRepo = repo
+	s.APIKeyService.SetTeamRepository(repo)
 }
 
-func (s *APIKeyService) compileAPIKeyIPRules(apiKey *APIKey) {
-	if apiKey == nil {
-		return
-	}
-	apiKey.CompiledIPWhitelist = ip.CompileIPRules(apiKey.IPWhitelist)
-	apiKey.CompiledIPBlacklist = ip.CompileIPRules(apiKey.IPBlacklist)
-}
+// GenerateKey 委托 Key 模块的唯一实现。
+func (s *APIKeyService) GenerateKey() (string, error) { return s.APIKeyService.GenerateKey() }
 
-// GenerateKey 生成随机API Key
-func (s *APIKeyService) GenerateKey() (string, error) {
-	prefix := s.cfg.Default.APIKeyPrefix
-	if prefix == "" {
-		prefix = "sk-"
-	}
-	return GenerateAPIKeyString(prefix)
-}
-
-// GenerateAPIKeyString 生成带前缀的随机 API Key 字符串，供 Key 服务与创作台托管 Key 共用。
+// GenerateAPIKeyString 委托 Key 模块的唯一实现。
 func GenerateAPIKeyString(prefix string) (string, error) {
-	// 生成32字节随机数据
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", fmt.Errorf("generate random bytes: %w", err)
-	}
-	if strings.TrimSpace(prefix) == "" {
-		prefix = "sk-"
-	}
-
-	key := prefix + hex.EncodeToString(bytes)
-	return key, nil
+	return apikey.GenerateAPIKeyString(prefix)
 }
 
-// ValidateCustomKey 验证自定义API Key格式
+// ValidateCustomKey 委托 Key 模块的唯一实现。
 func (s *APIKeyService) ValidateCustomKey(key string) error {
-	// 检查长度
-	if len(key) < 16 {
-		return ErrAPIKeyTooShort
-	}
-
-	// 检查字符：只允许字母、数字、下划线、连字符
-	for _, c := range key {
-		if (c >= 'a' && c <= 'z') ||
-			(c >= 'A' && c <= 'Z') ||
-			(c >= '0' && c <= '9') ||
-			c == '_' || c == '-' {
-			continue
-		}
-		return ErrAPIKeyInvalidChars
-	}
-
-	return nil
+	return s.APIKeyService.ValidateCustomKey(key)
 }
 
-// checkAPIKeyRateLimit 检查用户创建自定义Key的错误次数是否超限
-func (s *APIKeyService) checkAPIKeyRateLimit(ctx context.Context, userID int64) error {
-	if s.cache == nil {
-		return nil
-	}
-
-	count, err := s.cache.GetCreateAttemptCount(ctx, userID)
-	if err != nil {
-		// Redis 出错时不阻止用户操作
-		return nil
-	}
-
-	if count >= apiKeyMaxErrorsPerHour {
-		return ErrAPIKeyRateLimited
-	}
-
-	return nil
-}
-
-// incrementAPIKeyErrorCount 增加用户创建自定义Key的错误计数
-func (s *APIKeyService) incrementAPIKeyErrorCount(ctx context.Context, userID int64) {
-	if s.cache == nil {
-		return
-	}
-
-	_ = s.cache.IncrementCreateAttemptCount(ctx, userID)
-}
-
-// canUserBindGroup 检查用户是否可以绑定指定分组。
-// group 仅控制路由/访问权限，不再承载订阅语义。
-func (s *APIKeyService) canUserBindGroup(ctx context.Context, user *User, group *Group) bool {
-	return user.CanBindGroup(group.ID, group.IsExclusive)
-}
-
-// resolveAPIKeyBillingConfiguration 解析并校验 API Key 的资金来源配置。
-// 指定订阅必须属于实际付款主体；团队 Key 的付款主体由调用方传入 Team Owner。
-func (s *APIKeyService) resolveAPIKeyBillingConfiguration(ctx context.Context, billingUserID int64, rawMode string, preferredSubscriptionID *int64) (string, *int64, *UserSubscription, error) {
-	mode, ok := NormalizeAPIKeyBillingMode(rawMode)
-	if !ok {
-		return "", nil, nil, ErrInvalidAPIKeyBillingMode
-	}
-	if mode != APIKeyBillingModeSubscription {
-		return mode, nil, nil, nil
-	}
-	if preferredSubscriptionID == nil || *preferredSubscriptionID <= 0 {
-		return "", nil, nil, ErrPreferredSubscriptionRequired
-	}
-	if s == nil || s.userSubRepo == nil || billingUserID <= 0 {
-		return "", nil, nil, ErrPreferredSubscriptionInvalid
-	}
-
-	subscription, err := s.userSubRepo.GetByID(ctx, *preferredSubscriptionID)
-	if err != nil || subscription == nil || subscription.UserID != billingUserID || !subscription.IsEffective() || subscription.Plan == nil {
-		return "", nil, nil, ErrPreferredSubscriptionInvalid
-	}
-	id := subscription.ID
-	return mode, &id, subscription, nil
-}
-
-// validatePreferredSubscriptionGroups 确保指定订阅没有被普通或复合 Key 的映射绕过。
-// 套餐未设置分组时代表所有分组可用，保留用户原有的分组授权范围。
-func validatePreferredSubscriptionGroups(subscription *UserSubscription, group *Group, compositeGroups []APIKeyCompositeGroup) error {
-	if subscription == nil || subscription.Plan == nil {
-		return ErrPreferredSubscriptionInvalid
-	}
-	// 受限套餐不能绑定到“无分组”普通 Key；否则该 Key 可被无分组调度路径使用。
-	if len(subscription.Plan.GroupIDs) > 0 && (group == nil || group.ID <= 0) && len(compositeGroups) == 0 {
-		return ErrPreferredSubscriptionGroup
-	}
-	if group != nil && group.ID > 0 && !subscriptionPlanIncludesGroup(subscription.Plan, group.ID) {
-		return ErrPreferredSubscriptionGroup
-	}
-	for _, binding := range compositeGroups {
-		if binding.GroupID > 0 && !subscriptionPlanIncludesGroup(subscription.Plan, binding.GroupID) {
-			return ErrPreferredSubscriptionGroup
-		}
-	}
-	return nil
-}
-
-// billingUserIDForScope 返回 API Key 的实际付款主体。
-func (s *APIKeyService) billingUserIDForScope(ctx context.Context, userID int64, scope string) (int64, error) {
-	if !strings.EqualFold(strings.TrimSpace(scope), "team") {
-		return userID, nil
-	}
-	if s.cfg != nil && !s.cfg.Team.Enabled {
-		return 0, ErrTeamFeatureDisabled
-	}
-	if s.teamRepo == nil {
-		return 0, ErrTeamFeatureDisabled
-	}
-	teamCtx, err := s.teamRepo.GetContextByUserID(ctx, userID)
-	if err != nil {
-		return 0, err
-	}
-	return teamCtx.Owner.UserID, nil
-}
-
-// billingUserForAPIKey 独立解析已有 Key 的付款主体。
-// 停用或被 Owner 锁定的团队 Key 会跳过鉴权水合，因此更新结算配置时不能直接信任 apiKey.User。
-func (s *APIKeyService) billingUserForAPIKey(ctx context.Context, apiKey *APIKey) (*User, error) {
-	if apiKey == nil || apiKey.UserID <= 0 || s == nil || s.userRepo == nil {
-		return nil, ErrUserNotFound
-	}
-	if apiKey.TeamID == nil {
-		if apiKey.User != nil && apiKey.User.ID == apiKey.UserID {
-			return apiKey.User, nil
-		}
-		return s.userRepo.GetByID(ctx, apiKey.UserID)
-	}
-	if s.cfg != nil && !s.cfg.Team.Enabled {
-		return nil, ErrTeamFeatureDisabled
-	}
-	if s.teamRepo == nil {
-		return nil, ErrTeamFeatureDisabled
-	}
-	teamCtx, err := s.teamRepo.GetContextByUserID(ctx, apiKey.UserID)
-	if err != nil {
-		return nil, err
-	}
-	if teamCtx == nil || teamCtx.Team == nil || teamCtx.Membership == nil || teamCtx.Owner == nil || teamCtx.Team.ID != *apiKey.TeamID {
-		return nil, ErrTeamMembershipRequired
-	}
-	if teamCtx.Membership.JoinedAt.After(apiKey.CreatedAt) {
-		return nil, ErrTeamMembershipRequired
-	}
-	return s.userRepo.GetByID(ctx, teamCtx.Owner.UserID)
-}
-
-// canUserUseBoundGroup 校验已有 API Key 当前绑定的公开分组是否仍被该用户允许。
-func (s *APIKeyService) canUserUseBoundGroup(ctx context.Context, apiKey *APIKey) bool {
-	if apiKey == nil || apiKey.GroupID == nil || apiKey.Group == nil || apiKey.Group.IsExclusive {
-		return true
-	}
-	user := apiKey.User
-	if user == nil {
-		return true
-	}
-	if user.GroupRestrictionsLoaded {
-		return user.CanBindGroup(apiKey.Group.ID, apiKey.Group.IsExclusive)
-	}
-	if s.userRepo == nil {
-		return true
-	}
-	loadedUser, err := s.userRepo.GetByID(ctx, apiKey.UserID)
-	if err != nil {
-		return true
-	}
-	return loadedUser.CanBindGroup(apiKey.Group.ID, apiKey.Group.IsExclusive)
-}
-
-// Create 创建API Key
+// Create 委托 Key 模块的唯一实现。
 func (s *APIKeyService) Create(ctx context.Context, userID int64, req CreateAPIKeyRequest) (*APIKey, error) {
-	if err := validateCreateAPIKeyRequest(req); err != nil {
-		return nil, err
-	}
-	fastModePolicy, ok := NormalizeAPIKeyFastModePolicy(req.FastModePolicy)
-	if !ok {
-		return nil, ErrInvalidAPIKeyFastModePolicy
-	}
-	modelMapping, err := NormalizeAPIKeyModelMapping(req.ModelMapping)
-	if err != nil {
-		return nil, err
-	}
-
-	// 验证调用成员存在，并根据 Key 作用域解析实际付款用户。
-	actor, err := s.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("get user: %w", err)
-	}
-	user := actor
-	var teamID *int64
-	scope := strings.ToLower(strings.TrimSpace(req.Scope))
-	if scope == "" {
-		scope = "personal"
-	}
-	if scope != "personal" && scope != "team" {
-		return nil, infraerrors.BadRequest("API_KEY_SCOPE_INVALID", "api key 作用域必须为 personal 或 team")
-	}
-	if scope == "team" {
-		if s.cfg != nil && !s.cfg.Team.Enabled {
-			return nil, ErrTeamFeatureDisabled
-		}
-		if s.teamRepo == nil {
-			return nil, ErrTeamFeatureDisabled
-		}
-		teamCtx, teamErr := s.teamRepo.GetContextByUserID(ctx, userID)
-		if teamErr != nil {
-			return nil, teamErr
-		}
-		if teamCtx.Team.Status != TeamStatusActive {
-			return nil, ErrTeamSuspended
-		}
-		user, err = s.userRepo.GetByID(ctx, teamCtx.Owner.UserID)
-		if err != nil {
-			return nil, fmt.Errorf("get team owner: %w", err)
-		}
-		id := teamCtx.Team.ID
-		teamID = &id
-	}
-
-	// 结算配置依赖实际付款人；团队 Key 必须校验 Team Owner 的订阅而不是创建成员的订阅。
-	billingMode, preferredSubscriptionID, preferredSubscription, err := s.resolveAPIKeyBillingConfiguration(
-		ctx,
-		user.ID,
-		req.BillingMode,
-		req.PreferredSubscriptionID,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// 验证 IP 白名单格式
-	if len(req.IPWhitelist) > 0 {
-		if invalid := ip.ValidateIPPatterns(req.IPWhitelist); len(invalid) > 0 {
-			return nil, fmt.Errorf("%w: %v", ErrInvalidIPPattern, invalid)
-		}
-	}
-
-	// 验证 IP 黑名单格式
-	if len(req.IPBlacklist) > 0 {
-		if invalid := ip.ValidateIPPatterns(req.IPBlacklist); len(invalid) > 0 {
-			return nil, fmt.Errorf("%w: %v", ErrInvalidIPPattern, invalid)
-		}
-	}
-
-	// 验证普通 Key 的分组权限及复合 Key 各映射分组的权限。
-	var compositeGroups []APIKeyCompositeGroup
-	if req.IsComposite {
-		if req.GroupID != nil {
-			return nil, ErrCompositeKeyGroupConflict
-		}
-		compositeGroups, err = s.prepareCompositeGroups(ctx, user, req.CompositeGroups)
-		if err != nil {
-			return nil, err
-		}
-	} else if req.GroupID != nil {
-		group, err := s.groupRepo.GetByID(ctx, *req.GroupID)
-		if err != nil {
-			return nil, fmt.Errorf("get group: %w", err)
-		}
-
-		// 检查用户是否可以绑定该分组
-		if !s.canUserBindGroup(ctx, user, group) {
-			return nil, ErrGroupNotAllowed
-		}
-	}
-	if billingMode == APIKeyBillingModeSubscription {
-		var group *Group
-		if req.GroupID != nil {
-			group, err = s.groupRepo.GetByID(ctx, *req.GroupID)
-			if err != nil {
-				return nil, fmt.Errorf("get group: %w", err)
-			}
-		}
-		if err := validatePreferredSubscriptionGroups(preferredSubscription, group, compositeGroups); err != nil {
-			return nil, err
-		}
-	}
-
-	var key string
-
-	// 判断是否使用自定义Key
-	if req.CustomKey != nil && *req.CustomKey != "" {
-		// 检查限流（仅对自定义key进行限流）
-		if err := s.checkAPIKeyRateLimit(ctx, userID); err != nil {
-			return nil, err
-		}
-
-		// 验证自定义Key格式
-		if err := s.ValidateCustomKey(*req.CustomKey); err != nil {
-			return nil, err
-		}
-
-		// 检查Key是否已存在
-		exists, err := s.apiKeyRepo.ExistsByKey(ctx, *req.CustomKey)
-		if err != nil {
-			return nil, fmt.Errorf("check key exists: %w", err)
-		}
-		if exists {
-			// Key已存在，增加错误计数
-			s.incrementAPIKeyErrorCount(ctx, userID)
-			return nil, ErrAPIKeyExists
-		}
-
-		key = *req.CustomKey
-	} else {
-		// 生成随机API Key
-		var err error
-		key, err = s.GenerateKey()
-		if err != nil {
-			return nil, fmt.Errorf("generate key: %w", err)
-		}
-	}
-
-	// 新建 API Key 默认开启分组不可用时的自动回退，仍允许调用方显式传 false 关闭。
-	fallbackToDefaultGroupWhenUnavailable := true
-	if req.FallbackToDefaultGroupWhenUnavailable != nil {
-		fallbackToDefaultGroupWhenUnavailable = *req.FallbackToDefaultGroupWhenUnavailable
-	}
-
-	// 创建API Key记录
-	apiKey := &APIKey{
-		UserID:                                userID,
-		TeamID:                                teamID,
-		Key:                                   key,
-		Name:                                  html.EscapeString(req.Name),
-		GroupID:                               req.GroupID,
-		IsComposite:                           req.IsComposite,
-		CompositeGroups:                       compositeGroups,
-		Status:                                StatusActive,
-		FastModePolicy:                        fastModePolicy,
-		BillingMode:                           billingMode,
-		PreferredSubscriptionID:               preferredSubscriptionID,
-		ModelMapping:                          modelMapping,
-		IPWhitelist:                           req.IPWhitelist,
-		IPBlacklist:                           req.IPBlacklist,
-		Quota:                                 req.Quota,
-		QuotaUsed:                             0,
-		RateLimit5h:                           req.RateLimit5h,
-		RateLimit1d:                           req.RateLimit1d,
-		RateLimit7d:                           req.RateLimit7d,
-		FallbackToDefaultGroupWhenUnavailable: fallbackToDefaultGroupWhenUnavailable,
-	}
-	apiKey.ActorUser = actor
-	apiKey.User = user
-
-	// Set expiration time if specified
-	if req.ExpiresInDays != nil && *req.ExpiresInDays > 0 {
-		expiresAt := time.Now().AddDate(0, 0, *req.ExpiresInDays)
-		apiKey.ExpiresAt = &expiresAt
-	}
-
-	if err := s.apiKeyRepo.Create(ctx, apiKey); err != nil {
-		return nil, fmt.Errorf("create api key: %w", err)
-	}
-
-	s.InvalidateAuthCacheByKey(ctx, apiKey.Key)
-	s.compileAPIKeyIPRules(apiKey)
-
-	return apiKey, nil
+	v, e := s.APIKeyService.Create(KeyRequestContext(ctx), userID, req)
+	return APIKeyFromView(v), e
 }
 
-// List 获取用户的API Key列表
+// List 委托 Key 模块的唯一实现。
 func (s *APIKeyService) List(ctx context.Context, userID int64, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error) {
-	if normalizedAPIKeySortBy(params.SortBy) == apiKeySortCurrentConcurrency {
-		return s.listByCurrentConcurrency(ctx, userID, params, filters)
-	}
-
-	keys, pagination, err := s.apiKeyRepo.ListByUserID(ctx, userID, params, filters)
-	if err != nil {
-		return nil, nil, fmt.Errorf("list api keys: %w", err)
-	}
-	s.fillCurrentConcurrency(ctx, keys)
-	return keys, pagination, nil
+	v, page, e := s.APIKeyService.List(KeyRequestContext(ctx), userID, params, filters)
+	return keyRowsFromView(v), page, e
 }
 
-func (s *APIKeyService) listByCurrentConcurrency(ctx context.Context, userID int64, params pagination.PaginationParams, filters APIKeyListFilters) ([]APIKey, *pagination.PaginationResult, error) {
-	repo, ok := s.apiKeyRepo.(apiKeyAllByUserIDLister)
-	if !ok {
-		return nil, nil, fmt.Errorf("list api keys by current concurrency: repository does not support unpaginated API key listing")
-	}
-
-	keys, err := repo.ListAllByUserID(ctx, userID, filters)
-	if err != nil {
-		return nil, nil, fmt.Errorf("list api keys: %w", err)
-	}
-	s.fillCurrentConcurrency(ctx, keys)
-	sortAPIKeysByCurrentConcurrency(keys, params.NormalizedSortOrder(pagination.SortOrderDesc))
-	return paginateAPIKeys(keys, params), apiKeyPaginationResult(int64(len(keys)), params), nil
-}
-
-func normalizedAPIKeySortBy(sortBy string) string {
-	return strings.ToLower(strings.TrimSpace(sortBy))
-}
-
-func sortAPIKeysByCurrentConcurrency(keys []APIKey, sortOrder string) {
-	desc := sortOrder != pagination.SortOrderAsc
-	sort.SliceStable(keys, func(i, j int) bool {
-		if keys[i].CurrentConcurrency == keys[j].CurrentConcurrency {
-			if desc {
-				return keys[i].ID > keys[j].ID
-			}
-			return keys[i].ID < keys[j].ID
-		}
-		if desc {
-			return keys[i].CurrentConcurrency > keys[j].CurrentConcurrency
-		}
-		return keys[i].CurrentConcurrency < keys[j].CurrentConcurrency
-	})
-}
-
-func paginateAPIKeys(keys []APIKey, params pagination.PaginationParams) []APIKey {
-	if len(keys) == 0 {
-		return []APIKey{}
-	}
-	limit := params.Limit()
-	page := params.Page
-	if page < 1 {
-		page = 1
-	}
-	offset := (page - 1) * limit
-	if offset >= len(keys) {
-		return []APIKey{}
-	}
-	end := offset + limit
-	if end > len(keys) {
-		end = len(keys)
-	}
-	return keys[offset:end]
-}
-
-func apiKeyPaginationResult(total int64, params pagination.PaginationParams) *pagination.PaginationResult {
-	limit := params.Limit()
-	pages := int(total) / limit
-	if int(total)%limit > 0 {
-		pages++
-	}
-	return &pagination.PaginationResult{
-		Total:    total,
-		Page:     params.Page,
-		PageSize: limit,
-		Pages:    pages,
-	}
-}
-
-func (s *APIKeyService) fillCurrentConcurrency(ctx context.Context, keys []APIKey) {
-	if s == nil || s.concurrencyService == nil || len(keys) == 0 {
-		return
-	}
-	ids := make([]int64, 0, len(keys))
-	for i := range keys {
-		if keys[i].ID > 0 {
-			ids = append(ids, keys[i].ID)
-		}
-	}
-	counts, err := s.concurrencyService.GetAPIKeyConcurrencyBatch(ctx, ids)
-	if err != nil {
-		return
-	}
-	for i := range keys {
-		keys[i].CurrentConcurrency = counts[keys[i].ID]
-	}
-}
-
-func (s *APIKeyService) currentConcurrencyForAPIKey(ctx context.Context, apiKeyID int64) int {
-	if s == nil || s.concurrencyService == nil || apiKeyID <= 0 {
-		return 0
-	}
-	counts, err := s.concurrencyService.GetAPIKeyConcurrencyBatch(ctx, []int64{apiKeyID})
-	if err != nil {
-		return 0
-	}
-	return counts[apiKeyID]
-}
-
+// VerifyOwnership 委托 Key 模块的唯一实现。
 func (s *APIKeyService) VerifyOwnership(ctx context.Context, userID int64, apiKeyIDs []int64) ([]int64, error) {
-	if len(apiKeyIDs) == 0 {
-		return []int64{}, nil
-	}
-
-	validIDs, err := s.apiKeyRepo.VerifyOwnership(ctx, userID, apiKeyIDs)
-	if err != nil {
-		return nil, fmt.Errorf("verify api key ownership: %w", err)
-	}
-	return validIDs, nil
+	return s.APIKeyService.VerifyOwnership(KeyRequestContext(ctx), userID, apiKeyIDs)
 }
 
-// GetByID 根据ID获取API Key
+// GetByID 委托 Key 模块的唯一实现。
 func (s *APIKeyService) GetByID(ctx context.Context, id int64) (*APIKey, error) {
-	apiKey, err := s.apiKeyRepo.GetByID(ctx, id)
-	if err != nil {
-		return nil, fmt.Errorf("get api key: %w", err)
-	}
-	if apiKey != nil && apiKey.ManagedBy != nil {
-		// 服务端托管的隐藏 Key（如创作台执行 Key）不暴露存在性。
-		return nil, fmt.Errorf("get api key: %w", ErrAPIKeyNotFound)
-	}
-	s.compileAPIKeyIPRules(apiKey)
-	if apiKey != nil {
-		apiKey.CurrentConcurrency = s.currentConcurrencyForAPIKey(ctx, apiKey.ID)
-	}
-	return apiKey, nil
+	v, e := s.APIKeyService.GetByID(KeyRequestContext(ctx), id)
+	return APIKeyFromView(v), e
 }
 
-// GetByKey 根据Key字符串获取API Key（用于认证）
+// GetByKey 委托 Key 模块的唯一实现。
 func (s *APIKeyService) GetByKey(ctx context.Context, key string) (*APIKey, error) {
-	if len(key) == 0 || len(key) > MaxAPIKeyCredentialBytes {
-		return nil, ErrAPIKeyNotFound
-	}
-	cacheKey := s.authCacheKey(key)
-
-	if entry, ok := s.getAuthCacheEntry(ctx, cacheKey); ok {
-		if apiKey, used, err := s.applyAuthCacheEntry(key, entry); used {
-			if err != nil {
-				return nil, fmt.Errorf("get api key: %w", err)
-			}
-			if !apiKey.IsComposite {
-				apiKey = s.applyDefaultGroupFallback(ctx, apiKey)
-				if !s.canUserUseBoundGroup(ctx, apiKey) {
-					return nil, fmt.Errorf("get api key: %w", ErrGroupDisabledForUser)
-				}
-			}
-			s.compileAPIKeyIPRules(apiKey)
-			return apiKey, nil
-		}
-	}
-
-	if s.authCfg.singleflight {
-		value, err, _ := s.authGroup.Do(cacheKey, func() (any, error) {
-			return s.loadAuthCacheEntry(ctx, key, cacheKey)
-		})
-		if err != nil {
-			return nil, err
-		}
-		entry, _ := value.(*APIKeyAuthCacheEntry)
-		if apiKey, used, err := s.applyAuthCacheEntry(key, entry); used {
-			if err != nil {
-				return nil, fmt.Errorf("get api key: %w", err)
-			}
-			if !apiKey.IsComposite {
-				apiKey = s.applyDefaultGroupFallback(ctx, apiKey)
-				if !s.canUserUseBoundGroup(ctx, apiKey) {
-					return nil, fmt.Errorf("get api key: %w", ErrGroupDisabledForUser)
-				}
-			}
-			s.compileAPIKeyIPRules(apiKey)
-			return apiKey, nil
-		}
-	} else {
-		entry, err := s.loadAuthCacheEntry(ctx, key, cacheKey)
-		if err != nil {
-			return nil, err
-		}
-		if apiKey, used, err := s.applyAuthCacheEntry(key, entry); used {
-			if err != nil {
-				return nil, fmt.Errorf("get api key: %w", err)
-			}
-			if !apiKey.IsComposite {
-				apiKey = s.applyDefaultGroupFallback(ctx, apiKey)
-				if !s.canUserUseBoundGroup(ctx, apiKey) {
-					return nil, fmt.Errorf("get api key: %w", ErrGroupDisabledForUser)
-				}
-			}
-			s.compileAPIKeyIPRules(apiKey)
-			return apiKey, nil
-		}
-	}
-
-	apiKey, err := s.lookupAPIKeyForAuth(ctx, key)
-	if err != nil {
-		return nil, fmt.Errorf("get api key: %w", err)
-	}
-	apiKey.Key = key
-	if !apiKey.IsComposite {
-		apiKey = s.applyDefaultGroupFallback(ctx, apiKey)
-		if !s.canUserUseBoundGroup(ctx, apiKey) {
-			return nil, fmt.Errorf("get api key: %w", ErrGroupDisabledForUser)
-		}
-	}
-	s.compileAPIKeyIPRules(apiKey)
-	return apiKey, nil
+	v, e := s.APIKeyService.GetByKey(KeyRequestContext(ctx), key)
+	return APIKeyFromView(v), e
 }
 
-// SelectCompositeGroupForRequest 为复合 Key 创建请求级分组视图，缓存对象不会被修改。
+// SelectCompositeGroupForRequest 委托 Key 模块的唯一实现。
 func (s *APIKeyService) SelectCompositeGroupForRequest(ctx context.Context, apiKey *APIKey, binding *APIKeyCompositeGroup) (*APIKey, error) {
-	if apiKey == nil || !apiKey.IsComposite || binding == nil || binding.Group == nil {
-		return nil, ErrCompositeKeyPrefixNotFound
-	}
-	selected := *apiKey
-	selected.CompositeGroups = cloneCompositeBindings(apiKey.CompositeGroups)
-	groupID := binding.GroupID
-	selected.GroupID = &groupID
-	selected.Group = binding.Group
-	if apiKey.User != nil {
-		userCopy := *apiKey.User
-		userCopy.UserGroupRPMOverride = binding.UserGroupRPMOverride
-		selected.User = &userCopy
-	}
-	prepared := s.applyDefaultGroupFallback(ctx, &selected)
-	if !s.canUserUseBoundGroup(ctx, prepared) {
-		return nil, ErrGroupDisabledForUser
-	}
-	return prepared, nil
+	apiKeyView := APIKeyView(apiKey)
+	v, e := s.APIKeyService.SelectCompositeGroupForRequest(KeyRequestContext(ctx), apiKeyView, apiKeyBindingView(binding))
+	ApplyAPIKeyView(apiKey, apiKeyView)
+	return APIKeyFromView(v), e
 }
 
-// applyDefaultGroupFallback 为未绑定有效分组或绑定停用分组的 API Key 计算请求级默认分组。
-// 这里只修正当前请求中的对象，不回写数据库，也不写入认证缓存，避免不同端点之间互相污染。
-func (s *APIKeyService) applyDefaultGroupFallback(ctx context.Context, apiKey *APIKey) *APIKey {
-	if apiKey == nil || s.groupRepo == nil {
-		return apiKey
-	}
-	if apiKey.Group != nil {
-		if apiKey.GroupID == nil {
-			gid := apiKey.Group.ID
-			apiKey.GroupID = &gid
-		}
-		if strings.EqualFold(apiKey.Group.Status, "deleted") {
-			return apiKey
-		}
-		if fallbackPlatform, ok := fallbackPlatformFromBoundGroup(apiKey.Group); ok {
-			if !apiKey.FallbackToDefaultGroupWhenUnavailable {
-				return apiKey
-			}
-			if fallbackID := apiKey.Group.UnavailableFallbackGroupID; fallbackID != nil && *fallbackID > 0 {
-				if fallbackKey := s.applyUnavailableFallbackGroup(ctx, apiKey, fallbackPlatform, *fallbackID); fallbackKey != nil {
-					return fallbackKey
-				}
-			}
-			return s.applyDefaultGroupByPlatform(ctx, apiKey, fallbackPlatform)
-		}
-		if apiKey.GroupID != nil && apiKey.Group.ID == *apiKey.GroupID {
-			return apiKey
-		}
-	} else if apiKey.GroupID != nil {
-		// Key 明确绑定了分组但查询不到实体时，保持 GROUP_DELETED 语义，不使用入口默认分组兜底。
-		return apiKey
-	}
-
-	platform, ok := resolveAPIKeyFallbackPlatform(ctx)
-	if !ok {
-		return apiKey
-	}
-
-	return s.applyDefaultGroupByPlatform(ctx, apiKey, platform)
-}
-
-// applyUnavailableFallbackGroup 将停用分组的请求优先切到管理员指定的回退分组。
-// 若目标分组不存在、停用或平台不匹配，返回 nil 交给默认分组兜底逻辑继续处理。
-func (s *APIKeyService) applyUnavailableFallbackGroup(ctx context.Context, apiKey *APIKey, platform string, fallbackGroupID int64) *APIKey {
-	if apiKey == nil || s.groupRepo == nil || fallbackGroupID <= 0 {
-		return nil
-	}
-	group, err := s.groupRepo.GetByIDLite(ctx, fallbackGroupID)
-	if err != nil || group == nil {
-		return nil
-	}
-	if !group.IsActive() || group.Platform != platform {
-		return nil
-	}
-	gid := group.ID
-	apiKey.GroupID = &gid
-	apiKey.Group = group
-	s.refreshFallbackUserGroupRPMOverride(ctx, apiKey, gid)
-	return apiKey
-}
-
-// fallbackPlatformFromBoundGroup 返回停用绑定分组所属平台。
-// deleted/缺失分组不兜底，保留调用方现有的不可用分组报错语义。
-func fallbackPlatformFromBoundGroup(group *Group) (string, bool) {
-	if group == nil {
-		return "", false
-	}
-	if group.Status == StatusActive || strings.EqualFold(group.Status, "deleted") {
-		return "", false
-	}
-	platform := strings.TrimSpace(group.Platform)
-	if platform == "" {
-		return "", false
-	}
-	return platform, true
-}
-
-// applyDefaultGroupByPlatform 将当前请求中的 API Key 切到指定平台的默认分组。
-func (s *APIKeyService) applyDefaultGroupByPlatform(ctx context.Context, apiKey *APIKey, platform string) *APIKey {
-	if apiKey == nil || s.groupRepo == nil {
-		return apiKey
-	}
-	group, err := findPlatformDefaultGroup(ctx, s.groupRepo, platform)
-	if err != nil || group == nil {
-		return apiKey
-	}
-
-	gid := group.ID
-	apiKey.GroupID = &gid
-	apiKey.Group = group
-	s.refreshFallbackUserGroupRPMOverride(ctx, apiKey, gid)
-	return apiKey
-}
-
-// refreshFallbackUserGroupRPMOverride 重新绑定默认分组后刷新用户专属 RPM。
-// 认证缓存里的 override 属于原分组，不能沿用到 fallback 分组。
-func (s *APIKeyService) refreshFallbackUserGroupRPMOverride(ctx context.Context, apiKey *APIKey, groupID int64) {
-	if apiKey == nil || apiKey.User == nil {
-		return
-	}
-	apiKey.User.UserGroupRPMOverride = nil
-	if s.userGroupRateRepo == nil || apiKey.User.ID <= 0 || groupID <= 0 {
-		return
-	}
-	override, err := s.userGroupRateRepo.GetRPMOverrideByUserAndGroup(ctx, apiKey.User.ID, groupID)
-	if err == nil {
-		apiKey.User.UserGroupRPMOverride = override
-	}
-}
-
-// resolveAPIKeyFallbackPlatform 根据当前请求上下文推断默认分组所属平台。
-// 仅在明确处于网关请求链路时返回 true，避免普通内部调用被意外改写为默认分组。
-func resolveAPIKeyFallbackPlatform(ctx context.Context) (string, bool) {
-	if ctx == nil {
-		return "", false
-	}
-
-	if forcePlatform, ok := ctx.Value(ctxkey.ForcePlatform).(string); ok {
-		forcePlatform = strings.TrimSpace(forcePlatform)
-		if forcePlatform != "" {
-			return forcePlatform, true
-		}
-	}
-
-	inboundEndpoint, ok := ctx.Value(ctxkey.InboundEndpoint).(string)
-	if !ok {
-		return "", false
-	}
-	switch strings.TrimSpace(inboundEndpoint) {
-	case "/v1beta/models":
-		return PlatformGemini, true
-	case "/v1/images/generations", "/v1/images/edits":
-		return PlatformOpenAI, true
-	case "/v1/messages", "/v1/chat/completions", "/v1/responses":
-		// 通用 /v1 入口保持现有语义：未指定平台时默认走 anthropic。
-		return PlatformAnthropic, true
-	default:
-		return "", false
-	}
-}
-
-// Update 更新API Key
+// Update 委托 Key 模块的唯一实现。
 func (s *APIKeyService) Update(ctx context.Context, id int64, userID int64, req UpdateAPIKeyRequest) (*APIKey, error) {
-	if err := validateUpdateAPIKeyRequest(req); err != nil {
-		return nil, err
-	}
-	apiKey, err := s.apiKeyRepo.GetByID(ctx, id)
-	if err != nil {
-		return nil, fmt.Errorf("get api key: %w", err)
-	}
-	if apiKey != nil && apiKey.ManagedBy != nil {
-		// 服务端托管的隐藏 Key（如创作台执行 Key）禁止一切用户侧操作。
-		return nil, fmt.Errorf("get api key: %w", ErrAPIKeyNotFound)
-	}
-
-	// 验证所有权
-	if apiKey.UserID != userID {
-		return nil, ErrInsufficientPerms
-	}
-	if apiKey.TeamID != nil {
-		apiKey, err = s.hydrateTeamAPIKey(ctx, apiKey, nil)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// 验证 IP 白名单格式
-	if req.IPWhitelist != nil && len(*req.IPWhitelist) > 0 {
-		if invalid := ip.ValidateIPPatterns(*req.IPWhitelist); len(invalid) > 0 {
-			return nil, fmt.Errorf("%w: %v", ErrInvalidIPPattern, invalid)
-		}
-	}
-
-	// 验证 IP 黑名单格式
-	if req.IPBlacklist != nil && len(*req.IPBlacklist) > 0 {
-		if invalid := ip.ValidateIPPatterns(*req.IPBlacklist); len(invalid) > 0 {
-			return nil, fmt.Errorf("%w: %v", ErrInvalidIPPattern, invalid)
-		}
-	}
-	if req.ModelMapping != nil {
-		modelMapping, normalizeErr := NormalizeAPIKeyModelMapping(*req.ModelMapping)
-		if normalizeErr != nil {
-			return nil, normalizeErr
-		}
-		apiKey.ModelMapping = modelMapping
-	}
-
-	// fields 只登记本次请求真正要改的列。quota_used 与 usage_5h/1d/7d 由计费热路径
-	// 原子递增，除非用户显式点了"重置"，否则这里不用快照把它们写回去。
-	var fields APIKeyUpdateFields
-	// 下面若干分支会顺带把 Status 改回 active（配额扩容、清除过期等），
-	// 所以用原始值比对来决定是否写 status，而不是只看 req.Status。
-	originalStatus := apiKey.Status
-	originalIsComposite := apiKey.IsComposite
-
-	// 更新指定订阅时先确定最终配置，后续普通 Key 的分组和复合 Key 的各映射分组都要按它校验。
-	targetBillingMode := APIKeyEffectiveBillingMode(apiKey)
-	targetPreferredSubscriptionID := apiKey.PreferredSubscriptionID
-	billingConfigurationRequested := req.BillingMode != nil || req.PreferredSubscriptionID != nil
-	var billingUser *User
-	var preferredSubscription *UserSubscription
-	if billingConfigurationRequested {
-		billingUser, err = s.billingUserForAPIKey(ctx, apiKey)
-		if err != nil {
-			return nil, fmt.Errorf("get billing user: %w", err)
-		}
-		apiKey.User = billingUser
-		if req.BillingMode != nil {
-			normalizedMode, ok := NormalizeAPIKeyBillingMode(*req.BillingMode)
-			if !ok {
-				return nil, ErrInvalidAPIKeyBillingMode
-			}
-			targetBillingMode = normalizedMode
-		}
-		if req.PreferredSubscriptionID != nil {
-			targetPreferredSubscriptionID = req.PreferredSubscriptionID
-		}
-		if targetBillingMode != APIKeyBillingModeSubscription {
-			targetPreferredSubscriptionID = nil
-		} else if req.BillingMode != nil && req.PreferredSubscriptionID == nil && apiKey.PreferredSubscriptionID == nil {
-			return nil, ErrPreferredSubscriptionRequired
-		}
-
-		resolvedMode, resolvedSubscriptionID, resolvedSubscription, resolveErr := s.resolveAPIKeyBillingConfiguration(
-			ctx,
-			billingUser.ID,
-			targetBillingMode,
-			targetPreferredSubscriptionID,
-		)
-		if resolveErr != nil {
-			return nil, resolveErr
-		}
-		targetBillingMode = resolvedMode
-		targetPreferredSubscriptionID = resolvedSubscriptionID
-		preferredSubscription = resolvedSubscription
-		apiKey.BillingMode = targetBillingMode
-		apiKey.PreferredSubscriptionID = targetPreferredSubscriptionID
-		fields.BillingConfiguration = true
-	}
-
-	// 更新字段
-	if req.Name != nil {
-		apiKey.Name = html.EscapeString(*req.Name)
-		fields.Name = true
-	}
-	if req.FastModePolicy != nil {
-		fastModePolicy, ok := NormalizeAPIKeyFastModePolicy(*req.FastModePolicy)
-		if !ok {
-			return nil, ErrInvalidAPIKeyFastModePolicy
-		}
-		apiKey.FastModePolicy = fastModePolicy
-		fields.FastModePolicy = true
-	}
-	if req.ModelMapping != nil {
-		fields.ModelMapping = true
-	}
-
-	targetComposite := apiKey.IsComposite
-	if req.IsComposite != nil {
-		targetComposite = *req.IsComposite
-	}
-
-	// 类型切换和复合映射更新必须在写库前一次性完成校验。
-	if targetComposite {
-		if req.GroupID != nil {
-			return nil, ErrCompositeKeyGroupConflict
-		}
-		if !apiKey.IsComposite && req.CompositeGroups == nil {
-			return nil, ErrCompositeKeyGroupsRequired
-		}
-		if req.CompositeGroups != nil {
-			billingUserID := userID
-			if apiKey.TeamID != nil {
-				if s.teamRepo == nil {
-					return nil, ErrTeamFeatureDisabled
-				}
-				teamCtx, teamErr := s.teamRepo.GetContextByUserID(ctx, userID)
-				if teamErr != nil || teamCtx.Team.ID != *apiKey.TeamID {
-					return nil, ErrTeamMembershipRequired
-				}
-				billingUserID = teamCtx.Owner.UserID
-			}
-			user, err := s.userRepo.GetByID(ctx, billingUserID)
-			if err != nil {
-				return nil, fmt.Errorf("get user: %w", err)
-			}
-			bindings, err := s.prepareCompositeGroups(ctx, user, *req.CompositeGroups)
-			if err != nil {
-				return nil, err
-			}
-			apiKey.CompositeGroups = bindings
-			apiKey.User = user
-			fields.CompositeConfiguration = true
-		}
-		apiKey.IsComposite = true
-		apiKey.GroupID = nil
-		apiKey.Group = nil
-	} else if apiKey.IsComposite {
-		if req.GroupID == nil || *req.GroupID <= 0 {
-			return nil, ErrCompositeKeyTargetRequired
-		}
-		apiKey.IsComposite = false
-		apiKey.CompositeGroups = nil
-	}
-	if apiKey.IsComposite != originalIsComposite {
-		fields.CompositeConfiguration = true
-		fields.GroupID = true
-	}
-
-	if !targetComposite && req.GroupID != nil {
-		// 验证分组权限
-		billingUserID := userID
-		if apiKey.TeamID != nil {
-			if s.teamRepo == nil {
-				return nil, ErrTeamFeatureDisabled
-			}
-			teamCtx, teamErr := s.teamRepo.GetContextByUserID(ctx, userID)
-			if teamErr != nil || teamCtx.Team.ID != *apiKey.TeamID {
-				return nil, ErrTeamMembershipRequired
-			}
-			billingUserID = teamCtx.Owner.UserID
-		}
-		user, err := s.userRepo.GetByID(ctx, billingUserID)
-		if err != nil {
-			return nil, fmt.Errorf("get user: %w", err)
-		}
-
-		group, err := s.groupRepo.GetByID(ctx, *req.GroupID)
-		if err != nil {
-			return nil, fmt.Errorf("get group: %w", err)
-		}
-
-		if !s.canUserBindGroup(ctx, user, group) {
-			return nil, ErrGroupNotAllowed
-		}
-
-		apiKey.GroupID = req.GroupID
-		apiKey.Group = group
-		apiKey.User = user
-		fields.GroupID = true
-	}
-	if !apiKey.IsComposite && !s.canUserUseBoundGroup(ctx, apiKey) {
-		return nil, ErrGroupDisabledForUser
-	}
-	// 切换套餐、普通分组或复合映射时，必须验证最终所有分组都在指定套餐范围内。
-	if targetBillingMode == APIKeyBillingModeSubscription && (billingConfigurationRequested || req.GroupID != nil || req.CompositeGroups != nil || req.IsComposite != nil) {
-		if billingUser == nil {
-			billingUser, err = s.billingUserForAPIKey(ctx, apiKey)
-			if err != nil {
-				return nil, fmt.Errorf("get billing user: %w", err)
-			}
-			apiKey.User = billingUser
-		}
-		if preferredSubscription == nil {
-			_, _, preferredSubscription, err = s.resolveAPIKeyBillingConfiguration(
-				ctx,
-				billingUser.ID,
-				targetBillingMode,
-				targetPreferredSubscriptionID,
-			)
-			if err != nil {
-				return nil, err
-			}
-		}
-		if err := validatePreferredSubscriptionGroups(preferredSubscription, apiKey.Group, apiKey.CompositeGroups); err != nil {
-			return nil, err
-		}
-	}
-
-	if req.Status != nil {
-		if apiKey.TeamOwnerDisabled && *req.Status == StatusAPIKeyActive {
-			return nil, ErrInsufficientPerms
-		}
-		apiKey.Status = *req.Status
-		fields.Status = true
-		// 如果状态改变，清除Redis缓存
-		if s.cache != nil {
-			_ = s.cache.DeleteCreateAttemptCount(ctx, apiKey.UserID)
-		}
-	}
-
-	// Update quota fields
-	if req.Quota != nil {
-		apiKey.Quota = *req.Quota
-		fields.Quota = true
-		// 额度仍有剩余，或改为 0（不限额）时，恢复已因额度耗尽停用的 Key。
-		if apiKey.Status == StatusAPIKeyQuotaExhausted && (*req.Quota <= 0 || *req.Quota > apiKey.QuotaUsed) {
-			apiKey.Status = StatusActive
-		}
-	}
-	if req.ResetQuota != nil && *req.ResetQuota {
-		apiKey.QuotaUsed = 0
-		fields.QuotaUsed = true
-		// If resetting quota and status was quota_exhausted, reactivate
-		if apiKey.Status == StatusAPIKeyQuotaExhausted {
-			apiKey.Status = StatusActive
-		}
-	}
-	if req.ClearExpiration {
-		apiKey.ExpiresAt = nil
-		fields.ExpiresAt = true
-		// If clearing expiry and status was expired, reactivate
-		if apiKey.Status == StatusAPIKeyExpired {
-			apiKey.Status = StatusActive
-		}
-	} else if req.ExpiresAt != nil {
-		apiKey.ExpiresAt = req.ExpiresAt
-		fields.ExpiresAt = true
-		// If extending expiry and status was expired, reactivate
-		if apiKey.Status == StatusAPIKeyExpired && time.Now().Before(*req.ExpiresAt) {
-			apiKey.Status = StatusActive
-		}
-	}
-
-	// 更新 IP 限制（nil 不修改，空数组清空设置）
-	if req.IPWhitelist != nil {
-		apiKey.IPWhitelist = *req.IPWhitelist
-		fields.IPRules = true
-	}
-	if req.IPBlacklist != nil {
-		apiKey.IPBlacklist = *req.IPBlacklist
-		fields.IPRules = true
-	}
-
-	// Update rate limit configuration
-	if req.RateLimit5h != nil {
-		apiKey.RateLimit5h = *req.RateLimit5h
-		fields.RateLimits = true
-	}
-	if req.RateLimit1d != nil {
-		apiKey.RateLimit1d = *req.RateLimit1d
-		fields.RateLimits = true
-	}
-	if req.RateLimit7d != nil {
-		apiKey.RateLimit7d = *req.RateLimit7d
-		fields.RateLimits = true
-	}
-	if req.FallbackToDefaultGroupWhenUnavailable != nil {
-		apiKey.FallbackToDefaultGroupWhenUnavailable = *req.FallbackToDefaultGroupWhenUnavailable
-		fields.FallbackToDefaultGroupWhenUnavailable = true
-	}
-	resetRateLimit := req.ResetRateLimitUsage != nil && *req.ResetRateLimitUsage
-	if resetRateLimit {
-		apiKey.Usage5h = 0
-		apiKey.Usage1d = 0
-		apiKey.Usage7d = 0
-		apiKey.Window5hStart = nil
-		apiKey.Window1dStart = nil
-		apiKey.Window7dStart = nil
-		fields.RateLimitUsage = true
-	}
-
-	// 上面的自动复活分支可能改了 status，这里统一登记。
-	if apiKey.Status != originalStatus {
-		fields.Status = true
-	}
-
-	if err := s.apiKeyRepo.Update(ctx, apiKey, fields); err != nil {
-		return nil, fmt.Errorf("update api key: %w", err)
-	}
-
-	s.InvalidateAuthCacheByKey(ctx, apiKey.Key)
-	s.compileAPIKeyIPRules(apiKey)
-
-	// Invalidate Redis rate limit cache so reset takes effect immediately
-	if resetRateLimit && s.rateLimitCacheInvalid != nil {
-		_ = s.rateLimitCacheInvalid.InvalidateAPIKeyRateLimit(ctx, apiKey.ID)
-	}
-
-	return apiKey, nil
+	v, e := s.APIKeyService.Update(KeyRequestContext(ctx), id, userID, req)
+	return APIKeyFromView(v), e
 }
 
-// Delete 删除API Key
+// Delete 委托 Key 模块的唯一实现。
 func (s *APIKeyService) Delete(ctx context.Context, id int64, userID int64) error {
-	existing, err := s.apiKeyRepo.GetByID(ctx, id)
-	if err != nil {
-		return fmt.Errorf("get api key: %w", err)
-	}
-	if existing != nil && existing.ManagedBy != nil {
-		// 服务端托管的隐藏 Key（如创作台执行 Key）禁止删除，且不暴露存在性。
-		return fmt.Errorf("get api key: %w", ErrAPIKeyNotFound)
-	}
-
-	// 验证当前用户是否为该 API Key 的所有者
-	if existing == nil || existing.UserID != userID {
-		return ErrInsufficientPerms
-	}
-
-	// 事务内:写审计 + 软删除(tombstone)。
-	if err := s.apiKeyRepo.DeleteWithAudit(ctx, id); err != nil {
-		return fmt.Errorf("delete api key: %w", err)
-	}
-
-	// 删除成功后再清理缓存,避免"缓存已清但删除失败"的竞态。
-	if s.cache != nil {
-		_ = s.cache.DeleteCreateAttemptCount(ctx, userID)
-	}
-	s.InvalidateAuthCacheByKey(ctx, existing.Key)
-	s.lastUsedTouchL1.Delete(id)
-
-	return nil
+	return s.APIKeyService.Delete(KeyRequestContext(ctx), id, userID)
 }
 
-// ValidateKey 验证API Key是否有效（用于认证中间件）
+// ValidateKey 委托 Key 模块的唯一实现。
 func (s *APIKeyService) ValidateKey(ctx context.Context, key string) (*APIKey, *User, error) {
-	// 获取API Key
-	apiKey, err := s.GetByKey(ctx, key)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// 检查API Key状态
-	if !apiKey.IsActive() {
-		return nil, nil, infraerrors.Unauthorized("API_KEY_INACTIVE", "api key is not active")
-	}
-
-	// 团队 Key 的 User 已在认证加载阶段替换为当前付款 Owner。
-	user := apiKey.User
-	if user == nil {
-		user, err = s.userRepo.GetByID(ctx, apiKey.UserID)
-		if err != nil {
-			return nil, nil, fmt.Errorf("get user: %w", err)
-		}
-	}
-
-	// 检查用户状态
-	if !user.IsActive() {
-		return nil, nil, ErrUserNotActive
-	}
-	if apiKey.TeamID != nil {
-		if err := s.ValidateTeamKeyLifecycle(apiKey); err != nil {
-			return nil, nil, err
-		}
-		if err := checkTeamMemberLimitSnapshot(apiKey.TeamMembership); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return apiKey, user, nil
+	k, u, err := s.APIKeyService.ValidateKey(KeyRequestContext(ctx), key)
+	return APIKeyFromView(k), UserFromIdentity(u), err
 }
 
-// ValidateTeamKeyLifecycle 校验团队 Key 当前仍属于有效团队关系。
+// ValidateTeamKeyLifecycle 委托 Key 模块的唯一实现。
 func (s *APIKeyService) ValidateTeamKeyLifecycle(apiKey *APIKey) error {
-	if apiKey == nil || apiKey.TeamID == nil {
-		return nil
-	}
-	if s != nil && s.cfg != nil && !s.cfg.Team.Enabled {
-		return ErrTeamFeatureDisabled
-	}
-	if apiKey.Team == nil || apiKey.TeamMembership == nil || apiKey.Team.ID != *apiKey.TeamID || apiKey.TeamMembership.TeamID != *apiKey.TeamID {
-		return ErrTeamMembershipRequired
-	}
-	if apiKey.TeamMembership.UserID != apiKey.UserID || apiKey.TeamMembership.JoinedAt.After(apiKey.CreatedAt) {
-		return ErrTeamMembershipRequired
-	}
-	if apiKey.Team.Status != TeamStatusActive {
-		return ErrTeamSuspended
-	}
-	if apiKey.ActorUser == nil || !apiKey.ActorUser.IsActive() {
-		return ErrTeamActorInactive
-	}
-	if apiKey.User == nil || !apiKey.User.IsActive() {
-		return ErrTeamBillingOwnerInactive
-	}
-	return nil
+	apiKeyView := APIKeyView(apiKey)
+	result0 := s.APIKeyService.ValidateTeamKeyLifecycle(apiKeyView)
+	ApplyAPIKeyView(apiKey, apiKeyView)
+	return result0
 }
 
-// CheckTeamMemberLimits 使用本次认证读取的只读快照检查成员自然周期限额。
+// CheckTeamMemberLimits 委托 Key 模块的唯一实现。
 func (s *APIKeyService) CheckTeamMemberLimits(apiKey *APIKey) error {
-	if err := s.ValidateTeamKeyLifecycle(apiKey); err != nil {
-		return err
-	}
-	return checkTeamMemberLimitSnapshot(apiKey.TeamMembership)
+	apiKeyView := APIKeyView(apiKey)
+	result0 := s.APIKeyService.CheckTeamMemberLimits(apiKeyView)
+	ApplyAPIKeyView(apiKey, apiKeyView)
+	return result0
 }
 
-func checkTeamMemberLimitSnapshot(member *TeamMembership) error {
-	if member == nil || member.Role == TeamRoleOwner {
-		return nil
-	}
-	if member.DailyLimitUSD > 0 && member.DailyUsageUSD >= member.DailyLimitUSD {
-		return ErrTeamMemberDailyExceeded
-	}
-	if member.WeeklyLimitUSD > 0 && member.WeeklyUsageUSD >= member.WeeklyLimitUSD {
-		return ErrTeamMemberWeeklyExceeded
-	}
-	if member.MonthlyLimitUSD > 0 && member.MonthlyUsageUSD >= member.MonthlyLimitUSD {
-		return ErrTeamMemberMonthlyExceeded
-	}
-	return nil
-}
-
-// TouchLastUsed 通过防抖更新 api_keys.last_used_at，减少高频写放大。
-// 该操作为尽力而为，不应阻塞主请求链路。
+// TouchLastUsed 委托 Key 模块的唯一实现。
 func (s *APIKeyService) TouchLastUsed(ctx context.Context, keyID int64) error {
-	if keyID <= 0 {
-		return nil
-	}
-
-	now := time.Now()
-	if v, ok := s.lastUsedTouchL1.Load(keyID); ok {
-		if nextAllowedAt, ok := v.(time.Time); ok && now.Before(nextAllowedAt) {
-			return nil
-		}
-	}
-
-	_, err, _ := s.lastUsedTouchSF.Do(strconv.FormatInt(keyID, 10), func() (any, error) {
-		latest := time.Now()
-		if v, ok := s.lastUsedTouchL1.Load(keyID); ok {
-			if nextAllowedAt, ok := v.(time.Time); ok && latest.Before(nextAllowedAt) {
-				return nil, nil
-			}
-		}
-
-		if err := s.apiKeyRepo.UpdateLastUsed(ctx, keyID, latest); err != nil {
-			s.lastUsedTouchL1.Store(keyID, latest.Add(apiKeyLastUsedFailBackoff))
-			return nil, fmt.Errorf("touch api key last used: %w", err)
-		}
-		s.lastUsedTouchL1.Store(keyID, latest.Add(apiKeyLastUsedMinTouch))
-		return nil, nil
-	})
-	return err
+	return s.APIKeyService.TouchLastUsed(KeyRequestContext(ctx), keyID)
 }
 
-// IncrementUsage 增加API Key使用次数（可选：用于统计）
+// IncrementUsage 委托 Key 模块的唯一实现。
 func (s *APIKeyService) IncrementUsage(ctx context.Context, keyID int64) error {
-	// 使用Redis计数器
-	if s.cache != nil {
-		cacheKey := fmt.Sprintf("apikey:usage:%d:%s", keyID, timezone.Now().Format("2006-01-02"))
-		if err := s.cache.IncrementDailyUsage(ctx, cacheKey); err != nil {
-			return fmt.Errorf("increment usage: %w", err)
-		}
-		// 设置24小时过期
-		_ = s.cache.SetDailyUsageExpiry(ctx, cacheKey, 24*time.Hour)
-	}
-	return nil
+	return s.APIKeyService.IncrementUsage(KeyRequestContext(ctx), keyID)
 }
 
-// GetAvailableGroups 获取用户有权限绑定的分组列表。
-// group 仅负责路由/账号集合，不再承载订阅语义。
+// GetAvailableGroups 委托 Key 模块的唯一实现。
 func (s *APIKeyService) GetAvailableGroups(ctx context.Context, userID int64) ([]Group, error) {
-	// 获取用户信息
-	user, err := s.userRepo.GetByID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("get user: %w", err)
-	}
-
-	// 获取所有活跃分组
-	allGroups, err := s.groupRepo.ListActive(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list active groups: %w", err)
-	}
-
-	// 过滤出用户有权限的分组
-	availableGroups := make([]Group, 0)
-	for _, group := range allGroups {
-		if s.canUserBindGroupInternal(user, &group) {
-			availableGroups = append(availableGroups, group)
-		}
-	}
-
-	return availableGroups, nil
+	v, e := s.APIKeyService.GetAvailableGroups(KeyRequestContext(ctx), userID)
+	return keyGroupsFromView(v), e
 }
 
-// GetAvailableGroupsForScope 让团队 Key 使用 Owner 的分组授权。
+// GetAvailableGroupsForScope 委托 Key 模块的唯一实现。
 func (s *APIKeyService) GetAvailableGroupsForScope(ctx context.Context, userID int64, scope string) ([]Group, error) {
-	return s.GetAvailableGroupsForScopeWithSubscription(ctx, userID, scope, nil)
+	v, e := s.APIKeyService.GetAvailableGroupsForScope(KeyRequestContext(ctx), userID, scope)
+	return keyGroupsFromView(v), e
 }
 
-// GetAvailableGroupsForScopeWithSubscription 返回付款主体原有权限与指定套餐分组的交集。
-// subscriptionID 为 nil 时严格保留历史行为，不会因为用户持有其它受限套餐而收窄分组。
+// GetAvailableGroupsForScopeWithSubscription 委托 Key 模块的唯一实现。
 func (s *APIKeyService) GetAvailableGroupsForScopeWithSubscription(ctx context.Context, userID int64, scope string, subscriptionID *int64) ([]Group, error) {
-	billingUserID, err := s.billingUserIDForScope(ctx, userID, scope)
-	if err != nil {
-		return nil, err
-	}
-	groups, err := s.GetAvailableGroups(ctx, billingUserID)
-	if err != nil || subscriptionID == nil {
-		return groups, err
-	}
-	_, _, subscription, err := s.resolveAPIKeyBillingConfiguration(ctx, billingUserID, APIKeyBillingModeSubscription, subscriptionID)
-	if err != nil {
-		return nil, err
-	}
-	if subscription.Plan == nil || len(subscription.Plan.GroupIDs) == 0 {
-		return groups, nil
-	}
-	filtered := make([]Group, 0, len(groups))
-	for i := range groups {
-		if subscriptionPlanIncludesGroup(subscription.Plan, groups[i].ID) {
-			filtered = append(filtered, groups[i])
-		}
-	}
-	return filtered, nil
+	v, e := s.APIKeyService.GetAvailableGroupsForScopeWithSubscription(KeyRequestContext(ctx), userID, scope, subscriptionID)
+	return keyGroupsFromView(v), e
 }
 
-// ListBillingSubscriptionsForScope 返回当前付款主体可指定的有效订阅。
+// ListBillingSubscriptionsForScope 委托 Key 模块的唯一实现。
 func (s *APIKeyService) ListBillingSubscriptionsForScope(ctx context.Context, userID int64, scope string) ([]APIKeyBillingSubscriptionOption, error) {
-	if s == nil || s.userSubRepo == nil {
-		return nil, ErrPreferredSubscriptionInvalid
-	}
-	billingUserID, err := s.billingUserIDForScope(ctx, userID, scope)
-	if err != nil {
-		return nil, err
-	}
-	subscriptions, err := s.userSubRepo.ListActiveByUserID(ctx, billingUserID)
-	if err != nil {
-		return nil, err
-	}
-	options := make([]APIKeyBillingSubscriptionOption, 0, len(subscriptions))
-	for i := range subscriptions {
-		subscription := &subscriptions[i]
-		if !subscription.IsEffective() || subscription.Plan == nil {
-			continue
-		}
-		options = append(options, APIKeyBillingSubscriptionOption{
-			ID:               subscription.ID,
-			PlanID:           subscription.PlanID,
-			PlanName:         subscription.Plan.Name,
-			ExpiresAt:        subscription.ExpiresAt,
-			GroupsRestricted: len(subscription.Plan.GroupIDs) > 0,
-			ApplicableGroups: append([]int64(nil), subscription.Plan.GroupIDs...),
-		})
-	}
-	return options, nil
+	return s.APIKeyService.ListBillingSubscriptionsForScope(KeyRequestContext(ctx), userID, scope)
 }
 
-// canUserBindGroupInternal 内部方法，检查用户是否可以绑定分组。
-func (s *APIKeyService) canUserBindGroupInternal(user *User, group *Group) bool {
-	return user.CanBindGroup(group.ID, group.IsExclusive)
-}
-
+// SearchAPIKeys 委托 Key 模块的唯一实现。
 func (s *APIKeyService) SearchAPIKeys(ctx context.Context, userID int64, keyword string, limit int) ([]APIKey, error) {
-	keys, err := s.apiKeyRepo.SearchAPIKeys(ctx, userID, keyword, limit)
-	if err != nil {
-		return nil, fmt.Errorf("search api keys: %w", err)
-	}
-	return keys, nil
+	v, e := s.APIKeyService.SearchAPIKeys(KeyRequestContext(ctx), userID, keyword, limit)
+	return keyRowsFromView(v), e
 }
 
-// GetUserGroupRates 获取用户的专属分组倍率配置
-// 返回 map[groupID]rateMultiplier
+// GetUserGroupRates 委托 Key 模块的唯一实现。
 func (s *APIKeyService) GetUserGroupRates(ctx context.Context, userID int64) (map[int64]float64, error) {
-	if s.userGroupRateRepo == nil {
-		return nil, nil
-	}
-	rates, err := s.userGroupRateRepo.GetByUserID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("get user group rates: %w", err)
-	}
-	return rates, nil
+	return s.APIKeyService.GetUserGroupRates(KeyRequestContext(ctx), userID)
 }
 
-// GetUserGroupRatesForScope 让团队 Key 配置界面读取当前 Billing Owner 的倍率。
+// GetUserGroupRatesForScope 委托 Key 模块的唯一实现。
 func (s *APIKeyService) GetUserGroupRatesForScope(ctx context.Context, userID int64, scope string) (map[int64]float64, error) {
-	if !strings.EqualFold(strings.TrimSpace(scope), "team") {
-		return s.GetUserGroupRates(ctx, userID)
-	}
-	if s.cfg != nil && !s.cfg.Team.Enabled {
-		return nil, ErrTeamFeatureDisabled
-	}
-	if s.teamRepo == nil {
-		return nil, ErrTeamFeatureDisabled
-	}
-	teamCtx, err := s.teamRepo.GetContextByUserID(ctx, userID)
-	if err != nil || teamCtx == nil || teamCtx.Owner == nil {
-		return nil, ErrTeamMembershipRequired
-	}
-	return s.GetUserGroupRates(ctx, teamCtx.Owner.UserID)
+	return s.APIKeyService.GetUserGroupRatesForScope(KeyRequestContext(ctx), userID, scope)
 }
 
-// CheckAPIKeyQuotaAndExpiry checks if the API key is valid for use (not expired, quota not exhausted)
-// Returns nil if valid, error if invalid
+// CheckAPIKeyQuotaAndExpiry 委托 Key 模块的唯一实现。
 func (s *APIKeyService) CheckAPIKeyQuotaAndExpiry(apiKey *APIKey) error {
-	// Check expiration
-	if apiKey.IsExpired() {
-		return ErrAPIKeyExpired
-	}
-
-	// Check quota
-	if apiKey.IsQuotaExhausted() {
-		return ErrAPIKeyQuotaExhausted
-	}
-
-	return nil
+	apiKeyView := APIKeyView(apiKey)
+	result0 := s.APIKeyService.CheckAPIKeyQuotaAndExpiry(apiKeyView)
+	ApplyAPIKeyView(apiKey, apiKeyView)
+	return result0
 }
 
-// UpdateQuotaUsed updates the quota_used field after a request
-// Also checks if quota is exhausted and updates status accordingly
+// UpdateQuotaUsed 委托 Key 模块的唯一实现。
 func (s *APIKeyService) UpdateQuotaUsed(ctx context.Context, apiKeyID int64, cost float64) error {
-	if cost <= 0 {
-		return nil
-	}
-
-	type quotaStateReader interface {
-		IncrementQuotaUsedAndGetState(ctx context.Context, id int64, amount float64) (*APIKeyQuotaUsageState, error)
-	}
-
-	if repo, ok := s.apiKeyRepo.(quotaStateReader); ok {
-		state, err := repo.IncrementQuotaUsedAndGetState(ctx, apiKeyID, cost)
-		if err != nil {
-			return fmt.Errorf("increment quota used: %w", err)
-		}
-		if state != nil && state.Status == StatusAPIKeyQuotaExhausted && strings.TrimSpace(state.Key) != "" {
-			s.InvalidateAuthCacheByKey(ctx, state.Key)
-		}
-		return nil
-	}
-
-	// Use repository to atomically increment quota_used
-	newQuotaUsed, err := s.apiKeyRepo.IncrementQuotaUsed(ctx, apiKeyID, cost)
-	if err != nil {
-		return fmt.Errorf("increment quota used: %w", err)
-	}
-
-	// Check if quota is now exhausted and update status if needed
-	apiKey, err := s.apiKeyRepo.GetByID(ctx, apiKeyID)
-	if err != nil {
-		return nil // Don't fail the request, just log
-	}
-
-	// If quota is set and now exhausted, update status
-	if apiKey.Quota > 0 && newQuotaUsed >= apiKey.Quota {
-		apiKey.Status = StatusAPIKeyQuotaExhausted
-		// 只写 status：这条位于计费热路径，若整行回写会把刚刚原子递增的
-		// quota_used 与限流用量按快照覆盖掉。
-		if err := s.apiKeyRepo.Update(ctx, apiKey, APIKeyUpdateFields{Status: true}); err != nil {
-			return nil // Don't fail the request
-		}
-		// Invalidate cache so next request sees the new status
-		s.InvalidateAuthCacheByKey(ctx, apiKey.Key)
-	}
-
-	return nil
+	return s.APIKeyService.UpdateQuotaUsed(KeyRequestContext(ctx), apiKeyID, cost)
 }
 
-// GetRateLimitData returns rate limit usage and window state for an API key.
+// GetRateLimitData 委托 Key 模块的唯一实现。
 func (s *APIKeyService) GetRateLimitData(ctx context.Context, id int64) (*APIKeyRateLimitData, error) {
-	return s.apiKeyRepo.GetRateLimitData(ctx, id)
+	return s.APIKeyService.GetRateLimitData(KeyRequestContext(ctx), id)
 }
 
-// UpdateRateLimitUsage atomically increments rate limit usage counters in the DB.
+// UpdateRateLimitUsage 委托 Key 模块的唯一实现。
 func (s *APIKeyService) UpdateRateLimitUsage(ctx context.Context, apiKeyID int64, cost float64) error {
-	if cost <= 0 {
-		return nil
-	}
-	return s.apiKeyRepo.IncrementRateLimitUsage(ctx, apiKeyID, cost)
+	return s.APIKeyService.UpdateRateLimitUsage(KeyRequestContext(ctx), apiKeyID, cost)
 }
 
-// Start 初始化唯一认证缓存并启动跨实例失效订阅。
-func (s *APIKeyService) Start() {
-	s.runtimeStart.Do(func() { s.initAuthCache(s.cfg); s.StartAuthCacheInvalidationSubscriber(context.Background()) })
-}
+// Start 委托 Key 模块的唯一实现。
+func (s *APIKeyService) Start() { s.APIKeyService.Start() }
 
-// Stop 在请求与后台消费者停止后释放认证缓存的内部任务。
-func (s *APIKeyService) Stop() {
-	s.runtimeStop.Do(func() {
-		s.StopAuthCacheInvalidationSubscriber()
-		if s.authCacheL1 != nil {
-			s.authCacheL1.Close()
-		}
-		if s.authNegativeCacheL1 != nil {
-			s.authNegativeCacheL1.Close()
-		}
-	})
-}
+// Stop 委托 Key 模块的唯一实现。
+func (s *APIKeyService) Stop() { s.APIKeyService.Stop() }

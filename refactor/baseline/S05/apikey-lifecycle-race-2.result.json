@@ -1,0 +1,25 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "./internal/apikey",
+    "-run",
+    "Authentication.*Stop|OutboxStop|AuthCache|LastUsed|Snapshot"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 6.411,
+  "log": "logs/apikey-lifecycle-race-2.log.gz",
+  "test_events": {
+    "pass": 21,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

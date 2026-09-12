@@ -1,0 +1,34 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/identity/...",
+    "./internal/handler",
+    "-run",
+    "OAuth|Login2FA|Pending|Logout"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 8.186,
+  "log": "logs/pending-http-unit.log.gz",
+  "test_events": {
+    "pass": 140,
+    "fail": 0,
+    "skip": 2
+  },
+  "failed_tests": [],
+  "skipped_tests": [
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/identity/postgres",
+      "test": "TestAuthPendingIdentityService_UpsertAdoptionDecision_ClearsLegacyNullSessionReference"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/handler",
+      "test": "TestDingTalkOAuthStart_Disabled"
+    }
+  ]
+}

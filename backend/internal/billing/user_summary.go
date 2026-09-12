@@ -2,6 +2,7 @@
 package billing
 
 import (
+	contact "github.com/TokenFlux/TokenRouter/internal/identity/contact"
 	time "time"
 )
 
@@ -30,9 +31,5 @@ type UserSummary struct {
 	DeletedAt                  *time.Time
 }
 
-// NotifyEmailSummary 保留权益展示中的通知邮箱值，不提供身份管理操作。
-type NotifyEmailSummary struct {
-	Email    string `json:"email"`
-	Disabled bool   `json:"disabled"`
-	Verified bool   `json:"verified"`
-}
+// NotifyEmailSummary 是身份联系邮箱的只读值投影。
+type NotifyEmailSummary = contact.Entry

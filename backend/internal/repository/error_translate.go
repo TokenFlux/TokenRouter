@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
@@ -87,6 +86,3 @@ func isPostgresDeadlock(err error) bool {
 func postgresSQLState(err error) string {
 	return postgresinfra.SQLState(err)
 }
-
-// isSQLNoRowsError 委托通用 SQL 错误识别，保留旧 upsert 语义。
-func isSQLNoRowsError(err error) bool { return postgresinfra.IsNoRows(err) }

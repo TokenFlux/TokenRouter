@@ -34,7 +34,7 @@ func TestTeamRepositoryPreviewInvitationReturnsVerifiedSummary(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
-	repo := &teamRepository{db: db}
+	repo := NewTeamRepository(db)
 	now := time.Date(2026, 7, 28, 1, 0, 0, 0, time.UTC)
 	expiresAt := now.Add(time.Hour)
 	mock.ExpectQuery("SELECT ti.id, ti.email, ti.status, ti.expires_at, t.name").
@@ -55,7 +55,7 @@ func TestTeamRepositoryPreviewInvitationRejectsDifferentEmail(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
-	repo := &teamRepository{db: db}
+	repo := NewTeamRepository(db)
 	now := time.Date(2026, 7, 28, 1, 0, 0, 0, time.UTC)
 	mock.ExpectQuery("SELECT ti.id, ti.email, ti.status, ti.expires_at, t.name").
 		WithArgs("token-hash").
@@ -72,7 +72,7 @@ func TestTeamRepositoryPreviewInvitationMarksExpiredInvitation(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
-	repo := &teamRepository{db: db}
+	repo := NewTeamRepository(db)
 	now := time.Date(2026, 7, 28, 1, 0, 0, 0, time.UTC)
 	mock.ExpectQuery("SELECT ti.id, ti.email, ti.status, ti.expires_at, t.name").
 		WithArgs("token-hash").

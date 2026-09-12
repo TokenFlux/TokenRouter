@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -114,7 +115,7 @@ func TestS04RedeemEffectsWaitForCommit(t *testing.T) {
 			subs := service.NewSubscriptionService(nil, NewUserSubscriptionRepository(client), nil, client, nil)
 			makeService := func(store billing.RedeemCodeRepository) *billing.RedeemService {
 				return billing.NewRedeemService(store, quotaUsersForContract{NewUserRepository(client, integrationDB)}, subs, nil, nil,
-					billingpostgres.NewRedeemMutations(client, billingpostgres.NewBalanceStore(client)), auth, nil, billing.RedeemRuntime{Now: time.Now})
+					billingpostgres.NewRedeemMutations(client, billingpostgres.RedeemWriters{Balances: billingpostgres.NewBalanceStore(client), Concurrency: identitypostgres.NewConcurrencyStore(client)}), auth, nil, billing.RedeemRuntime{Now: time.Now})
 			}
 			_, err = makeService(failedRedeemUsage{repo}).Redeem(ctx, user.ID, code.Code)
 			require.ErrorContains(t, err, "s04 usage audit failed")

@@ -1,0 +1,29 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "^TestS05(RegistrationInvitationUsesOuterTransaction|PendingFinalizeRollbackAndCompensation)$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 12.264,
+  "log": "logs/registration-invitation-integration.log.gz",
+  "test_events": {
+    "pass": 3,
+    "fail": 1,
+    "skip": 0
+  },
+  "failed_tests": [
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/repository",
+      "test": "TestS05RegistrationInvitationUsesOuterTransaction"
+    }
+  ],
+  "skipped_tests": []
+}

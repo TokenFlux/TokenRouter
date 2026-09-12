@@ -1,0 +1,63 @@
+// 本文件维护 provider 的所属能力；兼容入口复用唯一实现。
+package provider
+
+import (
+	context "context"
+	json "encoding/json"
+	fmt "fmt"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	http "net/http"
+	url "net/url"
+	strings "strings"
+	time "time"
+)
+
+const turnstileVerifyURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+type turnstileVerifier struct {
+	httpClient *http.Client
+	verifyURL  string
+}
+
+func NewTurnstileVerifier() identity.TurnstileVerifier {
+	sharedClient, err := httpclient.GetClient(httpclient.Options{
+		Timeout:            10 * time.Second,
+		ValidateResolvedIP: true,
+	})
+	if err != nil {
+		sharedClient = &http.Client{Timeout: 10 * time.Second}
+	}
+	return &turnstileVerifier{
+		httpClient: sharedClient,
+		verifyURL:  turnstileVerifyURL,
+	}
+}
+
+func (v *turnstileVerifier) VerifyToken(ctx context.Context, secretKey, token, remoteIP string) (*identity.TurnstileVerifyResponse, error) {
+	formData := url.Values{}
+	formData.Set("secret", secretKey)
+	formData.Set("response", token)
+	if remoteIP != "" {
+		formData.Set("remoteip", remoteIP)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, v.verifyURL, strings.NewReader(formData.Encode()))
+	if err != nil {
+		return nil, fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := v.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("send request: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var result identity.TurnstileVerifyResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+
+	return &result, nil
+}

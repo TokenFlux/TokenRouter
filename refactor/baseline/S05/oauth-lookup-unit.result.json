@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/identity/...",
+    "./internal/handler",
+    "-run",
+    "OAuth|GoogleOneTap"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 2.432,
+  "log": "logs/oauth-lookup-unit.log.gz"
+}

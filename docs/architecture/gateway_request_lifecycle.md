@@ -69,7 +69,10 @@
 - 上游成功后才增加相应 RPM 软计数并安排正常用量结算；本地拦截、内容拒绝和上游失败使用各自独立的审计/运维记录语义。
 - 响应别名恢复只改协议元数据字段，不能替换正文中恰好相同的字符串。
 
+<a id="apikey_authentication"></a>
 ## 认证与准入
+
+凭据提取和认证错误展示由 `apikey/httpapi` 承接，Key、用户、团队和 IP 校验进入 `apikey.Authenticate`，返回区分 owner/payer/actor/team 的 `AccessSnapshot`。旧网关中间件继续组合复合选组、模型改写与 billing 准入。认证缓存保持 v40、原 Redis key、TTL 和失效协议；来源与请求中的嵌套 map、slice、指针分别复制，复合选组不能污染共享快照，分组显式 Fast 策略也必须完整往返。
 
 通用 API Key 认证依次执行：
 

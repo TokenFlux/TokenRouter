@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 	tcredis "github.com/testcontainers/testcontainers-go/modules/redis"
@@ -205,6 +206,14 @@ func TestS02ProcessModes(t *testing.T) {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name))
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"))
 			}
+			// S05 认证资源在完整请求结束后退出；持久化延迟 outbox 不等同于全部排空。
+			for _, name := range []string{"APIKeyService", "AuthCacheInvalidationWorker"} {
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name))
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name))
+				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"))
+			}
+			require.Less(t, strings.Index(logs, "stopped HTTPRequests"), strings.Index(logs, "stopped APIKeyService"))
+			require.Less(t, strings.Index(logs, "stopped AuthCacheInvalidationWorker"), strings.Index(logs, "stopped APIKeyService"))
 			require.Less(t, strings.Index(logs, "stopped BillingCacheService"), strings.Index(logs, "stopped UserPlatformQuotaUsageFlusher"))
 			require.Less(t, strings.Index(logs, "stopped TimingWheelService"), strings.Index(logs, "stopped Redis"))
 			require.Less(t, strings.Index(logs, "stopped Redis"), strings.Index(logs, "stopped Ent"))
@@ -215,6 +224,42 @@ func TestS02ProcessModes(t *testing.T) {
 			}, 3*time.Second, 25*time.Millisecond)
 		})
 	}
+
+	// JWT 维护命令只初始化用户读取和签发能力，参数/输出与真实签名保持兼容。
+	t.Run("jwtgen-minimal", func(t *testing.T) {
+		tool := filepath.Join(t.TempDir(), "jwtgen")
+		build := exec.Command("go", "build", "-o", tool, "./cmd/jwtgen")
+		build.Dir = backendRoot
+		build.Env = append(os.Environ(), "GOTOOLCHAIN=go1.27.0")
+		data, e := build.CombinedOutput()
+		require.NoError(t, e, string(data))
+		var id int64
+		email := "s05-jwtgen@example.com"
+		require.NoError(t, fixture.db.QueryRow("INSERT INTO users(email,password_hash,role,status) VALUES($1,'fixture','admin','active') RETURNING id", email).Scan(&id))
+		defer func() { _, e := fixture.db.Exec("DELETE FROM users WHERE id=$1", id); require.NoError(t, e) }()
+		var secret string
+		require.NoError(t, fixture.db.QueryRow("SELECT value FROM security_secrets WHERE key='jwt_secret'").Scan(&secret))
+		for _, args := range [][]string{nil, {"-email", email}} {
+			dir, env := configFor(t, "standard", "s02_contracts", freeServerPort(t))
+			p := startTestProcess(t, tool, dir, env, args...)
+			require.NoError(t, p.wait(t, 30*time.Second))
+			output := p.output.text()
+			require.Contains(t, output, "ADMIN_EMAIL="+email)
+			require.Contains(t, output, fmt.Sprintf("ADMIN_USER_ID=%d", id))
+			require.NotContains(t, output, "[Lifecycle] started")
+			token := ""
+			for _, line := range strings.Split(output, "\n") {
+				if strings.HasPrefix(line, "JWT=") {
+					token = strings.TrimPrefix(line, "JWT=")
+				}
+			}
+			verifier := identity.NewSessionService(identity.SessionOptions{Secret: secret}, nil, nil, nil, nil)
+			claims, e := verifier.ValidateToken(token)
+			require.NoError(t, e)
+			require.Equal(t, id, claims.UserID)
+			require.Equal(t, "admin", claims.Role)
+		}
+	})
 
 	t.Run("bootstrap-failure-closes-connection", func(t *testing.T) {
 		var original string

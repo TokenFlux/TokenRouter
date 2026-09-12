@@ -1,0 +1,25 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "^TestS05(RefreshRotation|Pending)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 47.397,
+  "log": "logs/s05-session-pending-integration-race.log.gz",
+  "test_events": {
+    "pass": 6,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

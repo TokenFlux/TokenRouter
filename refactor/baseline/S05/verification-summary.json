@@ -1,0 +1,92 @@
+{
+  "required_results": [
+    "delivery-test-normal",
+    "delivery-test-unit",
+    "delivery-test-integration",
+    "delivery-auth-race",
+    "delivery-storage-race",
+    "delivery-test-embed",
+    "delivery-wire",
+    "delivery-wire-reproducible",
+    "delivery-build",
+    "final-test-frontend",
+    "final-build-frontend",
+    "delivery-build-embed",
+    "delivery-build-linux",
+    "delivery-build-jwtgen",
+    "delivery-build-cleanup"
+  ],
+  "tests": {
+    "normal": {
+      "pass": 11125,
+      "fail": 0,
+      "skip": 4
+    },
+    "unit": {
+      "pass": 19120,
+      "fail": 0,
+      "skip": 8
+    },
+    "integration": {
+      "pass": 11851,
+      "fail": 0,
+      "skip": 5
+    }
+  },
+  "lint": {
+    "normal": {
+      "baseline": 1,
+      "current": 1,
+      "new": 0,
+      "removed": 0
+    },
+    "unit": {
+      "baseline": 285,
+      "current": 285,
+      "new": 0,
+      "removed": 0
+    },
+    "integration": {
+      "baseline": 19,
+      "current": 19,
+      "new": 0,
+      "removed": 0
+    }
+  },
+  "contract_event_counts": {
+    "注册与绑定": {
+      "pass": 502,
+      "skip": 2
+    },
+    "会话安全": {
+      "pass": 2462,
+      "skip": 3
+    },
+    "外部认证": {
+      "pass": 818
+    },
+    "团队事务": {
+      "pass": 190
+    },
+    "用户与Key管理": {
+      "pass": 408
+    },
+    "网关兼容": {
+      "pass": 422,
+      "skip": 3
+    },
+    "资金衔接": {
+      "pass": 266
+    },
+    "缓存与生命周期": {
+      "pass": 1023
+    },
+    "HTTP与装配": {
+      "pass": 1703
+    },
+    "真实前端embed": {
+      "pass": 363
+    }
+  },
+  "note": "父测试和子测试分别记录实际事件；跳过不计通过；同一行为测试可支持多项契约。"
+}

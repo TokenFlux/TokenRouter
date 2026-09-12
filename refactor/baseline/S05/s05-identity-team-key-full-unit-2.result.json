@@ -1,0 +1,45 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/identity/...",
+    "./internal/apikey/...",
+    "./internal/team/...",
+    "./internal/service",
+    "./internal/handler/...",
+    "./internal/server/middleware",
+    "./internal/app/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 178.556,
+  "log": "logs/s05-identity-team-key-full-unit-2.log.gz",
+  "test_events": {
+    "pass": 15500,
+    "fail": 0,
+    "skip": 4
+  },
+  "failed_tests": [],
+  "skipped_tests": [
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/identity/postgres",
+      "test": "TestAuthPendingIdentityService_UpsertAdoptionDecision_ClearsLegacyNullSessionReference"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/handler",
+      "test": "TestDingTalkOAuthStart_Disabled"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI"
+    },
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/service",
+      "test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+    }
+  ]
+}

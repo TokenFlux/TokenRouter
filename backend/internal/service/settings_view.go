@@ -1,5 +1,7 @@
 package service
 
+import identity "github.com/TokenFlux/TokenRouter/internal/identity"
+
 import protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
 
 import "strings"
@@ -332,9 +334,7 @@ type SystemSettings struct {
 	AllowUserViewErrorRequests bool
 }
 
-type DefaultSubscriptionSetting struct {
-	PlanID int64 `json:"plan_id"`
-}
+type DefaultSubscriptionSetting = identity.DefaultSubscriptionSetting
 
 type PublicSettings struct {
 	RegistrationEnabled                 bool

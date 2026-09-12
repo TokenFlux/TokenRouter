@@ -1222,3 +1222,20 @@ func cloneEmailBindUser(user *service.User) *service.User {
 	cloned := *user
 	return &cloned
 }
+
+// ConsumeRefreshToken 在同一互斥内完成存在性判断与删除，保持测试中的一次性轮换。
+func (s *emailBindRefreshTokenCacheStub) ConsumeRefreshToken(_ context.Context, key string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.tokens[key]; !ok {
+		return false, nil
+	}
+	delete(s.tokens, key)
+	for _, set := range s.userSets {
+		delete(set, key)
+	}
+	for _, set := range s.families {
+		delete(set, key)
+	}
+	return true, nil
+}

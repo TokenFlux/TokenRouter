@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-run",
+    "^TestS05ExportV40Fixture$",
+    "./internal/service"
+  ],
+  "cwd": "/tmp/tokenrouter-s05-original/backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "log": "logs/original-v40-fixture.log.gz",
+  "head": "ed5380db2fa48f173746315679d6a2238208cb7a",
+  "probe_sha256": "a6e9a8d43e79b9f7a080b71271be37d06995c661f49f1cecf97578071daeafab"
+}

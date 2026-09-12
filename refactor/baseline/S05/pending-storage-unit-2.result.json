@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-tags=unit",
+    "./internal/identity/...",
+    "./internal/handler",
+    "-run",
+    "Test(Pending|Auth|OAuth|WeChat|OIDC|LinuxDo|DingTalk)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 5.733,
+  "log": "logs/pending-storage-unit-2.log.gz"
+}

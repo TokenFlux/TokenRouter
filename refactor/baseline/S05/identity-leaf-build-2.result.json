@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "./internal/identity/...",
+    "./internal/apikey/...",
+    "./internal/routing/modelmap/...",
+    "./internal/service",
+    "./internal/repository",
+    "-run",
+    "^$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.617,
+  "log": "logs/identity-leaf-build-2.log.gz"
+}

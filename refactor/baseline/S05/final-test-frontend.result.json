@@ -1,0 +1,13 @@
+{
+  "command": [
+    "make",
+    "-C",
+    "..",
+    "test-frontend"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 30.155,
+  "log": "logs/final-test-frontend.log.gz"
+}

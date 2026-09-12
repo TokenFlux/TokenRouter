@@ -173,37 +173,3 @@ func scanBalanceChange(ctx context.Context, client *dbent.Client, query string, 
 	}
 	return change, true, rows.Err()
 }
-
-func (r *BalanceStore) UpdateConcurrency(ctx context.Context, id int64, amount int) error {
-	client := clientFromContext(ctx, r.client)
-	n, err := client.User.Update().Where(dbuser.IDEQ(id)).AddConcurrency(amount).Save(ctx)
-	if err != nil {
-		return translatePersistenceError(err, billing.ErrUserNotFound, nil)
-	}
-	if n == 0 {
-		return billing.ErrUserNotFound
-	}
-	return nil
-}
-
-// ApplyRedeemConcurrencyAdjustment 原子应用兑换码并发增量，并确保并发数不低于 0。
-func (r *BalanceStore) ApplyRedeemConcurrencyAdjustment(ctx context.Context, id int64, delta int) error {
-	const updateSQL = `
-		UPDATE users
-		SET concurrency = GREATEST(concurrency + $1, 0), updated_at = NOW()
-		WHERE id = $2 AND deleted_at IS NULL
-	`
-	client := clientFromContext(ctx, r.client)
-	result, err := client.ExecContext(ctx, updateSQL, delta, id)
-	if err != nil {
-		return err
-	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return billing.ErrUserNotFound
-	}
-	return nil
-}

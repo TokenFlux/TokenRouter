@@ -1,0 +1,29 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "^Test(S05|Team|AuthCacheInvalidationTriggers|UserDelete)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 13.768,
+  "log": "logs/s05-real-auth-contracts.log.gz",
+  "test_events": {
+    "pass": 27,
+    "fail": 1,
+    "skip": 0
+  },
+  "failed_tests": [
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/repository",
+      "test": "TestS05PasskeySDKCeremony"
+    }
+  ],
+  "skipped_tests": []
+}

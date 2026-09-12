@@ -19,8 +19,12 @@ func SubscriptionsInTx(tx *dbent.Tx, groups billing.SubscriptionGroupReader, clo
 
 // RedeemInTx 只提供兑换资金/并发数增量参与能力，兑换闭合用例仍由 RedeemService 持有。
 // 用于旧外层事务的精确适配，不允许通过本入口独立提交权益。
-func RedeemInTx(tx *dbent.Tx) *RedeemParticipant {
-	return &RedeemParticipant{tx: tx, mutations: NewRedeemMutations(tx.Client(), BalanceInTx(tx))}
+func RedeemInTx(tx *dbent.Tx, concurrency ...RedeemConcurrencyWriter) *RedeemParticipant {
+	var writer RedeemConcurrencyWriter
+	if len(concurrency) > 0 {
+		writer = concurrency[0]
+	}
+	return &RedeemParticipant{tx: tx, mutations: NewRedeemMutations(tx.Client(), RedeemWriters{Balances: BalanceInTx(tx), Concurrency: writer})}
 }
 
 type RedeemParticipant struct {

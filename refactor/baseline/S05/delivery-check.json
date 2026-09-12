@@ -1,0 +1,12 @@
+{
+  "head_unchanged": true,
+  "index_unchanged": true,
+  "plan_original_unchanged": true,
+  "wire_reproducible": true,
+  "fixture_uses_final_config": true,
+  "ownership_unresolved": 0,
+  "delivery_links_checked": 79,
+  "delivery_links_valid": true,
+  "tracked_diff_check_passed": true,
+  "commit_created": false
+}

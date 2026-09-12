@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "./internal/apikey/...",
+    "./internal/service",
+    "./internal/repository",
+    "./internal/handler/...",
+    "./internal/app",
+    "-run",
+    "^$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 14.616,
+  "log": "logs/apikey-stores-build-2.log.gz"
+}

@@ -1,0 +1,30 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/identity/...",
+    "./internal/handler",
+    "-run",
+    "OAuth|Bind|GoogleOneTap"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 6.629,
+  "log": "logs/oauth-binding-http-unit-2.log.gz",
+  "test_events": {
+    "pass": 154,
+    "fail": 0,
+    "skip": 1
+  },
+  "failed_tests": [],
+  "skipped_tests": [
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/handler",
+      "test": "TestDingTalkOAuthStart_Disabled"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--enable-only=depguard",
+    "--timeout=10m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "./..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 2.025,
+  "log": "logs/s05-depguard-audit-7.log.gz"
+}

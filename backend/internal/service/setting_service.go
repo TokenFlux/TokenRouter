@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"log/slog"
 	"maps"
@@ -169,7 +170,7 @@ func (s *SettingService) ResolveGrokBaseURL(ctx context.Context, account *Accoun
 }
 
 var (
-	ErrRegistrationDisabled  = infraerrors.Forbidden("REGISTRATION_DISABLED", "registration is currently disabled")
+	ErrRegistrationDisabled  = identity.ErrRegDisabled
 	ErrSettingNotFound       = settings.ErrSettingNotFound
 	ErrDefaultSubPlanInvalid = infraerrors.BadRequest(
 		"DEFAULT_SUBSCRIPTION_PLAN_INVALID",
@@ -221,32 +222,11 @@ type SettingService struct {
 
 }
 
-// DefaultPlatformQuotaSetting 单 platform 三档限额（nil = 沿用上层；0 = 显式禁用；>0 = 上限）
-type DefaultPlatformQuotaSetting struct {
-	DailyLimitUSD   *float64 `json:"daily"`
-	WeeklyLimitUSD  *float64 `json:"weekly"`
-	MonthlyLimitUSD *float64 `json:"monthly"`
-}
+type DefaultPlatformQuotaSetting = identity.DefaultPlatformQuotaSetting
 
-type ProviderDefaultGrantSettings struct {
-	Balance          float64
-	Concurrency      int
-	Subscriptions    []DefaultSubscriptionSetting
-	GrantOnSignup    bool
-	GrantOnFirstBind bool
-	PlatformQuotas   map[string]*DefaultPlatformQuotaSetting // key = platform name
-}
+type ProviderDefaultGrantSettings = identity.ProviderDefaultGrantSettings
 
-type AuthSourceDefaultSettings struct {
-	Email                        ProviderDefaultGrantSettings
-	LinuxDo                      ProviderDefaultGrantSettings
-	OIDC                         ProviderDefaultGrantSettings
-	WeChat                       ProviderDefaultGrantSettings
-	GitHub                       ProviderDefaultGrantSettings
-	Google                       ProviderDefaultGrantSettings
-	DingTalk                     ProviderDefaultGrantSettings
-	ForceEmailOnThirdPartySignup bool
-}
+type AuthSourceDefaultSettings = identity.AuthSourceDefaultSettings
 
 type authSourceDefaultKeySet struct {
 	// source 是 auth source 标识（如 "email"、"github"），仅用于 parse 时

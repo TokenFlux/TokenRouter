@@ -1179,7 +1179,7 @@ git diff --check
 
 ## 9. Roadmap
 
-当前 **5 / 17 个阶段完成**。下一步：编写 S05 子计划，迁移身份、团队与 API Key。
+当前 **6 / 17 个阶段完成**。S05 已完成；下一步编写 S06 子计划。
 
 状态使用：未实施、规划中、计划就绪、实施中、待验、已完成。详细决策、执行记录和完成证据保存在子计划；文件创建后再补链接，必要验收通过后才更新为已完成。
 
@@ -1190,7 +1190,7 @@ git diff --check
 | S02 | app、生命周期与公告试点 | 已完成 | [阶段计划与执行记录](S02-app-lifecycle.md) |
 | S03 | 协议、能力与纯定价 | 已完成 | [S03 子计划](S03-protocol-capability-pricing.md) |
 | S04 | billing 与资金事务 | 已完成 | [S04 子计划](S04-billing-transactions.md) |
-| S05 | identity、team、apikey | 未实施 | — |
+| S05 | identity、team、apikey | 已完成 | [阶段计划与完成证据](S05-identity-team-apikey.md) |
 | S06 | egress、routing、account | 未实施 | — |
 | S07 | scheduler 与 Lease | 未实施 | — |
 | S08 | usage、audit、ops | 未实施 | — |

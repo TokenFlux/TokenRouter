@@ -1,0 +1,31 @@
+{
+  "command": [
+    "go",
+    "-C",
+    "/tmp/tokenrouter-s05-original/backend",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "^TestS05PendingTransactionConsumesOnce$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 9.279,
+  "log": "logs/original-pending-consume-regression.log.gz",
+  "test_events": {
+    "pass": 0,
+    "fail": 1,
+    "skip": 0
+  },
+  "failed_tests": [
+    {
+      "package": "github.com/TokenFlux/TokenRouter/internal/repository",
+      "test": "TestS05PendingTransactionConsumesOnce"
+    }
+  ],
+  "skipped_tests": []
+}

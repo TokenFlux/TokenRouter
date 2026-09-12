@@ -1,0 +1,229 @@
+// 本文件维护 httpapi 的所属能力；兼容入口复用唯一实现。
+package httpapi
+
+import (
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+	gin "github.com/gin-gonic/gin"
+)
+
+// TotpHandler handles TOTP-related requests
+type TotpHandler struct {
+	totpService *identity.TotpService
+}
+
+// NewTotpHandler creates a new TotpHandler
+func NewTotpHandler(totpService *identity.TotpService) *TotpHandler {
+	return &TotpHandler{
+		totpService: totpService,
+	}
+}
+
+// TotpStatusResponse represents the TOTP status response
+type TotpStatusResponse struct {
+	Enabled        bool   `json:"enabled"`
+	EnabledAt      *int64 `json:"enabled_at,omitempty"` // Unix timestamp
+	FeatureEnabled bool   `json:"feature_enabled"`
+}
+
+// GetStatus returns the TOTP status for the current user
+// GET /api/v1/user/totp/status
+func (h *TotpHandler) GetStatus(c *gin.Context) {
+	subject, ok := GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	status, err := h.totpService.GetStatus(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	resp := TotpStatusResponse{
+		Enabled:        status.Enabled,
+		FeatureEnabled: status.FeatureEnabled,
+	}
+
+	if status.EnabledAt != nil {
+		ts := status.EnabledAt.Unix()
+		resp.EnabledAt = &ts
+	}
+
+	response.Success(c, resp)
+}
+
+// TotpSetupRequest represents the request to initiate TOTP setup
+type TotpSetupRequest struct {
+	EmailCode string `json:"email_code"`
+	Password  string `json:"password"`
+}
+
+// TotpSetupResponse represents the TOTP setup response
+type TotpSetupResponse struct {
+	Secret     string `json:"secret"`
+	QRCodeURL  string `json:"qr_code_url"`
+	SetupToken string `json:"setup_token"`
+	Countdown  int    `json:"countdown"`
+}
+
+// InitiateSetup starts the TOTP setup process
+// POST /api/v1/user/totp/setup
+func (h *TotpHandler) InitiateSetup(c *gin.Context) {
+	subject, ok := GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	var req TotpSetupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		// Allow empty body (optional params)
+		req = TotpSetupRequest{}
+	}
+
+	result, err := h.totpService.InitiateSetup(c.Request.Context(), subject.UserID, req.EmailCode, req.Password)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, TotpSetupResponse{
+		Secret:     result.Secret,
+		QRCodeURL:  result.QRCodeURL,
+		SetupToken: result.SetupToken,
+		Countdown:  result.Countdown,
+	})
+}
+
+// TotpEnableRequest represents the request to enable TOTP
+type TotpEnableRequest struct {
+	TotpCode   string `json:"totp_code" binding:"required,len=6"`
+	SetupToken string `json:"setup_token" binding:"required"`
+}
+
+// Enable completes the TOTP setup
+// POST /api/v1/user/totp/enable
+func (h *TotpHandler) Enable(c *gin.Context) {
+	subject, ok := GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	var req TotpEnableRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	if err := h.totpService.CompleteSetup(c.Request.Context(), subject.UserID, req.TotpCode, req.SetupToken); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, gin.H{"success": true})
+}
+
+// TotpDisableRequest represents the request to disable TOTP
+type TotpDisableRequest struct {
+	EmailCode string `json:"email_code"`
+	Password  string `json:"password"`
+}
+
+// Disable disables TOTP for the current user
+// POST /api/v1/user/totp/disable
+func (h *TotpHandler) Disable(c *gin.Context) {
+	subject, ok := GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	var req TotpDisableRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request: "+err.Error())
+		return
+	}
+
+	if err := h.totpService.Disable(c.Request.Context(), subject.UserID, req.EmailCode, req.Password); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, gin.H{"success": true})
+}
+
+// GetVerificationMethod 返回当前用户执行 TOTP 操作时所需的身份校验方式。
+// GET /api/v1/user/totp/verification-method
+func (h *TotpHandler) GetVerificationMethod(c *gin.Context) {
+	subject, ok := GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	method, err := h.totpService.GetVerificationMethod(c.Request.Context(), subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, method)
+}
+
+// SendVerifyCode sends an email verification code for TOTP operations
+// POST /api/v1/user/totp/send-code
+func (h *TotpHandler) SendVerifyCode(c *gin.Context) {
+	subject, ok := GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	if err := h.totpService.SendVerifyCode(c.Request.Context(), subject.UserID, c.GetHeader("Accept-Language")); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, gin.H{"success": true})
+}
+
+// TotpStepUpRequest 表示敏感操作二次验证请求。
+type TotpStepUpRequest struct {
+	Code string `json:"code" binding:"required"`
+}
+
+// TotpStepUpResponse 表示敏感操作二次验证响应。
+type TotpStepUpResponse struct {
+	Verified  bool  `json:"verified"`
+	ExpiresIn int64 `json:"expires_in"` // 授权剩余有效期（秒）
+}
+
+// StepUp 敏感操作二次验证：校验 TOTP 码并为当前会话授予一段时间的 step-up 权限。
+// POST /api/v1/user/totp/step-up
+func (h *TotpHandler) StepUp(c *gin.Context) {
+	subject, ok := GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+
+	var req TotpStepUpRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "TOTP code is required")
+		return
+	}
+
+	sessionKey := StepUpSessionKey(c, subject.UserID)
+	ttl, err := h.totpService.VerifyStepUp(c.Request.Context(), subject.UserID, sessionKey, req.Code)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	response.Success(c, TotpStepUpResponse{
+		Verified:  true,
+		ExpiresIn: int64(ttl.Seconds()),
+	})
+}

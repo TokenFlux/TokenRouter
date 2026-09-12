@@ -37,7 +37,7 @@ func (s *updateFieldsAPIKeyRepoStub) Update(_ context.Context, _ *APIKey, fields
 
 func newUpdateFieldsAPIKeyService(key *APIKey) (*APIKeyService, *updateFieldsAPIKeyRepoStub) {
 	repo := &updateFieldsAPIKeyRepoStub{key: key}
-	return &APIKeyService{apiKeyRepo: repo}, repo
+	return newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo}), repo
 }
 
 func TestAPIKeyUpdate_OnlyDeclaresRequestedColumns(t *testing.T) {
@@ -157,7 +157,7 @@ func TestUpdateQuotaUsed_ExhaustedMarkOnlyDeclaresStatus(t *testing.T) {
 	repo := &updateFieldsAPIKeyRepoStub{key: &APIKey{
 		ID: 1, UserID: 7, Key: "sk-test", Status: StatusActive, Quota: 10, QuotaUsed: 10,
 	}}
-	svc := &APIKeyService{apiKeyRepo: repo}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo})
 
 	require.NoError(t, svc.UpdateQuotaUsed(context.Background(), 1, 5))
 	require.Equal(t, []APIKeyUpdateFields{{Status: true}}, repo.updateFields)

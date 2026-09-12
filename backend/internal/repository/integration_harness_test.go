@@ -345,7 +345,8 @@ func (h prefixHook) prefixCmd(cmd redisclient.Cmder) {
 	}
 
 	switch strings.ToLower(cmd.Name()) {
-	case "get", "set", "setnx", "setex", "psetex", "incr", "decr", "incrby", "expire", "pexpire", "ttl", "pttl",
+	// GETDEL 与 SET 必须使用相同测试命名空间，才能验证真实的一次性会话消费。
+	case "get", "getdel", "set", "setnx", "setex", "psetex", "incr", "decr", "incrby", "expire", "pexpire", "ttl", "pttl",
 		"hgetall", "hget", "hset", "hdel", "hincrbyfloat", "exists",
 		"zadd", "zcard", "zrange", "zrangebyscore", "zrem", "zremrangebyscore", "zrevrange", "zrevrangebyscore", "zscore":
 		prefixOne(1)

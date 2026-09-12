@@ -3,6 +3,7 @@ package service
 import (
 	"errors"
 	"fmt"
+	accessview "github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 	"strings"
 	"time"
 
@@ -16,8 +17,7 @@ type GroupAvailabilityProbeConfig = domain.GroupAvailabilityProbeConfig
 type ReasoningEffortMapping = domain.ReasoningEffortMapping
 type GroupAdvancedSchedulerOverrides = domain.GroupAdvancedSchedulerOverrides
 
-// GroupSchedulerType 表示分组使用的账号调度器类型。
-type GroupSchedulerType string
+type GroupSchedulerType = accessview.GroupSchedulerType
 
 const (
 	// GroupSchedulerTypeBasic 保持当前默认调度路径。

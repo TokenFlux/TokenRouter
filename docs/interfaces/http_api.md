@@ -38,6 +38,8 @@ RequestLogger
 
 订阅、兑换、平台额度和套餐的用户/管理员 handler 与 DTO 位于 `billing/httpapi`，原路由汇总直接绑定这些实例。URL、认证/幂等中间件顺序、reason、CSV 和分页排序保持原契约；额度 HTTP 不直接读取仓储，用户存在性由用例的只读端口处理。管理员套餐保留原 Ent 的字段省略及 `edges` 形状，公开套餐使用独立投影。
 
+用户资料、会话、七类身份、强认证与用户管理 HTTP 位于 `identity/httpapi`，团队位于 `team/httpapi`，Key 生命周期和凭据入口位于 `apikey/httpapi`。app 组合同一组身份处理器供原路由调用；微信支付 OAuth 单独接入原路径。HTTP 适配保留历史 DTO 形状与凭据差异，安全 `Principal` 和 Key 的 `AccessSnapshot` 分别表达身份与付款/成员上下文；旧 context 读取入口只作兼容投影。
+
 | 路由族 | 认证 | 主要所有者与用途 |
 | --- | --- | --- |
 | `/health`、`/setup/status` | 无 | `routes/common.go`；进程健康与正常模式 setup 状态 |

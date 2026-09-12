@@ -11,14 +11,6 @@ import (
 	"time"
 )
 
-// BillingUsers 将旧身份读取投影为权益信息，S05 退出。
-type BillingUsers struct{ Repository service.UserRepository }
-
-func (b BillingUsers) GetByID(ctx context.Context, id int64) (*billing.UserSummary, error) {
-	u, err := b.Repository.GetByID(ctx, id)
-	return service.BillingUserSummary(u), err
-}
-
 // BillingGroups 只读取套餐展示所需名称，S06 退出。
 type BillingGroups struct{ Repository service.GroupRepository }
 

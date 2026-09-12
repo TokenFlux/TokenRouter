@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-tags=unit",
+    "./internal/team/...",
+    "./internal/service",
+    "./internal/repository",
+    "./internal/handler/...",
+    "-run",
+    "TestTeam|TestCheckTeam|TestTransferTeam"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 5.693,
+  "log": "logs/team-tests.log.gz"
+}

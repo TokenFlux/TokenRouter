@@ -1,0 +1,27 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/apikey/...",
+    "./internal/service",
+    "./internal/server/middleware",
+    "./internal/handler",
+    "-run",
+    "APIKey|AuthCache|TouchLastUsed|OpenAIResponsesWebSocketV2Passthrough"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 23.88,
+  "log": "logs/apikey-after-lifecycle-unit.log.gz",
+  "test_events": {
+    "pass": 579,
+    "fail": 0,
+    "skip": 0
+  },
+  "failed_tests": [],
+  "skipped_tests": []
+}

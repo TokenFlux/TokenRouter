@@ -80,7 +80,7 @@ func TestValidateUpdateAPIKeyRequestNumericLimits(t *testing.T) {
 func TestAPIKeyServiceRejectsInvalidLimitsBeforeRepositoryAccess(t *testing.T) {
 	t.Parallel()
 
-	service := &APIKeyService{}
+	service := newAPIKeyTestService(apiKeyTestDependencies{})
 	_, createErr := service.Create(nil, 1, CreateAPIKeyRequest{Quota: -1})
 	require.ErrorIs(t, createErr, ErrAPIKeyLimitInvalid)
 

@@ -231,12 +231,12 @@ func TestAdminAPIKeyHandler_UpdateGroup_NegativeGroupID(t *testing.T) {
 	require.Contains(t, rec.Body.String(), "INVALID_GROUP_ID")
 }
 
-// failingUpdateGroupService overrides AdminUpdateAPIKeyGroupID to return an error.
+// failingUpdateGroupService 在唯一管理入口注入原有服务错误。
 type failingUpdateGroupService struct {
 	*stubAdminService
 	err error
 }
 
-func (f *failingUpdateGroupService) AdminUpdateAPIKeyGroupID(_ context.Context, _ int64, _ *int64) (*service.AdminUpdateAPIKeyGroupIDResult, error) {
+func (f *failingUpdateGroupService) AdminUpdateAPIKeyFields(_ context.Context, _ int64, _ *int64, _ bool) (*service.AdminUpdateAPIKeyGroupIDResult, error) {
 	return nil, f.err
 }

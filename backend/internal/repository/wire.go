@@ -69,10 +69,6 @@ func ProvideCreativeManagedKeyRepository(client *ent.Client, sqlDB *sql.DB) serv
 
 // ProviderSet is the Wire provider set for all repositories
 var ProviderSet = wire.NewSet(
-	NewUserRepository,
-	NewTeamRepository,
-	NewTeamInvitationLimiter,
-	ProvideAPIKeyRepository,
 	NewGroupRepository,
 	NewGroupAvailabilityProbeRepository,
 	NewAdminGroupRepository,
@@ -96,11 +92,7 @@ var ProviderSet = wire.NewSet(
 	NewSettingRepository,
 	NewOpsRepository,
 	NewAuditLogRepository,
-	NewPasskeyRepository,
-	NewPasskeySessionStore,
 	NewUserSubscriptionRepository,
-	NewUserAttributeDefinitionRepository,
-	NewUserAttributeValueRepository,
 	NewUserGroupRateRepository,
 	NewErrorPassthroughRepository,
 	NewTLSFingerprintProfileRepository,
@@ -113,7 +105,6 @@ var ProviderSet = wire.NewSet(
 	// Cache implementations
 	NewGatewayCache,
 	NewBillingCache,
-	NewAPIKeyCache,
 	NewTempUnschedCache,
 	NewTimeoutCounterCache,
 	NewOpenAI403CounterCache,
@@ -134,10 +125,7 @@ var ProviderSet = wire.NewSet(
 	NewLeaderLockCache,
 	ProvideSchedulerCache,
 	NewSchedulerOutboxRepository,
-	NewAuthCacheInvalidationOutboxRepository,
 	NewProxyLatencyCache,
-	NewTotpCache,
-	NewRefreshTokenCache,
 	NewErrorPassthroughCache,
 	NewTLSFingerprintProfileCache,
 	NewTLSFingerprintRouterCache,
@@ -150,9 +138,6 @@ var ProviderSet = wire.NewSet(
 	NewS3BackupStoreFactory,
 
 	// HTTP service ports (DI Strategy A: return interface directly)
-	NewTurnstileVerifier,
-	NewTencentCaptchaVerifier,
-	NewAliyunCaptchaVerifier,
 	ProvidePricingRemoteClient,
 	ProvideGitHubReleaseClient,
 	NewProxyExitInfoProber,

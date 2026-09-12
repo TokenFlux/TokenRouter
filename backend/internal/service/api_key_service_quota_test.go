@@ -163,10 +163,10 @@ func TestAPIKeyService_UpdateQuotaUsed_UsesAtomicStatePath(t *testing.T) {
 		},
 	}
 	cache := &quotaStateCacheStub{}
-	svc := &APIKeyService{
+	svc := newAPIKeyTestService(apiKeyTestDependencies{
 		apiKeyRepo: repo,
 		cache:      cache,
-	}
+	})
 
 	err := svc.UpdateQuotaUsed(context.Background(), 101, 2)
 	require.NoError(t, err)
@@ -186,7 +186,7 @@ func TestAPIKeyService_Update_ReactivatesQuotaExhaustedWhenQuotaUnlimited(t *tes
 			QuotaUsed: 12,
 		},
 	}
-	svc := &APIKeyService{apiKeyRepo: repo}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{apiKeyRepo: repo})
 	quota := 0.0
 
 	updated, err := svc.Update(context.Background(), 10, 7, UpdateAPIKeyRequest{Quota: &quota})

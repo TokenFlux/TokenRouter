@@ -19,7 +19,7 @@ func TestAPIKeyAuthSnapshotGroupForceOpenAIFastRoundtrip(t *testing.T) {
 			Hydrated: true, ForceOpenAIFast: true, FreeOpenAIFast: true,
 		},
 	}
-	svc := &APIKeyService{}
+	svc := newAPIKeyTestService(apiKeyTestDependencies{})
 
 	payload, err := json.Marshal(&APIKeyAuthCacheEntry{Snapshot: svc.snapshotFromAPIKey(context.Background(), apiKey)})
 	require.NoError(t, err)
@@ -40,7 +40,7 @@ func TestAPIKeyAuthSnapshotGroupForceOpenAIFastRoundtrip(t *testing.T) {
 func TestAuthSnapshotGroupOpenAIFastPolicy(t *testing.T) {
 	for _, policy := range []string{"force_ultrafast", "force_off"} {
 		key := &APIKey{ID: 1, UserID: 2, Status: StatusActive, User: &User{ID: 2, Status: StatusActive}, Group: &Group{ID: 3, Platform: PlatformOpenAI, Status: StatusActive, Hydrated: true, OpenAIFastPolicy: policy}}
-		svc := &APIKeyService{}
+		svc := newAPIKeyTestService(apiKeyTestDependencies{})
 		payload, err := json.Marshal(&APIKeyAuthCacheEntry{Snapshot: svc.snapshotFromAPIKey(context.Background(), key)})
 		require.NoError(t, err)
 		var entry APIKeyAuthCacheEntry

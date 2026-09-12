@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-tags=unit",
+    "./internal/identity/httpapi/...",
+    "./internal/handler/admin",
+    "./internal/handler/dto",
+    "./internal/server/middleware",
+    "-run",
+    "Test(Admin|User|Auth|StepUp|Redeem|DTO)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 9.698,
+  "log": "logs/identity-admin-http-unit.log.gz"
+}

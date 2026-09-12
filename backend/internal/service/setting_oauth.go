@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -34,14 +35,7 @@ func coerceDeprecatedDingTalkCorpPolicy(policy string) string {
 }
 
 func normalizeWeChatConnectModeSetting(raw string) string {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "mp":
-		return "mp"
-	case "mobile":
-		return "mobile"
-	default:
-		return "open"
-	}
+	return identity.NormalizeWeChatConnectModeSetting(raw)
 }
 
 func defaultWeChatConnectScopeForMode(mode string) string {
@@ -73,31 +67,7 @@ func normalizeWeChatConnectScopeSetting(raw, mode string) string {
 }
 
 func parseWeChatConnectCapabilitySettings(settings map[string]string, enabled bool, mode string) (bool, bool, bool) {
-	mode = normalizeWeChatConnectModeSetting(mode)
-	rawOpen, hasOpen := settings[SettingKeyWeChatConnectOpenEnabled]
-	rawMP, hasMP := settings[SettingKeyWeChatConnectMPEnabled]
-	rawMobile, hasMobile := settings[SettingKeyWeChatConnectMobileEnabled]
-	openConfigured := hasOpen && strings.TrimSpace(rawOpen) != ""
-	mpConfigured := hasMP && strings.TrimSpace(rawMP) != ""
-	mobileConfigured := hasMobile && strings.TrimSpace(rawMobile) != ""
-
-	if openConfigured || mpConfigured || mobileConfigured {
-		openEnabled := strings.TrimSpace(rawOpen) == "true"
-		mpEnabled := strings.TrimSpace(rawMP) == "true"
-		mobileEnabled := strings.TrimSpace(rawMobile) == "true"
-		return openEnabled, mpEnabled, mobileEnabled
-	}
-
-	if !enabled {
-		return false, false, false
-	}
-	if mode == "mp" {
-		return false, true, false
-	}
-	if mode == "mobile" {
-		return false, false, true
-	}
-	return true, false, false
+	return identity.ParseWeChatConnectCapabilitySettings(settings, enabled, mode)
 }
 
 func normalizeWeChatConnectStoredMode(openEnabled, mpEnabled, mobileEnabled bool, mode string) string {

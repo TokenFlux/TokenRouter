@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "TestUserRepository|TestUserProfile|TestAuthIdentity|UserRepositorySuite|UserProfileIdentityRepository"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 11.785,
+  "log": "logs/identity-user-store-integration.log.gz"
+}

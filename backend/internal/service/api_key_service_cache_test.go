@@ -995,47 +995,6 @@ func TestAPIKeyService_GetByKey_CacheMissStoresL2(t *testing.T) {
 	require.Len(t, cache.setAuthKeys, 1)
 }
 
-func TestAPIKeyService_GetByKey_UsesL1Cache(t *testing.T) {
-	var calls int32
-	cache := &authCacheStub{}
-	repo := &authRepoStub{
-		getByKeyForAuth: func(ctx context.Context, key string) (*APIKey, error) {
-			atomic.AddInt32(&calls, 1)
-			return &APIKey{
-				ID:     21,
-				UserID: 3,
-				Status: StatusActive,
-				User: &User{
-					ID:          3,
-					Status:      StatusActive,
-					Role:        RoleUser,
-					Balance:     5,
-					Concurrency: 2,
-				},
-			}, nil
-		},
-	}
-	cfg := &config.Config{
-		APIKeyAuth: config.APIKeyAuthCacheConfig{
-			L1Size:       1000,
-			L1TTLSeconds: 60,
-		},
-	}
-	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
-	svc.Start()
-	require.NotNil(t, svc.authCacheL1)
-
-	_, err := svc.GetByKey(context.Background(), "k-l1")
-	require.NoError(t, err)
-	svc.authCacheL1.Wait()
-	cacheKey := svc.authCacheKey("k-l1")
-	_, ok := svc.authCacheL1.Get(cacheKey)
-	require.True(t, ok)
-	_, err = svc.GetByKey(context.Background(), "k-l1")
-	require.NoError(t, err)
-	require.Equal(t, int32(1), atomic.LoadInt32(&calls))
-}
-
 func TestAPIKeyService_InvalidateAuthCacheByUserID(t *testing.T) {
 	cache := &authCacheStub{}
 	repo := &authRepoStub{
@@ -1092,38 +1051,6 @@ func TestAPIKeyService_InvalidateAuthCacheByKey(t *testing.T) {
 
 	svc.InvalidateAuthCacheByKey(context.Background(), "k1")
 	require.Len(t, cache.deleteAuthKeys, 1)
-}
-
-func TestAPIKeyService_GetByKey_CachesNegativeOnRepoMiss(t *testing.T) {
-	var repoCalls atomic.Int32
-	cache := &authCacheStub{}
-	repo := &authRepoStub{
-		getByKeyForAuth: func(ctx context.Context, key string) (*APIKey, error) {
-			repoCalls.Add(1)
-			return nil, ErrAPIKeyNotFound
-		},
-	}
-	cfg := &config.Config{
-		APIKeyAuth: config.APIKeyAuthCacheConfig{
-			L1Size:             100,
-			L1TTLSeconds:       60,
-			L2TTLSeconds:       60,
-			NegativeTTLSeconds: 30,
-		},
-	}
-	svc := NewAPIKeyService(repo, nil, nil, nil, nil, cache, cfg)
-	svc.Start()
-	cache.getAuthCache = func(ctx context.Context, key string) (*APIKeyAuthCacheEntry, error) {
-		return nil, redis.Nil
-	}
-
-	_, err := svc.GetByKey(context.Background(), "missing")
-	require.ErrorIs(t, err, ErrAPIKeyNotFound)
-	require.Empty(t, cache.setAuthKeys, "attacker-controlled misses must not be written to Redis")
-	svc.authNegativeCacheL1.Wait()
-	_, err = svc.GetByKey(context.Background(), "missing")
-	require.ErrorIs(t, err, ErrAPIKeyNotFound)
-	require.Equal(t, int32(1), repoCalls.Load())
 }
 
 func TestAPIKeyService_GetByKeyRejectsInvalidLengthBeforeCaches(t *testing.T) {
@@ -1239,4 +1166,13 @@ func TestAPIKeyService_GetByKey_SingleflightCollapses(t *testing.T) {
 		require.NoError(t, err)
 	}
 	require.Equal(t, int32(1), atomic.LoadInt32(&calls))
+}
+
+// TestAPIKeyServiceZeroValueLookup 保持旧零值入口在 WS 快照复查时返回未找到。
+func TestAPIKeyServiceZeroValueLookup(t *testing.T) {
+	var svc APIKeyService
+	key, err := svc.GetByKey(context.Background(), "sk-zero-value")
+	require.Nil(t, key)
+	require.ErrorIs(t, err, ErrAPIKeyNotFound)
+	require.Equal(t, "get api key: "+ErrAPIKeyNotFound.Error(), err.Error())
 }

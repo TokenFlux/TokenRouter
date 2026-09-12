@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/service",
+    "-run",
+    "^TestS05(AuthSnapshotIsolation|CompositeSnapshotFastPolicy)$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.472,
+  "log": "logs/snapshot-fixed.log.gz"
+}

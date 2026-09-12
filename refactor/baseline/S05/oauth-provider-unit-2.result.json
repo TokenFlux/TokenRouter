@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-tags=unit",
+    "./internal/identity/provider",
+    "./internal/handler",
+    "./internal/service",
+    "-run",
+    "Test(LinuxDo|OIDC|Google|DingTalk|Auth|User)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.128,
+  "log": "logs/oauth-provider-unit-2.log.gz"
+}

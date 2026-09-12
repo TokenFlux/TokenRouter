@@ -1,0 +1,15 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-tags=unit",
+    "./...",
+    "-run",
+    "^$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 20.985,
+  "log": "logs/s05-trim-unit-compile-2.log.gz"
+}

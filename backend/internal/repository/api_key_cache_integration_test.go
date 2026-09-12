@@ -70,7 +70,8 @@ func (s *ApiKeyCacheSuite) TestCreateAttemptCount() {
 		s.Run(tt.name, func() {
 			// 每个 case 重新获取隔离资源
 			rdb := testRedis(s.T())
-			cache := &apiKeyCache{rdb: rdb}
+			cache, ok := NewAPIKeyCache(rdb).(*apiKeyCache)
+			require.True(s.T(), ok, "Key Redis adapter type")
 			ctx := context.Background()
 
 			tt.fn(ctx, rdb, cache)
@@ -114,7 +115,8 @@ func (s *ApiKeyCacheSuite) TestDailyUsage() {
 	for _, tt := range tests {
 		s.Run(tt.name, func() {
 			rdb := testRedis(s.T())
-			cache := &apiKeyCache{rdb: rdb}
+			cache, ok := NewAPIKeyCache(rdb).(*apiKeyCache)
+			require.True(s.T(), ok, "Key Redis adapter type")
 			ctx := context.Background()
 
 			tt.fn(ctx, rdb, cache)

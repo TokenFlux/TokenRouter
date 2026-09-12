@@ -145,7 +145,7 @@ func ProvideAPIKeyHandler(apiKeyService *service.APIKeyService, groupCapacitySer
 func ProvideHandlers(
 	plans *billinghttpapi.PlanHandler,
 	quotaHandler *billinghttpapi.QuotaHandler,
-	authHandler *AuthHandler,
+	authHandler AuthEndpoints,
 	userHandler *UserHandler,
 	apiKeyHandler *APIKeyHandler,
 	usageHandler *UsageHandler,
@@ -198,7 +198,6 @@ func ProvideHandlers(
 var ProviderSet = wire.NewSet(
 	billinghttpapi.NewPlanHandler,
 	// Top-level handlers
-	NewAuthHandler,
 	NewUserHandler,
 	ProvideAPIKeyHandler,
 	NewUsageHandler,

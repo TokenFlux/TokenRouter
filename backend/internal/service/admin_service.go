@@ -3,20 +3,22 @@ package service
 import (
 	"context"
 	"fmt"
+	dbent "github.com/TokenFlux/TokenRouter/ent"
+	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
-
-	dbent "github.com/TokenFlux/TokenRouter/ent"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 )
 
 // AdminService interface defines admin management operations
 type AdminService interface {
+	AdminUpdateAPIKeyFields(context.Context, int64, *int64, bool) (*AdminUpdateAPIKeyGroupIDResult, error)
 	// User management
 	ListUsers(ctx context.Context, page, pageSize int, filters UserListFilters, sortBy, sortOrder string) ([]User, int64, error)
 	GetUser(ctx context.Context, id int64) (*User, error)
@@ -135,82 +137,17 @@ type AdminService interface {
 	ResetAccountQuota(ctx context.Context, id int64) error
 }
 
-// CreateUserInput represents input for creating a new user via admin operations.
-type CreateUserInput struct {
-	Email         string
-	Password      string
-	Username      string
-	Notes         string
-	Role          string // 空字符串表示使用默认角色(user);合法值 admin/user
-	Balance       *float64
-	Concurrency   int
-	RPMLimit      int
-	APIKeyLimit   *int // nil 表示继承系统默认值，0 表示不限制。
-	AllowedGroups []int64
-	// DisabledPublicGroups 记录管理员禁止该用户使用的公开分组 ID。
-	DisabledPublicGroups []int64
-	// ActorAdminID 执行本次操作的管理员ID(来自JWT)，仅用于权限敏感操作的审计日志。
-	ActorAdminID int64
-}
+type CreateUserInput = identity.CreateUserInput
 
-type UpdateUserInput struct {
-	Email         string
-	Password      string
-	Username      *string
-	Notes         *string
-	Role          string   // 空字符串表示"未提供"(不修改);合法值 admin/user
-	Balance       *float64 // 使用指针区分"未提供"和"设置为0"
-	Concurrency   *int     // 使用指针区分"未提供"和"设置为0"
-	RPMLimit      *int     // 使用指针区分"未提供"和"设置为0"
-	APIKeyLimit   *int     // 使用指针区分"未提供"和"设置为0"
-	Status        string
-	AllowedGroups *[]int64 // 使用指针区分"未提供"和"设置为空数组"
-	// DisabledPublicGroups 使用指针区分"未提供"和"清空公开分组禁用列表"
-	DisabledPublicGroups *[]int64
-	// GroupRates 用户专属分组倍率配置
-	// map[groupID]*rate，nil 表示删除该分组的专属倍率
-	GroupRates map[int64]*float64
-	// ActorAdminID 执行本次操作的管理员ID(来自JWT)，仅用于权限敏感操作的审计日志。
-	ActorAdminID int64
-}
+type UpdateUserInput = identity.UpdateUserInput
 
-type AdminBindAuthIdentityInput struct {
-	ProviderType    string
-	ProviderKey     string
-	ProviderSubject string
-	Issuer          *string
-	Metadata        map[string]any
-	Channel         *AdminBindAuthIdentityChannelInput
-}
+type AdminBindAuthIdentityInput = identity.AdminBindAuthIdentityInput
 
-type AdminBindAuthIdentityChannelInput struct {
-	Channel        string
-	ChannelAppID   string
-	ChannelSubject string
-	Metadata       map[string]any
-}
+type AdminBindAuthIdentityChannelInput = identity.AdminBindAuthIdentityChannelInput
 
-type AdminBoundAuthIdentity struct {
-	UserID          int64                          `json:"user_id"`
-	ProviderType    string                         `json:"provider_type"`
-	ProviderKey     string                         `json:"provider_key"`
-	ProviderSubject string                         `json:"provider_subject"`
-	VerifiedAt      *time.Time                     `json:"verified_at,omitempty"`
-	Issuer          *string                        `json:"issuer,omitempty"`
-	Metadata        map[string]any                 `json:"metadata"`
-	CreatedAt       time.Time                      `json:"created_at"`
-	UpdatedAt       time.Time                      `json:"updated_at"`
-	Channel         *AdminBoundAuthIdentityChannel `json:"channel,omitempty"`
-}
+type AdminBoundAuthIdentity = identity.AdminBoundAuthIdentity
 
-type AdminBoundAuthIdentityChannel struct {
-	Channel        string         `json:"channel"`
-	ChannelAppID   string         `json:"channel_app_id"`
-	ChannelSubject string         `json:"channel_subject"`
-	Metadata       map[string]any `json:"metadata"`
-	CreatedAt      time.Time      `json:"created_at"`
-	UpdatedAt      time.Time      `json:"updated_at"`
-}
+type AdminBoundAuthIdentityChannel = identity.AdminBoundAuthIdentityChannel
 
 type CreateGroupInput struct {
 	Name        string
@@ -467,26 +404,11 @@ type AdminUpdateAPIKeyGroupIDResult struct {
 	GrantedGroupName       string // the group name that was auto-granted
 }
 
-// ReplaceUserGroupResult 分组替换操作的结果
-type ReplaceUserGroupResult struct {
-	MigratedKeys int64 // 迁移的 Key 数量
-}
+type ReplaceUserGroupResult = identity.ReplaceUserGroupResult
 
-// UserRPMStatus describes a user's current per-minute RPM usage.
-type UserRPMStatus struct {
-	UserRPMUsed  int                  `json:"user_rpm_used"`
-	UserRPMLimit int                  `json:"user_rpm_limit"`
-	PerGroup     []UserGroupRPMStatus `json:"per_group"`
-}
+type UserRPMStatus = identity.UserRPMStatus
 
-// UserGroupRPMStatus describes current per-minute RPM usage for one user/group pair.
-type UserGroupRPMStatus struct {
-	GroupID   int64  `json:"group_id"`
-	GroupName string `json:"group_name"`
-	Used      int    `json:"used"`
-	Limit     int    `json:"limit"`
-	Source    string `json:"source"` // "group" | "override"
-}
+type UserGroupRPMStatus = identity.UserGroupRPMStatus
 
 // BulkUpdateAccountsResult is the aggregated response for bulk updates.
 type BulkUpdateAccountsResult struct {
@@ -644,10 +566,12 @@ const (
 	proxyQualityClientUserAgent       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
 )
 
-var ErrRPMStatusUnavailable = infraerrors.New(http.StatusNotImplemented, "RPM_STATUS_UNAVAILABLE", "RPM cache not available")
+var ErrRPMStatusUnavailable = identity.ErrRPMStatusUnavailable
 
 // adminServiceImpl implements AdminService
 type adminServiceImpl struct {
+	keyAdmin             *apikey.Admin
+	identityAdmin        *identity.UserAdmin
 	billingRedeem        *billing.RedeemAdmin
 	billingBalance       billing.BalanceAdjuster
 	userRepo             UserRepository
@@ -689,10 +613,6 @@ type adminRechargeAffiliateAccruer interface {
 	AccrueInviteRebate(ctx context.Context, inviteeUserID int64, purchasedPoints float64) (float64, error)
 }
 
-type userGroupRateBatchReader interface {
-	GetByUserIDs(ctx context.Context, userIDs []int64) (map[int64]map[int64]float64, error)
-}
-
 // NewAdminService creates a new AdminService
 func NewAdminService(
 	userRepo UserRepository,
@@ -719,8 +639,9 @@ func NewAdminService(
 	channelCacheInvalidator ChannelCacheInvalidator,
 	billingRedeem *billing.RedeemAdmin,
 	billingBalance billing.BalanceAdjuster,
+	modules ...Administration,
 ) AdminService {
-	return &adminServiceImpl{
+	admin := &adminServiceImpl{
 		billingRedeem: billingRedeem, billingBalance: billingBalance,
 		userRepo:             userRepo,
 		groupRepo:            groupRepo,
@@ -749,6 +670,17 @@ func NewAdminService(
 
 		channelCacheInvalidator: channelCacheInvalidator,
 	}
+	if len(modules) > 0 {
+		admin.identityAdmin = modules[0].Users
+		admin.keyAdmin = modules[0].Keys
+	}
+	if admin.identityAdmin == nil {
+		admin.identityAdmin = admin.identityAdministration()
+	}
+	if admin.keyAdmin == nil {
+		admin.keyAdmin = admin.keyAdministration()
+	}
+	return admin
 }
 
 func (s *adminServiceImpl) UpdateRedeemCode(ctx context.Context, id int64, input *UpdateRedeemCodeInput) (*RedeemCode, error) {
@@ -786,10 +718,6 @@ func (s *adminServiceImpl) clearOtherPlatformDefaultGroups(ctx context.Context, 
 		}
 	}
 	return nil
-}
-
-func (s *adminServiceImpl) createAppliedAdjustmentRedeemRecord(ctx context.Context, userID int64, codeType string, value float64, notes string) error {
-	return s.redeemAdministration().RecordAdjustment(ctx, userID, codeType, value, notes)
 }
 
 func (s *adminServiceImpl) qoderRefreshHTTPUpstream() HTTPUpstream {
@@ -958,4 +886,10 @@ func (s *adminServiceImpl) balanceAdjuster() billing.BalanceAdjuster {
 		return s.billingBalance
 	}
 	return s.userRepo
+}
+
+// Administration 只传入 app 构造的唯一用例，旧聚合不再创建生产身份或 Key 规则。
+type Administration struct {
+	Users *identity.UserAdmin
+	Keys  *apikey.Admin
 }
