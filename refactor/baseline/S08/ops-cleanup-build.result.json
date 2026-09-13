@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/ops/...",
+    "./internal/service",
+    "-run",
+    "^TestOps"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.457,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/ops-cleanup-build.log.gz"
+}

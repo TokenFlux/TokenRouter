@@ -46,7 +46,9 @@ func (s legacyWindowCostBatchSource) GetWindows(ctx context.Context, ids []int64
 }
 func (s *GatewayService) windowCostGuard() *billing.WindowCostGuard {
 	var source billing.WindowCostSource
-	if s.usageLogRepo != nil {
+	if s.usageWindowSource != nil {
+		source = s.usageWindowSource
+	} else if s.usageLogRepo != nil {
 		base := legacyWindowCostSource{s.usageLogRepo}
 		source = base
 		if batch, ok := s.usageLogRepo.(usageLogWindowStatsBatchProvider); ok {
@@ -60,4 +62,9 @@ func costWindowInput(a *Account) billing.CostWindowInput {
 		return billing.CostWindowInput{}
 	}
 	return billing.CostWindowInput{ID: a.ID, Enabled: a.IsAnthropicOAuthOrSetupToken(), Limit: a.GetWindowCostLimit(), Reserve: a.GetWindowCostStickyReserve(), Start: a.SessionWindowStart, End: a.SessionWindowEnd}
+}
+
+// BindUsageWindowSource 由 app 绑定新用量查询；窗口规则仍由 billing 拥有。
+func (s *GatewayService) BindUsageWindowSource(source billing.WindowCostSource) {
+	s.usageWindowSource = source
 }

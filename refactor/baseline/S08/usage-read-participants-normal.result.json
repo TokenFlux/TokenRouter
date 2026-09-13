@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/usage/...",
+    "./internal/identity/...",
+    "./internal/apikey/...",
+    "./internal/team/...",
+    "./internal/ops/...",
+    "./internal/app"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 11.492,
+  "pass": 417,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/usage-read-participants-normal.log.gz"
+}

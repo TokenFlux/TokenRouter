@@ -4,6 +4,8 @@ package repository
 import (
 	context "context"
 	sql "database/sql"
+	time "time"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	keycore "github.com/TokenFlux/TokenRouter/internal/apikey"
 	keypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
@@ -11,7 +13,6 @@ import (
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
-	time "time"
 )
 
 type apiKeyRepository struct {
@@ -200,12 +201,6 @@ func (r *apiKeyRepository) ResetRateLimitWindows(ctx context.Context, id int64) 
 // GetRateLimitData 转接 Key 存储，不自行提交事务。
 func (r *apiKeyRepository) GetRateLimitData(ctx context.Context, id int64) (result *service.APIKeyRateLimitData, err error) {
 	return r.KeyStore.GetRateLimitData(ctx, id)
-}
-
-// apiKeyEntityToService 转接 Key 存储，不自行提交事务。
-func apiKeyEntityToService(m *dbent.APIKey) *service.APIKey {
-	v := keypostgres.KeyApiKeyEntityToService(m)
-	return service.APIKeyFromView(v)
 }
 
 func userEntityToService(u *dbent.User) *service.User {

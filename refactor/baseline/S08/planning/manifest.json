@@ -1,0 +1,92 @@
+{
+  "head": "98292d5e50a8f255270910918fa7dab0ce7b929d",
+  "source_sha256": {
+    "backend/internal/service/audit_log_service.go": "33aa38f9d08562f51431a3b82f877fb201c0ac0ea9bbe3aa49b59fbe86c5b226",
+    "backend/internal/service/dashboard_aggregation_service.go": "18197934e5da89a1b83790368c443deb1785697179636a5db2efdb9b152c97c5",
+    "backend/internal/service/usage_cleanup_service.go": "0a5867b4461b5200397898a02b0f68ca7ce6d70eb31dfba53b5ffefd4202c17d",
+    "backend/internal/service/ops_system_log_sink.go": "fe0997e9d57c416c5c6157eaa9ed68b7b104d363bb3ae9e8a943eabc8476c7b5",
+    "backend/internal/repository/audit_log_repo.go": "b46562caa0d4196321af0c2bfe1056e394db511235fefdf384c4c1536c4ed8af",
+    "backend/internal/repository/usage_analytics_aggregation_repo.go": "347e2cea3104c24e52607135c11ff4c84bdaf3fe0dd14935bc5536bb32297726"
+  },
+  "evidence_sha256": {
+    "unit-race.result.json": "101c15390148ed8b6221ca72b3419ec5b9622a30f6c68bfdc0a237b35a91c482",
+    "overlay.json": "ff9301e642613c8ca8b0d20a10a2f6fe8df0b650972168a090805e71705fed47",
+    "repro-unit.jsonl": "c8f5136ec3219a4ca82c72dbd123778d7173e27ccd47c7b59b60665dbfedd1c7",
+    "integration-race.result.json": "258b7447414f7ee450ba665c017705fe7004e7f17c1efc07113c2df8b2f8e24a",
+    "repro-integration.jsonl": "f5329da232bbe9f5ea9391a49f1b50047467ceb9de16c3aef6441ab8884f56dc",
+    "repository_overlay_test.go": "85e1e58eaa7374eb5c272f79d76925949389309a20fd1c21f14fb3512e0ea36c",
+    "repro-unit-race-repeat.jsonl": "e68519af74f74fa765876b0973ef0a41cf02687064066f19e51a8f7a12086439",
+    "normal.jsonl": "b93d7f6a31739d1db1523e1f3785c5b9a09cdea34868759f2b4966ab831ec63c",
+    "query-and-cancel.jsonl": "69b55e71ba919a278e294376607898c8ec04aadcd95df760b0772b7a4749b4b5",
+    "normal.result.json": "af91619597ca7e16de9d2fa31a66a7b76f184c626af7dbe534027a36a8c697d5",
+    "service_overlay_test.go": "5520337720fcfd4be4bba6ebc4b9bf9a0d46cb16f4700cf89066f27a17421d2d",
+    "unit-race.jsonl": "ada36e5e27e2380e37fdc4ccffa44f7eeb174bfb355595ce4fae2e2ae5174e56",
+    "query-shape.json": "1ff7fcda44c0d691e3076fbfc14435f23be0314427515cd1e6c203ae7db78a15",
+    "integration-race.jsonl": "bf57d772c9a139524c2bb55f64c7ef5e4a05d6df198d3965cb672bf9fc1ed566"
+  },
+  "results": {
+    "repro-unit.jsonl": {
+      "tests": {
+        "pass": 0,
+        "fail": 5,
+        "skip": 0
+      },
+      "data_race_reports": 0
+    },
+    "repro-integration.jsonl": {
+      "tests": {
+        "pass": 0,
+        "fail": 2,
+        "skip": 0
+      },
+      "data_race_reports": 0
+    },
+    "repro-unit-race-repeat.jsonl": {
+      "tests": {
+        "pass": 0,
+        "fail": 15,
+        "skip": 0
+      },
+      "data_race_reports": 0
+    },
+    "normal.jsonl": {
+      "tests": {
+        "pass": 335,
+        "fail": 0,
+        "skip": 0
+      },
+      "data_race_reports": 0
+    },
+    "query-and-cancel.jsonl": {
+      "tests": {
+        "pass": 1,
+        "fail": 1,
+        "skip": 0
+      },
+      "data_race_reports": 0
+    },
+    "unit-race.jsonl": {
+      "tests": {
+        "pass": 317,
+        "fail": 0,
+        "skip": 0
+      },
+      "data_race_reports": 0
+    },
+    "integration-race.jsonl": {
+      "tests": {
+        "pass": 327,
+        "fail": 0,
+        "skip": 0
+      },
+      "data_race_reports": 0
+    }
+  },
+  "fixed_findings": [
+    "B01 manual backfill overwrites aggregation progress",
+    "B02 audit clear commits before trace",
+    "B03 duplicate Audit and OpsSystemLog Start",
+    "B04 aggregation Stop cannot cancel work",
+    "B05 canceled partial cleanup leaves stale aggregates"
+  ]
+}

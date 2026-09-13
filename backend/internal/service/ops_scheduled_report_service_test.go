@@ -116,10 +116,7 @@ func TestOpsScheduledReportLegacyTemplateReceivesSummaryHTML(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	svc := &OpsScheduledReportService{
-		opsService:   &OpsService{opsRepo: &opsRepoMock{}},
-		emailService: emailService,
-	}
+	svc := NewOpsScheduledReportService(NewOpsService(&opsRepoMock{}, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil), nil, emailService, nil, nil)
 	report := &opsScheduledReport{
 		Name:       "日报",
 		ReportType: "daily_summary",
@@ -127,7 +124,7 @@ func TestOpsScheduledReportLegacyTemplateReceivesSummaryHTML(t *testing.T) {
 		Recipients: []string{"ops@example.com"},
 	}
 
-	attempts, err := svc.runReport(ctx, report, time.Date(2026, time.July, 19, 1, 0, 26, 0, time.UTC))
+	attempts, err := svc.RunReport(ctx, report, time.Date(2026, time.July, 19, 1, 0, 26, 0, time.UTC))
 	require.NoError(t, err)
 	require.Equal(t, 1, attempts)
 	require.Equal(t, int64(1), smtpServer.messageCount())

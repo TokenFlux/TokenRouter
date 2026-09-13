@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "./internal/service",
+    "-run",
+    "Test(UsageLog|UsageCleanup|Dashboard|Ops|Audit|RedactAudit|MaskAudit|UpdateService|GitHub|ResolveUsageAnalytics|BuildUsageAnalytics|Get.*Analytics|Batch.*UsageAnalytics|PreAggregation|NormalizePreAggregation)"
+  ],
+  "exit_code": 0,
+  "seconds": 35.02,
+  "counts": {
+    "pass": 327,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

@@ -1,0 +1,7 @@
+{
+  "note": "实施过程中出现的其他任务未跟踪计划，不属于初始48文件；仅记录首次收尾快照，不读取/修改/纳入S08 diff或回退。",
+  "files": {
+    "refactor/F01-structure.md": "c3b79277877dfbea7f214f8d4977f40b5c8d0386f436366ce6a626a30c5d39ed",
+    "refactor/FRONTEND_REFACTOR_PLAN.md": "2920bdc48c42bec8eb26f3d2772596d8c10ccea2a3b1351c90c81cab7424340a"
+  }
+}

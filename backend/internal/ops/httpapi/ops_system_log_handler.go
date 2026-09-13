@@ -1,0 +1,192 @@
+// Ops HTTP 保留原端点和响应契约；查询与运行状态由核心拥有。
+package httpapi
+
+import (
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	identityhttp "github.com/TokenFlux/TokenRouter/internal/identity/httpapi"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
+	"github.com/gin-gonic/gin"
+)
+
+type opsSystemLogCleanupRequest struct {
+	StartTime string `json:"start_time"`
+	EndTime   string `json:"end_time"`
+	Host      string `json:"host"`
+
+	Level           string `json:"level"`
+	Component       string `json:"component"`
+	RequestID       string `json:"request_id"`
+	ClientRequestID string `json:"client_request_id"`
+	UserID          *int64 `json:"user_id"`
+	APIKeyID        *int64 `json:"api_key_id"`
+	AccountID       *int64 `json:"account_id"`
+	Platform        string `json:"platform"`
+	Model           string `json:"model"`
+	Query           string `json:"q"`
+}
+
+// ListSystemLogs returns indexed system logs.
+// GET /api/v1/admin/ops/system-logs
+func (h *OpsHandler) ListSystemLogs(c *gin.Context) {
+	if h.opsService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Ops service not available")
+		return
+	}
+	if err := h.opsService.RequireMonitoringEnabled(c.Request.Context()); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	page, pageSize := response.ParsePagination(c)
+	if pageSize > 200 {
+		pageSize = 200
+	}
+
+	start, end, err := parseOpsTimeRange(c, "1h")
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	filter := &ops.OpsSystemLogFilter{
+		Page:            page,
+		PageSize:        pageSize,
+		StartTime:       &start,
+		EndTime:         &end,
+		Host:            strings.TrimSpace(c.Query("host")),
+		Level:           strings.TrimSpace(c.Query("level")),
+		Component:       strings.TrimSpace(c.Query("component")),
+		RequestID:       strings.TrimSpace(c.Query("request_id")),
+		ClientRequestID: strings.TrimSpace(c.Query("client_request_id")),
+		Platform:        strings.TrimSpace(c.Query("platform")),
+		Model:           strings.TrimSpace(c.Query("model")),
+		Query:           strings.TrimSpace(c.Query("q")),
+	}
+	if v := strings.TrimSpace(c.Query("user_id")); v != "" {
+		id, parseErr := strconv.ParseInt(v, 10, 64)
+		if parseErr != nil || id <= 0 {
+			response.BadRequest(c, "Invalid user_id")
+			return
+		}
+		filter.UserID = &id
+	}
+	if v := strings.TrimSpace(c.Query("api_key_id")); v != "" {
+		id, parseErr := strconv.ParseInt(v, 10, 64)
+		if parseErr != nil || id <= 0 {
+			response.BadRequest(c, "Invalid api_key_id")
+			return
+		}
+		filter.APIKeyID = &id
+	}
+	if v := strings.TrimSpace(c.Query("account_id")); v != "" {
+		id, parseErr := strconv.ParseInt(v, 10, 64)
+		if parseErr != nil || id <= 0 {
+			response.BadRequest(c, "Invalid account_id")
+			return
+		}
+		filter.AccountID = &id
+	}
+
+	result, err := h.opsService.ListSystemLogs(c.Request.Context(), filter)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Paginated(c, result.Logs, int64(result.Total), result.Page, result.PageSize)
+}
+
+// CleanupSystemLogs deletes indexed system logs by filter.
+// POST /api/v1/admin/ops/system-logs/cleanup
+func (h *OpsHandler) CleanupSystemLogs(c *gin.Context) {
+	if h.opsService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Ops service not available")
+		return
+	}
+	if err := h.opsService.RequireMonitoringEnabled(c.Request.Context()); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
+	subject, ok := identityhttp.GetAuthSubjectFromContext(c)
+	if !ok || subject.UserID <= 0 {
+		response.Error(c, http.StatusUnauthorized, "Unauthorized")
+		return
+	}
+
+	var req opsSystemLogCleanupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "Invalid request body")
+		return
+	}
+
+	parseTS := func(raw string) (*time.Time, error) {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			return nil, nil
+		}
+		if t, err := time.Parse(time.RFC3339Nano, raw); err == nil {
+			return &t, nil
+		}
+		t, err := time.Parse(time.RFC3339, raw)
+		if err != nil {
+			return nil, err
+		}
+		return &t, nil
+	}
+	start, err := parseTS(req.StartTime)
+	if err != nil {
+		response.BadRequest(c, "Invalid start_time")
+		return
+	}
+	end, err := parseTS(req.EndTime)
+	if err != nil {
+		response.BadRequest(c, "Invalid end_time")
+		return
+	}
+	if req.APIKeyID != nil && *req.APIKeyID <= 0 {
+		response.BadRequest(c, "Invalid api_key_id")
+		return
+	}
+
+	filter := &ops.OpsSystemLogCleanupFilter{
+		StartTime:       start,
+		EndTime:         end,
+		Host:            strings.TrimSpace(req.Host),
+		Level:           strings.TrimSpace(req.Level),
+		Component:       strings.TrimSpace(req.Component),
+		RequestID:       strings.TrimSpace(req.RequestID),
+		ClientRequestID: strings.TrimSpace(req.ClientRequestID),
+		UserID:          req.UserID,
+		APIKeyID:        req.APIKeyID,
+		AccountID:       req.AccountID,
+		Platform:        strings.TrimSpace(req.Platform),
+		Model:           strings.TrimSpace(req.Model),
+		Query:           strings.TrimSpace(req.Query),
+	}
+
+	deleted, err := h.opsService.CleanupSystemLogs(c.Request.Context(), filter, subject.UserID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, gin.H{"deleted": deleted})
+}
+
+// GetSystemLogIngestionHealth returns sink health metrics.
+// GET /api/v1/admin/ops/system-logs/health
+func (h *OpsHandler) GetSystemLogIngestionHealth(c *gin.Context) {
+	if h.opsService == nil {
+		response.Error(c, http.StatusServiceUnavailable, "Ops service not available")
+		return
+	}
+	if err := h.opsService.RequireMonitoringEnabled(c.Request.Context()); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, h.opsService.GetSystemLogSinkHealth())
+}

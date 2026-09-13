@@ -1,27 +1,10 @@
+// Redis 格式保持原样，旧入口只转接。
 package repository
 
 import (
-	"context"
-	"time"
-
+	"github.com/TokenFlux/TokenRouter/internal/ops/rediscache"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/redis/go-redis/v9"
 )
 
-const updateCacheKey = "update:latest"
-
-type updateCache struct {
-	rdb *redis.Client
-}
-
-func NewUpdateCache(rdb *redis.Client) service.UpdateCache {
-	return &updateCache{rdb: rdb}
-}
-
-func (c *updateCache) GetUpdateInfo(ctx context.Context) (string, error) {
-	return c.rdb.Get(ctx, updateCacheKey).Result()
-}
-
-func (c *updateCache) SetUpdateInfo(ctx context.Context, data string, ttl time.Duration) error {
-	return c.rdb.Set(ctx, updateCacheKey, data, ttl).Err()
-}
+func NewUpdateCache(r *redis.Client) service.UpdateCache { return rediscache.NewUpdateCache(r) }

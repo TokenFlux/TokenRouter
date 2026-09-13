@@ -2,6 +2,9 @@ package app
 
 import (
 	"context"
+	"net/http"
+	"time"
+
 	"github.com/TokenFlux/TokenRouter/internal/app/bootstrap"
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -11,17 +14,13 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/TokenFlux/TokenRouter/internal/site"
-	"net/http"
-	"time"
 )
 
 // 以下仅投影旧图需要的绑定；随对应模块迁移删除旧 import。
 func providePrivacyClientFactory() service.PrivacyClientFactory {
 	return repository.CreatePrivacyReqClient
 }
-func provideServiceBuildInfo(info BuildInfo) service.BuildInfo {
-	return service.BuildInfo{Version: info.Version, BuildType: info.BuildType}
-}
+
 func provideHandlerBuildInfo(info BuildInfo) handler.BuildInfo {
 	return handler.BuildInfo{Version: info.Version, BuildType: info.BuildType}
 }
@@ -34,10 +33,9 @@ func provideAnnouncementExpiry(repo site.AnnouncementRepository) *site.Announcem
 	return site.NewAnnouncementExpiryService(repo, time.Minute)
 }
 func provideRestartRequester(restarter *lifecycle.Restarter) admin.RestartRequester { return restarter }
-func provideApplication(server *http.Server, manager *lifecycle.Manager, _ *runtimeReady) *Application {
+func provideApplication(server *http.Server, manager *lifecycle.Manager, _ *runtimeReady, opsService *service.OpsService, _ *errorQueueReady) *Application {
 	lifecycle.TrackRequests(server, manager)
-	manager.Register(lifecycle.Hook{Name: "OpsWSRuntime", StartOrder: 983, StopOrder: 17, Stop: func(context.Context) error { admin.StopOpsWSRuntime(); return nil }})
-	manager.Register(lifecycle.Hook{Name: "OpsErrorLogWorkers", StartOrder: 924, StopOrder: 76, Stop: handler.ShutdownOpsErrorLogWorkers})
+	manager.Register(lifecycle.Hook{Name: "OpsWSRuntime", StartOrder: 983, StopOrder: 17, Stop: func(context.Context) error { opsService.Realtime().Stop(); return nil }})
 	return &Application{Server: server, lifecycle: manager}
 }
 

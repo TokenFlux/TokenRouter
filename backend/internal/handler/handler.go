@@ -1,12 +1,19 @@
 package handler
 
 import (
+	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
+
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
+
 	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
+
 	egresshttp "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
+
 	routinghttp "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
+
 	schedulerhttp "github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi"
+
 	sitehttpapi "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 )
 
@@ -58,6 +65,7 @@ type AdminHandlers struct {
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
+	PublicUsage      *usagehttp.PublicUsageHandler
 	Plans            *billinghttpapi.PlanHandler
 	PlatformQuota    *billinghttpapi.QuotaHandler
 	Auth             AuthEndpoints

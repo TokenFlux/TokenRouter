@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "./internal/app",
+    "./internal/ops/...",
+    "./internal/service",
+    "./internal/handler/...",
+    "-run",
+    "Test(Ops|GitHub|Update|CollectConcurrency|ResolveMemory|HistoricalIngress|ListSchedulableAccountLoads)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 57.278,
+  "pass": 354,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/ops-runtime-unit-race.log.gz"
+}

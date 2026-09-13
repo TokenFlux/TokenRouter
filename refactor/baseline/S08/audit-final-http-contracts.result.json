@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "./internal/audit/..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 2.856,
+  "pass": 15,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/audit-final-http-contracts.log.gz"
+}

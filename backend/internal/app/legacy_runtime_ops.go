@@ -7,6 +7,8 @@ import (
 	"fmt"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+
 	logger "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 )
@@ -14,14 +16,14 @@ import (
 type opsRuntimeReady struct{}
 
 func provideOpsRuntime(
-	opsMetricsCollector *service.OpsMetricsCollector,
-	opsAggregation *service.OpsAggregationService,
-	opsAlertEvaluator *service.OpsAlertEvaluatorService,
-	opsCleanup *service.OpsCleanupService,
-	opsScheduledReport *service.OpsScheduledReportService,
-	opsSystemLogSink *service.OpsSystemLogSink,
-	opsService *service.OpsService,
-	opsIngressReject *service.OpsIngressRejectAggregator,
+	opsMetricsCollector *ops.OpsMetricsCollector,
+	opsAggregation *ops.OpsAggregationService,
+	opsAlertEvaluator *ops.OpsAlertEvaluatorService,
+	opsCleanup *ops.OpsCleanupService,
+	opsScheduledReport *ops.OpsScheduledReportService,
+	opsSystemLogSink *ops.OpsSystemLogSink,
+	opsService *ops.OpsService,
+	opsIngressReject *ops.OpsIngressRejectAggregator,
 	backupSvc *service.BackupService,
 	manager *lifecycle.Manager,
 	dashboardAggregation *service.DashboardAggregationService,
@@ -90,7 +92,7 @@ func provideOpsRuntime(
 	}, Stop: func(ctx context.Context) error {
 		if opsSystemLogSink != nil {
 			logger.SetSink(nil)
-			opsSystemLogSink.Stop()
+			return opsSystemLogSink.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -139,7 +141,7 @@ func provideOpsRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if dashboardAggregation != nil {
-			dashboardAggregation.Stop()
+			return dashboardAggregation.StopContext(ctx)
 		}
 		return nil
 	}})

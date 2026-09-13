@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "./internal/ops/...",
+    "./internal/handler/...",
+    "./internal/app",
+    "-run",
+    "Test(Ops|EnqueueOps|EstimateOps|NormalizeOps|OpenAIGateway.*Credential|.*CredentialFailover|UsageUnrestricted|CalculateSubscription)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 46.19,
+  "pass": 123,
+  "fail": 1,
+  "skip": 0,
+  "log": "logs/ops-error-queue-tests.log.gz"
+}

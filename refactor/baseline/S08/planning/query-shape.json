@@ -1,0 +1,156 @@
+{
+  "batch_keys_4": 1,
+  "batch_keys_8": 1,
+  "batch_users_4": 1,
+  "batch_users_8": 1,
+  "ranking_explain": [
+    [
+      {
+        "Plan": {
+          "Node Type": "Limit",
+          "Parallel Aware": false,
+          "Async Capable": false,
+          "Startup Cost": 16.79,
+          "Total Cost": 16.80,
+          "Plan Rows": 1,
+          "Plan Width": 216,
+          "Disabled": false,
+          "Plans": [
+            {
+              "Node Type": "Sort",
+              "Parent Relationship": "Outer",
+              "Parallel Aware": false,
+              "Async Capable": false,
+              "Startup Cost": 16.79,
+              "Total Cost": 16.80,
+              "Plan Rows": 1,
+              "Plan Width": 216,
+              "Disabled": false,
+              "Sort Key": [
+                "user_spend.actual_cost DESC",
+                "user_spend.tokens DESC",
+                "user_spend.user_id"
+              ],
+              "Plans": [
+                {
+                  "Node Type": "WindowAgg",
+                  "Parent Relationship": "Outer",
+                  "Parallel Aware": false,
+                  "Async Capable": false,
+                  "Startup Cost": 16.71,
+                  "Total Cost": 16.78,
+                  "Plan Rows": 1,
+                  "Plan Width": 216,
+                  "Disabled": false,
+                  "Window": "w1 AS ()",
+                  "Plans": [
+                    {
+                      "Node Type": "Subquery Scan",
+                      "Parent Relationship": "Outer",
+                      "Parallel Aware": false,
+                      "Async Capable": false,
+                      "Alias": "user_spend",
+                      "Startup Cost": 16.71,
+                      "Total Cost": 16.76,
+                      "Plan Rows": 1,
+                      "Plan Width": 120,
+                      "Disabled": false,
+                      "Plans": [
+                        {
+                          "Node Type": "Aggregate",
+                          "Strategy": "Sorted",
+                          "Partial Mode": "Simple",
+                          "Parent Relationship": "Subquery",
+                          "Parallel Aware": false,
+                          "Async Capable": false,
+                          "Startup Cost": 16.71,
+                          "Total Cost": 16.75,
+                          "Plan Rows": 1,
+                          "Plan Width": 854,
+                          "Disabled": false,
+                          "Group Key": [
+                            "(COALESCE(u.billing_user_id, u.user_id))",
+                            "us.email",
+                            "us.username"
+                          ],
+                          "Plans": [
+                            {
+                              "Node Type": "Sort",
+                              "Parent Relationship": "Outer",
+                              "Parallel Aware": false,
+                              "Async Capable": false,
+                              "Startup Cost": 16.71,
+                              "Total Cost": 16.72,
+                              "Plan Rows": 1,
+                              "Plan Width": 778,
+                              "Disabled": false,
+                              "Sort Key": [
+                                "(COALESCE(u.billing_user_id, u.user_id))",
+                                "us.email",
+                                "us.username"
+                              ],
+                              "Plans": [
+                                {
+                                  "Node Type": "Nested Loop",
+                                  "Parent Relationship": "Outer",
+                                  "Parallel Aware": false,
+                                  "Async Capable": false,
+                                  "Join Type": "Left",
+                                  "Startup Cost": 0.28,
+                                  "Total Cost": 16.70,
+                                  "Plan Rows": 1,
+                                  "Plan Width": 778,
+                                  "Disabled": false,
+                                  "Inner Unique": true,
+                                  "Plans": [
+                                    {
+                                      "Node Type": "Index Scan",
+                                      "Parent Relationship": "Outer",
+                                      "Parallel Aware": false,
+                                      "Async Capable": false,
+                                      "Scan Direction": "Forward",
+                                      "Index Name": "idx_usage_logs_ranking_cover",
+                                      "Relation Name": "usage_logs",
+                                      "Alias": "u",
+                                      "Startup Cost": 0.14,
+                                      "Total Cost": 8.15,
+                                      "Plan Rows": 1,
+                                      "Plan Width": 52,
+                                      "Disabled": false,
+                                      "Index Cond": "((created_at \u003e= '2026-09-13 16:30:07.926752+00'::timestamp with time zone) AND (created_at \u003c '2026-09-13 18:30:07.926752+00'::timestamp with time zone))"
+                                    },
+                                    {
+                                      "Node Type": "Index Scan",
+                                      "Parent Relationship": "Inner",
+                                      "Parallel Aware": false,
+                                      "Async Capable": false,
+                                      "Scan Direction": "Forward",
+                                      "Index Name": "users_pkey",
+                                      "Relation Name": "users",
+                                      "Alias": "us",
+                                      "Startup Cost": 0.14,
+                                      "Total Cost": 8.16,
+                                      "Plan Rows": 1,
+                                      "Plan Width": 742,
+                                      "Disabled": false,
+                                      "Index Cond": "(id = COALESCE(u.billing_user_id, u.user_id))"
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  ],
+  "user_ranking": 1
+}

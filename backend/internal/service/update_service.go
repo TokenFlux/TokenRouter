@@ -7,17 +7,15 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
-	"sort"
-	"strconv"
 	"strings"
-	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/ops"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 )
@@ -28,9 +26,6 @@ var (
 )
 
 const (
-	updateCacheKey = "update_check_cache"
-	updateCacheTTL = 1200 // 20 minutes
-	githubRepo     = "TokenFlux/TokenRouter"
 
 	// Security: allowed download domains for updates
 	allowedDownloadHost = "github.com"
@@ -40,16 +35,10 @@ const (
 	maxDownloadSize = 500 * 1024 * 1024
 
 	// 回退列表最多暴露当前版本之前的 3 个最近版本。
-	maxRollbackVersions = 3
 	// 多拉取一些 release，避免过滤当前版、新版本和预发布版后没有足够候选。
-	rollbackFetchPageSize = 15
 )
 
-// UpdateCache defines cache operations for update service
-type UpdateCache interface {
-	GetUpdateInfo(ctx context.Context) (string, error)
-	SetUpdateInfo(ctx context.Context, data string, ttl time.Duration) error
-}
+type UpdateCache = ops.UpdateCache
 
 // GitHubReleaseClient 获取 GitHub release 信息的接口
 type GitHubReleaseClient interface {
@@ -61,104 +50,25 @@ type GitHubReleaseClient interface {
 
 // UpdateService handles software updates
 type UpdateService struct {
-	cache          UpdateCache
-	githubClient   GitHubReleaseClient
-	currentVersion string
-	buildType      string // "source" for manual builds, "release" for CI builds
+	*ops.ReleaseQuery
+	githubClient GitHubReleaseClient
 }
 
-// NewUpdateService creates a new UpdateService
 func NewUpdateService(cache UpdateCache, githubClient GitHubReleaseClient, version, buildType string) *UpdateService {
-	return &UpdateService{
-		cache:          cache,
-		githubClient:   githubClient,
-		currentVersion: version,
-		buildType:      buildType,
-	}
+	return &UpdateService{ReleaseQuery: ops.NewReleaseQuery(cache, githubClient, version, buildType), githubClient: githubClient}
 }
 
-// UpdateInfo contains update information
-type UpdateInfo struct {
-	CurrentVersion string       `json:"current_version"`
-	LatestVersion  string       `json:"latest_version"`
-	HasUpdate      bool         `json:"has_update"`
-	ReleaseInfo    *ReleaseInfo `json:"release_info,omitempty"`
-	Cached         bool         `json:"cached"`
-	Warning        string       `json:"warning,omitempty"`
-	BuildType      string       `json:"build_type"` // "source" or "release"
-}
+type UpdateInfo = ops.UpdateInfo
 
-// ReleaseInfo contains GitHub release details
-type ReleaseInfo struct {
-	Name        string  `json:"name"`
-	Body        string  `json:"body"`
-	PublishedAt string  `json:"published_at"`
-	HTMLURL     string  `json:"html_url"`
-	Assets      []Asset `json:"assets,omitempty"`
-}
+type ReleaseInfo = ops.ReleaseInfo
 
-// Asset represents a release asset
-type Asset struct {
-	Name        string `json:"name"`
-	DownloadURL string `json:"download_url"`
-	Size        int64  `json:"size"`
-}
+type Asset = ops.Asset
 
-// GitHubRelease represents GitHub API response
-type GitHubRelease struct {
-	TagName     string        `json:"tag_name"`
-	Name        string        `json:"name"`
-	Body        string        `json:"body"`
-	PublishedAt string        `json:"published_at"`
-	HTMLURL     string        `json:"html_url"`
-	Draft       bool          `json:"draft"`
-	Prerelease  bool          `json:"prerelease"`
-	Assets      []GitHubAsset `json:"assets"`
-}
+type GitHubRelease = ops.GitHubRelease
 
-// RollbackVersion 描述系统允许回退到的正式版本。
-type RollbackVersion struct {
-	Version     string `json:"version"` // 不带 v 前缀，例如 0.1.146。
-	PublishedAt string `json:"published_at"`
-	HTMLURL     string `json:"html_url"`
-}
+type RollbackVersion = ops.RollbackVersion
 
-type GitHubAsset struct {
-	Name               string `json:"name"`
-	BrowserDownloadURL string `json:"browser_download_url"`
-	Size               int64  `json:"size"`
-}
-
-// CheckUpdate checks for available updates
-func (s *UpdateService) CheckUpdate(ctx context.Context, force bool) (*UpdateInfo, error) {
-	// Try cache first
-	if !force {
-		if cached, err := s.getFromCache(ctx); err == nil && cached != nil {
-			return cached, nil
-		}
-	}
-
-	// Fetch from GitHub
-	info, err := s.fetchLatestRelease(ctx)
-	if err != nil {
-		// Return cached on error
-		if cached, cacheErr := s.getFromCache(ctx); cacheErr == nil && cached != nil {
-			cached.Warning = "Using cached data: " + err.Error()
-			return cached, nil
-		}
-		return &UpdateInfo{
-			CurrentVersion: s.currentVersion,
-			LatestVersion:  s.currentVersion,
-			HasUpdate:      false,
-			Warning:        err.Error(),
-			BuildType:      s.buildType,
-		}, nil
-	}
-
-	// Cache result
-	s.saveToCache(ctx, info)
-	return info, nil
-}
+type GitHubAsset = ops.GitHubAsset
 
 // PerformUpdate downloads and applies the update
 // Uses atomic file replacement pattern for safe in-place updates
@@ -302,26 +212,6 @@ func (s *UpdateService) Rollback() error {
 	return nil
 }
 
-// ListRollbackVersions 返回严格早于当前版本的最近正式版本，按新到旧排序。
-// 草稿、预发布和非标准版本号均不会进入列表。
-func (s *UpdateService) ListRollbackVersions(ctx context.Context) ([]RollbackVersion, error) {
-	releases, err := s.fetchRollbackCandidates(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	versions := make([]RollbackVersion, 0, len(releases))
-	for _, r := range releases {
-		version, _ := normalizeRollbackVersion(r.TagName)
-		versions = append(versions, RollbackVersion{
-			Version:     version,
-			PublishedAt: r.PublishedAt,
-			HTMLURL:     r.HTMLURL,
-		})
-	}
-	return versions, nil
-}
-
 // RollbackToVersion 下载并安装指定旧版本。
 // 目标必须属于 ListRollbackVersions 返回的允许列表，当前版本和其他输入都会被拒绝。
 func (s *UpdateService) RollbackToVersion(ctx context.Context, version string) error {
@@ -359,108 +249,11 @@ func (s *UpdateService) RollbackToVersion(ctx context.Context, version string) e
 	return s.applyReleaseAssets(ctx, assets)
 }
 
-// fetchRollbackCandidates 拉取最近 release，并只保留严格早于当前版本的最新候选。
 func (s *UpdateService) fetchRollbackCandidates(ctx context.Context) ([]*GitHubRelease, error) {
-	releases, err := s.githubClient.FetchRecentReleases(ctx, githubRepo, rollbackFetchPageSize)
-	if err != nil {
-		return nil, err
-	}
-
-	currentVersion, ok := normalizeRollbackVersion(s.currentVersion)
-	if !ok {
-		return []*GitHubRelease{}, nil
-	}
-
-	seen := make(map[string]bool, len(releases))
-	candidates := make([]*GitHubRelease, 0, maxRollbackVersions)
-	for _, r := range releases {
-		if r == nil || r.Draft || r.Prerelease {
-			continue
-		}
-		v, valid := normalizeRollbackVersion(r.TagName)
-		if !valid || seen[v] {
-			continue
-		}
-		// 仅允许严格早于当前版本的正式语义版本，同时排除当前版本。
-		if compareVersions(v, currentVersion) >= 0 {
-			continue
-		}
-		seen[v] = true
-		candidates = append(candidates, r)
-	}
-
-	sort.SliceStable(candidates, func(i, j int) bool {
-		left, _ := normalizeRollbackVersion(candidates[i].TagName)
-		right, _ := normalizeRollbackVersion(candidates[j].TagName)
-		return compareVersions(
-			left,
-			right,
-		) > 0
-	})
-
-	if len(candidates) > maxRollbackVersions {
-		candidates = candidates[:maxRollbackVersions]
-	}
-	return candidates, nil
+	return s.FetchRollbackCandidates(ctx)
 }
 
-// normalizeRollbackVersion 只接受可安全用于下载与手动命令展示的 v?MAJOR.MINOR.PATCH。
-// 严格格式既保证排序语义，也防止 release tag 中的 shell 元字符进入复制命令。
-func normalizeRollbackVersion(raw string) (string, bool) {
-	version := strings.TrimSpace(raw)
-	version = strings.TrimPrefix(version, "v")
-	parts := strings.Split(version, ".")
-	if len(parts) != 3 {
-		return "", false
-	}
-	for _, part := range parts {
-		if part == "" || (len(part) > 1 && part[0] == '0') {
-			return "", false
-		}
-		for _, ch := range part {
-			if ch < '0' || ch > '9' {
-				return "", false
-			}
-		}
-		if _, err := strconv.Atoi(part); err != nil {
-			return "", false
-		}
-	}
-	return strings.Join(parts, "."), true
-}
-
-func (s *UpdateService) fetchLatestRelease(ctx context.Context) (*UpdateInfo, error) {
-	release, err := s.githubClient.FetchLatestRelease(ctx, githubRepo)
-	if err != nil {
-		return nil, err
-	}
-
-	latestVersion := strings.TrimPrefix(release.TagName, "v")
-
-	assets := make([]Asset, len(release.Assets))
-	for i, a := range release.Assets {
-		assets[i] = Asset{
-			Name:        a.Name,
-			DownloadURL: a.BrowserDownloadURL,
-			Size:        a.Size,
-		}
-	}
-
-	return &UpdateInfo{
-		CurrentVersion: s.currentVersion,
-		LatestVersion:  latestVersion,
-		HasUpdate:      compareVersions(s.currentVersion, latestVersion) < 0,
-		ReleaseInfo: &ReleaseInfo{
-			Name:        release.Name,
-			Body:        release.Body,
-			PublishedAt: release.PublishedAt,
-			HTMLURL:     release.HTMLURL,
-			Assets:      assets,
-		},
-		Cached:    false,
-		BuildType: s.buildType,
-	}, nil
-}
+func normalizeRollbackVersion(raw string) (string, bool) { return ops.NormalizeRollbackVersion(raw) }
 
 func (s *UpdateService) downloadFile(ctx context.Context, downloadURL, dest string) error {
 	return s.githubClient.DownloadFile(ctx, downloadURL, dest, maxDownloadSize)
@@ -623,77 +416,7 @@ func (s *UpdateService) extractBinary(archivePath, destPath string) error {
 	return out.Close()
 }
 
-func (s *UpdateService) getFromCache(ctx context.Context) (*UpdateInfo, error) {
-	data, err := s.cache.GetUpdateInfo(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	var cached struct {
-		Latest      string       `json:"latest"`
-		ReleaseInfo *ReleaseInfo `json:"release_info"`
-		Timestamp   int64        `json:"timestamp"`
-	}
-	if err := json.Unmarshal([]byte(data), &cached); err != nil {
-		return nil, err
-	}
-
-	if time.Now().Unix()-cached.Timestamp > updateCacheTTL {
-		return nil, fmt.Errorf("cache expired")
-	}
-
-	return &UpdateInfo{
-		CurrentVersion: s.currentVersion,
-		LatestVersion:  cached.Latest,
-		HasUpdate:      compareVersions(s.currentVersion, cached.Latest) < 0,
-		ReleaseInfo:    cached.ReleaseInfo,
-		Cached:         true,
-		BuildType:      s.buildType,
-	}, nil
-}
-
-func (s *UpdateService) saveToCache(ctx context.Context, info *UpdateInfo) {
-	cacheData := struct {
-		Latest      string       `json:"latest"`
-		ReleaseInfo *ReleaseInfo `json:"release_info"`
-		Timestamp   int64        `json:"timestamp"`
-	}{
-		Latest:      info.LatestVersion,
-		ReleaseInfo: info.ReleaseInfo,
-		Timestamp:   time.Now().Unix(),
-	}
-
-	data, _ := json.Marshal(cacheData)
-	_ = s.cache.SetUpdateInfo(ctx, string(data), time.Duration(updateCacheTTL)*time.Second)
-}
-
-// compareVersions compares two semantic versions
-func compareVersions(current, latest string) int {
-	currentParts := parseVersion(current)
-	latestParts := parseVersion(latest)
-
-	for i := 0; i < 3; i++ {
-		if currentParts[i] < latestParts[i] {
-			return -1
-		}
-		if currentParts[i] > latestParts[i] {
-			return 1
-		}
-	}
-	return 0
-}
-
-func parseVersion(v string) [3]int {
-	v = strings.TrimPrefix(v, "v")
-	if idx := strings.IndexByte(v, '-'); idx != -1 {
-		v = v[:idx]
-	}
-	parts := strings.Split(v, ".")
-	result := [3]int{0, 0, 0}
-	for i := 0; i < len(parts) && i < 3; i++ {
-		if parsed, err := strconv.Atoi(parts[i]); err == nil {
-			result[i] = parsed
-		}
-	}
-	return result
+// WrapUpdateQuery 接入组合根的唯一发布查询实例，二进制操作仍留 S14。
+func WrapUpdateQuery(query *ops.ReleaseQuery, client GitHubReleaseClient) *UpdateService {
+	return &UpdateService{ReleaseQuery: query, githubClient: client}
 }

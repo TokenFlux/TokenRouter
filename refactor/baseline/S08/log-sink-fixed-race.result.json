@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "./internal/ops",
+    "./internal/infra/telemetry/logging",
+    "./internal/service",
+    "-run",
+    "Test(S08Regression|OpsSystemLogSink|NormalizeSystemLogHost|Logger)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 25.4,
+  "pass": 23,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/log-sink-fixed-race.log.gz"
+}

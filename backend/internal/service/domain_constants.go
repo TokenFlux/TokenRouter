@@ -3,11 +3,12 @@ package service
 import (
 	"fmt"
 
+	"github.com/TokenFlux/TokenRouter/internal/ops"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/TokenFlux/TokenRouter/internal/scheduler"
-
 	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
 // Status constants
@@ -442,28 +443,28 @@ const (
 	// =========================
 
 	// SettingKeyOpsMonitoringEnabled is a DB-backed soft switch to enable/disable ops module at runtime.
-	SettingKeyOpsMonitoringEnabled = "ops_monitoring_enabled"
+	SettingKeyOpsMonitoringEnabled = ops.SettingKeyOpsMonitoringEnabled
 
 	// SettingKeyOpsRealtimeMonitoringEnabled controls realtime features (e.g. WS/QPS push).
-	SettingKeyOpsRealtimeMonitoringEnabled = "ops_realtime_monitoring_enabled"
+	SettingKeyOpsRealtimeMonitoringEnabled = ops.SettingKeyOpsRealtimeMonitoringEnabled
 
 	// SettingKeyPreAggregationSettings 保存用量与运维预聚合的统一运行时配置。
 	SettingKeyPreAggregationSettings = "pre_aggregation_settings"
 
 	// SettingKeyOpsEmailNotificationConfig stores JSON config for ops email notifications.
-	SettingKeyOpsEmailNotificationConfig = "ops_email_notification_config"
+	SettingKeyOpsEmailNotificationConfig = ops.SettingKeyOpsEmailNotificationConfig
 
 	// SettingKeyOpsAlertRuntimeSettings stores JSON config for ops alert evaluator runtime settings.
-	SettingKeyOpsAlertRuntimeSettings = "ops_alert_runtime_settings"
+	SettingKeyOpsAlertRuntimeSettings = ops.SettingKeyOpsAlertRuntimeSettings
 
 	// SettingKeyOpsMetricsIntervalSeconds controls the ops metrics collector interval (>=60).
-	SettingKeyOpsMetricsIntervalSeconds = "ops_metrics_interval_seconds"
+	SettingKeyOpsMetricsIntervalSeconds = ops.SettingKeyOpsMetricsIntervalSeconds
 
 	// SettingKeyOpsAdvancedSettings stores JSON config for ops advanced settings (data retention, aggregation).
-	SettingKeyOpsAdvancedSettings = "ops_advanced_settings"
+	SettingKeyOpsAdvancedSettings = ops.SettingKeyOpsAdvancedSettings
 
 	// SettingKeyOpsRuntimeLogConfig stores JSON config for runtime log settings.
-	SettingKeyOpsRuntimeLogConfig = "ops_runtime_log_config"
+	SettingKeyOpsRuntimeLogConfig = ops.SettingKeyOpsRuntimeLogConfig
 
 	// SettingKeyOllamaCloudUsageSettings 保存可选的全局刷新开关和刷新周期。
 	SettingKeyOllamaCloudUsageSettings = "ollama_cloud_usage_settings"

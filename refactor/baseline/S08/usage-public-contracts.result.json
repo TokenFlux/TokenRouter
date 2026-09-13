@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/usage/...",
+    "./internal/handler/...",
+    "./internal/server/routes",
+    "./internal/billing",
+    "./internal/app",
+    "-run",
+    "Test(Usage|CalculateSubscriptionRemaining|Public|Gateway.*Usage|APIKeyDaily|ParseAPIKeyDaily)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 21.688,
+  "pass": 140,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/usage-public-contracts.log.gz"
+}

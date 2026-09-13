@@ -1,65 +1,13 @@
-// 本文件维护 repository 的所属能力；兼容入口复用唯一实现。
+// 旧 Key 统计入口委托 usage 的批量查询，保持同连接和原窗口。
 package repository
 
 import (
-	context "context"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
-	pq "github.com/lib/pq"
-	time "time"
+	"context"
+
+	"github.com/TokenFlux/TokenRouter/internal/service"
+	usagepostgres "github.com/TokenFlux/TokenRouter/internal/usage/postgres"
 )
 
-func ReadAPIKeyUsageTotals(ctx context.Context, sqlq sqlExecutor, preAggregation *service.PreAggregationSettingsService, keyIDs []int64) (map[int64]float64, error) {
-	result := make(map[int64]float64, len(keyIDs))
-	if len(keyIDs) == 0 {
-		return result, nil
-	}
-	for _, id := range keyIDs {
-		result[id] = 0
-	}
-
-	now := time.Now()
-	start := now.AddDate(0, 0, -30)
-	if preAggregation != nil {
-		usageRepo := &usageLogRepository{sql: sqlq, preAggregation: preAggregation}
-		if stats, ok, err := usageRepo.getBatchAPIKeyUsageStatsFromAnalytics(ctx, keyIDs, start, now); err == nil && ok {
-			for keyID, stat := range stats {
-				if stat != nil {
-					result[keyID] = stat.TotalActualCost
-				}
-			}
-			return result, nil
-		} else if err != nil {
-			usageRepo.logUsageAnalyticsFallback("api_key_list_usage", err)
-		}
-	}
-
-	query := `
-		SELECT api_key_id, COALESCE(SUM(actual_cost), 0)
-		FROM usage_logs
-		WHERE api_key_id = ANY($1)
-		  AND created_at >= $2
-		  AND created_at < $3
-		GROUP BY api_key_id
-	`
-	rows, err := sqlq.QueryContext(ctx, query, pq.Array(keyIDs), now.AddDate(0, 0, -30), now)
-	if err != nil {
-		return nil, err
-	}
-	for rows.Next() {
-		var keyID int64
-		var total float64
-		if err := rows.Scan(&keyID, &total); err != nil {
-			_ = rows.Close()
-			return nil, err
-		}
-		result[keyID] = total
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return result, nil
+func ReadAPIKeyUsageTotals(ctx context.Context, sqlq sqlExecutor, settings *service.PreAggregationSettingsService, ids []int64) (map[int64]float64, error) {
+	return usagepostgres.ReadAPIKeyUsageTotals(ctx, sqlq, settings, ids)
 }

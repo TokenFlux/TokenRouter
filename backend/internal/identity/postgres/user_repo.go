@@ -2,32 +2,60 @@
 package postgres
 
 import (
+	usagequery "github.com/TokenFlux/TokenRouter/internal/usage/postgres/query"
+
 	context "context"
+
 	sql "database/sql"
+
 	dialect "entgo.io/ent/dialect"
+
 	entsql "entgo.io/ent/dialect/sql"
+
 	errors "errors"
+
 	fmt "fmt"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+
 	apikey "github.com/TokenFlux/TokenRouter/ent/apikey"
+
 	authidentity "github.com/TokenFlux/TokenRouter/ent/authidentity"
+
 	authidentitychannel "github.com/TokenFlux/TokenRouter/ent/authidentitychannel"
+
 	dbgroup "github.com/TokenFlux/TokenRouter/ent/group"
+
 	identityadoptiondecision "github.com/TokenFlux/TokenRouter/ent/identityadoptiondecision"
+
 	predicate "github.com/TokenFlux/TokenRouter/ent/predicate"
+
 	mixins "github.com/TokenFlux/TokenRouter/ent/schema/mixins"
+
 	dbuser "github.com/TokenFlux/TokenRouter/ent/user"
+
 	userallowedgroup "github.com/TokenFlux/TokenRouter/ent/userallowedgroup"
+
 	userdisabledpublicgroup "github.com/TokenFlux/TokenRouter/ent/userdisabledpublicgroup"
+
 	usersubscription "github.com/TokenFlux/TokenRouter/ent/usersubscription"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+
 	identitycore "github.com/TokenFlux/TokenRouter/internal/identity"
+
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+
 	team "github.com/TokenFlux/TokenRouter/internal/team"
+
 	pq "github.com/lib/pq"
+
 	sort "sort"
+
 	strings "strings"
+
 	time "time"
 )
 
@@ -718,42 +746,11 @@ func IdentityUserListOrder(params pagination.PaginationParams) []func(*entsql.Se
 }
 
 func (r *UserStore) GetLatestUsedAtByUserIDs(ctx context.Context, userIDs []int64) (map[int64]*time.Time, error) {
-	result := make(map[int64]*time.Time, len(userIDs))
+	// 空批次仍不访问调用方连接。
 	if len(userIDs) == 0 {
-		return result, nil
+		return map[int64]*time.Time{}, nil
 	}
-	if r.sql == nil {
-		return nil, fmt.Errorf("sql executor is not configured")
-	}
-
-	const query = `
-		SELECT user_id, MAX(created_at) AS last_used_at
-		FROM usage_logs
-		WHERE user_id = ANY($1)
-		GROUP BY user_id
-	`
-
-	rows, err := r.sql.QueryContext(ctx, query, pq.Array(userIDs))
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	for rows.Next() {
-		var (
-			userID     int64
-			lastUsedAt time.Time
-		)
-		if scanErr := rows.Scan(&userID, &lastUsedAt); scanErr != nil {
-			return nil, scanErr
-		}
-		ts := lastUsedAt.UTC()
-		result[userID] = &ts
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return result, nil
+	return usagequery.GetLatestUsedAtByUserIDs(ctx, r.sql, userIDs)
 }
 
 func (r *UserStore) GetLatestUsedAtByUserID(ctx context.Context, userID int64) (*time.Time, error) {
@@ -765,22 +762,7 @@ func (r *UserStore) GetLatestUsedAtByUserID(ctx context.Context, userID int64) (
 }
 
 func IdentityUserLastUsedAtOrder(sortOrder string) []func(*entsql.Selector) {
-	orderExpr := func(direction, nulls string, tieOrder func(string) string) func(*entsql.Selector) {
-		return func(s *entsql.Selector) {
-			subquery := fmt.Sprintf("(SELECT MAX(created_at) FROM usage_logs WHERE user_id = %s)", s.C(dbuser.FieldID))
-			s.OrderExpr(entsql.Expr(subquery + " " + direction + " NULLS " + nulls))
-			s.OrderBy(tieOrder(s.C(dbuser.FieldID)))
-		}
-	}
-
-	if sortOrder == pagination.SortOrderAsc {
-		return []func(*entsql.Selector){
-			orderExpr("ASC", "FIRST", entsql.Asc),
-		}
-	}
-	return []func(*entsql.Selector){
-		orderExpr("DESC", "LAST", entsql.Desc),
-	}
+	return usagequery.IdentityUserLastUsedAtOrder(sortOrder)
 }
 
 // IdentityFilterUsersByAttributes returns user IDs that match ALL the given attribute filters

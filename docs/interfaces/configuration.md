@@ -66,6 +66,8 @@ setup 使用 `DATA_DIR > 可写 /app/data > 当前目录` 选择 `config.yaml` �
 <a id="runtime_settings"></a>
 ## 数据库运行时设置
 
+usage、audit、ops 的静态参数由 app 投影为各模块 Options；动态 Ops 设置与日志配置继续由原数据库键控制。统一预聚合控制器位于 `settings/preaggregation`，仍有十五秒缓存及原更新通知，不新增设置格式或发布订阅协议。运行日志的应用、持久化失败后回滚和清理 Reload 顺序保持不变。
+
 `settings` 是 `key/value/updated_at` 表，删除键表示恢复该 getter 的默认语义。`settings.Store` 与其 PostgreSQL Adapter 拥有通用存取、现有版本字段和更新通知；旧 `SettingService` 继续负责业务解析、范围/组合校验、敏感值保留、页面聚合和领域缓存。handler 负责 HTTP binding、权限、审计和响应。
 
 业务更新保持校验、批量原子写入、原有缓存刷新、原有通知的顺序。Store 写方法不自动广播，单键更新不会获得原先没有的通知；旧单回调接口保留替换语义，应用订阅可以注销。这里的版本字段保留原应用版本赋值和 JSON 省略语义，没有新增持久 revision 或跨实例消息协议。公开设置、CSP、websearch 与动态 worker 回调由 app 装配；web 只消费公开投影。

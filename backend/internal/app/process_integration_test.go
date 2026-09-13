@@ -238,6 +238,22 @@ func TestS02ProcessModes(t *testing.T) {
 				require.Less(t, strings.Index(logs, "stopped HTTPRequests"), strings.Index(logs, "stopped "+name), name)
 				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
 			}
+
+			// S08 的观测生产者、聚合和写入队列都在实际请求结束后停止，并先于共享存储关闭。
+			for _, name := range []string{"OpsMetricsCollector", "OpsAggregationService", "OpsAlertEvaluatorService", "OpsCleanupService", "OpsScheduledReportService", "OpsService", "OpsIngressRejectAggregator", "DashboardAggregationService", "UsageCleanupService", "AuditLogService", "OpsSystemLogSink"} {
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name), name)
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped HTTPRequests"), strings.Index(logs, "stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
+			}
+			for _, name := range []string{"OpsWSRuntime", "OpsErrorLogWorkers", "UsageLogBatchers"} {
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped HTTPRequests"), strings.Index(logs, "stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
+			}
+			require.Less(t, strings.Index(logs, "stopped UsageCleanupService"), strings.Index(logs, "stopped DashboardAggregationService"))
+			require.Less(t, strings.Index(logs, "stopped OpsErrorLogWorkers"), strings.Index(logs, "stopped OpsSystemLogSink"))
+
 			require.NotContains(t, logs, "[Lifecycle] started TLSFingerprintCollectorService")
 			require.Eventually(t, func() bool {
 				var n int

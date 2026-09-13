@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/pkg/querycache",
+    "./internal/server/httpx",
+    "./internal/usage/...",
+    "./internal/handler/...",
+    "-run",
+    "Test(Usage|Dashboard|SnapshotCache|BuildETag|S08|ParseTimeRange)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 1.625,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/usage-query-cache.log.gz"
+}

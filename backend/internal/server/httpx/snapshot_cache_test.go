@@ -4,11 +4,12 @@
 package httpx
 
 import (
-	require "github.com/stretchr/testify/require"
 	sync "sync"
 	atomic "sync/atomic"
 	testing "testing"
 	time "time"
+
+	require "github.com/stretchr/testify/require"
 )
 
 func TestSnapshotCache_SetAndGet(t *testing.T) {
@@ -66,11 +67,15 @@ func TestSnapshotCache_SetEmptyKey(t *testing.T) {
 }
 
 func TestSnapshotCache_DefaultTTL(t *testing.T) {
-	c := NewSnapshotCache(0)
-	require.Equal(t, 30*time.Second, c.ttl)
-
-	c2 := NewSnapshotCache(-1 * time.Second)
-	require.Equal(t, 30*time.Second, c2.ttl)
+	// 通过实际条目的有效期验证兼容边界，不访问已迁出的缓存内部字段。
+	for _, ttl := range []time.Duration{0, -time.Second} {
+		c := NewSnapshotCache(ttl)
+		before := time.Now()
+		entry := c.Set("default", "value")
+		after := time.Now()
+		require.False(t, entry.ExpiresAt.Before(before.Add(30*time.Second)))
+		require.False(t, entry.ExpiresAt.After(after.Add(30*time.Second)))
+	}
 }
 
 func TestSnapshotCache_ETagDeterministic(t *testing.T) {

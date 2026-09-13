@@ -2,7 +2,6 @@
 package service
 
 import (
-	context "context"
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 )
 
@@ -15,22 +14,6 @@ type AuthCacheInvalidationOutboxRepository = apikey.AuthCacheInvalidationOutboxR
 type AuthCacheInvalidationHealth = apikey.AuthCacheInvalidationHealth
 
 type OpsAuthCacheInvalidationHealth = apikey.OpsAuthCacheInvalidationHealth
-
-func (s *OpsService) GetAuthCacheInvalidationHealth(ctx context.Context) OpsAuthCacheInvalidationHealth {
-	if s == nil {
-		return OpsAuthCacheInvalidationHealth{}
-	}
-	health := OpsAuthCacheInvalidationHealth{}
-	if s.authCacheInvalidationWorker != nil {
-		health.Outbox = s.authCacheInvalidationWorker.Health(ctx)
-	}
-	if s.apiKeyService != nil {
-		health.Subscriber = s.apiKeyService.AuthCacheInvalidationSubscriberHealth()
-		health.Lookup = s.apiKeyService.AuthLookupMetrics()
-		health.InvalidAbuse = s.apiKeyService.InvalidAuthAbuseHealth()
-	}
-	return health
-}
 
 type AuthCacheInvalidationWorker = apikey.AuthCacheInvalidationWorker
 

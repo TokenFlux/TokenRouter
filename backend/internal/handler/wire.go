@@ -1,15 +1,22 @@
 package handler
 
 import (
+	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
+
+	opshttp "github.com/TokenFlux/TokenRouter/internal/ops/httpapi"
+
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
+
 	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+
 	egresshttp "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
+
 	schedulerhttp "github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/service"
-	sitehttpapi "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 
+	sitehttpapi "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 	"github.com/google/wire"
 )
 
@@ -159,6 +166,7 @@ func ProvideAPIKeyHandler(apiKeyService *service.APIKeyService, groupCapacitySer
 
 // ProvideHandlers creates the Handlers struct
 func ProvideHandlers(
+	publicUsage *usagehttp.PublicUsageHandler,
 	plans *billinghttpapi.PlanHandler,
 	quotaHandler *billinghttpapi.QuotaHandler,
 	authHandler AuthEndpoints,
@@ -185,6 +193,7 @@ func ProvideHandlers(
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
 	return &Handlers{
+		PublicUsage:      publicUsage,
 		Plans:            plans,
 		PlatformQuota:    quotaHandler,
 		Auth:             authHandler,
@@ -216,7 +225,6 @@ var ProviderSet = wire.NewSet(
 	// Top-level handlers
 	NewUserHandler,
 	ProvideAPIKeyHandler,
-	NewUsageHandler,
 	billinghttpapi.NewRedeemHandler,
 	billinghttpapi.NewSubscriptionHandler,
 	sitehttpapi.NewAnnouncementHandler,
@@ -233,7 +241,6 @@ var ProviderSet = wire.NewSet(
 	NewTeamHandler,
 
 	// Admin handlers
-	admin.NewDashboardHandler,
 	admin.NewUserHandler,
 	sitehttpapi.NewAdminAnnouncementHandler,
 	admin.NewDataManagementHandler,
@@ -246,10 +253,9 @@ var ProviderSet = wire.NewSet(
 	billinghttpapi.NewAdminRedeemHandler,
 	admin.NewPromoHandler,
 	ProvideAdminSettingHandler,
-	admin.NewOpsHandler,
+	opshttp.NewOpsHandler,
 	ProvideSystemHandler,
 	billinghttpapi.NewAdminSubscriptionHandler,
-	admin.NewUsageHandler,
 	admin.NewUserAttributeHandler,
 	admin.NewErrorPassthroughHandler,
 	admin.NewAdminAPIKeyHandler,
@@ -257,7 +263,6 @@ var ProviderSet = wire.NewSet(
 	admin.NewPaymentHandler,
 	admin.NewAffiliateHandler,
 	admin.NewCodexInviteResetHandler,
-	admin.NewAuditLogHandler,
 	admin.NewTeamHandler,
 
 	// AdminHandlers and Handlers constructors

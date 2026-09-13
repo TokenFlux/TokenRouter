@@ -1,54 +1,8 @@
+// 兼容入口只引用所属模块的唯一实现，S15/S16 清理。
 package service
 
-import "time"
+import native "github.com/TokenFlux/TokenRouter/internal/ops"
 
-type OpsTokenStatsFilter struct {
-	TimeRange string
-	StartTime time.Time
-	EndTime   time.Time
-
-	Platform string
-	GroupID  *int64
-
-	// 分页模式（默认）：page/page_size。
-	Page     int
-	PageSize int
-
-	// TopN 模式：top_n。
-	TopN int
-}
-
-func (f *OpsTokenStatsFilter) IsTopNMode() bool {
-	return f != nil && f.TopN > 0
-}
-
-type OpsTokenStatsItem struct {
-	Model                  string   `json:"model"`
-	RequestCount           int64    `json:"request_count"`
-	AvgTokensPerSec        *float64 `json:"avg_tokens_per_sec"`
-	AvgFirstTokenMs        *float64 `json:"avg_first_token_ms"`
-	TotalOutputTokens      int64    `json:"total_output_tokens"`
-	AvgDurationMs          int64    `json:"avg_duration_ms"`
-	RequestsWithFirstToken int64    `json:"requests_with_first_token"`
-}
-
-type OpsTokenStatsResponse struct {
-	TimeRange string    `json:"time_range"`
-	StartTime time.Time `json:"start_time"`
-	EndTime   time.Time `json:"end_time"`
-
-	Platform string `json:"platform,omitempty"`
-	GroupID  *int64 `json:"group_id,omitempty"`
-
-	Items []*OpsTokenStatsItem `json:"items"`
-
-	// 分页或 TopN 截断前的模型总数。
-	Total int64 `json:"total"`
-
-	// 分页模式元数据。
-	Page     int `json:"page,omitempty"`
-	PageSize int `json:"page_size,omitempty"`
-
-	// TopN 模式元数据。
-	TopN *int `json:"top_n,omitempty"`
-}
+type OpsTokenStatsFilter = native.OpsTokenStatsFilter
+type OpsTokenStatsItem = native.OpsTokenStatsItem
+type OpsTokenStatsResponse = native.OpsTokenStatsResponse

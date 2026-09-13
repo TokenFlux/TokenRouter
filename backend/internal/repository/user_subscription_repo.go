@@ -11,10 +11,6 @@ func NewUserSubscriptionRepository(client *dbent.Client) service.UserSubscriptio
 	return billingpostgres.NewUserSubscriptionRepository(client)
 }
 
-func userSubscriptionEntityToService(m *dbent.UserSubscription) *service.UserSubscription {
-	return billingpostgres.SubscriptionFromEntity(m)
-}
-
 func subscriptionPlanEntityToService(plan *dbent.SubscriptionPlan) *service.SubscriptionPlan {
 	return billingpostgres.PlanFromEntity(plan)
 }

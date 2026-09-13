@@ -1351,7 +1351,8 @@ func runUsageBillingConcurrentUsageLogInsert(t *testing.T, teamRequest bool) {
 	}
 	insertDone := make(chan error, 1)
 	go func() {
-		insertDone <- execUsageLogInsertNoResult(ctx, integrationDB, prepareUsageLogInsert(usageLog))
+		_, insertErr := newUsageLogRepositoryWithSQL(client, directUsageExecutor{integrationDB}).Create(ctx, usageLog)
+		insertDone <- insertErr
 	}()
 
 	select {

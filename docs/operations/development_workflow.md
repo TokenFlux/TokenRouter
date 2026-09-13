@@ -65,6 +65,8 @@ billing 的 singleflight、隔离倍率缓存和提醒设置读取按实际文�
 
 identity、team、apikey 的生产实例和同连接事务参与工厂由 app 固定；旧资料、Key 和管理接口只作投影与委托。身份 SDK 验证、令牌消费和认证缓存需要分别覆盖普通/unit 构建选择及真实 PostgreSQL/Redis；只剩测试消费者的私有转接放入对应标签的 `_test.go`，不保留生产算法副本。
 
+usage、audit、ops 已使用各自核心和 Adapter；用户/Key/团队的用量 SQL 参与函数复用调用方连接，不能改成逐条查询或分页后排序。新核心不导入旧实体、Gin 或具体存储；纯 `querycache`、`logevent` 与已迁统计值拥有独立职责规则。历史构造、HTTP 上下文和测试适配许可继续精确到文件/import，普通新文件不会继承许可；验收需要真实队列/事务/取消事件和查询次数证据，不能用仅编译或跳过替代。
+
 所有手写代码都要写必要注释，注释使用中文；生成文件不手改。注释应解释约束、失败语义或非显然原因，不复述语句。跨模块不变量应同步到 Project Doc，并在关键手写入口添加唯一 `@project-doc` 锚点。
 
 前端使用 Vue 3、TypeScript、Pinia、Vue Router、Vue I18n 和项目组件。修改界面时：

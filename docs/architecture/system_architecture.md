@@ -49,11 +49,13 @@
 
 settings 的通用实现位于 `settings` 与 `settings/postgres`；旧 `SettingService` 继续解释业务设置和维护领域缓存。idempotency 的核心、观察出口与 SQL Adapter 已独立，旧默认入口只委托唯一实例。site 拥有公告实体、targeting、用例和到期 worker，HTTP 与 PostgreSQL Adapter 分开；旧 domain 公告类型只作为 Ent 生成代码引用的别名。
 
-`protocol` 拥有协议值、各方言报文和 `bridge` 转换状态；`routing/capability` 拥有原生集合、准入及单步 fallback，`routing` 拥有 effort 映射规则。`billing/pricing` 拥有价卡、目录解析、费用与展示计算，`billing/provider` 拥有目录加载、热更新及唯一运行缓存。旧 apicompat/domain/PricingService 保留必要转接。billing 的 Calculator、PriceResolver 和资金分配规则接收显式投影；普通结算与任务资金由 Funds 进入 billing/postgres 的闭合事务，Redis 缓存位于 billing/rediscache。账号选择、平台传输、用量记录和支付订单编排仍在旧图，纯定价和协议不读取配置或 I/O。
+`protocol` 拥有协议值、各方言报文和 `bridge` 转换状态；`routing/capability` 拥有原生集合、准入及单步 fallback，`routing` 拥有 effort 映射规则。`billing/pricing` 拥有价卡、目录解析、费用与展示计算，`billing/provider` 拥有目录加载、热更新及唯一运行缓存。旧 apicompat/domain/PricingService 保留必要转接。billing 的 Calculator、PriceResolver 和资金分配规则接收显式投影；普通结算与任务资金由 Funds 进入 billing/postgres 的闭合事务，Redis 缓存位于 billing/rediscache。平台传输、供应商用量归一化、网关完成处理和支付订单编排仍在旧图，纯定价和协议不读取配置或 I/O。
 
 公告与 billing 的用户读取由 app 直接投影 identity；公告有效订阅直接适配 billing 存取接口，匹配规则仍由 site 执行。模块不导入 app。旧图的跨层构造暂留原 provider，应用级启停和新旧模块绑定由 app 管理，不能通过搬动目录给新代码继承历史依赖许可。
 
-身份的注册、绑定、会话和强认证进入 identity，团队事务进入 team，Key 的访问快照、L1/L2 与认证 outbox 进入 apikey。app 构造唯一生产实例与事务参与工厂，旧 service/repository 只保留形状转换和委托；跨模块写入沿用现有 Ent context 与调用方连接。分组/渠道由 routing、账号管理与维护由 account、代理与 TLS 策略由 egress 提供；用量、通知、推广支付、调度执行与供应商交换仍经窄端口连接旧图。模型匹配由纯 `routing/modelmap` 共享，网关仍拥有请求改写顺序。
+身份的注册、绑定、会话和强认证进入 identity，团队事务进入 team，Key 的访问快照、L1/L2 与认证 outbox 进入 apikey。app 构造唯一生产实例与事务参与工厂，旧 service/repository 只保留形状转换和委托；跨模块写入沿用现有 Ent context 与调用方连接。分组/渠道由 routing、账号管理与维护由 account、代理与 TLS 策略由 egress 提供；通知、推广支付与供应商交换仍经窄端口连接旧图。模型匹配由纯 `routing/modelmap` 共享，网关仍拥有请求改写顺序。
+
+`usage` 拥有用量事实、统计口径、查询缓存、Dashboard、聚合与清理；`audit` 拥有通用操作审计；`ops` 拥有观测查询、队列、采样、告警、报告和发布查询。各模块的 HTTP、PostgreSQL、Redis 与技术 provider 通过独立端口接入。app 绑定唯一生产实例并投影身份、账号、并发和认证健康数据；旧 `UsageLog` 的关联形状只通过展示投影兼容，不进入新事实模型。用户最后活动排序、Key 最近使用 IP 和团队用量由 `usage/postgres/query` 参与调用方原有连接与查询，排序继续发生在分页前。
 
 `pkg/apperror`、`pagination`、`timezone`、`ipmatch`、`oauthpkce`、`logredact` 提供通用值类型与计算；`server/httpx`、`server/clientip` 拥有 HTTP 适配。旧 pkg/util 入口保留必要的类型别名和委托，不复制实现或状态。
 
@@ -86,6 +88,8 @@ Stop 和 Cleanup 共享一次执行结果。超时报告未完成任务，停止
 
 调度快照、并发、串行队列和运行反馈由 app 绑定唯一 scheduler 实例，构造不启动。完整 handler 结束后停止调度新认领、取消等待并等待在途资源释放，再关闭 Redis/SQL。快照的初始重建仍异步，重复启动不重建，停止后不重开；遗留持久 outbox 留待下次消费或周期重建恢复。
 
+usage 聚合器在停止时取消运行 context 和重试等待，拒绝新重算并等待已进入的工作；审计与系统日志 sink 的重复 Start 不会创建第二个 worker，Stop 后不能重开。Ops 错误采集队列仍在第一次入队时启动工作，队列实例与清理 hook 已在 app 构造期绑定。实时采样与订阅计数由 Ops 持有，WebSocket 握手和帧由 HTTP Adapter 处理；空闲停止与应用停止使用同一实例。
+
 ## 数据所有权
 
 | 存储 | 所有权与使用方式 | 失败或丢失影响 |
@@ -98,7 +102,7 @@ Stop 和 Cleanup 共享一次执行结果。超时报告未完成任务，停止
 | 创作台临时数据 | Redis `creative:payload:`、`creative:input:`、`creative:mask:`、`creative:output:` 键（TTL 默认 30 分钟）与 `creative:queue:*` 队列；PostgreSQL 存 `creative_runs`/`creative_run_outputs` 元数据及 `creative_run_outbox` durable 动作 | 素材与 prompt 明文不入 PostgreSQL，因此不进入备份；临时输出过期即不可恢复，任务降级 `result_lost`，客户端 ack 先写元数据再删除输出键，删除失败由 reconciler 补偿 |
 | 上游供应商 | 模型推理、OAuth、配额与供应商任务 | 失败通过平台适配器、账号状态和故障转移收敛；不能把上游瞬时错误写成永久本地事实 |
 
-Ent schema 是主要实体的代码模型，手写 SQL 迁移是已部署数据库的演进权威。repository 同时使用 Ent 和底层 `*sql.DB` 完成复杂聚合、批量更新及显式事务；两种访问方式共享同一连接池。
+Ent schema 是主要实体的代码模型，手写 SQL 迁移是已部署数据库的演进权威。各模块 PostgreSQL Adapter 与保留的 repository 同时使用 Ent 和底层 `*sql.DB` 完成复杂聚合、批量更新及显式事务；两种访问方式共享同一连接池。
 
 ## HTTP 与前端交付
 

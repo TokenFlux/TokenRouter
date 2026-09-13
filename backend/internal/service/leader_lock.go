@@ -3,8 +3,9 @@ package service
 import (
 	"context"
 	"database/sql"
-	"github.com/TokenFlux/TokenRouter/internal/account"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/account"
 )
 
 // LeaderLockCache 为周期性后台任务提供跨实例互斥。
@@ -32,4 +33,9 @@ func tryAcquireSingletonLeaderLock(ctx context.Context, cache LeaderLockCache, d
 		}
 	}
 	return account.AcquireSingletonLease(ctx, cache, advisory, key, owner, ttl)
+}
+
+// AcquireSingletonLeaderLock 仅向组合根暴露现有技术参与适配，S14/S16 清理。
+func AcquireSingletonLeaderLock(ctx context.Context, cache LeaderLockCache, db *sql.DB, key, owner string, ttl time.Duration) (func(), bool) {
+	return tryAcquireSingletonLeaderLock(ctx, cache, db, key, owner, ttl)
 }

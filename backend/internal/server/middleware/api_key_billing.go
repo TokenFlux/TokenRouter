@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	billingcore "github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
@@ -12,14 +13,7 @@ const (
 	apiKeyBillingSourceBalance      = "balance"
 )
 
-// APIKeyBillingContext 是一次 API Key 请求已解析的资金来源。
-// subscription 模式会保留不可用套餐快照，供 /v1/usage 准确呈现状态而不回退余额。
-type APIKeyBillingContext struct {
-	Mode         string
-	Source       string
-	Subscription *service.UserSubscription
-	Available    bool
-}
+type APIKeyBillingContext = billingcore.APIKeyBillingContext
 
 // resolveAPIKeyBillingContext 统一解析 API Key 的结算来源。
 // auto 保留现有的可用订阅优先策略；subscription 和 balance 则绝不发生隐式回退。

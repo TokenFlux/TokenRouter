@@ -1,0 +1,461 @@
+package ops
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	logger "github.com/TokenFlux/TokenRouter/internal/pkg/logevent"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+)
+
+type OpsSystemLogSinkHealth struct {
+	QueueDepth      int64  `json:"queue_depth"`
+	QueueCapacity   int64  `json:"queue_capacity"`
+	DroppedCount    uint64 `json:"dropped_count"`
+	WriteFailed     uint64 `json:"write_failed_count"`
+	WrittenCount    uint64 `json:"written_count"`
+	AvgWriteDelayMs uint64 `json:"avg_write_delay_ms"`
+	LastError       string `json:"last_error"`
+}
+
+type OpsSystemLogSink struct {
+	opsRepo SystemLogWriter
+	// host 记录当前进程写入系统日志时的主机标识。
+	host string
+
+	queue            chan *logger.LogEvent
+	lifecycleMu      sync.RWMutex
+	started, stopped bool
+	stopOnce         sync.Once
+	stopDone         chan struct{}
+	onWriteFailure   func(error, int, int, time.Duration)
+
+	batchSize     int
+	flushInterval time.Duration
+
+	// 连续写入失败后的退避参数。构造后只读，测试可在 Start 前覆盖。
+	flushBackoff    time.Duration
+	flushBackoffMax time.Duration
+
+	ctx    context.Context
+	cancel context.CancelFunc
+	wg     sync.WaitGroup
+
+	droppedCount uint64
+	writeFailed  uint64
+	writtenCount uint64
+	totalDelayNs uint64
+
+	lastError atomic.Value
+}
+
+// maxSystemLogHostLength 与数据库 host 列长度保持一致，避免异常环境值回滚整批写入。
+const maxSystemLogHostLength = 255
+
+const (
+	// 首次写入失败后暂停落库的时长，之后逐次翻倍到上限。
+	defaultOpsSystemLogFlushBackoff = 2 * time.Second
+	// 退避上限。日志是尽力而为的观测数据，不值得为它无限期占用连接池。
+	defaultOpsSystemLogFlushBackoffMax = 60 * time.Second
+)
+
+func NewOpsSystemLogSink(opsRepo SystemLogWriter, options ...SystemLogSinkOptions) *OpsSystemLogSink {
+	ctx, cancel := context.WithCancel(context.Background())
+	option := SystemLogSinkOptions{}
+	if len(options) > 0 {
+		option = options[0]
+	}
+	s := &OpsSystemLogSink{
+		opsRepo:  opsRepo,
+		stopDone: make(chan struct{}), onWriteFailure: option.OnWriteFailure,
+		host:            normalizeSystemLogHost(option.Host, option.HostError),
+		queue:           make(chan *logger.LogEvent, 5000),
+		batchSize:       200,
+		flushInterval:   time.Second,
+		flushBackoff:    defaultOpsSystemLogFlushBackoff,
+		flushBackoffMax: defaultOpsSystemLogFlushBackoffMax,
+		ctx:             ctx,
+		cancel:          cancel,
+	}
+	s.lastError.Store("")
+	return s
+}
+
+// flushBackoffFor 返回第 failures 次连续失败后的退避时长（指数退避，封顶）。
+func (s *OpsSystemLogSink) flushBackoffFor(failures int) time.Duration {
+	base := s.flushBackoff
+	if base <= 0 {
+		base = defaultOpsSystemLogFlushBackoff
+	}
+	maxBackoff := s.flushBackoffMax
+	if maxBackoff <= 0 {
+		maxBackoff = defaultOpsSystemLogFlushBackoffMax
+	}
+	if maxBackoff < base {
+		maxBackoff = base
+	}
+	backoff := base
+	for i := 1; i < failures && backoff < maxBackoff; i++ {
+		backoff *= 2
+	}
+	if backoff > maxBackoff {
+		backoff = maxBackoff
+	}
+	return backoff
+}
+
+// normalizeSystemLogHost 清理并限制主机名，读取失败时使用稳定的兜底值。
+func normalizeSystemLogHost(host string, err error) string {
+	host = strings.TrimSpace(host)
+	if err != nil || host == "" {
+		return "unknown"
+	}
+	runes := []rune(host)
+	if len(runes) > maxSystemLogHostLength {
+		return string(runes[:maxSystemLogHostLength])
+	}
+	return host
+}
+
+func (s *OpsSystemLogSink) Start() {
+	if s == nil || s.opsRepo == nil {
+		return
+	}
+	s.lifecycleMu.Lock()
+	defer s.lifecycleMu.Unlock()
+	if s.started || s.stopped {
+		return
+	}
+	s.started = true
+	s.wg.Add(1)
+	go s.run()
+}
+
+func (s *OpsSystemLogSink) Stop() { _ = s.StopContext(context.Background()) }
+
+// StopContext 封闭入队并等待唯一 writer；超时保留未完成状态。
+func (s *OpsSystemLogSink) StopContext(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	s.stopOnce.Do(func() {
+		s.lifecycleMu.Lock()
+		s.stopped = true
+		s.cancel()
+		s.lifecycleMu.Unlock()
+		go func() { s.wg.Wait(); close(s.stopDone) }()
+	})
+	select {
+	case <-s.stopDone:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *OpsSystemLogSink) WriteLogEvent(event *logger.LogEvent) {
+	if s == nil || event == nil || !s.shouldIndex(event) {
+		return
+	}
+	s.lifecycleMu.RLock()
+	defer s.lifecycleMu.RUnlock()
+	if s.stopped {
+		return
+	}
+	if s.ctx != nil {
+		select {
+		case <-s.ctx.Done():
+			return
+		default:
+		}
+	}
+
+	select {
+	case s.queue <- event:
+	default:
+		atomic.AddUint64(&s.droppedCount, 1)
+	}
+}
+
+func (s *OpsSystemLogSink) shouldIndex(event *logger.LogEvent) bool {
+	if event != nil && event.Fields != nil {
+		if skip, _ := event.Fields[logger.OpsSystemLogSkipField].(bool); skip {
+			return false
+		}
+	}
+	level := strings.ToLower(strings.TrimSpace(event.Level))
+	switch level {
+	case "warn", "warning", "error", "fatal", "panic", "dpanic":
+		return true
+	}
+
+	component := strings.ToLower(strings.TrimSpace(event.Component))
+	// zap 的 LoggerName 往往为空或不等于业务组件名；业务组件名通常以字段 component 透传。
+	if event.Fields != nil {
+		if fc := strings.ToLower(strings.TrimSpace(AsString(event.Fields["component"]))); fc != "" {
+			component = fc
+		}
+	}
+	if strings.Contains(component, "http.access") {
+		return true
+	}
+	if strings.Contains(component, "audit") {
+		return true
+	}
+	return false
+}
+
+func (s *OpsSystemLogSink) run() {
+	defer s.wg.Done()
+
+	ticker := time.NewTicker(s.flushInterval)
+	defer ticker.Stop()
+
+	batch := make([]*logger.LogEvent, 0, s.batchSize)
+	// 仅在本 goroutine 内读写，无需加锁。
+	failures := 0
+	var suppressedUntil time.Time
+	flush := func(baseCtx context.Context) {
+		if len(batch) == 0 {
+			return
+		}
+		now := time.Now()
+		if now.Before(suppressedUntil) {
+			// 退避窗口内直接丢弃本批：日志是尽力而为的观测数据，继续攒批只会把
+			// 压力转移到内存，而每次重试都会再占用并取消一条池内连接。
+			atomic.AddUint64(&s.droppedCount, uint64(len(batch)))
+			batch = batch[:0]
+			return
+		}
+		started := time.Now()
+		inserted, err := s.flushBatch(baseCtx, batch)
+		delay := time.Since(started)
+		if err != nil {
+			failures++
+			backoff := s.flushBackoffFor(failures)
+			suppressedUntil = time.Now().Add(backoff)
+			atomic.AddUint64(&s.writeFailed, uint64(len(batch)))
+			s.lastError.Store(err.Error())
+			// 每个退避窗口至多一条，避免数据库故障期间刷屏。
+			if s.onWriteFailure != nil {
+				s.onWriteFailure(err, len(batch), failures, backoff)
+			}
+		} else {
+			failures = 0
+			suppressedUntil = time.Time{}
+			atomic.AddUint64(&s.writtenCount, uint64(inserted))
+			atomic.AddUint64(&s.totalDelayNs, uint64(delay.Nanoseconds()))
+			s.lastError.Store("")
+		}
+		batch = batch[:0]
+	}
+	drainAndFlush := func() {
+		for {
+			select {
+			case item := <-s.queue:
+				if item == nil {
+					continue
+				}
+				batch = append(batch, item)
+				if len(batch) >= s.batchSize {
+					flush(context.Background())
+				}
+			default:
+				flush(context.Background())
+				return
+			}
+		}
+	}
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			drainAndFlush()
+			return
+		case item := <-s.queue:
+			if item == nil {
+				continue
+			}
+			batch = append(batch, item)
+			if len(batch) >= s.batchSize {
+				flush(s.ctx)
+			}
+		case <-ticker.C:
+			flush(s.ctx)
+		}
+	}
+}
+
+func (s *OpsSystemLogSink) flushBatch(baseCtx context.Context, batch []*logger.LogEvent) (int, error) {
+	inputs := make([]*OpsInsertSystemLogInput, 0, len(batch))
+	for _, event := range batch {
+		if event == nil {
+			continue
+		}
+		createdAt := event.Time.UTC()
+		if createdAt.IsZero() {
+			createdAt = time.Now().UTC()
+		}
+
+		fields := CopyMap(event.Fields)
+		requestID := AsString(fields["request_id"])
+		clientRequestID := AsString(fields["client_request_id"])
+		platform := AsString(fields["platform"])
+		model := AsString(fields["model"])
+		component := strings.TrimSpace(event.Component)
+		if fieldComponent := AsString(fields["component"]); fieldComponent != "" {
+			component = fieldComponent
+		}
+		if component == "" {
+			component = "app"
+		}
+
+		userID := AsInt64Ptr(fields["user_id"])
+		apiKeyID := AsInt64Ptr(fields["api_key_id"])
+		accountID := AsInt64Ptr(fields["account_id"])
+
+		// 统一脱敏后写入索引。
+		message := logredact.RedactText(strings.TrimSpace(event.Message))
+		redactedExtra := logredact.RedactMap(fields)
+		extraJSONBytes, _ := json.Marshal(redactedExtra)
+		extraJSON := string(extraJSONBytes)
+		if strings.TrimSpace(extraJSON) == "" {
+			extraJSON = "{}"
+		}
+
+		inputs = append(inputs, &OpsInsertSystemLogInput{
+			CreatedAt:       createdAt,
+			Host:            s.host,
+			Level:           strings.ToLower(strings.TrimSpace(event.Level)),
+			Component:       component,
+			Message:         message,
+			RequestID:       requestID,
+			ClientRequestID: clientRequestID,
+			UserID:          userID,
+			APIKeyID:        apiKeyID,
+			AccountID:       accountID,
+			Platform:        platform,
+			Model:           model,
+			ExtraJSON:       extraJSON,
+		})
+	}
+
+	if len(inputs) == 0 {
+		return 0, nil
+	}
+	if baseCtx == nil || baseCtx.Err() != nil {
+		baseCtx = context.Background()
+	}
+	ctx, cancel := context.WithTimeout(baseCtx, 5*time.Second)
+	defer cancel()
+	inserted, err := s.opsRepo.BatchInsertSystemLogs(ctx, inputs)
+	if err != nil {
+		return 0, err
+	}
+	return int(inserted), nil
+}
+
+func (s *OpsSystemLogSink) Health() OpsSystemLogSinkHealth {
+	if s == nil {
+		return OpsSystemLogSinkHealth{}
+	}
+	written := atomic.LoadUint64(&s.writtenCount)
+	totalDelay := atomic.LoadUint64(&s.totalDelayNs)
+	var avgDelay uint64
+	if written > 0 {
+		avgDelay = (totalDelay / written) / uint64(time.Millisecond)
+	}
+
+	lastErr, _ := s.lastError.Load().(string)
+	return OpsSystemLogSinkHealth{
+		QueueDepth:      int64(len(s.queue)),
+		QueueCapacity:   int64(cap(s.queue)),
+		DroppedCount:    atomic.LoadUint64(&s.droppedCount),
+		WriteFailed:     atomic.LoadUint64(&s.writeFailed),
+		WrittenCount:    written,
+		AvgWriteDelayMs: avgDelay,
+		LastError:       strings.TrimSpace(lastErr),
+	}
+}
+
+func CopyMap(in map[string]any) map[string]any {
+	if len(in) == 0 {
+		return map[string]any{}
+	}
+	out := make(map[string]any, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}
+
+func AsString(v any) string {
+	switch t := v.(type) {
+	case string:
+		return strings.TrimSpace(t)
+	case fmt.Stringer:
+		return strings.TrimSpace(t.String())
+	default:
+		return ""
+	}
+}
+
+func AsInt64Ptr(v any) *int64 {
+	switch t := v.(type) {
+	case int:
+		n := int64(t)
+		if n <= 0 {
+			return nil
+		}
+		return &n
+	case int64:
+		n := t
+		if n <= 0 {
+			return nil
+		}
+		return &n
+	case float64:
+		n := int64(t)
+		if n <= 0 {
+			return nil
+		}
+		return &n
+	case json.Number:
+		if n, err := t.Int64(); err == nil {
+			if n <= 0 {
+				return nil
+			}
+			return &n
+		}
+	case string:
+		raw := strings.TrimSpace(t)
+		if raw == "" {
+			return nil
+		}
+		if n, err := strconv.ParseInt(raw, 10, 64); err == nil {
+			if n <= 0 {
+				return nil
+			}
+			return &n
+		}
+	}
+	return nil
+}
+
+// SystemLogWriter 是队列唯一需要的存储能力。
+type SystemLogWriter interface {
+	BatchInsertSystemLogs(context.Context, []*OpsInsertSystemLogInput) (int64, error)
+}
+
+// SystemLogSinkOptions 的主机信息与失败输出由 app 的技术 Adapter 提供。
+type SystemLogSinkOptions struct {
+	Host           string
+	HostError      error
+	OnWriteFailure func(error, int, int, time.Duration)
+}

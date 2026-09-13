@@ -1,0 +1,9 @@
+{
+  "current_files": 400,
+  "baseline_files": 236,
+  "current_symbols": 5338,
+  "baseline_symbols": 4302,
+  "generated_files": [
+    "backend/internal/app/wire_gen.go"
+  ]
+}

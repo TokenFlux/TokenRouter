@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logevent"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -28,21 +30,14 @@ const (
 	LevelFatal = zapcore.FatalLevel
 
 	// OpsSystemLogSkipField 让事件保留在标准日志中，同时阻止 Ops 数据库日志接收器索引该事件。
-	OpsSystemLogSkipField = "ops_system_log_skip"
+	OpsSystemLogSkipField = logevent.OpsSystemLogSkipField
 )
 
 type Sink interface {
 	WriteLogEvent(event *LogEvent)
 }
 
-type LogEvent struct {
-	Time       time.Time
-	Level      string
-	Component  string
-	Message    string
-	LoggerName string
-	Fields     map[string]any
-}
+type LogEvent = logevent.LogEvent
 
 var (
 	mu            sync.RWMutex

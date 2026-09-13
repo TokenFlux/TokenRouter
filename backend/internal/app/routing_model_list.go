@@ -2,14 +2,20 @@
 package app
 
 import (
+	usagepostgres "github.com/TokenFlux/TokenRouter/internal/usage/postgres"
+
 	legacybridge "github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
+
 	config "github.com/TokenFlux/TokenRouter/internal/config"
+
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+
 	service "github.com/TokenFlux/TokenRouter/internal/service"
+
 	time "time"
 )
 
-func provideGatewayForRouting(
+func provideGatewayForRouting(nativeUsageStore *usagepostgres.Store,
 	models *routing.ModelList,
 	accountRepo service.AccountRepository,
 	groupRepo service.GroupRepository,
@@ -39,7 +45,9 @@ func provideGatewayForRouting(
 	balanceNotifyService *service.BalanceNotifyService,
 	userPlatformQuotaRepo service.UserPlatformQuotaRepository,
 ) *service.GatewayService {
-	return service.NewGatewayService(accountRepo, groupRepo, usageLogRepo, usageBillingRepo, userRepo, userSubRepo, userGroupRateRepo, cache, cfg, schedulerSnapshot, concurrencyService, billingService, rateLimitService, billingCacheService, identityService, httpUpstream, deferredService, claudeTokenProvider, sessionLimitCache, rpmCache, digestStore, settingService, tlsFPProfileService, channelService, resolver, balanceNotifyService, userPlatformQuotaRepo, models)
+	gateway := service.NewGatewayService(accountRepo, groupRepo, usageLogRepo, usageBillingRepo, userRepo, userSubRepo, userGroupRateRepo, cache, cfg, schedulerSnapshot, concurrencyService, billingService, rateLimitService, billingCacheService, identityService, httpUpstream, deferredService, claudeTokenProvider, sessionLimitCache, rpmCache, digestStore, settingService, tlsFPProfileService, channelService, resolver, balanceNotifyService, userPlatformQuotaRepo, models)
+	gateway.BindUsageWindowSource(usageWindowStats{nativeUsageStore})
+	return gateway
 }
 
 // provideRoutingModelList 由 app 投影原 15 秒默认 TTL；缓存无构造启动副作用。

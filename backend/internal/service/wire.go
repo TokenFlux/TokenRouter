@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/google/uuid"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
@@ -14,7 +15,6 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
-
 	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
 )
@@ -593,8 +593,15 @@ func ProvideOpsService(
 		// 该操作尽力而为，并由同步超时边界保护。
 		settingService.WarmOpenAIQuotaAutoPauseSettings(context.Background())
 	}
-	svc.authCacheInvalidationWorker = authCacheInvalidationWorker
-	svc.apiKeyService = apiKeyService
+	var health ops.AuthHealthReader
+	if authCacheInvalidationWorker != nil {
+		health = authCacheInvalidationWorker
+	}
+	var keyHealth ops.KeyHealthReader
+	if apiKeyService != nil {
+		keyHealth = apiKeyService
+	}
+	svc.SetAuthObservers(health, keyHealth)
 
 	return svc
 }
@@ -664,8 +671,6 @@ var ProviderSet = wire.NewSet(
 	NewProxyService,
 	NewAffiliateService,
 	NewPromoService,
-	NewUsageService,
-	ProvideDashboardService,
 	NewQoderTokenProvider,
 	NewQoderGatewayService,
 	ProvideOpenAIGatewayTLSFingerprintRouterServices,
@@ -709,30 +714,19 @@ var ProviderSet = wire.NewSet(
 	ProvideAccountUsageService,
 	ProvideAccountTestService,
 	ProvideSettingService,
-	NewPreAggregationSettingsService,
 	NewDataManagementService,
 	ProvideBackupService,
-	ProvideOpsSystemLogSink,
-	ProvideOpsService,
-	ProvideOpsIngressRejectAggregator,
-	ProvideAuditLogService,
-	ProvideOpsMetricsCollector,
-	ProvideOpsAggregationService,
-	ProvideOpsAlertEvaluatorService,
-	ProvideOpsCleanupService,
-	ProvideOpsScheduledReportService,
+
 	NewEmailService,
 	NewNotificationEmailService,
 	ProvideEmailQueueService,
 	NewUsageRecordWorkerPool,
 	NewIdentityService,
-	ProvideUpdateService,
+
 	ProvideTokenRefreshService,
 	wire.Bind(new(GrokOAuthReconciler), new(*TokenRefreshService)),
 	ProvideProxyExpiryService,
 	ProvideTimingWheelService,
-	ProvideDashboardAggregationService,
-	ProvideUsageCleanupService,
 	NewAntigravityQuotaFetcher,
 	NewGrokQuotaFetcher,
 	NewUsageCache,

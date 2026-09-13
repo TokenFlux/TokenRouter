@@ -2,25 +2,44 @@
 package postgres
 
 import (
+	usagequery "github.com/TokenFlux/TokenRouter/internal/usage/postgres/query"
+
 	context "context"
+
 	sql "database/sql"
+
 	dialect "entgo.io/ent/dialect"
+
 	entsql "entgo.io/ent/dialect/sql"
+
 	errors "errors"
+
 	fmt "fmt"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+
 	apikey "github.com/TokenFlux/TokenRouter/ent/apikey"
+
 	apikeycompositegroup "github.com/TokenFlux/TokenRouter/ent/apikeycompositegroup"
+
 	group "github.com/TokenFlux/TokenRouter/ent/group"
+
 	mixins "github.com/TokenFlux/TokenRouter/ent/schema/mixins"
+
 	user "github.com/TokenFlux/TokenRouter/ent/user"
+
 	keycore "github.com/TokenFlux/TokenRouter/internal/apikey"
+
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
+
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	pq "github.com/lib/pq"
+
 	sort "sort"
+
 	strings "strings"
+
 	time "time"
 )
 
@@ -721,74 +740,16 @@ func (r *KeyStore) KeyAttachLastUsedIPs(ctx context.Context, keys []keycore.APIK
 	return nil
 }
 
-// KeyLatestUsageLogIPs 从 usage_logs 查询每个 API Key 最新的非空 IP。
 func (r *KeyStore) KeyLatestUsageLogIPs(ctx context.Context, apiKeyIDs []int64) (result map[int64]string, err error) {
+	// 保留原空批次/无执行器的提前返回，避免迁移后提前读取 dialect。
 	if len(apiKeyIDs) == 0 || r.sql == nil {
 		return map[int64]string{}, nil
 	}
-
-	query, args := KeyLatestUsageLogIPsQuery(apiKeyIDs, r.client.Driver().Dialect())
-	rows, err := r.sql.QueryContext(ctx, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}()
-
-	out := make(map[int64]string, len(apiKeyIDs))
-	for rows.Next() {
-		var apiKeyID int64
-		var ipAddress string
-		if err := rows.Scan(&apiKeyID, &ipAddress); err != nil {
-			return nil, err
-		}
-		out[apiKeyID] = ipAddress
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return out, nil
+	return usagequery.KeyLatestUsageLogIPs(ctx, r.sql, r.client.Driver().Dialect(), apiKeyIDs)
 }
 
-// KeyLatestUsageLogIPsQuery 按数据库方言生成批量查询：PostgreSQL 使用数组，
-// 其它方言使用逐项占位符，便于 SQLite 回归测试覆盖真实 SQL。
 func KeyLatestUsageLogIPsQuery(apiKeyIDs []int64, dialectName string) (string, []any) {
-	if dialectName == dialect.Postgres {
-		// 每个 Key 只做一次有序索引探测，避免为整段历史记录计算窗口排名。
-		return `
-		SELECT requested.api_key_id, latest.ip_address
-		FROM unnest($1::bigint[]) AS requested(api_key_id)
-		CROSS JOIN LATERAL (
-			SELECT ul.ip_address
-			FROM usage_logs AS ul
-			WHERE ul.api_key_id = requested.api_key_id
-				AND ul.ip_address IS NOT NULL
-				AND ul.ip_address <> ''
-			ORDER BY ul.created_at DESC, ul.id DESC
-			LIMIT 1
-		) AS latest`, []any{pq.Array(apiKeyIDs)}
-	}
-
-	placeholders := make([]string, len(apiKeyIDs))
-	args := make([]any, len(apiKeyIDs))
-	for i, id := range apiKeyIDs {
-		placeholders[i] = "?"
-		args[i] = id
-	}
-	return fmt.Sprintf(`
-		SELECT api_key_id, ip_address
-		FROM (
-			SELECT api_key_id, ip_address,
-				ROW_NUMBER() OVER (PARTITION BY api_key_id ORDER BY created_at DESC, id DESC) AS rn
-			FROM usage_logs
-			WHERE api_key_id IN (%s)
-				AND ip_address IS NOT NULL
-				AND ip_address <> ''
-		) ranked
-		WHERE rn = 1`, strings.Join(placeholders, ", ")), args
+	return usagequery.KeyLatestUsageLogIPsQuery(apiKeyIDs, dialectName)
 }
 
 func (r *KeyStore) KeyListByUserIDWithUsageSort(ctx context.Context, q *dbent.APIKeyQuery, params pagination.PaginationParams, total int) ([]keycore.APIKey, *pagination.PaginationResult, error) {

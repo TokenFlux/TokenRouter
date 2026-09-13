@@ -1,0 +1,16 @@
+{
+  "current_files": 400,
+  "current_symbols": 5338,
+  "baseline_files": 236,
+  "baseline_symbols": 4302,
+  "removed_files": 130,
+  "test_files": 129,
+  "static_edges": 40219,
+  "structural_implementations": 342,
+  "unclassified": [],
+  "missing_build_selection": [],
+  "old_symbols_without_exact_or_capability_target": [],
+  "generated_files": [
+    "backend/internal/app/wire_gen.go"
+  ]
+}

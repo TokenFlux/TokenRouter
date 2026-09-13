@@ -5,10 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
-	"time"
-	"unicode/utf8"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
@@ -54,135 +51,6 @@ func (r *ingressRejectOpsRepo) BatchInsertErrorLogs(_ context.Context, entries [
 	return 0, nil
 }
 
-func TestOpsErrorLogQueueByteBudget(t *testing.T) {
-	previousBytes := opsErrorLogQueueBytes.Load()
-	previousLen := opsErrorLogQueueLen.Load()
-	opsErrorLogQueueBytes.Store(0)
-	opsErrorLogQueueLen.Store(0)
-	t.Cleanup(func() {
-		opsErrorLogQueueBytes.Store(previousBytes)
-		opsErrorLogQueueLen.Store(previousLen)
-	})
-
-	if !reserveOpsErrorLogQueueBytes(opsErrorLogMaxQueueBytes - 1) {
-		t.Fatal("first reservation within byte budget should succeed")
-	}
-	if reserveOpsErrorLogQueueBytes(2) {
-		t.Fatal("reservation beyond byte budget should be rejected")
-	}
-	if got := OpsErrorLogQueueBytes(); got != opsErrorLogMaxQueueBytes-1 {
-		t.Fatalf("queued bytes = %d, want %d", got, opsErrorLogMaxQueueBytes-1)
-	}
-	if got := OpsErrorLogQueueLength(); got != 1 {
-		t.Fatalf("queue length = %d, want 1", got)
-	}
-}
-
-func TestEstimateOpsErrorLogJobBytesIncludesVariablePayloads(t *testing.T) {
-	base := estimateOpsErrorLogJobBytes(&service.OpsInsertErrorLogInput{})
-	message := "upstream message"
-	detail := "upstream detail"
-	events := `[{"error":"x"}]`
-	entry := &service.OpsInsertErrorLogInput{
-		ErrorBody:            strings.Repeat("x", 1024),
-		ErrorMessage:         "client error",
-		UserAgent:            "test-agent",
-		UpstreamErrorMessage: &message,
-		UpstreamErrorDetail:  &detail,
-		UpstreamErrorsJSON:   &events,
-	}
-	if got := estimateOpsErrorLogJobBytes(entry); got <= base+1024 {
-		t.Fatalf("estimated bytes = %d, expected variable payloads above %d", got, base+1024)
-	}
-}
-
-func resetOpsErrorLoggerStateForTest(t *testing.T) {
-	t.Helper()
-
-	opsErrorLogMu.Lock()
-	ch := opsErrorLogQueue
-	opsErrorLogQueue = nil
-	opsErrorLogStopping = true
-	opsErrorLogMu.Unlock()
-
-	if ch != nil {
-		close(ch)
-	}
-	opsErrorLogWorkersWg.Wait()
-
-	opsErrorLogOnce = sync.Once{}
-	opsErrorLogStopOnce = sync.Once{}
-	opsErrorLogWorkersWg = sync.WaitGroup{}
-	opsErrorLogMu = sync.RWMutex{}
-	opsErrorLogStopping = false
-
-	opsErrorLogQueueLen.Store(0)
-	opsErrorLogEnqueued.Store(0)
-	opsErrorLogDropped.Store(0)
-	opsErrorLogProcessed.Store(0)
-	opsErrorLogSanitized.Store(0)
-	opsErrorLogLastDropLogAt.Store(0)
-
-	opsErrorLogShutdownCh = make(chan struct{})
-	opsErrorLogShutdownOnce = sync.Once{}
-	opsErrorLogDrained.Store(false)
-}
-
-func TestEnqueueOpsErrorLog_QueueFullDrop(t *testing.T) {
-	resetOpsErrorLoggerStateForTest(t)
-
-	// 禁止 enqueueOpsErrorLog 触发 workers，使用测试队列验证满队列降级。
-	opsErrorLogOnce.Do(func() {})
-
-	opsErrorLogMu.Lock()
-	opsErrorLogQueue = make(chan opsErrorLogJob, 1)
-	opsErrorLogMu.Unlock()
-
-	ops := service.NewOpsService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	entry := &service.OpsInsertErrorLogInput{ErrorPhase: "upstream", ErrorType: "upstream_error"}
-
-	enqueueOpsErrorLog(ops, entry)
-	enqueueOpsErrorLog(ops, entry)
-
-	require.Equal(t, int64(1), OpsErrorLogEnqueuedTotal())
-	require.Equal(t, int64(1), OpsErrorLogDroppedTotal())
-	require.Equal(t, int64(1), OpsErrorLogQueueLength())
-}
-
-func TestEnqueueOpsErrorLog_EarlyReturnBranches(t *testing.T) {
-	resetOpsErrorLoggerStateForTest(t)
-
-	ops := service.NewOpsService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	entry := &service.OpsInsertErrorLogInput{ErrorPhase: "upstream", ErrorType: "upstream_error"}
-
-	// nil 入参分支
-	enqueueOpsErrorLog(nil, entry)
-	enqueueOpsErrorLog(ops, nil)
-	require.Equal(t, int64(0), OpsErrorLogEnqueuedTotal())
-
-	// shutdown 分支
-	close(opsErrorLogShutdownCh)
-	enqueueOpsErrorLog(ops, entry)
-	require.Equal(t, int64(0), OpsErrorLogEnqueuedTotal())
-
-	// stopping 分支
-	resetOpsErrorLoggerStateForTest(t)
-	opsErrorLogMu.Lock()
-	opsErrorLogStopping = true
-	opsErrorLogMu.Unlock()
-	enqueueOpsErrorLog(ops, entry)
-	require.Equal(t, int64(0), OpsErrorLogEnqueuedTotal())
-
-	// queue nil 分支（防止启动 worker 干扰）
-	resetOpsErrorLoggerStateForTest(t)
-	opsErrorLogOnce.Do(func() {})
-	opsErrorLogMu.Lock()
-	opsErrorLogQueue = nil
-	opsErrorLogMu.Unlock()
-	enqueueOpsErrorLog(ops, entry)
-	require.Equal(t, int64(0), OpsErrorLogEnqueuedTotal())
-}
-
 func TestOpsCaptureWriterPool_ResetOnRelease(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -211,23 +79,6 @@ func TestOpsCaptureWriterPool_DropsLargeBuffers(t *testing.T) {
 	require.False(t, shouldPoolOpsCaptureWriterState(state))
 }
 
-func TestEnqueueOpsErrorLog_SanitizesAndBoundsBodyBeforeQueue(t *testing.T) {
-	setupOpsErrorLogTestQueue(t, 1)
-	ops := service.NewOpsService(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	secret := strings.Repeat("s", service.OpsErrorLogQueueBodyMaxBytes)
-	entry := &service.OpsInsertErrorLogInput{
-		ErrorPhase: "request",
-		ErrorType:  "api_error",
-		ErrorBody:  `{"authorization":"Bearer ` + secret + `","message":"failed"}`,
-	}
-
-	enqueueOpsErrorLog(ops, entry)
-	job := <-opsErrorLogQueue
-	require.LessOrEqual(t, len(job.entry.ErrorBody), service.OpsErrorLogQueueBodyMaxBytes)
-	require.NotContains(t, job.entry.ErrorBody, secret)
-	require.Equal(t, int64(1), OpsErrorLogSanitizedTotal())
-}
-
 func TestOpsErrorLoggerMiddleware_DoesNotBreakOuterMiddlewares(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -246,16 +97,6 @@ func TestOpsErrorLoggerMiddleware_DoesNotBreakOuterMiddlewares(t *testing.T) {
 		r.ServeHTTP(rec, req)
 	})
 	require.Equal(t, http.StatusNoContent, rec.Code)
-}
-
-// setupOpsErrorLogTestQueue 阻止 enqueueOpsErrorLog 启动真实 worker，改用可检查的测试队列。
-func setupOpsErrorLogTestQueue(t *testing.T, size int) {
-	t.Helper()
-	resetOpsErrorLoggerStateForTest(t)
-	opsErrorLogOnce.Do(func() {})
-	opsErrorLogMu.Lock()
-	opsErrorLogQueue = make(chan opsErrorLogJob, size)
-	opsErrorLogMu.Unlock()
 }
 
 func TestOpsErrorLoggerMiddleware_HardSkipsIngressRejection(t *testing.T) {
@@ -586,14 +427,6 @@ func TestOpsErrorLoggerMiddleware_PrefersContextRequestID(t *testing.T) {
 	require.Equal(t, int64(1), OpsErrorLogQueueLength())
 	job := <-opsErrorLogQueue
 	require.Equal(t, "context-request-id", job.entry.RequestID)
-}
-
-func TestNormalizeOpsPersistentUserAgentBoundsAndPreservesUTF8(t *testing.T) {
-	value := strings.Repeat("a", opsErrorLogMaxUserAgentBytes-1) + "你" + strings.Repeat("b", 32)
-	got := normalizeOpsPersistentUserAgent("  " + value + "  ")
-	require.LessOrEqual(t, len(got), opsErrorLogMaxUserAgentBytes)
-	require.True(t, utf8.ValidString(got))
-	require.NotContains(t, got, "b")
 }
 
 // 就地 SSE 错误挂在已固化的 HTTP 200 流上：实际状态码为 200，
@@ -2112,23 +1945,4 @@ func TestGetOpsAPIKeyPrefersPrimaryContextKey(t *testing.T) {
 	got := getOpsAPIKey(c)
 	require.NotNil(t, got)
 	require.Equal(t, int64(1), got.ID, "已鉴权请求应优先使用正式 api key")
-}
-
-// 关闭清空全局队列引用后，worker 仍须继续消费自己已经取得的队列。
-func TestOpsErrorLogShutdownDrainsCapturedQueue(t *testing.T) {
-	resetOpsErrorLoggerStateForTest(t)
-	t.Cleanup(func() { resetOpsErrorLoggerStateForTest(t) })
-	opsErrorLogOnce.Do(startOpsErrorLogWorkers)
-	opsErrorLogMu.RLock()
-	queue := opsErrorLogQueue
-	for range 64 {
-		queue <- opsErrorLogJob{}
-	}
-	opsErrorLogMu.RUnlock()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	require.NoError(t, ShutdownOpsErrorLogWorkers(ctx))
-	require.NoError(t, ShutdownOpsErrorLogWorkers(ctx))
-	require.Zero(t, OpsErrorLogQueueLength())
-	require.True(t, opsErrorLogDrained.Load())
 }

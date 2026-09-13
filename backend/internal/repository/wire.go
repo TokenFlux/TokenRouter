@@ -41,7 +41,6 @@ var ProviderSet = wire.NewSet(
 	NewGroupAvailabilityProbeRepository,
 	NewRedeemCodeRepository,
 	NewPromoCodeRepository,
-	NewUsageLogRepository,
 	NewBatchImageRepository,
 	NewCreativeRunRepository,
 	NewCreativeRunOutboxRepository,
@@ -49,11 +48,8 @@ var ProviderSet = wire.NewSet(
 	NewCreativeQueue,
 	ProvideCreativeManagedKeyRepository,
 	NewIdempotencyRepository,
-	NewUsageCleanupRepository,
-	NewDashboardAggregationRepository,
 	NewSettingRepository,
-	NewOpsRepository,
-	NewAuditLogRepository,
+
 	NewUserSubscriptionRepository,
 	NewUserGroupRateRepository,
 	NewErrorPassthroughRepository,
@@ -65,11 +61,11 @@ var ProviderSet = wire.NewSet(
 	NewGatewayCache,
 	NewBillingCache,
 	NewInternal500CounterCache,
-	NewDashboardCache,
+
 	NewEmailCache,
 	NewIdentityCache,
 	NewRedeemCache,
-	NewUpdateCache,
+
 	NewGeminiTokenCache,
 	NewBatchImageQueue,
 	NewBatchImageDownloadLimiter,
@@ -85,7 +81,7 @@ var ProviderSet = wire.NewSet(
 
 	// HTTP service ports (DI Strategy A: return interface directly)
 	ProvidePricingRemoteClient,
-	ProvideGitHubReleaseClient,
+
 	NewClaudeUsageFetcher,
 	NewClaudeOAuthClient,
 	NewHTTPUpstream,

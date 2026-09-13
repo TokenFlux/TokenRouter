@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
@@ -88,7 +89,7 @@ func provideQueuesRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if auditLog != nil {
-			auditLog.Stop()
+			return auditLog.StopContext(ctx)
 		}
 		return nil
 	}})

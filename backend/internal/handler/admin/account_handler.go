@@ -3,10 +3,10 @@ package admin
 
 import (
 	"context"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
-	httpx "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -155,10 +155,6 @@ type AccountSchedulerGroupScore = accounthttp.AccountSchedulerGroupScore
 
 // List 委托账号列表用例与新 HTTP 展示。
 func (h *AccountHandler) List(c *gin.Context) { h.managementHTTP().List(c) }
-
-func ifNoneMatchMatched(ifNoneMatch, etag string) bool {
-	return httpx.IfNoneMatchMatched(ifNoneMatch, etag)
-}
 
 func (h *AccountHandler) GetByID(c *gin.Context) { h.managementHTTP().GetByID(c) }
 

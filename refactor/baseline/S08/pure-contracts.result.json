@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/usage",
+    "./internal/settings/preaggregation",
+    "./internal/service",
+    "-run",
+    "Test(PreAggregation|UsageLog|ParseUsage|NormalizeModel)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 11.569,
+  "pass": 22,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/pure-contracts.log.gz"
+}

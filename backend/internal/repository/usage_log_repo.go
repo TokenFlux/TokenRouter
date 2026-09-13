@@ -1,511 +1,182 @@
+// 旧使用记录仓储只转换记录形状，SQL/批处理/缓存全部由 usage/postgres 提供。
 package repository
 
 import (
 	"context"
 	"database/sql"
-	"fmt"
-	"log/slog"
-	"strings"
-	"sync"
-	"time"
+	time "time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/service"
-	gocache "github.com/patrickmn/go-cache"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
+	usagepostgres "github.com/TokenFlux/TokenRouter/internal/usage/postgres"
 )
 
-const rawUsageLogModelColumn = "model"
+type usageLogRepository struct{ *usagepostgres.Store }
 
-const usageAnalyticsFallbackLogInterval = time.Minute
+func NewUsageLogRepository(client *dbent.Client, db *sql.DB, settings *service.PreAggregationSettingsService) service.UsageLogRepository {
+	return &usageLogRepository{usagepostgres.NewUsageLogRepository(client, db, settings)}
+}
 
-var usageAnalyticsFallbackLogState = struct {
-	sync.Mutex
-	lastByOperation map[string]time.Time
-}{lastByOperation: make(map[string]time.Time)}
-
-// logUsageAnalyticsFallback 对真实聚合查询错误限频告警，避免透明回退长期掩盖故障。
-func (r *usageLogRepository) logUsageAnalyticsFallback(operation string, err error) {
-	if err == nil || !shouldLogUsageAnalyticsFallback(operation, time.Now()) {
+func (r *usageLogRepository) NativeUsageStore() *usagepostgres.Store { return r.Store }
+func (r *usageLogRepository) Create(ctx context.Context, row *service.UsageLog) (bool, error) {
+	applyClientModel(ctx, row)
+	v := service.UsageLogView(row)
+	inserted, err := r.Store.Create(ctx, v)
+	applyUsageLogView(row, v)
+	return inserted, err
+}
+func (r *usageLogRepository) CreateBestEffort(ctx context.Context, row *service.UsageLog) error {
+	applyClientModel(ctx, row)
+	v := service.UsageLogView(row)
+	err := r.Store.CreateBestEffort(ctx, v)
+	applyUsageLogView(row, v)
+	return err
+}
+func applyUsageLogView(dst *service.UsageLog, v *usage.UsageLog) {
+	if dst == nil || v == nil {
 		return
 	}
-	slog.Warn("预聚合查询失败，已透明回退使用记录原始表", "operation", operation, "error", err)
+	dst.ID = v.ID
+	dst.UserID = v.UserID
+	dst.BillingUserID = v.BillingUserID
+	dst.TeamID = v.TeamID
+	dst.APIKeyID = v.APIKeyID
+	dst.AccountID = v.AccountID
+	dst.RequestID = v.RequestID
+	dst.Model = v.Model
+	dst.RequestedModel = v.RequestedModel
+	dst.UpstreamModel = v.UpstreamModel
+	dst.ChannelID = v.ChannelID
+	dst.ModelMappingChain = v.ModelMappingChain
+	dst.BillingTier = v.BillingTier
+	dst.BillingMode = v.BillingMode
+	dst.ServiceTier = v.ServiceTier
+	dst.ReasoningEffort = v.ReasoningEffort
+	dst.RequestedReasoningEffort = v.RequestedReasoningEffort
+	dst.InboundEndpoint = v.InboundEndpoint
+	dst.UpstreamEndpoint = v.UpstreamEndpoint
+	dst.GroupID = v.GroupID
+	dst.SubscriptionID = v.SubscriptionID
+	dst.InputTokens = v.InputTokens
+	dst.OutputTokens = v.OutputTokens
+	dst.CacheCreationTokens = v.CacheCreationTokens
+	dst.CacheReadTokens = v.CacheReadTokens
+	dst.CacheCreation5mTokens = v.CacheCreation5mTokens
+	dst.CacheCreation1hTokens = v.CacheCreation1hTokens
+	dst.ImageInputTokens = v.ImageInputTokens
+	dst.ImageInputCost = v.ImageInputCost
+	dst.ImageOutputTokens = v.ImageOutputTokens
+	dst.ImageOutputCost = v.ImageOutputCost
+	dst.InputCost = v.InputCost
+	dst.OutputCost = v.OutputCost
+	dst.CacheCreationCost = v.CacheCreationCost
+	dst.CacheReadCost = v.CacheReadCost
+	dst.TotalCost = v.TotalCost
+	dst.ActualCost = v.ActualCost
+	dst.SubscriptionAmountUSD = v.SubscriptionAmountUSD
+	dst.BalanceAmountUSD = v.BalanceAmountUSD
+	dst.BillingAllocations = v.BillingAllocations
+	dst.RateMultiplier = v.RateMultiplier
+	dst.LongContextBillingApplied = v.LongContextBillingApplied
+	dst.AccountRateMultiplier = v.AccountRateMultiplier
+	dst.AccountStatsCost = v.AccountStatsCost
+	dst.BillingType = v.BillingType
+	dst.RequestType = v.RequestType
+	dst.Stream = v.Stream
+	dst.OpenAIWSMode = v.OpenAIWSMode
+	dst.NativeCompactionV2 = v.NativeCompactionV2
+	dst.DurationMs = v.DurationMs
+	dst.FirstTokenMs = v.FirstTokenMs
+	dst.UserAgent = v.UserAgent
+	dst.IPAddress = v.IPAddress
+	dst.SessionID = v.SessionID
+	dst.UpstreamRequestID = v.UpstreamRequestID
+	dst.CacheTTLOverridden = v.CacheTTLOverridden
+	dst.ImageCount = v.ImageCount
+	dst.ImageSize = v.ImageSize
+	dst.ImageInputSize = v.ImageInputSize
+	dst.ImageOutputSize = v.ImageOutputSize
+	dst.ImageSizeSource = v.ImageSizeSource
+	dst.ImageSizeBreakdown = v.ImageSizeBreakdown
+	dst.MediaType = v.MediaType
+	dst.VideoCount = v.VideoCount
+	dst.VideoResolution = v.VideoResolution
+	dst.VideoDurationSeconds = v.VideoDurationSeconds
+	dst.CreatedAt = v.CreatedAt
+}
+func (r *usageLogRepository) ListByUser(ctx context.Context, userID int64, params pagination.PaginationParams) ([]service.UsageLog, *pagination.PaginationResult, error) {
+	rows, page, err := r.Store.ListByUser(ctx, userID, params)
+	return usageLogsLegacy(rows), page, err
+}
+func (r *usageLogRepository) ListByAPIKey(ctx context.Context, apiKeyID int64, params pagination.PaginationParams) ([]service.UsageLog, *pagination.PaginationResult, error) {
+	rows, page, err := r.Store.ListByAPIKey(ctx, apiKeyID, params)
+	return usageLogsLegacy(rows), page, err
+}
+func (r *usageLogRepository) ListByAccount(ctx context.Context, accountID int64, params pagination.PaginationParams) ([]service.UsageLog, *pagination.PaginationResult, error) {
+	rows, page, err := r.Store.ListByAccount(ctx, accountID, params)
+	return usageLogsLegacy(rows), page, err
+}
+func (r *usageLogRepository) ListByUserAndTimeRange(ctx context.Context, userID int64, startTime, endTime time.Time) ([]service.UsageLog, *pagination.PaginationResult, error) {
+	rows, page, err := r.Store.ListByUserAndTimeRange(ctx, userID, startTime, endTime)
+	return usageLogsLegacy(rows), page, err
+}
+func (r *usageLogRepository) ListByAPIKeyAndTimeRange(ctx context.Context, apiKeyID int64, startTime, endTime time.Time) ([]service.UsageLog, *pagination.PaginationResult, error) {
+	rows, page, err := r.Store.ListByAPIKeyAndTimeRange(ctx, apiKeyID, startTime, endTime)
+	return usageLogsLegacy(rows), page, err
+}
+func (r *usageLogRepository) ListByAccountAndTimeRange(ctx context.Context, accountID int64, startTime, endTime time.Time) ([]service.UsageLog, *pagination.PaginationResult, error) {
+	rows, page, err := r.Store.ListByAccountAndTimeRange(ctx, accountID, startTime, endTime)
+	return usageLogsLegacy(rows), page, err
+}
+func (r *usageLogRepository) ListByModelAndTimeRange(ctx context.Context, modelName string, startTime, endTime time.Time) ([]service.UsageLog, *pagination.PaginationResult, error) {
+	rows, page, err := r.Store.ListByModelAndTimeRange(ctx, modelName, startTime, endTime)
+	return usageLogsLegacy(rows), page, err
+}
+func (r *usageLogRepository) ListWithFilters(ctx context.Context, params pagination.PaginationParams, filters UsageLogFilters) ([]service.UsageLog, *pagination.PaginationResult, error) {
+	rows, page, err := r.Store.ListWithFilters(ctx, params, filters)
+	return usageLogsLegacy(rows), page, err
+}
+func usageLogsLegacy(rows []usage.UsageLog) []service.UsageLog {
+	if rows == nil {
+		return nil
+	}
+	out := make([]service.UsageLog, len(rows))
+	for i := range rows {
+		out[i] = *service.UsageLogFromView(&rows[i])
+	}
+	return out
 }
 
-// shouldLogUsageAnalyticsFallback 按操作限制同类聚合故障每分钟最多告警一次。
-func shouldLogUsageAnalyticsFallback(operation string, now time.Time) bool {
-	usageAnalyticsFallbackLogState.Lock()
-	defer usageAnalyticsFallbackLogState.Unlock()
-	last := usageAnalyticsFallbackLogState.lastByOperation[operation]
-	if now.Sub(last) < usageAnalyticsFallbackLogInterval {
-		return false
-	}
-	usageAnalyticsFallbackLogState.lastByOperation[operation] = now
-	return true
+type UsageRankingItem = usagepostgres.UsageRankingItem
+type UsageRankingResponse = usagepostgres.UsageRankingResponse
+type UserStats = usagepostgres.UserStats
+type DashboardStats = usagepostgres.DashboardStats
+type UserDashboardStats = usagepostgres.UserDashboardStats
+type PlatformDashboardStats = usagepostgres.PlatformDashboardStats
+type TrendDataPoint = usagepostgres.TrendDataPoint
+type ModelStat = usagepostgres.ModelStat
+type UserUsageTrendPoint = usagepostgres.UserUsageTrendPoint
+type UserSpendingRankingItem = usagepostgres.UserSpendingRankingItem
+type UserSpendingRankingResponse = usagepostgres.UserSpendingRankingResponse
+type APIKeyUsageTrendPoint = usagepostgres.APIKeyUsageTrendPoint
+type UsageLogFilters = usagepostgres.UsageLogFilters
+type UsageStats = usagepostgres.UsageStats
+type BatchUserUsageStats = usagepostgres.BatchUserUsageStats
+type PlatformUsage = usagepostgres.PlatformUsage
+type BatchAPIKeyUsageStats = usagepostgres.BatchAPIKeyUsageStats
+type AccountUsageHistory = usagepostgres.AccountUsageHistory
+type AccountUsageSummary = usagepostgres.AccountUsageSummary
+type AccountUsageStatsResponse = usagepostgres.AccountUsageStatsResponse
+type EndpointStat = usagepostgres.EndpointStat
+
+func (r *usageLogRepository) GetByID(ctx context.Context, id int64) (*service.UsageLog, error) {
+	v, e := r.Store.GetByID(ctx, id)
+	return service.UsageLogFromView(v), e
 }
 
-// rawUsageLogModelColumn preserves the exact stored usage_logs.model semantics for direct filters.
-// Historical rows may contain upstream/billing model values, while newer rows store requested_model.
-// Requested/upstream/mapping analytics must use resolveModelDimensionExpression instead.
-
-// usageLogSuccessFilterUL 用于把"失败请求 usage log"（tokens=0、cost=0、不计费的占位记录）
-// 从统计性聚合中排除，避免污染 Dashboard / 用量拆分等指标。
-//
-// 表结构中没有 success bool 列；新增列要做迁移，风险大；这里用 actual_cost > 0 作为代理：
-// 任何成功落账的请求都会产生 actual_cost（包括 token 计费、纯图片 token 计费、按次/按图计费），
-// 反之失败请求占位 usage log 的 actual_cost 为 0。
-// 早期版本用 4 项 token 和 > 0 判定会把"按次/按图计费"与"image_output_tokens 独立计费"的纯图片
-// 请求误判为失败，导致这部分请求从用量统计里消失，故改用 actual_cost。
-// 配合 `FROM usage_logs ul` JOIN 查询使用。
-const usageLogSuccessFilterUL = "ul.actual_cost > 0"
-
-// usageLogEffectivePlatformExpr 用于按"有效平台"维度聚合 usage_logs：
-// 优先取请求实际走的分组 platform，若分组未设置 platform 再 fallback 到 account.platform。
-// 配套要求查询里 LEFT JOIN groups g ON g.id = ul.group_id 与 LEFT JOIN accounts a ON a.id = ul.account_id。
-const usageLogEffectivePlatformExpr = "COALESCE(NULLIF(g.platform,''), a.platform)"
-
-// dateFormatWhitelist 将 granularity 参数映射为 PostgreSQL TO_CHAR 格式字符串，防止外部输入直接拼入 SQL
-var dateFormatWhitelist = map[string]string{
-	"hour":  "YYYY-MM-DD HH24:00",
-	"day":   "YYYY-MM-DD",
-	"week":  "IYYY-IW",
-	"month": "YYYY-MM",
-}
-
-// safeDateFormat 根据白名单获取 dateFormat，未匹配时返回默认值
-func safeDateFormat(granularity string) string {
-	if f, ok := dateFormatWhitelist[granularity]; ok {
-		return f
-	}
-	return "YYYY-MM-DD"
-}
-
-// appendRawUsageLogModelWhereCondition 对历史数据兼容使用原始 model 列过滤。
-// requested/upstream 维度分析必须改用 resolveModelDimensionExpression。
-func appendRawUsageLogModelWhereCondition(conditions []string, args []any, model string) ([]string, []any) {
-	if strings.TrimSpace(model) == "" {
-		return conditions, args
-	}
-	conditions = append(conditions, fmt.Sprintf("%s = $%d", rawUsageLogModelColumn, len(args)+1))
-	args = append(args, model)
-	return conditions, args
-}
-
-func appendUsageLogBillingModeWhereCondition(conditions []string, args []any, billingMode string) ([]string, []any) {
-	return appendUsageLogBillingModeWhereConditionWithAlias(conditions, args, billingMode, "")
-}
-
-func appendUsageLogBillingModeWhereConditionWithAlias(conditions []string, args []any, billingMode string, alias string) ([]string, []any) {
-	mode := strings.TrimSpace(billingMode)
-	if mode == "" {
-		return conditions, args
-	}
-	column := func(name string) string {
-		if alias == "" {
-			return name
-		}
-		return alias + "." + name
-	}
-	placeholder := fmt.Sprintf("$%d", len(args)+1)
-	switch service.BillingMode(mode) {
-	case service.BillingModeImage:
-		conditions = append(conditions, fmt.Sprintf("(%s = %s OR ((%s IS NULL OR %s = '') AND COALESCE(%s, 0) <= 0 AND COALESCE(%s, 0) > 0))", column("billing_mode"), placeholder, column("billing_mode"), column("billing_mode"), column("video_duration_seconds"), column("image_count")))
-	case service.BillingModeVideo:
-		conditions = append(conditions, fmt.Sprintf("(%s = %s OR ((%s IS NULL OR %s = '') AND COALESCE(%s, 0) > 0))", column("billing_mode"), placeholder, column("billing_mode"), column("billing_mode"), column("video_duration_seconds")))
-	case service.BillingModeToken:
-		conditions = append(conditions, fmt.Sprintf("(%s = %s OR ((%s IS NULL OR %s = '') AND COALESCE(%s, 0) <= 0 AND COALESCE(%s, 0) <= 0))", column("billing_mode"), placeholder, column("billing_mode"), column("billing_mode"), column("video_duration_seconds"), column("image_count")))
-	default:
-		conditions = append(conditions, fmt.Sprintf("%s = %s", column("billing_mode"), placeholder))
-	}
-	args = append(args, mode)
-	return conditions, args
-}
-
-func appendUsageLogBillingModeQueryFilter(query string, args []any, billingMode string, alias string) (string, []any) {
-	conditions, args := appendUsageLogBillingModeWhereConditionWithAlias(nil, args, billingMode, alias)
-	if len(conditions) == 0 {
-		return query, args
-	}
-	return query + " AND " + conditions[0], args
-}
-
-func appendUsageLogModelWhereCondition(conditions []string, args []any, model string, source string) ([]string, []any) {
-	if strings.TrimSpace(source) == "" {
-		return appendRawUsageLogModelWhereCondition(conditions, args, model)
-	}
-	if strings.TrimSpace(model) == "" {
-		return conditions, args
-	}
-	conditions = append(conditions, fmt.Sprintf("%s = $%d", resolveModelDimensionExpression(source), len(args)+1))
-	args = append(args, model)
-	return conditions, args
-}
-
-// appendRawUsageLogModelQueryFilter 对历史数据兼容使用原始 model 列过滤。
-// requested/upstream 维度分析必须改用 resolveModelDimensionExpression。
-func appendRawUsageLogModelQueryFilter(query string, args []any, model string) (string, []any) {
-	if strings.TrimSpace(model) == "" {
-		return query, args
-	}
-	query += fmt.Sprintf(" AND %s = $%d", rawUsageLogModelColumn, len(args)+1)
-	args = append(args, model)
-	return query, args
-}
-
-func appendUsageLogModelQueryFilter(query string, args []any, model string, source string) (string, []any) {
-	if strings.TrimSpace(source) == "" {
-		return appendRawUsageLogModelQueryFilter(query, args, model)
-	}
-	if strings.TrimSpace(model) == "" {
-		return query, args
-	}
-	query += fmt.Sprintf(" AND %s = $%d", resolveModelDimensionExpression(source), len(args)+1)
-	args = append(args, model)
-	return query, args
-}
-
-type usageLogRepository struct {
-	batchLifecycleMu sync.RWMutex
-	batchStopped     bool
-	batchWG          sync.WaitGroup
-	client           *dbent.Client
-	sql              sqlExecutor
-	db               *sql.DB
-	preAggregation   *service.PreAggregationSettingsService
-
-	createBatchOnce     sync.Once
-	createBatchCh       chan usageLogCreateRequest
-	bestEffortBatchOnce sync.Once
-	bestEffortBatchCh   chan usageLogBestEffortRequest
-	bestEffortRecent    *gocache.Cache
-}
-
-func NewUsageLogRepository(client *dbent.Client, sqlDB *sql.DB, preAggregation *service.PreAggregationSettingsService) service.UsageLogRepository {
-	repo := newUsageLogRepositoryWithSQL(client, sqlDB)
-	repo.preAggregation = preAggregation
-	return repo
-}
-
-func newUsageLogRepositoryWithSQL(client *dbent.Client, sqlq sqlExecutor) *usageLogRepository {
-	// 使用 scanSingleRow 替代 QueryRowContext，保证 ent.Tx 作为 sqlExecutor 可用。
-	repo := &usageLogRepository{client: client, sql: sqlq}
-	if db, ok := sqlq.(*sql.DB); ok {
-		repo.db = db
-	}
-	repo.bestEffortRecent = gocache.New(usageLogBestEffortRecentTTL, 0)
-	return repo
-}
-
-func buildWhere(conditions []string) string {
-	if len(conditions) == 0 {
-		return ""
-	}
-	return "WHERE " + strings.Join(conditions, " AND ")
-}
-
-func appendRequestTypeOrStreamWhereCondition(conditions []string, args []any, requestType *int16, stream *bool) ([]string, []any) {
-	if requestType != nil {
-		condition, conditionArgs := buildRequestTypeFilterCondition(len(args)+1, *requestType)
-		conditions = append(conditions, condition)
-		args = append(args, conditionArgs...)
-		return conditions, args
-	}
-	if stream != nil {
-		conditions = append(conditions, fmt.Sprintf("stream = $%d", len(args)+1))
-		args = append(args, *stream)
-	}
-	return conditions, args
-}
-
-func appendRequestTypeOrStreamQueryFilter(query string, args []any, requestType *int16, stream *bool) (string, []any) {
-	if requestType != nil {
-		condition, conditionArgs := buildRequestTypeFilterCondition(len(args)+1, *requestType)
-		query += " AND " + condition
-		args = append(args, conditionArgs...)
-		return query, args
-	}
-	if stream != nil {
-		query += fmt.Sprintf(" AND stream = $%d", len(args)+1)
-		args = append(args, *stream)
-	}
-	return query, args
-}
-
-// appendNativeCompactionV2WhereCondition 为原生 compaction 标记追加可选布尔过滤。
-func appendNativeCompactionV2WhereCondition(conditions []string, args []any, value *bool, alias string) ([]string, []any) {
-	if value == nil {
-		return conditions, args
-	}
-	column := "native_compaction_v2"
-	if alias != "" {
-		column = alias + "." + column
-	}
-	conditions = append(conditions, fmt.Sprintf("%s = $%d", column, len(args)+1))
-	args = append(args, *value)
-	return conditions, args
-}
-
-// appendNativeCompactionV2QueryFilter 为带已有条件的查询追加原生 compaction 过滤。
-func appendNativeCompactionV2QueryFilter(query string, args []any, value *bool, alias string) (string, []any) {
-	conditions, args := appendNativeCompactionV2WhereCondition(nil, args, value, alias)
-	if len(conditions) == 0 {
-		return query, args
-	}
-	return query + " AND " + conditions[0], args
-}
-
-// buildRequestTypeFilterCondition 在 request_type 过滤时兼容 legacy 字段，避免历史数据漏查。
-func buildRequestTypeFilterCondition(startArgIndex int, requestType int16) (string, []any) {
-	return buildRequestTypeFilterConditionWithAlias(startArgIndex, requestType, "")
-}
-
-// buildRequestTypeFilterConditionWithAlias 为带表别名的统计查询复用历史请求类型兼容条件。
-func buildRequestTypeFilterConditionWithAlias(startArgIndex int, requestType int16, alias string) (string, []any) {
-	normalized := service.RequestTypeFromInt16(requestType)
-	requestTypeArg := int16(normalized)
-	prefix := ""
-	if alias != "" {
-		prefix = alias + "."
-	}
-	switch normalized {
-	case service.RequestTypeSync:
-		return fmt.Sprintf("(%srequest_type = $%d OR (%srequest_type = %d AND %sstream = FALSE AND %sopenai_ws_mode = FALSE))", prefix, startArgIndex, prefix, int16(service.RequestTypeUnknown), prefix, prefix), []any{requestTypeArg}
-	case service.RequestTypeStream:
-		return fmt.Sprintf("(%srequest_type = $%d OR (%srequest_type = %d AND %sstream = TRUE AND %sopenai_ws_mode = FALSE))", prefix, startArgIndex, prefix, int16(service.RequestTypeUnknown), prefix, prefix), []any{requestTypeArg}
-	case service.RequestTypeWSV2:
-		return fmt.Sprintf("(%srequest_type = $%d OR (%srequest_type = %d AND %sopenai_ws_mode = TRUE))", prefix, startArgIndex, prefix, int16(service.RequestTypeUnknown), prefix), []any{requestTypeArg}
-	default:
-		return fmt.Sprintf("%srequest_type = $%d", prefix, startArgIndex), []any{requestTypeArg}
-	}
-}
-
-// GetDashboardPublicStats 只读取首页公开统计所需字段，避免公开接口复用完整仪表盘查询。
-func (r *usageLogRepository) GetDashboardPublicStats(ctx context.Context, start, end time.Time, useAggregates bool) (*service.DashboardPublicStats, error) {
-	stats := &service.DashboardPublicStats{}
-	if err := r.fillDashboardPublicUserStats(ctx, stats); err != nil {
-		return nil, err
-	}
-	if useAggregates {
-		if err := r.fillDashboardPublicTokenStatsAggregated(ctx, stats, timezone.Today()); err != nil {
-			return nil, err
-		}
-		return stats, nil
-	}
-	if err := r.fillDashboardPublicTokenStatsFromUsageLogs(ctx, stats, start, end, timezone.Today()); err != nil {
-		return nil, err
-	}
-	return stats, nil
-}
-
-// usageRankingQueryParts 只返回受控的 SQL 片段，避免把设置值直接拼接进查询。
-func usageRankingQueryParts(sortBy service.UsageRankingSortBy) (eligibility, orderBy string) {
-	switch service.UsageRankingSortBy(service.NormalizeUsageRankingSortBy(string(sortBy))) {
-	case service.UsageRankingSortByRequests:
-		return "COUNT(*) > 0", "requests DESC, total_tokens DESC, actual_cost DESC, user_id ASC"
-	case service.UsageRankingSortByActualCost:
-		return "COALESCE(SUM(u.actual_cost), 0) > 0", "actual_cost DESC, total_tokens DESC, requests DESC, user_id ASC"
-	default:
-		return "COALESCE(SUM(u.input_tokens + u.output_tokens + u.cache_creation_tokens + u.cache_read_tokens), 0) > 0", "total_tokens DESC, requests DESC, actual_cost DESC, user_id ASC"
-	}
-}
-
-// GetUsageRanking 返回用户侧按配置指标排序的用量排行。
-func (r *usageLogRepository) GetUsageRanking(ctx context.Context, startTime, endTime time.Time, limit int, sortBy service.UsageRankingSortBy) (result *UsageRankingResponse, err error) {
-	if limit <= 0 {
-		limit = service.DefaultUsageRankingLimit
-	}
-	if aggregated, ok, aggregateErr := r.getUsageRankingFromAnalytics(ctx, startTime, endTime, limit, sortBy); aggregateErr == nil && ok {
-		return aggregated, nil
-	} else if aggregateErr != nil {
-		r.logUsageAnalyticsFallback("usage_ranking", aggregateErr)
-	}
-
-	eligibility, orderBy := usageRankingQueryParts(sortBy)
-	query := fmt.Sprintf(`
-		WITH user_usage AS (
-			SELECT
-				COALESCE(u.billing_user_id, u.user_id) as user_id,
-				COUNT(*) as requests,
-				COALESCE(SUM(u.input_tokens), 0) as input_tokens,
-				COALESCE(SUM(u.output_tokens), 0) as output_tokens,
-				COALESCE(SUM(u.cache_creation_tokens), 0) as cache_creation_tokens,
-				COALESCE(SUM(u.cache_read_tokens), 0) as cache_read_tokens,
-				COALESCE(SUM(u.input_tokens + u.output_tokens + u.cache_creation_tokens + u.cache_read_tokens), 0) as total_tokens,
-				COALESCE(SUM(u.actual_cost), 0) as actual_cost
-			FROM usage_logs u
-			WHERE u.created_at >= $1 AND u.created_at < $2
-			-- 排行按付款主体归属，团队成员使用团队 Key 时计入团队 Owner。
-			GROUP BY COALESCE(u.billing_user_id, u.user_id)
-			HAVING %s
-		),
-		ranked AS (
-			SELECT
-				ROW_NUMBER() OVER (ORDER BY %s) as rank,
-				user_id,
-				requests,
-				input_tokens,
-				output_tokens,
-				cache_creation_tokens,
-				cache_read_tokens,
-				total_tokens,
-				actual_cost,
-				COALESCE(SUM(requests) OVER (), 0) as total_requests,
-				COALESCE(SUM(total_tokens) OVER (), 0) as ranking_total_tokens,
-				COALESCE(SUM(actual_cost) OVER (), 0) as total_actual_cost
-			FROM user_usage
-			ORDER BY %s
-			LIMIT $3
-		)
-		SELECT
-			r.rank,
-			r.user_id,
-			COALESCE(us.email, '') as email,
-			COALESCE(us.username, '') as username,
-			COALESCE(ua.url, '') as avatar_url,
-			r.requests,
-			r.input_tokens,
-			r.output_tokens,
-			r.cache_creation_tokens,
-			r.cache_read_tokens,
-			r.total_tokens,
-			r.actual_cost,
-			r.total_requests,
-			r.ranking_total_tokens,
-			r.total_actual_cost
-		FROM ranked r
-		LEFT JOIN users us ON r.user_id = us.id
-		LEFT JOIN user_avatars ua ON ua.user_id = r.user_id
-		ORDER BY r.rank ASC
-	`, eligibility, orderBy, orderBy)
-
-	rows, err := r.sql.QueryContext(ctx, query, startTime, endTime, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil && err == nil {
-			err = closeErr
-			result = nil
-		}
-	}()
-
-	ranking := make([]UsageRankingItem, 0)
-	totalRequests := int64(0)
-	totalTokens := int64(0)
-	totalActualCost := 0.0
-	for rows.Next() {
-		var row UsageRankingItem
-		var email string
-		var username string
-		if err = rows.Scan(
-			&row.Rank,
-			&row.UserID,
-			&email,
-			&username,
-			&row.AvatarURL,
-			&row.Requests,
-			&row.InputTokens,
-			&row.OutputTokens,
-			&row.CacheCreationTokens,
-			&row.CacheReadTokens,
-			&row.TotalTokens,
-			&row.ActualCost,
-			&totalRequests,
-			&totalTokens,
-			&totalActualCost,
-		); err != nil {
-			return nil, err
-		}
-		row.DisplayName = rankingDisplayName(username, email, row.UserID)
-		ranking = append(ranking, row)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return &UsageRankingResponse{
-		Ranking:         ranking,
-		TotalRequests:   totalRequests,
-		TotalTokens:     totalTokens,
-		TotalActualCost: totalActualCost,
-	}, nil
-}
-
-func (r *usageLogRepository) fillDashboardPublicTokenStatsAggregated(ctx context.Context, stats *service.DashboardPublicStats, todayStart time.Time) error {
-	query := `
-		SELECT
-			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) FILTER (WHERE bucket_date = $1::date), 0) AS today_tokens,
-			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) AS total_tokens
-		FROM usage_dashboard_daily
-	`
-	return scanSingleRow(ctx, r.sql, query, []any{todayStart}, &stats.TodayTokens, &stats.TotalTokens)
-}
-
-func (r *usageLogRepository) fillDashboardPublicTokenStatsFromUsageLogs(ctx context.Context, stats *service.DashboardPublicStats, start, end, todayStart time.Time) error {
-	startUTC := start.UTC()
-	endUTC := end.UTC()
-	todayStartUTC := todayStart.UTC()
-	todayEndUTC := todayStartUTC.Add(24 * time.Hour)
-	query := `
-		WITH scoped AS (
-			SELECT
-				created_at,
-				input_tokens,
-				output_tokens,
-				cache_creation_tokens,
-				cache_read_tokens
-			FROM usage_logs
-			WHERE created_at >= LEAST($1::timestamptz, $3::timestamptz)
-				AND created_at < GREATEST($2::timestamptz, $4::timestamptz)
-		)
-		SELECT
-			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) FILTER (WHERE created_at >= $3::timestamptz AND created_at < $4::timestamptz), 0) AS today_tokens,
-			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens) FILTER (WHERE created_at >= $1::timestamptz AND created_at < $2::timestamptz), 0) AS total_tokens
-		FROM scoped
-	`
-	return scanSingleRow(ctx, r.sql, query, []any{startUTC, endUTC, todayStartUTC, todayEndUTC}, &stats.TodayTokens, &stats.TotalTokens)
-}
-
-func (r *usageLogRepository) fillDashboardPublicUserStats(ctx context.Context, stats *service.DashboardPublicStats) error {
-	query := `SELECT COUNT(*) FROM users WHERE deleted_at IS NULL`
-	return scanSingleRow(ctx, r.sql, query, nil, &stats.TotalUsers)
-}
-
-// rankingDisplayName 只返回用户名或脱敏邮箱，避免排行接口泄露完整邮箱。
-func rankingDisplayName(username, email string, userID int64) string {
-	if name := strings.TrimSpace(username); name != "" {
-		return name
-	}
-	if email = strings.TrimSpace(email); email != "" {
-		return service.MaskEmail(email)
-	}
-	return fmt.Sprintf("User #%d", userID)
-}
-
-type UsageRankingItem = usagestats.UsageRankingItem
-
-type UsageRankingResponse = usagestats.UsageRankingResponse
-
-// ExpireRuntimeCaches 不再隐式启动无法关闭的 janitor。
-func (r *usageLogRepository) ExpireRuntimeCaches() {
-	if r.bestEffortRecent != nil {
-		r.bestEffortRecent.DeleteExpired()
-	}
-}
-
-// StopUsageBatchers 在使用量任务停止提交后封闭并排空两个独立批处理队列。
-func (r *usageLogRepository) StopUsageBatchers() {
-	r.batchLifecycleMu.Lock()
-	if !r.batchStopped {
-		r.batchStopped = true
-		if r.createBatchCh != nil {
-			close(r.createBatchCh)
-		}
-		if r.bestEffortBatchCh != nil {
-			close(r.bestEffortBatchCh)
-		}
-	}
-	r.batchLifecycleMu.Unlock()
-	r.batchWG.Wait()
+// WrapUsageStore 只为尚未迁移的调用者投影同一 Store，不构造资源。
+func WrapUsageStore(store *usagepostgres.Store) service.UsageLogRepository {
+	return &usageLogRepository{store}
 }

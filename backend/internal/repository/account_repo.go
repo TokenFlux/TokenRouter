@@ -13,11 +13,9 @@ package repository
 import (
 	context "context"
 	sql "database/sql"
-	strconv "strconv"
 	time "time"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
-	dbaccount "github.com/TokenFlux/TokenRouter/ent/account"
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
@@ -269,36 +267,16 @@ func (r *accountRepository) ListSchedulable(ctx context.Context) ([]service.Acco
 	return service.AccountsFromRecords(v), err
 }
 
-// ListSchedulableAccountLoads 只加载 Ops 队列深度采样所需的账号 ID 与并发字段。
 func (r *accountRepository) ListSchedulableAccountLoads(ctx context.Context) ([]service.AccountWithConcurrency, error) {
-	accounts, err := r.schedulableAccountsQuery(time.Now()).
-		Select(
-			dbaccount.FieldID,
-			dbaccount.FieldConcurrency,
-			dbaccount.FieldLoadFactor,
-		).
-		All(ctx)
+	rows, err := r.accountData().ListSchedulableAccountLoads(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	loads := make([]service.AccountWithConcurrency, 0, len(accounts))
-	for _, account := range accounts {
-		projection := service.Account{
-			ID:          account.ID,
-			Concurrency: account.Concurrency,
-			LoadFactor:  account.LoadFactor,
-		}
-		loads = append(loads, service.AccountWithConcurrency{
-			ID:             account.ID,
-			MaxConcurrency: projection.EffectiveLoadFactor(),
-		})
+	out := make([]service.AccountWithConcurrency, len(rows))
+	for i, v := range rows {
+		out[i] = service.AccountWithConcurrency{ID: v.ID, MaxConcurrency: v.MaxConcurrency}
 	}
-	return loads, nil
-}
-
-func (r *accountRepository) schedulableAccountsQuery(now time.Time) *dbent.AccountQuery {
-	return r.accountData().SchedulableAccountsQuery(now)
+	return out, nil
 }
 
 func (r *accountRepository) ListSchedulableByGroupID(ctx context.Context, groupID int64) ([]service.Account, error) {
@@ -454,10 +432,6 @@ func normalizeJSONMap(in map[string]any) map[string]any {
 		return map[string]any{}
 	}
 	return in
-}
-
-func itoa(v int) string {
-	return strconv.Itoa(v)
 }
 
 func (r *accountRepository) FindByExtraField(ctx context.Context, key string, value any) ([]service.Account, error) {

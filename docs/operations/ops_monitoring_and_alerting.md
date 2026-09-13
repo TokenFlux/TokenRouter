@@ -1,6 +1,6 @@
 # 运维监控与告警
 
-本文描述 Ops 信号采集、实时视图、告警评估、邮件报告和健康诊断。它是[可观测性与数据生命周期](observability_and_data_lifecycle.md)的详细专题，不拥有 Usage 结算、预聚合实现或备份内容策略。
+本文描述 Ops 信号采集、实时视图、告警评估、邮件报告、健康诊断与发布查询。它是[可观测性与数据生命周期](observability_and_data_lifecycle.md)的详细专题，不拥有 Usage 结算、预聚合实现或备份内容策略。
 
 ## 章节导航
 
@@ -9,19 +9,22 @@
 - [告警评估](#告警评估)：修改规则、持续时间、静默或通知时读取。
 - [计划报告](#计划报告)：修改日报、周报或健康摘要时读取。
 - [健康与失效语义](#健康与失效语义)：排查空面板、漏报或后台任务故障时读取。
+- [发布查询与维护命令](#ops_release_and_maintenance)：检查版本、回退候选或历史入口拒绝清理时读取。
 
 <a id="ops_signal_pipeline"></a>
 ## 信号流水线
+
+`ops` 拥有观测规则和运行实例；`ops/postgres` 执行业务表查询，`ops/rediscache` 提供原键空间的锁与缓存，`ops/provider` 读取主机/cgroup/连接池及发布信息，`ops/httpapi` 保留管理与实时协议。采样核心只读取账号、身份、并发和认证健康投影。
 
 Ops 面同时接收请求错误、独立上游 attempt 错误、入口准入拒绝、系统日志、并发、账号可用性、实时流量和系统指标。每类信号有独立 repository/队列，不能用一个表的计数代替另一类：最终客户端失败可能包含多个上游错误，一次本地拒绝也可能没有任何上游 attempt。
 
 `OpsMetricsCollector` 在 Ops 和 monitoring 开关启用时周期采集数据库、Redis、主机/容器、账号负载和运行时指标。多实例通过 Redis leader lock，必要路径可用 PostgreSQL advisory lock，确保一个周期只持久化一次；运行结果写 job heartbeat、耗时和错误。
 
-系统日志 sink 与 request/error capture 使用有界队列。拥塞时按各自策略丢弃或降级，并累计 dropped/health 计数；它们不得反压网关核心转发。系统日志落库失败会执行 2 秒起、60 秒封顶的指数退避，退避窗口内的批次计入 dropped 而不访问数据库，成功后立即清除失败状态。敏感字段在进入存储前清理，request ID、平台、Group、账号和 endpoint 用于关联。
+系统日志 sink 与 request/error capture 使用相互独立的有界队列。Audit 与系统日志 sink 的重复 Start 由各自屏障合并，Stop 之后不能重开；系统日志退避和健康计数始终只有一份。拥塞时按各自策略丢弃或降级，并累计 dropped/health 计数；它们不得反压网关核心转发。系统日志落库失败会执行 2 秒起、60 秒封顶的指数退避，退避窗口内的批次计入 dropped 而不访问数据库，成功后立即清除失败状态。敏感字段在进入存储前清理，request ID、平台、Group、账号和 endpoint 用于关联。
 
 ## 实时与历史查询
 
-管理员 Ops API 提供 concurrency、user concurrency、account availability、realtime traffic、错误/上游错误/请求详情、入口拒绝、系统日志和 dashboard snapshot/trend/histogram/token stats。概览、错误列表与请求明细弹窗必须共享当前时间范围；自定义范围使用同一组 `start_time` / `end_time` 半开区间，请求明细的窗口标签展示对应起止日期时间，已选自定义模式时再次修改边界也应刷新数据。任一边界缺失时统一回退到 `1h`，不能把字面量 `custom` 传给后端。QPS WebSocket 用于短窗口实时展示，仍需管理员鉴权，不能视为长期审计源。
+管理员 Ops API 提供 concurrency、user concurrency、account availability、realtime traffic、错误/上游错误/请求详情、入口拒绝、系统日志和 dashboard snapshot/trend/histogram/token stats。概览、错误列表与请求明细弹窗必须共享当前时间范围；自定义范围使用同一组 `start_time` / `end_time` 半开区间，请求明细的窗口标签展示对应起止日期时间，已选自定义模式时再次修改边界也应刷新数据。任一边界缺失时统一回退到 `1h`，不能把字面量 `custom` 传给后端。QPS WebSocket 用于短窗口实时展示，仍需管理员鉴权，不能视为长期审计源。Ops 持有按需采样、连接计数和三十秒空闲停止；HTTP Adapter 保留 Origin/可信代理判定、管理员认证、帧、关闭码及写超时，停止等待不能由连接断开假定完成。
 
 历史 dashboard 查询可按配置使用原始表或预聚合，并在覆盖不足时回退。聚合、水位和回填由[使用记录与运维预聚合](pre_aggregation.md)拥有。页面空数据需区分 monitoring 关闭、过滤条件、采集丢弃、聚合覆盖、查询超时和确实无流量。
 
@@ -49,3 +52,10 @@ Ops 的构造与启动分离，app 在完整绑定后启动采样、聚合、告
 - Retention/cleanup 只删除观测数据；告警、报告或面板缺历史不影响资金账本，但会降低诊断完整性。
 
 相关文档：[可观测性与数据生命周期](observability_and_data_lifecycle.md)、[使用记录与运维预聚合](pre_aggregation.md)、[账号维护](account_maintenance.md)。
+
+<a id="ops_release_and_maintenance"></a>
+## 发布查询与维护命令
+
+发布查询由 ops 的 ReleaseQuery 和 GitHub provider 提供，继续使用原版本比较、回退候选过滤及二十分钟缓存。代理初始化失败、GitHub Token 的受信任范围、重定向与超时策略保持；下载校验、替换二进制、执行回滚、系统操作锁和重启仍由旧维护用例编排。
+
+`cleanup-ingress-reject-logs` 使用精简 bootstrap 装配 Ops 的分类与清理能力，不启动完整 worker。默认 dry-run，沿用 `--before`、`--batch-size`、`--execute`、原输出及 `ingress-reject-v1` 分类版本；它只清理匹配的分析事件。

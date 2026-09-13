@@ -1,0 +1,760 @@
+[
+  {
+    "path": "internal/app/legacy_providers.go",
+    "symbol": "provideServiceBuildInfo",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/account_handler.go",
+    "symbol": "ifNoneMatchMatched",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/id_list_utils.go",
+    "symbol": "normalizeInt64IDList",
+    "action": "test-only"
+  },
+  {
+    "path": "internal/handler/admin/ops_dashboard_handler.go",
+    "symbol": "parseOpsLatencyBucketBoundaries",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/ops_dashboard_handler.go",
+    "symbol": "parseOpsTokenStatsFilter",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/ops_dashboard_handler.go",
+    "symbol": "parseOpsTokenStatsDuration",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/ops_handler.go",
+    "symbol": "parseOpsViewParam",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/ops_handler.go",
+    "symbol": "applyOpsErrorSortParams",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/ops_handler.go",
+    "symbol": "parseOpsTimeRange",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/ops_handler.go",
+    "symbol": "parseOpsDuration",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/ops_ingress_reject_handler.go",
+    "symbol": "parseIngressRejectEnum",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/ops_ingress_reject_handler.go",
+    "symbol": "parseOptionalPositiveID",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/ops_realtime_handler.go",
+    "symbol": "isOpsRealtimeRequestCanceled",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/ops_realtime_handler.go",
+    "symbol": "parseOpsRealtimeWindow",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/snapshot_cache.go",
+    "symbol": "snapshotCache",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/snapshot_cache.go",
+    "symbol": "newSnapshotCache",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/admin/snapshot_cache.go",
+    "symbol": "parseBoolQueryWithDefault",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/gateway_handler.go",
+    "symbol": "calculateSubscriptionRemaining",
+    "action": "test-only"
+  },
+  {
+    "path": "internal/handler/ops_error_queue_legacy.go",
+    "symbol": "normalizeOpsPersistentUserAgent",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/usage_handler.go",
+    "symbol": "parseAPIKeyDailyUsageDays",
+    "action": "remove"
+  },
+  {
+    "path": "internal/handler/usage_handler.go",
+    "symbol": "apiKeyDailyUsageRange",
+    "action": "remove"
+  },
+  {
+    "path": "internal/ops/error_queue_test.go",
+    "symbol": "ingressRejectSettingRepo",
+    "action": "remove"
+  },
+  {
+    "path": "internal/ops/error_queue_test.go",
+    "symbol": "GetValue",
+    "action": "defer-reference",
+    "refs": [
+      "ops_settings.go",
+      "options.go",
+      "ops_log_runtime.go",
+      "ops_metrics_collector.go",
+      "ops_realtime.go",
+      "ops_aggregation_service.go",
+      "ops_cleanup_service.go"
+    ]
+  },
+  {
+    "path": "internal/ops/error_queue_test.go",
+    "symbol": "GetMultiple",
+    "action": "defer-reference",
+    "refs": [
+      "ops_service.go",
+      "options.go"
+    ]
+  },
+  {
+    "path": "internal/ops/error_queue_test.go",
+    "symbol": "Set",
+    "action": "defer-reference",
+    "refs": [
+      "dashboard_snapshot.go",
+      "ops_settings.go",
+      "options.go",
+      "ops_log_runtime.go"
+    ]
+  },
+  {
+    "path": "internal/ops/error_queue_test.go",
+    "symbol": "ingressRejectOpsRepo",
+    "action": "remove"
+  },
+  {
+    "path": "internal/ops/error_queue_test.go",
+    "symbol": "InsertErrorLog",
+    "action": "defer-reference",
+    "refs": [
+      "ops_service.go",
+      "ops_port.go"
+    ]
+  },
+  {
+    "path": "internal/ops/error_queue_test.go",
+    "symbol": "BatchInsertErrorLogs",
+    "action": "defer-reference",
+    "refs": [
+      "ops_service.go",
+      "ops_port.go"
+    ]
+  },
+  {
+    "path": "internal/ops/httpapi/ops_ws_handler.go",
+    "symbol": "qpsWSIdleStopDelay",
+    "action": "remove"
+  },
+  {
+    "path": "internal/ops/httpapi/ops_ws_handler.go",
+    "symbol": "roundTo1DP",
+    "action": "remove"
+  },
+  {
+    "path": "internal/ops/ops_metrics_collector.go",
+    "symbol": "bytesPerMB",
+    "action": "remove-unused-value"
+  },
+  {
+    "path": "internal/ops/postgres/support.go",
+    "symbol": "nullInt64Ptr",
+    "action": "remove"
+  },
+  {
+    "path": "internal/ops/provider/local_http_fixture_test.go",
+    "symbol": "roundTripFunc",
+    "action": "defer-test-reference",
+    "refs": [
+      "local_http_fixture_test.go"
+    ]
+  },
+  {
+    "path": "internal/ops/provider/local_http_fixture_test.go",
+    "symbol": "newInProcessTransport",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/account_repo.go",
+    "symbol": "schedulableAccountsQuery",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/account_repo.go",
+    "symbol": "itoa",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/api_key_repo.go",
+    "symbol": "apiKeyEntityToService",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/audit_log_repo.go",
+    "symbol": "nullInt64Ptr",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/audit_log_repo.go",
+    "symbol": "truncateString",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/audit_log_repo.go",
+    "symbol": "nullInt64",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/dashboard_aggregation_repo.go",
+    "symbol": "dashboardAggregationRepository",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/dashboard_aggregation_repo.go",
+    "symbol": "newDashboardAggregationRepositoryWithSQL",
+    "action": "test-only"
+  },
+  {
+    "path": "internal/repository/error_translate.go",
+    "symbol": "isPostgresDeadlock",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/error_translate.go",
+    "symbol": "postgresSQLState",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/postgres_deadlock_retry.go",
+    "symbol": "postgresDeadlockMaxAttempts",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/postgres_deadlock_retry.go",
+    "symbol": "retryPostgresDeadlock",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/sql_scan.go",
+    "symbol": "sqlQueryer",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/sql_scan.go",
+    "symbol": "scanSingleRow",
+    "action": "test-only"
+  },
+  {
+    "path": "internal/repository/usage_cleanup_repo.go",
+    "symbol": "usageCleanupRepository",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/usage_cleanup_repo.go",
+    "symbol": "newUsageCleanupRepositoryWithSQL",
+    "action": "remove"
+  },
+  {
+    "path": "internal/repository/usage_log_repo.go",
+    "symbol": "newUsageLogRepositoryWithSQL",
+    "action": "test-only"
+  },
+  {
+    "path": "internal/repository/user_subscription_repo.go",
+    "symbol": "userSubscriptionEntityToService",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/context_error.go",
+    "symbol": "isContextDoneError",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/dashboard_aggregation_service.go",
+    "symbol": "truncateToDayUTC",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_aggregation_service.go",
+    "symbol": "utcFloorToHour",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_aggregation_service.go",
+    "symbol": "utcFloorToDay",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_aggregation_service.go",
+    "symbol": "minTime",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "opsAlertRuleState",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "requiredSustainedBreaches",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "parseOpsAlertRuleScope",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "compareMetric",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "buildOpsAlertDimensions",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "buildOpsAlertDescription",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "opsAlertEmailVariables",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "buildOpsAlertEmailBody",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "shouldSendOpsAlertEmailByMinSeverity",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "opsEmailSeverityForOps",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "isOpsAlertSilenced",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "htmlEscape",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "slidingWindowLimiter",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "newSlidingWindowLimiter",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "computeGroupAvailableRatio",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_alert_evaluator_service.go",
+    "symbol": "countAccountsByCondition",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_health_score.go",
+    "symbol": "computeDashboardHealthScore",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_health_score.go",
+    "symbol": "computeBusinessHealth",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_health_score.go",
+    "symbol": "computeInfraHealth",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_health_score.go",
+    "symbol": "clampFloat64",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_ingress_reject.go",
+    "symbol": "batchRequestCount",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_ingress_reject.go",
+    "symbol": "boundedDimension",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_ingress_reject.go",
+    "symbol": "ingressRejectHash",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_ingress_reject.go",
+    "symbol": "aggregateFromKey",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_ingress_reject.go",
+    "symbol": "ingressRejectKey",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_legacy.go",
+    "symbol": "legacyOpsLogControl",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_log_runtime.go",
+    "symbol": "defaultOpsRuntimeLogConfig",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_log_runtime.go",
+    "symbol": "normalizeOpsRuntimeLogConfig",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_log_runtime.go",
+    "symbol": "validateOpsRuntimeLogConfig",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_log_runtime.go",
+    "symbol": "applyOpsRuntimeLogConfig",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_metrics_collector.go",
+    "symbol": "roundTo1DP",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_metrics_collector.go",
+    "symbol": "boolPtr",
+    "action": "test-only"
+  },
+  {
+    "path": "internal/service/ops_metrics_collector.go",
+    "symbol": "float64Ptr",
+    "action": "test-only"
+  },
+  {
+    "path": "internal/service/ops_query_rules_legacy.go",
+    "symbol": "shouldFallbackOpsPreagg",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_query_rules_legacy.go",
+    "symbol": "cloneOpsFilterWithMode",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_query_rules_legacy.go",
+    "symbol": "opsIgnoredStatusCodesEqual",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_scheduled_report_service.go",
+    "symbol": "opsScheduledReportContent",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_scheduled_report_service.go",
+    "symbol": "opsScheduledReportEmailVariables",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_scheduled_report_service.go",
+    "symbol": "opsScheduledReportLocalizedName",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_scheduled_report_service.go",
+    "symbol": "isOpsSummaryReport",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_scheduled_report_service.go",
+    "symbol": "formatOpsReportMilliseconds",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_scheduled_report_service.go",
+    "symbol": "buildOpsSummaryEmailHTML",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_scheduled_report_service.go",
+    "symbol": "buildOpsErrorDigestEmailHTML",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_scheduled_report_service.go",
+    "symbol": "buildOpsAccountHealthEmailHTML",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_scheduled_report_service.go",
+    "symbol": "normalizeEmails",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_service.go",
+    "symbol": "parseOpsMonitoringEnabled",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_service.go",
+    "symbol": "jitterDuration",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_service.go",
+    "symbol": "logOpsErrorBatchWriteFailure",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_service.go",
+    "symbol": "sanitizeOpsUpstreamErrors",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_service.go",
+    "symbol": "sanitizeAndTrimJSONPayload",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_service.go",
+    "symbol": "redactSensitiveJSON",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_service.go",
+    "symbol": "isSensitiveKey",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_service.go",
+    "symbol": "trimConversationArrays",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_service.go",
+    "symbol": "trimArrayField",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_service.go",
+    "symbol": "shrinkToEssentials",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_service.go",
+    "symbol": "sanitizeErrorBodyForStorage",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_settings.go",
+    "symbol": "defaultOpsEmailNotificationConfig",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_settings.go",
+    "symbol": "normalizeOpsEmailNotificationConfig",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_settings.go",
+    "symbol": "validateOpsEmailNotificationConfig",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_settings.go",
+    "symbol": "defaultOpsAlertRuntimeSettings",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_settings.go",
+    "symbol": "normalizeOpsDistributedLockSettings",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_settings.go",
+    "symbol": "normalizeOpsAlertSilencingSettings",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_settings.go",
+    "symbol": "validateOpsDistributedLockSettings",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_settings.go",
+    "symbol": "validateOpsAlertSilencingSettings",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_settings.go",
+    "symbol": "validateOpsAdvancedSettings",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_settings.go",
+    "symbol": "cloneOpsIgnoredStatusCodes",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_settings.go",
+    "symbol": "resolveOpsIgnoredStatusCodesFromRepo",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_settings.go",
+    "symbol": "defaultOpsMetricThresholds",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_system_log_service.go",
+    "symbol": "marshalSystemLogCleanupConditions",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_system_log_sink.go",
+    "symbol": "copyMap",
+    "action": "defer-reference",
+    "refs": [
+      "openai_codex_tool_names.go"
+    ]
+  },
+  {
+    "path": "internal/service/ops_system_log_sink.go",
+    "symbol": "asString",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_system_log_sink.go",
+    "symbol": "asInt64Ptr",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/ops_test_compat_test.go",
+    "symbol": "int64Ptr",
+    "action": "test-only"
+  },
+  {
+    "path": "internal/service/ops_test_compat_test.go",
+    "symbol": "strPtr",
+    "action": "test-only"
+  },
+  {
+    "path": "internal/service/ops_upstream_context.go",
+    "symbol": "marshalOpsUpstreamErrors",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/setting_service.go",
+    "symbol": "normalizeUsageRankingLimit",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/update_service.go",
+    "symbol": "updateCacheKey",
+    "action": "remove-unused-value"
+  },
+  {
+    "path": "internal/service/update_service.go",
+    "symbol": "updateCacheTTL",
+    "action": "remove-unused-value"
+  },
+  {
+    "path": "internal/service/update_service.go",
+    "symbol": "githubRepo",
+    "action": "remove-unused-value"
+  },
+  {
+    "path": "internal/service/update_service.go",
+    "symbol": "maxRollbackVersions",
+    "action": "remove-unused-value"
+  },
+  {
+    "path": "internal/service/update_service.go",
+    "symbol": "rollbackFetchPageSize",
+    "action": "remove-unused-value"
+  },
+  {
+    "path": "internal/service/update_service.go",
+    "symbol": "fetchLatestRelease",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/update_service.go",
+    "symbol": "getFromCache",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/update_service.go",
+    "symbol": "saveToCache",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/update_service.go",
+    "symbol": "compareVersions",
+    "action": "remove"
+  },
+  {
+    "path": "internal/service/update_service.go",
+    "symbol": "parseVersion",
+    "action": "remove"
+  },
+  {
+    "path": "internal/usage/postgres/support.go",
+    "symbol": "truncateString",
+    "action": "remove"
+  },
+  {
+    "path": "internal/usage/postgres/support.go",
+    "symbol": "escapeLikePattern",
+    "action": "remove"
+  }
+]

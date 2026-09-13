@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"log/slog"
 	"maps"
 	"strconv"
@@ -14,6 +12,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	"github.com/TokenFlux/TokenRouter/internal/settings"
+	"github.com/TokenFlux/TokenRouter/internal/usage"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
@@ -29,44 +31,22 @@ const (
 	GrokDefaultBaseURLModeCLI     = "cli"
 )
 
-// UsageRankingSortBy 表示用户侧用量排行的排名指标。
-type UsageRankingSortBy string
+type UsageRankingSortBy = usage.UsageRankingSortBy
 
-const (
-	UsageRankingSortByTotalTokens UsageRankingSortBy = "total_tokens"
-	UsageRankingSortByRequests    UsageRankingSortBy = "requests"
-	UsageRankingSortByActualCost  UsageRankingSortBy = "actual_cost"
-)
+const UsageRankingSortByTotalTokens = usage.UsageRankingSortByTotalTokens
+const UsageRankingSortByRequests = usage.UsageRankingSortByRequests
+const UsageRankingSortByActualCost = usage.UsageRankingSortByActualCost
 
-// UsageRankingSettings 是用户侧排行读取和展示共用的运行时配置。
-type UsageRankingSettings struct {
-	Enabled         bool
-	SortBy          UsageRankingSortBy
-	ShowTotalTokens bool
-	ShowRequests    bool
-	ShowActualCost  bool
-	Limit           int
-}
+type UsageRankingSettings = usage.UsageRankingSettings
 
-func IsValidUsageRankingSortBy(value string) bool {
-	switch UsageRankingSortBy(strings.TrimSpace(value)) {
-	case UsageRankingSortByTotalTokens, UsageRankingSortByRequests, UsageRankingSortByActualCost:
-		return true
-	default:
-		return false
-	}
-}
+func IsValidUsageRankingSortBy(value string) bool { return usage.IsValidUsageRankingSortBy(value) }
 
 func normalizeUsageRankingSortBy(value string) UsageRankingSortBy {
-	if IsValidUsageRankingSortBy(value) {
-		return UsageRankingSortBy(strings.TrimSpace(value))
-	}
-	return UsageRankingSortByTotalTokens
+	return usage.NormalizeUsageRankingSortByInternal(value)
 }
 
-// NormalizeUsageRankingSortBy 将历史或非法值回退到总 Token 排序。
 func NormalizeUsageRankingSortBy(value string) UsageRankingSortBy {
-	return normalizeUsageRankingSortBy(value)
+	return usage.NormalizeUsageRankingSortBy(value)
 }
 
 func defaultUsageRankingSettings() UsageRankingSettings {
@@ -80,19 +60,8 @@ func defaultUsageRankingSettings() UsageRankingSettings {
 	}
 }
 
-// NormalizeUsageRankingSettings 保证排序依据始终可见，避免用户无法理解排行名次。
 func NormalizeUsageRankingSettings(settings UsageRankingSettings) UsageRankingSettings {
-	settings.SortBy = normalizeUsageRankingSortBy(string(settings.SortBy))
-	settings.Limit = normalizeUsageRankingLimit(settings.Limit)
-	switch settings.SortBy {
-	case UsageRankingSortByRequests:
-		settings.ShowRequests = true
-	case UsageRankingSortByActualCost:
-		settings.ShowActualCost = true
-	default:
-		settings.ShowTotalTokens = true
-	}
-	return settings
+	return usage.NormalizeUsageRankingSettings(settings)
 }
 
 func parseUsageRankingSettings(values map[string]string) UsageRankingSettings {
@@ -852,22 +821,8 @@ func findForbiddenImportField(fields map[string]any, forbidden map[string]struct
 	return "", false
 }
 
-func normalizeUsageRankingLimit(value int) int {
-	if value <= 0 {
-		return DefaultUsageRankingLimit
-	}
-	if value > MaxUsageRankingLimit {
-		return MaxUsageRankingLimit
-	}
-	return value
-}
-
 func normalizeUsageRankingLimitString(raw string) int {
-	value, err := strconv.Atoi(strings.TrimSpace(raw))
-	if err != nil {
-		return DefaultUsageRankingLimit
-	}
-	return normalizeUsageRankingLimit(value)
+	return usage.NormalizeUsageRankingLimitString(raw)
 }
 
 func parseOpenAIQuotaAutoPauseSettingsFromRaw(raw string) OpsOpenAIAccountQuotaAutoPauseSettings {

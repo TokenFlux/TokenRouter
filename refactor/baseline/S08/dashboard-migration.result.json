@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/usage",
+    "./internal/service",
+    "./internal/handler/admin",
+    "-run",
+    "Test(Usage|Dashboard|S08Regression)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.726,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/dashboard-migration.log.gz"
+}

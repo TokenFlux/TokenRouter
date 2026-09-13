@@ -1,0 +1,321 @@
+package ops
+
+import (
+	"context"
+	"time"
+)
+
+type OpsRepository interface {
+	InsertErrorLog(ctx context.Context, input *OpsInsertErrorLogInput) (int64, error)
+	BatchInsertErrorLogs(ctx context.Context, inputs []*OpsInsertErrorLogInput) (int64, error)
+	ListErrorLogs(ctx context.Context, filter *OpsErrorLogFilter) (*OpsErrorLogList, error)
+	GetErrorLogByID(ctx context.Context, id int64) (*OpsErrorLogDetail, error)
+	ListRequestDetails(ctx context.Context, filter *OpsRequestDetailFilter) ([]*OpsRequestDetail, int64, error)
+	BatchInsertSystemLogs(ctx context.Context, inputs []*OpsInsertSystemLogInput) (int64, error)
+	ListSystemLogs(ctx context.Context, filter *OpsSystemLogFilter) (*OpsSystemLogList, error)
+	ListRequestTimings(ctx context.Context, clientRequestIDs []string) (map[string]*OpsRequestTiming, error)
+	DeleteSystemLogs(ctx context.Context, filter *OpsSystemLogCleanupFilter) (int64, error)
+	InsertSystemLogCleanupAudit(ctx context.Context, input *OpsSystemLogCleanupAudit) error
+
+	UpdateErrorResolution(ctx context.Context, errorID int64, resolved bool, resolvedByUserID *int64, resolvedAt *time.Time) error
+
+	// 轻量窗口统计，用于实时 WS 与快速采样。
+	GetWindowStats(ctx context.Context, filter *OpsDashboardFilter) (*OpsWindowStats, error)
+	// 轻量实时流量摘要，用于 Ops 仪表盘顶部卡片。
+	GetRealtimeTrafficSummary(ctx context.Context, filter *OpsDashboardFilter) (*OpsRealtimeTrafficSummary, error)
+
+	GetDashboardOverview(ctx context.Context, filter *OpsDashboardFilter) (*OpsDashboardOverview, error)
+	GetThroughputTrend(ctx context.Context, filter *OpsDashboardFilter, bucketSeconds int) (*OpsThroughputTrendResponse, error)
+	GetLatencyHistogram(ctx context.Context, filter *OpsDashboardFilter, bucketBoundariesMS []int64) (*OpsLatencyHistogramResponse, error)
+	GetErrorTrend(ctx context.Context, filter *OpsDashboardFilter, bucketSeconds int) (*OpsErrorTrendResponse, error)
+	GetErrorDistribution(ctx context.Context, filter *OpsDashboardFilter) (*OpsErrorDistributionResponse, error)
+	GetTokenStats(ctx context.Context, filter *OpsTokenStatsFilter) (*OpsTokenStatsResponse, error)
+
+	InsertSystemMetrics(ctx context.Context, input *OpsInsertSystemMetricsInput) error
+	GetLatestSystemMetrics(ctx context.Context, windowMinutes int) (*OpsSystemMetricsSnapshot, error)
+
+	UpsertJobHeartbeat(ctx context.Context, input *OpsUpsertJobHeartbeatInput) error
+	ListJobHeartbeats(ctx context.Context) ([]*OpsJobHeartbeat, error)
+
+	// 告警规则与告警事件。
+	ListAlertRules(ctx context.Context) ([]*OpsAlertRule, error)
+	CreateAlertRule(ctx context.Context, input *OpsAlertRule) (*OpsAlertRule, error)
+	UpdateAlertRule(ctx context.Context, input *OpsAlertRule) (*OpsAlertRule, error)
+	DeleteAlertRule(ctx context.Context, id int64) error
+
+	ListAlertEvents(ctx context.Context, filter *OpsAlertEventFilter) ([]*OpsAlertEvent, error)
+	GetAlertEventByID(ctx context.Context, eventID int64) (*OpsAlertEvent, error)
+	GetActiveAlertEvent(ctx context.Context, ruleID int64) (*OpsAlertEvent, error)
+	GetLatestAlertEvent(ctx context.Context, ruleID int64) (*OpsAlertEvent, error)
+	CreateAlertEvent(ctx context.Context, event *OpsAlertEvent) (*OpsAlertEvent, error)
+	UpdateAlertEventStatus(ctx context.Context, eventID int64, status string, resolvedAt *time.Time) error
+	UpdateAlertEventEmailSent(ctx context.Context, eventID int64, emailSent bool) error
+
+	// 告警静默。
+	CreateAlertSilence(ctx context.Context, input *OpsAlertSilence) (*OpsAlertSilence, error)
+	IsAlertSilenced(ctx context.Context, ruleID int64, platform string, groupID *int64, region *string, now time.Time) (bool, error)
+
+	// 小时/天级预聚合，用于提升长窗口仪表盘查询性能。
+	UpsertHourlyMetrics(ctx context.Context, startTime, endTime time.Time, ignoredStatusCodes []int) error
+	UpsertDailyMetrics(ctx context.Context, startTime, endTime time.Time) error
+	GetLatestHourlyBucketStart(ctx context.Context) (time.Time, bool, error)
+	GetLatestDailyBucketDate(ctx context.Context) (time.Time, bool, error)
+}
+
+type OpsInsertErrorLogInput struct {
+	RequestID       string
+	ClientRequestID string
+
+	UserID    *int64
+	APIKeyID  *int64
+	AccountID *int64
+	GroupID   *int64
+	ClientIP  *string
+
+	Platform    string
+	Model       string
+	RequestPath string
+	Stream      bool
+	// InboundEndpoint 是归一化后的客户端入口路径，例如 /v1/chat/completions。
+	InboundEndpoint string
+	// UpstreamEndpoint 是归一化后的上游路径，例如 /v1/responses。
+	UpstreamEndpoint string
+	// RequestedModel 是客户端请求中、映射前的模型名。
+	RequestedModel string
+	// UpstreamModel 是映射后实际发给上游的模型名；空值表示未映射。
+	UpstreamModel string
+	// RequestType 是细分请求类型：0=unknown，1=sync，2=stream，3=ws_v2，4=cyber，5=live。
+	// 语义与 usage_log.go 中的 service.RequestType 枚举一致。
+	RequestType *int16
+	UserAgent   string
+
+	ErrorPhase        string
+	ErrorType         string
+	Severity          string
+	StatusCode        int
+	IsBusinessLimited bool
+	IsCountTokens     bool // 是否为 count_tokens 请求
+
+	ErrorMessage string
+	ErrorBody    string
+
+	ErrorSource string
+	ErrorOwner  string
+
+	UpstreamStatusCode   *int
+	UpstreamErrorMessage *string
+	UpstreamErrorDetail  *string
+	// UpstreamErrors 记录本次请求处理过程中观察到的所有上游错误尝试。
+	// 请求处理中写入 gin context，由 OpsService 清洗并序列化。
+	UpstreamErrors []*OpsUpstreamErrorEvent
+	// UpstreamErrorsJSON 是落入 ops_error_logs.upstream_errors 的清洗后 JSON 字符串。
+	// OpsService.RecordError 会在持久化前填充该字段。
+	UpstreamErrorsJSON *string
+
+	AuthLatencyMs      *int64
+	RoutingLatencyMs   *int64
+	UpstreamLatencyMs  *int64
+	ResponseLatencyMs  *int64
+	TimeToFirstTokenMs *int64
+
+	CreatedAt time.Time
+
+	// 有效(未删除)key 报错时快照的 key 脱敏前缀(前 8 位)。
+	// 落库快照而非读时 JOIN:key 之后被删(key 列被 tombstone 覆盖)仍保留当时前缀。
+	APIKeyPrefix string
+}
+
+type OpsInsertSystemMetricsInput struct {
+	CreatedAt     time.Time
+	WindowMinutes int
+
+	Platform *string
+	GroupID  *int64
+
+	SuccessCount         int64
+	ErrorCountTotal      int64
+	BusinessLimitedCount int64
+	ErrorCountSLA        int64
+
+	UpstreamErrorCountExcl429529 int64
+	Upstream429Count             int64
+	Upstream529Count             int64
+
+	TokenConsumed      int64
+	AccountSwitchCount int64
+
+	QPS *float64
+	TPS *float64
+
+	DurationP50Ms *int
+	DurationP90Ms *int
+	DurationP95Ms *int
+	DurationP99Ms *int
+	DurationAvgMs *float64
+	DurationMaxMs *int
+
+	TTFTP50Ms *int
+	TTFTP90Ms *int
+	TTFTP95Ms *int
+	TTFTP99Ms *int
+	TTFTAvgMs *float64
+	TTFTMaxMs *int
+
+	CPUUsagePercent    *float64
+	MemoryUsedMB       *int64
+	MemoryTotalMB      *int64
+	MemoryUsagePercent *float64
+	DiskUsedMB         *int64
+	DiskTotalMB        *int64
+	DiskUsagePercent   *float64
+
+	DBOK    *bool
+	RedisOK *bool
+
+	RedisConnTotal *int
+	RedisConnIdle  *int
+
+	DBConnActive  *int
+	DBConnIdle    *int
+	DBConnWaiting *int
+
+	GoroutineCount        *int
+	ConcurrencyQueueDepth *int
+}
+
+type OpsInsertSystemLogInput struct {
+	CreatedAt time.Time
+	// Host 是产生日志的进程主机名；历史记录或未知主机可为空。
+	Host            string
+	Level           string
+	Component       string
+	Message         string
+	RequestID       string
+	ClientRequestID string
+	UserID          *int64
+	APIKeyID        *int64
+	AccountID       *int64
+	Platform        string
+	Model           string
+	ExtraJSON       string
+}
+
+type OpsSystemLogFilter struct {
+	StartTime *time.Time
+	EndTime   *time.Time
+	Host      string
+
+	Level     string
+	Component string
+
+	RequestID       string
+	ClientRequestID string
+	UserID          *int64
+	APIKeyID        *int64
+	AccountID       *int64
+	Platform        string
+	Model           string
+	Query           string
+
+	Page     int
+	PageSize int
+}
+
+type OpsSystemLogCleanupFilter struct {
+	StartTime *time.Time
+	EndTime   *time.Time
+	Host      string
+
+	Level     string
+	Component string
+
+	RequestID       string
+	ClientRequestID string
+	UserID          *int64
+	APIKeyID        *int64
+	AccountID       *int64
+	Platform        string
+	Model           string
+	Query           string
+}
+
+type OpsSystemLogList struct {
+	Logs     []*OpsSystemLog `json:"logs"`
+	Total    int             `json:"total"`
+	Page     int             `json:"page"`
+	PageSize int             `json:"page_size"`
+}
+
+type OpsSystemLogCleanupAudit struct {
+	CreatedAt   time.Time
+	OperatorID  int64
+	Conditions  string
+	DeletedRows int64
+}
+
+type OpsSystemMetricsSnapshot struct {
+	ID            int64     `json:"id"`
+	CreatedAt     time.Time `json:"created_at"`
+	WindowMinutes int       `json:"window_minutes"`
+
+	CPUUsagePercent    *float64 `json:"cpu_usage_percent"`
+	MemoryUsedMB       *int64   `json:"memory_used_mb"`
+	MemoryTotalMB      *int64   `json:"memory_total_mb"`
+	MemoryUsagePercent *float64 `json:"memory_usage_percent"`
+	DiskUsedMB         *int64   `json:"disk_used_mb"`
+	DiskTotalMB        *int64   `json:"disk_total_mb"`
+	DiskUsagePercent   *float64 `json:"disk_usage_percent"`
+
+	DBOK    *bool `json:"db_ok"`
+	RedisOK *bool `json:"redis_ok"`
+
+	// Config-derived limits (best-effort). These are not historical metrics; they help UI render "current vs max".
+	DBMaxOpenConns *int `json:"db_max_open_conns"`
+	RedisPoolSize  *int `json:"redis_pool_size"`
+
+	RedisConnTotal *int `json:"redis_conn_total"`
+	RedisConnIdle  *int `json:"redis_conn_idle"`
+
+	DBConnActive  *int `json:"db_conn_active"`
+	DBConnIdle    *int `json:"db_conn_idle"`
+	DBConnWaiting *int `json:"db_conn_waiting"`
+
+	GoroutineCount        *int   `json:"goroutine_count"`
+	ConcurrencyQueueDepth *int   `json:"concurrency_queue_depth"`
+	AccountSwitchCount    *int64 `json:"account_switch_count"`
+}
+
+type OpsUpsertJobHeartbeatInput struct {
+	JobName string
+
+	LastRunAt      *time.Time
+	LastSuccessAt  *time.Time
+	LastErrorAt    *time.Time
+	LastError      *string
+	LastDurationMs *int64
+
+	// LastResult is an optional human-readable summary of the last successful run.
+	LastResult *string
+}
+
+type OpsJobHeartbeat struct {
+	JobName string `json:"job_name"`
+
+	LastRunAt      *time.Time `json:"last_run_at"`
+	LastSuccessAt  *time.Time `json:"last_success_at"`
+	LastErrorAt    *time.Time `json:"last_error_at"`
+	LastError      *string    `json:"last_error"`
+	LastDurationMs *int64     `json:"last_duration_ms"`
+	LastResult     *string    `json:"last_result"`
+
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type OpsWindowStats struct {
+	StartTime time.Time `json:"start_time"`
+	EndTime   time.Time `json:"end_time"`
+
+	SuccessCount    int64 `json:"success_count"`
+	ErrorCountTotal int64 `json:"error_count_total"`
+	TokenConsumed   int64 `json:"token_consumed"`
+}

@@ -2,10 +2,11 @@ package routes
 
 import (
 	"context"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"net/http"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/domain"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/handler"
@@ -367,7 +368,7 @@ func RegisterGatewayRoutes(
 		// 兼容平台保留原处理路径。
 		gateway.POST("/messages/count_tokens", countTokensProtocolGate, countTokensHandler)
 		gateway.GET("/models", h.Gateway.Models)
-		gateway.GET("/usage", h.Gateway.Usage)
+		gateway.GET("/usage", publicUsageHandler(h))
 		gateway.POST("/live", h.OpenAIGateway.Live)
 		gateway.GET("/live/:call_id", h.OpenAIGateway.LiveSideband)
 		// OpenAI Responses API: auto-route based on group platform
@@ -675,7 +676,7 @@ func RegisterGatewayRoutes(
 		antigravityV1.POST("/messages", messagesProtocolGate, h.Gateway.Messages)
 		antigravityV1.POST("/messages/count_tokens", countTokensProtocolGate, countTokensHandler)
 		antigravityV1.GET("/models", h.Gateway.AntigravityModels)
-		antigravityV1.GET("/usage", h.Gateway.Usage)
+		antigravityV1.GET("/usage", publicUsageHandler(h))
 	}
 
 	antigravityV1Beta := r.Group("/antigravity/v1beta")
@@ -710,4 +711,12 @@ func grokCustomVoiceEndpoint(c *gin.Context) string {
 		endpoint += "/audio"
 	}
 	return endpoint
+}
+
+// publicUsageHandler 生产图直接使用新 Handler，旧精简路由夹具保持兼容委托。
+func publicUsageHandler(h *handler.Handlers) gin.HandlerFunc {
+	if h.PublicUsage != nil {
+		return h.PublicUsage.Usage
+	}
+	return h.Gateway.Usage
 }

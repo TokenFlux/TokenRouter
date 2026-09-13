@@ -1,14 +1,14 @@
-// 本文件维护 server 的所属能力；兼容入口复用唯一实现。
+// SnapshotCache 只补充 HTTP ETag；缓存算法由 querycache 唯一提供。
 package httpx
 
 import (
-	sha256 "crypto/sha256"
-	hex "encoding/hex"
-	json "encoding/json"
-	singleflight "golang.org/x/sync/singleflight"
-	strings "strings"
-	sync "sync"
-	time "time"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"strings"
+	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
 )
 
 type SnapshotCacheEntry struct {
@@ -16,103 +16,48 @@ type SnapshotCacheEntry struct {
 	Payload   any
 	ExpiresAt time.Time
 }
-
-type SnapshotCache struct {
-	mu    sync.RWMutex
-	ttl   time.Duration
-	items map[string]SnapshotCacheEntry
-	sf    singleflight.Group
-}
-
+type SnapshotCache struct{ cache *querycache.Cache }
 type SnapshotCacheLoadResult struct {
 	Entry SnapshotCacheEntry
 	Hit   bool
 }
 
 func NewSnapshotCache(ttl time.Duration) *SnapshotCache {
-	if ttl <= 0 {
-		ttl = 30 * time.Second
-	}
-	return &SnapshotCache{
-		ttl:   ttl,
-		items: make(map[string]SnapshotCacheEntry),
-	}
+	return &SnapshotCache{cache: querycache.NewCache(ttl)}
 }
-
+func snapshotEntry(e querycache.Entry) SnapshotCacheEntry {
+	return SnapshotCacheEntry{ETag: BuildETagFromAny(e.Payload), Payload: e.Payload, ExpiresAt: e.ExpiresAt}
+}
 func (c *SnapshotCache) Get(key string) (SnapshotCacheEntry, bool) {
-	if c == nil || key == "" {
+	if c == nil {
 		return SnapshotCacheEntry{}, false
 	}
-	now := time.Now()
-
-	c.mu.RLock()
-	entry, ok := c.items[key]
-	c.mu.RUnlock()
+	e, ok := c.cache.Get(key)
 	if !ok {
 		return SnapshotCacheEntry{}, false
 	}
-	if now.After(entry.ExpiresAt) {
-		c.mu.Lock()
-		delete(c.items, key)
-		c.mu.Unlock()
-		return SnapshotCacheEntry{}, false
-	}
-	return entry, true
+	return snapshotEntry(e), true
 }
-
 func (c *SnapshotCache) Set(key string, payload any) SnapshotCacheEntry {
 	if c == nil {
 		return SnapshotCacheEntry{}
 	}
-	entry := SnapshotCacheEntry{
-		ETag:      BuildETagFromAny(payload),
-		Payload:   payload,
-		ExpiresAt: time.Now().Add(c.ttl),
-	}
-	if key == "" {
-		return entry
-	}
-	c.mu.Lock()
-	c.items[key] = entry
-	c.mu.Unlock()
-	return entry
+	return snapshotEntry(c.cache.Set(key, payload))
 }
-
 func (c *SnapshotCache) GetOrLoad(key string, load func() (any, error)) (SnapshotCacheEntry, bool, error) {
 	if load == nil {
 		return SnapshotCacheEntry{}, false, nil
 	}
-	if entry, ok := c.Get(key); ok {
-		return entry, true, nil
+	if c == nil {
+		_, e := load()
+		return SnapshotCacheEntry{}, false, e
 	}
-	if c == nil || key == "" {
-		payload, err := load()
-		if err != nil {
-			return SnapshotCacheEntry{}, false, err
-		}
-		return c.Set(key, payload), false, nil
+	entry, hit, e := c.cache.GetOrLoad(key, load)
+	if e != nil {
+		return SnapshotCacheEntry{}, hit, e
 	}
-
-	value, err, _ := c.sf.Do(key, func() (any, error) {
-		if entry, ok := c.Get(key); ok {
-			return SnapshotCacheLoadResult{Entry: entry, Hit: true}, nil
-		}
-		payload, err := load()
-		if err != nil {
-			return nil, err
-		}
-		return SnapshotCacheLoadResult{Entry: c.Set(key, payload), Hit: false}, nil
-	})
-	if err != nil {
-		return SnapshotCacheEntry{}, false, err
-	}
-	result, ok := value.(SnapshotCacheLoadResult)
-	if !ok {
-		return SnapshotCacheEntry{}, false, nil
-	}
-	return result.Entry, result.Hit, nil
+	return snapshotEntry(entry), hit, nil
 }
-
 func BuildETagFromAny(payload any) string {
 	raw, err := json.Marshal(payload)
 	if err != nil {
@@ -121,7 +66,6 @@ func BuildETagFromAny(payload any) string {
 	sum := sha256.Sum256(raw)
 	return "\"" + hex.EncodeToString(sum[:]) + "\""
 }
-
 func ParseBoolQueryWithDefault(raw string, def bool) bool {
 	value := strings.TrimSpace(strings.ToLower(raw))
 	if value == "" {

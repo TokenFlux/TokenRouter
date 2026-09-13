@@ -1,0 +1,44 @@
+{
+  "normal": {
+    "baseline": 1,
+    "current": 1,
+    "added": [],
+    "removed": []
+  },
+  "unit": {
+    "baseline": 285,
+    "current": 285,
+    "added": [],
+    "removed": []
+  },
+  "integration": {
+    "baseline": 19,
+    "current": 17,
+    "added": [],
+    "removed": [
+      {
+        "diagnostic": [
+          "errcheck",
+          "internal/repository/ops_repo_get_error_log_by_id_integration_test.go",
+          "Error return value is not checked"
+        ],
+        "count": 1,
+        "reason": "Ops 构造器迁移为 *Store 具体返回类型，原运行时类型断言已由编译期类型保证替代；没有删除行为断言。"
+      },
+      {
+        "diagnostic": [
+          "errcheck",
+          "internal/repository/ops_write_pressure_integration_test.go",
+          "Error return value is not checked"
+        ],
+        "count": 1,
+        "reason": "Ops 构造器迁移为 *Store 具体返回类型，原运行时类型断言已由编译期类型保证替代；没有删除行为断言。"
+      }
+    ]
+  },
+  "path_mapping": {
+    "internal/repository/ops_repo_args_test.go": "internal/ops/postgres/ops_repo_args_test.go",
+    "internal/repository/usage_log_session_id_unit_test.go": "internal/usage/postgres/usage_log_session_id_unit_test.go",
+    "internal/repository/update_cache_integration_test.go": "internal/ops/rediscache/update_cache_integration_test.go"
+  }
+}

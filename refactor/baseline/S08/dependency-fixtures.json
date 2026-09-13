@@ -1,0 +1,607 @@
+{
+  "config_sha256": "3c0198d4f06ab7d08ce990d6ac51fac5bedeff0f495d703ceeb846bd5fc1cf73",
+  "records": [
+    {
+      "label": "gate-positive-normal-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S08/gate-positive-normal-darwin.json",
+        "./..."
+      ],
+      "exit_code": 0,
+      "expected_files": [],
+      "actual_files": [],
+      "issue_count": 0,
+      "valid": true
+    },
+    {
+      "label": "gate-positive-unit-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S08/gate-positive-unit-darwin.json",
+        "--build-tags=unit",
+        "./..."
+      ],
+      "exit_code": 0,
+      "expected_files": [],
+      "actual_files": [],
+      "issue_count": 0,
+      "valid": true
+    },
+    {
+      "label": "gate-positive-integration-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S08/gate-positive-integration-darwin.json",
+        "--build-tags=integration",
+        "./..."
+      ],
+      "exit_code": 0,
+      "expected_files": [],
+      "actual_files": [],
+      "issue_count": 0,
+      "valid": true
+    },
+    {
+      "label": "gate-positive-wireinject-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S08/gate-positive-wireinject-darwin.json",
+        "--build-tags=wireinject",
+        "./..."
+      ],
+      "exit_code": 0,
+      "expected_files": [],
+      "actual_files": [],
+      "issue_count": 0,
+      "valid": true
+    },
+    {
+      "label": "gate-positive-embed-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S08/gate-positive-embed-darwin.json",
+        "--build-tags=embed",
+        "./..."
+      ],
+      "exit_code": 0,
+      "expected_files": [],
+      "actual_files": [],
+      "issue_count": 0,
+      "valid": true
+    },
+    {
+      "label": "gate-positive-e2e-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S08/gate-positive-e2e-darwin.json",
+        "--build-tags=e2e",
+        "./..."
+      ],
+      "exit_code": 0,
+      "expected_files": [],
+      "actual_files": [],
+      "issue_count": 0,
+      "valid": true
+    },
+    {
+      "label": "gate-positive-normal-linux",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S08/gate-positive-normal-linux.json",
+        "./..."
+      ],
+      "exit_code": 0,
+      "expected_files": [],
+      "actual_files": [],
+      "issue_count": 0,
+      "valid": true
+    },
+    {
+      "label": "gate-negative-normal-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S08/gate-negative-normal-darwin.json",
+        "./..."
+      ],
+      "exit_code": 1,
+      "expected_files": [
+        "internal/app/added.go",
+        "internal/app/moved_ops.go",
+        "internal/app/ops.go",
+        "internal/app/usage.go",
+        "internal/ops/child/reverse.go",
+        "internal/ops/options.go",
+        "internal/ops/rediscache/illegal.go",
+        "internal/pkg/querycache/child/reverse.go",
+        "internal/pkg/querycache/reverse.go",
+        "internal/protocol/openai/reverse.go",
+        "internal/usage/httpapi/illegal.go",
+        "internal/usage/io.go",
+        "internal/usage/postgres/illegal.go",
+        "internal/usage/reverse.go"
+      ],
+      "actual_files": [
+        "internal/app/added.go",
+        "internal/app/moved_ops.go",
+        "internal/app/ops.go",
+        "internal/app/usage.go",
+        "internal/ops/child/reverse.go",
+        "internal/ops/options.go",
+        "internal/ops/rediscache/illegal.go",
+        "internal/pkg/querycache/child/reverse.go",
+        "internal/pkg/querycache/reverse.go",
+        "internal/protocol/openai/reverse.go",
+        "internal/usage/httpapi/illegal.go",
+        "internal/usage/io.go",
+        "internal/usage/postgres/illegal.go",
+        "internal/usage/reverse.go"
+      ],
+      "issue_count": 14,
+      "valid": true
+    },
+    {
+      "label": "gate-negative-unit-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S08/gate-negative-unit-darwin.json",
+        "--build-tags=unit",
+        "./..."
+      ],
+      "exit_code": 1,
+      "expected_files": [
+        "internal/app/added.go",
+        "internal/app/moved_ops.go",
+        "internal/app/ops.go",
+        "internal/app/usage.go",
+        "internal/ops/child/reverse.go",
+        "internal/ops/options.go",
+        "internal/ops/rediscache/illegal.go",
+        "internal/pkg/querycache/child/reverse.go",
+        "internal/pkg/querycache/reverse.go",
+        "internal/protocol/openai/reverse.go",
+        "internal/usage/httpapi/illegal.go",
+        "internal/usage/io.go",
+        "internal/usage/postgres/illegal.go",
+        "internal/usage/reverse.go",
+        "internal/usage/unit_denied.go"
+      ],
+      "actual_files": [
+        "internal/app/added.go",
+        "internal/app/moved_ops.go",
+        "internal/app/ops.go",
+        "internal/app/usage.go",
+        "internal/ops/child/reverse.go",
+        "internal/ops/options.go",
+        "internal/ops/rediscache/illegal.go",
+        "internal/pkg/querycache/child/reverse.go",
+        "internal/pkg/querycache/reverse.go",
+        "internal/protocol/openai/reverse.go",
+        "internal/usage/httpapi/illegal.go",
+        "internal/usage/io.go",
+        "internal/usage/postgres/illegal.go",
+        "internal/usage/reverse.go",
+        "internal/usage/unit_denied.go"
+      ],
+      "issue_count": 15,
+      "valid": true
+    },
+    {
+      "label": "gate-negative-integration-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S08/gate-negative-integration-darwin.json",
+        "--build-tags=integration",
+        "./..."
+      ],
+      "exit_code": 1,
+      "expected_files": [
+        "internal/app/added.go",
+        "internal/app/moved_ops.go",
+        "internal/app/ops.go",
+        "internal/app/usage.go",
+        "internal/ops/child/reverse.go",
+        "internal/ops/options.go",
+        "internal/ops/rediscache/illegal.go",
+        "internal/pkg/querycache/child/reverse.go",
+        "internal/pkg/querycache/reverse.go",
+        "internal/protocol/openai/reverse.go",
+        "internal/usage/httpapi/illegal.go",
+        "internal/usage/integration_denied.go",
+        "internal/usage/io.go",
+        "internal/usage/postgres/illegal.go",
+        "internal/usage/postgres/moved_fixture_integration_test.go",
+        "internal/usage/reverse.go"
+      ],
+      "actual_files": [
+        "internal/app/added.go",
+        "internal/app/moved_ops.go",
+        "internal/app/ops.go",
+        "internal/app/usage.go",
+        "internal/ops/child/reverse.go",
+        "internal/ops/options.go",
+        "internal/ops/rediscache/illegal.go",
+        "internal/pkg/querycache/child/reverse.go",
+        "internal/pkg/querycache/reverse.go",
+        "internal/protocol/openai/reverse.go",
+        "internal/usage/httpapi/illegal.go",
+        "internal/usage/integration_denied.go",
+        "internal/usage/io.go",
+        "internal/usage/postgres/illegal.go",
+        "internal/usage/postgres/moved_fixture_integration_test.go",
+        "internal/usage/reverse.go"
+      ],
+      "issue_count": 16,
+      "valid": true
+    },
+    {
+      "label": "gate-negative-wireinject-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S08/gate-negative-wireinject-darwin.json",
+        "--build-tags=wireinject",
+        "./..."
+      ],
+      "exit_code": 1,
+      "expected_files": [
+        "internal/app/added.go",
+        "internal/app/moved_ops.go",
+        "internal/app/ops.go",
+        "internal/app/usage.go",
+        "internal/ops/child/reverse.go",
+        "internal/ops/options.go",
+        "internal/ops/rediscache/illegal.go",
+        "internal/pkg/querycache/child/reverse.go",
+        "internal/pkg/querycache/reverse.go",
+        "internal/protocol/openai/reverse.go",
+        "internal/usage/httpapi/illegal.go",
+        "internal/usage/io.go",
+        "internal/usage/postgres/illegal.go",
+        "internal/usage/reverse.go"
+      ],
+      "actual_files": [
+        "internal/app/added.go",
+        "internal/app/moved_ops.go",
+        "internal/app/ops.go",
+        "internal/app/usage.go",
+        "internal/ops/child/reverse.go",
+        "internal/ops/options.go",
+        "internal/ops/rediscache/illegal.go",
+        "internal/pkg/querycache/child/reverse.go",
+        "internal/pkg/querycache/reverse.go",
+        "internal/protocol/openai/reverse.go",
+        "internal/usage/httpapi/illegal.go",
+        "internal/usage/io.go",
+        "internal/usage/postgres/illegal.go",
+        "internal/usage/reverse.go"
+      ],
+      "issue_count": 14,
+      "valid": true
+    },
+    {
+      "label": "gate-negative-embed-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S08/gate-negative-embed-darwin.json",
+        "--build-tags=embed",
+        "./..."
+      ],
+      "exit_code": 1,
+      "expected_files": [
+        "internal/app/added.go",
+        "internal/app/moved_ops.go",
+        "internal/app/ops.go",
+        "internal/app/usage.go",
+        "internal/ops/child/reverse.go",
+        "internal/ops/options.go",
+        "internal/ops/rediscache/illegal.go",
+        "internal/pkg/querycache/child/reverse.go",
+        "internal/pkg/querycache/reverse.go",
+        "internal/protocol/openai/reverse.go",
+        "internal/usage/httpapi/illegal.go",
+        "internal/usage/io.go",
+        "internal/usage/postgres/illegal.go",
+        "internal/usage/reverse.go"
+      ],
+      "actual_files": [
+        "internal/app/added.go",
+        "internal/app/moved_ops.go",
+        "internal/app/ops.go",
+        "internal/app/usage.go",
+        "internal/ops/child/reverse.go",
+        "internal/ops/options.go",
+        "internal/ops/rediscache/illegal.go",
+        "internal/pkg/querycache/child/reverse.go",
+        "internal/pkg/querycache/reverse.go",
+        "internal/protocol/openai/reverse.go",
+        "internal/usage/httpapi/illegal.go",
+        "internal/usage/io.go",
+        "internal/usage/postgres/illegal.go",
+        "internal/usage/reverse.go"
+      ],
+      "issue_count": 14,
+      "valid": true
+    },
+    {
+      "label": "gate-negative-e2e-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S08/gate-negative-e2e-darwin.json",
+        "--build-tags=e2e",
+        "./..."
+      ],
+      "exit_code": 1,
+      "expected_files": [
+        "internal/app/added.go",
+        "internal/app/moved_ops.go",
+        "internal/app/ops.go",
+        "internal/app/usage.go",
+        "internal/ops/child/reverse.go",
+        "internal/ops/options.go",
+        "internal/ops/rediscache/illegal.go",
+        "internal/pkg/querycache/child/reverse.go",
+        "internal/pkg/querycache/reverse.go",
+        "internal/protocol/openai/reverse.go",
+        "internal/usage/httpapi/illegal.go",
+        "internal/usage/io.go",
+        "internal/usage/postgres/illegal.go",
+        "internal/usage/reverse.go"
+      ],
+      "actual_files": [
+        "internal/app/added.go",
+        "internal/app/moved_ops.go",
+        "internal/app/ops.go",
+        "internal/app/usage.go",
+        "internal/ops/child/reverse.go",
+        "internal/ops/options.go",
+        "internal/ops/rediscache/illegal.go",
+        "internal/pkg/querycache/child/reverse.go",
+        "internal/pkg/querycache/reverse.go",
+        "internal/protocol/openai/reverse.go",
+        "internal/usage/httpapi/illegal.go",
+        "internal/usage/io.go",
+        "internal/usage/postgres/illegal.go",
+        "internal/usage/reverse.go"
+      ],
+      "issue_count": 14,
+      "valid": true
+    },
+    {
+      "label": "gate-negative-normal-linux",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S08/gate-negative-normal-linux.json",
+        "./..."
+      ],
+      "exit_code": 1,
+      "expected_files": [
+        "internal/app/added.go",
+        "internal/app/moved_ops.go",
+        "internal/app/ops.go",
+        "internal/app/usage.go",
+        "internal/ops/child/reverse.go",
+        "internal/ops/options.go",
+        "internal/ops/rediscache/illegal.go",
+        "internal/pkg/querycache/child/reverse.go",
+        "internal/pkg/querycache/reverse.go",
+        "internal/protocol/openai/reverse.go",
+        "internal/usage/httpapi/illegal.go",
+        "internal/usage/io.go",
+        "internal/usage/postgres/illegal.go",
+        "internal/usage/reverse.go"
+      ],
+      "actual_files": [
+        "internal/app/added.go",
+        "internal/app/moved_ops.go",
+        "internal/app/ops.go",
+        "internal/app/usage.go",
+        "internal/ops/child/reverse.go",
+        "internal/ops/options.go",
+        "internal/ops/rediscache/illegal.go",
+        "internal/pkg/querycache/child/reverse.go",
+        "internal/pkg/querycache/reverse.go",
+        "internal/protocol/openai/reverse.go",
+        "internal/usage/httpapi/illegal.go",
+        "internal/usage/io.go",
+        "internal/usage/postgres/illegal.go",
+        "internal/usage/reverse.go"
+      ],
+      "issue_count": 14,
+      "valid": true
+    }
+  ],
+  "temporary_directory_removed": true,
+  "negative_cases": {
+    "internal/app/added.go": {
+      "imports": [
+        "github.com/TokenFlux/TokenRouter/internal/service"
+      ],
+      "tag": "",
+      "contract": "same-directory-new-file"
+    },
+    "internal/app/ops.go": {
+      "imports": [
+        "github.com/TokenFlux/TokenRouter/internal/service",
+        "github.com/TokenFlux/TokenRouter/internal/repository"
+      ],
+      "tag": "",
+      "contract": "old-file-new-forbidden-import"
+    },
+    "internal/app/moved_ops.go": {
+      "imports": [
+        "github.com/TokenFlux/TokenRouter/internal/service"
+      ],
+      "tag": "",
+      "contract": "moved-file-loses-exception"
+    },
+    "internal/app/usage.go": {
+      "imports": [
+        "github.com/TokenFlux/TokenRouter/internal/service/rogue"
+      ],
+      "tag": "",
+      "contract": "illegal-legacy-subpackage"
+    },
+    "internal/ops/options.go": {
+      "imports": [
+        "github.com/TokenFlux/TokenRouter/internal/apikey",
+        "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
+      ],
+      "tag": "",
+      "contract": "illegal-contract-subpackage"
+    },
+    "internal/usage/reverse.go": {
+      "imports": [
+        "github.com/TokenFlux/TokenRouter/internal/app"
+      ],
+      "tag": "",
+      "contract": "core-app-reverse"
+    },
+    "internal/usage/io.go": {
+      "imports": [
+        "net/http"
+      ],
+      "tag": "",
+      "contract": "core-http"
+    },
+    "internal/usage/httpapi/illegal.go": {
+      "imports": [
+        "database/sql"
+      ],
+      "tag": "",
+      "contract": "http-direct-storage"
+    },
+    "internal/usage/postgres/illegal.go": {
+      "imports": [
+        "github.com/redis/go-redis/v9"
+      ],
+      "tag": "",
+      "contract": "sql-redis-direction"
+    },
+    "internal/ops/rediscache/illegal.go": {
+      "imports": [
+        "database/sql"
+      ],
+      "tag": "",
+      "contract": "redis-sql-direction"
+    },
+    "internal/protocol/openai/reverse.go": {
+      "imports": [
+        "github.com/TokenFlux/TokenRouter/internal/usage"
+      ],
+      "tag": "",
+      "contract": "protocol-business-reverse"
+    },
+    "internal/pkg/querycache/child/reverse.go": {
+      "imports": [
+        "github.com/TokenFlux/TokenRouter/internal/service"
+      ],
+      "tag": "",
+      "contract": "nested-pure-cache-business-reverse"
+    },
+    "internal/ops/child/reverse.go": {
+      "imports": [
+        "github.com/TokenFlux/TokenRouter/internal/service"
+      ],
+      "tag": "",
+      "contract": "nested-core-legacy-reverse"
+    },
+    "internal/pkg/querycache/reverse.go": {
+      "imports": [
+        "github.com/TokenFlux/TokenRouter/internal/ops"
+      ],
+      "tag": "",
+      "contract": "pure-cache-business-reverse"
+    },
+    "internal/usage/unit_denied.go": {
+      "imports": [
+        "github.com/TokenFlux/TokenRouter/internal/config"
+      ],
+      "tag": "unit",
+      "contract": "unit-core-config"
+    },
+    "internal/usage/integration_denied.go": {
+      "imports": [
+        "github.com/TokenFlux/TokenRouter/internal/config"
+      ],
+      "tag": "integration",
+      "contract": "integration-core-config"
+    },
+    "internal/usage/postgres/moved_fixture_integration_test.go": {
+      "imports": [
+        "github.com/TokenFlux/TokenRouter/internal/service"
+      ],
+      "tag": "integration",
+      "contract": "moved-test-loses-exception"
+    }
+  }
+}

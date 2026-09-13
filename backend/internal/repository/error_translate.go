@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
@@ -75,14 +76,4 @@ func translatePersistenceError(err error, notFound, conflict *infraerrors.Applic
 // 这种多层次的检测确保了对不同数据库驱动和 ORM 的兼容性。
 func isUniqueConstraintViolation(err error) bool {
 	return postgresinfra.IsUniqueConstraintViolation(err)
-}
-
-// isPostgresDeadlock 仅通过 PostgreSQL SQLSTATE 识别死锁，避免错误文本变化导致误判。
-func isPostgresDeadlock(err error) bool {
-	return postgresinfra.IsDeadlock(err)
-}
-
-// postgresSQLState 提取可被包装的 lib/pq 错误码；非 PostgreSQL 错误返回空字符串。
-func postgresSQLState(err error) string {
-	return postgresinfra.SQLState(err)
 }

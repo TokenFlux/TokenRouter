@@ -17,10 +17,11 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/config"
+	"github.com/TokenFlux/TokenRouter/internal/ops"
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
 
-	"github.com/TokenFlux/TokenRouter/internal/config"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 )
@@ -52,7 +53,7 @@ var (
 	ErrBackupS3ConfigCorrupt      = infraerrors.InternalServer("BACKUP_S3_CONFIG_CORRUPT", "backup S3 config data is corrupted")
 	ErrBackupStorageConfigCorrupt = infraerrors.InternalServer("BACKUP_STORAGE_CONFIG_CORRUPT", "backup storage config data is corrupted")
 	ErrBackupContentConfigCorrupt = infraerrors.InternalServer("BACKUP_CONTENT_CONFIG_CORRUPT", "backup content config data is corrupted")
-	ErrDatabaseMaintenanceBusy    = infraerrors.Conflict("MAINTENANCE_BUSY", "another database maintenance task is running")
+	ErrDatabaseMaintenanceBusy    = ops.ErrDatabaseMaintenanceBusy
 	// ErrSecretEncryptionKeyNotConfigured 表示当前使用的是重启后会变化的临时密钥，不能持久化新的 S3 密钥。
 	ErrSecretEncryptionKeyNotConfigured = infraerrors.BadRequest(
 		"SECRET_ENCRYPTION_KEY_NOT_CONFIGURED",

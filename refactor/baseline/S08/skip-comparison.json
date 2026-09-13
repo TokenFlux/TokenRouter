@@ -1,0 +1,20 @@
+{
+  "normal": {
+    "baseline": 4,
+    "current": 4,
+    "added": [],
+    "removed": []
+  },
+  "unit": {
+    "baseline": 8,
+    "current": 8,
+    "added": [],
+    "removed": []
+  },
+  "integration": {
+    "baseline": 4,
+    "current": 4,
+    "added": [],
+    "removed": []
+  }
+}

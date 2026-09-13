@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=integration",
+    "./internal/usage/postgres",
+    "-run",
+    "^TestS08"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 22.983,
+  "pass": 3,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/fixed-postgres-race.log.gz"
+}

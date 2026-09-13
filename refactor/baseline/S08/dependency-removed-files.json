@@ -1,0 +1,6 @@
+[
+  {
+    "rule": "retained-server-middleware-legacy-internal-server-middleware-audit_log_test-go",
+    "file": "internal/server/middleware/audit_log_test.go"
+  }
+]

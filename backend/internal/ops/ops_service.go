@@ -1,0 +1,1133 @@
+// 本文件拥有 Ops 观测用例；配置与外部状态经端口注入。
+package ops
+
+import (
+	"context"
+	"encoding/json"
+	"log"
+	"math/rand/v2"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/pkg/logredact"
+	"github.com/TokenFlux/TokenRouter/internal/pkg/querycache"
+
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+)
+
+var ErrOpsDisabled = infraerrors.NotFound("OPS_DISABLED", "Ops monitoring is disabled")
+
+const (
+	opsMaxStoredErrorBodyBytes = 20 * 1024
+	// OpsErrorLogQueueBodyMaxBytes 限制攻击者可控响应数据在异步错误日志队列中的大小。
+	OpsErrorLogQueueBodyMaxBytes = 8 * 1024
+
+	opsRuntimeSettingsRefreshInterval = 30 * time.Second
+	opsRuntimeSettingsRefreshJitter   = 20
+	opsRuntimeSettingsRefreshTimeout  = 3 * time.Second
+	opsRuntimeSettingsFailureLogEvery = time.Minute
+)
+
+type opsRuntimeSettingsSnapshot struct {
+	monitoringEnabled bool
+	advanced          OpsAdvancedSettings
+}
+
+type OpsRuntimeSettingsRefreshHealth struct {
+	Running      bool   `json:"running"`
+	SuccessTotal uint64 `json:"success_total"`
+	FailureTotal uint64 `json:"failure_total"`
+}
+
+// OpsService provides ingestion and query APIs for the Ops monitoring module.
+type OpsService struct {
+	snapshotOnce           sync.Once
+	snapshotCache          *querycache.Cache
+	realtimeOnce           sync.Once
+	realtime               *RealtimeRuntime
+	logging                LogControl
+	opsRepo                OpsRepository
+	settingRepo            Settings
+	cfg                    *Options
+	preAggregationSettings PreAggregationReader
+
+	accountRepo AccountReader
+	userRepo    UserReader
+
+	// getAccountAvailability is a unit-test hook for overriding account availability lookup.
+	getAccountAvailability func(ctx context.Context, platformFilter string, groupIDFilter *int64) (*OpsAccountAvailability, error)
+
+	concurrencyService ConcurrencyReader
+
+	systemLogSink               *OpsSystemLogSink
+	ingressRejectAggregator     *OpsIngressRejectAggregator
+	authCacheInvalidationWorker AuthHealthReader
+	apiKeyService               KeyHealthReader
+
+	// cleanupReloader 由 wire 在 OpsCleanupService 构造完成后通过 SetCleanupReloader 注入。
+	// 解耦避免 OpsService -> OpsCleanupService 的硬依赖（cleanup 也读 settings，会循环）。
+	cleanupReloader CleanupReloader
+
+	// quotaAutoPauseSink 由 wire 注入（通常是 SettingService.SetOpenAIQuotaAutoPauseSettings）。
+	// UpdateOpsAdvancedSettings 写入新配置后调用，把最新的配额自动暂停全局默认阈值
+	// 立即同步到调度热路径读取的内存缓存，避免下次请求才能感知新值。
+	quotaAutoPauseSink func(OpsOpenAIAccountQuotaAutoPauseSettings)
+
+	// 已发布快照不可变；网关读取无锁，互斥锁仅用于串行化启动和管理更新。
+	runtimeSettings   atomic.Pointer[opsRuntimeSettingsSnapshot]
+	runtimeSettingsMu sync.Mutex
+
+	runtimeRefreshMu             sync.Mutex
+	runtimeRefreshCancel         context.CancelFunc
+	runtimeRefreshDone           chan struct{}
+	runtimeRefreshRunning        atomic.Bool
+	runtimeRefreshSuccess        atomic.Uint64
+	runtimeRefreshFailure        atomic.Uint64
+	runtimeRefreshLastFailureLog atomic.Int64
+}
+
+// SetPreAggregationSettings 注入统一预聚合配置，运维查询只读取这一运行时开关。
+func (s *OpsService) SetPreAggregationSettings(settings PreAggregationReader) {
+	if s == nil {
+		return
+	}
+	s.preAggregationSettings = settings
+}
+
+// CleanupReloader 由 OpsCleanupService 实现。
+// UpdateOpsAdvancedSettings 写入新配置后调用 Reload，让 schedule/enabled 改动立刻生效。
+type CleanupReloader interface {
+	Reload(ctx context.Context) error
+}
+
+// SetCleanupReloader 由 wire 注入 cleanup hook（构造期循环依赖的解耦点）。
+func (s *OpsService) SetCleanupReloader(r CleanupReloader) {
+	if s == nil {
+		return
+	}
+	s.cleanupReloader = r
+}
+
+// SetOpenAIQuotaAutoPauseSettingsSink 由 wire 注入，把最新的配额自动暂停全局默认
+// 阈值推送到调度热路径读取的内存缓存。同 SetCleanupReloader 的解耦目的：避免 OpsService
+// 持有 *SettingService 引入循环依赖。
+func (s *OpsService) SetOpenAIQuotaAutoPauseSettingsSink(sink func(OpsOpenAIAccountQuotaAutoPauseSettings)) {
+	if s == nil {
+		return
+	}
+	s.quotaAutoPauseSink = sink
+}
+
+func NewOpsService(
+	opsRepo OpsRepository,
+	settingRepo Settings,
+	cfg *Options,
+	accountRepo AccountReader,
+	userRepo UserReader,
+	concurrencyService ConcurrencyReader,
+
+	systemLogSink *OpsSystemLogSink,
+	logging LogControl,
+) *OpsService {
+	svc := BuildOpsService(opsRepo, settingRepo, cfg, accountRepo, userRepo, concurrencyService, systemLogSink, logging)
+	svc.initRuntimeSettings(context.Background())
+	svc.ApplyRuntimeLogConfigOnStartup(context.Background())
+	return svc
+}
+
+// BuildOpsService 完成纯装配，New 保留原同步初始化顺序。
+func BuildOpsService(
+	opsRepo OpsRepository,
+	settingRepo Settings,
+	cfg *Options,
+	accountRepo AccountReader,
+	userRepo UserReader,
+	concurrencyService ConcurrencyReader,
+
+	systemLogSink *OpsSystemLogSink,
+	logging LogControl,
+) *OpsService {
+	svc := &OpsService{
+		opsRepo:     opsRepo,
+		settingRepo: settingRepo,
+		cfg:         cfg,
+
+		accountRepo: accountRepo,
+		userRepo:    userRepo,
+
+		concurrencyService: concurrencyService,
+
+		systemLogSink: systemLogSink,
+		logging:       logging,
+	}
+	return svc
+}
+
+func (s *OpsService) RequireMonitoringEnabled(ctx context.Context) error {
+	if s.IsMonitoringEnabled(ctx) {
+		return nil
+	}
+	return ErrOpsDisabled
+}
+
+func (s *OpsService) IsMonitoringEnabled(ctx context.Context) bool {
+	_ = ctx
+	// Hard switch: disable ops entirely.
+	if s.cfg != nil && !s.cfg.Ops.Enabled {
+		return false
+	}
+	if snapshot := s.runtimeSettings.Load(); snapshot != nil {
+		return snapshot.monitoringEnabled
+	}
+	// 直接组装的测试服务和冷加载失败保持故障开放，且不会让请求退化为查询设置表。
+	return true
+}
+
+func parseOpsMonitoringEnabled(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "false", "0", "off", "disabled":
+		return false
+	default:
+		return true
+	}
+}
+
+func (s *OpsService) initRuntimeSettings(ctx context.Context) {
+	if s == nil {
+		return
+	}
+	defaults := defaultOpsAdvancedSettings()
+	s.runtimeSettings.Store(&opsRuntimeSettingsSnapshot{monitoringEnabled: true, advanced: *defaults})
+	_ = s.RefreshRuntimeSettings(ctx)
+}
+
+// RefreshRuntimeSettings 执行启动和显式管理刷新所需的冷路径数据库加载；请求处理仅读取原子快照。
+func (s *OpsService) RefreshRuntimeSettings(ctx context.Context) error {
+	if s == nil || s.settingRepo == nil {
+		return nil
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	s.runtimeSettingsMu.Lock()
+	defer s.runtimeSettingsMu.Unlock()
+
+	values, err := s.settingRepo.GetMultiple(ctx, []string{
+		SettingKeyOpsMonitoringEnabled,
+		SettingKeyOpsAdvancedSettings,
+	})
+	if err != nil {
+		return err
+	}
+
+	monitoringEnabled := true
+	if raw, ok := values[SettingKeyOpsMonitoringEnabled]; ok {
+		monitoringEnabled = parseOpsMonitoringEnabled(raw)
+	}
+	advanced := defaultOpsAdvancedSettings()
+	if raw, ok := values[SettingKeyOpsAdvancedSettings]; ok {
+		if err := json.Unmarshal([]byte(raw), advanced); err != nil {
+			advanced = defaultOpsAdvancedSettings()
+		}
+	}
+	normalizeOpsAdvancedSettings(advanced)
+
+	s.runtimeSettings.Store(&opsRuntimeSettingsSnapshot{monitoringEnabled: monitoringEnabled, advanced: *advanced})
+	return nil
+}
+
+// StartRuntimeSettingsRefresh 在应用实例间同步数据库 Ops 设置，且不会在请求路径执行数据库 I/O。
+func (s *OpsService) StartRuntimeSettingsRefresh(ctx context.Context) {
+	s.startRuntimeSettingsRefresh(ctx, opsRuntimeSettingsRefreshInterval, opsRuntimeSettingsRefreshJitter, opsRuntimeSettingsRefreshTimeout)
+}
+
+func (s *OpsService) startRuntimeSettingsRefresh(ctx context.Context, interval time.Duration, jitterPercent int, timeout time.Duration) {
+	if s == nil || s.settingRepo == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if interval <= 0 {
+		interval = opsRuntimeSettingsRefreshInterval
+	}
+	if timeout <= 0 {
+		timeout = opsRuntimeSettingsRefreshTimeout
+	}
+	if jitterPercent < 0 {
+		jitterPercent = 0
+	}
+	if jitterPercent > 100 {
+		jitterPercent = 100
+	}
+
+	s.runtimeRefreshMu.Lock()
+	if s.runtimeRefreshCancel != nil {
+		s.runtimeRefreshMu.Unlock()
+		return
+	}
+	refreshCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	s.runtimeRefreshCancel = cancel
+	s.runtimeRefreshDone = done
+	s.runtimeRefreshRunning.Store(true)
+	s.runtimeRefreshMu.Unlock()
+
+	go func() {
+		defer close(done)
+		defer s.runtimeRefreshRunning.Store(false)
+		for {
+			delay := jitterDuration(interval, jitterPercent)
+			timer := time.NewTimer(delay)
+			select {
+			case <-refreshCtx.Done():
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
+				return
+			case <-timer.C:
+			}
+
+			attemptCtx, attemptCancel := context.WithTimeout(refreshCtx, timeout)
+			err := s.RefreshRuntimeSettings(attemptCtx)
+			attemptCancel()
+			if err != nil {
+				s.runtimeRefreshFailure.Add(1)
+				s.logRuntimeSettingsRefreshFailure(err)
+				continue
+			}
+			s.runtimeRefreshSuccess.Add(1)
+		}
+	}()
+}
+
+func jitterDuration(base time.Duration, percent int) time.Duration {
+	if base <= 0 || percent <= 0 {
+		return base
+	}
+	delta := float64(percent) / 100
+	factor := 1 - delta + rand.Float64()*(2*delta)
+	if factor <= 0 {
+		return base
+	}
+	return time.Duration(float64(base) * factor)
+}
+
+func (s *OpsService) logRuntimeSettingsRefreshFailure(err error) {
+	if s == nil || err == nil {
+		return
+	}
+	now := time.Now().Unix()
+	for {
+		last := s.runtimeRefreshLastFailureLog.Load()
+		if last != 0 && now-last < int64(opsRuntimeSettingsFailureLogEvery/time.Second) {
+			return
+		}
+		if s.runtimeRefreshLastFailureLog.CompareAndSwap(last, now) {
+			log.Printf("[Ops] runtime settings refresh failed: %v", err)
+			return
+		}
+	}
+}
+
+// StopRuntimeSettingsRefresh 具备幂等性，并等待进行中的刷新感知取消后再返回。
+func (s *OpsService) StopRuntimeSettingsRefresh() {
+	if s == nil {
+		return
+	}
+	s.runtimeRefreshMu.Lock()
+	cancel := s.runtimeRefreshCancel
+	done := s.runtimeRefreshDone
+	s.runtimeRefreshMu.Unlock()
+	if cancel != nil {
+		cancel()
+	}
+	if done != nil {
+		<-done
+	}
+	s.runtimeRefreshMu.Lock()
+	if s.runtimeRefreshDone == done {
+		s.runtimeRefreshCancel = nil
+		s.runtimeRefreshDone = nil
+	}
+	s.runtimeRefreshMu.Unlock()
+}
+
+func (s *OpsService) RuntimeSettingsRefreshHealth() OpsRuntimeSettingsRefreshHealth {
+	if s == nil {
+		return OpsRuntimeSettingsRefreshHealth{}
+	}
+	return OpsRuntimeSettingsRefreshHealth{
+		Running:      s.runtimeRefreshRunning.Load(),
+		SuccessTotal: s.runtimeRefreshSuccess.Load(),
+		FailureTotal: s.runtimeRefreshFailure.Load(),
+	}
+}
+
+// SetMonitoringEnabled 发布已持久化的管理设置，无需再次访问数据库。
+func (s *OpsService) SetMonitoringEnabled(enabled bool) {
+	if s == nil {
+		return
+	}
+	s.runtimeSettingsMu.Lock()
+	current := s.runtimeSettings.Load()
+	next := &opsRuntimeSettingsSnapshot{monitoringEnabled: enabled, advanced: *defaultOpsAdvancedSettings()}
+	if current != nil {
+		next.advanced = current.advanced
+	}
+	s.runtimeSettings.Store(next)
+	s.runtimeSettingsMu.Unlock()
+}
+
+func (s *OpsService) storeAdvancedSettingsSnapshot(cfg *OpsAdvancedSettings) {
+	if s == nil || cfg == nil {
+		return
+	}
+	s.runtimeSettingsMu.Lock()
+	current := s.runtimeSettings.Load()
+	next := &opsRuntimeSettingsSnapshot{monitoringEnabled: true, advanced: *cfg}
+	if current != nil {
+		next.monitoringEnabled = current.monitoringEnabled
+	}
+	s.runtimeSettings.Store(next)
+	s.runtimeSettingsMu.Unlock()
+}
+
+// SanitizeOpsErrorBodyForQueue 在错误体占用异步队列容量前移除凭据并截断内容。
+func SanitizeOpsErrorBodyForQueue(raw string) (string, bool) {
+	return sanitizeErrorBodyForStorage(raw, OpsErrorLogQueueBodyMaxBytes)
+}
+
+// SanitizeOpsUpstreamErrorsForQueue 在条目占用异步队列容量前限制并序列化尝试级数据。
+func SanitizeOpsUpstreamErrorsForQueue(entry *OpsInsertErrorLogInput) error {
+	return sanitizeOpsUpstreamErrors(entry)
+}
+
+func (s *OpsService) RecordError(ctx context.Context, entry *OpsInsertErrorLogInput) error {
+	prepared, ok, err := s.prepareErrorLogInput(ctx, entry)
+	if err != nil {
+		log.Printf("[Ops] RecordError prepare failed: %v", err)
+		return err
+	}
+	if !ok {
+		return nil
+	}
+
+	if _, err := s.opsRepo.InsertErrorLog(ctx, prepared); err != nil {
+		// Never bubble up to gateway; best-effort logging.
+		log.Printf("[Ops] RecordError failed: %v", err)
+		return err
+	}
+	return nil
+}
+
+func (s *OpsService) RecordErrorBatch(ctx context.Context, entries []*OpsInsertErrorLogInput) error {
+	if len(entries) == 0 {
+		return nil
+	}
+	prepared := make([]*OpsInsertErrorLogInput, 0, len(entries))
+	for _, entry := range entries {
+		item, ok, err := s.prepareErrorLogInput(ctx, entry)
+		if err != nil {
+			log.Printf("[Ops] RecordErrorBatch prepare failed: %v", err)
+			continue
+		}
+		if ok {
+			prepared = append(prepared, item)
+		}
+	}
+	if len(prepared) == 0 {
+		return nil
+	}
+	if len(prepared) == 1 {
+		_, err := s.opsRepo.InsertErrorLog(ctx, prepared[0])
+		if err != nil {
+			logOpsErrorBatchWriteFailure(ctx, "[Ops] RecordErrorBatch single insert failed: %v", err)
+		}
+		return err
+	}
+
+	if _, err := s.opsRepo.BatchInsertErrorLogs(ctx, prepared); err != nil {
+		logOpsErrorBatchWriteFailure(ctx, "[Ops] RecordErrorBatch failed: %v", err)
+		return err
+	}
+	return nil
+}
+
+func logOpsErrorBatchWriteFailure(ctx context.Context, format string, err error) {
+	if isContextDoneError(ctx, err) {
+		return
+	}
+	log.Printf(format, err)
+}
+
+func (s *OpsService) prepareErrorLogInput(ctx context.Context, entry *OpsInsertErrorLogInput) (*OpsInsertErrorLogInput, bool, error) {
+	if entry == nil {
+		return nil, false, nil
+	}
+	if !s.IsMonitoringEnabled(ctx) {
+		return nil, false, nil
+	}
+	if s.opsRepo == nil {
+		return nil, false, nil
+	}
+
+	// Ensure timestamps are always populated.
+	if entry.CreatedAt.IsZero() {
+		entry.CreatedAt = time.Now()
+	}
+
+	// Ensure required fields exist (DB has NOT NULL constraints).
+	entry.ErrorPhase = strings.TrimSpace(entry.ErrorPhase)
+	entry.ErrorType = strings.TrimSpace(entry.ErrorType)
+	if entry.ErrorPhase == "" {
+		entry.ErrorPhase = "internal"
+	}
+	if entry.ErrorType == "" {
+		entry.ErrorType = "api_error"
+	}
+
+	// 凭据获取属于网关账号认证阶段，而非推理 HTTP 尝试。
+	// 在持久化边界强制该归属，避免较早的推理尝试状态或文本泄漏到顶层认证字段，
+	// 即使调用方传入了过期的单值上下文也不例外。
+	for i := len(entry.UpstreamErrors) - 1; i >= 0; i-- {
+		last := entry.UpstreamErrors[i]
+		if last == nil {
+			continue
+		}
+		if last.Stage == string("account_auth") {
+			entry.ErrorPhase = string("account_auth")
+			entry.ErrorOwner = "provider"
+			entry.ErrorSource = "gateway"
+			code := 0
+			entry.UpstreamStatusCode = &code
+			entry.UpstreamErrorMessage = nil
+			if message := strings.TrimSpace(last.Message); message != "" {
+				entry.UpstreamErrorMessage = &message
+			}
+			entry.UpstreamErrorDetail = nil
+			if detail := strings.TrimSpace(last.Detail); detail != "" {
+				entry.UpstreamErrorDetail = &detail
+			}
+		}
+		break
+	}
+
+	// Sanitize + truncate error_body to avoid storing sensitive data.
+	if strings.TrimSpace(entry.ErrorBody) != "" {
+		sanitized, _ := sanitizeErrorBodyForStorage(entry.ErrorBody, opsMaxStoredErrorBodyBytes)
+		entry.ErrorBody = sanitized
+	}
+
+	// Sanitize upstream error context if provided by gateway services.
+	if entry.UpstreamStatusCode != nil && *entry.UpstreamStatusCode <= 0 && entry.ErrorPhase != string("account_auth") {
+		entry.UpstreamStatusCode = nil
+	}
+	if entry.UpstreamErrorMessage != nil {
+		msg := strings.TrimSpace(*entry.UpstreamErrorMessage)
+		msg = logredact.SanitizeUpstreamQueries(msg)
+		msg = truncateString(msg, 2048)
+		if strings.TrimSpace(msg) == "" {
+			entry.UpstreamErrorMessage = nil
+		} else {
+			entry.UpstreamErrorMessage = &msg
+		}
+	}
+	if entry.UpstreamErrorDetail != nil {
+		detail := strings.TrimSpace(*entry.UpstreamErrorDetail)
+		if detail == "" {
+			entry.UpstreamErrorDetail = nil
+		} else {
+			sanitized, _ := sanitizeErrorBodyForStorage(detail, opsMaxStoredErrorBodyBytes)
+			if strings.TrimSpace(sanitized) == "" {
+				entry.UpstreamErrorDetail = nil
+			} else {
+				entry.UpstreamErrorDetail = &sanitized
+			}
+		}
+	}
+
+	if err := sanitizeOpsUpstreamErrors(entry); err != nil {
+		return nil, false, err
+	}
+
+	return entry, true, nil
+}
+
+func sanitizeOpsUpstreamErrors(entry *OpsInsertErrorLogInput) error {
+	if entry == nil || len(entry.UpstreamErrors) == 0 {
+		return nil
+	}
+
+	const maxEvents = 16
+	events := entry.UpstreamErrors
+	if len(events) > maxEvents {
+		events = events[len(events)-maxEvents:]
+	}
+
+	sanitized := make([]*OpsUpstreamErrorEvent, 0, len(events))
+	for _, ev := range events {
+		if ev == nil {
+			continue
+		}
+		out := *ev
+
+		out.Platform = truncateString(strings.TrimSpace(out.Platform), 32)
+		out.AccountName = truncateString(strings.TrimSpace(out.AccountName), 128)
+		out.UpstreamRequestID = truncateString(strings.TrimSpace(out.UpstreamRequestID), 128)
+		out.UpstreamURL = truncateString(strings.TrimSpace(out.UpstreamURL), 2048)
+		if body := strings.TrimSpace(out.UpstreamResponseBody); body != "" {
+			out.UpstreamResponseBody, _ = sanitizeErrorBodyForStorage(body, OpsErrorLogQueueBodyMaxBytes)
+		} else {
+			out.UpstreamResponseBody = ""
+		}
+		out.Kind = truncateString(strings.TrimSpace(out.Kind), 64)
+		out.Stage = truncateString(strings.TrimSpace(out.Stage), 64)
+		out.Scope = truncateString(strings.TrimSpace(out.Scope), 64)
+		out.Reason = truncateString(strings.TrimSpace(out.Reason), 128)
+
+		if out.AccountID < 0 {
+			out.AccountID = 0
+		}
+		if out.UpstreamStatusCode < 0 {
+			out.UpstreamStatusCode = 0
+		}
+		if out.AtUnixMs < 0 {
+			out.AtUnixMs = 0
+		}
+
+		msg := logredact.SanitizeUpstreamQueries(strings.TrimSpace(out.Message))
+		msg = truncateString(msg, 2048)
+		out.Message = msg
+
+		detail := strings.TrimSpace(out.Detail)
+		if detail != "" {
+			// 事件等待队列处理期间保持上游详情精简。
+			sanitizedDetail, _ := sanitizeErrorBodyForStorage(detail, OpsErrorLogQueueBodyMaxBytes)
+			out.Detail = sanitizedDetail
+		} else {
+			out.Detail = ""
+		}
+
+		// Drop fully-empty events (can happen if only status code was known).
+		if out.UpstreamStatusCode == 0 && out.Message == "" && out.Detail == "" {
+			continue
+		}
+
+		evCopy := out
+		sanitized = append(sanitized, &evCopy)
+	}
+
+	entry.UpstreamErrorsJSON = marshalOpsUpstreamErrors(sanitized)
+	entry.UpstreamErrors = nil
+	return nil
+}
+
+func (s *OpsService) GetErrorLogs(ctx context.Context, filter *OpsErrorLogFilter) (*OpsErrorLogList, error) {
+	if err := s.RequireMonitoringEnabled(ctx); err != nil {
+		return nil, err
+	}
+	if s.opsRepo == nil {
+		return &OpsErrorLogList{Errors: []*OpsErrorLog{}, Total: 0, Page: 1, PageSize: 20}, nil
+	}
+	if filter == nil {
+		filter = &OpsErrorLogFilter{}
+	} else {
+		filterCopy := *filter
+		filter = &filterCopy
+	}
+	if filter.IgnoredStatusCodes == nil {
+		filter.IgnoredStatusCodes = s.resolveOpsIgnoredStatusCodes(ctx)
+	} else {
+		filter.IgnoredStatusCodes = NormalizeOpsIgnoredStatusCodes(filter.IgnoredStatusCodes)
+	}
+	result, err := s.opsRepo.ListErrorLogs(ctx, filter)
+	if err != nil {
+		log.Printf("[Ops] GetErrorLogs failed: %v", err)
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// ListUserErrorRequests 返回某个用户自己的错误请求（精简脱敏）。
+// 强制：仅当前用户、View=all（含业务限流/余额类）、排除 count_tokens 噪声。
+func (s *OpsService) ListUserErrorRequests(ctx context.Context, userID int64, filter *OpsErrorLogFilter) (*UserErrorRequestList, error) {
+	if filter == nil {
+		filter = &OpsErrorLogFilter{}
+	}
+	f := *filter // 拷贝快照，避免原地篡改调用方的 filter（slice 字段只读，浅拷贝足够）
+	filter = &f
+	uid := userID
+	filter.UserID = &uid
+	// APIKeyID 透传：保留 handler 传入的值。安全由 buildOpsErrorLogsWhere 的
+	// "user_id = 自己 AND api_key_id = X" 双重约束保证——传入他人 key 只会得到空集，无泄露。
+	filter.View = "all"
+	filter.ExcludeCountTokens = true
+	filter.ModelFuzzy = true // 用户端模型过滤走 ILIKE 模糊；管理端不设此字段，保持精确
+	// 防御：用户端不接受这些 admin-only / 特殊维度
+	filter.UserQuery = ""
+	filter.Owner = ""
+	filter.Source = ""
+	// 清空 Phase 是防御:用户端一律改走 category→ErrorPhasesAny/ErrorTypesAny
+	//（纯 ANY 过滤,不影响 status>=400 子句）。守卫豁免现在还需要
+	// IncludeRecoveredUpstream(用户端永不设置),recovered upstream
+	//（error_phase='upstream' 但 status<400,最终成功返回）记录对用户不可见——符合预期。
+	filter.Phase = ""
+	filter.IncludeRecoveredUpstream = false
+
+	list, err := s.opsRepo.ListErrorLogs(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]*UserErrorRequest, 0, len(list.Errors))
+	for _, e := range list.Errors {
+		if r := ToUserErrorRequest(e); r != nil {
+			items = append(items, r)
+		}
+	}
+	return &UserErrorRequestList{
+		Items:    items,
+		Total:    list.Total,
+		Page:     list.Page,
+		PageSize: list.PageSize,
+	}, nil
+}
+
+func (s *OpsService) GetErrorLogByID(ctx context.Context, id int64) (*OpsErrorLogDetail, error) {
+	if err := s.RequireMonitoringEnabled(ctx); err != nil {
+		return nil, err
+	}
+	if s.opsRepo == nil {
+		return nil, infraerrors.NotFound("OPS_ERROR_NOT_FOUND", "ops error log not found")
+	}
+	detail, err := s.opsRepo.GetErrorLogByID(ctx, id)
+	if err != nil {
+		if s.isNotFound(err) {
+			return nil, infraerrors.NotFound("OPS_ERROR_NOT_FOUND", "ops error log not found")
+		}
+		return nil, infraerrors.InternalServer("OPS_ERROR_LOAD_FAILED", "Failed to load ops error log").WithCause(err)
+	}
+	return detail, nil
+}
+
+// GetUserErrorRequestDetail 返回某用户自己某条错误请求的脱敏详情(含 error_body)。
+// 安全:强制按用户归属校验;非本人记录一律返回 NotFound(不泄露存在性)。
+func (s *OpsService) GetUserErrorRequestDetail(ctx context.Context, userID, id int64) (*UserErrorRequestDetail, error) {
+	if s.opsRepo == nil {
+		return nil, infraerrors.NotFound("OPS_ERROR_NOT_FOUND", "ops error log not found")
+	}
+	if id <= 0 {
+		return nil, infraerrors.BadRequest("OPS_ERROR_INVALID_ID", "invalid error id")
+	}
+	detail, err := s.opsRepo.GetErrorLogByID(ctx, id)
+	if err != nil {
+		if s.isNotFound(err) {
+			return nil, infraerrors.NotFound("OPS_ERROR_NOT_FOUND", "ops error log not found")
+		}
+		return nil, infraerrors.InternalServer("OPS_ERROR_LOAD_FAILED", "Failed to load ops error log").WithCause(err)
+	}
+	// 归属只能由通过鉴权时写入的 user_id 确定。
+	ownedDirectly := detail.UserID != nil && *detail.UserID == userID
+	if !ownedDirectly {
+		return nil, infraerrors.NotFound("OPS_ERROR_NOT_FOUND", "ops error log not found")
+	}
+	return ToUserErrorRequestDetail(detail), nil
+}
+
+func (s *OpsService) UpdateErrorResolution(ctx context.Context, errorID int64, resolved bool, resolvedByUserID *int64) error {
+	if err := s.RequireMonitoringEnabled(ctx); err != nil {
+		return err
+	}
+	if s.opsRepo == nil {
+		return infraerrors.ServiceUnavailable("OPS_REPO_UNAVAILABLE", "Ops repository not available")
+	}
+	if errorID <= 0 {
+		return infraerrors.BadRequest("OPS_ERROR_INVALID_ID", "invalid error id")
+	}
+	// Best-effort ensure the error exists
+	if _, err := s.opsRepo.GetErrorLogByID(ctx, errorID); err != nil {
+		if s.isNotFound(err) {
+			return infraerrors.NotFound("OPS_ERROR_NOT_FOUND", "ops error log not found")
+		}
+		return infraerrors.InternalServer("OPS_ERROR_LOAD_FAILED", "Failed to load ops error log").WithCause(err)
+	}
+	return s.opsRepo.UpdateErrorResolution(ctx, errorID, resolved, resolvedByUserID, nil)
+}
+
+func sanitizeAndTrimJSONPayload(raw []byte, maxBytes int) (jsonString string, truncated bool, bytesLen int) {
+	bytesLen = len(raw)
+	if len(raw) == 0 {
+		return "", false, 0
+	}
+
+	var decoded any
+	if err := json.Unmarshal(raw, &decoded); err != nil {
+		// 非 JSON 请求体交给调用方按普通文本兜底处理。
+		return "", false, bytesLen
+	}
+
+	decoded = redactSensitiveJSON(decoded)
+
+	encoded, err := json.Marshal(decoded)
+	if err != nil {
+		return "", false, bytesLen
+	}
+	if len(encoded) <= maxBytes {
+		return string(encoded), false, bytesLen
+	}
+
+	// Trim conversation history to keep the most recent context.
+	if root, ok := decoded.(map[string]any); ok {
+		if trimmed, ok := trimConversationArrays(root, maxBytes); ok {
+			encoded2, err2 := json.Marshal(trimmed)
+			if err2 == nil && len(encoded2) <= maxBytes {
+				return string(encoded2), true, bytesLen
+			}
+			// Fallthrough: keep shrinking.
+			decoded = trimmed
+		}
+
+		essential := shrinkToEssentials(root)
+		encoded3, err3 := json.Marshal(essential)
+		if err3 == nil && len(encoded3) <= maxBytes {
+			return string(encoded3), true, bytesLen
+		}
+	}
+
+	// Last resort: keep JSON shape but drop big fields.
+	// This avoids downstream code that expects certain top-level keys from crashing.
+	if root, ok := decoded.(map[string]any); ok {
+		placeholder := shallowCopyMap(root)
+		placeholder["payload_truncated"] = true
+
+		// Replace potentially huge arrays/strings, but keep the keys present.
+		for _, k := range []string{"messages", "contents", "input", "prompt"} {
+			if _, exists := placeholder[k]; exists {
+				placeholder[k] = []any{}
+			}
+		}
+		for _, k := range []string{"text"} {
+			if _, exists := placeholder[k]; exists {
+				placeholder[k] = ""
+			}
+		}
+
+		encoded4, err4 := json.Marshal(placeholder)
+		if err4 == nil {
+			if len(encoded4) <= maxBytes {
+				return string(encoded4), true, bytesLen
+			}
+		}
+	}
+
+	// Final fallback: minimal valid JSON.
+	encoded4, err4 := json.Marshal(map[string]any{"payload_truncated": true})
+	if err4 != nil {
+		return "", true, bytesLen
+	}
+	return string(encoded4), true, bytesLen
+}
+
+func redactSensitiveJSON(v any) any {
+	switch t := v.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, vv := range t {
+			if isSensitiveKey(k) {
+				out[k] = "[REDACTED]"
+				continue
+			}
+			out[k] = redactSensitiveJSON(vv)
+		}
+		return out
+	case []any:
+		out := make([]any, 0, len(t))
+		for _, vv := range t {
+			out = append(out, redactSensitiveJSON(vv))
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+func isSensitiveKey(key string) bool {
+	k := strings.ToLower(strings.TrimSpace(key))
+	if k == "" {
+		return false
+	}
+
+	// Token 计数 / 预算字段不是凭据，应保留用于排错。
+	// 白名单保持尽量窄，避免误把真实敏感信息"反脱敏"。
+	switch k {
+	case "max_tokens",
+		"max_output_tokens",
+		"max_input_tokens",
+		"max_completion_tokens",
+		"max_tokens_to_sample",
+		"budget_tokens",
+		"prompt_tokens",
+		"completion_tokens",
+		"input_tokens",
+		"output_tokens",
+		"total_tokens",
+		"token_count",
+		"cache_creation_input_tokens",
+		"cache_read_input_tokens":
+		return false
+	}
+
+	// Exact matches (common credential fields).
+	switch k {
+	case "authorization",
+		"proxy-authorization",
+		"x-api-key",
+		"api_key",
+		"apikey",
+		"access_token",
+		"refresh_token",
+		"id_token",
+		"session_token",
+		"token",
+		"password",
+		"passwd",
+		"passphrase",
+		"secret",
+		"client_secret",
+		"private_key",
+		"jwt",
+		"signature",
+		"accesskeyid",
+		"secretaccesskey":
+		return true
+	}
+
+	// Suffix matches.
+	for _, suffix := range []string{
+		"_secret",
+		"_token",
+		"_id_token",
+		"_session_token",
+		"_password",
+		"_passwd",
+		"_passphrase",
+		"_key",
+		"secret_key",
+		"private_key",
+	} {
+		if strings.HasSuffix(k, suffix) {
+			return true
+		}
+	}
+
+	// Substring matches (conservative, but errs on the side of privacy).
+	for _, sub := range []string{
+		"secret",
+		"token",
+		"password",
+		"passwd",
+		"passphrase",
+		"privatekey",
+		"private_key",
+		"apikey",
+		"api_key",
+		"accesskeyid",
+		"secretaccesskey",
+		"bearer",
+		"cookie",
+		"credential",
+		"session",
+		"jwt",
+		"signature",
+	} {
+		if strings.Contains(k, sub) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func trimConversationArrays(root map[string]any, maxBytes int) (map[string]any, bool) {
+	// Supported: anthropic/openai: messages; gemini: contents.
+	if out, ok := trimArrayField(root, "messages", maxBytes); ok {
+		return out, true
+	}
+	if out, ok := trimArrayField(root, "contents", maxBytes); ok {
+		return out, true
+	}
+	return root, false
+}
+
+func trimArrayField(root map[string]any, field string, maxBytes int) (map[string]any, bool) {
+	raw, ok := root[field]
+	if !ok {
+		return nil, false
+	}
+	arr, ok := raw.([]any)
+	if !ok || len(arr) == 0 {
+		return nil, false
+	}
+
+	// Keep at least the last message/content. Use binary search so we don't marshal O(n) times.
+	// We are dropping from the *front* of the array (oldest context first).
+	lo := 0
+	hi := len(arr) - 1 // inclusive; hi ensures at least one item remains
+
+	var best map[string]any
+	found := false
+
+	for lo <= hi {
+		mid := (lo + hi) / 2
+		candidateArr := arr[mid:]
+		if len(candidateArr) == 0 {
+			lo = mid + 1
+			continue
+		}
+
+		next := shallowCopyMap(root)
+		next[field] = candidateArr
+		encoded, err := json.Marshal(next)
+		if err != nil {
+			// If marshal fails, try dropping more.
+			lo = mid + 1
+			continue
+		}
+
+		if len(encoded) <= maxBytes {
+			best = next
+			found = true
+			// Try to keep more context by dropping fewer items.
+			hi = mid - 1
+			continue
+		}
+
+		// Need to drop more.
+		lo = mid + 1
+	}
+
+	if found {
+		return best, true
+	}
+
+	// Nothing fit (even with only one element); return the smallest slice and let the
+	// caller fall back to shrinkToEssentials().
+	next := shallowCopyMap(root)
+	next[field] = arr[len(arr)-1:]
+	return next, true
+}
+
+func shrinkToEssentials(root map[string]any) map[string]any {
+	out := make(map[string]any)
+	for _, key := range []string{
+		"model",
+		"stream",
+		"max_tokens",
+		"max_output_tokens",
+		"max_input_tokens",
+		"max_completion_tokens",
+		"thinking",
+		"temperature",
+		"top_p",
+		"top_k",
+	} {
+		if v, ok := root[key]; ok {
+			out[key] = v
+		}
+	}
+
+	// Keep only the last element of the conversation array.
+	if v, ok := root["messages"]; ok {
+		if arr, ok := v.([]any); ok && len(arr) > 0 {
+			out["messages"] = []any{arr[len(arr)-1]}
+		}
+	}
+	if v, ok := root["contents"]; ok {
+		if arr, ok := v.([]any); ok && len(arr) > 0 {
+			out["contents"] = []any{arr[len(arr)-1]}
+		}
+	}
+	return out
+}
+
+func shallowCopyMap(m map[string]any) map[string]any {
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+func sanitizeErrorBodyForStorage(raw string, maxBytes int) (sanitized string, truncated bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", false
+	}
+
+	// Prefer JSON-safe sanitization when possible.
+	if out, trunc, _ := sanitizeAndTrimJSONPayload([]byte(raw), maxBytes); out != "" {
+		return out, trunc
+	}
+
+	// Non-JSON: best-effort truncate.
+	if maxBytes > 0 && len(raw) > maxBytes {
+		return truncateString(raw, maxBytes), true
+	}
+	return raw, false
+}
+
+// CompatParseOpsMonitoringEnabled 为旧入口提供过渡委托。
+func CompatParseOpsMonitoringEnabled(value string) bool { return parseOpsMonitoringEnabled(value) }
+
+// CompatJitterDuration 为旧入口提供过渡委托。
+func CompatJitterDuration(base time.Duration, percent int) time.Duration {
+	return jitterDuration(base, percent)
+}
+
+// CompatLogOpsErrorBatchWriteFailure 为旧入口提供过渡委托。
+func CompatLogOpsErrorBatchWriteFailure(ctx context.Context, format string, err error) {
+	logOpsErrorBatchWriteFailure(ctx, format, err)
+}
+
+// CompatSanitizeOpsUpstreamErrors 为旧入口提供过渡委托。
+func CompatSanitizeOpsUpstreamErrors(entry *OpsInsertErrorLogInput) error {
+	return sanitizeOpsUpstreamErrors(entry)
+}
+
+// CompatSanitizeAndTrimJSONPayload 为旧入口提供过渡委托。
+func CompatSanitizeAndTrimJSONPayload(raw []byte, maxBytes int) (jsonString string, truncated bool, bytesLen int) {
+	return sanitizeAndTrimJSONPayload(raw, maxBytes)
+}
+
+// CompatRedactSensitiveJSON 为旧入口提供过渡委托。
+func CompatRedactSensitiveJSON(v any) any { return redactSensitiveJSON(v) }
+
+// CompatIsSensitiveKey 为旧入口提供过渡委托。
+func CompatIsSensitiveKey(key string) bool { return isSensitiveKey(key) }
+
+// CompatTrimConversationArrays 为旧入口提供过渡委托。
+func CompatTrimConversationArrays(root map[string]any, maxBytes int) (map[string]any, bool) {
+	return trimConversationArrays(root, maxBytes)
+}
+
+// CompatTrimArrayField 为旧入口提供过渡委托。
+func CompatTrimArrayField(root map[string]any, field string, maxBytes int) (map[string]any, bool) {
+	return trimArrayField(root, field, maxBytes)
+}
+
+// CompatShrinkToEssentials 为旧入口提供过渡委托。
+func CompatShrinkToEssentials(root map[string]any) map[string]any { return shrinkToEssentials(root) }
+
+// CompatShallowCopyMap 为旧入口提供过渡委托。
+func CompatShallowCopyMap(m map[string]any) map[string]any { return shallowCopyMap(m) }
+
+// CompatSanitizeErrorBodyForStorage 为旧入口提供过渡委托。
+func CompatSanitizeErrorBodyForStorage(raw string, maxBytes int) (sanitized string, truncated bool) {
+	return sanitizeErrorBodyForStorage(raw, maxBytes)
+}
