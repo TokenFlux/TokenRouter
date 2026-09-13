@@ -7,7 +7,7 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"github.com/TokenFlux/TokenRouter/internal/routing/capability"
+	"github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 type clientProtocolContextKey struct{}
@@ -23,11 +23,13 @@ func ResolveProtocolRoute(account *Account, group *Group, source domain.Protocol
 	if account == nil {
 		return "", false
 	}
-	var fallbacks map[domain.ProtocolID]domain.ProtocolID
+	var routeGroup *routing.Group
 	if group != nil {
-		fallbacks = group.ProtocolFallbacks
+		routeGroup = &routing.Group{ID: group.ID, Platform: group.Platform, SchedulerType: group.SchedulerType, AllowedProtocols: group.AllowedProtocols, ProtocolFallbacks: group.ProtocolFallbacks}
 	}
-	return capability.ResolveRoute(capability.AccountProtocols{Platform: account.Platform, Type: account.Type, AuthMode: protocolAuthMode(account), Enabled: account.UpstreamProtocols()}, source, fallbacks)
+	plan := routing.Plan(routing.PlanInput{Group: routeGroup, ClientProtocol: source})
+	candidate, ok := plan.ResolveCandidate(AccountSnapshotView(account))
+	return candidate.UpstreamProtocol, ok
 }
 
 func (a *Account) allowsProtocolRequest(ctx context.Context) bool {
@@ -40,25 +42,42 @@ func (a *Account) allowsProtocolRequest(ctx context.Context) bool {
 	return ok
 }
 
-// accountForProtocolAttempt 不修改共享账号或持久配置；每次切号都重新计算目标。
-func accountForProtocolAttempt(ctx context.Context, account *Account) (*Account, error) {
-	if account == nil {
+// accountForProtocolAttempt 使用当前计划重新验证候选，模型规则仍在原匹配时机读取。
+func accountForProtocolAttempt(ctx context.Context, value *Account) (*Account, error) {
+	if value == nil {
 		return nil, fmt.Errorf("account is nil")
 	}
-	if account.resolvedProtocol != "" {
-		return account, nil
+	plan, planned := routePlanFromContext(ctx)
+	group, _ := ctx.Value(ctxkey.Group).(*Group)
+	if planned && group != nil && plan.GroupID() != group.ID {
+		planned = false
+	}
+	if value.resolvedProtocol != "" && !planned {
+		return value, nil
 	}
 	source, _ := ctx.Value(clientProtocolContextKey{}).(domain.ProtocolID)
 	if source == "" {
-		return account, nil
+		return value, nil
 	}
-	group, _ := ctx.Value(ctxkey.Group).(*Group)
-	target, ok := ResolveProtocolRoute(account, group, source)
+	if !planned {
+		var view *routing.Group
+		if group != nil {
+			view = &routing.Group{ID: group.ID, Platform: group.Platform, SchedulerType: group.SchedulerType, AllowedProtocols: group.AllowedProtocols, ProtocolFallbacks: group.ProtocolFallbacks}
+		}
+		plan = routing.Plan(routing.PlanInput{Group: view, ClientProtocol: source})
+	} else {
+		plan = plan.WithClientProtocol(source)
+	}
+	candidate, ok := plan.ResolveCandidate(AccountSnapshotView(value))
 	if !ok {
-		return nil, fmt.Errorf("account %d has no enabled route for %s", account.ID, source)
+		return nil, fmt.Errorf("account %d has no enabled route for %s", value.ID, source)
 	}
-	copied := *account
-	copied.resolvedProtocol = target
+	copied := *value
+	copied.resolvedProtocol = candidate.UpstreamProtocol
+	copied.resolvedCandidate = nil
+	if planned {
+		copied.resolvedCandidate = &candidate
+	}
 	return &copied, nil
 }
 

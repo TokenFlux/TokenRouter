@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "./internal/egress/...",
+    "./internal/infra/httpclient/...",
+    "./internal/repository",
+    "-run",
+    "RequestPolicy|EgressTLS|EgressHeaders|TLSProfileSnapshot|HTTP2|HTTPUpstream|PublicHost|Redirect"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 36.907,
+  "log": "logs/egress-policy-race.log.gz"
+}

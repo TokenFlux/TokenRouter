@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "./internal/account/...",
+    "./internal/repository",
+    "./internal/service",
+    "./internal/app",
+    "-run",
+    "^$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 3.653,
+  "log": "logs/account-mutations-build.log.gz"
+}

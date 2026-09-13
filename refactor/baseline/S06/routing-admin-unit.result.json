@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/routing",
+    "-run",
+    "Group|Default|MessagesDispatch|PeakRate|AdvancedScheduler|Channel"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 1.842,
+  "log": "logs/routing-admin-unit.log.gz"
+}

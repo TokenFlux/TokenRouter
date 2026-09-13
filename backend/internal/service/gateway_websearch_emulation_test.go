@@ -199,7 +199,7 @@ func newChannelServiceWithCache(groupID int64, ch *Channel) *ChannelService {
 		groupPlatform:    map[int64]string{},
 		loadedAt:         time.Now(),
 	}
-	svc.cache.Store(cache)
+	seedLegacyChannelFixture(svc, cache)
 	return svc
 }
 

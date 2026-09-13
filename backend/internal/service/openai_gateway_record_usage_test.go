@@ -2769,7 +2769,7 @@ func newOpenAIImageChannelPricingResolverForTest(t *testing.T, groupID int64, mo
 	cache.groupPlatform[groupID] = ""
 	cache.loadedAt = time.Now()
 	cs := &ChannelService{}
-	cs.cache.Store(cache)
+	seedLegacyChannelFixture(cs, cache)
 	return NewModelPricingResolver(cs, NewBillingService(&config.Config{}, nil))
 }
 
@@ -2789,7 +2789,7 @@ func newOpenAITokenImageChannelPricingResolverForTest(t *testing.T, groupID int6
 	cache.groupPlatform[groupID] = ""
 	cache.loadedAt = time.Now()
 	cs := &ChannelService{}
-	cs.cache.Store(cache)
+	seedLegacyChannelFixture(cs, cache)
 	return NewModelPricingResolver(cs, NewBillingService(&config.Config{}, nil))
 }
 
@@ -2837,7 +2837,7 @@ func TestGatewayServiceCalculateRecordUsageCost_ChannelImageBillingUsesSizeTier(
 	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	svc := &GatewayService{
 		billingService: NewBillingService(&config.Config{}, nil),
@@ -2916,7 +2916,7 @@ func TestGatewayServiceCalculateRecordUsageCost_ChannelImageBillingNormalizesMis
 	cache.channelByGroupID[groupID] = &Channel{ID: groupID, Status: StatusActive}
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	svc := &GatewayService{
 		billingService: NewBillingService(&config.Config{}, nil),

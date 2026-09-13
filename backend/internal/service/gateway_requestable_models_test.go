@@ -87,7 +87,7 @@ func newRequestableModelsChannelService(groupID int64, platform string, channel 
 	channel.GroupIDs = []int64{groupID}
 	cache := populateChannelCache([]Channel{channel}, map[int64]string{groupID: platform})
 	service := &ChannelService{}
-	service.cache.Store(cache)
+	seedLegacyChannelFixture(service, cache)
 	return service
 }
 

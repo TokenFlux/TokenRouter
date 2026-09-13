@@ -415,7 +415,7 @@ func TestCreateShadow_DefaultGroupBinding(t *testing.T) {
 			{ID: 7, Name: "some-other-group"},
 		},
 	}
-	svc := &adminServiceImpl{accountRepo: repo, groupRepo: groupRepo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{accountRepo: repo, groupRepo: groupRepo})
 
 	parent := &Account{
 		Name: "grp-parent", Platform: PlatformOpenAI, Type: AccountTypeOAuth,
@@ -435,7 +435,7 @@ func TestCreateShadow_InheritsParentGroups(t *testing.T) {
 	repo := newSparkShadowRepoStub()
 	// groupRepo 故意提供 openai-default,以证明「继承母分组」优先于「回落 openai-default」。
 	groupRepo := &sparkShadowGroupRepoStub{groups: []Group{{ID: 99, Name: PlatformOpenAI + "-default"}}}
-	svc := &adminServiceImpl{accountRepo: repo, groupRepo: groupRepo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{accountRepo: repo, groupRepo: groupRepo})
 
 	parent := &Account{
 		Name: "grp-parent", Platform: PlatformOpenAI, Type: AccountTypeOAuth,
@@ -779,7 +779,7 @@ func TestCreateShadow_InvalidGroupRejectedNoOrphan(t *testing.T) {
 	ctx := context.Background()
 	repo := newSparkShadowRepoStub()
 	groupRepo := &sparkShadowValidatingGroupRepoStub{existing: map[int64]bool{7: true}}
-	svc := &adminServiceImpl{accountRepo: repo, groupRepo: groupRepo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{accountRepo: repo, groupRepo: groupRepo})
 	parent := &Account{
 		Name: "p", Platform: PlatformOpenAI, Type: AccountTypeOAuth,
 		Status: StatusActive, Credentials: map[string]any{"chatgpt_account_id": "o"},
@@ -801,7 +801,7 @@ func TestCreateShadow_BindFailureRollsBackShadow(t *testing.T) {
 	base := newSparkShadowRepoStub()
 	repo := &bindFailRepoStub{sparkShadowRepoStub: base}
 	groupRepo := &sparkShadowValidatingGroupRepoStub{existing: map[int64]bool{7: true}}
-	svc := &adminServiceImpl{accountRepo: repo, groupRepo: groupRepo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{accountRepo: repo, groupRepo: groupRepo})
 	parent := &Account{
 		Name: "p", Platform: PlatformOpenAI, Type: AccountTypeOAuth,
 		Status: StatusActive, Credentials: map[string]any{"chatgpt_account_id": "o"},
@@ -869,7 +869,7 @@ func TestUpdateAccount_ShadowAllowsModelMappingAndGroupUpdate(t *testing.T) {
 	ctx := context.Background()
 	repo := newSparkShadowRepoStub()
 	groupRepo := &sparkShadowValidatingGroupRepoStub{existing: map[int64]bool{7: true}}
-	svc := &adminServiceImpl{accountRepo: repo, groupRepo: groupRepo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{accountRepo: repo, groupRepo: groupRepo})
 	parentID := int64(1)
 	parent := &Account{
 		ID:       parentID,

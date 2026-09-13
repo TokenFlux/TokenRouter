@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"net/http"
 	"strings"
 	"time"
@@ -214,39 +215,7 @@ func applyGrokResolvedSubscriptionTier(usage *UsageInfo, account *Account, billi
 }
 
 func grokBillingSnapshotFromExtra(extra map[string]any) (*xai.BillingSummary, error) {
-	if extra == nil {
-		return nil, nil
-	}
-	raw, ok := extra[grokBillingExtraKey]
-	if !ok || raw == nil {
-		return nil, nil
-	}
-	switch snapshot := raw.(type) {
-	case *xai.BillingSummary:
-		return snapshot, nil
-	case xai.BillingSummary:
-		return &snapshot, nil
-	case map[string]any:
-		data, err := json.Marshal(snapshot)
-		if err != nil {
-			return nil, err
-		}
-		var out xai.BillingSummary
-		if err := json.Unmarshal(data, &out); err != nil {
-			return nil, err
-		}
-		return &out, nil
-	default:
-		data, err := json.Marshal(raw)
-		if err != nil {
-			return nil, fmt.Errorf("marshal grok billing snapshot: %w", err)
-		}
-		var out xai.BillingSummary
-		if err := json.Unmarshal(data, &out); err != nil {
-			return nil, err
-		}
-		return &out, nil
-	}
+	return accountcore.ParseGrokBillingSnapshot(extra)
 }
 
 func stampGrokQuotaSnapshotForPlan(account *Account, snapshot *xai.QuotaSnapshot, model string) {

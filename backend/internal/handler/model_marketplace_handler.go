@@ -1,45 +1,26 @@
+// 本文件维护 handler 的所属能力；兼容入口复用唯一实现。
 package handler
 
 import (
-	"github.com/TokenFlux/TokenRouter/internal/handler/dto"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
-	"github.com/TokenFlux/TokenRouter/internal/service"
-
-	"github.com/gin-gonic/gin"
+	context "context"
+	routinghttp "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
+	dto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
+	service "github.com/TokenFlux/TokenRouter/internal/service"
 )
 
-type ModelMarketplaceHandler struct {
-	modelMarketplaceService *service.ModelMarketplaceService
-	dashboardService        *service.DashboardService
+// ModelMarketplaceHandler 保留旧构造名称；生产路由直接绑定 routing/httpapi。
+type ModelMarketplaceHandler = routinghttp.MarketplaceHandler
+
+func NewModelMarketplaceHandler(marketplace *service.ModelMarketplaceService, dashboard *service.DashboardService) *ModelMarketplaceHandler {
+	return routinghttp.NewMarketplaceHandler(marketplace.CoreMarketplace(), legacyMarketplaceStats{dashboard})
 }
 
-func NewModelMarketplaceHandler(modelMarketplaceService *service.ModelMarketplaceService, dashboardService *service.DashboardService) *ModelMarketplaceHandler {
-	return &ModelMarketplaceHandler{
-		modelMarketplaceService: modelMarketplaceService,
-		dashboardService:        dashboardService,
-	}
-}
+type legacyMarketplaceStats struct{ source *service.DashboardService }
 
-// ListPublic 返回公开模型广场列表。
-// GET /api/v1/marketplace/models
-func (h *ModelMarketplaceHandler) ListPublic(c *gin.Context) {
-	groups, err := h.modelMarketplaceService.ListPublic(c.Request.Context())
+func (s legacyMarketplaceStats) PublicStats(ctx context.Context) (dto.ModelMarketplaceStats, error) {
+	stats, err := s.source.GetPublicDashboardStats(ctx)
 	if err != nil {
-		response.ErrorFrom(c, err)
-		return
+		return dto.ModelMarketplaceStats{}, err
 	}
-
-	response.Success(c, dto.ModelMarketplaceGroupsFromService(groups))
-}
-
-// StatsPublic 返回首页公开统计，只暴露总 Token 和注册用户数。
-// GET /api/v1/marketplace/stats
-func (h *ModelMarketplaceHandler) StatsPublic(c *gin.Context) {
-	stats, err := h.dashboardService.GetPublicDashboardStats(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	response.Success(c, dto.ModelMarketplaceStatsFromService(stats))
+	return dto.ModelMarketplaceStats{TodayTokens: stats.TodayTokens, TotalTokens: stats.TotalTokens, TotalUsers: stats.TotalUsers}, nil
 }

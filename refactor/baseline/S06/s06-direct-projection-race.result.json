@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=3",
+    "-json",
+    "-race",
+    "./internal/account",
+    "./internal/app",
+    "-run",
+    "RoutingGroupProjection|ObservedCapacity"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 34.782,
+  "log": "logs/s06-direct-projection-race.log.gz"
+}

@@ -36,6 +36,8 @@ RequestLogger
 
 ## 路由族
 
+账号管理展示值与脱敏映射位于 `account/httpapi/dto`，代理展示值位于 `egress/httpapi/dto`；旧 DTO 入口只作投影和委托。敏感字段、省略/空集合及代理管理员字段边界保持原契约，非敏感的嵌套 map、slice 和时间指针使用独立副本，不能通过修改展示结果污染账号配置。账号备份、即时/计划测试和 API Key 上游用量查询已直接使用 account/httpapi；账号 CRUD、列表、复制/恢复、批量管理、凭据字段更新、刷新/重授权、隐私、调度开关、额度重置及健康恢复已直接绑定 `account/httpapi.ManagementHandler`；模型目录、实时模型同步、tier、详细统计及高级调度诊断也使用新入口，旧 AccountHandler 不再构造于生产依赖图。备份导出继续要求原 step-up，导入继续使用同一管理员幂等 helper。
+
 订阅、兑换、平台额度和套餐的用户/管理员 handler 与 DTO 位于 `billing/httpapi`，原路由汇总直接绑定这些实例。URL、认证/幂等中间件顺序、reason、CSV 和分页排序保持原契约；额度 HTTP 不直接读取仓储，用户存在性由用例的只读端口处理。管理员套餐保留原 Ent 的字段省略及 `edges` 形状，公开套餐使用独立投影。
 
 用户资料、会话、七类身份、强认证与用户管理 HTTP 位于 `identity/httpapi`，团队位于 `team/httpapi`，Key 生命周期和凭据入口位于 `apikey/httpapi`。app 组合同一组身份处理器供原路由调用；微信支付 OAuth 单独接入原路径。HTTP 适配保留历史 DTO 形状与凭据差异，安全 `Principal` 和 Key 的 `AccessSnapshot` 分别表达身份与付款/成员上下文；旧 context 读取入口只作兼容投影。
@@ -217,3 +219,6 @@ site 拥有 targeting 校验、余额/有效订阅匹配、开始结束边界、
 - 是否无意新增冲突的动态路由；例如 wildcard/subpath 不得吞掉已明确移除或专用的固定 endpoint。
 
 相关文档：[上游账号能力矩阵](upstream_account_matrix.md)、[网关错误响应策略](gateway_error_policy.md)、[身份与租户](../domains/identity_and_tenancy.md)、[网关请求生命周期](../architecture/gateway_request_lifecycle.md)、[支付与权益](../domains/payments_and_entitlements.md)、[接口目录](index.md)。
+
+
+S06 的 CRS 同步和预览路由已直接绑定 `account/httpapi.CRSHandler`；保留 `/api/v1/admin/accounts/sync/crs` 与 `/preview`、管理员中间件及原错误 envelope。默认同步代理，显式 false 关闭；已存在账号更新不受“只创建选中项”的空集合语义影响。Codex session 的 `/api/v1/admin/accounts/import/codex-session` 同样直接绑定 `account/httpapi.CodexImportHandler`，保留原请求校验、逐项结果和幂等 scope。Ollama Cloud 的设置、状态、会话、自动刷新和主动刷新路由直接绑定 `account/httpapi.OllamaUsageHandler`，保留原管理员鉴权、请求字段、状态码和敏感会话不回显语义。账号主动/被动用量、批量用量、今日统计及批量今日统计直接绑定 `account/httpapi.OAuthUsageHandler`；原 30 秒快照缓存、ETag、Vary、304 和 `X-Snapshot-Cache` 保持同一实现。账号管理其余路由均直接使用 ManagementHandler；供应商 OAuth 交换路由仍使用原平台 handler，留待 S09。

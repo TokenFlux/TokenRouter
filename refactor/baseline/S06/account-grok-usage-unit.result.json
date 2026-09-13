@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/pkg/xai",
+    "./internal/service",
+    "./internal/handler/admin",
+    "-run",
+    "Test.*(Grok.*(Usage|Billing|Quota)|AccountUsage|OAuthUsage|UsageRecovery|UsageBatch)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 22.643,
+  "log": "logs/account-grok-usage-unit.log.gz"
+}

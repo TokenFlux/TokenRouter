@@ -1,29 +1,21 @@
 package service
 
 import (
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"strconv"
 	"strings"
 )
 
 const (
 	// AccountTestModeDefault 使用常规请求测试连接。
-	AccountTestModeDefault = "default"
+	AccountTestModeDefault = accountcore.AccountTestModeDefault
 	// AccountTestModeCompact 使用原生 V2 请求测试连接。
-	AccountTestModeCompact = "compact"
+	AccountTestModeCompact = accountcore.AccountTestModeCompact
 	// AccountTestModeLegacyCompact 使用旧版 Compact 端点测试连接。
-	AccountTestModeLegacyCompact = "legacy_compact"
+	AccountTestModeLegacyCompact = accountcore.AccountTestModeLegacyCompact
 )
 
-func normalizeAccountTestMode(mode string) string {
-	switch strings.ToLower(strings.TrimSpace(mode)) {
-	case AccountTestModeCompact:
-		return AccountTestModeCompact
-	case AccountTestModeLegacyCompact:
-		return AccountTestModeLegacyCompact
-	default:
-		return AccountTestModeDefault
-	}
-}
+func normalizeAccountTestMode(mode string) string { return accountcore.NormalizeAccountTestMode(mode) }
 
 // createOpenAICompactionTestPayload 构造原生 V2 的流式 Responses 请求。V2 的关键
 // 契约是最后一个 input 为 compaction_trigger，而非旧端点路径。

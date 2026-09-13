@@ -1,0 +1,23 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "./internal/routing/...",
+    "./internal/scheduler/...",
+    "./internal/egress/...",
+    "./internal/app/...",
+    "./internal/apikey/...",
+    "./internal/identity/...",
+    "./internal/repository/...",
+    "./internal/handler/...",
+    "./internal/service/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 35.472,
+  "log": "logs/routing-current-lint.log.gz"
+}

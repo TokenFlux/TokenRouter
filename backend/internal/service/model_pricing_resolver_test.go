@@ -391,7 +391,7 @@ func TestResolve_QoderCustomAliasMappedToRouteKeyZerosMissingPartialChannelPrici
 	cache.mappingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "custom-qoder"}] = "qmodel"
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 	billingService := NewBillingService(nil, nil)
 	r := NewModelPricingResolver(channelService, billingService)
 
@@ -422,7 +422,7 @@ func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialChannelPri
 	cache.mappingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "gpt-5.4"}] = "qmodel"
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 	billingService := NewBillingService(nil, nil)
 	r := NewModelPricingResolver(channelService, billingService)
 
@@ -460,7 +460,7 @@ func TestResolve_QoderStandardModelMappedToRouteKeyKeepsBaseForPartialIntervalPr
 	cache.mappingByGroupModel[channelModelKey{groupID: groupID, platform: PlatformQoder, model: "gpt-5.4"}] = "qmodel"
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 	billingService := NewBillingService(nil, nil)
 	r := NewModelPricingResolver(channelService, billingService)
 
@@ -495,7 +495,7 @@ func TestResolve_QoderCustomAliasUnknownBaseZerosMissingPartialChannelPricing(t 
 	}
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 	billingService := NewBillingService(nil, nil)
 	r := NewModelPricingResolver(channelService, billingService)
 
@@ -528,7 +528,7 @@ func TestResolve_QoderCustomAliasUnknownBaseZerosMissingPartialIntervalPricing(t
 	}
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 	billingService := NewBillingService(nil, nil)
 	r := NewModelPricingResolver(channelService, billingService)
 
@@ -564,7 +564,7 @@ func TestResolve_QoderBlankRouteKeyPricingIsUnpricedButAliasManualPricingWorks(t
 	}
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 	billingService := NewBillingService(nil, nil)
 	r := NewModelPricingResolver(channelService, billingService)
 
@@ -615,7 +615,7 @@ func TestResolve_BlankWildcardPricingDoesNotMaskLaterEffectiveWildcard(t *testin
 	}
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 	billingService := NewBillingService(nil, nil)
 	r := NewModelPricingResolver(channelService, billingService)
 
@@ -654,7 +654,7 @@ func TestResolve_QoderPerRequestRouteKeyTokenOnlyIntervalIsUnpriced(t *testing.T
 	}
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 	billingService := NewBillingService(nil, nil)
 	r := NewModelPricingResolver(channelService, billingService)
 

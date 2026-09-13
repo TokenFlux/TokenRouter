@@ -14,6 +14,7 @@ import (
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	timingwheel "github.com/TokenFlux/TokenRouter/internal/infra/timingwheel"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/google/uuid"
 	"time"
@@ -36,9 +37,9 @@ func providePlatformQuotaFlusher(cfg *config.Config, cache billing.BillingCache,
 	options := billing.FlusherOptions{UserPlatformQuotaFlushBatchSize: cfg.Database.UserPlatformQuotaFlushBatchSize, UserPlatformQuotaFlushIntervalMs: cfg.Database.UserPlatformQuotaFlushIntervalMs, UserPlatformQuotaFlusherEnabled: cfg.Database.UserPlatformQuotaFlusherEnabled}
 	return billing.NewUserPlatformQuotaUsageFlusher(options, cache, quotas, wheel, coordinator, logging.LegacyPrintf)
 }
-func provideBillingSubscriptions(groups service.GroupRepository, repo billing.UserSubscriptionRepository, client *dbent.Client) *billing.SubscriptionService {
+func provideBillingSubscriptions(groups *routingpostgres.GroupStore, repo billing.UserSubscriptionRepository, client *dbent.Client) *billing.SubscriptionService {
 	calendar := timezone.NewCalendar(timezone.Location())
-	return billing.NewSubscriptionService(legacybridge.BillingGroups{Repository: groups}, repo, billingpostgres.NewSubscriptionMutations(client), billing.DateRuntime{Now: time.Now, Calendar: &calendar})
+	return billing.NewSubscriptionService(billingGroups{Repository: groups}, repo, billingpostgres.NewSubscriptionMutations(client), billing.DateRuntime{Now: time.Now, Calendar: &calendar})
 }
 func provideSettlementStore(db *sql.DB) *billingpostgres.SettlementStore {
 	return billingpostgres.NewSettlementStore(db, legacybridge.BillingAccountQuotaOutbox)

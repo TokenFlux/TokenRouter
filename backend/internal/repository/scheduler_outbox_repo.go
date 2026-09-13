@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	"strconv"
 	"time"
 
@@ -240,4 +241,9 @@ func schedulerOutboxEventSupportsDedup(eventType string) bool {
 // EnqueueAccountQuotaChangedInTx 只写调用者给定事务；资金提交失败时不发布账号变更。
 func EnqueueAccountQuotaChangedInTx(ctx context.Context, tx *sql.Tx, accountID int64) error {
 	return enqueueSchedulerOutbox(ctx, tx, service.SchedulerOutboxEventAccountChanged, &accountID, nil, nil)
+}
+
+// EnqueueSchedulerChange 只在给定连接写入原事件格式；S07 迁移该 publisher 时删除旧入口。
+func EnqueueSchedulerChange(ctx context.Context, exec postgresinfra.Executor, eventType string, accountID, groupID *int64, payload any) error {
+	return enqueueSchedulerOutbox(ctx, exec, eventType, accountID, groupID, payload)
 }

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/service",
+    "./internal/handler/admin",
+    "-run",
+    "Test.*(CRS|Crs|BuildSelectedSet|ShouldCreateAccount|PersistAccountCredentials|SparkShadow)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.547,
+  "log": "logs/account-crs-core-unit.log.gz"
+}

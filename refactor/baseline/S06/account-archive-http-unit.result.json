@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/egress/...",
+    "./internal/handler/admin",
+    "-run",
+    "Test.*(Archive|AccountData|ImportData|ExportData|Proxy|GrokImport|GrokSSO)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 10.395,
+  "log": "logs/account-archive-http-unit.log.gz"
+}

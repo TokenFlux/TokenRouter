@@ -60,10 +60,12 @@ OpenAI 分组以 `openai_fast_policy` 选择 `follow_request`、`force_priority`
 
 `free_openai_fast` 是同一分组的用户计费策略，不会改变出站 `service_tier`。只有 OpenAI 账号实际按 `priority`/`fast` 计费时才生效；网关使用同一模型映射、渠道价卡、峰值和长上下文时刻重新取得 Standard 价格，将其写入用户侧 `ActualCost` 和统一结算的基础金额，同时保留 Fast `TotalCost` 给 Usage Log、账号统计和账号额度。Standard 定价缺失时沿用零成本缺价记录，不能借此绕过原有定价错误边界；非 OpenAI 账号、普通 tier 和不可信认证快照均不适用。该字段也随 API Key 认证快照传递，因此快照版本为 v36，旧 v35 快照必须失效并重建。
 
-OpenAI 分组的 `max_reasoning_effort` 是显式推理强度上限，`max_reasoning_effort_over_limit` 取 `downgrade`（默认）或 `deny`。网关只对客户端真正发送的 `reasoning.effort`、`reasoning_effort` 和 Messages `output_config.effort` 执行策略，不会因为兼容桥为缺省 Messages 请求生成的默认 `medium` 而改变行为；模型范围映射先于上限比较。`downgrade` 把超限值改写为上限，`deny` 在 HTTP 上返回 403 `permission_error`，Messages 返回 Anthropic `forbidden_error`，Responses WebSocket 以 policy-violation 关闭。复合 Key 已在鉴权中间件解析到具体 OpenAI 分组，因而使用该分组的策略。该动作和上限随认证快照传递，快照版本为 v35，旧 v34 快照必须失效并从数据库重建。
+OpenAI 分组的 `max_reasoning_effort` 是显式推理强度上限，`max_reasoning_effort_over_limit` 取 `downgrade`（默认）或 `deny`。网关只对客户端真正发送的 `reasoning.effort`、`reasoning_effort` 和 Messages `output_config.effort` 执行策略，不会因为兼容桥为缺省 Messages 请求生成的默认 `medium` 而改变行为；模型范围映射先于上限比较。`downgrade` 把超限值改写为上限，`deny` 在 HTTP 上返回 403 `permission_error`，Messages 返回 Anthropic `forbidden_error`，Responses WebSocket 以 policy-violation 关闭。复合 Key 已在鉴权中间件解析到具体 OpenAI 分组，因而使用该分组的策略。该动作和上限随认证快照传递，快照版本为 v40；版本不匹配的旧快照失效并从数据库重建。
 
 <a id="openai_account_configuration"></a>
 ### 原生协议配置
+
+账号协议和旧文本/工作负载字段的转换由 `account` 唯一实现，`pkg/openai_compat` 保留转接；wire 的文本协议枚举仍属于 `protocol/openai`。旧转发副本的 `resolvedProtocol` 继续由执行层持有，不写入新账号记录或共享缓存。
 
 OpenAI 与其它平台统一保存 `credentials.upstream_protocols`。API Key 可以独立启用 Responses、Chat、Embeddings、Images 生成/编辑、Responses WebSocket、Compact 和 Alpha Search；OAuth 原生选项依据 PAT/Agent Identity 认证能力收窄，不显示 Messages/Chat/Images 原生复选框。完整矩阵见[统一协议能力](protocol_capabilities.md#account_native_protocols)。
 

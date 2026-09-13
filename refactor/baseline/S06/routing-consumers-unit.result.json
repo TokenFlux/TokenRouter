@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/app",
+    "./internal/service",
+    "./internal/routing",
+    "./internal/apikey",
+    "./internal/identity",
+    "./internal/billing",
+    "-run",
+    "Group|Default|Protocol|Snapshot|AccountStats|Channel"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 23.436,
+  "log": "logs/routing-consumers-unit.log.gz"
+}

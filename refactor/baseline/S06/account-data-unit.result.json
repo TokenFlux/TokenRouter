@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/repository",
+    "./internal/service",
+    "./internal/app",
+    "-run",
+    "Account|Group|Snapshot|Refresh"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 51.869,
+  "log": "logs/account-data-unit.log.gz"
+}

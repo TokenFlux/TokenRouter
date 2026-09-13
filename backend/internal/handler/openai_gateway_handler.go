@@ -559,7 +559,10 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	}
 
 	// 渠道模型 C 决定生图并发和账号端点能力，客户端模型 R 继续用于日志与会话语义。
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
+	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
+	channelMappingRoutePlan := h.gatewayService.PlanRoute(c.Request.Context(), service.APIKeyRouteGroup(apiKey), apiKey.GroupID, reqModel)
+	channelMapping := service.ChannelMappingFromRoutePlan(channelMappingRoutePlan)
+	c.Request = c.Request.WithContext(service.WithRoutePlan(c.Request.Context(), channelMappingRoutePlan))
 	forwardBody, routingModel, forwardImageIntent := resolveOpenAIChannelMappedImageIntent(
 		"/v1/responses", reqModel, body, channelMapping, openAICompatibleRequestPlatform(apiKey), h.gatewayService.ReplaceModelInBody,
 	)
@@ -1211,7 +1214,10 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	}
 
 	// 解析渠道级模型映射
-	channelMappingMsg, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
+	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
+	channelMappingMsgRoutePlan := h.gatewayService.PlanRoute(c.Request.Context(), service.APIKeyRouteGroup(apiKey), apiKey.GroupID, reqModel)
+	channelMappingMsg := service.ChannelMappingFromRoutePlan(channelMappingMsgRoutePlan)
+	c.Request = c.Request.WithContext(service.WithRoutePlan(c.Request.Context(), channelMappingMsgRoutePlan))
 	channelMappedModel := strings.TrimSpace(channelMappingMsg.MappedModel)
 	if channelMappedModel == "" {
 		channelMappedModel = reqModel
@@ -2375,7 +2381,10 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	}
 
 	// 首轮账号选择必须按渠道模型 C 判断生图能力，避免别名映射绕过 Responses 能力检查。
-	channelMappingWS, _ := h.gatewayService.ResolveChannelMappingAndRestrict(ctx, apiKey.GroupID, reqModel)
+	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
+	channelMappingWSRoutePlan := h.gatewayService.PlanRoute(ctx, service.APIKeyRouteGroup(apiKey), apiKey.GroupID, reqModel)
+	channelMappingWS := service.ChannelMappingFromRoutePlan(channelMappingWSRoutePlan)
+	ctx = service.WithRoutePlan(ctx, channelMappingWSRoutePlan)
 	mappedFirstMessage, routingModelWS, _ := resolveOpenAIChannelMappedImageIntent(
 		"/v1/responses", reqModel, firstMessage, channelMappingWS, openAICompatibleRequestPlatform(apiKey), h.gatewayService.ReplaceModelInBody,
 	)
@@ -2665,7 +2674,10 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					requestedModel = clientReqModel
 				}
 				turnCtx, redirectedModel := apiKeyModelRedirectContext(ctx, apiKey, requestedModel)
-				turnMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(turnCtx, apiKey.GroupID, redirectedModel)
+				// 当前分组和渠道结果进入独立计划，不改变原解析位置。
+				turnMappingRoutePlan := h.gatewayService.PlanRoute(turnCtx, service.APIKeyRouteGroup(apiKey), apiKey.GroupID, redirectedModel)
+				turnMapping := service.ChannelMappingFromRoutePlan(turnMappingRoutePlan)
+				turnCtx = service.WithRoutePlan(turnCtx, turnMappingRoutePlan)
 				mappedPayload, turnRoutingModel, _ := resolveOpenAIChannelMappedImageIntent(
 					"/v1/responses", redirectedModel, payload, turnMapping, requestPlatform, h.gatewayService.ReplaceModelInBody,
 				)
@@ -2790,7 +2802,10 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					turnClientModel = clientReqModel
 				}
 				turnCtx, turnModel := apiKeyModelRedirectContext(ctx, apiKey, turnClientModel)
-				turnChannelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(turnCtx, apiKey.GroupID, turnModel)
+				// 当前分组和渠道结果进入独立计划，不改变原解析位置。
+				turnChannelMappingRoutePlan := h.gatewayService.PlanRoute(turnCtx, service.APIKeyRouteGroup(apiKey), apiKey.GroupID, turnModel)
+				turnChannelMapping := service.ChannelMappingFromRoutePlan(turnChannelMappingRoutePlan)
+				turnCtx = service.WithRoutePlan(turnCtx, turnChannelMappingRoutePlan)
 				releaseTurnSlots()
 				defer clearCyberPolicyTurnState(c)
 				turnRequestBodyForCyber := capture.RequestBody

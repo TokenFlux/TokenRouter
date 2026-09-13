@@ -1,29 +1,28 @@
 package repository
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
-	"errors"
-	"io"
-	"log/slog"
-	"net"
-	"net/http"
-	"net/url"
-	"os"
-	"strings"
-	"sync"
-	"time"
-
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
+	bytes "bytes"
+	context "context"
+	json "encoding/json"
+	errors "errors"
+	config "github.com/TokenFlux/TokenRouter/internal/config"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	httpclient "github.com/TokenFlux/TokenRouter/internal/infra/httpclient"
 	proxyinfra "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/proxy"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
-	"github.com/TokenFlux/TokenRouter/internal/service"
-	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
-
-	"golang.org/x/mod/semver"
+	tlsfingerprint "github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	xai "github.com/TokenFlux/TokenRouter/internal/pkg/xai"
+	service "github.com/TokenFlux/TokenRouter/internal/service"
+	urlvalidator "github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
+	semver "golang.org/x/mod/semver"
+	io "io"
+	slog "log/slog"
+	net "net"
+	http "net/http"
+	url "net/url"
+	os "os"
+	strings "strings"
+	time "time"
 )
 
 // 默认配置常量
@@ -78,27 +77,27 @@ type openAIHTTP2Settings struct {
 	fallbackTTL               time.Duration
 }
 
-type openAIHTTP2FallbackState struct {
-	mu            sync.Mutex
-	windowStart   time.Time
-	errorCount    int
-	fallbackUntil time.Time
-}
-
-// httpClientForUpstreamRequest 按请求标记派生客户端，避免修改共享连接池客户端。
+// httpClientForUpstreamRequest 保留旧测试入口，实际生产调用使用已冻结的出站策略。
 func httpClientForUpstreamRequest(s *httpUpstreamService, client *http.Client, req *http.Request) *http.Client {
 	if client == nil || req == nil {
 		return client
 	}
-	ctx := req.Context()
+	return httpClientForEgressPolicy(s, client, s.requestPolicy(req))
+}
+
+// httpClientForEgressPolicy 保留原每请求派生与重定向检查先后顺序。
+func httpClientForEgressPolicy(s *httpUpstreamService, client *http.Client, policy egress.EgressPolicy) *http.Client {
+	if client == nil {
+		return nil
+	}
 	switch {
-	case service.HTTPUpstreamRedirectsDisabled(ctx):
+	case policy.DisableRedirects:
 		clone := *client
 		clone.CheckRedirect = func(*http.Request, []*http.Request) error {
 			return http.ErrUseLastResponse
 		}
 		return &clone
-	case service.HTTPUpstreamPublicHostsOnly(ctx) && s != nil:
+	case policy.PublicHostsOnly && s != nil:
 		clone := *client
 		clone.CheckRedirect = func(next *http.Request, via []*http.Request) error {
 			// 每跳继承下载安全标记，同时保留客户端已有的重定向约束。
@@ -301,8 +300,7 @@ func (s *httpUpstreamService) shouldValidateResolvedIP() bool {
 }
 
 func (s *httpUpstreamService) validateRequestHost(req *http.Request) error {
-	publicHostsOnly := req != nil && service.HTTPUpstreamPublicHostsOnly(req.Context())
-	if !s.shouldValidateResolvedIP() && !publicHostsOnly {
+	if !s.requestPolicy(req).RequiresHostValidation() {
 		return nil
 	}
 	if req == nil || req.URL == nil {
@@ -439,38 +437,6 @@ func (s *httpUpstreamService) resolveOpenAIHTTP2Settings() openAIHTTP2Settings {
 	return settings
 }
 
-func (s *httpUpstreamService) resolveProtocolMode(profile service.HTTPUpstreamProfile, proxyKey string, parsedProxy *url.URL) string {
-	if profile == service.HTTPUpstreamProfileGrok {
-		return upstreamProtocolModeGrok
-	}
-	if profile != service.HTTPUpstreamProfileOpenAI {
-		return upstreamProtocolModeDefault
-	}
-	settings := s.resolveOpenAIHTTP2Settings()
-	if !settings.enabled {
-		return upstreamProtocolModeOpenAIH1
-	}
-	if parsedProxy == nil {
-		return upstreamProtocolModeOpenAIH2
-	}
-	scheme := strings.ToLower(parsedProxy.Scheme)
-	if scheme != "http" && scheme != "https" {
-		return upstreamProtocolModeOpenAIH2
-	}
-	if settings.allowProxyFallbackToHTTP1 && s.isOpenAIHTTP2FallbackActive(proxyKey) {
-		return upstreamProtocolModeOpenAIH1Fallback
-	}
-	return upstreamProtocolModeOpenAIH2
-}
-
-func (s *httpUpstreamService) resolveTLSFingerprintProtocolMode(profile service.HTTPUpstreamProfile, proxyKey string, parsedProxy *url.URL, tlsProfile *tlsfingerprint.Profile) string {
-	protocolMode := s.resolveProtocolMode(profile, proxyKey, parsedProxy)
-	if protocolMode != upstreamProtocolModeOpenAIH2 || tlsfingerprint.SupportsHTTP2(tlsProfile) {
-		return protocolMode
-	}
-	return upstreamProtocolModeOpenAIH1
-}
-
 func resolveTLSFingerprintTransportProfile(profile *tlsfingerprint.Profile, protocolMode string) *tlsfingerprint.Profile {
 	if protocolMode != upstreamProtocolModeOpenAIH2 {
 		return tlsfingerprint.HTTP1OnlyProfile(profile)
@@ -479,29 +445,7 @@ func resolveTLSFingerprintTransportProfile(profile *tlsfingerprint.Profile, prot
 }
 
 func (s *httpUpstreamService) isOpenAIHTTP2FallbackActive(proxyKey string) bool {
-	raw, ok := s.openAIHTTP2Fallbacks.Load(proxyKey)
-	if !ok {
-		return false
-	}
-	state, ok := raw.(*openAIHTTP2FallbackState)
-	if !ok || state == nil {
-		return false
-	}
-	return state.isFallbackActive(time.Now())
-}
-
-func (s *httpUpstreamService) getOrCreateOpenAIHTTP2FallbackState(proxyKey string) *openAIHTTP2FallbackState {
-	state := &openAIHTTP2FallbackState{}
-	actual, _ := s.openAIHTTP2Fallbacks.LoadOrStore(proxyKey, state)
-	cached, ok := actual.(*openAIHTTP2FallbackState)
-	if !ok || cached == nil {
-		return state
-	}
-	return cached
-}
-
-func isHTTPProxyKey(proxyKey string) bool {
-	return strings.HasPrefix(proxyKey, "http://") || strings.HasPrefix(proxyKey, "https://")
+	return s.transportPolicy.Active(proxyKey, time.Now())
 }
 
 func isOpenAIHTTP2CompatibilityError(err error) bool {
@@ -563,97 +507,14 @@ func isUpstreamTimeoutError(err error) bool {
 }
 
 func (s *httpUpstreamService) recordOpenAIHTTP2Failure(profile service.HTTPUpstreamProfile, protocolMode, proxyKey string, err error) {
-	if profile != service.HTTPUpstreamProfileOpenAI || protocolMode != upstreamProtocolModeOpenAIH2 {
-		return
-	}
-	settings := s.resolveOpenAIHTTP2Settings()
-	if !settings.enabled || !settings.allowProxyFallbackToHTTP1 {
-		return
-	}
-	if !isHTTPProxyKey(proxyKey) || !isOpenAIHTTP2CompatibilityError(err) {
-		return
-	}
-	state := s.getOrCreateOpenAIHTTP2FallbackState(proxyKey)
-	activated, until := state.recordFailure(time.Now(), settings.fallbackErrorThreshold, settings.fallbackWindow, settings.fallbackTTL)
+	activated, until := s.transportPolicy.ObserveFailure(string(profile), protocolMode, proxyKey, isOpenAIHTTP2CompatibilityError(err), s.http2Options(), time.Now())
 	if activated {
-		slog.Warn("openai_http2_proxy_fallback_activated",
-			"proxy", proxyKey,
-			"fallback_until", until.Format(time.RFC3339))
+		slog.Warn("openai_http2_proxy_fallback_activated", "proxy", proxyKey, "fallback_until", until.Format(time.RFC3339))
 	}
 }
 
 func (s *httpUpstreamService) recordOpenAIHTTP2Success(profile service.HTTPUpstreamProfile, protocolMode, proxyKey string) {
-	if profile != service.HTTPUpstreamProfileOpenAI || protocolMode != upstreamProtocolModeOpenAIH2 {
-		return
-	}
-	if !isHTTPProxyKey(proxyKey) {
-		return
-	}
-	raw, ok := s.openAIHTTP2Fallbacks.Load(proxyKey)
-	if !ok {
-		return
-	}
-	state, ok := raw.(*openAIHTTP2FallbackState)
-	if !ok || state == nil {
-		return
-	}
-	state.resetErrorWindow()
-}
-
-func (s *openAIHTTP2FallbackState) isFallbackActive(now time.Time) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.fallbackUntil.IsZero() {
-		return false
-	}
-	if now.Before(s.fallbackUntil) {
-		return true
-	}
-	s.fallbackUntil = time.Time{}
-	return false
-}
-
-func (s *openAIHTTP2FallbackState) resetErrorWindow() {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.windowStart = time.Time{}
-	s.errorCount = 0
-}
-
-func (s *openAIHTTP2FallbackState) recordFailure(now time.Time, threshold int, window, ttl time.Duration) (bool, time.Time) {
-	if threshold <= 0 {
-		threshold = defaultOpenAIHTTP2FallbackErrorThreshold
-	}
-	if window <= 0 {
-		window = defaultOpenAIHTTP2FallbackWindow
-	}
-	if ttl <= 0 {
-		ttl = defaultOpenAIHTTP2FallbackTTL
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if !s.fallbackUntil.IsZero() && now.Before(s.fallbackUntil) {
-		return false, s.fallbackUntil
-	}
-	if !s.fallbackUntil.IsZero() && !now.Before(s.fallbackUntil) {
-		s.fallbackUntil = time.Time{}
-	}
-
-	if s.windowStart.IsZero() || now.Sub(s.windowStart) > window {
-		s.windowStart = now
-		s.errorCount = 0
-	}
-	s.errorCount++
-	if s.errorCount < threshold {
-		return false, time.Time{}
-	}
-
-	s.fallbackUntil = now.Add(ttl)
-	s.windowStart = time.Time{}
-	s.errorCount = 0
-	return true, s.fallbackUntil
+	s.transportPolicy.ObserveSuccess(string(profile), protocolMode, proxyKey)
 }
 
 // normalizeProxyURL 标准化代理 URL
@@ -720,9 +581,9 @@ type upstreamPool interface {
 	Do(*http.Request, httpclient.UpstreamRequestOptions) (*http.Response, error)
 }
 type httpUpstreamService struct {
-	cfg                  *config.Config
-	pool                 upstreamPool
-	openAIHTTP2Fallbacks sync.Map
+	cfg             *config.Config
+	pool            upstreamPool
+	transportPolicy egress.TransportPolicy
 }
 
 // NewHTTPUpstream 保持 Wire 与旧调用方构造器不变。
@@ -742,13 +603,20 @@ func (s *httpUpstreamService) transportOptions(req *http.Request, proxyURL strin
 	}
 	isolation := s.getIsolationMode()
 	settings := s.applyProfilePoolSettings(s.resolvePoolSettings(isolation, concurrency), profile)
-	mode := s.resolveProtocolMode(profile, proxyKey, parsedProxy)
-	if tlsProfile != nil {
-		mode = s.resolveTLSFingerprintProtocolMode(profile, proxyKey, parsedProxy, tlsProfile)
-		tlsProfile = resolveTLSFingerprintTransportProfile(tlsProfile, mode)
+
+	proxyScheme := ""
+	if parsedProxy != nil {
+		proxyScheme = parsedProxy.Scheme
 	}
+	targetPolicy := s.requestPolicy(req)
+	policy := s.transportPolicy.Plan(egress.TransportRequest{TLSProfile: egressprovider.FromTLSProfile(tlsProfile), ValidateResolvedIP: targetPolicy.ValidateResolvedIP, PublicHostsOnly: targetPolicy.PublicHostsOnly, DisableRedirects: targetPolicy.DisableRedirects, Profile: string(profile), ProxyURL: proxyURL, ProxyKey: proxyKey, ProxyScheme: proxyScheme, HTTP2: s.http2Options(), HasTLSProfile: tlsProfile != nil, TLSSupportsHTTP2: tlsfingerprint.SupportsHTTP2(tlsProfile), Now: time.Now()})
+	mode := policy.TransportMode
+	if tlsProfile != nil {
+		tlsProfile = resolveTLSFingerprintTransportProfile(egressprovider.ToTLSProfile(policy.TLSProfile), mode)
+	}
+
 	opts := httpclient.UpstreamRequestOptions{
-		ProxyURL:   proxyURL,
+		ProxyURL:   policy.ProxyURL,
 		AccountID:  accountID,
 		Isolation:  isolation,
 		MaxClients: s.maxUpstreamClients(),
@@ -756,16 +624,16 @@ func (s *httpUpstreamService) transportOptions(req *http.Request, proxyURL strin
 		Settings:   settings,
 		TLSProfile: tlsProfile,
 		Protocol: httpclient.TransportProtocol{
-			CacheVariant: mode,
-			HTTP2:        mode == upstreamProtocolModeOpenAIH2,
-			DisableHTTP2: mode == upstreamProtocolModeOpenAIH1 || mode == upstreamProtocolModeOpenAIH1Fallback,
+			CacheVariant: policy.TransportMode,
+			HTTP2:        policy.TransportMode == upstreamProtocolModeOpenAIH2,
+			DisableHTTP2: policy.TransportMode == upstreamProtocolModeOpenAIH1 || policy.TransportMode == upstreamProtocolModeOpenAIH1Fallback,
 		},
 	}
-	if s.shouldValidateResolvedIP() {
+	if policy.ValidateResolvedIP {
 		opts.CheckRedirect = s.redirectChecker
 	}
 	opts.PrepareClient = func(client *http.Client) *http.Client {
-		return httpClientWithGrokAccessDeniedFallback(httpClientForUpstreamRequest(s, client, req))
+		return httpClientWithGrokAccessDeniedFallback(httpClientForEgressPolicy(s, client, policy))
 	}
 	opts.ObserveResult = func(err error) {
 		if err != nil {
@@ -811,4 +679,23 @@ func (s *httpUpstreamService) CloseIdleConnections() {
 	if closer, ok := s.pool.(interface{ CloseIdleConnections() }); ok {
 		closer.CloseIdleConnections()
 	}
+}
+
+// http2Options 仅投影旧配置，回退状态与决策唯一归 egress。
+func (s *httpUpstreamService) http2Options() egress.HTTP2Options {
+	v := s.resolveOpenAIHTTP2Settings()
+	return egress.HTTP2Options{Enabled: v.enabled, AllowProxyFallbackToHTTP1: v.allowProxyFallbackToHTTP1, FallbackErrorThreshold: v.fallbackErrorThreshold, FallbackWindow: v.fallbackWindow, FallbackTTL: v.fallbackTTL}
+}
+
+// requestPolicy 只投影旧静态配置与请求标记，DNS 执行仍在原校验点。
+func (s *httpUpstreamService) requestPolicy(req *http.Request) egress.EgressPolicy {
+	input := egress.RequestPolicyInput{}
+	if s != nil {
+		input.ValidateResolvedIP = s.shouldValidateResolvedIP()
+	}
+	if req != nil {
+		input.DisableRedirects = service.HTTPUpstreamRedirectsDisabled(req.Context())
+		input.PublicHostsOnly = service.HTTPUpstreamPublicHostsOnly(req.Context())
+	}
+	return egress.RequestPolicy(input)
 }

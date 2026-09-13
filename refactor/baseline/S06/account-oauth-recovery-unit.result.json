@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/service",
+    "./internal/handler/admin",
+    "-run",
+    "Test.*(AccountUsage|TodayStats|WindowStats|PassiveUsage|Gemini.*Usage|SetupTokenUsage|SyncActiveToPassive|CodexUsage|Grok.*Usage|UsageRecovery)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 24.158,
+  "log": "logs/account-oauth-recovery-unit.log.gz"
+}

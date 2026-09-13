@@ -1,0 +1,19 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=10m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "./internal/account/...",
+    "./internal/egress/...",
+    "./internal/handler/admin",
+    "./internal/service",
+    "./internal/app/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 32.822,
+  "log": "logs/account-archive-rules-scoped-lint.log.gz"
+}

@@ -80,7 +80,7 @@ func TestModelMarketplaceQoderChannelMappedBasisDoesNotUseRequestedStandardPrici
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	billingService := NewBillingService(nil, nil)
 	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
@@ -105,7 +105,7 @@ func TestModelMarketplaceQoderUpstreamBasisDoesNotUseRequestedStandardPricing(t 
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	billingService := NewBillingService(nil, nil)
 	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
@@ -130,7 +130,7 @@ func TestModelMarketplaceQoderCustomImageAliasWithoutManualPricingRemainsUnknown
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	billingService := NewBillingService(nil, nil)
 	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
@@ -174,7 +174,7 @@ func TestModelMarketplaceQoderManualChannelPricingOverridesDefaultAliasDisplayPr
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	billingService := NewBillingService(nil, nil)
 	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
@@ -205,7 +205,7 @@ func TestModelMarketplaceChannelImageInputPricingIsDisplayed(t *testing.T) {
 	cache.groupPlatform[groupID] = PlatformOpenAI
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	billingService := NewBillingService(nil, nil)
 	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
@@ -287,7 +287,7 @@ func TestModelMarketplaceQoderBlankChannelPricingRemainsUnknown(t *testing.T) {
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	billingService := NewBillingService(nil, nil)
 	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
@@ -319,7 +319,7 @@ func TestModelMarketplaceQoderBlankRouteKeyPricingShowsAliasManualPricing(t *tes
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	billingService := NewBillingService(nil, nil)
 	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
@@ -349,7 +349,7 @@ func TestModelMarketplaceQoderRequestedBasisDoesNotInferRouteKeyPricing(t *testi
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	billingService := NewBillingService(nil, nil)
 	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
@@ -379,7 +379,7 @@ func TestModelMarketplaceQoderAccountMappedCustomModelUsesRouteKeyManualPricing(
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	billingService := NewBillingService(nil, nil)
 	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
@@ -441,7 +441,7 @@ func TestModelMarketplaceQoderAliasManualPricingOverridesRouteKeyManualPricing(t
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	billingService := NewBillingService(nil, nil)
 	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
@@ -476,7 +476,7 @@ func TestModelMarketplaceQoderNonUniformIntervalsDisplayAsContextIntervals(t *te
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	billingService := NewBillingService(nil, nil)
 	svc := NewModelMarketplaceService(nil, nil, &GatewayService{
@@ -512,7 +512,7 @@ func TestModelMarketplaceQoderStandardModelPartialIntervalKeepsBaseDisplayFields
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	billingService := NewBillingService(nil, nil)
 	basePricing, err := billingService.GetModelPricing("gpt-5.4")
@@ -549,7 +549,7 @@ func TestModelMarketplaceGroupPricingOverridesChannelPricing(t *testing.T) {
 	cache.groupPlatform[groupID] = PlatformOpenAI
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	billingService := NewBillingService(nil, nil)
 	svc := NewModelMarketplaceService(nil, nil, &GatewayService{

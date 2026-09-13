@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"io"
 	"net/http"
 	"regexp"
@@ -18,25 +19,14 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 )
 
-const (
-	// Canonical tier IDs used by sub2api (2026-aligned).
-	GeminiTierGoogleOneFree    = "google_one_free"
-	GeminiTierGoogleAIPro      = "google_ai_pro"
-	GeminiTierGoogleAIUltra    = "google_ai_ultra"
-	GeminiTierGCPStandard      = "gcp_standard"
-	GeminiTierGCPEnterprise    = "gcp_enterprise"
-	GeminiTierAIStudioFree     = "aistudio_free"
-	GeminiTierAIStudioPaid     = "aistudio_paid"
-	GeminiTierGoogleOneUnknown = "google_one_unknown"
-
-	// Legacy/compat tier IDs that may exist in historical data or upstream responses.
-	legacyTierAIPremium          = "AI_PREMIUM"
-	legacyTierGoogleOneStandard  = "GOOGLE_ONE_STANDARD"
-	legacyTierGoogleOneBasic     = "GOOGLE_ONE_BASIC"
-	legacyTierFree               = "FREE"
-	legacyTierGoogleOneUnknown   = "GOOGLE_ONE_UNKNOWN"
-	legacyTierGoogleOneUnlimited = "GOOGLE_ONE_UNLIMITED"
-)
+const GeminiTierGoogleOneFree = accountcore.GeminiTierGoogleOneFree
+const GeminiTierGoogleAIPro = accountcore.GeminiTierGoogleAIPro
+const GeminiTierGoogleAIUltra = accountcore.GeminiTierGoogleAIUltra
+const GeminiTierGCPStandard = accountcore.GeminiTierGCPStandard
+const GeminiTierGCPEnterprise = accountcore.GeminiTierGCPEnterprise
+const GeminiTierAIStudioFree = accountcore.GeminiTierAIStudioFree
+const GeminiTierAIStudioPaid = accountcore.GeminiTierAIStudioPaid
+const GeminiTierGoogleOneUnknown = accountcore.GeminiTierGoogleOneUnknown
 
 const (
 	GB = 1024 * 1024 * 1024
@@ -222,88 +212,9 @@ func validateTierID(tierID string) error {
 	return nil
 }
 
-func canonicalGeminiTierID(raw string) string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" {
-		return ""
-	}
-
-	lower := strings.ToLower(raw)
-	switch lower {
-	case GeminiTierGoogleOneFree,
-		GeminiTierGoogleAIPro,
-		GeminiTierGoogleAIUltra,
-		GeminiTierGCPStandard,
-		GeminiTierGCPEnterprise,
-		GeminiTierAIStudioFree,
-		GeminiTierAIStudioPaid,
-		GeminiTierGoogleOneUnknown:
-		return lower
-	}
-
-	upper := strings.ToUpper(raw)
-	switch upper {
-	// Google One legacy tiers
-	case legacyTierAIPremium:
-		return GeminiTierGoogleAIPro
-	case legacyTierGoogleOneUnlimited:
-		return GeminiTierGoogleAIUltra
-	case legacyTierFree, legacyTierGoogleOneBasic, legacyTierGoogleOneStandard:
-		return GeminiTierGoogleOneFree
-	case legacyTierGoogleOneUnknown:
-		return GeminiTierGoogleOneUnknown
-
-	// Code Assist legacy tiers
-	case "STANDARD", "PRO", "LEGACY":
-		return GeminiTierGCPStandard
-	case "ENTERPRISE", "ULTRA":
-		return GeminiTierGCPEnterprise
-	}
-
-	// Some Code Assist responses use kebab-case tier identifiers.
-	switch lower {
-	case "standard-tier", "pro-tier":
-		return GeminiTierGCPStandard
-	case "ultra-tier":
-		return GeminiTierGCPEnterprise
-	}
-
-	return ""
-}
-
+// canonicalGeminiTierIDForOAuthType 委托账号纯等级规则。
 func canonicalGeminiTierIDForOAuthType(oauthType, tierID string) string {
-	oauthType = strings.ToLower(strings.TrimSpace(oauthType))
-	canonical := canonicalGeminiTierID(tierID)
-	if canonical == "" {
-		return ""
-	}
-
-	switch oauthType {
-	case "google_one":
-		switch canonical {
-		case GeminiTierGoogleOneFree, GeminiTierGoogleAIPro, GeminiTierGoogleAIUltra:
-			return canonical
-		default:
-			return ""
-		}
-	case "code_assist":
-		switch canonical {
-		case GeminiTierGCPStandard, GeminiTierGCPEnterprise:
-			return canonical
-		default:
-			return ""
-		}
-	case "ai_studio":
-		switch canonical {
-		case GeminiTierAIStudioFree, GeminiTierAIStudioPaid:
-			return canonical
-		default:
-			return ""
-		}
-	default:
-		// Unknown oauth type: accept canonical tier.
-		return canonical
-	}
+	return accountcore.CanonicalGeminiTierIDForOAuthType(oauthType, tierID)
 }
 
 // extractTierIDFromAllowedTiers extracts tierID from LoadCodeAssist response
@@ -421,24 +332,12 @@ func (s *GeminiOAuthService) RefreshAccountGoogleOneTier(
 		return "", nil, nil, err
 	}
 
-	// 构建 extra 数据（保留原有 extra 字段）
-	extra = make(map[string]any)
-	for k, v := range account.Extra {
-		extra[k] = v
-	}
+	observation := accountcore.GoogleOneTierObservation{TierID: tierID}
 	if storageInfo != nil {
-		extra["drive_storage_limit"] = storageInfo.Limit
-		extra["drive_storage_usage"] = storageInfo.Usage
-		extra["drive_tier_updated_at"] = time.Now().Format(time.RFC3339)
+		observation.Storage = &accountcore.GoogleOneStorage{Limit: storageInfo.Limit, Usage: storageInfo.Usage}
+		observation.ObservedAt = time.Now()
 	}
-
-	// 构建 credentials 数据
-	credentials = make(map[string]any)
-	for k, v := range account.Credentials {
-		credentials[k] = v
-	}
-	credentials["tier_id"] = tierID
-
+	extra, credentials = accountcore.ProjectGoogleOneTier(AccountRecordView(account), observation)
 	return tierID, extra, credentials, nil
 }
 

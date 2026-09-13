@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=5",
+    "-json",
+    "-race",
+    "./internal/account",
+    "-run",
+    "GeminiQuotaPolicy|GeminiPrecheckBatch"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.462,
+  "log": "logs/account-gemini-policy-race.log.gz"
+}

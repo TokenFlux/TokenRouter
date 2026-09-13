@@ -1,29 +1,10 @@
+// 本文件维护 service 的所属能力；兼容入口复用唯一实现。
 package service
 
 import (
-	"context"
-	"time"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 )
 
-type ProxyLatencyInfo struct {
-	Success          bool      `json:"success"`
-	LatencyMs        *int64    `json:"latency_ms,omitempty"`
-	Message          string    `json:"message,omitempty"`
-	IPAddress        string    `json:"ip_address,omitempty"`
-	Country          string    `json:"country,omitempty"`
-	CountryCode      string    `json:"country_code,omitempty"`
-	Region           string    `json:"region,omitempty"`
-	City             string    `json:"city,omitempty"`
-	QualityStatus    string    `json:"quality_status,omitempty"`
-	QualityScore     *int      `json:"quality_score,omitempty"`
-	QualityGrade     string    `json:"quality_grade,omitempty"`
-	QualitySummary   string    `json:"quality_summary,omitempty"`
-	QualityCheckedAt *int64    `json:"quality_checked_at,omitempty"`
-	QualityCFRay     string    `json:"quality_cf_ray,omitempty"`
-	UpdatedAt        time.Time `json:"updated_at"`
-}
+type ProxyLatencyInfo = egress.ProxyLatencyInfo
 
-type ProxyLatencyCache interface {
-	GetProxyLatencies(ctx context.Context, proxyIDs []int64) (map[int64]*ProxyLatencyInfo, error)
-	SetProxyLatency(ctx context.Context, proxyID int64, info *ProxyLatencyInfo) error
-}
+type ProxyLatencyCache = egress.ProxyLatencyCache

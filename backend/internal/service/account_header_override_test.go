@@ -111,7 +111,7 @@ func TestGetHeaderOverrides(t *testing.T) {
 	require.Nil(t, empty.GetHeaderOverrides())
 
 	// 未经 Normalize 落库的超长数据 / WebSocket 握手头在应用时被防御性跳过
-	oversizedValue := strings.Repeat("a", maxHeaderOverrideValueLength+1)
+	oversizedValue := strings.Repeat("a", 8192+1)
 	defensive := headerOverrideTestAccount(PlatformOpenAI, AccountTypeAPIKey, map[string]any{
 		credKeyHeaderOverrideEnabled: true,
 		credKeyHeaderOverrides: map[string]any{
@@ -323,8 +323,8 @@ func TestNormalizeHeaderOverrideCredentials(t *testing.T) {
 	})
 
 	t.Run("rejects too many entries", func(t *testing.T) {
-		entries := make(map[string]any, maxHeaderOverrideEntries+1)
-		for i := 0; i <= maxHeaderOverrideEntries; i++ {
+		entries := make(map[string]any, 64+1)
+		for i := 0; i <= 64; i++ {
 			entries["x-h-"+string(rune('a'+i%26))+string(rune('a'+(i/26)%26))+string(rune('a'+(i/676)%26))] = "v"
 		}
 		err := NormalizeHeaderOverrideCredentials(map[string]any{
@@ -334,7 +334,7 @@ func TestNormalizeHeaderOverrideCredentials(t *testing.T) {
 	})
 
 	t.Run("rejects oversized value", func(t *testing.T) {
-		big := make([]byte, maxHeaderOverrideValueLength+1)
+		big := make([]byte, 8192+1)
 		for i := range big {
 			big[i] = 'a'
 		}

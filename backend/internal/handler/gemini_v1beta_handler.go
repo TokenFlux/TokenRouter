@@ -313,7 +313,10 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	}
 
 	// 解析渠道级模型映射
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, modelName)
+	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
+	channelMappingRoutePlan := h.gatewayService.PlanRoute(c.Request.Context(), service.APIKeyRouteGroup(apiKey), apiKey.GroupID, modelName)
+	channelMapping := service.ChannelMappingFromRoutePlan(channelMappingRoutePlan)
+	c.Request = c.Request.WithContext(service.WithRoutePlan(c.Request.Context(), channelMappingRoutePlan))
 	reqModel := modelName // 保存映射前的原始模型名
 	if channelMapping.Mapped {
 		modelName = channelMapping.MappedModel

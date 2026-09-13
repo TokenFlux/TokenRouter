@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/service",
+    "./internal/handler/admin",
+    "-run",
+    "Test.*(Qoder.*Usage|AccountUsage|OAuthUsage|UsageRecovery|UsageBatch|Qoder.*Quota)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 21.405,
+  "log": "logs/account-qoder-usage-unit.log.gz"
+}

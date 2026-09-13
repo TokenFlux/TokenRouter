@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/egress/...",
+    "./internal/routing/...",
+    "./internal/service",
+    "./internal/handler/...",
+    "./internal/app/...",
+    "./internal/server/routes"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 179.371,
+  "log": "logs/account-imports-consumers-unit.log.gz"
+}

@@ -1,5 +1,7 @@
 package service
 
+import accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 // Ops settings models stored in DB `settings` table (JSON blobs).
 
 type OpsEmailNotificationConfig struct {
@@ -107,10 +109,8 @@ type OpsAdvancedSettings struct {
 	AutoRefreshIntervalSec          int   `json:"auto_refresh_interval_seconds"`
 }
 
-type OpsOpenAIAccountQuotaAutoPauseSettings struct {
-	DefaultThreshold5h float64 `json:"default_threshold_5h"`
-	DefaultThreshold7d float64 `json:"default_threshold_7d"`
-}
+// OpsOpenAIAccountQuotaAutoPauseSettings 保持旧设置 JSON，阈值归账号健康。
+type OpsOpenAIAccountQuotaAutoPauseSettings = accountcore.QuotaAutoPauseSettings
 
 type OpsDataRetentionSettings struct {
 	CleanupEnabled             bool   `json:"cleanup_enabled"`

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "./internal/account",
+    "./internal/handler/admin",
+    "-run",
+    "Test.*(GrokImport|GrokSSO|AccountCreate|Archive|ImportProbes)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 33.202,
+  "log": "logs/account-import-probes-race.log.gz"
+}

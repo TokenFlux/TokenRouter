@@ -1,15 +1,16 @@
 package service
 
 import (
-	"container/heap"
-	"context"
-	"hash/fnv"
-	"math"
-	"strconv"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
+	heap "container/heap"
+	context "context"
+	policy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
+	fnv "hash/fnv"
+	math "math"
+	strconv "strconv"
+	strings "strings"
+	sync "sync"
+	atomic "sync/atomic"
+	time "time"
 )
 
 // advancedSchedulerNoSlotSelectionContextKey 标记只做账号选择、不会实际转发的调用。
@@ -72,13 +73,8 @@ const (
 )
 
 func normalizeAdvancedSchedulerFeedbackConfig(value advancedSchedulerFeedbackConfig) advancedSchedulerFeedbackConfig {
-	if value.errorRateAlpha <= 0 || value.errorRateAlpha > 1 || math.IsNaN(value.errorRateAlpha) || math.IsInf(value.errorRateAlpha, 0) {
-		value.errorRateAlpha = defaultAdvancedSchedulerErrorRateAlpha
-	}
-	if value.ttftAlpha <= 0 || value.ttftAlpha > 1 || math.IsNaN(value.ttftAlpha) || math.IsInf(value.ttftAlpha, 0) {
-		value.ttftAlpha = defaultAdvancedSchedulerTTFTAlpha
-	}
-	return value
+	v := policy.NormalizeFeedback(policy.FeedbackConfig{ErrorRateAlpha: value.errorRateAlpha, TtftAlpha: value.ttftAlpha})
+	return advancedSchedulerFeedbackConfig{errorRateAlpha: v.ErrorRateAlpha, ttftAlpha: v.TtftAlpha}
 }
 
 func (s *advancedAccountRuntimeStats) reportSwitch() {

@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"log"
 	"log/slog"
 	"math"
-	"math/rand/v2"
 	"net/http"
 	"net/url"
 	"strings"
@@ -20,12 +20,9 @@ import (
 	openaipkg "github.com/TokenFlux/TokenRouter/internal/pkg/openai"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/qoder"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/singleflight"
 )
 
 type UsageLogRepository interface {
@@ -89,235 +86,55 @@ type accountWindowStatsBatchReader interface {
 	GetAccountWindowStatsBatch(ctx context.Context, accountIDs []int64, startTime time.Time) (map[int64]*usagestats.AccountStats, error)
 }
 
-// apiUsageCache 缓存从 Anthropic API 获取的使用率数据（utilization, resets_at）
-// 同时支持缓存错误响应（负缓存），防止 429 等错误导致的重试风暴
-type apiUsageCache struct {
-	response  *ClaudeUsageResponse
-	err       error // 非 nil 表示缓存的错误（负缓存）
-	timestamp time.Time
-}
+type antigravityUsageCache = accountcore.OAuthAntigravityUsageCache
 
-// windowStatsCache 缓存从本地数据库查询的窗口统计（requests, tokens, cost）
-type windowStatsCache struct {
-	stats     *WindowStats
-	timestamp time.Time
-}
-
-// antigravityUsageCache 缓存 Antigravity 额度数据
-type antigravityUsageCache struct {
-	usageInfo *UsageInfo
-	timestamp time.Time
-}
-
-type qoderUsageCache struct {
-	usageInfo *UsageInfo
-	timestamp time.Time
-}
+type qoderUsageCache = accountcore.OAuthQoderUsageCache
 
 const (
-	apiCacheTTL         = 3 * time.Minute
-	apiErrorCacheTTL    = 1 * time.Minute        // 负缓存 TTL：429 等错误缓存 1 分钟
-	antigravityErrorTTL = 1 * time.Minute        // Antigravity 错误缓存 TTL（可恢复错误）
-	apiQueryMaxJitter   = 800 * time.Millisecond // 用量查询最大随机延迟
-	windowStatsCacheTTL = 1 * time.Minute
-	openAIProbeCacheTTL = 10 * time.Minute
-	grokProbeRetryTTL   = 1 * time.Minute
-	grokFreeQuotaWindow = 24 * time.Hour
+	apiCacheTTL         = accountcore.OAuthUsageAPICacheTTL
+	apiErrorCacheTTL    = accountcore.OAuthUsageAPIErrorCacheTTL
+	antigravityErrorTTL = accountcore.OAuthUsageAntigravityErrorTTL
+	apiQueryMaxJitter   = accountcore.OAuthUsageAPIQueryMaxJitter
+	windowStatsCacheTTL = accountcore.OAuthUsageWindowStatsCacheTTL
+	openAIProbeCacheTTL = accountcore.OAuthUsageOpenAIProbeCacheTTL
+	grokProbeRetryTTL   = accountcore.OAuthUsageGrokProbeRetryTTL
+	grokFreeQuotaWindow = accountcore.OAuthUsageGrokFreeQuotaWindow
 )
 
-// UsageCache 封装账户使用量相关的缓存
-type UsageCache struct {
-	apiCache          sync.Map           // accountID -> *apiUsageCache
-	windowStatsCache  sync.Map           // accountID -> *windowStatsCache
-	antigravityCache  sync.Map           // accountID -> *antigravityUsageCache
-	qoderCache        sync.Map           // accountID -> *qoderUsageCache
-	apiFlight         singleflight.Group // 防止同一账号的并发请求击穿缓存（Anthropic）
-	antigravityFlight singleflight.Group // 防止同一 Antigravity 账号的并发请求击穿缓存
-	qoderFlight       singleflight.Group // 防止同一 Qoder 账号的并发请求击穿缓存
-	openAIProbeCache  sync.Map           // accountID -> time.Time
-	grokProbeCache    sync.Map           // accountID -> 最近一次 billing 探测时间
-}
+type UsageCache = accountcore.OAuthUsageCache
 
-// NewUsageCache 创建 UsageCache 实例
-func NewUsageCache() *UsageCache {
-	return &UsageCache{}
-}
+// NewUsageCache 复用唯一账号缓存实现。
+func NewUsageCache() *UsageCache { return accountcore.NewOAuthUsageCache() }
 
-// WindowStats 窗口期统计
-//
-// cost: 账号口径费用（COALESCE(account_stats_cost, total_cost) * account_rate_multiplier）
-// standard_cost: 标准费用（total_cost，不含倍率）
-// user_cost: 用户/API Key 口径费用（actual_cost，受分组倍率影响）
-type WindowStats struct {
-	Requests     int64   `json:"requests"`
-	Tokens       int64   `json:"tokens"`
-	Cost         float64 `json:"cost"`
-	StandardCost float64 `json:"standard_cost"`
-	UserCost     float64 `json:"user_cost"`
-}
+// WindowStats 兼容旧消费入口，展示模型由账号模块唯一拥有。
+type WindowStats = accountcore.WindowStats
 
-// UsageProgress 使用量进度
-type UsageProgress struct {
-	Utilization      float64      `json:"utilization"`            // 使用率百分比 (0-100+，100表示100%)
-	ResetsAt         *time.Time   `json:"resets_at"`              // 重置时间
-	RemainingSeconds int          `json:"remaining_seconds"`      // 距重置剩余秒数
-	WindowStats      *WindowStats `json:"window_stats,omitempty"` // 窗口期统计（从窗口开始到当前的使用量）
-	UsedRequests     int64        `json:"used_requests,omitempty"`
-	LimitRequests    int64        `json:"limit_requests,omitempty"`
-}
+// UsageProgress 兼容旧消费入口，展示模型由账号模块唯一拥有。
+type UsageProgress = accountcore.UsageProgress
 
-// AntigravityModelQuota Antigravity 单个模型的配额信息
-type AntigravityModelQuota struct {
-	Utilization int    `json:"utilization"` // 使用率 0-100
-	ResetTime   string `json:"reset_time"`  // 重置时间 ISO8601
-}
+// AntigravityModelQuota 兼容旧消费入口，展示模型由账号模块唯一拥有。
+type AntigravityModelQuota = accountcore.AntigravityModelQuota
 
-// AntigravityModelDetail Antigravity 单个模型的详细能力信息
-type AntigravityModelDetail struct {
-	DisplayName        string          `json:"display_name,omitempty"`
-	SupportsImages     *bool           `json:"supports_images,omitempty"`
-	SupportsThinking   *bool           `json:"supports_thinking,omitempty"`
-	ThinkingBudget     *int            `json:"thinking_budget,omitempty"`
-	Recommended        *bool           `json:"recommended,omitempty"`
-	MaxTokens          *int            `json:"max_tokens,omitempty"`
-	MaxOutputTokens    *int            `json:"max_output_tokens,omitempty"`
-	SupportedMimeTypes map[string]bool `json:"supported_mime_types,omitempty"`
-}
+// AntigravityModelDetail 兼容旧消费入口，展示模型由账号模块唯一拥有。
+type AntigravityModelDetail = accountcore.AntigravityModelDetail
 
-// AICredit 表示 Antigravity 账号的 AI Credits 余额信息。
-type AICredit struct {
-	CreditType     string  `json:"credit_type,omitempty"`
-	Amount         float64 `json:"amount,omitempty"`
-	MinimumBalance float64 `json:"minimum_balance,omitempty"`
-}
+// AICredit 兼容旧消费入口，展示模型由账号模块唯一拥有。
+type AICredit = accountcore.AICredit
 
-type QoderQuotaProgress struct {
-	Total          float64 `json:"total"`
-	Used           float64 `json:"used"`
-	Remaining      float64 `json:"remaining"`
-	Percentage     float64 `json:"percentage"`
-	Unit           string  `json:"unit,omitempty"`
-	DetailURL      string  `json:"detail_url,omitempty"`
-	Cap            float64 `json:"cap,omitempty"`
-	Available      bool    `json:"available,omitempty"`
-	OrganizationID string  `json:"organization_id,omitempty"`
-}
+// QoderQuotaProgress 兼容旧消费入口，展示模型由账号模块唯一拥有。
+type QoderQuotaProgress = accountcore.QoderQuotaProgress
 
-type QoderQuotaInfo struct {
-	UserID               string              `json:"user_id,omitempty"`
-	UserType             string              `json:"user_type,omitempty"`
-	UsageType            string              `json:"usage_type,omitempty"`
-	TotalUsagePercentage float64             `json:"total_usage_percentage"`
-	IsQuotaExceeded      bool                `json:"is_quota_exceeded"`
-	ExpiresAt            *time.Time          `json:"expires_at,omitempty"`
-	UpgradeURL           string              `json:"upgrade_url,omitempty"`
-	AddCreditsURL        string              `json:"add_credits_url,omitempty"`
-	UserQuota            *QoderQuotaProgress `json:"user_quota,omitempty"`
-	AddOnQuota           *QoderQuotaProgress `json:"add_on_quota,omitempty"`
-	OrgResourcePackage   *QoderQuotaProgress `json:"org_resource_package,omitempty"`
-	IsPlanQuotaProrated  bool                `json:"is_plan_quota_prorated,omitempty"`
-	LastUpdatedAt        *time.Time          `json:"last_updated_at,omitempty"`
-	SnapshotFromAccount  bool                `json:"snapshot_from_account,omitempty"`
-}
+// QoderQuotaInfo 兼容旧消费入口，展示模型由账号模块唯一拥有。
+type QoderQuotaInfo = accountcore.QoderQuotaInfo
 
-// UsageInfo 账号使用量信息
-type UsageInfo struct {
-	Source             string         `json:"source,omitempty"`               // "passive" or "active"
-	UpdatedAt          *time.Time     `json:"updated_at,omitempty"`           // 更新时间
-	FiveHour           *UsageProgress `json:"five_hour"`                      // 5小时窗口
-	SevenDay           *UsageProgress `json:"seven_day,omitempty"`            // 7天窗口
-	SevenDaySonnet     *UsageProgress `json:"seven_day_sonnet,omitempty"`     // 7天Sonnet窗口
-	SevenDayFable      *UsageProgress `json:"seven_day_fable,omitempty"`      // 7天Fable窗口（响应头 7d_oi）
-	GeminiSharedDaily  *UsageProgress `json:"gemini_shared_daily,omitempty"`  // Gemini shared pool RPD (Google One / Code Assist)
-	GeminiProDaily     *UsageProgress `json:"gemini_pro_daily,omitempty"`     // Gemini Pro 日配额
-	GeminiFlashDaily   *UsageProgress `json:"gemini_flash_daily,omitempty"`   // Gemini Flash 日配额
-	GeminiSharedMinute *UsageProgress `json:"gemini_shared_minute,omitempty"` // Gemini shared pool RPM (Google One / Code Assist)
-	GeminiProMinute    *UsageProgress `json:"gemini_pro_minute,omitempty"`    // Gemini Pro RPM
-	GeminiFlashMinute  *UsageProgress `json:"gemini_flash_minute,omitempty"`  // Gemini Flash RPM
+// UsageInfo 兼容旧消费入口，展示模型由账号模块唯一拥有。
+type UsageInfo = accountcore.UsageInfo
 
-	// QuotaAutoPaused 表示 OpenAI 账号当前因 5h/7d 配额阈值被自动暂停调度。
-	QuotaAutoPaused bool `json:"quota_auto_paused"`
+// ClaudeUsageWindow 兼容旧消费入口，展示模型由账号模块唯一拥有。
+type ClaudeUsageWindow = accountcore.ClaudeUsageWindow
 
-	// Antigravity 多模型配额
-	AntigravityQuota map[string]*AntigravityModelQuota `json:"antigravity_quota,omitempty"`
-
-	// Grok / xAI 被动额度快照
-	GrokRequestQuota       *xai.QuotaWindow `json:"grok_request_quota,omitempty"`
-	GrokTokenQuota         *xai.QuotaWindow `json:"grok_token_quota,omitempty"`
-	GrokRetryAfterSeconds  *int             `json:"grok_retry_after_seconds,omitempty"`
-	GrokEntitlementStatus  string           `json:"grok_entitlement_status,omitempty"`
-	GrokQuotaSnapshotState string           `json:"grok_quota_snapshot_state,omitempty"`
-	GrokLastQuotaProbeAt   string           `json:"grok_last_quota_probe_at,omitempty"`
-	GrokLastHeadersSeenAt  string           `json:"grok_last_headers_seen_at,omitempty"`
-	GrokLastStatusCode     int              `json:"grok_last_status_code,omitempty"`
-	GrokFreeTokenLimit     int64            `json:"grok_free_token_limit,omitempty"`
-	GrokLocalUsage         *WindowStats     `json:"grok_local_usage,omitempty"`
-	GrokLocalUsage24h      *WindowStats     `json:"grok_local_usage_24h,omitempty"`
-	GrokLocalUsage7d       *WindowStats     `json:"grok_local_usage_7d,omitempty"`
-	GrokLocalUsageMonthly  *WindowStats     `json:"grok_local_usage_monthly,omitempty"`
-	// ThirtyDay 是官方月度账单窗口，按 used/monthlyLimit 计算百分比。
-	ThirtyDay   *UsageProgress      `json:"thirty_day,omitempty"`
-	GrokBilling *xai.BillingSummary `json:"grok_billing,omitempty"`
-
-	// Antigravity 账号级信息
-	SubscriptionTier    string `json:"subscription_tier,omitempty"`     // 归一化订阅等级: FREE/PRO/ULTRA/UNKNOWN
-	SubscriptionTierRaw string `json:"subscription_tier_raw,omitempty"` // 上游原始订阅等级名称
-
-	// Antigravity 模型详细能力信息（与 antigravity_quota 同 key）
-	AntigravityQuotaDetails map[string]*AntigravityModelDetail `json:"antigravity_quota_details,omitempty"`
-
-	// Antigravity AI Credits 余额
-	AICredits []AICredit `json:"ai_credits,omitempty"`
-
-	// Qoder 上游账号月度 credits
-	QoderQuota *QoderQuotaInfo `json:"qoder_quota,omitempty"`
-
-	// Antigravity 废弃模型转发规则 (old_model_id -> new_model_id)
-	ModelForwardingRules map[string]string `json:"model_forwarding_rules,omitempty"`
-
-	// Antigravity 账号是否被上游禁止 (HTTP 403)
-	IsForbidden     bool   `json:"is_forbidden,omitempty"`
-	ForbiddenReason string `json:"forbidden_reason,omitempty"`
-	ForbiddenType   string `json:"forbidden_type,omitempty"` // "validation" / "violation" / "forbidden"
-	ValidationURL   string `json:"validation_url,omitempty"` // 验证/申诉链接
-
-	// 状态标记（从 ForbiddenType / HTTP 错误码推导）
-	NeedsVerify bool `json:"needs_verify,omitempty"` // 需要人工验证（forbidden_type=validation）
-	IsBanned    bool `json:"is_banned,omitempty"`    // 账号被封（forbidden_type=violation）
-	NeedsReauth bool `json:"needs_reauth,omitempty"` // token 失效需重新授权（401）
-
-	// 错误码（机器可读）：forbidden / unauthenticated / rate_limited / network_error
-	ErrorCode string `json:"error_code,omitempty"`
-
-	// 获取 usage 时的错误信息（降级返回，而非 500）
-	Error string `json:"error,omitempty"`
-}
-
-// ClaudeUsageWindow Anthropic /api/oauth/usage 返回的单个用量窗口
-type ClaudeUsageWindow struct {
-	Utilization float64 `json:"utilization"`
-	ResetsAt    string  `json:"resets_at"`
-}
-
-// ClaudeUsageResponse Anthropic API返回的usage结构
-type ClaudeUsageResponse struct {
-	FiveHour struct {
-		Utilization float64 `json:"utilization"`
-		ResetsAt    string  `json:"resets_at"`
-	} `json:"five_hour"`
-	SevenDay struct {
-		Utilization float64 `json:"utilization"`
-		ResetsAt    string  `json:"resets_at"`
-	} `json:"seven_day"`
-	SevenDaySonnet struct {
-		Utilization float64 `json:"utilization"`
-		ResetsAt    string  `json:"resets_at"`
-	} `json:"seven_day_sonnet"`
-	// Fable 专属 7d 窗口（对应响应头 7d_oi，claim 名为 seven_day_overage_included，
-	// 见 anthropic-ratelimit-unified-representative-claim 头）。上游 usage API
-	// 若不下发该字段，GetUsage 会用被动采样数据回填。
-	SevenDayOverageIncluded ClaudeUsageWindow `json:"seven_day_overage_included"`
-}
+// ClaudeUsageResponse 兼容旧消费入口，展示模型由账号模块唯一拥有。
+type ClaudeUsageResponse = accountcore.ClaudeUsageResponse
 
 // ClaudeUsageFetchOptions 包含获取 Claude 用量数据所需的所有选项
 type ClaudeUsageFetchOptions struct {
@@ -337,6 +154,9 @@ type ClaudeUsageFetcher interface {
 
 // AccountUsageService 账号使用量查询服务
 type AccountUsageService struct {
+	statistics              *accountcore.LocalUsageStatistics
+	coreOnce                sync.Once
+	core                    *accountcore.OAuthUsageService
 	accountRepo             AccountRepository
 	usageLogRepo            UsageLogRepository
 	usageFetcher            ClaudeUsageFetcher
@@ -391,291 +211,16 @@ func NewAccountUsageService(
 	}
 }
 
-func supportsAnthropicPassiveUsage(account *Account) bool {
-	return account != nil && account.IsAnthropicOAuthOrSetupToken()
-}
-
-func batchUsageErrorMessage(err error) string {
-	if err == nil {
-		return ""
-	}
-	return err.Error()
-}
-
-func (s *AccountUsageService) getUsageForAccount(ctx context.Context, account *Account, forceProbe bool) (*UsageInfo, error) {
-	if account == nil {
-		return nil, fmt.Errorf("account is required")
-	}
-	accountID := account.ID
-
-	if account.Platform == PlatformOpenAI && account.Type == AccountTypeOAuth {
-		usage, err := s.getOpenAIUsage(ctx, account, forceProbe)
-		if err == nil {
-			s.applyOpenAIQuotaAutoPauseState(ctx, account, usage)
-			s.tryClearRecoverableAccountError(ctx, account)
-		}
-		return usage, err
-	}
-
-	if account.Platform == PlatformGemini {
-		usage, err := s.getGeminiUsage(ctx, account)
-		if err == nil {
-			s.tryClearRecoverableAccountError(ctx, account)
-		}
-		return usage, err
-	}
-
-	// Antigravity 平台：使用 AntigravityQuotaFetcher 获取额度
-	if account.Platform == PlatformAntigravity {
-		usage, err := s.getAntigravityUsage(ctx, account)
-		if err == nil {
-			s.tryClearRecoverableAccountError(ctx, account)
-		}
-		return usage, err
-	}
-
-	if account.Platform == PlatformGrok {
-		usage, err := s.getGrokUsage(ctx, account, forceProbe)
-		if err == nil && usage != nil && usage.Error == "" {
-			s.tryClearRecoverableAccountError(ctx, account)
-		}
-		return usage, err
-	}
-
-	if account.Platform == PlatformQoder {
-		usage, err := s.getQoderUsage(ctx, account, forceProbe)
-		if err == nil && (usage == nil || (usage.Error == "" && usage.ErrorCode == "")) {
-			s.tryClearRecoverableAccountError(ctx, account)
-		}
-		return usage, err
-	}
-
-	// 只有oauth类型账号可以通过API获取usage（有profile scope）
-	if account.CanGetUsage() {
-		var apiResp *ClaudeUsageResponse
-
-		// 1. 检查缓存（成功响应 3 分钟 / 错误响应 1 分钟）
-		if cached, ok := s.cache.apiCache.Load(accountID); ok {
-			if cache, ok := cached.(*apiUsageCache); ok {
-				age := time.Since(cache.timestamp)
-				if cache.err != nil && age < apiErrorCacheTTL {
-					// 负缓存命中：返回缓存的错误，避免重试风暴
-					return nil, cache.err
-				}
-				if cache.response != nil && age < apiCacheTTL {
-					apiResp = cache.response
-				}
-			}
-		}
-
-		// 2. 如果没有有效缓存，通过 singleflight 从 API 获取（防止并发击穿）
-		if apiResp == nil {
-			// 随机延迟：打散多账号并发请求，避免同一时刻大量相同 TLS 指纹请求
-			// 触发上游反滥用检测。延迟范围 0~800ms，仅在缓存未命中时生效。
-			jitter := time.Duration(rand.Int64N(int64(apiQueryMaxJitter)))
-			select {
-			case <-time.After(jitter):
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-
-			flightKey := fmt.Sprintf("usage:%d", accountID)
-			result, flightErr, _ := s.cache.apiFlight.Do(flightKey, func() (any, error) {
-				// 再次检查缓存（可能在等待 singleflight 期间被其他请求填充）
-				if cached, ok := s.cache.apiCache.Load(accountID); ok {
-					if cache, ok := cached.(*apiUsageCache); ok {
-						age := time.Since(cache.timestamp)
-						if cache.err != nil && age < apiErrorCacheTTL {
-							return nil, cache.err
-						}
-						if cache.response != nil && age < apiCacheTTL {
-							return cache.response, nil
-						}
-					}
-				}
-				resp, fetchErr := s.fetchOAuthUsageRaw(ctx, account)
-				if fetchErr != nil {
-					// 负缓存：缓存错误响应，防止后续请求重复触发 429
-					s.cache.apiCache.Store(accountID, &apiUsageCache{
-						err:       fetchErr,
-						timestamp: time.Now(),
-					})
-					return nil, fetchErr
-				}
-				// 缓存成功响应
-				s.cache.apiCache.Store(accountID, &apiUsageCache{
-					response:  resp,
-					timestamp: time.Now(),
-				})
-				return resp, nil
-			})
-			if flightErr != nil {
-				return nil, flightErr
-			}
-			apiResp, _ = result.(*ClaudeUsageResponse)
-		}
-
-		// 3. 构建 UsageInfo（每次都重新计算 RemainingSeconds）
-		now := time.Now()
-		usage := s.buildUsageInfo(apiResp, &now)
-
-		// 4. 添加窗口统计（有独立缓存，1 分钟）
-		s.addWindowStats(ctx, account, usage)
-
-		// 5. 将主动查询结果同步到被动缓存，下次 passive 加载即为最新值
-		s.syncActiveToPassive(ctx, account.ID, usage)
-
-		// 6. 上游 usage API 目前不一定下发 Fable 7d 窗口；缺失时回填被动采样
-		// （7d_oi 响应头）的数据，避免主动查询后 7d F 进度条丢失。
-		if usage.SevenDayFable == nil {
-			usage.SevenDayFable = buildPassiveUsageWindow(account.Extra, "passive_usage_7d_oi_utilization", "passive_usage_7d_oi_reset")
-		}
-
-		s.tryClearRecoverableAccountError(ctx, account)
-		return usage, nil
-	}
-
-	// Setup Token账号：根据session_window推算（没有profile scope，无法调用usage API）
-	if account.Type == AccountTypeSetupToken {
-		usage := s.estimateSetupTokenUsage(account)
-		// 添加窗口统计
-		s.addWindowStats(ctx, account, usage)
-		return usage, nil
-	}
-
-	// API Key账号不支持usage查询
-	return nil, fmt.Errorf("account type %s does not support usage query", account.Type)
-}
-
-// GetUsage 获取账号使用量
-// OAuth账号: 调用Anthropic API获取真实数据（需要profile scope），API响应缓存10分钟，窗口统计缓存1分钟
-// Setup Token账号: 根据session_window推算5h窗口，7d数据不可用（没有profile scope）
-// API Key账号: 不支持usage查询
 func (s *AccountUsageService) GetUsage(ctx context.Context, accountID int64, force ...bool) (*UsageInfo, error) {
-	forceProbe := len(force) > 0 && force[0]
-
-	account, err := s.accountRepo.GetByID(ctx, accountID)
-	if err != nil {
-		return nil, fmt.Errorf("get account failed: %w", err)
-	}
-
-	return s.getUsageForAccount(ctx, account, forceProbe)
+	return s.Core().GetUsage(ctx, accountID, force...)
 }
 
-// GetUsageBatch 批量获取账号使用量。
-// Anthropic OAuth/SetupToken 统一走 passive 链路，其他账号复用现有主动查询逻辑。
-// 单个账号失败不会中断整批请求，错误会按账号返回。
 func (s *AccountUsageService) GetUsageBatch(ctx context.Context, accountIDs []int64, force bool) (map[int64]*UsageInfo, map[int64]string, error) {
-	uniqueIDs := make([]int64, 0, len(accountIDs))
-	seen := make(map[int64]struct{}, len(accountIDs))
-	for _, accountID := range accountIDs {
-		if accountID <= 0 {
-			continue
-		}
-		if _, ok := seen[accountID]; ok {
-			continue
-		}
-		seen[accountID] = struct{}{}
-		uniqueIDs = append(uniqueIDs, accountID)
-	}
-
-	usageByAccount := make(map[int64]*UsageInfo, len(uniqueIDs))
-	errorsByAccount := make(map[int64]string)
-	if len(uniqueIDs) == 0 {
-		return usageByAccount, errorsByAccount, nil
-	}
-
-	accounts, err := s.accountRepo.GetByIDs(ctx, uniqueIDs)
-	if err != nil {
-		return nil, nil, fmt.Errorf("get accounts failed: %w", err)
-	}
-
-	accountsByID := make(map[int64]*Account, len(accounts))
-	for _, account := range accounts {
-		if account == nil {
-			continue
-		}
-		accountsByID[account.ID] = account
-	}
-
-	var mu sync.Mutex
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(6)
-
-	for _, accountID := range uniqueIDs {
-		id := accountID
-		account := accountsByID[id]
-		if account == nil {
-			errorsByAccount[id] = ErrAccountNotFound.Error()
-			continue
-		}
-
-		g.Go(func() error {
-			var usage *UsageInfo
-			var usageErr error
-			if supportsAnthropicPassiveUsage(account) {
-				usage, usageErr = s.getPassiveUsageForAccount(gctx, account)
-			} else {
-				usage, usageErr = s.getUsageForAccount(gctx, account, force)
-			}
-
-			mu.Lock()
-			defer mu.Unlock()
-			if usageErr != nil {
-				errorsByAccount[id] = batchUsageErrorMessage(usageErr)
-				return nil
-			}
-			usageByAccount[id] = usage
-			return nil
-		})
-	}
-
-	if err := g.Wait(); err != nil {
-		return nil, nil, err
-	}
-
-	return usageByAccount, errorsByAccount, nil
+	return s.Core().GetUsageBatch(ctx, accountIDs, force)
 }
 
-// GetPassiveUsage 从 Account.Extra 中的被动采样数据构建 UsageInfo，不调用外部 API。
-// 仅适用于 Anthropic OAuth / SetupToken 账号。
 func (s *AccountUsageService) GetPassiveUsage(ctx context.Context, accountID int64) (*UsageInfo, error) {
-	account, err := s.accountRepo.GetByID(ctx, accountID)
-	if err != nil {
-		return nil, fmt.Errorf("get account failed: %w", err)
-	}
-
-	return s.getPassiveUsageForAccount(ctx, account)
-}
-
-func (s *AccountUsageService) getPassiveUsageForAccount(ctx context.Context, account *Account) (*UsageInfo, error) {
-	if !supportsAnthropicPassiveUsage(account) {
-		return nil, fmt.Errorf("passive usage only supported for Anthropic OAuth/SetupToken accounts")
-	}
-
-	// 复用 estimateSetupTokenUsage 构建 5h 窗口（OAuth 和 SetupToken 逻辑一致）
-	info := s.estimateSetupTokenUsage(account)
-	info.Source = "passive"
-
-	// 设置采样时间
-	if raw, ok := account.Extra["passive_usage_sampled_at"]; ok {
-		if str, ok := raw.(string); ok {
-			if t, err := time.Parse(time.RFC3339, str); err == nil {
-				info.UpdatedAt = &t
-			}
-		}
-	}
-
-	// 构建 7d 窗口（从被动采样数据）
-	info.SevenDay = buildPassiveUsageWindow(account.Extra, "passive_usage_7d_utilization", "passive_usage_7d_reset")
-
-	// 构建 7d Fable 窗口（从被动采样的 7d_oi 响应头数据）
-	info.SevenDayFable = buildPassiveUsageWindow(account.Extra, "passive_usage_7d_oi_utilization", "passive_usage_7d_oi_reset")
-
-	// 添加窗口统计
-	s.addWindowStats(ctx, account, info)
-
-	return info, nil
+	return s.Core().GetPassiveUsage(ctx, accountID)
 }
 
 func (s *AccountUsageService) applyOpenAIQuotaAutoPauseState(ctx context.Context, account *Account, usage *UsageInfo) {
@@ -689,186 +234,12 @@ func (s *AccountUsageService) applyOpenAIQuotaAutoPauseState(ctx context.Context
 	usage.QuotaAutoPaused = EvaluateOpenAIQuotaAutoPause(ctx, account)
 }
 
-// buildPassiveUsageWindow 从 Extra 中的被动采样数据（utilization 为 0-1 小数、reset 为 Unix 秒）
-// 构建用量窗口，无数据时返回 nil。
+// buildPassiveUsageWindow 委托账号所属的纯展示/资格规则。
 func buildPassiveUsageWindow(extra map[string]any, utilKey, resetKey string) *UsageProgress {
-	util := parseExtraFloat64(extra[utilKey])
-	resetRaw := parseExtraFloat64(extra[resetKey])
-	if util <= 0 && resetRaw <= 0 {
-		return nil
-	}
-	var resetAt *time.Time
-	var remaining int
-	if resetRaw > 0 {
-		t := time.Unix(int64(resetRaw), 0)
-		resetAt = &t
-		remaining = int(time.Until(t).Seconds())
-		if remaining < 0 {
-			remaining = 0
-		}
-	}
-	return &UsageProgress{
-		Utilization:      util * 100,
-		ResetsAt:         resetAt,
-		RemainingSeconds: remaining,
-	}
+	return accountcore.BuildPassiveUsageWindow(extra, utilKey, resetKey, time.Now)
 }
 
-// syncActiveToPassive 将主动查询的最新数据回写到 Extra 被动缓存，
-// 这样下次被动加载时能看到最新值。
-func (s *AccountUsageService) syncActiveToPassive(ctx context.Context, accountID int64, usage *UsageInfo) {
-	extraUpdates := make(map[string]any, 4)
-
-	if usage.FiveHour != nil {
-		extraUpdates["session_window_utilization"] = usage.FiveHour.Utilization / 100
-	}
-	if usage.SevenDay != nil {
-		extraUpdates["passive_usage_7d_utilization"] = usage.SevenDay.Utilization / 100
-		if usage.SevenDay.ResetsAt != nil {
-			extraUpdates["passive_usage_7d_reset"] = usage.SevenDay.ResetsAt.Unix()
-		}
-	}
-	if usage.SevenDayFable != nil {
-		extraUpdates["passive_usage_7d_oi_utilization"] = usage.SevenDayFable.Utilization / 100
-		if usage.SevenDayFable.ResetsAt != nil {
-			extraUpdates["passive_usage_7d_oi_reset"] = usage.SevenDayFable.ResetsAt.Unix()
-		}
-	}
-
-	if len(extraUpdates) > 0 {
-		extraUpdates["passive_usage_sampled_at"] = time.Now().UTC().Format(time.RFC3339)
-		if err := s.accountRepo.UpdateExtra(ctx, accountID, extraUpdates); err != nil {
-			slog.Warn("sync_active_to_passive_failed", "account_id", accountID, "error", err)
-		}
-	}
-
-	// 5h ResetsAt 必须回写到 SessionWindowEnd column，estimateSetupTokenUsage
-	// 读这个字段作为窗口结束时间；只塞 Extra 会让 UI 一直拿到上个窗口的过期时间。
-	if usage.FiveHour != nil && usage.FiveHour.ResetsAt != nil {
-		if err := s.accountRepo.UpdateSessionWindowEnd(ctx, accountID, *usage.FiveHour.ResetsAt); err != nil {
-			slog.Warn("sync_active_to_passive_session_window_end_failed", "account_id", accountID, "error", err)
-		}
-	}
-}
-
-func (s *AccountUsageService) getOpenAIUsage(ctx context.Context, account *Account, force bool) (*UsageInfo, error) {
-	now := time.Now()
-	usage := &UsageInfo{UpdatedAt: &now}
-
-	if account == nil {
-		return usage, nil
-	}
-
-	applyExtraToUsage(usage, account.Extra, now)
-
-	if (force || shouldRefreshOpenAICodexSnapshot(account, usage, now)) && s.shouldProbeOpenAICodexSnapshot(account.ID, now, force) {
-		if account.IsShadow() {
-			// Spark shadow accounts fetch usage from /wham/usage (bengalfox channel)
-			// via the shared OpenAIQuotaService, which resolves credentials from the
-			// parent account.  The result is written to the shadow row's own codex_*
-			// Extra keys and immediately reflected in the returned UsageInfo.
-			if s.openAIQuotaService != nil {
-				if quotaUsage, err := s.openAIQuotaService.QueryUsage(ctx, account.ID); err == nil {
-					if updates := buildCodexSparkWindowExtraUpdates(quotaUsage, now); len(updates) > 0 {
-						mergeAccountExtra(account, updates)
-						s.persistOpenAICodexProbeSnapshot(account.ID, updates)
-						if usage.UpdatedAt == nil {
-							usage.UpdatedAt = &now
-						}
-						applyExtraToUsage(usage, account.Extra, now)
-					}
-				}
-			}
-		} else {
-			if updates, err := s.probeOpenAICodexSnapshot(ctx, account); err == nil && len(updates) > 0 {
-				mergeAccountExtra(account, updates)
-				if usage.UpdatedAt == nil {
-					usage.UpdatedAt = &now
-				}
-				applyExtraToUsage(usage, account.Extra, now)
-			}
-		}
-	}
-
-	if s.usageLogRepo == nil {
-		return usage, nil
-	}
-
-	if stats, err := s.usageLogRepo.GetAccountWindowStats(ctx, account.ID, codexWindowStatsStart(usage.FiveHour, 5*time.Hour, now)); err == nil {
-		if usage.FiveHour == nil {
-			usage.FiveHour = &UsageProgress{Utilization: 0}
-		}
-		usage.FiveHour.WindowStats = windowStatsFromAccountStats(stats)
-	}
-
-	if stats, err := s.usageLogRepo.GetAccountWindowStats(ctx, account.ID, codexWindowStatsStart(usage.SevenDay, 7*24*time.Hour, now)); err == nil {
-		if usage.SevenDay == nil {
-			usage.SevenDay = &UsageProgress{Utilization: 0}
-		}
-		usage.SevenDay.WindowStats = windowStatsFromAccountStats(stats)
-	}
-
-	return usage, nil
-}
-
-func shouldRefreshOpenAICodexSnapshot(account *Account, usage *UsageInfo, now time.Time) bool {
-	if account == nil {
-		return false
-	}
-	if usage == nil {
-		return true
-	}
-	if usage.FiveHour == nil || usage.SevenDay == nil {
-		return true
-	}
-	if account.IsRateLimited() {
-		return true
-	}
-	return isOpenAICodexSnapshotStale(account, now)
-}
-
-func isOpenAICodexSnapshotStale(account *Account, now time.Time) bool {
-	if account == nil || !account.IsOpenAIOAuth() {
-		return false
-	}
-	// 普通账号的 codex 刷新走 probe(/responses 头),要求 WSv2;但 spark 影子走 QueryUsage
-	// (/wham/usage body 的 codex_bengalfox),与 WSv2 无关——不能用 WSv2 门控其 staleness,否则首刷后
-	// codex_5h/7d 已存在→staleness 恒 false→spark 窗口永久冻结(外审第9轮 P1)。影子改按
-	// codex_usage_updated_at TTL 判定;实际查询频率仍由 shouldProbeOpenAICodexSnapshot 的缓存 TTL 节流。
-	if !account.IsShadow() && !account.IsOpenAIResponsesWebSocketV2Enabled() {
-		return false
-	}
-	if account.Extra == nil {
-		return true
-	}
-	raw, ok := account.Extra["codex_usage_updated_at"]
-	if !ok {
-		return true
-	}
-	ts, err := parseTime(fmt.Sprint(raw))
-	if err != nil {
-		return true
-	}
-	return now.Sub(ts) >= openAIProbeCacheTTL
-}
-
-func (s *AccountUsageService) shouldProbeOpenAICodexSnapshot(accountID int64, now time.Time, force ...bool) bool {
-	if s == nil || s.cache == nil || accountID <= 0 {
-		return true
-	}
-	forceProbe := len(force) > 0 && force[0]
-	if !forceProbe {
-		if cached, ok := s.cache.openAIProbeCache.Load(accountID); ok {
-			if ts, ok := cached.(time.Time); ok && now.Sub(ts) < openAIProbeCacheTTL {
-				return false
-			}
-		}
-	}
-	s.cache.openAIProbeCache.Store(accountID, now)
-	return true
-}
-
-func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, account *Account) (map[string]any, error) {
+func (s *AccountUsageService) fetchOpenAICodexSnapshot(ctx context.Context, account *Account) (map[string]any, error) {
 	if account == nil || !account.IsOAuth() {
 		return nil, nil
 	}
@@ -938,7 +309,6 @@ func (s *AccountUsageService) probeOpenAICodexSnapshot(ctx context.Context, acco
 		return nil, err
 	}
 	if len(updates) > 0 {
-		s.persistOpenAICodexProbeSnapshot(account.ID, updates)
 		return updates, nil
 	}
 	return nil, nil
@@ -968,20 +338,6 @@ func (s *AccountUsageService) resolveTLSProfile(account *Account) *tlsfingerprin
 	return s.tlsFPProfileService.ResolveTLSProfile(account)
 }
 
-func (s *AccountUsageService) persistOpenAICodexProbeSnapshot(accountID int64, updates map[string]any) {
-	if s == nil || s.accountRepo == nil || accountID <= 0 {
-		return
-	}
-	if len(updates) == 0 {
-		return
-	}
-	RunBackgroundTask("service/account_usage_service.go:persistOpenAICodexProbeSnapshot", BackgroundCall0(func() {
-		updateCtx, updateCancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer updateCancel()
-		_ = s.accountRepo.UpdateExtra(updateCtx, accountID, updates)
-	}))
-}
-
 func extractOpenAICodexProbeUpdates(resp *http.Response) (map[string]any, error) {
 	if resp == nil {
 		return nil, nil
@@ -995,218 +351,17 @@ func extractOpenAICodexProbeUpdates(resp *http.Response) (map[string]any, error)
 	return nil, nil
 }
 
-func mergeAccountExtra(account *Account, updates map[string]any) {
-	if account == nil || len(updates) == 0 {
-		return
+// mergeAccountExtra 将旧平台临时记录投影到唯一纯合并实现。
+func mergeAccountExtra(value *Account, updates map[string]any) {
+	if value != nil {
+		value.Extra = accountcore.MergeUsageExtra(value.Extra, updates)
 	}
-	if account.Extra == nil {
-		account.Extra = make(map[string]any, len(updates))
-	}
-	for k, v := range updates {
-		account.Extra[k] = v
-	}
-}
-
-// applyExtraToUsage rebuilds the codex 5h/7d windows in usage from the
-// account's Extra map.  Called after mergeAccountExtra to make the in-memory
-// UsageInfo consistent with the just-persisted Extra values.
-func applyExtraToUsage(usage *UsageInfo, extra map[string]any, now time.Time) {
-	if usage == nil {
-		return
-	}
-	if progress := buildCodexUsageProgressFromExtra(extra, "5h", now); progress != nil {
-		usage.FiveHour = progress
-	}
-	if progress := buildCodexUsageProgressFromExtra(extra, "7d", now); progress != nil {
-		usage.SevenDay = progress
-	}
-}
-
-func (s *AccountUsageService) getGeminiUsage(ctx context.Context, account *Account) (*UsageInfo, error) {
-	now := time.Now()
-	usage := &UsageInfo{
-		UpdatedAt: &now,
-	}
-
-	if s.geminiQuotaService == nil || s.usageLogRepo == nil {
-		return usage, nil
-	}
-
-	quota, ok := s.geminiQuotaService.QuotaForAccount(ctx, account)
-	if !ok {
-		return usage, nil
-	}
-
-	dayStart := geminiDailyWindowStart(now)
-	stats, err := s.usageLogRepo.GetModelStatsWithFilters(ctx, dayStart, now, 0, 0, account.ID, 0, nil, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("get gemini usage stats failed: %w", err)
-	}
-
-	dayTotals := geminiAggregateUsage(stats)
-	dailyResetAt := geminiDailyResetTime(now)
-
-	// Daily window (RPD)
-	if quota.SharedRPD > 0 {
-		totalReq := dayTotals.ProRequests + dayTotals.FlashRequests
-		totalTokens := dayTotals.ProTokens + dayTotals.FlashTokens
-		totalCost := dayTotals.ProCost + dayTotals.FlashCost
-		usage.GeminiSharedDaily = buildGeminiUsageProgress(totalReq, quota.SharedRPD, dailyResetAt, totalTokens, totalCost, now)
-	} else {
-		usage.GeminiProDaily = buildGeminiUsageProgress(dayTotals.ProRequests, quota.ProRPD, dailyResetAt, dayTotals.ProTokens, dayTotals.ProCost, now)
-		usage.GeminiFlashDaily = buildGeminiUsageProgress(dayTotals.FlashRequests, quota.FlashRPD, dailyResetAt, dayTotals.FlashTokens, dayTotals.FlashCost, now)
-	}
-
-	// Minute window (RPM) - fixed-window approximation: current minute [truncate(now), truncate(now)+1m)
-	minuteStart := now.Truncate(time.Minute)
-	minuteResetAt := minuteStart.Add(time.Minute)
-	minuteStats, err := s.usageLogRepo.GetModelStatsWithFilters(ctx, minuteStart, now, 0, 0, account.ID, 0, nil, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("get gemini minute usage stats failed: %w", err)
-	}
-	minuteTotals := geminiAggregateUsage(minuteStats)
-
-	if quota.SharedRPM > 0 {
-		totalReq := minuteTotals.ProRequests + minuteTotals.FlashRequests
-		totalTokens := minuteTotals.ProTokens + minuteTotals.FlashTokens
-		totalCost := minuteTotals.ProCost + minuteTotals.FlashCost
-		usage.GeminiSharedMinute = buildGeminiUsageProgress(totalReq, quota.SharedRPM, minuteResetAt, totalTokens, totalCost, now)
-	} else {
-		usage.GeminiProMinute = buildGeminiUsageProgress(minuteTotals.ProRequests, quota.ProRPM, minuteResetAt, minuteTotals.ProTokens, minuteTotals.ProCost, now)
-		usage.GeminiFlashMinute = buildGeminiUsageProgress(minuteTotals.FlashRequests, quota.FlashRPM, minuteResetAt, minuteTotals.FlashTokens, minuteTotals.FlashCost, now)
-	}
-
-	return usage, nil
-}
-
-// getAntigravityUsage 获取 Antigravity 账户额度
-func (s *AccountUsageService) getAntigravityUsage(ctx context.Context, account *Account) (*UsageInfo, error) {
-	if s.antigravityQuotaFetcher == nil || !s.antigravityQuotaFetcher.CanFetch(account) {
-		now := time.Now()
-		return &UsageInfo{UpdatedAt: &now}, nil
-	}
-
-	// 1. 检查缓存
-	if cached, ok := s.cache.antigravityCache.Load(account.ID); ok {
-		if cache, ok := cached.(*antigravityUsageCache); ok {
-			ttl := antigravityCacheTTL(cache.usageInfo)
-			if time.Since(cache.timestamp) < ttl {
-				usage := cache.usageInfo
-				if usage.FiveHour != nil && usage.FiveHour.ResetsAt != nil {
-					usage.FiveHour.RemainingSeconds = int(time.Until(*usage.FiveHour.ResetsAt).Seconds())
-				}
-				return usage, nil
-			}
-		}
-	}
-
-	// 2. singleflight 防止并发击穿
-	flightKey := fmt.Sprintf("ag-usage:%d", account.ID)
-	result, flightErr, _ := s.cache.antigravityFlight.Do(flightKey, func() (any, error) {
-		// 再次检查缓存（等待期间可能已被填充）
-		if cached, ok := s.cache.antigravityCache.Load(account.ID); ok {
-			if cache, ok := cached.(*antigravityUsageCache); ok {
-				ttl := antigravityCacheTTL(cache.usageInfo)
-				if time.Since(cache.timestamp) < ttl {
-					usage := cache.usageInfo
-					// 重新计算 RemainingSeconds，避免返回过时的剩余秒数
-					recalcAntigravityRemainingSeconds(usage)
-					return usage, nil
-				}
-			}
-		}
-
-		// 使用独立 context，避免调用方 cancel 导致所有共享 flight 的请求失败
-		fetchCtx, fetchCancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer fetchCancel()
-
-		proxyURL := s.antigravityQuotaFetcher.GetProxyURL(fetchCtx, account)
-		fetchResult, err := s.antigravityQuotaFetcher.FetchQuota(fetchCtx, account, proxyURL)
-		if err != nil {
-			degraded := buildAntigravityDegradedUsage(err)
-			enrichUsageWithAccountError(degraded, account)
-			s.cache.antigravityCache.Store(account.ID, &antigravityUsageCache{
-				usageInfo: degraded,
-				timestamp: time.Now(),
-			})
-			return degraded, nil
-		}
-
-		enrichUsageWithAccountError(fetchResult.UsageInfo, account)
-		s.cache.antigravityCache.Store(account.ID, &antigravityUsageCache{
-			usageInfo: fetchResult.UsageInfo,
-			timestamp: time.Now(),
-		})
-		return fetchResult.UsageInfo, nil
-	})
-
-	if flightErr != nil {
-		return nil, flightErr
-	}
-	usage, ok := result.(*UsageInfo)
-	if !ok || usage == nil {
-		now := time.Now()
-		return &UsageInfo{UpdatedAt: &now}, nil
-	}
-	return usage, nil
-}
-
-func (s *AccountUsageService) getGrokUsage(ctx context.Context, account *Account, force bool) (*UsageInfo, error) {
-	if s.grokQuotaFetcher == nil {
-		now := time.Now()
-		return &UsageInfo{UpdatedAt: &now}, nil
-	}
-	var billingProbeResult *GrokQuotaProbeResult
-	if account != nil && account.IsGrokOAuth() && s.grokQuotaService != nil && (force || grokBillingSnapshotNeedsRefresh(account, time.Now())) && s.shouldProbeGrokBilling(account.ID, time.Now(), force) {
-		result, err := s.grokQuotaService.ProbeBilling(ctx, account.ID)
-		if err == nil && result != nil && result.Billing != nil {
-			billingProbeResult = result
-			mergeAccountExtra(account, map[string]any{grokBillingExtraKey: result.Billing})
-		} else if err != nil && force {
-			return nil, err
-		}
-	}
-	usage := s.grokQuotaFetcher.BuildUsageInfo(account)
-	if usage.GrokQuotaSnapshotState == "" {
-		if usage.ErrorCode == "quota_unknown" {
-			usage.GrokQuotaSnapshotState = "unknown_until_first_response"
-		} else {
-			usage.GrokQuotaSnapshotState = "observed"
-		}
-	}
-
-	if account != nil {
-		if s.usageLogRepo != nil {
-			if stats, err := s.usageLogRepo.GetAccountTodayStats(ctx, account.ID); err == nil && stats != nil {
-				usage.GrokLocalUsage = windowStatsFromAccountStats(stats)
-			}
-		}
-		if billingProbeResult != nil {
-			usage.GrokLocalUsage24h = billingProbeResult.LocalUsage24h
-			usage.GrokLocalUsage7d = billingProbeResult.LocalUsage7d
-			usage.GrokLocalUsageMonthly = billingProbeResult.LocalUsageMonthly
-		} else if s.usageLogRepo != nil {
-			usage.GrokLocalUsage24h, usage.GrokLocalUsage7d, usage.GrokLocalUsageMonthly = grokLocalUsageForQuota(
-				ctx, s.usageLogRepo, account.ID, usage.GrokBilling, time.Now().UTC(),
-			)
-		}
-		// 将本地窗口统计附加到官方 7 天和 30 天进度条。
-		if usage.SevenDay != nil && usage.GrokLocalUsage7d != nil {
-			usage.SevenDay.WindowStats = usage.GrokLocalUsage7d
-		}
-		if usage.ThirtyDay != nil && usage.GrokLocalUsageMonthly != nil {
-			usage.ThirtyDay.WindowStats = usage.GrokLocalUsageMonthly
-		}
-	}
-
-	enrichUsageWithAccountError(usage, account)
-	return usage, nil
 }
 
 const (
 	qoderQuotaUsagePath         = "/api/v2/quota/usage"
-	qoderQuotaSnapshotExtraKey  = "qoder_quota_snapshot"
-	qoderQuotaUpdatedAtExtraKey = "qoder_quota_updated_at"
+	qoderQuotaSnapshotExtraKey  = accountcore.QoderUsageQuotaSnapshotExtraKey
+	qoderQuotaUpdatedAtExtraKey = accountcore.QoderUsageQuotaUpdatedAtExtraKey
 )
 
 type qoderQuotaUsageResponse struct {
@@ -1283,88 +438,6 @@ func qoderJSONHasAnyField(fields map[string]json.RawMessage, names ...string) bo
 	return false
 }
 
-func (s *AccountUsageService) getQoderUsage(ctx context.Context, account *Account, force bool) (*UsageInfo, error) {
-	now := time.Now()
-	if account == nil {
-		return &UsageInfo{UpdatedAt: &now}, nil
-	}
-	if s.cache == nil {
-		s.cache = NewUsageCache()
-	}
-
-	if !force {
-		if cached, ok := s.cache.qoderCache.Load(account.ID); ok {
-			if cache, ok := cached.(*qoderUsageCache); ok && qoderUsageCacheUsable(account, cache, time.Now()) {
-				return cache.usageInfo, nil
-			}
-		}
-	}
-
-	flightKey := fmt.Sprintf("qoder-usage:%d", account.ID)
-	result, flightErr, _ := s.cache.qoderFlight.Do(flightKey, func() (any, error) {
-		if !force {
-			if cached, ok := s.cache.qoderCache.Load(account.ID); ok {
-				if cache, ok := cached.(*qoderUsageCache); ok && qoderUsageCacheUsable(account, cache, time.Now()) {
-					return cache.usageInfo, nil
-				}
-			}
-		}
-
-		fetchCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		resp, err := s.fetchQoderQuotaUsage(fetchCtx, account)
-		if err != nil {
-			degraded := buildQoderDegradedUsage(err, account)
-			enrichUsageWithAccountError(degraded, account)
-			s.cache.qoderCache.Store(account.ID, &qoderUsageCache{usageInfo: degraded, timestamp: time.Now()})
-			return degraded, nil
-		}
-
-		usage := buildQoderUsageInfo(resp)
-		enrichUsageWithAccountError(usage, account)
-		s.persistQoderQuotaSnapshot(fetchCtx, account.ID, usage.QoderQuota)
-		s.applyQoderQuotaSchedulingSignal(fetchCtx, account, usage.QoderQuota)
-		s.cache.qoderCache.Store(account.ID, &qoderUsageCache{usageInfo: usage, timestamp: time.Now()})
-		return usage, nil
-	})
-	if flightErr != nil {
-		return nil, flightErr
-	}
-	usage, ok := result.(*UsageInfo)
-	if !ok || usage == nil {
-		return &UsageInfo{UpdatedAt: &now}, nil
-	}
-	return usage, nil
-}
-
-func qoderUsageCacheUsable(account *Account, cache *qoderUsageCache, now time.Time) bool {
-	if cache == nil || cache.usageInfo == nil {
-		return false
-	}
-	if now.Sub(cache.timestamp) >= qoderUsageCacheTTL(cache.usageInfo) {
-		return false
-	}
-	if cache.usageInfo.Error != "" || cache.usageInfo.ErrorCode != "" {
-		return true
-	}
-	return !qoderAccountRateLimitMatchesUsageQuota(account, cache.usageInfo, now)
-}
-
-func qoderAccountRateLimitMatchesUsageQuota(account *Account, usage *UsageInfo, now time.Time) bool {
-	if account == nil || usage == nil || usage.QoderQuota == nil || account.RateLimitResetAt == nil || !account.RateLimitResetAt.After(now) {
-		return false
-	}
-	return qoderQuotaRateLimitResetMatches(account.RateLimitResetAt, usage.QoderQuota.ExpiresAt)
-}
-
-func qoderUsageCacheTTL(info *UsageInfo) time.Duration {
-	if info == nil || info.Error != "" || info.ErrorCode != "" {
-		return antigravityErrorTTL
-	}
-	return apiCacheTTL
-}
-
 func (s *AccountUsageService) fetchQoderQuotaUsage(ctx context.Context, account *Account) (*qoderQuotaUsageResponse, error) {
 	if account == nil {
 		return nil, fmt.Errorf("qoder: account is nil")
@@ -1433,8 +506,7 @@ func isQoderAuthenticationError(err error) bool {
 	return errors.As(err, &apiErr) && (apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden)
 }
 
-func buildQoderUsageInfo(resp *qoderQuotaUsageResponse) *UsageInfo {
-	now := time.Now()
+func buildQoderUsageInfoAt(resp *qoderQuotaUsageResponse, now time.Time) *UsageInfo {
 	return &UsageInfo{
 		Source:     "active",
 		UpdatedAt:  &now,
@@ -1563,132 +635,22 @@ func normalizeQoderQuotaPercentage(value float64) float64 {
 	return math.Round(value*100) / 100
 }
 
-func (s *AccountUsageService) applyQoderQuotaSchedulingSignal(ctx context.Context, account *Account, quota *QoderQuotaInfo) {
-	if s == nil || s.accountRepo == nil || account == nil {
-		return
-	}
-	now := time.Now()
-	resetAt, ok := qoderQuotaRateLimitResetAt(quota, now)
-	if !ok {
-		if qoderQuotaShouldClearRateLimit(account, quota, now) {
-			if err := s.accountRepo.ClearRateLimit(ctx, account.ID); err != nil {
-				slog.Warn("failed to clear qoder quota rate limit", "account_id", account.ID, "error", err)
-			}
-		}
-		return
-	}
-	if err := s.accountRepo.SetRateLimited(ctx, account.ID, resetAt); err != nil {
-		slog.Warn("failed to apply qoder quota rate limit", "account_id", account.ID, "error", err)
-	}
-}
-
-func qoderQuotaShouldClearRateLimit(account *Account, quota *QoderQuotaInfo, now time.Time) bool {
-	if account == nil || quota == nil || quota.ExpiresAt == nil || account.RateLimitResetAt == nil || !account.RateLimitResetAt.After(now) {
-		return false
-	}
-	if account.OverloadUntil != nil && account.OverloadUntil.After(now) {
-		return false
-	}
-	if qoderQuotaRateLimitResetMatches(account.RateLimitResetAt, quota.ExpiresAt) {
-		_, limited := qoderQuotaRateLimitResetAt(quota, now)
-		return !limited
-	}
-	return false
-}
-
-func qoderQuotaRateLimitResetMatches(accountResetAt, quotaExpiresAt *time.Time) bool {
-	if accountResetAt == nil || quotaExpiresAt == nil {
-		return false
-	}
-	delta := accountResetAt.Sub(*quotaExpiresAt)
-	if delta < 0 {
-		delta = -delta
-	}
-	return delta <= 2*time.Second
-}
-
+// qoderQuotaRateLimitResetAt 委托账号所属的纯展示/资格规则。
 func qoderQuotaRateLimitResetAt(quota *QoderQuotaInfo, now time.Time) (time.Time, bool) {
-	if quota == nil || quota.ExpiresAt == nil || !quota.ExpiresAt.After(now) {
-		return time.Time{}, false
-	}
-	if qoderQuotaIsPersonalZeroQuota(quota) {
-		return time.Time{}, false
-	}
-	if remaining, ok := qoderQuotaTotalRemaining(quota); ok {
-		if remaining > 0 {
-			return time.Time{}, false
-		}
-		if quota.IsQuotaExceeded || qoderQuotaTotalCapacity(quota) > 0 {
-			return *quota.ExpiresAt, true
-		}
-		return time.Time{}, false
-	}
-	if quota.IsQuotaExceeded {
-		return *quota.ExpiresAt, true
-	}
-	if quota.UserQuota != nil && quota.UserQuota.Total > 0 && quota.UserQuota.Remaining <= 0 {
-		return *quota.ExpiresAt, true
-	}
-	return time.Time{}, false
+	return accountcore.QoderQuotaRateLimitResetAt(quota, now)
 }
 
-func qoderQuotaIsPersonalZeroQuota(quota *QoderQuotaInfo) bool {
-	if quota == nil || quota.UserQuota == nil {
-		return false
-	}
-	return strings.EqualFold(strings.TrimSpace(quota.UserType), "personal_standard") &&
-		quota.UserQuota.Total <= 0 &&
-		quota.UserQuota.Remaining <= 0 &&
-		qoderQuotaTotalCapacity(quota) <= 0 &&
-		qoderQuotaPositiveRemaining(quota) <= 0
-}
-
+// qoderQuotaTotalRemaining 委托账号所属的纯展示/资格规则。
 func qoderQuotaTotalRemaining(quota *QoderQuotaInfo) (float64, bool) {
-	if quota == nil {
-		return 0, false
-	}
-	total := 0.0
-	known := false
-	for _, progress := range []*QoderQuotaProgress{quota.UserQuota, quota.AddOnQuota, quota.OrgResourcePackage} {
-		if progress == nil {
-			continue
-		}
-		known = true
-		total += progress.Remaining
-	}
-	return total, known
+	return accountcore.QoderQuotaTotalRemaining(quota)
 }
 
-func qoderQuotaPositiveRemaining(quota *QoderQuotaInfo) float64 {
-	remaining, ok := qoderQuotaTotalRemaining(quota)
-	if !ok || remaining < 0 {
-		return 0
-	}
-	return remaining
-}
-
+// qoderQuotaTotalCapacity 委托账号所属的纯展示/资格规则。
 func qoderQuotaTotalCapacity(quota *QoderQuotaInfo) float64 {
-	if quota == nil {
-		return 0
-	}
-	total := 0.0
-	for _, progress := range []*QoderQuotaProgress{quota.UserQuota, quota.AddOnQuota, quota.OrgResourcePackage} {
-		if progress == nil {
-			continue
-		}
-		if progress.Total > 0 {
-			total += progress.Total
-			continue
-		}
-		if progress.Cap > 0 {
-			total += progress.Cap
-		}
-	}
-	return total
+	return accountcore.QoderQuotaTotalCapacity(quota)
 }
 
-func buildQoderDegradedUsage(err error, account *Account) *UsageInfo {
-	now := time.Now()
+func buildQoderDegradedUsageAt(err error, account *Account, now time.Time) *UsageInfo {
 	info := &UsageInfo{
 		UpdatedAt: &now,
 		Error:     fmt.Sprintf("usage API error: %v", err),
@@ -1731,26 +693,6 @@ func buildQoderDegradedUsage(err error, account *Account) *UsageInfo {
 	return info
 }
 
-func (s *AccountUsageService) persistQoderQuotaSnapshot(ctx context.Context, accountID int64, quota *QoderQuotaInfo) {
-	if s == nil || s.accountRepo == nil || quota == nil {
-		return
-	}
-	raw, err := json.Marshal(quota)
-	if err != nil {
-		return
-	}
-	var snapshot map[string]any
-	if err := json.Unmarshal(raw, &snapshot); err != nil {
-		return
-	}
-	if err := s.accountRepo.UpdateExtra(ctx, accountID, map[string]any{
-		qoderQuotaSnapshotExtraKey:  snapshot,
-		qoderQuotaUpdatedAtExtraKey: time.Now().UTC().Format(time.RFC3339),
-	}); err != nil {
-		slog.Warn("failed to persist qoder quota snapshot", "account_id", accountID, "error", err)
-	}
-}
-
 func qoderQuotaSnapshotFromExtra(account *Account) *QoderQuotaInfo {
 	if account == nil || account.Extra == nil {
 		return nil
@@ -1777,7 +719,6 @@ func qoderQuotaSnapshotFromExtra(account *Account) *QoderQuotaInfo {
 	return &quota
 }
 
-// grokLocalUsageForQuota 根据 billing 是否提供权威额度选择 Free 或付费统计窗口。
 func grokLocalUsageForQuota(
 	ctx context.Context,
 	repo UsageLogRepository,
@@ -1785,138 +726,11 @@ func grokLocalUsageForQuota(
 	billing *xai.BillingSummary,
 	now time.Time,
 ) (*WindowStats, *WindowStats, *WindowStats) {
-	if grokBillingHasAuthoritativeQuota(billing) {
-		weekly, monthly := grokLocalUsageForBilling(ctx, repo, accountID, billing, now)
-		return nil, weekly, monthly
-	}
-	return grokLocalUsage24h(ctx, repo, accountID, now), nil, nil
-}
-
-// grokLocalUsage24h 查询以当前时间为结束点的滚动 24 小时本地用量。
-func grokLocalUsage24h(ctx context.Context, repo UsageLogRepository, accountID int64, now time.Time) *WindowStats {
-	if repo == nil || accountID <= 0 {
-		return nil
-	}
-	start := now.UTC().Add(-grokFreeQuotaWindow)
-	stats, err := repo.GetAccountWindowStats(ctx, accountID, start)
-	if err != nil {
-		slog.Warn("grok_rolling_24h_usage_query_failed", "account_id", accountID, "window_start", start, "error", err)
-		return nil
-	}
-	return windowStatsFromAccountStats(stats)
-}
-
-func grokLocalUsageForBilling(
-	ctx context.Context,
-	repo UsageLogRepository,
-	accountID int64,
-	billing *xai.BillingSummary,
-	now time.Time,
-) (*WindowStats, *WindowStats) {
-	var weekly *WindowStats
-	var monthly *WindowStats
-	if repo == nil || accountID <= 0 {
-		return weekly, monthly
-	}
-	if start, ok := currentGrokBillingWindow(billing, true, now); ok {
-		if stats, err := repo.GetAccountWindowStats(ctx, accountID, start); err == nil {
-			weekly = windowStatsFromAccountStats(stats)
-		} else {
-			slog.Warn("grok_window_usage_query_failed", "account_id", accountID, "window_start", start, "error", err)
-		}
-	}
-	if start, ok := currentGrokBillingWindow(billing, false, now); ok {
-		if stats, err := repo.GetAccountWindowStats(ctx, accountID, start); err == nil {
-			monthly = windowStatsFromAccountStats(stats)
-		} else {
-			slog.Warn("grok_monthly_usage_query_failed", "account_id", accountID, "window_start", start, "error", err)
-		}
-	}
-	return weekly, monthly
-}
-
-func currentGrokBillingWindow(billing *xai.BillingSummary, weekly bool, now time.Time) (time.Time, bool) {
-	if billing == nil {
-		return time.Time{}, false
-	}
-	startRaw, endRaw := billing.BillingPeriodStart, billing.BillingPeriodEnd
-	if weekly {
-		if billing.PeriodType != "weekly" {
-			return time.Time{}, false
-		}
-		startRaw, endRaw = billing.PeriodStart, billing.PeriodEnd
-	}
-	start, startErr := parseTime(strings.TrimSpace(startRaw))
-	end, endErr := parseTime(strings.TrimSpace(endRaw))
-	if startErr != nil || endErr != nil || now.Before(start) || !now.Before(end) {
-		return time.Time{}, false
-	}
-	return start, true
-}
-
-func grokBillingSnapshotNeedsRefresh(account *Account, now time.Time) bool {
-	if account == nil {
-		return false
-	}
-	billing, err := grokBillingSnapshotFromExtra(account.Extra)
-	if err != nil || billing == nil || billing.Partial || len(billing.FailedWindows) > 0 {
-		return true
-	}
-	stamp := strings.TrimSpace(billing.UpdatedAt)
-	if stamp == "" {
-		stamp = strings.TrimSpace(billing.FetchedAt)
-	}
-	updatedAt, err := parseTime(stamp)
-	return err != nil || now.Sub(updatedAt) >= openAIProbeCacheTTL
-}
-
-func (s *AccountUsageService) shouldProbeGrokBilling(accountID int64, now time.Time, force bool) bool {
-	if force || s == nil || s.cache == nil || accountID <= 0 {
-		return true
-	}
-	if cached, ok := s.cache.grokProbeCache.Load(accountID); ok {
-		if ts, ok := cached.(time.Time); ok && now.Sub(ts) < grokProbeRetryTTL {
-			return false
-		}
-	}
-	s.cache.grokProbeCache.Store(accountID, now)
-	return true
-}
-
-// recalcAntigravityRemainingSeconds 重新计算 Antigravity UsageInfo 中各窗口的 RemainingSeconds
-// 用于从缓存取出时更新倒计时，避免返回过时的剩余秒数
-func recalcAntigravityRemainingSeconds(info *UsageInfo) {
-	if info == nil {
-		return
-	}
-	if info.FiveHour != nil && info.FiveHour.ResetsAt != nil {
-		remaining := int(time.Until(*info.FiveHour.ResetsAt).Seconds())
-		if remaining < 0 {
-			remaining = 0
-		}
-		info.FiveHour.RemainingSeconds = remaining
-	}
-}
-
-// antigravityCacheTTL 根据 UsageInfo 内容决定缓存 TTL
-// 403 forbidden 状态稳定，缓存与成功相同（3 分钟）；
-// 其他错误（401/网络）可能快速恢复，缓存 1 分钟。
-func antigravityCacheTTL(info *UsageInfo) time.Duration {
-	if info == nil {
-		return antigravityErrorTTL
-	}
-	if info.IsForbidden {
-		return apiCacheTTL // 封号/验证状态不会很快变
-	}
-	if info.ErrorCode != "" || info.Error != "" {
-		return antigravityErrorTTL
-	}
-	return apiCacheTTL
+	return accountcore.GrokLocalUsageForQuota(ctx, legacyGrokUsageReader(repo), accountID, billing, now, slog.Warn)
 }
 
 // buildAntigravityDegradedUsage 从 FetchQuota 错误构建降级 UsageInfo
-func buildAntigravityDegradedUsage(err error) *UsageInfo {
-	now := time.Now()
+func buildAntigravityDegradedUsageAt(err error, now time.Time) *UsageInfo {
 	errMsg := fmt.Sprintf("usage API error: %v", err)
 	slog.Warn("antigravity usage fetch failed, returning degraded response", "error", err)
 
@@ -1971,128 +785,12 @@ func enrichUsageWithAccountError(info *UsageInfo, account *Account) {
 	info.NeedsReauth = false
 }
 
-// addWindowStats 为 usage 数据添加窗口期统计
-// 使用独立缓存（1 分钟），与 API 缓存分离
-func (s *AccountUsageService) addWindowStats(ctx context.Context, account *Account, usage *UsageInfo) {
-	// 修复：即使 FiveHour 为 nil，也要尝试获取统计数据
-	// 因为 SevenDay/SevenDaySonnet/SevenDayFable 可能需要
-	if usage.FiveHour == nil && usage.SevenDay == nil && usage.SevenDaySonnet == nil && usage.SevenDayFable == nil {
-		return
-	}
-
-	// 检查窗口统计缓存（1 分钟）
-	var windowStats *WindowStats
-	if cached, ok := s.cache.windowStatsCache.Load(account.ID); ok {
-		if cache, ok := cached.(*windowStatsCache); ok && time.Since(cache.timestamp) < windowStatsCacheTTL {
-			windowStats = cache.stats
-		}
-	}
-
-	// 如果没有缓存，从数据库查询
-	if windowStats == nil {
-		// 使用统一的窗口开始时间计算逻辑（考虑窗口过期情况）
-		startTime := account.GetCurrentWindowStartTime()
-
-		stats, err := s.usageLogRepo.GetAccountWindowStats(ctx, account.ID, startTime)
-		if err != nil {
-			log.Printf("Failed to get window stats for account %d: %v", account.ID, err)
-			return
-		}
-
-		windowStats = &WindowStats{
-			Requests:     stats.Requests,
-			Tokens:       stats.Tokens,
-			Cost:         stats.Cost,
-			StandardCost: stats.StandardCost,
-			UserCost:     stats.UserCost,
-		}
-
-		// 缓存窗口统计（1 分钟）
-		s.cache.windowStatsCache.Store(account.ID, &windowStatsCache{
-			stats:     windowStats,
-			timestamp: time.Now(),
-		})
-	}
-
-	// 为 FiveHour 添加 WindowStats（5h 窗口统计）
-	if usage.FiveHour != nil {
-		usage.FiveHour.WindowStats = windowStats
-	}
-}
-
-// GetTodayStats 获取账号今日统计
 func (s *AccountUsageService) GetTodayStats(ctx context.Context, accountID int64) (*WindowStats, error) {
-	stats, err := s.usageLogRepo.GetAccountTodayStats(ctx, accountID)
-	if err != nil {
-		return nil, fmt.Errorf("get today stats failed: %w", err)
-	}
-
-	return &WindowStats{
-		Requests:     stats.Requests,
-		Tokens:       stats.Tokens,
-		Cost:         stats.Cost,
-		StandardCost: stats.StandardCost,
-		UserCost:     stats.UserCost,
-	}, nil
+	return s.localUsageStatistics().GetTodayStats(ctx, accountID)
 }
 
-// GetTodayStatsBatch 批量获取账号今日统计，优先走批量 SQL，失败时回退单账号查询。
 func (s *AccountUsageService) GetTodayStatsBatch(ctx context.Context, accountIDs []int64) (map[int64]*WindowStats, error) {
-	uniqueIDs := make([]int64, 0, len(accountIDs))
-	seen := make(map[int64]struct{}, len(accountIDs))
-	for _, accountID := range accountIDs {
-		if accountID <= 0 {
-			continue
-		}
-		if _, exists := seen[accountID]; exists {
-			continue
-		}
-		seen[accountID] = struct{}{}
-		uniqueIDs = append(uniqueIDs, accountID)
-	}
-
-	result := make(map[int64]*WindowStats, len(uniqueIDs))
-	if len(uniqueIDs) == 0 {
-		return result, nil
-	}
-
-	startTime := timezone.Today()
-	if batchReader, ok := s.usageLogRepo.(accountWindowStatsBatchReader); ok {
-		statsByAccount, err := batchReader.GetAccountWindowStatsBatch(ctx, uniqueIDs, startTime)
-		if err == nil {
-			for _, accountID := range uniqueIDs {
-				result[accountID] = windowStatsFromAccountStats(statsByAccount[accountID])
-			}
-			return result, nil
-		}
-	}
-
-	var mu sync.Mutex
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(8)
-
-	for _, accountID := range uniqueIDs {
-		id := accountID
-		g.Go(func() error {
-			stats, err := s.usageLogRepo.GetAccountWindowStats(gctx, id, startTime)
-			if err != nil {
-				return nil
-			}
-			mu.Lock()
-			result[id] = windowStatsFromAccountStats(stats)
-			mu.Unlock()
-			return nil
-		})
-	}
-
-	_ = g.Wait()
-
-	for _, accountID := range uniqueIDs {
-		if _, ok := result[accountID]; !ok {
-			result[accountID] = &WindowStats{}
-		}
-	}
-	return result, nil
+	return s.localUsageStatistics().GetTodayStatsBatch(ctx, accountIDs)
 }
 
 func windowStatsFromAccountStats(stats *usagestats.AccountStats) *WindowStats {
@@ -2108,76 +806,14 @@ func windowStatsFromAccountStats(stats *usagestats.AccountStats) *WindowStats {
 	}
 }
 
+// buildCodexUsageProgressFromExtra 委托账号所属的纯展示/资格规则。
 func buildCodexUsageProgressFromExtra(extra map[string]any, window string, now time.Time) *UsageProgress {
-	if len(extra) == 0 {
-		return nil
-	}
-
-	var (
-		usedPercentKey string
-		resetAfterKey  string
-		resetAtKey     string
-	)
-
-	switch window {
-	case "5h":
-		usedPercentKey = "codex_5h_used_percent"
-		resetAfterKey = "codex_5h_reset_after_seconds"
-		resetAtKey = "codex_5h_reset_at"
-	case "7d":
-		usedPercentKey = "codex_7d_used_percent"
-		resetAfterKey = "codex_7d_reset_after_seconds"
-		resetAtKey = "codex_7d_reset_at"
-	default:
-		return nil
-	}
-
-	usedRaw, ok := extra[usedPercentKey]
-	if !ok {
-		return nil
-	}
-
-	progress := &UsageProgress{Utilization: parseExtraFloat64(usedRaw)}
-	if resetAtRaw, ok := extra[resetAtKey]; ok {
-		if resetAt, err := parseTime(fmt.Sprint(resetAtRaw)); err == nil {
-			progress.ResetsAt = &resetAt
-			progress.RemainingSeconds = int(time.Until(resetAt).Seconds())
-			if progress.RemainingSeconds < 0 {
-				progress.RemainingSeconds = 0
-			}
-		}
-	}
-	if progress.ResetsAt == nil {
-		if resetAfterSeconds := parseExtraInt(extra[resetAfterKey]); resetAfterSeconds > 0 {
-			base := now
-			if updatedAtRaw, ok := extra["codex_usage_updated_at"]; ok {
-				if updatedAt, err := parseTime(fmt.Sprint(updatedAtRaw)); err == nil {
-					base = updatedAt
-				}
-			}
-			resetAt := base.Add(time.Duration(resetAfterSeconds) * time.Second)
-			progress.ResetsAt = &resetAt
-			progress.RemainingSeconds = int(time.Until(resetAt).Seconds())
-			if progress.RemainingSeconds < 0 {
-				progress.RemainingSeconds = 0
-			}
-		}
-	}
-
-	// 窗口已过期（resetAt 在 now 之前）→ 额度已重置，归零
-	if progress.ResetsAt != nil && !now.Before(*progress.ResetsAt) {
-		progress.Utilization = 0
-	}
-
-	return progress
+	return accountcore.BuildCodexUsageProgressFromExtra(extra, window, now, time.Now)
 }
 
-// codexWindowStatsStart 按 Codex 上游返回的重置时间对齐本地用量统计窗口。
+// codexWindowStatsStart 委托账号所属的纯展示/资格规则。
 func codexWindowStatsStart(progress *UsageProgress, fallbackWindow time.Duration, now time.Time) time.Time {
-	if progress != nil && progress.ResetsAt != nil && now.Before(*progress.ResetsAt) {
-		return progress.ResetsAt.Add(-fallbackWindow)
-	}
-	return now.Add(-fallbackWindow)
+	return accountcore.CodexWindowStatsStart(progress, fallbackWindow, now)
 }
 
 func (s *AccountUsageService) GetAccountUsageStats(ctx context.Context, accountID int64, startTime, endTime time.Time) (*usagestats.AccountUsageStatsResponse, error) {
@@ -2220,204 +856,34 @@ func (s *AccountUsageService) fetchOAuthUsageRaw(ctx context.Context, account *A
 	return s.usageFetcher.FetchUsageWithOptions(ctx, opts)
 }
 
-// parseTime 尝试多种格式解析时间
-func parseTime(s string) (time.Time, error) {
-	formats := []string{
-		time.RFC3339,
-		time.RFC3339Nano,
-		"2006-01-02T15:04:05Z",
-		"2006-01-02T15:04:05.000Z",
+// parseTime 委托账号所属的纯展示/资格规则。
+func parseTime(s string) (time.Time, error) { return accountcore.ParseUsageTime(s) }
+
+// tryClearRecoverableAccountError 仅适配本轮观察值与新条件恢复能力。
+func (s *AccountUsageService) tryClearRecoverableAccountError(ctx context.Context, value *Account) {
+	if value == nil {
+		return
 	}
-	for _, format := range formats {
-		if t, err := time.Parse(format, s); err == nil {
-			return t, nil
-		}
+	writer, _ := s.accountRepo.(accountcore.UsageRecoveryWriter)
+	applied, err := accountcore.RecoverUsageAccountError(ctx, AccountRecordView(value), writer)
+	if err != nil {
+		log.Printf("[usage] failed to clear recoverable account error for account %d: %v", value.ID, err)
+		return
 	}
-	return time.Time{}, fmt.Errorf("unable to parse time: %s", s)
+	if applied {
+		value.Status = StatusActive
+		value.ErrorMessage = ""
+	}
 }
 
-func (s *AccountUsageService) tryClearRecoverableAccountError(ctx context.Context, account *Account) {
-	if account == nil || account.Status != StatusError {
-		return
-	}
-
-	msg := strings.ToLower(strings.TrimSpace(account.ErrorMessage))
-	if msg == "" {
-		return
-	}
-
-	if !strings.Contains(msg, "token refresh failed") &&
-		!strings.Contains(msg, "invalid_client") &&
-		!strings.Contains(msg, "missing_project_id") &&
-		!strings.Contains(msg, "unauthenticated") {
-		return
-	}
-
-	if err := s.accountRepo.ClearError(ctx, account.ID); err != nil {
-		log.Printf("[usage] failed to clear recoverable account error for account %d: %v", account.ID, err)
-		return
-	}
-
-	account.Status = StatusActive
-	account.ErrorMessage = ""
-}
-
-// buildUsageInfo 构建UsageInfo
+// buildUsageInfo 委托账号所属的纯展示/资格规则。
 func (s *AccountUsageService) buildUsageInfo(resp *ClaudeUsageResponse, updatedAt *time.Time) *UsageInfo {
-	info := &UsageInfo{
-		UpdatedAt: updatedAt,
-	}
-
-	// 5小时窗口 - 始终创建对象（即使 ResetsAt 为空）
-	info.FiveHour = &UsageProgress{
-		Utilization: resp.FiveHour.Utilization,
-	}
-	if resp.FiveHour.ResetsAt != "" {
-		if fiveHourReset, err := parseTime(resp.FiveHour.ResetsAt); err == nil {
-			info.FiveHour.ResetsAt = &fiveHourReset
-			info.FiveHour.RemainingSeconds = int(time.Until(fiveHourReset).Seconds())
-		} else {
-			log.Printf("Failed to parse FiveHour.ResetsAt: %s, error: %v", resp.FiveHour.ResetsAt, err)
-		}
-	}
-
-	// 7天窗口
-	if resp.SevenDay.ResetsAt != "" {
-		if sevenDayReset, err := parseTime(resp.SevenDay.ResetsAt); err == nil {
-			info.SevenDay = &UsageProgress{
-				Utilization:      resp.SevenDay.Utilization,
-				ResetsAt:         &sevenDayReset,
-				RemainingSeconds: int(time.Until(sevenDayReset).Seconds()),
-			}
-		} else {
-			log.Printf("Failed to parse SevenDay.ResetsAt: %s, error: %v", resp.SevenDay.ResetsAt, err)
-			info.SevenDay = &UsageProgress{
-				Utilization: resp.SevenDay.Utilization,
-			}
-		}
-	}
-
-	// 7天Sonnet窗口
-	if resp.SevenDaySonnet.ResetsAt != "" {
-		if sonnetReset, err := parseTime(resp.SevenDaySonnet.ResetsAt); err == nil {
-			info.SevenDaySonnet = &UsageProgress{
-				Utilization:      resp.SevenDaySonnet.Utilization,
-				ResetsAt:         &sonnetReset,
-				RemainingSeconds: int(time.Until(sonnetReset).Seconds()),
-			}
-		} else {
-			log.Printf("Failed to parse SevenDaySonnet.ResetsAt: %s, error: %v", resp.SevenDaySonnet.ResetsAt, err)
-			info.SevenDaySonnet = &UsageProgress{
-				Utilization: resp.SevenDaySonnet.Utilization,
-			}
-		}
-	}
-
-	// 7天Fable窗口（响应头 7d_oi 对应的窗口）
-	if fable := resp.SevenDayOverageIncluded; fable.ResetsAt != "" {
-		if fableReset, err := parseTime(fable.ResetsAt); err == nil {
-			info.SevenDayFable = &UsageProgress{
-				Utilization:      fable.Utilization,
-				ResetsAt:         &fableReset,
-				RemainingSeconds: int(time.Until(fableReset).Seconds()),
-			}
-		} else {
-			log.Printf("Failed to parse SevenDayFable.ResetsAt: %s, error: %v", fable.ResetsAt, err)
-			info.SevenDayFable = &UsageProgress{
-				Utilization: fable.Utilization,
-			}
-		}
-	}
-
-	return info
+	return accountcore.BuildUsageInfo(resp, updatedAt, time.Now, log.Printf)
 }
 
-// estimateSetupTokenUsage 根据session_window推算Setup Token账号的使用量
+// estimateSetupTokenUsage 委托账号所属的纯展示/资格规则。
 func (s *AccountUsageService) estimateSetupTokenUsage(account *Account) *UsageInfo {
-	info := &UsageInfo{}
-
-	// 如果有session_window信息
-	if account.SessionWindowEnd != nil {
-		remaining := int(time.Until(*account.SessionWindowEnd).Seconds())
-		if remaining < 0 {
-			remaining = 0
-		}
-
-		// 优先使用响应头中存储的真实 utilization 值（0-1 小数，转为 0-100 百分比）
-		var utilization float64
-		var found bool
-		if stored, ok := account.Extra["session_window_utilization"]; ok {
-			switch v := stored.(type) {
-			case float64:
-				utilization = v * 100
-				found = true
-			case json.Number:
-				if f, err := v.Float64(); err == nil {
-					utilization = f * 100
-					found = true
-				}
-			}
-		}
-
-		// 如果没有存储的 utilization，回退到状态估算
-		if !found {
-			switch account.SessionWindowStatus {
-			case "rejected":
-				utilization = 100.0
-			case "allowed_warning":
-				utilization = 80.0
-			}
-		}
-
-		info.FiveHour = &UsageProgress{
-			Utilization:      utilization,
-			ResetsAt:         account.SessionWindowEnd,
-			RemainingSeconds: remaining,
-		}
-
-		// 窗口已过期（resetAt 在 now 之前）→ 额度已重置，归零；
-		// 与 Codex 分支 buildCodexUsageProgressFromExtra 保持一致，避免
-		// UI 在 active poll 没回写 SessionWindowEnd 时渲染矛盾状态。
-		if info.FiveHour.ResetsAt != nil && !time.Now().Before(*info.FiveHour.ResetsAt) {
-			info.FiveHour.Utilization = 0
-			info.FiveHour.ResetsAt = nil
-			info.FiveHour.RemainingSeconds = 0
-		}
-	} else {
-		// 没有窗口信息，返回空数据
-		info.FiveHour = &UsageProgress{
-			Utilization:      0,
-			RemainingSeconds: 0,
-		}
-	}
-
-	// Setup Token无法获取7d数据
-	return info
-}
-
-func buildGeminiUsageProgress(used, limit int64, resetAt time.Time, tokens int64, cost float64, now time.Time) *UsageProgress {
-	// limit <= 0 means "no local quota window" (unknown or unlimited).
-	if limit <= 0 {
-		return nil
-	}
-	utilization := (float64(used) / float64(limit)) * 100
-	remainingSeconds := int(resetAt.Sub(now).Seconds())
-	if remainingSeconds < 0 {
-		remainingSeconds = 0
-	}
-	resetCopy := resetAt
-	return &UsageProgress{
-		Utilization:      utilization,
-		ResetsAt:         &resetCopy,
-		RemainingSeconds: remainingSeconds,
-		UsedRequests:     used,
-		LimitRequests:    limit,
-		WindowStats: &WindowStats{
-			Requests: used,
-			Tokens:   tokens,
-			Cost:     cost,
-		},
-	}
+	return accountcore.EstimateSetupTokenUsage(AccountRecordView(account), time.Now)
 }
 
 // GetAccountWindowStats 获取账号在指定时间窗口内的使用统计

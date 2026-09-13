@@ -185,12 +185,10 @@ func TestOpenAIQuotaServiceUsesTLSRouterInviteResetSettings(t *testing.T) {
 			CodexInviteResetTLSFingerprintProfileID: &quotaProfileID,
 		},
 	}}
-	profileService := &TLSFingerprintProfileService{
-		localCache: map[int64]*model.TLSFingerprintProfile{
-			10: {ID: 10, Name: "account-fixed"},
-			20: {ID: 20, Name: "router-token"},
-		},
-	}
+	profileService := newTLSProfileServiceWithCacheForTest(map[int64]*model.TLSFingerprintProfile{
+		10: {ID: 10, Name: "account-fixed"},
+		20: {ID: 20, Name: "router-token"},
+	})
 	svc := NewOpenAIQuotaService(codexInviteResetAdminServiceStub{account: account}, upstream, nil, profileService, routerReader)
 
 	_, err := svc.QueryUsage(context.Background(), account.ID)

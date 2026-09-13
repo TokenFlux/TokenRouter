@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"log/slog"
 	"strings"
 	"time"
@@ -15,23 +16,10 @@ import (
 type PrivacyClientFactory func(proxyURL string) (*req.Client, error)
 
 const (
-	PrivacyModeTrainingOff = "training_off"
-	PrivacyModeFailed      = "training_set_failed"
-	PrivacyModeCFBlocked   = "training_set_cf_blocked"
+	PrivacyModeTrainingOff = acctcore.PrivacyModeTrainingOff
+	PrivacyModeFailed      = acctcore.PrivacyModeFailed
+	PrivacyModeCFBlocked   = acctcore.PrivacyModeCFBlocked
 )
-
-func shouldSkipOpenAIPrivacyEnsure(extra map[string]any) bool {
-	if extra == nil {
-		return false
-	}
-	raw, ok := extra["privacy_mode"]
-	if !ok {
-		return false
-	}
-	mode, _ := raw.(string)
-	mode = strings.TrimSpace(mode)
-	return mode != PrivacyModeFailed && mode != PrivacyModeCFBlocked
-}
 
 // disableOpenAITraining 调用 ChatGPT 设置接口关闭训练数据共享。
 // 返回 privacy_mode 值：成功时为 training_off，失败时为对应失败原因。

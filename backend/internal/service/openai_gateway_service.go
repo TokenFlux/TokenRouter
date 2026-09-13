@@ -7,11 +7,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	"log/slog"
 	"math/rand"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -513,6 +514,8 @@ type OpenAIGatewayService struct {
 	openaiProxyStreamFailOpenLogAt atomic.Int64
 
 	openaiWSFallbackUntil               sync.Map // key: int64(accountID), value: time.Time
+	refreshFailureBlocks                accountcore.RefreshFailureBlocks
+	refreshFailureClearGeneration       sync.Map // 仅显式清理改变刷新失败的发布代次。
 	openaiAccountRuntimeBlockUntil      sync.Map // key: int64(accountID), value: time.Time
 	openaiAccountRuntimeBlockLocks      sync.Map // key: int64(accountID), value: *sync.Mutex
 	openaiAccountRuntimeBlockGeneration sync.Map // key: int64(accountID), value: uint64
@@ -1178,17 +1181,27 @@ func SnapshotOpenAICompatibilityFallbackMetrics() OpenAICompatibilityFallbackMet
 }
 
 func (s *OpenAIGatewayService) detectCodexClientRestriction(c *gin.Context, account *Account, tlsRouterMatch TLSFingerprintRouterMatchResult) CodexClientRestrictionDetectionResult {
+	ctx := context.Background()
+	if c != nil && c.Request != nil {
+		ctx = c.Request.Context()
+	}
+	return s.detectCodexClientRestrictionForClient(ctx, func() (string, string) {
+		if c == nil {
+			return "", ""
+		}
+		return c.GetHeader("User-Agent"), c.GetHeader("originator")
+	}, account, tlsRouterMatch)
+}
+
+// detectCodexClientRestrictionForClient 保留动态全局设置的读取时机，仅分离客户端数据来源。
+func (s *OpenAIGatewayService) detectCodexClientRestrictionForClient(ctx context.Context, readClient func() (string, string), account *Account, tlsRouterMatch TLSFingerprintRouterMatchResult) CodexClientRestrictionDetectionResult {
 	var globalAllowedClients []string
 	if account != nil && account.IsCodexCLIOnlyEnabled() && s != nil && s.settingService != nil {
-		ctx := context.Background()
-		if c != nil && c.Request != nil {
-			ctx = c.Request.Context()
-		}
 		if s.settingService.IsOpenAIAllowClaudeCodeCodexPluginEnabled(ctx) {
 			globalAllowedClients = []string{openai.AllowedClientClaudeCode}
 		}
 	}
-	return s.getCodexClientRestrictionDetector().Detect(c, account, globalAllowedClients, tlsRouterMatch)
+	return s.getCodexClientRestrictionDetector().DetectClient(readClient, account, globalAllowedClients, tlsRouterMatch)
 }
 
 func getAPIKeyIDFromContext(c *gin.Context) int64 {
@@ -1458,27 +1471,29 @@ func (s *OpenAIGatewayService) applyOpenAIUpstreamUserAgentHeader(
 }
 
 func (s *OpenAIGatewayService) matchTLSFingerprintRouter(c *gin.Context, account *Account) TLSFingerprintRouterMatchResult {
+	return s.matchTLSFingerprintRouterForClient(func() string {
+		if c == nil {
+			return ""
+		}
+		return c.GetHeader("User-Agent")
+	}, account)
+}
+
+// matchTLSFingerprintRouterForClient 在账号确有 Router 后才读取 User-Agent。
+func (s *OpenAIGatewayService) matchTLSFingerprintRouterForClient(readUserAgent func() string, account *Account) TLSFingerprintRouterMatchResult {
 	if s == nil || s.tlsFPRouterService == nil || account == nil || account.GetTLSFingerprintRouterID() <= 0 {
 		return TLSFingerprintRouterMatchResult{}
 	}
-	userAgent := ""
-	if c != nil {
-		userAgent = c.GetHeader("User-Agent")
-	}
+	userAgent := readUserAgent()
 	return s.tlsFPRouterService.MatchUserAgent(account.GetTLSFingerprintRouterID(), userAgent)
 }
 
-func (s *OpenAIGatewayService) resolveOpenAITLSProfile(account *Account, routerMatch ...TLSFingerprintRouterMatchResult) *tlsfingerprint.Profile {
+// resolveOpenAITLSProfile 保留未装配时的短路，选择规则唯一归 egress。
+func (s *OpenAIGatewayService) resolveOpenAITLSProfile(value *Account, routerMatch ...TLSFingerprintRouterMatchResult) *tlsfingerprint.Profile {
 	if s == nil || s.tlsFPProfileService == nil {
 		return nil
 	}
-	if len(routerMatch) > 0 && routerMatch[0].Matched {
-		if profile, ok := s.tlsFPProfileService.ResolveRoutableTLSProfileByID(account, routerMatch[0].TLSFingerprintProfileID); ok {
-			return profile
-		}
-	}
-	// ResolveTLSProfile 内部会按账号类型兜底，OpenAI API Key 即使手写 extra 也不会生效。
-	return s.tlsFPProfileService.ResolveTLSProfile(account)
+	return s.tlsFPProfileService.ResolveRequestTLS(value, routerMatch)
 }
 
 func (s *OpenAIGatewayService) resolveOpenAIWSTLSProfile(account *Account, routerMatch ...TLSFingerprintRouterMatchResult) (*tlsfingerprint.Profile, string) {
@@ -1488,17 +1503,7 @@ func (s *OpenAIGatewayService) resolveOpenAIWSTLSProfile(account *Account, route
 	}
 	// Responses WebSocket 是 HTTP/1.1 Upgrade，连接池键也按剥离 h2 后的模板隔离。
 	profile = tlsfingerprint.HTTP1OnlyProfile(profile)
-	if len(routerMatch) > 0 && routerMatch[0].Matched {
-		if routerMatch[0].TLSFingerprintProfileID == -1 {
-			return profile, "tls-router-random"
-		}
-		return profile, "tls-router-" + strconv.FormatInt(routerMatch[0].RouterID, 10) + "-" + strconv.FormatInt(routerMatch[0].TLSFingerprintProfileID, 10)
-	}
-	if account != nil && account.GetTLSFingerprintProfileID() == -1 {
-		// WS 连接需要在多轮 continuation 间保持同一连接可复用，随机模板使用稳定配置键隔离连接池。
-		return profile, "tls-random"
-	}
-	return profile, tlsfingerprint.CacheKey(profile)
+	return profile, egress.WebSocketTLSIdentity(accountTLSSelection(account, routerMatch), true, tlsfingerprint.CacheKey(profile))
 }
 
 func (e *openAIUpstreamWarningError) Error() string {

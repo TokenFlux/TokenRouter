@@ -1,8 +1,10 @@
 package handler
 
 import (
+	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
 	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/config"
+	egresshttp "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	sitehttpapi "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
@@ -12,10 +14,17 @@ import (
 
 // ProvideAdminHandlers creates the AdminHandlers struct
 func ProvideAdminHandlers(
+	accountManagement *accounthttp.ManagementHandler,
+	accountOAuthUsage *accounthttp.OAuthUsageHandler,
+	accountOllama *accounthttp.OllamaUsageHandler,
+	accountCodexImport *accounthttp.CodexImportHandler,
+	accountCRS *accounthttp.CRSHandler,
+	accountArchive *accounthttp.ArchiveHandler,
+	accountTests *accounthttp.TestHandler,
+	upstreamUsage *accounthttp.UpstreamUsageHandler,
 	dashboardHandler *admin.DashboardHandler,
 	userHandler *admin.UserHandler,
 	groupHandler *admin.GroupHandler,
-	accountHandler *admin.AccountHandler,
 	announcementHandler *sitehttpapi.AdminAnnouncementHandler,
 	dataManagementHandler *admin.DataManagementHandler,
 	backupHandler *admin.BackupHandler,
@@ -25,7 +34,7 @@ func ProvideAdminHandlers(
 	antigravityOAuthHandler *admin.AntigravityOAuthHandler,
 	grokOAuthHandler *admin.GrokOAuthHandler,
 	qoderOAuthHandler *admin.QoderOAuthHandler,
-	proxyHandler *admin.ProxyHandler,
+	proxyHandler *egresshttp.ProxyHandler,
 	redeemHandler *billinghttpapi.AdminRedeemHandler,
 	promoHandler *admin.PromoHandler,
 	settingHandler *admin.SettingHandler,
@@ -38,7 +47,7 @@ func ProvideAdminHandlers(
 	tlsFingerprintProfileHandler *admin.TLSFingerprintProfileHandler,
 	tlsFingerprintRouterHandler *admin.TLSFingerprintRouterHandler,
 	apiKeyHandler *admin.AdminAPIKeyHandler,
-	scheduledTestHandler *admin.ScheduledTestHandler,
+	scheduledTestHandler *accounthttp.ScheduledTestHandler,
 	channelHandler *admin.ChannelHandler,
 	contentModerationHandler *admin.ContentModerationHandler,
 	paymentHandler *admin.PaymentHandler,
@@ -46,14 +55,18 @@ func ProvideAdminHandlers(
 	codexInviteResetHandler *admin.CodexInviteResetHandler,
 	auditLogHandler *admin.AuditLogHandler,
 	teamHandler *admin.TeamHandler,
-	ollamaCloudUsage *service.OllamaCloudUsageService,
 ) *AdminHandlers {
-	accountHandler.SetOllamaCloudUsageService(ollamaCloudUsage)
 	return &AdminHandlers{
+		AccountManagement:  accountManagement,
+		AccountOAuthUsage:  accountOAuthUsage,
+		AccountOllama:      accountOllama,
+		AccountCodexImport: accountCodexImport,
+		AccountCRS:         accountCRS,
+		AccountArchive:     accountArchive,
+		AccountTests:       accountTests, UpstreamUsage: upstreamUsage,
 		Dashboard:             dashboardHandler,
 		User:                  userHandler,
 		Group:                 groupHandler,
-		Account:               accountHandler,
 		Announcement:          announcementHandler,
 		DataManagement:        dataManagementHandler,
 		Backup:                backupHandler,
@@ -204,7 +217,6 @@ var ProviderSet = wire.NewSet(
 	billinghttpapi.NewRedeemHandler,
 	billinghttpapi.NewSubscriptionHandler,
 	sitehttpapi.NewAnnouncementHandler,
-	NewModelMarketplaceHandler,
 	NewGatewayHandler,
 	ProvideOpenAIGatewayHandler,
 	NewQoderGatewayHandler,
@@ -220,8 +232,6 @@ var ProviderSet = wire.NewSet(
 	// Admin handlers
 	admin.NewDashboardHandler,
 	admin.NewUserHandler,
-	admin.NewGroupHandler,
-	admin.ProvideAccountHandler,
 	sitehttpapi.NewAdminAnnouncementHandler,
 	admin.NewDataManagementHandler,
 	admin.NewBackupHandler,
@@ -229,9 +239,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewOpenAIOAuthHandler,
 	admin.NewGeminiOAuthHandler,
 	admin.NewAntigravityOAuthHandler,
-	admin.NewGrokOAuthHandler,
 	admin.NewQoderOAuthHandler,
-	admin.NewProxyHandler,
 	billinghttpapi.NewAdminRedeemHandler,
 	admin.NewPromoHandler,
 	ProvideAdminSettingHandler,
@@ -241,11 +249,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewUsageHandler,
 	admin.NewUserAttributeHandler,
 	admin.NewErrorPassthroughHandler,
-	ProvideTLSFingerprintProfileHandler,
-	admin.NewTLSFingerprintRouterHandler,
 	admin.NewAdminAPIKeyHandler,
-	admin.NewScheduledTestHandler,
-	admin.NewChannelHandler,
 	admin.NewContentModerationHandler,
 	admin.NewPaymentHandler,
 	admin.NewAffiliateHandler,

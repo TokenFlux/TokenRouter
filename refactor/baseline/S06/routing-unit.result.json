@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/routing/...",
+    "./internal/service",
+    "./internal/app",
+    "-run",
+    "^(TestGroup|TestChannel|TestValidateGroup|TestNormalizeGroup|TestGetModelDefault|TestSyncPricing|TestResolveChannel|TestAdminService.*Group)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 19.927,
+  "log": "logs/routing-unit.log.gz"
+}

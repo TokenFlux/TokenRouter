@@ -181,7 +181,8 @@ func TestHandle403_KimiConcurrencyLimitRepositoryFailureKeepsRuntimeBlock(t *tes
 	require.Equal(t, 0, repo.setErrorCalls, "persistence failure must not fall back to permanent account error")
 	require.Equal(t, []int64{openAI403DisableThresholdDefault}, counter.counts, "persistence failure must not enter the permanent-error counter path")
 	require.Len(t, blocker.accounts, 1, "the in-memory runtime block must survive repository failure")
-	require.Same(t, account, blocker.accounts[0])
+	// 跨新旧类型边界比较完整投影，原同一输入断言在账号核心测试继续验证。
+	require.Equal(t, account, blocker.accounts[0])
 	require.Equal(t, cnConcurrencyLimitReasonPrefix, blocker.reasons[0])
 	require.True(t, blocker.until[0].After(time.Now()))
 }

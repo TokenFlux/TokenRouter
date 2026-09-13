@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-run",
+    "^$",
+    "./internal/egress/...",
+    "./internal/service",
+    "./internal/repository",
+    "./internal/handler/...",
+    "./internal/app"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 24.06,
+  "log": "logs/egress-http-build.log.gz"
+}

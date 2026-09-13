@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-run",
+    "^$",
+    "-tags=unit",
+    "./internal/routing/...",
+    "./internal/service",
+    "./internal/repository"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 26.159,
+  "log": "logs/routing-group-build.log.gz"
+}

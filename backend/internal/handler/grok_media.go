@@ -200,7 +200,10 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		}
 	}
 	requestCtx := c.Request.Context()
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(requestCtx, apiKey.GroupID, routingModel)
+	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
+	channelMappingRoutePlan := h.gatewayService.PlanRoute(requestCtx, service.APIKeyRouteGroup(apiKey), apiKey.GroupID, routingModel)
+	channelMapping := service.ChannelMappingFromRoutePlan(channelMappingRoutePlan)
+	requestCtx = service.WithRoutePlan(requestCtx, channelMappingRoutePlan)
 	forwardBody, forwardContentType, err := applyGrokMediaChannelMapping(body, contentType, channelMapping)
 	if err != nil {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Failed to rewrite request model")

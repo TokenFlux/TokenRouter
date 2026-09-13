@@ -1,0 +1,12 @@
+{
+  "command": [
+    "go",
+    "generate",
+    "./cmd/server"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 2.462,
+  "log": "logs/routing-marketplace-http-wire.log.gz"
+}

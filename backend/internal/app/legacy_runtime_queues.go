@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -16,8 +17,9 @@ func provideQueuesRuntime(
 	billingCache *service.BillingCacheService,
 	usageRecordWorkerPool *service.UsageRecordWorkerPool,
 	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
-	ollamaCloudUsage *service.OllamaCloudUsageService,
+	ollamaCloudUsage *account.OllamaCloudUsageService,
 	auditLog *service.AuditLogService,
+	grokQuota *service.GrokQuotaService,
 	manager *lifecycle.Manager,
 	deferred *service.DeferredService,
 	contentModeration *service.ContentModerationService,
@@ -70,12 +72,12 @@ func provideQueuesRuntime(
 
 	manager.Register(lifecycle.Hook{Name: "OllamaCloudUsageService", StartOrder: 940, StopOrder: 60, Start: func(ctx context.Context) error {
 		if ollamaCloudUsage != nil {
-			ollamaCloudUsage.Start()
+			return ollamaCloudUsage.StartContext(ctx)
 		}
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if ollamaCloudUsage != nil {
-			ollamaCloudUsage.Stop()
+			return ollamaCloudUsage.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -98,7 +100,7 @@ func provideQueuesRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if deferred != nil {
-			return deferred.Stop()
+			return deferred.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -114,5 +116,6 @@ func provideQueuesRuntime(
 		}
 		return nil
 	}})
+	manager.Register(lifecycle.Hook{Name: "GrokQuotaProbes", StopOrder: 25, Stop: grokQuota.StopContext})
 	return &queuesRuntimeReady{}
 }

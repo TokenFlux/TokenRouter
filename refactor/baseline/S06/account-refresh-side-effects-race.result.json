@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "./internal/account",
+    "./internal/service",
+    "-run",
+    "Test.*(TokenRefresh|BackgroundFailure|OAuthRefresh|GrokOAuthReconcile|AccountRuntimeBlock|GrokCredential|RefreshRuntime|RefreshFailureBlocks)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 54.413,
+  "log": "logs/account-refresh-side-effects-race.log.gz"
+}

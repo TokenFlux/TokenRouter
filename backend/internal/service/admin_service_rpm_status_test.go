@@ -72,7 +72,7 @@ func TestAdminService_GetUserRPMStatus_AggregatesUserAndGroupLimits(t *testing.T
 	groupOneID := int64(1)
 	groupTwoID := int64(2)
 	override := 7
-	svc := &adminServiceImpl{
+	svc := prepareRoutingAdmin(&adminServiceImpl{
 		userRepo: &rpmStatusUserRepoStub{user: &User{
 			ID:       42,
 			RPMLimit: 20,
@@ -97,7 +97,7 @@ func TestAdminService_GetUserRPMStatus_AggregatesUserAndGroupLimits(t *testing.T
 				groupTwoID: 4,
 			},
 		},
-	}
+	})
 
 	status, err := svc.GetUserRPMStatus(context.Background(), 42)
 	require.NoError(t, err)

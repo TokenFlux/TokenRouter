@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"sort"
 	"strings"
 	"sync"
@@ -106,23 +107,6 @@ func (t *APIKeyModelRedirectTrace) ResponseModels() []string {
 	return models
 }
 
-// buildModelMappingChain 按首次出现顺序生成去重后的模型映射链。
 func buildModelMappingChain(models ...string) string {
-	stages := make([]string, 0, len(models))
-	seen := make(map[string]struct{}, len(models))
-	for _, model := range models {
-		model = strings.TrimSpace(model)
-		if model == "" {
-			continue
-		}
-		if _, exists := seen[model]; exists {
-			continue
-		}
-		seen[model] = struct{}{}
-		stages = append(stages, model)
-	}
-	if len(stages) < 2 {
-		return ""
-	}
-	return strings.Join(stages, "→")
+	return routing.BuildModelMappingChain(models...)
 }

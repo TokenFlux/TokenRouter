@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -473,9 +474,45 @@ func (s *OpenAIGatewayService) ClearAccountSchedulingBlock(accountID int64) {
 	mu := s.openAIAccountRuntimeBlockLock(accountID)
 	mu.Lock()
 	defer mu.Unlock()
+	s.clearAccountSchedulingBlockLocked(accountID)
+}
+
+// ManagedRecoveryFence 复用原代次，不为手动恢复安装另一套运行状态。
+func (s *OpenAIGatewayService) ManagedRecoveryFence(accountID int64) uint64 {
+	if s == nil || accountID <= 0 {
+		return 0
+	}
+	mu := s.openAIAccountRuntimeBlockLock(accountID)
+	mu.Lock()
+	defer mu.Unlock()
+	value, _ := s.openaiAccountRuntimeBlockGeneration.Load(accountID)
+	generation, _ := value.(uint64)
+	return generation
+}
+
+func (s *OpenAIGatewayService) ClearAccountSchedulingBlockIfFence(accountID int64, expected uint64) bool {
+	if s == nil || accountID <= 0 {
+		return false
+	}
+	mu := s.openAIAccountRuntimeBlockLock(accountID)
+	mu.Lock()
+	defer mu.Unlock()
+	value, _ := s.openaiAccountRuntimeBlockGeneration.Load(accountID)
+	generation, _ := value.(uint64)
+	if generation != expected {
+		return false
+	}
+	s.clearAccountSchedulingBlockLocked(accountID)
+	return true
+}
+
+func (s *OpenAIGatewayService) clearAccountSchedulingBlockLocked(accountID int64) {
+	s.refreshFailureBlocks.Clear(accountID)
 	s.openaiAccountRuntimeBlockUntil.Delete(accountID)
 	s.openaiOAuth429RetryStartedAt.Delete(accountID)
-	s.openaiAccountRuntimeBlockGeneration.Store(accountID, s.openaiAccountRuntimeBlockSequence.Add(1))
+	generation := s.openaiAccountRuntimeBlockSequence.Add(1)
+	s.openaiAccountRuntimeBlockGeneration.Store(accountID, generation)
+	s.refreshFailureClearGeneration.Store(accountID, generation)
 }
 
 func (s *OpenAIGatewayService) isOpenAIAccountRuntimeBlocked(account *Account) bool {
@@ -485,6 +522,9 @@ func (s *OpenAIGatewayService) isOpenAIAccountRuntimeBlocked(account *Account) b
 	mu := s.openAIAccountRuntimeBlockLock(account.ID)
 	mu.Lock()
 	defer mu.Unlock()
+	if s.refreshFailureBlocks.Blocked(account.ID, time.Now(), func() string { return accountcore.RefreshCredentialIdentity(AccountRecordView(account)) }) {
+		return true
+	}
 	value, ok := s.openaiAccountRuntimeBlockUntil.Load(account.ID)
 	if !ok {
 		return false

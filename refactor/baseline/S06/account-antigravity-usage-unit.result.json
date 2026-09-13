@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/service",
+    "./internal/handler/admin",
+    "-run",
+    "Test.*(Antigravity.*Usage|AccountUsage|OAuthUsage|PassiveUsage|UsageRecovery|UsageBatch)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 21.204,
+  "log": "logs/account-antigravity-usage-unit.log.gz"
+}

@@ -153,23 +153,10 @@ func (s *BillingService) GetDisplayPricing(model string, rateMultiplier float64)
 	return s.Calculator.GetDisplayPricing(model, rateMultiplier)
 }
 
-// getDisplayPricingWithResolvedMultipliers 委托唯一 billing 计费实例。
-func (s *BillingService) getDisplayPricingWithResolvedMultipliers(model string, rateMultiplier float64, resolved *ResolvedPricing) ModelDisplayPricing {
-	return s.DisplayPricingWithResolvedMultipliers(model, rateMultiplier, resolved)
-}
-
 // buildTokenDisplayPricing 委托纯定价实现，旧查询与配置投影保留在适配层。
 func buildTokenDisplayPricing(pricing *ModelPricing, rateMultiplier float64) ModelDisplayPricing {
 	return purepricing.BuildTokenDisplayPricing(pricing, rateMultiplier)
 }
-
-// resolvedHasFastModeDisplayPricing 委托纯定价实现，旧查询与配置投影保留在适配层。
-func resolvedHasFastModeDisplayPricing(resolved *ResolvedPricing) bool {
-	return purepricing.ResolvedHasFastModeDisplayPricing(resolved)
-}
-
-// unknownDisplayPricing 委托纯定价实现，旧查询与配置投影保留在适配层。
-func unknownDisplayPricing() ModelDisplayPricing { return purepricing.UnknownDisplayPricing() }
 
 // CalculateWebSearchCost 委托唯一 billing 计费实例。
 func (s *BillingService) CalculateWebSearchCost(callCount int, groupPrice *float64, rateMultiplier float64) *CostBreakdown {

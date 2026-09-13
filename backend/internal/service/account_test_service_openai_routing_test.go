@@ -22,14 +22,12 @@ func newOpenAIAutomaticProbeTestService(
 	profiles map[int64]*model.TLSFingerprintProfile,
 	cfg *config.Config,
 ) *AccountTestService {
-	profileService := &TLSFingerprintProfileService{localCache: profiles}
+	profileService := newTLSProfileServiceWithCacheForTest(profiles)
 	var routerService *TLSFingerprintRouterService
 	if router != nil {
-		routerService = &TLSFingerprintRouterService{
-			localCache: map[int64]*cachedTLSFingerprintRouter{
-				router.ID: newCachedTLSFingerprintRouter(router),
-			},
-		}
+		routerService = newTLSRouterServiceWithCacheForTest(map[int64]*cachedTLSFingerprintRouter{
+			router.ID: newCachedTLSFingerprintRouter(router),
+		})
 	}
 	gateway := &OpenAIGatewayService{
 		cfg:                 cfg,

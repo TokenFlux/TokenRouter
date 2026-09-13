@@ -96,7 +96,7 @@ Ent schema 不是生产迁移器。数据库权威变更仍须新增 `backend/mi
 
 ```bash
 # 受影响包
-(cd backend && go test ./internal/service ./internal/handler)
+(cd backend && GOTOOLCHAIN=go1.27.0 go test ./internal/account/... ./internal/routing/... ./internal/egress/...)
 
 # 与 CI 一致的测试分层
 make -C backend test-unit
@@ -105,6 +105,8 @@ make -C backend test-integration
 # 普通测试加 lint
 make -C backend test
 ```
+
+重构阶段分别串行运行普通、unit 和 integration 全量测试，避免多个 Ent schema loader 会话争用临时目录；用 go list 与 JSON 事件核对实际标签、OS 文件和测试执行。依赖门禁仍统一使用 `.golangci.yml` 的 depguard，旧耦合只按实际文件/import 登记；新文件不能继承历史许可。验证结果中的跳过与仅编译不算行为通过。
 
 集成测试可能启动 PostgreSQL/Redis 容器；环境没有 Docker 时要明确报告未运行，不能用单元测试结果代替。涉及迁移时还要运行 migration runner 和对应 schema/data regression tests。
 

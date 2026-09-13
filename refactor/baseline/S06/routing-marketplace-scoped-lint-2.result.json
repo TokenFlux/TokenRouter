@@ -1,0 +1,20 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=10m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "./internal/routing/...",
+    "./internal/account/...",
+    "./internal/billing/...",
+    "./internal/service/...",
+    "./internal/handler/...",
+    "./internal/app/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 35.055,
+  "log": "logs/routing-marketplace-scoped-lint-2.log.gz"
+}

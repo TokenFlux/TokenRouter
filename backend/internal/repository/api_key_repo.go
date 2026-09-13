@@ -4,14 +4,13 @@ package repository
 import (
 	context "context"
 	sql "database/sql"
-	json "encoding/json"
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	keycore "github.com/TokenFlux/TokenRouter/internal/apikey"
 	keypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
-	slog "log/slog"
 	time "time"
 )
 
@@ -214,77 +213,7 @@ func userEntityToService(u *dbent.User) *service.User {
 }
 
 func groupEntityToService(g *dbent.Group) *service.Group {
-	if g == nil {
-		return nil
-	}
-	var modelPricing []service.ChannelModelPricing
-	if len(g.ModelPricing) > 0 {
-		if err := json.Unmarshal(g.ModelPricing, &modelPricing); err != nil {
-			slog.Warn("group model_pricing unmarshal failed; falling back to channel/builtin pricing",
-				"group_id", g.ID, "error", err)
-			modelPricing = nil
-		}
-	}
-	return &service.Group{
-		ID:                              g.ID,
-		Name:                            g.Name,
-		Description:                     derefString(g.Description),
-		Platform:                        g.Platform,
-		SchedulerType:                   service.GroupSchedulerType(g.SchedulerType),
-		AdvancedSchedulerOverrides:      service.CloneGroupAdvancedSchedulerOverrides(g.AdvancedSchedulerOverrides),
-		DisplayBrand:                    g.DisplayBrand,
-		RateMultiplier:                  g.RateMultiplier,
-		IsExclusive:                     g.IsExclusive,
-		IsDefault:                       g.IsDefault,
-		Status:                          g.Status,
-		Hydrated:                        true,
-		DuplicateOperationID:            derefString(g.DuplicateOperationID),
-		SessionIsolationEnabled:         g.SessionIsolationEnabled,
-		AllowImageGeneration:            g.AllowImageGeneration,
-		AllowBatchImageGeneration:       g.AllowBatchImageGeneration,
-		BatchImageDiscountMultiplier:    g.BatchImageDiscountMultiplier,
-		BatchImageHoldMultiplier:        g.BatchImageHoldMultiplier,
-		WebSearchPricePerCall:           g.WebSearchPricePerCall,
-		SearchPricePer1k:                g.SearchPricePer1k,
-		AudioRealtimePricePerMin:        g.AudioRealtimePricePerMin,
-		AudioTTSPricePerMillionChars:    g.AudioTtsPricePerMillionChars,
-		AudioSTTPricePerHour:            g.AudioSttPricePerHour,
-		LongContextPricingEnabled:       g.LongContextPricingEnabled,
-		ModelPricing:                    modelPricing,
-		ClaudeCodeOnly:                  g.ClaudeCodeOnly,
-		FallbackGroupID:                 g.FallbackGroupID,
-		FallbackGroupIDOnInvalidRequest: g.FallbackGroupIDOnInvalidRequest,
-		UnavailableFallbackGroupID:      g.UnavailableFallbackGroupID,
-		ModelRouting:                    g.ModelRouting,
-		ModelRoutingEnabled:             g.ModelRoutingEnabled,
-		MCPXMLInject:                    g.McpXMLInject,
-		SupportedModelScopes:            g.SupportedModelScopes,
-		SortOrder:                       g.SortOrder,
-		AllowedProtocols:                g.AllowedProtocols,
-		ProtocolFallbacks:               g.ProtocolFallbacks,
-		ResponsesImagePolicy:            g.ResponsesImagePolicy,
-		AllowMessagesDispatch:           g.AllowMessagesDispatch,
-		AllowLive:                       g.AllowLive,
-		ForceOpenAIFast:                 g.ForceOpenaiFast,
-		OpenAIFastPolicy:                g.OpenaiFastPolicy,
-		FreeOpenAIFast:                  g.FreeOpenaiFast,
-		RequireOAuthOnly:                g.RequireOauthOnly,
-		RequirePrivacySet:               g.RequirePrivacySet,
-		DefaultMappedModel:              g.DefaultMappedModel,
-		MessagesDispatchModelConfig:     g.MessagesDispatchModelConfig,
-		ModelsListConfig:                g.ModelsListConfig,
-		AvailabilityProbeConfig:         g.AvailabilityProbeConfig,
-		RPMLimit:                        g.RpmLimit,
-		MaxReasoningEffort:              g.MaxReasoningEffort,
-		MaxReasoningEffortOverLimit:     g.MaxReasoningEffortOverLimit,
-		ReasoningEffortMappings:         g.ReasoningEffortMappings,
-		PeakRateEnabled:                 g.PeakRateEnabled,
-		PeakStart:                       g.PeakStart,
-		PeakEnd:                         g.PeakEnd,
-		PeakRateMultiplier:              g.PeakRateMultiplier,
-		CreatedAt:                       g.CreatedAt,
-		UpdatedAt:                       g.UpdatedAt,
-	}
+	return service.GroupFromRouting(routingpostgres.GroupFromEnt(g))
 }
 
 func derefString(s *string) string {

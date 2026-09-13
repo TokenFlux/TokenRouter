@@ -42,10 +42,10 @@
 | --- | --- | --- |
 | 组合根 | `internal/app`、`app/bootstrap`、`app/lifecycle` | 配置投影、Wire 绑定、初始化、统一启停、失败回收和重启请求 |
 | 配置 | `internal/config` | 默认值、YAML/环境变量加载、归一化与启动校验 |
-| 已迁用例 | `internal/settings`、`idempotency`、`site`、`billing`、`identity`、`team`、`apikey` | 设置、幂等、公告、资金与权益、用户身份、团队与 Key |
+| 已迁用例 | `internal/settings`、`idempotency`、`site`、`billing`、`identity`、`team`、`apikey`、`routing`、`account`、`egress` | 设置、幂等、公告、资金与权益、身份/团队/Key、路由目录、账号管理与维护、出站策略 |
 | 旧业务图 | `internal/service`、`payment`、`repository` | 尚未迁移的业务规则、事务和适配实现；原 provider set 继续参与构造 |
 | 通用技术实现 | `internal/infra` | PostgreSQL/迁移、Redis/会话/限流/锁、HTTP 池、proxy/TLS、时间轮、日志/timing 和 AES |
-| HTTP 适配与服务器 | `internal/handler`、`site/httpapi`、`billing/httpapi`、`identity/httpapi`、`team/httpapi`、`apikey/httpapi`、`idempotency/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
+| HTTP 适配与服务器 | `internal/handler`、`site/httpapi`、`billing/httpapi`、`identity/httpapi`、`team/httpapi`、`apikey/httpapi`、`idempotency/httpapi`、`routing/httpapi`、`account/httpapi`、`egress/httpapi`、`server`、`web` | 输入输出、认证中间件、路由汇总、HTTP 参数与静态资源 |
 
 settings 的通用实现位于 `settings` 与 `settings/postgres`；旧 `SettingService` 继续解释业务设置和维护领域缓存。idempotency 的核心、观察出口与 SQL Adapter 已独立，旧默认入口只委托唯一实例。site 拥有公告实体、targeting、用例和到期 worker，HTTP 与 PostgreSQL Adapter 分开；旧 domain 公告类型只作为 Ent 生成代码引用的别名。
 
@@ -53,7 +53,7 @@ settings 的通用实现位于 `settings` 与 `settings/postgres`；旧 `Setting
 
 公告与 billing 的用户读取由 app 直接投影 identity；公告有效订阅直接适配 billing 存取接口，匹配规则仍由 site 执行。模块不导入 app。旧图的跨层构造暂留原 provider，应用级启停和新旧模块绑定由 app 管理，不能通过搬动目录给新代码继承历史依赖许可。
 
-身份的注册、绑定、会话和强认证进入 identity，团队事务进入 team，Key 的访问快照、L1/L2 与认证 outbox 进入 apikey。app 构造唯一生产实例与事务参与工厂，旧 service/repository 只保留形状转换和委托；跨模块写入沿用现有 Ent context 与调用方连接。路由/账号、用量、通知及推广支付等旧能力通过窄端口提供，模型匹配由纯 `routing/modelmap` 共享，网关仍拥有请求改写顺序。
+身份的注册、绑定、会话和强认证进入 identity，团队事务进入 team，Key 的访问快照、L1/L2 与认证 outbox 进入 apikey。app 构造唯一生产实例与事务参与工厂，旧 service/repository 只保留形状转换和委托；跨模块写入沿用现有 Ent context 与调用方连接。分组/渠道由 routing、账号管理与维护由 account、代理与 TLS 策略由 egress 提供；用量、通知、推广支付、调度执行与供应商交换仍经窄端口连接旧图。模型匹配由纯 `routing/modelmap` 共享，网关仍拥有请求改写顺序。
 
 `pkg/apperror`、`pagination`、`timezone`、`ipmatch`、`oauthpkce`、`logredact` 提供通用值类型与计算；`server/httpx`、`server/clientip` 拥有 HTTP 适配。旧 pkg/util 入口保留必要的类型别名和委托，不复制实现或状态。
 
@@ -115,3 +115,7 @@ Gin engine 的顺序为 Recovery、可信代理设置、全局日志/客户端�
 - 每个实例都会构造完整后台服务集合；已有单执行者任务继续使用各自的数据库/Redis 锁。用户平台额度的管理、回源、累计与镜像写回采用共享进程内用户锁，当前修复边界是单服务进程，不提供多个实例之间的重置协调。
 
 相关入口：[项目总览](../project_overview.md)、[架构目录](index.md)、[运维目录](../operations/index.md)。
+
+出站、路由与账号的运行接口分别为 EgressPolicy、RoutePlan 和 AccountSnapshot。策略与模型配置跨请求边界提供独立副本；候选协议和账号映射在原 attempt/使用时点重新求值。account 的刷新协调、管理/用量查询、周期维护与 Deferred 由 app 持有并登记停止，egress 的采集监听仍按需开启。`account/postgres`、`routing/postgres`、`egress/postgres` 拥有各自存储，Redis 健康计数与 TLS 缓存在所属 Adapter 中；共享 SQL/Redis/HTTP 池仍只有原技术实例。
+
+分组管理直接读取 AccountStore 与 KeyStore，容量查询直接读取账号轻量投影，身份/Key/billing 的分组和渠道读取直接绑定 routing。平台目录、旧请求上下文设置和调度反馈仍通过 app/legacybridge 提供。`account_groups`、代理联动及账号资金重置由同连接参与能力协作，不新增事务 context；配置更新不覆盖独立消费与运行字段。具体契约见[路由与计费](../domains/routing_and_billing.md)、[账号维护](../operations/account_maintenance.md)和[出站传输](../operations/upstream_transport_security.md)。

@@ -5,11 +5,11 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"log/slog"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -180,15 +180,23 @@ func (s *OpenAIGatewayService) GenerateSessionHashWithFallback(c *gin.Context, b
 }
 
 func resolveOpenAIUpstreamOriginator(c *gin.Context, isOfficialClient bool, routerMatch ...TLSFingerprintRouterMatchResult) string {
+	return resolveOpenAIUpstreamOriginatorForClient(func() string {
+		if c == nil {
+			return ""
+		}
+		return c.GetHeader("originator")
+	}, isOfficialClient, routerMatch...)
+}
+
+// resolveOpenAIUpstreamOriginatorForClient 保持 Router、显式来源和官方默认值优先级。
+func resolveOpenAIUpstreamOriginatorForClient(readOriginator func() string, isOfficialClient bool, routerMatch ...TLSFingerprintRouterMatchResult) string {
 	if len(routerMatch) > 0 && routerMatch[0].Matched {
 		if originator := strings.TrimSpace(routerMatch[0].UpstreamOriginator); originator != "" {
 			return originator
 		}
 	}
-	if c != nil {
-		if originator := strings.TrimSpace(c.GetHeader("originator")); originator != "" {
-			return originator
-		}
+	if originator := strings.TrimSpace(readOriginator()); originator != "" {
+		return originator
 	}
 	if isOfficialClient {
 		return resolveCodexOutboundIdentity("").originator
@@ -302,18 +310,8 @@ func (s *OpenAIGatewayService) SelectAccountForTokenCount(
 	)
 }
 
-// NormalizeOpenAICompatiblePlatform 保留 grok 与国产 OpenAI 兼容供应商（kimi/zhipu/
-// deepseek）的原值，其他值一律归一为 openai。调度器据此对账号与请求做精确平台匹配：
-// kimi 分组请求只命中 kimi 账号，语义与 openai/grok 一致。
-// （upstream 曾将本函数改为未导出 normalizeOpenAICompatiblePlatform，本分支的
-// handler 调度入口仍需导出，保持导出名。）
 func NormalizeOpenAICompatiblePlatform(platform string) string {
-	switch platform {
-	case PlatformGrok, PlatformKimi, PlatformZhipu, PlatformDeepseek:
-		return platform
-	default:
-		return PlatformOpenAI
-	}
+	return routing.NormalizeOpenAICompatiblePlatform(platform)
 }
 
 // noAvailableOpenAISelectionErrorForRouting 使用账号层模型 C/D 判断能力，同时保留 R 的对外错误语义。
@@ -530,192 +528,23 @@ func EvaluateOpenAIQuotaAutoPause(ctx context.Context, account *Account) bool {
 	return paused
 }
 
-func evaluateOpenAIQuotaAutoPause(ctx context.Context, account *Account, now time.Time) (bool, openAIQuotaAutoPauseDecision) {
-	if account == nil || !account.IsOpenAI() {
+// evaluateOpenAIQuotaAutoPause 只转换旧账号与请求设置，不复制健康裁决。
+func evaluateOpenAIQuotaAutoPause(ctx context.Context, v *Account, now time.Time) (bool, openAIQuotaAutoPauseDecision) {
+	if v == nil {
 		return false, openAIQuotaAutoPauseDecision{}
 	}
-	// 账号级显式禁用标记优先于全局默认值。否则账号阈值留空会表示“使用全局默认”，
-	// 一旦存在全局默认值，管理员就无法让单个账号豁免自动暂停。
-	// 禁用标记按窗口拆分，因此账号可以只退出 5h 或只退出 7d 自动暂停。
-	disabled5h := resolveAccountExtraBool(account.Extra, "auto_pause_5h_disabled")
-	disabled7d := resolveAccountExtraBool(account.Extra, "auto_pause_7d_disabled")
-	threshold5h, threshold7d := resolveOpenAIQuotaAutoPauseThresholds(ctx, account)
-	if !disabled5h && threshold5h > 0 {
-		if utilization, ok := resolveOpenAIQuotaUtilization(account.Extra, "5h", now); ok && utilization >= threshold5h {
-			return true, openAIQuotaAutoPauseDecision{window: "5h", threshold: threshold5h, utilization: utilization}
-		}
-	}
-	if !disabled7d && threshold7d > 0 {
-		if utilization, ok := resolveOpenAIQuotaUtilization(account.Extra, "7d", now); ok && utilization >= threshold7d {
-			return true, openAIQuotaAutoPauseDecision{window: "7d", threshold: threshold7d, utilization: utilization}
-		}
-	}
-	return false, openAIQuotaAutoPauseDecision{}
+	paused, d := accountcore.EvaluateQuotaAutoPause(v.Platform, v.Extra, openAIQuotaAutoPauseSettingsFromContext(ctx), now)
+	return paused, openAIQuotaAutoPauseDecision{window: d.Window, threshold: d.Threshold, utilization: d.Utilization}
 }
 
-// resolveAccountExtraBool 从账号 extra 中读取类 bool 值，并兼容 JSON 反序列化
-// 可能产生的几种形态（bool、"true"/"false" 字符串、0/1 数字）。
-func resolveAccountExtraBool(extra map[string]any, key string) bool {
-	if len(extra) == 0 {
-		return false
-	}
-	value, ok := extra[key]
-	if !ok || value == nil {
-		return false
-	}
-	switch v := value.(type) {
-	case bool:
-		return v
-	case string:
-		parsed, err := strconv.ParseBool(strings.TrimSpace(v))
-		return err == nil && parsed
-	case float64:
-		return v != 0
-	case float32:
-		return v != 0
-	case int:
-		return v != 0
-	case int64:
-		return v != 0
-	case json.Number:
-		if i, err := v.Int64(); err == nil {
-			return i != 0
-		}
-	}
-	return false
-}
-
-func resolveOpenAIQuotaAutoPauseThresholds(ctx context.Context, account *Account) (float64, float64) {
-	threshold5h, _ := resolveAccountExtraNumber(account.Extra, "auto_pause_5h_threshold")
-	threshold7d, _ := resolveAccountExtraNumber(account.Extra, "auto_pause_7d_threshold")
-	threshold5h = clamp01(threshold5h)
-	threshold7d = clamp01(threshold7d)
-	if threshold5h > 0 && threshold7d > 0 {
-		return threshold5h, threshold7d
-	}
-	settings := openAIQuotaAutoPauseSettingsFromContext(ctx)
-	if threshold5h <= 0 {
-		threshold5h = clamp01(settings.DefaultThreshold5h)
-	}
-	if threshold7d <= 0 {
-		threshold7d = clamp01(settings.DefaultThreshold7d)
-	}
-	return threshold5h, threshold7d
-}
-
+// resolveAccountExtraNumber 委托账号健康纯规则。
 func resolveAccountExtraNumber(extra map[string]any, keys ...string) (float64, bool) {
-	if len(extra) == 0 {
-		return 0, false
-	}
-	for _, key := range keys {
-		value, ok := extra[key]
-		if !ok || value == nil {
-			continue
-		}
-		switch v := value.(type) {
-		case float64:
-			return v, true
-		case float32:
-			return float64(v), true
-		case int:
-			return float64(v), true
-		case int64:
-			return float64(v), true
-		case json.Number:
-			parsed, err := v.Float64()
-			if err == nil {
-				return parsed, true
-			}
-		case string:
-			parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
-			if err == nil {
-				return parsed, true
-			}
-		}
-	}
-	return 0, false
+	return accountcore.ResolveAccountExtraNumber(extra, keys...)
 }
 
-// resolveOpenAIQuotaUtilization returns the current utilization ratio (0..1) for the
-// given Codex usage window. ok=false means there is no usable signal to pause on:
-// either no snapshot exists, or the window has already rolled over so the cached
-// percentage is stale. The stale guard matters because a paused account stops
-// receiving requests, so its snapshot is never refreshed from upstream headers —
-// without this check an old used_percent would keep the account paused forever even
-// after the real window reset.
-func resolveOpenAIQuotaUtilization(extra map[string]any, window string, now time.Time) (float64, bool) {
-	usedPercent := readOpenAIQuotaUsedPercent(extra, window)
-	if usedPercent <= 0 {
-		return 0, false
-	}
-	if openAIQuotaWindowReset(extra, window, now) {
-		return 0, false
-	}
-	// 快照过于陈旧（账号长期未收到流量刷新）时，不再据此暂停。放行后下一次响应头
-	// 会刷新快照实现自愈，避免账号在错误/过期的 used% 上被永久跳过（issue #2994）。
-	if openAICodexSnapshotStaleForPause(extra, now) {
-		return 0, false
-	}
-	return usedPercent / 100, true
-}
-
-// openAICodexSnapshotStaleForPause reports whether the Codex usage snapshot is stale
-// enough that it should no longer keep an account auto-paused. It anchors on
-// codex_usage_updated_at (always written by buildCodexUsageExtraUpdates). A missing or
-// unparseable timestamp returns false (treated as fresh, so the account stays paused) —
-// this is deliberate: it prevents any snapshot without a write time from silently escaping
-// auto-pause, and a genuinely-exhausted account that is actively served refreshes the
-// timestamp on every response so it never crosses the staleness bound.
-func openAICodexSnapshotStaleForPause(extra map[string]any, now time.Time) bool {
-	if len(extra) == 0 {
-		return false
-	}
-	updatedRaw, ok := extra["codex_usage_updated_at"]
-	if !ok {
-		return false
-	}
-	updatedAt, err := parseTime(fmt.Sprint(updatedRaw))
-	if err != nil {
-		return false
-	}
-	return now.Sub(updatedAt) >= openAICodexAutoPauseStaleAfter
-}
-
-// openAIQuotaWindowReset reports whether the Codex usage window's reset time has
-// already passed relative to now. It prefers the absolute codex_<window>_reset_at
-// timestamp and falls back to codex_<window>_reset_after_seconds anchored at
-// codex_usage_updated_at, mirroring AccountUsageService's window-progress logic.
+// openAIQuotaWindowReset 委托账号健康纯规则。
 func openAIQuotaWindowReset(extra map[string]any, window string, now time.Time) bool {
-	if len(extra) == 0 {
-		return false
-	}
-	if resetAtRaw, ok := extra["codex_"+window+"_reset_at"]; ok {
-		if resetAt, err := parseTime(fmt.Sprint(resetAtRaw)); err == nil {
-			return !now.Before(resetAt)
-		}
-	}
-	resetAfter := parseExtraInt(extra["codex_"+window+"_reset_after_seconds"])
-	if resetAfter <= 0 {
-		return false
-	}
-	base := now
-	if updatedRaw, ok := extra["codex_usage_updated_at"]; ok {
-		if updatedAt, err := parseTime(fmt.Sprint(updatedRaw)); err == nil {
-			base = updatedAt
-		}
-	}
-	resetAt := base.Add(time.Duration(resetAfter) * time.Second)
-	return !now.Before(resetAt)
-}
-
-func readOpenAIQuotaUsedPercent(extra map[string]any, window string) float64 {
-	if len(extra) == 0 {
-		return 0
-	}
-	if value, ok := resolveAccountExtraNumber(extra, "codex_"+window+"_used_percent"); ok {
-		return value
-	}
-	return 0
+	return accountcore.OpenAIQuotaWindowReset(extra, window, now)
 }
 
 type openAIQuotaAutoPauseCtxKey struct{}

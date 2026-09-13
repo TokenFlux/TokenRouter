@@ -1,0 +1,21 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "./internal/account/...",
+    "./internal/routing/...",
+    "./internal/egress/...",
+    "./internal/service/...",
+    "./internal/repository/...",
+    "./internal/handler/...",
+    "./internal/app/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 37.154,
+  "log": "logs/account-health-gemini-lint.log.gz"
+}

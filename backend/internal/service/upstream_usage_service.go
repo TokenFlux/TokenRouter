@@ -1,46 +1,40 @@
 package service
 
 import (
-	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
-	"math"
-	"net/http"
-	"net/url"
-	"reflect"
-	"strconv"
-	"strings"
-	"sync"
-	"time"
-
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
-	"github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
-	"golang.org/x/sync/errgroup"
-	"golang.org/x/sync/singleflight"
+	context "context"
+	json "encoding/json"
+	errors "errors"
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
+	config "github.com/TokenFlux/TokenRouter/internal/config"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	tlsfingerprint "github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	urlvalidator "github.com/TokenFlux/TokenRouter/internal/util/urlvalidator"
+	io "io"
+	math "math"
+	http "net/http"
+	url "net/url"
+	strconv "strconv"
+	strings "strings"
+	sync "sync"
+	time "time"
 )
 
 const (
 	// UpstreamUsageQueryExtraKey 是 API Key 账号用量查询的持久化配置键。
-	UpstreamUsageQueryExtraKey = "upstream_usage_query"
+	UpstreamUsageQueryExtraKey = acctcore.UpstreamUsageQueryExtraKey
 
-	UpstreamUsageAdapterSub2API         = "sub2api"
-	UpstreamUsageAdapterNewAPI          = "new_api"
-	UpstreamUsageAdapterZivv            = "zivv"
-	UpstreamUsageAdapterKimiCoding      = "kimi_coding"
-	UpstreamUsageAdapterZhipuCoding     = "zhipu_coding"
-	UpstreamUsageAdapterKimiBalance     = "kimi_balance"
-	UpstreamUsageAdapterDeepseekBalance = "deepseek_balance"
+	UpstreamUsageAdapterSub2API         = acctcore.UpstreamUsageAdapterSub2API
+	UpstreamUsageAdapterNewAPI          = acctcore.UpstreamUsageAdapterNewAPI
+	UpstreamUsageAdapterZivv            = acctcore.UpstreamUsageAdapterZivv
+	UpstreamUsageAdapterKimiCoding      = acctcore.UpstreamUsageAdapterKimiCoding
+	UpstreamUsageAdapterZhipuCoding     = acctcore.UpstreamUsageAdapterZhipuCoding
+	UpstreamUsageAdapterKimiBalance     = acctcore.UpstreamUsageAdapterKimiBalance
+	UpstreamUsageAdapterDeepseekBalance = acctcore.UpstreamUsageAdapterDeepseekBalance
 
 	// New API 钱包接口在官方部署中需要用户级访问令牌；它与转发 API Key
 	// 分开保存，避免把一个 token 的额度误当成用户钱包余额。
-	NewAPIUserAccessTokenCredentialKey = "new_api_user_access_token"
-	NewAPIUserIDCredentialKey          = "new_api_user_id"
+	NewAPIUserAccessTokenCredentialKey = acctcore.NewAPIUserAccessTokenCredentialKey
+	NewAPIUserIDCredentialKey          = acctcore.NewAPIUserIDCredentialKey
 
 	upstreamUsageDefaultAdapter = UpstreamUsageAdapterSub2API
 	upstreamUsageMaxBodyBytes   = 512 * 1024
@@ -51,131 +45,47 @@ const (
 )
 
 var (
-	ErrUpstreamUsageUnavailable = infraerrors.ServiceUnavailable(
-		"UPSTREAM_USAGE_UNAVAILABLE", "upstream usage query service is unavailable",
-	)
-	ErrUpstreamUsageAccountInvalid = infraerrors.BadRequest(
-		"UPSTREAM_USAGE_ACCOUNT_INVALID", "account is not a supported API key account",
-	)
-	ErrUpstreamUsageAccountDisabled = infraerrors.New(http.StatusUnprocessableEntity,
-		"UPSTREAM_USAGE_ACCOUNT_DISABLED", "account is disabled",
-	)
-	ErrUpstreamUsageDisabled = infraerrors.New(http.StatusUnprocessableEntity,
-		"UPSTREAM_USAGE_DISABLED", "upstream usage query is disabled for this account",
-	)
-	ErrUpstreamUsageUnsupported = infraerrors.New(http.StatusUnprocessableEntity,
-		"UPSTREAM_USAGE_ADAPTER_UNSUPPORTED", "upstream usage adapter is unsupported",
-	)
-	ErrUpstreamUsageAuthFailed = infraerrors.New(http.StatusBadGateway,
-		"UPSTREAM_USAGE_AUTH_FAILED", "upstream rejected the account API key",
-	)
-	ErrUpstreamUsageWalletUnavailable = infraerrors.New(http.StatusBadGateway,
-		"UPSTREAM_USAGE_WALLET_UNAVAILABLE", "upstream wallet balance is unavailable",
-	)
-	ErrUpstreamUsageWalletAuthFailed = infraerrors.New(http.StatusBadGateway,
-		"UPSTREAM_USAGE_WALLET_AUTH_FAILED", "upstream rejected the wallet access token",
-	)
-	ErrUpstreamUsageRateLimited = infraerrors.ServiceUnavailable(
-		"UPSTREAM_USAGE_RATE_LIMITED", "upstream usage query was rate limited",
-	)
-	ErrUpstreamUsageTimeout = infraerrors.GatewayTimeout(
-		"UPSTREAM_USAGE_TIMEOUT", "upstream usage query timed out",
-	)
-	ErrUpstreamUsageInvalidResponse = infraerrors.New(http.StatusBadGateway,
-		"UPSTREAM_USAGE_INVALID_RESPONSE", "upstream returned an invalid usage response",
-	)
-	ErrUpstreamUsageRequestFailed = infraerrors.New(http.StatusBadGateway,
-		"UPSTREAM_USAGE_REQUEST_FAILED", "upstream usage request failed",
-	)
-	ErrUpstreamUsageIdentityChanged = infraerrors.Conflict(
-		"UPSTREAM_USAGE_IDENTITY_CHANGED", "account credentials or connection settings changed during the query",
-	)
-	ErrUpstreamUsageConfigInvalid = infraerrors.BadRequest(
-		"UPSTREAM_USAGE_CONFIG_INVALID", "upstream usage query configuration is invalid",
-	)
-	ErrUpstreamUsageBatchInvalid = infraerrors.BadRequest(
-		"UPSTREAM_USAGE_BATCH_INVALID", "upstream usage batch request is invalid",
-	)
-	ErrUpstreamUsageBatchTooLarge = infraerrors.BadRequest(
-		"UPSTREAM_USAGE_BATCH_TOO_LARGE", "too many accounts in one upstream usage query",
-	)
+	ErrUpstreamUsageUnavailable       = acctcore.ErrUpstreamUsageUnavailable
+	ErrUpstreamUsageAccountInvalid    = acctcore.ErrUpstreamUsageAccountInvalid
+	ErrUpstreamUsageAccountDisabled   = acctcore.ErrUpstreamUsageAccountDisabled
+	ErrUpstreamUsageDisabled          = acctcore.ErrUpstreamUsageDisabled
+	ErrUpstreamUsageUnsupported       = acctcore.ErrUpstreamUsageUnsupported
+	ErrUpstreamUsageAuthFailed        = acctcore.ErrUpstreamUsageAuthFailed
+	ErrUpstreamUsageWalletUnavailable = acctcore.ErrUpstreamUsageWalletUnavailable
+	ErrUpstreamUsageWalletAuthFailed  = acctcore.ErrUpstreamUsageWalletAuthFailed
+	ErrUpstreamUsageRateLimited       = acctcore.ErrUpstreamUsageRateLimited
+	ErrUpstreamUsageTimeout           = acctcore.ErrUpstreamUsageTimeout
+	ErrUpstreamUsageInvalidResponse   = acctcore.ErrUpstreamUsageInvalidResponse
+	ErrUpstreamUsageRequestFailed     = acctcore.ErrUpstreamUsageRequestFailed
+	ErrUpstreamUsageIdentityChanged   = acctcore.ErrUpstreamUsageIdentityChanged
+	ErrUpstreamUsageConfigInvalid     = acctcore.ErrUpstreamUsageConfigInvalid
+	ErrUpstreamUsageBatchInvalid      = acctcore.ErrUpstreamUsageBatchInvalid
+	ErrUpstreamUsageBatchTooLarge     = acctcore.ErrUpstreamUsageBatchTooLarge
 )
 
-// UpstreamUsageQueryConfig 是账号 Extra 中公开给管理员的非敏感查询配置。
-type UpstreamUsageQueryConfig struct {
-	Enabled bool   `json:"enabled"`
-	Adapter string `json:"adapter"`
-	BaseURL string `json:"base_url,omitempty"`
-}
+// UpstreamUsageQueryConfig 兼容旧消费者，值类型归账号模块。
+type UpstreamUsageQueryConfig = acctcore.UpstreamUsageQueryConfig
 
-// UpstreamUsageAmount 表示余额或累计限额的三个可选维度。
-type UpstreamUsageAmount struct {
-	Used      *float64 `json:"used,omitempty"`
-	Total     *float64 `json:"total,omitempty"`
-	Remaining *float64 `json:"remaining,omitempty"`
-}
+// UpstreamUsageAmount 兼容旧消费者，值类型归账号模块。
+type UpstreamUsageAmount = acctcore.UpstreamUsageAmount
 
-// UpstreamUsageBalanceEntry 表示多币种余额中的一项。
-type UpstreamUsageBalanceEntry struct {
-	Currency  string  `json:"currency"`
-	Remaining float64 `json:"remaining"`
-}
+// UpstreamUsageBalanceEntry 兼容旧消费者，值类型归账号模块。
+type UpstreamUsageBalanceEntry = acctcore.UpstreamUsageBalanceEntry
 
-// UpstreamUsageLimit 表示上游返回的某个周期限额，不使用 OAuth 的窗口命名。
-type UpstreamUsageLimit struct {
-	Name      string     `json:"name"`
-	Used      *float64   `json:"used,omitempty"`
-	Limit     *float64   `json:"limit,omitempty"`
-	Remaining *float64   `json:"remaining,omitempty"`
-	ResetAt   *time.Time `json:"reset_at,omitempty"`
-}
+// UpstreamUsageLimit 兼容旧消费者，值类型归账号模块。
+type UpstreamUsageLimit = acctcore.UpstreamUsageLimit
 
-// UpstreamUsageSubscription 表示订阅余额和订阅周期限额。
-type UpstreamUsageSubscription struct {
-	PlanName  string               `json:"plan_name"`
-	Unlimited bool                 `json:"unlimited,omitempty"`
-	Remaining *float64             `json:"remaining,omitempty"`
-	ExpiresAt *time.Time           `json:"expires_at,omitempty"`
-	Limits    []UpstreamUsageLimit `json:"limits,omitempty"`
-}
+// UpstreamUsageSubscription 兼容旧消费者，值类型归账号模块。
+type UpstreamUsageSubscription = acctcore.UpstreamUsageSubscription
 
-// UpstreamUsageInfo 是适配器归一化后的上游用量模型。
-type UpstreamUsageInfo struct {
-	Provider string `json:"provider"`
-	Mode     string `json:"mode"`
-	Unit     string `json:"unit,omitempty"`
-	// New API/Zivv 的 balance 是用户钱包；Key quota 使用 Limits/Subscription。
-	Balance      *UpstreamUsageAmount        `json:"balance,omitempty"`
-	Balances     []UpstreamUsageBalanceEntry `json:"balances,omitempty"`
-	Available    *bool                       `json:"available,omitempty"`
-	Limits       []UpstreamUsageLimit        `json:"limits,omitempty"`
-	Subscription *UpstreamUsageSubscription  `json:"subscription,omitempty"`
-	ExpiresAt    *time.Time                  `json:"expires_at,omitempty"`
-}
+// UpstreamUsageInfo 兼容旧消费者，值类型归账号模块。
+type UpstreamUsageInfo = acctcore.UpstreamUsageInfo
 
-// UpstreamUsageQueryResult 是管理员查询接口的成功响应。
-type UpstreamUsageQueryResult struct {
-	AccountID    int64                       `json:"account_id"`
-	Adapter      string                      `json:"adapter"`
-	ObservedAt   time.Time                   `json:"observed_at"`
-	Provider     string                      `json:"provider,omitempty"`
-	Mode         string                      `json:"mode,omitempty"`
-	Unit         string                      `json:"unit,omitempty"`
-	Balance      *UpstreamUsageAmount        `json:"balance,omitempty"`
-	Balances     []UpstreamUsageBalanceEntry `json:"balances,omitempty"`
-	Available    *bool                       `json:"available,omitempty"`
-	Limits       []UpstreamUsageLimit        `json:"limits,omitempty"`
-	Subscription *UpstreamUsageSubscription  `json:"subscription,omitempty"`
-	ExpiresAt    *time.Time                  `json:"expires_at,omitempty"`
-	// Usage 仅供服务内部复用归一化对象，不暴露到管理员响应，避免把协议内部模型
-	// 再套一层 API Key 的“窗口”语义。
-	Usage *UpstreamUsageInfo `json:"-"`
-}
+// UpstreamUsageQueryResult 兼容旧消费者，值类型归账号模块。
+type UpstreamUsageQueryResult = acctcore.UpstreamUsageQueryResult
 
-// UpstreamUsageMetrics 是进程内的查询计数快照；只保存适配器和错误分类，不保存凭据或响应内容。
-type UpstreamUsageMetrics struct {
-	Counts map[string]int64 `json:"counts"`
-}
+// UpstreamUsageMetrics 兼容旧消费者，值类型归账号模块。
+type UpstreamUsageMetrics = acctcore.UpstreamUsageMetrics
 
 // UpstreamUsageAdapter 描述一个完整的上游请求与响应协议。
 // 适配器拥有请求格式和解析规则，管理员配置只选择适配器和查询根地址。
@@ -184,11 +94,8 @@ type UpstreamUsageAdapter interface {
 	Query(ctx context.Context, client *upstreamUsageHTTPClient) (*UpstreamUsageInfo, error)
 }
 
-// UpstreamUsageAdapterOption 用于前端或诊断页面展示可用适配器。
-type UpstreamUsageAdapterOption struct {
-	Name  string `json:"name"`
-	Label string `json:"label"`
-}
+// UpstreamUsageAdapterOption 兼容旧消费者，值类型归账号模块。
+type UpstreamUsageAdapterOption = acctcore.UpstreamUsageAdapterOption
 
 type upstreamUsageAdapterRegistration struct {
 	Name      string
@@ -197,47 +104,53 @@ type upstreamUsageAdapterRegistration struct {
 	Factory   func() UpstreamUsageAdapter
 }
 
-// upstreamUsageAdapterRegistry 是协议实现的唯一注册表。
-// 新协议在此登记工厂后即可参与配置校验和服务初始化。
-var upstreamUsageAdapterRegistry = []upstreamUsageAdapterRegistration{
-	{Name: UpstreamUsageAdapterSub2API, Label: "Sub2API / TokenRouter", Factory: func() UpstreamUsageAdapter { return &sub2APIUsageAdapter{} }},
-	{Name: UpstreamUsageAdapterNewAPI, Label: "New API", Factory: func() UpstreamUsageAdapter { return &newAPIUsageAdapter{} }},
-	{Name: UpstreamUsageAdapterZivv, Label: "Zivv", Factory: func() UpstreamUsageAdapter { return &zivvUsageAdapter{} }},
-	{Name: UpstreamUsageAdapterKimiCoding, Label: "Kimi Coding Plan", Automatic: true, Factory: func() UpstreamUsageAdapter { return &kimiCodingUsageAdapter{} }},
-	{Name: UpstreamUsageAdapterZhipuCoding, Label: "Zhipu Coding Plan", Automatic: true, Factory: func() UpstreamUsageAdapter { return &zhipuCodingUsageAdapter{} }},
-	{Name: UpstreamUsageAdapterKimiBalance, Label: "Kimi Balance", Automatic: true, Factory: func() UpstreamUsageAdapter { return &kimiBalanceUsageAdapter{} }},
-	{Name: UpstreamUsageAdapterDeepseekBalance, Label: "DeepSeek Balance", Automatic: true, Factory: func() UpstreamUsageAdapter { return &deepseekBalanceUsageAdapter{} }},
-}
-
-// UpstreamUsageAdapterOptions 返回稳定排序的内置适配器列表。
-func UpstreamUsageAdapterOptions() []UpstreamUsageAdapterOption {
-	options := make([]UpstreamUsageAdapterOption, 0, len(upstreamUsageAdapterRegistry))
-	for _, registration := range upstreamUsageAdapterRegistry {
-		if registration.Automatic {
-			continue
-		}
-		options = append(options, UpstreamUsageAdapterOption{Name: registration.Name, Label: registration.Label})
+// 只绑定具体实现；目录、顺序与显示名称由 account 唯一提供。
+var upstreamUsageAdapterRegistry = func() []upstreamUsageAdapterRegistration {
+	factories := map[string]func() UpstreamUsageAdapter{
+		UpstreamUsageAdapterSub2API:         func() UpstreamUsageAdapter { return &sub2APIUsageAdapter{} },
+		UpstreamUsageAdapterNewAPI:          func() UpstreamUsageAdapter { return &newAPIUsageAdapter{} },
+		UpstreamUsageAdapterZivv:            func() UpstreamUsageAdapter { return &zivvUsageAdapter{} },
+		UpstreamUsageAdapterKimiCoding:      func() UpstreamUsageAdapter { return &kimiCodingUsageAdapter{} },
+		UpstreamUsageAdapterZhipuCoding:     func() UpstreamUsageAdapter { return &zhipuCodingUsageAdapter{} },
+		UpstreamUsageAdapterKimiBalance:     func() UpstreamUsageAdapter { return &kimiBalanceUsageAdapter{} },
+		UpstreamUsageAdapterDeepseekBalance: func() UpstreamUsageAdapter { return &deepseekBalanceUsageAdapter{} },
 	}
-	return options
+	specs := acctcore.UpstreamUsageAdapterCatalog()
+	out := make([]upstreamUsageAdapterRegistration, 0, len(specs))
+	for _, spec := range specs {
+		out = append(out, upstreamUsageAdapterRegistration{Name: spec.Name, Label: spec.Label, Automatic: spec.Automatic, Factory: factories[spec.Name]})
+	}
+	return out
+}()
+
+func UpstreamUsageAdapterOptions() []UpstreamUsageAdapterOption {
+	return acctcore.UpstreamUsageAdapterOptions()
 }
 
 // UpstreamUsageService 负责 API Key 上游用量查询；结果只在当前请求中存在。
 type UpstreamUsageService struct {
+	core                *acctcore.UpstreamUsageService
 	accountRepo         AccountRepository
 	httpUpstream        HTTPUpstream
 	cfg                 *config.Config
 	tlsFPProfileService *TLSFingerprintProfileService
 	adapters            map[string]UpstreamUsageAdapter
-	queryFlight         singleflight.Group
-	querySlots          chan struct{}
-	now                 func() time.Time
 	adapterMu           sync.RWMutex
-	metricsMu           sync.Mutex
-	metrics             map[string]int64
 }
 
 // NewUpstreamUsageService 创建上游用量查询服务。
-func NewUpstreamUsageService(
+func NewUpstreamUsageService(repo AccountRepository, upstream HTTPUpstream, cfg *config.Config, tls *TLSFingerprintProfileService) *UpstreamUsageService {
+	s := NewUpstreamUsageExecution(repo, upstream, cfg, tls)
+	var reader acctcore.UpstreamUsageReader
+	if repo != nil {
+		reader = legacyUsageReader{repo}
+	}
+	s.core = acctcore.NewUpstreamUsageService(reader, s, acctcore.UpstreamUsageOptions{Now: time.Now})
+	return s
+}
+
+// NewUpstreamUsageExecution 创建上游用量查询服务。
+func NewUpstreamUsageExecution(
 	accountRepo AccountRepository,
 	httpUpstream HTTPUpstream,
 	cfg *config.Config,
@@ -249,9 +162,6 @@ func NewUpstreamUsageService(
 		cfg:                 cfg,
 		tlsFPProfileService: tlsFPProfileService,
 		adapters:            make(map[string]UpstreamUsageAdapter),
-		querySlots:          make(chan struct{}, upstreamUsageConcurrency),
-		now:                 time.Now,
-		metrics:             make(map[string]int64),
 	}
 	for _, registration := range upstreamUsageAdapterRegistry {
 		service.RegisterAdapter(registration.Factory())
@@ -272,458 +182,34 @@ func (s *UpstreamUsageService) RegisterAdapter(adapter UpstreamUsageAdapter) {
 	s.adapters[strings.TrimSpace(adapter.Name())] = adapter
 }
 
-func (s *UpstreamUsageService) recordMetric(adapter, outcome string) {
-	if s == nil {
-		return
-	}
-	adapter = strings.TrimSpace(adapter)
-	if adapter == "" {
-		adapter = "unknown"
-	}
-	outcome = strings.TrimSpace(outcome)
-	if outcome == "" {
-		outcome = "unknown"
-	}
-	s.metricsMu.Lock()
-	defer s.metricsMu.Unlock()
-	if s.metrics == nil {
-		s.metrics = make(map[string]int64)
-	}
-	s.metrics[adapter+":"+outcome]++
-}
-
-// SnapshotMetrics 返回脱敏的适配器/结果分类计数，供监控或测试读取。
 func (s *UpstreamUsageService) SnapshotMetrics() UpstreamUsageMetrics {
-	result := UpstreamUsageMetrics{Counts: make(map[string]int64)}
-	if s == nil {
-		return result
-	}
-	s.metricsMu.Lock()
-	defer s.metricsMu.Unlock()
-	for key, value := range s.metrics {
-		result.Counts[key] = value
-	}
-	return result
+	return s.Core().SnapshotMetrics()
 }
 
-// EffectiveUpstreamUsageConfig 解析账号的生效配置。缺少配置时使用安全的默认适配器。
 func EffectiveUpstreamUsageConfig(account *Account) (UpstreamUsageQueryConfig, error) {
-	config := UpstreamUsageQueryConfig{Enabled: true, Adapter: upstreamUsageDefaultAdapter}
-	if adapter := cnUpstreamUsageAdapterName(account); adapter != "" {
-		config.Adapter = adapter
-	}
-	if account == nil || account.Extra == nil {
-		return config, nil
-	}
-	raw, exists := account.Extra[UpstreamUsageQueryExtraKey]
-	if !exists || raw == nil {
-		return config, nil
-	}
-	object, ok := upstreamUsageConfigMap(raw)
-	if !ok {
-		return UpstreamUsageQueryConfig{}, ErrUpstreamUsageConfigInvalid
-	}
-	if value, exists := object["enabled"]; exists {
-		parsed, ok := value.(bool)
-		if !ok {
-			return UpstreamUsageQueryConfig{}, ErrUpstreamUsageConfigInvalid
-		}
-		config.Enabled = parsed
-	}
-	if value, exists := object["adapter"]; exists {
-		parsed, ok := value.(string)
-		if !ok || strings.TrimSpace(parsed) == "" {
-			return UpstreamUsageQueryConfig{}, ErrUpstreamUsageConfigInvalid
-		}
-		if !account.IsCNProvider() {
-			config.Adapter = strings.TrimSpace(parsed)
-		}
-	}
-	if value, exists := object["base_url"]; exists {
-		parsed, ok := value.(string)
-		if !ok {
-			return UpstreamUsageQueryConfig{}, ErrUpstreamUsageConfigInvalid
-		}
-		config.BaseURL = strings.TrimSpace(parsed)
-	}
-	for key := range object {
-		if key != "enabled" && key != "adapter" && key != "base_url" {
-			return UpstreamUsageQueryConfig{}, ErrUpstreamUsageConfigInvalid
-		}
-	}
-	if !isKnownUpstreamUsageAdapter(config.Adapter) {
-		return UpstreamUsageQueryConfig{}, ErrUpstreamUsageUnsupported
-	}
-	if config.BaseURL != "" {
-		if err := validateUsageBaseURLFormat(config.BaseURL); err != nil {
-			return UpstreamUsageQueryConfig{}, ErrUpstreamUsageConfigInvalid.WithCause(err)
-		}
-	}
-	return config, nil
+	return acctcore.EffectiveUpstreamUsageConfig(protocolRecord(account))
 }
 
-// NormalizeUpstreamUsageExtra 校验并规范化创建/更新请求中的查询配置。
 func NormalizeUpstreamUsageExtra(extra map[string]any) error {
-	if extra == nil {
-		return nil
-	}
-	raw, exists := extra[UpstreamUsageQueryExtraKey]
-	if !exists || raw == nil {
-		return nil
-	}
-	object, ok := upstreamUsageConfigMap(raw)
-	if !ok {
-		return ErrUpstreamUsageConfigInvalid
-	}
-	normalized := map[string]any{
-		"enabled": true,
-		"adapter": upstreamUsageDefaultAdapter,
-	}
-	if value, exists := object["enabled"]; exists {
-		parsed, ok := value.(bool)
-		if !ok {
-			return ErrUpstreamUsageConfigInvalid
-		}
-		normalized["enabled"] = parsed
-	}
-	if value, exists := object["adapter"]; exists {
-		parsed, ok := value.(string)
-		if !ok || !isKnownUpstreamUsageAdapter(strings.TrimSpace(parsed)) {
-			return ErrUpstreamUsageConfigInvalid
-		}
-		normalized["adapter"] = strings.TrimSpace(parsed)
-	}
-	if value, exists := object["base_url"]; exists {
-		parsed, ok := value.(string)
-		if !ok {
-			return ErrUpstreamUsageConfigInvalid
-		}
-		parsed = strings.TrimSpace(parsed)
-		if parsed != "" {
-			if err := validateUsageBaseURLFormat(parsed); err != nil {
-				return ErrUpstreamUsageConfigInvalid.WithCause(err)
-			}
-			normalized["base_url"] = parsed
-		}
-	}
-	// 不接受任何可能把凭据或任意请求模板带入 Extra 的字段。
-	for key := range object {
-		if key != "enabled" && key != "adapter" && key != "base_url" {
-			return ErrUpstreamUsageConfigInvalid
-		}
-	}
-	extra[UpstreamUsageQueryExtraKey] = normalized
-	return nil
+	return acctcore.NormalizeUpstreamUsageExtra(extra)
 }
 
-// normalizedUpstreamUsageConfigValue 复制并规范化已有配置。
-// 旧记录若含敏感字段或任意请求模板，不得在一次无关编辑中被重新写回。
 func normalizedUpstreamUsageConfigValue(value any) (any, bool) {
-	if value == nil {
-		return nil, false
-	}
-	extra := map[string]any{UpstreamUsageQueryExtraKey: value}
-	if err := NormalizeUpstreamUsageExtra(extra); err != nil {
-		return nil, false
-	}
-	normalized, ok := extra[UpstreamUsageQueryExtraKey]
-	return normalized, ok
+	return acctcore.NormalizedUpstreamUsageConfigValue(value)
 }
 
-func upstreamUsageConfigMap(raw any) (map[string]any, bool) {
-	if object, ok := raw.(map[string]any); ok {
-		return object, true
-	}
-	payload, err := json.Marshal(raw)
-	if err != nil {
-		return nil, false
-	}
-	var object map[string]any
-	if err := json.Unmarshal(payload, &object); err != nil {
-		return nil, false
-	}
-	return object, object != nil
-}
+func validateUsageBaseURLFormat(raw string) error { return egress.ValidateUsageBaseURLFormat(raw) }
 
-func isKnownUpstreamUsageAdapter(name string) bool {
-	for _, registration := range upstreamUsageAdapterRegistry {
-		if registration.Name == name {
-			return true
-		}
-	}
-	return false
-}
-
-func validateUsageBaseURLFormat(raw string) error {
-	parsed, err := url.Parse(strings.TrimSpace(raw))
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return errors.New("invalid base URL")
-	}
-	if parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
-		return errors.New("base URL must not contain credentials, query, or fragment")
-	}
-	if !strings.EqualFold(parsed.Scheme, "http") && !strings.EqualFold(parsed.Scheme, "https") {
-		return errors.New("base URL scheme is not supported")
-	}
-	if len(raw) > 2048 {
-		return errors.New("base URL is too long")
-	}
-	return nil
-}
-
-// QueryAccount 查询单个账号的实时上游用量。
 func (s *UpstreamUsageService) QueryAccount(ctx context.Context, accountID int64) (*UpstreamUsageQueryResult, error) {
-	if s == nil || s.accountRepo == nil || s.httpUpstream == nil {
-		return nil, ErrUpstreamUsageUnavailable
-	}
-	if accountID <= 0 {
-		return nil, ErrUpstreamUsageAccountInvalid
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	queryDeadline := time.Now().Add(upstreamUsageTimeout)
-	preflightCtx, cancelPreflight := context.WithDeadline(ctx, queryDeadline)
-	defer cancelPreflight()
-	// 先读取一次身份快照，用它生成 singleflight 指纹。这样凭据、代理或
-	// 查询配置发生变化时，不会把新请求错误地合并到旧请求中。
-	account, err := s.loadQueryAccount(preflightCtx, accountID)
-	if err != nil {
-		return nil, err
-	}
-	queryConfig, err := EffectiveUpstreamUsageConfig(account)
-	if err != nil {
-		return nil, err
-	}
-	if !queryConfig.Enabled {
-		return nil, ErrUpstreamUsageDisabled
-	}
-	// 国产供应商不允许管理员把协议适配器误选成通用站点适配器；按平台和
-	// account_mode 自动选择只读适配器，保留现有查询开关与身份指纹语义。
-	if account.IsCNProvider() {
-		queryConfig.Adapter = cnUpstreamUsageAdapterName(account)
-		if queryConfig.Adapter == "" {
-			return nil, ErrUpstreamUsageUnsupported
-		}
-	}
-	if s.adapter(queryConfig.Adapter) == nil {
-		return nil, ErrUpstreamUsageUnsupported
-	}
-	fingerprint := upstreamUsageContextFingerprint(account, queryConfig)
-	key := fmt.Sprintf("%d:%s", accountID, fingerprint)
-	resultCh := s.queryFlight.DoChan(key, func() (any, error) {
-		// 共享操作保留首个调用方的值，但不继承其取消信号；固定截止时间
-		// 则把首次身份读取也计入约 60 秒的总预算。
-		opCtx, cancel := context.WithDeadline(context.WithoutCancel(ctx), queryDeadline)
-		defer cancel()
-		return s.queryAccount(opCtx, accountID, account, queryConfig)
-	})
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case result := <-resultCh:
-		if result.Err != nil {
-			return nil, result.Err
-		}
-		queryResult, ok := result.Val.(*UpstreamUsageQueryResult)
-		if !ok || queryResult == nil {
-			return nil, ErrUpstreamUsageInvalidResponse
-		}
-		return queryResult, nil
-	}
+	return s.Core().QueryAccount(ctx, accountID)
 }
 
 func cnUpstreamUsageAdapterName(account *Account) string {
-	if account == nil || !account.IsCNProvider() {
-		return ""
-	}
-	if account.IsCodingPlan() {
-		switch account.Platform {
-		case PlatformKimi:
-			return UpstreamUsageAdapterKimiCoding
-		case PlatformZhipu:
-			return UpstreamUsageAdapterZhipuCoding
-		default:
-			return ""
-		}
-	}
-	switch account.Platform {
-	case PlatformKimi:
-		return UpstreamUsageAdapterKimiBalance
-	case PlatformDeepseek:
-		return UpstreamUsageAdapterDeepseekBalance
-	default:
-		// 智谱 payg 没有公开余额协议，手动查询保持明确“不支持”而不发请求。
-		return ""
-	}
+	return acctcore.CNUpstreamUsageAdapterName(protocolRecord(account))
 }
 
-// QueryBatch 查询多个账号；单账号错误通过 errors 返回，不中断其它账号。
 func (s *UpstreamUsageService) QueryBatch(ctx context.Context, accountIDs []int64) (map[int64]*UpstreamUsageQueryResult, map[int64]error, error) {
-	if s == nil || s.accountRepo == nil || s.httpUpstream == nil {
-		return nil, nil, ErrUpstreamUsageUnavailable
-	}
-	if len(accountIDs) == 0 {
-		return nil, nil, ErrUpstreamUsageBatchInvalid
-	}
-	if len(accountIDs) > upstreamUsageBatchLimit {
-		return nil, nil, ErrUpstreamUsageBatchTooLarge
-	}
-	unique := make([]int64, 0, len(accountIDs))
-	seen := make(map[int64]struct{}, len(accountIDs))
-	errorsByID := make(map[int64]error)
-	for _, id := range accountIDs {
-		if id <= 0 {
-			errorsByID[id] = ErrUpstreamUsageAccountInvalid
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		unique = append(unique, id)
-	}
-	results := make(map[int64]*UpstreamUsageQueryResult, len(unique))
-	if len(unique) == 0 {
-		return results, errorsByID, nil
-	}
-	var mu sync.Mutex
-	group, groupCtx := errgroup.WithContext(ctx)
-	group.SetLimit(upstreamUsageConcurrency)
-	for _, id := range unique {
-		id := id
-		group.Go(func() error {
-			result, err := s.QueryAccount(groupCtx, id)
-			mu.Lock()
-			defer mu.Unlock()
-			if err != nil {
-				errorsByID[id] = err
-			} else {
-				results[id] = result
-			}
-			return nil
-		})
-	}
-	if err := group.Wait(); err != nil {
-		return nil, nil, err
-	}
-	return results, errorsByID, nil
-}
-
-func (s *UpstreamUsageService) queryAccount(ctx context.Context, accountID int64, expected *Account, expectedConfig UpstreamUsageQueryConfig) (result *UpstreamUsageQueryResult, err error) {
-	defer func() {
-		outcome := "success"
-		if err != nil {
-			outcome = infraerrors.Reason(err)
-			if outcome == "" {
-				outcome = "error"
-			}
-		}
-		s.recordMetric(expectedConfig.Adapter, outcome)
-	}()
-	release, err := s.acquireQuerySlot(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer release()
-
-	account, err := s.loadQueryAccount(ctx, accountID)
-	if err != nil {
-		if errors.Is(err, ErrUpstreamUsageAccountInvalid) || errors.Is(err, ErrUpstreamUsageAccountDisabled) {
-			// 预读后账号类型、状态或记录本身发生变化，应报告身份冲突，
-			// 而不是把一次进行中的查询误报为普通账号参数错误。
-			return nil, ErrUpstreamUsageIdentityChanged
-		}
-		return nil, err
-	}
-	if !sameUpstreamUsageIdentity(expected, account, expectedConfig) {
-		return nil, ErrUpstreamUsageIdentityChanged
-	}
-	adapter := s.adapter(expectedConfig.Adapter)
-	if adapter == nil {
-		return nil, ErrUpstreamUsageUnsupported
-	}
-	client, err := s.newHTTPClient(account, expectedConfig)
-	if err != nil {
-		return nil, err
-	}
-	usage, err := adapter.Query(ctx, client)
-	if err != nil {
-		return nil, err
-	}
-	if err := validateNormalizedUsage(usage); err != nil {
-		return nil, ErrUpstreamUsageInvalidResponse.WithCause(err)
-	}
-	current, err := s.accountRepo.GetByID(ctx, accountID)
-	if err != nil {
-		if errors.Is(err, ErrAccountNotFound) {
-			// 查询开始后账号被删除也属于身份快照变化，不能把刚取得的结果
-			// 归到一个已经不存在的账号上。
-			return nil, ErrUpstreamUsageIdentityChanged
-		}
-		return nil, upstreamUsageRepositoryError(ctx, err)
-	}
-	if !sameUpstreamUsageIdentity(account, current, expectedConfig) {
-		return nil, ErrUpstreamUsageIdentityChanged
-	}
-	now := time.Now().UTC()
-	if s.now != nil {
-		now = s.now().UTC()
-	}
-	return &UpstreamUsageQueryResult{
-		AccountID:    accountID,
-		Adapter:      expectedConfig.Adapter,
-		ObservedAt:   now,
-		Provider:     usage.Provider,
-		Mode:         usage.Mode,
-		Unit:         usage.Unit,
-		Balance:      usage.Balance,
-		Balances:     usage.Balances,
-		Available:    usage.Available,
-		Limits:       usage.Limits,
-		Subscription: usage.Subscription,
-		ExpiresAt:    usage.ExpiresAt,
-		Usage:        usage,
-	}, nil
-}
-
-func (s *UpstreamUsageService) loadQueryAccount(ctx context.Context, accountID int64) (*Account, error) {
-	account, err := s.accountRepo.GetByID(ctx, accountID)
-	if err != nil {
-		return nil, upstreamUsageRepositoryError(ctx, err)
-	}
-	if account == nil || account.Type != AccountTypeAPIKey {
-		return nil, ErrUpstreamUsageAccountInvalid
-	}
-	if account.Status != "" && account.Status != StatusActive {
-		return nil, ErrUpstreamUsageAccountDisabled
-	}
-	return account, nil
-}
-
-func upstreamUsageRepositoryError(ctx context.Context, err error) error {
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) || errors.Is(err, context.DeadlineExceeded) {
-		return ErrUpstreamUsageTimeout
-	}
-	if errors.Is(err, ErrAccountNotFound) {
-		return ErrUpstreamUsageAccountInvalid
-	}
-	return ErrUpstreamUsageRequestFailed
-}
-
-func (s *UpstreamUsageService) acquireQuerySlot(ctx context.Context) (func(), error) {
-	s.adapterMu.Lock()
-	if s.querySlots == nil {
-		s.querySlots = make(chan struct{}, upstreamUsageConcurrency)
-	}
-	slots := s.querySlots
-	s.adapterMu.Unlock()
-	select {
-	case slots <- struct{}{}:
-		return func() { <-slots }, nil
-	case <-ctx.Done():
-		return nil, upstreamUsageContextError(ctx)
-	}
+	return s.Core().QueryBatch(ctx, accountIDs)
 }
 
 func (s *UpstreamUsageService) adapter(name string) UpstreamUsageAdapter {
@@ -815,51 +301,6 @@ func upstreamUsageAccountBaseURL(account *Account) string {
 		// 未知平台没有平台专用的 URL 归一化规则，仍允许复用凭据中的根地址。
 		return strings.TrimSpace(account.GetCredential("base_url"))
 	}
-}
-
-func sameUpstreamUsageIdentity(expected, current *Account, expectedConfig UpstreamUsageQueryConfig) bool {
-	if expected == nil || current == nil || expected.ID != current.ID || current.Type != AccountTypeAPIKey ||
-		expected.Platform != current.Platform || !reflect.DeepEqual(expected.Credentials, current.Credentials) ||
-		!sameUpstreamUsageOptionalInt64(expected.ProxyID, current.ProxyID) || expected.Concurrency != current.Concurrency ||
-		expected.Status != current.Status {
-		return false
-	}
-	if expected.ProxyID != nil && !sameUpstreamUsageProxy(expected.Proxy, current.Proxy, *expected.ProxyID) {
-		// 仓储可能暂时没有预加载代理详情；两边都缺失时交给客户端构建阶段
-		// 返回请求错误，避免把可诊断的配置缺失误报成身份冲突。
-		if expected.Proxy != nil || current.Proxy != nil {
-			return false
-		}
-	}
-	for _, key := range []string{"enable_tls_fingerprint", "tls_fingerprint_profile_id", "tls_fingerprint_router_id"} {
-		if !reflect.DeepEqual(extraValue(expected.Extra, key), extraValue(current.Extra, key)) {
-			return false
-		}
-	}
-	currentConfig, err := EffectiveUpstreamUsageConfig(current)
-	if err != nil || currentConfig != expectedConfig {
-		return false
-	}
-	return true
-}
-
-func sameUpstreamUsageOptionalInt64(left, right *int64) bool {
-	return left == nil && right == nil || left != nil && right != nil && *left == *right
-}
-
-func sameUpstreamUsageProxy(expected, current *Proxy, id int64) bool {
-	if expected == nil || current == nil || expected.ID != id || current.ID != id {
-		return false
-	}
-	return expected.Protocol == current.Protocol && expected.Host == current.Host && expected.Port == current.Port &&
-		expected.Username == current.Username && expected.Password == current.Password && expected.Status == current.Status
-}
-
-func extraValue(extra map[string]any, key string) any {
-	if extra == nil {
-		return nil
-	}
-	return extra[key]
 }
 
 func (c *upstreamUsageHTTPClient) get(ctx context.Context, path string, authenticated bool) ([]byte, int, error) {
@@ -969,134 +410,19 @@ func upstreamUsageOperationError(ctx context.Context, err error) error {
 	return ErrUpstreamUsageRequestFailed
 }
 
-func upstreamUsageContextError(ctx context.Context) error {
-	if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-		return ErrUpstreamUsageTimeout
-	}
-	return ErrUpstreamUsageRequestFailed
-}
-
 func validateNormalizedUsage(usage *UpstreamUsageInfo) error {
-	if usage == nil || strings.TrimSpace(usage.Provider) == "" || strings.TrimSpace(usage.Mode) == "" {
-		return errors.New("missing normalized usage fields")
-	}
-	switch usage.Mode {
-	case "balance", "quota", "limits", "subscription":
-	default:
-		return errors.New("unknown normalized usage mode")
-	}
-	switch usage.Mode {
-	case "balance", "quota":
-		if usage.Balance == nil {
-			return errors.New("missing normalized balance")
-		}
-	case "limits":
-		if len(usage.Limits) == 0 && (usage.Subscription == nil || len(usage.Subscription.Limits) == 0) {
-			return errors.New("missing normalized limits")
-		}
-	case "subscription":
-		if usage.Subscription == nil {
-			return errors.New("missing normalized subscription")
-		}
-	}
-	if usage.Unit != "" && usage.Unit != "USD" && usage.Unit != "CNY" && usage.Unit != "TOKENS" && usage.Unit != "PERCENT" {
-		return errors.New("unknown usage unit")
-	}
-	for _, balance := range usage.Balances {
-		if strings.TrimSpace(balance.Currency) == "" || !validFiniteNumber(balance.Remaining) {
-			return errors.New("invalid usage balance entry")
-		}
-	}
-	if usage.Balance != nil {
-		if err := validateUsageAmount(usage.Balance); err != nil {
-			return err
-		}
-	}
-	if err := validateUsageLimits(usage.Limits); err != nil {
-		return err
-	}
-	if usage.Subscription != nil {
-		if strings.TrimSpace(usage.Subscription.PlanName) == "" {
-			return errors.New("missing subscription plan")
-		}
-		if usage.Subscription.Unlimited && (usage.Subscription.Remaining != nil || len(usage.Subscription.Limits) > 0) {
-			return errors.New("unlimited subscription must not contain remaining or limits")
-		}
-		if !usage.Subscription.Unlimited && usage.Subscription.Remaining == nil && len(usage.Subscription.Limits) == 0 {
-			return errors.New("limited subscription is missing remaining or limits")
-		}
-		if usage.Subscription.Remaining != nil && !validFiniteNumber(*usage.Subscription.Remaining) {
-			return errors.New("invalid subscription remaining")
-		}
-		if usage.Subscription.ExpiresAt != nil && usage.Subscription.ExpiresAt.IsZero() {
-			return errors.New("invalid subscription expiry")
-		}
-		if err := validateUsageLimits(usage.Subscription.Limits); err != nil {
-			return err
-		}
-	}
-	if usage.ExpiresAt != nil && usage.ExpiresAt.IsZero() {
-		return errors.New("invalid expiry")
-	}
-	return nil
+	return acctcore.ValidateNormalizedUsage(usage)
 }
 
 func validateUsageAmount(amount *UpstreamUsageAmount) error {
-	if amount == nil || (amount.Used == nil && amount.Total == nil && amount.Remaining == nil) {
-		return errors.New("missing usage amount values")
-	}
-	for _, value := range []*float64{amount.Used, amount.Total} {
-		if value != nil && !validNonNegativeNumber(*value) {
-			return errors.New("invalid usage amount")
-		}
-	}
-	if amount.Remaining != nil && !validFiniteNumber(*amount.Remaining) {
-		return errors.New("invalid usage remaining")
-	}
-	// 钱包余额允许为负；New API Token 额度在适配器层已经校验为非负。
-	return nil
+	return acctcore.ValidateUsageAmount(amount)
 }
 
-func validateUsageLimits(limits []UpstreamUsageLimit) error {
-	seen := make(map[string]struct{}, len(limits))
-	for _, limit := range limits {
-		name := strings.TrimSpace(limit.Name)
-		if name == "" {
-			return errors.New("missing usage limit name")
-		}
-		if _, exists := seen[name]; exists {
-			return errors.New("duplicate usage limit")
-		}
-		seen[name] = struct{}{}
-		for _, value := range []*float64{limit.Used, limit.Limit} {
-			if value != nil && !validNonNegativeNumber(*value) {
-				return errors.New("invalid usage limit amount")
-			}
-		}
-		if limit.Used == nil && limit.Limit == nil && limit.Remaining == nil {
-			return errors.New("missing usage limit values")
-		}
-		if limit.Remaining != nil && !validFiniteNumber(*limit.Remaining) {
-			return errors.New("invalid usage limit remaining")
-		}
-		if limit.ResetAt != nil && limit.ResetAt.IsZero() {
-			return errors.New("invalid usage limit reset")
-		}
-	}
-	return nil
-}
+func validNonNegativeNumber(value float64) bool { return acctcore.ValidNonNegativeNumber(value) }
 
-func validNonNegativeNumber(value float64) bool {
-	return value >= 0 && !math.IsNaN(value) && !math.IsInf(value, 0)
-}
+func validPositiveNumber(value float64) bool { return acctcore.ValidPositiveNumber(value) }
 
-func validPositiveNumber(value float64) bool {
-	return value > 0 && !math.IsNaN(value) && !math.IsInf(value, 0)
-}
-
-func validFiniteNumber(value float64) bool {
-	return !math.IsNaN(value) && !math.IsInf(value, 0)
-}
+func validFiniteNumber(value float64) bool { return acctcore.ValidFiniteNumber(value) }
 
 // --- Sub2API 适配器 ---
 
@@ -2231,51 +1557,38 @@ func closeEnough(left, right float64) bool {
 }
 
 func upstreamUsageContextFingerprint(account *Account, config UpstreamUsageQueryConfig) string {
-	if account == nil {
-		return "nil"
-	}
-	payload := struct {
-		ID          int64
-		Platform    string
-		Type        string
-		Credentials map[string]any
-		Config      UpstreamUsageQueryConfig
-		BaseURL     string
-		ProxyID     *int64
-		Proxy       any
-		Concurrency int
-		Transport   map[string]any
-	}{
-		ID:          account.ID,
-		Platform:    account.Platform,
-		Type:        account.Type,
-		Credentials: account.Credentials,
-		Config:      config,
-		BaseURL:     upstreamUsageAccountBaseURL(account),
-		ProxyID:     account.ProxyID,
-		Concurrency: account.Concurrency,
-		Transport: map[string]any{
-			"enable_tls_fingerprint":     extraValue(account.Extra, "enable_tls_fingerprint"),
-			"tls_fingerprint_profile_id": extraValue(account.Extra, "tls_fingerprint_profile_id"),
-			"tls_fingerprint_router_id":  extraValue(account.Extra, "tls_fingerprint_router_id"),
-		},
-	}
-	if account.Proxy != nil {
-		// 指纹只留在进程内；代理密码不会进入日志、响应或浏览器缓存。
-		payload.Proxy = struct {
-			ID       int64
-			Protocol string
-			Host     string
-			Port     int
-			Username string
-			Password string
-			Status   string
-		}{account.Proxy.ID, account.Proxy.Protocol, account.Proxy.Host, account.Proxy.Port, account.Proxy.Username, account.Proxy.Password, account.Proxy.Status}
-	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		data = []byte(fmt.Sprintf("%d:%s:%s:%v", account.ID, account.Platform, config.Adapter, account.Credentials))
-	}
-	hash := sha256.Sum256(data)
-	return hex.EncodeToString(hash[:])
+	return acctcore.UpstreamUsageContextFingerprint(AccountRecordView(account), config, upstreamUsageAccountBaseURL(account))
 }
+
+// legacyUsageReader 仅供兼容构造，生产组合根直接绑定唯一账号存储。
+type legacyUsageReader struct{ source AccountRepository }
+
+func (r legacyUsageReader) GetByID(ctx context.Context, id int64) (*acctcore.Record, error) {
+	v, err := r.source.GetByID(ctx, id)
+	return AccountRecordView(v), err
+}
+func (s *UpstreamUsageService) Available() bool {
+	return s != nil && s.httpUpstream != nil && s.accountRepo != nil
+}
+func (s *UpstreamUsageService) Supports(name string) bool { return s.adapter(name) != nil }
+func (s *UpstreamUsageService) BaseURL(value *acctcore.Record) string {
+	return upstreamUsageAccountBaseURL(AccountFromRecord(value))
+}
+func (s *UpstreamUsageService) Query(ctx context.Context, value *acctcore.Record, config acctcore.UpstreamUsageQueryConfig) (*acctcore.UpstreamUsageInfo, error) {
+	adapter := s.adapter(config.Adapter)
+	if adapter == nil {
+		return nil, ErrUpstreamUsageUnsupported
+	}
+	client, err := s.newHTTPClient(AccountFromRecord(value), config)
+	if err != nil {
+		return nil, err
+	}
+	return adapter.Query(ctx, client)
+}
+func (s *UpstreamUsageService) Core() *acctcore.UpstreamUsageService {
+	if s == nil {
+		return nil
+	}
+	return s.core
+}
+func (s *UpstreamUsageService) BindCore(core *acctcore.UpstreamUsageService) { s.core = core }

@@ -184,7 +184,10 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
 
 	// 解析渠道级模型映射
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
+	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
+	channelMappingRoutePlan := h.gatewayService.PlanRoute(c.Request.Context(), service.APIKeyRouteGroup(apiKey), apiKey.GroupID, reqModel)
+	channelMapping := service.ChannelMappingFromRoutePlan(channelMappingRoutePlan)
+	c.Request = c.Request.WithContext(service.WithRoutePlan(c.Request.Context(), channelMappingRoutePlan))
 
 	// 设置 max_tokens=1 + haiku 探测请求标识到 context 中
 	// 必须在 SetClaudeCodeClientContext 之前设置，因为 ClaudeCodeValidator 需要读取此标识进行绕过判断
@@ -1585,7 +1588,9 @@ func (h *GatewayHandler) prepareGatewayAttemptRequest(
 		groupID = &value
 	}
 	attempt.GroupID = groupID
-	mapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(ctx, groupID, requestedModel)
+	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
+	mappingRoutePlan := h.gatewayService.PlanRoute(ctx, service.APIKeyRouteGroup(apiKey), groupID, requestedModel)
+	mapping := service.ChannelMappingFromRoutePlan(mappingRoutePlan)
 	if !mapping.Mapped {
 		return attempt, mapping, nil
 	}

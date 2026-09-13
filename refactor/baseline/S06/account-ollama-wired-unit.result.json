@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/egress",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app/...",
+    "./internal/server/routes",
+    "-run",
+    "Test.*(Ollama|Leader|CNUsageMonitor)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 33.863,
+  "log": "logs/account-ollama-wired-unit.log.gz"
+}

@@ -1,5 +1,9 @@
 package service
 
+import accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+
+import accounttransfer "github.com/TokenFlux/TokenRouter/internal/account/transfer"
+
 import identity "github.com/TokenFlux/TokenRouter/internal/identity"
 
 import protocolopenai "github.com/TokenFlux/TokenRouter/internal/protocol/openai"
@@ -494,26 +498,11 @@ func (cfg WeChatConnectOAuthConfig) AppSecretForMode(mode string) string {
 	return strings.TrimSpace(firstNonEmpty(cfg.OpenAppSecret, cfg.LegacyAppSecret))
 }
 
-// StreamTimeoutSettings 流超时处理配置（仅控制超时后的处理方式，超时判定由网关配置控制）
-type StreamTimeoutSettings struct {
-	// Enabled 是否启用流超时处理
-	Enabled bool `json:"enabled"`
-	// Action 超时后的处理方式: "temp_unsched" | "error" | "none"
-	Action string `json:"action"`
-	// TempUnschedMinutes 临时不可调度持续时间（分钟）
-	TempUnschedMinutes int `json:"temp_unsched_minutes"`
-	// ThresholdCount 触发阈值次数（累计多少次超时才触发）
-	ThresholdCount int `json:"threshold_count"`
-	// ThresholdWindowMinutes 阈值窗口时间（分钟）
-	ThresholdWindowMinutes int `json:"threshold_window_minutes"`
-}
+type StreamTimeoutSettings = accountcore.StreamTimeoutSettings
 
-// StreamTimeoutAction 流超时处理方式常量
-const (
-	StreamTimeoutActionTempUnsched = "temp_unsched" // 临时不可调度
-	StreamTimeoutActionError       = "error"        // 标记为错误状态
-	StreamTimeoutActionNone        = "none"         // 不处理
-)
+const StreamTimeoutActionTempUnsched = accountcore.StreamTimeoutActionTempUnsched
+const StreamTimeoutActionError = accountcore.StreamTimeoutActionError
+const StreamTimeoutActionNone = accountcore.StreamTimeoutActionNone
 
 // DefaultStreamTimeoutSettings 返回默认的流超时配置
 func DefaultStreamTimeoutSettings() *StreamTimeoutSettings {
@@ -572,21 +561,9 @@ type BetaPolicySettings struct {
 	Rules []BetaPolicyRule `json:"rules"`
 }
 
-// OverloadCooldownSettings 529过载冷却配置
-type OverloadCooldownSettings struct {
-	// Enabled 是否在收到529时暂停账号调度
-	Enabled bool `json:"enabled"`
-	// CooldownMinutes 冷却时长（分钟）
-	CooldownMinutes int `json:"cooldown_minutes"`
-}
+type OverloadCooldownSettings = accountcore.OverloadCooldownSettings
 
-// RateLimit429CooldownSettings 429默认回避配置
-type RateLimit429CooldownSettings struct {
-	// Enabled 是否在无法解析上游重置时间时应用默认429回避
-	Enabled bool `json:"enabled"`
-	// CooldownSeconds 默认回避时长（秒）
-	CooldownSeconds int `json:"cooldown_seconds"`
-}
+type RateLimit429CooldownSettings = accountcore.RateLimit429CooldownSettings
 
 // OpenAIImagesOAuthUnavailableCooldownSettings controls how long an OAuth account's image capability is paused when unavailable.
 type OpenAIImagesOAuthUnavailableCooldownSettings struct {
@@ -623,37 +600,14 @@ func DefaultOverloadCooldownSettings() *OverloadCooldownSettings {
 	}
 }
 
-// OpenAI403CooldownSettings OpenAI OAuth 403 冷却配置
-type OpenAI403CooldownSettings struct {
-	// Enabled 是否在 ChatGPT 账号收到 403 时暂停调度
-	Enabled bool `json:"enabled"`
-	// CooldownMinutes 冷却时长（分钟）
-	CooldownMinutes int `json:"cooldown_minutes"`
-	// ErrorOnThresholdEnabled 是否在统计窗口内达到 403 阈值后标记账号错误
-	ErrorOnThresholdEnabled bool `json:"error_on_threshold_enabled"`
-	// ThresholdCount 统计窗口内触发错误状态的 403 次数阈值
-	ThresholdCount int `json:"threshold_count"`
-	// ThresholdWindowMinutes 403 次数统计窗口（分钟）
-	ThresholdWindowMinutes int `json:"threshold_window_minutes"`
-}
+type OpenAI403CooldownSettings = accountcore.OpenAI403CooldownSettings
 
-// DefaultOpenAI403CooldownSettings 返回默认的 OpenAI OAuth 403 冷却配置（启用，10分钟，3次/180分钟转错误）
 func DefaultOpenAI403CooldownSettings() *OpenAI403CooldownSettings {
-	return &OpenAI403CooldownSettings{
-		Enabled:                 true,
-		CooldownMinutes:         openAI403CooldownMinutesDefault,
-		ErrorOnThresholdEnabled: true,
-		ThresholdCount:          openAI403DisableThresholdDefault,
-		ThresholdWindowMinutes:  openAI403CounterWindowMinutesDefault,
-	}
+	return accountcore.DefaultOpenAI403CooldownSettings()
 }
 
-// DefaultRateLimit429CooldownSettings 返回默认的429回避配置（启用，5秒）
 func DefaultRateLimit429CooldownSettings() *RateLimit429CooldownSettings {
-	return &RateLimit429CooldownSettings{
-		Enabled:         true,
-		CooldownSeconds: 5,
-	}
+	return accountcore.DefaultRateLimit429CooldownSettings()
 }
 
 func DefaultOpenAIImagesOAuthUnavailableCooldownSettings() *OpenAIImagesOAuthUnavailableCooldownSettings {
@@ -762,22 +716,9 @@ type OpenAIFastPolicySettings struct {
 	Rules []OpenAIFastPolicyRule `json:"rules"`
 }
 
-// OpenAIOAuthImportAccountDefaults 是 OpenAI OAuth 导入模板允许填充的账号字段。
-type OpenAIOAuthImportAccountDefaults struct {
-	Notes              *string  `json:"notes,omitempty"`
-	Concurrency        *int     `json:"concurrency,omitempty"`
-	Priority           *int     `json:"priority,omitempty"`
-	RateMultiplier     *float64 `json:"rate_multiplier,omitempty"`
-	ExpiresAt          *int64   `json:"expires_at,omitempty"`
-	AutoPauseOnExpired *bool    `json:"auto_pause_on_expired,omitempty"`
-}
+type OpenAIOAuthImportAccountDefaults = accounttransfer.OpenAIOAuthImportAccountDefaults
 
-// OpenAIOAuthImportDefaults 是 OpenAI OAuth 账号导入时的缺省模板。
-type OpenAIOAuthImportDefaults struct {
-	Account     OpenAIOAuthImportAccountDefaults `json:"account,omitempty"`
-	Credentials map[string]any                   `json:"credentials,omitempty"`
-	Extra       map[string]any                   `json:"extra,omitempty"`
-}
+type OpenAIOAuthImportDefaults = accounttransfer.OpenAIOAuthImportDefaults
 
 // DefaultOpenAIOAuthImportDefaults 返回 OpenAI OAuth 导入模板的内置默认值。
 func DefaultOpenAIOAuthImportDefaults() *OpenAIOAuthImportDefaults {

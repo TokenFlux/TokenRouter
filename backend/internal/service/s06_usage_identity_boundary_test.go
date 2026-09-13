@@ -1,0 +1,90 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/stretchr/testify/require"
+	"io"
+	"net/http"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+)
+
+// 真实供应商解析配合本地固定响应，缓存 key 相同但凭据身份改变。
+type agUsageIdentityTransport struct{ calls atomic.Int32 }
+
+func (t *agUsageIdentityTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	t.calls.Add(1)
+	body := `{"models":{}}`
+	if strings.Contains(r.URL.Path, "loadCodeAssist") {
+		body = `{"currentTier":{"id":"FREE"}}`
+	}
+	return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+}
+func TestAntigravityUsageCacheDoesNotCrossCredentialIdentity(t *testing.T) {
+	transport := &agUsageIdentityTransport{}
+	old := http.DefaultTransport
+	http.DefaultTransport = transport
+	t.Cleanup(func() { http.DefaultTransport = old })
+	svc := &AccountUsageService{cache: NewUsageCache(), antigravityQuotaFetcher: NewAntigravityQuotaFetcher(nil, nil)}
+	a := &Account{ID: 885, Platform: PlatformAntigravity, Type: AccountTypeOAuth, Status: StatusActive, Credentials: map[string]any{"access_token": "first", "project_id": "fixture"}}
+	_, err := svc.getAntigravityUsage(context.Background(), a)
+	require.NoError(t, err)
+	require.Equal(t, int32(2), transport.calls.Load())
+	a.Credentials = map[string]any{"access_token": "second", "project_id": "fixture"}
+	_, err = svc.getAntigravityUsage(context.Background(), a)
+	require.NoError(t, err)
+	require.Equal(t, int32(4), transport.calls.Load())
+}
+func TestAnthropicNegativeUsageCacheDoesNotCrossCredentialIdentity(t *testing.T) {
+	oldErr := errors.New("old identity failed")
+	svc := &AccountUsageService{cache: NewUsageCache()}
+	svc.cache.StoreAPI(int64(886), &account.OAuthAPIUsageCache{Identity: "old identity", Err: oldErr, Timestamp: time.Now()})
+	a := &Account{ID: 886, Platform: PlatformAnthropic, Type: AccountTypeOAuth, Status: StatusActive, Credentials: map[string]any{"access_token": "second"}}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := svc.Core().GetUsageForAccount(ctx, AccountRecordView(a), false)
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+// 已发起查询的旧身份不得在返回后把主动用量写到管理员的新身份。
+type activePassiveIdentityRepo struct {
+	sessionWindowSyncRepo
+	current Account
+}
+
+func (r *activePassiveIdentityRepo) GetByID(context.Context, int64) (*Account, error) {
+	v := r.current
+	return &v, nil
+}
+func TestAnthropicActiveUsageDoesNotWriteNewCredentialIdentity(t *testing.T) {
+	a := Account{ID: 887, Platform: PlatformAnthropic, Type: AccountTypeOAuth, Status: StatusActive, Credentials: map[string]any{"access_token": "old"}}
+	repo := &activePassiveIdentityRepo{current: a}
+	repo.current.Credentials = map[string]any{"access_token": "administrator"}
+	svc := &AccountUsageService{cache: NewUsageCache(), accountRepo: repo, usageLogRepo: &usageBatchLogRepoStub{}}
+	response := &ClaudeUsageResponse{}
+	response.FiveHour.Utilization = 31
+	response.FiveHour.ResetsAt = time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	svc.cache.StoreAPI(a.ID, &account.OAuthAPIUsageCache{Identity: account.UsageCacheIdentity(AccountRecordView(&a)), Response: response, Timestamp: time.Now()})
+	_, err := svc.Core().GetUsageForAccount(context.Background(), AccountRecordView(&a), false)
+	require.NoError(t, err)
+	require.Empty(t, repo.extraUpdates)
+	require.Empty(t, repo.sessionWindowEnds)
+}
+
+// 与旧复现保持相同查询断言；替身补齐生产条件端口，真实 SQL 另行验证。
+func (r *activePassiveIdentityRepo) UpdateUsageExtraIfUnchanged(ctx context.Context, v account.UsageObservationVersion, updates map[string]any) (bool, error) {
+	if !account.MatchesCredentialVersion(AccountRecordView(&r.current), v.CredentialVersion) {
+		return false, nil
+	}
+	return true, r.UpdateExtra(ctx, v.ID, updates)
+}
+func (r *activePassiveIdentityRepo) UpdateUsageSessionWindowEndIfUnchanged(ctx context.Context, v account.UsageObservationVersion, _ *time.Time, end time.Time) (bool, error) {
+	if !account.MatchesCredentialVersion(AccountRecordView(&r.current), v.CredentialVersion) {
+		return false, nil
+	}
+	return true, r.UpdateSessionWindowEnd(ctx, v.ID, end)
+}

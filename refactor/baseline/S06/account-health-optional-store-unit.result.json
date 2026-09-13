@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account",
+    "./internal/service",
+    "-run",
+    "SchedulingThreshold|SelectAccountWithScheduler_NoAvailable|Fallback|RateLimit429|Overload"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 31.249,
+  "log": "logs/account-health-optional-store-unit.log.gz"
+}

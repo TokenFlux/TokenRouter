@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/service/...",
+    "./internal/handler/admin/...",
+    "-run",
+    "SchedulingThreshold|ThresholdCandidates|TempUnsched|StreamTimeout|RateLimitService|RoutePlan"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 22.752,
+  "log": "logs/account-health-thresholds-unit.log.gz"
+}

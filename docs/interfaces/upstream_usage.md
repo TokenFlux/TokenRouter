@@ -63,7 +63,7 @@ Zhipu payg 没有公开余额协议，DeepSeek coding 也不是合法账号组�
 
 成功结果在顶层包含 `account_id`、`adapter`、`provider`、UTC `observed_at`、`mode`、`unit`、`balance`、`balances`、`available`、`limits`、`subscription` 和 `expires_at`；未适用字段省略。New API 的 `balance` 是钱包余额，`limits`/`subscription` 是当前 Key 的配额信息；DeepSeek 的 `balances` 保存多币种钱包，coding 周期使用 `unit=PERCENT`。`mode` 为 `balance`、`quota`、`limits` 或 `subscription`。批量响应将成功结果和每个账号的结构化错误分开，单个账号失败不取消其它账号。
 
-每次操作使用约 60 秒总超时、512 KiB 响应体上限、禁止重定向，并复用账号代理、TLS 指纹、Header Override 和 `HTTPUpstream`。查询前后重新读取账号；凭据、代理、Base URL、TLS 连接设置或规范化配置改变时返回 `UPSTREAM_USAGE_IDENTITY_CHANGED`。同一账号和配置指纹使用 singleflight，等待方可以独立取消。
+每次操作使用约 60 秒总超时、512 KiB 响应体上限、禁止重定向，并复用账号代理、TLS 指纹、Header Override 和 `HTTPUpstream`。查询前后重新读取账号；凭据、代理、Base URL、TLS 连接设置或规范化配置改变时返回 `UPSTREAM_USAGE_IDENTITY_CHANGED`。同一账号和配置指纹使用 singleflight，等待方可以独立取消；每个等待方取得独立结果副本。查询编排、身份复核、并发槽和指标由 `account.UpstreamUsageService` 唯一持有，app 直接绑定账号 Store，旧供应商网络适配继续通过受控端口提供。构造不启动后台任务；应用关闭会阻止新认领、取消并等待脱离 HTTP 等待方的共享查询，执行未结束时报告超时，不能提前宣布依赖已释放。
 
 <a id="frontend_lifecycle"></a>
 ## 前端生命周期
@@ -76,10 +76,10 @@ API Key 账号（含 Kimi、Zhipu、DeepSeek）统一按上游余额/周期用�
 
 ## 国产供应商周期监控
 
-`gateway.cn_providers.monitor_enabled` 默认 `false`；启用后，后台只扫描 active、`type=apikey`、用量查询未关闭且具有固定适配器的 Kimi/Zhipu/DeepSeek 账号。首次探测等待一个完整周期，多实例通过共享 leader lock 保证同轮只有一个执行者；整轮有总预算，每个请求有独立超时，并发受配置限制，服务关闭会取消当前轮并等待退出。
+`gateway.cn_providers.monitor_enabled` 默认 `false`；启用后，`account.CNUsageMonitor` 只扫描 active、`type=apikey`、用量查询未关闭且具有固定适配器的 Kimi/Zhipu/DeepSeek 账号。首次探测等待一个完整周期，多实例通过共享 leader lock 保证同轮只有一个执行者；整轮有总预算，每个请求有独立超时，并发受配置限制，服务关闭会取消当前轮并等待退出；Stop 后不能再次启动，存储或执行端口未响应取消时报告未完成，不提前关闭共享依赖。
 
-成功或失败状态统一保存到 `extra.cn_usage_monitor_snapshot`。快照包含版本、适配器、完整查询身份 hash、最近成功的归一化数据、最近尝试时间和脱敏错误码；失败只更新尝试/错误，不抹掉最近成功数据。Repository 用账号 `updated_at` 做 CAS，并在同一 SQL 中写 scheduler outbox；凭据、平台、模式、协议、代理、Base URL、TLS 或查询配置变化会清理旧快照，读取方也必须重新计算身份 hash，不能消费旧身份数据。
+成功或失败状态统一保存到 `extra.cn_usage_monitor_snapshot`。快照包含版本、适配器、完整查询身份 hash、最近成功的归一化数据、最近尝试时间和脱敏错误码；失败只更新尝试/错误，不抹掉最近成功数据。account/postgres 用账号 `updated_at` 做 CAS，并在同一 SQL 中写 scheduler outbox；凭据、平台、模式、协议、代理、Base URL、TLS 或查询配置变化会清理旧快照，读取方也必须重新计算身份 hash，不能消费旧身份数据。
 
-余额模式低于 `balance_threshold` 时，监控写入带身份 hash 的临时不可调度原因；恢复到阈值以上时只清除同一身份创建的状态。coding 的百分比窗口快照用于已有额度阈值与重置时间判断，不把百分比伪装成货币余额。官方域名可直接监控；自定义中继只有在启用 URL allowlist 且 host 命中 `security.url_allowlist.upstream_hosts` 时才允许后台自动访问。监控复用账号代理、TLS 指纹、受保护 Header Override 和 `UpstreamUsageService`，不新增 CN 专用 HTTP 管理接口。
+余额模式低于 `balance_threshold` 时，监控写入带身份 hash 的临时不可调度原因；恢复到阈值以上时只清除同一身份创建的状态。健康暂停/恢复也以读取时的 `updated_at` 做条件写入，恢复还检查原原因；管理员换凭据或其它健康写入后，旧观测不再覆盖新状态。保持原提交后尽力 outbox 语义，不把健康与 Redis 更新描述为跨系统原子操作。coding 的百分比窗口快照用于已有额度阈值与重置时间判断，不把百分比伪装成货币余额。官方域名可直接监控；自定义中继只有在启用 URL allowlist 且 host 命中 `security.url_allowlist.upstream_hosts` 时才允许后台自动访问。监控复用账号代理、TLS 指纹、受保护 Header Override 和 `UpstreamUsageService`，不新增 CN 专用 HTTP 管理接口。
 
 旧的 `upstream_billing_probe` 是已移除的自动倍率探测能力，本功能不恢复它，也不写入旧快照或调度状态。

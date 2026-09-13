@@ -6,9 +6,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -5232,4 +5234,17 @@ func qoderAnthropicStreamEventsForTest(t *testing.T, stream string) []qoderAnthr
 		}
 	}
 	return events
+}
+
+// 条件写入替身保留 Qoder 测试对真实持久化参数和缓存失效的断言。
+func (r *qoderRefreshAccountRepoStub) UpdateOAuthCredentialsIfUnchanged(ctx context.Context, version accountcore.CredentialVersion, credentials map[string]any) (bool, error) {
+	current, err := r.GetByID(ctx, version.ID)
+	if err != nil {
+		return false, err
+	}
+	if current.Platform != version.Platform || current.Type != version.Type || current.Status != version.Status || !reflect.DeepEqual(shallowCopyMap(current.Credentials), version.Credentials) || !reflect.DeepEqual(current.ProxyID, version.ProxyID) {
+		return false, nil
+	}
+	err = r.UpdateCredentials(ctx, version.ID, credentials)
+	return err == nil, err
 }

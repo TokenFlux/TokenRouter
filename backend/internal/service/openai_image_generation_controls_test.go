@@ -732,7 +732,7 @@ func newOpenAIImageGenerationControlChannelService(groupID int64, ch *Channel) *
 		cache.byID[ch.ID] = ch
 	}
 	cache.loadedAt = time.Now()
-	svc.cache.Store(cache)
+	seedLegacyChannelFixture(svc, cache)
 	return svc
 }
 

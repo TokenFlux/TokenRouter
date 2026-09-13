@@ -1,19 +1,16 @@
 package service
 
 import (
-	"context"
-	"fmt"
+	context "context"
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
-	"github.com/TokenFlux/TokenRouter/internal/billing"
+	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"net/http"
-	"sort"
-	"strings"
-	"time"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	time "time"
 )
 
 // AdminService interface defines admin management operations
@@ -149,252 +146,21 @@ type AdminBoundAuthIdentity = identity.AdminBoundAuthIdentity
 
 type AdminBoundAuthIdentityChannel = identity.AdminBoundAuthIdentityChannel
 
-type CreateGroupInput struct {
-	Name        string
-	Description string
-	Platform    string
-	// SchedulerType 为空时使用基础调度器，保持新分组的历史默认行为。
-	SchedulerType string
-	// AdvancedSchedulerOverrides 未设置字段继承网关通用高级调度设置。
-	AdvancedSchedulerOverrides GroupAdvancedSchedulerOverrides
-	DisplayBrand               string
-	SortOrder                  *int
-	RateMultiplier             float64
-	IsExclusive                bool
-	IsDefault                  bool
-	// SessionIsolationEnabled 开启后拒绝其它分组已归属的显式会话切入。
-	SessionIsolationEnabled bool
-	// LongContextPricingEnabled 为 nil 时默认开启，以兼容未发送新字段的客户端。
-	LongContextPricingEnabled *bool
-	ModelPricing              []ChannelModelPricing
-	// 图片生成权限与批量图片策略，价格统一由模型价卡提供。
-	AllowImageGeneration         bool
-	AllowBatchImageGeneration    bool
-	BatchImageDiscountMultiplier *float64
-	BatchImageHoldMultiplier     *float64
-	// 高峰时段倍率配置（PeakRateMultiplier 为 nil 时按 1.0 处理）
-	PeakRateEnabled    bool
-	PeakStart          string
-	PeakEnd            string
-	PeakRateMultiplier *float64
-	// Codex alpha/search 网页搜索单次价格（USD/次，仅 openai 平台使用）；nil/负数按默认价 0.01 处理
-	WebSearchPricePerCall *float64
-	// 搜索工具每千次单价。
-	SearchPricePer1k *float64
-	// Grok Voice 显式定价（分组级）
-	AudioRealtimePricePerMin     *float64
-	AudioTTSPricePerMillionChars *float64
-	AudioSTTPricePerHour         *float64
-	ClaudeCodeOnly               bool   // 仅允许 Claude Code 客户端
-	FallbackGroupID              *int64 // 降级分组 ID
-	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
-	FallbackGroupIDOnInvalidRequest *int64
-	// UnavailableFallbackGroupID 当前分组不可用时 API Key 优先回退到的分组 ID。
-	UnavailableFallbackGroupID *int64
-	// 模型路由配置（仅 anthropic 平台使用）
-	ModelRouting        map[string][]int64
-	ModelRoutingEnabled bool // 是否启用模型路由
-	MCPXMLInject        *bool
-	// 支持的模型系列（仅 antigravity 平台使用）
-	SupportedModelScopes []string
-	// AllowedProtocols 为 nil 时使用平台默认值；显式空数组对所有平台都合法。
-	LegacyProtocolInput  bool
-	AllowedProtocols     []domain.ProtocolID
-	ProtocolFallbacks    map[domain.ProtocolID]domain.ProtocolID
-	ResponsesImagePolicy string
-	// AllowMessagesDispatch 仅在 OpenAI 分组且新字段缺省时作为兼容输入。
-	AllowMessagesDispatch bool
-	AllowLive             bool
-	// ForceOpenAIFast 仅对 OpenAI 分组启用组级 Fast 强制策略。
-	ForceOpenAIFast bool
-	// 新策略优先于旧布尔输入，省略时保持兼容。
-	OpenAIFastPolicy *string
-	// FreeOpenAIFast 仅对 OpenAI 分组启用 Standard 计费策略。
-	FreeOpenAIFast              bool
-	DefaultMappedModel          string
-	RequireOAuthOnly            bool
-	RequirePrivacySet           bool
-	MessagesDispatchModelConfig OpenAIMessagesDispatchModelConfig
-	ModelsListConfig            GroupModelsListConfig
-	// AvailabilityProbeConfig 控制分组主动可用性探测。
-	AvailabilityProbeConfig GroupAvailabilityProbeConfig
-	// RPMLimit 分组 RPM 上限（0 = 不限制）
-	RPMLimit int
-	// MaxReasoningEffort OpenAI/Anthropic 请求的推理强度上限，空字符串表示不限制。
-	MaxReasoningEffort string
-	// MaxReasoningEffortOverLimit 超过上限时的访问控制：downgrade（默认）或 deny。
-	MaxReasoningEffortOverLimit string
-	// ReasoningEffortMappings OpenAI/Codex 推理强度精确映射。
-	ReasoningEffortMappings []ReasoningEffortMapping
-	// 从指定分组复制账号（创建分组后在同一事务内绑定）
-	CopyAccountsFromGroupIDs []int64
-}
+type CreateGroupInput = routing.CreateGroupInput
 
-type UpdateGroupInput struct {
-	Name        string
-	Description *string
-	Platform    string
-	// SchedulerType 为 nil 时保留原值。
-	SchedulerType *string
-	// AdvancedSchedulerOverrides 为 nil 时保留原值；空对象表示清除全部覆盖并恢复继承。
-	AdvancedSchedulerOverrides *GroupAdvancedSchedulerOverrides
-	DisplayBrand               *string
-	SortOrder                  *int
-	RateMultiplier             *float64 // 使用指针以支持设置为0
-	IsExclusive                *bool
-	IsDefault                  *bool
-	// SessionIsolationEnabled 控制目标分组是否开启会话隔离。
-	SessionIsolationEnabled   *bool
-	Status                    string
-	LongContextPricingEnabled *bool
-	ModelPricing              *[]ChannelModelPricing
-	// 图片生成权限与批量图片策略，价格统一由模型价卡提供。
-	AllowImageGeneration         *bool
-	AllowBatchImageGeneration    *bool
-	BatchImageDiscountMultiplier *float64
-	BatchImageHoldMultiplier     *float64
-	// 高峰时段倍率配置（nil 表示不修改）
-	PeakRateEnabled    *bool
-	PeakStart          *string
-	PeakEnd            *string
-	PeakRateMultiplier *float64
-	// Codex alpha/search 网页搜索单次价格（USD/次）；nil 表示不修改，负数表示清除回默认价 0.01
-	WebSearchPricePerCall *float64
-	// 搜索工具单价；nil 不修改，负数清除。
-	SearchPricePer1k *float64
-	// Grok Voice 显式定价；nil 表示不修改，负数表示清除。
-	AudioRealtimePricePerMin     *float64
-	AudioTTSPricePerMillionChars *float64
-	AudioSTTPricePerHour         *float64
-	ClaudeCodeOnly               *bool  // 仅允许 Claude Code 客户端
-	FallbackGroupID              *int64 // 降级分组 ID
-	// 无效请求兜底分组 ID（仅 anthropic 平台使用）
-	FallbackGroupIDOnInvalidRequest *int64
-	// UnavailableFallbackGroupID 当前分组不可用时 API Key 优先回退到的分组 ID。
-	UnavailableFallbackGroupID *int64
-	// 模型路由配置（仅 anthropic 平台使用）
-	ModelRouting        map[string][]int64
-	ModelRoutingEnabled *bool // 是否启用模型路由
-	MCPXMLInject        *bool
-	// 支持的模型系列（仅 antigravity 平台使用）
-	SupportedModelScopes *[]string
-	// AllowedProtocols 为 nil 时保留原值；非 nil 表示显式替换完整集合。
-	LegacyProtocolInput  bool
-	AllowedProtocols     *[]domain.ProtocolID
-	ProtocolFallbacks    map[domain.ProtocolID]domain.ProtocolID
-	ResponsesImagePolicy string
-	// AllowMessagesDispatch 仅在 OpenAI 分组且新字段缺省时作为兼容输入。
-	AllowMessagesDispatch *bool
-	AllowLive             *bool
-	// ForceOpenAIFast 为 nil 时保留原值；仅对 OpenAI 分组生效。
-	ForceOpenAIFast *bool
-	// 新策略优先于旧布尔输入，省略时保持兼容。
-	OpenAIFastPolicy *string
-	// FreeOpenAIFast 为 nil 时保留原值；仅对 OpenAI 分组生效。
-	FreeOpenAIFast              *bool
-	DefaultMappedModel          *string
-	RequireOAuthOnly            *bool
-	RequirePrivacySet           *bool
-	MessagesDispatchModelConfig *OpenAIMessagesDispatchModelConfig
-	ModelsListConfig            *GroupModelsListConfig
-	// AvailabilityProbeConfig 为 nil 时不修改探测配置。
-	AvailabilityProbeConfig *GroupAvailabilityProbeConfig
-	// RPMLimit 分组 RPM 上限（0 = 不限制），nil 表示未提供不改动。
-	RPMLimit *int
-	// MaxReasoningEffort 空字符串表示清除上限；nil 表示未提供不改动。
-	MaxReasoningEffort *string
-	// MaxReasoningEffortOverLimit 空字符串视为 downgrade；nil 表示未提供不改动。
-	MaxReasoningEffortOverLimit *string
-	// ReasoningEffortMappings nil 表示不修改，空数组表示清空，非空数组表示替换。
-	ReasoningEffortMappings *[]ReasoningEffortMapping
-	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
-	CopyAccountsFromGroupIDs []int64
-}
+type UpdateGroupInput = routing.UpdateGroupInput
 
-type CreateAccountInput struct {
-	Name               string
-	Notes              *string
-	Platform           string
-	Type               string
-	Credentials        map[string]any
-	Extra              map[string]any
-	ProxyID            *int64
-	Concurrency        int
-	Priority           int
-	RateMultiplier     *float64 // 账号计费倍率（>=0，允许 0）
-	LoadFactor         *int
-	GroupIDs           []int64
-	ExpiresAt          *int64
-	AutoPauseOnExpired *bool
-	// SkipDefaultGroupBind prevents auto-binding to platform default group when GroupIDs is empty.
-	SkipDefaultGroupBind bool
-	// SkipMixedChannelCheck skips the mixed channel risk check when binding groups.
-	// This should only be set when the caller has explicitly confirmed the risk.
-	SkipMixedChannelCheck bool
-}
+type CreateAccountInput = acctcore.CreateAccountInput
 
-// ShadowOptions is the input for CreateShadow.
-// The shadow holds no credentials — the scheduler transparently delegates to the parent account's tokens.
-type ShadowOptions struct {
-	Name        string
-	Priority    int
-	Concurrency int
-	GroupIDs    []int64
-}
+type ShadowOptions = acctcore.ShadowOptions
 
-type UpdateAccountInput struct {
-	Name                  string
-	Notes                 *string
-	Type                  string // Account type: oauth, setup-token, apikey
-	Credentials           map[string]any
-	Extra                 map[string]any
-	ProxyID               *int64
-	Concurrency           *int     // 使用指针区分"未提供"和"设置为0"
-	Priority              *int     // 使用指针区分"未提供"和"设置为0"
-	RateMultiplier        *float64 // 账号计费倍率（>=0，允许 0）
-	LoadFactor            *int
-	Status                string
-	GroupIDs              *[]int64
-	ExpiresAt             *int64
-	AutoPauseOnExpired    *bool
-	SkipMixedChannelCheck bool // 跳过混合渠道检查（用户已确认风险）
-}
+type UpdateAccountInput = acctcore.UpdateAccountInput
 
-// BulkUpdateAccountsInput describes the payload for bulk updating accounts.
-type BulkUpdateAccountsInput struct {
-	AccountIDs     []int64
-	Filters        *BulkUpdateAccountFilters
-	Name           string
-	ProxyID        *int64
-	Concurrency    *int
-	Priority       *int
-	RateMultiplier *float64 // 账号计费倍率（>=0，允许 0）
-	LoadFactor     *int
-	Status         string
-	Schedulable    *bool
-	GroupIDs       *[]int64
-	Credentials    map[string]any
-	Extra          map[string]any
-	// SkipMixedChannelCheck skips the mixed channel risk check when binding groups.
-	// This should only be set when the caller has explicitly confirmed the risk.
-	SkipMixedChannelCheck bool
-}
+type BulkUpdateAccountsInput = acctcore.BulkUpdateAccountsInput
 
-type BulkUpdateAccountFilters struct {
-	Platform    string
-	Type        string
-	Status      string
-	Group       string
-	Search      string
-	PrivacyMode string
-}
+type BulkUpdateAccountFilters = acctcore.BulkUpdateAccountFilters
 
-// BulkUpdateAccountResult captures the result for a single account update.
-type BulkUpdateAccountResult struct {
-	AccountID int64  `json:"account_id"`
-	Success   bool   `json:"success"`
-	Error     string `json:"error,omitempty"`
-}
+type BulkUpdateAccountResult = acctcore.BulkUpdateAccountResult
 
 // AdminUpdateAPIKeyGroupIDResult is the result of AdminUpdateAPIKeyGroupID.
 type AdminUpdateAPIKeyGroupIDResult struct {
@@ -410,171 +176,41 @@ type UserRPMStatus = identity.UserRPMStatus
 
 type UserGroupRPMStatus = identity.UserGroupRPMStatus
 
-// BulkUpdateAccountsResult is the aggregated response for bulk updates.
-type BulkUpdateAccountsResult struct {
-	Success    int                       `json:"success"`
-	Failed     int                       `json:"failed"`
-	SuccessIDs []int64                   `json:"success_ids"`
-	FailedIDs  []int64                   `json:"failed_ids"`
-	Results    []BulkUpdateAccountResult `json:"results"`
-}
+type BulkUpdateAccountsResult = acctcore.BulkUpdateAccountsResult
 
-type CreateProxyInput struct {
-	Name           string
-	Protocol       string
-	Host           string
-	Port           int
-	Username       string
-	Password       string
-	ExpiresAt      *time.Time
-	FallbackMode   string
-	BackupProxyID  *int64
-	ExpiryWarnDays int
-}
+type CreateProxyInput = egress.CreateProxyInput
 
-type UpdateProxyInput struct {
-	Name           string
-	Protocol       string
-	Host           string
-	Port           int
-	Username       string
-	Password       string
-	Status         string
-	ExpiresAt      *time.Time
-	FallbackMode   string
-	BackupProxyID  *int64
-	ExpiryWarnDays int
-}
+type UpdateProxyInput = egress.UpdateProxyInput
 
 type GenerateRedeemCodesInput = billing.GenerateRedeemCodesInput
 
-type ProxyBatchDeleteResult struct {
-	DeletedIDs []int64                   `json:"deleted_ids"`
-	Skipped    []ProxyBatchDeleteSkipped `json:"skipped"`
-}
+type ProxyBatchDeleteResult = egress.ProxyBatchDeleteResult
 
-type ProxyBatchDeleteSkipped struct {
-	ID     int64  `json:"id"`
-	Reason string `json:"reason"`
-}
+type ProxyBatchDeleteSkipped = egress.ProxyBatchDeleteSkipped
 
-// ProxyTestResult represents the result of testing a proxy
-type ProxyTestResult struct {
-	Success     bool   `json:"success"`
-	Message     string `json:"message"`
-	LatencyMs   int64  `json:"latency_ms,omitempty"`
-	IPAddress   string `json:"ip_address,omitempty"`
-	City        string `json:"city,omitempty"`
-	Region      string `json:"region,omitempty"`
-	Country     string `json:"country,omitempty"`
-	CountryCode string `json:"country_code,omitempty"`
-}
+type ProxyTestResult = egress.ProxyTestResult
 
-type ProxyQualityCheckResult struct {
-	ProxyID        int64                   `json:"proxy_id"`
-	Score          int                     `json:"score"`
-	Grade          string                  `json:"grade"`
-	Summary        string                  `json:"summary"`
-	ExitIP         string                  `json:"exit_ip,omitempty"`
-	Country        string                  `json:"country,omitempty"`
-	CountryCode    string                  `json:"country_code,omitempty"`
-	BaseLatencyMs  int64                   `json:"base_latency_ms,omitempty"`
-	PassedCount    int                     `json:"passed_count"`
-	WarnCount      int                     `json:"warn_count"`
-	FailedCount    int                     `json:"failed_count"`
-	ChallengeCount int                     `json:"challenge_count"`
-	CheckedAt      int64                   `json:"checked_at"`
-	Items          []ProxyQualityCheckItem `json:"items"`
-}
+type ProxyQualityCheckResult = egress.ProxyQualityCheckResult
 
-type ProxyQualityCheckItem struct {
-	Target     string `json:"target"`
-	Status     string `json:"status"` // pass/warn/fail/challenge
-	HTTPStatus int    `json:"http_status,omitempty"`
-	LatencyMs  int64  `json:"latency_ms,omitempty"`
-	Message    string `json:"message,omitempty"`
-	CFRay      string `json:"cf_ray,omitempty"`
-}
+type ProxyQualityCheckItem = egress.ProxyQualityCheckItem
 
-// ProxyExitInfo represents proxy exit information from ip-api.com
-type ProxyExitInfo struct {
-	IP          string
-	City        string
-	Region      string
-	Country     string
-	CountryCode string
-}
+type ProxyExitInfo = egress.ProxyExitInfo
 
-// ProxyExitInfoProber tests proxy connectivity and retrieves exit information
-type ProxyExitInfoProber interface {
-	ProbeProxy(ctx context.Context, proxyURL string) (*ProxyExitInfo, int64, error)
-}
-
-type groupExistenceBatchReader interface {
-	ExistsByIDs(ctx context.Context, ids []int64) (map[int64]bool, error)
-}
-
-type proxyQualityTarget struct {
-	Target          string
-	URL             string
-	Method          string
-	AllowedStatuses map[int]struct{}
-}
-
-var proxyQualityTargets = []proxyQualityTarget{
-	{
-		Target: "openai",
-		URL:    "https://api.openai.com/v1/models",
-		Method: http.MethodGet,
-		AllowedStatuses: map[int]struct{}{
-			http.StatusUnauthorized: {},
-		},
-	},
-	{
-		Target: "anthropic",
-		URL:    "https://api.anthropic.com/v1/messages",
-		Method: http.MethodGet,
-		AllowedStatuses: map[int]struct{}{
-			http.StatusUnauthorized:     {},
-			http.StatusMethodNotAllowed: {},
-			http.StatusNotFound:         {},
-			http.StatusBadRequest:       {},
-		},
-	},
-	{
-		Target: "gemini",
-		URL:    "https://generativelanguage.googleapis.com/$discovery/rest?version=v1beta",
-		Method: http.MethodGet,
-		AllowedStatuses: map[int]struct{}{
-			http.StatusOK: {},
-		},
-	},
-	{
-		Target: "grok",
-		URL:    "https://api.x.ai/v1/models",
-		Method: http.MethodGet,
-		AllowedStatuses: map[int]struct{}{
-			http.StatusUnauthorized: {},
-		},
-	},
-}
-
-const (
-	proxyQualityRequestTimeout        = 15 * time.Second
-	proxyQualityResponseHeaderTimeout = 10 * time.Second
-	proxyQualityMaxBodyBytes          = int64(8 * 1024)
-	proxyQualityClientUserAgent       = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
-)
+type ProxyExitInfoProber = egress.ProxyExitInfoProber
 
 var ErrRPMStatusUnavailable = identity.ErrRPMStatusUnavailable
 
 // adminServiceImpl implements AdminService
 type adminServiceImpl struct {
+	accountAdmin         *acctcore.Admin
+	proxyAdmin           *egress.ProxyAdmin
 	keyAdmin             *apikey.Admin
 	identityAdmin        *identity.UserAdmin
 	billingRedeem        *billing.RedeemAdmin
 	billingBalance       billing.BalanceAdjuster
 	userRepo             UserRepository
+	groupRates           *billing.GroupRateAdmin
+	routingAdmin         *routing.GroupAdmin
 	groupRepo            GroupRepository
 	groupDuplicateRepo   GroupDuplicateRepository
 	groupSortOrderRepo   GroupSortOrderRepository
@@ -643,7 +279,8 @@ func NewAdminService(
 ) AdminService {
 	admin := &adminServiceImpl{
 		billingRedeem: billingRedeem, billingBalance: billingBalance,
-		userRepo:             userRepo,
+		userRepo: userRepo,
+
 		groupRepo:            groupRepo,
 		groupDuplicateRepo:   groupRepo,
 		groupSortOrderRepo:   groupRepo,
@@ -671,6 +308,10 @@ func NewAdminService(
 		channelCacheInvalidator: channelCacheInvalidator,
 	}
 	if len(modules) > 0 {
+		admin.accountAdmin = modules[0].Accounts
+		admin.groupRates = modules[0].Rates
+		admin.routingAdmin = modules[0].Groups
+		admin.proxyAdmin = modules[0].Proxies
 		admin.identityAdmin = modules[0].Users
 		admin.keyAdmin = modules[0].Keys
 	}
@@ -687,39 +328,6 @@ func (s *adminServiceImpl) UpdateRedeemCode(ctx context.Context, id int64, input
 	return s.redeemAdministration().UpdateRedeemCode(ctx, id, input)
 }
 
-func (s *adminServiceImpl) attachAccountProxyForValidation(ctx context.Context, account *Account) {
-	if s == nil || s.proxyRepo == nil || account == nil || account.Proxy != nil || account.ProxyID == nil || *account.ProxyID <= 0 {
-		return
-	}
-	if proxy, err := s.proxyRepo.GetByID(ctx, *account.ProxyID); err == nil && proxy != nil {
-		account.Proxy = proxy
-	}
-}
-
-// clearOtherPlatformDefaultGroups 清理同平台的其他默认分组。
-// 只有当当前分组准备成为默认分组时才会执行，避免无意义的额外更新。
-func (s *adminServiceImpl) clearOtherPlatformDefaultGroups(ctx context.Context, platform string, excludeID int64, enableDefault bool) error {
-	if !enableDefault {
-		return nil
-	}
-
-	groups, err := s.groupRepo.ListActiveByPlatformLite(ctx, platform)
-	if err != nil {
-		return fmt.Errorf("list active groups by platform: %w", err)
-	}
-	for i := range groups {
-		group := groups[i]
-		if group.ID == excludeID || !group.IsDefault {
-			continue
-		}
-		group.IsDefault = false
-		if err := s.groupRepo.Update(ctx, &group); err != nil {
-			return translateGroupDefaultConflict(err)
-		}
-	}
-	return nil
-}
-
 func (s *adminServiceImpl) qoderRefreshHTTPUpstream() HTTPUpstream {
 	if s == nil {
 		return nil
@@ -732,144 +340,6 @@ func (s *adminServiceImpl) qoderRefreshTLSFingerprintService() *TLSFingerprintPr
 		return nil
 	}
 	return s.tlsFPProfileService
-}
-
-// runGroupMutationTx 在可用时为分组变更开启事务，保证“切换默认组”过程原子化。
-func (s *adminServiceImpl) runGroupMutationTx(ctx context.Context, fn func(context.Context) error) error {
-	if dbent.TxFromContext(ctx) != nil || s.entClient == nil {
-		return fn(ctx)
-	}
-
-	tx, err := s.entClient.Tx(ctx)
-	if err != nil {
-		return fmt.Errorf("begin group mutation transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
-
-	txCtx := dbent.NewTxContext(ctx, tx)
-	if err := fn(txCtx); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit group mutation transaction: %w", err)
-	}
-	return nil
-}
-
-// validateUnavailableFallbackGroup 校验分组不可用时的指定回退分组。
-// 该回退会继承入口平台语义，因此必须指向同平台且当前可用的分组。
-func (s *adminServiceImpl) validateUnavailableFallbackGroup(ctx context.Context, currentGroupID int64, platform string, fallbackGroupID int64) error {
-	if currentGroupID > 0 && currentGroupID == fallbackGroupID {
-		return fmt.Errorf("cannot set self as unavailable fallback group")
-	}
-	fallbackGroup, err := s.groupRepo.GetByIDLite(ctx, fallbackGroupID)
-	if err != nil {
-		return fmt.Errorf("unavailable fallback group not found: %w", err)
-	}
-	if fallbackGroup.Platform != platform {
-		return fmt.Errorf("unavailable fallback group must use the same platform")
-	}
-	if !fallbackGroup.IsActive() {
-		return fmt.Errorf("unavailable fallback group must be active")
-	}
-	return nil
-}
-
-func configuredModelsListCandidateIDs(accounts []Account, platform string) []string {
-	modelSet := make(map[string]struct{})
-	hasAnyConfiguredModels := false
-	for _, acc := range accounts {
-		if acc.Platform != platform {
-			continue
-		}
-		requestModels := acc.GetConfiguredRequestModels()
-		if len(requestModels) == 0 {
-			continue
-		}
-		hasAnyConfiguredModels = true
-		for _, model := range requestModels {
-			model = strings.TrimSpace(model)
-			if model == "" {
-				continue
-			}
-			modelSet[model] = struct{}{}
-		}
-	}
-	if !hasAnyConfiguredModels {
-		return nil
-	}
-
-	// 候选项按字典序稳定输出，避免编辑分组时下拉列表随机抖动。
-	models := make([]string, 0, len(modelSet))
-	for model := range modelSet {
-		models = append(models, model)
-	}
-	sort.Strings(models)
-	return models
-}
-
-func filterModelsListCandidates(candidates []string, selectedModels []string) []string {
-	normalizedSelected := normalizeGroupModelsListConfig(GroupModelsListConfig{
-		Enabled: true,
-		Models:  selectedModels,
-	}).Models
-	if len(normalizedSelected) == 0 {
-		return nil
-	}
-
-	if len(candidates) == 0 {
-		return normalizedSelected
-	}
-
-	allowed := make([]string, 0, len(candidates))
-	for _, candidate := range candidates {
-		candidate = strings.TrimSpace(candidate)
-		if candidate != "" {
-			allowed = append(allowed, candidate)
-		}
-	}
-
-	// 按自定义模型列表顺序输出，确保探测下拉与管理员配置顺序一致。
-	filtered := make([]string, 0, len(normalizedSelected))
-	for _, model := range normalizedSelected {
-		if modelsListCandidateAllowsModel(allowed, model) {
-			filtered = append(filtered, model)
-		}
-	}
-	return filtered
-}
-
-func modelsListCandidateAllowsModel(availablePatterns []string, model string) bool {
-	for _, pattern := range availablePatterns {
-		if pattern == model {
-			return true
-		}
-		if strings.HasSuffix(pattern, "*") && strings.HasPrefix(model, strings.TrimSuffix(pattern, "*")) {
-			return true
-		}
-	}
-	return false
-}
-
-// normalizeGroupDefaultState 统一处理默认分组的最终状态。
-// 非 active 分组不保留默认标记，避免出现“默认但不可用”的歧义。
-func normalizeGroupDefaultState(group *Group) {
-	if group == nil {
-		return
-	}
-	if group.Status != StatusActive {
-		group.IsDefault = false
-	}
-}
-
-func translateGroupDefaultConflict(err error) error {
-	if err == nil {
-		return nil
-	}
-	if strings.Contains(strings.ToLower(err.Error()), "groups_platform_default_active_unique") {
-		return infraerrors.Conflict("GROUP_DEFAULT_CONFLICT", "default group already exists for this platform").WithCause(err)
-	}
-	return err
 }
 
 type UpdateRedeemCodeInput = billing.UpdateRedeemCodeInput
@@ -890,6 +360,10 @@ func (s *adminServiceImpl) balanceAdjuster() billing.BalanceAdjuster {
 
 // Administration 只传入 app 构造的唯一用例，旧聚合不再创建生产身份或 Key 规则。
 type Administration struct {
-	Users *identity.UserAdmin
-	Keys  *apikey.Admin
+	Accounts *acctcore.Admin
+	Rates    *billing.GroupRateAdmin
+	Groups   *routing.GroupAdmin
+	Proxies  *egress.ProxyAdmin
+	Users    *identity.UserAdmin
+	Keys     *apikey.Admin
 }

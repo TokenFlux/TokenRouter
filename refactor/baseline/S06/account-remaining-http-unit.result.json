@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/routing/...",
+    "./internal/service/...",
+    "./internal/handler/admin/...",
+    "-run",
+    "^(TestTier|TestInferGoogleOneTier|TestAccountHandler|TestS06Credential|TestBatchCredential|TestAdminCatalog|Test.*UpstreamModel|TestDefaultAntigravity)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 22.695,
+  "log": "logs/account-remaining-http-unit.log.gz"
+}

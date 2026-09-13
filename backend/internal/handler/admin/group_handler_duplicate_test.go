@@ -58,7 +58,7 @@ func setupDuplicateGroupRouter(t *testing.T, svc service.AdminService) *gin.Engi
 		c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 77})
 		c.Next()
 	})
-	handler := NewGroupHandler(svc, nil, nil)
+	handler := newTestGroupHandler(svc)
 	router.POST("/api/v1/admin/groups/:id/duplicate", handler.Duplicate)
 	return router
 }

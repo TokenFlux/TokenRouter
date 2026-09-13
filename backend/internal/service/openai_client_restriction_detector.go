@@ -39,7 +39,9 @@ type CodexClientRestrictionDetectionResult struct {
 
 // CodexClientRestrictionDetector 定义 codex_cli_only 统一检测入口。
 type CodexClientRestrictionDetector interface {
+	// 旧 HTTP 调用面保留至 S09；测试执行只使用不含 Gin 的元数据入口。
 	Detect(c *gin.Context, account *Account, globalAllowedClients []string, tlsRouterMatch TLSFingerprintRouterMatchResult) CodexClientRestrictionDetectionResult
+	DetectClient(readClient func() (string, string), account *Account, globalAllowedClients []string, tlsRouterMatch TLSFingerprintRouterMatchResult) CodexClientRestrictionDetectionResult
 }
 
 // OpenAICodexClientRestrictionDetector 为 OpenAI OAuth codex_cli_only 的默认实现。
@@ -52,6 +54,16 @@ func NewOpenAICodexClientRestrictionDetector(cfg *config.Config) *OpenAICodexCli
 }
 
 func (d *OpenAICodexClientRestrictionDetector) Detect(c *gin.Context, account *Account, globalAllowedClients []string, tlsRouterMatch TLSFingerprintRouterMatchResult) CodexClientRestrictionDetectionResult {
+	return d.DetectClient(func() (string, string) {
+		if c == nil {
+			return "", ""
+		}
+		return c.GetHeader("User-Agent"), c.GetHeader("originator")
+	}, account, globalAllowedClients, tlsRouterMatch)
+}
+
+// DetectClient 只按需读取客户端元数据，后台探针不需要构造 Gin 请求。
+func (d *OpenAICodexClientRestrictionDetector) DetectClient(readClient func() (string, string), account *Account, globalAllowedClients []string, tlsRouterMatch TLSFingerprintRouterMatchResult) CodexClientRestrictionDetectionResult {
 	policy := OpenAIOAuthClientPolicyAny
 	if account != nil {
 		policy = account.GetOpenAIOAuthClientPolicy()
@@ -99,12 +111,7 @@ func (d *OpenAICodexClientRestrictionDetector) Detect(c *gin.Context, account *A
 		}
 	}
 
-	userAgent := ""
-	originator := ""
-	if c != nil {
-		userAgent = c.GetHeader("User-Agent")
-		originator = c.GetHeader("originator")
-	}
+	userAgent, originator := readClient()
 	if openai.IsCodexOfficialClientRequestStrict(userAgent) {
 		return CodexClientRestrictionDetectionResult{
 			Enabled: true,

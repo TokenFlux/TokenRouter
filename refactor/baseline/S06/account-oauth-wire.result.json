@@ -1,0 +1,12 @@
+{
+  "command": [
+    "go",
+    "generate",
+    "./cmd/server"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 1.758,
+  "log": "logs/account-oauth-wire.log.gz"
+}

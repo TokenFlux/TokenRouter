@@ -1,0 +1,730 @@
+{
+  "hooks": [
+    {
+      "Name": "\"AccountImportProbes\"",
+      "Stop": "queue.StopContext",
+      "StopOrder": "20",
+      "file": "backend/internal/app/account_import_probes.go",
+      "line": 15,
+      "provider": "provideAccountImportProbes"
+    },
+    {
+      "Name": "\"AccountModelList\"",
+      "Stop": "core.StopContext",
+      "StopOrder": "26",
+      "file": "backend/internal/app/account_model_sync.go",
+      "line": 14,
+      "provider": "provideAccountModelSync"
+    },
+    {
+      "Name": "\"AccountOAuthUsage\"",
+      "Stop": "core.StopContext",
+      "StopOrder": "25",
+      "file": "backend/internal/app/account_oauth_usage.go",
+      "line": 26,
+      "provider": "provideOAuthUsageCore"
+    },
+    {
+      "Name": "\"AccountPrivacy\"",
+      "Stop": "core.StopContext",
+      "StopOrder": "26",
+      "file": "backend/internal/app/account_privacy.go",
+      "line": 15,
+      "provider": "provideAccountPrivacy"
+    },
+    {
+      "Name": "\"AccountRefreshCoordinator\"",
+      "Stop": "coordinator.StopContext",
+      "StopOrder": "25",
+      "file": "backend/internal/app/account_refresh.go",
+      "line": 20,
+      "provider": "provideAccountRefresh"
+    },
+    {
+      "Name": "\"AccountTier\"",
+      "Stop": "core.StopContext",
+      "StopOrder": "26",
+      "file": "backend/internal/app/account_tier.go",
+      "line": 14,
+      "provider": "provideAccountTier"
+    },
+    {
+      "Name": "\"AccountUpstreamUsage\"",
+      "Stop": "core.StopContext",
+      "StopOrder": "25",
+      "file": "backend/internal/app/account_upstream_usage.go",
+      "line": 20,
+      "provider": "provideUpstreamUsage"
+    },
+    {
+      "Name": "\"LogBackend\"",
+      "StartOrder": "-2000",
+      "Stop": "func(context.Context) error { logging.Sync(); return logging.CloseFiles() }",
+      "StopOrder": "1000",
+      "file": "backend/internal/app/application.go",
+      "line": 39,
+      "provider": "Initialize"
+    },
+    {
+      "Name": "\"DefaultIdempotencyCoordinator\"",
+      "StartOrder": "-999",
+      "Stop": "func(context.Context) error {\n\tidempotency.SetDefaultIdempotencyCoordinator(previousCoordinator)\n\treturn nil\n}",
+      "StopOrder": "850",
+      "file": "backend/internal/app/application.go",
+      "line": 42,
+      "provider": "Initialize"
+    },
+    {
+      "Name": "\"IdempotencyObserver\"",
+      "StartOrder": "-1000",
+      "Stop": "func(context.Context) error { restore(); return nil }",
+      "StopOrder": "850",
+      "file": "backend/internal/app/application.go",
+      "line": 47,
+      "provider": "Initialize"
+    },
+    {
+      "Name": "\"HTTPSettingsInitialization\"",
+      "Start": "func(context.Context) error {\n\n\tsettingService.SetWebSearchManagerBuilder(context.Background(), func(cfg *service.WebSearchEmulationConfig, proxyURLs map[int64]string) {\n\t\tif cfg == nil || !cfg.Enabled || len(cfg.Providers) == 0 {\n\t\t\tservice.SetWebSearchManager(nil)\n\t\t\treturn\n\t\t}\n\t\tconfigs := make([]websearch.ProviderConfig, 0, len(cfg.Providers))\n\t\tfor _, p := range cfg.Providers {\n\t\t\tif p.APIKey == \"\" {\n\t\t\t\tcontinue\n\t\t\t}\n\t\t\tpc := websearch.ProviderConfig{\n\t\t\t\tType:\t\tp.Type,\n\t\t\t\tAPIKey:\t\tp.APIKey,\n\t\t\t\tQuotaLimit:\tderefInt64(p.QuotaLimit),\n\t\t\t\tExpiresAt:\tp.ExpiresAt,\n\t\t\t}\n\t\t\tif p.SubscribedAt != nil {\n\t\t\t\tpc.SubscribedAt = p.SubscribedAt\n\t\t\t}\n\t\t\tif p.ProxyID != nil {\n\t\t\t\tpc.ProxyID = *p.ProxyID\n\t\t\t\tif u, ok := proxyURLs[*p.ProxyID]; ok {\n\t\t\t\t\tpc.ProxyURL = u\n\t\t\t\t} else {\n\n\t\t\t\t\tslog.Warn(\"websearch: proxy not found for provider, skipping\",\n\t\t\t\t\t\t\"provider\", p.Type, \"proxy_id\", *p.ProxyID)\n\t\t\t\t\tcontinue\n\t\t\t\t}\n\t\t\t}\n\t\t\tconfigs = append(configs, pc)\n\t\t}\n\t\tservice.SetWebSearchManager(websearch.NewManager(configs, redisClient))\n\t})\n\n\trefresh()\n\treturn nil\n}",
+      "StartOrder": "182",
+      "StopOrder": "800",
+      "file": "backend/internal/app/http_bindings.go",
+      "line": 53,
+      "provider": "provideRouterRuntime"
+    },
+    {
+      "Name": "\"SettingsHTTPNotification\"",
+      "Stop": "func(context.Context) error { unsubscribe(); return nil }",
+      "StopOrder": "800",
+      "file": "backend/internal/app/http_bindings.go",
+      "line": 96,
+      "provider": "provideRouterRuntime"
+    },
+    {
+      "Name": "\"OpsWSRuntime\"",
+      "StartOrder": "983",
+      "Stop": "func(context.Context) error { admin.StopOpsWSRuntime(); return nil }",
+      "StopOrder": "17",
+      "file": "backend/internal/app/legacy_providers.go",
+      "line": 39,
+      "provider": "provideApplication"
+    },
+    {
+      "Name": "\"OpsErrorLogWorkers\"",
+      "StartOrder": "924",
+      "Stop": "handler.ShutdownOpsErrorLogWorkers",
+      "StopOrder": "76",
+      "file": "backend/internal/app/legacy_providers.go",
+      "line": 40,
+      "provider": "provideApplication"
+    },
+    {
+      "Name": "\"LegacyBackgroundTasks\"",
+      "StartOrder": "932",
+      "Stop": "tasks.Stop",
+      "StopOrder": "68",
+      "file": "backend/internal/app/legacy_providers.go",
+      "line": 48,
+      "provider": "installLegacyBackground"
+    },
+    {
+      "Name": "\"LegacyBackgroundBinding\"",
+      "StartOrder": "-998",
+      "Stop": "func(context.Context) error { restore(); return nil }",
+      "StopOrder": "850",
+      "file": "backend/internal/app/legacy_providers.go",
+      "line": 49,
+      "provider": "installLegacyBackground"
+    },
+    {
+      "Name": "\"APIKeyService\"",
+      "Start": "func(ctx context.Context) error {\n\tif apiKeyService != nil {\n\t\tapiKeyService.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "195",
+      "Stop": "func(ctx context.Context) error {\n\tif apiKeyService != nil {\n\t\treturn apiKeyService.StopContext(ctx)\n\t}\n\treturn nil\n}",
+      "StopOrder": "805",
+      "file": "backend/internal/app/legacy_runtime_auth.go",
+      "line": 27,
+      "provider": "provideAuthRuntime"
+    },
+    {
+      "Name": "\"OAuthService\"",
+      "Start": "func(ctx context.Context) error {\n\tif oauth != nil {\n\t\toauth.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "190",
+      "Stop": "func(ctx context.Context) error {\n\tif oauth != nil {\n\t\toauth.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "810",
+      "file": "backend/internal/app/legacy_runtime_auth.go",
+      "line": 39,
+      "provider": "provideAuthRuntime"
+    },
+    {
+      "Name": "\"OpenAIOAuthService\"",
+      "Start": "func(ctx context.Context) error {\n\tif openaiOAuth != nil {\n\t\topenaiOAuth.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "190",
+      "Stop": "func(ctx context.Context) error {\n\tif openaiOAuth != nil {\n\t\topenaiOAuth.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "810",
+      "file": "backend/internal/app/legacy_runtime_auth.go",
+      "line": 50,
+      "provider": "provideAuthRuntime"
+    },
+    {
+      "Name": "\"GeminiOAuthService\"",
+      "Start": "func(ctx context.Context) error {\n\tif geminiOAuth != nil {\n\t\tgeminiOAuth.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "190",
+      "Stop": "func(ctx context.Context) error {\n\tif geminiOAuth != nil {\n\t\tgeminiOAuth.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "810",
+      "file": "backend/internal/app/legacy_runtime_auth.go",
+      "line": 61,
+      "provider": "provideAuthRuntime"
+    },
+    {
+      "Name": "\"AntigravityOAuthService\"",
+      "Start": "func(ctx context.Context) error {\n\tif antigravityOAuth != nil {\n\t\tantigravityOAuth.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "190",
+      "Stop": "func(ctx context.Context) error {\n\tif antigravityOAuth != nil {\n\t\tantigravityOAuth.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "810",
+      "file": "backend/internal/app/legacy_runtime_auth.go",
+      "line": 72,
+      "provider": "provideAuthRuntime"
+    },
+    {
+      "Name": "\"QoderOAuthService\"",
+      "Start": "func(ctx context.Context) error {\n\tif qoderOAuth != nil {\n\t\tqoderOAuth.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "190",
+      "Stop": "func(ctx context.Context) error {\n\tif qoderOAuth != nil {\n\t\tqoderOAuth.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "810",
+      "file": "backend/internal/app/legacy_runtime_auth.go",
+      "line": 83,
+      "provider": "provideAuthRuntime"
+    },
+    {
+      "Name": "\"GrokOAuthService\"",
+      "Start": "func(ctx context.Context) error {\n\tif grokOAuth != nil {\n\t\tgrokOAuth.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "190",
+      "Stop": "func(ctx context.Context) error {\n\tif grokOAuth != nil {\n\t\tgrokOAuth.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "810",
+      "file": "backend/internal/app/legacy_runtime_auth.go",
+      "line": 94,
+      "provider": "provideAuthRuntime"
+    },
+    {
+      "Name": "\"TLSFingerprintProfileService\"",
+      "Start": "func(ctx context.Context) error {\n\tif tlsFingerprintProfile != nil {\n\t\ttlsFingerprintProfile.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "190",
+      "Stop": "func(ctx context.Context) error {\n\tif tlsFingerprintProfile != nil {\n\t\ttlsFingerprintProfile.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "810",
+      "file": "backend/internal/app/legacy_runtime_auth.go",
+      "line": 106,
+      "provider": "provideAuthRuntime"
+    },
+    {
+      "Name": "\"TLSFingerprintRouterService\"",
+      "Start": "func(ctx context.Context) error {\n\tif tlsFingerprintRouter != nil {\n\t\ttlsFingerprintRouter.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "190",
+      "Stop": "func(ctx context.Context) error {\n\tif tlsFingerprintRouter != nil {\n\t\ttlsFingerprintRouter.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "810",
+      "file": "backend/internal/app/legacy_runtime_auth.go",
+      "line": 117,
+      "provider": "provideAuthRuntime"
+    },
+    {
+      "Name": "\"ErrorPassthroughService\"",
+      "Start": "func(context.Context) error { errorPassthrough.Start(); return nil }",
+      "StartOrder": "190",
+      "Stop": "func(context.Context) error { errorPassthrough.Stop(); return nil }",
+      "StopOrder": "810",
+      "file": "backend/internal/app/legacy_runtime_auth.go",
+      "line": 129,
+      "provider": "provideAuthRuntime"
+    },
+    {
+      "Name": "\"PricingInitialization\"",
+      "Start": "func(context.Context) error {\n\tif pricing == nil {\n\t\treturn nil\n\t}\n\tif err := pricing.Initialize(); err != nil {\n\t\tlogger.LegacyPrintf(\"service.pricing\", \"[Service] Warning: Pricing service initialization failed: %v\", err)\n\t\treturn nil\n\t}\n\tpricingReady = true\n\treturn nil\n}",
+      "StartOrder": "188",
+      "file": "backend/internal/app/legacy_runtime_boot.go",
+      "line": 22,
+      "provider": "provideBootRuntime"
+    },
+    {
+      "Name": "\"LegacySettingsInitialization\"",
+      "Start": "func(ctx context.Context) error {\n\tif err := settingService.LoadForwardedClientIPSettings(ctx); err != nil {\n\t\tlogger.LegacyPrintf(\"service.setting\", \"Warning: load forwarded client IP settings failed: %v\", err)\n\t}\n\tif err := settingService.MigrateGrokDefaultTextModel(ctx); err != nil {\n\t\tlogger.LegacyPrintf(\"service.setting\", \"Warning: migrate Grok default text model failed: %v\", err)\n\t}\n\treturn nil\n}",
+      "StartOrder": "181",
+      "StopOrder": "800",
+      "file": "backend/internal/app/legacy_runtime_boot.go",
+      "line": 34,
+      "provider": "provideBootRuntime"
+    },
+    {
+      "Name": "\"PricingService\"",
+      "Start": "func(ctx context.Context) error {\n\tif pricing != nil \u0026\u0026 pricingReady {\n\t\tpricing.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif pricing != nil {\n\t\tpricing.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_boot.go",
+      "line": 46,
+      "provider": "provideBootRuntime"
+    },
+    {
+      "Name": "\"AuthCacheInvalidationWorker\"",
+      "Start": "func(ctx context.Context) error {\n\tif authCacheInvalidationWorker != nil {\n\t\tauthCacheInvalidationWorker.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif authCacheInvalidationWorker != nil {\n\t\treturn authCacheInvalidationWorker.StopContext(ctx)\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_core.go",
+      "line": 33,
+      "provider": "provideCoreRuntime"
+    },
+    {
+      "Name": "\"SchedulerSnapshotService\"",
+      "Start": "func(ctx context.Context) error {\n\tif schedulerSnapshot != nil {\n\t\tschedulerSnapshot.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif schedulerSnapshot != nil {\n\t\tschedulerSnapshot.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_core.go",
+      "line": 44,
+      "provider": "provideCoreRuntime"
+    },
+    {
+      "Name": "\"UsageCleanupService\"",
+      "Start": "func(ctx context.Context) error {\n\tif usageCleanup != nil {\n\t\tusageCleanup.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif usageCleanup != nil {\n\t\tusageCleanup.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_core.go",
+      "line": 56,
+      "provider": "provideCoreRuntime"
+    },
+    {
+      "Name": "\"IdempotencyCleanupService\"",
+      "Start": "func(ctx context.Context) error {\n\tif idempotencyCleanup != nil {\n\t\tidempotencyCleanup.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif idempotencyCleanup != nil {\n\t\tidempotencyCleanup.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_core.go",
+      "line": 67,
+      "provider": "provideCoreRuntime"
+    },
+    {
+      "Name": "\"OpenAIGatewayService\"",
+      "Start": "nil",
+      "StartOrder": "990",
+      "Stop": "func(ctx context.Context) error {\n\tif openAIGateway != nil {\n\t\topenAIGateway.CloseOpenAIWSPool()\n\t}\n\treturn nil\n}",
+      "StopOrder": "10",
+      "file": "backend/internal/app/legacy_runtime_core.go",
+      "line": 79,
+      "provider": "provideCoreRuntime"
+    },
+    {
+      "Name": "\"PaymentOrderExpiryService\"",
+      "Start": "func(ctx context.Context) error {\n\tif paymentOrderExpiry != nil {\n\t\tpaymentOrderExpiry.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif paymentOrderExpiry != nil {\n\t\tpaymentOrderExpiry.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_core.go",
+      "line": 86,
+      "provider": "provideCoreRuntime"
+    },
+    {
+      "Name": "\"TLSFingerprintCollectorService\"",
+      "Start": "nil",
+      "StartOrder": "995",
+      "Stop": "func(ctx context.Context) error {\n\tif tlsFingerprintCollector != nil {\n\t\treturn tlsFingerprintCollector.Shutdown(ctx)\n\t}\n\treturn nil\n}",
+      "StopOrder": "5",
+      "file": "backend/internal/app/legacy_runtime_core.go",
+      "line": 98,
+      "provider": "provideCoreRuntime"
+    },
+    {
+      "Name": "\"TimingWheelService\"",
+      "Start": "func(ctx context.Context) error {\n\tif timingWheel != nil {\n\t\treturn timingWheel.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "180",
+      "Stop": "func(ctx context.Context) error {\n\tif timingWheel != nil {\n\t\treturn timingWheel.Shutdown(ctx)\n\t}\n\treturn nil\n}",
+      "StopOrder": "820",
+      "file": "backend/internal/app/legacy_runtime_core.go",
+      "line": 105,
+      "provider": "provideCoreRuntime"
+    },
+    {
+      "Name": "\"RuntimeLocalCaches\"",
+      "Start": "func(context.Context) error {\n\ttimingWheel.ScheduleRecurring(\"runtime:local_caches\", time.Minute, func() {\n\t\tgateway.ExpireRuntimeCaches()\n\t\topenAIGateway.ExpireRuntimeCaches()\n\t\tdigestStore.ExpireRuntimeCaches()\n\t\tif cache, ok := usageRepo.(interface{ ExpireRuntimeCaches() }); ok {\n\t\t\tcache.ExpireRuntimeCaches()\n\t\t}\n\t})\n\treturn nil\n}",
+      "StartOrder": "185",
+      "Stop": "func(context.Context) error { timingWheel.CancelAndWait(\"runtime:local_caches\"); return nil }",
+      "StopOrder": "815",
+      "file": "backend/internal/app/legacy_runtime_core.go",
+      "line": 117,
+      "provider": "provideCoreRuntime"
+    },
+    {
+      "Name": "\"UsageLogBatchers\"",
+      "StartOrder": "952",
+      "Stop": "func(context.Context) error {\n\tif closer, ok := usageRepo.(interface{ StopUsageBatchers() }); ok {\n\t\tcloser.StopUsageBatchers()\n\t}\n\treturn nil\n}",
+      "StopOrder": "48",
+      "file": "backend/internal/app/legacy_runtime_core.go",
+      "line": 129,
+      "provider": "provideCoreRuntime"
+    },
+    {
+      "Name": "fmt.Sprintf(\"BackgroundBarrier%d\", phase)",
+      "StartOrder": "1000 - phase",
+      "Stop": "tasks.Wait",
+      "StopOrder": "phase",
+      "file": "backend/internal/app/legacy_runtime_core.go",
+      "line": 137,
+      "provider": "provideCoreRuntime"
+    },
+    {
+      "Name": "\"OpenAILiveObservers\"",
+      "StartOrder": "995",
+      "Stop": "openAIGateway.StopLiveObservers",
+      "StopOrder": "5",
+      "file": "backend/internal/app/legacy_runtime_core.go",
+      "line": 140,
+      "provider": "provideCoreRuntime"
+    },
+    {
+      "Name": "\"HTTPIdleConnections\"",
+      "StartOrder": "160",
+      "Stop": "func(context.Context) error {\n\tif closer, ok := httpUpstream.(interface{ CloseIdleConnections() }); ok {\n\t\tcloser.CloseIdleConnections()\n\t}\n\thttpclient.CloseSharedIdleConnections()\n\treturn nil\n}",
+      "StopOrder": "840",
+      "file": "backend/internal/app/legacy_runtime_core.go",
+      "line": 141,
+      "provider": "provideCoreRuntime"
+    },
+    {
+      "Name": "\"BatchImageCleanupService\"",
+      "Start": "func(ctx context.Context) error {\n\tif batchImageCleanup != nil {\n\t\tbatchImageCleanup.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif batchImageCleanup != nil {\n\t\tbatchImageCleanup.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_jobs.go",
+      "line": 22,
+      "provider": "provideJobsRuntime"
+    },
+    {
+      "Name": "\"BatchImageWorkerRuntime\"",
+      "Start": "func(ctx context.Context) error {\n\tif batchImageWorker != nil {\n\t\tbatchImageWorker.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif batchImageWorker != nil {\n\t\tbatchImageWorker.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_jobs.go",
+      "line": 33,
+      "provider": "provideJobsRuntime"
+    },
+    {
+      "Name": "\"CreativeWorkerRuntime\"",
+      "Start": "func(ctx context.Context) error {\n\tif creativeWorker != nil {\n\t\tcreativeWorker.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif creativeWorker != nil {\n\t\tcreativeWorker.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_jobs.go",
+      "line": 44,
+      "provider": "provideJobsRuntime"
+    },
+    {
+      "Name": "\"CNProviderBalanceCheckService\"",
+      "Start": "func(ctx context.Context) error {\n\tif cnUsageMonitor != nil {\n\t\treturn cnUsageMonitor.StartContext(ctx)\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif cnUsageMonitor != nil {\n\t\treturn cnUsageMonitor.StopContext(ctx)\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_jobs.go",
+      "line": 56,
+      "provider": "provideJobsRuntime"
+    },
+    {
+      "Name": "\"TokenRefreshService\"",
+      "Start": "func(ctx context.Context) error {\n\tif tokenRefresh != nil {\n\t\treturn tokenRefresh.StartContext(ctx)\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif tokenRefresh != nil {\n\t\treturn tokenRefresh.StopContext(ctx)\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_maintenance.go",
+      "line": 31,
+      "provider": "provideMaintenanceRuntime"
+    },
+    {
+      "Name": "\"AccountExpiryService\"",
+      "Start": "func(ctx context.Context) error {\n\tif accountExpiry != nil {\n\t\taccountExpiry.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif accountExpiry != nil {\n\t\treturn accountExpiry.StopContext(ctx)\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_maintenance.go",
+      "line": 42,
+      "provider": "provideMaintenanceRuntime"
+    },
+    {
+      "Name": "\"ProxyExpiryService\"",
+      "Start": "func(ctx context.Context) error {\n\tif proxyExpiry != nil {\n\t\tproxyExpiry.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif proxyExpiry != nil {\n\t\treturn proxyExpiry.StopContext(ctx)\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_maintenance.go",
+      "line": 53,
+      "provider": "provideMaintenanceRuntime"
+    },
+    {
+      "Name": "\"SubscriptionExpiryService\"",
+      "Start": "func(ctx context.Context) error {\n\tif subscriptionExpiry != nil {\n\t\tsubscriptionExpiry.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif subscriptionExpiry != nil {\n\t\treturn subscriptionExpiry.StopContext(ctx)\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_maintenance.go",
+      "line": 64,
+      "provider": "provideMaintenanceRuntime"
+    },
+    {
+      "Name": "\"AnnouncementExpiryService\"",
+      "Start": "func(ctx context.Context) error {\n\tif announcementExpiry != nil {\n\t\tannouncementExpiry.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif announcementExpiry != nil {\n\t\tannouncementExpiry.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_maintenance.go",
+      "line": 75,
+      "provider": "provideMaintenanceRuntime"
+    },
+    {
+      "Name": "\"ScheduledTestRunnerService\"",
+      "Start": "func(ctx context.Context) error {\n\tif scheduledTestRunner != nil {\n\t\treturn scheduledTestRunner.StartContext(ctx)\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif scheduledTestRunner != nil {\n\t\treturn scheduledTestRunner.StopContext(ctx)\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_maintenance.go",
+      "line": 87,
+      "provider": "provideMaintenanceRuntime"
+    },
+    {
+      "Name": "\"GroupAvailabilityProbeRunnerService\"",
+      "Start": "func(ctx context.Context) error {\n\tif groupAvailabilityProbeRunner != nil {\n\t\tgroupAvailabilityProbeRunner.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif groupAvailabilityProbeRunner != nil {\n\t\treturn groupAvailabilityProbeRunner.StopContext(ctx)\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_maintenance.go",
+      "line": 98,
+      "provider": "provideMaintenanceRuntime"
+    },
+    {
+      "Name": "\"ConcurrencyService\"",
+      "Start": "func(ctx context.Context) error {\n\tif concurrency != nil {\n\t\tconcurrency.StartSlotCleanupWorker(nil, cfg.Gateway.Scheduling.SlotCleanupInterval)\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif concurrency != nil {\n\t\tconcurrency.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_maintenance.go",
+      "line": 110,
+      "provider": "provideMaintenanceRuntime"
+    },
+    {
+      "Name": "\"UserMessageQueueService\"",
+      "Start": "func(ctx context.Context) error {\n\tif messageQueue != nil {\n\t\tmessageQueue.StartCleanupWorker(time.Duration(cfg.Gateway.UserMessageQueue.CleanupIntervalSeconds) * time.Second)\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif messageQueue != nil {\n\t\tmessageQueue.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_maintenance.go",
+      "line": 121,
+      "provider": "provideMaintenanceRuntime"
+    },
+    {
+      "Name": "\"OpsMetricsCollector\"",
+      "Start": "func(ctx context.Context) error {\n\tif opsMetricsCollector != nil {\n\t\topsMetricsCollector.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif opsMetricsCollector != nil {\n\t\topsMetricsCollector.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_ops.go",
+      "line": 29,
+      "provider": "provideOpsRuntime"
+    },
+    {
+      "Name": "\"OpsAggregationService\"",
+      "Start": "func(ctx context.Context) error {\n\tif opsAggregation != nil {\n\t\topsAggregation.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif opsAggregation != nil {\n\t\topsAggregation.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_ops.go",
+      "line": 40,
+      "provider": "provideOpsRuntime"
+    },
+    {
+      "Name": "\"OpsAlertEvaluatorService\"",
+      "Start": "func(ctx context.Context) error {\n\tif opsAlertEvaluator != nil {\n\t\topsAlertEvaluator.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif opsAlertEvaluator != nil {\n\t\topsAlertEvaluator.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_ops.go",
+      "line": 51,
+      "provider": "provideOpsRuntime"
+    },
+    {
+      "Name": "\"OpsCleanupService\"",
+      "Start": "func(ctx context.Context) error {\n\tif opsCleanup != nil {\n\t\topsCleanup.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif opsCleanup != nil {\n\t\topsCleanup.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_ops.go",
+      "line": 62,
+      "provider": "provideOpsRuntime"
+    },
+    {
+      "Name": "\"OpsScheduledReportService\"",
+      "Start": "func(ctx context.Context) error {\n\tif opsScheduledReport != nil {\n\t\topsScheduledReport.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif opsScheduledReport != nil {\n\t\topsScheduledReport.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_ops.go",
+      "line": 73,
+      "provider": "provideOpsRuntime"
+    },
+    {
+      "Name": "\"OpsSystemLogSink\"",
+      "Start": "func(ctx context.Context) error {\n\tif opsSystemLogSink != nil {\n\t\topsSystemLogSink.Start()\n\t\tlogger.SetSink(opsSystemLogSink)\n\t}\n\treturn nil\n}",
+      "StartOrder": "210",
+      "Stop": "func(ctx context.Context) error {\n\tif opsSystemLogSink != nil {\n\t\tlogger.SetSink(nil)\n\t\topsSystemLogSink.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "790",
+      "file": "backend/internal/app/legacy_runtime_ops.go",
+      "line": 84,
+      "provider": "provideOpsRuntime"
+    },
+    {
+      "Name": "\"OpsService\"",
+      "Start": "func(ctx context.Context) error {\n\tif opsService != nil {\n\t\topsService.StartRuntimeSettingsRefresh(context.Background())\n\t}\n\treturn nil\n}",
+      "StartOrder": "975",
+      "Stop": "func(ctx context.Context) error {\n\tif opsService != nil {\n\t\topsService.StopRuntimeSettingsRefresh()\n\t}\n\treturn nil\n}",
+      "StopOrder": "25",
+      "file": "backend/internal/app/legacy_runtime_ops.go",
+      "line": 97,
+      "provider": "provideOpsRuntime"
+    },
+    {
+      "Name": "\"OpsIngressRejectAggregator\"",
+      "Start": "func(ctx context.Context) error {\n\tif opsIngressReject != nil {\n\t\topsIngressReject.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif opsIngressReject != nil {\n\t\topsIngressReject.Stop()\n\t\tif health := opsIngressReject.Health(); health.PendingBatches != 0 {\n\t\t\treturn fmt.Errorf(\"ingress reject drain incomplete: %d batches, %d rows\", health.PendingBatches, health.PendingRows)\n\t\t}\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_ops.go",
+      "line": 108,
+      "provider": "provideOpsRuntime"
+    },
+    {
+      "Name": "\"BackupService\"",
+      "Start": "func(ctx context.Context) error {\n\tif backupSvc != nil {\n\t\tbackupSvc.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "980",
+      "Stop": "func(ctx context.Context) error {\n\tif backupSvc != nil {\n\t\tbackupSvc.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "20",
+      "file": "backend/internal/app/legacy_runtime_ops.go",
+      "line": 123,
+      "provider": "provideOpsRuntime"
+    },
+    {
+      "Name": "\"DashboardAggregationService\"",
+      "Start": "func(ctx context.Context) error {\n\tif dashboardAggregation != nil {\n\t\tdashboardAggregation.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "970",
+      "Stop": "func(ctx context.Context) error {\n\tif dashboardAggregation != nil {\n\t\tdashboardAggregation.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "30",
+      "file": "backend/internal/app/legacy_runtime_ops.go",
+      "line": 135,
+      "provider": "provideOpsRuntime"
+    },
+    {
+      "Name": "\"EmailQueueService\"",
+      "Start": "func(ctx context.Context) error {\n\tif emailQueue != nil {\n\t\temailQueue.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "930",
+      "Stop": "func(ctx context.Context) error {\n\tif emailQueue != nil {\n\t\temailQueue.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "70",
+      "file": "backend/internal/app/legacy_runtime_queues.go",
+      "line": 27,
+      "provider": "provideQueuesRuntime"
+    },
+    {
+      "Name": "\"BillingCacheService\"",
+      "Start": "func(ctx context.Context) error {\n\tif billingCache != nil {\n\t\tbillingCache.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "950",
+      "Stop": "func(ctx context.Context) error {\n\tif billingCache != nil {\n\t\tbillingCache.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "50",
+      "file": "backend/internal/app/legacy_runtime_queues.go",
+      "line": 38,
+      "provider": "provideQueuesRuntime"
+    },
+    {
+      "Name": "\"UsageRecordWorkerPool\"",
+      "Start": "func(ctx context.Context) error {\n\tif usageRecordWorkerPool != nil {\n\t\tusageRecordWorkerPool.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "960",
+      "Stop": "func(ctx context.Context) error {\n\tif usageRecordWorkerPool != nil {\n\t\tusageRecordWorkerPool.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "40",
+      "file": "backend/internal/app/legacy_runtime_queues.go",
+      "line": 49,
+      "provider": "provideQueuesRuntime"
+    },
+    {
+      "Name": "\"UserPlatformQuotaUsageFlusher\"",
+      "Start": "func(ctx context.Context) error {\n\tif quotaFlusher != nil {\n\t\tquotaFlusher.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "945",
+      "Stop": "func(ctx context.Context) error {\n\tif quotaFlusher != nil {\n\t\treturn quotaFlusher.Shutdown(ctx)\n\t}\n\treturn nil\n}",
+      "StopOrder": "55",
+      "file": "backend/internal/app/legacy_runtime_queues.go",
+      "line": 61,
+      "provider": "provideQueuesRuntime"
+    },
+    {
+      "Name": "\"OllamaCloudUsageService\"",
+      "Start": "func(ctx context.Context) error {\n\tif ollamaCloudUsage != nil {\n\t\treturn ollamaCloudUsage.StartContext(ctx)\n\t}\n\treturn nil\n}",
+      "StartOrder": "940",
+      "Stop": "func(ctx context.Context) error {\n\tif ollamaCloudUsage != nil {\n\t\treturn ollamaCloudUsage.StopContext(ctx)\n\t}\n\treturn nil\n}",
+      "StopOrder": "60",
+      "file": "backend/internal/app/legacy_runtime_queues.go",
+      "line": 73,
+      "provider": "provideQueuesRuntime"
+    },
+    {
+      "Name": "\"AuditLogService\"",
+      "Start": "func(ctx context.Context) error {\n\tif auditLog != nil {\n\t\tauditLog.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "925",
+      "Stop": "func(ctx context.Context) error {\n\tif auditLog != nil {\n\t\tauditLog.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "75",
+      "file": "backend/internal/app/legacy_runtime_queues.go",
+      "line": 84,
+      "provider": "provideQueuesRuntime"
+    },
+    {
+      "Name": "\"DeferredService\"",
+      "Start": "func(ctx context.Context) error {\n\tif deferred != nil {\n\t\tdeferred.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "935",
+      "Stop": "func(ctx context.Context) error {\n\tif deferred != nil {\n\t\treturn deferred.StopContext(ctx)\n\t}\n\treturn nil\n}",
+      "StopOrder": "65",
+      "file": "backend/internal/app/legacy_runtime_queues.go",
+      "line": 96,
+      "provider": "provideQueuesRuntime"
+    },
+    {
+      "Name": "\"ContentModerationService\"",
+      "Start": "func(ctx context.Context) error {\n\tif contentModeration != nil {\n\t\tcontentModeration.Start()\n\t}\n\treturn nil\n}",
+      "StartOrder": "955",
+      "Stop": "func(ctx context.Context) error {\n\tif contentModeration != nil {\n\t\treturn contentModeration.Stop()\n\t}\n\treturn nil\n}",
+      "StopOrder": "45",
+      "file": "backend/internal/app/legacy_runtime_queues.go",
+      "line": 108,
+      "provider": "provideQueuesRuntime"
+    },
+    {
+      "Name": "\"GrokQuotaProbes\"",
+      "Stop": "grokQuota.StopContext",
+      "StopOrder": "25",
+      "file": "backend/internal/app/legacy_runtime_queues.go",
+      "line": 119,
+      "provider": "provideQueuesRuntime"
+    },
+    {
+      "Name": "\"Ent\"",
+      "StartOrder": "-100",
+      "Stop": "func(context.Context) error { return client.Close() }",
+      "StopOrder": "910",
+      "file": "backend/internal/app/providers.go",
+      "line": 17,
+      "provider": "provideEnt"
+    },
+    {
+      "Name": "\"Redis\"",
+      "StartOrder": "-90",
+      "Stop": "func(context.Context) error { return client.Close() }",
+      "StopOrder": "900",
+      "file": "backend/internal/app/providers.go",
+      "line": 22,
+      "provider": "provideRedis"
+    }
+  ],
+  "note": "按实际 Hook 顺序表达式与启停函数记录；同一 StopOrder 是否并行由 lifecycle.Manager 决定，超时不视为 drain 成功。"
+}

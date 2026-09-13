@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"strings"
 	"time"
 
@@ -15,7 +16,7 @@ const (
 	openAICodexSparkRateLimitReason    = "openai_codex_spark_rate_limit"
 	// anthropicFableRateLimitKey 是 Anthropic 7d_oi（Fable 专属 7d 窗口）限流的
 	// 家族级 scope：命中后所有 Fable 变体（含 [1m] 等后缀）都不再调度到该账号。
-	anthropicFableRateLimitKey = "claude-fable-5"
+	anthropicFableRateLimitKey = accountcore.AnthropicFableRateLimitKey
 )
 
 // isRateLimitActiveForKey 检查指定 key 的限流是否生效
@@ -171,47 +172,7 @@ func antigravityModelRateLimitKeys(model string) []string {
 	return keys
 }
 
+// modelRateLimitResetAt 只投影健康读取值。
 func (a *Account) modelRateLimitResetAt(scope string) *time.Time {
-	if a == nil || a.Extra == nil || scope == "" {
-		return nil
-	}
-	rawLimits, ok := a.Extra[modelRateLimitsKey].(map[string]any)
-	if !ok {
-		return nil
-	}
-	rawLimit, ok := rawLimits[scope].(map[string]any)
-	if !ok {
-		return nil
-	}
-	resetAtRaw, ok := rawLimit["rate_limit_reset_at"].(string)
-	if !ok || strings.TrimSpace(resetAtRaw) == "" {
-		return nil
-	}
-	resetAt, err := time.Parse(time.RFC3339, resetAtRaw)
-	if err != nil {
-		return nil
-	}
-	return &resetAt
-}
-
-func setAccountModelRateLimitSnapshot(account *Account, scope string, resetAt time.Time, reason string, now time.Time) {
-	if account == nil || strings.TrimSpace(scope) == "" {
-		return
-	}
-	if account.Extra == nil {
-		account.Extra = make(map[string]any)
-	}
-	limits, ok := account.Extra[modelRateLimitsKey].(map[string]any)
-	if !ok {
-		limits = make(map[string]any)
-		account.Extra[modelRateLimitsKey] = limits
-	}
-	payload := map[string]any{
-		"rate_limited_at":     now.UTC().Format(time.RFC3339),
-		"rate_limit_reset_at": resetAt.UTC().Format(time.RFC3339),
-	}
-	if reason = strings.TrimSpace(reason); reason != "" {
-		payload["reason"] = reason
-	}
-	limits[scope] = payload
+	return AccountRecordView(a).ModelRateLimitResetAt(scope)
 }

@@ -51,7 +51,7 @@ func newChannelServiceWithPricings(groupID int64, pricings []ChannelModelPricing
 		GroupIDs:     []int64{groupID},
 	}
 	cs := &ChannelService{}
-	cs.cache.Store(populateChannelCache([]Channel{ch}, map[int64]string{groupID: PlatformOpenAI}))
+	seedLegacyChannelFixture(cs, populateChannelCache([]Channel{ch}, map[int64]string{groupID: PlatformOpenAI}))
 	return cs
 }
 

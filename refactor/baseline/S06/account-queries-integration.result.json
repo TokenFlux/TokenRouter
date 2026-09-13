@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "AccountRepoSuite|Account.*Query|Account.*Filter|Account.*OAuth|S06Account|S06Refresh"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 8.506,
+  "log": "logs/account-queries-integration.log.gz"
+}

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/app",
+    "-run",
+    "Test.*(AccountTest|S06AccountTest|Scheduled|AutomaticProbe|CodexClientRestriction|CodexCLIOnly)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 23.112,
+  "log": "logs/account-test-events-unit.log.gz"
+}

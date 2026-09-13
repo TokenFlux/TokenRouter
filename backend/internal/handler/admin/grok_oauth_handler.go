@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"fmt"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"log/slog"
 	"strconv"
 	"strings"
@@ -20,6 +21,7 @@ import (
 const grokSSOImportConcurrency = 3
 
 type GrokOAuthHandler struct {
+	importProbes     *accountcore.GrokImportProbeScheduler
 	grokOAuthService *service.GrokOAuthService
 	adminService     service.AdminService
 	quotaService     *service.GrokQuotaService
@@ -33,7 +35,16 @@ func NewGrokOAuthHandler(
 	quotaService *service.GrokQuotaService,
 	reconciler service.GrokOAuthReconciler,
 ) *GrokOAuthHandler {
-	return &GrokOAuthHandler{
+	return NewGrokOAuthHandlerWithImportProbes(newStandaloneImportProbes(), grokOAuthService, adminService, quotaService, reconciler)
+}
+func NewGrokOAuthHandlerWithImportProbes(
+	importProbes *accountcore.GrokImportProbeScheduler,
+	grokOAuthService *service.GrokOAuthService,
+	adminService service.AdminService,
+	quotaService *service.GrokQuotaService,
+	reconciler service.GrokOAuthReconciler,
+) *GrokOAuthHandler {
+	return &GrokOAuthHandler{importProbes: importProbes,
 		grokOAuthService: grokOAuthService,
 		adminService:     adminService,
 		quotaService:     quotaService,

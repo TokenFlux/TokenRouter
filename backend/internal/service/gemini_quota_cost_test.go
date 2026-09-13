@@ -79,10 +79,8 @@ func TestGeminiThirdPartyAPIKeySkipsLocalQuota(t *testing.T) {
 	require.Nil(t, usage.GeminiProDaily)
 	require.Nil(t, usage.GeminiFlashDaily)
 
-	// 官方免费档位的 Pro 日配额为 50；预填满后必须被本地预检拦截。
-	rateLimitSvc := NewRateLimitService(nil, &usageBatchLogRepoStub{}, &config.Config{}, quotaService, nil)
-	now := time.Now()
-	rateLimitSvc.setGeminiUsageTotals(official.ID, geminiDailyWindowStart(now), now, GeminiUsageTotals{ProRequests: 50})
+	// 官方免费档位的 Pro 日配额为 50；由原统计接口回源后必须被预检拦截。
+	rateLimitSvc := NewRateLimitService(nil, &geminiFullLocalUsage{}, &config.Config{}, quotaService, nil)
 	officialAllowed, err := rateLimitSvc.PreCheckUsage(ctx, official, "gemini-2.5-pro")
 	require.NoError(t, err)
 	require.False(t, officialAllowed)
@@ -90,4 +88,11 @@ func TestGeminiThirdPartyAPIKeySkipsLocalQuota(t *testing.T) {
 	thirdPartyAllowed, err := rateLimitSvc.PreCheckUsage(ctx, thirdParty, "gemini-2.5-pro")
 	require.NoError(t, err)
 	require.True(t, thirdPartyAllowed)
+}
+
+// 满额夹具只提供原 SQL 查询投影，不直接修改实现的缓存。
+type geminiFullLocalUsage struct{ usageBatchLogRepoStub }
+
+func (r *geminiFullLocalUsage) GetModelStatsWithFilters(context.Context, time.Time, time.Time, int64, int64, int64, int64, *int16, *bool, *int8) ([]usagestats.ModelStat, error) {
+	return []usagestats.ModelStat{{Model: "gemini-2.5-pro", Requests: 50}}, nil
 }

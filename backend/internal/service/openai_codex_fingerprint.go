@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"maps"
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"net/http"
 	"strings"
 	"time"
@@ -61,137 +61,34 @@ func applyStagedCodexFingerprintClientMetadata(c *gin.Context, account *Account,
 	return applyCodexFingerprintClientMetadata(reqBody, stagedCodexFingerprintIDs(c, account))
 }
 
-// codexFingerprintMode 控制 OAuth 账号出站请求的设备指纹收敛强度。
-// 多人共享同一 OAuth 账号时，每个用户的 Codex 客户端会携带各自不同的
-// installation_id / session_id / thread_id，上游据此判定设备数和会话数。
-// 收敛模式将这些标识改写为账号级恒定值，减少上游可见的设备/会话指纹。
-type codexFingerprintMode string
+type codexFingerprintMode = acctcore.CodexFingerprintMode
 
-const (
-	// codexFingerprintOff 不做任何收敛，原样透传客户端标识。
-	// 这是默认值：收敛是显式 opt-in 的（见 GetCodexFingerprintMode）。
-	codexFingerprintOff codexFingerprintMode = "off"
-	// codexFingerprintDevice 仅收敛 installation_id 为账号级恒定值。
-	// 上游看到 1 台设备 + 多会话（每用户各自的 session）。
-	codexFingerprintDevice codexFingerprintMode = "device"
-	// codexFingerprintSession 收敛 installation_id + session_id，
-	// thread_id 按客户端原始 session-id 确定性派生（每个真实 Codex 会话一个独立线程）。
-	// 上游看到 1 台设备 + 1 会话 + N 线程，最接近正常用户 spawn 子代理的模式。
-	codexFingerprintSession codexFingerprintMode = "session"
-	// codexFingerprintFull 收敛所有标识：installation_id + session_id + thread_id。
-	// 上游看到 1 台设备 + 1 会话 + 1 线程，最激进。
-	codexFingerprintFull codexFingerprintMode = "full"
-)
+const codexFingerprintOff = acctcore.CodexFingerprintOff
+const codexFingerprintDevice = acctcore.CodexFingerprintDevice
+const codexFingerprintSession = acctcore.CodexFingerprintSession
+const codexFingerprintFull = acctcore.CodexFingerprintFull
 
-const (
-	codexFingerprintModeExtraKey = "codex_fingerprint_mode"
-	codexFingerprintSeedExtraKey = "codex_fingerprint_seed"
-)
-
-func canonicalCodexFingerprintSeed(value any) (string, bool) {
-	raw, ok := value.(string)
-	if !ok {
-		return "", false
-	}
-	trimmed := strings.TrimSpace(raw)
-	parsed, err := uuid.Parse(trimmed)
-	if err != nil || parsed == uuid.Nil || trimmed != parsed.String() {
-		return "", false
-	}
-	return trimmed, true
-}
+const codexFingerprintModeExtraKey = acctcore.CodexFingerprintModeExtraKey
+const codexFingerprintSeedExtraKey = acctcore.CodexFingerprintSeedExtraKey
 
 func newCodexFingerprintSeed() string {
 	return uuid.NewString()
 }
 
-func stripCodexFingerprintSeed(extra map[string]any) map[string]any {
-	if extra == nil {
-		return nil
-	}
-	stripped := maps.Clone(extra)
-	delete(stripped, codexFingerprintSeedExtraKey)
-	return stripped
-}
-
 func codexFingerprintModeFromExtra(extra map[string]any) codexFingerprintMode {
-	if extra == nil {
-		return codexFingerprintOff
-	}
-	raw, _ := extra[codexFingerprintModeExtraKey].(string)
-	switch codexFingerprintMode(strings.TrimSpace(raw)) {
-	case codexFingerprintOff, codexFingerprintDevice, codexFingerprintSession, codexFingerprintFull:
-		return codexFingerprintMode(strings.TrimSpace(raw))
-	default:
-		return codexFingerprintOff
-	}
+	return acctcore.CodexFingerprintModeFromExtra(extra)
 }
 
 func codexFingerprintModeRequiresSeed(mode codexFingerprintMode) bool {
-	switch mode {
-	case codexFingerprintDevice, codexFingerprintSession, codexFingerprintFull:
-		return true
-	default:
-		return false
-	}
+	return acctcore.CodexFingerprintModeRequiresSeed(mode)
 }
 
 func codexFingerprintSeed(extra map[string]any) (string, bool) {
-	if extra == nil {
-		return "", false
-	}
-	return canonicalCodexFingerprintSeed(extra[codexFingerprintSeedExtraKey])
+	return acctcore.CodexFingerprintSeed(extra)
 }
 
-func prepareCodexFingerprintExtraForCreate(platform, accountType string, extra map[string]any) map[string]any {
-	prepared := stripCodexFingerprintSeed(extra)
-	if platform != PlatformOpenAI || (accountType != AccountTypeOAuth && accountType != AccountTypeSetupToken) || !codexFingerprintModeRequiresSeed(codexFingerprintModeFromExtra(prepared)) {
-		return prepared
-	}
-	if prepared == nil {
-		prepared = make(map[string]any, 1)
-	}
-	prepared[codexFingerprintSeedExtraKey] = newCodexFingerprintSeed()
-	return prepared
-}
-
-func prepareCodexFingerprintExtraForUpdate(account *Account, extra map[string]any) map[string]any {
-	prepared := stripCodexFingerprintSeed(extra)
-	if account == nil || !account.IsOpenAIOAuthLike() {
-		return prepared
-	}
-	if seed, ok := codexFingerprintSeed(account.Extra); ok {
-		if prepared == nil {
-			prepared = make(map[string]any, 1)
-		}
-		prepared[codexFingerprintSeedExtraKey] = seed
-		return prepared
-	}
-	if codexFingerprintModeRequiresSeed(codexFingerprintModeFromExtra(prepared)) {
-		if prepared == nil {
-			prepared = make(map[string]any, 1)
-		}
-		prepared[codexFingerprintSeedExtraKey] = newCodexFingerprintSeed()
-	}
-	return prepared
-}
-
-func sanitizedCodexFingerprintExtraUpdates(updates map[string]any) map[string]any {
-	if updates == nil {
-		return nil
-	}
-	sanitized := maps.Clone(updates)
-	delete(sanitized, codexFingerprintSeedExtraKey)
-	return sanitized
-}
-
-// ShouldEnsureCodexFingerprintSeedForExtraUpdates 判断 Extra 增量是否开启了
-// Codex 指纹收敛；开启时仓储必须原子保留或生成系统管理的账号 seed。
 func ShouldEnsureCodexFingerprintSeedForExtraUpdates(updates map[string]any) bool {
-	if updates == nil {
-		return false
-	}
-	return codexFingerprintModeRequiresSeed(codexFingerprintModeFromExtra(updates))
+	return acctcore.ShouldEnsureCodexFingerprintSeedForExtraUpdates(updates)
 }
 
 // GetCodexFingerprintMode 从账号 extra JSON 读取指纹收敛模式。

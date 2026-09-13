@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "-run",
+    "Refresh|TokenProvider|RefreshPreservesAdministratorCredentials"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 25.17,
+  "log": "logs/account-refresh-cas-unit-2.log.gz"
+}

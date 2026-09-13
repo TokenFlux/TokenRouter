@@ -1,0 +1,1332 @@
+{
+  "config_sha256": "49a6877c64c2db98fb96b8c1a3c83231ca68394cdd0c83f88c98d832958d0093",
+  "sources_positive": {
+    "internal/service/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage service\n",
+    "internal/service/rogue/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage rogue\n",
+    "internal/repository/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage repository\n",
+    "internal/config/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage config\n",
+    "internal/account/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage account\n",
+    "internal/account/postgres/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage postgres\n",
+    "internal/egress/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage egress\n",
+    "internal/routing/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage routing\n",
+    "internal/routing/modelmap/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage modelmap\n",
+    "internal/routing/modelmap/rogue/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage rogue\n",
+    "internal/scheduler/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage scheduler\n",
+    "internal/scheduler/policy/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage policy\n",
+    "internal/server/httpx/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage httpx\n",
+    "internal/app/lifecycle/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage lifecycle\n",
+    "internal/pkg/apperror/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage apperror\n",
+    "internal/protocol/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage protocol\n",
+    "internal/protocol/openai/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage openai\n",
+    "ent/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage ent\n",
+    "internal/account/legal.go": "// 可丢弃的依赖角色验证夹具。\npackage account\nimport _ \"github.com/TokenFlux/TokenRouter/internal/pkg/apperror\"\n",
+    "internal/account/record.go": "// 可丢弃的依赖角色验证夹具。\npackage account\nimport _ \"github.com/TokenFlux/TokenRouter/internal/routing/modelmap\"\n",
+    "internal/account/postgres/legal.go": "// 可丢弃的依赖角色验证夹具。\npackage postgres\nimport _ \"github.com/TokenFlux/TokenRouter/internal/account\"\nimport _ \"github.com/TokenFlux/TokenRouter/ent\"\nimport _ \"database/sql\"\n",
+    "internal/account/httpapi/legal.go": "// 可丢弃的依赖角色验证夹具。\npackage httpapi\nimport _ \"github.com/TokenFlux/TokenRouter/internal/account\"\nimport _ \"github.com/TokenFlux/TokenRouter/internal/server/httpx\"\nimport _ \"github.com/gin-gonic/gin\"\n",
+    "internal/egress/provider/legal.go": "// 可丢弃的依赖角色验证夹具。\npackage provider\nimport _ \"github.com/TokenFlux/TokenRouter/internal/egress\"\nimport _ \"net/http\"\n",
+    "internal/service/admin_account.go": "// 可丢弃的依赖角色验证夹具。\npackage service\nimport _ \"github.com/TokenFlux/TokenRouter/internal/account\"\n",
+    "internal/app/account_recovery.go": "// 可丢弃的依赖角色验证夹具。\npackage app\nimport _ \"github.com/TokenFlux/TokenRouter/internal/service\"\nimport _ \"github.com/TokenFlux/TokenRouter/internal/account\"\nimport _ \"github.com/TokenFlux/TokenRouter/internal/config\"\n",
+    "internal/app/legacybridge/account_health.go": "// 可丢弃的依赖角色验证夹具。\npackage legacybridge\nimport _ \"github.com/TokenFlux/TokenRouter/internal/service\"\nimport _ \"github.com/TokenFlux/TokenRouter/internal/account\"\n",
+    "internal/app/wire.go": "//go:build wireinject\n\n// 可丢弃的依赖角色验证夹具。\npackage app\nimport _ \"github.com/TokenFlux/TokenRouter/internal/repository\"\n",
+    "internal/scheduler/policy/legal.go": "// 可丢弃的依赖角色验证夹具。\npackage policy\nimport _ \"slices\"\n"
+  },
+  "sources_negative": {
+    "internal/service/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage service\n",
+    "internal/service/rogue/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage rogue\n",
+    "internal/repository/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage repository\n",
+    "internal/config/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage config\n",
+    "internal/account/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage account\n",
+    "internal/account/postgres/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage postgres\n",
+    "internal/egress/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage egress\n",
+    "internal/routing/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage routing\n",
+    "internal/routing/modelmap/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage modelmap\n",
+    "internal/routing/modelmap/rogue/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage rogue\n",
+    "internal/scheduler/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage scheduler\n",
+    "internal/scheduler/policy/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage policy\n",
+    "internal/server/httpx/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage httpx\n",
+    "internal/app/lifecycle/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage lifecycle\n",
+    "internal/pkg/apperror/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage apperror\n",
+    "internal/protocol/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage protocol\n",
+    "internal/protocol/openai/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage openai\n",
+    "ent/stub.go": "// 可丢弃的依赖角色验证夹具。\npackage ent\n",
+    "internal/account/legal.go": "// 可丢弃的依赖角色验证夹具。\npackage account\nimport _ \"github.com/TokenFlux/TokenRouter/internal/pkg/apperror\"\n",
+    "internal/account/record.go": "// 可丢弃的依赖角色验证夹具。\npackage account\nimport _ \"github.com/TokenFlux/TokenRouter/internal/routing/modelmap\"\nimport _ \"github.com/TokenFlux/TokenRouter/internal/config\"\n",
+    "internal/account/postgres/legal.go": "// 可丢弃的依赖角色验证夹具。\npackage postgres\nimport _ \"github.com/TokenFlux/TokenRouter/internal/account\"\nimport _ \"github.com/TokenFlux/TokenRouter/ent\"\nimport _ \"database/sql\"\n",
+    "internal/account/httpapi/legal.go": "// 可丢弃的依赖角色验证夹具。\npackage httpapi\nimport _ \"github.com/TokenFlux/TokenRouter/internal/account\"\nimport _ \"github.com/TokenFlux/TokenRouter/internal/server/httpx\"\nimport _ \"github.com/gin-gonic/gin\"\n",
+    "internal/egress/provider/legal.go": "// 可丢弃的依赖角色验证夹具。\npackage provider\nimport _ \"github.com/TokenFlux/TokenRouter/internal/egress\"\nimport _ \"net/http\"\n",
+    "internal/service/admin_account.go": "// 可丢弃的依赖角色验证夹具。\npackage service\nimport _ \"github.com/TokenFlux/TokenRouter/internal/account\"\n",
+    "internal/app/account_recovery.go": "// 可丢弃的依赖角色验证夹具。\npackage app\nimport _ \"github.com/TokenFlux/TokenRouter/internal/service\"\nimport _ \"github.com/TokenFlux/TokenRouter/internal/account\"\nimport _ \"github.com/TokenFlux/TokenRouter/internal/config\"\nimport _ \"github.com/TokenFlux/TokenRouter/internal/service/rogue\"\n",
+    "internal/app/legacybridge/account_health.go": "// 可丢弃的依赖角色验证夹具。\npackage legacybridge\nimport _ \"github.com/TokenFlux/TokenRouter/internal/service\"\nimport _ \"github.com/TokenFlux/TokenRouter/internal/account\"\n",
+    "internal/app/wire.go": "//go:build wireinject\n\n// 可丢弃的依赖角色验证夹具。\npackage app\nimport _ \"github.com/TokenFlux/TokenRouter/internal/repository\"\n",
+    "internal/scheduler/policy/legal.go": "// 可丢弃的依赖角色验证夹具。\npackage policy\nimport _ \"slices\"\n",
+    "internal/account/violation.go": "// 可丢弃的依赖角色验证夹具。\npackage account\nimport _ \"github.com/TokenFlux/TokenRouter/internal/config\"\n",
+    "internal/account/reverse_app.go": "// 可丢弃的依赖角色验证夹具。\npackage account\nimport _ \"github.com/TokenFlux/TokenRouter/internal/app/lifecycle\"\n",
+    "internal/account/new_same_dir.go": "// 可丢弃的依赖角色验证夹具。\npackage account\nimport _ \"github.com/TokenFlux/TokenRouter/internal/routing/modelmap\"\n",
+    "internal/account/moved_record.go": "// 可丢弃的依赖角色验证夹具。\npackage account\nimport _ \"github.com/TokenFlux/TokenRouter/internal/routing/modelmap\"\n",
+    "internal/account/illegal_child.go": "// 可丢弃的依赖角色验证夹具。\npackage account\nimport _ \"github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue\"\n",
+    "internal/scheduler/policy/reverse.go": "// 可丢弃的依赖角色验证夹具。\npackage policy\nimport _ \"github.com/TokenFlux/TokenRouter/internal/scheduler\"\n",
+    "internal/account/httpapi/repository_violation.go": "// 可丢弃的依赖角色验证夹具。\npackage httpapi\nimport _ \"github.com/TokenFlux/TokenRouter/internal/repository\"\n",
+    "internal/account/httpapi/postgres_violation.go": "// 可丢弃的依赖角色验证夹具。\npackage httpapi\nimport _ \"database/sql\"\n",
+    "internal/egress/reverse_account.go": "// 可丢弃的依赖角色验证夹具。\npackage egress\nimport _ \"github.com/TokenFlux/TokenRouter/internal/account\"\n",
+    "internal/app/new_same_dir.go": "// 可丢弃的依赖角色验证夹具。\npackage app\nimport _ \"github.com/TokenFlux/TokenRouter/internal/service\"\n",
+    "internal/app/moved_account_recovery.go": "// 可丢弃的依赖角色验证夹具。\npackage app\nimport _ \"github.com/TokenFlux/TokenRouter/internal/service\"\n",
+    "internal/app/legacybridge/new_same_dir.go": "// 可丢弃的依赖角色验证夹具。\npackage legacybridge\nimport _ \"github.com/TokenFlux/TokenRouter/internal/service\"\n",
+    "internal/service/new_repository_violation.go": "// 可丢弃的依赖角色验证夹具。\npackage service\nimport _ \"github.com/TokenFlux/TokenRouter/internal/repository\"\n",
+    "internal/protocol/openai/reverse_account.go": "// 可丢弃的依赖角色验证夹具。\npackage openai\nimport _ \"github.com/TokenFlux/TokenRouter/internal/account\"\n",
+    "internal/account/probe_unit.go": "//go:build unit\n\n// 可丢弃的依赖角色验证夹具。\npackage account\nimport _ \"github.com/TokenFlux/TokenRouter/internal/config\"\n",
+    "internal/account/probe_integration.go": "//go:build integration\n\n// 可丢弃的依赖角色验证夹具。\npackage account\nimport _ \"github.com/TokenFlux/TokenRouter/internal/config\"\n",
+    "internal/account/probe_embed.go": "//go:build embed\n\n// 可丢弃的依赖角色验证夹具。\npackage account\nimport _ \"github.com/TokenFlux/TokenRouter/internal/config\"\n",
+    "internal/app/wire_extra.go": "//go:build wireinject\n\n// 可丢弃的依赖角色验证夹具。\npackage app\nimport _ \"github.com/TokenFlux/TokenRouter/internal/repository\"\n",
+    "internal/account/probe_darwin.go": "// 可丢弃的依赖角色验证夹具。\npackage account\nimport _ \"github.com/TokenFlux/TokenRouter/internal/config\"\n",
+    "internal/account/probe_linux.go": "// 可丢弃的依赖角色验证夹具。\npackage account\nimport _ \"github.com/TokenFlux/TokenRouter/internal/config\"\n"
+  },
+  "results": [
+    {
+      "label": "gate-positive-normal-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--allow-parallel-runners",
+        "--timeout=3m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S06/gate-positive-normal-darwin.json",
+        "./internal/..."
+      ],
+      "exit_code": 1,
+      "seconds": 0.454,
+      "expected": [],
+      "actual": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "missing": [],
+      "unexpected": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "log": "../logs/gates-before-health-config/gate-positive-normal-darwin.log.gz",
+      "selection": "gate-positive-normal-darwin-selection.json"
+    },
+    {
+      "label": "gate-positive-unit-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--allow-parallel-runners",
+        "--timeout=3m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S06/gate-positive-unit-darwin.json",
+        "--build-tags=unit",
+        "./internal/..."
+      ],
+      "exit_code": 1,
+      "seconds": 0.606,
+      "expected": [],
+      "actual": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "missing": [],
+      "unexpected": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "log": "../logs/gates-before-health-config/gate-positive-unit-darwin.log.gz",
+      "selection": "gate-positive-unit-darwin-selection.json"
+    },
+    {
+      "label": "gate-positive-integration-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--allow-parallel-runners",
+        "--timeout=3m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S06/gate-positive-integration-darwin.json",
+        "--build-tags=integration",
+        "./internal/..."
+      ],
+      "exit_code": 1,
+      "seconds": 0.69,
+      "expected": [],
+      "actual": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "missing": [],
+      "unexpected": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "log": "../logs/gates-before-health-config/gate-positive-integration-darwin.log.gz",
+      "selection": "gate-positive-integration-darwin-selection.json"
+    },
+    {
+      "label": "gate-positive-wireinject-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--allow-parallel-runners",
+        "--timeout=3m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S06/gate-positive-wireinject-darwin.json",
+        "--build-tags=wireinject",
+        "./internal/..."
+      ],
+      "exit_code": 1,
+      "seconds": 0.717,
+      "expected": [],
+      "actual": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "missing": [],
+      "unexpected": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "log": "../logs/gates-before-health-config/gate-positive-wireinject-darwin.log.gz",
+      "selection": "gate-positive-wireinject-darwin-selection.json"
+    },
+    {
+      "label": "gate-positive-embed-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--allow-parallel-runners",
+        "--timeout=3m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S06/gate-positive-embed-darwin.json",
+        "--build-tags=embed",
+        "./internal/..."
+      ],
+      "exit_code": 1,
+      "seconds": 0.382,
+      "expected": [],
+      "actual": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "missing": [],
+      "unexpected": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "log": "../logs/gates-before-health-config/gate-positive-embed-darwin.log.gz",
+      "selection": "gate-positive-embed-darwin-selection.json"
+    },
+    {
+      "label": "gate-positive-normal-linux",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--allow-parallel-runners",
+        "--timeout=3m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S06/gate-positive-normal-linux.json",
+        "./internal/..."
+      ],
+      "exit_code": 1,
+      "seconds": 0.386,
+      "expected": [],
+      "actual": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "missing": [],
+      "unexpected": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "log": "../logs/gates-before-health-config/gate-positive-normal-linux.log.gz",
+      "selection": "gate-positive-normal-linux-selection.json"
+    },
+    {
+      "label": "gate-negative-normal-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--allow-parallel-runners",
+        "--timeout=3m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S06/gate-negative-normal-darwin.json",
+        "./internal/..."
+      ],
+      "exit_code": 1,
+      "seconds": 0.38,
+      "expected": [
+        [
+          "internal/account/httpapi/postgres_violation.go",
+          "database/sql"
+        ],
+        [
+          "internal/account/httpapi/repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ],
+        [
+          "internal/account/illegal_child.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+        ],
+        [
+          "internal/account/moved_record.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/probe_darwin.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/record.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/reverse_app.go",
+          "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+        ],
+        [
+          "internal/account/violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service/rogue"
+        ],
+        [
+          "internal/app/legacybridge/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/moved_account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/egress/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/protocol/openai/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/scheduler/policy/reverse.go",
+          "github.com/TokenFlux/TokenRouter/internal/scheduler"
+        ],
+        [
+          "internal/service/new_repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ]
+      ],
+      "actual": [
+        [
+          "internal/account/httpapi/postgres_violation.go",
+          "database/sql"
+        ],
+        [
+          "internal/account/httpapi/repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ],
+        [
+          "internal/account/illegal_child.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+        ],
+        [
+          "internal/account/moved_record.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/probe_darwin.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/record.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/reverse_app.go",
+          "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+        ],
+        [
+          "internal/account/violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service/rogue"
+        ],
+        [
+          "internal/app/legacybridge/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/moved_account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/egress/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/protocol/openai/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/scheduler/policy/reverse.go",
+          "github.com/TokenFlux/TokenRouter/internal/scheduler"
+        ],
+        [
+          "internal/service/new_repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ]
+      ],
+      "missing": [],
+      "unexpected": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "log": "../logs/gates-before-health-config/gate-negative-normal-darwin.log.gz",
+      "selection": "gate-negative-normal-darwin-selection.json"
+    },
+    {
+      "label": "gate-negative-unit-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--allow-parallel-runners",
+        "--timeout=3m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S06/gate-negative-unit-darwin.json",
+        "--build-tags=unit",
+        "./internal/..."
+      ],
+      "exit_code": 1,
+      "seconds": 0.366,
+      "expected": [
+        [
+          "internal/account/httpapi/postgres_violation.go",
+          "database/sql"
+        ],
+        [
+          "internal/account/httpapi/repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ],
+        [
+          "internal/account/illegal_child.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+        ],
+        [
+          "internal/account/moved_record.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/probe_darwin.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/probe_unit.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/record.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/reverse_app.go",
+          "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+        ],
+        [
+          "internal/account/violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service/rogue"
+        ],
+        [
+          "internal/app/legacybridge/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/moved_account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/egress/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/protocol/openai/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/scheduler/policy/reverse.go",
+          "github.com/TokenFlux/TokenRouter/internal/scheduler"
+        ],
+        [
+          "internal/service/new_repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ]
+      ],
+      "actual": [
+        [
+          "internal/account/httpapi/postgres_violation.go",
+          "database/sql"
+        ],
+        [
+          "internal/account/httpapi/repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ],
+        [
+          "internal/account/illegal_child.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+        ],
+        [
+          "internal/account/moved_record.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/probe_darwin.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/probe_unit.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/record.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/reverse_app.go",
+          "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+        ],
+        [
+          "internal/account/violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service/rogue"
+        ],
+        [
+          "internal/app/legacybridge/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/moved_account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/egress/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/protocol/openai/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/scheduler/policy/reverse.go",
+          "github.com/TokenFlux/TokenRouter/internal/scheduler"
+        ],
+        [
+          "internal/service/new_repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ]
+      ],
+      "missing": [],
+      "unexpected": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "log": "../logs/gates-before-health-config/gate-negative-unit-darwin.log.gz",
+      "selection": "gate-negative-unit-darwin-selection.json"
+    },
+    {
+      "label": "gate-negative-integration-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--allow-parallel-runners",
+        "--timeout=3m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S06/gate-negative-integration-darwin.json",
+        "--build-tags=integration",
+        "./internal/..."
+      ],
+      "exit_code": 1,
+      "seconds": 0.474,
+      "expected": [
+        [
+          "internal/account/httpapi/postgres_violation.go",
+          "database/sql"
+        ],
+        [
+          "internal/account/httpapi/repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ],
+        [
+          "internal/account/illegal_child.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+        ],
+        [
+          "internal/account/moved_record.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/probe_darwin.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/probe_integration.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/record.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/reverse_app.go",
+          "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+        ],
+        [
+          "internal/account/violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service/rogue"
+        ],
+        [
+          "internal/app/legacybridge/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/moved_account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/egress/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/protocol/openai/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/scheduler/policy/reverse.go",
+          "github.com/TokenFlux/TokenRouter/internal/scheduler"
+        ],
+        [
+          "internal/service/new_repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ]
+      ],
+      "actual": [
+        [
+          "internal/account/httpapi/postgres_violation.go",
+          "database/sql"
+        ],
+        [
+          "internal/account/httpapi/repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ],
+        [
+          "internal/account/illegal_child.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+        ],
+        [
+          "internal/account/moved_record.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/probe_darwin.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/probe_integration.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/record.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/reverse_app.go",
+          "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+        ],
+        [
+          "internal/account/violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service/rogue"
+        ],
+        [
+          "internal/app/legacybridge/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/moved_account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/egress/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/protocol/openai/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/scheduler/policy/reverse.go",
+          "github.com/TokenFlux/TokenRouter/internal/scheduler"
+        ],
+        [
+          "internal/service/new_repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ]
+      ],
+      "missing": [],
+      "unexpected": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "log": "../logs/gates-before-health-config/gate-negative-integration-darwin.log.gz",
+      "selection": "gate-negative-integration-darwin-selection.json"
+    },
+    {
+      "label": "gate-negative-wireinject-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--allow-parallel-runners",
+        "--timeout=3m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S06/gate-negative-wireinject-darwin.json",
+        "--build-tags=wireinject",
+        "./internal/..."
+      ],
+      "exit_code": 1,
+      "seconds": 0.425,
+      "expected": [
+        [
+          "internal/account/httpapi/postgres_violation.go",
+          "database/sql"
+        ],
+        [
+          "internal/account/httpapi/repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ],
+        [
+          "internal/account/illegal_child.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+        ],
+        [
+          "internal/account/moved_record.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/probe_darwin.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/record.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/reverse_app.go",
+          "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+        ],
+        [
+          "internal/account/violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service/rogue"
+        ],
+        [
+          "internal/app/legacybridge/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/moved_account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/wire_extra.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ],
+        [
+          "internal/egress/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/protocol/openai/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/scheduler/policy/reverse.go",
+          "github.com/TokenFlux/TokenRouter/internal/scheduler"
+        ],
+        [
+          "internal/service/new_repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ]
+      ],
+      "actual": [
+        [
+          "internal/account/httpapi/postgres_violation.go",
+          "database/sql"
+        ],
+        [
+          "internal/account/httpapi/repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ],
+        [
+          "internal/account/illegal_child.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+        ],
+        [
+          "internal/account/moved_record.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/probe_darwin.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/record.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/reverse_app.go",
+          "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+        ],
+        [
+          "internal/account/violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service/rogue"
+        ],
+        [
+          "internal/app/legacybridge/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/moved_account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/wire_extra.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ],
+        [
+          "internal/egress/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/protocol/openai/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/scheduler/policy/reverse.go",
+          "github.com/TokenFlux/TokenRouter/internal/scheduler"
+        ],
+        [
+          "internal/service/new_repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ]
+      ],
+      "missing": [],
+      "unexpected": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "log": "../logs/gates-before-health-config/gate-negative-wireinject-darwin.log.gz",
+      "selection": "gate-negative-wireinject-darwin-selection.json"
+    },
+    {
+      "label": "gate-negative-embed-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--allow-parallel-runners",
+        "--timeout=3m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S06/gate-negative-embed-darwin.json",
+        "--build-tags=embed",
+        "./internal/..."
+      ],
+      "exit_code": 1,
+      "seconds": 0.389,
+      "expected": [
+        [
+          "internal/account/httpapi/postgres_violation.go",
+          "database/sql"
+        ],
+        [
+          "internal/account/httpapi/repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ],
+        [
+          "internal/account/illegal_child.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+        ],
+        [
+          "internal/account/moved_record.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/probe_darwin.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/probe_embed.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/record.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/reverse_app.go",
+          "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+        ],
+        [
+          "internal/account/violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service/rogue"
+        ],
+        [
+          "internal/app/legacybridge/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/moved_account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/egress/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/protocol/openai/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/scheduler/policy/reverse.go",
+          "github.com/TokenFlux/TokenRouter/internal/scheduler"
+        ],
+        [
+          "internal/service/new_repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ]
+      ],
+      "actual": [
+        [
+          "internal/account/httpapi/postgres_violation.go",
+          "database/sql"
+        ],
+        [
+          "internal/account/httpapi/repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ],
+        [
+          "internal/account/illegal_child.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+        ],
+        [
+          "internal/account/moved_record.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/probe_darwin.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/probe_embed.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/record.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/reverse_app.go",
+          "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+        ],
+        [
+          "internal/account/violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service/rogue"
+        ],
+        [
+          "internal/app/legacybridge/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/moved_account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/egress/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/protocol/openai/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/scheduler/policy/reverse.go",
+          "github.com/TokenFlux/TokenRouter/internal/scheduler"
+        ],
+        [
+          "internal/service/new_repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ]
+      ],
+      "missing": [],
+      "unexpected": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "log": "../logs/gates-before-health-config/gate-negative-embed-darwin.log.gz",
+      "selection": "gate-negative-embed-darwin-selection.json"
+    },
+    {
+      "label": "gate-negative-normal-linux",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--allow-parallel-runners",
+        "--timeout=3m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S06/gate-negative-normal-linux.json",
+        "./internal/..."
+      ],
+      "exit_code": 1,
+      "seconds": 0.419,
+      "expected": [
+        [
+          "internal/account/httpapi/postgres_violation.go",
+          "database/sql"
+        ],
+        [
+          "internal/account/httpapi/repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ],
+        [
+          "internal/account/illegal_child.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+        ],
+        [
+          "internal/account/moved_record.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/probe_linux.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/record.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/reverse_app.go",
+          "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+        ],
+        [
+          "internal/account/violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service/rogue"
+        ],
+        [
+          "internal/app/legacybridge/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/moved_account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/egress/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/protocol/openai/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/scheduler/policy/reverse.go",
+          "github.com/TokenFlux/TokenRouter/internal/scheduler"
+        ],
+        [
+          "internal/service/new_repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ]
+      ],
+      "actual": [
+        [
+          "internal/account/httpapi/postgres_violation.go",
+          "database/sql"
+        ],
+        [
+          "internal/account/httpapi/repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ],
+        [
+          "internal/account/illegal_child.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+        ],
+        [
+          "internal/account/moved_record.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/routing/modelmap"
+        ],
+        [
+          "internal/account/probe_linux.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/record.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/account/reverse_app.go",
+          "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
+        ],
+        [
+          "internal/account/violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ],
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service/rogue"
+        ],
+        [
+          "internal/app/legacybridge/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/moved_account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/app/new_same_dir.go",
+          "github.com/TokenFlux/TokenRouter/internal/service"
+        ],
+        [
+          "internal/egress/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/protocol/openai/reverse_account.go",
+          "github.com/TokenFlux/TokenRouter/internal/account"
+        ],
+        [
+          "internal/scheduler/policy/reverse.go",
+          "github.com/TokenFlux/TokenRouter/internal/scheduler"
+        ],
+        [
+          "internal/service/new_repository_violation.go",
+          "github.com/TokenFlux/TokenRouter/internal/repository"
+        ]
+      ],
+      "missing": [],
+      "unexpected": [
+        [
+          "internal/app/account_recovery.go",
+          "github.com/TokenFlux/TokenRouter/internal/config"
+        ]
+      ],
+      "log": "../logs/gates-before-health-config/gate-negative-normal-linux.log.gz",
+      "selection": "gate-negative-normal-linux-selection.json"
+    }
+  ],
+  "fixture_deleted": true
+}

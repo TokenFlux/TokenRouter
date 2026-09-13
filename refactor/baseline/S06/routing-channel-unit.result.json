@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/routing/...",
+    "./internal/service",
+    "-run",
+    "^(TestChannel|TestResolve|TestCalculateCostUnified|TestRecordUsage|TestGateway|TestOpenAI.*RecordUsage|TestModelMarketplace|TestAccountStats)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 19.88,
+  "log": "logs/routing-channel-unit.log.gz"
+}

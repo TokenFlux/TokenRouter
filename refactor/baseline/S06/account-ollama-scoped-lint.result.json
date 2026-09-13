@@ -1,0 +1,18 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=10m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "./internal/account/...",
+    "./internal/egress/...",
+    "./internal/app/...",
+    "./internal/service/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 4.342,
+  "log": "logs/account-ollama-scoped-lint.log.gz"
+}

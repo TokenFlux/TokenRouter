@@ -1,30 +1,21 @@
 package service
 
 import (
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"net/http"
 	"strings"
 	"unicode/utf8"
-
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"golang.org/x/net/http/httpguts"
 )
 
-// AccountExtraUpstreamRequestIDHeader 是账户 extra 中的键，值为直接上游声明请求标识的响应头名。
-// 未指定时不记录上游请求标识。
-const AccountExtraUpstreamRequestIDHeader = "upstream_request_id_header"
+const AccountExtraUpstreamRequestIDHeader = acctcore.AccountExtraUpstreamRequestIDHeader
 
 const (
-	maxUpstreamRequestIDHeaderNameLen = 64
 	// maxUsageUpstreamRequestIDLen 与 usage_logs.upstream_request_id VARCHAR(128) 对齐。
 	maxUsageUpstreamRequestIDLen = 128
 )
 
-// UpstreamRequestIDHeaderName 返回账户指定的上游请求标识头名，未指定时为空串。
 func UpstreamRequestIDHeaderName(account *Account) string {
-	if account == nil {
-		return ""
-	}
-	return strings.TrimSpace(account.GetExtraString(AccountExtraUpstreamRequestIDHeader))
+	return acctcore.UpstreamRequestIDHeaderName(protocolRecord(account))
 }
 
 // UpstreamRequestIDFromHeaders 从直接上游的响应头解析请求标识。
@@ -62,30 +53,6 @@ func usageUpstreamRequestIDPtr(account *Account, h http.Header, wsMode bool) *st
 	return &id
 }
 
-// ValidateUpstreamRequestIDHeaderExtra 校验并规范化 extra 中的上游请求标识头名：
-// 必须是合法的 HTTP 头字段名且不超过 64 字节；空白值视为未指定并从 extra 中移除。
 func ValidateUpstreamRequestIDHeaderExtra(extra map[string]any) error {
-	if extra == nil {
-		return nil
-	}
-	raw, ok := extra[AccountExtraUpstreamRequestIDHeader]
-	if !ok || raw == nil {
-		return nil
-	}
-	name, ok := raw.(string)
-	if !ok {
-		return infraerrors.BadRequest("INVALID_UPSTREAM_REQUEST_ID_HEADER",
-			"upstream_request_id_header must be a string")
-	}
-	name = strings.TrimSpace(name)
-	if name == "" {
-		delete(extra, AccountExtraUpstreamRequestIDHeader)
-		return nil
-	}
-	if len(name) > maxUpstreamRequestIDHeaderNameLen || !httpguts.ValidHeaderFieldName(name) {
-		return infraerrors.BadRequest("INVALID_UPSTREAM_REQUEST_ID_HEADER",
-			"upstream_request_id_header must be a valid HTTP header name of at most 64 bytes")
-	}
-	extra[AccountExtraUpstreamRequestIDHeader] = name
-	return nil
+	return acctcore.ValidateUpstreamRequestIDHeaderExtra(extra)
 }

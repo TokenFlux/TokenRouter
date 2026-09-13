@@ -1,0 +1,50 @@
+{
+  "status": "complete",
+  "head": "d0ce5504c09c9b733a75da1fc35826ebf53f6af4",
+  "branch": "main",
+  "stage": "S06",
+  "roadmap_completed": 7,
+  "source_files": 897,
+  "mixed_declarations": 4337,
+  "static_reference_counts": {
+    "normal": 152174,
+    "unit": 197598,
+    "integration": 159622
+  },
+  "lifecycle_hooks": 76,
+  "tests": {
+    "normal": {
+      "pass": 11308,
+      "skip": 4
+    },
+    "unit": {
+      "pass": 19346,
+      "skip": 8
+    },
+    "integration": {
+      "pass": 12211,
+      "skip": 5
+    }
+  },
+  "lint": {
+    "normal": 1,
+    "unit": 285,
+    "integration": 19
+  },
+  "build_results": [
+    "s06-final-build.result.json",
+    "s06-delivery-test-frontend.result.json",
+    "s06-delivery-build-frontend.result.json",
+    "s06-final-build-embed.result.json",
+    "s06-final-test-embed.result.json",
+    "s06-final-build-linux.result.json",
+    "s06-final-build-jwtgen.result.json",
+    "s06-final-build-cleanup.result.json",
+    "s06-final-wire.result.json",
+    "s06-final-wire-reproducible.result.json"
+  ],
+  "known_limits": "供应商实际 API、本地登录授权、外部 TLS 指纹捕获与既有 E2E 条件未开启；跳过不计行为通过。独立 streaming service-tier 夹具缺少 GetMultiple 依赖已在原 HEAD 复现，保留 S09/S11 处理。",
+  "committed": false,
+  "final_invariants": "final-invariants.json",
+  "verified": true
+}

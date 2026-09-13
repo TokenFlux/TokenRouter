@@ -125,7 +125,10 @@ func (h *OpenAIGatewayHandler) CountTokens(c *gin.Context) {
 	setOpsRequestContext(c, reqModel, false)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(false, false)))
 
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
+	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
+	channelMappingRoutePlan := h.gatewayService.PlanRoute(c.Request.Context(), service.APIKeyRouteGroup(apiKey), apiKey.GroupID, reqModel)
+	channelMapping := service.ChannelMappingFromRoutePlan(channelMappingRoutePlan)
+	c.Request = c.Request.WithContext(service.WithRoutePlan(c.Request.Context(), channelMappingRoutePlan))
 	channelMappedModel := channelMapping.MappedModel
 	if channelMappedModel == "" {
 		channelMappedModel = reqModel

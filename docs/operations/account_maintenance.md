@@ -13,13 +13,53 @@
 <a id="account_credential_refresh"></a>
 ## 凭据刷新
 
-`TokenRefreshService` 分页读取需要维护的账号，按平台 refresher 判断资格，并对每个 provider 应用独立并发/QPS 门槛、单次 attempt 超时、周期总超时和有界退避。OAuth、Setup Token 和 Qoder COSY 的候选规则不同；API Key、Bedrock 和 Service Account 通常由各自请求路径或签名 provider 管理，不应统一假设有 refresh token。
+`account.BackgroundRefreshService` 分页读取需要维护的账号，按平台 refresher 判断资格，并对每个 provider 应用独立并发/QPS 门槛、单次 attempt 超时、周期总超时和有界退避。OAuth、Setup Token 和 Qoder COSY 的候选规则不同；API Key、Bedrock 和 Service Account 通常由各自请求路径或签名 provider 管理，不应统一假设有 refresh token。
 
 刷新成功后要原子更新凭据/过期时间，清理可恢复错误，并同步账号缓存与调度快照。OpenAI/Antigravity 还可在刷新后确保 privacy 状态。刷新失败按失败阈值记录，不立即把一次瞬时网络错误等同于永久禁用；凭据明确撤销或账号归属失效时才进入需要重新授权的状态。
 
+非 Grok 的统一刷新成功路径已通过 `account.CredentialRefreshWriter` 接入 `account/postgres` 的条件写入：在同一 Ent 事务里按账号 ID、平台、类型、状态、完整凭据和代理比较并锁定行，再执行原凭据清理及 outbox 写入。管理员已更新或禁用账号时，本轮结果不再覆盖当前状态；调用方重新读取，且不为这次冲突再次交换 token。Grok 继续使用原有 CAS、持久化后回读和 provider containment 错误分类。统一锁、重读、交换前快照、版本写入、条件持久化和竞争恢复已进入 `account.OAuthRefreshAPI`，由 app 持有唯一实例。旧 `service.OAuthRefreshAPI` 只转换模型并委托；Grok 的资格和错误分类通过 app/legacybridge 绑定原平台规则。分页周期、恢复游标、平台并发/QPS、每轮失败隔离、尝试预算、重试与成功后置顺序由同一 `BackgroundRefreshService` 的账号组件执行。旧 `TokenRefreshService` 只保留构造投影、兼容委托及旧供应商端口，具体交换与供应商错误解析留 S09。
+
+app 直接构造、绑定并登记唯一 `BackgroundRefreshService`，其 `RefreshLoop` 保留立即首轮和周期下限。分页元数据、严格 ID 顺序、未完成页不推进游标和末页归零由 `RefreshCandidateScan` 管理；按平台分组和 worker 统计由 `RefreshPageProcessor` 执行。周期与 Grok 管理对账共用同一组平台准入实例，每轮连续失败状态彼此独立。停止同时取消周期、扫描与按需对账，等待实际工作并固定首次结果；超时不等于排空，随后由 app 决定是否可以关闭共享依赖。
+
+非 Grok 后台失败通过 `RefreshFailureWriter` 比较交换身份后写入健康；旧失败不根据调用参数覆盖管理员的新凭据/代理/状态。相同身份已有更长 cooldown 时不缩短；outbox 失败仍保留原尽力语义。内存快速阻断针对刷新失败区分凭据身份，账号级配额/容量阻断保持原范围。发布前复核显式清理代次，迟到通知不能重装已清理的阻断；多份在途凭据的期限彼此独立。Antigravity 强制刷新标记在原 Extra/outbox 事务中复核身份后清理；永久失败只有健康条件写入成功后才清理该身份的标记。
+
+账号 CRUD/筛选、凭据与健康状态写入、CN/Ollama 持久化快照由 `account/postgres.AccountStore` 唯一实现。旧 repository 只保留投影和未迁调度查询；outbox 编码与提交后的调度缓存发布由 app 注入原 publisher。账号消费累计与额度重置 SQL 已进入 `billing/postgres.AccountUsageParticipant`，事务内操作不提交或发布事件；兼容入口保留原提交后顺序。
+
+刷新成功清除临时停调时，存储还比较本次凭据/代理/状态与原 cooldown 的期限及原因；身份或窗口已变化则不清 Redis 状态，不发布旧账号快照，也不继续维护旧身份。成功清理会先更新本次健康投影再发布缓存，避免数据库已恢复而调度缓存仍停调。AG 缺失 project_id 的恢复仍只在原触发条件下执行。手动刷新保留清错、全账号限流、AG scope、模型限流、临时停调的五次独立提交，每步比较交换身份和该步骤原状态；冲突即停止，失败前已提交的步骤保留。运行时阻断清理还校验原代次，不清除后来安装的阻断。
+
+管理员单账号/批量刷新也使用同一协调器，保持原平台锁 key，锁内重读后再执行显式刷新。凭据通过原管理校验与配置事务保存，并在行锁内比较交换身份；冲突只返回最新账号，不再次交换或继续旧成功结果的后置动作。该比较字段只用于内部 Go 调用，不接受 HTTP JSON 输入；单条/批量管理刷新和重新授权已由 `ManagedRefreshService` 统一编排，HTTP 只处理绑定、状态码和展示；供应商交换仍归旧执行端口。
+
+统一刷新协调器关闭时拒绝新认领，取消锁等待与在途交换，再在给定预算内等待。若交换器忽略取消，停止会报告未完成，迟到响应也不写入凭据；该行为不改变正常请求的取消来源。交换前快照深复制嵌套凭据，保留原 nil 凭据转为空对象的比较语义。
+
+账号创建、复制/恢复、影子关系以及编辑和批量校验由 `account.Admin` 拥有；Qoder 的站点/PAT 验证仍由旧平台适配端口执行。普通编辑、管理员编辑、影子代理传播和 CRS 配置写入显式声明本次拥有的字段，`AccountStore.UpdateConfiguration` 在原事务中锁定并读取最新记录，再合并这些字段。名称等普通修改不会写回旧凭据、error/schedulable 或消费快照；管理员未提供的敏感凭据子键从锁内最新值继承。显式状态恢复仍更新状态与错误消息，CRS 仍可写入来源状态和调度开关。
+
+配置替换保留 billing 消费累计及专用维护入口的最新快照，固定窗口基于锁内累计按原取时点重新计算。Ollama 身份变化仍清理受管会话，CN 身份变化仍使观测失效；原 outbox 与配置一起提交。`last_used_at`、全账号限流、过载和会话窗口只由专用运行入口维护。新增的字段意图不改变数据库、缓存或 HTTP 格式。
+
 请求路径 token provider 仍会在使用前检查过期偏移，并用账号级锁避免并发刷新。后台刷新降低热路径延迟，但不是唯一正确性来源；两条路径必须使用相同的凭据版本/CAS 保护，避免旧请求覆盖新 token。
 
+`account.DeferredService` 维护唯一 last-used 队列，入队与批次提取互斥；旧批次失败只补回尚无新值的账号，避免覆盖随后到达的活动时间。停止时取消新周期和等待者，等待正在写入的批次后进行最终 flush；最终写入同时受原十秒预算及应用剩余退出预算约束。账号到期扫描由 `account.ExpiryService` 执行，保留一分钟周期与立即首轮，取消和等待受生命周期 context 约束，停止后不能重新扫描。
+
+账号文件导入导出由 `account.Archive` 拥有，HTTP 在 `account/httpapi`。备份保留管理员显式原凭据导出和影子排除，跨调用边界使用独立副本；导入保留先处理代理、后读取一次动态模板、逐项创建及原隐私副作用顺序。`account/transfer` 只拥有文件格式与省略/null 标记，模板默认内容仍由设置用例提供。ID Token 仅复用原 OpenAI 非认证解码补齐缺失提示，不作为身份验证。
+
+Codex session 文件导入由 `account.CodexImporter` 拥有，HTTP 直接调用新入口；纯解析和身份索引不依赖旧 service。access-token-only 仅按 access 摘要匹配，完整 OAuth 保留原用户/账号兼容匹配，Agent Identity 保持团队隔离及 runtime 合并。索引与导入 map 在跨调用边界复制。时钟和私钥验证显式注入，导入 JWT 解码仍仅补齐提示，不承担认证；旧 OAuth 批量创建共用相同合并、保护字段和摘要规则，供应商交换留待 S09。
+
+CRS 同步与预览由 `account.CRSSync` 拥有六类来源规则，`account/provider` 负责原登录/导出 HTTP，代理身份匹配由 egress 负责。普通部分成功、nil/显式空选择、影子限制和来源字段清理保持原语义。Claude/OpenAI/Gemini 导入后的尽力刷新共享生产协调器和条件写入：锁内确认来源身份，管理员修改优先，取消后不写回；导入成功计数不依赖刷新成功。该显式导入路径保留原状态资格和令牌版本字段，不套用后台 active/过期筛选。具体供应商交换仍由旧平台端口提供。
+
+Grok 导入后的主动探测由 app 注入唯一 `account.GrokImportProbeScheduler`。它按需启动，保留三 worker、64 个排队项和按账号去重；每项真正执行时才开始 25 秒预算。输入为无凭据的 AccountSnapshot，供应商返回最小日志观测。停机取消未领取的尽力项，取消并等待在途；超时报告未完成，不把取消当作已探测。账户创建和已完成导入不会因异步探测失败回滚。
+
+批量创建、删除、刷新和清错由 `ManagementBatch` 执行。删除保持母/影子依赖排序与五并发，其余批量入口保留原部分成功、重复 ID、十并发和错误顺序。批量凭据字段更新先验证全部对象，再逐账号提交字段补丁；配置事务在行锁内合并最新凭据，不能把校验时的旧 token 或未选配置写回。补丁参数不接受 HTTP JSON 输入，不新增数据库字段。
+
+隐私设置的实际请求由唯一 `PrivacyService` 登记生命周期，停止取消并等待在途，忽略取消的迟到响应也不再写入。批量后台入口仍保留原任务完成屏障和任务名称；隐私服务停止后不会继续发起下一个请求。隐私写回在原 Extra/outbox 事务中比较查询时的凭据、代理、状态和影子归属；身份变化返回无可应用结果，不覆盖新身份，也不更新旧输入的成功模式。缺少条件写入能力的兼容构造不会退回无条件覆盖。普通存储失败仍保留原尽力日志与返回语义。
+
+账号列表及运行状态读取由 `ManagementList`、`RuntimeStatusReader` 执行，HTTP `RuntimePresenter` 只转换管理 DTO 和母账号字段。分页和服务端排序先于观察，评分仅在显式请求时查询筛选池及分组池，并对候选并集批查负载。实际评分、并发/会话/RPM 与详细用量仍由 S07/S08 端口提供；没有复制其缓存或评分状态。OpenAI 自动暂停纯规则属于 account，每个原读取点投影动态默认阈值，保留窗口豁免、两小时陈旧边界和缺失时间戳语义。
+
+Google One 单条/批量 tier 刷新由 `TierManagement` 拥有资格、查询集合、十并发和条件配置写入；Drive 网络调用与供应商 tier 推断仍由旧 Adapter 提供。空/损坏批量输入仍回落原最多一万条 Google One 查询，逐项失败不取消其它项。查询开始时冻结身份，保存时在原配置行锁内复核，并只合并 tier_id 与本轮 Drive 字段；管理员的新 token 和未选 Extra 不被旧快照覆盖，outbox 失败仍回滚本次配置。该修复不增加数据库列或跨实例协调机制。
+
+实时模型同步请求由 `ModelSyncService` 跟踪在途并在停止时取消、等待；构造不请求供应商。临时凭据预览保持原无持久化流程，错误契约由 account 唯一拥有，实际 endpoint、Header、响应报文解析及读取上限由旧平台 Adapter 提供。账号管理的全部 HTTP 路由已直接绑定新 handler；旧 AccountHandler 已退出生产装配，只保留旧独立构造与测试转接。高级调度诊断通过只读安全投影调用原 S07 算法，app 保留同一反馈实例及 gateway 绑定顺序。
+
 ## 状态与临时不可调度
+
+`account.HealthService` 拥有通用错误规则匹配、显式错误/池模式优先级、认证失败/过载状态转换、403 累计冷却、CN 可恢复冷却、429 默认回避、流超时计数阈值及账号/模型额度阈值判断；供应商报文分类与模型规范化由执行 Adapter 提供。原持久化、缓存和调度反馈顺序保持，长期状态与临时窗口不互相替代。临时停调、403 和超时计数由 app 构造的 `account/rediscache` 实现提供；旧构造只委托，Lua 与 key/TTL 语义保持。可选仓储缺省时保留原跳过行为，适配包装不把缺失依赖当成已配置后端。
 
 账号长期状态、`schedulable`、全账号限流、模型限流和临时不可调度规则是不同层次：
 
@@ -32,7 +72,7 @@
 
 ## 账号测试与自动恢复
 
-管理端即时测试和 `scheduled-test-plans` 使用平台测试服务调用真实凭据/模型，并保存测试结果。计划使用分钟级 cron 表达式；每个计划可配置自动恢复。成功测试可以清除符合条件的 error、rate limit、temporary unschedulable 和模型限流，但不能绕过管理员禁用、账号过期或类型不匹配。
+管理端即时测试和 `scheduled-test-plans` 使用平台测试服务调用真实凭据/模型，并保存测试结果。计划/结果值、CRUD、结果保留规则及执行器已进入 `account`，SQL 位于 `account/postgres`，管理 HTTP 位于 `account/httpapi`。app 注入唯一实例、时钟和 cron 技术适配；构造不启动，保留分钟周期、十秒偏移、每轮最多十个测试与原五分钟预算。停止会取消偏移和槽位等待，等待在途并报告超时；停止后不能再次 Start。即时测试、计划测试及分组后台探测调用同一 `account.TestService.Test` 事件用例。`account/httpapi` 负责原 SSE Header、提交时机与逐事件 Flush，后台直接聚合类型化事件；平台执行仍由受控句柄调用旧 Adapter，已不再接收 Gin 或用 httptest 模拟 HTTP。写出失败会返回原写入错误并取消执行，事件顺序及部分内容保留。健康恢复由唯一 `account.RecoveryService` 执行，管理员、即时测试、计划测试和旧窗口恢复入口共同使用。原独立写入顺序与尽力缓存删除保留，不增加整段事务；状态恢复不改变人工调度开关。每个计划可配置自动恢复。成功测试可以清除符合条件的 error、rate limit、temporary unschedulable 和模型限流，但不能绕过管理员禁用、账号过期或类型不匹配。
 
 测试本身应使用受控超时、代理/TLS 路由和脱敏日志。一个模型测试成功只证明该路径当时可用，不证明所有 endpoint capability 或媒体资格。失败结果需区分认证、模型、配额、代理、TLS 和上游容量，以免自动恢复形成启停抖动。
 
@@ -41,6 +81,8 @@ Kimi、Zhipu、DeepSeek 的连接测试仅测试账号 `upstream_protocols` 中�
 管理端连接测试请求必须显式选择 `test_type=text|image` 并传入同一字段的自定义 `prompt`。文字测试不再因为模型名称包含图片标记而切换端点；图片测试也不再依赖模型名称命中规则，而是由 OpenAI、Gemini 或 Grok 账号的平台图片端点执行。OpenAI 的 `compact` 与 `legacy_compact` 仅执行固定载荷的连接测试，不显示或使用自定义提示词。未携带 `test_type` 的历史调用才允许回退到旧模型名判断。图片和文字的结果分别通过 SSE 图片事件和内容事件返回；不支持图片端点的平台应直接返回可诊断的错误，不得静默改成文字测试。
 
 ## 额度与能力探测
+
+Gemini tier 的静态默认和动态设置由唯一 `account.GeminiQuotaService` 合并并缓存，返回请求私有副本。`GeminiPrecheck` 通过只读统计端口执行原本地预检，独立保留一分钟的日统计缓存和逐次分钟查询；app 注入洛杉矶日界，展示用固定 24 小时窗口保持原差异。
 
 平台可维护独立的上游额度快照：OpenAI/Codex 窗口、Gemini tier/model quota、Antigravity credits、Grok 计费/媒体资格、Qoder Credits，以及 Kimi/Zhipu/DeepSeek 的统一用量监控快照等。快照用于调度、容量展示和诊断，不是 TokenRouter 用户余额或订阅账本。
 
@@ -63,6 +105,18 @@ API Key 上游用量由独立的 `UpstreamUsageService` 提供，和 OAuth/Setup
 浏览器只缓存成功的归一化结果五分钟，缓存键隔离管理员身份、账号 `updated_at`、代理/Base URL 和配置；失败不缓存，账号凭据、代理或配置变化立即失效。审计仅记录管理员动作和脱敏元数据，不记录 API Key 或上游原始响应。该功能与已移除的 `upstream_billing_probe` 完全不同，不恢复旧的自动倍率探测。
 
 CN 周期监控默认关闭；启用后只把统一快照写入 `extra.cn_usage_monitor_snapshot`，用身份 hash 和账号 `updated_at` CAS 防止旧探测覆盖新凭据。失败保留最近成功结果，余额低于阈值只写带同一身份 hash 的临时不可调度原因，恢复也只清理由该身份创建的状态。多实例同轮由 leader lock 串行化，自定义中继必须命中启用的 URL allowlist。详细字段、适配器和超时语义见[API Key 上游用量查询](../interfaces/upstream_usage.md)。
+
+OAuth 用量入口、Anthropic 主/被动窗口、六并发批量查询和生命周期由 `account.OAuthUsageService` 拥有。`OAuthUsageCache` 唯一保存原 Anthropic、Antigravity、Qoder、窗口统计及 OpenAI/Grok 探测命名空间；原 key、TTL、负缓存和各自 singleflight 保持。缓存与 flight 返回请求私有展示副本，不能通过改写嵌套值或倒计时污染后续请求。展示类型由 account 与 `account/usageview` 纯叶子拥有，旧 service/xai 值入口按需别名；Antigravity/Qoder 的共享抓取、降级缓存和倒计时、Gemini 本地模型统计及固定 24 小时展示窗口、Grok 计费快照的新鲜度与统计组合、OpenAI 主/影子查询选择和节流均由核心编排。具体供应商报文、身份交换和网络执行仍由旧 Adapter 提供，S09 继续迁移。
+
+本地展示统计由 `LocalUsageStatistics` 通过 app/legacybridge 的五字段只读投影取得，保留缓存未命中才查询、批量优先及八并发回退。实际 usage SQL 和详细报告仍归 S08。成功查询的错误恢复只清理观察到的同一凭据/代理/状态及原错误，PostgreSQL 单条条件更新后才发布原尽力 outbox；不会借迟到恢复撤销管理员的新禁用或错误。批量缺失账号和查询失败共享同一结果写入锁。
+
+用量核心的停止登记覆盖外层请求、Antigravity/Qoder 独立查询和 OpenAI 的异步快照写回。共享抓取保留独立于调用方的取消策略；应用停止取消并等待其完成，超时报告未完成，重复 Stop 固定首次结果。Grok 管理探测及六小时模型目录同步共用 `account.ProbeRuntime`，app 在关闭数据库前等待；同 key 合并、25/15 秒预算及按需执行保持。模型任务复制账号记录，探测返回复制嵌套额度与 Header。旧调度免费额度统计仍归 S07，异步执行已纳入原后台完成屏障，保持独立查询 context。
+
+Qoder 与 OpenAI 查询写回比较本轮平台、账号类型、状态、凭据、代理及影子归属；管理员换身份后旧结果不覆盖新行。Qoder 清除限流还比较原限流及 overload 窗口，保留快照与健康写入各自的提交/通知顺序。Qoder、Antigravity 与 Anthropic 内存缓存及共享返回带进程内来源标识，换身份不复用旧结果，负缓存也不能跨身份传播；key、TTL 与持久化格式不变。主动查询回写 Anthropic 被动 Extra 时比较查询身份，窗口列另外比较旧结束时间；两步保持原独立提交和尽力失败行为。观测 Extra 只同步单账号快照，窗口列继续发布尽力 outbox。普通网关响应的供应商 Header/错误解析及采样投影仍在旧执行 Adapter，持久化调用由账号存储完成；调度评分、快速阻断和选取执行等待 S07，供应商执行与请求时序等待 S09/S11。不能将本阶段刷新与管理查询的身份比较理解为所有平台请求都新增了相同的竞争协议。
+
+Ollama Cloud 的共享浏览器会话、按 API Key 身份分组、手动刷新、周期资格、singleflight、成功/失败快照和重试调度由 `account.OllamaCloudUsageService` 唯一拥有，app 直接绑定 AccountStore、原加密器及动态设置端口。设置 JSON 校验和到期规则也在 account；原 settings 表 key 与赋值行为不变。Cookie 名值检查和允许集合归 egress，固定 URL 请求、重定向阻断及 HTML 供应商解析通过旧执行适配返回技术观测，留待 S09 迁移。
+
+其运行拥有者同时跟踪立即首轮、每分钟扫描和管理员手动查询；停止取消排队、周期锁等待及在途操作，并使用 app 剩余预算等待。未完成时报告超时，重复 Stop 不覆盖首次结果；调用方或停机取消后，迟到响应不再写快照。Redis 租约竞争跳过、故障回退数据库和无后端执行的既有策略通过同一端口实现复用，锁名、owner、TTL 及释放预算保持原值。
 
 ## 运维诊断
 

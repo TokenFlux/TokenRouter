@@ -1,7 +1,10 @@
 // Package model 定义服务层使用的数据模型。
 package model
 
-import "time"
+import (
+	"github.com/TokenFlux/TokenRouter/internal/egress"
+	"time"
+)
 
 // ErrorPassthroughRule 全局错误透传规则
 // 用于控制上游错误如何返回给客户端
@@ -69,12 +72,4 @@ func (r *ErrorPassthroughRule) Validate() error {
 	return nil
 }
 
-// ValidationError 表示验证错误
-type ValidationError struct {
-	Field   string
-	Message string
-}
-
-func (e *ValidationError) Error() string {
-	return e.Field + ": " + e.Message
-}
+type ValidationError = egress.ValidationError

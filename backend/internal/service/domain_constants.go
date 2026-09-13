@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
@@ -74,45 +75,30 @@ const (
 // 国产 OpenAI 兼容供应商各模式的默认 base_url。
 // 与前端 credentialsBuilder.ts 中的预设保持一致。
 const (
-	DefaultKimiPayGBaseURL    = "https://api.moonshot.cn/v1"
-	DefaultKimiCodingBaseURL  = "https://api.kimi.com/coding/v1"
-	DefaultZhipuPayGBaseURL   = "https://open.bigmodel.cn/api/paas/v4"
-	DefaultZhipuCodingBaseURL = "https://open.bigmodel.cn/api/coding/paas/v4"
-	DefaultDeepseekBaseURL    = "https://api.deepseek.com"
+	DefaultKimiPayGBaseURL    = accountcore.DefaultKimiPayGBaseURL
+	DefaultKimiCodingBaseURL  = accountcore.DefaultKimiCodingBaseURL
+	DefaultZhipuPayGBaseURL   = accountcore.DefaultZhipuPayGBaseURL
+	DefaultZhipuCodingBaseURL = accountcore.DefaultZhipuCodingBaseURL
+	DefaultDeepseekBaseURL    = accountcore.DefaultDeepseekBaseURL
 )
 
 // 国产供应商 Anthropic 协议端点的默认 base_url（上游路径为 {base}/v1/messages）。
 // 与前端 credentialsBuilder.ts 中的预设保持一致。
 const (
-	DefaultKimiPayGAnthropicBaseURL   = "https://api.moonshot.cn/anthropic"
-	DefaultKimiCodingAnthropicBaseURL = "https://api.kimi.com/coding"
-	DefaultZhipuAnthropicBaseURL      = "https://open.bigmodel.cn/api/anthropic"
-	DefaultDeepseekAnthropicBaseURL   = "https://api.deepseek.com/anthropic"
+	DefaultKimiPayGAnthropicBaseURL   = accountcore.DefaultKimiPayGAnthropicBaseURL
+	DefaultKimiCodingAnthropicBaseURL = accountcore.DefaultKimiCodingAnthropicBaseURL
+	DefaultZhipuAnthropicBaseURL      = accountcore.DefaultZhipuAnthropicBaseURL
+	DefaultDeepseekAnthropicBaseURL   = accountcore.DefaultDeepseekAnthropicBaseURL
 )
 
 // IsCNProvider 报告 platform 是否为国产 OpenAI 兼容供应商（kimi/zhipu/deepseek）。
-func IsCNProvider(platform string) bool {
-	switch platform {
-	case PlatformKimi, PlatformZhipu, PlatformDeepseek:
-		return true
-	default:
-		return false
-	}
-}
+func IsCNProvider(platform string) bool { return accountcore.IsCNProvider(platform) }
 
 // AllowedQuotaPlatforms 委托唯一平台额度目录。
 var AllowedQuotaPlatforms = billing.AllowedQuotaPlatforms
 
-// AllowedSchedulingThresholdPlatforms 是允许设置账号自动停调阈值的平台列表。
-// openai/anthropic/grok 有原生用量窗口；kimi/zhipu 的 Coding Plan 同样暴露 5h/weekly
-// 滚动窗口，纳入阈值评估。deepseek 为余额型，走余额检测而非阈值。
-var AllowedSchedulingThresholdPlatforms = []string{
-	PlatformOpenAI,
-	PlatformAnthropic,
-	PlatformGrok,
-	PlatformKimi,
-	PlatformZhipu,
-}
+// AllowedSchedulingThresholdPlatforms 保留设置入口的同一允许集合。
+var AllowedSchedulingThresholdPlatforms = accountcore.AllowedSchedulingThresholdPlatforms
 
 func IsAllowedQuotaPlatform(s string) bool { return billing.IsAllowedQuotaPlatform(s) }
 
@@ -431,7 +417,7 @@ const (
 	SettingKeyAdminAPIKey = "admin_api_key" // 全局管理员 API Key（用于外部系统集成）
 
 	// Gemini 配额策略（JSON）
-	SettingKeyGeminiQuotaPolicy = "gemini_quota_policy"
+	SettingKeyGeminiQuotaPolicy = accountcore.GeminiQuotaPolicySettingKey
 
 	// Model fallback settings
 	SettingKeyEnableModelFallback      = "enable_model_fallback"
@@ -641,8 +627,8 @@ func SettingKeyAuthSourcePlatformQuotas(source string) string {
 
 // QuotaDimension constants for spark shadow accounts.
 const (
-	QuotaDimensionGlobal = "global"
-	QuotaDimensionSpark  = "spark"
+	QuotaDimensionGlobal = accountcore.QuotaDimensionGlobal
+	QuotaDimensionSpark  = accountcore.QuotaDimensionSpark
 )
 
 // AdminAPIKeyPrefix is the prefix for admin API keys (distinct from user "sk-" keys).

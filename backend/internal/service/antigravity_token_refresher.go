@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"log"
 	"strings"
 	"time"
@@ -14,9 +15,9 @@ const (
 	antigravityRefreshWindow = 15 * time.Minute
 
 	// 以下 extra 字段记录服务端 401 触发的强制刷新状态及诊断信息。
-	antigravityForceTokenRefreshExtraKey       = "antigravity_force_token_refresh"
-	antigravityForceTokenRefreshReasonExtraKey = "antigravity_force_token_refresh_reason"
-	antigravityForceTokenRefreshAtExtraKey     = "antigravity_force_token_refresh_at"
+	antigravityForceTokenRefreshExtraKey       = acctcore.AntigravityForceTokenRefreshExtraKey
+	antigravityForceTokenRefreshReasonExtraKey = acctcore.AntigravityForceTokenRefreshReasonExtraKey
+	antigravityForceTokenRefreshAtExtraKey     = acctcore.AntigravityForceTokenRefreshAtExtraKey
 )
 
 // AntigravityTokenRefresher 实现 TokenRefresher 接口
@@ -76,15 +77,6 @@ func antigravityForceTokenRefreshExtra(reason string) map[string]any {
 		antigravityForceTokenRefreshExtraKey:       true,
 		antigravityForceTokenRefreshReasonExtraKey: reason,
 		antigravityForceTokenRefreshAtExtraKey:     time.Now().UTC().Format(time.RFC3339),
-	}
-}
-
-// clearAntigravityForceTokenRefreshExtra 构造清除强制刷新标记的字段更新。
-func clearAntigravityForceTokenRefreshExtra() map[string]any {
-	return map[string]any{
-		antigravityForceTokenRefreshExtraKey:       false,
-		antigravityForceTokenRefreshReasonExtraKey: "",
-		antigravityForceTokenRefreshAtExtraKey:     "",
 	}
 }
 

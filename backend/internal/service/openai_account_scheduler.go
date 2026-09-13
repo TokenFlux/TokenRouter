@@ -1,21 +1,21 @@
 package service
 
 import (
-	"context"
-	"errors"
-	"fmt"
-	"log/slog"
-	"math"
-	"sort"
-	"strconv"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
-
-	"github.com/TokenFlux/TokenRouter/internal/config"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
-	"golang.org/x/sync/singleflight"
+	context "context"
+	errors "errors"
+	fmt "fmt"
+	config "github.com/TokenFlux/TokenRouter/internal/config"
+	ctxkey "github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
+	policy "github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
+	singleflight "golang.org/x/sync/singleflight"
+	slog "log/slog"
+	math "math"
+	sort "sort"
+	strconv "strconv"
+	strings "strings"
+	sync "sync"
+	atomic "sync/atomic"
+	time "time"
 )
 
 const (
@@ -2296,23 +2296,9 @@ func resolveAdvancedStickyEscapeConfig(appConfig *config.Config) advancedStickyE
 	})
 }
 
-// normalizeAdvancedStickyEscapeConfig 保证健康逃逸配置始终使用可执行的边界值。
 func normalizeAdvancedStickyEscapeConfig(value advancedStickyEscapeConfig) advancedStickyEscapeConfig {
-	thresholdsUnset := value.ttftMs == 0 && value.errorRate == 0
-	if !value.enabled && value.ttftMs == 0 && value.errorRate == 0 {
-		// 兼容未注册配置结构体时的零值，保持历史默认开启。
-		value.enabled = true
-	}
-	if value.ttftMs <= 0 || math.IsNaN(value.ttftMs) || math.IsInf(value.ttftMs, 0) {
-		value.ttftMs = 15000
-	}
-	if value.errorRate < 0 || value.errorRate > 1 || math.IsNaN(value.errorRate) || math.IsInf(value.errorRate, 0) {
-		value.errorRate = 0.5
-	}
-	if thresholdsUnset {
-		value.errorRate = 0.5
-	}
-	return value
+	v := policy.NormalizeStickyEscape(policy.StickyEscapeConfig{Enabled: value.enabled, TtftMs: value.ttftMs, ErrorRate: value.errorRate})
+	return advancedStickyEscapeConfig{enabled: v.Enabled, ttftMs: v.TtftMs, errorRate: v.ErrorRate}
 }
 
 func (s *OpenAIGatewayService) openAIWSSchedulerWeights() GatewayAdvancedSchedulerScoreWeightsView {
@@ -2356,44 +2342,11 @@ func applyAdvancedSchedulerWeightOverrides(
 	weights GatewayAdvancedSchedulerScoreWeightsView,
 	overrides map[string]float64,
 ) GatewayAdvancedSchedulerScoreWeightsView {
-	for key, value := range overrides {
-		switch key {
-		case "priority":
-			weights.Priority = value
-		case "load":
-			weights.Load = value
-		case "queue":
-			weights.Queue = value
-		case "error_rate":
-			weights.ErrorRate = value
-		case "ttft":
-			weights.TTFT = value
-		case "reset":
-			weights.Reset = value
-		case "quota_headroom":
-			weights.QuotaHeadroom = value
-		case "previous_response":
-			weights.Previous = value
-		case "session_sticky":
-			weights.SessionSticky = value
-		}
-	}
-	return weights
+	return GatewayAdvancedSchedulerScoreWeightsView(policy.ApplyGlobalWeightOverrides(policy.ScoreWeights(weights), overrides))
 }
 
-type GatewayAdvancedSchedulerScoreWeightsView struct {
-	Priority  float64
-	Load      float64
-	Queue     float64
-	ErrorRate float64
-	TTFT      float64
-	// Reset 倾向「会话窗口最早重置」的账号；0 表示关闭（默认）。
-	Reset float64
-	// QuotaHeadroom 倾向 Codex 7d 剩余额度更健康的账号；0 表示关闭（默认）。
-	QuotaHeadroom float64
-	Previous      float64
-	SessionSticky float64
-}
+// 旧视图只保留 config 投影方法，值字段由纯 policy 拥有。
+type GatewayAdvancedSchedulerScoreWeightsView policy.ScoreWeights
 
 func (w GatewayAdvancedSchedulerScoreWeightsView) configWeights() config.GatewayAdvancedSchedulerScoreWeights {
 	return config.GatewayAdvancedSchedulerScoreWeights{

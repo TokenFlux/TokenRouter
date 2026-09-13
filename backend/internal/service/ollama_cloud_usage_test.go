@@ -439,7 +439,7 @@ func TestOllamaCloudUsageAutoRefreshDueAtHonoursMinFetchInterval(t *testing.T) {
 }
 
 func TestScheduleOllamaCloudUsageActivityOnlyForOllama(t *testing.T) {
-	deferred := NewDeferredService(nil, nil, time.Second)
+	deferred, activity := newDeferredActivityRecorder(t)
 	ollama := ollamaUsageAccount(1)
 	other := ollamaUsageAccount(2)
 	other.Credentials["base_url"] = "https://api.openai.com"
@@ -448,9 +448,10 @@ func TestScheduleOllamaCloudUsageActivityOnlyForOllama(t *testing.T) {
 	scheduleOllamaCloudUsageActivity(deferred, other)
 	scheduleOllamaCloudUsageActivity(nil, ollama)
 
-	_, ok := deferred.lastUsedUpdates.Load(int64(1))
+	require.NoError(t, deferred.Stop())
+	_, ok := activity.Load(int64(1))
 	require.True(t, ok)
-	_, ok = deferred.lastUsedUpdates.Load(int64(2))
+	_, ok = activity.Load(int64(2))
 	require.False(t, ok)
 }
 

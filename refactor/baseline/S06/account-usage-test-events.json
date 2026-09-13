@@ -1,0 +1,67 @@
+{
+  "account-ollama-wired-unit": {
+    "counts": {
+      "pass": 113,
+      "fail": 0,
+      "skip": 0
+    },
+    "skips": []
+  },
+  "account-ollama-wired-race": {
+    "counts": {
+      "pass": 113,
+      "fail": 0,
+      "skip": 0
+    },
+    "skips": []
+  },
+  "account-ollama-wired-integration-race": {
+    "counts": {
+      "pass": 31,
+      "fail": 0,
+      "skip": 0
+    },
+    "skips": []
+  },
+  "account-oauth-wired-unit": {
+    "counts": {
+      "pass": 135,
+      "fail": 0,
+      "skip": 0
+    },
+    "skips": []
+  },
+  "account-oauth-wired-race": {
+    "counts": {
+      "pass": 140,
+      "fail": 0,
+      "skip": 0
+    },
+    "skips": []
+  },
+  "account-oauth-consumers-normal": {
+    "counts": {
+      "pass": 7346,
+      "fail": 0,
+      "skip": 2
+    },
+    "skips": [
+      [
+        "github.com/TokenFlux/TokenRouter/internal/service",
+        "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI"
+      ],
+      [
+        "github.com/TokenFlux/TokenRouter/internal/service",
+        "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type"
+      ]
+    ]
+  },
+  "account-oauth-recovery-integration": {
+    "counts": {
+      "pass": 9,
+      "fail": 0,
+      "skip": 0
+    },
+    "skips": []
+  }
+}

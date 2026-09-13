@@ -1,0 +1,12 @@
+{
+  "command": [
+    "go",
+    "generate",
+    "./cmd/server"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 1.843,
+  "log": "logs/account-health-rules-wire.log.gz"
+}

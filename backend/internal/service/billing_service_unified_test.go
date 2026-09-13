@@ -431,6 +431,6 @@ func newTestChannelServiceWithCache(t *testing.T, cache *channelCache) *ChannelS
 	t.Helper()
 	cs := &ChannelService{}
 	cache.loadedAt = time.Now()
-	cs.cache.Store(cache)
+	seedLegacyChannelFixture(cs, cache)
 	return cs
 }

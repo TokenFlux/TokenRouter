@@ -6,8 +6,8 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
@@ -26,28 +26,19 @@ type grokObservedModelsSnapshot struct {
 	Source    string   `json:"source,omitempty"`
 }
 
-var grokObservedModelsFlight sync.Map // accountID -> 进行中的同步标记
-
 // scheduleGrokObservedModelsSync 尽力拉取 Grok OAuth 账号的上游 /v1/models 并把 ID 保存到 Extra；
 // 调用方应在授权或探测成功后异步触发，不能长时间阻塞请求路径。
 func (s *GrokQuotaService) scheduleGrokObservedModelsSync(account *Account) {
 	if s == nil || account == nil || !account.IsGrokOAuth() || s.accountRepo == nil {
 		return
 	}
-	id := account.ID
-	if _, loaded := grokObservedModelsFlight.LoadOrStore(id, struct{}{}); loaded {
-		return
-	}
-	// 复制账号快照供后台任务使用。
-	acc := *account
-	RunBackgroundTask("service/grok_observed_models.go:scheduleGrokObservedModelsSync", BackgroundCall0(func() {
-		defer grokObservedModelsFlight.Delete(id)
-		ctx, cancel := context.WithTimeout(context.Background(), grokObservedModelsTimeout)
-		defer cancel()
-		if err := s.syncGrokObservedModels(ctx, &acc); err != nil {
-			slog.Debug("grok_observed_models_sync_failed", "account_id", id, "error", err)
+	// 后台任务持有独立记录，避免请求方修改嵌套凭据和 Extra。
+	acc := AccountFromRecord(AccountRecordView(account))
+	s.probeRuntime.Schedule("models:"+strconv.FormatInt(acc.ID, 10), grokObservedModelsTimeout, func(ctx context.Context) {
+		if err := s.syncGrokObservedModels(ctx, acc); err != nil {
+			slog.Debug("grok_observed_models_sync_failed", "account_id", acc.ID, "error", err)
 		}
-	}))
+	})
 }
 
 func (s *GrokQuotaService) syncGrokObservedModels(ctx context.Context, account *Account) error {
@@ -143,6 +134,9 @@ func (s *GrokQuotaService) syncGrokObservedModels(ctx context.Context, account *
 	}
 	var asMap map[string]any
 	if err := json.Unmarshal(raw, &asMap); err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	return s.accountRepo.UpdateExtra(ctx, account.ID, map[string]any{

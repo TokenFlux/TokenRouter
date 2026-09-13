@@ -1,6 +1,7 @@
 package xai
 
 import (
+	usageview "github.com/TokenFlux/TokenRouter/internal/account/usageview"
 	"net/http"
 	"strconv"
 	"strings"
@@ -22,12 +23,8 @@ func IsGrokFreeRolling24hTokenLimit(limit int64) bool {
 	return ok
 }
 
-type QuotaWindow struct {
-	Limit     *int64 `json:"limit,omitempty"`
-	Remaining *int64 `json:"remaining,omitempty"`
-	ResetUnix *int64 `json:"reset_unix,omitempty"`
-	ResetAt   string `json:"reset_at,omitempty"`
-}
+// QuotaWindow 复用账号展示叶子值；供应商解析仍由本包拥有。
+type QuotaWindow = usageview.QuotaWindow
 
 type QuotaSnapshot struct {
 	Requests          *QuotaWindow      `json:"requests,omitempty"`

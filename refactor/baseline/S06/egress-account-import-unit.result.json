@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/egress/...",
+    "./internal/handler/admin",
+    "-run",
+    "Test.*(Proxy|AccountData|ImportData|ExportData)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 12.506,
+  "log": "logs/egress-account-import-unit.log.gz"
+}

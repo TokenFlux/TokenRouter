@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "-C",
+    "/tmp/tokenrouter-s06-original/backend",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "^TestS06AccountConfigurationPreservesConcurrentRuntime$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 12.82,
+  "log": "logs/original-account-runtime-overwrite.log.gz"
+}

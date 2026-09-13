@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/pkg/xai",
+    "./internal/service",
+    "./internal/handler/admin",
+    "-run",
+    "Test.*(Grok.*(Usage|Billing|Quota)|Gemini.*(Usage|Quota)|AccountUsage|OAuthUsage|UsageRecovery|UsageBatch)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 61.499,
+  "log": "logs/account-grok-gemini-usage-race.log.gz"
+}

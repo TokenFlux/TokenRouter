@@ -1,13 +1,15 @@
 package dto
 
 import (
+	accountdto "github.com/TokenFlux/TokenRouter/internal/account/httpapi/dto"
 	keydto "github.com/TokenFlux/TokenRouter/internal/apikey/httpapi/dto"
 	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
+	egresshttp "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
 	identitydto "github.com/TokenFlux/TokenRouter/internal/identity/httpapi/dto"
+	routingdto "github.com/TokenFlux/TokenRouter/internal/routing/httpapi/dto"
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
 type User = identitydto.User[APIKey]
@@ -18,332 +20,29 @@ type APIKey = keydto.APIKey[Group]
 
 type APIKeyCompositeGroup = keydto.APIKeyCompositeGroup[Group]
 
-type Group struct {
-	ID             int64          `json:"id"`
-	Name           string         `json:"name"`
-	Description    string         `json:"description"`
-	Platform       string         `json:"platform"`
-	DisplayBrand   string         `json:"display_brand"`
-	RateMultiplier float64        `json:"rate_multiplier"`
-	Capacity       *GroupCapacity `json:"capacity,omitempty"`
-	IsExclusive    bool           `json:"is_exclusive"`
-	IsDefault      bool           `json:"is_default"`
-	Status         string         `json:"status"`
-	// 会话隔离开启后，目标分组会拒绝其它分组已归属的显式会话切入。
-	SessionIsolationEnabled   bool `json:"session_isolation_enabled"`
-	LongContextPricingEnabled bool `json:"long_context_pricing_enabled"`
+type Group = routingdto.Group
 
-	// 图片生成权限与批量图片策略，价格统一由模型价卡提供。
-	AllowImageGeneration         bool    `json:"-"`
-	AllowBatchImageGeneration    bool    `json:"-"`
-	BatchImageDiscountMultiplier float64 `json:"batch_image_discount_multiplier"`
-	BatchImageHoldMultiplier     float64 `json:"batch_image_hold_multiplier"`
-	// 高峰时段倍率配置
-	PeakRateEnabled    bool    `json:"peak_rate_enabled"`
-	PeakStart          string  `json:"peak_start"`
-	PeakEnd            string  `json:"peak_end"`
-	PeakRateMultiplier float64 `json:"peak_rate_multiplier"`
-	// Codex alpha/search 网页搜索单次价格（USD/次）；null 表示使用默认价 0.01
-	WebSearchPricePerCall        *float64 `json:"web_search_price_per_call"`
-	SearchPricePer1k             *float64 `json:"search_price_per_1k"`
-	AudioRealtimePricePerMin     *float64 `json:"audio_realtime_price_per_min"`
-	AudioTtsPricePerMillionChars *float64 `json:"audio_tts_price_per_million_chars"`
-	AudioSttPricePerHour         *float64 `json:"audio_stt_price_per_hour"`
-
-	// Claude Code 客户端限制
-	ClaudeCodeOnly  bool   `json:"claude_code_only"`
-	FallbackGroupID *int64 `json:"fallback_group_id"`
-	// 无效请求兜底分组
-	FallbackGroupIDOnInvalidRequest *int64 `json:"fallback_group_id_on_invalid_request"`
-	// 当前分组不可用时 API Key 优先回退到的分组。
-	UnavailableFallbackGroupID *int64 `json:"unavailable_fallback_group_id"`
-
-	// AllowedProtocols 是分组允许的完整客户端协议与业务入口集合。
-	AllowedProtocols     []domain.ProtocolID                     `json:"allowed_protocols"`
-	ProtocolFallbacks    map[domain.ProtocolID]domain.ProtocolID `json:"protocol_fallbacks"`
-	ResponsesImagePolicy string                                  `json:"responses_image_policy"`
-	// AllowMessagesDispatch 是从协议集合派生的弃用兼容字段。
-	AllowMessagesDispatch bool `json:"-"`
-	// OpenAI Live 接口开关
-	AllowLive bool `json:"-"`
-
-	// 账号过滤控制（仅 OpenAI/Antigravity 平台有效）
-	RequireOAuthOnly  bool `json:"require_oauth_only"`
-	RequirePrivacySet bool `json:"require_privacy_set"`
-
-	// RPMLimit 分组级每分钟请求数上限（0 = 不限制），设置后覆盖用户级 rpm_limit。
-	RPMLimit int `json:"rpm_limit"`
-	// MaxReasoningEffort OpenAI/Codex 请求的推理强度上限，空字符串表示不限制。
-	MaxReasoningEffort string `json:"max_reasoning_effort"`
-	// MaxReasoningEffortOverLimit 超过上限时的访问控制：downgrade（默认）或 deny。
-	MaxReasoningEffortOverLimit string `json:"max_reasoning_effort_over_limit"`
-	// ReasoningEffortMappings OpenAI/Codex 推理强度映射，可按模型精确名、前缀或后缀限定。
-	ReasoningEffortMappings []domain.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
-
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
-type GroupCapacity struct {
-	ConcurrencyUsed int `json:"concurrency_used"`
-	ConcurrencyMax  int `json:"concurrency_max"`
-	SessionsUsed    int `json:"sessions_used"`
-	SessionsMax     int `json:"sessions_max"`
-	RPMUsed         int `json:"rpm_used"`
-	RPMMax          int `json:"rpm_max"`
-}
+type GroupCapacity = routingdto.GroupCapacity
 
 type SubscriptionPlan = billinghttpapi.SubscriptionPlan
 
 type SubscriptionPlanGroup = billinghttpapi.SubscriptionPlanGroup
 
-// AdminGroup 是管理员接口使用的 group DTO（包含敏感/内部字段）。
-// 注意：普通用户接口不得返回 model_routing/account_count/account_groups 等内部信息。
-type AdminGroup struct {
-	Group
-	// ForceOpenAIFast 仅管理端可见，用于控制 OpenAI 分组的 Fast 策略。
-	ForceOpenAIFast bool `json:"force_openai_fast"`
-	// OpenAIFastPolicy 保存管理员选择的互斥加速策略。
-	OpenAIFastPolicy string `json:"openai_fast_policy"`
-	// FreeOpenAIFast 仅管理端可见，用于控制 OpenAI 分组的 Fast 计费。
-	FreeOpenAIFast bool `json:"free_openai_fast"`
-	// SchedulerType 仅管理端可见，用于配置分组调度器。
-	SchedulerType string `json:"scheduler_type"`
-	// AdvancedSchedulerOverrides 仅管理端可见；空字段继承网关通用设置。
-	AdvancedSchedulerOverrides domain.GroupAdvancedSchedulerOverrides `json:"advanced_scheduler_overrides"`
-	// ModelPricing 是分组覆盖渠道与内置价格的管理员价卡。
-	ModelPricing []service.ChannelModelPricing `json:"model_pricing"`
+type AdminGroup = routingdto.AdminGroup[AccountGroup]
 
-	// 模型路由配置（仅 anthropic 平台使用）
-	ModelRouting        map[string][]int64 `json:"model_routing"`
-	ModelRoutingEnabled bool               `json:"model_routing_enabled"`
+type Account = accountdto.Account
 
-	// MCP XML 协议注入（仅 antigravity 平台使用）
-	MCPXMLInject bool `json:"mcp_xml_inject"`
+type AccountGroup = accountdto.AccountGroup
 
-	// OpenAI Messages 调度配置（仅 openai 平台使用）
-	DefaultMappedModel          string                                   `json:"default_mapped_model"`
-	MessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
-	ModelsListConfig            domain.GroupModelsListConfig             `json:"models_list_config"`
-	// AvailabilityProbeConfig 控制分组主动可用性探测，仅管理员接口返回。
-	AvailabilityProbeConfig domain.GroupAvailabilityProbeConfig `json:"availability_probe_config"`
+type Proxy = egresshttp.Proxy
 
-	// 支持的模型系列（仅 antigravity 平台使用）
-	SupportedModelScopes    []string       `json:"supported_model_scopes"`
-	AccountGroups           []AccountGroup `json:"account_groups,omitempty"`
-	AccountCount            int64          `json:"account_count,omitempty"`
-	ActiveAccountCount      int64          `json:"active_account_count,omitempty"`
-	RateLimitedAccountCount int64          `json:"rate_limited_account_count,omitempty"`
+type ProxyWithAccountCount = egresshttp.ProxyWithAccountCount
 
-	// 分组排序
-	SortOrder int `json:"sort_order"`
-}
+type AdminProxy = egresshttp.AdminProxy
 
-type Account struct {
-	ID       int64   `json:"id"`
-	Name     string  `json:"name"`
-	Notes    *string `json:"notes"`
-	Platform string  `json:"platform"`
-	Type     string  `json:"type"`
-	// Credentials 经 RedactCredentials 处理后只含非敏感子键；敏感 token / api_key / 私钥
-	// 的存在性通过 CredentialsStatus（has_<key>）暴露，原始值不返回前端。
-	Credentials             map[string]any                 `json:"credentials"`
-	CredentialsStatus       map[string]bool                `json:"credentials_status,omitempty"`
-	Extra                   map[string]any                 `json:"extra"`
-	OllamaCloudUsage        *service.OllamaCloudUsageState `json:"ollama_cloud_usage,omitempty"`
-	ProxyID                 *int64                         `json:"proxy_id"`
-	ProxyFallbackOriginID   *int64                         `json:"proxy_fallback_origin_id"`
-	ProxyFallbackOriginName *string                        `json:"proxy_fallback_origin_name,omitempty"`
-	Concurrency             int                            `json:"concurrency"`
-	LoadFactor              *int                           `json:"load_factor,omitempty"`
-	Priority                int                            `json:"priority"`
-	RateMultiplier          float64                        `json:"rate_multiplier"`
-	Status                  string                         `json:"status"`
-	ErrorMessage            string                         `json:"error_message"`
-	LastUsedAt              *time.Time                     `json:"last_used_at"`
-	ExpiresAt               *int64                         `json:"expires_at"`
-	AutoPauseOnExpired      bool                           `json:"auto_pause_on_expired"`
-	CreatedAt               time.Time                      `json:"created_at"`
-	UpdatedAt               time.Time                      `json:"updated_at"`
+type AdminProxyWithAccountCount = egresshttp.AdminProxyWithAccountCount
 
-	Schedulable bool `json:"schedulable"`
-
-	RateLimitedAt    *time.Time `json:"rate_limited_at"`
-	RateLimitResetAt *time.Time `json:"rate_limit_reset_at"`
-	OverloadUntil    *time.Time `json:"overload_until"`
-
-	TempUnschedulableUntil  *time.Time `json:"temp_unschedulable_until"`
-	TempUnschedulableReason string     `json:"temp_unschedulable_reason"`
-
-	// QuotaAutoPaused 表示 OpenAI 账号当前因 5h/7d 配额阈值被自动暂停调度。
-	QuotaAutoPaused bool `json:"quota_auto_paused"`
-
-	SessionWindowStart  *time.Time `json:"session_window_start"`
-	SessionWindowEnd    *time.Time `json:"session_window_end"`
-	SessionWindowStatus string     `json:"session_window_status"`
-
-	// 5h窗口费用控制（仅 Anthropic OAuth/SetupToken 账号有效）
-	// 从 extra 字段提取，方便前端显示和编辑
-	WindowCostLimit         *float64 `json:"window_cost_limit,omitempty"`
-	WindowCostStickyReserve *float64 `json:"window_cost_sticky_reserve,omitempty"`
-
-	// 会话数量控制（仅 Anthropic OAuth/SetupToken 账号有效）
-	// 从 extra 字段提取，方便前端显示和编辑
-	MaxSessions           *int `json:"max_sessions,omitempty"`
-	SessionIdleTimeoutMin *int `json:"session_idle_timeout_minutes,omitempty"`
-
-	// RPM 限制（仅 Anthropic OAuth/SetupToken 账号有效）
-	// 从 extra 字段提取，方便前端显示和编辑
-	BaseRPM          *int    `json:"base_rpm,omitempty"`
-	RPMStrategy      *string `json:"rpm_strategy,omitempty"`
-	RPMStickyBuffer  *int    `json:"rpm_sticky_buffer,omitempty"`
-	UserMsgQueueMode *string `json:"user_msg_queue_mode,omitempty"`
-
-	// TLS指纹伪装（仅 Anthropic OAuth/SetupToken 账号有效）
-	// 从 extra 字段提取，方便前端显示和编辑
-	EnableTLSFingerprint    *bool  `json:"enable_tls_fingerprint,omitempty"`
-	TLSFingerprintProfileID *int64 `json:"tls_fingerprint_profile_id,omitempty"`
-	TLSFingerprintRouterID  *int64 `json:"tls_fingerprint_router_id,omitempty"`
-
-	// OpenAI OAuth 客户端访问策略。
-	OpenAIOAuthClientPolicy *string `json:"openai_oauth_client_policy,omitempty"`
-
-	// 会话ID伪装（仅 Anthropic OAuth/SetupToken 账号有效）
-	// 启用后将在15分钟内固定 metadata.user_id 中的 session ID
-	// 从 extra 字段提取，方便前端显示和编辑
-	EnableSessionIDMasking *bool `json:"session_id_masking_enabled,omitempty"`
-
-	// 缓存 TTL 强制替换（仅 Anthropic OAuth/SetupToken 账号有效）
-	// 启用后将所有 cache creation tokens 归入指定的 TTL 类型计费
-	CacheTTLOverrideEnabled *bool   `json:"cache_ttl_override_enabled,omitempty"`
-	CacheTTLOverrideTarget  *string `json:"cache_ttl_override_target,omitempty"`
-
-	// 自定义 Base URL 中继转发（仅 Anthropic OAuth/SetupToken 账号有效）
-	CustomBaseURLEnabled *bool   `json:"custom_base_url_enabled,omitempty"`
-	CustomBaseURL        *string `json:"custom_base_url,omitempty"`
-
-	// API Key 账号配额限制
-	QuotaLimit       *float64 `json:"quota_limit,omitempty"`
-	QuotaUsed        *float64 `json:"quota_used,omitempty"`
-	QuotaDailyLimit  *float64 `json:"quota_daily_limit,omitempty"`
-	QuotaDailyUsed   *float64 `json:"quota_daily_used,omitempty"`
-	QuotaWeeklyLimit *float64 `json:"quota_weekly_limit,omitempty"`
-	QuotaWeeklyUsed  *float64 `json:"quota_weekly_used,omitempty"`
-
-	// 配额固定时间重置配置
-	QuotaDailyResetMode  *string `json:"quota_daily_reset_mode,omitempty"`
-	QuotaDailyResetHour  *int    `json:"quota_daily_reset_hour,omitempty"`
-	QuotaWeeklyResetMode *string `json:"quota_weekly_reset_mode,omitempty"`
-	QuotaWeeklyResetDay  *int    `json:"quota_weekly_reset_day,omitempty"`
-	QuotaWeeklyResetHour *int    `json:"quota_weekly_reset_hour,omitempty"`
-	QuotaResetTimezone   *string `json:"quota_reset_timezone,omitempty"`
-	QuotaDailyResetAt    *string `json:"quota_daily_reset_at,omitempty"`
-	QuotaWeeklyResetAt   *string `json:"quota_weekly_reset_at,omitempty"`
-
-	// 配额通知配置
-	QuotaNotifyDailyEnabled    *bool    `json:"quota_notify_daily_enabled,omitempty"`
-	QuotaNotifyDailyThreshold  *float64 `json:"quota_notify_daily_threshold,omitempty"`
-	QuotaNotifyWeeklyEnabled   *bool    `json:"quota_notify_weekly_enabled,omitempty"`
-	QuotaNotifyWeeklyThreshold *float64 `json:"quota_notify_weekly_threshold,omitempty"`
-	QuotaNotifyTotalEnabled    *bool    `json:"quota_notify_total_enabled,omitempty"`
-	QuotaNotifyTotalThreshold  *float64 `json:"quota_notify_total_threshold,omitempty"`
-
-	// 影子账号关系（spark 维度影子）
-	ParentAccountID *int64 `json:"parent_account_id,omitempty"`
-	QuotaDimension  string `json:"quota_dimension,omitempty"`
-
-	// 影子账号回填的母账号信息（仅影子非空，源自母账号 Credentials/Extra）
-	ParentEmail                 string `json:"parent_email,omitempty"`
-	ParentPlanType              string `json:"parent_plan_type,omitempty"`
-	ParentPrivacyMode           string `json:"parent_privacy_mode,omitempty"`
-	ParentSubscriptionExpiresAt string `json:"parent_subscription_expires_at,omitempty"`
-	ParentChatGPTAccountID      string `json:"parent_chatgpt_account_id,omitempty"`
-
-	Proxy         *Proxy         `json:"proxy,omitempty"`
-	AccountGroups []AccountGroup `json:"account_groups,omitempty"`
-
-	GroupIDs []int64  `json:"group_ids,omitempty"`
-	Groups   []*Group `json:"groups,omitempty"`
-}
-
-type AccountGroup struct {
-	AccountID int64     `json:"account_id"`
-	GroupID   int64     `json:"group_id"`
-	CreatedAt time.Time `json:"created_at"`
-
-	Account *Account `json:"account,omitempty"`
-	Group   *Group   `json:"group,omitempty"`
-}
-
-type Proxy struct {
-	ID        int64     `json:"id"`
-	Name      string    `json:"name"`
-	Protocol  string    `json:"protocol"`
-	Host      string    `json:"host"`
-	Port      int       `json:"port"`
-	Username  string    `json:"username"`
-	Password  string    `json:"-"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-
-	ExpiresAt      *time.Time `json:"expires_at"`
-	FallbackMode   string     `json:"fallback_mode"`
-	BackupProxyID  *int64     `json:"backup_proxy_id"`
-	ExpiryWarnDays int        `json:"expiry_warn_days"`
-}
-
-type ProxyWithAccountCount struct {
-	Proxy
-	AccountCount   int64  `json:"account_count"`
-	LatencyMs      *int64 `json:"latency_ms,omitempty"`
-	LatencyStatus  string `json:"latency_status,omitempty"`
-	LatencyMessage string `json:"latency_message,omitempty"`
-	IPAddress      string `json:"ip_address,omitempty"`
-	Country        string `json:"country,omitempty"`
-	CountryCode    string `json:"country_code,omitempty"`
-	Region         string `json:"region,omitempty"`
-	City           string `json:"city,omitempty"`
-	QualityStatus  string `json:"quality_status,omitempty"`
-	QualityScore   *int   `json:"quality_score,omitempty"`
-	QualityGrade   string `json:"quality_grade,omitempty"`
-	QualitySummary string `json:"quality_summary,omitempty"`
-	QualityChecked *int64 `json:"quality_checked,omitempty"`
-}
-
-// AdminProxy 是管理员接口使用的 proxy DTO（包含密码等敏感字段）。
-// 注意：普通接口不得使用此 DTO。
-type AdminProxy struct {
-	Proxy
-	Password string `json:"password,omitempty"`
-}
-
-// AdminProxyWithAccountCount 是管理员接口使用的带账号统计的 proxy DTO。
-type AdminProxyWithAccountCount struct {
-	AdminProxy
-	AccountCount   int64  `json:"account_count"`
-	LatencyMs      *int64 `json:"latency_ms,omitempty"`
-	LatencyStatus  string `json:"latency_status,omitempty"`
-	LatencyMessage string `json:"latency_message,omitempty"`
-	IPAddress      string `json:"ip_address,omitempty"`
-	Country        string `json:"country,omitempty"`
-	CountryCode    string `json:"country_code,omitempty"`
-	Region         string `json:"region,omitempty"`
-	City           string `json:"city,omitempty"`
-	QualityStatus  string `json:"quality_status,omitempty"`
-	QualityScore   *int   `json:"quality_score,omitempty"`
-	QualityGrade   string `json:"quality_grade,omitempty"`
-	QualitySummary string `json:"quality_summary,omitempty"`
-	QualityChecked *int64 `json:"quality_checked,omitempty"`
-}
-
-type ProxyAccountSummary struct {
-	ID       int64   `json:"id"`
-	Name     string  `json:"name"`
-	Platform string  `json:"platform"`
-	Type     string  `json:"type"`
-	Notes    *string `json:"notes,omitempty"`
-}
+type ProxyAccountSummary = egresshttp.ProxyAccountSummary
 
 type RedeemCode = billinghttpapi.RedeemCode
 

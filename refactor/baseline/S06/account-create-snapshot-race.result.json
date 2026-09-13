@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "./internal/account",
+    "-run",
+    "Clone|CreatePrivacy|Deferred|RefreshStop|Expiry"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.295,
+  "log": "logs/account-create-snapshot-race.log.gz"
+}

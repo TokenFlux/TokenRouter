@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=10",
+    "-json",
+    "-race",
+    "./internal/account",
+    "./internal/service",
+    "-run",
+    "TestAnthropicUsageNegativeCacheIdentityAndTTL|TestAntigravitySharedUsageRejectsDifferentIdentity|TestAntigravityUsageCacheDoesNotCrossCredentialIdentity|TestAnthropicActiveUsageDoesNotWriteNewCredentialIdentity|TestManagedRecoveryFence"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 43.257,
+  "log": "logs/account-usage-identity-race.log.gz"
+}

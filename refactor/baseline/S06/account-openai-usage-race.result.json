@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "./internal/account",
+    "./internal/service",
+    "./internal/handler/admin",
+    "-run",
+    "TestAccountUsage|TestGetOpenAIUsage|TestOpenAICodex|TestShouldRefreshOpenAI|TestExtractOpenAICodex|TestOAuthUsage|TestProbeRuntime|TestGrok|TestQoderObservation"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 54.135,
+  "log": "logs/account-openai-usage-race.log.gz"
+}

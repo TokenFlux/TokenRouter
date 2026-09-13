@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "./internal/account",
+    "./internal/service",
+    "-run",
+    "TestTokenRefresh|TestProvider|TestRefresh|TestPathA"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 52.04,
+  "log": "logs/account-refresh-engines-race.log.gz"
+}

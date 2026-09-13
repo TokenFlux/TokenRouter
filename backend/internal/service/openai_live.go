@@ -264,7 +264,8 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 		if trace, ok := APIKeyModelRedirectTraceFromContext(ctx); ok && strings.TrimSpace(trace.ClientModel) != "" {
 			requestedModel = trace.ClientModel
 		}
-		channelMapping, _ := s.ResolveChannelMappingAndRestrict(ctx, identity.GroupID, model)
+		routePlan := s.PlanRoute(ctx, nil, identity.GroupID, model)
+		channelMapping := ChannelMappingFromRoutePlan(routePlan)
 		record := &LiveCallRecord{
 			CallID:                created.CallID,
 			CallHash:              hashLiveCallID(created.CallID),

@@ -1,0 +1,1045 @@
+{
+	"Dir": "/private<fixture>/internal/account",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/account",
+	"Name": "account",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+	"GoFiles": [
+		"illegal_child.go",
+		"legal.go",
+		"moved_record.go",
+		"new_same_dir.go",
+		"probe_darwin.go",
+		"record.go",
+		"reverse_app.go",
+		"stub.go",
+		"violation.go"
+	],
+	"IgnoredGoFiles": [
+		"probe_embed.go",
+		"probe_integration.go",
+		"probe_linux.go",
+		"probe_unit.go"
+	],
+	"Imports": [
+		"github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+		"github.com/TokenFlux/TokenRouter/internal/config",
+		"github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+	],
+	"Deps": [
+		"github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+		"github.com/TokenFlux/TokenRouter/internal/config",
+		"github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/account/httpapi",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/account/httpapi",
+	"Name": "httpapi",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+	"GoFiles": [
+		"legal.go",
+		"postgres_violation.go",
+		"repository_violation.go"
+	],
+	"Imports": [
+		"database/sql",
+		"github.com/TokenFlux/TokenRouter/internal/account",
+		"github.com/TokenFlux/TokenRouter/internal/repository",
+		"github.com/TokenFlux/TokenRouter/internal/server/httpx",
+		"github.com/gin-gonic/gin"
+	],
+	"Deps": [
+		"bytes",
+		"cmp",
+		"context",
+		"crypto",
+		"crypto/cipher",
+		"crypto/fips140",
+		"crypto/internal/boring",
+		"crypto/internal/boring/sig",
+		"crypto/internal/constanttime",
+		"crypto/internal/entropy/v1.0.0",
+		"crypto/internal/fips140",
+		"crypto/internal/fips140/aes",
+		"crypto/internal/fips140/aes/gcm",
+		"crypto/internal/fips140/alias",
+		"crypto/internal/fips140/check",
+		"crypto/internal/fips140/drbg",
+		"crypto/internal/fips140/hmac",
+		"crypto/internal/fips140/sha256",
+		"crypto/internal/fips140/sha3",
+		"crypto/internal/fips140/sha512",
+		"crypto/internal/fips140/subtle",
+		"crypto/internal/fips140deps/byteorder",
+		"crypto/internal/fips140deps/cpu",
+		"crypto/internal/fips140deps/godebug",
+		"crypto/internal/fips140deps/time",
+		"crypto/internal/fips140only",
+		"crypto/internal/impl",
+		"crypto/internal/rand",
+		"crypto/internal/randutil",
+		"crypto/internal/sysrand",
+		"crypto/rand",
+		"crypto/subtle",
+		"database/sql",
+		"database/sql/driver",
+		"database/sql/internal",
+		"encoding/binary",
+		"encoding/hex",
+		"errors",
+		"fmt",
+		"github.com/TokenFlux/TokenRouter/internal/account",
+		"github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+		"github.com/TokenFlux/TokenRouter/internal/config",
+		"github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+		"github.com/TokenFlux/TokenRouter/internal/repository",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue",
+		"github.com/TokenFlux/TokenRouter/internal/server/httpx",
+		"github.com/gin-gonic/gin",
+		"hash",
+		"internal/abi",
+		"internal/asan",
+		"internal/bisect",
+		"internal/bytealg",
+		"internal/byteorder",
+		"internal/chacha8rand",
+		"internal/coverage/rtcov",
+		"internal/cpu",
+		"internal/filepathlite",
+		"internal/fmtsort",
+		"internal/goarch",
+		"internal/godebug",
+		"internal/godebugs",
+		"internal/goexperiment",
+		"internal/goos",
+		"internal/msan",
+		"internal/oserror",
+		"internal/poll",
+		"internal/profilerecord",
+		"internal/race",
+		"internal/reflectlite",
+		"internal/runtime/atomic",
+		"internal/runtime/exithook",
+		"internal/runtime/gc",
+		"internal/runtime/gc/scan",
+		"internal/runtime/maps",
+		"internal/runtime/math",
+		"internal/runtime/pprof/label",
+		"internal/runtime/sys",
+		"internal/strconv",
+		"internal/stringslite",
+		"internal/sync",
+		"internal/synctest",
+		"internal/syscall/execenv",
+		"internal/syscall/unix",
+		"internal/testlog",
+		"internal/trace/tracev2",
+		"internal/unsafeheader",
+		"io",
+		"io/fs",
+		"iter",
+		"maps",
+		"math",
+		"math/big",
+		"math/bits",
+		"math/rand",
+		"math/rand/v2",
+		"os",
+		"path",
+		"reflect",
+		"runtime",
+		"slices",
+		"strconv",
+		"strings",
+		"sync",
+		"sync/atomic",
+		"syscall",
+		"time",
+		"unicode",
+		"unicode/utf8",
+		"unsafe",
+		"uuid"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/account/postgres",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/account/postgres",
+	"Name": "postgres",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+	"GoFiles": [
+		"legal.go",
+		"stub.go"
+	],
+	"Imports": [
+		"database/sql",
+		"github.com/TokenFlux/TokenRouter/ent",
+		"github.com/TokenFlux/TokenRouter/internal/account"
+	],
+	"Deps": [
+		"bytes",
+		"cmp",
+		"context",
+		"crypto",
+		"crypto/cipher",
+		"crypto/fips140",
+		"crypto/internal/boring",
+		"crypto/internal/boring/sig",
+		"crypto/internal/constanttime",
+		"crypto/internal/entropy/v1.0.0",
+		"crypto/internal/fips140",
+		"crypto/internal/fips140/aes",
+		"crypto/internal/fips140/aes/gcm",
+		"crypto/internal/fips140/alias",
+		"crypto/internal/fips140/check",
+		"crypto/internal/fips140/drbg",
+		"crypto/internal/fips140/hmac",
+		"crypto/internal/fips140/sha256",
+		"crypto/internal/fips140/sha3",
+		"crypto/internal/fips140/sha512",
+		"crypto/internal/fips140/subtle",
+		"crypto/internal/fips140deps/byteorder",
+		"crypto/internal/fips140deps/cpu",
+		"crypto/internal/fips140deps/godebug",
+		"crypto/internal/fips140deps/time",
+		"crypto/internal/fips140only",
+		"crypto/internal/impl",
+		"crypto/internal/rand",
+		"crypto/internal/randutil",
+		"crypto/internal/sysrand",
+		"crypto/rand",
+		"crypto/subtle",
+		"database/sql",
+		"database/sql/driver",
+		"database/sql/internal",
+		"encoding/binary",
+		"encoding/hex",
+		"errors",
+		"fmt",
+		"github.com/TokenFlux/TokenRouter/ent",
+		"github.com/TokenFlux/TokenRouter/internal/account",
+		"github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+		"github.com/TokenFlux/TokenRouter/internal/config",
+		"github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue",
+		"hash",
+		"internal/abi",
+		"internal/asan",
+		"internal/bisect",
+		"internal/bytealg",
+		"internal/byteorder",
+		"internal/chacha8rand",
+		"internal/coverage/rtcov",
+		"internal/cpu",
+		"internal/filepathlite",
+		"internal/fmtsort",
+		"internal/goarch",
+		"internal/godebug",
+		"internal/godebugs",
+		"internal/goexperiment",
+		"internal/goos",
+		"internal/msan",
+		"internal/oserror",
+		"internal/poll",
+		"internal/profilerecord",
+		"internal/race",
+		"internal/reflectlite",
+		"internal/runtime/atomic",
+		"internal/runtime/exithook",
+		"internal/runtime/gc",
+		"internal/runtime/gc/scan",
+		"internal/runtime/maps",
+		"internal/runtime/math",
+		"internal/runtime/pprof/label",
+		"internal/runtime/sys",
+		"internal/strconv",
+		"internal/stringslite",
+		"internal/sync",
+		"internal/synctest",
+		"internal/syscall/execenv",
+		"internal/syscall/unix",
+		"internal/testlog",
+		"internal/trace/tracev2",
+		"internal/unsafeheader",
+		"io",
+		"io/fs",
+		"iter",
+		"maps",
+		"math",
+		"math/big",
+		"math/bits",
+		"math/rand",
+		"math/rand/v2",
+		"os",
+		"path",
+		"reflect",
+		"runtime",
+		"slices",
+		"strconv",
+		"strings",
+		"sync",
+		"sync/atomic",
+		"syscall",
+		"time",
+		"unicode",
+		"unicode/utf8",
+		"unsafe",
+		"uuid"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/app",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/app",
+	"Name": "app",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+	"GoFiles": [
+		"account_recovery.go",
+		"moved_account_recovery.go",
+		"new_same_dir.go",
+		"wire.go",
+		"wire_extra.go"
+	],
+	"Imports": [
+		"github.com/TokenFlux/TokenRouter/internal/account",
+		"github.com/TokenFlux/TokenRouter/internal/config",
+		"github.com/TokenFlux/TokenRouter/internal/repository",
+		"github.com/TokenFlux/TokenRouter/internal/service",
+		"github.com/TokenFlux/TokenRouter/internal/service/rogue"
+	],
+	"Deps": [
+		"github.com/TokenFlux/TokenRouter/internal/account",
+		"github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+		"github.com/TokenFlux/TokenRouter/internal/config",
+		"github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+		"github.com/TokenFlux/TokenRouter/internal/repository",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue",
+		"github.com/TokenFlux/TokenRouter/internal/service",
+		"github.com/TokenFlux/TokenRouter/internal/service/rogue"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/app/legacybridge",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/app/legacybridge",
+	"Name": "legacybridge",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+	"GoFiles": [
+		"account_health.go",
+		"new_same_dir.go"
+	],
+	"Imports": [
+		"github.com/TokenFlux/TokenRouter/internal/account",
+		"github.com/TokenFlux/TokenRouter/internal/service"
+	],
+	"Deps": [
+		"github.com/TokenFlux/TokenRouter/internal/account",
+		"github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+		"github.com/TokenFlux/TokenRouter/internal/config",
+		"github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+		"github.com/TokenFlux/TokenRouter/internal/repository",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue",
+		"github.com/TokenFlux/TokenRouter/internal/service"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/app/lifecycle",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+	"Name": "lifecycle",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "build ID mismatch",
+	"GoFiles": [
+		"stub.go"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/config",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/config",
+	"Name": "config",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "build ID mismatch",
+	"GoFiles": [
+		"stub.go"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/egress",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/egress",
+	"Name": "egress",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+	"GoFiles": [
+		"reverse_account.go",
+		"stub.go"
+	],
+	"Imports": [
+		"github.com/TokenFlux/TokenRouter/internal/account"
+	],
+	"Deps": [
+		"github.com/TokenFlux/TokenRouter/internal/account",
+		"github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+		"github.com/TokenFlux/TokenRouter/internal/config",
+		"github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/egress/provider",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/egress/provider",
+	"Name": "provider",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+	"GoFiles": [
+		"legal.go"
+	],
+	"Imports": [
+		"github.com/TokenFlux/TokenRouter/internal/egress",
+		"net/http"
+	],
+	"Deps": [
+		"bufio",
+		"bytes",
+		"cmp",
+		"compress/flate",
+		"compress/gzip",
+		"container/list",
+		"context",
+		"crypto",
+		"crypto/aes",
+		"crypto/cipher",
+		"crypto/des",
+		"crypto/dsa",
+		"crypto/ecdh",
+		"crypto/ecdsa",
+		"crypto/ed25519",
+		"crypto/elliptic",
+		"crypto/fips140",
+		"crypto/hkdf",
+		"crypto/hmac",
+		"crypto/hpke",
+		"crypto/internal/boring",
+		"crypto/internal/boring/bbig",
+		"crypto/internal/boring/sig",
+		"crypto/internal/constanttime",
+		"crypto/internal/entropy/v1.0.0",
+		"crypto/internal/fips140",
+		"crypto/internal/fips140/aes",
+		"crypto/internal/fips140/aes/gcm",
+		"crypto/internal/fips140/alias",
+		"crypto/internal/fips140/bigmod",
+		"crypto/internal/fips140/check",
+		"crypto/internal/fips140/drbg",
+		"crypto/internal/fips140/ecdh",
+		"crypto/internal/fips140/ecdsa",
+		"crypto/internal/fips140/ed25519",
+		"crypto/internal/fips140/edwards25519",
+		"crypto/internal/fips140/edwards25519/field",
+		"crypto/internal/fips140/hkdf",
+		"crypto/internal/fips140/hmac",
+		"crypto/internal/fips140/mldsa",
+		"crypto/internal/fips140/mlkem",
+		"crypto/internal/fips140/nistec",
+		"crypto/internal/fips140/nistec/fiat",
+		"crypto/internal/fips140/rsa",
+		"crypto/internal/fips140/sha256",
+		"crypto/internal/fips140/sha3",
+		"crypto/internal/fips140/sha512",
+		"crypto/internal/fips140/subtle",
+		"crypto/internal/fips140/tls12",
+		"crypto/internal/fips140/tls13",
+		"crypto/internal/fips140cache",
+		"crypto/internal/fips140deps/byteorder",
+		"crypto/internal/fips140deps/cpu",
+		"crypto/internal/fips140deps/godebug",
+		"crypto/internal/fips140deps/time",
+		"crypto/internal/fips140hash",
+		"crypto/internal/fips140only",
+		"crypto/internal/impl",
+		"crypto/internal/rand",
+		"crypto/internal/randutil",
+		"crypto/internal/sysrand",
+		"crypto/md5",
+		"crypto/mldsa",
+		"crypto/mlkem",
+		"crypto/rand",
+		"crypto/rc4",
+		"crypto/rsa",
+		"crypto/sha1",
+		"crypto/sha256",
+		"crypto/sha3",
+		"crypto/sha512",
+		"crypto/subtle",
+		"crypto/tls",
+		"crypto/tls/internal/fips140tls",
+		"crypto/x509",
+		"crypto/x509/internal/macos",
+		"crypto/x509/pkix",
+		"encoding/asn1",
+		"encoding/base64",
+		"encoding/binary",
+		"encoding/hex",
+		"encoding/pem",
+		"errors",
+		"fmt",
+		"github.com/TokenFlux/TokenRouter/internal/account",
+		"github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+		"github.com/TokenFlux/TokenRouter/internal/config",
+		"github.com/TokenFlux/TokenRouter/internal/egress",
+		"github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue",
+		"hash",
+		"hash/crc32",
+		"internal/abi",
+		"internal/asan",
+		"internal/bisect",
+		"internal/bytealg",
+		"internal/byteorder",
+		"internal/chacha8rand",
+		"internal/coverage/rtcov",
+		"internal/cpu",
+		"internal/filepathlite",
+		"internal/fmtsort",
+		"internal/goarch",
+		"internal/godebug",
+		"internal/godebugs",
+		"internal/goexperiment",
+		"internal/goos",
+		"internal/msan",
+		"internal/nettrace",
+		"internal/oserror",
+		"internal/poll",
+		"internal/profilerecord",
+		"internal/race",
+		"internal/reflectlite",
+		"internal/routebsd",
+		"internal/runtime/atomic",
+		"internal/runtime/exithook",
+		"internal/runtime/gc",
+		"internal/runtime/gc/scan",
+		"internal/runtime/maps",
+		"internal/runtime/math",
+		"internal/runtime/pprof/label",
+		"internal/runtime/sys",
+		"internal/saferio",
+		"internal/singleflight",
+		"internal/strconv",
+		"internal/stringslite",
+		"internal/sync",
+		"internal/synctest",
+		"internal/syscall/execenv",
+		"internal/syscall/unix",
+		"internal/testlog",
+		"internal/trace/tracev2",
+		"internal/unsafeheader",
+		"io",
+		"io/fs",
+		"iter",
+		"log",
+		"log/internal",
+		"maps",
+		"math",
+		"math/big",
+		"math/bits",
+		"math/rand",
+		"math/rand/v2",
+		"mime",
+		"mime/multipart",
+		"mime/quotedprintable",
+		"net",
+		"net/http",
+		"net/http/httptrace",
+		"net/http/internal",
+		"net/http/internal/ascii",
+		"net/http/internal/http2",
+		"net/http/internal/httpcommon",
+		"net/http/internal/httpsfv",
+		"net/netip",
+		"net/textproto",
+		"net/url",
+		"os",
+		"path",
+		"path/filepath",
+		"reflect",
+		"runtime",
+		"slices",
+		"sort",
+		"strconv",
+		"strings",
+		"sync",
+		"sync/atomic",
+		"syscall",
+		"time",
+		"unicode",
+		"unicode/utf16",
+		"unicode/utf8",
+		"unique",
+		"unsafe",
+		"vendor/golang.org/x/crypto/chacha20",
+		"vendor/golang.org/x/crypto/chacha20poly1305",
+		"vendor/golang.org/x/crypto/cryptobyte",
+		"vendor/golang.org/x/crypto/cryptobyte/asn1",
+		"vendor/golang.org/x/crypto/internal/alias",
+		"vendor/golang.org/x/crypto/internal/poly1305",
+		"vendor/golang.org/x/net/dns/dnsmessage",
+		"vendor/golang.org/x/net/http/httpguts",
+		"vendor/golang.org/x/net/http/httpproxy",
+		"vendor/golang.org/x/net/http2/hpack",
+		"vendor/golang.org/x/net/idna",
+		"vendor/golang.org/x/text/secure/bidirule",
+		"vendor/golang.org/x/text/transform",
+		"vendor/golang.org/x/text/unicode/bidi",
+		"vendor/golang.org/x/text/unicode/norm",
+		"weak"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/pkg/apperror",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+	"Name": "apperror",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "build ID mismatch",
+	"GoFiles": [
+		"stub.go"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/protocol",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/protocol",
+	"Name": "protocol",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "build ID mismatch",
+	"GoFiles": [
+		"stub.go"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/protocol/openai",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/protocol/openai",
+	"Name": "openai",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+	"GoFiles": [
+		"reverse_account.go",
+		"stub.go"
+	],
+	"Imports": [
+		"github.com/TokenFlux/TokenRouter/internal/account"
+	],
+	"Deps": [
+		"github.com/TokenFlux/TokenRouter/internal/account",
+		"github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+		"github.com/TokenFlux/TokenRouter/internal/config",
+		"github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/repository",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/repository",
+	"Name": "repository",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "build ID mismatch",
+	"GoFiles": [
+		"stub.go"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/routing",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/routing",
+	"Name": "routing",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "build ID mismatch",
+	"GoFiles": [
+		"stub.go"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/routing/modelmap",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/routing/modelmap",
+	"Name": "modelmap",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "build ID mismatch",
+	"GoFiles": [
+		"stub.go"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/routing/modelmap/rogue",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue",
+	"Name": "rogue",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "build ID mismatch",
+	"GoFiles": [
+		"stub.go"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/scheduler",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/scheduler",
+	"Name": "scheduler",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "build ID mismatch",
+	"GoFiles": [
+		"stub.go"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/scheduler/policy",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/scheduler/policy",
+	"Name": "policy",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/scheduler",
+	"GoFiles": [
+		"legal.go",
+		"reverse.go",
+		"stub.go"
+	],
+	"Imports": [
+		"github.com/TokenFlux/TokenRouter/internal/scheduler",
+		"slices"
+	],
+	"Deps": [
+		"cmp",
+		"github.com/TokenFlux/TokenRouter/internal/scheduler",
+		"internal/abi",
+		"internal/asan",
+		"internal/bytealg",
+		"internal/byteorder",
+		"internal/chacha8rand",
+		"internal/coverage/rtcov",
+		"internal/cpu",
+		"internal/goarch",
+		"internal/godebugs",
+		"internal/goexperiment",
+		"internal/goos",
+		"internal/msan",
+		"internal/profilerecord",
+		"internal/race",
+		"internal/runtime/atomic",
+		"internal/runtime/exithook",
+		"internal/runtime/gc",
+		"internal/runtime/gc/scan",
+		"internal/runtime/maps",
+		"internal/runtime/math",
+		"internal/runtime/pprof/label",
+		"internal/runtime/sys",
+		"internal/strconv",
+		"internal/stringslite",
+		"internal/trace/tracev2",
+		"iter",
+		"math/bits",
+		"runtime",
+		"slices",
+		"unsafe"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/server/httpx",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/server/httpx",
+	"Name": "httpx",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "build ID mismatch",
+	"GoFiles": [
+		"stub.go"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/service",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/service",
+	"Name": "service",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "stale dependency: github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+	"GoFiles": [
+		"admin_account.go",
+		"new_repository_violation.go",
+		"stub.go"
+	],
+	"Imports": [
+		"github.com/TokenFlux/TokenRouter/internal/account",
+		"github.com/TokenFlux/TokenRouter/internal/repository"
+	],
+	"Deps": [
+		"github.com/TokenFlux/TokenRouter/internal/account",
+		"github.com/TokenFlux/TokenRouter/internal/app/lifecycle",
+		"github.com/TokenFlux/TokenRouter/internal/config",
+		"github.com/TokenFlux/TokenRouter/internal/pkg/apperror",
+		"github.com/TokenFlux/TokenRouter/internal/repository",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap",
+		"github.com/TokenFlux/TokenRouter/internal/routing/modelmap/rogue"
+	]
+}
+{
+	"Dir": "/private<fixture>/internal/service/rogue",
+	"ImportPath": "github.com/TokenFlux/TokenRouter/internal/service/rogue",
+	"Name": "rogue",
+	"Doc": "可丢弃的依赖角色验证夹具。",
+	"Root": "/private<fixture>",
+	"Module": {
+		"Path": "github.com/TokenFlux/TokenRouter",
+		"Main": true,
+		"Dir": "/private<fixture>",
+		"GoMod": "/private<fixture>/go.mod",
+		"GoVersion": "1.27.0"
+	},
+	"Match": [
+		"./internal/..."
+	],
+	"Stale": true,
+	"StaleReason": "build ID mismatch",
+	"GoFiles": [
+		"stub.go"
+	]
+}

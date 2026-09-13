@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "AccountRepoSuite|Account.*Update|Account.*Copy|S06Account|S06Refresh|ProxyIdentity"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 6.824,
+  "log": "logs/account-mutations-integration.log.gz"
+}

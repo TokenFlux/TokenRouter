@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"log/slog"
 	"strings"
 	"time"
@@ -10,8 +11,8 @@ import (
 )
 
 const (
-	AntigravityPrivacySet    = "privacy_set"
-	AntigravityPrivacyFailed = "privacy_set_failed"
+	AntigravityPrivacySet    = acctcore.AntigravityPrivacySet
+	AntigravityPrivacyFailed = acctcore.AntigravityPrivacyFailed
 )
 
 // setAntigravityPrivacy 调用 Antigravity API 设置隐私并验证结果。
@@ -66,16 +67,4 @@ func setAntigravityPrivacy(ctx context.Context, accessToken, projectID, proxyURL
 
 	slog.Info("antigravity_privacy_set_success")
 	return AntigravityPrivacySet
-}
-
-func applyAntigravityPrivacyMode(account *Account, mode string) {
-	if account == nil || strings.TrimSpace(mode) == "" {
-		return
-	}
-	extra := make(map[string]any, len(account.Extra)+1)
-	for k, v := range account.Extra {
-		extra[k] = v
-	}
-	extra["privacy_mode"] = mode
-	account.Extra = extra
 }

@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -15,7 +16,7 @@ func provideJobsRuntime(
 	batchImageCleanup *service.BatchImageCleanupService,
 	batchImageWorker *service.BatchImageWorkerRuntime,
 	creativeWorker *service.CreativeWorkerRuntime,
-	cnUsageMonitor *service.CNProviderBalanceCheckService,
+	cnUsageMonitor *account.CNUsageMonitor,
 	manager *lifecycle.Manager,
 ) *jobsRuntimeReady {
 	manager.Register(lifecycle.Hook{Name: "BatchImageCleanupService", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
@@ -54,12 +55,12 @@ func provideJobsRuntime(
 
 	manager.Register(lifecycle.Hook{Name: "CNProviderBalanceCheckService", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if cnUsageMonitor != nil {
-			cnUsageMonitor.Start()
+			return cnUsageMonitor.StartContext(ctx)
 		}
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if cnUsageMonitor != nil {
-			cnUsageMonitor.Stop()
+			return cnUsageMonitor.StopContext(ctx)
 		}
 		return nil
 	}})

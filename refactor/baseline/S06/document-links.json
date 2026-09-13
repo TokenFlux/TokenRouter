@@ -1,0 +1,18 @@
+{
+  "changed_docs": [
+    "docs/architecture/account_scheduling_and_cache.md",
+    "docs/architecture/gateway_request_lifecycle.md",
+    "docs/architecture/system_architecture.md",
+    "docs/domains/routing_and_billing.md",
+    "docs/interfaces/http_api.md",
+    "docs/interfaces/model_catalog_and_marketplace.md",
+    "docs/interfaces/openai_upstream.md",
+    "docs/interfaces/protocol_capabilities.md",
+    "docs/interfaces/upstream_usage.md",
+    "docs/operations/account_maintenance.md",
+    "docs/operations/development_workflow.md",
+    "docs/operations/upstream_transport_security.md"
+  ],
+  "references_checked": 134,
+  "invalid": []
+}

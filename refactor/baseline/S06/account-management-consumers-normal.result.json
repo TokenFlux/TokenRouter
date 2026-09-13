@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/account/...",
+    "./internal/routing/...",
+    "./internal/service/...",
+    "./internal/repository/...",
+    "./internal/handler/...",
+    "./internal/app/...",
+    "./internal/server/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 127.063,
+  "log": "logs/account-management-consumers-normal.log.gz"
+}

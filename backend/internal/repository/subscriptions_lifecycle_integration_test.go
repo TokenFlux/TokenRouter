@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	egressredis "github.com/TokenFlux/TokenRouter/internal/egress/rediscache"
 	"testing"
 	"time"
 
@@ -18,8 +19,16 @@ func TestSubscriptionsWaitForInFlightCallback(t *testing.T) {
 		make          func(*redis.Client) stoppableTLSFingerprintCache
 	}{
 		{"error", errorPassthroughPubSubKey, func(c *redis.Client) stoppableTLSFingerprintCache { return &errorPassthroughCache{rdb: c} }},
-		{"profile", tlsFPProfilePubSubKey, func(c *redis.Client) stoppableTLSFingerprintCache { return &tlsFingerprintProfileCache{rdb: c} }},
-		{"router", tlsFPRouterPubSubKey, func(c *redis.Client) stoppableTLSFingerprintCache { return &tlsFingerprintRouterCache{rdb: c} }},
+		{"profile", "tls_fingerprint_profiles_updated", func(c *redis.Client) stoppableTLSFingerprintCache {
+			value, ok := egressredis.NewTLSFingerprintProfileCache(c).(stoppableTLSFingerprintCache)
+			require.True(t, ok)
+			return value
+		}},
+		{"router", "tls_fingerprint_routers_updated", func(c *redis.Client) stoppableTLSFingerprintCache {
+			value, ok := egressredis.NewTLSFingerprintRouterCache(c).(stoppableTLSFingerprintCache)
+			require.True(t, ok)
+			return value
+		}},
 	} {
 		t.Run(factory.name, func(t *testing.T) {
 			client := testRedis(t)
@@ -57,4 +66,10 @@ func TestSubscriptionsWaitForInFlightCallback(t *testing.T) {
 			cache.StopSubscription()
 		})
 	}
+}
+
+// 订阅停止能力由缓存公开实现提供，不绑定旧包的私有类型。
+type stoppableTLSFingerprintCache interface {
+	SubscribeUpdates(context.Context, func())
+	StopSubscription()
 }

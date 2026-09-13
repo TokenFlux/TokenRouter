@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/egress",
+    "./internal/service",
+    "./internal/handler/admin",
+    "./internal/server/routes",
+    "./internal/app",
+    "-run",
+    "Test.*(CRS|Crs|BuildSelectedSet|ShouldCreateAccount|RefreshImported|RefreshIfNeeded|RefreshFailure|PersistAccountCredentials|SparkShadow)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 1.395,
+  "log": "logs/account-crs-boundaries-unit.log.gz"
+}

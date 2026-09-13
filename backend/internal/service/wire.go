@@ -306,20 +306,6 @@ func ProvideGrokQuotaService(
 	return service
 }
 
-// ProvideCNProviderBalanceCheckService 构造并启动国产供应商独立用量监控。
-func ProvideCNProviderBalanceCheckService(
-	accountRepo AccountRepository,
-	usageService *UpstreamUsageService,
-	cfg *config.Config,
-	lockCache LeaderLockCache,
-	db *sql.DB,
-) *CNProviderBalanceCheckService {
-	svc := NewCNProviderBalanceCheckService(accountRepo, usageService, cfg)
-	svc.SetLeaderLock(lockCache, db)
-
-	return svc
-}
-
 // ProvideGeminiTokenProvider creates GeminiTokenProvider with OAuthRefreshAPI injection
 func ProvideGeminiTokenProvider(
 	accountRepo AccountRepository,
@@ -588,41 +574,6 @@ func ProvideIdempotencyCleanupService(repo IdempotencyRepository, cfg *config.Co
 	return svc
 }
 
-// ProvideScheduledTestService creates ScheduledTestService.
-func ProvideScheduledTestService(
-	planRepo ScheduledTestPlanRepository,
-	resultRepo ScheduledTestResultRepository,
-) *ScheduledTestService {
-	return NewScheduledTestService(planRepo, resultRepo)
-}
-
-// ProvideScheduledTestRunnerService creates and starts ScheduledTestRunnerService.
-func ProvideScheduledTestRunnerService(
-	planRepo ScheduledTestPlanRepository,
-	scheduledSvc *ScheduledTestService,
-	accountTestSvc *AccountTestService,
-	rateLimitSvc *RateLimitService,
-	cfg *config.Config,
-) *ScheduledTestRunnerService {
-	svc := NewScheduledTestRunnerService(planRepo, scheduledSvc, accountTestSvc, rateLimitSvc, cfg)
-
-	return svc
-}
-
-// ProvideGroupAvailabilityProbeRunnerService 创建并启动分组主动可用性探测服务。
-func ProvideGroupAvailabilityProbeRunnerService(
-	repo GroupAvailabilityProbeRepository,
-	accountTestSvc *AccountTestService,
-	gatewaySvc *GatewayService,
-	openAIGateway *OpenAIGatewayService,
-	geminiCompatSvc *GeminiMessagesCompatService,
-	cfg *config.Config,
-) *GroupAvailabilityProbeRunnerService {
-	svc := NewGroupAvailabilityProbeRunnerService(repo, accountTestSvc, gatewaySvc, openAIGateway, geminiCompatSvc, cfg)
-
-	return svc
-}
-
 // ProvideOpsScheduledReportService creates and starts OpsScheduledReportService.
 func ProvideOpsScheduledReportService(
 	opsService *OpsService,
@@ -765,15 +716,11 @@ func ProvideAPIKeyService(
 // ProviderSet is the Wire provider set for all services
 var ProviderSet = wire.NewSet(
 	// 核心服务
-	NewGroupService,
-	NewAccountService,
 	NewProxyService,
 	NewAffiliateService,
 	NewPromoService,
 	NewUsageService,
 	ProvideDashboardService,
-	NewModelMarketplaceService,
-	NewGatewayService,
 	NewQoderTokenProvider,
 	NewQoderGatewayService,
 	ProvideOpenAIGatewayTLSFingerprintRouterServices,
@@ -798,32 +745,25 @@ var ProviderSet = wire.NewSet(
 	wire.Bind(new(AccountRuntimeBlocker), new(*OpenAIGatewayService)),
 	NewOAuthService,
 	ProvideOpenAIOAuthService,
-	wire.Bind(new(OpenAIOAuthTokenRouterReader), new(*TLSFingerprintRouterService)),
-	wire.Bind(new(OpenAIOAuthTokenProfileResolver), new(*TLSFingerprintProfileService)),
 	wire.Bind(new(OpenAIQuotaAutoPauseSettingsReader), new(*SettingService)),
 	ProvideGrokOAuthService,
 	wire.Bind(new(GrokOAuthTokenService), new(*GrokOAuthService)),
 	NewGeminiOAuthService,
-	NewGeminiQuotaService,
 	NewCompositeTokenCacheInvalidator,
 	wire.Bind(new(TokenCacheInvalidator), new(*CompositeTokenCacheInvalidator)),
 	NewAntigravityOAuthService,
 	NewQoderOAuthService,
-	ProvideOAuthRefreshAPI,
 	ProvideGeminiTokenProvider,
 	NewGeminiMessagesCompatService,
 	ProvideAntigravityTokenProvider,
 	ProvideGrokTokenProvider,
 	ProvideOpenAITokenProvider,
 	ProvideGrokQuotaService,
-	ProvideCNProviderBalanceCheckService,
 	ProvideClaudeTokenProvider,
 	NewAntigravityGatewayService,
 	ProvideRateLimitService,
 	ProvideAccountUsageService,
-	ProvideUpstreamUsageService,
 	ProvideAccountTestService,
-	ProvideOllamaCloudUsageService,
 	ProvideSettingService,
 	NewPreAggregationSettingsService,
 	NewDataManagementService,
@@ -845,33 +785,21 @@ var ProviderSet = wire.NewSet(
 	NewUsageRecordWorkerPool,
 	ProvideSchedulerSnapshotService,
 	NewIdentityService,
-	NewCRSSyncService,
 	ProvideUpdateService,
 	ProvideTokenRefreshService,
 	wire.Bind(new(GrokOAuthReconciler), new(*TokenRefreshService)),
-	ProvideAccountExpiryService,
 	ProvideProxyExpiryService,
 	ProvideTimingWheelService,
 	ProvideDashboardAggregationService,
 	ProvideUsageCleanupService,
-	ProvideDeferredService,
 	NewAntigravityQuotaFetcher,
 	NewGrokQuotaFetcher,
 	NewUsageCache,
 	NewErrorPassthroughService,
-	NewTLSFingerprintProfileService,
-	NewTLSFingerprintRouterService,
-	NewTLSFingerprintCollectorService,
 	NewDigestSessionStore,
 	ProvideIdempotencyCoordinator,
 	ProvideSystemOperationLockService,
 	ProvideIdempotencyCleanupService,
-	ProvideScheduledTestService,
-	ProvideScheduledTestRunnerService,
-	ProvideGroupAvailabilityProbeRunnerService,
-	NewGroupCapacityService,
-	NewChannelService,
-	wire.Bind(new(ChannelCacheInvalidator), new(*ChannelService)),
 	ProvideContentModerationService,
 	ProvidePaymentConfigService,
 	ProvidePaymentService,

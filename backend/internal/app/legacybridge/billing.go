@@ -11,20 +11,6 @@ import (
 	"time"
 )
 
-// BillingGroups 只读取套餐展示所需名称，S06 退出。
-type BillingGroups struct{ Repository service.GroupRepository }
-
-func (b BillingGroups) GetByIDLite(ctx context.Context, id int64) (*billing.SubscriptionPlanGroup, error) {
-	if b.Repository == nil {
-		return nil, nil
-	}
-	g, err := b.Repository.GetByIDLite(ctx, id)
-	if err != nil || g == nil {
-		return nil, err
-	}
-	return &billing.SubscriptionPlanGroup{ID: g.ID, Name: g.Name}, nil
-}
-
 // BillingAccountQuotaOutbox 同事务调用现有账号 outbox，不持有业务规则；S07 改绑。
 func BillingAccountQuotaOutbox(ctx context.Context, tx *sql.Tx, id int64) error {
 	return repository.EnqueueAccountQuotaChangedInTx(ctx, tx, id)

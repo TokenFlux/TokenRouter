@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/model"
@@ -52,12 +53,9 @@ func TestOpenAIGatewayService_ResolveTLSProfileRouterFallback(t *testing.T) {
 			"tls_fingerprint_profile_id": int64(10),
 		},
 	}
-	profileSvc := &TLSFingerprintProfileService{
-		localCache: map[int64]*model.TLSFingerprintProfile{
-			10: {ID: 10, Name: "fixed"},
-			20: {ID: 20, Name: "router"},
-		},
-	}
+	profileSvc := NewTLSFingerprintProfileService(&tlsProfileTestStore{profiles: []*model.TLSFingerprintProfile{{ID: 10, Name: "fixed"}, {ID: 20, Name: "router"}}}, nil)
+	profileSvc.Start()
+
 	svc := &OpenAIGatewayService{tlsFPProfileService: profileSvc}
 
 	// 路由器命中优先使用规则目标模板。
@@ -75,4 +73,55 @@ func TestOpenAIGatewayService_ResolveTLSProfileRouterFallback(t *testing.T) {
 	})
 	require.NotNil(t, fallbackProfile)
 	require.Equal(t, "fixed", fallbackProfile.Name)
+}
+
+// tlsProfileTestStore 通过相同读取入口提供固定测试策略。
+type tlsProfileTestStore struct {
+	TLSFingerprintProfileRepository
+	profiles []*model.TLSFingerprintProfile
+}
+
+func (s *tlsProfileTestStore) List(context.Context) ([]*model.TLSFingerprintProfile, error) {
+	return s.profiles, nil
+}
+
+// 测试通过公开构造与预热播种，避免依赖核心缓存布局。
+func newTLSProfileServiceWithCacheForTest(profiles map[int64]*model.TLSFingerprintProfile) *TLSFingerprintProfileService {
+	values := make([]*model.TLSFingerprintProfile, 0, len(profiles))
+	for _, profile := range profiles {
+		values = append(values, profile)
+	}
+	service := NewTLSFingerprintProfileService(&tlsProfileTestStore{profiles: values}, nil)
+	service.Start()
+	return service
+}
+
+type cachedTLSFingerprintRouter struct{ *model.TLSFingerprintRouter }
+
+func newCachedTLSFingerprintRouter(value *model.TLSFingerprintRouter) *cachedTLSFingerprintRouter {
+	return &cachedTLSFingerprintRouter{value}
+}
+
+type tlsRouterTestStore struct {
+	TLSFingerprintRouterRepository
+	values []*model.TLSFingerprintRouter
+}
+
+func (s *tlsRouterTestStore) List(context.Context) ([]*model.TLSFingerprintRouter, error) {
+	return s.values, nil
+}
+func newTLSRouterServiceWithCacheForTest(routers map[int64]*cachedTLSFingerprintRouter) *TLSFingerprintRouterService {
+	values := make([]*model.TLSFingerprintRouter, 0, len(routers))
+	for _, router := range routers {
+		values = append(values, router.TLSFingerprintRouter)
+	}
+	service := NewTLSFingerprintRouterService(&tlsRouterTestStore{values: values}, nil)
+	service.Start()
+	return service
+}
+
+func newTLSFingerprintRouterTestService(routers ...*model.TLSFingerprintRouter) *TLSFingerprintRouterService {
+	service := NewTLSFingerprintRouterService(&tlsRouterTestStore{values: routers}, nil)
+	service.Start()
+	return service
 }

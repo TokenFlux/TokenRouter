@@ -13,3 +13,22 @@ func OpenAITokenCacheKey(account *Account) string {
 func ClaudeTokenCacheKey(account *Account) string {
 	return "claude:account:" + strconv.FormatInt(account.ID, 10)
 }
+
+// ManagedRefreshCacheKey 使管理、后台与请求入口共用原平台锁命名空间，S09 随具体平台改绑。
+func ManagedRefreshCacheKey(value *Account) string {
+	if value.IsQoderCosy() {
+		return QoderTokenCacheKey(value)
+	}
+	switch value.Platform {
+	case PlatformOpenAI:
+		return OpenAITokenCacheKey(value)
+	case PlatformGemini:
+		return GeminiTokenCacheKey(value)
+	case PlatformAntigravity:
+		return AntigravityTokenCacheKey(value)
+	case PlatformGrok:
+		return GrokTokenCacheKey(value)
+	default:
+		return ClaudeTokenCacheKey(value)
+	}
+}

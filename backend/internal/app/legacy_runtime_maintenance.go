@@ -4,6 +4,7 @@ package app
 
 import (
 	"context"
+	account "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 type maintenanceRuntimeReady struct{}
 
 func provideMaintenanceRuntime(
-	tokenRefresh *service.TokenRefreshService,
+	tokenRefresh *account.BackgroundRefreshService,
 	accountExpiry *service.AccountExpiryService,
 	proxyExpiry *service.ProxyExpiryService,
 	subscriptionExpiry *billing.SubscriptionExpiryService,
@@ -29,12 +30,12 @@ func provideMaintenanceRuntime(
 ) *maintenanceRuntimeReady {
 	manager.Register(lifecycle.Hook{Name: "TokenRefreshService", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if tokenRefresh != nil {
-			tokenRefresh.Start()
+			return tokenRefresh.StartContext(ctx)
 		}
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if tokenRefresh != nil {
-			tokenRefresh.Stop()
+			return tokenRefresh.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -45,7 +46,7 @@ func provideMaintenanceRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if accountExpiry != nil {
-			accountExpiry.Stop()
+			return accountExpiry.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -56,7 +57,7 @@ func provideMaintenanceRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if proxyExpiry != nil {
-			proxyExpiry.Stop()
+			return proxyExpiry.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -85,12 +86,12 @@ func provideMaintenanceRuntime(
 
 	manager.Register(lifecycle.Hook{Name: "ScheduledTestRunnerService", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if scheduledTestRunner != nil {
-			scheduledTestRunner.Start()
+			return scheduledTestRunner.StartContext(ctx)
 		}
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if scheduledTestRunner != nil {
-			scheduledTestRunner.Stop()
+			return scheduledTestRunner.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -101,7 +102,7 @@ func provideMaintenanceRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if groupAvailabilityProbeRunner != nil {
-			groupAvailabilityProbeRunner.Stop()
+			return groupAvailabilityProbeRunner.StopContext(ctx)
 		}
 		return nil
 	}})

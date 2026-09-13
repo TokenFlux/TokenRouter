@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/routing/...",
+    "./internal/account/...",
+    "./internal/service/...",
+    "./internal/handler/...",
+    "-run",
+    "RoutePlan|ProtocolRoute|ProtocolAttempt|Channel|ModelMapping|MappedModels|Requestable|Fallback"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 46.096,
+  "log": "logs/routing-model-plan-unit.log.gz"
+}

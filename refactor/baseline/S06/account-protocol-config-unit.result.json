@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account",
+    "./internal/service",
+    "./internal/handler/...",
+    "./internal/pkg/openai_compat",
+    "./internal/routing/...",
+    "-run",
+    "Protocol|CN|OpenAI|Admin|Account|Credential|Shadow|Header|Legacy|Deprecated"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 90.153,
+  "log": "logs/account-protocol-config-unit.log.gz"
+}

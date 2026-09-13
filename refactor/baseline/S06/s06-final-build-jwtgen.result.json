@@ -1,0 +1,14 @@
+{
+  "command": [
+    "go",
+    "build",
+    "-o",
+    "bin/jwtgen",
+    "./cmd/jwtgen"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.304,
+  "log": "logs/s06-final-build-jwtgen.log.gz"
+}

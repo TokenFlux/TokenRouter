@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,14 +16,13 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
-	"golang.org/x/sync/singleflight"
 )
 
 const (
 	grokQuotaUpstreamTimeout = 20 * time.Second
 	grokQuotaProbeInput      = "hi"
 	grokQuotaDefaultModel    = grokDefaultResponsesModel
-	grokBillingExtraKey      = "grok_billing_snapshot"
+	grokBillingExtraKey      = accountcore.GrokUsageBillingExtraKey
 	grokBillingMaxAttempts   = 2
 	grokBillingRetryDelay    = 100 * time.Millisecond
 )
@@ -57,7 +57,7 @@ type GrokQuotaService struct {
 	usageLogRepo   UsageLogRepository
 	settingService *SettingService
 	cfg            *config.Config
-	probeFlight    singleflight.Group
+	probeRuntime   accountcore.ProbeRuntime
 }
 
 func NewGrokQuotaService(
@@ -128,13 +128,7 @@ func (s *GrokQuotaService) QueryQuota(ctx context.Context, accountID int64) (*Gr
 }
 
 func grokBillingHasAuthoritativeQuota(billing *xai.BillingSummary) bool {
-	if billing == nil {
-		return false
-	}
-	return billing.UsagePercent != nil ||
-		billing.UsedPercent != nil ||
-		(billing.MonthlyLimitCents != nil && *billing.MonthlyLimitCents > 0) ||
-		strings.TrimSpace(billing.Plan) != ""
+	return accountcore.GrokBillingHasAuthoritativeQuota(billing)
 }
 
 func (s *GrokQuotaService) ProbeUsage(ctx context.Context, accountID int64) (*GrokQuotaProbeResult, error) {
@@ -347,25 +341,25 @@ func (s *GrokQuotaService) runProbeFlight(
 	if s == nil {
 		return nil, infraerrors.New(http.StatusInternalServerError, "GROK_QUOTA_NOT_CONFIGURED", "grok quota service is not configured")
 	}
-	resultCh := s.probeFlight.DoChan(key, func() (any, error) {
-		sharedCtx, cancel := context.WithTimeout(context.Background(), grokQuotaUpstreamTimeout+5*time.Second)
-		defer cancel()
-		return probe(sharedCtx)
+	value, err := s.probeRuntime.Run(ctx, key, grokQuotaUpstreamTimeout+5*time.Second, func(shared context.Context) (any, error) {
+		return probe(shared)
 	})
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case flightResult := <-resultCh:
-		if flightResult.Err != nil {
-			return nil, flightResult.Err
-		}
-		result, ok := flightResult.Val.(*GrokQuotaProbeResult)
-		if !ok || result == nil {
-			return nil, infraerrors.New(http.StatusInternalServerError, "GROK_QUOTA_PROBE_RESULT_INVALID", "invalid Grok quota probe result")
-		}
-		cloned := *result
-		return &cloned, nil
+	if err != nil {
+		return nil, err
 	}
+	result, ok := value.(*GrokQuotaProbeResult)
+	if !ok || result == nil {
+		return nil, infraerrors.New(http.StatusInternalServerError, "GROK_QUOTA_PROBE_RESULT_INVALID", "invalid Grok quota probe result")
+	}
+	return cloneGrokQuotaProbeResult(result), nil
+}
+
+// StopContext 等待共享探测与模型同步；供应商协议仍留此适配入口，S09 退出。
+func (s *GrokQuotaService) StopContext(ctx context.Context) error {
+	if s == nil {
+		return nil
+	}
+	return s.probeRuntime.StopContext(ctx)
 }
 
 func (s *GrokQuotaService) fetchBilling(

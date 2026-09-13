@@ -69,14 +69,7 @@ func ProvideCreativeManagedKeyRepository(client *ent.Client, sqlDB *sql.DB) serv
 
 // ProviderSet is the Wire provider set for all repositories
 var ProviderSet = wire.NewSet(
-	NewGroupRepository,
 	NewGroupAvailabilityProbeRepository,
-	NewAdminGroupRepository,
-	NewAccountRepository,
-	NewAdminAccountRepository,
-	NewScheduledTestPlanRepository,   // 定时测试计划仓储
-	NewScheduledTestResultRepository, // 定时测试结果仓储
-	NewProxyRepository,
 	NewRedeemCodeRepository,
 	NewPromoCodeRepository,
 	NewUsageLogRepository,
@@ -95,9 +88,6 @@ var ProviderSet = wire.NewSet(
 	NewUserSubscriptionRepository,
 	NewUserGroupRateRepository,
 	NewErrorPassthroughRepository,
-	NewTLSFingerprintProfileRepository,
-	NewTLSFingerprintRouterRepository,
-	NewChannelRepository,
 	NewContentModerationRepository,
 	NewAffiliateRepository,
 	NewUserPlatformQuotaRepository, // T14: user × platform quota
@@ -105,9 +95,6 @@ var ProviderSet = wire.NewSet(
 	// Cache implementations
 	NewGatewayCache,
 	NewBillingCache,
-	NewTempUnschedCache,
-	NewTimeoutCounterCache,
-	NewOpenAI403CounterCache,
 	NewInternal500CounterCache,
 	ProvideConcurrencyCache,
 	ProvideSessionLimitCache,
@@ -125,10 +112,7 @@ var ProviderSet = wire.NewSet(
 	NewLeaderLockCache,
 	ProvideSchedulerCache,
 	NewSchedulerOutboxRepository,
-	NewProxyLatencyCache,
 	NewErrorPassthroughCache,
-	NewTLSFingerprintProfileCache,
-	NewTLSFingerprintRouterCache,
 	NewContentModerationHashCache,
 
 	// Encryptors
@@ -140,7 +124,6 @@ var ProviderSet = wire.NewSet(
 	// HTTP service ports (DI Strategy A: return interface directly)
 	ProvidePricingRemoteClient,
 	ProvideGitHubReleaseClient,
-	NewProxyExitInfoProber,
 	NewClaudeUsageFetcher,
 	NewClaudeOAuthClient,
 	NewHTTPUpstream,

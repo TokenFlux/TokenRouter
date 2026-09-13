@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/service/...",
+    "./internal/handler/admin/...",
+    "-run",
+    "QuotaAutoPause|OpenAIQuota|StaleForPause|AccountHandler|Privacy|ShadowParent|RecoveryService"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 21.529,
+  "log": "logs/account-runtime-view-unit.log.gz"
+}

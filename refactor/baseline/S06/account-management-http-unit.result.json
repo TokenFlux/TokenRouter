@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account/...",
+    "./internal/handler/admin",
+    "-run",
+    "TestAccountHandler|TestManagedRefresh|TestManualRefresh|TestRefreshSingleAccount"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.42,
+  "log": "logs/account-management-http-unit.log.gz"
+}

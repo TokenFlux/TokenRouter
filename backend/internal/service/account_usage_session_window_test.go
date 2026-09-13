@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 	"sync"
 	"testing"
 	"time"
@@ -132,4 +133,12 @@ func TestSyncActiveToPassive_SkipsSessionWindowEndWhenResetMissing(t *testing.T)
 	if len(repo.sessionWindowEnds) != 0 {
 		t.Fatalf("expected no UpdateSessionWindowEnd calls when ResetsAt is nil, got %d", len(repo.sessionWindowEnds))
 	}
+}
+
+// 白盒窗口测试继续观察实际写入，不绕过新的生产条件端口。
+func (r *sessionWindowSyncRepo) UpdateUsageExtraIfUnchanged(ctx context.Context, v account.UsageObservationVersion, updates map[string]any) (bool, error) {
+	return true, r.UpdateExtra(ctx, v.ID, updates)
+}
+func (r *sessionWindowSyncRepo) UpdateUsageSessionWindowEndIfUnchanged(ctx context.Context, v account.UsageObservationVersion, _ *time.Time, end time.Time) (bool, error) {
+	return true, r.UpdateSessionWindowEnd(ctx, v.ID, end)
 }

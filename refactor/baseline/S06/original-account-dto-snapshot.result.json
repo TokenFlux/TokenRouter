@@ -1,0 +1,15 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/handler/dto",
+    "-run",
+    "^TestS06AccountDTOHasIndependentNestedValues$"
+  ],
+  "head": "d0ce5504c09c9b733a75da1fc35826ebf53f6af4",
+  "cwd": "original HEAD archive/backend",
+  "exit_code": 1,
+  "seconds": 2.307222843170166
+}

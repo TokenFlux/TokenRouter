@@ -33,11 +33,6 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	return r.PriceResolver.Resolve(ctx, billing.PricingInput{Model: input.Model, GroupID: input.GroupID, Group: projectPriceGroup(input.Group)})
 }
 
-// applyPricingModifiers 委托纯定价实现，旧查询与配置投影保留在适配层。
-func applyPricingModifiers(resolved *ResolvedPricing, config *ChannelModelPricing) {
-	purepricing.ApplyPricingModifiers(resolved, config)
-}
-
 // GetIntervalPricing 委托唯一 billing 查价规则。
 func (r *ModelPricingResolver) GetIntervalPricing(resolved *ResolvedPricing, totalContextTokens int) *ModelPricing {
 	return r.PriceResolver.GetIntervalPricing(resolved, totalContextTokens)

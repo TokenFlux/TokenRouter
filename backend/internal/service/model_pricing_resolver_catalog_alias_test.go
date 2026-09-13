@@ -31,7 +31,7 @@ func TestResolveCatalogAliasesPreserveChannelPricing(t *testing.T) {
 					Platform: tc.platform, Models: []string{tc.base}, BillingMode: BillingModeToken, InputPrice: &channelPrice,
 				}}}
 				channels := &ChannelService{}
-				channels.cache.Store(populateChannelCache([]Channel{channel}, map[int64]string{groupID: tc.platform}))
+				seedLegacyChannelFixture(channels, populateChannelCache([]Channel{channel}, map[int64]string{groupID: tc.platform}))
 				var catalog *PricingService
 				if hasCatalog {
 					catalog = newPricingServiceFixture(pricingServiceFixture{pricingData: map[string]*LiteLLMModelPricing{
@@ -53,7 +53,7 @@ func TestResolveCatalogAliasesPreserveChannelPricing(t *testing.T) {
 				channel.ModelPricing = append(channel.ModelPricing, ChannelModelPricing{
 					Platform: tc.platform, Models: []string{tc.alias}, BillingMode: BillingModeToken, InputPrice: &zero,
 				})
-				channels.cache.Store(populateChannelCache([]Channel{channel}, map[int64]string{groupID: tc.platform}))
+				seedLegacyChannelFixture(channels, populateChannelCache([]Channel{channel}, map[int64]string{groupID: tc.platform}))
 				resolved = resolver.Resolve(context.Background(), input)
 				require.True(t, resolved.HasEffectiveChannelPricing())
 				require.Zero(t, resolved.BasePricing.InputPricePerToken)
@@ -69,7 +69,7 @@ func TestResolveCatalogAliasesKeepChannelPlatformBoundary(t *testing.T) {
 	groupID := int64(999)
 	price := 9e-6
 	channels := &ChannelService{}
-	channels.cache.Store(populateChannelCache([]Channel{{
+	seedLegacyChannelFixture(channels, populateChannelCache([]Channel{{
 		ID: 999, Status: StatusActive, GroupIDs: []int64{groupID}, ModelPricing: []ChannelModelPricing{
 			{Platform: PlatformOpenAI, Models: []string{"gemini-3.8-flash"}, BillingMode: BillingModeToken, InputPrice: &price},
 			{Platform: PlatformGemini, Models: []string{"gemini-3.7-flash"}, BillingMode: BillingModeToken, InputPrice: &price},
@@ -107,7 +107,7 @@ func TestGroupAndChannelCatalogAliasPrecedence(t *testing.T) {
 					} else {
 						channel.ModelPricing = cards
 					}
-					channels.cache.Store(populateChannelCache([]Channel{channel}, map[int64]string{group.ID: tc.platform}))
+					seedLegacyChannelFixture(channels, populateChannelCache([]Channel{channel}, map[int64]string{group.ID: tc.platform}))
 					return resolver.Resolve(context.Background(), PricingInput{Model: tc.alias, GroupID: &group.ID, Group: group})
 				}
 				base := resolve([]ChannelModelPricing{card})

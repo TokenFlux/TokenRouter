@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/egress/...",
+    "./internal/repository/...",
+    "./internal/service/...",
+    "-run",
+    "HTTPUpstream|TLSProfile|TLSFingerprint|HeaderOverride|PublicHost|Redirect|RequestPolicy|EgressHeaders"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 25.351,
+  "log": "logs/egress-request-policy-unit-2.log.gz"
+}

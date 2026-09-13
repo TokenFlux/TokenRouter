@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "AccountRepoSuite|S06.*(Refresh|Account)|Ollama"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 13.634,
+  "log": "logs/account-refresh-current-integration.log.gz"
+}

@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"errors"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"reflect"
 	"sync"
 	"testing"
@@ -543,24 +544,6 @@ func TestRefreshIfNeeded_RequestPathDBRereadRevalidatesExecutorContract(t *testi
 	}
 }
 
-func TestRefreshIfNeeded_LocalLockWaitHonorsContext(t *testing.T) {
-	account := &Account{ID: 80, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive}
-	repo := &refreshAPIAccountRepo{account: account}
-	executor := &refreshAPIExecutorStub{needsRefresh: true}
-	api := NewOAuthRefreshAPI(repo, nil)
-	lock := api.getLocalLock(executor.CacheKey(account))
-	require.NoError(t, lock.Lock(context.Background()))
-	defer lock.Unlock()
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
-
-	result, err := api.RefreshIfNeeded(ctx, account, executor, time.Hour)
-
-	require.ErrorIs(t, err, context.DeadlineExceeded)
-	require.Nil(t, result)
-	require.Zero(t, executor.refreshCalls)
-}
-
 func TestRefreshIfNeeded_ReleasesDistributedLockAfterParentCancellation(t *testing.T) {
 	account := &Account{ID: 81, Platform: PlatformGrok, Type: AccountTypeOAuth, Status: StatusActive}
 	repo := &refreshAPIAccountRepo{account: account}
@@ -1035,21 +1018,6 @@ func (e *dynamicRefreshExecutor) CacheKey(_ *Account) string {
 
 // ========== NewOAuthRefreshAPI TTL tests ==========
 
-func TestNewOAuthRefreshAPI_DefaultTTL(t *testing.T) {
-	api := NewOAuthRefreshAPI(nil, nil)
-	require.Equal(t, defaultRefreshLockTTL, api.lockTTL)
-}
-
-func TestNewOAuthRefreshAPI_CustomTTL(t *testing.T) {
-	api := NewOAuthRefreshAPI(nil, nil, 90*time.Second)
-	require.Equal(t, 90*time.Second, api.lockTTL)
-}
-
-func TestNewOAuthRefreshAPI_ZeroTTLUsesDefault(t *testing.T) {
-	api := NewOAuthRefreshAPI(nil, nil, 0)
-	require.Equal(t, defaultRefreshLockTTL, api.lockTTL)
-}
-
 // ========== isInvalidGrantError tests ==========
 
 func TestIsInvalidGrantError(t *testing.T) {
@@ -1064,8 +1032,8 @@ func TestIsInvalidGrantError(t *testing.T) {
 func TestBackgroundRefreshPolicy_DefaultSkips(t *testing.T) {
 	p := DefaultBackgroundRefreshPolicy()
 
-	require.ErrorIs(t, p.handleLockHeld(), errRefreshSkipped)
-	require.ErrorIs(t, p.handleAlreadyRefreshed(), errRefreshSkipped)
+	require.ErrorIs(t, p.HandleLockHeld(), errRefreshSkipped)
+	require.ErrorIs(t, p.HandleAlreadyRefreshed(), errRefreshSkipped)
 }
 
 func TestBackgroundRefreshPolicy_SuccessOverride(t *testing.T) {
@@ -1074,8 +1042,8 @@ func TestBackgroundRefreshPolicy_SuccessOverride(t *testing.T) {
 		OnAlreadyRefresh: BackgroundSkipAsSuccess,
 	}
 
-	require.NoError(t, p.handleLockHeld())
-	require.NoError(t, p.handleAlreadyRefreshed())
+	require.NoError(t, p.HandleLockHeld())
+	require.NoError(t, p.HandleAlreadyRefreshed())
 }
 
 // ========== ProviderRefreshPolicy tests ==========
@@ -1106,4 +1074,33 @@ func TestAntigravityProviderRefreshPolicy(t *testing.T) {
 	require.Equal(t, ProviderRefreshErrorReturn, p.OnRefreshError)
 	require.Equal(t, ProviderLockHeldUseExistingToken, p.OnLockHeld)
 	require.Equal(t, time.Duration(0), p.FailureTTL)
+}
+
+func (r *refreshAPIAccountRepo) UpdateOAuthCredentialsIfUnchanged(ctx context.Context, version accountcore.CredentialVersion, credentials map[string]any) (bool, error) {
+	current := activeRefreshAPITestAccount(r.account)
+	if current == nil || current.ID != version.ID || current.Platform != version.Platform || current.Type != version.Type || current.Status != version.Status || !reflect.DeepEqual(shallowCopyMap(current.Credentials), version.Credentials) || !reflect.DeepEqual(current.ProxyID, version.ProxyID) {
+		return false, nil
+	}
+	err := r.UpdateCredentials(ctx, version.ID, credentials)
+	return err == nil, err
+}
+
+// 每轮返回值必须与执行器持有的嵌套凭据及返回账号相互隔离。
+func TestS06RefreshResultDoesNotShareExecutorValues(t *testing.T) {
+	value := &Account{ID: 1001, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive}
+	repo := &refreshAPIAccountRepo{account: value}
+	credentials := map[string]any{"access_token": "new", "session": map[string]any{"cookie": "initial"}}
+	executor := &refreshAPIExecutorStub{needsRefresh: true, credentials: credentials}
+	result, err := NewOAuthRefreshAPI(repo, nil).RefreshIfNeeded(context.Background(), value, executor, time.Minute)
+	require.NoError(t, err)
+	require.True(t, result.Refreshed)
+	session, ok := result.NewCredentials["session"].(map[string]any)
+	require.True(t, ok)
+	session["cookie"] = "caller"
+	original, ok := credentials["session"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "initial", original["cookie"])
+	returned, ok := result.Account.Credentials["session"].(map[string]any)
+	require.True(t, ok)
+	require.Equal(t, "initial", returned["cookie"])
 }

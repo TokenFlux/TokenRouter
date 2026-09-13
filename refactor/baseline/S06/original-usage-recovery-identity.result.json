@@ -1,0 +1,17 @@
+{
+  "head": "d0ce5504c09c9b733a75da1fc35826ebf53f6af4",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/service",
+    "-run",
+    "^TestUsageRecoveryCannotClearNewAdministratorState$"
+  ],
+  "cwd": "/tmp/tokenrouter-s06-original/backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "log": "logs/original-usage-recovery-identity.log.gz",
+  "finding": "旧成功用量恢复未比较身份，可清掉查询期间管理员的新禁用/错误/凭据/代理状态"
+}

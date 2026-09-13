@@ -3,9 +3,12 @@ package app
 
 import (
 	dbent "github.com/TokenFlux/TokenRouter/ent"
+	account "github.com/TokenFlux/TokenRouter/internal/account"
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 )
 
@@ -34,7 +37,7 @@ func provideLegacyAdmin(
 	channelCacheInvalidator service.ChannelCacheInvalidator,
 	billingRedeem *billing.RedeemAdmin,
 	billingBalance billing.BalanceAdjuster,
-	users *identity.UserAdmin, keys *apikey.Admin,
+	accounts *account.Admin, rates *billing.GroupRateAdmin, groups *routing.GroupAdmin, users *identity.UserAdmin, keys *apikey.Admin, proxies *egress.ProxyAdmin,
 ) service.AdminService {
-	return service.NewAdminService(userRepo, groupRepo, accountRepo, proxyRepo, apiKeyRepo, redeemCodeRepo, userGroupRateRepo, userRPMCache, billingCacheService, proxyProber, proxyLatencyCache, authCacheInvalidator, entClient, settingService, defaultSubAssigner, userSubRepo, privacyClientFactory, runtimeBlocker, httpUpstream, tlsFPProfileService, affiliateService, channelCacheInvalidator, billingRedeem, billingBalance, service.Administration{Users: users, Keys: keys})
+	return service.NewAdminService(userRepo, groupRepo, accountRepo, proxyRepo, apiKeyRepo, redeemCodeRepo, userGroupRateRepo, userRPMCache, billingCacheService, proxyProber, proxyLatencyCache, authCacheInvalidator, entClient, settingService, defaultSubAssigner, userSubRepo, privacyClientFactory, runtimeBlocker, httpUpstream, tlsFPProfileService, affiliateService, channelCacheInvalidator, billingRedeem, billingBalance, service.Administration{Accounts: accounts, Rates: rates, Groups: groups, Users: users, Keys: keys, Proxies: proxies})
 }

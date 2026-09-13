@@ -1,0 +1,22 @@
+//go:build unit
+
+package service
+
+import (
+ "context"
+ "testing"
+ "time"
+ "github.com/stretchr/testify/require"
+)
+
+type s06StoppedScheduledPlans struct{ScheduledTestPlanRepository}
+func(s06StoppedScheduledPlans)ListDue(context.Context,time.Time)([]*ScheduledTestPlan,error){return nil,nil}
+
+// 停止之后不能创建新的 cron 或重新领取维护计划。
+func TestS06ScheduledRunnerDoesNotStartAfterStop(t *testing.T){
+ runner:=&ScheduledTestRunnerService{planRepo:s06StoppedScheduledPlans{}}
+ runner.Stop()
+ runner.Start()
+ if runner.cron!=nil{defer func(){<-runner.cron.Stop().Done()}()}
+ require.Nil(t,runner.cron,"停止后的执行器不能重新开启周期任务")
+}

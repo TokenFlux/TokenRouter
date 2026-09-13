@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"io"
 	"net/http"
 	"net/url"
@@ -23,7 +24,7 @@ import (
 )
 
 const (
-	OpenAIAuthModeAgentIdentity          = "agentIdentity"
+	OpenAIAuthModeAgentIdentity          = acctcore.OpenAIAuthModeAgentIdentity
 	agentIdentityAuthAPIBaseURL          = "https://auth.openai.com/api/accounts"
 	agentIdentityTaskRegistrationTimeout = 30 * time.Second
 )
@@ -55,12 +56,7 @@ func (e *agentIdentityTaskRecoveredError) Error() string {
 	return "agent identity task recovered"
 }
 
-func (a *Account) IsOpenAIAgentIdentity() bool {
-	if a == nil || !a.IsOpenAIOAuth() {
-		return false
-	}
-	return strings.EqualFold(strings.TrimSpace(a.GetCredential(openAIAuthModeCredentialKey)), OpenAIAuthModeAgentIdentity)
-}
+func (a *Account) IsOpenAIAgentIdentity() bool { return protocolRecord(a).IsOpenAIAgentIdentity() }
 
 func agentIdentityPrivateKey(account *Account) (ed25519.PrivateKey, error) {
 	if account == nil {

@@ -217,6 +217,20 @@ func TestS02ProcessModes(t *testing.T) {
 			require.Less(t, strings.Index(logs, "stopped BillingCacheService"), strings.Index(logs, "stopped UserPlatformQuotaUsageFlusher"))
 			require.Less(t, strings.Index(logs, "stopped TimingWheelService"), strings.Index(logs, "stopped Redis"))
 			require.Less(t, strings.Index(logs, "stopped Redis"), strings.Index(logs, "stopped Ent"))
+			// S06 的周期维护只启动一次；生产者停止后才结束共享刷新、查询与技术依赖。
+			for _, name := range []string{"TokenRefreshService", "AccountExpiryService", "ProxyExpiryService", "ScheduledTestRunnerService", "GroupAvailabilityProbeRunnerService", "CNProviderBalanceCheckService", "OllamaCloudUsageService", "DeferredService", "TLSFingerprintProfileService", "TLSFingerprintRouterService"} {
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name), name)
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
+			}
+			for _, name := range []string{"AccountRefreshCoordinator", "AccountOAuthUsage", "AccountUpstreamUsage", "AccountImportProbes", "AccountPrivacy", "AccountTier", "AccountModelList", "GrokQuotaProbes", "TLSFingerprintCollectorService"} {
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
+			}
+			require.Less(t, strings.Index(logs, "stopped HTTPRequests"), strings.Index(logs, "stopped TokenRefreshService"))
+			require.Less(t, strings.Index(logs, "stopped TokenRefreshService"), strings.Index(logs, "stopped AccountRefreshCoordinator"))
+			require.Less(t, strings.Index(logs, "stopped DeferredService"), strings.Index(logs, "stopped TimingWheelService"))
+			require.NotContains(t, logs, "[Lifecycle] started TLSFingerprintCollectorService")
 			require.Eventually(t, func() bool {
 				var n int
 				err := fixture.db.QueryRow(`SELECT count(*) FROM pg_stat_activity WHERE application_name=$1`, "s02-"+mode).Scan(&n)

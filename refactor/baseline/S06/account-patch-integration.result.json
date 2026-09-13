@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "AccountRepoSuite|S06|Account.*(Bulk|Extra|CN|Ollama|Quota)|Grok.*(CAS|Credential|RateLimit)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 11.19,
+  "log": "logs/account-patch-integration.log.gz"
+}

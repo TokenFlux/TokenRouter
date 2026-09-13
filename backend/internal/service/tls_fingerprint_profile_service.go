@@ -1,327 +1,73 @@
+// 本文件维护 service 的所属能力；兼容入口复用唯一实现。
 package service
 
 import (
-	"context"
-	"math/rand/v2"
-	"sync"
-	"time"
-
-	"github.com/TokenFlux/TokenRouter/internal/model"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/tlsfingerprint"
+	egress "github.com/TokenFlux/TokenRouter/internal/egress"
+	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
+	tlsfingerprint "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint"
+	logger "github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 )
 
-// TLSFingerprintProfileRepository 定义 TLS 指纹模板的数据访问接口
-type TLSFingerprintProfileRepository interface {
-	List(ctx context.Context) ([]*model.TLSFingerprintProfile, error)
-	GetByID(ctx context.Context, id int64) (*model.TLSFingerprintProfile, error)
-	Create(ctx context.Context, profile *model.TLSFingerprintProfile) (*model.TLSFingerprintProfile, error)
-	Update(ctx context.Context, profile *model.TLSFingerprintProfile) (*model.TLSFingerprintProfile, error)
-	Delete(ctx context.Context, id int64) error
-}
+type TLSFingerprintProfileRepository = egress.TLSFingerprintProfileRepository
+type TLSFingerprintProfileCache = egress.TLSFingerprintProfileCache
 
-// TLSFingerprintProfileCache 定义 TLS 指纹模板的缓存接口
-type TLSFingerprintProfileCache interface {
-	Get(ctx context.Context) ([]*model.TLSFingerprintProfile, bool)
-	Set(ctx context.Context, profiles []*model.TLSFingerprintProfile) error
-	Invalidate(ctx context.Context) error
-	NotifyUpdate(ctx context.Context) error
-	SubscribeUpdates(ctx context.Context, handler func())
-}
-
-// TLSFingerprintProfileService TLS 指纹模板管理服务
+// TLSFingerprintProfileService 只投影旧账号和传输类型；缓存唯一归 egress。
 type TLSFingerprintProfileService struct {
-	repo  TLSFingerprintProfileRepository
-	cache TLSFingerprintProfileCache
-
-	// 本地 ID→Profile 映射缓存，用于 DoWithTLS 热路径快速查找
-	localCache map[int64]*model.TLSFingerprintProfile
-	localMu    sync.RWMutex
-	startOnce  sync.Once
+	*egress.TLSFingerprintProfileService
 }
 
-// NewTLSFingerprintProfileService 创建 TLS 指纹模板服务
-func NewTLSFingerprintProfileService(
-	repo TLSFingerprintProfileRepository,
-	cache TLSFingerprintProfileCache,
-) *TLSFingerprintProfileService {
-	svc := &TLSFingerprintProfileService{
-		repo:       repo,
-		cache:      cache,
-		localCache: make(map[int64]*model.TLSFingerprintProfile),
-	}
-
-	return svc
+func NewTLSFingerprintProfileService(repo TLSFingerprintProfileRepository, cache TLSFingerprintProfileCache) *TLSFingerprintProfileService {
+	return WrapTLSFingerprintProfileService(egress.NewTLSFingerprintProfileService(repo, cache, egress.Diagnostics{Logf: logger.LegacyPrintf}))
 }
-
-// Stop 停止缓存订阅，确保 Redis 关闭前订阅协程已经退出。
-func (s *TLSFingerprintProfileService) Stop() {
-	if s == nil || s.cache == nil {
-		return
-	}
-	if stopper, ok := s.cache.(interface{ StopSubscription() }); ok {
-		stopper.StopSubscription()
-	}
+func WrapTLSFingerprintProfileService(core *egress.TLSFingerprintProfileService) *TLSFingerprintProfileService {
+	return &TLSFingerprintProfileService{TLSFingerprintProfileService: core}
 }
-
-// --- CRUD ---
-
-// List 获取所有模板
-func (s *TLSFingerprintProfileService) List(ctx context.Context) ([]*model.TLSFingerprintProfile, error) {
-	return s.repo.List(ctx)
-}
-
-// GetByID 根据 ID 获取模板
-func (s *TLSFingerprintProfileService) GetByID(ctx context.Context, id int64) (*model.TLSFingerprintProfile, error) {
-	return s.repo.GetByID(ctx, id)
-}
-
-// Create 创建模板
-func (s *TLSFingerprintProfileService) Create(ctx context.Context, profile *model.TLSFingerprintProfile) (*model.TLSFingerprintProfile, error) {
-	if err := profile.Validate(); err != nil {
-		return nil, err
-	}
-
-	created, err := s.repo.Create(ctx, profile)
-	if err != nil {
-		return nil, err
-	}
-
-	refreshCtx, cancel := s.newCacheRefreshContext()
-	defer cancel()
-	s.invalidateAndNotify(refreshCtx)
-
-	return created, nil
-}
-
-// Update 更新模板
-func (s *TLSFingerprintProfileService) Update(ctx context.Context, profile *model.TLSFingerprintProfile) (*model.TLSFingerprintProfile, error) {
-	if err := profile.Validate(); err != nil {
-		return nil, err
-	}
-
-	updated, err := s.repo.Update(ctx, profile)
-	if err != nil {
-		return nil, err
-	}
-
-	refreshCtx, cancel := s.newCacheRefreshContext()
-	defer cancel()
-	s.invalidateAndNotify(refreshCtx)
-
-	return updated, nil
-}
-
-// Delete 删除模板
-func (s *TLSFingerprintProfileService) Delete(ctx context.Context, id int64) error {
-	if err := s.repo.Delete(ctx, id); err != nil {
-		return err
-	}
-
-	refreshCtx, cancel := s.newCacheRefreshContext()
-	defer cancel()
-	s.invalidateAndNotify(refreshCtx)
-
-	return nil
-}
-
-// --- 热路径：运行时 Profile 查找 ---
-
-// GetProfileByID 根据 ID 从本地缓存获取 Profile（用于 DoWithTLS 热路径）
-// 返回 nil 表示未找到，调用方应 fallback 到内置默认 Profile
 func (s *TLSFingerprintProfileService) GetProfileByID(id int64) *tlsfingerprint.Profile {
-	s.localMu.RLock()
-	p, ok := s.localCache[id]
-	s.localMu.RUnlock()
-
-	if ok && p != nil {
-		return p.ToTLSProfile()
-	}
-	return nil
+	return egressprovider.ToTLSProfile(s.coreTLS().GetProfileByID(id))
 }
-
-// getRandomProfile 从本地缓存中随机选择一个 Profile
-func (s *TLSFingerprintProfileService) getRandomProfile() *tlsfingerprint.Profile {
-	s.localMu.RLock()
-	defer s.localMu.RUnlock()
-
-	if len(s.localCache) == 0 {
+func (s *TLSFingerprintProfileService) ResolveTLSProfile(a *Account) *tlsfingerprint.Profile {
+	if a == nil {
 		return nil
 	}
-
-	// 收集所有 profile
-	profiles := make([]*model.TLSFingerprintProfile, 0, len(s.localCache))
-	for _, p := range s.localCache {
-		if p != nil {
-			profiles = append(profiles, p)
-		}
-	}
-	if len(profiles) == 0 {
-		return nil
-	}
-
-	return profiles[rand.IntN(len(profiles))].ToTLSProfile()
+	return s.ResolveTLSProfileByID(a, a.GetTLSFingerprintProfileID())
 }
-
-// ResolveTLSProfile 根据 Account 的配置解析出运行时 TLS Profile
-//
-// 逻辑：
-//  1. 未启用 TLS 指纹 → 返回 nil（不伪装）
-//  2. 启用 + 绑定了 profile_id → 从缓存查找对应 profile
-//  3. 启用 + 未绑定或找不到 → 返回空 Profile（使用代码内置默认值）
-func (s *TLSFingerprintProfileService) ResolveTLSProfile(account *Account) *tlsfingerprint.Profile {
-	if account == nil || !account.IsTLSFingerprintEnabled() {
-		return nil
-	}
-	return s.ResolveTLSProfileByID(account, account.GetTLSFingerprintProfileID())
+func (s *TLSFingerprintProfileService) ResolveTLSProfileByID(a *Account, id int64) *tlsfingerprint.Profile {
+	return egressprovider.ToTLSProfile(s.coreTLS().ResolveTLSProfileByID(a != nil && a.IsTLSFingerprintEnabled(), id))
 }
-
-// ResolveTLSProfileByID 根据指定 profile ID 解析运行时 TLS Profile。
-// 调用方仍需传入账号，用于校验 TLS 指纹能力和启用开关。
-func (s *TLSFingerprintProfileService) ResolveTLSProfileByID(account *Account, id int64) *tlsfingerprint.Profile {
-	if account == nil || !account.IsTLSFingerprintEnabled() {
-		return nil
-	}
-	if id > 0 {
-		if p := s.GetProfileByID(id); p != nil {
-			return p
-		}
-	}
-	if id == -1 {
-		// 随机选择一个 profile
-		if p := s.getRandomProfile(); p != nil {
-			return p
-		}
-	}
-	// TLS 启用但无绑定 profile → 空 Profile → dialer 使用内置默认值
-	return &tlsfingerprint.Profile{Name: "Built-in Default (Node.js 24.x)"}
+func (s *TLSFingerprintProfileService) ResolveRoutableTLSProfileByID(a *Account, id int64) (*tlsfingerprint.Profile, bool) {
+	p, ok := s.coreTLS().ResolveRoutableTLSProfileByID(a != nil && a.IsTLSFingerprintEnabled(), id)
+	return egressprovider.ToTLSProfile(p), ok
 }
-
-// ResolveRoutableTLSProfileByID 解析 TLS 路由器规则指向的 Profile。
-// 与账号固定模板不同，正数 ID 不存在时返回 ok=false，让调用方回退账号固定模板。
-func (s *TLSFingerprintProfileService) ResolveRoutableTLSProfileByID(account *Account, id int64) (*tlsfingerprint.Profile, bool) {
-	if account == nil || !account.IsTLSFingerprintEnabled() {
-		return nil, false
-	}
-	if id > 0 {
-		if p := s.GetProfileByID(id); p != nil {
-			return p, true
-		}
-		return nil, false
-	}
-	if id == -1 {
-		if p := s.getRandomProfile(); p != nil {
-			return p, true
-		}
-		return nil, false
-	}
-	// 规则显式选择 0 时使用内置默认指纹，仍属于一次有效路由命中。
-	return &tlsfingerprint.Profile{Name: "Built-in Default (Node.js 24.x)"}, true
-}
-
-// ResolveTokenTLSProfileByID 解析 ChatGPT OAuth token 请求专用的 TLS 模板。
-// 该路径可能发生在账号创建前，因此不依赖账号上的 TLS 开关。
 func (s *TLSFingerprintProfileService) ResolveTokenTLSProfileByID(id int64) (*tlsfingerprint.Profile, bool) {
+	p, ok := s.coreTLS().ResolveTokenTLSProfileByID(id)
+	return egressprovider.ToTLSProfile(p), ok
+}
+
+// coreTLS 保留旧入口在关闭指纹或 nil token resolver 时的安全短路。
+func (s *TLSFingerprintProfileService) coreTLS() *egress.TLSFingerprintProfileService {
 	if s == nil {
-		return nil, false
+		return nil
 	}
-	if id > 0 {
-		if p := s.GetProfileByID(id); p != nil {
-			return p, true
-		}
-		return nil, false
-	}
-	if id == -1 {
-		if p := s.getRandomProfile(); p != nil {
-			return p, true
-		}
-		return nil, false
-	}
-	// 0 表示使用内置默认指纹模板。
-	return &tlsfingerprint.Profile{Name: "Built-in Default (Node.js 24.x)"}, true
+	return s.TLSFingerprintProfileService
 }
 
-// --- 缓存管理 ---
-
-func (s *TLSFingerprintProfileService) refreshLocalCache(ctx context.Context) error {
-	if s.cache != nil {
-		if profiles, ok := s.cache.Get(ctx); ok {
-			s.setLocalCache(profiles)
-			return nil
-		}
+// accountTLSSelection 只提取资格与配置 ID，策略选择由 egress 拥有。
+func accountTLSSelection(value *Account, routerMatch []TLSFingerprintRouterMatchResult) egress.TLSSelection {
+	selection := egress.TLSSelection{}
+	if value != nil {
+		selection.Enabled = value.IsTLSFingerprintEnabled()
+		selection.DirectProfileID = value.GetTLSFingerprintProfileID()
 	}
-	return s.reloadFromDB(ctx)
+	if len(routerMatch) > 0 {
+		selection.RouterMatched = routerMatch[0].Matched
+		selection.RouterID = routerMatch[0].RouterID
+		selection.RouterProfileID = routerMatch[0].TLSFingerprintProfileID
+	}
+	return selection
 }
 
-func (s *TLSFingerprintProfileService) reloadFromDB(ctx context.Context) error {
-	profiles, err := s.repo.List(ctx)
-	if err != nil {
-		return err
-	}
-
-	if s.cache != nil {
-		if err := s.cache.Set(ctx, profiles); err != nil {
-			logger.LegacyPrintf("service.tls_fp_profile", "[TLSFPProfileService] Failed to set cache: %v", err)
-		}
-	}
-
-	s.setLocalCache(profiles)
-	return nil
-}
-
-func (s *TLSFingerprintProfileService) setLocalCache(profiles []*model.TLSFingerprintProfile) {
-	m := make(map[int64]*model.TLSFingerprintProfile, len(profiles))
-	for _, p := range profiles {
-		m[p.ID] = p
-	}
-
-	s.localMu.Lock()
-	s.localCache = m
-	s.localMu.Unlock()
-}
-
-func (s *TLSFingerprintProfileService) newCacheRefreshContext() (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), 3*time.Second)
-}
-
-func (s *TLSFingerprintProfileService) invalidateAndNotify(ctx context.Context) {
-	if s.cache != nil {
-		if err := s.cache.Invalidate(ctx); err != nil {
-			logger.LegacyPrintf("service.tls_fp_profile", "[TLSFPProfileService] Failed to invalidate cache: %v", err)
-		}
-	}
-
-	if err := s.reloadFromDB(ctx); err != nil {
-		logger.LegacyPrintf("service.tls_fp_profile", "[TLSFPProfileService] Failed to refresh local cache: %v", err)
-		s.localMu.Lock()
-		s.localCache = make(map[int64]*model.TLSFingerprintProfile)
-		s.localMu.Unlock()
-	}
-
-	if s.cache != nil {
-		if err := s.cache.NotifyUpdate(ctx); err != nil {
-			logger.LegacyPrintf("service.tls_fp_profile", "[TLSFPProfileService] Failed to notify cache update: %v", err)
-		}
-	}
-}
-
-// Start 在预热与装配完成后安装缓存订阅。
-func (s *TLSFingerprintProfileService) Start() {
-	s.startOnce.Do(func() {
-		ctx := context.Background()
-		if err := s.reloadFromDB(ctx); err != nil {
-			logger.LegacyPrintf("service.tls_fp_profile", "[TLSFPProfileService] Failed to load profiles from DB on startup: %v", err)
-			if fallbackErr := s.refreshLocalCache(ctx); fallbackErr != nil {
-				logger.LegacyPrintf("service.tls_fp_profile", "[TLSFPProfileService] Failed to load profiles from cache fallback on startup: %v", fallbackErr)
-			}
-		}
-
-		if s.cache != nil {
-			s.cache.SubscribeUpdates(ctx, func() {
-				if err := s.refreshLocalCache(context.Background()); err != nil {
-					logger.LegacyPrintf("service.tls_fp_profile", "[TLSFPProfileService] Failed to refresh cache on notification: %v", err)
-				}
-			})
-		}
-	})
+// ResolveRequestTLS 只将请求策略转换为技术指纹，不保留另一份选择规则。
+func (s *TLSFingerprintProfileService) ResolveRequestTLS(value *Account, routerMatch []TLSFingerprintRouterMatchResult) *tlsfingerprint.Profile {
+	policy := s.coreTLS().ResolveRequestPolicy(accountTLSSelection(value, routerMatch))
+	return egressprovider.ToTLSProfile(policy.TLSProfile)
 }

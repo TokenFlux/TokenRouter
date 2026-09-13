@@ -49,3 +49,6 @@ func defaultSparkShadowModelMapping() map[string]any {
 	}
 	return mapping
 }
+
+// DefaultSparkShadowModels 为装配提供当前别名表投影，S09 改绑唯一平台目录。
+func DefaultSparkShadowModels() map[string]any { return defaultSparkShadowModelMapping() }

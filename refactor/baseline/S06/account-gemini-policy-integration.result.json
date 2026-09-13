@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "^TestS06GeminiQuotaPolicyLoadsSettingsAndKeepsSnapshot$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 13.097,
+  "log": "logs/account-gemini-policy-integration.log.gz"
+}

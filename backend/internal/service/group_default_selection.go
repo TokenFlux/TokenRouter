@@ -1,8 +1,9 @@
+// 本文件维护 service 的所属能力；兼容入口复用唯一实现。
 package service
 
 import (
-	"context"
-	"strings"
+	context "context"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 // findPlatformDefaultGroup 查找平台默认分组。
@@ -20,49 +21,15 @@ func findPlatformDefaultGroup(ctx context.Context, groupRepo GroupRepository, pl
 		return nil, nil
 	}
 
+	candidates := make([]routing.DefaultGroupCandidate, len(groups))
 	for i := range groups {
-		if groups[i].IsDefault {
-			group := groups[i]
-			return &group, nil
-		}
+		candidates[i] = routing.DefaultGroupCandidate{Name: groups[i].Name, IsDefault: groups[i].IsDefault}
 	}
-
-	preferredNames := defaultGroupNamesByPlatform(platform)
-	for _, preferredName := range preferredNames {
-		for i := range groups {
-			if groups[i].Name == preferredName {
-				group := groups[i]
-				return &group, nil
-			}
-		}
+	index := routing.DefaultGroupIndex(platform, candidates)
+	if index < 0 {
+		return nil, nil
 	}
-
-	if platform == PlatformAntigravity {
-		for i := range groups {
-			if strings.HasPrefix(groups[i].Name, PlatformAntigravity+"-default") {
-				group := groups[i]
-				return &group, nil
-			}
-		}
-	}
-
-	return nil, nil
-}
-
-// defaultGroupNamesByPlatform 返回各平台默认分组的候选名称，按优先级排序。
-func defaultGroupNamesByPlatform(platform string) []string {
-	switch platform {
-	case PlatformOpenAI:
-		return []string{"openai-default"}
-	case PlatformGemini:
-		return []string{"gemini-default"}
-	case PlatformAntigravity:
-		return []string{"antigravity-default", "antigravity-default-1"}
-	case PlatformAnthropic:
-		return []string{"anthropic-default", "default"}
-	default:
-		return nil
-	}
+	return &groups[index], nil
 }
 
 // FindPlatformDefaultGroup 为过渡装配提供原选择结果，规则仍归分组用例，S06 改绑。

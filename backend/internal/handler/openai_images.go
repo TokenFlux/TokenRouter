@@ -75,7 +75,10 @@ func (h *OpenAIGatewayHandler) Images(c *gin.Context) {
 	}
 	requestModel := parsed.Model
 	// Images 端点必须先得到渠道模型 C，再校验模型族和账号所需能力。
-	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, requestModel)
+	// 当前分组和渠道结果进入独立计划，不改变原解析位置。
+	channelMappingRoutePlan := h.gatewayService.PlanRoute(c.Request.Context(), service.APIKeyRouteGroup(apiKey), apiKey.GroupID, requestModel)
+	channelMapping := service.ChannelMappingFromRoutePlan(channelMappingRoutePlan)
+	c.Request = c.Request.WithContext(service.WithRoutePlan(c.Request.Context(), channelMappingRoutePlan))
 	routingModel := openAIChannelMappedModel(requestModel, channelMapping)
 	if err := parsed.ValidateRoutingModel(routingModel); err != nil {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())

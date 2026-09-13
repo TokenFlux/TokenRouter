@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/routing",
+    "./internal/account",
+    "./internal/service",
+    "./internal/handler/admin",
+    "-run",
+    "Test.*(Requestable|Marketplace|Model|Account|Qoder)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 58.923,
+  "log": "logs/routing-requestable-unit.log.gz"
+}

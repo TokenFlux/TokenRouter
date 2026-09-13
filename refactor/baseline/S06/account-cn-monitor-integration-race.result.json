@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "^TestS06CNMonitorDecisionCAS$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 45.915,
+  "log": "logs/account-cn-monitor-integration-race.log.gz"
+}

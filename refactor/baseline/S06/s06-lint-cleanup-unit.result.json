@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account",
+    "./internal/routing",
+    "./internal/service",
+    "./internal/app",
+    "-run",
+    "SchedulingThreshold|Channel|Group|ModelDefaultPricing|S06|GrokFreeQuota|ErrorPolicy"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 15.403,
+  "log": "logs/s06-lint-cleanup-unit.log.gz"
+}

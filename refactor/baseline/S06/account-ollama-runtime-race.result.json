@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "./internal/account",
+    "./internal/egress",
+    "./internal/service",
+    "-run",
+    "Test.*Ollama"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 19.999,
+  "log": "logs/account-ollama-runtime-race.log.gz"
+}

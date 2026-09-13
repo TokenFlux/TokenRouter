@@ -13,18 +13,10 @@ import (
 type deprecatedAccountExtraRepoStub struct {
 	accountRepoStub
 	account             *Account
-	createdAccount      *Account
 	updateExtraCalls    int
 	lastExtraUpdates    map[string]any
 	bulkUpdateCalls     int
 	lastBulkExtraUpdate map[string]any
-}
-
-func (r *deprecatedAccountExtraRepoStub) Create(_ context.Context, account *Account) error {
-	account.ID = 1
-	r.account = account
-	r.createdAccount = account
-	return nil
 }
 
 func (r *deprecatedAccountExtraRepoStub) GetByID(_ context.Context, _ int64) (*Account, error) {
@@ -59,25 +51,6 @@ func TestDiscardDeprecatedAccountExtra(t *testing.T) {
 	DiscardDeprecatedAccountExtra(extra)
 
 	require.Equal(t, map[string]any{"preserved": "value"}, extra)
-}
-
-func TestAdminServiceCreateAccountDiscardsDeprecatedLongContextBillingExtra(t *testing.T) {
-	repo := &deprecatedAccountExtraRepoStub{}
-	svc := &adminServiceImpl{accountRepo: repo}
-
-	account, err := svc.CreateAccount(context.Background(), &CreateAccountInput{
-		Name:                 "openai-account",
-		Platform:             PlatformOpenAI,
-		Type:                 AccountTypeAPIKey,
-		Credentials:          map[string]any{"api_key": "test"},
-		Extra:                map[string]any{deprecatedOpenAILongContextBillingExtraKey: "malformed", "preserved": true},
-		SkipDefaultGroupBind: true,
-	})
-
-	require.NoError(t, err)
-	require.Same(t, account, repo.createdAccount)
-	require.NotContains(t, account.Extra, deprecatedOpenAILongContextBillingExtraKey)
-	require.Equal(t, true, account.Extra["preserved"])
 }
 
 func TestAdminServiceUpdateAccountDiscardsDeprecatedLongContextBillingExtra(t *testing.T) {

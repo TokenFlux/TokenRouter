@@ -429,3 +429,8 @@ func TestOpenAIGatewayService_Forward_TransientProcessingErrorTriggersFailover(t
 	require.Contains(t, string(failoverErr.ResponseBody), "An error occurred while processing your request")
 	require.False(t, c.Writer.Written(), "service 层应返回 failover 错误给上层换号，而不是直接向客户端写响应")
 }
+
+// 新检测端口沿用同一替身结果，原断言保持不变。
+func (s *stubCodexRestrictionDetector) DetectClient(_ func() (string, string), a *Account, allowed []string, match TLSFingerprintRouterMatchResult) CodexClientRestrictionDetectionResult {
+	return s.Detect(nil, a, allowed, match)
+}

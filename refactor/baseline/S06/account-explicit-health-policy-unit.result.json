@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account",
+    "./internal/service",
+    "./internal/handler/admin",
+    "-run",
+    "ErrorPolicy|RateLimit|TempUnsched|StreamTimeout|Overload|UpstreamError|Usage|ManagedRecovery"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 35.623,
+  "log": "logs/account-explicit-health-policy-unit.log.gz"
+}

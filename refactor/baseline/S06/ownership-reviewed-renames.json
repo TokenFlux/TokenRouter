@@ -1,0 +1,1682 @@
+[
+  {
+    "source": "backend/internal/app/legacybridge/apikey.go",
+    "symbol": "KeyGroups",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/app/routing_consumers.go",
+      "symbol": "keyGroups",
+      "build": "",
+      "line": 12
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/app/legacybridge/apikey.go",
+    "symbol": "KeyGroups.FindDefault",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/app/routing_consumers.go",
+      "symbol": "keyGroups.FindDefault",
+      "build": "",
+      "line": 34
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/app/legacybridge/apikey.go",
+    "symbol": "KeyGroupFastPolicy",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/app/routing_consumers.go",
+      "symbol": "keyGroupFastPolicy",
+      "build": "",
+      "line": 38
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/app/legacybridge/billing.go",
+    "symbol": "BillingGroups",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/app/routing_consumers.go",
+      "symbol": "billingGroups",
+      "build": "",
+      "line": 60
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/app/legacybridge/identity_admin.go",
+    "symbol": "IdentityAdminGroups",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/app/routing_consumers.go",
+      "symbol": "identityAdminGroups",
+      "build": "",
+      "line": 42
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/app/legacybridge/identity_admin.go",
+    "symbol": "identityAdminGroup",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/app/routing_consumers.go",
+      "symbol": "identityAdminGroup",
+      "build": "",
+      "line": 53
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/app/legacybridge/pricing.go",
+    "symbol": "BillingChannelPrices",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/app/pricing.go",
+      "symbol": "provideBillingPriceResolver",
+      "build": "",
+      "line": 44
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/app/legacybridge/pricing.go",
+    "symbol": "BillingAccountStats",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/app/routing_account_stats.go",
+      "symbol": "billingChannelStats",
+      "build": "",
+      "line": 10
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/app/legacybridge/pricing.go",
+    "symbol": "BillingAccountStats.AccountStatsGroup",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/app/routing_account_stats.go",
+      "symbol": "billingChannelStats.AccountStatsGroup",
+      "build": "",
+      "line": 12
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/app/legacybridge/pricing.go",
+    "symbol": "BillingAccountStats.AccountStatsPlatform",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/app/routing_account_stats.go",
+      "symbol": "billingChannelStats.AccountStatsPlatform",
+      "build": "",
+      "line": 19
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_data.go",
+    "symbol": "buildProxyKey",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/proxy_transfer_values.go",
+      "symbol": "BuildTransferProxyKey",
+      "build": "",
+      "line": 31
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_data.go",
+    "symbol": "intPtr",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/archive.go",
+      "symbol": "archiveIntPointer",
+      "build": "",
+      "line": 389
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_data.go",
+    "symbol": "intValue",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/archive.go",
+      "symbol": "archiveIntValue",
+      "build": "",
+      "line": 390
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_data.go",
+    "symbol": "AccountHandler.listAllProxies",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/archive.go",
+      "symbol": "Archive.resolveExportProxies",
+      "build": "",
+      "line": 338
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_data.go",
+    "symbol": "applyOpenAIOAuthImportDefaults",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/archive_rules.go",
+      "symbol": "ApplyArchiveDefaults",
+      "build": "",
+      "line": 11
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_data.go",
+    "symbol": "mergeMissingImportMap",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/archive_rules.go",
+      "symbol": "mergeArchiveDefaults",
+      "build": "",
+      "line": 44
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_data.go",
+    "symbol": "validateDataHeader",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/transfer/archive.go",
+      "symbol": "ValidateHeader",
+      "build": "",
+      "line": 96
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_data.go",
+    "symbol": "validateDataProxy",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/proxy_transfer_values.go",
+      "symbol": "ValidateTransferProxy",
+      "build": "",
+      "line": 34
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_data.go",
+    "symbol": "validateDataAccount",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/archive_rules.go",
+      "symbol": "ValidateArchiveAccount",
+      "build": "",
+      "line": 58
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_data.go",
+    "symbol": "defaultProxyName",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/proxy_transfer_values.go",
+      "symbol": "DefaultTransferProxyName",
+      "build": "",
+      "line": 57
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_data.go",
+    "symbol": "enrichCredentialsFromIDToken",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/archive.go",
+      "symbol": "Archive.enrichIdentity",
+      "build": "",
+      "line": 365
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_data.go",
+    "symbol": "normalizeProxyStatus",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/proxy_transfer_values.go",
+      "symbol": "NormalizeTransferProxyStatus",
+      "build": "",
+      "line": 63
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_handler.go",
+    "symbol": "AccountHandler.accountResponseFromService",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/httpapi/runtime_presenter.go",
+      "symbol": "RuntimePresenter.Present",
+      "build": "",
+      "line": 24
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_handler.go",
+    "symbol": "AccountHandler.buildAccountResponseWithRuntime",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/httpapi/runtime_presenter.go",
+      "symbol": "RuntimePresenter.Project",
+      "build": "",
+      "line": 80
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/account_handler.go",
+    "symbol": "toServiceBulkUpdateAccountFilters",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/httpapi/management_bulk.go",
+      "symbol": "ToBulkUpdateAccountFilters",
+      "build": "",
+      "line": 118
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/grok_import_probe.go",
+    "symbol": "grokImportProbeConcurrency",
+    "kind": "const",
+    "target": {
+      "file": "backend/internal/account/import_probes.go",
+      "symbol": "NewGrokImportProbeScheduler",
+      "build": "",
+      "line": 50
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/grok_import_probe.go",
+    "symbol": "defaultGrokImportProbeScheduler",
+    "kind": "var",
+    "target": {
+      "file": "backend/internal/account/import_probes.go",
+      "symbol": "NewGrokImportProbeScheduler",
+      "build": "",
+      "line": 50
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/grok_import_probe.go",
+    "symbol": "ProvideAccountHandler",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/app/account_management.go",
+      "symbol": "provideAccountManagement",
+      "build": "",
+      "line": 14
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/idempotency_helper.go",
+    "symbol": "executeAdminIdempotent",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/idempotency/httpapi/admin.go",
+      "symbol": "ExecuteAdminIdempotent",
+      "build": "",
+      "line": 22
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/admin/idempotency_helper.go",
+    "symbol": "adminActorScope",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/idempotency/httpapi/admin.go",
+      "symbol": "AdminActorScope",
+      "build": "",
+      "line": 50
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/dto/model_marketplace.go",
+    "symbol": "modelMarketplaceAvailabilityFromService",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/routing/httpapi/dto/marketplace.go",
+      "symbol": "modelMarketplaceAvailabilityFromRouting",
+      "build": "",
+      "line": 144
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/dto/model_marketplace.go",
+    "symbol": "modelMarketplaceCapacityFromService",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/routing/httpapi/dto/marketplace.go",
+      "symbol": "modelMarketplaceCapacityFromRouting",
+      "build": "",
+      "line": 170
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/handler/dto/model_marketplace.go",
+    "symbol": "modelMarketplacePricingFromService",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/routing/httpapi/dto/marketplace.go",
+      "symbol": "modelMarketplacePricingFromRouting",
+      "build": "",
+      "line": 185
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/account_repo.go",
+    "symbol": "createAccountRecord",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/postgres/account_data.go",
+      "symbol": "CreateRecord",
+      "build": "",
+      "line": 27
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/account_repo.go",
+    "symbol": "accountRepository.syncSchedulerAccountSnapshot",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/postgres/account_store.go",
+      "symbol": "AccountStore.afterChange",
+      "build": "",
+      "line": 72
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/account_repo.go",
+    "symbol": "accountRepository.syncSchedulerAccountSnapshotDetached",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/postgres/snapshot_propagation.go",
+      "symbol": "AccountStore.afterChangeDetached",
+      "build": "",
+      "line": 9
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/account_repo.go",
+    "symbol": "accountRepository.deleteSchedulerAccountSnapshot",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/postgres/events.go",
+      "symbol": "AccountStore.dropSnapshot",
+      "build": "",
+      "line": 46
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/account_repo.go",
+    "symbol": "accountRepository.syncSchedulerAccountSnapshots",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/postgres/events.go",
+      "symbol": "AccountStore.afterChanges",
+      "build": "",
+      "line": 41
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/account_repo.go",
+    "symbol": "copyJSONMap",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/clone.go",
+      "symbol": "CloneValues",
+      "build": "",
+      "line": 12
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/account_repo.go",
+    "symbol": "joinClauses",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/postgres/account_patches.go",
+      "symbol": "AccountStore.BulkUpdate",
+      "build": "",
+      "line": 177
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/http_upstream.go",
+    "symbol": "httpUpstreamService.resolveProtocolMode",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/http2_policy.go",
+      "symbol": "TransportPolicy.Plan",
+      "build": "",
+      "line": 175
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/http_upstream.go",
+    "symbol": "httpUpstreamService.resolveTLSFingerprintProtocolMode",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/http2_policy.go",
+      "symbol": "TransportPolicy.Plan",
+      "build": "",
+      "line": 175
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/http_upstream.go",
+    "symbol": "httpUpstreamService.getOrCreateOpenAIHTTP2FallbackState",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/http2_policy.go",
+      "symbol": "TransportPolicy.ObserveFailure",
+      "build": "",
+      "line": 71
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/http_upstream.go",
+    "symbol": "isHTTPProxyKey",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/http2_policy.go",
+      "symbol": "httpProxyKey",
+      "build": "",
+      "line": 93
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/pagination.go",
+    "symbol": "paginateSlice",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/pkg/pagination/slice.go",
+      "symbol": "Slice",
+      "build": "",
+      "line": 4
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/proxy_repo.go",
+    "symbol": "proxyConnectionIdentityFromService",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/postgres/proxy_store.go",
+      "symbol": "ProxyConnectionIdentityFromProxy",
+      "build": "",
+      "line": 135
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/proxy_repo.go",
+    "symbol": "invalidateProxyOllamaSnapshots",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/postgres/proxy_changes.go",
+      "symbol": "ProxyChanges.InvalidateSnapshots",
+      "build": "",
+      "line": 14
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/proxy_repo.go",
+    "symbol": "proxyEntityToService",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/postgres/proxy_store.go",
+      "symbol": "ProxyEntity",
+      "build": "",
+      "line": 538
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/scheduled_test_repo.go",
+    "symbol": "scannable",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/account/postgres/scheduled_plans.go",
+      "symbol": "scheduledScannable",
+      "build": "",
+      "line": 152
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/scheduled_test_repo.go",
+    "symbol": "scanPlan",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/postgres/scheduled_plans.go",
+      "symbol": "scanScheduledPlan",
+      "build": "",
+      "line": 156
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/repository/scheduled_test_repo.go",
+    "symbol": "scanPlans",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/postgres/scheduled_plans.go",
+      "symbol": "scanScheduledPlans",
+      "build": "",
+      "line": 167
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account.go",
+    "symbol": "mapPtr",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/model_mapping.go",
+      "symbol": "ResolveModelMapping",
+      "build": "",
+      "line": 15
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account.go",
+    "symbol": "modelMappingSignature",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/model_mapping.go",
+      "symbol": "ResolveModelMapping",
+      "build": "",
+      "line": 15
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account.go",
+    "symbol": "isModelInFinalWhitelist",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/model_policy.go",
+      "symbol": "ModelInFinalWhitelist",
+      "build": "",
+      "line": 127
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_scheduling_threshold_eval.go",
+    "symbol": "cloneTimePtr",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/scheduling_threshold_eval.go",
+      "symbol": "CloneThresholdTime",
+      "build": "",
+      "line": 528
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_service.go",
+    "symbol": "groupExistenceBatchChecker",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/routing/group_existence.go",
+      "symbol": "GroupExistenceBatchReader",
+      "build": "",
+      "line": 13
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.prepareOpenAIAutomaticProbe",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.prepareOpenAIAutomaticProbeRun",
+      "build": "",
+      "line": 189
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "openAIAutomaticProbeDecisionFromContext",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "openAIAutomaticProbeDecisionFromRun",
+      "build": "",
+      "line": 233
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.applyOpenAIAccountTestRouting",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.applyOpenAIAccountTestRoutingRun",
+      "build": "",
+      "line": 242
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.resolveOpenAIAccountTestTLSProfile",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.resolveOpenAIAccountTestTLSProfileRun",
+      "build": "",
+      "line": 260
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.testCNProviderAccountConnection",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.testCNProviderAccountConnectionRun",
+      "build": "",
+      "line": 357
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.testCNProviderChatCompletionsConnection",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.testCNProviderChatCompletionsConnectionRun",
+      "build": "",
+      "line": 474
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.testClaudeAccountConnection",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.testClaudeAccountConnectionRun",
+      "build": "",
+      "line": 488
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.testClaudeVertexServiceAccountConnection",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.testClaudeVertexServiceAccountConnectionRun",
+      "build": "",
+      "line": 608
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.testGrokImageGeneration",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.testGrokImageGenerationRun",
+      "build": "",
+      "line": 1118
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.testOpenAIChatCompletionsConnection",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.testOpenAIChatCompletionsConnectionRun",
+      "build": "",
+      "line": 1216
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.testOpenAINativeCompactionV2Connection",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.testOpenAINativeCompactionV2ConnectionRun",
+      "build": "",
+      "line": 1275
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.testOpenAILegacyCompactConnection",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.testOpenAILegacyCompactConnectionRun",
+      "build": "",
+      "line": 1428
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.testGeminiAccountConnection",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.testGeminiAccountConnectionRun",
+      "build": "",
+      "line": 1607
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.routeAntigravityTest",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.routeAntigravityTestRun",
+      "build": "",
+      "line": 1676
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.testQoderAccountConnection",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.testQoderAccountConnectionRun",
+      "build": "",
+      "line": 1692
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.testAntigravityAccountConnection",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.testAntigravityAccountConnectionRun",
+      "build": "",
+      "line": 1846
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.processClaudeStream",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.processClaudeStreamRun",
+      "build": "",
+      "line": 2201
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.processQoderStream",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.processQoderStreamRun",
+      "build": "",
+      "line": 2255
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.processOpenAIChatCompletionsStream",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.processOpenAIChatCompletionsStreamRun",
+      "build": "",
+      "line": 2290
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.sendEvent",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.sendTestEvent",
+      "build": "",
+      "line": 2641
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "AccountTestService.sendErrorAndEnd",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service.go",
+      "symbol": "AccountTestService.sendTestErrorAndEnd",
+      "build": "",
+      "line": 2654
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service.go",
+    "symbol": "parseTestSSEOutput",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_run.go",
+      "symbol": "accountTestRun.result",
+      "build": "",
+      "line": 70
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service_cn_adaptive.go",
+    "symbol": "AccountTestService.testCNProviderAdaptiveConnection",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service_cn_adaptive.go",
+      "symbol": "AccountTestService.testCNProviderAdaptiveConnectionRun",
+      "build": "",
+      "line": 21
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service_cn_adaptive.go",
+    "symbol": "AccountTestService.testCNProviderAdaptiveAnthropicConnection",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service_cn_adaptive.go",
+      "symbol": "AccountTestService.testCNProviderAdaptiveAnthropicConnectionRun",
+      "build": "",
+      "line": 66
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service_cn_adaptive.go",
+    "symbol": "AccountTestService.processCNProviderAdaptiveAnthropicStream",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service_cn_adaptive.go",
+      "symbol": "AccountTestService.processCNProviderAdaptiveAnthropicStreamRun",
+      "build": "",
+      "line": 116
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_test_service_cn_adaptive.go",
+    "symbol": "AccountTestService.testCNProviderAdaptiveResponsesConnection",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_test_service_cn_adaptive.go",
+      "symbol": "AccountTestService.testCNProviderAdaptiveResponsesConnectionRun",
+      "build": "",
+      "line": 161
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_usage_service.go",
+    "symbol": "apiUsageCache",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/account/oauth_usage_cache.go",
+      "symbol": "OAuthAPIUsageCache",
+      "build": "",
+      "line": 10
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_usage_service.go",
+    "symbol": "windowStatsCache",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/account/oauth_usage_cache.go",
+      "symbol": "OAuthWindowStatsCache",
+      "build": "",
+      "line": 16
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_usage_service.go",
+    "symbol": "buildQoderUsageInfo",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_usage_service.go",
+      "symbol": "buildQoderUsageInfoAt",
+      "build": "",
+      "line": 509
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_usage_service.go",
+    "symbol": "buildQoderDegradedUsage",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_usage_service.go",
+      "symbol": "buildQoderDegradedUsageAt",
+      "build": "",
+      "line": 653
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/account_usage_service.go",
+    "symbol": "buildAntigravityDegradedUsage",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/service/account_usage_service.go",
+      "symbol": "buildAntigravityDegradedUsageAt",
+      "build": "",
+      "line": 732
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/admin_service.go",
+    "symbol": "adminServiceImpl.attachAccountProxyForValidation",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/create.go",
+      "symbol": "Admin.attachProxyForValidation",
+      "build": "",
+      "line": 187
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/antigravity_token_refresher.go",
+    "symbol": "clearAntigravityForceTokenRefreshExtra",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/refresh_request.go",
+      "symbol": "ClearedAntigravityRefreshRequest",
+      "build": "",
+      "line": 16
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/billing_service.go",
+    "symbol": "BillingService.getDisplayPricingWithResolvedMultipliers",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/billing/calculator.go",
+      "symbol": "Calculator.DisplayPricingWithResolvedMultipliers",
+      "build": "",
+      "line": 267
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/billing_service.go",
+    "symbol": "resolvedHasFastModeDisplayPricing",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/billing/pricing/calculate.go",
+      "symbol": "ResolvedHasFastModeDisplayPricing",
+      "build": "",
+      "line": 907
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/billing_service.go",
+    "symbol": "unknownDisplayPricing",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/billing/pricing/calculate.go",
+      "symbol": "UnknownDisplayPricing",
+      "build": "",
+      "line": 953
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/cn_provider_balance_check_service.go",
+    "symbol": "CNProviderBalanceCheckService",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/account/cn_monitor.go",
+      "symbol": "CNUsageMonitor",
+      "build": "",
+      "line": 49
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/cn_provider_balance_check_service.go",
+    "symbol": "NewCNProviderBalanceCheckService",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/cn_monitor.go",
+      "symbol": "NewCNUsageMonitor",
+      "build": "",
+      "line": 62
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/cn_provider_balance_check_service.go",
+    "symbol": "CNProviderBalanceCheckService.SetLeaderLock",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/cn_monitor.go",
+      "symbol": "CNMonitorOptions",
+      "build": "",
+      "line": 36
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/crs_sync_service.go",
+    "symbol": "CRSSyncService.fetchCRSExport",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/provider/crs_client.go",
+      "symbol": "CRSClient.Fetch",
+      "build": "",
+      "line": 40
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/crs_sync_service.go",
+    "symbol": "CRSSyncService.mapOrCreateProxy",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/crs_proxy.go",
+      "symbol": "MatchOrCreateCRSProxy",
+      "build": "",
+      "line": 25
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/crs_sync_service.go",
+    "symbol": "defaultProxyName",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/crs_proxy.go",
+      "symbol": "CRSDefaultProxyName",
+      "build": "",
+      "line": 79
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/crs_sync_service.go",
+    "symbol": "defaultName",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/crs_sync.go",
+      "symbol": "CRSDefaultName",
+      "build": "",
+      "line": 1014
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/crs_sync_service.go",
+    "symbol": "clampPriority",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/crs_sync.go",
+      "symbol": "CRSClampPriority",
+      "build": "",
+      "line": 1021
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/crs_sync_service.go",
+    "symbol": "sanitizeCredentialsMap",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/crs_sync.go",
+      "symbol": "CRSSanitizeCredentialsMap",
+      "build": "",
+      "line": 1028
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/crs_sync_service.go",
+    "symbol": "normalizeBaseURL",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/provider/crs_client.go",
+      "symbol": "NormalizeCRSBaseURL",
+      "build": "",
+      "line": 79
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/crs_sync_service.go",
+    "symbol": "cleanBaseURL",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/crs_sync.go",
+      "symbol": "CRSCleanBaseURL",
+      "build": "",
+      "line": 1052
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/gateway_requestable_models.go",
+    "symbol": "accountHasUnrestrictedModelScope",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/model_policy.go",
+      "symbol": "Record.HasUnrestrictedModelScope",
+      "build": "",
+      "line": 153
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/grok_oauth_reconciliation.go",
+    "symbol": "TokenRefreshService.grokRegistration",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/background_refresh.go",
+      "symbol": "NewBackgroundRefreshService",
+      "build": "",
+      "line": 47
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/grok_observed_models.go",
+    "symbol": "grokObservedModelsFlight",
+    "kind": "var",
+    "target": {
+      "file": "backend/internal/account/probe_runtime.go",
+      "symbol": "ProbeRuntime.Schedule",
+      "build": "",
+      "line": 51
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/group_availability_probe_runner.go",
+    "symbol": "GroupAvailabilityProbeRunnerService.selectProbeAccount",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/app/legacybridge/routing_probe.go",
+      "symbol": "RoutingProbe.Select",
+      "build": "",
+      "line": 12
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/group_capacity_service.go",
+    "symbol": "groupCapacityActiveGroupIDLister",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/routing/group_capacity.go",
+      "symbol": "CapacityGroups",
+      "build": "",
+      "line": 298
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/group_capacity_service.go",
+    "symbol": "groupCapacityAccountLister",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/routing/group_capacity.go",
+      "symbol": "CapacityAccounts",
+      "build": "",
+      "line": 292
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/group_capacity_service.go",
+    "symbol": "NewGroupCapacityService",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/routing/group_capacity.go",
+      "symbol": "NewCapacityService",
+      "build": "",
+      "line": 320
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/group_capacity_service.go",
+    "symbol": "GroupCapacityService.listActiveGroupIDs",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/routing/group_capacity.go",
+      "symbol": "CapacityService.GetAllGroupCapacity",
+      "build": "",
+      "line": 14
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/group_capacity_service.go",
+    "symbol": "GroupCapacityService.filterQuotaAutoPausedAccounts",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/routing/group_capacity.go",
+      "symbol": "CapacityService.GetGroupCapacity",
+      "build": "",
+      "line": 213
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/model_pricing_resolver.go",
+    "symbol": "applyPricingModifiers",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/billing/pricing/resolve.go",
+      "symbol": "ApplyPricingModifiers",
+      "build": "",
+      "line": 50
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/model_rate_limit.go",
+    "symbol": "setAccountModelRateLimitSnapshot",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/model_health_snapshot.go",
+      "symbol": "SetModelRateLimitSnapshot",
+      "build": "",
+      "line": 32
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/oauth_refresh_api.go",
+    "symbol": "contextMutex",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/account/refresh.go",
+      "symbol": "RefreshLock",
+      "build": "",
+      "line": 47
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/oauth_refresh_api.go",
+    "symbol": "newContextMutex",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/refresh.go",
+      "symbol": "NewRefreshLock",
+      "build": "",
+      "line": 66
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/ollama_cloud_usage.go",
+    "symbol": "ProvideOllamaCloudUsageService",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/app/account_ollama.go",
+      "symbol": "provideOllamaUsage",
+      "build": "",
+      "line": 18
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/ollama_cloud_usage.go",
+    "symbol": "OllamaCloudUsageService.runLoop",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/ollama_usage_runtime.go",
+      "symbol": "OllamaUsageRuntime.StartContext",
+      "build": "",
+      "line": 30
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/openai_gateway_scheduling.go",
+    "symbol": "resolveOpenAIQuotaAutoPauseThresholds",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/quota_auto_pause.go",
+      "symbol": "ResolveQuotaAutoPauseThresholds",
+      "build": "",
+      "line": 165
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/ratelimit_service.go",
+    "symbol": "geminiUsageTotalsBatchProvider",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/account/gemini_precheck.go",
+      "symbol": "GeminiUsageTotalsBatchReader",
+      "build": "",
+      "line": 48
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/ratelimit_service.go",
+    "symbol": "RateLimitService.getOpenAI403CooldownSettings",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/forbidden_health.go",
+      "symbol": "HealthService.ForbiddenSettings",
+      "build": "",
+      "line": 88
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/scheduled_test_runner_service.go",
+    "symbol": "scheduledTestDefaultMaxWorkers",
+    "kind": "const",
+    "target": {
+      "file": "backend/internal/account/scheduled_runner.go",
+      "symbol": "NewScheduledTestRunnerService",
+      "build": "",
+      "line": 51
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/scheduled_test_service.go",
+    "symbol": "scheduledTestCronParser",
+    "kind": "var",
+    "target": {
+      "file": "backend/internal/account/provider/scheduled_plans.go",
+      "symbol": "scheduledTestParser",
+      "build": "",
+      "line": 12
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/scheduled_test_service.go",
+    "symbol": "computeNextRun",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/provider/scheduled_plans.go",
+      "symbol": "NextScheduledTestRun",
+      "build": "",
+      "line": 15
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/tls_fingerprint_collector_service.go",
+    "symbol": "tlsFingerprintCollectorSessionState",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/egress/collector_sessions.go",
+      "symbol": "captureSession",
+      "build": "",
+      "line": 19
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/tls_fingerprint_collector_service.go",
+    "symbol": "TLSFingerprintCollectorService.sessionStateLocked",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/collector_sessions.go",
+      "symbol": "CaptureSessions.state",
+      "build": "",
+      "line": 38
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/tls_fingerprint_collector_service.go",
+    "symbol": "TLSFingerprintCollectorService.pruneExpiredSessionsLocked",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/collector_sessions.go",
+      "symbol": "CaptureSessions.prune",
+      "build": "",
+      "line": 31
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/tls_fingerprint_collector_service.go",
+    "symbol": "TLSFingerprintCollectorService.sessionDTOFromStateLocked",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/collector_sessions.go",
+      "symbol": "CaptureSessions.List",
+      "build": "",
+      "line": 71
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/tls_fingerprint_collector_service.go",
+    "symbol": "TLSFingerprintCollectorService.captureURLLocked",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/egress/collector_sessions.go",
+      "symbol": "CaptureSessions.Create",
+      "build": "",
+      "line": 46
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/token_refresh_service.go",
+    "symbol": "TokenRefreshService.setCandidateAfterID",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/refresh_candidate_scan.go",
+      "symbol": "RefreshCandidateScan.SetPosition",
+      "build": "",
+      "line": 30
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/token_refresh_service.go",
+    "symbol": "tokenRefreshPageStats",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/account/refresh_candidate_scan.go",
+      "symbol": "RefreshPageStats",
+      "build": "",
+      "line": 32
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/token_refresh_service.go",
+    "symbol": "rateLimitedOAuthRefreshExecutor",
+    "kind": "type",
+    "target": {
+      "file": "backend/internal/account/refresh_attempts.go",
+      "symbol": "rateLimitedRefreshExecutor",
+      "build": "",
+      "line": 379
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/token_refresh_service.go",
+    "symbol": "TokenRefreshService.processCandidatePage",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/refresh_page_processor.go",
+      "symbol": "RefreshPageProcessor.ProcessPage",
+      "build": "",
+      "line": 27
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/token_refresh_service.go",
+    "symbol": "TokenRefreshService.candidatePageSize",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/refresh_tuning.go",
+      "symbol": "RefreshTuning.PageSize",
+      "build": "",
+      "line": 45
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/token_refresh_service.go",
+    "symbol": "TokenRefreshService.providerQPS",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/refresh_tuning.go",
+      "symbol": "RefreshTuning.QPS",
+      "build": "",
+      "line": 57
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/token_refresh_service.go",
+    "symbol": "TokenRefreshService.postRefreshStateSync",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/account/refresh_post_actions.go",
+      "symbol": "RefreshPostActions.Sync",
+      "build": "",
+      "line": 94
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/wire.go",
+    "symbol": "ProvideCNProviderBalanceCheckService",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/app/account_cn_monitor.go",
+      "symbol": "provideCNUsageMonitor",
+      "build": "",
+      "line": 17
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/wire.go",
+    "symbol": "ProvideScheduledTestService",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/app/account_scheduled.go",
+      "symbol": "provideScheduledTests",
+      "build": "",
+      "line": 12
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/wire.go",
+    "symbol": "ProvideScheduledTestRunnerService",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/app/account_scheduled.go",
+      "symbol": "provideScheduledTestRunner",
+      "build": "",
+      "line": 17
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  },
+  {
+    "source": "backend/internal/service/wire.go",
+    "symbol": "ProvideGroupAvailabilityProbeRunnerService",
+    "kind": "func",
+    "target": {
+      "file": "backend/internal/app/routing_probe.go",
+      "symbol": "provideGroupProbeRunner",
+      "build": "",
+      "line": 14
+    },
+    "disposition": "按职责迁入/合并到已核对的实际声明；供应商 Run 入口为事件执行 Adapter，保留 S09 归属。"
+  }
+]

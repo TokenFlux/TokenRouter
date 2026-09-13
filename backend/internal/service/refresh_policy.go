@@ -1,5 +1,7 @@
 package service
 
+import acctcore "github.com/TokenFlux/TokenRouter/internal/account"
+
 import "time"
 
 // ProviderRefreshErrorAction 定义 provider 在刷新失败时的处理动作。
@@ -69,39 +71,13 @@ func GrokProviderRefreshPolicy() ProviderRefreshPolicy {
 	}
 }
 
-// BackgroundSkipAction 定义后台刷新服务在“未实际刷新”场景的计数方式。
-type BackgroundSkipAction int
+type BackgroundSkipAction = acctcore.BackgroundSkipAction
 
-const (
-	// BackgroundSkipAsSkipped 计入 skipped（保持当前默认行为）。
-	BackgroundSkipAsSkipped BackgroundSkipAction = iota
-	// BackgroundSkipAsSuccess 计入 success（仅用于兼容旧统计口径时可选）。
-	BackgroundSkipAsSuccess
-)
+const BackgroundSkipAsSkipped = acctcore.BackgroundSkipAsSkipped
+const BackgroundSkipAsSuccess = acctcore.BackgroundSkipAsSuccess
 
-// BackgroundRefreshPolicy 描述后台刷新服务的调用侧策略。
-type BackgroundRefreshPolicy struct {
-	OnLockHeld       BackgroundSkipAction
-	OnAlreadyRefresh BackgroundSkipAction
-}
+type BackgroundRefreshPolicy = acctcore.BackgroundRefreshPolicy
 
 func DefaultBackgroundRefreshPolicy() BackgroundRefreshPolicy {
-	return BackgroundRefreshPolicy{
-		OnLockHeld:       BackgroundSkipAsSkipped,
-		OnAlreadyRefresh: BackgroundSkipAsSkipped,
-	}
-}
-
-func (p BackgroundRefreshPolicy) handleLockHeld() error {
-	if p.OnLockHeld == BackgroundSkipAsSuccess {
-		return nil
-	}
-	return errRefreshSkipped
-}
-
-func (p BackgroundRefreshPolicy) handleAlreadyRefreshed() error {
-	if p.OnAlreadyRefresh == BackgroundSkipAsSuccess {
-		return nil
-	}
-	return errRefreshSkipped
+	return acctcore.DefaultBackgroundRefreshPolicy()
 }

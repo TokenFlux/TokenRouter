@@ -134,19 +134,17 @@ type tripBeforeRateAdmissionGate struct {
 	state *tokenRefreshProviderState
 }
 
-func (g *tripBeforeRateAdmissionGate) acquire(ctx context.Context) (func(), error) {
-	release, err := g.state.acquire(ctx)
+func (g *tripBeforeRateAdmissionGate) Acquire(ctx context.Context) (func(), error) {
+	release, err := g.state.Acquire(ctx)
 	if err != nil {
 		return nil, err
 	}
-	g.state.mu.Lock()
-	g.state.tripped = true
-	g.state.mu.Unlock()
+	g.state.recordResult(&providerConfigurationRefreshError{Cause: errors.New("fixture provider unavailable")})
 	return release, nil
 }
 
-func (g *tripBeforeRateAdmissionGate) acquireRate(ctx context.Context) (func(), error) {
-	return g.state.acquireRate(ctx)
+func (g *tripBeforeRateAdmissionGate) AcquireRate(ctx context.Context) (func(), error) {
+	return g.state.AcquireRate(ctx)
 }
 
 type breakerTripAccountRepo struct {
@@ -165,7 +163,7 @@ func (r *breakerTripAccountRepo) SetGrokOAuthRefreshTempUnschedulableIfCredentia
 	return true, nil
 }
 
-func (g *rejectedRefreshAttemptGate) acquire(context.Context) (func(), error) {
+func (g *rejectedRefreshAttemptGate) Acquire(context.Context) (func(), error) {
 	return nil, g.err
 }
 
@@ -267,7 +265,7 @@ func (e *productionPathRateExecutor) startsSnapshot() []productionPathRefreshSta
 	return append([]productionPathRefreshStart(nil), e.starts...)
 }
 
-func (g *countingRefreshAttemptGate) acquire(ctx context.Context) (func(), error) {
+func (g *countingRefreshAttemptGate) Acquire(ctx context.Context) (func(), error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -442,18 +440,18 @@ func TestTokenRefreshRateGate_ReservesSpacedSlotsAndHonorsCancellation(t *testin
 	gate := newTokenRefreshRateGateWithInterval(interval)
 	base := time.Unix(1_700_000_000, 0)
 
-	require.Equal(t, base, gate.reserveSlot(base))
-	require.Equal(t, base.Add(interval), gate.reserveSlot(base))
-	require.Equal(t, base.Add(2*interval), gate.reserveSlot(base))
+	require.Equal(t, base, gate.ReserveSlot(base))
+	require.Equal(t, base.Add(interval), gate.ReserveSlot(base))
+	require.Equal(t, base.Add(2*interval), gate.ReserveSlot(base))
 	jumped := base.Add(time.Second)
-	require.Equal(t, jumped, gate.reserveSlot(jumped), "an idle gate should not retain stale delay")
+	require.Equal(t, jumped, gate.ReserveSlot(jumped), "an idle gate should not retain stale delay")
 
 	cancelGate := newTokenRefreshRateGateWithInterval(time.Hour)
-	require.NoError(t, cancelGate.wait(context.Background()), "the first slot is immediately available")
+	require.NoError(t, cancelGate.Wait(context.Background()), "the first slot is immediately available")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	started := time.Now()
-	require.ErrorIs(t, cancelGate.wait(ctx), context.Canceled)
+	require.ErrorIs(t, cancelGate.Wait(ctx), context.Canceled)
 	require.Less(t, time.Since(started), 100*time.Millisecond, "cancellation must not wait for the reserved slot")
 }
 
@@ -512,8 +510,8 @@ func TestTokenRefreshService_ProviderRateGateIsSharedAcrossRuns(t *testing.T) {
 	require.Same(t, first, second, "background cycles and reconciliation must share the process-local provider limiter")
 
 	base := time.Unix(1_700_000_000, 0)
-	require.Equal(t, base, first.reserveSlot(base))
-	require.Equal(t, base.Add(25*time.Millisecond), second.reserveSlot(base))
+	require.Equal(t, base, first.ReserveSlot(base))
+	require.Equal(t, base.Add(25*time.Millisecond), second.ReserveSlot(base))
 }
 
 func TestTokenRefreshService_ProviderConcurrencyGateIsSharedAcrossBackgroundAndConcurrentAdminReconciliation(t *testing.T) {
@@ -691,7 +689,7 @@ func TestTokenRefreshService_ProductionPathRatesOnlyActualRefreshAfterSameAccoun
 		errorsCh <- svc.refreshWithRetryWithRateGate(context.Background(), contendingSelection, executor, executor, time.Hour, state)
 	}()
 	require.Eventually(t, func() bool {
-		return len(state.poolGate.slots) == 2
+		return state.poolGate.InFlight() == 2
 	}, time.Second, time.Millisecond, "same-account contender must hold the second provider slot while waiting on the local refresh lock")
 
 	go func() {
@@ -775,7 +773,7 @@ func TestTokenRefreshService_AttemptTimeoutStaysInsideDistributedLockLease(t *te
 	}
 
 	require.Equal(t, 55*time.Second, svc.attemptTimeout())
-	require.Less(t, svc.attemptTimeout(), defaultRefreshLockTTL)
+	require.Less(t, svc.attemptTimeout(), time.Minute)
 }
 
 func TestTokenRefreshService_SharedProviderFailureContainsCycleWithoutAccountMutation(t *testing.T) {

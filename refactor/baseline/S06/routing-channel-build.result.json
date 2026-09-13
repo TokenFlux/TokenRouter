@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-run",
+    "^$",
+    "./internal/routing/...",
+    "./internal/service",
+    "./internal/repository"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 7.829,
+  "log": "logs/routing-channel-build.log.gz"
+}

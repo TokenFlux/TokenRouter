@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"strings"
 	"sync"
 	"time"
@@ -464,6 +465,15 @@ func (s *stubAdminService) RecoverDuplicateAccount(ctx context.Context, id int64
 }
 
 func (s *stubAdminService) UpdateAccount(ctx context.Context, id int64, input *service.UpdateAccountInput) (*service.Account, error) {
+	// 夹具模拟锁内身份条件；无条件管理请求继续保留原行为。
+	if input.ExpectedCredentials != nil {
+		for i := range s.accounts {
+			if s.accounts[i].ID == id && !accountcore.MatchesCredentialVersion(service.AccountRecordView(&s.accounts[i]), *input.ExpectedCredentials) {
+				return nil, accountcore.ErrRefreshAccountStateChanged
+			}
+		}
+	}
+
 	if s.updateAccountErr != nil {
 		return nil, s.updateAccountErr
 	}
@@ -471,7 +481,11 @@ func (s *stubAdminService) UpdateAccount(ctx context.Context, id int64, input *s
 	for i := range s.accounts {
 		if s.accounts[i].ID == id {
 			if input.Credentials != nil {
-				s.accounts[i].Credentials = input.Credentials
+				if input.PatchCredentials {
+					s.accounts[i].Credentials = service.MergeCredentials(s.accounts[i].Credentials, input.Credentials)
+				} else {
+					s.accounts[i].Credentials = input.Credentials
+				}
 			}
 			account := s.accounts[i]
 			return &account, nil

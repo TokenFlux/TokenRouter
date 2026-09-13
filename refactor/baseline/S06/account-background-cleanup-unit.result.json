@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account",
+    "./internal/service",
+    "./internal/handler/admin",
+    "-run",
+    "TestTokenRefresh|TestProvider|TestRefresh|TestPathA|TestBackgroundRefresh|TestGrokReconciliationLifecycle|TestGrokOAuthHandlerReconcile"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 8.068,
+  "log": "logs/account-background-cleanup-unit.log.gz"
+}

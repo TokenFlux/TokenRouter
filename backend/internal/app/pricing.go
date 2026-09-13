@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"log/slog"
 	"slices"
 
@@ -40,9 +41,9 @@ func provideBillingCalculator(cfg *config.Config, catalog *service.PricingServic
 	warnings := &provider.PricingWarnings{}
 	return service.WrapBillingCalculator(billing.NewCalculator(legacybridge.BillingCatalog{Service: catalog}, billing.CalculatorOptions{DefaultRateMultiplier: cfg.Default.RateMultiplier, ModelPolicy: legacybridge.BillingModelPolicy, Now: timezone.Now, LoadLocation: provider.LoadPricingLocation, FallbackWarning: warnings.Fallback}))
 }
-func provideBillingPriceResolver(channels *service.ChannelService, calculator *service.BillingService) *service.ModelPricingResolver {
-	core := billing.NewPriceResolver(legacybridge.BillingChannelPrices{Service: channels}, calculator.Calculator, legacybridge.BillingModelIdentity, func(model string, err error) {
+func provideBillingPriceResolver(coreChannels *routing.ChannelService, channels *service.ChannelService, calculator *service.BillingService) *service.ModelPricingResolver {
+	core := billing.NewPriceResolver(coreChannels, calculator.Calculator, legacybridge.BillingModelIdentity, func(model string, err error) {
 		slog.DebugContext(context.Background(), "failed to get model pricing from LiteLLM, using fallback", "model", model, "error", err)
-	}, legacybridge.BillingAccountStats{Service: channels})
+	}, billingChannelStats{Service: coreChannels})
 	return service.WrapPriceResolver(core, calculator, channels)
 }

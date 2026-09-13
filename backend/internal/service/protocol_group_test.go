@@ -13,7 +13,7 @@ import (
 
 func TestProtocolGroupPersistenceAndCacheIsolation(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 	created, err := svc.CreateGroup(context.Background(), &CreateGroupInput{Name: "protocol", Platform: PlatformOpenAI, RateMultiplier: 1, AllowedProtocols: []domain.ProtocolID{domain.ProtocolAnthropicMessages, domain.ProtocolImagesEdits}, ProtocolFallbacks: map[domain.ProtocolID]domain.ProtocolID{domain.ProtocolAnthropicMessages: domain.ProtocolOpenAIResponses}, ResponsesImagePolicy: "disabled"})
 	require.NoError(t, err)
 	require.False(t, created.AllowsClientProtocol(domain.ProtocolOpenAIResponses))
@@ -52,7 +52,7 @@ func TestGroupProtocolLegacyPatchDoesNotHideInvalidInput(t *testing.T) {
 		t.Run(string(protocols[0]), func(t *testing.T) {
 			enabled := true
 			repo := &groupRepoStubForAdmin{}
-			svc := &adminServiceImpl{groupRepo: repo}
+			svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 			_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 				Name: "invalid", Platform: PlatformOpenAI, RateMultiplier: 1,
 				AllowedProtocols: protocols, LegacyProtocolInput: true, AllowImageGeneration: enabled,

@@ -189,7 +189,7 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 		{AccountID: 13, GroupID: source.ID},
 		{AccountID: 17, GroupID: source.ID},
 	}
-	svc := &adminServiceImpl{groupRepo: repo, groupDuplicateRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo, groupDuplicateRepo: repo})
 
 	duplicate, err := svc.DuplicateGroup(context.Background(), source.ID, "admin:7", "stable-key")
 
@@ -254,7 +254,7 @@ func TestDuplicateGroupCopiesConfigurationDeeplyAndResetsRuntimeState(t *testing
 func TestDuplicateGroupRecoversSameOperationAndScopesByAdmin(t *testing.T) {
 	source := &Group{ID: 9, Name: "team", Platform: PlatformAnthropic, Status: StatusActive}
 	repo := newDuplicateGroupRepoStub(source)
-	svc := &adminServiceImpl{groupRepo: repo, groupDuplicateRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo, groupDuplicateRepo: repo})
 	ctx := context.Background()
 
 	first, err := svc.DuplicateGroup(ctx, source.ID, "admin:7", "same-key")
@@ -276,7 +276,7 @@ func TestDuplicateGroupAdvancesNameAndTruncatesUnicodeByRunes(t *testing.T) {
 	source := &Group{ID: 12, Name: "team", Platform: PlatformAnthropic, Status: StatusActive}
 	repo := newDuplicateGroupRepoStub(source)
 	repo.names["team (Copy)"] = struct{}{}
-	svc := &adminServiceImpl{groupRepo: repo, groupDuplicateRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo, groupDuplicateRepo: repo})
 
 	duplicate, err := svc.DuplicateGroup(context.Background(), source.ID, "admin:1", "")
 	require.NoError(t, err)
@@ -291,7 +291,7 @@ func TestDuplicateGroupAtomicCreateFailureReturnsNoCopy(t *testing.T) {
 	source := &Group{ID: 15, Name: "team", Platform: PlatformAnthropic, Status: StatusActive}
 	repo := newDuplicateGroupRepoStub(source)
 	repo.atomicCreateErr = errors.New("binding insert failed")
-	svc := &adminServiceImpl{groupRepo: repo, groupDuplicateRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo, groupDuplicateRepo: repo})
 
 	duplicate, err := svc.DuplicateGroup(context.Background(), source.ID, "admin:1", "key")
 

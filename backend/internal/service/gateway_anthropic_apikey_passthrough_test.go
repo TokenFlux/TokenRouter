@@ -1758,7 +1758,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_StreamingUpstreamReadErrorAft
 
 func TestGatewayService_AnthropicAPIKeyPassthrough_TransportErrorRecordsOllamaActivity(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	deferred := NewDeferredService(nil, nil, time.Second)
+	deferred, activity := newDeferredActivityRecorder(t)
 	upstream := &anthropicHTTPUpstreamRecorder{err: errors.New("dial tcp timeout")}
 	svc := &GatewayService{
 		cfg: &config.Config{
@@ -1792,15 +1792,16 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_TransportErrorRecordsOllamaAc
 	_, err = svc.forwardAnthropicAPIKeyPassthrough(context.Background(), c2, other, []byte(`{"model":"x"}`), "x", "x", false, time.Now())
 	require.Error(t, err)
 
-	_, ok := deferred.lastUsedUpdates.Load(int64(601))
+	require.NoError(t, deferred.Stop())
+	_, ok := activity.Load(int64(601))
 	require.True(t, ok, "Anthropic passthrough transport error on Ollama account must record activity")
-	_, ok = deferred.lastUsedUpdates.Load(int64(602))
+	_, ok = activity.Load(int64(602))
 	require.False(t, ok, "non-Ollama Anthropic passthrough transport error must not record Ollama activity")
 }
 
 func TestGatewayService_AnthropicAPIKeyPassthrough_ContextCanceledSkipsOllamaActivity(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	deferred := NewDeferredService(nil, nil, time.Second)
+	deferred, activity := newDeferredActivityRecorder(t)
 	upstream := &anthropicHTTPUpstreamRecorder{err: context.Canceled}
 	svc := &GatewayService{
 		cfg: &config.Config{
@@ -1825,13 +1826,14 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_ContextCanceledSkipsOllamaAct
 	_, err := svc.forwardAnthropicAPIKeyPassthrough(context.Background(), c, ollama, []byte(`{"model":"x"}`), "x", "x", false, time.Now())
 
 	require.Error(t, err)
-	_, ok := deferred.lastUsedUpdates.Load(int64(603))
+	require.NoError(t, deferred.Stop())
+	_, ok := activity.Load(int64(603))
 	require.False(t, ok, "context.Canceled on Anthropic passthrough must not count as Ollama activity")
 }
 
 func TestGatewayService_AnthropicAPIKeyPassthrough_Non2xxRecordsOllamaActivity(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	deferred := NewDeferredService(nil, nil, time.Second)
+	deferred, activity := newDeferredActivityRecorder(t)
 	// 默认 API Key 账号不会重试或故障转移 400，因此该响应会进入 handleErrorResponse。
 	upstream := &anthropicHTTPUpstreamRecorder{
 		resp: &http.Response{
@@ -1863,6 +1865,7 @@ func TestGatewayService_AnthropicAPIKeyPassthrough_Non2xxRecordsOllamaActivity(t
 
 	_, _ = svc.forwardAnthropicAPIKeyPassthrough(context.Background(), c, ollama, []byte(`{"model":"x"}`), "x", "x", false, time.Now())
 
-	_, ok := deferred.lastUsedUpdates.Load(int64(604))
+	require.NoError(t, deferred.Stop())
+	_, ok := activity.Load(int64(604))
 	require.True(t, ok, "Anthropic passthrough non-2xx on Ollama account must record activity via handleErrorResponse")
 }

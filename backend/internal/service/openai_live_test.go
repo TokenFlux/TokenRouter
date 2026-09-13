@@ -30,11 +30,9 @@ type liveAttestationStub struct {
 
 // newLiveTLSRoutingServices 构造同时覆盖 TLS 模板和身份头的 Live 路由规则。
 func newLiveTLSRoutingServices() (*TLSFingerprintProfileService, *TLSFingerprintRouterService) {
-	profileService := &TLSFingerprintProfileService{
-		localCache: map[int64]*model.TLSFingerprintProfile{
-			20: {ID: 20, Name: "live-routed"},
-		},
-	}
+	profileService := newTLSProfileServiceWithCacheForTest(map[int64]*model.TLSFingerprintProfile{
+		20: {ID: 20, Name: "live-routed"},
+	})
 	router := &model.TLSFingerprintRouter{
 		ID:      9,
 		Name:    "live-router",
@@ -49,11 +47,9 @@ func newLiveTLSRoutingServices() (*TLSFingerprintProfileService, *TLSFingerprint
 			UpstreamOriginator:      "codex_vscode",
 		}},
 	}
-	routerService := &TLSFingerprintRouterService{
-		localCache: map[int64]*cachedTLSFingerprintRouter{
-			router.ID: newCachedTLSFingerprintRouter(router),
-		},
-	}
+	routerService := newTLSRouterServiceWithCacheForTest(map[int64]*cachedTLSFingerprintRouter{
+		router.ID: newCachedTLSFingerprintRouter(router),
+	})
 	return profileService, routerService
 }
 

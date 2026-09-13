@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "-C",
+    "/tmp/tokenrouter-s06-original/backend",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/service",
+    "-run",
+    "^TestS06AccountExpiryCannotRestartAfterStop$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 8.176,
+  "log": "logs/original-account-expiry-restart.log.gz"
+}

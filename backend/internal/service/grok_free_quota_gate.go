@@ -209,12 +209,14 @@ func scheduleGrokFreeQuotaStatsRefresh(
 	gateTokens := settings.gateTokens
 	limitTokens := settings.limitTokens
 	cacheTTL := settings.cacheTTL
-	go func() {
-		defer func() {
-			for _, id := range toFetch {
-				inFlight.Delete(id)
-			}
-		}()
+	release := func() {
+		for _, id := range toFetch {
+			inFlight.Delete(id)
+		}
+	}
+	// S06 接入现有完成屏障；统计与软门禁策略仍归 S07，不改变原独立查询 context。
+	if !RunBackgroundTask("service/grok_free_quota_gate.go:stats_refresh", func() {
+		defer release()
 		now := time.Now().UTC()
 		statsByID, err := queryGrokFreeQuotaWindowStats(context.Background(), usageLogRepo, toFetch, now.Add(-window))
 		if err != nil {
@@ -247,7 +249,9 @@ func scheduleGrokFreeQuotaStatsRefresh(
 			}
 		}
 		sweepGrokFreeQuotaGateCache(cache, now, cacheTTL)
-	}()
+	}) {
+		release()
+	}
 }
 
 // grokFreeQuotaGateCacheMinSweepAge 设置最小清理年龄，避免极短 TTL 导致每请求重查。

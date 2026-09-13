@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/egress/...",
+    "./internal/util/responseheaders",
+    "./internal/util/httputil"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 1.775,
+  "log": "logs/egress-behavior.log.gz"
+}

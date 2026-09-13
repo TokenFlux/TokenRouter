@@ -481,7 +481,7 @@ func TestGatewayServiceRecordUsage_QoderRequestedBasisDoesNotFallBackToChannelMa
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{result: &UsageBillingApplyResult{Applied: true}}
@@ -672,7 +672,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisDoesNotUseOriginalAlia
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
@@ -734,7 +734,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisUsesRouteKeyPricing(t 
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
@@ -790,7 +790,7 @@ func TestGatewayServiceRecordUsage_QoderImplicitRequestedBasisDoesNotInferRouteK
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
@@ -847,7 +847,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBlankRouteKeyDoesNotUseOrig
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
@@ -900,7 +900,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisIgnoresRequestedCustom
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
@@ -954,7 +954,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedBasisIgnoresRequestedStanda
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
@@ -1007,7 +1007,7 @@ func TestGatewayServiceRecordUsage_QoderAccountMappedCustomAliasPartialManualPri
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
@@ -1238,7 +1238,7 @@ func TestGatewayServiceRecordUsage_QoderChannelMappedAccountStatsUsesOriginalAli
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
@@ -1286,7 +1286,7 @@ func TestGatewayServiceRecordUsage_QoderBlankChannelPricingUsesZeroCost(t *testi
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}
@@ -1336,7 +1336,7 @@ func TestGatewayServiceRecordUsage_QoderManualChannelPricingOverridesDefaultAlia
 	cache.groupPlatform[groupID] = PlatformQoder
 	cache.loadedAt = time.Now()
 	channelService := &ChannelService{}
-	channelService.cache.Store(cache)
+	seedLegacyChannelFixture(channelService, cache)
 
 	usageRepo := &openAIRecordUsageLogRepoStub{inserted: true}
 	billingRepo := &openAIRecordUsageBillingRepoStub{}

@@ -61,7 +61,7 @@ Antigravity 的 Google 内部封装归入 `gemini_generate_content` 的平台适
 <a id="account_native_protocols"></a>
 ## 账号原生集合
 
-旧 Account/Group 入口解析历史字段、缺省值与错误 reason，再将平台、账号类型、认证方式、启用协议和 fallback 映射投影到 `capability.AccountProtocols`。纯判断不读取凭据、配置或请求 Context；每次候选判断重新计算，显式空集合不会被默认补全。
+账号历史字段、缺省值与原错误 reason 的解析和保存校验归 `account`，分组配置归 `routing`；旧 service 入口仅投影和委托。账号/分组将平台、账号类型、认证方式、启用协议和 fallback 映射投影到 `capability.AccountProtocols`。实际候选入口现在将账号配置投影为不含凭据的 `account.AccountSnapshot`，由 `routing.RoutePlan.ResolveCandidate` 使用已复制的分组协议策略进行判断。纯判断不读取凭据、配置或请求 Context；每次候选判断重新计算，显式空集合不会被默认补全。RoutePlan 当前接管候选协议部分，模型重写、最终权限/资金检查和重试时序仍由原调用链按原顺序执行。
 
 `credentials.upstream_protocols` 是原生协议 ID 数组，显式空数组表示不承接新调用。创建、编辑、复制、导入与批量编辑共享校验，不允许重复、未知或账号认证方式不支持的项；错误为 HTTP 400 / `UPSTREAM_PROTOCOLS_INVALID`。批量更新先验证全部账号，再由同一 SQL 原子写入逐账号协议补丁。
 

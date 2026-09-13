@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/app",
+    "./internal/routing/...",
+    "-run",
+    "Group|Protocol|Channel|AdvancedScheduler"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 6.506,
+  "log": "logs/routing-cleanup-unit-2.log.gz"
+}

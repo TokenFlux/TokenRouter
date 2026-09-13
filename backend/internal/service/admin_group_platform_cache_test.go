@@ -71,7 +71,7 @@ func TestUpdateGroupInvalidatesChannelCacheOnPlatformChange(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &groupPlatformRepoStub{group: &Group{ID: 7, Name: "g", Platform: tt.fromPlatform}}
 			spy := &channelCacheInvalidatorSpy{}
-			svc := &adminServiceImpl{groupRepo: repo, channelCacheInvalidator: spy}
+			svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo, channelCacheInvalidator: spy})
 
 			got, err := svc.UpdateGroup(context.Background(), 7, &UpdateGroupInput{Platform: tt.inputPlatform})
 			require.NoError(t, err)
@@ -84,7 +84,7 @@ func TestUpdateGroupInvalidatesChannelCacheOnPlatformChange(t *testing.T) {
 // 依赖可以不注入（例如测试或裁剪构建），此时不应 panic——缓存靠 TTL 自然重建。
 func TestUpdateGroupWithoutChannelCacheInvalidator(t *testing.T) {
 	repo := &groupPlatformRepoStub{group: &Group{ID: 7, Name: "g", Platform: PlatformAnthropic}}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	got, err := svc.UpdateGroup(context.Background(), 7, &UpdateGroupInput{Platform: PlatformOpenAI})
 	require.NoError(t, err)
@@ -98,7 +98,7 @@ func TestUpdateGroupDoesNotInvalidateChannelCacheWhenUpdateFails(t *testing.T) {
 		updateErr: errors.New("update failed"),
 	}
 	spy := &channelCacheInvalidatorSpy{}
-	svc := &adminServiceImpl{groupRepo: repo, channelCacheInvalidator: spy}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo, channelCacheInvalidator: spy})
 
 	got, err := svc.UpdateGroup(context.Background(), 7, &UpdateGroupInput{Platform: PlatformOpenAI})
 	require.Error(t, err)

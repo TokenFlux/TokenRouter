@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"io"
 	"net/http"
 	"strings"
@@ -173,13 +174,9 @@ func newCNUsageMonitorAccount(id int64, platform, mode string) *Account {
 	}
 }
 
-func newCNUsageMonitorForTest(repo *cnUsageMonitorRepo, upstream HTTPUpstream, cfg *config.Config) *CNProviderBalanceCheckService {
+func newCNUsageMonitorForTest(repo *cnUsageMonitorRepo, upstream HTTPUpstream, cfg *config.Config, configure ...func(*acctcore.CNMonitorOptions)) *acctcore.CNUsageMonitor {
 	usage := NewUpstreamUsageService(repo, upstream, cfg, nil)
-	service := NewCNProviderBalanceCheckService(repo, usage, cfg)
-	service.snapshotRepo = repo
-	service.roundTimeout = time.Second
-	service.probeTimeout = time.Second
-	return service
+	return newCNMonitorLegacyFixture(repo, usage, cfg, configure...)
 }
 
 func TestCNUsageMonitorRunOncePersistsUnifiedSnapshotWithoutLegacyWrites(t *testing.T) {
@@ -191,7 +188,7 @@ func TestCNUsageMonitorRunOncePersistsUnifiedSnapshotWithoutLegacyWrites(t *test
 	}
 	upstream := &cnUsageMonitorHTTP{body: `{"code":0,"data":{"available_balance":12.5}}`}
 	service := newCNUsageMonitorForTest(repo, upstream, testUpstreamUsageConfig())
-	service.runOnce(context.Background())
+	service.RunOnce(context.Background())
 
 	require.Len(t, repo.writes, 1)
 	snapshot := repo.writes[0]
@@ -233,7 +230,7 @@ func TestCNUsageMonitorFailurePreservesLastSuccess(t *testing.T) {
 	}
 	upstream := &cnUsageMonitorHTTP{status: http.StatusBadGateway, body: `{}`}
 	service := newCNUsageMonitorForTest(repo, upstream, testUpstreamUsageConfig())
-	service.runOnce(context.Background())
+	service.RunOnce(context.Background())
 
 	require.Len(t, repo.writes, 1)
 	snapshot := repo.writes[0]
@@ -253,7 +250,7 @@ func TestCNUsageMonitorCustomHostRequiresExplicitAllowlist(t *testing.T) {
 	upstream := &cnUsageMonitorHTTP{body: `{}`}
 	cfg := testUpstreamUsageConfig()
 	service := newCNUsageMonitorForTest(repo, upstream, cfg)
-	service.runOnce(context.Background())
+	service.RunOnce(context.Background())
 	require.Zero(t, upstream.calls)
 	require.Len(t, repo.writes, 1)
 	require.NotNil(t, repo.writes[0].LastError)
@@ -263,7 +260,7 @@ func TestCNUsageMonitorCustomHostRequiresExplicitAllowlist(t *testing.T) {
 	repo.writes = nil
 	upstream.body = `{"is_available":true,"balance_infos":[{"currency":"CNY","total_balance":"3"}]}`
 	service = newCNUsageMonitorForTest(repo, upstream, cfg)
-	service.runOnce(context.Background())
+	service.RunOnce(context.Background())
 	require.Equal(t, 1, upstream.calls)
 	require.Len(t, repo.writes, 1)
 	require.Equal(t, "relay.example", upstream.requests[0].URL.Hostname())
@@ -277,10 +274,9 @@ func TestCNUsageMonitorSkipsCycleWhenNotLeader(t *testing.T) {
 		casResult:  true,
 	}
 	upstream := &cnUsageMonitorHTTP{body: `{}`}
-	service := newCNUsageMonitorForTest(repo, upstream, testUpstreamUsageConfig())
 	lock := &cnUsageMonitorLeaderLock{acquired: false}
-	service.SetLeaderLock(lock, nil)
-	service.runOnce(context.Background())
+	service := newCNUsageMonitorForTest(repo, upstream, testUpstreamUsageConfig(), func(o *acctcore.CNMonitorOptions) { o.Leader = lock })
+	service.RunOnce(context.Background())
 	require.Equal(t, 1, lock.calls)
 	require.Zero(t, upstream.calls)
 	require.Empty(t, repo.writes)
@@ -290,7 +286,8 @@ func TestCNUsageMonitorDefaultOffAndStopCancelsProbe(t *testing.T) {
 	repo := &cnUsageMonitorRepo{accounts: map[int64]*Account{}, byPlatform: map[string][]int64{}, casResult: true}
 	service := newCNUsageMonitorForTest(repo, &cnUsageMonitorHTTP{}, testUpstreamUsageConfig())
 	service.Start()
-	require.Nil(t, service.cancel, "默认关闭时不得创建后台上下文")
+	// 同一构造无上下文断言迁至 account 的生命周期测试；这里保留外层无探测副作用。
+	require.Empty(t, repo.writes)
 
 	account := newCNUsageMonitorAccount(5, PlatformKimi, AccountModePayG)
 	repo.accounts[5] = account
@@ -299,8 +296,7 @@ func TestCNUsageMonitorDefaultOffAndStopCancelsProbe(t *testing.T) {
 	upstream := &cnUsageMonitorHTTP{started: started, block: true}
 	cfg := testUpstreamUsageConfig()
 	cfg.Gateway.CNProviders.MonitorEnabled = true
-	service = newCNUsageMonitorForTest(repo, upstream, cfg)
-	service.interval = time.Millisecond
+	service = newCNUsageMonitorForTest(repo, upstream, cfg, func(o *acctcore.CNMonitorOptions) { o.Interval = time.Millisecond })
 	service.Start()
 	select {
 	case <-started:
@@ -336,5 +332,5 @@ func TestCNUsageBalanceThresholdUsesAllCurrenciesAndIdentityReason(t *testing.T)
 	low, known = cnUsageBalanceBelowThreshold(result, 0.5)
 	require.True(t, known)
 	require.True(t, low)
-	require.True(t, strings.HasPrefix(cnUsageMonitorReason("abc"), cnUsageMonitorReasonPrefix+"abc:"))
+	require.True(t, strings.HasPrefix(cnUsageMonitorReason("abc"), "cn_usage_monitor:abc:"))
 }

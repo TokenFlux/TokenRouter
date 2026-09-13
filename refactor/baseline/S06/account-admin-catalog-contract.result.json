@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/routing",
+    "./internal/account/httpapi",
+    "-run",
+    "^TestAdminCatalog"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 1.565,
+  "log": "logs/account-admin-catalog-contract.log.gz"
+}

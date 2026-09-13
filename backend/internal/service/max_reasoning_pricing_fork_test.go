@@ -66,9 +66,12 @@ func TestMaxReasoningPricing_AccountStatsPriority(t *testing.T) {
 	require.InDelta(t, 1, *cost, 1e-12)
 	channel.AccountStatsPricingRules = nil
 	channel.ApplyPricingToAccountStats = true
+	// 管理变更后通过读取入口建立新快照，不直接改已发布的缓存。
+	cs = newTestChannelServiceForStats(t, channel, 10, PlatformAnthropic)
 	cost = resolveAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "priority", "max")
 	require.InDelta(t, 9, *cost, 1e-12)
 	channel.ApplyPricingToAccountStats = false
+	cs = newTestChannelServiceForStats(t, channel, 10, PlatformAnthropic)
 	standard := resolveAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "", "xhigh")
 	cost = resolveAccountStatsCost(context.Background(), cs, bs, 1, 10, "claude-fable-5-1", "", tokens, 1, 9, "", "max")
 	require.NotNil(t, standard)

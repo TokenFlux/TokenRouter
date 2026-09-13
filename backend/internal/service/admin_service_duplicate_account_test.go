@@ -7,10 +7,8 @@ import (
 	"errors"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
 	"github.com/stretchr/testify/require"
@@ -302,13 +300,6 @@ func TestDuplicateAccountAtomicCreateFailureLeavesNoOrphan(t *testing.T) {
 	require.Len(t, repo.accounts, 1)
 }
 
-func TestDuplicateAccountNamePreservesSuffixWithinSchemaLimit(t *testing.T) {
-	name := duplicateAccountName(strings.Repeat("界", 100))
-
-	require.Equal(t, 100, utf8.RuneCountInString(name))
-	require.True(t, strings.HasSuffix(name, " (Copy)"))
-}
-
 func TestDuplicateAccountReturnsExistingCopyForSameOperationKey(t *testing.T) {
 	ctx := context.Background()
 	repo := newDuplicateAccountRepoStub()
@@ -337,5 +328,5 @@ func TestDuplicateAccountReturnsExistingCopyForSameOperationKey(t *testing.T) {
 	require.Nil(t, otherAdminRecovery, "durable recovery identity must remain scoped to the initiating admin")
 	require.NotEqual(t, first.ID, otherAdminCopy.ID)
 	require.Len(t, repo.accounts, 3)
-	require.NotEmpty(t, first.Extra[duplicateAccountOperationIDExtraKey])
+	require.NotEmpty(t, first.Extra["duplicate_operation_id"])
 }

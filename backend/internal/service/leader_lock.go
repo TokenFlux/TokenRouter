@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"database/sql"
+	"github.com/TokenFlux/TokenRouter/internal/account"
 	"time"
 )
 
@@ -24,28 +25,11 @@ type LeaderLockCache interface {
 //
 // 缓存不可用时回退到数据库咨询锁，避免缓存抖动导致所有实例同时跑重任务。
 func tryAcquireSingletonLeaderLock(ctx context.Context, cache LeaderLockCache, db *sql.DB, key, owner string, ttl time.Duration) (func(), bool) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
-	if cache != nil {
-		ok, err := cache.TryAcquireLeaderLock(ctx, key, owner, ttl)
-		if err == nil {
-			if !ok {
-				return nil, false
-			}
-			release := func() {
-				ctx2, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-				defer cancel()
-				_ = cache.ReleaseLeaderLock(ctx2, key, owner)
-			}
-			return release, true
+	var advisory func(context.Context, string) (func(), bool)
+	if db != nil {
+		advisory = func(ctx context.Context, key string) (func(), bool) {
+			return tryAcquireDBAdvisoryLock(ctx, db, hashAdvisoryLockID(key))
 		}
 	}
-
-	if db != nil {
-		return tryAcquireDBAdvisoryLock(ctx, db, hashAdvisoryLockID(key))
-	}
-
-	return func() {}, true
+	return account.AcquireSingletonLease(ctx, cache, advisory, key, owner, ttl)
 }

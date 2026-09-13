@@ -1241,6 +1241,6 @@ func newTestChannelServiceForStats(t *testing.T, channel *Channel, groupID int64
 	cache.groupPlatform[groupID] = platform
 	cs := &ChannelService{}
 	cache.loadedAt = time.Now()
-	cs.cache.Store(cache)
+	seedLegacyChannelFixture(cs, cache)
 	return cs
 }

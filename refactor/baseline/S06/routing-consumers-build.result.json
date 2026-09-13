@@ -1,0 +1,16 @@
+{
+  "command": [
+    "go",
+    "test",
+    "./internal/app",
+    "./internal/routing",
+    "./internal/apikey",
+    "-run",
+    "^$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 13.399,
+  "log": "logs/routing-consumers-build.log.gz"
+}

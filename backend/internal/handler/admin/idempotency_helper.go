@@ -4,22 +4,9 @@ package admin
 import (
 	context "context"
 	idempotencyhttp "github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi"
-	service "github.com/TokenFlux/TokenRouter/internal/service"
 	gin "github.com/gin-gonic/gin"
 	time "time"
 )
-
-func executeAdminIdempotent(
-	c *gin.Context,
-	scope string,
-	payload any,
-	ttl time.Duration,
-	execute func(context.Context) (any, error),
-) (*service.IdempotencyExecuteResult, error) {
-	return idempotencyhttp.ExecuteAdminIdempotent(c, scope, payload, ttl, execute)
-}
-
-func adminActorScope(c *gin.Context) string { return idempotencyhttp.AdminActorScope(c) }
 
 func executeAdminIdempotentJSON(
 	c *gin.Context,

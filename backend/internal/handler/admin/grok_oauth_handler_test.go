@@ -26,6 +26,7 @@ type grokQuotaHandlerAccountRepo struct {
 	service.AccountRepository
 	account *service.Account
 	updates map[int64]map[string]any
+	mu      sync.Mutex
 }
 
 func (r *grokQuotaHandlerAccountRepo) GetByID(_ context.Context, id int64) (*service.Account, error) {
@@ -36,6 +37,8 @@ func (r *grokQuotaHandlerAccountRepo) GetByID(_ context.Context, id int64) (*ser
 }
 
 func (r *grokQuotaHandlerAccountRepo) UpdateExtra(_ context.Context, id int64, updates map[string]any) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if r.updates == nil {
 		r.updates = make(map[int64]map[string]any)
 	}
@@ -116,6 +119,7 @@ func TestGrokOAuthHandlerQueryQuotaProbesUpstream(t *testing.T) {
 	}}
 	upstream := &grokQuotaHandlerUpstream{}
 	quotaService := service.NewGrokQuotaService(repo, nil, service.NewGrokTokenProvider(repo, nil), upstream, nil)
+	t.Cleanup(func() { require.NoError(t, quotaService.StopContext(context.Background())) })
 	handler := NewGrokOAuthHandler(nil, nil, quotaService, nil)
 
 	router := gin.New()
@@ -159,7 +163,10 @@ func TestGrokOAuthHandlerQueryQuotaProbesUpstream(t *testing.T) {
 	}
 	require.True(t, responsesProbeSeen)
 	require.True(t, modelsSyncSeen)
+	// 后台同步与断言共享锁，等待请求数不等于已经完成持久化。
+	repo.mu.Lock()
 	require.NotNil(t, repo.updates[42])
+	repo.mu.Unlock()
 }
 
 func TestGrokOAuthHandlerResetQuotaReturnsUnsupported(t *testing.T) {
@@ -171,6 +178,7 @@ func TestGrokOAuthHandlerResetQuotaReturnsUnsupported(t *testing.T) {
 		Type:     service.AccountTypeOAuth,
 	}}
 	quotaService := service.NewGrokQuotaService(repo, nil, nil, nil, nil)
+	t.Cleanup(func() { require.NoError(t, quotaService.StopContext(context.Background())) })
 	handler := NewGrokOAuthHandler(nil, nil, quotaService, nil)
 
 	router := gin.New()

@@ -1,0 +1,19 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "./internal/egress/...",
+    "./internal/repository/...",
+    "./internal/service/...",
+    "./internal/account/...",
+    "./internal/app/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 37.603,
+  "log": "logs/egress-request-policy-lint.log.gz"
+}

@@ -1,6 +1,7 @@
 package routes
 
 import (
+	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -68,10 +69,10 @@ func TestAdminUpstreamBillingProbeRoutesAreRemoved(t *testing.T) {
 	router := gin.New()
 	admin := router.Group("/api/v1/admin")
 	h := &handler.Handlers{Admin: &handler.AdminHandlers{
-		Account:          &adminhandler.AccountHandler{},
-		OAuth:            &adminhandler.OAuthHandler{},
-		OpenAIOAuth:      &adminhandler.OpenAIOAuthHandler{},
-		CodexInviteReset: &adminhandler.CodexInviteResetHandler{},
+		AccountManagement: &accounthttp.ManagementHandler{},
+		OAuth:             &adminhandler.OAuthHandler{},
+		OpenAIOAuth:       &adminhandler.OpenAIOAuthHandler{},
+		CodexInviteReset:  &adminhandler.CodexInviteResetHandler{},
 	}}
 	registerAccountRoutes(admin, h, func(c *gin.Context) { c.Next() })
 
@@ -104,10 +105,10 @@ func TestAdminAdvancedSchedulerScoreRoutesAreRegistered(t *testing.T) {
 	router := gin.New()
 	admin := router.Group("/api/v1/admin")
 	h := &handler.Handlers{Admin: &handler.AdminHandlers{
-		Account:          &adminhandler.AccountHandler{},
-		OAuth:            &adminhandler.OAuthHandler{},
-		OpenAIOAuth:      &adminhandler.OpenAIOAuthHandler{},
-		CodexInviteReset: &adminhandler.CodexInviteResetHandler{},
+		AccountManagement: &accounthttp.ManagementHandler{},
+		OAuth:             &adminhandler.OAuthHandler{},
+		OpenAIOAuth:       &adminhandler.OpenAIOAuthHandler{},
+		CodexInviteReset:  &adminhandler.CodexInviteResetHandler{},
 	}}
 	registerAccountRoutes(admin, h, func(c *gin.Context) { c.Next() })
 

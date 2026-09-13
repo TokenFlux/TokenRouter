@@ -6,13 +6,13 @@ import (
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	keypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
-	legacybridge "github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
 	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 	"time"
 )
@@ -39,12 +39,12 @@ func (p identityAdminKeys) List(ctx context.Context, id int64, page, size int, s
 }
 
 // provideIdentityAdmin 固定同连接参与工厂，成功提交前不发布失效。
-func provideIdentityAdmin(client *dbent.Client, users *identitypostgres.UserStore, keys *keypostgres.KeyStore, groups service.GroupRepository, rates service.UserGroupRateRepository, rpm service.UserRPMCache, settings *service.SettingService, subs service.DefaultSubscriptionAssigner, balances billing.BalanceAdjuster, records *billing.RedeemAdmin, invalidator service.APIKeyAuthCacheInvalidator, cache *service.BillingCacheService, affiliates *service.AffiliateService, tasks *lifecycle.Tasks) *identity.UserAdmin {
+func provideIdentityAdmin(client *dbent.Client, users *identitypostgres.UserStore, keys *keypostgres.KeyStore, groups *routingpostgres.GroupStore, rates service.UserGroupRateRepository, rpm service.UserRPMCache, settings *service.SettingService, subs service.DefaultSubscriptionAssigner, balances billing.BalanceAdjuster, records *billing.RedeemAdmin, invalidator service.APIKeyAuthCacheInvalidator, cache *service.BillingCacheService, affiliates *service.AffiliateService, tasks *lifecycle.Tasks) *identity.UserAdmin {
 	observe := identity.Observer{Log: logging.LegacyPrintf}
 	transactions := &identitypostgres.AdminMutations{Client: client, Users: users, Keys: keys, KeysInTx: func(tx *dbent.Tx) identity.AdminKeyParticipant { return keys.LifecycleInTx(tx) }, Observer: observe}
-	return identity.NewUserAdmin(identity.AdminDependencies{Now: time.Now, Users: users, Groups: legacybridge.IdentityAdminGroups{Repository: groups}, Keys: identityAdminKeys{keys}, Rates: rates, RPM: rpm, Settings: settings, Subscriptions: subs, Balances: balances, Records: records, Invalidator: invalidator, BalanceCache: cache, Affiliates: affiliates, Transactions: transactions, Observer: observe, Background: tasks.Go})
+	return identity.NewUserAdmin(identity.AdminDependencies{Now: time.Now, Users: users, Groups: identityAdminGroups{Repository: groups}, Keys: identityAdminKeys{keys}, Rates: rates, RPM: rpm, Settings: settings, Subscriptions: subs, Balances: balances, Records: records, Invalidator: invalidator, BalanceCache: cache, Affiliates: affiliates, Transactions: transactions, Observer: observe, Background: tasks.Go})
 }
-func provideKeyAdmin(client *dbent.Client, keys *keypostgres.KeyStore, users *identitypostgres.UserStore, groups service.GroupRepository, invalidator service.APIKeyAuthCacheInvalidator, cache *service.BillingCacheService) *apikey.Admin {
+func provideKeyAdmin(client *dbent.Client, keys *keypostgres.KeyStore, users *identitypostgres.UserStore, groups *routingpostgres.GroupStore, invalidator service.APIKeyAuthCacheInvalidator, cache *service.BillingCacheService) *apikey.Admin {
 	mutations := &keypostgres.AdminGroupMutations{Client: client, Keys: keys, Users: users, UsersInTx: func(tx *dbent.Tx) keypostgres.GroupAccessWriter { return identitypostgres.GroupAccessInTx(tx) }, Observer: logging.LegacyPrintf}
-	return &apikey.Admin{Keys: keys, Users: users, Groups: legacybridge.KeyGroups{Repository: groups}, Mutations: mutations, Invalidator: invalidator, RateLimits: cache}
+	return &apikey.Admin{Keys: keys, Users: users, Groups: keyGroups{Repository: groups}, Mutations: mutations, Invalidator: invalidator, RateLimits: cache}
 }

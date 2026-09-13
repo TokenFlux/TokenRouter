@@ -291,10 +291,10 @@ func TestAdminService_BulkUpdateAccounts_PartialFailureIDs(t *testing.T) {
 			2: errors.New("bind failed"),
 		},
 	}
-	svc := &adminServiceImpl{
+	svc := prepareRoutingAdmin(&adminServiceImpl{
 		accountRepo: repo,
 		groupRepo:   &groupRepoStubForAdmin{getByID: &Group{ID: 10, Name: "g10"}},
-	}
+	})
 
 	groupIDs := []int64{10}
 	schedulable := false
@@ -370,10 +370,10 @@ func TestAdminService_BulkUpdateAccounts_MixedChannelPreCheckBlocksOnExistingCon
 			10: {{ID: 99, Platform: PlatformAnthropic}},
 		},
 	}
-	svc := &adminServiceImpl{
+	svc := prepareRoutingAdmin(&adminServiceImpl{
 		accountRepo: repo,
 		groupRepo:   &groupRepoStubForAdmin{getByID: &Group{ID: 10, Name: "target-group"}},
-	}
+	})
 
 	groupIDs := []int64{10}
 	input := &BulkUpdateAccountsInput{

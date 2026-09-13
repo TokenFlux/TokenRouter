@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -47,15 +48,8 @@ type grokCredentialFailureClass struct {
 	snapshot  *GrokCredentialMutationSnapshot
 }
 
-// GrokCredentialMutationSnapshot 是请求选中账号时观察到的凭据身份。
-// 仓储在隔离账号前比较全部字段，避免覆盖并发刷新产生的新凭据。
-type GrokCredentialMutationSnapshot struct {
-	CredentialsJSON string
-	AccessToken     string
-	RefreshToken    string
-	TokenVersion    int64
-	ProxyID         *int64
-}
+// GrokCredentialMutationSnapshot 兼容旧平台执行入口，值类型归账号模块。
+type GrokCredentialMutationSnapshot = accountcore.CredentialMutationSnapshot
 
 type grokCredentialFailureSnapshotError struct {
 	cause    error

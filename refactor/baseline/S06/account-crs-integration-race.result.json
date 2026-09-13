@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=integration",
+    "./internal/repository",
+    "-run",
+    "^TestS06(CRSRefresh|RefreshCredentials|RefreshPublicEntry)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.764,
+  "log": "logs/account-crs-integration-race.log.gz"
+}

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/TokenFlux/TokenRouter/internal/handler"
+	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
 	"github.com/TokenFlux/TokenRouter/internal/protocol"
 	routinghttpapi "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/server/middleware"
@@ -41,7 +42,7 @@ func TestProtocolCatalogHTTPContract(t *testing.T) {
 		c.Next()
 	})
 	router := gin.New()
-	routes.RegisterAdminRoutes(router.Group("/api/v1"), &handler.Handlers{Admin: &handler.AdminHandlers{}}, auth, audit, nil, nil, func(c *gin.Context) {
+	routes.RegisterAdminRoutes(router.Group("/api/v1"), &handler.Handlers{Admin: &handler.AdminHandlers{Proxy: admin.NewProxyHandler(nil), Group: routinghttpapi.NewGroupHandler(nil)}}, auth, audit, nil, nil, func(c *gin.Context) {
 		calls = append(calls, "catalog")
 		catalog(c)
 	})

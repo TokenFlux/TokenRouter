@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/repository",
+    "./internal/account/provider",
+    "-run",
+    "Test(S06Scheduled|ScheduledCron)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 20.092,
+  "log": "logs/account-scheduled-storage-integration.log.gz"
+}

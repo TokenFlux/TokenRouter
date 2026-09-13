@@ -1,13 +1,11 @@
 package service
 
 import (
-	"context"
-	"strings"
-
-	"github.com/TokenFlux/TokenRouter/internal/routing"
-
-	"github.com/tidwall/gjson"
-	"github.com/tidwall/sjson"
+	context "context"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	gjson "github.com/tidwall/gjson"
+	sjson "github.com/tidwall/sjson"
+	strings "strings"
 )
 
 const ReasoningEffortOverLimitDowngrade = routing.ReasoningEffortOverLimitDowngrade
@@ -125,27 +123,6 @@ func ApplyOpenAIReasoningEffortPolicyFromContext(ctx context.Context, body []byt
 // mapReasoningEffort 委托纯管理员规则，旧调用者由 S06/S11 继续迁移。
 func mapReasoningEffort(raw string, mappings []ReasoningEffortMapping, requestModel string) (string, bool) {
 	return routing.MapReasoningEffort(raw, mappings, requestModel)
-}
-
-func sanitizeGroupReasoningEffortPolicy(group *Group) {
-	if group == nil {
-		return
-	}
-	maxEffort, maxErr := normalizeMaxReasoningEffortForPlatform(group.Platform, group.MaxReasoningEffort)
-	mappings, mappingsErr := NormalizeReasoningEffortMappings(group.Platform, group.ReasoningEffortMappings)
-	if maxErr != nil {
-		maxEffort = ""
-	}
-	if mappingsErr != nil {
-		mappings = []ReasoningEffortMapping{}
-	}
-	overLimit := NormalizeMaxReasoningEffortOverLimit(group.MaxReasoningEffortOverLimit)
-	if overLimit == "" || (overLimit == ReasoningEffortOverLimitDeny && group.Platform != PlatformAnthropic && group.Platform != PlatformOpenAI) {
-		overLimit = ReasoningEffortOverLimitDowngrade
-	}
-	group.MaxReasoningEffort = maxEffort
-	group.MaxReasoningEffortOverLimit = overLimit
-	group.ReasoningEffortMappings = mappings
 }
 
 // ApplyOpenAIReasoningEffortPolicy 先应用模型范围映射，再按配置降档或拒绝超限请求。

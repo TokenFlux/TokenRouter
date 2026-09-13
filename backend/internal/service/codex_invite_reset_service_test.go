@@ -335,12 +335,10 @@ func TestCodexInviteResetServiceUsesTLSRouterInviteResetTLSProfile(t *testing.T)
 			CodexInviteResetTLSFingerprintProfileID: &inviteResetProfileID,
 		},
 	}}
-	profileService := &TLSFingerprintProfileService{
-		localCache: map[int64]*model.TLSFingerprintProfile{
-			10: {ID: 10, Name: "account-fixed"},
-			20: {ID: 20, Name: "router-token"},
-		},
-	}
+	profileService := newTLSProfileServiceWithCacheForTest(map[int64]*model.TLSFingerprintProfile{
+		10: {ID: 10, Name: "account-fixed"},
+		20: {ID: 20, Name: "router-token"},
+	})
 	svc := NewCodexInviteResetService(codexInviteResetAdminServiceStub{account: account}, upstream, nil, profileService, routerReader)
 
 	_, err := svc.GetStatus(context.Background(), account.ID)

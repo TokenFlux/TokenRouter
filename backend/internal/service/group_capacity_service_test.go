@@ -82,7 +82,7 @@ func TestGroupCapacityService_ExcludesOpenAIQuotaAutoPausedAccounts(t *testing.T
 		},
 	}
 	concurrencyCache := &groupCapacityConcurrencyCacheStub{counts: map[int64]int{1: 5, 2: 2}}
-	svc := NewGroupCapacityService(
+	svc := newTestGroupCapacityService(
 		&groupCapacityAccountRepoStub{accounts: accounts},
 		nil,
 		NewConcurrencyService(concurrencyCache),
@@ -91,7 +91,7 @@ func TestGroupCapacityService_ExcludesOpenAIQuotaAutoPausedAccounts(t *testing.T
 		groupCapacitySettingsStub{settings: OpsOpenAIAccountQuotaAutoPauseSettings{DefaultThreshold5h: 0.95}},
 	)
 
-	capacity, err := svc.getGroupCapacity(context.Background(), 10)
+	capacity, err := svc.GetGroupCapacity(context.Background(), 10)
 	require.NoError(t, err)
 	require.Equal(t, 3, capacity.ConcurrencyMax)
 	require.Equal(t, 2, capacity.ConcurrencyUsed)
@@ -117,7 +117,7 @@ func TestGetAllGroupCapacityBatchExcludesOpenAIQuotaAutoPausedAccounts(t *testin
 	}}
 	groupRepo := &groupCapacityGroupRepoStub{groupIDs: []int64{10}}
 	concurrencyCache := &groupCapacityConcurrencyCacheStub{counts: map[int64]int{1: 5, 2: 2}}
-	svc := NewGroupCapacityService(
+	svc := newTestGroupCapacityService(
 		accountRepo,
 		groupRepo,
 		NewConcurrencyService(concurrencyCache),
@@ -210,7 +210,7 @@ func TestGetAllGroupCapacityBatchAggregatesRuntimeAndLimits(t *testing.T) {
 	concurrencyCache := &groupCapacityConcurrencyCacheStub{counts: map[int64]int{1: 1, 2: 2}}
 	sessionCache := &groupCapacitySessionCacheStub{counts: map[int64]int{1: 2, 2: 1}}
 	rpmCache := &groupCapacityRPMCacheStub{counts: map[int64]int{1: 5, 2: 7}}
-	svc := NewGroupCapacityService(
+	svc := newTestGroupCapacityService(
 		accountRepo,
 		groupRepo,
 		NewConcurrencyService(concurrencyCache),
@@ -259,7 +259,7 @@ func TestGetAllGroupCapacityBatchKeepsEmptyGroupRows(t *testing.T) {
 		},
 	}
 	groupRepo := &groupCapacityGroupRepoStub{groupIDs: []int64{10, 20}}
-	svc := NewGroupCapacityService(accountRepo, groupRepo, nil, nil, nil, nil)
+	svc := newTestGroupCapacityService(accountRepo, groupRepo, nil, nil, nil, nil)
 
 	results, err := svc.GetAllGroupCapacity(context.Background())
 	require.NoError(t, err)
@@ -274,7 +274,7 @@ func TestGetGroupCapacityByIDsUsesBatchPathAndDeduplicatesIDs(t *testing.T) {
 	accountRepo := &groupCapacityAccountRepoStub{rows: []GroupAccountCapacityRow{
 		{GroupID: 20, AccountID: 2, Concurrency: 4},
 	}}
-	svc := NewGroupCapacityService(accountRepo, nil, nil, nil, nil, nil)
+	svc := newTestGroupCapacityService(accountRepo, nil, nil, nil, nil, nil)
 
 	results, err := svc.GetGroupCapacityByIDs(context.Background(), []int64{20, 10, 20, 0, -1})
 	require.NoError(t, err)

@@ -1,17 +1,27 @@
 package handler
 
 import (
+	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
 	billinghttpapi "github.com/TokenFlux/TokenRouter/internal/billing/httpapi"
+	egresshttp "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
+	routinghttp "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
 	sitehttpapi "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 )
 
 // AdminHandlers contains all admin-related HTTP handlers
 type AdminHandlers struct {
+	AccountManagement     *accounthttp.ManagementHandler
+	AccountOAuthUsage     *accounthttp.OAuthUsageHandler
+	AccountOllama         *accounthttp.OllamaUsageHandler
+	AccountCodexImport    *accounthttp.CodexImportHandler
+	AccountCRS            *accounthttp.CRSHandler
+	AccountArchive        *accounthttp.ArchiveHandler
+	AccountTests          *accounthttp.TestHandler
+	UpstreamUsage         *accounthttp.UpstreamUsageHandler
 	Dashboard             *admin.DashboardHandler
 	User                  *admin.UserHandler
-	Group                 *admin.GroupHandler
-	Account               *admin.AccountHandler
+	Group                 *routinghttp.GroupHandler
 	Announcement          *sitehttpapi.AdminAnnouncementHandler
 	DataManagement        *admin.DataManagementHandler
 	Backup                *admin.BackupHandler
@@ -21,7 +31,7 @@ type AdminHandlers struct {
 	AntigravityOAuth      *admin.AntigravityOAuthHandler
 	QoderOAuth            *admin.QoderOAuthHandler
 	GrokOAuth             *admin.GrokOAuthHandler
-	Proxy                 *admin.ProxyHandler
+	Proxy                 *egresshttp.ProxyHandler
 	Redeem                *billinghttpapi.AdminRedeemHandler
 	Promo                 *admin.PromoHandler
 	Setting               *admin.SettingHandler
@@ -34,7 +44,7 @@ type AdminHandlers struct {
 	TLSFingerprintProfile *admin.TLSFingerprintProfileHandler
 	TLSFingerprintRouter  *admin.TLSFingerprintRouterHandler
 	APIKey                *admin.AdminAPIKeyHandler
-	ScheduledTest         *admin.ScheduledTestHandler
+	ScheduledTest         *accounthttp.ScheduledTestHandler
 	Channel               *admin.ChannelHandler
 	ContentModeration     *admin.ContentModerationHandler
 	Payment               *admin.PaymentHandler

@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/egress/...",
+    "./internal/repository",
+    "./internal/service",
+    "./internal/handler/admin",
+    "-run",
+    "^(TestS06|TestTLS|TestProxy|TestBothProxy|TestNewProxyExit|TestAccountHeader|TestNormalizeHeader|TestHTTPUpstream|TestOpenAIGatewayService_ResolveTLS|TestRunProxyQuality|TestFinalizeProxy|TestWriteFiltered|TestFilterHeaders)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 18.293,
+  "log": "logs/egress-final-unit.log.gz"
+}

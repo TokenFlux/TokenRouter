@@ -1,0 +1,18 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/account",
+    "./internal/handler/admin",
+    "-run",
+    "TestManagedRefresh|TestManualRefresh|TestRefreshSingleAccount|TestAccountHandler.*Refresh|TestAccountHandler.*Update|Test.*ApplyOAuth|Test.*Reauthor"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.371,
+  "log": "logs/account-managed-reauthorization-unit.log.gz"
+}

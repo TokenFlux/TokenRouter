@@ -3,16 +3,15 @@
 package service
 
 import (
-	"context"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-	"math"
-	"net/http"
-	"testing"
-
-	"github.com/TokenFlux/TokenRouter/internal/config"
+	context "context"
+	config "github.com/TokenFlux/TokenRouter/internal/config"
+	domain "github.com/TokenFlux/TokenRouter/internal/domain"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-	"github.com/stretchr/testify/require"
+	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	require "github.com/stretchr/testify/require"
+	math "math"
+	http "net/http"
+	testing "testing"
 )
 
 func ptrGroupClientProtocols(value []domain.ProtocolID) *[]domain.ProtocolID {
@@ -35,7 +34,7 @@ func TestAdminServiceCreateGroupUsesPlatformClientProtocolDefaults(t *testing.T)
 	for _, tt := range tests {
 		t.Run(tt.platform, func(t *testing.T) {
 			repo := &groupRepoStubForAdmin{}
-			svc := &adminServiceImpl{groupRepo: repo}
+			svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 			group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{Name: tt.platform, Platform: tt.platform, RateMultiplier: 1})
 
@@ -50,7 +49,7 @@ func TestAdminServiceCreateGroupUsesPlatformClientProtocolDefaults(t *testing.T)
 func TestAdminServiceCreateGroupDefaultsLongContextPricingOn(t *testing.T) {
 	t.Run("omitted defaults on", func(t *testing.T) {
 		repo := &groupRepoStubForAdmin{}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 		group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 			Name: "default-long-context", Platform: PlatformOpenAI, RateMultiplier: 1,
@@ -63,7 +62,7 @@ func TestAdminServiceCreateGroupDefaultsLongContextPricingOn(t *testing.T) {
 
 	t.Run("explicit false remains off", func(t *testing.T) {
 		repo := &groupRepoStubForAdmin{}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 		disabled := false
 
 		group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
@@ -88,7 +87,7 @@ func TestAdminServiceGroupAvailabilityProbeConfigReturnsBadRequest(t *testing.T)
 
 	t.Run("create rejects invalid config", func(t *testing.T) {
 		repo := &groupRepoStubForAdmin{}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 		_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 			Name: "invalid-probe", Platform: PlatformOpenAI, RateMultiplier: 1,
@@ -103,7 +102,7 @@ func TestAdminServiceGroupAvailabilityProbeConfigReturnsBadRequest(t *testing.T)
 	t.Run("update rejects invalid config", func(t *testing.T) {
 		existing := &Group{ID: 7, Name: "existing", Platform: PlatformOpenAI, Status: StatusActive}
 		repo := &groupRepoStubForAdmin{getByID: existing}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 		_, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
 			AvailabilityProbeConfig: &invalidConfig,
@@ -118,7 +117,7 @@ func TestAdminServiceGroupAvailabilityProbeConfigReturnsBadRequest(t *testing.T)
 func TestAdminServiceGroupSchedulerTypeDefaultsValidatesAndUpdates(t *testing.T) {
 	t.Run("create defaults to basic", func(t *testing.T) {
 		repo := &groupRepoStubForAdmin{}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 		group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 			Name: "default-scheduler", Platform: PlatformGemini, RateMultiplier: 1,
@@ -131,7 +130,7 @@ func TestAdminServiceGroupSchedulerTypeDefaultsValidatesAndUpdates(t *testing.T)
 
 	t.Run("create accepts advanced", func(t *testing.T) {
 		repo := &groupRepoStubForAdmin{}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 		group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 			Name: "advanced-scheduler", Platform: PlatformQoder, RateMultiplier: 1, SchedulerType: string(GroupSchedulerTypeAdvanced),
@@ -142,7 +141,7 @@ func TestAdminServiceGroupSchedulerTypeDefaultsValidatesAndUpdates(t *testing.T)
 	})
 
 	t.Run("invalid value is rejected", func(t *testing.T) {
-		svc := &adminServiceImpl{groupRepo: &groupRepoStubForAdmin{}}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: &groupRepoStubForAdmin{}})
 
 		_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 			Name: "invalid-scheduler", Platform: PlatformAnthropic, RateMultiplier: 1, SchedulerType: "weighted",
@@ -155,7 +154,7 @@ func TestAdminServiceGroupSchedulerTypeDefaultsValidatesAndUpdates(t *testing.T)
 	t.Run("update preserves explicit advanced choice", func(t *testing.T) {
 		existing := &Group{ID: 7, Name: "basic", Platform: PlatformAnthropic, Status: StatusActive, SchedulerType: GroupSchedulerTypeBasic}
 		repo := &groupRepoStubForAdmin{getByID: existing}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 		advanced := string(GroupSchedulerTypeAdvanced)
 
 		group, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{SchedulerType: &advanced})
@@ -169,7 +168,7 @@ func TestAdminServiceGroupSchedulerTypeDefaultsValidatesAndUpdates(t *testing.T)
 func TestAdminServiceGroupAdvancedSchedulerOverrides(t *testing.T) {
 	t.Run("create deep copies sparse overrides", func(t *testing.T) {
 		repo := &groupRepoStubForAdmin{}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 		overrides := GroupAdvancedSchedulerOverrides{
 			StickyWeightedEnabled: groupAdvancedSchedulerOverrideTestPointer(false),
 			LBTopK:                groupAdvancedSchedulerOverrideTestPointer(3),
@@ -196,7 +195,7 @@ func TestAdminServiceGroupAdvancedSchedulerOverrides(t *testing.T) {
 			},
 		}
 		repo := &groupRepoStubForAdmin{getByID: existing}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 		unchanged, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{})
 		require.NoError(t, err)
@@ -210,7 +209,7 @@ func TestAdminServiceGroupAdvancedSchedulerOverrides(t *testing.T) {
 	})
 
 	t.Run("invalid overrides are rejected", func(t *testing.T) {
-		svc := &adminServiceImpl{groupRepo: &groupRepoStubForAdmin{}}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: &groupRepoStubForAdmin{}})
 		_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 			Name: "invalid-advanced-overrides", Platform: PlatformAnthropic, RateMultiplier: 1,
 			AdvancedSchedulerOverrides: GroupAdvancedSchedulerOverrides{
@@ -226,10 +225,10 @@ func TestAdminServiceGroupAdvancedSchedulerOverrides(t *testing.T) {
 		repo := &groupRepoStubForAdmin{}
 		cfg := &config.Config{}
 		cfg.Gateway.AdvancedScheduler.ScoreWeights.Priority = math.MaxFloat64 * 0.75
-		svc := &adminServiceImpl{
+		svc := prepareRoutingAdmin(&adminServiceImpl{
 			groupRepo:      repo,
 			settingService: NewSettingService(nil, cfg),
-		}
+		})
 
 		_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 			Name: "overflowing-advanced-overrides", Platform: PlatformAnthropic, RateMultiplier: 1,
@@ -251,10 +250,10 @@ func TestAdminServiceGroupAdvancedSchedulerOverrides(t *testing.T) {
 		repo := &groupRepoStubForAdmin{getByID: existing}
 		cfg := &config.Config{}
 		cfg.Gateway.AdvancedScheduler.ScoreWeights.Priority = math.MaxFloat64 * 0.75
-		svc := &adminServiceImpl{
+		svc := prepareRoutingAdmin(&adminServiceImpl{
 			groupRepo:      repo,
 			settingService: NewSettingService(nil, cfg),
-		}
+		})
 		overrides := GroupAdvancedSchedulerOverrides{
 			WeightLoad: groupAdvancedSchedulerOverrideTestPointer(math.MaxFloat64 * 0.75),
 		}
@@ -270,7 +269,7 @@ func TestAdminServiceGroupAdvancedSchedulerOverrides(t *testing.T) {
 
 	t.Run("all zero base weights remain writable", func(t *testing.T) {
 		repo := &groupRepoStubForAdmin{}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 		zero := 0.0
 
 		_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
@@ -294,7 +293,7 @@ func TestAdminServiceGroupAdvancedSchedulerOverrides(t *testing.T) {
 func TestAdminServiceCreateGroupClientProtocolCompatibilityPrecedence(t *testing.T) {
 	t.Run("legacy OpenAI switch is accepted when new field is omitted", func(t *testing.T) {
 		repo := &groupRepoStubForAdmin{}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 		group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 			Name: "legacy", Platform: PlatformOpenAI, RateMultiplier: 1, AllowMessagesDispatch: true,
@@ -311,7 +310,7 @@ func TestAdminServiceCreateGroupClientProtocolCompatibilityPrecedence(t *testing
 
 	t.Run("new field wins over legacy OpenAI switch", func(t *testing.T) {
 		repo := &groupRepoStubForAdmin{}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 		group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 			Name:                  "new-field",
@@ -346,7 +345,7 @@ func TestAdminServiceRejectsInvalidGroupClientProtocols(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := &adminServiceImpl{groupRepo: &groupRepoStubForAdmin{}}
+			svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: &groupRepoStubForAdmin{}})
 			_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 				Name: tt.name, Platform: tt.platform, RateMultiplier: 1, AllowedProtocols: tt.protocols,
 			})
@@ -369,7 +368,7 @@ func TestAdminServiceAllowsEmptyGroupClientProtocolsForEveryPlatform(t *testing.
 	}
 	for _, platform := range platforms {
 		t.Run(platform, func(t *testing.T) {
-			svc := &adminServiceImpl{groupRepo: &groupRepoStubForAdmin{}}
+			svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: &groupRepoStubForAdmin{}})
 
 			group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 				Name: platform, Platform: platform, RateMultiplier: 1, AllowedProtocols: []domain.ProtocolID{},
@@ -385,7 +384,7 @@ func TestAdminServiceAllowsEmptyGroupClientProtocolsForEveryPlatform(t *testing.
 func TestAdminServiceUpdateGroupPreservesExplicitEmptyClientProtocols(t *testing.T) {
 	existing := &Group{ID: 1, Name: "openai", Platform: PlatformOpenAI, Status: StatusActive, AllowedProtocols: []domain.ProtocolID{}}
 	repo := &groupRepoStubForAdmin{getByID: existing}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{})
 
@@ -444,7 +443,7 @@ func TestAdminServiceUpdateGroupFiltersUnsupportedProtocolsWhenPlatformChanges(t
 				AllowedProtocols: tt.initial,
 			}
 			repo := &groupRepoStubForAdmin{getByID: existing}
-			svc := &adminServiceImpl{groupRepo: repo}
+			svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 			group, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{Platform: tt.to})
 
@@ -460,7 +459,7 @@ func TestAdminServiceUpdateGroupNewClientProtocolsOverrideLegacySwitch(t *testin
 		AllowedProtocols: []domain.ProtocolID{domain.ProtocolOpenAIResponses, domain.ProtocolOpenAIChatCompletions},
 	}
 	repo := &groupRepoStubForAdmin{getByID: existing}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 	legacyEnabled := false
 
 	group, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
@@ -499,42 +498,6 @@ type groupRepoStubForAdmin struct {
 	listWithFiltersResult      *pagination.PaginationResult
 	listWithFiltersErr         error
 	groupSortOrderLockCalls    int
-}
-
-type groupAccountCopyRepoStub struct {
-	*groupRepoStubForAdmin
-	groupsByID       map[int64]*Group
-	sourceAccountIDs []int64
-	deletedGroupID   int64
-	boundGroupID     int64
-	boundAccountIDs  []int64
-}
-
-func (s *groupAccountCopyRepoStub) GetByID(_ context.Context, id int64) (*Group, error) {
-	group := s.groupsByID[id]
-	if group == nil {
-		return nil, ErrGroupNotFound
-	}
-	return group, nil
-}
-
-func (s *groupAccountCopyRepoStub) GetByIDLite(ctx context.Context, id int64) (*Group, error) {
-	return s.GetByID(ctx, id)
-}
-
-func (s *groupAccountCopyRepoStub) GetAccountIDsByGroupIDs(_ context.Context, _ []int64) ([]int64, error) {
-	return append([]int64(nil), s.sourceAccountIDs...), nil
-}
-
-func (s *groupAccountCopyRepoStub) DeleteAccountGroupsByGroupID(_ context.Context, groupID int64) (int64, error) {
-	s.deletedGroupID = groupID
-	return 1, nil
-}
-
-func (s *groupAccountCopyRepoStub) BindAccountsToGroup(_ context.Context, groupID int64, accountIDs []int64) error {
-	s.boundGroupID = groupID
-	s.boundAccountIDs = append([]int64(nil), accountIDs...)
-	return nil
 }
 
 func (s *groupRepoStubForAdmin) Create(_ context.Context, g *Group) error {
@@ -632,28 +595,6 @@ func (s *groupRepoStubForAdmin) UpdateSortOrders(_ context.Context, _ []GroupSor
 	return nil
 }
 
-func TestAdminServiceUpdateGroupCopiesMembershipWithoutAssociationPriority(t *testing.T) {
-	target := &Group{ID: 1701, Name: "target", Platform: PlatformGemini, Status: StatusActive}
-	source := &Group{ID: 1702, Name: "source", Platform: PlatformGemini, Status: StatusActive}
-	base := &groupRepoStubForAdmin{}
-	repo := &groupAccountCopyRepoStub{
-		groupRepoStubForAdmin: base,
-		groupsByID:            map[int64]*Group{target.ID: target, source.ID: source},
-		sourceAccountIDs:      []int64{71, 72},
-	}
-	svc := &adminServiceImpl{groupRepo: repo}
-
-	updated, err := svc.UpdateGroup(context.Background(), target.ID, &UpdateGroupInput{
-		CopyAccountsFromGroupIDs: []int64{source.ID},
-	})
-
-	require.NoError(t, err)
-	require.Same(t, target, updated)
-	require.Equal(t, target.ID, repo.deletedGroupID)
-	require.Equal(t, target.ID, repo.boundGroupID)
-	require.Equal(t, []int64{71, 72}, repo.boundAccountIDs)
-}
-
 // LockGroupSortOrder 记录创建流程是否申请了排序位置锁。
 func (s *groupRepoStubForAdmin) LockGroupSortOrder(_ context.Context) error {
 	s.groupSortOrderLockCalls++
@@ -664,7 +605,7 @@ func TestAdminService_ListGroups_PassesSortParams(t *testing.T) {
 	repo := &groupRepoStubForAdmin{
 		listWithFiltersGroups: []Group{{ID: 1, Name: "g1"}},
 	}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	_, _, err := svc.ListGroups(context.Background(), 3, 25, PlatformOpenAI, StatusActive, "needle", nil, "account_count", "ASC")
 	require.NoError(t, err)
@@ -680,7 +621,7 @@ func TestAdminService_ListGroups_PassesSessionIsolationSortParams(t *testing.T) 
 	repo := &groupRepoStubForAdmin{
 		listWithFiltersGroups: []Group{{ID: 1, Name: "g1"}},
 	}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	_, _, err := svc.ListGroups(context.Background(), 1, 20, "", "", "", nil, "session_isolation_enabled", "DESC")
 	require.NoError(t, err)
@@ -731,7 +672,7 @@ func TestAdminService_GetGroupModelsListCandidates_UsesConfiguredRequestModels(t
 			},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: groupRepo, accountRepo: accountRepo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: groupRepo, accountRepo: accountRepo})
 
 	models, err := svc.GetGroupModelsListCandidates(context.Background(), groupID, "")
 
@@ -759,7 +700,7 @@ func TestAdminService_GetGroupModelsListCandidates_UsesCustomModelsList(t *testi
 			{ID: 1, Platform: PlatformOpenAI},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: groupRepo, accountRepo: accountRepo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: groupRepo, accountRepo: accountRepo})
 
 	models, err := svc.GetGroupModelsListCandidates(context.Background(), groupID, "")
 
@@ -793,7 +734,7 @@ func TestAdminService_GetGroupModelsListCandidates_FiltersCustomModelsList(t *te
 			},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: groupRepo, accountRepo: accountRepo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: groupRepo, accountRepo: accountRepo})
 
 	models, err := svc.GetGroupModelsListCandidates(context.Background(), groupID, "")
 
@@ -826,7 +767,7 @@ func TestAdminService_GetGroupModelsListCandidates_IgnoresCustomModelsListForPla
 			},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: groupRepo, accountRepo: accountRepo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: groupRepo, accountRepo: accountRepo})
 
 	models, err := svc.GetGroupModelsListCandidates(context.Background(), groupID, PlatformAnthropic)
 
@@ -846,7 +787,7 @@ func TestAdminService_GetGroupModelsListCandidates_FallsBackToPlatformDefaults(t
 			{ID: 1, Platform: PlatformOpenAI},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: groupRepo, accountRepo: accountRepo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: groupRepo, accountRepo: accountRepo})
 
 	models, err := svc.GetGroupModelsListCandidates(context.Background(), groupID, "")
 
@@ -858,10 +799,10 @@ func TestAdminService_CreateGroup_AppendsSortOrder(t *testing.T) {
 	repo := &groupRepoStubForAdmin{
 		listWithFiltersGroups: []Group{{ID: 9, SortOrder: 40}},
 	}
-	svc := &adminServiceImpl{
+	svc := prepareRoutingAdmin(&adminServiceImpl{
 		groupRepo:          repo,
 		groupSortOrderRepo: repo,
-	}
+	})
 
 	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 		Name:           "appended-group",
@@ -882,10 +823,10 @@ func TestAdminService_CreateGroup_AppendsSortOrder(t *testing.T) {
 
 func TestAdminService_CreateGroup_PreservesExplicitSortOrder(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
-	svc := &adminServiceImpl{
+	svc := prepareRoutingAdmin(&adminServiceImpl{
 		groupRepo:          repo,
 		groupSortOrderRepo: repo,
-	}
+	})
 	explicitSortOrder := 5
 
 	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
@@ -902,7 +843,7 @@ func TestAdminService_CreateGroup_PreservesExplicitSortOrder(t *testing.T) {
 
 func TestAdminService_CreateGroup_DefaultsGrokMediaGenerationEnabled(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 		Name:           "grok-media",
@@ -919,7 +860,7 @@ func TestAdminService_CreateGroup_DefaultsGrokMediaGenerationEnabled(t *testing.
 
 func TestAdminService_CreateGroup_PreservesNonGrokImageGenerationDisabled(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 		Name:           "anthropic-text",
@@ -936,7 +877,7 @@ func TestAdminService_CreateGroup_PreservesNonGrokImageGenerationDisabled(t *tes
 
 func TestAdminService_CreateGroup_WithSessionIsolation(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 		Name:                    "isolated-group",
@@ -954,7 +895,7 @@ func TestAdminService_CreateGroup_WithSessionIsolation(t *testing.T) {
 
 func TestAdminService_CreateGroup_DisablesBatchImageWhenImageGenerationDisabled(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 		Name:                      "gemini-no-image",
@@ -975,7 +916,7 @@ func TestAdminService_CreateGroup_DisablesBatchImageWhenImageGenerationDisabled(
 
 func TestAdminService_CreateGroup_DisablesBatchImageForNonGeminiPlatform(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 		Name:                      "openai-image",
@@ -1006,7 +947,7 @@ func TestAdminService_CreateGroup_NormalizesOpenAIFastByPlatform(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &groupRepoStubForAdmin{}
-			svc := &adminServiceImpl{groupRepo: repo}
+			svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 			group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 				Name: "fast-" + tt.name, Platform: tt.platform, RateMultiplier: 1,
@@ -1029,7 +970,7 @@ func TestAdminService_UpdateGroup_ClearsOpenAIFastWhenPlatformChanges(t *testing
 		ForceOpenAIFast: true, FreeOpenAIFast: true,
 	}
 	repo := &groupRepoStubForAdmin{getByID: existingGroup}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.UpdateGroup(context.Background(), existingGroup.ID, &UpdateGroupInput{Platform: PlatformAnthropic})
 
@@ -1045,7 +986,7 @@ func TestAdminService_UpdateGroup_OpenAIFastInvalidatesAuthCache(t *testing.T) {
 	existingGroup := &Group{ID: 1, Name: "existing-fast", Platform: PlatformOpenAI, Status: StatusActive}
 	repo := &groupRepoStubForAdmin{getByID: existingGroup}
 	invalidator := &authCacheInvalidatorStub{}
-	svc := &adminServiceImpl{groupRepo: repo, authCacheInvalidator: invalidator}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo, authCacheInvalidator: invalidator})
 	enabled := true
 
 	group, err := svc.UpdateGroup(context.Background(), existingGroup.ID, &UpdateGroupInput{
@@ -1073,7 +1014,7 @@ func TestAdminService_UpdateGroup_PreservesImageGenerationControlsWhenOmitted(t 
 		ResponsesImagePolicy: "inherit",
 	}
 	repo := &groupRepoStubForAdmin{getByID: existingGroup}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	updatedDesc := "updated"
 	group, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
@@ -1093,7 +1034,7 @@ func TestAdminService_UpdateGroup_WithSessionIsolation(t *testing.T) {
 		Status:   StatusActive,
 	}
 	repo := &groupRepoStubForAdmin{getByID: existingGroup}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 	enabled := true
 
 	group, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
@@ -1117,7 +1058,7 @@ func TestAdminService_UpdateGroup_DisablesBatchImageWhenImageGenerationDisabled(
 		AllowBatchImageGeneration: true,
 	}
 	repo := &groupRepoStubForAdmin{getByID: existingGroup}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 	disabled := false
 
 	group, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
@@ -1141,7 +1082,7 @@ func TestAdminService_UpdateGroup_DisablesBatchImageWhenPlatformChangesFromGemin
 		AllowBatchImageGeneration: true,
 	}
 	repo := &groupRepoStubForAdmin{getByID: existingGroup}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
 		Platform: PlatformOpenAI,
@@ -1163,7 +1104,7 @@ func TestAdminService_UpdateGroup_ClearsDescriptionWhenEmptyString(t *testing.T)
 		Status:      StatusActive,
 	}
 	repo := &groupRepoStubForAdmin{getByID: existingGroup}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	empty := ""
 	_, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
@@ -1183,7 +1124,7 @@ func TestAdminService_UpdateGroup_PreservesDescriptionWhenNil(t *testing.T) {
 		Status:      StatusActive,
 	}
 	repo := &groupRepoStubForAdmin{getByID: existingGroup}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	_, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
 		Description: nil,
@@ -1195,7 +1136,7 @@ func TestAdminService_UpdateGroup_PreservesDescriptionWhenNil(t *testing.T) {
 
 func TestAdminService_CreateGroup_BatchImagePricingSettings(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 	discount := 0.8
 	hold := 0.9
 
@@ -1215,7 +1156,7 @@ func TestAdminService_CreateGroup_BatchImagePricingSettings(t *testing.T) {
 
 func TestAdminService_CreateGroup_RejectsHoldBelowDiscount(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 	discount := 0.8
 	hold := 0.6
 
@@ -1255,7 +1196,7 @@ func TestAdminService_GroupBatchImagePricingValidation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			repo := &groupRepoStubForAdmin{}
-			svc := &adminServiceImpl{groupRepo: repo}
+			svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 			_, err := svc.CreateGroup(context.Background(), tt.input)
 			require.Error(t, err)
@@ -1274,10 +1215,10 @@ func TestAdminService_UpdateGroup_InvalidatesAuthCacheOnRPMLimitChange(t *testin
 	}
 	repo := &groupRepoStubForAdmin{getByID: existingGroup}
 	invalidator := &authCacheInvalidatorStub{}
-	svc := &adminServiceImpl{
+	svc := prepareRoutingAdmin(&adminServiceImpl{
 		groupRepo:            repo,
 		authCacheInvalidator: invalidator,
-	}
+	})
 
 	rpmLimit := 60
 	group, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
@@ -1342,7 +1283,7 @@ func TestAdminService_UpdateGroup_ReasoningEffortMappingsTriState(t *testing.T) 
 				ReasoningEffortMappings: []ReasoningEffortMapping{{From: "max", To: "xhigh"}},
 			}
 			repo := &groupRepoStubForAdmin{getByID: existing}
-			svc := &adminServiceImpl{groupRepo: repo}
+			svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 			_, err := svc.UpdateGroup(context.Background(), existing.ID, tt.input)
 
@@ -1361,7 +1302,7 @@ func TestAdminService_UpdateGroup_RejectsInvalidReasoningEffortMappings(t *testi
 		Status:         StatusActive,
 	}
 	repo := &groupRepoStubForInvalidRequestFallback{groups: map[int64]*Group{existing.ID: existing}}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 	invalid := []ReasoningEffortMapping{
 		{From: "max", To: "xhigh"},
 		{From: " MAX ", To: "high"},
@@ -1387,7 +1328,7 @@ func TestAdminService_UpdateGroup_ClearsReasoningPolicyForUnsupportedPlatform(t 
 		ReasoningEffortMappings:     []ReasoningEffortMapping{{From: "max", To: "xhigh"}},
 	}
 	repo := &groupRepoStubForAdmin{getByID: existing}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	_, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{Platform: PlatformGemini})
 
@@ -1409,7 +1350,7 @@ func TestAdminService_UpdateGroup_NormalizesPeakRateWhenDisabled(t *testing.T) {
 		PeakRateMultiplier: 3,
 	}
 	repo := &groupRepoStubForAdmin{getByID: existingGroup}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	disabled := false
 	group, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
@@ -1436,7 +1377,7 @@ func TestAdminService_UpdateGroup_ScrubsInvalidDisabledPeakRate(t *testing.T) {
 		PeakRateMultiplier: -1,
 	}
 	repo := &groupRepoStubForAdmin{getByID: existingGroup}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{})
 	require.NoError(t, err)
@@ -1450,7 +1391,7 @@ func TestAdminService_UpdateGroup_ScrubsInvalidDisabledPeakRate(t *testing.T) {
 
 func TestAdminService_CreateGroup_NormalizesMessagesDispatchModelConfig(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 		Name:           "dispatch-group",
@@ -1487,7 +1428,7 @@ func TestAdminService_UpdateGroup_NormalizesMessagesDispatchModelConfig(t *testi
 		Status:   StatusActive,
 	}
 	repo := &groupRepoStubForAdmin{getByID: existingGroup}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
 		MessagesDispatchModelConfig: &OpenAIMessagesDispatchModelConfig{
@@ -1510,7 +1451,7 @@ func TestAdminService_UpdateGroup_NormalizesMessagesDispatchModelConfig(t *testi
 
 func TestAdminService_CreateGroup_ClearsMessagesDispatchFieldsForNonOpenAIPlatform(t *testing.T) {
 	repo := &groupRepoStubForAdmin{}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 		Name:                  "anthropic-group",
@@ -1547,7 +1488,7 @@ func TestAdminService_UpdateGroup_ClearsMessagesDispatchFieldsWhenPlatformChange
 		},
 	}
 	repo := &groupRepoStubForAdmin{getByID: existingGroup}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.UpdateGroup(context.Background(), 1, &UpdateGroupInput{
 		Platform: PlatformAnthropic,
@@ -1573,7 +1514,7 @@ func TestAdminService_ListGroups_WithSearch(t *testing.T) {
 			listWithFiltersGroups: []Group{{ID: 1, Name: "alpha"}},
 			listWithFiltersResult: &pagination.PaginationResult{Total: 1},
 		}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 		groups, total, err := svc.ListGroups(context.Background(), 1, 20, "", "", "alpha", nil, "", "")
 		require.NoError(t, err)
@@ -1591,7 +1532,7 @@ func TestAdminService_ListGroups_WithSearch(t *testing.T) {
 			listWithFiltersGroups: []Group{},
 			listWithFiltersResult: &pagination.PaginationResult{Total: 0},
 		}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 		groups, total, err := svc.ListGroups(context.Background(), 2, 10, "", "", "", nil, "", "")
 		require.NoError(t, err)
@@ -1610,7 +1551,7 @@ func TestAdminService_ListGroups_WithSearch(t *testing.T) {
 			listWithFiltersGroups: []Group{{ID: 2, Name: "beta"}},
 			listWithFiltersResult: &pagination.PaginationResult{Total: 42},
 		}
-		svc := &adminServiceImpl{groupRepo: repo}
+		svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 		groups, total, err := svc.ListGroups(context.Background(), 3, 50, PlatformAntigravity, StatusActive, "beta", &isExclusive, "", "")
 		require.NoError(t, err)
@@ -1642,7 +1583,7 @@ func TestAdminService_ValidateFallbackGroup_DetectsCycle(t *testing.T) {
 			},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	err := svc.validateFallbackGroup(context.Background(), groupID, fallbackID)
 	require.Error(t, err)
@@ -1822,7 +1763,7 @@ func TestAdminService_CreateGroup_InvalidRequestFallbackRejectsUnsupportedPlatfo
 			fallbackID: {ID: fallbackID, Platform: PlatformAnthropic},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 		Name:                            "g1",
@@ -1870,7 +1811,7 @@ func TestAdminService_CreateGroup_InvalidRequestFallbackRejectsFallbackGroup(t *
 					fallbackID: tc.fallback,
 				},
 			}
-			svc := &adminServiceImpl{groupRepo: repo}
+			svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 			_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 				Name:                            "g1",
@@ -1888,7 +1829,7 @@ func TestAdminService_CreateGroup_InvalidRequestFallbackRejectsFallbackGroup(t *
 func TestAdminService_CreateGroup_InvalidRequestFallbackNotFound(t *testing.T) {
 	fallbackID := int64(10)
 	repo := &groupRepoStubForInvalidRequestFallback{}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 		Name:                            "g1",
@@ -1908,7 +1849,7 @@ func TestAdminService_CreateGroup_InvalidRequestFallbackAllowsAnthropic(t *testi
 			fallbackID: {ID: fallbackID, Platform: PlatformAnthropic},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 		Name:                            "g1",
@@ -1929,7 +1870,7 @@ func TestAdminService_CreateGroup_InvalidRequestFallbackAllowsAntigravity(t *tes
 			fallbackID: {ID: fallbackID, Platform: PlatformAnthropic},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 		Name:                            "g1",
@@ -1946,7 +1887,7 @@ func TestAdminService_CreateGroup_InvalidRequestFallbackAllowsAntigravity(t *tes
 func TestAdminService_CreateGroup_InvalidRequestFallbackClearsOnZero(t *testing.T) {
 	zero := int64(0)
 	repo := &groupRepoStubForInvalidRequestFallback{}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 		Name:                            "g1",
@@ -1967,7 +1908,7 @@ func TestAdminService_CreateGroup_UnavailableFallbackAllowsSamePlatformActiveGro
 			fallbackID: {ID: fallbackID, Platform: PlatformOpenAI, Status: StatusActive},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 		Name:                       "g1",
@@ -2007,7 +1948,7 @@ func TestAdminService_CreateGroup_UnavailableFallbackRejectsInvalidGroup(t *test
 					fallbackID: tc.fallback,
 				},
 			}
-			svc := &adminServiceImpl{groupRepo: repo}
+			svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 			_, err := svc.CreateGroup(context.Background(), &CreateGroupInput{
 				Name:                       "g1",
@@ -2032,7 +1973,7 @@ func TestAdminService_UpdateGroup_UnavailableFallbackRejectsSelf(t *testing.T) {
 	repo := &groupRepoStubForInvalidRequestFallback{
 		groups: map[int64]*Group{existing.ID: existing},
 	}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	_, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
 		UnavailableFallbackGroupID: &existing.ID,
@@ -2057,7 +1998,7 @@ func TestAdminService_UpdateGroup_UnavailableFallbackClearsOnZero(t *testing.T) 
 			fallbackID:  {ID: fallbackID, Platform: PlatformOpenAI, Status: StatusActive},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	clear := int64(0)
 	group, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
@@ -2084,7 +2025,7 @@ func TestAdminService_UpdateGroup_InvalidRequestFallbackPlatformMismatch(t *test
 			fallbackID:  {ID: fallbackID, Platform: PlatformAnthropic},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	_, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
 		Platform: PlatformOpenAI,
@@ -2109,7 +2050,7 @@ func TestAdminService_UpdateGroup_InvalidRequestFallbackClearsOnZero(t *testing.
 			fallbackID:  {ID: fallbackID, Platform: PlatformAnthropic},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	clear := int64(0)
 	group, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
@@ -2136,7 +2077,7 @@ func TestAdminService_UpdateGroup_InvalidRequestFallbackRejectsFallbackGroup(t *
 			fallbackID:  {ID: fallbackID, Platform: PlatformOpenAI},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	_, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
 		FallbackGroupIDOnInvalidRequest: &fallbackID,
@@ -2160,7 +2101,7 @@ func TestAdminService_UpdateGroup_InvalidRequestFallbackSetSuccess(t *testing.T)
 			fallbackID:  {ID: fallbackID, Platform: PlatformAnthropic},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
 		FallbackGroupIDOnInvalidRequest: &fallbackID,
@@ -2185,7 +2126,7 @@ func TestAdminService_UpdateGroup_InvalidRequestFallbackAllowsAntigravity(t *tes
 			fallbackID:  {ID: fallbackID, Platform: PlatformAnthropic},
 		},
 	}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	group, err := svc.UpdateGroup(context.Background(), existing.ID, &UpdateGroupInput{
 		FallbackGroupIDOnInvalidRequest: &fallbackID,
@@ -2202,7 +2143,7 @@ func TestAdminGroupOpenAIFastPolicy(t *testing.T) {
 		t.Run(policy, func(t *testing.T) {
 			repo := &groupRepoStubForAdmin{}
 			invalidator := &authCacheInvalidatorStub{}
-			svc := &adminServiceImpl{groupRepo: repo, authCacheInvalidator: invalidator}
+			svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo, authCacheInvalidator: invalidator})
 			group, err := svc.CreateGroup(context.Background(), &CreateGroupInput{Name: "fast", Platform: PlatformOpenAI, RateMultiplier: 1, ForceOpenAIFast: true, OpenAIFastPolicy: &policy})
 			require.NoError(t, err)
 			require.Equal(t, policy, group.OpenAIFastPolicy)

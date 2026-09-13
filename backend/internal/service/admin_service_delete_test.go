@@ -595,9 +595,9 @@ func TestAdminService_DeleteUser_DeleteError(t *testing.T) {
 
 func TestAdminService_DeleteGroup_Success(t *testing.T) {
 	repo := &groupRepoStub{affectedUserIDs: []int64{11, 12}}
-	svc := &adminServiceImpl{
+	svc := prepareRoutingAdmin(&adminServiceImpl{
 		groupRepo: repo,
-	}
+	})
 
 	err := svc.DeleteGroup(context.Background(), 5)
 	require.NoError(t, err)
@@ -608,11 +608,11 @@ func TestAdminService_DeleteGroup_InvalidatesAuthCacheForBoundKeys(t *testing.T)
 	repo := &groupRepoStub{}
 	apiKeyRepo := &deleteGroupAPIKeyRepoStub{keys: []string{"k1", "k2"}}
 	invalidator := &authCacheInvalidatorStub{}
-	svc := &adminServiceImpl{
+	svc := prepareRoutingAdmin(&adminServiceImpl{
 		groupRepo:            repo,
 		apiKeyRepo:           apiKeyRepo,
 		authCacheInvalidator: invalidator,
-	}
+	})
 
 	err := svc.DeleteGroup(context.Background(), 5)
 	require.NoError(t, err)
@@ -623,7 +623,7 @@ func TestAdminService_DeleteGroup_InvalidatesAuthCacheForBoundKeys(t *testing.T)
 
 func TestAdminService_DeleteGroup_NotFound(t *testing.T) {
 	repo := &groupRepoStub{deleteErr: ErrGroupNotFound}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	err := svc.DeleteGroup(context.Background(), 99)
 	require.ErrorIs(t, err, ErrGroupNotFound)
@@ -632,7 +632,7 @@ func TestAdminService_DeleteGroup_NotFound(t *testing.T) {
 func TestAdminService_DeleteGroup_Error(t *testing.T) {
 	deleteErr := errors.New("delete failed")
 	repo := &groupRepoStub{deleteErr: deleteErr}
-	svc := &adminServiceImpl{groupRepo: repo}
+	svc := prepareRoutingAdmin(&adminServiceImpl{groupRepo: repo})
 
 	err := svc.DeleteGroup(context.Background(), 42)
 	require.ErrorIs(t, err, deleteErr)

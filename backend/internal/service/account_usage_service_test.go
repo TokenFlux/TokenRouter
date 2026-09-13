@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"io"
 	"net/http"
 	"strings"
@@ -854,8 +855,9 @@ func TestAccountUsageService_QoderQuotaLockedAccountKeepsDegradedCache(t *testin
 		clearLimitCh: make(chan int64, 1),
 	}
 	cache := NewUsageCache()
-	cache.qoderCache.Store(int64(11), &qoderUsageCache{
-		usageInfo: &UsageInfo{
+	cache.StoreQoder(int64(11), &qoderUsageCache{
+		Identity: accountcore.UsageCacheIdentity(AccountRecordView(&repo.accounts[0])),
+		UsageInfo: &UsageInfo{
 			Error:     "usage API error: temporary network error",
 			ErrorCode: errorCodeNetworkError,
 			QoderQuota: &QoderQuotaInfo{
@@ -865,7 +867,7 @@ func TestAccountUsageService_QoderQuotaLockedAccountKeepsDegradedCache(t *testin
 				UserQuota:       &QoderQuotaProgress{Total: 100, Used: 100, Remaining: 0, Percentage: 100, Unit: "credits"},
 			},
 		},
-		timestamp: time.Now(),
+		Timestamp: time.Now(),
 	})
 	svc := &AccountUsageService{accountRepo: repo, cache: cache, httpUpstream: upstream}
 

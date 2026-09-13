@@ -1,0 +1,86 @@
+{
+  "items": [
+    {
+      "stage": "S07",
+      "owner": "调度执行",
+      "work": "评分/EWMA/抽样、槽位、快速阻断、sched:v2 bucket/epoch/tombstone 与 outbox 消费重建",
+      "verified_paths": [
+        "backend/internal/service/openai_account_scheduler.go",
+        "backend/internal/scheduler/policy"
+      ]
+    },
+    {
+      "stage": "S08",
+      "owner": "用量与诊断",
+      "work": "账号/分组容量与列表的只读统计来源、详细 usage 报告、Ops/审计；保留 SQL 查询顺序及分页前排序",
+      "verified_paths": [
+        "backend/internal/app/legacybridge/account_runtime_presenter.go",
+        "backend/internal/app/legacybridge/model_catalogue.go"
+      ]
+    },
+    {
+      "stage": "S09",
+      "owner": "供应商执行",
+      "work": "OAuth/PAT/Agent Identity/Qoder session 交换、专有模型目录与身份/额度/错误报文解析、Grok CLI/403 策略",
+      "verified_paths": [
+        "backend/internal/service/account_test_service.go",
+        "backend/internal/app/legacybridge/account_testing.go"
+      ]
+    },
+    {
+      "stage": "S10",
+      "owner": "设置与通知",
+      "work": "动态业务设置、邮件/收件人与站点内容；当前通用 settings 存取仍唯一",
+      "verified_paths": [
+        "backend/internal/service/setting_service.go",
+        "backend/internal/app/legacybridge/account_archive.go"
+      ]
+    },
+    {
+      "stage": "S11",
+      "owner": "请求编排",
+      "work": "请求体与响应模型改写、attempt 重试/取消/真实输出边界、旧网关 context；接续 RoutePlan 与 EgressPolicy",
+      "verified_paths": [
+        "backend/internal/service/route_plan.go",
+        "backend/internal/service/openai_gateway_scheduling.go"
+      ]
+    },
+    {
+      "stage": "S12",
+      "owner": "支付推广",
+      "work": "支付/退款/Promo/返利闭合事务继续按 S04/S05 保留；本阶段不改缓存或资金协议",
+      "verified_paths": [
+        "backend/internal/service/payment_service.go",
+        "refactor/S04-billing-transactions.md"
+      ]
+    },
+    {
+      "stage": "S13",
+      "owner": "任务平台",
+      "work": "creative/batchimage 执行和任务恢复仍留旧模块，资金参与能力继续复用 billing",
+      "verified_paths": [
+        "refactor/S04-billing-transactions.md"
+      ]
+    },
+    {
+      "stage": "S14",
+      "owner": "初始化恢复",
+      "work": "setup/恢复和维护编排继续原精简 bootstrap；不得通过旧 repository 反向导入 app",
+      "verified_paths": [
+        "backend/internal/app/bootstrap",
+        "backend/internal/setup"
+      ]
+    },
+    {
+      "stage": "S15/S16",
+      "owner": "兼容与验收",
+      "work": "按消费者删除旧 service/repository/handler 别名和委托；保持 protocol 门禁，继续跟踪真实供应商 E2E/外部 TLS 限制",
+      "verified_paths": [
+        "refactor/baseline/S06/file-ownership.json.gz",
+        "refactor/baseline/S06/final-test-summary.json"
+      ]
+    }
+  ],
+  "compatibility": "旧入口只为尚存消费者保留；新代码调用已提取的模块。真实资金及代理/账号写入权限见 funding-writes。",
+  "deployment": "保持单服务进程的 S04 平台额度协调；本阶段没有扩大多实例部署支持。"
+}

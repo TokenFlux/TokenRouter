@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-race",
+    "-tags=unit",
+    "./internal/service",
+    "./internal/account",
+    "./internal/egress",
+    "-run",
+    "Test(S06(ModelMapping|HeaderOverride)|AccountGetModelMapping|AccountRoutingSnapshot|.*Wildcard|.*MappedModel|.*HeaderOverride)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 56.015,
+  "log": "logs/account-derived-values-race.log.gz"
+}

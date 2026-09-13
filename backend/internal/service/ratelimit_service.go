@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -20,6 +20,10 @@ import (
 
 // RateLimitService 处理限流和过载状态管理
 type RateLimitService struct {
+	geminiPrecheck         *accountcore.GeminiPrecheck
+	geminiPrecheckOnce     sync.Once
+	health                 *accountcore.HealthService
+	recovery               *accountcore.RecoveryService
 	accountRepo            AccountRepository
 	usageRepo              UsageLogRepository
 	cfg                    *config.Config
@@ -31,8 +35,6 @@ type RateLimitService struct {
 	settingService         *SettingService
 	tokenCacheInvalidator  TokenCacheInvalidator
 	runtimeBlocker         AccountRuntimeBlocker
-	usageCacheMu           sync.RWMutex
-	usageCache             map[int64]*geminiUsageCacheEntry
 	advancedSchedulerMu    sync.Mutex
 	advancedSchedulerStats *advancedAccountRuntimeStats
 
@@ -52,35 +54,17 @@ type openAI429RetryDeferrer interface {
 	ShouldRetryOpenAIOAuth429(account *Account, headers http.Header, responseBody []byte) bool
 }
 
-// SuccessfulTestRecoveryResult 表示测试成功后恢复了哪些运行时状态。
-type SuccessfulTestRecoveryResult struct {
-	ClearedError     bool
-	ClearedRateLimit bool
-}
+// SuccessfulTestRecoveryResult 保留旧消费者的同一值类型。
+type SuccessfulTestRecoveryResult = accountcore.SuccessfulTestRecovery
 
-// AccountRecoveryOptions 控制账号恢复时的附加行为。
-type AccountRecoveryOptions struct {
-	InvalidateToken bool
-}
-
-type geminiUsageCacheEntry struct {
-	windowStart time.Time
-	cachedAt    time.Time
-	totals      GeminiUsageTotals
-}
-
-type geminiUsageTotalsBatchProvider interface {
-	GetGeminiUsageTotalsBatch(ctx context.Context, accountIDs []int64, startTime, endTime time.Time) (map[int64]GeminiUsageTotals, error)
-}
-
-const geminiPrecheckCacheTTL = time.Minute
+// AccountRecoveryOptions 保留旧消费者的同一值类型。
+type AccountRecoveryOptions = accountcore.AccountRecoveryOptions
 
 const (
-	openAI403CooldownMinutesDefault      = 10
-	openAI403DisableThresholdDefault     = 3
-	openAI403CounterWindowMinutesDefault = 180
-	defaultRateLimit429CooldownSeconds   = 5
-	maxRateLimit429CooldownSeconds       = 7200
+	openAI403CooldownMinutesDefault      = accountcore.OpenAI403CooldownMinutesDefault
+	openAI403DisableThresholdDefault     = accountcore.OpenAI403DisableThresholdDefault
+	openAI403CounterWindowMinutesDefault = accountcore.OpenAI403CounterWindowMinutesDefault
+	defaultRateLimit429CooldownSeconds   = accountcore.DefaultRateLimit429CooldownSeconds
 )
 
 const (
@@ -104,7 +88,6 @@ func NewRateLimitService(accountRepo AccountRepository, usageRepo UsageLogReposi
 		cfg:                    cfg,
 		geminiQuotaService:     geminiQuotaService,
 		tempUnschedCache:       tempUnschedCache,
-		usageCache:             make(map[int64]*geminiUsageCacheEntry),
 		advancedSchedulerStats: newAdvancedAccountRuntimeStats(),
 	}
 }
@@ -178,254 +161,68 @@ func (s *RateLimitService) notifyAccountSchedulingBlockCleared(accountID int64) 
 	s.runtimeBlocker.ClearAccountSchedulingBlock(accountID)
 }
 
-// ApplyAccountSchedulingThreshold 评估管理员配置的平台用量阈值。
-// 超出阈值时，将账号临时设为不可调度直到命中的窗口重置；
-// 账号刚被阻断或已因同一阈值原因暂停时均返回 true。
-func (s *RateLimitService) ApplyAccountSchedulingThreshold(ctx context.Context, account *Account) bool {
-	if s == nil || s.settingService == nil || s.accountRepo == nil || account == nil || account.ID <= 0 {
+// ApplyAccountSchedulingThreshold 只投影旧输入和本地健康结果，不拥有阈值规则。
+func (s *RateLimitService) ApplyAccountSchedulingThreshold(ctx context.Context, value *Account) bool {
+	if s == nil {
 		return false
 	}
-	if !account.IsActive() || !account.Schedulable {
+	if s == nil {
 		return false
 	}
-
-	now := time.Now().UTC()
-	thresholds := s.settingService.GetAccountSchedulingThresholds(ctx)
-	decision := EvaluateAccountSchedulingThreshold(account, thresholds, now)
-	if !decision.ShouldPause || decision.Until == nil || !decision.Until.After(now) {
-		s.applyAnthropicFableSchedulingThreshold(ctx, account, thresholds, now)
-		return false
+	view := AccountRecordView(value)
+	paused := s.HealthCore().ApplyAccountSchedulingThreshold(ctx, view)
+	if value != nil && view != nil {
+		value.TempUnschedulableUntil = view.TempUnschedulableUntil
+		value.TempUnschedulableReason = view.TempUnschedulableReason
+		value.Extra = view.Extra
 	}
-
-	reason := BuildDetailedAccountSchedulingThresholdReason(AccountSchedulingThresholdReasonInput{
-		Platform:         decision.Platform,
-		Window:           decision.Window,
-		Scope:            decision.Scope,
-		ThresholdPercent: decision.ThresholdPercent,
-		UsedPercent:      decision.UsedPercent,
-		Until:            *decision.Until,
-		Now:              now,
-	})
-
-	if accountHasSameSchedulingThresholdPause(account, *decision.Until, reason) {
-		return true
-	}
-	if !account.IsSchedulable() {
-		return false
-	}
-
-	account.TempUnschedulableUntil = cloneTimePtr(decision.Until)
-	account.TempUnschedulableReason = reason
-	s.notifyAccountSchedulingBlocked(account, *decision.Until, "account_scheduling_threshold")
-
-	if err := s.accountRepo.SetTempUnschedulable(ctx, account.ID, *decision.Until, reason); err != nil {
-		slog.Warn("account_scheduling_threshold_set_temp_unsched_failed",
-			"account_id", account.ID,
-			"platform", decision.Platform,
-			"window", decision.Window,
-			"scope", decision.Scope,
-			"threshold_percent", decision.ThresholdPercent,
-			"used_percent", decision.UsedPercent,
-			"until", decision.Until.UTC(),
-			"error", err)
-	} else if s.tempUnschedCache != nil {
-		if state := tempUnschedStateFromStoredReason(reason, decision.Until.Unix()); state != nil {
-			if err := s.tempUnschedCache.SetTempUnsched(ctx, account.ID, state); err != nil {
-				slog.Warn("account_scheduling_threshold_cache_set_failed", "account_id", account.ID, "error", err)
-			}
-		}
-	}
-
-	slog.Info("account_scheduling_threshold_temp_unschedulable",
-		"account_id", account.ID,
-		"platform", decision.Platform,
-		"window", decision.Window,
-		"scope", decision.Scope,
-		"threshold_percent", decision.ThresholdPercent,
-		"used_percent", decision.UsedPercent,
-		"until", decision.Until.UTC())
-	return true
+	return paused
 }
 
-func (s *RateLimitService) applyAnthropicFableSchedulingThreshold(ctx context.Context, account *Account, thresholds map[string]int, now time.Time) {
-	decision := evaluateAnthropicFableSchedulingThreshold(account, thresholds, now)
-	if !decision.ShouldPause || decision.Until == nil || !decision.Until.After(now) {
-		return
-	}
-	if account.isRateLimitActiveForKey(anthropicFableRateLimitKey) {
-		return
-	}
-
-	reason := BuildDetailedAccountSchedulingThresholdReason(AccountSchedulingThresholdReasonInput{
-		Platform:         decision.Platform,
-		Window:           decision.Window,
-		Scope:            decision.Scope,
-		ThresholdPercent: decision.ThresholdPercent,
-		UsedPercent:      decision.UsedPercent,
-		Until:            *decision.Until,
-		Now:              now,
-	})
-	setAccountModelRateLimitSnapshot(account, anthropicFableRateLimitKey, *decision.Until, reason, now)
-	if err := s.accountRepo.SetModelRateLimit(ctx, account.ID, anthropicFableRateLimitKey, *decision.Until, reason); err != nil {
-		slog.Warn("anthropic_fable_scheduling_threshold_set_model_limit_failed",
-			"account_id", account.ID,
-			"threshold_percent", decision.ThresholdPercent,
-			"used_percent", decision.UsedPercent,
-			"until", decision.Until.UTC(),
-			"error", err)
-		return
-	}
-
-	slog.Info("anthropic_fable_scheduling_threshold_model_limited",
-		"account_id", account.ID,
-		"scope", anthropicFableRateLimitKey,
-		"threshold_percent", decision.ThresholdPercent,
-		"used_percent", decision.UsedPercent,
-		"until", decision.Until.UTC())
-}
-
-func accountHasSameSchedulingThresholdPause(account *Account, until time.Time, reason string) bool {
-	if account == nil || account.TempUnschedulableUntil == nil {
-		return false
-	}
-	if account.TempUnschedulableUntil.UTC().Unix() != until.UTC().Unix() {
-		return false
-	}
-
-	existing, ok := parseTempUnschedReasonPayload(account.TempUnschedulableReason)
-	if !ok || existing.Source != AccountSchedulingThresholdReasonSource {
-		return false
-	}
-	next, ok := parseTempUnschedReasonPayload(reason)
-	if !ok || next.Source != AccountSchedulingThresholdReasonSource {
-		return false
-	}
-
-	existing.TriggeredAtUnix = 0
-	next.TriggeredAtUnix = 0
-	return existing == next
-}
-
-// ErrorPolicyResult 表示错误策略检查的结果
-type ErrorPolicyResult int
+type ErrorPolicyResult = accountcore.ErrorPolicyResult
 
 const (
-	ErrorPolicyNone            ErrorPolicyResult = iota // 未命中任何策略，继续默认逻辑
-	ErrorPolicyCustomSkipped                            // 自定义错误码开启但未命中，返回通用错误
-	ErrorPolicyCustomMatched                            // 自定义错误码命中，停止调度
-	ErrorPolicyTempUnscheduled                          // 临时不可调度规则命中
-	ErrorPolicyPoolBypassed                             // 池模式跳过默认本地状态，继续响应分类
-	// ErrorPolicyMatched 保留旧测试与外部调用方的枚举别名。
-	ErrorPolicyMatched = ErrorPolicyCustomMatched
-	// ErrorPolicySkipped 保留旧测试与外部调用方的枚举别名。
-	ErrorPolicySkipped = ErrorPolicyCustomSkipped
+	ErrorPolicyNone            = accountcore.ErrorPolicyNone
+	ErrorPolicyCustomSkipped   = accountcore.ErrorPolicyCustomSkipped
+	ErrorPolicyCustomMatched   = accountcore.ErrorPolicyCustomMatched
+	ErrorPolicyTempUnscheduled = accountcore.ErrorPolicyTempUnscheduled
+	ErrorPolicyPoolBypassed    = accountcore.ErrorPolicyPoolBypassed
+	ErrorPolicyMatched         = accountcore.ErrorPolicyMatched
+	ErrorPolicySkipped         = accountcore.ErrorPolicySkipped
 )
 
-// UpstreamErrorDecision 汇总显式策略和默认账号状态处理结果。
-// 网关必须使用 Policy 区分池模式绕过与自定义错误码未命中，不能只依赖 StopScheduling。
-type UpstreamErrorDecision struct {
-	Policy         ErrorPolicyResult
-	StopScheduling bool
-}
+type UpstreamErrorDecision accountcore.UpstreamErrorDecision
 
-// ShouldReturnGenericError 表示应按自定义错误码约定返回通用 500，且不切换账号。
 func (d UpstreamErrorDecision) ShouldReturnGenericError() bool {
-	return d.Policy == ErrorPolicyCustomSkipped
+	return accountcore.UpstreamErrorDecision(d).ShouldReturnGenericError()
 }
 
-// ShouldFailover 表示当前请求应切换账号。池模式配置的重试状态码可以把原本的
-// 非故障转移状态提升为故障转移；显式策略命中则始终切换账号。
 func (d UpstreamErrorDecision) ShouldFailover(account *Account, statusCode int, defaultFailover bool) bool {
-	if d.Policy == ErrorPolicyCustomSkipped {
-		return false
-	}
-	if d.Policy == ErrorPolicyCustomMatched || d.Policy == ErrorPolicyTempUnscheduled {
-		return true
-	}
-	if d.Policy == ErrorPolicyPoolBypassed {
-		return defaultFailover || (account != nil && account.IsPoolModeRetryableStatus(statusCode))
-	}
-	return defaultFailover || d.StopScheduling
+	return accountcore.UpstreamErrorDecision(d).ShouldFailover(errorPolicyRecord(account), statusCode, defaultFailover)
 }
 
-// ShouldFailoverWithDefaults 分别保留普通账号的入口既有切号规则和池模式的上游错误分类。
-// 这样显式策略可以跨入口统一，又不会把某个入口原本只回写客户端的状态扩大成普通账号切号。
 func (d UpstreamErrorDecision) ShouldFailoverWithDefaults(
 	account *Account,
 	statusCode int,
 	nonPoolDefault bool,
 	poolDefault bool,
 ) bool {
-	switch d.Policy {
-	case ErrorPolicyCustomSkipped:
-		return false
-	case ErrorPolicyCustomMatched, ErrorPolicyTempUnscheduled:
-		return true
-	case ErrorPolicyPoolBypassed:
-		return poolDefault || (account != nil && account.IsPoolModeRetryableStatus(statusCode))
-	default:
-		return nonPoolDefault
-	}
+	return accountcore.UpstreamErrorDecision(d).ShouldFailoverWithDefaults(errorPolicyRecord(account), statusCode, nonPoolDefault, poolDefault)
 }
 
-// RetryableOnSameAccount 仅允许未命中显式策略的池模式错误在当前账号上重试。
 func (d UpstreamErrorDecision) RetryableOnSameAccount(account *Account, statusCode int) bool {
-	return d.Policy == ErrorPolicyPoolBypassed && account != nil && account.IsPoolModeRetryableStatus(statusCode)
+	return accountcore.UpstreamErrorDecision(d).RetryableOnSameAccount(errorPolicyRecord(account), statusCode)
 }
 
-// upstreamErrorDecisionWithoutPersistence 在错误状态服务未注入时保留纯配置决策。
-// 该路径不能写数据库，但仍必须识别自定义错误码和池模式，否则会丢失通用错误或同账号重试语义。
 func upstreamErrorDecisionWithoutPersistence(account *Account, statusCode int) UpstreamErrorDecision {
-	decision := UpstreamErrorDecision{Policy: ErrorPolicyNone}
-	if account == nil {
-		return decision
-	}
-	if account.IsCustomErrorCodesEnabled() {
-		if account.ShouldHandleErrorCode(statusCode) {
-			decision.Policy = ErrorPolicyCustomMatched
-			decision.StopScheduling = true
-		} else {
-			decision.Policy = ErrorPolicyCustomSkipped
-		}
-		return decision
-	}
-	if account.IsPoolMode() {
-		decision.Policy = ErrorPolicyPoolBypassed
-	}
-	return decision
+	return UpstreamErrorDecision(accountcore.ErrorDecisionWithoutPersistence(errorPolicyRecord(account), statusCode))
 }
 
-// CheckErrorPolicy 检查自定义错误码和临时不可调度规则。
-// 自定义错误码开启时覆盖后续所有逻辑（包括临时不可调度）。
 func (s *RateLimitService) CheckErrorPolicy(ctx context.Context, account *Account, statusCode int, responseBody []byte, requestedModel ...string) ErrorPolicyResult {
 	if account == nil {
 		return ErrorPolicyNone
 	}
-	ctx = withTempUnschedulableModel(ctx, requestedModel)
-	if account.IsCustomErrorCodesEnabled() {
-		if account.ShouldHandleErrorCode(statusCode) {
-			return ErrorPolicyCustomMatched
-		}
-		slog.Info("account_error_code_skipped", "account_id", account.ID, "status_code", statusCode)
-		return ErrorPolicyCustomSkipped
-	}
-	if account.IsPoolMode() {
-		// 池模式下管理员显式配置的临时不可调度规则仍优先；401 不执行默认的
-		// 二次认证错误升级，否则会违背池模式不写默认账号错误状态的约定。
-		if s.tryTempUnschedulableWith401Escalation(ctx, account, statusCode, responseBody, false, firstRequestedModel(requestedModel)) {
-			return ErrorPolicyTempUnscheduled
-		}
-		return ErrorPolicyPoolBypassed
-	}
-	// The global overload cooldown is the default for ordinary accounts. Explicit
-	// account policies above retain precedence over this fallback.
-	if statusCode == 529 {
-		return ErrorPolicyCustomMatched
-	}
-	if s.tryTempUnschedulable(ctx, account, statusCode, responseBody, firstRequestedModel(requestedModel)) {
-		return ErrorPolicyTempUnscheduled
-	}
-	return ErrorPolicyNone
+	return s.HealthCore().CheckErrorPolicy(ctx, AccountRecordView(account), statusCode, responseBody, tempUnschedulableModel(ctx, requestedModel), account == nil || account.Platform != PlatformAntigravity)
 }
 
 // ApplyExplicitErrorPolicy 检查并应用管理员显式配置的错误策略。
@@ -684,384 +481,23 @@ func (s *RateLimitService) handleDefaultUpstreamError(ctx context.Context, accou
 	return shouldDisable
 }
 
-// PreCheckUsage proactively checks local quota before dispatching a request.
-// Returns false when the account should be skipped.
+// PreCheckUsage 只投影旧输入，规则与缓存由账号核心拥有。
 func (s *RateLimitService) PreCheckUsage(ctx context.Context, account *Account, requestedModel string) (bool, error) {
-	if account == nil || account.Platform != PlatformGemini {
-		return true, nil
-	}
-	if s.usageRepo == nil || s.geminiQuotaService == nil {
-		return true, nil
-	}
-
-	quota, ok := s.geminiQuotaService.QuotaForAccount(ctx, account)
-	if !ok {
-		return true, nil
-	}
-
-	now := time.Now()
-	modelClass := geminiModelClassFromName(requestedModel)
-
-	// 1) Daily quota precheck (RPD; resets at PST midnight)
-	{
-		var limit int64
-		if quota.SharedRPD > 0 {
-			limit = quota.SharedRPD
-		} else {
-			switch modelClass {
-			case geminiModelFlash:
-				limit = quota.FlashRPD
-			default:
-				limit = quota.ProRPD
-			}
-		}
-
-		if limit > 0 {
-			start := geminiDailyWindowStart(now)
-			totals, ok := s.getGeminiUsageTotals(account.ID, start, now)
-			if !ok {
-				stats, err := s.usageRepo.GetModelStatsWithFilters(ctx, start, now, 0, 0, account.ID, 0, nil, nil, nil)
-				if err != nil {
-					return true, err
-				}
-				totals = geminiAggregateUsage(stats)
-				s.setGeminiUsageTotals(account.ID, start, now, totals)
-			}
-
-			var used int64
-			if quota.SharedRPD > 0 {
-				used = totals.ProRequests + totals.FlashRequests
-			} else {
-				switch modelClass {
-				case geminiModelFlash:
-					used = totals.FlashRequests
-				default:
-					used = totals.ProRequests
-				}
-			}
-
-			if used >= limit {
-				resetAt := geminiDailyResetTime(now)
-				// NOTE:
-				// - This is a local precheck to reduce upstream 429s.
-				// - Do NOT mark the account as rate-limited here; rate_limit_reset_at should reflect real upstream 429s.
-				slog.Info("gemini_precheck_daily_quota_reached", "account_id", account.ID, "used", used, "limit", limit, "reset_at", resetAt)
-				return false, nil
-			}
-		}
-	}
-
-	// 2) Minute quota precheck (RPM; fixed window current minute)
-	{
-		var limit int64
-		if quota.SharedRPM > 0 {
-			limit = quota.SharedRPM
-		} else {
-			switch modelClass {
-			case geminiModelFlash:
-				limit = quota.FlashRPM
-			default:
-				limit = quota.ProRPM
-			}
-		}
-
-		if limit > 0 {
-			start := now.Truncate(time.Minute)
-			stats, err := s.usageRepo.GetModelStatsWithFilters(ctx, start, now, 0, 0, account.ID, 0, nil, nil, nil)
-			if err != nil {
-				return true, err
-			}
-			totals := geminiAggregateUsage(stats)
-
-			var used int64
-			if quota.SharedRPM > 0 {
-				used = totals.ProRequests + totals.FlashRequests
-			} else {
-				switch modelClass {
-				case geminiModelFlash:
-					used = totals.FlashRequests
-				default:
-					used = totals.ProRequests
-				}
-			}
-
-			if used >= limit {
-				resetAt := start.Add(time.Minute)
-				// Do not persist "rate limited" status from local precheck. See note above.
-				slog.Info("gemini_precheck_minute_quota_reached", "account_id", account.ID, "used", used, "limit", limit, "reset_at", resetAt)
-				return false, nil
-			}
-		}
-	}
-
-	return true, nil
+	return s.GeminiPrecheckCore().PreCheckUsage(ctx, AccountRecordView(account), requestedModel)
 }
 
-// PreCheckUsageBatch performs quota precheck for multiple accounts in one request.
-// Returned map value=false means the account should be skipped.
+// PreCheckUsageBatch 只投影旧输入，规则与缓存由账号核心拥有。
 func (s *RateLimitService) PreCheckUsageBatch(ctx context.Context, accounts []*Account, requestedModel string) (map[int64]bool, error) {
-	result := make(map[int64]bool, len(accounts))
-	for _, account := range accounts {
-		if account == nil {
-			continue
-		}
-		result[account.ID] = true
-	}
-
-	if len(accounts) == 0 || requestedModel == "" {
-		return result, nil
-	}
-	if s.usageRepo == nil || s.geminiQuotaService == nil {
-		return result, nil
-	}
-
-	modelClass := geminiModelClassFromName(requestedModel)
-	now := time.Now()
-	dailyStart := geminiDailyWindowStart(now)
-	minuteStart := now.Truncate(time.Minute)
-
-	type quotaAccount struct {
-		account *Account
-		quota   GeminiQuota
-	}
-	quotaAccounts := make([]quotaAccount, 0, len(accounts))
-	for _, account := range accounts {
-		if account == nil || account.Platform != PlatformGemini {
-			continue
-		}
-		quota, ok := s.geminiQuotaService.QuotaForAccount(ctx, account)
-		if !ok {
-			continue
-		}
-		quotaAccounts = append(quotaAccounts, quotaAccount{
-			account: account,
-			quota:   quota,
-		})
-	}
-	if len(quotaAccounts) == 0 {
-		return result, nil
-	}
-
-	// 1) Daily precheck (cached + batch DB fallback)
-	dailyTotalsByID := make(map[int64]GeminiUsageTotals, len(quotaAccounts))
-	dailyMissIDs := make([]int64, 0, len(quotaAccounts))
-	for _, item := range quotaAccounts {
-		limit := geminiDailyLimit(item.quota, modelClass)
-		if limit <= 0 {
-			continue
-		}
-		accountID := item.account.ID
-		if totals, ok := s.getGeminiUsageTotals(accountID, dailyStart, now); ok {
-			dailyTotalsByID[accountID] = totals
-			continue
-		}
-		dailyMissIDs = append(dailyMissIDs, accountID)
-	}
-	if len(dailyMissIDs) > 0 {
-		totalsBatch, err := s.getGeminiUsageTotalsBatch(ctx, dailyMissIDs, dailyStart, now)
-		if err != nil {
-			return result, err
-		}
-		for _, accountID := range dailyMissIDs {
-			totals := totalsBatch[accountID]
-			dailyTotalsByID[accountID] = totals
-			s.setGeminiUsageTotals(accountID, dailyStart, now, totals)
-		}
-	}
-	for _, item := range quotaAccounts {
-		limit := geminiDailyLimit(item.quota, modelClass)
-		if limit <= 0 {
-			continue
-		}
-		accountID := item.account.ID
-		used := geminiUsedRequests(item.quota, modelClass, dailyTotalsByID[accountID], true)
-		if used >= limit {
-			resetAt := geminiDailyResetTime(now)
-			slog.Info("gemini_precheck_daily_quota_reached_batch", "account_id", accountID, "used", used, "limit", limit, "reset_at", resetAt)
-			result[accountID] = false
-		}
-	}
-
-	// 2) Minute precheck (batch DB)
-	minuteIDs := make([]int64, 0, len(quotaAccounts))
-	for _, item := range quotaAccounts {
-		accountID := item.account.ID
-		if !result[accountID] {
-			continue
-		}
-		if geminiMinuteLimit(item.quota, modelClass) <= 0 {
-			continue
-		}
-		minuteIDs = append(minuteIDs, accountID)
-	}
-	if len(minuteIDs) == 0 {
-		return result, nil
-	}
-
-	minuteTotalsByID, err := s.getGeminiUsageTotalsBatch(ctx, minuteIDs, minuteStart, now)
-	if err != nil {
-		return result, err
-	}
-	for _, item := range quotaAccounts {
-		accountID := item.account.ID
-		if !result[accountID] {
-			continue
-		}
-
-		limit := geminiMinuteLimit(item.quota, modelClass)
-		if limit <= 0 {
-			continue
-		}
-
-		used := geminiUsedRequests(item.quota, modelClass, minuteTotalsByID[accountID], false)
-		if used >= limit {
-			resetAt := minuteStart.Add(time.Minute)
-			slog.Info("gemini_precheck_minute_quota_reached_batch", "account_id", accountID, "used", used, "limit", limit, "reset_at", resetAt)
-			result[accountID] = false
-		}
-	}
-
-	return result, nil
+	return s.GeminiPrecheckCore().PreCheckUsageBatch(ctx, accountRecordPointers(accounts), requestedModel)
 }
 
-func (s *RateLimitService) getGeminiUsageTotalsBatch(ctx context.Context, accountIDs []int64, start, end time.Time) (map[int64]GeminiUsageTotals, error) {
-	result := make(map[int64]GeminiUsageTotals, len(accountIDs))
-	if len(accountIDs) == 0 {
-		return result, nil
-	}
-
-	ids := make([]int64, 0, len(accountIDs))
-	seen := make(map[int64]struct{}, len(accountIDs))
-	for _, accountID := range accountIDs {
-		if accountID <= 0 {
-			continue
-		}
-		if _, ok := seen[accountID]; ok {
-			continue
-		}
-		seen[accountID] = struct{}{}
-		ids = append(ids, accountID)
-	}
-	if len(ids) == 0 {
-		return result, nil
-	}
-
-	if batchReader, ok := s.usageRepo.(geminiUsageTotalsBatchProvider); ok {
-		stats, err := batchReader.GetGeminiUsageTotalsBatch(ctx, ids, start, end)
-		if err != nil {
-			return nil, err
-		}
-		for _, accountID := range ids {
-			result[accountID] = stats[accountID]
-		}
-		return result, nil
-	}
-
-	for _, accountID := range ids {
-		stats, err := s.usageRepo.GetModelStatsWithFilters(ctx, start, end, 0, 0, accountID, 0, nil, nil, nil)
-		if err != nil {
-			return nil, err
-		}
-		result[accountID] = geminiAggregateUsage(stats)
-	}
-	return result, nil
-}
-
-func geminiDailyLimit(quota GeminiQuota, modelClass geminiModelClass) int64 {
-	if quota.SharedRPD > 0 {
-		return quota.SharedRPD
-	}
-	switch modelClass {
-	case geminiModelFlash:
-		return quota.FlashRPD
-	default:
-		return quota.ProRPD
-	}
-}
-
-func geminiMinuteLimit(quota GeminiQuota, modelClass geminiModelClass) int64 {
-	if quota.SharedRPM > 0 {
-		return quota.SharedRPM
-	}
-	switch modelClass {
-	case geminiModelFlash:
-		return quota.FlashRPM
-	default:
-		return quota.ProRPM
-	}
-}
-
-func geminiUsedRequests(quota GeminiQuota, modelClass geminiModelClass, totals GeminiUsageTotals, daily bool) int64 {
-	if daily {
-		if quota.SharedRPD > 0 {
-			return totals.ProRequests + totals.FlashRequests
-		}
-	} else {
-		if quota.SharedRPM > 0 {
-			return totals.ProRequests + totals.FlashRequests
-		}
-	}
-	switch modelClass {
-	case geminiModelFlash:
-		return totals.FlashRequests
-	default:
-		return totals.ProRequests
-	}
-}
-
-func (s *RateLimitService) getGeminiUsageTotals(accountID int64, windowStart, now time.Time) (GeminiUsageTotals, bool) {
-	s.usageCacheMu.RLock()
-	defer s.usageCacheMu.RUnlock()
-
-	if s.usageCache == nil {
-		return GeminiUsageTotals{}, false
-	}
-
-	entry, ok := s.usageCache[accountID]
-	if !ok || entry == nil {
-		return GeminiUsageTotals{}, false
-	}
-	if !entry.windowStart.Equal(windowStart) {
-		return GeminiUsageTotals{}, false
-	}
-	if now.Sub(entry.cachedAt) >= geminiPrecheckCacheTTL {
-		return GeminiUsageTotals{}, false
-	}
-	return entry.totals, true
-}
-
-func (s *RateLimitService) setGeminiUsageTotals(accountID int64, windowStart, now time.Time, totals GeminiUsageTotals) {
-	s.usageCacheMu.Lock()
-	defer s.usageCacheMu.Unlock()
-	if s.usageCache == nil {
-		s.usageCache = make(map[int64]*geminiUsageCacheEntry)
-	}
-	s.usageCache[accountID] = &geminiUsageCacheEntry{
-		windowStart: windowStart,
-		cachedAt:    now,
-		totals:      totals,
-	}
-}
-
-// GeminiCooldown returns the fallback cooldown duration for Gemini 429s based on tier.
+// GeminiCooldown 只投影旧输入，规则与缓存由账号核心拥有。
 func (s *RateLimitService) GeminiCooldown(ctx context.Context, account *Account) time.Duration {
-	if account == nil {
-		return 5 * time.Minute
-	}
-	if s.geminiQuotaService == nil {
-		return 5 * time.Minute
-	}
-	return s.geminiQuotaService.CooldownForAccount(ctx, account)
+	return s.GeminiPrecheckCore().GeminiCooldown(ctx, AccountRecordView(account))
 }
 
-// handleAuthError 处理认证类错误(401/403)，停止账号调度
 func (s *RateLimitService) handleAuthError(ctx context.Context, account *Account, errorMsg string) {
-	s.notifyAccountSchedulingBlocked(account, time.Time{}, "auth_error")
-	if err := s.accountRepo.SetError(ctx, account.ID, errorMsg); err != nil {
-		slog.Warn("account_set_error_failed", "account_id", account.ID, "error", err)
-		return
-	}
-	slog.Warn("account_disabled_auth_error", "account_id", account.ID, "error", errorMsg)
+	s.HealthCore().ApplyAuthenticationFailure(ctx, AccountRecordView(account), errorMsg)
 }
 
 func buildForbiddenErrorMessage(prefix string, upstreamMsg string, responseBody []byte, fallback string) string {
@@ -1136,99 +572,7 @@ func (s *RateLimitService) handleOpenAI403(ctx context.Context, account *Account
 		responseBody,
 		"account may be suspended or lack permissions",
 	)
-	settings := s.getOpenAI403CooldownSettings(ctx, account.ID)
-	if !settings.Enabled {
-		s.handleAuthError(ctx, account, msg)
-		return true
-	}
-
-	thresholdCount := settings.ThresholdCount
-	if thresholdCount <= 0 {
-		thresholdCount = openAI403DisableThresholdDefault
-	}
-	thresholdWindowMinutes := settings.ThresholdWindowMinutes
-	if thresholdWindowMinutes <= 0 {
-		thresholdWindowMinutes = openAI403CounterWindowMinutesDefault
-	}
-
-	var count int64
-	if settings.ErrorOnThresholdEnabled {
-		if s.openAI403CounterCache == nil {
-			s.handleAuthError(ctx, account, msg)
-			return true
-		}
-
-		var err error
-		count, err = s.openAI403CounterCache.IncrementOpenAI403Count(ctx, account.ID, thresholdWindowMinutes)
-		if err != nil {
-			slog.Warn("openai_403_increment_failed", "account_id", account.ID, "error", err)
-			s.handleAuthError(ctx, account, msg)
-			return true
-		}
-
-		if count >= int64(thresholdCount) {
-			msg = fmt.Sprintf("%s | consecutive_403=%d/%d", msg, count, thresholdCount)
-			s.handleAuthError(ctx, account, msg)
-			return true
-		}
-	} else {
-		s.ResetOpenAI403Counter(ctx, account.ID)
-	}
-
-	cooldownMinutes := settings.CooldownMinutes
-	if cooldownMinutes <= 0 {
-		cooldownMinutes = openAI403CooldownMinutesDefault
-	}
-
-	until := time.Now().Add(time.Duration(cooldownMinutes) * time.Minute)
-	platformLabel := "OpenAI"
-	if account.IsCNProvider() {
-		platformLabel = account.Platform
-	}
-	reason := fmt.Sprintf("%s 403 temporary cooldown: %s", platformLabel, msg)
-	if settings.ErrorOnThresholdEnabled {
-		reason = fmt.Sprintf("%s 403 temporary cooldown (%d/%d): %s", platformLabel, count, thresholdCount, msg)
-	}
-	s.notifyAccountSchedulingBlocked(account, until, "openai_403_temp")
-	if err := s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, reason); err != nil {
-		slog.Warn("openai_403_set_temp_unschedulable_failed", "account_id", account.ID, "error", err)
-		s.handleAuthError(ctx, account, msg)
-		return true
-	}
-
-	slog.Warn(
-		"openai_403_temp_unschedulable",
-		"account_id", account.ID,
-		"until", until,
-		"count", count,
-		"threshold", thresholdCount,
-		"threshold_window_minutes", thresholdWindowMinutes,
-		"error_on_threshold_enabled", settings.ErrorOnThresholdEnabled,
-	)
-	return true
-}
-
-func (s *RateLimitService) getOpenAI403CooldownSettings(ctx context.Context, accountID int64) *OpenAI403CooldownSettings {
-	settings := DefaultOpenAI403CooldownSettings()
-	if settings.CooldownMinutes <= 0 {
-		settings.CooldownMinutes = openAI403CooldownMinutesDefault
-	}
-	if s == nil || s.settingService == nil {
-		return settings
-	}
-
-	loaded, err := s.settingService.GetOpenAI403CooldownSettings(ctx)
-	if err != nil {
-		slog.Warn("openai_403_settings_read_failed", "account_id", accountID, "error", err)
-		return settings
-	}
-	if loaded == nil {
-		return settings
-	}
-	if loaded.CooldownMinutes <= 0 {
-		loaded.CooldownMinutes = settings.CooldownMinutes
-	}
-	return loaded
+	return s.HealthCore().ApplyForbidden(ctx, AccountRecordView(account), msg)
 }
 
 // handleAntigravity403 处理 Antigravity 平台的 403 错误
@@ -1277,15 +621,8 @@ func (s *RateLimitService) handleAntigravity403(ctx context.Context, account *Ac
 	}
 }
 
-// handleCustomErrorCode 处理自定义错误码，停止账号调度
 func (s *RateLimitService) handleCustomErrorCode(ctx context.Context, account *Account, statusCode int, errorMsg string) {
-	msg := "Custom error code " + strconv.Itoa(statusCode) + ": " + errorMsg
-	s.notifyAccountSchedulingBlocked(account, time.Time{}, "custom_error_code")
-	if err := s.accountRepo.SetError(ctx, account.ID, msg); err != nil {
-		slog.Warn("account_set_error_failed", "account_id", account.ID, "status_code", statusCode, "error", err)
-		return
-	}
-	slog.Warn("account_disabled_custom_error", "account_id", account.ID, "status_code", statusCode, "error", errorMsg)
+	s.HealthCore().ApplyCustomErrorCode(ctx, AccountRecordView(account), statusCode, errorMsg)
 }
 
 // handle429 处理429限流错误
@@ -1426,46 +763,11 @@ func (s *RateLimitService) handle429(ctx context.Context, account *Account, head
 }
 
 func (s *RateLimitService) apply429FallbackRateLimit(ctx context.Context, account *Account, reason string) {
-	cooldown, enabled := s.get429FallbackCooldown(ctx, account)
-	if !enabled {
-		slog.Info("rate_limit_429_fallback_ignored", "account_id", account.ID, "platform", account.Platform, "reason", reason)
-		return
-	}
-
-	resetAt := time.Now().Add(cooldown)
-	slog.Warn("rate_limit_429_fallback_used", "account_id", account.ID, "platform", account.Platform, "reason", reason, "using_default", cooldown.String())
-	s.notifyAccountSchedulingBlocked(account, resetAt, "429_fallback")
-	if err := s.accountRepo.SetRateLimited(ctx, account.ID, resetAt); err != nil {
-		slog.Warn("rate_limit_set_failed", "account_id", account.ID, "error", err)
-	}
+	s.HealthCore().Apply429Fallback(ctx, AccountRecordView(account), reason)
 }
 
 func (s *RateLimitService) get429FallbackCooldown(ctx context.Context, account *Account) (time.Duration, bool) {
-	if s.settingService != nil {
-		settings, err := s.settingService.GetRateLimit429CooldownSettings(ctx)
-		if err == nil && settings != nil {
-			if !settings.Enabled {
-				return 0, false
-			}
-			seconds := clampRateLimit429CooldownSeconds(settings.CooldownSeconds)
-			return time.Duration(seconds) * time.Second, true
-		}
-		slog.Warn("rate_limit_429_settings_read_failed", "account_id", account.ID, "error", err)
-	}
-
-	seconds := defaultRateLimit429CooldownSeconds
-	seconds = clampRateLimit429CooldownSeconds(seconds)
-	return time.Duration(seconds) * time.Second, true
-}
-
-func clampRateLimit429CooldownSeconds(seconds int) int {
-	if seconds < 1 {
-		return 1
-	}
-	if seconds > maxRateLimit429CooldownSeconds {
-		return maxRateLimit429CooldownSeconds
-	}
-	return seconds
+	return s.HealthCore().Fallback429Cooldown(ctx, AccountRecordView(account))
 }
 
 // calculateOpenAI429ResetTime 从 OpenAI 429 响应头计算正确的重置时间
@@ -2024,45 +1326,8 @@ func persistOpenAI429PlanType(ctx context.Context, repo AccountRepository, accou
 	slog.Info("openai_429_plan_type_synced", "account_id", account.ID, "previous_plan_type", current, "plan_type", planType)
 }
 
-// handle529 处理529过载错误
-// 根据配置决定是否暂停账号调度及冷却时长
 func (s *RateLimitService) handle529(ctx context.Context, account *Account) {
-	var settings *OverloadCooldownSettings
-	if s.settingService != nil {
-		var err error
-		settings, err = s.settingService.GetOverloadCooldownSettings(ctx)
-		if err != nil {
-			slog.Warn("overload_settings_read_failed", "account_id", account.ID, "error", err)
-			settings = nil
-		}
-	}
-	// 回退到配置文件
-	if settings == nil {
-		cooldown := s.cfg.RateLimit.OverloadCooldownMinutes
-		if cooldown <= 0 {
-			cooldown = 10
-		}
-		settings = &OverloadCooldownSettings{Enabled: true, CooldownMinutes: cooldown}
-	}
-
-	if !settings.Enabled {
-		slog.Info("account_529_ignored", "account_id", account.ID, "reason", "overload_cooldown_disabled")
-		return
-	}
-
-	cooldownMinutes := settings.CooldownMinutes
-	if cooldownMinutes <= 0 {
-		cooldownMinutes = 10
-	}
-
-	until := time.Now().Add(time.Duration(cooldownMinutes) * time.Minute)
-	s.notifyAccountSchedulingBlocked(account, until, "529")
-	if err := s.accountRepo.SetOverloaded(ctx, account.ID, until); err != nil {
-		slog.Warn("overload_set_failed", "account_id", account.ID, "error", err)
-		return
-	}
-
-	slog.Info("account_overloaded", "account_id", account.ID, "until", until)
+	s.HealthCore().ApplyOverload(ctx, AccountRecordView(account))
 }
 
 // UpdateSessionWindow 从成功响应更新5h窗口状态
@@ -2188,176 +1453,35 @@ func (s *RateLimitService) samplePassiveUsageFromHeaders(ctx context.Context, ac
 	}
 }
 
-// ClearRateLimit 清除账号的限流状态
+// ClearRateLimit 委托账号健康用例。
 func (s *RateLimitService) ClearRateLimit(ctx context.Context, accountID int64) error {
-	if err := s.accountRepo.ClearRateLimit(ctx, accountID); err != nil {
-		return err
-	}
-	if err := s.accountRepo.ClearAntigravityQuotaScopes(ctx, accountID); err != nil {
-		return err
-	}
-	if err := s.accountRepo.ClearModelRateLimits(ctx, accountID); err != nil {
-		return err
-	}
-	// 清除限流时一并清理临时不可调度状态，避免周限/窗口重置后仍被本地临时状态阻断。
-	if err := s.accountRepo.ClearTempUnschedulable(ctx, accountID); err != nil {
-		return err
-	}
-	if s.tempUnschedCache != nil {
-		if err := s.tempUnschedCache.DeleteTempUnsched(ctx, accountID); err != nil {
-			slog.Warn("temp_unsched_cache_delete_failed", "account_id", accountID, "error", err)
-		}
-	}
-	s.ResetOpenAI403Counter(ctx, accountID)
-	s.notifyAccountSchedulingBlockCleared(accountID)
-	return nil
+	return s.RecoveryCore().ClearRateLimit(ctx, accountID)
 }
 
 func (s *RateLimitService) ResetOpenAI403Counter(ctx context.Context, accountID int64) {
-	if s == nil || s.openAI403CounterCache == nil || accountID <= 0 {
-		return
-	}
-	if err := s.openAI403CounterCache.ResetOpenAI403Count(ctx, accountID); err != nil {
-		slog.Warn("openai_403_reset_failed", "account_id", accountID, "error", err)
+	if s != nil {
+		s.HealthCore().ResetForbiddenCounter(ctx, accountID)
 	}
 }
 
-// RecoverAccountState 按需恢复账号的可恢复运行时状态。
+// RecoverAccountState 委托账号健康用例。
 func (s *RateLimitService) RecoverAccountState(ctx context.Context, accountID int64, options AccountRecoveryOptions) (*SuccessfulTestRecoveryResult, error) {
-	account, err := s.accountRepo.GetByID(ctx, accountID)
-	if err != nil {
-		return nil, err
-	}
-
-	result := &SuccessfulTestRecoveryResult{}
-	if account.Status == StatusError {
-		if err := s.accountRepo.ClearError(ctx, accountID); err != nil {
-			return nil, err
-		}
-		result.ClearedError = true
-		if options.InvalidateToken && s.tokenCacheInvalidator != nil {
-			if invalidateErr := s.tokenCacheInvalidator.InvalidateToken(ctx, account); invalidateErr != nil {
-				slog.Warn("recover_account_state_invalidate_token_failed", "account_id", accountID, "error", invalidateErr)
-			}
-		}
-	}
-
-	if hasRecoverableRuntimeState(account) {
-		if err := s.ClearRateLimit(ctx, accountID); err != nil {
-			return nil, err
-		}
-		result.ClearedRateLimit = true
-	}
-	if result.ClearedError || result.ClearedRateLimit {
-		s.ResetOpenAI403Counter(ctx, accountID)
-		if result.ClearedError && !result.ClearedRateLimit {
-			s.notifyAccountSchedulingBlockCleared(accountID)
-		}
-	}
-
-	return result, nil
+	return s.RecoveryCore().RecoverAccountState(ctx, accountID, options)
 }
 
-// RecoverAccountAfterSuccessfulTest 将一次成功测试视为正常请求，
-// 按需恢复 error / rate-limit / overload / temp-unsched / model-rate-limit 等运行时状态。
+// RecoverAccountAfterSuccessfulTest 委托账号健康用例。
 func (s *RateLimitService) RecoverAccountAfterSuccessfulTest(ctx context.Context, accountID int64) (*SuccessfulTestRecoveryResult, error) {
-	return s.RecoverAccountState(ctx, accountID, AccountRecoveryOptions{})
+	return s.RecoveryCore().RecoverAccountAfterSuccessfulTest(ctx, accountID)
 }
 
+// ClearTempUnschedulable 委托账号健康用例。
 func (s *RateLimitService) ClearTempUnschedulable(ctx context.Context, accountID int64) error {
-	if err := s.accountRepo.ClearTempUnschedulable(ctx, accountID); err != nil {
-		return err
-	}
-	if s.tempUnschedCache != nil {
-		if err := s.tempUnschedCache.DeleteTempUnsched(ctx, accountID); err != nil {
-			slog.Warn("temp_unsched_cache_delete_failed", "account_id", accountID, "error", err)
-		}
-	}
-	// 同时清除模型级别限流
-	if err := s.accountRepo.ClearModelRateLimits(ctx, accountID); err != nil {
-		slog.Warn("clear_model_rate_limits_on_temp_unsched_reset_failed", "account_id", accountID, "error", err)
-	}
-	s.notifyAccountSchedulingBlockCleared(accountID)
-	return nil
+	return s.RecoveryCore().ClearTempUnschedulable(ctx, accountID)
 }
 
-func hasRecoverableRuntimeState(account *Account) bool {
-	if account == nil {
-		return false
-	}
-	if account.RateLimitedAt != nil || account.RateLimitResetAt != nil || account.OverloadUntil != nil || account.TempUnschedulableUntil != nil {
-		return true
-	}
-	if len(account.Extra) == 0 {
-		return false
-	}
-	return hasNonEmptyMapValue(account.Extra, "model_rate_limits") ||
-		hasNonEmptyMapValue(account.Extra, "antigravity_quota_scopes")
-}
-
-func hasNonEmptyMapValue(extra map[string]any, key string) bool {
-	raw, ok := extra[key]
-	if !ok || raw == nil {
-		return false
-	}
-	switch typed := raw.(type) {
-	case map[string]any:
-		return len(typed) > 0
-	case map[string]string:
-		return len(typed) > 0
-	case []any:
-		return len(typed) > 0
-	default:
-		return true
-	}
-}
-
+// GetTempUnschedStatus 委托账号健康用例。
 func (s *RateLimitService) GetTempUnschedStatus(ctx context.Context, accountID int64) (*TempUnschedState, error) {
-	now := time.Now().Unix()
-	if s.tempUnschedCache != nil {
-		state, err := s.tempUnschedCache.GetTempUnsched(ctx, accountID)
-		if err != nil {
-			return nil, err
-		}
-		if state != nil && state.UntilUnix > now {
-			return state, nil
-		}
-	}
-
-	account, err := s.accountRepo.GetByID(ctx, accountID)
-	if err != nil {
-		return nil, err
-	}
-	if account.TempUnschedulableUntil == nil {
-		return nil, nil
-	}
-	if account.TempUnschedulableUntil.Unix() <= now {
-		return nil, nil
-	}
-
-	state := &TempUnschedState{
-		UntilUnix: account.TempUnschedulableUntil.Unix(),
-	}
-
-	if account.TempUnschedulableReason != "" {
-		var parsed TempUnschedState
-		if err := json.Unmarshal([]byte(account.TempUnschedulableReason), &parsed); err == nil {
-			if parsed.UntilUnix == 0 {
-				parsed.UntilUnix = state.UntilUnix
-			}
-			state = &parsed
-		} else {
-			state.ErrorMessage = account.TempUnschedulableReason
-		}
-	}
-
-	if s.tempUnschedCache != nil {
-		if err := s.tempUnschedCache.SetTempUnsched(ctx, accountID, state); err != nil {
-			slog.Warn("temp_unsched_cache_set_failed", "account_id", accountID, "error", err)
-		}
-	}
-
-	return state, nil
+	return s.RecoveryCore().GetTempUnschedStatus(ctx, accountID)
 }
 
 func (s *RateLimitService) HandleTempUnschedulable(ctx context.Context, account *Account, statusCode int, responseBody []byte, requestedModel ...string) bool {
@@ -2557,8 +1681,8 @@ const upstreamModelNotFoundCooldown = 30 * time.Minute
 const upstreamModelNotFoundReason = "upstream_404_model_not_found"
 const upstreamCodexPlanGatedModelCooldown = 30 * time.Minute
 const upstreamCodexPlanGatedModelReason = "upstream_400_codex_plan_gated_model"
-const tempUnschedBodyMaxBytes = 64 << 10
-const tempUnschedMessageMaxBytes = 2048
+
+const tempUnschedMessageMaxBytes = accountcore.TempUnschedMessageMaxBytes
 
 // HandleUpstreamModelNotFound 在上游确定性无法提供目标模型时临时冷却账号与模型组合，
 // 包括 404 模型不存在及 ChatGPT OAuth 套餐门控返回的 Codex 400。返回 true 表示当前请求
@@ -2672,291 +1796,34 @@ type tempUnschedulableRuleMatch struct {
 	matchedKeyword string
 }
 
-func matchTempUnschedulableRules(account *Account, statusCode int, responseBody []byte) []tempUnschedulableRuleMatch {
-	if account == nil || !account.IsTempUnschedulableEnabled() || statusCode <= 0 || len(responseBody) == 0 {
+// matchTempUnschedulableRules 仅投影旧私有结果字段，匹配实现唯一归账号核心。
+func matchTempUnschedulableRules(value *Account, statusCode int, responseBody []byte) []tempUnschedulableRuleMatch {
+	matches := accountcore.MatchTempUnschedulableRules(AccountRecordView(value), statusCode, responseBody)
+	if matches == nil {
 		return nil
 	}
-	rules := account.GetTempUnschedulableRules()
-	if len(rules) == 0 {
-		return nil
+	out := make([]tempUnschedulableRuleMatch, 0, len(matches))
+	for _, m := range matches {
+		out = append(out, tempUnschedulableRuleMatch{rule: m.Rule, ruleIndex: m.RuleIndex, matchedKeyword: m.MatchedKeyword})
 	}
-	body := responseBody
-	if len(body) > tempUnschedBodyMaxBytes {
-		body = body[:tempUnschedBodyMaxBytes]
-	}
-	bodyLower := strings.ToLower(string(body))
-	matches := make([]tempUnschedulableRuleMatch, 0, 1)
-	for idx, rule := range rules {
-		if rule.ErrorCode != statusCode || len(rule.Keywords) == 0 {
-			continue
-		}
-		matchedKeyword := matchTempUnschedKeyword(bodyLower, rule.Keywords)
-		if matchedKeyword == "" {
-			continue
-		}
-		matches = append(matches, tempUnschedulableRuleMatch{rule: rule, ruleIndex: idx, matchedKeyword: matchedKeyword})
-	}
-	return matches
+	return out
 }
 
 func (s *RateLimitService) tryTempUnschedulable(ctx context.Context, account *Account, statusCode int, responseBody []byte, requestedModel ...string) bool {
 	return s.tryTempUnschedulableWith401Escalation(ctx, account, statusCode, responseBody, true, requestedModel...)
 }
 
-// tryTempUnschedulableWith401Escalation 允许调用方关闭重复 401 的默认升级。
-// 池模式显式配置的 401 规则每次都应按规则暂停，而不是写入默认账号错误。
-func (s *RateLimitService) tryTempUnschedulableWith401Escalation(ctx context.Context, account *Account, statusCode int, responseBody []byte, escalateRepeated401 bool, requestedModel ...string) bool {
-	if account == nil {
-		return false
-	}
-	if !account.IsTempUnschedulableEnabled() {
-		return false
-	}
-	// 401 首次命中可临时不可调度（给 token 刷新窗口）；
-	// 若历史上已因 401 进入过临时不可调度，则本次应升级为 error（返回 false 交由默认错误逻辑处理）。
-	// Antigravity 跳过：其 401 由 applyErrorPolicy 的 temp_unschedulable_rules 自行控制，无需升级逻辑。
-	if escalateRepeated401 && statusCode == http.StatusUnauthorized && account.Platform != PlatformAntigravity {
-		reason := account.TempUnschedulableReason
-		// 缓存可能没有 reason，从 DB 回退读取
-		if reason == "" {
-			if dbAcc, err := s.accountRepo.GetByID(ctx, account.ID); err == nil && dbAcc != nil {
-				reason = dbAcc.TempUnschedulableReason
-			}
-		}
-		if wasTempUnschedByStatusCode(reason, statusCode) {
-			slog.Info("401_escalated_to_error", "account_id", account.ID,
-				"reason", "previous temp-unschedulable was also 401")
-			return false
-		}
-	}
-	for _, match := range matchTempUnschedulableRules(account, statusCode, responseBody) {
-		if s.triggerTempUnschedulable(ctx, account, match.rule, match.ruleIndex, statusCode, match.matchedKeyword, responseBody, tempUnschedulableModel(ctx, requestedModel)) {
-			return true
-		}
-	}
-
-	return false
+// tryTempUnschedulableWith401Escalation 只投影平台升级许可与旧请求模型上下文。
+func (s *RateLimitService) tryTempUnschedulableWith401Escalation(ctx context.Context, value *Account, status int, body []byte, escalate bool, models ...string) bool {
+	return s.HealthCore().TryTempUnschedulable(ctx, AccountRecordView(value), status, body, escalate && (value == nil || value.Platform != PlatformAntigravity), tempUnschedulableModel(ctx, models))
 }
 
-func wasTempUnschedByStatusCode(reason string, statusCode int) bool {
-	if statusCode <= 0 {
-		return false
-	}
-	reason = strings.TrimSpace(reason)
-	if reason == "" {
-		return false
-	}
-
-	var state TempUnschedState
-	if err := json.Unmarshal([]byte(reason), &state); err != nil {
-		return false
-	}
-	return state.StatusCode == statusCode
-}
-
-func matchTempUnschedKeyword(bodyLower string, keywords []string) string {
-	if bodyLower == "" {
-		return ""
-	}
-	for _, keyword := range keywords {
-		k := strings.TrimSpace(keyword)
-		if k == "" {
-			continue
-		}
-		if strings.Contains(bodyLower, strings.ToLower(k)) {
-			return k
-		}
-	}
-	return ""
-}
-
-func (s *RateLimitService) triggerTempUnschedulable(ctx context.Context, account *Account, rule TempUnschedulableRule, ruleIndex int, statusCode int, matchedKeyword string, responseBody []byte, requestedModel ...string) bool {
-	if account == nil {
-		return false
-	}
-	if rule.DurationMinutes <= 0 {
-		return false
-	}
-
-	now := time.Now()
-	until := now.Add(time.Duration(rule.DurationMinutes) * time.Minute)
-
-	state := &TempUnschedState{
-		UntilUnix:       until.Unix(),
-		TriggeredAtUnix: now.Unix(),
-		StatusCode:      statusCode,
-		MatchedKeyword:  matchedKeyword,
-		RuleIndex:       ruleIndex,
-		ErrorMessage:    truncateTempUnschedMessage(responseBody, tempUnschedMessageMaxBytes),
-	}
-
-	reason := ""
-	if raw, err := json.Marshal(state); err == nil {
-		reason = string(raw)
-	}
-	if reason == "" {
-		reason = strings.TrimSpace(state.ErrorMessage)
-	}
-
-	// 已知模型的失败写入模型键，使调度器只排除当前账号与模型的组合。
-	// 认证失败和模型未知的失败仍沿用下方账号级临时不可调度行为。
-	modelKey := firstRequestedModel(requestedModel)
-	if modelKey != "" && statusCode != http.StatusUnauthorized {
-		if err := s.accountRepo.SetModelRateLimit(ctx, account.ID, modelKey, until, reason); err != nil {
-			slog.Warn("temp_unsched_model_rate_limit_set_failed", "account_id", account.ID, "model", modelKey, "error", err)
-			// 规则已经命中，即使持久化失败也要切换当前请求；
-			// 不得把模型级失败扩大成账号级阻断。
-			return true
-		}
-		slog.Info("account_model_temp_unschedulable", "account_id", account.ID, "model", modelKey, "until", until, "rule_index", ruleIndex, "status_code", statusCode)
-		return true
-	}
-
-	s.notifyAccountSchedulingBlocked(account, until, "temp_unschedulable")
-	if err := s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, reason); err != nil {
-		slog.Warn("temp_unsched_set_failed", "account_id", account.ID, "error", err)
-		return false
-	}
-
-	if s.tempUnschedCache != nil {
-		if err := s.tempUnschedCache.SetTempUnsched(ctx, account.ID, state); err != nil {
-			slog.Warn("temp_unsched_cache_set_failed", "account_id", account.ID, "error", err)
-		}
-	}
-
-	slog.Info("account_temp_unschedulable", "account_id", account.ID, "until", until, "rule_index", ruleIndex, "status_code", statusCode)
-	return true
-}
-
+// truncateTempUnschedMessage 委托账号纯规则。
 func truncateTempUnschedMessage(body []byte, maxBytes int) string {
-	if maxBytes <= 0 || len(body) == 0 {
-		return ""
-	}
-	if len(body) > maxBytes {
-		body = body[:maxBytes]
-	}
-	return strings.TrimSpace(string(body))
+	return accountcore.TruncateTempUnschedMessage(body, maxBytes)
 }
 
-// HandleStreamTimeout 处理流数据超时
-// 根据系统设置决定是否标记账户为临时不可调度或错误状态
-// 返回是否应该停止该账号的调度
+// HandleStreamTimeout 委托账号健康核心。
 func (s *RateLimitService) HandleStreamTimeout(ctx context.Context, account *Account, model string) bool {
-	if account == nil {
-		return false
-	}
-
-	// 获取系统设置
-	if s.settingService == nil {
-		slog.Warn("stream_timeout_setting_service_missing", "account_id", account.ID)
-		return false
-	}
-
-	settings, err := s.settingService.GetStreamTimeoutSettings(ctx)
-	if err != nil {
-		slog.Warn("stream_timeout_get_settings_failed", "account_id", account.ID, "error", err)
-		return false
-	}
-
-	if !settings.Enabled {
-		return false
-	}
-
-	if settings.Action == StreamTimeoutActionNone {
-		return false
-	}
-
-	// 增加超时计数
-	var count int64 = 1
-	if s.timeoutCounterCache != nil {
-		count, err = s.timeoutCounterCache.IncrementTimeoutCount(ctx, account.ID, settings.ThresholdWindowMinutes)
-		if err != nil {
-			slog.Warn("stream_timeout_increment_count_failed", "account_id", account.ID, "error", err)
-			// 继续处理，使用 count=1
-			count = 1
-		}
-	}
-
-	slog.Info("stream_timeout_count", "account_id", account.ID, "count", count, "threshold", settings.ThresholdCount, "window_minutes", settings.ThresholdWindowMinutes, "model", model)
-
-	// 检查是否达到阈值
-	if count < int64(settings.ThresholdCount) {
-		return false
-	}
-
-	// 达到阈值，执行相应操作
-	switch settings.Action {
-	case StreamTimeoutActionTempUnsched:
-		return s.triggerStreamTimeoutTempUnsched(ctx, account, settings, model)
-	case StreamTimeoutActionError:
-		return s.triggerStreamTimeoutError(ctx, account, model)
-	default:
-		return false
-	}
-}
-
-// triggerStreamTimeoutTempUnsched 触发流超时临时不可调度
-func (s *RateLimitService) triggerStreamTimeoutTempUnsched(ctx context.Context, account *Account, settings *StreamTimeoutSettings, model string) bool {
-	now := time.Now()
-	until := now.Add(time.Duration(settings.TempUnschedMinutes) * time.Minute)
-
-	state := &TempUnschedState{
-		UntilUnix:       until.Unix(),
-		TriggeredAtUnix: now.Unix(),
-		StatusCode:      0, // 超时没有状态码
-		MatchedKeyword:  "stream_timeout",
-		RuleIndex:       -1, // 表示系统级规则
-		ErrorMessage:    "Stream data interval timeout for model: " + model,
-	}
-
-	reason := ""
-	if raw, err := json.Marshal(state); err == nil {
-		reason = string(raw)
-	}
-	if reason == "" {
-		reason = state.ErrorMessage
-	}
-
-	s.notifyAccountSchedulingBlocked(account, until, "stream_timeout_temp_unschedulable")
-	if err := s.accountRepo.SetTempUnschedulable(ctx, account.ID, until, reason); err != nil {
-		slog.Warn("stream_timeout_set_temp_unsched_failed", "account_id", account.ID, "error", err)
-		return false
-	}
-
-	if s.tempUnschedCache != nil {
-		if err := s.tempUnschedCache.SetTempUnsched(ctx, account.ID, state); err != nil {
-			slog.Warn("stream_timeout_set_temp_unsched_cache_failed", "account_id", account.ID, "error", err)
-		}
-	}
-
-	// 重置超时计数
-	if s.timeoutCounterCache != nil {
-		if err := s.timeoutCounterCache.ResetTimeoutCount(ctx, account.ID); err != nil {
-			slog.Warn("stream_timeout_reset_count_failed", "account_id", account.ID, "error", err)
-		}
-	}
-
-	slog.Info("stream_timeout_temp_unschedulable", "account_id", account.ID, "until", until, "model", model)
-	return true
-}
-
-// triggerStreamTimeoutError 触发流超时错误状态
-func (s *RateLimitService) triggerStreamTimeoutError(ctx context.Context, account *Account, model string) bool {
-	errorMsg := "Stream data interval timeout (repeated failures) for model: " + model
-
-	s.notifyAccountSchedulingBlocked(account, time.Time{}, "stream_timeout_error")
-	if err := s.accountRepo.SetError(ctx, account.ID, errorMsg); err != nil {
-		slog.Warn("stream_timeout_set_error_failed", "account_id", account.ID, "error", err)
-		return false
-	}
-
-	// 重置超时计数
-	if s.timeoutCounterCache != nil {
-		if err := s.timeoutCounterCache.ResetTimeoutCount(ctx, account.ID); err != nil {
-			slog.Warn("stream_timeout_reset_count_failed", "account_id", account.ID, "error", err)
-		}
-	}
-
-	slog.Warn("stream_timeout_account_error", "account_id", account.ID, "model", model)
-	return true
+	return s.HealthCore().HandleStreamTimeout(ctx, AccountRecordView(account), model)
 }

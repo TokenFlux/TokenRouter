@@ -1,0 +1,20 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "./internal/account/...",
+    "./internal/routing/...",
+    "./internal/service/...",
+    "./internal/repository/...",
+    "./internal/app/...",
+    "./internal/domain/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 39.373,
+  "log": "logs/record-shared-normal-lint.log.gz"
+}

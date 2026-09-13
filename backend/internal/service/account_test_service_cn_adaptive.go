@@ -14,14 +14,13 @@ import (
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/claude"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/openai"
-	"github.com/gin-gonic/gin"
 )
 
 const accountTestSuppressCompletionContextKey = "account_test_suppress_completion"
 
-// testCNProviderAdaptiveConnection 验证自适应国产供应商账号实际使用的全部原生端点。
+// testCNProviderAdaptiveConnectionRun 验证自适应国产供应商账号实际使用的全部原生端点。
 // 智谱验证 Chat Completions 与 Anthropic，DeepSeek 和 Kimi 还验证 Responses。
-func (s *AccountTestService) testCNProviderAdaptiveConnection(c *gin.Context, account *Account, modelID string, prompt string) error {
+func (s *AccountTestService) testCNProviderAdaptiveConnectionRun(c *accountTestRun, account *Account, modelID string, prompt string) error {
 	testModelID := strings.TrimSpace(modelID)
 	if testModelID == "" {
 		testModelID = openai.DefaultTestModel
@@ -30,7 +29,7 @@ func (s *AccountTestService) testCNProviderAdaptiveConnection(c *gin.Context, ac
 
 	authToken := strings.TrimSpace(account.GetOpenAIProtocolAPIKey())
 	if authToken == "" {
-		return s.sendErrorAndEnd(c, "No API key available")
+		return s.sendTestErrorAndEnd(c, "No API key available")
 	}
 
 	// Chat 探测负责开启 SSE 生命周期；全部原生端点通过前抑制中间完成事件。
@@ -38,51 +37,50 @@ func (s *AccountTestService) testCNProviderAdaptiveConnection(c *gin.Context, ac
 	defer c.Set(accountTestSuppressCompletionContextKey, false)
 	enabled := account.UpstreamProtocols()
 	if len(enabled) == 0 {
-		return s.sendErrorAndEnd(c, "No upstream protocols enabled")
+		return s.sendTestErrorAndEnd(c, "No upstream protocols enabled")
 	}
-	c.Writer.Header().Set("Content-Type", "text/event-stream")
-	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.begin(false)
 	if slices.Contains(enabled, domain.ProtocolOpenAIChatCompletions) {
-		if err := s.testCNProviderChatCompletionsConnection(c, account, modelID, prompt); err != nil {
+		if err := s.testCNProviderChatCompletionsConnectionRun(c, account, modelID, prompt); err != nil {
 			return err
 		}
 	}
 
 	if slices.Contains(enabled, domain.ProtocolAnthropicMessages) {
-		if err := s.testCNProviderAdaptiveAnthropicConnection(c, account, testModelID, prompt, authToken); err != nil {
+		if err := s.testCNProviderAdaptiveAnthropicConnectionRun(c, account, testModelID, prompt, authToken); err != nil {
 			return err
 		}
 	}
 
 	if slices.Contains(enabled, domain.ProtocolOpenAIResponses) {
-		if err := s.testCNProviderAdaptiveResponsesConnection(c, account, testModelID, prompt, authToken); err != nil {
+		if err := s.testCNProviderAdaptiveResponsesConnectionRun(c, account, testModelID, prompt, authToken); err != nil {
 			return err
 		}
 	}
 
 	c.Set(accountTestSuppressCompletionContextKey, false)
-	s.sendEvent(c, TestEvent{Type: "test_complete", Success: true})
+	s.sendTestEvent(c, TestEvent{Type: "test_complete", Success: true})
 	return nil
 }
 
-func (s *AccountTestService) testCNProviderAdaptiveAnthropicConnection(c *gin.Context, account *Account, testModelID string, prompt string, authToken string) error {
-	ctx := c.Request.Context()
+func (s *AccountTestService) testCNProviderAdaptiveAnthropicConnectionRun(c *accountTestRun, account *Account, testModelID string, prompt string, authToken string) error {
+	ctx := c.ctx
 	baseURL, err := s.validateUpstreamBaseURL(account.GetCNProtocolBaseURL(APIProtocolAnthropic))
 	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid adaptive Anthropic base URL: %s", err.Error()))
+		return s.sendTestErrorAndEnd(c, fmt.Sprintf("Invalid adaptive Anthropic base URL: %s", err.Error()))
 	}
 	apiURL := strings.TrimRight(baseURL, "/") + "/v1/messages"
 
 	payload, err := createTestPayloadWithPrompt(testModelID, prompt)
 	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create adaptive Anthropic test payload")
+		return s.sendTestErrorAndEnd(c, "Failed to create adaptive Anthropic test payload")
 	}
 	payloadBytes, _ := json.Marshal(payload)
 
-	s.sendEvent(c, TestEvent{Type: "status", Text: "正在通过原生 /v1/messages 测试自适应 Anthropic 端点"})
+	s.sendTestEvent(c, TestEvent{Type: "status", Text: "正在通过原生 /v1/messages 测试自适应 Anthropic 端点"})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(payloadBytes))
 	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create adaptive Anthropic request")
+		return s.sendTestErrorAndEnd(c, "Failed to create adaptive Anthropic request")
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
@@ -96,7 +94,7 @@ func (s *AccountTestService) testCNProviderAdaptiveAnthropicConnection(c *gin.Co
 
 	resp, err := s.doCNProviderAdaptiveRequest(req, account)
 	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Adaptive Anthropic endpoint request failed: %s", err.Error()))
+		return s.sendTestErrorAndEnd(c, fmt.Sprintf("Adaptive Anthropic endpoint request failed: %s", err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
@@ -105,25 +103,25 @@ func (s *AccountTestService) testCNProviderAdaptiveAnthropicConnection(c *gin.Co
 		if resp.StatusCode == http.StatusUnauthorized && s.accountRepo != nil {
 			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
 		}
-		return s.sendErrorAndEnd(c, errMsg)
+		return s.sendTestErrorAndEnd(c, errMsg)
 	}
 
-	if err := s.processCNProviderAdaptiveAnthropicStream(c, resp.Body); err != nil {
+	if err := s.processCNProviderAdaptiveAnthropicStreamRun(c, resp.Body); err != nil {
 		return err
 	}
-	s.sendEvent(c, TestEvent{Type: "status", Text: "已通过原生 /v1/messages 验证"})
+	s.sendTestEvent(c, TestEvent{Type: "status", Text: "已通过原生 /v1/messages 验证"})
 	return nil
 }
 
-func (s *AccountTestService) processCNProviderAdaptiveAnthropicStream(c *gin.Context, body io.Reader) error {
+func (s *AccountTestService) processCNProviderAdaptiveAnthropicStreamRun(c *accountTestRun, body io.Reader) error {
 	reader := bufio.NewReader(body)
 	for {
 		line, err := reader.ReadString('\n')
 		if err != nil {
 			if err == io.EOF {
-				return s.sendErrorAndEnd(c, "Adaptive Anthropic stream ended before message_stop")
+				return s.sendTestErrorAndEnd(c, "Adaptive Anthropic stream ended before message_stop")
 			}
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Adaptive Anthropic stream read error: %s", err.Error()))
+			return s.sendTestErrorAndEnd(c, fmt.Sprintf("Adaptive Anthropic stream read error: %s", err.Error()))
 		}
 
 		line = strings.TrimSpace(line)
@@ -143,7 +141,7 @@ func (s *AccountTestService) processCNProviderAdaptiveAnthropicStream(c *gin.Con
 		case "content_block_delta":
 			if delta, ok := data["delta"].(map[string]any); ok {
 				if text, ok := delta["text"].(string); ok && text != "" {
-					s.sendEvent(c, TestEvent{Type: "content", Text: text})
+					s.sendTestEvent(c, TestEvent{Type: "content", Text: text})
 				}
 			}
 		case "message_stop":
@@ -155,16 +153,16 @@ func (s *AccountTestService) processCNProviderAdaptiveAnthropicStream(c *gin.Con
 					errorMsg = message
 				}
 			}
-			return s.sendErrorAndEnd(c, fmt.Sprintf("Adaptive Anthropic endpoint error: %s", errorMsg))
+			return s.sendTestErrorAndEnd(c, fmt.Sprintf("Adaptive Anthropic endpoint error: %s", errorMsg))
 		}
 	}
 }
 
-func (s *AccountTestService) testCNProviderAdaptiveResponsesConnection(c *gin.Context, account *Account, testModelID string, prompt string, authToken string) error {
-	ctx := c.Request.Context()
+func (s *AccountTestService) testCNProviderAdaptiveResponsesConnectionRun(c *accountTestRun, account *Account, testModelID string, prompt string, authToken string) error {
+	ctx := c.ctx
 	baseURL, err := s.validateUpstreamBaseURL(account.GetCNProtocolBaseURL(APIProtocolResponses))
 	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Invalid adaptive Responses base URL: %s", err.Error()))
+		return s.sendTestErrorAndEnd(c, fmt.Sprintf("Invalid adaptive Responses base URL: %s", err.Error()))
 	}
 	apiURL := buildOpenAIResponsesURLForPlatform(account.Platform, baseURL)
 
@@ -174,10 +172,10 @@ func (s *AccountTestService) testCNProviderAdaptiveResponsesConnection(c *gin.Co
 	payloadBytes, _ := json.Marshal(payload)
 	payloadBytes = normalizeDeepSeekResponsesRequestBody(account, payloadBytes)
 
-	s.sendEvent(c, TestEvent{Type: "status", Text: "正在通过原生 /responses 测试自适应 Responses 端点"})
+	s.sendTestEvent(c, TestEvent{Type: "status", Text: "正在通过原生 /responses 测试自适应 Responses 端点"})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, apiURL, bytes.NewReader(payloadBytes))
 	if err != nil {
-		return s.sendErrorAndEnd(c, "Failed to create adaptive Responses request")
+		return s.sendTestErrorAndEnd(c, "Failed to create adaptive Responses request")
 	}
 	req = req.WithContext(WithHTTPUpstreamProfile(req.Context(), HTTPUpstreamProfileOpenAI))
 	req.Header.Set("Content-Type", "application/json")
@@ -188,7 +186,7 @@ func (s *AccountTestService) testCNProviderAdaptiveResponsesConnection(c *gin.Co
 
 	resp, err := s.doCNProviderAdaptiveRequest(req, account)
 	if err != nil {
-		return s.sendErrorAndEnd(c, fmt.Sprintf("Adaptive Responses endpoint request failed: %s", err.Error()))
+		return s.sendTestErrorAndEnd(c, fmt.Sprintf("Adaptive Responses endpoint request failed: %s", err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusOK {
@@ -197,13 +195,13 @@ func (s *AccountTestService) testCNProviderAdaptiveResponsesConnection(c *gin.Co
 		if resp.StatusCode == http.StatusUnauthorized && s.accountRepo != nil {
 			_ = s.accountRepo.SetError(ctx, account.ID, errMsg)
 		}
-		return s.sendErrorAndEnd(c, errMsg)
+		return s.sendTestErrorAndEnd(c, errMsg)
 	}
 
-	if err := s.processOpenAIStream(c, resp.Body); err != nil {
+	if err := s.processOpenAIStreamRun(c, resp.Body); err != nil {
 		return err
 	}
-	s.sendEvent(c, TestEvent{Type: "status", Text: "已通过原生 /responses 验证"})
+	s.sendTestEvent(c, TestEvent{Type: "status", Text: "已通过原生 /responses 验证"})
 	return nil
 }
 

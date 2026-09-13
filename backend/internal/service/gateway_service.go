@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"io"
 	"log/slog"
 	"net/http"
@@ -102,9 +103,9 @@ var (
 	userGroupRateCacheSFSharedTotal = &billing.SharedGroupRateMetrics().Shared
 	userGroupRateCacheFallbackTotal = &billing.SharedGroupRateMetrics().Fallback
 
-	modelsListCacheHitTotal   atomic.Int64
-	modelsListCacheMissTotal  atomic.Int64
-	modelsListCacheStoreTotal atomic.Int64
+	modelsListCacheHitTotal   = &routing.SharedModelListMetrics().Hit
+	modelsListCacheMissTotal  = &routing.SharedModelListMetrics().Miss
+	modelsListCacheStoreTotal = &routing.SharedModelListMetrics().Store
 
 	// 已废弃：flusher_enabled=true 后不再增长（仅 flag=false 降级直写路径使用）；新主路径见 FlusherMetrics。2026-09 后可移除。
 	// userPlatformQuotaDBIncrErrorTotal 统计 finalizePostUsageBilling 异步 goroutine
@@ -516,7 +517,7 @@ func resolveModelsListCacheTTL(cfg *config.Config) time.Duration {
 }
 
 func modelsListCacheKey(groupID *int64, platform string) string {
-	return fmt.Sprintf("%d|%s", derefGroupID(groupID), strings.TrimSpace(platform))
+	return routing.ModelListCacheKey(groupID, platform)
 }
 
 func prefetchedStickyGroupIDFromContext(ctx context.Context) (int64, bool) {
@@ -762,6 +763,7 @@ type GatewayService struct {
 	userGroupRateCache    *gocache.Cache
 	userGroupRateSF       singleflight.Group
 	modelsListCache       *gocache.Cache
+	modelsList            *routing.ModelList
 	modelsListCacheTTL    time.Duration
 	settingService        *SettingService
 	responseHeaderFilter  *responseheaders.CompiledHeaderFilter
@@ -805,6 +807,7 @@ func NewGatewayService(
 	resolver *ModelPricingResolver,
 	balanceNotifyService *BalanceNotifyService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
+	modelLists ...*routing.ModelList,
 ) *GatewayService {
 	userGroupRateTTL := resolveUserGroupRateCacheTTL(cfg)
 	modelsListTTL := resolveModelsListCacheTTL(cfg)
@@ -833,7 +836,6 @@ func NewGatewayService(
 		rpmCache:              rpmCache,
 		userGroupRateCache:    gocache.New(userGroupRateTTL, 0),
 		settingService:        settingService,
-		modelsListCache:       gocache.New(modelsListTTL, 0),
 		modelsListCacheTTL:    modelsListTTL,
 		responseHeaderFilter:  compileResponseHeaderFilter(cfg),
 		tlsFPProfileService:   tlsFPProfileService,
@@ -855,6 +857,12 @@ func NewGatewayService(
 	if path := strings.TrimSpace(os.Getenv(debugGatewayBodyEnv)); path != "" {
 		svc.initDebugGatewayBodyFile(path)
 	}
+	if len(modelLists) > 0 && modelLists[0] != nil {
+		svc.modelsList = modelLists[0]
+	} else {
+		svc.modelsList = routing.NewModelList(LegacyModelListReader(accountRepo), modelsListTTL)
+	}
+	svc.modelsListCache = svc.modelsList.Cache
 	return svc
 }
 
@@ -1307,93 +1315,13 @@ func (s *GatewayService) DoGrokNativeResponsesJSON(ctx context.Context, account 
 	return respBytes, nil
 }
 
-// GetAvailableModels 返回分组下可见的模型列表。
-// 它会聚合每个账号显式配置的“可请求模型”（model_mapping 的 key 或独立 model_whitelist）。
 func (s *GatewayService) GetAvailableModels(ctx context.Context, groupID *int64, platform string) []string {
-	cacheKey := modelsListCacheKey(groupID, platform)
-	if s.modelsListCache != nil {
-		if cached, found := s.modelsListCache.Get(cacheKey); found {
-			if models, ok := cached.([]string); ok {
-				modelsListCacheHitTotal.Add(1)
-				return cloneStringSlice(models)
-			}
-		}
-	}
-	modelsListCacheMissTotal.Add(1)
-
-	var accounts []Account
-	var err error
-
-	if groupID != nil {
-		accounts, err = s.accountRepo.ListSchedulableByGroupID(ctx, *groupID)
-	} else {
-		accounts, err = s.accountRepo.ListSchedulable(ctx)
-	}
-
-	if err != nil || len(accounts) == 0 {
-		return nil
-	}
-
-	// OpenAI 透传账号不依赖 model_mapping；旧映射不能限制公开模型列表。
-	if platform == PlatformOpenAI {
-		for i := range accounts {
-			if accounts[i].Platform != PlatformOpenAI || !accounts[i].IsOpenAIPassthroughEnabled() {
-				continue
-			}
-			if s.modelsListCache != nil {
-				s.modelsListCache.Set(cacheKey, []string(nil), s.modelsListCacheTTL)
-				modelsListCacheStoreTotal.Add(1)
-			}
-			return nil
-		}
-	}
-
-	models := configuredRequestModelsFromAccounts(accounts, platform)
-	// 没有账号显式模型范围时返回 nil，由调用方使用平台默认模型。
-	if len(models) == 0 {
-		if s.modelsListCache != nil {
-			s.modelsListCache.Set(cacheKey, []string(nil), s.modelsListCacheTTL)
-			modelsListCacheStoreTotal.Add(1)
-		}
-		return nil
-	}
-
-	if s.modelsListCache != nil {
-		s.modelsListCache.Set(cacheKey, cloneStringSlice(models), s.modelsListCacheTTL)
-		modelsListCacheStoreTotal.Add(1)
-	}
-	return cloneStringSlice(models)
+	return s.modelListCore().Available(ctx, groupID, platform)
 }
 
 func (s *GatewayService) InvalidateAvailableModelsCache(groupID *int64, platform string) {
-	if s == nil || s.modelsListCache == nil {
-		return
-	}
-
-	normalizedPlatform := strings.TrimSpace(platform)
-	// 完整匹配时精准失效；否则按维度批量失效。
-	if groupID != nil && normalizedPlatform != "" {
-		s.modelsListCache.Delete(modelsListCacheKey(groupID, normalizedPlatform))
-		return
-	}
-
-	targetGroup := derefGroupID(groupID)
-	for key := range s.modelsListCache.Items() {
-		parts := strings.SplitN(key, "|", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		groupPart, parseErr := strconv.ParseInt(parts[0], 10, 64)
-		if parseErr != nil {
-			continue
-		}
-		if groupID != nil && groupPart != targetGroup {
-			continue
-		}
-		if normalizedPlatform != "" && parts[1] != normalizedPlatform {
-			continue
-		}
-		s.modelsListCache.Delete(key)
+	if s != nil {
+		s.modelListCore().Invalidate(groupID, platform)
 	}
 }
 
@@ -1614,7 +1542,7 @@ func (s *GatewayService) ExpireRuntimeCaches() {
 			s.userGroupRateCache.DeleteExpired()
 		}
 		if s.modelsListCache != nil {
-			s.modelsListCache.DeleteExpired()
+			s.modelListCore().Expire()
 		}
 	}
 }

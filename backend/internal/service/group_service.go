@@ -1,17 +1,10 @@
+// 本文件维护 service 的所属能力；兼容入口复用唯一实现。
 package service
 
 import (
-	"context"
-	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
-
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
-)
-
-var (
-	ErrGroupNotFound = infraerrors.NotFound("GROUP_NOT_FOUND", "group not found")
-	ErrGroupExists   = infraerrors.Conflict("GROUP_EXISTS", "group name already exists")
+	context "context"
+	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 )
 
 type GroupRepository interface {
@@ -59,11 +52,7 @@ type AdminGroupRepository interface {
 	GroupSortOrderRepository
 }
 
-// GroupSortOrderUpdate 分组排序更新
-type GroupSortOrderUpdate struct {
-	ID        int64 `json:"id"`
-	SortOrder int   `json:"sort_order"`
-}
+type GroupSortOrderUpdate = routing.GroupSortOrderUpdate
 
 // CreateGroupRequest 创建分组请求
 type CreateGroupRequest struct {
@@ -84,168 +73,51 @@ type UpdateGroupRequest struct {
 	AllowImageGeneration *bool    `json:"allow_image_generation"`
 }
 
-// GroupService 分组管理服务
-type GroupService struct {
-	groupRepo            GroupRepository
-	authCacheInvalidator APIKeyAuthCacheInvalidator
+var ErrGroupNotFound = routing.ErrGroupNotFound
+
+var ErrGroupExists = routing.ErrGroupExists
+
+type GroupService struct{ *routing.GroupService }
+
+func NewGroupService(repo routing.GroupRepository, invalidator GroupAuthInvalidator) *GroupService {
+	return &GroupService{routing.NewGroupService(repo, invalidator)}
 }
 
-// NewGroupService 创建分组服务实例
-func NewGroupService(groupRepo GroupRepository, authCacheInvalidator APIKeyAuthCacheInvalidator) *GroupService {
-	return &GroupService{
-		groupRepo:            groupRepo,
-		authCacheInvalidator: authCacheInvalidator,
-	}
-}
+type GroupAuthInvalidator = routing.GroupAuthInvalidator
 
-// Create 创建分组
 func (s *GroupService) Create(ctx context.Context, req CreateGroupRequest) (*Group, error) {
-	// 检查名称是否已存在
-	exists, err := s.groupRepo.ExistsByName(ctx, req.Name)
-	if err != nil {
-		return nil, fmt.Errorf("check group exists: %w", err)
-	}
-	if exists {
-		return nil, ErrGroupExists
-	}
-
-	// 创建分组
-	group := &Group{
-		Name:                 req.Name,
-		Description:          req.Description,
-		Platform:             PlatformAnthropic,
-		SchedulerType:        GroupSchedulerTypeBasic,
-		AllowedProtocols:     domain.DefaultGroupClientProtocols(PlatformAnthropic),
-		ProtocolFallbacks:    domain.DefaultProtocolFallbacks(PlatformAnthropic),
-		ResponsesImagePolicy: "inherit",
-		RateMultiplier:       req.RateMultiplier,
-		IsExclusive:          req.IsExclusive,
-		Status:               StatusActive,
-		AllowImageGeneration: req.AllowImageGeneration,
-	}
-
-	if err := s.groupRepo.Create(ctx, group); err != nil {
-		return nil, fmt.Errorf("create group: %w", err)
-	}
-
-	return group, nil
+	value, err := s.GroupService.Create(ctx, routing.CreateGroupRequest(req))
+	return GroupFromRouting(value), err
 }
-
-// GetByID 根据ID获取分组
 func (s *GroupService) GetByID(ctx context.Context, id int64) (*Group, error) {
-	group, err := s.groupRepo.GetByID(ctx, id)
-	if err != nil {
-		return nil, fmt.Errorf("get group: %w", err)
-	}
-	return group, nil
+	value, err := s.GroupService.GetByID(ctx, id)
+	return GroupFromRouting(value), err
 }
-
-// List 获取分组列表
 func (s *GroupService) List(ctx context.Context, params pagination.PaginationParams) ([]Group, *pagination.PaginationResult, error) {
-	groups, pagination, err := s.groupRepo.List(ctx, params)
-	if err != nil {
-		return nil, nil, fmt.Errorf("list groups: %w", err)
-	}
-	return groups, pagination, nil
+	values, page, err := s.GroupService.List(ctx, params)
+	return groupsFromRouting(values), page, err
 }
-
-// ListActive 获取活跃分组列表
 func (s *GroupService) ListActive(ctx context.Context) ([]Group, error) {
-	groups, err := s.groupRepo.ListActive(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list active groups: %w", err)
-	}
-	return groups, nil
+	values, err := s.GroupService.ListActive(ctx)
+	return groupsFromRouting(values), err
 }
-
-// Update 更新分组
 func (s *GroupService) Update(ctx context.Context, id int64, req UpdateGroupRequest) (*Group, error) {
-	group, err := s.groupRepo.GetByID(ctx, id)
-	if err != nil {
-		return nil, fmt.Errorf("get group: %w", err)
-	}
-
-	// 更新字段
-	if req.Name != nil && *req.Name != group.Name {
-		// 检查新名称是否已存在
-		exists, err := s.groupRepo.ExistsByName(ctx, *req.Name)
-		if err != nil {
-			return nil, fmt.Errorf("check group exists: %w", err)
-		}
-		if exists {
-			return nil, ErrGroupExists
-		}
-		group.Name = *req.Name
-	}
-
-	if req.Description != nil {
-		group.Description = *req.Description
-	}
-
-	if req.RateMultiplier != nil {
-		group.RateMultiplier = *req.RateMultiplier
-	}
-
-	if req.IsExclusive != nil {
-		group.IsExclusive = *req.IsExclusive
-	}
-
-	if req.Status != nil {
-		group.Status = *req.Status
-	}
-	if req.AllowImageGeneration != nil {
-		group.AllowImageGeneration = *req.AllowImageGeneration
-	}
-
-	if err := s.groupRepo.Update(ctx, group); err != nil {
-		return nil, fmt.Errorf("update group: %w", err)
-	}
-	if s.authCacheInvalidator != nil {
-		s.authCacheInvalidator.InvalidateAuthCacheByGroupID(ctx, id)
-	}
-
-	return group, nil
+	value, err := s.GroupService.Update(ctx, id, routing.UpdateGroupRequest(req))
+	return GroupFromRouting(value), err
 }
-
-// Delete 删除分组
 func (s *GroupService) Delete(ctx context.Context, id int64) error {
-	// 检查分组是否存在
-	_, err := s.groupRepo.GetByID(ctx, id)
-	if err != nil {
-		return fmt.Errorf("get group: %w", err)
-	}
-
-	if s.authCacheInvalidator != nil {
-		s.authCacheInvalidator.InvalidateAuthCacheByGroupID(ctx, id)
-	}
-	if err := s.groupRepo.Delete(ctx, id); err != nil {
-		return fmt.Errorf("delete group: %w", err)
-	}
-
-	return nil
+	return s.GroupService.Delete(ctx, id)
 }
-
-// GetStats 获取分组统计信息
 func (s *GroupService) GetStats(ctx context.Context, id int64) (map[string]any, error) {
-	group, err := s.groupRepo.GetByID(ctx, id)
-	if err != nil {
-		return nil, fmt.Errorf("get group: %w", err)
+	return s.GroupService.GetStats(ctx, id)
+}
+func groupsFromRouting(values []routing.Group) []Group {
+	if values == nil {
+		return nil
 	}
-
-	// 获取账号数量
-	accountCount, _, err := s.groupRepo.GetAccountCount(ctx, id)
-	if err != nil {
-		return nil, fmt.Errorf("get account count: %w", err)
+	out := make([]Group, len(values))
+	for i := range values {
+		out[i] = *GroupFromRouting(&values[i])
 	}
-
-	stats := map[string]any{
-		"id":              group.ID,
-		"name":            group.Name,
-		"rate_multiplier": group.RateMultiplier,
-		"is_exclusive":    group.IsExclusive,
-		"status":          group.Status,
-		"account_count":   accountCount,
-	}
-
-	return stats, nil
+	return out
 }

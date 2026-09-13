@@ -1,0 +1,20 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/routing/...",
+    "./internal/service",
+    "./internal/handler/...",
+    "./internal/app/...",
+    "-run",
+    "Test.*(Marketplace|Requestable|DisplayPricing|ProtocolRoute)"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 23.433,
+  "log": "logs/routing-marketplace-http-unit.log.gz"
+}
