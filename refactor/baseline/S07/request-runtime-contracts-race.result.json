@@ -1,0 +1,25 @@
+{
+  "time": "2026-09-13T14:40:25.324342+00:00",
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "./internal/scheduler",
+    "-run",
+    "TestRequestLease|TestSlotWait|TestSettingsRuntime"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.153,
+  "log": "refactor/baseline/S07/logs/request-runtime-contracts-race.log.gz",
+  "events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

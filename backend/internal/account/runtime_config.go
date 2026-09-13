@@ -6,6 +6,10 @@ import (
 	strconv "strconv"
 	strings "strings"
 	time "time"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
+	"github.com/TokenFlux/TokenRouter/internal/scheduler/policy"
 )
 
 // RuntimeConfig 只为规则调用提供当前配置与窗口视图，不持有调度缓存或执行资源。
@@ -80,67 +84,17 @@ func (a *RuntimeConfig) GetRPMStickyBuffer() int {
 	if a.Extra == nil {
 		return 0
 	}
-
-	// 手动 override 最高优先级
+	override := 0
 	if v, ok := a.Extra["rpm_sticky_buffer"]; ok {
-		val := ParseExtraInt(v)
-		if val > 0 {
-			return val
-		}
+		override = ParseExtraInt(v)
 	}
-
-	base := a.GetBaseRPM()
-	if base <= 0 {
-		return 0
-	}
-
-	// Cache-driven buffer = concurrency + maxSessions
-	conc := a.Concurrency
-	if conc < 0 {
-		conc = 0
-	}
-	sess := a.GetMaxSessions()
-	if sess < 0 {
-		sess = 0
-	}
-
-	buffer := conc + sess
-
-	// floor: 向后兼容
-	floor := base / 5
-	if floor < 1 {
-		floor = 1
-	}
-	if buffer < floor {
-		buffer = floor
-	}
-
-	return buffer
+	return policy.RPMStickyBuffer(a.GetBaseRPM(), a.Concurrency, a.GetMaxSessions(), override)
 }
 
 // CheckRPMSchedulability 根据当前 RPM 计数检查调度状态
 // 复用 WindowCostSchedulability 三态：Schedulable / StickyOnly / NotSchedulable
-func (a *RuntimeConfig) CheckRPMSchedulability(currentRPM int) WindowCostSchedulability {
-	baseRPM := a.GetBaseRPM()
-	if baseRPM <= 0 {
-		return WindowCostSchedulable
-	}
-
-	if currentRPM < baseRPM {
-		return WindowCostSchedulable
-	}
-
-	strategy := a.GetRPMStrategy()
-	if strategy == "sticky_exempt" {
-		return WindowCostStickyOnly // 粘性豁免无红区
-	}
-
-	// tiered: 黄区 + 红区
-	buffer := a.GetRPMStickyBuffer()
-	if currentRPM < baseRPM+buffer {
-		return WindowCostStickyOnly
-	}
-	return WindowCostNotSchedulable
+func (a *RuntimeConfig) CheckRPMSchedulability(current int) WindowCostSchedulability {
+	return WindowCostSchedulability(policy.CheckRPM(current, a.GetBaseRPM(), a.GetRPMStickyBuffer(), a.GetRPMStrategy()))
 }
 
 // GetWindowCostLimit 获取 5h 窗口费用阈值（美元）
@@ -174,22 +128,8 @@ func (a *RuntimeConfig) GetWindowCostStickyReserve() float64 {
 // - 费用 < 阈值: WindowCostSchedulable（可正常调度）
 // - 费用 >= 阈值 且 < 阈值+预留: WindowCostStickyOnly（仅粘性会话）
 // - 费用 >= 阈值+预留: WindowCostNotSchedulable（不可调度）
-func (a *RuntimeConfig) CheckWindowCostSchedulability(currentWindowCost float64) WindowCostSchedulability {
-	limit := a.GetWindowCostLimit()
-	if limit <= 0 {
-		return WindowCostSchedulable
-	}
-
-	if currentWindowCost < limit {
-		return WindowCostSchedulable
-	}
-
-	stickyReserve := a.GetWindowCostStickyReserve()
-	if currentWindowCost < limit+stickyReserve {
-		return WindowCostStickyOnly
-	}
-
-	return WindowCostNotSchedulable
+func (a *RuntimeConfig) CheckWindowCostSchedulability(current float64) WindowCostSchedulability {
+	return billing.CheckWindowCost(current, a.GetWindowCostLimit(), a.GetWindowCostStickyReserve())
 }
 
 // GetCurrentWindowStartTime 获取当前有效的窗口开始时间
@@ -197,15 +137,7 @@ func (a *RuntimeConfig) CheckWindowCostSchedulability(currentWindowCost float64)
 // 1. 如果窗口未过期（SessionWindowEnd 存在且在当前时间之后），使用记录的 SessionWindowStart
 // 2. 否则（窗口过期或未设置），使用新的预测窗口开始时间（从当前整点开始）
 func (a *RuntimeConfig) GetCurrentWindowStartTime(now time.Time) time.Time {
-
-	// 窗口未过期，使用记录的窗口开始时间
-	if a.SessionWindowStart != nil && a.SessionWindowEnd != nil && now.Before(*a.SessionWindowEnd) {
-		return *a.SessionWindowStart
-	}
-
-	// 窗口已过期或未设置，预测新的窗口开始时间（从当前整点开始）
-	// 与 ratelimit_service.go 中 UpdateSessionWindow 的预测逻辑保持一致
-	return time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, now.Location())
+	return billing.CurrentCostWindowStart(a.SessionWindowStart, a.SessionWindowEnd, now)
 }
 
 // ParseExtraFloat64 从 extra 字段解析 float64 值
@@ -264,15 +196,12 @@ func ParseExtraInt(value any) int {
 }
 
 // WindowCostSchedulability 窗口费用调度状态
-type WindowCostSchedulability int
+type WindowCostSchedulability = billing.WindowCostSchedulability
 
 const (
-	// WindowCostSchedulable 可正常调度
-	WindowCostSchedulable WindowCostSchedulability = iota
-	// WindowCostStickyOnly 仅允许粘性会话
-	WindowCostStickyOnly
-	// WindowCostNotSchedulable 完全不可调度
-	WindowCostNotSchedulable
+	WindowCostSchedulable    = billing.WindowCostSchedulable
+	WindowCostStickyOnly     = billing.WindowCostStickyOnly
+	WindowCostNotSchedulable = billing.WindowCostNotSchedulable
 )
 
 // GetUserMsgQueueMode 获取用户消息队列模式

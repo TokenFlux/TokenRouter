@@ -1,0 +1,31 @@
+{
+  "time": "2026-09-13T16:31:47.453941+00:00",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/scheduler",
+    "-run",
+    "^TestUnlimitedSlotPreservesCallerCancellation$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 0.989,
+  "log": "refactor/baseline/S07/logs/unlimited-slot-cancel-regression.log.gz",
+  "events": {
+    "pass": 0,
+    "fail": 1,
+    "skip": 0
+  },
+  "failures": [
+    {
+      "Action": "fail",
+      "Package": "github.com/TokenFlux/TokenRouter/internal/scheduler",
+      "Test": "TestUnlimitedSlotPreservesCallerCancellation",
+      "Elapsed": 0
+    }
+  ],
+  "skips": []
+}

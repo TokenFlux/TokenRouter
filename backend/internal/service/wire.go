@@ -3,16 +3,16 @@ package service
 import (
 	"context"
 	"database/sql"
-	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/google/uuid"
 	"log"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/google/uuid"
 
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/payment"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
-	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/xai"
 
 	"github.com/google/wire"
@@ -406,61 +406,6 @@ func ProvideDeferredService(accountRepo AccountRepository, timingWheel *TimingWh
 	return svc
 }
 
-// ProvideConcurrencyService creates ConcurrencyService and starts slot cleanup worker.
-func ProvideConcurrencyService(cache ConcurrencyCache, accountRepo AccountRepository, cfg *config.Config) *ConcurrencyService {
-	svc := NewConcurrencyService(cache)
-	if err := svc.CleanupStaleProcessSlots(context.Background()); err != nil {
-		logger.LegacyPrintf("service.concurrency", "Warning: startup cleanup stale process slots failed: %v", err)
-	}
-	if cfg != nil {
-		svc.SetAccountLoadBatchCacheTTL(time.Duration(cfg.Gateway.Scheduling.LoadBatchCacheTTLMS) * time.Millisecond)
-
-	}
-	return svc
-}
-
-// ProvideUserMessageQueueService 创建用户消息串行队列服务并启动清理 worker
-func ProvideUserMessageQueueService(cache UserMsgQueueCache, rpmCache RPMCache, cfg *config.Config) *UserMessageQueueService {
-	svc := NewUserMessageQueueService(cache, rpmCache, &cfg.Gateway.UserMessageQueue)
-	return svc
-}
-
-// ProvideSchedulerSnapshotService creates and starts SchedulerSnapshotService.
-func ProvideSchedulerSnapshotService(
-	cache SchedulerCache,
-	outboxRepo SchedulerOutboxRepository,
-	accountRepo AccountRepository,
-	groupRepo GroupRepository,
-	cfg *config.Config,
-) *SchedulerSnapshotService {
-	svc := NewSchedulerSnapshotService(cache, outboxRepo, accountRepo, groupRepo, cfg)
-
-	return svc
-}
-
-// ProvideRateLimitService creates RateLimitService with optional dependencies.
-func ProvideRateLimitService(
-	accountRepo AccountRepository,
-	usageRepo UsageLogRepository,
-	cfg *config.Config,
-	geminiQuotaService *GeminiQuotaService,
-	tempUnschedCache TempUnschedCache,
-	timeoutCounterCache TimeoutCounterCache,
-	openAI403CounterCache OpenAI403CounterCache,
-	settingService *SettingService,
-	tokenCacheInvalidator TokenCacheInvalidator,
-) *RateLimitService {
-	svc := NewRateLimitService(accountRepo, usageRepo, cfg, geminiQuotaService, tempUnschedCache)
-	if healthCache, ok := tempUnschedCache.(OpenAIAPIKeyHealthCache); ok {
-		svc.SetOpenAIAPIKeyHealthCache(healthCache)
-	}
-	svc.SetTimeoutCounterCache(timeoutCounterCache)
-	svc.SetOpenAI403CounterCache(openAI403CounterCache)
-	svc.SetSettingService(settingService)
-	svc.SetTokenCacheInvalidator(tokenCacheInvalidator)
-	return svc
-}
-
 // ProvideOpsMetricsCollector creates and starts OpsMetricsCollector.
 func ProvideOpsMetricsCollector(
 	opsRepo OpsRepository,
@@ -761,7 +706,6 @@ var ProviderSet = wire.NewSet(
 	ProvideGrokQuotaService,
 	ProvideClaudeTokenProvider,
 	NewAntigravityGatewayService,
-	ProvideRateLimitService,
 	ProvideAccountUsageService,
 	ProvideAccountTestService,
 	ProvideSettingService,
@@ -780,10 +724,7 @@ var ProviderSet = wire.NewSet(
 	NewEmailService,
 	NewNotificationEmailService,
 	ProvideEmailQueueService,
-	ProvideConcurrencyService,
-	ProvideUserMessageQueueService,
 	NewUsageRecordWorkerPool,
-	ProvideSchedulerSnapshotService,
 	NewIdentityService,
 	ProvideUpdateService,
 	ProvideTokenRefreshService,

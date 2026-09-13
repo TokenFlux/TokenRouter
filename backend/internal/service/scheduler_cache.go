@@ -1,75 +1,32 @@
+// 调度 bucket/代际契约由 scheduler 唯一拥有；旧账号缓存接口随生产读取链迁移。
 package service
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"strconv"
-	"strings"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
 const (
-	SchedulerModeSingle = "single"
-	SchedulerModeMixed  = "mixed"
-	SchedulerModeForced = "forced"
+	SchedulerModeSingle = scheduler.SchedulerModeSingle
+	SchedulerModeMixed  = scheduler.SchedulerModeMixed
+	SchedulerModeForced = scheduler.SchedulerModeForced
 )
 
 var (
-	ErrSchedulerBucketRetired              = errors.New("scheduler bucket retired")
-	ErrSchedulerBucketWriteFenced          = errors.New("scheduler bucket write fenced")
-	ErrSchedulerGroupLifecycleLeaseInvalid = errors.New("scheduler group lifecycle lease invalid")
-	ErrSchedulerGroupLifecycleLeaseLost    = errors.New("scheduler group lifecycle lease lost")
+	ErrSchedulerBucketRetired              = scheduler.ErrSchedulerBucketRetired
+	ErrSchedulerBucketWriteFenced          = scheduler.ErrSchedulerBucketWriteFenced
+	ErrSchedulerGroupLifecycleLeaseInvalid = scheduler.ErrSchedulerGroupLifecycleLeaseInvalid
+	ErrSchedulerGroupLifecycleLeaseLost    = scheduler.ErrSchedulerGroupLifecycleLeaseLost
 )
 
-// SchedulerBucketWriteToken 将快照 writer 限定在指定桶的一个 epoch 内。
-// 必须在数据库加载或重建任务排队前取得 token。
-type SchedulerBucketWriteToken struct {
-	Bucket SchedulerBucket
-	Epoch  int64
-}
-
-func (t SchedulerBucketWriteToken) ValidFor(bucket SchedulerBucket) bool {
-	return t.Epoch > 0 && t.Bucket == bucket
-}
-
-// SchedulerGroupLifecycleLease 标识分组短期退休/重开临界区的持有者。
-type SchedulerGroupLifecycleLease struct {
-	GroupID    int64
-	OwnerToken string
-}
-
-func (l SchedulerGroupLifecycleLease) ValidFor(groupID int64) bool {
-	return groupID > 0 && l.GroupID == groupID && l.OwnerToken != ""
-}
-
-type SchedulerBucket struct {
-	GroupID  int64
-	Platform string
-	Mode     string
-}
-
-func (b SchedulerBucket) String() string {
-	return fmt.Sprintf("%d:%s:%s", b.GroupID, b.Platform, b.Mode)
-}
+type SchedulerBucket = scheduler.SchedulerBucket
+type SchedulerBucketWriteToken = scheduler.SchedulerBucketWriteToken
+type SchedulerGroupLifecycleLease = scheduler.SchedulerGroupLifecycleLease
 
 func ParseSchedulerBucket(raw string) (SchedulerBucket, bool) {
-	parts := strings.Split(raw, ":")
-	if len(parts) != 3 {
-		return SchedulerBucket{}, false
-	}
-	groupID, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil {
-		return SchedulerBucket{}, false
-	}
-	if parts[1] == "" || parts[2] == "" {
-		return SchedulerBucket{}, false
-	}
-	return SchedulerBucket{
-		GroupID:  groupID,
-		Platform: parts[1],
-		Mode:     parts[2],
-	}, true
+	return scheduler.ParseSchedulerBucket(raw)
 }
 
 // SchedulerCache 负责调度快照与账号快照的缓存读写。
@@ -100,10 +57,8 @@ type SchedulerCache interface {
 	DeleteAccount(ctx context.Context, accountID int64) error
 	// UpdateLastUsed 批量更新账号的最后使用时间。
 	UpdateLastUsed(ctx context.Context, updates map[int64]time.Time) error
-	// TryLockBucket 尝试获取分桶重建锁。
-	TryLockBucket(ctx context.Context, bucket SchedulerBucket, ttl time.Duration) (bool, error)
-	// UnlockBucket 释放分桶重建锁。
-	UnlockBucket(ctx context.Context, bucket SchedulerBucket) error
+	// AcquireBucketLease 返回本次持有者的释放句柄，禁止只按桶名删除锁。
+	AcquireBucketLease(context.Context, SchedulerBucket, time.Duration) (*scheduler.BucketLease, bool, error)
 	// ListBuckets 返回已注册的分桶集合。
 	ListBuckets(ctx context.Context) ([]SchedulerBucket, error)
 	// GetOutboxWatermark 读取 outbox 水位。

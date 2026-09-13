@@ -6,6 +6,7 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	egresshttp "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
+	schedulerhttp "github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	sitehttpapi "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 
@@ -14,6 +15,7 @@ import (
 
 // ProvideAdminHandlers creates the AdminHandlers struct
 func ProvideAdminHandlers(
+	schedulerDiagnostics *schedulerhttp.DiagnosticsHandler,
 	accountManagement *accounthttp.ManagementHandler,
 	accountOAuthUsage *accounthttp.OAuthUsageHandler,
 	accountOllama *accounthttp.OllamaUsageHandler,
@@ -57,13 +59,14 @@ func ProvideAdminHandlers(
 	teamHandler *admin.TeamHandler,
 ) *AdminHandlers {
 	return &AdminHandlers{
-		AccountManagement:  accountManagement,
-		AccountOAuthUsage:  accountOAuthUsage,
-		AccountOllama:      accountOllama,
-		AccountCodexImport: accountCodexImport,
-		AccountCRS:         accountCRS,
-		AccountArchive:     accountArchive,
-		AccountTests:       accountTests, UpstreamUsage: upstreamUsage,
+		SchedulerDiagnostics: schedulerDiagnostics,
+		AccountManagement:    accountManagement,
+		AccountOAuthUsage:    accountOAuthUsage,
+		AccountOllama:        accountOllama,
+		AccountCodexImport:   accountCodexImport,
+		AccountCRS:           accountCRS,
+		AccountArchive:       accountArchive,
+		AccountTests:         accountTests, UpstreamUsage: upstreamUsage,
 		Dashboard:             dashboardHandler,
 		User:                  userHandler,
 		Group:                 groupHandler,

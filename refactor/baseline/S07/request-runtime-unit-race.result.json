@@ -1,0 +1,28 @@
+{
+  "time": "2026-09-13T14:36:13.221243+00:00",
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/scheduler",
+    "./internal/handler",
+    "./internal/service",
+    "-run",
+    "Test.*Concurrency|Test.*Wait|Test.*Queue|Test.*Lease|Test.*Scheduler|TestImageConcurrency"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 1.119,
+  "log": "refactor/baseline/S07/logs/request-runtime-unit-race.log.gz",
+  "events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

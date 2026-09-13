@@ -2,6 +2,8 @@ package app
 
 import (
 	"database/sql"
+	"time"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	acctcore "github.com/TokenFlux/TokenRouter/internal/account"
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
@@ -12,12 +14,12 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/repository"
 	"github.com/TokenFlux/TokenRouter/internal/routing/accessview"
 	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/service"
-	"time"
 )
 
 // provideAccountStore 固定唯一账号存储，跨模块只注入值映射和原事件写入。
-func provideAccountStore(client *dbent.Client, db *sql.DB, cache service.SchedulerCache) *accountpostgres.AccountStore {
+func provideAccountStore(client *dbent.Client, db *sql.DB, cache scheduler.SnapshotCache) *accountpostgres.AccountStore {
 	store := accountpostgres.NewAccountStore(client, db, accountpostgres.AccountStoreOptions{
 		Group: func(g *dbent.Group) *accessview.GroupConfig {
 			return (*accessview.GroupConfig)(routingpostgres.GroupFromEnt(g))

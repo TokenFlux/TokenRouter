@@ -25,7 +25,7 @@
 
 分组配置、默认选择、管理与复制用例由 `internal/routing` 拥有，SQL/Ent 实现在 `routing/postgres`。渠道管理、模型映射、价卡读取和唯一渠道缓存也在 routing；app 将同一个存储和缓存实例提供给 Key、身份管理与 billing。旧 `service.Group` 仍用于未迁执行链的投影，旧管理方法委托新用例。分组管理直接读取 AccountStore/KeyStore；容量查询使用账号存储的批量或逐组只读投影，保留预取失败回退、空结果和逐行阈值取时点。分组与渠道的 CRUD、复制和排序 HTTP 在 `routing/httpapi`，普通/管理员 DTO 在其 `dto` 子包；分组用量、容量、关联 Key 和倍率/RPM 端点也由新 handler 组合窄接口；倍率配置由 billing 执行，Key 列表由 apikey 提供，用量和 Live 平台检查仍经 app 的过渡读取投影。
 
-分组创建/更新涉及的默认切换、排序锁和账号关系复制/替换保留原事务边界；账号关联写入由 `account/postgres` 的同连接参与方法承担，用户授权清理由 `identity/postgres` 参与。旧 scheduler outbox 编码和发布语义继续复用，尚未迁移调度消费者。渠道缓存发布时取得独立副本，返回的嵌套 JSON 配置也与缓存隔离；管理输入或调用方修改副本不会改变其他请求的规则。
+分组创建/更新涉及的默认切换、排序锁和账号关系复制/替换保留原事务边界；账号关联写入由 `account/postgres` 的同连接参与方法承担，用户授权清理由 `identity/postgres` 参与。调度 outbox 编码、同连接写入与消费归 `scheduler` 及其 Adapter；同事务 outbox 和提交后尽力发布保持各入口原边界。渠道缓存发布时取得独立副本，返回的嵌套 JSON 配置也与缓存隔离；管理输入或调用方修改副本不会改变其他请求的规则。
 
 分组是客户端选择的产品边界，渠道是后台共享的映射与价格边界，账号是调度执行边界。三者不能合并成一个“供应商配置”：同平台分组可以有不同产品策略；一个渠道可以为多个分组提供差异化定价；账号又可以加入多个分组并在每次请求时接受独立资格检查。
 
@@ -66,6 +66,8 @@ OpenAI 分组通过 `openai_fast_policy` 选择跟随请求、强制 Fast、强�
 OpenAI 分组还可设置 `max_reasoning_effort` 与 `max_reasoning_effort_over_limit`。策略只处理客户端显式提供的 `reasoning.effort`、`reasoning_effort` 或 Messages 的 `output_config.effort`；缺省 effort 不会被桥接器补出的默认值误判为客户端请求。先按分组的模型范围映射（精确、前缀或后缀）得到有效档位，再比较 `minimal < low < medium < high < xhigh < max`：`downgrade`（默认）改写为上限，`deny` 返回本地 403 权限错误并标记为业务限制。推理档位改写仅能来自管理员配置的映射或上限策略，普通转发层不得再隐式改写；`none` 可作为映射和请求审计值，但不参与上限排序。Usage Log 同时保留策略前的请求档位与最终转发档位。复合 Key 在鉴权阶段已经选出具体 OpenAI 分组，因此沿用该分组策略。HTTP Responses/Chat、Messages 转换和 Responses WebSocket 的每个请求帧都必须执行同一裁决，且策略快照随 API Key 认证缓存传播。
 
 Anthropic 分组也支持同一套模型范围映射、上限与超限动作，合法档位为 `low < medium < high < xhigh < max`，不接受 OpenAI 专用的 `none/minimal` 配置。Messages、Responses、Chat 三个入口都在协议转换和账号调度前执行策略；强制路由到其他平台时不套用 Anthropic 策略。兼容桥保留 `xhigh` 与 `max` 的区别，防止转换过程静默触发不同费率。
+
+用户/分组 RPM 准入、账号软计数及三区规则归 scheduler，仍在资金检查后执行，simple 跳过及故障放行不变。五小时费用窗口规则、批量查询和回填归 billing，usage 聚合仍通过只读端口读取；费用与消费字段不进入调度写权限。
 
 ## 可用性与缓存
 

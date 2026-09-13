@@ -97,11 +97,11 @@ func (s *OpenAIGatewayService) liveStore() (LiveCallStore, error) {
 }
 
 func (s *OpenAIGatewayService) liveConcurrencyCache() (LiveConcurrencyCache, error) {
-	if s == nil || s.concurrencyService == nil || s.concurrencyService.cache == nil {
+	if s == nil || s.concurrencyService == nil {
 		return nil, ErrLiveUnavailable
 	}
-	cache, ok := s.concurrencyService.cache.(LiveConcurrencyCache)
-	if !ok {
+	cache := s.concurrencyService.LiveLeases()
+	if cache == nil {
 		return nil, ErrLiveUnavailable
 	}
 	return cache, nil

@@ -1,0 +1,24 @@
+{
+  "time": "2026-09-13T16:08:21.274809+00:00",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/scheduler",
+    "-run",
+    "^$"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 1.008,
+  "log": "refactor/baseline/S07/logs/platform-selection-core-build.log.gz",
+  "events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

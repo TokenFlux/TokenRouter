@@ -1,0 +1,29 @@
+{
+  "time": "2026-09-13T15:25:34.751630+00:00",
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/scheduler/...",
+    "./internal/account",
+    "./internal/service",
+    "./internal/handler",
+    "-run",
+    "Test.*RPMSchedulability|TestGetRPM|Test.*SessionLimit|Test.*SessionRelease|Test.*SessionCleanup|Test.*Lease|TestAcquireUserSlotWithWait|TestS06RoutePlan"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 60.957,
+  "log": "refactor/baseline/S07/logs/session-rpm-leases-unit-race.log.gz",
+  "events": {
+    "pass": 116,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

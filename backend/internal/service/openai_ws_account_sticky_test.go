@@ -164,7 +164,7 @@ func TestOpenAIGatewayService_SelectAccountByPreviousResponseID_DBRuntimeRecheck
 		cfg:                cfg,
 		concurrencyService: NewConcurrencyService(stubConcurrencyCache{}),
 		openaiWSStateStore: store,
-		schedulerSnapshot:  &SchedulerSnapshotService{cache: snapshotCache},
+		schedulerSnapshot:  NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil),
 	}
 
 	require.NoError(t, store.BindResponseAccount(ctx, groupID, "resp_prev_db_rl", dbAccount.ID, time.Hour))

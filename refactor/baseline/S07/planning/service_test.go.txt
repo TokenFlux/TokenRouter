@@ -1,0 +1,29 @@
+package service
+import (
+ "context"
+ "errors"
+ "testing"
+ "time"
+)
+// 规划阶段夹具：记录停止后的重建调用，不改生产实现。
+type s07PlanSnapshotCache struct { SchedulerCache; calls chan struct{}; block chan struct{} }
+func (s *s07PlanSnapshotCache) ListBuckets(ctx context.Context) ([]SchedulerBucket,error) { s.calls<-struct{}{}; if s.block!=nil { select {case <-s.block: case <-ctx.Done():return nil,ctx.Err()} }; return nil,errors.New("planning probe") }
+func TestS07PlanSnapshotStartAfterStop(t *testing.T) {
+ c:=&s07PlanSnapshotCache{calls:make(chan struct{},4)}; s:=NewSchedulerSnapshotService(c,nil,nil,nil,nil); s.Stop(); s.Start(); s.Stop(); if len(c.calls)>0 {t.Fatalf("停止后仍执行初始重建: calls=%d",len(c.calls))}
+}
+func TestS07PlanSnapshotRepeatedStart(t *testing.T) {
+ c:=&s07PlanSnapshotCache{calls:make(chan struct{},4)}; s:=NewSchedulerSnapshotService(c,nil,nil,nil,nil); s.Start(); <-c.calls; s.Start(); s.Stop(); if len(c.calls)>0 {t.Fatal("重复 Start 再次执行初始重建")}
+}
+func TestS07PlanSnapshotStopCancelsWork(t *testing.T) {
+ c:=&s07PlanSnapshotCache{calls:make(chan struct{},4),block:make(chan struct{})}; s:=NewSchedulerSnapshotService(c,nil,nil,nil,nil); s.Start(); <-c.calls; done:=make(chan struct{});go func(){s.Stop();close(done)}(); select {case <-done:case <-time.After(100*time.Millisecond):t.Error("Stop 没有取消支持 context 的在途重建")};close(c.block);<-done
+}
+// 规划阶段夹具：模拟增加计数没有写入 Redis，而其它请求仍在等待。
+type s07PlanWaitCache struct {ConcurrencyCache; count int}
+func(s *s07PlanWaitCache)IncrementWaitCount(context.Context,int64,int)(bool,error){return false,errors.New("write not performed")}
+func(s *s07PlanWaitCache)DecrementWaitCount(context.Context,int64)error{s.count--;return nil}
+func TestS07PlanWaitFailOpenOwnership(t *testing.T){c:=&s07PlanWaitCache{count:1};s:=NewConcurrencyService(c);allowed,err:=s.IncrementWaitCount(context.Background(),1,20);if err==nil&&allowed{s.DecrementWaitCount(context.Background(),1)};if c.count!=1{t.Fatalf("未取得计数仍释放了其它等待者: want=1 got=%d",c.count)}}
+
+// 规划阶段夹具：已获得槽位后，完整账号读取遭遇取消。
+func TestS07PlanHydrationFailureReleasesSlot(t *testing.T) {ctx,cancel:=context.WithCancel(context.Background());cancel();cache:=&s07PlanHydrationCache{};snapshot:=NewSchedulerSnapshotService(cache,nil,nil,nil,nil);s:=&GatewayService{schedulerSnapshot:snapshot};released:=0;_,err:=s.newSelectionResult(ctx,&Account{ID:1},true,func(){released++},nil);if err==nil{t.Fatal("应返回取消错误")};if released!=1{t.Fatalf("已取得账号槽但补全失败后未释放: calls=%d",released)}}
+type s07PlanHydrationCache struct{SchedulerCache}
+func(s *s07PlanHydrationCache)GetAccount(ctx context.Context,id int64)(*Account,error){return nil,ctx.Err()}

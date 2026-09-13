@@ -1,0 +1,28 @@
+{
+  "time": "2026-09-13T12:29:23.230671+00:00",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "./internal/scheduler",
+    "./internal/service",
+    "./internal/app",
+    "-run",
+    "TestWorkerRuntime|TestS07Snapshot|TestSchedulerSnapshot|TestSchedulerFull|TestLease|TestAttemptLease"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 36.936,
+  "log": "refactor/baseline/S07/logs/snapshot-runtime-contracts.log.gz",
+  "events": {
+    "pass": 60,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

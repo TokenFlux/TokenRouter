@@ -1,12 +1,9 @@
 package handler
 
 import (
-	"context"
-	"fmt"
-	"net/http"
-	"sync"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -39,203 +36,31 @@ func NewUserMsgQueueHelper(
 
 // AcquireWithWait 等待获取串行锁，流式请求期间发送 SSE ping
 // 返回的 releaseFunc 内部使用 sync.Once，确保只执行一次释放
-func (h *UserMsgQueueHelper) AcquireWithWait(
-	c *gin.Context,
-	accountID int64,
-	baseRPM int,
-	isStream bool,
-	streamStarted *bool,
-	timeout time.Duration,
-	reqLog *zap.Logger,
-) (releaseFunc func(), err error) {
-	ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
-	defer cancel()
-
-	// 先尝试立即获取
-	result, err := h.queueService.TryAcquire(ctx, accountID)
+func (h *UserMsgQueueHelper) AcquireWithWait(c *gin.Context, accountID int64, baseRPM int, isStream bool, streamStarted *bool, timeout time.Duration, reqLog *zap.Logger) (func(), error) {
+	lease, err := h.queueService.AcquireWithWait(c.Request.Context(), accountID, baseRPM, timeout, h.observer(c, accountID, isStream, streamStarted, reqLog))
 	if err != nil {
-		return nil, err // fail-open 已在 service 层处理
+		return nil, err
 	}
-
-	if result.Acquired {
-		// 获取成功，执行 RPM 自适应延迟
-		if err := h.queueService.EnforceDelay(ctx, accountID, baseRPM); err != nil {
-			if ctx.Err() != nil {
-				// 延迟期间 context 取消，释放锁
-				bgCtx, bgCancel := context.WithTimeout(context.Background(), 5*time.Second)
-				_ = h.queueService.Release(bgCtx, accountID, result.RequestID)
-				bgCancel()
-				return nil, ctx.Err()
-			}
-		}
-		reqLog.Debug("gateway.umq_lock_acquired", zap.Int64("account_id", accountID))
-		return h.makeReleaseFunc(accountID, result.RequestID, reqLog), nil
-	}
-
-	// 需要等待：指数退避轮询
-	return h.waitForLockWithPing(c, ctx, accountID, baseRPM, isStream, streamStarted, reqLog)
+	return lease.Release, nil
 }
 
-// waitForLockWithPing 等待获取锁，流式请求期间发送 SSE ping
-func (h *UserMsgQueueHelper) waitForLockWithPing(
-	c *gin.Context,
-	ctx context.Context,
-	accountID int64,
-	baseRPM int,
-	isStream bool,
-	streamStarted *bool,
-	reqLog *zap.Logger,
-) (func(), error) {
-	needPing := isStream && h.pingFormat != ""
-
-	var flusher http.Flusher
-	if needPing {
-		var ok bool
-		flusher, ok = c.Writer.(http.Flusher)
-		if !ok {
-			needPing = false
-		}
-	}
-
-	var pingCh <-chan time.Time
-	if needPing {
-		pingTicker := time.NewTicker(h.pingInterval)
-		defer pingTicker.Stop()
-		pingCh = pingTicker.C
-	}
-
-	backoff := initialBackoff
-	timer := time.NewTimer(backoff)
-	defer timer.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("umq wait timeout for account %d", accountID)
-
-		case <-pingCh:
-			if !*streamStarted {
-				c.Header("Content-Type", "text/event-stream")
-				c.Header("Cache-Control", "no-cache")
-				c.Header("Connection", "keep-alive")
-				c.Header("X-Accel-Buffering", "no")
-				*streamStarted = true
-			}
-			written, err := fmt.Fprint(c.Writer, string(h.pingFormat))
+// observer 保留请求日志字段与 SSE 格式，等待和资源所有权由 scheduler 处理。
+func (h *UserMsgQueueHelper) observer(c *gin.Context, accountID int64, isStream bool, started *bool, reqLog *zap.Logger) scheduler.QueueObserver {
+	return scheduler.QueueObserver{
+		Wait: gatewayWaitObserver(c, h.pingFormat, h.pingInterval, isStream, started, false),
+		Event: func(name string, id int64, err error) {
 			if err != nil {
-				return nil, err
-			}
-			recordGatewayStreamHeartbeat(c, written)
-			flusher.Flush()
-
-		case <-timer.C:
-			result, err := h.queueService.TryAcquire(ctx, accountID)
-			if err != nil {
-				return nil, err
-			}
-			if result.Acquired {
-				// 获取成功，执行 RPM 自适应延迟
-				if delayErr := h.queueService.EnforceDelay(ctx, accountID, baseRPM); delayErr != nil {
-					if ctx.Err() != nil {
-						bgCtx, bgCancel := context.WithTimeout(context.Background(), 5*time.Second)
-						_ = h.queueService.Release(bgCtx, accountID, result.RequestID)
-						bgCancel()
-						return nil, ctx.Err()
-					}
-				}
-				reqLog.Debug("gateway.umq_lock_acquired", zap.Int64("account_id", accountID))
-				return h.makeReleaseFunc(accountID, result.RequestID, reqLog), nil
-			}
-			backoff = nextBackoff(backoff)
-			timer.Reset(backoff)
-		}
-	}
-}
-
-// makeReleaseFunc 创建锁释放函数（使用 sync.Once 确保只执行一次）
-func (h *UserMsgQueueHelper) makeReleaseFunc(accountID int64, requestID string, reqLog *zap.Logger) func() {
-	var once sync.Once
-	return func() {
-		once.Do(func() {
-			bgCtx, bgCancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer bgCancel()
-			if err := h.queueService.Release(bgCtx, accountID, requestID); err != nil {
-				reqLog.Warn("gateway.umq_release_failed",
-					zap.Int64("account_id", accountID),
-					zap.Error(err),
-				)
+				reqLog.Warn(name, zap.Int64("account_id", id), zap.Error(err))
 			} else {
-				reqLog.Debug("gateway.umq_lock_released", zap.Int64("account_id", accountID))
+				reqLog.Debug(name, zap.Int64("account_id", id))
 			}
-		})
+		}, Delay: func(delay time.Duration) {
+			reqLog.Debug("gateway.umq_throttle_delay", zap.Int64("account_id", accountID), zap.Duration("delay", delay))
+		},
 	}
 }
 
-// ThrottleWithPing 软性限速模式：施加 RPM 自适应延迟，流式期间发送 SSE ping
-// 不获取串行锁，不阻塞并发。返回后即可转发请求。
-func (h *UserMsgQueueHelper) ThrottleWithPing(
-	c *gin.Context,
-	accountID int64,
-	baseRPM int,
-	isStream bool,
-	streamStarted *bool,
-	timeout time.Duration,
-	reqLog *zap.Logger,
-) error {
-	ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
-	defer cancel()
-
-	delay := h.queueService.CalculateRPMAwareDelay(ctx, accountID, baseRPM)
-	if delay <= 0 {
-		return nil
-	}
-
-	reqLog.Debug("gateway.umq_throttle_delay",
-		zap.Int64("account_id", accountID),
-		zap.Duration("delay", delay),
-	)
-
-	// 延迟期间发送 SSE ping（复用 waitForLockWithPing 的 ping 逻辑）
-	needPing := isStream && h.pingFormat != ""
-	var flusher http.Flusher
-	if needPing {
-		flusher, _ = c.Writer.(http.Flusher)
-		if flusher == nil {
-			needPing = false
-		}
-	}
-
-	var pingCh <-chan time.Time
-	if needPing {
-		pingTicker := time.NewTicker(h.pingInterval)
-		defer pingTicker.Stop()
-		pingCh = pingTicker.C
-	}
-
-	timer := time.NewTimer(delay)
-	defer timer.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-pingCh:
-			// SSE ping 逻辑（与 waitForLockWithPing 一致）
-			if !*streamStarted {
-				c.Header("Content-Type", "text/event-stream")
-				c.Header("Cache-Control", "no-cache")
-				c.Header("Connection", "keep-alive")
-				c.Header("X-Accel-Buffering", "no")
-				*streamStarted = true
-			}
-			written, err := fmt.Fprint(c.Writer, string(h.pingFormat))
-			if err != nil {
-				return err
-			}
-			recordGatewayStreamHeartbeat(c, written)
-			flusher.Flush()
-		case <-timer.C:
-			return nil
-		}
-	}
+// ThrottleWithPing 保留 HTTP 入口，核心执行软限速等待。
+func (h *UserMsgQueueHelper) ThrottleWithPing(c *gin.Context, accountID int64, baseRPM int, isStream bool, streamStarted *bool, timeout time.Duration, reqLog *zap.Logger) error {
+	return h.queueService.ThrottleWithWait(c.Request.Context(), accountID, baseRPM, timeout, h.observer(c, accountID, isStream, streamStarted, reqLog))
 }

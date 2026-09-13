@@ -1,0 +1,27 @@
+{
+  "time": "2026-09-13T14:19:08.874853+00:00",
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/scheduler",
+    "./internal/handler",
+    "-run",
+    "Test.*Concurrency|Test.*Wait|Test.*UserMsg|Test.*Queue|Test.*Backoff|Test.*Qoder.*Release|Test.*Lease"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 22.811,
+  "log": "refactor/baseline/S07/logs/waiting-migration-unit-race.log.gz",
+  "events": {
+    "pass": 94,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

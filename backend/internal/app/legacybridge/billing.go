@@ -4,17 +4,12 @@ package legacybridge
 import (
 	context "context"
 	sql "database/sql"
+	"time"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	billing "github.com/TokenFlux/TokenRouter/internal/billing"
-	repository "github.com/TokenFlux/TokenRouter/internal/repository"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
-	"time"
 )
-
-// BillingAccountQuotaOutbox 同事务调用现有账号 outbox，不持有业务规则；S07 改绑。
-func BillingAccountQuotaOutbox(ctx context.Context, tx *sql.Tx, id int64) error {
-	return repository.EnqueueAccountQuotaChangedInTx(ctx, tx, id)
-}
 
 // RedeemAffiliate 保留旧返利能力的调用与结果投影，S12 退出。
 type RedeemAffiliate struct{ Service *service.AffiliateService }

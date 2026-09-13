@@ -13,15 +13,17 @@ package repository
 import (
 	context "context"
 	sql "database/sql"
+	strconv "strconv"
+	time "time"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	dbaccount "github.com/TokenFlux/TokenRouter/ent/account"
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	pagination "github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
-	strconv "strconv"
-	time "time"
 )
 
 // accountRepository 实现 service.AccountRepository 接口。
@@ -441,12 +443,7 @@ func (r *accountRepository) accountsToService(ctx context.Context, accounts []*d
 // 事件的 payload。空 groupIDs 必须返回 untyped nil（any 而非 map[string]any(nil)），
 // 否则 enqueueSchedulerOutbox 的 "payload != nil" 接口判空会被 typed-nil 欺骗，
 // 把 payload marshal 成 "null" 写入 dedup_key 哈希，破坏与其他 nil-payload 调用的去重一致性。
-func buildSchedulerGroupPayload(groupIDs []int64) any {
-	if len(groupIDs) == 0 {
-		return nil
-	}
-	return map[string]any{"group_ids": groupIDs}
-}
+func buildSchedulerGroupPayload(groupIDs []int64) any { return scheduler.GroupPayload(groupIDs) }
 
 func accountEntityToService(m *dbent.Account) *service.Account {
 	return service.AccountFromRecord(accountpostgres.RecordFromEntity(m))

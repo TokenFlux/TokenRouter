@@ -17,9 +17,8 @@ func TestSparkRoutingByModel(t *testing.T) {
 
 	newScheduler := func(snapshot map[int64]*Account) *defaultOpenAIAccountScheduler {
 		return &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{
-			schedulerSnapshot: &SchedulerSnapshotService{
-				cache: &openAISnapshotCacheStub{accountsByID: snapshot},
-			},
+			schedulerSnapshot: NewSchedulerSnapshotService(&openAISnapshotCacheStub{accountsByID: snapshot}, nil, nil, nil, nil),
+
 			cfg: &config.Config{},
 		}}
 	}
@@ -96,7 +95,7 @@ func TestParentHealthSchedulerIntegration(t *testing.T) {
 		snapshotCache := &openAISnapshotCacheStub{
 			accountsByID: map[int64]*Account{parent.ID: parent},
 		}
-		snapshotSvc := &SchedulerSnapshotService{cache: snapshotCache}
+		snapshotSvc := NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil)
 		svc := &OpenAIGatewayService{
 			schedulerSnapshot: snapshotSvc,
 			cfg:               &config.Config{},
@@ -189,17 +188,14 @@ func TestParentHealthSchedulerFallsBackToRepoWhenSnapshotMissesParent(t *testing
 	repo := schedulerTestOpenAIAccountRepo{accounts: []Account{parent}}
 	scheduler := &defaultOpenAIAccountScheduler{service: &OpenAIGatewayService{
 		accountRepo: repo,
-		schedulerSnapshot: &SchedulerSnapshotService{
-			cache:       &openAISnapshotCacheStub{},
-			accountRepo: repo,
-			cfg: &config.Config{
-				Gateway: config.GatewayConfig{
-					Scheduling: config.GatewaySchedulingConfig{
-						DbFallbackEnabled: false,
-					},
+		schedulerSnapshot: NewSchedulerSnapshotService(&openAISnapshotCacheStub{}, nil, repo, nil, &config.Config{
+			Gateway: config.GatewayConfig{
+				Scheduling: config.GatewaySchedulingConfig{
+					DbFallbackEnabled: false,
 				},
 			},
-		},
+		}),
+
 		cfg: &config.Config{},
 	}}
 

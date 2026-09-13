@@ -1,0 +1,25 @@
+{
+  "time": "2026-09-13T15:16:22.573969+00:00",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/service",
+    "-run",
+    "Test.*Protocol|TestHandle(CC|Responses).*CompactSSEFormat|TestPatchGrokResponsesBodyWithClientToolsLowersCodexProtocol"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 13.754,
+  "log": "refactor/baseline/S07/logs/protocol-consumers-normal.log.gz",
+  "events": {
+    "pass": 259,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

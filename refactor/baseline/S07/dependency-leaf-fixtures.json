@@ -1,0 +1,53 @@
+{
+  "records": [
+    {
+      "tag": "normal",
+      "exit_code": 1,
+      "valid": true,
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-leaf-normal.json",
+        "./..."
+      ]
+    },
+    {
+      "tag": "unit",
+      "exit_code": 1,
+      "valid": true,
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-leaf-unit.json",
+        "--build-tags=unit",
+        "./..."
+      ]
+    },
+    {
+      "tag": "integration",
+      "exit_code": 1,
+      "valid": true,
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-leaf-integration.json",
+        "--build-tags=integration",
+        "./..."
+      ]
+    }
+  ],
+  "source": "package policy\nimport _ \"github.com/TokenFlux/TokenRouter/internal/scheduler\"\n",
+  "temporary_directory_removed": true
+}

@@ -1087,7 +1087,7 @@ func (s *stubSchedulerCache) SetAccount(ctx context.Context, account *Account) e
 // TestUpdateAccountModelRateLimitInCache_UpdatesExtraAndCallsCache 测试模型限流后更新缓存
 func TestUpdateAccountModelRateLimitInCache_UpdatesExtraAndCallsCache(t *testing.T) {
 	cache := &stubSchedulerCache{}
-	snapshotService := &SchedulerSnapshotService{cache: cache}
+	snapshotService := NewSchedulerSnapshotService(cache, nil, nil, nil, nil)
 	svc := &AntigravityGatewayService{
 		schedulerSnapshot: snapshotService,
 	}
@@ -1134,7 +1134,7 @@ func TestUpdateAccountModelRateLimitInCache_NilSchedulerSnapshot(t *testing.T) {
 // TestUpdateAccountModelRateLimitInCache_PreservesExistingExtra 测试保留已有的 Extra 数据
 func TestUpdateAccountModelRateLimitInCache_PreservesExistingExtra(t *testing.T) {
 	cache := &stubSchedulerCache{}
-	snapshotService := &SchedulerSnapshotService{cache: cache}
+	snapshotService := NewSchedulerSnapshotService(cache, nil, nil, nil, nil)
 	svc := &AntigravityGatewayService{
 		schedulerSnapshot: snapshotService,
 	}
@@ -1167,7 +1167,7 @@ func TestUpdateAccountModelRateLimitInCache_PreservesExistingExtra(t *testing.T)
 func TestSchedulerSnapshotService_UpdateAccountInCache(t *testing.T) {
 	t.Run("calls cache.SetAccount", func(t *testing.T) {
 		cache := &stubSchedulerCache{}
-		svc := &SchedulerSnapshotService{cache: cache}
+		svc := NewSchedulerSnapshotService(cache, nil, nil, nil, nil)
 
 		account := &Account{ID: 123, Name: "test"}
 		err := svc.UpdateAccountInCache(context.Background(), account)
@@ -1178,7 +1178,7 @@ func TestSchedulerSnapshotService_UpdateAccountInCache(t *testing.T) {
 	})
 
 	t.Run("returns nil when cache is nil", func(t *testing.T) {
-		svc := &SchedulerSnapshotService{cache: nil}
+		svc := NewSchedulerSnapshotService(nil, nil, nil, nil, nil)
 
 		err := svc.UpdateAccountInCache(context.Background(), &Account{ID: 1})
 
@@ -1187,7 +1187,7 @@ func TestSchedulerSnapshotService_UpdateAccountInCache(t *testing.T) {
 
 	t.Run("returns nil when account is nil", func(t *testing.T) {
 		cache := &stubSchedulerCache{}
-		svc := &SchedulerSnapshotService{cache: cache}
+		svc := NewSchedulerSnapshotService(cache, nil, nil, nil, nil)
 
 		err := svc.UpdateAccountInCache(context.Background(), nil)
 
@@ -1198,7 +1198,7 @@ func TestSchedulerSnapshotService_UpdateAccountInCache(t *testing.T) {
 	t.Run("propagates cache error", func(t *testing.T) {
 		expectedErr := fmt.Errorf("cache error")
 		cache := &stubSchedulerCache{setAccountErr: expectedErr}
-		svc := &SchedulerSnapshotService{cache: cache}
+		svc := NewSchedulerSnapshotService(cache, nil, nil, nil, nil)
 
 		err := svc.UpdateAccountInCache(context.Background(), &Account{ID: 1})
 

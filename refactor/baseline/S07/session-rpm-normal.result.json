@@ -1,0 +1,27 @@
+{
+  "time": "2026-09-13T12:05:45.036493+00:00",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/scheduler/...",
+    "./internal/billing/rediscache",
+    "./internal/repository",
+    "./internal/service",
+    "-run",
+    "TestRedisLua|TestSchedulerOutbox|Test.*RPM|Test.*SessionLimit|TestReleaseAccountSession"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 19.888,
+  "log": "refactor/baseline/S07/logs/session-rpm-normal.log.gz",
+  "events": {
+    "pass": 78,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

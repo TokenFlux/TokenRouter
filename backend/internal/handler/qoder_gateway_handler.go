@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	pkghttputil "github.com/TokenFlux/TokenRouter/internal/pkg/httputil"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
@@ -160,7 +161,8 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 	maxWait := service.CalculateMaxWait(subject.Concurrency)
 	waitCounted := false
 	if h.concurrencyHelper != nil {
-		canWait, err := h.concurrencyHelper.IncrementWaitCount(c.Request.Context(), subject.UserID, maxWait)
+		waitEntry, err := h.concurrencyHelper.EnterUserWait(c.Request.Context(), subject.UserID, maxWait)
+		canWait := waitEntry.Allowed
 		if err != nil {
 			reqLog.Warn("qoder.user_wait_counter_increment_failed", zap.Error(err))
 		} else if !canWait {
@@ -171,7 +173,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 		}
 		defer func() {
 			if waitCounted {
-				h.concurrencyHelper.DecrementWaitCount(c.Request.Context(), subject.UserID)
+				waitEntry.Release()
 			}
 		}()
 
@@ -182,7 +184,7 @@ func (h *QoderGatewayHandler) handle(c *gin.Context, endpoint qoderEndpoint) {
 			return
 		}
 		if waitCounted {
-			h.concurrencyHelper.DecrementWaitCount(c.Request.Context(), subject.UserID)
+			waitEntry.Release()
 			waitCounted = false
 		}
 		userRelease = wrapQoderReleaseOnDone(c.Request.Context(), userRelease, reqStream)
@@ -407,20 +409,11 @@ func qoderRequestCanceled(ctx context.Context, err error) bool {
 }
 
 func wrapQoderReleaseOnDone(ctx context.Context, releaseFunc func(), isStream bool) func() {
-	if releaseFunc == nil {
-		return nil
+	mode := scheduler.ReleaseOnCancel
+	if isStream {
+		mode = scheduler.ReleaseOnCompletion
 	}
-	if !isStream {
-		if ctx == nil {
-			ctx = context.Background()
-		}
-		return wrapReleaseOnDone(ctx, releaseFunc)
-	}
-
-	var once sync.Once
-	return func() {
-		once.Do(releaseFunc)
-	}
+	return scheduler.WrapRelease(ctx, mode, releaseFunc)
 }
 
 func (h *QoderGatewayHandler) qoderSessionHash(c *gin.Context, endpoint qoderEndpoint, body []byte, apiKeyID int64) string {
@@ -551,7 +544,8 @@ func (h *QoderGatewayHandler) acquireQoderAccountSlotWithWait(c *gin.Context, ac
 
 	ctx := c.Request.Context()
 	accountWaitCounted := false
-	canWait, err := h.concurrencyHelper.IncrementAccountWaitCount(ctx, account.ID, waitPlan.MaxWaiting)
+	waitEntry, err := h.concurrencyHelper.EnterAccountWait(ctx, account.ID, waitPlan.MaxWaiting)
+	canWait := waitEntry.Allowed
 	if err != nil {
 		if reqLog != nil {
 			reqLog.Warn("qoder.account_wait_counter_increment_failed", zap.Int64("account_id", account.ID), zap.Error(err))
@@ -570,7 +564,7 @@ func (h *QoderGatewayHandler) acquireQoderAccountSlotWithWait(c *gin.Context, ac
 	}
 	releaseWait := func() {
 		if accountWaitCounted {
-			h.concurrencyHelper.DecrementAccountWaitCount(ctx, account.ID)
+			waitEntry.Release()
 			accountWaitCounted = false
 		}
 	}

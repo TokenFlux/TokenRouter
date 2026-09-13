@@ -1,0 +1,28 @@
+{
+  "time": "2026-09-13T15:20:20.880919+00:00",
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=15m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "--build-tags=unit",
+    "./internal/scheduler/...",
+    "./internal/app/...",
+    "./internal/repository",
+    "./internal/service",
+    "./internal/handler/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 48.66,
+  "log": "refactor/baseline/S07/logs/s07-current-unit-lint.log.gz",
+  "events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

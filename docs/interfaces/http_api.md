@@ -36,7 +36,7 @@ RequestLogger
 
 ## 路由族
 
-账号管理展示值与脱敏映射位于 `account/httpapi/dto`，代理展示值位于 `egress/httpapi/dto`；旧 DTO 入口只作投影和委托。敏感字段、省略/空集合及代理管理员字段边界保持原契约，非敏感的嵌套 map、slice 和时间指针使用独立副本，不能通过修改展示结果污染账号配置。账号备份、即时/计划测试和 API Key 上游用量查询已直接使用 account/httpapi；账号 CRUD、列表、复制/恢复、批量管理、凭据字段更新、刷新/重授权、隐私、调度开关、额度重置及健康恢复已直接绑定 `account/httpapi.ManagementHandler`；模型目录、实时模型同步、tier、详细统计及高级调度诊断也使用新入口，旧 AccountHandler 不再构造于生产依赖图。备份导出继续要求原 step-up，导入继续使用同一管理员幂等 helper。
+账号管理展示值与脱敏映射位于 `account/httpapi/dto`，代理展示值位于 `egress/httpapi/dto`；旧 DTO 入口只作投影和委托。敏感字段、省略/空集合及代理管理员字段边界保持原契约，非敏感的嵌套 map、slice 和时间指针使用独立副本，不能通过修改展示结果污染账号配置。账号备份、即时/计划测试和 API Key 上游用量查询已直接使用 account/httpapi；账号 CRUD、列表、复制/恢复、批量管理、凭据字段更新、刷新/重授权、隐私、调度开关、额度重置及健康恢复已直接绑定 `account/httpapi.ManagementHandler`；模型目录、实时模型同步、tier 和详细统计也使用新入口；高级调度诊断直接绑定 `scheduler/httpapi.DiagnosticsHandler`，旧 AccountHandler 不再构造于生产依赖图。备份导出继续要求原 step-up，导入继续使用同一管理员幂等 helper。
 
 订阅、兑换、平台额度和套餐的用户/管理员 handler 与 DTO 位于 `billing/httpapi`，原路由汇总直接绑定这些实例。URL、认证/幂等中间件顺序、reason、CSV 和分页排序保持原契约；额度 HTTP 不直接读取仓储，用户存在性由用例的只读端口处理。管理员套餐保留原 Ent 的字段省略及 `edges` 形状，公开套餐使用独立投影。
 

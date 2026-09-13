@@ -13,6 +13,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/antigravity"
@@ -415,7 +417,8 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					return
 				}
 				accountWaitCounted := false
-				canWait, err := h.concurrencyHelper.IncrementAccountWaitCount(c.Request.Context(), account.ID, selection.WaitPlan.MaxWaiting)
+				waitEntry, err := h.concurrencyHelper.EnterAccountWait(c.Request.Context(), account.ID, selection.WaitPlan.MaxWaiting)
+				canWait := waitEntry.Allowed
 				if err != nil {
 					reqLog.Warn("gateway.account_wait_counter_increment_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 				} else if !canWait {
@@ -431,7 +434,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				}
 				releaseWait := func() {
 					if accountWaitCounted {
-						h.concurrencyHelper.DecrementAccountWaitCount(c.Request.Context(), account.ID)
+						waitEntry.Release()
 						accountWaitCounted = false
 					}
 				}
@@ -610,16 +613,9 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 	// 记录本次请求注册过会话槽的账号；最终失败时立即释放，避免失败请求占满空闲窗口。
 	// @project-doc docs/architecture/account_scheduling_and_cache.md#session_lifecycle
-	sessionSlotAccounts := make(map[int64]*service.Account)
+	sessionAttempts := h.gatewayService.NewSessionAttempts()
 	upstreamServedSession := false
-	defer func() {
-		if upstreamServedSession {
-			return
-		}
-		for _, acc := range sessionSlotAccounts {
-			h.gatewayService.ReleaseAccountSession(context.Background(), acc, sessionKey)
-		}
-	}()
+	defer func() { sessionAttempts.Finish(scheduler.AttemptOutcome{Served: upstreamServedSession}) }()
 
 	// 单账号分组提前设置 SingleAccountRetry 标记，让 Service 层首次 503 就不设模型限流标记。
 	// 避免单账号分组收到 503 (MODEL_CAPACITY_EXHAUSTED) 时设 29s 限流，导致后续请求连续快速失败。
@@ -696,7 +692,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			account := selection.Account
 			setOpsSelectedAccount(c, account.ID, account.Platform)
 			if sessionKey != "" {
-				sessionSlotAccounts[account.ID] = account
+				h.gatewayService.TrackSessionAttempt(sessionAttempts, account, sessionKey)
 			}
 
 			// [DEBUG-STICKY] 打印账号选择结果
@@ -739,7 +735,8 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					return
 				}
 				accountWaitCounted := false
-				canWait, err := h.concurrencyHelper.IncrementAccountWaitCount(c.Request.Context(), account.ID, selection.WaitPlan.MaxWaiting)
+				waitEntry, err := h.concurrencyHelper.EnterAccountWait(c.Request.Context(), account.ID, selection.WaitPlan.MaxWaiting)
+				canWait := waitEntry.Allowed
 				if err != nil {
 					reqLog.Warn("gateway.account_wait_counter_increment_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 				} else if !canWait {
@@ -755,7 +752,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				}
 				releaseWait := func() {
 					if accountWaitCounted {
-						h.concurrencyHelper.DecrementAccountWaitCount(c.Request.Context(), account.ID)
+						waitEntry.Release()
 						accountWaitCounted = false
 					}
 				}
@@ -786,6 +783,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			}
 			// 账号槽位/等待计数需要在超时或断开时安全回收
 			accountReleaseFunc = wrapReleaseOnDone(c.Request.Context(), accountReleaseFunc)
+			sessionAttempts.Own(account.ID, accountReleaseFunc)
 
 			// ===== 用户消息串行队列 START =====
 			var queueRelease func()
@@ -835,6 +833,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 
 			// 用 wrapReleaseOnDone 确保 context 取消时自动释放（仅 serialize 模式有 queueRelease）
 			queueRelease = wrapReleaseOnDone(c.Request.Context(), queueRelease)
+			sessionAttempts.Own(account.ID, queueRelease)
 			// 注入回调到 ParsedRequest：使用外层 wrapper 以便提前清理 AfterFunc
 			attemptParsedReq.OnUpstreamAccepted = queueRelease
 			// ===== 用户消息串行队列 END =====
@@ -990,10 +989,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 						currentSubscription = fallbackSubscription
 						fallbackUsed = true
 						retryWithFallback = true
-						for _, acc := range sessionSlotAccounts {
-							h.gatewayService.ReleaseAccountSession(context.Background(), acc, sessionKey)
-						}
-						sessionSlotAccounts = make(map[int64]*service.Account)
+						sessionAttempts.Reset()
 						break
 					}
 					_ = h.antigravityGatewayService.WriteMappedClaudeError(c, account, promptTooLongErr.StatusCode, promptTooLongErr.RequestID, promptTooLongErr.Body)
@@ -1010,8 +1006,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					switch action {
 					case FailoverContinue:
 						h.gatewayService.RecordAdvancedAccountSwitch(selection)
-						h.gatewayService.ReleaseAccountSession(context.Background(), account, sessionKey)
-						delete(sessionSlotAccounts, account.ID)
+						sessionAttempts.Abandon(account.ID)
 						continue
 					case FailoverExhausted:
 						h.handleFailoverExhausted(c, fs.LastFailoverErr, account.Platform, streamStarted)

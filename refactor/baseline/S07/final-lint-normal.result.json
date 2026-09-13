@@ -1,0 +1,24 @@
+{
+  "time": "2026-09-13T17:24:48.470564+00:00",
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=30m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "--output.json.path=../refactor/baseline/S07/final-lint-normal.json",
+    "./..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 2.965,
+  "log": "refactor/baseline/S07/logs/final-lint-normal.log.gz",
+  "events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

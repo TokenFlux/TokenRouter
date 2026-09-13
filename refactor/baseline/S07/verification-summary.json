@@ -1,0 +1,948 @@
+{
+  "note": "Go 数量为 pass/fail/skip 事件，包含父子测试；各命令独立，不跨运行累加为唯一测试数。跳过、编译和模拟不当作真实供应商行为通过。",
+  "results": {
+    "final-normal": {
+      "time": "2026-09-13T17:15:19.283749+00:00",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "./..."
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 150.829,
+      "log": "refactor/baseline/S07/logs/final-normal.log.gz",
+      "events": {
+        "pass": 11329,
+        "fail": 0,
+        "skip": 4
+      },
+      "failures": [],
+      "skips": [
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+          "Test": "TestRealAPI",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+          "Test": "TestReadLocalAuthFromDisk",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+          "Test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+          "Test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+          "Elapsed": 0
+        }
+      ]
+    },
+    "final-unit": {
+      "time": "2026-09-13T17:17:50.162716+00:00",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=unit",
+        "./..."
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 211.612,
+      "log": "refactor/baseline/S07/logs/final-unit.log.gz",
+      "events": {
+        "pass": 19368,
+        "fail": 0,
+        "skip": 8
+      },
+      "failures": [],
+      "skips": [
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/identity/postgres",
+          "Test": "TestAuthPendingIdentityService_UpsertAdoptionDecision_ClearsLegacyNullSessionReference",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+          "Test": "TestDialerBasicConnection",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+          "Test": "TestJA3Fingerprint",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+          "Test": "TestAllProfiles",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+          "Test": "TestRealAPI",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+          "Test": "TestReadLocalAuthFromDisk",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+          "Test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+          "Test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+          "Elapsed": 0
+        }
+      ]
+    },
+    "final-integration": {
+      "time": "2026-09-13T17:21:21.842946+00:00",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=integration",
+        "./..."
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 156.836,
+      "log": "refactor/baseline/S07/logs/final-integration.log.gz",
+      "events": {
+        "pass": 12236,
+        "fail": 0,
+        "skip": 4
+      },
+      "failures": [],
+      "skips": [
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+          "Test": "TestRealAPI",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+          "Test": "TestReadLocalAuthFromDisk",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+          "Test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+          "Elapsed": 0
+        },
+        {
+          "Action": "skip",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+          "Test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+          "Elapsed": 0
+        }
+      ]
+    },
+    "final-lint-normal": {
+      "time": "2026-09-13T17:24:48.470564+00:00",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=../refactor/baseline/S07/final-lint-normal.json",
+        "./..."
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 1,
+      "seconds": 2.965,
+      "log": "refactor/baseline/S07/logs/final-lint-normal.log.gz",
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "final-lint-unit": {
+      "time": "2026-09-13T17:24:51.457342+00:00",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=../refactor/baseline/S07/final-lint-unit.json",
+        "--build-tags=unit",
+        "./..."
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 1,
+      "seconds": 41.018,
+      "log": "refactor/baseline/S07/logs/final-lint-unit.log.gz",
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "final-lint-integration": {
+      "time": "2026-09-13T17:25:32.499693+00:00",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--timeout=30m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=../refactor/baseline/S07/final-lint-integration.json",
+        "--build-tags=integration",
+        "./..."
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 1,
+      "seconds": 25.919,
+      "log": "refactor/baseline/S07/logs/final-lint-integration.log.gz",
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "final-wire": {
+      "time": "2026-09-13T17:15:17.604685+00:00",
+      "command": [
+        "go",
+        "generate",
+        "./cmd/server"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 1.656,
+      "log": "refactor/baseline/S07/logs/final-wire.log.gz",
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "final-build": {
+      "time": "2026-09-13T17:26:18.049312+00:00",
+      "command": [
+        "make",
+        "build"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 15.722,
+      "log": "refactor/baseline/S07/logs/final-build.log.gz",
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "final-frontend-test": {
+      "time": "2026-09-13T17:26:33.799546+00:00",
+      "command": [
+        "make",
+        "-C",
+        "..",
+        "test-frontend"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 25.168,
+      "log": "refactor/baseline/S07/logs/final-frontend-test.log.gz",
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "final-frontend-build": {
+      "time": "2026-09-13T17:26:59.006303+00:00",
+      "command": [
+        "make",
+        "-C",
+        "..",
+        "build-frontend"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 21.829,
+      "log": "refactor/baseline/S07/logs/final-frontend-build.log.gz",
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "final-embed-build": {
+      "time": "2026-09-13T17:27:20.858349+00:00",
+      "command": [
+        "go",
+        "build",
+        "-tags=embed",
+        "-o",
+        "bin/server-embed",
+        "./cmd/server"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 5.142,
+      "log": "refactor/baseline/S07/logs/final-embed-build.log.gz",
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "final-linux-build": {
+      "time": "2026-09-13T17:27:26.023543+00:00",
+      "command": [
+        "env",
+        "GOOS=linux",
+        "GOARCH=amd64",
+        "CGO_ENABLED=0",
+        "go",
+        "build",
+        "-o",
+        "bin/server-linux-amd64",
+        "./cmd/server"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 15.012,
+      "log": "refactor/baseline/S07/logs/final-linux-build.log.gz",
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "final-jwtgen-build": {
+      "time": "2026-09-13T17:27:41.057739+00:00",
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "bin/jwtgen",
+        "./cmd/jwtgen"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 1.352,
+      "log": "refactor/baseline/S07/logs/final-jwtgen-build.log.gz",
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "final-cleanup-build": {
+      "time": "2026-09-13T17:27:42.432172+00:00",
+      "command": [
+        "go",
+        "build",
+        "-o",
+        "bin/cleanup-ingress-reject-logs",
+        "./cmd/cleanup-ingress-reject-logs"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 1.39,
+      "log": "refactor/baseline/S07/logs/final-cleanup-build.log.gz",
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "final-embed-test": {
+      "time": "2026-09-13T17:27:43.844943+00:00",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-json",
+        "-tags=embed",
+        "./internal/web/..."
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 1.899,
+      "log": "refactor/baseline/S07/logs/final-embed-test.log.gz",
+      "events": {
+        "pass": 101,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "final-wire-repeat": {
+      "time": "2026-09-13T17:27:45.766607+00:00",
+      "command": [
+        "go",
+        "generate",
+        "./cmd/server"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 1.663,
+      "log": "refactor/baseline/S07/logs/final-wire-repeat.log.gz",
+      "events": {
+        "pass": 0,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "snapshot-runtime-contracts": {
+      "time": "2026-09-13T12:29:23.230671+00:00",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-race",
+        "-json",
+        "-tags=unit",
+        "./internal/scheduler",
+        "./internal/service",
+        "./internal/app",
+        "-run",
+        "TestWorkerRuntime|TestS07Snapshot|TestSchedulerSnapshot|TestSchedulerFull|TestLease|TestAttemptLease"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 36.936,
+      "log": "refactor/baseline/S07/logs/snapshot-runtime-contracts.log.gz",
+      "events": {
+        "pass": 60,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "scheduler-final-targeted-race": {
+      "time": "2026-09-13T16:32:24.808940+00:00",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-json",
+        "-tags=unit",
+        "./internal/scheduler/...",
+        "./internal/service",
+        "./internal/handler",
+        "./internal/app",
+        "-run",
+        "Test(DefaultOpenAIAccountScheduler|OpenAIGatewayService_Select|OpenAISelectAccount|GatewaySelectAccount|SelectAccount|BuildOpenAIAccountLoadPlan|.*Sticky|.*GrokFreeQuota|.*Hydrat|.*Lease|.*CountTokens|UnlimitedSlotPreservesCallerCancellation|SlotWait|SettingsRuntime|WorkerRuntime|WaitOwnership|AcquireUserSlotWithWait)"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 48.755,
+      "log": "refactor/baseline/S07/logs/scheduler-final-targeted-race.log.gz",
+      "events": {
+        "pass": 360,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "session-attempt-completion-race": {
+      "time": "2026-09-13T16:43:39.883284+00:00",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-json",
+        "-tags=unit",
+        "./internal/scheduler",
+        "./internal/service",
+        "./internal/handler",
+        "-run",
+        "TestSessionAttempts|Test.*Session.*(Release|Cleanup|Limit)|Test.*Lease|Test.*Qoder.*Release|TestAcquireUserSlotWithWait|Test.*Hydrat|Test.*GatewaySelect"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 42.014,
+      "log": "refactor/baseline/S07/logs/session-attempt-completion-race.log.gz",
+      "events": {
+        "pass": 78,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "scheduler-state-contract-race": {
+      "time": "2026-09-13T16:56:55.345910+00:00",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-json",
+        "./internal/app",
+        "-run",
+        "^TestSchedulerSharedStateBindsLegacyConsumers$"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 17.394,
+      "log": "refactor/baseline/S07/logs/scheduler-state-contract-race.log.gz",
+      "events": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "s07-migrated-integration-race": {
+      "time": "2026-09-13T14:58:09.681961+00:00",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "-json",
+        "-tags=integration",
+        "./internal/scheduler/...",
+        "./internal/repository",
+        "-run",
+        "TestScheduler|TestS07|TestConcurrencyCacheSuite/TestGetAccountsLoadBatch|TestSessionLimit|TestGatewayCache|TestRequestLease|TestSlotWait"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 22.441,
+      "log": "refactor/baseline/S07/logs/s07-migrated-integration-race.log.gz",
+      "events": {
+        "pass": 70,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    },
+    "fixed-leases-integration-race": {
+      "time": "2026-09-13T12:19:39.425622+00:00",
+      "command": [
+        "go",
+        "test",
+        "-count=1",
+        "-race",
+        "-json",
+        "-tags=integration",
+        "./internal/repository",
+        "-run",
+        "TestS07|TestSchedulerCache|TestSchedulerSnapshotOutboxReplay|TestConcurrencyCacheSuite/TestGetAccountsLoadBatch"
+      ],
+      "cwd": "backend",
+      "toolchain": "go1.27.0",
+      "exit_code": 0,
+      "seconds": 24.017,
+      "log": "refactor/baseline/S07/logs/fixed-leases-integration-race.log.gz",
+      "events": {
+        "pass": 10,
+        "fail": 0,
+        "skip": 0
+      },
+      "failures": [],
+      "skips": []
+    }
+  },
+  "fixed_and_required_evidence": {
+    "B01": {
+      "run": "final-unit",
+      "events": [
+        {
+          "Action": "pass",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/scheduler",
+          "Test": "TestS07SnapshotStartAfterStop",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/scheduler",
+          "Test": "TestS07SnapshotRepeatedStart",
+          "Elapsed": 0
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/scheduler",
+          "Test": "TestS07SnapshotStopCancelsWork",
+          "Elapsed": 0
+        }
+      ]
+    },
+    "B02": {
+      "run": "final-integration",
+      "events": [
+        {
+          "Action": "pass",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/repository",
+          "Test": "TestS07WaitFailOpenDoesNotReleaseOtherRequest",
+          "Elapsed": 0
+        }
+      ]
+    },
+    "B03": {
+      "run": "final-unit",
+      "events": [
+        {
+          "Action": "pass",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+          "Test": "TestGatewayNewSelectionResultReleasesSlotWhenHydrationFails",
+          "Elapsed": 0
+        }
+      ]
+    },
+    "B04": {
+      "run": "final-integration",
+      "events": [
+        {
+          "Action": "pass",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/repository",
+          "Test": "TestS07SessionBatchAfterScriptFlush",
+          "Elapsed": 0
+        }
+      ]
+    },
+    "B05": {
+      "run": "final-integration",
+      "events": [
+        {
+          "Action": "pass",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/repository",
+          "Test": "TestS07BucketLeaseExpiredOwnerCannotReleaseSuccessor",
+          "Elapsed": 0.05
+        }
+      ]
+    },
+    "restored_load_test": {
+      "run": "final-integration",
+      "events": [
+        {
+          "Action": "pass",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache",
+          "Test": "TestConcurrencyCacheSuite/TestGetAccountsLoadBatch",
+          "Elapsed": 0
+        }
+      ]
+    },
+    "process": {
+      "run": "final-integration",
+      "events": [
+        {
+          "Action": "pass",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/standard-sigterm",
+          "Elapsed": 0.2
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestS02ProcessModes/simple-sigterm",
+          "Elapsed": 0.19
+        }
+      ]
+    },
+    "qoder_release": {
+      "run": "final-unit",
+      "events": [
+        {
+          "Action": "pass",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/handler",
+          "Test": "TestQoderStreamReleaseDoesNotFireOnClientCancel",
+          "Elapsed": 0.04
+        },
+        {
+          "Action": "pass",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/handler",
+          "Test": "TestQoderNonStreamReleaseStillFiresOnClientCancel",
+          "Elapsed": 0
+        }
+      ]
+    },
+    "shared_state": {
+      "run": "final-normal",
+      "events": [
+        {
+          "Action": "pass",
+          "Package": "github.com/TokenFlux/TokenRouter/internal/app",
+          "Test": "TestSchedulerSharedStateBindsLegacyConsumers",
+          "Elapsed": 0
+        }
+      ]
+    }
+  },
+  "skips": {
+    "normal": [
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+        "Test": "TestRealAPI",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestRealAPI",
+          "    integration_test.go:18: set QODER_RUN_REAL_API_TESTS=1 to run real Qoder API integration test",
+          "--- SKIP: TestRealAPI (0.00s)"
+        ]
+      },
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+        "Test": "TestReadLocalAuthFromDisk",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestReadLocalAuthFromDisk",
+          "    integration_test.go:134: set QODER_RUN_LOCAL_AUTH_TESTS=1 to run local Qoder auth import test",
+          "--- SKIP: TestReadLocalAuthFromDisk (0.00s)"
+        ]
+      },
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "Test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+          "    openai_gateway_count_tokens_test.go:365: OPENAI_API_KEY not set",
+          "--- SKIP: TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI (0.00s)"
+        ]
+      },
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "Test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+          "    openai_ws_forwarder_ingress_session_test.go:1624: fork relay fixture does not provide a response for non-response.create events",
+          "--- SKIP: TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type (0.00s)"
+        ]
+      }
+    ],
+    "unit": [
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/identity/postgres",
+        "Test": "TestAuthPendingIdentityService_UpsertAdoptionDecision_ClearsLegacyNullSessionReference",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestAuthPendingIdentityService_UpsertAdoptionDecision_ClearsLegacyNullSessionReference",
+          "    pending_test.go:366: legacy NULL pending_auth_session_id rows only exist in production PostgreSQL history; sqlite unit schema rejects NULL",
+          "--- SKIP: TestAuthPendingIdentityService_UpsertAdoptionDecision_ClearsLegacyNullSessionReference (0.00s)"
+        ]
+      },
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+        "Test": "TestDialerBasicConnection",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestDialerBasicConnection",
+          "    dialer_test.go:168: 跳过网络测试（需要设置 TLSFINGERPRINT_NETWORK_TESTS=1）",
+          "--- SKIP: TestDialerBasicConnection (0.00s)"
+        ]
+      },
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+        "Test": "TestJA3Fingerprint",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestJA3Fingerprint",
+          "    dialer_test.go:168: 跳过网络测试（需要设置 TLSFINGERPRINT_NETWORK_TESTS=1）",
+          "--- SKIP: TestJA3Fingerprint (0.00s)"
+        ]
+      },
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/infra/httpclient/tlsfingerprint",
+        "Test": "TestAllProfiles",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestAllProfiles",
+          "    dialer_test.go:168: 跳过网络测试（需要设置 TLSFINGERPRINT_NETWORK_TESTS=1）",
+          "--- SKIP: TestAllProfiles (0.00s)"
+        ]
+      },
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+        "Test": "TestRealAPI",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestRealAPI",
+          "    integration_test.go:18: set QODER_RUN_REAL_API_TESTS=1 to run real Qoder API integration test",
+          "--- SKIP: TestRealAPI (0.00s)"
+        ]
+      },
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+        "Test": "TestReadLocalAuthFromDisk",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestReadLocalAuthFromDisk",
+          "    integration_test.go:134: set QODER_RUN_LOCAL_AUTH_TESTS=1 to run local Qoder auth import test",
+          "--- SKIP: TestReadLocalAuthFromDisk (0.00s)"
+        ]
+      },
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "Test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+          "    openai_gateway_count_tokens_test.go:365: OPENAI_API_KEY not set",
+          "--- SKIP: TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI (0.00s)"
+        ]
+      },
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "Test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+          "    openai_ws_forwarder_ingress_session_test.go:1624: fork relay fixture does not provide a response for non-response.create events",
+          "--- SKIP: TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type (0.00s)"
+        ]
+      }
+    ],
+    "integration": [
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+        "Test": "TestRealAPI",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestRealAPI",
+          "    integration_test.go:18: set QODER_RUN_REAL_API_TESTS=1 to run real Qoder API integration test",
+          "--- SKIP: TestRealAPI (0.00s)"
+        ]
+      },
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/pkg/qoder",
+        "Test": "TestReadLocalAuthFromDisk",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestReadLocalAuthFromDisk",
+          "    integration_test.go:134: set QODER_RUN_LOCAL_AUTH_TESTS=1 to run local Qoder auth import test",
+          "--- SKIP: TestReadLocalAuthFromDisk (0.00s)"
+        ]
+      },
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "Test": "TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI",
+          "    openai_gateway_count_tokens_test.go:365: OPENAI_API_KEY not set",
+          "--- SKIP: TestEstimateOpenAIInputTokens_CompareWithOpenAIAPI (0.00s)"
+        ]
+      },
+      {
+        "Action": "skip",
+        "Package": "github.com/TokenFlux/TokenRouter/internal/service",
+        "Test": "TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+        "Elapsed": 0,
+        "output": [
+          "=== RUN   TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type",
+          "    openai_ws_forwarder_ingress_session_test.go:1624: fork relay fixture does not provide a response for non-response.create events",
+          "--- SKIP: TestOpenAIGatewayService_ProxyResponsesWebSocketFromClient_PassthroughBridgeBoundaries/other_event_type (0.00s)"
+        ]
+      }
+    ]
+  },
+  "frontend_gate": {
+    "test_files": 14,
+    "tests": 199,
+    "passed": true,
+    "log": "logs/final-frontend-test.log.gz"
+  },
+  "containers": {
+    "app_process_postgres": "postgres:18.1-alpine3.23",
+    "scheduler_redis": "redis:8.4-alpine",
+    "scope": "隔离 Testcontainers，未使用生产凭据"
+  },
+  "incidental_historical_issue": "incidental-gin-race.json；仅登记，无新历史审计或修复",
+  "retained_outbox_limit": "低 ID 事务迟提交依赖周期全量重建恢复，十秒清理宽限不保证重新轮询。"
+}

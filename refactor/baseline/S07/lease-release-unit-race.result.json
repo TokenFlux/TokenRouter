@@ -1,0 +1,28 @@
+{
+  "time": "2026-09-13T12:11:24.926400+00:00",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "./internal/scheduler",
+    "./internal/service",
+    "./internal/handler",
+    "-run",
+    "TestLease|TestAttemptLease|TestGatewayNewSelection|TestOpenAINewAcquiredSelection|TestQoder.*Release|TestWrapRelease"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 57.451,
+  "log": "refactor/baseline/S07/logs/lease-release-unit-race.log.gz",
+  "events": {
+    "pass": 14,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

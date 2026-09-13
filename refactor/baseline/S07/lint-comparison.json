@@ -1,0 +1,5832 @@
+{
+  "basis": "S06 final-lint-normal/unit/integration 未截断 JSON；逐文件映射、规则、完整消息与源码行匹配，不按数量代替。",
+  "config_sha256": "7c740328927e46daac33d18230bfd3367e4b667ecebae6b5a9d9cf854e86c5bb",
+  "path_mapping": {
+    "internal/scheduler/concurrency_test.go": "internal/service/concurrency_service_test.go",
+    "internal/scheduler/scheduler_snapshot_batch_query_test.go": "internal/service/scheduler_snapshot_batch_query_test.go",
+    "internal/scheduler/scheduler_snapshot_full_rebuild_lifecycle_test.go": "internal/service/scheduler_snapshot_full_rebuild_lifecycle_test.go",
+    "internal/scheduler/rediscache/concurrency_cache_integration_test.go": "internal/repository/concurrency_cache_integration_test.go",
+    "internal/scheduler/rediscache/user_msg_queue_cache_integration_test.go": "internal/repository/user_msg_queue_cache_integration_test.go"
+  },
+  "results": {
+    "normal": {
+      "baseline_count": 1,
+      "current_count": 1,
+      "matched": [
+        {
+          "current": {
+            "Filename": "internal/account/endpoint_rule.go",
+            "Offset": 1332,
+            "Line": 40,
+            "Column": 47
+          },
+          "baseline": {
+            "Filename": "internal/account/endpoint_rule.go",
+            "Offset": 1332,
+            "Line": 40,
+            "Column": 47
+          },
+          "linter": "staticcheck",
+          "message": "QF1001: could apply De Morgan's law",
+          "source": [
+            "if !has(capability.ProtocolAlphaSearch) && !(a.IsOpenAIPersonalAccessToken() && has(capability.ProtocolOpenAIResponses)) {"
+          ]
+        }
+      ],
+      "added": [],
+      "removed": []
+    },
+    "unit": {
+      "baseline_count": 285,
+      "current_count": 285,
+      "matched": [
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 643,
+            "Line": 25,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 643,
+            "Line": 25,
+            "Column": 2
+          },
+          "linter": "depguard",
+          "message": "import 'github.com/TokenFlux/TokenRouter/internal/repository' is not allowed from list 'handler-no-repository': handler must not import repository",
+          "source": [
+            "\"github.com/TokenFlux/TokenRouter/internal/repository\""
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/api_key_service_cache_test.go",
+            "Offset": 356,
+            "Line": 19,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/api_key_service_cache_test.go",
+            "Offset": 356,
+            "Line": 19,
+            "Column": 2
+          },
+          "linter": "depguard",
+          "message": "import 'github.com/redis/go-redis/v9' is not allowed from list 'service-no-repository': service must not import redis",
+          "source": [
+            "\"github.com/redis/go-redis/v9\""
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/auth_service_email_bind_test.go",
+            "Offset": 432,
+            "Line": 20,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/auth_service_email_bind_test.go",
+            "Offset": 432,
+            "Line": 20,
+            "Column": 2
+          },
+          "linter": "depguard",
+          "message": "import 'github.com/TokenFlux/TokenRouter/internal/repository' is not allowed from list 'service-no-repository': service must not import repository",
+          "source": [
+            "\"github.com/TokenFlux/TokenRouter/internal/repository\""
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/auth_service_identity_sync_test.go",
+            "Offset": 305,
+            "Line": 16,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/auth_service_identity_sync_test.go",
+            "Offset": 305,
+            "Line": 16,
+            "Column": 2
+          },
+          "linter": "depguard",
+          "message": "import 'github.com/TokenFlux/TokenRouter/internal/repository' is not allowed from list 'service-no-repository': service must not import repository",
+          "source": [
+            "\"github.com/TokenFlux/TokenRouter/internal/repository\""
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_worker_runtime_redis_test.go",
+            "Offset": 143,
+            "Line": 12,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_worker_runtime_redis_test.go",
+            "Offset": 143,
+            "Line": 12,
+            "Column": 2
+          },
+          "linter": "depguard",
+          "message": "import 'github.com/TokenFlux/TokenRouter/internal/repository' is not allowed from list 'service-no-repository': service must not import repository",
+          "source": [
+            "\"github.com/TokenFlux/TokenRouter/internal/repository\""
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_worker_runtime_redis_test.go",
+            "Offset": 288,
+            "Line": 15,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_worker_runtime_redis_test.go",
+            "Offset": 288,
+            "Line": 15,
+            "Column": 2
+          },
+          "linter": "depguard",
+          "message": "import 'github.com/redis/go-redis/v9' is not allowed from list 'service-no-repository': service must not import redis",
+          "source": [
+            "\"github.com/redis/go-redis/v9\""
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/admin/batch_update_credentials_test.go",
+            "Offset": 2752,
+            "Line": 87,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/handler/admin/batch_update_credentials_test.go",
+            "Offset": 2752,
+            "Line": 87,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "data := resp[\"data\"].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 1643,
+            "Line": 46,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 1643,
+            "Line": 46,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 3398,
+            "Line": 81,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 3398,
+            "Line": 81,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 5138,
+            "Line": 123,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 5138,
+            "Line": 123,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 8053,
+            "Line": 183,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 8053,
+            "Line": 183,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 9301,
+            "Line": 211,
+            "Column": 16
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 9301,
+            "Line": 211,
+            "Column": 16
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "completion := session.LocalFlowState[oauthCompletionResponseKey].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 10856,
+            "Line": 241,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 10856,
+            "Line": 241,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 12681,
+            "Line": 288,
+            "Column": 16
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 12681,
+            "Line": 288,
+            "Column": 16
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "completion := session.LocalFlowState[oauthCompletionResponseKey].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 14188,
+            "Line": 321,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 14188,
+            "Line": 321,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 16472,
+            "Line": 379,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 16472,
+            "Line": 379,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 19212,
+            "Line": 437,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 19212,
+            "Line": 437,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 22932,
+            "Line": 530,
+            "Column": 22
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 22932,
+            "Line": 530,
+            "Column": 22
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 25243,
+            "Line": 577,
+            "Column": 26
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 25243,
+            "Line": 577,
+            "Column": 26
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "completionResponse := session.LocalFlowState[oauthCompletionResponseKey].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 26674,
+            "Line": 610,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 26674,
+            "Line": 610,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 29763,
+            "Line": 688,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 29763,
+            "Line": 688,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 33224,
+            "Line": 777,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 33224,
+            "Line": 777,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 36344,
+            "Line": 855,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 36344,
+            "Line": 855,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 37806,
+            "Line": 888,
+            "Column": 43
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 37806,
+            "Line": 888,
+            "Column": 43
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, oauthPendingChoiceStep, pendingSession.LocalFlowState[oauthCompletionResponseKey].(map[string]any)[\"step\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 44025,
+            "Line": 1039,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 44025,
+            "Line": 1039,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 46988,
+            "Line": 1122,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 46988,
+            "Line": 1122,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 48935,
+            "Line": 1175,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 48935,
+            "Line": 1175,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 52231,
+            "Line": 1254,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/auth_wechat_oauth_test.go",
+            "Offset": 52231,
+            "Line": 1254,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "defer client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/openai_gateway_credential_failover_loop_test.go",
+            "Offset": 31330,
+            "Line": 851,
+            "Column": 9
+          },
+          "baseline": {
+            "Filename": "internal/handler/openai_gateway_credential_failover_loop_test.go",
+            "Offset": 31330,
+            "Line": 851,
+            "Column": 9
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "return value.(chan struct{})"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/request_body_parse_log_test.go",
+            "Offset": 640,
+            "Line": 30,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/handler/request_body_parse_log_test.go",
+            "Offset": 640,
+            "Line": 30,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "fields[f.Key] = f.Interface.(error).Error()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/request_body_parse_log_test.go",
+            "Offset": 1432,
+            "Line": 59,
+            "Column": 22
+          },
+          "baseline": {
+            "Filename": "internal/handler/request_body_parse_log_test.go",
+            "Offset": 1432,
+            "Line": 59,
+            "Column": 22
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Contains(t, fields[\"body_head\"].(string), `{\\\"broken\\\":`)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/request_body_parse_log_test.go",
+            "Offset": 1933,
+            "Line": 71,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/handler/request_body_parse_log_test.go",
+            "Offset": 1933,
+            "Line": 71,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "head := fields[\"body_head\"].(string)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/request_body_parse_log_test.go",
+            "Offset": 1971,
+            "Line": 72,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/handler/request_body_parse_log_test.go",
+            "Offset": 1971,
+            "Line": 72,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "tail := fields[\"body_tail\"].(string)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/handler/request_body_parse_log_test.go",
+            "Offset": 2583,
+            "Line": 88,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/handler/request_body_parse_log_test.go",
+            "Offset": 2583,
+            "Line": 88,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "head := fields[\"body_head\"].(string)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/payment/provider/stripe_test.go",
+            "Offset": 578,
+            "Line": 24,
+            "Column": 30
+          },
+          "baseline": {
+            "Filename": "internal/payment/provider/stripe_test.go",
+            "Offset": 578,
+            "Line": 24,
+            "Column": 30
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "b.params = append(b.params, params.(*stripe.RefundCreateParams))"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/payment/provider/stripe_test.go",
+            "Offset": 626,
+            "Line": 25,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/payment/provider/stripe_test.go",
+            "Offset": 626,
+            "Line": 25,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "refund := v.(*stripe.Refund)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/creative_run_repo_workspace_test.go",
+            "Offset": 1071,
+            "Line": 34,
+            "Column": 15
+          },
+          "baseline": {
+            "Filename": "internal/repository/creative_run_repo_workspace_test.go",
+            "Offset": 1071,
+            "Line": 34,
+            "Column": 15
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*github.com/TokenFlux/TokenRouter/ent.Client).Close` is not checked",
+          "source": [
+            "client.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/grok_oauth_client_test.go",
+            "Offset": 5455,
+            "Line": 134,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/repository/grok_oauth_client_test.go",
+            "Offset": 5455,
+            "Line": 134,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "client := NewGrokOAuthClient().(*grokOAuthClient)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/ops_repo_args_test.go",
+            "Offset": 597,
+            "Line": 25,
+            "Column": 13
+          },
+          "baseline": {
+            "Filename": "internal/repository/ops_repo_args_test.go",
+            "Offset": 597,
+            "Line": 25,
+            "Column": 13
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "missing := opsNullableIntPointer(nil).(sql.NullInt64)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/ops_repo_args_test.go",
+            "Offset": 699,
+            "Line": 29,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/repository/ops_repo_args_test.go",
+            "Offset": 699,
+            "Line": 29,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "zero := opsNullableIntPointer(&zeroValue).(sql.NullInt64)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/ops_repo_args_test.go",
+            "Offset": 839,
+            "Line": 34,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/repository/ops_repo_args_test.go",
+            "Offset": 839,
+            "Line": 34,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "status := opsNullableIntPointer(&statusValue).(sql.NullInt64)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/team_repo_test.go",
+            "Offset": 303,
+            "Line": 18,
+            "Column": 16
+          },
+          "baseline": {
+            "Filename": "internal/repository/team_repo_test.go",
+            "Offset": 303,
+            "Line": 18,
+            "Column": 16
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*database/sql.DB).Close` is not checked",
+          "source": [
+            "defer db.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/usage_log_session_id_unit_test.go",
+            "Offset": 2610,
+            "Line": 70,
+            "Column": 13
+          },
+          "baseline": {
+            "Filename": "internal/repository/usage_log_session_id_unit_test.go",
+            "Offset": 2610,
+            "Line": 70,
+            "Column": 13
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "nsEmpty := preparedEmpty.args[len(preparedEmpty.args)-4].(sql.NullString)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/user_platform_quota_adapter_test.go",
+            "Offset": 2492,
+            "Line": 77,
+            "Column": 5
+          },
+          "baseline": {
+            "Filename": "internal/repository/user_platform_quota_adapter_test.go",
+            "Offset": 2492,
+            "Line": 77,
+            "Column": 5
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "if fake.resetCalledWith[0].(int64) != 7 ||"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/user_platform_quota_adapter_test.go",
+            "Offset": 2534,
+            "Line": 78,
+            "Column": 3
+          },
+          "baseline": {
+            "Filename": "internal/repository/user_platform_quota_adapter_test.go",
+            "Offset": 2534,
+            "Line": 78,
+            "Column": 3
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "fake.resetCalledWith[1].(string) != \"openai\" ||"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/user_platform_quota_adapter_test.go",
+            "Offset": 2584,
+            "Line": 79,
+            "Column": 3
+          },
+          "baseline": {
+            "Filename": "internal/repository/user_platform_quota_adapter_test.go",
+            "Offset": 2584,
+            "Line": 79,
+            "Column": 3
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "fake.resetCalledWith[2].(string) != \"weekly\" ||"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/user_platform_quota_adapter_test.go",
+            "Offset": 2635,
+            "Line": 80,
+            "Column": 4
+          },
+          "baseline": {
+            "Filename": "internal/repository/user_platform_quota_adapter_test.go",
+            "Offset": 2635,
+            "Line": 80,
+            "Column": 4
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "!fake.resetCalledWith[3].(time.Time).Equal(now) {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/account_test_service_cn_adaptive_test.go",
+            "Offset": 10682,
+            "Line": 262,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/account_test_service_cn_adaptive_test.go",
+            "Offset": 10682,
+            "Line": 262,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "repo := svc.accountRepo.(*openAIAccountTestRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/account_test_service_gemini_test.go",
+            "Offset": 1426,
+            "Line": 48,
+            "Column": 36
+          },
+          "baseline": {
+            "Filename": "internal/service/account_test_service_gemini_test.go",
+            "Offset": 1426,
+            "Line": 48,
+            "Column": 36
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"reply briefly\", textParsed[\"contents\"].([]any)[0].(map[string]any)[\"parts\"].([]any)[0].(map[string]any)[\"text\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/account_test_service_gemini_test.go",
+            "Offset": 1735,
+            "Line": 53,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/service/account_test_service_gemini_test.go",
+            "Offset": 1735,
+            "Line": 53,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "config := imageParsed[\"generationConfig\"].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_duplicate_account_test.go",
+            "Offset": 8135,
+            "Line": 205,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_duplicate_account_test.go",
+            "Offset": 8135,
+            "Line": 205,
+            "Column": 2
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "duplicate.Credentials[\"nested\"].(map[string]any)[\"token\"] = \"changed\""
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_duplicate_account_test.go",
+            "Offset": 8206,
+            "Line": 206,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_duplicate_account_test.go",
+            "Offset": 8206,
+            "Line": 206,
+            "Column": 2
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "duplicate.Extra[\"config\"].(map[string]any)[\"region\"] = \"changed\""
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_duplicate_account_test.go",
+            "Offset": 8272,
+            "Line": 207,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_duplicate_account_test.go",
+            "Offset": 8272,
+            "Line": 207,
+            "Column": 2
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "duplicate.Extra[\"items\"].([]any)[0].(map[string]any)[\"enabled\"] = false"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_duplicate_account_test.go",
+            "Offset": 8460,
+            "Line": 210,
+            "Column": 35
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_duplicate_account_test.go",
+            "Offset": 8460,
+            "Line": 210,
+            "Column": 35
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"source-token\", storedSource.Credentials[\"nested\"].(map[string]any)[\"token\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_duplicate_account_test.go",
+            "Offset": 8553,
+            "Line": 211,
+            "Column": 32
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_duplicate_account_test.go",
+            "Offset": 8553,
+            "Line": 211,
+            "Column": 32
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"us-east-1\", storedSource.Extra[\"config\"].(map[string]any)[\"region\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_duplicate_account_test.go",
+            "Offset": 8634,
+            "Line": 212,
+            "Column": 25
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_duplicate_account_test.go",
+            "Offset": 8634,
+            "Line": 212,
+            "Column": 25
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, true, storedSource.Extra[\"items\"].([]any)[0].(map[string]any)[\"enabled\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/antigravity_credits_overages_test.go",
+            "Offset": 19152,
+            "Line": 538,
+            "Column": 16
+          },
+          "baseline": {
+            "Filename": "internal/service/antigravity_credits_overages_test.go",
+            "Offset": 19152,
+            "Line": 538,
+            "Column": 16
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "rawLimits := account.Extra[modelRateLimitsKey].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/antigravity_rate_limit_test.go",
+            "Offset": 39226,
+            "Line": 1161,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/service/antigravity_rate_limit_test.go",
+            "Offset": 39196,
+            "Line": 1161,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "limits := account.Extra[\"model_rate_limits\"].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/auth_service_identity_sync_test.go",
+            "Offset": 15400,
+            "Line": 477,
+            "Column": 18
+          },
+          "baseline": {
+            "Filename": "internal/service/auth_service_identity_sync_test.go",
+            "Offset": 15400,
+            "Line": 477,
+            "Column": 18
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*database/sql.Rows).Close` is not checked",
+          "source": [
+            "defer rows.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/backup_archive_test.go",
+            "Offset": 745,
+            "Line": 29,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/service/backup_archive_test.go",
+            "Offset": 745,
+            "Line": 29,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*bytes.Buffer).Write` is not checked",
+          "source": [
+            "got.Write(data)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/backup_service_test.go",
+            "Offset": 14276,
+            "Line": 503,
+            "Column": 19
+          },
+          "baseline": {
+            "Filename": "internal/service/backup_service_test.go",
+            "Offset": 14276,
+            "Line": 503,
+            "Column": 19
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*bytes.Buffer).Write` is not checked",
+          "source": [
+            "compressed.Write(data)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_download_test.go",
+            "Offset": 612,
+            "Line": 27,
+            "Column": 28
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_download_test.go",
+            "Offset": 612,
+            "Line": 27,
+            "Column": 28
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(io.Closer).Close` is not checked",
+          "source": [
+            "defer stream.Reader.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 3375,
+            "Line": 91,
+            "Column": 13
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 3375,
+            "Line": 91,
+            "Column": 13
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "request := got[\"request\"].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 3420,
+            "Line": 92,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 3420,
+            "Line": 92,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "contents := request[\"contents\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 3458,
+            "Line": 93,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 3458,
+            "Line": 93,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "parts := contents[0].(map[string]any)[\"parts\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 3578,
+            "Line": 95,
+            "Column": 49
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 3578,
+            "Line": 95,
+            "Column": 49
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"A clean product hero image\", parts[0].(map[string]any)[\"text\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 3628,
+            "Line": 96,
+            "Column": 16
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 3628,
+            "Line": 96,
+            "Column": 16
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "inlineData := parts[1].(map[string]any)[\"inlineData\"].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 3812,
+            "Line": 99,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 3812,
+            "Line": 99,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "fileData := parts[2].(map[string]any)[\"fileData\"].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 8171,
+            "Line": 186,
+            "Column": 15
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 8171,
+            "Line": 186,
+            "Column": 15
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(io.Closer).Close` is not checked",
+          "source": [
+            "defer r.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 11017,
+            "Line": 250,
+            "Column": 13
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 11017,
+            "Line": 250,
+            "Column": 13
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "request := got[\"request\"].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 11060,
+            "Line": 251,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 11060,
+            "Line": 251,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "config := request[\"generationConfig\"].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 11190,
+            "Line": 253,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 11190,
+            "Line": 253,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "contents := request[\"contents\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 11228,
+            "Line": 254,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 11228,
+            "Line": 254,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "parts := contents[0].(map[string]any)[\"parts\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 11304,
+            "Line": 255,
+            "Column": 31
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_gemini_test.go",
+            "Offset": 11304,
+            "Line": 255,
+            "Column": 31
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, wantPrompt, parts[0].(map[string]any)[\"text\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 3852,
+            "Line": 89,
+            "Column": 13
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 3852,
+            "Line": 89,
+            "Column": 13
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "request := got[\"request\"].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 3897,
+            "Line": 90,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 3897,
+            "Line": 90,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "contents := request[\"contents\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 3935,
+            "Line": 91,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 3935,
+            "Line": 91,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "parts := contents[0].(map[string]any)[\"parts\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 4055,
+            "Line": 93,
+            "Column": 49
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 4055,
+            "Line": 93,
+            "Column": 49
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"A clean product hero image\", parts[0].(map[string]any)[\"text\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 4105,
+            "Line": 94,
+            "Column": 16
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 4105,
+            "Line": 94,
+            "Column": 16
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "inlineData := parts[1].(map[string]any)[\"inlineData\"].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 4284,
+            "Line": 97,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 4284,
+            "Line": 97,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "fileData := parts[2].(map[string]any)[\"fileData\"].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 9658,
+            "Line": 191,
+            "Column": 15
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 9658,
+            "Line": 191,
+            "Column": 15
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(io.Closer).Close` is not checked",
+          "source": [
+            "defer r.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 13966,
+            "Line": 283,
+            "Column": 13
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 13966,
+            "Line": 283,
+            "Column": 13
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "request := got[\"request\"].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 14011,
+            "Line": 284,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 14011,
+            "Line": 284,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "contents := request[\"contents\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 14065,
+            "Line": 285,
+            "Column": 27
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 14065,
+            "Line": 285,
+            "Column": 27
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"user\", contents[0].(map[string]any)[\"role\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 14113,
+            "Line": 286,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 14113,
+            "Line": 286,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "parts := contents[0].(map[string]any)[\"parts\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 14189,
+            "Line": 287,
+            "Column": 31
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 14189,
+            "Line": 287,
+            "Column": 31
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, wantPrompt, parts[0].(map[string]any)[\"text\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 14235,
+            "Line": 288,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_provider_vertex_test.go",
+            "Offset": 14235,
+            "Line": 288,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "config := request[\"generationConfig\"].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 1379,
+            "Line": 44,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 1379,
+            "Line": 44,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 1662,
+            "Line": 49,
+            "Column": 16
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 1662,
+            "Line": 49,
+            "Column": 16
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "authCache := svc.AuthCache.(*fakeBatchImageAuthCacheInvalidator)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 6589,
+            "Line": 155,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 6589,
+            "Line": 155,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "pricing := svc.Pricing.(*fakeBatchImagePricingResolver)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 7549,
+            "Line": 183,
+            "Column": 18
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 7549,
+            "Line": 183,
+            "Column": 18
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "accountRepo := svc.AccountRepo.(*publicBatchImageAccountRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 8360,
+            "Line": 201,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 8360,
+            "Line": 201,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 9895,
+            "Line": 235,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 9895,
+            "Line": 235,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 23189,
+            "Line": 535,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 23189,
+            "Line": 535,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 24211,
+            "Line": 555,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 24211,
+            "Line": 555,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 25023,
+            "Line": 573,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 25023,
+            "Line": 573,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 29180,
+            "Line": 689,
+            "Column": 18
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 29180,
+            "Line": 689,
+            "Column": 18
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "accountRepo := svc.AccountRepo.(*publicBatchImageAccountRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 29977,
+            "Line": 709,
+            "Column": 18
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 29977,
+            "Line": 709,
+            "Column": 18
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "accountRepo := svc.AccountRepo.(*publicBatchImageAccountRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 30880,
+            "Line": 732,
+            "Column": 18
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 30880,
+            "Line": 732,
+            "Column": 18
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "accountRepo := svc.AccountRepo.(*publicBatchImageAccountRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 36225,
+            "Line": 861,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/batch_image_public_test.go",
+            "Offset": 36225,
+            "Line": 861,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "billing := svc.BillingRepo.(*fakeBatchImageBillingRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 565,
+            "Line": 21,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 565,
+            "Line": 21,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "repo := svc.Repo.(*creativeFakeRunRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 1762,
+            "Line": 57,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 1762,
+            "Line": 57,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "store := svc.TransientStore.(*creativeFakeTransient)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 2695,
+            "Line": 83,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 2695,
+            "Line": 83,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "repo := svc.Repo.(*creativeFakeRunRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 3911,
+            "Line": 112,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 3911,
+            "Line": 112,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "repo := svc.Repo.(*creativeFakeRunRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 5123,
+            "Line": 141,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 5123,
+            "Line": 141,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "store := svc.TransientStore.(*creativeFakeTransient)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 5506,
+            "Line": 149,
+            "Column": 47
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 5506,
+            "Line": 149,
+            "Column": 47
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, CreativeRunStatusSucceeded, svc.Repo.(*creativeFakeRunRepo).runs[runID].Status)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 6279,
+            "Line": 172,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 6279,
+            "Line": 172,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "repo := svc.Repo.(*creativeFakeRunRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 6323,
+            "Line": 173,
+            "Column": 13
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 6323,
+            "Line": 173,
+            "Column": 13
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "billing := svc.BillingRepo.(*creativeFakeBillingRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 8558,
+            "Line": 233,
+            "Column": 5
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 8558,
+            "Line": 233,
+            "Column": 5
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "svc.TransientStore.(*creativeFakeTransient).saveOutputErr = errors.New(\"redis unavailable\")"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 8968,
+            "Line": 248,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 8968,
+            "Line": 248,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "repo := svc.Repo.(*creativeFakeRunRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 10238,
+            "Line": 281,
+            "Column": 24
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 10238,
+            "Line": 281,
+            "Column": 24
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, 0, svc.BillingRepo.(*creativeFakeBillingRepo).captureN)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 10752,
+            "Line": 300,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 10752,
+            "Line": 300,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "repo := svc.Repo.(*creativeFakeRunRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 10794,
+            "Line": 301,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 10794,
+            "Line": 301,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "store := svc.TransientStore.(*creativeFakeTransient)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 12268,
+            "Line": 336,
+            "Column": 15
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 12268,
+            "Line": 336,
+            "Column": 15
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "groupRepo := svc.GroupRepo.(*creativeFakeGroupRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 14066,
+            "Line": 377,
+            "Column": 15
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 14066,
+            "Line": 377,
+            "Column": 15
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "groupRepo := svc.GroupRepo.(*creativeFakeGroupRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 14121,
+            "Line": 378,
+            "Column": 17
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 14121,
+            "Line": 378,
+            "Column": 17
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "accountRepo := svc.AccountRepo.(*creativeFakeAccountRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 16656,
+            "Line": 450,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_gap_test.go",
+            "Offset": 16656,
+            "Line": 450,
+            "Column": 2
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "svc.Settings.(*creativeFakeSettingReader).models = append(svc.Settings.(*creativeFakeSettingReader).models,"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_model_settings_test.go",
+            "Offset": 2731,
+            "Line": 78,
+            "Column": 15
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_model_settings_test.go",
+            "Offset": 2731,
+            "Line": 78,
+            "Column": 15
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "groupRepo := svc.GroupRepo.(*creativeFakeGroupRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 20306,
+            "Line": 672,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 20306,
+            "Line": 672,
+            "Column": 2
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "svc.GroupRepo.(*creativeFakeGroupRepo).byID[group.ID] = group"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 20369,
+            "Line": 673,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 20369,
+            "Line": 673,
+            "Column": 2
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "svc.AccountRepo.(*creativeFakeAccountRepo).byGroup[group.ID] = []Account{{"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 20643,
+            "Line": 680,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 20643,
+            "Line": 680,
+            "Column": 2
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "svc.Settings.(*creativeFakeSettingReader).models = []CreativeModelSetting{{"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 21123,
+            "Line": 691,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 21123,
+            "Line": 691,
+            "Column": 2
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "svc.GroupRepo.(*creativeFakeGroupRepo).byID[group.ID] = group"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 21186,
+            "Line": 692,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 21186,
+            "Line": 692,
+            "Column": 2
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "svc.AccountRepo.(*creativeFakeAccountRepo).byGroup[group.ID] = []Account{{"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 21480,
+            "Line": 699,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 21480,
+            "Line": 699,
+            "Column": 2
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "svc.Settings.(*creativeFakeSettingReader).models = []CreativeModelSetting{{"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 25761,
+            "Line": 810,
+            "Column": 3
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 25761,
+            "Line": 810,
+            "Column": 3
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "svc.GroupRepo.(*creativeFakeGroupRepo).byID[12] = group"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 26144,
+            "Line": 820,
+            "Column": 3
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 26144,
+            "Line": 820,
+            "Column": 3
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "svc.GroupRepo.(*creativeFakeGroupRepo).byID[12] = group"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 26202,
+            "Line": 821,
+            "Column": 3
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 26202,
+            "Line": 821,
+            "Column": 3
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "svc.AccountRepo.(*creativeFakeAccountRepo).byGroup[12] = []Account{{"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 26867,
+            "Line": 838,
+            "Column": 3
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 26867,
+            "Line": 838,
+            "Column": 3
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "svc.GroupRepo.(*creativeFakeGroupRepo).byID[12] = group"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 26925,
+            "Line": 839,
+            "Column": 3
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 26925,
+            "Line": 839,
+            "Column": 3
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "svc.AccountRepo.(*creativeFakeAccountRepo).byGroup[12] = []Account{{"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 35262,
+            "Line": 1032,
+            "Column": 22
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 35262,
+            "Line": 1032,
+            "Column": 22
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, 2, svc.BillingRepo.(*creativeFakeBillingRepo).reserveN)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 35331,
+            "Line": 1033,
+            "Column": 17
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 35331,
+            "Line": 1033,
+            "Column": 17
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Len(t, svc.Queue.(*creativeFakeQueue).enqueued, 2)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 36107,
+            "Line": 1053,
+            "Column": 17
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 36107,
+            "Line": 1053,
+            "Column": 17
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Len(t, svc.Repo.(*creativeFakeRunRepo).outputs[highRun.ID], 1)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 37343,
+            "Line": 1083,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 37343,
+            "Line": 1083,
+            "Column": 2
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "svc.Repo.(*creativeFakeRunRepo).runs[legacyID] = &CreativeRun{RunID: legacyID, UserID: 7}"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 39508,
+            "Line": 1129,
+            "Column": 22
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 39508,
+            "Line": 1129,
+            "Column": 22
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, 1, svc.ApiKeyRepo.(*creativeFakeManagedKeyRepo).createN)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_worker_runtime_test.go",
+            "Offset": 1748,
+            "Line": 54,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_worker_runtime_test.go",
+            "Offset": 1748,
+            "Line": 54,
+            "Column": 2
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "fixture.service.UserRepo.(*creativeFakeUserRepo).user.Concurrency = 2"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_worker_runtime_test.go",
+            "Offset": 9439,
+            "Line": 271,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_worker_runtime_test.go",
+            "Offset": 9439,
+            "Line": 271,
+            "Column": 2
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "fixture.service.UserRepo.(*creativeFakeUserRepo).user.Concurrency = 2"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_worker_test.go",
+            "Offset": 1533,
+            "Line": 58,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_worker_test.go",
+            "Offset": 1533,
+            "Line": 58,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "repo := svc.Repo.(*creativeFakeRunRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_worker_test.go",
+            "Offset": 1575,
+            "Line": 59,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_worker_test.go",
+            "Offset": 1575,
+            "Line": 59,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "store := svc.TransientStore.(*creativeFakeTransient)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_worker_test.go",
+            "Offset": 1631,
+            "Line": 60,
+            "Column": 13
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_worker_test.go",
+            "Offset": 1631,
+            "Line": 60,
+            "Column": 13
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "billing := svc.BillingRepo.(*creativeFakeBillingRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_worker_test.go",
+            "Offset": 5523,
+            "Line": 167,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_worker_test.go",
+            "Offset": 5523,
+            "Line": 167,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "userRepo := f.service.UserRepo.(*creativeFakeUserRepo)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/email_service_smtp_test.go",
+            "Offset": 2892,
+            "Line": 110,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/email_service_smtp_test.go",
+            "Offset": 2892,
+            "Line": 110,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "port := listener.Addr().(*net.TCPAddr).Port"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 1041,
+            "Line": 34,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 1041,
+            "Line": 34,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "tools := request[\"tools\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 1101,
+            "Line": 36,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 1101,
+            "Line": 36,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "tool := tools[0].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 1240,
+            "Line": 40,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 1240,
+            "Line": 40,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "input := request[\"input\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 1274,
+            "Line": 41,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 1274,
+            "Line": 41,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "call := input[0].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 2277,
+            "Line": 67,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 2277,
+            "Line": 67,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "tools := request[\"tools\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 2358,
+            "Line": 69,
+            "Column": 31
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 2358,
+            "Line": 69,
+            "Column": 31
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"function\", tools[0].(map[string]any)[\"type\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 2437,
+            "Line": 70,
+            "Column": 45
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 2437,
+            "Line": 70,
+            "Column": 45
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"codex_app__read_thread\", tools[1].(map[string]any)[\"name\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 2483,
+            "Line": 72,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 2483,
+            "Line": 72,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "input := request[\"input\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 2563,
+            "Line": 74,
+            "Column": 30
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_forward_as_responses_test.go",
+            "Offset": 2563,
+            "Line": 74,
+            "Column": 30
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"message\", input[0].(map[string]any)[\"type\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 16011,
+            "Line": 445,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 16011,
+            "Line": 445,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "msgs := req[\"messages\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 16049,
+            "Line": 446,
+            "Column": 15
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 16049,
+            "Line": 446,
+            "Column": 15
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "assistant := msgs[1].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 16086,
+            "Line": 447,
+            "Column": 13
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 16086,
+            "Line": 447,
+            "Column": 13
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "content := assistant[\"content\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 16230,
+            "Line": 449,
+            "Column": 27
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 16230,
+            "Line": 449,
+            "Column": 27
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"text\", content[0].(map[string]any)[\"type\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 16295,
+            "Line": 450,
+            "Column": 29
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 16295,
+            "Line": 450,
+            "Column": 29
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"Answer\", content[0].(map[string]any)[\"text\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 17649,
+            "Line": 495,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 17649,
+            "Line": 495,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "msg0 := msgs[0].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 17687,
+            "Line": 496,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 17687,
+            "Line": 496,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "content0 := msg0[\"content\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 17767,
+            "Line": 498,
+            "Column": 28
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 17767,
+            "Line": 498,
+            "Column": 28
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"hello\", content0[0].(map[string]any)[\"text\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 17882,
+            "Line": 501,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 17882,
+            "Line": 501,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "msg1 := msgs[1].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 17920,
+            "Line": 502,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 17920,
+            "Line": 502,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "content1 := msg1[\"content\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 17984,
+            "Line": 504,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 17984,
+            "Line": 504,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "block1 := content1[0].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 18608,
+            "Line": 526,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 18608,
+            "Line": 526,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "msgs := req[\"messages\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 18641,
+            "Line": 527,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 18641,
+            "Line": 527,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "msg0 := msgs[0].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 18679,
+            "Line": 528,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 18679,
+            "Line": 528,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "content0 := msg0[\"content\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 18747,
+            "Line": 530,
+            "Column": 16
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 18747,
+            "Line": 530,
+            "Column": 16
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "toolResult := content0[0].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 18847,
+            "Line": 532,
+            "Column": 19
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 18847,
+            "Line": 532,
+            "Column": 19
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "nestedContent := toolResult[\"content\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 18945,
+            "Line": 534,
+            "Column": 35
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 18945,
+            "Line": 534,
+            "Column": 35
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"valid result\", nestedContent[0].(map[string]any)[\"text\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 19503,
+            "Line": 554,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 19503,
+            "Line": 554,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "msgs := req[\"messages\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 19536,
+            "Line": 555,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 19536,
+            "Line": 555,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "msg0 := msgs[0].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 19574,
+            "Line": 556,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 19574,
+            "Line": 556,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "content0 := msg0[\"content\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 19642,
+            "Line": 558,
+            "Column": 16
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 19642,
+            "Line": 558,
+            "Column": 16
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "toolResult := content0[0].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 19689,
+            "Line": 559,
+            "Column": 19
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 19689,
+            "Line": 559,
+            "Column": 19
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "nestedContent := toolResult[\"content\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20102,
+            "Line": 569,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20102,
+            "Line": 569,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "msgs := req[\"messages\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20139,
+            "Line": 570,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20139,
+            "Line": 570,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "content := msgs[0].(map[string]any)[\"content\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20240,
+            "Line": 572,
+            "Column": 29
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20240,
+            "Line": 572,
+            "Column": 29
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"hello\", content[0].(map[string]any)[\"text\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20645,
+            "Line": 580,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20645,
+            "Line": 580,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "msgs := req[\"messages\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20682,
+            "Line": 581,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20682,
+            "Line": 581,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "content := msgs[0].(map[string]any)[\"content\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20742,
+            "Line": 582,
+            "Column": 17
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20742,
+            "Line": 582,
+            "Column": 17
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "toolResult := content[0].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20789,
+            "Line": 583,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20789,
+            "Line": 583,
+            "Column": 20
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "nestedContent := toolResult[\"content\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20879,
+            "Line": 585,
+            "Column": 26
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 20879,
+            "Line": 585,
+            "Column": 26
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"ok\", nestedContent[0].(map[string]any)[\"text\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 21584,
+            "Line": 600,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 21584,
+            "Line": 600,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "msgs := req[\"messages\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 21621,
+            "Line": 601,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 21621,
+            "Line": 601,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "content := msgs[0].(map[string]any)[\"content\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 21710,
+            "Line": 603,
+            "Column": 17
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 21710,
+            "Line": 603,
+            "Column": 17
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "toolResult := content[0].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 22345,
+            "Line": 614,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 22345,
+            "Line": 614,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "msgs := req[\"messages\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 22382,
+            "Line": 615,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 22382,
+            "Line": 615,
+            "Column": 14
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "content := msgs[0].(map[string]any)[\"content\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 22437,
+            "Line": 616,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 22437,
+            "Line": 616,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "outer := content[0].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 22483,
+            "Line": 617,
+            "Column": 19
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 22483,
+            "Line": 617,
+            "Column": 19
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "innerContent := outer[\"content\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 22519,
+            "Line": 618,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 22519,
+            "Line": 618,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "inner := innerContent[0].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 22569,
+            "Line": 619,
+            "Column": 18
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 22569,
+            "Line": 619,
+            "Column": 18
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "deepContent := inner[\"content\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 22654,
+            "Line": 621,
+            "Column": 28
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 22654,
+            "Line": 621,
+            "Column": 28
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"deep\", deepContent[0].(map[string]any)[\"text\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 39113,
+            "Line": 1145,
+            "Column": 15
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 39113,
+            "Line": 1145,
+            "Column": 15
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*strings.Builder).WriteString` is not checked",
+          "source": [
+            "b.WriteString(`{\"model\":\"claude-sonnet-4-5\",\"stream\":true,\"max_tokens\":8192,\"metadata\":{\"user_id\":\"user-xyz789\"},\"system\":[{\"type\":\"text\",\"text\":\"You are a detailed assistant.\",\"cache_control\":{\"type\":\"ephemeral\"}}],\"messages\":[`)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 39409,
+            "Line": 1150,
+            "Column": 15
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 39409,
+            "Line": 1150,
+            "Column": 15
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*strings.Builder).WriteByte` is not checked",
+          "source": [
+            "b.WriteByte(',')"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 39451,
+            "Line": 1153,
+            "Column": 17
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 39451,
+            "Line": 1153,
+            "Column": 17
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*strings.Builder).WriteString` is not checked",
+          "source": [
+            "b.WriteString(fmt.Sprintf(`{\"role\":\"user\",\"content\":\"This is user message number %d with some extra padding text to make the message reasonably long for benchmarking purposes. Lorem ipsum dolor sit amet.\"}`, i))"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 39677,
+            "Line": 1155,
+            "Column": 17
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 39677,
+            "Line": 1155,
+            "Column": 17
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*strings.Builder).WriteString` is not checked",
+          "source": [
+            "b.WriteString(fmt.Sprintf(`{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"This is assistant response number %d. I will provide a detailed answer with multiple sentences to simulate real conversation content for benchmark testing.\"}]}`, i))"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 39933,
+            "Line": 1159,
+            "Column": 15
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_request_test.go",
+            "Offset": 39933,
+            "Line": 1159,
+            "Column": 15
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*strings.Builder).WriteString` is not checked",
+          "source": [
+            "b.WriteString(`]}`)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 2471,
+            "Line": 78,
+            "Column": 32
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 2471,
+            "Line": 78,
+            "Column": 32
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"ctc_valid\", filtered[0].(map[string]any)[\"id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 2538,
+            "Line": 79,
+            "Column": 32
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 2538,
+            "Line": 79,
+            "Column": 32
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"tsc_valid\", filtered[1].(map[string]any)[\"id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 3001,
+            "Line": 90,
+            "Column": 25
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 3001,
+            "Line": 90,
+            "Column": 25
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.NotContains(t, filtered[0].(map[string]any), \"id\")"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 3061,
+            "Line": 91,
+            "Column": 25
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 3061,
+            "Line": 91,
+            "Column": 25
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.NotContains(t, filtered[1].(map[string]any), \"id\")"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 3856,
+            "Line": 106,
+            "Column": 33
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 3856,
+            "Line": 106,
+            "Column": 33
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"ctc_custom\", filtered[0].(map[string]any)[\"call_id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 3929,
+            "Line": 107,
+            "Column": 33
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 3929,
+            "Line": 107,
+            "Column": 33
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"ctc_custom\", filtered[1].(map[string]any)[\"call_id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 4002,
+            "Line": 108,
+            "Column": 33
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 4002,
+            "Line": 108,
+            "Column": 33
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"ctc_custom\", filtered[2].(map[string]any)[\"id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 4070,
+            "Line": 109,
+            "Column": 33
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 4070,
+            "Line": 109,
+            "Column": 33
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"tsc_search\", filtered[3].(map[string]any)[\"call_id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 4143,
+            "Line": 110,
+            "Column": 33
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 4143,
+            "Line": 110,
+            "Column": 33
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"tsc_search\", filtered[4].(map[string]any)[\"call_id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 4216,
+            "Line": 111,
+            "Column": 33
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 4216,
+            "Line": 111,
+            "Column": 33
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"tsc_search\", filtered[5].(map[string]any)[\"id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 4714,
+            "Line": 123,
+            "Column": 33
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 4714,
+            "Line": 123,
+            "Column": 33
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"ctc_shared\", filtered[0].(map[string]any)[\"call_id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 4787,
+            "Line": 124,
+            "Column": 33
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 4787,
+            "Line": 124,
+            "Column": 33
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"tsc_shared\", filtered[1].(map[string]any)[\"call_id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 4861,
+            "Line": 125,
+            "Column": 34
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 4861,
+            "Line": 125,
+            "Column": 34
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"call_shared\", filtered[2].(map[string]any)[\"id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 5322,
+            "Line": 136,
+            "Column": 31
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 5322,
+            "Line": 136,
+            "Column": 31
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"ctc_item\", filtered[0].(map[string]any)[\"id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 5390,
+            "Line": 137,
+            "Column": 33
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 5390,
+            "Line": 137,
+            "Column": 33
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"ctc_custom\", filtered[0].(map[string]any)[\"call_id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 5461,
+            "Line": 138,
+            "Column": 31
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 5461,
+            "Line": 138,
+            "Column": 31
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"ctc_item\", filtered[1].(map[string]any)[\"id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 6011,
+            "Line": 150,
+            "Column": 33
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 6011,
+            "Line": 150,
+            "Column": 33
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"ctc_shared\", filtered[0].(map[string]any)[\"call_id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 6085,
+            "Line": 151,
+            "Column": 34
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 6085,
+            "Line": 151,
+            "Column": 34
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"call_shared\", filtered[1].(map[string]any)[\"id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 6154,
+            "Line": 152,
+            "Column": 34
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 6154,
+            "Line": 152,
+            "Column": 34
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"call_shared\", filtered[2].(map[string]any)[\"id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 6505,
+            "Line": 162,
+            "Column": 39
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 6505,
+            "Line": 162,
+            "Column": 39
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"fc_previous_turn\", filtered[0].(map[string]any)[\"id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 6968,
+            "Line": 172,
+            "Column": 25
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_codex_function_call_id_test.go",
+            "Offset": 6968,
+            "Line": 172,
+            "Column": 25
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, id, filtered[0].(map[string]any)[\"id\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_gateway_grok_tool_protocol_test.go",
+            "Offset": 21506,
+            "Line": 450,
+            "Column": 21
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_gateway_grok_tool_protocol_test.go",
+            "Offset": 21506,
+            "Line": 450,
+            "Column": 21
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*strings.Builder).WriteString` is not checked",
+          "source": [
+            "frame.WriteString(line)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1359,
+            "Line": 47,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1359,
+            "Line": 47,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "tools := reqBody[\"tools\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1440,
+            "Line": 49,
+            "Column": 31
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1440,
+            "Line": 49,
+            "Column": 31
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"function\", tools[0].(map[string]any)[\"type\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1503,
+            "Line": 50,
+            "Column": 29
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1503,
+            "Line": 50,
+            "Column": 29
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"custom\", tools[1].(map[string]any)[\"type\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1571,
+            "Line": 51,
+            "Column": 34
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1571,
+            "Line": 51,
+            "Column": 34
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"tool_search\", tools[2].(map[string]any)[\"type\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1616,
+            "Line": 52,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1616,
+            "Line": 52,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "input := reqBody[\"input\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1682,
+            "Line": 54,
+            "Column": 16
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1682,
+            "Line": 54,
+            "Column": 16
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "additional := input[1].(map[string]any)[\"tools\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1787,
+            "Line": 56,
+            "Column": 32
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1787,
+            "Line": 56,
+            "Column": 32
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"image_gen\", additional[0].(map[string]any)[\"name\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1862,
+            "Line": 57,
+            "Column": 36
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 1862,
+            "Line": 57,
+            "Column": 36
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"collaboration\", additional[1].(map[string]any)[\"name\"], \"existing namespace must not be duplicated\")"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 2415,
+            "Line": 71,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 2415,
+            "Line": 71,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "tools := reqBody[\"tools\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 2473,
+            "Line": 72,
+            "Column": 34
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 2473,
+            "Line": 72,
+            "Column": 34
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"tool_search\", tools[0].(map[string]any)[\"type\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 2532,
+            "Line": 73,
+            "Column": 25
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 2532,
+            "Line": 73,
+            "Column": 25
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, true, tools[1].(map[string]any)[\"defer_loading\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 4129,
+            "Line": 125,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 4129,
+            "Line": 125,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "input := reqBody[\"input\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 4170,
+            "Line": 126,
+            "Column": 17
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 4170,
+            "Line": 126,
+            "Column": 17
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Len(t, input[0].(map[string]any)[\"tools\"], 1)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 4225,
+            "Line": 127,
+            "Column": 17
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 4225,
+            "Line": 127,
+            "Column": 17
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Len(t, input[1].(map[string]any)[\"tools\"], 1)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 4653,
+            "Line": 144,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 4653,
+            "Line": 144,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "input := reqBody[\"input\"].([]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 4733,
+            "Line": 146,
+            "Column": 30
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 4733,
+            "Line": 146,
+            "Column": 30
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"message\", input[0].(map[string]any)[\"type\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 4795,
+            "Line": 147,
+            "Column": 28
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 4795,
+            "Line": 147,
+            "Column": 28
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"hello\", input[0].(map[string]any)[\"content\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 4871,
+            "Line": 148,
+            "Column": 39
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 4871,
+            "Line": 148,
+            "Column": 39
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, \"additional_tools\", input[1].(map[string]any)[\"type\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 9659,
+            "Line": 304,
+            "Column": 17
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 9659,
+            "Line": 304,
+            "Column": 17
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "reasoning := reqBody[\"reasoning\"].(map[string]any)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 9861,
+            "Line": 308,
+            "Column": 22
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_responses_lite_tools_test.go",
+            "Offset": 9861,
+            "Line": 308,
+            "Column": 22
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "require.Equal(t, tt.reasoning.(map[string]any)[\"effort\"], reasoning[\"effort\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/payment_stats_test.go",
+            "Offset": 10372,
+            "Line": 317,
+            "Column": 1
+          },
+          "baseline": {
+            "Filename": "internal/service/payment_stats_test.go",
+            "Offset": 10372,
+            "Line": 317,
+            "Column": 1
+          },
+          "linter": "gofmt",
+          "message": "File is not properly formatted",
+          "source": [
+            "ProviderSnapshot: map[string]interface{}{\"currency\": currency},"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/infra/httpclient/tlsfingerprint/dialer_test.go",
+            "Offset": 0,
+            "Line": 236,
+            "Column": 61
+          },
+          "baseline": {
+            "Filename": "internal/infra/httpclient/tlsfingerprint/dialer_test.go",
+            "Offset": 0,
+            "Line": 236,
+            "Column": 61
+          },
+          "linter": "gosec",
+          "message": "G402: TLS InsecureSkipVerify set to true.",
+          "source": [
+            "dialer.proxyTLSConfig = &stdtls.Config{InsecureSkipVerify: true}"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/config/env_reachability_test.go",
+            "Offset": 704,
+            "Line": 35,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/config/env_reachability_test.go",
+            "Offset": 704,
+            "Line": 35,
+            "Column": 20
+          },
+          "linter": "govet",
+          "message": "inline: Constant reflect.Ptr should be inlined",
+          "source": [
+            "for ft.Kind() == reflect.Ptr {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/config/env_reachability_test.go",
+            "Offset": 1070,
+            "Line": 48,
+            "Column": 23
+          },
+          "baseline": {
+            "Filename": "internal/config/env_reachability_test.go",
+            "Offset": 1070,
+            "Line": 48,
+            "Column": 23
+          },
+          "linter": "govet",
+          "message": "inline: Constant reflect.Ptr should be inlined",
+          "source": [
+            "for elem.Kind() == reflect.Ptr {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_bulk_update_test.go",
+            "Offset": 13783,
+            "Line": 409,
+            "Column": 19
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_bulk_update_test.go",
+            "Offset": 13783,
+            "Line": 409,
+            "Column": 19
+          },
+          "linter": "govet",
+          "message": "inline: Constant reflect.Ptr should be inlined",
+          "source": [
+            "require.Equal(t, reflect.Ptr, filtersField.Kind(), \"BulkUpdateAccountsInput.Filters should be a pointer field\")"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/account/endpoint_rule.go",
+            "Offset": 1332,
+            "Line": 40,
+            "Column": 47
+          },
+          "baseline": {
+            "Filename": "internal/account/endpoint_rule.go",
+            "Offset": 1332,
+            "Line": 40,
+            "Column": 47
+          },
+          "linter": "staticcheck",
+          "message": "QF1001: could apply De Morgan's law",
+          "source": [
+            "if !has(capability.ProtocolAlphaSearch) && !(a.IsOpenAIPersonalAccessToken() && has(capability.ProtocolOpenAIResponses)) {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/billing/httpapi/user_platform_quotas_handler_test.go",
+            "Offset": 1584,
+            "Line": 53,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/billing/httpapi/user_platform_quotas_handler_test.go",
+            "Offset": 1584,
+            "Line": 53,
+            "Column": 2
+          },
+          "linter": "staticcheck",
+          "message": "SA9003: empty branch",
+          "source": [
+            "if body.Data.PlatformQuotas == nil {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/scheduler/concurrency_test.go",
+            "Offset": 11874,
+            "Line": 336,
+            "Column": 84
+          },
+          "baseline": {
+            "Filename": "internal/service/concurrency_service_test.go",
+            "Offset": 11872,
+            "Line": 336,
+            "Column": 84
+          },
+          "linter": "staticcheck",
+          "message": "SA1012: do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use",
+          "source": [
+            "lease, acquired, err := NewConcurrencyService(cache).AcquireOpenAIWSIngressLease(nil, 1, 0)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/scheduler/concurrency_test.go",
+            "Offset": 12835,
+            "Line": 360,
+            "Column": 84
+          },
+          "baseline": {
+            "Filename": "internal/service/concurrency_service_test.go",
+            "Offset": 12833,
+            "Line": 360,
+            "Column": 84
+          },
+          "linter": "staticcheck",
+          "message": "SA1012: do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use",
+          "source": [
+            "lease, acquired, err := NewConcurrencyService(cache).AcquireOpenAIWSIngressLease(nil, 1, 1)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/scheduler/scheduler_snapshot_batch_query_test.go",
+            "Offset": 4395,
+            "Line": 147,
+            "Column": 14
+          },
+          "baseline": {
+            "Filename": "internal/service/scheduler_snapshot_batch_query_test.go",
+            "Offset": 4319,
+            "Line": 148,
+            "Column": 14
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"batchSnapshotCache\" from selector",
+          "source": [
+            "if err := c.batchSnapshotCache.SetSnapshot(ctx, bucket, token, accounts); err != nil {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/scheduler/scheduler_snapshot_batch_query_test.go",
+            "Offset": 5289,
+            "Line": 179,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/scheduler_snapshot_batch_query_test.go",
+            "Offset": 5175,
+            "Line": 180,
+            "Column": 11
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"batchSnapshotCache\" from selector",
+          "source": [
+            "return c.batchSnapshotCache.SetSnapshot(ctx, bucket, token, accounts)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/scheduler/scheduler_snapshot_full_rebuild_lifecycle_test.go",
+            "Offset": 1451,
+            "Line": 54,
+            "Column": 9
+          },
+          "baseline": {
+            "Filename": "internal/service/scheduler_snapshot_full_rebuild_lifecycle_test.go",
+            "Offset": 1501,
+            "Line": 55,
+            "Column": 9
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"retirementRaceCache\" from selector",
+          "source": [
+            "if !c.retirementRaceCache.retired[bucket.String()] {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/scheduler/scheduler_snapshot_full_rebuild_lifecycle_test.go",
+            "Offset": 2724,
+            "Line": 104,
+            "Column": 29
+          },
+          "baseline": {
+            "Filename": "internal/service/scheduler_snapshot_full_rebuild_lifecycle_test.go",
+            "Offset": 2774,
+            "Line": 105,
+            "Column": 29
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"retirementRaceCache\" from selector",
+          "source": [
+            "for _, attempts := range c.retirementRaceCache.setAttempts {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/account_header_override_test.go",
+            "Offset": 5861,
+            "Line": 149,
+            "Column": 46
+          },
+          "baseline": {
+            "Filename": "internal/service/account_header_override_test.go",
+            "Offset": 5861,
+            "Line": 149,
+            "Column": 46
+          },
+          "linter": "staticcheck",
+          "message": "SA1008: keys in http.Header are canonicalized, \"anthropic-beta\" is not canonical; fix the constant or use http.CanonicalHeaderKey",
+          "source": [
+            "require.Equal(t, []string{\"custom-beta-1\"}, h[\"anthropic-beta\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/account_header_override_test.go",
+            "Offset": 6061,
+            "Line": 152,
+            "Column": 45
+          },
+          "baseline": {
+            "Filename": "internal/service/account_header_override_test.go",
+            "Offset": 6061,
+            "Line": 152,
+            "Column": 45
+          },
+          "linter": "staticcheck",
+          "message": "SA1008: keys in http.Header are canonicalized, \"x-custom\" is not canonical; fix the constant or use http.CanonicalHeaderKey",
+          "source": [
+            "require.Equal(t, []string{\"custom-value\"}, h[\"x-custom\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_duplicate_account_test.go",
+            "Offset": 1384,
+            "Line": 54,
+            "Column": 4
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_duplicate_account_test.go",
+            "Offset": 1384,
+            "Line": 54,
+            "Column": 4
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"mockAccountRepoForGemini\" from selector",
+          "source": [
+            "s.mockAccountRepoForGemini.accountsByID[account.ID] = &stored"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_spark_shadow_test.go",
+            "Offset": 1133,
+            "Line": 44,
+            "Column": 4
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_spark_shadow_test.go",
+            "Offset": 1133,
+            "Line": 44,
+            "Column": 4
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"mockAccountRepoForGemini\" from selector",
+          "source": [
+            "s.mockAccountRepoForGemini.accountsByID[account.ID] = &cp"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_spark_shadow_test.go",
+            "Offset": 2947,
+            "Line": 101,
+            "Column": 4
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_spark_shadow_test.go",
+            "Offset": 2947,
+            "Line": 101,
+            "Column": 4
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"mockAccountRepoForGemini\" from selector",
+          "source": [
+            "s.mockAccountRepoForGemini.accountsByID[account.ID] = &cp"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_spark_shadow_test.go",
+            "Offset": 3126,
+            "Line": 107,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_spark_shadow_test.go",
+            "Offset": 3126,
+            "Line": 107,
+            "Column": 11
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"mockAccountRepoForGemini\" from selector",
+          "source": [
+            "delete(s.mockAccountRepoForGemini.accountsByID, id)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_spark_shadow_test.go",
+            "Offset": 29019,
+            "Line": 708,
+            "Column": 5
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_spark_shadow_test.go",
+            "Offset": 29019,
+            "Line": 708,
+            "Column": 5
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"sparkShadowRepoStub\" from selector",
+          "source": [
+            "s.sparkShadowRepoStub.nextID++"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_spark_shadow_test.go",
+            "Offset": 29087,
+            "Line": 710,
+            "Column": 18
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_spark_shadow_test.go",
+            "Offset": 29087,
+            "Line": 710,
+            "Column": 18
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"sparkShadowRepoStub\" from selector",
+          "source": [
+            "phantom.ID = s.sparkShadowRepoStub.nextID"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_spark_shadow_test.go",
+            "Offset": 29118,
+            "Line": 711,
+            "Column": 5
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_spark_shadow_test.go",
+            "Offset": 29118,
+            "Line": 711,
+            "Column": 5
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"sparkShadowRepoStub\" from selector",
+          "source": [
+            "s.sparkShadowRepoStub.accounts[phantom.ID] = &phantom"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_update_balance_test.go",
+            "Offset": 845,
+            "Line": 32,
+            "Column": 32
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_update_balance_test.go",
+            "Offset": 845,
+            "Line": 32,
+            "Column": 32
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"userRepoStub\" from selector",
+          "source": [
+            "if s.userRepoStub == nil || s.userRepoStub.user == nil {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_update_balance_test.go",
+            "Offset": 949,
+            "Line": 35,
+            "Column": 33
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_update_balance_test.go",
+            "Offset": 949,
+            "Line": 35,
+            "Column": 33
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"userRepoStub\" from selector",
+          "source": [
+            "change := BalanceChange{Old: s.userRepoStub.user.Balance}"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_update_balance_test.go",
+            "Offset": 1070,
+            "Line": 40,
+            "Column": 4
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_update_balance_test.go",
+            "Offset": 1070,
+            "Line": 40,
+            "Column": 4
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"userRepoStub\" from selector",
+          "source": [
+            "s.userRepoStub.user.Balance = change.New"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_update_balance_test.go",
+            "Offset": 4539,
+            "Line": 144,
+            "Column": 29
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_update_balance_test.go",
+            "Offset": 4539,
+            "Line": 144,
+            "Column": 29
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"userRepoStub\" from selector",
+          "source": [
+            "require.Equal(t, 3.0, repo.userRepoStub.user.Balance)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_update_user_rpm_test.go",
+            "Offset": 600,
+            "Line": 28,
+            "Column": 5
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_update_user_rpm_test.go",
+            "Offset": 600,
+            "Line": 28,
+            "Column": 5
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"userRepoStub\" from selector",
+          "source": [
+            "s.userRepoStub.user = &clone"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/api_key_service_validation_test.go",
+            "Offset": 2310,
+            "Line": 84,
+            "Column": 33
+          },
+          "baseline": {
+            "Filename": "internal/service/api_key_service_validation_test.go",
+            "Offset": 2310,
+            "Line": 84,
+            "Column": 33
+          },
+          "linter": "staticcheck",
+          "message": "SA1012: do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use",
+          "source": [
+            "_, createErr := service.Create(nil, 1, CreateAPIKeyRequest{Quota: -1})"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/api_key_service_validation_test.go",
+            "Offset": 2461,
+            "Line": 88,
+            "Column": 33
+          },
+          "baseline": {
+            "Filename": "internal/service/api_key_service_validation_test.go",
+            "Offset": 2461,
+            "Line": 88,
+            "Column": 33
+          },
+          "linter": "staticcheck",
+          "message": "SA1012: do not pass a nil Context, even if a function permits it; pass context.TODO if you are unsure about which Context to use",
+          "source": [
+            "_, updateErr := service.Update(nil, 1, 1, UpdateAPIKeyRequest{RateLimit5h: &invalid})"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/auth_service_register_test.go",
+            "Offset": 22607,
+            "Line": 679,
+            "Column": 44
+          },
+          "baseline": {
+            "Filename": "internal/service/auth_service_register_test.go",
+            "Offset": 22607,
+            "Line": 679,
+            "Column": 44
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"Time\" from selector",
+          "source": [
+            "require.WithinDuration(t, claims.IssuedAt.Time.Add(24*time.Hour), claims.ExpiresAt.Time, 2*time.Second)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/auth_service_register_test.go",
+            "Offset": 23342,
+            "Line": 704,
+            "Column": 44
+          },
+          "baseline": {
+            "Filename": "internal/service/auth_service_register_test.go",
+            "Offset": 23342,
+            "Line": 704,
+            "Column": 44
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"Time\" from selector",
+          "source": [
+            "require.WithinDuration(t, claims.IssuedAt.Time.Add(90*time.Minute), claims.ExpiresAt.Time, 2*time.Second)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/email_service_smtp_test.go",
+            "Offset": 4015,
+            "Line": 157,
+            "Column": 7
+          },
+          "baseline": {
+            "Filename": "internal/service/email_service_smtp_test.go",
+            "Offset": 4015,
+            "Line": 157,
+            "Column": 7
+          },
+          "linter": "staticcheck",
+          "message": "QF1001: could apply De Morgan's law",
+          "source": [
+            "if !(ok && writeLine(\"250-AUTH PLAIN LOGIN\") && writeLine(\"250 8BITMIME\")) {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/email_service_smtp_test.go",
+            "Offset": 5888,
+            "Line": 230,
+            "Column": 7
+          },
+          "baseline": {
+            "Filename": "internal/service/email_service_smtp_test.go",
+            "Offset": 5888,
+            "Line": 230,
+            "Column": 7
+          },
+          "linter": "staticcheck",
+          "message": "QF1001: could apply De Morgan's law",
+          "source": [
+            "if !(writeLine(\"250-fake.test\") && writeLine(\"250-AUTH PLAIN LOGIN\") && writeLine(\"250 8BITMIME\")) {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/grok_credential_failure_test.go",
+            "Offset": 46194,
+            "Line": 1135,
+            "Column": 34
+          },
+          "baseline": {
+            "Filename": "internal/service/grok_credential_failure_test.go",
+            "Offset": 46194,
+            "Line": 1135,
+            "Column": 34
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"tokenRefreshAccountRepo\" from selector",
+          "source": [
+            "require.Zero(t, countingRepo.tokenRefreshAccountRepo.setErrorCalls)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/grok_credential_failure_test.go",
+            "Offset": 46266,
+            "Line": 1136,
+            "Column": 34
+          },
+          "baseline": {
+            "Filename": "internal/service/grok_credential_failure_test.go",
+            "Offset": 46266,
+            "Line": 1136,
+            "Column": 34
+          },
+          "linter": "staticcheck",
+          "message": "QF1008: could remove embedded field \"tokenRefreshAccountRepo\" from selector",
+          "source": [
+            "require.Zero(t, countingRepo.tokenRefreshAccountRepo.setTempUnschedCalls)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_gateway_grok_test.go",
+            "Offset": 43004,
+            "Line": 1028,
+            "Column": 38
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_gateway_grok_test.go",
+            "Offset": 43004,
+            "Line": 1028,
+            "Column": 38
+          },
+          "linter": "staticcheck",
+          "message": "SA1008: keys in http.Header are canonicalized, \"x-grok-client-version\" is not canonical; fix the constant or use http.CanonicalHeaderKey",
+          "source": [
+            "require.Equal(t, []string{\"9.9.9\"}, req.Header[\"x-grok-client-version\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/openai_gateway_grok_test.go",
+            "Offset": 43144,
+            "Line": 1030,
+            "Column": 45
+          },
+          "baseline": {
+            "Filename": "internal/service/openai_gateway_grok_test.go",
+            "Offset": 43144,
+            "Line": 1030,
+            "Column": 45
+          },
+          "linter": "staticcheck",
+          "message": "SA1008: keys in http.Header are canonicalized, \"x-relay-token\" is not canonical; fix the constant or use http.CanonicalHeaderKey",
+          "source": [
+            "require.Equal(t, []string{\"relay-secret\"}, req.Header[\"x-relay-token\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/payment_webhook_provider_test.go",
+            "Offset": 1533,
+            "Line": 50,
+            "Column": 20
+          },
+          "baseline": {
+            "Filename": "internal/service/payment_webhook_provider_test.go",
+            "Offset": 1533,
+            "Line": 50,
+            "Column": 20
+          },
+          "linter": "staticcheck",
+          "message": "SA1019: github.com/TokenFlux/TokenRouter/internal/payment.Encrypt is deprecated: payment provider configs are now stored as plaintext JSON. This function is kept only for seeding legacy ciphertext in tests and for the transitional Decrypt fallback. Scheduled for removal after all live deployments complete migration by re-saving their configs. ",
+          "source": [
+            "encrypted, err := payment.Encrypt(string(data), []byte(webhookProviderTestEncryptionKey))"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/setting_service_oidc_config_test.go",
+            "Offset": 1670,
+            "Line": 65,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/service/setting_service_oidc_config_test.go",
+            "Offset": 1670,
+            "Line": 65,
+            "Column": 10
+          },
+          "linter": "staticcheck",
+          "message": "QF1012: Use fmt.Fprintf(...) instead of Write([]byte(fmt.Sprintf(...)))",
+          "source": [
+            "_, _ = w.Write([]byte(fmt.Sprintf(`{"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/pkg/antigravity/client_test.go",
+            "Offset": 25616,
+            "Line": 826,
+            "Column": 6
+          },
+          "baseline": {
+            "Filename": "internal/pkg/antigravity/client_test.go",
+            "Offset": 25616,
+            "Line": 826,
+            "Column": 6
+          },
+          "linter": "unused",
+          "message": "type roundTripperFunc is unused",
+          "source": [
+            "type roundTripperFunc func(*http.Request) (*http.Response, error)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/pkg/antigravity/client_test.go",
+            "Offset": 25704,
+            "Line": 828,
+            "Column": 27
+          },
+          "baseline": {
+            "Filename": "internal/pkg/antigravity/client_test.go",
+            "Offset": 25704,
+            "Line": 828,
+            "Column": 27
+          },
+          "linter": "unused",
+          "message": "func roundTripperFunc.RoundTrip is unused",
+          "source": [
+            "func (f roundTripperFunc) RoundTrip(req *http.Request) (*http.Response, error) {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/admin_service_group_test.go",
+            "Offset": 17734,
+            "Line": 479,
+            "Column": 6
+          },
+          "baseline": {
+            "Filename": "internal/service/admin_service_group_test.go",
+            "Offset": 17734,
+            "Line": 479,
+            "Column": 6
+          },
+          "linter": "unused",
+          "message": "func ptrString is unused",
+          "source": [
+            "func ptrString[T ~string](v T) *string {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/billing_cache_service_user_platform_quota_test.go",
+            "Offset": 3657,
+            "Line": 110,
+            "Column": 25
+          },
+          "baseline": {
+            "Filename": "internal/service/billing_cache_service_user_platform_quota_test.go",
+            "Offset": 3657,
+            "Line": 110,
+            "Column": 25
+          },
+          "linter": "unused",
+          "message": "func (*fakeFullCache).getDeleteCalls is unused",
+          "source": [
+            "func (f *fakeFullCache) getDeleteCalls() int {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 12998,
+            "Line": 433,
+            "Column": 2
+          },
+          "baseline": {
+            "Filename": "internal/service/creative_public_test.go",
+            "Offset": 12998,
+            "Line": 433,
+            "Column": 2
+          },
+          "linter": "unused",
+          "message": "field reserveFailed is unused",
+          "source": [
+            "reserveFailed bool"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_multiplatform_test.go",
+            "Offset": 68821,
+            "Line": 2071,
+            "Column": 6
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_multiplatform_test.go",
+            "Offset": 68821,
+            "Line": 2071,
+            "Column": 6
+          },
+          "linter": "unused",
+          "message": "type mockConcurrencyService is unused",
+          "source": [
+            "type mockConcurrencyService struct {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_multiplatform_test.go",
+            "Offset": 69002,
+            "Line": 2077,
+            "Column": 34
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_multiplatform_test.go",
+            "Offset": 69002,
+            "Line": 2077,
+            "Column": 34
+          },
+          "linter": "unused",
+          "message": "func (*mockConcurrencyService).GetAccountsLoadBatch is unused",
+          "source": [
+            "func (m *mockConcurrencyService) GetAccountsLoadBatch(ctx context.Context, accounts []AccountWithConcurrency) (map[int64]*AccountLoadInfo, error) {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/gateway_multiplatform_test.go",
+            "Offset": 69568,
+            "Line": 2097,
+            "Column": 34
+          },
+          "baseline": {
+            "Filename": "internal/service/gateway_multiplatform_test.go",
+            "Offset": 69568,
+            "Line": 2097,
+            "Column": 34
+          },
+          "linter": "unused",
+          "message": "func (*mockConcurrencyService).GetAccountWaitingCount is unused",
+          "source": [
+            "func (m *mockConcurrencyService) GetAccountWaitingCount(ctx context.Context, accountID int64) (int, error) {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/service/testhelpers_test.go",
+            "Offset": 429,
+            "Line": 15,
+            "Column": 6
+          },
+          "baseline": {
+            "Filename": "internal/service/testhelpers_test.go",
+            "Offset": 429,
+            "Line": 15,
+            "Column": 6
+          },
+          "linter": "unused",
+          "message": "func testPtrBool is unused",
+          "source": [
+            "func testPtrBool(v bool) *bool { return &v }"
+          ]
+        }
+      ],
+      "added": [],
+      "removed": []
+    },
+    "integration": {
+      "baseline_count": 19,
+      "current_count": 19,
+      "matched": [
+        {
+          "current": {
+            "Filename": "internal/infra/httpclient/tlsfingerprint/dialer_capture_test.go",
+            "Offset": 8811,
+            "Line": 317,
+            "Column": 23
+          },
+          "baseline": {
+            "Filename": "internal/infra/httpclient/tlsfingerprint/dialer_capture_test.go",
+            "Offset": 8811,
+            "Line": 317,
+            "Column": 23
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(io.Closer).Close` is not checked",
+          "source": [
+            "defer resp.Body.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/account_repo_ollama_cloud_usage_integration_test.go",
+            "Offset": 13040,
+            "Line": 280,
+            "Column": 3
+          },
+          "baseline": {
+            "Filename": "internal/repository/account_repo_ollama_cloud_usage_integration_test.go",
+            "Offset": 13040,
+            "Line": 280,
+            "Column": 3
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "secondLoaded.Extra[service.OllamaCloudUsageSnapshotExtraKey].(map[string]any)[\"status\"])"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/api_key_repo_integration_test.go",
+            "Offset": 23049,
+            "Line": 658,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/repository/api_key_repo_integration_test.go",
+            "Offset": 23049,
+            "Line": 658,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "repo := NewAPIKeyRepository(client, integrationDB).(*apiKeyRepository)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/identity_cache_integration_test.go",
+            "Offset": 426,
+            "Line": 24,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/repository/identity_cache_integration_test.go",
+            "Offset": 426,
+            "Line": 24,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "s.cache = NewIdentityCache(s.rdb).(*identityCache)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/ops_repo_get_error_log_by_id_integration_test.go",
+            "Offset": 379,
+            "Line": 17,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/repository/ops_repo_get_error_log_by_id_integration_test.go",
+            "Offset": 379,
+            "Line": 17,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "repo := NewOpsRepository(integrationDB).(*opsRepository)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/ops_write_pressure_integration_test.go",
+            "Offset": 360,
+            "Line": 18,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/repository/ops_write_pressure_integration_test.go",
+            "Offset": 360,
+            "Line": 18,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "repo := NewOpsRepository(integrationDB).(*opsRepository)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/redeem_cache_integration_test.go",
+            "Offset": 325,
+            "Line": 21,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/repository/redeem_cache_integration_test.go",
+            "Offset": 325,
+            "Line": 21,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "s.cache = NewRedeemCache(s.rdb).(*redeemCache)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/redeem_code_repo_integration_test.go",
+            "Offset": 597,
+            "Line": 28,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/repository/redeem_code_repo_integration_test.go",
+            "Offset": 597,
+            "Line": 28,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "s.repo = NewRedeemCodeRepository(s.client).(*redeemCodeRepository)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/update_cache_integration_test.go",
+            "Offset": 360,
+            "Line": 22,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/repository/update_cache_integration_test.go",
+            "Offset": 360,
+            "Line": 22,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "s.cache = NewUpdateCache(s.rdb).(*updateCache)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/usage_billing_repo_integration_test.go",
+            "Offset": 31718,
+            "Line": 716,
+            "Column": 18
+          },
+          "baseline": {
+            "Filename": "internal/repository/usage_billing_repo_integration_test.go",
+            "Offset": 31718,
+            "Line": 716,
+            "Column": 18
+          },
+          "linter": "errcheck",
+          "message": "Error return value of `(*database/sql.Rows).Close` is not checked",
+          "source": [
+            "defer rows.Close()"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/usage_billing_repo_integration_test.go",
+            "Offset": 38599,
+            "Line": 906,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/repository/usage_billing_repo_integration_test.go",
+            "Offset": 38599,
+            "Line": 906,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "repo := NewUsageBillingRepository(client, integrationDB).(*usageBillingRepository)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/usage_billing_repo_integration_test.go",
+            "Offset": 40001,
+            "Line": 945,
+            "Column": 10
+          },
+          "baseline": {
+            "Filename": "internal/repository/usage_billing_repo_integration_test.go",
+            "Offset": 40001,
+            "Line": 945,
+            "Column": 10
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "repo := NewUsageBillingRepository(client, integrationDB).(*usageBillingRepository)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/user_subscription_repo_integration_test.go",
+            "Offset": 559,
+            "Line": 27,
+            "Column": 11
+          },
+          "baseline": {
+            "Filename": "internal/repository/user_subscription_repo_integration_test.go",
+            "Offset": 559,
+            "Line": 27,
+            "Column": 11
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "s.repo = NewUserSubscriptionRepository(s.client).(*userSubscriptionRepository)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/scheduler/rediscache/concurrency_cache_integration_test.go",
+            "Offset": 798,
+            "Line": 37,
+            "Column": 15
+          },
+          "baseline": {
+            "Filename": "internal/repository/concurrency_cache_integration_test.go",
+            "Offset": 794,
+            "Line": 37,
+            "Column": 15
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "s.rawCache = NewConcurrencyCache(s.rdb, testSlotTTLMinutes, int(testSlotTTL.Seconds())).(*concurrencyCache)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/scheduler/rediscache/user_msg_queue_cache_integration_test.go",
+            "Offset": 472,
+            "Line": 26,
+            "Column": 12
+          },
+          "baseline": {
+            "Filename": "internal/repository/user_msg_queue_cache_integration_test.go",
+            "Offset": 472,
+            "Line": 26,
+            "Column": 12
+          },
+          "linter": "errcheck",
+          "message": "Error return value is not checked",
+          "source": [
+            "s.cache = NewUserMsgQueueCache(s.rdb).(*userMsgQueueCache)"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/account/endpoint_rule.go",
+            "Offset": 1332,
+            "Line": 40,
+            "Column": 47
+          },
+          "baseline": {
+            "Filename": "internal/account/endpoint_rule.go",
+            "Offset": 1332,
+            "Line": 40,
+            "Column": 47
+          },
+          "linter": "staticcheck",
+          "message": "QF1001: could apply De Morgan's law",
+          "source": [
+            "if !has(capability.ProtocolAlphaSearch) && !(a.IsOpenAIPersonalAccessToken() && has(capability.ProtocolOpenAIResponses)) {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/fixtures_integration_test.go",
+            "Offset": 8721,
+            "Line": 386,
+            "Column": 6
+          },
+          "baseline": {
+            "Filename": "internal/repository/fixtures_integration_test.go",
+            "Offset": 8721,
+            "Line": 386,
+            "Column": 6
+          },
+          "linter": "unused",
+          "message": "func mustCreateRedeemCode is unused",
+          "source": [
+            "func mustCreateRedeemCode(t *testing.T, client *dbent.Client, c *service.RedeemCode) *service.RedeemCode {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/integration_harness_test.go",
+            "Offset": 6879,
+            "Line": 244,
+            "Column": 6
+          },
+          "baseline": {
+            "Filename": "internal/repository/integration_harness_test.go",
+            "Offset": 6879,
+            "Line": 244,
+            "Column": 6
+          },
+          "linter": "unused",
+          "message": "func testEntSQLTx is unused",
+          "source": [
+            "func testEntSQLTx(t *testing.T) (*dbent.Client, *sql.Tx) {"
+          ]
+        },
+        {
+          "current": {
+            "Filename": "internal/repository/redeem_code_repo_integration_test.go",
+            "Offset": 1008,
+            "Line": 44,
+            "Column": 31
+          },
+          "baseline": {
+            "Filename": "internal/repository/redeem_code_repo_integration_test.go",
+            "Offset": 1008,
+            "Line": 44,
+            "Column": 31
+          },
+          "linter": "unused",
+          "message": "func (*RedeemCodeRepoSuite).createGroup is unused",
+          "source": [
+            "func (s *RedeemCodeRepoSuite) createGroup(name string) *dbent.Group {"
+          ]
+        }
+      ],
+      "added": [],
+      "removed": []
+    }
+  }
+}

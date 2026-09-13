@@ -1,0 +1,27 @@
+{
+  "time": "2026-09-13T14:42:09.499885+00:00",
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/scheduler",
+    "./internal/service",
+    "-run",
+    "Test.*Sort|Test.*Shuffle|Test.*Select|Test.*Priority|Test.*LRU|Test.*Soonest|Test.*MinLoad"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 30.711,
+  "log": "refactor/baseline/S07/logs/basic-selection-unit-race.log.gz",
+  "events": {
+    "pass": 360,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

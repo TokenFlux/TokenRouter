@@ -48,7 +48,7 @@ func provideCoreRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if schedulerSnapshot != nil {
-			schedulerSnapshot.Stop()
+			return schedulerSnapshot.StopContext(ctx)
 		}
 		return nil
 	}})

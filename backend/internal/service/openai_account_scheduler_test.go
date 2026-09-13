@@ -1777,7 +1777,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyRateLimite
 	freshBackup := &Account{ID: 31002, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 5, GroupIDs: []int64{groupID}}
 	cache := &schedulerTestGatewayCache{sessionBindings: map[string]int64{"openai:session_hash_rate_limited": 31001}}
 	snapshotCache := &openAISnapshotCacheStub{snapshotAccounts: []*Account{staleSticky, staleBackup}, accountsByID: map[int64]*Account{31001: freshSticky, 31002: freshBackup}}
-	snapshotService := &SchedulerSnapshotService{cache: snapshotCache}
+	snapshotService := NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil)
 	svc := &OpenAIGatewayService{
 		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: []Account{*freshSticky, *freshBackup}},
 		cache:              cache,
@@ -2079,7 +2079,7 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_SkipsFreshlyRa
 	freshPrimary := &Account{ID: 32001, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 0, GroupIDs: []int64{groupID}, RateLimitResetAt: &rateLimitedUntil}
 	freshSecondary := &Account{ID: 32002, Platform: PlatformOpenAI, Type: AccountTypeOAuth, Status: StatusActive, Schedulable: true, Concurrency: 1, Priority: 5, GroupIDs: []int64{groupID}}
 	snapshotCache := &openAISnapshotCacheStub{snapshotAccounts: []*Account{stalePrimary, staleSecondary}, accountsByID: map[int64]*Account{32001: freshPrimary, 32002: freshSecondary}}
-	snapshotService := &SchedulerSnapshotService{cache: snapshotCache}
+	snapshotService := NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil)
 	svc := &OpenAIGatewayService{
 		accountRepo:       schedulerTestOpenAIAccountRepo{accounts: []Account{*freshPrimary, *freshSecondary}},
 		cfg:               &config.Config{},
@@ -2150,7 +2150,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_SessionStickyDBRuntimeR
 		snapshotAccounts: []*Account{staleSticky, staleBackup},
 		accountsByID:     map[int64]*Account{33001: staleSticky, 33002: staleBackup},
 	}
-	snapshotService := &SchedulerSnapshotService{cache: snapshotCache}
+	snapshotService := NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil)
 	svc := &OpenAIGatewayService{
 		accountRepo:        schedulerTestOpenAIAccountRepo{accounts: []Account{dbSticky, dbBackup}},
 		cache:              cache,
@@ -2180,7 +2180,7 @@ func TestOpenAIGatewayService_SelectAccountForModelWithExclusions_DBRuntimeReche
 		snapshotAccounts: []*Account{stalePrimary, staleSecondary},
 		accountsByID:     map[int64]*Account{34001: stalePrimary, 34002: staleSecondary},
 	}
-	snapshotService := &SchedulerSnapshotService{cache: snapshotCache}
+	snapshotService := NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil)
 	svc := &OpenAIGatewayService{
 		accountRepo:       schedulerTestOpenAIAccountRepo{accounts: []Account{dbPrimary, dbSecondary}},
 		cfg:               &config.Config{},
@@ -2211,7 +2211,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_DBFreshGroupRecheckRele
 	svc := &OpenAIGatewayService{
 		accountRepo:       schedulerTestOpenAIAccountRepo{accounts: []Account{dbPrimary, dbBackup}},
 		cfg:               cfg,
-		schedulerSnapshot: &SchedulerSnapshotService{cache: snapshotCache},
+		schedulerSnapshot: NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil),
 		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{
 			acquiredIDs: &acquiredIDs,
 			releasedIDs: &releasedIDs,
@@ -2249,7 +2249,7 @@ func TestOpenAIGatewayService_SelectAccountWithLoadAwareness_DBFreshGroupRecheck
 	svc := &OpenAIGatewayService{
 		accountRepo:       schedulerTestOpenAIAccountRepo{accounts: []Account{dbPrimary, dbBackup}},
 		cfg:               cfg,
-		schedulerSnapshot: &SchedulerSnapshotService{cache: snapshotCache},
+		schedulerSnapshot: NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil),
 		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{
 			acquireResults: map[int64]bool{staleBackup.ID: false},
 		}),
@@ -2267,7 +2267,7 @@ func TestOpenAIGatewayService_RecheckSelectedOpenAIAccountFromDB_SimpleModeUsesF
 	svc := &OpenAIGatewayService{
 		accountRepo:       schedulerTestOpenAIAccountRepo{accounts: []Account{grouped}},
 		cfg:               &config.Config{RunMode: config.RunModeSimple},
-		schedulerSnapshot: &SchedulerSnapshotService{cache: &openAISnapshotCacheStub{}},
+		schedulerSnapshot: NewSchedulerSnapshotService(&openAISnapshotCacheStub{}, nil, nil, nil, nil),
 	}
 	requestedGroupID := int64(100)
 
@@ -2283,7 +2283,7 @@ func TestOpenAIGatewayService_RecheckSelectedOpenAIAccountFromDB_SimpleModeUsesF
 	standardSvc := &OpenAIGatewayService{
 		accountRepo:       schedulerTestOpenAIAccountRepo{accounts: []Account{grouped, ungrouped}},
 		cfg:               &config.Config{RunMode: config.RunModeStandard},
-		schedulerSnapshot: &SchedulerSnapshotService{cache: &openAISnapshotCacheStub{}},
+		schedulerSnapshot: NewSchedulerSnapshotService(&openAISnapshotCacheStub{}, nil, nil, nil, nil),
 	}
 	require.Nil(t, standardSvc.recheckSelectedOpenAIAccountFromDB(context.Background(), &grouped, nil, PlatformOpenAI, "gpt-5.1", false, ""))
 	require.NotNil(t, standardSvc.recheckSelectedOpenAIAccountFromDB(context.Background(), &ungrouped, nil, PlatformOpenAI, "gpt-5.1", false, ""))
@@ -3651,24 +3651,6 @@ func TestOpenAISelectionRNG_SeedZeroStillWorks(t *testing.T) {
 	require.NotEqual(t, v1, v2)
 	require.GreaterOrEqual(t, rng.nextFloat64(), 0.0)
 	require.Less(t, rng.nextFloat64(), 1.0)
-}
-
-func TestOpenAIAccountCandidateHeap_PushPopAndInvalidType(t *testing.T) {
-	h := openAIAccountCandidateHeap{}
-	h.Push(openAIAccountCandidateScore{
-		account:  &Account{ID: 7001},
-		loadInfo: &AccountLoadInfo{LoadRate: 0, WaitingCount: 0},
-		score:    1.0,
-	})
-	require.Equal(t, 1, h.Len())
-	popped, ok := h.Pop().(openAIAccountCandidateScore)
-	require.True(t, ok)
-	require.Equal(t, int64(7001), popped.account.ID)
-	require.Equal(t, 0, h.Len())
-
-	require.Panics(t, func() {
-		h.Push("bad_element_type")
-	})
 }
 
 func TestClamp01_AllBranches(t *testing.T) {

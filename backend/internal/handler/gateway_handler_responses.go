@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/gin-gonic/gin"
@@ -139,6 +140,10 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		reqLog.Warn("gateway.responses.user_slot_acquire_failed", zap.Error(err))
 		h.handleConcurrencyError(c, err, "user", streamStarted)
 		return
+	}
+	// 只追加新取得的请求租约，保留生图意图等之前固化的上下文。
+	if lease := scheduler.RequestLease(c.Request.Context()); lease != nil {
+		requestCtx = scheduler.WithRequestLease(requestCtx, lease)
 	}
 	userReleaseFunc = wrapReleaseOnDone(c.Request.Context(), userReleaseFunc)
 	if userReleaseFunc != nil {

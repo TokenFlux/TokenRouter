@@ -1,0 +1,23 @@
+{
+  "time": "2026-09-13T14:37:21.056779+00:00",
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=10m",
+    "--max-same-issues=0",
+    "--max-issues-per-linter=0",
+    "./internal/scheduler/..."
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 17.038,
+  "log": "refactor/baseline/S07/logs/scheduler-current-lint.log.gz",
+  "events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

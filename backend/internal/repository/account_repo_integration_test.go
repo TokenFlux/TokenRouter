@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	"github.com/TokenFlux/TokenRouter/ent/accountgroup"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
@@ -1758,4 +1760,13 @@ func idsOfAccounts(accounts []service.Account) []int64 {
 		out = append(out, accounts[i].ID)
 	}
 	return out
+}
+
+// 夹具适配本次持有者句柄，继续沿用原锁失败/等待控制和断言。
+func (s *schedulerCacheRecorder) AcquireBucketLease(ctx context.Context, bucket service.SchedulerBucket, ttl time.Duration) (*scheduler.BucketLease, bool, error) {
+	ok, err := s.TryLockBucket(ctx, bucket, ttl)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	return scheduler.NewBucketLease(func(cleanup context.Context) error { return s.UnlockBucket(cleanup, bucket) }), true, nil
 }

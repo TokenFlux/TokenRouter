@@ -7,7 +7,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"io"
 	"net/http"
 	"runtime/debug"
@@ -16,6 +15,10 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	"github.com/TokenFlux/TokenRouter/internal/domain"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ip"
@@ -619,6 +622,10 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	userReleaseFunc, acquired := h.acquireResponsesUserSlot(c, subject.UserID, subject.Concurrency, reqStream, &streamStarted, reqLog)
 	if !acquired {
 		return
+	}
+	// 将已取得用户租约加入保留 HTTP passthrough 标记的选择上下文。
+	if lease := scheduler.RequestLease(c.Request.Context()); lease != nil {
+		selectionCtx = scheduler.WithRequestLease(selectionCtx, lease)
 	}
 	// 确保请求取消时也会释放槽位，避免长连接被动中断造成泄漏
 	if userReleaseFunc != nil {
@@ -2146,7 +2153,8 @@ func (h *OpenAIGatewayHandler) acquireOpenAIAccountSlot(
 		return wrapReleaseOnDone(ctx, fastReleaseFunc), openAISlotAcquireOK
 	}
 
-	canWait, waitErr := h.concurrencyHelper.IncrementAccountWaitCount(ctx, account.ID, selection.WaitPlan.MaxWaiting)
+	waitEntry, waitErr := h.concurrencyHelper.EnterAccountWait(ctx, account.ID, selection.WaitPlan.MaxWaiting)
+	canWait := waitEntry.Allowed
 	if waitErr != nil {
 		reqLog.Warn("openai.account_wait_counter_increment_failed", zap.Int64("account_id", account.ID), zap.Error(waitErr))
 	} else if !canWait {
@@ -2161,7 +2169,7 @@ func (h *OpenAIGatewayHandler) acquireOpenAIAccountSlot(
 	accountWaitCounted := waitErr == nil && canWait
 	releaseWait := func() {
 		if accountWaitCounted {
-			h.concurrencyHelper.DecrementAccountWaitCount(ctx, account.ID)
+			waitEntry.Release()
 			accountWaitCounted = false
 		}
 	}

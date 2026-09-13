@@ -6,11 +6,13 @@ import (
 	egresshttp "github.com/TokenFlux/TokenRouter/internal/egress/httpapi"
 	"github.com/TokenFlux/TokenRouter/internal/handler/admin"
 	routinghttp "github.com/TokenFlux/TokenRouter/internal/routing/httpapi"
+	schedulerhttp "github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi"
 	sitehttpapi "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 )
 
 // AdminHandlers contains all admin-related HTTP handlers
 type AdminHandlers struct {
+	SchedulerDiagnostics  *schedulerhttp.DiagnosticsHandler
 	AccountManagement     *accounthttp.ManagementHandler
 	AccountOAuthUsage     *accounthttp.OAuthUsageHandler
 	AccountOllama         *accounthttp.OllamaUsageHandler

@@ -4,6 +4,7 @@ package app
 import (
 	context "context"
 	sql "database/sql"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 	apikeypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
@@ -14,6 +15,7 @@ import (
 	repository "github.com/TokenFlux/TokenRouter/internal/repository"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
+	schedulerpostgres "github.com/TokenFlux/TokenRouter/internal/scheduler/postgres"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 )
 
@@ -27,7 +29,7 @@ func provideRoutingGroupStore(client *dbent.Client, db *sql.DB) *routingpostgres
 			return identitypostgres.GroupAccessDeletionInTx(exec)
 		},
 		Enqueue: func(ctx context.Context, exec postgresinfra.Executor, id *int64) error {
-			return repository.EnqueueSchedulerChange(ctx, exec, service.SchedulerOutboxEventGroupChanged, nil, id, nil)
+			return schedulerpostgres.EnqueueSchedulerChange(ctx, exec, service.SchedulerOutboxEventGroupChanged, nil, id, nil)
 		},
 	})
 }

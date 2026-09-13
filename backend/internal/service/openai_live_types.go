@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 )
 
 const (
@@ -104,18 +106,5 @@ type LiveCallStore interface {
 	MarkLiveCallClosed(ctx context.Context, callHash string, ttl time.Duration) (bool, error)
 }
 
-// LiveConcurrencyCache 管理同时计入账号、用户和 API Key 的长会话租约。
-type LiveConcurrencyCache interface {
-	AcquireLiveLease(
-		ctx context.Context,
-		accountID int64,
-		accountMax int,
-		userID int64,
-		userMax int,
-		apiKeyID int64,
-		leaseID string,
-		replacingRegularSlots bool,
-	) (bool, error)
-	RefreshLiveLease(ctx context.Context, accountID, userID, apiKeyID int64, leaseID string) (bool, error)
-	ReleaseLiveLease(ctx context.Context, accountID, userID, apiKeyID int64, leaseID string) error
-}
+// Live 并发租约契约由 scheduler 拥有；远端会话记录仍留执行层。
+type LiveConcurrencyCache = scheduler.LiveConcurrencyCache

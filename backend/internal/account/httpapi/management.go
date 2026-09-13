@@ -4,11 +4,12 @@ package httpapi
 import (
 	context "context"
 	errors "errors"
+	strconv "strconv"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	response "github.com/TokenFlux/TokenRouter/internal/server/httpx"
 	gin "github.com/gin-gonic/gin"
-	strconv "strconv"
 )
 
 // AccountManagement 只表达 HTTP 使用的账号用例，不暴露具体存储。
@@ -37,7 +38,6 @@ func (f AccountRuntimePresenterFunc) Present(ctx context.Context, v *accountcore
 
 // ManagementHandler 保留原管理员 HTTP 契约，运行投影与 Ollama 用量通过已装配端口取得。
 type ManagementHandler struct {
-	diagnostics      AccountSchedulerDiagnostics
 	models           *accountcore.ModelSyncService
 	reports          AccountReportOptions
 	tier             *accountcore.TierManagement
@@ -60,7 +60,6 @@ type AccountCreationPrivacy interface {
 	ForceOpenAIPrivacy(context.Context, *accountcore.Record) string
 }
 type ManagementOptions struct {
-	Diagnostics      AccountSchedulerDiagnostics
 	Models           *accountcore.ModelSyncService
 	Reports          AccountReportOptions
 	Tier             *accountcore.TierManagement
@@ -78,7 +77,7 @@ type ManagementOptions struct {
 }
 
 func NewManagementHandler(admin AccountManagement, options ManagementOptions) *ManagementHandler {
-	return &ManagementHandler{diagnostics: options.Diagnostics, models: options.Models, reports: options.Reports, tier: options.Tier, catalog: options.Catalog, modelDefaults: options.ModelDefaults, listing: options.List, runtimePresenter: options.RuntimePresenter, recovery: options.Recovery, batch: options.Batch, managed: options.Managed, adminService: admin, presenter: options.Presenter, ollamaCloudUsage: options.Ollama, privacy: options.Privacy, afterCreate: options.AfterCreate}
+	return &ManagementHandler{models: options.Models, reports: options.Reports, tier: options.Tier, catalog: options.Catalog, modelDefaults: options.ModelDefaults, listing: options.List, runtimePresenter: options.RuntimePresenter, recovery: options.Recovery, batch: options.Batch, managed: options.Managed, adminService: admin, presenter: options.Presenter, ollamaCloudUsage: options.Ollama, privacy: options.Privacy, afterCreate: options.AfterCreate}
 }
 
 // GetByID 按原状态码与展示流程查询账号。

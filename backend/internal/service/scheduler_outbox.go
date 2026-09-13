@@ -1,30 +1,8 @@
+// 调度 outbox 契约由 scheduler 唯一拥有；旧入口不持有运行状态。
 package service
 
-import (
-	"context"
-	"time"
-)
+import "github.com/TokenFlux/TokenRouter/internal/scheduler"
 
-type SchedulerOutboxEvent struct {
-	ID        int64
-	EventType string
-	AccountID *int64
-	GroupID   *int64
-	Payload   map[string]any
-	CreatedAt time.Time
-}
-
-// SchedulerOutboxRepository 提供调度 outbox 的读取接口。
-type SchedulerOutboxRepository interface {
-	ListAfterAndReleaseDedup(ctx context.Context, afterID int64, limit int) ([]SchedulerOutboxEvent, error)
-	// FirstCreatedAtAfter 返回指定水位之后第一条待消费事件的创建时间，不领取事件或修改去重键。
-	FirstCreatedAtAfter(ctx context.Context, afterID int64) (time.Time, bool, error)
-	MaxID(ctx context.Context) (int64, error)
-	DeleteConsumedUpTo(ctx context.Context, watermark int64, limit int) (int64, error)
-	TryAcquireCleanupLock(ctx context.Context) (SchedulerOutboxCleanupLease, bool, error)
-}
-
-// SchedulerOutboxCleanupLease 持有调度 outbox 清理使用的 PostgreSQL 咨询锁。
-type SchedulerOutboxCleanupLease interface {
-	Release()
-}
+type SchedulerOutboxEvent = scheduler.SchedulerOutboxEvent
+type SchedulerOutboxRepository = scheduler.SchedulerOutboxRepository
+type SchedulerOutboxCleanupLease = scheduler.SchedulerOutboxCleanupLease

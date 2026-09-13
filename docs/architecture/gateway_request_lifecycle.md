@@ -125,7 +125,9 @@ client_model
 
 `basic` 保留历史选择路径。`advanced` 在上述硬约束完成后调用通用评分核心，按 Top-K 加权顺序尝试候选并在每次尝试前复核并发槽。有效 Top-K、权重和粘性开关按最终高级分组逐字段合并：分组 `advanced_scheduler_overrides` 优先于网关运行时设置，缺失字段继续使用全局值；空对象等于全部继承。OpenAI/Grok 在这一核心上附加 previous response、订阅、transport、Compact 与额度能力；其它平台只提供各自已存在的候选与硬过滤。运行时只对本次实际走高级模式的选择回写错误率、TTFT 和切换统计，基础请求不会污染高级评分。`count_tokens`、可用性探测等仅选账号入口同样按最终分组决定模式，但使用无槽选择，不占用账号并发槽或会话数量。
 
-选择结果可能已经持有账号并发槽，也可能携带 WaitPlan。后一种情况由 handler 先增加有界等待计数，再在超时内获取账号槽；成功后绑定粘性会话。客户端取消、队列满或等待超时必须释放等待计数和已获取的用户/账号槽。
+账号选择由 `scheduler` 的通用/平台选择器执行，旧网关只提供平台资格与执行账号投影。`SelectionInput` 使用最终 RoutePlan 和独立账号候选；每个 attempt、fresh 和 DB 复核重新解析候选，不把模型/协议结果写回共享缓存。
+
+`AcquireUser` 返回请求 Lease 与带计数所有权的 WaitResult；`Lease.Select` 返回当前 AttemptLease。选择结果也可能携带 WaitPlan，由 scheduler 执行等待循环、HTTP 同步观察并输出原心跳。只释放确认取得的等待计数；完整账号补全失败等后续准备错误立即归还已登记槽位。请求和尝试的组合释放幂等，成功/部分结果的会话保留由 Finish 决定。用户等待完成后仍在原位置复查权益。
 
 故障转移只处理 service 明确包装为 `UpstreamFailoverError` 的可切换错误。`FailoverState` 记录切换次数、失败账号和最后错误，并根据账号 pool-mode 重试次数决定同账号重试、排除后选择下一个账号、短暂等待或耗尽。普通同账号重试固定等待 500ms；被标记为请求级瞬时故障的容量错误按 500ms、1s、2s、4s 指数退避，后续单次等待封顶 8s，客户端取消会立即打断等待。临时不可调度标记由 service 根据错误分类写入，不是所有 HTTP 非 2xx 都应封禁账号。
 
@@ -141,6 +143,8 @@ client_model
 流式响应有不可逆边界：在调用上游前记录 `ResponseWriter` 已写字节数；如果 attempt 已向客户端写出真实业务输出，就不能再选择账号，否则会把两个上游响应拼接为损坏的单流。旧版 Compact 桥接心跳、Responses 的 `response.created` / `response.in_progress` 前导事件，以及等待终态判定的可重试 `error` 帧不算业务输出，可以留在 attempt 缓冲中为 pre-output failover 保留空间；不可重试错误仍按事件边界及时转发。真实输出开始后，错误只能按当前协议追加允许的流错误事件或结束连接。非流式且尚未写响应时，才可以安全地进入下一次 failover。
 
 错误分为本地准入、业务能力不足、调度容量不足、上游可切换错误和不可切换转发错误。协议准入拒绝分别使用 Anthropic `permission_error`、OpenAI `protocol_not_allowed` 和 Google `PERMISSION_DENIED`，且没有所选账号。Ops 采集会记录归属、endpoint、平台、模型和所选账号，但返回客户端的错误不能泄露凭据、内部代理或数据库错误。
+
+Qoder 流式已经进入上游后使用完成释放：客户端断开停止下游输出，原预算内的尾部 usage 收集结束后再释放槽位。等待和非流请求仍按原取消策略释放。WS 入站连接与 Live 租约各自续租、丢失取消，不能因请求 Lease 引入而合并。
 
 ## 用量与结算
 

@@ -230,6 +230,14 @@ func TestS02ProcessModes(t *testing.T) {
 			require.Less(t, strings.Index(logs, "stopped HTTPRequests"), strings.Index(logs, "stopped TokenRefreshService"))
 			require.Less(t, strings.Index(logs, "stopped TokenRefreshService"), strings.Index(logs, "stopped AccountRefreshCoordinator"))
 			require.Less(t, strings.Index(logs, "stopped DeferredService"), strings.Index(logs, "stopped TimingWheelService"))
+
+			// S07 的快照、并发和串行队列各启动一次；实际请求结束后才停止，随后关闭存储。
+			for _, name := range []string{"SchedulerSnapshotService", "ConcurrencyService", "UserMessageQueueService"} {
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name), name)
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped HTTPRequests"), strings.Index(logs, "stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
+			}
 			require.NotContains(t, logs, "[Lifecycle] started TLSFingerprintCollectorService")
 			require.Eventually(t, func() bool {
 				var n int

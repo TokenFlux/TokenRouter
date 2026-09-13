@@ -1,0 +1,26 @@
+{
+  "time": "2026-09-13T17:27:26.023543+00:00",
+  "command": [
+    "env",
+    "GOOS=linux",
+    "GOARCH=amd64",
+    "CGO_ENABLED=0",
+    "go",
+    "build",
+    "-o",
+    "bin/server-linux-amd64",
+    "./cmd/server"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 15.012,
+  "log": "refactor/baseline/S07/logs/final-linux-build.log.gz",
+  "events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

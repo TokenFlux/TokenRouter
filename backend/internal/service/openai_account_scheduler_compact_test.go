@@ -30,8 +30,8 @@ func TestCompactSchedulingRechecksAdministratorSwitchFromDatabase(t *testing.T) 
 					cache:       &schedulerTestGatewayCache{}, cfg: &config.Config{},
 					rateLimitService:   newAdvancedSchedulerRateLimitService(fmt.Sprint(advanced)),
 					concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
-					schedulerSnapshot: &SchedulerSnapshotService{cache: &openAISnapshotCacheStub{
-						snapshotAccounts: []*Account{cached}, accountsByID: map[int64]*Account{cached.ID: cached}}},
+					schedulerSnapshot: NewSchedulerSnapshotService(&openAISnapshotCacheStub{
+						snapshotAccounts: []*Account{cached}, accountsByID: map[int64]*Account{cached.ID: cached}}, nil, nil, nil, nil),
 				}
 				selected, _, err := svc.SelectAccountWithScheduler(context.Background(), &groupID, "", "", "gpt-5.4", nil, OpenAIUpstreamTransportAny, true)
 				if enabled {

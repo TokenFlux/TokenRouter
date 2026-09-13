@@ -19,14 +19,3 @@ func isContextDoneError(ctx context.Context, err error) bool {
 }
 
 // contextDoneError 返回对上游更有意义的上下文错误，兜底保留原始错误。
-func contextDoneError(ctx context.Context, err error) error {
-	if ctx != nil {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			return ctxErr
-		}
-	}
-	if err != nil {
-		return err
-	}
-	return context.Canceled
-}

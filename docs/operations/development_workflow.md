@@ -78,6 +78,8 @@ app 的旧图绑定和 legacybridge 许可精确到源文件与 import。setup �
 
 协议哈希和 Gemini 迭代器的 `crypto/sha256`、`iter` 许可只匹配实际文件；clientmeta 的版本库、app 定价装配及目录 HTTP 契约测试也按文件许可。pricing、capability、clientmeta 使用明确标准库集合，不能增加文件/网络读取。纯规则的测试应直接传入值；平台选择、HTTP 失败/取消和目录热更新还要验证旧消费者。管理员目录的完整 JSON、24 项顺序及 TypeScript 类型由 app 组合测试对照前端 fixture，不能通过修改夹具掩盖输出差异。
 
+scheduler 的核心、HTTP、Redis、PostgreSQL 分别使用角色门禁。评分、排序、会话和等待不接收旧实体、Gin 或存储客户端；必要的纯 AccountSnapshot/RoutePlan、singleflight 和散列依赖按实际文件精确许可。旧 `sched:v2` 完整账号 codec 暂留唯一兼容 Adapter，迁出的测试继续用原报文验证。确认取得/故障放行、重复释放、锁过期继任及运行时取消必须验证实际资源数量，不能只检查返回码。
+
 ## 生成代码与迁移
 
 `backend/ent/` 大部分文件由 Ent 生成，`backend/internal/app/wire_gen.go` 由 Wire 生成。统一使用：

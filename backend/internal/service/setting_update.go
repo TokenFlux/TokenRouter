@@ -840,8 +840,7 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		expiresAt: time.Now().Add(openAICodexUserAgentCacheTTL).UnixNano(),
 	})
 	userPromptReplacementCache.Store((*compiledUserPromptReplacementConfig)(nil))
-	advancedSchedulerSettingSF.Forget("advanced_scheduler_settings")
-	advancedSchedulerSettingCache.Store(&cachedAdvancedSchedulerSetting{
+	SchedulerSettingsRuntime().Store(schedulerRuntimeSettings(advancedSchedulerRuntimeSettings{
 		stickyWeightedEnabled:       settings.AdvancedSchedulerStickyWeightedEnabled,
 		subscriptionPriorityEnabled: settings.AdvancedSchedulerSubscriptionPriorityEnabled,
 		lbTopKOverride:              parsePositiveIntOverride(settings.AdvancedSchedulerLBTopK),
@@ -867,8 +866,7 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 			SettingKeyAdvancedSchedulerWeightPreviousResponse: settings.AdvancedSchedulerWeightPreviousResponse,
 			SettingKeyAdvancedSchedulerWeightSessionSticky:    settings.AdvancedSchedulerWeightSessionSticky,
 		}),
-		expiresAt: time.Now().Add(advancedSchedulerSettingCacheTTL).UnixNano(),
-	})
+	}))
 	// 使配额自动暂停缓存失效，并让下一次读取触发重新加载。
 	// 这里无法判断 ops_advanced_settings 是否也被修改，因此采用防御式处理：
 	// 写入一个已过期条目，GetOpenAIQuotaAutoPauseSettings 会先返回旧值并触发异步刷新，

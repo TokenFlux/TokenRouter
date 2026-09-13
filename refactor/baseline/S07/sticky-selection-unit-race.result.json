@@ -1,0 +1,28 @@
+{
+  "time": "2026-09-13T14:44:22.749310+00:00",
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/scheduler",
+    "./internal/service",
+    "./internal/handler",
+    "-run",
+    "Test.*Sticky|Test.*SessionHash|Test.*Sort|Test.*Shuffle|Test.*LRU"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 44.575,
+  "log": "refactor/baseline/S07/logs/sticky-selection-unit-race.log.gz",
+  "events": {
+    "pass": 233,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

@@ -43,7 +43,7 @@ func TestOpenAIGatewayService_SelectAccountWithScheduler_UsesWSPassthroughSnapsh
 		cache:              &schedulerTestGatewayCache{},
 		cfg:                cfg,
 		rateLimitService:   newAdvancedSchedulerRateLimitService("true"),
-		schedulerSnapshot:  &SchedulerSnapshotService{cache: snapshotCache},
+		schedulerSnapshot:  NewSchedulerSnapshotService(snapshotCache, nil, nil, nil, nil),
 		concurrencyService: NewConcurrencyService(schedulerTestConcurrencyCache{}),
 	}
 

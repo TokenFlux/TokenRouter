@@ -1,0 +1,21 @@
+{
+  "time": "2026-09-13T17:26:33.799546+00:00",
+  "command": [
+    "make",
+    "-C",
+    "..",
+    "test-frontend"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 25.168,
+  "log": "refactor/baseline/S07/logs/final-frontend-test.log.gz",
+  "events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

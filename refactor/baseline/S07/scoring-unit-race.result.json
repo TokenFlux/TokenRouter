@@ -1,0 +1,28 @@
+{
+  "time": "2026-09-13T12:59:50.502837+00:00",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "./internal/scheduler",
+    "./internal/service",
+    "./internal/handler",
+    "-run",
+    "TestAdvancedScheduler|Test.*SchedulerScore|Test.*WeightedSelection|TestOpenAISelectionRNG|Test.*CandidateHeap|TestClamp|TestCalcLoad|TestGatewayAdvanced|TestDefaultOpenAIAccountScheduler"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 39.43,
+  "log": "refactor/baseline/S07/logs/scoring-unit-race.log.gz",
+  "events": {
+    "pass": 40,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

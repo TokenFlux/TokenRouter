@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/usagestats"
@@ -743,7 +745,7 @@ func TestGatewayHotpathHelpers_CacheTTLAndStickyContext(t *testing.T) {
 			return ok
 		}())
 
-		ctx := context.WithValue(context.Background(), windowCostPrefetchContextKey, map[int64]float64{
+		ctx := billing.WithPrefetchedWindowCosts(context.Background(), map[int64]float64{
 			9: 12.34,
 		})
 		cost, ok := windowCostFromPrefetchContext(ctx, 9)

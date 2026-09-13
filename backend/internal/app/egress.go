@@ -4,6 +4,8 @@ package app
 import (
 	context "context"
 	sql "database/sql"
+	time "time"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
@@ -14,9 +16,8 @@ import (
 	egressprovider "github.com/TokenFlux/TokenRouter/internal/egress/provider"
 	postgresinfra "github.com/TokenFlux/TokenRouter/internal/infra/postgres"
 	logging "github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging"
-	repository "github.com/TokenFlux/TokenRouter/internal/repository"
+	schedulerpostgres "github.com/TokenFlux/TokenRouter/internal/scheduler/postgres"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
-	time "time"
 )
 
 func provideEgressProxyStore(client *dbent.Client, db *sql.DB) *egresspostgres.ProxyStore {
@@ -25,7 +26,7 @@ func provideEgressProxyStore(client *dbent.Client, db *sql.DB) *egresspostgres.P
 			return accountpostgres.ProxyChangesInTx(exec)
 		},
 		Enqueue: func(ctx context.Context, exec postgresinfra.Executor, payload any) error {
-			return repository.EnqueueSchedulerChange(ctx, exec, service.SchedulerOutboxEventAccountBulkChanged, nil, nil, payload)
+			return schedulerpostgres.EnqueueSchedulerChange(ctx, exec, service.SchedulerOutboxEventAccountBulkChanged, nil, nil, payload)
 		},
 	})
 }

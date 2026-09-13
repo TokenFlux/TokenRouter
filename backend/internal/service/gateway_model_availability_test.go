@@ -178,9 +178,10 @@ func TestDiagnoseModelAvailabilityForPlatform_RateLimitedSupportingAccountRemain
 	}
 	require.False(t, repo.accounts[0].IsSchedulable(), "test account must be excluded from normal scheduling while cooling down")
 	svc := &GatewayService{
-		accountRepo:       repo,
-		cfg:               testConfig(),
-		schedulerSnapshot: &SchedulerSnapshotService{}, // 诊断必须绕过只反映瞬时状态的快照。
+		accountRepo: repo,
+		cfg:         testConfig(),
+		schedulerSnapshot: NewSchedulerSnapshotService(nil, // 诊断必须绕过只反映瞬时状态的快照。
+			nil, nil, nil, nil),
 	}
 
 	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "claude-opus-4-8", PlatformAnthropic)
@@ -212,9 +213,10 @@ func TestOpenAIDiagnoseModelAvailabilityForPlatform_RateLimitedSupportingAccount
 	}
 	require.False(t, repo.accounts[0].IsSchedulable(), "test account must be excluded from normal scheduling while cooling down")
 	svc := &OpenAIGatewayService{
-		accountRepo:       repo,
-		cfg:               testConfig(),
-		schedulerSnapshot: &SchedulerSnapshotService{}, // 诊断必须绕过只反映瞬时状态的快照。
+		accountRepo: repo,
+		cfg:         testConfig(),
+		schedulerSnapshot: NewSchedulerSnapshotService(nil, // 诊断必须绕过只反映瞬时状态的快照。
+			nil, nil, nil, nil),
 	}
 
 	diag := svc.DiagnoseModelAvailabilityForPlatform(context.Background(), &groupID, "claude-opus-4-8", PlatformOpenAI)

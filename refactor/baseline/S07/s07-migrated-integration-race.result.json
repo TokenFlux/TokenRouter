@@ -1,0 +1,27 @@
+{
+  "time": "2026-09-13T14:58:09.681961+00:00",
+  "command": [
+    "go",
+    "test",
+    "-race",
+    "-count=1",
+    "-json",
+    "-tags=integration",
+    "./internal/scheduler/...",
+    "./internal/repository",
+    "-run",
+    "TestScheduler|TestS07|TestConcurrencyCacheSuite/TestGetAccountsLoadBatch|TestSessionLimit|TestGatewayCache|TestRequestLease|TestSlotWait"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 22.441,
+  "log": "refactor/baseline/S07/logs/s07-migrated-integration-race.log.gz",
+  "events": {
+    "pass": 70,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

@@ -1,0 +1,28 @@
+{
+  "time": "2026-09-13T15:06:10.836959+00:00",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/scheduler",
+    "./internal/service",
+    "./internal/app",
+    "./internal/handler/admin",
+    "-run",
+    "Test.*AdvancedScheduler|Test.*Diagnostics|Test.*StickyEscape"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 15.556,
+  "log": "refactor/baseline/S07/logs/diagnostic-core-unit.log.gz",
+  "events": {
+    "pass": 10,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

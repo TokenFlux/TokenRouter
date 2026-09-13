@@ -6,9 +6,10 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	idempotencypostgres "github.com/TokenFlux/TokenRouter/internal/idempotency/postgres"
 	"testing"
 	"time"
+
+	idempotencypostgres "github.com/TokenFlux/TokenRouter/internal/idempotency/postgres"
 
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/stretchr/testify/require"
@@ -148,3 +149,6 @@ func TestIdempotencyRepo_StatusTransition_ToSucceeded(t *testing.T) {
 	require.Equal(t, `{"ok":true}`, *got.ResponseBody)
 	require.Nil(t, got.LockedUntil)
 }
+
+// ptrTime 保留此集成夹具原来共享的时间指针辅助。
+func ptrTime(t time.Time) *time.Time { return &t }

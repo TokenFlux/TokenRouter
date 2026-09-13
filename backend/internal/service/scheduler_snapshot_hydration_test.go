@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
 )
 
@@ -293,4 +295,28 @@ func TestGatewaySelectAccountWithLoadAwareness_SkipsAntigravityGeminiFamilyRateL
 	if result.Account.ID != 2 {
 		t.Fatalf("expected scheduler to skip Gemini-family limited antigravity account 1, got %d", result.Account.ID)
 	}
+}
+
+// B03：已取得账号槽后读取完整账号失败，错误返回前必须归还一次。
+func TestGatewayNewSelectionResultReleasesSlotWhenHydrationFails(t *testing.T) {
+	cache := &snapshotHydrationCache{accounts: map[int64]*Account{}}
+	snapshot := NewSchedulerSnapshotService(cache, nil, stubOpenAIAccountRepo{}, nil, nil)
+	gateway := &GatewayService{schedulerSnapshot: snapshot}
+	calls := 0
+	result, err := gateway.newSelectionResult(context.Background(), &Account{ID: 1001}, true, func() { calls++ }, nil)
+	if err == nil || result != nil {
+		t.Fatal("补全失败必须返回原错误而非选择结果")
+	}
+	if calls != 1 {
+		t.Fatalf("释放次数=%d，期望 1", calls)
+	}
+}
+
+// 夹具适配本次持有者句柄，继续沿用原锁失败/等待控制和断言。
+func (c *snapshotHydrationCache) AcquireBucketLease(ctx context.Context, bucket SchedulerBucket, ttl time.Duration) (*scheduler.BucketLease, bool, error) {
+	ok, err := c.TryLockBucket(ctx, bucket, ttl)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	return scheduler.NewBucketLease(func(cleanup context.Context) error { return c.UnlockBucket(cleanup, bucket) }), true, nil
 }

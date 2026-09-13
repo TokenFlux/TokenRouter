@@ -4,6 +4,8 @@ package app
 import (
 	"context"
 	sql "database/sql"
+	"time"
+
 	dbent "github.com/TokenFlux/TokenRouter/ent"
 	legacybridge "github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
 	lifecycle "github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
@@ -15,9 +17,9 @@ import (
 	timingwheel "github.com/TokenFlux/TokenRouter/internal/infra/timingwheel"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	routingpostgres "github.com/TokenFlux/TokenRouter/internal/routing/postgres"
+	schedulerpostgres "github.com/TokenFlux/TokenRouter/internal/scheduler/postgres"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/google/uuid"
-	"time"
 )
 
 func billingEligibilityOptions(c *config.Config) billing.EligibilityOptions {
@@ -42,7 +44,7 @@ func provideBillingSubscriptions(groups *routingpostgres.GroupStore, repo billin
 	return billing.NewSubscriptionService(billingGroups{Repository: groups}, repo, billingpostgres.NewSubscriptionMutations(client), billing.DateRuntime{Now: time.Now, Calendar: &calendar})
 }
 func provideSettlementStore(db *sql.DB) *billingpostgres.SettlementStore {
-	return billingpostgres.NewSettlementStore(db, legacybridge.BillingAccountQuotaOutbox)
+	return billingpostgres.NewSettlementStore(db, schedulerpostgres.EnqueueAccountQuotaChangedInTx)
 }
 func provideBillingFunds(store *billingpostgres.SettlementStore) *billing.Funds {
 	return billing.NewFunds(store)

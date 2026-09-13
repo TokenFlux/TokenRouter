@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/billing"
-	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"io"
 	"log/slog"
 	"net/http"
@@ -20,6 +18,11 @@ import (
 	"sync/atomic"
 	"time"
 	"unsafe"
+
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/domain"
@@ -91,11 +94,11 @@ type accountWithLoad struct {
 var ForceCacheBillingContextKey = forceCacheBillingKeyType{}
 
 var (
-	windowCostPrefetchCacheHitTotal  atomic.Int64
-	windowCostPrefetchCacheMissTotal atomic.Int64
-	windowCostPrefetchBatchSQLTotal  atomic.Int64
-	windowCostPrefetchFallbackTotal  atomic.Int64
-	windowCostPrefetchErrorTotal     atomic.Int64
+	windowCostPrefetchCacheHitTotal  = &billing.SharedWindowCostMetrics().Hit
+	windowCostPrefetchCacheMissTotal = &billing.SharedWindowCostMetrics().Miss
+	windowCostPrefetchBatchSQLTotal  = &billing.SharedWindowCostMetrics().BatchSQL
+	windowCostPrefetchFallbackTotal  = &billing.SharedWindowCostMetrics().Fallback
+	windowCostPrefetchErrorTotal     = &billing.SharedWindowCostMetrics().Errors
 
 	userGroupRateCacheHitTotal      = &billing.SharedGroupRateMetrics().Hit
 	userGroupRateCacheMissTotal     = &billing.SharedGroupRateMetrics().Miss
@@ -419,7 +422,7 @@ var (
 )
 
 // ErrNoAvailableAccounts 表示没有可用的账号
-var ErrNoAvailableAccounts = errors.New("no available accounts")
+var ErrNoAvailableAccounts = scheduler.ErrNoAvailableAccounts
 
 // ErrClaudeCodeOnly 表示分组仅允许 Claude Code 客户端访问
 var ErrClaudeCodeOnly = errors.New("this group only allows Claude Code clients")
@@ -555,12 +558,7 @@ func shouldClearStickySession(account *Account, requestedModel string) bool {
 	return false
 }
 
-type AccountWaitPlan struct {
-	AccountID      int64
-	MaxConcurrency int
-	Timeout        time.Duration
-	MaxWaiting     int
-}
+type AccountWaitPlan = scheduler.AccountWaitPlan
 
 type AccountSelectionResult struct {
 	Account           *Account

@@ -235,45 +235,6 @@ func TestAdvancedSchedulerScoreDiagnosticService_UsesProcessConfigBeforeFallback
 	require.Equal(t, "process_default", prioritySetting.Source)
 }
 
-func TestDiagnosticPolicySignalsOnlyReturnsContextualOrEnabledStrategies(t *testing.T) {
-	group := &Group{ID: 601, Platform: PlatformOpenAI, SchedulerType: GroupSchedulerTypeAdvanced}
-	effective := advancedSchedulerEffectiveSettings{}
-
-	// 基准诊断明确标出请求未提供、因而无法评估的能力门禁。
-	baselineSignals := diagnosticPolicySignals(group, AdvancedSchedulerScoreDiagnosticRequest{}, effective, diagnosticPolicyOutcome{})
-	require.Len(t, baselineSignals, 1)
-	require.Equal(t, "request_capabilities", baselineSignals[0].Key)
-	require.Equal(t, "not_evaluated", baselineSignals[0].State)
-
-	effective.stickyWeightedEnabled = true
-	effective.subscriptionPriorityEnabled = true
-	signals := diagnosticPolicySignals(group, AdvancedSchedulerScoreDiagnosticRequest{StickyAccountID: 99}, effective, diagnosticPolicyOutcome{
-		sessionStickyState:     "weighted",
-		subscriptionPoolActive: true,
-	})
-	require.Len(t, signals, 3)
-	require.Equal(t, "session_sticky", signals[0].Key)
-	require.Equal(t, "weighted", signals[0].State)
-	require.Equal(t, "subscription_priority", signals[1].Key)
-	require.Equal(t, "active_pool", signals[1].State)
-}
-
-func TestDiagnosticWeightedPreviousResponseIsIgnoredOutsideOpenAI(t *testing.T) {
-	group := &Group{ID: 602, Platform: PlatformGemini, SchedulerType: GroupSchedulerTypeAdvanced}
-	outcome := diagnosticHardStickyPolicyOutcome(
-		[]*Account{{ID: 99, Platform: PlatformGemini}},
-		group,
-		AdvancedSchedulerScoreDiagnosticRequest{PreviousResponseAccountID: 99, StickyAccountID: 99},
-		advancedSchedulerEffectiveSettings{stickyWeightedEnabled: true},
-		nil,
-		advancedStickyEscapeConfig{},
-	)
-
-	require.Zero(t, outcome.forcedAccountID)
-	require.Equal(t, "ignored", outcome.previousResponseState)
-	require.Equal(t, "weighted", outcome.sessionStickyState)
-}
-
 func TestAdvancedSchedulerScoreDiagnosticService_HardStickyForcesAccountOutsideTopK(t *testing.T) {
 	group := &Group{
 		ID:            701,

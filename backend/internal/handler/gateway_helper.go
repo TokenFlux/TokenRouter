@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand/v2"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -119,11 +119,9 @@ const (
 	// defaultPingInterval 流式响应等待时发送 ping 的默认间隔
 	defaultPingInterval = 10 * time.Second
 	// initialBackoff 初始退避时间
-	initialBackoff = 100 * time.Millisecond
-	// backoffMultiplier 退避时间乘数（指数退避）
-	backoffMultiplier = 1.5
+	initialBackoff = scheduler.InitialBackoff
 	// maxBackoff 最大退避时间
-	maxBackoff = 2 * time.Second
+	maxBackoff = scheduler.MaxBackoff
 )
 
 // SSEPingFormat defines the format of SSE ping events for different platforms
@@ -138,27 +136,9 @@ const (
 	SSEPingFormatComment SSEPingFormat = ":\n\n"
 )
 
-// ConcurrencyError represents a concurrency limit error with context
-type ConcurrencyError struct {
-	SlotType  string
-	IsTimeout bool
-}
-
-func (e *ConcurrencyError) Error() string {
-	if e.IsTimeout {
-		return fmt.Sprintf("timeout waiting for %s concurrency slot", e.SlotType)
-	}
-	return fmt.Sprintf("%s concurrency limit reached", e.SlotType)
-}
-
-// WaitQueueFullError 表示用户等待队列已满。
-type WaitQueueFullError struct {
-	SlotType string
-}
-
-func (e *WaitQueueFullError) Error() string {
-	return "Too many pending requests, please retry later"
-}
+// 旧 HTTP 错误入口使用相同核心类型，保留 errors.As 与字段访问。
+type ConcurrencyError = scheduler.ConcurrencyError
+type WaitQueueFullError = scheduler.WaitQueueFullError
 
 // ConcurrencyHelper provides common concurrency slot management for gateway handlers
 type ConcurrencyHelper struct {
@@ -183,39 +163,15 @@ func NewConcurrencyHelper(concurrencyService *service.ConcurrencyService, pingFo
 // 用于避免客户端断开或上游超时导致的并发槽位泄漏。
 // 优化：基于 context.AfterFunc 注册回调，避免每请求额外守护 goroutine。
 func wrapReleaseOnDone(ctx context.Context, releaseFunc func()) func() {
-	if releaseFunc == nil {
-		return nil
-	}
-	var once sync.Once
-	releaseOnce := func() {
-		once.Do(releaseFunc)
-	}
-	stop := context.AfterFunc(ctx, releaseOnce)
-
-	return func() {
-		_ = stop()
-		releaseOnce()
-	}
+	return scheduler.WrapRelease(ctx, scheduler.ReleaseOnCancel, releaseFunc)
 }
 
-// IncrementWaitCount increments the wait count for a user
-func (h *ConcurrencyHelper) IncrementWaitCount(ctx context.Context, userID int64, maxWait int) (bool, error) {
-	return h.concurrencyService.IncrementWaitCount(ctx, userID, maxWait)
+// EnterUserWait 和 EnterAccountWait 仅转接有所有权的等待结果。
+func (h *ConcurrencyHelper) EnterUserWait(ctx context.Context, id int64, limit int) (scheduler.WaitResult, error) {
+	return h.concurrencyService.EnterUserWait(ctx, id, limit)
 }
-
-// DecrementWaitCount decrements the wait count for a user
-func (h *ConcurrencyHelper) DecrementWaitCount(ctx context.Context, userID int64) {
-	h.concurrencyService.DecrementWaitCount(ctx, userID)
-}
-
-// IncrementAccountWaitCount increments the wait count for an account
-func (h *ConcurrencyHelper) IncrementAccountWaitCount(ctx context.Context, accountID int64, maxWait int) (bool, error) {
-	return h.concurrencyService.IncrementAccountWaitCount(ctx, accountID, maxWait)
-}
-
-// DecrementAccountWaitCount decrements the wait count for an account
-func (h *ConcurrencyHelper) DecrementAccountWaitCount(ctx context.Context, accountID int64) {
-	h.concurrencyService.DecrementAccountWaitCount(ctx, accountID)
+func (h *ConcurrencyHelper) EnterAccountWait(ctx context.Context, id int64, limit int) (scheduler.WaitResult, error) {
+	return h.concurrencyService.EnterAccountWait(ctx, id, limit)
 }
 
 // TryAcquireUserSlot 尝试立即获取用户并发槽位。
@@ -268,48 +224,19 @@ func (h *ConcurrencyHelper) AcquireUserSlotWithWait(c *gin.Context, userID int64
 }
 
 func (h *ConcurrencyHelper) acquireUserSlotWithWaitTimeout(c *gin.Context, userID int64, maxConcurrency int, timeout time.Duration, isStream bool, streamStarted *bool) (func(), error) {
-	ctx := c.Request.Context()
-
-	// 先尝试立即获取槽位，避免未排队请求占用等待队列名额。
-	releaseFunc, acquired, err := h.TryAcquireUserSlot(ctx, userID, maxConcurrency)
+	apiKeyID := int64(0)
+	if key, ok := middleware2.GetAPIKeyFromContext(c); ok && key != nil {
+		apiKeyID = key.ID
+	}
+	lease, _, err := h.concurrencyService.AcquireUser(c.Request.Context(), scheduler.UserAcquireOptions{
+		UserID: userID, APIKeyID: apiKeyID, Limit: maxConcurrency, Timeout: timeout,
+		Mode: scheduler.ReleaseOnCompletion, Observer: gatewayWaitObserver(c, h.pingFormat, h.pingInterval, isStream, streamStarted, true),
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	if acquired {
-		return h.withAPIKeySlotFromGin(c, releaseFunc), nil
-	}
-
-	queueLimit := service.CalculateMaxWait(maxConcurrency) - maxConcurrency
-	if queueLimit < 1 {
-		queueLimit = 1
-	}
-	canWait, err := h.IncrementWaitCount(ctx, userID, queueLimit)
-	if err != nil {
-		return nil, err
-	}
-	if !canWait {
-		return nil, &WaitQueueFullError{SlotType: "user"}
-	}
-	defer h.DecrementWaitCount(ctx, userID)
-
-	// 已进入等待队列，后续只在退避周期内重试获取槽位。
-	releaseFunc, err = h.waitForSlotWithPingTimeout(c, "user", userID, maxConcurrency, timeout, isStream, streamStarted, false)
-	if err != nil {
-		return nil, err
-	}
-	return h.withAPIKeySlotFromGin(c, releaseFunc), nil
-}
-
-func (h *ConcurrencyHelper) withAPIKeySlotFromGin(c *gin.Context, releaseFunc func()) func() {
-	if c == nil {
-		return releaseFunc
-	}
-	apiKey, ok := middleware2.GetAPIKeyFromContext(c)
-	if !ok || apiKey == nil {
-		return releaseFunc
-	}
-	return h.withAPIKeySlot(c.Request.Context(), apiKey.ID, releaseFunc)
+	c.Request = c.Request.WithContext(scheduler.WithRequestLease(c.Request.Context(), lease))
+	return lease.Release, nil
 }
 
 func (h *ConcurrencyHelper) withAPIKeySlot(ctx context.Context, apiKeyID int64, releaseFunc func()) func() {
@@ -355,91 +282,8 @@ func (h *ConcurrencyHelper) waitForSlotWithPing(c *gin.Context, slotType string,
 
 // waitForSlotWithPingTimeout waits for a concurrency slot with a custom timeout.
 func (h *ConcurrencyHelper) waitForSlotWithPingTimeout(c *gin.Context, slotType string, id int64, maxConcurrency int, timeout time.Duration, isStream bool, streamStarted *bool, tryImmediate bool) (func(), error) {
-	ctx, cancel := context.WithTimeout(c.Request.Context(), timeout)
-	defer cancel()
-
-	acquireSlot := func() (*service.AcquireResult, error) {
-		if slotType == "user" {
-			return h.concurrencyService.AcquireUserSlot(ctx, id, maxConcurrency)
-		}
-		return h.concurrencyService.AcquireAccountSlot(ctx, id, maxConcurrency)
-	}
-
-	if tryImmediate {
-		result, err := acquireSlot()
-		if err != nil {
-			return nil, err
-		}
-		if result.Acquired {
-			return result.ReleaseFunc, nil
-		}
-	}
-
-	// Determine if ping is needed (streaming + ping format defined)
-	needPing := isStream && h.pingFormat != ""
-
-	var flusher http.Flusher
-	if needPing {
-		var ok bool
-		flusher, ok = c.Writer.(http.Flusher)
-		if !ok {
-			return nil, fmt.Errorf("streaming not supported")
-		}
-	}
-
-	// Only create ping ticker if ping is needed
-	var pingCh <-chan time.Time
-	if needPing {
-		pingTicker := time.NewTicker(h.pingInterval)
-		defer pingTicker.Stop()
-		pingCh = pingTicker.C
-	}
-
-	backoff := initialBackoff
-	timer := time.NewTimer(backoff)
-	defer timer.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			if parentErr := c.Request.Context().Err(); parentErr != nil {
-				return nil, parentErr
-			}
-			return nil, &ConcurrencyError{
-				SlotType:  slotType,
-				IsTimeout: true,
-			}
-
-		case <-pingCh:
-			// Send ping to keep connection alive
-			if !*streamStarted {
-				c.Header("Content-Type", "text/event-stream")
-				c.Header("Cache-Control", "no-cache")
-				c.Header("Connection", "keep-alive")
-				c.Header("X-Accel-Buffering", "no")
-				*streamStarted = true
-			}
-			written, err := fmt.Fprint(c.Writer, string(h.pingFormat))
-			if err != nil {
-				return nil, err
-			}
-			recordGatewayStreamHeartbeat(c, written)
-			flusher.Flush()
-
-		case <-timer.C:
-			// Try to acquire slot
-			result, err := acquireSlot()
-			if err != nil {
-				return nil, err
-			}
-
-			if result.Acquired {
-				return result.ReleaseFunc, nil
-			}
-			backoff = nextBackoff(backoff)
-			timer.Reset(backoff)
-		}
-	}
+	return h.concurrencyService.WaitForSlot(c.Request.Context(), slotType, id, maxConcurrency, timeout, tryImmediate,
+		gatewayWaitObserver(c, h.pingFormat, h.pingInterval, isStream, streamStarted, true))
 }
 
 // AcquireAccountSlotWithWaitTimeout acquires an account slot with a custom timeout (keeps SSE ping).
@@ -451,21 +295,37 @@ func (h *ConcurrencyHelper) AcquireAccountSlotWithWaitTimeout(c *gin.Context, ac
 // 性能优化：使用指数退避 + 随机抖动，避免惊群效应
 // current: 当前退避时间
 // 返回值：下一次退避时间（100ms ~ 2s 之间）
-func nextBackoff(current time.Duration) time.Duration {
-	// 指数退避：当前时间 * 1.5
-	next := time.Duration(float64(current) * backoffMultiplier)
-	if next > maxBackoff {
-		next = maxBackoff
+func nextBackoff(current time.Duration) time.Duration { return scheduler.NextBackoff(current) }
+
+// gatewayWaitObserver 只负责原有 HTTP 心跳和首次输出标记；串行队列保留无 Flusher 时不输出的降级。
+func gatewayWaitObserver(c *gin.Context, format SSEPingFormat, interval time.Duration, isStream bool, started *bool, strict bool) scheduler.WaitObserver {
+	if !isStream || format == "" {
+		return scheduler.WaitObserver{}
 	}
-	// 添加 ±20% 的随机抖动（jitter 范围 0.8 ~ 1.2）
-	// 抖动可以分散多个请求的重试时间点，避免同时冲击 Redis
-	jitter := 0.8 + rand.Float64()*0.4
-	jittered := time.Duration(float64(next) * jitter)
-	if jittered < initialBackoff {
-		return initialBackoff
-	}
-	if jittered > maxBackoff {
-		return maxBackoff
-	}
-	return jittered
+	var flusher http.Flusher
+	return scheduler.WaitObserver{Interval: interval, Begin: func() error {
+		flusher, _ = c.Writer.(http.Flusher)
+		if flusher == nil && strict {
+			return fmt.Errorf("streaming not supported")
+		}
+		return nil
+	}, Heartbeat: func() error {
+		if flusher == nil {
+			return nil
+		}
+		if !*started {
+			c.Header("Content-Type", "text/event-stream")
+			c.Header("Cache-Control", "no-cache")
+			c.Header("Connection", "keep-alive")
+			c.Header("X-Accel-Buffering", "no")
+			*started = true
+		}
+		written, err := fmt.Fprint(c.Writer, string(format))
+		if err != nil {
+			return err
+		}
+		recordGatewayStreamHeartbeat(c, written)
+		flusher.Flush()
+		return nil
+	}}
 }

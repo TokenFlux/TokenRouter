@@ -1,0 +1,27 @@
+{
+  "time": "2026-09-13T14:56:23.415831+00:00",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/scheduler/httpapi",
+    "./internal/handler/admin",
+    "./internal/server/routes",
+    "./internal/app",
+    "-run",
+    "Test.*AdvancedScheduler|Test.*Scheduler|Test.*Wire"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 6.519,
+  "log": "refactor/baseline/S07/logs/diagnostics-http-contracts.log.gz",
+  "events": {
+    "pass": 15,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

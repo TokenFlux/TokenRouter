@@ -1,0 +1,384 @@
+{
+  "config_sha256": "7c740328927e46daac33d18230bfd3367e4b667ecebae6b5a9d9cf854e86c5bb",
+  "records": [
+    {
+      "label": "gate-positive-normal-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-positive-normal-darwin.json",
+        "./..."
+      ],
+      "exit_code": 0,
+      "expected_files": [],
+      "actual_files": [],
+      "issue_count": 0,
+      "valid": true
+    },
+    {
+      "label": "gate-positive-unit-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-positive-unit-darwin.json",
+        "--build-tags=unit",
+        "./..."
+      ],
+      "exit_code": 0,
+      "expected_files": [],
+      "actual_files": [],
+      "issue_count": 0,
+      "valid": true
+    },
+    {
+      "label": "gate-positive-integration-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-positive-integration-darwin.json",
+        "--build-tags=integration",
+        "./..."
+      ],
+      "exit_code": 0,
+      "expected_files": [],
+      "actual_files": [],
+      "issue_count": 0,
+      "valid": true
+    },
+    {
+      "label": "gate-positive-wireinject-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-positive-wireinject-darwin.json",
+        "--build-tags=wireinject",
+        "./..."
+      ],
+      "exit_code": 0,
+      "expected_files": [],
+      "actual_files": [],
+      "issue_count": 0,
+      "valid": true
+    },
+    {
+      "label": "gate-positive-embed-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-positive-embed-darwin.json",
+        "--build-tags=embed",
+        "./..."
+      ],
+      "exit_code": 0,
+      "expected_files": [],
+      "actual_files": [],
+      "issue_count": 0,
+      "valid": true
+    },
+    {
+      "label": "gate-positive-e2e-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-positive-e2e-darwin.json",
+        "--build-tags=e2e",
+        "./..."
+      ],
+      "exit_code": 0,
+      "expected_files": [],
+      "actual_files": [],
+      "issue_count": 0,
+      "valid": true
+    },
+    {
+      "label": "gate-positive-normal-linux",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-positive-normal-linux.json",
+        "./..."
+      ],
+      "exit_code": 0,
+      "expected_files": [],
+      "actual_files": [],
+      "issue_count": 0,
+      "valid": true
+    },
+    {
+      "label": "gate-negative-normal-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-negative-normal-darwin.json",
+        "./..."
+      ],
+      "exit_code": 1,
+      "expected_files": [
+        "internal/app/moved_scheduler_state.go",
+        "internal/app/new_file.go",
+        "internal/app/scheduler_state.go",
+        "internal/scheduler/httpapi/illegal.go",
+        "internal/scheduler/io.go",
+        "internal/scheduler/reverse.go",
+        "internal/scheduler/selection.go"
+      ],
+      "actual_files": [
+        "internal/app/moved_scheduler_state.go",
+        "internal/app/new_file.go",
+        "internal/app/scheduler_state.go",
+        "internal/scheduler/httpapi/illegal.go",
+        "internal/scheduler/io.go",
+        "internal/scheduler/reverse.go",
+        "internal/scheduler/selection.go"
+      ],
+      "issue_count": 7,
+      "valid": true
+    },
+    {
+      "label": "gate-negative-unit-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-negative-unit-darwin.json",
+        "--build-tags=unit",
+        "./..."
+      ],
+      "exit_code": 1,
+      "expected_files": [
+        "internal/app/moved_scheduler_state.go",
+        "internal/app/new_file.go",
+        "internal/app/scheduler_state.go",
+        "internal/scheduler/httpapi/illegal.go",
+        "internal/scheduler/io.go",
+        "internal/scheduler/reverse.go",
+        "internal/scheduler/selection.go",
+        "internal/scheduler/unit_denied.go"
+      ],
+      "actual_files": [
+        "internal/app/moved_scheduler_state.go",
+        "internal/app/new_file.go",
+        "internal/app/scheduler_state.go",
+        "internal/scheduler/httpapi/illegal.go",
+        "internal/scheduler/io.go",
+        "internal/scheduler/reverse.go",
+        "internal/scheduler/selection.go",
+        "internal/scheduler/unit_denied.go"
+      ],
+      "issue_count": 8,
+      "valid": true
+    },
+    {
+      "label": "gate-negative-integration-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-negative-integration-darwin.json",
+        "--build-tags=integration",
+        "./..."
+      ],
+      "exit_code": 1,
+      "expected_files": [
+        "internal/app/moved_scheduler_state.go",
+        "internal/app/new_file.go",
+        "internal/app/scheduler_state.go",
+        "internal/scheduler/httpapi/illegal.go",
+        "internal/scheduler/integration_denied.go",
+        "internal/scheduler/io.go",
+        "internal/scheduler/reverse.go",
+        "internal/scheduler/selection.go"
+      ],
+      "actual_files": [
+        "internal/app/moved_scheduler_state.go",
+        "internal/app/new_file.go",
+        "internal/app/scheduler_state.go",
+        "internal/scheduler/httpapi/illegal.go",
+        "internal/scheduler/integration_denied.go",
+        "internal/scheduler/io.go",
+        "internal/scheduler/reverse.go",
+        "internal/scheduler/selection.go"
+      ],
+      "issue_count": 8,
+      "valid": true
+    },
+    {
+      "label": "gate-negative-wireinject-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-negative-wireinject-darwin.json",
+        "--build-tags=wireinject",
+        "./..."
+      ],
+      "exit_code": 1,
+      "expected_files": [
+        "internal/app/moved_scheduler_state.go",
+        "internal/app/new_file.go",
+        "internal/app/scheduler_state.go",
+        "internal/scheduler/httpapi/illegal.go",
+        "internal/scheduler/io.go",
+        "internal/scheduler/reverse.go",
+        "internal/scheduler/selection.go"
+      ],
+      "actual_files": [
+        "internal/app/moved_scheduler_state.go",
+        "internal/app/new_file.go",
+        "internal/app/scheduler_state.go",
+        "internal/scheduler/httpapi/illegal.go",
+        "internal/scheduler/io.go",
+        "internal/scheduler/reverse.go",
+        "internal/scheduler/selection.go"
+      ],
+      "issue_count": 7,
+      "valid": true
+    },
+    {
+      "label": "gate-negative-embed-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-negative-embed-darwin.json",
+        "--build-tags=embed",
+        "./..."
+      ],
+      "exit_code": 1,
+      "expected_files": [
+        "internal/app/moved_scheduler_state.go",
+        "internal/app/new_file.go",
+        "internal/app/scheduler_state.go",
+        "internal/scheduler/httpapi/illegal.go",
+        "internal/scheduler/io.go",
+        "internal/scheduler/reverse.go",
+        "internal/scheduler/selection.go"
+      ],
+      "actual_files": [
+        "internal/app/moved_scheduler_state.go",
+        "internal/app/new_file.go",
+        "internal/app/scheduler_state.go",
+        "internal/scheduler/httpapi/illegal.go",
+        "internal/scheduler/io.go",
+        "internal/scheduler/reverse.go",
+        "internal/scheduler/selection.go"
+      ],
+      "issue_count": 7,
+      "valid": true
+    },
+    {
+      "label": "gate-negative-e2e-darwin",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-negative-e2e-darwin.json",
+        "--build-tags=e2e",
+        "./..."
+      ],
+      "exit_code": 1,
+      "expected_files": [
+        "internal/app/moved_scheduler_state.go",
+        "internal/app/new_file.go",
+        "internal/app/scheduler_state.go",
+        "internal/scheduler/httpapi/illegal.go",
+        "internal/scheduler/io.go",
+        "internal/scheduler/reverse.go",
+        "internal/scheduler/selection.go"
+      ],
+      "actual_files": [
+        "internal/app/moved_scheduler_state.go",
+        "internal/app/new_file.go",
+        "internal/app/scheduler_state.go",
+        "internal/scheduler/httpapi/illegal.go",
+        "internal/scheduler/io.go",
+        "internal/scheduler/reverse.go",
+        "internal/scheduler/selection.go"
+      ],
+      "issue_count": 7,
+      "valid": true
+    },
+    {
+      "label": "gate-negative-normal-linux",
+      "command": [
+        "golangci-lint",
+        "run",
+        "--enable-only=depguard",
+        "--timeout=10m",
+        "--max-same-issues=0",
+        "--max-issues-per-linter=0",
+        "--output.json.path=/Users/daodaoneko/GolandProjects/TokenRouter/refactor/baseline/S07/gate-negative-normal-linux.json",
+        "./..."
+      ],
+      "exit_code": 1,
+      "expected_files": [
+        "internal/app/moved_scheduler_state.go",
+        "internal/app/new_file.go",
+        "internal/app/scheduler_state.go",
+        "internal/scheduler/httpapi/illegal.go",
+        "internal/scheduler/io.go",
+        "internal/scheduler/reverse.go",
+        "internal/scheduler/selection.go"
+      ],
+      "actual_files": [
+        "internal/app/moved_scheduler_state.go",
+        "internal/app/new_file.go",
+        "internal/app/scheduler_state.go",
+        "internal/scheduler/httpapi/illegal.go",
+        "internal/scheduler/io.go",
+        "internal/scheduler/reverse.go",
+        "internal/scheduler/selection.go"
+      ],
+      "issue_count": 7,
+      "valid": true
+    }
+  ],
+  "temporary_directory_removed": true
+}

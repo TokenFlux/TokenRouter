@@ -1,0 +1,28 @@
+{
+  "time": "2026-09-13T12:37:02.647530+00:00",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/scheduler/...",
+    "./internal/service",
+    "./internal/handler",
+    "./internal/app",
+    "-run",
+    "Test.*Concurrency|TestAcquire|Test.*Wait|Test.*Lease|TestQoder.*Release|TestStartSlot|TestCleanupStale|TestGenerateRequest|TestCreativeWorker|TestAPIKey|TestLive"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 1.993,
+  "log": "refactor/baseline/S07/logs/concurrency-core-unit-2.log.gz",
+  "events": {
+    "pass": 51,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

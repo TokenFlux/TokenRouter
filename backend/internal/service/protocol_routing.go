@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"github.com/TokenFlux/TokenRouter/internal/routing"
@@ -28,7 +30,7 @@ func ResolveProtocolRoute(account *Account, group *Group, source domain.Protocol
 		routeGroup = &routing.Group{ID: group.ID, Platform: group.Platform, SchedulerType: group.SchedulerType, AllowedProtocols: group.AllowedProtocols, ProtocolFallbacks: group.ProtocolFallbacks}
 	}
 	plan := routing.Plan(routing.PlanInput{Group: routeGroup, ClientProtocol: source})
-	candidate, ok := plan.ResolveCandidate(AccountSnapshotView(account))
+	candidate, ok := (scheduler.SelectionInput{RoutePlan: plan}).ResolveCandidate(AccountSnapshotView(account))
 	return candidate.UpstreamProtocol, ok
 }
 
@@ -68,7 +70,7 @@ func accountForProtocolAttempt(ctx context.Context, value *Account) (*Account, e
 	} else {
 		plan = plan.WithClientProtocol(source)
 	}
-	candidate, ok := plan.ResolveCandidate(AccountSnapshotView(value))
+	candidate, ok := (scheduler.SelectionInput{RoutePlan: plan}).ResolveCandidate(AccountSnapshotView(value))
 	if !ok {
 		return nil, fmt.Errorf("account %d has no enabled route for %s", value.ID, source)
 	}

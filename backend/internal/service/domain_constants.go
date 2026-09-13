@@ -2,8 +2,10 @@ package service
 
 import (
 	"fmt"
+
 	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	"github.com/TokenFlux/TokenRouter/internal/domain"
 )
@@ -526,29 +528,29 @@ const (
 	// SettingKeyAllowUngroupedKeyScheduling 允许未分组 API Key 调度（默认 false：未分组 Key 返回 403）
 	SettingKeyAllowUngroupedKeyScheduling = "allow_ungrouped_key_scheduling"
 	// SettingKeyAdvancedSchedulerStickyWeightedEnabled 控制高级调度器的粘性加权。
-	SettingKeyAdvancedSchedulerStickyWeightedEnabled = "advanced_scheduler_sticky_weighted_enabled"
+	SettingKeyAdvancedSchedulerStickyWeightedEnabled = scheduler.SettingKeyAdvancedSchedulerStickyWeightedEnabled
 	// SettingKeyAdvancedSchedulerSubscriptionPriorityEnabled 控制可用时的订阅账号优先级。
-	SettingKeyAdvancedSchedulerSubscriptionPriorityEnabled = "advanced_scheduler_subscription_priority_enabled"
+	SettingKeyAdvancedSchedulerSubscriptionPriorityEnabled = scheduler.SettingKeyAdvancedSchedulerSubscriptionPriorityEnabled
 	// SettingKeyAdvancedSchedulerEWMAErrorRateAlpha 控制错误率 EWMA 的平滑系数。
-	SettingKeyAdvancedSchedulerEWMAErrorRateAlpha = "advanced_scheduler_ewma_error_rate_alpha"
+	SettingKeyAdvancedSchedulerEWMAErrorRateAlpha = scheduler.SettingKeyAdvancedSchedulerEWMAErrorRateAlpha
 	// SettingKeyAdvancedSchedulerEWMATTFTAlpha 控制首 token 延迟 EWMA 的平滑系数。
-	SettingKeyAdvancedSchedulerEWMATTFTAlpha = "advanced_scheduler_ewma_ttft_alpha"
+	SettingKeyAdvancedSchedulerEWMATTFTAlpha = scheduler.SettingKeyAdvancedSchedulerEWMATTFTAlpha
 	// SettingKeyAdvancedSchedulerStickyEscapeEnabled 控制健康度恶化时是否允许逃逸粘性账号。
-	SettingKeyAdvancedSchedulerStickyEscapeEnabled = "advanced_scheduler_sticky_escape_enabled"
+	SettingKeyAdvancedSchedulerStickyEscapeEnabled = scheduler.SettingKeyAdvancedSchedulerStickyEscapeEnabled
 	// SettingKeyAdvancedSchedulerStickyEscapeTTFTMs 控制触发粘性逃逸的 TTFT 阈值。
-	SettingKeyAdvancedSchedulerStickyEscapeTTFTMs = "advanced_scheduler_sticky_escape_ttft_ms"
+	SettingKeyAdvancedSchedulerStickyEscapeTTFTMs = scheduler.SettingKeyAdvancedSchedulerStickyEscapeTTFTMs
 	// SettingKeyAdvancedSchedulerStickyEscapeErrorRate 控制触发粘性逃逸的错误率阈值。
-	SettingKeyAdvancedSchedulerStickyEscapeErrorRate  = "advanced_scheduler_sticky_escape_error_rate"
-	SettingKeyAdvancedSchedulerLBTopK                 = "advanced_scheduler_lb_top_k"
-	SettingKeyAdvancedSchedulerWeightPriority         = "advanced_scheduler_weight_priority"
-	SettingKeyAdvancedSchedulerWeightLoad             = "advanced_scheduler_weight_load"
-	SettingKeyAdvancedSchedulerWeightQueue            = "advanced_scheduler_weight_queue"
-	SettingKeyAdvancedSchedulerWeightErrorRate        = "advanced_scheduler_weight_error_rate"
-	SettingKeyAdvancedSchedulerWeightTTFT             = "advanced_scheduler_weight_ttft"
-	SettingKeyAdvancedSchedulerWeightReset            = "advanced_scheduler_weight_reset"
-	SettingKeyAdvancedSchedulerWeightQuotaHeadroom    = "advanced_scheduler_weight_quota_headroom"
-	SettingKeyAdvancedSchedulerWeightPreviousResponse = "advanced_scheduler_weight_previous_response"
-	SettingKeyAdvancedSchedulerWeightSessionSticky    = "advanced_scheduler_weight_session_sticky"
+	SettingKeyAdvancedSchedulerStickyEscapeErrorRate  = scheduler.SettingKeyAdvancedSchedulerStickyEscapeErrorRate
+	SettingKeyAdvancedSchedulerLBTopK                 = scheduler.SettingKeyAdvancedSchedulerLBTopK
+	SettingKeyAdvancedSchedulerWeightPriority         = scheduler.SettingKeyAdvancedSchedulerWeightPriority
+	SettingKeyAdvancedSchedulerWeightLoad             = scheduler.SettingKeyAdvancedSchedulerWeightLoad
+	SettingKeyAdvancedSchedulerWeightQueue            = scheduler.SettingKeyAdvancedSchedulerWeightQueue
+	SettingKeyAdvancedSchedulerWeightErrorRate        = scheduler.SettingKeyAdvancedSchedulerWeightErrorRate
+	SettingKeyAdvancedSchedulerWeightTTFT             = scheduler.SettingKeyAdvancedSchedulerWeightTTFT
+	SettingKeyAdvancedSchedulerWeightReset            = scheduler.SettingKeyAdvancedSchedulerWeightReset
+	SettingKeyAdvancedSchedulerWeightQuotaHeadroom    = scheduler.SettingKeyAdvancedSchedulerWeightQuotaHeadroom
+	SettingKeyAdvancedSchedulerWeightPreviousResponse = scheduler.SettingKeyAdvancedSchedulerWeightPreviousResponse
+	SettingKeyAdvancedSchedulerWeightSessionSticky    = scheduler.SettingKeyAdvancedSchedulerWeightSessionSticky
 
 	// SettingKeyBackendModeEnabled Backend 模式：禁用用户注册和自助服务，仅管理员可登录
 	SettingKeyBackendModeEnabled = "backend_mode_enabled"

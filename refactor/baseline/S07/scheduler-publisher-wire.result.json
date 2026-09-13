@@ -1,0 +1,20 @@
+{
+  "time": "2026-09-13T14:46:25.551781+00:00",
+  "command": [
+    "go",
+    "generate",
+    "./cmd/server"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 1.735,
+  "log": "refactor/baseline/S07/logs/scheduler-publisher-wire.log.gz",
+  "events": {
+    "pass": 0,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

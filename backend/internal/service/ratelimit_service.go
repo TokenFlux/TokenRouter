@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -12,6 +11,9 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	accountcore "github.com/TokenFlux/TokenRouter/internal/account"
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/logger"
@@ -82,13 +84,24 @@ var openCodeGoUsageLimitDurationPartPattern = regexp.MustCompile(`(?i)^([0-9]+(?
 
 // NewRateLimitService 创建RateLimitService实例
 func NewRateLimitService(accountRepo AccountRepository, usageRepo UsageLogRepository, cfg *config.Config, geminiQuotaService *GeminiQuotaService, tempUnschedCache TempUnschedCache) *RateLimitService {
+	return NewRateLimitServiceWithScheduler(accountRepo, usageRepo, cfg, geminiQuotaService, tempUnschedCache, nil)
+}
+
+// NewRateLimitServiceWithScheduler 接收组合根唯一反馈，不改变旧构造器的函数类型。
+func NewRateLimitServiceWithScheduler(accountRepo AccountRepository, usageRepo UsageLogRepository, cfg *config.Config, geminiQuotaService *GeminiQuotaService, tempUnschedCache TempUnschedCache, sharedStats *scheduler.RuntimeStats) *RateLimitService {
+	var stats *advancedAccountRuntimeStats
+	if sharedStats != nil {
+		stats = &advancedAccountRuntimeStats{core: sharedStats}
+	} else {
+		stats = newAdvancedAccountRuntimeStats()
+	}
 	return &RateLimitService{
 		accountRepo:            accountRepo,
 		usageRepo:              usageRepo,
 		cfg:                    cfg,
 		geminiQuotaService:     geminiQuotaService,
 		tempUnschedCache:       tempUnschedCache,
-		advancedSchedulerStats: newAdvancedAccountRuntimeStats(),
+		advancedSchedulerStats: stats,
 	}
 }
 
@@ -1826,4 +1839,9 @@ func truncateTempUnschedMessage(body []byte, maxBytes int) string {
 // HandleStreamTimeout 委托账号健康核心。
 func (s *RateLimitService) HandleStreamTimeout(ctx context.Context, account *Account, model string) bool {
 	return s.HealthCore().HandleStreamTimeout(ctx, AccountRecordView(account), model)
+}
+
+// SchedulerFeedback 仅暴露已注入的新反馈实例，供组合根与新消费者直接绑定。
+func (s *RateLimitService) SchedulerFeedback() *scheduler.RuntimeStats {
+	return schedulerStats(s.AdvancedSchedulerRuntimeStats())
 }

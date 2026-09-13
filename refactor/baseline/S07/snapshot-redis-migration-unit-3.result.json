@@ -1,0 +1,29 @@
+{
+  "time": "2026-09-13T14:16:38.916030+00:00",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/scheduler/...",
+    "./internal/service",
+    "./internal/repository",
+    "./internal/handler",
+    "./internal/app",
+    "-run",
+    "TestScheduler|TestS07|TestGatewaySelect|TestOpenAISelect|Test.*Hydrat|Test.*Lease|TestDefaultOpenAIAccountScheduler"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 10.209,
+  "log": "refactor/baseline/S07/logs/snapshot-redis-migration-unit-3.log.gz",
+  "events": {
+    "pass": 241,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

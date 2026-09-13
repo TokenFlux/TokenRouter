@@ -9,21 +9,10 @@ import (
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/service"
 	"github.com/google/wire"
-	"github.com/redis/go-redis/v9"
 )
 
 // ProvideConcurrencyCache 创建并发控制缓存，从配置读取 TTL 参数
 // 性能优化：TTL 可配置，支持长时间运行的 LLM 请求场景
-func ProvideConcurrencyCache(rdb *redis.Client, cfg *config.Config) service.ConcurrencyCache {
-	waitTTLSeconds := int(cfg.Gateway.Scheduling.StickySessionWaitTimeout.Seconds())
-	if cfg.Gateway.Scheduling.FallbackWaitTimeout > cfg.Gateway.Scheduling.StickySessionWaitTimeout {
-		waitTTLSeconds = int(cfg.Gateway.Scheduling.FallbackWaitTimeout.Seconds())
-	}
-	if waitTTLSeconds <= 0 {
-		waitTTLSeconds = cfg.Gateway.ConcurrencySlotTTLMinutes * 60
-	}
-	return NewConcurrencyCache(rdb, cfg.Gateway.ConcurrencySlotTTLMinutes, waitTTLSeconds)
-}
 
 // ProvideGitHubReleaseClient 创建 GitHub Release 客户端
 // 从配置中读取代理设置，支持国内服务器通过代理访问 GitHub
@@ -39,28 +28,8 @@ func ProvidePricingRemoteClient(cfg *config.Config) service.PricingRemoteClient 
 
 // ProvideSessionLimitCache 创建会话限制缓存
 // 用于 Anthropic OAuth/SetupToken 账号的并发会话数量控制
-func ProvideSessionLimitCache(rdb *redis.Client, cfg *config.Config) service.SessionLimitCache {
-	defaultIdleTimeoutMinutes := 5 // 默认 5 分钟空闲超时
-	if cfg != nil && cfg.Gateway.SessionIdleTimeoutMinutes > 0 {
-		defaultIdleTimeoutMinutes = cfg.Gateway.SessionIdleTimeoutMinutes
-	}
-	return NewSessionLimitCache(rdb, defaultIdleTimeoutMinutes)
-}
 
 // ProvideSchedulerCache 创建调度快照缓存，并注入快照分块参数。
-func ProvideSchedulerCache(rdb *redis.Client, cfg *config.Config) service.SchedulerCache {
-	mgetChunkSize := defaultSchedulerSnapshotMGetChunkSize
-	writeChunkSize := defaultSchedulerSnapshotWriteChunkSize
-	if cfg != nil {
-		if cfg.Gateway.Scheduling.SnapshotMGetChunkSize > 0 {
-			mgetChunkSize = cfg.Gateway.Scheduling.SnapshotMGetChunkSize
-		}
-		if cfg.Gateway.Scheduling.SnapshotWriteChunkSize > 0 {
-			writeChunkSize = cfg.Gateway.Scheduling.SnapshotWriteChunkSize
-		}
-	}
-	return newSchedulerCacheWithChunkSizes(rdb, mgetChunkSize, writeChunkSize)
-}
 
 // ProvideCreativeManagedKeyRepository 把 API Key 仓储以创作台托管 Key 窄接口注入。
 func ProvideCreativeManagedKeyRepository(client *ent.Client, sqlDB *sql.DB) service.CreativeManagedKeyRepository {
@@ -96,11 +65,6 @@ var ProviderSet = wire.NewSet(
 	NewGatewayCache,
 	NewBillingCache,
 	NewInternal500CounterCache,
-	ProvideConcurrencyCache,
-	ProvideSessionLimitCache,
-	NewRPMCache,
-	NewUserRPMCache,
-	NewUserMsgQueueCache,
 	NewDashboardCache,
 	NewEmailCache,
 	NewIdentityCache,
@@ -110,8 +74,6 @@ var ProviderSet = wire.NewSet(
 	NewBatchImageQueue,
 	NewBatchImageDownloadLimiter,
 	NewLeaderLockCache,
-	ProvideSchedulerCache,
-	NewSchedulerOutboxRepository,
 	NewErrorPassthroughCache,
 	NewContentModerationHashCache,
 

@@ -1,0 +1,19 @@
+{
+  "current_files": 193,
+  "symbols": 3984,
+  "test_files": 60,
+  "removed_files": 27,
+  "static_references_involving_changed_files": 41291,
+  "roles": {
+    "账号配置解析，纯 RPM/费用规则委托所属模块": 2,
+    "组合根/同连接绑定与无状态投影": 19,
+    "billing 费用窗口唯一实现": 5,
+    "原 HTTP 输出、重试与释放时点": 14,
+    "旧签名委托或未迁仓储参与": 16,
+    "S07 唯一调度实现/契约或 Adapter": 88,
+    "原路由及中间件顺序": 2,
+    "旧形状投影、平台资格/执行观察或测试兼容": 47
+  },
+  "unclassified": [],
+  "missing_build_selection": []
+}

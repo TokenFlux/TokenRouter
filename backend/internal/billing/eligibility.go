@@ -5,13 +5,14 @@ import (
 	context "context"
 	errors "errors"
 	fmt "fmt"
-	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
-	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
-	singleflight "golang.org/x/sync/singleflight"
 	strconv "strconv"
 	sync "sync"
 	atomic "sync/atomic"
 	time "time"
+
+	apperror "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
+	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
+	singleflight "golang.org/x/sync/singleflight"
 )
 
 // 错误定义
@@ -24,8 +25,6 @@ var errBillingCacheUnavailable = fmt.Errorf("billing cache unavailable")
 var (
 	ErrBillingServiceUnavailable = apperror.ServiceUnavailable("BILLING_SERVICE_ERROR", "Billing service temporarily unavailable. Please retry later.")
 	// RPM 超限错误。gateway_handler 负责映射为 HTTP 429。
-	ErrGroupRPMExceeded = apperror.TooManyRequests("GROUP_RPM_EXCEEDED", "group requests-per-minute limit exceeded")
-	ErrUserRPMExceeded  = apperror.TooManyRequests("USER_RPM_EXCEEDED", "user requests-per-minute limit exceeded")
 
 	// user × platform quota（HTTP 429 Too Many Requests + Retry-After header）。
 	// 选用 429 而非 403：限额耗尽属于"暂时性资源用尽，重试可恢复"的场景（RFC 6585），

@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/scheduler"
+
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/pagination"
@@ -383,4 +385,13 @@ func TestGatewayHandlerMessages_InterceptWarmup_AntigravityAccount_ForcePlatform
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 	require.Regexp(t, `^msg_01[0-9A-Za-z]{22}$`, resp["id"])
 	require.Equal(t, "claude-sonnet-4-5", resp["model"])
+}
+
+// 夹具适配本次持有者句柄，继续沿用原锁失败/等待控制和断言。
+func (f *fakeSchedulerCache) AcquireBucketLease(ctx context.Context, bucket service.SchedulerBucket, ttl time.Duration) (*scheduler.BucketLease, bool, error) {
+	ok, err := f.TryLockBucket(ctx, bucket, ttl)
+	if err != nil || !ok {
+		return nil, ok, err
+	}
+	return scheduler.NewBucketLease(func(cleanup context.Context) error { return f.UnlockBucket(cleanup, bucket) }), true, nil
 }

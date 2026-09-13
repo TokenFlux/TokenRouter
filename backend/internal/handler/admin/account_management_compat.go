@@ -2,12 +2,13 @@ package admin
 
 import (
 	"context"
+	"log/slog"
+
 	"github.com/TokenFlux/TokenRouter/internal/account"
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
 	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	routing "github.com/TokenFlux/TokenRouter/internal/routing"
 	"github.com/TokenFlux/TokenRouter/internal/service"
-	"log/slog"
 )
 
 // 旧 HTTP 入口只转换数据并委托新 Adapter，不再次实现协议输出。
@@ -28,12 +29,8 @@ func (h *AccountHandler) managementHTTP() *accounthttp.ManagementHandler {
 	if managed == nil {
 		managed = h.legacyManagedRefresh(nil)
 	}
-	var diagnostics accounthttp.AccountSchedulerDiagnostics
-	if h.advancedSchedulerScores != nil {
-		diagnostics = h.advancedSchedulerScores
-	}
 	presenter := h.runtimePresenter()
-	return accounthttp.NewManagementHandler(legacyAccountManagement{legacyManagedAdmin{h.adminService}}, accounthttp.ManagementOptions{Diagnostics: diagnostics, Models: account.NewModelSyncService(service.AccountModelSyncFetch(h.accountTestService)), Reports: accounthttp.AccountReportOptions{Now: timezone.Now, StartOfDay: timezone.StartOfDay, Query: h.accountUsageService.GetAccountUsageStats}, Tier: account.NewTierManagement(legacyAccountManagement{legacyManagedAdmin{h.adminService}}, service.AccountTierManagementOptions(h.geminiOAuthService)), Catalog: routing.NewAdminCatalog(service.AdminCatalogOptions()), ModelDefaults: service.AccountAdminModelDefaults(), List: h.managementList(ollama), RuntimePresenter: presenter, Recovery: h.rateLimitService.RecoveryCore(), Batch: account.NewManagementBatch(legacyAccountManagement{legacyManagedAdmin{h.adminService}}, managed, account.ManagementCreationOptions{Privacy: legacyManagedAdmin{h.adminService}, Background: service.RunBackgroundTask, AfterCreate: func(v *account.Record) { h.scheduleGrokImportProbe(service.AccountFromRecord(v)) }, Error: slog.Error}), Managed: managed, Presenter: presenter, Ollama: ollama, Privacy: legacyManagedAdmin{h.adminService}, AfterCreate: func(v *account.Record) { h.scheduleGrokImportProbe(service.AccountFromRecord(v)) }})
+	return accounthttp.NewManagementHandler(legacyAccountManagement{legacyManagedAdmin{h.adminService}}, accounthttp.ManagementOptions{Models: account.NewModelSyncService(service.AccountModelSyncFetch(h.accountTestService)), Reports: accounthttp.AccountReportOptions{Now: timezone.Now, StartOfDay: timezone.StartOfDay, Query: h.accountUsageService.GetAccountUsageStats}, Tier: account.NewTierManagement(legacyAccountManagement{legacyManagedAdmin{h.adminService}}, service.AccountTierManagementOptions(h.geminiOAuthService)), Catalog: routing.NewAdminCatalog(service.AdminCatalogOptions()), ModelDefaults: service.AccountAdminModelDefaults(), List: h.managementList(ollama), RuntimePresenter: presenter, Recovery: h.rateLimitService.RecoveryCore(), Batch: account.NewManagementBatch(legacyAccountManagement{legacyManagedAdmin{h.adminService}}, managed, account.ManagementCreationOptions{Privacy: legacyManagedAdmin{h.adminService}, Background: service.RunBackgroundTask, AfterCreate: func(v *account.Record) { h.scheduleGrokImportProbe(service.AccountFromRecord(v)) }, Error: slog.Error}), Managed: managed, Presenter: presenter, Ollama: ollama, Privacy: legacyManagedAdmin{h.adminService}, AfterCreate: func(v *account.Record) { h.scheduleGrokImportProbe(service.AccountFromRecord(v)) }})
 }
 
 func (a legacyAccountManagement) CreateAccount(ctx context.Context, input *account.CreateAccountInput) (*account.Record, error) {

@@ -1,0 +1,27 @@
+{
+  "time": "2026-09-13T12:03:45.091631+00:00",
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/scheduler/...",
+    "./internal/service",
+    "./internal/repository",
+    "./internal/app",
+    "-run",
+    "TestSchedulerOutbox|TestSchedulerSnapshotOutbox|TestSchedulerSnapshotService|TestProvider"
+  ],
+  "cwd": "backend",
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 15.616,
+  "log": "refactor/baseline/S07/logs/outbox-normal-2.log.gz",
+  "events": {
+    "pass": 31,
+    "fail": 0,
+    "skip": 0
+  },
+  "failures": [],
+  "skips": []
+}

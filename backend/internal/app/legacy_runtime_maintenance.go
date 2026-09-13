@@ -4,9 +4,10 @@ package app
 
 import (
 	"context"
+	"time"
+
 	account "github.com/TokenFlux/TokenRouter/internal/account"
 	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"time"
 
 	"github.com/TokenFlux/TokenRouter/internal/app/lifecycle"
 	"github.com/TokenFlux/TokenRouter/internal/config"
@@ -109,12 +110,12 @@ func provideMaintenanceRuntime(
 
 	manager.Register(lifecycle.Hook{Name: "ConcurrencyService", StartOrder: 980, StopOrder: 20, Start: func(ctx context.Context) error {
 		if concurrency != nil {
-			concurrency.StartSlotCleanupWorker(nil, cfg.Gateway.Scheduling.SlotCleanupInterval)
+			concurrency.StartSlotCleanupWorker(cfg.Gateway.Scheduling.SlotCleanupInterval)
 		}
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if concurrency != nil {
-			concurrency.Stop()
+			return concurrency.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -125,7 +126,7 @@ func provideMaintenanceRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if messageQueue != nil {
-			messageQueue.Stop()
+			return messageQueue.StopContext(ctx)
 		}
 		return nil
 	}})

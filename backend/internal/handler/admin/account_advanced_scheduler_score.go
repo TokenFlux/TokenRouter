@@ -2,15 +2,16 @@
 package admin
 
 import (
+	schedulerhttp "github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi"
 	gin "github.com/gin-gonic/gin"
 )
 
 // GetAdvancedSchedulerScore 委托新 HTTP，评分仍经原诊断端口执行。
 func (h *AccountHandler) GetAdvancedSchedulerScore(c *gin.Context) {
-	h.managementHTTP().GetAdvancedSchedulerScore(c)
+	schedulerhttp.NewDiagnosticsHandler(h.advancedSchedulerScores).GetAdvancedSchedulerScore(c)
 }
 
 // PreviewAdvancedSchedulerScore 委托新 HTTP，评分仍经原诊断端口执行。
 func (h *AccountHandler) PreviewAdvancedSchedulerScore(c *gin.Context) {
-	h.managementHTTP().PreviewAdvancedSchedulerScore(c)
+	schedulerhttp.NewDiagnosticsHandler(h.advancedSchedulerScores).PreviewAdvancedSchedulerScore(c)
 }
