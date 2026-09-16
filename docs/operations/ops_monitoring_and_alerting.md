@@ -44,6 +44,8 @@ Ops 面同时接收请求错误、独立上游 attempt 错误、入口准入拒�
 
 Ops 的构造与启动分离，app 在完整绑定后启动采样、聚合、告警、报告和清理。停止时等待当前采样/聚合及 cron 作业结束；清理器还等待此前 Reload 留下的在途 cron。单次局部超时不再被当成停止完成，最终退出受应用的总清理预算约束，详见[启动与关闭](../architecture/system_architecture.md#startup_and_shutdown)。
 
+告警与报告的业务触发、收件人和变量由 Ops 确定，app 直接投影给唯一 notification 实例。通知模块只维护模板、偏好、投递和 SMTP，不回读指标或重新判断告警；报告的摘要占位符使用通知纯叶子契约，真实变量仍由 Ops 提供。投递失败不会升级为资金或处置回滚条件，详见[通知与 SMTP](../interfaces/configuration.md#notification_delivery)。
+
 ## 健康与失效语义
 
 - Ops hard switch 关闭采集/查询和后台评估，但不能关闭网关转发、认证或计费。

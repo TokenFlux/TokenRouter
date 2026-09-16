@@ -1,0 +1,15 @@
+{
+  "command": [
+    "golangci-lint",
+    "run",
+    "--timeout=5m",
+    "./internal/search/..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 0.618,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/final-search-lint.log.gz"
+}

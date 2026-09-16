@@ -70,7 +70,7 @@ usage、audit、ops 的静态参数由 app 投影为各模块 Options；动态 O
 
 `settings` 是 `key/value/updated_at` 表，删除键表示恢复该 getter 的默认语义。`settings.Store` 与其 PostgreSQL Adapter 拥有通用存取、现有版本字段和更新通知；旧 `SettingService` 继续负责业务解析、范围/组合校验、敏感值保留、页面聚合和领域缓存。handler 负责 HTTP binding、权限、审计和响应。
 
-业务更新保持校验、批量原子写入、原有缓存刷新、原有通知的顺序。Store 写方法不自动广播，单键更新不会获得原先没有的通知；旧单回调接口保留替换语义，应用订阅可以注销。这里的版本字段保留原应用版本赋值和 JSON 省略语义，没有新增持久 revision 或跨实例消息协议。公开设置、CSP、websearch 与动态 worker 回调由 app 装配；web 只消费公开投影。
+业务更新保持校验、批量原子写入、原有缓存刷新、原有通知的顺序。Store 写方法不自动广播，单键更新不会获得原先没有的通知；旧单回调接口保留替换语义，应用订阅可以注销。这里的版本字段保留原应用版本赋值和 JSON 省略语义，没有新增持久 revision 或跨实例消息协议。公开设置、CSP、search 配置运行时与动态 worker 回调由 app 装配。site 统一拥有公开 API、embed 注入与 CSP 投影，保留各自字段形状；旧设置聚合通过明确来源端口提供已投影的认证、团队和用量能力，OAuth secret 不进入 site/web。
 
 运行时设置包括注册与邮件验证、第三方登录、SMTP、TOTP/session binding/step-up、登录协议、面板限流、部分冷却与流超时、支付展示以及各类功能开关。不同 getter 的回退可能来自代码常量或 `config.Config`，不能假设所有缺失键都等价于 `false`。
 
@@ -105,6 +105,22 @@ Grok 文本转发有三项数据库运行时设置：`grok_default_text_model`�
 验证码同样属于数据库运行时设置。Turnstile、腾讯天御与阿里云验证码 2.0 三者互斥。腾讯天御启用时必须同时具备正整数 `CaptchaAppId`、`AppSecretKey`、腾讯云 `SecretId` 和 `SecretKey`，并选择 `cn` 中国站或 `intl` 国际站；站点决定前端 SDK、构造函数形式、控制台入口和服务端票据校验 endpoint，`CaptchaAppId` 与云密钥必须来自同一站点，缺失或非法站点按 `cn` 回退。阿里云启用时必须具备 Scene ID、Prefix、AccessKey ID、AccessKey Secret 及 `cn` 或 `sgp` 地域。公开设置只返回各提供方的启用状态、站点和渲染所需的非敏感参数；管理响应只返回 secret 的“已配置”标记，空白更新保留原值，审计仅记录字段发生写入而不记录内容。腾讯与阿里云 Web SDK 所需的脚本、连接、iframe、worker 和样式来源由默认 CSP 与运行时 CSP 补全逻辑共同维护，覆盖自定义旧策略时也不能遗漏，其中阿里云静态资源允许 `https://*.alicdn.com`。Google GIS 同样由默认策略与旧自定义策略增强共同允许：`script-src` 仅加入 `https://accounts.google.com/gsi/client`，`frame-src`/`connect-src` 加入 `https://accounts.google.com/gsi/`，`style-src` 加入 `https://accounts.google.com/gsi/style`。tf CLI 网页导入在 `connect-src` 中只允许 `http://127.0.0.1:43110` 到 `43119` 十个精确 Origin；代码默认策略、旧自定义策略增强和 `deploy/config.example.yaml` 必须同步，不能扩大为端口或局域网通配符。完整边界见 [tf CLI 网页导入](tf_cli_web_import.md)。
 
 SMTP 的测试连接与实际发送共用同一建连路径和超时。`smtp_use_tls=true` 先按隐式 TLS 连接；仅当服务端以明文 SMTP 问候响应时改用强制 STARTTLS，服务端不支持升级时直接失败，不能明文发送认证。`smtp_use_tls=false` 保留机会式 STARTTLS，并在服务端不提供扩展时允许现有明文语义。两条路径都在认证成功后忽略非标准 QUIT 响应，因此后台连接测试与实际发信能力保持一致。
+
+<a id="notification_delivery"></a>
+### 通知与 SMTP
+
+notification 接收确定的事件、收件人、语言、来源标识和模板变量，维护 13 类事件、模板覆盖、退订和投递去重；SMTP 位于技术 Adapter。identity 维护验证码/重置令牌及 Redis 凭据，保留各入口“先存后发”或“先发后存”的不同顺序。模板或配置错误可以使用原正文回退；发送失败或结果不明确不自动重发。
+
+同一投递 key 的读取、发送与成功标记在唯一服务实例内协调；不同 key 可以并行。退订密钥首次生成也在该实例内协调，已有密钥、HMAC 和令牌有效期不变。这些保证限于单服务进程；SMTP 接收成功但成功标记写入失败仍有不确定边界，没有新增恰好一次投递协议。
+
+SMTP 发送和管理测试均传递 context，取消会中止拨号、TLS 和在途 I/O，并遵守请求截止时间与原连接/I/O 上限中较早者。DATA 已得到成功响应后保留成功结果，不因后续取消或非标准 QUIT 触发重复发送。
+
+<a id="search_configuration"></a>
+### 搜索配置发布
+
+search.ConfigService 唯一持有配置缓存、singleflight 和当前 Manager 注册表。成功保存推进本进程发布代次；旧回源或旧 Manager 构建不得覆盖新保存。该代次不写入数据库或 Redis，没有增加缓存协议。保存、读取、展示与 provider 配置边界复制所有可变指针和 slice，读取方不能修改运行快照。
+
+配置缺键、错误缓存 TTL、空 API Key 保留、管理字段与专用脱敏投影沿用原语义；管理测试不占额度。代理无法解析时跳过该供应商，不能隐式直连；账号代理与供应商代理保留原优先级。配置改变不扩大到 Grok 或 AlphaSearch 的原生搜索策略。
 
 热路径设置必须使用以下一种明确策略：
 

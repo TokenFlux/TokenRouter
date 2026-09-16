@@ -1,0 +1,35 @@
+[
+  {
+    "tag": "normal",
+    "actual": 1,
+    "baseline": 1,
+    "path_mapping": {
+      "internal/notification/smtp/email_service_smtp_test.go": "internal/service/email_service_smtp_test.go"
+    },
+    "added": [],
+    "removed": [],
+    "matches": true
+  },
+  {
+    "tag": "unit",
+    "actual": 284,
+    "baseline": 284,
+    "path_mapping": {
+      "internal/notification/smtp/email_service_smtp_test.go": "internal/service/email_service_smtp_test.go"
+    },
+    "added": [],
+    "removed": [],
+    "matches": true
+  },
+  {
+    "tag": "integration",
+    "actual": 17,
+    "baseline": 17,
+    "path_mapping": {
+      "internal/notification/smtp/email_service_smtp_test.go": "internal/service/email_service_smtp_test.go"
+    },
+    "added": [],
+    "removed": [],
+    "matches": true
+  }
+]

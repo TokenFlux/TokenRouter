@@ -557,13 +557,13 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.GET("/pre-aggregation", h.Admin.Setting.GetPreAggregationSettings)
 		adminSettings.PUT("/pre-aggregation", h.Admin.Setting.UpdatePreAggregationSettings)
 		adminSettings.POST("/pre-aggregation/backfill", h.Admin.Setting.BackfillPreAggregation)
-		adminSettings.POST("/test-smtp", h.Admin.Setting.TestSMTPConnection)
-		adminSettings.POST("/send-test-email", h.Admin.Setting.SendTestEmail)
-		adminSettings.GET("/email-templates", h.Admin.Setting.ListEmailTemplates)
-		adminSettings.POST("/email-template-preview", h.Admin.Setting.PreviewEmailTemplate)
-		adminSettings.GET("/email-templates/:event/:locale", h.Admin.Setting.GetEmailTemplate)
-		adminSettings.PUT("/email-templates/:event/:locale", h.Admin.Setting.UpdateEmailTemplate)
-		adminSettings.POST("/email-templates/:event/:locale/restore-official", h.Admin.Setting.RestoreOfficialEmailTemplate)
+		adminSettings.POST("/test-smtp", h.Notification.TestSMTPConnection)
+		adminSettings.POST("/send-test-email", h.Notification.SendTestEmail)
+		adminSettings.GET("/email-templates", h.Notification.ListEmailTemplates)
+		adminSettings.POST("/email-template-preview", h.Notification.PreviewEmailTemplate)
+		adminSettings.GET("/email-templates/:event/:locale", h.Notification.GetEmailTemplate)
+		adminSettings.PUT("/email-templates/:event/:locale", h.Notification.UpdateEmailTemplate)
+		adminSettings.POST("/email-templates/:event/:locale/restore-official", h.Notification.RestoreOfficialEmailTemplate)
 		// Admin API Key 管理
 		adminSettings.GET("/admin-api-key", h.Admin.Setting.GetAdminAPIKey)
 		adminSettings.POST("/admin-api-key/regenerate", h.Admin.Setting.RegenerateAdminAPIKey)
@@ -596,10 +596,10 @@ func registerSettingsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 		adminSettings.GET("/beta-policy", h.Admin.Setting.GetBetaPolicySettings)
 		adminSettings.PUT("/beta-policy", h.Admin.Setting.UpdateBetaPolicySettings)
 		// Web Search 模拟配置
-		adminSettings.GET("/web-search-emulation", h.Admin.Setting.GetWebSearchEmulationConfig)
-		adminSettings.PUT("/web-search-emulation", h.Admin.Setting.UpdateWebSearchEmulationConfig)
-		adminSettings.POST("/web-search-emulation/test", h.Admin.Setting.TestWebSearchEmulation)
-		adminSettings.POST("/web-search-emulation/reset-usage", h.Admin.Setting.ResetWebSearchUsage)
+		adminSettings.GET("/web-search-emulation", h.Search.GetWebSearchEmulationConfig)
+		adminSettings.PUT("/web-search-emulation", h.Search.UpdateWebSearchEmulationConfig)
+		adminSettings.POST("/web-search-emulation/test", h.Search.TestWebSearchEmulation)
+		adminSettings.POST("/web-search-emulation/reset-usage", h.Search.ResetWebSearchUsage)
 	}
 }
 

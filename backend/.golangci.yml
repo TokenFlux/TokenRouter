@@ -48,17 +48,18 @@ linters:
         core-identity:
           list-mode: strict
           files:
-          - "!**/internal/identity/auth_options.go"
-          - "!**/internal/identity/admin_contracts.go"
+          - '!**/internal/identity/email_verification.go'
+          - '!**/internal/identity/auth_options.go'
+          - '!**/internal/identity/admin_contracts.go'
           - '!**/internal/identity/contact/**'
-          - "!**/internal/identity/registration_email_policy.go"
-          - "!**/internal/identity/totp_service.go"
-          - "!**/internal/identity/passkey.go"
-          - "!**/internal/identity/session_service.go"
-          - "!**/internal/identity/user_service.go"
-          - "!**/internal/identity/user_store.go"
-          - "!**/internal/identity/profile_errors.go"
-          - "!**/internal/identity/user.go"
+          - '!**/internal/identity/registration_email_policy.go'
+          - '!**/internal/identity/totp_service.go'
+          - '!**/internal/identity/passkey.go'
+          - '!**/internal/identity/session_service.go'
+          - '!**/internal/identity/user_service.go'
+          - '!**/internal/identity/user_store.go'
+          - '!**/internal/identity/profile_errors.go'
+          - '!**/internal/identity/user.go'
           - '**/internal/identity/**/*.go'
           - '**/internal/identity/*.go'
           - '!**/internal/identity/httpapi/**'
@@ -93,9 +94,6 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: net/rpc
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
-        # S05：纯叶子 identity/contact，禁止反向依赖根包；测试只增加断言依赖。
-        # S05：identity/admin_contracts.go；资金调整窄接口与值类型；新增文件不继承，迁出时移除本文件匹配。
-        # S05：identity/auth_options.go；注册赠送与权益窄端口；新增文件不继承，迁出时移除本文件匹配。
         s05-identity-auth_options-go:
           list-mode: strict
           files:
@@ -5157,42 +5155,41 @@ linters:
           - '!**/internal/account/gemini_authorization.go'
           - '!**/internal/account/claude_authorization.go'
           - '!**/internal/account/qoder_sessions.go'
-          - "!**/internal/account/tier_management.go"
-          - "!**/internal/account/scheduler_score_projection.go"
-          - "!**/internal/account/management_list.go"
-          - "!**/internal/account/management_batch.go"
-          - "!**/internal/account/probe_runtime.go"
-          - "!**/internal/account/grok_usage_snapshot.go"
-          - "!**/internal/account/oauth_usage_grok.go"
-          - "!**/internal/account/oauth_usage_service.go"
-          - "!**/internal/account/oauth_usage_statistics.go"
-          - "!**/internal/account/oauth_usage_cache.go"
-          - "!**/internal/account/oauth_usage_copy.go"
-          - "!**/internal/account/usageview/**"
-          - "!**/internal/account/oauth_usage_values.go"
-          - "!**/internal/account/ollama_usage_service.go"
-          - "!**/internal/account/crs_sync.go"
-          - "!**/internal/account/refresh_identity.go"
-          - "!**/internal/account/archive.go"
-          - "!**/internal/account/archive_rules.go"
-          - "!**/internal/account/transfer/**"
-          - "!**/internal/account/cn_monitor.go"
-          - "!**/internal/account/usage_validation.go"
-          - "!**/internal/account/upstream_queries.go"
-          - "!**/internal/account/header_values.go"
-          - "!**/internal/account/duplicate.go"
-          - "!**/internal/account/usage_identity.go"
-          - "!**/internal/account/admin_edit.go"
-          - "!**/internal/account/create.go"
-          - "!**/internal/account/privacy.go"
-          - "!**/internal/account/request_id_header.go"
-          - "!**/internal/account/config_quota_window.go"
-          - "!**/internal/account/usage_config.go"
-          - "!**/internal/account/text_route.go"
-          - "!**/internal/account/errors.go"
-          - "!**/internal/account/clone.go"
-          - "!**/internal/account/relations.go"
-          - "!**/internal/account/record.go"
+          - '!**/internal/account/tier_management.go'
+          - '!**/internal/account/scheduler_score_projection.go'
+          - '!**/internal/account/management_list.go'
+          - '!**/internal/account/management_batch.go'
+          - '!**/internal/account/probe_runtime.go'
+          - '!**/internal/account/grok_usage_snapshot.go'
+          - '!**/internal/account/oauth_usage_grok.go'
+          - '!**/internal/account/oauth_usage_service.go'
+          - '!**/internal/account/oauth_usage_statistics.go'
+          - '!**/internal/account/oauth_usage_cache.go'
+          - '!**/internal/account/oauth_usage_copy.go'
+          - '!**/internal/account/usageview/**'
+          - '!**/internal/account/oauth_usage_values.go'
+          - '!**/internal/account/ollama_usage_service.go'
+          - '!**/internal/account/crs_sync.go'
+          - '!**/internal/account/refresh_identity.go'
+          - '!**/internal/account/archive.go'
+          - '!**/internal/account/archive_rules.go'
+          - '!**/internal/account/transfer/**'
+          - '!**/internal/account/cn_monitor.go'
+          - '!**/internal/account/upstream_queries.go'
+          - '!**/internal/account/header_values.go'
+          - '!**/internal/account/duplicate.go'
+          - '!**/internal/account/usage_identity.go'
+          - '!**/internal/account/admin_edit.go'
+          - '!**/internal/account/create.go'
+          - '!**/internal/account/privacy.go'
+          - '!**/internal/account/request_id_header.go'
+          - '!**/internal/account/config_quota_window.go'
+          - '!**/internal/account/usage_config.go'
+          - '!**/internal/account/text_route.go'
+          - '!**/internal/account/errors.go'
+          - '!**/internal/account/clone.go'
+          - '!**/internal/account/relations.go'
+          - '!**/internal/account/record.go'
           - '**/internal/account/**/*.go'
           - '**/internal/account/*.go'
           - '!**/internal/account/httpapi/**'
@@ -5201,7 +5198,7 @@ linters:
           - '!**/internal/account/provider/**'
           - '!**/internal/account/testkit/**'
           - '!**/*_test.go'
-          - "!**/internal/account/runtime_config.go"
+          - '!**/internal/account/runtime_config.go'
           allow:
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/account$
@@ -5228,7 +5225,6 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: net/rpc
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
-        # S07：费用窗口规则唯一由 billing 提供，RPM 委托 scheduler/policy；普通账号配置解析保留此文件。
         s07-account-runtime-config:
           list-mode: strict
           files:
@@ -10420,11 +10416,12 @@ linters:
         core-billing:
           list-mode: strict
           files:
-          - "!**/internal/billing/notify_email.go"
-          - "!**/internal/billing/user_summary.go"
-          - "!**/internal/billing/subscription_expiry.go"
-          - "!**/internal/billing/group_rate_resolver.go"
-          - "!**/internal/billing/eligibility.go"
+          - '!**/internal/billing/balance_notifications.go'
+          - '!**/internal/billing/notify_email.go'
+          - '!**/internal/billing/user_summary.go'
+          - '!**/internal/billing/subscription_expiry.go'
+          - '!**/internal/billing/group_rate_resolver.go'
+          - '!**/internal/billing/eligibility.go'
           - '**/internal/billing/**/*.go'
           - '**/internal/billing/*.go'
           - '!**/internal/billing/httpapi/**'
@@ -10460,9 +10457,6 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: net/rpc
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
-        # S04：internal/billing/eligibility.go；用途：准入回源去重，保留核心基础限制；来源：冻结账本与本阶段迁移；退出：保留本模块技术依赖。
-        # S04：internal/billing/group_rate_resolver.go；用途：唯一隔离倍率缓存及回源去重；来源：冻结账本与本阶段迁移；退出：保留本模块技术依赖。
-        # S04：internal/billing/subscription_expiry.go；用途：读取已迁设置契约并识别缺省状态；来源：冻结账本与本阶段迁移；退出：S10 通知配置投影后复核。
         s05-billing-notify_email-go:
           list-mode: strict
           files:
@@ -14008,6 +14002,8 @@ linters:
         core-moderation:
           list-mode: strict
           files:
+          - '!**/internal/moderation/notifications.go'
+          - '!**/internal/moderation/ports.go'
           - '**/internal/moderation/**/*.go'
           - '**/internal/moderation/*.go'
           - '!**/internal/moderation/httpapi/**'
@@ -14016,6 +14012,7 @@ linters:
           - '!**/internal/moderation/provider/**'
           - '!**/internal/moderation/testkit/**'
           - '!**/*_test.go'
+          - '!**/internal/moderation/contract/**'
           allow:
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
@@ -14045,6 +14042,11 @@ linters:
         core-moderation-tests:
           list-mode: strict
           files:
+          - '!**/internal/moderation/legacy_fixture_test.go'
+          - '!**/internal/moderation/content_moderation_expanded_test.go'
+          - '!**/internal/moderation/content_moderation_test.go'
+          - '!**/internal/moderation/content_moderation_proxy_test.go'
+          - '!**/internal/moderation/notification_fixture_test.go'
           - '**/internal/moderation/**/*_test.go'
           - '**/internal/moderation/*_test.go'
           - '!**/internal/moderation/httpapi/**'
@@ -14052,6 +14054,7 @@ linters:
           - '!**/internal/moderation/rediscache/**'
           - '!**/internal/moderation/provider/**'
           - '!**/internal/moderation/testkit/**'
+          - '!**/internal/moderation/contract/**'
           allow:
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
@@ -14205,6 +14208,7 @@ linters:
         moderation-postgres-tests:
           list-mode: strict
           files:
+          - '!**/internal/moderation/postgres/fixture_test.go'
           - '**/internal/moderation/postgres/**/*_test.go'
           - '**/internal/moderation/postgres/*_test.go'
           allow:
@@ -14338,6 +14342,7 @@ linters:
         moderation-provider:
           list-mode: strict
           files:
+          - '!**/internal/moderation/provider/media.go'
           - '**/internal/moderation/provider/**/*.go'
           - '**/internal/moderation/provider/*.go'
           - '!**/*_test.go'
@@ -14379,6 +14384,7 @@ linters:
         moderation-provider-tests:
           list-mode: strict
           files:
+          - '!**/internal/moderation/provider/media_test.go'
           - '**/internal/moderation/provider/**/*_test.go'
           - '**/internal/moderation/provider/*_test.go'
           allow:
@@ -14512,6 +14518,8 @@ linters:
         core-search:
           list-mode: strict
           files:
+          - '!**/internal/search/config.go'
+          - '!**/internal/search/ports.go'
           - '**/internal/search/**/*.go'
           - '**/internal/search/*.go'
           - '!**/internal/search/httpapi/**'
@@ -14520,6 +14528,7 @@ linters:
           - '!**/internal/search/provider/**'
           - '!**/internal/search/testkit/**'
           - '!**/*_test.go'
+          - '!**/internal/search/contract/**'
           allow:
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
@@ -14549,6 +14558,7 @@ linters:
         core-search-tests:
           list-mode: strict
           files:
+          - '!**/internal/search/config_test.go'
           - '**/internal/search/**/*_test.go'
           - '**/internal/search/*_test.go'
           - '!**/internal/search/httpapi/**'
@@ -14556,6 +14566,7 @@ linters:
           - '!**/internal/search/rediscache/**'
           - '!**/internal/search/provider/**'
           - '!**/internal/search/testkit/**'
+          - '!**/internal/search/contract/**'
           allow:
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
@@ -14842,6 +14853,7 @@ linters:
         search-provider:
           list-mode: strict
           files:
+          - '!**/internal/search/provider/executor.go'
           - '**/internal/search/provider/**/*.go'
           - '**/internal/search/provider/*.go'
           - '!**/*_test.go'
@@ -14883,6 +14895,7 @@ linters:
         search-provider-tests:
           list-mode: strict
           files:
+          - '!**/internal/search/provider/redis_integration_test.go'
           - '**/internal/search/provider/**/*_test.go'
           - '**/internal/search/provider/*_test.go'
           allow:
@@ -15013,9 +15026,1355 @@ linters:
           - golang.org/x/mod/semver$
           - golang.org/x/net/
           - gopkg.in/natefinch/lumberjack.v2$
+        # S10：SMTP 技术执行；只读取纯发送参数，不引用通知业务或身份。
+        s10-notification-smtp:
+          list-mode: strict
+          files:
+          - '**/internal/notification/smtp/**/*.go'
+          - '**/internal/notification/smtp/*.go'
+          - '!**/*_test.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/notification/contract$
+        # S10：通知纯叶子契约，不反向引用根包或具体 Adapter。
+        s10-notification-contract:
+          list-mode: strict
+          files:
+          - '**/internal/notification/contract/**/*.go'
+          - '**/internal/notification/contract/*.go'
+          - '!**/*_test.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：SMTP 技术执行；只读取纯发送参数，不引用通知业务或身份。
+        s10-notification-smtp-tests:
+          list-mode: strict
+          files:
+          - '**/internal/notification/smtp/**/*_test.go'
+          - '**/internal/notification/smtp/*_test.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/notification/contract$
+          - github.com/stretchr/testify/assert$
+          - github.com/stretchr/testify/require$
+        # S10：通知纯叶子契约，不反向引用根包或具体 Adapter。
+        s10-notification-contract-tests:
+          list-mode: strict
+          files:
+          - '**/internal/notification/contract/**/*_test.go'
+          - '**/internal/notification/contract/*_test.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/stretchr/testify/require$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/notification/ports.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-notification-ports-go:
+          list-mode: strict
+          files:
+          - '**/internal/notification/ports.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/notification$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - github.com/TokenFlux/TokenRouter/internal/settings$
+          - github.com/TokenFlux/TokenRouter/internal/notification/contract$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/notification/mailer.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-notification-mailer-go:
+          list-mode: strict
+          files:
+          - '**/internal/notification/mailer.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/notification$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - github.com/TokenFlux/TokenRouter/internal/notification/contract$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/notification/service.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-notification-service-go:
+          list-mode: strict
+          files:
+          - '**/internal/notification/service.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/notification$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - github.com/TokenFlux/TokenRouter/internal/notification/contract$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/notification/queue.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-notification-queue-go:
+          list-mode: strict
+          files:
+          - '**/internal/notification/queue.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/notification$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/notification/service_test.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-notification-service_test-go:
+          list-mode: strict
+          files:
+          - '**/internal/notification/service_test.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/notification$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/google/go-cmp/
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/stretchr/testify/
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/goleak$
+          - github.com/TokenFlux/TokenRouter/internal/notification/smtp$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/notification/fixed_regression_test.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-notification-fixed_regression_test-go:
+          list-mode: strict
+          files:
+          - '**/internal/notification/fixed_regression_test.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/notification$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/google/go-cmp/
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/stretchr/testify/
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/goleak$
+          - github.com/TokenFlux/TokenRouter/internal/notification/smtp$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/identity/email_verification.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-identity-email_verification-go:
+          list-mode: strict
+          files:
+          - '**/internal/identity/email_verification.go'
+          allow:
+          - $gostd
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - github.com/TokenFlux/TokenRouter/internal/notification/contract$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        s10-internal-ops-report_placeholders-go:
+          list-mode: strict
+          files:
+          - '**/internal/ops/report_placeholders.go'
+          allow:
+          - $gostd
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - github.com/TokenFlux/TokenRouter/internal/notification/contract$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        s10-internal-app-notification-go:
+          list-mode: strict
+          files:
+          - '**/internal/app/notification.go'
+          allow:
+          - $gostd
+          - entgo.io/ent
+          - github.com/andybalholm/brotli$
+          - github.com/google/wire$
+          - github.com/imroc/req/v3$
+          - github.com/klauspost/compress/
+          - github.com/lib/pq
+          - github.com/natefinch/lumberjack$
+          - github.com/redis/go-redis/v9
+          - github.com/refraction-networking/utls$
+          - go.uber.org/zap
+          - golang.org/x/mod/semver$
+          - golang.org/x/net/
+          - gopkg.in/natefinch/lumberjack.v2$
+          - github.com/TokenFlux/TokenRouter/internal/account/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/identity$
+          - github.com/TokenFlux/TokenRouter/internal/identity/rediscache$
+          - github.com/TokenFlux/TokenRouter/internal/notification$
+          - github.com/TokenFlux/TokenRouter/internal/notification/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/notification/smtp$
+          - github.com/TokenFlux/TokenRouter/internal/ops$
+          - github.com/TokenFlux/TokenRouter/internal/service$
+          - github.com/TokenFlux/TokenRouter/internal/settings$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        s10-site-filesystem:
+          list-mode: strict
+          files:
+          - '**/internal/site/filesystem/**/*.go'
+          - '**/internal/site/filesystem/*.go'
+          - '!**/*_test.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/site$
+          deny:
+          - pkg: database/sql
+            desc: 页面文件 Adapter 只读受根目录约束的文件，不访问数据库或网络。
+          - pkg: net/http
+            desc: 页面文件 Adapter 只读受根目录约束的文件，不访问数据库或网络。
+          - pkg: net/rpc
+            desc: 页面文件 Adapter 只读受根目录约束的文件，不访问数据库或网络。
+        # S10：页面文件 Adapter，使用根目录约束并保留原图片解析。
+        s10-site-filesystem-tests:
+          list-mode: strict
+          files:
+          - '**/internal/site/filesystem/**/*_test.go'
+          - '**/internal/site/filesystem/*_test.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/site$
+          - github.com/stretchr/testify/assert$
+          - github.com/stretchr/testify/require$
+          deny:
+          - pkg: database/sql
+            desc: 页面文件 Adapter 只读受根目录约束的文件，不访问数据库或网络。
+          - pkg: net/http
+            desc: 页面文件 Adapter 只读受根目录约束的文件，不访问数据库或网络。
+          - pkg: net/rpc
+            desc: 页面文件 Adapter 只读受根目录约束的文件，不访问数据库或网络。
+        # S10：internal/billing/balance_notifications.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-billing-balance_notifications-go:
+          list-mode: strict
+          files:
+          - '**/internal/billing/balance_notifications.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - github.com/TokenFlux/TokenRouter/internal/notification/contract$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/notification/alerts.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-notification-alerts-go:
+          list-mode: strict
+          files:
+          - '**/internal/notification/alerts.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/notification$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - github.com/TokenFlux/TokenRouter/internal/notification/contract$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/site/httpapi/pages.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-site-httpapi-pages-go:
+          list-mode: strict
+          files:
+          - '**/internal/site/httpapi/pages.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
+          - github.com/TokenFlux/TokenRouter/internal/server/httpx$
+          - github.com/TokenFlux/TokenRouter/internal/site$
+          - github.com/TokenFlux/TokenRouter/internal/site/httpapi
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/gin-gonic/gin$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
+          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/site/httpapi/public.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-site-httpapi-public-go:
+          list-mode: strict
+          files:
+          - '**/internal/site/httpapi/public.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
+          - github.com/TokenFlux/TokenRouter/internal/server/httpx$
+          - github.com/TokenFlux/TokenRouter/internal/site$
+          - github.com/TokenFlux/TokenRouter/internal/site/httpapi
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/gin-gonic/gin$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
+          - github.com/TokenFlux/TokenRouter/internal/site/httpapi/dto$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/notification/httpapi/handler.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-notification-httpapi-handler-go:
+          list-mode: strict
+          files:
+          - '**/internal/notification/httpapi/handler.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/notification$
+          - github.com/TokenFlux/TokenRouter/internal/notification/httpapi
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
+          - github.com/TokenFlux/TokenRouter/internal/server/httpx$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/gin-gonic/gin$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - github.com/TokenFlux/TokenRouter/internal/notification/httpapi/dto$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/app/site_public.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-app-site_public-go:
+          list-mode: strict
+          files:
+          - '**/internal/app/site_public.go'
+          allow:
+          - $gostd
+          - entgo.io/ent
+          - github.com/andybalholm/brotli$
+          - github.com/google/wire$
+          - github.com/imroc/req/v3$
+          - github.com/klauspost/compress/
+          - github.com/lib/pq
+          - github.com/natefinch/lumberjack$
+          - github.com/redis/go-redis/v9
+          - github.com/refraction-networking/utls$
+          - go.uber.org/zap
+          - golang.org/x/mod/semver$
+          - golang.org/x/net/
+          - gopkg.in/natefinch/lumberjack.v2$
+          - github.com/TokenFlux/TokenRouter/internal/app/legacybridge$
+          - github.com/TokenFlux/TokenRouter/internal/service$
+          - github.com/TokenFlux/TokenRouter/internal/site$
+          - github.com/TokenFlux/TokenRouter/internal/site/httpapi$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        s10-internal-app-site_pages-go:
+          list-mode: strict
+          files:
+          - '**/internal/app/site_pages.go'
+          allow:
+          - $gostd
+          - entgo.io/ent
+          - github.com/andybalholm/brotli$
+          - github.com/google/wire$
+          - github.com/imroc/req/v3$
+          - github.com/klauspost/compress/
+          - github.com/lib/pq
+          - github.com/natefinch/lumberjack$
+          - github.com/redis/go-redis/v9
+          - github.com/refraction-networking/utls$
+          - go.uber.org/zap
+          - golang.org/x/mod/semver$
+          - golang.org/x/net/
+          - gopkg.in/natefinch/lumberjack.v2$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/service$
+          - github.com/TokenFlux/TokenRouter/internal/site$
+          - github.com/TokenFlux/TokenRouter/internal/site/filesystem$
+          - github.com/TokenFlux/TokenRouter/internal/site/httpapi$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        s10-internal-app-legacybridge-site_public-go:
+          list-mode: strict
+          files:
+          - '**/internal/app/legacybridge/site_public.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/service$
+          - github.com/TokenFlux/TokenRouter/internal/site$
+        # S10：纯值契约不反向依赖模块根或任何 Adapter。
+        s10-moderation-contract:
+          list-mode: strict
+          files:
+          - '**/internal/moderation/contract/**/*.go'
+          - '**/internal/moderation/contract/*.go'
+          - '!**/*_test.go'
+          allow:
+          - $gostd
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：纯值契约不反向依赖模块根或任何 Adapter。
+        s10-moderation-contract-tests:
+          list-mode: strict
+          files:
+          - '**/internal/moderation/contract/**/*_test.go'
+          - '**/internal/moderation/contract/*_test.go'
+          allow:
+          - $gostd
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：纯值契约不反向依赖模块根或任何 Adapter。
+        s10-search-contract:
+          list-mode: strict
+          files:
+          - '**/internal/search/contract/**/*.go'
+          - '**/internal/search/contract/*.go'
+          - '!**/*_test.go'
+          allow:
+          - $gostd
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：纯值契约不反向依赖模块根或任何 Adapter。
+        s10-search-contract-tests:
+          list-mode: strict
+          files:
+          - '**/internal/search/contract/**/*_test.go'
+          - '**/internal/search/contract/*_test.go'
+          allow:
+          - $gostd
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/moderation/ports.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-moderation-ports-go:
+          list-mode: strict
+          files:
+          - '**/internal/moderation/ports.go'
+          allow:
+          - $gostd
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - github.com/TokenFlux/TokenRouter/internal/moderation/contract$
+          - github.com/TokenFlux/TokenRouter/internal/notification/contract$
+          - github.com/TokenFlux/TokenRouter/internal/settings$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/moderation/notifications.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-moderation-notifications-go:
+          list-mode: strict
+          files:
+          - '**/internal/moderation/notifications.go'
+          allow:
+          - $gostd
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - github.com/TokenFlux/TokenRouter/internal/notification/contract$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/notification/risk.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-notification-risk-go:
+          list-mode: strict
+          files:
+          - '**/internal/notification/risk.go'
+          allow:
+          - $gostd
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - log/slog$
+          - github.com/TokenFlux/TokenRouter/internal/notification/contract$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/moderation/provider/media.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-moderation-provider-media-go:
+          list-mode: strict
+          files:
+          - '**/internal/moderation/provider/media.go'
+          allow:
+          - $gostd
+          - entgo.io/ent
+          - github.com/andybalholm/brotli$
+          - github.com/google/uuid$
+          - github.com/imroc/req/v3$
+          - github.com/klauspost/compress/
+          - github.com/lib/pq
+          - github.com/natefinch/lumberjack$
+          - github.com/redis/go-redis/v9
+          - github.com/refraction-networking/utls$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/zap
+          - golang.org/x/mod/semver$
+          - golang.org/x/net/
+          - gopkg.in/natefinch/lumberjack.v2$
+          - crypto/sha256$
+          - encoding/base64$
+          - encoding/hex$
+          - net/http$
+          - net/url$
+          - sync/atomic$
+          - github.com/TokenFlux/TokenRouter/internal/moderation/contract$
+        # S10：internal/moderation/provider/media_test.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-moderation-provider-media_test-go:
+          list-mode: strict
+          files:
+          - '**/internal/moderation/provider/media_test.go'
+          allow:
+          - $gostd
+          - entgo.io/ent
+          - github.com/DATA-DOG/go-sqlmock$
+          - github.com/alicebob/miniredis/v2
+          - github.com/andybalholm/brotli$
+          - github.com/google/go-cmp/
+          - github.com/google/uuid$
+          - github.com/imroc/req/v3$
+          - github.com/klauspost/compress/
+          - github.com/lib/pq
+          - github.com/natefinch/lumberjack$
+          - github.com/redis/go-redis/v9
+          - github.com/refraction-networking/utls$
+          - github.com/shopspring/decimal$
+          - github.com/stretchr/testify/
+          - github.com/testcontainers/testcontainers-go
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/goleak$
+          - go.uber.org/zap
+          - golang.org/x/mod/semver$
+          - golang.org/x/net/
+          - gopkg.in/natefinch/lumberjack.v2$
+          - encoding/base64$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - net/http/httptest$
+          - sync/atomic$
+          - github.com/TokenFlux/TokenRouter/internal/moderation/contract$
+        # S10：internal/moderation/postgres/fixture_test.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-moderation-postgres-fixture_test-go:
+          list-mode: strict
+          files:
+          - '**/internal/moderation/postgres/fixture_test.go'
+          allow:
+          - $gostd
+          - entgo.io/ent
+          - github.com/DATA-DOG/go-sqlmock$
+          - github.com/alicebob/miniredis/v2
+          - github.com/andybalholm/brotli$
+          - github.com/google/go-cmp/
+          - github.com/google/uuid$
+          - github.com/imroc/req/v3$
+          - github.com/klauspost/compress/
+          - github.com/lib/pq
+          - github.com/natefinch/lumberjack$
+          - github.com/redis/go-redis/v9
+          - github.com/refraction-networking/utls$
+          - github.com/shopspring/decimal$
+          - github.com/stretchr/testify/
+          - github.com/testcontainers/testcontainers-go
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/goleak$
+          - go.uber.org/zap
+          - golang.org/x/mod/semver$
+          - golang.org/x/net/
+          - gopkg.in/natefinch/lumberjack.v2$
+          - database/sql$
+          - github.com/stretchr/testify/require$
+          - github.com/TokenFlux/TokenRouter/internal/identity/postgres$
+        # S10：internal/moderation/notification_fixture_test.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-moderation-notification_fixture_test-go:
+          list-mode: strict
+          files:
+          - '**/internal/moderation/notification_fixture_test.go'
+          allow:
+          - $gostd
+          - github.com/google/go-cmp/
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/stretchr/testify/
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/goleak$
+          - github.com/TokenFlux/TokenRouter/internal/notification$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/search/ports.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-search-ports-go:
+          list-mode: strict
+          files:
+          - '**/internal/search/ports.go'
+          allow:
+          - $gostd
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - github.com/TokenFlux/TokenRouter/internal/search/contract$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/search/config.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-search-config-go:
+          list-mode: strict
+          files:
+          - '**/internal/search/config.go'
+          allow:
+          - $gostd
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - encoding/json$
+          - golang.org/x/sync/singleflight$
+          - log/slog$
+          - sync/atomic$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/settings$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/search/config_test.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-search-config_test-go:
+          list-mode: strict
+          files:
+          - '**/internal/search/config_test.go'
+          allow:
+          - $gostd
+          - github.com/google/go-cmp/
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/stretchr/testify/
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/goleak$
+          - github.com/stretchr/testify/require$
+          - sync/atomic$
+          - github.com/TokenFlux/TokenRouter/internal/settings$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/search/provider/executor.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-search-provider-executor-go:
+          list-mode: strict
+          files:
+          - '**/internal/search/provider/executor.go'
+          allow:
+          - $gostd
+          - entgo.io/ent
+          - github.com/andybalholm/brotli$
+          - github.com/google/uuid$
+          - github.com/imroc/req/v3$
+          - github.com/klauspost/compress/
+          - github.com/lib/pq
+          - github.com/natefinch/lumberjack$
+          - github.com/redis/go-redis/v9
+          - github.com/refraction-networking/utls$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/zap
+          - golang.org/x/mod/semver$
+          - golang.org/x/net/
+          - gopkg.in/natefinch/lumberjack.v2$
+          - crypto/tls$
+          - log/slog$
+          - net/http$
+          - net/url$
+          - github.com/TokenFlux/TokenRouter/internal/infra/httpclient/proxy$
+          - github.com/TokenFlux/TokenRouter/internal/search/contract$
+        # S10：internal/search/provider/redis_integration_test.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-search-provider-redis_integration_test-go:
+          list-mode: strict
+          files:
+          - '**/internal/search/provider/redis_integration_test.go'
+          allow:
+          - $gostd
+          - entgo.io/ent
+          - github.com/DATA-DOG/go-sqlmock$
+          - github.com/alicebob/miniredis/v2
+          - github.com/andybalholm/brotli$
+          - github.com/google/go-cmp/
+          - github.com/google/uuid$
+          - github.com/imroc/req/v3$
+          - github.com/klauspost/compress/
+          - github.com/lib/pq
+          - github.com/natefinch/lumberjack$
+          - github.com/redis/go-redis/v9
+          - github.com/refraction-networking/utls$
+          - github.com/shopspring/decimal$
+          - github.com/stretchr/testify/
+          - github.com/testcontainers/testcontainers-go
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/goleak$
+          - go.uber.org/zap
+          - golang.org/x/mod/semver$
+          - golang.org/x/net/
+          - gopkg.in/natefinch/lumberjack.v2$
+          - github.com/redis/go-redis/v9$
+          - github.com/stretchr/testify/require$
+          - github.com/testcontainers/testcontainers-go/modules/redis$
+          - net/http$
+          - net/http/httptest$
+          - sync/atomic$
+          - github.com/TokenFlux/TokenRouter/internal/search$
+          - github.com/TokenFlux/TokenRouter/internal/search/rediscache$
+        # S10：internal/moderation/content_moderation_proxy_test.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-moderation-content_moderation_proxy_test-go:
+          list-mode: strict
+          files:
+          - '**/internal/moderation/content_moderation_proxy_test.go'
+          allow:
+          - github.com/google/go-cmp/
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/stretchr/testify/
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/goleak$
+          - context$
+          - encoding/json$
+          - errors$
+          - net/http$
+          - net/http/httptest$
+          - strconv$
+          - strings$
+          - sync/atomic$
+          - testing$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/moderation/content_moderation_test.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-moderation-content_moderation_test-go:
+          list-mode: strict
+          files:
+          - '**/internal/moderation/content_moderation_test.go'
+          allow:
+          - github.com/google/go-cmp/
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/stretchr/testify/
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/goleak$
+          - bytes$
+          - context$
+          - encoding/json$
+          - fmt$
+          - github.com/stretchr/testify/require$
+          - log/slog$
+          - net/http$
+          - net/http/httptest$
+          - strings$
+          - sync$
+          - testing$
+          - time$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/moderation/content_moderation_expanded_test.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-moderation-content_moderation_expanded_test-go:
+          list-mode: strict
+          files:
+          - '**/internal/moderation/content_moderation_expanded_test.go'
+          allow:
+          - github.com/google/go-cmp/
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/stretchr/testify/
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/goleak$
+          - context$
+          - encoding/json$
+          - github.com/stretchr/testify/require$
+          - net/http$
+          - net/http/httptest$
+          - strings$
+          - sync/atomic$
+          - testing$
+          - time$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/moderation/legacy_fixture_test.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-moderation-legacy_fixture_test-go:
+          list-mode: strict
+          files:
+          - '**/internal/moderation/legacy_fixture_test.go'
+          allow:
+          - github.com/google/go-cmp/
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/stretchr/testify/
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/goleak$
+          - context$
+          - database/sql$
+          - errors$
+          - fmt$
+          - time$
+          - github.com/TokenFlux/TokenRouter/internal/egress$
+          - github.com/TokenFlux/TokenRouter/internal/moderation/provider$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/TokenFlux/TokenRouter/internal/upstream/openai$
+          deny:
+          - pkg: net/http
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/app/moderation.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-app-moderation-go:
+          list-mode: strict
+          files:
+          - '**/internal/app/moderation.go'
+          allow:
+          - entgo.io/ent
+          - github.com/andybalholm/brotli$
+          - github.com/google/wire$
+          - github.com/imroc/req/v3$
+          - github.com/klauspost/compress/
+          - github.com/lib/pq
+          - github.com/natefinch/lumberjack$
+          - github.com/redis/go-redis/v9
+          - github.com/refraction-networking/utls$
+          - go.uber.org/zap
+          - golang.org/x/mod/semver$
+          - golang.org/x/net/
+          - gopkg.in/natefinch/lumberjack.v2$
+          - context$
+          - database/sql$
+          - errors$
+          - fmt$
+          - github.com/redis/go-redis/v9$
+          - time$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
+          - github.com/TokenFlux/TokenRouter/internal/egress/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/identity$
+          - github.com/TokenFlux/TokenRouter/internal/identity/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/moderation$
+          - github.com/TokenFlux/TokenRouter/internal/moderation/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/moderation/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/moderation/provider$
+          - github.com/TokenFlux/TokenRouter/internal/moderation/rediscache$
+          - github.com/TokenFlux/TokenRouter/internal/notification$
+          - github.com/TokenFlux/TokenRouter/internal/routing/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/service$
+          - github.com/TokenFlux/TokenRouter/internal/settings$
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/TokenFlux/TokenRouter/internal/upstream/openai$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/app/search.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-app-search-go:
+          list-mode: strict
+          files:
+          - '**/internal/app/search.go'
+          allow:
+          - entgo.io/ent
+          - github.com/andybalholm/brotli$
+          - github.com/google/wire$
+          - github.com/imroc/req/v3$
+          - github.com/klauspost/compress/
+          - github.com/lib/pq
+          - github.com/natefinch/lumberjack$
+          - github.com/redis/go-redis/v9
+          - github.com/refraction-networking/utls$
+          - go.uber.org/zap
+          - golang.org/x/mod/semver$
+          - golang.org/x/net/
+          - gopkg.in/natefinch/lumberjack.v2$
+          - context$
+          - github.com/redis/go-redis/v9$
+          - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
+          - github.com/TokenFlux/TokenRouter/internal/egress/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/search$
+          - github.com/TokenFlux/TokenRouter/internal/search/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/search/provider$
+          - github.com/TokenFlux/TokenRouter/internal/search/rediscache$
+          - github.com/TokenFlux/TokenRouter/internal/service$
+          - github.com/TokenFlux/TokenRouter/internal/settings$
+          deny:
+          - pkg: github.com/TokenFlux/TokenRouter/internal/repository
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/handler
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/domain
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/internal/model
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/site/httpapi/pages_test.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-site-httpapi-pages_test-go:
+          list-mode: strict
+          files:
+          - '**/internal/site/httpapi/pages_test.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/protocol/
+          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
+          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
+          - github.com/TokenFlux/TokenRouter/internal/server/httpx$
+          - github.com/TokenFlux/TokenRouter/internal/site$
+          - github.com/TokenFlux/TokenRouter/internal/site/httpapi
+          - github.com/TokenFlux/TokenRouter/internal/upstream$
+          - github.com/gin-gonic/gin$
+          - github.com/google/go-cmp/
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/stretchr/testify/
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - go.uber.org/goleak$
+          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
+          - github.com/TokenFlux/TokenRouter/internal/site/filesystem$
+          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi/authctx$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/redis/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: entgo.io/
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: github.com/TokenFlux/TokenRouter/ent
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/pkg/websearch/brave.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-pkg-websearch-brave-go:
+          list-mode: strict
+          files:
+          - '**/internal/pkg/websearch/brave.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/websearch$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - golang.org/x/net/
+          - github.com/TokenFlux/TokenRouter/internal/search/provider$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/pkg/websearch/tavily.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-pkg-websearch-tavily-go:
+          list-mode: strict
+          files:
+          - '**/internal/pkg/websearch/tavily.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/websearch$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - golang.org/x/net/
+          - github.com/TokenFlux/TokenRouter/internal/search/provider$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/pkg/websearch/provider.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-pkg-websearch-provider-go:
+          list-mode: strict
+          files:
+          - '**/internal/pkg/websearch/provider.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/websearch$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - golang.org/x/net/
+          - github.com/TokenFlux/TokenRouter/internal/search$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+        # S10：internal/pkg/websearch/types.go 实际契约/装配；仅许可精确 import，保持其余角色限制。旧转接 S15/S16 删除。
+        s10-internal-pkg-websearch-types-go:
+          list-mode: strict
+          files:
+          - '**/internal/pkg/websearch/types.go'
+          allow:
+          - $gostd
+          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/websearch$
+          - github.com/google/uuid$
+          - github.com/shopspring/decimal$
+          - github.com/tidwall/gjson$
+          - github.com/tidwall/sjson$
+          - golang.org/x/net/
+          - github.com/TokenFlux/TokenRouter/internal/search$
+          deny:
+          - pkg: database/sql
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
+          - pkg: net/rpc
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
         core-notification:
           list-mode: strict
           files:
+          - '!**/internal/notification/risk.go'
+          - '!**/internal/notification/alerts.go'
+          - '!**/internal/notification/queue.go'
+          - '!**/internal/notification/service.go'
+          - '!**/internal/notification/mailer.go'
+          - '!**/internal/notification/ports.go'
           - '**/internal/notification/**/*.go'
           - '**/internal/notification/*.go'
           - '!**/internal/notification/httpapi/**'
@@ -15024,6 +16383,8 @@ linters:
           - '!**/internal/notification/provider/**'
           - '!**/internal/notification/testkit/**'
           - '!**/*_test.go'
+          - '!**/internal/notification/smtp/**'
+          - '!**/internal/notification/contract/**'
           allow:
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
@@ -15053,6 +16414,8 @@ linters:
         core-notification-tests:
           list-mode: strict
           files:
+          - '!**/internal/notification/fixed_regression_test.go'
+          - '!**/internal/notification/service_test.go'
           - '**/internal/notification/**/*_test.go'
           - '**/internal/notification/*_test.go'
           - '!**/internal/notification/httpapi/**'
@@ -15060,6 +16423,8 @@ linters:
           - '!**/internal/notification/rediscache/**'
           - '!**/internal/notification/provider/**'
           - '!**/internal/notification/testkit/**'
+          - '!**/internal/notification/smtp/**'
+          - '!**/internal/notification/contract/**'
           allow:
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
@@ -15092,6 +16457,7 @@ linters:
         notification-httpapi:
           list-mode: strict
           files:
+          - '!**/internal/notification/httpapi/handler.go'
           - '**/internal/notification/httpapi/**/*.go'
           - '**/internal/notification/httpapi/*.go'
           - '!**/*_test.go'
@@ -15520,15 +16886,16 @@ linters:
         core-ops:
           list-mode: strict
           files:
-          - "!**/internal/ops/system_log_sink.go"
-          - "!**/internal/ops/runtime_ports.go"
-          - "!**/internal/ops/options.go"
-          - "!**/internal/ops/ops_settings_models.go"
-          - "!**/internal/ops/ops_service.go"
-          - "!**/internal/ops/ops_scheduled_report_service.go"
-          - "!**/internal/ops/ops_cleanup_service.go"
-          - "!**/internal/ops/ops_aggregation_service.go"
-          - "!**/internal/ops/dashboard_snapshot.go"
+          - '!**/internal/ops/report_placeholders.go'
+          - '!**/internal/ops/system_log_sink.go'
+          - '!**/internal/ops/runtime_ports.go'
+          - '!**/internal/ops/options.go'
+          - '!**/internal/ops/ops_settings_models.go'
+          - '!**/internal/ops/ops_service.go'
+          - '!**/internal/ops/ops_scheduled_report_service.go'
+          - '!**/internal/ops/ops_cleanup_service.go'
+          - '!**/internal/ops/ops_aggregation_service.go'
+          - '!**/internal/ops/dashboard_snapshot.go'
           - '**/internal/ops/**/*.go'
           - '**/internal/ops/*.go'
           - '!**/internal/ops/httpapi/**'
@@ -17104,6 +18471,7 @@ linters:
           - '!**/internal/site/provider/**'
           - '!**/internal/site/testkit/**'
           - '!**/*_test.go'
+          - '!**/internal/site/filesystem/**'
           allow:
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
@@ -17140,6 +18508,7 @@ linters:
           - '!**/internal/site/rediscache/**'
           - '!**/internal/site/provider/**'
           - '!**/internal/site/testkit/**'
+          - '!**/internal/site/filesystem/**'
           allow:
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
@@ -17172,6 +18541,8 @@ linters:
         site-httpapi:
           list-mode: strict
           files:
+          - '!**/internal/site/httpapi/public.go'
+          - '!**/internal/site/httpapi/pages.go'
           - '**/internal/site/httpapi/**/*.go'
           - '**/internal/site/httpapi/*.go'
           - '!**/*_test.go'
@@ -17212,6 +18583,7 @@ linters:
         site-httpapi-tests:
           list-mode: strict
           files:
+          - '!**/internal/site/httpapi/pages_test.go'
           - '**/internal/site/httpapi/**/*_test.go'
           - '**/internal/site/httpapi/*_test.go'
           allow:
@@ -23159,44 +24531,6 @@ linters:
           - '**/internal/server/router.go'
           allow:
           - $gostd
-          - github.com/TokenFlux/TokenRouter/internal/account/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/apikey/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/audit/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/backup/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/batchimage/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/billing/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/config$
-          - github.com/TokenFlux/TokenRouter/internal/creative/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/egress/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/handler$
-          - github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/
-          - github.com/TokenFlux/TokenRouter/internal/moderation/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/notification/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/ops/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/payment/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
-          - github.com/TokenFlux/TokenRouter/internal/promotion/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/routing/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/search/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
-          - github.com/TokenFlux/TokenRouter/internal/server/httpx$
-          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
-          - github.com/TokenFlux/TokenRouter/internal/server/routes$
-          - github.com/TokenFlux/TokenRouter/internal/service$
-          - github.com/TokenFlux/TokenRouter/internal/settings/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/site/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/team/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/usage/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/web$
           - github.com/gin-gonic/gin$
           - github.com/google/uuid$
           - github.com/google/wire$
@@ -23205,6 +24539,12 @@ linters:
           - github.com/tidwall/sjson$
           - go.uber.org/zap
           - golang.org/x/net/
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/handler$
+          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
+          - github.com/TokenFlux/TokenRouter/internal/server/routes$
+          - github.com/TokenFlux/TokenRouter/internal/service$
+          - github.com/TokenFlux/TokenRouter/internal/site/httpapi$
         retained-server:
           list-mode: strict
           files:
@@ -24731,45 +26071,6 @@ linters:
           - '**/internal/server/routes/admin.go'
           allow:
           - $gostd
-          - github.com/TokenFlux/TokenRouter/internal/account/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/apikey/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/audit/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/backup/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/batchimage/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/billing/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/config$
-          - github.com/TokenFlux/TokenRouter/internal/creative/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/egress/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/handler$
-          - github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/
-          - github.com/TokenFlux/TokenRouter/internal/moderation/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/notification/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/ops/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/payment/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/response$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
-          - github.com/TokenFlux/TokenRouter/internal/promotion/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/routing/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/search/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
-          - github.com/TokenFlux/TokenRouter/internal/server/httpx$
-          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
-          - github.com/TokenFlux/TokenRouter/internal/server/routes$
-          - github.com/TokenFlux/TokenRouter/internal/service$
-          - github.com/TokenFlux/TokenRouter/internal/settings/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/site/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/team/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/usage/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/web$
           - github.com/gin-gonic/gin$
           - github.com/google/uuid$
           - github.com/shopspring/decimal$
@@ -24777,55 +26078,14 @@ linters:
           - github.com/tidwall/sjson$
           - go.uber.org/zap
           - golang.org/x/net/
-        # backend/internal/server/routes/auth.go：精确过渡许可，退出 S05；仅准确 import 许可。
-        # 允许 github.com/TokenFlux/TokenRouter/internal/handler；用途：S00 已有依赖；只允许该文件的准确 import，新增文件不继承。
-        # 允许 github.com/TokenFlux/TokenRouter/internal/service；用途：S00 已有依赖；只允许该文件的准确 import，新增文件不继承。
-        # 允许 github.com/redis/go-redis/v9；用途：S00 已有依赖；只允许该文件的准确 import，新增文件不继承。
-        # 允许 github.com/TokenFlux/TokenRouter/internal/infra/redis；用途：S01 固定窗口计数器在既有路由装配中构造，替换旧 middleware 内的 Redis 构造；S02 随装配移出。
+          - github.com/TokenFlux/TokenRouter/internal/handler$
+          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
         retained-server-routes-legacy-internal-server-routes-auth-go:
           list-mode: strict
           files:
           - '**/internal/server/routes/auth.go'
           allow:
           - $gostd
-          - github.com/TokenFlux/TokenRouter/internal/account/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/apikey/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/audit/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/backup/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/batchimage/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/billing/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/config$
-          - github.com/TokenFlux/TokenRouter/internal/creative/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/egress/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/handler$
-          - github.com/TokenFlux/TokenRouter/internal/idempotency/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/identity/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/
-          - github.com/TokenFlux/TokenRouter/internal/moderation/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/notification/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/ops/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/payment/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
-          - github.com/TokenFlux/TokenRouter/internal/promotion/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/routing/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/scheduler/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/search/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/server/clientip$
-          - github.com/TokenFlux/TokenRouter/internal/server/httpx$
-          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
-          - github.com/TokenFlux/TokenRouter/internal/server/routes$
-          - github.com/TokenFlux/TokenRouter/internal/service$
-          - github.com/TokenFlux/TokenRouter/internal/settings/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/site/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/team/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/usage/httpapi
-          - github.com/TokenFlux/TokenRouter/internal/web$
           - github.com/gin-gonic/gin$
           - github.com/google/uuid$
           - github.com/shopspring/decimal$
@@ -24833,11 +26093,9 @@ linters:
           - github.com/tidwall/sjson$
           - go.uber.org/zap
           - golang.org/x/net/
-        # backend/internal/server/routes/gateway.go：精确过渡许可，退出 S09、S11、S15；仅准确 import 许可。
-        # 允许 github.com/TokenFlux/TokenRouter/internal/domain；用途：S00 已有依赖；只允许该文件的准确 import，新增文件不继承。
-        # 允许 github.com/TokenFlux/TokenRouter/internal/pkg/ctxkey；用途：S00 已有依赖；只允许该文件的准确 import，新增文件不继承。
-        # 允许 github.com/TokenFlux/TokenRouter/internal/handler；用途：S00 已有依赖；只允许该文件的准确 import，新增文件不继承。
-        # 允许 github.com/TokenFlux/TokenRouter/internal/service；用途：S00 已有依赖；只允许该文件的准确 import，新增文件不继承。
+          - github.com/TokenFlux/TokenRouter/internal/handler$
+          - github.com/TokenFlux/TokenRouter/internal/server/middleware$
+          - github.com/TokenFlux/TokenRouter/internal/service$
         retained-server-routes-legacy-internal-server-routes-gateway-go:
           list-mode: strict
           files:
@@ -27874,20 +29132,15 @@ linters:
           - '**/internal/pkg/websearch/manager.go'
           allow:
           - $gostd
-          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/proxyutil$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/websearch$
           - github.com/google/uuid$
           - github.com/redis/go-redis/v9$
           - github.com/shopspring/decimal$
           - github.com/tidwall/gjson$
           - github.com/tidwall/sjson$
           - golang.org/x/net/
+          - github.com/TokenFlux/TokenRouter/internal/search$
+          - github.com/TokenFlux/TokenRouter/internal/search/provider$
+          - github.com/TokenFlux/TokenRouter/internal/search/rediscache$
           deny:
           - pkg: database/sql
             desc: 按职责禁止该依赖；迁移不得引入新的业务或 I/O 耦合。
@@ -27896,6 +29149,10 @@ linters:
         legacy-pkg-websearch:
           list-mode: strict
           files:
+          - '!**/internal/pkg/websearch/types.go'
+          - '!**/internal/pkg/websearch/provider.go'
+          - '!**/internal/pkg/websearch/tavily.go'
+          - '!**/internal/pkg/websearch/brave.go'
           - '**/internal/pkg/websearch/**/*.go'
           - '**/internal/pkg/websearch/*.go'
           - '!**/*_test.go'
@@ -28022,58 +29279,63 @@ linters:
         app:
           list-mode: strict
           files:
+          - '!**/internal/app/search.go'
+          - '!**/internal/app/moderation.go'
+          - '!**/internal/app/site_pages.go'
+          - '!**/internal/app/site_public.go'
+          - '!**/internal/app/notification.go'
           - '!**/internal/app/account_openai_oauth_http.go'
           - '!**/internal/app/qoder_gateway.go'
-          - "!**/internal/app/usage_http.go"
-          - "!**/internal/app/usage.go"
-          - "!**/internal/app/public_usage.go"
-          - "!**/internal/app/ops.go"
-          - "!**/internal/app/observability_foundation.go"
-          - "!**/internal/app/error_queue.go"
-          - "!**/internal/app/account_gemini_quota.go"
-          - "!**/internal/app/account_diagnostics.go"
-          - "!**/internal/app/account_model_sync.go"
-          - "!**/internal/app/account_tier.go"
-          - "!**/internal/app/account_runtime_status.go"
-          - "!**/internal/app/account_recovery.go"
-          - "!**/internal/app/account_management.go"
-          - "!**/internal/app/account_managed_refresh.go"
-          - "!**/internal/app/account_refresh_runtime.go"
-          - "!**/internal/app/account_oauth_usage.go"
-          - "!**/internal/app/account_ollama.go"
-          - "!**/internal/app/account_codex_import.go"
-          - "!**/internal/app/account_crs.go"
-          - "!**/internal/app/account_archive.go"
-          - "!**/internal/app/account_import_probes.go"
-          - "!**/internal/app/legacy_runtime_jobs.go"
-          - "!**/internal/app/account_cn_monitor.go"
-          - "!**/internal/app/account_upstream_usage.go"
-          - "!**/internal/app/account_testing.go"
-          - "!**/internal/app/account_scheduled.go"
-          - "!**/internal/app/routing_model_list.go"
-          - "!**/internal/app/routing_marketplace.go"
-          - "!**/internal/app/account_privacy.go"
-          - "!**/internal/app/account_usage.go"
-          - "!**/internal/app/account_admin.go"
-          - "!**/internal/app/account_refresh.go"
-          - "!**/internal/app/account_store.go"
-          - "!**/internal/app/routing_http.go"
-          - "!**/internal/app/routing_capacity.go"
-          - "!**/internal/app/routing_probe.go"
-          - "!**/internal/app/routing_groups.go"
-          - "!**/internal/app/routing_channels.go"
-          - "!**/internal/app/egress.go"
-          - "!**/internal/app/legacy_admin.go"
-          - "!**/internal/app/identity_admin.go"
-          - "!**/internal/app/apikey.go"
-          - "!**/internal/app/identity_security.go"
-          - "!**/internal/app/identity_http.go"
-          - "!**/internal/app/team.go"
-          - "!**/internal/app/identity_users.go"
-          - "!**/internal/app/identity_auth.go"
-          - "!**/internal/app/billing_quota.go"
-          - "!**/internal/app/billing.go"
-          - "!**/internal/app/pricing.go"
+          - '!**/internal/app/usage_http.go'
+          - '!**/internal/app/usage.go'
+          - '!**/internal/app/public_usage.go'
+          - '!**/internal/app/ops.go'
+          - '!**/internal/app/observability_foundation.go'
+          - '!**/internal/app/error_queue.go'
+          - '!**/internal/app/account_gemini_quota.go'
+          - '!**/internal/app/account_diagnostics.go'
+          - '!**/internal/app/account_model_sync.go'
+          - '!**/internal/app/account_tier.go'
+          - '!**/internal/app/account_runtime_status.go'
+          - '!**/internal/app/account_recovery.go'
+          - '!**/internal/app/account_management.go'
+          - '!**/internal/app/account_managed_refresh.go'
+          - '!**/internal/app/account_refresh_runtime.go'
+          - '!**/internal/app/account_oauth_usage.go'
+          - '!**/internal/app/account_ollama.go'
+          - '!**/internal/app/account_codex_import.go'
+          - '!**/internal/app/account_crs.go'
+          - '!**/internal/app/account_archive.go'
+          - '!**/internal/app/account_import_probes.go'
+          - '!**/internal/app/legacy_runtime_jobs.go'
+          - '!**/internal/app/account_cn_monitor.go'
+          - '!**/internal/app/account_upstream_usage.go'
+          - '!**/internal/app/account_testing.go'
+          - '!**/internal/app/account_scheduled.go'
+          - '!**/internal/app/routing_model_list.go'
+          - '!**/internal/app/routing_marketplace.go'
+          - '!**/internal/app/account_privacy.go'
+          - '!**/internal/app/account_usage.go'
+          - '!**/internal/app/account_admin.go'
+          - '!**/internal/app/account_refresh.go'
+          - '!**/internal/app/account_store.go'
+          - '!**/internal/app/routing_http.go'
+          - '!**/internal/app/routing_capacity.go'
+          - '!**/internal/app/routing_probe.go'
+          - '!**/internal/app/routing_groups.go'
+          - '!**/internal/app/routing_channels.go'
+          - '!**/internal/app/egress.go'
+          - '!**/internal/app/legacy_admin.go'
+          - '!**/internal/app/identity_admin.go'
+          - '!**/internal/app/apikey.go'
+          - '!**/internal/app/identity_security.go'
+          - '!**/internal/app/identity_http.go'
+          - '!**/internal/app/team.go'
+          - '!**/internal/app/identity_users.go'
+          - '!**/internal/app/identity_auth.go'
+          - '!**/internal/app/billing_quota.go'
+          - '!**/internal/app/billing.go'
+          - '!**/internal/app/pricing.go'
           - '**/internal/app/**/*.go'
           - '**/internal/app/*.go'
           - '!**/internal/app/legacybridge/**'
@@ -28087,12 +29349,11 @@ linters:
           - '!**/internal/app/legacy_runtime_auth.go'
           - '!**/internal/app/legacy_runtime_boot.go'
           - '!**/internal/app/legacy_runtime_core.go'
-          - '!**/internal/app/legacy_runtime_jobs.go'
           - '!**/internal/app/legacy_runtime_maintenance.go'
           - '!**/internal/app/legacy_runtime_ops.go'
           - '!**/internal/app/legacy_runtime_queues.go'
-          - "!**/internal/app/scheduler.go"
-          - "!**/internal/app/scheduler_state.go"
+          - '!**/internal/app/scheduler.go'
+          - '!**/internal/app/scheduler_state.go'
           allow:
           - github.com/TokenFlux/TokenRouter/migrations$
           - $gostd
@@ -28122,7 +29383,6 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: github.com/TokenFlux/TokenRouter/internal/model
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
-        # S07：唯一反馈/设置/粘性状态和旧平台适配绑定；旧持有者在 S09/S11 退出。
         s07-app-scheduler-state:
           list-mode: strict
           files:
@@ -29559,16 +30819,10 @@ linters:
         s05-app-team-go:
           list-mode: strict
           files:
-          - "**/internal/app/team.go"
+          - '**/internal/app/team.go'
           allow:
-          - github.com/TokenFlux/TokenRouter/internal/team/postgres$
-          - github.com/TokenFlux/TokenRouter/internal/team$
-          - github.com/TokenFlux/TokenRouter/internal/service$
-          - github.com/TokenFlux/TokenRouter/migrations$
           - $gostd
           - entgo.io/ent
-          - github.com/TokenFlux/TokenRouter/ent
-          - github.com/TokenFlux/TokenRouter/internal/
           - github.com/andybalholm/brotli$
           - github.com/google/wire$
           - github.com/imroc/req/v3$
@@ -29581,6 +30835,17 @@ linters:
           - golang.org/x/mod/semver$
           - golang.org/x/net/
           - gopkg.in/natefinch/lumberjack.v2$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/apikey/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/billing/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/identity$
+          - github.com/TokenFlux/TokenRouter/internal/identity/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/notification$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/service$
+          - github.com/TokenFlux/TokenRouter/internal/team$
+          - github.com/TokenFlux/TokenRouter/internal/team/postgres$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service/
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -29701,16 +30966,11 @@ linters:
         s04-app-billing:
           list-mode: strict
           files:
-          - "**/internal/app/billing.go"
+          - '**/internal/app/billing.go'
           allow:
-          - github.com/TokenFlux/TokenRouter/internal/scheduler/postgres$
           - github.com/google/uuid$
-          - github.com/TokenFlux/TokenRouter/internal/service$
-          - github.com/TokenFlux/TokenRouter/migrations$
           - $gostd
           - entgo.io/ent
-          - github.com/TokenFlux/TokenRouter/ent
-          - github.com/TokenFlux/TokenRouter/internal/
           - github.com/andybalholm/brotli$
           - github.com/google/wire$
           - github.com/imroc/req/v3$
@@ -29723,6 +30983,19 @@ linters:
           - golang.org/x/mod/semver$
           - golang.org/x/net/
           - gopkg.in/natefinch/lumberjack.v2$
+          - github.com/TokenFlux/TokenRouter/ent$
+          - github.com/TokenFlux/TokenRouter/internal/app/legacybridge$
+          - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/billing/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/identity/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
+          - github.com/TokenFlux/TokenRouter/internal/infra/timingwheel$
+          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
+          - github.com/TokenFlux/TokenRouter/internal/routing/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/service$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service/
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -29734,7 +31007,6 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: github.com/TokenFlux/TokenRouter/internal/model
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
-        # S03：internal/app/pricing.go 的纯计算/测试依赖，沿用基础方向限制；来源为迁移前实现，随所属文件退出。
         s03-app-pricing:
           list-mode: strict
           files:
@@ -30105,42 +31377,41 @@ linters:
         legacybridge:
           list-mode: strict
           files:
+          - '!**/internal/app/legacybridge/site_public.go'
           - '!**/internal/app/legacybridge/grok_account.go'
           - '!**/internal/app/legacybridge/qoder_chat.go'
-          - "!**/internal/app/legacybridge/usage_context.go"
-          - "!**/internal/app/legacybridge/ops_notifications.go"
-          - "!**/internal/app/legacybridge/account_gemini_usage.go"
-          - "!**/internal/app/legacybridge/account_health.go"
-          - "!**/internal/app/legacybridge/account_model_sync.go"
-          - "!**/internal/app/legacybridge/account_tier.go"
-          - "!**/internal/app/legacybridge/account_admin_catalog.go"
-          - "!**/internal/app/legacybridge/account_recovery.go"
-          - "!**/internal/app/legacybridge/account_runtime_presenter.go"
-          - "!**/internal/app/legacybridge/account_managed_refresh.go"
-          - "!**/internal/app/legacybridge/account_refresh_runtime.go"
-          - "!**/internal/app/legacybridge/account_usage_statistics.go"
-          - "!**/internal/app/legacybridge/account_codex_import.go"
-          - "!**/internal/app/legacybridge/account_archive.go"
-          - "!**/internal/app/legacybridge/account_testing.go"
-          - "!**/internal/app/legacybridge/model_catalogue.go"
-          - "!**/internal/app/legacybridge/account_credentials.go"
-          - "!**/internal/app/legacybridge/account_privacy.go"
-          - "!**/internal/app/legacybridge/account_refresh.go"
-          - "!**/internal/app/legacybridge/account_snapshots.go"
-          - "!**/internal/app/legacybridge/routing_reports.go"
-          - "!**/internal/app/legacybridge/routing_capacity.go"
-          - "!**/internal/app/legacybridge/routing_probe.go"
-          - "!**/internal/app/legacybridge/routing_groups.go"
-          - "!**/internal/app/legacybridge/apikey.go"
-          - "!**/internal/app/legacybridge/identity_http.go"
-          - "!**/internal/app/legacybridge/team.go"
-          - "!**/internal/app/legacybridge/identity_auth.go"
-          - "!**/internal/app/legacybridge/billing.go"
-          - "!**/internal/app/legacybridge/pricing.go"
+          - '!**/internal/app/legacybridge/usage_context.go'
+          - '!**/internal/app/legacybridge/account_gemini_usage.go'
+          - '!**/internal/app/legacybridge/account_health.go'
+          - '!**/internal/app/legacybridge/account_model_sync.go'
+          - '!**/internal/app/legacybridge/account_tier.go'
+          - '!**/internal/app/legacybridge/account_admin_catalog.go'
+          - '!**/internal/app/legacybridge/account_recovery.go'
+          - '!**/internal/app/legacybridge/account_runtime_presenter.go'
+          - '!**/internal/app/legacybridge/account_managed_refresh.go'
+          - '!**/internal/app/legacybridge/account_refresh_runtime.go'
+          - '!**/internal/app/legacybridge/account_usage_statistics.go'
+          - '!**/internal/app/legacybridge/account_codex_import.go'
+          - '!**/internal/app/legacybridge/account_archive.go'
+          - '!**/internal/app/legacybridge/account_testing.go'
+          - '!**/internal/app/legacybridge/model_catalogue.go'
+          - '!**/internal/app/legacybridge/account_credentials.go'
+          - '!**/internal/app/legacybridge/account_privacy.go'
+          - '!**/internal/app/legacybridge/account_refresh.go'
+          - '!**/internal/app/legacybridge/account_snapshots.go'
+          - '!**/internal/app/legacybridge/routing_reports.go'
+          - '!**/internal/app/legacybridge/routing_capacity.go'
+          - '!**/internal/app/legacybridge/routing_probe.go'
+          - '!**/internal/app/legacybridge/routing_groups.go'
+          - '!**/internal/app/legacybridge/apikey.go'
+          - '!**/internal/app/legacybridge/identity_http.go'
+          - '!**/internal/app/legacybridge/identity_auth.go'
+          - '!**/internal/app/legacybridge/billing.go'
+          - '!**/internal/app/legacybridge/pricing.go'
           - '**/internal/app/legacybridge/**/*.go'
           - '**/internal/app/legacybridge/*.go'
           - '!**/*_test.go'
-          - "!**/internal/app/legacybridge/scheduler_sources.go"
+          - '!**/internal/app/legacybridge/scheduler_sources.go'
           allow:
           - $gostd
           - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
@@ -30155,7 +31426,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
           - github.com/TokenFlux/TokenRouter/internal/upstream$
-        # S07：查询新存储并转换旧 sched:v2 报文，保持原查询时点；S11/S15 退出旧报文投影。
         s07-scheduler-sources:
           list-mode: strict
           files:
@@ -30682,26 +31952,6 @@ linters:
           - github.com/TokenFlux/TokenRouter/internal/routing/capability$
           - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
           - github.com/TokenFlux/TokenRouter/internal/upstream$
-        s05-app-legacybridge-team-go:
-          list-mode: strict
-          files:
-          - "**/internal/app/legacybridge/team.go"
-          allow:
-          - github.com/TokenFlux/TokenRouter/internal/team$
-          - github.com/TokenFlux/TokenRouter/internal/service$
-          - $gostd
-          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
-          - github.com/TokenFlux/TokenRouter/internal/protocol$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
-          - github.com/TokenFlux/TokenRouter/internal/upstream$
         s05-app-legacybridge-identity_auth-go:
           list-mode: strict
           files:
@@ -30725,26 +31975,11 @@ linters:
         s04-legacybridge-billing:
           list-mode: strict
           files:
-          - "**/internal/app/legacybridge/billing.go"
+          - '**/internal/app/legacybridge/billing.go'
           allow:
-          - github.com/TokenFlux/TokenRouter/internal/service$
-          - github.com/TokenFlux/TokenRouter/internal/repository$
-          - github.com/TokenFlux/TokenRouter/internal/billing$
-          - github.com/TokenFlux/TokenRouter/ent$
           - $gostd
-          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
-          - github.com/TokenFlux/TokenRouter/internal/protocol$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
-          - github.com/TokenFlux/TokenRouter/internal/upstream$
-        # S03：internal/app/legacybridge/pricing.go 的纯计算/测试依赖，沿用基础方向限制；来源为迁移前实现，随所属文件退出。
+          - github.com/TokenFlux/TokenRouter/ent$
+          - github.com/TokenFlux/TokenRouter/internal/service$
         s03-legacybridge-pricing:
           list-mode: strict
           files:
@@ -30922,13 +32157,8 @@ linters:
           files:
           - '**/internal/app/http_bindings.go'
           allow:
-          - github.com/TokenFlux/TokenRouter/internal/protocol$
-          - github.com/TokenFlux/TokenRouter/internal/routing/httpapi$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
-          - github.com/TokenFlux/TokenRouter/migrations$
           - $gostd
           - entgo.io/ent
-          - github.com/TokenFlux/TokenRouter/ent
           - github.com/andybalholm/brotli$
           - github.com/google/wire$
           - github.com/imroc/req/v3$
@@ -30942,12 +32172,16 @@ linters:
           - golang.org/x/net/
           - gopkg.in/natefinch/lumberjack.v2$
           - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
+          - github.com/TokenFlux/TokenRouter/internal/gateway/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/infra/redis$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/websearch$
+          - github.com/TokenFlux/TokenRouter/internal/protocol$
+          - github.com/TokenFlux/TokenRouter/internal/routing/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/server$
           - github.com/TokenFlux/TokenRouter/internal/server/middleware$
           - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/settings$
+          - github.com/TokenFlux/TokenRouter/internal/site$
+          - github.com/TokenFlux/TokenRouter/internal/site/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/web$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/repository
@@ -30958,7 +32192,6 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: github.com/TokenFlux/TokenRouter/internal/model
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
-        # S02 组合根的准确旧依赖；来源为已冻结旧图，S16 随所属职责迁移删除。新文件不继承。
         s02-internal-app-legacy_providers-go:
           list-mode: strict
           files:
@@ -31002,10 +32235,8 @@ linters:
           files:
           - '**/internal/app/wire.go'
           allow:
-          - github.com/TokenFlux/TokenRouter/migrations$
           - $gostd
           - entgo.io/ent
-          - github.com/TokenFlux/TokenRouter/ent
           - github.com/andybalholm/brotli$
           - github.com/google/wire$
           - github.com/imroc/req/v3$
@@ -31018,31 +32249,47 @@ linters:
           - golang.org/x/mod/semver$
           - golang.org/x/net/
           - gopkg.in/natefinch/lumberjack.v2$
+          - github.com/TokenFlux/TokenRouter/internal/account/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/account/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/account/rediscache$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/apikey/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/apikey/rediscache$
           - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/billing/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/egress$
+          - github.com/TokenFlux/TokenRouter/internal/egress/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/egress/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/egress/rediscache$
           - github.com/TokenFlux/TokenRouter/internal/handler$
+          - github.com/TokenFlux/TokenRouter/internal/identity$
+          - github.com/TokenFlux/TokenRouter/internal/identity/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/identity/provider$
+          - github.com/TokenFlux/TokenRouter/internal/identity/rediscache$
           - github.com/TokenFlux/TokenRouter/internal/payment$
           - github.com/TokenFlux/TokenRouter/internal/repository$
+          - github.com/TokenFlux/TokenRouter/internal/routing/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/routing/postgres$
           - github.com/TokenFlux/TokenRouter/internal/server$
           - github.com/TokenFlux/TokenRouter/internal/server/middleware$
           - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/site$
           - github.com/TokenFlux/TokenRouter/internal/site/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/team/rediscache$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/domain
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: github.com/TokenFlux/TokenRouter/internal/model
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
-        # S02 组合根的准确旧依赖；来源为已冻结旧图，S16 随所属职责迁移删除。新文件不继承。
         s02-internal-app-wire_gen-go:
           list-mode: strict
           files:
           - '**/internal/app/wire_gen.go'
           allow:
-          - github.com/TokenFlux/TokenRouter/migrations$
           - $gostd
           - entgo.io/ent
-          - github.com/TokenFlux/TokenRouter/ent
           - github.com/andybalholm/brotli$
           - github.com/google/wire$
           - github.com/imroc/req/v3$
@@ -31055,24 +32302,45 @@ linters:
           - golang.org/x/mod/semver$
           - golang.org/x/net/
           - gopkg.in/natefinch/lumberjack.v2$
+          - github.com/TokenFlux/TokenRouter/internal/account/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/account/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/account/rediscache$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/apikey/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/apikey/rediscache$
           - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
+          - github.com/TokenFlux/TokenRouter/internal/billing$
+          - github.com/TokenFlux/TokenRouter/internal/billing/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/egress/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/egress/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/egress/rediscache$
           - github.com/TokenFlux/TokenRouter/internal/handler$
           - github.com/TokenFlux/TokenRouter/internal/handler/admin$
+          - github.com/TokenFlux/TokenRouter/internal/identity$
+          - github.com/TokenFlux/TokenRouter/internal/identity/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/identity/provider$
+          - github.com/TokenFlux/TokenRouter/internal/identity/rediscache$
+          - github.com/TokenFlux/TokenRouter/internal/ops/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/ops/rediscache$
           - github.com/TokenFlux/TokenRouter/internal/payment$
           - github.com/TokenFlux/TokenRouter/internal/repository$
+          - github.com/TokenFlux/TokenRouter/internal/routing/httpapi$
+          - github.com/TokenFlux/TokenRouter/internal/routing/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler/rediscache$
           - github.com/TokenFlux/TokenRouter/internal/server$
           - github.com/TokenFlux/TokenRouter/internal/server/middleware$
           - github.com/TokenFlux/TokenRouter/internal/service$
           - github.com/TokenFlux/TokenRouter/internal/site$
           - github.com/TokenFlux/TokenRouter/internal/site/httpapi$
           - github.com/TokenFlux/TokenRouter/internal/site/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/team/rediscache$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/domain
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: github.com/TokenFlux/TokenRouter/internal/model
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
-        # S02/S14 首次安装只调用精简 bootstrap 的迁移入口；禁止引入完整 app 或 lifecycle。
         s02-setup-bootstrap:
           list-mode: strict
           files:
@@ -31300,11 +32568,8 @@ linters:
           files:
           - '**/internal/app/legacy_runtime_queues.go'
           allow:
-          - github.com/TokenFlux/TokenRouter/internal/account$
-          - github.com/TokenFlux/TokenRouter/migrations$
           - $gostd
           - entgo.io/ent
-          - github.com/TokenFlux/TokenRouter/ent
           - github.com/andybalholm/brotli$
           - github.com/google/wire$
           - github.com/imroc/req/v3$
@@ -31317,6 +32582,7 @@ linters:
           - golang.org/x/mod/semver$
           - golang.org/x/net/
           - gopkg.in/natefinch/lumberjack.v2$
+          - github.com/TokenFlux/TokenRouter/internal/account$
           - github.com/TokenFlux/TokenRouter/internal/app/lifecycle$
           - github.com/TokenFlux/TokenRouter/internal/service$
           deny:
@@ -31327,7 +32593,7 @@ linters:
           - pkg: github.com/TokenFlux/TokenRouter/internal/domain
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: github.com/TokenFlux/TokenRouter/internal/model
-            desc: 按职责禁止该依赖；使用纯契约或由外层适配。        # S08：唯一组合根及旧图转接；旧 import 在 S09—S16 随消费者删除。来源：S08 迁移清单；仅下列文件/import。
+            desc: 按职责禁止该依赖；使用纯契约或由外层适配。
         s08-app-error-queue-go-app:
           list-mode: strict
           files:
@@ -31406,14 +32672,8 @@ linters:
           files:
           - '**/internal/app/ops.go'
           allow:
-          - github.com/TokenFlux/TokenRouter/internal/settings/preaggregation$
-          - github.com/TokenFlux/TokenRouter/internal/settings$
           - $gostd
           - entgo.io/ent
-          - github.com/TokenFlux/TokenRouter/ent
-          - github.com/TokenFlux/TokenRouter/internal/
-          - github.com/TokenFlux/TokenRouter/internal/service$
-          - github.com/TokenFlux/TokenRouter/migrations$
           - github.com/andybalholm/brotli$
           - github.com/google/wire$
           - github.com/imroc/req/v3$
@@ -31426,6 +32686,21 @@ linters:
           - golang.org/x/mod/semver$
           - golang.org/x/net/
           - gopkg.in/natefinch/lumberjack.v2$
+          - github.com/TokenFlux/TokenRouter/internal/account/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/apikey$
+          - github.com/TokenFlux/TokenRouter/internal/config$
+          - github.com/TokenFlux/TokenRouter/internal/egress/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/identity/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/infra/telemetry/logging$
+          - github.com/TokenFlux/TokenRouter/internal/notification$
+          - github.com/TokenFlux/TokenRouter/internal/ops$
+          - github.com/TokenFlux/TokenRouter/internal/ops/postgres$
+          - github.com/TokenFlux/TokenRouter/internal/ops/provider$
+          - github.com/TokenFlux/TokenRouter/internal/ops/rediscache$
+          - github.com/TokenFlux/TokenRouter/internal/scheduler$
+          - github.com/TokenFlux/TokenRouter/internal/service$
+          - github.com/TokenFlux/TokenRouter/internal/settings$
+          - github.com/TokenFlux/TokenRouter/internal/settings/preaggregation$
           deny:
           - pkg: github.com/TokenFlux/TokenRouter/internal/service/
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
@@ -31437,7 +32712,6 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: github.com/TokenFlux/TokenRouter/internal/model
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
-        # S08：唯一组合根及旧图转接；旧 import 在 S09—S16 随消费者删除。来源：S08 迁移清单；仅下列文件/import。
         s08-app-public-usage-go-app:
           list-mode: strict
           files:
@@ -32621,27 +33895,6 @@ linters:
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
           - pkg: net/http
             desc: 按职责禁止该依赖；使用纯契约或由外层适配。
-        # S08：过渡旧能力调用/上下文投影；S09/S10/S11/S15 删除对应桥接。来源：S08 迁移清单；仅下列文件/import。
-        s08-app-legacybridge-ops-notifications-go-legacybridge:
-          list-mode: strict
-          files:
-          - '**/internal/app/legacybridge/ops_notifications.go'
-          allow:
-          - $gostd
-          - github.com/TokenFlux/TokenRouter/internal/billing/pricing$
-          - github.com/TokenFlux/TokenRouter/internal/gateway/clientmeta$
-          - github.com/TokenFlux/TokenRouter/internal/ops$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/apperror$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/ipmatch$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/logredact$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/oauthpkce$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/pagination$
-          - github.com/TokenFlux/TokenRouter/internal/pkg/timezone$
-          - github.com/TokenFlux/TokenRouter/internal/protocol$
-          - github.com/TokenFlux/TokenRouter/internal/routing/capability$
-          - github.com/TokenFlux/TokenRouter/internal/scheduler/policy$
-          - github.com/TokenFlux/TokenRouter/internal/service$
-          - github.com/TokenFlux/TokenRouter/internal/upstream$
         # S08：过渡旧能力调用/上下文投影；S09/S10/S11/S15 删除对应桥接。来源：S08 迁移清单；仅下列文件/import。
         s08-app-legacybridge-usage-context-go-legacybridge:
           list-mode: strict

@@ -7,9 +7,10 @@ import (
 	"errors"
 	"os"
 
+	"github.com/TokenFlux/TokenRouter/internal/notification"
+
 	accountpostgres "github.com/TokenFlux/TokenRouter/internal/account/postgres"
 	"github.com/TokenFlux/TokenRouter/internal/apikey"
-	"github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	egresspostgres "github.com/TokenFlux/TokenRouter/internal/egress/postgres"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
@@ -41,16 +42,16 @@ func provideOpsCollector(repo ops.OpsRepository, settings *settings.Store, accou
 func provideOpsAggregation(repo ops.OpsRepository, settings *settings.Store, db *sql.DB, r *redis.Client, options *ops.Options, pre *preaggregation.PreAggregationSettingsService) *ops.OpsAggregationService {
 	return ops.NewOpsAggregationService(repo, settings, opspostgres.NewAdvisory(db), opsredis.NewRuntime(r), options, pre)
 }
-func provideOpsEvaluator(s *ops.OpsService, repo ops.OpsRepository, email *service.EmailService, r *redis.Client, options *ops.Options, proxies *egresspostgres.ProxyStore) *ops.OpsAlertEvaluatorService {
-	return ops.NewOpsAlertEvaluatorService(s, repo, legacybridge.OpsEmail(email), opsredis.NewRuntime(r), options, proxies)
+func provideOpsEvaluator(s *ops.OpsService, repo ops.OpsRepository, email *notification.Mailer, notifications *notification.NotificationEmailService, r *redis.Client, options *ops.Options, proxies *egresspostgres.ProxyStore) *ops.OpsAlertEvaluatorService {
+	return ops.NewOpsAlertEvaluatorService(s, repo, notificationOpsDelivery(email, notifications), opsredis.NewRuntime(r), options, proxies)
 }
 func provideOpsCleanup(repo ops.OpsRepository, settings *settings.Store, s *ops.OpsService, db *sql.DB, r *redis.Client, options *ops.Options) *ops.OpsCleanupService {
 	c := ops.NewOpsCleanupService(repo, opspostgres.NewCleanupStore(db), opsredis.NewRuntime(r), options, settings)
 	s.SetCleanupReloader(c)
 	return c
 }
-func provideOpsReports(s *ops.OpsService, users *identitypostgres.UserStore, email *service.EmailService, r *redis.Client, options *ops.Options) *ops.OpsScheduledReportService {
-	return ops.NewOpsScheduledReportService(s, opsUsers{users}, legacybridge.OpsEmail(email), opsredis.NewRuntime(r), options)
+func provideOpsReports(s *ops.OpsService, users *identitypostgres.UserStore, email *notification.Mailer, notifications *notification.NotificationEmailService, r *redis.Client, options *ops.Options) *ops.OpsScheduledReportService {
+	return ops.NewOpsScheduledReportService(s, opsUsers{users}, notificationOpsDelivery(email, notifications), opsredis.NewRuntime(r), options)
 }
 func provideOpsIngress(repo ops.OpsRepository, s *ops.OpsService) *ops.OpsIngressRejectAggregator {
 	r, ok := repo.(ops.OpsIngressRejectRepository)

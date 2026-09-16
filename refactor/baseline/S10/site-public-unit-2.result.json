@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/site/...",
+    "./internal/service",
+    "./internal/handler",
+    "./internal/server",
+    "-run",
+    "Test(.*PublicSettings.*|.*Page.*|.*LoginAgreement.*|.*TablePreferences.*|.*FrameSrc.*|.*Team.*)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 15.828,
+  "pass": 88,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/site-public-unit-2.log.gz"
+}

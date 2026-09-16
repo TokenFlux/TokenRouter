@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "./internal/moderation/postgres",
+    "./internal/moderation/httpapi",
+    "./internal/repository",
+    "./internal/handler/admin",
+    "-run",
+    "Test(ContentModeration|BuildContentModeration)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 6.972,
+  "pass": 17,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/moderation-storage-unit-4.log.gz"
+}

@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "./internal/pkg/websearch/..."
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 2.03,
+  "pass": 53,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/baseline-search-race.log.gz"
+}

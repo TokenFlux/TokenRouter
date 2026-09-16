@@ -1,0 +1,17 @@
+{
+  "command": [
+    "go",
+    "test",
+    "./internal/moderation/...",
+    "./internal/service",
+    "-run",
+    "^$"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 10.312,
+  "pass": 0,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/moderation-moved-compile-2.log.gz"
+}

@@ -1,0 +1,175 @@
+[
+  {
+    "label": "final-backend-build",
+    "command": [
+      "make",
+      "build"
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 24.89,
+    "pass": 0,
+    "fail": 0,
+    "skip": 0,
+    "log": "logs/final-backend-build.log.gz"
+  },
+  {
+    "label": "final-frontend-test",
+    "command": [
+      "make",
+      "-C",
+      "..",
+      "test-frontend"
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 51.119,
+    "pass": 0,
+    "fail": 0,
+    "skip": 0,
+    "log": "logs/final-frontend-test.log.gz"
+  },
+  {
+    "label": "final-frontend-build",
+    "command": [
+      "make",
+      "-C",
+      "..",
+      "build-frontend"
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 32.683,
+    "pass": 0,
+    "fail": 0,
+    "skip": 0,
+    "log": "logs/final-frontend-build.log.gz"
+  },
+  {
+    "label": "final-embed-test",
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-tags=embed",
+      "./internal/web"
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 5.64,
+    "pass": 101,
+    "fail": 0,
+    "skip": 0,
+    "log": "logs/final-embed-test.log.gz"
+  },
+  {
+    "label": "final-embed-build",
+    "command": [
+      "go",
+      "build",
+      "-tags=embed",
+      "-o",
+      "bin/server-embed",
+      "./cmd/server"
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 8.463,
+    "pass": 0,
+    "fail": 0,
+    "skip": 0,
+    "log": "logs/final-embed-build.log.gz"
+  },
+  {
+    "label": "final-linux-build",
+    "command": [
+      "env",
+      "GOOS=linux",
+      "GOARCH=amd64",
+      "CGO_ENABLED=0",
+      "go",
+      "build",
+      "-o",
+      "bin/server-linux-amd64",
+      "./cmd/server"
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 31.604,
+    "pass": 0,
+    "fail": 0,
+    "skip": 0,
+    "log": "logs/final-linux-build.log.gz"
+  },
+  {
+    "label": "final-jwtgen-build",
+    "command": [
+      "go",
+      "build",
+      "-o",
+      "bin/jwtgen-s10",
+      "./cmd/jwtgen"
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 2.728,
+    "pass": 0,
+    "fail": 0,
+    "skip": 0,
+    "log": "logs/final-jwtgen-build.log.gz"
+  },
+  {
+    "label": "final-cleanup-command-build",
+    "command": [
+      "go",
+      "build",
+      "-o",
+      "bin/cleanup-ingress-reject-logs-s10",
+      "./cmd/cleanup-ingress-reject-logs"
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 2.338,
+    "pass": 0,
+    "fail": 0,
+    "skip": 0,
+    "log": "logs/final-cleanup-command-build.log.gz"
+  },
+  {
+    "label": "final-wire-idempotence",
+    "command": [
+      "go",
+      "generate",
+      "./cmd/server"
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 3.691,
+    "pass": 0,
+    "fail": 0,
+    "skip": 0,
+    "log": "logs/final-wire-idempotence.log.gz"
+  },
+  {
+    "label": "final-process-storage-contracts",
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-tags=integration",
+      "-p=4",
+      "./internal/app",
+      "-run",
+      "TestS02ProcessModes|TestS10ModerationTransaction"
+    ],
+    "toolchain": "go1.27.0",
+    "exit_code": 0,
+    "seconds": 36.145,
+    "pass": 13,
+    "fail": 0,
+    "skip": 0,
+    "log": "logs/final-process-storage-contracts.log.gz"
+  }
+]

@@ -1,0 +1,962 @@
+[
+  {
+    "path": "backend/.golangci.yml",
+    "status": "modified",
+    "sha256": "c6a874514df8acd72fe34a30f48198ef271a88bdb24c509f2325c85191c5b3d8"
+  },
+  {
+    "path": "backend/internal/app/billing.go",
+    "status": "modified",
+    "sha256": "05acfab8f0d612f4a24d029b92e181657e12aeba2e63224a146361f307ac3f3e"
+  },
+  {
+    "path": "backend/internal/app/http_bindings.go",
+    "status": "modified",
+    "sha256": "4a1a16a56eab0638b9d274ae67defc4200a54a7aa92690f795c1e56e6b2f59ea"
+  },
+  {
+    "path": "backend/internal/app/legacy_runtime_queues.go",
+    "status": "modified",
+    "sha256": "a7e21e6849db04c66dcf001cab6cd0b264e266fdae168ce480ab21b2b611b7b2"
+  },
+  {
+    "path": "backend/internal/app/legacybridge/billing.go",
+    "status": "modified",
+    "sha256": "ff9ef227f9558ed95ecb7eb57e0635b776ac77be429b63628f5ba91b8949fed9"
+  },
+  {
+    "path": "backend/internal/app/legacybridge/ops_notifications.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/app/legacybridge/site_public.go",
+    "status": "new",
+    "sha256": "7fb04a24f76a69fbf481e2b4e13e304d834e13cde8ac1e60a1a1f05a19b4db07"
+  },
+  {
+    "path": "backend/internal/app/legacybridge/team.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/app/moderation.go",
+    "status": "new",
+    "sha256": "e269761cc6f3a19cc57a883cf4a2e6ce99ca4046cae5d5ab8c06a76d49bbb4db"
+  },
+  {
+    "path": "backend/internal/app/notification.go",
+    "status": "new",
+    "sha256": "40b8160e1f1042f158d05e8a62bf26245a08e83cd9bde6838d37bf8c2ae85f69"
+  },
+  {
+    "path": "backend/internal/app/notification_expiry.go",
+    "status": "new",
+    "sha256": "24d40b47fe3d9bb478558c49b32b2d60f7f68cc212bbf72bbf34f8c181acf186"
+  },
+  {
+    "path": "backend/internal/app/ops.go",
+    "status": "modified",
+    "sha256": "a925b20ada1304380ee36887d6613542a3f5e816f4791c59788bcbd534e69d2a"
+  },
+  {
+    "path": "backend/internal/app/process_integration_test.go",
+    "status": "modified",
+    "sha256": "940c2fcb3c3363a0e8ffb5a8c6331f5baba604ec32a0ec3ff200a39ba9a614e1"
+  },
+  {
+    "path": "backend/internal/app/s10_moderation_storage_integration_test.go",
+    "status": "new",
+    "sha256": "ce579afeafc6577cc4a10d07e0e9c01364bc0760b715bc94d2435434b335c534"
+  },
+  {
+    "path": "backend/internal/app/search.go",
+    "status": "new",
+    "sha256": "20df10ef9f640fd1ad8c1ed4899a66295bd0bc5500eb01bbf7f12bf67891e1d7"
+  },
+  {
+    "path": "backend/internal/app/site_pages.go",
+    "status": "new",
+    "sha256": "7f1479b7b5a20f1040cda3a24cdd369afe57c8c346f465cee692556a2d2eafc3"
+  },
+  {
+    "path": "backend/internal/app/site_public.go",
+    "status": "new",
+    "sha256": "0f3dfa48f4c2e38b9bd101a75675665239a8229f80ecf75a6c05c60408af374e"
+  },
+  {
+    "path": "backend/internal/app/team.go",
+    "status": "modified",
+    "sha256": "26cf379a100753fc66b856ef1b73633af8681a6c405e41ec6e46df25d38008c4"
+  },
+  {
+    "path": "backend/internal/app/wire.go",
+    "status": "modified",
+    "sha256": "a5656e748b6001698f93a8028ca23b753a3c7b8c90e64b09a24bc62889ebdba0"
+  },
+  {
+    "path": "backend/internal/app/wire_gen.go",
+    "status": "modified",
+    "sha256": "49403bd0bb45eff65793fe0495b0ef18c67b76ec60507de6b9534447fb9dd064"
+  },
+  {
+    "path": "backend/internal/billing/balance_notifications.go",
+    "status": "new",
+    "sha256": "4f3999687040e97e4c1d3610ebb8b837cbdbdbc94f0bd9401024eed39bb730c7"
+  },
+  {
+    "path": "backend/internal/handler/admin/content_moderation_handler.go",
+    "status": "modified",
+    "sha256": "ced1aae4260e8b8c13e257ed6ebd0561235bb220f75383035d530f8ba1f87c3c"
+  },
+  {
+    "path": "backend/internal/handler/admin/setting_handler_email.go",
+    "status": "modified",
+    "sha256": "b841b159cbf8c8562f2762b3388eca07e27b6cadccafe51f64b6a57f17c5df2e"
+  },
+  {
+    "path": "backend/internal/handler/admin/setting_handler_email_s10_unit_compat_test.go",
+    "status": "new",
+    "sha256": "6c508076657992c575e08357320274dd9a33bfbf13939016140a160b3e48c9b5"
+  },
+  {
+    "path": "backend/internal/handler/admin/setting_handler_runtime.go",
+    "status": "modified",
+    "sha256": "eaf3bdfd9a31f5ed28ac5fc3e1fddd568e551201cae0f4152ae67c740c5e54d6"
+  },
+  {
+    "path": "backend/internal/handler/dto/settings.go",
+    "status": "modified",
+    "sha256": "d60fd97793e2b09e60c632f047307cfe81202c8a047480133cf21ab51dbae5cb"
+  },
+  {
+    "path": "backend/internal/handler/handler.go",
+    "status": "modified",
+    "sha256": "2aefc1bb69ded66bc1b1ecf6c1530b96e9d6045f938bdd42f8b8dee65e7ea293"
+  },
+  {
+    "path": "backend/internal/handler/page_handler.go",
+    "status": "modified",
+    "sha256": "438b2e7a18242ce814e29dd4b99af8ede86f0ba6545176f9d738f91f177f7c29"
+  },
+  {
+    "path": "backend/internal/handler/page_handler_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/handler/setting_handler.go",
+    "status": "modified",
+    "sha256": "f8dd0c84e277c4d76f535bded0b5ca200f37b93ce8b5b2a986b893c385da0d49"
+  },
+  {
+    "path": "backend/internal/handler/wire.go",
+    "status": "modified",
+    "sha256": "5401f005aa7aad8099a5281bd073459de9fa61e8f6985401a2ba7df915240f5a"
+  },
+  {
+    "path": "backend/internal/identity/email_challenges.go",
+    "status": "new",
+    "sha256": "2bb6ec49f4ff2130d18503eeb9f67a79648e67e658c69bdb43f09b8eb71be4a2"
+  },
+  {
+    "path": "backend/internal/identity/email_verification.go",
+    "status": "modified",
+    "sha256": "952831297af9fb48e28364db4a1a548ea2d7a2287476936f99e6a2a08173bab7"
+  },
+  {
+    "path": "backend/internal/identity/postgres/risk_status.go",
+    "status": "new",
+    "sha256": "1b621326e7e70390ca8d5d118d25730f0cb899b0077d0874537506f195188d55"
+  },
+  {
+    "path": "backend/internal/identity/rediscache/email.go",
+    "status": "new",
+    "sha256": "6f80b4f868d577de5106be3a0f85d931fa554545e590b9f030cd310eb8441c65"
+  },
+  {
+    "path": "backend/internal/identity/rediscache/email_test.go",
+    "status": "new",
+    "sha256": "8b9c7cfd63c581cd7c5e38cf3b4ad78b6bd88a9f7f00c1dfc88cb0c1a8d00c5e"
+  },
+  {
+    "path": "backend/internal/identity/risk_status.go",
+    "status": "new",
+    "sha256": "4d62f88fa1bc2c4bbf3fd9ceab6e223b1bc3600757a95691bf1317e51c513779"
+  },
+  {
+    "path": "backend/internal/moderation/content_moderation_expanded_test.go",
+    "status": "new",
+    "sha256": "be4228a85e3bffd2d6581e74b1519f8df7f71374fdea108b54317137777c1870"
+  },
+  {
+    "path": "backend/internal/moderation/content_moderation_input_test.go",
+    "status": "new",
+    "sha256": "57063bd89bbda56fd5164505a6dcd08c0e5ff145c0aa18958a11c92031b33238"
+  },
+  {
+    "path": "backend/internal/moderation/content_moderation_keyword_matcher_test.go",
+    "status": "new",
+    "sha256": "7c8633234e09ea03581c9a997fddd56aab7687ae373da873955cfa5434ea154d"
+  },
+  {
+    "path": "backend/internal/moderation/content_moderation_proxy_test.go",
+    "status": "new",
+    "sha256": "7832d298c57a3acb0b84abfcb5a894aaa66321c896721829482e5ad3c7f2ac0b"
+  },
+  {
+    "path": "backend/internal/moderation/content_moderation_runtime_cache_test.go",
+    "status": "new",
+    "sha256": "2d9c5be6e296f1c57d12e63db6926c2d9bf7e42e0d99755bd26f8b2d2d683c20"
+  },
+  {
+    "path": "backend/internal/moderation/content_moderation_test.go",
+    "status": "new",
+    "sha256": "4e75edfc01137ded68ffc4076ca6ce983711fad3bfa91a7e4d06bc6665763fb8"
+  },
+  {
+    "path": "backend/internal/moderation/contract/media.go",
+    "status": "new",
+    "sha256": "9fbfa57692405209c3e978c2aba9e679c42c986c90c5ac350b6868d8e08b9f09"
+  },
+  {
+    "path": "backend/internal/moderation/httpapi/handler.go",
+    "status": "new",
+    "sha256": "258ddc8ad194452a869f18a742270a12c43d1a8baf895c0ec1cdc3a9c78b4156"
+  },
+  {
+    "path": "backend/internal/moderation/input.go",
+    "status": "new",
+    "sha256": "e51765e6271dade8a4c709b29e6cffc3d06e733a3916ebecb73b2640c69ab2b3"
+  },
+  {
+    "path": "backend/internal/moderation/keyword_matcher.go",
+    "status": "new",
+    "sha256": "cec725c827e278b8620931804bb2721247231f2403277ff730a265d7b80e7b10"
+  },
+  {
+    "path": "backend/internal/moderation/legacy_fixture_test.go",
+    "status": "new",
+    "sha256": "e91d2f0b9654109b9549ad35787e664ce4a6f614b0123b487601c448eed9a2db"
+  },
+  {
+    "path": "backend/internal/moderation/legacy_input.go",
+    "status": "new",
+    "sha256": "8fc7b81203dc77431544f6acc5cde290ab863f31d90df5e0148c5dc32179a94b"
+  },
+  {
+    "path": "backend/internal/moderation/legacy_keyword_matcher.go",
+    "status": "new",
+    "sha256": "d8274559d472489635ff6989f59aeda1f328aeec30e6679f448753bb539e598d"
+  },
+  {
+    "path": "backend/internal/moderation/legacy_redact.go",
+    "status": "new",
+    "sha256": "a608f226df2fc03023a6cf31465fd8ac6fbe295acfd618fcac59407ff53e3141"
+  },
+  {
+    "path": "backend/internal/moderation/legacy_service.go",
+    "status": "new",
+    "sha256": "5a62cbee86c250b7b176c1a52310b94634387784a28ac573769139aaf30618fd"
+  },
+  {
+    "path": "backend/internal/moderation/notification_fixture_test.go",
+    "status": "new",
+    "sha256": "a24b251a6b77decce5e58a7f6fcb90c11bef5def76e3bf4e76605374ae79ece0"
+  },
+  {
+    "path": "backend/internal/moderation/notifications.go",
+    "status": "new",
+    "sha256": "3f1902615450c0c93406c22ceff602a184a97e41e67b11c5aacd6498f1debb12"
+  },
+  {
+    "path": "backend/internal/moderation/ports.go",
+    "status": "new",
+    "sha256": "d5f4c22b89434dd5d173ad24e6e0dc6b951de01367d8cf588c90944a7fe06dc2"
+  },
+  {
+    "path": "backend/internal/moderation/postgres/fixture_test.go",
+    "status": "new",
+    "sha256": "87f8764c9d4717a4ae79912a6a4664d188e4ec2bf0834b6b6a5673bea3982415"
+  },
+  {
+    "path": "backend/internal/moderation/postgres/pagination.go",
+    "status": "new",
+    "sha256": "68d66e06a3a9faf922a2ab3b7c00ea78f1d9145de7ef2a2c6a2b13b3cc2e4e2f"
+  },
+  {
+    "path": "backend/internal/moderation/postgres/repository.go",
+    "status": "new",
+    "sha256": "56152e52a6bbbb372259eb55bec9c7f22628a13578efa839d0d0d9ca86b66af9"
+  },
+  {
+    "path": "backend/internal/moderation/postgres/repository_test.go",
+    "status": "new",
+    "sha256": "120583de88d464303c319155618bb9437cea9e699f0fb23414cf6c48442f3683"
+  },
+  {
+    "path": "backend/internal/moderation/provider/audit.go",
+    "status": "new",
+    "sha256": "6f4b95855052ff86b55fa49f21c5725b5fe503d5a053c1a87a9f6d22b57a4943"
+  },
+  {
+    "path": "backend/internal/moderation/provider/media.go",
+    "status": "new",
+    "sha256": "905122fbfffa0f4764c0ebadeb50402fcd68a77bb9c7ab5c4ac166a679c4e90a"
+  },
+  {
+    "path": "backend/internal/moderation/provider/media_test.go",
+    "status": "new",
+    "sha256": "1d7fc736594ef7e5dd333ad19f56a6a574cda7df246022420cfde697aabeee6e"
+  },
+  {
+    "path": "backend/internal/moderation/redact.go",
+    "status": "new",
+    "sha256": "808c82ec5b60a46e5ae6299aa2bb2dff5d7256131d9bcd9cf9cdbdff4aada1b2"
+  },
+  {
+    "path": "backend/internal/moderation/rediscache/hash.go",
+    "status": "new",
+    "sha256": "a7e6d49edf17562677b54787060e1ef7a42febf475781f873d4a4ce673ffa1b6"
+  },
+  {
+    "path": "backend/internal/moderation/service.go",
+    "status": "new",
+    "sha256": "709790707186da89e0e5a39844a146f992e7f403dc9046d95b760460cfdee77c"
+  },
+  {
+    "path": "backend/internal/notification/alerts.go",
+    "status": "new",
+    "sha256": "4f30c94b057a05c499b1fb8827c4a1ef1537f3e3a3dff741b251dc0c26d93c9e"
+  },
+  {
+    "path": "backend/internal/notification/contract/quota.go",
+    "status": "new",
+    "sha256": "545ec9c8624efd8daf9faa9a409c7b6b720ba53d87c75c7e565318b0a19fdb3d"
+  },
+  {
+    "path": "backend/internal/notification/contract/report_placeholders.go",
+    "status": "new",
+    "sha256": "c68ccb67fcfe30f2bb757c15f952fdca54bb5a8e6d7030161a30c5e0393205f3"
+  },
+  {
+    "path": "backend/internal/notification/contract/risk.go",
+    "status": "new",
+    "sha256": "ad9a17d66d96f5863ed0e3a78ec858af9ba2bb3c7fa6dbc7d7f79b1df811d19b"
+  },
+  {
+    "path": "backend/internal/notification/contract/smtp.go",
+    "status": "new",
+    "sha256": "8c4b227c6fae6aa92c85883d579b4a1862cadf1af13657d6775cadb12ab5756c"
+  },
+  {
+    "path": "backend/internal/notification/coordinator.go",
+    "status": "new",
+    "sha256": "121c11ebbc69e378685e68a188703ae40e3eb6343980615879d00293bb5451ee"
+  },
+  {
+    "path": "backend/internal/notification/fixed_regression_test.go",
+    "status": "new",
+    "sha256": "0ccf6a1dc7063eb1db3284f0ce9a394c287c5e883367ff6104886e642da40e45"
+  },
+  {
+    "path": "backend/internal/notification/httpapi/dto/templates.go",
+    "status": "new",
+    "sha256": "7a123fa51f182f79c7a25cba096d47f2b46013e3bdefa65d910d466ac8396ae7"
+  },
+  {
+    "path": "backend/internal/notification/httpapi/handler.go",
+    "status": "new",
+    "sha256": "ac6fa262d58decbee0281f135a2f408babdf5a87afae33bca98b546c4801935c"
+  },
+  {
+    "path": "backend/internal/notification/httpapi/unsubscribe.go",
+    "status": "new",
+    "sha256": "ac1493649d4914ac5c217d0042a6e38cce8743bad1a3e1fce07d5633e1bad0ab"
+  },
+  {
+    "path": "backend/internal/notification/identity_messages.go",
+    "status": "new",
+    "sha256": "c3b54c7441a57ad9211c439d6a60afabd47d88c6e6b0fc204a6f33b64dba4f77"
+  },
+  {
+    "path": "backend/internal/notification/mailer.go",
+    "status": "new",
+    "sha256": "3efcb0b9c63db688155a4def457cba56bcc68607c67f819e564b461eeef3137d"
+  },
+  {
+    "path": "backend/internal/notification/notify_verification.go",
+    "status": "new",
+    "sha256": "eee94255034fa3b1654afcf812e0f3ee3e16084e0fa5d12d3e06949a04886408"
+  },
+  {
+    "path": "backend/internal/notification/ports.go",
+    "status": "new",
+    "sha256": "e46f57a21c9aab2460616567380f9e73a078b2529a4ecb7541bec58eafa0004b"
+  },
+  {
+    "path": "backend/internal/notification/queue.go",
+    "status": "new",
+    "sha256": "059db628acef689517dd9b3e2b856d7b838231b55ce1dcd53443c5ecbbeacb9c"
+  },
+  {
+    "path": "backend/internal/notification/risk.go",
+    "status": "new",
+    "sha256": "22e910702163e3fd969603c051db659c34edd5ddfd3c9aa3ed74164e9e3cf63d"
+  },
+  {
+    "path": "backend/internal/notification/service.go",
+    "status": "new",
+    "sha256": "4fb4665dd261f983169a37e68bf7e87f1172970509fbb09f2e6a2d2abc2e967c"
+  },
+  {
+    "path": "backend/internal/notification/service_test.go",
+    "status": "new",
+    "sha256": "511cfd80360523262705cb87dd2bb57efce9ff1f45b7bd262793352025b84f95"
+  },
+  {
+    "path": "backend/internal/notification/smtp/ack_test.go",
+    "status": "new",
+    "sha256": "63051ee8402cae3dfb10dacb1e93c7c288667650d29c230bb8b8eb97bc42cd16"
+  },
+  {
+    "path": "backend/internal/notification/smtp/client.go",
+    "status": "new",
+    "sha256": "7c021109ef8d26a95b7f60de3bb30896cd762aeb45064ac53d4c5c5ea8eefc01"
+  },
+  {
+    "path": "backend/internal/notification/smtp/email_message_test.go",
+    "status": "new",
+    "sha256": "bfb76acdbcf849f332317d44e5d71b3905f2fcae2dd43c3a9e02a76b23958e26"
+  },
+  {
+    "path": "backend/internal/notification/smtp/email_service_smtp_test.go",
+    "status": "new",
+    "sha256": "89f870766a05cbdc46687922860b4a582499d58782940f0f1ff38b4db354e954"
+  },
+  {
+    "path": "backend/internal/notification/smtp/message.go",
+    "status": "new",
+    "sha256": "2348a35eff284d38268944f1f53e569486d815bac2cc0d8a55ec721e77257000"
+  },
+  {
+    "path": "backend/internal/notification/team_messages.go",
+    "status": "new",
+    "sha256": "79325c80512cfe2c2ecdf1d6c7fa16536f7a8276200ebc402af53964367388ec"
+  },
+  {
+    "path": "backend/internal/ops/report_placeholders.go",
+    "status": "modified",
+    "sha256": "6cdc236c114cd537eefe1c952cb7440779f53f6a454d5bbdeef2de541b435857"
+  },
+  {
+    "path": "backend/internal/pkg/websearch/brave.go",
+    "status": "modified",
+    "sha256": "02587fdea2040084981ce5584472ed2e64c457131484d195af27400d38b2d2f1"
+  },
+  {
+    "path": "backend/internal/pkg/websearch/brave_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/pkg/websearch/helpers.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/pkg/websearch/helpers_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/pkg/websearch/manager.go",
+    "status": "modified",
+    "sha256": "a15aebb398325579bf34b768203cd8cae3e737f017a1a51c0d46f834291d37b8"
+  },
+  {
+    "path": "backend/internal/pkg/websearch/manager_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/pkg/websearch/provider.go",
+    "status": "modified",
+    "sha256": "7b177deb2ef214b2ce1caceba98225d5740f338db504507b6c5599830508eed3"
+  },
+  {
+    "path": "backend/internal/pkg/websearch/tavily.go",
+    "status": "modified",
+    "sha256": "5b5e371003b52cc0d64fd89b6bb7d48a1427e4271f6ebfaf8cdeddc5cb2b9078"
+  },
+  {
+    "path": "backend/internal/pkg/websearch/tavily_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/pkg/websearch/types.go",
+    "status": "modified",
+    "sha256": "82dbb7353328e26a9625177e9d32723381aa51250847d2f48f124890c894e38e"
+  },
+  {
+    "path": "backend/internal/repository/content_moderation_hash_cache.go",
+    "status": "modified",
+    "sha256": "02088dde0ca174f0cab0bab1c16526538646f40d67529a386ea6c41933080e9b"
+  },
+  {
+    "path": "backend/internal/repository/content_moderation_repo.go",
+    "status": "modified",
+    "sha256": "31b839d76726b9fb5c394740eb7a634154d13e260fe7b89eea30b6cad3133f83"
+  },
+  {
+    "path": "backend/internal/repository/content_moderation_repo_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/repository/email_cache.go",
+    "status": "modified",
+    "sha256": "c9b45810ea7420af94d374791018540631f597065db2b68fe6eb0edbc7882cd2"
+  },
+  {
+    "path": "backend/internal/repository/email_cache_integration_test.go",
+    "status": "modified",
+    "sha256": "fbb9b667a46bff85b90f44ef4aca6c60c16c5585ffa6d3c2813010b4b9fa5e3a"
+  },
+  {
+    "path": "backend/internal/repository/email_cache_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/repository/sqlmock_fixture_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/repository/wire.go",
+    "status": "modified",
+    "sha256": "5ebc9febc2e5b42bd21cf695fed920f0d6b08b992bfd2b2c2ee939251464e33a"
+  },
+  {
+    "path": "backend/internal/search/config.go",
+    "status": "new",
+    "sha256": "0302862b8139e2af7b7bc72c1e16864a4d655eddf5410eb00c67a467e728a965"
+  },
+  {
+    "path": "backend/internal/search/config_test.go",
+    "status": "new",
+    "sha256": "e2e227d30315701beae910af4d1e23021c16e1dc8df601032343cedf284c3179"
+  },
+  {
+    "path": "backend/internal/search/contract/provider.go",
+    "status": "new",
+    "sha256": "de002a74f0d37f3f23ea5bc8d0e22a30b30473e57287215c407654738a93696b"
+  },
+  {
+    "path": "backend/internal/search/contract/types.go",
+    "status": "new",
+    "sha256": "4b308d427b65c5e46fc6939adc483d13a40e3080832c2b818b53721f4f15f60b"
+  },
+  {
+    "path": "backend/internal/search/httpapi/handler.go",
+    "status": "new",
+    "sha256": "59aee2f7398d1af4581f9c6340f1a32d02873a597d1a23281a44ec2899da8de7"
+  },
+  {
+    "path": "backend/internal/search/lease_test.go",
+    "status": "new",
+    "sha256": "688d889faf3838642876548eb02ec3985dffa955c6bd3d3decdb58c0933c8b5a"
+  },
+  {
+    "path": "backend/internal/search/lifecycle.go",
+    "status": "new",
+    "sha256": "79ea72177adb43a4cce968fc01d7b13bc4bf70f73936baf5a3fdcd249c0a012b"
+  },
+  {
+    "path": "backend/internal/search/manager.go",
+    "status": "new",
+    "sha256": "f07777c59a20ff8e40af7fec9c39243090bf7ca3eee24cb8e1d32586ade5990d"
+  },
+  {
+    "path": "backend/internal/search/manager_test.go",
+    "status": "new",
+    "sha256": "0c7ebd1e2f777729e3495a7136d93c61d306449d075aef4e78b09c6e567e59c8"
+  },
+  {
+    "path": "backend/internal/search/ports.go",
+    "status": "new",
+    "sha256": "7635857c421d6346ee8488155589b53038cb8acdbf004a355c55fb7020bd0381"
+  },
+  {
+    "path": "backend/internal/search/provider/brave.go",
+    "status": "new",
+    "sha256": "ba55aa81605da2535ff225c19a622b81ebc03e8e0eb5bff524b3a7d50b3145bb"
+  },
+  {
+    "path": "backend/internal/search/provider/brave_test.go",
+    "status": "new",
+    "sha256": "95ae0fbcf35a9482b36a142635b065f206e31a5f6a99bc12e3b6470a0e565fbe"
+  },
+  {
+    "path": "backend/internal/search/provider/executor.go",
+    "status": "new",
+    "sha256": "f853685d5a82161de25bf11a476c57e66e9c37c7dc31ef291c7ff4370236fd59"
+  },
+  {
+    "path": "backend/internal/search/provider/helpers.go",
+    "status": "new",
+    "sha256": "464c827fe0ee17981ce38a7d7c20ff91e9d82c96a1cbf8535dfd86e90e18b48c"
+  },
+  {
+    "path": "backend/internal/search/provider/helpers_test.go",
+    "status": "new",
+    "sha256": "e84471026eae56e6e601444773dd4d4e5a7f787c0942522767242f891ebf2e6d"
+  },
+  {
+    "path": "backend/internal/search/provider/manager_test.go",
+    "status": "new",
+    "sha256": "312a773f045102d72eaf6d196fee59542eac76e38917b5489cba59e10dd483be"
+  },
+  {
+    "path": "backend/internal/search/provider/redis_integration_test.go",
+    "status": "new",
+    "sha256": "387e46df750765a82e1006b51dbe711120e76831068d73aa73060ea095226460"
+  },
+  {
+    "path": "backend/internal/search/provider/tavily.go",
+    "status": "new",
+    "sha256": "12a2dcdc3074756dbb9fa2fc88af88550c05bd1bb784b82003b8a625c4f32864"
+  },
+  {
+    "path": "backend/internal/search/provider/tavily_test.go",
+    "status": "new",
+    "sha256": "1cb2596d7d1dc7bbca260b086daa2e38941724c4616b3d6d6da7aef33842f55d"
+  },
+  {
+    "path": "backend/internal/search/rediscache/keys_test.go",
+    "status": "new",
+    "sha256": "e6c9e4f2de532ee2b290a5fdd803c5e9dded1fb2f1b9b95c9c16a6d943ae3b33"
+  },
+  {
+    "path": "backend/internal/search/rediscache/state.go",
+    "status": "new",
+    "sha256": "9b198b2a87183a9245e4b6daea191ee1d0b77b7bc0f1e3a13c34bf7fb7f693ce"
+  },
+  {
+    "path": "backend/internal/server/router.go",
+    "status": "modified",
+    "sha256": "0e416470295b46737905ed26e65483fc2d2efe57300648a9ffc162788dab5bf3"
+  },
+  {
+    "path": "backend/internal/server/routes/admin.go",
+    "status": "modified",
+    "sha256": "55801813a1b4ade04dc66c435e6d852c3290fda539e0dae4671bac33bcb646a9"
+  },
+  {
+    "path": "backend/internal/server/routes/auth.go",
+    "status": "modified",
+    "sha256": "2287362ac06efc42174eda319da716af902220784677e3265d6cacec6ff1e5bf"
+  },
+  {
+    "path": "backend/internal/service/balance_notify_service.go",
+    "status": "modified",
+    "sha256": "d97ab9c135a141ae785a4fd22d6f3a4fc8f20427e3530884cdee71fc7ebad487"
+  },
+  {
+    "path": "backend/internal/service/balance_notify_service_s10_unit_compat_test.go",
+    "status": "new",
+    "sha256": "0bf47466e53af57ad7d797662f3fe45b418d248691f7f51078e5b9d87243a539"
+  },
+  {
+    "path": "backend/internal/service/content_moderation.go",
+    "status": "modified",
+    "sha256": "ee7fa96d049a3ed73ba955a5c7c8b1dde1f97a07f35e958b53d5ad6a23e2b62e"
+  },
+  {
+    "path": "backend/internal/service/content_moderation_email.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/service/content_moderation_expanded_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/service/content_moderation_input.go",
+    "status": "modified",
+    "sha256": "15a1dc3ddd6a455f31397e2f03322498b743f6bf27dabe2e051e95b2ca0a4e71"
+  },
+  {
+    "path": "backend/internal/service/content_moderation_input_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/service/content_moderation_keyword_matcher.go",
+    "status": "modified",
+    "sha256": "374a16f5d0d1de2f1aa8c40ba7b15397359fe4331d7afe793fbe4c4c050d2b7b"
+  },
+  {
+    "path": "backend/internal/service/content_moderation_keyword_matcher_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/service/content_moderation_media.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/service/content_moderation_proxy_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/service/content_moderation_redact.go",
+    "status": "modified",
+    "sha256": "374a16f5d0d1de2f1aa8c40ba7b15397359fe4331d7afe793fbe4c4c050d2b7b"
+  },
+  {
+    "path": "backend/internal/service/content_moderation_runtime_cache_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/service/content_moderation_s10_unit_compat_test.go",
+    "status": "new",
+    "sha256": "62dc8db079e94f62d6b892303a1da13c649c61a7f65dc30ddb9b49c05c759508"
+  },
+  {
+    "path": "backend/internal/service/content_moderation_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/service/email_message.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/service/email_message_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/service/email_queue_service.go",
+    "status": "modified",
+    "sha256": "40f1c229dd0ea3104670d4ad8c64bc43839c41d058aaf6c9cd5cfed696d52ac1"
+  },
+  {
+    "path": "backend/internal/service/email_service.go",
+    "status": "modified",
+    "sha256": "7703c450f1283a13cacfc1a1979268adb564708771f70dc8fed243279f3ed7fb"
+  },
+  {
+    "path": "backend/internal/service/email_service_s10_unit_compat_test.go",
+    "status": "new",
+    "sha256": "3e14af9e8a397e42f23080208ddf6f4aa363754dead5763089f5959994d620a1"
+  },
+  {
+    "path": "backend/internal/service/email_service_smtp_test.go",
+    "status": "deleted",
+    "sha256": null
+  },
+  {
+    "path": "backend/internal/service/gateway_websearch_emulation.go",
+    "status": "modified",
+    "sha256": "a6f94710f1f2731f8142ba085f60b91ad2a2b612936d03f8c36954585792ea26"
+  },
+  {
+    "path": "backend/internal/service/gateway_websearch_emulation_test.go",
+    "status": "modified",
+    "sha256": "b5f30dd8ae643bd655260d1582bb4709a7e961ba32aa855b648e84aa995ad9d1"
+  },
+  {
+    "path": "backend/internal/service/moderation_legacy_fixtures_s10_unit_compat_test.go",
+    "status": "new",
+    "sha256": "038b566fe8b2ea9b8d8a3e0943c464e5a970c1e73c3443886a35bc01bd2b390d"
+  },
+  {
+    "path": "backend/internal/service/notification_email_service.go",
+    "status": "modified",
+    "sha256": "ec4510f47713e191c9338b66915ccb21bbe28343e135e8ab0b3b4c8e760f54b3"
+  },
+  {
+    "path": "backend/internal/service/notification_email_service_test.go",
+    "status": "modified",
+    "sha256": "517cadf0df9f9c8b6ac014d8492bfac141f80f7de4a741172148b144ee7e05cf"
+  },
+  {
+    "path": "backend/internal/service/ops_scheduled_report_service_test.go",
+    "status": "modified",
+    "sha256": "418ee92d3ed66bb4c872555a25b57a2e2b0251d1174f987e3f53f6fa9c5b7d41"
+  },
+  {
+    "path": "backend/internal/service/setting_parse.go",
+    "status": "modified",
+    "sha256": "a9112a5b49c833693876f1843ba9a76f902dfb09e9ddb307824a8c563dc377d8"
+  },
+  {
+    "path": "backend/internal/service/setting_public.go",
+    "status": "modified",
+    "sha256": "ef793cc5c5a0afaa41686192b12cfb79b80f0a9b4347ec61e793f076098fc7d7"
+  },
+  {
+    "path": "backend/internal/service/setting_service.go",
+    "status": "modified",
+    "sha256": "8d7f8bcf01cd1498354acab495dbb0046516e1b8e4ac877aab14be6e7bd873b3"
+  },
+  {
+    "path": "backend/internal/service/settings_view.go",
+    "status": "modified",
+    "sha256": "4ab6e6a508f17b8b25aa5fb3d712e6105f370e11e1f2dfc0facf69dea895557d"
+  },
+  {
+    "path": "backend/internal/service/subscription_expiry_service.go",
+    "status": "modified",
+    "sha256": "e72fd8b7a2223e20072fb6d3aaab83769891c320ef278e8eff16560b6f68863c"
+  },
+  {
+    "path": "backend/internal/service/team.go",
+    "status": "modified",
+    "sha256": "bbb12331acce2499858e59452685951ffc7613b10451d21e43ec4c6cc2c40eff"
+  },
+  {
+    "path": "backend/internal/service/user_service.go",
+    "status": "modified",
+    "sha256": "f161f7509ba2e7704203ee632343b7d37c4a788d559d6a37bfcc7092da4fd8fa"
+  },
+  {
+    "path": "backend/internal/service/websearch_config.go",
+    "status": "modified",
+    "sha256": "6ee29f037fccf4a2d22ea0728c2310cd4573f0ce2e9a65a522e93a7888a1a278"
+  },
+  {
+    "path": "backend/internal/service/websearch_config_s10_unit_compat_test.go",
+    "status": "new",
+    "sha256": "5db879f9f8c15c631854d225906af1047cd671ecd7c0c517c8919a5705096e06"
+  },
+  {
+    "path": "backend/internal/service/wire.go",
+    "status": "modified",
+    "sha256": "a414e2dec64838026200f8d20b03cf27ad2027184852a5cd450856974c1157a7"
+  },
+  {
+    "path": "backend/internal/site/filesystem/markdown_test.go",
+    "status": "new",
+    "sha256": "7a2fcce635a4263ac06d8918aefd757532e2412dcb9f9ab68223790f4e483995"
+  },
+  {
+    "path": "backend/internal/site/filesystem/pages.go",
+    "status": "new",
+    "sha256": "eda258fa47da384eb9594f58ef1b2116fa3b784ec78a91284266ef71caf8e556"
+  },
+  {
+    "path": "backend/internal/site/filesystem/pages_test.go",
+    "status": "new",
+    "sha256": "2cbf39b572b6de4c82238ef3353d69de028e13d5c0dbe7aaa47fdc8cf6c05343"
+  },
+  {
+    "path": "backend/internal/site/httpapi/dto/navigation.go",
+    "status": "new",
+    "sha256": "645b90a411b1e6d62278cc97db1d54b523cf7016ca57e454be6aff90d7938812"
+  },
+  {
+    "path": "backend/internal/site/httpapi/dto/public.go",
+    "status": "new",
+    "sha256": "274370a125a1b7fc428fbaaa5567218584dfcbbaf4be0d2d5912048250310dad"
+  },
+  {
+    "path": "backend/internal/site/httpapi/pages.go",
+    "status": "new",
+    "sha256": "53bd0115d7d238b35e1b03d4ac339b721fe44b4e2fe75b866e04c70b8d443f73"
+  },
+  {
+    "path": "backend/internal/site/httpapi/pages_test.go",
+    "status": "new",
+    "sha256": "8113f32202f5f0ad1e39c17df43844d4ff360cd39c17b921ee1230fd33aa370f"
+  },
+  {
+    "path": "backend/internal/site/httpapi/public.go",
+    "status": "new",
+    "sha256": "b20f208a5a615362d7acc074d480cb511a0802a4df0ec33ec7870b0235650050"
+  },
+  {
+    "path": "backend/internal/site/pages.go",
+    "status": "new",
+    "sha256": "3cfbf3e553980bef23ded6260fd806e11036a34e99fc6961e1a7b38ffd0eb120"
+  },
+  {
+    "path": "backend/internal/site/pages_test.go",
+    "status": "new",
+    "sha256": "6aa6c3f8375952bb25e0004af19e39006de4c52f223e8bbc0a8b0e8fdf26de58"
+  },
+  {
+    "path": "backend/internal/site/public.go",
+    "status": "new",
+    "sha256": "3003d10053bbe8f0c0df5416edff771f13dbc49c7a621b907f63f223b2ca18df"
+  },
+  {
+    "path": "backend/internal/site/public_types.go",
+    "status": "new",
+    "sha256": "fae41ac6dd97fb9836802fabeea65078557923db5d02379ffe4880a7b690d171"
+  },
+  {
+    "path": "backend/internal/team/email_notifications.go",
+    "status": "new",
+    "sha256": "2e1f2bbe9ab7024af6422c6350b045a977ea5c44d01a153094327296ac00917d"
+  },
+  {
+    "path": "docs/architecture/gateway_request_lifecycle.md",
+    "status": "modified",
+    "sha256": "c76c9e49f5df668fb51d0b083fd0f9eb7a5c31c6e2c17c0b270acd447a2e5c07"
+  },
+  {
+    "path": "docs/architecture/system_architecture.md",
+    "status": "modified",
+    "sha256": "11e63f3d4e49aa783eae401cb19924a58239cc2e6cc9d68d9476d3895161b61c"
+  },
+  {
+    "path": "docs/domains/content_moderation.md",
+    "status": "modified",
+    "sha256": "430e7e96eb7f027b20a98a28394352457d0d78f84fb389ad8a87d90d6dc82668"
+  },
+  {
+    "path": "docs/domains/identity_and_tenancy.md",
+    "status": "modified",
+    "sha256": "42daf20fabc8502aa6087b8241cd9c3d0586e13798ce0cf857dbb3a2c4bbe02b"
+  },
+  {
+    "path": "docs/interfaces/configuration.md",
+    "status": "modified",
+    "sha256": "62f2942d559406466dcaf34fdb2e9671082377c5e7e6b32c11953d6b527d8e17"
+  },
+  {
+    "path": "docs/interfaces/http_api.md",
+    "status": "modified",
+    "sha256": "46ad751db9be3877019038fd3423ad9fce3cbd7e5bbc16c382ae8e406cee4ae4"
+  },
+  {
+    "path": "docs/operations/development_workflow.md",
+    "status": "modified",
+    "sha256": "73d79ec1e8b54cfdbffea1fd6d1c26d5a81a54976b5f332f0a762361d8d54025"
+  },
+  {
+    "path": "docs/operations/ops_monitoring_and_alerting.md",
+    "status": "modified",
+    "sha256": "6504e6913d9ff40c678e3105cd8cadbfbcb9a0728e06647796a939c06e147e4f"
+  },
+  {
+    "path": "refactor/BACKEND_PACKAGE_TARGET.md",
+    "status": "modified",
+    "sha256": "0c45d589144c05806a7d203bdb0ee29a0df1eae5c1f050da2637b57b4a6e8125"
+  },
+  {
+    "path": "refactor/S10-notification-site-moderation-search.md",
+    "status": "new",
+    "sha256": "1085277bdc97cb9c05f76ae0291569344d496aa4f44b93a1c288579f75bcc24f"
+  }
+]

@@ -1,0 +1,232 @@
+[
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 85,
+    "column": 24,
+    "target": "backend/internal/identity/postgres/user_repo.go",
+    "target_line": 83,
+    "package": "github.com/TokenFlux/TokenRouter/internal/identity/postgres",
+    "symbol": "NewUserStore",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 93,
+    "column": 30,
+    "target": "backend/internal/billing/quota_coordinator.go",
+    "target_line": 23,
+    "package": "github.com/TokenFlux/TokenRouter/internal/billing",
+    "symbol": "NewQuotaCoordinator",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 105,
+    "column": 25,
+    "target": "backend/internal/billing/httpapi/plan_handler.go",
+    "target_line": 15,
+    "package": "github.com/TokenFlux/TokenRouter/internal/billing/httpapi",
+    "symbol": "NewPlanHandler",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 109,
+    "column": 20,
+    "target": "backend/internal/identity/rediscache/refresh_token.go",
+    "target_line": 39,
+    "package": "github.com/TokenFlux/TokenRouter/internal/identity/rediscache",
+    "symbol": "NewRefreshTokenCache",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 110,
+    "column": 32,
+    "target": "backend/internal/identity/provider/turnstile_service.go",
+    "target_line": 23,
+    "package": "github.com/TokenFlux/TokenRouter/internal/identity/provider",
+    "symbol": "NewTurnstileVerifier",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 112,
+    "column": 37,
+    "target": "backend/internal/identity/provider/tencent_captcha_service.go",
+    "target_line": 24,
+    "package": "github.com/TokenFlux/TokenRouter/internal/identity/provider",
+    "symbol": "NewTencentCaptchaVerifier",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 114,
+    "column": 36,
+    "target": "backend/internal/identity/provider/aliyun_captcha_verifier.go",
+    "target_line": 22,
+    "package": "github.com/TokenFlux/TokenRouter/internal/identity/provider",
+    "symbol": "NewAliyunCaptchaVerifier",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 130,
+    "column": 27,
+    "target": "backend/internal/identity/rediscache/totp.go",
+    "target_line": 27,
+    "package": "github.com/TokenFlux/TokenRouter/internal/identity/rediscache",
+    "symbol": "NewTotpCache",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 132,
+    "column": 48,
+    "target": "backend/internal/identity/postgres/user_attribute.go",
+    "target_line": 18,
+    "package": "github.com/TokenFlux/TokenRouter/internal/identity/postgres",
+    "symbol": "NewUserAttributeDefinitionRepository",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 133,
+    "column": 43,
+    "target": "backend/internal/identity/postgres/user_attribute.go",
+    "target_line": 155,
+    "package": "github.com/TokenFlux/TokenRouter/internal/identity/postgres",
+    "symbol": "NewUserAttributeValueRepository",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 134,
+    "column": 35,
+    "target": "backend/internal/identity/user_attribute_service.go",
+    "target_line": 21,
+    "package": "github.com/TokenFlux/TokenRouter/internal/identity",
+    "symbol": "NewUserAttributeService",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 153,
+    "column": 27,
+    "target": "backend/internal/billing/httpapi/redeem_handler.go",
+    "target_line": 17,
+    "package": "github.com/TokenFlux/TokenRouter/internal/billing/httpapi",
+    "symbol": "NewRedeemHandler",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 154,
+    "column": 33,
+    "target": "backend/internal/billing/httpapi/subscription_handler.go",
+    "target_line": 46,
+    "package": "github.com/TokenFlux/TokenRouter/internal/billing/httpapi",
+    "symbol": "NewSubscriptionHandler",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 155,
+    "column": 38,
+    "target": "backend/internal/site/postgres/announcement_repo.go",
+    "target_line": 20,
+    "package": "github.com/TokenFlux/TokenRouter/internal/site/postgres",
+    "symbol": "NewAnnouncementRepository",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 156,
+    "column": 42,
+    "target": "backend/internal/site/postgres/announcement_read_repo.go",
+    "target_line": 16,
+    "package": "github.com/TokenFlux/TokenRouter/internal/site/postgres",
+    "symbol": "NewAnnouncementReadRepository",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 159,
+    "column": 30,
+    "target": "backend/internal/site/service.go",
+    "target_line": 21,
+    "package": "github.com/TokenFlux/TokenRouter/internal/site",
+    "symbol": "NewAnnouncementService",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 160,
+    "column": 34,
+    "target": "backend/internal/site/httpapi/user.go",
+    "target_line": 20,
+    "package": "github.com/TokenFlux/TokenRouter/internal/site/httpapi",
+    "symbol": "NewAnnouncementHandler",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 300,
+    "column": 39,
+    "target": "backend/internal/site/httpapi/admin.go",
+    "target_line": 22,
+    "package": "github.com/TokenFlux/TokenRouter/internal/site/httpapi",
+    "symbol": "NewAdminAnnouncementHandler",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 316,
+    "column": 32,
+    "target": "backend/internal/billing/httpapi/admin_redeem_handler.go",
+    "target_line": 39,
+    "package": "github.com/TokenFlux/TokenRouter/internal/billing/httpapi",
+    "symbol": "NewAdminRedeemHandler",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 351,
+    "column": 38,
+    "target": "backend/internal/billing/httpapi/admin_subscription_handler.go",
+    "target_line": 34,
+    "package": "github.com/TokenFlux/TokenRouter/internal/billing/httpapi",
+    "symbol": "NewAdminSubscriptionHandler",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 379,
+    "column": 39,
+    "target": "backend/internal/team/rediscache/invitation.go",
+    "target_line": 42,
+    "package": "github.com/TokenFlux/TokenRouter/internal/team/rediscache",
+    "symbol": "NewTeamInvitationLimiter",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 396,
+    "column": 32,
+    "target": "backend/internal/identity/postgres/passkey.go",
+    "target_line": 22,
+    "package": "github.com/TokenFlux/TokenRouter/internal/identity/postgres",
+    "symbol": "NewPasskeyRepository",
+    "kind": "func"
+  },
+  {
+    "from": "backend/internal/app/wire_gen.go",
+    "line": 397,
+    "column": 37,
+    "target": "backend/internal/identity/rediscache/passkey.go",
+    "target_line": 23,
+    "package": "github.com/TokenFlux/TokenRouter/internal/identity/rediscache",
+    "symbol": "NewPasskeySessionStore",
+    "kind": "func"
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/moderation/...",
+    "./internal/handler/admin",
+    "./internal/repository",
+    "-run",
+    "Test(ContentModeration|BuildContentModeration|.*Hash.*)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 7.06,
+  "pass": 98,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/moderation-storage-unit.log.gz"
+}

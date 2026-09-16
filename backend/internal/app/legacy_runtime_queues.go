@@ -33,7 +33,7 @@ func provideQueuesRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if emailQueue != nil {
-			emailQueue.Stop()
+			return emailQueue.StopContext(ctx)
 		}
 		return nil
 	}})
@@ -114,7 +114,7 @@ func provideQueuesRuntime(
 		return nil
 	}, Stop: func(ctx context.Context) error {
 		if contentModeration != nil {
-			return contentModeration.Stop()
+			return contentModeration.StopContext(ctx)
 		}
 		return nil
 	}})

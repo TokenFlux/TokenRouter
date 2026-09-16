@@ -67,6 +67,11 @@ Google One Tap 是现有 Google 登录的浏览器凭据入口，不创建新的
 
 可选会话绑定使用安全解析后的客户端 IP 和规范化 User-Agent 生成摘要。access token 中缺少旧版绑定摘要时可暂时兼容到下次刷新；一旦带有摘要，发现不匹配必须审计并撤销会话族。代理头只有在可信代理配置下才参与安全客户端 IP，不能直接信任任意来路的转发头。
 
+<a id="email_challenges"></a>
+### 邮箱挑战与通知
+
+邮箱挑战与密码重置凭据由 identity.EmailChallenges 和 identity/rediscache 唯一维护，通知模块仅接收已经准备好的验证码、重置链接或验证事件。队列仍在 worker 执行时生成验证码；普通验证码先存后发，通知邮箱验证先发后存，密码重置继续复用未过期令牌和原冷却。发送失败不会被统一改成回滚所有凭据或重新生成令牌。模板、取消与投递边界见[通知与 SMTP](../interfaces/configuration.md#notification_delivery)。
+
 ## 强认证与敏感操作
 
 TOTP 密钥以加密形式持久化，设置和登录挑战使用有过期时间的缓存状态。管理员敏感设置要求近期 TOTP step-up grant，grant 绑定 JWT 的 `sid`；TOTP 未启用、会话 ID 缺失、grant 过期或 grant 服务不可用都应拒绝操作。该检查开启后按 fail-close 工作。

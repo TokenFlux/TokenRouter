@@ -1,0 +1,23 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=unit",
+    "./internal/moderation/...",
+    "./internal/service",
+    "./internal/handler",
+    "./internal/handler/admin",
+    "-run",
+    "Test(ContentModeration|ExtractContentModeration|BuildContentModeration|RedactContentModeration|IsOpenAICyber|NormalizeBlocked|MatchBlocked|.*Creative.*Retention.*|.*Images.*)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 58.168,
+  "pass": 335,
+  "fail": 1,
+  "skip": 0,
+  "log": "logs/moderation-unit-race.log.gz"
+}

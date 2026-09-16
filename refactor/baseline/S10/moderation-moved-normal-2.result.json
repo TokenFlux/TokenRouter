@@ -1,0 +1,19 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "./internal/moderation/...",
+    "./internal/service",
+    "-run",
+    "Test(ContentModeration|ExtractContentModeration|BuildContentModeration|RedactContentModeration|IsOpenAICyber|NormalizeBlocked|MatchBlocked|.*Creative.*Retention.*|.*Images.*)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 3.741,
+  "pass": 273,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/moderation-moved-normal-2.log.gz"
+}

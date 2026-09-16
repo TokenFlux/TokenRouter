@@ -69,6 +69,10 @@ usage、audit、ops 已使用各自核心和 Adapter；用户/Key/团队的用�
 
 upstream 的具体平台不能相互导入，也不接收旧 Account、Gin 或完整 config。共享 Google 认证原语位于 upstream/internal/googleauth，纯 wire/转换继续由 protocol 提供；账号授权会话及凭据持久化归 account。旧网关的参数投影与重试时机保留到入站迁移，测试需要分别验证 HTTP 提交、语义输出、可重试边界和已观测用量。平台迁移使用本地 HTTP/TLS/WS 及隔离存储夹具，不能把这些结果当作真实供应商账号验证。
 
+notification、site、moderation、search 的核心、纯契约和 Adapter 按职责匹配现有 depguard。邮件凭据留 identity，阈值留 billing，通知接受已确定事件；审核跨身份事务沿用同一 SQL 连接；文件读取归 site/filesystem；搜索的 HTTP 与 Redis 分开。旧转接不得拥有第二份状态或算法，迁出文件的历史许可及原排除同时删除。角色夹具需覆盖新文件、精确历史 import、非法子包和迁出后的同名文件。
+
+这些模块的行为验证包括真实 SMTP/TLS 夹具、页面文件边界、PostgreSQL 审核回滚、Redis 预占释放、配置交错及有界关闭。全量普通、unit、integration 命令串行执行；integration 使用 `-p=4` 限制包级容器压力，保留测试内部并发和断言。测试事件、跳过、原失败及后续通过分别保存，不能用数量相同代替诊断逐项比较。
+
 所有手写代码都要写必要注释，注释使用中文；生成文件不手改。注释应解释约束、失败语义或非显然原因，不复述语句。跨模块不变量应同步到 Project Doc，并在关键手写入口添加唯一 `@project-doc` 锚点。
 
 前端使用 Vue 3、TypeScript、Pinia、Vue Router、Vue I18n 和项目组件。修改界面时：

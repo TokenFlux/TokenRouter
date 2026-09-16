@@ -3,9 +3,11 @@ package identity
 
 import (
 	context "context"
-	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 	strings "strings"
 	time "time"
+
+	contract "github.com/TokenFlux/TokenRouter/internal/notification/contract"
+	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/apperror"
 )
 
 // EmailCache defines cache operations for email service
@@ -49,7 +51,7 @@ type PasswordResetTokenData struct {
 }
 
 var (
-	ErrEmailNotConfigured    = infraerrors.ServiceUnavailable("EMAIL_NOT_CONFIGURED", "email service not configured")
+	ErrEmailNotConfigured    = contract.ErrEmailNotConfigured
 	ErrInvalidVerifyCode     = infraerrors.BadRequest("INVALID_VERIFY_CODE", "invalid or expired verification code")
 	ErrVerifyCodeTooFrequent = infraerrors.TooManyRequests("VERIFY_CODE_TOO_FREQUENT", "please wait before requesting a new code")
 	ErrVerifyCodeMaxAttempts = infraerrors.TooManyRequests("VERIFY_CODE_MAX_ATTEMPTS", "too many failed attempts, please request a new code")

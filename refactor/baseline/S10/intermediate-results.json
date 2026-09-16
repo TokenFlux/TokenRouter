@@ -1,0 +1,390 @@
+[
+  {
+    "result": "final-integration-lint.result.json",
+    "exit_code": 1,
+    "command": [
+      "golangci-lint",
+      "run",
+      "--timeout=30m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s10-final-integration-lint.json",
+      "--build-tags=integration",
+      "./..."
+    ],
+    "classification": "expected-existing-lint"
+  },
+  {
+    "result": "final-normal-lint.result.json",
+    "exit_code": 1,
+    "command": [
+      "golangci-lint",
+      "run",
+      "--timeout=30m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s10-final-normal-lint.json",
+      "./..."
+    ],
+    "classification": "expected-existing-lint"
+  },
+  {
+    "result": "final-unit-lint.result.json",
+    "exit_code": 1,
+    "command": [
+      "golangci-lint",
+      "run",
+      "--timeout=30m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s10-final-unit-lint.json",
+      "--build-tags=unit",
+      "./..."
+    ],
+    "classification": "expected-existing-lint"
+  },
+  {
+    "result": "moderation-moved-compile-2.result.json",
+    "exit_code": 1,
+    "command": [
+      "go",
+      "test",
+      "./internal/moderation/...",
+      "./internal/service",
+      "-run",
+      "^$"
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "moderation-moved-compile.result.json",
+    "exit_code": 1,
+    "command": [
+      "go",
+      "test",
+      "./internal/moderation/...",
+      "./internal/service",
+      "-run",
+      "^$"
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "moderation-moved-normal.result.json",
+    "exit_code": 1,
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "./internal/moderation/...",
+      "./internal/service",
+      "-run",
+      "Test(ContentModeration|ExtractContentModeration|BuildContentModeration|RedactContentModeration|IsOpenAICyber|NormalizeBlocked|MatchBlocked|.*Creative.*Retention.*|.*Images.*)"
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "moderation-native-compile.result.json",
+    "exit_code": 1,
+    "command": [
+      "go",
+      "test",
+      "./internal/moderation/...",
+      "-run",
+      "^$"
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "moderation-storage-unit-2.result.json",
+    "exit_code": 1,
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-tags=unit",
+      "./internal/moderation/postgres",
+      "./internal/moderation/httpapi",
+      "./internal/repository",
+      "./internal/handler/admin",
+      "-run",
+      "Test(ContentModeration|BuildContentModeration)"
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "moderation-storage-unit-3.result.json",
+    "exit_code": 1,
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-race",
+      "-json",
+      "-tags=unit",
+      "./internal/moderation/postgres",
+      "./internal/moderation/httpapi",
+      "./internal/repository",
+      "./internal/handler/admin",
+      "-run",
+      "Test(ContentModeration|BuildContentModeration)"
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "moderation-storage-unit.result.json",
+    "exit_code": 1,
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-tags=unit",
+      "./internal/moderation/...",
+      "./internal/handler/admin",
+      "./internal/repository",
+      "-run",
+      "Test(ContentModeration|BuildContentModeration|.*Hash.*)"
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "moderation-unit-race.result.json",
+    "exit_code": 1,
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-race",
+      "-json",
+      "-tags=unit",
+      "./internal/moderation/...",
+      "./internal/service",
+      "./internal/handler",
+      "./internal/handler/admin",
+      "-run",
+      "Test(ContentModeration|ExtractContentModeration|BuildContentModeration|RedactContentModeration|IsOpenAICyber|NormalizeBlocked|MatchBlocked|.*Creative.*Retention.*|.*Images.*)"
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "modules-lint-2.result.json",
+    "exit_code": 1,
+    "command": [
+      "golangci-lint",
+      "run",
+      "--timeout=10m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/notification/...",
+      "./internal/site/...",
+      "./internal/moderation/...",
+      "./internal/search/...",
+      "./internal/app/...",
+      "./internal/billing/...",
+      "./internal/identity/..."
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "modules-lint.result.json",
+    "exit_code": 1,
+    "command": [
+      "golangci-lint",
+      "run",
+      "--timeout=10m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/notification/...",
+      "./internal/site/...",
+      "./internal/moderation/...",
+      "./internal/search/...",
+      "./internal/app/...",
+      "./internal/billing/...",
+      "./internal/identity/..."
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "notification-direct-wire.result.json",
+    "exit_code": 1,
+    "command": [
+      "go",
+      "generate",
+      "./cmd/server"
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "notification-first-compile.result.json",
+    "exit_code": 1,
+    "command": [
+      "go",
+      "test",
+      "./internal/notification/...",
+      "./internal/service",
+      "-run",
+      "^$"
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "notification-site-lint.result.json",
+    "exit_code": 1,
+    "command": [
+      "golangci-lint",
+      "run",
+      "--timeout=10m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "./internal/notification/...",
+      "./internal/site/...",
+      "./internal/app/..."
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "notification-unit.result.json",
+    "exit_code": 1,
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-tags=unit",
+      "./internal/notification/...",
+      "./internal/service",
+      "-run",
+      "Test(NotificationEmail|EmailQueue|OpsScheduledReport|SMTPConnection|SendEmailWithConfig|BuildSMTPMessage|BuildVerifyCode|BuildPasswordReset|SubscriptionExpiry)"
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "pre-final-gates-integration-lint.result.json",
+    "exit_code": 1,
+    "command": [
+      "golangci-lint",
+      "run",
+      "--timeout=30m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s10-final-integration-lint.json",
+      "--build-tags=integration",
+      "./..."
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "pre-final-gates-normal-lint.result.json",
+    "exit_code": 1,
+    "command": [
+      "golangci-lint",
+      "run",
+      "--timeout=30m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s10-final-normal-lint.json",
+      "./..."
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "precleanup-integration-lint.result.json",
+    "exit_code": 1,
+    "command": [
+      "golangci-lint",
+      "run",
+      "--timeout=30m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s10-final-integration-lint.json",
+      "--build-tags=integration",
+      "./..."
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "precleanup-normal-lint.result.json",
+    "exit_code": 1,
+    "command": [
+      "golangci-lint",
+      "run",
+      "--timeout=30m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s10-final-normal-lint.json",
+      "./..."
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "precleanup-unit-lint.result.json",
+    "exit_code": 1,
+    "command": [
+      "golangci-lint",
+      "run",
+      "--timeout=30m",
+      "--max-same-issues=0",
+      "--max-issues-per-linter=0",
+      "--output.json.path=/tmp/s10-final-unit-lint.json",
+      "--build-tags=unit",
+      "./..."
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "site-pages-unit.result.json",
+    "exit_code": 1,
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-tags=unit",
+      "./internal/site/...",
+      "./internal/handler",
+      "./internal/server",
+      "-run",
+      "Test.*Page"
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "site-public-unit-2.result.json",
+    "exit_code": 1,
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-tags=unit",
+      "./internal/site/...",
+      "./internal/service",
+      "./internal/handler",
+      "./internal/server",
+      "-run",
+      "Test(.*PublicSettings.*|.*Page.*|.*LoginAgreement.*|.*TablePreferences.*|.*FrameSrc.*|.*Team.*)"
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  },
+  {
+    "result": "site-public-unit.result.json",
+    "exit_code": 1,
+    "command": [
+      "go",
+      "test",
+      "-count=1",
+      "-json",
+      "-tags=unit",
+      "./internal/site/...",
+      "./internal/service",
+      "./internal/handler",
+      "./internal/server",
+      "-run",
+      "Test(.*PublicSettings.*|.*Page.*|.*LoginAgreement.*|.*TablePreferences.*|.*FrameSrc.*|.*Team.*)"
+    ],
+    "classification": "migration/intermediate; superseded by final validation"
+  }
+]

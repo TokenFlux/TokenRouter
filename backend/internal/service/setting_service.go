@@ -13,6 +13,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/TokenFlux/TokenRouter/internal/search"
+
+	"github.com/TokenFlux/TokenRouter/internal/site"
+
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	"github.com/TokenFlux/TokenRouter/internal/settings"
 	"github.com/TokenFlux/TokenRouter/internal/usage"
@@ -153,10 +157,11 @@ var (
 
 // WebSearchManagerBuilder creates a websearch.Manager from config (injected by infra layer).
 // proxyURLs maps proxy ID to resolved URL for provider-level proxy support.
-type WebSearchManagerBuilder func(cfg *WebSearchEmulationConfig, proxyURLs map[int64]string)
 
 // SettingService 系统设置服务
 type SettingService struct {
+	searchConfig                 *search.ConfigService
+	publicSite                   *site.PublicService
 	runtimeSettingsMu            sync.Mutex
 	settingRepo                  SettingRepository
 	defaultSubPlanReader         DefaultSubscriptionPlanReader
@@ -165,7 +170,6 @@ type SettingService struct {
 	runtimeSettings              *settings.Store
 	creativeWorkerCountCallback  func(int)
 	creativeWorkerStatusCallback func() CreativeWorkerStatus
-	webSearchManagerBuilder      WebSearchManagerBuilder
 	antigravityUAVersionCache    atomic.Value // *cachedAntigravityUserAgentVersion
 	antigravityUAVersionSF       singleflight.Group
 	openAICodexUACache           atomic.Value // *cachedOpenAICodexUserAgent

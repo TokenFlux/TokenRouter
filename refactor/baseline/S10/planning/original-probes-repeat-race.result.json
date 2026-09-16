@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=3",
+    "-race",
+    "-json",
+    "-overlay=/tmp/tokenrouter-s10-planning/overlay.json",
+    "./internal/service",
+    "./internal/handler",
+    "-run",
+    "^TestS10Planning",
+    "-timeout=90s"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 20.23,
+  "pass": 0,
+  "fail": 21,
+  "skip": 0,
+  "log": "logs/original-probes-repeat-race.log.gz"
+}

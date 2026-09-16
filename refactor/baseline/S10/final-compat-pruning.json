@@ -1,0 +1,422 @@
+[
+  {
+    "file": "internal/handler/admin/setting_handler_email.go",
+    "symbol": "func resolveSMTPUseTLS is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/repository/sqlmock_fixture_test.go",
+    "symbol": "func newSQLMock is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func buildQuotaDimsFromState is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "const thresholdTypeFixed is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "const thresholdTypePercentage is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "const defaultSiteName is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func (*BalanceNotifyService).canNotifyBalance is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func (*BalanceNotifyService).resolveUserEffectiveThreshold is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func (*BalanceNotifyService).dispatchBalanceLowEmail is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func (*BalanceNotifyService).checkQuotaDimCrossings is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func (*BalanceNotifyService).getBalanceNotifyConfig is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func (*BalanceNotifyService).isAccountQuotaNotifyEnabled is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func (*BalanceNotifyService).getAccountQuotaNotifyEmails is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func (*BalanceNotifyService).getSiteName is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func (*BalanceNotifyService).collectBalanceNotifyRecipients is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func filterVerifiedEmails is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func crossedDownward is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func sanitizeEmailHeader is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func (*BalanceNotifyService).buildBalanceLowEmailBody is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/balance_notify_service.go",
+    "symbol": "func (*BalanceNotifyService).buildQuotaAlertEmailBody is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/content_moderation.go",
+    "symbol": "type moderationAPIResponse is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/content_moderation.go",
+    "symbol": "type moderationAPIResult is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/email_service.go",
+    "symbol": "const verifyCodeTTL is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/email_service.go",
+    "symbol": "const verifyCodeCooldown is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/email_service.go",
+    "symbol": "const maxVerifyCodeAttempts is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/email_service.go",
+    "symbol": "const passwordResetTokenTTL is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/email_service.go",
+    "symbol": "const passwordResetEmailCooldown is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/email_service.go",
+    "symbol": "func firstEmailLocale is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/email_service.go",
+    "symbol": "func (*EmailService).buildVerifyCodeEmailBody is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/email_service.go",
+    "symbol": "func (*EmailService).buildPasswordResetEmailBody is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "type contentModerationTestSettingRepo is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestSettingRepo).Get is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestSettingRepo).GetValue is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestSettingRepo).Set is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestSettingRepo).GetMultiple is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestSettingRepo).SetMultiple is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestSettingRepo).GetAll is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestSettingRepo).Delete is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "type contentModerationTestRepo is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestRepo).CreateLog is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestRepo).ListLogs is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestRepo).CountFlaggedByUserSince is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestRepo).CreateCyberWarning is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestRepo).CreateCyberWarningAndApplyUserBan is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestRepo).ListCyberWarnings is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestRepo).CountCyberWarningsByUserSince is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestRepo).GetCyberSummary is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestRepo).MarkCyberWarningEmailSent is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestRepo).CleanupExpiredLogs is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestRepo).snapshotLogs is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func requireContentModerationLogCount is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func requireRecordedHashCount is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "type contentModerationTestHashCache is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "type contentModerationTestAuthCacheInvalidator is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestAuthCacheInvalidator).InvalidateAuthCacheByKey is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestAuthCacheInvalidator).InvalidateAuthCacheByUserID is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestAuthCacheInvalidator).InvalidateAuthCacheByGroupID is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestHashCache).RecordFlaggedInputHash is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestHashCache).HasFlaggedInputHash is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestHashCache).DeleteFlaggedInputHash is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestHashCache).ClearFlaggedInputHashes is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestHashCache).CountFlaggedInputHashes is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestHashCache).snapshotRecorded is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestHashCache).snapshotChecked is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestHashCache).hasHash is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func (*contentModerationTestHashCache).snapshotDeleted is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func defaultContentModerationModelFilterTestConfig is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func newContentModerationModelFilterTestService is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func newContentModerationFlaggedLog is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/moderation_legacy_fixtures_test.go",
+    "symbol": "func contentModerationIntPtr is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/notification_email_service.go",
+    "symbol": "func notificationEmailTemplateErr is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/notification_email_service.go",
+    "symbol": "func notificationEmailConfigErr is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/notification_email_service.go",
+    "symbol": "func notificationEmailDeliveryErr is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/notification_email_service.go",
+    "symbol": "func isNotificationEmailDeliveryError is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/notification_email_service.go",
+    "symbol": "func notificationEmailHash is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/setting_public.go",
+    "symbol": "func normalizeLoginAgreementDocumentID is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/setting_public.go",
+    "symbol": "func normalizeLoginAgreementDocuments is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/setting_public.go",
+    "symbol": "func buildLoginAgreementRevision is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/setting_public.go",
+    "symbol": "func filterUserVisibleMenuItems is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/setting_public.go",
+    "symbol": "func safeRawJSONArray is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/setting_public.go",
+    "symbol": "func extractOriginFromURL is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/setting_public.go",
+    "symbol": "func parseCustomMenuItemURLs is unused",
+    "action": "delete unreferenced"
+  },
+  {
+    "file": "internal/service/websearch_config.go",
+    "symbol": "func validateWebSearchConfig is unused",
+    "action": "test-only ['unit']"
+  },
+  {
+    "file": "internal/service/websearch_config.go",
+    "symbol": "func parseWebSearchConfigJSON is unused",
+    "action": "test-only ['unit']"
+  }
+]

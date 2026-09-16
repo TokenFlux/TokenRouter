@@ -1,0 +1,24 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-tags=integration",
+    "-p=4",
+    "./internal/app",
+    "./internal/search/provider",
+    "./internal/repository",
+    "-run",
+    "TestS10ModerationTransaction|TestS10SearchRedisReservations|TestEmailCacheSuite|TestS02StorageContracts/(settings-batch-atomicity|announcement-transactions-and-first-read)",
+    "-timeout=5m"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 41.928,
+  "pass": 18,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/storage-fixed-integration-race.log.gz"
+}

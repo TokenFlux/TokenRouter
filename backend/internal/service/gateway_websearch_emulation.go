@@ -8,10 +8,9 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"sync/atomic"
 	"time"
 
-	"github.com/TokenFlux/TokenRouter/internal/pkg/websearch"
+	websearch "github.com/TokenFlux/TokenRouter/internal/search"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/tidwall/gjson"
@@ -35,17 +34,9 @@ const (
 	featureKeyWebSearchEmulation = "web_search_emulation"
 )
 
-// webSearchManagerPtr stores *websearch.Manager atomically for concurrent safety.
-var webSearchManagerPtr atomic.Pointer[websearch.Manager]
-
-// SetWebSearchManager wires the websearch.Manager into the gateway (goroutine-safe).
-func SetWebSearchManager(m *websearch.Manager) {
-	webSearchManagerPtr.Store(m)
-}
-
-func getWebSearchManager() *websearch.Manager {
-	return webSearchManagerPtr.Load()
-}
+// SetWebSearchManager 只转接新注册表，生产配置发布由 search 管理。
+func SetWebSearchManager(m *websearch.Manager) { WebSearchRegistry().Set(m) }
+func getWebSearchManager() *websearch.Manager  { return WebSearchRegistry().Get() }
 
 // shouldEmulateWebSearch checks whether a request should be intercepted.
 //

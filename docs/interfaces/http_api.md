@@ -44,6 +44,13 @@ RequestLogger
 
 用量与 Dashboard 的用户/管理员入口位于 `usage/httpapi`；`/v1/usage` 及 Antigravity 用量自省直接绑定新的公开 handler，保留 quota_limited/unrestricted、日期范围、余额/指定订阅区别及 best-effort 统计。审计入口位于 `audit/httpapi`，清空的原 TOTP 与管理员 API Key 拒绝规则继续有效；Ops 管理与实时入口位于 `ops/httpapi`。路由路径、中间件顺序、JSON/CSV、分页、ETag/304 和 WebSocket 子协议保持原契约，具体留痕保证见[清理与留存](../operations/observability_and_data_lifecycle.md#data_cleanup)。
 
+通知模板、SMTP 测试和公开退订直接绑定 notification/httpapi；搜索配置、管理测试和额度重置绑定 search/httpapi；风险配置、日志、媒体、Cyber 和解封绑定 moderation/httpapi。原 URL、中间件次序、幂等边界和返回字段保持。公开设置及页面由 site/httpapi 提供，旧设置 handler 只保留兼容委托。
+
+<a id="site_pages"></a>
+### 站点页面
+
+Markdown 正文要求 JWT 和菜单可见性，管理员页面只向管理员开放；页面列表仍要求管理员。图片保留无需 JWT 但仅允许普通可见页面的限制。Markdown 正文和图片分开维持原响应形状；正文越出页面根的符号链接返回 404，根内链接可读，正文读取上限为 1 MiB。文件 Adapter 在同一个打开句柄上检查和限量读取，静态 SPA 与 data/public 继续归 web。
+
 | 路由族 | 认证 | 主要所有者与用途 |
 | --- | --- | --- |
 | `/health`、`/setup/status` | 无 | `routes/common.go`；进程健康与正常模式 setup 状态 |

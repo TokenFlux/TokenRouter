@@ -3,6 +3,8 @@ package admin
 import (
 	"strings"
 
+	searchhttp "github.com/TokenFlux/TokenRouter/internal/search/httpapi"
+
 	"github.com/TokenFlux/TokenRouter/internal/handler/dto"
 	"github.com/TokenFlux/TokenRouter/internal/pkg/response"
 	"github.com/TokenFlux/TokenRouter/internal/service"
@@ -458,79 +460,18 @@ func (h *SettingHandler) UpdateStreamTimeoutSettings(c *gin.Context) {
 	})
 }
 
-// GetWebSearchEmulationConfig 获取 Web Search 模拟配置
-// GET /api/v1/admin/settings/web-search-emulation
 func (h *SettingHandler) GetWebSearchEmulationConfig(c *gin.Context) {
-	cfg, err := h.settingService.GetWebSearchEmulationConfig(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Success(c, service.PopulateWebSearchUsage(c.Request.Context(), cfg))
+	searchhttp.New(h.settingService.SearchRuntime()).GetWebSearchEmulationConfig(c)
 }
 
-// UpdateWebSearchEmulationConfig 更新 Web Search 模拟配置
-// PUT /api/v1/admin/settings/web-search-emulation
 func (h *SettingHandler) UpdateWebSearchEmulationConfig(c *gin.Context) {
-	var cfg service.WebSearchEmulationConfig
-	if err := c.ShouldBindJSON(&cfg); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-
-	if err := h.settingService.SaveWebSearchEmulationConfig(c.Request.Context(), &cfg); err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-
-	// Re-read (with sanitized api keys) to return current state
-	updated, err := h.settingService.GetWebSearchEmulationConfig(c.Request.Context())
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Success(c, service.PopulateWebSearchUsage(c.Request.Context(), updated))
+	searchhttp.New(h.settingService.SearchRuntime()).UpdateWebSearchEmulationConfig(c)
 }
 
-// ResetWebSearchUsage 重置指定 provider 的配额用量
-// POST /api/v1/admin/settings/web-search-emulation/reset-usage
 func (h *SettingHandler) ResetWebSearchUsage(c *gin.Context) {
-	var req struct {
-		ProviderType string `json:"provider_type"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-	if req.ProviderType == "" {
-		response.BadRequest(c, "provider_type is required")
-		return
-	}
-	if err := service.ResetWebSearchUsage(c.Request.Context(), req.ProviderType); err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Success(c, nil)
+	searchhttp.New(h.settingService.SearchRuntime()).ResetWebSearchUsage(c)
 }
 
-// TestWebSearchEmulation 测试 Web Search 搜索
-// POST /api/v1/admin/settings/web-search-emulation/test
 func (h *SettingHandler) TestWebSearchEmulation(c *gin.Context) {
-	var req struct {
-		Query string `json:"query"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "Invalid request: "+err.Error())
-		return
-	}
-	if strings.TrimSpace(req.Query) == "" {
-		req.Query = "搜索今年世界大事件"
-	}
-
-	result, err := service.TestWebSearch(c.Request.Context(), req.Query)
-	if err != nil {
-		response.ErrorFrom(c, err)
-		return
-	}
-	response.Success(c, result)
+	searchhttp.New(h.settingService.SearchRuntime()).TestWebSearchEmulation(c)
 }

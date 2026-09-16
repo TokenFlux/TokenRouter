@@ -1,29 +1,16 @@
 package dto
 
 import (
-	"encoding/json"
-	"strings"
+	sitedto "github.com/TokenFlux/TokenRouter/internal/site/httpapi/dto"
+
+	notificationdto "github.com/TokenFlux/TokenRouter/internal/notification/httpapi/dto"
 
 	"github.com/TokenFlux/TokenRouter/internal/service"
 )
 
-// CustomMenuItem represents a user-configured custom menu entry.
-type CustomMenuItem struct {
-	ID         string `json:"id"`
-	Label      string `json:"label"`
-	IconSVG    string `json:"icon_svg"`
-	URL        string `json:"url"`
-	PageSlug   string `json:"page_slug,omitempty"`
-	Visibility string `json:"visibility"` // "user" or "admin"
-	SortOrder  int    `json:"sort_order"`
-}
+type CustomMenuItem = sitedto.CustomMenuItem
 
-// CustomEndpoint represents an admin-configured API endpoint for quick copy.
-type CustomEndpoint struct {
-	Name        string `json:"name"`
-	Endpoint    string `json:"endpoint"`
-	Description string `json:"description"`
-}
+type CustomEndpoint = sitedto.CustomEndpoint
 
 // SystemSettings represents the admin settings API response payload.
 type SystemSettings struct {
@@ -350,104 +337,6 @@ type DefaultSubscriptionSetting struct {
 	PlanID int64 `json:"plan_id"`
 }
 
-type PublicSettings struct {
-	RegistrationEnabled                 bool                     `json:"registration_enabled"`
-	EmailVerifyEnabled                  bool                     `json:"email_verify_enabled"`
-	ForceEmailOnThirdPartySignup        bool                     `json:"force_email_on_third_party_signup"`
-	RegistrationEmailSuffixWhitelist    []string                 `json:"registration_email_suffix_whitelist"`
-	RegistrationEmailDomainQuotaEnabled bool                     `json:"registration_email_domain_quota_enabled"`
-	UserEmailChangeEnabled              bool                     `json:"user_email_change_enabled"` // 是否允许已有邮箱的用户换绑主邮箱
-	PromoCodeEnabled                    bool                     `json:"promo_code_enabled"`
-	PasswordResetEnabled                bool                     `json:"password_reset_enabled"`
-	InvitationCodeEnabled               bool                     `json:"invitation_code_enabled"`
-	TotpEnabled                         bool                     `json:"totp_enabled"` // TOTP 双因素认证
-	PasskeyEnabled                      bool                     `json:"passkey_enabled"`
-	LoginAgreementEnabled               bool                     `json:"login_agreement_enabled"`
-	LoginAgreementMode                  string                   `json:"login_agreement_mode"`
-	LoginAgreementUpdatedAt             string                   `json:"login_agreement_updated_at"`
-	LoginAgreementRevision              string                   `json:"login_agreement_revision"`
-	LoginAgreementDocuments             []LoginAgreementDocument `json:"login_agreement_documents"`
-	TurnstileEnabled                    bool                     `json:"turnstile_enabled"`
-	TurnstileSiteKey                    string                   `json:"turnstile_site_key"`
-	TencentCaptchaEnabled               bool                     `json:"tencent_captcha_enabled"`
-	TencentCaptchaAppID                 string                   `json:"tencent_captcha_app_id"`
-	TencentCaptchaRegion                string                   `json:"tencent_captcha_region"`
-	AliyunCaptchaEnabled                bool                     `json:"aliyun_captcha_enabled"`
-	AliyunCaptchaSceneID                string                   `json:"aliyun_captcha_scene_id"`
-	AliyunCaptchaPrefix                 string                   `json:"aliyun_captcha_prefix"`
-	AliyunCaptchaRegion                 string                   `json:"aliyun_captcha_region"`
-	SiteName                            string                   `json:"site_name"`
-	SiteLogo                            string                   `json:"site_logo"`
-	SiteSubtitle                        string                   `json:"site_subtitle"`
-	SiteNameZh                          string                   `json:"site_name_zh"`
-	SiteNameEn                          string                   `json:"site_name_en"`
-	SiteTitleZh                         string                   `json:"site_title_zh"`
-	SiteTitleEn                         string                   `json:"site_title_en"`
-	SiteSubtitleZh                      string                   `json:"site_subtitle_zh"`
-	SiteSubtitleEn                      string                   `json:"site_subtitle_en"`
-	APIBaseURL                          string                   `json:"api_base_url"`
-	ContactInfo                         string                   `json:"contact_info"`
-	DocURL                              string                   `json:"doc_url"`
-	HomeContent                         string                   `json:"home_content"`
-	HideCcsImportButton                 bool                     `json:"hide_ccs_import_button"`
-	PurchaseSubscriptionEnabled         bool                     `json:"purchase_subscription_enabled"`
-	PurchaseSubscriptionURL             string                   `json:"purchase_subscription_url"`
-	TableDefaultPageSize                int                      `json:"table_default_page_size"`
-	TablePageSizeOptions                []int                    `json:"table_page_size_options"`
-	UsageRankingLimit                   int                      `json:"usage_ranking_limit"`
-	UsageRankingEnabled                 bool                     `json:"usage_ranking_enabled"`
-	UsageRankingSortBy                  string                   `json:"usage_ranking_sort_by"`
-	UsageRankingShowTotalTokens         bool                     `json:"usage_ranking_show_total_tokens"`
-	UsageRankingShowRequests            bool                     `json:"usage_ranking_show_requests"`
-	UsageRankingShowActualCost          bool                     `json:"usage_ranking_show_actual_cost"`
-	CustomMenuItems                     []CustomMenuItem         `json:"custom_menu_items"`
-	CustomEndpoints                     []CustomEndpoint         `json:"custom_endpoints"`
-	FooterLinks                         []FooterLinkGroup        `json:"footer_links"`
-	FooterText                          string                   `json:"footer_text"`
-	HomeFeaturedModels                  []string                 `json:"home_featured_models"`
-	DingTalkOAuthEnabled                bool                     `json:"dingtalk_oauth_enabled"`
-	LinuxDoOAuthEnabled                 bool                     `json:"linuxdo_oauth_enabled"`
-	WeChatOAuthEnabled                  bool                     `json:"wechat_oauth_enabled"`
-	WeChatOAuthOpenEnabled              bool                     `json:"wechat_oauth_open_enabled"`
-	WeChatOAuthMPEnabled                bool                     `json:"wechat_oauth_mp_enabled"`
-	WeChatOAuthMobileEnabled            bool                     `json:"wechat_oauth_mobile_enabled"`
-	OIDCOAuthEnabled                    bool                     `json:"oidc_oauth_enabled"`
-	OIDCOAuthProviderName               string                   `json:"oidc_oauth_provider_name"`
-	GitHubOAuthEnabled                  bool                     `json:"github_oauth_enabled"`
-	GoogleOAuthEnabled                  bool                     `json:"google_oauth_enabled"`
-	GoogleOneTapEnabled                 bool                     `json:"google_one_tap_enabled"`
-	GoogleOAuthClientID                 string                   `json:"google_oauth_client_id"`
-	BackendModeEnabled                  bool                     `json:"backend_mode_enabled"`
-	PaymentEnabled                      bool                     `json:"payment_enabled"`
-	TeamEnabled                         bool                     `json:"team_enabled"`
-	TeamSelfServiceEnabled              bool                     `json:"team_self_service_enabled"`
-	CreativeEnabled                     bool                     `json:"creative_enabled"`
-	Version                             string                   `json:"version"`
-	// 服务器全局时区与当前 UTC 偏移，供前端标注高峰计费窗口等服务端本地时间。
-	ServerTimezone              string  `json:"server_timezone"`
-	ServerUTCOffset             string  `json:"server_utc_offset"`
-	BalanceUnitName             string  `json:"balance_unit_name"`
-	BalanceUnitSymbol           string  `json:"balance_unit_symbol"`
-	BalanceIconSVG              string  `json:"balance_icon_svg"`
-	BalanceLowNotifyEnabled     bool    `json:"balance_low_notify_enabled"`
-	AccountQuotaNotifyEnabled   bool    `json:"account_quota_notify_enabled"`
-	RiskControlEnabled          bool    `json:"risk_control_enabled"` // 风控中心入口开关
-	CyberSessionBlockEnabled    bool    `json:"cyber_session_block_enabled"`
-	CyberSessionBlockTTLSeconds int     `json:"cyber_session_block_ttl_seconds"`
-	AffiliateEnabled            bool    `json:"affiliate_enabled"` // 邀请返利入口开关
-	BalanceLowNotifyThreshold   float64 `json:"balance_low_notify_threshold"`
-	BalanceLowNotifyRechargeURL string  `json:"balance_low_notify_recharge_url"`
-
-	// 允许终端用户在用量页查看自己的失败请求
-	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
-}
-
-type LoginAgreementDocument struct {
-	ID        string `json:"id"`
-	Title     string `json:"title"`
-	ContentMD string `json:"content_md"`
-}
-
 // OverloadCooldownSettings 529过载冷却配置 DTO
 type OverloadCooldownSettings struct {
 	Enabled         bool `json:"enabled"`
@@ -550,140 +439,29 @@ type OpenAIOAuthImportDefaults struct {
 	Extra       map[string]any                   `json:"extra,omitempty"`
 }
 
-// EmailTemplateEventOption 描述可编辑的通知邮件事件。
-type EmailTemplateEventOption struct {
-	Value       string `json:"value"`
-	Label       string `json:"label,omitempty"`
-	Description string `json:"description,omitempty"`
-	Category    string `json:"category,omitempty"`
-	Optional    bool   `json:"optional,omitempty"`
-}
+func ParseCustomMenuItems(raw string) []CustomMenuItem { return sitedto.ParseCustomMenuItems(raw) }
 
-// EmailTemplateSummary 是后台邮件模板列表展示的摘要。
-type EmailTemplateSummary struct {
-	Event     string `json:"event"`
-	Locale    string `json:"locale"`
-	Subject   string `json:"subject"`
-	IsCustom  bool   `json:"is_custom,omitempty"`
-	UpdatedAt string `json:"updated_at,omitempty"`
-}
-
-// EmailTemplateListResponse 是邮件模板列表接口的响应。
-type EmailTemplateListResponse struct {
-	Events       []EmailTemplateEventOption `json:"events"`
-	Locales      []string                   `json:"locales"`
-	Templates    []EmailTemplateSummary     `json:"templates,omitempty"`
-	Placeholders []string                   `json:"placeholders,omitempty"`
-}
-
-// EmailTemplateDetail 是指定事件和语言的模板详情。
-type EmailTemplateDetail struct {
-	Event        string   `json:"event"`
-	Locale       string   `json:"locale"`
-	Subject      string   `json:"subject"`
-	HTML         string   `json:"html"`
-	IsCustom     bool     `json:"is_custom,omitempty"`
-	UpdatedAt    string   `json:"updated_at,omitempty"`
-	Placeholders []string `json:"placeholders,omitempty"`
-}
-
-// UpdateEmailTemplateRequest 更新模板覆盖内容。
-type UpdateEmailTemplateRequest struct {
-	Subject string `json:"subject"`
-	HTML    string `json:"html"`
-}
-
-// PreviewEmailTemplateRequest 预览未保存的模板内容。
-type PreviewEmailTemplateRequest struct {
-	Event     string            `json:"event"`
-	Locale    string            `json:"locale"`
-	Subject   string            `json:"subject"`
-	HTML      string            `json:"html"`
-	Variables map[string]string `json:"variables,omitempty"`
-}
-
-// EmailTemplatePreviewResponse 是模板渲染后的预览响应。
-type EmailTemplatePreviewResponse struct {
-	Subject string `json:"subject"`
-	HTML    string `json:"html"`
-}
-
-// ParseCustomMenuItems parses a JSON string into a slice of CustomMenuItem.
-// Returns empty slice on empty/invalid input.
-func ParseCustomMenuItems(raw string) []CustomMenuItem {
-	raw = strings.TrimSpace(raw)
-	if raw == "" || raw == "[]" {
-		return []CustomMenuItem{}
-	}
-	var items []CustomMenuItem
-	if err := json.Unmarshal([]byte(raw), &items); err != nil {
-		return []CustomMenuItem{}
-	}
-	return items
-}
-
-// ParseUserVisibleMenuItems parses custom menu items and filters out admin-only entries.
 func ParseUserVisibleMenuItems(raw string) []CustomMenuItem {
-	items := ParseCustomMenuItems(raw)
-	filtered := make([]CustomMenuItem, 0, len(items))
-	for _, item := range items {
-		if item.Visibility != "admin" {
-			filtered = append(filtered, item)
-		}
-	}
-	return filtered
+	return sitedto.ParseUserVisibleMenuItems(raw)
 }
 
-// ParseCustomEndpoints parses a JSON string into a slice of CustomEndpoint.
-// Returns empty slice on empty/invalid input.
-func ParseCustomEndpoints(raw string) []CustomEndpoint {
-	raw = strings.TrimSpace(raw)
-	if raw == "" || raw == "[]" {
-		return []CustomEndpoint{}
-	}
-	var items []CustomEndpoint
-	if err := json.Unmarshal([]byte(raw), &items); err != nil {
-		return []CustomEndpoint{}
-	}
-	return items
-}
+func ParseCustomEndpoints(raw string) []CustomEndpoint { return sitedto.ParseCustomEndpoints(raw) }
 
-// FooterLink 首页底栏单条链接。
-type FooterLink struct {
-	Label string `json:"label"`
-	URL   string `json:"url"`
-}
+type FooterLink = sitedto.FooterLink
 
-// FooterLinkGroup 首页底栏链接分组（一列）。
-type FooterLinkGroup struct {
-	Title string       `json:"title"`
-	Links []FooterLink `json:"links"`
-}
+type FooterLinkGroup = sitedto.FooterLinkGroup
 
-// ParseFooterLinks parses a JSON string into a slice of FooterLinkGroup.
-// Returns empty slice on empty/invalid input.
-func ParseFooterLinks(raw string) []FooterLinkGroup {
-	raw = strings.TrimSpace(raw)
-	if raw == "" || raw == "[]" {
-		return []FooterLinkGroup{}
-	}
-	var groups []FooterLinkGroup
-	if err := json.Unmarshal([]byte(raw), &groups); err != nil {
-		return []FooterLinkGroup{}
-	}
-	return groups
-}
+func ParseFooterLinks(raw string) []FooterLinkGroup { return sitedto.ParseFooterLinks(raw) }
 
-// ParseHomeFeaturedModels 将 JSON 字符串解析为首页展示模型 ID 列表。
-// 空串或非法输入返回空切片。
-func ParseHomeFeaturedModels(raw string) []string {
-	raw = strings.TrimSpace(raw)
-	if raw == "" || raw == "[]" {
-		return []string{}
-	}
-	var models []string
-	if err := json.Unmarshal([]byte(raw), &models); err != nil {
-		return []string{}
-	}
-	return models
-}
+func ParseHomeFeaturedModels(raw string) []string { return sitedto.ParseHomeFeaturedModels(raw) }
+
+type EmailTemplatePreviewResponse = notificationdto.EmailTemplatePreviewResponse
+type PreviewEmailTemplateRequest = notificationdto.PreviewEmailTemplateRequest
+type UpdateEmailTemplateRequest = notificationdto.UpdateEmailTemplateRequest
+type EmailTemplateDetail = notificationdto.EmailTemplateDetail
+type EmailTemplateListResponse = notificationdto.EmailTemplateListResponse
+type EmailTemplateSummary = notificationdto.EmailTemplateSummary
+type EmailTemplateEventOption = notificationdto.EmailTemplateEventOption
+
+type LoginAgreementDocument = sitedto.LoginAgreementDocument
+type PublicSettings = sitedto.PublicSettings

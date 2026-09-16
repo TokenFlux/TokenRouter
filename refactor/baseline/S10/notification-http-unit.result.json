@@ -1,0 +1,22 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/notification/...",
+    "./internal/handler/admin",
+    "./internal/handler",
+    "./internal/server/routes",
+    "-run",
+    "Test(.*Email.*|.*SMTP.*|S10)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 10.734,
+  "pass": 75,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/notification-http-unit.log.gz"
+}

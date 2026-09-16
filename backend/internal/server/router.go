@@ -6,12 +6,14 @@ import (
 	middleware2 "github.com/TokenFlux/TokenRouter/internal/server/middleware"
 	"github.com/TokenFlux/TokenRouter/internal/server/routes"
 	"github.com/TokenFlux/TokenRouter/internal/service"
+	sitehttp "github.com/TokenFlux/TokenRouter/internal/site/httpapi"
 
 	"github.com/gin-gonic/gin"
 )
 
 // RouterRuntime 仅包含由应用装配好的 HTTP 行为。
 type RouterRuntime struct {
+	Pages           *sitehttp.PageHandler
 	ProtocolCatalog gin.HandlerFunc
 	FrameOrigins    func() []string
 	Frontend        gin.HandlerFunc
@@ -89,5 +91,5 @@ func registerRoutes(
 	routes.RegisterAdminRoutes(v1, h, adminAuth, auditLog, stepUpAuth, panelRateLimiter, runtime.ProtocolCatalog)
 	routes.RegisterGatewayRoutes(r, h, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, cfg)
 	routes.RegisterPaymentRoutes(v1, h.Payment, h.PaymentWebhook, h.Admin.Payment, h.Plans, jwtAuth, adminAuth, auditLog, settingService, panelRateLimiter)
-	handler.RegisterPageRoutes(v1, cfg.Pricing.DataDir, gin.HandlerFunc(jwtAuth), gin.HandlerFunc(adminAuth), settingService)
+	runtime.Pages.Register(v1, gin.HandlerFunc(jwtAuth), gin.HandlerFunc(adminAuth))
 }

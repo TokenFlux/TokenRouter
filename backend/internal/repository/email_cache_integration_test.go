@@ -48,7 +48,7 @@ func (s *EmailCacheSuite) TestVerificationCode_TTL() {
 
 	require.NoError(s.T(), s.cache.SetVerificationCode(s.ctx, email, data, emailTTL), "SetVerificationCode")
 
-	emailKey := verifyCodeKeyPrefix + email
+	emailKey := "verify_code:" + email
 	ttl, err := s.rdb.TTL(s.ctx, emailKey).Result()
 	require.NoError(s.T(), err, "TTL emailKey")
 	s.AssertTTLWithin(ttl, 1*time.Second, emailTTL)
@@ -78,7 +78,7 @@ func (s *EmailCacheSuite) TestDeleteVerificationCode_NonExistent() {
 }
 
 func (s *EmailCacheSuite) TestGetVerificationCode_JSONCorruption() {
-	emailKey := verifyCodeKeyPrefix + "corrupted@example.com"
+	emailKey := "verify_code:" + "corrupted@example.com"
 
 	require.NoError(s.T(), s.rdb.Set(s.ctx, emailKey, "not-json", 1*time.Minute).Err(), "Set invalid JSON")
 

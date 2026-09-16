@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
-	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/TokenFlux/TokenRouter/internal/site"
 
 	"github.com/TokenFlux/TokenRouter/internal/config"
 	infraerrors "github.com/TokenFlux/TokenRouter/internal/pkg/errors"
@@ -1351,45 +1352,9 @@ func mergeProviderDefaultGrantSettings(globalDefaults ProviderDefaultGrantSettin
 }
 
 func parseTablePreferences(defaultPageSizeRaw, optionsRaw string) (int, []int) {
-	defaultPageSize := 20
-	if v, err := strconv.Atoi(strings.TrimSpace(defaultPageSizeRaw)); err == nil {
-		defaultPageSize = v
-	}
-
-	var options []int
-	if strings.TrimSpace(optionsRaw) != "" {
-		_ = json.Unmarshal([]byte(optionsRaw), &options)
-	}
-
-	return normalizeTablePreferences(defaultPageSize, options)
+	return site.ParseTablePreferences(defaultPageSizeRaw, optionsRaw)
 }
 
 func normalizeTablePreferences(defaultPageSize int, options []int) (int, []int) {
-	const minPageSize = 5
-	const maxPageSize = 1000
-	const fallbackPageSize = 20
-
-	seen := make(map[int]struct{}, len(options))
-	normalizedOptions := make([]int, 0, len(options))
-	for _, option := range options {
-		if option < minPageSize || option > maxPageSize {
-			continue
-		}
-		if _, ok := seen[option]; ok {
-			continue
-		}
-		seen[option] = struct{}{}
-		normalizedOptions = append(normalizedOptions, option)
-	}
-	sort.Ints(normalizedOptions)
-
-	if defaultPageSize < minPageSize || defaultPageSize > maxPageSize {
-		defaultPageSize = fallbackPageSize
-	}
-
-	if len(normalizedOptions) == 0 {
-		normalizedOptions = []int{10, 20, 50}
-	}
-
-	return defaultPageSize, normalizedOptions
+	return site.NormalizeTablePreferences(defaultPageSize, options)
 }

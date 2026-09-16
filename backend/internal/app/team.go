@@ -4,18 +4,19 @@ package app
 import (
 	context "context"
 	sql "database/sql"
+	time "time"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	keypostgres "github.com/TokenFlux/TokenRouter/internal/apikey/postgres"
-	legacybridge "github.com/TokenFlux/TokenRouter/internal/app/legacybridge"
 	billingpostgres "github.com/TokenFlux/TokenRouter/internal/billing/postgres"
 	config "github.com/TokenFlux/TokenRouter/internal/config"
 	identity "github.com/TokenFlux/TokenRouter/internal/identity"
 	identitypostgres "github.com/TokenFlux/TokenRouter/internal/identity/postgres"
+	"github.com/TokenFlux/TokenRouter/internal/notification"
 	timezone "github.com/TokenFlux/TokenRouter/internal/pkg/timezone"
 	service "github.com/TokenFlux/TokenRouter/internal/service"
 	team "github.com/TokenFlux/TokenRouter/internal/team"
 	teampostgres "github.com/TokenFlux/TokenRouter/internal/team/postgres"
-	time "time"
 )
 
 // provideTeamRepository 把成员状态、Key 生命周期与资金窗口参与能力装在同一 SQL 连接来源上。
@@ -40,7 +41,7 @@ func (p teamIdentityUsers) GetByEmail(ctx context.Context, email string) (*team.
 	}
 	return &team.UserSnapshot{ID: u.ID, Email: u.Email, Username: u.Username}, e
 }
-func provideTeam(repo team.TeamRepository, users *identitypostgres.UserStore, oldUsers service.UserRepository, email *service.EmailService, cache apikey.APIKeyCache, limiter team.TeamInvitationLimiter, settings *service.SettingService, cfg *config.Config) *team.TeamService {
+func provideTeam(repo team.TeamRepository, users *identitypostgres.UserStore, email *notification.Mailer, cache apikey.APIKeyCache, limiter team.TeamInvitationLimiter, settings *service.SettingService, cfg *config.Config) *team.TeamService {
 	var options *team.Options
 	if cfg != nil {
 		options = &team.Options{Enabled: cfg.Team.Enabled, SelfServiceEnabled: cfg.Team.SelfServiceEnabled, DefaultMemberLimit: cfg.Team.DefaultMemberLimit, FrontendURL: cfg.Server.FrontendURL, Now: time.Now}
@@ -53,5 +54,5 @@ func provideTeam(repo team.TeamRepository, users *identitypostgres.UserStore, ol
 	if cache != nil {
 		invalidator = apikey.PublishedAuthCacheInvalidator{Cache: cache}
 	}
-	return team.NewTeamService(repo, teamIdentityUsers{Users: users}, legacybridge.TeamNotifications(email, oldUsers), invalidator, limiter, settingReader, options)
+	return team.NewTeamService(repo, teamIdentityUsers{Users: users}, team.NewEmailNotifications(email, teamIdentityUsers{Users: users}), invalidator, limiter, settingReader, options)
 }

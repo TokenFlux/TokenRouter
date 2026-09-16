@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/TokenFlux/TokenRouter/internal/billing"
-	"github.com/google/uuid"
 	"log"
 	"strconv"
 	"time"
+
+	"github.com/TokenFlux/TokenRouter/internal/billing"
+	"github.com/google/uuid"
 )
 
 // SubscriptionExpiryService 兼容旧类型名，维护实现由 billing 唯一持有。
@@ -19,10 +20,10 @@ type SubscriptionExpiryService = billing.SubscriptionExpiryService
 type LegacyExpiryNotifier struct{ Service *NotificationEmailService }
 
 func (n LegacyExpiryNotifier) Ready(ctx context.Context) error {
-	if n.Service == nil || n.Service.emailService == nil {
+	if n.Service == nil {
 		return billing.ErrReminderTransportUnconfigured
 	}
-	_, err := n.Service.emailService.GetSMTPConfig(ctx)
+	err := n.Service.CheckTransport(ctx)
 	if errors.Is(err, ErrEmailNotConfigured) {
 		return billing.ErrReminderTransportUnconfigured
 	}

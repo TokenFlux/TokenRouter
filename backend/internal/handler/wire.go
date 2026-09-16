@@ -2,6 +2,8 @@ package handler
 
 import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	notificationhttp "github.com/TokenFlux/TokenRouter/internal/notification/httpapi"
+	searchhttp "github.com/TokenFlux/TokenRouter/internal/search/httpapi"
 	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
 
 	opshttp "github.com/TokenFlux/TokenRouter/internal/ops/httpapi"
@@ -167,6 +169,9 @@ func ProvideAPIKeyHandler(apiKeyService *service.APIKeyService, groupCapacitySer
 
 // ProvideHandlers creates the Handlers struct
 func ProvideHandlers(
+	searchHandler *searchhttp.Handler,
+	publicSettings *sitehttpapi.PublicHandler,
+	notificationHandler *notificationhttp.Handler,
 	publicUsage *usagehttp.PublicUsageHandler,
 	plans *billinghttpapi.PlanHandler,
 	quotaHandler *billinghttpapi.QuotaHandler,
@@ -195,6 +200,9 @@ func ProvideHandlers(
 	_ *service.IdempotencyCleanupService,
 ) *Handlers {
 	return &Handlers{
+		Search:           searchHandler,
+		PublicSettings:   publicSettings,
+		Notification:     notificationHandler,
 		PublicUsage:      publicUsage,
 		Plans:            plans,
 		PlatformQuota:    quotaHandler,
@@ -261,7 +269,6 @@ var ProviderSet = wire.NewSet(
 	admin.NewUserAttributeHandler,
 	admin.NewErrorPassthroughHandler,
 	admin.NewAdminAPIKeyHandler,
-	admin.NewContentModerationHandler,
 	admin.NewPaymentHandler,
 	admin.NewAffiliateHandler,
 	admin.NewCodexInviteResetHandler,

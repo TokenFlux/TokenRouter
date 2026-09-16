@@ -1,0 +1,26 @@
+{
+  "stage": "S10",
+  "status": "complete",
+  "baseline": "23eec43d4df55244f7f169a0ebfe348e7658b91b",
+  "branch": "main",
+  "roadmap_completed": 11,
+  "roadmap_total": 17,
+  "fixed_issues": [
+    "B01",
+    "B02",
+    "B03",
+    "B04",
+    "B05",
+    "B06",
+    "B07"
+  ],
+  "additional_historical_fixes": [],
+  "lint_baseline_matches": true,
+  "required_verification_pending": [],
+  "external_limits": "真实供应商、硬件、外部 TLS/E2E 未执行；原跳过按记录保留。",
+  "committed": false,
+  "pushed": false,
+  "other_untracked_preserved": 50,
+  "protected_files": 6340,
+  "evidence": "acceptance.md"
+}

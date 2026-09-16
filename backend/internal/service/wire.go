@@ -718,9 +718,6 @@ var ProviderSet = wire.NewSet(
 	NewDataManagementService,
 	ProvideBackupService,
 
-	NewEmailService,
-	NewNotificationEmailService,
-	ProvideEmailQueueService,
 	NewUsageRecordWorkerPool,
 	NewRequestFingerprintService,
 
@@ -736,11 +733,9 @@ var ProviderSet = wire.NewSet(
 	ProvideIdempotencyCoordinator,
 	ProvideSystemOperationLockService,
 	ProvideIdempotencyCleanupService,
-	ProvideContentModerationService,
 	ProvidePaymentConfigService,
 	ProvidePaymentService,
 	ProvidePaymentOrderExpiryService,
-	ProvideBalanceNotifyService,
 )
 
 // ProvideContentModerationService 创建内容审计服务并注入代理仓储。

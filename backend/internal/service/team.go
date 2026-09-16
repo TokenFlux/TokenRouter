@@ -3,14 +3,10 @@ package service
 
 import (
 	context "context"
-	fmt "fmt"
+
 	apikey "github.com/TokenFlux/TokenRouter/internal/apikey"
 	config "github.com/TokenFlux/TokenRouter/internal/config"
 	team "github.com/TokenFlux/TokenRouter/internal/team"
-	html "html"
-	slog "log/slog"
-	strings "strings"
-	time "time"
 )
 
 const TeamStatusActive = team.TeamStatusActive
@@ -106,7 +102,7 @@ func NewTeamService(repo TeamRepository, userRepo UserRepository, emailService *
 	}
 	var notifier team.Notifier
 	if emailService != nil {
-		notifier = legacyTeamNotifier{emailService: emailService, userRepo: userRepo}
+		notifier = team.NewEmailNotifications(emailService.Mailer, teamNotificationRecipients(userRepo))
 	}
 	var settings team.Settings
 	if settingService != nil {
@@ -142,63 +138,17 @@ func (p legacyTeamKeys) InvalidateAuthCacheByKey(ctx context.Context, key string
 	apikey.PublishedAuthCacheInvalidator{Cache: p.cache}.InvalidateAuthCacheByKey(ctx, key)
 }
 
-type legacyTeamNotifier struct {
-	emailService *EmailService
-	userRepo     UserRepository
-}
-
-func (s legacyTeamNotifier) SendInvitation(ctx context.Context, email, teamName, link string, expiresAt time.Time) error {
-	if s.emailService == nil {
-		return nil
-	}
-	if strings.TrimSpace(link) == "" {
-		return ErrTeamFrontendURLUnavailable
-	}
-	recipientName := emailRecipientName(email)
-	var recipientUserID int64
-	if s.userRepo != nil {
-		if user, err := s.userRepo.GetByEmail(ctx, email); err == nil && user != nil {
-			recipientUserID = user.ID
-			if strings.TrimSpace(user.Username) != "" {
-				recipientName = strings.TrimSpace(user.Username)
-			}
-		}
-	}
-
-	// 团队邀请优先走统一模板系统，允许管理员在邮件设置中自定义主题和正文。
-	if s.emailService.notificationEmailService != nil {
-		err := s.emailService.notificationEmailService.Send(ctx, NotificationEmailSendInput{
-			Event:          NotificationEmailEventTeamInvitation,
-			RecipientEmail: email,
-			RecipientName:  recipientName,
-			UserID:         recipientUserID,
-			Variables: map[string]string{
-				"team_name":      teamName,
-				"invitation_url": link,
-				"expires_at":     expiresAt.Format(time.RFC3339),
-			},
-		})
-		if err == nil {
-			return nil
-		}
-		if !shouldFallbackNotificationEmail(err) {
-			return err
-		}
-		slog.Warn("failed to send templated team invitation email, falling back to legacy template", "recipient_hash", notificationEmailHash(email), "error", err)
-	}
-
-	body := fmt.Sprintf("<p>你被邀请加入团队 <strong>%s</strong>。</p><p><a href=\"%s\">查看并处理邀请</a></p><p>邀请有效期至 %s。</p>", html.EscapeString(teamName), html.EscapeString(link), expiresAt.Format(time.RFC3339))
-	return s.emailService.SendEmail(ctx, email, "团队邀请", body)
-}
-func (s legacyTeamNotifier) SendOwnershipTransfer(ctx context.Context, email, teamName, link string) error {
-	body := fmt.Sprintf("<p>你收到团队 <strong>%s</strong> 的所有权转让请求。</p><p><a href=\"%s\">确认或拒绝转让</a></p>", html.EscapeString(teamName), html.EscapeString(link))
-	return s.emailService.SendEmail(ctx, email, "团队所有权转让", body)
-}
-
 // NewTeamNotificationDelivery 保留尚未迁入通知模块的模板及发送规则，S10 改绑。
 func NewTeamNotificationDelivery(email *EmailService, users UserRepository) team.Notifier {
 	if email == nil {
 		return nil
 	}
-	return legacyTeamNotifier{emailService: email, userRepo: users}
+	return team.NewEmailNotifications(email.Mailer, teamNotificationRecipients(users))
+}
+
+func teamNotificationRecipients(users UserRepository) team.InvitationRecipientReader {
+	if users == nil {
+		return nil
+	}
+	return legacyTeamUsers{Repository: users}
 }

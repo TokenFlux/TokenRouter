@@ -1,0 +1,8 @@
+{
+  "head": "23eec43d4df55244f7f169a0ebfe348e7658b91b",
+  "branch": "main",
+  "index": "",
+  "toolchain": "go1.27.0",
+  "lint": "2.13.2",
+  "docker": "29.5.2"
+}

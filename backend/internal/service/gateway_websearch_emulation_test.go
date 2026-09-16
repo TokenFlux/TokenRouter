@@ -165,19 +165,6 @@ func newAnthropicAPIKeyAccount(mode string) *Account {
 	}
 }
 
-// setGlobalWebSearchConfig stores a config in the global cache used by SettingService.IsWebSearchEmulationEnabled.
-func setGlobalWebSearchConfig(cfg *WebSearchEmulationConfig) {
-	webSearchEmulationCache.Store(&cachedWebSearchEmulationConfig{
-		config:    cfg,
-		expiresAt: time.Now().Add(10 * time.Minute).UnixNano(),
-	})
-}
-
-// clearGlobalWebSearchConfig resets the global cache to force re-read.
-func clearGlobalWebSearchConfig() {
-	webSearchEmulationCache.Store((*cachedWebSearchEmulationConfig)(nil))
-}
-
 // newSettingServiceForWebSearchTest creates a SettingService with a mock repo pre-loaded with config.
 func newSettingServiceForWebSearchTest(enabled bool) *SettingService {
 	repo := newMockSettingRepo()
@@ -208,11 +195,6 @@ func TestShouldEmulateWebSearch_NilManager(t *testing.T) {
 	defer SetWebSearchManager(nil)
 
 	settingSvc := newSettingServiceForWebSearchTest(true)
-	setGlobalWebSearchConfig(&WebSearchEmulationConfig{
-		Enabled:   true,
-		Providers: []WebSearchProviderConfig{{Type: "brave", APIKey: "k"}},
-	})
-	defer clearGlobalWebSearchConfig()
 
 	svc := &GatewayService{settingService: settingSvc}
 	account := newAnthropicAPIKeyAccount(WebSearchModeEnabled)
@@ -225,11 +207,6 @@ func TestShouldEmulateWebSearch_NotOnlyWebSearchTool(t *testing.T) {
 	defer SetWebSearchManager(nil)
 
 	settingSvc := newSettingServiceForWebSearchTest(true)
-	setGlobalWebSearchConfig(&WebSearchEmulationConfig{
-		Enabled:   true,
-		Providers: []WebSearchProviderConfig{{Type: "brave", APIKey: "k"}},
-	})
-	defer clearGlobalWebSearchConfig()
 
 	svc := &GatewayService{settingService: settingSvc}
 	account := newAnthropicAPIKeyAccount(WebSearchModeEnabled)
@@ -242,11 +219,6 @@ func TestShouldEmulateWebSearch_GlobalDisabled(t *testing.T) {
 	defer SetWebSearchManager(nil)
 
 	// Global config disabled
-	setGlobalWebSearchConfig(&WebSearchEmulationConfig{
-		Enabled:   false,
-		Providers: []WebSearchProviderConfig{{Type: "brave", APIKey: "k"}},
-	})
-	defer clearGlobalWebSearchConfig()
 
 	settingSvc := newSettingServiceForWebSearchTest(false)
 	svc := &GatewayService{settingService: settingSvc}
@@ -259,12 +231,6 @@ func TestShouldEmulateWebSearch_AccountDisabled(t *testing.T) {
 	SetWebSearchManager(mgr)
 	defer SetWebSearchManager(nil)
 
-	setGlobalWebSearchConfig(&WebSearchEmulationConfig{
-		Enabled:   true,
-		Providers: []WebSearchProviderConfig{{Type: "brave", APIKey: "k"}},
-	})
-	defer clearGlobalWebSearchConfig()
-
 	settingSvc := newSettingServiceForWebSearchTest(true)
 	svc := &GatewayService{settingService: settingSvc}
 	account := newAnthropicAPIKeyAccount(WebSearchModeDisabled)
@@ -276,12 +242,6 @@ func TestShouldEmulateWebSearch_AccountEnabled(t *testing.T) {
 	SetWebSearchManager(mgr)
 	defer SetWebSearchManager(nil)
 
-	setGlobalWebSearchConfig(&WebSearchEmulationConfig{
-		Enabled:   true,
-		Providers: []WebSearchProviderConfig{{Type: "brave", APIKey: "k"}},
-	})
-	defer clearGlobalWebSearchConfig()
-
 	settingSvc := newSettingServiceForWebSearchTest(true)
 	svc := &GatewayService{settingService: settingSvc}
 	account := newAnthropicAPIKeyAccount(WebSearchModeEnabled)
@@ -292,12 +252,6 @@ func TestShouldEmulateWebSearch_DefaultMode_ChannelEnabled(t *testing.T) {
 	mgr := websearch.NewManager([]websearch.ProviderConfig{{Type: "brave", APIKey: "k"}}, nil)
 	SetWebSearchManager(mgr)
 	defer SetWebSearchManager(nil)
-
-	setGlobalWebSearchConfig(&WebSearchEmulationConfig{
-		Enabled:   true,
-		Providers: []WebSearchProviderConfig{{Type: "brave", APIKey: "k"}},
-	})
-	defer clearGlobalWebSearchConfig()
 
 	settingSvc := newSettingServiceForWebSearchTest(true)
 	ch := &Channel{
@@ -320,12 +274,6 @@ func TestShouldEmulateWebSearch_DefaultMode_ChannelDisabled(t *testing.T) {
 	SetWebSearchManager(mgr)
 	defer SetWebSearchManager(nil)
 
-	setGlobalWebSearchConfig(&WebSearchEmulationConfig{
-		Enabled:   true,
-		Providers: []WebSearchProviderConfig{{Type: "brave", APIKey: "k"}},
-	})
-	defer clearGlobalWebSearchConfig()
-
 	settingSvc := newSettingServiceForWebSearchTest(true)
 	ch := &Channel{
 		ID:     10,
@@ -347,12 +295,6 @@ func TestShouldEmulateWebSearch_DefaultMode_NilGroupID(t *testing.T) {
 	SetWebSearchManager(mgr)
 	defer SetWebSearchManager(nil)
 
-	setGlobalWebSearchConfig(&WebSearchEmulationConfig{
-		Enabled:   true,
-		Providers: []WebSearchProviderConfig{{Type: "brave", APIKey: "k"}},
-	})
-	defer clearGlobalWebSearchConfig()
-
 	settingSvc := newSettingServiceForWebSearchTest(true)
 	svc := &GatewayService{settingService: settingSvc}
 	account := newAnthropicAPIKeyAccount(WebSearchModeDefault)
@@ -364,12 +306,6 @@ func TestShouldEmulateWebSearch_DefaultMode_NilChannelService(t *testing.T) {
 	mgr := websearch.NewManager([]websearch.ProviderConfig{{Type: "brave", APIKey: "k"}}, nil)
 	SetWebSearchManager(mgr)
 	defer SetWebSearchManager(nil)
-
-	setGlobalWebSearchConfig(&WebSearchEmulationConfig{
-		Enabled:   true,
-		Providers: []WebSearchProviderConfig{{Type: "brave", APIKey: "k"}},
-	})
-	defer clearGlobalWebSearchConfig()
 
 	settingSvc := newSettingServiceForWebSearchTest(true)
 	svc := &GatewayService{settingService: settingSvc, channelService: nil}

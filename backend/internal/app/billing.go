@@ -67,7 +67,7 @@ func provideBillingPlans(client *dbent.Client) *billing.Plans {
 
 // provideSubscriptionExpiry 注入旧通知与锁策略，构造期间不启动后台任务。
 func provideSubscriptionExpiry(repo billing.UserSubscriptionRepository, settings service.SettingRepository, notification *service.NotificationEmailService, lock service.LeaderLockCache, db *sql.DB) *billing.SubscriptionExpiryService {
-	return billing.NewSubscriptionExpiryService(repo, billing.ExpiryOptions{Interval: time.Minute, Owner: uuid.NewString(), Now: time.Now, Observe: func(format string, args ...any) { logging.LegacyPrintf("service.subscription_expiry", format, args...) }, Settings: settings, Notifier: legacybridge.ExpiryNotifications{Service: notification}, Lease: func(ctx context.Context, key, owner string, ttl time.Duration) (func(), bool) {
+	return billing.NewSubscriptionExpiryService(repo, billing.ExpiryOptions{Interval: time.Minute, Owner: uuid.NewString(), Now: time.Now, Observe: func(format string, args ...any) { logging.LegacyPrintf("service.subscription_expiry", format, args...) }, Settings: settings, Notifier: expiryNotifications{Service: notification}, Lease: func(ctx context.Context, key, owner string, ttl time.Duration) (func(), bool) {
 		return legacybridge.BillingMaintenanceLease(ctx, lock, db, key, owner, ttl)
 	}})
 }

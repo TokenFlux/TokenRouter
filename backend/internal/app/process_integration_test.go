@@ -254,6 +254,16 @@ func TestS02ProcessModes(t *testing.T) {
 			require.Less(t, strings.Index(logs, "stopped UsageCleanupService"), strings.Index(logs, "stopped DashboardAggregationService"))
 			require.Less(t, strings.Index(logs, "stopped OpsErrorLogWorkers"), strings.Index(logs, "stopped OpsSystemLogSink"))
 
+			// S10 搜索、审核与通知队列由唯一实例管理，在请求结束后且存储关闭前退出。
+			for _, name := range []string{"WebSearchRuntime", "ContentModerationService", "EmailQueueService"} {
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] started "+name), name)
+				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped HTTPRequests"), strings.Index(logs, "stopped "+name), name)
+				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Redis"), name)
+				require.Less(t, strings.Index(logs, "stopped "+name), strings.Index(logs, "stopped Ent"), name)
+			}
+			require.Less(t, strings.Index(logs, "stopped ContentModerationService"), strings.Index(logs, "stopped EmailQueueService"))
+
 			// S09 原生尝试与授权/额度资源只停止一次，并先于其 Redis/SQL 依赖关闭。
 			for _, name := range []string{"NativeUpstreamAttempts", "QoderRequestsAndAttempts", "QoderCredentialSessions", "OpenAIQuotaActions", "OpenAIQuotaService"} {
 				require.Equal(t, 1, strings.Count(logs, "[Lifecycle] stopped "+name), name)

@@ -2,6 +2,8 @@ package handler
 
 import (
 	gatewayhttp "github.com/TokenFlux/TokenRouter/internal/gateway/httpapi"
+	notificationhttp "github.com/TokenFlux/TokenRouter/internal/notification/httpapi"
+	searchhttp "github.com/TokenFlux/TokenRouter/internal/search/httpapi"
 	usagehttp "github.com/TokenFlux/TokenRouter/internal/usage/httpapi"
 
 	accounthttp "github.com/TokenFlux/TokenRouter/internal/account/httpapi"
@@ -66,6 +68,9 @@ type AdminHandlers struct {
 
 // Handlers contains all HTTP handlers
 type Handlers struct {
+	Search           *searchhttp.Handler
+	PublicSettings   *sitehttpapi.PublicHandler
+	Notification     *notificationhttp.Handler
 	QoderChat        *gatewayhttp.QoderChatHandler
 	PublicUsage      *usagehttp.PublicUsageHandler
 	Plans            *billinghttpapi.PlanHandler

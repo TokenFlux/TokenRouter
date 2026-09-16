@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/notification/...",
+    "./internal/identity/...",
+    "./internal/service",
+    "-run",
+    "Test(NotificationEmail|EmailQueue|OpsScheduledReport|SMTPConnection|SendEmailWithConfig|BuildSMTPMessage|BuildVerifyCode|BuildPasswordReset|SubscriptionExpiry|.*Email.*|.*Password.*)"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 0,
+  "seconds": 16.963,
+  "pass": 185,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/identity-email-unit.log.gz"
+}

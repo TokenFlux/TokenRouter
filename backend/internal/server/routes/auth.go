@@ -245,8 +245,8 @@ func RegisterAuthRoutes(
 	settings := v1.Group("/settings")
 	settings.Use(panelRateLimiter.PublicIP())
 	{
-		settings.GET("/public", h.Setting.GetPublicSettings)
-		settings.GET("/email-unsubscribe", h.Setting.UnsubscribeNotificationEmail)
+		settings.GET("/public", h.PublicSettings.GetPublicSettings)
+		settings.GET("/email-unsubscribe", h.Notification.UnsubscribeNotificationEmail)
 	}
 
 	marketplace := v1.Group("/marketplace")

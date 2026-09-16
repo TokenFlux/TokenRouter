@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-json",
+    "-tags=unit",
+    "./internal/site/...",
+    "./internal/handler",
+    "./internal/server",
+    "-run",
+    "Test.*Page"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 9.506,
+  "pass": 15,
+  "fail": 0,
+  "skip": 0,
+  "log": "logs/site-pages-unit.log.gz"
+}

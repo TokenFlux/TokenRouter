@@ -1,0 +1,21 @@
+{
+  "command": [
+    "go",
+    "test",
+    "-count=1",
+    "-race",
+    "-json",
+    "-overlay=/tmp/tokenrouter-s10-planning/overlay.json",
+    "./internal/pkg/websearch",
+    "-run",
+    "^TestS10Planning",
+    "-timeout=120s"
+  ],
+  "toolchain": "go1.27.0",
+  "exit_code": 1,
+  "seconds": 9.233,
+  "pass": 0,
+  "fail": 1,
+  "skip": 0,
+  "log": "logs/original-search-redis.log.gz"
+}
